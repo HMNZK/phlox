@@ -58,41 +58,40 @@ struct AgentStartCardsView: View {
     let cards: [AgentStartCard]
     let isCreating: Bool
     let onSelect: (AgentKind, SessionBackend) -> Void
-
-    @State private var availableWidth: CGFloat = 0
-
-    private var stackVertically: Bool {
-        AgentStartCardsLayoutPolicy.shouldStackVertically(
-            availableWidth: availableWidth,
-            cardCount: cards.count
-        )
-    }
+    var onLayoutDecision: ((Bool) -> Void)? = nil
 
     var body: some View {
-        VStack(spacing: 0) {
-            Color.clear
-                .frame(height: 0)
-                .frame(maxWidth: .infinity)
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.width
-                } action: { width in
-                    availableWidth = width
-                }
-
-            VStack(spacing: DSSpacing.l) {
-                Text("エージェントを選んでセッションを開始")
-                    .font(DSFont.sectionHeader)
-                    .foregroundStyle(DSColor.textSecondary)
-
-                cardRow
-            }
-            .padding(DSSpacing.l)
+        GeometryReader { proxy in
+            content(availableWidth: proxy.size.width)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
-    private var cardRow: some View {
+    private func content(availableWidth: CGFloat) -> some View {
+        let stackVertically = AgentStartCardsLayoutPolicy.shouldStackVertically(
+            availableWidth: availableWidth,
+            cardCount: cards.count
+        )
+
+        VStack(spacing: DSSpacing.l) {
+            Text("エージェントを選んでセッションを開始")
+                .font(DSFont.sectionHeader)
+                .foregroundStyle(DSColor.textSecondary)
+
+            cardRow(stackVertically: stackVertically)
+        }
+        .padding(DSSpacing.l)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            LayoutDecisionReporter(
+                stacksVertically: stackVertically,
+                onLayoutDecision: onLayoutDecision
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func cardRow(stackVertically: Bool) -> some View {
         if stackVertically {
             ScrollView {
                 VStack(spacing: DSSpacing.m) {
@@ -116,6 +115,19 @@ struct AgentStartCardsView: View {
                 }
             }
         }
+    }
+}
+
+/// 白箱テスト用: レイアウト判定を ImageRenderer 描画時に報告する（表示に影響なし）。
+private struct LayoutDecisionReporter: View {
+    let stacksVertically: Bool
+    var onLayoutDecision: ((Bool) -> Void)?
+
+    var body: some View {
+        if let onLayoutDecision {
+            let _ = onLayoutDecision(stacksVertically)
+        }
+        Color.clear.frame(width: 0, height: 0)
     }
 }
 

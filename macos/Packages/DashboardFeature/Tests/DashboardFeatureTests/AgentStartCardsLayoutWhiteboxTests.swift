@@ -1,5 +1,8 @@
+import AppKit
 import Foundation
+import SwiftUI
 import Testing
+import AgentDomain
 import DesignSystem
 @testable import DashboardFeature
 
@@ -18,4 +21,44 @@ import DesignSystem
 @Test func agentStartCardsLayoutPolicy_zeroCardCount_requiredWidthIsPaddingOnly() {
     let p = AgentStartCardsLayoutPolicy.containerHorizontalPadding
     #expect(AgentStartCardsLayoutPolicy.requiredHorizontalWidth(cardCount: 0) == p * 2)
+}
+
+// MARK: - View wiring (ImageRenderer)
+
+@MainActor
+private func agentStartCardsLayoutDecision(
+    paneWidth: CGFloat,
+    cardCount: Int = 3
+) -> Bool? {
+    final class Box: @unchecked Sendable { var decision: Bool? }
+    let box = Box()
+
+    let kinds: [AgentKind] = [.claudeCode, .codex, .cursor]
+    let cards = kinds.prefix(cardCount).map { AgentStartCard(kind: $0) }
+
+    let view = AgentStartCardsView(
+        cards: cards,
+        isCreating: false,
+        onSelect: { _, _ in },
+        onLayoutDecision: { box.decision = $0 }
+    )
+    .frame(width: paneWidth, height: 800)
+
+    let renderer = ImageRenderer(content: view)
+    renderer.scale = 1
+    _ = renderer.cgImage
+
+    return box.decision
+}
+
+@Test @MainActor
+func agentStartCards_narrowPane_stacksVertically() {
+    let decision = agentStartCardsLayoutDecision(paneWidth: 400, cardCount: 3)
+    #expect(decision == true)
+}
+
+@Test @MainActor
+func agentStartCards_widePane_staysHorizontal() {
+    let decision = agentStartCardsLayoutDecision(paneWidth: 700, cardCount: 3)
+    #expect(decision == false)
 }

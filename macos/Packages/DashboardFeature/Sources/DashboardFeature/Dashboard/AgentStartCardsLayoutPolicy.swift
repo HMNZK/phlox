@@ -15,13 +15,14 @@ enum AgentStartCardsLayoutPolicy {
 
     /// n 枚を横並びで崩れず表示するのに必要な最小幅。
     static func requiredHorizontalWidth(cardCount: Int) -> CGFloat {
-        // task-2: 未実装スタブ。実装役が契約に従い置き換える。
-        0
+        let cardWidth = CGFloat(cardCount) * cardMinOuterWidth
+        let spacingWidth = CGFloat(max(0, cardCount - 1)) * interCardSpacing
+        return cardWidth + spacingWidth + containerHorizontalPadding * 2
     }
 
     /// 利用可能幅が横並びに足りなければ true（縦積みへ切替）。
     static func shouldStackVertically(availableWidth: CGFloat, cardCount: Int) -> Bool {
-        // task-2: 未実装スタブ。実装役が契約に従い置き換える。
-        false
+        guard cardCount >= 2 else { return false }
+        return availableWidth < requiredHorizontalWidth(cardCount: cardCount)
     }
 }

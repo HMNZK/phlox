@@ -59,12 +59,53 @@ struct AgentStartCardsView: View {
     let isCreating: Bool
     let onSelect: (AgentKind, SessionBackend) -> Void
 
-    var body: some View {
-        VStack(spacing: DSSpacing.l) {
-            Text("エージェントを選んでセッションを開始")
-                .font(DSFont.sectionHeader)
-                .foregroundStyle(DSColor.textSecondary)
+    @State private var availableWidth: CGFloat = 0
 
+    private var stackVertically: Bool {
+        AgentStartCardsLayoutPolicy.shouldStackVertically(
+            availableWidth: availableWidth,
+            cardCount: cards.count
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Color.clear
+                .frame(height: 0)
+                .frame(maxWidth: .infinity)
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.width
+                } action: { width in
+                    availableWidth = width
+                }
+
+            VStack(spacing: DSSpacing.l) {
+                Text("エージェントを選んでセッションを開始")
+                    .font(DSFont.sectionHeader)
+                    .foregroundStyle(DSColor.textSecondary)
+
+                cardRow
+            }
+            .padding(DSSpacing.l)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var cardRow: some View {
+        if stackVertically {
+            ScrollView {
+                VStack(spacing: DSSpacing.m) {
+                    ForEach(cards) { card in
+                        AgentStartCardButton(
+                            card: card,
+                            isDisabled: isCreating,
+                            onSelect: onSelect
+                        )
+                    }
+                }
+            }
+        } else {
             HStack(spacing: DSSpacing.m) {
                 ForEach(cards) { card in
                     AgentStartCardButton(
@@ -75,8 +116,6 @@ struct AgentStartCardsView: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(DSSpacing.l)
     }
 }
 

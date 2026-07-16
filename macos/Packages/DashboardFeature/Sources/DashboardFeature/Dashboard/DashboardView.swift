@@ -16,9 +16,6 @@ public struct DashboardView: View {
     @State private var inspectorWidthAtDragStart: CGFloat = 300
     @State private var isCreating = false
 
-    private static let sidebarMinWidth: CGFloat = 240
-    private static let detailMinWidth: CGFloat = 400
-    private static let inspectorMinWidth: CGFloat = 240
     @State private var spawnError: SpawnError?
     @State private var pendingDeletion: SelectedSessionNode?
     @State private var renamingSession: SelectedSessionNode?
@@ -284,11 +281,11 @@ public struct DashboardView: View {
                     ResizeGripView(
                         onChanged: { value in
                             let maxWidth = max(
-                                Self.sidebarMinWidth,
-                                geometry.size.width - Self.detailMinWidth
+                                PaneWidthPolicy.sidebarMinWidth,
+                                geometry.size.width - PaneWidthPolicy.detailMinWidth
                             )
                             let proposed = sidebarWidthAtDragStart + value.translation.width
-                            sidebarWidth = min(max(Self.sidebarMinWidth, proposed), maxWidth)
+                            sidebarWidth = min(max(PaneWidthPolicy.sidebarMinWidth, proposed), maxWidth)
                         },
                         onEnded: { sidebarWidthAtDragStart = sidebarWidth }
                     )
@@ -301,18 +298,27 @@ public struct DashboardView: View {
                     ResizeGripView(
                         onChanged: { value in
                             let maxWidth = max(
-                                Self.inspectorMinWidth,
-                                geometry.size.width - Self.detailMinWidth
+                                PaneWidthPolicy.inspectorMinWidth,
+                                geometry.size.width - PaneWidthPolicy.detailMinWidth
                                     - (router.sidebarVisible ? sidebarWidth : 0)
                             )
                             let proposed = inspectorWidthAtDragStart - value.translation.width
-                            inspectorWidth = min(max(Self.inspectorMinWidth, proposed), maxWidth)
+                            inspectorWidth = min(max(PaneWidthPolicy.inspectorMinWidth, proposed), maxWidth)
                         },
                         onEnded: { inspectorWidthAtDragStart = inspectorWidth }
                     )
                     .offset(x: -(inspectorWidth + 0.5 - ResizeGripView.gripWidth / 2))
                     .onAppear { inspectorWidthAtDragStart = inspectorWidth }
                 }
+            }
+            .onChange(of: geometry.size.width, initial: true) { _, _ in
+                applyPaneWidthClamp(windowWidth: geometry.size.width)
+            }
+            .onChange(of: router.sidebarVisible) { _, _ in
+                applyPaneWidthClamp(windowWidth: geometry.size.width)
+            }
+            .onChange(of: router.inspectorVisible) { _, _ in
+                applyPaneWidthClamp(windowWidth: geometry.size.width)
             }
         }
         // hiddenTitleBar でも SwiftUI は上部にタイトルバー分のセーフエリアを確保するため、
@@ -386,6 +392,20 @@ public struct DashboardView: View {
     private func updateMeasuredTrailingOverlayHeight(_ newHeight: CGFloat) {
         guard newHeight != measuredTrailingOverlayHeight else { return }
         measuredTrailingOverlayHeight = newHeight
+    }
+
+    private func applyPaneWidthClamp(windowWidth: CGFloat) {
+        let clamped = PaneWidthPolicy.clamped(
+            windowWidth: windowWidth,
+            sidebarVisible: router.sidebarVisible,
+            inspectorVisible: router.inspectorVisible,
+            sidebarWidth: sidebarWidth,
+            inspectorWidth: inspectorWidth
+        )
+        sidebarWidth = clamped.sidebar
+        inspectorWidth = clamped.inspector
+        sidebarWidthAtDragStart = clamped.sidebar
+        inspectorWidthAtDragStart = clamped.inspector
     }
 
     private var gridColumns: GridColumns {

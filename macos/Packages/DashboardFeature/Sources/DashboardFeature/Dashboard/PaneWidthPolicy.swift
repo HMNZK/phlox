@@ -23,7 +23,32 @@ enum PaneWidthPolicy {
         sidebarWidth: CGFloat,
         inspectorWidth: CGFloat
     ) -> PaneWidths {
-        // task-1: 未実装スタブ（入力をそのまま返す）。実装役が契約に従い置き換える。
-        PaneWidths(sidebar: sidebarWidth, inspector: inspectorWidth)
+        if !sidebarVisible && !inspectorVisible {
+            return PaneWidths(sidebar: sidebarWidth, inspector: inspectorWidth)
+        }
+
+        let budget = windowWidth - detailMinWidth
+
+        if sidebarVisible && inspectorVisible {
+            var sidebar = sidebarWidth
+            var inspector = inspectorWidth
+
+            if sidebar + inspector > budget {
+                inspector = max(inspectorMinWidth, min(inspector, budget - sidebar))
+                if sidebar + inspector > budget {
+                    sidebar = max(sidebarMinWidth, min(sidebar, budget - inspector))
+                }
+            }
+
+            return PaneWidths(sidebar: sidebar, inspector: inspector)
+        }
+
+        if sidebarVisible {
+            let sidebar = max(sidebarMinWidth, min(sidebarWidth, budget))
+            return PaneWidths(sidebar: sidebar, inspector: inspectorWidth)
+        }
+
+        let inspector = max(inspectorMinWidth, min(inspectorWidth, budget))
+        return PaneWidths(sidebar: sidebarWidth, inspector: inspector)
     }
 }

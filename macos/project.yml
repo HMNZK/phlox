@@ -1,0 +1,142 @@
+name: Phlox
+options:
+  bundleIdPrefix: com.phlox
+  developmentLanguage: ja
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+packages:
+  AgentDomain:
+    path: Packages/AgentDomain
+  AppBootstrap:
+    path: Packages/AppBootstrap
+  HookServer:
+    path: Packages/HookServer
+  LocalHTTPServer:
+    path: Packages/LocalHTTPServer
+  PTYKit:
+    path: Packages/PTYKit
+  TerminalUI:
+    path: Packages/TerminalUI
+  DesignSystem:
+    path: Packages/DesignSystem
+  SessionFeature:
+    path: Packages/SessionFeature
+  DashboardFeature:
+    path: Packages/DashboardFeature
+  MessageStore:
+    path: Packages/MessageStore
+  ControlServer:
+    path: Packages/ControlServer
+  MobileProxy:
+    path: Packages/MobileProxy
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
+
+targets:
+  Phlox:
+    type: application
+    platform: macOS
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleName: "$(PHLOX_APP_DISPLAY_NAME)"
+        CFBundleDisplayName: "$(PHLOX_APP_DISPLAY_NAME)"
+        CFBundleExecutable: "$(EXECUTABLE_NAME)"
+        CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
+        CFBundlePackageType: "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleInfoDictionaryVersion: "6.0"
+        CFBundleDevelopmentRegion: "$(DEVELOPMENT_LANGUAGE)"
+        LSApplicationCategoryType: public.app-category.developer-tools
+        LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
+        CFBundleIconName: AppIcon
+        CFBundleIconFile: AppIcon
+        NSHumanReadableCopyright: ""
+        SUFeedURL: https://phlox.cc/appcast.xml
+        SUPublicEDKey: SxwucM1aQ79y8oB0XjN2HDmBBs75LpX8nlOcYQHKXqo=
+    postBuildScripts:
+      # Debug ビルド後に LaunchServices へ強制再登録し、Dock 表示名を最新の
+      # CFBundleDisplayName（"Phlox (Debug)"）へ更新する。ad-hoc 署名は再ビルドごとに
+      # CDHash が変わり、同一パスへの再ビルドで LS が古い表示名（"Phlox"）をキャッシュし
+      # 続けるため、Dock ラベルが更新されない既知問題への恒久対処。Release では何もしない。
+      - name: Re-register Debug app with LaunchServices (Dock display name)
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ "$CONFIGURATION" = "Debug" ]; then
+            LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+            "$LSREGISTER" -f "$BUILT_PRODUCTS_DIR/$WRAPPER_NAME" || true
+          fi
+    sources:
+      - App
+      - path: scripts
+        buildPhase: resources
+        type: folder
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phlox.Phlox
+        PHLOX_APP_DISPLAY_NAME: Phlox
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "12"
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_ENTITLEMENTS: App/Phlox.entitlements
+        CODE_SIGN_INJECT_BASE_ENTITLEMENTS: YES
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: "6.0"
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.phlox.Phlox.debug
+          PHLOX_APP_DISPLAY_NAME: "Phlox (Debug)"
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Developer ID Application"
+          # 各自の Apple Developer Team ID を設定すること（Signing.example.xcconfig / README 参照）。
+          DEVELOPMENT_TEAM: ""
+    dependencies:
+      - package: AppBootstrap
+      - package: DashboardFeature
+      - package: SessionFeature
+      - package: ControlServer
+      - package: MobileProxy
+      - package: MessageStore
+      - package: PTYKit
+      - package: Sparkle
+        product: Sparkle
+
+  PhloxUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - UITests
+    dependencies:
+      - target: Phlox
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phlox.PhloxUITests
+        TEST_TARGET_NAME: Phlox
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  Phlox:
+    build:
+      targets:
+        Phlox: all
+    run:
+      config: Debug
+  PhloxUITests:
+    build:
+      targets:
+        Phlox: all
+        PhloxUITests: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - PhloxUITests

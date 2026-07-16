@@ -1,0 +1,1160 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" sizes="any" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAxMDI0IDEwMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJQaGxveCI+CjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAuMDgiIHkxPSIwIiB4Mj0iMC45MiIgeTI9IjEiPgo8c3RvcCBvZmZzZXQ9IjAlIiBzdG9wLWNvbG9yPSIjOEI0NUU4Ii8+PHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjRTIzRDhBIi8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+CjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDUxMiw1MTIpIHNjYWxlKDQwKSB0cmFuc2xhdGUoLTEyLC0xMikiIHN0cm9rZT0idXJsKCNnKSIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4KPHBhdGggZD0iTTEyIDYuM1Y5LjhNMTIgMTQuMnYzLjVNNi42IDkuMWwzLjUgMS45TTEzLjkgMTNsMy41IDEuOU02LjYgMTQuOWwzLjUtMS45TTEzLjkgMTFsMy41LTEuOSIgc3Ryb2tlLXdpZHRoPSIwLjQwIi8+CjxnIHN0cm9rZS13aWR0aD0iMC42MCI+PGNpcmNsZSBjeD0iMTIiIGN5PSI0LjUiIHI9IjEuOCIvPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTkuNSIgcj0iMS44Ii8+CjxjaXJjbGUgY3g9IjUiIGN5PSI4LjIiIHI9IjEuOCIvPjxjaXJjbGUgY3g9IjE5IiBjeT0iOC4yIiByPSIxLjgiLz4KPGNpcmNsZSBjeD0iNSIgY3k9IjE1LjgiIHI9IjEuOCIvPjxjaXJjbGUgY3g9IjE5IiBjeT0iMTUuOCIgcj0iMS44Ii8+PC9nPgo8Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSIyLjgiIGZpbGw9InVybCgjZykiIHN0cm9rZT0ibm9uZSIvPjwvZz48L3N2Zz4=">
+<title>Phlox システム解剖 — マルチエージェント・オーケストレーションの内部構造</title>
+<style>
+  /* ============ tokens (committed dark schematic) ============ */
+  :root{
+    color-scheme: dark;
+    /* surfaces — deep violet-tinted ink (phlox hue) */
+    --ink:      oklch(0.165 0.012 320);
+    --ink-1:    oklch(0.195 0.014 320);
+    --ink-2:    oklch(0.225 0.014 320);
+    --ink-3:    oklch(0.265 0.014 320);
+    --line:     oklch(0.32 0.014 320);
+    --line-2:   oklch(0.42 0.016 320);
+    /* text */
+    --text:     oklch(0.94 0.006 320);
+    --muted:    oklch(0.72 0.010 320);
+    --faint:    oklch(0.58 0.012 320);
+    /* phlox accent (from the flower — violet/magenta) */
+    --phlox:    oklch(0.74 0.17 330);
+    --phlox-dim:oklch(0.60 0.15 330);
+    /* category colours = meaning (kept constant across the doc) */
+    --c-control: oklch(0.76 0.16 330);  /* control plane: spawn/send/wait/read */
+    --c-hook:    oklch(0.78 0.11 205);  /* hook plane: status events           */
+    --c-proc:    oklch(0.82 0.14 72);   /* process / PTY / running             */
+    --c-idle:    oklch(0.80 0.15 158);  /* idle / ready / success              */
+    --c-error:   oklch(0.70 0.19 25);   /* error                               */
+    --c-neutral: oklch(0.70 0.012 320); /* infra / CLI / transport chrome      */
+    /* spacing */
+    --s1:.25rem; --s2:.5rem; --s3:.75rem; --s4:1rem; --s5:1.25rem;
+    --s6:1.5rem; --s8:2rem; --s10:2.5rem; --s12:3rem; --s16:4rem; --s20:5rem;
+    /* type */
+    --t-xs:.75rem; --t-sm:.8125rem; --t-base:.9375rem; --t-md:1rem;
+    --t-lg:1.1875rem; --t-xl:1.5rem; --t-2xl:2rem; --t-3xl:2.75rem;
+    --lead:1.65; --lead-tight:1.2;
+    /* radius */
+    --r-sm:7px; --r-md:12px; --r-lg:18px; --r-full:9999px;
+    /* fonts (system stacks — no web fonts) */
+    --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+    /* motion */
+    --dur:180ms; --ease:cubic-bezier(0,0,.2,1);
+    --maxw: 74rem;
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--ink); color:var(--text);
+    font-family:var(--sans); font-size:var(--t-base); line-height:var(--lead);
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    overflow-x:hidden;
+  }
+  /* subtle ambient grid — schematic backdrop */
+  body::before{
+    content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:
+      radial-gradient(120% 80% at 50% -10%, oklch(0.30 0.06 330 / .28), transparent 60%),
+      linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 100% 44px,
+      linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0 / 44px 100%;
+    -webkit-mask-image:linear-gradient(180deg, oklch(0 0 0/.14), transparent 70%);
+            mask-image:linear-gradient(180deg, oklch(0 0 0/.14), transparent 70%);
+    opacity:.5;
+  }
+  main, header, footer{position:relative; z-index:1}
+
+  a{color:var(--phlox); text-decoration:none}
+  a:hover{text-decoration:underline; text-underline-offset:3px}
+  :focus-visible{outline:none; box-shadow:0 0 0 2px var(--ink), 0 0 0 4px var(--phlox); border-radius:var(--r-sm)}
+
+  code, .mono{font-family:var(--mono); font-size:.92em}
+  code{
+    background:var(--ink-2); border:1px solid var(--line);
+    padding:.08em .38em; border-radius:5px; color:oklch(0.90 0.03 330);
+    white-space:nowrap;
+  }
+  .wrap{max-width:var(--maxw); margin-inline:auto; padding-inline:var(--s6)}
+
+  /* ============ top nav ============ */
+  .topbar{
+    position:sticky; top:0; z-index:20;
+    background:oklch(0.165 0.012 320 / .82);
+    backdrop-filter:saturate(140%) blur(12px);
+    -webkit-backdrop-filter:saturate(140%) blur(12px);
+    border-bottom:1px solid var(--line);
+  }
+  .topbar .wrap{display:flex; align-items:center; gap:var(--s5); height:56px}
+  .brand{display:flex; align-items:center; gap:var(--s3); font-weight:600; letter-spacing:-.01em}
+  .brand .glyph{width:36px; height:36px; flex:0 0 auto; display:block}
+  .brand small{font-family:var(--mono); font-weight:400; color:var(--faint); font-size:var(--t-xs); letter-spacing:0}
+  .topnav{margin-left:auto; display:flex; gap:var(--s1); flex-wrap:wrap}
+  .topnav a{
+    font-family:var(--mono); font-size:var(--t-xs); color:var(--muted);
+    padding:.3rem .55rem; border-radius:var(--r-sm); letter-spacing:.02em;
+    transition:background var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .topnav a:hover{background:var(--ink-2); color:var(--text); text-decoration:none}
+  @media (max-width:760px){ .topnav{display:none} }
+
+  /* ============ hero ============ */
+  .hero{padding:var(--s20) 0 var(--s12); text-align:center}
+  .eyebrow{
+    font-family:var(--mono); font-size:var(--t-xs); letter-spacing:.18em;
+    text-transform:uppercase; color:var(--phlox);
+    display:inline-flex; align-items:center; gap:.6em;
+  }
+  .eyebrow::before,.eyebrow::after{content:""; width:28px; height:1px; background:linear-gradient(90deg,transparent,var(--phlox-dim))}
+  .eyebrow::after{background:linear-gradient(90deg,var(--phlox-dim),transparent)}
+  h1{
+    font-size:clamp(2rem, 1.1rem + 4.6vw, 3.5rem); line-height:1.04;
+    letter-spacing:-.028em; font-weight:640; margin:var(--s5) 0 var(--s4);
+    max-width:20ch; margin-inline:auto;
+  }
+  h1 .em{color:var(--phlox)}
+  .lede{
+    font-size:clamp(1rem, .95rem + .5vw, 1.1875rem); color:var(--muted);
+    max-width:60ch; margin:0 auto; line-height:1.6;
+  }
+  .hero-meta{
+    margin-top:var(--s8); display:flex; gap:var(--s2); flex-wrap:wrap; justify-content:center;
+  }
+  .chip{
+    font-family:var(--mono); font-size:var(--t-xs); color:var(--muted);
+    border:1px solid var(--line); background:var(--ink-1);
+    padding:.34rem .7rem; border-radius:var(--r-full); letter-spacing:.01em;
+  }
+  .chip b{color:var(--text); font-weight:600}
+
+  /* reveal on load */
+  .reveal{opacity:0; transform:translateY(14px); animation:rise .7s var(--ease) forwards}
+  .reveal.d1{animation-delay:.05s} .reveal.d2{animation-delay:.14s}
+  .reveal.d3{animation-delay:.23s} .reveal.d4{animation-delay:.32s}
+  @keyframes rise{to{opacity:1; transform:none}}
+
+  /* ============ sections ============ */
+  section{padding:var(--s16) 0; border-top:1px solid var(--line)}
+  .sec-head{display:flex; align-items:baseline; gap:var(--s4); margin-bottom:var(--s8); flex-wrap:wrap}
+  .sec-num{
+    font-family:var(--mono); font-size:var(--t-md); color:var(--phlox);
+    font-weight:500; letter-spacing:.04em;
+  }
+  h2{font-size:clamp(1.5rem,1.2rem+1.4vw,2rem); letter-spacing:-.02em; font-weight:620; margin:0; line-height:1.15}
+  .sec-head p{width:100%; margin:.4rem 0 0; color:var(--muted); max-width:68ch; font-size:var(--t-md)}
+  h3{font-size:var(--t-lg); letter-spacing:-.01em; font-weight:600; margin:var(--s10) 0 var(--s3)}
+  h4{font-size:var(--t-md); font-weight:600; margin:0 0 var(--s2)}
+  p{max-width:70ch}
+  .prose p{margin:var(--s3) 0}
+
+  /* ============ figure / diagrams ============ */
+  figure{margin:var(--s6) 0 var(--s4)}
+  .panel{
+    background:linear-gradient(180deg, var(--ink-1), var(--ink));
+    border:1px solid var(--line); border-radius:var(--r-lg);
+    padding:var(--s6); box-shadow:0 1px 2px oklch(0 0 0/.3), 0 12px 30px oklch(0 0 0/.22);
+  }
+  .panel.tight{padding:var(--s5)}
+  figcaption{
+    font-family:var(--mono); font-size:var(--t-xs); color:var(--faint);
+    margin-top:var(--s3); letter-spacing:.01em; display:flex; gap:.6em; align-items:center;
+  }
+  figcaption b{color:var(--muted); font-weight:500}
+  .scroll-x{overflow-x:auto; -webkit-overflow-scrolling:touch}
+  svg.dg{display:block; width:100%; height:auto; font-family:var(--mono)}
+  svg.dg text{fill:var(--text)}
+  .n-title{font-size:12.5px; font-weight:500}
+  .n-sub{font-size:10.5px; fill:var(--muted); font-family:var(--sans)}
+  .e-label{font-size:10.5px; fill:var(--muted)}
+  .e-label.strong{fill:var(--text)}
+  .ref-label{font-size:10px; fill:var(--faint)}
+  .axis-label{font-size:10px; letter-spacing:.14em; text-transform:uppercase}
+
+  /* legend */
+  .legend{display:flex; gap:var(--s4); flex-wrap:wrap; margin-top:var(--s4)}
+  .legend span{display:inline-flex; align-items:center; gap:.5em; font-family:var(--mono); font-size:var(--t-xs); color:var(--muted)}
+  .legend i{width:22px; height:0; border-top-width:2px; border-top-style:solid; display:inline-block}
+  .legend i.dot{width:10px; height:10px; border-radius:50%; border:none}
+
+  /* ============ cards / grid ============ */
+  .grid{display:grid; gap:var(--s4)}
+  .grid.c2{grid-template-columns:repeat(2,1fr)}
+  .grid.c3{grid-template-columns:repeat(3,1fr)}
+  @media (max-width:820px){ .grid.c2,.grid.c3{grid-template-columns:1fr} }
+  .card{
+    background:var(--ink-1); border:1px solid var(--line); border-radius:var(--r-md);
+    padding:var(--s5); position:relative;
+  }
+  .card.accent{border-color:color-mix(in oklab, var(--cat, var(--phlox)) 45%, var(--line))}
+  .card .tag{
+    font-family:var(--mono); font-size:var(--t-xs); letter-spacing:.04em;
+    color:var(--cat, var(--phlox)); display:inline-flex; align-items:center; gap:.5em; margin-bottom:var(--s2);
+  }
+  .card .tag::before{content:""; width:8px; height:8px; border-radius:2px; background:var(--cat,var(--phlox))}
+  .card p{margin:.35rem 0 0; color:var(--muted); font-size:var(--t-sm); max-width:none}
+  .card ul{margin:.5rem 0 0; padding-left:1.1em; color:var(--muted); font-size:var(--t-sm)}
+  .card ul li{margin:.3rem 0}
+
+  /* ============ tables ============ */
+  table{border-collapse:collapse; width:100%; font-size:var(--t-sm); min-width:520px}
+  .panel table{min-width:0}
+  th,td{text-align:left; padding:.6rem .8rem; border-bottom:1px solid var(--line); vertical-align:top}
+  thead th{
+    font-family:var(--mono); font-size:var(--t-xs); letter-spacing:.03em; text-transform:uppercase;
+    color:var(--faint); font-weight:500; border-bottom-color:var(--line-2);
+  }
+  tbody tr:hover{background:oklch(0.22 0.014 320 / .5)}
+  td.mono, td .mono{color:oklch(0.88 0.03 330)}
+  .num{font-variant-numeric:tabular-nums}
+
+  /* callout */
+  .note{
+    border-left:3px solid var(--phlox-dim); background:var(--ink-1);
+    padding:var(--s4) var(--s5); border-radius:0 var(--r-md) var(--r-md) 0; margin:var(--s5) 0;
+  }
+  .note .k{font-family:var(--mono); font-size:var(--t-xs); color:var(--phlox); letter-spacing:.03em; display:block; margin-bottom:.3rem}
+  .note p{margin:0; color:var(--muted); font-size:var(--t-sm)}
+
+  /* step list (spawn primitives) */
+  ol.steps{counter-reset:st; list-style:none; padding:0; margin:var(--s4) 0}
+  ol.steps li{
+    position:relative; padding:0 0 var(--s4) var(--s10); counter-increment:st;
+  }
+  ol.steps li::before{
+    content:counter(st,decimal-leading-zero); position:absolute; left:0; top:-1px;
+    font-family:var(--mono); font-size:var(--t-xs); color:var(--phlox);
+    border:1px solid var(--line-2); border-radius:var(--r-sm); width:26px; height:26px;
+    display:grid; place-items:center; background:var(--ink-1);
+  }
+  ol.steps li::after{
+    content:""; position:absolute; left:13px; top:26px; bottom:2px; width:1px; background:var(--line);
+  }
+  ol.steps li:last-child::after{display:none}
+  ol.steps b{color:var(--text)}
+  ol.steps p{margin:.2rem 0 0; color:var(--muted); font-size:var(--t-sm)}
+
+  .kv{font-family:var(--mono); font-size:var(--t-sm)}
+  .kv b{color:var(--phlox); font-weight:500}
+
+  footer{border-top:1px solid var(--line); padding:var(--s10) 0 var(--s16); color:var(--faint)}
+  footer .wrap{display:flex; flex-wrap:wrap; gap:var(--s4); align-items:baseline; justify-content:space-between}
+  footer .mono{font-size:var(--t-xs)}
+
+  hr.rule{border:none; border-top:1px solid var(--line); margin:var(--s10) 0}
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important}
+    .reveal{opacity:1; transform:none}
+    .sig-anim{display:none}
+    .sig-static{display:block}
+  }
+  .sig-static{display:none}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <span class="brand">
+      <svg class="glyph" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Phlox"><defs><radialGradient id="pxiBg" cx="50%" cy="40%" r="82%"><stop offset="0%" stop-color="#16101A"/><stop offset="60%" stop-color="#08050B"/><stop offset="100%" stop-color="#030204"/></radialGradient><linearGradient id="pxiGl" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0%" stop-color="#B36BFF"/><stop offset="100%" stop-color="#F65FA6"/></linearGradient></defs><rect x="80" y="80" width="864" height="864" rx="200" fill="url(#pxiBg)"/><rect x="81.25" y="81.25" width="861.5" height="861.5" rx="199" fill="none" stroke="#FFB1F7" stroke-opacity="0.30" stroke-width="2.5"/><g transform="translate(512,508) scale(28) translate(-12,-12)" stroke="url(#pxiGl)" fill="none" stroke-linecap="round"><path d="M12 6.3V9.8M12 14.2v3.5M6.6 9.1l3.5 1.9M13.9 13l3.5 1.9M6.6 14.9l3.5-1.9M13.9 11l3.5-1.9" stroke-width="0.38"/><g stroke-width="0.56"><circle cx="12" cy="4.5" r="1.8"/><circle cx="12" cy="19.5" r="1.8"/><circle cx="5" cy="8.2" r="1.8"/><circle cx="19" cy="8.2" r="1.8"/><circle cx="5" cy="15.8" r="1.8"/><circle cx="19" cy="15.8" r="1.8"/></g><circle cx="12" cy="12" r="2.7" fill="url(#pxiGl)" stroke="none"/></g></svg>
+      Phlox <small>/ system anatomy</small>
+    </span>
+    <nav class="topnav" aria-label="セクション">
+      <a href="#overview">00 · 全体像</a>
+      <a href="#spawn">01 · 起動</a>
+      <a href="#talk">02 · 会話</a>
+      <a href="#status">03 · 完了検知</a>
+      <a href="#safety">04 · 暴走防止</a>
+      <a href="#appendix">05 · 索引</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<!-- ============================ HERO ============================ -->
+<section class="hero" style="border-top:none">
+  <div class="wrap">
+    <span class="eyebrow reveal">multi-agent orchestration, dissected</span>
+    <h1 class="reveal d1">AI エージェント同士が<br><span class="em">互いを操る</span>仕組み</h1>
+    <p class="lede reveal d2">
+      Phlox は、複数の AI コーディング CLI（Claude Code・Codex・Cursor…）を
+      擬似端末（PTY）セッションとして走らせる macOS ネイティブアプリだ。
+      その真価は、あるセッションが <span class="mono" style="color:var(--text)">$PHLOX_CLI</span> を通じて
+      別のセッションを spawn し、指示を送り、完了を待ち、結果を統合できること——
+      すなわち <b style="color:var(--text)">エージェントによるエージェントのオーケストレーション</b>にある。
+      本書はその内部を解剖する。
+    </p>
+
+    <figure class="reveal d3" style="max-width:60rem; margin:var(--s12) auto 0">
+      <div class="panel">
+        <div class="scroll-x">
+        <!-- HERO SCHEMATIC: PM fans out to workers; control-plane down, hook-plane up -->
+        <svg class="dg" viewBox="0 0 680 336" role="img" aria-labelledby="heroT heroD">
+          <title id="heroT">オーケストレーションの俯瞰図</title>
+          <desc id="heroD">PM セッションが 3 つのワーカーセッションを起動し、制御プレーン（紫）で指示を下ろし、フックプレーン（水色）で状態を受け取る。</desc>
+          <defs>
+            <marker id="m-ctrl" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L8 4L0 8z" fill="var(--c-control)"/></marker>
+            <marker id="m-hook" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L8 4L0 8z" fill="var(--c-hook)"/></marker>
+          </defs>
+
+          <!-- edges (neutral rails) -->
+          <g fill="none" stroke="var(--line-2)" stroke-width="1">
+            <path id="edge1" d="M340 96 L150 232"/>
+            <path id="edge2" d="M340 96 L340 232"/>
+            <path id="edge3" d="M340 96 L530 232"/>
+          </g>
+
+          <!-- animated signals: violet dot down (delegate), cyan dot up (report) -->
+          <g class="sig-anim">
+            <circle r="4" fill="var(--c-control)">
+              <animateMotion dur="2.6s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear" begin="0s"><mpath href="#edge1"/></animateMotion>
+              <animate attributeName="opacity" dur="2.6s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;.12;.55;.7;1" begin="0s"/>
+            </circle>
+            <circle r="4" fill="var(--c-control)">
+              <animateMotion dur="2.6s" repeatCount="indefinite" begin="0.5s"><mpath href="#edge2"/></animateMotion>
+              <animate attributeName="opacity" dur="2.6s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;.12;.55;.7;1" begin="0.5s"/>
+            </circle>
+            <circle r="4" fill="var(--c-control)">
+              <animateMotion dur="2.6s" repeatCount="indefinite" begin="1s"><mpath href="#edge3"/></animateMotion>
+              <animate attributeName="opacity" dur="2.6s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;.12;.55;.7;1" begin="1s"/>
+            </circle>
+            <!-- report dots (cyan, reverse) -->
+            <circle r="3.4" fill="var(--c-hook)">
+              <animateMotion dur="2.6s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear" begin="1.3s"><mpath href="#edge1"/></animateMotion>
+              <animate attributeName="opacity" dur="2.6s" repeatCount="indefinite" values="0;0;1;1;0" keyTimes="0;.5;.62;.9;1" begin="1.3s"/>
+            </circle>
+            <circle r="3.4" fill="var(--c-hook)">
+              <animateMotion dur="2.6s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear" begin="1.8s"><mpath href="#edge3"/></animateMotion>
+              <animate attributeName="opacity" dur="2.6s" repeatCount="indefinite" values="0;0;1;1;0" keyTimes="0;.5;.62;.9;1" begin="1.8s"/>
+            </circle>
+          </g>
+          <g class="sig-static">
+            <circle cx="245" cy="164" r="4" fill="var(--c-control)"/>
+            <circle cx="340" cy="164" r="4" fill="var(--c-control)"/>
+            <circle cx="435" cy="164" r="4" fill="var(--c-control)"/>
+          </g>
+
+          <!-- PM node -->
+          <g>
+            <rect x="255" y="40" width="170" height="56" rx="12" fill="var(--c-control)" fill-opacity="0.14" stroke="var(--c-control)" stroke-width="1.4"/>
+            <text class="n-title" x="340" y="64" text-anchor="middle" fill="var(--c-control)">PM セッション</text>
+            <text class="n-sub" x="340" y="80" text-anchor="middle">Claude Code · $PHLOX_SESSION_ID</text>
+          </g>
+
+          <!-- worker nodes -->
+          <g>
+            <rect x="60" y="232" width="180" height="56" rx="12" fill="var(--ink-3)" stroke="var(--c-hook)" stroke-width="1.2"/>
+            <text class="n-title" x="150" y="256" text-anchor="middle">ワーカー · Codex</text>
+            <text class="n-sub" x="150" y="272" text-anchor="middle">高難度の実装</text>
+          </g>
+          <g>
+            <rect x="250" y="232" width="180" height="56" rx="12" fill="var(--ink-3)" stroke="var(--c-hook)" stroke-width="1.2"/>
+            <text class="n-title" x="340" y="256" text-anchor="middle">ワーカー · Cursor</text>
+            <text class="n-sub" x="340" y="272" text-anchor="middle">シンプルな実装</text>
+          </g>
+          <g>
+            <rect x="440" y="232" width="180" height="56" rx="12" fill="var(--ink-3)" stroke="var(--c-hook)" stroke-width="1.2"/>
+            <text class="n-title" x="530" y="256" text-anchor="middle">ワーカー · Claude</text>
+            <text class="n-sub" x="530" y="272" text-anchor="middle">レビュー・相談</text>
+          </g>
+
+          <!-- side labels -->
+          <text class="axis-label" x="470" y="150" fill="var(--c-control)" text-anchor="start">↓ 制御プレーン</text>
+          <text class="axis-label" x="470" y="170" fill="var(--c-hook)" text-anchor="start">↑ フックプレーン</text>
+        </svg>
+        </div>
+        <div class="legend">
+          <span><i class="dot" style="background:var(--c-control)"></i>制御プレーン — spawn · send · wait · read（ControlServer 経由）</span>
+          <span><i class="dot" style="background:var(--c-hook)"></i>フックプレーン — 状態・完了イベント（HookServer 経由）</span>
+        </div>
+      </div>
+      <figcaption><b>Figure 0.</b> PM は指示を下ろし、ワーカーは状態を返す。二つの独立したプレーンが往復を作る。</figcaption>
+    </figure>
+
+    <div class="hero-meta reveal d4">
+      <span class="chip"><b>6</b> 種の CLI を吸収</span>
+      <span class="chip"><b>2</b> つのローカル HTTP サーバー</span>
+      <span class="chip"><b>posix_spawn</b> + PTY</span>
+      <span class="chip">状態機械 <b>6</b> 状態</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 00 OVERVIEW ============================ -->
+<section id="overview">
+  <div class="wrap prose">
+    <div class="sec-head">
+      <span class="sec-num">00</span>
+      <h2>全体像 — 二つのループで CLI と対話する</h2>
+      <p>
+        子セッションで走る CLI は、Mac アプリ本体と <b>二つの独立した経路</b>で会話する。
+        一つは自分から要求を出す<b>制御ループ</b>（<code>$PHLOX_CLI</code> → ControlServer）、
+        もう一つは自分の状態を通知する<b>フックループ</b>（CLI の hooks → HookServer）。
+        この二つが揃って初めて「送って、待って、完了を知る」が成立する。
+      </p>
+    </div>
+
+    <figure>
+      <div class="panel">
+        <div class="scroll-x">
+        <svg class="dg" viewBox="0 0 720 268" role="img" aria-labelledby="ovT ovD">
+          <title id="ovT">二つのループの俯瞰</title>
+          <desc id="ovD">子セッションから ControlServer への制御ループと、HookServer への状態ループが DashboardViewModel に集約される。PTY への書き込みと出力は上部の経路で戻る。</desc>
+          <defs>
+            <marker id="a-ctrl" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="7.5" markerHeight="7.5" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--c-control)"/></marker>
+            <marker id="a-hook" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="7.5" markerHeight="7.5" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--c-hook)"/></marker>
+            <marker id="a-proc" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="7.5" markerHeight="7.5" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--c-proc)"/></marker>
+          </defs>
+
+          <!-- PTY return rail (top) -->
+          <path d="M630 118 L630 26 L112 26 L112 66" fill="none" stroke="var(--c-proc)" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#a-proc)"/>
+          <text class="e-label" x="371" y="20" text-anchor="middle" fill="var(--c-proc)">PTY 書き込み（送信）／ 端末出力（描画）</text>
+
+          <!-- child container -->
+          <rect x="24" y="46" width="176" height="176" rx="14" fill="none" stroke="var(--line-2)" stroke-width="1" stroke-dasharray="4 4"/>
+          <text class="axis-label" x="112" y="40" text-anchor="middle" fill="var(--faint)">子セッション（PTY）</text>
+          <rect x="40" y="66" width="144" height="56" rx="10" fill="var(--ink-3)" stroke="var(--c-neutral)" stroke-width="1.1"/>
+          <text class="n-title" x="112" y="88" text-anchor="middle">CLI プロセス</text>
+          <text class="n-sub" x="112" y="104" text-anchor="middle">claude / codex / cursor</text>
+          <rect x="40" y="150" width="144" height="56" rx="10" fill="var(--ink-3)" stroke="var(--c-neutral)" stroke-width="1.1"/>
+          <text class="n-title" x="112" y="172" text-anchor="middle">$PHLOX_CLI ＋ hooks</text>
+          <text class="n-sub" x="112" y="188" text-anchor="middle">要求と通知の出口</text>
+
+          <!-- servers -->
+          <rect x="298" y="56" width="176" height="58" rx="11" fill="var(--c-control)" fill-opacity="0.12" stroke="var(--c-control)" stroke-width="1.3"/>
+          <text class="n-title" x="386" y="80" text-anchor="middle" fill="var(--c-control)">ControlServer</text>
+          <text class="n-sub" x="386" y="96" text-anchor="middle">spawn · send · wait · read</text>
+
+          <rect x="298" y="166" width="176" height="58" rx="11" fill="var(--c-hook)" fill-opacity="0.12" stroke="var(--c-hook)" stroke-width="1.3"/>
+          <text class="n-title" x="386" y="190" text-anchor="middle" fill="var(--c-hook)">HookServer</text>
+          <text class="n-sub" x="386" y="206" text-anchor="middle">SessionStart · Stop · …</text>
+
+          <!-- core -->
+          <rect x="560" y="96" width="140" height="88" rx="12" fill="var(--ink-2)" stroke="var(--line-2)" stroke-width="1.2"/>
+          <text class="n-title" x="630" y="132" text-anchor="middle">Dashboard</text>
+          <text class="n-title" x="630" y="148" text-anchor="middle">ViewModel</text>
+          <text class="n-sub" x="630" y="166" text-anchor="middle">状態の中枢</text>
+
+          <!-- control arrows -->
+          <path d="M184 168 C240 150 250 92 298 86" fill="none" stroke="var(--c-control)" stroke-width="1.5" marker-end="url(#a-ctrl)"/>
+          <text class="e-label strong" x="238" y="128" text-anchor="middle" fill="var(--c-control)">HTTP + Bearer</text>
+          <path d="M474 86 C512 86 528 128 560 132" fill="none" stroke="var(--c-control)" stroke-width="1.5" marker-end="url(#a-ctrl)"/>
+
+          <!-- hook arrows -->
+          <path d="M184 190 C236 202 250 196 298 196" fill="none" stroke="var(--c-hook)" stroke-width="1.5" marker-end="url(#a-hook)"/>
+          <text class="e-label" x="240" y="214" text-anchor="middle" fill="var(--c-hook)">hook-dispatcher.sh</text>
+          <path d="M474 196 C512 196 528 156 560 150" fill="none" stroke="var(--c-hook)" stroke-width="1.5" marker-end="url(#a-hook)"/>
+        </svg>
+        </div>
+      </div>
+      <figcaption><b>Figure 1.</b> 制御ループ（紫）とフックループ（水色）は別々に <span class="mono">DashboardViewModel</span> へ集約する。<span class="mono">CompositionRoot.swift:45–90</span></figcaption>
+    </figure>
+
+    <div class="grid c3" style="margin-top:var(--s6)">
+      <div class="card accent" style="--cat:var(--c-control)">
+        <span class="tag">制御ループ</span>
+        <h4>要求を出す</h4>
+        <p>子が <code>$PHLOX_CLI spawn/send/wait/read</code> を叩くと、<code>127.0.0.1</code> の ControlServer に <b>HTTP + Bearer トークン</b>で届く。各セッションは自分専用のトークンを持ち、それが「誰の要求か」を認可に使われる。</p>
+      </div>
+      <div class="card accent" style="--cat:var(--c-hook)">
+        <span class="tag">フックループ</span>
+        <h4>状態を通知する</h4>
+        <p>CLI がターン開始・ツール実行・停止といった節目で hooks を撃つと、<code>hook-dispatcher.sh</code> が正規化して HookServer に POST する。これがセッションの running / idle を確定させる。</p>
+      </div>
+      <div class="card accent" style="--cat:var(--c-proc)">
+        <span class="tag">プロセス／PTY</span>
+        <h4>実体を動かす</h4>
+        <p>送信の実体は擬似端末への書き込み、出力の実体は PTY から流れるバイト列。<code>PTYManager</code> が <code>posix_spawn</code> で子プロセスを起こし、その入出力を仲介する。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 01 SPAWN ============================ -->
+<section id="spawn">
+  <div class="wrap prose">
+    <div class="sec-head">
+      <span class="sec-num">01</span>
+      <h2>起動 — テーブル駆動で 6 種の CLI を吸収する</h2>
+      <p>
+        Claude・Codex・Cursor…はコマンド名も引数も完了検知の仕方も違う。Phlox はその差を
+        <b>一枚の宣言的レジストリ</b>に書き下し、起動のコア経路は「どの CLI か」で分岐しない。
+        差分はデータ、経路は共通——これが多 CLI を破綻なく束ねる要になっている。
+      </p>
+    </div>
+
+    <h3>差分はレジストリに、経路は共通に</h3>
+    <p style="color:var(--muted)">
+      各 CLI 一件分の設定（起動バイナリ・権限バイパス引数・resume の渡し方・hook 方式・idle 判定方式）は
+      <code>AgentRegistry.allDescriptors</code> にハードコードされた唯一のソースにまとまる。
+      起動時、<code>AgentLaunchPlanner</code> がこのテーブルを読んで argv と環境変数を組み立てるだけだ。
+    </p>
+
+    <figure>
+      <div class="panel tight">
+        <div class="scroll-x">
+        <svg class="dg" viewBox="0 0 720 250" role="img" aria-labelledby="regT regD">
+          <title id="regT">テーブル駆動の起動</title>
+          <desc id="regD">AgentRegistry の各 Descriptor を Planner が読み、共通の argv/env を出力する。</desc>
+          <defs><marker id="a-nx" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--phlox)"/></marker></defs>
+
+          <text class="axis-label" x="140" y="24" text-anchor="middle" fill="var(--faint)">AgentRegistry.allDescriptors</text>
+          <!-- registry rows -->
+          <g>
+            <rect x="24" y="36" width="232" height="34" rx="8" fill="var(--ink-2)" stroke="var(--c-control)" stroke-width="1"/>
+            <text class="n-title" x="40" y="57" text-anchor="start">claudeCode</text>
+            <text class="ref-label" x="242" y="57" text-anchor="end">--session-id · viaHook</text>
+          </g>
+          <g>
+            <rect x="24" y="78" width="232" height="34" rx="8" fill="var(--ink-2)" stroke="var(--c-proc)" stroke-width="1"/>
+            <text class="n-title" x="40" y="99" text-anchor="start">codex</text>
+            <text class="ref-label" x="242" y="99" text-anchor="end">resume &lt;id&gt; · idleOnSpawn</text>
+          </g>
+          <g>
+            <rect x="24" y="120" width="232" height="34" rx="8" fill="var(--ink-2)" stroke="var(--c-hook)" stroke-width="1"/>
+            <text class="n-title" x="40" y="141" text-anchor="start">cursor</text>
+            <text class="ref-label" x="242" y="141" text-anchor="end">--resume · idleOnSpawn</text>
+          </g>
+          <g>
+            <rect x="24" y="162" width="232" height="34" rx="8" fill="var(--ink-2)" stroke="var(--line-2)" stroke-width="1"/>
+            <text class="n-title" x="40" y="183" text-anchor="start">gemini · goose · opencode</text>
+          </g>
+          <text class="ref-label" x="140" y="216" text-anchor="middle">各 AgentDescriptor / AgentLaunchSpec</text>
+
+          <!-- arrow to planner -->
+          <path d="M262 116 L322 116" fill="none" stroke="var(--phlox)" stroke-width="1.5" marker-end="url(#a-nx)"/>
+
+          <!-- planner -->
+          <rect x="326" y="86" width="150" height="60" rx="12" fill="var(--phlox)" fill-opacity="0.12" stroke="var(--phlox)" stroke-width="1.4"/>
+          <text class="n-title" x="401" y="110" text-anchor="middle" fill="var(--phlox)">AgentLaunch</text>
+          <text class="n-title" x="401" y="126" text-anchor="middle" fill="var(--phlox)">Planner.plan</text>
+
+          <path d="M480 116 L540 116" fill="none" stroke="var(--phlox)" stroke-width="1.5" marker-end="url(#a-nx)"/>
+
+          <!-- output -->
+          <rect x="544" y="62" width="152" height="50" rx="10" fill="var(--ink-2)" stroke="var(--line-2)" stroke-width="1.1"/>
+          <text class="n-title" x="620" y="82" text-anchor="middle">argv</text>
+          <text class="n-sub" x="620" y="98" text-anchor="middle">baseArgs + bypass + resume</text>
+          <rect x="544" y="120" width="152" height="50" rx="10" fill="var(--ink-2)" stroke="var(--line-2)" stroke-width="1.1"/>
+          <text class="n-title" x="620" y="140" text-anchor="middle">env</text>
+          <text class="n-sub" x="620" y="156" text-anchor="middle">PHLOX_* · CLAUDE_HOOKS_URL</text>
+        </svg>
+        </div>
+        <div class="legend">
+          <span><i class="dot" style="background:var(--c-control)"></i>hook 方式（Claude）</span>
+          <span><i class="dot" style="background:var(--c-proc)"></i>出力静止方式（Codex）</span>
+          <span><i class="dot" style="background:var(--c-hook)"></i>出力静止方式（Cursor）</span>
+        </div>
+      </div>
+      <figcaption><b>Figure 2.</b> 新しい CLI を足すのは、原則このテーブルに 1 行追加するだけ。<span class="mono">AgentDescriptor.swift:160–278</span></figcaption>
+    </figure>
+
+    <div class="scroll-x" style="margin:var(--s6) 0">
+      <table>
+        <thead><tr><th>kind</th><th>バイナリ</th><th>権限バイパス</th><th>resume</th><th>完了検知</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">claudeCode</td><td class="mono">claude</td><td>—（settings 制御）</td><td class="mono">--resume</td><td>hook（viaHook）</td></tr>
+          <tr><td class="mono">codex</td><td class="mono">codex</td><td class="mono">--dangerously-bypass-…</td><td class="mono">先頭 resume &lt;id&gt;</td><td>出力静止</td></tr>
+          <tr><td class="mono">cursor</td><td class="mono">cursor-agent</td><td class="mono">--force --sandbox disabled</td><td class="mono">--resume &lt;id&gt;</td><td>出力静止</td></tr>
+          <tr><td class="mono">gemini</td><td class="mono">gemini</td><td class="mono">--yolo</td><td class="mono">append</td><td>出力静止</td></tr>
+          <tr><td class="mono">goose / opencode</td><td class="mono">goose / opencode</td><td>env 変数</td><td class="mono">-r / append</td><td>出力静止</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>起動パイプライン — CLI からプロセスまで</h3>
+    <p style="color:var(--muted)">
+      <code>phlox spawn --kind X</code> でも UI のボタンでも、経路は途中で <code>spawnNewSession</code> に一本化される。
+      最終的に <code>posix_spawn</code> が擬似端末付きで子プロセスを起こす。
+    </p>
+
+    <figure>
+      <div class="panel tight">
+        <div class="scroll-x">
+        <svg class="dg" viewBox="0 0 720 636" role="img" aria-labelledby="pipeT pipeD">
+          <title id="pipeT">起動パイプライン</title>
+          <desc id="pipeD">phlox spawn から posix_spawn まで 8 段の逐次フロー。前半は制御プレーン、中盤はコア、後半はプロセス。</desc>
+          <defs><marker id="a-pl" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="7.5" markerHeight="7.5" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--line-2)"/></marker></defs>
+
+          <!-- vertical connector -->
+          <g fill="none" stroke="var(--line-2)" stroke-width="1.4">
+            <path d="M300 76 L300 96" marker-end="url(#a-pl)"/>
+            <path d="M300 150 L300 170" marker-end="url(#a-pl)"/>
+            <path d="M300 224 L300 244" marker-end="url(#a-pl)"/>
+            <path d="M300 298 L300 318" marker-end="url(#a-pl)"/>
+            <path d="M300 372 L300 392" marker-end="url(#a-pl)"/>
+            <path d="M300 446 L300 466" marker-end="url(#a-pl)"/>
+            <path d="M300 520 L300 540" marker-end="url(#a-pl)"/>
+          </g>
+
+          <!-- boxes: helper draws rect + title + sub + right ref -->
+          <!-- 1 -->
+          <rect x="120" y="24" width="360" height="52" rx="10" fill="var(--ink-2)" stroke="var(--c-neutral)" stroke-width="1.1"/>
+          <text class="n-title" x="140" y="46">phlox spawn --kind X</text>
+          <text class="n-sub" x="140" y="63">bash + curl + jq が POST /sessions</text>
+          <text class="ref-label" x="496" y="54" text-anchor="start">scripts/phlox</text>
+          <circle cx="132" cy="50" r="4" fill="var(--c-neutral)"/>
+
+          <!-- 2 -->
+          <rect x="120" y="98" width="360" height="52" rx="10" fill="var(--ink-2)" stroke="var(--c-control)" stroke-width="1.1"/>
+          <text class="n-title" x="140" y="120" fill="var(--c-control)">ControlServer.route</text>
+          <text class="n-sub" x="140" y="137">kind 文字列 → AgentKind / AgentRef に解決</text>
+          <text class="ref-label" x="496" y="128" text-anchor="start">:192 · parseSpawn</text>
+          <circle cx="132" cy="124" r="4" fill="var(--c-control)"/>
+
+          <!-- 3 -->
+          <rect x="120" y="172" width="360" height="52" rx="10" fill="var(--ink-2)" stroke="var(--c-control)" stroke-width="1.1"/>
+          <text class="n-title" x="140" y="194" fill="var(--c-control)">ControlActionHandler</text>
+          <text class="n-sub" x="140" y="211">認可・エラー写像（429 / 403 / 201）</text>
+          <text class="ref-label" x="496" y="202" text-anchor="start">:114–126</text>
+          <circle cx="132" cy="198" r="4" fill="var(--c-control)"/>
+
+          <!-- 4 -->
+          <rect x="120" y="246" width="360" height="52" rx="10" fill="var(--ink-2)" stroke="var(--phlox)" stroke-width="1.1"/>
+          <text class="n-title" x="140" y="268" fill="var(--phlox)">spawnNewSession</text>
+          <text class="n-sub" x="140" y="285">深さ／レート制限・トークン発行・resume 解決</text>
+          <text class="ref-label" x="496" y="276" text-anchor="start">DashboardVM:972</text>
+          <circle cx="132" cy="272" r="4" fill="var(--phlox)"/>
+
+          <!-- 5 -->
+          <rect x="120" y="320" width="360" height="52" rx="10" fill="var(--ink-2)" stroke="var(--phlox)" stroke-width="1.1"/>
+          <text class="n-title" x="140" y="342" fill="var(--phlox)">AgentLaunchPlanner.plan</text>
+          <text class="n-sub" x="140" y="359">レジストリを読み argv / env を宣言的に生成</text>
+          <text class="ref-label" x="496" y="350" text-anchor="start">:68–167</text>
+          <circle cx="132" cy="346" r="4" fill="var(--phlox)"/>
+
+          <!-- 6 -->
+          <rect x="120" y="394" width="360" height="52" rx="10" fill="var(--ink-2)" stroke="var(--phlox)" stroke-width="1.1"/>
+          <text class="n-title" x="140" y="416" fill="var(--phlox)">SessionViewModel.spawnOnce</text>
+          <text class="n-sub" x="140" y="433">端末サイズ確定後に遅延起動</text>
+          <text class="ref-label" x="496" y="424" text-anchor="start">:271–321</text>
+          <circle cx="132" cy="420" r="4" fill="var(--phlox)"/>
+
+          <!-- 7 -->
+          <rect x="120" y="468" width="360" height="52" rx="10" fill="var(--ink-2)" stroke="var(--c-proc)" stroke-width="1.1"/>
+          <text class="n-title" x="140" y="490" fill="var(--c-proc)">PTYManager.spawn</text>
+          <text class="n-sub" x="140" y="507">PTY の master/slave を確保（actor）</text>
+          <text class="ref-label" x="496" y="498" text-anchor="start">PTYKit:27–91</text>
+          <circle cx="132" cy="494" r="4" fill="var(--c-proc)"/>
+
+          <!-- 8 -->
+          <rect x="120" y="542" width="360" height="52" rx="10" fill="var(--c-proc)" fill-opacity="0.12" stroke="var(--c-proc)" stroke-width="1.3"/>
+          <text class="n-title" x="140" y="564" fill="var(--c-proc)">posix_spawn</text>
+          <text class="n-sub" x="140" y="581">slave を stdio に dup2 → 子プロセス起動</text>
+          <text class="ref-label" x="496" y="572" text-anchor="start">Posix.swift:34</text>
+          <circle cx="132" cy="568" r="4" fill="var(--c-proc)"/>
+        </svg>
+        </div>
+      </div>
+      <figcaption><b>Figure 3.</b> login shell を経由せず、作業ディレクトリは <span class="mono">addchdir_np</span> で子側変更（余計な TCC 要求を回避）。</figcaption>
+    </figure>
+
+    <div class="note">
+      <span class="k">なぜ posix_spawn か</span>
+      <p><code>posix_spawn_file_actions_adddup2</code> で擬似端末の slave を stdin/stdout/stderr に接続し、<code>addchdir_np</code> で作業ディレクトリを<b>子プロセス側で</b>変更する。親で <code>chdir</code> すると macOS が余計な権限ダイアログを出しうるため、それを避ける設計になっている。<span class="mono">Posix.swift:34–104</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 02 TALK ============================ -->
+<section id="talk">
+  <div class="wrap prose">
+    <div class="sec-head">
+      <span class="sec-num">02</span>
+      <h2>会話 — エージェントがエージェントに指示する</h2>
+      <p>
+        オーケストレーションの手順は Claude の <code>/phlox-cli</code> スキルにまとまっている
+        （<b>以前は全セッションへ毎ターン自動注入していたが、ADR 0035 で廃止</b>し、必要なときに明示参照する方式にした）。
+        エージェントは次の 6 つの動詞で仲間を操る。
+      </p>
+    </div>
+
+    <div class="scroll-x" style="margin-bottom:var(--s8)">
+      <table>
+        <thead><tr><th>動詞</th><th>HTTP</th><th>パス</th><th>役割</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">spawn</td><td>POST</td><td class="mono">/sessions</td><td>子エージェントを起動する</td></tr>
+          <tr><td class="mono">send</td><td>POST</td><td class="mono">/send</td><td>子の端末へテキストを送る（＝指示）</td></tr>
+          <tr><td class="mono">wait-ready</td><td>GET</td><td class="mono">/sessions/{id}/ready</td><td>起動完了を待つ（省くと取りこぼす）</td></tr>
+          <tr><td class="mono">wait</td><td>GET</td><td class="mono">/sessions/{id}/wait</td><td>ターン完了を待つ</td></tr>
+          <tr><td class="mono">read</td><td>GET</td><td class="mono">/sessions/{id}/output</td><td>相手の画面テキストを読む</td></tr>
+          <tr><td class="mono">list · rename · kill</td><td>GET/PATCH/DELETE</td><td class="mono">/sessions…</td><td>一覧・改名・終了</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>委譲のループ</h3>
+    <p style="color:var(--muted)">
+      ガイドが指示する定石はこうだ。<b>spawn → wait-ready → send → wait → read</b> を回し、複数を並行させるときは
+      先に全員へ spawn・send してから、各 wait をまとめて回収する。
+    </p>
+
+    <figure>
+      <div class="panel">
+        <div class="scroll-x">
+        <svg class="dg" viewBox="0 0 720 210" role="img" aria-labelledby="loopT loopD">
+          <title id="loopT">委譲のループ</title>
+          <desc id="loopD">spawn, wait-ready, send, wait, read の順に回り、統合へ戻る。</desc>
+          <defs><marker id="a-lp" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="7.5" markerHeight="7.5" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--c-control)"/></marker>
+          <marker id="a-lpw" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="7.5" markerHeight="7.5" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--phlox-dim)"/></marker></defs>
+
+          <!-- 5 stages -->
+          <g>
+            <rect x="24" y="70" width="118" height="60" rx="11" fill="var(--ink-2)" stroke="var(--c-control)" stroke-width="1.2"/>
+            <text class="n-title" x="83" y="96" text-anchor="middle" fill="var(--c-control)">spawn</text>
+            <text class="n-sub" x="83" y="112" text-anchor="middle">起動</text>
+          </g>
+          <g>
+            <rect x="174" y="70" width="118" height="60" rx="11" fill="var(--ink-2)" stroke="var(--c-control)" stroke-width="1.2"/>
+            <text class="n-title" x="233" y="96" text-anchor="middle" fill="var(--c-control)">wait-ready</text>
+            <text class="n-sub" x="233" y="112" text-anchor="middle">起動待ち</text>
+          </g>
+          <g>
+            <rect x="324" y="70" width="118" height="60" rx="11" fill="var(--ink-2)" stroke="var(--c-control)" stroke-width="1.2"/>
+            <text class="n-title" x="383" y="96" text-anchor="middle" fill="var(--c-control)">send</text>
+            <text class="n-sub" x="383" y="112" text-anchor="middle">指示を送る</text>
+          </g>
+          <g>
+            <rect x="474" y="70" width="118" height="60" rx="11" fill="var(--ink-2)" stroke="var(--c-control)" stroke-width="1.2"/>
+            <text class="n-title" x="533" y="96" text-anchor="middle" fill="var(--c-control)">wait</text>
+            <text class="n-sub" x="533" y="112" text-anchor="middle">完了待ち</text>
+          </g>
+          <g>
+            <rect x="600" y="70" width="96" height="60" rx="11" fill="var(--ink-2)" stroke="var(--c-hook)" stroke-width="1.2"/>
+            <text class="n-title" x="648" y="96" text-anchor="middle" fill="var(--c-hook)">read</text>
+            <text class="n-sub" x="648" y="112" text-anchor="middle">回収</text>
+          </g>
+
+          <!-- forward arrows -->
+          <g fill="none" stroke="var(--c-control)" stroke-width="1.5">
+            <path d="M142 100 L174 100" marker-end="url(#a-lp)"/>
+            <path d="M292 100 L324 100" marker-end="url(#a-lp)"/>
+            <path d="M442 100 L474 100" marker-end="url(#a-lp)"/>
+            <path d="M592 100 L600 100" marker-end="url(#a-lp)"/>
+          </g>
+
+          <!-- integrate return -->
+          <path d="M648 70 C648 34 383 34 200 34 L83 34 L83 70" fill="none" stroke="var(--phlox-dim)" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#a-lpw)"/>
+          <text class="e-label" x="366" y="28" text-anchor="middle" fill="var(--phlox-dim)">結果を統合し、次の委譲へ</text>
+
+          <text class="e-label" x="360" y="168" text-anchor="middle">並行時：先に全員へ spawn・send → その後 wait をまとめて回収</text>
+        </svg>
+        </div>
+      </div>
+      <figcaption><b>Figure 4.</b> <span class="mono">wait-ready</span> を省くと送信が起動前に届いて取りこぼす——ガイドが太字で戒める理由。</figcaption>
+    </figure>
+
+    <h3>send は「ただの文字列」ではない</h3>
+    <p style="color:var(--muted)">
+      <code>send</code> が擬似端末に文字を書き込むまでに、いくつもの関門を通る。無害な送信に見えて、
+      レート制限・制御文字拒否・送信元の明示・確実な確定（submit）まで面倒を見ている。
+    </p>
+
+    <figure>
+      <div class="panel tight">
+        <div class="scroll-x">
+        <svg class="dg" viewBox="0 0 720 300" role="img" aria-labelledby="sendT sendD">
+          <title id="sendT">send のデータフロー</title>
+          <desc id="sendD">phlox send から子 PTY まで。レート制限・制御文字拒否・送信元前置・bracketed paste・250ms 待ち・CR 送出という関門を通る。</desc>
+          <defs><marker id="a-sd" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="7.5" markerHeight="7.5" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--c-control)"/></marker>
+          <marker id="a-gate" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--c-error)"/></marker></defs>
+
+          <g fill="none" stroke="var(--c-control)" stroke-width="1.5">
+            <path d="M300 66 L300 86" marker-end="url(#a-sd)"/>
+            <path d="M300 132 L300 152" marker-end="url(#a-sd)"/>
+            <path d="M300 198 L300 218" marker-end="url(#a-sd)"/>
+          </g>
+
+          <!-- boxes -->
+          <rect x="150" y="24" width="300" height="42" rx="9" fill="var(--ink-2)" stroke="var(--c-neutral)" stroke-width="1.1"/>
+          <text class="n-title" x="300" y="50" text-anchor="middle">phlox send --to id -- "…"</text>
+
+          <rect x="150" y="90" width="300" height="42" rx="9" fill="var(--ink-2)" stroke="var(--c-control)" stroke-width="1.1"/>
+          <text class="n-title" x="300" y="110" text-anchor="middle" fill="var(--c-control)">MessagingService.send</text>
+          <text class="n-sub" x="300" y="125" text-anchor="middle">宛先解決 → 整形 → SQLite 記録</text>
+
+          <rect x="150" y="156" width="300" height="42" rx="9" fill="var(--ink-2)" stroke="var(--phlox)" stroke-width="1.1"/>
+          <text class="n-title" x="300" y="176" text-anchor="middle" fill="var(--phlox)">SessionViewModel.sendText</text>
+          <text class="n-sub" x="300" y="191" text-anchor="middle">PTY への実書き込み</text>
+
+          <rect x="150" y="222" width="300" height="42" rx="9" fill="var(--c-proc)" fill-opacity="0.12" stroke="var(--c-proc)" stroke-width="1.2"/>
+          <text class="n-title" x="300" y="248" text-anchor="middle" fill="var(--c-proc)">子プロセスの PTY</text>
+
+          <!-- gates on the right of MessagingService -->
+          <g>
+            <rect x="470" y="86" width="228" height="50" rx="9" fill="var(--ink-1)" stroke="var(--c-error)" stroke-width="1" stroke-dasharray="4 3"/>
+            <text class="ref-label" x="484" y="104" fill="var(--c-error)">関門①  20 通/秒 の レート制限</text>
+            <text class="ref-label" x="484" y="120" fill="var(--c-error)">関門②  改行・ESC 等の制御文字を拒否</text>
+          </g>
+          <path d="M450 111 L470 111" fill="none" stroke="var(--c-error)" stroke-width="1.1" marker-end="url(#a-gate)"/>
+          <text class="ref-label" x="484" y="132" fill="var(--faint)">→ 送信元 [from X] を前置</text>
+
+          <!-- gates on the right of sendText -->
+          <g>
+            <rect x="470" y="150" width="228" height="70" rx="9" fill="var(--ink-1)" stroke="var(--c-proc)" stroke-width="1" stroke-dasharray="4 3"/>
+            <text class="ref-label" x="484" y="168" fill="var(--c-proc)">③ bracketed paste で本文を包む</text>
+            <text class="ref-label" x="484" y="184" fill="var(--c-proc)">④ 250ms 待機（Enter 抑制窓を跨ぐ）</text>
+            <text class="ref-label" x="484" y="200" fill="var(--c-proc)">⑤ CR（\r）を送って確定</text>
+            <text class="ref-label" x="484" y="214" fill="var(--faint)">paste 非対応の CLI は素通し</text>
+          </g>
+          <path d="M450 177 L470 177" fill="none" stroke="var(--c-proc)" stroke-width="1.1" marker-end="url(#a-gate)"/>
+        </svg>
+        </div>
+      </div>
+      <figcaption><b>Figure 5.</b> Codex は長文ペーストの末尾で Enter を抑制する。bracketed paste（<span class="mono">CSI 200~/201~</span>）で本文を包み、<span class="mono">250ms</span> 待って CR を別送することで、長文でも確実に確定する。<span class="mono">ADR 0002 §8</span></figcaption>
+    </figure>
+
+    <div class="grid c2">
+      <div class="card">
+        <span class="tag" style="--cat:var(--c-error)">安全弁</span>
+        <h4>制御文字は拒否する</h4>
+        <p>本文に <code>\n</code> <code>\r</code> ESC などが含まれると <span class="mono">rejected("control-characters")</span> で弾く。委譲メッセージが「必ず 1 行」なのはこのため。<span class="mono">MessagingService.swift:117</span></p>
+      </div>
+      <div class="card">
+        <span class="tag" style="--cat:var(--c-hook)">出所の明示</span>
+        <h4>[from X] を前置する</h4>
+        <p>本文の先頭に送信元名を付ける。ガイドは「先頭の <code>[from X]</code> にそのまま投げ返すな」と釘を刺す——ループ暴走の芽を摘む。</p>
+      </div>
+    </div>
+
+    <h3 style="margin-top:var(--s10)">ガイドの配信 — 廃止（ADR 0035）</h3>
+    <p style="color:var(--muted)">
+      かつては単一の本文（<code>guideText</code>）を CLI ごとに違う経路で毎ターン届けていた（下表）。この自動注入は
+      <b>ADR 0035 で全種別廃止</b>し、手順は <code>/phlox-cli</code> スキルへ移設した。以下は廃止前の経路（歴史的参考）。
+    </p>
+    <div class="scroll-x">
+      <table>
+        <thead><tr><th>CLI</th><th>注入経路</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">Claude Code</td><td>起動引数 <span class="mono">--append-system-prompt &lt;guideText&gt;</span>（ファイルは書かない）</td></tr>
+          <tr><td class="mono">Codex</td><td>env で渡し、<span class="mono">UserPromptSubmit</span> hook が <span class="mono">additionalContext</span> として毎ターン返す</td></tr>
+          <tr><td class="mono">Cursor</td><td><span class="mono">.cursor/rules/phlox.mdc</span>（<span class="mono">alwaysApply: true</span>）</td></tr>
+          <tr><td class="mono">Gemini / Goose / opencode</td><td><span class="mono">GEMINI.md</span> / <span class="mono">.goosehints</span> / <span class="mono">AGENTS.md</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 03 STATUS ============================ -->
+<section id="status">
+  <div class="wrap prose">
+    <div class="sec-head">
+      <span class="sec-num">03</span>
+      <h2>完了検知 — 「終わった」をどう知るか</h2>
+      <p>
+        オーケストレーションの心臓は <code>wait</code> だ。だが「相手のターンが終わった」を機械的に知るのは難しい。
+        Phlox は状態を <b>6 つの状態と純粋関数の遷移</b>に落とし込み、CLI の流儀に応じて二通りの方法で idle を確定させる。
+      </p>
+    </div>
+
+    <h3>状態機械 — <span class="mono" style="font-size:.85em">reduce(status, event)</span></h3>
+    <p style="color:var(--muted)">
+      状態遷移は副作用のない純粋関数 <code>reduce(_:applying:)</code> だ。現在の状態とフックイベントから次の状態が決まる。
+      これがテスト可能で予測可能な「完了」の定義を与える。
+    </p>
+
+    <figure>
+      <div class="panel">
+        <div class="scroll-x">
+        <svg class="dg" viewBox="0 0 772 478" role="img" aria-labelledby="smT smD">
+          <title id="smT">セッション状態機械</title>
+          <desc id="smD">starting から idle、idle と running の往復、awaitingApproval への分岐、completed と error の終端を示す状態遷移図。</desc>
+          <defs>
+            <marker id="s-n" viewBox="0 0 9 9" refX="7" refY="4.5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L9 4.5L0 9z" fill="var(--line-2)"/></marker>
+            <marker id="s-g" viewBox="0 0 9 9" refX="7" refY="4.5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L9 4.5L0 9z" fill="var(--c-idle)"/></marker>
+            <marker id="s-a" viewBox="0 0 9 9" refX="7" refY="4.5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L9 4.5L0 9z" fill="var(--c-proc)"/></marker>
+            <marker id="s-v" viewBox="0 0 9 9" refX="7" refY="4.5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L9 4.5L0 9z" fill="var(--phlox)"/></marker>
+            <marker id="s-e" viewBox="0 0 9 9" refX="7" refY="4.5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L9 4.5L0 9z" fill="var(--c-error)"/></marker>
+          </defs>
+
+          <!-- edges first -->
+          <!-- starting -> idle -->
+          <path d="M365 92 L365 148" fill="none" stroke="var(--line-2)" stroke-width="1.5" marker-end="url(#s-n)"/>
+          <text class="e-label strong" x="376" y="124" text-anchor="start">SessionStart</text>
+          <text class="e-label" x="376" y="138" text-anchor="start" fill="var(--faint)">／ spawn 完了</text>
+
+          <!-- idle -> running -->
+          <path d="M365 206 L365 298" fill="none" stroke="var(--c-proc)" stroke-width="1.6" marker-end="url(#s-a)"/>
+          <text class="e-label strong" x="378" y="248" text-anchor="start" fill="var(--c-proc)">userPromptSubmit</text>
+          <text class="e-label" x="378" y="262" text-anchor="start" fill="var(--faint)">ツール実行</text>
+
+          <!-- running -> idle (return, left curve) -->
+          <path d="M300 320 C244 320 244 184 300 184" fill="none" stroke="var(--c-idle)" stroke-width="1.6" marker-end="url(#s-g)"/>
+          <text class="e-label strong" x="236" y="244" text-anchor="end" fill="var(--c-idle)">stop</text>
+          <text class="e-label" x="236" y="258" text-anchor="end" fill="var(--faint)">／ 400ms 静止</text>
+          <text class="e-label" x="236" y="272" text-anchor="end" fill="var(--faint)">／ lone-ESC</text>
+          <text class="e-label" x="236" y="290" text-anchor="end" fill="var(--c-idle)">+ turn++</text>
+
+          <!-- running -> awaiting -->
+          <path d="M435 312 L528 312" fill="none" stroke="var(--phlox)" stroke-width="1.6" marker-end="url(#s-v)"/>
+          <text class="e-label strong" x="482" y="304" text-anchor="middle" fill="var(--phlox)">承認が要る操作</text>
+
+          <!-- awaiting -> running -->
+          <path d="M528 340 L435 340" fill="none" stroke="var(--line-2)" stroke-width="1.4" marker-end="url(#s-n)"/>
+          <text class="e-label" x="482" y="356" text-anchor="middle" fill="var(--faint)">承認応答</text>
+
+          <!-- awaiting self loop (stop maintained) -->
+          <path d="M692 312 C724 300 724 340 700 340" fill="none" stroke="var(--phlox-dim)" stroke-width="1.3" marker-end="url(#s-v)"/>
+          <text class="e-label" x="712" y="300" text-anchor="middle" fill="var(--faint)">stop=維持</text>
+
+          <!-- running -> completed -->
+          <path d="M320 354 L180 410" fill="none" stroke="var(--c-idle)" stroke-width="1.5" marker-end="url(#s-g)"/>
+          <text class="e-label" x="214" y="392" text-anchor="middle" fill="var(--faint)">exit 0</text>
+          <!-- running -> error -->
+          <path d="M405 354 L560 412" fill="none" stroke="var(--c-error)" stroke-width="1.5" marker-end="url(#s-e)"/>
+          <text class="e-label" x="512" y="386" text-anchor="middle" fill="var(--faint)">exit≠0</text>
+
+          <!-- nodes -->
+          <g>
+            <rect x="295" y="36" width="140" height="56" rx="12" fill="var(--c-neutral)" fill-opacity="0.1" stroke="var(--c-neutral)" stroke-width="1.4"/>
+            <text class="n-title" x="365" y="60" text-anchor="middle" fill="var(--c-neutral)">starting</text>
+            <text class="n-sub" x="365" y="77" text-anchor="middle">起動中</text>
+          </g>
+          <g>
+            <rect x="295" y="150" width="140" height="56" rx="12" fill="var(--c-idle)" fill-opacity="0.12" stroke="var(--c-idle)" stroke-width="1.5"/>
+            <text class="n-title" x="365" y="174" text-anchor="middle" fill="var(--c-idle)">idle</text>
+            <text class="n-sub" x="365" y="191" text-anchor="middle">入力可・ターン待ち</text>
+          </g>
+          <g>
+            <rect x="295" y="300" width="140" height="56" rx="12" fill="var(--c-proc)" fill-opacity="0.12" stroke="var(--c-proc)" stroke-width="1.5"/>
+            <text class="n-title" x="365" y="324" text-anchor="middle" fill="var(--c-proc)">running</text>
+            <text class="n-sub" x="365" y="341" text-anchor="middle">ターン処理中</text>
+          </g>
+          <g>
+            <rect x="528" y="296" width="164" height="56" rx="12" fill="var(--phlox)" fill-opacity="0.12" stroke="var(--phlox)" stroke-width="1.5"/>
+            <text class="n-title" x="610" y="320" text-anchor="middle" fill="var(--phlox)">awaitingApproval</text>
+            <text class="n-sub" x="610" y="337" text-anchor="middle">承認待ち</text>
+          </g>
+          <g>
+            <rect x="60" y="414" width="150" height="52" rx="12" fill="var(--c-idle)" fill-opacity="0.09" stroke="var(--c-idle)" stroke-width="1.3" stroke-dasharray="5 3"/>
+            <text class="n-title" x="135" y="437" text-anchor="middle" fill="var(--c-idle)">completed</text>
+            <text class="n-sub" x="135" y="453" text-anchor="middle">終端（吸収）</text>
+          </g>
+          <g>
+            <rect x="500" y="414" width="150" height="52" rx="12" fill="var(--c-error)" fill-opacity="0.1" stroke="var(--c-error)" stroke-width="1.3" stroke-dasharray="5 3"/>
+            <text class="n-title" x="575" y="437" text-anchor="middle" fill="var(--c-error)">error</text>
+            <text class="n-sub" x="575" y="453" text-anchor="middle">終端（吸収）</text>
+          </g>
+        </svg>
+        </div>
+        <div class="legend">
+          <span><i class="dot" style="background:var(--c-idle)"></i>idle へ（＋ターン完了カウント）</span>
+          <span><i class="dot" style="background:var(--c-proc)"></i>running へ</span>
+          <span><i class="dot" style="background:var(--phlox)"></i>承認待ちへ</span>
+          <span><i class="dot" style="background:var(--c-error)"></i>異常終了</span>
+        </div>
+      </div>
+      <figcaption><b>Figure 6.</b> <span class="mono">completed</span>／<span class="mono">error</span> はどのイベントでも自己ループする吸収状態。承認待ちは <span class="mono">stop</span> で idle に戻さない。<span class="mono">StatusReducer.swift:11–41</span></figcaption>
+    </figure>
+
+    <div class="note">
+      <span class="k">wait が完了とみなす瞬間</span>
+      <p><code>running → idle</code> の遷移で <span class="mono">completedTurnSeq</span> が 1 つ進む。<code>wait</code> は開始時のシーケンス値を基準に <span class="mono">100ms</span> ごとにポーリングし、この値が基準を超え、かつ承認待ちでなければ <b>done</b> を返す。イベント購読ではなくポーリングで、hook 方式・出力静止方式のどちらでも同じ「turn++」に集約される。<span class="mono">DashboardViewModel.swift:1346–1407</span></p>
+    </div>
+
+    <h3>idle を確定させる二つの方法</h3>
+    <p style="color:var(--muted)">
+      Claude は hooks で明示的に「停止した」と教えてくれる。だが Codex・Cursor はそれを撃たない。
+      そこで Phlox は<b>出力が一定時間静止したら idle</b>とみなす方式を併走させる。同じ turn++ に着地するのがミソだ。
+    </p>
+
+    <div class="grid c2">
+      <div class="card accent" style="--cat:var(--c-hook)">
+        <span class="tag">Claude · <span class="mono" style="text-transform:none">viaHook</span></span>
+        <h4>フックで確定する</h4>
+        <ul>
+          <li><code>SessionStart</code> が来るまで <span class="mono">starting</span> から抜けない（フォールバックなし）</li>
+          <li><code>Stop</code> フックで <span class="mono">running → idle</span>、turn 完了</li>
+          <li>ESC 単体入力は Stop を出さないため、<b>lone-ESC で idle 復帰</b>する特例補正あり</li>
+        </ul>
+      </div>
+      <div class="card accent" style="--cat:var(--c-proc)">
+        <span class="tag">Codex · Cursor · <span class="mono" style="text-transform:none">idleOnSpawnComplete</span></span>
+        <h4>出力静止で確定する</h4>
+        <ul>
+          <li>spawn 完了で即 <span class="mono">idle</span>。入力可否は「出力が落ち着いたか」だけで判定</li>
+          <li>送信後、出力が届くたびに <b>400ms のタイマー</b>を張り直す（世代カウンタで最新だけ有効）</li>
+          <li>最後の出力から <span class="mono">400ms</span> 静止で <span class="mono">running → idle</span>、turn 完了</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="margin-top:var(--s10)">支配する時間定数</h3>
+    <p style="color:var(--muted)">この orchestration の「間合い」は、いくつかの小さな定数で決まっている。</p>
+    <div class="scroll-x">
+      <table>
+        <thead><tr><th>定数</th><th class="num">値</th><th>役割</th></tr></thead>
+        <tbody>
+          <tr><td>出力静止 settle 窓</td><td class="num mono">400 ms</td><td>Codex/Cursor の idle 確定（最後の出力からの静止時間）</td></tr>
+          <tr><td>submit キー遅延</td><td class="num mono">250 ms</td><td>bracketed paste 後、CR を送るまでの待ち（Enter 抑制窓を跨ぐ）</td></tr>
+          <tr><td>done ポーリング間隔</td><td class="num mono">100 ms</td><td><code>wait</code> が turn 完了を検出する周期</td></tr>
+          <tr><td>ready ポーリング間隔</td><td class="num mono">20 ms</td><td><code>wait-ready</code> が入力可を検出する周期</td></tr>
+          <tr><td>Codex 出力評価 debounce</td><td class="num mono">75 ms</td><td>質問・信頼プロンプトの検知間隔</td></tr>
+          <tr><td>送信レート上限</td><td class="num mono">20 /秒</td><td>1 セッションあたりの send 上限（超過で 429）</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 04 SAFETY ============================ -->
+<section id="safety">
+  <div class="wrap prose">
+    <div class="sec-head">
+      <span class="sec-num">04</span>
+      <h2>暴走防止 — 木・深さ・認可</h2>
+      <p>
+        エージェントがエージェントを起動できるということは、放置すれば<b>指数的に増殖しうる</b>ということでもある。
+        Phlox は親子の木構造・上限・認可の三段で、この危うさを機械的に抑え込む。
+      </p>
+    </div>
+
+    <figure>
+      <div class="panel">
+        <div class="scroll-x">
+        <svg class="dg" viewBox="0 0 720 300" role="img" aria-labelledby="treeT treeD">
+          <title id="treeT">セッションツリーと上限</title>
+          <desc id="treeD">root から深さ 3 までの親子木。総数 16・深さ 3・毎秒 5 の上限と、祖先だけが kill できる認可を示す。</desc>
+          <defs><marker id="t-n" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--line-2)"/></marker></defs>
+
+          <!-- depth guides -->
+          <g stroke="var(--line)" stroke-width="1" stroke-dasharray="3 4">
+            <line x1="40" y1="72" x2="680" y2="72"/>
+            <line x1="40" y1="158" x2="680" y2="158"/>
+            <line x1="40" y1="244" x2="680" y2="244"/>
+          </g>
+          <text class="ref-label" x="48" y="52" fill="var(--faint)">depth 0</text>
+          <text class="ref-label" x="48" y="138" fill="var(--faint)">depth 1</text>
+          <text class="ref-label" x="48" y="224" fill="var(--faint)">depth 2 … 上限 3</text>
+
+          <!-- edges -->
+          <g fill="none" stroke="var(--line-2)" stroke-width="1.3">
+            <path d="M300 88 L180 130" marker-end="url(#t-n)"/>
+            <path d="M300 88 L300 130" marker-end="url(#t-n)"/>
+            <path d="M300 88 L440 130" marker-end="url(#t-n)"/>
+            <path d="M180 158 L140 216" marker-end="url(#t-n)"/>
+            <path d="M180 158 L240 216" marker-end="url(#t-n)"/>
+          </g>
+
+          <!-- root -->
+          <rect x="240" y="58" width="120" height="30" rx="8" fill="var(--c-control)" fill-opacity="0.14" stroke="var(--c-control)" stroke-width="1.3"/>
+          <text class="n-title" x="300" y="78" text-anchor="middle" fill="var(--c-control)">PM (root)</text>
+
+          <!-- depth1 -->
+          <rect x="128" y="128" width="104" height="30" rx="8" fill="var(--ink-3)" stroke="var(--c-hook)" stroke-width="1.1"/>
+          <text class="n-sub" x="180" y="147" text-anchor="middle" fill="var(--text)">Codex</text>
+          <rect x="248" y="128" width="104" height="30" rx="8" fill="var(--ink-3)" stroke="var(--c-hook)" stroke-width="1.1"/>
+          <text class="n-sub" x="300" y="147" text-anchor="middle" fill="var(--text)">Cursor</text>
+          <rect x="388" y="128" width="104" height="30" rx="8" fill="var(--ink-3)" stroke="var(--c-hook)" stroke-width="1.1"/>
+          <text class="n-sub" x="440" y="147" text-anchor="middle" fill="var(--text)">Claude</text>
+
+          <!-- depth2 -->
+          <rect x="88" y="214" width="104" height="30" rx="8" fill="var(--ink-3)" stroke="var(--line-2)" stroke-width="1.1"/>
+          <text class="n-sub" x="140" y="233" text-anchor="middle" fill="var(--muted)">孫セッション</text>
+          <rect x="188" y="214" width="104" height="30" rx="8" fill="var(--ink-3)" stroke="var(--line-2)" stroke-width="1.1"/>
+          <text class="n-sub" x="240" y="233" text-anchor="middle" fill="var(--muted)">孫セッション</text>
+
+          <!-- limits panel -->
+          <g>
+            <rect x="516" y="176" width="176" height="96" rx="10" fill="var(--ink-1)" stroke="var(--c-error)" stroke-width="1" stroke-dasharray="4 3"/>
+            <text class="axis-label" x="604" y="196" text-anchor="middle" fill="var(--c-error)">SpawnPolicy 上限</text>
+            <text class="ref-label" x="532" y="216" fill="var(--muted)">総数 ≤ 16 セッション</text>
+            <text class="ref-label" x="532" y="234" fill="var(--muted)">連鎖の深さ ≤ 3</text>
+            <text class="ref-label" x="532" y="252" fill="var(--muted)">spawn ≤ 5 /秒</text>
+            <text class="ref-label" x="532" y="266" fill="var(--faint)">超過 → 429 / 403</text>
+          </g>
+        </svg>
+        </div>
+      </div>
+      <figcaption><b>Figure 7.</b> 深さ計算は visited セット＋残数カウンタで、リンクが循環・欠損していても打ち切る。<span class="mono">SpawnPolicy.swift:8–60</span></figcaption>
+    </figure>
+
+    <div class="grid c3">
+      <div class="card accent" style="--cat:var(--c-error)">
+        <span class="tag">増殖を抑える</span>
+        <h4>三つの上限</h4>
+        <p>総数 16・深さ 3・毎秒 5。spawn 時に <b>レート記録 → 総数/深さ検証</b>の順で判定し、超過は <span class="mono">429</span>（レート/総数）・<span class="mono">403</span>（深さ）で拒否する。</p>
+      </div>
+      <div class="card accent" style="--cat:var(--phlox)">
+        <span class="tag">誰が誰を殺せるか</span>
+        <h4>祖先だけが kill できる</h4>
+        <p><code>kill</code> は、要求元が対象の<b>祖先である場合のみ</b>許可。無関係なセッションを終了させられない。親リンクを visited 付きで辿って判定する。<span class="mono">SpawnPolicy.swift:70–97</span></p>
+      </div>
+      <div class="card accent" style="--cat:var(--c-hook)">
+        <span class="tag">循環に強い</span>
+        <h4>木の構築も安全</h4>
+        <p>森の構築は <span class="mono">activePath</span> で循環検出、<span class="mono">emittedIDs</span> で重複排出を防ぐ。親が見つからない孤児も root として救済する。<span class="mono">SessionTree.swift:64–153</span></p>
+      </div>
+    </div>
+
+    <div class="note">
+      <span class="k">認可の土台 — セッション単位トークン</span>
+      <p>spawn 時に 32 バイト乱数のトークンを発行し、子プロセスの env <code>PHLOX_TOKEN</code> として渡す。ControlServer は <code>Authorization: Bearer</code> を必須検証し、トークンから「要求元セッション」を解決する。これが深さ計算・kill 認可・自己送信判定・レート制限キーのすべての基礎になる。<span class="mono">SessionTokenStore · ControlServer.swift:151–165</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 05 APPENDIX ============================ -->
+<section id="appendix">
+  <div class="wrap prose">
+    <div class="sec-head">
+      <span class="sec-num">05</span>
+      <h2>索引 — 主要コンポーネント地図</h2>
+      <p>本書で辿った仕組みを、担うファイルへ引き当てるための地図。</p>
+    </div>
+
+    <div class="scroll-x">
+      <table>
+        <thead><tr><th>担うもの</th><th>ファイル</th><th>役割</th></tr></thead>
+        <tbody>
+          <tr><td>CLI レジストリ</td><td class="mono">AgentDomain / AgentDescriptor.swift</td><td>全 CLI の起動設定を宣言的に保持する唯一のソース</td></tr>
+          <tr><td>種別の抽象化</td><td class="mono">AgentDomain / AgentKind.swift · AgentRef.swift</td><td>6 種の kind とカスタム CLI の統合参照</td></tr>
+          <tr><td>状態機械</td><td class="mono">AgentDomain / StatusReducer.swift</td><td>純粋関数 <span class="mono">reduce(status, event)</span></td></tr>
+          <tr><td>起動計画</td><td class="mono">DashboardFeature / Spawn / AgentLaunchPlanner.swift</td><td>レジストリ → argv / env の組み立て</td></tr>
+          <tr><td>セッション制御</td><td class="mono">DashboardFeature / … / SessionViewModel.swift</td><td>send/read の実体・idle 判定・turn カウント</td></tr>
+          <tr><td>中枢</td><td class="mono">DashboardFeature / … / DashboardViewModel.swift</td><td>spawn・wait・木の保持・hook 分配</td></tr>
+          <tr><td>制御サーバー</td><td class="mono">ControlServer / ControlServer.swift</td><td>全 RPC エンドポイントと Bearer 認証</td></tr>
+          <tr><td>フックサーバー</td><td class="mono">HookServer / HookServer.swift</td><td>CLI hooks の受け口</td></tr>
+          <tr><td>プロセス起動</td><td class="mono">PTYKit / Posix.swift</td><td><span class="mono">posix_spawn</span> ＋ PTY 割り当て</td></tr>
+          <tr><td>上限・認可</td><td class="mono">DashboardFeature / … / SpawnPolicy.swift</td><td>総数・深さ・レート制限・kill 認可</td></tr>
+          <tr><td>ガイド（手順）</td><td class="mono">/phlox-cli スキル</td><td>spawn/send/wait/kill の手順（明示参照。自動注入は ADR 0035 で廃止）</td></tr>
+          <tr><td>CLI クライアント</td><td class="mono">scripts / phlox</td><td>子が仲間を操る bash + curl + jq</td></tr>
+          <tr><td>フック中継</td><td class="mono">scripts / hook-dispatcher.sh</td><td>CLI hooks を正規化して HookServer へ POST</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>用語</h3>
+    <div class="grid c2">
+      <div class="card">
+        <p class="kv"><b>制御プレーン</b> — 子が要求を出す経路。<span class="mono">$PHLOX_CLI</span> → ControlServer。spawn/send/wait/read。</p>
+      </div>
+      <div class="card">
+        <p class="kv"><b>フックプレーン</b> — 子が状態を通知する経路。CLI hooks → HookServer。running/idle を確定。</p>
+      </div>
+      <div class="card">
+        <p class="kv"><b>turn（ターン）</b> — 1 回の対話往復。<span class="mono">completedTurnSeq</span> が完了で 1 増え、<span class="mono">wait</span> の合図になる。</p>
+      </div>
+      <div class="card">
+        <p class="kv"><b>bracketed paste</b> — 端末の貼り付けモード（<span class="mono">CSI 200~/201~</span>）。長文送信の末尾 Enter 取りこぼしを防ぐ。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span class="mono">Phlox — system anatomy · multi-agent orchestration</span>
+    <span class="mono">出典: 本リポジトリのソース（file:line は当時の実装）／ ADR 0002</span>
+  </div>
+</footer>
+
+</body>
+</html>

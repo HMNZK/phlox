@@ -1,0 +1,29 @@
+.DS_Store
+.build/
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.moved-aside
+.swiftpm/xcode/
+Packages/PhloxKit/.swiftpm/
+
+# ローカルエージェント/ツール設定（プロジェクト成果物ではない）
+.claude/
+
+# Python バイトキャッシュ（プロジェクト成果物ではない）
+__pycache__/
+
+# 署名・配布の秘匿ファイル（E5-4。リポジトリにコミットしない）
+*.p12
+*.mobileprovision
+*.cer
+build/
+
+# agentic-loop 外部エージェントガードの作業状態（コミットしない）
+.cursor/.audit.log
+.cursor/.state/
+.codex/.audit.log
+.codex/.state/
+.codex/.locks/

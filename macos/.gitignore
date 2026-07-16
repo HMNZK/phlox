@@ -1,0 +1,46 @@
+# SwiftPM
+.build/
+.swiftpm/
+Packages/*/.build/
+Packages/*/.swiftpm/
+
+# Xcode/xcodebuild ビルド出力（-derivedDataPath build で生成。再生成可能）
+/build/
+
+# リリース自動化のローカル蓄積・公開ステージング（再生成可能）
+/release-archives/
+/dist/
+
+# Xcode user data (xcodegen で project.yml から再生成可能)
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+xcuserdata/
+
+# XcodeGen 生成物（project.yml から `xcodegen generate` で再生成可能）
+/Phlox.xcodeproj/
+# project.yml の info.properties から生成される（正本は project.yml）
+/App/Info.plist
+
+# 個別パッケージの解決ファイル（ワークスペース側で一元管理）
+Packages/TerminalUI/Package.resolved
+
+# macOS
+.DS_Store
+
+# 機密情報
+*.env
+secrets.json
+
+# エージェント実行時に各 CWD へ自動生成されるフック設定・スケジューラロック。
+# 個人ディレクトリの絶対パスやローカルセッションID/ポートを含むため追跡しない
+# （.cursor/rules/ は追跡対象なので .cursor 全体は無視しないこと）。
+.codex/hooks.json
+.cursor/hooks.json
+.claude/*.lock
+
+# Playwright MCP の一時生成物（コンソールログ・ページスナップショット）
+.playwright-mcp/
+
+# その他
+/tmp/

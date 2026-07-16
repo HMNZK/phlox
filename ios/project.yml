@@ -1,0 +1,165 @@
+name: PhloxMobile
+
+options:
+  bundleIdPrefix: com.phlox.mobile
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    # 実機ビルドは自動署名。各自の Apple Developer Team ID を設定すること（Signing.example.xcconfig / README 参照）。
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+    # シミュレータ/ローカルビルドのみ署名を無効化（CI・ユニットテスト用）。
+    CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]: "NO"
+    CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]: "NO"
+    CODE_SIGN_IDENTITY[sdk=iphonesimulator*]: ""
+
+packages:
+  PhloxKit:
+    path: Packages/PhloxKit
+
+targets:
+  PhloxMobile:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: App
+    dependencies:
+      - target: PhloxWidget
+        embed: true
+      - package: PhloxKit
+        product: Features
+      - package: PhloxKit
+        product: PhloxCore
+      - package: PhloxKit
+        product: PhloxNetworking
+      - package: PhloxKit
+        product: PhloxSecurity
+      - package: PhloxKit
+        product: PhloxReachability
+    entitlements:
+      path: App/PhloxMobile.entitlements
+      properties:
+        aps-environment: development
+        com.apple.security.application-groups:
+          - group.com.phlox.mobile
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Phlox
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations: {}
+        NSSupportsLiveActivities: true
+        NSFaceIDUsageDescription: "保存したセッション情報を保護するため、起動時に Face ID で本人確認します。"
+        NSCameraUsageDescription: "Mac とのペアリング用 QR コードを読み取るためにカメラを使用します。"
+        NSMicrophoneUsageDescription: "音声でメッセージを入力するためにマイクを使用します。"
+        NSSpeechRecognitionUsageDescription: "話した内容を文字に変換して入力するために音声認識を使用します。"
+        CFBundleURLTypes:
+          - CFBundleURLName: com.phlox.mobile.phlox
+            CFBundleURLSchemes:
+              - phlox
+        NSAppTransportSecurity:
+          # Tailscale IP は CGNAT(100.64.0.0/10, RFC6598)で NSExceptionDomains/
+          # NSAllowsLocalNetworking(RFC1918のみ)では救済できない。IP リテラルへの
+          # cleartext http を許す ATS 手段は実質これだけ。転送は WireGuard が暗号化する
+          # ため平文 HTTP でも実効的に保護される(ゲート①承認)。
+          NSAllowsArbitraryLoads: true
+          NSExceptionDomains:
+            ts.net:
+              NSExceptionAllowsInsecureHTTPLoads: true
+              NSIncludesSubdomains: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phlox.mobile.PhloxMobile
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "0.1.0"
+
+  PhloxWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: PhloxWidget
+    dependencies:
+      - package: PhloxKit
+        product: PhloxCore
+      - sdk: SwiftUI.framework
+      - sdk: WidgetKit.framework
+    entitlements:
+      path: PhloxWidget/PhloxWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.phlox.mobile
+    info:
+      path: PhloxWidget/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phlox.mobile.PhloxMobile.PhloxWidget
+        TARGETED_DEVICE_FAMILY: "1"
+        APPLICATION_EXTENSION_API_ONLY: "YES"
+        SKIP_INSTALL: "YES"
+        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "0.1.0"
+
+  PhloxMobileUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: PhloxMobileUITests
+    dependencies:
+      - target: PhloxMobile
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phlox.mobile.PhloxMobileUITests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: PhloxMobile
+
+schemes:
+  PhloxMobile:
+    build:
+      targets:
+        PhloxMobile: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - name: PhloxMobileUITests
+          parallelizable: true
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
+  # シミュレーター手動確認用。⌘R でモックデータ（セッション一覧）が即表示される。
+  PhloxMobile-Demo:
+    build:
+      targets:
+        PhloxMobile: all
+    run:
+      config: Debug
+      commandLineArguments:
+        "-UITesting": true
+        "-UIScenario=goldenPath": true
+        "-UIViewAnimationsEnabled": "NO"
+    test:
+      config: Debug
+      targets:
+        - name: PhloxMobileUITests
+          parallelizable: true

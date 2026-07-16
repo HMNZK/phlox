@@ -1,0 +1,9 @@
+<svg width="32" height="32" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Phlox">
+<defs><linearGradient id="g" x1="0.08" y1="0" x2="0.92" y2="1">
+<stop offset="0%" stop-color="#8B45E8"/><stop offset="100%" stop-color="#E23D8A"/></linearGradient></defs>
+<g transform="translate(512,512) scale(40) translate(-12,-12)" stroke="url(#g)" fill="none" stroke-linecap="round">
+<path d="M12 6.3V9.8M12 14.2v3.5M6.6 9.1l3.5 1.9M13.9 13l3.5 1.9M6.6 14.9l3.5-1.9M13.9 11l3.5-1.9" stroke-width="0.40"/>
+<g stroke-width="0.60"><circle cx="12" cy="4.5" r="1.8"/><circle cx="12" cy="19.5" r="1.8"/>
+<circle cx="5" cy="8.2" r="1.8"/><circle cx="19" cy="8.2" r="1.8"/>
+<circle cx="5" cy="15.8" r="1.8"/><circle cx="19" cy="15.8" r="1.8"/></g>
+<circle cx="12" cy="12" r="2.8" fill="url(#g)" stroke="none"/></g></svg>

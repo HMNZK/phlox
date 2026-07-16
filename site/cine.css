@@ -1,0 +1,124 @@
+/* ===========================================================================
+   Cinematic layer — a pinned scroll-scrubbed composition.
+   Visible only when app.js has mounted and added html.cine-on.
+   Without JS / on load failure / with reduced-motion, the static #fallback
+   page is served instead (SEO-safe, no broken first paint).
+   =========================================================================== */
+
+html:not(.cine-on) #cine { display: none; }
+html.cine-on #fallback { display: none; }
+html.cine-on, html.cine-on body { background: #0d0b14; }
+/* let the long scroll drive the scrub; avoid overscroll bounce stealing it */
+html.cine-on body { overscroll-behavior-y: none; }
+
+/* The scroll track. Its height is the "film length": app.js maps scroll
+   position across it onto the composition timeline. Taller = more scroll per
+   unit of animation, i.e. a slower, more deliberate scrub. */
+#cine {
+  position: relative;
+  height: 1000vh;           /* paced length of the scroll-through (~1.7x slower than 640vh) */
+  z-index: 1;
+}
+#cine-stick {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100svh;           /* avoid mobile URL-bar jump */
+  overflow: hidden;
+  background: #0d0b14;
+}
+#cine-root { width: 100vw; height: 100vh; height: 100svh; }
+#cine-root > * { width: 100% !important; height: 100% !important; }
+
+/* Persistent navigation overlay — real, clickable links so the page's
+   information architecture and CTA survive the timeline. */
+#cine-nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 30;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 64px; padding: 0 24px;
+  max-width: 1240px; margin: 0 auto;
+  pointer-events: none;     /* let non-interactive areas pass clicks to scroll */
+}
+#cine-nav a, #cine-nav .lang { pointer-events: auto; }
+#cine-nav .brand {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 700; font-size: 18px; color: #ece9f5;
+  text-decoration: none;
+}
+#cine-nav .brand img { width: 28px; height: 28px; border-radius: 7px; }
+#cine-nav .nav-right {
+  display: flex; align-items: center; gap: 16px;
+  font-size: 14px; color: #a39fb8;
+}
+#cine-nav .nav-right > a { color: #a39fb8; text-decoration: none; white-space: nowrap; transition: color .2s ease; }
+#cine-nav .nav-right > a:hover { color: #ece9f5; }
+#cine-nav .cine-dl {
+  color: #fff !important;
+  background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
+  padding: 8px 16px; border-radius: 999px; font-weight: 700;
+  box-shadow: 0 8px 22px rgba(168, 85, 247, 0.35);
+}
+#cine-nav .lang { display: inline-flex; gap: 6px; }
+#cine-nav .lang a {
+  padding: 4px 8px; border-radius: 8px; color: #a39fb8; text-decoration: none;
+  border: 1px solid #2a2440;
+}
+#cine-nav .lang a.active { background: #8b5cf6; color: #fff; border-color: #8b5cf6; }
+
+/* Skip control — escape hatch to the plain page. */
+#skip-btn {
+  position: fixed;
+  right: 18px; bottom: 18px;
+  z-index: 30;
+  font: 600 12px/1 ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: .04em;
+  color: #a39fb8;
+  background: rgba(20, 17, 33, 0.72);
+  border: 1px solid #2a2440;
+  border-radius: 999px;
+  padding: 9px 15px;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: color .2s ease, border-color .2s ease, transform .1s ease;
+}
+#skip-btn:hover { color: #ece9f5; border-color: #8b5cf6; }
+#skip-btn:active { transform: scale(.96); }
+
+/* Scroll cue — a quiet hint that the page is scroll-driven. app.js fades it
+   out after the first scroll (adds html.scrolled). */
+#cine-cue {
+  position: fixed;
+  left: 50%; bottom: 22px; transform: translateX(-50%);
+  z-index: 25;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  font: 600 11px/1 ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: .22em; text-transform: uppercase;
+  color: #a39fb8;
+  pointer-events: none;
+  transition: opacity .5s ease;
+}
+#cine-cue .mouse {
+  width: 22px; height: 34px; border: 1.5px solid #4a4368; border-radius: 12px;
+  position: relative;
+}
+#cine-cue .mouse::after {
+  content: ""; position: absolute; left: 50%; top: 6px; width: 3px; height: 6px;
+  border-radius: 2px; background: #8b5cf6; transform: translateX(-50%);
+  animation: cueWheel 1.6s ease-in-out infinite;
+}
+@keyframes cueWheel { 0%,100% { opacity: .3; transform: translate(-50%, 0); } 50% { opacity: 1; transform: translate(-50%, 7px); } }
+html.scrolled #cine-cue { opacity: 0; }
+
+:focus-visible { outline: 2px solid #8b5cf6; outline-offset: 3px; }
+
+@media (max-width: 640px) {
+  #cine-nav { padding: 0 16px; gap: 8px; }
+  #cine-nav .nav-right { gap: 10px; }
+  #cine-nav .nav-right > a:not(.cine-dl) { display: none; }  /* keep brand · Download · lang */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #cine-cue .mouse::after { animation: none; }
+}

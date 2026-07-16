@@ -1,0 +1,19 @@
+// Code-signing configuration for local builds.
+//
+// This repository ships with an EMPTY DEVELOPMENT_TEAM so it carries no
+// personal Apple Developer identity. To build a signed app (device install,
+// distribution, or notarization) set your own Team ID.
+//
+// Two options:
+//   1. Xcode UI — open the generated project and pick your team under
+//      "Signing & Capabilities" (Xcode writes to the local, gitignored project).
+//   2. Local xcconfig — copy this file and fill in your Team ID:
+//        cp Signing.example.xcconfig Signing.local.xcconfig
+//      then reference it from project.yml `configFiles:` (see docs) or set the
+//      value directly in your local checkout. Signing.local.xcconfig is
+//      gitignored so your Team ID is never committed.
+//
+// Your Apple Developer Team ID is the 10-character identifier shown in the
+// Apple Developer portal (Membership) — e.g. ABCDE12345.
+
+DEVELOPMENT_TEAM =

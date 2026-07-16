@@ -1,0 +1,62 @@
+# macOS
+.DS_Store
+
+# Xcode / SwiftPM build artifacts
+build/
+DerivedData/
+.build/
+*.xcuserdata/
+xcuserdata/
+*.xcscmblueprint
+
+# Generated Xcode projects (produced by `xcodegen generate` from project.yml)
+macos/Phlox.xcodeproj/
+ios/PhloxMobile.xcodeproj/
+
+# Local code-signing — never commit your Apple Developer Team ID
+Signing.local.xcconfig
+
+# Release / distribution artifacts
+dist/
+release-archives/
+
+# Secrets
+*.env
+.env
+.env.*
+secrets.json
+*.p8
+*.p12
+*.mobileprovision
+*.cer
+*.pem
+*.key
+*.certSigningRequest
+
+# AI agent tooling (not part of the product)
+.claude/
+.codex/
+.cursor/
+CLAUDE.md
+AGENTS.md
+
+# agentic-loop auto-generated scaffolding (root only — must NOT match tracked macos/docs & ios/docs)
+/board.md
+/decision-log.md
+/docs/
+/status/
+/tasks/
+
+# SwiftPM local metadata
+.swiftpm/
+
+# Python bytecode / caches (repo helper scripts)
+__pycache__/
+*.pyc
+
+# Editor / IDE
+.vscode/
+.idea/
+
+# iOS screenshot verification output (ephemeral; canonical docs live in ios/docs/)
+ios/doc/

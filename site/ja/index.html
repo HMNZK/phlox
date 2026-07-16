@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phlox — AIがAIを呼び出す、Mac の開発環境</title>
+  <meta name="description" content="1体の AI に頼むだけ。あとは、その AI がほかの AI を呼び出し、指示し、見届けます。Claude Code・Codex・Cursor を、ひとつの Mac アプリで。" />
+  <meta property="og:title" content="Phlox — 頼むのは、ひとり。動くのは、チーム。" />
+  <meta property="og:description" content="1体の AI に頼めば、その AI がほかの AI を呼び出して進めます。画面を何枚も開く必要は、もうありません。" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://phlox.cc/ja/" />
+  <meta property="og:image" content="https://phlox.cc/assets/icon.png" />
+  <link rel="alternate" hreflang="en" href="https://phlox.cc/" />
+  <link rel="alternate" hreflang="ja" href="https://phlox.cc/ja/" />
+  <link rel="alternate" hreflang="x-default" href="https://phlox.cc/" />
+  <link rel="icon" href="../assets/icon.png" />
+  <link rel="preload" as="image" href="../assets/screenshot.webp" />
+  <link rel="stylesheet" href="../styles.css" />
+  <link rel="stylesheet" href="../cine.css" />
+</head>
+<body>
+  <div id="cine" aria-hidden="true">
+    <nav id="cine-nav">
+      <a class="brand" href="/ja/"><img src="../assets/icon.png" alt="Phlox" />Phlox</a>
+      <div class="nav-right">
+        <a href="#features" data-seek="0.6">できること</a>
+        <a href="#start" data-seek="0.9">はじめ方</a>
+        <a class="cine-dl" href="https://github.com/HMNZK/phlox/releases/latest/download/Phlox.dmg">ダウンロード</a>
+        <span class="lang"><a href="/">EN</a><a href="/ja/" class="active">日本語</a></span>
+      </div>
+    </nav>
+    <div id="cine-stick"><div id="cine-root"></div></div>
+    <div id="cine-cue"><span class="mouse"></span><span>Scroll</span></div>
+    <button type="button" id="skip-btn">アニメをスキップ</button>
+  </div>
+
+  <div id="fallback">
+  <header>
+    <div class="container nav">
+      <a class="brand" href="/ja/"><img src="../assets/icon.png" alt="Phlox" />Phlox</a>
+      <div class="nav-right">
+        <a href="#features">できること</a>
+        <a href="#start">はじめ方</a>
+        <span class="lang">
+          <a href="/">EN</a>
+          <a href="/ja/" class="active">日本語</a>
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <img class="app-icon" src="../assets/icon.png" alt="Phlox アプリアイコン" />
+        <h1>頼むのは ひとり。<br />動くのは チーム。</h1>
+        <p class="sub">1体の AI に頼むだけ。あとは AI が AI を管理する世界。<br />
+          画面を何枚も開き、AI を起動し、コピペを送る。<br />
+          そんな必要はもうありません。</p>
+        <div class="cta">
+          <a class="btn-primary" href="https://github.com/HMNZK/phlox/releases/latest/download/Phlox.dmg">macOS版をダウンロード</a>
+        </div>
+        <div class="req">macOS 14 Sonoma 以降 · Apple Silicon · 署名・公証済み</div>
+      </div>
+    </section>
+
+    <section class="container shot">
+      <div class="shot-frame">
+        <img src="../assets/screenshot.webp" alt="ひとつの画面で複数の AI が同時に動く Phlox" />
+      </div>
+    </section>
+
+    <section class="problem" id="why">
+      <div class="container">
+        <div class="head">
+          <span class="eyebrow">これまでと、これから。</span>
+          <h2>全てを人間が管理する時代は終わり。</h2>
+          <p class="lead">使う AI が増えるほど、起動も、受け渡しも、見張りも増えていく。Phlox は、その全部を AI に任せます。</p>
+        </div>
+        <div class="pains">
+          <article class="pain">
+            <div class="row bad"><span class="ic">×</span><span>画面を何枚も開いて、AI を一つずつ起動。出力はコピー＆ペーストで手渡し。</span></div>
+            <div class="row good"><span class="ic">✓</span><span>一人に頼めば、その AI が他の AI を呼び出し、管理します。</span></div>
+          </article>
+          <article class="pain">
+            <div class="row bad"><span class="ic">×</span><span>どの AI が動いていて、どれが待っているのか分からない。</span></div>
+            <div class="row good"><span class="ic">✓</span><span>すべての状態がひと目で分かる。<br />手が要るときは、知らせます。</span></div>
+          </article>
+          <article class="pain">
+            <div class="row bad"><span class="ic">×</span><span>終わったか確かめるために、画面を見張りつづける。</span></div>
+            <div class="row good"><span class="ic">✓</span><span>完了は AI が見届けます。<br />あなたは、別のことを。</span></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="features" id="features">
+      <div class="container">
+        <div class="head">
+          <span class="eyebrow">できること</span>
+          <h2>AI が AI を管理する。</h2>
+          <p class="lead">あなたは AI を監督するだけ。</p>
+        </div>
+
+        <div class="bento">
+          <article class="feat feat-a">
+            <span class="k">01 — AI が AI を呼ぶ</span>
+            <h3>頼むのは、ひとりだけ</h3>
+            <p>Phlox の真骨頂。1体の AI に頼めば、その AI が必要なほかの AI を自分で呼び出し、指示を出し、終わるのを待ち、役目を終えたら片づけます。あなたが複数の画面を立ち上げたり、出力を手で受け渡したりする必要は、もうありません。</p>
+            <div class="panes">
+              <span class="pane"><span class="dot run"></span>Claude Code</span>
+              <span class="pane"><span class="dot wait"></span>Codex</span>
+              <span class="pane"><span class="dot idle"></span>Cursor</span>
+            </div>
+          </article>
+
+          <article class="feat feat-usage">
+            <span class="k">いつでも — 残りの利用量</span>
+            <h3>あと、どれだけ使えるか</h3>
+            <p>それぞれの AI の使用状況を、右側のパネルに。5時間ごと・週ごと・合計に対して、残りがひと目でわかります。</p>
+            <div class="usage">
+              <div class="ubar"><div class="ul"><span>Claude Code · 5時間</span><b>51%</b></div><div class="track"><div class="fill" style="--w:51%"></div></div></div>
+              <div class="ubar"><div class="ul"><span>Codex · 週ごと</span><b>63%</b></div><div class="track"><div class="fill" style="--w:63%"></div></div></div>
+              <div class="ubar"><div class="ul"><span>Cursor · 合計</span><b>16%</b></div><div class="track"><div class="fill" style="--w:16%"></div></div></div>
+            </div>
+          </article>
+
+          <article class="feat feat-c">
+            <span class="k">02 — ひとつの画面</span>
+            <h3>すべての AI が、ここに</h3>
+            <p>Claude Code・Codex・Cursor が、それぞれの画面で同時に動きます。タブを行き来することも、どれが何をしているか見失うことも、ありません。</p>
+          </article>
+
+          <article class="feat feat-d">
+            <span class="k">03 — まかせる</span>
+            <h3>頼んだら、あとは待つだけ</h3>
+            <p>「これをやって」と伝えるだけ。あとは AI が進めます。終わったかどうかは自動で見分けるので、あなたは別の作業へ。</p>
+          </article>
+
+          <article class="feat feat-e">
+            <span class="k">04 — 状態</span>
+            <h3>いま、何をしているか</h3>
+            <p>動作中・待機中・入力待ち。Codex が質問して止まっているときも、自動で見分けます。手が必要になれば通知でお知らせ。見えないまま止まることは、ありません。</p>
+          </article>
+
+          <article class="feat feat-f">
+            <span class="k">05 — 自分仕様</span>
+            <h3>思いどおりの、画面に</h3>
+            <p>プロジェクトごとにまとめ、表示する AI を絞り込み、表示の仕方を切り替え（⌃⌘G）、サイドバーを開閉（⌘B）。あなたの使いやすいかたちに。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="start" id="start">
+      <div class="container">
+        <div class="head">
+          <span class="eyebrow">はじめ方</span>
+          <h2>3ステップで、すぐに。</h2>
+        </div>
+        <div class="steps">
+          <article class="step">
+            <span class="n">1</span>
+            <h3>ダウンロードして、開く</h3>
+            <p>macOS 版をダウンロードし、アプリケーションに入れて起動するだけ。署名・公証済みだから、警告も出ません。</p>
+          </article>
+          <article class="step">
+            <span class="n">2</span>
+            <h3>AI を、ひとり呼び出す</h3>
+            <p>Claude Code・Codex・Cursor から選んで立ち上げます。</p>
+          </article>
+          <article class="step">
+            <span class="n">3</span>
+            <h3>やりたいことを、伝える</h3>
+            <p>あとは、その AI が必要な AI を呼び出して進めます。終わったら、通知でお知らせ。</p>
+          </article>
+        </div>
+        <div class="cta">
+          <a class="btn-primary" href="https://github.com/HMNZK/phlox/releases/latest/download/Phlox.dmg">macOS版をダウンロード</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container foot">
+      <span>© 2026 Phlox</span>
+      <span><a href="/ja/privacy">プライバシーポリシー</a></span>
+    </div>
+  </footer>
+  </div><!-- /#fallback -->
+
+  <script type="module" src="../app.js"></script>
+</body>
+</html>

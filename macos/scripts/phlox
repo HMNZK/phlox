@@ -1,0 +1,530 @@
+#!/bin/bash
+# Phlox control CLI.
+#
+# セッション内エージェントがローカル ControlServer を叩くための CLI。
+# bash + curl + jq。接続先・認証は環境変数から読む。
+#
+# 必須環境変数:
+#   PHLOX_API_URL     例: http://127.0.0.1:54321 （末尾スラッシュ無し）
+#   PHLOX_TOKEN       このセッション用 Bearer トークン
+#   PHLOX_SESSION_ID  自セッション UUID（参考。body には含めない）
+
+set -e
+
+die() {
+    echo "phlox: $*" >&2
+    exit 1
+}
+
+usage() {
+    cat <<'EOF'
+Usage: phlox <command> [options]
+
+Commands:
+  list
+  send --to <name|id> [--no-submit] [--in-reply-to <uuid>] [--] <text...>
+  spawn --kind <claudeCode|codex|cursor> [--dir <path>] [--role <役割名>]
+  rename --to <name|id> [--] <new-name>
+  read --to <name|id> [--mode screen|scrollback]
+  wait-ready --to <name|id> [--timeout <seconds>]
+  wait --to <name|id> --timeout <seconds> [--sentinel <text>]
+  kill <session-id>
+
+Environment (required for API commands):
+  PHLOX_API_URL
+  PHLOX_TOKEN
+  PHLOX_SESSION_ID
+
+Examples:
+  phlox list
+  phlox send --to cursor "hello"
+  phlox send --to agent-alpha --no-submit -- line one
+  phlox spawn --kind cursor
+  phlox spawn --kind cursor --dir /abs/path
+  phlox spawn --kind cursor --role "批判者"
+  phlox rename --to cursor "Backend"
+  phlox read --to cursor
+  phlox kill <uuid>
+EOF
+}
+
+require_jq() {
+    if ! command -v jq >/dev/null 2>&1; then
+        die "jq が必要です (brew install jq など)"
+    fi
+}
+
+require_env() {
+    if [ -z "${PHLOX_API_URL:-}" ]; then
+        die "PHLOX_API_URL が未設定です"
+    fi
+    if [ -z "${PHLOX_TOKEN:-}" ]; then
+        die "PHLOX_TOKEN が未設定です"
+    fi
+    if [ -z "${PHLOX_SESSION_ID:-}" ]; then
+        die "PHLOX_SESSION_ID が未設定です"
+    fi
+}
+
+# --- 入力検証 ---
+
+is_valid_uuid() {
+    printf '%s' "$1" | grep -qiE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+}
+
+is_valid_mode() {
+    case "$1" in
+        screen|scrollback) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# サーバ側(ControlServer)は timeout を正の Int としてのみ受理するため、CLI 側でも
+# 数値でない値・0 以下を事前に拒否する(不正な値をそのまま URL に埋め込まない)。
+is_valid_timeout() {
+    case "$1" in
+        ''|*[!0-9]*) return 1 ;;
+        0) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+# 端末エスケープ/制御文字を除去する(改行・タブ・CR は保持)。
+sanitize_output() {
+    tr -d '\000-\010\013\014\016-\037\177'
+}
+
+# http_request METHOD PATH [BODY]
+# Sets HTTP_STATUS and HTTP_BODY. Non-2xx: stderr + exit 1 (unless caller handles).
+# Authorization は curl 設定を stdin 渡しし(-K -)、body は一時ファイル(-d @file)経由で
+# 渡すことで、token/body が `ps` の引数一覧に露出しないようにする。
+http_request() {
+    local method="$1" path="$2" body="${3-}"
+    local url="${PHLOX_API_URL}${path}"
+    local tmp bodyfile=""
+    tmp=$(mktemp)
+
+    local -a curl_args=(
+        -sS
+        -o "$tmp"
+        -w '%{http_code}'
+        -X "$method"
+        -K -
+        -H "Content-Type: application/json"
+    )
+    if [ -n "$body" ]; then
+        bodyfile=$(mktemp)
+        printf '%s' "$body" > "$bodyfile"
+        curl_args+=(-d "@$bodyfile")
+    fi
+
+    HTTP_STATUS=$(printf 'header = "Authorization: Bearer %s"\n' "$PHLOX_TOKEN" | curl "${curl_args[@]}" "$url")
+    HTTP_BODY=$(cat "$tmp")
+    rm -f "$tmp"
+    if [ -n "$bodyfile" ]; then
+        rm -f "$bodyfile"
+    fi
+}
+
+http_fail() {
+    local msg="$1"
+    echo "phlox: $msg (HTTP $HTTP_STATUS)" >&2
+    if [ -n "$HTTP_BODY" ]; then
+        echo "$HTTP_BODY" >&2
+    fi
+    exit 1
+}
+
+http_expect_2xx() {
+    case "$HTTP_STATUS" in
+        2??) ;;
+        *) http_fail "request failed" ;;
+    esac
+}
+
+show_server_error() {
+    local err
+    err=$(printf '%s' "$HTTP_BODY" | jq -r '.error // empty' 2>/dev/null || true)
+    if [ -n "$err" ]; then
+        echo "phlox: $err (HTTP $HTTP_STATUS)" >&2
+    else
+        echo "phlox: request failed (HTTP $HTTP_STATUS)" >&2
+        [ -n "$HTTP_BODY" ] && echo "$HTTP_BODY" >&2
+    fi
+    exit 1
+}
+
+cmd_list() {
+    require_env
+    http_request GET "/sessions"
+    http_expect_2xx
+    printf '%s' "$HTTP_BODY" | jq -r '
+        .sessions[]?
+        | "\(.id[0:8])  \(.name)  \(.kind)  \(.status)  \(.workspace)"
+    ' | sanitize_output
+}
+
+cmd_send() {
+    require_env
+    local to="" submit=true in_reply_to=""
+    local text=""
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --to)
+                [ -n "${2:-}" ] || die "--to requires a value"
+                to="$2"
+                shift 2
+                ;;
+            --no-submit)
+                submit=false
+                shift
+                ;;
+            --in-reply-to)
+                [ -n "${2:-}" ] || die "--in-reply-to requires a value"
+                in_reply_to="$2"
+                shift 2
+                ;;
+            --)
+                shift
+                break
+                ;;
+            -*)
+                die "unknown option: $1"
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    if [ -z "$to" ]; then
+        die "--to is required"
+    fi
+
+    if [ $# -gt 0 ]; then
+        text="$*"
+    fi
+    if [ -z "$text" ]; then
+        die "message text is required"
+    fi
+
+    local body
+    if [ -n "$in_reply_to" ]; then
+        body=$(jq -nc \
+            --arg to "$to" \
+            --arg text "$text" \
+            --argjson submit "$submit" \
+            --arg inReplyTo "$in_reply_to" \
+            '{to: $to, text: $text, submit: $submit, inReplyTo: $inReplyTo}')
+    else
+        body=$(jq -nc \
+            --arg to "$to" \
+            --arg text "$text" \
+            --argjson submit "$submit" \
+            '{to: $to, text: $text, submit: $submit}')
+    fi
+
+    http_request POST "/send" "$body"
+    case "$HTTP_STATUS" in
+        200) echo "sent" ;;
+        400|404|409|425|429|500) show_server_error ;;
+        *) http_fail "send failed" ;;
+    esac
+}
+
+cmd_spawn() {
+    require_env
+    local kind=""
+    local dir=""
+    local role=""
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --kind)
+                [ -n "${2:-}" ] || die "--kind requires a value"
+                kind="$2"
+                shift 2
+                ;;
+            --dir)
+                [ -n "${2:-}" ] || die "--dir requires a value"
+                dir="$2"
+                shift 2
+                ;;
+            --role)
+                [ -n "${2:-}" ] || die "--role requires a value"
+                role="$2"
+                shift 2
+                ;;
+            *)
+                die "unknown argument: $1"
+                ;;
+        esac
+    done
+
+    if [ -z "$kind" ]; then
+        die "--kind is required"
+    fi
+
+    local body
+    if [ -n "$dir" ] && [ -n "$role" ]; then
+        body=$(jq -nc --arg kind "$kind" --arg dir "$dir" --arg role "$role" '{kind: $kind, workingDirectory: $dir, role: $role}')
+    elif [ -n "$dir" ]; then
+        body=$(jq -nc --arg kind "$kind" --arg dir "$dir" '{kind: $kind, workingDirectory: $dir}')
+    elif [ -n "$role" ]; then
+        body=$(jq -nc --arg kind "$kind" --arg role "$role" '{kind: $kind, role: $role}')
+    else
+        body=$(jq -nc --arg kind "$kind" '{kind: $kind}')
+    fi
+
+    http_request POST "/sessions" "$body"
+    case "$HTTP_STATUS" in
+        201)
+            printf '%s' "$HTTP_BODY" | jq -r '.id // empty'
+            ;;
+        *)
+            http_fail "spawn failed"
+            ;;
+    esac
+}
+
+cmd_kill() {
+    require_env
+    local id="${1:-}"
+    if [ -z "$id" ]; then
+        die "session id is required"
+    fi
+    if [ $# -gt 1 ]; then
+        die "too many arguments"
+    fi
+    is_valid_uuid "$id" || die "invalid session id: $id (UUID を指定してください)"
+
+    http_request DELETE "/sessions/${id}"
+    case "$HTTP_STATUS" in
+        200) echo "removed" ;;
+        404) echo "not found" ;;
+        *) http_fail "kill failed" ;;
+    esac
+}
+
+# 名前または ID（完全 UUID / 先頭一致）を完全な SessionID に解決する。標準出力に ID を返す。
+resolve_session_id() {
+    local value="$1"
+    if printf '%s' "$value" | grep -qiE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'; then
+        printf '%s' "$value"
+        return 0
+    fi
+    http_request GET "/sessions"
+    http_expect_2xx
+    local ids
+    ids=$(printf '%s' "$HTTP_BODY" | jq -r --arg v "$value" '.sessions[]? | select(.name == $v) | .id')
+    if [ -z "$ids" ]; then
+        ids=$(printf '%s' "$HTTP_BODY" | jq -r --arg v "$value" '.sessions[]? | select(.id | startswith($v)) | .id')
+    fi
+    local count
+    count=$(printf '%s\n' "$ids" | grep -c . || true)
+    if [ "$count" -eq 0 ]; then die "recipient not found: $value"; fi
+    if [ "$count" -gt 1 ]; then die "ambiguous recipient: $value"; fi
+    printf '%s' "$ids"
+}
+
+cmd_rename() {
+    require_env
+    local to="" name=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --to)
+                [ -n "${2:-}" ] || die "--to requires a value"
+                to="$2"; shift 2 ;;
+            --)
+                shift
+                break ;;
+            -*) die "unknown option: $1" ;;
+            *) break ;;
+        esac
+    done
+    [ -n "$to" ] || die "--to is required"
+    [ $# -gt 0 ] || die "new name is required"
+
+    name="$*"
+
+    local id
+    id=$(resolve_session_id "$to") || exit 1
+
+    local body
+    body=$(jq -nc --arg name "$name" '{name: $name}')
+
+    http_request PATCH "/sessions/${id}" "$body"
+    case "$HTTP_STATUS" in
+        200) echo "renamed" ;;
+        400|404) show_server_error ;;
+        *) http_fail "rename failed" ;;
+    esac
+}
+
+cmd_read() {
+    require_env
+    local to="" mode="screen"
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --to)
+                [ -n "${2:-}" ] || die "--to requires a value"
+                to="$2"; shift 2 ;;
+            --mode)
+                [ -n "${2:-}" ] || die "--mode requires a value"
+                mode="$2"; shift 2 ;;
+            -*) die "unknown option: $1" ;;
+            *) die "unexpected argument: $1" ;;
+        esac
+    done
+    [ -n "$to" ] || die "--to is required"
+    is_valid_mode "$mode" || die "invalid mode: $mode (screen または scrollback を指定してください)"
+
+    local id
+    id=$(resolve_session_id "$to") || exit 1
+
+    http_request GET "/sessions/${id}/output?mode=${mode}"
+    case "$HTTP_STATUS" in
+        200) printf '%s' "$HTTP_BODY" | jq -r '.text // ""' | sanitize_output ;;
+        400|404) show_server_error ;;
+        *) http_fail "read failed" ;;
+    esac
+}
+
+cmd_wait_ready() {
+    require_env
+    local to="" timeout=10
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --to)
+                [ -n "${2:-}" ] || die "--to requires a value"
+                to="$2"; shift 2 ;;
+            --timeout)
+                [ -n "${2:-}" ] || die "--timeout requires a value"
+                timeout="$2"; shift 2 ;;
+            -*) die "unknown option: $1" ;;
+            *) die "unexpected argument: $1" ;;
+        esac
+    done
+    [ -n "$to" ] || die "--to is required"
+    is_valid_timeout "$timeout" || die "invalid timeout: $timeout (正の整数秒を指定してください)"
+
+    local id
+    id=$(resolve_session_id "$to") || exit 1
+
+    http_request GET "/sessions/${id}/ready?timeout=${timeout}"
+    case "$HTTP_STATUS" in
+        200)
+            local ready
+            ready=$(printf '%s' "$HTTP_BODY" | jq -r '.ready // false')
+            if [ "$ready" = "true" ]; then
+                echo "ready"
+            else
+                echo "not ready (timeout)" >&2
+                exit 1
+            fi
+            ;;
+        400|404) show_server_error ;;
+        *) http_fail "wait-ready failed" ;;
+    esac
+}
+
+cmd_wait() {
+    require_env
+    local to="" timeout="" sentinel=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --to)
+                [ -n "${2:-}" ] || die "--to requires a value"
+                to="$2"; shift 2 ;;
+            --timeout)
+                [ -n "${2:-}" ] || die "--timeout requires a value"
+                timeout="$2"; shift 2 ;;
+            --sentinel)
+                [ -n "${2:-}" ] || die "--sentinel requires a value"
+                sentinel="$2"; shift 2 ;;
+            -*) die "unknown option: $1" ;;
+            *) die "unexpected argument: $1" ;;
+        esac
+    done
+    [ -n "$to" ] || die "--to is required"
+    [ -n "$timeout" ] || die "--timeout is required"
+    is_valid_timeout "$timeout" || die "invalid timeout: $timeout (正の整数秒を指定してください)"
+
+    local id
+    id=$(resolve_session_id "$to") || exit 1
+
+    local q="timeout=${timeout}"
+    if [ -n "$sentinel" ]; then
+        local enc
+        enc=$(jq -rn --arg s "$sentinel" '$s|@uri')
+        q="${q}&sentinel=${enc}"
+    fi
+
+    http_request GET "/sessions/${id}/wait?${q}"
+    case "$HTTP_STATUS" in
+        200) printf '%s' "$HTTP_BODY" | jq -r '.output // ""' | sanitize_output ;;
+        408)
+            echo "phlox: wait timed out (partial output below)" >&2
+            printf '%s' "$HTTP_BODY" | jq -r '.output // ""' | sanitize_output
+            exit 1 ;;
+        400|404) show_server_error ;;
+        *) http_fail "wait failed" ;;
+    esac
+}
+
+# --- main ---
+
+main() {
+    require_jq
+
+    case "${1:-}" in
+        ""|-h|--help|help)
+            usage
+            exit 0
+            ;;
+        list)
+            shift
+            [ $# -eq 0 ] || die "list takes no arguments"
+            cmd_list
+            ;;
+        send)
+            shift
+            cmd_send "$@"
+            ;;
+        spawn)
+            shift
+            cmd_spawn "$@"
+            ;;
+        rename)
+            shift
+            cmd_rename "$@"
+            ;;
+        read)
+            shift
+            cmd_read "$@"
+            ;;
+        wait-ready)
+            shift
+            cmd_wait_ready "$@"
+            ;;
+        wait)
+            shift
+            cmd_wait "$@"
+            ;;
+        kill)
+            shift
+            cmd_kill "$@"
+            ;;
+        *)
+            usage >&2
+            die "unknown command: $1"
+            ;;
+    esac
+}
+
+# テスト(scripts/tests/phlox.test.sh)から source して個々の関数を検証できるよう、
+# 直接実行されたときだけ main を呼ぶ(hook-dispatcher.sh と同じガード)。
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi

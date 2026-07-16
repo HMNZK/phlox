@@ -7,6 +7,8 @@
 **Run and orchestrate AI coding agents — Claude Code, Codex, and Cursor — from one
 native macOS workspace, with an iOS companion to watch and steer your sessions from anywhere.**
 
+<a href="https://phlox.cc"><img src="https://img.shields.io/badge/Download%20for%20macOS-phlox.cc-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download Phlox for macOS" /></a>
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%2014%2B%20%7C%20iOS%2017%2B-blue.svg)](#getting-started)
 [![Swift 6](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
@@ -27,14 +29,23 @@ own private network.
 
 ## Table of contents
 
+- [Download](#download)
 - [Features](#features)
 - [How it works](#how-it-works)
+- [Mobile companion](#mobile-companion)
 - [Repository layout](#repository-layout)
 - [Getting started](#getting-started)
 - [Code signing](#code-signing)
 - [Security](#security)
 - [Contributing](#contributing)
 - [License &amp; notices](#license--notices)
+
+## Download
+
+The quickest way to try Phlox is the prebuilt macOS app — download it from
+**[phlox.cc](https://phlox.cc)** (or grab the latest
+[release](https://github.com/HMNZK/phlox/releases/latest) directly). To build from
+source or run the iOS companion, see [Getting started](#getting-started).
 
 ## Features
 
@@ -70,6 +81,27 @@ flowchart LR
     end
     S <-->|"private tailnet (Tailscale)"| M
 ```
+
+## Mobile companion
+
+**PhloxMobile** is the iOS half of Phlox. It connects to your Mac over your
+private tailnet and keeps your sessions moving from anywhere — see which sessions
+need you, approve or reject a command, and answer an agent's question inline. Push
+notifications, a Home Screen widget, and a Live Activity keep live status on your
+lock screen, and Face ID can gate the app on launch.
+
+<table>
+  <tr>
+    <td width="33%"><img src="site/assets/mobile-sessions.png" alt="Session list showing which sessions need you" /></td>
+    <td width="33%"><img src="site/assets/mobile-approval.png" alt="Approve or reject a command from your phone" /></td>
+    <td width="33%"><img src="site/assets/mobile-chat.png" alt="Answer an agent's question inline" /></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Sessions</b> — see whose turn it is</sub></td>
+    <td align="center"><sub><b>Approvals</b> — approve or reject from your phone</sub></td>
+    <td align="center"><sub><b>Chat</b> — answer an agent's question inline</sub></td>
+  </tr>
+</table>
 
 ## Repository layout
 

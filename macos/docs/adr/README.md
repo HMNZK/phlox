@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-07-15
+last-verified: 2026-07-16
 ---
 
 # ADR（アーキテクチャ決定記録）索引
@@ -12,6 +12,7 @@ last-verified: 2026-07-15
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0089 | [phlox.cc をモノレポの site/ から GitHub Actions Pages で配信](0089-phlox-cc-served-from-monorepo-site.md) | active |
 | 0088 | [接続確立を QR ペアリングに一本化し、手動の認証情報入力・供給 UI を撤去する](0088-qr-only-pairing-remove-manual-token-entry.md) | active |
 | 0087 | [モバイル wave-2 ワイヤ拡張（spawn 時モデル適用・プロジェクト付与・エージェント別モデル一覧・アカウント使用量）の設計判断](0087-mobile-wave2-wire-extensions.md) | active |
 | 0086 | [single モードのサイドバー・プロジェクト名選択で新規セッション開始画面を表示する](0086-single-mode-project-select-shows-start-screen.md) | active |

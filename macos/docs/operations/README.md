@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-07-08
+last-verified: 2026-07-16
 ---
 
 # operations/
@@ -14,3 +14,5 @@ last-verified: 2026-07-08
 **命名**: 小文字 kebab-case・ASCII・`.md`（索引のみ `README.md`）。順序ありは `NNNN-kebab.md`。
 
 ## 現在あるファイル（固定名の入口ファイルは未作成。以下が現行の入口）
+
+- [`site-deploy-and-release.md`](site-deploy-and-release.md) — phlox.cc サイト配信（GitHub Actions Pages）と macOS アプリ配布（DMG ダウンロード・Sparkle 自動更新）の運用手順

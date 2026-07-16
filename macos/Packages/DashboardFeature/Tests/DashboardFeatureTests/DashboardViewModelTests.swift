@@ -1339,7 +1339,11 @@ func hookMultiplex_routesEventToCorrectSession() async throws {
 
     // セッション B: Stop フックは idle へ戻し、PTY 終了で completed
     hookContinuation.yield((idB, .stop(turnId: nil)))
-    try await Task.sleep(for: .milliseconds(50))
+    // フック伝播を固定 sleep でなくポーリングで待つ（vmA と同じ決定的待機。実時計依存の除去）。
+    try await waitUntil {
+        if case .idle = vmB.status { return true }
+        return false
+    }
     if case .idle = vmB.status {} else {
         Issue.record("vmB should become idle after stop hook but is \(vmB.status)")
     }
@@ -1978,7 +1982,9 @@ func codexRolloutDiscovery_skipsPersistWhenSessionRemoved() async throws {
         cwd: workingDirectory,
         timestamp: spawnTime
     )
-    try await Task.sleep(for: .milliseconds(200))
+    // 削除の enqueue を確定的にドレインしてから検証する（任意 sleep の実時計依存を排除）。
+    // 削除済みセッションは firstIndex ガードで再永続化されないため、ドレイン後の状態が最終状態。
+    await dashboard.waitForPendingPersistenceWritesForTesting()
 
     #expect(await sessionStore.load().contains(where: { $0.id == sessionID }) == false)
 }

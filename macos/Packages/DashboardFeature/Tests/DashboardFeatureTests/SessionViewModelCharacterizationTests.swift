@@ -552,7 +552,12 @@ func sessionVM_characterization_sendText_codex_processingObserved_suppressesDiag
         data: Data("Starting MCP servers (1/2) (0s • esc to interrupt)\n".utf8)
     )
 
-    try await Task.sleep(for: .milliseconds(200))
+    // 「処理中の観測」を固定 sleep でなく確定的に待つ（実時計・スケジューラ負荷から独立）。
+    // observedProcessing は再 arm まで単調なので、true 確認後は flush が診断を発火しない。
+    let observedProcessing = await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+        vm.hasObservedSubmitProcessingForTesting
+    }
+    #expect(observedProcessing)
     #expect(capture.lines.isEmpty)
     #expect(vm.completedTurnSeq == 0)
 }

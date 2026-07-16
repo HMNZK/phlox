@@ -417,14 +417,18 @@ func sendMessage_21stMessageWithinOneSecond_returnsRateLimited() async throws {
     let messageStore = MockMessageStore()
     let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
     let environment = makeTestEnvironment(pty: ptyManager, hookStream: hookStream, messages: messageStore)
-    let dashboard = DashboardViewModel(environment: environment)
+    // 固定時計を注入し、20 通全てが同一の 1 秒窓に入ることを保証する（実時計依存の除去）。
+    let dashboard = DashboardViewModel(
+        environment: environment,
+        rateLimitNow: { Date(timeIntervalSince1970: 1_800_000_000) }
+    )
     await dashboard.start()
 
     let fromID = try await dashboard.spawnNewSession(kind: .claudeCode)
     _ = try await dashboard.spawnNewSession(kind: .claudeCode)
     dashboard.sessions[1].name = "Bob"
 
-    // 1 秒 20 通の上限まで送信する（submit なし・mock 書込のため 1 秒以内に完了する）。
+    // 1 秒 20 通の上限まで送信する（固定時計で全送信が同一窓に入る）。
     for index in 0..<20 {
         let outcome = await dashboard.sendMessage(
             to: .name("Bob"),

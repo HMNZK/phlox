@@ -79,6 +79,9 @@ public final class DashboardViewModel {
     @ObservationIgnored private var restoreCoordinator: SessionRestoreCoordinator?
     private let codexUserHooksEnabledProvider: @MainActor () -> Bool
     private let codexDiscoveryNow: @Sendable () -> Date
+    /// send/spawn のレート制限に使う現在時刻シーム。既定は実時計。テストは固定時刻を
+    /// 注入してスライディングウィンドウを決定論化する（実時計依存の断続的失敗の除去）。
+    private let rateLimitNow: @Sendable () -> Date
     /// spawn 後に当該セッションの live pid を引くための seam。永続化する pid の取得元。
     /// 既定は nil（pid 未捕捉＝従来挙動。descriptor の pid は nil のまま）。
     /// PTYManager は actor で pid アクセサが actor 隔離 async のため、seam も async とし
@@ -116,6 +119,7 @@ public final class DashboardViewModel {
         codexDiscoveryRetryInterval: Duration = .milliseconds(500),
         codexDiscoveryMaxRetryDuration: Duration = .seconds(120),
         codexDiscoveryNow: @escaping @Sendable () -> Date = Date.init,
+        rateLimitNow: @escaping @Sendable () -> Date = Date.init,
         orphanReaper: any OrphanReaper = PosixOrphanReaper(),
         livePIDProvider: @escaping @MainActor @Sendable (SessionID) async -> pid_t? = { _ in nil },
         gridArrangementStore: GridArrangementStore = GridArrangementStore(userDefaults: .standard)
@@ -127,6 +131,7 @@ public final class DashboardViewModel {
         })
         self.codexUserHooksEnabledProvider = codexUserHooksEnabledProvider
         self.codexDiscoveryNow = codexDiscoveryNow
+        self.rateLimitNow = rateLimitNow
         self.livePIDProvider = livePIDProvider
         self.sessionHooks = SessionHookInstaller(
             dispatcherPath: environment.hookDispatcherPath,
@@ -149,7 +154,8 @@ public final class DashboardViewModel {
         )
         self.messaging = MessagingService(
             pty: environment.pty,
-            messages: environment.messages
+            messages: environment.messages,
+            now: rateLimitNow
         )
         self.spawnService = SessionSpawnService(
             environment: environment,
@@ -249,6 +255,12 @@ public final class DashboardViewModel {
 
     var codexDiscoveryTaskCountForTesting: Int {
         codexDiscoveryController.taskCount
+    }
+
+    /// 永続化直列チェーンの保留書き込みが全て完了するまで待つ（テスト用の決定的待機）。
+    /// 削除など enqueue 済みの保存を、任意 sleep でなく確定的にドレインして検証できるようにする。
+    func waitForPendingPersistenceWritesForTesting() async {
+        await persistence.waitForPendingWrites()
     }
 
     private func observeUnseenCompletion(for session: SessionViewModel) {
@@ -1464,7 +1476,7 @@ public final class DashboardViewModel {
     private func checkAPISpawnLimits(from: SessionID, newDepth: Int) throws {
         spawnTimestamps[from] = try SpawnPolicy.recordingSpawnAttempt(
             timestamps: spawnTimestamps[from] ?? [],
-            now: Date()
+            now: rateLimitNow()
         )
         try SpawnPolicy.validateAPISpawn(newDepth: newDepth)
     }

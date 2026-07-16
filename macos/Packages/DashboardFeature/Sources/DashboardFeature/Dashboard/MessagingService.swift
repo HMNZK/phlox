@@ -17,13 +17,18 @@ final class MessagingService {
     private let pty: any PTYManagerProtocol
     private let messages: any MessageStoreProtocol
     private var sendTimestamps: [SessionID: [Date]] = [:]
+    /// 送信レート制限の現在時刻シーム。既定は実時計。テストは固定時刻を注入して
+    /// スライディングウィンドウを決定論化する（実時計依存の断続的失敗の除去）。
+    private let now: @Sendable () -> Date
 
     init(
         pty: any PTYManagerProtocol,
-        messages: any MessageStoreProtocol
+        messages: any MessageStoreProtocol,
+        now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.pty = pty
         self.messages = messages
+        self.now = now
     }
 
     func send(
@@ -36,7 +41,7 @@ final class MessagingService {
         sessions: [SessionNode]
     ) async -> DashboardViewModel.SendOutcome {
         if let from {
-            let now = Date()
+            let now = self.now()
             let windowStart = now.addingTimeInterval(-Self.sendRateLimitWindowSeconds)
             var timestamps = (sendTimestamps[from] ?? []).filter { $0 > windowStart }
             if timestamps.count >= Self.maxSendCountPerSecond {

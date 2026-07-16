@@ -31,7 +31,11 @@ func spawnNewSession_apiSpawnBeyondRateLimitThrows() async throws {
     let ptyManager = MockPTYManager()
     let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
     let environment = makeTestEnvironment(pty: ptyManager, hookStream: hookStream)
-    let dashboard = DashboardViewModel(environment: environment)
+    // 固定時計を注入し、上限までの spawn 全てが同一の 1 秒窓に入ることを保証する（実時計依存の除去）。
+    let dashboard = DashboardViewModel(
+        environment: environment,
+        rateLimitNow: { Date(timeIntervalSince1970: 1_800_000_000) }
+    )
     await dashboard.start()
 
     let requesterID = try await dashboard.spawnNewSession(kind: .claudeCode)

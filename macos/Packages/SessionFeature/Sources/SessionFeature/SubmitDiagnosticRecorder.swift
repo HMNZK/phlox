@@ -31,6 +31,12 @@ final class SubmitDiagnosticRecorder {
         armedAt != nil
     }
 
+    /// 処理中を観測済みか。`arm()` で再武装されるまで false へ戻らない（単調）ため、
+    /// テストはこれが true になるのを待てば以後 flush が診断を発火しないことを確定できる。
+    var hasObservedProcessing: Bool {
+        observedProcessing
+    }
+
     func arm(byteCount: Int, bracketed: Bool) {
         armedAt = Date()
         self.byteCount = byteCount

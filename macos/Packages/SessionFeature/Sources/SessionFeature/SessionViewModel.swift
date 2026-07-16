@@ -187,6 +187,11 @@ public final class SessionViewModel: Identifiable {
         get { submitDiagnosticRecorder.sink }
         set { submitDiagnosticRecorder.sink = newValue }
     }
+    /// submit 後に codex の「処理中」を観測済みか（テストの決定的待機用の読み取りシーム）。
+    /// true を確認できれば、以後 flush は診断を発火しない（observedProcessing は再 arm まで不変）。
+    var hasObservedSubmitProcessingForTesting: Bool {
+        submitDiagnosticRecorder.hasObservedProcessing
+    }
 
     public init(
         id: SessionID,

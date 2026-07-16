@@ -25,6 +25,7 @@ last-verified: 2026-07-09
 | `chat-subagent-display.md` | サブエージェント別チャット表示の現行構造 |
 | `claude-chat-session-lifecycle.md` | Claude チャットセッションのプロセスライフサイクル（spawn/respawn/self-heal） |
 | `dashboard-empty-state-agent-cards.md` | 空状態のエージェント選択カード（セッション未選択→カードで spawn） |
+| `dashboard-pane-layout.md` | Dashboard 3ペインレイアウトと幅クランプ（PaneWidthPolicy・クランプ発火点） |
 | `claude-usage-supply.md` | Claude Usage（5h/7d 残量）キャッシュの供給経路（statusLine＋`/usage` プローブ） |
 | `design-system.md` | Phlox デザインシステム（macOS 本体・`Packages/DesignSystem`） |
 | `mobile-proxy.md` | モバイル連携（Tailscale→MobileProxy→ControlServer、トークン・API・バインド方針） |

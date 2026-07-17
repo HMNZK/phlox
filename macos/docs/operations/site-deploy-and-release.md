@@ -35,6 +35,26 @@ last-verified: 2026-07-16
 
 前提: DMG のビルド・Developer ID 署名・notarytool 公証・stapler は `swift-release` スキル（`sign_and_notarize.sh`）で行う。公証済み DMG は `stapler validate` 成功かつ `spctl -a -t open` が `accepted, source=Notarized Developer ID` になること。
 
+### DMG をビルドする（styled インストール画面つき）
+
+`macos/` で次を実行する。**`DMG_BACKGROUND` / `DMG_DS_STORE` を必ず渡す**こと（省略すると背景・アイコン配置のない素の DMG になり、インストール画面が簡素化する回帰が起きる。1.0.1 で一度発生した）。`TEAM_ID` と署名名義は**ローカルにのみ持ち、リポジトリにコミットしない**:
+
+```bash
+cd macos
+XCODEGEN=1 APP_NAME=Phlox SCHEME=Phlox PROJECT=Phlox.xcodeproj \
+  TEAM_ID=<your-team-id> \
+  IDENTITY="Developer ID Application: <name> (<your-team-id>)" \
+  KEYCHAIN_PROFILE=AC_NOTARY \
+  ENTITLEMENTS=App/Phlox.entitlements \
+  DMG_BACKGROUND=release-assets/dmg/dmg-background.png \
+  DMG_DS_STORE=release-assets/dmg/DS_Store \
+  bash ~/.claude/skills/swift-release/scripts/sign_and_notarize.sh
+```
+
+- 生成物: `macos/build/Phlox.dmg`（人間向け・Release 添付用）／ `macos/build/Phlox.zip`（Sparkle 用。配布時に `Phlox-<version>.zip` へリネーム）。
+- styled DMG の背景・レイアウト資産は `macos/release-assets/dmg/`（`dmg-background.png` と `DS_Store` テンプレート）。`.DS_Store` はボリューム名 `Phlox`・背景ファイル名・アイコン名（`Phlox.app` / `Applications`）に紐づくため、これらを変える場合はテンプレートを作り直す（詳細は同ディレクトリ `README.md`）。
+- Sparkle 用 zip の EdDSA 署名は `sign_update`（初回は keychain のアクセス許可ダイアログで「常に許可」が必要）。
+
 リリース時は **3 箇所**を更新する（[ADR 0089](../adr/0089-phlox-cc-served-from-monorepo-site.md) の移設により配信先が変わった点に注意）:
 
 1. **初回ダウンロード用 DMG を `HMNZK/phlox` の Release に公開する**（これをしないと `phlox/releases/latest` が旧版に固定される）:

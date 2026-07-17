@@ -92,11 +92,10 @@ enum ComposerIndicatorMetrics {
         }
     }
 
-    /// `.regular` は幅制約なし（既存挙動）。`.compact` はグリッド列幅向けに絞る。
+    /// どちらの layout も固定の上限クランプは設けない（省略は親 HStack の実領域不足時のみ）。
     static func branchNameMaxWidth(for layout: ComposerIndicatorLayout) -> CGFloat? {
         switch layout {
-        case .regular: nil
-        case .compact: 100
+        case .regular, .compact: nil
         }
     }
 
@@ -118,7 +117,11 @@ struct ComposerContextIndicator: View {
                 contextDonut(fraction: fraction)
             }
             branchLabel
+                // フッター幅不足時は送信・停止ボタンより先に圧縮させる（不変条件 i）。
+                .layoutPriority(-1)
+                .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity, alignment: .leading)
         }
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -377,20 +380,20 @@ private struct ComposerStaticBranchControl: View {
     }
 }
 
-private struct ComposerBranchLabelContent: View {
+// 白箱テスト（ComposerBranchLabelWhiteboxTests）が真のテキスト幅を計測するため internal。
+struct ComposerBranchLabelContent: View {
     let currentBranch: String
     var layout: ComposerIndicatorLayout
     var isCheckingOut: Bool
 
     var body: some View {
-        let truncation = ComposerIndicatorMetrics.branchTruncationMode(for: layout)
-        let label = HStack(spacing: 2) {
+        HStack(spacing: 2) {
             Image(systemName: "arrow.triangle.branch")
                 .font(.system(size: 10, weight: .medium))
             Text(currentBranch)
                 .font(DSFont.caption)
                 .lineLimit(1)
-                .truncationMode(truncation)
+                .truncationMode(ComposerIndicatorMetrics.branchTruncationMode(for: layout))
             if isCheckingOut {
                 ProgressView()
                     .controlSize(.small)
@@ -400,11 +403,5 @@ private struct ComposerBranchLabelContent: View {
         }
         .foregroundStyle(DSColor.chatTextSecondary)
         .contentShape(RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
-
-        if let maxWidth = ComposerIndicatorMetrics.branchNameMaxWidth(for: layout) {
-            label.frame(maxWidth: maxWidth)
-        } else {
-            label
-        }
     }
 }

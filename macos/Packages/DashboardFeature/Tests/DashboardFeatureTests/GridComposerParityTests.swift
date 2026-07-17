@@ -16,10 +16,12 @@ struct GridComposerParityTests {
     }
 
     @Test
-    func indicatorMetrics_compactBranchMaxWidthIsNarrowerThanRegular() {
+    func indicatorMetrics_branchMaxWidthIsUnclampedInBothLayouts() {
+        // task-2（desktop-ui-polish run）で固定 100pt クランプを撤廃。省略は実領域不足時のみ
+        //（契約の正本: AcceptanceBranchNameFullWidthTests）。
         let compact = ComposerIndicatorMetrics.branchNameMaxWidth(for: .compact)
         let regular = ComposerIndicatorMetrics.branchNameMaxWidth(for: .regular)
-        #expect(compact == 100)
+        #expect(compact == nil)
         #expect(regular == nil)
     }
 

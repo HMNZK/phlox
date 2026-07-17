@@ -12,6 +12,8 @@ last-verified: 2026-07-16
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0092 | [チャットのツールコール連続表示のグループ集約と identity 設計](0092-chat-tool-call-grouping.md) | active |
+| 0091 | [Codex app-server の error 通知の終端性判定（willRetry 非終端＋EOF 合成終端）](0091-codex-app-server-error-terminality.md) | active |
 | 0090 | [両サイドバー表示のペイン幅クランプと狭幅カード縦積みのレイアウト方針](0090-dual-sidebar-pane-width-clamp-and-card-stacking.md) | active |
 | 0089 | [phlox.cc をモノレポの site/ から GitHub Actions Pages で配信](0089-phlox-cc-served-from-monorepo-site.md) | active |
 | 0088 | [接続確立を QR ペアリングに一本化し、手動の認証情報入力・供給 UI を撤去する](0088-qr-only-pairing-remove-manual-token-entry.md) | active |

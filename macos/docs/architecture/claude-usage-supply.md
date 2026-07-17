@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-10
+last-verified: 2026-07-17
 ---
 
 # Claude Usage の供給経路（現行）
@@ -32,3 +32,4 @@ last-verified: 2026-07-10
 - pending リクエストは respawn/close の suspension 窓でも全 fail され continuation リークしない（`ClaudeChatClient+Respawn.swift`。二重 resume は removeValue で冪等）。
 - `get_usage` は claude CLI（2.1.205 で実測）の非公開 API。壊れた場合はタイムアウト→フォールバックに縮退し、誤値を書く経路はない（→ ADR 0061 の結果節）。
 - ヘッダー表示は `TrailingTopBarLayout.usageAvailableWidth`（ウィンドウ幅−サイドバー実占有−コントロール実測幅）で幅を拘束し、ゲージ付き→直列テキスト→非表示の順に縮退する（各候補行は `fixedSize()` で真の単一行幅で判定）。
+- **表示の視覚仕様（2026-07-17 統一・全エージェント共通）**: エージェント種別はテキスト名でなくブランドアイコン（`AgentBrandIcon(kind:size:)`・`UsageDisplay.topBarBrandIconSize` = 12）で示す。バー/ゲージ色はエージェント別固定色でなく消費率グラデーション `UsageDisplay.usageColor(for: usedPercent)`（claude-statusline の rate_color 移植: 緑→黄→赤。ゲージは残量分を塗る）。Cursor のバケットラベルは「Auto+Composer」を「Auto」へ統一（`CursorUsageProvider`）。凍結 `AcceptanceUsageBarUnificationTests`。

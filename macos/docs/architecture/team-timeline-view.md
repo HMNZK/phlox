@@ -1,16 +1,18 @@
 ---
 status: active
-last-verified: 2026-07-12
+last-verified: 2026-07-17
 ---
 
-# アゴラ（旧チーム表示・グループチャット）の構造
+# チームビュー (Beta)（旧アゴラ・グループチャット）の構造
 
-> **このファイルの役割**: アゴラ＝3番目の表示モード（`.team`）の現行コンポーネント・データフロー・型（「今こう動いている」）。
+> **このファイルの役割**: チームビュー＝3番目の表示モード（`.team`）の現行コンポーネント・データフロー・型（「今こう動いている」）。
 > **書かないもの**: なぜこの設計かの rationale（→ `adr/0072-agora-flat-group-chat.md`。旧ツリー埋め込みは `adr/0070`、旧フラット統合は `adr/0043`＝いずれも superseded）。
 
 ## 表示モード
 
-`ViewMode { single, grid, team }`（`Router/AppRouter.swift`）。ツールバー `ViewModeToggle` は3セグメント（help は「アゴラ」）。`DashboardDetailView` の `switch router.viewMode` で `.team` は `TeamTimelineView(viewModel:router:isCreating:onSelectAgentKind:)` を描画（**型名は旧称のまま**＝ユーザー可視文字列のみ改称。ADR 0072 決定1）。
+`ViewMode { single, grid, team }`（`Router/AppRouter.swift`）。ツールバー `ViewModeToggle` は3セグメント（help は「チームビュー」）。`DashboardDetailView` の `switch router.viewMode` で `.team` は `TeamTimelineView(viewModel:router:isCreating:onSelectAgentKind:)` を描画（**型名・内部識別子は旧称 Agora/TeamTimeline のまま**＝ユーザー可視文字列のみ改称。ADR 0072 決定1 の方針を継承）。
+
+ユーザー可視の名称は `TeamViewBranding`（SessionFeature）に一元化: `title == "チームビュー"`・`betaSuffix == "Beta"`・`displayTitle == "チームビュー (Beta)"`（機能自体がベータの位置づけ）。討論ロールプロンプト（`AgoraRolePromptTemplate`）内の呼称も「チームビュー討論」。2026-07-17 に「アゴラ」から全ユーザー可視表記を改称（凍結 `AcceptanceTeamViewRenameTests`）。
 
 ## 空状態（シングルと共通ポリシー）
 

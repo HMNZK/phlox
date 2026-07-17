@@ -153,7 +153,7 @@ SomeCard().dsShadow(.card)   // 生 .shadow を書かない単一経路
 | API | 役割 |
 |---|---|
 | `agentColor(for: AgentKind)` / `agentColor(for: AgentDescriptor)` | CLI エージェントの識別色 |
-| `AgentBrandIcon(descriptor:size:)` | エージェントのブランドアイコン。builtin claude/codex/cursor は `Icons.xcassets` の SVG（preserves-vector）を描画、他は SF Symbol／頭文字フォールバック（ADR 0032） |
+| `AgentBrandIcon(descriptor:size:)` / `AgentBrandIcon(kind:size:)` | エージェントのブランドアイコン。builtin claude/codex/cursor は `Icons.xcassets` の SVG（preserves-vector）を描画、他は SF Symbol／頭文字フォールバック（ADR 0032）。`kind:` は builtin 用の便宜イニシャライザ（2026-07-17 追加。Usage トップバーのエージェント名テキスト置換で使用） |
 | `AgentSessionIcon(descriptor:status:size:)` | セッション行/ヘッダー用。`AgentBrandIcon` を**丸で囲わず**描画する（StatusDot＋エージェント名バッジの置換、ADR 0042）。**running インジケータ overlay は ADR 0044 で撤去**（`showsRunningIndicator` は常に false）。 |
 
 > **ワークスペース（プロジェクト）識別色は 2026-07-05 に廃止**（`projectColorPalette` / `projectColor(at:)` / `AppTheme.projectPalette` は削除。並び順ベースの自動割当てだったため永続データなし・移行不要）。プロジェクト表示はニュートラルトークン（`textSecondary`）に統一。

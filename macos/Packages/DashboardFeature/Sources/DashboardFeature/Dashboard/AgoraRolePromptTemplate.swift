@@ -11,7 +11,7 @@ public enum AgoraRolePromptTemplate {
     ) -> String {
         var sections: [String] = []
 
-        sections.append("あなたはアゴラ討論の参加者です。")
+        sections.append("あなたはチームビュー討論の参加者です。")
 
         if let role, !role.isEmpty {
             sections.append("あなたの役割: \(role)")

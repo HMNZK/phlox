@@ -289,7 +289,7 @@ private struct ViewModeToggle: View {
         HStack(spacing: DSSpacing.xxs) {
             segment(.single, symbol: "square", help: String(localized: "単体表示"))
             segment(.grid, symbol: "square.grid.2x2", help: String(localized: "グリッド表示"))
-            segment(.team, symbol: "person.3", help: String(localized: "アゴラ"))
+            segment(.team, symbol: "person.3", help: TeamViewBranding.displayTitle)
         }
         .padding(DSSpacing.xxs)
         .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: DSRadius.s + 3))

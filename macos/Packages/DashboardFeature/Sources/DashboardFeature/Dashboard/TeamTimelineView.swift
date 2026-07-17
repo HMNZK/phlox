@@ -100,7 +100,7 @@ public struct TeamTimelineView: View {
                 Image(systemName: "person.3")
                     .font(.system(size: DSIconSize.l, weight: .medium))
                     .foregroundStyle(DSColor.textSecondary)
-                Text("アゴラ")
+                Text(TeamViewBranding.displayTitle)
                     .font(DSFont.sectionHeader)
                     .foregroundStyle(DSColor.textPrimary)
                 Spacer(minLength: 0)

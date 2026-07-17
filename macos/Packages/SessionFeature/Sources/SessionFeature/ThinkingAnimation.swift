@@ -53,7 +53,6 @@ enum ThinkingAnimationModel {
 /// hangAssessment（実行中ターンの経過表示）用の 1Hz スケジュール（task-2 契約面）。
 /// 非表示時はエントリ列を空にして更新停止を保証する（ThinkingTimelineSchedule と同じ設計・
 /// ADR 0067 の既知残余の解消）。
-/// スタブ: 現状は isVisible に依らず常時 1Hz。task-2 で非表示時の空エントリ化を実装する。
 struct HangStatusTimelineSchedule: TimelineSchedule {
     private let isVisible: Bool
 
@@ -61,8 +60,24 @@ struct HangStatusTimelineSchedule: TimelineSchedule {
         self.isVisible = isVisible
     }
 
-    func entries(from startDate: Date, mode: TimelineScheduleMode) -> PeriodicTimelineSchedule.Entries {
-        PeriodicTimelineSchedule(from: startDate, by: 1).entries(from: startDate, mode: mode)
+    func entries(from startDate: Date, mode: TimelineScheduleMode) -> Entries {
+        Entries(
+            periodicEntries: isVisible
+                ? PeriodicTimelineSchedule(from: startDate, by: 1).entries(from: startDate, mode: mode)
+                : nil
+        )
+    }
+
+    struct Entries: Sequence, IteratorProtocol {
+        private var periodicEntries: PeriodicTimelineSchedule.Entries?
+
+        fileprivate init(periodicEntries: PeriodicTimelineSchedule.Entries?) {
+            self.periodicEntries = periodicEntries
+        }
+
+        mutating func next() -> Date? {
+            periodicEntries?.next()
+        }
     }
 }
 

@@ -110,7 +110,7 @@ struct ThinkingIndicatorCell: View {
                         .lineLimit(3)
                 }
                 if let hangAssessment {
-                    TimelineView(.periodic(from: Date(), by: 1)) { context in
+                    TimelineView(HangStatusTimelineSchedule(isVisible: isTimelineVisible)) { context in
                         if let assessment = hangAssessment(context.date) {
                             RunningTurnStatusView(
                                 assessment: assessment,

@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-07-16
+last-verified: 2026-07-17
 ---
 
 # ADR（アーキテクチャ決定記録）索引
@@ -12,8 +12,12 @@ last-verified: 2026-07-16
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
-| 0092 | [チャットのツールコール連続表示のグループ集約と identity 設計](0092-chat-tool-call-grouping.md) | active |
-| 0091 | [Codex app-server の error 通知の終端性判定（willRetry 非終端＋EOF 合成終端）](0091-codex-app-server-error-terminality.md) | active |
+| 0096 | [チャットのツールコール連続表示のグループ集約と identity 設計](0096-chat-tool-call-grouping.md) | active |
+| 0095 | [Codex app-server の error 通知の終端性判定（willRetry 非終端＋EOF 合成終端）](0095-codex-app-server-error-terminality.md) | active |
+| 0094 | [グリッドタイルの transcript 窓分化（40件）と hangAssessment 1Hz の viewport 停止](0094-grid-tile-transcript-window-and-hang-timer-pause.md) | active |
+| 0093 | [ストリーミング delta のコアレシング適用（イベント毎の即時 UI 無効化を廃止）](0093-transcript-stream-delta-coalescing.md) | active |
+| 0092 | [モバイル接続プロキシの Tailscale 遅延起動に対する自己回復（オンデマンド再解決＋起動後リトライ）](0092-mobile-proxy-self-heal-on-tailscale-late-start.md) | active |
+| 0091 | [Claude のコンテキスト占有量は「最新リクエスト」で近似する（ターン累積ではない）](0091-claude-context-occupancy-latest-request-not-cumulative.md) | active |
 | 0090 | [両サイドバー表示のペイン幅クランプと狭幅カード縦積みのレイアウト方針](0090-dual-sidebar-pane-width-clamp-and-card-stacking.md) | active |
 | 0089 | [phlox.cc をモノレポの site/ から GitHub Actions Pages で配信](0089-phlox-cc-served-from-monorepo-site.md) | active |
 | 0088 | [接続確立を QR ペアリングに一本化し、手動の認証情報入力・供給 UI を撤去する](0088-qr-only-pairing-remove-manual-token-entry.md) | active |

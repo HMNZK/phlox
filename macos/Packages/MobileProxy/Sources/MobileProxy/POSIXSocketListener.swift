@@ -59,6 +59,7 @@ final class POSIXSocketListener: @unchecked Sendable {
     private let lock = NSLock()
     private var stopped = false
     private var acceptThread: Thread?
+    private let acceptLoopExited = DispatchSemaphore(value: 0)
 
     /// socket → SO_REUSEADDR → bind(bindAddress) → listen まで行う。失敗は MobileProxyError で投げる。
     /// - bindAddress: 実際に bind するアドレス(tailscale=0.0.0.0, loopbackOnly=127.0.0.1, 等)。
@@ -139,6 +140,7 @@ final class POSIXSocketListener: @unchecked Sendable {
     }
 
     private func acceptLoop() {
+        defer { acceptLoopExited.signal() }
         while true {
             lock.lock()
             let isStopped = stopped
@@ -230,8 +232,15 @@ final class POSIXSocketListener: @unchecked Sendable {
             return
         }
         stopped = true
+        let shouldWaitForAcceptLoop = acceptThread != nil
         lock.unlock()
-        // listen fd を閉じると accept がエラーで返り、ループが終了する。
+
+        // shutdown で別スレッド上の accept を確実に解除してから fd を閉じる。
+        // 再バインドは accept ループの終了確認後にだけ進める。
+        shutdown(listenFD, SHUT_RDWR)
         close(listenFD)
+        if shouldWaitForAcceptLoop {
+            acceptLoopExited.wait()
+        }
     }
 }

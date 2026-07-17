@@ -58,9 +58,11 @@ public final class CompositionRoot {
             provisioned: mobileToken.provisioned,
             provisioner: mobileToken.mobileProvisioner,
             tokenStore: hookInfra.tokenStore,
+            proxy: mobileProxyResult.proxy,
             bindMode: mobileProxyResult.bindMode,
             mobileProxyPort: mobileProxyResult.listenPort.map(Int.init)
         )
+        mobileTokenViewModel.startAutoRecovery()
         let remoteSessionNotifier = Self.wireAPNsNotifications(deviceTokenStore: deviceTokenStore)
         let started = try await Self.assembleEnvironmentAndStartDashboard(
             pty: hookInfra.pty,

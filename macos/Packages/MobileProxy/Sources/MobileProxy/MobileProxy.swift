@@ -81,6 +81,9 @@ public actor MobileProxy {
     /// 起動後に確定する露出状態。未起動は nil。
     public private(set) var bindMode: BindMode?
 
+    /// 現在の listener が実際に束縛しているポート。未起動または起動失敗時は nil。
+    public private(set) var boundPort: UInt16?
+
     /// - Parameters:
     ///   - listenHost: 待ち受けアドレス。nil なら Tailscale IPv4 を解決し、不可なら loopback 限定。
     ///   - listenPort: 待ち受けポート(既定 8765)。0 を渡すとランダム(テスト用)。
@@ -105,6 +108,11 @@ public actor MobileProxy {
     /// 露出範囲(BindMode)は start 後に `bindMode` から参照できる。
     @discardableResult
     public func start() async throws -> UInt16 {
+        try startListener()
+    }
+
+    /// listener の構築と状態更新を、actor の中断点を挟まずに完了する。
+    private func startListener() throws -> UInt16 {
         if listener != nil {
             throw MobileProxyError.alreadyStarted
         }
@@ -135,8 +143,55 @@ public actor MobileProxy {
 
         self.listener = listener
         self.bindMode = mode
+        self.boundPort = listener.boundPort
         listener.startAccepting()
         return listener.boundPort
+    }
+
+    /// Tailscale の状態を再評価し、必要なら listener を停止して再構築する。
+    /// tailscale または明示ホストで起動済みの場合は現在の状態を維持する。
+    @discardableResult
+    public func refresh() async -> BindMode? {
+        switch bindMode {
+        case .tailscale, .explicitHost:
+            return bindMode
+        case nil, .loopbackOnly:
+            stop()
+            do {
+                _ = try startListener()
+                return bindMode
+            } catch {
+                logger.error("Mobile proxy refresh failed: \(String(describing: error), privacy: .public)")
+                return nil
+            }
+        }
+    }
+
+    /// Tailscale 到達可能になるまで、有限回だけ再解決・再バインドを試す。
+    /// 試行間の待機は注入可能で、テストでは実時間待ちを避けられる。
+    @discardableResult
+    public func recoverUntilReachable(
+        maxAttempts: Int,
+        delay: Duration,
+        sleep: @Sendable (Duration) async -> Void = { duration in
+            try? await Task<Never, Never>.sleep(for: duration)
+        }
+    ) async -> BindMode? {
+        guard maxAttempts > 0 else { return bindMode }
+
+        for attempt in 0..<maxAttempts {
+            let mode = await refresh()
+            if case .tailscale = mode {
+                return mode
+            }
+            if case .explicitHost = mode {
+                return mode
+            }
+            if attempt < maxAttempts - 1 {
+                await sleep(delay)
+            }
+        }
+        return bindMode
     }
 
     /// loopback の許可 CIDR(127.0.0.0/8。hairpin/ヘルスチェック/結合テストの 127.0.0.1 用)。
@@ -164,6 +219,7 @@ public actor MobileProxy {
         listener?.stop()
         listener = nil
         bindMode = nil
+        boundPort = nil
     }
 
     /// 127.0.0.1 系(ループバック)か。

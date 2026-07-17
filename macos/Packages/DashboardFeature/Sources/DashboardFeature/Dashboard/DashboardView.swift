@@ -542,8 +542,8 @@ public struct DashboardView: View {
 
     private func markCompletionSeen(for selectedID: SessionID?) {
         guard let selectedID,
-              let session = viewModel.sessionNode(id: selectedID)?.pty else { return }
-        session.markCompletionSeen()
+              let node = viewModel.sessionNode(id: selectedID) else { return }
+        node.markCompletionSeen()
     }
 
     private var errorAlertBinding: Binding<Bool> {

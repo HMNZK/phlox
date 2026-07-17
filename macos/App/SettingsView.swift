@@ -319,6 +319,9 @@ struct SettingsView: View {
             } message: {
                 Text("古いトークンは即座に無効になります。接続済みの iPhone では再度 QR コードの読み取りが必要です。")
             }
+            .task {
+                await viewModel.refreshReachability()
+            }
         }
     }
 

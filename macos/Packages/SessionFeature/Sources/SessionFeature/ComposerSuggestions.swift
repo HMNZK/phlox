@@ -98,8 +98,11 @@ final class ComposerSuggestionController {
     private let fileProvider: (String) -> [SuggestionCandidate]
     private var currentQuery: SuggestionQuery?
 
-    /// 非同期ファイル候補走査（task-9 契約）: 走査中 true。走査中も前回候補は保持される。
+    /// 非同期候補走査: 走査中 true。走査中も前回候補は保持される。
     private(set) var isScanning: Bool = false
+    private let asyncSlashProvider: (@Sendable (String) async -> [SuggestionCandidate])?
+    /// warm スラッシュキャッシュの同期ピーク（miss は nil）。
+    private let cachedSlashProvider: ((String) -> [SuggestionCandidate]?)?
     private let asyncFileProvider: (@Sendable (String) async -> [SuggestionCandidate])?
     /// warm キャッシュの同期ピーク（miss は nil）。非 nil を返せば背景走査せず同期即応答する。
     /// MainActor 上でのみ呼ぶ（走査本体ではなくキャッシュ参照のみ）。
@@ -120,6 +123,8 @@ final class ComposerSuggestionController {
     ) {
         self.slashProvider = slashProvider
         self.fileProvider = fileProvider
+        self.asyncSlashProvider = nil
+        self.cachedSlashProvider = nil
         self.asyncFileProvider = nil
         self.cachedFileProvider = nil
     }
@@ -135,6 +140,22 @@ final class ComposerSuggestionController {
     ) {
         self.slashProvider = slashProvider
         self.fileProvider = { _ in [] }
+        self.asyncSlashProvider = nil
+        self.cachedSlashProvider = nil
+        self.asyncFileProvider = asyncFileProvider
+        self.cachedFileProvider = cachedFileProvider
+    }
+
+    init(
+        asyncSlashProvider: @escaping @Sendable (String) async -> [SuggestionCandidate],
+        cachedSlashProvider: @escaping (String) -> [SuggestionCandidate]?,
+        asyncFileProvider: @escaping @Sendable (String) async -> [SuggestionCandidate],
+        cachedFileProvider: @escaping (String) -> [SuggestionCandidate]?
+    ) {
+        self.slashProvider = { [] }
+        self.fileProvider = { _ in [] }
+        self.asyncSlashProvider = asyncSlashProvider
+        self.cachedSlashProvider = cachedSlashProvider
         self.asyncFileProvider = asyncFileProvider
         self.cachedFileProvider = cachedFileProvider
     }
@@ -150,10 +171,18 @@ final class ComposerSuggestionController {
 
         switch query.kind {
         case .slashCommand:
-            applySynchronousCandidates(
-                Self.filteredSlashCandidates(slashProvider(), searchTerm: query.searchTerm),
-                for: query
-            )
+            if asyncSlashProvider != nil {
+                if let cachedSlashProvider, let warm = cachedSlashProvider(query.searchTerm) {
+                    applySynchronousCandidates(warm, for: query)
+                } else {
+                    scheduleScan(query: query)
+                }
+            } else {
+                applySynchronousCandidates(
+                    Self.filteredSlashCandidates(slashProvider(), searchTerm: query.searchTerm),
+                    for: query
+                )
+            }
         case .fileReference:
             if asyncFileProvider != nil {
                 if let cachedFileProvider, let warm = cachedFileProvider(query.searchTerm) {
@@ -200,7 +229,14 @@ final class ComposerSuggestionController {
     /// 背景走査 Task を 1 本起動する。launchScan は「走行中が 0 のとき」だけ呼ばれるため、
     /// 走行中の走査は常に高々 1 本（並行 FS 走査は起きない）。
     private func launchScan(query: SuggestionQuery, generation: Int) {
-        guard let provider = asyncFileProvider else { return }
+        let provider: (@Sendable (String) async -> [SuggestionCandidate])?
+        switch query.kind {
+        case .slashCommand:
+            provider = asyncSlashProvider
+        case .fileReference:
+            provider = asyncFileProvider
+        }
+        guard let provider else { return }
         runningScanCount += 1
         let term = query.searchTerm
         // Task は @MainActor 文脈を継承する。await 点は `provider(term)` の 1 箇所だけで、
@@ -284,12 +320,18 @@ final class ComposerSuggestionController {
     }
 
     static func production(workingDirectory: String) -> ComposerSuggestionController {
-        // task-9: FS 走査本体（キャッシュ miss 時のみ発生）を背景 Task へ逃がす。
-        // warm キャッシュ hit は cachedFileProvider の同期ピークで即応答し、TTL 5秒の
-        // ComposerSuggestionSourceCache はそのまま温存する。
         ComposerSuggestionController(
-            slashProvider: {
-                ComposerSuggestionSources.slashCandidates(workingDirectory: workingDirectory)
+            asyncSlashProvider: { term in
+                Self.filteredSlashCandidates(
+                    ComposerSuggestionSources.slashCandidates(workingDirectory: workingDirectory),
+                    searchTerm: term
+                )
+            },
+            cachedSlashProvider: { term in
+                ComposerSuggestionSources.cachedSlashCandidates(
+                    workingDirectory: workingDirectory,
+                    matching: term
+                )
             },
             asyncFileProvider: { term in
                 ComposerSuggestionSources.fileCandidates(under: workingDirectory, matching: term)
@@ -300,7 +342,7 @@ final class ComposerSuggestionController {
         )
     }
 
-    private static func filteredSlashCandidates(
+    nonisolated private static func filteredSlashCandidates(
         _ candidates: [SuggestionCandidate],
         searchTerm: String
     ) -> [SuggestionCandidate] {
@@ -354,6 +396,23 @@ enum ComposerSuggestionSources {
         ) {
             uncachedSlashCandidates(homeDirectory: homeDirectory, workingDirectory: workspacePath)
         }
+    }
+
+    /// TTL 内のスラッシュ候補集合を走査なしでピークし、検索語で前方一致フィルタする。
+    /// miss（未キャッシュ／期限切れ）なら nil を返す。
+    static func cachedSlashCandidates(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+        workingDirectory: String = FileManager.default.currentDirectoryPath,
+        matching searchTerm: String
+    ) -> [SuggestionCandidate]? {
+        let workspacePath = normalizedWorkingDirectory(workingDirectory)
+        guard let candidates = cache.cachedSlashCandidates(
+            homeDirectory: homeDirectory.standardizedFileURL.path,
+            workingDirectory: workspacePath
+        ) else {
+            return nil
+        }
+        return filteredSlashCandidates(candidates, matching: searchTerm)
     }
 
     private static func uncachedSlashCandidates(
@@ -605,6 +664,23 @@ enum ComposerSuggestionSources {
         }
     }
 
+    private static func filteredSlashCandidates(
+        _ candidates: [SuggestionCandidate],
+        matching searchTerm: String
+    ) -> [SuggestionCandidate] {
+        guard !searchTerm.isEmpty else { return candidates }
+        let normalizedTerm = searchTerm.lowercased()
+        return candidates.filter { candidate in
+            let insertion = candidate.insertionText
+                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                .lowercased()
+            let title = candidate.title
+                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                .lowercased()
+            return insertion.hasPrefix(normalizedTerm) || title.hasPrefix(normalizedTerm)
+        }
+    }
+
     private static func relativePath(for fileURL: URL, rootURL: URL) -> String {
         let rootPath = rootURL.standardizedFileURL.path
         let filePath = fileURL.standardizedFileURL.path
@@ -691,6 +767,15 @@ private final class ComposerSuggestionSourceCache: @unchecked Sendable {
     ) -> [String]? {
         let key = FileKey(workingDirectory: workingDirectory, maxDepth: maxDepth, maxEntries: maxEntries)
         return cachedFilePaths(for: key, now: Date())
+    }
+
+    /// TTL 内のスラッシュ候補集合を走査なしで返す。miss なら nil。
+    func cachedSlashCandidates(
+        homeDirectory: String,
+        workingDirectory: String
+    ) -> [SuggestionCandidate]? {
+        let key = SlashKey(homeDirectory: homeDirectory, workingDirectory: workingDirectory)
+        return cachedSlashCandidates(for: key, now: Date())
     }
 
     private func cachedSlashCandidates(for key: SlashKey, now: Date) -> [SuggestionCandidate]? {

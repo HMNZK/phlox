@@ -214,6 +214,7 @@ public final class DashboardViewModel {
                 self?.refreshUnseenCompletionCount()
             },
             appendAppServerSession: { [weak self] vm in
+                self?.observeUnseenCompletion(for: vm)
                 self?.appendSessionNode(.appServer(vm))
                 self?.refreshUnseenCompletionCount()
             },
@@ -263,14 +264,15 @@ public final class DashboardViewModel {
         await persistence.waitForPendingWrites()
     }
 
-    private func observeUnseenCompletion(for session: SessionViewModel) {
+    private func observeUnseenCompletion(for session: any ControllableSession) {
         session.unseenCompletionDidChange = { [weak self] in
             self?.refreshUnseenCompletionCount()
         }
     }
 
     private func refreshUnseenCompletionCount() {
-        let count = sessions.filter { $0.hasUnseenCompletion }.count
+        // PTY / Chat 両種別を node レベルで数える（Dock バッジは「要対応セッション数」）。
+        let count = sessionNodes.filter { $0.hasUnseenCompletion }.count
         guard count != unseenCompletionCount else { return }
         unseenCompletionCount = count
         unseenCompletionCountDidChange?(count)
@@ -388,7 +390,7 @@ public final class DashboardViewModel {
     public func hasUnseenCompletion(in projectID: ProjectID) -> Bool {
         let sidebarNodeIDs = Set(sessionForest(in: projectID).flatMap(Self.sessionTreeNodeIDs))
         return sessionNodes.contains { node in
-            sidebarNodeIDs.contains(node.id) && node.pty?.hasUnseenCompletion == true
+            sidebarNodeIDs.contains(node.id) && node.hasUnseenCompletion
         }
     }
 
@@ -933,6 +935,7 @@ public final class DashboardViewModel {
                 plan: plan,
                 launchContext: launchContext
             )
+            observeUnseenCompletion(for: result.vm)
             appendSessionNode(.appServer(result.vm))
             refreshUnseenCompletionCount()
             codexThreadId = result.codexThreadId
@@ -1101,7 +1104,7 @@ public final class DashboardViewModel {
         sessionHookContinuations[id]?.finish()
         sessionHookContinuations.removeValue(forKey: id)
         codexDiscoveryController.cancel(for: id)
-        node.pty?.unseenCompletionDidChange = nil
+        node.controllable.unseenCompletionDidChange = nil
         sessions.removeAll { $0.id == id }
         removeSessionNode(id: id)
         refreshUnseenCompletionCount()

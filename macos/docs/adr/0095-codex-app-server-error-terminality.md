@@ -3,7 +3,7 @@ status: active
 last-verified: 2026-07-17
 ---
 
-# 0091: Codex app-server の error 通知の終端性判定（willRetry 非終端＋EOF 合成終端）
+# 0095: Codex app-server の error 通知の終端性判定（willRetry 非終端＋EOF 合成終端）
 
 ## 文脈
 

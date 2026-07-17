@@ -677,7 +677,9 @@ func codexQuestion_stopWhileAwaitingDoesNotCountCompletion() async throws {
     #expect(isAwaitingApproval(vm.status))
     #expect(vm.completedTurnSeq == 0)
     #expect(vm.lastTurnCompletedAt == nil)
-    #expect(vm.hasUnseenCompletion == false)
+    // ターン完了(completedTurnSeq)は立たないが、承認待ちは「未確認の停止（要対応）」として
+    // ラッチする（本機能で idle 完了に加え承認待ち・エラーへ拡張）。
+    #expect(vm.hasUnseenCompletion)
 }
 
 @Test @MainActor

@@ -6,13 +6,13 @@ last-verified: 2026-07-17
 # 0004: デスクトップ UI 磨き込み5件（停止ボタン・ブランチ名・ツールコール集約・Usage バー・チームビュー改名） — 作業ログ
 
 > **このファイルの役割**: 本 run（agentic-loop / backend=external / feature/desktop-ui-polish）の作業経緯スナップショット。
-> **書かないもの**: 決定の理由（→ [adr/0091](../adr/0091-codex-app-server-error-terminality.md)・[adr/0092](../adr/0092-chat-tool-call-grouping.md)）、現行仕様（→ [architecture/chat-mode-ux-components.md](../architecture/chat-mode-ux-components.md)・[architecture/claude-usage-supply.md](../architecture/claude-usage-supply.md)・[architecture/team-timeline-view.md](../architecture/team-timeline-view.md)）。
+> **書かないもの**: 決定の理由（→ [adr/0095](../adr/0095-codex-app-server-error-terminality.md)・[adr/0096](../adr/0096-chat-tool-call-grouping.md)）、現行仕様（→ [architecture/chat-mode-ux-components.md](../architecture/chat-mode-ux-components.md)・[architecture/claude-usage-supply.md](../architecture/claude-usage-supply.md)・[architecture/team-timeline-view.md](../architecture/team-timeline-view.md)）。
 
 ## 何をしたか（5タスク・全て done）
 
-- **task-1 停止ボタン消失（Codex 実装・差し戻し3回→pass）**: 根本原因は `CodexAppServerClient` が app-server の `willRetry: true` エラー通知を終端 `.error` に正規化していたこと（→ ADR 0091）。`willRetry` → 非終端 `.warning`、`activeTurns` 追跡＋プロセス EOF 時の終端 error 合成を実装。3回目の差し戻しは人間承認を経て実施。最終指摘（turnStart 応答待ち中の EOF 競合）は PM が VM 側 A3 契約の証拠テスト（`PMTurnStartFailureTerminalizationTests`・green）を追加して pass 裁定（覆しルール: 独立機序の客観的証拠）。
+- **task-1 停止ボタン消失（Codex 実装・差し戻し3回→pass）**: 根本原因は `CodexAppServerClient` が app-server の `willRetry: true` エラー通知を終端 `.error` に正規化していたこと（→ ADR 0095）。`willRetry` → 非終端 `.warning`、`activeTurns` 追跡＋プロセス EOF 時の終端 error 合成を実装。3回目の差し戻しは人間承認を経て実施。最終指摘（turnStart 応答待ち中の EOF 競合）は PM が VM 側 A3 契約の証拠テスト（`PMTurnStartFailureTerminalizationTests`・green）を追加して pass 裁定（覆しルール: 独立機序の客観的証拠）。
 - **task-2 ブランチ名省略（Cursor 実装・差し戻し1回→pass）**: `ComposerIndicatorMetrics.branchNameMaxWidth` を両 layout で `nil` に（100pt 固定クランプ撤廃）。50/50 分割回避は `.layoutPriority(1)`（root）／`(-1)`（label）で実現。差し戻し#1はレビュー側の誤指摘（測定で自己訂正）が原因で、PM が残った no-op modifier とテスト基準を整理した。
-- **task-3 ツールコール集約（Cursor 実装・pass）**: `ChatTranscriptGrouping.blocks(from:)` による純関数集約と `CommandGroupCell`。identity 設計（グループ id = 先頭 item id・部分ブロック）は ADR 0092。
+- **task-3 ツールコール集約（Cursor 実装・pass）**: `ChatTranscriptGrouping.blocks(from:)` による純関数集約と `CommandGroupCell`。identity 設計（グループ id = 先頭 item id・部分ブロック）は ADR 0096。
 - **task-4 Usage バー統一（Cursor 実装・pass）**: ブランドアイコン置換・消費率グラデーション色（`UsageDisplay.usageColor`）・Cursor「Auto」ラベル。旧挙動を固定していたスコープ外テスト（`CursorUsageResponseTests`）は PM が契約追従として更新。
 - **task-5 チームビュー改名（Cursor 実装・pass）**: `TeamViewBranding` 新設（`displayTitle == "チームビュー (Beta)"`）。ユーザー可視文字列のみ改称・型名は Agora のまま（ADR 0072 決定1 継承）。
 

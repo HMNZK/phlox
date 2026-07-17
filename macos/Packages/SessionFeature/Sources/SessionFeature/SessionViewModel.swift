@@ -685,6 +685,8 @@ public final class SessionViewModel: Identifiable {
 
     private func notifyCompletionIfNeeded(from previousStatus: SessionStatus, to nextStatus: SessionStatus) {
         guard previousStatus == .running, nextStatus == .idle else { return }
+        // 本物のターン完了（running→idle）を未確認の停止としてラッチする。
+        // escape 中断はこの経路を通らないため対象外（キャンセルは赤枠にしない）。
         hasUnseenCompletion = true
         SessionCompletionNotifier.notifyCompleted(sessionName: displayName)
         remoteSessionNotifier?.sessionCompleted(
@@ -697,6 +699,12 @@ public final class SessionViewModel: Identifiable {
         guard status != newStatus else { return }
         status = newStatus
         eventSink?(id, newStatus, timestamp)
+        // 承認待ち・完了・エラーへ入ったら「未確認の停止」をラッチする。
+        // idle（ターン完了）は完了通知経路（notifyCompletionIfNeeded）で扱い、
+        // escape 中断などの非完了 idle を赤枠から除外する。
+        if newStatus.latchesUnseenAttentionOnEntry {
+            hasUnseenCompletion = true
+        }
     }
 }
 

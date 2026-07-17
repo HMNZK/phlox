@@ -18,7 +18,7 @@ import Testing
     let buckets = try CursorUsageProvider.buckets(fromResponseData: data)
 
     #expect(buckets.map(\.id) == ["auto", "api"])
-    #expect(buckets.map(\.label) == ["Auto+Composer", "API"])
+    #expect(buckets.map(\.label) == ["Auto", "API"])
     #expect(buckets.map(\.usedPercent) == [18.49, 5.8])
 }
 

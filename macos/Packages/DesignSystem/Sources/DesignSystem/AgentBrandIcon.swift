@@ -10,6 +10,10 @@ public struct AgentBrandIcon: View {
         self.size = size
     }
 
+    public init(kind: AgentKind, size: CGFloat) {
+        self.init(descriptor: AgentRegistry.descriptor(for: kind), size: size)
+    }
+
     public nonisolated static var assetBundle: Bundle { .module }
 
     public var body: some View {

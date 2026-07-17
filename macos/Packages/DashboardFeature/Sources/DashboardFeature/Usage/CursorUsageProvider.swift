@@ -118,7 +118,7 @@ public final class CursorUsageProvider: UsageProvider {
         let response = try JSONDecoder().decode(CursorUsageResponse.self, from: data)
         let usage = response.planUsage
         return [
-            UsageBucket(id: "auto", label: "Auto+Composer", usedPercent: usage.autoPercentUsed),
+            UsageBucket(id: "auto", label: "Auto", usedPercent: usage.autoPercentUsed),
             UsageBucket(id: "api", label: "API", usedPercent: usage.apiPercentUsed),
         ]
     }

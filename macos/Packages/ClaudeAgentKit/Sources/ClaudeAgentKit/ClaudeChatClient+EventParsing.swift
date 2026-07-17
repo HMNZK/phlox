@@ -147,6 +147,7 @@ extension ClaudeChatClient {
             outputTokens: usageDict?["output_tokens"] as? Int,
             cacheReadTokens: usageDict?["cache_read_input_tokens"] as? Int,
             cacheCreationTokens: usageDict?["cache_creation_input_tokens"] as? Int,
+            contextUsedTokens: currentTurnLatestContextTokens,
             contextWindowTokens: selectedContextWindow(from: event["modelUsage"])
         )
     }

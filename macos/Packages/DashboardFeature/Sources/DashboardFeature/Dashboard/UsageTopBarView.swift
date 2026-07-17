@@ -11,6 +11,10 @@ struct UsageTopBarView: View {
 
     private static let gaugeWidth: CGFloat = 72
 
+    private func agentBrandIcon(for kind: AgentKind) -> some View {
+        AgentBrandIcon(kind: kind, size: UsageDisplay.topBarBrandIconSize)
+    }
+
     private struct TopBarChip: Identifiable {
         let kind: AgentKind
         let allBuckets: [UsageBucket]
@@ -115,9 +119,7 @@ struct UsageTopBarView: View {
         Group {
             if chip.isUnavailable {
                 HStack(spacing: DSSpacing.xs) {
-                    Text(chip.kind.displayName)
-                        .font(DSFont.caption)
-                        .foregroundStyle(DSColor.textSecondary)
+                    agentBrandIcon(for: chip.kind)
                     if let reason = chip.unavailableReason {
                         Text(reason)
                             .font(DSFont.caption)
@@ -127,12 +129,10 @@ struct UsageTopBarView: View {
                 }
             } else if showsGauge {
                 HStack(spacing: DSSpacing.xs) {
-                    Text(chip.kind.displayName)
-                        .font(DSFont.caption)
-                        .foregroundStyle(DSColor.textSecondary)
+                    agentBrandIcon(for: chip.kind)
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         ForEach(chip.shownBuckets) { bucket in
-                            gaugeRow(kind: chip.kind, bucket: bucket, isPercentDimmed: chip.staleNote != nil)
+                            gaugeRow(bucket: bucket, isPercentDimmed: chip.staleNote != nil)
                         }
                         if let staleNote = chip.staleNote {
                             Text(staleNote)
@@ -144,9 +144,7 @@ struct UsageTopBarView: View {
                 }
             } else {
                 HStack(spacing: DSSpacing.xs) {
-                    Text(chip.kind.displayName)
-                        .font(DSFont.caption)
-                        .foregroundStyle(DSColor.textSecondary)
+                    agentBrandIcon(for: chip.kind)
                     ForEach(Array(chip.shownBuckets.enumerated()), id: \.element.id) { index, bucket in
                         if index > 0 {
                             Text("・")
@@ -181,10 +179,10 @@ struct UsageTopBarView: View {
         return lines.joined(separator: "\n")
     }
 
-    private func gaugeRow(kind: AgentKind, bucket: UsageBucket, isPercentDimmed: Bool) -> some View {
+    private func gaugeRow(bucket: UsageBucket, isPercentDimmed: Bool) -> some View {
         HStack(spacing: DSSpacing.xs) {
             shortLabelText(for: bucket)
-            gauge(kind: kind, bucket: bucket)
+            gauge(bucket: bucket)
             percentText(for: bucket, isDimmed: isPercentDimmed)
         }
     }
@@ -214,18 +212,12 @@ struct UsageTopBarView: View {
     }
 
     /// サイドバーのバケット行と同じ「残量分だけ塗る」ミニゲージ。
-    private func gauge(kind: AgentKind, bucket: UsageBucket) -> some View {
+    private func gauge(bucket: UsageBucket) -> some View {
         ZStack(alignment: .leading) {
             Capsule(style: .continuous)
                 .fill(DSColor.separator)
             Capsule(style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [DSColor.agentColor(for: kind), DSColor.accent],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
+                .fill(UsageDisplay.usageColor(for: bucket.usedPercent))
                 .frame(width: max(0, Self.gaugeWidth * (100 - bucket.usedPercent) / 100))
         }
         .frame(width: Self.gaugeWidth, height: 4)

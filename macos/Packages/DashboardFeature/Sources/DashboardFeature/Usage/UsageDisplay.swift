@@ -2,6 +2,9 @@ import AgentDomain
 import SwiftUI
 
 enum UsageDisplay {
+    /// トップバー chip のブランドアイコンサイズ（DSFont.caption 行高相当、DSIconSize.m と同値）。
+    static let topBarBrandIconSize: CGFloat = 12
+
     /// サイドバー/トップバーに表示する CLI を AgentKind.allCases の順で返す。
     /// showUnavailable = false のとき、usages に無い・unavailable の CLI を除外する。
     static func visibleKinds(

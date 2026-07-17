@@ -119,7 +119,6 @@ struct UsageCLICard: View {
                     VStack(alignment: .leading, spacing: DSSpacing.m) {
                         ForEach(buckets) { bucket in
                             UsageBucketRow(
-                                kind: usage.kind,
                                 bucket: bucket,
                                 isPercentDimmed: staleNote != nil
                             )
@@ -161,7 +160,6 @@ struct UsageCLICard: View {
 }
 
 private struct UsageBucketRow: View {
-    let kind: AgentKind
     let bucket: UsageBucket
     var isPercentDimmed = false
     @State private var revealed = false
@@ -182,13 +180,7 @@ private struct UsageBucketRow: View {
                     Capsule(style: .continuous)
                         .fill(DSColor.separator)
                     Capsule(style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [DSColor.agentColor(for: kind), DSColor.accent],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
+                        .fill(UsageDisplay.usageColor(for: bucket.usedPercent))
                         .frame(width: revealed ? max(0, geometry.size.width * remainingPercent / 100) : 0)
                 }
             }

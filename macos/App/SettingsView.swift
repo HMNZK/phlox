@@ -133,9 +133,9 @@ struct SettingsView: View {
                         Label("スケジューラ", systemImage: "arrow.triangle.2.circlepath")
                     }
                 } header: {
-                    Text("アゴラ討論")
+                    Text("チームビュー討論")
                 } footer: {
-                    Text("アゴラ討論の上限・タイムアウト・発言順の既定です。変更は次回の討論開始から反映されます。")
+                    Text("チームビュー討論の上限・タイムアウト・発言順の既定です。変更は次回の討論開始から反映されます。")
                 }
 
                 Section {

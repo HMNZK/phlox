@@ -282,15 +282,17 @@ private struct SessionGridTile: View {
     }
 
     private var tileBackground: Color {
-        session.pty?.hasUnseenCompletion == true ? DSColor.idleHighlightGrid : DSColor.surfaceElevated
+        session.hasUnseenCompletion ? DSColor.stoppedHighlightGrid : DSColor.surfaceElevated
     }
 
     private var tileBorderColor: Color {
         if isDropTargeted {
             return Color.white.opacity(0.35)
         }
-        if session.pty?.hasUnseenCompletion == true {
-            return DSColor.idleHighlightGridBorder
+        // 未確認の停止（完了/承認待ち/エラー等でユーザーの番になった）は赤枠で強く示す。
+        // クリック選択で markCompletionSeen が走ってラッチが解除され、通常の選択枠へ戻る。
+        if session.hasUnseenCompletion {
+            return DSColor.stoppedHighlightGridBorder
         }
         // フォーカス時のみ 100%、非フォーカスは 40% へ落として
         // どのタイルがアクティブかを一目で分かるようにする。
@@ -301,7 +303,7 @@ private struct SessionGridTile: View {
         if isDropTargeted {
             return 2
         }
-        if session.pty?.hasUnseenCompletion == true {
+        if session.hasUnseenCompletion {
             return 3
         }
         return isFocused ? 2 : 1
@@ -310,6 +312,7 @@ private struct SessionGridTile: View {
     private var header: some View {
         HStack(spacing: DSSpacing.s) {
             AgentSessionIcon(descriptor: session.agentDescriptor, status: session.status, size: 24)
+            StatusDot(status: session.status)
             Text(session.displayName)
                 .font(DSFont.heroTitle)
                 .foregroundStyle(DSColor.textPrimary)

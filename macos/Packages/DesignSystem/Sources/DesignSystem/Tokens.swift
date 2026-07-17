@@ -154,6 +154,13 @@ public enum DSColor {
     /// グリッドビューで未確認完了カードの枠線。
     public static var idleHighlightGridBorder: Color { attention.opacity(0.95) }
 
+    // 未確認の「停止＝要対応」（完了/承認待ち/エラー等でユーザーの番になったセッション）。
+    // 完了(attention=黄系)より強い注意喚起として、テーマの error 色（赤系）で描く。
+    /// グリッドビューで未確認停止カードの枠線（赤）。
+    public static var stoppedHighlightGridBorder: Color { statusError.opacity(0.95) }
+    /// グリッドビューで未確認停止カードの背景面（赤・淡）。
+    public static var stoppedHighlightGrid: Color { statusError.opacity(0.16) }
+
     public static var statusRunning: Color { theme.statusRunning.color }
     public static var statusAwaitingApproval: Color { theme.statusAwaiting.color }
     public static var statusCompleted: Color { theme.statusCompleted.color }

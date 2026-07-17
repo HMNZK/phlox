@@ -10,7 +10,25 @@ import StructuredChatKit
 public final class ChatSessionViewModel: Identifiable {
     public let id: SessionID
     public let startedAt: Date
-    public private(set) var status: SessionStatus = .starting
+    public private(set) var status: SessionStatus = .starting {
+        didSet {
+            guard oldValue != status else { return }
+            // 承認待ち・完了・エラーへ入ったら「未確認の停止」をラッチする（PTY 側 transitionStatus と同一）。
+            // idle は完了通知経路（notifyCompletionIfNeeded）で扱い、turnInterrupted 等の
+            // 非完了 idle を赤枠から除外する。
+            if status.latchesUnseenAttentionOnEntry {
+                hasUnseenCompletion = true
+            }
+        }
+    }
+    /// 未確認の停止（＝ユーザーの対応待ち）。停止状態へ入るとラッチし、選択（閲覧）で解除する。
+    public var hasUnseenCompletion: Bool = false {
+        didSet {
+            guard oldValue != hasUnseenCompletion else { return }
+            unseenCompletionDidChange?()
+        }
+    }
+    @ObservationIgnored public var unseenCompletionDidChange: (() -> Void)?
     public var name: String = ""
     public var projectID: ProjectID?
     public var parentSessionID: SessionID?
@@ -973,6 +991,8 @@ public final class ChatSessionViewModel: Identifiable {
     /// running からの turnCompleted だけを対象にし、復元リプレイ・interrupt 由来の idle 遷移では鳴らさない。
     private func notifyCompletionIfNeeded(from previousStatus: SessionStatus) {
         guard previousStatus == .running else { return }
+        // 本物のターン完了を未確認の停止としてラッチする（turnInterrupted はこの経路を通らない）。
+        hasUnseenCompletion = true
         SessionCompletionNotifier.notifyCompleted(sessionName: displayName)
         remoteSessionNotifier?.sessionCompleted(
             sessionId: id.description,
@@ -1634,6 +1654,11 @@ public final class ChatSessionViewModel: Identifiable {
 }
 
 extension ChatSessionViewModel: ControllableSession {
+    /// 未確認停止を「確認済み」にする（選択・閲覧時に呼ぶ）。
+    public func markCompletionSeen() {
+        hasUnseenCompletion = false
+    }
+
     public func sendText(_ text: String, submit: Bool) async throws {
         if submit {
             submitBaselineTurnSeq = completedTurnSeq

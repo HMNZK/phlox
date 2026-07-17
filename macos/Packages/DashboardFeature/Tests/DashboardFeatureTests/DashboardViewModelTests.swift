@@ -349,6 +349,40 @@ func unseenCompletionCountCountsOnlyUnseenCompletions() async throws {
     #expect(observedCounts == [1, 2, 1])
 }
 
+// Chat（app-server）種別の未確認停止が Dock バッジ集計に載る経路の回帰ガード。
+// 集計を sessions(PTY 専用) から sessionNodes(両種別) へ変え、appServer 追加時にも
+// observeUnseenCompletion を結線した経路を検証する（PTY 専用テストでは立たない値）。
+@Test @MainActor
+func unseenCompletionCount_includesAppServerChatSession() async throws {
+    let ptyManager = MockPTYManager()
+    let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+    let environment = makeTestEnvironment(
+        pty: ptyManager,
+        hookStream: hookStream,
+        agentBinaryPaths: [.codex: "/usr/local/bin/codex"],
+        appServerClientFactory: { _, _, _, _, _ in
+            EventYieldingStructuredClient()
+        }
+    )
+    let dashboard = DashboardViewModel(environment: environment)
+    await dashboard.start()
+
+    var observedCounts: [Int] = []
+    dashboard.unseenCompletionCountDidChange = { observedCounts.append($0) }
+
+    let sessionID = try await dashboard.spawnNewSession(kind: .codex, backend: .appServer)
+    let chat = try #require(dashboard.sessionNodes.first(where: { $0.id == sessionID })?.appServer)
+    #expect(dashboard.unseenCompletionCount == 0)
+
+    // 承認待ちへ入ると status.didSet でラッチ→observeUnseenCompletion 経由で集計が更新される。
+    chat.enterAwaitingApproval(prompt: "Approve?")
+    #expect(dashboard.unseenCompletionCount == 1)
+
+    chat.markCompletionSeen()
+    #expect(dashboard.unseenCompletionCount == 0)
+    #expect(observedCounts == [1, 0])
+}
+
 @Test @MainActor
 func spawnInProject_autoNamesWithFlowerName() async throws {
     let ptyManager = MockPTYManager()

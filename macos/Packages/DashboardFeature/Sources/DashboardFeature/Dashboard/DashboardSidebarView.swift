@@ -413,6 +413,7 @@ private struct SessionSidebarRowView: View {
     var body: some View {
         HStack(spacing: DSSpacing.xs) {
             expansionControl
+            StatusDot(status: session.status)
             AgentSessionIcon(descriptor: session.agentDescriptor, status: session.status, size: 16)
             Text(session.displayName)
                 .font(session.name.isEmpty ? DSFont.mono : DSFont.body)
@@ -472,7 +473,7 @@ private struct SessionSidebarRowView: View {
     private var backgroundFill: Color {
         if isSelected { return DSColor.sessionRowSelected }
         if isHovering { return DSColor.sessionRowHover }
-        if session.pty?.hasUnseenCompletion == true { return DSColor.idleHighlight }
+        if session.hasUnseenCompletion { return DSColor.idleHighlight }
         return .clear
     }
 

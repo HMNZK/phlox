@@ -21,6 +21,7 @@ struct GridChatColumn: View {
                     showsThinkingIndicator: viewModel.selectedSubAgentId == nil,
                     contentMaxWidth: ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: geo.size.width),
                     bottomScrollContentMargin: composerHeight,
+                    presentationContext: .gridTile,
                     onSelectSubAgent: { viewModel.selectSubAgent($0) }
                 )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -20,10 +20,17 @@ public protocol ControllableSession: AnyObject {
     var parentSessionID: SessionID? { get set }
     var launchContext: SessionLaunchContext { get set }
 
+    /// 未確認の停止（＝ユーザーの対応待ち）。停止状態へ入るとラッチし、選択（閲覧）で解除する。
+    var hasUnseenCompletion: Bool { get }
+    /// `hasUnseenCompletion` の変化通知フック（Dock バッジ等の集計更新に使う）。
+    var unseenCompletionDidChange: (() -> Void)? { get set }
+
     func sendText(_ text: String, submit: Bool) async throws
     func consumeSubmitBaseline()
     func readText(lines: Int) -> String
     func terminate() async
+    /// 未確認停止を「確認済み」にする（選択・閲覧時に呼ぶ）。
+    func markCompletionSeen()
 }
 
 @MainActor
@@ -50,6 +57,12 @@ public enum SessionNode {
     }
 
     public var status: SessionStatus { controllable.status }
+
+    /// 未確認の停止（＝ユーザーの対応待ち）。PTY / Chat どちらの種別でも共通に読める。
+    public var hasUnseenCompletion: Bool { controllable.hasUnseenCompletion }
+
+    /// 未確認停止を「確認済み」にする（選択・閲覧時に呼ぶ）。
+    public func markCompletionSeen() { controllable.markCompletionSeen() }
 
     /// 直近の PTY/Chat 出力時刻を委譲で公開する読み取り専用アクセサ（`status` と同型）。
     public var lastOutputAt: Date? { controllable.lastOutputAt }

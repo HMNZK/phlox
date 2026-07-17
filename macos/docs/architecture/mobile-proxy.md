@@ -83,7 +83,7 @@ ControlActionHandler  … Packages/AppBootstrap/Sources/AppBootstrap/ControlActi
 
 ### 自己回復（Tailscale 遅延起動への再解決・再バインド）
 
-起動時に Tailscale がまだ上がっていないと `.loopbackOnly` に倒れる。プロキシは起動時ワンショットではなく、モバイル到達可能（`.tailscale`）でない間は**再解決・再バインドで自己回復**する。決定は [ADR 0091](../adr/0091-mobile-proxy-self-heal-on-tailscale-late-start.md)。
+起動時に Tailscale がまだ上がっていないと `.loopbackOnly` に倒れる。プロキシは起動時ワンショットではなく、モバイル到達可能（`.tailscale`）でない間は**再解決・再バインドで自己回復**する。決定は [ADR 0092](../adr/0092-mobile-proxy-self-heal-on-tailscale-late-start.md)。
 
 - `MobileProxy.refresh()`（`MobileProxy.swift`）: `.tailscale` / `.explicitHost` は no-op、`nil` / `.loopbackOnly` は現行 listener を停止して再解決・再バインドする（冪等・actor 直列化）。
 - `MobileProxy.recoverUntilReachable(maxAttempts:delay:sleep:)`: 有限回だけ `refresh()` を試み、`.tailscale` 到達で早期打ち切り（`sleep` は DI シーム）。
@@ -231,5 +231,5 @@ SessionViewModel（完了 / 承認待ちの観測点）
 
 - **ペイロード生成**: `PairingPayload`（`Packages/MobileProxy/Sources/MobileProxy/PairingPayload.swift`）が `phlox://pair?v=1&host=<Tailscale IPv4>&port=…&token=…&name=…` を検証付きで生成。`.loopbackOnly` / `.explicitHost` からは生成不可（失敗を型で返す）。
 - **QR 表示**: `App/PairingQRView.swift`（CoreImage `CIFilter.qrCodeGenerator`）。設定画面の `MobileTokenSection` 内で明示操作により表示し **60秒で自動非表示**（トークン=Mac 全権のため）。ペイロードは表示のたび都度生成（キャッシュなし）。Tailscale 未検出時はボタン無効化＋理由表示。
-- **配線**: `CompositionRoot` が起動時の bind mode / listen port に加え `MobileProxy` 参照を `MobileTokenViewModel` へ注入し、構築直後に `startAutoRecovery()` を一度キックする。`MobileTokenViewModel` の `bindMode` / `mobileProxyPort` は `@Published`（不変スナップショットではない）で、自己回復（設定表示時の `refreshReachability()` ／起動後リトライ）の結果をアプリ再起動なしで反映する。Tailscale 未検出時はボタン無効化＋理由表示だが、設定を開き直す／Tailscale が上がると回復して有効化される（[ADR 0091](../adr/0091-mobile-proxy-self-heal-on-tailscale-late-start.md)）。
+- **配線**: `CompositionRoot` が起動時の bind mode / listen port に加え `MobileProxy` 参照を `MobileTokenViewModel` へ注入し、構築直後に `startAutoRecovery()` を一度キックする。`MobileTokenViewModel` の `bindMode` / `mobileProxyPort` は `@Published`（不変スナップショットではない）で、自己回復（設定表示時の `refreshReachability()` ／起動後リトライ）の結果をアプリ再起動なしで反映する。Tailscale 未検出時はボタン無効化＋理由表示だが、設定を開き直す／Tailscale が上がると回復して有効化される（[ADR 0092](../adr/0092-mobile-proxy-self-heal-on-tailscale-late-start.md)）。
 - **ゲート**: 既存の `showsSettingsConnectionSection`（`isCompanionClientBundled`）配下＝iOS アプリ同梱（D-1）まで非表示。

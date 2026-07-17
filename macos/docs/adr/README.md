@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-07-16
+last-verified: 2026-07-17
 ---
 
 # ADR（アーキテクチャ決定記録）索引
@@ -12,6 +12,7 @@ last-verified: 2026-07-16
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0092 | [モバイル接続プロキシの Tailscale 遅延起動に対する自己回復（オンデマンド再解決＋起動後リトライ）](0092-mobile-proxy-self-heal-on-tailscale-late-start.md) | active |
 | 0091 | [Claude のコンテキスト占有量は「最新リクエスト」で近似する（ターン累積ではない）](0091-claude-context-occupancy-latest-request-not-cumulative.md) | active |
 | 0090 | [両サイドバー表示のペイン幅クランプと狭幅カード縦積みのレイアウト方針](0090-dual-sidebar-pane-width-clamp-and-card-stacking.md) | active |
 | 0089 | [phlox.cc をモノレポの site/ から GitHub Actions Pages で配信](0089-phlox-cc-served-from-monorepo-site.md) | active |

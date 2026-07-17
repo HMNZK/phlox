@@ -28,7 +28,7 @@ last-verified: 2026-07-17
 
 ## 生成物
 
-- 決定: [ADR 0091](../adr/0091-mobile-proxy-self-heal-on-tailscale-late-start.md)
+- 決定: [ADR 0092](../adr/0092-mobile-proxy-self-heal-on-tailscale-late-start.md)
 - 構造更新: [architecture/mobile-proxy.md](../architecture/mobile-proxy.md) の「自己回復」節・QR 配線メモ
 
 ## 積み残し / スコープ外

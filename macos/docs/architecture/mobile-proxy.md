@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-15
+last-verified: 2026-07-17
 ---
 
 # モバイル連携（MobileProxy・ControlServer）
@@ -80,6 +80,16 @@ ControlActionHandler  … Packages/AppBootstrap/Sources/AppBootstrap/ControlActi
 **暗黙の `0.0.0.0` バインドは Tailscale 未検出時には行わない**。未検出時は `loopbackOnly` に倒す（`MobileProxy.swift:18-19`, `49-50`）。
 
 起動後の確定値は `MobileProxy.bindMode` から参照できる（`MobileProxy.swift:82`）。
+
+### 自己回復（Tailscale 遅延起動への再解決・再バインド）
+
+起動時に Tailscale がまだ上がっていないと `.loopbackOnly` に倒れる。プロキシは起動時ワンショットではなく、モバイル到達可能（`.tailscale`）でない間は**再解決・再バインドで自己回復**する。決定は [ADR 0091](../adr/0091-mobile-proxy-self-heal-on-tailscale-late-start.md)。
+
+- `MobileProxy.refresh()`（`MobileProxy.swift`）: `.tailscale` / `.explicitHost` は no-op、`nil` / `.loopbackOnly` は現行 listener を停止して再解決・再バインドする（冪等・actor 直列化）。
+- `MobileProxy.recoverUntilReachable(maxAttempts:delay:sleep:)`: 有限回だけ `refresh()` を試み、`.tailscale` 到達で早期打ち切り（`sleep` は DI シーム）。
+- **再バインドのソケット安全性**: `POSIXSocketListener.stop()` は `shutdown(SHUT_RDWR)` + `close()` 後、accept ループの終了を `DispatchSemaphore`（`acceptLoopExited`）で確実に待ってから返す。固定ポート 8765 の貼り替え時の fd 再利用レース・二重 accept を封じる。
+- 現在の束縛ポートは `MobileProxy.boundPort` から参照できる（再バインドで変わり得る値。本番は 8765 固定）。
+- **トリガー**（UI 側配線は task-2）: 設定のモバイル接続セクション表示時の on-demand 再解決（`SettingsView` の `.task`）と、起動直後の短いバウンド付きリトライ（`MobileTokenViewModel.startAutoRecovery`）。NWPathMonitor による常時監視は入れていない。
 
 ## トークン管理（`Packages/AgentDomain/MobileToken*.swift`）
 
@@ -221,5 +231,5 @@ SessionViewModel（完了 / 承認待ちの観測点）
 
 - **ペイロード生成**: `PairingPayload`（`Packages/MobileProxy/Sources/MobileProxy/PairingPayload.swift`）が `phlox://pair?v=1&host=<Tailscale IPv4>&port=…&token=…&name=…` を検証付きで生成。`.loopbackOnly` / `.explicitHost` からは生成不可（失敗を型で返す）。
 - **QR 表示**: `App/PairingQRView.swift`（CoreImage `CIFilter.qrCodeGenerator`）。設定画面の `MobileTokenSection` 内で明示操作により表示し **60秒で自動非表示**（トークン=Mac 全権のため）。ペイロードは表示のたび都度生成（キャッシュなし）。Tailscale 未検出時はボタン無効化＋理由表示。
-- **配線**: `CompositionRoot.startMobileProxy` が bind mode と listen port を `MobileTokenViewModel` へ注入。
+- **配線**: `CompositionRoot` が起動時の bind mode / listen port に加え `MobileProxy` 参照を `MobileTokenViewModel` へ注入し、構築直後に `startAutoRecovery()` を一度キックする。`MobileTokenViewModel` の `bindMode` / `mobileProxyPort` は `@Published`（不変スナップショットではない）で、自己回復（設定表示時の `refreshReachability()` ／起動後リトライ）の結果をアプリ再起動なしで反映する。Tailscale 未検出時はボタン無効化＋理由表示だが、設定を開き直す／Tailscale が上がると回復して有効化される（[ADR 0091](../adr/0091-mobile-proxy-self-heal-on-tailscale-late-start.md)）。
 - **ゲート**: 既存の `showsSettingsConnectionSection`（`isCompanionClientBundled`）配下＝iOS アプリ同梱（D-1）まで非表示。

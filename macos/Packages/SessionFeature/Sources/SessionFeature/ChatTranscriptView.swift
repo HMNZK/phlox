@@ -136,22 +136,21 @@ struct ChatTranscriptView: View {
         // 抑える（遅延機構の再導入ではなく件数制限。ADR 0030:22）。
         // window は totalCount のみに依存する純関数で、スクロール量・可視領域には連動しない。
         let range = window.visibleRange(totalCount: items.count)
-        // 末尾スライス（ArraySlice）。ForEach の identity は item.id のままなので、
-        // 先頭境界（range.startIndex）が動いても既存セルは再マウントされない。
-        let visibleItems = items[range.startIndex...]
+        // window 境界以降だけを集約する。境界がグループ内部なら後半だけの部分ブロックにし、
+        // id は全 transcript 上のグループ先頭 item.id に固定する。これにより描画数を window 上限内に
+        // 保ちつつ、展開で部分ブロックの内容が増えても identity を揺らさない（ADR 0030）。
+        let visibleSlice = ChatTranscriptGrouping.visibleSlice(from: items, startingAt: range.startIndex)
         return VStack(alignment: .leading, spacing: DSSpacing.m) {
-            if range.hiddenCount > 0 {
+            if visibleSlice.hiddenItemCount > 0 {
                 // 展開前の先頭可視 item をアンカーに（押下時に見えていた最初のメッセージ）。
-                loadEarlierButton(hiddenCount: range.hiddenCount, anchorID: visibleItems.first?.id)
-            }
-            ForEach(visibleItems) { item in
-                ChatItemView(
-                    item: item,
-                    isRunningCommand: isRunningCommand(item, lastTranscriptID: transcriptSignal.lastID),
-                    agentDescriptor: agentDescriptor,
-                    onSelectSubAgent: onSelectSubAgent
+                loadEarlierButton(
+                    hiddenCount: visibleSlice.hiddenItemCount,
+                    anchorID: visibleSlice.blocks.first?.id
                 )
-                .id(item.id)
+            }
+            ForEach(visibleSlice.blocks) { block in
+                transcriptBlock(block.content, lastTranscriptID: transcriptSignal.lastID)
+                    .id(block.id)
             }
             if shouldShowThinkingIndicator {
                 ThinkingIndicatorCell(
@@ -175,6 +174,25 @@ struct ChatTranscriptView: View {
         }
         .padding(.horizontal, DSSpacing.l)
         .padding(.vertical, DSSpacing.m)
+    }
+
+    @ViewBuilder
+    private func transcriptBlock(_ block: ChatTranscriptBlock, lastTranscriptID: String?) -> some View {
+        switch block {
+        case .single(let item):
+            ChatItemView(
+                item: item,
+                isRunningCommand: isRunningCommand(item, lastTranscriptID: lastTranscriptID),
+                agentDescriptor: agentDescriptor,
+                onSelectSubAgent: onSelectSubAgent
+            )
+        case .commandGroup(_, let items):
+            CommandGroupCell(
+                items: items,
+                lastTranscriptID: lastTranscriptID,
+                isTurnRunning: viewModel.status.isRunning
+            )
+        }
     }
 
     /// 先頭に隠れた古いメッセージを段階的に表示するボタン。
@@ -269,6 +287,8 @@ struct ChatTranscriptView: View {
     /// windowing で対象行が隠れ域（既定 N 件より前）にあると scrollTo は無言 no-op になり、
     /// AutoFollow 離脱だけが起きて目的地に行かない壊れた操作になる（ステージ1 HIGH 指摘）。
     /// 裁定=案b（reveal-on-jump）: 隠れ域ターゲットは scrollTo の前に window を広げて可視化する。
+    /// 集約された command の個別 id は折りたたみ中のビュー階層に存在しないため、全 transcript 上で
+    /// 安定した block id（group は先頭 item.id）へ解決してから scrollTo する。
     /// これはユーザー操作起点であり、スクロール量・可視領域の観測連動ではない（ADR 0030 非該当）。
     private func jumpToTarget(_ target: String, proxy: ScrollViewProxy) {
         autoFollow.userInitiatedJump()
@@ -276,6 +296,7 @@ struct ChatTranscriptView: View {
         jumpGeneration += 1
         let generation = jumpGeneration
         let currentItems = transcriptItems
+        let scrollTarget = ChatTranscriptGrouping.scrollTargetID(containing: target, in: currentItems)
         // 対象が現セッションの items にあり、かつ隠れ域なら reveal してから遅延 scrollTo。
         if let index = currentItems.firstIndex(where: { $0.id == target }) {
             let start = window.visibleRange(totalCount: currentItems.count).startIndex
@@ -286,13 +307,13 @@ struct ChatTranscriptView: View {
                 // 遅延中に後続ジャンプ・セッション切替（reset）が来たら世代不一致で何もしない。
                 Task { @MainActor in
                     guard generation == jumpGeneration else { return }
-                    proxy.scrollTo(target, anchor: .center)
+                    proxy.scrollTo(scrollTarget, anchor: .center)
                 }
                 return
             }
         }
         // 可視域 or items に存在しない別セッション id: 従来どおり即 scrollTo（no-op を含む）。
-        proxy.scrollTo(target, anchor: .center)
+        proxy.scrollTo(scrollTarget, anchor: .center)
     }
 
     private func scrollToBottomIfNeeded(

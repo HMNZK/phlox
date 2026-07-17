@@ -10,6 +10,14 @@ import Foundation
 // 一切参照しない。window の拡張契機は expand() の明示呼び出し（＝ボタン操作）のみで、
 // レイアウト観測フィードバックに連動しない。visibleRange は totalCount のみから決まる純関数なので、
 // ストリーミングで item が増えても末尾を含み続ける（AutoFollow と自然に整合する）。
+/// transcript の表示文脈（task-2 契約面）。窓の既定件数を文脈別に定める。
+enum TranscriptPresentationContext: Equatable {
+    /// 単一表示（従来どおり 200 件）。
+    case single
+    /// グリッドタイル（全タイル常時描画のため小さい窓にする）。
+    case gridTile
+}
+
 struct TranscriptWindow: Equatable {
     /// 既定の表示件数上限（50...500 の範囲の有限定数）。
     static let defaultLimit: Int = 200
@@ -56,5 +64,20 @@ struct TranscriptWindow: Equatable {
         if limit < requiredLimit {
             limit = requiredLimit
         }
+    }
+}
+
+// task-2 契約面（extension 定義なので既定 init() は温存される）。
+extension TranscriptWindow {
+    /// 表示文脈別の既定表示件数。
+    /// スタブ: 現状は文脈に依らず defaultLimit。task-2 で gridTile = 40 に分化させる。
+    static func defaultLimit(for context: TranscriptPresentationContext) -> Int {
+        defaultLimit
+    }
+
+    /// 表示文脈つきの生成。reset() は自文脈の既定値へ戻ること（task-2 で実装）。
+    /// スタブ: 現状は文脈を無視する。
+    init(context: TranscriptPresentationContext) {
+        self.init()
     }
 }

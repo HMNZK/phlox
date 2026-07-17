@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-11
+last-verified: 2026-07-17
 ---
 
 # チャットモード UX コンポーネント構成（chat-ux-batch 後の現行）
@@ -52,9 +52,11 @@ composer 入力欄パネルは既定でコンパクト表示に戻され、**最
 
 PTY read（actor＋専用キュー）・transcript 保存（actor）・Hook/ControlServer（actor）はメインスレッド外。VT100 パース（TerminalCoordinator.feed）は MainActor だが、実測（実ストリーミングターン中の 10 秒 sample）で Release Phlox は **CPU ≤0.4%・メインスレッドはほぼ run loop 待機**であり、定常負荷のボトルネックは存在しない。過去の CPU 100% 事例は SwiftUI レイアウトループ（ADR 0010/0030 で根治済み）であり、定常パースではない。
 
+補足（2026-07-17）: 上記実測は**単一セッション基準**。複数チャット同時ストリーミングでは delta イベント毎の UI 無効化が積算しカクつきを生んでいたため、チャットモードの delta 適用は `TranscriptStreamCoalescer` による **50ms 窓のバッチ適用**へ変更した（ADR 0091。合成再現で無効化 8,000→8 回）。delta は即時に transcript へ書かれず、非 delta イベント・turn 境界の直前に barrier flush される（イベント観測順序は従来と同一）。
+
 ## トランスクリプトの描画（末尾 N 件・ADR 0051）
 
-`ChatTranscriptView` は非 Lazy VStack（ADR 0030）のまま、`TranscriptWindow`（純粋値型・`Session/TranscriptWindow.swift`）で**末尾 200 件のみ描画**する。超過時は先頭の「以前のメッセージを表示（残り k 件）」ボタンで 200 件ずつ段階展開し、展開後は押下前の先頭可視メッセージへアンカー保持（イベント駆動 scrollTo・1回のみ）。隠れ域へのジャンプ（バックグラウンドタスクストリップ）は `reveal(index:totalCount:)` がマージン付きで可視化してから scrollTo する。window はスクロール量・可視領域に一切連動しない（拡張契機はユーザー操作のみ）。遅延 scrollTo は世代トークン（jumpGeneration）でセッション切替・後続操作時に無効化。
+`ChatTranscriptView` は非 Lazy VStack（ADR 0030）のまま、`TranscriptWindow`（純粋値型・`Session/TranscriptWindow.swift`）で**末尾 N 件のみ描画**する。N は表示文脈（`TranscriptPresentationContext`）で分かれ、**単一表示 = 200 / グリッドタイル = 40**（ADR 0092。グリッドは全タイル常時描画のため小窓）。`reset()` は自文脈の既定値へ戻る。超過時は先頭の「以前のメッセージを表示（残り k 件）」ボタンで 200 件ずつ段階展開し、展開後は押下前の先頭可視メッセージへアンカー保持（イベント駆動 scrollTo・1回のみ）。隠れ域へのジャンプ（バックグラウンドタスクストリップ）は `reveal(index:totalCount:)` がマージン付きで可視化してから scrollTo する。window はスクロール量・可視領域に一切連動しない（拡張契機はユーザー操作のみ）。遅延 scrollTo は世代トークン（jumpGeneration）でセッション切替・後続操作時に無効化。
 
 セル描画の派生値（Markdown 分割・ハイライト・diff 分類）は `ChatMessageRenderCache`（内容キー・非観測 static NSCache・countLimit 512。ADR 0052）でメモ化され、ストリーミング中の再 body 評価で不変セルの再計算が走らない。FileChange は 200 行超で既定折りたたみ・展開時 500 行上限＋「さらに表示」（展開状態は `FileChangeDisplayPolicy.isExpanded(userOverride:lineCount:)` の純導出で、同一 id の diff 置換にも追随）。
 

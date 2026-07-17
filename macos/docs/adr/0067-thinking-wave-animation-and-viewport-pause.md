@@ -25,5 +25,5 @@ transcript の Thinking インジケータは3点の二値点滅（`TimelineView
 ## 結果・残余
 
 - 受け入れテスト（`AcceptanceThinkingAnimationTests`）が決定論・周期性・連続性・多階調・波位相・有界を符号化し凍結。白箱テストが viewport pause（空エントリ）を検証。
-- **既知の残余（スコープ外の改善候補）**: `ThinkingIndicatorCell` 内の hangAssessment 用 1Hz `TimelineView(.periodic(by: 1))` は task-2 以前からの既存挙動で、viewport pause の対象外（契約の不変条件「hangAssessment 表示は変えない」を優先）。将来リッチ化や整理をする場合は同じ可視性シグナルへ乗せられる。
+- **既知の残余（スコープ外の改善候補）**: `ThinkingIndicatorCell` 内の hangAssessment 用 1Hz `TimelineView(.periodic(by: 1))` は task-2 以前からの既存挙動で、viewport pause の対象外（契約の不変条件「hangAssessment 表示は変えない」を優先）。将来リッチ化や整理をする場合は同じ可視性シグナルへ乗せられる。〔追記 2026-07-17: この残余は ADR 0092 で解消（`HangStatusTimelineSchedule` を同じ可視性シグナルへ配線）〕
 - 「thinking 中に同一ウィンドウ内でスクロールアウトした瞬間」の残余更新は isAtBottom 近似で停止する（旧実装は 3.6Hz で無条件継続だったため、いずれのケースでも旧実装以下のコスト）。

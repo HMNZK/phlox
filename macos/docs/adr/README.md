@@ -12,6 +12,8 @@ last-verified: 2026-07-16
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0092 | [グリッドタイルの transcript 窓分化（40件）と hangAssessment 1Hz の viewport 停止](0092-grid-tile-transcript-window-and-hang-timer-pause.md) | active |
+| 0091 | [ストリーミング delta のコアレシング適用（イベント毎の即時 UI 無効化を廃止）](0091-transcript-stream-delta-coalescing.md) | active |
 | 0090 | [両サイドバー表示のペイン幅クランプと狭幅カード縦積みのレイアウト方針](0090-dual-sidebar-pane-width-clamp-and-card-stacking.md) | active |
 | 0089 | [phlox.cc をモノレポの site/ から GitHub Actions Pages で配信](0089-phlox-cc-served-from-monorepo-site.md) | active |
 | 0088 | [接続確立を QR ペアリングに一本化し、手動の認証情報入力・供給 UI を撤去する](0088-qr-only-pairing-remove-manual-token-entry.md) | active |

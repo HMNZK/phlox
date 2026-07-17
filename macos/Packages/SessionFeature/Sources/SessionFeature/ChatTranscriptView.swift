@@ -19,7 +19,7 @@ struct ChatTranscriptView: View {
     // 表示件数制限（末尾 N 件のみ描画。ADR 0030:22）。view-local な @State に住み、
     // body 評価中には書かない（visibleRange は読み取りのみ）。expand はボタン action、
     // reset はセッション切替の onChange から呼ぶ（ADR 0010: 描画中 state 変更の禁止）。
-    @State private var window = TranscriptWindow()
+    @State private var window: TranscriptWindow
     // 遅延 scrollTo の世代トークン。ジャンプごと・セッション切替ごと・展開ごとに増やし、pending 遅延
     // Task は捕捉した世代が現在値と一致するときだけ scrollTo する（stale/後続操作時の誤スクロール防止）。
     @State private var jumpGeneration = 0
@@ -36,6 +36,7 @@ struct ChatTranscriptView: View {
         contentMaxWidth: CGFloat? = nil,
         bottomScrollContentMargin: CGFloat = 0,
         requestedScrollTarget: Binding<String?> = .constant(nil),
+        presentationContext: TranscriptPresentationContext = .single,
         onSelectSubAgent: @escaping (String) -> Void = { _ in }
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
@@ -44,6 +45,7 @@ struct ChatTranscriptView: View {
         self.showsThinkingIndicator = showsThinkingIndicator
         self.contentMaxWidth = contentMaxWidth
         self.bottomScrollContentMargin = bottomScrollContentMargin
+        _window = State(initialValue: TranscriptWindow(context: presentationContext))
         self.onSelectSubAgent = onSelectSubAgent
     }
 

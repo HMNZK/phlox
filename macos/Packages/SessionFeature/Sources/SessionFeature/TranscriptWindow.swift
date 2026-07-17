@@ -19,12 +19,15 @@ enum TranscriptPresentationContext: Equatable {
 }
 
 struct TranscriptWindow: Equatable {
-    /// 既定の表示件数上限（50...500 の範囲の有限定数）。
+    /// 既定の表示件数上限（50...500 の範囲の有限定数）。単一表示（`.single`）の既定値。
     static let defaultLimit: Int = 200
+    /// グリッドタイル表示の既定件数上限。
+    static let gridTileDefaultLimit: Int = 40
     /// 「以前のメッセージを表示」1回あたりの拡張幅（50 以上の定数）。
     static let expandStep: Int = 200
 
-    private(set) var limit: Int = TranscriptWindow.defaultLimit
+    private let presentationContext: TranscriptPresentationContext
+    private(set) var limit: Int
 
     /// 表示すべき末尾スライスの開始 index と隠れ件数を返す。
     /// - Parameter totalCount: 全 item 数（負は想定しないが 0 で安全）。
@@ -42,9 +45,14 @@ struct TranscriptWindow: Equatable {
         limit += TranscriptWindow.expandStep
     }
 
-    /// セッション切替時に既定へ戻す。
+    /// セッション切替時に自文脈の既定へ戻す。
     mutating func reset() {
-        limit = TranscriptWindow.defaultLimit
+        limit = Self.defaultLimit(for: presentationContext)
+    }
+
+    init(presentationContext: TranscriptPresentationContext = .single) {
+        self.presentationContext = presentationContext
+        self.limit = Self.defaultLimit(for: presentationContext)
     }
 
     /// ユーザー起点のジャンプでのみ呼ぶ: 指定 index が可視スライスに含まれるまで limit を引き上げる。
@@ -67,17 +75,19 @@ struct TranscriptWindow: Equatable {
     }
 }
 
-// task-2 契約面（extension 定義なので既定 init() は温存される）。
 extension TranscriptWindow {
     /// 表示文脈別の既定表示件数。
-    /// スタブ: 現状は文脈に依らず defaultLimit。task-2 で gridTile = 40 に分化させる。
     static func defaultLimit(for context: TranscriptPresentationContext) -> Int {
-        defaultLimit
+        switch context {
+        case .single:
+            return defaultLimit
+        case .gridTile:
+            return gridTileDefaultLimit
+        }
     }
 
-    /// 表示文脈つきの生成。reset() は自文脈の既定値へ戻ること（task-2 で実装）。
-    /// スタブ: 現状は文脈を無視する。
+    /// 表示文脈つきの生成。reset() は自文脈の既定値へ戻る。
     init(context: TranscriptPresentationContext) {
-        self.init()
+        self.init(presentationContext: context)
     }
 }

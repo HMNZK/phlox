@@ -166,3 +166,208 @@ private extension NSLock {
     #expect(status == .active(flags: ["waitingOnApproval"]))
     await client.close()
 }
+
+// task-1 統合シーム: codex-rs の実ワイヤ形状を生 JSON から既存デコード経路へ通し、
+// willRetry=true が ThreadEvent に保持され、非終端 warning に正規化されることを固定する。
+@Test func codexRetryableErrorWireNotificationNormalizesToWarning() async {
+    let (threadEvent, normalizedEvent) = await decodeErrorNotificationThroughClient("""
+    {"jsonrpc":"2.0","method":"error","params":{"error":{"message":"stream disconnected; retrying"},"willRetry":true,"threadId":"thread-1","turnId":"turn-1"}}
+    """)
+
+    #expect(threadEvent == .error(
+        threadId: "thread-1",
+        turnId: "turn-1",
+        message: "stream disconnected; retrying",
+        willRetry: true
+    ))
+    #expect(normalizedEvent == .warning(message: "stream disconnected; retrying"))
+}
+
+// willRetry=false は同じ生 JSON 経路で終端 error に正規化される。
+@Test func codexNonRetryableErrorWireNotificationNormalizesToError() async {
+    let (threadEvent, normalizedEvent) = await decodeErrorNotificationThroughClient("""
+    {"jsonrpc":"2.0","method":"error","params":{"error":{"message":"quota exceeded"},"willRetry":false,"threadId":"thread-1","turnId":"turn-1"}}
+    """)
+
+    #expect(threadEvent == .error(
+        threadId: "thread-1",
+        turnId: "turn-1",
+        message: "quota exceeded",
+        willRetry: false
+    ))
+    #expect(normalizedEvent == .error(message: "quota exceeded"))
+}
+
+// 旧 app-server 互換で willRetry が欠落しても、nil を非再試行として安全側の error にする。
+@Test func codexErrorWireNotificationWithoutWillRetryNormalizesToError() async {
+    let (threadEvent, normalizedEvent) = await decodeErrorNotificationThroughClient("""
+    {"jsonrpc":"2.0","method":"error","params":{"error":{"message":"unknown failure"},"threadId":"thread-1","turnId":"turn-1"}}
+    """)
+
+    #expect(threadEvent == .error(
+        threadId: "thread-1",
+        turnId: "turn-1",
+        message: "unknown failure",
+        willRetry: nil
+    ))
+    #expect(normalizedEvent == .error(message: "unknown failure"))
+}
+
+@Test func transportEOFProducesTerminalEventAfterRetryableError() async {
+    let transport = MockTransport()
+    let adapter = CodexStructuredAgentClient(
+        client: CodexAppServerClient(transport: transport)
+    )
+    let recorder = NormalizedEventRecorder()
+    await adapter.start()
+
+    let collector = Task {
+        for await event in adapter.events {
+            await recorder.append(event)
+        }
+        await recorder.markFinished()
+    }
+
+    transport.receive("""
+    {"jsonrpc":"2.0","method":"error","params":{"error":{"message":"retrying"},"willRetry":true,"threadId":"thread-1","turnId":"turn-1"}}
+    """)
+    #expect(await waitUntil { await recorder.contains(.warning(message: "retrying")) })
+
+    // adapter.close() ではなく、子プロセス異常終了相当の EOF を発生させる。
+    await transport.close()
+
+    #expect(await waitUntil { await recorder.containsTerminalProcessExitError })
+    #expect(await waitUntil { await recorder.isFinished })
+    await adapter.close()
+    _ = await collector.result
+}
+
+@Test func retryableErrorWithoutThreadIdDoesNotLoseActiveTurnBeforeEOF() async {
+    let transport = MockTransport()
+    let adapter = CodexStructuredAgentClient(
+        client: CodexAppServerClient(transport: transport)
+    )
+    let recorder = NormalizedEventRecorder()
+    await adapter.start()
+
+    let collector = Task {
+        for await event in adapter.events {
+            await recorder.append(event)
+        }
+        await recorder.markFinished()
+    }
+
+    transport.receive("""
+    {"jsonrpc":"2.0","method":"error","params":{"error":{"message":"retrying-1"},"willRetry":true,"threadId":"thread-1","turnId":"turn-1"}}
+    """)
+    #expect(await waitUntil { await recorder.contains(.warning(message: "retrying-1")) })
+
+    transport.receive("""
+    {"jsonrpc":"2.0","method":"error","params":{"error":{"message":"retrying-2"},"willRetry":true}}
+    """)
+    #expect(await waitUntil { await recorder.contains(.warning(message: "retrying-2")) })
+
+    await transport.close()
+
+    #expect(await waitUntil { await recorder.containsTerminalProcessExitError })
+    #expect(await waitUntil { await recorder.isFinished })
+    await adapter.close()
+    _ = await collector.result
+}
+
+@Test func normalCloseDoesNotProduceFalseTerminalProcessExitError() async {
+    let transport = MockTransport()
+    let client = CodexAppServerClient(transport: transport)
+    let recorder = ThreadEventRecorder()
+    await client.start()
+
+    let collector = Task {
+        for await event in client.events {
+            await recorder.append(event)
+        }
+        await recorder.markFinished()
+    }
+
+    transport.receive("""
+    {"jsonrpc":"2.0","method":"error","params":{"error":{"message":"retrying"},"willRetry":true,"threadId":"thread-1","turnId":"turn-1"}}
+    """)
+    #expect(await waitUntil {
+        await recorder.contains(.error(
+            threadId: "thread-1",
+            turnId: "turn-1",
+            message: "retrying",
+            willRetry: true
+        ))
+    })
+
+    await client.close()
+
+    #expect(await waitUntil { await recorder.isFinished })
+    #expect(await recorder.containsTerminalProcessExitError == false)
+    _ = await collector.result
+}
+
+private func decodeErrorNotificationThroughClient(
+    _ json: String
+) async -> (ThreadEvent?, NormalizedChatEvent?) {
+    let transport = MockTransport()
+    let client = CodexAppServerClient(transport: transport)
+    let adapter = CodexStructuredAgentClient(client: client)
+    await adapter.start()
+
+    var threadEvents = adapter.threadEvents.makeAsyncIterator()
+    var normalizedEvents = adapter.events.makeAsyncIterator()
+    transport.receive(json)
+
+    let result = (await threadEvents.next(), await normalizedEvents.next())
+    await adapter.close()
+    return result
+}
+
+private actor NormalizedEventRecorder {
+    private var recordedEvents: [NormalizedChatEvent] = []
+    private(set) var isFinished = false
+
+    func append(_ event: NormalizedChatEvent) {
+        recordedEvents.append(event)
+    }
+
+    func markFinished() {
+        isFinished = true
+    }
+
+    func contains(_ event: NormalizedChatEvent) -> Bool {
+        recordedEvents.contains(event)
+    }
+
+    var containsTerminalProcessExitError: Bool {
+        recordedEvents.contains { event in
+            guard case .error(let message) = event else { return false }
+            return message.contains("app-server process exited")
+        }
+    }
+}
+
+private actor ThreadEventRecorder {
+    private var recordedEvents: [ThreadEvent] = []
+    private(set) var isFinished = false
+
+    func append(_ event: ThreadEvent) {
+        recordedEvents.append(event)
+    }
+
+    func markFinished() {
+        isFinished = true
+    }
+
+    func contains(_ event: ThreadEvent) -> Bool {
+        recordedEvents.contains(event)
+    }
+
+    var containsTerminalProcessExitError: Bool {
+        recordedEvents.contains { event in
+            guard case .error(_, _, let message, _) = event else { return false }
+            return message.contains("app-server process exited")
+        }
+    }
+}

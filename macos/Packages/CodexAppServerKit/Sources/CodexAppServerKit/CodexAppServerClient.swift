@@ -19,8 +19,15 @@ public enum ThreadEvent: Equatable, Sendable {
 }
 
 public actor CodexAppServerClient {
+    private struct ActiveTurn: Hashable {
+        let threadId: String
+        let turnId: String?
+    }
+
     private let rpc: JSONRPCClient
     private var notificationTask: Task<Void, Never>?
+    private var activeTurns: Set<ActiveTurn> = []
+    private var closeRequested = false
     private let eventContinuation: AsyncStream<ThreadEvent>.Continuation
     public nonisolated let events: AsyncStream<ThreadEvent>
 
@@ -52,6 +59,7 @@ public actor CodexAppServerClient {
                 guard let event = Self.threadEvent(from: notification) else { continue }
                 await self?.yield(event)
             }
+            await self?.notificationStreamDidFinish()
         }
     }
 
@@ -72,7 +80,13 @@ public actor CodexAppServerClient {
     }
 
     public func turnStart(_ params: TurnStartParams) async throws -> TurnStartResponse {
-        try await rpc.request(method: "turn/start", params: params)
+        markTurnActive(threadId: params.threadId, turnId: nil)
+        do {
+            return try await rpc.request(method: "turn/start", params: params)
+        } catch {
+            activeTurns = activeTurns.filter { $0.threadId != params.threadId }
+            throw error
+        }
     }
 
     public func turnInterrupt(_ params: TurnInterruptParams) async throws -> TurnInterruptResponse {
@@ -102,13 +116,59 @@ public actor CodexAppServerClient {
     }
 
     public func close() async {
+        closeRequested = true
         notificationTask?.cancel()
         await rpc.close()
         eventContinuation.finish()
     }
 
     private func yield(_ event: ThreadEvent) {
+        updateActiveTurns(for: event)
         eventContinuation.yield(event)
+    }
+
+    private func notificationStreamDidFinish() {
+        guard !closeRequested else {
+            eventContinuation.finish()
+            return
+        }
+
+        for turn in activeTurns {
+            eventContinuation.yield(.error(
+                threadId: turn.threadId,
+                turnId: turn.turnId,
+                message: "Codex app-server process exited before the turn completed",
+                willRetry: false
+            ))
+        }
+        activeTurns.removeAll()
+        eventContinuation.finish()
+    }
+
+    private func updateActiveTurns(for event: ThreadEvent) {
+        switch event {
+        case .turnStarted(let threadId, let turn):
+            markTurnActive(threadId: threadId, turnId: turn.id)
+        case .turnCompleted(let threadId, _), .turnInterrupted(let threadId, _):
+            activeTurns = activeTurns.filter { $0.threadId != threadId }
+        case .error(let threadId, let turnId, _, let willRetry):
+            if willRetry == true {
+                if let threadId {
+                    markTurnActive(threadId: threadId, turnId: turnId)
+                }
+            } else if let threadId {
+                activeTurns = activeTurns.filter { $0.threadId != threadId }
+            } else {
+                activeTurns.removeAll()
+            }
+        default:
+            break
+        }
+    }
+
+    private func markTurnActive(threadId: String, turnId: String?) {
+        activeTurns = activeTurns.filter { $0.threadId != threadId }
+        activeTurns.insert(ActiveTurn(threadId: threadId, turnId: turnId))
     }
 
     private static func threadEvent(from notification: ServerNotification) -> ThreadEvent? {
@@ -407,8 +467,8 @@ extension CodexStructuredAgentClient {
             .turnCompleted(nativeSessionId: threadId)
         case .turnInterrupted(let threadId, _):
             .turnInterrupted(nativeSessionId: threadId)
-        case .error(_, _, let message, _):
-            .error(message: message)
+        case .error(_, _, let message, let willRetry):
+            willRetry == true ? .warning(message: message) : .error(message: message)
         case .warning(_, let message):
             .warning(message: message)
         case .tokenUsageUpdated(_, _, let tokenUsage):

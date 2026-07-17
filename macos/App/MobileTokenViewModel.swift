@@ -19,12 +19,18 @@ public final class MobileTokenViewModel: ObservableObject {
   /// QR ペアリング表示中か。明示操作で開始し、60 秒後に自動非表示。
   @Published public private(set) var isPairingQRVisible = false
 
+  /// 直近に解決した露出範囲。回復・再解決で更新される。
+  @Published public private(set) var bindMode: BindMode?
+
+  /// 直近に解決したモバイルプロキシの待ち受けポート。回復・再解決で更新される。
+  @Published public private(set) var mobileProxyPort: Int?
+
   private let provisioner: MobileTokenProvisioner
   private let tokenStore: SessionTokenStore
+  private let proxy: MobileProxy
   private var current: ProvisionedMobileToken
-  private let bindMode: BindMode?
-  private let mobileProxyPort: Int?
   private var hidePairingQRTask: Task<Void, Never>?
+  private var autoRecoveryTask: Task<Void, Never>?
 
   private static let logger = Logger(subsystem: "com.phlox.Phlox", category: "MobileToken")
 
@@ -35,6 +41,7 @@ public final class MobileTokenViewModel: ObservableObject {
     provisioned: ProvisionedMobileToken,
     provisioner: MobileTokenProvisioner,
     tokenStore: SessionTokenStore,
+    proxy: MobileProxy,
     bindMode: BindMode?,
     mobileProxyPort: Int?
   ) {
@@ -42,8 +49,35 @@ public final class MobileTokenViewModel: ObservableObject {
     self.token = provisioned.token.value
     self.provisioner = provisioner
     self.tokenStore = tokenStore
+    self.proxy = proxy
     self.bindMode = bindMode
     self.mobileProxyPort = mobileProxyPort
+  }
+
+  /// オンデマンドで Tailscale 到達性を再解決し、UI 向け状態へ反映する。
+  public func refreshReachability() async {
+    let refreshedBindMode = await proxy.refresh()
+    let refreshedPort = await proxy.boundPort.map(Int.init)
+    bindMode = refreshedBindMode
+    mobileProxyPort = refreshedPort
+  }
+
+  /// 起動直後の短い自動回復を一度だけ駆動する。既に Tailscale 到達済みなら何もしない。
+  public func startAutoRecovery() {
+    if case .tailscale = bindMode { return }
+    guard autoRecoveryTask == nil else { return }
+
+    autoRecoveryTask = Task { [weak self] in
+      guard let self else { return }
+      let recoveredBindMode = await proxy.recoverUntilReachable(
+        maxAttempts: 5,
+        delay: .seconds(2)
+      )
+      let recoveredPort = await proxy.boundPort.map(Int.init)
+      bindMode = recoveredBindMode
+      mobileProxyPort = recoveredPort
+      autoRecoveryTask = nil
+    }
   }
 
   /// Tailscale 経由の QR ペアリングが利用可能か。
@@ -114,6 +148,7 @@ public final class MobileTokenViewModel: ObservableObject {
 
   deinit {
     hidePairingQRTask?.cancel()
+    autoRecoveryTask?.cancel()
   }
 
   private func schedulePairingQRAutoHide() {

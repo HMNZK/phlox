@@ -40,6 +40,8 @@ public final class ChatSessionViewModel: Identifiable {
     /// transcript の項目 ID 集合。契約（task-5）: 常に `Set(transcript.map(\.id))` と一致するよう
     /// 全変更経路で増分維持する（body 毎の全再構築を避けるための索引）。
     public private(set) var transcriptItemIDs: Set<String> = []
+    @ObservationIgnored private var transcriptIndexByID: [String: Int] = [:]
+    @ObservationIgnored private let transcriptStreamCoalescer = TranscriptStreamCoalescer()
     public private(set) var transcriptRevision: Int = 0
     public private(set) var rawEventLog: [String] = []
     public private(set) var pendingApprovals: [ChatApprovalRequest] = []
@@ -151,6 +153,7 @@ public final class ChatSessionViewModel: Identifiable {
         self.historyProvider = historyProvider
         self.historyTranscriptLoader = historyTranscriptLoader
         configureSubAgentModel()
+        configureTranscriptStreamCoalescer()
         scheduleHistoryCacheLoadIfNeeded()
         startEventTasks()
     }
@@ -176,6 +179,7 @@ public final class ChatSessionViewModel: Identifiable {
         self.historyProvider = nil
         self.historyTranscriptLoader = nil
         configureSubAgentModel()
+        configureTranscriptStreamCoalescer()
         scheduleHistoryCacheLoadIfNeeded()
         startEventTasks()
     }
@@ -189,6 +193,19 @@ public final class ChatSessionViewModel: Identifiable {
                 self?.touchOutput()
             }
         )
+    }
+
+    private func configureTranscriptStreamCoalescer() {
+        transcriptStreamCoalescer.setScheduler { [weak self] delay, token in
+            Task { @MainActor [weak self] in
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                } catch {
+                    return
+                }
+                self?.flushScheduledStreamDeltas(token: token)
+            }
+        }
     }
 
     // task-9 契約（受け入れテスト ChatHistoryStart が凍結。実装契約の正本: tasks/task-9.md）
@@ -474,6 +491,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public func turnInterrupt() async {
+        flushPendingStreamDeltasBarrier()
         if let activeInterruptTask {
             await activeInterruptTask.value
             return
@@ -486,6 +504,9 @@ public final class ChatSessionViewModel: Identifiable {
             do {
                 try await self.client.interrupt()
             } catch {
+                // await 中に届いた delta を先に確定してからエラー項目を追加する
+                // （barrier 無しだとエラー項目が先着 delta より前へ挿入され順序契約を破る。stage2 指摘）。
+                self.flushPendingStreamDeltasBarrier()
                 self.appendOrReplace(.error(
                     id: "interrupt-error-\(UUID().uuidString)",
                     message: "中止リクエストに失敗しました: \(error)",
@@ -495,6 +516,7 @@ public final class ChatSessionViewModel: Identifiable {
             }
 
             guard self.turnGeneration == startedGeneration else { return }
+            self.flushPendingStreamDeltasBarrier()
             self.clearRunningTurn()
             self.clearRunningBackgroundTasks()
             self.subAgentModel.failRunningSubAgents()
@@ -1031,22 +1053,32 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
+    private func appendRawEventLogs(_ eventDescriptions: [String]) {
+        guard !eventDescriptions.isEmpty else { return }
+        rawEventLog.append(contentsOf: eventDescriptions)
+        let overflow = rawEventLog.count - Self.rawEventLogCap
+        if overflow > 0 {
+            rawEventLog.removeFirst(overflow)
+        }
+    }
+
     private func handle(_ event: NormalizedChatEvent) {
+        let rawEvent = String(describing: event)
+        if enqueueStreamDeltaIfNeeded(event, rawEvent: rawEvent) {
+            return
+        }
+
+        // 全ての非 delta イベントは順序バリア。switch に case が増えてもこの位置を通る。
+        flushPendingStreamDeltasBarrier()
         let eventDate = Date()
-        appendRawEventLog(String(describing: event))
+        appendRawEventLog(rawEvent)
         switch event {
-        case .agentMessageDelta(let itemId, let delta):
-            markRunningEventReceived(at: eventDate)
-            appendDelta(itemId: itemId, kind: .agent, delta: delta)
-        case .reasoningDelta(let itemId, let delta):
-            markRunningEventReceived(at: eventDate)
-            appendDelta(itemId: itemId, kind: .reasoning, delta: delta)
+        case .agentMessageDelta, .reasoningDelta:
+            break
         case .commandExecution(let itemId, let command, let delta):
             markRunningEventReceived(at: eventDate)
             if let command, !command.isEmpty {
                 appendCommandExecution(itemId: itemId, command: command, outputDelta: delta)
-            } else {
-                appendDelta(itemId: itemId, kind: .command, delta: delta)
             }
         case .fileChange(let itemId, let changes):
             markRunningEventReceived(at: eventDate)
@@ -1138,6 +1170,22 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
+    private func enqueueStreamDeltaIfNeeded(_ event: NormalizedChatEvent, rawEvent: String) -> Bool {
+        switch event {
+        case .agentMessageDelta(let itemId, let delta):
+            transcriptStreamCoalescer.enqueue(itemId: itemId, kind: .agent, delta: delta, rawEvent: rawEvent)
+            return true
+        case .reasoningDelta(let itemId, let delta):
+            transcriptStreamCoalescer.enqueue(itemId: itemId, kind: .reasoning, delta: delta, rawEvent: rawEvent)
+            return true
+        case .commandExecution(let itemId, let command, let delta) where command?.isEmpty != false:
+            transcriptStreamCoalescer.enqueue(itemId: itemId, kind: .command, delta: delta, rawEvent: rawEvent)
+            return true
+        default:
+            return false
+        }
+    }
+
     private func handleCodexSettingsEvent(_ event: ThreadEvent) {
         appendRawEventLog(String(describing: event))
         switch event {
@@ -1159,6 +1207,7 @@ public final class ChatSessionViewModel: Identifiable {
         case .itemStarted(let updatedThreadId, _, let item), .itemCompleted(let updatedThreadId, _, let item):
             // 旧 thread の遅延 item で transcript / store を汚染しない。
             guard updatedThreadId == threadId else { return }
+            flushPendingStreamDeltasBarrier()
             if let chatItem = chatItem(from: item) {
                 appendOrReplace(chatItem)
                 if case .itemCompleted = event {
@@ -1345,12 +1394,6 @@ public final class ChatSessionViewModel: Identifiable {
         codexSettingsDidChange?(codexSettingsSnapshot)
     }
 
-    private enum DeltaKind {
-        case agent
-        case reasoning
-        case command
-    }
-
     private func markTranscriptChanged() {
         transcriptRevision += 1
     }
@@ -1359,8 +1402,15 @@ public final class ChatSessionViewModel: Identifiable {
     /// `transcriptItemIDs == Set(transcript.map(\.id))`）。transcript を丸ごと差し替える
     /// 全経路（history 反映・revert 切詰め・restore/rebuild のクリア）はこれを通す。
     private func setTranscript(_ items: [ChatItem]) {
+        if let discardedBatch = transcriptStreamCoalescer.invalidate() {
+            appendRawEventLogs(discardedBatch.rawEvents)
+        }
         transcript = items
         transcriptItemIDs = Set(items.map(\.id))
+        transcriptIndexByID = Dictionary(
+            items.enumerated().map { ($0.element.id, $0.offset) },
+            uniquingKeysWith: { _, latest in latest }
+        )
         markTranscriptChanged()
     }
 
@@ -1368,53 +1418,92 @@ public final class ChatSessionViewModel: Identifiable {
     private func appendToTranscript(_ item: ChatItem) {
         transcript.append(item)
         transcriptItemIDs.insert(item.id)
+        transcriptIndexByID[item.id] = transcript.endIndex - 1
     }
 
     /// 指定 id の項目を transcript から除去し、ID 索引からも同期して除去する。
     private func removeFromTranscript(id: String) {
         transcript.removeAll { $0.id == id }
         transcriptItemIDs.remove(id)
+        transcriptIndexByID = Dictionary(
+            transcript.enumerated().map { ($0.element.id, $0.offset) },
+            uniquingKeysWith: { _, latest in latest }
+        )
     }
 
-    private func appendDelta(itemId: String, kind: DeltaKind, delta: String) {
+    private func flushScheduledStreamDeltas(token: UInt64) {
+        guard let batch = transcriptStreamCoalescer.flushScheduled(token: token) else { return }
+        applyStreamBatch(batch)
+    }
+
+    private func flushPendingStreamDeltasBarrier() {
+        guard let batch = transcriptStreamCoalescer.flushBarrier() else { return }
+        applyStreamBatch(batch)
+    }
+
+    private func applyStreamBatch(_ batch: TranscriptStreamCoalescer.Batch) {
+        appendRawEventLogs(batch.rawEvents)
         var didChange = false
-        if let index = transcript.firstIndex(where: { $0.id == itemId }) {
-            switch (kind, transcript[index]) {
-            case (.agent, .agentMessage(let id, let text, let timestamp)):
-                transcript[index] = .agentMessage(id: id, text: text + delta, timestamp: timestamp)
-                didChange = true
-            case (.reasoning, .reasoning(let id, let text, let timestamp)):
-                transcript[index] = .reasoning(id: id, text: text + delta, timestamp: timestamp)
-                didChange = true
-            case (.command, .commandExecution(let id, let command, let output, let timestamp)):
-                transcript[index] = .commandExecution(id: id, command: command, output: output + delta, timestamp: timestamp)
-                didChange = true
-            default:
-                break
+        for pending in batch.deltas {
+            if let index = transcriptIndexByID[pending.itemId] {
+                switch (pending.kind, transcript[index]) {
+                case (.agent, .agentMessage(let id, let text, let timestamp)):
+                    transcript[index] = .agentMessage(id: id, text: text + pending.delta, timestamp: timestamp)
+                    didChange = true
+                case (.reasoning, .reasoning(let id, let text, let timestamp)):
+                    transcript[index] = .reasoning(id: id, text: text + pending.delta, timestamp: timestamp)
+                    didChange = true
+                case (.command, .commandExecution(let id, let command, let output, let timestamp)):
+                    transcript[index] = .commandExecution(
+                        id: id,
+                        command: command,
+                        output: output + pending.delta,
+                        timestamp: timestamp
+                    )
+                    didChange = true
+                default:
+                    break
+                }
+                continue
             }
-        } else {
-            switch kind {
+
+            let newItem: ChatItem?
+            switch pending.kind {
             case .agent:
-                guard !delta.isEmpty else { break }
-                appendToTranscript(.agentMessage(id: itemId, text: delta, timestamp: Date()))
-                didChange = true
+                newItem = pending.delta.isEmpty ? nil : .agentMessage(
+                    id: pending.itemId,
+                    text: pending.delta,
+                    timestamp: pending.receivedAt
+                )
             case .reasoning:
-                guard !delta.isEmpty else { break }
-                appendToTranscript(.reasoning(id: itemId, text: delta, timestamp: Date()))
-                didChange = true
+                newItem = pending.delta.isEmpty ? nil : .reasoning(
+                    id: pending.itemId,
+                    text: pending.delta,
+                    timestamp: pending.receivedAt
+                )
             case .command:
-                appendToTranscript(.commandExecution(id: itemId, command: nil, output: delta, timestamp: Date()))
+                newItem = .commandExecution(
+                    id: pending.itemId,
+                    command: nil,
+                    output: pending.delta,
+                    timestamp: pending.receivedAt
+                )
+            }
+            if let newItem {
+                appendToTranscript(newItem)
                 didChange = true
             }
         }
+
         if didChange {
             markTranscriptChanged()
         }
-        touchOutput()
+        markRunningEventReceived(at: batch.latestEventAt)
+        lastOutputAt = batch.latestEventAt
     }
 
     private func appendCommandExecution(itemId: String, command: String, outputDelta: String) {
-        if let index = transcript.firstIndex(where: { $0.id == itemId }),
+        if let index = transcriptIndexByID[itemId],
            case .commandExecution(let id, let existingCommand, let output, let timestamp) = transcript[index] {
             transcript[index] = .commandExecution(
                 id: id,
@@ -1436,7 +1525,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     private func appendOrReplace(_ item: ChatItem) {
         guard shouldStoreInTranscript(item) else {
-            if let index = transcript.firstIndex(where: { $0.id == item.id }),
+            if let index = transcriptIndexByID[item.id],
                shouldStoreInTranscript(transcript[index]) {
                 return
             }
@@ -1447,7 +1536,7 @@ public final class ChatSessionViewModel: Identifiable {
             }
             return
         }
-        if let index = transcript.firstIndex(where: { $0.id == item.id }) {
+        if let index = transcriptIndexByID[item.id] {
             let replacement = item.withTimestamp(transcript[index].timestamp)
             if replacement != transcript[index] {
                 transcript[index] = replacement
@@ -1728,6 +1817,7 @@ extension ChatSessionViewModel: ControllableSession {
     }
 
     public func terminate() async {
+        flushPendingStreamDeltasBarrier()
         eventTask?.cancel()
         codexSettingsEventTask?.cancel()
         approvalTask?.cancel()

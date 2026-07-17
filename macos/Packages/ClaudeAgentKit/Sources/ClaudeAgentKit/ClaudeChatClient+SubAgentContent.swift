@@ -4,10 +4,20 @@ import StructuredChatKit
 // 隠している秘密: どのツール呼び出し/コンテンツがメインの会話に属し、どれが子（サブエージェント）に属して隔離表示すべきか
 extension ClaudeChatClient {
     func handleAssistantEvent(_ event: [String: Any]) {
-        guard
-            let message = event["message"] as? [String: Any],
-            let content = message["content"] as? [[String: Any]]
-        else { return }
+        guard let message = event["message"] as? [String: Any] else { return }
+
+        // メインターンの assistant のみ現在コンテキスト占有量として記録する（サブエージェントは除外）。
+        // 実 stream-json のメインイベントは parent_tool_use_id:null を持ち、JSONSerialization はこれを
+        // NSNull にするため `== nil` では判定できない。下の隔離分岐と同じく `as? String` で「文字列の親IDが
+        // 無い＝メイン」を判定する。
+        if (event["parent_tool_use_id"] as? String) == nil,
+           let usage = message["usage"] as? [String: Any] {
+            currentTurnLatestContextTokens = (usage["input_tokens"] as? Int ?? 0)
+                + (usage["cache_read_input_tokens"] as? Int ?? 0)
+                + (usage["cache_creation_input_tokens"] as? Int ?? 0)
+        }
+
+        guard let content = message["content"] as? [[String: Any]] else { return }
 
         // バックグラウンドサブエージェントは子のターン（thinking/text/tool_use）を
         // parent_tool_use_id 付きでインライン流入させる。これをメインに出さず隔離する。

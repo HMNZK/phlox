@@ -10,13 +10,24 @@ import Foundation
 // 一切参照しない。window の拡張契機は expand() の明示呼び出し（＝ボタン操作）のみで、
 // レイアウト観測フィードバックに連動しない。visibleRange は totalCount のみから決まる純関数なので、
 // ストリーミングで item が増えても末尾を含み続ける（AutoFollow と自然に整合する）。
+/// transcript の表示文脈（task-2 契約面）。窓の既定件数を文脈別に定める。
+enum TranscriptPresentationContext: Equatable {
+    /// 単一表示（従来どおり 200 件）。
+    case single
+    /// グリッドタイル（全タイル常時描画のため小さい窓にする）。
+    case gridTile
+}
+
 struct TranscriptWindow: Equatable {
-    /// 既定の表示件数上限（50...500 の範囲の有限定数）。
+    /// 既定の表示件数上限（50...500 の範囲の有限定数）。単一表示（`.single`）の既定値。
     static let defaultLimit: Int = 200
+    /// グリッドタイル表示の既定件数上限。
+    static let gridTileDefaultLimit: Int = 40
     /// 「以前のメッセージを表示」1回あたりの拡張幅（50 以上の定数）。
     static let expandStep: Int = 200
 
-    private(set) var limit: Int = TranscriptWindow.defaultLimit
+    private let presentationContext: TranscriptPresentationContext
+    private(set) var limit: Int
 
     /// 表示すべき末尾スライスの開始 index と隠れ件数を返す。
     /// - Parameter totalCount: 全 item 数（負は想定しないが 0 で安全）。
@@ -34,9 +45,14 @@ struct TranscriptWindow: Equatable {
         limit += TranscriptWindow.expandStep
     }
 
-    /// セッション切替時に既定へ戻す。
+    /// セッション切替時に自文脈の既定へ戻す。
     mutating func reset() {
-        limit = TranscriptWindow.defaultLimit
+        limit = Self.defaultLimit(for: presentationContext)
+    }
+
+    init(presentationContext: TranscriptPresentationContext = .single) {
+        self.presentationContext = presentationContext
+        self.limit = Self.defaultLimit(for: presentationContext)
     }
 
     /// ユーザー起点のジャンプでのみ呼ぶ: 指定 index が可視スライスに含まれるまで limit を引き上げる。
@@ -56,5 +72,22 @@ struct TranscriptWindow: Equatable {
         if limit < requiredLimit {
             limit = requiredLimit
         }
+    }
+}
+
+extension TranscriptWindow {
+    /// 表示文脈別の既定表示件数。
+    static func defaultLimit(for context: TranscriptPresentationContext) -> Int {
+        switch context {
+        case .single:
+            return defaultLimit
+        case .gridTile:
+            return gridTileDefaultLimit
+        }
+    }
+
+    /// 表示文脈つきの生成。reset() は自文脈の既定値へ戻る。
+    init(context: TranscriptPresentationContext) {
+        self.init(presentationContext: context)
     }
 }

@@ -5,7 +5,7 @@ last-verified: 2026-07-17
 
 # 0003: perf-multi-chat-lag run 作業ログ（複数チャット同時稼働のカクつき・グリッド切替フリーズ）
 
-> **このファイルの役割**: 本 run で何をしたか・検証状態のスナップショット。設計判断は ADR 0091/0092、現行仕様は architecture/chat-mode-ux-components.md が正本。
+> **このファイルの役割**: 本 run で何をしたか・検証状態のスナップショット。設計判断は ADR 0093/0094、現行仕様は architecture/chat-mode-ux-components.md が正本。
 
 ## 症状（ユーザー報告）
 
@@ -16,11 +16,11 @@ last-verified: 2026-07-17
 
 | タスク | 内容 | 実装 | レビュー |
 |---|---|---|---|
-| task-1 (deep) | delta 適用のコアレシング（50ms 窓）＋ O(1) 索引＋ barrier/世代トークン → ADR 0091 | Codex（差し戻し1回） | stage1 Claude pass ×2 / stage2 Codex（指摘4件 → 1件修正・3件スコープ外裁定） |
-| task-2 (standard) | TranscriptWindow の文脈分化（single=200/gridTile=40）＋ hangAssessment 1Hz の viewport 停止 → ADR 0092 | Cursor | stage1 Claude pass（指摘ゼロ） |
+| task-1 (deep) | delta 適用のコアレシング（50ms 窓）＋ O(1) 索引＋ barrier/世代トークン → ADR 0093 | Codex（差し戻し1回） | stage1 Claude pass ×2 / stage2 Codex（指摘4件 → 1件修正・3件スコープ外裁定） |
+| task-2 (standard) | TranscriptWindow の文脈分化（single=200/gridTile=40）＋ hangAssessment 1Hz の viewport 停止 → ADR 0094 | Cursor | stage1 Claude pass（指摘ゼロ） |
 
 - 受け入れテスト（凍結・実装前 red 実証済み）: `AcceptanceStreamCoalescingTests` / `AcceptanceGridRenderCostTests`
-- 差し戻し#1 の裁定（既存レース2件の温存判断）: run の decision-log および ADR 0091「既知の残余」
+- 差し戻し#1 の裁定（既存レース2件の温存判断）: run の decision-log および ADR 0093「既知の残余」
 
 ## 検証状態（フェーズ4・2026-07-17）
 
@@ -31,5 +31,5 @@ last-verified: 2026-07-17
 
 ## 積み残し・再計画条件
 
-- グリッド構造変更時の remount 回避（ADR 0092 の棄却案）: 窓 40 化でフリーズが実用上残る場合に別 run で検討。
-- ADR 0091「既知の残余」の2ストリーム順序レース: 実害が観測されたらアダプタ側の単一ストリーム化で根治。
+- グリッド構造変更時の remount 回避（ADR 0094 の棄却案）: 窓 40 化でフリーズが実用上残る場合に別 run で検討。
+- ADR 0093「既知の残余」の2ストリーム順序レース: 実害が観測されたらアダプタ側の単一ストリーム化で根治。

@@ -96,6 +96,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
     var callerResumedSession = false
     var observedExistingConversation = false
     var currentTurnLine: Data?
+    var currentTurnLatestContextTokens: Int?
     var pendingResultError: PendingResultError?
     /// Writes: initialized here; reset by `turnStart(_:)` before sending a turn;
     /// incremented only by `recordSelfHealAttemptIfTurnBound()`.
@@ -277,6 +278,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
         line.append(0x0A)
 
         currentTurnHealCount = 0
+        currentTurnLatestContextTokens = nil
         eventContinuation.yield(.turnStarted)
         do {
             try await transport.send(line)
@@ -301,6 +303,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
     public func resetConversation() async {
         currentTurnOpen = false
         currentTurnLine = nil
+        currentTurnLatestContextTokens = nil
         pendingResultError = nil
         interruptedResultSuppression = nil
         currentSessionId = nil

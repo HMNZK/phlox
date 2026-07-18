@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-17
+last-verified: 2026-07-18
 ---
 
 # 0092: グリッドタイルの transcript 窓分化（40件）と hangAssessment 1Hz の viewport 停止
@@ -11,7 +11,7 @@ last-verified: 2026-07-17
 
 ## 決定
 
-1. **表示文脈で窓の既定件数を分ける**: `TranscriptPresentationContext`（`.single` = 200 / `.gridTile` = 40）を導入し、`TranscriptWindow` は自文脈の既定値で開始・`reset()` も自文脈へ復帰する。グリッドタイル（`GridChatColumn`）のみ `.gridTile` を渡し、単一表示は既定 `.single` で従来と完全同一。`expand()`/`reveal()` の意味論（ユーザー操作のみで拡張・スクロール量非連動 = ADR 0030 の一線）は不変。
+1. **表示文脈で窓の既定件数を分ける**: `TranscriptPresentationContext`（`.single` = 50 / `.gridTile` = 40）を導入し、`TranscriptWindow` は自文脈の既定値で開始・`reset()` も自文脈へ復帰する。（**2026-07-18 改定・ADR 0097**: `.single` 既定を当初の 200 から 50 へ引き下げ。`.gridTile = 40` は不変。）グリッドタイル（`GridChatColumn`）のみ `.gridTile` を渡し、単一表示は既定 `.single` で従来と完全同一。`expand()`/`reveal()` の意味論（ユーザー操作のみで拡張・スクロール量非連動 = ADR 0030 の一線）は不変。
 2. **hangAssessment 1Hz の viewport 停止**: `HangStatusTimelineSchedule(isVisible:)`（非表示時はエントリ列を空にする。`ThinkingTimelineSchedule` と同設計）を導入し、既存の `isTimelineVisible`（viewport×ライフサイクル×シーン合成）で駆動する。ADR 0067 の既知残余を解消。
 
 ## 棄却案（見送り・再計画条件つき）

@@ -40,6 +40,7 @@ struct CachedSubAgentTranscript {
 
 public enum ChatRestoreState: Equatable, Sendable {
     case notRestored
+    case restoring
     case restored
     case failed(message: String)
 }

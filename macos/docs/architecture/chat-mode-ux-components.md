@@ -56,7 +56,9 @@ PTY read（actor＋専用キュー）・transcript 保存（actor）・Hook/Cont
 
 ## トランスクリプトの描画（末尾 N 件・ADR 0051）
 
-`ChatTranscriptView` は非 Lazy VStack（ADR 0030）のまま、`TranscriptWindow`（純粋値型・`Session/TranscriptWindow.swift`）で**末尾 N 件のみ描画**する。N は表示文脈（`TranscriptPresentationContext`）で分かれ、**単一表示 = 200 / グリッドタイル = 40**（ADR 0094。グリッドは全タイル常時描画のため小窓）。`reset()` は自文脈の既定値へ戻る。超過時は先頭の「以前のメッセージを表示（残り k 件）」ボタンで 200 件ずつ段階展開し、展開後は押下前の先頭可視メッセージへアンカー保持（イベント駆動 scrollTo・1回のみ）。隠れ域へのジャンプ（バックグラウンドタスクストリップ）は `reveal(index:totalCount:)` がマージン付きで可視化してから scrollTo する。window はスクロール量・可視領域に一切連動しない（拡張契機はユーザー操作のみ）。遅延 scrollTo は世代トークン（jumpGeneration）でセッション切替・後続操作時に無効化。
+`ChatTranscriptView` は非 Lazy VStack（ADR 0030）のまま、`TranscriptWindow`（純粋値型・`Session/TranscriptWindow.swift`）で**末尾 N 件のみ描画**する。N は表示文脈（`TranscriptPresentationContext`）で分かれ、**単一表示 = 50 / グリッドタイル = 40**（ADR 0094 で文脈別既定を導入。単一表示は当初 200 だったが初回描画コスト削減のため 50 へ引き下げ＝ADR 0097。グリッドは全タイル常時描画のため小窓）。`reset()` は自文脈の既定値へ戻る。超過時は先頭の「以前のメッセージを表示（残り k 件）」ボタンで 50 件ずつ段階展開し、展開後は押下前の先頭可視メッセージへアンカー保持（イベント駆動 scrollTo・1回のみ）。隠れ域へのジャンプ（バックグラウンドタスクストリップ）は `reveal(index:totalCount:)` がマージン付きで可視化してから scrollTo する。window はスクロール量・可視領域に一切連動しない（拡張契機はユーザー操作のみ）。遅延 scrollTo は世代トークン（jumpGeneration）でセッション切替・後続操作時に無効化。
+
+**復元中の接続表示**（ADR 0098）: セッション復元は空 transcript の VM を先に UI へ載せてから `await vm.restore()` で全件一括反映するため、その間 transcript が空になる。`ChatRestoreState`（`notRestored`/`restoring`/`restored`/`failed`）の `restoring` を `restore()` 入口で設定し、`ChatSessionView` は `restoreState == .restoring` かつ transcript 空の間だけ `ChatConnectingIndicator`（iOS `DSConnectingIndicator` の移植・Canvas + TimelineView レーダー風・`DSColor.chatAccent`・Reduce Motion 静的フォールバック・`accessibilityHidden(true)`）を中央オーバーレイ表示する。完了/失敗で消え、空データ・失敗で永久表示にならない。`SessionRestoreCoordinator` は View が状態を観測するため変更不要。
 
 セル描画の派生値（Markdown 分割・ハイライト・diff 分類）は `ChatMessageRenderCache`（内容キー・非観測 static NSCache・countLimit 512。ADR 0052）でメモ化され、ストリーミング中の再 body 評価で不変セルの再計算が走らない。FileChange は 200 行超で既定折りたたみ・展開時 500 行上限＋「さらに表示」（展開状態は `FileChangeDisplayPolicy.isExpanded(userOverride:lineCount:)` の純導出で、同一 id の diff 置換にも追随）。
 

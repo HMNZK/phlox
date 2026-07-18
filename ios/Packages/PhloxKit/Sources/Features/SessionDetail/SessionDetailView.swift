@@ -261,13 +261,18 @@ public struct SessionDetailView: View {
         }
     }
 
-    /// エラー → バナー、構造化チャットあり → チャット、それ以外 → 従来のターミナル出力、の三分岐。
+    /// エラー → バナー、構造化チャットあり → チャット、初回データ待ち → 接続表示、
+    /// それ以外 → 従来のターミナル出力、の順で表示する。
     @ViewBuilder
     private var transcriptSection: some View {
         if let error = viewModel.loadError {
             DSResultBanner(message: error, isError: true)
         } else if viewModel.showsChat {
             chatSection
+        } else if viewModel.showsInitialLoadingIndicator {
+            DSConnectingIndicator(size: 96)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: max(320, scrollViewportHeight - DSTouch.minSize - DSSpacing.l * 2))
         } else {
             outputSection
         }

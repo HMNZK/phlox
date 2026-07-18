@@ -17,6 +17,9 @@ public struct SessionDetailView: View {
     @State private var distanceFromBottom: CGFloat = 0
     @State private var scrollViewportHeight: CGFloat = 0
     @State private var selectedSubAgentID: String?
+    @State private var transcriptWindow = TranscriptWindow()
+    @State private var pendingTranscriptScrollTarget: SessionDetailTranscriptScrollTarget?
+    @State private var transcriptScrollGeneration = 0
     let approvalViewModel: ApprovalViewModel?
     let onDelete: () -> Void
 
@@ -79,6 +82,25 @@ public struct SessionDetailView: View {
                     .onChange(of: viewModel.chatMessages) { scrollToBottomIfFollowing(proxy) }
                     .onChange(of: viewModel.outputText) { scrollToBottomIfFollowing(proxy) }
                     .onChange(of: viewModel.expandedMessageIDs) { _, _ in scrollToBottomIfFollowing(proxy) }
+                    .onChange(of: pendingTranscriptScrollTarget) { _, target in
+                        guard let target else { return }
+                        pendingTranscriptScrollTarget = nil
+                        let generation = transcriptScrollGeneration
+                        Task { @MainActor in
+                            guard generation == transcriptScrollGeneration else { return }
+                            switch target {
+                            case .anchor(let anchorID):
+                                proxy.scrollTo(anchorID, anchor: .top)
+                            case .bottom:
+                                scrollToBottom(proxy)
+                            }
+                        }
+                    }
+                    .onChange(of: viewModel.session.id) { _, _ in
+                        transcriptWindow.reset()
+                        pendingTranscriptScrollTarget = nil
+                        transcriptScrollGeneration += 1
+                    }
                     .onAppear { scrollToBottom(proxy, animated: false) }
                 }
 
@@ -252,15 +274,48 @@ public struct SessionDetailView: View {
     }
 
     private var chatSection: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.m) {
-            ForEach(viewModel.visibleMessages) { message in
+        let slice = SessionDetailTranscriptSlice(
+            messages: viewModel.visibleMessages,
+            window: transcriptWindow
+        )
+        return VStack(alignment: .leading, spacing: DSSpacing.m) {
+            if slice.hiddenCount > 0 {
+                loadEarlierMessagesButton(hiddenCount: slice.hiddenCount)
+            }
+            ForEach(slice.visibleMessages) { message in
                 chatRow(for: message)
+                    .id(message.id)
             }
             if viewModel.isAgentWorking {
                 DSThinkingIndicator(reasoningPreview: viewModel.thinkingPreview)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func loadEarlierMessagesButton(hiddenCount: Int) -> some View {
+        Button {
+            let decision = SessionDetailTranscriptExpansionPolicy.expand(
+                messages: viewModel.visibleMessages,
+                window: transcriptWindow,
+                scrollGeneration: transcriptScrollGeneration
+            )
+            transcriptWindow = decision.window
+            transcriptScrollGeneration = decision.scrollGeneration
+            pendingTranscriptScrollTarget = decision.scrollTarget
+        } label: {
+            Text("以前のメッセージを表示（残り \(hiddenCount) 件）")
+                .font(DSFont.captionStrong)
+                .foregroundStyle(DSColor.textSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, DSSpacing.s)
+                .background(
+                    RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
+                        .fill(DSColor.fillSubtle)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("SessionDetail.loadEarlierMessages")
     }
 
     /// 1 メッセージの描画。user/agent はバブル、reasoning は v1 では agent 風バブル、
@@ -474,6 +529,54 @@ public struct SessionDetailView: View {
     private func scrollToBottomIfFollowing(_ proxy: ScrollViewProxy) {
         guard ChatAutoFollowPolicy.shouldFollowBottom(distanceFromBottom: distanceFromBottom) else { return }
         scrollToBottom(proxy)
+    }
+}
+
+/// SessionDetailView が描画するメッセージ範囲。ViewModel の visibleMessages の意味は変えない。
+struct SessionDetailTranscriptSlice {
+    let visibleMessages: ArraySlice<ChatMessage>
+    let hiddenCount: Int
+
+    var expansionAnchorID: String? {
+        hiddenCount > 0 ? visibleMessages.first?.id : nil
+    }
+
+    init(messages: [ChatMessage], window: TranscriptWindow) {
+        let range = window.visibleRange(totalCount: messages.count)
+        visibleMessages = messages[range.startIndex...]
+        hiddenCount = range.hiddenCount
+    }
+}
+
+enum SessionDetailTranscriptScrollTarget: Equatable {
+    case anchor(String)
+    case bottom
+}
+
+struct SessionDetailTranscriptExpansionDecision {
+    let window: TranscriptWindow
+    let scrollGeneration: Int
+    let scrollTarget: SessionDetailTranscriptScrollTarget?
+}
+
+enum SessionDetailTranscriptExpansionPolicy {
+    static func expand(
+        messages: [ChatMessage],
+        window: TranscriptWindow,
+        scrollGeneration: Int
+    ) -> SessionDetailTranscriptExpansionDecision {
+        let anchorID = SessionDetailTranscriptSlice(
+            messages: messages,
+            window: window
+        ).expansionAnchorID
+        var expandedWindow = window
+        expandedWindow.expand()
+
+        return SessionDetailTranscriptExpansionDecision(
+            window: expandedWindow,
+            scrollGeneration: scrollGeneration + 1,
+            scrollTarget: anchorID.map(SessionDetailTranscriptScrollTarget.anchor)
+        )
     }
 }
 

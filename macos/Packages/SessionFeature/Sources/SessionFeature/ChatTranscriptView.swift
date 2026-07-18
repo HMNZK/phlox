@@ -208,15 +208,18 @@ struct ChatTranscriptView: View {
             window.expand()
             pendingExpandAnchor = anchorID
         } label: {
-            Text("以前のメッセージを表示（残り \(hiddenCount) 件）")
+            HStack(spacing: DSSpacing.xs) {
+                Image(systemName: "chevron.up")
+                Text("以前のメッセージを表示")
+                Text("残り \(hiddenCount) 件")
+                    .font(DSFont.caption)
+            }
                 .font(DSFont.captionStrong)
                 .foregroundStyle(DSColor.chatTextSecondary)
-                .frame(maxWidth: .infinity)
+                .padding(.horizontal, DSSpacing.m)
                 .padding(.vertical, DSSpacing.s)
-                .background(
-                    RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                        .fill(DSColor.fillSubtle)
-                )
+                .background(DSColor.fillSubtle, in: Capsule())
+                .frame(maxWidth: .infinity, alignment: .center)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("ChatTranscript.loadEarlier")

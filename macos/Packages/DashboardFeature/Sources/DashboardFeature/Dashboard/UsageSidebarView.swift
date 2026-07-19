@@ -106,13 +106,13 @@ struct UsageCLICard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.s) {
-            AgentKindBadge(kind: usage.kind)
+            AgentBrandIcon(kind: usage.kind, size: DSIconSize.l)
 
             switch usage.state {
             case .ok(let buckets):
                 TimelineView(.periodic(from: .now, by: 60)) { context in
                     // 実データ（.ok）表示中に「未取得」注記が重なる矛盾を避けるため、
-                    // 鮮度注記は dataAsOf が判る場合のみ出す（PM 裁定・task-16 レビュー LOW）。
+                    // 鮮度判定は dataAsOf が判る場合のみ行う（PM 裁定・task-16 レビュー LOW）。
                     let staleNote = (usage.kind == .claudeCode && usage.dataAsOf != nil)
                         ? ClaudeUsageStaleness.note(now: context.date, dataAsOf: usage.dataAsOf)
                         : nil
@@ -122,12 +122,6 @@ struct UsageCLICard: View {
                                 bucket: bucket,
                                 isPercentDimmed: staleNote != nil
                             )
-                        }
-                        if let staleNote {
-                            Text(staleNote)
-                                .font(DSFont.caption)
-                                .foregroundStyle(DSColor.textTertiary)
-                                .lineLimit(2)
                         }
                     }
                 }

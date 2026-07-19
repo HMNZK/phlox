@@ -134,12 +134,6 @@ struct UsageTopBarView: View {
                         ForEach(chip.shownBuckets) { bucket in
                             gaugeRow(bucket: bucket, isPercentDimmed: chip.staleNote != nil)
                         }
-                        if let staleNote = chip.staleNote {
-                            Text(staleNote)
-                                .font(DSFont.caption)
-                                .foregroundStyle(DSColor.textTertiary)
-                                .lineLimit(1)
-                        }
                     }
                 }
             } else {
@@ -153,12 +147,6 @@ struct UsageTopBarView: View {
                         }
                         shortLabelText(for: bucket)
                         percentText(for: bucket, isDimmed: chip.staleNote != nil)
-                    }
-                    if let staleNote = chip.staleNote {
-                        Text(staleNote)
-                            .font(DSFont.caption)
-                            .foregroundStyle(DSColor.textTertiary)
-                            .lineLimit(1)
                     }
                 }
             }

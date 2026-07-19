@@ -5,6 +5,8 @@ last-verified: 2026-07-10
 
 # 0067: Thinking インジケータのサイン波アニメーションと viewport pause
 
+> **拡張**（2026-07-19・ui-fixes run / task-3）: 「Thinking...」テキスト自体にも、明度が**左→右へ流れるシマー**を追加した。本 ADR と同じ純関数方針を踏襲する——`ThinkingAnimationModel` に純関数 `shimmerPhase(date:)`（時間に線形前進・周期 `shimmerPeriod`・戻り値 `[0,1)`）と `shimmerBrightness(position:phase:)`（`position==phase` で最大 1.0・離れるほど `shimmerMinBrightness` へガウス減衰）を足し、既存 `timelineSchedule(isVisible:)`（30fps 上限・非表示時は空エントリ）と `isTimelineVisible` で駆動し、`LinearGradient` の mask で文字へ適用する。`Timer`/`repeatForever`/アニメ用 `@State`/新規 `GeometryReader` は不使用、`reduceMotion` 時は静的表示。凍結オラクル `AcceptanceThinkingShimmerTests`（DashboardFeature）が純関数仕様を担保。
+
 ## 状況
 
 transcript の Thinking インジケータは3点の二値点滅（`TimelineView(.periodic(by: 0.28))` + opacity 切替）で、「安易な点滅ではないリッチな表現にしたい」というユーザー要望があった（composer-agent-ux run / task-2）。一方、この領域には ADR 0010 の事故実績（view body 評価中の @Observable state 変更 → 無限再無効化 → CPU 100% 固着）があり、リッチ化は CPU ハザードと隣り合わせである。

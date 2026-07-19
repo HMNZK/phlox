@@ -73,6 +73,7 @@ struct SubAgentDrawerView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
             let lastItemID = transcript.last?.id
+            let blocks = ChatTranscriptGrouping.blocks(from: transcript)
             ScrollView {
                 VStack(alignment: .leading, spacing: DSSpacing.m) {
                     Button {
@@ -85,17 +86,9 @@ struct SubAgentDrawerView: View {
                     .foregroundStyle(DSColor.chatAccent)
                     .help("メインチャットを表示")
 
-                    ForEach(transcript) { item in
-                        ChatItemView(
-                            item: item,
-                            isRunningCommand: SubAgentDrawerPresentation.isRunningCommand(
-                                item: item,
-                                lastItemID: lastItemID,
-                                status: subAgent.status
-                            ),
-                            agentDescriptor: agentDescriptor
-                        )
-                        .id(item.id)
+                    ForEach(blocks) { block in
+                        transcriptBlock(block, lastItemID: lastItemID)
+                            .id(block.id)
                     }
                     if SubAgentDrawerPresentation.showsThinkingIndicator(status: subAgent.status) {
                         ThinkingIndicatorCell(
@@ -111,6 +104,28 @@ struct SubAgentDrawerView: View {
                 .padding(.horizontal, DSSpacing.l)
                 .padding(.vertical, DSSpacing.m)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func transcriptBlock(_ block: ChatTranscriptBlock, lastItemID: String?) -> some View {
+        switch block {
+        case .single(let item):
+            ChatItemView(
+                item: item,
+                isRunningCommand: SubAgentDrawerPresentation.isRunningCommand(
+                    item: item,
+                    lastItemID: lastItemID,
+                    status: subAgent.status
+                ),
+                agentDescriptor: agentDescriptor
+            )
+        case .commandGroup(_, let items):
+            CommandGroupCell(
+                items: items,
+                lastTranscriptID: lastItemID,
+                isTurnRunning: subAgent.status == .running
+            )
         }
     }
 

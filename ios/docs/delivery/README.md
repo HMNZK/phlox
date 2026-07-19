@@ -21,3 +21,4 @@ last-verified: 2026-07-16
 - `delivery/0005-mobile-ui-overhaul-wave7-worklog.md` … モバイル UI 刷新 wave-7（入力欄整理・顔認証既定オフ）の作業ログ
 - `delivery/0006-mobile-ui-overhaul-wave8-worklog.md` … モバイル UI 刷新 wave-8（QR接続直後オフラインバグ・チャット画像添付表示）の作業ログ
 - `delivery/0007-mobile-ui-overhaul-wave9-worklog.md` … モバイル UI 刷新 wave-9（接続中オーバーレイ・添付バッジ分離）の作業ログ
+- `delivery/0010-ask-user-question-worklog.md` … AskUserQuestion 対応（iOS ミラー実装）の作業ログ

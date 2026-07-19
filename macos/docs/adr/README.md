@@ -12,6 +12,8 @@ last-verified: 2026-07-17
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0103 | [質問カードの iOS ミラー配線（wire DTO・POST /question・App 層 witness）](0103-user-question-wire-mirror.md) | accepted |
+| 0102 | [AskUserQuestion を CLI control protocol（can_use_tool 中継）で実装する](0102-ask-user-question-control-protocol.md) | accepted |
 | 0096 | [チャットのツールコール連続表示のグループ集約と identity 設計](0096-chat-tool-call-grouping.md) | active |
 | 0095 | [Codex app-server の error 通知の終端性判定（willRetry 非終端＋EOF 合成終端）](0095-codex-app-server-error-terminality.md) | active |
 | 0094 | [グリッドタイルの transcript 窓分化（40件）と hangAssessment 1Hz の viewport 停止](0094-grid-tile-transcript-window-and-hang-timer-pause.md) | active |

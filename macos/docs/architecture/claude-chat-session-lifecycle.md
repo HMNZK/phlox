@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-13
+last-verified: 2026-07-19
 ---
 
 # Claude チャットセッションのプロセスライフサイクル（現状仕様）
@@ -44,6 +44,13 @@ last-verified: 2026-07-13
 
 - 中断時にターンが開いていた場合、同一世代の次の `error_during_execution` result は「後始末」として1件だけ吸収する（次の turnStart では解除しない・世代交代で解除・新ターンの状態には触れない。ADR 0022）。
 - **中断後の transport 復活（Bug2・2026-07-13）**: `claude -p` は SIGINT で終了する（`interrupt()`→`transport.interrupt()`→`process.interrupt()`）。中断でターンが閉じた後にプロセスが死ぬと `handleStreamEnded` は自己修復ブランチ（`currentTurnOpen` が既に false）を素通りして `transport=nil` に落とす。この状態で次の `turnStart` が来ると、以前は `notStarted` を throw して**「停止後に送っても処理が始まらない」無音失敗**になっていた。現行の `turnStart` は入口で `transport==nil` を検出したら `settingsRespawnSessionArgument()`（会話確立後は `--resume <currentSessionId>`）で respawn してから送信し、respawn 失敗時のみ `.error` を yield して throw する（握りつぶさない）。Cursor/Codex 経路は interrupt が transport/thread を殺さないため構造的にこの穴が無い。ADR 0083。
+
+## control protocol（AskUserQuestion 中継）
+
+- spawn 引数は `--permission-prompt-tool stdio` を常時含む（`buildArguments`）。CLI が発行する `control_request`（subtype `can_use_tool`）のうち `tool_name == "AskUserQuestion"` のみを保留台帳（`pendingUserQuestions[requestId]`）へ登録し `.userQuestionRequested` を yield する。それ以外のツールは `sendControlDeny` で即時 deny する（`ClaudeChatClient+ControlProtocol.swift`。設計理由は [ADR 0102](../adr/0102-ask-user-question-control-protocol.md)）。
+- `respondToUserQuestion(requestId:answers:)` は pending 一致・同世代・`!isResponding`・transport 存在の全条件で `behavior: "allow"` + `updatedInput.answers` を `control_response` として stdin へ書き、`.userQuestionResolved(.answered)` を yield する。回答の内部表現は「質問文→label 配列」、wire では single=String / multiSelect=[String] に射影する。
+- 保留質問は `close()` / respawn（全世代）、`interrupt()` / stream 終了（当該世代）で `.expired` へ失効する。世代ガード（`pending.generation == spawnGeneration`）により旧世代の応答が新 transport へ流れることはない。
+- `interrupt()` の deny 対象スナップショットは `isResponding`（allow 送信 suspend 中）の質問を除外する。除外しないと同一 `request_id` へ allow/deny の二重 `control_response` が届きうる不整合があったため（2026-07-19 修正）。
 
 ## バックグラウンドタスクイベント
 

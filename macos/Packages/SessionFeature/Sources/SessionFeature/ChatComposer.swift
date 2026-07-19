@@ -377,6 +377,7 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.autoresizingMask = [.width]
         textView.string = text
+        textView.applyComposerHighlights()
 
         scrollView.documentView = textView
         return scrollView
@@ -425,6 +426,7 @@ struct IMESafeTextView: NSViewRepresentable {
                 return
             }
             parent.text = textView.string
+            (textView as? SubmitAwareTextView)?.applyComposerHighlights()
             updateSuggestions(for: textView)
             recalculateHeight(for: textView)
         }
@@ -528,7 +530,45 @@ struct IMESafeTextView: NSViewRepresentable {
                 string = nextString
             }
             setSelectedRange(NSRange(location: selectionLocation, length: selectionLength))
+            applyComposerHighlights()
             breakUndoCoalescing()
+        }
+
+        func applyComposerHighlights() {
+            guard !hasMarkedText(), let textStorage else { return }
+
+            let currentSelection = selectedRange()
+            let defaultForegroundColor =
+                typingAttributes[.foregroundColor] as? NSColor
+                ?? textColor
+                ?? NSColor.labelColor
+            let manager = undoManager
+            manager?.disableUndoRegistration()
+            defer {
+                setSelectedRange(currentSelection)
+                manager?.enableUndoRegistration()
+            }
+
+            textStorage.beginEditing()
+            let fullRange = NSRange(location: 0, length: textStorage.length)
+            if fullRange.length > 0 {
+                textStorage.addAttribute(
+                    .foregroundColor,
+                    value: defaultForegroundColor,
+                    range: fullRange
+                )
+            }
+            let accentColor = NSColor(DSColor.chatAccent)
+            for span in ComposerHighlight.spans(in: string) {
+                let range = NSRange(location: span.range.lowerBound, length: span.range.count)
+                guard NSMaxRange(range) <= textStorage.length else { continue }
+                textStorage.addAttribute(.foregroundColor, value: accentColor, range: range)
+            }
+            textStorage.endEditing()
+
+            var defaultTypingAttributes = typingAttributes
+            defaultTypingAttributes[.foregroundColor] = defaultForegroundColor
+            typingAttributes = defaultTypingAttributes
         }
 
         override func paste(_ sender: Any?) {

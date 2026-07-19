@@ -91,14 +91,15 @@ struct ThinkingIndicatorCell: View {
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         AvatarMessageRow(descriptor: descriptor, timestamp: .distantPast) {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                HStack(spacing: DSSpacing.s) {
-                    Text("Thinking...")
-                        .font(ChatScaledFont.body(scale: scale).italic())
-                        .foregroundStyle(DSColor.chatTextSecondary)
-                    if reduceMotion {
+                if reduceMotion {
+                    HStack(spacing: DSSpacing.s) {
+                        staticThinkingText(scale: scale)
                         StaticThinkingDots()
-                    } else {
-                        TimelineView(ThinkingAnimationModel.timelineSchedule(isVisible: isTimelineVisible)) { context in
+                    }
+                } else {
+                    TimelineView(ThinkingAnimationModel.timelineSchedule(isVisible: isTimelineVisible)) { context in
+                        HStack(spacing: DSSpacing.s) {
+                            shimmeringThinkingText(scale: scale, date: context.date)
                             StaticThinkingDots(date: context.date)
                         }
                     }
@@ -129,6 +130,37 @@ struct ThinkingIndicatorCell: View {
         .onDisappear {
             isInViewHierarchy = false
         }
+    }
+
+    private func staticThinkingText(scale: CGFloat) -> some View {
+        Text("Thinking...")
+            .font(ChatScaledFont.body(scale: scale).italic())
+            .foregroundStyle(DSColor.chatTextSecondary)
+    }
+
+    private func shimmeringThinkingText(scale: CGFloat, date: Date) -> some View {
+        let phase = ThinkingAnimationModel.shimmerPhase(date: date)
+        let stops = (0...20).map { index in
+            let position = Double(index) / 20
+            let brightness = ThinkingAnimationModel.shimmerBrightness(
+                position: position,
+                phase: phase
+            )
+            return Gradient.Stop(
+                color: DSColor.chatTextSecondary.opacity(brightness),
+                location: CGFloat(position)
+            )
+        }
+
+        return Text("Thinking...")
+            .font(ChatScaledFont.body(scale: scale).italic())
+            .foregroundStyle(
+                LinearGradient(
+                    stops: stops,
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
     }
 }
 

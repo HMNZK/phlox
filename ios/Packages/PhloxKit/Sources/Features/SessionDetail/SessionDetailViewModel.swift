@@ -233,6 +233,13 @@ public final class SessionDetailViewModel {
         subAgentMarkerIndex[messageID]
     }
 
+    /// AskUserQuestion の回答送信（task-0 契約。実装は task-4）。
+    /// 戻り値: API が回答を受理し、ローカルの質問カードを answered へ更新したら true。
+    public func answerQuestion(requestId: String, answers: [String: [String]]) async -> Bool {
+        _ = (requestId, answers)
+        return false
+    }
+
     public func attachmentImageCount(forMessageID id: String) -> Int? {
         attachmentCountsByMessageID[id]
     }
@@ -255,7 +262,7 @@ public final class SessionDetailViewModel {
         switch message {
         case .reasoning, .command, .fileChange:
             return true
-        case .user, .agent, .error, .subAgent:
+        case .user, .agent, .error, .subAgent, .userQuestion:
             return false
         }
     }
@@ -712,6 +719,8 @@ public final class SessionDetailViewModel {
             return !(commandEmpty && outputEmpty)
         case let .fileChange(_, changes):
             return !changes.isEmpty
+        case let .userQuestion(_, _, questions, _, _):
+            return !questions.isEmpty
         }
     }
 

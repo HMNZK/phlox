@@ -52,6 +52,15 @@ public struct ChatItemView: View {
             )
         case .turnCost(_, let costUSD, let timestamp):
             TurnCostCell(costUSD: costUSD, timestamp: timestamp)
+        case .userQuestion(let id, _, let questions, let answers, let state, let timestamp):
+            // task-2 が UserQuestionCell（選択肢ボタン・multiSelect・自由入力）へ差し替える骨組み。
+            UserQuestionCell(
+                itemId: id,
+                questions: questions,
+                answers: answers,
+                state: state,
+                timestamp: timestamp
+            )
         }
     }
 }

@@ -56,6 +56,39 @@ public struct TurnUsage: Codable, Equatable, Sendable {
     }
 }
 
+/// AskUserQuestion の選択肢 1 件（task-0 契約。受け入れテスト AcceptanceUserQuestionChatItemCodableTests が凍結）。
+public struct ChatUserQuestionOption: Codable, Equatable, Sendable {
+    public let label: String
+    public let description: String?
+
+    public init(label: String, description: String? = nil) {
+        self.label = label
+        self.description = description
+    }
+}
+
+/// AskUserQuestion の質問 1 件。CLI の can_use_tool 入力 `questions[]` と 1:1 対応（task-0 契約）。
+public struct ChatUserQuestion: Codable, Equatable, Sendable {
+    public let question: String
+    public let header: String
+    public let options: [ChatUserQuestionOption]
+    public let multiSelect: Bool
+
+    public init(question: String, header: String, options: [ChatUserQuestionOption], multiSelect: Bool) {
+        self.question = question
+        self.header = header
+        self.options = options
+        self.multiSelect = multiSelect
+    }
+}
+
+/// 保留中の質問がどう決着したか。answered は VM 起点の回答、expired は turn 中断・
+/// プロセス終了・respawn による失効（クライアントが権威として yield する）。
+public enum ChatUserQuestionOutcome: Equatable, Sendable {
+    case answered(answers: [String: [String]])
+    case expired
+}
+
 public enum NormalizedChatEvent: Equatable, Sendable {
     case agentMessageDelta(itemId: String, String)
     case reasoningDelta(itemId: String, String)
@@ -74,6 +107,11 @@ public enum NormalizedChatEvent: Equatable, Sendable {
     case subAgentCompleted(toolUseId: String, status: String, summary: String, outputFile: String?)
     case error(message: String)
     case warning(message: String)
+    /// AskUserQuestion（control_request can_use_tool）が届いた。UI は質問カードを表示し、
+    /// `respondToUserQuestion` で回答を返送する（task-0 契約）。
+    case userQuestionRequested(requestId: String, questions: [ChatUserQuestion])
+    /// 保留中の質問の決着（回答送信完了 or 失効）。requestId は Requested と対応する。
+    case userQuestionResolved(requestId: String, outcome: ChatUserQuestionOutcome)
 }
 
 public protocol StructuredAgentClient: Sendable {
@@ -91,9 +129,17 @@ public protocol StructuredAgentClient: Sendable {
     /// 合成は呼び出し側（VM）が担い、本メソッドは CLI 側の会話状態リセットのみに責任を持つ。
     /// 会話状態を持たないクライアントは既定の no-op で足りる。
     func resetConversation() async
+
+    /// AskUserQuestion への回答を CLI へ返送する（task-0 契約）。
+    /// `answers` は「質問文 → 選択した label 配列」（single-select は 1 要素。自由入力はその文字列）。
+    /// AskUserQuestion に対応しないクライアントは既定の no-op で足りる。
+    func respondToUserQuestion(requestId: String, answers: [String: [String]]) async
 }
 
 public extension StructuredAgentClient {
     /// 既定は no-op（会話状態を持たないクライアント向け）。
     func resetConversation() async {}
+
+    /// 既定は no-op（AskUserQuestion 非対応クライアント向け）。
+    func respondToUserQuestion(requestId: String, answers: [String: [String]]) async {}
 }

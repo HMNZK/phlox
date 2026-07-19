@@ -663,6 +663,15 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
+    /// AskUserQuestion の回答を CLI へ返送し、質問カードを answered へ遷移させる（task-0 契約）。
+    /// 戻り値: requestId が pending の質問カードに一致し回答を受理したら true。
+    /// 一致しない・既に answered/expired なら false（no-op）。実装は task-2。
+    public func respondToUserQuestion(requestId: String, answers: [String: [String]]) async -> Bool {
+        _ = requestId
+        _ = answers
+        return false
+    }
+
     public var codexSettingsSnapshot: CodexAppServerSessionSettings? {
         let settings = CodexAppServerSessionSettings(
             selectedModel: selectedModel,
@@ -1181,6 +1190,9 @@ public final class ChatSessionViewModel: Identifiable {
                 summary: summary,
                 outputFile: outputFile
             )
+        case .userQuestionRequested, .userQuestionResolved:
+            // task-2 が質問カードの append・pending/answered/expired 遷移を実装する（task-0 骨組み）。
+            break
         }
     }
 

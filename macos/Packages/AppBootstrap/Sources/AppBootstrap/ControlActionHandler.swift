@@ -161,6 +161,10 @@ public final class ControlActionHandler {
             return await handleListApprovals(dashboard)
         case let .respondApproval(id, decision):
             return await handleRespondApproval(dashboard, id: id, decision: decision)
+        case .respondQuestion:
+            // task-3 が dashboard 経由で ChatSessionViewModel.respondToUserQuestion へ転送する
+            // （task-0 骨組み: 未実装を 501 で明示する）。
+            return .status(501)
         case let .interrupt(id):
             return await handleInterrupt(dashboard, id: id)
         case let .subAgents(id):
@@ -726,6 +730,14 @@ private struct ChatMessageDTO: Codable {
             )
         case let .turnCost(id, costUSD, _):
             ChatMessageDTO(id: id, type: "turnCost", text: "$\(costUSD)")
+        case let .userQuestion(id, _, questions, _, _, _):
+            // task-3 が ControlQuestionWireContract のフル payload（requestId/state/questions/
+            // answers）へ差し替える骨組み。旧 iOS は未知 type を無視するため安全。
+            ChatMessageDTO(
+                id: id,
+                type: "userQuestion",
+                text: questions.map(\.question).joined(separator: " / ")
+            )
         }
     }
 }

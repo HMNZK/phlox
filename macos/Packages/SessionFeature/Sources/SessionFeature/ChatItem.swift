@@ -14,6 +14,14 @@ public struct ChatUserAttachment: Equatable, Codable, Sendable {
     }
 }
 
+/// 質問カードの表示状態（task-0 契約）。pending=回答待ち / answered=回答済み /
+/// expired=失効（turn 中断・プロセス終了・respawn で回答不能になった）。
+public enum ChatUserQuestionState: String, Codable, Sendable {
+    case pending
+    case answered
+    case expired
+}
+
 // Hidden secret: chat item schema and its Codable/Equatable representation.
 public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
     case userMessage(id: String, text: String, timestamp: Date, attachments: [ChatUserAttachment])
@@ -25,6 +33,16 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
     case subAgentMarker(id: String, subagentType: String, description: String, status: SubAgentStatus)
     /// ターン完了時の API コスト行（task-6 契約。受け入れテスト TurnCostItem が凍結）。
     case turnCost(id: String, costUSD: Double, timestamp: Date)
+    /// AskUserQuestion の質問カード（task-0 契約。受け入れテスト
+    /// AcceptanceUserQuestionChatItemCodableTests が凍結）。answers は「質問文 → 選択 label 配列」。
+    case userQuestion(
+        id: String,
+        requestId: String,
+        questions: [StructuredChatKit.ChatUserQuestion],
+        answers: [String: [String]]?,
+        state: ChatUserQuestionState,
+        timestamp: Date
+    )
 
     /// 既存呼び出し互換の3引数ファクトリ（attachments なし）。
     public static func userMessage(id: String, text: String, timestamp: Date) -> ChatItem {
@@ -40,6 +58,7 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
         case error
         case subAgentMarker
         case turnCost
+        case userQuestion
     }
 
     private enum AssociatedValueKeys: String, CodingKey {
@@ -55,6 +74,10 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
         case status
         case costUSD
         case attachments
+        case requestId
+        case questions
+        case answers
+        case state
     }
 
     public var id: String {
@@ -66,7 +89,8 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
              .fileChange(let id, _, _),
              .error(let id, _, _),
              .subAgentMarker(let id, _, _, _),
-             .turnCost(let id, _, _):
+             .turnCost(let id, _, _),
+             .userQuestion(let id, _, _, _, _, _):
             id
         }
     }
@@ -79,7 +103,8 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
              .commandExecution(_, _, _, let timestamp),
              .fileChange(_, _, let timestamp),
              .error(_, _, let timestamp),
-             .turnCost(_, _, let timestamp):
+             .turnCost(_, _, let timestamp),
+             .userQuestion(_, _, _, _, _, let timestamp):
             timestamp
         case .subAgentMarker:
             .distantPast
@@ -107,6 +132,8 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
             "Sub-agent \(subagentType) \(status.rawValue): \(description)"
         case .turnCost(_, let costUSD, _):
             "Turn cost: $\(costUSD)"
+        case .userQuestion(_, _, let questions, _, let state, _):
+            "Question (\(state.rawValue)): " + questions.map(\.question).joined(separator: " / ")
         }
     }
 
@@ -134,6 +161,15 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
                 && lhsStatus == rhsStatus
         case let (.turnCost(lhsId, lhsCost, _), .turnCost(rhsId, rhsCost, _)):
             lhsId == rhsId && lhsCost == rhsCost
+        case let (
+            .userQuestion(lhsId, lhsRequestId, lhsQuestions, lhsAnswers, lhsState, _),
+            .userQuestion(rhsId, rhsRequestId, rhsQuestions, rhsAnswers, rhsState, _)
+        ):
+            lhsId == rhsId
+                && lhsRequestId == rhsRequestId
+                && lhsQuestions == rhsQuestions
+                && lhsAnswers == rhsAnswers
+                && lhsState == rhsState
         default:
             false
         }
@@ -200,6 +236,16 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
                 costUSD: try nested.decode(Double.self, forKey: .costUSD),
                 timestamp: try nested.decodeIfPresent(Date.self, forKey: .timestamp) ?? .distantPast
             )
+        } else if container.contains(.userQuestion) {
+            let nested = try container.nestedContainer(keyedBy: AssociatedValueKeys.self, forKey: .userQuestion)
+            self = .userQuestion(
+                id: try nested.decode(String.self, forKey: .id),
+                requestId: try nested.decode(String.self, forKey: .requestId),
+                questions: try nested.decode([StructuredChatKit.ChatUserQuestion].self, forKey: .questions),
+                answers: try nested.decodeIfPresent([String: [String]].self, forKey: .answers),
+                state: try nested.decode(ChatUserQuestionState.self, forKey: .state),
+                timestamp: try nested.decodeIfPresent(Date.self, forKey: .timestamp) ?? .distantPast
+            )
         } else {
             throw DecodingError.dataCorrupted(.init(
                 codingPath: decoder.codingPath,
@@ -256,6 +302,14 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
             try nested.encode(id, forKey: .id)
             try nested.encode(costUSD, forKey: .costUSD)
             try nested.encode(timestamp, forKey: .timestamp)
+        case .userQuestion(let id, let requestId, let questions, let answers, let state, let timestamp):
+            var nested = container.nestedContainer(keyedBy: AssociatedValueKeys.self, forKey: .userQuestion)
+            try nested.encode(id, forKey: .id)
+            try nested.encode(requestId, forKey: .requestId)
+            try nested.encode(questions, forKey: .questions)
+            try nested.encodeIfPresent(answers, forKey: .answers)
+            try nested.encode(state, forKey: .state)
+            try nested.encode(timestamp, forKey: .timestamp)
         }
     }
 }
@@ -279,6 +333,15 @@ extension ChatItem {
             .subAgentMarker(id: id, subagentType: subagentType, description: description, status: status)
         case .turnCost(let id, let costUSD, _):
             .turnCost(id: id, costUSD: costUSD, timestamp: timestamp)
+        case .userQuestion(let id, let requestId, let questions, let answers, let state, _):
+            .userQuestion(
+                id: id,
+                requestId: requestId,
+                questions: questions,
+                answers: answers,
+                state: state,
+                timestamp: timestamp
+            )
         }
     }
 }

@@ -279,6 +279,9 @@ struct ChatTranscriptView: View {
             subagentType.utf8.count + description.utf8.count + status.rawValue.utf8.count
         case .turnCost:
             0
+        case .userQuestion(_, _, let questions, let answers, let state, _):
+            // 回答・状態の変化を content 変化として検知させる（windowing/自動追従の更新判定用）。
+            questions.count + (answers?.values.reduce(0) { $0 + $1.count } ?? 0) + state.rawValue.utf8.count
         }
     }
 

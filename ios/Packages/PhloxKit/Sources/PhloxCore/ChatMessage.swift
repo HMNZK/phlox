@@ -11,6 +11,15 @@ public enum ChatMessage: Sendable, Equatable, Identifiable {
     case fileChange(id: String, changes: [ChatFileChange])
     case error(id: String, message: String)
     case subAgent(id: String, text: String)
+    /// AskUserQuestion の質問カード（task-0 契約。Mac の `ChatItem.userQuestion` に対応）。
+    /// answers は「質問文 → 選択 label 配列」。
+    case userQuestion(
+        id: String,
+        requestId: String,
+        questions: [UserQuestionItem],
+        answers: [String: [String]]?,
+        state: UserQuestionState
+    )
 
     public var id: String {
         switch self {
@@ -22,8 +31,43 @@ public enum ChatMessage: Sendable, Equatable, Identifiable {
              let .error(id, _),
              let .subAgent(id, _):
             id
+        case let .userQuestion(id, _, _, _, _):
+            id
         }
     }
+}
+
+/// AskUserQuestion の選択肢 1 件（Mac の `ChatUserQuestionOption` に対応）。
+public struct UserQuestionOption: Sendable, Equatable {
+    public let label: String
+    public let description: String?
+
+    public init(label: String, description: String? = nil) {
+        self.label = label
+        self.description = description
+    }
+}
+
+/// AskUserQuestion の質問 1 件（Mac の `ChatUserQuestion` に対応）。
+public struct UserQuestionItem: Sendable, Equatable {
+    public let question: String
+    public let header: String
+    public let options: [UserQuestionOption]
+    public let multiSelect: Bool
+
+    public init(question: String, header: String, options: [UserQuestionOption], multiSelect: Bool) {
+        self.question = question
+        self.header = header
+        self.options = options
+        self.multiSelect = multiSelect
+    }
+}
+
+/// 質問カードの表示状態（Mac の `ChatUserQuestionState` に対応）。
+public enum UserQuestionState: String, Sendable, Equatable {
+    case pending
+    case answered
+    case expired
 }
 
 /// fileChange メッセージ 1 ファイル分の差分（Mac の `FilePatchChange` に対応）。

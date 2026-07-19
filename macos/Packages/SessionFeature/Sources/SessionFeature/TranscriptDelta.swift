@@ -116,6 +116,30 @@ enum TranscriptDeltaCursor {
             return ["s", id, subagentType, description, status.rawValue]
         case let .turnCost(id, costUSD, _):
             return ["t", id, String(costUSD)]
+        case let .userQuestion(id, requestId, questions, answers, state, _):
+            // state/answers の変化で署名が変わり、モバイルの差分ポーリングが更新を拾える。
+            var fields = ["q", id, requestId, state.rawValue, String(questions.count)]
+            for question in questions {
+                fields.append(question.question)
+                fields.append(question.header)
+                fields.append(question.multiSelect ? "1" : "0")
+                fields.append(String(question.options.count))
+                for option in question.options {
+                    fields.append(option.label)
+                    fields.append(option.description ?? "")
+                    fields.append(option.description == nil ? "0" : "1")
+                }
+            }
+            if let answers {
+                fields.append(String(answers.count))
+                for key in answers.keys.sorted() {
+                    fields.append(key)
+                    fields.append(contentsOf: answers[key] ?? [])
+                }
+            } else {
+                fields.append("nil")
+            }
+            return fields
         }
     }
 }

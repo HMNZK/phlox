@@ -46,6 +46,10 @@ public protocol PhloxAPI: Sendable {
     func usage(sessionID: String) async throws -> TurnUsage?
     /// GET /sessions/{id}/messages?since=…&wait=…（契約 §6。差分取得）
     func messagesDelta(sessionID: String, since: String?, wait: Int?) async throws -> MessagesDelta
+
+    /// POST /sessions/{id}/question（AskUserQuestion への回答。契約: PhloxQuestionWireContract。
+    /// task-0 で追加・実装は task-4）
+    func respondToQuestion(sessionID: String, requestId: String, answers: [String: [String]]) async throws
 }
 
 /// 拡張メソッドの既定実装（未実装の合図として 501 を投げる）。
@@ -82,5 +86,9 @@ public extension PhloxAPI {
 
     func rename(sessionID: String, name: String) async throws {
         throw PhloxError.server(status: 501, message: "rename: 未実装")
+    }
+
+    func respondToQuestion(sessionID: String, requestId: String, answers: [String: [String]]) async throws {
+        throw PhloxError.server(status: 501, message: "respondToQuestion: 未実装（task-4）")
     }
 }

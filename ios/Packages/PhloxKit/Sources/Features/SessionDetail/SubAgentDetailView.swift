@@ -68,6 +68,9 @@ public struct SubAgentDetailView: View {
             chatRowWithCopy(copyText: copyText) {
                 DSResultBanner(message: message, isError: true)
             }
+        case .userQuestion:
+            // AskUserQuestion はサブエージェント内では使えない（CLI 制約）ため表示なし。
+            EmptyView()
         }
     }
 

@@ -110,7 +110,8 @@ public enum TeamTimelineModel {
              .commandExecution(_, _, _, let timestamp),
              .fileChange(_, _, let timestamp),
              .error(_, _, let timestamp),
-             .turnCost(_, _, let timestamp):
+             .turnCost(_, _, let timestamp),
+             .userQuestion(_, _, _, _, _, let timestamp):
             timestamp
         case .subAgentMarker:
             nil

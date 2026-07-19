@@ -32,6 +32,9 @@ public struct ControlRequest: Sendable {
         case wait(id: SessionID, timeoutSeconds: Int, sentinel: String?)
         case listApprovals
         case respondApproval(id: String, decision: ApprovalDecision)
+        /// AskUserQuestion への回答（task-0 契約。ルーティング/ハンドラ実装は task-3）。
+        /// answers は「質問文 → 選択 label 配列」（ControlQuestionWireContract）。
+        case respondQuestion(id: SessionID, requestId: String, answers: [String: [String]])
         case registerDeviceToken(registration: DeviceTokenRegistration)
         case interrupt(id: SessionID)
         case subAgents(id: SessionID)

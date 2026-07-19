@@ -433,6 +433,38 @@ public enum PhloxModelWireContract {
     public static let implemented = true
 }
 
+/// task-0 契約（凍結・PM 著）: AskUserQuestion のワイヤ契約。
+/// 定数は macOS 側 `ControlQuestionWireContract` と一字一句一致させる（パスの前置 `/` を除く）。
+/// `implemented` は task-4（iOS 側配線）の実装完了と同時に true へ反転する
+/// （flag だけの反転は虚偽報告として扱う）。
+///
+/// メッセージ側（GET sessions/{id}/messages の ChatMessageDTO）:
+///   type == "userQuestion" のとき追加フィールド
+///   {"requestId": String, "state": "pending"|"answered"|"expired",
+///    "questions": [{"question","header","multiSelect","options":[{"label","description"?}]}],
+///    "answers": {"<question文>": [String]}? }
+/// 回答側:
+///   POST sessions/{id}/question  body {"requestId": String, "answers": {"<question文>": [String]}}
+///   → 200（受理）/ 404（セッション or pending 質問なし）/ 400（body 不正）
+public enum PhloxQuestionWireContract {
+    public static let messageType = "userQuestion"
+    public static let questionPathSuffix = "question"
+    public static let requestIdKey = "requestId"
+    public static let stateKey = "state"
+    public static let questionsKey = "questions"
+    public static let answersKey = "answers"
+    public static let questionKey = "question"
+    public static let headerKey = "header"
+    public static let multiSelectKey = "multiSelect"
+    public static let optionsKey = "options"
+    public static let optionLabelKey = "label"
+    public static let optionDescriptionKey = "description"
+    public static let statePending = "pending"
+    public static let stateAnswered = "answered"
+    public static let stateExpired = "expired"
+    public static let implemented = false
+}
+
 /// セッション詳細のモデル選択 UI が依存する API 面（`PhloxAPI` プロトコル拡張は task-6 スコープ外のため別シーム）。
 public protocol SessionModelSelecting: Sendable {
     func sessionSettings(sessionID: String) async throws -> SessionModelSettings

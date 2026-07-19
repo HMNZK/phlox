@@ -34,6 +34,8 @@ public enum ChatMessageCopyText {
             raw = message
         case let .fileChange(_, changes):
             raw = changes.map { "\($0.path)\n\($0.diff)" }.joined(separator: "\n\n")
+        case let .userQuestion(_, _, questions, _, _):
+            raw = questions.map(\.question).joined(separator: "\n")
         }
         return normalizedCopyText(raw)
     }

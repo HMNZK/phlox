@@ -292,7 +292,9 @@ public struct SessionDetailView: View {
                     .id(message.id)
             }
             if viewModel.isAgentWorking {
-                DSThinkingIndicator(reasoningPreview: viewModel.thinkingPreview)
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    DSThinkingIndicator(reasoningPreview: viewModel.recap(now: context.date))
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

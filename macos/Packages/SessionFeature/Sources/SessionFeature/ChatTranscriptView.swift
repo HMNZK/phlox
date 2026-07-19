@@ -157,7 +157,7 @@ struct ChatTranscriptView: View {
             if shouldShowThinkingIndicator {
                 ThinkingIndicatorCell(
                     descriptor: agentDescriptor,
-                    reasoningPreview: viewModel.runningReasoningPreview,
+                    recap: { viewModel.recap(now: $0) },
                     hangAssessment: { viewModel.hangAssessment(now: $0) },
                     onInterrupt: { await viewModel.turnInterrupt() },
                     isInTranscriptViewport: isThinkingIndicatorInViewport

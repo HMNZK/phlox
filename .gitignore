@@ -60,3 +60,6 @@ __pycache__/
 
 # iOS screenshot verification output (ephemeral; canonical docs live in ios/docs/)
 ios/doc/
+
+# Xcode/SPM デバッグビルド生成物（追跡しない）
+macos/build-debug/

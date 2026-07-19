@@ -115,3 +115,28 @@ struct ThinkingTimelineSchedule: TimelineSchedule {
         }
     }
 }
+
+// MARK: - シマー（明度が左→右へ流れる）純関数（task-3 契約面）
+
+extension ThinkingAnimationModel {
+    /// シマー1周期（秒）。
+    static let shimmerPeriod: TimeInterval = 1.6
+
+    /// 明度の下限（帯から最も遠い位置の明度倍率）。
+    static let shimmerMinBrightness: Double = 0.45
+
+    /// 明度帯の中心位置（0=左端, 1=右端）。時間とともに前進し（左→右）、周期 shimmerPeriod で反復。戻り値 [0,1)。
+    /// ADR 0067 と同じ設計: TimelineView の date のみを入力に取る純関数（Timer/repeatForever/@State 不使用）。
+    /// シグネチャは受け入れテスト AcceptanceThinkingShimmerTests が凍結（実装役が本体を埋める）。
+    static func shimmerPhase(date: Date) -> Double {
+        // PM スタブ（task-3 実装役が本体を埋める）。
+        0
+    }
+
+    /// 正規化位置 position(0=左,1=右) の明度倍率。position==phase で最大 1.0、離れるほど shimmerMinBrightness へ減衰。
+    /// 戻り値 [shimmerMinBrightness, 1.0]。決定論。
+    static func shimmerBrightness(position: Double, phase: Double) -> Double {
+        // PM スタブ（peak テストが赤になるよう非 1.0 を返す）。
+        shimmerMinBrightness
+    }
+}

@@ -3,7 +3,7 @@ import StructuredChatKit
 
 // 隠している秘密: stream-json の生JSON行を `type`/`subtype` でどう振り分けるか
 extension ClaudeChatClient {
-    func handleLine(_ data: Data, generation: Int) {
+    func handleLine(_ data: Data, generation: Int) async {
         guard generation == spawnGeneration else { return }
         do {
             let object = try JSONSerialization.jsonObject(with: data)
@@ -11,13 +11,13 @@ extension ClaudeChatClient {
                 eventContinuation.yield(.error(message: "Failed to parse Claude stream-json line"))
                 return
             }
-            handleEvent(event, generation: generation)
+            await handleEvent(event, generation: generation)
         } catch {
             eventContinuation.yield(.error(message: "Failed to parse Claude stream-json line"))
         }
     }
 
-    func handleEvent(_ event: [String: Any], generation: Int) {
+    func handleEvent(_ event: [String: Any], generation: Int) async {
         guard let type = event["type"] as? String else { return }
 
         switch type {
@@ -31,6 +31,10 @@ extension ClaudeChatClient {
             handleResultEvent(event, generation: generation)
         case "control_response":
             handleControlResponse(event, generation: generation)
+        case "control_request":
+            if !(await handleControlRequest(event, generation: generation)) {
+                eventContinuation.yield(.warning(message: "Unknown Claude event type: \(type)"))
+            }
         case "rate_limit_event":
             // 無害な情報イベント（利用量ステータス）。ターン処理に影響しないため黙って無視する。
             break

@@ -4,6 +4,7 @@ import Foundation
 extension ClaudeChatClient {
     func spawn(sessionArgument: SpawnSessionArgument) async throws {
         currentTurnLatestContextTokens = nil
+        expirePendingUserQuestions()
         if let transport {
             failAllPendingUsageRequests(ClaudeChatClientError.transportClosed)
             await transport.close()
@@ -14,6 +15,7 @@ extension ClaudeChatClient {
             // 旧 transport・旧世代のまま pending を新規登録できる。transport を nil に
             // した後にもう一度 fail して取りこぼしを防ぐ（stage2 レビュー MUST）。
             failAllPendingUsageRequests(ClaudeChatClientError.transportClosed)
+            expirePendingUserQuestions()
         }
 
         let arguments = buildArguments(sessionArgument: sessionArgument)
@@ -45,6 +47,7 @@ extension ClaudeChatClient {
         // whose receive loop then ends. Ignore that stale signal so it cannot
         // clobber the freshly spawned transport.
         guard generation == spawnGeneration else { return }
+        expirePendingUserQuestions(generation: generation)
         failAllPendingUsageRequests(ClaudeChatClientError.transportClosed)
         let endedTransport = transport
 
@@ -129,6 +132,7 @@ extension ClaudeChatClient {
             "--input-format", "stream-json",
             "--output-format", "stream-json",
             "--verbose",
+            "--permission-prompt-tool", "stdio",
         ]
         if let currentModel {
             arguments.append(contentsOf: ["--model", currentModel])

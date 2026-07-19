@@ -21,6 +21,7 @@ import StructuredChatKit
         "--input-format", "stream-json",
         "--output-format", "stream-json",
         "--verbose",
+        "--permission-prompt-tool", "stdio",
         "--session-id", phloxSessionID,
     ])
     #expect(start?.arguments.contains("--permission-mode") == false)
@@ -721,6 +722,7 @@ import StructuredChatKit
         "--input-format", "stream-json",
         "--output-format", "stream-json",
         "--verbose",
+        "--permission-prompt-tool", "stdio",
     ])
 
     // 旧 transport は閉じ、新しい transport が起動している（再作成）。

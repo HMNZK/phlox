@@ -31,6 +31,13 @@ public actor ClaudeChatClient: StructuredAgentClient {
         var timeoutTask: Task<Void, Never>?
     }
 
+    struct PendingUserQuestion {
+        var input: [String: Any]
+        var questions: [ChatUserQuestion]
+        var generation: Int
+        var isResponding = false
+    }
+
     public struct PreApprovalRequest: Equatable, Sendable {
         public let summary: String
         public let workingDirectory: String?
@@ -107,6 +114,8 @@ public actor ClaudeChatClient: StructuredAgentClient {
     var interruptedResultSuppression: InterruptedResultSuppression?
     var nextUsageRequestID = 1
     var pendingUsageRequests: [String: PendingUsageRequest] = [:]
+    var pendingUserQuestions: [String: PendingUserQuestion] = [:]
+    var interruptingControlGeneration: Int?
     /// get_usage 応答待ちの内部タイムアウト（契約: 15 秒以下・テスト注入可能）。
     /// 実 CLI はターン処理中でも control_response を即応するが（2026-07-10 実測）、
     /// 重負荷時の余裕を見て既定 10 秒にする。
@@ -319,6 +328,11 @@ public actor ClaudeChatClient: StructuredAgentClient {
 
     public func interrupt() async throws {
         guard let transport else { return }
+        let generation = spawnGeneration
+        let interruptedSessionId = currentSessionId
+        interruptingControlGeneration = generation
+        let pendingQuestions = pendingUserQuestions.filter { $0.value.generation == generation }
+        expirePendingUserQuestions(generation: generation)
         let shouldSuppressInterruptedResult = currentTurnOpen
         currentTurnOpen = false
         currentTurnLine = nil
@@ -328,14 +342,37 @@ public actor ClaudeChatClient: StructuredAgentClient {
                 generation: spawnGeneration
             )
         }
+
+        var firstControlResponseError: Error?
+        for (requestId, _) in pendingQuestions {
+            do {
+                try await sendControlDeny(
+                    requestId: requestId,
+                    message: "Phlox: interrupted",
+                    using: transport,
+                    generation: generation
+                )
+            } catch {
+                if firstControlResponseError == nil {
+                    firstControlResponseError = error
+                }
+            }
+        }
         await transport.interrupt()
-        eventContinuation.yield(.turnInterrupted(nativeSessionId: currentSessionId))
+        if interruptingControlGeneration == generation {
+            interruptingControlGeneration = nil
+        }
+        eventContinuation.yield(.turnInterrupted(nativeSessionId: interruptedSessionId))
+        if let firstControlResponseError {
+            throw firstControlResponseError
+        }
     }
 
     public func close() async {
         receiveTask?.cancel()
         receiveTask = nil
         failAllPendingUsageRequests(ClaudeChatClientError.transportClosed)
+        expirePendingUserQuestions()
         yieldPendingResultErrorIfNeeded()
         currentTurnOpen = false
         currentTurnLine = nil
@@ -344,6 +381,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
         // await close() の suspension 窓で登録された pending の取りこぼし防止
         // （spawn() と同じ理由。stage2 レビュー MUST）。
         failAllPendingUsageRequests(ClaudeChatClientError.transportClosed)
+        expirePendingUserQuestions()
         eventContinuation.finish()
     }
 

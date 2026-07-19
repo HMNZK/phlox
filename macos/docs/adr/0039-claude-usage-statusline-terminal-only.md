@@ -6,6 +6,7 @@ last-verified: 2026-07-06
 # ADR 0039: Claude Usage の供給はターミナルセッション限定と認め、行を消さず鮮度を可視化する
 
 > **拡張**: ADR 0059（2026-07-10）が `/usage` ヘッドレスプローブを第2の供給源として追加し、同日 [ADR 0061](0061-claude-usage-get-usage-piggyback.md) がプローブを廃止して常駐チャットプロセスへの `get_usage` 相乗りへ差し替えた。本 ADR の表示仕様（行を消さず鮮度注記）と statusLine 供給は現行のまま。
+> **一部覆し**: [ADR 0099](0099-usage-staleness-note-text-removed-keep-dimming.md)（2026-07-19）が、鮮度注記を**可視 `Text` として描画する**部分を撤去した（レイアウト崩れの回避）。鮮度シグナルは%の dimming のみで表す。「行を消さない」「stale 時に%を薄く」「`ClaudeUsageStaleness.note` のロジック」は本 ADR のまま。
 > **このファイルの役割**: 「API Usage が消えた」回帰の根本原因と、可視化方針の決定理由。
 > **書かないもの**: Usage 機能の実装詳細（→ Packages/DashboardFeature/Sources/DashboardFeature/Usage/）。
 

@@ -75,6 +75,19 @@ public final class ChatSessionViewModel: Identifiable {
         subAgentModel.selectedSubAgentId
     }
     public private(set) var restoreState: ChatRestoreState = .notRestored
+    public var shouldShowConnectingIndicator: Bool {
+        Self.shouldShowConnectingIndicator(
+            restoreState: restoreState,
+            transcriptIsEmpty: transcript.isEmpty
+        )
+    }
+
+    nonisolated static func shouldShowConnectingIndicator(
+        restoreState: ChatRestoreState,
+        transcriptIsEmpty: Bool
+    ) -> Bool {
+        restoreState == .restoring && transcriptIsEmpty
+    }
     public private(set) var availableModels: [AppServerModel] = []
     public private(set) var permissionProfiles: [PermissionProfileSummary] = []
     public private(set) var selectedModel: String?
@@ -423,6 +436,7 @@ public final class ChatSessionViewModel: Identifiable {
         sandbox: SandboxPolicy,
         persistedSettings: CodexAppServerSessionSettings? = nil
     ) async {
+        restoreState = .restoring
         clearRunningBackgroundTasks()
         startEventTasks()
         guard let codexClient else {

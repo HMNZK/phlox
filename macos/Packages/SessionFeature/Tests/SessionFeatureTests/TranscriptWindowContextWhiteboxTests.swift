@@ -22,11 +22,48 @@ struct TranscriptWindowContextWhiteboxTests {
     }
 
     @Test
-    func singleContext_resetStillReturnsTo200_notGridDefault() {
+    func singleContext_resetReturnsTo50_notGridDefault() {
         var window = TranscriptWindow(context: .single)
         window.expand()
         window.reset()
-        #expect(window.visibleRange(totalCount: 1000).startIndex == 800)
+        #expect(window.visibleRange(totalCount: 1000).startIndex == 950)
+    }
+
+    @Test
+    func singleContext_expandStepIsFifty_andExpandShowsOneHundredItems() {
+        #expect(TranscriptWindow.expandStep == 50)
+
+        var window = TranscriptWindow(context: .single)
+        window.expand()
+
+        #expect(window.visibleRange(totalCount: 1000).startIndex == 900)
+    }
+
+    @Test
+    func singleContext_revealMarginToleratesStreamingGrowthUpToNewExpandStep() {
+        let targetIndex = 949
+        let oldTotal = 1000
+        var window = TranscriptWindow(context: .single)
+        #expect(window.visibleRange(totalCount: oldTotal).startIndex == 950)
+
+        window.reveal(index: targetIndex, totalCount: oldTotal)
+
+        for delta in [0, 1, 49, 50] {
+            let start = window.visibleRange(totalCount: oldTotal + delta).startIndex
+            #expect(start <= targetIndex,
+                    "single reveal: index=\(targetIndex) が delta=\(delta) の成長で隠れ域へ落ちた start=\(start)")
+        }
+    }
+
+    @Test
+    func singleContext_visibleRangeKeepsNewestItemVisibleAsTranscriptGrows() {
+        let window = TranscriptWindow(context: .single)
+
+        for totalCount in [50, 51, 1000, 1001] {
+            let range = window.visibleRange(totalCount: totalCount)
+            #expect(range.startIndex <= totalCount - 1)
+            #expect(totalCount - range.startIndex <= 50)
+        }
     }
 
     @Test

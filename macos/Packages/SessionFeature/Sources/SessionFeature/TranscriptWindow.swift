@@ -12,7 +12,7 @@ import Foundation
 // ストリーミングで item が増えても末尾を含み続ける（AutoFollow と自然に整合する）。
 /// transcript の表示文脈（task-2 契約面）。窓の既定件数を文脈別に定める。
 enum TranscriptPresentationContext: Equatable {
-    /// 単一表示（従来どおり 200 件）。
+    /// 単一表示（初期描画コストを抑える 50 件）。
     case single
     /// グリッドタイル（全タイル常時描画のため小さい窓にする）。
     case gridTile
@@ -20,11 +20,11 @@ enum TranscriptPresentationContext: Equatable {
 
 struct TranscriptWindow: Equatable {
     /// 既定の表示件数上限（50...500 の範囲の有限定数）。単一表示（`.single`）の既定値。
-    static let defaultLimit: Int = 200
+    static let defaultLimit: Int = 50
     /// グリッドタイル表示の既定件数上限。
     static let gridTileDefaultLimit: Int = 40
     /// 「以前のメッセージを表示」1回あたりの拡張幅（50 以上の定数）。
-    static let expandStep: Int = 200
+    static let expandStep: Int = 50
 
     private let presentationContext: TranscriptPresentationContext
     private(set) var limit: Int

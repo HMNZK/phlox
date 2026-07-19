@@ -36,6 +36,8 @@ public final class SessionDetailViewModel {
     public var inputText: String = ""
     public var isOutputExpanded = false
     public private(set) var outputText: String = ""
+    /// 初回の messages / output 解決まで true。ポーリング更新では再点灯しない。
+    public private(set) var isInitialLoading: Bool = true
     public private(set) var chatMessages: [ChatMessage] = [] {
         didSet { reconcileAttachments() }
     }
@@ -97,6 +99,9 @@ public final class SessionDetailViewModel {
     private var draftNeedsReady = false
     public private(set) var hasSpawnedDraft = false
     public var isAwaitingInitialSpawn: Bool { draftProject != nil && !hasSpawnedDraft }
+    public var showsInitialLoadingIndicator: Bool {
+        isInitialLoading && !isAwaitingInitialSpawn && chatMessages.isEmpty && outputText.isEmpty
+    }
     /// 表示名の単一の源（初期値は session.name）。
     public private(set) var displayName: String
     public var renameDraft: String = ""
@@ -339,6 +344,7 @@ public final class SessionDetailViewModel {
     /// 空・非対応(404)・取得失敗のいずれもターミナル `output` にフォールバックする。
     /// （Codex 等 .appServer セッションはチャット、PTY/非構造化はターミナル表示になる。）
     public func load() async {
+        defer { isInitialLoading = false }
         await refreshSubAgentIndex()
         await loadModelSettings()
         if await adoptNonEmptyMessages(updateOnlyIfChanged: false) { return }

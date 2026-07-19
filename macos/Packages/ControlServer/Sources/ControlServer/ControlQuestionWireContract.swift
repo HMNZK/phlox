@@ -29,5 +29,5 @@ public enum ControlQuestionWireContract {
     public static let statePending = "pending"
     public static let stateAnswered = "answered"
     public static let stateExpired = "expired"
-    public static let implemented = false
+    public static let implemented = true
 }

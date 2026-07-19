@@ -248,6 +248,13 @@ public actor ControlServer {
                 if let interruptResult = parseInterrupt(path: request.path, hasQuery: request.hasQuery) {
                     return interruptResult
                 }
+                if let questionResult = parseQuestionResponse(
+                    path: request.path,
+                    hasQuery: request.hasQuery,
+                    body: request.body
+                ) {
+                    return questionResult
+                }
                 return parseApprovalResponse(path: request.path, hasQuery: request.hasQuery, body: request.body)
             }
             if request.method == "PATCH" {
@@ -660,6 +667,38 @@ public actor ControlServer {
         }
 
         return .success(.remove(id: sessionID))
+    }
+
+    private func parseQuestionResponse(path: String, hasQuery: Bool, body: Data) -> RouteResult? {
+        let components = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard components.count == 4,
+              components[0] == "",
+              components[1] == "sessions",
+              "/\(components[3])" == ControlQuestionWireContract.questionPathSuffix
+        else {
+            return nil
+        }
+        if hasQuery {
+            return .failure(.status(404))
+        }
+        guard let sessionID = parseSessionID(from: components[2]) else {
+            return .failure(.status(400))
+        }
+
+        struct QuestionBody: Decodable {
+            let requestId: String
+            let answers: [String: [String]]
+        }
+        guard let payload = try? JSONDecoder().decode(QuestionBody.self, from: body),
+              !payload.requestId.isEmpty
+        else {
+            return .failure(.status(400))
+        }
+        return .success(.respondQuestion(
+            id: sessionID,
+            requestId: payload.requestId,
+            answers: payload.answers
+        ))
     }
 
     private func parseApprovalResponse(path: String, hasQuery: Bool, body: Data) -> RouteResult {

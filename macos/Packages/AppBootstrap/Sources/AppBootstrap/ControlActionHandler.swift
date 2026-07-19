@@ -80,6 +80,12 @@ public protocol ControlActionDashboard: AnyObject {
     func listApprovals() async -> [ApprovalDTO]
     /// id の承認に decision を応答する。成功（id が存在）なら true、未知 id なら false を返す。
     func respondToApproval(id: String, decision: ApprovalDecision) async -> Bool
+    /// AskUserQuestion への回答を転送する。受理なら true、セッション不在・pending 不在なら false。
+    func respondToUserQuestion(
+        id: SessionID,
+        requestId: String,
+        answers: [String: [String]]
+    ) async -> Bool
 
     func interruptSession(_ id: SessionID) async -> ControlInterruptOutcome
     func sessionSubAgents(for id: SessionID) -> [SubAgentControlSummary]?
@@ -95,6 +101,11 @@ extension ControlActionDashboard {
     public func agoraParticipantLanded(id: SessionID, role: String?, requester: SessionID?) {}
     public func sessionModelSettings(for id: SessionID) -> ControlSessionModelSettings? { nil }
     public func setSessionModel(_ model: String, for id: SessionID) async -> Bool { false }
+    public func respondToUserQuestion(
+        id: SessionID,
+        requestId: String,
+        answers: [String: [String]]
+    ) async -> Bool { false }
     public var controlCLIUsages: [AgentKind: CLIUsage] { [:] }
 }
 
@@ -161,10 +172,13 @@ public final class ControlActionHandler {
             return await handleListApprovals(dashboard)
         case let .respondApproval(id, decision):
             return await handleRespondApproval(dashboard, id: id, decision: decision)
-        case .respondQuestion:
-            // task-3 が dashboard 経由で ChatSessionViewModel.respondToUserQuestion へ転送する
-            // （task-0 骨組み: 未実装を 501 で明示する）。
-            return .status(501)
+        case let .respondQuestion(id, requestId, answers):
+            return await handleRespondQuestion(
+                dashboard,
+                id: id,
+                requestId: requestId,
+                answers: answers
+            )
         case let .interrupt(id):
             return await handleInterrupt(dashboard, id: id)
         case let .subAgents(id):
@@ -487,6 +501,20 @@ public final class ControlActionHandler {
         return found ? .status(200) : .status(404)
     }
 
+    private func handleRespondQuestion(
+        _ dashboard: any ControlActionDashboard,
+        id: SessionID,
+        requestId: String,
+        answers: [String: [String]]
+    ) async -> ControlResponse {
+        let found = await dashboard.respondToUserQuestion(
+            id: id,
+            requestId: requestId,
+            answers: answers
+        )
+        return found ? .status(200) : .status(404)
+    }
+
     private func handleInterrupt(
         _ dashboard: any ControlActionDashboard,
         id: SessionID
@@ -675,8 +703,8 @@ private struct MessagesDeltaDTO: Encodable {
 }
 
 /// 1 メッセージ分の DTO。`type` で種別を判別し、種別に使うフィールドのみ非 nil（不要キーは省略される）。
-/// type: user | agent | reasoning | command | fileChange | error
-private struct ChatMessageDTO: Codable {
+/// type: user | agent | reasoning | command | fileChange | error | userQuestion
+private struct ChatMessageDTO: Encodable {
     let id: String
     let type: String
     let text: String?
@@ -684,6 +712,10 @@ private struct ChatMessageDTO: Codable {
     let output: String?
     let changes: [FileChangeDTO]?
     let message: String?
+    let requestId: String?
+    let state: String?
+    let questions: [UserQuestionWireDTO]?
+    let answers: [String: [String]]?
 
     init(
         id: String,
@@ -692,7 +724,11 @@ private struct ChatMessageDTO: Codable {
         command: String? = nil,
         output: String? = nil,
         changes: [FileChangeDTO]? = nil,
-        message: String? = nil
+        message: String? = nil,
+        requestId: String? = nil,
+        state: String? = nil,
+        questions: [UserQuestionWireDTO]? = nil,
+        answers: [String: [String]]? = nil
     ) {
         self.id = id
         self.type = type
@@ -701,6 +737,39 @@ private struct ChatMessageDTO: Codable {
         self.output = output
         self.changes = changes
         self.message = message
+        self.requestId = requestId
+        self.state = state
+        self.questions = questions
+        self.answers = answers
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: WireCodingKey.self)
+        try container.encode(id, forKey: .init("id"))
+        try container.encode(type, forKey: .init("type"))
+        try container.encodeIfPresent(text, forKey: .init("text"))
+        try container.encodeIfPresent(command, forKey: .init("command"))
+        try container.encodeIfPresent(output, forKey: .init("output"))
+        try container.encodeIfPresent(changes, forKey: .init("changes"))
+        try container.encodeIfPresent(message, forKey: .init("message"))
+
+        if type == ControlQuestionWireContract.messageType {
+            try container.encodeIfPresent(
+                requestId,
+                forKey: .init(ControlQuestionWireContract.requestIdKey)
+            )
+            try container.encodeIfPresent(
+                state,
+                forKey: .init(ControlQuestionWireContract.stateKey)
+            )
+            try container.encodeIfPresent(
+                questions,
+                forKey: .init(ControlQuestionWireContract.questionsKey)
+            )
+            if let answers {
+                try container.encode(answers, forKey: .init(ControlQuestionWireContract.answersKey))
+            }
+        }
     }
 
     /// DashboardFeature の表示モデル `ChatItem` を wire DTO へ写像する。
@@ -730,15 +799,82 @@ private struct ChatMessageDTO: Codable {
             )
         case let .turnCost(id, costUSD, _):
             ChatMessageDTO(id: id, type: "turnCost", text: "$\(costUSD)")
-        case let .userQuestion(id, _, questions, _, _, _):
-            // task-3 が ControlQuestionWireContract のフル payload（requestId/state/questions/
-            // answers）へ差し替える骨組み。旧 iOS は未知 type を無視するため安全。
+        case let .userQuestion(id, requestId, questions, answers, state, _):
             ChatMessageDTO(
                 id: id,
-                type: "userQuestion",
-                text: questions.map(\.question).joined(separator: " / ")
+                type: ControlQuestionWireContract.messageType,
+                requestId: requestId,
+                state: wireUserQuestionState(state),
+                questions: questions.map(UserQuestionWireDTO.from),
+                answers: answers
             )
         }
+    }
+
+    private static func wireUserQuestionState(_ state: ChatUserQuestionState) -> String {
+        switch state {
+        case .pending: ControlQuestionWireContract.statePending
+        case .answered: ControlQuestionWireContract.stateAnswered
+        case .expired: ControlQuestionWireContract.stateExpired
+        }
+    }
+}
+
+private struct UserQuestionWireDTO: Encodable {
+    let question: String
+    let header: String
+    let multiSelect: Bool
+    let options: [UserQuestionOptionWireDTO]
+
+    static func from(_ question: ChatUserQuestion) -> UserQuestionWireDTO {
+        UserQuestionWireDTO(
+            question: question.question,
+            header: question.header,
+            multiSelect: question.multiSelect,
+            options: question.options.map(UserQuestionOptionWireDTO.from)
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: WireCodingKey.self)
+        try container.encode(question, forKey: .init(ControlQuestionWireContract.questionKey))
+        try container.encode(header, forKey: .init(ControlQuestionWireContract.headerKey))
+        try container.encode(multiSelect, forKey: .init(ControlQuestionWireContract.multiSelectKey))
+        try container.encode(options, forKey: .init(ControlQuestionWireContract.optionsKey))
+    }
+}
+
+private struct UserQuestionOptionWireDTO: Encodable {
+    let label: String
+    let description: String?
+
+    static func from(_ option: ChatUserQuestionOption) -> UserQuestionOptionWireDTO {
+        UserQuestionOptionWireDTO(label: option.label, description: option.description)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: WireCodingKey.self)
+        try container.encode(label, forKey: .init(ControlQuestionWireContract.optionLabelKey))
+        if let description {
+            try container.encode(description, forKey: .init(ControlQuestionWireContract.optionDescriptionKey))
+        }
+    }
+}
+
+private struct WireCodingKey: CodingKey {
+    let stringValue: String
+    let intValue: Int? = nil
+
+    init(_ stringValue: String) {
+        self.stringValue = stringValue
+    }
+
+    init?(stringValue: String) {
+        self.init(stringValue)
+    }
+
+    init?(intValue: Int) {
+        return nil
     }
 }
 
@@ -793,7 +929,7 @@ private struct SubAgentDTO: Encodable {
     }
 }
 
-private struct SubAgentMessagesDTO: Codable {
+private struct SubAgentMessagesDTO: Encodable {
     let sessionId: String
     let subAgentId: String
     let messages: [ChatMessageDTO]

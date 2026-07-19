@@ -754,6 +754,18 @@ public final class DashboardViewModel {
         Task { await self.addAgoraDiscussionParticipant(id: id, role: role) }
     }
 
+    /// Control API witness: 該当 appServer セッションへ AskUserQuestion 回答を転送する。
+    public func respondToUserQuestion(
+        id: SessionID,
+        requestId: String,
+        answers: [String: [String]]
+    ) async -> Bool {
+        guard let session = sessionNodes.first(where: { $0.id == id })?.appServer else {
+            return false
+        }
+        return await session.respondToUserQuestion(requestId: requestId, answers: answers)
+    }
+
     /// グリッドのドラッグ&ドロップで source と target の2セッションだけを入れ替える（スワップ）。
     /// 間のセッションは動かさず、表示順と永続化配列の順を一致させて再起動後も並びを保持する。
     public func reorderSession(_ source: SessionID, with target: SessionID) {

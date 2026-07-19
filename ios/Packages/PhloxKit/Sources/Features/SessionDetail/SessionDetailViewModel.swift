@@ -236,8 +236,41 @@ public final class SessionDetailViewModel {
     /// AskUserQuestion の回答送信（task-0 契約。実装は task-4）。
     /// 戻り値: API が回答を受理し、ローカルの質問カードを answered へ更新したら true。
     public func answerQuestion(requestId: String, answers: [String: [String]]) async -> Bool {
-        _ = (requestId, answers)
-        return false
+        let hasPendingVisible = visibleMessages.contains { message in
+            if case let .userQuestion(_, rid, _, _, state) = message {
+                return rid == requestId && state == .pending
+            }
+            return false
+        }
+        guard hasPendingVisible else { return false }
+        guard let index = chatMessages.firstIndex(where: { message in
+            if case let .userQuestion(_, rid, _, _, state) = message {
+                return rid == requestId && state == .pending
+            }
+            return false
+        }) else { return false }
+        guard case let .userQuestion(id, rid, questions, _, _) = chatMessages[index] else {
+            return false
+        }
+
+        do {
+            try await api.respondToQuestion(
+                sessionID: session.id,
+                requestId: requestId,
+                answers: answers
+            )
+        } catch {
+            return false
+        }
+
+        chatMessages[index] = .userQuestion(
+            id: id,
+            requestId: rid,
+            questions: questions,
+            answers: answers,
+            state: .answered
+        )
+        return true
     }
 
     public func attachmentImageCount(forMessageID id: String) -> Int? {

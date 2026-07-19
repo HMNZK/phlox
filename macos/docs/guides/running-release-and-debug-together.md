@@ -41,6 +41,7 @@ Debug 版は空の `Phlox-Debug` から始まる（Release のセッションを
 
 ## 注意
 
+- **`scripts/debug-build-restart.sh` は共存目的に使わない**: このスクリプトは `osascript -e 'quit app "Phlox"'` → `pkill -x Phlox`（プロセス名一致）で既存インスタンスを終了させる。Release 版と Debug 版は実行ファイル名がどちらも `Phlox` のため、これを実行すると**稼働中の Release 版まで巻き込んで終了する**。Release 版を残したまま Debug 版を起動するには、本ガイドの手動手順（別 `derivedDataPath` へ `xcodebuild` → `open`）を使う。
 - **TCC 権限は別扱い**: bundle id が違うため、Debug 版の画面収録・アクセシビリティ権限は Release 版とは別に、初回に再取得を求められる。
 - **稼働中 Debug の上書き禁止**: 手順2のとおり、動いている Debug 版と同じ `derivedDataPath` へビルドしない。
 - **下層 CLI は共有**: 分離されるのは Phlox 自身のデータ層まで。spawn 先の `claude`/`codex`/`cursor` 自身の home（`~/.claude` 等）は両インスタンスで共有される。

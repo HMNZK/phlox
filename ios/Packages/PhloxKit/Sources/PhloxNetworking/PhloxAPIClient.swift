@@ -203,6 +203,19 @@ public actor PhloxAPIClient: PhloxAPI {
         )
     }
 
+    public func respondToQuestion(sessionID: String, requestId: String, answers: [String: [String]]) async throws {
+        let body = try encode(RespondToQuestionRequestDTO(requestId: requestId, answers: answers))
+        _ = try await data(
+            method: "POST",
+            path: Self.sessionsPath(
+                sessionID: sessionID,
+                suffix: PhloxQuestionWireContract.questionPathSuffix
+            ),
+            bodyData: body,
+            retry: false
+        )
+    }
+
     public func sessionSettings(sessionID: String) async throws -> SessionModelSettings {
         let dto = try await getDecoded(
             SessionModelSettingsDTO.self,
@@ -462,7 +475,7 @@ public enum PhloxQuestionWireContract {
     public static let statePending = "pending"
     public static let stateAnswered = "answered"
     public static let stateExpired = "expired"
-    public static let implemented = false
+    public static let implemented = true
 }
 
 /// セッション詳細のモデル選択 UI が依存する API 面（`PhloxAPI` プロトコル拡張は task-6 スコープ外のため別シーム）。

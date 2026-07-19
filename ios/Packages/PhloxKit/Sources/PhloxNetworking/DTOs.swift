@@ -82,19 +82,102 @@ struct ChatMessageDTO: Decodable {
     let output: String?
     let changes: [ChatFileChangeDTO]?
     let message: String?
+    /// AskUserQuestion（type == userQuestion）向け。他 type では省略される。
+    let requestId: String?
+    let state: String?
+    let questions: [UserQuestionItemDTO]?
+    let answers: [String: [String]]?
+
+    init(
+        id: String,
+        type: String,
+        text: String? = nil,
+        command: String? = nil,
+        output: String? = nil,
+        changes: [ChatFileChangeDTO]? = nil,
+        message: String? = nil,
+        requestId: String? = nil,
+        state: String? = nil,
+        questions: [UserQuestionItemDTO]? = nil,
+        answers: [String: [String]]? = nil
+    ) {
+        self.id = id
+        self.type = type
+        self.text = text
+        self.command = command
+        self.output = output
+        self.changes = changes
+        self.message = message
+        self.requestId = requestId
+        self.state = state
+        self.questions = questions
+        self.answers = answers
+    }
 
     /// wire の `type` で Domain `ChatMessage` に変換。未知 type は nil（前方互換 = 呼び出し側で除外）。
     func toDomain() -> ChatMessage? {
         switch type {
-        case "user": .user(id: id, text: text ?? "")
-        case "agent": .agent(id: id, text: text ?? "")
-        case "reasoning": .reasoning(id: id, text: text ?? "")
-        case "command": .command(id: id, command: command, output: output ?? "")
-        case "fileChange": .fileChange(id: id, changes: (changes ?? []).map { $0.toDomain() })
-        case "error": .error(id: id, message: message ?? "")
-        case "subAgent": .subAgent(id: id, text: text ?? "")
-        default: nil
+        case "user":
+            return .user(id: id, text: text ?? "")
+        case "agent":
+            return .agent(id: id, text: text ?? "")
+        case "reasoning":
+            return .reasoning(id: id, text: text ?? "")
+        case "command":
+            return .command(id: id, command: command, output: output ?? "")
+        case "fileChange":
+            return .fileChange(id: id, changes: (changes ?? []).map { $0.toDomain() })
+        case "error":
+            return .error(id: id, message: message ?? "")
+        case "subAgent":
+            return .subAgent(id: id, text: text ?? "")
+        case PhloxQuestionWireContract.messageType:
+            return decodeUserQuestion()
+        default:
+            return nil
         }
+    }
+
+    private func decodeUserQuestion() -> ChatMessage? {
+        guard let requestId,
+              let stateString = state,
+              let state = UserQuestionState(rawValue: stateString),
+              let questions
+        else { return nil }
+        return .userQuestion(
+            id: id,
+            requestId: requestId,
+            questions: questions.map { $0.toDomain() },
+            answers: answers,
+            state: state
+        )
+    }
+}
+
+/// AskUserQuestion の質問 1 件（wire）。
+struct UserQuestionItemDTO: Decodable {
+    let question: String
+    let header: String
+    let multiSelect: Bool
+    let options: [UserQuestionOptionDTO]
+
+    func toDomain() -> UserQuestionItem {
+        UserQuestionItem(
+            question: question,
+            header: header,
+            options: options.map { $0.toDomain() },
+            multiSelect: multiSelect
+        )
+    }
+}
+
+/// AskUserQuestion の選択肢 1 件（wire）。
+struct UserQuestionOptionDTO: Decodable {
+    let label: String
+    let description: String?
+
+    func toDomain() -> UserQuestionOption {
+        UserQuestionOption(label: label, description: description)
     }
 }
 
@@ -225,6 +308,12 @@ struct MessagesDeltaDTO: Decodable {
 
 struct RespondRequestDTO: Encodable {
     let decision: String
+}
+
+/// POST sessions/{id}/question（AskUserQuestion 回答）。
+struct RespondToQuestionRequestDTO: Encodable {
+    let requestId: String
+    let answers: [String: [String]]
 }
 
 // MARK: - Model selection (task-6 / PhloxModelWireContract)

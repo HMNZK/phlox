@@ -384,17 +384,17 @@ public struct SessionDetailView: View {
             chatRowWithCopy(copyText: copyText) {
                 DSResultBanner(message: message, isError: true)
             }
-        case let .userQuestion(_, _, questions, _, _):
-            // task-4 が質問カード（選択肢ボタン・multiSelect・自由入力・回答送信）へ差し替える骨組み。
+        case let .userQuestion(_, requestId, questions, answers, state):
             chatRowWithCopy(copyText: copyText) {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(questions, id: \.question) { question in
-                        Text(question.header)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(question.question)
+                UserQuestionCard(
+                    requestId: requestId,
+                    questions: questions,
+                    answers: answers,
+                    state: state,
+                    onSubmit: { requestId, answers in
+                        await viewModel.answerQuestion(requestId: requestId, answers: answers)
                     }
-                }
+                )
             }
         }
     }

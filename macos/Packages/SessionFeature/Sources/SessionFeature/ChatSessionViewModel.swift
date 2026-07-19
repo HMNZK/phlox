@@ -665,13 +665,21 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// AskUserQuestion の回答を CLI へ返送し、質問カードを answered へ遷移させる（task-0 契約）。
     /// 戻り値: requestId が pending の質問カードに一致し回答を受理したら true。
-    /// 一致しない・既に answered/expired なら false（no-op）。
+    /// 一致しない・既に answered/expired・同一質問への回答送信中なら false（no-op）。
+    /// pending 判定は client 呼び出しの await をまたいで有効でないため、送信中の
+    /// requestId を記録して真の同時二重回答（両方 true・answers の競合上書き）を防ぐ。
+    private var respondingUserQuestionIds: Set<String> = []
+
     public func respondToUserQuestion(requestId: String, answers: [String: [String]]) async -> Bool {
-        guard let index = userQuestionCardIndex(requestId: requestId),
+        guard !respondingUserQuestionIds.contains(requestId),
+              let index = userQuestionCardIndex(requestId: requestId),
               case .userQuestion(let id, let rid, let questions, _, .pending, let timestamp) = transcript[index]
         else {
             return false
         }
+
+        respondingUserQuestionIds.insert(requestId)
+        defer { respondingUserQuestionIds.remove(requestId) }
 
         await client.respondToUserQuestion(requestId: requestId, answers: answers)
         appendOrReplace(.userQuestion(

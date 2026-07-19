@@ -37,7 +37,39 @@ private final class WhiteboxQuestionClient: StructuredAgentClient, @unchecked Se
     }
 
     func respondToUserQuestion(requestId: String, answers: [String: [String]]) async {
+        let shouldSuspend = lock.withLock {
+            let armed = gateArmed
+            gateArmed = false
+            return armed
+        }
+        if shouldSuspend {
+            await withCheckedContinuation { (gate: CheckedContinuation<Void, Never>) in
+                lock.withLock { respondGate = gate }
+            }
+        }
         lock.withLock { recordedResponses.append((requestId, answers)) }
+    }
+
+    // 送信 suspend 中の二重回答レース再現用の gate（armRespondGate 後の最初の
+    // respondToUserQuestion を releaseRespondGate まで suspend させる）
+    private var respondGate: CheckedContinuation<Void, Never>?
+    private var gateArmed = false
+
+    func armRespondGate() {
+        lock.withLock { gateArmed = true }
+    }
+
+    var isGateWaiting: Bool {
+        lock.withLock { respondGate != nil }
+    }
+
+    func releaseRespondGate() {
+        let gate = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            let captured = respondGate
+            respondGate = nil
+            return captured
+        }
+        gate?.resume()
     }
 }
 
@@ -154,5 +186,42 @@ func answeredCardRemainsInTranscriptAfterExpirySignal() async throws {
         #expect(answers == ["色は?": ["red"]])
     } else {
         Issue.record("expected userQuestion item to remain")
+    }
+}
+
+// 1回目の回答が client 送信で suspend している間の二重回答は受理しない
+// （stage1 レビュー MUST の回帰ガード: 両方 true になり answers が競合上書きされるレース）。
+@Test @MainActor
+func concurrentDoubleRespondAcceptsOnlyOne() async throws {
+    let client = WhiteboxQuestionClient()
+    let vm = makeWhiteboxViewModel(client: client)
+    try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+
+    client.yield(.userQuestionRequested(requestId: "req-race", questions: [whiteboxQuestion]))
+    try await waitForCard(vm, requestId: "req-race")
+
+    client.armRespondGate()
+    async let first = vm.respondToUserQuestion(requestId: "req-race", answers: ["色は?": ["red"]])
+    for _ in 0..<200 {
+        if client.isGateWaiting { break }
+        try await Task.sleep(nanoseconds: 10_000_000)
+    }
+    #expect(client.isGateWaiting, "1回目の回答が client 送信で suspend している")
+
+    let second = await vm.respondToUserQuestion(requestId: "req-race", answers: ["色は?": ["blue"]])
+    client.releaseRespondGate()
+    let firstResult = await first
+
+    #expect(firstResult == true)
+    #expect(second == false, "送信中の同一質問への二重回答は false")
+    #expect(client.respondCalls.count == 1, "client への送信は1回のみ")
+
+    if let card = vm.transcript.first(where: { item in
+        if case .userQuestion(_, "req-race", _, _, _, _) = item { return true }
+        return false
+    }), case .userQuestion(_, _, _, let answers, .answered, _) = card {
+        #expect(answers == ["色は?": ["red"]], "answers は実際に送信された1回目の値")
+    } else {
+        Issue.record("expected answered userQuestion card")
     }
 }

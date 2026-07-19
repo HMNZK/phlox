@@ -31,8 +31,8 @@ extension ClaudeChatClient {
             handleResultEvent(event, generation: generation)
         case "control_response":
             handleControlResponse(event, generation: generation)
-        case "rate_limit_event":
-            // 無害な情報イベント（利用量ステータス）。ターン処理に影響しないため黙って無視する。
+        case "rate_limit_event", "tool_progress":
+            // 無害な情報イベント（利用量ステータス・ツール進捗）。ターン処理に影響しないため黙って無視する。
             break
         default:
             eventContinuation.yield(.warning(message: "Unknown Claude event type: \(type)"))

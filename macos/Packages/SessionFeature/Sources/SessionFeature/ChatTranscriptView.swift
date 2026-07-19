@@ -186,7 +186,10 @@ struct ChatTranscriptView: View {
                 item: item,
                 isRunningCommand: isRunningCommand(item, lastTranscriptID: lastTranscriptID),
                 agentDescriptor: agentDescriptor,
-                onSelectSubAgent: onSelectSubAgent
+                onSelectSubAgent: onSelectSubAgent,
+                onRespondToUserQuestion: { requestId, answers in
+                    await viewModel.respondToUserQuestion(requestId: requestId, answers: answers)
+                }
             )
         case .commandGroup(_, let items):
             CommandGroupCell(

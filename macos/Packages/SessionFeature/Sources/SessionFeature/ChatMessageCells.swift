@@ -7,17 +7,20 @@ public struct ChatItemView: View {
     let isRunningCommand: Bool
     let agentDescriptor: AgentDescriptor
     var onSelectSubAgent: ((String) -> Void)? = nil
+    var onRespondToUserQuestion: ((String, [String: [String]]) async -> Bool)? = nil
 
     public init(
         item: ChatItem,
         isRunningCommand: Bool,
         agentDescriptor: AgentDescriptor,
-        onSelectSubAgent: ((String) -> Void)? = nil
+        onSelectSubAgent: ((String) -> Void)? = nil,
+        onRespondToUserQuestion: ((String, [String: [String]]) async -> Bool)? = nil
     ) {
         self.item = item
         self.isRunningCommand = isRunningCommand
         self.agentDescriptor = agentDescriptor
         self.onSelectSubAgent = onSelectSubAgent
+        self.onRespondToUserQuestion = onRespondToUserQuestion
     }
 
     public var body: some View {
@@ -52,14 +55,15 @@ public struct ChatItemView: View {
             )
         case .turnCost(_, let costUSD, let timestamp):
             TurnCostCell(costUSD: costUSD, timestamp: timestamp)
-        case .userQuestion(let id, _, let questions, let answers, let state, let timestamp):
-            // task-2 が UserQuestionCell（選択肢ボタン・multiSelect・自由入力）へ差し替える骨組み。
+        case .userQuestion(let id, let requestId, let questions, let answers, let state, let timestamp):
             UserQuestionCell(
                 itemId: id,
+                requestId: requestId,
                 questions: questions,
                 answers: answers,
                 state: state,
-                timestamp: timestamp
+                timestamp: timestamp,
+                onRespond: onRespondToUserQuestion
             )
         }
     }

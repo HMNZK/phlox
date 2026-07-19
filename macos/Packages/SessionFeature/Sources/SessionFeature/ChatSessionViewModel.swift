@@ -665,11 +665,25 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// AskUserQuestion の回答を CLI へ返送し、質問カードを answered へ遷移させる（task-0 契約）。
     /// 戻り値: requestId が pending の質問カードに一致し回答を受理したら true。
-    /// 一致しない・既に answered/expired なら false（no-op）。実装は task-2。
+    /// 一致しない・既に answered/expired なら false（no-op）。
     public func respondToUserQuestion(requestId: String, answers: [String: [String]]) async -> Bool {
-        _ = requestId
-        _ = answers
-        return false
+        guard let index = userQuestionCardIndex(requestId: requestId),
+              case .userQuestion(let id, let rid, let questions, _, .pending, let timestamp) = transcript[index]
+        else {
+            return false
+        }
+
+        await client.respondToUserQuestion(requestId: requestId, answers: answers)
+        appendOrReplace(.userQuestion(
+            id: id,
+            requestId: rid,
+            questions: questions,
+            answers: answers,
+            state: .answered,
+            timestamp: timestamp
+        ))
+        touchOutput()
+        return true
     }
 
     public var codexSettingsSnapshot: CodexAppServerSessionSettings? {
@@ -1138,12 +1152,14 @@ public final class ChatSessionViewModel: Identifiable {
             if let nativeSessionId, shouldAdoptNativeSessionId(nativeSessionId) {
                 updateNativeSessionId(nativeSessionId)
             }
+            expireAllPendingUserQuestions()
             clearRunningTurn()
             clearRunningBackgroundTasks()
             subAgentModel.failRunningSubAgents()
             status = .idle
             flushTranscriptAtTurnBoundary()
         case .error(let message):
+            expireAllPendingUserQuestions()
             clearRunningTurn()
             appendOrReplace(.error(id: "error-\(UUID().uuidString)", message: message, timestamp: eventDate))
             clearRunningBackgroundTasks()
@@ -1190,9 +1206,81 @@ public final class ChatSessionViewModel: Identifiable {
                 summary: summary,
                 outputFile: outputFile
             )
-        case .userQuestionRequested, .userQuestionResolved:
-            // task-2 が質問カードの append・pending/answered/expired 遷移を実装する（task-0 骨組み）。
-            break
+        case .userQuestionRequested(let requestId, let questions):
+            markRunningEventReceived(at: eventDate)
+            appendOrReplace(.userQuestion(
+                id: "question-\(requestId)",
+                requestId: requestId,
+                questions: questions,
+                answers: nil,
+                state: .pending,
+                timestamp: eventDate
+            ))
+            touchOutput()
+        case .userQuestionResolved(let requestId, let outcome):
+            markRunningEventReceived(at: eventDate)
+            applyUserQuestionResolution(requestId: requestId, outcome: outcome)
+            touchOutput()
+        }
+    }
+
+    private func userQuestionCardIndex(requestId: String) -> Int? {
+        transcript.firstIndex { item in
+            guard case .userQuestion(_, let rid, _, _, _, _) = item else { return false }
+            return rid == requestId
+        }
+    }
+
+    private func applyUserQuestionResolution(requestId: String, outcome: ChatUserQuestionOutcome) {
+        guard let index = userQuestionCardIndex(requestId: requestId),
+              case .userQuestion(let id, let rid, let questions, let answers, let state, let timestamp) = transcript[index]
+        else {
+            return
+        }
+
+        switch outcome {
+        case .answered(let resolvedAnswers):
+            guard state != .answered else { return }
+            appendOrReplace(.userQuestion(
+                id: id,
+                requestId: rid,
+                questions: questions,
+                answers: resolvedAnswers,
+                state: .answered,
+                timestamp: timestamp
+            ))
+        case .expired:
+            guard state == .pending else { return }
+            appendOrReplace(.userQuestion(
+                id: id,
+                requestId: rid,
+                questions: questions,
+                answers: answers,
+                state: .expired,
+                timestamp: timestamp
+            ))
+        }
+    }
+
+    private func expireAllPendingUserQuestions() {
+        var didChange = false
+        for index in transcript.indices {
+            guard case .userQuestion(let id, let requestId, let questions, let answers, .pending, let timestamp) = transcript[index]
+            else {
+                continue
+            }
+            transcript[index] = .userQuestion(
+                id: id,
+                requestId: requestId,
+                questions: questions,
+                answers: answers,
+                state: .expired,
+                timestamp: timestamp
+            )
+            didChange = true
+        }
+        if didChange {
+            markTranscriptChanged()
         }
     }
 

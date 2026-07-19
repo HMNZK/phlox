@@ -101,6 +101,84 @@ private func collectControlProtocolEvents(
     return (log, task)
 }
 
+/// send を任意タイミングまで suspend できる transport（allow 送信中の interrupt 競合再現用）。
+private final class SuspendingSendTransport: LineDelimitedTransport, @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: AsyncStream<Data>.Continuation?
+    private var sentLines: [Data] = []
+    private var sendGate: CheckedContinuation<Void, Never>?
+    private var suspendNextSend = false
+    private var sendStartedCount = 0
+
+    let receivedLines: AsyncStream<Data>
+
+    init() {
+        var captured: AsyncStream<Data>.Continuation?
+        receivedLines = AsyncStream { captured = $0 }
+        continuation = captured
+    }
+
+    func start() throws {}
+
+    func armSuspendingSend() {
+        lock.withLock { suspendNextSend = true }
+    }
+
+    func send(_ data: Data) async throws {
+        let shouldSuspend = lock.withLock {
+            sendStartedCount += 1
+            let armed = suspendNextSend
+            suspendNextSend = false
+            return armed
+        }
+        if shouldSuspend {
+            await withCheckedContinuation { (gate: CheckedContinuation<Void, Never>) in
+                lock.withLock { sendGate = gate }
+            }
+        }
+        lock.withLock { sentLines.append(data) }
+    }
+
+    func releaseSend() {
+        let gate = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            let captured = sendGate
+            sendGate = nil
+            return captured
+        }
+        gate?.resume()
+    }
+
+    func interrupt() async {}
+
+    func close() async {
+        continuation?.finish()
+    }
+
+    func receive(_ line: String) {
+        continuation?.yield(Data(line.utf8))
+    }
+
+    var sent: [Data] {
+        lock.withLock { sentLines }
+    }
+
+    var sendsStarted: Int {
+        lock.withLock { sendStartedCount }
+    }
+}
+
+private func controlResponses(in lines: [Data], requestId: String) -> [String] {
+    lines.compactMap { line -> String? in
+        guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
+              object["type"] as? String == "control_response",
+              let response = object["response"] as? [String: Any],
+              response["request_id"] as? String == requestId,
+              let inner = response["response"] as? [String: Any]
+        else { return nil }
+        return inner["behavior"] as? String
+    }
+}
+
 @Test func askUserQuestionDefaultsMissingDescriptionAndMultiSelect() async throws {
     let factory = ControlProtocolTransportFactory()
     let client = ClaudeChatClient(environment: [:], transportFactory: factory.make)
@@ -167,6 +245,47 @@ private func collectControlProtocolEvents(
         }
         return false
     } == 0)
+
+    await client.close()
+    collector.cancel()
+}
+
+// allow 送信（transport.send）の suspend 中に interrupt() が走っても、同一
+// request_id へ deny を重ねて二重 control_response にしない（stage2 MEDIUM の回帰ガード）。
+@Test func interruptDoesNotDenyQuestionWhoseAllowSendIsInFlight() async throws {
+    let transport = SuspendingSendTransport()
+    let client = ClaudeChatClient(
+        environment: [:],
+        transportFactory: { _, _, _, _ in transport }
+    )
+    await client.start()
+    let (log, collector) = collectControlProtocolEvents(from: client)
+
+    transport.receive(#"{"type":"control_request","request_id":"in-flight","request":{"subtype":"can_use_tool","tool_name":"AskUserQuestion","input":{"questions":[{"question":"Send?","header":"Send","options":[{"label":"Yes"}],"multiSelect":false}]}}}"#)
+    try await waitForControlProtocolCondition("質問が保留になる") {
+        log.count { event in
+            if case .userQuestionRequested(requestId: "in-flight", questions: _) = event {
+                return true
+            }
+            return false
+        } == 1
+    }
+
+    transport.armSuspendingSend()
+    let respondTask = Task {
+        await client.respondToUserQuestion(requestId: "in-flight", answers: ["Send?": ["Yes"]])
+    }
+    try await waitForControlProtocolCondition("allow 送信が suspend 中になる") {
+        transport.sendsStarted == 1
+    }
+
+    try await client.interrupt()
+
+    transport.releaseSend()
+    await respondTask.value
+
+    let behaviors = controlResponses(in: transport.sent, requestId: "in-flight")
+    #expect(behaviors == ["allow"], "suspend 中の allow に deny を重ねない（二重応答禁止）")
 
     await client.close()
     collector.cancel()

@@ -331,7 +331,12 @@ public actor ClaudeChatClient: StructuredAgentClient {
         let generation = spawnGeneration
         let interruptedSessionId = currentSessionId
         interruptingControlGeneration = generation
-        let pendingQuestions = pendingUserQuestions.filter { $0.value.generation == generation }
+        // isResponding（allow 送信 suspend 中）の質問へ deny を重ねると、同一
+        // request_id に allow+deny の二重 control_response が届きうる（stage2 MEDIUM）。
+        // 送信中のものは deny 対象から除外する（失効処理は expire 側で行われる）。
+        let pendingQuestions = pendingUserQuestions.filter {
+            $0.value.generation == generation && !$0.value.isResponding
+        }
         expirePendingUserQuestions(generation: generation)
         let shouldSuppressInterruptedResult = currentTurnOpen
         currentTurnOpen = false

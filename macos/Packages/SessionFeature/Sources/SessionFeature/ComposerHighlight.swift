@@ -21,7 +21,27 @@ struct ComposerHighlightSpan: Equatable, Sendable {
 ///   - range は UTF16 オフセット。CJK/絵文字でも正しいこと。決定論。
 enum ComposerHighlight {
     static func spans(in text: String) -> [ComposerHighlightSpan] {
-        // PM スタブ（task-2 実装役が本体を埋める）。
-        []
+        var spans: [ComposerHighlightSpan] = []
+        var tokenStart = text.startIndex
+
+        while tokenStart < text.endIndex {
+            while tokenStart < text.endIndex, text[tokenStart].isWhitespace {
+                tokenStart = text.index(after: tokenStart)
+            }
+            guard tokenStart < text.endIndex else { break }
+
+            let tokenEnd = text[tokenStart...].firstIndex(where: \.isWhitespace) ?? text.endIndex
+            let range = tokenStart.utf16Offset(in: text)..<tokenEnd.utf16Offset(in: text)
+
+            if tokenStart == text.startIndex, text[tokenStart] == "/" {
+                spans.append(ComposerHighlightSpan(range: range, kind: .slashCommand))
+            } else if text[tokenStart] == "@" {
+                spans.append(ComposerHighlightSpan(range: range, kind: .fileReference))
+            }
+
+            tokenStart = tokenEnd
+        }
+
+        return spans
     }
 }

@@ -359,6 +359,17 @@ public final class ChatSessionViewModel: Identifiable {
         )
     }
 
+    /// 実行中ターンの recap 要約（task-3 契約。受け入れテスト ChatRecapAcceptance が凍結）。
+    /// 呼び出しは読み取り専用（状態を書かない）。`hangAssessment(now:)` と同型。
+    func recap(now: Date) -> String? {
+        ChatRecap.derive(
+            transcript: transcript,
+            status: status,
+            turnStartedAt: turnStartedAt,
+            now: now
+        )
+    }
+
     /// 実行中ターンの最新 reasoning テキスト末尾3行（task-5 契約。受け入れテスト ReasoningPreview が凍結）。
     public var runningReasoningPreview: String? {
         guard status == .running else { return nil }

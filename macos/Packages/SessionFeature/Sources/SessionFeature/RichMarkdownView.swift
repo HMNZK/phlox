@@ -61,6 +61,15 @@ private func chatMarkdownTheme(scale: CGFloat) -> Theme {
         .link {
             ForegroundColor(DSColor.chatAccent)
         }
+        // NOTE: 箇条書きの項目が折り返すと、折り返し行の縦高さが確保されず次項目と重なって潰れる
+        // （MarkdownUI v2.4.1 の ListItemView は Label{content} icon:{marker} 構成で、項目 content に
+        // 縦サイズ確保が無い）。list 項目に限定して縦サイズを固定し、全行分の高さを確保する。
+        // .listItem は list 項目にのみ適用され table セル（.table/.tableCell）へは波及しないため、
+        // .fixedSize による表レイアウト非収束＝ADR 0045 の CPU 暴走とは無関係。
+        .listItem { configuration in
+            configuration.label
+                .fixedSize(horizontal: false, vertical: true)
+        }
         .heading1 { configuration in
             configuration.label
                 .markdownMargin(top: 0, bottom: DSSpacing.m)

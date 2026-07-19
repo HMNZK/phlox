@@ -48,7 +48,7 @@ public struct DSThinkingIndicator: View {
             if let reasoningPreview, !reasoningPreview.isEmpty {
                 Text(reasoningPreview)
                     .font(DSFont.caption)
-                    .foregroundStyle(DSColor.textSecondary)
+                    .foregroundStyle(DSColor.textTertiary)
                     .lineLimit(3)
             }
         }

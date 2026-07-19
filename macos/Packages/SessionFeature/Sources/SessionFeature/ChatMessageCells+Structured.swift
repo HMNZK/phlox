@@ -65,7 +65,8 @@ struct SubAgentMarkerCell: View {
 
 struct ThinkingIndicatorCell: View {
     let descriptor: AgentDescriptor
-    var reasoningPreview: String? = nil
+    /// 実行中ターンの recap（時間追従）。TimelineView 内で評価し、描画中に state を書かない（ADR 0030）。
+    var recap: ((Date) -> String?)? = nil
     var hangAssessment: ((Date) -> ChatHangAssessment?)? = nil
     var onInterrupt: (() async -> Void)? = nil
     /// transcript 最下部が viewport 内にあるか。スクロール位置のイベントから親が渡す。
@@ -76,6 +77,36 @@ struct ThinkingIndicatorCell: View {
     @State private var isInViewHierarchy = false
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
+
+    init(
+        descriptor: AgentDescriptor,
+        recap: ((Date) -> String?)? = nil,
+        hangAssessment: ((Date) -> ChatHangAssessment?)? = nil,
+        onInterrupt: (() async -> Void)? = nil,
+        isInTranscriptViewport: Bool = true
+    ) {
+        self.descriptor = descriptor
+        self.recap = recap
+        self.hangAssessment = hangAssessment
+        self.onInterrupt = onInterrupt
+        self.isInTranscriptViewport = isInTranscriptViewport
+    }
+
+    /// SubAgentDrawerView 向け互換（allowed_paths 外のためこちらで吸収）。
+    /// 静的プレビューを recap クロージャへ包む。
+    init(
+        descriptor: AgentDescriptor,
+        reasoningPreview: String?,
+        hangAssessment: ((Date) -> ChatHangAssessment?)? = nil,
+        onInterrupt: (() async -> Void)? = nil,
+        isInTranscriptViewport: Bool = true
+    ) {
+        self.descriptor = descriptor
+        self.recap = reasoningPreview.map { preview in { _ in preview } }
+        self.hangAssessment = hangAssessment
+        self.onInterrupt = onInterrupt
+        self.isInTranscriptViewport = isInTranscriptViewport
+    }
 
     /// セルのライフサイクル、transcript の viewport、シーンのアクティブ状態から導出する。
     private var isTimelineVisible: Bool {
@@ -104,11 +135,15 @@ struct ThinkingIndicatorCell: View {
                         }
                     }
                 }
-                if let reasoningPreview {
-                    Text(reasoningPreview)
-                        .font(ChatScaledFont.caption(scale: scale))
-                        .foregroundStyle(DSColor.chatTextSecondary)
-                        .lineLimit(3)
+                if let recap {
+                    TimelineView(HangStatusTimelineSchedule(isVisible: isTimelineVisible)) { context in
+                        if let text = recap(context.date) {
+                            Text(text)
+                                .font(ChatScaledFont.caption(scale: scale))
+                                .foregroundStyle(DSColor.chatTextSecondary)
+                                .lineLimit(3)
+                        }
+                    }
                 }
                 if let hangAssessment {
                     TimelineView(HangStatusTimelineSchedule(isVisible: isTimelineVisible)) { context in

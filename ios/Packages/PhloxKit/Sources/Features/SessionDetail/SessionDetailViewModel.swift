@@ -32,7 +32,11 @@ public final class SessionDetailViewModel {
 
     private let api: PhloxAPI
     public private(set) var session: Session
-    public private(set) var currentStatus: SessionStatus
+    public private(set) var currentStatus: SessionStatus {
+        didSet { syncThinkingStartedAt(from: oldValue) }
+    }
+    /// task-4: `currentStatus` が `.running` になった時刻。running を外れたら nil。
+    public private(set) var thinkingStartedAt: Date?
     public var inputText: String = ""
     public var isOutputExpanded = false
     public private(set) var outputText: String = ""
@@ -135,6 +139,10 @@ public final class SessionDetailViewModel {
         self.api = api
         self.currentStatus = session.status
         self.displayName = session.name
+        // didSet は init では発火しないため、初期 running をここで記録する。
+        if session.status == .running {
+            thinkingStartedAt = Date()
+        }
     }
 
     /// モデル選択シートを開く。別のメニュー presentation があれば置き換える。
@@ -337,9 +345,21 @@ public final class SessionDetailViewModel {
     }
 
     /// visibleMessages の末尾が .reasoning ならその text（生成中インジケータのプレビュー用）。それ以外は nil。
+    /// task-4: View は `recap(now:)` を使う。削除せず回帰保全（未使用化のみ可）。
     public var thinkingPreview: String? {
         guard case let .reasoning(_, text)? = visibleMessages.last else { return nil }
         return text
+    }
+
+    /// 実行中ターンの recap 要約（task-4）。呼び出しは読み取り専用。
+    /// `elapsed = now - (thinkingStartedAt ?? now)` を `ChatRecapIOS.derive` に渡す。
+    public func recap(now: Date) -> String? {
+        let elapsed = now.timeIntervalSince(thinkingStartedAt ?? now)
+        return ChatRecapIOS.derive(
+            messages: chatMessages,
+            status: currentStatus,
+            elapsed: elapsed
+        )
     }
 
     /// 入力バー有効: awaitingApproval / idle / running のみ。starting / completed / error は無効。
@@ -707,6 +727,17 @@ public final class SessionDetailViewModel {
         currentStatus = live.status
         if previousStatus == .running, currentStatus != .running {
             await fetchTurnUsageIfAvailable()
+        }
+    }
+
+    /// running へ入った時刻だけ記録し、同一 running の再代入では動かさない（ポーリング暴れ防止）。
+    private func syncThinkingStartedAt(from oldValue: SessionStatus) {
+        if currentStatus == .running {
+            if oldValue != .running {
+                thinkingStartedAt = Date()
+            }
+        } else {
+            thinkingStartedAt = nil
         }
     }
 

@@ -37,4 +37,5 @@ last-verified: 2026-07-04
 ## 結果
 
 - 新規チャット初回ターン・実在会話の復元・会話ゼロセッションの復元（旧 Daffodil）の 3 経路を実機で検証し正常化。凍結受け入れテスト 7＋stderr 3・全 39 tests green・E2E 16 green。
-- 既知の残課題: (a) `rate_limit_event` が未知イベント扱いで警告表示される（別件）。(b) 送信失敗時に UI status が running のまま残る VM の papercut（heal 導入で実質的に非発生になるが根治は別件）。
+- 既知の残課題: (b) 送信失敗時に UI status が running のまま残る VM の papercut（heal 導入で実質的に非発生になるが根治は別件）。
+- 解決済み: (a) `rate_limit_event` および `tool_progress` は `break` でサイレント無視するよう修正済み（feature/thinking-recap, 2026-07-19）。

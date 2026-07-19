@@ -399,7 +399,8 @@ import StructuredChatKit
 @Test func successResultDoesNotEmitError() async throws {
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
-    let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
+    // 密封化: ambient PHLOX_SESSION_ID が既定環境から漏れ nativeSessionId を汚さないよう空環境で構築。
+    let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
     await client.start()
 
     var iterator = client.events.makeAsyncIterator()
@@ -414,7 +415,8 @@ import StructuredChatKit
 @Test func unknownTopLevelEventEmitsWarningBeforeContinuing() async throws {
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
-    let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
+    // 密封化: ambient PHLOX_SESSION_ID が既定環境から漏れ nativeSessionId を汚さないよう空環境で構築。
+    let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
     await client.start()
 
     var iterator = client.events.makeAsyncIterator()
@@ -1007,7 +1009,8 @@ private func waitUntil(
 @Test func rateLimitEventIsSilentlyIgnored() async throws {
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
-    let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
+    // 密封化: ambient PHLOX_SESSION_ID が既定環境から漏れ nativeSessionId を汚さないよう空環境で構築。
+    let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
     await client.start()
 
     var iterator = client.events.makeAsyncIterator()
@@ -1019,6 +1022,29 @@ private func waitUntil(
     """)
 
     // rate_limit_event 由来の warning を挟まず、直接 turnCompleted が来ること。
+    #expect(await iterator.next() == .turnCompleted(nativeSessionId: nil))
+    await client.close()
+}
+
+// tool_progress（ツール実行中の進捗情報）は警告にせず黙って無視する（実機で
+// 「Unknown Claude event type: tool_progress」が赤エラー枠として表示された
+// 2026-07-19 の実測に基づく回帰テスト。rate_limit_event と同型）。
+@Test func toolProgressEventIsSilentlyIgnored() async throws {
+    let mock = MockTransport()
+    let recorder = TransportRecorder(mock)
+    // 密封化: ambient PHLOX_SESSION_ID が既定環境から漏れ nativeSessionId を汚さないよう空環境で構築。
+    let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
+    await client.start()
+
+    var iterator = client.events.makeAsyncIterator()
+    mock.receive("""
+    {"type":"tool_progress","tool_use_id":"toolu_1","progress":{"status":"running"}}
+    """)
+    mock.receive("""
+    {"type":"result","subtype":"success","is_error":false}
+    """)
+
+    // tool_progress 由来の warning を挟まず、直接 turnCompleted が来ること。
     #expect(await iterator.next() == .turnCompleted(nativeSessionId: nil))
     await client.close()
 }
@@ -1126,7 +1152,8 @@ private func waitUntil(
 @Test func taskUpdatedSystemEventEmitsNothing() async throws {
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
-    let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
+    // 密封化: ambient PHLOX_SESSION_ID が既定環境から漏れ nativeSessionId を汚さないよう空環境で構築。
+    let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
     await client.start()
 
     var iterator = client.events.makeAsyncIterator()

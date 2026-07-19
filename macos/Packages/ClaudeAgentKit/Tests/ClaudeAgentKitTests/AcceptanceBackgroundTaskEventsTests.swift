@@ -77,7 +77,8 @@ import StructuredChatKit
 // task_updated と既知の無害 subtype はイベントを出さない（従来挙動維持）。
 @Test func taskUpdatedAndBenignSystemSubtypesEmitNothing() async throws {
     let mock = BgMockTransport()
-    let client = ClaudeChatClient(transportFactory: { _, _, _, _ in mock })
+    // 密封化: ambient PHLOX_SESSION_ID が既定環境から漏れ nativeSessionId を汚さないよう空環境で構築。
+    let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in mock })
     await client.start()
     var iterator = client.events.makeAsyncIterator()
 

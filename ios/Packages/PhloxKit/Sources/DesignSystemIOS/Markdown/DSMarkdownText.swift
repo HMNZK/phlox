@@ -39,4 +39,10 @@ public struct DSMarkdownText: View {
         .link {
             ForegroundColor(DSColor.chatAccent)
         }
+        // NOTE: macOS RichMarkdownView と同方針。折り返した箇条書き項目の折り返し行が次項目と
+        // 重なって潰れるのを防ぐため、list 項目に限定して縦サイズを確保する（table には波及しない）。
+        .listItem { configuration in
+            configuration.label
+                .fixedSize(horizontal: false, vertical: true)
+        }
 }

@@ -208,38 +208,3 @@ private struct DisclosureRunningSpinner: NSViewRepresentable {
         }
     }
 }
-
-struct StaticThinkingDots: View {
-    var date: Date?
-    @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
-
-    private static let dotCount = 3
-
-    var body: some View {
-        let _ = themeID
-        HStack(spacing: DSSpacing.xs) {
-            ForEach(0..<Self.dotCount, id: \.self) { index in
-                let state = dotState(for: index)
-                Circle()
-                    .fill(DSColor.chatTextSecondary)
-                    .frame(width: 4, height: 4)
-                    .scaleEffect(state.scale)
-                    .offset(y: state.yOffset)
-                    .opacity(state.opacity)
-            }
-        }
-        .frame(width: 20, height: 8, alignment: .center)
-        .accessibilityHidden(true)
-    }
-
-    private func dotState(for index: Int) -> ThinkingAnimationModel.DotState {
-        guard let date else {
-            return .init(opacity: 0.55, scale: 1, yOffset: 0)
-        }
-        return ThinkingAnimationModel.dotState(
-            index: index,
-            dotCount: Self.dotCount,
-            date: date
-        )
-    }
-}

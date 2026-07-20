@@ -5,15 +5,6 @@ import SwiftUI
 /// ADR 0010: view body から状態を書き換えない。TimelineView が渡す date を入力に取る
 /// 純関数としてアニメーション状態を導出する（Timer / repeatForever / body 内 mutate は禁止）。
 enum ThinkingAnimationModel {
-    /// アニメーション1周期（秒）。
-    static let period: TimeInterval = 2.4
-
-    struct DotState: Equatable {
-        var opacity: Double
-        var scale: Double
-        var yOffset: Double
-    }
-
     /// インジケータが表示されない間は TimelineView の更新を停止するスケジュールを返す。
     static func timelineSchedule(isVisible: Bool) -> ThinkingTimelineSchedule {
         ThinkingTimelineSchedule(isVisible: isVisible)
@@ -28,25 +19,6 @@ enum ThinkingAnimationModel {
         isSceneActive: Bool
     ) -> Bool {
         isInViewHierarchy && isInTranscriptViewport && isSceneActive
-    }
-
-    /// index 番目のドットの表示状態を返す。同じ入力には常に同じ出力（決定論）。
-    static func dotState(index: Int, dotCount: Int, date: Date) -> DotState {
-        let safeDotCount = max(dotCount, 1)
-        let normalizedIndex = ((index % safeDotCount) + safeDotCount) % safeDotCount
-        let elapsed = date.timeIntervalSinceReferenceDate
-        let cycleProgress = elapsed
-            .truncatingRemainder(dividingBy: period) / period
-        let phase = 2 * Double.pi * (
-            cycleProgress - Double(normalizedIndex) / Double(safeDotCount)
-        )
-        let wave = (sin(phase) + 1) / 2
-
-        return DotState(
-            opacity: 0.35 + 0.65 * wave,
-            scale: 0.85 + 0.30 * wave,
-            yOffset: 1.5 - 3 * wave
-        )
     }
 }
 

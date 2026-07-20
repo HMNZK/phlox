@@ -123,16 +123,10 @@ struct ThinkingIndicatorCell: View {
         AvatarMessageRow(descriptor: descriptor, timestamp: .distantPast) {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 if reduceMotion {
-                    HStack(spacing: DSSpacing.s) {
-                        staticThinkingText(scale: scale)
-                        StaticThinkingDots()
-                    }
+                    staticThinkingText(scale: scale)
                 } else {
                     TimelineView(ThinkingAnimationModel.timelineSchedule(isVisible: isTimelineVisible)) { context in
-                        HStack(spacing: DSSpacing.s) {
-                            shimmeringThinkingText(scale: scale, date: context.date)
-                            StaticThinkingDots(date: context.date)
-                        }
+                        shimmeringThinkingText(scale: scale, date: context.date)
                     }
                 }
                 if let recap {

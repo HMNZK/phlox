@@ -67,7 +67,7 @@ Claude Code stdout (stream-json)
 - **ヘッダー整列**: メイン（`ChatSessionView.header`）とサブ（`SubAgentDrawerView.header`）を `SubAgentSplitLayout.headerHeight`(=32。2026-07-11 にグリッドのタイルヘッダと同等の縦幅へ変更・メインはアイコン右にセッション名を表示) に固定し罫線を一直線に。
 - **インラインマーカー**: `upsertSubAgentMarker` が本文（メイン transcript）へ `subAgentMarker` を upsert。`SubAgentMarkerCell` クリックで `selectSubAgent`。完了サブエージェントの唯一の恒久的導線（ストリップから消えても閲覧可）。
 - **描画**: `.reasoning` はテキスト空なら `EmptyView`、非空なら `ReasoningSummaryView`。
-- **メインとの表示パリティ（2026-07-12）**: `SubAgentDrawerView` は表示述語 `SubAgentDrawerPresentation`（SessionFeature）経由で描画を決める——`showsThinkingIndicator(status:)`（running 中のみ `ThinkingIndicatorCell` を末尾表示）、`isRunningCommand(item:lastItemID:status:)`（末尾の `commandExecution` かつ running でツール実行中ローディング。メイン `ChatTranscriptView.isRunningCommand` と同じ結合則）、`reasoningPreview(transcript:status:)`（最新 reasoning の末尾3行。メイン `runningReasoningPreview` 相当）。transcript コンテナは ADR 0030 に従い LazyVStack ではなく VStack。
+- **表示述語（2026-07-12。かつての「メインとの表示パリティ」は reasoning プレビューの方式差により一部のみ）**: `SubAgentDrawerView` は表示述語 `SubAgentDrawerPresentation`（SessionFeature）経由で描画を決める——`showsThinkingIndicator(status:)`（running 中のみ `ThinkingIndicatorCell` を末尾表示）、`isRunningCommand(item:lastItemID:status:)`（末尾の `commandExecution` かつ running でツール実行中ローディング。メイン `ChatTranscriptView.isRunningCommand` と同じ結合則）、`reasoningPreview(transcript:status:)`（最新 reasoning の末尾3行。メインは `ChatSessionViewModel.recap(now:)`（時間駆動クロージャ、ADR 0100 の閾値ゲート付き）に切り替え済み。`SubAgentDrawerView` は `reasoningPreview:` 互換 init 経由で静的プレビューを渡しており、メインとの表示方式は異なる）。transcript コンテナは ADR 0030 に従い LazyVStack ではなく VStack。
 
 ## 受け入れテスト（契約）
 

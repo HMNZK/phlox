@@ -558,11 +558,14 @@ struct IMESafeTextView: NSViewRepresentable {
                     range: fullRange
                 )
             }
-            let accentColor = NSColor(DSColor.chatAccent)
+            // スラッシュコマンドと @参照 を別色にして種別を判別できるようにする。
+            let slashColor = NSColor(DSColor.codeSyntaxKeyword)
+            let referenceColor = NSColor(DSColor.codeSyntaxString)
             for span in ComposerHighlight.spans(in: string) {
                 let range = NSRange(location: span.range.lowerBound, length: span.range.count)
                 guard NSMaxRange(range) <= textStorage.length else { continue }
-                textStorage.addAttribute(.foregroundColor, value: accentColor, range: range)
+                let color = span.kind == .slashCommand ? slashColor : referenceColor
+                textStorage.addAttribute(.foregroundColor, value: color, range: range)
             }
             textStorage.endEditing()
 

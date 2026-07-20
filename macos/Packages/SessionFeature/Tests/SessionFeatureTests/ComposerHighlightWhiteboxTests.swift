@@ -59,7 +59,9 @@ struct ComposerHighlightWhiteboxTests {
         let referenceColor = textStorage.attribute(.foregroundColor, at: 10, effectiveRange: nil) as? NSColor
         let typingColor = textView.typingAttributes[.foregroundColor] as? NSColor
         #expect(commandColor != NSColor.labelColor)
-        #expect(referenceColor == commandColor)
+        #expect(referenceColor != NSColor.labelColor)
+        // スラッシュコマンドと @参照 は別色で種別を判別できる。
+        #expect(referenceColor != commandColor)
         #expect(plainColor == NSColor.labelColor)
         #expect(typingColor == NSColor.labelColor)
         #expect(textView.selectedRange() == originalSelection)

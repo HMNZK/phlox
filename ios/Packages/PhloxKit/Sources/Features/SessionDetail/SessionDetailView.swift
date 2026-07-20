@@ -203,7 +203,7 @@ public struct SessionDetailView: View {
                 contextLabel: viewModel.inputContextDisplayName,
                 onAddAttachments: { viewModel.addAttachments($0) },
                 onRemoveAttachment: { viewModel.removeAttachment(at: $0) },
-                isRunning: viewModel.currentStatus == .running && viewModel.canInterrupt,
+                isRunning: viewModel.showsStopButton,
                 onStop: {
                     Task { await viewModel.stop() }
                 },

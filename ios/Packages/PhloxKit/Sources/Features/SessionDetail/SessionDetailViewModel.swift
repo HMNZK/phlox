@@ -103,6 +103,11 @@ public final class SessionDetailViewModel {
     private var draftNeedsReady = false
     public private(set) var hasSpawnedDraft = false
     public var isAwaitingInitialSpawn: Bool { draftProject != nil && !hasSpawnedDraft }
+    /// 入力バーが停止ボタンを出すべきか。下書き未 spawn（isAwaitingInitialSpawn）中は
+    /// placeholder が .running でも送信ボタンを出す（最初の1通を送れるようにする）。
+    public var showsStopButton: Bool {
+        !isAwaitingInitialSpawn && currentStatus == .running && canInterrupt
+    }
     public var showsInitialLoadingIndicator: Bool {
         isInitialLoading && !isAwaitingInitialSpawn && chatMessages.isEmpty && outputText.isEmpty
     }

@@ -175,11 +175,13 @@ struct ThinkingIndicatorCell: View {
 
     private func shimmeringThinkingText(scale: CGFloat, date: Date) -> some View {
         let phase = ThinkingAnimationModel.shimmerPhase(date: date)
+        // 帯中心を画面外余白まで逃がし、折返しの瞬間移動（かくつき）を不可視化する。
+        let center = ThinkingAnimationModel.shimmerBandCenter(phase: phase)
         let stops = (0...20).map { index in
             let position = Double(index) / 20
             let brightness = ThinkingAnimationModel.shimmerBrightness(
                 position: position,
-                phase: phase
+                phase: center
             )
             return Gradient.Stop(
                 color: DSColor.chatTextSecondary.opacity(brightness),

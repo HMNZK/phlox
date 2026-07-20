@@ -135,12 +135,26 @@ extension ThinkingAnimationModel {
         return normalizedRemainder / shimmerPeriod
     }
 
+    /// 帯を画面外まで逃がすための左右余白（正規化幅）。折返し（phase: 1→0）を帯が画面外に
+    /// ある瞬間に起こし、右端→左端の瞬間移動（＝最後まで流れず途中で切れて先頭へ戻るかくつき）を
+    /// 不可視化する。
+    static let shimmerMargin: Double = 0.6
+
+    /// phase(0..1) を、画面外余白を含む帯中心 [−shimmerMargin, 1+shimmerMargin] へ線形写像する。
+    /// phase=0 で帯は左端の外、phase→1 で右端の外に位置し、折返しは両端とも画面外で起きるため
+    /// 継ぎ目が見えない。ビューはこの戻り値を shimmerBrightness の phase に渡す。
+    static func shimmerBandCenter(phase: Double) -> Double {
+        let clampedPhase = min(max(phase, 0), 1)
+        return clampedPhase * (1 + 2 * shimmerMargin) - shimmerMargin
+    }
+
     /// 正規化位置 position(0=左,1=右) の明度倍率。position==phase で最大 1.0、離れるほど shimmerMinBrightness へ減衰。
     /// 戻り値 [shimmerMinBrightness, 1.0]。決定論。
+    /// phase（＝帯の中心）は [0,1] 外も受け付ける（shimmerBandCenter が返す −margin..1+margin を
+    /// そのまま渡せるように position のみ [0,1] へ丸める）。帯が画面外にあるときは全 position が下限へ収束する。
     static func shimmerBrightness(position: Double, phase: Double) -> Double {
         let clampedPosition = min(max(position, 0), 1)
-        let clampedPhase = min(max(phase, 0), 1)
-        let distance = abs(clampedPosition - clampedPhase)
+        let distance = abs(clampedPosition - phase)
         let bandWidth = 0.22
         let normalizedDistance = distance / bandWidth
         let falloff = exp(-0.5 * normalizedDistance * normalizedDistance)

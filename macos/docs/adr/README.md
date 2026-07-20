@@ -43,7 +43,7 @@ last-verified: 2026-07-17
 | 0070 | [エージェントビュー（チーム表示）をグループチャット＋ツリー埋め込みへ再設計する](0070-agent-view-group-chat.md) | superseded (→0072) |
 | 0069 | [ブランチ picker は present-after-load 状態機械で提示し、提示中の popover 内容変更を構造的に禁止する](0069-branch-picker-present-after-load.md) | active |
 | 0068 | [終了シグナルハンドラは @Sendable 受け取りの公開 API で isolation 継承を型レベルで遮断する](0068-signal-handler-sendable-isolation.md) | active |
-| 0067 | [Thinking インジケータのサイン波アニメーションと viewport pause](0067-thinking-wave-animation-and-viewport-pause.md) | active |
+| 0067 | [Thinking インジケータのシマーアニメーションと viewport pause](0067-thinking-wave-animation-and-viewport-pause.md) | active |
 | 0066 | [コンテキスト使用量はセッション単位のサイドカー snapshot で永続化する](0066-chat-context-usage-snapshot-persistence.md) | active |
 | 0065 | [チャット入力欄をフローティング化し、スクロール逃し余白はコンテンツ内スペーサーで確保する](0065-chat-floating-composer-scrollbar.md) | active |
 | 0064 | [処理中インジケータは status を変えず表示専用述語で拡張する](0064-chat-processing-indicator-semantics.md) | active |

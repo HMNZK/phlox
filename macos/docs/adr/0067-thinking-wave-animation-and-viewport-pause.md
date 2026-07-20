@@ -3,9 +3,11 @@ status: active
 last-verified: 2026-07-10
 ---
 
-# 0067: Thinking インジケータのサイン波アニメーションと viewport pause
+# 0067: Thinking インジケータのシマーアニメーションと viewport pause
 
 > **拡張**（2026-07-19・ui-fixes run / task-3）: 「Thinking...」テキスト自体にも、明度が**左→右へ流れるシマー**を追加した。本 ADR と同じ純関数方針を踏襲する——`ThinkingAnimationModel` に純関数 `shimmerPhase(date:)`（時間に線形前進・周期 `shimmerPeriod`・戻り値 `[0,1)`）と `shimmerBrightness(position:phase:)`（`position==phase` で最大 1.0・離れるほど `shimmerMinBrightness` へガウス減衰）を足し、既存 `timelineSchedule(isVisible:)`（30fps 上限・非表示時は空エントリ）と `isTimelineVisible` で駆動し、`LinearGradient` の mask で文字へ適用する。`Timer`/`repeatForever`/アニメ用 `@State`/新規 `GeometryReader` は不使用、`reduceMotion` 時は静的表示。凍結オラクル `AcceptanceThinkingShimmerTests`（DashboardFeature）が純関数仕様を担保。
+
+> **拡張**（2026-07-20・thinking-remove-ellipsis run）: メインチャットの**跳ねドット（サイン波の `StaticThinkingDots`）を廃止**し、Thinking インジケータをシマーのみにした（`ThinkingIndicatorCell` から `StaticThinkingDots` を除去、孤児化した `ThinkingAnimationModel.dotState`/`DotState`/`period` とドット専用テストを削除。シマー純関数と viewport pause は不変）。あわせて **iOS も同一セマンティクスのシマーへ移植**（`DSThinkingIndicator`／`DSThinkingAnimationModel`。入力は iOS 慣習の `Date` ではなく `TimeInterval`。定数・式は macOS と一致）。iOS は従来シマーを持たず点滅ドットのみだったため、ドット除去だけでは静止表示になる不整合を避ける狙い（ユーザー決定 B）。**ダッシュボードの別実装 `AgoraThinkingDots`（`AgentChatRowPolicy`）はスコープ外で不変**。凍結オラクル `ThinkingShimmerAcceptanceTests`（iOS PhloxKit）が iOS シマー純関数仕様を担保。本文の「サイン波の波打つドット」は本注記により置換され、現行はドットなし・シマーのみ。
 
 ## 状況
 

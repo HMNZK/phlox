@@ -2,6 +2,7 @@ import AgentDomain
 import Foundation
 import LocalHTTPServer
 import Network
+import os
 
 public enum ControlServerError: Error, Sendable {
     case listenerFailed(Error)
@@ -10,6 +11,7 @@ public enum ControlServerError: Error, Sendable {
 }
 
 public actor ControlServer {
+    private static let logger = Logger(subsystem: "com.phlox.Phlox", category: "ControlServer")
     /// テスト用シーム: NWListener の生成を差し替えられるようにする(既定は実生成)。
     internal typealias MakeListener = LocalHTTPListener.MakeListener
 
@@ -149,6 +151,9 @@ public actor ControlServer {
         case .success(let routed):
             action = routed
         case .failure(let response):
+            Self.logger.error(
+                "route failure: \(request.method, privacy: .public) \(request.path, privacy: .public) bodyLen=\(request.body.count, privacy: .public) -> \(response.statusCode, privacy: .public) \(String(data: response.body.prefix(300), encoding: .utf8) ?? "", privacy: .public)"
+            )
             await send(connection: connection, response: response)
             return
         }
@@ -167,6 +172,11 @@ public actor ControlServer {
             }
         } else {
             controlResponse = await handler(controlRequest)
+        }
+        if controlResponse.statusCode >= 400 {
+            Self.logger.error(
+                "control request failed: \(request.method, privacy: .public) \(request.path, privacy: .public) bodyLen=\(request.body.count, privacy: .public) -> \(controlResponse.statusCode, privacy: .public) \(String(data: controlResponse.body.prefix(300), encoding: .utf8) ?? "", privacy: .public)"
+            )
         }
         await send(connection: connection, response: controlResponse)
     }

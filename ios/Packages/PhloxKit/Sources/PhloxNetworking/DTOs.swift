@@ -60,8 +60,13 @@ struct OutputDTO: Decodable {
 }
 
 struct ServerErrorDTO: Decodable {
+    let error: String?
     let message: String?
     let reason: String?
+
+    /// Mac の `ErrorDTO` は理由を **`error`** キーで返す（ControlServer 全エンドポイント共通の wire 形）。
+    /// 旧経路互換で message/reason も見て、いずれか非 nil を人間向け理由として採る。
+    var displayReason: String? { error ?? message ?? reason }
 }
 
 // MARK: - 構造化チャット（GET /sessions/{id}/messages）

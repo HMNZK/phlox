@@ -252,6 +252,24 @@ final class PhloxNetworkingTests: XCTestCase {
         }
     }
 
+    func testServer400ErrorFieldSurfacedInMessage() async {
+        // Mac の ErrorDTO は理由を `error` キーで返す（ControlServer 全エンドポイント共通の wire 形）。
+        // iOS が旧実装で message/reason だけ見て理由を nil に潰し、モバイルが「Mac側で問題が
+        // 発生しました」という汎用文言になっていた回帰の凍結テスト。`error` を人間向け message に写す。
+        NetStubURLProtocol.outcomes = [.status(400, json(#"{"error":"control-characters"}"#), [:])]
+        await assertThrows(.server(status: 400, message: "control-characters")) {
+            _ = try await self.makeClient().send(SendRequest(sessionID: "s1", text: "x"))
+        }
+    }
+
+    func testSpawn422ErrorFieldSurfacedAsReason() async {
+        // 422(spawnRejected)経路でも `error` キーから理由を採れることを凍結する。
+        NetStubURLProtocol.outcomes = [.status(422, json(#"{"error":"invalid role"}"#), [:])]
+        await assertThrows(.spawnRejected(reason: "invalid role")) {
+            _ = try await self.makeClient().spawn(SpawnRequest(agent: .codex, workspace: "w"))
+        }
+    }
+
     // MARK: - 再試行ポリシー
 
     func testGetRetriesOnTransientFailureThenSucceeds() async throws {

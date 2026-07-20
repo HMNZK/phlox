@@ -274,14 +274,16 @@ func sendMessage_controlCharacters_returnsRejected() async throws {
     _ = try await dashboard.spawnNewSession(kind: .claudeCode)
     dashboard.sessions[1].name = "Bob"
 
-    let newlineOutcome = await dashboard.sendMessage(
+    // \r(submit トリガ)は本文に混入すると Enter と誤解されるため拒否を維持する。
+    let crOutcome = await dashboard.sendMessage(
         to: .name("Bob"),
-        text: "line\nbreak",
+        text: "line\rbreak",
         submit: false,
         from: dashboard.sessions[0].id
     )
-    #expect(newlineOutcome == .rejected(reason: "control-characters"))
+    #expect(crOutcome == .rejected(reason: "control-characters"))
 
+    // ESC(端末エスケープ注入)も拒否を維持する。
     let escOutcome = await dashboard.sendMessage(
         to: .name("Bob"),
         text: "esc\u{1B}",
@@ -289,8 +291,60 @@ func sendMessage_controlCharacters_returnsRejected() async throws {
         from: dashboard.sessions[0].id
     )
     #expect(escOutcome == .rejected(reason: "control-characters"))
+
+    // DEL(0x7F)も拒否を維持する。
+    let delOutcome = await dashboard.sendMessage(
+        to: .name("Bob"),
+        text: "del\u{7F}",
+        submit: false,
+        from: dashboard.sessions[0].id
+    )
+    #expect(delOutcome == .rejected(reason: "control-characters"))
+
+    // \t 以外の汎用 C0 制御文字(例: 0x01)も拒否を維持する。
+    let c0Outcome = await dashboard.sendMessage(
+        to: .name("Bob"),
+        text: "c0\u{01}",
+        submit: false,
+        from: dashboard.sessions[0].id
+    )
+    #expect(c0Outcome == .rejected(reason: "control-characters"))
     #expect(messageStore.recorded.isEmpty)
     #expect(ptyManager.writtenCalls.isEmpty)
+}
+
+/// 改行(\n)を含む複数行本文は拒否せず、改行を保ったまま配信する。
+/// モバイルの複数行メッセージ（AskUserQuestion を求める長文など）が control-characters
+/// で 400 拒否され「Mac側で問題が発生しました」になっていた回帰の凍結テスト。
+/// 配信層(SessionViewModel.sendText)が bracketed paste で複数行を安全に扱い、submit は
+/// 別途 \r で行うため、本文中の \n は許可してよい。
+@Test @MainActor
+func sendMessage_multilineBody_isDeliveredWithNewlinePreserved() async throws {
+    let ptyManager = MockPTYManager()
+    let messageStore = MockMessageStore()
+    let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+    let environment = makeTestEnvironment(pty: ptyManager, hookStream: hookStream, messages: messageStore)
+    let dashboard = DashboardViewModel(environment: environment)
+    await dashboard.start()
+
+    _ = try await dashboard.spawnNewSession(kind: .claudeCode)
+    _ = try await dashboard.spawnNewSession(kind: .claudeCode)
+    dashboard.sessions[0].name = "Alice"
+    dashboard.sessions[1].name = "Bob"
+
+    let outcome = await dashboard.sendMessage(
+        to: .name("Bob"),
+        text: "line\nbreak",
+        submit: true,
+        from: dashboard.sessions[0].id
+    )
+
+    #expect(outcome == .sent)
+    #expect(ptyManager.writtenCalls.count == 2)
+    let (bodyData, _) = ptyManager.writtenCalls[0]
+    let (submitData, _) = ptyManager.writtenCalls[1]
+    #expect(String(decoding: bodyData, as: UTF8.self) == "[from Alice] line\nbreak")
+    #expect(String(decoding: submitData, as: UTF8.self) == "\r")
 }
 
 @Test @MainActor

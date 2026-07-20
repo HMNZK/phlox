@@ -381,10 +381,10 @@ public actor PhloxAPIClient: PhloxAPI {
             let retryAfter = Int(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 0
             throw PhloxError.rateLimited(retryAfter: retryAfter)
         case 422:
-            let reason = (try? JSONDecoder().decode(ServerErrorDTO.self, from: data))?.reason
+            let reason = (try? JSONDecoder().decode(ServerErrorDTO.self, from: data))?.displayReason
             throw PhloxError.spawnRejected(reason: reason ?? "リクエストが拒否されました")
         default:
-            let message = (try? JSONDecoder().decode(ServerErrorDTO.self, from: data))?.message
+            let message = (try? JSONDecoder().decode(ServerErrorDTO.self, from: data))?.displayReason
             throw PhloxError.server(status: http.statusCode, message: message)
         }
     }

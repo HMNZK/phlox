@@ -142,15 +142,19 @@ final class MessagingService {
     }
 
     private func containsRejectedControlCharacters(_ text: String) -> Bool {
+        // \n(LF)は正当な複数行本文として許可する。配信層(SessionViewModel.sendText)が
+        // bracketed paste で複数行を安全に扱い、submit は別途 \r で行うため、本文中の
+        // \n が Enter と誤解されることはない。一方 \r(submit トリガ)・ESC(端末エスケープ
+        // 注入)・DEL・その他 C0 制御文字は注入リスクとして拒否を維持する。
         for scalar in text.unicodeScalars {
             let value = scalar.value
-            if scalar == "\r" || scalar == "\n" || scalar == "\u{1B}" {
+            if scalar == "\r" || scalar == "\u{1B}" {
                 return true
             }
             if value == 0x7F {
                 return true
             }
-            if value < 0x20, scalar != "\t" {
+            if value < 0x20, scalar != "\t", scalar != "\n" {
                 return true
             }
         }

@@ -3,6 +3,15 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.2.1</title>
+            <pubDate>Mon, 20 Jul 2026 14:10:37 +0900</pubDate>
+            <sparkle:version>16</sparkle:version>
+            <sparkle:shortVersionString>1.2.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.2.1.zip" length="13540182" type="application/octet-stream" sparkle:edSignature="yo6QYDE4qbXA4Z+T1yhxH2tgNVwUAOV62e7k8rHlPmq2WObspEMPXvsYFt4/84a5w7dvJ3nP6dupwupT6eS5Bg=="/>
+        </item>
+        <item>
             <title>1.2.0</title>
             <pubDate>Sun, 19 Jul 2026 14:22:39 +0900</pubDate>
             <sparkle:version>15</sparkle:version>

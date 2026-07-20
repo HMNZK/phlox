@@ -6,37 +6,42 @@ import SwiftUI
 @Suite("DSThinkingAnimationModel 白箱")
 struct DSThinkingAnimationModelWhiteboxTests {
 
-    @Test("period は契約レンジ 1.0...1.6 に収まる")
-    func periodIsWithinContractRange() {
-        #expect(DSThinkingAnimationModel.period >= 1.0)
-        #expect(DSThinkingAnimationModel.period <= 1.6)
+    @Test("shimmerPeriod は macOS パリティの 1.6")
+    func shimmerPeriodMatchesContract() {
+        #expect(DSThinkingAnimationModel.shimmerPeriod == 1.6)
     }
 
-    @Test("dotCount は 3 固定")
-    func dotCountIsThree() {
-        #expect(DSThinkingAnimationModel.dotCount == 3)
+    @Test("shimmerMinBrightness と shimmerMargin は契約定数")
+    func shimmerConstantsMatchContract() {
+        #expect(DSThinkingAnimationModel.shimmerMinBrightness == 0.45)
+        #expect(DSThinkingAnimationModel.shimmerMargin == 0.6)
     }
 
-    @Test("正弦波位相によりドット 0 と 1 は同時刻で異なる不透明度になりうる")
-    func adjacentDotsCanDifferAtSameTime() {
-        let a = DSThinkingAnimationModel.opacity(dotIndex: 0, at: 0.25)
-        let b = DSThinkingAnimationModel.opacity(dotIndex: 1, at: 0.25)
-        #expect(abs(a - b) > 0.05)
+    @Test("shimmerPhase は負の時刻も [0,1) に正規化する")
+    func shimmerPhaseNormalizesNegativeTime() {
+        let period = DSThinkingAnimationModel.shimmerPeriod
+        let phase = DSThinkingAnimationModel.shimmerPhase(at: -0.1)
+        #expect(phase >= 0 && phase < 1)
+        let expected = (period - 0.1) / period
+        #expect(abs(phase - expected) < 1e-9)
     }
 
-    @Test("wave の極値付近で 0.2 と 1.0 に近い値を取る")
-    func opacityReachesExtremaNearBounds() {
-        var sawLow = false
-        var sawHigh = false
-        for t in stride(from: 0.0, through: DSThinkingAnimationModel.period, by: 0.01) {
-            for dot in 0..<DSThinkingAnimationModel.dotCount {
-                let value = DSThinkingAnimationModel.opacity(dotIndex: dot, at: t)
-                if value < 0.25 { sawLow = true }
-                if value > 0.95 { sawHigh = true }
-            }
+    @Test("帯中心が画面内にあるときピーク明度は 1.0")
+    func brightnessPeaksAtBandCenter() {
+        let center = DSThinkingAnimationModel.shimmerBandCenter(phase: 0.5)
+        let peak = DSThinkingAnimationModel.shimmerBrightness(position: center, phase: center)
+        #expect(abs(peak - 1.0) < 1e-6)
+    }
+
+    @Test("帯が画面外のとき全位置の明度は下限付近")
+    func brightnessNearFloorWhenBandOffscreen() {
+        let minB = DSThinkingAnimationModel.shimmerMinBrightness
+        let center = DSThinkingAnimationModel.shimmerBandCenter(phase: 0.0)
+        for step in 0...20 {
+            let position = Double(step) / 20
+            let b = DSThinkingAnimationModel.shimmerBrightness(position: position, phase: center)
+            #expect(b <= minB + 0.05)
         }
-        #expect(sawLow)
-        #expect(sawHigh)
     }
 }
 

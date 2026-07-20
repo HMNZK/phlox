@@ -3,57 +3,79 @@ import Foundation
 import SwiftUI
 @testable import DesignSystemIOS
 
-// task-1 受け入れテスト（PM 著・凍結）。契約: tasks/task-1.md
-// DSThinkingAnimationModel の純関数位相計算と、DS 部品3点の存在・初期化可能性を検証する。
+// task-2 受け入れテスト（PM 著・凍結）。契約: tasks/task-2.md
+// iOS の Thinking インジケータを macOS と同じ「明度が左→右へ流れるシマー」に揃える。
+// 点滅ドットは廃止。DSThinkingAnimationModel はシマー純関数のみを提供する（macOS
+// ThinkingAnimationModel のシマー関数と同一セマンティクス。ただし iOS 慣習に合わせ
+// 時刻入力は TimeInterval を取る）。実装役はこのテストを満たす本体を埋める（本ファイルは不変）。
 
-@Suite("DSThinkingAnimationModel 受け入れ（純関数位相計算）")
-struct ThinkingAnimationModelAcceptanceTests {
+@Suite("DSThinkingAnimationModel シマー受け入れ（純関数・macOS パリティ）")
+struct ThinkingShimmerAcceptanceTests {
 
-    @Test("不透明度は全ドット・広範な時刻で 0.2...1.0 に収まる")
-    func opacityStaysInRange() {
-        for dot in 0..<DSThinkingAnimationModel.dotCount {
-            for t in stride(from: -2.0, through: 6.0, by: 0.05) {
-                let opacity = DSThinkingAnimationModel.opacity(dotIndex: dot, at: t)
-                #expect(opacity >= 0.2, "dot=\(dot) t=\(t) opacity=\(opacity)")
-                #expect(opacity <= 1.0, "dot=\(dot) t=\(t) opacity=\(opacity)")
-            }
-        }
-    }
-
-    @Test("period 経過後は同位相（周期性）")
-    func opacityIsPeriodic() {
-        let period = DSThinkingAnimationModel.period
+    @Test("shimmerPhase は [0,1) に収まり周期 shimmerPeriod で反復する")
+    func phaseNormalizedAndPeriodic() {
+        let period = DSThinkingAnimationModel.shimmerPeriod
         #expect(period > 0)
-        for dot in 0..<DSThinkingAnimationModel.dotCount {
-            for t in [0.0, 0.3, 0.7, 1.1] {
-                let a = DSThinkingAnimationModel.opacity(dotIndex: dot, at: t)
-                let b = DSThinkingAnimationModel.opacity(dotIndex: dot, at: t + period)
-                #expect(abs(a - b) < 0.0001, "dot=\(dot) t=\(t)")
+        for t in stride(from: -3.0, through: 6.0, by: 0.037) {
+            let p = DSThinkingAnimationModel.shimmerPhase(at: t)
+            #expect(p >= 0 && p < 1, "t=\(t) phase=\(p)")
+            let q = DSThinkingAnimationModel.shimmerPhase(at: t + period)
+            #expect(abs(p - q) < 1e-9, "t=\(t) 非周期")
+        }
+    }
+
+    @Test("帯中心は画面外余白まで線形写像される")
+    func bandCenterMapsToOffscreenMargins() {
+        let margin = DSThinkingAnimationModel.shimmerMargin
+        #expect(abs(DSThinkingAnimationModel.shimmerBandCenter(phase: 0) - (-margin)) < 1e-9)
+        #expect(abs(DSThinkingAnimationModel.shimmerBandCenter(phase: 1) - (1 + margin)) < 1e-9)
+        #expect(abs(DSThinkingAnimationModel.shimmerBandCenter(phase: 0.5) - 0.5) < 1e-9)
+    }
+
+    @Test("明度は [shimmerMinBrightness, 1] に収まり決定的")
+    func brightnessRangeAndDeterministic() {
+        let minB = DSThinkingAnimationModel.shimmerMinBrightness
+        for center in stride(from: -0.6, through: 1.6, by: 0.05) {
+            for step in 0...20 {
+                let position = Double(step) / 20
+                let b = DSThinkingAnimationModel.shimmerBrightness(position: position, phase: center)
+                #expect(b >= minB - 1e-9 && b <= 1 + 1e-9, "center=\(center) pos=\(position) b=\(b)")
+                let b2 = DSThinkingAnimationModel.shimmerBrightness(position: position, phase: center)
+                #expect(b == b2)
             }
         }
     }
 
-    @Test("ドット同士は位相がずれている（全ドットが常に同値ではない）")
-    func dotsAreStaggered() {
-        #expect(DSThinkingAnimationModel.dotCount == 3)
-        var foundDifference = false
-        for t in stride(from: 0.0, through: DSThinkingAnimationModel.period, by: 0.02) {
-            let values = (0..<DSThinkingAnimationModel.dotCount)
-                .map { DSThinkingAnimationModel.opacity(dotIndex: $0, at: t) }
-            if let first = values.first, values.contains(where: { abs($0 - first) > 0.05 }) {
-                foundDifference = true
-                break
-            }
-        }
-        #expect(foundDifference, "全時刻で全ドットが同値＝位相ずれが実装されていない")
+    @Test("帯が画面内に来ると明度はピーク 1.0 に達する")
+    func brightnessPeaksWhenBandOnScreen() {
+        let center = DSThinkingAnimationModel.shimmerBandCenter(phase: 0.5)
+        #expect(center >= 0 && center <= 1)
+        let peak = DSThinkingAnimationModel.shimmerBrightness(position: center, phase: center)
+        #expect(abs(peak - 1.0) < 1e-6)
     }
 
-    @Test("同一入力に対して決定的（乱数・現在時刻に依存しない）")
-    func opacityIsDeterministic() {
-        for dot in 0..<DSThinkingAnimationModel.dotCount {
-            let a = DSThinkingAnimationModel.opacity(dotIndex: dot, at: 0.42)
-            let b = DSThinkingAnimationModel.opacity(dotIndex: dot, at: 0.42)
-            #expect(a == b)
+    @Test("明度はピークを中心に対称かつ距離とともに減衰する")
+    func brightnessSymmetricDecay() {
+        let center = 0.5
+        let near = DSThinkingAnimationModel.shimmerBrightness(position: 0.55, phase: center)
+        let far = DSThinkingAnimationModel.shimmerBrightness(position: 0.75, phase: center)
+        let nearLeft = DSThinkingAnimationModel.shimmerBrightness(position: 0.45, phase: center)
+        #expect(abs(near - nearLeft) < 1e-9, "ピーク中心で対称でない")
+        #expect(near > far, "距離が増えて明度が減衰しない")
+    }
+
+    @Test("折返し時は帯が画面外にあり継ぎ目（かくつき）が見えない")
+    func foldingSeamInvisible() {
+        let minB = DSThinkingAnimationModel.shimmerMinBrightness
+        let centerHigh = DSThinkingAnimationModel.shimmerBandCenter(phase: 0.999)
+        let centerLow = DSThinkingAnimationModel.shimmerBandCenter(phase: 0.0)
+        for step in 0...20 {
+            let position = Double(step) / 20
+            let high = DSThinkingAnimationModel.shimmerBrightness(position: position, phase: centerHigh)
+            let low = DSThinkingAnimationModel.shimmerBrightness(position: position, phase: centerLow)
+            #expect(high <= minB + 0.05, "折返し直前に画面内が光っている pos=\(position)")
+            #expect(low <= minB + 0.05, "折返し直後に画面内が光っている pos=\(position)")
+            #expect(abs(high - low) < 0.05, "折返し前後が不連続 pos=\(position)")
         }
     }
 }

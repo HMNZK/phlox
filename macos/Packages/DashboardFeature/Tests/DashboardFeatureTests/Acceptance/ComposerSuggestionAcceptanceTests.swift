@@ -9,11 +9,15 @@ import Testing
 
 // MARK: - トリガー検出（純関数）
 
-@Test func composerSuggestion_trigger_slashOnlyAtTextStart() {
-    let query = SuggestionTrigger.query(text: "/co", cursorUTF16: 3)
-    #expect(query == SuggestionQuery(kind: .slashCommand, tokenRange: 0..<3, searchTerm: "co"))
-    // 先頭以外の "/" は発火しない
-    #expect(SuggestionTrigger.query(text: "hello /co", cursorUTF16: 9) == nil)
+@Test func composerSuggestion_trigger_slashFiresAtAnyTokenStart() {
+    // 先頭の "/"（不変）
+    #expect(SuggestionTrigger.query(text: "/co", cursorUTF16: 3)
+        == SuggestionQuery(kind: .slashCommand, tokenRange: 0..<3, searchTerm: "co"))
+    // 文中でも空白区切りトークン先頭の "/" で発火する
+    #expect(SuggestionTrigger.query(text: "hello /co", cursorUTF16: 9)
+        == SuggestionQuery(kind: .slashCommand, tokenRange: 6..<9, searchTerm: "co"))
+    // トークン途中の "/"（パス等）は発火しない
+    #expect(SuggestionTrigger.query(text: "src/main", cursorUTF16: 8) == nil)
 }
 
 @Test func composerSuggestion_trigger_slashAloneShowsAllCommands() {
@@ -60,6 +64,15 @@ func composerSuggestion_controller_filtersSlashByPrefixAndPresents() {
     #expect(controller.isPresented)
     #expect(controller.candidates.map(\.insertionText) == ["/compact", "/clear"])
     #expect(controller.selectedIndex == 0)
+}
+
+@Test @MainActor
+func composerSuggestion_controller_slashFiresMidText() {
+    // 本文の後ろの "/" でも候補が表示される（ユーザー要件のエンドツーエンド経路）
+    let controller = makeController()
+    controller.update(text: "本文 /c", cursorUTF16: 5)
+    #expect(controller.isPresented)
+    #expect(controller.candidates.map(\.insertionText) == ["/compact", "/clear"])
 }
 
 @Test @MainActor

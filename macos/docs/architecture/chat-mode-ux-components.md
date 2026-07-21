@@ -66,6 +66,8 @@ PTY read（actor＋専用キュー）・transcript 保存（actor）・Hook/Cont
 
 `ComposerSuggestionController` はファイル候補の走査（キャッシュ miss 時の FS 再帰）を**背景 Task** で行い、`update` は即返る（warm キャッシュ hit は同期即応答の fast-path）。走査中は前回候補を保持し、走査は **in-flight 1本＋最新 pending 1枠**に coalescing（running 中の新クエリは走査を起動せず pending 上書きのみ）。結果採用は世代トークン一致時のみで、古いクエリの結果が新しい結果を上書きしない。slash 候補は従来どおり同期。
 
+**発火位置（ADR 0104）**: `/`（slash）も `@`（file）も**カーソル直前の空白区切りトークンの先頭**で発火する（位置不問・両者対称）。トークン途中の `/`・`@`（`src/main`・`a@b.com` 等）は発火しない。ハイライト（`ComposerHighlight.spans`）も同じトークン先頭規則で、`applyComposerHighlights` が全 span を無条件着色する。
+
 ## トランスクリプト項目の ID 索引
 
 `ChatSessionViewModel.transcriptItemIDs`（Set<String>）は transcript の全変更経路（append/置換/revert 切詰め/restore 再構築）で増分維持され、常に `Set(transcript.map(\.id))` と一致する。BackgroundTaskStrip のジャンプ可否判定はこれを参照する（body 毎の全再構築を廃止）。

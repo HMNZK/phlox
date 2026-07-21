@@ -1151,10 +1151,11 @@ public final class ChatSessionViewModel: Identifiable {
         )
     }
 
-    /// AskUserQuestion 到着時の attention（赤枠ラッチ＋通知）。未ラッチ時のみ発火し多重通知を防ぐ。
-    private func latchUserQuestionAttentionIfNeeded() {
-        guard !hasUnseenCompletion else { return }
-        hasUnseenCompletion = true
+    /// AskUserQuestion 到着時に入力待ちへ遷移し、非入力待ちからの遷移時のみ通知する。
+    private func enterAwaitingUserQuestion() {
+        let previousStatus = status
+        status = .awaitingUserQuestion
+        if case .awaitingUserQuestion = previousStatus { return }
         SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
         remoteSessionNotifier?.approvalPending(
             sessionId: id.description,
@@ -1316,7 +1317,7 @@ public final class ChatSessionViewModel: Identifiable {
                 state: .pending,
                 timestamp: eventDate
             ))
-            latchUserQuestionAttentionIfNeeded()
+            enterAwaitingUserQuestion()
             touchOutput()
         case .userQuestionResolved(let requestId, let outcome):
             markRunningEventReceived(at: eventDate)
@@ -1359,6 +1360,7 @@ public final class ChatSessionViewModel: Identifiable {
                 state: .answered,
                 timestamp: timestamp
             ))
+            status = .running
         case .expired:
             guard state == .pending else { return }
             appendOrReplace(.userQuestion(

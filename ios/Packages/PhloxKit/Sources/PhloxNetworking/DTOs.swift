@@ -367,6 +367,7 @@ extension SessionStatus {
         case "idle": self = .idle
         case "running": self = .running
         case "awaitingApproval": self = .awaitingApproval(prompt: "")
+        case "awaitingUserQuestion": self = .awaitingUserQuestion
         case "completed": self = .completed(exitCode: 0)
         case "error": self = .error(message: "")
         default: self = .idle

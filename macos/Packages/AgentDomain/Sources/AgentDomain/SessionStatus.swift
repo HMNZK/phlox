@@ -21,10 +21,9 @@ public extension SessionStatus {
     /// starting→idle（単に入力受付可能になっただけ）もラッチしない。
     var latchesUnseenAttentionOnEntry: Bool {
         switch self {
-        case .awaitingApproval, .completed, .error:
+        case .awaitingApproval, .awaitingUserQuestion, .completed, .error:
             true
-        case .starting, .idle, .running, .awaitingUserQuestion:
-            // .awaitingUserQuestion の最終挙動は task-1 が実装する（スタブ: 現状 false）。
+        case .starting, .idle, .running:
             false
         }
     }

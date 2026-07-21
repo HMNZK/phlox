@@ -5,6 +5,9 @@ public enum SessionStatus: Sendable, Equatable {
     case idle
     case running
     case awaitingApproval(prompt: String)
+    /// AskUserQuestion の回答待ち（ask-question-ux task-1 契約。
+    /// 受け入れテスト AcceptanceUserQuestionStatusTests / SessionStatusAttentionTests が凍結）。
+    case awaitingUserQuestion
     case completed(exitCode: Int32)
     case error(message: String)
 }
@@ -20,8 +23,17 @@ public extension SessionStatus {
         switch self {
         case .awaitingApproval, .completed, .error:
             true
-        case .starting, .idle, .running:
+        case .starting, .idle, .running, .awaitingUserQuestion:
+            // .awaitingUserQuestion の最終挙動は task-1 が実装する（スタブ: 現状 false）。
             false
         }
+    }
+}
+
+/// セッションが「ユーザーの対応待ちで赤表示を維持すべきか」の導出（ask-question-ux task-2 契約。
+/// 受け入れテスト AcceptanceSessionAttentionPolicyTests が凍結。スタブ実装＝task-2 が本実装する）。
+public enum SessionAttentionPolicy {
+    public static func requiresAttention(status: SessionStatus, hasUnseenCompletion: Bool) -> Bool {
+        hasUnseenCompletion
     }
 }

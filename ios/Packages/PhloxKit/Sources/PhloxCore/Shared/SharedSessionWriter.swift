@@ -50,6 +50,8 @@ public struct SharedSessionWriter {
             ("Running", "In progress")
         case .awaitingApproval:
             ("Waiting", "Approval required")
+        case .awaitingUserQuestion:
+            ("Waiting", "Input required")
         case .completed(let exitCode):
             exitCode == 0 ? ("Finished", "No Changes") : ("Finished", "Exit \(exitCode)")
         case .error(let message):

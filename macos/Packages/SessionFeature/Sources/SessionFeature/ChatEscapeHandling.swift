@@ -72,7 +72,7 @@ extension View {
 extension SessionStatus {
     var isRunning: Bool {
         switch self {
-        case .running, .awaitingApproval:
+        case .running, .awaitingApproval, .awaitingUserQuestion:
             true
         case .starting, .idle, .completed, .error:
             false

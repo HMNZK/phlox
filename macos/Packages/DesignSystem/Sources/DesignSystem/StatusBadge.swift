@@ -14,6 +14,8 @@ public enum StatusBadge {
             "running"
         case .awaitingApproval:
             "awaiting"
+        case .awaitingUserQuestion:
+            "input"
         case .completed(let exitCode) where exitCode == 0:
             "done"
         case .completed:
@@ -33,6 +35,8 @@ public enum StatusBadge {
             "実行中"
         case .awaitingApproval:
             "承認待ち"
+        case .awaitingUserQuestion:
+            "入力待ち"
         case .completed(let exitCode):
             "完了 (\(exitCode))"
         case .error:
@@ -53,7 +57,7 @@ public enum StatusBadge {
             DSColor.statusIdle
         case .running:
             DSColor.statusRunning
-        case .awaitingApproval:
+        case .awaitingApproval, .awaitingUserQuestion:
             DSColor.statusAwaitingApproval
         case .completed:
             DSColor.statusCompleted
@@ -73,6 +77,8 @@ public enum StatusBadge {
             "play.circle.fill"
         case .awaitingApproval:
             "exclamationmark.bubble.fill"
+        case .awaitingUserQuestion:
+            "questionmark.bubble.fill"
         case .completed(let exitCode) where exitCode == 0:
             "checkmark.circle.fill"
         case .completed:
@@ -84,7 +90,7 @@ public enum StatusBadge {
 
     public static func helpText(for status: SessionStatus) -> String {
         switch status {
-        case .starting, .idle, .running, .awaitingApproval, .completed:
+        case .starting, .idle, .running, .awaitingApproval, .awaitingUserQuestion, .completed:
             ""
         case .error(let message):
             message

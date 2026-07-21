@@ -464,7 +464,7 @@ public final class ChatSessionViewModel: Identifiable {
         switch status {
         case .starting:
             false
-        case .idle, .running, .awaitingApproval, .completed, .error:
+        case .idle, .running, .awaitingApproval, .awaitingUserQuestion, .completed, .error:
             true
         }
     }

@@ -371,7 +371,7 @@ public final class SessionDetailViewModel {
     public var inputEnabled: Bool {
         if isAwaitingInitialSpawn { return true }
         switch currentStatus {
-        case .awaitingApproval, .idle, .running:
+        case .awaitingApproval, .awaitingUserQuestion, .idle, .running:
             return true
         case .starting, .completed, .error:
             return false

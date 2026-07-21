@@ -733,7 +733,7 @@ private extension SessionStatus {
         switch self {
         case .starting:
             false
-        case .idle, .running, .awaitingApproval, .completed, .error:
+        case .idle, .running, .awaitingApproval, .awaitingUserQuestion, .completed, .error:
             true
         }
     }

@@ -638,6 +638,7 @@ public final class ControlActionHandler {
         case .idle: "idle"
         case .running: "running"
         case .awaitingApproval: "awaitingApproval"
+        case .awaitingUserQuestion: "awaitingUserQuestion"
         case .completed: "completed"
         case .error: "error"
         }

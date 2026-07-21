@@ -88,6 +88,12 @@ public final class ChatSessionViewModel: Identifiable {
     ) -> Bool {
         restoreState == .restoring && transcriptIsEmpty
     }
+
+    /// `/compact`（引数付き含む）の submit 送信か。前後空白は trim する。
+    nonisolated static func isCompactCommand(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed == "/compact" || trimmed.hasPrefix("/compact ")
+    }
     public private(set) var availableModels: [AppServerModel] = []
     public private(set) var permissionProfiles: [PermissionProfileSummary] = []
     public private(set) var selectedModel: String?
@@ -1174,6 +1180,7 @@ public final class ChatSessionViewModel: Identifiable {
             }
             appendPendingTurnCostIfNeeded(timestamp: eventDate)
             let previousStatus = status
+            isCompacting = false
             clearRunningTurn()
             status = .idle
             completedTurnSeq += 1
@@ -1186,6 +1193,7 @@ public final class ChatSessionViewModel: Identifiable {
                 updateNativeSessionId(nativeSessionId)
             }
             expireAllPendingUserQuestions()
+            isCompacting = false
             clearRunningTurn()
             clearRunningBackgroundTasks()
             subAgentModel.failRunningSubAgents()
@@ -1193,6 +1201,7 @@ public final class ChatSessionViewModel: Identifiable {
             flushTranscriptAtTurnBoundary()
         case .error(let message):
             expireAllPendingUserQuestions()
+            isCompacting = false
             clearRunningTurn()
             appendOrReplace(.error(id: "error-\(UUID().uuidString)", message: message, timestamp: eventDate))
             clearRunningBackgroundTasks()
@@ -1240,8 +1249,8 @@ public final class ChatSessionViewModel: Identifiable {
                 outputFile: outputFile
             )
         case .compactionBoundary:
-            // phlox-ux-5fixes task-2 スタブ（契約: AcceptanceCompactingIndicatorTests）。実装は task-2。
             markRunningEventReceived(at: eventDate)
+            isCompacting = false
         case .userQuestionRequested(let requestId, let questions):
             markRunningEventReceived(at: eventDate)
             appendOrReplace(.userQuestion(
@@ -1928,6 +1937,9 @@ extension ChatSessionViewModel: ControllableSession {
             enqueueTranscriptUpsert([item])
             turnGeneration += 1
             isAwaitingLocallyStartedTurnEvent = true
+            if Self.isCompactCommand(input) {
+                isCompacting = true
+            }
             status = .running
             // リバートで予約された文脈リプレイがあれば、CLI 入力にのみプリアンブルを前置する。
             let clientInput: String

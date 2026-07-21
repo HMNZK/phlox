@@ -89,6 +89,11 @@ extension ClaudeChatClient {
                     summary: event["summary"] as? String ?? ""
                 ))
             }
+        case "compact_boundary":
+            let metadata = event["compact_metadata"] as? [String: Any]
+            let trigger = metadata?["trigger"] as? String
+            let preTokens = metadata?["pre_tokens"] as? Int
+            eventContinuation.yield(.compactionBoundary(trigger: trigger, preTokens: preTokens))
         default:
             break
         }

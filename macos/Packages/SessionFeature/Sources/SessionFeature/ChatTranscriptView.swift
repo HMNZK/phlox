@@ -154,7 +154,20 @@ struct ChatTranscriptView: View {
                 transcriptBlock(block.content, lastTranscriptID: transcriptSignal.lastID)
                     .id(block.id)
             }
-            if shouldShowThinkingIndicator {
+            if CompactingIndicatorPresentation.shouldShowCompactingIndicator(
+                isCompacting: viewModel.isCompacting
+            ) {
+                CompactingIndicatorCell(
+                    descriptor: agentDescriptor,
+                    isInTranscriptViewport: isThinkingIndicatorInViewport
+                )
+                .id("chat-compacting")
+            }
+            if CompactingIndicatorPresentation.shouldShowThinkingIndicator(
+                showsThinkingIndicator: showsThinkingIndicator,
+                showsProcessingIndicator: viewModel.showsProcessingIndicator,
+                isCompacting: viewModel.isCompacting
+            ) {
                 ThinkingIndicatorCell(
                     descriptor: agentDescriptor,
                     recap: { viewModel.recap(now: $0) },
@@ -242,10 +255,6 @@ struct ChatTranscriptView: View {
             bypassKey: "phlox.bypass.\(viewModel.agentRef.id)",
             launchSpec: AgentLaunchSpec(statusBootstrap: .idleOnSpawnComplete)
         )
-    }
-
-    private var shouldShowThinkingIndicator: Bool {
-        showsThinkingIndicator && viewModel.showsProcessingIndicator
     }
 
     private var transcriptItems: [ChatItem] {

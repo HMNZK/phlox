@@ -1093,6 +1093,17 @@ public final class ChatSessionViewModel: Identifiable {
         )
     }
 
+    /// AskUserQuestion 到着時の attention（赤枠ラッチ＋通知）。未ラッチ時のみ発火し多重通知を防ぐ。
+    private func latchUserQuestionAttentionIfNeeded() {
+        guard !hasUnseenCompletion else { return }
+        hasUnseenCompletion = true
+        SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
+        remoteSessionNotifier?.approvalPending(
+            sessionId: id.description,
+            sessionName: displayName
+        )
+    }
+
     private func appendPendingTurnCostIfNeeded(timestamp: Date) {
         guard let pendingTurnCostUSD else { return }
         appendOrReplace(.turnCost(
@@ -1241,6 +1252,7 @@ public final class ChatSessionViewModel: Identifiable {
                 state: .pending,
                 timestamp: eventDate
             ))
+            latchUserQuestionAttentionIfNeeded()
             touchOutput()
         case .userQuestionResolved(let requestId, let outcome):
             markRunningEventReceived(at: eventDate)

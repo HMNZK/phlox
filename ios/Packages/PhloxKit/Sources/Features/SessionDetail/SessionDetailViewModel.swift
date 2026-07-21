@@ -38,6 +38,9 @@ public final class SessionDetailViewModel {
     /// task-4: `currentStatus` が `.running` になった時刻。running を外れたら nil。
     public private(set) var thinkingStartedAt: Date?
     public var inputText: String = ""
+    /// task-3 契約の PM スタブ。入力欄のカーソル位置（UTF-16 オフセット）。
+    /// View が書き込み、添付時のプレースホルダ挿入位置として使う。
+    public var inputCursorUTF16: Int = 0
     public var isOutputExpanded = false
     public private(set) var outputText: String = ""
     /// 初回の messages / output 解決まで true。ポーリング更新では再点灯しない。
@@ -129,11 +132,14 @@ public final class SessionDetailViewModel {
     /// 入力バー添付ストリップ用（確定時に生成した小さいプレビューのみ。フル解像度は `send` に保持）。
     public struct SessionAttachmentItem: Equatable, Identifiable, Sendable {
         public let id: UUID
+        /// 本文の `[Image #N]` と対応する表示番号（1始まり・欠番は詰めない）。task-3 契約。
+        public let number: Int
         public let send: SendAttachment
         public let previewData: Data
 
-        public init(id: UUID = UUID(), send: SendAttachment, previewData: Data) {
+        public init(id: UUID = UUID(), number: Int = 1, send: SendAttachment, previewData: Data) {
             self.id = id
+            self.number = number
             self.send = send
             self.previewData = previewData
         }

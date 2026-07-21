@@ -7,10 +7,13 @@ import PhotosUI
 /// 添付ストリップの1件（確定時に生成済みの小さいプレビューのみ。フル解像度は ViewModel 側で保持）。
 public struct DSAttachmentStripItem: Identifiable, Equatable, Sendable {
     public let id: UUID
+    /// 本文の `[Image #N]` と対応する表示番号（1始まり）。task-3 契約。
+    public let number: Int
     public let previewData: Data
 
-    public init(id: UUID, previewData: Data) {
+    public init(id: UUID, number: Int = 1, previewData: Data) {
         self.id = id
+        self.number = number
         self.previewData = previewData
     }
 }
@@ -37,6 +40,8 @@ public struct DSInputBar: View {
     public static let providesPillChrome = true
     public static let providesDragToDismiss = false
     public static let providesVoiceInput = false
+    /// task-3 契約の PM スタブ: 入力欄がカーソル位置を外部へ公開する（iOS 18 の TextSelection 経由）。
+    public static let providesCursorAwareInput = false
     public static let usesNeutralFocusBorder = true
     public static let usesAccentFocusBorder = false
     public static let stopAccessibilityLabel = "停止"

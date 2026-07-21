@@ -9,15 +9,40 @@ import AgentDomain
 /// composer に添付された画像1件。
 struct ComposerAttachment: Equatable, Identifiable {
     let id: UUID
+    /// 本文の `[Image #N]` と対応する表示番号（1始まり・欠番は詰めない）。task-2 契約。
+    let number: Int
     let data: Data
     let mediaType: String
     let filename: String?
 
-    init(id: UUID = UUID(), data: Data, mediaType: String, filename: String? = nil) {
+    init(id: UUID = UUID(), number: Int = 1, data: Data, mediaType: String, filename: String? = nil) {
         self.id = id
+        self.number = number
         self.data = data
         self.mediaType = mediaType
         self.filename = filename
+    }
+}
+
+// task-2 契約の PM スタブ。API 表面は受け入れテスト
+// ComposerImageNumberingAcceptanceTests が凍結している（シグネチャ変更禁止）。
+// 実装契約の正本: tasks/task-2.md
+
+/// 画像ペーストの処理結果。`.unsupported` のときだけ通常のテキストペーストへフォールバックする。
+enum ComposerPasteImageOutcome: Equatable {
+    case unsupported
+    case rejected
+    case attached(number: Int)
+}
+
+/// 添付チップの表示（純関数）。
+enum ComposerAttachmentChipPresentation {
+    static func badge(for attachment: ComposerAttachment) -> String {
+        ""
+    }
+
+    static func title(for attachment: ComposerAttachment) -> String {
+        attachment.filename ?? attachment.mediaType
     }
 }
 
@@ -44,21 +69,24 @@ final class ComposerAttachmentStore {
     }
 
     /// 上限超過は lastError に人間可読メッセージを設定して追加しない。
-    func addImage(data: Data, mediaType: String, filename: String? = nil) {
+    /// 受理したときだけ採番済みの添付を返す（task-2 契約。PM スタブは常に nil）。
+    @discardableResult
+    func addImage(data: Data, mediaType: String, filename: String? = nil) -> ComposerAttachment? {
         if data.count > Self.maxBytesPerImage {
             lastError = "画像は1枚あたり4MiBまでです"
-            return
+            return nil
         }
         if attachments.count >= Self.maxCount {
             lastError = "画像は4枚まで添付できます"
-            return
+            return nil
         }
         if totalRawBytes + data.count > Self.maxTotalRawBytes {
             lastError = "画像は合計8MiBまでです"
-            return
+            return nil
         }
         attachments.append(ComposerAttachment(data: data, mediaType: mediaType, filename: filename))
         lastError = nil
+        return nil
     }
 
     /// 挿入用の `@path` 参照文字列を返す（添付には積まない）。

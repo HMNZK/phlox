@@ -474,6 +474,10 @@ struct IMESafeTextView: NSViewRepresentable {
     final class SubmitAwareTextView: NSTextView {
         var onSubmit: (() -> Void)?
         var onPasteImage: ((Data, String) -> Bool)?
+        /// task-2 契約の PM スタブ。設定されていればこちらだけを呼び、結果に応じて
+        /// カーソル位置へ `[Image #N]` を挿入する。nil なら従来の onPasteImage 経路。
+        /// 受け入れテスト ComposerImageNumberingAcceptanceTests が凍結（シグネチャ変更禁止）。
+        var onPasteImageOutcome: ((Data, String) -> ComposerPasteImageOutcome)?
         var onComposingChanged: ((Bool, String) -> Void)?
         var onEscape: (() -> Void)?
         var suggestionController: ComposerSuggestionController?

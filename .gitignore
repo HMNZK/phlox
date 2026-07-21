@@ -63,3 +63,6 @@ ios/doc/
 
 # Xcode/SPM デバッグビルド生成物（追跡しない）
 macos/build-debug/
+
+# Playwright MCP のブラウザ自動化成果物（ephemeral・追跡しない）
+.playwright-mcp/

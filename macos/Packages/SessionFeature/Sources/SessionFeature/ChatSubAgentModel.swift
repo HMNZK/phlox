@@ -215,15 +215,20 @@ final class ChatSubAgentModel {
         id.hasSuffix("-output") || id.hasSuffix("-summary")
     }
 
+    /// Dedup 比較専用: スペース・タブ・改行を全て除去した本文。表示・保存には使わない。
+    private static func whitespaceStrippedForDedup(_ text: String) -> String {
+        text.filter { !$0.isWhitespace }
+    }
+
     private func appendSubAgentTranscriptItem(toolUseId: String, item: ChatItem) {
         if case .agentMessage(_, let newText, _) = item {
-            let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
+            let stripped = Self.whitespaceStrippedForDedup(newText)
+            if !stripped.isEmpty {
                 let newIsReportChannel = Self.isCompletionReportId(item.id)
                 let alreadyPresent = subAgentTranscripts[toolUseId, default: []].contains { existing in
                     if case .agentMessage(let existingId, let existingText, _) = existing, existingId != item.id {
                         guard newIsReportChannel || Self.isCompletionReportId(existingId) else { return false }
-                        return existingText.trimmingCharacters(in: .whitespacesAndNewlines) == trimmed
+                        return Self.whitespaceStrippedForDedup(existingText) == stripped
                     }
                     return false
                 }

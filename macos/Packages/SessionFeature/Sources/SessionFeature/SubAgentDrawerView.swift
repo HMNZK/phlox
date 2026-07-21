@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import AgentDomain
 import DesignSystem
 
@@ -12,13 +13,20 @@ struct SubAgentDrawerView: View {
     let subAgent: SubAgentRef
     let transcript: [ChatItem]
     let agentDescriptor: AgentDescriptor
+    let canSendFollowUp: Bool
+    let onSendFollowUp: (String) -> Void
     let onClose: () -> Void
+
+    @State private var draft = ""
+    @State private var editorHeight: CGFloat = ComposerHeightBounds.single.min
+    @State private var isComposing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider().overlay(DSColor.separator)
             transcriptBody
+            followUpComposer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DSColor.chatBackground)
@@ -107,6 +115,55 @@ struct SubAgentDrawerView: View {
         }
     }
 
+    private var followUpComposer: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            Divider().overlay(DSColor.separator)
+            HStack(alignment: .bottom, spacing: DSSpacing.s) {
+                ZStack(alignment: .topLeading) {
+                    IMESafeTextView(
+                        text: $draft,
+                        isComposing: $isComposing,
+                        measuredHeight: $editorHeight,
+                        minHeight: ComposerHeightBounds.single.min,
+                        maxHeight: ComposerHeightBounds.single.max,
+                        onSubmit: submitFollowUp
+                    )
+                    .frame(
+                        minHeight: ComposerHeightBounds.single.min,
+                        idealHeight: editorHeight,
+                        maxHeight: ComposerHeightBounds.single.max
+                    )
+                    .accessibilityIdentifier("SubAgentDrawer.input")
+
+                    if ComposerPlaceholderVisibility.shouldShowPlaceholder(text: draft, isComposing: isComposing) {
+                        Text("フォローアップを入力...")
+                            .font(ComposerPlaceholderMetrics.placeholderFont)
+                            .foregroundStyle(DSColor.chatTextSecondary)
+                            .padding(.horizontal, ComposerPlaceholderMetrics.textInsets.width)
+                            .padding(.vertical, ComposerPlaceholderMetrics.textInsets.height)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .frame(height: editorHeight)
+
+                SubAgentDrawerSendButton(
+                    canSubmit: canSendFollowUp && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                    action: submitFollowUp
+                )
+            }
+            .padding(.horizontal, DSSpacing.m)
+            .padding(.vertical, DSSpacing.s)
+        }
+        .background(DSColor.chatCard)
+    }
+
+    private func submitFollowUp() {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard canSendFollowUp, !trimmed.isEmpty else { return }
+        draft = ""
+        onSendFollowUp(trimmed)
+    }
+
     @ViewBuilder
     private func transcriptBlock(_ block: ChatTranscriptBlock, lastItemID: String?) -> some View {
         switch block {
@@ -142,5 +199,35 @@ struct SubAgentDrawerView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(DSColor.statusError)
         }
+    }
+}
+
+private struct SubAgentDrawerSendButton: View {
+    let canSubmit: Bool
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "paperplane.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(canSubmit ? DSColor.chatBackground : DSColor.chatTextSecondary)
+                .frame(width: 28, height: 28)
+                .background {
+                    RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
+                        .fill(canSubmit ? DSColor.chatAccent : Color.clear)
+                    if isHovering && canSubmit {
+                        RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
+                            .fill(Color.white.opacity(0.14))
+                    }
+                }
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovering = hovering
+        }
+        .disabled(!canSubmit)
+        .accessibilityIdentifier("SubAgentDrawer.sendButton")
+        .help("送信")
     }
 }

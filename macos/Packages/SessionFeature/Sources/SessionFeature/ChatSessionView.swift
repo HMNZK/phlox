@@ -37,6 +37,12 @@ public struct ChatSessionView: View {
                         subAgent: selectedSubAgent,
                         transcript: viewModel.subAgentTranscript(for: selectedSubAgent.id),
                         agentDescriptor: agentDescriptor,
+                        canSendFollowUp: viewModel.isReadyForInput,
+                        onSendFollowUp: { text in
+                            Task {
+                                try? await viewModel.sendSubAgentFollowUp(subAgent: selectedSubAgent, text: text)
+                            }
+                        },
                         onClose: { viewModel.selectSubAgent(nil) }
                     )
                     .frame(width: subAgentPaneWidth(for: geometry.size.width))

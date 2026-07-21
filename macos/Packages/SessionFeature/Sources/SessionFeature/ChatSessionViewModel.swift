@@ -1967,11 +1967,58 @@ extension ChatSessionViewModel: ControllableSession {
         }
     }
 
-    /// サブエージェントタブからのフォローアップ送信（phlox-ux-5fixes task-3 契約のスタブ。
-    /// AcceptanceSubAgentFollowUpTests が凍結。実装は task-3 が担う）。
+    /// サブエージェントタブからのフォローアップ送信（task-3 契約。
+    /// AcceptanceSubAgentFollowUpTests が凍結）。
     public func sendSubAgentFollowUp(subAgent: SubAgentRef, text: String) async throws {
-        _ = subAgent
-        _ = text
+        let input = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !input.isEmpty else { return }
+
+        submitBaselineTurnSeq = completedTurnSeq
+        clearRunningTurn()
+
+        let item = ChatItem.userMessage(
+            id: "user-\(UUID().uuidString)",
+            text: input,
+            timestamp: Date(),
+            attachments: []
+        )
+        appendOrReplace(item)
+        enqueueTranscriptUpsert([item])
+        turnGeneration += 1
+        isAwaitingLocallyStartedTurnEvent = true
+        status = .running
+
+        let composedPrompt = Self.composeSubAgentFollowUpPrompt(subAgent: subAgent, userText: input)
+        let clientInput: String
+        if let preamble = pendingReplayContext {
+            clientInput = preamble + "\n\n---\n\n" + composedPrompt
+        } else {
+            clientInput = composedPrompt
+        }
+        do {
+            try await client.turnStart([.text(clientInput)])
+        } catch {
+            // sendText の A3 と同型: turnStart 失敗時は .running 固着を防ぐ。
+            isAwaitingLocallyStartedTurnEvent = false
+            status = .idle
+            throw error
+        }
+        pendingReplayContext = nil
+    }
+
+    /// メインの Claude が対象サブエージェントを特定して SendMessage 相当の継続ができるよう、
+    /// id・description・ユーザー本文を明示したプロンプトを合成する（task-3）。
+    static func composeSubAgentFollowUpPrompt(subAgent: SubAgentRef, userText: String) -> String {
+        let description = subAgent.description.isEmpty ? "(no description)" : subAgent.description
+        return """
+        以下はサブエージェントへのフォローアップです。対象サブエージェントを特定し、ユーザーの意図に沿って SendMessage 相当で継続・回答してください。
+
+        - sub-agent id: \(subAgent.id)
+        - description: \(description)
+
+        ユーザーからのメッセージ:
+        \(userText)
+        """
     }
 
     /// 現在の transcript を即時に永続化キューへ書き出し、書き込み完了まで待つ

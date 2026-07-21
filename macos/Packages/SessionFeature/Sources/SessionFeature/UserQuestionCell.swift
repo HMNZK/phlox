@@ -12,11 +12,29 @@ struct UserQuestionCell: View {
     let timestamp: Date
     var onRespond: ((String, [String: [String]]) async -> Bool)?
 
-    @State private var draftAnswers: [String: [String]] = [:]
-    @State private var multiSelectSelections: [String: Set<String>] = [:]
-    @State private var freeTextDraft: [String: String] = [:]
+    @State private var form: UserQuestionFormModel
+    @State private var isSubmitting = false
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
+
+    init(
+        itemId: String,
+        requestId: String,
+        questions: [ChatUserQuestion],
+        answers: [String: [String]]?,
+        state: ChatUserQuestionState,
+        timestamp: Date,
+        onRespond: ((String, [String: [String]]) async -> Bool)? = nil
+    ) {
+        self.itemId = itemId
+        self.requestId = requestId
+        self.questions = questions
+        self.answers = answers
+        self.state = state
+        self.timestamp = timestamp
+        self.onRespond = onRespond
+        _form = State(initialValue: UserQuestionFormModel(questions: questions))
+    }
 
     private var isInteractive: Bool {
         state == .pending && onRespond != nil
@@ -34,6 +52,15 @@ struct UserQuestionCell: View {
 
             ForEach(questions, id: \.question) { question in
                 questionBlock(question, scale: scale)
+            }
+
+            if isInteractive {
+                Button("送信") {
+                    submitForm()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!form.canSubmit || isSubmitting)
+                .accessibilityIdentifier("UserQuestionCell.submit.\(itemId)")
             }
         }
         .padding(DSSpacing.m)
@@ -135,18 +162,18 @@ struct UserQuestionCell: View {
 
     @ViewBuilder
     private func singleSelectOptions(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
+        let selected = form.selections[question.question, default: []]
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             ForEach(question.options, id: \.label) { option in
                 optionLabel(
                     label: option.label,
                     description: option.description,
                     scale: scale,
-                    isSelected: draftAnswers[question.question] == [option.label],
-                    isEnabled: isInteractive
+                    isSelected: selected == [option.label],
+                    isEnabled: isInteractive && !isSubmitting
                 ) {
-                    guard isInteractive else { return }
-                    draftAnswers[question.question] = [option.label]
-                    submitIfComplete()
+                    guard isInteractive, !isSubmitting else { return }
+                    form.selectSingle(question: question.question, label: option.label)
                 }
             }
         }
@@ -154,7 +181,7 @@ struct UserQuestionCell: View {
 
     @ViewBuilder
     private func multiSelectOptions(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
-        let selections = multiSelectSelections[question.question, default: []]
+        let selections = form.selections[question.question, default: []]
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             ForEach(question.options, id: \.label) { option in
                 optionLabel(
@@ -162,29 +189,11 @@ struct UserQuestionCell: View {
                     description: option.description,
                     scale: scale,
                     isSelected: selections.contains(option.label),
-                    isEnabled: isInteractive
+                    isEnabled: isInteractive && !isSubmitting
                 ) {
-                    guard isInteractive else { return }
-                    var updated = multiSelectSelections[question.question, default: []]
-                    if updated.contains(option.label) {
-                        updated.remove(option.label)
-                    } else {
-                        updated.insert(option.label)
-                    }
-                    multiSelectSelections[question.question] = updated
+                    guard isInteractive, !isSubmitting else { return }
+                    form.toggleMulti(question: question.question, label: option.label)
                 }
-            }
-
-            if isInteractive {
-                Button("選択を確定") {
-                    let labels = Array(multiSelectSelections[question.question, default: []]).sorted()
-                    guard !labels.isEmpty else { return }
-                    draftAnswers[question.question] = labels
-                    submitIfComplete()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .disabled(selections.isEmpty)
             }
         }
     }
@@ -192,31 +201,20 @@ struct UserQuestionCell: View {
     @ViewBuilder
     private func freeTextInput(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
         if isInteractive {
-            VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                TextField("自由入力", text: binding(for: question.question))
-                    .textFieldStyle(.roundedBorder)
-                    .font(ChatScaledFont.body(scale: scale))
-                    .accessibilityIdentifier("UserQuestionCell.freeText.\(question.question)")
-
-                Button("入力を確定") {
-                    let text = freeTextDraft[question.question, default: ""]
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !text.isEmpty else { return }
-                    draftAnswers[question.question] = [text]
-                    submitIfComplete()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(freeTextDraft[question.question, default: ""]
-                    .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
+            TextField("自由入力", text: binding(for: question.question))
+                .textFieldStyle(.roundedBorder)
+                .font(ChatScaledFont.body(scale: scale))
+                .accessibilityIdentifier("UserQuestionCell.freeText.\(question.question)")
+                .disabled(isSubmitting)
         }
     }
 
     private func binding(for questionText: String) -> Binding<String> {
         Binding(
-            get: { freeTextDraft[questionText, default: ""] },
-            set: { freeTextDraft[questionText] = $0 }
+            get: { form.freeText[questionText, default: ""] },
+            set: { newValue in
+                form.setFreeText(question: questionText, text: newValue)
+            }
         )
     }
 
@@ -258,14 +256,16 @@ struct UserQuestionCell: View {
         .disabled(!isEnabled)
     }
 
-    private func submitIfComplete() {
-        guard isInteractive else { return }
-        let requiredQuestions = Set(questions.map(\.question))
-        guard requiredQuestions.isSubset(of: Set(draftAnswers.keys)) else { return }
-        let payload = draftAnswers.filter { requiredQuestions.contains($0.key) }
+    private func submitForm() {
+        guard isInteractive, !isSubmitting else { return }
+        guard let payload = form.payload else { return }
         guard let onRespond else { return }
+        isSubmitting = true
         Task {
             _ = await onRespond(requestId, payload)
+            await MainActor.run {
+                isSubmitting = false
+            }
         }
     }
 }

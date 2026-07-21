@@ -98,6 +98,9 @@ public final class ChatSessionViewModel: Identifiable {
     /// Claude/Cursor（spawn 型）で選択可能な model 一覧。Codex の `availableModels`
     /// （app-server 由来の `AppServerModel`）とは別に、alias/取得結果を素の文字列で保持する。
     public private(set) var availableSpawnAgentModels: [String] = []
+    /// 会話履歴の圧縮（compaction）が進行中か（phlox-ux-5fixes task-2 契約のスタブ。
+    /// AcceptanceCompactingIndicatorTests が凍結。実装は task-2 が担う）。
+    public private(set) var isCompacting = false
     /// esc 履歴リバートピッカーの表示状態（task-9）。View はこれを observe して overlay を出す。
     public private(set) var isHistoryPickerPresented = false
     /// リバート確定で復元する composer 下書き本文（task-9）。View が反映後 `consumeDraftRestoration()` でクリアする。
@@ -1225,6 +1228,9 @@ public final class ChatSessionViewModel: Identifiable {
                 summary: summary,
                 outputFile: outputFile
             )
+        case .compactionBoundary:
+            // phlox-ux-5fixes task-2 スタブ（契約: AcceptanceCompactingIndicatorTests）。実装は task-2。
+            markRunningEventReceived(at: eventDate)
         case .userQuestionRequested(let requestId, let questions):
             markRunningEventReceived(at: eventDate)
             appendOrReplace(.userQuestion(
@@ -1935,6 +1941,18 @@ extension ChatSessionViewModel: ControllableSession {
             pendingInput += text
             touchOutput()
         }
+    }
+
+    /// サブエージェントタブからのフォローアップ送信（phlox-ux-5fixes task-3 契約のスタブ。
+    /// AcceptanceSubAgentFollowUpTests が凍結。実装は task-3 が担う）。
+    public func sendSubAgentFollowUp(subAgent: SubAgentRef, text: String) async throws {
+        _ = subAgent
+        _ = text
+    }
+
+    /// 現在の transcript を即時に永続化キューへ書き出し、書き込み完了まで待つ
+    /// （phlox-ux-5fixes task-4 契約のスタブ。AcceptanceMidTurnPersistenceTests が凍結。実装は task-4 が担う）。
+    public func flushTranscriptNow() async {
     }
 
     public func readText(lines: Int) -> String {

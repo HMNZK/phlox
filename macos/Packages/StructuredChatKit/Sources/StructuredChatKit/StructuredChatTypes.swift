@@ -107,6 +107,11 @@ public enum NormalizedChatEvent: Equatable, Sendable {
     case subAgentCompleted(toolUseId: String, status: String, summary: String, outputFile: String?)
     case error(message: String)
     case warning(message: String)
+    /// 会話履歴の圧縮（compaction）境界。Claude Code stream-json の
+    /// `system/compact_boundary` に対応する（phlox-ux-5fixes task-2 契約。
+    /// 受け入れテスト AcceptanceCompactBoundaryTests / AcceptanceCompactingIndicatorTests が凍結）。
+    /// trigger は "auto" | "manual"（未知値はそのまま透過）、preTokens は圧縮前トークン数。
+    case compactionBoundary(trigger: String?, preTokens: Int?)
     /// AskUserQuestion（control_request can_use_tool）が届いた。UI は質問カードを表示し、
     /// `respondToUserQuestion` で回答を返送する（task-0 契約）。
     case userQuestionRequested(requestId: String, questions: [ChatUserQuestion])

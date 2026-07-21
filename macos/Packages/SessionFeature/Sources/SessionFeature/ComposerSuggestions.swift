@@ -36,7 +36,7 @@ struct SuggestionQuery: Equatable {
     let searchTerm: String
 }
 
-/// トリガー検出の純関数。`/` はテキスト先頭のみ、`@` は空白区切りトークン先頭のみ発火。
+/// トリガー検出の純関数。`/`・`@` ともカーソル直前の空白区切りトークン先頭のみ発火。
 enum SuggestionTrigger {
     static func query(text: String, cursorUTF16: Int) -> SuggestionQuery? {
         guard cursorUTF16 >= 0, cursorUTF16 <= text.utf16.count else { return nil }
@@ -44,17 +44,20 @@ enum SuggestionTrigger {
         guard let cursorIndex = text.stringIndex(utf16Offset: cursorUTF16) else { return nil }
         let prefix = String(text[..<cursorIndex])
 
-        if text.hasPrefix("/") {
-            let term = String(prefix.dropFirst())
-            return SuggestionQuery(kind: .slashCommand, tokenRange: 0..<cursorUTF16, searchTerm: term)
-        }
-
         let tokenStartIndex = prefix.lastIndex(where: { $0.isWhitespace }).map { prefix.index(after: $0) } ?? prefix.startIndex
         let token = prefix[tokenStartIndex...]
-        guard token.first == "@" else { return nil }
+        let kind: SuggestionKind
+        switch token.first {
+        case "/":
+            kind = .slashCommand
+        case "@":
+            kind = .fileReference
+        default:
+            return nil
+        }
         let tokenStartUTF16 = tokenStartIndex.samePosition(in: text)?.utf16Offset(in: text) ?? 0
         let term = String(token.dropFirst())
-        return SuggestionQuery(kind: .fileReference, tokenRange: tokenStartUTF16..<cursorUTF16, searchTerm: term)
+        return SuggestionQuery(kind: kind, tokenRange: tokenStartUTF16..<cursorUTF16, searchTerm: term)
     }
 }
 

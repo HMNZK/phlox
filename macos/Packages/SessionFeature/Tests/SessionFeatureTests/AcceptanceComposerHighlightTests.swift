@@ -6,9 +6,10 @@ import Testing
 // acceptance_tests のアサーションは変更禁止。ただしテストハーネスの欠陥を発見した場合は、
 // PM に報告し承認を得たうえでハーネス部分に限り修理してよい。
 //
-// 契約: ComposerHighlight.spans(in:) の純関数仕様（tasks/task-2.md）。
-//   - 先頭スラッシュコマンド（先頭のみ・最初の空白で停止）を1件
-//   - 空白区切りで "@" 始まりトークンを各1件
+// 契約: ComposerHighlight.spans(in:) の純関数仕様（tasks/task-1.md）。
+//   - 空白区切りトークンの先頭が "/" のものを各1件 slashCommand（位置不問・最初の空白で停止）
+//   - 空白区切りトークンの先頭が "@" のものを各1件 fileReference
+//   - トークン途中の "/"（src/main 等）は無視
 //   - range は UTF16 オフセット・決定論
 
 private func u16Range(of sub: String, in text: String) -> Range<Int> {
@@ -33,8 +34,22 @@ struct AcceptanceComposerHighlightTests {
             [ComposerHighlightSpan(range: u16Range(of: "/help", in: text), kind: .slashCommand)])
     }
 
-    @Test func 先頭以外のスラッシュはハイライトしない() {
-        #expect(ComposerHighlight.spans(in: "hello /run").isEmpty)
+    @Test func 文中でも空白区切り先頭のスラッシュをハイライトする() {
+        let text = "hello /run"
+        #expect(ComposerHighlight.spans(in: text) ==
+            [ComposerHighlightSpan(range: u16Range(of: "/run", in: text), kind: .slashCommand)])
+    }
+
+    @Test func 本文の後ろに並ぶ複数のスラッシュコマンドを各1件返す() {
+        let text = "本文 /frontend-design /design-engineering"
+        #expect(ComposerHighlight.spans(in: text) == [
+            ComposerHighlightSpan(range: u16Range(of: "/frontend-design", in: text), kind: .slashCommand),
+            ComposerHighlightSpan(range: u16Range(of: "/design-engineering", in: text), kind: .slashCommand),
+        ])
+    }
+
+    @Test func トークン途中のスラッシュは無視() {
+        #expect(ComposerHighlight.spans(in: "src/main").isEmpty)
     }
 
     @Test func アット参照トークンを返す() {

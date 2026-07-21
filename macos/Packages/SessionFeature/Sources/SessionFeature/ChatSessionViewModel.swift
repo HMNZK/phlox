@@ -1351,6 +1351,11 @@ public final class ChatSessionViewModel: Identifiable {
 
         switch outcome {
         case .answered(let resolvedAnswers):
+            // カードは respondToUserQuestion がローカルで先に answered 化していることがある。
+            // status の復帰はカードの重複ガードに巻き込まれると飛ばされるため、先に行う。
+            if status == .awaitingUserQuestion {
+                status = .running
+            }
             guard state != .answered else { return }
             appendOrReplace(.userQuestion(
                 id: id,
@@ -1360,7 +1365,6 @@ public final class ChatSessionViewModel: Identifiable {
                 state: .answered,
                 timestamp: timestamp
             ))
-            status = .running
         case .expired:
             guard state == .pending else { return }
             appendOrReplace(.userQuestion(

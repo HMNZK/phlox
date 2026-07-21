@@ -113,6 +113,33 @@ struct AcceptanceUserQuestionStatusTests {
     }
 
     @Test @MainActor
+    func 送信ボタン経路でもresolvedイベントでrunningへ復帰する() async throws {
+        // 回帰: respondToUserQuestion がローカルでカードを answered 化した後に
+        // resolved イベントが届くと、重複ガードで status 復帰が飛ばされ
+        // .awaitingUserQuestion に固着していた（Thinking・停止ボタンが出ないバグ）。
+        let (vm, client) = makeViewModel()
+
+        client.yield(.turnStarted)
+        try await waitUntil { vm.status == .running }
+        client.yield(.userQuestionRequested(requestId: "q-1", questions: [question()]))
+        try await waitUntil { vm.status == .awaitingUserQuestion }
+
+        let accepted = await vm.respondToUserQuestion(
+            requestId: "q-1",
+            answers: ["どの方式にしますか？": ["A案"]]
+        )
+        #expect(accepted)
+
+        client.yield(.userQuestionResolved(
+            requestId: "q-1",
+            outcome: .answered(answers: ["どの方式にしますか？": ["A案"]])
+        ))
+        try await waitUntil { vm.status == .running }
+
+        #expect(vm.status == .running)
+    }
+
+    @Test @MainActor
     func 質問保留中のturnInterruptedはidleへ戻す() async throws {
         let (vm, client) = makeViewModel()
 

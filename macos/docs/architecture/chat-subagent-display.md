@@ -14,7 +14,7 @@ last-verified: 2026-07-21
 | 層 | 型 / ファイル | 役割 |
 |---|---|---|
 | 正規化 | `ClaudeChatClient`（ClaudeAgentKit） | stdout stream-json → `NormalizedChatEvent`。サブエージェントを識別し `subAgent*` イベントへ隔離 |
-| イベント | `NormalizedChatEvent`（StructuredChatKit） | `subAgentStarted` / `subAgentActivity(toolUseId:kind:itemId:text:)` / `subAgentOutput` / `subAgentCompleted`。itemId は emitter が message id × content 種別から導出する安定 id（`.prompt` は nil） |
+| イベント | `NormalizedChatEvent`（StructuredChatKit） | `subAgentStarted` / `subAgentActivity(toolUseId:kind:itemId:text:)` / `subAgentOutput` / `subAgentCompleted`。kind は `prompt`/`message`/`reasoning`/`tool`（呼び出し）/`toolResult`（結果）。itemId は text/thinking では message id × content 種別、`.tool`/`.toolResult` では**子の tool_use_id**（`.prompt` は nil） |
 | 状態 | `ChatSessionViewModel` | `subAgents: [SubAgentRef]`・`subAgentTranscripts: [String:[ChatItem]]`（ライブ）・`selectedSubAgentId`・`stripSubAgents`（表示用）・transcript ソース選択 |
 | 解析 | `SubAgentTranscriptLoader.parse`（SubAgentModel.swift） | 子 output_file(JSONL) → `[ChatItem]`。tool_use+tool_result をマージ |
 | 表示 | `ChatSessionView` / `SubAgentDrawerView` / `SubAgentSplitLayout` / `SubAgentMarkerCell` | ストリップ・横並び分割ペイン・インラインマーカー |
@@ -24,7 +24,7 @@ last-verified: 2026-07-21
 ```
 Claude Code stdout (stream-json)
   └─ ClaudeChatClient.handleAssistant/User/SystemEvent
-       ├─ parent_tool_use_id ∈ subAgentToolUseIds → subAgentActivity(.prompt/.message/.reasoning/.tool)  [隔離]
+       ├─ parent_tool_use_id ∈ subAgentToolUseIds → subAgentActivity(.prompt/.message/.reasoning/.tool/.toolResult)  [隔離]
        ├─ launcher tool_result (tool_use_id ∈ subAgentToolUseIds)
        │     ├─ 署名(isAsyncLaunchMetadata) → 抑制
        │     └─ else → subAgentOutput
@@ -41,12 +41,13 @@ Claude Code stdout (stream-json)
 
 - **ライブ**: `subAgentTranscripts[id]`（stdout の子ターン由来。thinking テキストを保持しうる）。永続化されない（再起動で消える）。
 - **parsed**: `SubAgentRef.outputFile`（子 JSONL）を `SubAgentTranscriptLoader.parse`。ファイルメタデータ（mtime/size）でキャッシュ。
-- 選択規則（順序が重要）:
-  1. 片方だけ reasoning を持つ → reasoning を持つ側。
-  2. 該当サブエージェントが**完了済み（`status == .completed`）**→ parsed（永続が権威。ADR 0106）。
-  3. それ以外（実行中）→ `parsed.count >= live.count ? parsed : live`。
-- **なぜ完了時は parsed 優先か（ADR 0106）**: ライブは各ツールを tool_use（inline assistant）と tool_result（inline user）の両方から `.subAgentActivity(.tool)` として生むため件数が約2倍に水増しされ、かつ中間ナレーション text を持たない（stdout はツール活動と最終レポートのみ運ぶ）。一方 parsed はツールを1セルにマージし中間ナレーションも保持する。件数タイブレークだけだと、2重化で膨れたライブが richer な parsed に不当に勝ち「ツール2重表示・中間ナレーション欠落」が起きるため、完了時は parsed を優先する。`.completed` のみ特別扱い（`.failed` 等は件数タイブレーク据え置き）。
+- 選択規則は **2 通り＋例外1**（ADR 0113。順序が重要）:
+  1. 片方だけ reasoning を持つ → reasoning を持つ側（例外。ADR 0025）。
+  2. parsed が読めれば parsed（永続が権威）。
+  3. 読めなければ live（`outputFile` は完了通知でしか届かないので、実質「実行中は live」）。
+- **なぜ件数タイブレークを捨てたか（ADR 0113）**: かつてライブは各ツールを tool_use（inline assistant）と tool_result（inline user）の両方から別セルとして生み、件数が約2倍に水増しされていた。そのため「件数の多い方」が信用できず、ADR 0106 が `.completed` 特例で症状を塞いでいた。ライブ側を parse と同じ「1 ツールコール=1 セル」に直した（下記）ことで、件数で権威を決める必要がなくなった。
 - **parse のマージ**: `tool_use` が作る `commandExecution` を `tool_use_id` で引き、`tool_result` は同 id の別項目にせず output をマージ（1 ツールコール=1 セル）。text/thinking の id は `message.id:type:行index:offset` で一意化。
+- **ライブのマージ（`appendMergeableSubAgentToolActivity`・ADR 0113）**: `.tool`/`.toolResult` は `itemId`（＝子の tool_use_id）で stableId `"\(toolUseId)-tool-\(childToolUseId)"` を作り、**呼び出し → `command` 欄 / 結果 → `output` 欄**へ 1 セルにマージする。結果が先着する順序逆転にも非依存（command nil のセルを作り、後から来た呼び出しが補う）。itemId nil の活動は従来どおり独立 item（後方互換）。
 - **制約**: 子の `thinking` が暗号化（`thinking:""`＋signature）の個体は reasoning 本文が両ソースに無く表示できない。
 
 ## ストリーミング断片の結合（`appendMergeableSubAgentActivity`・ADR 0077）
@@ -73,4 +74,4 @@ Claude Code stdout (stream-json)
 
 ## 受け入れテスト（契約）
 
-`Packages/ClaudeAgentKit/Tests/.../SubAgentPromptDisplayAcceptanceTests`・`SubAgentIsolationAcceptanceTests`・`AcceptanceSubAgentActivityItemIdTests`、`Packages/SessionFeature/Tests/.../AcceptanceSubAgentTranscriptMergeTests`・`AcceptanceSubAgentDrawerParityTests`・`AcceptanceSubAgentStopParityTests`、`Packages/DashboardFeature/Tests/.../SubAgentSplitLayoutAcceptanceTests`・`SubAgentTranscriptMergeAcceptanceTests`・`SubAgentReasoningPreferenceAcceptanceTests`・`SubAgentOutputDedupAcceptanceTests`・`SubAgentStripFilterAcceptanceTests`・`SubAgentTranscriptCacheAcceptanceTests`。
+`Packages/ClaudeAgentKit/Tests/.../SubAgentPromptDisplayAcceptanceTests`・`SubAgentIsolationAcceptanceTests`・`AcceptanceSubAgentActivityItemIdTests`、`Packages/SessionFeature/Tests/.../AcceptanceSubAgentTranscriptMergeTests`・`AcceptanceSubAgentDrawerParityTests`・`AcceptanceSubAgentStopParityTests`、`Packages/DashboardFeature/Tests/.../SubAgentSplitLayoutAcceptanceTests`・`SubAgentTranscriptMergeAcceptanceTests`・`SubAgentReasoningPreferenceAcceptanceTests`・`SubAgentOutputDedupAcceptanceTests`・`SubAgentStripFilterAcceptanceTests`・`SubAgentTranscriptCacheAcceptanceTests`・`SubAgentTranscriptSourceRuleAcceptanceTests`、`Packages/ClaudeAgentKit/Tests/.../AcceptanceSubAgentToolIdentityTests`、`Packages/SessionFeature/Tests/.../AcceptanceSubAgentLiveToolMergeTests`。

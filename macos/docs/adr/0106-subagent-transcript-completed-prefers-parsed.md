@@ -1,7 +1,12 @@
 ---
-status: active
+status: superseded
+superseded-by: 0113-subagent-live-tool-merge-and-two-way-source-rule.md
 last-verified: 2026-07-21
 ---
+
+> **〔0113 で supersede〕** 本 ADR は「ライブのツール2重化」を前提に選択規則側で症状を塞いだ対症療法だった。
+> 実行中は `outputFile` が未着で parsed を選べないため2重表示が残る。0113 でライブ側を
+> 「1 ツールコール = 1 セル」に直し、`.completed` 特例と件数タイブレークは撤去した。
 
 # ADR 0106: 完了サブエージェントの transcript は parsed（永続）を優先する
 

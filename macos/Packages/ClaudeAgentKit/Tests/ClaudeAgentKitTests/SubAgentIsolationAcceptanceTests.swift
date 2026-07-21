@@ -151,12 +151,16 @@ struct SubAgentIsolationAcceptanceTests {
                 return false
             }, "sub-agent inline content missing from subAgentActivity: \(needle)")
         }
-        // 子の tool_use / tool_result は .tool kind として運ばれる（4種の positive 到達を固定）。
-        for needle in ["ls /tmp", "CHILD-TOOL-OUTPUT"] {
+        // 子の tool_use は .tool、tool_result は .toolResult として運ばれる（4種の positive 到達を固定）。
+        // 〔ADR 0113〕呼び出しと結果を受け側が 1 セルへマージできるよう種別を分離したため、
+        // 「どちらも .tool」から「種別まで固定」へ検証を強めている。
+        for (needle, expectedKind) in [("ls /tmp", SubAgentActivityKind.tool), ("CHILD-TOOL-OUTPUT", SubAgentActivityKind.toolResult)] {
             #expect(events.contains {
-                if case .subAgentActivity(let id, .tool, _, let text) = $0 { return id == "toolu_BG" && text.contains(needle) }
+                if case .subAgentActivity(let id, let kind, _, let text) = $0 {
+                    return id == "toolu_BG" && kind == expectedKind && text.contains(needle)
+                }
                 return false
-            }, "sub-agent tool activity missing from subAgentActivity(.tool): \(needle)")
+            }, "sub-agent tool activity missing from subAgentActivity(\(expectedKind)): \(needle)")
         }
         // 親の発言はメインへ。
         #expect(events.contains {

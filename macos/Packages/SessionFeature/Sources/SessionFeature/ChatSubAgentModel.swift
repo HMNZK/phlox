@@ -29,6 +29,11 @@ final class ChatSubAgentModel {
         selectedSubAgentId = id
     }
 
+    /// 表示する transcript を選ぶ。規則は2通り＋例外1つ（ADR 0113）:
+    /// 1. 永続ファイル（parsed）が読めれば parsed（＝権威）。
+    /// 2. 読めなければライブ。
+    /// 例外: 片方だけが reasoning を持つならそれを失わない側（ADR 0025。暗号化されず
+    /// ライブにだけ推論本文が残る個体を救う）。
     func transcript(for id: String) -> [ChatItem] {
         let live = subAgentTranscripts[id] ?? []
         let parsed: [ChatItem]? = subAgents.first(where: { $0.id == id })?.outputFile
@@ -38,13 +43,8 @@ final class ChatSubAgentModel {
         let liveHasReasoning = live.contains { if case .reasoning = $0 { return true } else { return false } }
         let parsedHasReasoning = parsed.contains { if case .reasoning = $0 { return true } else { return false } }
         if liveHasReasoning && !parsedHasReasoning { return live }
-        if parsedHasReasoning && !liveHasReasoning { return parsed }
 
-        if subAgents.first(where: { $0.id == id })?.status == .completed {
-            return parsed
-        }
-
-        return parsed.count >= live.count ? parsed : live
+        return parsed
     }
 
     func upsertSubAgent(
@@ -146,6 +146,10 @@ final class ChatSubAgentModel {
             appendMergeableSubAgentActivity(toolUseId: toolUseId, kind: kind, itemId: itemId, text: text)
             return
         }
+        if let itemId, kind == .tool || kind == .toolResult {
+            appendMergeableSubAgentToolActivity(toolUseId: toolUseId, kind: kind, childToolUseId: itemId, text: text)
+            return
+        }
 
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         let item: ChatItem
@@ -156,10 +160,52 @@ final class ChatSubAgentModel {
             item = .agentMessage(id: "\(toolUseId)-message-\(subAgentTranscripts[toolUseId, default: []].count)", text: text, timestamp: Date())
         case .reasoning:
             item = .reasoning(id: "\(toolUseId)-reasoning-\(subAgentTranscripts[toolUseId, default: []].count)", text: text, timestamp: Date())
-        case .tool:
+        case .tool, .toolResult:
             item = .commandExecution(id: "\(toolUseId)-tool-\(subAgentTranscripts[toolUseId, default: []].count)", command: nil, output: text, timestamp: Date())
         }
         appendSubAgentTranscriptItem(toolUseId: toolUseId, item: item)
+    }
+
+    /// 子のツール呼び出しと結果を、tool_use_id ごとの 1 セルへマージする。
+    /// `SubAgentTranscriptLoader.parse` と同じ「1 ツールコール = 1 セル」に揃えるためのライブ側実装で、
+    /// 順序逆転（結果が先着する resume・途中接続）にも非依存。
+    private func appendMergeableSubAgentToolActivity(
+        toolUseId: String,
+        kind: SubAgentActivityKind,
+        childToolUseId: String,
+        text: String
+    ) {
+        guard !text.isEmpty else { return }
+
+        // id 空間を itemId nil 経路の `-tool-\(連番)` と分ける。同じ接頭辞にすると、子の
+        // tool_use_id がたまたま数字文字列だったときに連番セルと衝突して別ツールが混ざる。
+        let stableId = "\(toolUseId)-toolcall-\(childToolUseId)"
+        let existing = subAgentTranscripts[toolUseId, default: []].first { $0.id == stableId }
+        let item: ChatItem
+        switch (kind, existing) {
+        case (.tool, .commandExecution(_, _, let existingOutput, let timestamp)):
+            item = .commandExecution(id: stableId, command: text, output: existingOutput, timestamp: timestamp)
+        case (.tool, _):
+            item = .commandExecution(id: stableId, command: text, output: "", timestamp: Date())
+        case (.toolResult, .commandExecution(_, let existingCommand, let existingOutput, let timestamp)):
+            item = .commandExecution(
+                id: stableId,
+                command: existingCommand,
+                output: Self.mergedToolOutput(existingOutput, text),
+                timestamp: timestamp
+            )
+        case (.toolResult, _):
+            item = .commandExecution(id: stableId, command: nil, output: text, timestamp: Date())
+        default:
+            return
+        }
+        appendSubAgentTranscriptItem(toolUseId: toolUseId, item: item)
+    }
+
+    private static func mergedToolOutput(_ previous: String, _ next: String) -> String {
+        if previous.isEmpty { return next }
+        if next.isEmpty { return previous }
+        return previous + "\n" + next
     }
 
     private func appendMergeableSubAgentActivity(
@@ -183,7 +229,7 @@ final class ChatSubAgentModel {
             item = .agentMessage(id: stableId, text: text, timestamp: timestamp)
         case (.reasoning, _):
             item = .reasoning(id: stableId, text: text, timestamp: timestamp)
-        case (.prompt, _), (.tool, _):
+        case (.prompt, _), (.tool, _), (.toolResult, _):
             return
         }
         appendSubAgentTranscriptItem(toolUseId: toolUseId, item: item)

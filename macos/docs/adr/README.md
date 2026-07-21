@@ -12,13 +12,14 @@ last-verified: 2026-07-17
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0113 | [ライブのサブエージェント transcript も「1 ツールコール = 1 セル」で組み、ソース選択を2通りに畳む（0106 を supersede）](0113-subagent-live-tool-merge-and-two-way-source-rule.md) | active |
 | 0112 | [ヘッダーの使用量表示を設定で消せるようにし「未取得のCLIも表示」をヘッダーにも適用する](0112-header-usage-visibility-setting.md) | active |
 | 0111 | [AskUserQuestion 保留中は awaitingUserQuestion（入力待ち）にする（0107 を supersede）](0111-awaiting-user-question-status.md) | active |
 | 0110 | [ターン途中 flush（leading-edge スロットル）と終了時の並行 flush + timeout race](0110-midturn-flush-and-termination-race.md) | active |
 | 0109 | [サブエージェントへのフォローアップはメインセッション経由の通常ターンで送る](0109-subagent-followup-via-main-session.md) | active |
 | 0108 | [圧縮中インジケーターの開始検知は手動 /compact のみ（stream-json に開始シグナルが無い）](0108-compacting-indicator-manual-only-start.md) | active |
 | 0107 | [AskUserQuestion 到着は hasUnseenCompletion ラッチで attention 化する（status は拡張しない）](0107-user-question-attention-latch.md) | superseded → 0111 |
-| 0106 | [完了サブエージェントの transcript は parsed（永続）を優先する](0106-subagent-transcript-completed-prefers-parsed.md) | active |
+| 0106 | [完了サブエージェントの transcript は parsed（永続）を優先する](0106-subagent-transcript-completed-prefers-parsed.md) | superseded → 0113 |
 | 0105 | [サブエージェント完了レポートの dedup を空白非依存にする](0105-subagent-report-dedup-whitespace-insensitive.md) | active |
 | 0104 | [スラッシュコマンドの発火位置を空白区切りトークン先頭に統一（@ と対称）](0104-composer-slash-trigger-position.md) | active |
 | 0103 | [質問カードの iOS ミラー配線（wire DTO・POST /question・App 層 witness）](0103-user-question-wire-mirror.md) | accepted |

@@ -71,10 +71,12 @@ extension ClaudeChatClient {
         case "tool_use":
             if let name = item["name"] as? String {
                 let input = item["input"] as? [String: Any] ?? [:]
+                // 子の tool_use.id を itemId に載せる。対になる tool_result（.toolResult）が
+                // 同じ id で届き、受け側が 1 ツールコール = 1 セルへマージできる。
                 eventContinuation.yield(.subAgentActivity(
                     toolUseId: parentToolUseId,
                     kind: .tool,
-                    itemId: nil,
+                    itemId: item["id"] as? String,
                     text: commandDescription(toolName: name, input: input)
                 ))
             }
@@ -167,10 +169,12 @@ extension ClaudeChatClient {
                 if item["type"] as? String == "tool_result" {
                     let text = toolResultText(from: item["content"])
                     if !text.isEmpty {
+                        // 呼び出し（.tool）と同じ tool_use_id を運ぶ。種別を分けることで、
+                        // 受け側が「command 欄へ入れるか output 欄へ入れるか」を判別できる。
                         eventContinuation.yield(.subAgentActivity(
                             toolUseId: parentToolUseId,
-                            kind: .tool,
-                            itemId: nil,
+                            kind: .toolResult,
+                            itemId: item["tool_use_id"] as? String,
                             text: text
                         ))
                     }

@@ -23,7 +23,10 @@ public enum SubAgentActivityKind: Equatable, Sendable {
     case prompt
     case message
     case reasoning
+    /// ツール呼び出し（子の `tool_use`）。`itemId` は子の tool_use.id。
     case tool
+    /// ツール結果（子の `tool_result`）。`itemId` は同じ tool_use_id で、`.tool` と1セルにマージされる。
+    case toolResult
 }
 
 /// 1ターンぶんの API 使用量・コスト（Claude Code の stream-json `result` 由来）。

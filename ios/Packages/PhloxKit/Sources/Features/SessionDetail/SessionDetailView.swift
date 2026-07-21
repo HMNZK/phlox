@@ -283,13 +283,17 @@ public struct SessionDetailView: View {
             messages: viewModel.visibleMessages,
             window: transcriptWindow
         )
+        let lastTranscriptID = viewModel.visibleMessages.last?.id
         return VStack(alignment: .leading, spacing: DSSpacing.m) {
             if slice.hiddenCount > 0 {
                 loadEarlierMessagesButton(hiddenCount: slice.hiddenCount)
             }
-            ForEach(slice.visibleMessages) { message in
-                chatRow(for: message)
-                    .id(message.id)
+            ForEach(slice.visibleBlocks) { visibleBlock in
+                chatBlock(
+                    visibleBlock.content,
+                    lastTranscriptID: lastTranscriptID
+                )
+                .id(visibleBlock.id)
             }
             if viewModel.isAgentWorking {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -323,6 +327,38 @@ public struct SessionDetailView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("SessionDetail.loadEarlierMessages")
+    }
+
+    @ViewBuilder
+    private func chatBlock(
+        _ block: SessionDetailChatBlock,
+        lastTranscriptID: String?
+    ) -> some View {
+        switch block {
+        case .single(let message):
+            chatRow(for: message)
+        case .commandGroup(let id, let items):
+            chatRowWithCopy(copyText: commandGroupCopyText(items)) {
+                SessionDetailToolCallGroupRow(
+                    items: items,
+                    lastTranscriptID: lastTranscriptID,
+                    isTurnRunning: viewModel.isAgentWorking,
+                    isExpanded: viewModel.isMessageExpanded(id),
+                    isMessageExpanded: viewModel.isMessageExpanded,
+                    onToggleGroup: { viewModel.toggleMessageExpansion(id) },
+                    onToggleMessage: { viewModel.toggleMessageExpansion($0) }
+                )
+            }
+        }
+    }
+
+    private func commandGroupCopyText(_ items: [ChatMessage]) -> String? {
+        let parts = items.compactMap { message -> String? in
+            let text = ChatMessageCopyText.copyText(for: message)
+            return text?.isEmpty == false ? text : nil
+        }
+        guard !parts.isEmpty else { return nil }
+        return parts.joined(separator: "\n\n")
     }
 
     /// 1 メッセージの描画。user/agent はバブル、reasoning は v1 では agent 風バブル、
@@ -554,16 +590,21 @@ public struct SessionDetailView: View {
 /// SessionDetailView が描画するメッセージ範囲。ViewModel の visibleMessages の意味は変えない。
 struct SessionDetailTranscriptSlice {
     let visibleMessages: ArraySlice<ChatMessage>
+    let visibleBlocks: [SessionDetailVisibleBlock]
     let hiddenCount: Int
 
     var expansionAnchorID: String? {
-        hiddenCount > 0 ? visibleMessages.first?.id : nil
+        hiddenCount > 0 ? visibleBlocks.first?.id : nil
     }
 
     init(messages: [ChatMessage], window: TranscriptWindow) {
         let range = window.visibleRange(totalCount: messages.count)
         visibleMessages = messages[range.startIndex...]
         hiddenCount = range.hiddenCount
+        visibleBlocks = SessionDetailToolCallGrouping.visibleSlice(
+            from: messages,
+            startingAt: range.startIndex
+        ).blocks
     }
 }
 

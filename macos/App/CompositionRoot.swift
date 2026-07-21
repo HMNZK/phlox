@@ -640,7 +640,7 @@ public final class CompositionRoot {
 
     private static func isLiveChatSession(_ status: SessionStatus) -> Bool {
         switch status {
-        case .starting, .idle, .running, .awaitingApproval:
+        case .starting, .idle, .running, .awaitingApproval, .awaitingUserQuestion:
             true
         case .completed, .error:
             false

@@ -394,6 +394,21 @@ public final class DashboardViewModel {
         }
     }
 
+    public func requiresAttention(for node: SessionNode) -> Bool {
+        SessionAttentionPolicy.requiresAttention(
+            status: node.status,
+            hasUnseenCompletion: node.hasUnseenCompletion
+        )
+    }
+
+    /// サイドバーのプロジェクト欄赤表示用。配下セッションのいずれかが `requiresAttention` なら true。
+    public func hasAttention(in projectID: ProjectID) -> Bool {
+        let sidebarNodeIDs = Set(sessionForest(in: projectID).flatMap(Self.sessionTreeNodeIDs))
+        return sessionNodes.contains { node in
+            sidebarNodeIDs.contains(node.id) && requiresAttention(for: node)
+        }
+    }
+
     public func sessionNode(id: SessionID) -> SessionNode? {
         sessionNodeIndex[id]
     }

@@ -281,17 +281,24 @@ private struct SessionGridTile: View {
         }
     }
 
+    private var requiresAttention: Bool {
+        SessionAttentionPolicy.requiresAttention(
+            status: session.status,
+            hasUnseenCompletion: session.hasUnseenCompletion
+        )
+    }
+
     private var tileBackground: Color {
-        session.hasUnseenCompletion ? DSColor.stoppedHighlightGrid : DSColor.surfaceElevated
+        requiresAttention ? DSColor.stoppedHighlightGrid : DSColor.surfaceElevated
     }
 
     private var tileBorderColor: Color {
         if isDropTargeted {
             return Color.white.opacity(0.35)
         }
-        // 未確認の停止（完了/承認待ち/エラー等でユーザーの番になった）は赤枠で強く示す。
-        // クリック選択で markCompletionSeen が走ってラッチが解除され、通常の選択枠へ戻る。
-        if session.hasUnseenCompletion {
+        // 未確認の停止、または質問・承認の保留中は赤枠で強く示す。
+        // 保留状態は markCompletionSeen 後も requiresAttention で維持される。
+        if requiresAttention {
             return DSColor.stoppedHighlightGridBorder
         }
         // フォーカス時のみ 100%、非フォーカスは 40% へ落として
@@ -303,7 +310,7 @@ private struct SessionGridTile: View {
         if isDropTargeted {
             return 2
         }
-        if session.hasUnseenCompletion {
+        if requiresAttention {
             return 3
         }
         return isFocused ? 2 : 1

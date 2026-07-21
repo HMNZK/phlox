@@ -105,13 +105,13 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
         let isExpanded = isProjectExpanded(project.id)
         let isFilterSelected = router.gridFilterProjectID == project.id
         let isProjectSelected = router.selectedProjectID == project.id
-        let hasUnseenCompletion = viewModel.hasUnseenCompletion(in: project.id)
+        let requiresAttention = viewModel.hasAttention(in: project.id)
         return ProjectSidebarHeader(
             projectName: project.name,
             isExpanded: isExpanded,
             isFilterSelected: isFilterSelected,
             isProjectSelected: isProjectSelected,
-            hasUnseenCompletion: hasUnseenCompletion,
+            hasUnseenCompletion: requiresAttention,
             onToggleExpansion: {
                 withAnimation(.easeInOut(duration: 0.12)) {
                     toggleProjectExpansion(project.id)
@@ -470,10 +470,17 @@ private struct SessionSidebarRowView: View {
         }
     }
 
+    private var requiresAttention: Bool {
+        SessionAttentionPolicy.requiresAttention(
+            status: session.status,
+            hasUnseenCompletion: session.hasUnseenCompletion
+        )
+    }
+
     private var backgroundFill: Color {
         if isSelected { return DSColor.sessionRowSelected }
         if isHovering { return DSColor.sessionRowHover }
-        if session.hasUnseenCompletion { return DSColor.idleHighlight }
+        if requiresAttention { return DSColor.idleHighlight }
         return .clear
     }
 

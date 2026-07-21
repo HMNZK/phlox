@@ -33,6 +33,12 @@ public extension SessionStatus {
 /// 受け入れテスト AcceptanceSessionAttentionPolicyTests が凍結。スタブ実装＝task-2 が本実装する）。
 public enum SessionAttentionPolicy {
     public static func requiresAttention(status: SessionStatus, hasUnseenCompletion: Bool) -> Bool {
-        hasUnseenCompletion
+        if hasUnseenCompletion { return true }
+        switch status {
+        case .awaitingApproval, .awaitingUserQuestion:
+            return true
+        case .starting, .idle, .running, .completed, .error:
+            return false
+        }
     }
 }

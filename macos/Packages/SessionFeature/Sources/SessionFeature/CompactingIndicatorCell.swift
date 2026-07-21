@@ -24,6 +24,9 @@ struct CompactingIndicatorCell: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var isInViewHierarchy = false
+    /// 圧縮開始（＝このセルの出現）時刻。犬アニメの物語・ステージ進行の起点。
+    /// セルは圧縮中のみ存在するため、State の初期値で1回だけ固定される。
+    @State private var compactingStartedAt = Date()
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
@@ -44,7 +47,10 @@ struct CompactingIndicatorCell: View {
                     staticCompactingText(scale: scale)
                 } else {
                     TimelineView(ThinkingAnimationModel.timelineSchedule(isVisible: isTimelineVisible)) { context in
-                        shimmeringCompactingText(scale: scale, date: context.date)
+                        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                            shimmeringCompactingText(scale: scale, date: context.date)
+                            CompactingDogSceneView(date: context.date, startDate: compactingStartedAt)
+                        }
                     }
                 }
             }

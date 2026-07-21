@@ -551,6 +551,17 @@
         }
       }
     },
+    "ヘッダーに使用量を表示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show usage in the header"
+          }
+        }
+      }
+    },
     "プライバシーポリシー": {
       "extractionState": "manual",
       "localizations": {
@@ -987,6 +998,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Not fetched"
+          }
+        }
+      }
+    },
+    "未取得のCLIも表示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show CLIs with no usage data"
           }
         }
       }

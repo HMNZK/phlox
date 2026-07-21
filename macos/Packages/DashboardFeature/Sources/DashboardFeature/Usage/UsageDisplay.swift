@@ -25,6 +25,63 @@ enum UsageDisplay {
         }
     }
 
+    /// トップバーに使用量チップ群を出してよいか。
+    /// 「ヘッダーに使用量を表示」設定がオン、かつインスペクター非表示のときだけ true。
+    static func showsTopBarUsage(showInHeader: Bool, inspectorVisible: Bool) -> Bool {
+        showInHeader && !inspectorVisible
+    }
+
+    /// トップバーに出す1CLI分のチップ情報。
+    struct TopBarChip: Identifiable {
+        let kind: AgentKind
+        let allBuckets: [UsageBucket]
+        let shownBuckets: [UsageBucket]
+        let unavailableReason: String?
+        let staleNote: String?
+
+        var id: AgentKind { kind }
+
+        var isUnavailable: Bool { unavailableReason != nil }
+    }
+
+    /// トップバーに出すチップ列を構築する。並び順は AgentKind.allCases 順（visibleKinds と同じ規則）。
+    /// - showUnavailable == false: .ok の CLI のみ。ただし Claude は .unavailable でも理由つきで残す(ADR 0039)。
+    /// - showUnavailable == true: .unavailable の CLI も理由つきチップにする。
+    /// - .ok でも表示バケットが空ならチップを作らない。
+    /// - Claude の .ok かつ dataAsOf != nil のときだけ staleNote を付ける（ADR 0099: .ok 表示中は注記を重ねない）。
+    static func topBarChips(
+        usages: [AgentKind: CLIUsage],
+        showUnavailable: Bool,
+        now: Date
+    ) -> [TopBarChip] {
+        visibleKinds(usages: usages, showUnavailable: showUnavailable).compactMap { kind -> TopBarChip? in
+            guard let usage = usages[kind] else { return nil }
+            switch usage.state {
+            case .unavailable(let reason):
+                return TopBarChip(
+                    kind: kind,
+                    allBuckets: [],
+                    shownBuckets: [],
+                    unavailableReason: reason,
+                    staleNote: nil
+                )
+            case .ok(let buckets):
+                let shown = topBarBuckets(buckets)
+                guard !shown.isEmpty else { return nil }
+                let staleNote = (kind == .claudeCode && usage.dataAsOf != nil)
+                    ? ClaudeUsageStaleness.note(now: now, dataAsOf: usage.dataAsOf)
+                    : nil
+                return TopBarChip(
+                    kind: kind,
+                    allBuckets: buckets,
+                    shownBuckets: shown,
+                    unavailableReason: nil,
+                    staleNote: staleNote
+                )
+            }
+        }
+    }
+
     /// トップバーで表示するバケット列。5時間上限(id "5h")と週次(id "weekly")をこの順で返し、
     /// どちらも持たない CLI(Cursor 等)は全バケットを返す。空なら空配列。
     static func topBarBuckets(_ buckets: [UsageBucket]) -> [UsageBucket] {

@@ -19,6 +19,7 @@ struct SettingsView: View {
     @AppStorage(UsageSettings.autoRefreshKey) private var usageAutoRefresh = true
     @AppStorage(UsageSettings.claudeScrapeKey) private var claudeScrape = true
     @AppStorage(UsageSettings.showUnavailableKey) private var showUnavailableUsage = false
+    @AppStorage(UsageSettings.showInHeaderKey) private var showUsageInHeader = true
 
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
@@ -177,6 +178,9 @@ struct SettingsView: View {
                     }
                     Toggle(isOn: $showUnavailableUsage) {
                         Label("未取得のCLIも表示", systemImage: "eye.slash")
+                    }
+                    Toggle(isOn: $showUsageInHeader) {
+                        Label("ヘッダーに使用量を表示", systemImage: "menubar.rectangle")
                     }
                 } header: {
                     Text("使用量")

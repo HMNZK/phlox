@@ -8,12 +8,14 @@ public enum UsageSettings {
     public static let autoRefreshKey = "phlox.usage.autoRefresh"
     public static let claudeScrapeKey = "phlox.usage.claudeScrape"
     public static let showUnavailableKey = "phlox.usage.showUnavailable"
+    public static let showInHeaderKey = "phlox.usage.showInHeader"
 
     public static var defaultsDictionary: [String: Any] {
         [
             autoRefreshKey: true,
             claudeScrapeKey: true,
             showUnavailableKey: false,
+            showInHeaderKey: true,
         ]
     }
 

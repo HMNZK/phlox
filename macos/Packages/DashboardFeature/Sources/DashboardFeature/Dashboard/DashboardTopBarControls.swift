@@ -55,6 +55,8 @@ struct DashboardTrailingTopBarControls: View {
     @Binding var gridColumnsRaw: String
     @Binding var gridSessionPickerPresented: Bool
 
+    @AppStorage(UsageSettings.showInHeaderKey) private var showUsageInHeader = true
+
     @State private var measuredControlsWidth: CGFloat = 0
     @State private var hasMeasuredControlsWidth = false
     @State private var trailingControlsGeometryWidth: CGFloat = 0
@@ -80,8 +82,8 @@ struct DashboardTrailingTopBarControls: View {
     var body: some View {
         HStack(spacing: DSSpacing.s) {
             // UsageLimit ビュー(インスペクター)表示中は詳細が見えているため
-            // トップバーのチップは出さない。
-            if !router.inspectorVisible {
+            // トップバーのチップは出さない。「ヘッダーに使用量を表示」設定でも制御する。
+            if UsageDisplay.showsTopBarUsage(showInHeader: showUsageInHeader, inspectorVisible: router.inspectorVisible) {
                 UsageTopBarView(
                     monitor: usageMonitor,
                     availableWidth: usageAvailableWidth

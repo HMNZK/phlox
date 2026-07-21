@@ -12,6 +12,7 @@ last-verified: 2026-07-17
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0112 | [ヘッダーの使用量表示を設定で消せるようにし「未取得のCLIも表示」をヘッダーにも適用する](0112-header-usage-visibility-setting.md) | active |
 | 0111 | [AskUserQuestion 保留中は awaitingUserQuestion（入力待ち）にする（0107 を supersede）](0111-awaiting-user-question-status.md) | active |
 | 0110 | [ターン途中 flush（leading-edge スロットル）と終了時の並行 flush + timeout race](0110-midturn-flush-and-termination-race.md) | active |
 | 0109 | [サブエージェントへのフォローアップはメインセッション経由の通常ターンで送る](0109-subagent-followup-via-main-session.md) | active |

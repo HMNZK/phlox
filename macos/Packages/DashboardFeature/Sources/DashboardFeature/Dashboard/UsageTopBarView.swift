@@ -9,26 +9,14 @@ struct UsageTopBarView: View {
     /// ゲージ付き→直列テキスト→非表示の順に自動で縮退する。
     let availableWidth: CGFloat
 
+    @AppStorage(UsageSettings.showUnavailableKey) private var showUnavailable = false
+
     private static let gaugeWidth: CGFloat = 72
+
+    private typealias TopBarChip = UsageDisplay.TopBarChip
 
     private func agentBrandIcon(for kind: AgentKind) -> some View {
         AgentBrandIcon(kind: kind, size: UsageDisplay.topBarBrandIconSize)
-    }
-
-    private struct TopBarChip: Identifiable {
-        let kind: AgentKind
-        let allBuckets: [UsageBucket]
-        let shownBuckets: [UsageBucket]
-        let unavailableReason: String?
-        let staleNote: String?
-
-        var id: AgentKind { kind }
-
-        var isUnavailable: Bool { unavailableReason != nil }
-    }
-
-    private var visibleKinds: [AgentKind] {
-        UsageDisplay.visibleKinds(usages: monitor.usages, showUnavailable: false)
     }
 
     private var constrainedWidth: CGFloat {
@@ -36,65 +24,21 @@ struct UsageTopBarView: View {
     }
 
     private var chips: [TopBarChip] {
-        visibleKinds.compactMap { kind -> TopBarChip? in
-            guard let usage = monitor.usages[kind] else { return nil }
-            if kind == .claudeCode {
-                switch usage.state {
-                case .unavailable(let reason):
-                    return TopBarChip(
-                        kind: kind,
-                        allBuckets: [],
-                        shownBuckets: [],
-                        unavailableReason: reason,
-                        staleNote: nil
-                    )
-                case .ok(let buckets):
-                    let shown = UsageDisplay.topBarBuckets(buckets)
-                    guard !shown.isEmpty else { return nil }
-                    return TopBarChip(
-                        kind: kind,
-                        allBuckets: buckets,
-                        shownBuckets: shown,
-                        unavailableReason: nil,
-                        // 実データ表示中の「未取得」注記の矛盾を避ける（PM 裁定・task-16 レビュー LOW）
-                        staleNote: usage.dataAsOf != nil
-                            ? ClaudeUsageStaleness.note(now: Date(), dataAsOf: usage.dataAsOf)
-                            : nil
-                    )
-                }
-            }
-            guard case .ok(let buckets) = usage.state else { return nil }
-            let shown = UsageDisplay.topBarBuckets(buckets)
-            guard !shown.isEmpty else { return nil }
-            return TopBarChip(
-                kind: kind,
-                allBuckets: buckets,
-                shownBuckets: shown,
-                unavailableReason: nil,
-                staleNote: nil
-            )
-        }
+        // 実データ表示中の「未取得」注記の矛盾を避ける（PM 裁定・task-16 レビュー LOW）は
+        // UsageDisplay.topBarChips 側で保持済み。
+        UsageDisplay.topBarChips(usages: monitor.usages, showUnavailable: showUnavailable, now: Date())
     }
 
     var body: some View {
-        let chips = chips
         if !chips.isEmpty, constrainedWidth > 0 {
             TimelineView(.periodic(from: .now, by: 60)) { context in
-                let timedChips = chips.map { chip -> TopBarChip in
-                    guard chip.kind == .claudeCode, !chip.isUnavailable,
-                          let dataAsOf = monitor.usages[chip.kind]?.dataAsOf else { return chip }
-                    let staleNote = ClaudeUsageStaleness.note(
-                        now: context.date,
-                        dataAsOf: dataAsOf
-                    )
-                    return TopBarChip(
-                        kind: chip.kind,
-                        allBuckets: chip.allBuckets,
-                        shownBuckets: chip.shownBuckets,
-                        unavailableReason: chip.unavailableReason,
-                        staleNote: staleNote
-                    )
-                }
+                // staleNote は now に依存する唯一の要素。毎分 context.date で純関数を呼び直し、
+                // 表示専用ロジックの重複（View 側での再計算）を作らない（PM 裁定・レビュー MEDIUM）。
+                let timedChips = UsageDisplay.topBarChips(
+                    usages: monitor.usages,
+                    showUnavailable: showUnavailable,
+                    now: context.date
+                )
                 ViewThatFits(in: .horizontal) {
                     // fixedSize が無いと内部 Text が折り返しで「収まった」と報告し、
                     // 次段への縮退が発動せず縦潰れ表示になる（フェーズ4目視で検出）。

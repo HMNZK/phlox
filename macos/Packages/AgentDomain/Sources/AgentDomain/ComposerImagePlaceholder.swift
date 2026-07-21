@@ -12,12 +12,12 @@ import Foundation
 public enum ComposerImagePlaceholder {
     /// 番号 `number` のプレースホルダ文字列。
     public static func text(for number: Int) -> String {
-        ""
+        "[Image #\(number)]"
     }
 
     /// 既存の番号列から次に振る番号を決める。欠番は詰めない。
     public static func nextNumber(after existingNumbers: [Int]) -> Int {
-        0
+        (existingNumbers.max() ?? 0) + 1
     }
 
     /// `cursorUTF16` の位置にプレースホルダを挿入し、挿入後のテキストとカーソル位置を返す。
@@ -26,11 +26,109 @@ public enum ComposerImagePlaceholder {
         into text: String,
         cursorUTF16: Int
     ) -> (text: String, cursorUTF16: Int) {
-        (text, cursorUTF16)
+        let insertIndex = characterBoundaryIndex(atUTF16Offset: cursorUTF16, in: text)
+        let insertUTF16 = text.utf16.distance(from: text.utf16.startIndex, to: insertIndex)
+
+        let lead = leadingSpace(before: insertIndex, in: text)
+        let trail = trailingSpace(after: insertIndex, in: text)
+        let insertion = lead + Self.text(for: number) + trail
+
+        var result = text
+        result.insert(contentsOf: insertion, at: insertIndex)
+
+        let newCursorUTF16 = insertUTF16 + insertion.utf16.count
+        return (result, newCursorUTF16)
     }
 
     /// 本文から番号 `number` のプレースホルダを1つ取り除く。
     public static func removing(number: Int, from text: String) -> String {
-        text
+        let token = Self.text(for: number)
+        guard let range = text.range(of: token) else {
+            return text
+        }
+
+        let deletionUTF16 = text.utf16.distance(from: text.utf16.startIndex, to: range.lowerBound)
+        var result = text
+        result.removeSubrange(range)
+
+        return collapseAdjacentSpace(atDeletionUTF16: deletionUTF16, in: result)
+    }
+
+    // MARK: - Insertion helpers
+
+    private static func characterBoundaryIndex(atUTF16Offset offset: Int, in text: String) -> String.Index {
+        let clamped = max(0, min(offset, text.utf16.count))
+        if clamped == 0 {
+            return text.startIndex
+        }
+        if clamped >= text.utf16.count {
+            return text.endIndex
+        }
+
+        let index = String.Index(utf16Offset: clamped, in: text)
+        let charRange = text.rangeOfComposedCharacterSequence(at: index)
+        if charRange.lowerBound == index {
+            return index
+        }
+        return charRange.lowerBound
+    }
+
+    private static func leadingSpace(before index: String.Index, in text: String) -> String {
+        guard index > text.startIndex else { return "" }
+        let previousIndex = text.index(before: index)
+        let previous = text[previousIndex]
+        if isWhitespaceOrNewline(previous) {
+            return ""
+        }
+        return " "
+    }
+
+    private static func trailingSpace(after index: String.Index, in text: String) -> String {
+        guard index < text.endIndex else { return " " }
+        let next = text[index]
+        if isWhitespaceOrNewline(next) {
+            return ""
+        }
+        return " "
+    }
+
+    private static func isWhitespaceOrNewline(_ character: Character) -> Bool {
+        character == " " || character == "\n" || character == "\t" || character.isWhitespace
+    }
+
+    // MARK: - Removal helpers
+
+    private static func collapseAdjacentSpace(atDeletionUTF16 deletionUTF16: Int, in text: String) -> String {
+        var result = text
+        let utf16Count = result.utf16.count
+
+        // 規則A: 削除位置の直後が半角スペースで、先頭または直前が空白・改行ならそのスペースを削除
+        if deletionUTF16 < utf16Count {
+            let index = String.Index(utf16Offset: deletionUTF16, in: result)
+            if result[index] == " " {
+                let beforeIsWhitespaceOrNewline: Bool
+                if deletionUTF16 == 0 {
+                    beforeIsWhitespaceOrNewline = true
+                } else {
+                    let beforeIndex = String.Index(utf16Offset: deletionUTF16 - 1, in: result)
+                    beforeIsWhitespaceOrNewline = isWhitespaceOrNewline(result[beforeIndex])
+                }
+
+                if beforeIsWhitespaceOrNewline {
+                    result.remove(at: index)
+                    return result
+                }
+            }
+        }
+
+        // 規則B: 削除位置が末尾で直前が半角スペースならそのスペースを削除
+        if deletionUTF16 >= utf16Count, deletionUTF16 > 0 {
+            let beforeIndex = String.Index(utf16Offset: deletionUTF16 - 1, in: result)
+            if result[beforeIndex] == " " {
+                result.remove(at: beforeIndex)
+            }
+        }
+
+        return result
     }
 }

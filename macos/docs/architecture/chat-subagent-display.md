@@ -54,7 +54,7 @@ Claude Code stdout (stream-json)
 
 ## transcript 組立の冪等性（`appendSubAgentTranscriptItem`）
 
-- agentMessage は、**新規 or 既存の一方が完了レポート系 id（`-output` / `-summary`）**で本文が**空白非依存で一致**（スペース・タブ・改行を全て除去して比較＝`whitespaceStrippedForDedup`）なら追加しない（完了レポートの二重表示防止）。inline 最終テキストとレポート系は同一レポートでも整形（改行↔空白・連結時の区切り欠落）が異なりやすく、完全一致では二重表示が漏れるため（ADR 0104）。比較は dedup 専用で、**表示・保存する本文は無加工**。
+- agentMessage は、**新規 or 既存の一方が完了レポート系 id（`-output` / `-summary`）**で本文が**空白非依存で一致**（スペース・タブ・改行を全て除去して比較＝`whitespaceStrippedForDedup`）なら追加しない（完了レポートの二重表示防止）。inline 最終テキストとレポート系は同一レポートでも整形（改行↔空白・連結時の区切り欠落）が異なりやすく、完全一致では二重表示が漏れるため（ADR 0105）。比較は dedup 専用で、**表示・保存する本文は無加工**。
 - 完了レポート系が絡まない inline（`-message-N`）同士の同一本文は両方残す。
 - id 一致は in-place 置換（ストリーム更新）。
 

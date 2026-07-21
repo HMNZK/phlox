@@ -12,7 +12,8 @@ last-verified: 2026-07-17
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
-| 0104 | [サブエージェント完了レポートの dedup を空白非依存にする](0104-subagent-report-dedup-whitespace-insensitive.md) | active |
+| 0105 | [サブエージェント完了レポートの dedup を空白非依存にする](0105-subagent-report-dedup-whitespace-insensitive.md) | active |
+| 0104 | [スラッシュコマンドの発火位置を空白区切りトークン先頭に統一（@ と対称）](0104-composer-slash-trigger-position.md) | active |
 | 0103 | [質問カードの iOS ミラー配線（wire DTO・POST /question・App 層 witness）](0103-user-question-wire-mirror.md) | accepted |
 | 0102 | [AskUserQuestion を CLI control protocol（can_use_tool 中継）で実装する](0102-ask-user-question-control-protocol.md) | accepted |
 | 0096 | [チャットのツールコール連続表示のグループ集約と identity 設計](0096-chat-tool-call-grouping.md) | active |

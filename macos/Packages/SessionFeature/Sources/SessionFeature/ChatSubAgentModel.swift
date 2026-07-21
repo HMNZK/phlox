@@ -40,6 +40,10 @@ final class ChatSubAgentModel {
         if liveHasReasoning && !parsedHasReasoning { return live }
         if parsedHasReasoning && !liveHasReasoning { return parsed }
 
+        if subAgents.first(where: { $0.id == id })?.status == .completed {
+            return parsed
+        }
+
         return parsed.count >= live.count ? parsed : live
     }
 

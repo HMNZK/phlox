@@ -12,6 +12,7 @@ last-verified: 2026-07-17
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0106 | [完了サブエージェントの transcript は parsed（永続）を優先する](0106-subagent-transcript-completed-prefers-parsed.md) | active |
 | 0105 | [サブエージェント完了レポートの dedup を空白非依存にする](0105-subagent-report-dedup-whitespace-insensitive.md) | active |
 | 0104 | [スラッシュコマンドの発火位置を空白区切りトークン先頭に統一（@ と対称）](0104-composer-slash-trigger-position.md) | active |
 | 0103 | [質問カードの iOS ミラー配線（wire DTO・POST /question・App 層 witness）](0103-user-question-wire-mirror.md) | accepted |

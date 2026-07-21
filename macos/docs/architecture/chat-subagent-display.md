@@ -41,9 +41,11 @@ Claude Code stdout (stream-json)
 
 - **ライブ**: `subAgentTranscripts[id]`（stdout の子ターン由来。thinking テキストを保持しうる）。永続化されない（再起動で消える）。
 - **parsed**: `SubAgentRef.outputFile`（子 JSONL）を `SubAgentTranscriptLoader.parse`。ファイルメタデータ（mtime/size）でキャッシュ。
-- 選択規則:
+- 選択規則（順序が重要）:
   1. 片方だけ reasoning を持つ → reasoning を持つ側。
-  2. それ以外 → `parsed.count >= live.count ? parsed : live`。
+  2. 該当サブエージェントが**完了済み（`status == .completed`）**→ parsed（永続が権威。ADR 0106）。
+  3. それ以外（実行中）→ `parsed.count >= live.count ? parsed : live`。
+- **なぜ完了時は parsed 優先か（ADR 0106）**: ライブは各ツールを tool_use（inline assistant）と tool_result（inline user）の両方から `.subAgentActivity(.tool)` として生むため件数が約2倍に水増しされ、かつ中間ナレーション text を持たない（stdout はツール活動と最終レポートのみ運ぶ）。一方 parsed はツールを1セルにマージし中間ナレーションも保持する。件数タイブレークだけだと、2重化で膨れたライブが richer な parsed に不当に勝ち「ツール2重表示・中間ナレーション欠落」が起きるため、完了時は parsed を優先する。`.completed` のみ特別扱い（`.failed` 等は件数タイブレーク据え置き）。
 - **parse のマージ**: `tool_use` が作る `commandExecution` を `tool_use_id` で引き、`tool_result` は同 id の別項目にせず output をマージ（1 ツールコール=1 セル）。text/thinking の id は `message.id:type:行index:offset` で一意化。
 - **制約**: 子の `thinking` が暗号化（`thinking:""`＋signature）の個体は reasoning 本文が両ソースに無く表示できない。
 

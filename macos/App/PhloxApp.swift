@@ -190,6 +190,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     /// 子終了処理のタイムアウト。applicationShouldTerminate と揃える。
     private static let cleanupTimeout: Duration = .seconds(5)
+    /// チャット transcript flush の上限。書き込み完了を待つが、終了不能ハングは作らない。
+    private static let transcriptFlushTimeout: Duration = .seconds(3)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
@@ -221,15 +223,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let ptyManager else { return .terminateNow }
         // シグナル経路と同じガードで「高々 1 回」を担保する。シグナルハンドラが先に
         // 起動権を取得済みなら、ここでは子終了を再実行せずそのまま終了させる。
         guard cleanupGuard.beginCleanup() else { return .terminateNow }
-        Task {
-            await ptyManager.terminateAllAndWait(timeout: Self.cleanupTimeout)
+
+        let ptyManager = self.ptyManager
+        let dashboard = self.dashboard
+        Task { @MainActor in
+            // PTY kill と transcript flush を併走し、両方終わってから reply する。
+            // TaskGroup に @MainActor 閉包を載せず、Sendable な Task ハンドルだけで競合させる
+            // （Swift 6 region-based isolation checker 回避）。
+            let ptyTask = Task {
+                guard let ptyManager else { return }
+                await ptyManager.terminateAllAndWait(timeout: Self.cleanupTimeout)
+            }
+            let flushTask = Task { @MainActor in
+                await Self.flushChatTranscriptsForTermination(
+                    dashboard: dashboard,
+                    timeout: Self.transcriptFlushTimeout
+                )
+            }
+            await ptyTask.value
+            await flushTask.value
             NSApplication.shared.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
+    }
+
+    /// 全チャットセッションの transcript を書き切り、タイムアウトで打ち切る。
+    ///
+    /// 各セッションの `flushTranscriptNow()` は子タスクで同時起動する（直列 await だと
+    /// 先頭セッションの store stall で後続が enqueue すらされず契約違反になる）。
+    /// 全体完了を `TerminationFlushRace` で timeout と競わせる。timeout 勝利後は flush
+    /// 側を await しない（`withTaskGroup` の暗黙 await で reply がハングするのを避ける）。
+    @MainActor
+    private static func flushChatTranscriptsForTermination(
+        dashboard: DashboardViewModel?,
+        timeout: Duration
+    ) async {
+        guard let dashboard else { return }
+        let sessions = dashboard.sessionNodes.compactMap(\.appServer)
+        guard !sessions.isEmpty else { return }
+
+        await TerminationFlushRace.raceAllParallel(
+            timeout: timeout,
+            bodies: sessions.map { session in
+                { await session.flushTranscriptNow() }
+            }
+        )
+        // timeout 勝利時も各 flush 子タスクは走らせたまま（プロセス終了で回収）。reply はここで返る。
     }
 
     /// SIGTERM（`kill <pid>`）/ SIGINT（Ctrl-C）受信時に、子セッションを一括終了してから

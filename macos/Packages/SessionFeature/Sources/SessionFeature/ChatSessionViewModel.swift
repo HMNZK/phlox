@@ -42,6 +42,7 @@ public final class ChatSessionViewModel: Identifiable {
     public private(set) var transcriptItemIDs: Set<String> = []
     @ObservationIgnored private var transcriptIndexByID: [String: Int] = [:]
     @ObservationIgnored private let transcriptStreamCoalescer = TranscriptStreamCoalescer()
+    @ObservationIgnored private var midTurnPersistenceGate = MidTurnPersistenceGate()
     public private(set) var transcriptRevision: Int = 0
     public private(set) var rawEventLog: [String] = []
     public private(set) var pendingApprovals: [ChatApprovalRequest] = []
@@ -176,6 +177,7 @@ public final class ChatSessionViewModel: Identifiable {
         self.historyTranscriptLoader = historyTranscriptLoader
         configureSubAgentModel()
         configureTranscriptStreamCoalescer()
+        configureMidTurnPersistenceGate()
         scheduleHistoryCacheLoadIfNeeded()
         startEventTasks()
     }
@@ -202,6 +204,7 @@ public final class ChatSessionViewModel: Identifiable {
         self.historyTranscriptLoader = nil
         configureSubAgentModel()
         configureTranscriptStreamCoalescer()
+        configureMidTurnPersistenceGate()
         scheduleHistoryCacheLoadIfNeeded()
         startEventTasks()
     }
@@ -228,6 +231,55 @@ public final class ChatSessionViewModel: Identifiable {
                 self?.flushScheduledStreamDeltas(token: token)
             }
         }
+    }
+
+    private func configureMidTurnPersistenceGate() {
+        midTurnPersistenceGate.setScheduler { [weak self] delay, token in
+            Task { @MainActor [weak self] in
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                } catch {
+                    return
+                }
+                self?.flushScheduledMidTurnPersistence(token: token)
+            }
+        }
+    }
+
+    /// Whitebox / tests: replace the mid-turn gate with an injectable clock and scheduler.
+    func installMidTurnPersistenceForTesting(
+        interval: TimeInterval,
+        eventThreshold: Int,
+        now: @escaping MidTurnPersistenceGate.Clock,
+        schedule: @escaping MidTurnPersistenceGate.Scheduler
+    ) {
+        midTurnPersistenceGate = MidTurnPersistenceGate(
+            interval: interval,
+            eventThreshold: eventThreshold,
+            now: now,
+            schedule: schedule
+        )
+    }
+
+    /// Whitebox / tests: fire a previously scheduled trailing mid-turn flush token.
+    func fireScheduledMidTurnPersistenceForTesting(token: UInt64) {
+        flushScheduledMidTurnPersistence(token: token)
+    }
+
+    private func flushScheduledMidTurnPersistence(token: UInt64) {
+        guard midTurnPersistenceGate.fireScheduled(token: token) else { return }
+        performMidTurnTranscriptFlush()
+    }
+
+    private func requestMidTurnTranscriptFlush() {
+        guard transcriptPersistenceQueue != nil else { return }
+        if midTurnPersistenceGate.requestFlush() {
+            performMidTurnTranscriptFlush()
+        }
+    }
+
+    private func performMidTurnTranscriptFlush() {
+        enqueueTranscriptUpsert(transcript.filter(shouldStoreInTranscript))
     }
 
     // task-9 契約（受け入れテスト ChatHistoryStart が凍結。実装契約の正本: tasks/task-9.md）
@@ -1188,6 +1240,7 @@ public final class ChatSessionViewModel: Identifiable {
             notifyCompletionIfNeeded(from: previousStatus)
             touchOutput()
             flushTranscriptAtTurnBoundary()
+            midTurnPersistenceGate.noteExternalFlush()
         case .turnInterrupted(let nativeSessionId):
             if let nativeSessionId, shouldAdoptNativeSessionId(nativeSessionId) {
                 updateNativeSessionId(nativeSessionId)
@@ -1199,6 +1252,7 @@ public final class ChatSessionViewModel: Identifiable {
             subAgentModel.failRunningSubAgents()
             status = .idle
             flushTranscriptAtTurnBoundary()
+            midTurnPersistenceGate.noteExternalFlush()
         case .error(let message):
             expireAllPendingUserQuestions()
             isCompacting = false
@@ -1209,6 +1263,7 @@ public final class ChatSessionViewModel: Identifiable {
             status = .error(message: message)
             touchOutput()
             flushTranscriptAtTurnBoundary()
+            midTurnPersistenceGate.noteExternalFlush()
         case .warning(let message):
             markRunningEventReceived(at: eventDate)
             appendOrReplace(.error(id: "warning-\(UUID().uuidString)", message: message, timestamp: eventDate))
@@ -1267,6 +1322,15 @@ public final class ChatSessionViewModel: Identifiable {
             markRunningEventReceived(at: eventDate)
             applyUserQuestionResolution(requestId: requestId, outcome: outcome)
             touchOutput()
+        }
+
+        switch event {
+        case .agentMessageDelta, .reasoningDelta, .turnCompleted, .turnInterrupted, .error:
+            break
+        case .turnStarted, .turnUsage:
+            break
+        default:
+            requestMidTurnTranscriptFlush()
         }
     }
 
@@ -2022,8 +2086,13 @@ extension ChatSessionViewModel: ControllableSession {
     }
 
     /// 現在の transcript を即時に永続化キューへ書き出し、書き込み完了まで待つ
-    /// （phlox-ux-5fixes task-4 契約のスタブ。AcceptanceMidTurnPersistenceTests が凍結。実装は task-4 が担う）。
+    /// （アプリ終了経路から呼ぶ。保留中ストリーム delta はバリア flush してから upsert する）。
     public func flushTranscriptNow() async {
+        midTurnPersistenceGate.cancelPending()
+        flushPendingStreamDeltasBarrier()
+        enqueueTranscriptUpsert(transcript.filter(shouldStoreInTranscript))
+        midTurnPersistenceGate.noteExternalFlush()
+        await transcriptPersistenceQueue?.waitForPendingWrites()
     }
 
     public func readText(lines: Int) -> String {

@@ -12,10 +12,11 @@ last-verified: 2026-07-17
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0111 | [AskUserQuestion 保留中は awaitingUserQuestion（入力待ち）にする（0107 を supersede）](0111-awaiting-user-question-status.md) | active |
 | 0110 | [ターン途中 flush（leading-edge スロットル）と終了時の並行 flush + timeout race](0110-midturn-flush-and-termination-race.md) | active |
 | 0109 | [サブエージェントへのフォローアップはメインセッション経由の通常ターンで送る](0109-subagent-followup-via-main-session.md) | active |
 | 0108 | [圧縮中インジケーターの開始検知は手動 /compact のみ（stream-json に開始シグナルが無い）](0108-compacting-indicator-manual-only-start.md) | active |
-| 0107 | [AskUserQuestion 到着は hasUnseenCompletion ラッチで attention 化する（status は拡張しない）](0107-user-question-attention-latch.md) | active |
+| 0107 | [AskUserQuestion 到着は hasUnseenCompletion ラッチで attention 化する（status は拡張しない）](0107-user-question-attention-latch.md) | superseded → 0111 |
 | 0106 | [完了サブエージェントの transcript は parsed（永続）を優先する](0106-subagent-transcript-completed-prefers-parsed.md) | active |
 | 0105 | [サブエージェント完了レポートの dedup を空白非依存にする](0105-subagent-report-dedup-whitespace-insensitive.md) | active |
 | 0104 | [スラッシュコマンドの発火位置を空白区切りトークン先頭に統一（@ と対称）](0104-composer-slash-trigger-position.md) | active |

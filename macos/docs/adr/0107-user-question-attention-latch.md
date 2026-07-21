@@ -1,5 +1,6 @@
 ---
-status: active
+status: superseded
+superseded-by: 0111-awaiting-user-question-status.md
 last-verified: 2026-07-21
 ---
 

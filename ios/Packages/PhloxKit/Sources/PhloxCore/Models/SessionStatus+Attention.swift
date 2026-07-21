@@ -5,13 +5,16 @@ import AgentDomain
 public extension SessionStatus {
     /// このステータスがユーザーの操作（承認・応答）を要求するか。
     ///
-    /// `.awaitingApproval` のみ `true`。それ以外（starting/idle/running/completed/error）は `false`。
+    /// `.awaitingApproval` と `.awaitingUserQuestion` のみ `true`。
+    /// それ以外（starting/idle/running/completed/error）は `false`。
     /// 一覧画面の「あなたの番」セクション（カンプ ②）のフィルタと、`Session.needsAttention` の
     /// 導出はすべてこの 1 箇所を経由し、判定がぶれないようにする。
     var needsAttention: Bool {
-        if case .awaitingApproval = self {
+        switch self {
+        case .awaitingApproval, .awaitingUserQuestion:
             return true
+        default:
+            return false
         }
-        return false
     }
 }

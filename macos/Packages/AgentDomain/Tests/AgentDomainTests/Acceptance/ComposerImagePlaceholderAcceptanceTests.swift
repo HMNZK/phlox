@@ -350,6 +350,28 @@ struct ComposerImagePlaceholderAcceptanceTests {
     }
 
     @Test
+    func repairing_neverBreaksAnIntactPlaceholder() {
+        // 1つ目のトークンを範囲選択で消したケース。差分推定が外れても、無傷の2つ目を壊さない。
+        #expect(
+            ComposerImagePlaceholder.repairingBrokenPlaceholder(
+                number: 1,
+                oldText: "[Image #1] [Image #2] ",
+                newText: "[Image #2] ",
+                preserving: [2]
+            ) == nil
+        )
+    }
+
+    @Test
+    func repairing_doesNotSplitSurrogatePairs() {
+        // 高位サロゲートを共有する絵文字（😀/😃）で差分が絵文字の途中に落ちても U+FFFD を作らない。
+        let repaired = ComposerImagePlaceholder.repairingBrokenPlaceholder(
+            number: 1, oldText: "😀[Image #1] テスト", newText: "😃[Image #1 テスト"
+        )
+        #expect(repaired?.text.contains("\u{FFFD}") != true)
+    }
+
+    @Test
     func removing_doesNotMatchDifferentNumberWithSamePrefix() {
         // "[Image #1]" が "[Image #12]" の一部として誤マッチしないこと。
         #expect(ComposerImagePlaceholder.removing(number: 1, from: "[Image #12]") == "[Image #12]")

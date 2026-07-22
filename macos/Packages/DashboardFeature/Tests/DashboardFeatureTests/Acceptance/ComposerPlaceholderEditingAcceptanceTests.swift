@@ -196,6 +196,75 @@ struct ComposerPlaceholderEditingAcceptanceTests {
         #expect(textView.writeSelectionWithImages(to: pasteboard) == false)
     }
 
+    @Test @MainActor
+    func copyingAnUnsupportedMediaType_fallsBackToPlainCopy() {
+        let pasteboard = makePasteboard()
+        defer { pasteboard.releaseGlobally() }
+
+        let textView = IMESafeTextView.SubmitAwareTextView()
+        textView.string = "[Image #1]"
+        textView.attachedImageNumbers = { [1] }
+        textView.imagesForCopy = { _ in [(data: Data([1]), mediaType: "image/heic")] }
+        textView.setSelectedRange(NSRange(location: 0, length: 10))
+
+        // 載せられない形式なら通常コピーへ委ねる（テキストまで失わせない）。
+        #expect(textView.writeSelectionWithImages(to: pasteboard) == false)
+    }
+
+    @Test @MainActor
+    func cutSelectionWithAPlaceholder_writesTheImageAndRemovesTheText() {
+        let pasteboard = makePasteboard()
+        defer { pasteboard.releaseGlobally() }
+
+        let textView = IMESafeTextView.SubmitAwareTextView()
+        textView.string = "見て [Image #1] です"
+        textView.attachedImageNumbers = { [1] }
+        textView.imagesForCopy = { _ in [(data: Data([0x89]), mediaType: "image/png")] }
+        textView.setSelectedRange(NSRange(location: 3, length: 10))
+
+        #expect(textView.writeSelectionWithImages(to: pasteboard) == true)
+        #expect(pasteboard.data(forType: NSPasteboard.PasteboardType("public.png")) == Data([0x89]))
+    }
+
+    // MARK: - 自分でコピーしたものを貼り戻す（task-6）
+
+    @Test @MainActor
+    func pastingBackOwnCopy_doesNotSwallowTheSelectedText() {
+        // テキストと画像を両方持つ pasteboard を画像として横取りすると、本文が丸ごと捨てられる。
+        let pasteboard = makePasteboard()
+        defer { pasteboard.releaseGlobally() }
+        let item = NSPasteboardItem()
+        item.setString("見て [Image #1] です", forType: .string)
+        item.setData(Data([0x89, 0x50]), forType: NSPasteboard.PasteboardType("public.png"))
+        pasteboard.writeObjects([item])
+
+        let textView = IMESafeTextView.SubmitAwareTextView()
+        textView.attachedImageNumbers = { [1] }
+        var attachInvoked = false
+        textView.onPasteImageOutcome = { _, _ in
+            attachInvoked = true
+            return .attached(number: 2)
+        }
+
+        // false = 通常のテキストペーストに委ねる（本文が保たれる）。
+        #expect(textView.handlePaste(from: pasteboard) == false)
+        #expect(attachInvoked == false)
+    }
+
+    @Test @MainActor
+    func pastingAPlainImage_stillAttaches() {
+        let pasteboard = makePasteboard()
+        defer { pasteboard.releaseGlobally() }
+        pasteboard.setData(Data([0x89, 0x50]), forType: NSPasteboard.PasteboardType("public.png"))
+
+        let textView = IMESafeTextView.SubmitAwareTextView()
+        textView.attachedImageNumbers = { [1] }
+        textView.onPasteImageOutcome = { _, _ in .attached(number: 2) }
+
+        #expect(textView.handlePaste(from: pasteboard) == true)
+        #expect(textView.string == "[Image #2] ")
+    }
+
     // MARK: - ストアからの画像取り出し（task-6）
 
     @Test @MainActor

@@ -277,6 +277,19 @@ struct SessionAttachmentNumberingAcceptanceTests {
     }
 
     @Test
+    func deletingTheFirstPlaceholderByRange_leavesTheSecondOneIntact() {
+        let vm = makeViewModel()
+        vm.addAttachments([image(), image()])
+        #expect(vm.inputText == "[Image #1] [Image #2] ")
+
+        // 1つ目を範囲選択で消す。2つ目は無傷のまま残らなければならない。
+        vm.inputText = "[Image #2] "
+
+        #expect(vm.inputText == "[Image #2] ")
+        #expect(vm.attachmentItems.map(\.number) == [2])
+    }
+
+    @Test
     func removeAttachment_outOfRangeIndexChangesNothing() {
         let vm = makeViewModel()
         vm.addAttachments([image()])

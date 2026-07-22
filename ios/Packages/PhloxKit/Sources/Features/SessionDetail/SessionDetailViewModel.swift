@@ -273,20 +273,28 @@ public final class SessionDetailViewModel {
 
         // task-5: iOS の入力欄（SwiftUI の TextField）は打鍵を横取りできないため、
         // 1文字消えた直後に残ったトークンの断片をまとめて取り除いて「まとめて消えた」ように見せる。
+        let survivingNumbers = attachmentItems.map(\.number).filter { !removedNumbers.contains($0) }
         var repairedText = newText
         var repairedCursor: Int?
         for number in removedNumbers {
             guard let repaired = ComposerImagePlaceholder.repairingBrokenPlaceholder(
                 number: number,
                 oldText: oldText,
-                newText: repairedText
+                newText: repairedText,
+                preserving: survivingNumbers
             ) else { continue }
             repairedText = repaired.text
             repairedCursor = repaired.cursorUTF16
         }
 
-        let removedSet = Set(removedNumbers)
-        attachmentItems.removeAll { removedSet.contains($0.number) }
+        // 修復が本文をさらに変えるので、外す添付は「修復後の本文」を基準に決め直す。
+        // newText だけで決めると、修復が巻き込んだプレースホルダの添付が孤児として残る。
+        let toRemove = Set(ComposerImagePlaceholder.numbersRemoved(
+            from: oldText,
+            to: repairedText,
+            among: attachmentItems.map(\.number)
+        ))
+        attachmentItems.removeAll { toRemove.contains($0.number) }
 
         if repairedText != newText {
             isRepairingInputText = true

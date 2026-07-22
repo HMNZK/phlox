@@ -558,6 +558,20 @@ struct IMESafeTextView: NSViewRepresentable {
             }
         }
 
+        override func cut(_ sender: Any?) {
+            // ⌘X も ⌘C と同じくクリップボードへ画像を載せる（載せた後に選択範囲を消す）。
+            guard writeSelectionWithImages(to: .general) else {
+                super.cut(sender)
+                return
+            }
+            let selection = selectedRange()
+            guard shouldChangeText(in: selection, replacementString: "") else { return }
+            textStorage?.replaceCharacters(in: selection, with: "")
+            setSelectedRange(NSRange(location: selection.location, length: 0))
+            didChangeText()
+            applyComposerHighlights()
+        }
+
         /// 選択範囲にプレースホルダが含まれていれば、テキストと一緒に画像もクリップボードへ載せる。
         /// 載せたときだけ true（false なら呼び出し元が通常のコピーを行う）。
         @discardableResult
@@ -574,22 +588,33 @@ struct IMESafeTextView: NSViewRepresentable {
 
             // 1つ目の item にテキストと画像を両方載せる（貼り付け先が欲しい形を選べる）。
             // 2枚目以降は item を分ける（1つの item に同じ型は1つしか載らないため）。
-            var items: [NSPasteboardItem] = []
+            let encodable = images.compactMap { image -> (NSPasteboard.PasteboardType, Data)? in
+                guard let type = Self.pasteboardType(forMediaType: image.mediaType) else { return nil }
+                return (type, image.data)
+            }
+            // 1枚も載せられない形式なら通常のコピーに委ねる（テキストまで失わせない）。
+            guard let firstImage = encodable.first else { return false }
+
             let first = NSPasteboardItem()
             first.setString(selected, forType: .string)
-            if let type = Self.pasteboardType(forMediaType: images[0].mediaType) {
-                first.setData(images[0].data, forType: type)
-            }
-            items.append(first)
-            for image in images.dropFirst() {
-                guard let type = Self.pasteboardType(forMediaType: image.mediaType) else { continue }
+            first.setData(firstImage.1, forType: firstImage.0)
+            var items: [NSPasteboardItem] = [first]
+            for (type, data) in encodable.dropFirst() {
                 let item = NSPasteboardItem()
-                item.setData(image.data, forType: type)
+                item.setData(data, forType: type)
                 items.append(item)
             }
 
             pasteboard.clearContents()
             return pasteboard.writeObjects(items)
+        }
+
+        /// pasteboard が「この composer の添付を指すプレースホルダ入りテキスト」を持っているか。
+        private func carriesOwnPlaceholderText(_ pasteboard: NSPasteboard) -> Bool {
+            guard let numbers = attachedImageNumbers?(), !numbers.isEmpty,
+                  let text = pasteboard.string(forType: .string)
+            else { return false }
+            return numbers.contains { ComposerImagePlaceholder.contains(number: $0, in: text) }
         }
 
         static func pasteboardType(forMediaType mediaType: String) -> NSPasteboard.PasteboardType? {
@@ -711,6 +736,9 @@ struct IMESafeTextView: NSViewRepresentable {
         // （paste(_:) の画像横取りロジックをこの検査可能な seam に移す。
         //   true = 画像として処理済み（テキストペースト抑止）/ false = 呼び出し側が通常ペースト）。
         func handlePaste(from pasteboard: NSPasteboard) -> Bool {
+            // 自分でコピーした「テキスト＋画像」を貼り戻すときは、画像として横取りしない。
+            // 横取りすると選択していた本文が丸ごと捨てられ、画像1枚だけが新規添付になる。
+            if carriesOwnPlaceholderText(pasteboard) { return false }
             guard Self.shouldInterceptImagePaste(in: pasteboard),
                   let image = Self.imageData(from: pasteboard)
             else {

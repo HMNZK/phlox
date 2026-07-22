@@ -114,10 +114,13 @@ public enum ComposerImagePlaceholder {
 
     /// 編集でトークンが壊れたとき、残骸ごと取り除いた本文とカーソル位置を返す。
     /// 打鍵を横取りできない iOS の入力欄で「まとめて消えた」ように見せるための後追い修復。
+    /// - Parameter preserving: 本文に無傷で残っている他の番号。差分推定を誤って
+    ///   これらを壊す修復になる場合は、修復せず nil を返す（残骸が残る方がまだ安全なため）。
     public static func repairingBrokenPlaceholder(
         number: Int,
         oldText: String,
-        newText: String
+        newText: String,
+        preserving otherNumbers: [Int] = []
     ) -> (text: String, cursorUTF16: Int)? {
         guard let token = tokenRangeUTF16(of: number, in: oldText) else { return nil }
         let old = Array(oldText.utf16)
@@ -133,8 +136,16 @@ public enum ComposerImagePlaceholder {
               old[old.count - 1 - suffix] == new[new.count - 1 - suffix] {
             suffix += 1
         }
+        // サロゲートペアの途中で切ると U+FFFD になるので、境界まで戻す。
+        if prefix > 0, isHighSurrogate(old[prefix - 1]) {
+            prefix -= 1
+        }
+        if suffix > 0, suffix < old.count, isLowSurrogate(old[old.count - suffix]) {
+            suffix -= 1
+        }
         let oldEditEnd = old.count - suffix
         let newEditEnd = new.count - suffix
+        guard prefix <= oldEditEnd, prefix <= newEditEnd else { return nil }
 
         // 編集範囲とトークン範囲の和を丸ごと落とす（＝トークンの残骸を残さない）。
         let deleteStart = min(token.lowerBound, prefix)
@@ -158,8 +169,17 @@ public enum ComposerImagePlaceholder {
             }
         }
 
+        // 差分推定は「消された文字列が周囲と似ている」ときに外れる。無傷で残っている他の
+        // プレースホルダを壊す結果になったら、その推定は信用せず修復を諦める。
+        for other in otherNumbers where contains(number: other, in: newText) {
+            guard contains(number: other, in: result) else { return nil }
+        }
+
         return (result, max(0, min(cursor, result.utf16.count)))
     }
+
+    private static func isHighSurrogate(_ unit: UInt16) -> Bool { (0xD800...0xDBFF).contains(unit) }
+    private static func isLowSurrogate(_ unit: UInt16) -> Bool { (0xDC00...0xDFFF).contains(unit) }
 
     /// トークン範囲に、`removing(number:from:)` と同じ規則で隣接スペース1つを含めた範囲。
     private static func spaceCollapsedRange(forToken token: Range<Int>, in text: String) -> Range<Int> {

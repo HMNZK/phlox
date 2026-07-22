@@ -46,6 +46,20 @@ Claude Code CLI は画像をペーストするとカーソル位置に `[Image #
      `ChatSessionViewModel.syncAttachmentsWithDraftEdit` がクリア直前の本文を覚えて読み飛ばす。
      iOS は送信前に `backupItems` を控える設計なのでこの防護は不要。
 
+7. **入力欄では `[Image #N]` を1つのかたまりとして扱う**（macOS）。Backspace / Delete はトークン全体を一度に消し、
+   矢印・単語移動・マウス選択はトークンを分断しない。`[Image #N]` を含む選択をコピー / カットするとテキストと
+   一緒に画像もクリップボードへ載る。
+   - 実現方法は**選択変更の1箇所**（`NSTextViewDelegate.textView(_:willChangeSelectionFromCharacterRange:toCharacterRange:)`）で
+     「選択のどの端もトークンを分断しない」を守る。個々のコマンド（shift+←、shift+↑、⌘shift+←、…）を列挙して
+     override する方式は覆うべき集合が閉じず、実際に穴が2つ残った。
+   - 選択範囲を `setSelectedRange` で書き換えてはならない。AppKit が持つ選択の起点がリセットされ、
+     shift+← で伸ばした選択を shift+→ で戻せなくなる（トークンに吸い付く）。上記 delegate は起点を壊さない。
+   - **AppKit はマウスのドラッグ追跡中には delegate を呼ばず、マウスアップの確定1回だけを渡す。その `old` は
+     「ドラッグ前の選択」である**。そのため「どちらの端も引き継いでいない選択」を新規選択として別扱いし、
+     掛かるトークンを丸ごと含める。この前提はテストでは守れない（合成 NSEvent が要る）ので、ここに残す。
+   - iOS は SwiftUI の `TextField` で打鍵・選択・コピーを横取りできないため、削除だけを
+     「1文字消えた直後に残骸をまとめて取り除く」後追い方式で揃えた。選択とコピーは非対応。
+
 ## 結果
 
 - ユーザーは「この画像を見て」「1枚目はこれ、2枚目は…」を本文で表現できるようになった。

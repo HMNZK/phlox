@@ -549,6 +549,61 @@ struct IMESafeTextView: NSViewRepresentable {
             return true
         }
 
+        // MARK: - トークン単位で選択する（task-7）
+
+        override func moveLeftAndModifySelection(_ sender: Any?) {
+            snappingSelectionToTokens { super.moveLeftAndModifySelection(sender) }
+        }
+
+        override func moveRightAndModifySelection(_ sender: Any?) {
+            snappingSelectionToTokens { super.moveRightAndModifySelection(sender) }
+        }
+
+        override func moveBackwardAndModifySelection(_ sender: Any?) {
+            snappingSelectionToTokens { super.moveBackwardAndModifySelection(sender) }
+        }
+
+        override func moveForwardAndModifySelection(_ sender: Any?) {
+            snappingSelectionToTokens { super.moveForwardAndModifySelection(sender) }
+        }
+
+        override func moveWordLeftAndModifySelection(_ sender: Any?) {
+            snappingSelectionToTokens { super.moveWordLeftAndModifySelection(sender) }
+        }
+
+        override func moveWordRightAndModifySelection(_ sender: Any?) {
+            snappingSelectionToTokens { super.moveWordRightAndModifySelection(sender) }
+        }
+
+        /// 選択の移動を実行し、動いた端がプレースホルダを分断している間は移動を繰り返して
+        /// トークンの外へ抜けさせる。`setSelectedRange` で書き換えないのは、それをすると
+        /// AppKit が持っている選択の起点（shift+← で伸ばした選択を shift+→ で戻すために要る）が
+        /// リセットされ、選択がトークンに吸い付いて戻せなくなるため。
+        func snappingSelectionToTokens(_ move: () -> Void) {
+            var before = selectedRange()
+            move()
+            guard let numbers = attachedImageNumbers?(), !numbers.isEmpty else { return }
+
+            // 本文長を超える回数は回らない安全弁（AppKit が動かなくなった場合の保険）。
+            for _ in 0..<(string.utf16.count + 1) {
+                let after = selectedRange()
+                guard after != before else { return }
+                guard let edge = Self.movedEdge(from: before, to: after) else { return }
+                guard ComposerImagePlaceholder.selectionEdgeSplitsPlaceholder(
+                    edge, in: string, numbers: numbers
+                ) else { return }
+                before = after
+                move()
+            }
+        }
+
+        /// 2つの選択範囲を比べ、動いた側の端を返す。どちらも動いていなければ nil。
+        static func movedEdge(from before: NSRange, to after: NSRange) -> Int? {
+            if after.lowerBound != before.lowerBound { return after.lowerBound }
+            if after.upperBound != before.upperBound { return after.upperBound }
+            return nil
+        }
+
         // MARK: - 画像もコピーする（task-6）
 
         override func copy(_ sender: Any?) {

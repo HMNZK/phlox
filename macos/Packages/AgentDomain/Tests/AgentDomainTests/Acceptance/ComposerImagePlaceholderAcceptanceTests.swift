@@ -349,6 +349,25 @@ struct ComposerImagePlaceholderAcceptanceTests {
         #expect(repaired?.text == "[Image #2] ")
     }
 
+    // MARK: - トークン単位の選択（task-7）
+
+    @Test
+    func selectionEdgeSplitsPlaceholder_isTrueOnlyStrictlyInsideTheToken() {
+        let text = "a [Image #1] b"
+        #expect(ComposerImagePlaceholder.selectionEdgeSplitsPlaceholder(3, in: text, numbers: [1]))
+        #expect(ComposerImagePlaceholder.selectionEdgeSplitsPlaceholder(11, in: text, numbers: [1]))
+        // 両端は分断していない（そこで止まってよい）。
+        #expect(!ComposerImagePlaceholder.selectionEdgeSplitsPlaceholder(2, in: text, numbers: [1]))
+        #expect(!ComposerImagePlaceholder.selectionEdgeSplitsPlaceholder(12, in: text, numbers: [1]))
+    }
+
+    @Test
+    func selectionEdgeSplitsPlaceholder_isFalseOutsideAnyToken() {
+        #expect(!ComposerImagePlaceholder.selectionEdgeSplitsPlaceholder(1, in: "a [Image #1] b", numbers: [1]))
+        // 番号が渡されていなければ特別扱いしない。
+        #expect(!ComposerImagePlaceholder.selectionEdgeSplitsPlaceholder(5, in: "a [Image #1] b", numbers: []))
+    }
+
     @Test
     func repairing_neverBreaksAnIntactPlaceholder() {
         // 1つ目のトークンを範囲選択で消したケース。差分推定が外れても、無傷の2つ目を壊さない。

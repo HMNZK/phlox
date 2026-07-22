@@ -112,6 +112,18 @@ public enum ComposerImagePlaceholder {
         return spaceCollapsedRange(forToken: hit, in: text)
     }
 
+    /// 選択の端 `edgeUTF16` がプレースホルダを分断しているか（トークンの内側・両端は含まない）。
+    /// 分断している間は選択の移動を繰り返して、トークンの外へ抜けさせる。
+    public static func selectionEdgeSplitsPlaceholder(
+        _ edgeUTF16: Int,
+        in text: String,
+        numbers: [Int]
+    ) -> Bool {
+        numbers.compactMap { tokenRangeUTF16(of: $0, in: text) }.contains {
+            edgeUTF16 > $0.lowerBound && edgeUTF16 < $0.upperBound
+        }
+    }
+
     /// 編集でトークンが壊れたとき、残骸ごと取り除いた本文とカーソル位置を返す。
     /// 打鍵を横取りできない iOS の入力欄で「まとめて消えた」ように見せるための後追い修復。
     /// - Parameter preserving: 本文に無傷で残っている他の番号。差分推定を誤って

@@ -114,6 +114,65 @@ struct ComposerPlaceholderEditingAcceptanceTests {
         #expect(textView.string == ComposerImagePlaceholder.removing(number: 1, from: source))
     }
 
+    // MARK: - shift+矢印はトークン単位で選択する（task-7）
+
+    @Test @MainActor
+    func shiftLeftFromTheEndOfAPlaceholder_selectsTheWholeToken() {
+        let textView = makeTextView("[Image #1] テスト", cursor: 10, numbers: [1])
+
+        textView.moveLeftAndModifySelection(nil)
+
+        #expect(textView.selectedRange() == NSRange(location: 0, length: 10))
+    }
+
+    @Test @MainActor
+    func shiftRightAfterSelectingAToken_shrinksBackToTheCaret() {
+        // 伸ばした選択を同じ回数で戻せること（トークンに吸い付いて戻せない状態にしない）。
+        let textView = makeTextView("[Image #1] テスト", cursor: 10, numbers: [1])
+
+        textView.moveLeftAndModifySelection(nil)
+        textView.moveRightAndModifySelection(nil)
+
+        #expect(textView.selectedRange() == NSRange(location: 10, length: 0))
+    }
+
+    @Test @MainActor
+    func shiftLeftTwice_selectsTheTokenAndOneMoreCharacter() {
+        let textView = makeTextView("a [Image #1]", cursor: 12, numbers: [1])
+
+        textView.moveLeftAndModifySelection(nil)
+        textView.moveLeftAndModifySelection(nil)
+
+        #expect(textView.selectedRange() == NSRange(location: 1, length: 11))
+    }
+
+    @Test @MainActor
+    func shiftRightFromTheStartOfAPlaceholder_selectsTheWholeToken() {
+        let textView = makeTextView("[Image #1] テスト", cursor: 0, numbers: [1])
+
+        textView.moveRightAndModifySelection(nil)
+
+        #expect(textView.selectedRange() == NSRange(location: 0, length: 10))
+    }
+
+    @Test @MainActor
+    func shiftLeftOutsideAnyPlaceholder_selectsOneCharacterAsUsual() {
+        let textView = makeTextView("[Image #1] テスト", cursor: 14, numbers: [1])
+
+        textView.moveLeftAndModifySelection(nil)
+
+        #expect(textView.selectedRange() == NSRange(location: 13, length: 1))
+    }
+
+    @Test @MainActor
+    func withoutAttachedNumbers_shiftLeftSelectsOneCharacter() {
+        let textView = makeTextView("[Image #1]", cursor: 10, numbers: [])
+
+        textView.moveLeftAndModifySelection(nil)
+
+        #expect(textView.selectedRange() == NSRange(location: 9, length: 1))
+    }
+
     // MARK: - コピーで画像も載る（task-6）
 
     @Test @MainActor

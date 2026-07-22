@@ -30,6 +30,28 @@ struct InputBarAttachmentNumberingAcceptanceTests {
         #expect(DSInputBar.providesCursorAwareInput)
     }
 
+    // キャレットが本文末尾にあるのが最も普通の状態。ここを弾くとカーソル位置が
+    // 外部へ伝わらず、添付プレースホルダが常に先頭へ入る（実機で観測した回帰）。
+    @Test
+    func cursorMath_acceptsCaretAtEndOfText() {
+        let text = "abc"
+        #expect(DSInputCursorMath.utf16Offset(of: text.endIndex, in: text) == 3)
+        #expect(DSInputCursorMath.utf16Offset(of: text.startIndex, in: text) == 0)
+        #expect(DSInputCursorMath.utf16Offset(of: text.index(after: text.startIndex), in: text) == 1)
+    }
+
+    @Test
+    func cursorMath_acceptsCaretAtEndOfEmptyAndMultibyteText() {
+        let empty = ""
+        #expect(DSInputCursorMath.utf16Offset(of: empty.endIndex, in: empty) == 0)
+
+        let japanese = "見て"
+        #expect(DSInputCursorMath.utf16Offset(of: japanese.endIndex, in: japanese) == 2)
+
+        let emoji = "🐶"
+        #expect(DSInputCursorMath.utf16Offset(of: emoji.endIndex, in: emoji) == 2)
+    }
+
     @Test
     func inputBar_keepsExistingContracts() {
         // 入力欄の作り替えで既存の契約・見た目が変わっていないことの非退行ピン。

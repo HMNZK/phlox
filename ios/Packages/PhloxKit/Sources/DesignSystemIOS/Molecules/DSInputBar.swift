@@ -23,6 +23,41 @@ enum DSInputBarActionState: Equatable {
     case stop
 }
 
+/// UTF-16 カーソル位置の正規化と公開タイミング（プラットフォーム非依存・白箱テスト対象）。
+enum DSInputCursorMath {
+    /// カーソルを `[0, textUTF16Count]` に収める。
+    static func clampedCursorUTF16(_ cursorUTF16: Int, textUTF16Count: Int) -> Int {
+        max(0, min(cursorUTF16, textUTF16Count))
+    }
+
+    /// 範囲外カーソルを正規化した値。範囲内なら `nil`。
+    static func normalizedCursorIfNeeded(_ cursorUTF16: Int, textUTF16Count: Int) -> Int? {
+        let clamped = clampedCursorUTF16(cursorUTF16, textUTF16Count: textUTF16Count)
+        return clamped == cursorUTF16 ? nil : clamped
+    }
+
+    /// ユーザー操作由来の選択オフセットを binding へ反映すべきか（同値ループ防止）。
+    static func shouldPublishSelectionOffset(_ selectionUTF16: Int, boundCursorUTF16: Int) -> Bool {
+        selectionUTF16 != boundCursorUTF16
+    }
+
+    /// 外部 binding のカーソル変化を TextSelection へ押し戻すべきか。
+    static func shouldPushSelection(cursorUTF16: Int, lastPushedCursorUTF16: Int) -> Bool {
+        cursorUTF16 != lastPushedCursorUTF16
+    }
+
+    /// `String.Index` を UTF-16 オフセットへ変換する。`text` に属さない index では nil を返す
+    /// （`String.Index.utf16Offset(in:)` は属さない index で trap するため直接使わない）。
+    ///
+    /// **`endIndex` を必ず受け付けること**: キャレットが本文末尾にあるのが最も普通の状態であり、
+    /// `text.indices`（= startIndex..<endIndex）は endIndex を含まない。ここで弾くと
+    /// 「末尾にカーソルがあるとカーソル位置が外部へ伝わらず、常に 0 のまま」になる。
+    static func utf16Offset(of index: String.Index, in text: String) -> Int? {
+        guard index == text.endIndex || text.indices.contains(index) else { return nil }
+        return text.utf16.distance(from: text.utf16.startIndex, to: index)
+    }
+}
+
 /// コンパクトなピル型のテキスト送信バー。画像添付・送信/停止を1列にまとめる。
 public struct DSInputBar: View {
     static let minHeight: CGFloat = DSTouch.minSize
@@ -72,6 +107,10 @@ public struct DSInputBar: View {
     #if os(iOS)
     @State private var textSelection: TextSelection?
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
+    /// 外部 `cursorUTF16` を TextSelection へ反映中。ユーザー由来の `onChange` を抑止する。
+    @State private var isApplyingExternalCursor = false
+    /// 直近で押し戻した外部カーソル（ループ・世代ずれ検知用）。
+    @State private var lastPushedCursorUTF16 = -1
     #endif
 
     public init(
@@ -208,18 +247,16 @@ public struct DSInputBar: View {
         .lineLimit(1...Self.maximumTextLineCount)
         .focused($isFocused)
         .accessibilityLabel(Text(placeholder))
-        .onAppear { syncSelectionFromCursorUTF16() }
+        .onAppear { applyExternalCursorToSelection() }
         .onChange(of: textSelection) { _, selection in
-            guard let offset = Self.utf16Offset(from: selection, in: text) else { return }
-            if cursorUTF16 != offset {
-                cursorUTF16 = offset
-            }
+            publishUserSelectionOffset(selection)
         }
-        .onChange(of: cursorUTF16) { _, _ in
-            syncSelectionFromCursorUTF16()
-        }
-        .onChange(of: text) { _, _ in
-            syncSelectionFromCursorUTF16()
+        .onChange(of: cursorUTF16) { _, newCursor in
+            guard DSInputCursorMath.shouldPushSelection(
+                cursorUTF16: newCursor,
+                lastPushedCursorUTF16: lastPushedCursorUTF16
+            ) else { return }
+            applyExternalCursorToSelection()
         }
         #else
         TextField(text: $text, axis: .vertical) {
@@ -236,23 +273,47 @@ public struct DSInputBar: View {
     }
 
     #if os(iOS)
-    private func syncSelectionFromCursorUTF16() {
-        let clamped = max(0, min(cursorUTF16, text.utf16.count))
-        if clamped != cursorUTF16 {
-            cursorUTF16 = clamped
+    private func applyExternalCursorToSelection() {
+        isApplyingExternalCursor = true
+        defer { isApplyingExternalCursor = false }
+
+        let textUTF16Count = text.utf16.count
+        if let normalized = DSInputCursorMath.normalizedCursorIfNeeded(
+            cursorUTF16,
+            textUTF16Count: textUTF16Count
+        ) {
+            cursorUTF16 = normalized
+            return
         }
+
+        let clamped = DSInputCursorMath.clampedCursorUTF16(cursorUTF16, textUTF16Count: textUTF16Count)
+        lastPushedCursorUTF16 = clamped
         let index = String.Index(utf16Offset: clamped, in: text)
-        let range = index..<index
-        let next = TextSelection(range: range)
-        if textSelection?.indices != next.indices {
-            textSelection = next
+        textSelection = TextSelection(range: index..<index)
+    }
+
+    /// ユーザー操作由来の選択変化だけを `cursorUTF16` へ一方向反映する。
+    private func publishUserSelectionOffset(_ selection: TextSelection?) {
+        guard !isApplyingExternalCursor else { return }
+
+        let capturedText = text
+        Task { @MainActor in
+            guard !isApplyingExternalCursor else { return }
+            guard capturedText == text else { return }
+            guard let offset = Self.selectionLeadingUTF16Offset(from: selection, in: text) else { return }
+            guard DSInputCursorMath.shouldPublishSelectionOffset(offset, boundCursorUTF16: cursorUTF16) else {
+                return
+            }
+            cursorUTF16 = offset
         }
     }
 
-    static func utf16Offset(from selection: TextSelection?, in text: String) -> Int? {
+    /// `text` と同世代の `TextSelection` から先頭 UTF-16 オフセットを読む。
+    /// 呼び出し側で世代ずれを弾いたあとにだけ使うこと。
+    static func selectionLeadingUTF16Offset(from selection: TextSelection?, in text: String) -> Int? {
         guard let selection else { return nil }
         guard case .selection(let range) = selection.indices else { return nil }
-        return range.lowerBound.utf16Offset(in: text)
+        return DSInputCursorMath.utf16Offset(of: range.lowerBound, in: text)
     }
     #endif
 

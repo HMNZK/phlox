@@ -67,4 +67,30 @@ struct InputBarAttachmentNumberingAcceptanceTests {
         #expect(DSInputBar.canSubmit(text: "hello", isLoading: false))
         #expect(!DSInputBar.canSubmit(text: "   \n", isLoading: false))
     }
+    // MARK: - 世代がずれた選択を弾く（task-5 の修正）
+
+    @Test
+    func isSelectionValid_acceptsRangesThatBelongToTheText() {
+        let text = "abc"
+        #expect(DSInputCursorMath.isSelectionValid(text.startIndex..<text.endIndex, in: text))
+        #expect(DSInputCursorMath.isSelectionValid(text.endIndex..<text.endIndex, in: text))
+    }
+
+    @Test
+    func isSelectionValid_rejectsRangesFromALongerText() {
+        // 本文が短くなった後も古い選択が残ると、SwiftUI がそれを適用して落ちる。
+        let longer = "[Image #1] テスト"
+        let shorter = "テスト"
+        let stale = longer.index(longer.startIndex, offsetBy: 12)..<longer.endIndex
+        #expect(!DSInputCursorMath.isSelectionValid(stale, in: shorter))
+    }
+
+    @Test
+    func isSelectionValid_rejectsARangeWhoseUpperBoundIsStale() {
+        let longer = "abcdef"
+        let shorter = "abc"
+        let stale = longer.startIndex..<longer.index(longer.startIndex, offsetBy: 5)
+        #expect(!DSInputCursorMath.isSelectionValid(stale, in: shorter))
+    }
+
 }

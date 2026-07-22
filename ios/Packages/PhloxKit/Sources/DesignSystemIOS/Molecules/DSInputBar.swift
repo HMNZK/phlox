@@ -52,6 +52,13 @@ enum DSInputCursorMath {
     /// **`endIndex` を必ず受け付けること**: キャレットが本文末尾にあるのが最も普通の状態であり、
     /// `text.indices`（= startIndex..<endIndex）は endIndex を含まない。ここで弾くと
     /// 「末尾にカーソルがあるとカーソル位置が外部へ伝わらず、常に 0 のまま」になる。
+    /// 選択範囲の両端が `text` に属するか。属さない（世代がずれた）範囲を
+    /// SwiftUI が短くなった本文へ適用すると、範囲外アクセスでアプリが落ちる。
+    static func isSelectionValid(_ range: Range<String.Index>, in text: String) -> Bool {
+        utf16Offset(of: range.lowerBound, in: text) != nil
+            && utf16Offset(of: range.upperBound, in: text) != nil
+    }
+
     static func utf16Offset(of index: String.Index, in text: String) -> Int? {
         guard index == text.endIndex || text.indices.contains(index) else { return nil }
         return text.utf16.distance(from: text.utf16.startIndex, to: index)
@@ -237,7 +244,7 @@ public struct DSInputBar: View {
     @ViewBuilder
     private var inputTextField: some View {
         #if os(iOS)
-        TextField(text: $text, selection: $textSelection, axis: .vertical) {
+        TextField(text: $text, selection: validatedTextSelection, axis: .vertical) {
             Text(placeholder)
                 .foregroundStyle(DSColor.textTertiary)
         }
@@ -273,6 +280,23 @@ public struct DSInputBar: View {
     }
 
     #if os(iOS)
+    /// `textSelection` は `text` に属する `String.Index` を持つ。本文が外部から
+    /// 書き換わる（プレースホルダの修復・送信時のクリア）と古い世代の index が残り、
+    /// SwiftUI がそれを新しい短い本文へ適用しようとして落ちる。
+    /// 読み出しの時点で検証し、世代がずれていたら選択を渡さない。
+    private var validatedTextSelection: Binding<TextSelection?> {
+        Binding(
+            get: {
+                guard let selection = textSelection,
+                      case .selection(let range) = selection.indices,
+                      DSInputCursorMath.isSelectionValid(range, in: text)
+                else { return nil }
+                return selection
+            },
+            set: { textSelection = $0 }
+        )
+    }
+
     private func applyExternalCursorToSelection() {
         isApplyingExternalCursor = true
         defer { isApplyingExternalCursor = false }

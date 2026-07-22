@@ -38,7 +38,7 @@ enum ComposerPasteImageOutcome: Equatable {
 /// 添付チップの表示（純関数）。
 enum ComposerAttachmentChipPresentation {
     static func badge(for attachment: ComposerAttachment) -> String {
-        ""
+        "#\(attachment.number)"
     }
 
     static func title(for attachment: ComposerAttachment) -> String {
@@ -84,9 +84,11 @@ final class ComposerAttachmentStore {
             lastError = "画像は合計8MiBまでです"
             return nil
         }
-        attachments.append(ComposerAttachment(data: data, mediaType: mediaType, filename: filename))
+        let number = ComposerImagePlaceholder.nextNumber(after: attachments.map(\.number))
+        let attachment = ComposerAttachment(number: number, data: data, mediaType: mediaType, filename: filename)
+        attachments.append(attachment)
         lastError = nil
-        return nil
+        return attachment
     }
 
     /// 挿入用の `@path` 参照文字列を返す（添付には積まない）。

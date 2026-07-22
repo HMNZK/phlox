@@ -153,7 +153,11 @@ struct GridComposerBar: View {
                 ComposerSuggestionPopup(controller: suggestionController, onAccept: acceptSuggestionFromPopup)
                     .accessibilityIdentifier("GridComposer.suggestions")
             }
-            ComposerAttachmentStrip(store: viewModel.attachmentStore, layout: controlsLayout.settingsLayout)
+            ComposerAttachmentStrip(
+                store: viewModel.attachmentStore,
+                layout: controlsLayout.settingsLayout,
+                onRemove: removeAttachment
+            )
             ZStack(alignment: .topLeading) {
                 IMESafeTextView(
                     text: $text,
@@ -163,7 +167,7 @@ struct GridComposerBar: View {
                     maxHeight: ComposerHeightBounds.grid.max,
                     suggestionController: suggestionController,
                     onSubmit: onSend,
-                    onPasteImage: addPastedImage,
+                    onPasteImageOutcome: addPastedImage,
                     onEscape: { performChatEscape(viewModel) }
                 )
                 .frame(
@@ -216,14 +220,19 @@ struct GridComposerBar: View {
         text = ComposerSuggestionTextReplacement.apply(replacement, to: text).text
     }
 
-    /// 画像を添付できたら true。非対応エージェント（Claude 以外）では false を返し、
-    /// 呼び出し側は同居テキストの通常ペースト（super.paste）へフォールバックする。
-    private func addPastedImage(data: Data, mediaType: String) -> Bool {
+    private func addPastedImage(data: Data, mediaType: String) -> ComposerPasteImageOutcome {
         guard ComposerAttachmentCapability.supportsImageAttachments(agentRef: viewModel.agentRef) else {
             viewModel.attachmentStore.setError(ComposerAttachmentCapability.unsupportedImageMessage)
-            return false
+            return .unsupported
         }
-        viewModel.attachmentStore.addImage(data: data, mediaType: mediaType)
-        return true
+        guard let attachment = viewModel.attachmentStore.addImage(data: data, mediaType: mediaType) else {
+            return .rejected
+        }
+        return .attached(number: attachment.number)
+    }
+
+    private func removeAttachment(_ attachment: ComposerAttachment) {
+        viewModel.attachmentStore.remove(id: attachment.id)
+        text = ComposerImagePlaceholder.removing(number: attachment.number, from: text)
     }
 }

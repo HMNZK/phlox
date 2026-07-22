@@ -44,7 +44,11 @@ struct ChatComposer: View {
                 ComposerSuggestionPopup(controller: suggestionController, onAccept: acceptSuggestionFromPopup)
                     .accessibilityIdentifier("ChatComposer.suggestions")
             }
-            ComposerAttachmentStrip(store: viewModel.attachmentStore, layout: controlsLayout.settingsLayout)
+            ComposerAttachmentStrip(
+                store: viewModel.attachmentStore,
+                layout: controlsLayout.settingsLayout,
+                onRemove: removeAttachment
+            )
             ZStack(alignment: .topLeading) {
                 IMESafeTextView(
                     text: $text,
@@ -54,7 +58,7 @@ struct ChatComposer: View {
                     maxHeight: ComposerHeightBounds.single.max,
                     suggestionController: suggestionController,
                     onSubmit: onSend,
-                    onPasteImage: addPastedImage,
+                    onPasteImageOutcome: addPastedImage,
                     onEscape: { performChatEscape(viewModel) }
                 )
                 .frame(
@@ -115,15 +119,20 @@ struct ChatComposer: View {
         text = ComposerSuggestionTextReplacement.apply(replacement, to: text).text
     }
 
-    /// 画像を添付できたら true。非対応エージェント（Claude 以外）では false を返し、
-    /// 呼び出し側は同居テキストの通常ペースト（super.paste）へフォールバックする。
-    private func addPastedImage(data: Data, mediaType: String) -> Bool {
+    private func addPastedImage(data: Data, mediaType: String) -> ComposerPasteImageOutcome {
         guard ComposerAttachmentCapability.supportsImageAttachments(agentRef: viewModel.agentRef) else {
             viewModel.attachmentStore.setError(ComposerAttachmentCapability.unsupportedImageMessage)
-            return false
+            return .unsupported
         }
-        viewModel.attachmentStore.addImage(data: data, mediaType: mediaType)
-        return true
+        guard let attachment = viewModel.attachmentStore.addImage(data: data, mediaType: mediaType) else {
+            return .rejected
+        }
+        return .attached(number: attachment.number)
+    }
+
+    private func removeAttachment(_ attachment: ComposerAttachment) {
+        viewModel.attachmentStore.remove(id: attachment.id)
+        text = ComposerImagePlaceholder.removing(number: attachment.number, from: text)
     }
 }
 
@@ -336,6 +345,7 @@ struct IMESafeTextView: NSViewRepresentable {
     var suggestionController: ComposerSuggestionController?
     let onSubmit: () -> Void
     var onPasteImage: ((Data, String) -> Bool)?
+    var onPasteImageOutcome: ((Data, String) -> ComposerPasteImageOutcome)?
     /// composer フォーカス時の esc 経路（task-9）。IME 変換中は呼ばれない。
     var onEscape: () -> Void = {}
 
@@ -356,6 +366,7 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.delegate = context.coordinator
         textView.onSubmit = onSubmit
         textView.onPasteImage = onPasteImage
+        textView.onPasteImageOutcome = onPasteImageOutcome
         textView.onEscape = onEscape
         textView.suggestionController = suggestionController
         textView.onComposingChanged = { [coordinator = context.coordinator] isComposing, currentText in
@@ -389,6 +400,7 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.allowsUndo = true
         textView.onSubmit = onSubmit
         textView.onPasteImage = onPasteImage
+        textView.onPasteImageOutcome = onPasteImageOutcome
         textView.onEscape = onEscape
         textView.suggestionController = suggestionController
         textView.onComposingChanged = { [coordinator = context.coordinator] isComposing, currentText in
@@ -591,12 +603,45 @@ struct IMESafeTextView: NSViewRepresentable {
         //   true = 画像として処理済み（テキストペースト抑止）/ false = 呼び出し側が通常ペースト）。
         func handlePaste(from pasteboard: NSPasteboard) -> Bool {
             guard Self.shouldInterceptImagePaste(in: pasteboard),
-                  let image = Self.imageData(from: pasteboard),
-                  let onPasteImage
+                  let image = Self.imageData(from: pasteboard)
             else {
                 return false
             }
+
+            if let onPasteImageOutcome {
+                switch onPasteImageOutcome(image.data, image.mediaType) {
+                case .unsupported:
+                    return false
+                case .rejected:
+                    return true
+                case .attached(let number):
+                    applyImagePlaceholderInsertion(number: number)
+                    return true
+                }
+            }
+
+            guard let onPasteImage else {
+                return false
+            }
             return onPasteImage(image.data, image.mediaType)
+        }
+
+        private func applyImagePlaceholderInsertion(number: Int) {
+            if hasMarkedText() {
+                unmarkText()
+            }
+            let applied = ComposerImagePlaceholder.inserting(
+                number: number,
+                into: string,
+                cursorUTF16: selectedRange().location
+            )
+            guard applied.text != string else { return }
+            let fullRange = NSRange(location: 0, length: string.utf16.count)
+            guard shouldChangeText(in: fullRange, replacementString: applied.text) else { return }
+            string = applied.text
+            setSelectedRange(NSRange(location: applied.cursorUTF16, length: 0))
+            didChangeText()
+            applyComposerHighlights()
         }
 
         private func applySuggestionReplacement(_ replacement: SuggestionReplacement) {
@@ -661,6 +706,7 @@ struct IMESafeTextView: NSViewRepresentable {
 struct ComposerAttachmentStrip: View {
     @Bindable var store: ComposerAttachmentStore
     let layout: ComposerSettingsLayout
+    let onRemove: (ComposerAttachment) -> Void
 
     private var chipHeight: CGFloat {
         layout == .compact ? 24 : 28
@@ -675,7 +721,7 @@ struct ComposerAttachmentStrip: View {
                             ComposerAttachmentChip(
                                 attachment: attachment,
                                 chipHeight: chipHeight,
-                                onRemove: { store.remove(id: attachment.id) }
+                                onRemove: { onRemove(attachment) }
                             )
                         }
                     }
@@ -703,7 +749,10 @@ private struct ComposerAttachmentChip: View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: "photo")
                 .font(.system(size: 12, weight: .medium))
-            Text(attachment.filename ?? attachment.mediaType)
+            Text(ComposerAttachmentChipPresentation.badge(for: attachment))
+                .font(DSFont.caption.weight(.semibold))
+                .accessibilityIdentifier("ChatComposer.attachmentBadge")
+            Text(ComposerAttachmentChipPresentation.title(for: attachment))
                 .font(DSFont.caption.weight(.medium))
                 .lineLimit(1)
                 .truncationMode(.middle)

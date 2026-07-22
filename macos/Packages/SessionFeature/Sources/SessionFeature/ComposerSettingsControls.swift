@@ -618,11 +618,18 @@ struct ComposerAttachPlaceholder: View {
         }
         do {
             let data = try Data(contentsOf: url)
-            viewModel.attachmentStore.addImage(
+            if let attachment = viewModel.attachmentStore.addImage(
                 data: data,
                 mediaType: Self.mediaType(for: url),
                 filename: url.lastPathComponent
-            )
+            ) {
+                let applied = ComposerImagePlaceholder.inserting(
+                    number: attachment.number,
+                    into: viewModel.draft,
+                    cursorUTF16: viewModel.draft.utf16.count
+                )
+                viewModel.draft = applied.text
+            }
         } catch {
             viewModel.attachmentStore.setError("画像を読み込めませんでした: \(url.lastPathComponent)")
         }

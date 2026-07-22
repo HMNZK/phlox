@@ -57,13 +57,28 @@ XCODEGEN=1 APP_NAME=Phlox SCHEME=Phlox PROJECT=Phlox.xcodeproj \
 
 リリース時は **3 箇所**を更新する（[ADR 0089](../adr/0089-phlox-cc-served-from-monorepo-site.md) の移設により配信先が変わった点に注意）:
 
-1. **初回ダウンロード用 DMG を `HMNZK/phlox` の Release に公開する**（これをしないと `phlox/releases/latest` が旧版に固定される）:
+1. **初回ダウンロード用 DMG を `HMNZK/phlox` の Release に公開する**（これをしないと `phlox/releases/latest` が旧版に固定される）。`--notes` には下記「リリースノートを書く」で用意した本文を入れる:
    ```bash
    gh release create vX.Y.Z --repo HMNZK/phlox --target main \
-     --title "Phlox X.Y.Z" --notes "…" path/to/Phlox.dmg
+     --title "Phlox X.Y.Z" --notes-file path/to/release-notes.md path/to/Phlox.dmg
    ```
 2. **Sparkle 更新バイナリ（zip/delta）を `HMNZK/phlox-dist` の Release（tag `updates`）にアップロードする**（現行の更新配信基盤）。
-3. **`site/appcast.xml`（＝phlox.cc が配信する正）に新バージョンの `<item>` を追記して `main` に push する**。旧 `phlox-dist/appcast.xml` はもう phlox.cc では配信されないので更新しても意味がない。enclosure URL・`sparkle:version`・`sparkle:edSignature` を新バイナリに合わせる。push で Pages が自動デプロイ。
+3. **`site/appcast.xml`（＝phlox.cc が配信する正）に新バージョンの `<item>` を追記して `main` に push する**。旧 `phlox-dist/appcast.xml` はもう phlox.cc では配信されないので更新しても意味がない。`<item>` には `<description>`（リリースノート）を必ず含め、enclosure URL・`sparkle:version`・`sparkle:edSignature` を新バイナリに合わせる。push で Pages が自動デプロイ。
+
+### リリースノートを書く（必須）
+
+**すべてのリリースにリリースノートを付ける。** 同じ内容を次の 2 箇所へ載せる:
+
+| 載せる場所 | 書式 | 読者が見る場所 |
+|---|---|---|
+| `site/appcast.xml` の `<item>` 内 `<description>` | HTML を `<![CDATA[ … ]]>` で包む。`xml:lang="en"` を先、`xml:lang="ja"` を後に置く | Sparkle の更新ダイアログ |
+| `gh release create` の `--notes` / `--notes-file` | Markdown | GitHub Releases のページ |
+
+- **`xml:lang="en"` を先頭に置く** — Sparkle は `preferredLocalizationsFromArray` の仕様で一致する言語が無ければ配列の先頭を選ぶ。先頭を en にすると未対応言語のフォールバックが英語になる。
+- 見出しは `<h3>新機能</h3>`（en は `New`）と `<h3>修正</h3>`（en は `Fixed`）の 2 種を使い、該当する変更が無い区分は省く。
+- 各項目は**ユーザーが体感する変化**を平易な言葉で 1〜2 文で書く。内部リファクタリング・テスト追加・コミットの羅列は載せない。
+- 雛形は 1.3.1 の `<item>`（`git show a4514d1 -- site/appcast.xml`）をコピーして中身を差し替える。
+- `<description>` が無い `<item>` を push しない — Sparkle の更新ダイアログが空欄になり、ユーザーが何が変わったか分からないまま更新することになる（1.3.1 で発生し、後追いで追記した）。
 
 ### リリース後の検証
 

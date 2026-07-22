@@ -362,6 +362,61 @@ struct ComposerImagePlaceholderAcceptanceTests {
     }
 
     @Test
+    func snappedSelection_extendsOverTheWholeToken() {
+        let text = "x [Image #1] y"   // トークンは 2..<12
+        // キャレット12から左へ伸ばすと、下端はトークンの左端まで一気に寄る。
+        #expect(
+            ComposerImagePlaceholder.snappedSelectionUTF16(
+                from: 12..<12, to: 11..<12, in: text, numbers: [1]
+            ) == 2..<12
+        )
+        // キャレット2から右へ伸ばすと、上端はトークンの右端まで一気に寄る。
+        #expect(
+            ComposerImagePlaceholder.snappedSelectionUTF16(
+                from: 2..<2, to: 2..<3, in: text, numbers: [1]
+            ) == 2..<12
+        )
+    }
+
+    @Test
+    func snappedSelection_shrinksBackTheSameWay() {
+        let text = "x [Image #1] y"
+        // 起点12・下端2の選択から下端を右へ戻すと、トークンの右端＝起点まで戻る（空選択）。
+        #expect(
+            ComposerImagePlaceholder.snappedSelectionUTF16(
+                from: 2..<12, to: 3..<12, in: text, numbers: [1]
+            ) == 12..<12
+        )
+    }
+
+    @Test
+    func snappedSelection_whenTheAnchorSitsInsideAToken_swallowsTheWholeToken() {
+        // 起点（動かなかった端）が内側に残っていたら、外側へ寄せてトークンを丸ごと含める。
+        let text = "x [Image #1] y"
+        #expect(
+            ComposerImagePlaceholder.snappedSelectionUTF16(
+                from: 7..<7, to: 6..<7, in: text, numbers: [1]
+            ) == 2..<12
+        )
+    }
+
+    @Test
+    func snappedSelection_leavesSelectionsThatDoNotSplitATokenAlone() {
+        let text = "x [Image #1] y"
+        #expect(
+            ComposerImagePlaceholder.snappedSelectionUTF16(
+                from: 14..<14, to: 13..<14, in: text, numbers: [1]
+            ) == 13..<14
+        )
+        // 番号が渡されていなければ特別扱いしない。
+        #expect(
+            ComposerImagePlaceholder.snappedSelectionUTF16(
+                from: 12..<12, to: 11..<12, in: text, numbers: []
+            ) == 11..<12
+        )
+    }
+
+    @Test
     func selectionEdgeSplitsPlaceholder_isFalseOutsideAnyToken() {
         #expect(!ComposerImagePlaceholder.selectionEdgeSplitsPlaceholder(1, in: "a [Image #1] b", numbers: [1]))
         // 番号が渡されていなければ特別扱いしない。

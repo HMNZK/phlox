@@ -114,31 +114,64 @@ struct ComposerPlaceholderEditingAcceptanceTests {
         #expect(textView.string == ComposerImagePlaceholder.removing(number: 1, from: source))
     }
 
-    // MARK: - shift+矢印はトークン単位で選択する（task-7）
+    // MARK: - 選択はトークンを分断しない（task-7）
+
+    /// 実アプリと同じ配線（Coordinator を delegate に付けた NSTextView）を組む。
+    /// 選択の吸着は個々のコマンドの override ではなく delegate の1箇所で守っているため、
+    /// delegate 無しの素の text view ではこの契約は成立しない。
+    @MainActor
+    private func makeWiredTextView(
+        _ text: String,
+        cursor: Int,
+        numbers: [Int]
+    ) -> (IMESafeTextView.SubmitAwareTextView, IMESafeTextView.Coordinator, NSWindow) {
+        let representable = IMESafeTextView(
+            text: .constant(text),
+            isComposing: .constant(false),
+            measuredHeight: .constant(0),
+            minHeight: 0,
+            maxHeight: 1000,
+            onSubmit: {}
+        )
+        let coordinator = IMESafeTextView.Coordinator(representable)
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 200),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        let textView = IMESafeTextView.SubmitAwareTextView(frame: NSRect(x: 0, y: 0, width: 400, height: 200))
+        textView.attachedImageNumbers = { numbers }
+        textView.delegate = coordinator
+        window.contentView = textView
+        textView.string = text
+        textView.setSelectedRange(NSRange(location: cursor, length: 0))
+        return (textView, coordinator, window)
+    }
 
     @Test @MainActor
     func shiftLeftFromTheEndOfAPlaceholder_selectsTheWholeToken() {
-        let textView = makeTextView("[Image #1] テスト", cursor: 10, numbers: [1])
+        let (textView, _, _) = makeWiredTextView("x [Image #1] y", cursor: 12, numbers: [1])
 
         textView.moveLeftAndModifySelection(nil)
 
-        #expect(textView.selectedRange() == NSRange(location: 0, length: 10))
+        #expect(textView.selectedRange() == NSRange(location: 2, length: 10))
     }
 
     @Test @MainActor
     func shiftRightAfterSelectingAToken_shrinksBackToTheCaret() {
         // 伸ばした選択を同じ回数で戻せること（トークンに吸い付いて戻せない状態にしない）。
-        let textView = makeTextView("[Image #1] テスト", cursor: 10, numbers: [1])
+        let (textView, _, _) = makeWiredTextView("x [Image #1] y", cursor: 12, numbers: [1])
 
         textView.moveLeftAndModifySelection(nil)
         textView.moveRightAndModifySelection(nil)
 
-        #expect(textView.selectedRange() == NSRange(location: 10, length: 0))
+        #expect(textView.selectedRange() == NSRange(location: 12, length: 0))
     }
 
     @Test @MainActor
     func shiftLeftTwice_selectsTheTokenAndOneMoreCharacter() {
-        let textView = makeTextView("a [Image #1]", cursor: 12, numbers: [1])
+        let (textView, _, _) = makeWiredTextView("x [Image #1] y", cursor: 12, numbers: [1])
 
         textView.moveLeftAndModifySelection(nil)
         textView.moveLeftAndModifySelection(nil)
@@ -148,16 +181,66 @@ struct ComposerPlaceholderEditingAcceptanceTests {
 
     @Test @MainActor
     func shiftRightFromTheStartOfAPlaceholder_selectsTheWholeToken() {
-        let textView = makeTextView("[Image #1] テスト", cursor: 0, numbers: [1])
+        let (textView, _, _) = makeWiredTextView("x [Image #1] y", cursor: 2, numbers: [1])
 
         textView.moveRightAndModifySelection(nil)
 
-        #expect(textView.selectedRange() == NSRange(location: 0, length: 10))
+        #expect(textView.selectedRange() == NSRange(location: 2, length: 10))
+    }
+
+    @Test @MainActor
+    func theCaretCanNeverSitInsideAToken() {
+        // shift 無しの ← やマウスクリックで内側に入れてしまうと、そこを起点にした選択が
+        // トークンを分断したままになる。選択変更の1箇所で守っているので入り込めない。
+        let (textView, _, _) = makeWiredTextView("x [Image #1] y", cursor: 12, numbers: [1])
+
+        textView.moveLeft(nil)
+
+        #expect(textView.selectedRange() == NSRange(location: 2, length: 0))
+    }
+
+    @Test @MainActor
+    func clickingIntoTheMiddleOfAToken_snapsOutOfIt() {
+        let (textView, _, _) = makeWiredTextView("x [Image #1] y", cursor: 0, numbers: [1])
+
+        textView.setSelectedRange(NSRange(location: 7, length: 0))
+
+        #expect(!ComposerImagePlaceholder.selectionEdgeSplitsPlaceholder(
+            textView.selectedRange().location, in: textView.string, numbers: [1]
+        ))
+    }
+
+    @Test @MainActor
+    func shiftUpAcrossAToken_doesNotLeaveItSplit() {
+        // shift+Enter で複数行になる。上下の選択も同じ規則で守られること。
+        let (textView, _, _) = makeWiredTextView("aaa\n[Image #1]\nbbb", cursor: 18, numbers: [1])
+
+        textView.moveUpAndModifySelection(nil)
+
+        let selection = textView.selectedRange()
+        #expect(!ComposerImagePlaceholder.selectionEdgeSplitsPlaceholder(
+            selection.lowerBound, in: textView.string, numbers: [1]
+        ))
+        #expect(!ComposerImagePlaceholder.selectionEdgeSplitsPlaceholder(
+            selection.upperBound, in: textView.string, numbers: [1]
+        ))
+    }
+
+    @Test @MainActor
+    func optionShiftLeftAcrossAToken_doesNotLeaveItSplit() {
+        let (textView, _, _) = makeWiredTextView("x [Image #1] y", cursor: 12, numbers: [1])
+
+        textView.moveWordLeftAndModifySelection(nil)
+
+        let selection = textView.selectedRange()
+        #expect(!ComposerImagePlaceholder.selectionEdgeSplitsPlaceholder(
+            selection.lowerBound, in: textView.string, numbers: [1]
+        ))
     }
 
     @Test @MainActor
     func shiftLeftOutsideAnyPlaceholder_selectsOneCharacterAsUsual() {
-        let textView = makeTextView("[Image #1] テスト", cursor: 14, numbers: [1])
+        let (textView, _, _) = makeWiredTextView("x [Image #1] y", cursor: 14, numbers: [1])
 
         textView.moveLeftAndModifySelection(nil)
 
@@ -166,11 +249,11 @@ struct ComposerPlaceholderEditingAcceptanceTests {
 
     @Test @MainActor
     func withoutAttachedNumbers_shiftLeftSelectsOneCharacter() {
-        let textView = makeTextView("[Image #1]", cursor: 10, numbers: [])
+        let (textView, _, _) = makeWiredTextView("x [Image #1] y", cursor: 12, numbers: [])
 
         textView.moveLeftAndModifySelection(nil)
 
-        #expect(textView.selectedRange() == NSRange(location: 9, length: 1))
+        #expect(textView.selectedRange() == NSRange(location: 11, length: 1))
     }
 
     // MARK: - コピーで画像も載る（task-6）

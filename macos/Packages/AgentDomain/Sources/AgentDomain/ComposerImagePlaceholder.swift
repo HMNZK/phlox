@@ -113,13 +113,44 @@ public enum ComposerImagePlaceholder {
     }
 
     /// 選択の端 `edgeUTF16` がプレースホルダを分断しているか（トークンの内側・両端は含まない）。
-    /// 分断している間は選択の移動を繰り返して、トークンの外へ抜けさせる。
     public static func selectionEdgeSplitsPlaceholder(
         _ edgeUTF16: Int,
         in text: String,
         numbers: [Int]
     ) -> Bool {
-        numbers.compactMap { tokenRangeUTF16(of: $0, in: text) }.contains {
+        splitPlaceholder(at: edgeUTF16, in: text, numbers: numbers) != nil
+    }
+
+    /// 選択範囲の両端がプレースホルダを分断しないように寄せた範囲。
+    /// 「どの端もトークンを分断しない」を選択変更の1箇所で守るための純関数
+    /// （キーボード・マウス・未知のコマンドを問わず同じ規則を適用できる）。
+    ///
+    /// - 動いた端は**動いた向き**へ寄せる（shift+← で伸ばした選択を shift+→ で戻せる）。
+    /// - 動かなかった端（＝選択の起点）が内側にあれば**外側**へ寄せ、トークンを丸ごと含める。
+    public static func snappedSelectionUTF16(
+        from oldRange: Range<Int>,
+        to newRange: Range<Int>,
+        in text: String,
+        numbers: [Int]
+    ) -> Range<Int> {
+        guard !numbers.isEmpty else { return newRange }
+
+        func snap(edge: Int, previous: Int, isLowerEdge: Bool) -> Int {
+            guard let token = splitPlaceholder(at: edge, in: text, numbers: numbers) else { return edge }
+            if edge == previous {
+                // 起点が内側に残っている。トークンを丸ごと選択に含める向きへ寄せる。
+                return isLowerEdge ? token.lowerBound : token.upperBound
+            }
+            return edge > previous ? token.upperBound : token.lowerBound
+        }
+
+        let lower = snap(edge: newRange.lowerBound, previous: oldRange.lowerBound, isLowerEdge: true)
+        let upper = snap(edge: newRange.upperBound, previous: oldRange.upperBound, isLowerEdge: false)
+        return min(lower, upper)..<max(lower, upper)
+    }
+
+    private static func splitPlaceholder(at edgeUTF16: Int, in text: String, numbers: [Int]) -> Range<Int>? {
+        numbers.compactMap { tokenRangeUTF16(of: $0, in: text) }.first {
             edgeUTF16 > $0.lowerBound && edgeUTF16 < $0.upperBound
         }
     }

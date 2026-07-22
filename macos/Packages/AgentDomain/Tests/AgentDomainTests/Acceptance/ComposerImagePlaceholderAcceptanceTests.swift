@@ -401,6 +401,41 @@ struct ComposerImagePlaceholderAcceptanceTests {
     }
 
     @Test
+    func snappedSelection_dragOverAToken_swallowsItWhole() {
+        // マウスのドラッグは追跡中に通知が来ず、確定の1回で「ドラッグ前の選択」が old に入る。
+        // どちらの端も引き継いでいない＝新しく引かれた選択として扱い、掛かるトークンを丸ごと含める。
+        let text = "x [Image #1] y"   // トークンは 2..<12
+        #expect(
+            ComposerImagePlaceholder.snappedSelectionUTF16(
+                from: 12..<12, to: 6..<14, in: text, numbers: [1]
+            ) == 2..<14
+        )
+    }
+
+    @Test
+    func snappedSelection_doubleClickInsideAToken_selectsTheWholeToken() {
+        let text = "x [Image #1] y"
+        // "Image" をダブルクリックした相当（3..<8）。
+        #expect(
+            ComposerImagePlaceholder.snappedSelectionUTF16(
+                from: 12..<12, to: 3..<8, in: text, numbers: [1]
+            ) == 2..<12
+        )
+    }
+
+    @Test
+    func snappedSelection_clickInsideAToken_placesTheCaretOutside() {
+        let text = "x [Image #1] y"
+        let result = ComposerImagePlaceholder.snappedSelectionUTF16(
+            from: 0..<0, to: 7..<7, in: text, numbers: [1]
+        )
+        #expect(result.isEmpty)
+        #expect(!ComposerImagePlaceholder.selectionEdgeSplitsPlaceholder(
+            result.lowerBound, in: text, numbers: [1]
+        ))
+    }
+
+    @Test
     func snappedSelection_leavesSelectionsThatDoNotSplitATokenAlone() {
         let text = "x [Image #1] y"
         #expect(

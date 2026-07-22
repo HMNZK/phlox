@@ -84,11 +84,12 @@ public enum ComposerImagePlaceholder {
     }
 
     /// 本文中の番号 `number` のプレースホルダが占める UTF-16 範囲（最初の1件）。
+    /// NSString で引くのは、`String.Index` → UTF-16 オフセットの変換が本文長に比例して
+    /// 重く、1文字打つたびに走る経路（選択の吸着）で効いてくるため。
     public static func tokenRangeUTF16(of number: Int, in text: String) -> Range<Int>? {
-        guard let range = text.range(of: Self.text(for: number)) else { return nil }
-        let lower = text.utf16.distance(from: text.utf16.startIndex, to: range.lowerBound)
-        let upper = text.utf16.distance(from: text.utf16.startIndex, to: range.upperBound)
-        return lower..<upper
+        let found = (text as NSString).range(of: Self.text(for: number))
+        guard found.location != NSNotFound else { return nil }
+        return found.location..<(found.location + found.length)
     }
 
     /// Backspace / Delete で「まとめて消す」範囲（隣接スペースの畳み込みを含む）。
@@ -133,24 +134,97 @@ public enum ComposerImagePlaceholder {
         in text: String,
         numbers: [Int]
     ) -> Range<Int> {
+        // 1文字打つたびに走る経路なので、添付が無ければ即座に抜ける（本文を読まない）。
         guard !numbers.isEmpty else { return newRange }
+        let tokens = tokenRangesUTF16(in: text, numbers: numbers)
+        guard !tokens.isEmpty else { return newRange }
 
-        func snap(edge: Int, previous: Int, isLowerEdge: Bool) -> Int {
-            guard let token = splitPlaceholder(at: edge, in: text, numbers: numbers) else { return edge }
-            if edge == previous {
+        func split(at edge: Int) -> Range<Int>? {
+            tokens.first { edge > $0.lowerBound && edge < $0.upperBound }
+        }
+
+        let lowerIsAnchor = newRange.lowerBound == oldRange.lowerBound
+        let upperIsAnchor = newRange.upperBound == oldRange.upperBound
+
+        // どちらの端も引き継いでいない＝キーボードの伸縮ではなく新しく引かれた選択
+        // （マウスのドラッグ・ダブルクリック・プログラムからの設定）。
+        if !lowerIsAnchor, !upperIsAnchor {
+            if newRange.isEmpty {
+                // キャレットの移動。動いた向きへ寄せる。向きが決まらないときは近い端へ。
+                guard let token = split(at: newRange.lowerBound) else { return newRange }
+                let edge = newRange.lowerBound
+                if edge < oldRange.lowerBound { return token.lowerBound..<token.lowerBound }
+                if edge > oldRange.upperBound { return token.upperBound..<token.upperBound }
+                let nearer = (edge - token.lowerBound) <= (token.upperBound - edge)
+                    ? token.lowerBound : token.upperBound
+                return nearer..<nearer
+            }
+            // なぞった範囲に掛かるトークンは丸ごと含める。
+            let lower = split(at: newRange.lowerBound)?.lowerBound ?? newRange.lowerBound
+            let upper = split(at: newRange.upperBound)?.upperBound ?? newRange.upperBound
+            return lower..<upper
+        }
+
+        func snap(edge: Int, previous: Int, isAnchor: Bool, isLowerEdge: Bool) -> Int {
+            guard let token = split(at: edge) else { return edge }
+            if isAnchor {
                 // 起点が内側に残っている。トークンを丸ごと選択に含める向きへ寄せる。
                 return isLowerEdge ? token.lowerBound : token.upperBound
             }
             return edge > previous ? token.upperBound : token.lowerBound
         }
 
-        let lower = snap(edge: newRange.lowerBound, previous: oldRange.lowerBound, isLowerEdge: true)
-        let upper = snap(edge: newRange.upperBound, previous: oldRange.upperBound, isLowerEdge: false)
+        let lower = snap(
+            edge: newRange.lowerBound, previous: oldRange.lowerBound,
+            isAnchor: lowerIsAnchor, isLowerEdge: true
+        )
+        let upper = snap(
+            edge: newRange.upperBound, previous: oldRange.upperBound,
+            isAnchor: upperIsAnchor, isLowerEdge: false
+        )
         return min(lower, upper)..<max(lower, upper)
     }
 
+    private static let tokenPrefix = "[Image #"
+
+    /// 本文を1回だけ走査して、`numbers` に含まれるプレースホルダの範囲をすべて返す。
+    /// 番号ごとに `range(of:)` を回すと本文長 × 添付数になり、1文字打つたびに走る
+    /// 選択の吸着で効いてくるため、前置き `[Image #` を1回走査して番号を読む形にしている。
+    static func tokenRangesUTF16(in text: String, numbers: [Int]) -> [Range<Int>] {
+        guard !numbers.isEmpty else { return [] }
+        let wanted = Set(numbers)
+        let ns = text as NSString
+        let closing = UInt16(UnicodeScalar("]").value)
+        var ranges: [Range<Int>] = []
+        var cursor = 0
+
+        while cursor < ns.length {
+            let found = ns.range(
+                of: tokenPrefix,
+                range: NSRange(location: cursor, length: ns.length - cursor)
+            )
+            guard found.location != NSNotFound else { break }
+
+            var index = found.location + found.length
+            var number = 0
+            var digitCount = 0
+            while index < ns.length {
+                let unit = ns.character(at: index)
+                guard unit >= 48, unit <= 57 else { break }
+                number = number * 10 + Int(unit - 48)
+                digitCount += 1
+                index += 1
+            }
+            if digitCount > 0, index < ns.length, ns.character(at: index) == closing, wanted.contains(number) {
+                ranges.append(found.location..<(index + 1))
+            }
+            cursor = found.location + found.length
+        }
+        return ranges
+    }
+
     private static func splitPlaceholder(at edgeUTF16: Int, in text: String, numbers: [Int]) -> Range<Int>? {
-        numbers.compactMap { tokenRangeUTF16(of: $0, in: text) }.first {
+        numbers.lazy.compactMap { tokenRangeUTF16(of: $0, in: text) }.first {
             edgeUTF16 > $0.lowerBound && edgeUTF16 < $0.upperBound
         }
     }

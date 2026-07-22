@@ -28,13 +28,17 @@ struct SessionAttachmentBadgeTests {
             messagesOutcome: .success([])
         )
         let vm = SessionDetailViewModel(session: makeSession(), api: api)
-        vm.addAttachments([image(), image()])
+        // 添付は本文へ `[Image #N]` を挿入するため、送信テキストはプレースホルダを含む。
         vm.inputText = "写真です"
+        vm.inputCursorUTF16 = vm.inputText.utf16.count
+        vm.addAttachments([image(), image()])
+        #expect(vm.inputText == "写真です [Image #1] [Image #2] ")
 
         await vm.sendMessage()
 
+        // sendMessage は本文を trim して送るので、サーバーが返す user メッセージも trim 済み。
         await api.setMessagesOutcome(.success([
-            .user(id: "m1", text: "写真です"),
+            .user(id: "m1", text: "写真です [Image #1] [Image #2]"),
         ]))
         await vm.refresh()
 

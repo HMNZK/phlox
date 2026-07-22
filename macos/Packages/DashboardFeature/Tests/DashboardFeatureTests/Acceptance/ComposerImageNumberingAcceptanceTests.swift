@@ -8,10 +8,30 @@
 // 注意: NSPasteboard.general を汚さないため、一意な名前付きペーストボードを使い、
 // テスト終了時に releaseGlobally する。
 
+import AgentDomain
 import AppKit
 import Foundation
+import StructuredChatKit
 import Testing
 @testable import SessionFeature
+
+/// 送信は行わないダミークライアント（ChatSessionViewModel の生成に必要なだけ）。
+private final class ComposerNumberingNoopClient: StructuredAgentClient, @unchecked Sendable {
+    let events: AsyncStream<NormalizedChatEvent>
+    private let continuation: AsyncStream<NormalizedChatEvent>.Continuation
+
+    init() {
+        var continuation: AsyncStream<NormalizedChatEvent>.Continuation!
+        events = AsyncStream { continuation = $0 }
+        self.continuation = continuation
+    }
+
+    func start() async {}
+    func turnStart(_ input: [ChatInput]) async throws {}
+    func resume(sessionRef: String) async throws {}
+    func interrupt() async throws {}
+    func close() async { continuation.finish() }
+}
 
 private let tinyPNG = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
 
@@ -143,6 +163,69 @@ struct ComposerImageNumberingAcceptanceTests {
 
         #expect(removed.isEmpty)
         #expect(store.attachments.map(\.number) == [1])
+    }
+
+    // MARK: - 送信による本文クリアは添付を外さない（task-4）
+
+    @Test @MainActor
+    func consumingTheDraftForSend_doesNotDetachAttachments() {
+        // 送信は本文を空にするが、これはユーザーがプレースホルダを消した操作ではない。
+        // 送信ペイロードはライブの attachmentStore を読むため、ここで外すと画像が送られない。
+        let viewModel = ChatSessionViewModel(
+            id: SessionID(),
+            agentRef: .builtin(.claudeCode),
+            client: ComposerNumberingNoopClient(),
+            approvalBroker: ChatApprovalBroker(),
+            workingDirectory: "/tmp/work"
+        )
+        viewModel.attachmentStore.addImage(data: image(1), mediaType: "image/png")
+        viewModel.draft = "見て [Image #1] "
+
+        let sent = viewModel.consumeDraftForSend()
+        // View の `.onChange(of: text)` 相当。送信クリアは何度発火しても外さない。
+        viewModel.syncAttachmentsWithDraftEdit(oldText: "見て [Image #1] ", newText: "")
+        viewModel.syncAttachmentsWithDraftEdit(oldText: "見て [Image #1] ", newText: "")
+
+        #expect(sent == "見て [Image #1]")
+        #expect(viewModel.attachmentStore.attachments.map(\.number) == [1])
+    }
+
+    @Test @MainActor
+    func userDeletingThePlaceholder_stillDetachesTheAttachment() {
+        let viewModel = ChatSessionViewModel(
+            id: SessionID(),
+            agentRef: .builtin(.claudeCode),
+            client: ComposerNumberingNoopClient(),
+            approvalBroker: ChatApprovalBroker(),
+            workingDirectory: "/tmp/work"
+        )
+        viewModel.attachmentStore.addImage(data: image(1), mediaType: "image/png")
+
+        viewModel.syncAttachmentsWithDraftEdit(oldText: "見て [Image #1] ", newText: "見て ")
+
+        #expect(viewModel.attachmentStore.attachments.isEmpty)
+    }
+
+    @Test @MainActor
+    func afterASend_userClearingTheTextStillDetaches() {
+        // 送信クリアの読み飛ばしが、その後のユーザー編集まで無効化しないこと。
+        let viewModel = ChatSessionViewModel(
+            id: SessionID(),
+            agentRef: .builtin(.claudeCode),
+            client: ComposerNumberingNoopClient(),
+            approvalBroker: ChatApprovalBroker(),
+            workingDirectory: "/tmp/work"
+        )
+        viewModel.attachmentStore.addImage(data: image(1), mediaType: "image/png")
+        viewModel.draft = "先の送信 [Image #1] "
+        _ = viewModel.consumeDraftForSend()
+        viewModel.syncAttachmentsWithDraftEdit(oldText: "先の送信 [Image #1] ", newText: "")
+
+        // ユーザーが改めて打ち直し、プレースホルダを消す。
+        viewModel.syncAttachmentsWithDraftEdit(oldText: "", newText: "[Image #1] ")
+        viewModel.syncAttachmentsWithDraftEdit(oldText: "[Image #1] ", newText: "")
+
+        #expect(viewModel.attachmentStore.attachments.isEmpty)
     }
 
     // MARK: - チップ表示

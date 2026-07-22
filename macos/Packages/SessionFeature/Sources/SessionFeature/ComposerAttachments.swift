@@ -95,7 +95,16 @@ final class ComposerAttachmentStore {
     /// 戻り値は実際に外した添付の番号。残る添付の番号は振り直さない。
     @discardableResult
     func removeAttachmentsMissing(fromOldText oldText: String, newText: String) -> [Int] {
-        []
+        guard oldText != newText, !attachments.isEmpty else { return [] }
+        let removedNumbers = ComposerImagePlaceholder.numbersRemoved(
+            from: oldText,
+            to: newText,
+            among: attachments.map(\.number)
+        )
+        guard !removedNumbers.isEmpty else { return [] }
+        let removeSet = Set(removedNumbers)
+        attachments.removeAll { removeSet.contains($0.number) }
+        return removedNumbers
     }
 
     /// 挿入用の `@path` 参照文字列を返す（添付には積まない）。

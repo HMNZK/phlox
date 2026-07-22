@@ -366,18 +366,20 @@ final class SessionDetailViewModelTests: XCTestCase {
     func testSendMessageRestoresAttachmentsOnFailure() async {
         let api = MockAPI(sendOutcome: .failure(.unreachable))
         let vm = SessionDetailViewModel(session: session(.running), api: api)
-        vm.addAttachments([attachment(mib: 1)])
         vm.inputText = "見て"
+        vm.inputCursorUTF16 = vm.inputText.utf16.count
+        vm.addAttachments([attachment(mib: 1)])
         await vm.sendMessage()
         XCTAssertEqual(vm.attachments.count, 1)
-        XCTAssertEqual(vm.inputText, "見て")
+        XCTAssertEqual(vm.inputText, "見て [Image #1] ")
     }
 
     func testSendMessageIncludesAttachmentsInRequest() async {
         let api = MockAPI(sendOutcome: .success(SendResult(accepted: true)))
         let vm = SessionDetailViewModel(session: session(.running), api: api)
-        vm.addAttachments([attachment(mib: 1)])
         vm.inputText = "見て"
+        vm.inputCursorUTF16 = vm.inputText.utf16.count
+        vm.addAttachments([attachment(mib: 1)])
         await vm.sendMessage()
         let images = await api.lastSentRequest?.images
         XCTAssertEqual(images?.count, 1)

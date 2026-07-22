@@ -212,6 +212,9 @@ struct GridComposerBar: View {
                 .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
         )
         .padding(DSSpacing.s)
+        .onChange(of: text) { oldValue, newValue in
+            viewModel.syncAttachmentsWithDraftEdit(oldText: oldValue, newText: newValue)
+        }
     }
 
     private func acceptSuggestionFromPopup(_ index: Int) {

@@ -37,7 +37,9 @@ public final class SessionDetailViewModel {
     }
     /// task-4: `currentStatus` が `.running` になった時刻。running を外れたら nil。
     public private(set) var thinkingStartedAt: Date?
-    public var inputText: String = ""
+    public var inputText: String = "" {
+        didSet { removeAttachmentsMissingFromTextEdit(from: oldValue, to: inputText) }
+    }
     /// task-3 契約の PM スタブ。入力欄のカーソル位置（UTF-16 オフセット）。
     /// View が書き込み、添付時のプレースホルダ挿入位置として使う。
     public var inputCursorUTF16: Int = 0
@@ -257,6 +259,17 @@ public final class SessionDetailViewModel {
         attachmentItems.append(contentsOf: numberedItems)
         inputText = currentText
         inputCursorUTF16 = currentCursor
+    }
+
+    private func removeAttachmentsMissingFromTextEdit(from oldText: String, to newText: String) {
+        guard oldText != newText, !attachmentItems.isEmpty else { return }
+        let removedNumbers = Set(ComposerImagePlaceholder.numbersRemoved(
+            from: oldText,
+            to: newText,
+            among: attachmentItems.map(\.number)
+        ))
+        guard !removedNumbers.isEmpty else { return }
+        attachmentItems.removeAll { removedNumbers.contains($0.number) }
     }
 
     /// 添付を1件削除する（ストリップの × ボタン用）。
@@ -624,6 +637,8 @@ public final class SessionDetailViewModel {
 
         let backupText = inputText
         let backupItems = attachmentItems
+        // 送信ペイロードは `backupItems`（下の api.send）を使うため、
+        // このクリアで didSet が添付を外しても送信内容には影響しない。
         inputText = "" // 楽観更新: 即クリア
         attachmentItems = []
         sendState = .sending
@@ -662,6 +677,8 @@ public final class SessionDetailViewModel {
             attachmentError = nil
             await refresh() // 送信後に即時更新（以降はポーリングが追従）
         } catch let error as PhloxError {
+            // 復元順は inputText → attachmentItems。didSet が走る時点で attachmentItems は
+            // 空なので何も外さない（numbersRemoved は oldText="" に無い番号を返さない）。
             inputText = backupText // 失敗時はテキスト・添付を復元（再送可能に）
             attachmentItems = backupItems
             sendState = .failed(error.presentation.message)

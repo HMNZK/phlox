@@ -351,11 +351,27 @@ public final class ChatSessionViewModel: Identifiable {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             guard !attachmentStore.attachments.isEmpty else { return nil }
+            draftClearedForSend = draft
             draft = ""
             return ""
         }
+        draftClearedForSend = draft
         draft = ""
         return trimmed
+    }
+
+    /// 送信によるクリア直前の本文。composer の `.onChange` からは
+    /// 「ユーザーがプレースホルダを消した」編集と区別がつかないため、ここで記録して読み飛ばす。
+    /// 送信ペイロード（`buildChatInputs`）はライブの `attachmentStore` を読むので、
+    /// ここで添付を外すと画像が送られない／失敗時に復元できない。
+    private var draftClearedForSend: String?
+
+    /// composer 本文の編集を添付へ同期する（本文から `[Image #N]` が消えたら添付も外す）。
+    /// 送信によるクリアは何度発火しても添付を外さない。
+    func syncAttachmentsWithDraftEdit(oldText: String, newText: String) {
+        if newText.isEmpty, oldText == draftClearedForSend { return }
+        draftClearedForSend = nil
+        attachmentStore.removeAttachmentsMissing(fromOldText: oldText, newText: newText)
     }
 
     /// composer の添付状態（task-8 契約。受け入れテスト ComposerAttachment が凍結）。

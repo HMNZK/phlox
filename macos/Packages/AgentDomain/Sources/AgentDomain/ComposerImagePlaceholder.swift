@@ -46,13 +46,15 @@ public enum ComposerImagePlaceholder {
 
     /// 本文に番号 `number` のプレースホルダが含まれるか（トークン全体の一致で判定する）。
     public static func contains(number: Int, in text: String) -> Bool {
-        false
+        text.contains(Self.text(for: number))
     }
 
     /// 本文の編集で消えたプレースホルダの番号を返す。
     /// **oldText に無かった番号は決して返さない**（本文に紐づかない添付を誤って外さないための安全弁）。
     public static func numbersRemoved(from oldText: String, to newText: String, among numbers: [Int]) -> [Int] {
-        []
+        numbers.filter { number in
+            contains(number: number, in: oldText) && !contains(number: number, in: newText)
+        }
     }
 
     /// 本文から番号 `number` のプレースホルダを1つ取り除く。

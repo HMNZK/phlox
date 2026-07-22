@@ -74,8 +74,9 @@ struct SubAgentAndAttachmentAcceptanceTests {
     func sendCarriesAttachmentsAsImages() async {
         let api = MockAPI(sendOutcome: .success(SendResult(accepted: true)))
         let vm = SessionDetailViewModel(session: makeSession(), api: api)
-        vm.addAttachments([image(mib: 1)])
         vm.inputText = "見て"
+        vm.inputCursorUTF16 = vm.inputText.utf16.count
+        vm.addAttachments([image(mib: 1)])
 
         await vm.sendMessage()
 
@@ -86,8 +87,9 @@ struct SubAgentAndAttachmentAcceptanceTests {
     func clearsAttachmentsOnSendSuccess() async {
         let api = MockAPI(sendOutcome: .success(SendResult(accepted: true)))
         let vm = SessionDetailViewModel(session: makeSession(), api: api)
-        vm.addAttachments([image(mib: 1)])
         vm.inputText = "見て"
+        vm.inputCursorUTF16 = vm.inputText.utf16.count
+        vm.addAttachments([image(mib: 1)])
 
         await vm.sendMessage()
 
@@ -98,13 +100,14 @@ struct SubAgentAndAttachmentAcceptanceTests {
     func restoresAttachmentsAndTextOnSendFailure() async {
         let api = MockAPI(sendOutcome: .failure(.unreachable))
         let vm = SessionDetailViewModel(session: makeSession(), api: api)
-        vm.addAttachments([image(mib: 1)])
         vm.inputText = "見て"
+        vm.inputCursorUTF16 = vm.inputText.utf16.count
+        vm.addAttachments([image(mib: 1)])
 
         await vm.sendMessage()
 
         #expect(vm.attachments.count == 1, "失敗時は添付を復元する")
-        #expect(vm.inputText == "見て", "失敗時はテキストを復元する")
+        #expect(vm.inputText == "見て [Image #1] ", "失敗時はテキストを復元する")
     }
 
     // MARK: - 3. サブエージェント解決

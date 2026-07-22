@@ -229,14 +229,44 @@ public final class SessionDetailViewModel {
             attachmentError = "画像の合計サイズは最大8MBまでです"
             return
         }
-        attachmentItems.append(contentsOf: normalizedItems)
+
+        var numberedItems: [SessionAttachmentItem] = []
+        numberedItems.reserveCapacity(normalizedItems.count)
+        var existingNumbers = attachmentItems.map(\.number)
+        var currentText = inputText
+        var currentCursor = inputCursorUTF16
+
+        for item in normalizedItems {
+            let number = ComposerImagePlaceholder.nextNumber(after: existingNumbers)
+            existingNumbers.append(number)
+            numberedItems.append(SessionAttachmentItem(
+                id: item.id,
+                number: number,
+                send: item.send,
+                previewData: item.previewData
+            ))
+            let inserted = ComposerImagePlaceholder.inserting(
+                number: number,
+                into: currentText,
+                cursorUTF16: currentCursor
+            )
+            currentText = inserted.text
+            currentCursor = inserted.cursorUTF16
+        }
+
+        attachmentItems.append(contentsOf: numberedItems)
+        inputText = currentText
+        inputCursorUTF16 = currentCursor
     }
 
     /// 添付を1件削除する（ストリップの × ボタン用）。
     public func removeAttachment(at index: Int) {
         guard attachmentItems.indices.contains(index) else { return }
+        let removedNumber = attachmentItems[index].number
         attachmentItems.remove(at: index)
         attachmentError = nil
+        inputText = ComposerImagePlaceholder.removing(number: removedNumber, from: inputText)
+        inputCursorUTF16 = min(inputCursorUTF16, inputText.utf16.count)
     }
 
     /// api.subAgents の markerMessageID で行→サブエージェントを解決する。

@@ -194,10 +194,11 @@ public struct SessionDetailView: View {
 
             DSInputBar(
                 text: $viewModel.inputText,
+                cursorUTF16: $viewModel.inputCursorUTF16,
                 placeholder: SessionDetailCopy.inputPlaceholder,
                 isLoading: viewModel.isSending,
                 attachmentStrip: viewModel.attachmentItems.map {
-                    DSAttachmentStripItem(id: $0.id, previewData: $0.previewData)
+                    DSAttachmentStripItem(id: $0.id, number: $0.number, previewData: $0.previewData)
                 },
                 attachmentError: viewModel.attachmentError,
                 contextLabel: viewModel.inputContextDisplayName,

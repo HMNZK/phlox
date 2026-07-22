@@ -40,8 +40,8 @@ public struct DSInputBar: View {
     public static let providesPillChrome = true
     public static let providesDragToDismiss = false
     public static let providesVoiceInput = false
-    /// task-3 契約の PM スタブ: 入力欄がカーソル位置を外部へ公開する（iOS 18 の TextSelection 経由）。
-    public static let providesCursorAwareInput = false
+    /// task-3 契約: 入力欄がカーソル位置を外部へ公開する（iOS 18 の TextSelection 経由）。
+    public static let providesCursorAwareInput = true
     public static let usesNeutralFocusBorder = true
     public static let usesAccentFocusBorder = false
     public static let stopAccessibilityLabel = "停止"
@@ -54,6 +54,7 @@ public struct DSInputBar: View {
     static let attachmentThumbnailSize: CGFloat = 56
 
     @Binding var text: String
+    @Binding var cursorUTF16: Int
     let placeholder: String
     let isLoading: Bool
     let attachmentStrip: [DSAttachmentStripItem]
@@ -69,11 +70,13 @@ public struct DSInputBar: View {
 
     @FocusState private var isFocused: Bool
     #if os(iOS)
+    @State private var textSelection: TextSelection?
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     #endif
 
     public init(
         text: Binding<String>,
+        cursorUTF16: Binding<Int> = .constant(0),
         placeholder: String,
         isLoading: Bool = false,
         attachmentStrip: [DSAttachmentStripItem] = [],
@@ -88,6 +91,7 @@ public struct DSInputBar: View {
     ) {
         self.init(
             text: text,
+            cursorUTF16: cursorUTF16,
             placeholder: placeholder,
             isLoading: isLoading,
             attachmentStrip: attachmentStrip,
@@ -105,6 +109,7 @@ public struct DSInputBar: View {
 
     public init<ModelSelector: View>(
         text: Binding<String>,
+        cursorUTF16: Binding<Int> = .constant(0),
         placeholder: String,
         isLoading: Bool = false,
         attachmentStrip: [DSAttachmentStripItem] = [],
@@ -119,6 +124,7 @@ public struct DSInputBar: View {
         onSubmit: @escaping () -> Void
     ) {
         self._text = text
+        self._cursorUTF16 = cursorUTF16
         self.placeholder = placeholder
         self.isLoading = isLoading
         self.attachmentStrip = attachmentStrip
@@ -179,16 +185,7 @@ public struct DSInputBar: View {
         HStack(alignment: .center, spacing: DSSpacing.s) {
             photoPickerButton
 
-            TextField(text: $text, axis: .vertical) {
-                Text(placeholder)
-                    .foregroundStyle(DSColor.textTertiary)
-            }
-            .font(DSFont.body)
-            .foregroundStyle(DSColor.textPrimary)
-            .tint(DSColor.accent)
-            .lineLimit(1...Self.maximumTextLineCount)
-            .focused($isFocused)
-            .accessibilityLabel(Text(placeholder))
+            inputTextField
 
             modelSelector
             actionButton
@@ -197,6 +194,67 @@ public struct DSInputBar: View {
         .background(DSColor.surfaceElevated, in: Capsule())
         .overlay(Capsule().strokeBorder(pillBorderColor, lineWidth: 1))
     }
+
+    @ViewBuilder
+    private var inputTextField: some View {
+        #if os(iOS)
+        TextField(text: $text, selection: $textSelection, axis: .vertical) {
+            Text(placeholder)
+                .foregroundStyle(DSColor.textTertiary)
+        }
+        .font(DSFont.body)
+        .foregroundStyle(DSColor.textPrimary)
+        .tint(DSColor.accent)
+        .lineLimit(1...Self.maximumTextLineCount)
+        .focused($isFocused)
+        .accessibilityLabel(Text(placeholder))
+        .onAppear { syncSelectionFromCursorUTF16() }
+        .onChange(of: textSelection) { _, selection in
+            guard let offset = Self.utf16Offset(from: selection, in: text) else { return }
+            if cursorUTF16 != offset {
+                cursorUTF16 = offset
+            }
+        }
+        .onChange(of: cursorUTF16) { _, _ in
+            syncSelectionFromCursorUTF16()
+        }
+        .onChange(of: text) { _, _ in
+            syncSelectionFromCursorUTF16()
+        }
+        #else
+        TextField(text: $text, axis: .vertical) {
+            Text(placeholder)
+                .foregroundStyle(DSColor.textTertiary)
+        }
+        .font(DSFont.body)
+        .foregroundStyle(DSColor.textPrimary)
+        .tint(DSColor.accent)
+        .lineLimit(1...Self.maximumTextLineCount)
+        .focused($isFocused)
+        .accessibilityLabel(Text(placeholder))
+        #endif
+    }
+
+    #if os(iOS)
+    private func syncSelectionFromCursorUTF16() {
+        let clamped = max(0, min(cursorUTF16, text.utf16.count))
+        if clamped != cursorUTF16 {
+            cursorUTF16 = clamped
+        }
+        let index = String.Index(utf16Offset: clamped, in: text)
+        let range = index..<index
+        let next = TextSelection(range: range)
+        if textSelection?.indices != next.indices {
+            textSelection = next
+        }
+    }
+
+    static func utf16Offset(from selection: TextSelection?, in text: String) -> Int? {
+        guard let selection else { return nil }
+        guard case .selection(let range) = selection.indices else { return nil }
+        return range.lowerBound.utf16Offset(in: text)
+    }
+    #endif
 
     private var attachmentStripView: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -213,13 +271,24 @@ public struct DSInputBar: View {
     private func attachmentThumbnail(_ item: DSAttachmentStripItem) -> some View {
         let index = attachmentStrip.firstIndex(where: { $0.id == item.id }) ?? 0
         ZStack(alignment: .topTrailing) {
-            attachmentPreview(for: item.previewData)
-                .frame(width: Self.attachmentThumbnailSize, height: Self.attachmentThumbnailSize)
-                .clipShape(RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
-                        .strokeBorder(DSColor.campCardBorder, lineWidth: 1)
-                )
+            ZStack(alignment: .topLeading) {
+                attachmentPreview(for: item.previewData)
+                    .frame(width: Self.attachmentThumbnailSize, height: Self.attachmentThumbnailSize)
+                    .clipShape(RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
+                            .strokeBorder(DSColor.campCardBorder, lineWidth: 1)
+                    )
+
+                Text("#\(item.number)")
+                    .font(DSFont.caption.weight(.semibold))
+                    .foregroundStyle(DSColor.textOnBrand)
+                    .padding(.horizontal, DSSpacing.xs)
+                    .padding(.vertical, 2)
+                    .background(DSColor.textSecondary.opacity(0.85), in: Capsule())
+                    .padding(DSSpacing.xs)
+                    .accessibilityLabel("添付\(item.number)")
+            }
 
             if let onRemoveAttachment {
                 Button {

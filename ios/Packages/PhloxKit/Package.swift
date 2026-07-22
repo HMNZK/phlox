@@ -14,7 +14,7 @@ import PackageDescription
 // 「Phlox の AgentDomain を共有」へ更新した（詳細は doc/adr/0001-shared-agent-domain.md）。
 //
 // 【プラットフォーム】
-// アプリの対象は iOS 17+ のみ。ただし `swift test` は macOS ホスト上で実行されるため、
+// アプリの対象は iOS 18+ のみ。ただし `swift test` は macOS ホスト上で実行されるため、
 // マクロ/ホストビルドで AgentDomain（macOS .v14）を解決できるよう .macOS(.v14) も宣言する。
 // AgentDomain には iOS .v17 を追加済み（ADR 0001）。
 //
@@ -25,7 +25,7 @@ import PackageDescription
 // Features ターゲットが DesignSystem product に依存する。
 let package = Package(
     name: "PhloxKit",
-    platforms: [.iOS(.v17), .macOS(.v14)],
+    platforms: [.iOS(.v18), .macOS(.v14)],
     products: [
         .library(name: "PhloxCore", targets: ["PhloxCore"]),
         .library(name: "PhloxNetworking", targets: ["PhloxNetworking"]),

@@ -40,6 +40,21 @@ public enum ComposerImagePlaceholder {
         return (result, newCursorUTF16)
     }
 
+    // task-4 契約の PM スタブ。API 表面は受け入れテスト
+    // ComposerImagePlaceholderAcceptanceTests が凍結している（シグネチャ変更禁止）。
+    // 実装契約の正本: tasks/task-4.md
+
+    /// 本文に番号 `number` のプレースホルダが含まれるか（トークン全体の一致で判定する）。
+    public static func contains(number: Int, in text: String) -> Bool {
+        false
+    }
+
+    /// 本文の編集で消えたプレースホルダの番号を返す。
+    /// **oldText に無かった番号は決して返さない**（本文に紐づかない添付を誤って外さないための安全弁）。
+    public static func numbersRemoved(from oldText: String, to newText: String, among numbers: [Int]) -> [Int] {
+        []
+    }
+
     /// 本文から番号 `number` のプレースホルダを1つ取り除く。
     public static func removing(number: Int, from text: String) -> String {
         let token = Self.text(for: number)

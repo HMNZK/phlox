@@ -147,6 +147,55 @@ struct ComposerImagePlaceholderAcceptanceTests {
         )
     }
 
+    // MARK: - contains(number:in:) / numbersRemoved(from:to:among:)（task-4）
+
+    @Test
+    func contains_matchesWholeTokenOnly() {
+        #expect(ComposerImagePlaceholder.contains(number: 1, in: "a [Image #1] b"))
+        #expect(ComposerImagePlaceholder.contains(number: 1, in: "[Image #1]"))
+        #expect(!ComposerImagePlaceholder.contains(number: 1, in: "a b"))
+        #expect(!ComposerImagePlaceholder.contains(number: 1, in: ""))
+        // "[Image #1]" は "[Image #12]" の一部として誤マッチしない。
+        #expect(!ComposerImagePlaceholder.contains(number: 1, in: "[Image #12]"))
+        #expect(ComposerImagePlaceholder.contains(number: 12, in: "[Image #12]"))
+    }
+
+    @Test
+    func numbersRemoved_returnsOnlyPlaceholdersThatDisappeared() {
+        let old = "[Image #1] [Image #2] hi"
+        let new = "[Image #2] hi"
+        #expect(ComposerImagePlaceholder.numbersRemoved(from: old, to: new, among: [1, 2]) == [1])
+    }
+
+    @Test
+    func numbersRemoved_keepsTheGivenOrder() {
+        let old = "[Image #1] [Image #2] [Image #3]"
+        let new = "[Image #2]"
+        #expect(ComposerImagePlaceholder.numbersRemoved(from: old, to: new, among: [1, 2, 3]) == [1, 3])
+    }
+
+    @Test
+    func numbersRemoved_neverReportsNumbersThatWereNotInTheOldText() {
+        // 本文に紐づいていない添付（例: Control API 経由で積まれた画像）を、
+        // 無関係な編集で誤って外さないための安全弁。
+        #expect(ComposerImagePlaceholder.numbersRemoved(from: "hi", to: "hello", among: [1, 2]).isEmpty)
+        // 挿入直後（old に無く new に在る）も外さない。
+        #expect(ComposerImagePlaceholder.numbersRemoved(from: "hi", to: "hi [Image #1] ", among: [1]).isEmpty)
+    }
+
+    @Test
+    func numbersRemoved_isEmptyWhenNothingChanged() {
+        let text = "[Image #1] hi"
+        #expect(ComposerImagePlaceholder.numbersRemoved(from: text, to: text, among: [1]).isEmpty)
+        #expect(ComposerImagePlaceholder.numbersRemoved(from: text, to: "", among: []).isEmpty)
+    }
+
+    @Test
+    func numbersRemoved_detectsPartialDeletionOfTheToken() {
+        // 末尾の "]" を1文字消しただけでもトークンとしては消えたとみなす。
+        #expect(ComposerImagePlaceholder.numbersRemoved(from: "[Image #1] ", to: "[Image #1 ", among: [1]) == [1])
+    }
+
     @Test
     func removing_doesNotMatchDifferentNumberWithSamePrefix() {
         // "[Image #1]" が "[Image #12]" の一部として誤マッチしないこと。

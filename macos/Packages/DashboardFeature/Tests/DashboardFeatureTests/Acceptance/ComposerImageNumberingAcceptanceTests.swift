@@ -80,6 +80,71 @@ struct ComposerImageNumberingAcceptanceTests {
         #expect(store.lastError == "画像は1枚あたり4MiBまでです")
     }
 
+    // MARK: - 本文からプレースホルダを消したら添付も外れる（task-4）
+
+    @Test @MainActor
+    func removingPlaceholderFromText_detachesThatImageOnly() {
+        let store = ComposerAttachmentStore()
+        store.addImage(data: image(1), mediaType: "image/png")
+        store.addImage(data: image(2), mediaType: "image/png")
+
+        let removed = store.removeAttachmentsMissing(
+            fromOldText: "[Image #1] [Image #2] hi",
+            newText: "[Image #2] hi"
+        )
+
+        #expect(removed == [1])
+        #expect(store.attachments.map(\.number) == [2])
+    }
+
+    @Test @MainActor
+    func removingAllPlaceholders_detachesEverything() {
+        let store = ComposerAttachmentStore()
+        store.addImage(data: image(1), mediaType: "image/png")
+        store.addImage(data: image(2), mediaType: "image/png")
+
+        store.removeAttachmentsMissing(fromOldText: "[Image #1] [Image #2] ", newText: "")
+
+        #expect(store.attachments.isEmpty)
+    }
+
+    @Test @MainActor
+    func unrelatedTextEdit_keepsAttachments() {
+        let store = ComposerAttachmentStore()
+        store.addImage(data: image(1), mediaType: "image/png")
+
+        let removed = store.removeAttachmentsMissing(
+            fromOldText: "[Image #1] hi",
+            newText: "[Image #1] hello"
+        )
+
+        #expect(removed.isEmpty)
+        #expect(store.attachments.map(\.number) == [1])
+    }
+
+    @Test @MainActor
+    func attachmentNotReferencedByTheOldText_isNeverDetached() {
+        // Control API 経由などで積まれた、本文に紐づかない添付を誤って外さない。
+        let store = ComposerAttachmentStore()
+        store.addImage(data: image(1), mediaType: "image/png")
+
+        let removed = store.removeAttachmentsMissing(fromOldText: "hi", newText: "hello")
+
+        #expect(removed.isEmpty)
+        #expect(store.attachments.map(\.number) == [1])
+    }
+
+    @Test @MainActor
+    func justInsertedPlaceholder_isNotDetached() {
+        let store = ComposerAttachmentStore()
+        store.addImage(data: image(1), mediaType: "image/png")
+
+        let removed = store.removeAttachmentsMissing(fromOldText: "hi", newText: "hi [Image #1] ")
+
+        #expect(removed.isEmpty)
+        #expect(store.attachments.map(\.number) == [1])
+    }
+
     // MARK: - チップ表示
 
     @Test @MainActor

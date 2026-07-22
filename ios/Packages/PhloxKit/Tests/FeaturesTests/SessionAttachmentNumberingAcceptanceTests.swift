@@ -154,6 +154,54 @@ struct SessionAttachmentNumberingAcceptanceTests {
         #expect(vm.inputCursorUTF16 <= vm.inputText.utf16.count)
     }
 
+    // MARK: - 本文からプレースホルダを消したら添付も外れる（task-4）
+
+    @Test
+    func removingPlaceholderFromText_detachesThatImageOnly() {
+        let vm = makeViewModel()
+        vm.addAttachments([image(), image()])
+        #expect(vm.inputText == "[Image #1] [Image #2] ")
+
+        vm.inputText = "[Image #2] "
+
+        #expect(vm.attachmentItems.map(\.number) == [2])
+    }
+
+    @Test
+    func removingAllPlaceholdersFromText_detachesEverything() {
+        let vm = makeViewModel()
+        vm.addAttachments([image(), image()])
+
+        vm.inputText = ""
+
+        #expect(vm.attachmentItems.isEmpty)
+    }
+
+    @Test
+    func unrelatedTextEdit_keepsAttachments() {
+        let vm = makeViewModel()
+        vm.inputText = "hi"
+        vm.inputCursorUTF16 = 2
+        vm.addAttachments([image()])
+        let withPlaceholder = vm.inputText
+
+        vm.inputText = withPlaceholder + "!"
+
+        #expect(vm.attachmentItems.map(\.number) == [1])
+    }
+
+    @Test
+    func addingAnAttachment_doesNotDetachItself() {
+        let vm = makeViewModel()
+        vm.inputText = "hi"
+        vm.inputCursorUTF16 = 2
+
+        vm.addAttachments([image()])
+
+        #expect(vm.attachmentItems.map(\.number) == [1])
+        #expect(vm.inputText == "hi [Image #1] ")
+    }
+
     @Test
     func removeAttachment_outOfRangeIndexChangesNothing() {
         let vm = makeViewModel()

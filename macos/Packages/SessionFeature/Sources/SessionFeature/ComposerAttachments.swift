@@ -91,6 +91,13 @@ final class ComposerAttachmentStore {
         return attachment
     }
 
+    /// 本文の編集で消えたプレースホルダに対応する添付を外す（task-4 契約。PM スタブは常に空）。
+    /// 戻り値は実際に外した添付の番号。残る添付の番号は振り直さない。
+    @discardableResult
+    func removeAttachmentsMissing(fromOldText oldText: String, newText: String) -> [Int] {
+        []
+    }
+
     /// 挿入用の `@path` 参照文字列を返す（添付には積まない）。
     func addFileReference(path: String) -> String {
         "@\(path)"

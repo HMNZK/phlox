@@ -71,6 +71,121 @@ public enum ComposerImagePlaceholder {
         return collapseAdjacentSpace(atDeletionUTF16: deletionUTF16, in: result)
     }
 
+    // task-5 契約の PM スタブ。API 表面は受け入れテスト
+    // ComposerImagePlaceholderAcceptanceTests が凍結している（シグネチャ変更禁止）。
+    // 実装契約の正本: tasks/task-5.md
+
+    /// トークン単位削除の方向。
+    public enum DeleteDirection {
+        /// Backspace。カーソル直前のトークンを対象にする。
+        case backward
+        /// Delete（前方削除）。カーソル直後のトークンを対象にする。
+        case forward
+    }
+
+    /// 本文中の番号 `number` のプレースホルダが占める UTF-16 範囲（最初の1件）。
+    public static func tokenRangeUTF16(of number: Int, in text: String) -> Range<Int>? {
+        guard let range = text.range(of: Self.text(for: number)) else { return nil }
+        let lower = text.utf16.distance(from: text.utf16.startIndex, to: range.lowerBound)
+        let upper = text.utf16.distance(from: text.utf16.startIndex, to: range.upperBound)
+        return lower..<upper
+    }
+
+    /// Backspace / Delete で「まとめて消す」範囲（隣接スペースの畳み込みを含む）。
+    /// カーソルがどのトークンにも掛かっていなければ nil（＝通常の1文字削除に委ねる）。
+    public static func deletionRangeUTF16(
+        at cursorUTF16: Int,
+        in text: String,
+        numbers: [Int],
+        direction: DeleteDirection
+    ) -> Range<Int>? {
+        let hit = numbers.compactMap { tokenRangeUTF16(of: $0, in: text) }.first { range in
+            switch direction {
+            case .backward:
+                // カーソルがトークンの先頭にあるときは対象外（直前の1文字を消す通常動作）。
+                return cursorUTF16 > range.lowerBound && cursorUTF16 <= range.upperBound
+            case .forward:
+                return cursorUTF16 >= range.lowerBound && cursorUTF16 < range.upperBound
+            }
+        }
+        guard let hit else { return nil }
+        return spaceCollapsedRange(forToken: hit, in: text)
+    }
+
+    /// 編集でトークンが壊れたとき、残骸ごと取り除いた本文とカーソル位置を返す。
+    /// 打鍵を横取りできない iOS の入力欄で「まとめて消えた」ように見せるための後追い修復。
+    public static func repairingBrokenPlaceholder(
+        number: Int,
+        oldText: String,
+        newText: String
+    ) -> (text: String, cursorUTF16: Int)? {
+        guard let token = tokenRangeUTF16(of: number, in: oldText) else { return nil }
+        let old = Array(oldText.utf16)
+        let new = Array(newText.utf16)
+
+        // 編集されていない共通の接頭・接尾を求め、間に挟まれた範囲を「ユーザーの編集」とみなす。
+        var prefix = 0
+        while prefix < old.count, prefix < new.count, old[prefix] == new[prefix] {
+            prefix += 1
+        }
+        var suffix = 0
+        while suffix < old.count - prefix, suffix < new.count - prefix,
+              old[old.count - 1 - suffix] == new[new.count - 1 - suffix] {
+            suffix += 1
+        }
+        let oldEditEnd = old.count - suffix
+        let newEditEnd = new.count - suffix
+
+        // 編集範囲とトークン範囲の和を丸ごと落とす（＝トークンの残骸を残さない）。
+        let deleteStart = min(token.lowerBound, prefix)
+        let deleteEnd = max(token.upperBound, oldEditEnd)
+        let inserted = Array(new[prefix..<newEditEnd])
+
+        let units = Array(old[0..<deleteStart]) + inserted + Array(old[deleteEnd...])
+        var cursor = deleteStart + inserted.count
+        var result = String(decoding: units, as: UTF16.self)
+
+        // ユーザーの編集がトークンを丸ごと消していれば残骸は無い＝修復不要。
+        // ここで抜けないと、無関係な範囲削除のたびに区切りスペースを勝手に畳んでしまう。
+        guard result != newText else { return nil }
+
+        // 文字を打ち込んだ編集では区切りを畳まない（削除のときだけ）。
+        if inserted.isEmpty {
+            let collapsed = collapseAdjacentSpace(atDeletionUTF16: deleteStart, in: result)
+            if collapsed != result {
+                if cursor > deleteStart { cursor -= 1 }
+                result = collapsed
+            }
+        }
+
+        return (result, max(0, min(cursor, result.utf16.count)))
+    }
+
+    /// トークン範囲に、`removing(number:from:)` と同じ規則で隣接スペース1つを含めた範囲。
+    private static func spaceCollapsedRange(forToken token: Range<Int>, in text: String) -> Range<Int> {
+        let units = Array(text.utf16)
+        let space = UInt16(UnicodeScalar(" ").value)
+
+        // 規則A: 直後が半角スペースで、先頭または直前が空白・改行ならそのスペースも消す。
+        if token.upperBound < units.count, units[token.upperBound] == space {
+            let beforeIsBoundary = token.lowerBound == 0
+                || isWhitespaceOrNewlineUnit(units[token.lowerBound - 1])
+            if beforeIsBoundary {
+                return token.lowerBound..<(token.upperBound + 1)
+            }
+        }
+        // 規則B: 末尾で直前が半角スペースならそのスペースも消す。
+        if token.upperBound >= units.count, token.lowerBound > 0, units[token.lowerBound - 1] == space {
+            return (token.lowerBound - 1)..<token.upperBound
+        }
+        return token
+    }
+
+    private static func isWhitespaceOrNewlineUnit(_ unit: UInt16) -> Bool {
+        guard let scalar = UnicodeScalar(unit) else { return false }
+        return Character(scalar).isWhitespace
+    }
+
     // MARK: - Insertion helpers
 
     private static func characterBoundaryIndex(atUTF16Offset offset: Int, in text: String) -> String.Index {

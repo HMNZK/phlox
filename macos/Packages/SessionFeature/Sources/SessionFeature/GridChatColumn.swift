@@ -168,6 +168,8 @@ struct GridComposerBar: View {
                     suggestionController: suggestionController,
                     onSubmit: onSend,
                     onPasteImageOutcome: addPastedImage,
+                    attachedImageNumbers: { viewModel.attachmentStore.attachments.map(\.number) },
+                    imagesForCopy: { viewModel.attachmentStore.imagesForCopy(numbers: $0) },
                     onEscape: { performChatEscape(viewModel) }
                 )
                 .frame(

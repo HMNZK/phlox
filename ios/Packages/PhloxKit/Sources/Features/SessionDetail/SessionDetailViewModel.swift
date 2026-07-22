@@ -262,15 +262,42 @@ public final class SessionDetailViewModel {
     }
 
     private func removeAttachmentsMissingFromTextEdit(from oldText: String, to newText: String) {
+        guard !isRepairingInputText else { return }
         guard oldText != newText, !attachmentItems.isEmpty else { return }
-        let removedNumbers = Set(ComposerImagePlaceholder.numbersRemoved(
+        let removedNumbers = ComposerImagePlaceholder.numbersRemoved(
             from: oldText,
             to: newText,
             among: attachmentItems.map(\.number)
-        ))
+        )
         guard !removedNumbers.isEmpty else { return }
-        attachmentItems.removeAll { removedNumbers.contains($0.number) }
+
+        // task-5: iOS の入力欄（SwiftUI の TextField）は打鍵を横取りできないため、
+        // 1文字消えた直後に残ったトークンの断片をまとめて取り除いて「まとめて消えた」ように見せる。
+        var repairedText = newText
+        var repairedCursor: Int?
+        for number in removedNumbers {
+            guard let repaired = ComposerImagePlaceholder.repairingBrokenPlaceholder(
+                number: number,
+                oldText: oldText,
+                newText: repairedText
+            ) else { continue }
+            repairedText = repaired.text
+            repairedCursor = repaired.cursorUTF16
+        }
+
+        let removedSet = Set(removedNumbers)
+        attachmentItems.removeAll { removedSet.contains($0.number) }
+
+        if repairedText != newText {
+            isRepairingInputText = true
+            inputText = repairedText
+            isRepairingInputText = false
+            inputCursorUTF16 = min(repairedCursor ?? inputCursorUTF16, repairedText.utf16.count)
+        }
     }
+
+    /// 上の修復による `inputText` 代入で didSet が再入するのを止める。
+    private var isRepairingInputText = false
 
     /// 添付を1件削除する（ストリップの × ボタン用）。
     public func removeAttachment(at index: Int) {

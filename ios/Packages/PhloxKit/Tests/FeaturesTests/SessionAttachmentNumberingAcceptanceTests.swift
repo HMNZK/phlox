@@ -7,6 +7,7 @@
 
 import Foundation
 import Testing
+import AgentDomain
 import PhloxCore
 @testable import Features
 
@@ -200,6 +201,79 @@ struct SessionAttachmentNumberingAcceptanceTests {
 
         #expect(vm.attachmentItems.map(\.number) == [1])
         #expect(vm.inputText == "hi [Image #1] ")
+    }
+
+    // MARK: - トークンの一部を消したらまとめて消える（task-5）
+
+    @Test
+    func deletingOneCharacterOfAPlaceholder_removesTheWholeToken() {
+        let vm = makeViewModel()
+        vm.inputText = "見て"
+        vm.inputCursorUTF16 = 2
+        vm.addAttachments([image()])
+        #expect(vm.inputText == "見て [Image #1] ")
+
+        // 末尾の "]" を1文字消した状態（TextField が渡してくる中間状態）。
+        vm.inputText = "見て [Image #1 "
+
+        // チップ × 経路（ComposerImagePlaceholder.removing）と同じ本文になること。
+        #expect(vm.inputText == "見て ")
+        #expect(vm.inputText == ComposerImagePlaceholder.removing(number: 1, from: "見て [Image #1] "))
+        #expect(vm.attachmentItems.isEmpty)
+        #expect(vm.inputCursorUTF16 <= vm.inputText.utf16.count)
+    }
+
+    @Test
+    func deletingOneCharacterInTheMiddleOfAPlaceholder_removesTheWholeToken() {
+        let vm = makeViewModel()
+        vm.addAttachments([image(), image()])
+        #expect(vm.inputText == "[Image #1] [Image #2] ")
+
+        // "[Image #2]" の "2" を消す。
+        vm.inputText = "[Image #1] [Image #] "
+
+        #expect(vm.inputText == "[Image #1] ")
+        #expect(vm.attachmentItems.map(\.number) == [1])
+    }
+
+    @Test
+    func deletingTheWholeTokenAtOnce_leavesNoLeftoverRepair() {
+        let vm = makeViewModel()
+        vm.inputText = "a"
+        vm.inputCursorUTF16 = 1
+        vm.addAttachments([image()])
+        #expect(vm.inputText == "a [Image #1] ")
+
+        // ユーザーが範囲選択でトークンごと消したケース。修復は走らない。
+        vm.inputText = "a  "
+
+        #expect(vm.inputText == "a  ")
+        #expect(vm.attachmentItems.isEmpty)
+    }
+
+    @Test
+    func typingOverAPlaceholder_keepsTheTypedText() {
+        let vm = makeViewModel()
+        vm.addAttachments([image()])
+        #expect(vm.inputText == "[Image #1] ")
+
+        vm.inputText = "[Image #1X "
+
+        #expect(vm.inputText == "X ")
+        #expect(vm.attachmentItems.isEmpty)
+    }
+
+    @Test
+    func editingTextAwayFromAnyPlaceholder_isNotRepaired() {
+        let vm = makeViewModel()
+        vm.inputText = "見て"
+        vm.inputCursorUTF16 = 2
+        vm.addAttachments([image()])
+
+        vm.inputText = "見た [Image #1] "
+
+        #expect(vm.inputText == "見た [Image #1] ")
+        #expect(vm.attachmentItems.map(\.number) == [1])
     }
 
     @Test

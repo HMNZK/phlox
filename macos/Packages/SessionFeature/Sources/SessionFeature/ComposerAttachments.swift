@@ -107,6 +107,14 @@ final class ComposerAttachmentStore {
         return removedNumbers
     }
 
+    /// 指定した番号に対応する画像を、添付順で返す（コピー時にクリップボードへ載せる。task-6 契約）。
+    func imagesForCopy(numbers: [Int]) -> [(data: Data, mediaType: String)] {
+        let wanted = Set(numbers)
+        return attachments
+            .filter { wanted.contains($0.number) }
+            .map { ($0.data, $0.mediaType) }
+    }
+
     /// 挿入用の `@path` 参照文字列を返す（添付には積まない）。
     func addFileReference(path: String) -> String {
         "@\(path)"

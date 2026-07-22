@@ -59,6 +59,8 @@ struct ChatComposer: View {
                     suggestionController: suggestionController,
                     onSubmit: onSend,
                     onPasteImageOutcome: addPastedImage,
+                    attachedImageNumbers: { viewModel.attachmentStore.attachments.map(\.number) },
+                    imagesForCopy: { viewModel.attachmentStore.imagesForCopy(numbers: $0) },
                     onEscape: { performChatEscape(viewModel) }
                 )
                 .frame(
@@ -349,6 +351,10 @@ struct IMESafeTextView: NSViewRepresentable {
     let onSubmit: () -> Void
     var onPasteImage: ((Data, String) -> Bool)?
     var onPasteImageOutcome: ((Data, String) -> ComposerPasteImageOutcome)?
+    /// 本文の `[Image #N]` をトークン単位で扱うための添付番号一覧（task-5）。
+    var attachedImageNumbers: (() -> [Int])?
+    /// 選択範囲に含まれる番号の画像（コピー時にクリップボードへ載せる。task-6）。
+    var imagesForCopy: (([Int]) -> [(data: Data, mediaType: String)])?
     /// composer フォーカス時の esc 経路（task-9）。IME 変換中は呼ばれない。
     var onEscape: () -> Void = {}
 
@@ -370,6 +376,8 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.onSubmit = onSubmit
         textView.onPasteImage = onPasteImage
         textView.onPasteImageOutcome = onPasteImageOutcome
+        textView.attachedImageNumbers = attachedImageNumbers
+        textView.imagesForCopy = imagesForCopy
         textView.onEscape = onEscape
         textView.suggestionController = suggestionController
         textView.onComposingChanged = { [coordinator = context.coordinator] isComposing, currentText in
@@ -404,6 +412,8 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.onSubmit = onSubmit
         textView.onPasteImage = onPasteImage
         textView.onPasteImageOutcome = onPasteImageOutcome
+        textView.attachedImageNumbers = attachedImageNumbers
+        textView.imagesForCopy = imagesForCopy
         textView.onEscape = onEscape
         textView.suggestionController = suggestionController
         textView.onComposingChanged = { [coordinator = context.coordinator] isComposing, currentText in
@@ -496,6 +506,102 @@ struct IMESafeTextView: NSViewRepresentable {
         var onComposingChanged: ((Bool, String) -> Void)?
         var onEscape: (() -> Void)?
         var suggestionController: ComposerSuggestionController?
+        /// 本文中のプレースホルダをトークン単位で扱うための、添付されている番号一覧。
+        /// task-5 契約（受け入れテスト ComposerPlaceholderEditingAcceptanceTests が凍結）。
+        var attachedImageNumbers: (() -> [Int])?
+        /// 選択範囲に含まれる番号に対応する画像。コピー時にクリップボードへ載せる。
+        /// task-6 契約（同上）。
+        var imagesForCopy: (([Int]) -> [(data: Data, mediaType: String)])?
+
+        // MARK: - トークン単位削除（task-5）
+
+        override func deleteBackward(_ sender: Any?) {
+            guard !deleteWholePlaceholder(direction: .backward) else { return }
+            super.deleteBackward(sender)
+        }
+
+        override func deleteForward(_ sender: Any?) {
+            guard !deleteWholePlaceholder(direction: .forward) else { return }
+            super.deleteForward(sender)
+        }
+
+        /// カーソルがプレースホルダに掛かっていれば、トークンごとまとめて消す。
+        /// 消したときだけ true（呼び出し元は通常の1文字削除を行わない）。
+        @discardableResult
+        func deleteWholePlaceholder(direction: ComposerImagePlaceholder.DeleteDirection) -> Bool {
+            guard !hasMarkedText() else { return false }
+            let selection = selectedRange()
+            guard selection.length == 0 else { return false }
+            guard let numbers = attachedImageNumbers?(), !numbers.isEmpty else { return false }
+            guard let range = ComposerImagePlaceholder.deletionRangeUTF16(
+                at: selection.location,
+                in: string,
+                numbers: numbers,
+                direction: direction
+            ) else { return false }
+
+            let nsRange = NSRange(location: range.lowerBound, length: range.count)
+            guard shouldChangeText(in: nsRange, replacementString: "") else { return true }
+            textStorage?.replaceCharacters(in: nsRange, with: "")
+            setSelectedRange(NSRange(location: range.lowerBound, length: 0))
+            didChangeText()
+            applyComposerHighlights()
+            return true
+        }
+
+        // MARK: - 画像もコピーする（task-6）
+
+        override func copy(_ sender: Any?) {
+            guard writeSelectionWithImages(to: .general) else {
+                super.copy(sender)
+                return
+            }
+        }
+
+        /// 選択範囲にプレースホルダが含まれていれば、テキストと一緒に画像もクリップボードへ載せる。
+        /// 載せたときだけ true（false なら呼び出し元が通常のコピーを行う）。
+        @discardableResult
+        func writeSelectionWithImages(to pasteboard: NSPasteboard) -> Bool {
+            let selection = selectedRange()
+            guard selection.length > 0, let numbers = attachedImageNumbers?(), !numbers.isEmpty else {
+                return false
+            }
+            let selected = (string as NSString).substring(with: selection)
+            let contained = numbers.filter { ComposerImagePlaceholder.contains(number: $0, in: selected) }
+            guard !contained.isEmpty else { return false }
+            let images = imagesForCopy?(contained) ?? []
+            guard !images.isEmpty else { return false }
+
+            // 1つ目の item にテキストと画像を両方載せる（貼り付け先が欲しい形を選べる）。
+            // 2枚目以降は item を分ける（1つの item に同じ型は1つしか載らないため）。
+            var items: [NSPasteboardItem] = []
+            let first = NSPasteboardItem()
+            first.setString(selected, forType: .string)
+            if let type = Self.pasteboardType(forMediaType: images[0].mediaType) {
+                first.setData(images[0].data, forType: type)
+            }
+            items.append(first)
+            for image in images.dropFirst() {
+                guard let type = Self.pasteboardType(forMediaType: image.mediaType) else { continue }
+                let item = NSPasteboardItem()
+                item.setData(image.data, forType: type)
+                items.append(item)
+            }
+
+            pasteboard.clearContents()
+            return pasteboard.writeObjects(items)
+        }
+
+        static func pasteboardType(forMediaType mediaType: String) -> NSPasteboard.PasteboardType? {
+            switch mediaType {
+            case "image/png": return NSPasteboard.PasteboardType("public.png")
+            case "image/jpeg": return NSPasteboard.PasteboardType("public.jpeg")
+            case "image/tiff": return NSPasteboard.PasteboardType("public.tiff")
+            case "image/gif": return NSPasteboard.PasteboardType("com.compuserve.gif")
+            case "image/webp": return NSPasteboard.PasteboardType("org.webmproject.webp")
+            default: return nil
+            }
+        }
 
         override func keyDown(with event: NSEvent) {
             switch ComposerKeyRouting.action(

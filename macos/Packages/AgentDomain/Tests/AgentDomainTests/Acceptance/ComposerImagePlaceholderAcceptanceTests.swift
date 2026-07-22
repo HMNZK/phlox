@@ -196,6 +196,159 @@ struct ComposerImagePlaceholderAcceptanceTests {
         #expect(ComposerImagePlaceholder.numbersRemoved(from: "[Image #1] ", to: "[Image #1 ", among: [1]) == [1])
     }
 
+    // MARK: - トークン単位削除（task-5）
+
+    @Test
+    func tokenRange_locatesTheTokenInUTF16() {
+        #expect(ComposerImagePlaceholder.tokenRangeUTF16(of: 1, in: "a [Image #1] b") == 2..<12)
+        // "見て" は UTF-16 で2単位。
+        #expect(ComposerImagePlaceholder.tokenRangeUTF16(of: 2, in: "見て[Image #2]") == 2..<12)
+        #expect(ComposerImagePlaceholder.tokenRangeUTF16(of: 3, in: "a b") == nil)
+    }
+
+    @Test
+    func deletionRange_backspaceAtTheEndOfTheTokenTakesTheWholeToken() {
+        // "[Image #1] テスト" の "]" の直後で Backspace → トークン全体＋畳んだスペース。
+        let text = "[Image #1] テスト"
+        #expect(
+            ComposerImagePlaceholder.deletionRangeUTF16(
+                at: 10, in: text, numbers: [1], direction: .backward
+            ) == 0..<11
+        )
+    }
+
+    @Test
+    func deletionRange_backspaceInTheMiddleOfTheTokenTakesTheWholeToken() {
+        let text = "a [Image #1] b"
+        // "#1" の "1" の直後。
+        #expect(
+            ComposerImagePlaceholder.deletionRangeUTF16(
+                at: 10, in: text, numbers: [1], direction: .backward
+            ) == 2..<13
+        )
+    }
+
+    @Test
+    func deletionRange_backspaceAtTheTokenStart_isNotAtomic() {
+        // トークンの手前の1文字を消す通常動作に委ねる。
+        #expect(
+            ComposerImagePlaceholder.deletionRangeUTF16(
+                at: 2, in: "a [Image #1] b", numbers: [1], direction: .backward
+            ) == nil
+        )
+    }
+
+    @Test
+    func deletionRange_forwardDeleteAtTheTokenStartTakesTheWholeToken() {
+        #expect(
+            ComposerImagePlaceholder.deletionRangeUTF16(
+                at: 0, in: "[Image #1] テスト", numbers: [1], direction: .forward
+            ) == 0..<11
+        )
+        // トークンの直後では対象外。
+        #expect(
+            ComposerImagePlaceholder.deletionRangeUTF16(
+                at: 10, in: "[Image #1] テスト", numbers: [1], direction: .forward
+            ) == nil
+        )
+    }
+
+    @Test
+    func deletionRange_outsideAnyToken_isNil() {
+        #expect(
+            ComposerImagePlaceholder.deletionRangeUTF16(
+                at: 3, in: "abc", numbers: [1], direction: .backward
+            ) == nil
+        )
+        // 番号が渡されていなければ対象にしない。
+        #expect(
+            ComposerImagePlaceholder.deletionRangeUTF16(
+                at: 10, in: "[Image #1] ", numbers: [], direction: .backward
+            ) == nil
+        )
+    }
+
+    @Test
+    func deletionRange_matchesWhatRemovingWouldProduce() {
+        // 打鍵経路（トークン単位削除）とチップ × 経路（removing）の結果が食い違わないこと。
+        let cases = ["a [Image #1] b", "[Image #1] rest", "a [Image #1]", "a\n[Image #1] b", "見て[Image #1]です"]
+        for text in cases {
+            let range = ComposerImagePlaceholder.deletionRangeUTF16(
+                at: ComposerImagePlaceholder.tokenRangeUTF16(of: 1, in: text)!.upperBound,
+                in: text,
+                numbers: [1],
+                direction: .backward
+            )
+            var units = Array(text.utf16)
+            units.removeSubrange(range!)
+            #expect(String(decoding: units, as: UTF16.self) == ComposerImagePlaceholder.removing(number: 1, from: text))
+        }
+    }
+
+    // MARK: - 壊れたトークンの後追い修復（task-5 / iOS）
+
+    @Test
+    func repairing_afterDeletingTheClosingBracket_removesTheWholeToken() {
+        let repaired = ComposerImagePlaceholder.repairingBrokenPlaceholder(
+            number: 1, oldText: "[Image #1] テスト", newText: "[Image #1 テスト"
+        )
+        #expect(repaired?.text == "テスト")
+        #expect(repaired?.cursorUTF16 == 0)
+    }
+
+    @Test
+    func repairing_afterDeletingACharInTheMiddle_removesTheWholeToken() {
+        let repaired = ComposerImagePlaceholder.repairingBrokenPlaceholder(
+            number: 1, oldText: "a [Image #1] b", newText: "a [Image #] b"
+        )
+        #expect(repaired?.text == "a b")
+        #expect(repaired?.cursorUTF16 == 2)
+    }
+
+    @Test
+    func repairing_afterDeletingTheOpeningBracket_removesTheWholeToken() {
+        let repaired = ComposerImagePlaceholder.repairingBrokenPlaceholder(
+            number: 1, oldText: "a [Image #1] b", newText: "a Image #1] b"
+        )
+        #expect(repaired?.text == "a b")
+    }
+
+    @Test
+    func repairing_whenTheEditAlreadyRemovedTheWholeToken_isNil() {
+        // 残骸が無いので修復不要。
+        #expect(
+            ComposerImagePlaceholder.repairingBrokenPlaceholder(
+                number: 1, oldText: "a [Image #1] b", newText: "a  b"
+            ) == nil
+        )
+    }
+
+    @Test
+    func repairing_whenTheTokenWasNotInTheOldText_isNil() {
+        #expect(
+            ComposerImagePlaceholder.repairingBrokenPlaceholder(
+                number: 1, oldText: "hi", newText: "h"
+            ) == nil
+        )
+    }
+
+    @Test
+    func repairing_keepsTypedTextAndDoesNotCollapseSpaces() {
+        // トークンを選択して文字を打った場合、打った文字は残す。
+        let repaired = ComposerImagePlaceholder.repairingBrokenPlaceholder(
+            number: 1, oldText: "a [Image #1] b", newText: "a X] b"
+        )
+        #expect(repaired?.text == "a X b")
+    }
+
+    @Test
+    func repairing_leavesOtherPlaceholdersIntact() {
+        let repaired = ComposerImagePlaceholder.repairingBrokenPlaceholder(
+            number: 1, oldText: "[Image #1] [Image #2] ", newText: "[Image #1 [Image #2] "
+        )
+        #expect(repaired?.text == "[Image #2] ")
+    }
+
     @Test
     func removing_doesNotMatchDifferentNumberWithSamePrefix() {
         // "[Image #1]" が "[Image #12]" の一部として誤マッチしないこと。

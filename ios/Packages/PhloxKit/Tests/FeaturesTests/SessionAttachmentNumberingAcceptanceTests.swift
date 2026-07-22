@@ -30,6 +30,13 @@ struct SessionAttachmentNumberingAcceptanceTests {
         SessionDetailViewModel(session: makeSession(), api: MockAPI())
     }
 
+    /// View の `.onChange(of: inputText)` 相当。本文編集を添付へ同期する経路を通す。
+    private func edit(_ vm: SessionDetailViewModel, to newText: String) {
+        let oldText = vm.inputText
+        vm.inputText = newText
+        vm.syncAttachmentsWithTextEdit(oldText: oldText, newText: newText)
+    }
+
     private func image(bytes: Int = 1024) -> SendAttachment {
         SendAttachment(mediaType: "image/png", data: Data(count: bytes))
     }
@@ -163,7 +170,7 @@ struct SessionAttachmentNumberingAcceptanceTests {
         vm.addAttachments([image(), image()])
         #expect(vm.inputText == "[Image #1] [Image #2] ")
 
-        vm.inputText = "[Image #2] "
+        edit(vm, to: "[Image #2] ")
 
         #expect(vm.attachmentItems.map(\.number) == [2])
     }
@@ -173,7 +180,7 @@ struct SessionAttachmentNumberingAcceptanceTests {
         let vm = makeViewModel()
         vm.addAttachments([image(), image()])
 
-        vm.inputText = ""
+        edit(vm, to: "")
 
         #expect(vm.attachmentItems.isEmpty)
     }
@@ -186,7 +193,7 @@ struct SessionAttachmentNumberingAcceptanceTests {
         vm.addAttachments([image()])
         let withPlaceholder = vm.inputText
 
-        vm.inputText = withPlaceholder + "!"
+        edit(vm, to: withPlaceholder + "!")
 
         #expect(vm.attachmentItems.map(\.number) == [1])
     }
@@ -214,7 +221,7 @@ struct SessionAttachmentNumberingAcceptanceTests {
         #expect(vm.inputText == "見て [Image #1] ")
 
         // 末尾の "]" を1文字消した状態（TextField が渡してくる中間状態）。
-        vm.inputText = "見て [Image #1 "
+        edit(vm, to: "見て [Image #1 ")
 
         // チップ × 経路（ComposerImagePlaceholder.removing）と同じ本文になること。
         #expect(vm.inputText == "見て ")
@@ -230,7 +237,7 @@ struct SessionAttachmentNumberingAcceptanceTests {
         #expect(vm.inputText == "[Image #1] [Image #2] ")
 
         // "[Image #2]" の "2" を消す。
-        vm.inputText = "[Image #1] [Image #] "
+        edit(vm, to: "[Image #1] [Image #] ")
 
         #expect(vm.inputText == "[Image #1] ")
         #expect(vm.attachmentItems.map(\.number) == [1])
@@ -245,7 +252,7 @@ struct SessionAttachmentNumberingAcceptanceTests {
         #expect(vm.inputText == "a [Image #1] ")
 
         // ユーザーが範囲選択でトークンごと消したケース。修復は走らない。
-        vm.inputText = "a  "
+        edit(vm, to: "a  ")
 
         #expect(vm.inputText == "a  ")
         #expect(vm.attachmentItems.isEmpty)
@@ -257,7 +264,7 @@ struct SessionAttachmentNumberingAcceptanceTests {
         vm.addAttachments([image()])
         #expect(vm.inputText == "[Image #1] ")
 
-        vm.inputText = "[Image #1X "
+        edit(vm, to: "[Image #1X ")
 
         #expect(vm.inputText == "X ")
         #expect(vm.attachmentItems.isEmpty)
@@ -270,7 +277,7 @@ struct SessionAttachmentNumberingAcceptanceTests {
         vm.inputCursorUTF16 = 2
         vm.addAttachments([image()])
 
-        vm.inputText = "見た [Image #1] "
+        edit(vm, to: "見た [Image #1] ")
 
         #expect(vm.inputText == "見た [Image #1] ")
         #expect(vm.attachmentItems.map(\.number) == [1])
@@ -283,7 +290,7 @@ struct SessionAttachmentNumberingAcceptanceTests {
         #expect(vm.inputText == "[Image #1] [Image #2] ")
 
         // 1つ目を範囲選択で消す。2つ目は無傷のまま残らなければならない。
-        vm.inputText = "[Image #2] "
+        edit(vm, to: "[Image #2] ")
 
         #expect(vm.inputText == "[Image #2] ")
         #expect(vm.attachmentItems.map(\.number) == [2])

@@ -219,6 +219,9 @@ public struct SessionDetailView: View {
             }
             .padding(.horizontal, DSSpacing.m)
             .padding(.bottom, DSSpacing.m)
+            .onChange(of: viewModel.inputText) { oldValue, newValue in
+                viewModel.syncAttachmentsWithTextEdit(oldText: oldValue, newText: newValue)
+            }
         }
     }
 

@@ -37,9 +37,12 @@ public final class SessionDetailViewModel {
     }
     /// task-4: `currentStatus` が `.running` になった時刻。running を外れたら nil。
     public private(set) var thinkingStartedAt: Date?
-    public var inputText: String = "" {
-        didSet { removeAttachmentsMissingFromTextEdit(from: oldValue, to: inputText) }
-    }
+    /// 入力欄の本文。**本文編集を添付へ同期するのは View 側の `.onChange` から
+    /// `syncAttachmentsWithTextEdit(oldText:newText:)` を呼ぶ**（macOS と同じ形）。
+    /// `didSet` の中から自分自身へ書き戻すと、SwiftUI の `TextField` がその更新を
+    /// 取り込まず、モデルと画面の本文がずれる（実機・シミュレータで確認）。
+    public var inputText: String = ""
+
     /// task-3 契約の PM スタブ。入力欄のカーソル位置（UTF-16 オフセット）。
     /// View が書き込み、添付時のプレースホルダ挿入位置として使う。
     public var inputCursorUTF16: Int = 0
@@ -261,8 +264,10 @@ public final class SessionDetailViewModel {
         inputCursorUTF16 = currentCursor
     }
 
-    private func removeAttachmentsMissingFromTextEdit(from oldText: String, to newText: String) {
-        guard !isRepairingInputText else { return }
+    /// 本文の編集を添付へ同期する（本文から `[Image #N]` が消えたら添付も外す）。
+    /// トークンの一部だけが消えた編集では、残骸ごと取り除いて「まとめて消えた」ように見せる。
+    /// View の `.onChange(of: inputText)` から呼ぶこと。
+    public func syncAttachmentsWithTextEdit(oldText: String, newText: String) {
         guard oldText != newText, !attachmentItems.isEmpty else { return }
         let removedNumbers = ComposerImagePlaceholder.numbersRemoved(
             from: oldText,
@@ -297,15 +302,10 @@ public final class SessionDetailViewModel {
         attachmentItems.removeAll { toRemove.contains($0.number) }
 
         if repairedText != newText {
-            isRepairingInputText = true
             inputText = repairedText
-            isRepairingInputText = false
             inputCursorUTF16 = min(repairedCursor ?? inputCursorUTF16, repairedText.utf16.count)
         }
     }
-
-    /// 上の修復による `inputText` 代入で didSet が再入するのを止める。
-    private var isRepairingInputText = false
 
     /// 添付を1件削除する（ストリップの × ボタン用）。
     public func removeAttachment(at index: Int) {

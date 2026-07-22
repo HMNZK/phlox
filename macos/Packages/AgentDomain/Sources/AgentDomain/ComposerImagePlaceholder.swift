@@ -186,6 +186,8 @@ public enum ComposerImagePlaceholder {
     }
 
     private static let tokenPrefix = "[Image #"
+    /// 番号の桁数上限。これを超える数字列はプレースホルダとして扱わない。
+    private static let maxNumberDigits = 9
 
     /// 本文を1回だけ走査して、`numbers` に含まれるプレースホルダの範囲をすべて返す。
     /// 番号ごとに `range(of:)` を回すと本文長 × 添付数になり、1文字打つたびに走る
@@ -208,14 +210,20 @@ public enum ComposerImagePlaceholder {
             var index = found.location + found.length
             var number = 0
             var digitCount = 0
+            var isValidNumber = true
             while index < ns.length {
                 let unit = ns.character(at: index)
                 guard unit >= 48, unit <= 57 else { break }
-                number = number * 10 + Int(unit - 48)
+                // 先頭ゼロ（`[Image #01]`）は `text(for:)` が作らない表記なのでトークンとしない。
+                // 桁数にも上限を置く（無いと長い数字列で Int があふれてクラッシュする）。
+                if digitCount == 0, unit == 48 { isValidNumber = false }
+                if digitCount >= maxNumberDigits { isValidNumber = false }
+                if isValidNumber { number = number * 10 + Int(unit - 48) }
                 digitCount += 1
                 index += 1
             }
-            if digitCount > 0, index < ns.length, ns.character(at: index) == closing, wanted.contains(number) {
+            if isValidNumber, digitCount > 0, index < ns.length,
+               ns.character(at: index) == closing, wanted.contains(number) {
                 ranges.append(found.location..<(index + 1))
             }
             cursor = found.location + found.length

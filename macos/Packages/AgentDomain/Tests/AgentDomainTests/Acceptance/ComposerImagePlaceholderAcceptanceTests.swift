@@ -436,6 +436,28 @@ struct ComposerImagePlaceholderAcceptanceTests {
     }
 
     @Test
+    func snappedSelection_withAbsurdlyLongDigits_doesNotCrash() {
+        // 選択が変わるたびに走る経路。長い数字列で桁を積み上げて Int があふれてはならない。
+        let text = "[Image #" + String(repeating: "9", count: 40) + "] hi"
+        _ = ComposerImagePlaceholder.snappedSelectionUTF16(
+            from: 0..<0, to: 5..<5, in: text, numbers: [1, 999_999_999]
+        )
+        #expect(ComposerImagePlaceholder.tokenRangeUTF16(of: 1, in: text) == nil)
+    }
+
+    @Test
+    func snappedSelection_doesNotTreatLeadingZeroAsTheSameNumber() {
+        // `text(for:)` は `[Image #01]` を作らない。どの層も同じ表記だけをトークンとみなす。
+        let text = "x [Image #01] y"
+        #expect(!ComposerImagePlaceholder.contains(number: 1, in: text))
+        #expect(
+            ComposerImagePlaceholder.snappedSelectionUTF16(
+                from: 13..<13, to: 12..<13, in: text, numbers: [1]
+            ) == 12..<13
+        )
+    }
+
+    @Test
     func snappedSelection_leavesSelectionsThatDoNotSplitATokenAlone() {
         let text = "x [Image #1] y"
         #expect(

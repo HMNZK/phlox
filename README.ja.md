@@ -123,7 +123,7 @@ iOS アプリは、リポジトリ内のパス依存を通じて macOS アプリ
   `.xcodeproj` ファイルは `project.yml` から生成されるため、コミットされていません。
 - macOS アプリが操作するための、対応エージェント CLI が少なくとも1つインストールされている
   こと（例: Claude Code、Codex、Cursor）。
-- **iOS コンパニオンアプリ（iOS 17 以上）を使う場合:** Mac とスマートフォンの間にプライベートな
+- **iOS コンパニオンアプリ（iOS 18 以上）を使う場合:** Mac とスマートフォンの間にプライベートな
   オーバーレイネットワークが必要です。Phlox は [Tailscale](https://tailscale.com/) を前提に
   設計されています — 両方のデバイスに Tailscale アプリをインストールし、同じ tailnet に
   参加してください。Phlox は Tailscale を同梱しておらず、ユーザーが用意した tailnet 経由で

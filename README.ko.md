@@ -122,7 +122,7 @@ iOS 앱은 저장소 내부 경로 의존성을 통해 macOS 앱의 공유 Swift
   `.xcodeproj` 파일은 `project.yml`로부터 생성되며 커밋되지 않습니다.
 - macOS 앱이 구동할, 지원되는 에이전트 CLI가 최소 1개 설치되어 있어야
   합니다(예: Claude Code, Codex, Cursor).
-- **iOS 컴패니언 앱(iOS 17+)의 경우:** Mac과 휴대폰 사이에 프라이빗
+- **iOS 컴패니언 앱(iOS 18+)의 경우:** Mac과 휴대폰 사이에 프라이빗
   오버레이 네트워크가 필요합니다. Phlox는 [Tailscale](https://tailscale.com/)을
   기반으로 설계되었습니다 — 양쪽 기기에 Tailscale 앱을 설치하고 동일한
   tailnet에 참여하세요. Phlox는 Tailscale을 번들로 포함하지 않으며, 사용자가

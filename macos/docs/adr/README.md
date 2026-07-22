@@ -12,6 +12,7 @@ last-verified: 2026-07-17
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0114 | [添付画像に番号を振り、本文へ `[Image #N]` をカーソル位置で埋め込む（表記は AgentDomain に単一化）](0114-inline-image-placeholder-and-numbering.md) | accepted |
 | 0113 | [ライブのサブエージェント transcript も「1 ツールコール = 1 セル」で組み、ソース選択を2通りに畳む（0106 を supersede）](0113-subagent-live-tool-merge-and-two-way-source-rule.md) | active |
 | 0112 | [ヘッダーの使用量表示を設定で消せるようにし「未取得のCLIも表示」をヘッダーにも適用する](0112-header-usage-visibility-setting.md) | active |
 | 0111 | [AskUserQuestion 保留中は awaitingUserQuestion（入力待ち）にする（0107 を supersede）](0111-awaiting-user-question-status.md) | active |

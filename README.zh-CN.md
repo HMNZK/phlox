@@ -113,7 +113,7 @@ iOS 应用通过仓库内的路径依赖，复用了 macOS 应用中的共享 Sw
   `.xcodeproj` 文件由 `project.yml` 生成，不会提交到仓库。
 - 至少安装一个受支持的智能体 CLI，供 macOS 应用驱动
   （例如 Claude Code、Codex 或 Cursor）。
-- **如需使用 iOS 伴侣应用（iOS 17+）：** 需要在 Mac 与手机之间建立私有覆盖网络。
+- **如需使用 iOS 伴侣应用（iOS 18+）：** 需要在 Mac 与手机之间建立私有覆盖网络。
   Phlox 是围绕 [Tailscale](https://tailscale.com/) 设计的——请在两台设备上都安装
   Tailscale 应用并加入同一个 tailnet。Phlox 本身不内置 Tailscale，而是通过你自行
   提供的 tailnet 进行连接。

@@ -125,7 +125,7 @@ The iOS app reuses shared Swift packages from the macOS app (`AgentDomain`,
   The `.xcodeproj` files are generated from `project.yml` and are not committed.
 - At least one supported agent CLI installed for the macOS app to drive
   (e.g. Claude Code, Codex, or Cursor).
-- **For the iOS companion (iOS 17+):** a private overlay network between your Mac
+- **For the iOS companion (iOS 18+):** a private overlay network between your Mac
   and phone. Phlox is designed around [Tailscale](https://tailscale.com/) — install
   the Tailscale app on both devices and join the same tailnet. Phlox does not
   bundle Tailscale; it connects over the tailnet you provide.

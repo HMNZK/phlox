@@ -22,3 +22,4 @@ last-verified: 2026-07-16
 - `delivery/0006-mobile-ui-overhaul-wave8-worklog.md` … モバイル UI 刷新 wave-8（QR接続直後オフラインバグ・チャット画像添付表示）の作業ログ
 - `delivery/0007-mobile-ui-overhaul-wave9-worklog.md` … モバイル UI 刷新 wave-9（接続中オーバーレイ・添付バッジ分離）の作業ログ
 - `delivery/0010-ask-user-question-worklog.md` … AskUserQuestion 対応（iOS ミラー実装）の作業ログ
+- `delivery/0013-inline-image-attachments-worklog.md` … 添付画像の番号付けと本文への `[Image #N]` 埋め込み（iOS 18 化）の作業ログ

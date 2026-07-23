@@ -12,9 +12,15 @@ struct ChatInputHistoryScrubber: View {
     private static let panelMaxHeight: CGFloat = 320
     private static let closeDelay: Duration = .milliseconds(200)
 
-    @State private var isPanelPresented = false
-    @State private var closeTask: Task<Void, Never>?
+    @State private var isPanelPresented: Bool
+    @State private var closeTask: Task<Void, Never>? = nil
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+
+    init(entries: [InputHistoryEntry], onJump: @escaping (String) -> Void, initiallyExpanded: Bool = false) {
+        self.entries = entries
+        self.onJump = onJump
+        _isPanelPresented = State(initialValue: initiallyExpanded)
+    }
 
     var body: some View {
         let _ = themeID
@@ -152,3 +158,21 @@ private struct ChatInputHistoryRow: View {
         .accessibilityIdentifier("ChatInputHistoryScrubber.row")
     }
 }
+
+#if DEBUG
+#Preview("スクラバー＋履歴パネル") {
+    ChatInputHistoryScrubber(
+        entries: (1...8).map {
+            InputHistoryEntry(
+                id: "u\($0)",
+                text: "過去の入力メッセージ \($0)：デザインの相談やコードの依頼など長めの本文サンプル"
+            )
+        },
+        onJump: { _ in },
+        initiallyExpanded: true
+    )
+    .padding(40)
+    .frame(width: 520, height: 480)
+    .background(DSColor.chatBackground)
+}
+#endif

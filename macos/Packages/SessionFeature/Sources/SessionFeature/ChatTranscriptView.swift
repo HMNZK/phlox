@@ -7,6 +7,8 @@ import DesignSystem
 struct ChatTranscriptView: View {
     @Bindable var viewModel: ChatSessionViewModel
     @Binding private var requestedScrollTarget: String?
+    /// スクラバーへ返す「現在ビューポート中央にある入力」の id。スクロールイベント側でのみ更新する。
+    @Binding private var currentInputPositionID: String?
     private let transcript: [ChatItem]?
     private let showsThinkingIndicator: Bool
     private let contentMaxWidth: CGFloat?
@@ -27,7 +29,15 @@ struct ChatTranscriptView: View {
     // 展開後にビューポートが履歴の先頭へ飛ぶのを防ぎ、押下時に見えていた位置へ留めるための単発シグナル
     // （requestedScrollTarget と同じ @State ワンショット方式・ScrollViewReader レベルの onChange で処理）。
     @State private var pendingExpandAnchor: String?
+    /// 各ユーザー入力ブロックの content 座標系での minY。スクロール不変なので、
+    /// レイアウト変化時のみ preference から更新される（スクロールでは再計算されない・ADR 0030）。
+    @State private var userMessageOffsets: [String: CGFloat] = [:]
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+
+    /// content 座標系の名前空間。ブロックの縦位置をスクロール不変に測るために使う。
+    private static let contentSpaceName = "transcriptContent"
+    /// ビューポート中央に対する現在入力の判定余白（content 上端 padding の相殺＋手触り調整）。
+    private static let positionPickOffset: CGFloat = DSSpacing.m
 
     init(
         viewModel: ChatSessionViewModel,
@@ -36,11 +46,13 @@ struct ChatTranscriptView: View {
         contentMaxWidth: CGFloat? = nil,
         bottomScrollContentMargin: CGFloat = 0,
         requestedScrollTarget: Binding<String?> = .constant(nil),
+        currentInputPositionID: Binding<String?> = .constant(nil),
         presentationContext: TranscriptPresentationContext = .single,
         onSelectSubAgent: @escaping (String) -> Void = { _ in }
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
         _requestedScrollTarget = requestedScrollTarget
+        _currentInputPositionID = currentInputPositionID
         self.transcript = transcript
         self.showsThinkingIndicator = showsThinkingIndicator
         self.contentMaxWidth = contentMaxWidth
@@ -59,9 +71,13 @@ struct ChatTranscriptView: View {
                     .background(
                         ChatAutoFollowScrollObserver(
                             controller: autoFollow,
-                            onViewportVisibilityChanged: updateThinkingIndicatorViewport
+                            onViewportVisibilityChanged: updateThinkingIndicatorViewport,
+                            onViewportCenterChanged: { updateCurrentInputPosition(viewportCenterY: $0, items: items) }
                         )
                     )
+            }
+            .onPreferenceChange(TranscriptBlockOffsetsKey.self) { offsets in
+                userMessageOffsets = offsets
             }
             .onChange(of: transcriptSignal) { _, newSignal in
                 scrollToBottomIfNeeded(
@@ -142,6 +158,8 @@ struct ChatTranscriptView: View {
         // id は全 transcript 上のグループ先頭 item.id に固定する。これにより描画数を window 上限内に
         // 保ちつつ、展開で部分ブロックの内容が増えても identity を揺らさない（ADR 0030）。
         let visibleSlice = ChatTranscriptGrouping.visibleSlice(from: items, startingAt: range.startIndex)
+        // スクラバー連動用: 各ユーザー入力ブロックだけ縦位置を測る（スクロール不変な content 座標系）。
+        let userMessageIDs = Set(InputHistoryPolicy.entries(from: items).map(\.id))
         return VStack(alignment: .leading, spacing: DSSpacing.m) {
             if visibleSlice.hiddenItemCount > 0 {
                 // 展開前の先頭可視 item をアンカーに（押下時に見えていた最初のメッセージ）。
@@ -153,6 +171,7 @@ struct ChatTranscriptView: View {
             ForEach(visibleSlice.blocks) { block in
                 transcriptBlock(block.content, lastTranscriptID: transcriptSignal.lastID)
                     .id(block.id)
+                    .background(userMessagePositionProbe(id: block.id, isTracked: userMessageIDs.contains(block.id)))
             }
             if CompactingIndicatorPresentation.shouldShowCompactingIndicator(
                 isCompacting: viewModel.isCompacting
@@ -189,6 +208,21 @@ struct ChatTranscriptView: View {
         }
         .padding(.horizontal, DSSpacing.l)
         .padding(.vertical, DSSpacing.m)
+        .coordinateSpace(.named(Self.contentSpaceName))
+    }
+
+    /// ユーザー入力ブロックの content 座標系での縦位置を preference で publish する。
+    /// content 座標系の値はスクロールで変化しないため、スクロール中は再計算されない（ADR 0030）。
+    @ViewBuilder
+    private func userMessagePositionProbe(id: String, isTracked: Bool) -> some View {
+        if isTracked {
+            GeometryReader { geo in
+                Color.clear.preference(
+                    key: TranscriptBlockOffsetsKey.self,
+                    value: [id: geo.frame(in: .named(Self.contentSpaceName)).minY]
+                )
+            }
+        }
     }
 
     @ViewBuilder
@@ -303,6 +337,32 @@ struct ChatTranscriptView: View {
         isThinkingIndicatorInViewport = isInViewport
     }
 
+    /// スクロール位置（ビューポート中央）に対応するユーザー入力を求め、スクラバーへ返す。
+    /// NSScrollView のイベント側でのみ呼ばれ、値が変わった時だけ @Binding を更新する
+    /// （isThinkingIndicatorInViewport と同じ、ADR 0010/0030 で安全と確定した経路）。
+    private func updateCurrentInputPosition(viewportCenterY: CGFloat, items: [ChatItem]) {
+        let id = currentUserMessageID(viewportCenterY: viewportCenterY, items: items)
+        guard currentInputPositionID != id else { return }
+        currentInputPositionID = id
+    }
+
+    /// ビューポート中央より上端が上にある最後のユーザー入力（＝いま読んでいる入力）を返す。
+    /// 位置未測定（offsets 未到達）なら nil を返し、スクラバー側の既定（最新入力）に委ねる。
+    private func currentUserMessageID(viewportCenterY: CGFloat, items: [ChatItem]) -> String? {
+        guard !userMessageOffsets.isEmpty else { return nil }
+        let threshold = viewportCenterY + Self.positionPickOffset
+        var current: String?
+        var bestY = -CGFloat.greatestFiniteMagnitude
+        for entry in InputHistoryPolicy.entries(from: items) {
+            guard let y = userMessageOffsets[entry.id] else { continue }
+            if y <= threshold && y > bestY {
+                bestY = y
+                current = entry.id
+            }
+        }
+        return current
+    }
+
     /// ユーザー起点のジャンプ（実行中バックグラウンドタスク・sub-agent 等への飛び先）を処理する。
     /// windowing で対象行が隠れ域（既定 N 件より前）にあると scrollTo は無言 no-op になり、
     /// AutoFollow 離脱だけが起きて目的地に行かない壊れた操作になる（ステージ1 HIGH 指摘）。
@@ -364,4 +424,12 @@ private enum ChatScrollTrigger: Equatable {
     case appear
     case transcript(TranscriptFollowSignal)
     case status(SessionStatus)
+}
+
+/// ユーザー入力ブロックの content 座標系での minY を id 別に集約する。
+private struct TranscriptBlockOffsetsKey: PreferenceKey {
+    static let defaultValue: [String: CGFloat] = [:]
+    static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
 }

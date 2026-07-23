@@ -7,6 +7,9 @@ import DesignSystem
 public struct ChatSessionView: View {
     @Bindable var viewModel: ChatSessionViewModel
     @State private var requestedTranscriptTarget: String?
+    /// スクラバーのハイライトをトランスクリプトのスクロール位置に連動させるための現在位置。
+    /// 値の更新はトランスクリプトの NSScrollView イベント側からのみ行う（ADR 0010）。
+    @State private var currentInputPositionID: String?
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     // サブエージェント横並び分割（Bug2/3/4）: 右ペイン比率を永続化。ドラッグ中のみ liveWidth を使う。
     @AppStorage("phlox.chat.subAgentPaneFraction") private var subAgentPaneFraction: Double = SubAgentSplitLayout.defaultFraction
@@ -115,6 +118,7 @@ public struct ChatSessionView: View {
                 contentMaxWidth: ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: width),
                 bottomScrollContentMargin: composerHeight,
                 requestedScrollTarget: $requestedTranscriptTarget,
+                currentInputPositionID: $currentInputPositionID,
                 onSelectSubAgent: { viewModel.selectSubAgent($0) }
             )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -122,7 +126,12 @@ public struct ChatSessionView: View {
                 .overlay(alignment: .leading) {
                     ChatInputHistoryScrubber(
                         entries: viewModel.inputHistoryEntries,
-                        onJump: { requestedTranscriptTarget = $0 }
+                        currentPositionID: currentInputPositionID,
+                        onJump: { target in
+                            // クリック時は即座に対象を強調（楽観的更新）し、実スクロールで確定させる。
+                            currentInputPositionID = target
+                            requestedTranscriptTarget = target
+                        }
                     )
                     .padding(.leading, DSSpacing.s)
                 }

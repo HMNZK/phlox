@@ -55,24 +55,30 @@ enum ChatAutoFollowGeometry {
 final class ChatAutoFollowScrollEventBridge: NSObject {
     private var controller: ChatAutoFollowController
     private var onViewportVisibilityChanged: (Bool) -> Void
+    /// ビューポート中央の Y（documentView 座標）。スクラバーの現在位置算出に使う。
+    private var onViewportCenterChanged: (CGFloat) -> Void
     private weak var scrollView: NSScrollView?
     private weak var observedClipView: NSClipView?
     private var lastViewportVisibility: Bool?
 
     init(
         controller: ChatAutoFollowController,
-        onViewportVisibilityChanged: @escaping (Bool) -> Void = { _ in }
+        onViewportVisibilityChanged: @escaping (Bool) -> Void = { _ in },
+        onViewportCenterChanged: @escaping (CGFloat) -> Void = { _ in }
     ) {
         self.controller = controller
         self.onViewportVisibilityChanged = onViewportVisibilityChanged
+        self.onViewportCenterChanged = onViewportCenterChanged
     }
 
     func update(
         controller: ChatAutoFollowController,
-        onViewportVisibilityChanged: @escaping (Bool) -> Void
+        onViewportVisibilityChanged: @escaping (Bool) -> Void,
+        onViewportCenterChanged: @escaping (CGFloat) -> Void
     ) {
         self.controller = controller
         self.onViewportVisibilityChanged = onViewportVisibilityChanged
+        self.onViewportCenterChanged = onViewportCenterChanged
     }
 
     func attach(to scrollView: NSScrollView?) {
@@ -108,6 +114,7 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
             object: scrollView.contentView
         )
         updateViewportVisibility(isAtBottom: ChatAutoFollowGeometry.isAtBottom(scrollView))
+        onViewportCenterChanged(scrollView.documentVisibleRect.midY)
     }
 
     func detach() {
@@ -133,6 +140,7 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
         let isAtBottom = ChatAutoFollowGeometry.isAtBottom(scrollView)
         controller.userScrollEnded(isAtBottom: isAtBottom)
         updateViewportVisibility(isAtBottom: isAtBottom)
+        onViewportCenterChanged(scrollView.documentVisibleRect.midY)
     }
 
     @objc private func boundsDidChange(_ notification: Notification) {
@@ -140,6 +148,7 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
         let isAtBottom = ChatAutoFollowGeometry.isAtBottom(scrollView)
         controller.scrollPositionChanged(isAtBottom: isAtBottom)
         updateViewportVisibility(isAtBottom: isAtBottom)
+        onViewportCenterChanged(scrollView.documentVisibleRect.midY)
     }
 
     private func updateViewportVisibility(isAtBottom: Bool) {
@@ -152,11 +161,13 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
 struct ChatAutoFollowScrollObserver: NSViewRepresentable {
     let controller: ChatAutoFollowController
     let onViewportVisibilityChanged: (Bool) -> Void
+    var onViewportCenterChanged: (CGFloat) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             controller: controller,
-            onViewportVisibilityChanged: onViewportVisibilityChanged
+            onViewportVisibilityChanged: onViewportVisibilityChanged,
+            onViewportCenterChanged: onViewportCenterChanged
         )
     }
 
@@ -171,7 +182,8 @@ struct ChatAutoFollowScrollObserver: NSViewRepresentable {
     func updateNSView(_ nsView: ResolverView, context: Context) {
         context.coordinator.update(
             controller: controller,
-            onViewportVisibilityChanged: onViewportVisibilityChanged
+            onViewportVisibilityChanged: onViewportVisibilityChanged,
+            onViewportCenterChanged: onViewportCenterChanged
         )
         nsView.onResolve = { [weak coordinator = context.coordinator] view in
             coordinator?.resolve(from: view)
@@ -189,21 +201,25 @@ struct ChatAutoFollowScrollObserver: NSViewRepresentable {
 
         init(
             controller: ChatAutoFollowController,
-            onViewportVisibilityChanged: @escaping (Bool) -> Void
+            onViewportVisibilityChanged: @escaping (Bool) -> Void,
+            onViewportCenterChanged: @escaping (CGFloat) -> Void
         ) {
             bridge = ChatAutoFollowScrollEventBridge(
                 controller: controller,
-                onViewportVisibilityChanged: onViewportVisibilityChanged
+                onViewportVisibilityChanged: onViewportVisibilityChanged,
+                onViewportCenterChanged: onViewportCenterChanged
             )
         }
 
         func update(
             controller: ChatAutoFollowController,
-            onViewportVisibilityChanged: @escaping (Bool) -> Void
+            onViewportVisibilityChanged: @escaping (Bool) -> Void,
+            onViewportCenterChanged: @escaping (CGFloat) -> Void
         ) {
             bridge.update(
                 controller: controller,
-                onViewportVisibilityChanged: onViewportVisibilityChanged
+                onViewportVisibilityChanged: onViewportVisibilityChanged,
+                onViewportCenterChanged: onViewportCenterChanged
             )
         }
 

@@ -89,4 +89,16 @@ struct InputHistoryPolicyAcceptanceTests {
         let entries = [InputHistoryEntry(id: "u1", text: "a")]
         #expect(InputHistoryPolicy.scrubberTicks(from: entries, cap: 0).isEmpty)
     }
+
+    // 不変条件の回帰ガード: 順序は timestamp ではなく transcript 配列順で決める。
+    // 配列順（先→後）と timestamp 順（新→古）を敢えて逆にし、timestamp ソートへの化けを検出する。
+    @Test
+    func entriesUsesTranscriptArrayOrderNotTimestampOrder() {
+        let transcript: [ChatItem] = [
+            .userMessage(id: "first-in-array", text: "A", timestamp: ts(100)),
+            .userMessage(id: "second-in-array", text: "B", timestamp: ts(1)),
+        ]
+        let entries = InputHistoryPolicy.entries(from: transcript)
+        #expect(entries.map(\.id) == ["first-in-array", "second-in-array"])
+    }
 }

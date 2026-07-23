@@ -37,6 +37,9 @@ public final class ChatSessionViewModel: Identifiable {
     public private(set) var chatNativeSessionId: String?
     public private(set) var appServerUserAgent: String?
     public private(set) var transcript: [ChatItem] = []
+    public var inputHistoryEntries: [InputHistoryEntry] {
+        InputHistoryPolicy.entries(from: transcript)
+    }
     /// transcript の項目 ID 集合。契約（task-5）: 常に `Set(transcript.map(\.id))` と一致するよう
     /// 全変更経路で増分維持する（body 毎の全再構築を避けるための索引）。
     public private(set) var transcriptItemIDs: Set<String> = []

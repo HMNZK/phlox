@@ -118,6 +118,14 @@ public struct ChatSessionView: View {
                 onSelectSubAgent: { viewModel.selectSubAgent($0) }
             )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // transcript のレイアウトには参加させず、左中央へ重ねる。
+                .overlay(alignment: .leading) {
+                    ChatInputHistoryScrubber(
+                        entries: viewModel.inputHistoryEntries,
+                        onJump: { requestedTranscriptTarget = $0 }
+                    )
+                    .padding(.leading, DSSpacing.s)
+                }
                 .overlay {
                     if viewModel.shouldOfferHistoryStart {
                         GeometryReader { overlayGeometry in

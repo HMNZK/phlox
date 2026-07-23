@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-17
+last-verified: 2026-07-23
 ---
 
 # チャットモード UX コンポーネント構成（chat-ux-batch 後の現行）
@@ -26,6 +26,8 @@ last-verified: 2026-07-17
 | `ComposerSuggestions.swift` | サジェスト（トリガー検出・コントローラ・供給源＋5秒TTLキャッシュ） |
 | `ComposerAttachments.swift` | 添付ストア（4MiB/枚・4枚・合計8MiB）・paste 判定純関数 |
 | `ReasoningPreview.swift` / `ChatHangPolicy.swift` | 推論プレビュー・ハング判定の純関数 |
+| `ChatInputHistoryScrubber.swift` | 左中央の入力履歴スクラバー（横線インジケータ）。ホバーで過去ユーザー入力を一覧するオーバーレイパネルを開き、行クリックで該当入力へジャンプ。単一チャット表示（`ChatSessionView`）のみ |
+| `InputHistoryPolicy.swift` | 入力履歴の純関数群（`entries(from:)`＝transcript 順に `.userMessage` 抽出、`scrubberTicks(from:cap:)`＝スクラバー表示用に最新側を上限件数で返す）。型 `InputHistoryEntry(id,text)` |
 
 `Dashboard/` 側の新規: `SidebarPresentation.swift`（相対時刻・アイコン規則）・`GridSessionSelectionFilter.swift`・`GridSessionPicker.swift`・`SessionInfoPanel.swift`。`Spawn/ClaudeSessionHistory.swift`（履歴ディスカバリ・転写ローダ）。`GitBranchReader.swift` は 2026-07-10 に SessionFeature へ移設（Dashboard 側は typealias）。
 
@@ -35,6 +37,7 @@ last-verified: 2026-07-17
 - 添付 = `ChatSessionViewModel.attachmentStore`。送信は `buildChatInputs(text:)` → `ChatInput.text/.image`。
 - 履歴 = off-main ロード → observable キャッシュ（ADR 0040）。
 - ターン追跡 = `turnStartedAt`/`lastEventAt`（turnStarted で記録・完了/中断/エラーでクリア）→ `hangAssessment(now:)` は読み取り専用。
+- 入力履歴 = `ChatSessionViewModel.inputHistoryEntries`（= `InputHistoryPolicy.entries(from: transcript)`、transcript 順・古い→新しい）。revert 用 `revertCandidates`（新しい順・→ chat-revert-escape-and-interrupt.md）とは別プロパティで意味論を分離。スクラバーのジャンプは新機構を作らず、既存の `requestedTranscriptTarget` → `ChatTranscriptView.jumpToTarget`（windowing の reveal-on-jump 込み）に相乗りする。
 
 ## 時刻駆動 UI の規約（ADR 0010 準拠）
 

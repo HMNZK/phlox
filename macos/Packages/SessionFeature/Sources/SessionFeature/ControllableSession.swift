@@ -12,6 +12,8 @@ public protocol ControllableSession: AnyObject {
     var name: String { get set }
     var displayName: String { get }
     var status: SessionStatus { get }
+    var isProcessing: Bool { get }
+    var displayStatus: SessionStatus { get }
     var completedTurnSeq: Int { get }
     var lastOutputAt: Date? { get }
     var lastTurnCompletedAt: Date? { get }
@@ -31,6 +33,12 @@ public protocol ControllableSession: AnyObject {
     func terminate() async
     /// 未確認停止を「確認済み」にする（選択・閲覧時に呼ぶ）。
     func markCompletionSeen()
+}
+
+public extension ControllableSession {
+    var displayStatus: SessionStatus {
+        SessionDisplayStatus.resolve(rawStatus: status, isProcessing: isProcessing)
+    }
 }
 
 @MainActor
@@ -57,6 +65,8 @@ public enum SessionNode {
     }
 
     public var status: SessionStatus { controllable.status }
+
+    public var displayStatus: SessionStatus { controllable.displayStatus }
 
     /// 未確認の停止（＝ユーザーの対応待ち）。PTY / Chat どちらの種別でも共通に読める。
     public var hasUnseenCompletion: Bool { controllable.hasUnseenCompletion }

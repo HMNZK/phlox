@@ -66,6 +66,7 @@ public final class ChatSessionViewModel: Identifiable {
             !runningBackgroundTasks.isEmpty ||
             subAgents.contains { $0.status == .running }
     }
+    public var isProcessing: Bool { showsProcessingIndicator }
     public var subAgents: [SubAgentRef] {
         subAgentModel.subAgents
     }

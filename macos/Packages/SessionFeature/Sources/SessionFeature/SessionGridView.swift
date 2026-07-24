@@ -318,8 +318,8 @@ private struct SessionGridTile: View {
 
     private var header: some View {
         HStack(spacing: DSSpacing.s) {
-            StatusDot(status: session.status)
-            AgentSessionIcon(descriptor: session.agentDescriptor, status: session.status, size: 24)
+            StatusDot(status: session.displayStatus)
+            AgentSessionIcon(descriptor: session.agentDescriptor, status: session.displayStatus, size: 24)
             Text(session.displayName)
                 .font(DSFont.heroTitle)
                 .foregroundStyle(DSColor.textPrimary)

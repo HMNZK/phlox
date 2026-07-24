@@ -370,7 +370,7 @@ public struct TeamTimelineView: View {
 
     private func thinkingSources(from sources: [TeamTimelineSource]) -> [TeamTimelineSource] {
         let statusesByID = Dictionary(
-            uniqueKeysWithValues: viewModel.sessionNodes.map { ($0.id, $0.status) }
+            uniqueKeysWithValues: viewModel.sessionNodes.map { ($0.id, $0.displayStatus) }
         )
         let thinkingIDs = AgoraThinkingPolicy.thinkingSessionIDs(
             sources: sources,

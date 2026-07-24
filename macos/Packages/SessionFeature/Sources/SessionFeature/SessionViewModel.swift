@@ -17,6 +17,7 @@ public final class SessionViewModel: Identifiable {
     public let id: SessionID
     public let startedAt: Date
     public private(set) var status: SessionStatus
+    public var isProcessing: Bool { status == .running }
     public let terminalCoordinator: TerminalCoordinator
     public var name: String = ""
     /// 所属ワークスペース（内部は Project）。生成後に DashboardViewModel が代入する。

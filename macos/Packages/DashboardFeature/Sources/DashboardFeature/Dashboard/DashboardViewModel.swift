@@ -1448,7 +1448,7 @@ public final class DashboardViewModel {
             guard let node = sessionNode(id: participant.id) else { return nil }
             return AgoraDiscussionCoordinator.ParticipantSnapshot(
                 id: participant.id,
-                isIdle: node.status == .idle,
+                isIdle: node.displayStatus == .idle,
                 completedTurnSeq: node.controllable.completedTurnSeq,
                 transcript: node.appServer?.transcript ?? []
             )

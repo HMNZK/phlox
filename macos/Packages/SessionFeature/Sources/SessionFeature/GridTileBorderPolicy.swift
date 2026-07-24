@@ -19,10 +19,9 @@ enum GridTileBorderPolicy {
         requiresAttention: Bool,
         isDropTargeted: Bool
     ) -> GridTileBorderAppearance {
-        if requiresAttention {
-            // 現行: attention 中は選択状態が視認できない（task-5 で修正）。
-            return GridTileBorderAppearance(showsAttention: true, showsFocusHighlight: false)
-        }
-        return GridTileBorderAppearance(showsAttention: false, showsFocusHighlight: isFocused)
+        GridTileBorderAppearance(
+            showsAttention: requiresAttention,
+            showsFocusHighlight: isFocused
+        )
     }
 }

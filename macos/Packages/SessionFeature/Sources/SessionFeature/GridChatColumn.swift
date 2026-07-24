@@ -9,6 +9,7 @@ import DesignSystem
 /// 各タイルから直接返信できる composer を足す（single へ切り替えずグリッドのまま返信・承認可能にする）。
 struct GridChatColumn: View {
     @Bindable var viewModel: ChatSessionViewModel
+    let onFocusGained: () -> Void
     @State private var composerHeight: CGFloat = 0
     /// ウィンドウの live resize（ドラッグ）中か。ADR 0116。
     @State private var isLiveResizing = false
@@ -53,7 +54,8 @@ struct GridChatColumn: View {
                             text: $viewModel.draft,
                             controlsLayout: proposedComposerWidth.map(ComposerLayout.gridControlsLayout(proposedWidth:)) ?? .compact,
                             onSend: sendDraft,
-                            onInterrupt: interruptTurn
+                            onInterrupt: interruptTurn,
+                            onFocusGained: onFocusGained
                         )
                         .frame(maxWidth: ComposerLayout.maxWidth(mainColumnWidth: formattingWidth))
                         .frame(maxWidth: .infinity)
@@ -139,6 +141,7 @@ struct GridComposerBar: View {
     var controlsLayout: ComposerFooterLayout?
     let onSend: () -> Void
     let onInterrupt: () -> Void
+    let onFocusGained: () -> Void
     @State private var editorHeight: CGFloat = ComposerHeightBounds.grid.min
     @State private var isComposing = false
     @State private var suggestionController: ComposerSuggestionController
@@ -148,13 +151,15 @@ struct GridComposerBar: View {
         text: Binding<String>,
         controlsLayout: ComposerFooterLayout? = nil,
         onSend: @escaping () -> Void,
-        onInterrupt: @escaping () -> Void
+        onInterrupt: @escaping () -> Void,
+        onFocusGained: @escaping () -> Void = {}
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
         _text = text
         self.controlsLayout = controlsLayout
         self.onSend = onSend
         self.onInterrupt = onInterrupt
+        self.onFocusGained = onFocusGained
         _suggestionController = State(
             wrappedValue: ComposerSuggestionController.production(workingDirectory: viewModel.workspacePath)
         )
@@ -201,7 +206,8 @@ struct GridComposerBar: View {
                     onPasteImageOutcome: addPastedImage,
                     attachedImageNumbers: { viewModel.attachmentStore.attachments.map(\.number) },
                     imagesForCopy: { viewModel.attachmentStore.imagesForCopy(numbers: $0) },
-                    onEscape: { performChatEscape(viewModel) }
+                    onEscape: { performChatEscape(viewModel) },
+                    onFocusGained: onFocusGained
                 )
                 .frame(
                     minHeight: ComposerHeightBounds.grid.min,

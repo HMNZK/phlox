@@ -383,6 +383,7 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.attachedImageNumbers = attachedImageNumbers
         textView.imagesForCopy = imagesForCopy
         textView.onEscape = onEscape
+        textView.onFocusGained = onFocusGained
         textView.suggestionController = suggestionController
         textView.onComposingChanged = { [coordinator = context.coordinator] isComposing, currentText in
             coordinator.setComposing(isComposing, currentText: currentText)
@@ -419,6 +420,7 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.attachedImageNumbers = attachedImageNumbers
         textView.imagesForCopy = imagesForCopy
         textView.onEscape = onEscape
+        textView.onFocusGained = onFocusGained
         textView.suggestionController = suggestionController
         textView.onComposingChanged = { [coordinator = context.coordinator] isComposing, currentText in
             coordinator.setComposing(isComposing, currentText: currentText)
@@ -532,6 +534,7 @@ struct IMESafeTextView: NSViewRepresentable {
         var onPasteImageOutcome: ((Data, String) -> ComposerPasteImageOutcome)?
         var onComposingChanged: ((Bool, String) -> Void)?
         var onEscape: (() -> Void)?
+        var onFocusGained: (() -> Void)?
         var suggestionController: ComposerSuggestionController?
         /// 本文中のプレースホルダをトークン単位で扱うための、添付されている番号一覧。
         /// task-5 契約（受け入れテスト ComposerPlaceholderEditingAcceptanceTests が凍結）。
@@ -539,6 +542,14 @@ struct IMESafeTextView: NSViewRepresentable {
         /// 選択範囲に含まれる番号に対応する画像。コピー時にクリップボードへ載せる。
         /// task-6 契約（同上）。
         var imagesForCopy: (([Int]) -> [(data: Data, mediaType: String)])?
+
+        override func becomeFirstResponder() -> Bool {
+            let didBecomeFirstResponder = super.becomeFirstResponder()
+            if didBecomeFirstResponder {
+                onFocusGained?()
+            }
+            return didBecomeFirstResponder
+        }
 
         // MARK: - トークン単位削除（task-5）
 

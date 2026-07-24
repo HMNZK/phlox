@@ -230,13 +230,12 @@ private struct SessionGridTile: View {
                     .fill(DSColor.fillSelected)
                     .opacity(isDropTargeted ? 1 : 0)
             }
-            .overlay(
-                RoundedRectangle(cornerRadius: DSRadius.m)
-                    .strokeBorder(tileBorderColor, lineWidth: tileBorderWidth)
-            )
+            .overlay { tileBorder }
             .clipShape(RoundedRectangle(cornerRadius: DSRadius.m))
             .dsShadow(.gridTile)
             .contentShape(Rectangle())
+            // 本文は既存の TapGesture を維持する。TerminalView / NSTextView の選択・
+            // スクロールを含む AppKit のマウストラッキングへゼロ距離 DragGesture を渡さない。
             .simultaneousGesture(TapGesture().onEnded { onSelect() })
             .contextMenu { contextMenuContent }
     }
@@ -256,7 +255,7 @@ private struct SessionGridTile: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
         case .appServer(let session):
-            GridChatColumn(viewModel: session)
+            GridChatColumn(viewModel: session, onFocusGained: onSelect)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
         }
@@ -292,28 +291,57 @@ private struct SessionGridTile: View {
         requiresAttention ? DSColor.stoppedHighlightGrid : DSColor.surfaceElevated
     }
 
+    private var borderAppearance: GridTileBorderAppearance {
+        GridTileBorderPolicy.appearance(
+            isFocused: isFocused,
+            requiresAttention: requiresAttention,
+            isDropTargeted: isDropTargeted
+        )
+    }
+
+    @ViewBuilder
+    private var tileBorder: some View {
+        RoundedRectangle(cornerRadius: DSRadius.m)
+            .strokeBorder(tileBorderColor, lineWidth: tileBorderWidth)
+
+        // 注意喚起は太い赤の外枠で維持し、選択中だけ内側に独立したリングを重ねる。
+        // ドロップターゲット時は既存の白枠を優先する。
+        if borderAppearance.showsAttention,
+           borderAppearance.showsFocusHighlight,
+           !isDropTargeted {
+            RoundedRectangle(cornerRadius: DSRadius.m - 4)
+                .strokeBorder(DSColor.textSecondary, lineWidth: 2)
+                .padding(4)
+        }
+    }
+
     private var tileBorderColor: Color {
         if isDropTargeted {
             return Color.white.opacity(0.35)
         }
         // 未確認の停止、または質問・承認の保留中は赤枠で強く示す。
         // 保留状態は markCompletionSeen 後も requiresAttention で維持される。
-        if requiresAttention {
+        if borderAppearance.showsAttention {
             return DSColor.stoppedHighlightGridBorder
         }
         // フォーカス時のみ 100%、非フォーカスは 40% へ落として
         // どのタイルがアクティブかを一目で分かるようにする。
-        return isFocused ? DSColor.textSecondary : DSColor.textSecondary.opacity(0.4)
+        return borderAppearance.showsFocusHighlight ? DSColor.textSecondary : DSColor.textSecondary.opacity(0.4)
     }
 
     private var tileBorderWidth: CGFloat {
         if isDropTargeted {
             return 2
         }
-        if requiresAttention {
+        if borderAppearance.showsAttention {
             return 3
         }
-        return isFocused ? 2 : 1
+        return borderAppearance.showsFocusHighlight ? 2 : 1
+    }
+
+    private func selectImmediately() {
+        guard !isFocused else { return }
+        onSelect()
     }
 
     private var header: some View {
@@ -347,6 +375,12 @@ private struct SessionGridTile: View {
         .padding(.horizontal, DSSpacing.s)
         .padding(.vertical, DSSpacing.xs)
         .background(Color.clear)
+        .contentShape(Rectangle())
+        // ヘッダーはテキスト選択・スクロールを持たないため、mouseDown 時点で選択する。
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in selectImmediately() }
+        )
         .help(session.workspacePath)
         .draggable(DraggedSession(id: session.id)) {
             Text(session.displayName)

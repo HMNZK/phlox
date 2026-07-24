@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: active
 last-verified: 2026-07-24
 ---
 
@@ -7,7 +7,7 @@ last-verified: 2026-07-24
 
 ## ステータス
 
-提案中。本番 Release ビルド・実 9 セッションでの Instruments 実測により原因を確定し、Codex（gpt-5.6-terra, effort=high, read-only）の設計助言を反映した対処方針。実装は未着手。**ADR 0115（端末エンジンを off-main）とはスコープを分離する**——0115 は `.pty` 端末セッション向けであり、本 ADR が扱う `.appServer` エージェントグリッドのカクつきは 0115 では直らない。
+採択・一部実装済み。本番 Release ビルド・実 9 セッションでの Instruments 実測により原因を確定し、Codex（gpt-5.6-terra, effort=high, read-only）の設計助言を反映した対処方針。対処1・2・4 は agent-grid-jank run で実装済み（2026-07-24）。対処3・5 は未着手。**ADR 0115（端末エンジンを off-main）とはスコープを分離する**——0115 は `.pty` 端末セッション向けであり、本 ADR が扱う `.appServer` エージェントグリッドのカクつきは 0115 では直らない。
 
 ## コンテキスト
 

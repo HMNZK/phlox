@@ -10,7 +10,8 @@ struct TranscriptWindowContextWhiteboxTests {
     func gridTile_reveal_makesHiddenIndexVisibleWithinGridWindow() {
         let total = 1000
         var window = TranscriptWindow(context: .gridTile)
-        #expect(window.visibleRange(totalCount: total).startIndex == 960)
+        // 1000 - 16（gridTile 既定件数。ADR 0116 で 40 から引き下げ）
+        #expect(window.visibleRange(totalCount: total).startIndex == 984)
 
         window.reveal(index: 100, totalCount: total)
         let start = window.visibleRange(totalCount: total).startIndex
@@ -18,7 +19,7 @@ struct TranscriptWindowContextWhiteboxTests {
 
         window.expand()
         window.reset()
-        #expect(window.visibleRange(totalCount: total).startIndex == 960)
+        #expect(window.visibleRange(totalCount: total).startIndex == 984)
     }
 
     @Test

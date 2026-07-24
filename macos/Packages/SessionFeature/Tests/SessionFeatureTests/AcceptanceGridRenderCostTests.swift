@@ -9,7 +9,9 @@ import SwiftUI
 //
 // 契約の骨子:
 // - transcript の表示窓（TranscriptWindow）は表示文脈で既定件数を変える:
-//   single = 50（描画コスト削減のため 200 から引き下げ）/ gridTile = 40（タイルは小さく、全タイル常時描画のため）。
+//   single = 50（描画コスト削減のため 200 から引き下げ）/ gridTile = 16（タイルは小さく、全タイル常時描画のため）。
+//   ※ gridTile は ADR 0116 で 40 → 16 へ引き下げた。非 Lazy 窓の件数が、そのままリサイズ時に
+//     CoreText で再 measure される item 数の母数になることを Instruments 実測で確定したため。
 //   single > gridTile の順序は保つ。
 // - reset() は自分の文脈の既定値へ戻る（gridTile が 50 へ膨らまない）。
 // - hangAssessment 用 1Hz スケジュールは非表示時にエントリを空にして更新停止を保証する
@@ -20,15 +22,15 @@ import SwiftUI
 @Test
 func transcriptWindow_defaultLimitDependsOnPresentationContext() {
     #expect(TranscriptWindow.defaultLimit(for: .single) == 50)
-    #expect(TranscriptWindow.defaultLimit(for: .gridTile) == 40)
+    #expect(TranscriptWindow.defaultLimit(for: .gridTile) == 16)
 }
 
 @Test
 func transcriptWindow_gridTileContext_visibleRangeUsesGridLimit() {
     let window = TranscriptWindow(context: .gridTile)
     let range = window.visibleRange(totalCount: 1000)
-    #expect(range.startIndex == 960)
-    #expect(range.hiddenCount == 960)
+    #expect(range.startIndex == 984)   // 1000 - 16（ADR 0116 で 40 から引き下げ）
+    #expect(range.hiddenCount == 984)
 }
 
 @Test
@@ -44,15 +46,15 @@ func transcriptWindow_gridTile_resetReturnsToGridDefault() {
     var window = TranscriptWindow(context: .gridTile)
     window.expand()
     window.reset()
-    #expect(window.visibleRange(totalCount: 1000).hiddenCount == 960)
+    #expect(window.visibleRange(totalCount: 1000).hiddenCount == 984)
 }
 
 @Test
 func transcriptWindow_gridTile_expandStillGrowsWindow() {
     var window = TranscriptWindow(context: .gridTile)
     window.expand()
-    // 拡張後は 40 より多く表示される（単調増加の保存。正確な step は契約で固定しない）。
-    #expect(window.visibleRange(totalCount: 1000).hiddenCount < 960)
+    // 拡張後は 16 より多く表示される（単調増加の保存。正確な step は契約で固定しない）。
+    #expect(window.visibleRange(totalCount: 1000).hiddenCount < 984)
 }
 
 // MARK: - hangAssessment 1Hz スケジュールの非表示停止

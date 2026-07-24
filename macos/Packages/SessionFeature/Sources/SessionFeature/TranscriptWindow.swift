@@ -22,7 +22,11 @@ struct TranscriptWindow: Equatable {
     /// 既定の表示件数上限（50...500 の範囲の有限定数）。単一表示（`.single`）の既定値。
     static let defaultLimit: Int = 50
     /// グリッドタイル表示の既定件数上限。
-    static let gridTileDefaultLimit: Int = 40
+    /// ADR 0116 で 40 → 16 に引き下げた。非 Lazy VStack のため窓内の全件が常に同時レイアウト
+    /// 対象であり、この件数はそのまま「リサイズ時に CoreText で再 measure される item 数」と
+    /// 「1 行更新で無効化される表示対象数」の母数になる。9 タイル同時表示では最大 40×9=360 件が
+    /// メインスレッドのハング要因になっていた（Instruments 実測）ため、母数を約 60% 削減する。
+    static let gridTileDefaultLimit: Int = 16
     /// 「以前のメッセージを表示」1回あたりの拡張幅（50 以上の定数）。
     static let expandStep: Int = 50
 

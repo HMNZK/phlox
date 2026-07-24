@@ -809,6 +809,14 @@ private struct ChatMessageDTO: Encodable {
                 questions: questions.map(UserQuestionWireDTO.from),
                 answers: answers
             )
+        case let .taskList(id, tasks, _):
+            // タスクリストカード（task-2）。モバイル側の専用描画は未対応のため、
+            // 既存クライアントが安全に表示できるテキスト表現で流す。
+            ChatMessageDTO(
+                id: id,
+                type: "taskList",
+                text: tasks.map { "[\($0.status.rawValue)] \($0.title)" }.joined(separator: "\n")
+            )
         }
     }
 

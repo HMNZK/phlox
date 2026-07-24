@@ -189,12 +189,20 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
     }
 
     func notify(_ event: NotificationEvent) async {
-        guard let sender else { return }
+        guard let sender else {
+            Self.logger.notice("APNs notify skipped: event=\(event.type, privacy: .public) sessionId=\(event.sessionId, privacy: .public) reason=sender unavailable（鍵未設定）")
+            return
+        }
         let registrations: [DeviceTokenRegistration]
         do {
             registrations = try deviceTokenStore.loadAll()
         } catch {
             Self.logger.error("APNs notify skipped: device token load failed (\(String(describing: error), privacy: .public))")
+            return
+        }
+
+        guard !registrations.isEmpty else {
+            Self.logger.notice("APNs notify skipped: no registered tokens event=\(event.type, privacy: .public) session=\(event.sessionId, privacy: .public)")
             return
         }
 
@@ -265,7 +273,6 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
     }
 
     private func enqueue(_ event: NotificationEvent) {
-        guard sender != nil else { return }
         Task.detached(priority: .utility) {
             await notify(event)
         }

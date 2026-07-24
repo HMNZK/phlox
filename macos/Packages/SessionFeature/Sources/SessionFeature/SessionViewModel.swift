@@ -405,11 +405,13 @@ public final class SessionViewModel: Identifiable {
                 // （Task.cancel の伝播レースに依存しない決定論的ガード）。
                 guard let self, self.spawnEpoch == epoch else { return }
                 let timestamp = Date()
+                let previousStatus = self.status
                 if code == 0 {
                     self.transitionStatus(to: .completed(exitCode: 0), at: timestamp)
                 } else {
                     self.transitionStatus(to: .error(message: "exit code \(code)"), at: timestamp)
                 }
+                self.notifyCompletionIfNeeded(from: previousStatus, to: self.status)
             }
         }
     }
@@ -684,8 +686,11 @@ public final class SessionViewModel: Identifiable {
     }
 
     private func notifyCompletionIfNeeded(from previousStatus: SessionStatus, to nextStatus: SessionStatus) {
-        guard previousStatus == .running, nextStatus == .idle else { return }
-        // 本物のターン完了（running→idle）を未確認の停止としてラッチする。
+        guard SessionCompletionNotificationPolicy.shouldNotifyCompletion(
+            previous: previousStatus,
+            next: nextStatus
+        ) else { return }
+        // 本物のターン完了を未確認の停止としてラッチする。
         // escape 中断はこの経路を通らないため対象外（キャンセルは赤枠にしない）。
         hasUnseenCompletion = true
         SessionCompletionNotifier.notifyCompleted(sessionName: displayName)

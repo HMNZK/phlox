@@ -569,12 +569,12 @@ public final class ChatSessionViewModel: Identifiable {
             }
             await restoreTurnUsageFromStore()
             if await restoreTranscriptFromStore() {
-                status = response.thread.status?.sessionStatus ?? .idle
+                applyRestoredThreadStatus(response.thread.status?.sessionStatus ?? .idle)
             } else {
                 let read = try await codexClient.threadRead(ThreadReadParams(threadId: threadId, includeTurns: true))
                 updateNativeSessionId(read.thread.id)
                 rebuildTranscript(from: read.thread)
-                status = read.thread.status?.sessionStatus ?? .idle
+                applyRestoredThreadStatus(read.thread.status?.sessionStatus ?? .idle)
             }
             restoreState = .restored
         } catch {
@@ -1145,10 +1145,23 @@ public final class ChatSessionViewModel: Identifiable {
         pendingTurnCostUSD = nil
     }
 
-    /// ターミナル型（SessionViewModel.notifyCompletionIfNeeded）と同じ判定で完了を通知する。
-    /// running からの turnCompleted だけを対象にし、復元リプレイ・interrupt 由来の idle 遷移では鳴らさない。
-    private func notifyCompletionIfNeeded(from previousStatus: SessionStatus) {
-        guard previousStatus == .running else { return }
+    /// 復元時にすでに実行中だったターンを、復元リプレイではなく実ターンとして追跡する。
+    /// これにより、その後に届く terminal status で完了通知を判定できる。
+    private func applyRestoredThreadStatus(_ restoredStatus: SessionStatus) {
+        status = restoredStatus
+        guard restoredStatus == .running else { return }
+        turnStartedAt = Date()
+        lastEventAt = nil
+    }
+
+    /// ターミナル型と同じポリシーで完了を通知する。待機状態は実行中ターンに限って完了対象にし、
+    /// 復元リプレイ・interrupt 由来の idle 遷移では呼ばない。
+    private func notifyCompletionIfNeeded(from previousStatus: SessionStatus, hadActiveTurn: Bool) {
+        guard SessionCompletionNotificationPolicy.shouldNotifyCompletion(
+            previous: previousStatus,
+            next: status,
+            hasActiveTurn: hadActiveTurn
+        ) else { return }
         // 本物のターン完了を未確認の停止としてラッチする（turnInterrupted はこの経路を通らない）。
         hasUnseenCompletion = true
         SessionCompletionNotifier.notifyCompleted(sessionName: displayName)
@@ -1255,12 +1268,13 @@ public final class ChatSessionViewModel: Identifiable {
             }
             appendPendingTurnCostIfNeeded(timestamp: eventDate)
             let previousStatus = status
+            let hadActiveTurn = turnStartedAt != nil
             isCompacting = false
             clearRunningTurn()
             status = .idle
             completedTurnSeq += 1
             lastTurnCompletedAt = eventDate
-            notifyCompletionIfNeeded(from: previousStatus)
+            notifyCompletionIfNeeded(from: previousStatus, hadActiveTurn: hadActiveTurn)
             touchOutput()
             flushTranscriptAtTurnBoundary()
             midTurnPersistenceGate.noteExternalFlush()
@@ -1279,11 +1293,14 @@ public final class ChatSessionViewModel: Identifiable {
         case .error(let message):
             expireAllPendingUserQuestions()
             isCompacting = false
+            let previousStatus = status
+            let hadActiveTurn = turnStartedAt != nil
             clearRunningTurn()
             appendOrReplace(.error(id: "error-\(UUID().uuidString)", message: message, timestamp: eventDate))
             clearRunningBackgroundTasks()
             subAgentModel.failRunningSubAgents()
             status = .error(message: message)
+            notifyCompletionIfNeeded(from: previousStatus, hadActiveTurn: hadActiveTurn)
             touchOutput()
             flushTranscriptAtTurnBoundary()
             midTurnPersistenceGate.noteExternalFlush()
@@ -1451,10 +1468,14 @@ public final class ChatSessionViewModel: Identifiable {
             guard updatedThreadId == threadId else { return }
             if threadStatus.isWaitingOnApproval, pendingApprovals.isEmpty {
                 enterAwaitingApproval(prompt: "Approval requested")
-            } else if turnStartedAt != nil, threadStatus == .idle {
-                return
             } else {
+                let previousStatus = status
+                let hadActiveTurn = turnStartedAt != nil
                 status = threadStatus.sessionStatus
+                if threadStatus == .idle || threadStatus == .systemError {
+                    clearRunningTurn()
+                    notifyCompletionIfNeeded(from: previousStatus, hadActiveTurn: hadActiveTurn)
+                }
             }
         case .itemStarted(let updatedThreadId, _, let item), .itemCompleted(let updatedThreadId, _, let item):
             // 旧 thread の遅延 item で transcript / store を汚染しない。

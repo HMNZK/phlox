@@ -29,9 +29,9 @@ struct SessionDisplayStatusAcceptanceTests {
     @Test("idle 以外は processing でも昇格しない")
     func nonIdleNotPromoted() {
         #expect(SessionDisplayStatus.resolve(rawStatus: .error(message: "x"), isProcessing: true) == .error(message: "x"))
-        #expect(SessionDisplayStatus.resolve(rawStatus: .awaitingApproval, isProcessing: true) == .awaitingApproval)
+        #expect(SessionDisplayStatus.resolve(rawStatus: .awaitingApproval(prompt: "p"), isProcessing: true) == .awaitingApproval(prompt: "p"))
         #expect(SessionDisplayStatus.resolve(rawStatus: .awaitingUserQuestion, isProcessing: true) == .awaitingUserQuestion)
-        #expect(SessionDisplayStatus.resolve(rawStatus: .completed, isProcessing: true) == .completed)
+        #expect(SessionDisplayStatus.resolve(rawStatus: .completed(exitCode: 0), isProcessing: true) == .completed(exitCode: 0))
         #expect(SessionDisplayStatus.resolve(rawStatus: .starting, isProcessing: true) == .starting)
     }
 }

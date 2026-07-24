@@ -1223,9 +1223,9 @@ public final class ChatSessionViewModel: Identifiable {
         switch event {
         case .agentMessageDelta, .reasoningDelta:
             break
-        case .taskListUpdated:
-            // task-2 で実装（transcript のタスクリストカード appendOrReplace）。
-            break
+        case .taskListUpdated(let tasks):
+            appendOrReplace(.taskList(id: "task-list", tasks: tasks, timestamp: eventDate))
+            touchOutput()
         case .commandExecution(let itemId, let command, let delta):
             markRunningEventReceived(at: eventDate)
             if let command, !command.isEmpty {

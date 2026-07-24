@@ -230,7 +230,7 @@ SessionViewModel（完了 / 承認待ちの観測点）
 
 - **デバイストークン登録**: iOS 側が `POST /device-tokens`（Bearer 認証は既存機構）で登録し、`KeychainDeviceTokenStore`（`Packages/AgentDomain/DeviceTokenStore.swift`。`AppFlavor` で Release/Debug 分離）へ冪等 upsert される。
 - **フック合成**: `DashboardViewModel.sessionDidSpawn` は `DashboardSessionSpawnHooks`（`Packages/AppBootstrap/APNsNotificationBridge.swift`）のキー付き多重購読で合成され、analytics フックと APNs 注入フックが共存する（単一クロージャの所有者二重化による上書き事故の再発防止）。
-- **資格情報**: 環境変数 `PHLOX_APNS_KEY_ID` / `PHLOX_APNS_TEAM_ID` / `PHLOX_APNS_AUTH_KEY_PEM`（または `_PATH`）から読む暫定注入面。未設定時は送信系全体が完全 no-op（既定状態）。
+- **資格情報**: 起動時に環境変数 `PHLOX_APNS_KEY_ID` / `PHLOX_APNS_TEAM_ID` / `PHLOX_APNS_AUTH_KEY_PEM`（または `_PATH`）を読み、未設定のキーは `~/.phlox/apns.env` から自動補完する。環境変数が常に優先され、資格情報を構成できない場合は送信系全体が完全 no-op になる。
 - **対象**: PTY セッション（`SessionViewModel`）のみ。appServer チャットセッションは対象外（別タスク）。
 
 ## QR ペアリング（2026-07-11 追加）

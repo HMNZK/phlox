@@ -16,7 +16,7 @@ last-verified: 2026-07-04
 Phlox には既に2系統のセッションバックエンドがある（`AgentDomain/SessionBackend.swift`）。
 
 - **`.pty`**: 実 CLI を実 PTY 上で回し、`PTYManager` が**生 ANSI バイト列**を `AsyncStream<Data>` で受け、`TerminalCoordinator.feed` → `SwiftTerm.TerminalView` が ANSI を解釈して端末描画する。完了検知は別経路の **Hook**（`hook-dispatcher.sh` → `HookServer`）が `sessionStart/stop/preToolUse/...` を受けて状態遷移する。対象は Claude Code / Cursor / その他全 CLI。
-- **`.appServer`**: `codex app-server`（JSON-RPC 2.0 over stdio）を `CodexAppServerKit` で喋り、**構造化イベント**を `ChatSessionViewModel` が `ChatItem`（userMessage / agentMessage / reasoning / commandExecution / fileChange(差分) / error）へ畳み込み、`ChatSessionView` がネイティブのチャット UI として描画する。承認（コマンド/ファイル変更/パーミッション）は `ChatApprovalBroker` がサーバ起点リクエストを受けモーダル UI で処理する。**Codex 専用**。
+- **`.appServer`**: `codex app-server`（JSON-RPC 2.0 over stdio）を `CodexAppServerKit` で喋り、**構造化イベント**を `ChatSessionViewModel` が `ChatItem`（userMessage / agentMessage / reasoning / commandExecution / fileChange(差分) / error / taskList）へ畳み込み、`ChatSessionView` がネイティブのチャット UI として描画する。承認（コマンド/ファイル変更/パーミッション）は `ChatApprovalBroker` がサーバ起点リクエストを受けモーダル UI で処理する。**Codex 専用**。
 
 つまり要望の「端末→チャット」は **Codex については既に実装・稼働済み**。問題は「残る Claude Code / Cursor（および将来の CLI）を同じ構造化チャットへ載せられるか」に尽きる。
 
@@ -101,7 +101,7 @@ Phlox には既に2系統のセッションバックエンドがある（`AgentD
 loopflow run `045E25A7`（PM=ClaudeCode, backend=external）で、D1〜D6 を **Claude / Cursor 対象に MVP 実装**した（branch `feature/structured-chat-mvp`）。承認は A1（事前許可）。
 
 ### 成果物（新規/変更パッケージ）
-- **`Packages/StructuredChatKit`（新規）**: CLI 非依存の基盤。`StructuredAgentClient` protocol、`NormalizedChatEvent`（agentMessageDelta / reasoningDelta / commandExecution / fileChange / turnCompleted / turnInterrupted / error / warning）、`ChatInput`、長命プロセス用 `LineDelimitedProcessTransport`（`interrupt`=SIGINT / `close`=SIGTERM）、ターン毎用 `OneShotProcessRunner`（stdout/stderr を並行 drain・行順序保証・通常終了時 FD リーク 0。タイムアウト kill 時の稀な例外は ADR 0028 参照）。
+- **`Packages/StructuredChatKit`（新規）**: CLI 非依存の基盤。`StructuredAgentClient` protocol、`NormalizedChatEvent`（agentMessageDelta / reasoningDelta / commandExecution / fileChange / turnCompleted / turnInterrupted / error / warning / taskListUpdated）、`ChatInput`、長命プロセス用 `LineDelimitedProcessTransport`（`interrupt`=SIGINT / `close`=SIGTERM）、ターン毎用 `OneShotProcessRunner`（stdout/stderr を並行 drain・行順序保証・通常終了時 FD リーク 0。タイムアウト kill 時の稀な例外は ADR 0028 参照）。
 - **`Packages/CodexAppServerKit`（変更）**: 既存 `events: ThreadEvent` API を温存し、薄い adapter `CodexStructuredAgentClient` で `StructuredAgentClient` 準拠（`ThreadEvent`→`NormalizedChatEvent` 変換を内包）。
 - **`Packages/ClaudeAgentKit`（新規）**: `claude -p --input-format stream-json --output-format stream-json --verbose [--permission-mode acceptEdits] [--allowedTools …] [--session-id <PhloxセッションUUID>（新規時） | --resume <UUID>（復元時）]` を**長命プロセス**で駆動。新規 start は `--session-id` で Phlox セッション UUID を claude のネイティブ session id に固定し、復元時のみ `--resume` に切り替える（両者は排他）。stdout EOF/異常終了で `.error` 終端（固着回避）。
 - **`Packages/CursorAgentKit`（新規）**: `cursor-agent -p "<text>" --output-format stream-json -f [--resume]` を**ターン毎プロセス**で駆動。`system/init` の session_id を次ターンの `--resume` に継続。`turnCompleted` は `result/success` 観測時のみ。non-zero exit / stderr 非空 / parse error / no-result は `.error`。

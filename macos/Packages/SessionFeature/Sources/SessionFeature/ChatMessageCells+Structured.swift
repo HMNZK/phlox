@@ -125,9 +125,13 @@ struct ThinkingIndicatorCell: View {
                 if reduceMotion {
                     staticThinkingText(scale: scale)
                 } else {
-                    TimelineView(ThinkingAnimationModel.timelineSchedule(isVisible: isTimelineVisible)) { context in
-                        shimmeringThinkingText(scale: scale, date: context.date)
-                    }
+                    ThinkingShimmerView(
+                        color: DSColor.chatTextSecondary,
+                        scale: scale,
+                        isVisible: isTimelineVisible
+                    )
+                    .accessibilityLabel("Thinking...")
+                    .accessibilityElement(children: .ignore)
                 }
                 if let recap {
                     TimelineView(HangStatusTimelineSchedule(isVisible: isTimelineVisible)) { context in
@@ -167,32 +171,6 @@ struct ThinkingIndicatorCell: View {
             .foregroundStyle(DSColor.chatTextSecondary)
     }
 
-    private func shimmeringThinkingText(scale: CGFloat, date: Date) -> some View {
-        let phase = ThinkingAnimationModel.shimmerPhase(date: date)
-        // 帯中心を画面外余白まで逃がし、折返しの瞬間移動（かくつき）を不可視化する。
-        let center = ThinkingAnimationModel.shimmerBandCenter(phase: phase)
-        let stops = (0...20).map { index in
-            let position = Double(index) / 20
-            let brightness = ThinkingAnimationModel.shimmerBrightness(
-                position: position,
-                phase: center
-            )
-            return Gradient.Stop(
-                color: DSColor.chatTextSecondary.opacity(brightness),
-                location: CGFloat(position)
-            )
-        }
-
-        return Text("Thinking...")
-            .font(ChatScaledFont.body(scale: scale).italic())
-            .foregroundStyle(
-                LinearGradient(
-                    stops: stops,
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-    }
 }
 
 private struct RunningTurnStatusView: View {

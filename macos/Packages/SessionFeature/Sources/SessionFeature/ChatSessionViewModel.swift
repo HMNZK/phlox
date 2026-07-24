@@ -139,6 +139,9 @@ public final class ChatSessionViewModel: Identifiable {
     private var collaborationModeListAvailable = false
     private var shouldClearBackgroundTasksOnNextTurnStart = false
     private var turnStartedAt: Date?
+    /// turnStartedAt が復元時の推定（applyRestoredThreadStatus）由来か。ライブの
+    /// turnStarted イベント由来のターンは ADR 0064 の idle 無視ガードの対象になる。
+    private var turnIsRestoredInference = false
     private var turnGeneration = 0
     private var isAwaitingLocallyStartedTurnEvent = false
     private var activeInterruptTask: Task<Void, Never>?
@@ -1130,6 +1133,7 @@ public final class ChatSessionViewModel: Identifiable {
             turnGeneration += 1
         }
         turnStartedAt = date
+        turnIsRestoredInference = false
         lastEventAt = nil
         pendingTurnCostUSD = nil
     }
@@ -1141,6 +1145,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     private func clearRunningTurn() {
         turnStartedAt = nil
+        turnIsRestoredInference = false
         lastEventAt = nil
         pendingTurnCostUSD = nil
     }
@@ -1151,6 +1156,7 @@ public final class ChatSessionViewModel: Identifiable {
         status = restoredStatus
         guard restoredStatus == .running else { return }
         turnStartedAt = Date()
+        turnIsRestoredInference = true
         lastEventAt = nil
     }
 
@@ -1468,6 +1474,10 @@ public final class ChatSessionViewModel: Identifiable {
             guard updatedThreadId == threadId else { return }
             if threadStatus.isWaitingOnApproval, pendingApprovals.isEmpty {
                 enterAwaitingApproval(prompt: "Approval requested")
+            } else if turnStartedAt != nil, !turnIsRestoredInference, threadStatus == .idle {
+                // ADR 0064: ライブターン進行中の非同期 idle 報告は無視する（完了は
+                // turnCompleted が正）。復元推定ターンだけは idle での終端＋通知を許す。
+                return
             } else {
                 let previousStatus = status
                 let hadActiveTurn = turnStartedAt != nil

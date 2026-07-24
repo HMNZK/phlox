@@ -137,8 +137,10 @@ private final class NotificationGapPTYManager: PTYManagerProtocol, @unchecked Se
     }
 }
 
+// ADR 0064: ライブターン進行中の非同期 idle 報告は無視し（インジケータ維持・誤通知禁止）、
+// 完了通知は正である turnCompleted からちょうど1回だけ出る。
 @Test @MainActor
-func notificationGap_codexThreadStatusChangedIdle_firesSessionCompleted() async throws {
+func notificationGap_codexMidTurnIdleIsIgnored_turnCompletedFiresOnce() async throws {
     let client = NotificationGapCodexClient()
     let notifier = MockRemoteSessionNotifier()
     let vm = ChatSessionViewModel(
@@ -155,6 +157,11 @@ func notificationGap_codexThreadStatusChangedIdle_firesSessionCompleted() async 
     try await waitForNotificationGap { vm.status == .running }
 
     client.yield(.threadStatusChanged(threadId: "t1", status: .idle))
+    try await Task.sleep(nanoseconds: 50_000_000)
+    #expect(vm.status == .running)
+    #expect(notifier.sessionCompletedCalls.isEmpty)
+
+    client.yield(.turnCompleted(nativeSessionId: nil))
     try await waitForNotificationGap { vm.status == .idle }
 
     #expect(notifier.sessionCompletedCalls.count == 1)
@@ -238,9 +245,11 @@ func notificationGap_restoredActiveCodexThreadIdle_firesSessionCompleted() async
     #expect(notifier.sessionCompletedCalls.count == 1)
 }
 
+// 復元推定ターン（ライブの turnStarted なし）の idle 終端は通知するが、その後の
+// active/idle フラッピングで二重通知しない。
 @Test @MainActor
-func notificationGap_codexThreadStatusFlapping_firesSessionCompletedOnlyOnce() async throws {
-    let client = NotificationGapCodexClient()
+func notificationGap_restoredThreadStatusFlapping_firesSessionCompletedOnlyOnce() async throws {
+    let client = NotificationGapCodexClient(resumesActiveThread: true)
     let notifier = MockRemoteSessionNotifier()
     let vm = ChatSessionViewModel(
         id: SessionID(),
@@ -251,8 +260,11 @@ func notificationGap_codexThreadStatusFlapping_firesSessionCompletedOnlyOnce() a
     )
     vm.remoteSessionNotifier = notifier
 
-    try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
-    client.yield(.turnStarted)
+    await vm.restore(
+        threadId: "t1",
+        approvalPolicy: .named("on-request"),
+        sandbox: .named("workspace-write")
+    )
     try await waitForNotificationGap { vm.status == .running }
 
     client.yield(.threadStatusChanged(threadId: "t1", status: .idle))

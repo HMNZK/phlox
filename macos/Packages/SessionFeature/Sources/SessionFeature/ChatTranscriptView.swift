@@ -238,12 +238,17 @@ struct ChatTranscriptView: View {
                     await viewModel.respondToUserQuestion(requestId: requestId, answers: answers)
                 }
             )
+            // ADR 0116: 変化していない行の body 再評価を飛ばす。transcript は配列全体が
+            // @Observable の依存になっており、1行の更新でもこのビュー全体が無効化されるため、
+            // ここで止めないと窓内の全行（グリッドは最大 40 件×9 タイル）が毎 tick 再評価される。
+            .equatable()
         case .commandGroup(_, let items):
             CommandGroupCell(
                 items: items,
                 lastTranscriptID: lastTranscriptID,
                 isTurnRunning: viewModel.status.isRunning
             )
+            .equatable()
         }
     }
 

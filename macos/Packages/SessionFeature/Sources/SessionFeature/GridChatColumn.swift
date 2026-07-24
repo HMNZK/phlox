@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 import AgentDomain
 import CodexAppServerKit
 import DesignSystem
@@ -9,9 +10,18 @@ import DesignSystem
 struct GridChatColumn: View {
     @Bindable var viewModel: ChatSessionViewModel
     @State private var composerHeight: CGFloat = 0
+    /// ウィンドウの live resize（ドラッグ）中か。ADR 0116。
+    @State private var isLiveResizing = false
+    /// live resize 直前に確定していたタイル幅。resize 中はこの値で整形し続ける。
+    /// 0 は「まだ一度も確定していない」を表す番兵（その場合は実測幅にフォールバック）。
+    @State private var stableWidth: CGFloat = 0
 
     var body: some View {
         GeometryReader { geo in
+            // ADR 0116: live resize 中は「整形幅」を凍結する。ドラッグ毎フレームで幅が変わると
+            // 非 Lazy VStack 配下の全 item が CoreText で再 typeset され、実測でメインスレッドが
+            // 470〜643ms ハングする（Time Profiler 内訳の 85.6% が CoreText 再 measure）。
+            let formattingWidth = (isLiveResizing && stableWidth > 0) ? stableWidth : geo.size.width
             VStack(spacing: 0) {
                 // 承認が無いときは非表示・場所を取らない（単体表示と同じ）。
                 ApprovalBanner(viewModel: viewModel)
@@ -19,7 +29,7 @@ struct GridChatColumn: View {
                     viewModel: viewModel,
                     transcript: selectedSubAgentTranscript,
                     showsThinkingIndicator: viewModel.selectedSubAgentId == nil,
-                    contentMaxWidth: ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: geo.size.width),
+                    contentMaxWidth: ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: formattingWidth),
                     bottomScrollContentMargin: composerHeight,
                     presentationContext: .gridTile,
                     onSelectSubAgent: { viewModel.selectSubAgent($0) }
@@ -37,7 +47,7 @@ struct GridChatColumn: View {
                         )
                     }
                     .overlay(alignment: .bottom) {
-                        let proposedComposerWidth = ComposerLayout.proposedWidth(mainColumnWidth: geo.size.width)
+                        let proposedComposerWidth = ComposerLayout.proposedWidth(mainColumnWidth: formattingWidth)
                         GridComposerBar(
                             viewModel: viewModel,
                             text: $viewModel.draft,
@@ -45,7 +55,7 @@ struct GridChatColumn: View {
                             onSend: sendDraft,
                             onInterrupt: interruptTurn
                         )
-                        .frame(maxWidth: ComposerLayout.maxWidth(mainColumnWidth: geo.size.width))
+                        .frame(maxWidth: ComposerLayout.maxWidth(mainColumnWidth: formattingWidth))
                         .frame(maxWidth: .infinity)
                         // パネル上端から下の帯のマスク（ChatSessionView と同型。上余白帯は
                         // マスクせず、右端はスクロールバー通り道を除外）。
@@ -61,7 +71,28 @@ struct GridChatColumn: View {
                         }
                     }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // 凍結中は「実際に提案される幅」も固定する。maxWidth を止めるだけでは、タイルが縮んだ
+            // ときに親が子を再圧縮して結局再 typeset される（幅の量子化・デバウンスが弱い理由）。
+            // 提案幅を固定するとドラッグ中は端が切れ得るが、終了時に一度だけ整形し直す。
+            .frame(width: isLiveResizing ? formattingWidth : nil, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .clipped()
+            // 幅の確定値の追跡。ADR 0030 の一線を守り、これは window 件数や可視領域には一切連動しない
+            // （整形幅の凍結だけに使う）。非 resize 時は formattingWidth == 実測幅なので書いても
+            // レイアウトは変わらず、自走ループにならない。
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.width
+            } action: { width in
+                // resize 中は書かない（凍結値を保つ／毎フレームの state 書込も避ける）。
+                guard !isLiveResizing else { return }
+                stableWidth = width
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willStartLiveResizeNotification)) { _ in
+            isLiveResizing = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEndLiveResizeNotification)) { _ in
+            isLiveResizing = false
         }
         // グリッドタイルからも esc 状態機械・履歴ピッカー・下書き復元を動かす（task-9）。
         .chatEscapeHandling(viewModel: viewModel)

@@ -45,12 +45,21 @@ struct CommandGroupPresentation: Equatable {
     }
 }
 
-struct CommandGroupCell: View {
+struct CommandGroupCell: View, Equatable {
     let items: [ChatItem]
     let lastTranscriptID: String?
     let isTurnRunning: Bool
     @State private var isExpanded = false
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+
+    /// ADR 0116: 未変更ブロックの body 再評価をスキップするための同値性（呼び出し側で `.equatable()`）。
+    /// 比較するのは表示に効く保持値のみ。`@State`(isExpanded) と `@AppStorage`(themeID) は
+    /// ビュー自身の invalidation で再評価されるため比較対象にしない（展開状態やテーマ変更は従来どおり反映される）。
+    nonisolated static func == (lhs: CommandGroupCell, rhs: CommandGroupCell) -> Bool {
+        lhs.items == rhs.items
+            && lhs.lastTranscriptID == rhs.lastTranscriptID
+            && lhs.isTurnRunning == rhs.isTurnRunning
+    }
 
     var body: some View {
         let _ = themeID

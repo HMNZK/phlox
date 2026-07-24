@@ -2,7 +2,7 @@ import SwiftUI
 import AgentDomain
 import StructuredChatKit
 
-public struct ChatItemView: View {
+public struct ChatItemView: View, Equatable {
     let item: ChatItem
     let isRunningCommand: Bool
     let agentDescriptor: AgentDescriptor
@@ -21,6 +21,19 @@ public struct ChatItemView: View {
         self.agentDescriptor = agentDescriptor
         self.onSelectSubAgent = onSelectSubAgent
         self.onRespondToUserQuestion = onRespondToUserQuestion
+    }
+
+    /// ADR 0116: 未変更行の body 再評価をスキップするための同値性（呼び出し側で `.equatable()`）。
+    /// 表示に効く値だけを比較し、**クロージャは比較対象から外す**——`onRespondToUserQuestion` 等は
+    /// 呼び出しのたびに新しく生成されるため、含めると常に不一致になり差分が一切効かなくなる。
+    /// これらは viewModel を捕捉する安定した参照であり、セッションが変わる場合は
+    /// `SessionGridView` の `.id(session.id)` によってビュー identity ごと作り直される。
+    /// `@State`/`@AppStorage` は各セル自身の invalidation で再評価されるため、ここでは扱わない
+    /// （テーマ変更などは同値性に関わらず反映される）。
+    nonisolated public static func == (lhs: ChatItemView, rhs: ChatItemView) -> Bool {
+        lhs.item == rhs.item
+            && lhs.isRunningCommand == rhs.isRunningCommand
+            && lhs.agentDescriptor == rhs.agentDescriptor
     }
 
     public var body: some View {

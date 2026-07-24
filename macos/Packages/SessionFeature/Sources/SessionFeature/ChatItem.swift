@@ -43,6 +43,10 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
         state: ChatUserQuestionState,
         timestamp: Date
     )
+    /// エージェントのタスクリストカード（tasks/task-2.md 契約。受け入れテスト
+    /// AcceptanceTaskListCardTests が凍結）。transcript 内に 1 セッションあたり
+    /// 1 枚だけ置かれ、taskListUpdated のたびに最新スナップショットへ置換される。
+    case taskList(id: String, tasks: [StructuredChatKit.AgentTaskItem], timestamp: Date)
 
     /// 既存呼び出し互換の3引数ファクトリ（attachments なし）。
     public static func userMessage(id: String, text: String, timestamp: Date) -> ChatItem {
@@ -59,6 +63,7 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
         case subAgentMarker
         case turnCost
         case userQuestion
+        case taskList
     }
 
     private enum AssociatedValueKeys: String, CodingKey {
@@ -78,6 +83,7 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
         case questions
         case answers
         case state
+        case tasks
     }
 
     public var id: String {
@@ -90,7 +96,8 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
              .error(let id, _, _),
              .subAgentMarker(let id, _, _, _),
              .turnCost(let id, _, _),
-             .userQuestion(let id, _, _, _, _, _):
+             .userQuestion(let id, _, _, _, _, _),
+             .taskList(let id, _, _):
             id
         }
     }
@@ -104,7 +111,8 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
              .fileChange(_, _, let timestamp),
              .error(_, _, let timestamp),
              .turnCost(_, _, let timestamp),
-             .userQuestion(_, _, _, _, _, let timestamp):
+             .userQuestion(_, _, _, _, _, let timestamp),
+             .taskList(_, _, let timestamp):
             timestamp
         case .subAgentMarker:
             .distantPast
@@ -134,6 +142,8 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
             "Turn cost: $\(costUSD)"
         case .userQuestion(_, _, let questions, _, let state, _):
             "Question (\(state.rawValue)): " + questions.map(\.question).joined(separator: " / ")
+        case .taskList(_, let tasks, _):
+            "Tasks: " + tasks.map { "[\($0.status.rawValue)] \($0.title)" }.joined(separator: " / ")
         }
     }
 
@@ -170,6 +180,8 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
                 && lhsQuestions == rhsQuestions
                 && lhsAnswers == rhsAnswers
                 && lhsState == rhsState
+        case let (.taskList(lhsId, lhsTasks, _), .taskList(rhsId, rhsTasks, _)):
+            lhsId == rhsId && lhsTasks == rhsTasks
         default:
             false
         }
@@ -246,6 +258,13 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
                 state: try nested.decode(ChatUserQuestionState.self, forKey: .state),
                 timestamp: try nested.decodeIfPresent(Date.self, forKey: .timestamp) ?? .distantPast
             )
+        } else if container.contains(.taskList) {
+            let nested = try container.nestedContainer(keyedBy: AssociatedValueKeys.self, forKey: .taskList)
+            self = .taskList(
+                id: try nested.decode(String.self, forKey: .id),
+                tasks: try nested.decode([StructuredChatKit.AgentTaskItem].self, forKey: .tasks),
+                timestamp: try nested.decodeIfPresent(Date.self, forKey: .timestamp) ?? .distantPast
+            )
         } else {
             throw DecodingError.dataCorrupted(.init(
                 codingPath: decoder.codingPath,
@@ -310,6 +329,11 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
             try nested.encodeIfPresent(answers, forKey: .answers)
             try nested.encode(state, forKey: .state)
             try nested.encode(timestamp, forKey: .timestamp)
+        case .taskList(let id, let tasks, let timestamp):
+            var nested = container.nestedContainer(keyedBy: AssociatedValueKeys.self, forKey: .taskList)
+            try nested.encode(id, forKey: .id)
+            try nested.encode(tasks, forKey: .tasks)
+            try nested.encode(timestamp, forKey: .timestamp)
         }
     }
 }
@@ -342,6 +366,8 @@ extension ChatItem {
                 state: state,
                 timestamp: timestamp
             )
+        case .taskList(let id, let tasks, _):
+            .taskList(id: id, tasks: tasks, timestamp: timestamp)
         }
     }
 }

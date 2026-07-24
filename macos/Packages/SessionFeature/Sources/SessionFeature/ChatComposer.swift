@@ -357,6 +357,10 @@ struct IMESafeTextView: NSViewRepresentable {
     var imagesForCopy: (([Int]) -> [(data: Data, mediaType: String)])?
     /// composer フォーカス時の esc 経路（task-9）。IME 変換中は呼ばれない。
     var onEscape: () -> Void = {}
+    /// 入力欄がキーボードフォーカスを得たときに呼ぶ（tasks/task-5.md 契約。
+    /// グリッドタイルの composer クリック→タイル選択に使う。受け入れテスト
+    /// AcceptanceGridSelectionFocusTests が凍結。配線は task-5 が実装）。
+    var onFocusGained: (() -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)

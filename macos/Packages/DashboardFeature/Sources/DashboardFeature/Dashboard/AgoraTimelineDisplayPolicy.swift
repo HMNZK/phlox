@@ -14,7 +14,7 @@ public enum AgoraTimelineContentPolicy {
         switch item {
         case .userMessage, .agentMessage, .error:
             return true
-        case .reasoning, .commandExecution, .fileChange, .subAgentMarker, .turnCost, .userQuestion:
+        case .reasoning, .commandExecution, .fileChange, .subAgentMarker, .turnCost, .userQuestion, .taskList:
             return false
         }
     }

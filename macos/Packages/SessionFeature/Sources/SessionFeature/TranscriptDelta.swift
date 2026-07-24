@@ -116,6 +116,14 @@ enum TranscriptDeltaCursor {
             return ["s", id, subagentType, description, status.rawValue]
         case let .turnCost(id, costUSD, _):
             return ["t", id, String(costUSD)]
+        case let .taskList(id, tasks, _):
+            var fields = ["k", id, String(tasks.count)]
+            for task in tasks {
+                fields.append(task.id)
+                fields.append(task.title)
+                fields.append(task.status.rawValue)
+            }
+            return fields
         case let .userQuestion(id, requestId, questions, answers, state, _):
             // state/answers の変化で署名が変わり、モバイルの差分ポーリングが更新を拾える。
             var fields = ["q", id, requestId, state.rawValue, String(questions.count)]

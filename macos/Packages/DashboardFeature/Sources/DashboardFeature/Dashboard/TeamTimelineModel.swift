@@ -111,7 +111,8 @@ public enum TeamTimelineModel {
              .fileChange(_, _, let timestamp),
              .error(_, _, let timestamp),
              .turnCost(_, _, let timestamp),
-             .userQuestion(_, _, _, _, _, let timestamp):
+             .userQuestion(_, _, _, _, _, let timestamp),
+             .taskList(_, _, let timestamp):
             timestamp
         case .subAgentMarker:
             nil

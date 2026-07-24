@@ -333,6 +333,9 @@ struct ChatTranscriptView: View {
         case .userQuestion(_, _, let questions, let answers, let state, _):
             // 回答・状態の変化を content 変化として検知させる（windowing/自動追従の更新判定用）。
             questions.count + (answers?.values.reduce(0) { $0 + $1.count } ?? 0) + state.rawValue.utf8.count
+        case .taskList(_, let tasks, _):
+            // タスクの増減・状態遷移を content 変化として検知させる。
+            tasks.reduce(0) { $0 + $1.title.utf8.count + $1.status.rawValue.utf8.count }
         }
     }
 

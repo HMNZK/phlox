@@ -66,6 +66,8 @@ public struct ChatItemView: View, Equatable {
                 status: status,
                 onSelect: onSelectSubAgent
             )
+        case .taskList(_, let tasks, let timestamp):
+            TaskListCell(tasks: tasks, timestamp: timestamp)
         case .turnCost(_, let costUSD, let timestamp):
             TurnCostCell(costUSD: costUSD, timestamp: timestamp)
         case .userQuestion(let id, let requestId, let questions, let answers, let state, let timestamp):

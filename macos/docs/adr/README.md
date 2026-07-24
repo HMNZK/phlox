@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-07-17
+last-verified: 2026-07-24
 ---
 
 # ADR（アーキテクチャ決定記録）索引
@@ -12,6 +12,8 @@ last-verified: 2026-07-17
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0116 | [エージェントグリッド（.appServer/SwiftUI）のカクつきは端末エンジンと別問題であり、live-resize 幅固定・窓縮小・行分離で対処する](0116-agent-grid-swiftui-jank-live-resize-width-freeze.md) | proposed |
+| 0115 | [端末エンジンをメインスレッドから分離する（SwiftTerm fork による TerminalCore 切り出し）——`.pty` 端末向け・`.appServer` は 0116](0115-terminal-engine-off-main-thread.md) | proposed |
 | 0114 | [添付画像に番号を振り、本文へ `[Image #N]` をカーソル位置で埋め込む（表記は AgentDomain に単一化）](0114-inline-image-placeholder-and-numbering.md) | accepted |
 | 0113 | [ライブのサブエージェント transcript も「1 ツールコール = 1 セル」で組み、ソース選択を2通りに畳む（0106 を supersede）](0113-subagent-live-tool-merge-and-two-way-source-rule.md) | active |
 | 0112 | [ヘッダーの使用量表示を設定で消せるようにし「未取得のCLIも表示」をヘッダーにも適用する](0112-header-usage-visibility-setting.md) | active |

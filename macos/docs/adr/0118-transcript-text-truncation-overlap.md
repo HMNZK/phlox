@@ -3,7 +3,7 @@ status: active
 last-verified: 2026-07-24
 ---
 
-# ADR-0117: transcript の切り詰めを廃止し、Markdown の折返し高さを非表ブロックで確保する
+# ADR-0118: transcript の切り詰めを廃止し、Markdown の折返し高さを非表ブロックで確保する
 
 ## 文脈
 

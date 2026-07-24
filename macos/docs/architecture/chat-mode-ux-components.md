@@ -109,7 +109,7 @@ footer は `ComposerFooterLayout`（standard / compact / minimal）を幅から�
 
 ## 処理中インジケータの表示条件（chat-ui-context-fixes, 2026-07-10・ADR 0064）
 
-ThinkingIndicatorCell の表示条件は `status == .running` ではなく **`ChatSessionViewModel.showsProcessingIndicator`**（running またはバックグラウンドタスク/実行中サブエージェントが残存）。ターン進行中の Codex `threadStatusChanged(idle)` は無視され、interrupt/error 時は実行中サブエージェントが `.failed` へ終端される（`ChatSubAgentModel.failRunningSubAgents()`）。Codex app-server の `willRetry: true` エラー通知は非終端 `.warning` に正規化され（ターン継続＝停止ボタン維持）、プロセス EOF 時は Kit が終端 error を合成して running 固着を防ぐ（ADR 0095。凍結 `AcceptanceStopButtonPersistenceTests`）。
+ThinkingIndicatorCell の表示条件は `status == .running` ではなく **`ChatSessionViewModel.showsProcessingIndicator`**（running またはバックグラウンドタスク/実行中サブエージェントが残存）。ターン進行中の Codex `threadStatusChanged(idle)` は無視され（復元時に thread status から推定した running ターンのみ例外的に idle で終端＋完了通知。ADR 0119）、interrupt/error 時は実行中サブエージェントが `.failed` へ終端される（`ChatSubAgentModel.failRunningSubAgents()`）。Codex app-server の `willRetry: true` エラー通知は非終端 `.warning` に正規化され（ターン継続＝停止ボタン維持）、プロセス EOF 時は Kit が終端 error を合成して running 固着を防ぐ（ADR 0095。凍結 `AcceptanceStopButtonPersistenceTests`）。
 
 ## Thinking インジケータのシマーアニメーション（thinking-remove-ellipsis, 2026-07-20・ADR 0067 / CA 駆動化 2026-07-24・ADR 0117）
 
@@ -118,3 +118,15 @@ ThinkingIndicatorCell の表示条件は `status == .running` ではなく **`Ch
 ## ツールコールのグループ集約表示（desktop-ui-polish, 2026-07-17・ADR 0096）
 
 連続するコマンド実行 item は1セルに集約して描画する。描画直前に純関数 `ChatTranscriptGrouping.blocks(from:)`（`ChatTranscriptGrouping.swift`）が item 列を `ChatTranscriptBlock`（`.single` / `.commandGroup(id:items:)`）へ畳み、`ChatTranscriptView` はブロック単位で ForEach する。グループ id は**先頭 item の id**（append で id 不変＝セル再利用）、末尾ウィンドウ境界での部分ブロックも外側 id を保つ。ジャンプは `scrollTargetID(containing:in:)` が item→ブロック id を解決。セルは `CommandGroupCell`（`ChatMessageCells+CommandGroup.swift`・`CommandGroupPresentation.shouldRender = isRunning || !rows.isEmpty`）。identity 設計の理由は ADR 0096、凍結 `AcceptanceToolCallGroupingTests`。
+
+## transcript の切り詰め廃止（agent-grid-jank run, 2026-07-24・ADR 0118）
+
+`DisclosureCard` のタイトルは `lineLimit(1)`/`truncationMode(.middle)` を廃止し全文を折り返す。MarkdownUI の paragraph/heading1〜6 には `.fixedSize(horizontal: false, vertical: true)` を付与し、折り返し行の縦高さを確保する（`.table` ブロックより前に限定＝ADR 0045 のレイアウト非収束を回避）。「…」クリック展開時に後続要素へ文字が重なる病理の根治。凍結 `AcceptanceMarkdownNoTruncationTests`（NSHostingView fittingSize による高さ計測＋lineLimit/truncationMode のソーススキャン禁止）。
+
+## タスクリストカード（agent-grid-jank run, 2026-07-24）
+
+Claude Code の Tasks 機能（TodoWrite/TaskCreate/TaskUpdate）を transcript 内の1枚カードで表示する。正規化は `NormalizedChatEvent.taskListUpdated(tasks: [AgentTaskItem])`（TodoWrite=全量スナップショット、TaskCreate/TaskUpdate=`toolUseResult.task.id` による差分。`ClaudeChatClient+TaskList.swift`）。transcript 側は `ChatItem.taskList`（同一カードの置換更新）を `TaskListCell`（`ChatMessageCells+TaskList.swift`・DisclosureCard ベース・accessibilityIdentifier `ChatMessage.taskList`）で描画。型は `StructuredChatKit/AgentTaskList.swift`（`AgentTaskItem`/`AgentTaskStatus`）。凍結 `AcceptanceClaudeTaskListEventTests`・`AcceptanceTaskListCardTests`。
+
+## 組み込みスラッシュコマンドのサジェスト（agent-grid-jank run, 2026-07-24）
+
+`ComposerSuggestions.swift` の組み込みコマンド一覧に Claude Code の built-in 23 件（/config・/plugin・/todos・/review 等）を収録。CLI 2.1.218 で headless から機能しない /vim・/terminal-setup・/agents は検証のうえ除外。凍結 `AcceptanceBuiltinSlashCommandsTests`（/config・/plugin 必須・12件以上・well-formed）。

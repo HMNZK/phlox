@@ -34,3 +34,7 @@ last-verified: 2026-07-14
 - 固定モードの移動・結合は `sessionNodes` の順序に影響しない（配置は表示層の独立状態）。
 
 決定の背景は ADR 0084 を参照。
+
+## タイルの選択枠とフォーカス連動（agent-grid-jank run, 2026-07-24）
+
+タイル枠の表示は純ポリシー `GridTileBorderPolicy.appearance(isFocused:requiresAttention:isDropTargeted:)`（SessionFeature）へ一元化し、注意喚起（未確認の停止・承認/質問待ち）と選択フォーカスを**同時に視認**できるようにした（従来は requiresAttention が選択枠を覆い隠した）。タイルヘッダーは mouse-down で即時選択（本文は従来どおり TapGesture＝テキスト選択・スクロールと干渉しない）。グリッドの入力欄（`IMESafeTextView`）は `onFocusGained` コールバック（becomeFirstResponder 時）でタイル選択を連動させる。凍結 `AcceptanceGridSelectionFocusTests`（枠ポリシー全組合せ・SessionGridView/GridChatColumn 配線スキャン・NSWindow+makeFirstResponder での onFocusGained 呼出）。

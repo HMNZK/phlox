@@ -12,6 +12,8 @@ last-verified: 2026-07-24
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0119 | [完了通知判定を SessionCompletionNotificationPolicy へ一元化し、ADR 0064 の idle 無視ガードは復元推定ターンのみ例外とする](0119-session-completion-notification-policy.md) | active |
+| 0118 | [transcript の切り詰めを廃止し、Markdown の折返し高さを非表ブロックで確保する](0118-transcript-text-truncation-overlap.md) | active |
 | 0117 | [Thinking シマーを Core Animation 駆動へ移し、グリッドの毎フレーム AttributeGraph／アクセシビリティ木再構築を根絶する](0117-thinking-shimmer-core-animation-driver.md) | active |
 | 0116 | [エージェントグリッド（.appServer/SwiftUI）のカクつきは端末エンジンと別問題であり、live-resize 幅固定・窓縮小・行分離で対処する](0116-agent-grid-swiftui-jank-live-resize-width-freeze.md) | proposed |
 | 0115 | [端末エンジンをメインスレッドから分離する（SwiftTerm fork による TerminalCore 切り出し）——`.pty` 端末向け・`.appServer` は 0116](0115-terminal-engine-off-main-thread.md) | proposed |

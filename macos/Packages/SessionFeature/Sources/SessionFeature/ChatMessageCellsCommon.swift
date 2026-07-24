@@ -89,14 +89,12 @@ struct DisclosureCard<Content: View>: View {
                     Text(title)
                         .font(ChatScaledFont.captionStrong(scale: scale))
                         .foregroundStyle(DSColor.chatTextPrimary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                        .fixedSize(horizontal: false, vertical: true)
                     if let subtitle, !subtitle.isEmpty {
                         Text(subtitle)
                             .font(ChatScaledFont.caption(scale: scale))
                             .foregroundStyle(DSColor.chatTextSecondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Spacer(minLength: DSSpacing.s)

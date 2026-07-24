@@ -23,6 +23,11 @@ import Foundation
     #expect(AppFlavor.debug.runsLegacyMigration == false)
 }
 
+@Test func appFlavor_mobileProxyDefaultPort_separatesReleaseAndDebug() {
+    #expect(AppFlavor.release.mobileProxyDefaultPort == 8765)
+    #expect(AppFlavor.debug.mobileProxyDefaultPort == 8766)
+}
+
 @Test func appSupportLocator_homeBasedURL_usesFlavorDirectoryName() {
     let home = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)

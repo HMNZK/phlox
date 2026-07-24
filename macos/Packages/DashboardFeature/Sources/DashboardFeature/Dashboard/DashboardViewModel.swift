@@ -640,7 +640,7 @@ public final class DashboardViewModel {
         var nestedOrchestration = 0
 
         func visit(_ node: SessionTreeNode, depth: Int) {
-            if isRunning(node.status) {
+            if isRunning(node.displayStatus) {
                 if depth == 0 {
                     if isVisibleInGrid(launchContext: node.launchContext) {
                         visible += 1
@@ -674,7 +674,8 @@ public final class DashboardViewModel {
                     launchContext: node.launchContext,
                     status: node.status,
                     name: node.name,
-                    agentRef: node.agentRef
+                    agentRef: node.agentRef,
+                    displayStatus: node.displayStatus
                 )
             }
     }

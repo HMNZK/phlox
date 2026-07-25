@@ -10,7 +10,7 @@
 <ul>
   <li><b>Input history scrubber.</b> A thin horizontal line now sits at the middle-left of the chat view. Hover it to list the prompts you have sent, and click one to jump to it. The highlight follows the transcript as you scroll.</li>
   <li><b>Task lists as cards.</b> Claude Code task lists now appear as a dedicated card instead of being buried in generic tool output. The in-progress item is emphasized, and updates rewrite the same card.</li>
-  <li><b>More slash commands.</b> The <code>/</code> completion in the composer now covers Claude Code's built-in commands — 23 entries (including <code>/config</code> and <code>/plugin</code>), up from 5.</li>
+  <li><b>More slash command suggestions.</b> The <code>/</code> completion in the composer now offers 23 entries, up from 5. Note that some of them are not accepted by the session's runtime — <code>/plugin</code> is unavailable and <code>/config</code> requires <code>key=value</code> arguments. Offering only the commands the session actually accepts is coming in the next version.</li>
 </ul>
 <h3>Fixed</h3>
 <ul>
@@ -27,7 +27,7 @@
 <ul>
   <li><b>入力履歴スクラバー。</b> チャット画面の左中央に細い横線が出るようになりました。ホバーすると過去に送った入力が一覧され、クリックするとその発言までジャンプします。トランスクリプトをスクロールすると、いま見ている位置に合わせてハイライトが動きます。</li>
   <li><b>タスクリストをカードで表示。</b> Claude Code のタスクリストが専用のカードにまとまって表示されるようになりました。進行中の項目が強調され、更新のたびに同じカードが書き換わります。</li>
-  <li><b>スラッシュコマンド補完の拡充。</b> 入力欄の <code>/</code> 補完に Claude Code の組み込みコマンドを追加し、5 件から 23 件（<code>/config</code>・<code>/plugin</code> など）になりました。</li>
+  <li><b>スラッシュコマンド補完の候補を拡充。</b> 入力欄の <code>/</code> 補完の候補を 5 件から 23 件に増やしました。なお、候補にはセッションの実行環境では受け付けられないものが混じっています（<code>/plugin</code> は使用できず、<code>/config</code> は <code>key=value</code> の指定が必要です）。実際に使えるコマンドだけを出す修正は次のバージョンで対応します。</li>
 </ul>
 <h3>修正</h3>
 <ul>

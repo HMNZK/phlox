@@ -112,6 +112,12 @@ struct ChatComposer: View {
         .onChange(of: text) { oldValue, newValue in
             viewModel.syncAttachmentsWithDraftEdit(oldText: oldValue, newText: newValue)
         }
+        .onAppear {
+            suggestionController.availableSlashCommands = viewModel.availableSlashCommands
+        }
+        .onChange(of: viewModel.availableSlashCommands) { _, commands in
+            suggestionController.availableSlashCommands = commands
+        }
     }
 
     private var canSubmit: Bool {

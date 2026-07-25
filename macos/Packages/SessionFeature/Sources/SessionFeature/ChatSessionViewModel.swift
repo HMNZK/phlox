@@ -99,6 +99,7 @@ public final class ChatSessionViewModel: Identifiable {
         return trimmed == "/compact" || trimmed.hasPrefix("/compact ")
     }
     public private(set) var availableModels: [AppServerModel] = []
+    public private(set) var availableSlashCommands: [String]?
     public private(set) var permissionProfiles: [PermissionProfileSummary] = []
     public private(set) var selectedModel: String?
     public private(set) var selectedEffort: String?
@@ -1268,6 +1269,8 @@ public final class ChatSessionViewModel: Identifiable {
             pendingTurnCostUSD = usage.costUSD
             sessionTotalCostUSD += usage.costUSD ?? 0
             persistTurnUsageSnapshot(usage)
+        case .availableCommandsUpdated(let commands):
+            availableSlashCommands = commands
         case .turnCompleted(let nativeSessionId):
             if let nativeSessionId, shouldAdoptNativeSessionId(nativeSessionId) {
                 updateNativeSessionId(nativeSessionId)

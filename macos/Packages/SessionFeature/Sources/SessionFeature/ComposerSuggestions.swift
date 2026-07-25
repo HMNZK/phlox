@@ -95,6 +95,7 @@ enum ComposerSuggestionTextReplacement {
 final class ComposerSuggestionController {
     private(set) var candidates: [SuggestionCandidate] = []
     private(set) var selectedIndex: Int = 0
+    var availableSlashCommands: [String]?
     var isPresented: Bool { !candidates.isEmpty }
 
     private let slashProvider: () -> [SuggestionCandidate]
@@ -103,9 +104,9 @@ final class ComposerSuggestionController {
 
     /// 非同期候補走査: 走査中 true。走査中も前回候補は保持される。
     private(set) var isScanning: Bool = false
-    private let asyncSlashProvider: (@Sendable (String) async -> [SuggestionCandidate])?
+    private let asyncSlashProvider: (@Sendable (String, [String]?) async -> [SuggestionCandidate])?
     /// warm スラッシュキャッシュの同期ピーク（miss は nil）。
-    private let cachedSlashProvider: ((String) -> [SuggestionCandidate]?)?
+    private let cachedSlashProvider: ((String, [String]?) -> [SuggestionCandidate]?)?
     private let asyncFileProvider: (@Sendable (String) async -> [SuggestionCandidate])?
     /// warm キャッシュの同期ピーク（miss は nil）。非 nil を返せば背景走査せず同期即応答する。
     /// MainActor 上でのみ呼ぶ（走査本体ではなくキャッシュ参照のみ）。
@@ -118,7 +119,7 @@ final class ComposerSuggestionController {
     /// 起動済み・未完了の走査数（＝走行中）。1 本でもある間は新規走査を起こさない（pending 化のみ）。
     private var runningScanCount: Int = 0
     /// 走行中に届いた最新クエリ（1 件だけ保持）。走行中の走査が捌けたら 1 本だけ走らせる。
-    private var pendingScan: (query: SuggestionQuery, generation: Int)?
+    private var pendingScan: (query: SuggestionQuery, generation: Int, availableCommands: [String]?)?
 
     init(
         slashProvider: @escaping () -> [SuggestionCandidate],
@@ -150,8 +151,8 @@ final class ComposerSuggestionController {
     }
 
     init(
-        asyncSlashProvider: @escaping @Sendable (String) async -> [SuggestionCandidate],
-        cachedSlashProvider: @escaping (String) -> [SuggestionCandidate]?,
+        asyncSlashProvider: @escaping @Sendable (String, [String]?) async -> [SuggestionCandidate],
+        cachedSlashProvider: @escaping (String, [String]?) -> [SuggestionCandidate]?,
         asyncFileProvider: @escaping @Sendable (String) async -> [SuggestionCandidate],
         cachedFileProvider: @escaping (String) -> [SuggestionCandidate]?
     ) {
@@ -174,11 +175,12 @@ final class ComposerSuggestionController {
 
         switch query.kind {
         case .slashCommand:
+            let availableCommands = availableSlashCommands
             if asyncSlashProvider != nil {
-                if let cachedSlashProvider, let warm = cachedSlashProvider(query.searchTerm) {
+                if let cachedSlashProvider, let warm = cachedSlashProvider(query.searchTerm, availableCommands) {
                     applySynchronousCandidates(warm, for: query)
                 } else {
-                    scheduleScan(query: query)
+                    scheduleScan(query: query, availableCommands: availableCommands)
                 }
             } else {
                 applySynchronousCandidates(
@@ -214,7 +216,7 @@ final class ComposerSuggestionController {
     /// coalescing（stage2 round2 の裁定）: 走行中の走査が 1 本でもある間は新規走査を起こさず、
     /// 最新クエリだけを pending に置き換える（同一ターンでも跨ターンでも FS 走査を増殖させない）。
     /// 走行中が無いときだけ 1 本起動する。candidates は消さない（走査中は前回候補を保持する）。
-    private func scheduleScan(query: SuggestionQuery) {
+    private func scheduleScan(query: SuggestionQuery, availableCommands: [String]? = nil) {
         scanGeneration &+= 1
         let generation = scanGeneration
         currentQuery = query
@@ -223,19 +225,29 @@ final class ComposerSuggestionController {
 
         if runningScanCount > 0 {
             // 走行中の走査がある間は新規起動しない（最新の1件だけを覚える）。
-            pendingScan = (query, generation)
+            pendingScan = (query, generation, availableCommands)
         } else {
-            launchScan(query: query, generation: generation)
+            launchScan(query: query, generation: generation, availableCommands: availableCommands)
         }
     }
 
     /// 背景走査 Task を 1 本起動する。launchScan は「走行中が 0 のとき」だけ呼ばれるため、
     /// 走行中の走査は常に高々 1 本（並行 FS 走査は起きない）。
-    private func launchScan(query: SuggestionQuery, generation: Int) {
+    private func launchScan(
+        query: SuggestionQuery,
+        generation: Int,
+        availableCommands: [String]? = nil
+    ) {
         let provider: (@Sendable (String) async -> [SuggestionCandidate])?
         switch query.kind {
         case .slashCommand:
-            provider = asyncSlashProvider
+            if let asyncSlashProvider {
+                provider = { [asyncSlashProvider, availableCommands] term in
+                    await asyncSlashProvider(term, availableCommands)
+                }
+            } else {
+                provider = nil
+            }
         case .fileReference:
             provider = asyncFileProvider
         }
@@ -281,7 +293,11 @@ final class ComposerSuggestionController {
     private func drainPendingScan() {
         guard let next = pendingScan else { return }
         pendingScan = nil
-        launchScan(query: next.query, generation: next.generation)
+        launchScan(
+            query: next.query,
+            generation: next.generation,
+            availableCommands: next.availableCommands
+        )
     }
 
     /// in-flight／pending の走査を無効化する（dismiss・slash・warm 同期反映で使う）。
@@ -324,14 +340,18 @@ final class ComposerSuggestionController {
 
     static func production(workingDirectory: String) -> ComposerSuggestionController {
         ComposerSuggestionController(
-            asyncSlashProvider: { term in
+            asyncSlashProvider: { term, availableCommands in
                 Self.filteredSlashCandidates(
-                    ComposerSuggestionSources.slashCandidates(workingDirectory: workingDirectory),
+                    ComposerSuggestionSources.slashCandidates(
+                        availableCommands: availableCommands,
+                        workingDirectory: workingDirectory
+                    ),
                     searchTerm: term
                 )
             },
-            cachedSlashProvider: { term in
+            cachedSlashProvider: { term, availableCommands in
                 ComposerSuggestionSources.cachedSlashCandidates(
+                    availableCommands: availableCommands,
                     workingDirectory: workingDirectory,
                     matching: term
                 )
@@ -384,44 +404,38 @@ enum ComposerSuggestionSources {
         SuggestionCandidate(title: "/compact", insertionText: "/compact", subtitle: "Compact conversation context", kind: .slashCommand),
         SuggestionCandidate(title: "/clear", insertionText: "/clear", subtitle: "Clear conversation history", kind: .slashCommand),
         SuggestionCandidate(title: "/model", insertionText: "/model", subtitle: "Select model", kind: .slashCommand),
-        SuggestionCandidate(title: "/help", insertionText: "/help", subtitle: "Show available commands", kind: .slashCommand),
         SuggestionCandidate(title: "/init", insertionText: "/init", subtitle: "Initialize project memory", kind: .slashCommand),
         SuggestionCandidate(title: "/config", insertionText: "/config", subtitle: "Configure Claude Code", kind: .slashCommand),
-        SuggestionCandidate(title: "/plugin", insertionText: "/plugin", subtitle: "Manage plugins", kind: .slashCommand),
         SuggestionCandidate(title: "/mcp", insertionText: "/mcp", subtitle: "Manage MCP servers", kind: .slashCommand),
-        SuggestionCandidate(title: "/permissions", insertionText: "/permissions", subtitle: "Manage permissions", kind: .slashCommand),
-        SuggestionCandidate(title: "/status", insertionText: "/status", subtitle: "Show session status", kind: .slashCommand),
         SuggestionCandidate(title: "/context", insertionText: "/context", subtitle: "Show context usage", kind: .slashCommand),
-        SuggestionCandidate(title: "/cost", insertionText: "/cost", subtitle: "Show session cost", kind: .slashCommand),
         SuggestionCandidate(title: "/usage", insertionText: "/usage", subtitle: "Show plan usage", kind: .slashCommand),
         SuggestionCandidate(title: "/doctor", insertionText: "/doctor", subtitle: "Diagnose Claude Code", kind: .slashCommand),
-        SuggestionCandidate(title: "/memory", insertionText: "/memory", subtitle: "Edit project memory", kind: .slashCommand),
-        SuggestionCandidate(title: "/output-style", insertionText: "/output-style", subtitle: "Choose output style", kind: .slashCommand),
-        SuggestionCandidate(title: "/export", insertionText: "/export", subtitle: "Export conversation", kind: .slashCommand),
         SuggestionCandidate(title: "/review", insertionText: "/review", subtitle: "Review a GitHub pull request", kind: .slashCommand),
-        SuggestionCandidate(title: "/statusline", insertionText: "/statusline", subtitle: "Configure status line", kind: .slashCommand),
-        SuggestionCandidate(title: "/todos", insertionText: "/todos", subtitle: "Clear todo list", kind: .slashCommand),
-        SuggestionCandidate(title: "/rewind", insertionText: "/rewind", subtitle: "Rewind conversation", kind: .slashCommand),
-        SuggestionCandidate(title: "/resume", insertionText: "/resume", subtitle: "Resume a conversation", kind: .slashCommand),
-        SuggestionCandidate(title: "/hooks", insertionText: "/hooks", subtitle: "Configure hooks", kind: .slashCommand),
     ]
 
     static func slashCandidates(
+        availableCommands: [String]? = nil,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         workingDirectory: String = FileManager.default.currentDirectoryPath
     ) -> [SuggestionCandidate] {
         let workspacePath = normalizedWorkingDirectory(workingDirectory)
         return cache.slashCandidates(
             homeDirectory: homeDirectory.standardizedFileURL.path,
-            workingDirectory: workspacePath
+            workingDirectory: workspacePath,
+            availableCommands: availableCommands
         ) {
-            uncachedSlashCandidates(homeDirectory: homeDirectory, workingDirectory: workspacePath)
+            uncachedSlashCandidates(
+                availableCommands: availableCommands,
+                homeDirectory: homeDirectory,
+                workingDirectory: workspacePath
+            )
         }
     }
 
     /// TTL 内のスラッシュ候補集合を走査なしでピークし、検索語で前方一致フィルタする。
     /// miss（未キャッシュ／期限切れ）なら nil を返す。
     static func cachedSlashCandidates(
+        availableCommands: [String]? = nil,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         workingDirectory: String = FileManager.default.currentDirectoryPath,
         matching searchTerm: String
@@ -429,7 +443,8 @@ enum ComposerSuggestionSources {
         let workspacePath = normalizedWorkingDirectory(workingDirectory)
         guard let candidates = cache.cachedSlashCandidates(
             homeDirectory: homeDirectory.standardizedFileURL.path,
-            workingDirectory: workspacePath
+            workingDirectory: workspacePath,
+            availableCommands: availableCommands
         ) else {
             return nil
         }
@@ -437,6 +452,21 @@ enum ComposerSuggestionSources {
     }
 
     private static func uncachedSlashCandidates(
+        availableCommands: [String]?,
+        homeDirectory: URL,
+        workingDirectory: String
+    ) -> [SuggestionCandidate] {
+        guard let availableCommands else {
+            return fallbackSlashCandidates(homeDirectory: homeDirectory, workingDirectory: workingDirectory)
+        }
+        return availableCommandCandidates(
+            availableCommands,
+            homeDirectory: homeDirectory,
+            workingDirectory: workingDirectory
+        )
+    }
+
+    private static func fallbackSlashCandidates(
         homeDirectory: URL,
         workingDirectory: String
     ) -> [SuggestionCandidate] {
@@ -458,6 +488,41 @@ enum ComposerSuggestionSources {
             candidates.append(SuggestionCandidate(title: "/\(skill.name)", insertionText: "/\(skill.name)", subtitle: skill.subtitle, kind: .slashCommand))
         }
         return deduplicated(candidates)
+    }
+
+    private static func availableCommandCandidates(
+        _ names: [String],
+        homeDirectory: URL,
+        workingDirectory: String
+    ) -> [SuggestionCandidate] {
+        let workspaceURL = URL(fileURLWithPath: workingDirectory, isDirectory: true)
+        let builtinSubtitles = Dictionary(uniqueKeysWithValues: builtinSlashCommands.map { ($0.title, $0.subtitle) })
+        let commandDirectories = [
+            homeDirectory.appending(path: ".claude/commands", directoryHint: .isDirectory),
+            workspaceURL.appending(path: ".claude/commands", directoryHint: .isDirectory),
+        ]
+        let skillDirectories = [
+            homeDirectory.appending(path: ".claude/skills", directoryHint: .isDirectory),
+            workspaceURL.appending(path: ".claude/skills", directoryHint: .isDirectory),
+        ]
+        let skillSubtitles = Dictionary(skillDirectories
+            .flatMap(skillEntries(in:))
+            .map { ($0.name, $0.subtitle) }, uniquingKeysWith: { first, _ in first })
+        let customCommandNames = Set(commandDirectories.flatMap(commandNames(in:)))
+
+        var seen = Set<String>()
+        return names.compactMap { name in
+            guard !name.hasPrefix("__"), seen.insert(name).inserted else { return nil }
+            let subtitle = builtinSubtitles["/\(name)"]
+                ?? skillSubtitles[name]
+                ?? (customCommandNames.contains(name) ? "Custom command" : nil)
+            return SuggestionCandidate(
+                title: "/\(name)",
+                insertionText: "/\(name)",
+                subtitle: subtitle,
+                kind: .slashCommand
+            )
+        }
     }
 
     static func fileCandidates(
@@ -723,6 +788,7 @@ private final class ComposerSuggestionSourceCache: @unchecked Sendable {
     private struct SlashKey: Hashable {
         let homeDirectory: String
         let workingDirectory: String
+        let availableCommands: [String]?
     }
 
     private struct FileKey: Hashable {
@@ -748,9 +814,14 @@ private final class ComposerSuggestionSourceCache: @unchecked Sendable {
     func slashCandidates(
         homeDirectory: String,
         workingDirectory: String,
+        availableCommands: [String]?,
         load: () -> [SuggestionCandidate]
     ) -> [SuggestionCandidate] {
-        let key = SlashKey(homeDirectory: homeDirectory, workingDirectory: workingDirectory)
+        let key = SlashKey(
+            homeDirectory: homeDirectory,
+            workingDirectory: workingDirectory,
+            availableCommands: availableCommands
+        )
         if let cached = cachedSlashCandidates(for: key, now: Date()) {
             return cached
         }
@@ -793,9 +864,14 @@ private final class ComposerSuggestionSourceCache: @unchecked Sendable {
     /// TTL 内のスラッシュ候補集合を走査なしで返す。miss なら nil。
     func cachedSlashCandidates(
         homeDirectory: String,
-        workingDirectory: String
+        workingDirectory: String,
+        availableCommands: [String]?
     ) -> [SuggestionCandidate]? {
-        let key = SlashKey(homeDirectory: homeDirectory, workingDirectory: workingDirectory)
+        let key = SlashKey(
+            homeDirectory: homeDirectory,
+            workingDirectory: workingDirectory,
+            availableCommands: availableCommands
+        )
         return cachedSlashCandidates(for: key, now: Date())
     }
 

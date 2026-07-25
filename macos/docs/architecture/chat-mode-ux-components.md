@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-23
+last-verified: 2026-07-26
 ---
 
 # チャットモード UX コンポーネント構成（chat-ux-batch 後の現行）
@@ -127,6 +127,15 @@ ThinkingIndicatorCell の表示条件は `status == .running` ではなく **`Ch
 
 Claude Code の Tasks 機能（TodoWrite/TaskCreate/TaskUpdate）を transcript 内の1枚カードで表示する。正規化は `NormalizedChatEvent.taskListUpdated(tasks: [AgentTaskItem])`（TodoWrite=全量スナップショット、TaskCreate/TaskUpdate=`toolUseResult.task.id` による差分。`ClaudeChatClient+TaskList.swift`）。transcript 側は `ChatItem.taskList`（同一カードの置換更新）を `TaskListCell`（`ChatMessageCells+TaskList.swift`・DisclosureCard ベース・accessibilityIdentifier `ChatMessage.taskList`）で描画。型は `StructuredChatKit/AgentTaskList.swift`（`AgentTaskItem`/`AgentTaskStatus`）。凍結 `AcceptanceClaudeTaskListEventTests`・`AcceptanceTaskListCardTests`。
 
-## 組み込みスラッシュコマンドのサジェスト（agent-grid-jank run, 2026-07-24）
+## スラッシュコマンドのサジェスト＝セッションの提供一覧が正本（ADR 0120, 2026-07-26）
 
-`ComposerSuggestions.swift` の組み込みコマンド一覧に Claude Code の built-in 23 件（/config・/plugin・/todos・/review 等）を収録。CLI 2.1.218 で headless から機能しない /vim・/terminal-setup・/agents は検証のうえ除外。凍結 `AcceptanceBuiltinSlashCommandsTests`（/config・/plugin 必須・12件以上・well-formed）。
+候補の正本は **Claude Code が `system`/`init` で申告する `slash_commands`**。`ClaudeChatClient+EventParsing.swift` が `NormalizedChatEvent.availableCommandsUpdated(commands:)`（先頭 `/` 無し・受信順・全量スナップショット）へ正規化し、`ChatSessionViewModel.availableSlashCommands: [String]?` が**置換**保持する（他イベントでクリアしない）。View 側は `ChatComposer` / `GridChatColumn` の双方が `ComposerSuggestionController.availableSlashCommands` へ生成時＋値変化時に反映する。
+
+`ComposerSuggestionSources.slashCandidates(availableCommands:homeDirectory:workingDirectory:)` の挙動:
+
+| `availableCommands` | 候補 |
+|---|---|
+| `nil`（init 未受領。初回送信前は必ずこれ） | 静的 `builtinSlashCommands` 10 件＋`.claude/commands` / `.claude/skills` 走査 |
+| 非 `nil` | その名前だけ（走査由来を混ぜ戻さない）。`__` 接頭辞は除外・重複は一意化・順序保持 |
+
+一覧由来の subtitle は ①静的リストの同名 ②`.claude/skills/<名前>/SKILL.md` の `description` ③`.claude/commands/<名前>.md` ④なし の順で補う。5 秒 TTL キャッシュ（ADR 0053）のキーには一覧を含める。静的 `builtinSlashCommands` はフォールバック専用に 10 件（`/compact` `/clear` `/model` `/init` `/config` `/mcp` `/context` `/usage` `/doctor` `/review`）へ縮小した——実測でセッションに存在しなかった 13 件（`/help` `/plugin` `/permissions` `/status` `/cost` `/memory` `/output-style` `/export` `/statusline` `/todos` `/rewind` `/resume` `/hooks`）は削除済み。凍結 `AcceptanceAvailableCommandsEventTests`・`AcceptanceInitSlashCommandsTests`・`AcceptanceBuiltinSlashCommandsTests`・`AcceptanceComposerAvailableCommandsTests`。**Codex / Cursor は一覧の供給源が無くフォールバックのまま**。

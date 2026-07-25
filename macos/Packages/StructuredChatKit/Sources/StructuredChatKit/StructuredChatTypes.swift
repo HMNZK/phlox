@@ -124,6 +124,9 @@ public enum NormalizedChatEvent: Equatable, Sendable {
     /// 生成側（各 AgentKit）が差分/全量を還元し、常に「現在のリスト全量」を yield する
     /// （tasks/task-2.md 契約。受け入れテスト AcceptanceClaudeTaskListEventTests が凍結）。
     case taskListUpdated(tasks: [AgentTaskItem])
+    /// Claude Code stream-json の system/init の slash_commands に対応する利用可能コマンド名の
+    /// 全量スナップショット。名前は先頭の `/` を含まない素の名前で、受け取った順序のまま運ぶ。
+    case availableCommandsUpdated(commands: [String])
 }
 
 public protocol StructuredAgentClient: Sendable {

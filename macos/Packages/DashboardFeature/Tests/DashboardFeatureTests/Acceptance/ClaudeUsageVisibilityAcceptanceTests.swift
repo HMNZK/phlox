@@ -53,7 +53,12 @@ import Testing
     try #"{"ts": 1783096554, "rate_limits": {"five_hour": {"used_percentage": 42.0, "resets_at": 1783111200}}}"#
         .write(to: cacheURL, atomically: true, encoding: .utf8)
 
-    let provider = ClaudeUsageProvider(rateLimitsURL: cacheURL)
+    // 共有の UserDefaults.standard を読むと実機に残った phlox.usage.claudeScrape=false に
+    // 引きずられるため、固有 suite を注入して隔離する（検証内容は変えない）。
+    let suiteName = "phlox-claude-usage-acceptance-\(UUID().uuidString)"
+    defer { UserDefaults().removePersistentDomain(forName: suiteName) }
+
+    let provider = ClaudeUsageProvider(rateLimitsURL: cacheURL, defaultsSuiteName: suiteName)
     let usage = await provider.fetch()
 
     guard case .ok(let buckets) = usage.state else {

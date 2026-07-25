@@ -40,11 +40,13 @@ struct ClaudeUsageProviderTests {
 @Test func claudeUsageProvider_fetchReadsCacheFile() async throws {
     let fileURL = try makeTemporaryClaudeUsageURL()
     defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
+    let suiteName = makeIsolatedDefaultsSuiteName()
+    defer { UserDefaults().removePersistentDomain(forName: suiteName) }
     try Data("""
     {"ts":1780923103.774998,"rate_limits":{"five_hour":{"used_percentage":25},"seven_day":{"used_percentage":43}}}
     """.utf8).write(to: fileURL, options: .atomic)
 
-    let usage = await ClaudeUsageProvider(rateLimitsURL: fileURL).fetch()
+    let usage = await ClaudeUsageProvider(rateLimitsURL: fileURL, defaultsSuiteName: suiteName).fetch()
 
     guard case let .ok(buckets) = usage.state else {
         Issue.record("Expected Claude usage buckets")
@@ -58,8 +60,10 @@ struct ClaudeUsageProviderTests {
 @Test func claudeUsageProvider_fetchWithoutCacheReturnsUnavailable() async throws {
     let fileURL = try makeTemporaryClaudeUsageURL()
     defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
+    let suiteName = makeIsolatedDefaultsSuiteName()
+    defer { UserDefaults().removePersistentDomain(forName: suiteName) }
 
-    let usage = await ClaudeUsageProvider(rateLimitsURL: fileURL).fetch()
+    let usage = await ClaudeUsageProvider(rateLimitsURL: fileURL, defaultsSuiteName: suiteName).fetch()
 
     guard case let .unavailable(reason) = usage.state else {
         Issue.record("Expected unavailable state")
@@ -134,6 +138,12 @@ struct ClaudeUsageProviderTests {
     #expect(reason == "取得無効")
 }
 
+}
+
+// 共有の UserDefaults.standard を読むと、実機に残った phlox.usage.claudeScrape=false に
+// 引きずられて fetch() が「取得無効」を返す。テストごとに固有 suite を注入して隔離する。
+private func makeIsolatedDefaultsSuiteName() -> String {
+    "phlox-claude-usage-defaults-\(UUID().uuidString)"
 }
 
 private func makeTemporaryClaudeUsageURL() throws -> URL {

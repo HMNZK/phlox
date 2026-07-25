@@ -3,6 +3,49 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.3.2</title>
+            <pubDate>Sat, 25 Jul 2026 22:14:07 +0900</pubDate>
+            <description xml:lang="en"><![CDATA[
+<h3>New</h3>
+<ul>
+  <li><b>Input history scrubber.</b> A thin horizontal line now sits at the middle-left of the chat view. Hover it to list the prompts you have sent, and click one to jump to it. The highlight follows the transcript as you scroll.</li>
+  <li><b>Task lists as cards.</b> Claude Code task lists now appear as a dedicated card instead of being buried in generic tool output. The in-progress item is emphasized, and updates rewrite the same card.</li>
+  <li><b>More slash commands.</b> The <code>/</code> completion in the composer now covers Claude Code's built-in commands — 23 entries (including <code>/config</code> and <code>/plugin</code>), up from 5.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+  <li>Session completion and waiting states (approval or question pending) no longer miss their notification.</li>
+  <li>Push notifications to mobile no longer silently do nothing when the app is launched from the Dock or Finder — credentials are now read from <code>~/.phlox/apns.env</code> at startup.</li>
+  <li>Long text is wrapped instead of being truncated with an ellipsis, and no longer overlaps after a click.</li>
+  <li>In grid view, the red attention border no longer hides which tile is selected, and focusing the composer selects its tile.</li>
+  <li>Much lower CPU use and far less stutter when several sessions are shown in the grid.</li>
+  <li>The release and Debug builds can now be paired with mobile at the same time.</li>
+</ul>
+]]></description>
+            <description xml:lang="ja"><![CDATA[
+<h3>新機能</h3>
+<ul>
+  <li><b>入力履歴スクラバー。</b> チャット画面の左中央に細い横線が出るようになりました。ホバーすると過去に送った入力が一覧され、クリックするとその発言までジャンプします。トランスクリプトをスクロールすると、いま見ている位置に合わせてハイライトが動きます。</li>
+  <li><b>タスクリストをカードで表示。</b> Claude Code のタスクリストが専用のカードにまとまって表示されるようになりました。進行中の項目が強調され、更新のたびに同じカードが書き換わります。</li>
+  <li><b>スラッシュコマンド補完の拡充。</b> 入力欄の <code>/</code> 補完に Claude Code の組み込みコマンドを追加し、5 件から 23 件（<code>/config</code>・<code>/plugin</code> など）になりました。</li>
+</ul>
+<h3>修正</h3>
+<ul>
+  <li>セッションの完了・待機（承認待ち・質問待ち）で通知が鳴らないことがある問題を修正しました。</li>
+  <li>Dock や Finder からアプリを起動したときに、モバイルへの push 通知が一切届かなかった問題を修正しました（<code>~/.phlox/apns.env</code> を起動時に読み込むようになりました）。</li>
+  <li>長いテキストが「…」で切り詰められていたのをやめ、折り返して全文が読めるようにしました。クリック後に文字が重なって見える問題も解消しています。</li>
+  <li>グリッド表示で、注意を促す赤い枠が選択中の表示を覆い隠して、どのタイルを選んでいるか分からなくなる問題を修正しました。入力欄にフォーカスすると、そのタイルが選択されるようになりました。</li>
+  <li>複数セッションをグリッド表示したときの CPU 負荷とカクつきを大きく減らしました。</li>
+  <li>製品版と Debug 版で、同時にモバイル連携できるようになりました。</li>
+</ul>
+]]></description>
+            <sparkle:version>19</sparkle:version>
+            <sparkle:shortVersionString>1.3.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.3.2.zip" length="13892343" type="application/octet-stream" sparkle:edSignature="RYNf/ZNUBxuWjXd/FO0XaDy4axI3OiFo60ZAcFGu3ogU2OqduuYsnDcdlfTUPpH3fHF63UIrJMdfaHKE0S4XDg=="/>
+        </item>
+        <item>
             <title>1.3.1</title>
             <pubDate>Wed, 22 Jul 2026 17:48:01 +0900</pubDate>
             <description xml:lang="en"><![CDATA[

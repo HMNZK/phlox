@@ -189,6 +189,18 @@ final class SessionSpawnService {
             approvalBroker: broker,
             workingDirectory: plan.workingDirectory,
             transcriptStore: environment.transcriptStore,
+            // Keep the injectable seam on the production path, but source it exclusively
+            // from AgentModelCatalog. The catalog is the single authority shared with the API.
+            spawnAgentModelsProvider: { [ref = plan.descriptor.ref] in
+                switch ref {
+                case .builtin(.claudeCode):
+                    return AgentModelCatalog.models(for: .claudeCode).map(\.id)
+                case .builtin(.cursor):
+                    return AgentModelCatalog.models(for: .cursor).map(\.id)
+                default:
+                    return []
+                }
+            },
             historyProvider: history?.historyProvider,
             historyTranscriptLoader: history?.historyTranscriptLoader
         )

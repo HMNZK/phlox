@@ -256,6 +256,8 @@ public struct ControlResponse: Sendable {
 /// 定数はワイヤ形状の単一の正（iOS 側 `PhloxModelWireContract` と一字一句一致させる）。
 /// `implemented` は実装完了と同時に true へ反転する（flag だけの反転は虚偽報告として扱う）。
 public enum ControlModelWireContract {
+    // `ControlModelOption` uses synthesized Codable. Its property names intentionally match
+    // these frozen keys; Task5ModelHandlerTests verifies the serialized wire shape.
     /// GET /sessions/{id}/settings → 200 {"selectedModel": String?, "availableModels": [{"id","displayName"}]}
     public static let settingsPathSuffix = "/settings"
     /// POST /sessions/{id}/model  body {"model": String} → 200 / 404 / 400

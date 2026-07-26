@@ -49,6 +49,8 @@ public enum AgentModelCatalog {
 
     public static func configure(provider: (any AgentModelListProviding)?) {
         state.lock.withLock {
+            // Reconfiguration deliberately preserves the last completed snapshot. Synchronous
+            // readers must never briefly lose a usable catalog while a live source is replaced.
             state.provider = provider
             state.generation += 1
         }
@@ -69,6 +71,7 @@ public enum AgentModelCatalog {
             }
         }
         state.lock.withLock {
+            // Do not publish a stale result from a provider replaced during this refresh.
             guard state.provider != nil, state.generation == configuration.1 else { return }
             state.snapshots = refreshed
             state.fallbackKinds = failures
@@ -81,8 +84,11 @@ public enum AgentModelCatalog {
 
     public static func defaultModel(for kind: AgentKind) -> String? {
         let models = models(for: kind)
-        if kind == .claudeCode, models.contains(where: { $0.id == "sonnet" }) {
-            return "sonnet"
+        // This is the sole default-selection rule for both the control API and macOS UI.
+        // Prefer opus because it is the current macOS default and the model users actively use;
+        // fall back to the first available model when opus is absent.
+        if kind == .claudeCode, models.contains(where: { $0.id == "opus" }) {
+            return "opus"
         }
         return models.first?.id
     }

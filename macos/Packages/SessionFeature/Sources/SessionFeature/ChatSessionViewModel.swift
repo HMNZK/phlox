@@ -983,7 +983,7 @@ public final class ChatSessionViewModel: Identifiable {
         case .builtin(.claudeCode):
             selectedModel = persistedSettings?.selectedModel
                 ?? selectedModel
-                ?? availableSpawnAgentModels.first
+                ?? AgentModelCatalog.defaultModel(for: .claudeCode)
             if Self.claudeModelSupportsEffort(selectedModel) {
                 selectedEffort = persistedSettings?.selectedEffort
                     ?? selectedEffort

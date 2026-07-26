@@ -73,7 +73,7 @@ func startNew_withoutPersistedSettingsKeepsExistingDefaults() async throws {
         workingDirectory: "/tmp/work"
     )
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
-    // 既定挙動の回帰ガード: 保存値なしなら従来どおり先頭 alias（opus）+ 既定 effort（high）。
+    // 保存値がなければ、API と共有するカタログの唯一の既定規則（opus）を選ぶ。
     #expect(vm.selectedModel == "opus")
     #expect(vm.selectedEffort == "high")
 }

@@ -16,7 +16,17 @@ public struct SubAgentDetailView: View {
             VStack(alignment: .leading, spacing: DSSpacing.m) {
                 if let error = viewModel.loadError {
                     DSResultBanner(message: error, isError: true)
+                } else if viewModel.isInitialLoading {
+                    DSConnectingIndicator(size: 96)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 320)
                 } else {
+                    if viewModel.hiddenMessageCount > 0 {
+                        Button("以前のメッセージを読む（\(viewModel.hiddenMessageCount)件）") {
+                            viewModel.expandVisibleWindow()
+                        }
+                        .buttonStyle(.plain)
+                    }
                     ForEach(viewModel.visibleMessages) { message in
                         chatRow(for: message)
                     }
@@ -37,36 +47,42 @@ public struct SubAgentDetailView: View {
         let copyText = ChatMessageCopyText.copyText(for: message)
         switch message {
         case let .user(_, text):
-            DSChatBubble(role: .user, message: text, copyText: copyText)
+            let rendered = SubAgentDetailViewModel.renderedBody(text)
+            DSChatBubble(role: .user, message: renderedDisplayText(rendered), copyText: copyText)
         case let .agent(_, text):
+            let rendered = SubAgentDetailViewModel.renderedBody(text)
             DSChatBubble(
                 role: .agent,
-                message: text,
+                message: renderedDisplayText(rendered),
                 agentKind: viewModel.session.agent,
                 copyText: copyText
             )
         case let .reasoning(_, text):
+            let rendered = SubAgentDetailViewModel.renderedBody(text)
             chatRowWithCopy(copyText: copyText) {
-                DSReasoningText(text: text)
+                DSReasoningText(text: renderedDisplayText(rendered))
             }
         case let .subAgent(_, text):
+            let rendered = SubAgentDetailViewModel.renderedBody(text)
             chatRowWithCopy(copyText: copyText) {
-                DSSubAgentRow(text: text)
+                DSSubAgentRow(text: renderedDisplayText(rendered))
             }
         case let .command(_, command, output):
+            let rendered = SubAgentDetailViewModel.renderedBody(output)
             chatRowWithCopy(copyText: copyText) {
-                chatMonospaceCard(title: command.map { "$ \($0)" } ?? "$", body: output)
+                chatMonospaceCard(title: command.map { "$ \($0)" } ?? "$", body: renderedDisplayText(rendered))
             }
         case let .fileChange(_, changes):
+            let rendered = SubAgentDetailViewModel.renderedBody(
+                changes.map { "\($0.path)\n\($0.diff)" }.joined(separator: "\n\n")
+            )
             chatRowWithCopy(copyText: copyText) {
-                chatMonospaceCard(
-                    title: "ファイル変更",
-                    body: changes.map { "\($0.path)\n\($0.diff)" }.joined(separator: "\n\n")
-                )
+                chatMonospaceCard(title: "ファイル変更", body: renderedDisplayText(rendered))
             }
         case let .error(_, message):
+            let rendered = SubAgentDetailViewModel.renderedBody(message)
             chatRowWithCopy(copyText: copyText) {
-                DSResultBanner(message: message, isError: true)
+                DSResultBanner(message: renderedDisplayText(rendered), isError: true)
             }
         case .userQuestion:
             // AskUserQuestion はサブエージェント内では使えない（CLI 制約）ため表示なし。
@@ -86,6 +102,17 @@ public struct SubAgentDetailView: View {
                 ChatMessageCopyButton(text: copyText)
             }
         }
+    }
+
+    private func renderedDisplayText(_ rendered: SubAgentDetailViewModel.RenderedBody) -> String {
+        guard rendered.omittedBytes > 0 else { return rendered.head }
+        return """
+        \(rendered.head)
+
+        表示を省略しました（\(rendered.omittedBytes) バイト）。コピーには全文が含まれます。
+
+        \(rendered.tail)
+        """
     }
 
     private func chatMonospaceCard(title: String, body: String) -> some View {

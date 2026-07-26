@@ -10,9 +10,24 @@ struct UserQuestionCard: View {
     let state: UserQuestionState
     let onSubmit: (String, [String: [String]]) async -> Bool
 
-    @State private var selectedLabelsByQuestion: [String: Set<String>] = [:]
-    @State private var freeTextByQuestion: [String: String] = [:]
+    @State private var form: UserQuestionFormState
+    @FocusState private var focusedQuestion: String?
     @State private var isSubmitting = false
+
+    init(
+        requestId: String,
+        questions: [UserQuestionItem],
+        answers: [String: [String]]?,
+        state: UserQuestionState,
+        onSubmit: @escaping (String, [String: [String]]) async -> Bool
+    ) {
+        self.requestId = requestId
+        self.questions = questions
+        self.answers = answers
+        self.state = state
+        self.onSubmit = onSubmit
+        _form = State(initialValue: UserQuestionFormState(questions: questions))
+    }
 
     private var isInteractive: Bool { state == .pending && !isSubmitting }
 
@@ -66,11 +81,7 @@ struct UserQuestionCard: View {
 
     private var canSubmit: Bool {
         guard isInteractive else { return false }
-        return questions.allSatisfy { question in
-            let free = freeTextByQuestion[question.question]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if !free.isEmpty { return true }
-            return !(selectedLabelsByQuestion[question.question] ?? []).isEmpty
-        }
+        return form.canSubmit
     }
 
     @ViewBuilder
@@ -92,16 +103,23 @@ struct UserQuestionCard: View {
             if isInteractive {
                 TextField(
                     "自由入力",
-                    text: freeTextBinding(for: question.question)
+                    text: freeTextBinding(for: question.question),
+                    axis: .vertical
                 )
                 .textFieldStyle(.roundedBorder)
                 .font(DSFont.subheadline)
+                .lineLimit(1...4)
+                .focused($focusedQuestion, equals: question.question)
                 .accessibilityIdentifier("UserQuestionCard.freeText.\(question.question)")
             } else if let custom = customAnswerText(for: question), !isKnownOption(custom, in: question) {
                 Text("入力: \(custom)")
                     .font(DSFont.caption)
                     .foregroundStyle(DSColor.textSecondary)
             }
+        }
+        .onChange(of: focusedQuestion) { _, focusedQuestion in
+            guard let focusedQuestion else { return }
+            form.freeTextDidFocus(question: focusedQuestion)
         }
     }
 
@@ -144,46 +162,28 @@ struct UserQuestionCard: View {
 
     private func freeTextBinding(for question: String) -> Binding<String> {
         Binding(
-            get: { freeTextByQuestion[question] ?? "" },
-            set: { freeTextByQuestion[question] = $0 }
+            get: { form.freeText[question] ?? "" },
+            set: { form.setFreeText(question: question, text: $0) }
         )
     }
 
     private func isSelected(question: UserQuestionItem, label: String) -> Bool {
-        (selectedLabelsByQuestion[question.question] ?? []).contains(label)
+        (form.selections[question.question] ?? []).contains(label)
     }
 
     private func toggle(question: UserQuestionItem, label: String) {
         guard isInteractive else { return }
-        var selected = selectedLabelsByQuestion[question.question] ?? []
         if question.multiSelect {
-            if selected.contains(label) {
-                selected.remove(label)
-            } else {
-                selected.insert(label)
-            }
+            form.toggleMulti(question: question.question, label: label)
         } else {
-            selected = selected.contains(label) ? [] : [label]
+            form.selectSingle(question: question.question, label: label)
         }
-        selectedLabelsByQuestion[question.question] = selected
-        // 選択肢を触ったら自由入力はクリア（どちらを回答にするか曖昧にしない）
-        freeTextByQuestion[question.question] = ""
+        focusedQuestion = nil
     }
 
     private func seedFromAnswers() {
         guard let answers else { return }
-        for question in questions {
-            if let values = answers[question.question] {
-                selectedLabelsByQuestion[question.question] = Set(values.filter { label in
-                    question.options.contains(where: { $0.label == label })
-                })
-                if let custom = values.first(where: { value in
-                    !question.options.contains(where: { $0.label == value })
-                }) {
-                    freeTextByQuestion[question.question] = custom
-                }
-            }
-        }
+        form.seed(from: answers)
     }
 
     private func customAnswerText(for question: UserQuestionItem) -> String? {
@@ -195,17 +195,7 @@ struct UserQuestionCard: View {
     }
 
     private func buildAnswers() -> [String: [String]] {
-        var result: [String: [String]] = [:]
-        for question in questions {
-            let free = freeTextByQuestion[question.question]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if !free.isEmpty {
-                result[question.question] = [free]
-            } else {
-                let labels = Array(selectedLabelsByQuestion[question.question] ?? []).sorted()
-                result[question.question] = labels
-            }
-        }
-        return result
+        form.answers ?? [:]
     }
 
     private func submit() async {

@@ -49,15 +49,16 @@ final class SubAgentFreezeWhiteboxTests: XCTestCase {
     func testMeasuresRenderedBudgetLayoutOnMacProxy() {
         let source = String(repeating: "x", count: 6_000_000)
         let rendered = SubAgentDetailViewModel.renderedBody(source)
-        let measurement = measureLayout(count: 1, body: rendered.text)
+        let renderedText = rendered.head + rendered.tail
+        let measurement = measureLayout(count: 1, body: renderedText)
 
         print(
             "layout-probe budgeted count=1 sourceBytes=\(source.utf8.count) " +
-            "renderedBytes=\(rendered.text.utf8.count) omittedBytes=\(rendered.omittedBytes) " +
+            "renderedBytes=\(renderedText.utf8.count) omittedBytes=\(rendered.omittedBytes) " +
             "elapsedSeconds=\(measurement.elapsedSeconds) size=\(measurement.size)"
         )
-        XCTAssertLessThanOrEqual(rendered.text.utf8.count, SubAgentDetailViewModel.maxRenderedBytesPerMessage)
-        XCTAssertEqual(rendered.omittedBytes, source.utf8.count - rendered.text.utf8.count)
+        XCTAssertLessThanOrEqual(renderedText.utf8.count, SubAgentDetailViewModel.maxRenderedBytesPerMessage)
+        XCTAssertEqual(rendered.omittedBytes, source.utf8.count - renderedText.utf8.count)
         XCTAssertGreaterThan(measurement.size.height, 0, "ImageRenderer がレイアウトを確定すること")
     }
 

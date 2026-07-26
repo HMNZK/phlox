@@ -11,6 +11,10 @@ public final class SubAgentDetailViewModel {
     public let subAgentID: String
     public private(set) var chatMessages: [ChatMessage] = []
     public private(set) var loadError: String?
+    private var transcriptWindow = TranscriptWindow()
+    public private(set) var isInitialLoading = true
+
+    public static var visibleMessageLimit: Int { TranscriptWindow.defaultLimit }
 
     public init(session: Session, subAgentID: String, api: PhloxAPI) {
         self.session = session
@@ -19,11 +23,23 @@ public final class SubAgentDetailViewModel {
     }
 
     public var visibleMessages: [ChatMessage] {
-        chatMessages.filter(SessionDetailViewModel.isVisible)
+        let messages = chatMessages.filter(SessionDetailViewModel.isVisible)
+        let range = transcriptWindow.visibleRange(totalCount: messages.count)
+        return Array(messages[range.startIndex...])
+    }
+
+    public var hiddenMessageCount: Int {
+        let messages = chatMessages.filter(SessionDetailViewModel.isVisible)
+        return transcriptWindow.visibleRange(totalCount: messages.count).hiddenCount
+    }
+
+    public func expandVisibleWindow() {
+        transcriptWindow.expand()
     }
 
     /// api.subAgentMessages を取得して chatMessages に反映する。
     public func load() async {
+        defer { isInitialLoading = false }
         do {
             let messages = try await api.subAgentMessages(sessionID: session.id, subAgentID: subAgentID)
             chatMessages = messages

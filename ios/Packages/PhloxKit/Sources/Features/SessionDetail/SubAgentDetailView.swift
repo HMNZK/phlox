@@ -16,7 +16,17 @@ public struct SubAgentDetailView: View {
             VStack(alignment: .leading, spacing: DSSpacing.m) {
                 if let error = viewModel.loadError {
                     DSResultBanner(message: error, isError: true)
+                } else if viewModel.isInitialLoading {
+                    DSConnectingIndicator(size: 96)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 320)
                 } else {
+                    if viewModel.hiddenMessageCount > 0 {
+                        Button("以前のメッセージを読む（\(viewModel.hiddenMessageCount)件）") {
+                            viewModel.expandVisibleWindow()
+                        }
+                        .buttonStyle(.plain)
+                    }
                     ForEach(viewModel.visibleMessages) { message in
                         chatRow(for: message)
                     }

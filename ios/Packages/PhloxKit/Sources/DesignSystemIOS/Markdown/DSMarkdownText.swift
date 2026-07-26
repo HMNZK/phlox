@@ -4,6 +4,10 @@ import MarkdownUI
 
 /// チャット本文の Markdown とフェンス付きコードを描画する View。
 public struct DSMarkdownText: View {
+    /// task-2 契約（凍結・PM 著）: 表をセル切り詰めなしに横スクロールで読ませるとき true。
+    /// 実装と同時に反転する（flag だけの反転は虚偽報告として扱う）。
+    public static let providesTableHorizontalScroll = false
+
     private let content: String
 
     public init(_ content: String) {
@@ -22,6 +26,12 @@ public struct DSMarkdownText: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 case let .code(language, code):
                     DSCodeBlock(language: language, code: code)
+                case let .table(markdown):
+                    // TODO(task-2): 横スクロールで描画する（現状は段落と同じ描画＝セルが切り詰まる）。
+                    Markdown(markdown)
+                        .markdownTheme(Self.theme)
+                        .font(DSFont.body)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }

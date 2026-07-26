@@ -10,6 +10,13 @@ public struct SessionDetailView: View {
     /// （flag だけの反転は虚偽報告として扱う）。
     public static let providesModelSelectorChip = true
     public static let providesScrollToDismissKeyboard = true
+    /// task-1 契約（凍結・PM 著）: 左端からのスワイプで前の画面へ戻れるとき true。
+    /// ナビバー非表示＋自前 topBar の chrome は維持したままジェスチャを復活させる。
+    /// 実装と同時に反転する（flag だけの反転は虚偽報告として扱う）。
+    public static let providesBackSwipeGesture = false
+    /// task-1 契約（凍結・PM 著）: ターミナル出力を桁揃えのまま横スクロールで読ませるとき true。
+    /// 実装と同時に反転する（flag だけの反転は虚偽報告として扱う）。
+    public static let providesTerminalOutputHorizontalScroll = false
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.sessionComposeDraft) private var sessionComposeDraft

@@ -5,6 +5,10 @@ import CodexAppServerKit
 import DesignSystem
 
 struct ChatTranscriptView: View {
+    /// task-3 契約（凍結・PM 著）: セッションを開く／切り替えたときに最下部（最新）から
+    /// 表示するとき true。実装と同時に反転する（flag だけの反転は虚偽報告として扱う）。
+    static let providesOpenAtBottom = false
+
     @Bindable var viewModel: ChatSessionViewModel
     @Binding private var requestedScrollTarget: String?
     /// スクラバーへ返す「現在ビューポート中央にある入力」の id。スクロールイベント側でのみ更新する。

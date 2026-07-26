@@ -1,12 +1,15 @@
 import Foundation
 
-/// マークダウン本文をブロック列（段落 / フェンス付きコードブロック）へ分割する純関数。
-/// DSMarkdownText（task-5）の描画単位。契約は Tests/DesignSystemIOSTests/MarkdownRenderingAcceptanceTests.swift。
+/// マークダウン本文をブロック列（段落 / フェンス付きコードブロック / 表）へ分割する純関数。
+/// DSMarkdownText（task-5）の描画単位。契約は Tests/DesignSystemIOSTests/MarkdownRenderingAcceptanceTests.swift
+/// および Tests/DesignSystemIOSTests/AcceptanceMarkdownReadabilityTests.swift。
 public enum MarkdownBlock: Equatable, Sendable {
-    /// コードブロック以外の本文（マークダウンとして描画する）。
+    /// コードブロック・表以外の本文（マークダウンとして描画する）。
     case paragraph(String)
     /// ``` フェンスのコードブロック。language はフェンス直後の識別子（無ければ nil）。
     case code(language: String?, content: String)
+    /// GFM の表。横スクロールで描画するため段落から切り出す（公開面は PM 凍結・抽出の実装は task-2）。
+    case table(String)
 }
 
 public enum MarkdownBlockParser {

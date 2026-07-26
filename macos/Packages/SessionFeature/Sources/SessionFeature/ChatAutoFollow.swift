@@ -40,7 +40,33 @@ final class ChatAutoFollowController {
     /// 公開面は PM が凍結した契約面（task-3 の入出力契約）。振る舞いの実装は task-3 が行う。
     /// 契約の正本: Tests/SessionFeatureTests/AcceptanceChatOpenAtBottomTests.swift
     func sessionDidChange() {
-        // TODO(task-3): state を .following へ戻す。
+        state = .following
+    }
+}
+
+/// 最下部へ寄せるかを、スクロールのきっかけと追従状態だけから決める。
+/// 読み戻し中は新着イベント自体は届くが、いずれのきっかけでも引き戻さない。
+enum ChatBottomScrollTrigger {
+    case appear
+    case transcript
+    case status
+}
+
+enum ChatBottomScrollPolicy {
+    static func shouldScrollToBottom(trigger: ChatBottomScrollTrigger, isFollowing: Bool) -> Bool {
+        guard isFollowing else { return false }
+        switch trigger {
+        case .appear, .transcript, .status:
+            return true
+        }
+    }
+
+    static func shouldPerformDeferredScroll(
+        generation: Int,
+        currentGeneration: Int,
+        isFollowing: Bool
+    ) -> Bool {
+        generation == currentGeneration && isFollowing
     }
 }
 

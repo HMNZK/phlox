@@ -209,7 +209,10 @@ public final class TerminalCoordinator: NSObject, TerminalViewDelegate {
     /// 公開面は PM が凍結した契約面（task-3 の入出力契約）。振る舞いの実装は task-3 が行う。
     /// 契約の正本: Tests/TerminalUITests/AcceptanceTerminalOpenAtBottomTests.swift
     public func scrollToBottom() {
-        // TODO(task-3): SwiftTerm の表示位置を最下部へ戻し、userScrolling を解除する。
+        terminalView.scroll(toPosition: 1)
+        // scroll(toPosition:) は位置が変わらないと scrollTo(row:) を呼ばない。scrollDown(0) で
+        // Vendor パッチの scrollTo(row:) を必ず通し、早期 return の前に追従フラグを再評価させる。
+        terminalView.scrollDown(lines: 0)
     }
 
     /// scrollback を無効化し、通常バッファの reflow を止める。

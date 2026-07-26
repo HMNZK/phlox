@@ -7,7 +7,7 @@ import DesignSystem
 struct ChatTranscriptView: View {
     /// task-3 契約（凍結・PM 著）: セッションを開く／切り替えたときに最下部（最新）から
     /// 表示するとき true。実装と同時に反転する（flag だけの反転は虚偽報告として扱う）。
-    static let providesOpenAtBottom = false
+    static let providesOpenAtBottom = true
 
     @Bindable var viewModel: ChatSessionViewModel
     @Binding private var requestedScrollTarget: String?
@@ -118,8 +118,10 @@ struct ChatTranscriptView: View {
                 // セッション切替（vm identity 変化）で表示件数を既定へ戻す。
                 // イベント文脈での mutation なので body 中の観測 state 変更にならない（ADR 0010）。
                 window.reset()
-                // 直前セッションの pending 遅延 scrollTo を無効化する（stale target 防止）。
-                jumpGeneration += 1
+                // 別セッションを開いたので、前の読み戻し状態を持ち越さず最下部へ寄せる。
+                autoFollow.sessionDidChange()
+                // 直前セッションの pending 遅延 scrollTo を無効化した上で、次のレイアウト確定後に寄せる。
+                scheduleScrollToBottom(proxy)
             }
             .onAppear {
                 scrollToBottomIfNeeded(proxy, trigger: .appear)
@@ -412,13 +414,34 @@ struct ChatTranscriptView: View {
         _ proxy: ScrollViewProxy,
         trigger: ChatScrollTrigger
     ) {
+        let policyTrigger = trigger.policyTrigger
+        guard ChatBottomScrollPolicy.shouldScrollToBottom(
+            trigger: policyTrigger,
+            isFollowing: autoFollow.contentDidChange()
+        ) else { return }
+
         switch trigger {
         case .appear:
-            guard autoFollow.isFollowing else { return }
+            // 初回は transcript のレイアウト確定前に scrollTo が空振りし得るため遅延する。
+            scheduleScrollToBottom(proxy)
         case .transcript, .status:
-            guard autoFollow.contentDidChange() else { return }
+            proxy.scrollTo(ChatScrollTarget.bottom.rawValue, anchor: .bottom)
         }
-        proxy.scrollTo(ChatScrollTarget.bottom.rawValue, anchor: .bottom)
+    }
+
+    /// レイアウト確定後に最下部へ寄せる単発イベント。後続のセッション切替・ジャンプ・展開で
+    /// 世代が進んだ場合は何もしない（ADR 0030 の stale 無効化規約）。
+    private func scheduleScrollToBottom(_ proxy: ScrollViewProxy) {
+        jumpGeneration += 1
+        let generation = jumpGeneration
+        Task { @MainActor in
+            guard ChatBottomScrollPolicy.shouldPerformDeferredScroll(
+                generation: generation,
+                currentGeneration: jumpGeneration,
+                isFollowing: autoFollow.isFollowing
+            ) else { return }
+            proxy.scrollTo(ChatScrollTarget.bottom.rawValue, anchor: .bottom)
+        }
     }
 }
 
@@ -436,6 +459,19 @@ private enum ChatScrollTrigger: Equatable {
     case appear
     case transcript(TranscriptFollowSignal)
     case status(SessionStatus)
+}
+
+private extension ChatScrollTrigger {
+    var policyTrigger: ChatBottomScrollTrigger {
+        switch self {
+        case .appear:
+            .appear
+        case .transcript:
+            .transcript
+        case .status:
+            .status
+        }
+    }
 }
 
 /// ユーザー入力ブロックの content 座標系での minY を id 別に集約する。

@@ -26,22 +26,35 @@ public struct TerminalView: NSViewRepresentable {
         // コンテナが変わった（モード切替・セッション切替）ときだけ、現在のコンテナへ
         // 載せ替える。NSView は1つの superview にしか属せないため、まず旧 superview から
         // 外してから addSubview し、コンテナ全面に追従する制約を張り直す。
-        let terminal = coordinator.hostingView
-        // 単体表示はコンテナ (NSView) を再利用したまま coordinator だけ差し替えるため、
-        // 直前に表示していた別セッションの terminal がコンテナに残っていると最前面に被さり、
-        // セッション切替が反映されない。現在の terminal 以外は必ず取り除く。
-        for sub in nsView.subviews where sub !== terminal {
-            sub.removeFromSuperview()
+        guard TerminalMount.attach(coordinator.hostingView, to: nsView) else { return }
+        // reparent 直後はコンテナのレイアウトが未確定なので、次の runloop で最下部へ戻す。
+        // updateNSView 中に同期的なスクロール副作用を起こさない（ADR 0010）。
+        DispatchQueue.main.async { [weak coordinator] in
+            coordinator?.scrollToBottom()
         }
-        guard terminal.superview !== nsView else { return }
+    }
+}
+
+/// terminal を container へ載せ替える。実際に載せ替えたときだけ true を返すため、
+/// SwiftUI の Context に依存せず「開いたときだけ最下部へ寄せる」判定を検証できる。
+@MainActor
+enum TerminalMount {
+    static func attach(_ terminal: NSView, to container: NSView) -> Bool {
+        // 単体表示はコンテナを再利用したまま coordinator だけ差し替えるため、直前の terminal を除去する。
+        for subview in container.subviews where subview !== terminal {
+            subview.removeFromSuperview()
+        }
+        guard terminal.superview !== container else { return false }
+
         terminal.removeFromSuperview()
-        nsView.addSubview(terminal)
+        container.addSubview(terminal)
         NSLayoutConstraint.activate([
-            terminal.leadingAnchor.constraint(equalTo: nsView.leadingAnchor),
-            terminal.trailingAnchor.constraint(equalTo: nsView.trailingAnchor),
-            terminal.topAnchor.constraint(equalTo: nsView.topAnchor),
-            terminal.bottomAnchor.constraint(equalTo: nsView.bottomAnchor),
+            terminal.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            terminal.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            terminal.topAnchor.constraint(equalTo: container.topAnchor),
+            terminal.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
+        return true
     }
 }
 

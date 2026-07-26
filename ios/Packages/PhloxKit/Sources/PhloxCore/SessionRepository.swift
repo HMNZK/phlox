@@ -6,12 +6,20 @@ import Foundation
 /// 購読 `Task` がキャンセルされるとポーリングを止め、ストリームを正常終了する（リークなし）。
 /// `scenePhase` 連動の停止/再開は App が購読の張り直しで制御する。
 public actor SessionRepository: SessionRepositoryProtocol {
+    public static let defaultUnknownTimeout: Duration = .seconds(20)
+
     private let api: PhloxAPI
     private let reachability: ReachabilityMonitoring
+    private let unknownTimeout: Duration
 
-    public init(api: PhloxAPI, reachability: ReachabilityMonitoring) {
+    public init(
+        api: PhloxAPI,
+        reachability: ReachabilityMonitoring,
+        unknownTimeout: Duration = SessionRepository.defaultUnknownTimeout
+    ) {
         self.api = api
         self.reachability = reachability
+        self.unknownTimeout = unknownTimeout
     }
 
     public func refresh() async throws {
@@ -29,8 +37,9 @@ public actor SessionRepository: SessionRepositoryProtocol {
 
     private func poll(interval: Duration, continuation: AsyncStream<SessionsState>.Continuation) async {
         continuation.yield(.loading)
+        let unknownDeadline = ContinuousClock.now + unknownTimeout
         while !Task.isCancelled {
-            await emitOnce(continuation: continuation)
+            await emitOnce(unknownDeadline: unknownDeadline, continuation: continuation)
             do {
                 try await Task.sleep(for: interval)
             } catch {
@@ -40,8 +49,23 @@ public actor SessionRepository: SessionRepositoryProtocol {
         continuation.finish()
     }
 
-    private func emitOnce(continuation: AsyncStream<SessionsState>.Continuation) async {
-        let reachable = await reachability.current
+    private func emitOnce(
+        unknownDeadline: ContinuousClock.Instant,
+        continuation: AsyncStream<SessionsState>.Continuation
+    ) async {
+        var reachable = await reachability.current
+        if reachable == .unknown {
+            await reachability.refresh()
+            guard !Task.isCancelled else { return }
+            reachable = await reachability.current
+            if reachable == .unknown {
+                if ContinuousClock.now >= unknownDeadline {
+                    continuation.yield(.offline)
+                }
+                return
+            }
+        }
+
         guard reachable == .online else {
             continuation.yield(.offline)
             return

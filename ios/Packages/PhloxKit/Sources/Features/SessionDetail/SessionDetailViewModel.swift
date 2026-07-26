@@ -105,6 +105,13 @@ public final class SessionDetailViewModel {
     }
     public private(set) var modelPickerEntries: [ModelPickerEntry] = []
     public private(set) var selectedModelPickerEntryID: String?
+    /// ドラフトでユーザーが選んだエージェント種別とモデル。表示用 ID と切り離して保持し、
+    /// カタログの一時的な欠落で別 kind へ選択が移ることを防ぐ。
+    private struct DraftModelSelection: Equatable {
+        let kind: AgentKind
+        let modelID: String?
+    }
+    private var draftModelSelection: DraftModelSelection?
     private var draftProject: String?
     /// branch 情報は Session に無いため、取得済みのプロジェクト名だけを代替表示する。
     public var inputContextDisplayName: String? { session.projectName ?? draftProject }
@@ -587,7 +594,7 @@ public final class SessionDetailViewModel {
     }
 
     /// 未 spawn compose の3エージェント分カタログを読み込む。
-    /// Codex は空カタログでも agent-only 行を必ず持つ。
+    /// Codex は既存契約どおり、空カタログでも agent-only 行を必ず持つ。
     public func prepareDraft(_ draft: SessionComposeDraft) async {
         draftProject = draft.project
         guard !hasSpawnedDraft else { return }
@@ -612,26 +619,45 @@ public final class SessionDetailViewModel {
         if catalogs[.codex]?.models.isEmpty ?? true {
             entries.append(ModelPickerEntry(kind: .codex, modelID: nil, displayName: AgentKind.codex.displayName))
         }
-        let previousSelectedKind = modelPickerEntries.first(where: {
-            $0.id == selectedModelPickerEntryID
-        })?.kind
         modelPickerEntries = entries
 
-        if let selectedModelPickerEntryID,
-           entries.contains(where: { $0.id == selectedModelPickerEntryID }) {
+        guard let previousSelection = draftModelSelection else {
+            selectedModelPickerEntryID = Self.defaultDraftEntryID(entries: entries, catalogs: catalogs)
             return
         }
-        if let previousSelectedKind,
-           let sameKindEntry = entries.first(where: { $0.kind == previousSelectedKind }) {
+
+        if let exactEntry = entries.first(where: {
+            $0.kind == previousSelection.kind && $0.modelID == previousSelection.modelID
+        }) {
+            selectedModelPickerEntryID = exactEntry.id
+            return
+        }
+        if let defaultModel = catalogs[previousSelection.kind]?.defaultModel,
+           let defaultEntry = entries.first(where: {
+               $0.kind == previousSelection.kind && $0.modelID == defaultModel
+           }) {
+            draftModelSelection = DraftModelSelection(kind: previousSelection.kind, modelID: defaultModel)
+            selectedModelPickerEntryID = defaultEntry.id
+            return
+        }
+        if let sameKindEntry = entries.first(where: { $0.kind == previousSelection.kind }) {
+            draftModelSelection = DraftModelSelection(
+                kind: previousSelection.kind,
+                modelID: sameKindEntry.modelID
+            )
             selectedModelPickerEntryID = sameKindEntry.id
             return
         }
-        selectedModelPickerEntryID = Self.defaultDraftEntryID(entries: entries, catalogs: catalogs)
+
+        // 行が一時的に存在しなくても、spawn の kind は保持する。ピッカーでは未選択に見せる。
+        draftModelSelection = DraftModelSelection(kind: previousSelection.kind, modelID: nil)
+        selectedModelPickerEntryID = nil
     }
 
     public func selectDraftModel(entryID: String) {
         guard isAwaitingInitialSpawn,
-              modelPickerEntries.contains(where: { $0.id == entryID }) else { return }
+              let entry = modelPickerEntries.first(where: { $0.id == entryID }) else { return }
+        draftModelSelection = DraftModelSelection(kind: entry.kind, modelID: entry.modelID)
         selectedModelPickerEntryID = entryID
     }
 
@@ -689,8 +715,11 @@ public final class SessionDetailViewModel {
         sendState = .sending
         do {
             if let draftProject, !hasSpawnedDraft {
-                let selection = modelPickerEntries.first(where: { $0.id == selectedModelPickerEntryID })
-                    ?? ModelPickerEntry(kind: .codex, modelID: nil, displayName: AgentKind.codex.displayName)
+                let selection = draftModelSelection
+                    ?? modelPickerEntries.first(where: { $0.id == selectedModelPickerEntryID }).map {
+                        DraftModelSelection(kind: $0.kind, modelID: $0.modelID)
+                    }
+                    ?? DraftModelSelection(kind: .codex, modelID: nil)
                 let spawned = try await api.spawn(SpawnRequest(
                     agent: selection.kind,
                     workspace: draftProject,

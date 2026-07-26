@@ -189,11 +189,13 @@ final class AcceptanceConnectingStateTests: XCTestCase {
 
 /// 到達性を後から変えられるテスト用モニタ。`refresh()` の呼び出し回数を数える。
 private actor MutableReachability: ReachabilityMonitoring {
+    private let initialValue: Reachability
     private var value: Reachability
     private let afterRefresh: Reachability?
     private(set) var refreshCount = 0
 
     init(_ initial: Reachability, afterRefresh: Reachability? = nil) {
+        self.initialValue = initial
         self.value = initial
         self.afterRefresh = afterRefresh
     }
@@ -207,10 +209,12 @@ private actor MutableReachability: ReachabilityMonitoring {
         }
     }
 
-    func stream() -> AsyncStream<Reachability> {
-        let snapshot = value
+    // `ReachabilityMonitoring.stream()` は同期要求なので actor 隔離下では満たせない。
+    // 不変の初期値だけを流して即終了する nonisolated 実装にする（Swift 6 の隔離規則に適合）。
+    nonisolated func stream() -> AsyncStream<Reachability> {
+        let initial = initialValue
         return AsyncStream { continuation in
-            continuation.yield(snapshot)
+            continuation.yield(initial)
             continuation.finish()
         }
     }

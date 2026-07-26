@@ -187,7 +187,7 @@ project 付与・アカウント単位の CLI 使用量取得を扱う。正本�
   "defaultModel": "sonnet" }
 ```
 - claudeCode: 静的カタログ（4種）。cursor: 静的 fallback。
-- codex: `{ "models": [], "defaultModel": null }`（モデル選択非対応、意図的空）。
+- codex: Codex CLI から取得したライブカタログ。CLI 不在などで空になりうる。
 - 未知 kind: `404`。
 
 ### 7.4 GET /usage（新設）— アカウント単位の CLI 使用量

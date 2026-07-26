@@ -600,7 +600,7 @@ public final class SessionDetailViewModel {
         }
 
         var entries: [ModelPickerEntry] = []
-        for kind in [AgentKind.claudeCode, .cursor] {
+        for kind in [AgentKind.claudeCode, .cursor, .codex] {
             for model in catalogs[kind]?.models ?? [] {
                 entries.append(ModelPickerEntry(
                     kind: kind,
@@ -609,7 +609,9 @@ public final class SessionDetailViewModel {
                 ))
             }
         }
-        entries.append(ModelPickerEntry(kind: .codex, modelID: nil, displayName: AgentKind.codex.displayName))
+        if catalogs[.codex]?.models.isEmpty ?? true {
+            entries.append(ModelPickerEntry(kind: .codex, modelID: nil, displayName: AgentKind.codex.displayName))
+        }
         modelPickerEntries = entries
 
         if let selectedModelPickerEntryID,

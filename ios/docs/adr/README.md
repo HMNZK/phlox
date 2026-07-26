@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-07-16
+last-verified: 2026-07-26
 ---
 
 # ADR（アーキテクチャ決定記録）索引 — iOS (PhloxMobile)
@@ -14,6 +14,10 @@ iOS コンパニオンアプリ固有の決定の **理由** を残す。追記�
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0030 | [ドラフトのモデル選択は表示用 ID 文字列ではなく `(kind, modelID?)` で保持する](0030-draft-model-selection-kind-and-id.md) | accepted |
+| 0029 | [サブエージェント画面は件数窓＋1メッセージあたりの描画バイト上限（先頭＋末尾を残す）で止める](0029-subagent-window-and-render-budget.md) | accepted |
+| 0028 | [セッションが completed / error でも入力欄を有効のままにする（無効は starting だけ）](0028-input-bar-enabled-on-completed-and-error.md) | accepted |
+| 0027 | [セッション一覧のオフライン画面は到達性の判定が済んで失敗したときだけ出す](0027-session-list-probe-before-offline.md) | accepted |
 | 0026 | [ツールコールは1件でも「ツール実行 ×N」の集約行に畳む（macOS とは意図的に異なる契約）](0026-ios-single-toolcall-grouped-row.md) | active |
 | 0025 | [最低対応を iOS 18.0 へ引き上げ、`TextField(selection:)` でカーソル位置を扱う](0025-ios18-textselection-for-cursor-aware-input.md) | accepted |
 | 0024 | [iOS 質問カードミラー（前方互換デコード・成功後楽観更新・確定ボタン式 UI）](0024-user-question-card-mirror.md) | accepted |

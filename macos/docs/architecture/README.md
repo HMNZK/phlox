@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-07-09
+last-verified: 2026-07-26
 ---
 
 # architecture/
@@ -19,6 +19,7 @@ last-verified: 2026-07-09
 |---|---|
 | `package-structure.md` | SPM パッケージ構成と依存の向き（層構造・SessionFeature 分割・循環なしの確認） |
 | `app-data-storage-and-flavor.md` | アプリのデータ保存先とビルド種別（AppFlavor: Release/Debug 分離） |
+| `agent-model-catalog.md` | spawn 前モデル一覧の live 取得・保持・消費（AgentModelCatalog、CLI パース、フォールバックと観測） |
 | `chat-mode-ux-components.md` | チャットモード UX コンポーネント構成（composer/transcript/サジェスト等の現行分割） |
 | `chat-orchestration.md` | チャットモードのオーケストレーション（`$PHLOX_CLI` spawn/send/wait の現行配線） |
 | `chat-revert-escape-and-interrupt.md` | チャットの中断・Esc・履歴リバート機構 |

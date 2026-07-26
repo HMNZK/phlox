@@ -83,7 +83,7 @@ struct AcceptanceDraftSelectionStabilityTests {
         viewModel.selectDraftModel(entryID: entry.id)
         viewModel.inputText = "Cursor で開始"
 
-        await viewModel.sendMessage()
+        await viewModel.sendMessage(composeDraft: draft)
 
         let request = try #require(await api.spawnRequest)
         #expect(request.agent == .cursor)
@@ -129,7 +129,7 @@ struct AcceptanceDraftSelectionStabilityTests {
         viewModel.selectDraftModel(entryID: entry.id)
         viewModel.inputText = "Claude で開始"
 
-        await viewModel.sendMessage()
+        await viewModel.sendMessage(composeDraft: draft)
 
         let request = try #require(await api.spawnRequest)
         #expect(request.agent == .claudeCode, "kind は変わらない")
@@ -158,7 +158,7 @@ struct AcceptanceDraftSelectionStabilityTests {
         viewModel.selectDraftModel(entryID: entry.id)
         viewModel.inputText = "開始"
 
-        await viewModel.sendMessage()
+        await viewModel.sendMessage(composeDraft: draft)
 
         let request = try #require(await api.spawnRequest)
         #expect(
@@ -182,7 +182,7 @@ struct AcceptanceDraftSelectionStabilityTests {
         viewModel.selectDraftModel(entryID: entry.id)
         viewModel.inputText = "開始"
 
-        await viewModel.sendMessage()
+        await viewModel.sendMessage(composeDraft: draft)
 
         let request = try #require(await api.spawnRequest)
         #expect(

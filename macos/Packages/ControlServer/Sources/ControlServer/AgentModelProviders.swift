@@ -42,6 +42,19 @@ public enum ClaudeModelListParser {
     }
 }
 
+/// Parses the `cursor-agent models` text format. Keeping this pure parser separate from
+/// process execution lets tests freeze the real CLI format while the provider owns I/O.
+public enum CursorModelListParser {
+    public static func parse(_ output: String) -> [String] {
+        output.split(separator: "\n").compactMap { line -> String? in
+            let text = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard text != "Available models", let dash = text.range(of: " - ") else { return nil }
+            let id = String(text[..<dash.lowerBound]).trimmingCharacters(in: .whitespaces)
+            return id.isEmpty ? nil : id
+        }
+    }
+}
+
 /// The live source runs only from `AgentModelCatalog.refresh()` on a utility queue. Its
 /// output is later exposed through a synchronous snapshot so request handlers never wait
 /// for a subprocess.
@@ -49,15 +62,43 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
     public let environment: [String: String]
     public let commands: [AgentKind: String]
     public let timeout: TimeInterval
+    private let commandRunner: @Sendable (String, [String]) async throws -> String
 
     public init(
         environment: [String: String] = ProcessInfo.processInfo.environment,
         commands: [AgentKind: String] = [:],
         timeout: TimeInterval = 8
     ) {
-        self.environment = Self.childEnvironment(base: environment)
+        let childEnvironment = Self.childEnvironment(base: environment)
+        self.init(
+            childEnvironment: childEnvironment,
+            commands: commands,
+            timeout: timeout,
+            commandRunner: { command, arguments in
+                try await Self.runCommand(command, arguments: arguments, environment: childEnvironment, timeout: timeout)
+            }
+        )
+    }
+
+    init(
+        environment: [String: String],
+        commands: [AgentKind: String] = [:],
+        timeout: TimeInterval = 8,
+        commandRunner: @escaping @Sendable (String, [String]) async throws -> String
+    ) {
+        self.init(childEnvironment: Self.childEnvironment(base: environment), commands: commands, timeout: timeout, commandRunner: commandRunner)
+    }
+
+    private init(
+        childEnvironment: [String: String],
+        commands: [AgentKind: String],
+        timeout: TimeInterval,
+        commandRunner: @escaping @Sendable (String, [String]) async throws -> String
+    ) {
+        self.environment = childEnvironment
         self.commands = commands
         self.timeout = timeout
+        self.commandRunner = commandRunner
     }
 
     /// Build the deliberately small environment inherited by CLI children. `cursor-agent`
@@ -80,9 +121,9 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
     public func fetchModels(for kind: AgentKind) async throws -> [ControlModelOption] {
         switch kind {
         case .claudeCode:
-            let output = try await runCommand(
+            let output = try await commandRunner(
                 resolveCommand(for: kind),
-                arguments: ["--bare", "-p", "/model", "--output-format", "json"]
+                ["--bare", "-p", "/model", "--output-format", "json"]
             )
             guard let object = try JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any],
                   let result = object["result"] as? String
@@ -92,13 +133,8 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
             return aliases.map(option)
 
         case .cursor:
-            let output = try await runCommand(resolveCommand(for: kind), arguments: ["models"])
-            let ids = output.split(separator: "\n").compactMap { line -> String? in
-                let text = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard text != "Available models", let dash = text.range(of: " - ") else { return nil }
-                let id = String(text[..<dash.lowerBound]).trimmingCharacters(in: .whitespaces)
-                return id.isEmpty ? nil : id
-            }
+            let output = try await commandRunner(resolveCommand(for: kind), ["models"])
+            let ids = CursorModelListParser.parse(output)
             guard !ids.isEmpty else { throw ProviderError.invalidOutput }
             return ids.map(option)
 
@@ -128,7 +164,12 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
         return candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) ?? name
     }
 
-    private func runCommand(_ command: String, arguments: [String]) async throws -> String {
+    private static func runCommand(
+        _ command: String,
+        arguments: [String],
+        environment: [String: String],
+        timeout: TimeInterval
+    ) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
                 let process = Process()

@@ -1004,7 +1004,7 @@ public final class ChatSessionViewModel: Identifiable {
         case .builtin(.cursor):
             selectedModel = persistedSettings?.selectedModel
                 ?? selectedModel
-                ?? defaultCursorSpawnAgentModel()
+                ?? AgentModelCatalog.defaultModel(for: .cursor)
             selectedPermissionProfile = persistedPermissionOrMode == "plan"
                 ? selectedPermissionProfile
                 : persistedPermissionOrMode ?? selectedPermissionProfile
@@ -1038,13 +1038,6 @@ public final class ChatSessionViewModel: Identifiable {
         default:
             return []
         }
-    }
-
-    private func defaultCursorSpawnAgentModel() -> String? {
-        if availableSpawnAgentModels.contains("composer-2.5") {
-            return "composer-2.5"
-        }
-        return availableSpawnAgentModels.first
     }
 
     /// 選択中の model/permission(mode) を毎回そろえて actor へ渡し、永続コールバックを叩く。

@@ -178,6 +178,7 @@ struct UserQuestionCard: View {
         } else {
             form.selectSingle(question: question.question, label: label)
         }
+        focusedQuestion = nil
     }
 
     private func seedFromAnswers() {

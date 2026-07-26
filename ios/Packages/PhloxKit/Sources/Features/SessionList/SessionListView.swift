@@ -74,7 +74,8 @@ public struct SessionListView: View {
     private var content: some View {
         switch viewModel.state {
         case .loading:
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            DSConnectingIndicator(size: 96)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .empty:
             EmptyStateView(onCreate: { onAddSession("") })
         case .offline:
@@ -134,7 +135,7 @@ public struct SessionListView: View {
 
     private var unreachableViewModel: UnreachableViewModel {
         UnreachableViewModel(
-            reachability: offlineReachability,
+            reachability: reachability,
             host: host,
             lastUpdated: offlineLastUpdated,
             onRetry: {
@@ -142,15 +143,6 @@ public struct SessionListView: View {
                 await viewModel.refresh()
             }
         )
-    }
-
-    private var offlineReachability: Reachability {
-        switch reachability {
-        case .offlineNetwork, .unreachableHost:
-            return reachability
-        default:
-            return .unreachableHost
-        }
     }
 
     private var offlineLastUpdated: Date? {

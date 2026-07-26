@@ -451,13 +451,13 @@ public final class SessionDetailViewModel {
         )
     }
 
-    /// 入力バー有効: awaitingApproval / idle / running のみ。starting / completed / error は無効。
+    /// 入力バー有効: starting 以外。初回 spawn 待ち中は既存どおり有効にする。
     public var inputEnabled: Bool {
         if isAwaitingInitialSpawn { return true }
         switch currentStatus {
-        case .awaitingApproval, .awaitingUserQuestion, .idle, .running:
+        case .awaitingApproval, .awaitingUserQuestion, .idle, .running, .completed, .error:
             return true
-        case .starting, .completed, .error:
+        case .starting:
             return false
         }
     }

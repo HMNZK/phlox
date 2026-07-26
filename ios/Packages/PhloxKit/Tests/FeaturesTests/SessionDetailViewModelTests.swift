@@ -31,9 +31,9 @@ final class SessionDetailViewModelTests: XCTestCase {
         XCTAssertTrue(SessionDetailViewModel(session: session(.idle), api: MockAPI()).inputEnabled)
     }
 
-    func testInputDisabledForTerminalStatuses() {
-        XCTAssertFalse(SessionDetailViewModel(session: session(.completed(exitCode: 0)), api: MockAPI()).inputEnabled)
-        XCTAssertFalse(SessionDetailViewModel(session: session(.error(message: "e")), api: MockAPI()).inputEnabled)
+    func testInputEnabledForTerminalStatusesButDisabledWhileStarting() {
+        XCTAssertTrue(SessionDetailViewModel(session: session(.completed(exitCode: 0)), api: MockAPI()).inputEnabled)
+        XCTAssertTrue(SessionDetailViewModel(session: session(.error(message: "e")), api: MockAPI()).inputEnabled)
         XCTAssertFalse(SessionDetailViewModel(session: session(.starting), api: MockAPI()).inputEnabled)
     }
 
@@ -172,7 +172,7 @@ final class SessionDetailViewModelTests: XCTestCase {
         let running = SessionDetailViewModel(session: session(.running), api: MockAPI())
         XCTAssertTrue(running.isInputBarEnabled)
         let completed = SessionDetailViewModel(session: session(.completed(exitCode: 0)), api: MockAPI())
-        XCTAssertFalse(completed.isInputBarEnabled)
+        XCTAssertTrue(completed.isInputBarEnabled)
     }
 
     func testIsVisibleExcludesWhitespaceOnlyMessages() {

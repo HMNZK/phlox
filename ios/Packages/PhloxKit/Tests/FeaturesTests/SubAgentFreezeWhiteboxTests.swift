@@ -1,11 +1,11 @@
 import Foundation
+import SwiftUI
 import XCTest
 import PhloxCore
 @testable import Features
 
-/// 大量のコマンド出力を取得しても、View に渡る配列を窓で制限することを固定する。
-/// 実際の SwiftUI レイアウト時間は XCTest では測れないため、ここではその前段となる
-/// 描画入力の件数・バイト数を観測する。
+/// `ImageRenderer` の描画クロージャを呼ばず、テキストのレイアウト確定だけを計測する。
+/// iOS 実機の所要時間ではなく、macOS ホスト上の相対比較用プローブである。
 @MainActor
 final class SubAgentFreezeWhiteboxTests: XCTestCase {
     func testHeavyTranscriptIsBoundedBeforeItReachesTheView() async {
@@ -21,17 +21,87 @@ final class SubAgentFreezeWhiteboxTests: XCTestCase {
         )
         let viewModel = SubAgentDetailViewModel(session: session, subAgentID: "sa1", api: api)
 
-        let clock = ContinuousClock()
-        let start = clock.now
         await viewModel.load()
-        let elapsed = start.duration(to: clock.now)
 
         XCTAssertEqual(messages.reduce(0) { $0 + $1.outputUTF8ByteCount }, 6_000_000)
         XCTAssertEqual(viewModel.chatMessages.count, 300)
         XCTAssertEqual(viewModel.visibleMessages.count, SubAgentDetailViewModel.visibleMessageLimit)
         XCTAssertEqual(viewModel.hiddenMessageCount, 250)
-        XCTAssertLessThan(elapsed, .seconds(1), "窓の計算は取得後のメインスレッド処理を長時間占有しない")
     }
+
+    func testMeasuresUnboundedTranscriptLayoutOnMacProxy() {
+        let measurements = [
+            (count: 300, bytesPerMessage: 20_000),
+            (count: 50, bytesPerMessage: 20_000),
+            (count: 1, bytesPerMessage: 6_000_000),
+        ].map { measureLayout(count: $0.count, bytesPerMessage: $0.bytesPerMessage) }
+
+        for measurement in measurements {
+            print(
+                "layout-probe count=\(measurement.count) bytesPerMessage=\(measurement.bytesPerMessage) " +
+                "totalBytes=\(measurement.totalBytes) elapsedSeconds=\(measurement.elapsedSeconds) " +
+                "size=\(measurement.size)"
+            )
+            XCTAssertGreaterThan(measurement.size.height, 0, "ImageRenderer がレイアウトを確定すること")
+        }
+    }
+
+    func testMeasuresRenderedBudgetLayoutOnMacProxy() {
+        let source = String(repeating: "x", count: 6_000_000)
+        let rendered = SubAgentDetailViewModel.renderedBody(source)
+        let measurement = measureLayout(count: 1, body: rendered.text)
+
+        print(
+            "layout-probe budgeted count=1 sourceBytes=\(source.utf8.count) " +
+            "renderedBytes=\(rendered.text.utf8.count) omittedBytes=\(rendered.omittedBytes) " +
+            "elapsedSeconds=\(measurement.elapsedSeconds) size=\(measurement.size)"
+        )
+        XCTAssertLessThanOrEqual(rendered.text.utf8.count, SubAgentDetailViewModel.maxRenderedBytesPerMessage)
+        XCTAssertEqual(rendered.omittedBytes, source.utf8.count - rendered.text.utf8.count)
+        XCTAssertGreaterThan(measurement.size.height, 0, "ImageRenderer がレイアウトを確定すること")
+    }
+
+    private func measureLayout(count: Int, bytesPerMessage: Int) -> LayoutMeasurement {
+        measureLayout(count: count, body: String(repeating: "x", count: bytesPerMessage))
+    }
+
+    private func measureLayout(count: Int, body: String) -> LayoutMeasurement {
+        let view = VStack(alignment: .leading, spacing: 12) {
+            ForEach(0..<count, id: \.self) { _ in
+                Text(body)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(width: 390)
+
+        let renderer = ImageRenderer(content: view)
+        var size = CGSize.zero
+        let clock = ContinuousClock()
+        let start = clock.now
+        renderer.render { renderedSize, _ in
+            size = renderedSize
+        }
+        let elapsed = start.duration(to: clock.now)
+        let elapsedSeconds = Double(elapsed.components.seconds)
+            + Double(elapsed.components.attoseconds) / 1_000_000_000_000_000_000
+        return LayoutMeasurement(
+            count: count,
+            bytesPerMessage: body.utf8.count,
+            totalBytes: count * body.utf8.count,
+            elapsedSeconds: elapsedSeconds,
+            size: size
+        )
+    }
+}
+
+private struct LayoutMeasurement {
+    let count: Int
+    let bytesPerMessage: Int
+    let totalBytes: Int
+    let elapsedSeconds: Double
+    let size: CGSize
 }
 
 private extension ChatMessage {

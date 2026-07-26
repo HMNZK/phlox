@@ -16,6 +16,29 @@ public final class SubAgentDetailViewModel {
 
     public static var visibleMessageLimit: Int { TranscriptWindow.defaultLimit }
 
+    /// 1 メッセージについて SwiftUI に渡す本文の UTF-8 バイト数の上限。
+    nonisolated public static var maxRenderedBytesPerMessage: Int { 16 * 1024 }
+
+    /// 表示用の本文を UTF-8 バイト数で切り詰める。`Character` 単位で進めるため、
+    /// マルチバイト文字や書記素クラスタの途中で切断しない。
+    nonisolated public static func renderedBody(_ text: String) -> (text: String, omittedBytes: Int) {
+        let originalBytes = text.utf8.count
+        guard originalBytes > maxRenderedBytesPerMessage else {
+            return (text, 0)
+        }
+
+        var retainedBytes = 0
+        var endIndex = text.startIndex
+        while endIndex < text.endIndex {
+            let nextIndex = text.index(after: endIndex)
+            let characterBytes = text[endIndex..<nextIndex].utf8.count
+            guard retainedBytes + characterBytes <= maxRenderedBytesPerMessage else { break }
+            retainedBytes += characterBytes
+            endIndex = nextIndex
+        }
+        return (String(text[..<endIndex]), originalBytes - retainedBytes)
+    }
+
     public init(session: Session, subAgentID: String, api: PhloxAPI) {
         self.session = session
         self.subAgentID = subAgentID

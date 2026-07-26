@@ -47,36 +47,56 @@ public struct SubAgentDetailView: View {
         let copyText = ChatMessageCopyText.copyText(for: message)
         switch message {
         case let .user(_, text):
-            DSChatBubble(role: .user, message: text, copyText: copyText)
+            let rendered = SubAgentDetailViewModel.renderedBody(text)
+            renderedMessage(rendered) {
+                DSChatBubble(role: .user, message: rendered.text, copyText: copyText)
+            }
         case let .agent(_, text):
-            DSChatBubble(
-                role: .agent,
-                message: text,
-                agentKind: viewModel.session.agent,
-                copyText: copyText
-            )
-        case let .reasoning(_, text):
-            chatRowWithCopy(copyText: copyText) {
-                DSReasoningText(text: text)
-            }
-        case let .subAgent(_, text):
-            chatRowWithCopy(copyText: copyText) {
-                DSSubAgentRow(text: text)
-            }
-        case let .command(_, command, output):
-            chatRowWithCopy(copyText: copyText) {
-                chatMonospaceCard(title: command.map { "$ \($0)" } ?? "$", body: output)
-            }
-        case let .fileChange(_, changes):
-            chatRowWithCopy(copyText: copyText) {
-                chatMonospaceCard(
-                    title: "ファイル変更",
-                    body: changes.map { "\($0.path)\n\($0.diff)" }.joined(separator: "\n\n")
+            let rendered = SubAgentDetailViewModel.renderedBody(text)
+            renderedMessage(rendered) {
+                DSChatBubble(
+                    role: .agent,
+                    message: rendered.text,
+                    agentKind: viewModel.session.agent,
+                    copyText: copyText
                 )
             }
-        case let .error(_, message):
+        case let .reasoning(_, text):
+            let rendered = SubAgentDetailViewModel.renderedBody(text)
             chatRowWithCopy(copyText: copyText) {
-                DSResultBanner(message: message, isError: true)
+                renderedMessage(rendered) {
+                    DSReasoningText(text: rendered.text)
+                }
+            }
+        case let .subAgent(_, text):
+            let rendered = SubAgentDetailViewModel.renderedBody(text)
+            chatRowWithCopy(copyText: copyText) {
+                renderedMessage(rendered) {
+                    DSSubAgentRow(text: rendered.text)
+                }
+            }
+        case let .command(_, command, output):
+            let rendered = SubAgentDetailViewModel.renderedBody(output)
+            chatRowWithCopy(copyText: copyText) {
+                renderedMessage(rendered) {
+                    chatMonospaceCard(title: command.map { "$ \($0)" } ?? "$", body: rendered.text)
+                }
+            }
+        case let .fileChange(_, changes):
+            let rendered = SubAgentDetailViewModel.renderedBody(
+                changes.map { "\($0.path)\n\($0.diff)" }.joined(separator: "\n\n")
+            )
+            chatRowWithCopy(copyText: copyText) {
+                renderedMessage(rendered) {
+                    chatMonospaceCard(title: "ファイル変更", body: rendered.text)
+                }
+            }
+        case let .error(_, message):
+            let rendered = SubAgentDetailViewModel.renderedBody(message)
+            chatRowWithCopy(copyText: copyText) {
+                renderedMessage(rendered) {
+                    DSResultBanner(message: rendered.text, isError: true)
+                }
             }
         case .userQuestion:
             // AskUserQuestion はサブエージェント内では使えない（CLI 制約）ため表示なし。
@@ -94,6 +114,21 @@ public struct SubAgentDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             if let copyText {
                 ChatMessageCopyButton(text: copyText)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func renderedMessage<Content: View>(
+        _ rendered: (text: String, omittedBytes: Int),
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            content()
+            if rendered.omittedBytes > 0 {
+                Text("表示を省略しました（\(rendered.omittedBytes) バイト）。コピーには全文が含まれます。")
+                    .font(DSFont.footnote)
+                    .foregroundStyle(DSColor.campTextQuaternary)
             }
         }
     }

@@ -5,6 +5,16 @@ import StructuredChatKit
 
 @Suite("Whitebox: UserQuestionFormModel 自由入力フォーカス（task-5）")
 struct UserQuestionFocusWhiteboxTests {
+    private func cellSource() throws -> String {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let sourceURL = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/SessionFeature/UserQuestionCell.swift")
+        return try String(contentsOf: sourceURL, encoding: .utf8)
+    }
+
     private func question(_ text: String) -> ChatUserQuestion {
         ChatUserQuestion(
             question: text,
@@ -58,5 +68,21 @@ struct UserQuestionFocusWhiteboxTests {
 
         #expect(form.selections["Q1"] == ["A"])
         #expect(form.payload == ["Q1": ["A"]])
+    }
+
+    @Test func 自由入力欄のフォーカスがモデルへ配線されている() throws {
+        let source = try cellSource()
+
+        #expect(source.contains("@FocusState private var focusedFreeTextQuestion"))
+        #expect(source.contains(".focused($focusedFreeTextQuestion, equals: question.question)"))
+        #expect(source.contains("form.freeTextDidFocus(question: question.question)"))
+        #expect(source.contains("form.freeTextDidChangeWhileFocused(question: questionText, text: newValue)"))
+    }
+
+    @Test func 自由入力欄は複数行で折り返す() throws {
+        let source = try cellSource()
+
+        #expect(source.contains("axis: .vertical"))
+        #expect(source.contains(".lineLimit(1...4)"))
     }
 }

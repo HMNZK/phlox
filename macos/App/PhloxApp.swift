@@ -64,7 +64,8 @@ struct PhloxApp: App {
                     DashboardView(
                         viewModel: composition.dashboard,
                         router: composition.router,
-                        usageMonitor: composition.usage
+                        usageMonitor: composition.usage,
+                        agentConsoleWindowID: AgentConsoleCommands.windowID
                     )
                 } else if let initFailure {
                     InitErrorView(failure: initFailure, retry: { Task { await initialize() } })
@@ -101,6 +102,7 @@ struct PhloxApp: App {
                 dashboard: composition?.dashboard,
                 router: composition?.router
             )
+            AgentConsoleCommands()
         }
 
         Settings {
@@ -112,6 +114,34 @@ struct PhloxApp: App {
             )
             .environment(\.locale, appLanguage.locale)
         }
+
+        // 対話 TUI 専用のスラッシュコマンド（/plugin・/permissions 等）と、
+        // 設定ファイルの手編集でしか触れない項目の置き換え画面。
+        // ヘッドレスのセッションへは送れないため、Phlox 側の画面として持つ。
+        Window("エージェント管理", id: AgentConsoleCommands.windowID) {
+            AgentConsoleWindowView(
+                claudeExecutablePath: composition?.environment.claudeBinaryPath,
+                pathEnvironment: composition?.environment.pathEnvironment
+                    ?? ProcessInfo.processInfo.environment["PATH"] ?? "",
+                projectDirectory: selectedProjectDirectory
+            )
+            .preferredColorScheme(ThemeStore.active.preferredColorScheme)
+            .environment(\.locale, appLanguage.locale)
+        }
+        .defaultSize(width: 900, height: 620)
+    }
+
+    /// 選択中セッションが属するプロジェクトのディレクトリ。管理画面の「メモリ」で
+    /// プロジェクト側の CLAUDE.md を出すために使う。未選択なら nil。
+    @MainActor
+    private var selectedProjectDirectory: URL? {
+        guard let composition,
+              let sessionID = composition.router.selectedSession,
+              let session = composition.dashboard.sessions.first(where: { $0.id == sessionID }),
+              let projectID = session.projectID,
+              let project = composition.dashboard.projects.first(where: { $0.id == projectID })
+        else { return nil }
+        return project.directoryURL
     }
 
     private func initialize() async {
@@ -389,6 +419,22 @@ final class AppUpdater: ObservableObject {
     }
 }
 
+/// 「エージェント管理」ウィンドウを開くメニュー項目。
+struct AgentConsoleCommands: Commands {
+    static let windowID = "agent-console"
+
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(after: .appSettings) {
+            Button("エージェント管理…") {
+                openWindow(id: Self.windowID)
+            }
+            .keyboardShortcut(",", modifiers: [.command, .shift])
+        }
+    }
+}
+
 private struct UpdateCommands: Commands {
     @ObservedObject var appUpdater: AppUpdater
 
@@ -478,7 +524,31 @@ private struct SessionCommands: Commands {
             }
             .keyboardShortcut("w", modifiers: .command)
             .disabled(!canCloseSession)
+
+            Divider()
+
+            // 対話 TUI の /export 相当。チャットセッションのみ対象（PTY は transcript を持たない）。
+            Button {
+                guard let chat = exportableChatSession else { return }
+                ChatTranscriptExportAction.save(session: chat)
+            } label: {
+                Label("会話を書き出す…", systemImage: "square.and.arrow.up")
+            }
+            .keyboardShortcut("e", modifiers: [.command, .shift])
+            .disabled(exportableChatSession == nil)
+
+            Button {
+                guard let chat = exportableChatSession else { return }
+                ChatTranscriptExportAction.copyToPasteboard(session: chat)
+            } label: {
+                Label("会話を Markdown でコピー", systemImage: "doc.on.doc")
+            }
+            .disabled(exportableChatSession == nil)
         }
+    }
+
+    private var exportableChatSession: ChatSessionViewModel? {
+        ChatTranscriptExportAction.selectedChatSession(dashboard: dashboard, router: router)
     }
 
     private static let shortcuts: [AgentKind: KeyboardShortcut] = [

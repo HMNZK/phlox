@@ -12,6 +12,7 @@ last-verified: 2026-07-26
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0121 | [対話 TUI・設定ファイル手編集でしか触れない設定を Phlox の管理画面へ集約する（Claude Code / Codex / Cursor）](0121-agent-management-console.md) | active |
 | 0120 | [スラッシュコマンド補完の正本を静的リストからセッションの提供一覧（system/init）へ移す](0120-slash-suggestions-from-session-init.md) | active |
 | 0119 | [完了通知判定を SessionCompletionNotificationPolicy へ一元化し、ADR 0064 の idle 無視ガードは復元推定ターンのみ例外とする](0119-session-completion-notification-policy.md) | active |
 | 0118 | [transcript の切り詰めを廃止し、Markdown の折返し高さを非表ブロックで確保する](0118-transcript-text-truncation-overlap.md) | active |

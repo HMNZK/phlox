@@ -43,6 +43,14 @@ public final class CompositionRoot {
         let hookInfra = try await Self.startHookInfrastructure()
         let claudeSettings = try Self.prepareClaudeSettings()
         let agents = try await Self.resolveAgentBinariesAndCatalog()
+        let liveModelProvider = CachingAgentModelProvider(source: LiveAgentModelProvider(
+            environment: ["PATH": agents.pathEnvironment],
+            commands: agents.agentBinaryPaths
+        ))
+        AgentModelCatalog.configure(provider: liveModelProvider)
+        // GET /agents/... remains a synchronous snapshot read. Refresh once at startup,
+        // rather than starting CLI processes each time a model picker is displayed.
+        Task.detached { await AgentModelCatalog.refresh() }
         let stores = try Self.createWorkspaceAndPersistenceStores()
         let deviceTokenStore = KeychainDeviceTokenStore()
         let control = try await Self.startControlServer(

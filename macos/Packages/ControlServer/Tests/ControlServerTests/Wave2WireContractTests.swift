@@ -3,7 +3,7 @@ import Testing
 @testable import ControlServer
 
 /// task-1 受け入れテスト（PM 著・実装役は編集禁止）。
-/// spawn 前のモデル選択に使う「エージェント別・静的モデルカタログ」の契約を凍結する。
+/// spawn 前のモデル選択に使うエージェント別モデルカタログの契約を凍結する。
 /// `GET /agents/{kind}/models` はこの AgentModelCatalog を配信する。
 /// spawn+model / 一覧project / usage のワイヤ形状は wire-contract.md を正本とし、
 /// 実装役の白箱テスト（Wave2ServerWireWhiteboxTests）と Phase4 E2E で担保する。
@@ -17,8 +17,9 @@ struct Wave2WireContractTests {
         #expect(AgentModelCatalog.defaultModel(for: .claudeCode) != nil)
     }
 
-    @Test("codex はモデル選択非対応（空カタログ）")
-    func codexCatalogEmpty() {
-        #expect(AgentModelCatalog.models(for: .codex).isEmpty)
+    @Test("Codex は live カタログによりモデル選択を提供できる")
+    func codexCatalogUsesItsCurrentSnapshot() {
+        let models = AgentModelCatalog.models(for: .codex)
+        #expect(AgentModelCatalog.defaultModel(for: .codex) == models.first?.id)
     }
 }

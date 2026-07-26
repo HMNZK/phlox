@@ -918,7 +918,9 @@ public final class ChatSessionViewModel: Identifiable {
     /// 選択モデルが effort をサポートするか（nil は非対応扱い）。
     nonisolated static func claudeModelSupportsEffort(_ alias: String?) -> Bool {
         guard let alias else { return false }
-        return !claudeEffortUnsupportedModelAliases.contains(alias)
+        // Dynamic aliases such as haiku[1m] inherit the base model's capability.
+        let baseAlias = alias.split(separator: "[", maxSplits: 1).first.map(String.init) ?? alias
+        return !claudeEffortUnsupportedModelAliases.contains(baseAlias)
     }
 
     /// Claude セッションかつ effort 対応モデルでは effort 候補を返し、非対応モデル・Cursor 等では空（メニュー非表示）。

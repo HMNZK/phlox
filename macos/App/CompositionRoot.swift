@@ -44,13 +44,29 @@ public final class CompositionRoot {
         let claudeSettings = try Self.prepareClaudeSettings()
         let agents = try await Self.resolveAgentBinariesAndCatalog()
         let liveModelProvider = CachingAgentModelProvider(source: LiveAgentModelProvider(
-            environment: ["PATH": agents.pathEnvironment],
+            // GUI apps need an explicit PATH, while cursor-agent's `set -u` wrapper needs
+            // HOME. USER/LANG preserve normal CLI identity and locale semantics.
+            environment: LiveAgentModelProvider.childEnvironment(base: ["PATH": agents.pathEnvironment]),
             commands: agents.agentBinaryPaths
         ))
         AgentModelCatalog.configure(provider: liveModelProvider)
-        // GET /agents/... remains a synchronous snapshot read. Refresh once at startup,
-        // rather than starting CLI processes each time a model picker is displayed.
-        Task.detached { await AgentModelCatalog.refresh() }
+        // GET /agents/... remains a synchronous snapshot read. Refresh runs only in this
+        // background task so request handlers never wait for a CLI process.
+        Task.detached {
+            while !Task.isCancelled {
+                await AgentModelCatalog.refresh()
+                let fallbacks = AgentModelCatalog.kindsUsingFallback()
+                if !fallbacks.isEmpty {
+                    Self.proxyLogger.warning("Live model catalog fallback active for: \(fallbacks.map(\.rawValue).sorted().joined(separator: ", "), privacy: .public)")
+                }
+                do {
+                    try await Task.sleep(for: .seconds(300))
+                } catch {
+                    // Cancellation is the task's normal shutdown signal.
+                    break
+                }
+            }
+        }
         let stores = try Self.createWorkspaceAndPersistenceStores()
         let deviceTokenStore = KeychainDeviceTokenStore()
         let control = try await Self.startControlServer(

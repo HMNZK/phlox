@@ -1,7 +1,9 @@
 import AgentDomain
 import Foundation
+import os
 
 public enum AgentModelCatalog {
+    private static let logger = Logger(subsystem: "com.phlox.Phlox", category: "AgentModelCatalog")
     private static let claudeModels = [
         ControlModelOption(id: "opus", displayName: "Opus 4.8"),
         ControlModelOption(id: "sonnet", displayName: "Sonnet 5"),
@@ -40,9 +42,9 @@ public enum AgentModelCatalog {
         }
     }
 
-    /// Refreshes off the synchronous request path. A failed provider is observable and
-    /// leaves that kind on its built-in fallback; an empty successful response is kept as
-    /// an intentional live catalog (not silently replaced).
+    /// Refreshes off the synchronous request path. Failures are emitted to the unified
+    /// log and leave that kind on its built-in fallback; an empty successful response is
+    /// kept as an intentional live catalog (not silently replaced).
     public static func refresh() async {
         let configuration = state.lock.withLock { (state.provider, state.generation) }
         let configuredProvider = configuration.0
@@ -56,6 +58,7 @@ public enum AgentModelCatalog {
             } catch {
                 refreshed[kind] = builtinModels(for: kind)
                 failures.insert(kind)
+                logger.error("Live model refresh failed for \(kind.rawValue, privacy: .public); using built-in fallback: \(String(describing: error), privacy: .public)")
             }
         }
         state.lock.withLock {
@@ -72,7 +75,13 @@ public enum AgentModelCatalog {
     }
 
     public static func defaultModel(for kind: AgentKind) -> String? {
-        models(for: kind).first?.id
+        let models = models(for: kind)
+        // Claude's documented and historical default is sonnet. Keep that choice stable
+        // when a live refresh fails and falls back to the built-in list.
+        if kind == .claudeCode, models.contains(where: { $0.id == "sonnet" }) {
+            return "sonnet"
+        }
+        return models.first?.id
     }
 
     private final class State: @unchecked Sendable {

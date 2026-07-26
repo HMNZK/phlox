@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import AgentDomain
+import ControlServer
 import CodexAppServerKit
 import StructuredChatKit
 
@@ -900,10 +901,6 @@ public final class ChatSessionViewModel: Identifiable {
 
     // MARK: - Spawn agent (Claude/Cursor) settings
 
-    /// Claude の固定 model alias。実 CLI の `--model`（opus/sonnet/fable/haiku）に対応（D2）。
-    /// haiku は 2026-07-03 に `--model haiku` の実応答（claude-haiku-4-5）を実測確認して追加。
-    static let claudeModelAliases = ["opus", "sonnet", "fable", "haiku"]
-
     /// Claude spawn セッションで選択可能な effort（CLI `--effort` の有効値）。
     static let claudeEffortLevelOptions = ["low", "medium", "high", "xhigh", "max"]
 
@@ -934,22 +931,22 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
-    /// alias → 表示名（バージョン付き）。CLI からバージョンを動的取得する手段が無いため
-    /// 手動対応表とする（公式ピッカーの表記に追随。モデル更新時はここを更新する）。
-    /// 未知の alias（Cursor のモデル名等）はそのまま表示する。
-    static let spawnAgentModelDisplayNames: [String: String] = [
-        "opus": "Opus 4.8",
-        "sonnet": "Sonnet 5",
-        "fable": "Fable 5",
-        "haiku": "Haiku 4.5",
-    ]
-
-    /// モデル alias の表示名を返す（対応表に無ければ alias をそのまま返す）。
+    /// モデル表示名は spawn 前と同じ live catalog のスナップショットを正本にする。
     public func spawnAgentModelDisplayName(_ alias: String) -> String {
-        Self.spawnAgentModelDisplayNames[alias] ?? alias
+        let kind: AgentKind? = switch agentRef {
+        case .builtin(.claudeCode): .claudeCode
+        case .builtin(.cursor): .cursor
+        default: nil
+        }
+        return kind.flatMap { kind in
+            AgentModelCatalog.models(for: kind).first(where: { $0.id == alias })?.displayName
+        } ?? alias
     }
-    /// Cursor の `cursor-agent models` 取得に失敗した/未注入のときに使う小さな fallback（起動を妨げない）。
-    static let cursorFallbackModels = ["gpt-5", "sonnet-4.5", "opus-4.1"]
+
+    /// 互換用の読み取り窓口。静的定義ではなく、ControlServer の同一スナップショットを返す。
+    public static var cursorFallbackModels: [String] {
+        AgentModelCatalog.models(for: .cursor).map(\.id)
+    }
 
     /// task-11 が呼ぶ model 変更ハンドラ。選択を保持し、フルスナップショットで actor へ反映する。
     public func setSpawnAgentModel(_ model: String?) async {
@@ -996,7 +993,7 @@ public final class ChatSessionViewModel: Identifiable {
         case .builtin(.claudeCode):
             selectedModel = persistedSettings?.selectedModel
                 ?? selectedModel
-                ?? Self.claudeModelAliases.first
+                ?? AgentModelCatalog.defaultModel(for: .claudeCode)
             if Self.claudeModelSupportsEffort(selectedModel) {
                 selectedEffort = persistedSettings?.selectedEffort
                     ?? selectedEffort
@@ -1038,13 +1035,9 @@ public final class ChatSessionViewModel: Identifiable {
     private func resolveSpawnAgentModels() async -> [String] {
         switch agentRef {
         case .builtin(.claudeCode):
-            return Self.claudeModelAliases
+            return AgentModelCatalog.models(for: .claudeCode).map(\.id)
         case .builtin(.cursor):
-            if let spawnAgentModelsProvider {
-                let fetched = await spawnAgentModelsProvider()
-                if !fetched.isEmpty { return fetched }
-            }
-            return Self.cursorFallbackModels
+            return AgentModelCatalog.models(for: .cursor).map(\.id)
         default:
             return []
         }

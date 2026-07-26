@@ -9,7 +9,7 @@ public protocol AgentModelListProviding: Sendable {
 }
 
 /// Keeps CLI results out of the model-picker request path. Failed fetches are deliberately
-/// not cached so the next scheduled refresh can recover without restarting the application.
+/// not cached so the periodic background refresh can recover without restarting the application.
 public actor CachingAgentModelProvider: AgentModelListProviding {
     private let source: any AgentModelListProviding
     private let ttl: TimeInterval
@@ -62,9 +62,26 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
         commands: [AgentKind: String] = [:],
         timeout: TimeInterval = 8
     ) {
-        self.environment = environment
+        self.environment = Self.childEnvironment(base: environment)
         self.commands = commands
         self.timeout = timeout
+    }
+
+    /// Build the deliberately small environment inherited by CLI children. `cursor-agent`
+    /// is a `set -u` shell wrapper and requires HOME; USER and LANG retain normal identity
+    /// and locale behaviour while PATH resolves binaries from a GUI-launched application.
+    public static func childEnvironment(base: [String: String]) -> [String: String] {
+        var child = base
+        child["HOME"] = child["HOME"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? ProcessInfo.processInfo.environment["HOME"]
+            ?? NSHomeDirectory()
+        child["USER"] = child["USER"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? ProcessInfo.processInfo.environment["USER"]
+            ?? NSUserName()
+        child["LANG"] = child["LANG"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? ProcessInfo.processInfo.environment["LANG"]
+            ?? "en_US.UTF-8"
+        return child
     }
 
     public func fetchModels(for kind: AgentKind) async throws -> [ControlModelOption] {
@@ -127,13 +144,16 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
                 process.environment = environment
                 let stdout = Pipe()
                 process.standardOutput = stdout
-                process.standardError = FileHandle.nullDevice
+                let stderr = Pipe()
+                process.standardError = stderr
                 let gate = CompletionGate<String>(continuation)
                 do {
                     try process.run()
                     DispatchQueue.global(qos: .utility).async {
                         let output = String(decoding: stdout.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-                        gate.resume(process.terminationStatus == 0 ? .success(output) : .failure(ProviderError.commandFailed))
+                        let errorOutput = String(decoding: stderr.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+                        process.waitUntilExit()
+                        gate.resume(process.terminationStatus == 0 ? .success(output) : .failure(ProviderError.commandFailed(errorOutput)))
                     }
                     DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) {
                         if process.isRunning { process.terminate() }
@@ -170,7 +190,7 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
                         while true {
                             let data = stdout.fileHandleForReading.availableData
                             guard !data.isEmpty else {
-                                gate.resume(.failure(ProviderError.commandFailed))
+                                gate.resume(.failure(ProviderError.commandFailed("codex app-server closed stdout before model/list response")))
                                 return
                             }
                             for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
@@ -200,7 +220,19 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
         }
     }
 
-    private enum ProviderError: Error { case invalidOutput, commandFailed, timedOut }
+    private enum ProviderError: Error, LocalizedError {
+        case invalidOutput
+        case commandFailed(String)
+        case timedOut
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidOutput: "CLI returned no usable model list"
+            case let .commandFailed(stderr): "CLI exited unsuccessfully: \(stderr.trimmingCharacters(in: .whitespacesAndNewlines))"
+            case .timedOut: "CLI model-list request timed out"
+            }
+        }
+    }
 }
 
 private final class CompletionGate<Value: Sendable>: @unchecked Sendable {

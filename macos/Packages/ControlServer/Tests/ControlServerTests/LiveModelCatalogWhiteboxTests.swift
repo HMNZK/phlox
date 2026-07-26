@@ -20,6 +20,15 @@ struct LiveModelCatalogWhiteboxTests {
         let result = "Usage: /model <name>. Available: default, opusplan, haiku[1m], or a full model ID."
         #expect(ClaudeModelListParser.parse(resultText: result) == ["default", "opusplan", "haiku[1m]"])
     }
+
+    @Test("CLI 子プロセスには PATH だけでなく HOME を渡す（cursor-agent は HOME 必須）")
+    func childEnvironmentAlwaysCarriesRequiredVariables() {
+        let environment = LiveAgentModelProvider.childEnvironment(base: ["PATH": "/usr/bin:/bin"])
+        #expect(environment["PATH"] == "/usr/bin:/bin")
+        #expect(!(environment["HOME"] ?? "").isEmpty)
+        #expect(!(environment["USER"] ?? "").isEmpty)
+        #expect(!(environment["LANG"] ?? "").isEmpty)
+    }
 }
 
 private actor CountingProvider: AgentModelListProviding {

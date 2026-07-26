@@ -74,11 +74,12 @@ struct IOSToolCallGroupingWhiteboxTests {
 
         #expect(slice.hiddenItemCount == 2)
         #expect(slice.blocks.first?.id == "c1")
-        guard case .single(let message) = slice.blocks[0].content else {
-            Issue.record("expected a single-item partial block")
+        guard case .commandGroup(let id, let grouped) = slice.blocks[0].content else {
+            Issue.record("expected a single-item command group partial block")
             return
         }
-        #expect(message.id == "c3")
+        #expect(id == "c3")
+        #expect(grouped.map(\.id) == ["c3"])
     }
 
     @Test func 集約カードは件数見出しと末尾コマンドの実行中状態を持つ() {
@@ -139,6 +140,19 @@ struct IOSToolCallGroupingWhiteboxTests {
 
         #expect(presentation.rows.isEmpty)
         #expect(!presentation.shouldRender)
+    }
+
+    @Test func 単独で空出力かつ非実行中でもコマンド行を残して描画する() {
+        let presentation = SessionDetailCommandGroupPresentation(
+            items: [cmd("c1", output: "")],
+            lastTranscriptID: "c1",
+            isTurnRunning: false
+        )
+
+        #expect(presentation.rows.map(\.id) == ["c1"])
+        #expect(presentation.rows.first?.command == "command c1")
+        #expect(presentation.rows.first?.output.isEmpty == true)
+        #expect(presentation.shouldRender)
     }
 
     @Test func transcriptSliceはwindowとグループidentityを両立する() {

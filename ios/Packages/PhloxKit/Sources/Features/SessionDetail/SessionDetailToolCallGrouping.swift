@@ -1,9 +1,9 @@
 import Foundation
 import PhloxCore
 
-/// SessionDetail transcript のトップレベル描画単位（phlox-ux-5fixes task-5 契約）。
-/// Mac の `ChatTranscriptBlock`（single / commandGroup）に対応する iOS 版。
-/// 契約の正本: tasks/task-5.md（受け入れテスト AcceptanceIOSToolCallGroupingTests が凍結）。
+/// SessionDetail transcript のトップレベル描画単位（task-1 契約）。
+/// iOS では連続する 1 件以上の `.command` を `commandGroup` に集約する。
+/// macOS の 2 件以上を集約する契約とは意図的に異なる。
 public enum SessionDetailChatBlock: Identifiable, Equatable, Sendable {
     case single(ChatMessage)
     case commandGroup(id: String, items: [ChatMessage])
@@ -28,7 +28,7 @@ public struct SessionDetailTranscriptBlockSlice: Equatable, Sendable {
     public let hiddenItemCount: Int
 }
 
-/// 連続する `.command` メッセージを 1 ブロックへ集約する純関数（task-5 契約）。
+/// 連続する 1 件以上の `.command` メッセージを 1 ブロックへ集約する純関数（task-1 契約）。
 public enum SessionDetailToolCallGrouping {
     public static func blocks(from messages: [ChatMessage]) -> [SessionDetailChatBlock] {
         makeBlocks(from: messages)
@@ -89,13 +89,8 @@ public enum SessionDetailToolCallGrouping {
         var pendingCommands: [ChatMessage] = []
 
         func appendPendingCommands() {
-            switch pendingCommands.count {
-            case 0:
-                break
-            case 1:
-                blocks.append(.single(pendingCommands[0]))
-            default:
-                blocks.append(.commandGroup(id: pendingCommands[0].id, items: pendingCommands))
+            if let first = pendingCommands.first {
+                blocks.append(.commandGroup(id: first.id, items: pendingCommands))
             }
             pendingCommands.removeAll(keepingCapacity: true)
         }

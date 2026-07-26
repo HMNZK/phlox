@@ -35,7 +35,12 @@ struct SessionDetailCommandGroupPresentation: Equatable {
                 isRunning: groupIsRunning && id == lastItemID
             )
         }
-        rows = allRows.filter { row in
+        // 空出力行の除外は「複数件のツールコールが並ぶときのノイズ抑制」が目的なので、
+        // 唯一の行には適用しない。適用すると単独・空出力のツールコールが
+        // 「ヘッダを押しても何も出ない＝どのコマンドが走ったのか分からない」状態になる。
+        // 受け入れテスト: AcceptanceIOSToolCallGroupingTests
+        //   「単独コマンドは出力が空でも展開でコマンド文字列を読める」/「複数件で全て空出力かつ非実行中なら従来どおり描画しない」
+        rows = items.count == 1 ? allRows : allRows.filter { row in
             row.isRunning || !row.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }

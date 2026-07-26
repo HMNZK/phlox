@@ -14,6 +14,7 @@ iOS コンパニオンアプリ固有の決定の **理由** を残す。追記�
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0026 | [ツールコールは1件でも「ツール実行 ×N」の集約行に畳む（macOS とは意図的に異なる契約）](0026-ios-single-toolcall-grouped-row.md) | active |
 | 0025 | [最低対応を iOS 18.0 へ引き上げ、`TextField(selection:)` でカーソル位置を扱う](0025-ios18-textselection-for-cursor-aware-input.md) | accepted |
 | 0024 | [iOS 質問カードミラー（前方互換デコード・成功後楽観更新・確定ボタン式 UI）](0024-user-question-card-mirror.md) | accepted |
 | 0021 | [QR ペアリング直後に「接続中…」オーバーレイを出し、閉じ判定をセッション一覧のロード成功でゲートする](0021-connecting-overlay-gated-on-session-list-load.md) | active |

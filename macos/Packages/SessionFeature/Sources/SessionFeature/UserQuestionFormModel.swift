@@ -19,6 +19,7 @@ struct UserQuestionFormModel {
     /// single-select: 選択肢を1つ選ぶ（既選択の置き換え。送信はしない）。
     mutating func selectSingle(question: String, label: String) {
         selections[question] = [label]
+        freeText.removeValue(forKey: question)
     }
 
     /// multi-select: 選択肢をトグルする（送信はしない）。
@@ -30,10 +31,25 @@ struct UserQuestionFormModel {
             updated.insert(label)
         }
         selections[question] = updated
+        freeText.removeValue(forKey: question)
     }
 
     /// 自由入力を更新する（送信はしない）。
     mutating func setFreeText(question: String, text: String) {
+        freeText[question] = text
+    }
+
+    /// 自由入力欄へのフォーカスを反映する（送信はしない）。
+    mutating func freeTextDidFocus(question: String) {
+        selections.removeValue(forKey: question)
+    }
+
+    /// フォーカス中の自由入力を反映する（送信はしない）。
+    /// 非空入力は自由入力への明示的な遷移として、選択肢を解除する。
+    mutating func freeTextDidChangeWhileFocused(question: String, text: String) {
+        if !text.isEmpty {
+            selections.removeValue(forKey: question)
+        }
         freeText[question] = text
     }
 

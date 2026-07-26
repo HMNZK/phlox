@@ -15,7 +15,6 @@ let package = Package(
         .package(path: "../TerminalUI"),
         .package(path: "../CodexAppServerKit"),
         .package(path: "../StructuredChatKit"),
-        .package(path: "../ControlServer"),
         .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.0.0"),
     ],
     targets: [
@@ -29,7 +28,6 @@ let package = Package(
                 "TerminalUI",
                 "CodexAppServerKit",
                 "StructuredChatKit",
-                "ControlServer",
                 .product(name: "MarkdownUI", package: "swift-markdown-ui"),
             ]
         ),

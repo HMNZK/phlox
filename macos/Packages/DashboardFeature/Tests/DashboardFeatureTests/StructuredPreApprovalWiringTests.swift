@@ -183,7 +183,8 @@ func chatSessionViewModelClaudeModelSelectionRespawnsWithModelKeepingPermission(
         agentRef: .builtin(.claudeCode),
         client: client,
         approvalBroker: ChatApprovalBroker(),
-        workingDirectory: tempDirectory.path
+        workingDirectory: tempDirectory.path,
+        spawnAgentModelsProvider: { ["opus", "sonnet", "fable", "haiku"] }
     )
 
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))

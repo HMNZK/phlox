@@ -268,23 +268,6 @@ public enum ControlModelWireContract {
     public static let implemented = true
 }
 
-/// モバイルのモデル選択肢。JSON キーは凍結済みワイヤ定数から生成する。
-public struct ControlModelOption: Encodable, Equatable, Sendable {
-    public let id: String
-    public let displayName: String
-
-    public init(id: String, displayName: String) {
-        self.id = id
-        self.displayName = displayName
-    }
-
-    public func encode(to encoder: any Encoder) throws {
-        var container = encoder.container(keyedBy: ControlModelCodingKey.self)
-        try container.encode(id, forKey: .init(ControlModelWireContract.modelIDKey))
-        try container.encode(displayName, forKey: .init(ControlModelWireContract.modelDisplayNameKey))
-    }
-}
-
 /// GET /sessions/{id}/settings の応答 DTO。
 public struct ControlSessionModelSettings: Encodable, Equatable, Sendable {
     public let selectedModel: String?

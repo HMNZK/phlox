@@ -189,12 +189,6 @@ final class SessionSpawnService {
             approvalBroker: broker,
             workingDirectory: plan.workingDirectory,
             transcriptStore: environment.transcriptStore,
-            spawnAgentModelsProvider: CursorModelListProvider.makeSpawnAgentModelsProvider(
-                ref: plan.descriptor.ref,
-                command: plan.command,
-                env: plan.env,
-                workingDirectory: plan.workingDirectory
-            ),
             historyProvider: history?.historyProvider,
             historyTranscriptLoader: history?.historyTranscriptLoader
         )

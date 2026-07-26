@@ -1,13 +1,6 @@
 import AgentDomain
 import Foundation
 
-/// Supplies an agent's current model list. Implementations may run CLI or JSON-RPC work;
-/// callers publish the result into `AgentModelCatalog` rather than doing that work on a
-/// request handler's synchronous path.
-public protocol AgentModelListProviding: Sendable {
-    func fetchModels(for kind: AgentKind) async throws -> [ControlModelOption]
-}
-
 /// Keeps CLI results out of the model-picker request path. Failed fetches are deliberately
 /// not cached so the periodic background refresh can recover without restarting the application.
 public actor CachingAgentModelProvider: AgentModelListProviding {
@@ -220,7 +213,7 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
         }
     }
 
-    private enum ProviderError: Error, LocalizedError {
+    private enum ProviderError: LocalizedError {
         case invalidOutput
         case commandFailed(String)
         case timedOut

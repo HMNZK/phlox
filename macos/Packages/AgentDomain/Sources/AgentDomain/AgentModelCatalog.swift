@@ -1,7 +1,27 @@
-import AgentDomain
 import Foundation
 import os
 
+/// A selectable agent model shared by the control API and macOS UI.
+/// Codable's synthesized keys deliberately remain the frozen `id` / `displayName` wire shape.
+public struct ControlModelOption: Codable, Equatable, Sendable {
+    public let id: String
+    public let displayName: String
+
+    public init(id: String, displayName: String) {
+        self.id = id
+        self.displayName = displayName
+    }
+}
+
+/// Supplies an agent's current model list. Implementations may run CLI or JSON-RPC work;
+/// callers publish the result into `AgentModelCatalog` rather than doing that work on a
+/// request handler's synchronous path.
+public protocol AgentModelListProviding: Sendable {
+    func fetchModels(for kind: AgentKind) async throws -> [ControlModelOption]
+}
+
+/// Process-wide, synchronously readable model snapshot. It belongs in AgentDomain because
+/// both the HTTP server and UI consume the same catalog without either depending on the other.
 public enum AgentModelCatalog {
     private static let logger = Logger(subsystem: "com.phlox.Phlox", category: "AgentModelCatalog")
     private static let claudeModels = [
@@ -10,11 +30,9 @@ public enum AgentModelCatalog {
         ControlModelOption(id: "fable", displayName: "Fable 5"),
         ControlModelOption(id: "haiku", displayName: "Haiku 4.5"),
     ]
-
     private static let cursorModels = ["gpt-5", "sonnet-4.5", "opus-4.1"].map {
         ControlModelOption(id: $0, displayName: $0)
     }
-
     private static let state = State()
 
     public static func models(for kind: AgentKind) -> [ControlModelOption] {
@@ -23,18 +41,12 @@ public enum AgentModelCatalog {
 
     public static func builtinModels(for kind: AgentKind) -> [ControlModelOption] {
         switch kind {
-        case .claudeCode:
-            claudeModels
-        case .codex:
-            []
-        case .cursor:
-            cursorModels
+        case .claudeCode: claudeModels
+        case .codex: []
+        case .cursor: cursorModels
         }
     }
 
-    /// Registers the live source. Clearing it stops future refreshes but deliberately
-    /// retains the last completed snapshot: synchronous readers must never briefly lose
-    /// their usable catalog while a provider is being reconfigured.
     public static func configure(provider: (any AgentModelListProviding)?) {
         state.lock.withLock {
             state.provider = provider
@@ -42,28 +54,21 @@ public enum AgentModelCatalog {
         }
     }
 
-    /// Refreshes off the synchronous request path. Failures are emitted to the unified
-    /// log and leave that kind on its built-in fallback; an empty successful response is
-    /// kept as an intentional live catalog (not silently replaced).
     public static func refresh() async {
         let configuration = state.lock.withLock { (state.provider, state.generation) }
-        let configuredProvider = configuration.0
-        guard let configuredProvider else { return }
-
+        guard let provider = configuration.0 else { return }
         var refreshed: [AgentKind: [ControlModelOption]] = [:]
         var failures = Set<AgentKind>()
         for kind in AgentKind.allCases {
             do {
-                refreshed[kind] = try await configuredProvider.fetchModels(for: kind)
+                refreshed[kind] = try await provider.fetchModels(for: kind)
             } catch {
                 refreshed[kind] = builtinModels(for: kind)
                 failures.insert(kind)
-                logger.error("Live model refresh failed for \(kind.rawValue, privacy: .public); using built-in fallback: \(String(describing: error), privacy: .public)")
+                logger.error("Live model refresh failed for \(kind.rawValue, privacy: .public); using built-in fallback: \(error.localizedDescription, privacy: .public)")
             }
         }
         state.lock.withLock {
-            // Do not publish a stale response from a provider that was replaced while
-            // this asynchronous refresh was in flight.
             guard state.provider != nil, state.generation == configuration.1 else { return }
             state.snapshots = refreshed
             state.fallbackKinds = failures
@@ -76,8 +81,6 @@ public enum AgentModelCatalog {
 
     public static func defaultModel(for kind: AgentKind) -> String? {
         let models = models(for: kind)
-        // Claude's documented and historical default is sonnet. Keep that choice stable
-        // when a live refresh fails and falls back to the built-in list.
         if kind == .claudeCode, models.contains(where: { $0.id == "sonnet" }) {
             return "sonnet"
         }

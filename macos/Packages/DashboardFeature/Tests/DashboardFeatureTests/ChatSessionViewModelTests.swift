@@ -1122,7 +1122,8 @@ func chatSessionViewModel_claudeExposesFixedModelAliases() async throws {
         agentRef: .builtin(.claudeCode),
         client: EventYieldingStructuredClient(),
         approvalBroker: ChatApprovalBroker(),
-        workingDirectory: "/tmp/work"
+        workingDirectory: "/tmp/work",
+        spawnAgentModelsProvider: { ["opus", "sonnet", "fable", "haiku"] }
     )
 
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
@@ -1161,8 +1162,7 @@ func chatSessionViewModel_cursorFallsBackToHardcodedModelsWhenProviderEmpty() as
 
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
 
-    #expect(!vm.availableSpawnAgentModels.isEmpty)
-    #expect(vm.availableSpawnAgentModels == ChatSessionViewModel.cursorFallbackModels)
+    #expect(vm.availableSpawnAgentModels == ["gpt-5", "sonnet-4.5", "opus-4.1"])
 }
 
 @Test @MainActor
@@ -1173,7 +1173,8 @@ func chatSessionViewModel_spawnAgentDefaultsPresetModelPermissionAndPlanAvailabi
         agentRef: .builtin(.claudeCode),
         client: claudeClient,
         approvalBroker: ChatApprovalBroker(),
-        workingDirectory: "/tmp/work"
+        workingDirectory: "/tmp/work",
+        spawnAgentModelsProvider: { ["opus", "sonnet", "fable", "haiku"] }
     )
 
     try await claude.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
@@ -1215,7 +1216,8 @@ func chatSessionViewModel_spawnAgentNewBehaviorDoesNotDependOnTestClientTypeName
         agentRef: .builtin(.claudeCode),
         client: client,
         approvalBroker: ChatApprovalBroker(),
-        workingDirectory: "/tmp/work"
+        workingDirectory: "/tmp/work",
+        spawnAgentModelsProvider: { ["opus", "sonnet", "fable", "haiku"] }
     )
 
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
@@ -1249,7 +1251,8 @@ func chatSessionViewModel_spawnAgentPersistedSettingsOverrideDefaults() async th
         agentRef: .builtin(.claudeCode),
         client: client,
         approvalBroker: ChatApprovalBroker(),
-        workingDirectory: "/tmp/work"
+        workingDirectory: "/tmp/work",
+        spawnAgentModelsProvider: { ["opus", "sonnet", "fable", "haiku"] }
     )
 
     await vm.restore(
@@ -1279,7 +1282,8 @@ func chatSessionViewModel_spawnAgentMigratesPersistedPlanOutOfPermissionProfile(
         agentRef: .builtin(.claudeCode),
         client: client,
         approvalBroker: ChatApprovalBroker(),
-        workingDirectory: "/tmp/work"
+        workingDirectory: "/tmp/work",
+        spawnAgentModelsProvider: { ["opus", "sonnet", "fable", "haiku"] }
     )
 
     await vm.restore(
@@ -1310,7 +1314,8 @@ func chatSessionViewModel_spawnPlanModeAppliesEffectiveModeWithoutOverwritingPer
         agentRef: .builtin(.claudeCode),
         client: claudeClient,
         approvalBroker: ChatApprovalBroker(),
-        workingDirectory: "/tmp/work"
+        workingDirectory: "/tmp/work",
+        spawnAgentModelsProvider: { ["opus", "sonnet", "fable", "haiku"] }
     )
 
     try await claude.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
@@ -1354,7 +1359,8 @@ func chatSessionViewModel_spawnAgentClaudeExposesEffortLevelsAndSelectionReaches
         agentRef: .builtin(.claudeCode),
         client: client,
         approvalBroker: ChatApprovalBroker(),
-        workingDirectory: "/tmp/work"
+        workingDirectory: "/tmp/work",
+        spawnAgentModelsProvider: { ["opus", "sonnet", "fable", "haiku"] }
     )
 
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))

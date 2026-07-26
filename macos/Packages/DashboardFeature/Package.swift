@@ -34,6 +34,7 @@ let package = Package(
                 "PTYKit",
                 "TerminalUI",
                 "DesignSystem",
+                "ControlServer",
                 "CodexAppServerKit",
                 "StructuredChatKit",
                 "ClaudeAgentKit",

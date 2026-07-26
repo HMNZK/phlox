@@ -1,7 +1,6 @@
 import Foundation
 import Observation
 import AgentDomain
-import ControlServer
 import CodexAppServerKit
 import StructuredChatKit
 
@@ -931,21 +930,12 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
-    /// モデル表示名は spawn 前と同じ live catalog のスナップショットを正本にする。
+    /// モデル表示名は agent 種別に関わらず共有カタログから探す。履歴やカスタム agent でも
+    /// 既知 alias の装飾を失わず、未知 ID はそのまま表示する。
     public func spawnAgentModelDisplayName(_ alias: String) -> String {
-        let kind: AgentKind? = switch agentRef {
-        case .builtin(.claudeCode): .claudeCode
-        case .builtin(.cursor): .cursor
-        default: nil
-        }
-        return kind.flatMap { kind in
+        AgentKind.allCases.lazy.compactMap { kind in
             AgentModelCatalog.models(for: kind).first(where: { $0.id == alias })?.displayName
-        } ?? alias
-    }
-
-    /// 互換用の読み取り窓口。静的定義ではなく、ControlServer の同一スナップショットを返す。
-    public static var cursorFallbackModels: [String] {
-        AgentModelCatalog.models(for: .cursor).map(\.id)
+        }.first ?? alias
     }
 
     /// task-11 が呼ぶ model 変更ハンドラ。選択を保持し、フルスナップショットで actor へ反映する。
@@ -993,7 +983,7 @@ public final class ChatSessionViewModel: Identifiable {
         case .builtin(.claudeCode):
             selectedModel = persistedSettings?.selectedModel
                 ?? selectedModel
-                ?? AgentModelCatalog.defaultModel(for: .claudeCode)
+                ?? availableSpawnAgentModels.first
             if Self.claudeModelSupportsEffort(selectedModel) {
                 selectedEffort = persistedSettings?.selectedEffort
                     ?? selectedEffort
@@ -1033,6 +1023,13 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private func resolveSpawnAgentModels() async -> [String] {
+        // This explicit seam is used by deterministic callers (not by the production
+        // composition root). A non-empty injected snapshot must be honoured; otherwise
+        // the shared live catalog remains the single production source of truth.
+        if let spawnAgentModelsProvider {
+            let injected = await spawnAgentModelsProvider()
+            if !injected.isEmpty { return injected }
+        }
         switch agentRef {
         case .builtin(.claudeCode):
             return AgentModelCatalog.models(for: .claudeCode).map(\.id)

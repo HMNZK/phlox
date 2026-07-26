@@ -57,7 +57,10 @@ public final class CompositionRoot {
                 await AgentModelCatalog.refresh()
                 let fallbacks = AgentModelCatalog.kindsUsingFallback()
                 if !fallbacks.isEmpty {
-                    Self.proxyLogger.warning("Live model catalog fallback active for: \(fallbacks.map(\.rawValue).sorted().joined(separator: ", "), privacy: .public)")
+                    let kinds = fallbacks.map(\.rawValue).sorted().joined(separator: ", ")
+                    await MainActor.run {
+                        Self.proxyLogger.warning("Live model catalog fallback active for: \(kinds, privacy: .public)")
+                    }
                 }
                 do {
                     try await Task.sleep(for: .seconds(300))

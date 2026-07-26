@@ -13,8 +13,15 @@
 //   - blocks の平坦化は入力と完全一致（欠落・重複・並べ替えなし）
 //   - グループ末尾への追記で既存グループの id は変わらない（identity 安定）
 //   - 見出しは "ツール実行 ×\(件数)"。単独コマンドは "ツール実行 ×1"
-//   - 単独コマンドは出力が空でもヘッダを描画する（可視性の後退を防ぐ）
+//   - 単独コマンドは出力が空でもヘッダを描画し、展開すると `$ <コマンド>` が読める（可視性の後退を防ぐ）
+//     ＝「複数件のノイズ抑制のための空出力行フィルタ」を唯一の行には適用しない
 //   - 2件以上で全件空出力かつ非実行中なら描画しない（従来ルールの維持）
+//
+// 【契約の修正 2026-07-26 / ステージ1レビュー指摘 [HIGH] を受けた PM 裁定】
+// 当初の凍結では単独・空出力時に `rows.isEmpty` を期待していたが、それでは
+// 「ヘッダを押しても何も出ない＝どのコマンドが走ったのか画面から分からない」状態になり、
+// 変更前（`$ <コマンド>` が常に見えていた）に対する情報の後退だった。
+// 唯一の行はフィルタしない方針へ契約を修正した（decision-log.md 参照）。
 
 import Foundation
 import Testing
@@ -154,7 +161,7 @@ struct AcceptanceIOSToolCallGroupingTests {
         #expect(presentation.rows.map(\.id) == ["c1"])
     }
 
-    @Test func 単独コマンドは出力が空でもヘッダを描画する() {
+    @Test func 単独コマンドは出力が空でも展開でコマンド文字列を読める() {
         let presentation = SessionDetailCommandGroupPresentation(
             items: [emptyCmd("c1")],
             lastTranscriptID: "c1",
@@ -162,8 +169,10 @@ struct AcceptanceIOSToolCallGroupingTests {
         )
 
         #expect(!presentation.isRunning)
-        #expect(presentation.rows.isEmpty)  // 展開しても出力は無い
-        #expect(presentation.shouldRender)  // それでも1行ヘッダは消えない（可視性の後退防止）
+        #expect(presentation.shouldRender)                        // 1行ヘッダは消えない
+        #expect(presentation.rows.map(\.id) == ["c1"])            // 展開すると「$ <コマンド>」が読める
+        #expect(presentation.rows.first?.command == "swift build")
+        #expect(presentation.rows.first?.output.isEmpty == true)  // 出力は空のまま（捏造しない）
     }
 
     @Test func 複数件で全て空出力かつ非実行中なら従来どおり描画しない() {

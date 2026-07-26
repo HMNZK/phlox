@@ -7,11 +7,18 @@ struct DashboardLeadingTopBarControls: View {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
     let onOpenSettings: () -> Void
+    /// エージェント管理ウィンドウの識別子。nil ならボタンを出さない（ウィンドウを持たない構成向け）。
+    var agentConsoleWindowID: String?
+
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         HStack(spacing: DSSpacing.s) {
             sidebarToggleButton
             settingsButton
+            if let agentConsoleWindowID {
+                agentConsoleButton(windowID: agentConsoleWindowID)
+            }
         }
     }
 
@@ -27,6 +34,20 @@ struct DashboardLeadingTopBarControls: View {
         }
         .buttonStyle(HoverableIconButtonStyle())
         .help("設定")
+    }
+
+    private func agentConsoleButton(windowID: String) -> some View {
+        Button {
+            openWindow(id: windowID)
+        } label: {
+            Image(systemName: "wrench.and.screwdriver")
+                .font(.system(size: DSIconSize.l, weight: .medium))
+                .foregroundStyle(DSColor.textSecondary)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(HoverableIconButtonStyle())
+        .help("エージェント管理")
     }
 
     private var sidebarToggleButton: some View {

@@ -33,14 +33,19 @@ public struct DashboardView: View {
     @State private var hasMeasuredLeadingOverlayWidth = false
     @State private var measuredTrailingOverlayHeight: CGFloat = 0
 
+    /// Claude Code 管理ウィンドウの識別子。App 側が Window シーンを持つときだけ渡す。
+    private let agentConsoleWindowID: String?
+
     public init(
         viewModel: DashboardViewModel,
         router: AppRouter,
-        usageMonitor: UsageMonitor
+        usageMonitor: UsageMonitor,
+        agentConsoleWindowID: String? = nil
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
         _router = Bindable(wrappedValue: router)
         _usageMonitor = Bindable(wrappedValue: usageMonitor)
+        self.agentConsoleWindowID = agentConsoleWindowID
     }
 
     private var deletionDialogTitle: String {
@@ -228,7 +233,8 @@ public struct DashboardView: View {
                 DashboardLeadingTopBarControls(
                     viewModel: viewModel,
                     router: router,
-                    onOpenSettings: { openSettings() }
+                    onOpenSettings: { openSettings() },
+                    agentConsoleWindowID: agentConsoleWindowID
                 )
                     .padding(.leading, 78)
                     // 三色ボタンの中心はウィンドウ上端から 16pt（実測: ボタン上端 8pt + 高さ 16pt の半分）。

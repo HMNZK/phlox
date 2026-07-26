@@ -8,6 +8,8 @@ options:
   generateEmptyDirectories: true
 
 packages:
+  AgentConfigKit:
+    path: Packages/AgentConfigKit
   AgentDomain:
     path: Packages/AgentDomain
   AppBootstrap:
@@ -97,6 +99,7 @@ targets:
           # 各自の Apple Developer Team ID を設定すること（Signing.example.xcconfig / README 参照）。
           DEVELOPMENT_TEAM: ""
     dependencies:
+      - package: AgentConfigKit
       - package: AppBootstrap
       - package: DashboardFeature
       - package: SessionFeature

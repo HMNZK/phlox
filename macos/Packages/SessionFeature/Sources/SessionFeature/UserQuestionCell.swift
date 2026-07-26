@@ -14,6 +14,7 @@ struct UserQuestionCell: View {
 
     @State private var form: UserQuestionFormModel
     @State private var isSubmitting = false
+    @FocusState private var focusedFreeTextQuestion: String?
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
@@ -201,9 +202,15 @@ struct UserQuestionCell: View {
     @ViewBuilder
     private func freeTextInput(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
         if isInteractive {
-            TextField("自由入力", text: binding(for: question.question))
+            TextField("自由入力", text: binding(for: question.question), axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .font(ChatScaledFont.body(scale: scale))
+                .lineLimit(1...4)
+                .focused($focusedFreeTextQuestion, equals: question.question)
+                .onChange(of: focusedFreeTextQuestion) { _, focusedQuestion in
+                    guard focusedQuestion == question.question else { return }
+                    form.freeTextDidFocus(question: question.question)
+                }
                 .accessibilityIdentifier("UserQuestionCell.freeText.\(question.question)")
                 .disabled(isSubmitting)
         }
@@ -213,7 +220,11 @@ struct UserQuestionCell: View {
         Binding(
             get: { form.freeText[questionText, default: ""] },
             set: { newValue in
-                form.setFreeText(question: questionText, text: newValue)
+                if focusedFreeTextQuestion == questionText {
+                    form.freeTextDidChangeWhileFocused(question: questionText, text: newValue)
+                } else {
+                    form.setFreeText(question: questionText, text: newValue)
+                }
             }
         )
     }

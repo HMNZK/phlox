@@ -612,10 +612,18 @@ public final class SessionDetailViewModel {
         if catalogs[.codex]?.models.isEmpty ?? true {
             entries.append(ModelPickerEntry(kind: .codex, modelID: nil, displayName: AgentKind.codex.displayName))
         }
+        let previousSelectedKind = modelPickerEntries.first(where: {
+            $0.id == selectedModelPickerEntryID
+        })?.kind
         modelPickerEntries = entries
 
         if let selectedModelPickerEntryID,
            entries.contains(where: { $0.id == selectedModelPickerEntryID }) {
+            return
+        }
+        if let previousSelectedKind,
+           let sameKindEntry = entries.first(where: { $0.kind == previousSelectedKind }) {
+            selectedModelPickerEntryID = sameKindEntry.id
             return
         }
         selectedModelPickerEntryID = Self.defaultDraftEntryID(entries: entries, catalogs: catalogs)

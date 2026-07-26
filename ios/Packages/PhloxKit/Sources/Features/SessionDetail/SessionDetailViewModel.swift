@@ -46,7 +46,8 @@ public final class SessionDetailViewModel {
     /// task-3 契約の PM スタブ。入力欄のカーソル位置（UTF-16 オフセット）。
     /// View が書き込み、添付時のプレースホルダ挿入位置として使う。
     public var inputCursorUTF16: Int = 0
-    public var isOutputExpanded = false
+    /// ターミナル出力は開いた直後から全文を見せる。折りたたみ操作は引き続き可能。
+    public var isOutputExpanded = true
     public private(set) var outputText: String = ""
     /// 初回の messages / output 解決まで true。ポーリング更新では再点灯しない。
     public private(set) var isInitialLoading: Bool = true

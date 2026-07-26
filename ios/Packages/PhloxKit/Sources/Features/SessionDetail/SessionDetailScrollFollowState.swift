@@ -5,6 +5,9 @@ import Foundation
 /// 公開面は PM が凍結した契約面（task-1 の入出力契約）。振る舞いの実装は task-1 が行う。
 /// 契約の正本: Tests/FeaturesTests/AcceptanceSessionViewUXTests.swift
 public struct SessionDetailScrollFollowState {
+    /// 初回スクロールを実施済みか。View は判定を呼ぶ前に読み、初回だけ即時スクロールする。
+    public private(set) var hasPerformedInitialScroll = false
+
     public init() {}
 
     /// 本文（構造化メッセージ or ターミナル出力）が更新されたときに最下部へ寄せるか。
@@ -15,12 +18,17 @@ public struct SessionDetailScrollFollowState {
     /// - Returns: 最下部へスクロールすべきなら true。
     public mutating func onContentChanged(hasContent: Bool, distanceFromBottom: CGFloat) -> Bool {
         guard hasContent else { return false }
-        // TODO(task-1): 本文が届いた最初の1回は距離判定を無視して必ず最下部へ寄せる。
+
+        guard hasPerformedInitialScroll else {
+            hasPerformedInitialScroll = true
+            return true
+        }
+
         return ChatAutoFollowPolicy.shouldFollowBottom(distanceFromBottom: distanceFromBottom)
     }
 
     /// セッション切替。次に本文が届いたときを再び「初回」として扱う。
     public mutating func reset() {
-        // TODO(task-1)
+        hasPerformedInitialScroll = false
     }
 }

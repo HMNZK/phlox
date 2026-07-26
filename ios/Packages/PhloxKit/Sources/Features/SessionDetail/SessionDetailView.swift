@@ -13,15 +13,16 @@ public struct SessionDetailView: View {
     /// task-1 契約（凍結・PM 著）: 左端からのスワイプで前の画面へ戻れるとき true。
     /// ナビバー非表示＋自前 topBar の chrome は維持したままジェスチャを復活させる。
     /// 実装と同時に反転する（flag だけの反転は虚偽報告として扱う）。
-    public static let providesBackSwipeGesture = false
+    public static let providesBackSwipeGesture = true
     /// task-1 契約（凍結・PM 著）: ターミナル出力を桁揃えのまま横スクロールで読ませるとき true。
     /// 実装と同時に反転する（flag だけの反転は虚偽報告として扱う）。
-    public static let providesTerminalOutputHorizontalScroll = false
+    public static let providesTerminalOutputHorizontalScroll = true
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.sessionComposeDraft) private var sessionComposeDraft
     @State private var viewModel: SessionDetailViewModel
     @State private var distanceFromBottom: CGFloat = 0
+    @State private var scrollFollowState = SessionDetailScrollFollowState()
     @State private var scrollViewportHeight: CGFloat = 0
     @State private var selectedSubAgentID: String?
     @State private var transcriptWindow = TranscriptWindow()
@@ -85,9 +86,9 @@ public struct SessionDetailView: View {
                     .onPreferenceChange(ScrollViewportHeightKey.self) { height in
                         scrollViewportHeight = height
                     }
-                    // メッセージ/出力が更新されたら、最下部付近にいる時だけ追従スクロール。
-                    .onChange(of: viewModel.chatMessages) { scrollToBottomIfFollowing(proxy) }
-                    .onChange(of: viewModel.outputText) { scrollToBottomIfFollowing(proxy) }
+                    // 本文が初めて届いたときは必ず最下部へ寄せ、以降だけ距離で追従を判定する。
+                    .onChange(of: viewModel.chatMessages) { scrollToBottomForContentChange(proxy) }
+                    .onChange(of: viewModel.outputText) { scrollToBottomForContentChange(proxy) }
                     .onChange(of: viewModel.expandedMessageIDs) { _, _ in scrollToBottomIfFollowing(proxy) }
                     .onChange(of: pendingTranscriptScrollTarget) { _, target in
                         guard let target else { return }
@@ -107,8 +108,9 @@ public struct SessionDetailView: View {
                         transcriptWindow.reset()
                         pendingTranscriptScrollTarget = nil
                         transcriptScrollGeneration += 1
+                        scrollFollowState.reset()
                     }
-                    .onAppear { scrollToBottom(proxy, animated: false) }
+                    .onAppear { scrollToBottomForContentChange(proxy) }
                 }
 
                 if viewModel.isInputBarEnabled || (viewModel.currentStatus == .running && viewModel.canInterrupt) {
@@ -124,6 +126,7 @@ public struct SessionDetailView: View {
         .background(DSColor.background)
         .accessibilityIdentifier(AccessibilityID.sessionDetail)
         .modifier(SessionDetailNavigationBarHiddenModifier())
+        .modifier(InteractivePopGestureRestorerModifier())
         .alert("名前変更", isPresented: $viewModel.isRenamePresented) {
             TextField("セッション名", text: $viewModel.renameDraft)
             Button("キャンセル", role: .cancel) {
@@ -519,17 +522,13 @@ public struct SessionDetailView: View {
                     text: viewModel.outputText,
                     isExpanded: viewModel.isOutputExpanded
                 ) {
-                    // モバイル幅に収めるため長い行は折り返す（横スクロールしない）。
-                    // ASCII テーブル等の整列は崩れるが、画面幅で読めることを優先する。
-                    Text(displayed)
-                        // 出力は情報密度優先: 小さめ(caption=12pt)・字間を詰める(CJK のワイド描画対策)。
-                        .font(DSFont.campMonoCaption)
-                        .tracking(-0.5)
-                        .foregroundStyle(DSColor.textSecondary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(DSSpacing.m)
+                    ScrollView(.horizontal, showsIndicators: true) {
+                        SessionDetailOutputBody(text: displayed)
+                    }
+                    // 横スクロールしてもカード内の余白を保つ。縦余白は末尾を角丸と
+                    // スクロールバーから離し、左右余白は本文・ヘッダの桁を揃える。
+                    .padding(.horizontal, DSSpacing.m)
+                    .padding(.vertical, DSSpacing.m)
                 }
             }
             .background(DSColor.campOutputBackground, in: outputCardShape)
@@ -591,10 +590,52 @@ public struct SessionDetailView: View {
         }
     }
 
+    /// 本文が最初に届いたときだけ距離を無視して最下部へ寄せる。
+    private func scrollToBottomForContentChange(_ proxy: ScrollViewProxy) {
+        let shouldAnimate = Self.shouldAnimateScroll(
+            hasPerformedInitialScroll: scrollFollowState.hasPerformedInitialScroll
+        )
+        let hasContent = Self.hasRenderableContent(
+            visibleMessages: viewModel.visibleMessages,
+            outputText: viewModel.outputText
+        )
+        guard scrollFollowState.onContentChanged(
+            hasContent: hasContent,
+            distanceFromBottom: distanceFromBottom
+        ) else { return }
+        scrollToBottom(proxy, animated: shouldAnimate)
+    }
+
+    /// 初回スクロールのトリガーとなる、実際に画面へ描画できる本文があるか。
+    static func hasRenderableContent(visibleMessages: [ChatMessage], outputText: String) -> Bool {
+        !visibleMessages.isEmpty || !outputText.isEmpty
+    }
+
+    /// 初回だけ位置を即時に確定し、以後の追従だけをアニメーションするか。
+    static func shouldAnimateScroll(hasPerformedInitialScroll: Bool) -> Bool {
+        hasPerformedInitialScroll
+    }
+
     /// 最下部付近にいる時だけ追従スクロールする（上へ読み戻り中は引き戻さない）。
     private func scrollToBottomIfFollowing(_ proxy: ScrollViewProxy) {
         guard ChatAutoFollowPolicy.shouldFollowBottom(distanceFromBottom: distanceFromBottom) else { return }
         scrollToBottom(proxy)
+    }
+}
+
+/// ターミナル出力の等幅テキスト本体。横 ScrollView 内で、外側の縦 ScrollView からは
+/// 幅固定・高さ未指定で測られる。
+struct SessionDetailOutputBody: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            // 出力は情報密度優先: 小さめ(caption=12pt)・字間を詰める(CJK のワイド描画対策)。
+            .font(DSFont.campMonoCaption)
+            .tracking(-0.5)
+            .foregroundStyle(DSColor.textSecondary)
+            .textSelection(.enabled)
+            .fixedSize(horizontal: true, vertical: true)
     }
 }
 

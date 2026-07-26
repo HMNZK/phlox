@@ -224,13 +224,26 @@ struct AcceptanceLiveModelCatalogTests {
         return (port, server)
     }
 
+    /// 応答待ちの上限を明示する。既定（60 秒）のままだと、**ビルド直後の初回実行**で
+    /// ローカル接続が一度だけ長時間ブロックされたときにテスト全体が 60 秒ハングし、
+    /// 失敗の原因が読み取れなくなる（2026-07-26 に 61.191 秒の fail を実測。
+    /// 以後ビルド済みバイナリでの連続実行では再現しない）。
+    /// 上限を短く切ったうえで 1 度だけ再試行し、恒常的な不通だけを失敗として扱う。
+    /// 検証している内容（ステータスコードと spawn 引数）は一切変えていない。
     private func post(port: Int, path: String, body: String) async throws -> Int {
         var urlRequest = URLRequest(url: URL(string: "http://127.0.0.1:\(port)\(path)")!)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         urlRequest.httpBody = Data(body.utf8)
-        let (_, response) = try await URLSession.shared.data(for: urlRequest)
-        return (response as? HTTPURLResponse)?.statusCode ?? -1
+        urlRequest.timeoutInterval = 10
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: urlRequest)
+            return (response as? HTTPURLResponse)?.statusCode ?? -1
+        } catch let error as URLError where error.code == .timedOut {
+            let (_, response) = try await URLSession.shared.data(for: urlRequest)
+            return (response as? HTTPURLResponse)?.statusCode ?? -1
+        }
     }
 }
 

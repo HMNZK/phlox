@@ -38,3 +38,29 @@ last-verified: 2026-07-27
 ## 生成したドキュメント
 
 - [ADR 0125: セッションを開いたら最下部から表示する（チャット・ターミナル共通）](../adr/0125-open-session-at-bottom.md)
+
+## 追記（2026-07-27 実機フィードバック後）
+
+モバイルの「ターミナル出力が文字の羅列に見える」への対応として、出力エンドポイントに色つき表現を足した（[ADR 0126](../adr/0126-output-endpoint-serves-ansi-screen.md)）。
+
+- `AnsiScreenEncoder`（TerminalUI）: viewport を SGR 付きテキストへ書き出す。
+- `ControllableSession.readAnsiScreen()` / `DashboardViewModel.sessionAnsiScreen(for:)`: PTY セッションだけが画面と桁数を返す。
+- `GET /sessions/{id}/output?format=ansi`: 既定（`text`）は従来と同じ応答。
+
+| 対象 | 結果 |
+|---|---|
+| `swift test --package-path macos/Packages/TerminalUI` | 57 tests passed（`AnsiScreenEncoderTests` 7 を追加） |
+| `swift test --package-path macos/Packages/AppBootstrap` | 151 tests passed（ハンドラ 3 を追加） |
+| `swift test --package-path macos/Packages/ControlServer --filter ControlServerIntegrationTests` | 41 tests passed（ルーティング 3 を追加） |
+| `swift test --package-path macos/Packages/SessionFeature` | 407 tests passed |
+| `swift test --package-path macos/Packages/DashboardFeature` | 1449 tests passed |
+| `xcodebuild build -scheme Phlox` | BUILD SUCCEEDED |
+
+### 既存の赤（この変更とは無関係）
+
+`ControlServer` の `Wave2WireContractTests` が `AgentModelCatalog` のグローバル差し替えを並列実行と共有しており、単独実行でも失敗する。今回の変更（`OutputFormat` の追加）とは無関係で、手を入れていない。
+
+### 未検証・積み残し
+
+- **scrollback は含まない**（viewport のみ）。`Buffer.linesTop` が SwiftTerm 内部で非公開のため範囲を特定できない。エージェントセッションは spawn 前に `disableScrollback()` を通るので履歴自体が無い。
+- 実 GUI での目視確認は引き続き未実施（初回分と同じ理由）。

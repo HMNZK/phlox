@@ -8,14 +8,6 @@ import PhloxCore
 @Suite("セッション詳細 UX の白箱テスト（task-1）")
 struct SessionViewUXWhiteboxTests {
 
-    @Test("根画面で既に有効な端スワイプは変更しない")
-    func rootHostKeepsItsExistingGestureState() {
-        let host = NavigationHost(depth: 1, isGestureEnabled: true)
-
-        #expect(InteractivePopGestureRestorer.restore(on: host) == false)
-        #expect(host.isInteractivePopGestureEnabled == true)
-    }
-
     @Test("初回追従後の空更新は追従閾値の判定を維持する")
     func emptyUpdatesAfterInitialFollowDoNotResetState() {
         var state = SessionDetailScrollFollowState()
@@ -149,34 +141,21 @@ struct SessionViewUXWhiteboxTests {
         )
     }
 
-    @Test("UIKit 接続層は iOS 条件コンパイル内に隔離し、判定層は UIKit 型へ触れない")
-    func interactivePopUIKitBridgeStaysIsolated() throws {
-        let source = try SessionViewUXSource.text("Sources/Features/SessionDetail/InteractivePopGestureRestorer.swift")
-        let importRange = try #require(source.range(of: "import UIKit"))
-        let iosGuardRange = try #require(source.range(of: "#if os(iOS)"))
-        let guardEndRange = try #require(source.range(of: "#endif", range: iosGuardRange.upperBound..<source.endIndex))
-        let restorer = try #require(SourceDeclaration.body(named: "InteractivePopGestureRestorer", in: source))
+    @Test("詳細画面の chrome はシステムのナビゲーションバーへ載せる（ADR 0033）")
+    func detailChromeUsesSystemNavigationBar() throws {
+        let source = try SessionViewUXSource.text("Sources/Features/SessionDetail/SessionDetailView.swift")
 
-        #expect(iosGuardRange.lowerBound < importRange.lowerBound && importRange.upperBound < guardEndRange.lowerBound)
-        #expect(!restorer.contains("UINavigationController"), "UIKit 接続層ではなく判定層が UINavigationController に触れている")
-    }
-
-    @Test("UIKit 接続層は開始ガード付き delegate を保持し、詳細画面の離脱時に復帰する")
-    func interactivePopUIKitBridgeGuardsAndRestoresDelegate() throws {
-        let source = try SessionViewUXSource.text("Sources/Features/SessionDetail/InteractivePopGestureRestorer.swift")
-
-        #expect(source.contains("private var interactivePopGestureDelegate: NavigationControllerInteractivePopGestureDelegate?"))
-        #expect(source.contains("private var originalInteractivePopGestureDelegate: UIGestureRecognizerDelegate?"))
-        #expect(source.contains("private final class NavigationControllerInteractivePopGestureDelegate: NSObject, UIGestureRecognizerDelegate"))
-        #expect(source.contains("gestureRecognizer.delegate = interactivePopGestureDelegate"))
-        #expect(source.contains("navigationController.viewControllers.count >= 2"))
-        #expect(source.contains("navigationController.transitionCoordinator == nil"))
-        #expect(source.contains("shouldRecognizeSimultaneouslyWith otherGestureRecognizer"))
-        #expect(source.contains(") -> Bool {\n        false\n    }"))
-        #expect(source.contains("override func viewWillDisappear"))
-        #expect(source.contains("restoreOriginalInteractivePopGestureDelegate()"))
-        #expect(source.contains("gestureRecognizer.delegate = originalInteractivePopGestureDelegate"))
-        #expect(!source.contains("delegate = nil"), "UIKit の安全弁を外す裸の delegate = nil は使わないこと")
+        #expect(source.contains(".navigationTitle(title)"))
+        #expect(source.contains(".navigationBarTitleDisplayMode(.inline)"))
+        #expect(source.contains("ToolbarItem(placement: .topBarTrailing) { menu() }"))
+        #expect(
+            !source.contains("private var topBar"),
+            "自前 topBar を復活させない（ナビバーを隠す構成へ戻ると端スワイプが壊れる）"
+        )
+        #expect(
+            !source.contains("interactivePopGestureRecognizer"),
+            "UIKit のジェスチャへ直接触らないこと"
+        )
     }
 
     private func terminalOutput(lineCount: Int) -> String {
@@ -193,16 +172,6 @@ struct SessionViewUXWhiteboxTests {
             subtitle: "ターミナル",
             updatedAt: Date(timeIntervalSince1970: 0)
         )
-    }
-}
-
-private final class NavigationHost: InteractivePopGestureHost {
-    let navigationStackDepth: Int
-    var isInteractivePopGestureEnabled: Bool
-
-    init(depth: Int, isGestureEnabled: Bool) {
-        navigationStackDepth = depth
-        isInteractivePopGestureEnabled = isGestureEnabled
     }
 }
 
@@ -253,29 +222,6 @@ private struct ProposalProbe: Layout {
         subviews: Subviews,
         cache: inout ()
     ) {}
-}
-
-private enum SourceDeclaration {
-    static func body(named name: String, in source: String) -> String? {
-        guard let declarationRange = source.range(of: "enum \(name) {") ?? source.range(of: "struct \(name) {") else {
-            return nil
-        }
-        let bodyStart = source.index(before: declarationRange.upperBound)
-
-        var depth = 1
-        var index = source.index(after: bodyStart)
-        while index < source.endIndex {
-            switch source[index] {
-            case "{": depth += 1
-            case "}":
-                depth -= 1
-                if depth == 0 { return String(source[bodyStart...index]) }
-            default: break
-            }
-            index = source.index(after: index)
-        }
-        return nil
-    }
 }
 
 private enum SourceFunction {

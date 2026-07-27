@@ -28,9 +28,31 @@ public protocol ControllableSession: AnyObject {
     func sendText(_ text: String, submit: Bool) async throws
     func consumeSubmitBaseline()
     func readText(lines: Int) -> String
+    /// 端末画面を SGR（色・装飾）付きで返す。端末を持たないセッション（構造化 appServer）は nil。
+    func readAnsiScreen() -> AnsiScreen?
     func terminate() async
     /// 未確認停止を「確認済み」にする（選択・閲覧時に呼ぶ）。
     func markCompletionSeen()
+}
+
+public extension ControllableSession {
+    /// 既定は「端末を持たない」。PTY セッションだけが上書きする。
+    func readAnsiScreen() -> AnsiScreen? { nil }
+}
+
+/// 端末画面のスナップショット。モバイルが同じ桁数・同じ色で描き直すために使う。
+///
+/// `readText` のプレーンテキストと違い、色・太字・反転が落ちない。`cols` はデスクトップの
+/// 端末幅で、受け手はこの桁数で描かないと折り返し位置がずれる。
+public struct AnsiScreen: Sendable, Equatable {
+    /// SGR を含む画面テキスト。行区切りは `\n`。
+    public let ansi: String
+    public let cols: Int
+
+    public init(ansi: String, cols: Int) {
+        self.ansi = ansi
+        self.cols = cols
+    }
 }
 
 @MainActor

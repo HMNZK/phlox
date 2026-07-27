@@ -2,13 +2,13 @@ import Foundation
 import Testing
 
 @Suite struct Wave3SessionDetailChromeWhiteboxTests {
-    @Test func detailUsesCustomChromeAndRoutesEveryMenuAction() throws {
+    /// wave-3 はナビバーを隠した自前 chrome だったが、それでは端スワイプ pop が成立しない。
+    /// ADR 0033 でシステムのナビゲーションバーへ載せ替えた。メニューの導線は当時のまま維持する。
+    @Test func detailUsesSystemChromeAndRoutesEveryMenuAction() throws {
         let source = try sourceText("Sources/Features/SessionDetail/SessionDetailView.swift")
 
-        #expect(source.contains("@Environment(\\.dismiss)"))
-        #expect(source.contains(".toolbar(.hidden, for: .navigationBar)"))
-        #expect(source.contains("private var topBar"))
-        #expect(source.contains("Text(viewModel.displayName)"))
+        #expect(source.contains("SessionDetailNavigationChromeModifier(title: viewModel.displayName)"))
+        #expect(source.contains("private var sessionMenu"))
         #expect(source.contains("Menu {"))
         #expect(source.contains("Button(\"モデル変更\")"))
         #expect(source.contains("viewModel.isModelSheetPresented = true"))

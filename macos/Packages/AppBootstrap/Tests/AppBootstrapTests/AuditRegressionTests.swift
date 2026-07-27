@@ -94,7 +94,7 @@ import SessionFeature
         let handler = makeHandler(stub)
         let requester = SessionID()
 
-        let output = await handler.handle(request(.output(id: SessionID(), mode: .screen), requester: requester))
+        let output = await handler.handle(request(.output(id: SessionID(), mode: .screen, format: .text), requester: requester))
         #expect(output.statusCode == 200, "read(output) が認可で 403 になった（operator モデル違反）")
 
         let messages = await handler.handle(request(.messages(id: SessionID(), since: nil, wait: nil), requester: requester))

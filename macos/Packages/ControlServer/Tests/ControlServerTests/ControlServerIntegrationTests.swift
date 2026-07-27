@@ -345,7 +345,7 @@ private actor HandlerStub {
         #expect(status == 200)
 
         let last = await stub.lastRequest
-        guard case .output(let id, let mode)? = last?.action else {
+        guard case .output(let id, let mode, _)? = last?.action else {
             Issue.record("expected output")
             return
         }
@@ -367,12 +367,72 @@ private actor HandlerStub {
         #expect(status == 200)
 
         let last = await stub.lastRequest
-        guard case .output(let id, let mode)? = last?.action else {
+        guard case .output(let id, let mode, _)? = last?.action else {
             Issue.record("expected output")
             return
         }
         #expect(id == targetID)
         #expect(mode == .scrollback)
+    }
+
+    @Test("format=ansi は色付き表現の要求として解釈する")
+    func getSessionOutputParsesAnsiFormat() async throws {
+        let targetID = SessionID()
+        let stub = HandlerStub()
+        let (port, server) = try await startServer(stub: stub)
+        _ = server
+        let status = try await request(
+            port: port,
+            method: "GET",
+            path: "/sessions/\(targetID.rawValue.uuidString)/output?format=ansi",
+            bearer: token
+        )
+        #expect(status == 200)
+
+        let last = await stub.lastRequest
+        guard case .output(_, _, let format)? = last?.action else {
+            Issue.record("expected output")
+            return
+        }
+        #expect(format == .ansi)
+    }
+
+    @Test("format 未指定は従来どおりプレーンテキスト")
+    func getSessionOutputDefaultsToTextFormat() async throws {
+        let targetID = SessionID()
+        let stub = HandlerStub()
+        let (port, server) = try await startServer(stub: stub)
+        _ = server
+        _ = try await request(
+            port: port,
+            method: "GET",
+            path: "/sessions/\(targetID.rawValue.uuidString)/output",
+            bearer: token
+        )
+
+        let last = await stub.lastRequest
+        guard case .output(_, _, let format)? = last?.action else {
+            Issue.record("expected output")
+            return
+        }
+        #expect(format == .text)
+    }
+
+    @Test("未知の format は 400 で弾く")
+    func getSessionOutputRejectsUnknownFormat() async throws {
+        let targetID = SessionID()
+        let stub = HandlerStub()
+        let (port, server) = try await startServer(stub: stub)
+        _ = server
+
+        let status = try await request(
+            port: port,
+            method: "GET",
+            path: "/sessions/\(targetID.rawValue.uuidString)/output?format=html",
+            bearer: token
+        )
+
+        #expect(status == 400)
     }
 
     @Test func getSessionMessagesRoutesToMessagesAction() async throws {

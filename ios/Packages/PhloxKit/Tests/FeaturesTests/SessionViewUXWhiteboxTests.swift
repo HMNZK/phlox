@@ -161,6 +161,24 @@ struct SessionViewUXWhiteboxTests {
         #expect(!restorer.contains("UINavigationController"), "UIKit 接続層ではなく判定層が UINavigationController に触れている")
     }
 
+    @Test("UIKit 接続層は開始ガード付き delegate を保持し、詳細画面の離脱時に復帰する")
+    func interactivePopUIKitBridgeGuardsAndRestoresDelegate() throws {
+        let source = try SessionViewUXSource.text("Sources/Features/SessionDetail/InteractivePopGestureRestorer.swift")
+
+        #expect(source.contains("private var interactivePopGestureDelegate: NavigationControllerInteractivePopGestureDelegate?"))
+        #expect(source.contains("private var originalInteractivePopGestureDelegate: UIGestureRecognizerDelegate?"))
+        #expect(source.contains("private final class NavigationControllerInteractivePopGestureDelegate: NSObject, UIGestureRecognizerDelegate"))
+        #expect(source.contains("gestureRecognizer.delegate = interactivePopGestureDelegate"))
+        #expect(source.contains("navigationController.viewControllers.count >= 2"))
+        #expect(source.contains("navigationController.transitionCoordinator == nil"))
+        #expect(source.contains("shouldRecognizeSimultaneouslyWith otherGestureRecognizer"))
+        #expect(source.contains(") -> Bool {\n        false\n    }"))
+        #expect(source.contains("override func viewWillDisappear"))
+        #expect(source.contains("restoreOriginalInteractivePopGestureDelegate()"))
+        #expect(source.contains("gestureRecognizer.delegate = originalInteractivePopGestureDelegate"))
+        #expect(!source.contains("delegate = nil"), "UIKit の安全弁を外す裸の delegate = nil は使わないこと")
+    }
+
     private func terminalOutput(lineCount: Int) -> String {
         Array(repeating: String(repeating: "x", count: 200), count: lineCount)
             .joined(separator: "\n")

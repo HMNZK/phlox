@@ -57,6 +57,10 @@ private struct InteractivePopGestureRestorationView: UIViewControllerRepresentab
 }
 
 private final class RestorationViewController: UIViewController {
+    /// `UIGestureRecognizer` は delegate を弱参照するため、この view controller が強参照する。
+    private var interactivePopGestureDelegate: NavigationControllerInteractivePopGestureDelegate?
+    private var originalInteractivePopGestureDelegate: UIGestureRecognizerDelegate?
+
     override func didMove(toParent parent: UIViewController?) {
         super.didMove(toParent: parent)
         restoreInteractivePopGesture()
@@ -75,11 +79,67 @@ private final class RestorationViewController: UIViewController {
         restoreInteractivePopGesture()
     }
 
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        restoreOriginalInteractivePopGestureDelegate()
+    }
+
     func restoreInteractivePopGesture() {
         guard let navigationController else { return }
-        _ = InteractivePopGestureRestorer.restore(
+        guard InteractivePopGestureRestorer.restore(
             on: NavigationControllerInteractivePopGestureHost(navigationController: navigationController)
-        )
+        ), let gestureRecognizer = navigationController.interactivePopGestureRecognizer else {
+            return
+        }
+
+        if interactivePopGestureDelegate == nil {
+            originalInteractivePopGestureDelegate = gestureRecognizer.delegate
+            interactivePopGestureDelegate = NavigationControllerInteractivePopGestureDelegate(
+                navigationController: navigationController
+            )
+        }
+
+        if let interactivePopGestureDelegate {
+            gestureRecognizer.delegate = interactivePopGestureDelegate
+        }
+    }
+
+    private func restoreOriginalInteractivePopGestureDelegate() {
+        guard let navigationController,
+              let gestureRecognizer = navigationController.interactivePopGestureRecognizer,
+              let interactivePopGestureDelegate
+        else {
+            return
+        }
+
+        if gestureRecognizer.delegate === interactivePopGestureDelegate {
+            gestureRecognizer.delegate = originalInteractivePopGestureDelegate
+        }
+        self.interactivePopGestureDelegate = nil
+        originalInteractivePopGestureDelegate = nil
+    }
+}
+
+/// ナビゲーションバーを隠した詳細画面でのみ、UIKit の既定 delegate に代わって開始可否を守る。
+/// 本文の横スクロールと競合しないよう、同時認識は許可しない。
+private final class NavigationControllerInteractivePopGestureDelegate: NSObject, UIGestureRecognizerDelegate {
+    private weak var navigationController: UINavigationController?
+
+    init(navigationController: UINavigationController) {
+        self.navigationController = navigationController
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let navigationController else { return false }
+        return navigationController.viewControllers.count >= 2
+            && navigationController.transitionCoordinator == nil
+    }
+
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        false
     }
 }
 

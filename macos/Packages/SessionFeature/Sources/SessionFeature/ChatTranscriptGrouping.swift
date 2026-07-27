@@ -23,13 +23,8 @@ enum ChatTranscriptGrouping {
         var pendingCommands: [ChatItem] = []
 
         func appendPendingCommands() {
-            switch pendingCommands.count {
-            case 0:
-                break
-            case 1:
-                blocks.append(.single(pendingCommands[0]))
-            default:
-                blocks.append(.commandGroup(id: pendingCommands[0].id, items: pendingCommands))
+            if let first = pendingCommands.first {
+                blocks.append(.commandGroup(id: first.id, items: pendingCommands))
             }
             pendingCommands.removeAll(keepingCapacity: true)
         }
@@ -66,41 +61,35 @@ enum ChatTranscriptGrouping {
         return itemID
     }
 
-    /// Window の開始位置が commandGroup の途中なら、境界以降だけを部分ブロックとして表示する。
-    /// 部分ブロックの id は全 transcript 上のグループ先頭 item.id に固定するため、window 展開で
-    /// 表示 item が増えても identity は変わらない。入力は ArraySlice のまま走査し、全件コピーしない。
-    static func visibleSlice(from items: [ChatItem], startingAt requestedStartIndex: Int) -> ChatTranscriptSlice {
-        let startIndex = min(max(0, requestedStartIndex), items.count)
-        guard startIndex < items.count else {
-            return ChatTranscriptSlice(blocks: [], hiddenItemCount: items.count)
-        }
-
-        let contentBlocks = makeBlocks(from: items[startIndex...])
-        var visibleBlocks = contentBlocks.map { block in
-            ChatTranscriptVisibleBlock(id: block.id, content: block)
-        }
-        if isCommand(items[startIndex]) {
-            var groupStartIndex = startIndex
-            while groupStartIndex > 0, isCommand(items[groupStartIndex - 1]) {
-                groupStartIndex -= 1
-            }
-
-            if groupStartIndex < startIndex, !visibleBlocks.isEmpty {
-                visibleBlocks[0] = ChatTranscriptVisibleBlock(
-                    id: items[groupStartIndex].id,
-                    content: visibleBlocks[0].content
-                )
-            }
-        }
-
-        return ChatTranscriptSlice(blocks: visibleBlocks, hiddenItemCount: startIndex)
+    static func blockCount(of items: [ChatItem]) -> Int {
+        blocks(from: items).count
     }
 
-    private static func isCommand(_ item: ChatItem) -> Bool {
-        if case .commandExecution = item {
-            return true
+    static func blockIndex(ofItemWithID itemID: String, in items: [ChatItem]) -> Int? {
+        for (index, block) in blocks(from: items).enumerated() {
+            switch block {
+            case .single(let item) where item.id == itemID:
+                return index
+            case .commandGroup(_, let groupedItems) where groupedItems.contains(where: { $0.id == itemID }):
+                return index
+            default:
+                continue
+            }
         }
-        return false
+        return nil
+    }
+
+    static func visibleSlice(from items: [ChatItem], blockLimit: Int) -> ChatTranscriptSlice {
+        let allBlocks = blocks(from: items)
+        let visibleCount = min(allBlocks.count, max(0, blockLimit))
+        let visibleBlocks = allBlocks.suffix(visibleCount).map {
+            ChatTranscriptVisibleBlock(id: $0.id, content: $0)
+        }
+
+        return ChatTranscriptSlice(
+            blocks: visibleBlocks,
+            hiddenBlockCount: allBlocks.count - visibleCount
+        )
     }
 }
 
@@ -111,5 +100,5 @@ struct ChatTranscriptVisibleBlock: Identifiable, Equatable {
 
 struct ChatTranscriptSlice: Equatable {
     let blocks: [ChatTranscriptVisibleBlock]
-    let hiddenItemCount: Int
+    let hiddenBlockCount: Int
 }

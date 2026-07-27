@@ -1,9 +1,28 @@
 import Foundation
+import os
 
 /// セッション起動経路。サイドバー表示と app-server ポリシー切替に使う。
 public enum SessionLaunchContext: String, Codable, Sendable, Equatable {
     case interactive
     case orchestration
+
+    private static let logger = Logger(
+        subsystem: "com.phlox.Phlox",
+        category: "SessionLaunchContext"
+    )
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        guard let context = Self(rawValue: rawValue) else {
+            Self.logger.warning(
+                "unknown launch context \(rawValue, privacy: .public); using interactive"
+            )
+            self = .interactive
+            return
+        }
+        self = context
+    }
 }
 
 /// アプリ再起動後にセッションを復元するために永続化する最小メタ情報。

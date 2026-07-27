@@ -14,6 +14,8 @@ iOS コンパニオンアプリ固有の決定の **理由** を残す。追記�
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0038 | [ツール実行カードは閉状態で行データもコピー文字列も作らず、展開時は行数を有界化する](0038-command-group-cost-bounding.md) | accepted |
+| 0037 | [transcript の表示窓はブロック単位で数える](0037-transcript-window-counts-blocks.md) | accepted |
 | 0032 | [ナビゲーションバーを隠した画面の端スワイプは、ガード付きデリゲートへ差し替えて復活させる](0032-interactive-pop-gesture-on-hidden-navigation-bar.md) | accepted |
 | 0031 | [本文の折り返しはテーマで、表は幅を見積もって横スクロールで読ませる](0031-chat-body-readability-wrapping-and-table-scroll.md) | accepted |
 | 0030 | [ドラフトのモデル選択は表示用 ID 文字列ではなく `(kind, modelID?)` で保持する](0030-draft-model-selection-kind-and-id.md) | accepted |

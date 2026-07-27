@@ -650,13 +650,22 @@ struct SessionDetailTranscriptSlice {
     }
 
     init(messages: [ChatMessage], window: TranscriptWindow) {
-        let range = window.visibleRange(totalCount: messages.count)
-        visibleMessages = messages[range.startIndex...]
-        hiddenCount = range.hiddenCount
-        visibleBlocks = SessionDetailToolCallGrouping.visibleSlice(
+        let blockSlice = SessionDetailToolCallGrouping.visibleSlice(
             from: messages,
-            startingAt: range.startIndex
-        ).blocks
+            blockLimit: window.limit
+        )
+        visibleBlocks = blockSlice.blocks
+        hiddenCount = blockSlice.hiddenBlockCount
+
+        let visibleMessageCount = visibleBlocks.reduce(0) { total, visible in
+            switch visible.content {
+            case .single:
+                total + 1
+            case .commandGroup(_, let items):
+                total + items.count
+            }
+        }
+        visibleMessages = messages.suffix(visibleMessageCount)
     }
 }
 

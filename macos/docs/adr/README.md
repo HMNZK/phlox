@@ -12,6 +12,10 @@ last-verified: 2026-07-27
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0129 | [取り残された iPhone 由来セッションは、由来を特定できるものだけ救済する](0129-orphaned-remote-session-rescue.md) | accepted |
+| 0128 | [通知は「その通知が届く先から辿れるセッション」にだけ出す](0128-notification-reachability-per-client.md) | accepted |
+| 0127 | [Control API の「要求元」と「セッションツリーの親」を分離し、`.remoteUser` を導入する](0127-control-api-requester-parent-separation.md) | accepted |
+| 0126 | [セッション保存は未知の値を要素単位で捨て、原本を残す](0126-session-store-unknown-value-tolerance.md) | accepted |
 | 0125 | [セッションを開いたら最下部から表示する（チャット・ターミナル共通）](0125-open-session-at-bottom.md) | accepted |
 | 0124 | [AskUserQuestion の自由入力と選択肢は相互排他にし、自由入力欄は複数行へ折り返す](0124-user-question-free-text-exclusive.md) | accepted |
 | 0123 | [エージェント既定モデルの正本を AgentDomain の `AgentModelCatalog.defaultModel(for:)` に一元化する（Claude=opus）](0123-agent-default-model-single-source.md) | accepted |

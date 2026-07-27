@@ -65,4 +65,4 @@ App ターゲット（`xcodebuild -scheme Phlox -configuration Debug`）: **BUIL
 - `sessions.json` の前方互換は `launchContext` の未知値までで、`backend` / `kind` の未知値は依然としてその1件が落ちる（→ ADR 0130）。
 - `.corrupt-<epoch>` という名前が「隔離」と「復旧用バックアップ」の二義になっている（→ ADR 0130）。
 - 救済結果の保存だけが永続化の直列チェーンを迂回している（理論上の窓。再現シナリオは構成できなかった）。
-- `DashboardViewModel.hasUnseenCompletion(in:)` は本番未使用のまま残している。サイドバー森走査の共通ヘルパーを直接検証する唯一のテスト継ぎ目であり、消すと生きた経路の検証を巻き添えにするため（判断の詳細は run の decision-log に記録）。
+- `DashboardViewModel.hasUnseenCompletion(in:)` は本番未使用のまま残している。レビューで「デッドコード」と指摘されたが、サイドバーの森走査ヘルパーを直接検証できる唯一のテスト継ぎ目であり、消すと生きた経路（バッジ集計・通知ゲート）の検証まで巻き添えになるため残す判断をした。

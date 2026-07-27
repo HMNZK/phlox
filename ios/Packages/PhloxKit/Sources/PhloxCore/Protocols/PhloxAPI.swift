@@ -21,6 +21,10 @@ public protocol PhloxAPI: Sendable {
     func send(_ request: SendRequest) async throws -> SendResult
     /// GET /sessions/{id}/output（出力スナップショット）
     func output(sessionID: String) async throws -> String
+    /// GET /sessions/{id}/output?format=ansi（色つきの端末画面）。
+    /// 端末を持たないセッションでは Mac が従来のプレーンテキストへ落とすので、
+    /// 戻り値の `isANSI` で見分ける。
+    func terminalScreen(sessionID: String) async throws -> TerminalScreen
     /// GET /sessions/{id}/messages（構造化チャットスナップショット）。
     /// 非構造化/不在のセッションは 404 → `PhloxError.notFound` を投げる（呼び出し側でターミナル output にフォールバック）。
     func messages(sessionID: String) async throws -> [ChatMessage]
@@ -56,6 +60,11 @@ public protocol PhloxAPI: Sendable {
 /// 既存の全 conformer（PhloxAPIClient / MockAPI / StubPhloxAPI）のコンパイルを壊さないための
 /// 暫定面で、実装が入り次第それぞれが上書きする。
 public extension PhloxAPI {
+    /// 既定は色なしへのフォールバック。ANSI を配信できない Mac／テスト用スタブでも動く。
+    func terminalScreen(sessionID: String) async throws -> TerminalScreen {
+        TerminalScreen(text: try await output(sessionID: sessionID), cols: nil)
+    }
+
     func agentModels(kind: AgentKind) async throws -> AgentModels {
         throw PhloxError.server(status: 501, message: "agentModels: 未実装")
     }

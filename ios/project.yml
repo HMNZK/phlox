@@ -140,6 +140,9 @@ schemes:
       targets:
         - name: PhloxMobileUITests
           parallelizable: true
+          # ライブ回帰テストはローカル偽サーバー（scripts/fake-phlox-server.py）が要るので既定では走らせない。
+          skipped:
+            - SessionListTitleLiveRegressionUITests
     profile:
       config: Release
     analyze:
@@ -163,3 +166,6 @@ schemes:
       targets:
         - name: PhloxMobileUITests
           parallelizable: true
+          # ライブ回帰テストはローカル偽サーバー（scripts/fake-phlox-server.py）が要るので既定では走らせない。
+          skipped:
+            - SessionListTitleLiveRegressionUITests

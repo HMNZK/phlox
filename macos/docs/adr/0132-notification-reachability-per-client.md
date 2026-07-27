@@ -3,10 +3,10 @@ status: accepted
 last-verified: 2026-07-27
 ---
 
-# ADR 0128: 通知は「その通知が届く先から辿れるセッション」にだけ出す
+# ADR 0132: 通知は「その通知が届く先から辿れるセッション」にだけ出す
 
 > **このファイルの役割**: 「通知しているのにユーザーがそれを解消できない」状態を構造的に不可能にした決定と、到達可能性を**届け先（Mac / iPhone）ごと**に判定することにした理由。
-> **書かないもの**: セッションが画面に出るかどうかのルールそのもの（→ [ADR 0027](0027-grid-workspace-filter-includes-subsessions.md)）、赤表示（要対応）の導出（→ [ADR 0111](0111-awaiting-user-question-status.md)）、そもそも孤児が生まれる原因（→ [ADR 0127](0127-control-api-requester-parent-separation.md)）。
+> **書かないもの**: セッションが画面に出るかどうかのルールそのもの（→ [ADR 0027](0027-grid-workspace-filter-includes-subsessions.md)）、赤表示（要対応）の導出（→ [ADR 0111](0111-awaiting-user-question-status.md)）、そもそも孤児が生まれる原因（→ [ADR 0131](0131-control-api-requester-parent-separation.md)）。
 
 ## 文脈
 

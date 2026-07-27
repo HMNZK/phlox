@@ -809,6 +809,13 @@ extension SessionViewModel: ControllableSession {
             .joined(separator: "\n")
     }
 
+    public func readAnsiScreen() -> AnsiScreen? {
+        AnsiScreen(
+            ansi: terminalCoordinator.ansiScreenText(),
+            cols: Int(terminalCoordinator.currentCols)
+        )
+    }
+
     public func consumeSubmitBaseline() {
         submitBaselineTurnSeq = nil
     }

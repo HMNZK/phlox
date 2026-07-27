@@ -20,6 +20,7 @@ import SessionFeature
         var removeExisted = true
         private(set) var renamedTo: (id: SessionID, name: String)?
         var outputText: String?
+        var ansiScreen: AnsiScreen?
         var chatMessages: [ChatItem]?
         var readiness: DashboardViewModel.ReadinessResult = .ready
         var doneResult: DashboardViewModel.DoneResult = .done(output: "")
@@ -60,6 +61,10 @@ import SessionFeature
 
         func sessionOutput(for id: SessionID) -> String? {
             outputText
+        }
+
+        func sessionAnsiScreen(for id: SessionID) -> AnsiScreen? {
+            ansiScreen
         }
 
         func sessionChatMessagesDelta(for id: SessionID, since: String?) -> TranscriptDelta? {
@@ -501,10 +506,56 @@ import SessionFeature
         dashboard.outputText = "screen text"
         let handler = makeHandler(dashboard)
 
-        let response = await handler.handle(request(.output(id: SessionID(), mode: .screen)))
+        let response = await handler.handle(request(.output(id: SessionID(), mode: .screen, format: .text)))
 
         #expect(response.statusCode == 200)
         #expect(try bodyJSON(response)["text"] as? String == "screen text")
+    }
+
+    @Test("format=ansi は色付きの画面と端末の桁数を返す")
+    func outputWithAnsiFormatReturnsColoredScreenAndColumns() async throws {
+        let dashboard = DashboardStub()
+        dashboard.outputText = "red"
+        dashboard.ansiScreen = AnsiScreen(ansi: "\u{1b}[0;31mred\u{1b}[0m", cols: 120)
+        let handler = makeHandler(dashboard)
+
+        let response = await handler.handle(request(.output(id: SessionID(), mode: .screen, format: .ansi)))
+
+        #expect(response.statusCode == 200)
+        let body = try bodyJSON(response)
+        #expect(body["text"] as? String == "\u{1b}[0;31mred\u{1b}[0m")
+        #expect(body["format"] as? String == "ansi")
+        #expect(body["cols"] as? Int == 120, "折り返し位置を合わせるため端末幅を返すこと")
+    }
+
+    @Test("端末を持たないセッションへ format=ansi を求めても従来のテキストへ落とす")
+    func outputWithAnsiFormatFallsBackForSessionsWithoutTerminal() async throws {
+        let dashboard = DashboardStub()
+        dashboard.outputText = "structured transcript"
+        dashboard.ansiScreen = nil
+        let handler = makeHandler(dashboard)
+
+        let response = await handler.handle(request(.output(id: SessionID(), mode: .screen, format: .ansi)))
+
+        #expect(response.statusCode == 200)
+        let body = try bodyJSON(response)
+        #expect(body["text"] as? String == "structured transcript")
+        #expect(body["format"] == nil, "落としたことをクライアントが見分けられるよう format を付けないこと")
+    }
+
+    @Test("format 未指定の応答は従来どおり text だけを持つ")
+    func outputWithoutFormatStaysBackwardCompatible() async throws {
+        let dashboard = DashboardStub()
+        dashboard.outputText = "screen text"
+        dashboard.ansiScreen = AnsiScreen(ansi: "\u{1b}[0;31mred\u{1b}[0m", cols: 120)
+        let handler = makeHandler(dashboard)
+
+        let response = await handler.handle(request(.output(id: SessionID(), mode: .screen, format: .text)))
+
+        let body = try bodyJSON(response)
+        #expect(body["text"] as? String == "screen text")
+        #expect(body["format"] == nil)
+        #expect(body["cols"] == nil)
     }
 
     @Test func outputForMissingSessionReturns404() async {
@@ -512,7 +563,7 @@ import SessionFeature
         dashboard.outputText = nil
         let handler = makeHandler(dashboard)
 
-        let response = await handler.handle(request(.output(id: SessionID(), mode: .screen)))
+        let response = await handler.handle(request(.output(id: SessionID(), mode: .screen, format: .text)))
 
         #expect(response.statusCode == 404)
     }

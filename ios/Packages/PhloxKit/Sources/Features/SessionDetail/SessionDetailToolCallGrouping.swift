@@ -25,7 +25,7 @@ public struct SessionDetailVisibleBlock: Identifiable, Equatable, Sendable {
 
 public struct SessionDetailTranscriptBlockSlice: Equatable, Sendable {
     public let blocks: [SessionDetailVisibleBlock]
-    public let hiddenItemCount: Int
+    public let hiddenBlockCount: Int
 }
 
 /// 連続する 1 件以上の `.command` メッセージを 1 ブロックへ集約する純関数（task-1 契約）。
@@ -51,36 +51,25 @@ public enum SessionDetailToolCallGrouping {
         return messageID
     }
 
-    /// Window の開始位置が commandGroup の途中なら、境界以降だけを部分ブロックとして表示する。
-    /// 部分ブロックの id は全 transcript 上のグループ先頭 message.id に固定する。
+    public static func blockCount(of messages: [ChatMessage]) -> Int {
+        blocks(from: messages).count
+    }
+
+    /// 末尾の blockLimit ブロックを返す。窓境界は常に block 境界なので部分ブロックは生じない。
     public static func visibleSlice(
         from messages: [ChatMessage],
-        startingAt requestedStartIndex: Int
+        blockLimit: Int
     ) -> SessionDetailTranscriptBlockSlice {
-        let startIndex = min(max(0, requestedStartIndex), messages.count)
-        guard startIndex < messages.count else {
-            return SessionDetailTranscriptBlockSlice(blocks: [], hiddenItemCount: messages.count)
-        }
-
-        let contentBlocks = makeBlocks(from: messages[startIndex...])
-        var visibleBlocks = contentBlocks.map { block in
+        let allBlocks = blocks(from: messages)
+        let visibleCount = min(allBlocks.count, max(0, blockLimit))
+        let visibleBlocks = allBlocks.suffix(visibleCount).map { block in
             SessionDetailVisibleBlock(id: block.id, content: block)
         }
-        if isCommand(messages[startIndex]) {
-            var groupStartIndex = startIndex
-            while groupStartIndex > 0, isCommand(messages[groupStartIndex - 1]) {
-                groupStartIndex -= 1
-            }
 
-            if groupStartIndex < startIndex, !visibleBlocks.isEmpty {
-                visibleBlocks[0] = SessionDetailVisibleBlock(
-                    id: messages[groupStartIndex].id,
-                    content: visibleBlocks[0].content
-                )
-            }
-        }
-
-        return SessionDetailTranscriptBlockSlice(blocks: visibleBlocks, hiddenItemCount: startIndex)
+        return SessionDetailTranscriptBlockSlice(
+            blocks: visibleBlocks,
+            hiddenBlockCount: allBlocks.count - visibleCount
+        )
     }
 
     private static func makeBlocks<Items: Sequence>(from messages: Items) -> [SessionDetailChatBlock]
@@ -108,10 +97,4 @@ public enum SessionDetailToolCallGrouping {
         return blocks
     }
 
-    private static func isCommand(_ message: ChatMessage) -> Bool {
-        if case .command = message {
-            return true
-        }
-        return false
-    }
 }

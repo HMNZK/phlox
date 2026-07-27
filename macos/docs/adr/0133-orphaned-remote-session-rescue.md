@@ -3,14 +3,14 @@ status: accepted
 last-verified: 2026-07-27
 ---
 
-# ADR 0129: 取り残された iPhone 由来セッションは、由来を特定できるものだけ救済する
+# ADR 0133: 取り残された iPhone 由来セッションは、由来を特定できるものだけ救済する
 
 > **このファイルの役割**: すでに `sessions.json` に残っている孤児セッションを、なぜ「モバイル要求元 ID と一致するものだけ」に限って救済することにしたかの決定。
-> **書かないもの**: そもそも孤児が生まれる原因とその遮断（→ [ADR 0127](0127-control-api-requester-parent-separation.md)）、保存形式の未知値耐性（→ [ADR 0126](0126-session-store-unknown-value-tolerance.md)）。
+> **書かないもの**: そもそも孤児が生まれる原因とその遮断（→ [ADR 0131](0131-control-api-requester-parent-separation.md)）、保存形式の未知値耐性（→ [ADR 0130](0130-session-store-unknown-value-tolerance.md)）。
 
 ## 文脈
 
-[ADR 0127](0127-control-api-requester-parent-separation.md) は「これから作られるセッション」を正す。だが `sessions.json` には**すでに取り残されたセッション**が残る（ユーザーの実機で4件。いずれも `parentSessionID` が Keychain 上のモバイル requester ID と一致）。放置すると、直したあともバッジは減らないままになる。
+[ADR 0131](0131-control-api-requester-parent-separation.md) は「これから作られるセッション」を正す。だが `sessions.json` には**すでに取り残されたセッション**が残る（ユーザーの実機で4件。いずれも `parentSessionID` が Keychain 上のモバイル requester ID と一致）。放置すると、直したあともバッジは減らないままになる。
 
 一方で「親が実在しない孤児」には**別の理由で生まれたもの**も混ざり得る（親を削除した CLI サブセッション等）。それらまで表に出すと、ユーザーが見たくない内部セッションが一覧に現れる。
 
@@ -45,7 +45,7 @@ last-verified: 2026-07-27
 - 該当セッションは次回起動時に `.remoteUser` のルートとして復元され、画面に現れて通常操作（選択・削除）ができる。
 - 対象外の3ケース（親が実在する／要求元と一致しない／要求元が未設定）は**一切変更されない**。
 - 受け入れテスト `AcceptanceOrphanRescueTests` と白箱テストで、救済・非対象・冪等性・永続化を凍結。
-- **副作用（意図的）**: `.orchestration` → `.remoteUser` になることで、そのセッションの承認方針が「承認しない」→「on-request」、サンドボックスが「フルアクセス」→「workspace-write」へ変わる。これはユーザー本人が起動したセッションを CLI 内部サブセッションの緩い方針から外す意図的な変更であり、ADR 0127 の決定3と整合する。
+- **副作用（意図的）**: `.orchestration` → `.remoteUser` になることで、そのセッションの承認方針が「承認しない」→「on-request」、サンドボックスが「フルアクセス」→「workspace-write」へ変わる。これはユーザー本人が起動したセッションを CLI 内部サブセッションの緩い方針から外す意図的な変更であり、ADR 0131 の決定3と整合する。
 - **未検証（リポジトリ外の証拠）**: 実機の4件と Keychain 要求元 ID の一致は、ユーザー環境の実測に基づく。この前提が崩れると救済対象が0件になる（何も壊れないが、何も救われない）。
 
 作業経緯は [delivery/0022-unseen-attention-consistency-worklog.md](../delivery/0022-unseen-attention-consistency-worklog.md) を参照。

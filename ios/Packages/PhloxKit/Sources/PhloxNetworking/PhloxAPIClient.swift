@@ -148,6 +148,15 @@ public actor PhloxAPIClient: PhloxAPI {
         return dto.output
     }
 
+    public func terminalScreen(sessionID: String) async throws -> TerminalScreen {
+        let dto = try await getDecoded(
+            OutputDTO.self,
+            path: Self.sessionsPath(sessionID: sessionID, suffix: "output"),
+            queryItems: [URLQueryItem(name: "format", value: "ansi")]
+        )
+        return dto.toTerminalScreen()
+    }
+
     public func waitUntilReady(sessionID: String) async throws -> Bool {
         // Mac は ?timeout 既定10秒でロングポーリングし {ready} を返す。再試行はしない（待機の二重化を避ける）。
         let dto = try await decoded(

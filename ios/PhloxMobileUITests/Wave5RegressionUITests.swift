@@ -72,7 +72,7 @@ final class Wave5RegressionUITests: XCTestCase {
     func testListDetailRoundTripKeepsProjectsTitle() throws {
         let list = app.descendants(matching: .any)["sessionList"]
         XCTAssertTrue(list.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.navigationBars["Projects"].waitForExistence(timeout: 3), "初期表示で Projects タイトルが可視")
+        XCTAssertTrue(app.staticTexts["Projects"].waitForExistence(timeout: 3), "初期表示で Projects タイトルが可視")
 
         for i in 1...2 {
             app.descendants(matching: .any)["attentionRow.sess-rose"].tap()
@@ -80,16 +80,18 @@ final class Wave5RegressionUITests: XCTestCase {
                 app.descendants(matching: .any)["sessionDetail"].waitForExistence(timeout: 10),
                 "詳細へ遷移(\(i))"
             )
-            let back = app.buttons["戻る"]
+            // システムの戻るボタン。ラベルは端末の言語設定に依存するのでバー先頭の項目で取る。
+            let back = app.navigationBars.buttons.element(boundBy: 0)
             XCTAssertTrue(back.waitForExistence(timeout: 3), "戻るボタンが出ること(\(i))")
             back.tap()
             XCTAssertTrue(
-                app.navigationBars["Projects"].waitForExistence(timeout: 5),
+                app.staticTexts["Projects"].waitForExistence(timeout: 5),
                 "往復\(i)回目の後も Projects タイトルが可視（上部空白にならない）"
             )
             XCTAssertTrue(app.staticTexts["あなたの番"].waitForExistence(timeout: 3), "一覧の注目セクションが可視(\(i))")
         }
     }
+
 
     // MARK: - task-1(wave-7): 入力欄の整理（ドラッグバー廃止・音声ボタン廃止・送信/停止を右スロット常設）
 

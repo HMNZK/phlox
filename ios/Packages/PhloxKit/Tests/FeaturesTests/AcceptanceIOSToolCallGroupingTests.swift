@@ -149,40 +149,65 @@ struct AcceptanceIOSToolCallGroupingTests {
         #expect(SessionDetailToolCallGrouping.scrollTargetID(containing: "a2", in: messages) == "a2")
     }
 
+    // 【API 移行の記録 2026-07-27 / tool-call-collapse-threshold run task-4】
+    // 表示窓がまとまり単位になり1つのグループが数千件を抱えうるようになったため、
+    // SessionDetailCommandGroupPresentation を「ヘッダ（行データを持たない）」と
+    // 「行スライス（展開時のみ・上限つき）」へ分離した。下の3件は**アサーションの意味を変えず**、
+    // 参照する型名だけを新 API へ移した（decision-log.md 参照）。
+
     @Test func 単独コマンドの見出しは件数1つきの集約ヘッダになる() {
-        let presentation = SessionDetailCommandGroupPresentation(
+        let header = SessionDetailCommandGroupHeader(
             items: [cmd("c1")],
             lastTranscriptID: "c1",
             isTurnRunning: false
         )
+        let slice = SessionDetailCommandGroupRowWindow.slice(
+            items: [cmd("c1")],
+            lastTranscriptID: "c1",
+            isTurnRunning: false,
+            limit: SessionDetailCommandGroupRowWindow.defaultLimit
+        )
 
-        #expect(presentation.title == "ツール実行 ×1")
-        #expect(presentation.shouldRender)
-        #expect(presentation.rows.map(\.id) == ["c1"])
+        #expect(header.title == "ツール実行 ×1")
+        #expect(header.shouldRender)
+        #expect(slice.rows.map(\.id) == ["c1"])
     }
 
     @Test func 単独コマンドは出力が空でも展開でコマンド文字列を読める() {
-        let presentation = SessionDetailCommandGroupPresentation(
+        let header = SessionDetailCommandGroupHeader(
             items: [emptyCmd("c1")],
             lastTranscriptID: "c1",
             isTurnRunning: false
         )
+        let slice = SessionDetailCommandGroupRowWindow.slice(
+            items: [emptyCmd("c1")],
+            lastTranscriptID: "c1",
+            isTurnRunning: false,
+            limit: SessionDetailCommandGroupRowWindow.defaultLimit
+        )
 
-        #expect(!presentation.isRunning)
-        #expect(presentation.shouldRender)                        // 1行ヘッダは消えない
-        #expect(presentation.rows.map(\.id) == ["c1"])            // 展開すると「$ <コマンド>」が読める
-        #expect(presentation.rows.first?.command == "swift build")
-        #expect(presentation.rows.first?.output.isEmpty == true)  // 出力は空のまま（捏造しない）
+        #expect(!header.isRunning)
+        #expect(header.shouldRender)                        // 1行ヘッダは消えない
+        #expect(slice.rows.map(\.id) == ["c1"])             // 展開すると「$ <コマンド>」が読める
+        #expect(slice.rows.first?.command == "swift build")
+        #expect(slice.rows.first?.output.isEmpty == true)   // 出力は空のまま（捏造しない）
     }
 
     @Test func 複数件で全て空出力かつ非実行中なら従来どおり描画しない() {
-        let presentation = SessionDetailCommandGroupPresentation(
-            items: [emptyCmd("c1"), emptyCmd("c2")],
+        let items = [emptyCmd("c1"), emptyCmd("c2")]
+        let header = SessionDetailCommandGroupHeader(
+            items: items,
             lastTranscriptID: "c2",
             isTurnRunning: false
         )
+        let slice = SessionDetailCommandGroupRowWindow.slice(
+            items: items,
+            lastTranscriptID: "c2",
+            isTurnRunning: false,
+            limit: SessionDetailCommandGroupRowWindow.defaultLimit
+        )
 
-        #expect(presentation.rows.isEmpty)
-        #expect(!presentation.shouldRender)  // 2件以上の既存ルールは変更しない
+        #expect(slice.rows.isEmpty)
+        #expect(!header.shouldRender)  // 2件以上の既存ルールは変更しない
     }
 }

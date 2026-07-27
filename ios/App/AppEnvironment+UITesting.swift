@@ -158,6 +158,15 @@ private struct UITestPhloxAPI: PhloxAPI {
     func waitUntilReady(sessionID: String) async throws -> Bool { true }
     func approvals() async throws -> [Approval] { approvals }
     func output(sessionID: String) async throws -> String { "› running tests...\nOK" }
+
+    /// Mac が色つきの端末画面を配信できたときの経路。UI テストで実描画を確かめるため、
+    /// SGR 入りの本文と Mac 側の桁数を返す。
+    func terminalScreen(sessionID: String) async throws -> TerminalScreen {
+        TerminalScreen(
+            text: "\u{1B}[0;32m›\u{1B}[0m running tests...\n\u{1B}[0;1;33mOK\u{1B}[0m",
+            cols: 80
+        )
+    }
     func messages(sessionID: String) async throws -> [ChatMessage] { [] }
     func remove(sessionID: String) async throws {}
     func respond(approvalID: String, decision: ApprovalDecision) async throws {}

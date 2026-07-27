@@ -8,6 +8,8 @@ import UIKit
 /// すべて `Font.TextStyle` ベース（固定サイズ `.system(size:)` を使わない）で、
 /// ユーザーの文字サイズ設定に追従する。
 public extension DSFont {
+    /// 一覧最上部の大タイトル。iOS 標準の large title と同じ見た目にする。
+    static let largeTitle = Font.largeTitle.weight(.bold)
     /// 画面タイトル（カンプ各ヘッダ）。
     static let title1 = Font.title.weight(.semibold)
     /// セクション見出し（大）。

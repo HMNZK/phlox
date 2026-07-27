@@ -159,18 +159,14 @@ struct ChatTranscriptView: View {
         // 長大トランスクリプトの先行レイアウトコストは「末尾 N 件のみ描画」（window）で
         // 抑える（遅延機構の再導入ではなく件数制限。ADR 0030:22）。
         // window は totalCount のみに依存する純関数で、スクロール量・可視領域には連動しない。
-        let range = window.visibleRange(totalCount: items.count)
-        // window 境界以降だけを集約する。境界がグループ内部なら後半だけの部分ブロックにし、
-        // id は全 transcript 上のグループ先頭 item.id に固定する。これにより描画数を window 上限内に
-        // 保ちつつ、展開で部分ブロックの内容が増えても identity を揺らさない（ADR 0030）。
-        let visibleSlice = ChatTranscriptGrouping.visibleSlice(from: items, startingAt: range.startIndex)
+        let visibleSlice = ChatTranscriptGrouping.visibleSlice(from: items, blockLimit: window.limit)
         // スクラバー連動用: 各ユーザー入力ブロックだけ縦位置を測る（スクロール不変な content 座標系）。
         let userMessageIDs = Set(InputHistoryPolicy.entries(from: items).map(\.id))
         return VStack(alignment: .leading, spacing: DSSpacing.m) {
-            if visibleSlice.hiddenItemCount > 0 {
-                // 展開前の先頭可視 item をアンカーに（押下時に見えていた最初のメッセージ）。
+            if visibleSlice.hiddenBlockCount > 0 {
+                // 展開前の先頭可視 block をアンカーに（押下時に見えていた最初のメッセージ）。
                 loadEarlierButton(
-                    hiddenCount: visibleSlice.hiddenItemCount,
+                    hiddenCount: visibleSlice.hiddenBlockCount,
                     anchorID: visibleSlice.blocks.first?.id
                 )
             }
@@ -261,7 +257,7 @@ struct ChatTranscriptView: View {
     /// 先頭に隠れた古いメッセージを段階的に表示するボタン。
     /// window の拡張契機は「このボタンの押下のみ」。スクロール位置・可視領域には一切連動しない
     /// （ADR 0030 再入禁止）。expand はボタン action での mutation なので body 中書込にならない。
-    /// - Parameter anchorID: 押下時の先頭可視 item の id。展開後にこの位置へ留めるためのアンカー。
+    /// - Parameter anchorID: 押下時の先頭可視 block の id。展開後にこの位置へ留めるためのアンカー。
     private func loadEarlierButton(hiddenCount: Int, anchorID: String?) -> some View {
         Button {
             // anchorID は描画時（＝展開前）の先頭可視 item。展開して上に古い行を追加し、
@@ -392,10 +388,11 @@ struct ChatTranscriptView: View {
         let currentItems = transcriptItems
         let scrollTarget = ChatTranscriptGrouping.scrollTargetID(containing: target, in: currentItems)
         // 対象が現セッションの items にあり、かつ隠れ域なら reveal してから遅延 scrollTo。
-        if let index = currentItems.firstIndex(where: { $0.id == target }) {
-            let start = window.visibleRange(totalCount: currentItems.count).startIndex
-            if index < start {
-                window.reveal(index: index, totalCount: currentItems.count)
+        let blockCount = ChatTranscriptGrouping.blockCount(of: currentItems)
+        if let blockIndex = ChatTranscriptGrouping.blockIndex(ofItemWithID: target, in: currentItems) {
+            let start = window.visibleRange(totalCount: blockCount).startIndex
+            if blockIndex < start {
+                window.reveal(index: blockIndex, totalCount: blockCount)
                 // window 拡張（@State 書込）で新規行がまだ未レンダのため、同一イベント内 scrollTo は
                 // 空振りしうる。次の MainActor ターンへ遅延させ、再レンダ後に確実に届かせる。
                 // 遅延中に後続ジャンプ・セッション切替（reset）が来たら世代不一致で何もしない。

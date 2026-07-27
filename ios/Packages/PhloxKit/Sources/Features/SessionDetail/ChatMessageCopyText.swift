@@ -45,15 +45,47 @@ public enum ChatMessageCopyText {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : text
     }
+
+    /// グループのコピー対象になる1件分のテキスト。空文字は対象外。
+    /// 可否判定と文字列生成の両方がこの1本を通るので、定義が食い違わない。
+    static func commandGroupCopyablePart(for message: ChatMessage) -> String? {
+        guard let text = copyText(for: message), !text.isEmpty else { return nil }
+        return text
+    }
+
+    /// グループのコピーボタンを表示するかを、最初のコピー可能な message で打ち切って判定する。
+    public static func commandGroupHasCopyableText(_ messages: [ChatMessage]) -> Bool {
+        messages.contains { commandGroupCopyablePart(for: $0) != nil }
+    }
+
+    /// グループ内のコピー可能な message を元の順序で空行区切りに連結する。
+    /// この関数はコピーボタンが押された時だけ呼ぶ。
+    public static func commandGroupCopyText(_ messages: [ChatMessage]) -> String? {
+        let parts = messages.compactMap(commandGroupCopyablePart(for:))
+        guard !parts.isEmpty else { return nil }
+        return parts.joined(separator: "\n\n")
+    }
 }
 
 /// チャットメッセージ用コピーボタン（`doc.on.doc` → `checkmark` トグル）。
 public struct ChatMessageCopyButton: View {
-    let text: String
+    struct DeferredText {
+        let provider: () -> String?
+
+        func value() -> String? {
+            provider()
+        }
+    }
+
+    private let deferredText: DeferredText
     @State private var copied = false
 
     public init(text: String) {
-        self.text = text
+        deferredText = DeferredText(provider: { text })
+    }
+
+    public init(textProvider: @escaping () -> String?) {
+        deferredText = DeferredText(provider: textProvider)
     }
 
     public var body: some View {
@@ -69,6 +101,7 @@ public struct ChatMessageCopyButton: View {
     }
 
     private func copyToPasteboard() {
+        guard let text = deferredText.value() else { return }
         #if canImport(UIKit)
         UIPasteboard.general.string = text
         #elseif canImport(AppKit)

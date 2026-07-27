@@ -3,10 +3,10 @@ status: accepted
 last-verified: 2026-07-27
 ---
 
-# ADR 0127: Control API の「要求元」と「セッションツリーの親」を分離し、`.remoteUser` を導入する
+# ADR 0131: Control API の「要求元」と「セッションツリーの親」を分離し、`.remoteUser` を導入する
 
 > **このファイルの役割**: iPhone から作ったセッションが画面のどこにも出なくなっていた**真因**と、それを「偽の親リンクを書くのをやめる」ことで断った決定。
-> **書かないもの**: 通知をどこまで出すかの判断（→ [ADR 0128](0128-notification-reachability-per-client.md)）、既に取り残されたデータの救済（→ [ADR 0129](0129-orphaned-remote-session-rescue.md)）、サーフェス別の可視性ルールそのもの（→ [ADR 0027](0027-grid-workspace-filter-includes-subsessions.md)）。
+> **書かないもの**: 通知をどこまで出すかの判断（→ [ADR 0132](0132-notification-reachability-per-client.md)）、既に取り残されたデータの救済（→ [ADR 0133](0133-orphaned-remote-session-rescue.md)）、サーフェス別の可視性ルールそのもの（→ [ADR 0027](0027-grid-workspace-filter-includes-subsessions.md)）。
 
 ## 文脈
 
@@ -43,6 +43,6 @@ Dock アイコンに赤いバッジが出続けるのに、アプリのどこを
 - Control API 由来の spawn は、要求元が実在すれば従来どおり `.orchestration` の子セッション、実在しなければ `.remoteUser` のルートセッションとして着地する。
 - 受け入れテスト `AcceptanceSessionOriginTests`（9件）で、分類・可視性・承認/サンドボックス方針・永続化往復・レート制限の非退行を凍結。
 - 実装中に判明した副次的な競合も塞いだ: 起動処理の最後の待機中にセッションが連鎖削除されると、`sessions.json` にだけ残る「幽霊セッション」ができ得た。待機完了後に存在を再確認してから永続化する（両バックエンド共通の1点）。
-- 前提条件として [ADR 0126](0126-session-store-unknown-value-tolerance.md) の前方互換を先に入れている（区分を足すと旧版で全滅するため）。
+- 前提条件として [ADR 0130](0130-session-store-unknown-value-tolerance.md) の前方互換を先に入れている（区分を足すと旧版で全滅するため）。
 
 作業経緯は [delivery/0022-unseen-attention-consistency-worklog.md](../delivery/0022-unseen-attention-consistency-worklog.md) を参照。

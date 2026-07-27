@@ -32,11 +32,15 @@ let package = Package(
         .library(name: "PhloxSecurity", targets: ["PhloxSecurity"]),
         .library(name: "PhloxReachability", targets: ["PhloxReachability"]),
         .library(name: "DesignSystemIOS", targets: ["DesignSystemIOS"]),
+        .library(name: "TerminalScreenIOS", targets: ["TerminalScreenIOS"]),
         .library(name: "Features", targets: ["Features"]),
     ],
     dependencies: [
         .package(path: "../../../macos/Packages/AgentDomain"),
         .package(path: "../../../macos/Packages/DesignSystem"),
+        // Mac の端末描画と同じエンジン。Mac が配信する ANSI 画面を同じ見た目で描き直すために使う
+        // （Mac 側 TerminalUI と同一の vendored fork を参照する）。
+        .package(path: "../../../macos/Vendor/SwiftTerm"),
         .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.0.0"),
     ],
     targets: [
@@ -64,12 +68,24 @@ let package = Package(
             ]
         ),
 
+        // TerminalScreenIOS: Mac の端末画面（ANSI）を SwiftTerm で描き直す層。
+        // SwiftTerm への依存をこの target に閉じ込め、Features からは View だけを使う。
+        .target(
+            name: "TerminalScreenIOS",
+            dependencies: [
+                "PhloxCore",
+                "DesignSystemIOS",
+                .product(name: "SwiftTerm", package: "SwiftTerm"),
+            ]
+        ),
+
         .target(
             name: "Features",
             dependencies: [
                 "PhloxCore",
                 "PhloxNetworking",
                 "DesignSystemIOS",
+                "TerminalScreenIOS",
                 .product(name: "DesignSystem", package: "DesignSystem"),
             ]
         ),
@@ -79,6 +95,7 @@ let package = Package(
         .testTarget(name: "PhloxSecurityTests", dependencies: ["PhloxSecurity", "PhloxCore"]),
         .testTarget(name: "PhloxReachabilityTests", dependencies: ["PhloxReachability", "PhloxCore"]),
         .testTarget(name: "DesignSystemIOSTests", dependencies: ["DesignSystemIOS", "PhloxCore"]),
+        .testTarget(name: "TerminalScreenIOSTests", dependencies: ["TerminalScreenIOS", "PhloxCore"]),
         .testTarget(name: "FeaturesTests", dependencies: ["Features", "PhloxCore", "PhloxNetworking"]),
         .testTarget(name: "E2ETests", dependencies: ["PhloxNetworking", "PhloxCore"]),
     ],

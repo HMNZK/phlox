@@ -49,6 +49,9 @@ public final class SessionDetailViewModel {
     /// ターミナル出力は開いた直後から全文を見せる。折りたたみ操作は引き続き可能。
     public var isOutputExpanded = true
     public private(set) var outputText: String = ""
+    /// Mac が色つきの端末画面を配信できたときだけ中身が入る。端末を持たないセッションでは
+    /// Mac がプレーンテキストへ落とすので `.empty` のまま（`outputText` 側で描く）。
+    public private(set) var terminalScreen: TerminalScreen = .empty
     /// 初回の messages / output 解決まで true。ポーリング更新では再点灯しない。
     public private(set) var isInitialLoading: Bool = true
     public private(set) var chatMessages: [ChatMessage] = [] {
@@ -545,11 +548,19 @@ public final class SessionDetailViewModel {
         await loadModelSettings()
         if await adoptMessagesFromDelta(updateOnlyIfChanged: true) { return }
         if showsChat { return }
-        if let raw = try? await api.output(sessionID: session.id) {
-            let truncated = Self.truncate(raw)
-            if outputText != truncated { outputText = truncated }
+        if let screen = try? await api.terminalScreen(sessionID: session.id) {
+            adopt(screen)
             loadError = nil
         }
+    }
+
+    /// 受け取った端末画面を表示状態へ反映する。
+    /// 折りたたみ判定・空判定は従来どおりプレーンテキストで行うので、色つきでも同じ規則で畳める。
+    private func adopt(_ screen: TerminalScreen) {
+        let truncated = Self.truncate(screen.plainText)
+        if outputText != truncated { outputText = truncated }
+        let adopted = screen.isANSI ? screen : .empty
+        if terminalScreen != adopted { terminalScreen = adopted }
     }
 
     /// task-6: モデル一覧を取得する。404/オフライン等はチップ非表示に留め画面は壊さない。
@@ -692,8 +703,7 @@ public final class SessionDetailViewModel {
 
     public func loadOutput() async {
         do {
-            let raw = try await api.output(sessionID: session.id)
-            outputText = Self.truncate(raw)
+            adopt(try await api.terminalScreen(sessionID: session.id))
             loadError = nil
         } catch let error as PhloxError {
             loadError = error.presentation.message

@@ -3,10 +3,10 @@ status: accepted
 last-verified: 2026-07-27
 ---
 
-# ADR 0126: セッション保存は未知の値を要素単位で捨て、原本を残す
+# ADR 0130: セッション保存は未知の値を要素単位で捨て、原本を残す
 
 > **このファイルの役割**: `sessions.json` に未知の列挙値が1件でも入ると全セッションが消えていた問題を、なぜ「要素単位の除外＋原本コピー」で直したかの決定。
-> **書かないもの**: `SessionLaunchContext` に区分を足した理由（→ [ADR 0127](0127-control-api-requester-parent-separation.md)）、JSON ストア共通の隔離方針そのもの（`MessageStore/JSONFileStore.swift` の実装）。
+> **書かないもの**: `SessionLaunchContext` に区分を足した理由（→ [ADR 0131](0131-control-api-requester-parent-separation.md)）、JSON ストア共通の隔離方針そのもの（`MessageStore/JSONFileStore.swift` の実装）。
 
 ## 文脈
 
@@ -14,7 +14,7 @@ last-verified: 2026-07-27
 
 さらに `JSONFileStore.load()` は**ファイル全体を1回で decode** する実装のため、1件の未知値で配列全体の decode が失敗し、ファイルが隔離されて**全セッションが失われる**。
 
-この run では新しい区分（`.remoteUser`）を足す必要があった（→ ADR 0127）。前方互換が無いままそれをやると、その版で作ったデータを旧版で開いた瞬間に全滅する。**区分追加の前提条件**として先に直す必要があった。
+この run では新しい区分（`.remoteUser`）を足す必要があった（→ ADR 0131）。前方互換が無いままそれをやると、その版で作ったデータを旧版で開いた瞬間に全滅する。**区分追加の前提条件**として先に直す必要があった。
 
 ## 決定
 

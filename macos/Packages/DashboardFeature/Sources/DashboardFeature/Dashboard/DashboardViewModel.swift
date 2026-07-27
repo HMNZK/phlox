@@ -271,6 +271,10 @@ public final class DashboardViewModel {
     }
 
     private func observeUnseenCompletion(for session: any ControllableSession) {
+        let sessionID = session.id
+        session.userNotificationGate = { [weak self] in
+            self?.isReachableFromUI(sessionID) ?? true
+        }
         session.unseenCompletionDidChange = { [weak self] in
             self?.refreshUnseenCompletionCount()
         }
@@ -278,7 +282,9 @@ public final class DashboardViewModel {
 
     private func refreshUnseenCompletionCount() {
         // PTY / Chat 両種別を node レベルで数える（Dock バッジは「要対応セッション数」）。
-        let count = sessionNodes.filter { $0.hasUnseenCompletion }.count
+        let count = sessionNodes.filter {
+            $0.hasUnseenCompletion && isReachableFromUI($0.id)
+        }.count
         guard count != unseenCompletionCount else { return }
         unseenCompletionCount = count
         unseenCompletionCountDidChange?(count)
@@ -394,10 +400,7 @@ public final class DashboardViewModel {
     }
 
     public func hasUnseenCompletion(in projectID: ProjectID) -> Bool {
-        let sidebarNodeIDs = Set(sessionForest(in: projectID).flatMap(Self.sessionTreeNodeIDs))
-        return sessionNodes.contains { node in
-            sidebarNodeIDs.contains(node.id) && node.hasUnseenCompletion
-        }
+        containsSidebarSession(in: projectID) { $0.hasUnseenCompletion }
     }
 
     public func requiresAttention(for node: SessionNode) -> Bool {
@@ -409,9 +412,16 @@ public final class DashboardViewModel {
 
     /// サイドバーのプロジェクト欄赤表示用。配下セッションのいずれかが `requiresAttention` なら true。
     public func hasAttention(in projectID: ProjectID) -> Bool {
+        containsSidebarSession(in: projectID) { requiresAttention(for: $0) }
+    }
+
+    private func containsSidebarSession(
+        in projectID: ProjectID,
+        where predicate: (SessionNode) -> Bool
+    ) -> Bool {
         let sidebarNodeIDs = Set(sessionForest(in: projectID).flatMap(Self.sessionTreeNodeIDs))
         return sessionNodes.contains { node in
-            sidebarNodeIDs.contains(node.id) && requiresAttention(for: node)
+            sidebarNodeIDs.contains(node.id) && predicate(node)
         }
     }
 
@@ -447,6 +457,15 @@ public final class DashboardViewModel {
 
     public nonisolated static func isVisibleInGrid(launchContext: SessionLaunchContext) -> Bool {
         launchContext != .orchestration
+    }
+
+    /// 未登録セッション（spawn 途中）は true を返す＝fail-open。
+    public func isReachableFromUI(_ sessionID: SessionID) -> Bool {
+        guard let node = sessionNode(id: sessionID) else { return true }
+        return SessionReachability.isReachable(
+            launchContext: node.launchContext,
+            projectID: node.projectID
+        )
     }
 
     /// プロジェクト絞り込み無しグリッドに表示するセッション（内部 orchestration を除外）。

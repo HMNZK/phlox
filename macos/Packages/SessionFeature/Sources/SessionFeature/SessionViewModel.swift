@@ -43,6 +43,8 @@ public final class SessionViewModel: Identifiable {
     @ObservationIgnored public var eventSink: ((SessionID, SessionStatus, Date) -> Void)?
     /// リモート通知系へのフック。nil なら呼ばれない（既存挙動と同一）。
     @ObservationIgnored public var remoteSessionNotifier: (any RemoteSessionNotifier)?
+    /// ユーザーへの通知可否。nil は既存挙動を保つため許可として扱う。
+    @ObservationIgnored public var userNotificationGate: (() -> Bool)?
 
     /// 初回出力後、この秒数アイドルしてから入力準備完了とみなす（全 CLI 共通の settle）。
     static let inputReadinessSettleSeconds: TimeInterval = 0.4
@@ -517,11 +519,7 @@ public final class SessionViewModel: Identifiable {
             cancelNonHookIdleFallback()
             transitionStatus(to: .awaitingApproval(prompt: "Codex is asking a question"), at: Date())
             if notifyAwaitingInput {
-                SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
-                remoteSessionNotifier?.approvalPending(
-                    sessionId: id.description,
-                    sessionName: displayName
-                )
+                notifyUser(.awaitingInput)
             }
         case .reassertAwaiting:
             transitionStatus(to: .awaitingApproval(prompt: "Codex is asking a question"), at: Date())
@@ -693,11 +691,25 @@ public final class SessionViewModel: Identifiable {
         // 本物のターン完了を未確認の停止としてラッチする。
         // escape 中断はこの経路を通らないため対象外（キャンセルは赤枠にしない）。
         hasUnseenCompletion = true
-        SessionCompletionNotifier.notifyCompleted(sessionName: displayName)
-        remoteSessionNotifier?.sessionCompleted(
-            sessionId: id.description,
-            sessionName: displayName
-        )
+        notifyUser(.completed)
+    }
+
+    private func notifyUser(_ notification: UserNotification) {
+        guard userNotificationGate?() ?? true else { return }
+        switch notification {
+        case .completed:
+            SessionCompletionNotifier.notifyCompleted(sessionName: displayName)
+            remoteSessionNotifier?.sessionCompleted(
+                sessionId: id.description,
+                sessionName: displayName
+            )
+        case .awaitingInput:
+            SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
+            remoteSessionNotifier?.approvalPending(
+                sessionId: id.description,
+                sessionName: displayName
+            )
+        }
     }
 
     private func transitionStatus(to newStatus: SessionStatus, at timestamp: Date) {
@@ -711,6 +723,11 @@ public final class SessionViewModel: Identifiable {
             hasUnseenCompletion = true
         }
     }
+}
+
+private enum UserNotification {
+    case completed
+    case awaitingInput
 }
 
 private extension Data {

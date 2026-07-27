@@ -24,6 +24,9 @@ public protocol ControllableSession: AnyObject {
     var hasUnseenCompletion: Bool { get }
     /// `hasUnseenCompletion` の変化通知フック（Dock バッジ等の集計更新に使う）。
     var unseenCompletionDidChange: (() -> Void)? { get set }
+    /// ユーザーへの働きかけ（バナー・音・APNs）を出してよいか。
+    /// nil のときは通知する（既定＝既存挙動。テスト・プレビューを壊さない）。
+    var userNotificationGate: (() -> Bool)? { get set }
 
     func sendText(_ text: String, submit: Bool) async throws
     func consumeSubmitBaseline()

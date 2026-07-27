@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-07-26
+last-verified: 2026-07-27
 ---
 
 # ADR（アーキテクチャ決定記録）索引
@@ -12,6 +12,7 @@ last-verified: 2026-07-26
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0125 | [セッションを開いたら最下部から表示する（チャット・ターミナル共通）](0125-open-session-at-bottom.md) | accepted |
 | 0124 | [AskUserQuestion の自由入力と選択肢は相互排他にし、自由入力欄は複数行へ折り返す](0124-user-question-free-text-exclusive.md) | accepted |
 | 0123 | [エージェント既定モデルの正本を AgentDomain の `AgentModelCatalog.defaultModel(for:)` に一元化する（Claude=opus）](0123-agent-default-model-single-source.md) | accepted |
 | 0122 | [spawn 前モデル一覧を CLI / app-server から live 取得する（Codex のモデル選択を解禁）](0122-live-agent-model-catalog.md) | accepted |

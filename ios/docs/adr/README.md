@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-07-26
+last-verified: 2026-07-27
 ---
 
 # ADR（アーキテクチャ決定記録）索引 — iOS (PhloxMobile)
@@ -14,6 +14,8 @@ iOS コンパニオンアプリ固有の決定の **理由** を残す。追記�
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0032 | [ナビゲーションバーを隠した画面の端スワイプは、ガード付きデリゲートへ差し替えて復活させる](0032-interactive-pop-gesture-on-hidden-navigation-bar.md) | accepted |
+| 0031 | [本文の折り返しはテーマで、表は幅を見積もって横スクロールで読ませる](0031-chat-body-readability-wrapping-and-table-scroll.md) | accepted |
 | 0030 | [ドラフトのモデル選択は表示用 ID 文字列ではなく `(kind, modelID?)` で保持する](0030-draft-model-selection-kind-and-id.md) | accepted |
 | 0029 | [サブエージェント画面は件数窓＋1メッセージあたりの描画バイト上限（先頭＋末尾を残す）で止める](0029-subagent-window-and-render-budget.md) | accepted |
 | 0028 | [セッションが completed / error でも入力欄を有効のままにする（無効は starting だけ）](0028-input-bar-enabled-on-completed-and-error.md) | accepted |

@@ -72,16 +72,22 @@ struct IOSToolCallGroupingWhiteboxTests {
     @Test func 集約カードは件数見出しと末尾コマンドの実行中状態を持つ() {
         let items = [cmd("c1"), cmd("c2", output: "")]
 
-        let presentation = SessionDetailCommandGroupPresentation(
+        let header = SessionDetailCommandGroupHeader(
             items: items,
             lastTranscriptID: "c2",
             isTurnRunning: true
         )
+        let rows = SessionDetailCommandGroupRowWindow.slice(
+            items: items,
+            lastTranscriptID: "c2",
+            isTurnRunning: true,
+            limit: SessionDetailCommandGroupRowWindow.defaultLimit
+        )
 
-        #expect(presentation.title == "ツール実行 ×2")
-        #expect(presentation.isRunning)
-        #expect(presentation.rows.map(\.id) == ["c1", "c2"])
-        #expect(presentation.rows.map(\.isRunning) == [false, true])
+        #expect(header.title == "ツール実行 ×2")
+        #expect(header.isRunning)
+        #expect(rows.rows.map(\.id) == ["c1", "c2"])
+        #expect(rows.rows.map(\.isRunning) == [false, true])
     }
 
     @Test func 空出力の完了済みコマンドは展開行から除外する() {
@@ -91,14 +97,20 @@ struct IOSToolCallGroupingWhiteboxTests {
             cmd("c3", output: ""),
         ]
 
-        let presentation = SessionDetailCommandGroupPresentation(
+        let header = SessionDetailCommandGroupHeader(
             items: items,
             lastTranscriptID: "c3",
             isTurnRunning: false
         )
+        let rows = SessionDetailCommandGroupRowWindow.slice(
+            items: items,
+            lastTranscriptID: "c3",
+            isTurnRunning: false,
+            limit: SessionDetailCommandGroupRowWindow.defaultLimit
+        )
 
-        #expect(!presentation.isRunning)
-        #expect(presentation.rows.map(\.id) == ["c1"])
+        #expect(!header.isRunning)
+        #expect(rows.rows.map(\.id) == ["c1"])
     }
 
     @Test func グループ内コマンドのジャンプ先は安定したグループidentityに解決する() {
@@ -116,30 +128,44 @@ struct IOSToolCallGroupingWhiteboxTests {
     }
 
     @Test func 全て空出力かつ非実行中ならグループカードを描画しない() {
-        let presentation = SessionDetailCommandGroupPresentation(
-            items: [
-                cmd("c1", output: ""),
-                cmd("c2", output: " \n\t "),
-            ],
+        let items = [
+            cmd("c1", output: ""),
+            cmd("c2", output: " \n\t "),
+        ]
+        let header = SessionDetailCommandGroupHeader(
+            items: items,
             lastTranscriptID: "c2",
             isTurnRunning: false
         )
+        let rows = SessionDetailCommandGroupRowWindow.slice(
+            items: items,
+            lastTranscriptID: "c2",
+            isTurnRunning: false,
+            limit: SessionDetailCommandGroupRowWindow.defaultLimit
+        )
 
-        #expect(presentation.rows.isEmpty)
-        #expect(!presentation.shouldRender)
+        #expect(rows.rows.isEmpty)
+        #expect(!header.shouldRender)
     }
 
     @Test func 単独で空出力かつ非実行中でもコマンド行を残して描画する() {
-        let presentation = SessionDetailCommandGroupPresentation(
-            items: [cmd("c1", output: "")],
+        let items = [cmd("c1", output: "")]
+        let header = SessionDetailCommandGroupHeader(
+            items: items,
             lastTranscriptID: "c1",
             isTurnRunning: false
         )
+        let rows = SessionDetailCommandGroupRowWindow.slice(
+            items: items,
+            lastTranscriptID: "c1",
+            isTurnRunning: false,
+            limit: SessionDetailCommandGroupRowWindow.defaultLimit
+        )
 
-        #expect(presentation.rows.map(\.id) == ["c1"])
-        #expect(presentation.rows.first?.command == "command c1")
-        #expect(presentation.rows.first?.output.isEmpty == true)
-        #expect(presentation.shouldRender)
+        #expect(rows.rows.map(\.id) == ["c1"])
+        #expect(rows.rows.first?.command == "command c1")
+        #expect(rows.rows.first?.output.isEmpty == true)
+        #expect(header.shouldRender)
     }
 
     @Test func transcriptSliceはwindowとグループidentityを両立する() {

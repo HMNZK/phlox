@@ -352,7 +352,10 @@ public struct SessionDetailView: View {
         case .single(let message):
             chatRow(for: message)
         case .commandGroup(let id, let items):
-            chatRowWithCopy(copyText: commandGroupCopyText(items)) {
+            chatRowWithCopy(
+                hasCopyableText: ChatMessageCopyText.commandGroupHasCopyableText(items),
+                copyTextProvider: { ChatMessageCopyText.commandGroupCopyText(items) }
+            ) {
                 SessionDetailToolCallGroupRow(
                     items: items,
                     lastTranscriptID: lastTranscriptID,
@@ -364,15 +367,6 @@ public struct SessionDetailView: View {
                 )
             }
         }
-    }
-
-    private func commandGroupCopyText(_ items: [ChatMessage]) -> String? {
-        let parts = items.compactMap { message -> String? in
-            let text = ChatMessageCopyText.copyText(for: message)
-            return text?.isEmpty == false ? text : nil
-        }
-        guard !parts.isEmpty else { return nil }
-        return parts.joined(separator: "\n\n")
     }
 
     /// 1 メッセージの描画。user/agent はバブル、reasoning は v1 では agent 風バブル、
@@ -461,6 +455,21 @@ public struct SessionDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             if let copyText {
                 ChatMessageCopyButton(text: copyText)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func chatRowWithCopy<Content: View>(
+        hasCopyableText: Bool,
+        copyTextProvider: @escaping () -> String?,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(alignment: .top, spacing: DSSpacing.xs) {
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if hasCopyableText {
+                ChatMessageCopyButton(textProvider: copyTextProvider)
             }
         }
     }

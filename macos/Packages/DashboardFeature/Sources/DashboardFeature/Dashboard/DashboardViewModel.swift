@@ -230,6 +230,9 @@ public final class DashboardViewModel {
             publishRestoredSessionPresentation: { [weak self] in
                 self?.publishRestoredSessionPresentation()
             },
+            privilegedRequesterProvider: { [weak self] in
+                self?.privilegedRequester
+            },
             logError: { error, context in
                 let message = "Phlox: \(context): \(error)\n"
                 if let data = message.data(using: .utf8) {
@@ -272,8 +275,12 @@ public final class DashboardViewModel {
 
     private func observeUnseenCompletion(for session: any ControllableSession) {
         let sessionID = session.id
-        session.userNotificationGate = { [weak self] in
-            self?.isReachableFromUI(sessionID) ?? true
+        session.userNotificationGate = { [weak self] channel in
+            let client: SessionSurfaceClient = switch channel {
+            case .local: .desktop
+            case .remote: .mobile
+            }
+            return self?.isReachableFromUI(sessionID, from: client) ?? true
         }
         session.unseenCompletionDidChange = { [weak self] in
             self?.refreshUnseenCompletionCount()
@@ -283,7 +290,7 @@ public final class DashboardViewModel {
     private func refreshUnseenCompletionCount() {
         // PTY / Chat 両種別を node レベルで数える（Dock バッジは「要対応セッション数」）。
         let count = sessionNodes.filter {
-            $0.hasUnseenCompletion && isReachableFromUI($0.id)
+            $0.hasUnseenCompletion && isReachableFromUI($0.id, from: .desktop)
         }.count
         guard count != unseenCompletionCount else { return }
         unseenCompletionCount = count
@@ -460,12 +467,21 @@ public final class DashboardViewModel {
     }
 
     /// 未登録セッション（spawn 途中）は true を返す＝fail-open。
-    public func isReachableFromUI(_ sessionID: SessionID) -> Bool {
+    public func isReachableFromUI(
+        _ sessionID: SessionID,
+        from client: SessionSurfaceClient
+    ) -> Bool {
         guard let node = sessionNode(id: sessionID) else { return true }
         return SessionReachability.isReachable(
+            from: client,
             launchContext: node.launchContext,
             projectID: node.projectID
         )
+    }
+
+    /// クライアント指定前からの呼び出し元向け。従来の macOS 到達可能性として扱う。
+    public func isReachableFromUI(_ sessionID: SessionID) -> Bool {
+        isReachableFromUI(sessionID, from: .desktop)
     }
 
     /// プロジェクト絞り込み無しグリッドに表示するセッション（内部 orchestration を除外）。

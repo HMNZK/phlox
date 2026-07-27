@@ -14,6 +14,7 @@ struct SessionReachabilityWhiteboxTests {
     ) {
         #expect(
             SessionReachability.isReachable(
+                from: .desktop,
                 launchContext: launchContext,
                 projectID: nil
             )
@@ -24,13 +25,34 @@ struct SessionReachabilityWhiteboxTests {
     func orchestrationSessionIsReachableOnlyWhenAssignedToProject() {
         #expect(
             SessionReachability.isReachable(
+                from: .desktop,
                 launchContext: .orchestration,
                 projectID: ProjectID()
             )
         )
         #expect(
             !SessionReachability.isReachable(
+                from: .desktop,
                 launchContext: .orchestration,
+                projectID: nil
+            )
+        )
+    }
+
+    @Test(
+        arguments: [
+            SessionLaunchContext.interactive,
+            SessionLaunchContext.remoteUser,
+            SessionLaunchContext.orchestration,
+        ]
+    )
+    func mobileSessionsAreReachableRegardlessOfLaunchContext(
+        launchContext: SessionLaunchContext
+    ) {
+        #expect(
+            SessionReachability.isReachable(
+                from: .mobile,
+                launchContext: launchContext,
                 projectID: nil
             )
         )

@@ -8,38 +8,57 @@ import PTYKit
 
 /// task-3 の受け入れテスト（不変・実装役は編集禁止）。
 ///
-/// 契約: **「ユーザーへ通知する対象 ⊆ ユーザーが UI から到達して解消できる対象」**。
+/// 契約: **「あるクライアントへ通知する対象 ⊆ そのクライアントから到達して解消できる対象」**。
 ///
-/// 到達可能性の正本は `SessionReachability` ただ1つとし、
-/// ユーザーへの4つの出口（Dock バッジ件数・通知バナー・完了音・APNs）すべてが同じ述語を通る。
+/// 到達可能性の正本は `SessionReachability` ただ1つとし、ユーザーへの4つの出口
+/// （Dock バッジ件数・通知バナー・完了音・APNs）が、**それぞれの届け先の**到達可能性で抑止される。
 ///
-/// 背景（`docs/phase0.md` §1）: 既読化（`markCompletionSeen`）は「選択中セッション」でしか
-/// 発火しないため、どのサーフェスにも現れないセッションが通知だけ出すと、
+/// | 出口 | 届け先 | ゲート |
+/// |---|---|---|
+/// | Dock バッジ件数 | macOS | `.desktop` |
+/// | 通知バナー | macOS | `.desktop` |
+/// | 完了音 | macOS | `.desktop` |
+/// | APNs | iPhone | `.mobile`（モバイル一覧は無フィルタ＝現状は常に到達可能） |
+///
+/// 背景（`docs/phase0.md` §1）: 既読化（`markCompletionSeen`）は macOS の「選択中セッション」でしか
+/// 発火しないため、どの macOS サーフェスにも現れないセッションが通知だけ出すと、
 /// ユーザーには永久に解消できない要対応が積み上がる。
+/// 一方で iPhone は全セッションを一覧・オープンできるので、APNs を macOS 基準で塞ぐのは
+/// 過剰抑止（＝通知が黙って落ちる回帰）になる。だからクライアントごとに判定する。
 ///
 /// **検証範囲の限界（正直に明記する）**: バナーと完了音は `SessionCompletionNotifier` が
 /// `Bundle.main.bundleURL.pathExtension == "app"` で早期 return するため、テストバンドルからは
 /// 観測できない。したがって本テストが直接観測するのは「バッジ件数」「APNs」「ゲートの判定」であり、
-/// バナー・完了音については **「4出口が単一のゲートの内側にあること」を実装契約として要求し、
-/// レビューで構造的に確認する**（`tasks/task-3.md` のレビュー観点）。
+/// バナー・完了音については **「同一チャネルの出口が単一のゲートの内側にあること」を実装契約として
+/// 要求し、レビューで構造的に確認する**（`tasks/task-3.md` のレビュー観点）。
 struct AcceptanceNotificationReachabilityTests {
 
     // MARK: - 1. 到達可能性の正本（純粋述語）
 
-    /// 到達可能 ＝ 3つの表示サーフェスのいずれかに現れること。
+    /// macOS の到達可能 ＝ 3つの表示サーフェスのいずれかに現れること。
     /// 現在のサーフェス規則（ADR 0027）では、
     /// 「トップレベルグリッドに出る（`.orchestration` 以外）」か
     /// 「ワークスペース絞り込みグリッドに出る（`projectID` を持つ）」かの論理和になる。
-    @Test func reachability_truthTable() {
+    @Test func reachability_desktopTruthTable() {
         // ユーザーが起動したセッションは、ワークスペース未設定でもトップレベルグリッドに出る。
-        #expect(SessionReachability.isReachable(launchContext: .interactive, projectID: nil))
-        #expect(SessionReachability.isReachable(launchContext: .remoteUser, projectID: nil))
+        #expect(SessionReachability.isReachable(from: .desktop, launchContext: .interactive, projectID: nil))
+        #expect(SessionReachability.isReachable(from: .desktop, launchContext: .remoteUser, projectID: nil))
 
         // CLI 内部のサブセッションでも、ワークスペース配下ならその絞り込みグリッドから到達できる。
-        #expect(SessionReachability.isReachable(launchContext: .orchestration, projectID: ProjectID()))
+        #expect(SessionReachability.isReachable(from: .desktop, launchContext: .orchestration, projectID: ProjectID()))
 
-        // どのサーフェスにも現れない唯一の組み合わせ。今回のバグの本体。
-        #expect(!SessionReachability.isReachable(launchContext: .orchestration, projectID: nil))
+        // どの macOS サーフェスにも現れない唯一の組み合わせ。今回のバグの本体。
+        #expect(!SessionReachability.isReachable(from: .desktop, launchContext: .orchestration, projectID: nil))
+    }
+
+    /// iPhone アプリの一覧（`controlSessionSummaries`）は `launchContext` で絞り込まず
+    /// 全セッションを返すため、**モバイルからは全てが到達可能**。
+    /// ここを macOS 基準にすると、iPhone から開けるセッションの push が消える（過剰抑止）。
+    @Test func reachability_mobileReachesEverySession() {
+        #expect(SessionReachability.isReachable(from: .mobile, launchContext: .interactive, projectID: nil))
+        #expect(SessionReachability.isReachable(from: .mobile, launchContext: .remoteUser, projectID: nil))
+        #expect(SessionReachability.isReachable(from: .mobile, launchContext: .orchestration, projectID: ProjectID()))
+        #expect(SessionReachability.isReachable(from: .mobile, launchContext: .orchestration, projectID: nil))
     }
 
     /// 述語が、実際の表示サーフェスの和集合と一致する。
@@ -88,12 +107,16 @@ struct AcceptanceNotificationReachabilityTests {
         for node in dashboard.sessionNodes {
             #expect(
                 SessionReachability.isReachable(
+                    from: .desktop,
                     launchContext: node.launchContext,
                     projectID: node.projectID
                 ) == surfaceIDs.contains(node.id),
                 "到達可能性の述語が実サーフェスと食い違う: \(node.id)"
             )
-            #expect(dashboard.isReachableFromUI(node.id) == surfaceIDs.contains(node.id))
+            #expect(dashboard.isReachableFromUI(node.id, from: .desktop) == surfaceIDs.contains(node.id))
+
+            // モバイル一覧は無フィルタ（全 sessionNodes を返す）＝全て到達可能。
+            #expect(dashboard.isReachableFromUI(node.id, from: .mobile))
         }
     }
 
@@ -104,7 +127,8 @@ struct AcceptanceNotificationReachabilityTests {
         let dashboard = makeDashboard()
         await dashboard.start()
 
-        #expect(dashboard.isReachableFromUI(SessionID()))
+        #expect(dashboard.isReachableFromUI(SessionID(), from: .desktop))
+        #expect(dashboard.isReachableFromUI(SessionID(), from: .mobile))
     }
 
     // MARK: - 2. Dock バッジ件数
@@ -171,9 +195,10 @@ struct AcceptanceNotificationReachabilityTests {
     // MARK: - 3. 通知ゲートの注入
 
     /// ダッシュボードが登録した全セッションにゲートが入り、
-    /// 到達不能なセッションでだけ「通知しない」を返す。
+    /// **チャネルごとに**正しい判定を返す。
+    /// macOS から到達できないセッションでも、iPhone からは到達できるので remote は通す。
     @Test @MainActor
-    func notificationGate_isWiredForEverySessionAndReflectsReachability() async throws {
+    func notificationGate_isWiredForEverySessionAndReflectsReachabilityPerChannel() async throws {
         let dashboard = makeDashboard()
         await dashboard.start()
 
@@ -191,20 +216,27 @@ struct AcceptanceNotificationReachabilityTests {
         let unreachableGate = try #require(dashboard.sessionNode(id: unreachableID)?.controllable.userNotificationGate)
         let reachableGate = try #require(dashboard.sessionNode(id: reachableID)?.controllable.userNotificationGate)
 
-        #expect(unreachableGate() == false)
-        #expect(reachableGate() == true)
+        // macOS の画面から辿れない → バナー・音は出さない。
+        #expect(unreachableGate(.local) == false)
+        // iPhone からは一覧に出て開ける → push は出す（過剰抑止をしない）。
+        #expect(unreachableGate(.remote) == true)
+
+        #expect(reachableGate(.local) == true)
+        #expect(reachableGate(.remote) == true)
     }
 
     // MARK: - 4. 実際の通知経路（PTY 完了 / Chat 承認待ち）
 
-    /// PTY セッションのターン完了で、到達不能なセッションの APNs 通知が出ない。
-    /// 到達可能なセッションは従来どおり1回出る。
+    /// **過剰抑止の回帰ガード（最重要）**: PTY セッションのターン完了で、
+    /// macOS の画面から辿れないセッションでも **APNs は出る**。
+    /// iPhone はそのセッションを一覧に出して開けるので、push は行動可能な通知である。
+    /// ここを macOS 基準で塞ぐと「iPhone から開けるのに通知が来ない」＝
+    /// 症状の出ない通知欠落を作る。
     ///
-    /// 「出ない」の観測を偽陽性にしないため、**到達不能側のラッチ成立を先に待つ**。
-    /// ラッチは通知と同じ関数の中で通知より先に立つので、
-    /// ラッチ済み ⇒ その完了経路は通知判定まで到達済み、と言える。
+    /// 同時に、macOS 側の蓄積面（Dock バッジ）は **数えない**ことを確認する
+    /// （バッジは macOS でしか既読化できないため、辿れないセッションを数えると永久に消えない）。
     @Test @MainActor
-    func remoteNotification_suppressedForUnreachablePTYCompletion() async throws {
+    func pushNotification_firesEvenWhenDesktopUnreachable_whileBadgeDoesNotCount() async throws {
         let ptyManager = MockPTYManager()
         let (hookStream, hookContinuation) = AsyncStream<(SessionID, HookEvent)>.makeStream()
         let environment = makeTestEnvironment(pty: ptyManager, hookStream: hookStream)
@@ -229,24 +261,28 @@ struct AcceptanceNotificationReachabilityTests {
         hookContinuation.yield((unreachableID, .stop(turnId: nil)))
         try await waitUntil { unreachable.hasUnseenCompletion }
 
-        // ADR 0111 非退行: 通知は抑止しても、ラッチと赤表示の導出は変えない。
+        // ADR 0111 非退行: ラッチと赤表示の導出は変えない。
         let unreachableNode = try #require(dashboard.sessionNode(id: unreachableID))
         #expect(dashboard.requiresAttention(for: unreachableNode))
 
-        #expect(spy.sessionCompletedIDs.isEmpty)
+        // iPhone は到達できる → push は出す。
+        #expect(spy.sessionCompletedIDs == [unreachableID.description])
+        // macOS からは辿れない → Dock バッジには数えない。
+        #expect(dashboard.unseenCompletionCount == 0)
 
         hookContinuation.yield((reachableID, .userPromptSubmit(turnId: nil)))
         try await waitUntil { reachable.status == .running }
         hookContinuation.yield((reachableID, .stop(turnId: nil)))
         try await waitUntil { reachable.hasUnseenCompletion }
 
-        #expect(spy.sessionCompletedIDs == [reachableID.description])
+        #expect(spy.sessionCompletedIDs == [unreachableID.description, reachableID.description])
+        #expect(dashboard.unseenCompletionCount == 1)
     }
 
-    /// Chat（app-server）セッションの承認待ちでも、同じ述語で抑止される。
-    /// 完了とは別系統の出口（`notifyAwaitingInput` / `approvalPending`）を塞ぎ忘れないための回帰ガード。
+    /// Chat（app-server）セッションの承認待ちでも、チャネル別の判定が同じように効く。
+    /// 完了とは別系統の出口（`notifyAwaitingInput` / `approvalPending`）を取りこぼさないための回帰ガード。
     @Test @MainActor
-    func remoteNotification_suppressedForUnreachableChatApprovalPending() async throws {
+    func chatApprovalPending_pushFiresWhileBadgeRespectsDesktopReachability() async throws {
         let ptyManager = MockPTYManager()
         let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
         let environment = makeTestEnvironment(
@@ -272,14 +308,15 @@ struct AcceptanceNotificationReachabilityTests {
         reachable.remoteSessionNotifier = spy
 
         unreachable.enterAwaitingApproval(prompt: "Approve?")
-        #expect(spy.approvalPendingIDs.isEmpty)
-        // 抑止しても要対応状態そのものは立つ（ADR 0111 非退行）。
+        // iPhone からは到達できる → push は出す。
+        #expect(spy.approvalPendingIDs == [unreachableID.description])
+        // 要対応状態そのものは立つ（ADR 0111 非退行）。
         #expect(unreachable.hasUnseenCompletion)
+        // macOS からは辿れない → Dock バッジには載らない。
+        #expect(dashboard.unseenCompletionCount == 0)
 
         reachable.enterAwaitingApproval(prompt: "Approve?")
-        #expect(spy.approvalPendingIDs == [reachableID.description])
-
-        // 到達不能側はバッジにも載らない。
+        #expect(spy.approvalPendingIDs == [unreachableID.description, reachableID.description])
         #expect(dashboard.unseenCompletionCount == 1)
     }
 

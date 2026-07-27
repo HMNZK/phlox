@@ -123,8 +123,8 @@ public final class ChatSessionViewModel: Identifiable {
     @ObservationIgnored public var codexSettingsDidChange: (@MainActor (CodexAppServerSessionSettings?) -> Void)?
     /// リモート通知系へのフック。nil なら呼ばれない（既存挙動と同一）。
     @ObservationIgnored public var remoteSessionNotifier: (any RemoteSessionNotifier)?
-    /// ユーザーへの通知可否。nil は既存挙動を保つため許可として扱う。
-    @ObservationIgnored public var userNotificationGate: (() -> Bool)?
+    /// チャネルごとのユーザー通知可否。nil は既存挙動を保つため全許可として扱う。
+    @ObservationIgnored public var userNotificationGate: ((UserNotificationChannel) -> Bool)?
 
     private let client: any StructuredAgentClient
     private let approvalBroker: ChatApprovalBroker
@@ -1182,20 +1182,29 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private func notifyUser(_ notification: UserNotification) {
-        guard userNotificationGate?() ?? true else { return }
+        let allowsLocalNotification = userNotificationGate?(.local) ?? true
+        let allowsRemoteNotification = userNotificationGate?(.remote) ?? true
         switch notification {
         case .completed:
-            SessionCompletionNotifier.notifyCompleted(sessionName: displayName)
-            remoteSessionNotifier?.sessionCompleted(
-                sessionId: id.description,
-                sessionName: displayName
-            )
+            if allowsLocalNotification {
+                SessionCompletionNotifier.notifyCompleted(sessionName: displayName)
+            }
+            if allowsRemoteNotification {
+                remoteSessionNotifier?.sessionCompleted(
+                    sessionId: id.description,
+                    sessionName: displayName
+                )
+            }
         case .awaitingInput:
-            SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
-            remoteSessionNotifier?.approvalPending(
-                sessionId: id.description,
-                sessionName: displayName
-            )
+            if allowsLocalNotification {
+                SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
+            }
+            if allowsRemoteNotification {
+                remoteSessionNotifier?.approvalPending(
+                    sessionId: id.description,
+                    sessionName: displayName
+                )
+            }
         }
     }
 

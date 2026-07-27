@@ -43,8 +43,8 @@ public final class SessionViewModel: Identifiable {
     @ObservationIgnored public var eventSink: ((SessionID, SessionStatus, Date) -> Void)?
     /// リモート通知系へのフック。nil なら呼ばれない（既存挙動と同一）。
     @ObservationIgnored public var remoteSessionNotifier: (any RemoteSessionNotifier)?
-    /// ユーザーへの通知可否。nil は既存挙動を保つため許可として扱う。
-    @ObservationIgnored public var userNotificationGate: (() -> Bool)?
+    /// チャネルごとのユーザー通知可否。nil は既存挙動を保つため全許可として扱う。
+    @ObservationIgnored public var userNotificationGate: ((UserNotificationChannel) -> Bool)?
 
     /// 初回出力後、この秒数アイドルしてから入力準備完了とみなす（全 CLI 共通の settle）。
     static let inputReadinessSettleSeconds: TimeInterval = 0.4
@@ -695,20 +695,29 @@ public final class SessionViewModel: Identifiable {
     }
 
     private func notifyUser(_ notification: UserNotification) {
-        guard userNotificationGate?() ?? true else { return }
+        let allowsLocalNotification = userNotificationGate?(.local) ?? true
+        let allowsRemoteNotification = userNotificationGate?(.remote) ?? true
         switch notification {
         case .completed:
-            SessionCompletionNotifier.notifyCompleted(sessionName: displayName)
-            remoteSessionNotifier?.sessionCompleted(
-                sessionId: id.description,
-                sessionName: displayName
-            )
+            if allowsLocalNotification {
+                SessionCompletionNotifier.notifyCompleted(sessionName: displayName)
+            }
+            if allowsRemoteNotification {
+                remoteSessionNotifier?.sessionCompleted(
+                    sessionId: id.description,
+                    sessionName: displayName
+                )
+            }
         case .awaitingInput:
-            SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
-            remoteSessionNotifier?.approvalPending(
-                sessionId: id.description,
-                sessionName: displayName
-            )
+            if allowsLocalNotification {
+                SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
+            }
+            if allowsRemoteNotification {
+                remoteSessionNotifier?.approvalPending(
+                    sessionId: id.description,
+                    sessionName: displayName
+                )
+            }
         }
     }
 

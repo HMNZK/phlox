@@ -85,56 +85,14 @@ struct SessionDetailInitialScrollAcceptanceTests {
 
 // MARK: - C-1 スワイプバック
 
-@Suite("Acceptance: セッション詳細から端スワイプで戻れる（task-1）")
+@Suite("Acceptance: セッション詳細から端スワイプで戻れる（task-1 / ADR 0033）")
 struct SessionDetailBackSwipeAcceptanceTests {
 
-    /// `UINavigationController` の代わりに使う fake。実 UIKit はホスト（macOS）で使えないため、
-    /// 判定層だけを切り出してここで検証する。UIKit への接続は XCUITest（フェーズ4）で確認する。
-    private final class FakeNavigationHost: InteractivePopGestureHost {
-        var navigationStackDepth: Int
-        var isInteractivePopGestureEnabled: Bool
-
-        init(navigationStackDepth: Int, isInteractivePopGestureEnabled: Bool) {
-            self.navigationStackDepth = navigationStackDepth
-            self.isInteractivePopGestureEnabled = isInteractivePopGestureEnabled
-        }
-    }
-
-    @Test("push された詳細画面（深さ2）では端スワイプを有効化する")
-    func enablesGestureWhenPushed() {
-        let host = FakeNavigationHost(navigationStackDepth: 2, isInteractivePopGestureEnabled: false)
-
-        let restored = InteractivePopGestureRestorer.restore(on: host)
-
-        #expect(restored == true)
-        #expect(
-            host.isInteractivePopGestureEnabled == true,
-            "ナビバーを隠していても端スワイプの pop を有効に戻すこと"
-        )
-    }
-
-    @Test("根の画面（深さ1）では戻れないのでジェスチャに触らない")
-    func leavesRootScreenAlone() {
-        let host = FakeNavigationHost(navigationStackDepth: 1, isInteractivePopGestureEnabled: false)
-
-        let restored = InteractivePopGestureRestorer.restore(on: host)
-
-        #expect(restored == false)
-        #expect(host.isInteractivePopGestureEnabled == false, "根の画面のジェスチャ状態を変えないこと")
-    }
-
-    @Test("すでに有効な状態で呼んでも冪等に有効のまま true を返す")
-    func isIdempotentWhenAlreadyEnabled() {
-        let host = FakeNavigationHost(navigationStackDepth: 3, isInteractivePopGestureEnabled: true)
-
-        let restored = InteractivePopGestureRestorer.restore(on: host)
-
-        #expect(restored == true)
-        #expect(host.isInteractivePopGestureEnabled == true)
-    }
-
-    @Test("View がスワイプバックを提供すると宣言し、判定層へ接続している")
-    func viewProvidesBackSwipeAndWiresRestorer() throws {
+    /// 端スワイプは iOS 標準の `interactivePopGestureRecognizer` に委ねる。UIKit はナビゲーション
+    /// バーを隠した画面ではこのジェスチャを拒否するため、詳細画面はバーを隠さないことが唯一の条件。
+    /// 実際に指で戻れるかは XCUITest（`SessionDetailBackSwipeUITests`）で検証する。
+    @Test("詳細画面はナビゲーションバーを隠さず、端スワイプを UIKit 標準のまま成立させる")
+    func detailKeepsSystemNavigationBarSoPopGestureWorks() throws {
         let source = try SessionViewUXSource.text("Sources/Features/SessionDetail/SessionDetailView.swift")
 
         #expect(
@@ -142,12 +100,29 @@ struct SessionDetailBackSwipeAcceptanceTests {
             "実装と同時にフラグを反転すること（フラグだけの反転は虚偽報告として扱う）"
         )
         #expect(
-            source.contains("InteractivePopGestureRestorer"),
-            "SessionDetailView が InteractivePopGestureRestorer へ接続していること"
+            !source.contains(".toolbar(.hidden, for: .navigationBar)"),
+            "ナビバーを隠すと UIKit が端スワイプ pop を拒否する（ADR 0033）"
         )
         #expect(
-            source.contains(".toolbar(.hidden, for: .navigationBar)"),
-            "ナビバー非表示＋自前 topBar の chrome 構成は維持すること（既存契約 Wave3SessionDetailChromeWhiteboxTests）"
+            !source.contains("InteractivePopGestureRestorer"),
+            "delegate を差し替えて無理に通す迂回は使わないこと（pop 後に一覧の大タイトルが失われる）"
+        )
+    }
+
+    /// 戻る導線はシステムの戻るボタンに委ねる。`navigationItem.leftBarButtonItem` を自前に差し替えると
+    /// UIKit が端スワイプ pop を拒否するため、独自の戻るボタンを置いてはいけない。
+    @Test("戻るボタンは自前で置かず、システムの戻るボタンを使う")
+    func detailDoesNotInstallItsOwnBackButton() throws {
+        let source = try SessionViewUXSource.text("Sources/Features/SessionDetail/SessionDetailView.swift")
+
+        #expect(source.contains(".toolbarRole(.editor)"))
+        #expect(
+            !source.contains("chevron.left"),
+            "自前の戻るボタンは端スワイプ pop を拒否させる"
+        )
+        #expect(
+            !source.contains("topBarLeading"),
+            "leading へ自前の項目を置かない（システムの戻るボタンを潰さない）"
         )
     }
 }

@@ -26,7 +26,7 @@ public struct ControlRequest: Sendable {
         case spawn(ref: AgentRef, backend: SessionBackend, workingDirectory: String?)
         case remove(id: SessionID)
         case rename(id: SessionID, name: String)
-        case output(id: SessionID, mode: OutputMode)
+        case output(id: SessionID, mode: OutputMode, format: OutputFormat)
         case messages(id: SessionID, since: String?, wait: Int?)
         case waitReady(id: SessionID, timeoutSeconds: Int)
         case wait(id: SessionID, timeoutSeconds: Int, sentinel: String?)
@@ -206,6 +206,13 @@ public enum ControlSpawnModelApplier {
 public enum OutputMode: String, Sendable {
     case screen
     case scrollback
+}
+
+/// 端末出力の表現形式。既定の `text` は従来どおり色を落としたプレーンテキスト。
+/// `ansi` は SGR（色・装飾）付きで、受け手が端末エミュレータで描き直すためのもの。
+public enum OutputFormat: String, Sendable {
+    case text
+    case ansi
 }
 
 /// 承認に対するモバイル側の応答値。モバイル DTO の "decision" フィールドと 1:1 対応。

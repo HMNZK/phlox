@@ -1,10 +1,13 @@
 ---
-status: accepted
+status: superseded
+superseded-by: 0033-session-detail-uses-system-navigation-bar.md
 last-verified: 2026-07-27
 ---
 
 # ADR 0032: ナビゲーションバーを隠した画面の端スワイプは、ガード付きデリゲートへ差し替えて復活させる
 
+> **この決定は [ADR 0033](0033-session-detail-uses-system-navigation-bar.md) で覆した**。デリゲートの差し替えは端スワイプを通す代わりに、pop 後に一覧の大タイトルを失わせた（実機でのみ発現）。現在はナビゲーションバーを隠さない構成になっている。
+>
 > **このファイルの役割**: セッション詳細で iOS 標準の「端から右へスワイプして戻る」が効かない問題を、UIKit のどこに手を入れて直したか、そしてなぜ有効化だけでは足りないかの決定。
 > **書かないもの**: セッション詳細の画面構成そのもの（→ [architecture/overview.md](../architecture/overview.md)）。
 

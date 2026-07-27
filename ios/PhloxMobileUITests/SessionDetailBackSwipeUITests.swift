@@ -2,11 +2,9 @@ import XCTest
 
 /// セッション詳細からの端スワイプで戻れることを、実 UIKit のジェスチャ経路で検証する E2E。
 ///
-/// 詳細画面は `.toolbar(.hidden, for: .navigationBar)` でナビゲーションバーを隠すため、
-/// UIKit は `interactivePopGestureRecognizer` を無効化する。これを復帰させる実装
-/// （`InteractivePopGestureRestorer`）は `UIViewControllerRepresentable` 越しに
-/// `UINavigationController` へ触るため、in-process のユニットテストでは判定層しか検証できない。
-/// 実際に指のスワイプで戻れるかはここでしか確かめられない。
+/// 詳細画面はシステムのナビゲーションバーを使うので、端スワイプは iOS 標準のまま成立する（ADR 0033）。
+/// バーを隠したり自前の戻るボタンを置いたりすると UIKit がこのジェスチャを拒否するため、
+/// その退行を捕まえられるのは実 UIKit を走らせるここだけ。in-process のユニットテストでは検証できない。
 final class SessionDetailBackSwipeUITests: XCTestCase {
 
     private var app: XCUIApplication!
@@ -27,6 +25,7 @@ final class SessionDetailBackSwipeUITests: XCTestCase {
             "端スワイプでセッション一覧へ戻ること（ナビゲーションバーを隠しても端スワイプを復帰させる）"
         )
         XCTAssertFalse(detail.exists, "詳細画面が pop されていること")
+        assertProjectsTitleIsVisible(after: "端スワイプ")
     }
 
     /// 戻ったあと同じ行を開き直せる（pop でジェスチャ状態が壊れていないこと）。
@@ -51,6 +50,17 @@ final class SessionDetailBackSwipeUITests: XCTestCase {
             "浅い端スワイプは pop せず詳細画面に留まること"
         )
         XCTAssertFalse(app.navigationBars["Projects"].exists, "一覧へ戻っていないこと")
+    }
+
+    /// アニメーションを切らずに端スワイプで戻っても、一覧の大タイトルが残る。
+    /// 対話的な pop は遷移コーディネータがナビゲーションバーの表示を戻す。ここが噛み合わないと
+    /// 詳細画面の「バーを隠す」状態が一覧へ持ち越され、上部が空白になる。
+    func testEdgeSwipeWithAnimationsKeepsProjectsTitle() throws {
+        _ = try openSessionDetail(animationsEnabled: true)
+
+        swipeFromLeftEdge(to: 0.9)
+
+        assertProjectsTitleIsVisible(after: "アニメーション有効の端スワイプ")
     }
 
     /// キャンセルした端スワイプの直後でも、もう一度端スワイプすれば戻れる。
@@ -120,9 +130,32 @@ final class SessionDetailBackSwipeUITests: XCTestCase {
 
     // MARK: - ヘルパー
 
-    private func openSessionDetail(waitForList: Bool = true) throws -> XCUIElement {
+    /// 一覧の大タイトル「Projects」が実際に見えていること。
+    /// 要素の存在だけでは足りない: 領域だけ残ってタイトルが消える（上部が空白になる）ことがある。
+    /// 大タイトルはバーではなく本文の先頭に描くので、画面上のテキストとして検証する（ADR 0036）。
+    private func assertProjectsTitleIsVisible(after path: String) {
+        XCTAssertTrue(
+            app.navigationBars["Projects"].waitForExistence(timeout: 5),
+            "\(path)で戻った後に一覧画面へ戻っていること"
+        )
+        let title = app.staticTexts["Projects"]
+        XCTAssertTrue(
+            title.waitForExistence(timeout: 5),
+            "\(path)で戻った後も大タイトル「Projects」が表示されていること（上部が空白にならない）"
+        )
+        XCTAssertTrue(title.isHittable, "\(path)で戻った後の大タイトルが画面上に見えていること")
+        XCTAssertGreaterThan(
+            title.frame.height, 30,
+            "\(path)で戻った後も大タイトルの大きさを保つこと。frame=\(title.frame)"
+        )
+    }
+
+    private func openSessionDetail(waitForList: Bool = true, animationsEnabled: Bool = false) throws -> XCUIElement {
         if waitForList {
-            app.launchArguments = ["-UITesting", "-UIScenario=goldenPath", "-UIViewAnimationsEnabled", "NO"]
+            app.launchArguments = ["-UITesting", "-UIScenario=goldenPath"]
+            if !animationsEnabled {
+                app.launchArguments += ["-UIViewAnimationsEnabled", "NO"]
+            }
             app.launch()
             let list = app.descendants(matching: .any)[AccessibilityID.sessionList]
             XCTAssertTrue(list.waitForExistence(timeout: 10), "セッション一覧が表示されること")

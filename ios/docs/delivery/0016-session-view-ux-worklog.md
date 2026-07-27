@@ -42,3 +42,58 @@ last-verified: 2026-07-27
 
 - [ADR 0031: 本文の折り返しはテーマで、表は幅を見積もって横スクロールで読ませる](../adr/0031-chat-body-readability-wrapping-and-table-scroll.md)
 - [ADR 0032: ナビゲーションバーを隠した画面の端スワイプは、ガード付きデリゲートへ差し替えて復活させる](../adr/0032-interactive-pop-gesture-on-hidden-navigation-bar.md)
+
+## 追記（2026-07-27 実機フィードバック後）
+
+実機で使ってもらったところ2件の問題が出たので、同じブランチで続けて直した。
+
+### 端スワイプで戻ると一覧の大タイトルが消える
+
+ADR 0032 のデリゲート差し替えが原因だった。対症療法を2回試して2回とも失敗（1回目は戻るボタンでもタイトルが出なくなり悪化、2回目は端スワイプ自体が効かなくなった）。どちらも取り消し、[ADR 0033](../adr/0033-session-detail-uses-system-navigation-bar.md) で**詳細画面がナビゲーションバーを隠すのをやめた**。chrome はシステムのナビゲーションバーへ載せ替え、`InteractivePopGestureRestorer` は削除した。
+
+- 検証: PhloxKit 569 / シミュレータ UI 12 / 実機 UI 12 が green。シミュレータのスクリーンショットで chrome の見た目が従来とほぼ同じことを確認。
+- **未検証**: タイトルが消える症状そのものを自動テストで再現できていない。直ったかどうかは実機の実使用でしか確認できない。
+
+### ターミナル出力が「文字の羅列」に見える
+
+配信も表示も色を落としていた。[ADR 0126](../../../macos/docs/adr/0126-output-endpoint-serves-ansi-screen.md)（Mac が SGR 付き画面と桁数を返す）と [ADR 0034](../adr/0034-mobile-terminal-rendered-with-swiftterm.md)（モバイルが同じ SwiftTerm で描き直す）。
+
+- 検証: PhloxKit 569（`TerminalScreenIOSTests` 7・`TerminalScreenTests` 6 を追加）。シミュレータのスクリーンショットで色・行頭揃え・カーソル非表示・内容ぶんの高さを確認。
+- **未検証**: 実エージェントの TUI（枠線・全角・256色）を実機で表示した見た目。
+- Mac 側を再起動しないと色は付かない（サーバー側の変更のため）。
+
+### ターミナルの幅と出しかた（実機フィードバック 2 巡目）
+
+実機で TUI が描けるようになった状態を見たユーザーから、表示のしかたに 3 点。「出力トグルの中でなく画面に全部出す」「色もそのまま」「サイドスクロールしないで済むよう幅を最適化する」。3 点目は [ADR 0034](../adr/0034-mobile-terminal-rendered-with-swiftterm.md) 決定 3（Mac の桁数を守り横スクロール）の逆なので、[ADR 0035](../adr/0035-mobile-terminal-fits-screen-width.md) で覆した。
+
+- 端末画面は「出力」見出し・トグル・横スクロールから外し、画面幅いっぱいにそのまま出す。色つきで来なかったときの等幅テキスト経路は従来のまま。
+- 幅は「まずフォントを縮めて Mac の桁数を収め、7pt まで縮めても収まらなければ折り返す」。行数は折り返し後で見積もり、全角は 2 桁として数える。
+- 検証: PhloxKit 575（`TerminalScreenMetricsTests` を 13 件へ書き換え）。シミュレータで 80 桁モック（折り返さず収まる）と 120 桁・全角・256色・背景色・下線・dim を混ぜたモック（折り返して全文が読める）を目視確認。色はいずれも出た。
+- **未検証**: 実機での可読性。7pt という下限は主観の線引きで実測ではない。
+
+### 「Projects」が消える件の再現と修正
+
+3回の推測（ADR 0032 のデリゲート差し替え / pop 完了時の復帰 / ADR 0033 のバー非表示廃止）はどれも外れていた。手元で再現できていなかったのが原因なので、まず**再現手段を作った**。
+
+- `ios/scripts/fake-phlox-server.py` — Mac 本体に触らず「実データが動いている状態」を作るローカル偽サーバー（`--churn` でセッションの増減・状態変化・500 応答を起こす）。
+- シミュレータを live 起動して `-phlox.connection.host/-phlox.connection.port` を渡すと、ペアリングなしでそこへ繋がる。
+
+これで分かったこと: **iOS 26 でしか出ない**（実機は iOS 26.5.2、手元は iOS 18.3.1 だった）。引き金は**一覧のスクロール**で、下げて戻すとシステムの大タイトルが二度と戻らない。`-UITesting` のモックでは状態固定＋1ms 再取得で打ち消されるため再現しない。
+
+修正は [ADR 0036](../adr/0036-session-list-draws-its-own-large-title.md): 大タイトルを自前で本文の先頭に描き、バーは `.inline` に落とす。バーの小タイトルは大タイトルが隠れている間だけ出す。
+
+- 検証: iOS 26.2 / iOS 18.3.1 の両方で `PhloxMobileUITests` 26 件 green、PhloxKit 575 件 green。回帰テスト `SessionListTitleLiveRegressionUITests` は修正前 fail（タイトル範囲の描画画素 12176 → 0）・修正後 pass。要素の有無では検出できないので画素で判定している。
+- **既存の失敗（本件とは無関係）**: `scripts/lint-raw-values.sh` は `App/AppRoot.swift:237,625` の生フォントサイズで元から fail する。今回は触っていない。
+- **未検証**: 実機（iOS 26.5.2）での確認。
+
+### ターミナルが色付きにならなかった理由
+
+実機で「まだ直っていない」と報告を受けたが、モバイル側は正しく動いていた。**動いている Mac の Phlox が古いビルド**で、`GET /sessions/{id}/output?format=ansi` が `text` しか返しておらず（`format` も `cols` も無し）、iOS が仕様どおり等幅テキスト経路へフォールバックしていた。実機で確認した応答:
+
+```
+GET /sessions/970A07CF…/output?format=ansi → keys: ['text']
+```
+
+macOS 側の変更はビルド・テストとも green（`xcodebuild` BUILD SUCCEEDED / TerminalUI 57 / AppBootstrap 151）。`macos/scripts/debug-build-restart.sh` で入れ替え・再起動すれば有効になる（実行中セッションが落ちるためユーザーの操作に委ねた）。
+
+あわせて、実測した Mac の端末幅（138 桁）を偽サーバーへ流してモバイルの見え方を確認し、端末だけ本文の左右余白を打ち消して画面端まで使うようにした（→ [ADR 0035](../adr/0035-mobile-terminal-fits-screen-width.md)）。

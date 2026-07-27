@@ -12,6 +12,7 @@ last-verified: 2026-07-27
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0126 | [`GET /sessions/{id}/output` は要求があれば色つきの端末画面を返す](0126-output-endpoint-serves-ansi-screen.md) | accepted |
 | 0125 | [セッションを開いたら最下部から表示する（チャット・ターミナル共通）](0125-open-session-at-bottom.md) | accepted |
 | 0124 | [AskUserQuestion の自由入力と選択肢は相互排他にし、自由入力欄は複数行へ折り返す](0124-user-question-free-text-exclusive.md) | accepted |
 | 0123 | [エージェント既定モデルの正本を AgentDomain の `AgentModelCatalog.defaultModel(for:)` に一元化する（Claude=opus）](0123-agent-default-model-single-source.md) | accepted |

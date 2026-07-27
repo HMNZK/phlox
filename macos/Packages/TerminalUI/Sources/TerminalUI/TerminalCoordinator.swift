@@ -204,6 +204,12 @@ public final class TerminalCoordinator: NSObject, TerminalViewDelegate {
         return lines.joined(separator: "\n")
     }
 
+    /// 現在の SwiftTerm viewport を SGR（色・装飾）付きテキストで書き出す。scrollback は含まない。
+    /// モバイルはこれを端末エミュレータへ feed し直し、デスクトップと同じ見た目で描画する。
+    public func ansiScreenText() -> String {
+        AnsiScreenEncoder.encode(terminalView.getTerminal())
+    }
+
     /// viewport を最下部（最新）へ戻し、以降の出力への追従を再開する。
     ///
     /// 公開面は PM が凍結した契約面（task-3 の入出力契約）。振る舞いの実装は task-3 が行う。

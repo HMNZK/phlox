@@ -1173,6 +1173,13 @@ public final class DashboardViewModel {
         return session.readText(lines: 0)
     }
 
+    /// 指定セッションの端末画面を SGR（色・装飾）付きで返す。端末を持たない構造化セッションと
+    /// 不在は `nil`。モバイルはこれを端末エミュレータへ流して Mac と同じ見た目で描画する。
+    public func sessionAnsiScreen(for id: SessionID) -> AnsiScreen? {
+        guard let session = sessionNodes.first(where: { $0.id == id })?.controllable else { return nil }
+        return session.readAnsiScreen()
+    }
+
     /// 構造化（appServer）セッションのライブ transcript を返す。
     /// 非構造化（PTY）/不在は `nil`、構造化だが未生成は空配列。Mac GUI の描画元と同一状態。
     public func sessionChatMessages(for id: SessionID) -> [ChatItem]? {

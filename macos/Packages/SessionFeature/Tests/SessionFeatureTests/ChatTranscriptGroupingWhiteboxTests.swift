@@ -98,16 +98,22 @@ struct ChatTranscriptGroupingWhiteboxTests {
     @Test func 集約カードは件数見出しと末尾コマンドの実行中状態を持つ() {
         let items = [groupingCommand("c1"), groupingCommand("c2", output: "")]
 
-        let presentation = CommandGroupPresentation(
+        let header = CommandGroupHeader(
             items: items,
             lastTranscriptID: "c2",
             isTurnRunning: true
         )
+        let rows = CommandGroupRowWindow.slice(
+            items: items,
+            lastTranscriptID: "c2",
+            isTurnRunning: true,
+            limit: CommandGroupRowWindow.defaultLimit
+        )
 
-        #expect(presentation.title == "ツール実行 ×2")
-        #expect(presentation.isRunning)
-        #expect(presentation.rows.map(\.id) == ["c1", "c2"])
-        #expect(presentation.rows.map(\.isRunning) == [false, true])
+        #expect(header.title == "ツール実行 ×2")
+        #expect(header.isRunning)
+        #expect(rows.rows.map(\.id) == ["c1", "c2"])
+        #expect(rows.rows.map(\.isRunning) == [false, true])
     }
 
     @Test func 空出力の完了済みコマンドは展開行から除外する() {
@@ -117,14 +123,20 @@ struct ChatTranscriptGroupingWhiteboxTests {
             groupingCommand("c3", output: ""),
         ]
 
-        let presentation = CommandGroupPresentation(
+        let header = CommandGroupHeader(
             items: items,
             lastTranscriptID: "c3",
             isTurnRunning: false
         )
+        let rows = CommandGroupRowWindow.slice(
+            items: items,
+            lastTranscriptID: "c3",
+            isTurnRunning: false,
+            limit: CommandGroupRowWindow.defaultLimit
+        )
 
-        #expect(!presentation.isRunning)
-        #expect(presentation.rows.map(\.id) == ["c1"])
+        #expect(!header.isRunning)
+        #expect(rows.rows.map(\.id) == ["c1"])
     }
 
     @Test func グループ内コマンドのジャンプ先は安定したグループidentityに解決する() {
@@ -142,16 +154,23 @@ struct ChatTranscriptGroupingWhiteboxTests {
     }
 
     @Test func 全て空出力かつ非実行中ならグループカードを描画しない() {
-        let presentation = CommandGroupPresentation(
-            items: [
-                groupingCommand("c1", output: ""),
-                groupingCommand("c2", output: " \n\t "),
-            ],
+        let items = [
+            groupingCommand("c1", output: ""),
+            groupingCommand("c2", output: " \n\t "),
+        ]
+        let header = CommandGroupHeader(
+            items: items,
             lastTranscriptID: "c2",
             isTurnRunning: false
         )
+        let rows = CommandGroupRowWindow.slice(
+            items: items,
+            lastTranscriptID: "c2",
+            isTurnRunning: false,
+            limit: CommandGroupRowWindow.defaultLimit
+        )
 
-        #expect(presentation.rows.isEmpty)
-        #expect(!presentation.shouldRender)
+        #expect(rows.rows.isEmpty)
+        #expect(!header.shouldRender)
     }
 }

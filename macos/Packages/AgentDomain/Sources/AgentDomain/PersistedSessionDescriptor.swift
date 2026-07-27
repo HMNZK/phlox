@@ -1,10 +1,11 @@
 import Foundation
 import os
 
-/// セッション起動経路。サイドバー表示と app-server ポリシー切替に使う。
+/// セッションの起動経路。表示可否と app-server ポリシーはこの値から導出する。
 public enum SessionLaunchContext: String, Codable, Sendable, Equatable {
     case interactive
     case orchestration
+    case remoteUser
 
     private static let logger = Logger(
         subsystem: "com.phlox.Phlox",

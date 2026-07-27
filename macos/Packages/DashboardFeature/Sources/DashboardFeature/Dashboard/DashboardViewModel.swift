@@ -21,6 +21,11 @@ import SessionFeature
 @MainActor
 @Observable
 public final class DashboardViewModel {
+    private enum APISpawnLimitSource {
+        case parent(SessionID?)
+        case controlRequester(SessionID?)
+    }
+
     public private(set) var sessions: [SessionViewModel] = []
     public private(set) var sessionNodes: [SessionNode] = []
 
@@ -66,6 +71,7 @@ public final class DashboardViewModel {
     private var hookMultiplexTask: Task<Void, Never>?
     private var sessionHookContinuations: [SessionID: AsyncStream<(SessionID, HookEvent)>.Continuation] = [:]
     private var spawnTimestamps: [SessionID: [Date]] = [:]
+    private var unattributedControlAPISpawnTimestamps: [Date] = []
     private let sessionHooks: SessionHookInstaller
     private var ownedWorkspaceDirectories: [SessionID: URL] = [:]
     /// 永続化の直列実行キュー。すべての保存はこの coordinator 経由で行う。
@@ -847,6 +853,28 @@ public final class DashboardViewModel {
         extraEnv: [String: String] = [:],
         workingDirectoryOverride: String? = nil
     ) async throws -> SessionID {
+        try await spawnNewSessionImpl(
+            ref: ref,
+            projectID: projectID,
+            from: from,
+            backend: backend,
+            launchContext: launchContext,
+            extraEnv: extraEnv,
+            workingDirectoryOverride: workingDirectoryOverride,
+            spawnLimitSource: .parent(from)
+        )
+    }
+
+    private func spawnNewSessionImpl(
+        ref: AgentRef,
+        projectID: ProjectID? = nil,
+        from: SessionID? = nil,
+        backend: SessionBackend = .pty,
+        launchContext: SessionLaunchContext = .interactive,
+        extraEnv: [String: String] = [:],
+        workingDirectoryOverride: String? = nil,
+        spawnLimitSource: APISpawnLimitSource
+    ) async throws -> SessionID {
         let agentDescriptor = sessionSpawnService.descriptorForPresentation(ref: ref)
         // spawn 元（親）がチャット（appServer）セッションで、子の kind が structured chat 対応なら、
         // 子も appServer で起動し「チャットから spawn した子はチャットに揃える」。それ以外は要求どおり。
@@ -862,9 +890,17 @@ public final class DashboardViewModel {
         if resolvedBackend == .appServer, !agentDescriptor.supportsStructuredChat {
             throw AgentSpawnError.unsupportedBackend
         }
-        let newDepth = from.map { depth(of: $0) + 1 } ?? 0
-        if let from {
-            try checkAPISpawnLimits(from: from, newDepth: newDepth)
+        switch spawnLimitSource {
+        case .parent(let parent):
+            if let parent {
+                try checkAPISpawnLimits(
+                    requester: parent,
+                    newDepth: depth(of: parent) + 1
+                )
+            }
+        case .controlRequester(let requester):
+            let newDepth = requester.map { depth(of: $0) + 1 } ?? 0
+            try checkAPISpawnLimits(requester: requester, newDepth: newDepth)
         }
 
         // API 経由で projectID 未指定かつ親ありのとき、親と同じワークスペース（CWD）で子を起動する。
@@ -912,16 +948,24 @@ public final class DashboardViewModel {
         let chatNativeSessionId: String?
         let appServerUserAgent: String?
         let sessionName: String
+        let persistedParentSessionID: SessionID?
+        let persistedLaunchContext: SessionLaunchContext
+        let spawnedSession: any ControllableSession
 
         switch resolvedBackend {
         case .pty:
+            let sessionOrigin = sessionOriginForWrite(
+                parentSessionID: from,
+                launchContext: launchContext,
+                spawnLimitSource: spawnLimitSource
+            )
             let sessionVM = sessionSpawnService.makeSessionViewModel(
                 id: sessionID,
                 projectID: resolvedProjectID,
-                parentSessionID: from,
+                parentSessionID: sessionOrigin.parentSessionID,
                 name: "",
                 plan: plan,
-                launchContext: launchContext
+                launchContext: sessionOrigin.launchContext
             )
             sessionVM.name = generatedName
 
@@ -952,6 +996,9 @@ public final class DashboardViewModel {
             chatNativeSessionId = nil
             appServerUserAgent = nil
             sessionName = sessionVM.name
+            persistedParentSessionID = sessionVM.parentSessionID
+            persistedLaunchContext = sessionVM.launchContext
+            spawnedSession = sessionVM
         case .appServer:
             let result = try await sessionSpawnService.startAppServerSession(
                 id: sessionID,
@@ -960,15 +1007,41 @@ public final class DashboardViewModel {
                 parentSessionID: from,
                 name: generatedName,
                 plan: plan,
-                launchContext: launchContext
+                launchContext: launchContext,
+                sessionOriginForWrite: {
+                    self.sessionOriginForWrite(
+                        parentSessionID: from,
+                        launchContext: launchContext,
+                        spawnLimitSource: spawnLimitSource
+                    )
+                },
+                registerSessionForWrite: { vm in
+                    self.observeUnseenCompletion(for: vm)
+                    self.appendSessionNode(.appServer(vm))
+                    self.refreshUnseenCompletionCount()
+                },
+                unregisterFailedSession: { id in
+                    guard let node = self.sessionNode(id: id) else { return }
+                    node.controllable.unseenCompletionDidChange = nil
+                    self.removeSessionNode(id: id)
+                    self.refreshUnseenCompletionCount()
+                }
             )
-            observeUnseenCompletion(for: result.vm)
-            appendSessionNode(.appServer(result.vm))
-            refreshUnseenCompletionCount()
             codexThreadId = result.codexThreadId
             chatNativeSessionId = result.chatNativeSessionId
             appServerUserAgent = result.appServerUserAgent
             sessionName = result.sessionName
+            persistedParentSessionID = result.vm.parentSessionID
+            persistedLaunchContext = result.vm.launchContext
+            spawnedSession = result.vm
+        }
+
+        let livePID = await livePIDProvider(sessionID)
+        // 一覧へ登録してからここへ到達するまでに cascade 削除された場合は、起動処理との
+        // 競合後に backend を再停止し、削除済み descriptor を永続化しない。
+        guard sessionNode(id: sessionID) != nil else {
+            await spawnedSession.terminate()
+            throw CancellationError()
         }
 
         // 再起動後の復元に備えてセッションメタを永続化する。
@@ -990,9 +1063,9 @@ public final class DashboardViewModel {
             codexSettings: sessionNodes.first(where: { $0.id == sessionID })?.appServer?.codexSettingsSnapshot,
             token: token,
             resumeID: resumeID,
-            parentSessionID: from,
-            pid: await livePIDProvider(sessionID),
-            launchContext: launchContext
+            parentSessionID: persistedParentSessionID,
+            pid: livePID,
+            launchContext: persistedLaunchContext
         )
         persistence.persistSession(descriptor)
 
@@ -1002,6 +1075,69 @@ public final class DashboardViewModel {
         gridSessionSelectionDidSpawn(sessionID)
 
         return sessionID
+    }
+
+    /// Control API 経由だけ要求元の実在を再評価する。
+    /// 呼び出し側は、この戻り値の取得とセッションへの代入の間に await を置かない。
+    private func sessionOriginForWrite(
+        parentSessionID: SessionID?,
+        launchContext: SessionLaunchContext,
+        spawnLimitSource: APISpawnLimitSource
+    ) -> SessionOrigin {
+        switch spawnLimitSource {
+        case .parent:
+            return SessionOrigin(
+                launchContext: launchContext,
+                parentSessionID: parentSessionID
+            )
+        case .controlRequester(let requester):
+            return SessionOriginPolicy.origin(
+                requester: requester,
+                requesterIsExistingSession: requester.map { sessionNode(id: $0) != nil } ?? false
+            )
+        }
+    }
+
+    /// Control API の要求元を、spawn 制限のキーとセッションツリーの親に分離して起動する。
+    /// 実在しない要求元も制限には使うが、親リンクには書き込まない。
+    @discardableResult
+    public func spawnNewSessionFromControlAPI(
+        ref: AgentRef,
+        requester: SessionID?,
+        backend: SessionBackend,
+        workingDirectory: String?
+    ) async throws -> SessionID {
+        try await spawnNewSessionFromControlAPI(
+            ref: ref,
+            requester: requester,
+            backend: backend,
+            workingDirectory: workingDirectory,
+            afterOriginResolution: {}
+        )
+    }
+
+    @discardableResult
+    func spawnNewSessionFromControlAPI(
+        ref: AgentRef,
+        requester: SessionID?,
+        backend: SessionBackend,
+        workingDirectory: String?,
+        afterOriginResolution: @MainActor () async -> Void
+    ) async throws -> SessionID {
+        let requesterIsExistingSession = requester.map { sessionNode(id: $0) != nil } ?? false
+        let origin = SessionOriginPolicy.origin(
+            requester: requester,
+            requesterIsExistingSession: requesterIsExistingSession
+        )
+        await afterOriginResolution()
+        return try await spawnNewSessionImpl(
+            ref: ref,
+            from: origin.parentSessionID,
+            backend: backend,
+            launchContext: origin.launchContext,
+            workingDirectoryOverride: workingDirectory,
+            spawnLimitSource: .controlRequester(requester)
+        )
     }
 
     /// M6a で実装。新規 Claude Code セッションをプレースホルダとして `sessions` に追加する。
@@ -1503,11 +1639,18 @@ public final class DashboardViewModel {
     }
 
     /// レート制限の消費（タイムスタンプ追記）は上限検査の失敗時も保持する（従来挙動の維持）。
-    private func checkAPISpawnLimits(from: SessionID, newDepth: Int) throws {
-        spawnTimestamps[from] = try SpawnPolicy.recordingSpawnAttempt(
-            timestamps: spawnTimestamps[from] ?? [],
-            now: rateLimitNow()
-        )
+    private func checkAPISpawnLimits(requester: SessionID?, newDepth: Int) throws {
+        if let requester {
+            spawnTimestamps[requester] = try SpawnPolicy.recordingSpawnAttempt(
+                timestamps: spawnTimestamps[requester] ?? [],
+                now: rateLimitNow()
+            )
+        } else {
+            unattributedControlAPISpawnTimestamps = try SpawnPolicy.recordingSpawnAttempt(
+                timestamps: unattributedControlAPISpawnTimestamps,
+                now: rateLimitNow()
+            )
+        }
         try SpawnPolicy.validateAPISpawn(newDepth: newDepth)
     }
 

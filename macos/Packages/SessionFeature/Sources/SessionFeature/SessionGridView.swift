@@ -25,6 +25,9 @@ public struct SessionGridView: View {
     let onChangeWorkspace: (SessionViewModel) -> Void
     let onReorder: (_ moved: SessionID, _ target: SessionID) -> Void
     let onGridAction: (SessionGridAction) -> Void
+    /// 非 nil のときは分割ツリーで描く（旧 k×k 経路は残したまま並置する）。
+    let paneLayout: PaneTree?
+    let onLayoutAction: (PaneLayoutAction) -> Void
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
     public init(
@@ -36,7 +39,9 @@ public struct SessionGridView: View {
         onRename: @escaping (SessionNode) -> Void,
         onChangeWorkspace: @escaping (SessionViewModel) -> Void,
         onReorder: @escaping (_ moved: SessionID, _ target: SessionID) -> Void,
-        onGridAction: @escaping (SessionGridAction) -> Void
+        onGridAction: @escaping (SessionGridAction) -> Void,
+        paneLayout: PaneTree? = nil,
+        onLayoutAction: @escaping (PaneLayoutAction) -> Void = { _ in }
     ) {
         self.sessions = sessions
         self.gridColumns = gridColumns
@@ -47,6 +52,8 @@ public struct SessionGridView: View {
         self.onChangeWorkspace = onChangeWorkspace
         self.onReorder = onReorder
         self.onGridAction = onGridAction
+        self.paneLayout = paneLayout
+        self.onLayoutAction = onLayoutAction
     }
 
     private var dimensions: (cols: Int, rows: Int) {
@@ -74,7 +81,17 @@ public struct SessionGridView: View {
 
     @ViewBuilder
     private var gridContent: some View {
-        if let arrangement {
+        if let paneLayout {
+            PaneLayoutView(
+                sessions: sessions,
+                tree: paneLayout,
+                focusedID: $focusedID,
+                onRemove: onRemove,
+                onRename: onRename,
+                onChangeWorkspace: onChangeWorkspace,
+                onLayoutAction: onLayoutAction
+            )
+        } else if let arrangement {
             fixedGrid(arrangement: arrangement)
         } else {
             autoGrid

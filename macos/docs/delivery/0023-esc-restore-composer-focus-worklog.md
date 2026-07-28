@@ -61,6 +61,12 @@ agentic-loop の 2 タスク逐次チェーン（並列度 1）。契約化で�
 - IME 変換を挟んだ**実機**での操作（ヘッドレスでは `compositionDoesNotSurviveThePicker` で前提を固定したが、実機で日本語変換中に esc 2 連打する操作は未実施）
 - グリッド表示での実機確認（ソース走査アサーションと単体テストのみ。複数列同時表示での取り違えは未実測）
 
+## 途中で正した誤り（次 run への注意）
+
+- **「Debug と Release は並走できない」と誤認した**。根拠にしたのは `specs/e2e-test-design.md` の WP-E5 の記述（並走無害は未確認）だったが、`AppFlavor` によるデータディレクトリ・Keychain・ポートの分離は実装済みで、実際に約15分並走させても Release 側は無傷だった。この誤認のため、仮定E（症状が実在するか）の検証を一度ヘッドレスの再現テストだけで済ませかけた。同 spec の該当行を実測結果で更新した。
+- **凍結前の実走で受け入れテストのハーネス欠陥を 1 件見つけた**。`focusRequestMovesCaretToEndOfText` の初期キャレットが既に末尾にあり、実装後に無意味に pass する状態だった。凍結は「red-for-the-right-reason を取ってから」でなければ意味がない。
+- **overlay 検証ハーネスの text binding が本番と食い違っていた**。`FocusRaceHarnessView` がローカルの `@State` に束ねていたため復元本文が composer へ届かず、既存の overlay テストは「フォーカスが戻るか」しか測れていなかった。実物の View と同じ束ね方（`viewModel.draft`）に直して初めてキャレット位置を overlay 経由で検証できた。
+
 ## 書かない判断ログ
 
 - 2026-07-28: `architecture/` に「composer フォーカス要求プロトコル」の項を起こさない → 構造変化が値型 1 つ（`ComposerFocusRequest`）＋ ViewModel の公開プロパティ 1 つ＋ `updateNSView` の 1 分岐に収まり、機構の説明は ADR 0135 に尽きている。同内容を「なぜ抜き」で書き直すと二重管理になり、片方が先に腐る。プロトコルが第 3 の利用者（例: `SubAgentDrawerView`）へ広がったら起こす。

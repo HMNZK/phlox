@@ -1,12 +1,12 @@
 ---
 status: active
-last-verified: 2026-07-26
+last-verified: 2026-07-29
 ---
 
 # チャットモード UX コンポーネント構成（chat-ux-batch 後の現行）
 
 > **このファイルの役割**: chat-ux-batch（2026-07-06）で導入・再編されたチャットモード UI/データ層の「今こう動いている」。
-> **書かないもの**: なぜこの設計か（→ adr/0038〜0040）、セッションライフサイクル（→ claude-chat-session-lifecycle.md）、リバート/Esc（→ chat-revert-escape-and-interrupt.md）。
+> **書かないもの**: なぜこの設計か（→ adr/0038〜0040・0120・0138）、セッションライフサイクル（→ claude-chat-session-lifecycle.md）、リバート/Esc（→ chat-revert-escape-and-interrupt.md）。
 
 ## ファイル構成（ChatSessionView の分割後）
 
@@ -69,7 +69,31 @@ PTY read（actor＋専用キュー）・transcript 保存（actor）・Hook/Cont
 
 `ComposerSuggestionController` はファイル候補の走査（キャッシュ miss 時の FS 再帰）を**背景 Task** で行い、`update` は即返る（warm キャッシュ hit は同期即応答の fast-path）。走査中は前回候補を保持し、走査は **in-flight 1本＋最新 pending 1枠**に coalescing（running 中の新クエリは走査を起動せず pending 上書きのみ）。結果採用は世代トークン一致時のみで、古いクエリの結果が新しい結果を上書きしない。slash 候補は従来どおり同期。
 
-**発火位置（ADR 0104）**: `/`（slash）も `@`（file）も**カーソル直前の空白区切りトークンの先頭**で発火する（位置不問・両者対称）。トークン途中の `/`・`@`（`src/main`・`a@b.com` 等）は発火しない。ハイライト（`ComposerHighlight.spans`）も同じトークン先頭規則で、`applyComposerHighlights` が全 span を無条件着色する。
+**発火位置（ADR 0104）**: `/`（slash）も `@`（file）も**カーソル直前の空白区切りトークンの先頭**で発火する（位置不問・両者対称）。トークン途中の `/`・`@`（`src/main`・`a@b.com` 等）は発火しない。ハイライト（`ComposerHighlight.spans`）も同じトークン先頭規則で、`applyComposerHighlights` が全 span を着色する（色の割り当ては `ComposerHighlightKind` の**網羅 switch**。ケース追加はコンパイルエラーになる）。
+
+## 入力欄の ultra 系キーワード強調（composer-ultra-keywords, 2026-07-29・ADR 0138）
+
+`ComposerHighlight.spans(in:includingKeywords:)` が、claude CLI がキーワード型機能として検出する4語（`ultrathink` / `ultraplan` / `ultrareview` / `ultracode`）の範囲を `.keyword` span として返す。既存の `spans(in:)` は不変で、キーワードを返さない。
+
+検出規則は CLI v2.1.220 の実装を写した2系統（正本は ADR 0138）:
+
+- **規則X（`ultrathink`）**: ASCII 語境界（`[A-Za-z0-9_]` で判定・JS の `\b` 相当）＋大小無視のみ。除外なし。
+- **規則Y（他3語）**: 規則X に加え、①入力が `/` 始まりなら検出しない ②`` ` " < { [ ( ' `` の保護区間内は除外（`'` は直前が語構成文字なら開始せず・閉じの直後が語構成文字なら閉じない、`<` は次が `[a-zA-Z/]` のときだけ開始、`[[` は開始位置を更新）③直前が `/ \ -`・直後が `/ \ - ?`・直後が `.` ＋語構成文字は除外。
+
+オフセットは UTF16 単位。`.slashCommand` / `.fileReference` span と重なる `.keyword` は落とす（1文字1色のため）。
+
+描画は `IMESafeTextView.SubmitAwareTextView.highlightsKeywords`（既定 `false`）が ON/OFF を持ち、`ChatComposer` / `GridChatColumn` が `agentRef == .builtin(.claudeCode)` を渡す（`SubAgentDrawerView` は既定のまま）。色は `DSColor.composerKeyword`（light `#B45309` / dark `#FCD34D`）。
+
+## init 到着前のスラッシュ補完（composer-ultra-keywords, 2026-07-29・ADR 0138）
+
+`system/init` の一覧は最初の送信後にしか届かないため、それまでの候補を2つの供給源で埋める。
+
+- **静的フォールバック 22 件**（`ComposerSuggestionSources.builtinSlashCommands`）。ADR 0120 の 10 件に、2026-07-28 実測で存在を確認した 12 件（`/agents` `/code-review` `/deep-research` `/effort` `/fast` `/loop` `/recap` `/run` `/schedule` `/security-review` `/simplify` `/ultrareview`）を追加。
+- **`AvailableCommandsStore`**（`SessionFeature`）が、init で受領した一覧を `phlox.availableCommands.<AgentRef.id>.<正規化済み作業ディレクトリ>` キーで `UserDefaults` に保存する。正規化は nil/空 → `""`、チルダ展開、`standardizedFileURL`、末尾スラッシュ除去の順。空配列と 301 件以上は保存せず既存値も消さない。再記録は全量置換（後勝ち）。
+
+`ChatSessionViewModel` は生成時に1回だけストアを読み `seedSlashCommands` に保持し、`.availableCommandsUpdated` 受信時に `availableSlashCommands` の更新とストアへの `record` を行う。`ComposerSuggestionController` 経由で `ComposerSuggestionSources.slashCandidates(availableCommands:seedCommands:...)` へ渡る。
+
+候補の決まり方: `availableCommands` が非 nil なら seed を無視して従来どおり。nil かつ seed が非空なら **静的リスト → seed → `.claude/commands` → `.claude/skills`** の順に積んで重複除去（seed 由来の subtitle が先勝ちで負けないための順序）。seed が nil / 空配列なら従来の静的フォールバック経路。5秒TTLキャッシュのキーにも seed を含める。
 
 ## トランスクリプト項目の ID 索引
 

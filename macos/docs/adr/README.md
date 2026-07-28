@@ -12,6 +12,7 @@ last-verified: 2026-07-28
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0138 | [入力欄の ultra 系キーワードを CLI と同じ規則で強調し、init 到着前の補完を種一覧で埋める](0138-composer-ultra-keywords-and-preinit-suggestions.md) | accepted |
 | 0137 | [処理中を表す表示面は生 status ではなく displayStatus を読む](0137-processing-display-surfaces-use-displaystatus.md) | accepted |
 | 0136 | [グリッドビューを「n 分岐の分割ツリー」で作り直す（k×k 等分割盤を撤去）](0136-pane-split-tree-layout.md) | accepted |
 | 0135 | [巻き戻しで復元した本文は ViewModel が `draft` へ直接書く（View 側で遅れを吸収しない）](0135-restored-draft-is-written-by-the-view-model.md) | accepted |

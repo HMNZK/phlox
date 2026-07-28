@@ -105,6 +105,23 @@ struct ComposerFocusRequestWhiteboxTests {
         #expect(vm.composerFocusRequest.token == before + 1)
     }
 
+    /// 復元本文とフォーカス要求が **同じ更新パス** で View へ届くことを ViewModel 層で固定する。
+    /// ここが崩れて本文が 1 パス遅れると、View 側は「末尾化すべき本文がまだ無い」状態を
+    /// 保留・再適用する機構を持たされる（本 run で一度その設計に迷い込んだ）。
+    @Test("復元は draft とフォーカス要求を同時に確定させる（本文が遅れて届かない）")
+    func confirmRevertSetsDraftTogetherWithFocusRequest() async throws {
+        let (vm, _) = try await makeWhiteboxViewModel()
+        vm.draft = "復元前に書きかけていた文"
+        try openPicker(vm)
+        let candidate = try #require(vm.revertCandidates.first)
+
+        await vm.confirmRevert(toUserMessageID: candidate.id)
+
+        let restored = try #require(vm.draftRestoration, "前提条件: 本文が復元されること")
+        #expect(vm.draft == restored, "View の onChange を待たずに draft が復元本文になっていること")
+        #expect(vm.composerFocusRequest.movesCaretToEnd, "同じ時点で末尾化つきのフォーカス要求も立つこと")
+    }
+
     @Test("復元とキャンセルを繰り返しても token は狭義単調増加")
     func tokenIsStrictlyIncreasingAcrossOperations() async throws {
         let (vm, _) = try await makeWhiteboxViewModel()

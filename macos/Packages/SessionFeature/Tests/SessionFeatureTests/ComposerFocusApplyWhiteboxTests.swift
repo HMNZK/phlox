@@ -8,7 +8,8 @@ import StructuredChatKit
 
 // task-2 白箱: IMESafeTextView がフォーカス要求を適用するときの、受け入れテストが覆っていない経路。
 //   (a) 冪等性 — 同じトークンでの再描画ではフォーカスを奪い返さない（ハザード4）
-//   (b) 遅延適用 — 復元本文がフォーカス要求より遅れて届いても、キャレットが本文末尾へ来る
+//   (b) 復元本文とフォーカス要求が同じ更新パスで届いたとき、キャレットが復元本文の末尾へ来る
+//   (c) 実物のピッカー overlay を閉じたとき、フォーカスが composer へ戻る（負の対照つき）
 
 @MainActor
 private final class MutableComposerHarness {
@@ -102,85 +103,25 @@ func sameTokenRerenderDoesNotReclaimFocus() async throws {
     )
 }
 
-@Test("末尾化なしの要求は、本文未着で保留されていた末尾化要求を破棄する")
+@Test("復元前の下書きより長い本文へ置き換わっても、キャレットは復元本文の末尾へ来る")
 @MainActor
-func requestWithoutCaretMoveDiscardsStalePending() async throws {
-    let harness = try MutableComposerHarness(text: "")
-    defer { harness.tearDown() }
-
-    // 復元本文が空のまま（＝本文が届かないまま）末尾化要求が保留される。
-    harness.render(text: "", focusRequest: ComposerFocusRequest(token: 1, movesCaretToEnd: true))
-    try await waitUntil("最初の要求が処理される") {
-        harness.window.firstResponder === harness.textView
-    }
-
-    // 次にピッカーをキャンセルしただけの要求（末尾化なし）が来る。
-    harness.render(text: "", focusRequest: ComposerFocusRequest(token: 2, movesCaretToEnd: false))
-    harness.textView.setSelectedRange(NSRange(location: 0, length: 0))
-
-    // その後の、復元とは無関係な外部からの本文同期。
-    harness.render(text: "復元とは無関係な同期", focusRequest: ComposerFocusRequest(token: 2, movesCaretToEnd: false))
-    try await Task.sleep(nanoseconds: 200_000_000)
-
-    #expect(
-        harness.textView.selectedRange() == NSRange(location: 0, length: 0),
-        "古い末尾化要求が生き残って無関係な同期でキャレットを末尾へ飛ばさないこと"
-    )
-}
-
-// 注: IME 変換中の末尾化保留は、NSHostingView 越しでは変換状態が SwiftUI の更新パスと非同期 Task を
-// またぐ間に解除されてしまい再現できなかった。そのため Coordinator と SubmitAwareTextView を直接組んで
-// 検証している（pendingCaretMoveIsAppliedWhenComposingEnds）。
-
-@Test("復元前の入力欄に文字が残っていても、遅れて届いた復元本文の末尾へキャレットが来る")
-@MainActor
-func caretMovesToEndWhenReplacingNonEmptyDraftAfterRequest() async throws {
+func caretMovesToEndOfRestoredTextReplacingShorterDraft() async throws {
     let harness = try MutableComposerHarness(text: "短")
     defer { harness.tearDown() }
     harness.textView.setSelectedRange(NSRange(location: 0, length: 0))
-    let request = ComposerFocusRequest(token: 1, movesCaretToEnd: true)
 
-    // 復元前の下書きが残ったまま要求だけが先に届く。ここで「旧本文の末尾」を
-    // 末尾化1回ぶんとして数えてしまうと、遅れて届く復元本文に適用されない。
-    harness.render(text: "短", focusRequest: request)
-    try await waitUntil("旧本文に対して要求が処理される") {
-        harness.textView.selectedRange() == NSRange(location: 1, length: 0)
-    }
-
+    // confirmRevert は draft とフォーカス要求を同じ代入で確定させるので、View にも同じ更新パスで届く。
+    // このとき本文同期（syncStringFromBinding）は旧選択位置をクランプ保持するだけなので、
+    // 末尾化がなければ復元本文の途中にキャレットが残る。
     let restored = "復元された長い本文"
-    harness.render(text: restored, focusRequest: request)
-    try await Task.sleep(nanoseconds: 250_000_000)
-
-    #expect(
-        harness.textView.selectedRange() == NSRange(location: restored.utf16.count, length: 0),
-        "復元本文の末尾から続きを打てること（旧下書きの長さでクランプされて途中に残らない）"
-    )
-}
-
-@Test("復元本文がフォーカス要求より遅れて届いても、キャレットは本文末尾へ来る")
-@MainActor
-func caretMovesToEndWhenTextArrivesAfterRequest() async throws {
-    let harness = try MutableComposerHarness(text: "")
-    defer { harness.tearDown() }
-    let restored = "復元された依頼"
-
-    // 本文がまだ空のまま、キャレット末尾指定つきの要求だけが先に届く
-    // （confirmRevert は composerFocusRequest と draftRestoration を同時に更新するが、
-    //  draftRestoration → draft → text binding は onChange 経由で 1 パス遅れうる）。
-    harness.render(text: "", focusRequest: ComposerFocusRequest(token: 1, movesCaretToEnd: true))
-    try await waitUntil("入力欄がファーストレスポンダになる") {
-        harness.window.firstResponder === harness.textView
-    }
-
-    // 遅れて本文が届く（トークンは進めない）。
     harness.render(text: restored, focusRequest: ComposerFocusRequest(token: 1, movesCaretToEnd: true))
 
-    try await waitUntil("キャレットが本文末尾へ移動する") {
+    try await waitUntil("キャレットが復元本文の末尾へ移動する") {
         harness.textView.selectedRange() == NSRange(location: restored.utf16.count, length: 0)
     }
     #expect(
         harness.textView.selectedRange() == NSRange(location: restored.utf16.count, length: 0),
-        "本文が遅れて届く順序でも、復元本文の末尾から続きを打てること"
+        "復元本文の末尾から続きを打てること（旧下書きの長さでクランプされて途中に残らない）"
     )
 }
 
@@ -323,24 +264,16 @@ func withoutWiringFocusDoesNotReturnToComposer() async throws {
     )
 }
 
-// MARK: - IME 変換終了時の保留適用（レビュー指摘 MEDIUM）
+// MARK: - IME 変換中の保護
 
-@Test("変換中に動かせなかった末尾化は、変換が終わった時点で適用される")
+@Test("IME 変換中はキャレットを末尾へ動かさない（変換途中の確定位置を壊さない）")
 @MainActor
-func pendingCaretMoveIsAppliedWhenComposingEnds() throws {
+func caretIsNotMovedWhileComposing() throws {
     let parent = MutableComposerHarness.makeView(text: "復元本文", focusRequest: .none)
     let coordinator = IMESafeTextView.Coordinator(parent)
     let textView = IMESafeTextView.SubmitAwareTextView()
     textView.string = "復元本文"
     textView.setSelectedRange(NSRange(location: 0, length: 0))
-    textView.onComposingChanged = { [weak textView] isComposing, currentText in
-        coordinator.handleComposingChanged(
-            isComposing: isComposing,
-            currentText: currentText,
-            textView: textView
-        )
-    }
-    coordinator.pendingCaretToEnd = true
 
     textView.setMarkedText(
         "へんかん",
@@ -348,14 +281,12 @@ func pendingCaretMoveIsAppliedWhenComposingEnds() throws {
         replacementRange: NSRange(location: 0, length: 0)
     )
     try #require(textView.hasMarkedText(), "前提条件: IME 変換中の状態を作る")
-    #expect(coordinator.moveCaretToEnd(of: textView) == false, "変換中はキャレットを動かせないこと")
-    #expect(coordinator.pendingCaretToEnd, "動かせなかった要求を捨てないこと")
+    let duringComposing = textView.selectedRange()
 
-    textView.unmarkText()
+    coordinator.moveCaretToEnd(of: textView)
 
     #expect(
-        textView.selectedRange() == NSRange(location: (textView.string as NSString).length, length: 0),
-        "変換が終わった時点で保留していた末尾化が適用されること"
+        textView.selectedRange() == duringComposing,
+        "変換中の選択位置を末尾化で壊さないこと"
     )
-    #expect(coordinator.pendingCaretToEnd == false, "適用した保留は下ろすこと")
 }

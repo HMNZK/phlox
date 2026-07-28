@@ -700,6 +700,12 @@ public final class ChatSessionViewModel: Identifiable {
             await turnInterrupt()
         }
         let restored = await revert(toUserMessageID: id)
+        // 復元本文は ViewModel 自身が `draft` へ書く。View 側の `draftRestoration` 監視経由にすると
+        // 本文がフォーカス要求より 1 更新パス遅れて届き、「末尾化すべき本文がまだ無い」状態を
+        // View 側で保留・再適用する機構が必要になる。同じ代入の中で両方を確定させて遅れ自体を無くす。
+        if let restored {
+            draft = restored
+        }
         draftRestoration = restored
         isHistoryPickerPresented = false
         lastEscapeAt = nil

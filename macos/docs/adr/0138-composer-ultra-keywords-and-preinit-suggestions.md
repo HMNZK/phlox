@@ -116,3 +116,35 @@ Phlox では光らない（逆も起きる）。オフセットは既存 span �
 - **未検証**: 実画面での見え方（キーワードが第3色で描画されるか・ライト/ダーク双方の判読性・
   エージェント種別ごとの ON/OFF）は AppKit レベルの受け入れテストと色値の計算で担保しており、
   **GUI 目視は未実施**。→ delivery/0024
+
+## 追記（2026-07-29）: `ultraplan` が init に載らない理由の訂正
+
+GUI 目視で「補完に `/ultraplan` が出ない」と再報告があり、CLI バイナリ（v2.1.220）を追加調査した。
+**決定は変更しない**が、上の「実測」節の理解が不正確だったため訂正する。
+
+`ultraplan` は**キーワード専用ではなく、ゲート付きのスラッシュコマンドでもある**。
+
+```js
+hJd = { type:"local-jsx", name:"ultraplan",
+        description:"Draft an editable plan in Claude Code on the web (…)",
+        argumentHint:"<prompt>", isEnabled:()=>uDe(), load:()=>… }
+
+function uDe(){ return Ke("tengu_ultraplan_config",null)?.enabled===!0 && NPt() && !ba() }
+function NPt(){ return MGe() && hbr() && Ke("tengu_ccr_bridge",!1) }   // Claude Code on the web 連携
+function ba(){ return Mt.caps.workspace==="remote" }
+```
+
+init の一覧は `slash_commands: e.commands.filter((o)=>o.userInvocable!==!1).map((o)=>o.name)` で作られ、
+`ultraplan` は `userInvocable:false` を持たない。つまり 106 件に無いのは「コマンドとして存在しない」
+からではなく、**この環境で `isEnabled()` が false（Claude Code on the web 連携ゲートが未成立）だから**である。
+
+したがって棄却案「`/ultraplan` をスラッシュ補完に出す」の理由は「キーワードだから」ではなく
+**「CLI 自身が無効化しているものを Phlox が出すべきでないから」**に置き換わる。ゲートが有効化されれば
+init に載り、Phlox は既存の追随経路でそのまま出す（**コード変更は不要**）。ユーザー裁定（2026-07-29）で
+現状維持とした。
+
+補足: init イベントは `slash_commands` のほかに `skills` / `agents` / `plugins` / `output_style` も
+運ぶ（`skills: e.skills.filter((o)=>o.userInvocable!==!1).map((o)=>o.name)`）。ただし**ユーザー起動可能な
+スキル名は `slash_commands` にも含まれている**（実測 106 件に `accessibility`・`dataviz`・`skill-creator`
+等が入っている）ため、`skills` を追加で読んでも候補は増えない。Phlox が `slash_commands` だけを読む現状は
+妥当である。

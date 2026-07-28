@@ -92,6 +92,15 @@ extension PaneNode {
         }
     }
 
+    /// 自分自身を含む部分木に、その `PaneID` のノードがあるか。
+    /// 分割線の両隣（`PaneDividerID`）を、実効ツリーで畳まれた・平坦化された深さの違いを
+    /// 跨いで永続ツリー側で特定するために使う。
+    func contains(_ id: PaneID) -> Bool {
+        if self.id == id { return true }
+        guard case .split(let split) = self else { return false }
+        return split.children.contains { $0.contains(id) }
+    }
+
     /// 部分木の節点数。正規化ループの停止性を保証する測度に使う。
     var nodeCount: Int {
         switch self {

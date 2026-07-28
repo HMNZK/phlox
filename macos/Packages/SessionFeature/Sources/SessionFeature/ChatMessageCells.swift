@@ -8,19 +8,25 @@ public struct ChatItemView: View, Equatable {
     let agentDescriptor: AgentDescriptor
     var onSelectSubAgent: ((String) -> Void)? = nil
     var onRespondToUserQuestion: ((String, [String: [String]]) async -> Bool)? = nil
+    /// 未回答の質問カードを回答せずに閉じる（＝ターンを中断する）。
+    /// 配線しない場所（サブエージェントのドロワー・チームのタイムライン等の閲覧専用表示）では
+    /// 閉じるボタン自体が出ない。
+    var onDismissUserQuestion: (() -> Void)? = nil
 
     public init(
         item: ChatItem,
         isRunningCommand: Bool,
         agentDescriptor: AgentDescriptor,
         onSelectSubAgent: ((String) -> Void)? = nil,
-        onRespondToUserQuestion: ((String, [String: [String]]) async -> Bool)? = nil
+        onRespondToUserQuestion: ((String, [String: [String]]) async -> Bool)? = nil,
+        onDismissUserQuestion: (() -> Void)? = nil
     ) {
         self.item = item
         self.isRunningCommand = isRunningCommand
         self.agentDescriptor = agentDescriptor
         self.onSelectSubAgent = onSelectSubAgent
         self.onRespondToUserQuestion = onRespondToUserQuestion
+        self.onDismissUserQuestion = onDismissUserQuestion
     }
 
     /// ADR 0116: 未変更行の body 再評価をスキップするための同値性（呼び出し側で `.equatable()`）。
@@ -78,7 +84,8 @@ public struct ChatItemView: View, Equatable {
                 answers: answers,
                 state: state,
                 timestamp: timestamp,
-                onRespond: onRespondToUserQuestion
+                onRespond: onRespondToUserQuestion,
+                onDismiss: onDismissUserQuestion
             )
         }
     }

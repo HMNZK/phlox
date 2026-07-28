@@ -105,6 +105,8 @@ public final class ChatSessionViewModel: Identifiable {
     }
     public private(set) var availableModels: [AppServerModel] = []
     public private(set) var availableSlashCommands: [String]?
+    /// init 未受領時に補完へ渡す種一覧（永続ストア由来）。生成時に1回だけ読む。
+    public private(set) var seedSlashCommands: [String]?
     public private(set) var permissionProfiles: [PermissionProfileSummary] = []
     public private(set) var selectedModel: String?
     public private(set) var selectedEffort: String?
@@ -161,6 +163,8 @@ public final class ChatSessionViewModel: Identifiable {
     private var pendingTurnCostUSD: Double?
     private let transcriptStore: (any TranscriptStore)?
     private let spawnAgentModelsProvider: SpawnAgentModelsProvider?
+    /// 利用可能スラッシュコマンド一覧の永続ストア。生成時の読み出しと init 受領時の記録に使う。
+    private let availableCommandsStore: AvailableCommandsStore
 
     /// Cursor の `cursor-agent models` 取得をセッションから注入するための供給源。
     /// 供給結果が空/未注入なら小さなハードコード fallback を使い、起動を妨げない。
@@ -176,7 +180,8 @@ public final class ChatSessionViewModel: Identifiable {
         transcriptStore: (any TranscriptStore)? = nil,
         spawnAgentModelsProvider: SpawnAgentModelsProvider? = nil,
         historyProvider: (@Sendable () -> [ClaudeSessionHistoryEntry])? = nil,
-        historyTranscriptLoader: (@Sendable (ClaudeSessionHistoryEntry) -> [ChatItem])? = nil
+        historyTranscriptLoader: (@Sendable (ClaudeSessionHistoryEntry) -> [ChatItem])? = nil,
+        availableCommandsStore: AvailableCommandsStore = AvailableCommandsStore()
     ) {
         self.id = id
         self.startedAt = startedAt
@@ -192,6 +197,11 @@ public final class ChatSessionViewModel: Identifiable {
         self.spawnAgentModelsProvider = spawnAgentModelsProvider
         self.historyProvider = historyProvider
         self.historyTranscriptLoader = historyTranscriptLoader
+        self.availableCommandsStore = availableCommandsStore
+        self.seedSlashCommands = availableCommandsStore.commands(
+            agentRef: agentRef,
+            workingDirectory: workingDirectory
+        )
         configureSubAgentModel()
         configureTranscriptStreamCoalescer()
         configureMidTurnPersistenceGate()
@@ -205,7 +215,8 @@ public final class ChatSessionViewModel: Identifiable {
         client: any StructuredAgentClient,
         approvalBroker: ChatApprovalBroker,
         workingDirectory: String?,
-        attachmentStore: ComposerAttachmentStore
+        attachmentStore: ComposerAttachmentStore,
+        availableCommandsStore: AvailableCommandsStore = AvailableCommandsStore()
     ) {
         self.id = id
         self.startedAt = Date()
@@ -219,6 +230,11 @@ public final class ChatSessionViewModel: Identifiable {
         self.spawnAgentModelsProvider = nil
         self.historyProvider = nil
         self.historyTranscriptLoader = nil
+        self.availableCommandsStore = availableCommandsStore
+        self.seedSlashCommands = availableCommandsStore.commands(
+            agentRef: agentRef,
+            workingDirectory: workingDirectory
+        )
         configureSubAgentModel()
         configureTranscriptStreamCoalescer()
         configureMidTurnPersistenceGate()
@@ -1302,6 +1318,12 @@ public final class ChatSessionViewModel: Identifiable {
             persistTurnUsageSnapshot(usage)
         case .availableCommandsUpdated(let commands):
             availableSlashCommands = commands
+            // 次回セッションの init 到着前に補完へ渡す種として永続化する。
+            availableCommandsStore.record(
+                agentRef: agentRef,
+                workingDirectory: workingDirectory,
+                commands: commands
+            )
         case .turnCompleted(let nativeSessionId):
             if let nativeSessionId, shouldAdoptNativeSessionId(nativeSessionId) {
                 updateNativeSessionId(nativeSessionId)

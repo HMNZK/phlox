@@ -112,6 +112,11 @@ public enum DSColor {
     public static var codeSyntaxNumber: Color {
         theme.preferredColorScheme == .light ? RGB(0x9D, 0x17, 0x4D).color : RGB(0xF0, 0xAB, 0xFC).color
     }
+    /// 入力欄のキーワード強調（ultrathink 等）。スラッシュ（紫）／@参照（緑）と判別できる第3色として
+    /// 琥珀系を割り当てる。コードブロックの数値色とは意味が別物なので専用トークンを持つ。
+    public static var composerKeyword: Color {
+        theme.preferredColorScheme == .light ? RGB(0xB4, 0x53, 0x09).color : RGB(0xFC, 0xD3, 0x4D).color
+    }
     /// ユーザー発言バブルの面。AI 返信が無背景のため、右寄せ＋この面で話者を区別する。
     /// アクセント面ではなく、テーマ前景由来のニュートラルな薄い面で示す。
     public static var userBubble: Color { theme.textPrimary.color.opacity(0.08) }

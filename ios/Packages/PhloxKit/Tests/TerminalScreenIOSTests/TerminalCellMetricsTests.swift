@@ -40,7 +40,7 @@ struct TerminalCellMetricsTests {
 
     // MARK: - 描き方（桁数ちょうどの幅になること）
 
-    /// この不変条件が崩れると表・罫線が桁ごとずれる（→ ADR 0038）。
+    /// この不変条件が崩れると表・罫線が桁ごとずれる（→ ADR 0040）。
     @Test("どの文字も、倍率と字送りを当てると桁数ちょうどの幅になる")
     func layoutMakesEveryCharacterFitItsColumns() {
         for character in ["W", " ", "あ", "（", "│", "─", "→", "漢", "$", "－", "⏺", "✳"] as [Character] {

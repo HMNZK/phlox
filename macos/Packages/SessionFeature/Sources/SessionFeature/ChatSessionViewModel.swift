@@ -4,6 +4,10 @@ import AgentDomain
 import CodexAppServerKit
 import StructuredChatKit
 
+private enum UserNotification {
+    case completed
+    case awaitingInput
+}
 
 @MainActor
 @Observable
@@ -119,6 +123,8 @@ public final class ChatSessionViewModel: Identifiable {
     @ObservationIgnored public var codexSettingsDidChange: (@MainActor (CodexAppServerSessionSettings?) -> Void)?
     /// リモート通知系へのフック。nil なら呼ばれない（既存挙動と同一）。
     @ObservationIgnored public var remoteSessionNotifier: (any RemoteSessionNotifier)?
+    /// チャネルごとのユーザー通知可否。nil は既存挙動を保つため全許可として扱う。
+    @ObservationIgnored public var userNotificationGate: ((UserNotificationChannel) -> Bool)?
 
     private let client: any StructuredAgentClient
     private let approvalBroker: ChatApprovalBroker
@@ -1156,11 +1162,7 @@ public final class ChatSessionViewModel: Identifiable {
         ) else { return }
         // 本物のターン完了を未確認の停止としてラッチする（turnInterrupted はこの経路を通らない）。
         hasUnseenCompletion = true
-        SessionCompletionNotifier.notifyCompleted(sessionName: displayName)
-        remoteSessionNotifier?.sessionCompleted(
-            sessionId: id.description,
-            sessionName: displayName
-        )
+        notifyUser(.completed)
     }
 
     /// 承認待ちへ遷移し、非承認待ちからの遷移時のみ通知する（連続する承認要求での多重通知を防ぐ）。
@@ -1168,11 +1170,7 @@ public final class ChatSessionViewModel: Identifiable {
         let previousStatus = status
         status = .awaitingApproval(prompt: prompt)
         if case .awaitingApproval = previousStatus { return }
-        SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
-        remoteSessionNotifier?.approvalPending(
-            sessionId: id.description,
-            sessionName: displayName
-        )
+        notifyUser(.awaitingInput)
     }
 
     /// AskUserQuestion 到着時に入力待ちへ遷移し、非入力待ちからの遷移時のみ通知する。
@@ -1180,11 +1178,34 @@ public final class ChatSessionViewModel: Identifiable {
         let previousStatus = status
         status = .awaitingUserQuestion
         if case .awaitingUserQuestion = previousStatus { return }
-        SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
-        remoteSessionNotifier?.approvalPending(
-            sessionId: id.description,
-            sessionName: displayName
-        )
+        notifyUser(.awaitingInput)
+    }
+
+    private func notifyUser(_ notification: UserNotification) {
+        let allowsLocalNotification = userNotificationGate?(.local) ?? true
+        let allowsRemoteNotification = userNotificationGate?(.remote) ?? true
+        switch notification {
+        case .completed:
+            if allowsLocalNotification {
+                SessionCompletionNotifier.notifyCompleted(sessionName: displayName)
+            }
+            if allowsRemoteNotification {
+                remoteSessionNotifier?.sessionCompleted(
+                    sessionId: id.description,
+                    sessionName: displayName
+                )
+            }
+        case .awaitingInput:
+            if allowsLocalNotification {
+                SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
+            }
+            if allowsRemoteNotification {
+                remoteSessionNotifier?.approvalPending(
+                    sessionId: id.description,
+                    sessionName: displayName
+                )
+            }
+        }
     }
 
     private func appendPendingTurnCostIfNeeded(timestamp: Date) {

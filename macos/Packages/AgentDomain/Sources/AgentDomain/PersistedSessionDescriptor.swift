@@ -1,9 +1,29 @@
 import Foundation
+import os
 
-/// セッション起動経路。サイドバー表示と app-server ポリシー切替に使う。
+/// セッションの起動経路。表示可否と app-server ポリシーはこの値から導出する。
 public enum SessionLaunchContext: String, Codable, Sendable, Equatable {
     case interactive
     case orchestration
+    case remoteUser
+
+    private static let logger = Logger(
+        subsystem: "com.phlox.Phlox",
+        category: "SessionLaunchContext"
+    )
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        guard let context = Self(rawValue: rawValue) else {
+            Self.logger.warning(
+                "unknown launch context \(rawValue, privacy: .public); using interactive"
+            )
+            self = .interactive
+            return
+        }
+        self = context
+    }
 }
 
 /// アプリ再起動後にセッションを復元するために永続化する最小メタ情報。
@@ -48,7 +68,7 @@ public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Coda
     /// リスクも既知制約として残す（本フィールドでの対策はしない）。
     public private(set) var pid: pid_t?
     /// 起動経路。orchestration は $PHLOX_CLI 経由の非表示 spawn。旧 descriptor は interactive 扱い。
-    public let launchContext: SessionLaunchContext
+    public private(set) var launchContext: SessionLaunchContext
 
     public var kind: AgentKind {
         guard let kind = agentRef.builtinKind else {
@@ -165,6 +185,16 @@ public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Coda
 
     public func updating(parentSessionID: SessionID?) -> PersistedSessionDescriptor {
         copying { $0.parentSessionID = parentSessionID }
+    }
+
+    public func updating(
+        launchContext: SessionLaunchContext,
+        parentSessionID: SessionID?
+    ) -> PersistedSessionDescriptor {
+        copying {
+            $0.launchContext = launchContext
+            $0.parentSessionID = parentSessionID
+        }
     }
 
     public func updating(role: String?) -> PersistedSessionDescriptor {

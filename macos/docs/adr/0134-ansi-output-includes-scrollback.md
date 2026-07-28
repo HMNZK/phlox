@@ -3,10 +3,10 @@ status: accepted
 last-verified: 2026-07-27
 ---
 
-# ADR 0127: `format=ansi` はスクロールバックを含むバッファ全体を返す
+# ADR 0134: `format=ansi` はスクロールバックを含むバッファ全体を返す
 
 > **このファイルの役割**: 出力エンドポイントの色つき応答から「Mac の viewport だけ」という制限を外した決定と、その上限の置き方。
-> **書かないもの**: 受け手（モバイル）がそれをどう描いてスクロールさせるか（→ [ios/docs/adr/0037](../../../ios/docs/adr/0037-mobile-terminal-is-styled-text-not-an-emulator.md)）。
+> **書かないもの**: 受け手（モバイル）がそれをどう描いてスクロールさせるか（→ [ios/docs/adr/0039](../../../ios/docs/adr/0039-mobile-terminal-is-styled-text-not-an-emulator.md)）。
 
 ## 文脈
 

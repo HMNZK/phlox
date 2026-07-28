@@ -331,7 +331,10 @@ public struct SessionDetailView: View {
         case .single(let message):
             chatRow(for: message)
         case .commandGroup(let id, let items):
-            chatRowWithCopy(copyText: commandGroupCopyText(items)) {
+            chatRowWithCopy(
+                hasCopyableText: ChatMessageCopyText.commandGroupHasCopyableText(items),
+                copyTextProvider: { ChatMessageCopyText.commandGroupCopyText(items) }
+            ) {
                 SessionDetailToolCallGroupRow(
                     items: items,
                     lastTranscriptID: lastTranscriptID,
@@ -343,15 +346,6 @@ public struct SessionDetailView: View {
                 )
             }
         }
-    }
-
-    private func commandGroupCopyText(_ items: [ChatMessage]) -> String? {
-        let parts = items.compactMap { message -> String? in
-            let text = ChatMessageCopyText.copyText(for: message)
-            return text?.isEmpty == false ? text : nil
-        }
-        guard !parts.isEmpty else { return nil }
-        return parts.joined(separator: "\n\n")
     }
 
     /// 1 メッセージの描画。user/agent はバブル、reasoning は v1 では agent 風バブル、
@@ -444,6 +438,21 @@ public struct SessionDetailView: View {
         }
     }
 
+    @ViewBuilder
+    private func chatRowWithCopy<Content: View>(
+        hasCopyableText: Bool,
+        copyTextProvider: @escaping () -> String?,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(alignment: .top, spacing: DSSpacing.xs) {
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if hasCopyableText {
+                ChatMessageCopyButton(textProvider: copyTextProvider)
+            }
+        }
+    }
+
     private func collapsibleMonospaceCard(
         messageID: String,
         title: String,
@@ -498,7 +507,7 @@ public struct SessionDetailView: View {
             // 端末は「今の画面」そのものなので、見出しにもトグルにも入れず全文をそのまま出す。
             // 幅は TerminalScreenView が画面に合わせて詰めるので、横スクロールは要らない。
             // 桁を1桁でも多く見せたいので、本文の左右余白ぶんだけ外へ広げて画面端まで使う。
-            // 高さは中身が決める（縛ると先頭が切れる → ADR 0037）。中身が短いときだけ、
+            // 高さは中身が決める（縛ると先頭が切れる → ADR 0039）。中身が短いときだけ、
             // 端末の地が画面いっぱいに見えるよう下限を渡す。
             TerminalScreenView(
                 screen: viewModel.terminalScreen,
@@ -641,13 +650,22 @@ struct SessionDetailTranscriptSlice {
     }
 
     init(messages: [ChatMessage], window: TranscriptWindow) {
-        let range = window.visibleRange(totalCount: messages.count)
-        visibleMessages = messages[range.startIndex...]
-        hiddenCount = range.hiddenCount
-        visibleBlocks = SessionDetailToolCallGrouping.visibleSlice(
+        let blockSlice = SessionDetailToolCallGrouping.visibleSlice(
             from: messages,
-            startingAt: range.startIndex
-        ).blocks
+            blockLimit: window.limit
+        )
+        visibleBlocks = blockSlice.blocks
+        hiddenCount = blockSlice.hiddenBlockCount
+
+        let visibleMessageCount = visibleBlocks.reduce(0) { total, visible in
+            switch visible.content {
+            case .single:
+                total + 1
+            case .commandGroup(_, let items):
+                total + items.count
+            }
+        }
+        visibleMessages = messages.suffix(visibleMessageCount)
     }
 }
 

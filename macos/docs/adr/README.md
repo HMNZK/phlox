@@ -12,8 +12,14 @@ last-verified: 2026-07-27
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
-| 0127 | [`format=ansi` はスクロールバックを含むバッファ全体を返す](0127-ansi-output-includes-scrollback.md) | accepted |
-| 0126 | [`GET /sessions/{id}/output` は要求があれば色つきの端末画面を返す](0126-output-endpoint-serves-ansi-screen.md) | accepted（scrollback の記述のみ 0127 で superseded） |
+| 0134 | [`format=ansi` はスクロールバックを含むバッファ全体を返す](0134-ansi-output-includes-scrollback.md) | accepted |
+| 0133 | [取り残された iPhone 由来セッションは、由来を特定できるものだけ救済する](0133-orphaned-remote-session-rescue.md) | accepted |
+| 0132 | [通知は「その通知が届く先から辿れるセッション」にだけ出す](0132-notification-reachability-per-client.md) | accepted |
+| 0131 | [Control API の「要求元」と「セッションツリーの親」を分離し、`.remoteUser` を導入する](0131-control-api-requester-parent-separation.md) | accepted |
+| 0130 | [セッション保存は未知の値を要素単位で捨て、原本を残す](0130-session-store-unknown-value-tolerance.md) | accepted |
+| 0128 | [ツール実行カードは閉状態で行データを作らず、展開時も行数を有界化する](0128-command-group-cost-bounding.md) | accepted |
+| 0127 | [transcript の表示窓はブロック単位で数え、ツール実行は1件でも集約する](0127-transcript-window-counts-blocks.md) | accepted |
+| 0126 | [`GET /sessions/{id}/output` は要求があれば色つきの端末画面を返す](0126-output-endpoint-serves-ansi-screen.md) | accepted（scrollback の記述のみ 0134 で superseded） |
 | 0125 | [セッションを開いたら最下部から表示する（チャット・ターミナル共通）](0125-open-session-at-bottom.md) | accepted |
 | 0124 | [AskUserQuestion の自由入力と選択肢は相互排他にし、自由入力欄は複数行へ折り返す](0124-user-question-free-text-exclusive.md) | accepted |
 | 0123 | [エージェント既定モデルの正本を AgentDomain の `AgentModelCatalog.defaultModel(for:)` に一元化する（Claude=opus）](0123-agent-default-model-single-source.md) | accepted |
@@ -38,7 +44,7 @@ last-verified: 2026-07-27
 | 0104 | [スラッシュコマンドの発火位置を空白区切りトークン先頭に統一（@ と対称）](0104-composer-slash-trigger-position.md) | active |
 | 0103 | [質問カードの iOS ミラー配線（wire DTO・POST /question・App 層 witness）](0103-user-question-wire-mirror.md) | accepted |
 | 0102 | [AskUserQuestion を CLI control protocol（can_use_tool 中継）で実装する](0102-ask-user-question-control-protocol.md) | accepted |
-| 0096 | [チャットのツールコール連続表示のグループ集約と identity 設計](0096-chat-tool-call-grouping.md) | active |
+| 0096 | [チャットのツールコール連続表示のグループ集約と identity 設計](0096-chat-tool-call-grouping.md) | superseded（→ [0127](0127-transcript-window-counts-blocks.md)） |
 | 0095 | [Codex app-server の error 通知の終端性判定（willRetry 非終端＋EOF 合成終端）](0095-codex-app-server-error-terminality.md) | active |
 | 0094 | [グリッドタイルの transcript 窓分化（40件）と hangAssessment 1Hz の viewport 停止](0094-grid-tile-transcript-window-and-hang-timer-pause.md) | active |
 | 0093 | [ストリーミング delta のコアレシング適用（イベント毎の即時 UI 無効化を廃止）](0093-transcript-stream-delta-coalescing.md) | active |

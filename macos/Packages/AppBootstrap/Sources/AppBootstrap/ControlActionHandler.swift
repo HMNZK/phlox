@@ -410,7 +410,7 @@ public final class ControlActionHandler {
     ) -> ControlResponse {
         // mode は現状 screen のみ実装。プレーンテキスト（format=text）は visibleText が
         // viewport 限定なので scrollback を指定しても viewport を返す。
-        // format=ansi は履歴ごと返す（受け手が自分でスクロールできるように。→ ADR 0127）。
+        // format=ansi は履歴ごと返す（受け手が自分でスクロールできるように。→ ADR 0134）。
         guard let text = dashboard.sessionOutput(for: id) else {
             return .json(404, ErrorDTO(error: "session not found"))
         }

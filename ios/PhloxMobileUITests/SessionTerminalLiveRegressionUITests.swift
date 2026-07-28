@@ -8,9 +8,9 @@ import XCTest
 ///
 /// 守っている退行は 2 つある。
 /// - 端末エミュレータの固定行数の枠へ嵌めると、枠より中身が高い分の先頭が消えて二度と読めない
-///   （→ ADR 0037）。
+///   （→ ADR 0039）。
 /// - Mac が viewport しか送らないと、受け手はどう作っても 1 行も遡れない
-///   （→ macos/docs/adr/0127）。
+///   （→ macos/docs/adr/0134）。
 ///
 /// 実行手順:
 /// ```
@@ -79,7 +79,7 @@ final class SessionTerminalLiveRegressionUITests: XCTestCase {
     }
 
     /// 画面幅より広い行を折り返さないこと。折り返すと表・枠線が桁ごとずれて崩れる
-    /// （ユーザー報告: 「デスクトップでは正常に表示されている表がモバイルだと崩れる」→ ADR 0038）。
+    /// （ユーザー報告: 「デスクトップでは正常に表示されている表がモバイルだと崩れる」→ ADR 0040）。
     func testWideTableRowIsNotWrapped() throws {
         let app = XCUIApplication()
         app.launchArguments = [

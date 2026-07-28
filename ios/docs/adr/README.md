@@ -14,8 +14,10 @@ iOS コンパニオンアプリ固有の決定の **理由** を残す。追記�
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
-| 0038 | [モバイルの端末は桁の格子を守る（折り返さない・全角を 2 桁に釘付けする）](0038-mobile-terminal-keeps-the-column-grid.md) | accepted |
-| 0037 | [モバイルの端末画面は装飾付きテキストとして描く（端末エミュレータを使わない）](0037-mobile-terminal-is-styled-text-not-an-emulator.md) | accepted |
+| 0040 | [モバイルの端末は桁の格子を守る（折り返さない・全角を 2 桁に釘付けする）](0040-mobile-terminal-keeps-the-column-grid.md) | accepted |
+| 0039 | [モバイルの端末画面は装飾付きテキストとして描く（端末エミュレータを使わない）](0039-mobile-terminal-is-styled-text-not-an-emulator.md) | accepted |
+| 0038 | [ツール実行カードは閉状態で行データもコピー文字列も作らず、展開時は行数を有界化する](0038-command-group-cost-bounding.md) | accepted |
+| 0037 | [transcript の表示窓はブロック単位で数える](0037-transcript-window-counts-blocks.md) | accepted |
 | 0036 | [セッション一覧の大タイトルはシステムに任せず本文の先頭に自分で描く](0036-session-list-draws-its-own-large-title.md) | accepted |
 | 0035 | [モバイルのターミナルは画面幅に収め、トグルに畳まない](0035-mobile-terminal-fits-screen-width.md) | accepted（決定 2・3 は superseded） |
 | 0034 | [モバイルのターミナル出力は Mac と同じエンジン（SwiftTerm）で描く](0034-mobile-terminal-rendered-with-swiftterm.md) | superseded |

@@ -3,10 +3,10 @@ status: accepted
 last-verified: 2026-07-27
 ---
 
-# ADR 0038: モバイルの端末は桁の格子を守る（折り返さない・全角を 2 桁に釘付けする）
+# ADR 0040: モバイルの端末は桁の格子を守る（折り返さない・全角を 2 桁に釘付けする）
 
 > **このファイルの役割**: 表・罫線がモバイルだけ崩れていた原因と、桁を守るために変えた 2 点（折り返しをやめる／文字ごとに字送りを足す）。
-> **書かないもの**: 端末エミュレータを使わず装飾付きテキストで描く決定そのもの（→ [ADR 0037](0037-mobile-terminal-is-styled-text-not-an-emulator.md)）、Mac が履歴ごと配信する決定（→ [macos/docs/adr/0127](../../../macos/docs/adr/0127-ansi-output-includes-scrollback.md)）。
+> **書かないもの**: 端末エミュレータを使わず装飾付きテキストで描く決定そのもの（→ [ADR 0039](0039-mobile-terminal-is-styled-text-not-an-emulator.md)）、Mac が履歴ごと配信する決定（→ [macos/docs/adr/0134](../../../macos/docs/adr/0134-ansi-output-includes-scrollback.md)）。
 
 [ADR 0035](0035-mobile-terminal-fits-screen-width.md) の決定 2（下限まで縮めても収まらなければ折り返す）を覆す。決定 1・4・5 はそのまま生きている。
 

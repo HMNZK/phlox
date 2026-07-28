@@ -6,6 +6,14 @@ public enum ControllableSessionError: Error, Sendable {
     case unsupportedPartialInput
 }
 
+/// ユーザーへの働きかけの届け先。
+public enum UserNotificationChannel: Sendable, Equatable {
+    /// macOS の通知バナー・完了音。
+    case local
+    /// APNs（iPhone へ届く）。
+    case remote
+}
+
 @MainActor
 public protocol ControllableSession: AnyObject {
     var id: SessionID { get }
@@ -24,6 +32,9 @@ public protocol ControllableSession: AnyObject {
     var hasUnseenCompletion: Bool { get }
     /// `hasUnseenCompletion` の変化通知フック（Dock バッジ等の集計更新に使う）。
     var unseenCompletionDidChange: (() -> Void)? { get set }
+    /// チャネルごとに、ユーザーへの働きかけを出してよいか。
+    /// nil のときは全チャネル通知する（既定＝既存挙動）。
+    var userNotificationGate: ((UserNotificationChannel) -> Bool)? { get set }
 
     func sendText(_ text: String, submit: Bool) async throws
     func consumeSubmitBaseline()

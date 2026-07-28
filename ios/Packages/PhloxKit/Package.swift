@@ -66,7 +66,7 @@ let package = Package(
         ),
 
         // TerminalScreenIOS: Mac の端末画面（SGR 付きテキスト）を装飾付きテキストとして描く層。
-        // 端末エミュレータには依存しない（→ ADR 0037）。Features からは View だけを使う。
+        // 端末エミュレータには依存しない（→ ADR 0039）。Features からは View だけを使う。
         .target(
             name: "TerminalScreenIOS",
             dependencies: [

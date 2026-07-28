@@ -133,6 +133,12 @@ struct AcceptanceComposerKeywordDetectionTests {
         let comparison = "1 < 2 ultracode を使う"
         #expect(keywordRanges(comparison) == [u16Range(of: "ultracode", in: comparison)],
                 "< の次が空白なら保護を開始しない")
+
+        // 後方に > があるケース。< を無条件に開く実装だと 2..<17 が保護区間になり
+        // ultracode が飲み込まれる。条件開始を守っているかはこのケースでしか判別できない。
+        let comparisonWithCloser = "a < b ultracode > c"
+        #expect(keywordRanges(comparisonWithCloser) == [u16Range(of: "ultracode", in: comparisonWithCloser)],
+                "< の次が空白なら、後方に > があっても保護区間を開かない")
     }
 
     @Test("アポストロフィは直前が語構成文字なら保護を開始しない")

@@ -444,32 +444,35 @@ struct IMESafeTextView: NSViewRepresentable {
             // 復元本文がフォーカス要求より遅れて届いた場合はここが末尾化の適用点になる。
             // syncStringFromBinding 自体の既定挙動（変更前の選択位置をクランプして保持）は変えない
             // ＝復元以外の binding 同期でキャレットが末尾へ飛ぶ副作用を出さない。
-            if context.coordinator.pendingCaretToEnd {
+            if context.coordinator.pendingCaretToEnd, context.coordinator.moveCaretToEnd(of: textView) {
                 context.coordinator.pendingCaretToEnd = false
-                context.coordinator.moveCaretToEnd(of: textView)
             }
             suggestionController?.update(text: text, cursorUTF16: min(textView.selectedRange().location, text.utf16.count))
         }
         // フォーカス復帰要求（esc 2連打→履歴ピッカー→復元/キャンセル）。
         // 要求の適用は Task で次の runloop へ回す。理由は2つ:
         //   (1) ピッカー ChatHistoryRevertPicker は .focused() で自らフォーカスを保持しており、この更新パスの
-        //       時点では overlay がまだ responder chain に残りうる。同一 runloop で makeFirstResponder すると
-        //       ピッカー側に奪い返される（※ 実機での再現は未実施。ソース上の依存関係からの推定）。
+        //       時点では overlay がまだ responder chain に残りうる。
+        //       実物の overlay をホストした closingRealPickerReturnsFocusToComposer で、この配線が無いと
+        //       ピッカーを閉じてもフォーカスが composer へ戻らないことを実測済み。
         //   (2) ADR 0010: updateNSView は描画パスであり副作用の同期実行を避ける（既存の高さ再計算と同じ流儀）。
         if focusRequest.token != context.coordinator.lastHandledFocusToken {
             context.coordinator.lastHandledFocusToken = focusRequest.token
-            if focusRequest.movesCaretToEnd {
-                context.coordinator.pendingCaretToEnd = true
-            }
+            // 保留は「代入」する。条件付きで true にするだけだと、末尾化ありの要求が本文未着で保留された
+            // まま次の末尾化なし要求（ピッカーのキャンセル）を受けたときに古い保留が生き残り、
+            // 無関係な binding 同期でキャレットを末尾へ飛ばす。
+            context.coordinator.pendingCaretToEnd = focusRequest.movesCaretToEnd
             Task { @MainActor [weak textView, coordinator = context.coordinator] in
                 guard let textView, let window = textView.window else { return }
                 window.makeFirstResponder(textView)
                 // 本文が既に入っていればここで末尾化を確定する。空のうちは「復元本文がまだ届いていない」
                 // ＝末尾化しても location 0 のままで要求を空振り消費してしまうので、保留のまま残し、
                 // 本文が届いた時点（上の同期ブロック）で適用する。
-                if coordinator.pendingCaretToEnd, !textView.string.isEmpty {
+                // 実際に動かせたときだけ保留を下ろす（IME 変換中は moveCaretToEnd が false を返すので、
+                // 変換が終わるまで要求を落とさない）。
+                if coordinator.pendingCaretToEnd, !textView.string.isEmpty,
+                   coordinator.moveCaretToEnd(of: textView) {
                     coordinator.pendingCaretToEnd = false
-                    coordinator.moveCaretToEnd(of: textView)
                 }
             }
         }
@@ -502,10 +505,14 @@ struct IMESafeTextView: NSViewRepresentable {
         }
 
         /// 本文末尾へキャレットを移す。IME 変換中は動かさない（変換途中の確定位置を壊さないため）。
-        func moveCaretToEnd(of textView: NSTextView) {
-            guard !textView.hasMarkedText() else { return }
+        /// 実際に動かせたら true。呼び出し側はこれを見て保留を下ろすか決める
+        /// （false のまま保留を下ろすと、変換終了後に要求が失われる）。
+        @discardableResult
+        func moveCaretToEnd(of textView: NSTextView) -> Bool {
+            guard !textView.hasMarkedText() else { return false }
             let end = (textView.string as NSString).length
             textView.setSelectedRange(NSRange(location: end, length: 0))
+            return true
         }
 
         func textDidChange(_ notification: Notification) {

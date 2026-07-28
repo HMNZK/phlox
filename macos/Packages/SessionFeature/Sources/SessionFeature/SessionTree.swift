@@ -8,7 +8,7 @@ public struct SessionTreeInput: Identifiable, Equatable, Sendable {
     public let launchContext: SessionLaunchContext
     public let status: SessionStatus
     /// 表示用の実効状態（背景/非同期作業が続く間は idle を running に昇格）。既定は生 status。
-    /// 「処理中かどうか」を数える用途（runningBreakdown 等）はこちらを読む（ADR 0118）。
+    /// 「処理中かどうか」を数える用途（runningBreakdown 等）はこちらを読む（ADR 0137）。
     public let displayStatus: SessionStatus
     public let name: String
     public let agentRef: AgentRef
@@ -42,7 +42,7 @@ public struct SessionTreeNode: Identifiable, Equatable, Sendable {
     public let projectID: ProjectID?
     public let launchContext: SessionLaunchContext
     public let status: SessionStatus
-    /// 表示用の実効状態（既定は生 status）。処理中の計数はこちらを読む（ADR 0118）。
+    /// 表示用の実効状態（既定は生 status）。処理中の計数はこちらを読む（ADR 0137）。
     public let displayStatus: SessionStatus
     public let name: String
     public let agentRef: AgentRef

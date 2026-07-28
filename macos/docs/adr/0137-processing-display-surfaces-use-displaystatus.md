@@ -3,7 +3,7 @@ status: active
 last-verified: 2026-07-24
 ---
 
-# ADR 0118: 処理中を表す表示面は生 status ではなく displayStatus を読む
+# ADR 0137: 処理中を表す表示面は生 status ではなく displayStatus を読む
 
 > **このファイルの役割**: ADR 0064 が `showsProcessingIndicator` をチャット本体スピナーに限定導入した後も、状態を読む複数の表示面（グリッド/サイドバーのドット・アイコン、Agora 手番、チームタイムライン Thinking）が生 `SessionStatus` を直読みしていたため、背景タスク/サブエージェント継続中に「停止」と誤表示する desync が残っていた。これを表示専用の実効状態 `displayStatus` へ集約する決定。
 > **書かないもの**: `showsProcessingIndicator` 自体の定義（→ ADR 0064）、interrupt/述語統一（→ ADR 0081）。

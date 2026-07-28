@@ -8,7 +8,7 @@ last-verified: 2026-07-24
 「セッションが停止表示になっているのに背景処理（バックグラウンド Bash・サブエージェント等）が動き続ける」ユーザー観測バグを修正した。ADR 0064 が導入した処理中の真実源 `showsProcessingIndicator` を、状態を読む4つの表示面（グリッド/サイドバーのドット・アイコン、Agora 手番、チームタイムライン Thinking）へ、表示専用の実効状態 `displayStatus` として配線した。backend=codex(gpt-5.6-terra) の agentic-loop（N=1・single 相当）で実施。
 
 ## 決定・成果物
-- 決定: **ADR 0118**（処理中を表す表示面は生 status ではなく displayStatus を読む）。ADR 0064 を拡張、ADR 0081 を参照。
+- 決定: **ADR 0137**（処理中を表す表示面は生 status ではなく displayStatus を読む）。ADR 0064 を拡張、ADR 0081 を参照。
 - 実装（`macos/Packages/SessionFeature`・`macos/Packages/DashboardFeature`）:
   - 新規 `Sources/SessionFeature/SessionDisplayStatus.swift`（純関数 `resolve(rawStatus:isProcessing:)` = `(rawStatus == .idle && isProcessing) ? .running : rawStatus`）。
   - 変更 `Sources/SessionFeature/ControllableSession.swift`（protocol に `isProcessing`/`displayStatus` 追加。`displayStatus` は extension 既定実装、`SessionNode.displayStatus` は controllable へ委譲）。
@@ -35,4 +35,4 @@ last-verified: 2026-07-24
 - 対象外（別系統・未特定）: interrupt の非対称（SIGINT が claude プロセスの実処理を止めない可能性）、完全なフォアグラウンド Bash 実行中の表示（status は .running のまま）。
 - 統合ビルド（xcodebuild）は未実施。プロジェクト生成手順が判明したら build-only（アプリ再起動なし）で1回確認するのが望ましい。
 
-参照: ADR 0118、ADR 0064（拡張元）、ADR 0081（interrupt/述語統一）。
+参照: ADR 0137、ADR 0064（拡張元）、ADR 0081（interrupt/述語統一）。

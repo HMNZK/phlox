@@ -6,7 +6,7 @@ import AgentDomain
 
 /// 凍結受け入れテスト（PM 著・実装役は編集禁止。ハーネス欠陥を見つけた場合のみ PM 承認の上で修理可）。
 ///
-/// 契約（ADR 0118 の runningBreakdown への波及・task-2）: 実行中セッションの計数
+/// 契約（ADR 0137 の runningBreakdown への波及・task-2）: 実行中セッションの計数
 /// `DashboardViewModel.runningBreakdown` は、生 `status` ではなく表示用の実効状態
 /// `displayStatus` を数える。すなわち「メインターン完了で status は idle でも、背景
 /// タスク/サブエージェントが動いている（displayStatus == .running）セッション」は

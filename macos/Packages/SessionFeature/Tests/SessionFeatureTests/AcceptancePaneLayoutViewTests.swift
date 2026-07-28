@@ -289,6 +289,23 @@ func paneLayoutView_doesNotNestTreeIntoStacks() throws {
 }
 
 @Test
+func paneLayoutView_appliesDraggableBeforeTheZeroDistanceGesture() throws {
+    // 実機で観測した回帰: ヘッダーに `.simultaneousGesture(DragGesture(minimumDistance: 0))` を
+    // `.draggable` より **先** に適用すると、ゼロ距離のジェスチャがマウスダウンを取り切り、
+    // ドラッグセッションが一切開始しない（＝タイルの移動・分割が GUI から不可能になる）。
+    // 最小の SwiftUI アプリで A/B 実測し、順序を入れ替えるだけで開始することを確認した。
+    // 振る舞いはヘッドレスで再現できないため、ソース上の適用順で固定する。
+    let source = try sessionFeatureSource("PaneLayoutView.swift")
+    let draggable = try #require(source.range(of: ".draggable("), "ヘッダーを .draggable にすること")
+    let zeroDistanceGesture = try #require(
+        source.range(of: "DragGesture(minimumDistance: 0)"),
+        "mouseDown 即選択のジェスチャを持つこと"
+    )
+    #expect(draggable.lowerBound < zeroDistanceGesture.lowerBound,
+            ".draggable をゼロ距離 DragGesture より先に適用すること（後だとドラッグが始まらない）")
+}
+
+@Test
 func paneLayoutView_routesDragThroughThePureInteraction() throws {
     // ビューが自前で閾値やドラッグ確定を書かず、テスト済みの純粋型に委ねていること。
     let source = try sessionFeatureSource("PaneLayoutView.swift")

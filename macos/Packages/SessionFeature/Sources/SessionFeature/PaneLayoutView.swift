@@ -327,11 +327,6 @@ private struct PaneTileView: View {
         .padding(.vertical, DSSpacing.xs)
         .background(Color.clear)
         .contentShape(Rectangle())
-        // ヘッダーはテキスト選択・スクロールを持たないため、mouseDown 時点で選択する。
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in selectImmediately() }
-        )
         .help(session.workspacePath)
         .draggable(DraggedSession(id: session.id)) {
             Text(session.displayName)
@@ -341,6 +336,14 @@ private struct PaneTileView: View {
                 .padding(.horizontal, DSSpacing.s)
                 .padding(.vertical, DSSpacing.xs)
         }
+        // ヘッダーはテキスト選択・スクロールを持たないため、mouseDown 時点で選択する。
+        // **`.draggable` より後に適用すること**。先に適用するとゼロ距離の DragGesture が
+        // マウスダウンを取り切ってしまい、`.draggable` のドラッグセッションが一切開始しない
+        // （最小の SwiftUI アプリで A/B 実測。順序を入れ替えるだけで開始する）。
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in selectImmediately() }
+        )
     }
 }
 

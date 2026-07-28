@@ -411,31 +411,62 @@ enum ComposerSuggestionSources {
         SuggestionCandidate(title: "/usage", insertionText: "/usage", subtitle: "Show plan usage", kind: .slashCommand),
         SuggestionCandidate(title: "/doctor", insertionText: "/doctor", subtitle: "Diagnose Claude Code", kind: .slashCommand),
         SuggestionCandidate(title: "/review", insertionText: "/review", subtitle: "Review a GitHub pull request", kind: .slashCommand),
+        // 2026-07-28 の実測（docs/agent-output/measured-slash-commands-20260728.txt）で
+        // セッションに存在を確認した分。init 到着前（初回送信前）の補完を救うために載せる。
+        SuggestionCandidate(title: "/agents", insertionText: "/agents", subtitle: "Manage subagents", kind: .slashCommand),
+        SuggestionCandidate(title: "/code-review", insertionText: "/code-review", subtitle: "Review code changes", kind: .slashCommand),
+        SuggestionCandidate(title: "/deep-research", insertionText: "/deep-research", subtitle: "Run deep research", kind: .slashCommand),
+        SuggestionCandidate(title: "/effort", insertionText: "/effort", subtitle: "Set reasoning effort", kind: .slashCommand),
+        SuggestionCandidate(title: "/fast", insertionText: "/fast", subtitle: "Switch to fast mode", kind: .slashCommand),
+        SuggestionCandidate(title: "/loop", insertionText: "/loop", subtitle: "Run an agentic loop", kind: .slashCommand),
+        SuggestionCandidate(title: "/recap", insertionText: "/recap", subtitle: "Recap the conversation", kind: .slashCommand),
+        SuggestionCandidate(title: "/run", insertionText: "/run", subtitle: "Run a saved workflow", kind: .slashCommand),
+        SuggestionCandidate(title: "/schedule", insertionText: "/schedule", subtitle: "Schedule a task", kind: .slashCommand),
+        SuggestionCandidate(title: "/security-review", insertionText: "/security-review", subtitle: "Review code for security issues", kind: .slashCommand),
+        SuggestionCandidate(title: "/simplify", insertionText: "/simplify", subtitle: "Simplify the implementation", kind: .slashCommand),
+        SuggestionCandidate(title: "/ultrareview", insertionText: "/ultrareview", subtitle: "Run an in-depth review", kind: .slashCommand),
     ]
 
     static func slashCandidates(
         availableCommands: [String]? = nil,
+        seedCommands: [String]? = nil,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         workingDirectory: String = FileManager.default.currentDirectoryPath
     ) -> [SuggestionCandidate] {
         let workspacePath = normalizedWorkingDirectory(workingDirectory)
+        let seed = effectiveSeedCommands(seedCommands, availableCommands: availableCommands)
         return cache.slashCandidates(
             homeDirectory: homeDirectory.standardizedFileURL.path,
             workingDirectory: workspacePath,
-            availableCommands: availableCommands
+            availableCommands: availableCommands,
+            seedCommands: seed
         ) {
             uncachedSlashCandidates(
                 availableCommands: availableCommands,
+                seedCommands: seed,
                 homeDirectory: homeDirectory,
                 workingDirectory: workspacePath
             )
         }
     }
 
+    /// 種一覧を「候補に効く形」へ正規化する。
+    /// - 一覧受領済み（`availableCommands != nil`）なら seed は完全に無視する。
+    /// - 空配列は「未受領」と同じ扱い（nil）にする。
+    /// キャッシュキーもこの正規化後の値で引くため、`nil` と `[]` は同じエントリを共有する。
+    private static func effectiveSeedCommands(
+        _ seedCommands: [String]?,
+        availableCommands: [String]?
+    ) -> [String]? {
+        guard availableCommands == nil, let seedCommands, !seedCommands.isEmpty else { return nil }
+        return seedCommands
+    }
+
     /// TTL 内のスラッシュ候補集合を走査なしでピークし、検索語で前方一致フィルタする。
     /// miss（未キャッシュ／期限切れ）なら nil を返す。
     static func cachedSlashCandidates(
         availableCommands: [String]? = nil,
+        seedCommands: [String]? = nil,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         workingDirectory: String = FileManager.default.currentDirectoryPath,
         matching searchTerm: String
@@ -444,7 +475,8 @@ enum ComposerSuggestionSources {
         guard let candidates = cache.cachedSlashCandidates(
             homeDirectory: homeDirectory.standardizedFileURL.path,
             workingDirectory: workspacePath,
-            availableCommands: availableCommands
+            availableCommands: availableCommands,
+            seedCommands: effectiveSeedCommands(seedCommands, availableCommands: availableCommands)
         ) else {
             return nil
         }
@@ -453,11 +485,16 @@ enum ComposerSuggestionSources {
 
     private static func uncachedSlashCandidates(
         availableCommands: [String]?,
+        seedCommands: [String]?,
         homeDirectory: URL,
         workingDirectory: String
     ) -> [SuggestionCandidate] {
         guard let availableCommands else {
-            return fallbackSlashCandidates(homeDirectory: homeDirectory, workingDirectory: workingDirectory)
+            return fallbackSlashCandidates(
+                seedCommands: seedCommands,
+                homeDirectory: homeDirectory,
+                workingDirectory: workingDirectory
+            )
         }
         return availableCommandCandidates(
             availableCommands,
@@ -466,7 +503,11 @@ enum ComposerSuggestionSources {
         )
     }
 
+    /// 一覧未受領（`availableCommands == nil`）時の候補。
+    /// 静的リスト → `.claude/commands` → `.claude/skills` の順に並べ、最後に seed 由来の
+    /// 名前を足して重複除去する（順序は決定論。既存経路の並びを前方一致で保つ）。
     private static func fallbackSlashCandidates(
+        seedCommands: [String]?,
         homeDirectory: URL,
         workingDirectory: String
     ) -> [SuggestionCandidate] {
@@ -486,6 +527,14 @@ enum ComposerSuggestionSources {
         }
         for skill in skillDirectories.flatMap(skillEntries(in:)) {
             candidates.append(SuggestionCandidate(title: "/\(skill.name)", insertionText: "/\(skill.name)", subtitle: skill.subtitle, kind: .slashCommand))
+        }
+        if let seedCommands {
+            // seed 由来も `__` 除外・subtitle 解決の優先順を一覧受領時と揃える。
+            candidates.append(contentsOf: availableCommandCandidates(
+                seedCommands,
+                homeDirectory: homeDirectory,
+                workingDirectory: workingDirectory
+            ))
         }
         return deduplicated(candidates)
     }
@@ -789,6 +838,9 @@ private final class ComposerSuggestionSourceCache: @unchecked Sendable {
         let homeDirectory: String
         let workingDirectory: String
         let availableCommands: [String]?
+        /// 正規化済みの種一覧（一覧受領済み・空配列はいずれも nil）。
+        /// 種一覧が違えば別エントリになるため、別セッションの候補が混線しない。
+        let seedCommands: [String]?
     }
 
     private struct FileKey: Hashable {
@@ -815,12 +867,14 @@ private final class ComposerSuggestionSourceCache: @unchecked Sendable {
         homeDirectory: String,
         workingDirectory: String,
         availableCommands: [String]?,
+        seedCommands: [String]?,
         load: () -> [SuggestionCandidate]
     ) -> [SuggestionCandidate] {
         let key = SlashKey(
             homeDirectory: homeDirectory,
             workingDirectory: workingDirectory,
-            availableCommands: availableCommands
+            availableCommands: availableCommands,
+            seedCommands: seedCommands
         )
         if let cached = cachedSlashCandidates(for: key, now: Date()) {
             return cached
@@ -865,12 +919,14 @@ private final class ComposerSuggestionSourceCache: @unchecked Sendable {
     func cachedSlashCandidates(
         homeDirectory: String,
         workingDirectory: String,
-        availableCommands: [String]?
+        availableCommands: [String]?,
+        seedCommands: [String]?
     ) -> [SuggestionCandidate]? {
         let key = SlashKey(
             homeDirectory: homeDirectory,
             workingDirectory: workingDirectory,
-            availableCommands: availableCommands
+            availableCommands: availableCommands,
+            seedCommands: seedCommands
         )
         return cachedSlashCandidates(for: key, now: Date())
     }

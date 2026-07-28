@@ -42,19 +42,11 @@ public final class DashboardViewModel {
     public private(set) var restoredSessionPresentation: RestoredSessionPresentation?
 
     /// グリッドに表示するセッションの選択（nil = 全表示）。永続化しない。
-    public var gridSessionSelection: Set<SessionID>? {
-        didSet {
-            guard oldValue != gridSessionSelection else { return }
-            reconcileGridArrangements()
-        }
-    }
+    /// 絞り込みは描画時の刈り込み（`paneLayoutForDisplay()`）だけで表現し、
+    /// 永続ツリーには触れない（隠したセッションの位置を失わないため）。
+    public var gridSessionSelection: Set<SessionID>?
     /// グリッドのワークスペース絞り込み（`AppRouter.gridFilterProjectID` の写し。候補算出用）。
-    var gridSessionFilterProjectID: ProjectID? {
-        didSet {
-            guard oldValue != gridSessionFilterProjectID else { return }
-            reconcileGridArrangements()
-        }
-    }
+    var gridSessionFilterProjectID: ProjectID?
 
     private static let readinessPollInterval: Duration = .milliseconds(20)
     private static let donePollInterval: Duration = .milliseconds(100)
@@ -65,9 +57,8 @@ public final class DashboardViewModel {
     static let apiSpawnRateLimitWindowSeconds = SpawnPolicy.apiSpawnRateLimitWindowSeconds
 
     private let environment: AppEnvironment
-    @ObservationIgnored private let gridArrangementStore: GridArrangementStore
-    private var gridArrangements: [Int: SessionGridArrangement]
-    @ObservationIgnored private var gridArrangementRestoreInProgress = true
+    /// 起動時の復元中は永続化を抑止する（復元途中の中間状態を書き戻さない）。
+    @ObservationIgnored private var layoutRestoreInProgress = true
 
     /// task-3: 分割ツリーの永続ツリー（隠れているセッションの leaf も保持する。D4）。
     /// 書き込み経路は `handlePaneLayoutAction` と、セッション増減に伴う `reconcilePaneLayout` の
@@ -134,14 +125,9 @@ public final class DashboardViewModel {
         rateLimitNow: @escaping @Sendable () -> Date = Date.init,
         orphanReaper: any OrphanReaper = PosixOrphanReaper(),
         livePIDProvider: @escaping @MainActor @Sendable (SessionID) async -> pid_t? = { _ in nil },
-        gridArrangementStore: GridArrangementStore = GridArrangementStore(userDefaults: .standard),
         paneLayoutStore: PaneLayoutStore = PaneLayoutStore(userDefaults: .standard)
     ) {
         self.environment = environment
-        self.gridArrangementStore = gridArrangementStore
-        self.gridArrangements = Dictionary(uniqueKeysWithValues: (1...4).map { size in
-            (size, gridArrangementStore.load(size: size) ?? SessionGridArrangement(size: size))
-        })
         self.paneLayoutStore = paneLayoutStore
         self.paneLayout = paneLayoutStore.load() ?? PaneLayoutPreset.balanced.tree(for: [])
         self.codexUserHooksEnabledProvider = codexUserHooksEnabledProvider
@@ -325,8 +311,7 @@ public final class DashboardViewModel {
         }
 
         await sessionRestoreCoordinator.restorePersistedSessions()
-        gridArrangementRestoreInProgress = false
-        reloadAndReconcileGridArrangements()
+        layoutRestoreInProgress = false
         reloadAndReconcilePaneLayout()
     }
 
@@ -450,16 +435,14 @@ public final class DashboardViewModel {
     private func appendSessionNode(_ node: SessionNode) {
         sessionNodes.append(node)
         sessionNodeIndex[node.id] = node
-        reconcileGridArrangements(persist: !gridArrangementRestoreInProgress)
-        reconcilePaneLayout(persist: !gridArrangementRestoreInProgress)
+        reconcilePaneLayout(persist: !layoutRestoreInProgress)
     }
 
     /// `sessionNodes` からの単一 ID 除去は必ずこのヘルパー経由で行い、`sessionNodeIndex` の同期漏れを防ぐ。
     private func removeSessionNode(id: SessionID) {
         sessionNodes.removeAll { $0.id == id }
         sessionNodeIndex.removeValue(forKey: id)
-        reconcileGridArrangements(persist: !gridArrangementRestoreInProgress)
-        reconcilePaneLayout(persist: !gridArrangementRestoreInProgress)
+        reconcilePaneLayout(persist: !layoutRestoreInProgress)
     }
 
     private static func sessionTreeNodeIDs(in node: SessionTreeNode) -> [SessionID] {
@@ -522,53 +505,6 @@ public final class DashboardViewModel {
         return GridSessionSelectionFilter.apply(wrapped, selection: gridSessionSelection).map(\.node)
     }
 
-    /// イベント側で reconcile 済みの保持配置を返す。読み取り中に状態更新や永続化は行わない。
-    public func gridArrangement(size: Int) -> SessionGridArrangement {
-        precondition((1...4).contains(size))
-        return gridArrangements[size] ?? SessionGridArrangement(size: size)
-    }
-
-    /// 固定グリッドの操作を配置モデルへ委譲し、成功時だけ状態と永続化を更新する。
-    public func handleGridAction(_ action: SessionGridAction, size: Int) {
-        precondition((1...4).contains(size))
-        guard let current = gridArrangements[size] else { return }
-
-        let updated: SessionGridArrangement?
-        switch action {
-        case .moveToCell(let id, let cell):
-            updated = current.move(id, toCell: cell)
-        case .swap(let first, let second):
-            updated = current.swap(first, second)
-        case .mergeRight(let id):
-            updated = current.mergeRight(id)
-        case .mergeDown(let id):
-            updated = current.mergeDown(id)
-        case .unmerge(let id):
-            updated = current.unmerge(id)
-        }
-
-        guard let updated else { return }
-        let reconciled = updated.reconciled(with: visibleGridSessionIDs())
-        gridArrangements[size] = reconciled
-        gridArrangementStore.save(reconciled, size: size)
-    }
-
-    private func visibleGridSessionIDs() -> [SessionID] {
-        filteredGridSessionNodes(projectID: gridSessionFilterProjectID).map(\.id)
-    }
-
-    private func reconcileGridArrangements(persist: Bool = true) {
-        let visibleIDs = visibleGridSessionIDs()
-        for size in 1...4 {
-            let current = gridArrangements[size] ?? SessionGridArrangement(size: size)
-            let reconciled = current.reconciled(with: visibleIDs)
-            gridArrangements[size] = reconciled
-            if persist {
-                gridArrangementStore.save(reconciled, size: size)
-            }
-        }
-    }
-
     /// task-3: 描画用の実効ツリー。`paneLayout`（絞り込み前の永続ツリー）を、
     /// 現在のワークスペース絞り込み・表示セッション選択を適用した可視集合で刈り込む。
     /// view body から呼ばれるため一切の副作用を持たない（状態更新も永続化もしない。ADR 0010）。
@@ -616,19 +552,10 @@ public final class DashboardViewModel {
         }
     }
 
-    /// task-3: 起動時、`PaneLayoutStore` から読み直してから reconcile する（既存の
-    /// `reloadAndReconcileGridArrangements` と同じ流儀）。
+    /// 起動時、`PaneLayoutStore` から読み直してから reconcile する。
     private func reloadAndReconcilePaneLayout() {
         paneLayout = paneLayoutStore.load() ?? PaneLayoutPreset.balanced.tree(for: [])
         reconcilePaneLayout()
-    }
-
-    private func reloadAndReconcileGridArrangements() {
-        for size in 1...4 {
-            gridArrangements[size] = gridArrangementStore.load(size: size)
-                ?? SessionGridArrangement(size: size)
-        }
-        reconcileGridArrangements()
     }
 
     public func isGridSessionSelected(_ id: SessionID) -> Bool {
@@ -917,8 +844,7 @@ public final class DashboardViewModel {
         persistProjects()
         // フィルタ中プロジェクトの削除で filteredGridSessionNodes がフォールバック（全表示）へ
         // 切り替わるため、新しい可視集合で配置を再整合する（イベント側の書き込み）。
-        reconcileGridArrangements(persist: !gridArrangementRestoreInProgress)
-        reconcilePaneLayout(persist: !gridArrangementRestoreInProgress)
+        reconcilePaneLayout(persist: !layoutRestoreInProgress)
     }
 
     /// 指定 CLI の新規セッションを `sessions` に追加し、PTY を eager に即起動する。
@@ -1304,7 +1230,6 @@ public final class DashboardViewModel {
 
         if let newProjectID {
             vm.projectID = newProjectID
-            reconcileGridArrangements()
             reconcilePaneLayout()
         }
         await vm.restart(workingDirectory: directory.path, hookEvents: newStream)

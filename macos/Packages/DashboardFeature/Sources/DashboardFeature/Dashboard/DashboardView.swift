@@ -27,7 +27,6 @@ public struct DashboardView: View {
     @State private var sessionTreeViewModel = SessionTreeViewModel()
 
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
-    @AppStorage(GridColumns.storageKey) private var gridColumnsRaw: String = GridColumns.auto.rawValue
     @State private var gridSessionPickerPresented = false
     @State private var measuredLeadingOverlayWidth: CGFloat = 0
     @State private var hasMeasuredLeadingOverlayWidth = false
@@ -198,7 +197,6 @@ public struct DashboardView: View {
                     renamingSession: $renamingSession,
                     pendingWorkspaceChange: $pendingWorkspaceChange,
                     draftName: $draftName,
-                    gridColumns: gridColumns,
                     onChooseProjectDirectory: chooseProjectDirectory,
                     isCreating: isCreating,
                     onSelectAgentKind: { kind, backend in
@@ -268,7 +266,6 @@ public struct DashboardView: View {
                         sidebarVisible: router.sidebarVisible,
                         leadingOverlayWidth: effectiveLeadingOverlayWidth
                     ),
-                    gridColumnsRaw: $gridColumnsRaw,
                     gridSessionPickerPresented: $gridSessionPickerPresented
                 )
                 .onGeometryChange(for: CGFloat.self) { proxy in
@@ -412,10 +409,6 @@ public struct DashboardView: View {
         inspectorWidth = clamped.inspector
         sidebarWidthAtDragStart = clamped.sidebar
         inspectorWidthAtDragStart = clamped.inspector
-    }
-
-    private var gridColumns: GridColumns {
-        GridColumns(rawValue: gridColumnsRaw) ?? .auto
     }
 
     @ViewBuilder

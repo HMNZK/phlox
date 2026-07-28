@@ -73,7 +73,6 @@ struct DashboardTrailingTopBarControls: View {
     @Bindable var usageMonitor: UsageMonitor
     let windowWidth: CGFloat
     let occupiedSidebarWidth: CGFloat
-    @Binding var gridColumnsRaw: String
     @Binding var gridSessionPickerPresented: Bool
 
     @AppStorage(UsageSettings.showInHeaderKey) private var showUsageInHeader = true

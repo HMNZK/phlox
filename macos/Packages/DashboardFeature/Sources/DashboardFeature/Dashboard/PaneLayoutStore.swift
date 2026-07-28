@@ -2,8 +2,8 @@ import CoreGraphics
 import Foundation
 import SessionFeature
 
-/// task-3: `PaneTree`（分割ツリー）の永続化層。既存 `GridArrangementStore` と同じ流儀
-/// （保存失敗時も throw しない・壊れたデータは nil を返して既定へフォールバックさせる）。
+/// `PaneTree`（分割ツリー）の永続化層。
+/// 保存失敗時も throw せず、壊れたデータは nil を返して既定へフォールバックさせる。
 public struct PaneLayoutStore {
     public static let storageKey = "phlox.grid.paneLayout"
 
@@ -19,7 +19,7 @@ public struct PaneLayoutStore {
         self.userDefaults = userDefaults
     }
 
-    /// 保存に失敗しても throw しない（既存 GridArrangementStore と同じ流儀）。
+    /// 保存に失敗しても throw しない（レイアウトは失っても復旧可能な副次情報のため）。
     public func save(_ tree: PaneTree) {
         guard let data = try? JSONEncoder().encode(tree) else { return }
         userDefaults.set(data, forKey: Self.storageKey)

@@ -50,12 +50,14 @@ struct AcceptanceGridSelectionFocusTests {
         }
     }
 
-    @Test("SessionGridView はポリシー経由で枠を決める（配線されている）")
-    func sessionGridViewUsesBorderPolicy() throws {
-        let source = try sourceText("SessionGridView.swift")
+    @Test("タイルはポリシー経由で枠を決める（配線されている）")
+    func paneTileUsesBorderPolicy() throws {
+        // 旧 k×k グリッド撤去に伴い、タイルの実装は SessionGridView.swift から
+        // PaneLayoutView.swift へ移った。検証したい契約（枠決定をポリシー経由にする）は同じ。
+        let source = try sourceText("PaneLayoutView.swift")
         #expect(
             source.contains("GridTileBorderPolicy"),
-            "SessionGridView の枠決定を GridTileBorderPolicy 経由に配線すること（ポリシーだけ直してもUIに反映されない事態の防止）"
+            "タイルの枠決定を GridTileBorderPolicy 経由に配線すること（ポリシーだけ直してもUIに反映されない事態の防止）"
         )
     }
 

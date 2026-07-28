@@ -10,7 +10,6 @@ struct DashboardDetailView: View {
     @Binding var renamingSession: SelectedSessionNode?
     @Binding var pendingWorkspaceChange: SessionViewModel?
     @Binding var draftName: String
-    let gridColumns: GridColumns
     let onChooseProjectDirectory: () -> Void
     let isCreating: Bool
     let onSelectAgentKind: (AgentKind, SessionBackend) -> Void
@@ -42,8 +41,7 @@ struct DashboardDetailView: View {
             case .grid:
                 SessionGridView(
                     sessions: filteredGridSessions,
-                    gridColumns: gridColumns,
-                    arrangement: gridColumns.fixedCount.map { viewModel.gridArrangement(size: $0) },
+                    paneLayout: viewModel.paneLayoutForDisplay(),
                     focusedID: $router.selectedSession,
                     onRemove: { session in pendingDeletion = SelectedSessionNode(session) },
                     onRename: { session in
@@ -51,15 +49,6 @@ struct DashboardDetailView: View {
                         draftName = session.name
                     },
                     onChangeWorkspace: { session in pendingWorkspaceChange = session },
-                    onReorder: { moved, target in
-                        viewModel.reorderSession(moved, with: target)
-                    },
-                    onGridAction: { action in
-                        if let size = gridColumns.fixedCount {
-                            viewModel.handleGridAction(action, size: size)
-                        }
-                    },
-                    paneLayout: viewModel.paneLayoutForDisplay(),
                     onLayoutAction: { viewModel.handlePaneLayoutAction($0) }
                 )
             case .team:

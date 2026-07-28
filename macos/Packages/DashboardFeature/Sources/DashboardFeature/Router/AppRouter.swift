@@ -9,10 +9,6 @@ public enum ViewMode: String, CaseIterable, Sendable {
     case team
 }
 
-// GridColumns（グリッド列数モード）は DesignSystem/GridColumns.swift へ移設した
-// （R1・task-26: Session ↔ Router 結合の切断。SessionFeature/DashboardFeature 双方が
-// 参照する共有の表示設定のため下層へ降ろす）。
-
 public enum MainRoute: String, Sendable {
     case sessions
 }

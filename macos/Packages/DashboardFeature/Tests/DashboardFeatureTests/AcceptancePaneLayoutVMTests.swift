@@ -331,16 +331,5 @@ struct AcceptancePaneLayoutVMTests {
         #expect(moved.minY > target.minY, "下側へ差し込まれる")
     }
 
-    // MARK: - 旧グリッド経路への非干渉
-
-    @Test @MainActor func legacyGridArrangementStillWorks() async throws {
-        // 旧 k×k 経路（撤去は PM がフェーズ4で行う）の挙動を変えていないこと。
-        let ws = try makeTemporaryWorkspaceRoot()
-        defer { cleanupTemporaryWorkspaceRoot(ws) }
-        let (dashboard, ids) = try await makeDashboardWithSessions(ws, count: 2)
-
-        #expect(try #require(dashboard.gridArrangement(size: 2).placement(at: 0)).id == ids[0])
-        dashboard.handleGridAction(.moveToCell(ids[0], cell: 3), size: 2)
-        #expect(try #require(dashboard.gridArrangement(size: 2).placement(at: 3)).id == ids[0])
-    }
+    // 旧 k×k 経路への非干渉テストは、フェーズ4で旧モデルを撤去したため役目を終えた（削除）。
 }

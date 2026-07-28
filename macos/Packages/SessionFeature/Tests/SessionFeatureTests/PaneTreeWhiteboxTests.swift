@@ -730,7 +730,9 @@ struct PaneTreeWhiteboxTests {
             .appendingPathComponent("Sources/SessionFeature/PaneLayout")
         let files = try FileManager.default.contentsOfDirectory(at: sourceDirectory, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "swift" }
-        #expect(files.count == 5, "PaneLayout/ のファイル数")
+        // ファイル数は固定しない（後続タスクが PaneLayout/ へファイルを足すたびに落ちる脆いゲートになるため。
+        // PM が task-2 の合流時に緩和した）。検査したいのは「1件以上あり、全件が UI 非依存」であること。
+        #expect(!files.isEmpty, "PaneLayout/ に実装ファイルがあること")
         for file in files {
             let text = try String(contentsOf: file, encoding: .utf8)
             #expect(!text.contains("import SwiftUI"), "\(file.lastPathComponent) が SwiftUI を import している")

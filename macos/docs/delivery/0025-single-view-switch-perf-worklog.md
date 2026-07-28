@@ -73,3 +73,15 @@ last-verified: 2026-07-29
 - 長文テキストのみのセッションは、下限の 6 ブロック表示でも約 250ms かかり目標に届かない。
   計測した 4 セッションでは発生していないが、下限件数そのものが高コストな内容では予算で守れない。
 - 重み定数は較正値であり、コストの内訳が変われば再較正が要る（ADR 0139 決定 4）。
+
+### 調査中に見つけた、今回は触っていないもの
+
+- **`ChatTranscriptView` の `onChange(of: viewModel.id)`（`window.reset()` / `autoFollow.sessionDidChange()` /
+  `scheduleScrollToBottom`）はアプリ全体で一度も走っていない。** 呼び出し元は
+  `ChatSessionView.swift` と `GridChatColumn.swift` の 2 箇所だけで、どちらも `.id(session.id)` の下に
+  あるため viewModel が入れ替わるとビュー自体が作り直され、`onChange` は発火しない。
+  `.id()` を外す将来の変更では、この経路が初めて生きることになる。今回は触っていない。
+- **切替のたびにトランスクリプト全体を 2 回走査していた。** ブロック化（`makeBlocks`）が
+  表示件数の決定と `visibleSlice` で二重に走っていたのは今回直した（`visibleSlice(fromBlocks:)`）。
+  一方 `InputHistoryPolicy.entries(from: items)` による全件走査＋Set 構築は残っている。
+  実測では支配的でなかったため触っていない。

@@ -58,7 +58,9 @@ struct DashboardDetailView: View {
                         if let size = gridColumns.fixedCount {
                             viewModel.handleGridAction(action, size: size)
                         }
-                    }
+                    },
+                    paneLayout: viewModel.paneLayoutForDisplay(),
+                    onLayoutAction: { viewModel.handlePaneLayoutAction($0) }
                 )
             case .team:
                 TeamTimelineView(

@@ -12,7 +12,8 @@ last-verified: 2026-07-28
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
-| 0135 | [グリッドビューを「n 分岐の分割ツリー」で作り直す（k×k 等分割盤を撤去）](0135-pane-split-tree-layout.md) | accepted |
+| 0136 | [グリッドビューを「n 分岐の分割ツリー」で作り直す（k×k 等分割盤を撤去）](0136-pane-split-tree-layout.md) | accepted |
+| 0135 | [巻き戻しで復元した本文は ViewModel が `draft` へ直接書く（View 側で遅れを吸収しない）](0135-restored-draft-is-written-by-the-view-model.md) | accepted |
 | 0134 | [`format=ansi` はスクロールバックを含むバッファ全体を返す](0134-ansi-output-includes-scrollback.md) | accepted |
 | 0133 | [取り残された iPhone 由来セッションは、由来を特定できるものだけ救済する](0133-orphaned-remote-session-rescue.md) | accepted |
 | 0132 | [通知は「その通知が届く先から辿れるセッション」にだけ出す](0132-notification-reachability-per-client.md) | accepted |
@@ -57,7 +58,7 @@ last-verified: 2026-07-28
 | 0087 | [モバイル wave-2 ワイヤ拡張（spawn 時モデル適用・プロジェクト付与・エージェント別モデル一覧・アカウント使用量）の設計判断](0087-mobile-wave2-wire-extensions.md) | active |
 | 0086 | [single モードのサイドバー・プロジェクト名選択で新規セッション開始画面を表示する](0086-single-mode-project-select-shows-start-screen.md) | active |
 | 0085 | [モバイル向けモデル選択 API（GET settings / POST model）](0085-mobile-model-selection-api.md) | active |
-| 0084 | [グリッドビューの N×N 固定化・セッション自由配置・セル結合](0084-grid-view-fixed-nxn-free-placement-merge.md) | superseded (0135) |
+| 0084 | [グリッドビューの N×N 固定化・セッション自由配置・セル結合](0084-grid-view-fixed-nxn-free-placement-merge.md) | superseded (0136) |
 | 0083 | [非フォーカス時 esc の中止到達と、中断後 transport の turnStart 自己修復](0083-chat-esc-interrupt-unfocused-and-transport-respawn.md) | active |
 | 0082 | [空状態カード＋「＋」メニューで agent × mode を明示選択（Pattern A）](0082-agent-mode-launch-cards-and-menu.md) | active |
 | 0081 | [「処理中」判定の単一正本化と interrupt の合流・世代ガード](0081-processing-predicate-unification-and-interrupt-coalescing.md) | active |

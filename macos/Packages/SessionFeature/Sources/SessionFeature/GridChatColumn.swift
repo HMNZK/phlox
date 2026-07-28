@@ -207,7 +207,8 @@ struct GridComposerBar: View {
                     attachedImageNumbers: { viewModel.attachmentStore.attachments.map(\.number) },
                     imagesForCopy: { viewModel.attachmentStore.imagesForCopy(numbers: $0) },
                     onEscape: { performChatEscape(viewModel) },
-                    onFocusGained: onFocusGained
+                    onFocusGained: onFocusGained,
+                    focusRequest: viewModel.composerFocusRequest
                 )
                 .frame(
                     minHeight: ComposerHeightBounds.grid.min,

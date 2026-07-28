@@ -120,6 +120,9 @@ public final class ChatSessionViewModel: Identifiable {
     public private(set) var isHistoryPickerPresented = false
     /// リバート確定で復元する composer 下書き本文（task-9）。View が反映後 `consumeDraftRestoration()` でクリアする。
     public private(set) var draftRestoration: String?
+    /// composer へフォーカスを戻す要求（esc-restore-input-focus task-1 契約の PM スタブ）。
+    /// 受け入れテスト AcceptanceComposerFocusRestoreTests が凍結。発火は task-1、消費は task-2 が実装する。
+    public private(set) var composerFocusRequest: ComposerFocusRequest = .none
     @ObservationIgnored public var codexSettingsDidChange: (@MainActor (CodexAppServerSessionSettings?) -> Void)?
     /// リモート通知系へのフック。nil なら呼ばれない（既存挙動と同一）。
     @ObservationIgnored public var remoteSessionNotifier: (any RemoteSessionNotifier)?
@@ -668,6 +671,9 @@ public final class ChatSessionViewModel: Identifiable {
             isHistoryPickerPresented = false
             // 閉じた esc は次の 2連打シーケンスの起点にしない（閉じた直後の esc で再度開くのを防ぐ）。
             lastEscapeAt = nil
+            // ピッカーが奪ったフォーカスの返却先を composer に定義する。本文は復元していないので
+            // キャレット・選択範囲は動かさない。
+            requestComposerFocus(movesCaretToEnd: false)
             return
         }
         if EscapeRevertPolicy.isDoubleEscape(lastEscapeAt: lastEscapeAt, now: now) {
@@ -694,9 +700,27 @@ public final class ChatSessionViewModel: Identifiable {
             await turnInterrupt()
         }
         let restored = await revert(toUserMessageID: id)
+        // 復元本文は ViewModel 自身が `draft` へ書く。View 側の `draftRestoration` 監視経由にすると
+        // 本文がフォーカス要求より 1 更新パス遅れて届き、「末尾化すべき本文がまだ無い」状態を
+        // View 側で保留・再適用する機構が必要になる。同じ代入の中で両方を確定させて遅れ自体を無くす。
+        if let restored {
+            draft = restored
+        }
         draftRestoration = restored
         isHistoryPickerPresented = false
         lastEscapeAt = nil
+        // ピッカーは閉じるのでフォーカスは必ず composer へ返す。本文を復元できたときだけ
+        // キャレットを末尾へ動かす（先頭のままだと打った文字が復元本文の前に入る）。
+        requestComposerFocus(movesCaretToEnd: restored != nil)
+    }
+
+    /// composer へのフォーカス復帰要求を 1 段だけ進める。token は狭義単調増加で、
+    /// 同じ値を再発行しない（View は値の変化だけを見てフォーカスを動かす）。
+    private func requestComposerFocus(movesCaretToEnd: Bool) {
+        composerFocusRequest = ComposerFocusRequest(
+            token: composerFocusRequest.token + 1,
+            movesCaretToEnd: movesCaretToEnd
+        )
     }
 
     /// View が `draftRestoration` を composer へ反映したあとに呼び、復元本文を消費する（task-9）。

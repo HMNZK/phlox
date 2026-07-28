@@ -7,18 +7,18 @@ last-verified: 2026-07-28
 
 > **このファイルの役割**: グリッドビューのレイアウトを支える分割ツリー（`PaneTree`）の現行構造 —
 > モデル・幾何計算・操作・描画・永続化の各層と、それらの境界。
-> **書かないもの**: なぜ等分割盤でなく分割ツリーなのか（→ adr/0135）、満たすべき要件（→ specs/pane-layout.md）、
+> **書かないもの**: なぜ等分割盤でなく分割ツリーなのか（→ adr/0136）、満たすべき要件（→ specs/pane-layout.md）、
 > ウィンドウの3ペイン幅（→ dashboard-pane-layout.md）。
 
 グリッドビューは、セッションを **n 分岐の分割ツリー**のとおりに並べる。
-旧 k×k 等分割盤（`SessionGridArrangement` / `GridColumns`）は撤去済み（ADR 0135）。
+旧 k×k 等分割盤（`SessionGridArrangement` / `GridColumns`）は撤去済み（ADR 0136）。
 
 ## コンポーネント
 
 | 層 | 型 / 関数 | 役割 |
 |---|---|---|
 | モデル | `PaneTree` / `PaneNode` / `PaneSplit`（SessionFeature/PaneLayout） | `leaf(id:session:)` と `split(axis:children:weights:)` の再帰木。`init(root:)` が正規化してから不変条件を検証し、破れていれば throw する。`schemaVersion = 1`、`Codable` |
-| 識別子 | `PaneID` / `PaneDividerID` | 全ノードが安定 `PaneID` を持つ。分割線は `{ split, leading, trailing }`（両隣のノード ID）で識別する。index では絞り込み時に別の分割線を指してしまう（ADR 0135 §5） |
+| 識別子 | `PaneID` / `PaneDividerID` | 全ノードが安定 `PaneID` を持つ。分割線は `{ split, leading, trailing }`（両隣のノード ID）で識別する。index では絞り込み時に別の分割線を指してしまう（ADR 0136 §5） |
 | 幾何 | `PaneTree.frames(in:spacing:)` → `PaneLayoutFrames`（`tiles` / `dividers`） | 累積エッジの差分でタイル矩形を出す。実効間隔は `max(0, min(spacing, length/(n-1)))` で、隙間が領域に収まらない退化ケースでもタイルが bounds の外へ出ない |
 | 操作 | `PaneTreeOperations`（`pruned` / `removing` / `swapping` / `inserting(_:splitting:edge:)` / `insertingIntoLargestPane` / `settingDivider` / `equalizing` / `reconciled`） | すべて純粋関数（`PaneTree` を返す）。`settingDivider` は leading と trailing の合計取り分の中だけで再配分し、間に隠れた子の weight は変えない |
 | プリセット | `PaneLayoutPreset` / `PaneLayoutPresetMenu` | 9 種（`balanced` / `single` / `columns2` / `columns3` / `rows2` / `rows3` / `grid2x2` / `mainLeftStackRight` / `mainTopStackBottom`）。素の形で受け止める数を超えた分は最大ペインの分割で足す |
@@ -67,7 +67,7 @@ last-verified: 2026-07-28
   （ADR 0116 の 470〜643ms ハングの再発防止）。ビューは `PaneDividerInteraction` の戻り値が非 nil のときだけ
   `onLayoutAction` を呼ぶ。
 - **タイルヘッダーは `.draggable` をゼロ距離 `DragGesture` より先に適用する。** 順序が逆だとゼロ距離の
-  DragGesture がマウスダウンを取り切り、ドラッグセッションが開始しない（ADR 0135 の受容残余）。
+  DragGesture がマウスダウンを取り切り、ドラッグセッションが開始しない（ADR 0136 の受容残余）。
 - `LazyVStack` / `LazyHStack` を使わない（ADR 0030）。`fixedSize` を新規に足さない（ADR 0045 の趣旨）。
 - view body 評価中に `@Observable` を変更しない（ADR 0010）。
 

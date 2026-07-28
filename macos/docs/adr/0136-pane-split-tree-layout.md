@@ -4,7 +4,7 @@ last-verified: 2026-07-28
 supersedes: 0084-grid-view-fixed-nxn-free-placement-merge.md
 ---
 
-# ADR 0135: グリッドビューを「n 分岐の分割ツリー」で作り直す（k×k 等分割盤を撤去）
+# ADR 0136: グリッドビューを「n 分岐の分割ツリー」で作り直す（k×k 等分割盤を撤去）
 
 ## 文脈
 

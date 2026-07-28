@@ -7,7 +7,7 @@ last-verified: 2026-07-28
 
 > **このファイルの役割**: この run で何をしたかの経緯・状態スナップショット・積み残し。
 > **書かないもの**: 恒久仕様（→ specs/pane-layout.md）、現行構造（→ architecture/session-pane-layout.md）、
-> 決定の理由（→ adr/0135）。
+> 決定の理由（→ adr/0136）。
 
 ## 何を求められたか
 
@@ -26,7 +26,7 @@ last-verified: 2026-07-28
 | 2 実装 | 逐次実行（最大並列幅が 2 しかなく、SPM のビルドキャッシュ分断が並列の利得を上回るため） |
 | 3 独立レビュー | 各タスクを Codex がレビュー。task-1 で退化ケースのバグ、task-4 でドロップ判定の符号バグとカーソル API の不整合を発見・修正 |
 | 4 統合検証 | デバッグ版をリリース版と併存起動して実機確認、旧モデル撤去、全テスト＋アプリビルド |
-| 5 ドキュメント蒸留 | adr/0135・architecture/session-pane-layout.md・specs/pane-layout.md・本ログ |
+| 5 ドキュメント蒸留 | adr/0136・architecture/session-pane-layout.md・specs/pane-layout.md・本ログ |
 
 ## タスクと成果物
 
@@ -76,7 +76,7 @@ last-verified: 2026-07-28
   検出できない**。旧グリッドのヘッダーも同一コードだったため、今回の作り直しで入った不整合ではない。
 - **`reorderSession`（`DashboardViewModel`）は本番の呼び出し元が無くなった**。独立したテストを持つ public API のため
   撤去はスコープ外としたが、次に触るときに整理候補。
-- **削除カスケードで `paneLayoutStore.save` が複数回走る**（ADR 0135 の受容残余）。バッチ境界の導入は
+- **削除カスケードで `paneLayoutStore.save` が複数回走る**（ADR 0136 の受容残余）。バッチ境界の導入は
   削除カスケード自体の restructure が必要。
 - 旧キー `phlox.grid.arrangement.<k>` は削除せず残してある（ロールバック余地）。
 

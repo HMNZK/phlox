@@ -6,7 +6,7 @@ last-verified: 2026-07-28
 # グリッドビューのレイアウト要件（分割ツリー）
 
 > **このファイルの役割**: グリッドビューが満たすべき要件（FR/NFR）と用語。
-> **書かないもの**: なぜこのモデルか（→ adr/0135）、実装構造（→ architecture/session-pane-layout.md）。
+> **書かないもの**: なぜこのモデルか（→ adr/0136）、実装構造（→ architecture/session-pane-layout.md）。
 
 ## 用語
 
@@ -50,7 +50,7 @@ last-verified: 2026-07-28
 
 ## スコープ外
 
-- 旧 k×k 配置データ（`phlox.grid.arrangement.<k>`）からの移行（ADR 0135 §6）。
+- 旧 k×k 配置データ（`phlox.grid.arrangement.<k>`）からの移行（ADR 0136 §6）。
 - 任意矩形の自由配置（キャンバス方式）。入れ子の分割で足りるとゲート①で決定した。
 - タブ化（1ペインに複数セッションを重ねる）。
 

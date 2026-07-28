@@ -34,9 +34,10 @@ private struct ChatEscapeHandling: ViewModifier {
                 performChatEscape(viewModel)
                 return .handled
             }
+            // 復元本文の `draft` への反映は confirmRevert 側で済んでいる（フォーカス要求と同じ更新パスで
+            // 届かせるため）。ここは 1 ショット通知を消費するだけ。
             .onChange(of: viewModel.draftRestoration) { _, newValue in
-                guard let newValue else { return }
-                viewModel.draft = newValue
+                guard newValue != nil else { return }
                 viewModel.consumeDraftRestoration()
             }
             .overlay {

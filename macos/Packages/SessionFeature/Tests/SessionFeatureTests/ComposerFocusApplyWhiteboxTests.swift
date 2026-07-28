@@ -170,6 +170,8 @@ func caretMovesToEndWhenTextArrivesAfterRequest() async throws {
 /// 受け入れテストは composer 単体しかホストしていないため、overlay 除去とフォーカス移動の順序を覆えない。
 private struct FocusRaceHarnessView: View {
     let viewModel: ChatSessionViewModel
+    /// false にすると focusRequest を配線しない＝修正前の状態を再現する（負の対照実験用）。
+    let wiresFocusRequest: Bool
     @State private var text = ""
     @State private var isComposing = false
     @State private var height: CGFloat = 40
@@ -183,11 +185,63 @@ private struct FocusRaceHarnessView: View {
             maxHeight: 160,
             suggestionController: nil,
             onSubmit: {},
-            focusRequest: viewModel.composerFocusRequest
+            focusRequest: wiresFocusRequest ? viewModel.composerFocusRequest : .none
         )
         .frame(width: 400, height: 60)
         .chatEscapeHandling(viewModel: viewModel)
     }
+}
+
+/// ピッカーを開いた状態のハーネスを組み立てて返す。前提条件（composer→ピッカーへフォーカスが移る）
+/// はここで確認するので、呼び出し側は「閉じたあとどうなるか」だけを見ればよい。
+@MainActor
+private func makeOpenedPickerHarness(
+    wiresFocusRequest: Bool
+) async throws -> (vm: ChatSessionViewModel, window: NSWindow, hosting: NSView, textView: NSTextView) {
+    let client = RaceFakeClient()
+    let vm = ChatSessionViewModel(
+        id: SessionID(),
+        agentRef: .builtin(.claudeCode),
+        client: client,
+        approvalBroker: ChatApprovalBroker(),
+        workingDirectory: "/tmp/phlox-composer-focus-race-test"
+    )
+    try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+    try await vm.sendText("古い依頼", submit: true)
+    client.yield(.turnCompleted(nativeSessionId: nil))
+    try await waitUntil("idle へ戻る") { vm.status == .idle }
+
+    let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 500, height: 300),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    let hosting = NSHostingView(
+        rootView: FocusRaceHarnessView(viewModel: vm, wiresFocusRequest: wiresFocusRequest)
+    )
+    hosting.frame = NSRect(x: 0, y: 0, width: 500, height: 300)
+    window.contentView = hosting
+    hosting.layoutSubtreeIfNeeded()
+
+    let textView = try #require(MutableComposerHarness.firstTextView(in: hosting))
+    window.makeFirstResponder(textView)
+    try #require(window.firstResponder === textView, "前提条件: まず composer にフォーカスがある")
+
+    // esc 2連打でピッカーを開く。ピッカーは .focused() で自らフォーカスを取る。
+    let base = Date()
+    vm.handleEscapeKey(now: base)
+    vm.handleEscapeKey(now: base.addingTimeInterval(0.2))
+    try #require(vm.isHistoryPickerPresented, "前提条件: ピッカーが開く")
+    hosting.layoutSubtreeIfNeeded()
+    try await Task.sleep(nanoseconds: 300_000_000)
+    // ここが本テストの成立条件。ピッカーが実際にフォーカスを奪っていなければ、
+    // 「閉じたら戻る」の検証は何も証明しない（composer が最初から持ったままなので必ず通る）。
+    try #require(
+        window.firstResponder !== textView,
+        "前提条件: ピッカーが composer からキーボードフォーカスを奪っている"
+    )
+    return (vm, window, hosting, textView)
 }
 
 private final class RaceFakeClient: StructuredAgentClient, @unchecked Sendable {
@@ -209,62 +263,78 @@ private final class RaceFakeClient: StructuredAgentClient, @unchecked Sendable {
     func yield(_ event: NormalizedChatEvent) { continuation.yield(event) }
 }
 
-@Test("履歴ピッカーを閉じると、フォーカスが composer へ戻る（overlay 除去との競合の実測）")
+@Test("履歴ピッカーを閉じると、overlay の退場アニメーション完了後も composer がフォーカスを持つ")
 @MainActor
 func closingRealPickerReturnsFocusToComposer() async throws {
-    let client = RaceFakeClient()
-    let vm = ChatSessionViewModel(
-        id: SessionID(),
-        agentRef: .builtin(.claudeCode),
-        client: client,
-        approvalBroker: ChatApprovalBroker(),
-        workingDirectory: "/tmp/phlox-composer-focus-race-test"
-    )
-    try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
-    try await vm.sendText("古い依頼", submit: true)
-    client.yield(.turnCompleted(nativeSessionId: nil))
-    try await waitUntil("idle へ戻る") { vm.status == .idle }
-
-    let window = NSWindow(
-        contentRect: NSRect(x: 0, y: 0, width: 500, height: 300),
-        styleMask: [.borderless],
-        backing: .buffered,
-        defer: false
-    )
-    let hosting = NSHostingView(rootView: FocusRaceHarnessView(viewModel: vm))
-    hosting.frame = NSRect(x: 0, y: 0, width: 500, height: 300)
-    window.contentView = hosting
-    hosting.layoutSubtreeIfNeeded()
-    defer { window.orderOut(nil) }
-
-    let textView = try #require(MutableComposerHarness.firstTextView(in: hosting))
-    window.makeFirstResponder(textView)
-    try #require(window.firstResponder === textView, "前提条件: まず composer にフォーカスがある")
-
-    // esc 2連打でピッカーを開く。ピッカーは .focused() で自らフォーカスを取る。
-    let base = Date()
-    vm.handleEscapeKey(now: base)
-    vm.handleEscapeKey(now: base.addingTimeInterval(0.2))
-    try #require(vm.isHistoryPickerPresented, "前提条件: ピッカーが開く")
-    hosting.layoutSubtreeIfNeeded()
-    try await Task.sleep(nanoseconds: 300_000_000)
-    // ここが本テストの成立条件。ピッカーが実際にフォーカスを奪っていなければ、
-    // 「閉じたら戻る」の検証は何も証明しない（composer が最初から持ったままなので必ず通る）。
-    try #require(
-        window.firstResponder !== textView,
-        "前提条件: ピッカーが composer からキーボードフォーカスを奪っている"
-    )
+    let harness = try await makeOpenedPickerHarness(wiresFocusRequest: true)
+    defer { harness.window.orderOut(nil) }
 
     // ピッカーを閉じる（キャンセル経路）。ここでフォーカス復帰要求が発火する。
-    vm.handleEscapeKey()
-    hosting.layoutSubtreeIfNeeded()
+    harness.vm.handleEscapeKey()
+    harness.hosting.layoutSubtreeIfNeeded()
 
-    // overlay の除去アニメーション（0.15秒）より長く待ってから判定する。
     try await waitUntil(timeoutNanoseconds: 3_000_000_000, "composer へフォーカスが戻る") {
-        window.firstResponder === textView
+        harness.window.firstResponder === harness.textView
     }
+
+    // ChatEscapeHandling の overlay は .easeOut(duration: 0.15) で退場する。
+    // 「一度は戻ったがアニメーション完了時に奪い返される」ことがないよう、完了後にもう一度見る。
+    try await Task.sleep(nanoseconds: 250_000_000)
     #expect(
-        window.firstResponder === textView,
-        "ピッカーを閉じたあと composer がキーボードフォーカスを持つこと（overlay に奪い返されない）"
+        harness.window.firstResponder === harness.textView,
+        "overlay の退場が完了したあとも composer がキーボードフォーカスを保つこと"
     )
+}
+
+@Test("負の対照: focusRequest を配線しないと、ピッカーを閉じてもフォーカスは composer へ戻らない")
+@MainActor
+func withoutWiringFocusDoesNotReturnToComposer() async throws {
+    let harness = try await makeOpenedPickerHarness(wiresFocusRequest: false)
+    defer { harness.window.orderOut(nil) }
+
+    harness.vm.handleEscapeKey()
+    harness.hosting.layoutSubtreeIfNeeded()
+    try await Task.sleep(nanoseconds: 500_000_000)
+
+    #expect(
+        harness.window.firstResponder !== harness.textView,
+        "修正前は composer にフォーカスが戻らないこと。ここが緑になるなら、上のテストは何も証明していない"
+    )
+}
+
+// MARK: - IME 変換終了時の保留適用（レビュー指摘 MEDIUM）
+
+@Test("変換中に動かせなかった末尾化は、変換が終わった時点で適用される")
+@MainActor
+func pendingCaretMoveIsAppliedWhenComposingEnds() throws {
+    let parent = MutableComposerHarness.makeView(text: "復元本文", focusRequest: .none)
+    let coordinator = IMESafeTextView.Coordinator(parent)
+    let textView = IMESafeTextView.SubmitAwareTextView()
+    textView.string = "復元本文"
+    textView.setSelectedRange(NSRange(location: 0, length: 0))
+    textView.onComposingChanged = { [weak textView] isComposing, currentText in
+        coordinator.handleComposingChanged(
+            isComposing: isComposing,
+            currentText: currentText,
+            textView: textView
+        )
+    }
+    coordinator.pendingCaretToEnd = true
+
+    textView.setMarkedText(
+        "へんかん",
+        selectedRange: NSRange(location: 0, length: 0),
+        replacementRange: NSRange(location: 0, length: 0)
+    )
+    try #require(textView.hasMarkedText(), "前提条件: IME 変換中の状態を作る")
+    #expect(coordinator.moveCaretToEnd(of: textView) == false, "変換中はキャレットを動かせないこと")
+    #expect(coordinator.pendingCaretToEnd, "動かせなかった要求を捨てないこと")
+
+    textView.unmarkText()
+
+    #expect(
+        textView.selectedRange() == NSRange(location: (textView.string as NSString).length, length: 0),
+        "変換が終わった時点で保留していた末尾化が適用されること"
+    )
+    #expect(coordinator.pendingCaretToEnd == false, "適用した保留は下ろすこと")
 }

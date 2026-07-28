@@ -396,8 +396,8 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.onEscape = onEscape
         textView.onFocusGained = onFocusGained
         textView.suggestionController = suggestionController
-        textView.onComposingChanged = { [coordinator = context.coordinator] isComposing, currentText in
-            coordinator.setComposing(isComposing, currentText: currentText)
+        textView.onComposingChanged = { [coordinator = context.coordinator, weak textView] isComposing, currentText in
+            coordinator.handleComposingChanged(isComposing: isComposing, currentText: currentText, textView: textView)
         }
         textView.isRichText = false
         textView.isAutomaticQuoteSubstitutionEnabled = false
@@ -436,8 +436,8 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.onEscape = onEscape
         textView.onFocusGained = onFocusGained
         textView.suggestionController = suggestionController
-        textView.onComposingChanged = { [coordinator = context.coordinator] isComposing, currentText in
-            coordinator.setComposing(isComposing, currentText: currentText)
+        textView.onComposingChanged = { [coordinator = context.coordinator, weak textView] isComposing, currentText in
+            coordinator.handleComposingChanged(isComposing: isComposing, currentText: currentText, textView: textView)
         }
         if !textView.hasMarkedText(), textView.string != text {
             textView.syncStringFromBinding(text)
@@ -499,6 +499,8 @@ struct IMESafeTextView: NSViewRepresentable {
         /// 復元本文（draftRestoration → draft → text binding）がフォーカス要求より遅れて届く場合があるため、
         /// 「要求を受けた時点」ではなく「本文が同期し終えた時点」でも適用できるよう保留状態として持つ。
         var pendingCaretToEnd = false
+        /// 直前に観測した IME の変換状態。`hasMarkedText()` の通知を受けて更新する。
+        private var isComposingNow = false
 
         init(_ parent: IMESafeTextView) {
             self.parent = parent
@@ -562,6 +564,27 @@ struct IMESafeTextView: NSViewRepresentable {
             }
             guard parent.isComposing != isComposing else { return }
             parent.isComposing = isComposing
+        }
+
+        /// IME の変換状態が変わったときの入口。変換が「終わった」瞬間に、変換中は動かせず保留していた
+        /// 末尾化を適用する（保留したまま再試行しないと、要求は失われないが完了もしない）。
+        func handleComposingChanged(isComposing: Bool, currentText: String, textView: NSTextView?) {
+            // 直前の変換状態は Coordinator 自身が持つ。`parent.isComposing`（@Binding）は
+            // updateNSView でしか更新されず、変換の開始・終了に同期して読める保証がない。
+            let wasComposing = isComposingNow
+            isComposingNow = isComposing
+            setComposing(isComposing, currentText: currentText)
+            guard wasComposing, !isComposing, let textView else { return }
+            applyPendingCaretToEndIfNeeded(on: textView)
+        }
+
+        /// 「今なら動かせる」状態になったときに、保留していた末尾化を適用する。
+        /// 実際に動かせたときだけ保留を下ろす。
+        func applyPendingCaretToEndIfNeeded(on textView: NSTextView) {
+            guard pendingCaretToEnd, !textView.string.isEmpty else { return }
+            if moveCaretToEnd(of: textView) {
+                pendingCaretToEnd = false
+            }
         }
 
         func resolvedHeight(for textView: NSTextView) -> CGFloat? {

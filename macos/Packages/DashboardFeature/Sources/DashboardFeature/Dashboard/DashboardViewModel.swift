@@ -68,6 +68,12 @@ public final class DashboardViewModel {
     @ObservationIgnored private let gridArrangementStore: GridArrangementStore
     private var gridArrangements: [Int: SessionGridArrangement]
     @ObservationIgnored private var gridArrangementRestoreInProgress = true
+
+    /// task-3: 分割ツリーの永続ツリー（隠れているセッションの leaf も保持する。D4）。
+    /// 書き込み経路は `handlePaneLayoutAction` と、セッション増減に伴う `reconcilePaneLayout` の
+    /// 2つだけ（絞り込みの変更では書き換えない）。
+    public private(set) var paneLayout: PaneTree
+    @ObservationIgnored private let paneLayoutStore: PaneLayoutStore
     private var hookMultiplexTask: Task<Void, Never>?
     private var sessionHookContinuations: [SessionID: AsyncStream<(SessionID, HookEvent)>.Continuation] = [:]
     private var spawnTimestamps: [SessionID: [Date]] = [:]
@@ -128,13 +134,16 @@ public final class DashboardViewModel {
         rateLimitNow: @escaping @Sendable () -> Date = Date.init,
         orphanReaper: any OrphanReaper = PosixOrphanReaper(),
         livePIDProvider: @escaping @MainActor @Sendable (SessionID) async -> pid_t? = { _ in nil },
-        gridArrangementStore: GridArrangementStore = GridArrangementStore(userDefaults: .standard)
+        gridArrangementStore: GridArrangementStore = GridArrangementStore(userDefaults: .standard),
+        paneLayoutStore: PaneLayoutStore = PaneLayoutStore(userDefaults: .standard)
     ) {
         self.environment = environment
         self.gridArrangementStore = gridArrangementStore
         self.gridArrangements = Dictionary(uniqueKeysWithValues: (1...4).map { size in
             (size, gridArrangementStore.load(size: size) ?? SessionGridArrangement(size: size))
         })
+        self.paneLayoutStore = paneLayoutStore
+        self.paneLayout = paneLayoutStore.load() ?? PaneLayoutPreset.balanced.tree(for: [])
         self.codexUserHooksEnabledProvider = codexUserHooksEnabledProvider
         self.codexDiscoveryNow = codexDiscoveryNow
         self.rateLimitNow = rateLimitNow
@@ -318,6 +327,7 @@ public final class DashboardViewModel {
         await sessionRestoreCoordinator.restorePersistedSessions()
         gridArrangementRestoreInProgress = false
         reloadAndReconcileGridArrangements()
+        reloadAndReconcilePaneLayout()
     }
 
     /// 新規セッションで選択できる CLI。起動時に解決できたものだけを返す（Claude Code は常に先頭）。
@@ -441,6 +451,7 @@ public final class DashboardViewModel {
         sessionNodes.append(node)
         sessionNodeIndex[node.id] = node
         reconcileGridArrangements(persist: !gridArrangementRestoreInProgress)
+        reconcilePaneLayout(persist: !gridArrangementRestoreInProgress)
     }
 
     /// `sessionNodes` からの単一 ID 除去は必ずこのヘルパー経由で行い、`sessionNodeIndex` の同期漏れを防ぐ。
@@ -448,6 +459,7 @@ public final class DashboardViewModel {
         sessionNodes.removeAll { $0.id == id }
         sessionNodeIndex.removeValue(forKey: id)
         reconcileGridArrangements(persist: !gridArrangementRestoreInProgress)
+        reconcilePaneLayout(persist: !gridArrangementRestoreInProgress)
     }
 
     private static func sessionTreeNodeIDs(in node: SessionTreeNode) -> [SessionID] {
@@ -555,6 +567,60 @@ public final class DashboardViewModel {
                 gridArrangementStore.save(reconciled, size: size)
             }
         }
+    }
+
+    /// task-3: 描画用の実効ツリー。`paneLayout`（絞り込み前の永続ツリー）を、
+    /// 現在のワークスペース絞り込み・表示セッション選択を適用した可視集合で刈り込む。
+    /// view body から呼ばれるため一切の副作用を持たない（状態更新も永続化もしない。ADR 0010）。
+    public func paneLayoutForDisplay() -> PaneTree {
+        let visible = Set(filteredGridSessionNodes(projectID: gridSessionFilterProjectID).map(\.id))
+        return paneLayout.pruned(visible: visible)
+    }
+
+    /// task-3: レイアウト操作の唯一のユーザー起点の書き込み経路。対象が木に無い等の無効な操作は
+    /// 状態を変えず永続化もしない。
+    public func handlePaneLayoutAction(_ action: PaneLayoutAction) {
+        let updated: PaneTree
+        switch action {
+        case .setDivider(let divider, let leadingFraction):
+            updated = paneLayout.settingDivider(divider, leadingFraction: leadingFraction)
+        case .insertBySplitting(let session, let target, let edge):
+            // 差し込む session が実在のセッションでなければ何もしない
+            // （`inserting` 自体は target さえ実在すれば未知の session でも葉を作れてしまうため）。
+            guard sessionNodeIndex[session] != nil else { return }
+            updated = paneLayout.inserting(session, splitting: target, edge: edge)
+        case .swap(let first, let second):
+            updated = paneLayout.swapping(first, second)
+        case .equalize(let split):
+            updated = paneLayout.equalizing(split)
+        case .applyPreset(let preset):
+            updated = preset.tree(for: paneLayout.sessions)
+        }
+        guard updated != paneLayout else { return }
+        paneLayout = updated
+        paneLayoutStore.save(updated)
+    }
+
+    /// task-3: 永続ツリーを `gridVisibleSessionNodes`（絞り込み適用前の全表示可能セッション）に
+    /// 合わせて reconcile する。ワークスペース絞り込み・表示セッション選択の変更では呼ばない（D4）。
+    private func reconcilePaneLayout(persist: Bool = true) {
+        let reconciled = paneLayout.reconciled(
+            with: gridVisibleSessionNodes.map(\.id),
+            bounds: PaneLayoutStore.reconcileBounds,
+            spacing: 0
+        )
+        guard reconciled != paneLayout else { return }
+        paneLayout = reconciled
+        if persist {
+            paneLayoutStore.save(reconciled)
+        }
+    }
+
+    /// task-3: 起動時、`PaneLayoutStore` から読み直してから reconcile する（既存の
+    /// `reloadAndReconcileGridArrangements` と同じ流儀）。
+    private func reloadAndReconcilePaneLayout() {
+        paneLayout = paneLayoutStore.load() ?? PaneLayoutPreset.balanced.tree(for: [])
+        reconcilePaneLayout()
     }
 
     private func reloadAndReconcileGridArrangements() {
@@ -852,6 +918,7 @@ public final class DashboardViewModel {
         // フィルタ中プロジェクトの削除で filteredGridSessionNodes がフォールバック（全表示）へ
         // 切り替わるため、新しい可視集合で配置を再整合する（イベント側の書き込み）。
         reconcileGridArrangements(persist: !gridArrangementRestoreInProgress)
+        reconcilePaneLayout(persist: !gridArrangementRestoreInProgress)
     }
 
     /// 指定 CLI の新規セッションを `sessions` に追加し、PTY を eager に即起動する。
@@ -1238,6 +1305,7 @@ public final class DashboardViewModel {
         if let newProjectID {
             vm.projectID = newProjectID
             reconcileGridArrangements()
+            reconcilePaneLayout()
         }
         await vm.restart(workingDirectory: directory.path, hookEvents: newStream)
 

@@ -236,6 +236,20 @@ func dropZone_pointsOutsideTheTileStillResolveToAnEdge() {
     #expect(PaneDropZone.target(for: CGPoint(x: 150, y: 260), in: size) == .split(.bottom))
 }
 
+@Test
+func dropZone_outsidePointsPickTheNearestEdgeByDistanceNotSign() {
+    // 範囲外の角方向でも「最も近い辺」を選ぶ。距離は符号付きの比ではなく絶対値で測る。
+    let size = CGSize(width: 400, height: 200)
+    // 左へ 10pt・上へ 100pt はみ出している → 近いのは左辺
+    #expect(PaneDropZone.target(for: CGPoint(x: -10, y: -100), in: size) == .split(.leading))
+    // 上へ 5pt・左へ 200pt はみ出している → 近いのは上辺
+    #expect(PaneDropZone.target(for: CGPoint(x: -200, y: -5), in: size) == .split(.top))
+    // 右へ 8pt・下へ 150pt はみ出している → 近いのは右辺
+    #expect(PaneDropZone.target(for: CGPoint(x: 408, y: 350), in: size) == .split(.trailing))
+    // 下へ 4pt・右へ 300pt はみ出している → 近いのは下辺
+    #expect(PaneDropZone.target(for: CGPoint(x: 700, y: 204), in: size) == .split(.bottom))
+}
+
 // MARK: - 純粋型であること / ADR の制約（ソーススキャン）
 
 @Test

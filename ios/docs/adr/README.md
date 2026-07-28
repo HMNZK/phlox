@@ -14,9 +14,11 @@ iOS コンパニオンアプリ固有の決定の **理由** を残す。追記�
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0038 | [モバイルの端末は桁の格子を守る（折り返さない・全角を 2 桁に釘付けする）](0038-mobile-terminal-keeps-the-column-grid.md) | accepted |
+| 0037 | [モバイルの端末画面は装飾付きテキストとして描く（端末エミュレータを使わない）](0037-mobile-terminal-is-styled-text-not-an-emulator.md) | accepted |
 | 0036 | [セッション一覧の大タイトルはシステムに任せず本文の先頭に自分で描く](0036-session-list-draws-its-own-large-title.md) | accepted |
-| 0035 | [モバイルのターミナルは画面幅に収め、トグルに畳まない](0035-mobile-terminal-fits-screen-width.md) | accepted |
-| 0034 | [モバイルのターミナル出力は Mac と同じエンジン（SwiftTerm）で描く](0034-mobile-terminal-rendered-with-swiftterm.md) | superseded（一部） |
+| 0035 | [モバイルのターミナルは画面幅に収め、トグルに畳まない](0035-mobile-terminal-fits-screen-width.md) | accepted（決定 2・3 は superseded） |
+| 0034 | [モバイルのターミナル出力は Mac と同じエンジン（SwiftTerm）で描く](0034-mobile-terminal-rendered-with-swiftterm.md) | superseded |
 | 0033 | [セッション詳細はシステムのナビゲーションバーを使う（自前 chrome と端スワイプは両立しない）](0033-session-detail-uses-system-navigation-bar.md) | accepted |
 | 0032 | [ナビゲーションバーを隠した画面の端スワイプは、ガード付きデリゲートへ差し替えて復活させる](0032-interactive-pop-gesture-on-hidden-navigation-bar.md) | superseded |
 | 0031 | [本文の折り返しはテーマで、表は幅を見積もって横スクロールで読ませる](0031-chat-body-readability-wrapping-and-table-scroll.md) | accepted |

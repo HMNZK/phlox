@@ -1,13 +1,16 @@
 ---
 status: superseded
-superseded-by: 0035-mobile-terminal-fits-screen-width.md
+superseded-by: 0037-mobile-terminal-is-styled-text-not-an-emulator.md
 last-verified: 2026-07-27
 ---
 
 # ADR 0034: モバイルのターミナル出力は Mac と同じエンジン（SwiftTerm）で描く
 
-> **一部が覆されている**: 決定 2・3・7（横スクロール / Mac の桁数を守る / トグルに畳む）は
-> [ADR 0035](0035-mobile-terminal-fits-screen-width.md) が置き換えた。決定 1・4・5・6 は生きている。
+> **全面的に覆されている**: 決定 2・3・7（横スクロール / Mac の桁数を守る / トグルに畳む）は
+> [ADR 0035](0035-mobile-terminal-fits-screen-width.md) が、決定 1・2・3・4（SwiftTerm で描く /
+> 読み取り専用エミュレータ / セル寸法の再現 / 行数から高さを決める）は
+> [ADR 0037](0037-mobile-terminal-is-styled-text-not-an-emulator.md) が置き換えた。
+> 生きているのは決定 5（配色の複製）と 6（色つきで来ないときの退避）だけ。
 
 > **このファイルの役割**: 「出力」カードを等幅テキストの羅列から実際の端末描画へ替えた決定と、桁・高さ・配色の決め方。
 > **書かないもの**: Mac が色つき画面を配信する仕組み（→ [macos/docs/adr/0126](../../../macos/docs/adr/0126-output-endpoint-serves-ansi-screen.md)）、本文の折り返し方針（→ [ADR 0031](0031-chat-body-readability-wrapping-and-table-scroll.md)）。

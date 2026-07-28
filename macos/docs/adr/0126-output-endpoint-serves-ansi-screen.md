@@ -32,3 +32,4 @@ Mac 側はすでに完全なエミュレーションを終えたセル単位の�
 
 - `AnsiScreenEncoder` 7 件・ハンドラ 3 件・ルーティング 3 件のテストを追加し、`TerminalUI` 57 / `AppBootstrap` 151 / `SessionFeature` 407 / `DashboardFeature` 1449 が green。
 - **scrollback は含まない**（viewport のみ）。`Buffer.linesTop` が SwiftTerm 内部で非公開のため、スクロールバックの範囲を外から特定できない。加えてエージェントセッションは spawn 前に `disableScrollback()` を通るので、そもそも viewport より上に履歴が無い。
+  - **［2026-07-27 この点のみ superseded → [ADR 0127](0127-ansi-output-includes-scrollback.md)］** 後段の前提が誤りだった。`ScrollbackPolicy` の既定は `.keep` で、`.disableBeforeSpawn` を使うエージェントは無い。Vendor に行番号の範囲を公開して scrollback ごと返すよう変更した。決定 1〜4 は有効。

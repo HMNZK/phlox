@@ -747,6 +747,14 @@ open class Terminal {
         return buffer.lines [row-buffer.linesTop]
     }
 
+    /// [Phlox パッチ] `getScrollInvariantLine(row:)` に渡せる行番号の範囲。スクロールバックを含む。
+    ///
+    /// バッファ全体を端末の外（別モジュール）から書き出すために要る。`buffer.linesTop` と
+    /// `buffer.lines` は internal なので、範囲だけを公開する。
+    public var scrollInvariantRowRange: Range<Int> {
+        buffer.linesTop ..< (buffer.linesTop + buffer.lines.count)
+    }
+
     /// Returns the character at the specified column and row, these are zero-based
     /// - Parameter col: column to retrieve, starts at 0
     /// - Parameter row: row to retrieve, starts at 0

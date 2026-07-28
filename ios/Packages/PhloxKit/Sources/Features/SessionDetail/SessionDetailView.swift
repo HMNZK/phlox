@@ -70,6 +70,9 @@ public struct SessionDetailView: View {
                 }
                 .scrollDismissesKeyboard(.interactively)
                 .coordinateSpace(name: Self.scrollCoordinateSpace)
+                // 端末を出しているときは本文の地も端末の色にする。端末の高さは中身が決めるので、
+                // 中身が短い日は下に余白が残る。地が違う色だと「上半分しか出ていない」ように見える。
+                .background(showsTerminalScreen ? TerminalScreenView.backgroundColor : DSColor.background)
                 .background(
                     GeometryReader { proxy in
                         Color.clear.preference(
@@ -240,6 +243,15 @@ public struct SessionDetailView: View {
         if case .awaitingApproval = viewModel.currentStatus, let approvalViewModel {
             ApprovalBarView(viewModel: approvalViewModel)
         }
+    }
+
+    /// 本文が「Mac の端末画面そのもの」になっているか（＝地まで端末の色で塗る場面か）。
+    private var showsTerminalScreen: Bool {
+        viewModel.loadError == nil
+            && !viewModel.showsChat
+            && !viewModel.showsInitialLoadingIndicator
+            && viewModel.terminalScreen.isANSI
+            && !viewModel.outputText.isEmpty
     }
 
     /// エラー → バナー、構造化チャットあり → チャット、初回データ待ち → 接続表示、
@@ -486,9 +498,13 @@ public struct SessionDetailView: View {
             // 端末は「今の画面」そのものなので、見出しにもトグルにも入れず全文をそのまま出す。
             // 幅は TerminalScreenView が画面に合わせて詰めるので、横スクロールは要らない。
             // 桁を1桁でも多く見せたいので、本文の左右余白ぶんだけ外へ広げて画面端まで使う。
-            TerminalScreenView(screen: viewModel.terminalScreen)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, -DSSpacing.l)
+            // 高さは中身が決める（縛ると先頭が切れる → ADR 0037）。中身が短いときだけ、
+            // 端末の地が画面いっぱいに見えるよう下限を渡す。
+            TerminalScreenView(
+                screen: viewModel.terminalScreen,
+                minimumHeight: max(320, scrollViewportHeight - DSTouch.minSize - DSSpacing.l * 2)
+            )
+            .padding(.horizontal, -DSSpacing.l)
         } else if !viewModel.outputText.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 outputSectionHeader

@@ -1,30 +1,46 @@
+import DesignSystem
 import PhloxCore
 import SwiftUI
 
-#if os(iOS)
-import SwiftTerm
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
 #endif
 
-/// Mac の端末画面（ANSI）を、Mac と同じエンジン（SwiftTerm）で描き直す読み取り専用ビュー。
+/// Mac の端末画面（SGR 付きテキスト）を、Mac と同じ配色でそのまま描く読み取り専用ビュー。
 ///
-/// 幅は**常に与えられた画面幅に収める**（横スクロールさせない）。Mac の桁数が収まるところまで
-/// フォントを縮め、読める下限まで縮めても収まらなければ折り返す。
+/// **端末エミュレータは使わない**。受け取る画面はカーソル移動も画面消去も含まない
+/// 「SGR ＋ 本文 ＋ 改行」なので、装飾付きテキストとして描けば足りる。エミュレータを挟むと
+/// 固定行数の格子に嵌めることになり、格子より中身が高いと先頭が黙ってスクロールバックへ消える
+/// （→ ADR 0037）。ただのテキストなら高さは中身が決め、読み切れない分は親のスクロールで読める。
+///
+/// 幅は**Mac の桁数をそのまま守る**。まずフォントを縮めて画面幅へ収めにいき、読める下限まで
+/// 縮めても収まらない分は横スクロールで読む（→ ADR 0038）。折り返すと表・枠線の桁が崩れて
+/// デスクトップと別物になるため、折り返しはしない。
 public struct TerminalScreenView: View {
     private let screen: TerminalScreen
     private let preferredFontSize: CGFloat
+    private let minimumHeight: CGFloat
+    private let palette = TerminalScreenPalette.phloxDefault
 
     @State private var availableWidth: CGFloat = 0
+    /// 組み立て済みの行。字送りの計算まで済ませてあるので、描画のたびに組み直さない。
+    @State private var lines: [AttributedString] = []
 
-    public init(screen: TerminalScreen, fontSize: CGFloat = 12) {
+    /// - Parameter minimumHeight: 中身がこれより低くても端末の地をここまで伸ばす。
+    ///   「画面の下半分だけ地の色が違う」状態を避けるためで、中身の高さは縛らない。
+    public init(screen: TerminalScreen, fontSize: CGFloat = 12, minimumHeight: CGFloat = 0) {
         self.screen = screen
         self.preferredFontSize = fontSize
+        self.minimumHeight = minimumHeight
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            // 高さ0のプローブで「使える幅」を測る。端末自身に測らせると、幅が決まる前に
-            // 桁数が決まってしまい折り返しがずれる。
+        let fontSize = fittedFontSize
+        VStack(alignment: .leading, spacing: 0) {
+            // 高さ0のプローブで「使える幅」を測る。本文に測らせるとフォントサイズが決まる前に
+            // レイアウトが確定してしまい、詰めたサイズが反映されない。
             Color.clear
                 .frame(height: 0)
                 .background(
@@ -33,27 +49,170 @@ public struct TerminalScreenView: View {
                     }
                 )
 
-            if availableWidth > 0 {
-                content(width: availableWidth)
+            // 収まらない桁は折り返さず横スクロールで読む。折り返すと表・枠線が桁ごとずれて
+            // デスクトップと別物になる（→ ADR 0038）。
+            ScrollView(.horizontal, showsIndicators: false) {
+                // 履歴（スクロールバック）ごと受け取るので行数は数百〜数千になりうる。1つの Text へ
+                // 組むと画面外まで毎回レイアウトすることになるため、行ごとに遅延描画する。
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(lines.indices, id: \.self) { index in
+                        Text(lines[index])
+                            .font(.system(size: fontSize, design: .monospaced))
+                            .foregroundStyle(Self.color(palette.foreground))
+                            .textSelection(.enabled)
+                            // 折り返さず、中身が要求する幅と高さをそのまま使う。
+                            // 高さを固定すると先頭が切れ、幅を縛ると桁が崩れる。
+                            .fixedSize()
+                    }
+                }
+                // 桁数ぶんの幅で固定する。行ごとの実測に任せると、遅延描画で新しい行が出るたびに
+                // 中身の幅が変わって横スクロールの位置が飛ぶ。
+                .frame(width: contentWidth(fontSize: fontSize), alignment: .leading)
             }
+            .fixedSize(horizontal: false, vertical: true)
         }
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.s)
+        .frame(maxWidth: .infinity, minHeight: minimumHeight, alignment: .topLeading)
+        .background(Self.color(palette.background))
         .onPreferenceChange(TerminalScreenWidthKey.self) { width in
             if availableWidth != width { availableWidth = width }
         }
+        // 組み立ては画面かフォントサイズが変わったときだけ。body のたびに数千行を組み直すと
+        // 描画が詰まる（字送りの計算が文字数ぶん走るのでなおさら）。
+        .onChange(of: screen.text, initial: true) { _, _ in rebuildLines(fontSize: fontSize) }
+        .onChange(of: fontSize) { _, newSize in rebuildLines(fontSize: newSize) }
     }
 
-    @ViewBuilder
-    private func content(width: CGFloat) -> some View {
-        #if os(iOS)
-        let layout = TerminalScreenLayout(screen: screen, preferredFontSize: preferredFontSize, width: width)
-        TerminalScreenRepresentable(screen: screen, layout: layout)
-            .frame(width: layout.width, height: layout.height)
+    private func rebuildLines(fontSize: CGFloat) {
+        guard fontSize > 0 else { return }
+        let cellWidth = Self.cellWidth(fontSize: fontSize)
+        lines = AnsiTextParser.lines(of: screen.text, palette: palette).map {
+            attributed(line: $0, fontSize: fontSize, cellWidth: cellWidth)
+        }
+    }
+
+    /// Mac の桁数ぶんの幅。画面幅より狭いときは画面幅まで伸ばして地の色を埋める。
+    private func contentWidth(fontSize: CGFloat) -> CGFloat {
+        let columns = CGFloat(max(0, screen.cols ?? 0))
+        return max(columns * Self.cellWidth(fontSize: fontSize), availableWidth)
+    }
+
+    /// Mac の桁数が収まるサイズ。収まらないときは下限で止める（＝その分は横スクロールで読む）。
+    private var fittedFontSize: CGFloat {
+        TerminalScreenMetrics.fittingFontSize(
+            columns: screen.cols ?? 0,
+            availableWidth: availableWidth,
+            preferredFontSize: preferredFontSize,
+            cellWidthAtPreferredSize: Self.cellWidth(fontSize: preferredFontSize)
+        )
+    }
+
+    private func attributed(
+        line: AnsiTextParser.Line,
+        fontSize: CGFloat,
+        cellWidth: CGFloat
+    ) -> AttributedString {
+        // 空行も1行ぶんの高さを占めさせる。空文字だと高さ0になり、端末の行間が詰まって見える。
+        guard !line.isEmpty else { return AttributedString(" ") }
+        var result = AttributedString()
+        for run in line {
+            result.append(attributed(run: run, fontSize: fontSize, cellWidth: cellWidth))
+        }
+        return result
+    }
+
+    /// 1つの装飾の塊を、桁位置に揃えた `AttributedString` にする。
+    ///
+    /// 描き方が同じ文字はまとめて 1 つの塊にする（文字ごとに分けると数万個の塊ができる）。
+    private func attributed(run: AnsiRun, fontSize: CGFloat, cellWidth: CGFloat) -> AttributedString {
+        var result = AttributedString()
+        var pending = ""
+        var pendingLayout: TerminalCellMetrics.Layout?
+
+        func flush() {
+            guard !pending.isEmpty, let pendingLayout else { return }
+            var piece = styled(
+                AttributedString(pending),
+                with: run.style,
+                fontSize: fontSize * pendingLayout.scale,
+                forcesFont: pendingLayout.scale != 1
+            )
+            piece.kern = pendingLayout.kerning
+            result.append(piece)
+            pending = ""
+        }
+
+        for character in run.text {
+            let layout = TerminalCellMetrics.layout(
+                of: character,
+                fontSize: fontSize,
+                cellWidth: cellWidth
+            )
+            if pendingLayout != layout {
+                flush()
+                pendingLayout = layout
+            }
+            pending.append(character)
+        }
+        flush()
+        return result
+    }
+
+    private func styled(
+        _ piece: AttributedString,
+        with style: AnsiStyle,
+        fontSize: CGFloat,
+        forcesFont: Bool
+    ) -> AttributedString {
+        var piece = piece
+        // 反転は前景と背景を入れ替える。省略されている側は端末の既定色が入る。
+        let foreground = style.isInverse
+            ? (style.background ?? palette.background)
+            : (style.foreground ?? palette.foreground)
+        let background = style.isInverse
+            ? (style.foreground ?? palette.foreground)
+            : style.background
+
+        piece.foregroundColor = Self.color(foreground).opacity(style.isDim ? Self.dimOpacity : 1)
+        if let background {
+            piece.backgroundColor = Self.color(background)
+        }
+        if style.isBold || style.isItalic || forcesFont {
+            var font = Font.system(size: fontSize, weight: style.isBold ? .bold : .regular, design: .monospaced)
+            if style.isItalic { font = font.italic() }
+            piece.font = font
+        }
+        if style.isUnderlined { piece.underlineStyle = .single }
+        if style.isStruckThrough { piece.strikethroughStyle = .single }
+        return piece
+    }
+
+    /// 端末の地の色。端末を全面に出す画面が、端末より下の余白まで同じ色で塗るために使う。
+    /// 塗らないと「画面の上半分だけ端末で、下半分は別の色」に見える。
+    public static var backgroundColor: Color { color(TerminalScreenPalette.phloxDefault.background) }
+
+    /// 端末の dim（SGR 2）の見え方。完全な半分だと暗い背景では読めなくなる。
+    private static let dimOpacity: Double = 0.65
+
+    private static func color(_ channel: TerminalScreenPalette.Channel) -> Color {
+        Color(
+            red: Double(channel.r) / 255,
+            green: Double(channel.g) / 255,
+            blue: Double(channel.b) / 255
+        )
+    }
+
+    /// 等幅フォント1桁ぶんの幅。フォントサイズを決めるためだけに使う。
+    static func cellWidth(fontSize: CGFloat) -> CGFloat {
+        #if canImport(UIKit)
+        let font = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        #elseif canImport(AppKit)
+        let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
         #else
-        // ホスト（macOS）ではビルドが通ることだけを保証する。実描画は iOS のみ。
-        Text(screen.plainText)
-            .font(.footnote.monospaced())
-            .frame(width: width, alignment: .leading)
+        return fontSize
         #endif
+        return "W".size(withAttributes: [.font: font]).width
     }
 }
 
@@ -63,125 +222,3 @@ private struct TerminalScreenWidthKey: PreferenceKey {
         value = max(value, nextValue())
     }
 }
-
-#if os(iOS)
-/// 画面幅から確定させたフォントサイズ・桁数・描画サイズ。
-private struct TerminalScreenLayout: Equatable {
-    let fontSize: CGFloat
-    let width: CGFloat
-    let height: CGFloat
-
-    init(screen: TerminalScreen, preferredFontSize: CGFloat, width: CGFloat) {
-        let macColumns = screen.cols ?? 0
-        let fontSize = TerminalScreenMetrics.fittingFontSize(
-            columns: macColumns,
-            availableWidth: width,
-            preferredFontSize: preferredFontSize,
-            cellWidthAtPreferredSize: TerminalScreenLayout.cellSize(fontSize: preferredFontSize).width
-        )
-        let cell = TerminalScreenLayout.cellSize(fontSize: fontSize)
-        let columns = TerminalScreenMetrics.columns(availableWidth: width, cellWidth: cell.width)
-        let rows = TerminalScreenMetrics.wrappedRowCount(plainText: screen.plainText, columns: columns)
-        self.fontSize = fontSize
-        self.width = width
-        self.height = CGFloat(rows + TerminalScreenMetrics.safetyRows) * cell.height
-    }
-
-    /// SwiftTerm の内部セル寸法は非公開なので、同じフォントで同じ式
-    /// （`"W"` の advance と ascent+descent+leading の切り上げ）を再現する。
-    static func cellSize(fontSize: CGFloat) -> CGSize {
-        let uiFont = font(size: fontSize)
-        let scale = UITraitCollection.current.displayScale > 0 ? UITraitCollection.current.displayScale : 1
-        let width = "W".size(withAttributes: [.font: uiFont]).width
-        let ctFont = uiFont as CTFont
-        let height = ceil(CTFontGetAscent(ctFont) + CTFontGetDescent(ctFont) + CTFontGetLeading(ctFont))
-        return CGSize(
-            width: ceil(width * scale) / scale,
-            height: ceil(height * scale) / scale
-        )
-    }
-
-    static func font(size: CGFloat) -> UIFont {
-        UIFont.monospacedSystemFont(ofSize: size, weight: .regular)
-    }
-}
-
-private struct TerminalScreenRepresentable: UIViewRepresentable {
-    let screen: TerminalScreen
-    let layout: TerminalScreenLayout
-
-    func makeUIView(context: Context) -> SwiftTerm.TerminalView {
-        let view = SwiftTerm.TerminalView(
-            frame: CGRect(x: 0, y: 0, width: layout.width, height: layout.height),
-            font: TerminalScreenLayout.font(size: layout.fontSize)
-        )
-        // 読み取り専用。キーボードもカーソルも出さない。
-        view.isUserInteractionEnabled = false
-        Self.applyPalette(to: view)
-        return view
-    }
-
-    func updateUIView(_ view: SwiftTerm.TerminalView, context: Context) {
-        let size = CGSize(width: layout.width, height: layout.height)
-        // SwiftTerm は frame から桁数・行数を決める。feed 前に確定させないと折り返しが変わる。
-        if view.font.pointSize != layout.fontSize {
-            view.font = TerminalScreenLayout.font(size: layout.fontSize)
-        }
-        if view.frame.size != size {
-            view.frame = CGRect(origin: view.frame.origin, size: size)
-            view.layoutIfNeeded()
-        }
-        let token = Coordinator.Token(text: screen.text, size: size, fontSize: layout.fontSize)
-        guard context.coordinator.lastRendered != token else { return }
-        context.coordinator.lastRendered = token
-        // 直前の画面が残らないよう毎回クリアしてから流す（差分ではなくスナップショットのため）。
-        view.getTerminal().resetToInitialState()
-        // 読み取り専用なのでカーソルは出さない（DECTCEM off）。
-        view.feed(text: "\u{1B}[?25l" + Self.terminalLineEndings(screen.text))
-    }
-
-    /// 端末では LF は「1行下へ」でしかなく、桁は戻らない。行頭から描くために CR を補う。
-    /// 伝送する本文は `\n` 区切りのまま保つ（行数の判定や本文抽出を単純にしておくため）。
-    static func terminalLineEndings(_ text: String) -> String {
-        text.replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\n", with: "\r\n")
-    }
-
-    func makeCoordinator() -> Coordinator { Coordinator() }
-
-    final class Coordinator {
-        struct Token: Equatable {
-            let text: String
-            let size: CGSize
-            let fontSize: CGFloat
-        }
-
-        var lastRendered: Token?
-    }
-
-    private static func applyPalette(to view: SwiftTerm.TerminalView) {
-        let palette = TerminalScreenPalette.phloxDefault
-        view.installColors(palette.ansi.map(swiftTermColor))
-        view.nativeBackgroundColor = uiColor(palette.background)
-        view.nativeForegroundColor = uiColor(palette.foreground)
-        view.backgroundColor = uiColor(palette.background)
-    }
-
-    private static func swiftTermColor(_ channel: TerminalScreenPalette.Channel) -> SwiftTerm.Color {
-        SwiftTerm.Color(
-            red: UInt16(channel.r) * 257,
-            green: UInt16(channel.g) * 257,
-            blue: UInt16(channel.b) * 257
-        )
-    }
-
-    private static func uiColor(_ channel: TerminalScreenPalette.Channel) -> UIColor {
-        UIColor(
-            red: CGFloat(channel.r) / 255,
-            green: CGFloat(channel.g) / 255,
-            blue: CGFloat(channel.b) / 255,
-            alpha: 1
-        )
-    }
-}
-#endif

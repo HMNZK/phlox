@@ -204,8 +204,8 @@ public final class TerminalCoordinator: NSObject, TerminalViewDelegate {
         return lines.joined(separator: "\n")
     }
 
-    /// 現在の SwiftTerm viewport を SGR（色・装飾）付きテキストで書き出す。scrollback は含まない。
-    /// モバイルはこれを端末エミュレータへ feed し直し、デスクトップと同じ見た目で描画する。
+    /// SwiftTerm のバッファ全体（scrollback ＋ viewport）を SGR（色・装飾）付きテキストで書き出す。
+    /// モバイルはこれを丸ごと描いて**自分でスクロールする**（Mac の表示位置には追従しない → ADR 0127）。
     public func ansiScreenText() -> String {
         AnsiScreenEncoder.encode(terminalView.getTerminal())
     }

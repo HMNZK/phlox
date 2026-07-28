@@ -8,32 +8,46 @@
 /// 別の端末エミュレータへ feed し直すと、同じ桁数で同じ見た目を再現できる。
 /// モバイルはこれを受け取って SwiftTerm で描画する。
 public enum AnsiScreenEncoder {
-    /// viewport を SGR 付きテキストへ書き出す。scrollback は含まない。
+    /// 1回の応答へ載せる最大行数。SwiftTerm の既定スクロールバックは 500 行なので通常は
+    /// これに届かない。設定が変わっても転送量と受け手の描画コストが青天井にならないための上限。
+    public static let defaultMaxRows = 4000
+
+    /// **スクロールバックを含むバッファ全体**を SGR 付きテキストへ書き出す。
+    ///
+    /// viewport だけを送ると、受け手は「Mac に今映っている画面」しか持てず、自分では
+    /// 1行も遡れない（→ ADR 0127）。受け手が独立にスクロールできるよう履歴ごと渡す。
     ///
     /// - 属性が変わる境界でだけ SGR を挿入する（cell ごとに出すと数十倍に膨らむ）。
     /// - 行末の「既定属性の空白」は落とす。背景色の付いた空白は見た目に出るので残す。
-    /// - 末尾の空行は落とす（`visibleText()` と同じ扱い）。
+    /// - 先頭と末尾の空行は落とす（バッファは未使用行を空行として持っている）。
     @MainActor
-    public static func encode(_ terminal: Terminal) -> String {
+    public static func encode(_ terminal: Terminal, maxRows: Int = defaultMaxRows) -> String {
+        let rows = terminal.scrollInvariantRowRange
+        let start = max(rows.lowerBound, rows.upperBound - max(1, maxRows))
         var lines: [String] = []
-        lines.reserveCapacity(terminal.rows)
+        lines.reserveCapacity(rows.upperBound - start)
 
-        for row in 0..<terminal.rows {
+        for row in start..<rows.upperBound {
             lines.append(encodeRow(terminal, row: row))
         }
         while lines.last?.isEmpty == true {
             lines.removeLast()
+        }
+        while lines.first?.isEmpty == true {
+            lines.removeFirst()
         }
         return lines.joined(separator: "\n")
     }
 
     @MainActor
     private static func encodeRow(_ terminal: Terminal, row: Int) -> String {
+        guard let line = terminal.getScrollInvariantLine(row: row) else { return "" }
         var cells: [(character: Character, attribute: Attribute)] = []
         cells.reserveCapacity(terminal.cols)
 
-        for col in 0..<terminal.cols {
-            guard let data = terminal.getCharData(col: col, row: row) else { break }
+        // 桁数を変えた後のスクロールバックは行ごとに長さが違う。短い方に合わせて読む。
+        for col in 0..<min(terminal.cols, line.count) {
+            let data = line[col]
             // 全角文字は2 cell を占め、続く cell は width 0 のダミー。ここで足すと1桁ずれる。
             if data.width == 0 { continue }
             cells.append((TerminalDump.displayCharacter(data.getCharacter()), data.attribute))

@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-07-27
+last-verified: 2026-07-28
 ---
 
 # ADR（アーキテクチャ決定記録）索引
@@ -12,6 +12,7 @@ last-verified: 2026-07-27
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0135 | [巻き戻しで復元した本文は ViewModel が `draft` へ直接書く（View 側で遅れを吸収しない）](0135-restored-draft-is-written-by-the-view-model.md) | accepted |
 | 0134 | [`format=ansi` はスクロールバックを含むバッファ全体を返す](0134-ansi-output-includes-scrollback.md) | accepted |
 | 0133 | [取り残された iPhone 由来セッションは、由来を特定できるものだけ救済する](0133-orphaned-remote-session-rescue.md) | accepted |
 | 0132 | [通知は「その通知が届く先から辿れるセッション」にだけ出す](0132-notification-reachability-per-client.md) | accepted |

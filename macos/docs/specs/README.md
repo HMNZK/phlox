@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-07-08
+last-verified: 2026-07-28
 ---
 
 # specs/
@@ -22,6 +22,7 @@ last-verified: 2026-07-08
 | `custom-agents-json.md` | active | ユーザー定義 CLI（JSON）対応の設計ゴールと利用手順 |
 | `design-system-ios.md` | active | iOS コンパニオンアプリ向けデザインシステム拡張計画（Draft） |
 | `e2e-test-design.md` | active | Phlox E2E テスト設計書（Layer A/B の戦略・シナリオカタログ） |
+| `esc-revert-composer-focus.md` | active | esc 巻き戻し後の composer フォーカス復帰とキャレット末尾化の要件・受け入れ基準（決定は ADR 0135） |
 | `gemini-cli-integration.md` | superseded | Gemini CLI 統合仕様。ADR 0041 で削除済み |
 | `goose-integration.md` | superseded | Goose 統合仕様。ADR 0041 で削除済み |
 | `grid-view-layout.md` | active | グリッドビューの固定 N×N・自由配置・セル結合の要件（FR/NFR・受け入れテスト。決定は ADR 0084） |

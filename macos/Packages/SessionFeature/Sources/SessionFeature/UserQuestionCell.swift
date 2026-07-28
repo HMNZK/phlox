@@ -11,6 +11,9 @@ struct UserQuestionCell: View {
     let state: ChatUserQuestionState
     let timestamp: Date
     var onRespond: ((String, [String: [String]]) async -> Bool)?
+    /// 回答せずにカードを閉じる。中身はターンの中断（Esc と同じ）で、
+    /// カードは `.turnInterrupted` 経由で「期限切れ」になる。
+    var onDismiss: (() -> Void)?
 
     @State private var form: UserQuestionFormModel
     @State private var isSubmitting = false
@@ -25,7 +28,8 @@ struct UserQuestionCell: View {
         answers: [String: [String]]?,
         state: ChatUserQuestionState,
         timestamp: Date,
-        onRespond: ((String, [String: [String]]) async -> Bool)? = nil
+        onRespond: ((String, [String: [String]]) async -> Bool)? = nil,
+        onDismiss: (() -> Void)? = nil
     ) {
         self.itemId = itemId
         self.requestId = requestId
@@ -34,6 +38,7 @@ struct UserQuestionCell: View {
         self.state = state
         self.timestamp = timestamp
         self.onRespond = onRespond
+        self.onDismiss = onDismiss
         _form = State(initialValue: UserQuestionFormModel(questions: questions))
     }
 
@@ -41,14 +46,28 @@ struct UserQuestionCell: View {
         state == .pending && onRespond != nil
     }
 
+    /// 閉じられるのは「未回答のカード」で「閉じる操作が配線されている」ときだけ。
+    /// 回答済み・期限切れのカードには出さない（押しても何も起きないボタンを見せない）。
+    private var canDismiss: Bool {
+        state == .pending && onDismiss != nil
+    }
+
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         VStack(alignment: .leading, spacing: DSSpacing.m) {
-            if state == .expired {
-                Label("期限切れ", systemImage: "clock.badge.exclamationmark")
-                    .font(ChatScaledFont.captionStrong(scale: scale))
-                    .foregroundStyle(DSColor.chatTextSecondary)
+            if state == .expired || canDismiss {
+                HStack(spacing: DSSpacing.s) {
+                    if state == .expired {
+                        Label("期限切れ", systemImage: "clock.badge.exclamationmark")
+                            .font(ChatScaledFont.captionStrong(scale: scale))
+                            .foregroundStyle(DSColor.chatTextSecondary)
+                    }
+                    Spacer(minLength: 0)
+                    if canDismiss {
+                        dismissButton
+                    }
+                }
             }
 
             ForEach(questions, id: \.question) { question in
@@ -75,6 +94,22 @@ struct UserQuestionCell: View {
         )
         .frame(maxWidth: 720, alignment: .leading)
         .accessibilityIdentifier("UserQuestionCell.\(itemId)")
+    }
+
+    /// 回答せずに別の指示を出したいときのための閉じるボタン。
+    /// グリッドタイルのヘッダー（`PaneLayoutView`）と同じ手触りに揃える。
+    private var dismissButton: some View {
+        Button(action: { onDismiss?() }) {
+            Image(systemName: "xmark")
+                .imageScale(.small)
+                .foregroundStyle(DSColor.chatTextSecondary)
+                .frame(width: 20, height: 20)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(HoverableIconButtonStyle())
+        .help("回答せずに閉じる（ターンを中断する）")
+        .accessibilityLabel("回答せずに閉じる")
+        .accessibilityIdentifier("UserQuestionCell.dismiss.\(itemId)")
     }
 
     private var stateBorderColor: Color {

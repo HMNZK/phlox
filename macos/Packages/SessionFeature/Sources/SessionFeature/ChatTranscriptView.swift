@@ -238,6 +238,11 @@ struct ChatTranscriptView: View {
                 onSelectSubAgent: onSelectSubAgent,
                 onRespondToUserQuestion: { requestId, answers in
                     await viewModel.respondToUserQuestion(requestId: requestId, answers: answers)
+                },
+                onDismissUserQuestion: {
+                    // 回答せずに別の指示を出したいとき用。Esc・中断ボタンと同じ経路へ寄せる
+                    // （カードは `.turnInterrupted` を受けて期限切れになる）。
+                    Task { await viewModel.turnInterrupt() }
                 }
             )
             // ADR 0116: 変化していない行の body 再評価を飛ばす。transcript は配列全体が

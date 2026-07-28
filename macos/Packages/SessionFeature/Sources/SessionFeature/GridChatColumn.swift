@@ -208,7 +208,8 @@ struct GridComposerBar: View {
                     imagesForCopy: { viewModel.attachmentStore.imagesForCopy(numbers: $0) },
                     onEscape: { performChatEscape(viewModel) },
                     onFocusGained: onFocusGained,
-                    focusRequest: viewModel.composerFocusRequest
+                    focusRequest: viewModel.composerFocusRequest,
+                    highlightsKeywords: viewModel.agentRef == .builtin(.claudeCode)
                 )
                 .frame(
                     minHeight: ComposerHeightBounds.grid.min,
@@ -257,9 +258,13 @@ struct GridComposerBar: View {
         }
         .onAppear {
             suggestionController.availableSlashCommands = viewModel.availableSlashCommands
+            suggestionController.seedSlashCommands = viewModel.seedSlashCommands
         }
         .onChange(of: viewModel.availableSlashCommands) { _, commands in
             suggestionController.availableSlashCommands = commands
+        }
+        .onChange(of: viewModel.seedSlashCommands) { _, commands in
+            suggestionController.seedSlashCommands = commands
         }
     }
 

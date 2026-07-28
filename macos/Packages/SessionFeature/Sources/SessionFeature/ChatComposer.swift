@@ -62,7 +62,8 @@ struct ChatComposer: View {
                     attachedImageNumbers: { viewModel.attachmentStore.attachments.map(\.number) },
                     imagesForCopy: { viewModel.attachmentStore.imagesForCopy(numbers: $0) },
                     onEscape: { performChatEscape(viewModel) },
-                    focusRequest: viewModel.composerFocusRequest
+                    focusRequest: viewModel.composerFocusRequest,
+                    highlightsKeywords: viewModel.agentRef == .builtin(.claudeCode)
                 )
                 .frame(
                     minHeight: ComposerHeightBounds.single.min,
@@ -115,9 +116,13 @@ struct ChatComposer: View {
         }
         .onAppear {
             suggestionController.availableSlashCommands = viewModel.availableSlashCommands
+            suggestionController.seedSlashCommands = viewModel.seedSlashCommands
         }
         .onChange(of: viewModel.availableSlashCommands) { _, commands in
             suggestionController.availableSlashCommands = commands
+        }
+        .onChange(of: viewModel.seedSlashCommands) { _, commands in
+            suggestionController.seedSlashCommands = commands
         }
     }
 
@@ -372,6 +377,8 @@ struct IMESafeTextView: NSViewRepresentable {
     /// 受け入れテスト AcceptanceComposerFocusRestoreTests が凍結（既定値ありのシグネチャは変更禁止）。
     /// トークンが変化したときだけ first responder とキャレットを動かす配線は task-2 が実装する。
     var focusRequest: ComposerFocusRequest = .none
+    /// 入力欄でキーワード（ultrathink 等）を強調するか。Claude セッションのみ true を渡す。
+    var highlightsKeywords: Bool = false
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -409,6 +416,7 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.textContainerInset = ComposerPlaceholderMetrics.textInsets
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.widthTracksTextView = true
+        textView.highlightsKeywords = highlightsKeywords
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = true
         textView.minSize = NSSize(width: 0, height: minHeight)
@@ -438,6 +446,11 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.suggestionController = suggestionController
         textView.onComposingChanged = { [coordinator = context.coordinator] isComposing, currentText in
             coordinator.setComposing(isComposing, currentText: currentText)
+        }
+        // セッション種別の変化に追随させる（生成時だけ読むと切替後に色が変わらない）。
+        if textView.highlightsKeywords != highlightsKeywords {
+            textView.highlightsKeywords = highlightsKeywords
+            textView.applyComposerHighlights()
         }
         if !textView.hasMarkedText(), textView.string != text {
             textView.syncStringFromBinding(text)
@@ -589,6 +602,8 @@ struct IMESafeTextView: NSViewRepresentable {
         /// 選択範囲に含まれる番号に対応する画像。コピー時にクリップボードへ載せる。
         /// task-6 契約（同上）。
         var imagesForCopy: (([Int]) -> [(data: Data, mediaType: String)])?
+        /// キーワード強調（ultrathink 等）を有効にするか。Claude セッションのみ true。
+        var highlightsKeywords: Bool = false
 
         override func becomeFirstResponder() -> Bool {
             let didBecomeFirstResponder = super.becomeFirstResponder()
@@ -793,13 +808,18 @@ struct IMESafeTextView: NSViewRepresentable {
                     range: fullRange
                 )
             }
-            // スラッシュコマンドと @参照 を別色にして種別を判別できるようにする。
-            let slashColor = NSColor(DSColor.codeSyntaxKeyword)
-            let referenceColor = NSColor(DSColor.codeSyntaxString)
-            for span in ComposerHighlight.spans(in: string) {
+            // スラッシュコマンド・@参照・キーワードを別色にして種別を判別できるようにする。
+            for span in ComposerHighlight.spans(in: string, includingKeywords: highlightsKeywords) {
                 let range = NSRange(location: span.range.lowerBound, length: span.range.count)
                 guard NSMaxRange(range) <= textStorage.length else { continue }
-                let color = span.kind == .slashCommand ? slashColor : referenceColor
+                // 網羅 switch。case を足したら必ずここでコンパイルエラーになり、
+                // 新種別が既存色へ黙って落ちる事故を防ぐ（default / _ を書かないこと）。
+                let color: NSColor
+                switch span.kind {
+                case .slashCommand: color = NSColor(DSColor.codeSyntaxKeyword)
+                case .fileReference: color = NSColor(DSColor.codeSyntaxString)
+                case .keyword: color = NSColor(DSColor.composerKeyword)
+                }
                 textStorage.addAttribute(.foregroundColor, value: color, range: range)
             }
             textStorage.endEditing()

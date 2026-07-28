@@ -187,6 +187,54 @@ func frames_nestedTree_touchesAllFourBoundsEdges() throws {
 }
 
 @Test
+func frames_neverPlaceTilesOutsideBounds_evenWhenSpacingDoesNotFit() throws {
+    // 退化ケース: 隙間の総和が領域より大きい（GeometryReader が過渡的に 0 を返す・
+    // 極端に細い領域に多数ペインがある）。タイルも分割線も bounds の外へ出てはならない。
+    let ids = (1...3).map(sid)
+    let tree = try PaneTree(root: split(
+        "S", .horizontal,
+        [leaf("A", ids[0]), leaf("B", ids[1]), leaf("C", ids[2])],
+        [1, 1, 1]
+    ))
+
+    for bounds in [CGSize(width: 10, height: 10), CGSize(width: 0, height: 0), CGSize(width: 16, height: 5)] {
+        let frames = tree.frames(in: bounds, spacing: 8)
+        for tileFrame in frames.tiles {
+            let rect = tileFrame.rect
+            #expect(rect.minX >= -0.5, "bounds=\(bounds): タイルが左へはみ出さない (minX=\(rect.minX))")
+            #expect(rect.maxX <= bounds.width + 0.5, "bounds=\(bounds): タイルが右へはみ出さない (maxX=\(rect.maxX))")
+            #expect(rect.minY >= -0.5, "bounds=\(bounds): タイルが上へはみ出さない")
+            #expect(rect.maxY <= bounds.height + 0.5, "bounds=\(bounds): タイルが下へはみ出さない")
+            #expect(rect.width >= 0, "bounds=\(bounds): 幅が負にならない")
+            #expect(rect.height >= 0, "bounds=\(bounds): 高さが負にならない")
+        }
+        for dividerFrame in frames.dividers {
+            #expect(dividerFrame.gapRect.minX >= -0.5, "bounds=\(bounds): 隙間が左へはみ出さない")
+            #expect(dividerFrame.gapRect.maxX <= bounds.width + 0.5, "bounds=\(bounds): 隙間が右へはみ出さない")
+            #expect(dividerFrame.segmentExtent >= 0, "bounds=\(bounds): segmentExtent が負にならない")
+        }
+    }
+}
+
+@Test
+func frames_verticalAxis_neverPlaceTilesOutsideBounds_whenSpacingDoesNotFit() throws {
+    let ids = (1...4).map(sid)
+    let tree = try PaneTree(root: split(
+        "S", .vertical,
+        ids.enumerated().map { leaf("L\($0.offset)", $0.element) },
+        [1, 1, 1, 1]
+    ))
+    let bounds = CGSize(width: 100, height: 12)
+    let frames = tree.frames(in: bounds, spacing: 8)
+    for tileFrame in frames.tiles {
+        #expect(tileFrame.rect.minY >= -0.5, "タイルが上へはみ出さない")
+        #expect(tileFrame.rect.maxY <= bounds.height + 0.5,
+                "タイルが下へはみ出さない (maxY=\(tileFrame.rect.maxY))")
+        #expect(tileFrame.rect.height >= 0)
+    }
+}
+
+@Test
 func frames_tileOrderMatchesSessionTraversalOrder() throws {
     let ids = (1...4).map(sid)
     let tree = try PaneTree(root: split(

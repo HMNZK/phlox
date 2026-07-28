@@ -128,13 +128,34 @@ func requestWithoutCaretMoveDiscardsStalePending() async throws {
     )
 }
 
-// 注: 「IME 変換中に届いた末尾化要求を捨てない」（レビュー指摘 MEDIUM）に対応する回帰テストは置いていない。
-// ヘッドレスの NSHostingView harness では setMarkedText で作った変換状態が、SwiftUI の更新パスと
-// 非同期の Task をまたぐ間に解除されてしまい、「変換中に Task が走る」順序を再現できなかった
-// （再現できたと誤認させるテストになるため削除した）。実装側は moveCaretToEnd が false を返したら
-// 保留を下ろさない形にしてあるが、この経路は自動テストで裏が取れていない。
-// なお実フローでは、フォーカス要求はピッカーがフォーカスを持っている間に発火するため、
-// composer が IME 変換中であることは起こらないと考えている（これも未実測の推定）。
+// 注: IME 変換中の末尾化保留は、NSHostingView 越しでは変換状態が SwiftUI の更新パスと非同期 Task を
+// またぐ間に解除されてしまい再現できなかった。そのため Coordinator と SubmitAwareTextView を直接組んで
+// 検証している（pendingCaretMoveIsAppliedWhenComposingEnds）。
+
+@Test("復元前の入力欄に文字が残っていても、遅れて届いた復元本文の末尾へキャレットが来る")
+@MainActor
+func caretMovesToEndWhenReplacingNonEmptyDraftAfterRequest() async throws {
+    let harness = try MutableComposerHarness(text: "短")
+    defer { harness.tearDown() }
+    harness.textView.setSelectedRange(NSRange(location: 0, length: 0))
+    let request = ComposerFocusRequest(token: 1, movesCaretToEnd: true)
+
+    // 復元前の下書きが残ったまま要求だけが先に届く。ここで「旧本文の末尾」を
+    // 末尾化1回ぶんとして数えてしまうと、遅れて届く復元本文に適用されない。
+    harness.render(text: "短", focusRequest: request)
+    try await waitUntil("旧本文に対して要求が処理される") {
+        harness.textView.selectedRange() == NSRange(location: 1, length: 0)
+    }
+
+    let restored = "復元された長い本文"
+    harness.render(text: restored, focusRequest: request)
+    try await Task.sleep(nanoseconds: 250_000_000)
+
+    #expect(
+        harness.textView.selectedRange() == NSRange(location: restored.utf16.count, length: 0),
+        "復元本文の末尾から続きを打てること（旧下書きの長さでクランプされて途中に残らない）"
+    )
+}
 
 @Test("復元本文がフォーカス要求より遅れて届いても、キャレットは本文末尾へ来る")
 @MainActor
@@ -298,7 +319,7 @@ func withoutWiringFocusDoesNotReturnToComposer() async throws {
 
     #expect(
         harness.window.firstResponder !== harness.textView,
-        "修正前は composer にフォーカスが戻らないこと。ここが緑になるなら、上のテストは何も証明していない"
+        "修正前は composer にフォーカスが戻らないこと。このテストが赤くなる（配線が無くても戻る）なら、上の正のテストは何も証明していない"
     )
 }
 

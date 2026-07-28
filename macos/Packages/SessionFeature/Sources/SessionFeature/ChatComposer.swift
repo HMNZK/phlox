@@ -465,14 +465,15 @@ struct IMESafeTextView: NSViewRepresentable {
             Task { @MainActor [weak textView, coordinator = context.coordinator] in
                 guard let textView, let window = textView.window else { return }
                 window.makeFirstResponder(textView)
-                // 本文が既に入っていればここで末尾化を確定する。空のうちは「復元本文がまだ届いていない」
-                // ＝末尾化しても location 0 のままで要求を空振り消費してしまうので、保留のまま残し、
-                // 本文が届いた時点（上の同期ブロック）で適用する。
-                // 実際に動かせたときだけ保留を下ろす（IME 変換中は moveCaretToEnd が false を返すので、
-                // 変換が終わるまで要求を落とさない）。
-                if coordinator.pendingCaretToEnd, !textView.string.isEmpty,
-                   coordinator.moveCaretToEnd(of: textView) {
-                    coordinator.pendingCaretToEnd = false
+                // ここでは「今ある本文の末尾」へ動かすだけで、**保留は下ろさない**。
+                // 復元本文は 1 パス遅れて届きうるので、この時点の文字列は復元前の下書きかもしれない。
+                // それを「末尾化を1回果たした」と数えると、遅れて届いた復元本文に対して適用されず、
+                // 旧選択位置のクランプで途中位置に残る。保留を下ろすのは
+                //   (a) 本文が同期されたとき（上の同期ブロック）＝復元本文の末尾へ確定したとき
+                //   (b) ユーザーが自分で編集し始めたとき（textDidChange）
+                // の2つだけにする。
+                if coordinator.pendingCaretToEnd {
+                    coordinator.moveCaretToEnd(of: textView)
                 }
             }
         }
@@ -525,6 +526,9 @@ struct IMESafeTextView: NSViewRepresentable {
                 return
             }
             parent.text = textView.string
+            // ユーザーが自分で編集し始めたら、未消化の末尾化要求は破棄する。
+            // 残したままだと、後から来る無関係な binding 同期でキャレットが末尾へ飛ぶ。
+            pendingCaretToEnd = false
             (textView as? SubmitAwareTextView)?.applyComposerHighlights()
             updateSuggestions(for: textView)
             recalculateHeight(for: textView)

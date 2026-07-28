@@ -112,12 +112,20 @@ extension PaneTree {
     /// 1px ずれる（隙間・はみ出しとして目視される）。累積境界 `edge[i] = content * Σ_{j<i} w_j`
     /// を先に出し、`extent[i] = edge[i+1] - edge[i]` を取ると、末尾の境界を `content` に
     /// 固定できるので「最後の子の端 == 領域の端」が定義から厳密に成り立つ。
-    /// 隣接する子の隙間も `(edge[i+1] + spacing*(i+1)) - (edge[i+1] + spacing*i) = spacing` で一定。
+    /// 隣接する子の隙間も `(edge[i+1] + gap*(i+1)) - (edge[i+1] + gap*i) = gap` で一定。
+    ///
+    /// **退化ケース**（隙間の総和が領域に収まらない。`GeometryReader` がレイアウト確定前に
+    /// 0 を返す・極端に細い領域に多数ペインがある）では、`content` を 0 に切り上げるだけでは
+    /// 座標側の `spacing * index` が積み上がって後続タイルが領域の外へ出る。実効の隙間を
+    /// `min(spacing, length / (子の数 - 1))` へ縮めることで、タイルも隙間も領域内に収める。
+    /// 隙間が収まるときは実効の隙間が `spacing` とビット単位で一致するため、通常時の挙動は変わらない。
     private static func childRects(_ split: PaneSplit, in rect: CGRect, spacing: CGFloat) -> [CGRect] {
         let count = split.children.count
-        let length = split.axis == .horizontal ? rect.width : rect.height
-        // タイルに配れる長さ（隙間を除いた分）。領域より隙間の総和が大きい退化ケースでは 0。
-        let content = max(0, length - spacing * CGFloat(count - 1))
+        let length = max(0, split.axis == .horizontal ? rect.width : rect.height)
+        // 実効の隙間。領域に収まる限り `spacing` そのもの。
+        let gap = count > 1 ? max(0, min(spacing, length / CGFloat(count - 1))) : 0
+        // タイルに配れる長さ（隙間を除いた分）。退化ケースでは 0 になる。
+        let content = max(0, length - gap * CGFloat(count - 1))
         // 不変条件より weights は全て正なので total > 0。
         let total = split.weights.reduce(0, +)
 
@@ -131,8 +139,8 @@ extension PaneTree {
         }
 
         return (0..<count).map { index in
-            let start = edges[index] + spacing * CGFloat(index)
-            let end = edges[index + 1] + spacing * CGFloat(index)
+            let start = edges[index] + gap * CGFloat(index)
+            let end = edges[index + 1] + gap * CGFloat(index)
             switch split.axis {
             case .horizontal:
                 return CGRect(x: rect.minX + start, y: rect.minY, width: end - start, height: rect.height)

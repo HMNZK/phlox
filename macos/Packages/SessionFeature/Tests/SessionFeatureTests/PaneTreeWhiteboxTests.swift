@@ -89,8 +89,12 @@ struct PaneTreeWhiteboxTests {
     /// 木の構造（内部 API）と `frames` の出力だけを突き合わせて埋め尽くしを検査する。
     ///
     /// 各 split について「子の外接矩形が軸方向に順に並び、両端が親に一致し、隣接間隔が
-    /// ちょうど spacing」を再帰的に確かめる。矩形計算を各子への独立な掛け算や丸めで
+    /// ちょうど実効の隙間」を再帰的に確かめる。矩形計算を各子への独立な掛け算や丸めで
     /// 実装していると、深い木・多子ほど端がずれてここで落ちる。
+    ///
+    /// 実効の隙間は `min(spacing, 親の軸方向の長さ / (子の数 - 1))`。隙間が領域に収まる通常時は
+    /// `spacing` に一致し、収まらない退化ケースでは縮む（縮めないとタイルが領域の外へ出る）。
+    /// あわせて全タイルが bounds の内側にあることも確かめる。
     private func expectExactTiling(
         _ tree: PaneTree,
         bounds: CGSize,
@@ -107,10 +111,30 @@ struct PaneTreeWhiteboxTests {
         }
         #expect(frames.tiles.map(\.session) == tree.sessions, "\(label): タイル順が走査順と一致")
 
+        for tile in frames.tiles {
+            #expect(tile.rect.minX >= -tolerance, "\(label): タイルが左へはみ出す（\(tile.rect)）")
+            #expect(tile.rect.minY >= -tolerance, "\(label): タイルが上へはみ出す（\(tile.rect)）")
+            #expect(tile.rect.maxX <= bounds.width + tolerance, "\(label): タイルが右へはみ出す（\(tile.rect)）")
+            #expect(tile.rect.maxY <= bounds.height + tolerance, "\(label): タイルが下へはみ出す（\(tile.rect)）")
+            #expect(tile.rect.width >= 0 && tile.rect.height >= 0, "\(label): 負のサイズ（\(tile.rect)）")
+        }
+        for divider in frames.dividers {
+            #expect(divider.gapRect.minX >= -tolerance, "\(label): 隙間が左へはみ出す（\(divider.gapRect)）")
+            #expect(divider.gapRect.minY >= -tolerance, "\(label): 隙間が上へはみ出す（\(divider.gapRect)）")
+            #expect(divider.gapRect.maxX <= bounds.width + tolerance, "\(label): 隙間が右へはみ出す")
+            #expect(divider.gapRect.maxY <= bounds.height + tolerance, "\(label): 隙間が下へはみ出す")
+            #expect(divider.segmentExtent >= 0, "\(label): segmentExtent が負")
+        }
+
+        // 零サイズのタイルを落とさないよう `CGRect.union` は使わず min/max で外接矩形を作る。
         func boundingBox(_ node: PaneNode) -> CGRect {
             let rects = node.sessions.compactMap { rectBySession[$0] }
-            guard let first = rects.first else { return .null }
-            return rects.dropFirst().reduce(first) { $0.union($1) }
+            guard !rects.isEmpty else { return .null }
+            let minX = rects.map(\.minX).min()!
+            let minY = rects.map(\.minY).min()!
+            let maxX = rects.map(\.maxX).max()!
+            let maxY = rects.map(\.maxY).max()!
+            return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
         }
 
         func check(_ node: PaneNode, _ rect: CGRect) {
@@ -126,10 +150,12 @@ struct PaneTreeWhiteboxTests {
                     "\(label): split \(node.id) の先頭が親の端に接する（\(starts[0]) vs \(parentStart)）")
             #expect(abs(ends[ends.count - 1] - parentEnd) <= tolerance,
                     "\(label): split \(node.id) の末尾が親の端に接する（\(ends[ends.count - 1]) vs \(parentEnd)）")
+            // 通常時は spacing。隙間が領域に収まらない退化ケースだけ縮む。
+            let expectedGap = max(0, min(spacing, max(0, parentEnd - parentStart) / CGFloat(boxes.count - 1)))
             for index in 0..<(boxes.count - 1) {
                 let gap = starts[index + 1] - ends[index]
-                #expect(abs(gap - spacing) <= tolerance,
-                        "\(label): split \(node.id) の \(index) 番目の隙間がちょうど spacing（\(gap)）")
+                #expect(abs(gap - expectedGap) <= tolerance,
+                        "\(label): split \(node.id) の \(index) 番目の隙間が実効 spacing と一致（\(gap) vs \(expectedGap)）")
             }
             for (index, box) in boxes.enumerated() {
                 // 直交方向は親の幅（高さ）をそのまま受け継ぐ。
@@ -231,6 +257,57 @@ struct PaneTreeWhiteboxTests {
             )
             let spacing = [CGFloat(0), 1, 4, 8, 12.5].randomElement(using: &rng)!
             expectExactTiling(tree, bounds: bounds, spacing: spacing, "trial \(trial)")
+        }
+    }
+
+    @Test("隙間が収まらない領域では実効の隙間が縮み、タイルが領域から出ない")
+    func whitebox_frames_degenerateSpacing_shrinksGapsInsteadOfOverflowing() throws {
+        // 退化ケースの境界を総当たりで踏む。spacing*(n-1) が length を超える／ちょうど一致する／
+        // 下回る（通常時）を、横分割・縦分割の両方で確認する。
+        for count in [2, 3, 4, 7] {
+            let ids = (1...count).map(sid)
+            let children = (0..<count).map { leaf("L\($0)", ids[$0]) }
+            let weights = (0..<count).map { Double($0 + 1) }
+            for axis in PaneAxis.allCases {
+                let tree = try PaneTree(root: split("S", axis, children, weights))
+                for spacing in [CGFloat(0), 1, 8, 40] {
+                    // length は「隙間の総和よりずっと小さい」から「余裕がある」まで動かす。
+                    for length in [CGFloat(0), 1, spacing * CGFloat(count - 1), 500] {
+                        let bounds = axis == .horizontal
+                            ? CGSize(width: length, height: 50)
+                            : CGSize(width: 50, height: length)
+                        let label = "count=\(count) axis=\(axis) sp=\(spacing) len=\(length)"
+                        expectExactTiling(tree, bounds: bounds, spacing: spacing, label)
+
+                        let frames = tree.frames(in: bounds, spacing: spacing)
+                        #expect(frames.tiles.count == count, "\(label): タイル数は変わらない")
+                        let expectedGap = min(spacing, length / CGFloat(count - 1))
+                        for divider in frames.dividers {
+                            let thickness = axis == .horizontal ? divider.gapRect.width : divider.gapRect.height
+                            #expect(abs(thickness - expectedGap) <= 1e-9,
+                                    "\(label): 実効の隙間 = min(spacing, length/(n-1))（\(thickness)）")
+                        }
+                        // 末尾は退化ケースでも領域の端にちょうど接する。
+                        let far = axis == .horizontal
+                            ? frames.tiles.map(\.rect.maxX).max()!
+                            : frames.tiles.map(\.rect.maxY).max()!
+                        #expect(abs(far - length) <= 1e-9, "\(label): 末尾が領域の端に接する（\(far)）")
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("極端に狭い領域の入れ子ツリーでもタイルが領域から出ない")
+    func whitebox_frames_tinyBoundsWithDeepTree_staysInsideBounds() throws {
+        var rng = SeededGenerator(seed: 0x5EED)
+        for trial in 0..<20 {
+            let leafCount = Int.random(in: 4...12, using: &rng)
+            var counter = 0
+            let tree = try PaneTree(root: randomNode(&rng, leaves: Array(0..<leafCount)[...], counter: &counter))
+            for bounds in [CGSize(width: 0, height: 0), CGSize(width: 12, height: 9), CGSize(width: 40, height: 3)] {
+                expectExactTiling(tree, bounds: bounds, spacing: 8, "trial \(trial) \(bounds)")
+            }
         }
     }
 

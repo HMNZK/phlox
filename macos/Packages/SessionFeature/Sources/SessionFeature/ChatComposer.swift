@@ -61,7 +61,8 @@ struct ChatComposer: View {
                     onPasteImageOutcome: addPastedImage,
                     attachedImageNumbers: { viewModel.attachmentStore.attachments.map(\.number) },
                     imagesForCopy: { viewModel.attachmentStore.imagesForCopy(numbers: $0) },
-                    onEscape: { performChatEscape(viewModel) }
+                    onEscape: { performChatEscape(viewModel) },
+                    focusRequest: viewModel.composerFocusRequest
                 )
                 .frame(
                     minHeight: ComposerHeightBounds.single.min,
@@ -367,6 +368,10 @@ struct IMESafeTextView: NSViewRepresentable {
     /// グリッドタイルの composer クリック→タイル選択に使う。受け入れテスト
     /// AcceptanceGridSelectionFocusTests が凍結。配線は task-5 が実装）。
     var onFocusGained: (() -> Void)? = nil
+    /// composer へフォーカスを戻す要求（esc-restore-input-focus task-2 契約の PM スタブ）。
+    /// 受け入れテスト AcceptanceComposerFocusRestoreTests が凍結（既定値ありのシグネチャは変更禁止）。
+    /// トークンが変化したときだけ first responder とキャレットを動かす配線は task-2 が実装する。
+    var focusRequest: ComposerFocusRequest = .none
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -412,6 +417,9 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.string = text
         textView.applyComposerHighlights()
 
+        // 初回描画でフォーカスを奪わない。以後は「この値から変化したとき」だけ移す。
+        context.coordinator.lastHandledFocusToken = focusRequest.token
+
         scrollView.documentView = textView
         return scrollView
     }
@@ -433,7 +441,37 @@ struct IMESafeTextView: NSViewRepresentable {
         }
         if !textView.hasMarkedText(), textView.string != text {
             textView.syncStringFromBinding(text)
+            // 復元本文がフォーカス要求より遅れて届いた場合はここが末尾化の適用点になる。
+            // syncStringFromBinding 自体の既定挙動（変更前の選択位置をクランプして保持）は変えない
+            // ＝復元以外の binding 同期でキャレットが末尾へ飛ぶ副作用を出さない。
+            if context.coordinator.pendingCaretToEnd {
+                context.coordinator.pendingCaretToEnd = false
+                context.coordinator.moveCaretToEnd(of: textView)
+            }
             suggestionController?.update(text: text, cursorUTF16: min(textView.selectedRange().location, text.utf16.count))
+        }
+        // フォーカス復帰要求（esc 2連打→履歴ピッカー→復元/キャンセル）。
+        // 要求の適用は Task で次の runloop へ回す。理由は2つ:
+        //   (1) ピッカー ChatHistoryRevertPicker は .focused() で自らフォーカスを保持しており、この更新パスの
+        //       時点では overlay がまだ responder chain に残りうる。同一 runloop で makeFirstResponder すると
+        //       ピッカー側に奪い返される（※ 実機での再現は未実施。ソース上の依存関係からの推定）。
+        //   (2) ADR 0010: updateNSView は描画パスであり副作用の同期実行を避ける（既存の高さ再計算と同じ流儀）。
+        if focusRequest.token != context.coordinator.lastHandledFocusToken {
+            context.coordinator.lastHandledFocusToken = focusRequest.token
+            if focusRequest.movesCaretToEnd {
+                context.coordinator.pendingCaretToEnd = true
+            }
+            Task { @MainActor [weak textView, coordinator = context.coordinator] in
+                guard let textView, let window = textView.window else { return }
+                window.makeFirstResponder(textView)
+                // 本文が既に入っていればここで末尾化を確定する。空のうちは「復元本文がまだ届いていない」
+                // ＝末尾化しても location 0 のままで要求を空振り消費してしまうので、保留のまま残し、
+                // 本文が届いた時点（上の同期ブロック）で適用する。
+                if coordinator.pendingCaretToEnd, !textView.string.isEmpty {
+                    coordinator.pendingCaretToEnd = false
+                    coordinator.moveCaretToEnd(of: textView)
+                }
+            }
         }
         // Bug A / ADR 0010: updateNSView は描画パスなので @State/@Binding を同期書込しない。
         // 差分ガード付き遅延書込は、実行時に再計算・再判定することで高々1回で固定点に収束する。
@@ -450,9 +488,24 @@ struct IMESafeTextView: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: IMESafeTextView
+        /// 直前に処理した `focusRequest.token`。再描画のたびにフォーカスを奪い返さないための冪等キー。
+        /// `struct IMESafeTextView` や `@State` ではなく Coordinator（再描画をまたいで生存する参照型）に
+        /// 持つ（値側に持つと毎回の再生成で初期値へ戻り、無関係な再描画でフォーカスを奪う）。
+        var lastHandledFocusToken = ComposerFocusRequest.none.token
+        /// キャレットを本文末尾へ動かす要求が未適用で残っているか。
+        /// 復元本文（draftRestoration → draft → text binding）がフォーカス要求より遅れて届く場合があるため、
+        /// 「要求を受けた時点」ではなく「本文が同期し終えた時点」でも適用できるよう保留状態として持つ。
+        var pendingCaretToEnd = false
 
         init(_ parent: IMESafeTextView) {
             self.parent = parent
+        }
+
+        /// 本文末尾へキャレットを移す。IME 変換中は動かさない（変換途中の確定位置を壊さないため）。
+        func moveCaretToEnd(of textView: NSTextView) {
+            guard !textView.hasMarkedText() else { return }
+            let end = (textView.string as NSString).length
+            textView.setSelectedRange(NSRange(location: end, length: 0))
         }
 
         func textDidChange(_ notification: Notification) {

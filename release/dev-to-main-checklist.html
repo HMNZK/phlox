@@ -1,0 +1,910 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>テスト項目 — Phlox（dev → main）</title>
+<!--
+  ============================================================
+  この文書は dev に何かがマージされるたびに作り直す。
+  対象範囲: main 9b46541 → dev b2fe1da（2026-07-28 更新）
+
+  作り直しの手順:
+    1. git log --oneline --no-merges main..dev で範囲を取り直し、
+       ヘッダの2つの SHA を書き換える。
+    2. 追加された */docs/delivery/*.md の「未検証」「実機確認が要る項目」節を
+       そのままテスト項目にする。ADR は「なぜ」なので手順の出どころにしない。
+    3. 各項目は「手順」と「合格」だけを書く。決定の背景・テスト件数・出典・
+       ADR 番号は書かない（テスターには不要で、読む邪魔になる）。
+       既知の未修正点は、それを知らないと誤ってバグ報告してしまう場合に限り、
+       該当項目の末尾に「※」1行で添える。
+    4. 各項目の見出し右端に「事前確認」チップを1つ置く。
+       <span class="st st--ok|st--half|st--no">事前確認 済|一部|なし</span>
+       済=同じ手順を機械で通して合格まで確認した / 一部=一部の条件だけ /
+       なし=実機・実データが要り確認できていない。確認していない項目に
+       「済」を付けない（テスターが飛ばして事故る）。
+       事前確認の結果は<b>チップだけ</b>で示し、チェックボックスには入れない。
+       <input> に checked を書かない（チェック＝テスター自身が実機で見た印。
+       先に付けておくと、あとでどれを自分の目で見たか判らなくなる）。
+    5. チェック状態は <input> の id をキーに localStorage に保存される。
+       既存項目の id は変えない。変えるとその項目の記録が消える。
+       新項目は d17, i12, m5 … と連番を続ける。
+    6. main へ入れたら「チェックを全部外す」を押し、範囲を取り直す。
+  ============================================================
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ground:oklch(0.155 0.028 305);
+  --surface:oklch(0.200 0.030 303);
+  --surface-2:oklch(0.240 0.032 302);
+  --hairline:oklch(0.325 0.030 300);
+  --hairline-2:oklch(0.272 0.028 300);
+  --ink:oklch(0.945 0.012 310);
+  --ink-2:oklch(0.800 0.018 308);
+  --ink-3:oklch(0.615 0.022 305);
+  --phlox:oklch(0.735 0.155 348);
+  --phlox-deep:oklch(0.560 0.150 348);
+  --sage:oklch(0.790 0.085 168);
+  --sage-wash:oklch(0.790 0.085 168 / 0.10);
+  --sage-line:oklch(0.790 0.085 168 / 0.32);
+  --amber:oklch(0.815 0.115 68);
+
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px; --s8:64px;
+  --display:"Zen Old Mincho",ui-serif,"Hiragino Mincho ProN","Yu Mincho",serif;
+  --body:"Zen Kaku Gothic New",ui-sans-serif,-apple-system,"Hiragino Sans","Yu Gothic",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --r1:3px; --r2:6px; --r3:10px;
+  --dur:150ms; --ease:cubic-bezier(.2,.6,.3,1);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--body);
+  font-size:15px;line-height:1.75;font-feature-settings:"palt" 1;-webkit-font-smoothing:antialiased}
+code{font-family:var(--mono);font-size:.86em;color:var(--ink)}
+:focus-visible{outline:none;box-shadow:0 0 0 2px var(--ground),0 0 0 4px var(--phlox);border-radius:var(--r1)}
+.skip{position:absolute;left:-9999px}
+.skip:focus{left:var(--s4);top:var(--s4);z-index:99;background:var(--surface-2);padding:var(--s2) var(--s4);border-radius:var(--r2)}
+
+/* ---- 上の帯 ---- */
+.gate{position:sticky;top:0;z-index:20;background:oklch(0.155 0.028 305 / 0.94);
+  backdrop-filter:saturate(140%) blur(10px);border-bottom:1px solid var(--hairline-2)}
+.gate__inner{max-width:1120px;margin:0 auto;padding:var(--s3) var(--s5) var(--s2);
+  display:flex;flex-wrap:wrap;gap:var(--s2) var(--s5);align-items:baseline}
+.gate__refs{font-family:var(--mono);font-size:12px;color:var(--ink-3);letter-spacing:.02em}
+.gate__refs b{color:var(--ink);font-weight:600}
+.gate__refs i{font-style:normal;color:var(--phlox);font-weight:600}
+.gate__count{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--ink-2);white-space:nowrap}
+.gate__count b{color:var(--ink);font-weight:600;font-size:14px}
+.meter{max-width:1120px;margin:0 auto;padding:0 var(--s5) var(--s3);display:flex;gap:3px}
+.meter__seg{flex:1 1 0;height:6px;border-radius:1px;background:var(--hairline-2);
+  border:0;padding:0;cursor:pointer;transition:background var(--dur) var(--ease),transform var(--dur) var(--ease)}
+.meter__seg:hover{transform:scaleY(1.8)}
+.meter__seg[data-done="1"]{background:var(--phlox)}
+
+/* ---- 骨格 ---- */
+.shell{max-width:1120px;margin:0 auto;padding:0 var(--s5) var(--s8);
+  display:grid;grid-template-columns:190px minmax(0,1fr);gap:var(--s7)}
+.toc{position:sticky;top:100px;align-self:start;padding:var(--s6) 0;font-size:13px}
+.toc ol{list-style:none;margin:0;padding:0}
+.toc a{display:flex;gap:var(--s2);align-items:baseline;padding:6px var(--s2);border-radius:var(--r2);
+  color:var(--ink-2);text-decoration:none;border-left:2px solid transparent}
+.toc a:hover{background:var(--surface);color:var(--ink)}
+.toc a[aria-current="true"]{border-left-color:var(--phlox);background:var(--surface);color:var(--ink)}
+.toc a em{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-left:auto}
+main{padding:var(--s6) 0 0;min-width:0}
+
+.lede{font-size:15px;color:var(--ink-2);margin:0 0 var(--s5);max-width:58ch}
+.lede b{color:var(--ink);font-weight:500}
+
+.ops{display:flex;flex-wrap:wrap;gap:var(--s2);align-items:center;margin:0 0 var(--s7);
+  padding:var(--s3) var(--s4);border:1px solid var(--hairline-2);border-radius:var(--r3);background:var(--surface)}
+.btn{font:500 12.5px/1 var(--body);color:var(--ink-2);background:transparent;border:1px solid var(--hairline);
+  border-radius:var(--r2);padding:10px 13px;cursor:pointer;
+  transition:color var(--dur) var(--ease),border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+.btn:hover{color:var(--ink);border-color:var(--ink-3);background:var(--surface-2)}
+.btn[aria-pressed="true"]{color:var(--ground);background:var(--phlox);border-color:var(--phlox)}
+.ops__msg{font:400 12px/1 var(--mono);color:var(--sage);margin-left:auto}
+
+.sec{margin:0 0 var(--s8);scroll-margin-top:110px}
+.sec__head{display:flex;align-items:baseline;gap:var(--s3);
+  border-bottom:1px solid var(--hairline-2);padding-bottom:var(--s3);margin-bottom:var(--s5)}
+.sec__head h2{font:700 clamp(20px,2.6vw,26px)/1.3 var(--display);margin:0;flex:1}
+.sec__tally{font:400 12px/1 var(--mono);color:var(--ink-3);white-space:nowrap}
+
+/* ---- 項目 ---- */
+.item{border:1px solid var(--hairline-2);border-radius:var(--r3);background:var(--surface);margin:0 0 var(--s3)}
+.item:has(input:checked){background:transparent;border-color:var(--hairline-2)}
+.item:has(input:checked) .item__title{color:var(--ink-3)}
+.item:has(input:checked) .item__body{opacity:.45}
+
+.item__top{display:flex;gap:var(--s3);align-items:flex-start;padding:var(--s4);cursor:pointer;min-height:44px}
+.item__top:hover{background:oklch(0.240 0.032 302 / 0.5);border-radius:var(--r3) var(--r3) 0 0}
+.item__box{appearance:none;flex:none;width:20px;height:20px;margin:3px 0 0;border:1.5px solid var(--hairline);
+  border-radius:var(--r1);background:transparent;cursor:pointer;
+  transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease)}
+.item__box:checked{background:var(--phlox);border-color:var(--phlox)}
+.item__box:checked::after{content:"";display:block;width:5px;height:10px;margin:1px 0 0 5.5px;
+  border:solid var(--ground);border-width:0 2px 2px 0;transform:rotate(43deg)}
+.item__n{font:600 12px/1.7 var(--mono);color:var(--ink-3);flex:none;min-width:1.6em}
+.item__title{font-weight:500;font-size:16px;line-height:1.55;flex:1;min-width:0}
+
+/* 事前確認の結果（AI が代わりに動かした範囲） */
+.st{flex:none;align-self:flex-start;margin-top:2px;font:600 10.5px/1.7 var(--body);letter-spacing:.04em;
+  padding:1px 8px;border-radius:999px;white-space:nowrap;border:1px solid transparent}
+.st--ok{color:var(--sage);border-color:var(--sage-line);background:var(--sage-wash)}
+.st--half{color:oklch(0.800 0.110 82);border-color:oklch(0.470 0.070 82);background:oklch(0.250 0.040 82)}
+.st--no{color:var(--ink-3);border-color:var(--hairline-2)}
+
+.item__body{padding:0 var(--s4) var(--s4) calc(var(--s4) + 20px + var(--s3));transition:opacity var(--dur) var(--ease)}
+.lbl{font:600 10.5px/1 var(--body);letter-spacing:.16em;color:var(--ink-3);margin:0 0 var(--s3)}
+
+.steps{counter-reset:st;list-style:none;margin:0 0 var(--s5);padding:0}
+.steps li{counter-increment:st;position:relative;padding-left:var(--s5);margin:0 0 var(--s2);max-width:60ch}
+.steps li::before{content:counter(st);position:absolute;left:0;top:.34em;font:600 10px/1.5 var(--mono);
+  color:var(--phlox);width:15px;height:15px;text-align:center;border:1px solid var(--phlox-deep);border-radius:50%}
+
+.pass{border:1px solid var(--sage-line);background:var(--sage-wash);border-radius:var(--r2);padding:var(--s3) var(--s4);max-width:62ch}
+.pass .lbl{color:var(--sage);margin-bottom:var(--s2)}
+.pass ul{list-style:none;margin:0;padding:0}
+.pass li{position:relative;padding-left:var(--s5);margin:0 0 var(--s1)}
+.pass li:last-child{margin-bottom:0}
+.pass li::before{content:"";position:absolute;left:3px;top:.62em;width:5px;height:9px;
+  border:solid var(--sage);border-width:0 1.5px 1.5px 0;transform:rotate(43deg)}
+
+.caveat{margin:var(--s3) 0 0;font-size:13.5px;color:var(--amber);max-width:62ch}
+
+footer{margin:0;padding-top:var(--s5);border-top:1px solid var(--hairline-2);
+  font:400 12px/1.7 var(--mono);color:var(--ink-3)}
+
+@media (max-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr);gap:0;padding:0 var(--s4) var(--s7)}
+  .toc{position:static;padding:var(--s5) 0 0}
+  .toc ol{display:flex;flex-wrap:wrap;gap:var(--s1)}
+  .toc a{border-left:0;border:1px solid var(--hairline-2)}
+  .toc a[aria-current="true"]{border-color:var(--phlox)}
+  .toc a em{margin-left:var(--s2)}
+  .gate__inner,.meter{padding-left:var(--s4);padding-right:var(--s4)}
+  .item__body{padding-left:var(--s4)}
+  main{padding-top:var(--s5)}
+}
+@media (max-width:520px){
+  .gate__count{margin-left:0;width:100%}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition-duration:1ms !important}
+  .meter__seg:hover{transform:none}
+}
+@media print{
+  .gate,.toc,.ops,.meter{display:none}
+  body{background:#fff;color:#000;font-size:10.5pt}
+  .shell{display:block;padding:0}
+  .item{border-color:#bbb;background:#fff;break-inside:avoid}
+  .item__body{opacity:1 !important}
+  .pass{background:#f4f4f4;border-color:#999}
+  .st{border-color:#999;background:#fff;color:#333}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">本文へ</a>
+
+<header class="gate">
+  <div class="gate__inner">
+    <div class="gate__refs"><b>main</b> 9b46541 ◂────── <i>dev</i> b2fe1da</div>
+    <div class="gate__count"><b id="done">0</b> / <span id="total">31</span> 合格<span id="remain"></span></div>
+  </div>
+  <div class="meter" id="meter" role="presentation"></div>
+</header>
+
+<div class="shell">
+
+<nav class="toc" aria-label="目次"><ol id="toc"></ol></nav>
+
+<main id="main">
+
+<p class="lede">手順どおりに操作して、<b>合格</b>に書いてあることが全部そのとおりなら、チェックを付けてください。1つでも違ったらチェックを付けずに、何がどう違ったかを控えてください。</p>
+<p class="lede">各項目の右肩は<b>事前確認の結果</b>です。<span class="st st--ok">事前確認 済</span> は同じ手順を機械で通して合格まで確認したもの、<span class="st st--half">事前確認 一部</span> は一部の条件だけ確認できたもの、<span class="st st--no">事前確認 なし</span> は実機・実データが要るため確認できていないものです。<b>どれも実機での見え方は確かめてください</b>。「済」でも実機で違っていたら、それが報告すべき差分です。</p>
+
+<div class="ops">
+  <button class="btn" id="filter" aria-pressed="false">未チェックだけ表示</button>
+  <button class="btn" id="copy">結果をコピー</button>
+  <button class="btn" id="reset">チェックを全部外す</button>
+  <span class="ops__msg" id="msg" role="status" aria-live="polite"></span>
+</div>
+
+<!-- ======================= Mac ======================= -->
+<section class="sec" id="mac" data-title="Mac で確かめる">
+  <div class="sec__head"><h2>Mac で確かめる</h2><span class="sec__tally" data-tally></span></div>
+
+  <article class="item">
+    <label class="item__top" for="d1"><input class="item__box" type="checkbox" id="d1">
+      <span class="item__n">1</span><span class="item__title">エージェント管理ウィンドウを開く</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>メニューの <b>Phlox ▸ エージェント管理…</b> を選ぶ（<code>⌘⇧,</code>）。</li>
+        <li>閉じて、今度は Dashboard 左上の<b>歯車の右にあるレンチ</b>を押す。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>どちらからでも同じウィンドウが開く</li>
+        <li>ウィンドウの中に枠線が引かれていない（1 枚の板に見える）</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="d2"><input class="item__box" type="checkbox" id="d2">
+      <span class="item__n">2</span><span class="item__title">管理ウィンドウの全ペインを開く</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>サイドバーの項目を<b>上から順に全部</b>開く（Claude / Codex / Cursor の 3 グループ・計 18 枚）。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>どのペインにも中身が入っている（空欄・0 件・エラー表示のペインが 1 枚も無い）</li>
+        <li>Cursor のペインに<b>認証情報が表示されていない</b></li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="d3"><input class="item__box" type="checkbox" id="d3">
+      <span class="item__n">3</span><span class="item__title">Claude の設定を書き換えて元に戻す</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li><code>~/.claude/settings.json</code> を別名でコピーしておく。</li>
+        <li>管理画面から権限を 1 件足す。ファイルを見る。</li>
+        <li>足した権限を画面から消す。ファイルを見る。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>手順 2 で、足した 1 件以外はどこも変わっていない</li>
+        <li>Phlox の画面に出てこない設定項目も、消えずに残っている</li>
+        <li>手順 3 のあと、ファイルが手順 1 のコピーと同じ内容に戻る</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="d4"><input class="item__box" type="checkbox" id="d4">
+      <span class="item__n">4</span><span class="item__title">Codex の設定を書き換えて元に戻す</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>管理画面で <b>思考の深さ</b> を <code>medium</code> → <code>high</code> にする。</li>
+        <li><code>~/.codex/config.toml</code> を見る。</li>
+        <li>画面から <code>medium</code> に戻す。もう一度ファイルを見る。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>変わったのは <code>model_reasoning_effort</code> の <b>1 行だけ</b></li>
+        <li>他の行・空行・コメント・並び順が一切変わっていない</li>
+        <li><code>~/.codex/config.toml.phlox-backup</code> ができていて、中身が書き換える前と同じ</li>
+        <li>手順 3 のあと、ファイルが完全に元通りになる</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="d5"><input class="item__box" type="checkbox" id="d5">
+      <span class="item__n">5</span><span class="item__title">Cursor の設定を書き換える</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>Cursor のペインで設定を 2 項目変える。</li>
+        <li>Cursor の <code>cli-config.json</code> を見る。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>変えた 2 項目以外の項目が、消えても増えてもいない</li>
+        <li><code>authInfo</code>（ログイン情報）が一字も変わっていない</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="d6"><input class="item__box" type="checkbox" id="d6">
+      <span class="item__n">6</span><span class="item__title">会話を Markdown で持ち出す</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>やりとりの長いセッションで、セッションメニュー ▸ <b>会話を Markdown でコピー</b> → どこかに貼る。</li>
+        <li>セッションメニュー ▸ <b>会話を書き出す…</b> → 保存して、そのファイルを開く。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>貼り付けた内容が、会話の最初から最後まで入っている</li>
+        <li>保存ダイアログの既定のファイル名が「セッション名-日付-時刻.md」になっている</li>
+        <li>保存したファイルの中身がコピーしたものと同じ</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="d7"><input class="item__box" type="checkbox" id="d7">
+      <span class="item__n">7</span><span class="item__title">スラッシュコマンドの候補</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li><b>Claude</b> のセッションを新しく作る。</li>
+        <li><b>まず 1 通目を送って、返事が来るまで待つ</b>（送る前は古い候補が出るので判定できない）。</li>
+        <li>入力欄で <code>/</code> を打って候補を見る。</li>
+        <li>グリッド表示に切り替えて、同じセッションでもう一度 <code>/</code> を打つ。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li><code>/plugin</code> と <code>/help</code> が候補に<b>出ない</b></li>
+        <li><code>/agents</code> <code>/effort</code> <code>/fast</code> <code>/recap</code> と、自分で作ったスキルが出る</li>
+        <li>チャット表示とグリッド表示で同じ候補が出る</li>
+      </ul></div>
+      <p class="caveat">※ Codex と Cursor のセッションでは、まだ Claude 向けの候補が出ます。直していないので、これはバグ報告不要です。</p>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="d8"><input class="item__box" type="checkbox" id="d8">
+      <span class="item__n">8</span><span class="item__title">入力欄で選べるモデル</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>入力欄のモデル選択を開いて、並んでいるものを控える。</li>
+        <li>ターミナルで <code>claude --bare -p "/model" --output-format json</code> を実行し、<code>Available:</code> の並びと見比べる。</li>
+        <li>セッションを新しく作る。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>画面の一覧とコマンドの出力が一致している</li>
+        <li>Cursor のモデルも並んでいる</li>
+        <li>新しいセッションの既定が <code>opus</code> になっている</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="d9"><input class="item__box" type="checkbox" id="d9">
+      <span class="item__n">9</span><span class="item__title">質問カードの自由入力欄</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>エージェントに<b>選択肢付きの質問</b>を出させる。</li>
+        <li>選択肢を 1 つ選ぶ。</li>
+        <li>そのまま<b>自由入力欄をクリック</b>する。</li>
+        <li>画面の幅を超える長い文を打つ。</li>
+        <li>自由入力から離れて、選択肢をもう一度押す。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>手順 3 で、選んでいた選択肢の色が消える（選択が外れる）</li>
+        <li>打った文が右端で折り返す。横に伸びて切れない</li>
+        <li>入力欄が 4 行まで縦に伸びる</li>
+        <li>手順 5 で選択肢を選び直せる</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="d10"><input class="item__box" type="checkbox" id="d10">
+      <span class="item__n">10</span><span class="item__title">セッションを開いたときに見えている場所</span><span class="st st--half">事前確認 一部</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>やりとりの長いセッションを開く。</li>
+        <li>ターミナルモードのセッションを開く。</li>
+        <li>開いたあと<b>上へ読み戻している最中に</b>、エージェントに何か出力させる。</li>
+        <li>グリッド表示で、タイルを何枚か同時に開く。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>手順 1・2 とも、開いた瞬間に<b>いちばん新しいところ</b>が見えている</li>
+        <li>手順 3 で、読んでいる場所から下へ引き戻されない</li>
+        <li>手順 4 でも、どのタイルも最新が見えている</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="d11"><input class="item__box" type="checkbox" id="d11">
+      <span class="item__n">11</span><span class="item__title">再起動したあとのターミナル</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>ターミナルセッションを動かして、画面が埋まるまで出力を溜める。</li>
+        <li>そのセッションを<b>再起動</b>する。</li>
+        <li>何か出力の出るコマンドを打つ。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>再起動のあとも、新しい出力に合わせて画面が自動で下へ動く</li>
+        <li>いちばん上に貼りついたまま動かない、という状態にならない</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="d12"><input class="item__box" type="checkbox" id="d12">
+      <span class="item__n">12</span><span class="item__title">ツール実行がたくさんあるセッション</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>ツールを<b>50 件以上</b>実行したセッションを開く。</li>
+        <li>ツールの実行が<b>1 件だけ</b>のところを探して見る。</li>
+        <li>出力が何も返らないコマンド（<code>cd</code> など）を実行させて、その表示を見る。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>ツールをいくら実行しても、<b>直前の自分の発言とエージェントの返答が画面に残っている</b></li>
+        <li>1 件だけのときも「ツール実行 ×1」の 1 行に畳まれている</li>
+        <li>出力が空でもカードが消えず、実行したコマンドの文字が読める</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="d13"><input class="item__box" type="checkbox" id="d13">
+      <span class="item__n">13</span><span class="item__title">ツール実行カードを開く</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>ツール実行が<b>数百件</b>まとまっているカードを開く。</li>
+        <li>行の上に出る<b>「残り N 件を表示」</b>を押す。</li>
+        <li>実行中のセッションで、カードを開いたまましばらく待つ。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>開いてもアプリが固まらない</li>
+        <li>「残り N 件を表示」が出て、押すと続きが読める</li>
+        <li>開いたまま新しいツールが積まれても表示が壊れない</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="d14"><input class="item__box" type="checkbox" id="d14">
+      <span class="item__n">14</span><span class="item__title">iPhone から作ったセッションが Mac の一覧に出る</span><span class="st st--no">事前確認 なし</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li><b>iPhone アプリから</b>セッションを新しく作る。</li>
+        <li>Mac の一覧を見る。</li>
+        <li>そのセッションを選んで開き、メッセージを送ってみる。</li>
+        <li>削除してみる。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>作った直後から Mac の一覧に出ている</li>
+        <li>他のセッションの<b>子としてぶら下がっていない</b>（単独のセッションとして並ぶ）</li>
+        <li>選んで開ける／送れる／削除できる</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="d15"><input class="item__box" type="checkbox" id="d15">
+      <span class="item__n">15</span><span class="item__title">取り残されていたセッションが起動時に出てくる</span><span class="st st--no">事前確認 なし</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>Mac の Phlox を新しいビルドに入れ替えて起動する。</li>
+        <li>一覧に、これまで見えていなかったセッションが増えていないか見る（実機では 4 件が該当）。</li>
+        <li>増えたセッションを選んで、削除できるか試す。</li>
+        <li>アプリを終了してもう一度起動し、一覧の件数を見る。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>これまで見えなかった iPhone 由来のセッションが一覧に出ている</li>
+        <li>出てきたセッションを選べる／削除できる</li>
+        <li>手順 4 のあと、一覧のセッションが<b>1 件も消えていない</b>（起動のたびに件数が減らない）</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="d16"><input class="item__box" type="checkbox" id="d16">
+      <span class="item__n">16</span><span class="item__title">Dock のバッジが消せる</span><span class="st st--no">事前確認 なし</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>Dock の Phlox アイコンに<b>数字のバッジが出ている</b>状態にする。</li>
+        <li>その数だけセッションを開いていき、そのつど Dock を見る。</li>
+        <li>次に、ワークスペースの絞り込みで<b>いくつかのセッションを画面から隠す</b>。</li>
+        <li>隠したセッションのエージェントを動かして、完了させる。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>セッションを開くたびにバッジの数字が減る</li>
+        <li>全部開いたらバッジが消える（数字が残り続けない）</li>
+        <li>手順 4 で、<b>画面から辿れないセッションのぶんは</b>バッジも通知バナーも完了音も出ない</li>
+      </ul></div>
+    </div>
+  </article>
+</section>
+
+<!-- ======================= iPhone ======================= -->
+<section class="sec" id="ios" data-title="iPhone で確かめる">
+  <div class="sec__head"><h2>iPhone で確かめる</h2><span class="sec__tally" data-tally></span></div>
+
+  <article class="item">
+    <label class="item__top" for="i1"><input class="item__box" type="checkbox" id="i1">
+      <span class="item__n">1</span><span class="item__title">起動したときの画面</span><span class="st st--half">事前確認 一部</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>アプリを<b>完全に終了</b>してから起動し、一覧が出るまでの表示を見る。</li>
+        <li>機内モードにして、もう一度完全に終了してから起動する。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>手順 1 で、オフライン画面が一瞬も出ず「接続中」の表示が出る</li>
+        <li>手順 2 で、20 秒ほど経ってからオフライン画面に変わる（すぐには変わらない）</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="i2"><input class="item__box" type="checkbox" id="i2">
+      <span class="item__n">2</span><span class="item__title">止まったセッションの入力欄</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li><b>エラーで止まった</b>セッションを開く。</li>
+        <li><b>正常に終わった</b>セッションを開く。</li>
+        <li><b>Claude</b> のセッションで、メッセージを送ってみる。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>手順 1・2 とも、下に入力欄がある（消えていない）</li>
+        <li>手順 3 で会話が再開する</li>
+      </ul></div>
+      <p class="caveat">※ Codex のセッションでは送っても再開しません。仕組みが無いためで、バグ報告不要です。</p>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="i3"><input class="item__box" type="checkbox" id="i3">
+      <span class="item__n">3</span><span class="item__title">サブエージェントを開く</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li><b>前に白画面で固まったことのある</b>セッションを開く。</li>
+        <li>起動中のサブエージェントをタップする。</li>
+        <li>出力の長いものを開いて、上へ遡ってみる。</li>
+        <li>戻るボタンを押す。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>白画面にならず、<b>2 秒以内</b>に中身が出る（出るまでは「読み込み中」が見える）</li>
+        <li>長い出力には省略の注記が入り、<b>先頭と末尾の両方</b>が読める</li>
+        <li>「以前のメッセージを読む（N 件）」で古いところへ遡れる</li>
+        <li>戻るボタンがすぐ効く</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="i4"><input class="item__box" type="checkbox" id="i4">
+      <span class="item__n">4</span><span class="item__title">モデルの選択</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>入力欄のモデル選択を開く。</li>
+        <li><b>Codex</b> のモデルを選ぶ。</li>
+        <li>メッセージを 1 通送る。</li>
+        <li>もう一度モデル選択を開いて、選ばれているものを見る。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>Claude・Codex・Cursor の 3 つ分のモデルが並んでいる</li>
+        <li>手順 4 で、手順 2 で選んだものがそのまま選ばれている（別のエージェントのモデルに入れ替わっていない）</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="i5"><input class="item__box" type="checkbox" id="i5">
+      <span class="item__n">5</span><span class="item__title">本文と表の読みやすさ</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>長い段落を含む返答を開く。</li>
+        <li>表を含む返答を開いて、表を<b>横に指で動かす</b>。</li>
+        <li>そのまま端末を<b>横向きに回す</b>。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>本文の途中や末尾が「…」で切れていない</li>
+        <li>表を横スクロールして、いちばん右の列まで読める</li>
+        <li>表を横に動かしたときに、ページ全体が上下に暴れない</li>
+        <li>回しても表示が崩れない</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="i6"><input class="item__box" type="checkbox" id="i6">
+      <span class="item__n">6</span><span class="item__title">端スワイプで戻る／一覧のタイトル</span><span class="st st--half">事前確認 一部</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>セッションを開いて、<b>画面の左端から右へスワイプ</b>して一覧に戻る。</li>
+        <li>戻った一覧を<b>下へスクロールしてから、また上まで戻す</b>。</li>
+        <li>もう一度セッションを開き、今度は<b>戻るボタン</b>で戻る。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>手順 1 で、スワイプだけでちゃんと一覧に戻れる</li>
+        <li>戻った一覧に大きな「Projects」の見出しが出ている</li>
+        <li>手順 2 のあとも、大きな「Projects」がまた出る</li>
+        <li>スクロールで大きな見出しが隠れている間は、上のバーに小さくタイトルが出る</li>
+        <li>手順 3 でも同じ</li>
+      </ul></div>
+      <p class="caveat">※ 上のバーに出る小さいタイトルは、<b>iOS 26 では出ません</b>（iOS 18 では出ます）。直していないので、これはバグ報告不要です。</p>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="i7"><input class="item__box" type="checkbox" id="i7">
+      <span class="item__n">7</span><span class="item__title">ターミナルの表示</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li><b>先に Mac の Phlox を新しいビルドに入れ替えて起動し直す</b>（古いままだと色が付かず、この項目は判定できない）。</li>
+        <li>ターミナルモードのセッションを iPhone で開く。</li>
+        <li>枠線・全角文字・色を使うもの（<code>top</code> や TUI、日本語が入った表）を動かす。</li>
+        <li>画面より横に長い行を<b>左右にスワイプ</b>して右端まで読む。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>「出力」の見出しやトグルの中ではなく、<b>画面の幅いっぱいにそのまま</b>端末画面が出る</li>
+        <li>色が付いている</li>
+        <li><b>いちばん上の行から欠けずに</b>出ている（途中の行から始まっていない）</li>
+        <li>枠線・表の桁が縦に揃っている（日本語が混じった行でもずれない）</li>
+        <li>文字どうしが<b>重なっていない</b></li>
+        <li>画面幅を超える行は折り返さず、横スワイプで右端まで読める</li>
+      </ul></div>
+      <p class="caveat">※ 日本語（全角）は<b>字間が広めに</b>描かれます。桁を揃えるための作りなのでバグ報告不要です。文字が重なる・欠ける場合は報告してください。</p>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="i8"><input class="item__box" type="checkbox" id="i8">
+      <span class="item__n">8</span><span class="item__title">ツール実行がたくさんあるセッション</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>ツールを大量に実行したセッションを開く。</li>
+        <li>ツール実行の行をタップして開き、行の上に出る「残り N 件を表示」を押す。</li>
+        <li>カードの<b>コピーボタン</b>を押して、メモアプリなどに貼る。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>直前の自分の発言とエージェントの返答が画面に残っている</li>
+        <li>開いても固まらず、「残り N 件を表示」で続きが読める</li>
+        <li>コピーボタンを押したら、<b>実際に中身が貼れる</b>（押せるのに何も貼れない、が無い）</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="i9"><input class="item__box" type="checkbox" id="i9">
+      <span class="item__n">9</span><span class="item__title">質問カードの自由入力欄</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>選択肢付きの質問で、選択肢を 1 つ選ぶ。</li>
+        <li>そのまま<b>自由入力欄をタップ</b>する。</li>
+        <li>画面の幅を超える長い文を打つ。</li>
+        <li>キーボードを閉じて、選択肢をもう一度押す。</li>
+        <li>自由入力に打ち直して送信し、エージェントの受け取った内容を見る。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>手順 2 で、選んでいた選択肢の色が消える</li>
+        <li>打った文が右端で折り返す（4 行まで縦に伸びる）</li>
+        <li>手順 4 で選び直せる</li>
+        <li>手順 5 で、送られた内容が<b>打った文だけ</b>になっている（外したはずの選択肢が混ざらない）</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="i10"><input class="item__box" type="checkbox" id="i10">
+      <span class="item__n">10</span><span class="item__title">Mac 側で隠していても iPhone に通知が届く</span><span class="st st--no">事前確認 なし</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>Mac 側でワークスペースの絞り込みをして、あるセッションを<b>Mac の一覧から隠す</b>。</li>
+        <li>そのセッションを iPhone から動かして、完了するまで待つ（iPhone は他のアプリを開いておく）。</li>
+        <li>iPhone の通知を見る。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>Mac で隠していても、<b>iPhone にはプッシュ通知が届く</b></li>
+        <li>その通知から、あるいは iPhone の一覧から、そのセッションを開ける</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="i11"><input class="item__box" type="checkbox" id="i11">
+      <span class="item__n">11</span><span class="item__title">ターミナルの履歴を遡る</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li>Mac 側で、そのセッションの端末に<b>画面 3 枚ぶん以上</b>の出力を出す（<code>ls -la /usr/bin</code> など）。</li>
+        <li>同じセッションを iPhone で開く。</li>
+        <li>端末を<b>上へスクロール</b>して、Mac の画面から流れ去った行まで遡る。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>開いた直後は<b>いちばん新しい行</b>が見えている</li>
+        <li>上へ遡ると、Mac の画面からもう消えている古い行まで読める</li>
+        <li>遡っている間、固まらない</li>
+      </ul></div>
+      <p class="caveat">※ 遡れるのは直近 4000 行までです。それより古い行が出ないのはバグ報告不要です。</p>
+    </div>
+  </article>
+</section>
+
+<!-- ======================= ビルド ======================= -->
+<section class="sec" id="build" data-title="ビルドと自動テスト">
+  <div class="sec__head"><h2>ビルドと自動テスト</h2><span class="sec__tally" data-tally></span></div>
+
+  <article class="item">
+    <label class="item__top" for="m1"><input class="item__box" type="checkbox" id="m1">
+      <span class="item__n">1</span><span class="item__title">全パッケージのテスト</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li><b>ビルド成果物を消してから</b>（<code>swift package clean</code>）、macOS の全パッケージと iOS の <code>PhloxKit</code> を、<b>filter も skip も付けずに</b>実行する。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>失敗が <code>ControlServer</code> の <b>3 件だけ</b>（残り 18 パッケージは全部 pass）</li>
+        <li>skip が <b>17 件だけ</b>（<code>DashboardFeature</code> 14 件・<code>CodexAppServerKit</code> 3 件）</li>
+      </ul></div>
+      <p class="caveat">※ この 3 件の失敗と 17 件の skip は<b>今回の変更より前からある</b>ものです（失敗はモデル ID の受け渡し、skip は環境変数を付けないと動かない E2E）。これ以外が赤くなったら本物の失敗です。ビルド直後の初回だけ別のテストが赤くなることがあるので、1 回だけ再実行してから判定してください。</p>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="m2"><input class="item__box" type="checkbox" id="m2">
+      <span class="item__n">2</span><span class="item__title">macOS アプリのビルド</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li><code>macos/</code> で <code>xcodegen generate</code> を実行する（新しいパッケージが増えているので、必ず作り直す）。</li>
+        <li><code>xcodebuild -scheme Phlox -configuration Debug build</code></li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li><code>BUILD SUCCEEDED</code> が出る</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="m3"><input class="item__box" type="checkbox" id="m3">
+      <span class="item__n">3</span><span class="item__title">iOS アプリのビルドと UI テスト</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li><code>ios/</code> で <code>xcodegen generate</code> → <code>make build</code>。</li>
+        <li><code>make run-ui-test</code> を <b>iOS 26 系と iOS 18 系の両方</b>のシミュレータで実行する。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li><code>BUILD SUCCEEDED</code> が出る</li>
+        <li>UI テスト 25 件が、<b>両方の OS で</b> <code>TEST SUCCEEDED</code>（失敗 0・skip 0）</li>
+      </ul></div>
+    </div>
+  </article>
+
+  <article class="item">
+    <label class="item__top" for="m4"><input class="item__box" type="checkbox" id="m4">
+      <span class="item__n">4</span><span class="item__title">lint</span><span class="st st--ok">事前確認 済</span></label>
+    <div class="item__body">
+      <p class="lbl">手順</p>
+      <ol class="steps">
+        <li><code>scripts/lint-raw-values.sh</code> を実行する。</li>
+      </ol>
+      <div class="pass"><p class="lbl">合格</p><ul>
+        <li>指摘が <code>ios/App/AppRoot.swift</code> の <b>237 行目と 625 行目の 2 件だけ</b>（元からあるもの。これ以外が出たら不合格）</li>
+      </ul></div>
+    </div>
+  </article>
+</section>
+
+<footer>対象: main 9b46541 → dev b2fe1da ／ チェックはこの端末のブラウザにのみ保存されます</footer>
+
+</main>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var KEY="phlox-devmain-check:";
+  var boxes=Array.prototype.slice.call(document.querySelectorAll(".item__box"));
+  var secs=Array.prototype.slice.call(document.querySelectorAll(".sec"));
+  var meter=document.getElementById("meter");
+  var doneEl=document.getElementById("done"), totalEl=document.getElementById("total");
+  var remainEl=document.getElementById("remain"), msg=document.getElementById("msg");
+
+  var toc=document.getElementById("toc");
+  secs.forEach(function(s){
+    var n=s.querySelectorAll(".item__box").length;
+    var li=document.createElement("li"), a=document.createElement("a");
+    a.href="#"+s.id; a.innerHTML=s.dataset.title+"<em>"+n+"</em>";
+    li.appendChild(a); toc.appendChild(li);
+  });
+  var tocLinks=Array.prototype.slice.call(toc.querySelectorAll("a"));
+
+  boxes.forEach(function(b){
+    var seg=document.createElement("button");
+    seg.className="meter__seg"; seg.type="button";
+    var item=b.closest(".item"), t=item.querySelector(".item__title");
+    var sec=b.closest(".sec");
+    var lbl=sec.dataset.title+" "+item.querySelector(".item__n").textContent+" "+t.textContent;
+    seg.setAttribute("aria-label",lbl); seg.title=lbl;
+    seg.addEventListener("click",function(){
+      item.scrollIntoView({block:"center",behavior:"smooth"});
+      b.focus({preventScroll:true});
+    });
+    meter.appendChild(seg);
+  });
+  var segs=Array.prototype.slice.call(meter.children);
+  totalEl.textContent=String(boxes.length);
+
+  function save(b){ try{ localStorage.setItem(KEY+b.id, b.checked?"1":"0"); }catch(e){} }
+
+  var filterOn=false, filterBtn=document.getElementById("filter");
+  function applyFilter(){
+    document.querySelectorAll(".item").forEach(function(it){
+      var b=it.querySelector(".item__box");
+      it.style.display=(filterOn&&b&&b.checked)?"none":"";
+    });
+  }
+  function refresh(){
+    var n=0;
+    boxes.forEach(function(b,i){ if(b.checked)n++; segs[i].dataset.done=b.checked?"1":"0"; });
+    doneEl.textContent=String(n);
+    remainEl.textContent = n===boxes.length ? "　— 全部終わりました" : "（残り "+(boxes.length-n)+"）";
+    secs.forEach(function(s){
+      var t=s.querySelector("[data-tally]"); if(!t)return;
+      var bs=Array.prototype.slice.call(s.querySelectorAll(".item__box"));
+      t.textContent=bs.filter(function(x){return x.checked;}).length+" / "+bs.length;
+    });
+    applyFilter();
+  }
+  boxes.forEach(function(b){ b.addEventListener("change",function(){ save(b); refresh(); }); });
+
+  filterBtn.addEventListener("click",function(){
+    filterOn=!filterOn;
+    filterBtn.setAttribute("aria-pressed",String(filterOn));
+    filterBtn.textContent=filterOn?"全部表示":"未チェックだけ表示";
+    applyFilter();
+  });
+
+  function say(t){ msg.textContent=t; setTimeout(function(){ msg.textContent=""; },2600); }
+
+  document.getElementById("copy").addEventListener("click",function(){
+    var out=["# テスト結果（main 9b46541 → dev b2fe1da）","","合格 "+doneEl.textContent+" / "+boxes.length,""];
+    secs.forEach(function(s){
+      out.push("## "+s.dataset.title,"");
+      Array.prototype.slice.call(s.querySelectorAll(".item__box")).forEach(function(b){
+        var it=b.closest(".item");
+        out.push("- ["+(b.checked?"x":" ")+"] "+it.querySelector(".item__n").textContent+". "+
+                 it.querySelector(".item__title").textContent.trim());
+      });
+      out.push("");
+    });
+    var text=out.join("\n");
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){ say("コピーしました"); },
+                                              function(){ say("コピーできませんでした"); });
+    } else { say("コピーできませんでした"); }
+  });
+
+  document.getElementById("reset").addEventListener("click",function(){
+    if(!window.confirm("チェックを全部外します。よろしいですか？"))return;
+    boxes.forEach(function(b){ b.checked=false; save(b); });
+    refresh(); say("全部外しました");
+  });
+
+  if("IntersectionObserver" in window){
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if(!e.isIntersecting)return;
+        tocLinks.forEach(function(a){
+          a.setAttribute("aria-current", a.getAttribute("href")==="#"+e.target.id ? "true":"false");
+        });
+      });
+    },{rootMargin:"-110px 0px -70% 0px"});
+    secs.forEach(function(s){ io.observe(s); });
+  }
+
+  // チェックはテスター自身が付けたものだけ。事前確認の結果は右肩のチップで示し、
+  // チェックボックスには反映しない（どれを自分の目で見たかが判らなくなるため）。
+  boxes.forEach(function(b){
+    try{ b.checked = localStorage.getItem(KEY+b.id)==="1"; }catch(e){}
+  });
+  refresh();
+})();
+</script>
+</body>
+</html>

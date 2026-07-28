@@ -134,13 +134,14 @@ private struct FocusRaceHarnessView: View {
     let viewModel: ChatSessionViewModel
     /// false にすると focusRequest を配線しない＝修正前の状態を再現する（負の対照実験用）。
     let wiresFocusRequest: Bool
-    @State private var text = ""
     @State private var isComposing = false
     @State private var height: CGFloat = 40
 
     var body: some View {
         IMESafeTextView(
-            text: $text,
+            // 本番 ChatSessionView と同じく `viewModel.draft` へ束ねる。
+            // ローカル @State に束ねると復元本文が composer へ届かず、overlay 経路の検証が成立しない。
+            text: Binding(get: { viewModel.draft }, set: { viewModel.draft = $0 }),
             isComposing: $isComposing,
             measuredHeight: $height,
             minHeight: 40,
@@ -158,7 +159,8 @@ private struct FocusRaceHarnessView: View {
 /// はここで確認するので、呼び出し側は「閉じたあとどうなるか」だけを見ればよい。
 @MainActor
 private func makeOpenedPickerHarness(
-    wiresFocusRequest: Bool
+    wiresFocusRequest: Bool,
+    beforeOpening: (NSTextView) -> Void = { _ in }
 ) async throws -> (vm: ChatSessionViewModel, window: NSWindow, hosting: NSView, textView: NSTextView) {
     let client = RaceFakeClient()
     let vm = ChatSessionViewModel(
@@ -189,6 +191,7 @@ private func makeOpenedPickerHarness(
     let textView = try #require(MutableComposerHarness.firstTextView(in: hosting))
     window.makeFirstResponder(textView)
     try #require(window.firstResponder === textView, "前提条件: まず composer にフォーカスがある")
+    beforeOpening(textView)
 
     // esc 2連打でピッカーを開く。ピッカーは .focused() で自らフォーカスを取る。
     let base = Date()
@@ -261,6 +264,60 @@ func withoutWiringFocusDoesNotReturnToComposer() async throws {
     #expect(
         harness.window.firstResponder !== harness.textView,
         "修正前は composer にフォーカスが戻らないこと。このテストが赤くなる（配線が無くても戻る）なら、上の正のテストは何も証明していない"
+    )
+}
+
+// MARK: - IME 変換とフォーカス要求が重なりうるか（レビュー5巡目 MEDIUM の到達可能性）
+
+/// 5巡目レビューは「フォーカス要求が届いた瞬間に IME 変換中だと末尾化が失われる」と指摘した。
+/// その指摘が実害になるのは、**変換状態がピッカー表示をまたいで生き残る**場合に限る
+/// （末尾化つきの要求を出すのは confirmRevert だけで、それは必ずピッカーを開いた後に起きる）。
+/// ここは推測ではなく実物の overlay を通して測る。前提が崩れたら（＝変換が生き残ったら）
+/// キャレットどころか復元本文自体が同期されない（updateNSView の同期ブロックが hasMarkedText で
+/// 素通しになる）ので、その時は末尾化の保留ではなく同期そのものの設計を見直す必要がある。
+@Test("IME 変換はピッカー表示をまたいで生き残らない（末尾化要求と変換が重ならない）")
+@MainActor
+func compositionDoesNotSurviveThePicker() async throws {
+    let harness = try await makeOpenedPickerHarness(wiresFocusRequest: true) { textView in
+        textView.setMarkedText(
+            "へんかん",
+            selectedRange: NSRange(location: 0, length: 0),
+            replacementRange: NSRange(location: 0, length: 0)
+        )
+    }
+    defer { harness.window.orderOut(nil) }
+
+    #expect(
+        harness.textView.hasMarkedText() == false,
+        "ピッカーがフォーカスを奪った時点で変換は終了していること。生き残るなら復元本文の同期自体が止まる"
+    )
+}
+
+/// 上の前提のもとで、実物のピッカーから復元を確定させたときにキャレットが復元本文の末尾へ来ること。
+/// 受け入れテストは composer 単体、`caretMovesToEndOfRestoredTextReplacingShorterDraft` は
+/// 手組みの再描画で測っており、どちらも実物の overlay 経由の順序を通っていない。
+@Test("実物のピッカーから復元を確定すると、キャレットは復元本文の末尾へ来る")
+@MainActor
+func confirmingRealPickerLeavesCaretAtEndOfRestoredText() async throws {
+    let harness = try await makeOpenedPickerHarness(wiresFocusRequest: true)
+    defer { harness.window.orderOut(nil) }
+    let candidate = try #require(harness.vm.revertCandidates.first)
+
+    await harness.vm.confirmRevert(toUserMessageID: candidate.id)
+    harness.hosting.layoutSubtreeIfNeeded()
+
+    // `draftRestoration` は View（.chatEscapeHandling）が 1 ショット通知として消費済みなので参照しない。
+    // 復元本文はハーネスが送った唯一のユーザーメッセージ。
+    let restored = "古い依頼"
+    #expect(harness.vm.draft == restored, "前提条件: 復元本文が draft へ入ること")
+    try await waitUntil(timeoutNanoseconds: 3_000_000_000, "キャレットが復元本文の末尾へ来る") {
+        harness.window.firstResponder === harness.textView
+            && harness.textView.selectedRange() == NSRange(location: restored.utf16.count, length: 0)
+    }
+    #expect(harness.textView.string == restored, "復元本文が入力欄へ入っていること")
+    #expect(
+        harness.textView.selectedRange() == NSRange(location: restored.utf16.count, length: 0),
+        "クリックせず復元本文の末尾から続きを打てること"
     )
 }
 

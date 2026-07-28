@@ -65,7 +65,10 @@ private func sessionFeatureSource(_ relativePath: String) throws -> String {
 func interaction_changedAlwaysReturnsNil_horizontal() throws {
     let frame = try dividerFrame(axis: .horizontal)
     var interaction = PaneDividerInteraction(minimumPaneWidth: 240, minimumPaneHeight: 160)
-    #expect(interaction.began(frame) == nil, "began でもレイアウトを更新しない")
+    // #expect / #require はマクロ展開でクロージャに包むため、mutating メソッドを
+    // 式の中で直接呼べない。結果をローカルに束ねてから検査する（アサーションの意味は同じ）。
+    let beganAction = interaction.began(frame)
+    #expect(beganAction == nil, "began でもレイアウトを更新しない")
 
     for dx in stride(from: -1500.0, through: 1500.0, by: 15.0) {
         let action = interaction.changed(frame, translation: CGSize(width: dx, height: 37))
@@ -92,7 +95,8 @@ func interaction_endedReturnsSetDividerForTheGrabbedDivider() throws {
     interaction.began(frame)
     interaction.changed(frame, translation: CGSize(width: 90, height: 0))
 
-    let action = try #require(interaction.ended(frame, translation: CGSize(width: 90, height: 0)))
+    let endedAction = interaction.ended(frame, translation: CGSize(width: 90, height: 0))
+    let action = try #require(endedAction)
     guard case .setDivider(let divider, let fraction) = action else {
         Issue.record("ended が .setDivider を返さなかった: \(action)"); return
     }
@@ -127,10 +131,11 @@ func interaction_cancelledDoesNotCommit() throws {
     interaction.began(frame)
     interaction.changed(frame, translation: CGSize(width: 200, height: 0))
 
-    #expect(interaction.cancelled() == nil)
+    let cancelledAction = interaction.cancelled()
+    #expect(cancelledAction == nil)
     #expect(interaction.ghost == nil)
-    #expect(interaction.ended(frame, translation: CGSize(width: 200, height: 0)) == nil,
-            "中断後は確定できない")
+    let afterCancelAction = interaction.ended(frame, translation: CGSize(width: 200, height: 0))
+    #expect(afterCancelAction == nil, "中断後は確定できない")
 }
 
 @Test

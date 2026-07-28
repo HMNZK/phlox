@@ -53,24 +53,11 @@ struct PaneDividerHandleView: View {
         .simultaneousGesture(
             TapGesture(count: 2).onEnded { onLayoutAction(interaction.equalize(divider)) }
         )
+        // 発光バーの表示にだけ使う。カーソル形状は下のモディファイアが受け持つ。
         .onHover { hovering in
-            // push / pop の対応が崩れると祖先のカーソルまで戻してしまうため、
-            // 状態が実際に変わったときだけ操作する。
-            guard hovering != isHovering else { return }
             isHovering = hovering
-            if hovering {
-                resizeCursor.push()
-            } else {
-                NSCursor.pop()
-            }
         }
-        // ホバー中にレイアウトが変わってこのハンドルが消えると、カーソルがリサイズのまま残る。
-        .onDisappear {
-            if isHovering {
-                isHovering = false
-                NSCursor.pop()
-            }
-        }
+        .paneDividerResizeCursor(axis: divider.axis)
         .accessibilityLabel("分割線")
     }
 
@@ -128,10 +115,57 @@ struct PaneDividerHandleView: View {
             }
     }
 
-    private var resizeCursor: NSCursor {
-        switch divider.axis {
-        case .horizontal: return .resizeLeftRight
-        case .vertical: return .resizeUpDown
+}
+
+private extension View {
+    /// 分割線の向きに合わせたリサイズカーソル。
+    ///
+    /// macOS 15+ は SwiftUI 管理の `.pointerStyle` を使う。`.onHover` の中で `NSCursor.push/pop` を
+    /// 呼ぶ素直な実装は、mouseMoved のたびに arrow へ戻されてカーソルが定着しないという既知不具合が
+    /// あり、このリポジトリでは既に `DesignSystem/Interaction.swift`（15〜35 行目）で同じ対処が
+    /// 取られている。左右方向はその `dsColumnResizeCursor()` をそのまま使う。
+    @ViewBuilder
+    func paneDividerResizeCursor(axis: PaneAxis) -> some View {
+        switch axis {
+        case .horizontal:
+            dsColumnResizeCursor()
+        case .vertical:
+            modifier(PaneRowResizeCursorModifier())
+        }
+    }
+}
+
+/// 上下リサイズ用。`DesignSystem` に同等のヘルパー（`dsRowResizeCursor()`）がまだ無いため、
+/// `dsColumnResizeCursor()` と**同じ形**でここに置く（macOS 15+ は `.pointerStyle(.rowResize)`、
+/// 14 は `NSCursor.resizeUpDown` の push/pop へフォールバック）。
+/// 恒久的には `DesignSystem/Interaction.swift` へ移すのが筋だが、そこは本タスクの変更範囲外。
+private struct PaneRowResizeCursorModifier: ViewModifier {
+    @State private var isHovering = false
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(macOS 15.0, *) {
+            content.pointerStyle(.rowResize)
+        } else {
+            content
+                .onHover { hovering in
+                    // push / pop の対応が崩れると祖先のカーソルまで戻してしまうため、
+                    // 状態が実際に変わったときだけ操作する。
+                    guard hovering != isHovering else { return }
+                    isHovering = hovering
+                    if hovering {
+                        NSCursor.resizeUpDown.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
+                // ホバー中にレイアウトが変わってこのハンドルが消えると、カーソルが残る。
+                .onDisappear {
+                    if isHovering {
+                        isHovering = false
+                        NSCursor.pop()
+                    }
+                }
         }
     }
 }

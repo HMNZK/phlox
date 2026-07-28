@@ -177,6 +177,29 @@ func dropZone_mapsEachEdgeIndependentlyOnAsymmetricTiles() {
 }
 
 @Test
+func dropZone_nearestEdgeIgnoresSignAtOutsideCorners() {
+    // 符号つきの比で比べると「はみ出しが大きい辺ほど小さい値」になり、最も遠い辺が選ばれる。
+    let tall = CGSize(width: 200, height: 400)
+    // 左へ 4pt・上へ 150pt。近いのは左辺（符号つきなら上辺になってしまう）。
+    #expect(PaneDropZone.target(for: CGPoint(x: -4, y: -150), in: tall) == .split(.leading))
+    // 右へ 6pt・下へ 100pt。近いのは右辺。
+    #expect(PaneDropZone.target(for: CGPoint(x: 206, y: 500), in: tall) == .split(.trailing))
+}
+
+@Test
+func dropZone_outsidePointsSplitEvenBeyondTheEdgeBand() {
+    // タイルの外の点は「中央」ではありえないので、帯（25%）より遠くても入れ替えにしない。
+    let size = CGSize(width: 300, height: 200)
+    #expect(PaneDropZone.target(for: CGPoint(x: 150, y: 260), in: size) == .split(.bottom),
+            "下へ 60pt（比 0.3）はみ出していても入れ替えにしない")
+    #expect(PaneDropZone.target(for: CGPoint(x: -90, y: 100), in: size) == .split(.leading),
+            "左へ 90pt（比 0.3）はみ出していても入れ替えにしない")
+    // 境界ちょうどは「外」ではない。内側の規則（比と閾値）がそのまま効く。
+    #expect(PaneDropZone.target(for: CGPoint(x: 150, y: 200), in: size) == .split(.bottom))
+    #expect(PaneDropZone.target(for: CGPoint(x: 150, y: 100), in: size) == .swap)
+}
+
+@Test
 func dropZone_nonFinitePointFallsBackToSwap() {
     // ドラッグ座標が壊れていても分割を誘発しない（決定論・クラッシュしない）。
     let size = CGSize(width: 400, height: 300)
@@ -399,6 +422,19 @@ func layoutViewUsesTheTreeOnlyForRectangles() throws {
     #expect(!code.contains("PaneSplit"), "ビューがツリーの分割ノードを直接扱っている")
     #expect(!code.contains(".children"), "ビューがツリーの子を歩いている")
     #expect(code.contains(".id(session.id)"), "タイルの identity をセッションで固定すること")
+}
+
+@Test
+func dividerCursorUsesPointerStyleOnModernMacOS() throws {
+    // macOS 15 では `.onHover` 内の NSCursor.push/pop が mouseMoved で arrow へ戻され、
+    // リサイズカーソルが定着しない（DesignSystem/Interaction.swift が同じ対処を取っている）。
+    let code = try sessionFeatureCode("PaneDividerHandleView.swift")
+    #expect(code.contains("if #available(macOS 15.0, *)"),
+            "macOS 15 とそれ以前で経路を分けていない")
+    #expect(code.contains("dsColumnResizeCursor()"),
+            "左右リサイズは DesignSystem の既存ヘルパーに揃えること")
+    #expect(code.contains("pointerStyle(.rowResize)"),
+            "上下リサイズは macOS 15 で SwiftUI 管理の pointerStyle を使うこと")
 }
 
 @Test

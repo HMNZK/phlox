@@ -1,9 +1,15 @@
 ---
-status: active
-last-verified: 2026-07-14
+status: superseded
+last-verified: 2026-07-28
+superseded-by: 0135-pane-split-tree-layout.md
 ---
 
 # ADR 0084: グリッドビューの N×N 固定化・セッション自由配置・セル結合
+
+> **この決定は [ADR 0135](0135-pane-split-tree-layout.md) で覆された**。k×k 等分割盤では分割比が
+> 1/k の整数倍しか作れず、「左半分に1枚・右半分を上下に2枚」のような比率を表現できなかったため、
+> レイアウトモデルを n 分岐の分割ツリーへ置き換え、本 ADR の実装（`SessionGridArrangement` /
+> `GridColumns` / `GridArrangementStore` 等）は撤去した。以下は当時の記録として残す。
 
 ## 文脈
 

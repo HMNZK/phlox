@@ -24,7 +24,8 @@ last-verified: 2026-07-08
 | `e2e-test-design.md` | active | Phlox E2E テスト設計書（Layer A/B の戦略・シナリオカタログ） |
 | `gemini-cli-integration.md` | superseded | Gemini CLI 統合仕様。ADR 0041 で削除済み |
 | `goose-integration.md` | superseded | Goose 統合仕様。ADR 0041 で削除済み |
-| `grid-view-layout.md` | active | グリッドビューの固定 N×N・自由配置・セル結合の要件（FR/NFR・受け入れテスト。決定は ADR 0084） |
+| `pane-layout.md` | active | グリッドビューの分割ツリーレイアウト要件（FR/NFR・用語・受け入れテスト。決定は ADR 0135） |
+| `grid-view-layout.md` | superseded | → pane-layout.md（旧 固定 N×N・セル結合の要件。決定は ADR 0084） |
 | `liquid-glass-ui.md` | active | Liquid Glass UI 刷新の実装プラン（ADR 0019・実装未着手） |
 | `localization.md` | active | アプリ内多言語化（日本語/英語ライブ切替）の方針と追加手順 |
 | `opencode-integration.md` | superseded | opencode 統合仕様。ADR 0041 で削除済み |

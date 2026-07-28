@@ -1,9 +1,13 @@
 ---
-status: active
-last-verified: 2026-07-14
+status: superseded
+last-verified: 2026-07-28
+superseded-by: session-pane-layout.md
 ---
 
 # セッショングリッドのレイアウト（固定 N×N・自由配置・結合）
+
+> **この構造は撤去された**。現行は n 分岐の分割ツリー（→ [session-pane-layout.md](session-pane-layout.md)、
+> 決定の理由は [adr/0135](../adr/0135-pane-split-tree-layout.md)）。以下は当時の記録として残す。
 
 グリッドビューの固定列モード（`GridColumns.one`〜`four`）は、選択値 k を一辺とする **k×k 格子**でセッションを描画する。ユーザーはセルを移動・結合でき、配置は k ごとに永続化される。auto モードは別経路（`⌈√N⌉` 列・swap D&D）で本ドキュメントの対象外。
 

@@ -1,9 +1,13 @@
 ---
-status: active
-last-verified: 2026-07-14
+status: superseded
+last-verified: 2026-07-28
+superseded-by: pane-layout.md
 ---
 
 # グリッドビューのレイアウト要件（固定 N×N・自由配置・セル結合）
+
+> **この要件は置き換えられた**。現行は [pane-layout.md](pane-layout.md)（決定の理由は
+> [adr/0135](../adr/0135-pane-split-tree-layout.md)）。以下は当時の記録として残す。
 
 ダッシュボードのグリッドビュー（固定列モード）が満たすべき要件。決定の理由は ADR 0084、現行の実装構造は architecture/session-grid-layout.md を参照。
 

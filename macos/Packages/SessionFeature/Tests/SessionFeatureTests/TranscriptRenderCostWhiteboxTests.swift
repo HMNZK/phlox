@@ -2,19 +2,6 @@ import Foundation
 import Testing
 @testable import SessionFeature
 
-private extension ChatTranscriptSlice {
-    var renderCostVisibleItemCount: Int {
-        blocks.reduce(0) { count, block in
-            switch block.content {
-            case .single:
-                return count + 1
-            case .commandGroup(_, let items):
-                return count + items.count
-            }
-        }
-    }
-}
-
 @Suite("Transcript render cost white-box")
 struct TranscriptRenderCostWhiteboxTests {
     @Test
@@ -30,7 +17,7 @@ struct TranscriptRenderCostWhiteboxTests {
     }
 
     @Test
-    func thousandItemTranscript_groupedVisibleSliceContainsAtMostFiftyItems() {
+    func thousandCommandTranscript_groupedVisibleSliceContainsAtMostFiftyBlocks() {
         let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
         let items = (0..<1000).map { index in
             ChatItem.commandExecution(
@@ -41,10 +28,27 @@ struct TranscriptRenderCostWhiteboxTests {
             )
         }
         let window = TranscriptWindow(context: .single)
-        let range = window.visibleRange(totalCount: items.count)
-        let slice = ChatTranscriptGrouping.visibleSlice(from: items, startingAt: range.startIndex)
+        let slice = ChatTranscriptGrouping.visibleSlice(from: items, blockLimit: window.limit)
 
-        #expect(slice.hiddenItemCount == 950)
-        #expect(slice.renderCostVisibleItemCount <= 50)
+        #expect(slice.hiddenBlockCount == 0)
+        #expect(slice.blocks.count <= TranscriptWindow.defaultLimit)
+        #expect(slice.blocks.count == 1)
+    }
+
+    /// 上のケースは 1000 件すべてがコマンドで 1 ブロックに畳まれるため上限アサーションが自明に真になる。
+    /// レンダコスト上限の正本ファイルとして、隠れ域が実際に発生し上限が binding になるケースも固定する。
+    @Test
+    func thousandBlockTranscript_visibleBlocksAreBoundedAndRemainderIsHidden() {
+        let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
+        let items = (0..<1000).map { index in
+            ChatItem.agentMessage(id: "agent-\(index)", text: "text \(index)", timestamp: timestamp)
+        }
+        let window = TranscriptWindow(context: .single)
+        let slice = ChatTranscriptGrouping.visibleSlice(from: items, blockLimit: window.limit)
+
+        #expect(ChatTranscriptGrouping.blockCount(of: items) == 1000)
+        #expect(slice.blocks.count == TranscriptWindow.defaultLimit)  // 上限に張り付く＝binding
+        #expect(slice.hiddenBlockCount == 950)
+        #expect(slice.blocks.last?.id == "agent-999")                 // 末尾を含み続ける
     }
 }

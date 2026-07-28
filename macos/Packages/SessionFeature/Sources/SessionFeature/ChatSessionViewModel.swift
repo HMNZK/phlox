@@ -4,6 +4,10 @@ import AgentDomain
 import CodexAppServerKit
 import StructuredChatKit
 
+private enum UserNotification {
+    case completed
+    case awaitingInput
+}
 
 @MainActor
 @Observable
@@ -100,6 +104,7 @@ public final class ChatSessionViewModel: Identifiable {
         return trimmed == "/compact" || trimmed.hasPrefix("/compact ")
     }
     public private(set) var availableModels: [AppServerModel] = []
+    public private(set) var availableSlashCommands: [String]?
     public private(set) var permissionProfiles: [PermissionProfileSummary] = []
     public private(set) var selectedModel: String?
     public private(set) var selectedEffort: String?
@@ -116,9 +121,14 @@ public final class ChatSessionViewModel: Identifiable {
     public private(set) var isHistoryPickerPresented = false
     /// リバート確定で復元する composer 下書き本文（task-9）。View が反映後 `consumeDraftRestoration()` でクリアする。
     public private(set) var draftRestoration: String?
+    /// composer へフォーカスを戻す要求（esc-restore-input-focus task-1 契約の PM スタブ）。
+    /// 受け入れテスト AcceptanceComposerFocusRestoreTests が凍結。発火は task-1、消費は task-2 が実装する。
+    public private(set) var composerFocusRequest: ComposerFocusRequest = .none
     @ObservationIgnored public var codexSettingsDidChange: (@MainActor (CodexAppServerSessionSettings?) -> Void)?
     /// リモート通知系へのフック。nil なら呼ばれない（既存挙動と同一）。
     @ObservationIgnored public var remoteSessionNotifier: (any RemoteSessionNotifier)?
+    /// チャネルごとのユーザー通知可否。nil は既存挙動を保つため全許可として扱う。
+    @ObservationIgnored public var userNotificationGate: ((UserNotificationChannel) -> Bool)?
 
     private let client: any StructuredAgentClient
     private let approvalBroker: ChatApprovalBroker
@@ -140,6 +150,9 @@ public final class ChatSessionViewModel: Identifiable {
     private var collaborationModeListAvailable = false
     private var shouldClearBackgroundTasksOnNextTurnStart = false
     private var turnStartedAt: Date?
+    /// turnStartedAt が復元時の推定（applyRestoredThreadStatus）由来か。ライブの
+    /// turnStarted イベント由来のターンは ADR 0064 の idle 無視ガードの対象になる。
+    private var turnIsRestoredInference = false
     private var turnGeneration = 0
     private var isAwaitingLocallyStartedTurnEvent = false
     private var activeInterruptTask: Task<Void, Never>?
@@ -570,12 +583,12 @@ public final class ChatSessionViewModel: Identifiable {
             }
             await restoreTurnUsageFromStore()
             if await restoreTranscriptFromStore() {
-                status = response.thread.status?.sessionStatus ?? .idle
+                applyRestoredThreadStatus(response.thread.status?.sessionStatus ?? .idle)
             } else {
                 let read = try await codexClient.threadRead(ThreadReadParams(threadId: threadId, includeTurns: true))
                 updateNativeSessionId(read.thread.id)
                 rebuildTranscript(from: read.thread)
-                status = read.thread.status?.sessionStatus ?? .idle
+                applyRestoredThreadStatus(read.thread.status?.sessionStatus ?? .idle)
             }
             restoreState = .restored
         } catch {
@@ -659,6 +672,9 @@ public final class ChatSessionViewModel: Identifiable {
             isHistoryPickerPresented = false
             // 閉じた esc は次の 2連打シーケンスの起点にしない（閉じた直後の esc で再度開くのを防ぐ）。
             lastEscapeAt = nil
+            // ピッカーが奪ったフォーカスの返却先を composer に定義する。本文は復元していないので
+            // キャレット・選択範囲は動かさない。
+            requestComposerFocus(movesCaretToEnd: false)
             return
         }
         if EscapeRevertPolicy.isDoubleEscape(lastEscapeAt: lastEscapeAt, now: now) {
@@ -685,9 +701,27 @@ public final class ChatSessionViewModel: Identifiable {
             await turnInterrupt()
         }
         let restored = await revert(toUserMessageID: id)
+        // 復元本文は ViewModel 自身が `draft` へ書く。View 側の `draftRestoration` 監視経由にすると
+        // 本文がフォーカス要求より 1 更新パス遅れて届き、「末尾化すべき本文がまだ無い」状態を
+        // View 側で保留・再適用する機構が必要になる。同じ代入の中で両方を確定させて遅れ自体を無くす。
+        if let restored {
+            draft = restored
+        }
         draftRestoration = restored
         isHistoryPickerPresented = false
         lastEscapeAt = nil
+        // ピッカーは閉じるのでフォーカスは必ず composer へ返す。本文を復元できたときだけ
+        // キャレットを末尾へ動かす（先頭のままだと打った文字が復元本文の前に入る）。
+        requestComposerFocus(movesCaretToEnd: restored != nil)
+    }
+
+    /// composer へのフォーカス復帰要求を 1 段だけ進める。token は狭義単調増加で、
+    /// 同じ値を再発行しない（View は値の変化だけを見てフォーカスを動かす）。
+    private func requestComposerFocus(movesCaretToEnd: Bool) {
+        composerFocusRequest = ComposerFocusRequest(
+            token: composerFocusRequest.token + 1,
+            movesCaretToEnd: movesCaretToEnd
+        )
     }
 
     /// View が `draftRestoration` を composer へ反映したあとに呼び、復元本文を消費する（task-9）。
@@ -897,10 +931,6 @@ public final class ChatSessionViewModel: Identifiable {
 
     // MARK: - Spawn agent (Claude/Cursor) settings
 
-    /// Claude の固定 model alias。実 CLI の `--model`（opus/sonnet/fable/haiku）に対応（D2）。
-    /// haiku は 2026-07-03 に `--model haiku` の実応答（claude-haiku-4-5）を実測確認して追加。
-    static let claudeModelAliases = ["opus", "sonnet", "fable", "haiku"]
-
     /// Claude spawn セッションで選択可能な effort（CLI `--effort` の有効値）。
     static let claudeEffortLevelOptions = ["low", "medium", "high", "xhigh", "max"]
 
@@ -915,7 +945,9 @@ public final class ChatSessionViewModel: Identifiable {
     /// 選択モデルが effort をサポートするか（nil は非対応扱い）。
     nonisolated static func claudeModelSupportsEffort(_ alias: String?) -> Bool {
         guard let alias else { return false }
-        return !claudeEffortUnsupportedModelAliases.contains(alias)
+        // Dynamic aliases such as haiku[1m] inherit the base model's capability.
+        let baseAlias = alias.split(separator: "[", maxSplits: 1).first.map(String.init) ?? alias
+        return !claudeEffortUnsupportedModelAliases.contains(baseAlias)
     }
 
     /// Claude セッションかつ effort 対応モデルでは effort 候補を返し、非対応モデル・Cursor 等では空（メニュー非表示）。
@@ -929,22 +961,13 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
-    /// alias → 表示名（バージョン付き）。CLI からバージョンを動的取得する手段が無いため
-    /// 手動対応表とする（公式ピッカーの表記に追随。モデル更新時はここを更新する）。
-    /// 未知の alias（Cursor のモデル名等）はそのまま表示する。
-    static let spawnAgentModelDisplayNames: [String: String] = [
-        "opus": "Opus 4.8",
-        "sonnet": "Sonnet 5",
-        "fable": "Fable 5",
-        "haiku": "Haiku 4.5",
-    ]
-
-    /// モデル alias の表示名を返す（対応表に無ければ alias をそのまま返す）。
+    /// モデル表示名は agent 種別に関わらず共有カタログから探す。履歴やカスタム agent でも
+    /// 既知 alias の装飾を失わず、未知 ID はそのまま表示する。
     public func spawnAgentModelDisplayName(_ alias: String) -> String {
-        Self.spawnAgentModelDisplayNames[alias] ?? alias
+        AgentKind.allCases.lazy.compactMap { kind in
+            AgentModelCatalog.models(for: kind).first(where: { $0.id == alias })?.displayName
+        }.first ?? alias
     }
-    /// Cursor の `cursor-agent models` 取得に失敗した/未注入のときに使う小さな fallback（起動を妨げない）。
-    static let cursorFallbackModels = ["gpt-5", "sonnet-4.5", "opus-4.1"]
 
     /// task-11 が呼ぶ model 変更ハンドラ。選択を保持し、フルスナップショットで actor へ反映する。
     public func setSpawnAgentModel(_ model: String?) async {
@@ -991,7 +1014,7 @@ public final class ChatSessionViewModel: Identifiable {
         case .builtin(.claudeCode):
             selectedModel = persistedSettings?.selectedModel
                 ?? selectedModel
-                ?? Self.claudeModelAliases.first
+                ?? AgentModelCatalog.defaultModel(for: .claudeCode)
             if Self.claudeModelSupportsEffort(selectedModel) {
                 selectedEffort = persistedSettings?.selectedEffort
                     ?? selectedEffort
@@ -1012,7 +1035,7 @@ public final class ChatSessionViewModel: Identifiable {
         case .builtin(.cursor):
             selectedModel = persistedSettings?.selectedModel
                 ?? selectedModel
-                ?? defaultCursorSpawnAgentModel()
+                ?? AgentModelCatalog.defaultModel(for: .cursor)
             selectedPermissionProfile = persistedPermissionOrMode == "plan"
                 ? selectedPermissionProfile
                 : persistedPermissionOrMode ?? selectedPermissionProfile
@@ -1031,25 +1054,21 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private func resolveSpawnAgentModels() async -> [String] {
+        // This explicit seam is used by deterministic callers (not by the production
+        // composition root). A non-empty injected snapshot must be honoured; otherwise
+        // the shared live catalog remains the single production source of truth.
+        if let spawnAgentModelsProvider {
+            let injected = await spawnAgentModelsProvider()
+            if !injected.isEmpty { return injected }
+        }
         switch agentRef {
         case .builtin(.claudeCode):
-            return Self.claudeModelAliases
+            return AgentModelCatalog.models(for: .claudeCode).map(\.id)
         case .builtin(.cursor):
-            if let spawnAgentModelsProvider {
-                let fetched = await spawnAgentModelsProvider()
-                if !fetched.isEmpty { return fetched }
-            }
-            return Self.cursorFallbackModels
+            return AgentModelCatalog.models(for: .cursor).map(\.id)
         default:
             return []
         }
-    }
-
-    private func defaultCursorSpawnAgentModel() -> String? {
-        if availableSpawnAgentModels.contains("composer-2.5") {
-            return "composer-2.5"
-        }
-        return availableSpawnAgentModels.first
     }
 
     /// 選択中の model/permission(mode) を毎回そろえて actor へ渡し、永続コールバックを叩く。
@@ -1131,6 +1150,7 @@ public final class ChatSessionViewModel: Identifiable {
             turnGeneration += 1
         }
         turnStartedAt = date
+        turnIsRestoredInference = false
         lastEventAt = nil
         pendingTurnCostUSD = nil
     }
@@ -1142,21 +1162,32 @@ public final class ChatSessionViewModel: Identifiable {
 
     private func clearRunningTurn() {
         turnStartedAt = nil
+        turnIsRestoredInference = false
         lastEventAt = nil
         pendingTurnCostUSD = nil
     }
 
-    /// ターミナル型（SessionViewModel.notifyCompletionIfNeeded）と同じ判定で完了を通知する。
-    /// running からの turnCompleted だけを対象にし、復元リプレイ・interrupt 由来の idle 遷移では鳴らさない。
-    private func notifyCompletionIfNeeded(from previousStatus: SessionStatus) {
-        guard previousStatus == .running else { return }
+    /// 復元時にすでに実行中だったターンを、復元リプレイではなく実ターンとして追跡する。
+    /// これにより、その後に届く terminal status で完了通知を判定できる。
+    private func applyRestoredThreadStatus(_ restoredStatus: SessionStatus) {
+        status = restoredStatus
+        guard restoredStatus == .running else { return }
+        turnStartedAt = Date()
+        turnIsRestoredInference = true
+        lastEventAt = nil
+    }
+
+    /// ターミナル型と同じポリシーで完了を通知する。待機状態は実行中ターンに限って完了対象にし、
+    /// 復元リプレイ・interrupt 由来の idle 遷移では呼ばない。
+    private func notifyCompletionIfNeeded(from previousStatus: SessionStatus, hadActiveTurn: Bool) {
+        guard SessionCompletionNotificationPolicy.shouldNotifyCompletion(
+            previous: previousStatus,
+            next: status,
+            hasActiveTurn: hadActiveTurn
+        ) else { return }
         // 本物のターン完了を未確認の停止としてラッチする（turnInterrupted はこの経路を通らない）。
         hasUnseenCompletion = true
-        SessionCompletionNotifier.notifyCompleted(sessionName: displayName)
-        remoteSessionNotifier?.sessionCompleted(
-            sessionId: id.description,
-            sessionName: displayName
-        )
+        notifyUser(.completed)
     }
 
     /// 承認待ちへ遷移し、非承認待ちからの遷移時のみ通知する（連続する承認要求での多重通知を防ぐ）。
@@ -1164,11 +1195,7 @@ public final class ChatSessionViewModel: Identifiable {
         let previousStatus = status
         status = .awaitingApproval(prompt: prompt)
         if case .awaitingApproval = previousStatus { return }
-        SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
-        remoteSessionNotifier?.approvalPending(
-            sessionId: id.description,
-            sessionName: displayName
-        )
+        notifyUser(.awaitingInput)
     }
 
     /// AskUserQuestion 到着時に入力待ちへ遷移し、非入力待ちからの遷移時のみ通知する。
@@ -1176,11 +1203,34 @@ public final class ChatSessionViewModel: Identifiable {
         let previousStatus = status
         status = .awaitingUserQuestion
         if case .awaitingUserQuestion = previousStatus { return }
-        SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
-        remoteSessionNotifier?.approvalPending(
-            sessionId: id.description,
-            sessionName: displayName
-        )
+        notifyUser(.awaitingInput)
+    }
+
+    private func notifyUser(_ notification: UserNotification) {
+        let allowsLocalNotification = userNotificationGate?(.local) ?? true
+        let allowsRemoteNotification = userNotificationGate?(.remote) ?? true
+        switch notification {
+        case .completed:
+            if allowsLocalNotification {
+                SessionCompletionNotifier.notifyCompleted(sessionName: displayName)
+            }
+            if allowsRemoteNotification {
+                remoteSessionNotifier?.sessionCompleted(
+                    sessionId: id.description,
+                    sessionName: displayName
+                )
+            }
+        case .awaitingInput:
+            if allowsLocalNotification {
+                SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
+            }
+            if allowsRemoteNotification {
+                remoteSessionNotifier?.approvalPending(
+                    sessionId: id.description,
+                    sessionName: displayName
+                )
+            }
+        }
     }
 
     private func appendPendingTurnCostIfNeeded(timestamp: Date) {
@@ -1224,6 +1274,9 @@ public final class ChatSessionViewModel: Identifiable {
         switch event {
         case .agentMessageDelta, .reasoningDelta:
             break
+        case .taskListUpdated(let tasks):
+            appendOrReplace(.taskList(id: "task-list", tasks: tasks, timestamp: eventDate))
+            touchOutput()
         case .commandExecution(let itemId, let command, let delta):
             markRunningEventReceived(at: eventDate)
             if let command, !command.isEmpty {
@@ -1247,18 +1300,21 @@ public final class ChatSessionViewModel: Identifiable {
             pendingTurnCostUSD = usage.costUSD
             sessionTotalCostUSD += usage.costUSD ?? 0
             persistTurnUsageSnapshot(usage)
+        case .availableCommandsUpdated(let commands):
+            availableSlashCommands = commands
         case .turnCompleted(let nativeSessionId):
             if let nativeSessionId, shouldAdoptNativeSessionId(nativeSessionId) {
                 updateNativeSessionId(nativeSessionId)
             }
             appendPendingTurnCostIfNeeded(timestamp: eventDate)
             let previousStatus = status
+            let hadActiveTurn = turnStartedAt != nil
             isCompacting = false
             clearRunningTurn()
             status = .idle
             completedTurnSeq += 1
             lastTurnCompletedAt = eventDate
-            notifyCompletionIfNeeded(from: previousStatus)
+            notifyCompletionIfNeeded(from: previousStatus, hadActiveTurn: hadActiveTurn)
             touchOutput()
             flushTranscriptAtTurnBoundary()
             midTurnPersistenceGate.noteExternalFlush()
@@ -1277,11 +1333,14 @@ public final class ChatSessionViewModel: Identifiable {
         case .error(let message):
             expireAllPendingUserQuestions()
             isCompacting = false
+            let previousStatus = status
+            let hadActiveTurn = turnStartedAt != nil
             clearRunningTurn()
             appendOrReplace(.error(id: "error-\(UUID().uuidString)", message: message, timestamp: eventDate))
             clearRunningBackgroundTasks()
             subAgentModel.failRunningSubAgents()
             status = .error(message: message)
+            notifyCompletionIfNeeded(from: previousStatus, hadActiveTurn: hadActiveTurn)
             touchOutput()
             flushTranscriptAtTurnBoundary()
             midTurnPersistenceGate.noteExternalFlush()
@@ -1449,10 +1508,18 @@ public final class ChatSessionViewModel: Identifiable {
             guard updatedThreadId == threadId else { return }
             if threadStatus.isWaitingOnApproval, pendingApprovals.isEmpty {
                 enterAwaitingApproval(prompt: "Approval requested")
-            } else if turnStartedAt != nil, threadStatus == .idle {
+            } else if turnStartedAt != nil, !turnIsRestoredInference, threadStatus == .idle {
+                // ADR 0064: ライブターン進行中の非同期 idle 報告は無視する（完了は
+                // turnCompleted が正）。復元推定ターンだけは idle での終端＋通知を許す。
                 return
             } else {
+                let previousStatus = status
+                let hadActiveTurn = turnStartedAt != nil
                 status = threadStatus.sessionStatus
+                if threadStatus == .idle || threadStatus == .systemError {
+                    clearRunningTurn()
+                    notifyCompletionIfNeeded(from: previousStatus, hadActiveTurn: hadActiveTurn)
+                }
             }
         case .itemStarted(let updatedThreadId, _, let item), .itemCompleted(let updatedThreadId, _, let item):
             // 旧 thread の遅延 item で transcript / store を汚染しない。

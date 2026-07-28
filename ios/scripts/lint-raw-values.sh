@@ -40,8 +40,12 @@ for target in "${TARGETS[@]}"; do
     FOUND=1
   fi
 
+  # TerminalScreenIOS だけは対象外。端末描画は「Mac の桁数を画面幅へ収める」ために実寸の
+  # ポイント数を計算して使う（TerminalScreenMetrics.fittingFontSize）。Dynamic Type の
+  # DSFont トークンでは表現できず、トークン化すると折り返し位置が合わなくなる。
   for font_pattern in '\.font(\.system(size:' '\.font(Font\.system(size:' 'Font\.system(size:'; do
-    if grep -rn --include='*.swift' --exclude-dir='.build' "$font_pattern" "$target" 2>/dev/null; then
+    if grep -rn --include='*.swift' --exclude-dir='.build' --exclude-dir='TerminalScreenIOS' \
+      "$font_pattern" "$target" 2>/dev/null; then
       echo "ERROR: Raw font size literal detected ($font_pattern). Use DSFont tokens instead." >&2
       FOUND=1
     fi

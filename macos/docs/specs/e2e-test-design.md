@@ -213,7 +213,7 @@ xcodebuild -project Phlox.xcodeproj -scheme Phlox \
 
 | 制約 | 対応 |
 |---|---|
-| ポート競合 | ポートは `preferredPort: 0` で動的割当（CompositionRoot.swift:29,66。CLAUDE.md の「57398/57399 固定」記述はコード実態より古い）。データdir 分離により `ports.json` も分離されるため本番との並走が**理論上**可能。ただし実機で並走無害を確認できるまでは、**Layer B 実行前に既存インスタンスを終了する暫定ルールを維持**する（確認は WP-E5 の完了条件に含める） |
+| ポート競合 | ポートは `preferredPort: 0` で動的割当（CompositionRoot.swift:29,66。CLAUDE.md の「57398/57399 固定」記述はコード実態より古い）。データdir 分離により `ports.json` も分離されるため本番との並走が可能。**手動起動での並走無害は 2026-07-28 に実測済み**（Debug 版と Release 版を約15分並走させ、Release 側のセッションに影響が無いことを確認。手順は [guides/running-release-and-debug-together.md](../guides/running-release-and-debug-together.md)、記録は [delivery/0023](../delivery/0023-esc-restore-composer-focus-worklog.md)）。**Layer B（XCUITest ハーネス経由）での並走は未確認**のため、そちらは既存インスタンスを終了する暫定ルールを維持する（確認は WP-E5 の完了条件に残す） |
 | 本番データ汚染 | T1/T2 で一時ディレクトリ・専用 suite に完全分離。テスト終了時に削除 |
 | リリース版破壊 | Layer B は `/tmp/PhloxBuild` の Debug 版のみ起動。`/Applications/Phlox.app` に触れない |
 

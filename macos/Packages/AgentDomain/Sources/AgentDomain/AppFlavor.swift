@@ -39,6 +39,14 @@ public enum AppFlavor: Sendable, Equatable {
         }
     }
 
+    /// モバイルプロキシの既定 listen ポート。本番と Debug の同時起動時のポート競合を避けるため flavor ごとに分離する。
+    public var mobileProxyDefaultPort: UInt16 {
+        switch self {
+        case .release: return 8765
+        case .debug: return 8766
+        }
+    }
+
     /// レガシー移行（AgentDashboard → 現行データディレクトリ）を実行してよいか。
     /// Debug は常に空から始めるため false（既存の Release データを取り込まない）。
     public var runsLegacyMigration: Bool {

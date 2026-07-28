@@ -1,6 +1,7 @@
 ---
-status: active
-last-verified: 2026-07-17
+status: superseded
+last-verified: 2026-07-27
+superseded-by: 0127-transcript-window-counts-blocks.md
 ---
 
 # 0096: チャットのツールコール連続表示のグループ集約と identity 設計
@@ -25,3 +26,11 @@ last-verified: 2026-07-17
 ## 結果
 
 集約後もトランスクリプトの item 全件がブロック経由で到達可能（flatten 等価）で、append 時のセル再生成なし。凍結 `AcceptanceToolCallGroupingTests`＋白箱 `ChatTranscriptGroupingWhiteboxTests` で固定。
+
+## 後日談（2026-07-27）
+
+本 ADR の「連続**2件以上**を集約する」という条件は [ADR 0127](0127-transcript-window-counts-blocks.md) で
+**1件以上**へ改められた（ツールコール件数が折りたたみ挙動を左右しないようにするため）。
+同 ADR で表示窓の数える単位も item から**ブロック**へ変わり、本 ADR が定めた
+「window 境界でグループを分割し外側 id を先頭 item.id へ固定する」処理は不要になり削除された
+（境界が必ずブロック境界になるため）。**グループ id = 先頭 item.id という identity 設計は 0127 でも維持されている。**

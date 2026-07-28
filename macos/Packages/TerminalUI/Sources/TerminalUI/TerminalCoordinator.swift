@@ -204,6 +204,23 @@ public final class TerminalCoordinator: NSObject, TerminalViewDelegate {
         return lines.joined(separator: "\n")
     }
 
+    /// SwiftTerm のバッファ全体（scrollback ＋ viewport）を SGR（色・装飾）付きテキストで書き出す。
+    /// モバイルはこれを丸ごと描いて**自分でスクロールする**（Mac の表示位置には追従しない → ADR 0134）。
+    public func ansiScreenText() -> String {
+        AnsiScreenEncoder.encode(terminalView.getTerminal())
+    }
+
+    /// viewport を最下部（最新）へ戻し、以降の出力への追従を再開する。
+    ///
+    /// 公開面は PM が凍結した契約面（task-3 の入出力契約）。振る舞いの実装は task-3 が行う。
+    /// 契約の正本: Tests/TerminalUITests/AcceptanceTerminalOpenAtBottomTests.swift
+    public func scrollToBottom() {
+        terminalView.scroll(toPosition: 1)
+        // scroll(toPosition:) は位置が変わらないと scrollTo(row:) を呼ばない。scrollDown(0) で
+        // Vendor パッチの scrollTo(row:) を必ず通し、早期 return の前に追従フラグを再評価させる。
+        terminalView.scrollDown(lines: 0)
+    }
+
     /// scrollback を無効化し、通常バッファの reflow を止める。
     ///
     /// alternate screen を使わない TUI (Cursor/Codex 等) は、起動直後にターミナル幅が

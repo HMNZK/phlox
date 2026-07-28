@@ -7,11 +7,18 @@ struct DashboardLeadingTopBarControls: View {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
     let onOpenSettings: () -> Void
+    /// エージェント管理ウィンドウの識別子。nil ならボタンを出さない（ウィンドウを持たない構成向け）。
+    var agentConsoleWindowID: String?
+
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         HStack(spacing: DSSpacing.s) {
             sidebarToggleButton
             settingsButton
+            if let agentConsoleWindowID {
+                agentConsoleButton(windowID: agentConsoleWindowID)
+            }
         }
     }
 
@@ -27,6 +34,20 @@ struct DashboardLeadingTopBarControls: View {
         }
         .buttonStyle(HoverableIconButtonStyle())
         .help("設定")
+    }
+
+    private func agentConsoleButton(windowID: String) -> some View {
+        Button {
+            openWindow(id: windowID)
+        } label: {
+            Image(systemName: "wrench.and.screwdriver")
+                .font(.system(size: DSIconSize.l, weight: .medium))
+                .foregroundStyle(DSColor.textSecondary)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(HoverableIconButtonStyle())
+        .help("エージェント管理")
     }
 
     private var sidebarToggleButton: some View {
@@ -52,7 +73,6 @@ struct DashboardTrailingTopBarControls: View {
     @Bindable var usageMonitor: UsageMonitor
     let windowWidth: CGFloat
     let occupiedSidebarWidth: CGFloat
-    @Binding var gridColumnsRaw: String
     @Binding var gridSessionPickerPresented: Bool
 
     @AppStorage(UsageSettings.showInHeaderKey) private var showUsageInHeader = true
@@ -103,7 +123,9 @@ struct DashboardTrailingTopBarControls: View {
             modeToggle
             if router.viewMode == .grid {
                 gridSessionSelectionButton
-                gridColumnsToggle
+                PaneLayoutPresetMenu { preset in
+                    viewModel.handlePaneLayoutAction(.applyPreset(preset))
+                }
             }
             inspectorToggleButton
         }
@@ -143,22 +165,6 @@ struct DashboardTrailingTopBarControls: View {
         // fill で示すボーダーレストグル。選択/ホバーを「枠」ではなく「面」で表現する。
         ViewModeToggle(mode: $router.viewMode)
             .help("表示モードを切り替え")
-    }
-
-    private var gridColumns: GridColumns {
-        GridColumns(rawValue: gridColumnsRaw) ?? .auto
-    }
-
-    private var gridColumnsBinding: Binding<GridColumns> {
-        Binding(
-            get: { gridColumns },
-            set: { gridColumnsRaw = $0.rawValue }
-        )
-    }
-
-    private var gridColumnsToggle: some View {
-        GridColumnsToggle(columns: gridColumnsBinding)
-            .help("グリッドの列数を選択")
     }
 
     private var gridSessionPickerCandidates: [SessionNode] {
@@ -214,71 +220,6 @@ struct DashboardTrailingTopBarControls: View {
         }
         .buttonStyle(HoverableIconButtonStyle())
         .help(router.inspectorVisible ? "インスペクターを隠す" : "インスペクターを表示")
-    }
-}
-
-/// グリッド列数（Auto/1/2/3/4）のボーダーレストグル。
-private struct GridColumnsToggle: View {
-    @Binding var columns: GridColumns
-
-    var body: some View {
-        HStack(spacing: DSSpacing.xxs) {
-            ForEach(GridColumns.allCases, id: \.self) { value in
-                GridColumnSegmentButton(
-                    label: value.selectorLabel,
-                    help: columnHelp(value),
-                    isOn: columns == value,
-                    action: { columns = value }
-                )
-            }
-        }
-        .padding(DSSpacing.xxs)
-        .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: DSRadius.s + 3))
-    }
-
-    private func columnHelp(_ value: GridColumns) -> String {
-        switch value {
-        case .auto:
-            return String(localized: "列数を自動（⌈√N⌉）")
-        case .one:
-            return String(localized: "1列表示")
-        case .two:
-            return String(localized: "2列表示")
-        case .three:
-            return String(localized: "3列表示")
-        case .four:
-            return String(localized: "4列表示")
-        }
-    }
-}
-
-private struct GridColumnSegmentButton: View {
-    let label: String
-    let help: String
-    let isOn: Bool
-    let action: () -> Void
-
-    @State private var hovering = false
-    @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
-
-    var body: some View {
-        Button(action: action) {
-            Text(label)
-                .font(DSFont.captionStrong)
-                .frame(minWidth: 22, minHeight: 20)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(isOn ? DSColor.textPrimary : DSColor.textSecondary)
-        .background(
-            isOn ? DSColor.fillSelected : (hovering ? DSColor.fillSubtle : Color.clear),
-            in: RoundedRectangle(cornerRadius: DSRadius.s)
-        )
-        .onHover { isHovering in
-            hovering = isHovering
-        }
-        .pointingHandCursor()
-        .help(help)
     }
 }
 

@@ -2,6 +2,7 @@ import SwiftUI
 import AgentDomain
 import DesignSystemIOS
 import PhloxCore
+import TerminalScreenIOS
 
 /// セッション詳細画面（カンプ③）。承認リクエスト + ターミナル出力 + 入力バー。
 public struct SessionDetailView: View {
@@ -10,11 +11,18 @@ public struct SessionDetailView: View {
     /// （flag だけの反転は虚偽報告として扱う）。
     public static let providesModelSelectorChip = true
     public static let providesScrollToDismissKeyboard = true
+    /// task-1 契約（凍結・PM 著）: 左端からのスワイプで前の画面へ戻れるとき true。
+    /// システムのナビゲーションバーを使うことで iOS 標準の端スワイプをそのまま成立させる（ADR 0033）。
+    /// 実装と同時に反転する（flag だけの反転は虚偽報告として扱う）。
+    public static let providesBackSwipeGesture = true
+    /// task-1 契約（凍結・PM 著）: ターミナル出力を桁揃えのまま横スクロールで読ませるとき true。
+    /// 実装と同時に反転する（flag だけの反転は虚偽報告として扱う）。
+    public static let providesTerminalOutputHorizontalScroll = true
 
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.sessionComposeDraft) private var sessionComposeDraft
     @State private var viewModel: SessionDetailViewModel
     @State private var distanceFromBottom: CGFloat = 0
+    @State private var scrollFollowState = SessionDetailScrollFollowState()
     @State private var scrollViewportHeight: CGFloat = 0
     @State private var selectedSubAgentID: String?
     @State private var transcriptWindow = TranscriptWindow()
@@ -34,89 +42,88 @@ public struct SessionDetailView: View {
     }
 
     public var body: some View {
-        ZStack(alignment: .top) {
-            VStack(spacing: 0) {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: DSSpacing.m) {
-                            approvalSection
-                            transcriptSection
-                            if case .failed(let message) = viewModel.sendState {
-                                DSResultBanner(message: message, isError: true)
-                                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                            }
-                            // 末尾アンカー: 新着メッセージ/出力で最下部へスクロールするため。
-                            Color.clear
-                                .frame(height: 1)
-                                .id(Self.bottomAnchorID)
-                                .background(
-                                    GeometryReader { proxy in
-                                        Color.clear.preference(
-                                            key: BottomAnchorMaxYKey.self,
-                                            value: proxy.frame(in: .named(Self.scrollCoordinateSpace)).maxY
-                                        )
-                                    }
-                                )
+        VStack(spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: DSSpacing.m) {
+                        approvalSection
+                        transcriptSection
+                        if case .failed(let message) = viewModel.sendState {
+                            DSResultBanner(message: message, isError: true)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
-                        .padding(DSSpacing.l)
-                        .padding(.top, DSTouch.minSize)
-                        .animation(.easeInOut(duration: 0.25), value: viewModel.sendState)
-                    }
-                    .scrollDismissesKeyboard(.interactively)
-                    .coordinateSpace(name: Self.scrollCoordinateSpace)
-                    .background(
-                        GeometryReader { proxy in
-                            Color.clear.preference(
-                                key: ScrollViewportHeightKey.self,
-                                value: proxy.size.height
+                        // 末尾アンカー: 新着メッセージ/出力で最下部へスクロールするため。
+                        Color.clear
+                            .frame(height: 1)
+                            .id(Self.bottomAnchorID)
+                            .background(
+                                GeometryReader { proxy in
+                                    Color.clear.preference(
+                                        key: BottomAnchorMaxYKey.self,
+                                        value: proxy.frame(in: .named(Self.scrollCoordinateSpace)).maxY
+                                    )
+                                }
                             )
-                        }
-                    )
-                    .onPreferenceChange(BottomAnchorMaxYKey.self) { bottomMaxY in
-                        distanceFromBottom = max(0, bottomMaxY - scrollViewportHeight)
                     }
-                    .onPreferenceChange(ScrollViewportHeightKey.self) { height in
-                        scrollViewportHeight = height
-                    }
-                    // メッセージ/出力が更新されたら、最下部付近にいる時だけ追従スクロール。
-                    .onChange(of: viewModel.chatMessages) { scrollToBottomIfFollowing(proxy) }
-                    .onChange(of: viewModel.outputText) { scrollToBottomIfFollowing(proxy) }
-                    .onChange(of: viewModel.expandedMessageIDs) { _, _ in scrollToBottomIfFollowing(proxy) }
-                    .onChange(of: pendingTranscriptScrollTarget) { _, target in
-                        guard let target else { return }
-                        pendingTranscriptScrollTarget = nil
-                        let generation = transcriptScrollGeneration
-                        Task { @MainActor in
-                            guard generation == transcriptScrollGeneration else { return }
-                            switch target {
-                            case .anchor(let anchorID):
-                                proxy.scrollTo(anchorID, anchor: .top)
-                            case .bottom:
-                                scrollToBottom(proxy)
-                            }
-                        }
-                    }
-                    .onChange(of: viewModel.session.id) { _, _ in
-                        transcriptWindow.reset()
-                        pendingTranscriptScrollTarget = nil
-                        transcriptScrollGeneration += 1
-                    }
-                    .onAppear { scrollToBottom(proxy, animated: false) }
+                    .padding(DSSpacing.l)
+                    .animation(.easeInOut(duration: 0.25), value: viewModel.sendState)
                 }
-
-                if viewModel.isInputBarEnabled || (viewModel.currentStatus == .running && viewModel.canInterrupt) {
-                    inputBarSection
+                .scrollDismissesKeyboard(.interactively)
+                .coordinateSpace(name: Self.scrollCoordinateSpace)
+                // 端末を出しているときは本文の地も端末の色にする。端末の高さは中身が決めるので、
+                // 中身が短い日は下に余白が残る。地が違う色だと「上半分しか出ていない」ように見える。
+                .background(showsTerminalScreen ? TerminalScreenView.backgroundColor : DSColor.background)
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: ScrollViewportHeightKey.self,
+                            value: proxy.size.height
+                        )
+                    }
+                )
+                .onPreferenceChange(BottomAnchorMaxYKey.self) { bottomMaxY in
+                    distanceFromBottom = max(0, bottomMaxY - scrollViewportHeight)
                 }
-            }
-            .sheet(isPresented: $viewModel.isModelSheetPresented) {
-                modelSelectorSheet
+                .onPreferenceChange(ScrollViewportHeightKey.self) { height in
+                    scrollViewportHeight = height
+                }
+                // 本文が初めて届いたときは必ず最下部へ寄せ、以降だけ距離で追従を判定する。
+                .onChange(of: viewModel.chatMessages) { scrollToBottomForContentChange(proxy) }
+                .onChange(of: viewModel.outputText) { scrollToBottomForContentChange(proxy) }
+                .onChange(of: viewModel.expandedMessageIDs) { _, _ in scrollToBottomIfFollowing(proxy) }
+                .onChange(of: pendingTranscriptScrollTarget) { _, target in
+                    guard let target else { return }
+                    pendingTranscriptScrollTarget = nil
+                    let generation = transcriptScrollGeneration
+                    Task { @MainActor in
+                        guard generation == transcriptScrollGeneration else { return }
+                        switch target {
+                        case .anchor(let anchorID):
+                            proxy.scrollTo(anchorID, anchor: .top)
+                        case .bottom:
+                            scrollToBottom(proxy)
+                        }
+                    }
+                }
+                .onChange(of: viewModel.session.id) { _, _ in
+                    transcriptWindow.reset()
+                    pendingTranscriptScrollTarget = nil
+                    transcriptScrollGeneration += 1
+                    scrollFollowState.reset()
+                }
+                .onAppear { scrollToBottomForContentChange(proxy) }
             }
 
-            topBar
+            if viewModel.isInputBarEnabled || (viewModel.currentStatus == .running && viewModel.canInterrupt) {
+                inputBarSection
+            }
+        }
+        .sheet(isPresented: $viewModel.isModelSheetPresented) {
+            modelSelectorSheet
         }
         .background(DSColor.background)
         .accessibilityIdentifier(AccessibilityID.sessionDetail)
-        .modifier(SessionDetailNavigationBarHiddenModifier())
+        .modifier(SessionDetailNavigationChromeModifier(title: viewModel.displayName) { sessionMenu })
         .alert("名前変更", isPresented: $viewModel.isRenamePresented) {
             TextField("セッション名", text: $viewModel.renameDraft)
             Button("キャンセル", role: .cancel) {
@@ -139,48 +146,21 @@ public struct SessionDetailView: View {
         }
     }
 
-    private var topBar: some View {
-        ZStack {
-            Text(viewModel.displayName)
-                .font(DSFont.headline)
-                .foregroundStyle(DSColor.textPrimary)
-                .lineLimit(1)
-                .padding(.horizontal, DSTouch.minSize * 2)
-
-            HStack(spacing: 0) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(DSFont.headline.weight(.semibold))
-                        .frame(width: DSTouch.minSize, height: DSTouch.minSize)
-                }
-                .accessibilityLabel("戻る")
-
-                Spacer(minLength: 0)
-
-                Menu {
-                    Button("モデル変更") {
-                        viewModel.isModelSheetPresented = true
-                    }
-                    Button("名前変更") {
-                        viewModel.beginRename()
-                    }
-                    Button("削除", role: .destructive, action: onDelete)
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(DSFont.headline.weight(.semibold))
-                        .frame(width: DSTouch.minSize, height: DSTouch.minSize)
-                }
-                .accessibilityLabel("セッションメニュー")
+    private var sessionMenu: some View {
+        Menu {
+            Button("モデル変更") {
+                viewModel.isModelSheetPresented = true
             }
-            .foregroundStyle(DSColor.accent)
+            Button("名前変更") {
+                viewModel.beginRename()
+            }
+            Button("削除", role: .destructive, action: onDelete)
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(DSFont.headline.weight(.semibold))
+                .frame(width: DSTouch.minSize, height: DSTouch.minSize)
         }
-        .frame(height: DSTouch.minSize)
-        .background(.ultraThinMaterial)
-        .overlay(alignment: .bottom) {
-            Divider()
-        }
+        .accessibilityLabel("セッションメニュー")
     }
 
     private var inputBarSection: some View {
@@ -265,6 +245,15 @@ public struct SessionDetailView: View {
         }
     }
 
+    /// 本文が「Mac の端末画面そのもの」になっているか（＝地まで端末の色で塗る場面か）。
+    private var showsTerminalScreen: Bool {
+        viewModel.loadError == nil
+            && !viewModel.showsChat
+            && !viewModel.showsInitialLoadingIndicator
+            && viewModel.terminalScreen.isANSI
+            && !viewModel.outputText.isEmpty
+    }
+
     /// エラー → バナー、構造化チャットあり → チャット、初回データ待ち → 接続表示、
     /// それ以外 → 従来のターミナル出力、の順で表示する。
     @ViewBuilder
@@ -342,7 +331,10 @@ public struct SessionDetailView: View {
         case .single(let message):
             chatRow(for: message)
         case .commandGroup(let id, let items):
-            chatRowWithCopy(copyText: commandGroupCopyText(items)) {
+            chatRowWithCopy(
+                hasCopyableText: ChatMessageCopyText.commandGroupHasCopyableText(items),
+                copyTextProvider: { ChatMessageCopyText.commandGroupCopyText(items) }
+            ) {
                 SessionDetailToolCallGroupRow(
                     items: items,
                     lastTranscriptID: lastTranscriptID,
@@ -354,15 +346,6 @@ public struct SessionDetailView: View {
                 )
             }
         }
-    }
-
-    private func commandGroupCopyText(_ items: [ChatMessage]) -> String? {
-        let parts = items.compactMap { message -> String? in
-            let text = ChatMessageCopyText.copyText(for: message)
-            return text?.isEmpty == false ? text : nil
-        }
-        guard !parts.isEmpty else { return nil }
-        return parts.joined(separator: "\n\n")
     }
 
     /// 1 メッセージの描画。user/agent はバブル、reasoning は v1 では agent 風バブル、
@@ -455,6 +438,21 @@ public struct SessionDetailView: View {
         }
     }
 
+    @ViewBuilder
+    private func chatRowWithCopy<Content: View>(
+        hasCopyableText: Bool,
+        copyTextProvider: @escaping () -> String?,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(alignment: .top, spacing: DSSpacing.xs) {
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if hasCopyableText {
+                ChatMessageCopyButton(textProvider: copyTextProvider)
+            }
+        }
+    }
+
     private func collapsibleMonospaceCard(
         messageID: String,
         title: String,
@@ -504,7 +502,19 @@ public struct SessionDetailView: View {
 
     @ViewBuilder
     private var outputSection: some View {
-        if !viewModel.outputText.isEmpty {
+        if viewModel.terminalScreen.isANSI, !viewModel.outputText.isEmpty {
+            // Mac が色つきの画面を配信できたときは端末として描き直す。
+            // 端末は「今の画面」そのものなので、見出しにもトグルにも入れず全文をそのまま出す。
+            // 幅は TerminalScreenView が画面に合わせて詰めるので、横スクロールは要らない。
+            // 桁を1桁でも多く見せたいので、本文の左右余白ぶんだけ外へ広げて画面端まで使う。
+            // 高さは中身が決める（縛ると先頭が切れる → ADR 0039）。中身が短いときだけ、
+            // 端末の地が画面いっぱいに見えるよう下限を渡す。
+            TerminalScreenView(
+                screen: viewModel.terminalScreen,
+                minimumHeight: max(320, scrollViewportHeight - DSTouch.minSize - DSSpacing.l * 2)
+            )
+            .padding(.horizontal, -DSSpacing.l)
+        } else if !viewModel.outputText.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 outputSectionHeader
 
@@ -512,17 +522,13 @@ public struct SessionDetailView: View {
                     text: viewModel.outputText,
                     isExpanded: viewModel.isOutputExpanded
                 ) {
-                    // モバイル幅に収めるため長い行は折り返す（横スクロールしない）。
-                    // ASCII テーブル等の整列は崩れるが、画面幅で読めることを優先する。
-                    Text(displayed)
-                        // 出力は情報密度優先: 小さめ(caption=12pt)・字間を詰める(CJK のワイド描画対策)。
-                        .font(DSFont.campMonoCaption)
-                        .tracking(-0.5)
-                        .foregroundStyle(DSColor.textSecondary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(DSSpacing.m)
+                    ScrollView(.horizontal, showsIndicators: true) {
+                        SessionDetailOutputBody(text: displayed)
+                    }
+                    // 横スクロールしてもカード内の余白を保つ。縦余白は末尾を角丸と
+                    // スクロールバーから離し、左右余白は本文・ヘッダの桁を揃える。
+                    .padding(.horizontal, DSSpacing.m)
+                    .padding(.vertical, DSSpacing.m)
                 }
             }
             .background(DSColor.campOutputBackground, in: outputCardShape)
@@ -584,10 +590,52 @@ public struct SessionDetailView: View {
         }
     }
 
+    /// 本文が最初に届いたときだけ距離を無視して最下部へ寄せる。
+    private func scrollToBottomForContentChange(_ proxy: ScrollViewProxy) {
+        let shouldAnimate = Self.shouldAnimateScroll(
+            hasPerformedInitialScroll: scrollFollowState.hasPerformedInitialScroll
+        )
+        let hasContent = Self.hasRenderableContent(
+            visibleMessages: viewModel.visibleMessages,
+            outputText: viewModel.outputText
+        )
+        guard scrollFollowState.onContentChanged(
+            hasContent: hasContent,
+            distanceFromBottom: distanceFromBottom
+        ) else { return }
+        scrollToBottom(proxy, animated: shouldAnimate)
+    }
+
+    /// 初回スクロールのトリガーとなる、実際に画面へ描画できる本文があるか。
+    static func hasRenderableContent(visibleMessages: [ChatMessage], outputText: String) -> Bool {
+        !visibleMessages.isEmpty || !outputText.isEmpty
+    }
+
+    /// 初回だけ位置を即時に確定し、以後の追従だけをアニメーションするか。
+    static func shouldAnimateScroll(hasPerformedInitialScroll: Bool) -> Bool {
+        hasPerformedInitialScroll
+    }
+
     /// 最下部付近にいる時だけ追従スクロールする（上へ読み戻り中は引き戻さない）。
     private func scrollToBottomIfFollowing(_ proxy: ScrollViewProxy) {
         guard ChatAutoFollowPolicy.shouldFollowBottom(distanceFromBottom: distanceFromBottom) else { return }
         scrollToBottom(proxy)
+    }
+}
+
+/// ターミナル出力の等幅テキスト本体。横 ScrollView 内で、外側の縦 ScrollView からは
+/// 幅固定・高さ未指定で測られる。
+struct SessionDetailOutputBody: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            // 出力は情報密度優先: 小さめ(caption=12pt)・字間を詰める(CJK のワイド描画対策)。
+            .font(DSFont.campMonoCaption)
+            .tracking(-0.5)
+            .foregroundStyle(DSColor.textSecondary)
+            .textSelection(.enabled)
+            .fixedSize(horizontal: true, vertical: true)
     }
 }
 
@@ -602,13 +650,22 @@ struct SessionDetailTranscriptSlice {
     }
 
     init(messages: [ChatMessage], window: TranscriptWindow) {
-        let range = window.visibleRange(totalCount: messages.count)
-        visibleMessages = messages[range.startIndex...]
-        hiddenCount = range.hiddenCount
-        visibleBlocks = SessionDetailToolCallGrouping.visibleSlice(
+        let blockSlice = SessionDetailToolCallGrouping.visibleSlice(
             from: messages,
-            startingAt: range.startIndex
-        ).blocks
+            blockLimit: window.limit
+        )
+        visibleBlocks = blockSlice.blocks
+        hiddenCount = blockSlice.hiddenBlockCount
+
+        let visibleMessageCount = visibleBlocks.reduce(0) { total, visible in
+            switch visible.content {
+            case .single:
+                total + 1
+            case .commandGroup(_, let items):
+                total + items.count
+            }
+        }
+        visibleMessages = messages.suffix(visibleMessageCount)
     }
 }
 
@@ -675,13 +732,28 @@ private struct ScrollViewportHeightKey: PreferenceKey {
     }
 }
 
-private struct SessionDetailNavigationBarHiddenModifier: ViewModifier {
+/// セッション詳細の chrome。システムのナビゲーションバーへタイトル・戻る・メニューを載せる。
+///
+/// バーを隠して自前のヘッダを描く構成は使わない。隠すと UIKit が端スワイプ pop を拒否し、
+/// ジェスチャの delegate を差し替えて無理に通すと、pop 後に一覧の大タイトルが失われる（ADR 0033）。
+private struct SessionDetailNavigationChromeModifier<Menu: View>: ViewModifier {
+    let title: String
+    @ViewBuilder var menu: () -> Menu
+
     @ViewBuilder
     func body(content: Content) -> some View {
         #if os(iOS)
-        content.toolbar(.hidden, for: .navigationBar)
-        #else
         content
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            // 戻るボタンはシステムのものを使う（自前の leading 項目に差し替えると端スワイプ pop が拒否される）。
+            // editor ロールは戻るラベルを落として従来と同じ「‹」だけの見た目にする。
+            .toolbarRole(.editor)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { menu() }
+            }
+        #else
+        content.navigationTitle(title)
         #endif
     }
 }

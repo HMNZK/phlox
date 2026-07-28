@@ -140,12 +140,35 @@ schemes:
       targets:
         - name: PhloxMobileUITests
           parallelizable: true
+          # ライブ回帰テストはローカル偽サーバー（scripts/fake-phlox-server.py）が要るので既定では走らせない。
+          # キーは skippedTests（skipped は「ターゲット丸ごと除外」の Bool で、リストを渡しても効かない）。
+          skippedTests:
+            - SessionListTitleLiveRegressionUITests
+            - SessionTerminalLiveRegressionUITests
     profile:
       config: Release
     analyze:
       config: Debug
     archive:
       config: Release
+
+  # ライブ回帰テスト専用。実行前に scripts/fake-phlox-server.py --port 53099 を起動しておく。
+  # 既定スキームは skippedTests でこれらを外しており、`-only-testing` では上書きできない
+  # （scheme の SkippedTests との積を取るので 0 件になる）。走らせる入口をスキームで分ける。
+  PhloxMobile-Live:
+    build:
+      targets:
+        PhloxMobile: all
+    test:
+      config: Debug
+      targets:
+        - name: PhloxMobileUITests
+          parallelizable: false
+          skippedTests:
+            - PhloxMobileScreenshotTests
+            - PhloxMobileUITests
+            - SessionDetailBackSwipeUITests
+            - Wave5RegressionUITests
 
   # シミュレーター手動確認用。⌘R でモックデータ（セッション一覧）が即表示される。
   PhloxMobile-Demo:
@@ -163,3 +186,8 @@ schemes:
       targets:
         - name: PhloxMobileUITests
           parallelizable: true
+          # ライブ回帰テストはローカル偽サーバー（scripts/fake-phlox-server.py）が要るので既定では走らせない。
+          # キーは skippedTests（skipped は「ターゲット丸ごと除外」の Bool で、リストを渡しても効かない）。
+          skippedTests:
+            - SessionListTitleLiveRegressionUITests
+            - SessionTerminalLiveRegressionUITests

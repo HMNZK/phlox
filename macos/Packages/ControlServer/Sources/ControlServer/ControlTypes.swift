@@ -26,7 +26,7 @@ public struct ControlRequest: Sendable {
         case spawn(ref: AgentRef, backend: SessionBackend, workingDirectory: String?)
         case remove(id: SessionID)
         case rename(id: SessionID, name: String)
-        case output(id: SessionID, mode: OutputMode)
+        case output(id: SessionID, mode: OutputMode, format: OutputFormat)
         case messages(id: SessionID, since: String?, wait: Int?)
         case waitReady(id: SessionID, timeoutSeconds: Int)
         case wait(id: SessionID, timeoutSeconds: Int, sentinel: String?)
@@ -208,6 +208,13 @@ public enum OutputMode: String, Sendable {
     case scrollback
 }
 
+/// 端末出力の表現形式。既定の `text` は従来どおり色を落としたプレーンテキスト。
+/// `ansi` は SGR（色・装飾）付きで、受け手が端末エミュレータで描き直すためのもの。
+public enum OutputFormat: String, Sendable {
+    case text
+    case ansi
+}
+
 /// 承認に対するモバイル側の応答値。モバイル DTO の "decision" フィールドと 1:1 対応。
 public typealias ApprovalDecision = AgentDomain.ApprovalDecision
 
@@ -256,6 +263,8 @@ public struct ControlResponse: Sendable {
 /// 定数はワイヤ形状の単一の正（iOS 側 `PhloxModelWireContract` と一字一句一致させる）。
 /// `implemented` は実装完了と同時に true へ反転する（flag だけの反転は虚偽報告として扱う）。
 public enum ControlModelWireContract {
+    // `ControlModelOption` uses synthesized Codable. Its property names intentionally match
+    // these frozen keys; Task5ModelHandlerTests verifies the serialized wire shape.
     /// GET /sessions/{id}/settings → 200 {"selectedModel": String?, "availableModels": [{"id","displayName"}]}
     public static let settingsPathSuffix = "/settings"
     /// POST /sessions/{id}/model  body {"model": String} → 200 / 404 / 400
@@ -266,23 +275,6 @@ public enum ControlModelWireContract {
     public static let modelDisplayNameKey = "displayName"
     public static let modelKey = "model"
     public static let implemented = true
-}
-
-/// モバイルのモデル選択肢。JSON キーは凍結済みワイヤ定数から生成する。
-public struct ControlModelOption: Encodable, Equatable, Sendable {
-    public let id: String
-    public let displayName: String
-
-    public init(id: String, displayName: String) {
-        self.id = id
-        self.displayName = displayName
-    }
-
-    public func encode(to encoder: any Encoder) throws {
-        var container = encoder.container(keyedBy: ControlModelCodingKey.self)
-        try container.encode(id, forKey: .init(ControlModelWireContract.modelIDKey))
-        try container.encode(displayName, forKey: .init(ControlModelWireContract.modelDisplayNameKey))
-    }
 }
 
 /// GET /sessions/{id}/settings の応答 DTO。

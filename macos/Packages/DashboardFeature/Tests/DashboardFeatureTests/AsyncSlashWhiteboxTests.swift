@@ -46,8 +46,8 @@ struct AsyncSlashWhiteboxTests {
     func warmSlashHitUsesCacheWithoutStartingScan() {
         let slashGate = AsyncSlashWhiteboxGate()
         let controller = ComposerSuggestionController(
-            asyncSlashProvider: slashGate.provider,
-            cachedSlashProvider: { term in
+            asyncSlashProvider: { term, _ in await slashGate.provider(term) },
+            cachedSlashProvider: { term, _ in
                 term == "he" ? [asyncSlashWhiteboxSlash("/help")] : nil
             },
             asyncFileProvider: { _ in [] },
@@ -65,8 +65,8 @@ struct AsyncSlashWhiteboxTests {
     func slashMissKeepsWarmCandidatesUntilBackgroundResultArrives() async throws {
         let slashGate = AsyncSlashWhiteboxGate()
         let controller = ComposerSuggestionController(
-            asyncSlashProvider: slashGate.provider,
-            cachedSlashProvider: { term in
+            asyncSlashProvider: { term, _ in await slashGate.provider(term) },
+            cachedSlashProvider: { term, _ in
                 term == "seed" ? [asyncSlashWhiteboxSlash("/seed")] : nil
             },
             asyncFileProvider: { _ in [] },
@@ -89,8 +89,8 @@ struct AsyncSlashWhiteboxTests {
     func slashBurstRunsOnlyFirstAndLatestQueries() async throws {
         let slashGate = AsyncSlashWhiteboxGate()
         let controller = ComposerSuggestionController(
-            asyncSlashProvider: slashGate.provider,
-            cachedSlashProvider: { _ in nil },
+            asyncSlashProvider: { term, _ in await slashGate.provider(term) },
+            cachedSlashProvider: { _, _ in nil },
             asyncFileProvider: { _ in [] },
             cachedFileProvider: { _ in nil }
         )
@@ -115,8 +115,8 @@ struct AsyncSlashWhiteboxTests {
         let slashGate = AsyncSlashWhiteboxGate()
         let fileGate = AsyncSlashWhiteboxGate()
         let controller = ComposerSuggestionController(
-            asyncSlashProvider: slashGate.provider,
-            cachedSlashProvider: { _ in nil },
+            asyncSlashProvider: { term, _ in await slashGate.provider(term) },
+            cachedSlashProvider: { _, _ in nil },
             asyncFileProvider: fileGate.provider,
             cachedFileProvider: { _ in nil }
         )

@@ -112,6 +112,29 @@ extension ClaudeChatClient {
         }
         let input = item["input"] as? [String: Any] ?? [:]
 
+        if name == "TodoWrite" {
+            if let toolUseId = item["id"] as? String {
+                taskListToolUseIds.insert(toolUseId)
+            }
+            taskListTasks = taskListSnapshot(from: input)
+            eventContinuation.yield(.taskListUpdated(tasks: taskListTasks))
+            return
+        }
+
+        if name == "TaskCreate", let toolUseId = item["id"] as? String {
+            taskListToolUseIds.insert(toolUseId)
+            pendingCreatedTaskTitles[toolUseId] = input["subject"] as? String ?? ""
+            return
+        }
+
+        if name == "TaskUpdate", let toolUseId = item["id"] as? String {
+            taskListToolUseIds.insert(toolUseId)
+            if applyTaskUpdate(input) {
+                eventContinuation.yield(.taskListUpdated(tasks: taskListTasks))
+            }
+            return
+        }
+
         if isSubAgentTool(name), let toolUseId = item["id"] as? String {
             let subagentType = input["subagent_type"] as? String ?? name
             let prompt = input["prompt"] as? String
@@ -192,6 +215,10 @@ extension ClaudeChatClient {
 
         for item in content where item["type"] as? String == "tool_result" {
             guard let toolUseId = item["tool_use_id"] as? String else { continue }
+            if taskListToolUseIds.contains(toolUseId) {
+                resolveCreatedTaskIfNeeded(toolUseId: toolUseId, event: event)
+                continue
+            }
             if subAgentToolUseIds.contains(toolUseId) {
                 let text = toolResultText(from: item["content"])
                 // 起動確認メタデータ（非同期 Agent 起動の ack）は出力ではないので表示しない。

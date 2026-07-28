@@ -44,6 +44,8 @@ public final class SessionViewModel: Identifiable {
     @ObservationIgnored public var eventSink: ((SessionID, SessionStatus, Date) -> Void)?
     /// リモート通知系へのフック。nil なら呼ばれない（既存挙動と同一）。
     @ObservationIgnored public var remoteSessionNotifier: (any RemoteSessionNotifier)?
+    /// チャネルごとのユーザー通知可否。nil は既存挙動を保つため全許可として扱う。
+    @ObservationIgnored public var userNotificationGate: ((UserNotificationChannel) -> Bool)?
 
     /// 初回出力後、この秒数アイドルしてから入力準備完了とみなす（全 CLI 共通の settle）。
     static let inputReadinessSettleSeconds: TimeInterval = 0.4
@@ -406,11 +408,13 @@ public final class SessionViewModel: Identifiable {
                 // （Task.cancel の伝播レースに依存しない決定論的ガード）。
                 guard let self, self.spawnEpoch == epoch else { return }
                 let timestamp = Date()
+                let previousStatus = self.status
                 if code == 0 {
                     self.transitionStatus(to: .completed(exitCode: 0), at: timestamp)
                 } else {
                     self.transitionStatus(to: .error(message: "exit code \(code)"), at: timestamp)
                 }
+                self.notifyCompletionIfNeeded(from: previousStatus, to: self.status)
             }
         }
     }
@@ -516,11 +520,7 @@ public final class SessionViewModel: Identifiable {
             cancelNonHookIdleFallback()
             transitionStatus(to: .awaitingApproval(prompt: "Codex is asking a question"), at: Date())
             if notifyAwaitingInput {
-                SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
-                remoteSessionNotifier?.approvalPending(
-                    sessionId: id.description,
-                    sessionName: displayName
-                )
+                notifyUser(.awaitingInput)
             }
         case .reassertAwaiting:
             transitionStatus(to: .awaitingApproval(prompt: "Codex is asking a question"), at: Date())
@@ -685,15 +685,41 @@ public final class SessionViewModel: Identifiable {
     }
 
     private func notifyCompletionIfNeeded(from previousStatus: SessionStatus, to nextStatus: SessionStatus) {
-        guard previousStatus == .running, nextStatus == .idle else { return }
-        // 本物のターン完了（running→idle）を未確認の停止としてラッチする。
+        guard SessionCompletionNotificationPolicy.shouldNotifyCompletion(
+            previous: previousStatus,
+            next: nextStatus
+        ) else { return }
+        // 本物のターン完了を未確認の停止としてラッチする。
         // escape 中断はこの経路を通らないため対象外（キャンセルは赤枠にしない）。
         hasUnseenCompletion = true
-        SessionCompletionNotifier.notifyCompleted(sessionName: displayName)
-        remoteSessionNotifier?.sessionCompleted(
-            sessionId: id.description,
-            sessionName: displayName
-        )
+        notifyUser(.completed)
+    }
+
+    private func notifyUser(_ notification: UserNotification) {
+        let allowsLocalNotification = userNotificationGate?(.local) ?? true
+        let allowsRemoteNotification = userNotificationGate?(.remote) ?? true
+        switch notification {
+        case .completed:
+            if allowsLocalNotification {
+                SessionCompletionNotifier.notifyCompleted(sessionName: displayName)
+            }
+            if allowsRemoteNotification {
+                remoteSessionNotifier?.sessionCompleted(
+                    sessionId: id.description,
+                    sessionName: displayName
+                )
+            }
+        case .awaitingInput:
+            if allowsLocalNotification {
+                SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
+            }
+            if allowsRemoteNotification {
+                remoteSessionNotifier?.approvalPending(
+                    sessionId: id.description,
+                    sessionName: displayName
+                )
+            }
+        }
     }
 
     private func transitionStatus(to newStatus: SessionStatus, at timestamp: Date) {
@@ -707,6 +733,11 @@ public final class SessionViewModel: Identifiable {
             hasUnseenCompletion = true
         }
     }
+}
+
+private enum UserNotification {
+    case completed
+    case awaitingInput
 }
 
 private extension Data {
@@ -777,6 +808,13 @@ extension SessionViewModel: ControllableSession {
         return text.split(separator: "\n", omittingEmptySubsequences: false)
             .suffix(lines)
             .joined(separator: "\n")
+    }
+
+    public func readAnsiScreen() -> AnsiScreen? {
+        AnsiScreen(
+            ansi: terminalCoordinator.ansiScreenText(),
+            cols: Int(terminalCoordinator.currentCols)
+        )
     }
 
     public func consumeSubmitBaseline() {

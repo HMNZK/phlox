@@ -120,6 +120,13 @@ public enum NormalizedChatEvent: Equatable, Sendable {
     case userQuestionRequested(requestId: String, questions: [ChatUserQuestion])
     /// 保留中の質問の決着（回答送信完了 or 失効）。requestId は Requested と対応する。
     case userQuestionResolved(requestId: String, outcome: ChatUserQuestionOutcome)
+    /// タスクリスト（Claude Code の TodoWrite / TaskCreate / TaskUpdate）の最新スナップショット。
+    /// 生成側（各 AgentKit）が差分/全量を還元し、常に「現在のリスト全量」を yield する
+    /// （tasks/task-2.md 契約。受け入れテスト AcceptanceClaudeTaskListEventTests が凍結）。
+    case taskListUpdated(tasks: [AgentTaskItem])
+    /// Claude Code stream-json の system/init の slash_commands に対応する利用可能コマンド名の
+    /// 全量スナップショット。名前は先頭の `/` を含まない素の名前で、受け取った順序のまま運ぶ。
+    case availableCommandsUpdated(commands: [String])
 }
 
 public protocol StructuredAgentClient: Sendable {

@@ -1,9 +1,13 @@
 ---
-status: active
-last-verified: 2026-07-14
+status: superseded
+last-verified: 2026-07-28
+superseded-by: pane-layout.md
 ---
 
 # グリッドビューのレイアウト要件（固定 N×N・自由配置・セル結合）
+
+> **この要件は置き換えられた**。現行は [pane-layout.md](pane-layout.md)（決定の理由は
+> [adr/0136](../adr/0136-pane-split-tree-layout.md)）。以下は当時の記録として残す。
 
 ダッシュボードのグリッドビュー（固定列モード）が満たすべき要件。決定の理由は ADR 0084、現行の実装構造は architecture/session-grid-layout.md を参照。
 
@@ -29,11 +33,16 @@ last-verified: 2026-07-14
 - **NFR1（決定論）**: 同一入力に対する配置は決定論的（辞書反復順に依存しない）。永続データの復元時は盤内・互いに素（Region 非重複）を検証し、破損データは拒否して空配置へフォールバックする。
 - **NFR2（描画ハング非在）**: view body 評価中に観測対象状態を変更しない（`gridArrangement(size:)` は純読み取り、配置変更はユーザー操作イベント経由のみ）。SwiftUI の無限再無効化ハング（ADR 0010）を構造的に回避する。
 
-## 受け入れテスト（凍結・不変）
+## 受け入れテスト（当時・すべて撤去済み）
 
-- `Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceSessionGridArrangementTests.swift`（配置モデル）
-- `Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceSessionGridCellFramesTests.swift`（セル/結合矩形）
-- `Packages/DashboardFeature/Tests/DashboardFeatureTests/AcceptanceGridArrangementVMTests.swift`（VM の配置 API・永続化）
+これらのテストは ADR 0136 の分割ツリー移行で削除された。検証していた性質の引き継ぎ先は
+ADR 0136 の「撤去した受け入れテストと引き継ぎ先」の対応表を参照。
+
+| 撤去した旧テスト | 後継 |
+|---|---|
+| `AcceptanceSessionGridArrangementTests.swift`（配置モデル） | `AcceptancePaneTreeTests.swift` |
+| `AcceptanceSessionGridCellFramesTests.swift`（セル/結合矩形） | `AcceptancePaneTreeTests.swift` の幾何節 |
+| `AcceptanceGridArrangementVMTests.swift`（VM の配置 API・永続化） | `AcceptancePaneLayoutVMTests.swift` / `ContractPaneLayoutPersistenceTests.swift` |
 
 ## スコープ外
 

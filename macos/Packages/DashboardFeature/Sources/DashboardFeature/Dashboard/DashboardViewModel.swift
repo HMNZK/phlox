@@ -21,6 +21,11 @@ import SessionFeature
 @MainActor
 @Observable
 public final class DashboardViewModel {
+    private enum APISpawnLimitSource {
+        case parent(SessionID?)
+        case controlRequester(SessionID?)
+    }
+
     public private(set) var sessions: [SessionViewModel] = []
     public private(set) var sessionNodes: [SessionNode] = []
 
@@ -37,19 +42,11 @@ public final class DashboardViewModel {
     public private(set) var restoredSessionPresentation: RestoredSessionPresentation?
 
     /// グリッドに表示するセッションの選択（nil = 全表示）。永続化しない。
-    public var gridSessionSelection: Set<SessionID>? {
-        didSet {
-            guard oldValue != gridSessionSelection else { return }
-            reconcileGridArrangements()
-        }
-    }
+    /// 絞り込みは描画時の刈り込み（`paneLayoutForDisplay()`）だけで表現し、
+    /// 永続ツリーには触れない（隠したセッションの位置を失わないため）。
+    public var gridSessionSelection: Set<SessionID>?
     /// グリッドのワークスペース絞り込み（`AppRouter.gridFilterProjectID` の写し。候補算出用）。
-    var gridSessionFilterProjectID: ProjectID? {
-        didSet {
-            guard oldValue != gridSessionFilterProjectID else { return }
-            reconcileGridArrangements()
-        }
-    }
+    var gridSessionFilterProjectID: ProjectID?
 
     private static let readinessPollInterval: Duration = .milliseconds(20)
     private static let donePollInterval: Duration = .milliseconds(100)
@@ -60,12 +57,18 @@ public final class DashboardViewModel {
     static let apiSpawnRateLimitWindowSeconds = SpawnPolicy.apiSpawnRateLimitWindowSeconds
 
     private let environment: AppEnvironment
-    @ObservationIgnored private let gridArrangementStore: GridArrangementStore
-    private var gridArrangements: [Int: SessionGridArrangement]
-    @ObservationIgnored private var gridArrangementRestoreInProgress = true
+    /// 起動時の復元中は永続化を抑止する（復元途中の中間状態を書き戻さない）。
+    @ObservationIgnored private var layoutRestoreInProgress = true
+
+    /// task-3: 分割ツリーの永続ツリー（隠れているセッションの leaf も保持する。D4）。
+    /// 書き込み経路は `handlePaneLayoutAction` と、セッション増減に伴う `reconcilePaneLayout` の
+    /// 2つだけ（絞り込みの変更では書き換えない）。
+    public private(set) var paneLayout: PaneTree
+    @ObservationIgnored private let paneLayoutStore: PaneLayoutStore
     private var hookMultiplexTask: Task<Void, Never>?
     private var sessionHookContinuations: [SessionID: AsyncStream<(SessionID, HookEvent)>.Continuation] = [:]
     private var spawnTimestamps: [SessionID: [Date]] = [:]
+    private var unattributedControlAPISpawnTimestamps: [Date] = []
     private let sessionHooks: SessionHookInstaller
     private var ownedWorkspaceDirectories: [SessionID: URL] = [:]
     /// 永続化の直列実行キュー。すべての保存はこの coordinator 経由で行う。
@@ -122,13 +125,11 @@ public final class DashboardViewModel {
         rateLimitNow: @escaping @Sendable () -> Date = Date.init,
         orphanReaper: any OrphanReaper = PosixOrphanReaper(),
         livePIDProvider: @escaping @MainActor @Sendable (SessionID) async -> pid_t? = { _ in nil },
-        gridArrangementStore: GridArrangementStore = GridArrangementStore(userDefaults: .standard)
+        paneLayoutStore: PaneLayoutStore = PaneLayoutStore(userDefaults: .standard)
     ) {
         self.environment = environment
-        self.gridArrangementStore = gridArrangementStore
-        self.gridArrangements = Dictionary(uniqueKeysWithValues: (1...4).map { size in
-            (size, gridArrangementStore.load(size: size) ?? SessionGridArrangement(size: size))
-        })
+        self.paneLayoutStore = paneLayoutStore
+        self.paneLayout = paneLayoutStore.load() ?? PaneLayoutPreset.balanced.tree(for: [])
         self.codexUserHooksEnabledProvider = codexUserHooksEnabledProvider
         self.codexDiscoveryNow = codexDiscoveryNow
         self.rateLimitNow = rateLimitNow
@@ -224,6 +225,9 @@ public final class DashboardViewModel {
             publishRestoredSessionPresentation: { [weak self] in
                 self?.publishRestoredSessionPresentation()
             },
+            privilegedRequesterProvider: { [weak self] in
+                self?.privilegedRequester
+            },
             logError: { error, context in
                 let message = "Phlox: \(context): \(error)\n"
                 if let data = message.data(using: .utf8) {
@@ -265,6 +269,14 @@ public final class DashboardViewModel {
     }
 
     private func observeUnseenCompletion(for session: any ControllableSession) {
+        let sessionID = session.id
+        session.userNotificationGate = { [weak self] channel in
+            let client: SessionSurfaceClient = switch channel {
+            case .local: .desktop
+            case .remote: .mobile
+            }
+            return self?.isReachableFromUI(sessionID, from: client) ?? true
+        }
         session.unseenCompletionDidChange = { [weak self] in
             self?.refreshUnseenCompletionCount()
         }
@@ -272,7 +284,9 @@ public final class DashboardViewModel {
 
     private func refreshUnseenCompletionCount() {
         // PTY / Chat 両種別を node レベルで数える（Dock バッジは「要対応セッション数」）。
-        let count = sessionNodes.filter { $0.hasUnseenCompletion }.count
+        let count = sessionNodes.filter {
+            $0.hasUnseenCompletion && isReachableFromUI($0.id, from: .desktop)
+        }.count
         guard count != unseenCompletionCount else { return }
         unseenCompletionCount = count
         unseenCompletionCountDidChange?(count)
@@ -297,8 +311,8 @@ public final class DashboardViewModel {
         }
 
         await sessionRestoreCoordinator.restorePersistedSessions()
-        gridArrangementRestoreInProgress = false
-        reloadAndReconcileGridArrangements()
+        layoutRestoreInProgress = false
+        reloadAndReconcilePaneLayout()
     }
 
     /// 新規セッションで選択できる CLI。起動時に解決できたものだけを返す（Claude Code は常に先頭）。
@@ -388,10 +402,7 @@ public final class DashboardViewModel {
     }
 
     public func hasUnseenCompletion(in projectID: ProjectID) -> Bool {
-        let sidebarNodeIDs = Set(sessionForest(in: projectID).flatMap(Self.sessionTreeNodeIDs))
-        return sessionNodes.contains { node in
-            sidebarNodeIDs.contains(node.id) && node.hasUnseenCompletion
-        }
+        containsSidebarSession(in: projectID) { $0.hasUnseenCompletion }
     }
 
     public func requiresAttention(for node: SessionNode) -> Bool {
@@ -403,9 +414,16 @@ public final class DashboardViewModel {
 
     /// サイドバーのプロジェクト欄赤表示用。配下セッションのいずれかが `requiresAttention` なら true。
     public func hasAttention(in projectID: ProjectID) -> Bool {
+        containsSidebarSession(in: projectID) { requiresAttention(for: $0) }
+    }
+
+    private func containsSidebarSession(
+        in projectID: ProjectID,
+        where predicate: (SessionNode) -> Bool
+    ) -> Bool {
         let sidebarNodeIDs = Set(sessionForest(in: projectID).flatMap(Self.sessionTreeNodeIDs))
         return sessionNodes.contains { node in
-            sidebarNodeIDs.contains(node.id) && requiresAttention(for: node)
+            sidebarNodeIDs.contains(node.id) && predicate(node)
         }
     }
 
@@ -417,14 +435,14 @@ public final class DashboardViewModel {
     private func appendSessionNode(_ node: SessionNode) {
         sessionNodes.append(node)
         sessionNodeIndex[node.id] = node
-        reconcileGridArrangements(persist: !gridArrangementRestoreInProgress)
+        reconcilePaneLayout(persist: !layoutRestoreInProgress)
     }
 
     /// `sessionNodes` からの単一 ID 除去は必ずこのヘルパー経由で行い、`sessionNodeIndex` の同期漏れを防ぐ。
     private func removeSessionNode(id: SessionID) {
         sessionNodes.removeAll { $0.id == id }
         sessionNodeIndex.removeValue(forKey: id)
-        reconcileGridArrangements(persist: !gridArrangementRestoreInProgress)
+        reconcilePaneLayout(persist: !layoutRestoreInProgress)
     }
 
     private static func sessionTreeNodeIDs(in node: SessionTreeNode) -> [SessionID] {
@@ -441,6 +459,24 @@ public final class DashboardViewModel {
 
     public nonisolated static func isVisibleInGrid(launchContext: SessionLaunchContext) -> Bool {
         launchContext != .orchestration
+    }
+
+    /// 未登録セッション（spawn 途中）は true を返す＝fail-open。
+    public func isReachableFromUI(
+        _ sessionID: SessionID,
+        from client: SessionSurfaceClient
+    ) -> Bool {
+        guard let node = sessionNode(id: sessionID) else { return true }
+        return SessionReachability.isReachable(
+            from: client,
+            launchContext: node.launchContext,
+            projectID: node.projectID
+        )
+    }
+
+    /// クライアント指定前からの呼び出し元向け。従来の macOS 到達可能性として扱う。
+    public func isReachableFromUI(_ sessionID: SessionID) -> Bool {
+        isReachableFromUI(sessionID, from: .desktop)
     }
 
     /// プロジェクト絞り込み無しグリッドに表示するセッション（内部 orchestration を除外）。
@@ -469,59 +505,57 @@ public final class DashboardViewModel {
         return GridSessionSelectionFilter.apply(wrapped, selection: gridSessionSelection).map(\.node)
     }
 
-    /// イベント側で reconcile 済みの保持配置を返す。読み取り中に状態更新や永続化は行わない。
-    public func gridArrangement(size: Int) -> SessionGridArrangement {
-        precondition((1...4).contains(size))
-        return gridArrangements[size] ?? SessionGridArrangement(size: size)
+    /// task-3: 描画用の実効ツリー。`paneLayout`（絞り込み前の永続ツリー）を、
+    /// 現在のワークスペース絞り込み・表示セッション選択を適用した可視集合で刈り込む。
+    /// view body から呼ばれるため一切の副作用を持たない（状態更新も永続化もしない。ADR 0010）。
+    public func paneLayoutForDisplay() -> PaneTree {
+        let visible = Set(filteredGridSessionNodes(projectID: gridSessionFilterProjectID).map(\.id))
+        return paneLayout.pruned(visible: visible)
     }
 
-    /// 固定グリッドの操作を配置モデルへ委譲し、成功時だけ状態と永続化を更新する。
-    public func handleGridAction(_ action: SessionGridAction, size: Int) {
-        precondition((1...4).contains(size))
-        guard let current = gridArrangements[size] else { return }
-
-        let updated: SessionGridArrangement?
+    /// task-3: レイアウト操作の唯一のユーザー起点の書き込み経路。対象が木に無い等の無効な操作は
+    /// 状態を変えず永続化もしない。
+    public func handlePaneLayoutAction(_ action: PaneLayoutAction) {
+        let updated: PaneTree
         switch action {
-        case .moveToCell(let id, let cell):
-            updated = current.move(id, toCell: cell)
+        case .setDivider(let divider, let leadingFraction):
+            updated = paneLayout.settingDivider(divider, leadingFraction: leadingFraction)
+        case .insertBySplitting(let session, let target, let edge):
+            // 差し込む session が実在のセッションでなければ何もしない
+            // （`inserting` 自体は target さえ実在すれば未知の session でも葉を作れてしまうため）。
+            guard sessionNodeIndex[session] != nil else { return }
+            updated = paneLayout.inserting(session, splitting: target, edge: edge)
         case .swap(let first, let second):
-            updated = current.swap(first, second)
-        case .mergeRight(let id):
-            updated = current.mergeRight(id)
-        case .mergeDown(let id):
-            updated = current.mergeDown(id)
-        case .unmerge(let id):
-            updated = current.unmerge(id)
+            updated = paneLayout.swapping(first, second)
+        case .equalize(let split):
+            updated = paneLayout.equalizing(split)
+        case .applyPreset(let preset):
+            updated = preset.tree(for: paneLayout.sessions)
         }
-
-        guard let updated else { return }
-        let reconciled = updated.reconciled(with: visibleGridSessionIDs())
-        gridArrangements[size] = reconciled
-        gridArrangementStore.save(reconciled, size: size)
+        guard updated != paneLayout else { return }
+        paneLayout = updated
+        paneLayoutStore.save(updated)
     }
 
-    private func visibleGridSessionIDs() -> [SessionID] {
-        filteredGridSessionNodes(projectID: gridSessionFilterProjectID).map(\.id)
-    }
-
-    private func reconcileGridArrangements(persist: Bool = true) {
-        let visibleIDs = visibleGridSessionIDs()
-        for size in 1...4 {
-            let current = gridArrangements[size] ?? SessionGridArrangement(size: size)
-            let reconciled = current.reconciled(with: visibleIDs)
-            gridArrangements[size] = reconciled
-            if persist {
-                gridArrangementStore.save(reconciled, size: size)
-            }
+    /// task-3: 永続ツリーを `gridVisibleSessionNodes`（絞り込み適用前の全表示可能セッション）に
+    /// 合わせて reconcile する。ワークスペース絞り込み・表示セッション選択の変更では呼ばない（D4）。
+    private func reconcilePaneLayout(persist: Bool = true) {
+        let reconciled = paneLayout.reconciled(
+            with: gridVisibleSessionNodes.map(\.id),
+            bounds: PaneLayoutStore.reconcileBounds,
+            spacing: 0
+        )
+        guard reconciled != paneLayout else { return }
+        paneLayout = reconciled
+        if persist {
+            paneLayoutStore.save(reconciled)
         }
     }
 
-    private func reloadAndReconcileGridArrangements() {
-        for size in 1...4 {
-            gridArrangements[size] = gridArrangementStore.load(size: size)
-                ?? SessionGridArrangement(size: size)
-        }
-        reconcileGridArrangements()
+    /// 起動時、`PaneLayoutStore` から読み直してから reconcile する。
+    private func reloadAndReconcilePaneLayout() {
+        paneLayout = paneLayoutStore.load() ?? PaneLayoutPreset.balanced.tree(for: [])
+        reconcilePaneLayout()
     }
 
     public func isGridSessionSelected(_ id: SessionID) -> Bool {
@@ -811,7 +845,7 @@ public final class DashboardViewModel {
         persistProjects()
         // フィルタ中プロジェクトの削除で filteredGridSessionNodes がフォールバック（全表示）へ
         // 切り替わるため、新しい可視集合で配置を再整合する（イベント側の書き込み）。
-        reconcileGridArrangements(persist: !gridArrangementRestoreInProgress)
+        reconcilePaneLayout(persist: !layoutRestoreInProgress)
     }
 
     /// 指定 CLI の新規セッションを `sessions` に追加し、PTY を eager に即起動する。
@@ -848,6 +882,28 @@ public final class DashboardViewModel {
         extraEnv: [String: String] = [:],
         workingDirectoryOverride: String? = nil
     ) async throws -> SessionID {
+        try await spawnNewSessionImpl(
+            ref: ref,
+            projectID: projectID,
+            from: from,
+            backend: backend,
+            launchContext: launchContext,
+            extraEnv: extraEnv,
+            workingDirectoryOverride: workingDirectoryOverride,
+            spawnLimitSource: .parent(from)
+        )
+    }
+
+    private func spawnNewSessionImpl(
+        ref: AgentRef,
+        projectID: ProjectID? = nil,
+        from: SessionID? = nil,
+        backend: SessionBackend = .pty,
+        launchContext: SessionLaunchContext = .interactive,
+        extraEnv: [String: String] = [:],
+        workingDirectoryOverride: String? = nil,
+        spawnLimitSource: APISpawnLimitSource
+    ) async throws -> SessionID {
         let agentDescriptor = sessionSpawnService.descriptorForPresentation(ref: ref)
         // spawn 元（親）がチャット（appServer）セッションで、子の kind が structured chat 対応なら、
         // 子も appServer で起動し「チャットから spawn した子はチャットに揃える」。それ以外は要求どおり。
@@ -863,9 +919,17 @@ public final class DashboardViewModel {
         if resolvedBackend == .appServer, !agentDescriptor.supportsStructuredChat {
             throw AgentSpawnError.unsupportedBackend
         }
-        let newDepth = from.map { depth(of: $0) + 1 } ?? 0
-        if let from {
-            try checkAPISpawnLimits(from: from, newDepth: newDepth)
+        switch spawnLimitSource {
+        case .parent(let parent):
+            if let parent {
+                try checkAPISpawnLimits(
+                    requester: parent,
+                    newDepth: depth(of: parent) + 1
+                )
+            }
+        case .controlRequester(let requester):
+            let newDepth = requester.map { depth(of: $0) + 1 } ?? 0
+            try checkAPISpawnLimits(requester: requester, newDepth: newDepth)
         }
 
         // API 経由で projectID 未指定かつ親ありのとき、親と同じワークスペース（CWD）で子を起動する。
@@ -913,16 +977,24 @@ public final class DashboardViewModel {
         let chatNativeSessionId: String?
         let appServerUserAgent: String?
         let sessionName: String
+        let persistedParentSessionID: SessionID?
+        let persistedLaunchContext: SessionLaunchContext
+        let spawnedSession: any ControllableSession
 
         switch resolvedBackend {
         case .pty:
+            let sessionOrigin = sessionOriginForWrite(
+                parentSessionID: from,
+                launchContext: launchContext,
+                spawnLimitSource: spawnLimitSource
+            )
             let sessionVM = sessionSpawnService.makeSessionViewModel(
                 id: sessionID,
                 projectID: resolvedProjectID,
-                parentSessionID: from,
+                parentSessionID: sessionOrigin.parentSessionID,
                 name: "",
                 plan: plan,
-                launchContext: launchContext
+                launchContext: sessionOrigin.launchContext
             )
             sessionVM.name = generatedName
 
@@ -953,6 +1025,9 @@ public final class DashboardViewModel {
             chatNativeSessionId = nil
             appServerUserAgent = nil
             sessionName = sessionVM.name
+            persistedParentSessionID = sessionVM.parentSessionID
+            persistedLaunchContext = sessionVM.launchContext
+            spawnedSession = sessionVM
         case .appServer:
             let result = try await sessionSpawnService.startAppServerSession(
                 id: sessionID,
@@ -961,15 +1036,41 @@ public final class DashboardViewModel {
                 parentSessionID: from,
                 name: generatedName,
                 plan: plan,
-                launchContext: launchContext
+                launchContext: launchContext,
+                sessionOriginForWrite: {
+                    self.sessionOriginForWrite(
+                        parentSessionID: from,
+                        launchContext: launchContext,
+                        spawnLimitSource: spawnLimitSource
+                    )
+                },
+                registerSessionForWrite: { vm in
+                    self.observeUnseenCompletion(for: vm)
+                    self.appendSessionNode(.appServer(vm))
+                    self.refreshUnseenCompletionCount()
+                },
+                unregisterFailedSession: { id in
+                    guard let node = self.sessionNode(id: id) else { return }
+                    node.controllable.unseenCompletionDidChange = nil
+                    self.removeSessionNode(id: id)
+                    self.refreshUnseenCompletionCount()
+                }
             )
-            observeUnseenCompletion(for: result.vm)
-            appendSessionNode(.appServer(result.vm))
-            refreshUnseenCompletionCount()
             codexThreadId = result.codexThreadId
             chatNativeSessionId = result.chatNativeSessionId
             appServerUserAgent = result.appServerUserAgent
             sessionName = result.sessionName
+            persistedParentSessionID = result.vm.parentSessionID
+            persistedLaunchContext = result.vm.launchContext
+            spawnedSession = result.vm
+        }
+
+        let livePID = await livePIDProvider(sessionID)
+        // 一覧へ登録してからここへ到達するまでに cascade 削除された場合は、起動処理との
+        // 競合後に backend を再停止し、削除済み descriptor を永続化しない。
+        guard sessionNode(id: sessionID) != nil else {
+            await spawnedSession.terminate()
+            throw CancellationError()
         }
 
         // 再起動後の復元に備えてセッションメタを永続化する。
@@ -991,9 +1092,9 @@ public final class DashboardViewModel {
             codexSettings: sessionNodes.first(where: { $0.id == sessionID })?.appServer?.codexSettingsSnapshot,
             token: token,
             resumeID: resumeID,
-            parentSessionID: from,
-            pid: await livePIDProvider(sessionID),
-            launchContext: launchContext
+            parentSessionID: persistedParentSessionID,
+            pid: livePID,
+            launchContext: persistedLaunchContext
         )
         persistence.persistSession(descriptor)
 
@@ -1003,6 +1104,69 @@ public final class DashboardViewModel {
         gridSessionSelectionDidSpawn(sessionID)
 
         return sessionID
+    }
+
+    /// Control API 経由だけ要求元の実在を再評価する。
+    /// 呼び出し側は、この戻り値の取得とセッションへの代入の間に await を置かない。
+    private func sessionOriginForWrite(
+        parentSessionID: SessionID?,
+        launchContext: SessionLaunchContext,
+        spawnLimitSource: APISpawnLimitSource
+    ) -> SessionOrigin {
+        switch spawnLimitSource {
+        case .parent:
+            return SessionOrigin(
+                launchContext: launchContext,
+                parentSessionID: parentSessionID
+            )
+        case .controlRequester(let requester):
+            return SessionOriginPolicy.origin(
+                requester: requester,
+                requesterIsExistingSession: requester.map { sessionNode(id: $0) != nil } ?? false
+            )
+        }
+    }
+
+    /// Control API の要求元を、spawn 制限のキーとセッションツリーの親に分離して起動する。
+    /// 実在しない要求元も制限には使うが、親リンクには書き込まない。
+    @discardableResult
+    public func spawnNewSessionFromControlAPI(
+        ref: AgentRef,
+        requester: SessionID?,
+        backend: SessionBackend,
+        workingDirectory: String?
+    ) async throws -> SessionID {
+        try await spawnNewSessionFromControlAPI(
+            ref: ref,
+            requester: requester,
+            backend: backend,
+            workingDirectory: workingDirectory,
+            afterOriginResolution: {}
+        )
+    }
+
+    @discardableResult
+    func spawnNewSessionFromControlAPI(
+        ref: AgentRef,
+        requester: SessionID?,
+        backend: SessionBackend,
+        workingDirectory: String?,
+        afterOriginResolution: @MainActor () async -> Void
+    ) async throws -> SessionID {
+        let requesterIsExistingSession = requester.map { sessionNode(id: $0) != nil } ?? false
+        let origin = SessionOriginPolicy.origin(
+            requester: requester,
+            requesterIsExistingSession: requesterIsExistingSession
+        )
+        await afterOriginResolution()
+        return try await spawnNewSessionImpl(
+            ref: ref,
+            from: origin.parentSessionID,
+            backend: backend,
+            launchContext: origin.launchContext,
+            workingDirectoryOverride: workingDirectory,
+            spawnLimitSource: .controlRequester(requester)
+        )
     }
 
     /// M6a で実装。新規 Claude Code セッションをプレースホルダとして `sessions` に追加する。
@@ -1067,7 +1231,7 @@ public final class DashboardViewModel {
 
         if let newProjectID {
             vm.projectID = newProjectID
-            reconcileGridArrangements()
+            reconcilePaneLayout()
         }
         await vm.restart(workingDirectory: directory.path, hookEvents: newStream)
 
@@ -1172,6 +1336,13 @@ public final class DashboardViewModel {
     public func sessionOutput(for id: SessionID) -> String? {
         guard let session = sessionNodes.first(where: { $0.id == id })?.controllable else { return nil }
         return session.readText(lines: 0)
+    }
+
+    /// 指定セッションの端末画面を SGR（色・装飾）付きで返す。端末を持たない構造化セッションと
+    /// 不在は `nil`。モバイルはこれを端末エミュレータへ流して Mac と同じ見た目で描画する。
+    public func sessionAnsiScreen(for id: SessionID) -> AnsiScreen? {
+        guard let session = sessionNodes.first(where: { $0.id == id })?.controllable else { return nil }
+        return session.readAnsiScreen()
     }
 
     /// 構造化（appServer）セッションのライブ transcript を返す。
@@ -1504,11 +1675,18 @@ public final class DashboardViewModel {
     }
 
     /// レート制限の消費（タイムスタンプ追記）は上限検査の失敗時も保持する（従来挙動の維持）。
-    private func checkAPISpawnLimits(from: SessionID, newDepth: Int) throws {
-        spawnTimestamps[from] = try SpawnPolicy.recordingSpawnAttempt(
-            timestamps: spawnTimestamps[from] ?? [],
-            now: rateLimitNow()
-        )
+    private func checkAPISpawnLimits(requester: SessionID?, newDepth: Int) throws {
+        if let requester {
+            spawnTimestamps[requester] = try SpawnPolicy.recordingSpawnAttempt(
+                timestamps: spawnTimestamps[requester] ?? [],
+                now: rateLimitNow()
+            )
+        } else {
+            unattributedControlAPISpawnTimestamps = try SpawnPolicy.recordingSpawnAttempt(
+                timestamps: unattributedControlAPISpawnTimestamps,
+                now: rateLimitNow()
+            )
+        }
         try SpawnPolicy.validateAPISpawn(newDepth: newDepth)
     }
 

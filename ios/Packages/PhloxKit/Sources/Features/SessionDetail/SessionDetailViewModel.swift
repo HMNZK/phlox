@@ -46,8 +46,12 @@ public final class SessionDetailViewModel {
     /// task-3 契約の PM スタブ。入力欄のカーソル位置（UTF-16 オフセット）。
     /// View が書き込み、添付時のプレースホルダ挿入位置として使う。
     public var inputCursorUTF16: Int = 0
-    public var isOutputExpanded = false
+    /// ターミナル出力は開いた直後から全文を見せる。折りたたみ操作は引き続き可能。
+    public var isOutputExpanded = true
     public private(set) var outputText: String = ""
+    /// Mac が色つきの端末画面を配信できたときだけ中身が入る。端末を持たないセッションでは
+    /// Mac がプレーンテキストへ落とすので `.empty` のまま（`outputText` 側で描く）。
+    public private(set) var terminalScreen: TerminalScreen = .empty
     /// 初回の messages / output 解決まで true。ポーリング更新では再点灯しない。
     public private(set) var isInitialLoading: Bool = true
     public private(set) var chatMessages: [ChatMessage] = [] {
@@ -105,6 +109,13 @@ public final class SessionDetailViewModel {
     }
     public private(set) var modelPickerEntries: [ModelPickerEntry] = []
     public private(set) var selectedModelPickerEntryID: String?
+    /// ドラフトでユーザーが選んだエージェント種別とモデル。表示用 ID と切り離して保持し、
+    /// カタログの一時的な欠落で別 kind へ選択が移ることを防ぐ。
+    private struct DraftModelSelection: Equatable {
+        let kind: AgentKind
+        let modelID: String?
+    }
+    private var draftModelSelection: DraftModelSelection?
     private var draftProject: String?
     /// branch 情報は Session に無いため、取得済みのプロジェクト名だけを代替表示する。
     public var inputContextDisplayName: String? { session.projectName ?? draftProject }
@@ -451,13 +462,13 @@ public final class SessionDetailViewModel {
         )
     }
 
-    /// 入力バー有効: awaitingApproval / idle / running のみ。starting / completed / error は無効。
+    /// 入力バー有効: starting 以外。初回 spawn 待ち中は既存どおり有効にする。
     public var inputEnabled: Bool {
         if isAwaitingInitialSpawn { return true }
         switch currentStatus {
-        case .awaitingApproval, .awaitingUserQuestion, .idle, .running:
+        case .awaitingApproval, .awaitingUserQuestion, .idle, .running, .completed, .error:
             return true
-        case .starting, .completed, .error:
+        case .starting:
             return false
         }
     }
@@ -537,11 +548,19 @@ public final class SessionDetailViewModel {
         await loadModelSettings()
         if await adoptMessagesFromDelta(updateOnlyIfChanged: true) { return }
         if showsChat { return }
-        if let raw = try? await api.output(sessionID: session.id) {
-            let truncated = Self.truncate(raw)
-            if outputText != truncated { outputText = truncated }
+        if let screen = try? await api.terminalScreen(sessionID: session.id) {
+            adopt(screen)
             loadError = nil
         }
+    }
+
+    /// 受け取った端末画面を表示状態へ反映する。
+    /// 折りたたみ判定・空判定は従来どおりプレーンテキストで行うので、色つきでも同じ規則で畳める。
+    private func adopt(_ screen: TerminalScreen) {
+        let truncated = Self.truncate(screen.plainText)
+        if outputText != truncated { outputText = truncated }
+        let adopted = screen.isANSI ? screen : .empty
+        if terminalScreen != adopted { terminalScreen = adopted }
     }
 
     /// task-6: モデル一覧を取得する。404/オフライン等はチップ非表示に留め画面は壊さない。
@@ -587,7 +606,7 @@ public final class SessionDetailViewModel {
     }
 
     /// 未 spawn compose の3エージェント分カタログを読み込む。
-    /// Codex は空カタログでも agent-only 行を必ず持つ。
+    /// Codex は既存契約どおり、空カタログでも agent-only 行を必ず持つ。
     public func prepareDraft(_ draft: SessionComposeDraft) async {
         draftProject = draft.project
         guard !hasSpawnedDraft else { return }
@@ -600,7 +619,7 @@ public final class SessionDetailViewModel {
         }
 
         var entries: [ModelPickerEntry] = []
-        for kind in [AgentKind.claudeCode, .cursor] {
+        for kind in [AgentKind.claudeCode, .cursor, .codex] {
             for model in catalogs[kind]?.models ?? [] {
                 entries.append(ModelPickerEntry(
                     kind: kind,
@@ -609,19 +628,48 @@ public final class SessionDetailViewModel {
                 ))
             }
         }
-        entries.append(ModelPickerEntry(kind: .codex, modelID: nil, displayName: AgentKind.codex.displayName))
+        if catalogs[.codex]?.models.isEmpty ?? true {
+            entries.append(ModelPickerEntry(kind: .codex, modelID: nil, displayName: AgentKind.codex.displayName))
+        }
         modelPickerEntries = entries
 
-        if let selectedModelPickerEntryID,
-           entries.contains(where: { $0.id == selectedModelPickerEntryID }) {
+        guard let previousSelection = draftModelSelection else {
+            selectedModelPickerEntryID = Self.defaultDraftEntryID(entries: entries, catalogs: catalogs)
             return
         }
-        selectedModelPickerEntryID = Self.defaultDraftEntryID(entries: entries, catalogs: catalogs)
+
+        if let exactEntry = entries.first(where: {
+            $0.kind == previousSelection.kind && $0.modelID == previousSelection.modelID
+        }) {
+            selectedModelPickerEntryID = exactEntry.id
+            return
+        }
+        if let defaultModel = catalogs[previousSelection.kind]?.defaultModel,
+           let defaultEntry = entries.first(where: {
+               $0.kind == previousSelection.kind && $0.modelID == defaultModel
+           }) {
+            draftModelSelection = DraftModelSelection(kind: previousSelection.kind, modelID: defaultModel)
+            selectedModelPickerEntryID = defaultEntry.id
+            return
+        }
+        if let sameKindEntry = entries.first(where: { $0.kind == previousSelection.kind }) {
+            draftModelSelection = DraftModelSelection(
+                kind: previousSelection.kind,
+                modelID: sameKindEntry.modelID
+            )
+            selectedModelPickerEntryID = sameKindEntry.id
+            return
+        }
+
+        // 行が一時的に存在しなくても、spawn の kind は保持する。ピッカーでは未選択に見せる。
+        draftModelSelection = DraftModelSelection(kind: previousSelection.kind, modelID: nil)
+        selectedModelPickerEntryID = nil
     }
 
     public func selectDraftModel(entryID: String) {
         guard isAwaitingInitialSpawn,
-              modelPickerEntries.contains(where: { $0.id == entryID }) else { return }
+              let entry = modelPickerEntries.first(where: { $0.id == entryID }) else { return }
+        draftModelSelection = DraftModelSelection(kind: entry.kind, modelID: entry.modelID)
         selectedModelPickerEntryID = entryID
     }
 
@@ -655,8 +703,7 @@ public final class SessionDetailViewModel {
 
     public func loadOutput() async {
         do {
-            let raw = try await api.output(sessionID: session.id)
-            outputText = Self.truncate(raw)
+            adopt(try await api.terminalScreen(sessionID: session.id))
             loadError = nil
         } catch let error as PhloxError {
             loadError = error.presentation.message
@@ -679,8 +726,11 @@ public final class SessionDetailViewModel {
         sendState = .sending
         do {
             if let draftProject, !hasSpawnedDraft {
-                let selection = modelPickerEntries.first(where: { $0.id == selectedModelPickerEntryID })
-                    ?? ModelPickerEntry(kind: .codex, modelID: nil, displayName: AgentKind.codex.displayName)
+                let selection = draftModelSelection
+                    ?? modelPickerEntries.first(where: { $0.id == selectedModelPickerEntryID }).map {
+                        DraftModelSelection(kind: $0.kind, modelID: $0.modelID)
+                    }
+                    ?? DraftModelSelection(kind: .codex, modelID: nil)
                 let spawned = try await api.spawn(SpawnRequest(
                     agent: selection.kind,
                     workspace: draftProject,

@@ -31,8 +31,7 @@ extension DashboardViewModel: @retroactive ControlActionDashboard {
         }
     }
 
-    /// `spawnNewSession(ref:projectID:from:backend:)` は projectID 付きシグネチャのため
-    /// プロトコル要件を直接 witness できない。薄いラッパで委譲する。
+    /// Control API の要求元とセッションツリー上の親を DashboardFeature 側で分類する。
     /// backend はモバイルが構造化(.appServer)/ターミナル(.pty)を選べるように透過する。
     /// （.appServer を非構造化エージェントに要求した場合は spawnNewSession 側のガードが弾く。）
     public func spawnSession(
@@ -41,12 +40,11 @@ extension DashboardViewModel: @retroactive ControlActionDashboard {
         backend: SessionBackend,
         workingDirectory: String?
     ) async throws -> SessionID {
-        try await spawnNewSession(
+        try await spawnNewSessionFromControlAPI(
             ref: ref,
-            from: from,
+            requester: from,
             backend: backend,
-            launchContext: .orchestration,
-            workingDirectoryOverride: workingDirectory
+            workingDirectory: workingDirectory
         )
     }
 

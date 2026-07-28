@@ -617,7 +617,17 @@ public actor ControlServer {
             mode = .screen
         }
 
-        return .success(.output(id: sessionID, mode: mode))
+        let format: OutputFormat
+        if let rawFormat = query["format"] {
+            guard let parsedFormat = OutputFormat(rawValue: rawFormat) else {
+                return .failure(.status(400))
+            }
+            format = parsedFormat
+        } else {
+            format = .text
+        }
+
+        return .success(.output(id: sessionID, mode: mode, format: format))
     }
 
     private func parseReady(sessionID: SessionID, query: [String: String]) -> RouteResult {

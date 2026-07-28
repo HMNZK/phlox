@@ -3474,118 +3474,23 @@ func restoreFailedSession_marksErrorStatusAndSkipsSpawn() async throws {
     #expect(ptyManager.spawnCalls.isEmpty)
 }
 
-// MARK: - task-12: Cursor `cursor-agent models` provider wiring
+// MARK: - 前回使用したチャット設定の復元
 
-@Test
-func parseCursorModelList_parsesRealCursorAgentOutput() {
-    let raw = """
-    Available models
+@Test @MainActor
+func persistedSettings_mapsLastUsedModelAndEffort() {
+    let lastUsed = LastUsedChatSettings(model: "gpt-5.3-codex", effort: "high")
 
-    auto - Auto
-    gpt-5.3-codex - Codex 5.3
-    composer-2.5 - Composer 2.5 (current)
-    claude-opus-4-8-thinking-high - Opus 4.8 1M Thinking
-    """
-    let ids = DashboardViewModel.parseCursorModelList(raw)
-    #expect(ids == [
-        "auto",
-        "gpt-5.3-codex",
-        "composer-2.5",
-        "claude-opus-4-8-thinking-high"
-    ])
+    let settings = DashboardViewModel.persistedSettings(from: lastUsed)
+
+    #expect(settings?.selectedModel == "gpt-5.3-codex")
+    #expect(settings?.selectedEffort == "high")
+    #expect(settings?.selectedPermissionProfile == nil)
+    #expect(settings?.isPlanMode == false)
 }
 
-@Test
-func parseCursorModelList_excludesHeaderBlankAndMalformedLines() {
-    let raw = """
-    Available models
-
-    auto - Auto
-
-    garbage-line-without-separator
-    gpt-5.3-codex - Codex 5.3
-    ...
-    """
-    let ids = DashboardViewModel.parseCursorModelList(raw)
-    // ヘッダ・空行・区切り無し行・"..." を全て除外し、実 ID のみを返す。
-    #expect(ids == ["auto", "gpt-5.3-codex"])
-}
-
-@Test
-func parseCursorModelList_emptyStringReturnsEmpty() {
-    #expect(DashboardViewModel.parseCursorModelList("").isEmpty)
-}
-
-@Test
-func makeSpawnAgentModelsProvider_injectsOnlyForCursor() {
-    let runner: DashboardViewModel.CursorModelListRunner = { _, _, _, _ in "auto - Auto" }
-    #expect(DashboardViewModel.makeSpawnAgentModelsProvider(
-        ref: .builtin(.cursor),
-        command: "/usr/local/bin/cursor-agent",
-        env: [:],
-        workingDirectory: nil,
-        runner: runner
-    ) != nil)
-    #expect(DashboardViewModel.makeSpawnAgentModelsProvider(
-        ref: .builtin(.claudeCode),
-        command: "claude",
-        env: [:],
-        workingDirectory: nil,
-        runner: runner
-    ) == nil)
-    #expect(DashboardViewModel.makeSpawnAgentModelsProvider(
-        ref: .builtin(.codex),
-        command: "codex",
-        env: [:],
-        workingDirectory: nil,
-        runner: runner
-    ) == nil)
-}
-
-@Test
-func cursorProvider_runsModelsSubcommandAndReturnsParsedIDs() async {
-    let capturedArgs = LockedBox<[String]?>(nil)
-    let runner: DashboardViewModel.CursorModelListRunner = { command, args, _, _ in
-        capturedArgs.value = args
-        #expect(command == "/usr/local/bin/cursor-agent")
-        return "Available models\n\nauto - Auto\ncomposer-2.5 - Composer 2.5 (current)\n"
-    }
-    let provider = DashboardViewModel.makeSpawnAgentModelsProvider(
-        ref: .builtin(.cursor),
-        command: "/usr/local/bin/cursor-agent",
-        env: [:],
-        workingDirectory: nil,
-        runner: runner
-    )
-    let models = await provider?()
-    #expect(capturedArgs.value == ["models"])
-    #expect(models == ["auto", "composer-2.5"])
-}
-
-@Test
-func cursorProvider_processFailureReturnsEmptyWithoutThrowing() async {
-    let runner: DashboardViewModel.CursorModelListRunner = { _, _, _, _ in nil }
-    let provider = DashboardViewModel.makeSpawnAgentModelsProvider(
-        ref: .builtin(.cursor),
-        command: "cursor-agent",
-        env: [:],
-        workingDirectory: nil,
-        runner: runner
-    )
-    #expect(await provider?() == [])
-}
-
-@Test
-func cursorProvider_emptyOutputReturnsEmpty() async {
-    let runner: DashboardViewModel.CursorModelListRunner = { _, _, _, _ in "" }
-    let provider = DashboardViewModel.makeSpawnAgentModelsProvider(
-        ref: .builtin(.cursor),
-        command: "cursor-agent",
-        env: [:],
-        workingDirectory: nil,
-        runner: runner
-    )
-    #expect(await provider?() == [])
+@Test @MainActor
+func persistedSettings_returnsNilWithoutLastUsedSettings() {
+    #expect(DashboardViewModel.persistedSettings(from: nil) == nil)
 }
 
 // task-7: 新規チャット作成時に last-used を startNew へ渡す。

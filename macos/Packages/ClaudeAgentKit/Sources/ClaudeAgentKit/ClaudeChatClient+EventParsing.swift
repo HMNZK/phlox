@@ -50,6 +50,9 @@ extension ClaudeChatClient {
             if let sessionId = event["session_id"] as? String {
                 currentSessionId = sessionId
             }
+            if let commands = event["slash_commands"] as? [String], !commands.isEmpty {
+                eventContinuation.yield(.availableCommandsUpdated(commands: commands))
+            }
         case "task_started":
             guard let taskId = event["task_id"] as? String else { return }
             let taskType = event["task_type"] as? String ?? ""

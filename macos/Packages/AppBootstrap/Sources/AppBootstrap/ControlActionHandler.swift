@@ -63,6 +63,8 @@ public protocol ControlActionDashboard: AnyObject {
     /// （witness は DashboardViewModel。討論外の spawn では何もしない）。
     func agoraParticipantLanded(id: SessionID, role: String?, requester: SessionID?)
     func sessionOutput(for id: SessionID) -> String?
+    /// 端末画面を SGR（色・装飾）付きで返す。端末を持たない構造化セッションと不在は nil。
+    func sessionAnsiScreen(for id: SessionID) -> AnsiScreen?
     /// 構造化（appServer）セッションの差分/全量 transcript を返す（契約6）。非構造化/不在は nil（→404）。
     /// `since == nil` は全量（isSnapshot=false）＋cursor。`since` 有効かつ append のみは差分、
     /// 編集/置換・不正/期限切れ cursor は全量（isSnapshot=true）。long-poll の待機はハンドラ層が行う
@@ -97,6 +99,8 @@ public protocol ControlActionDashboard: AnyObject {
 }
 
 extension ControlActionDashboard {
+    /// 既定は「端末画面を持たない」。実体（DashboardViewModel）だけが上書きする。
+    public func sessionAnsiScreen(for id: SessionID) -> AnsiScreen? { nil }
     public func persistSessionRole(id: SessionID, role: String) {}
     public func agoraParticipantLanded(id: SessionID, role: String?, requester: SessionID?) {}
     public func sessionModelSettings(for id: SessionID) -> ControlSessionModelSettings? { nil }
@@ -155,8 +159,8 @@ public final class ControlActionHandler {
             return await handleRemove(dashboard, id: id, requester: request.requester)
         case let .rename(id, name):
             return handleRename(dashboard, id: id, name: name, requester: request.requester)
-        case let .output(id, mode):
-            return handleOutput(dashboard, id: id, mode: mode)
+        case let .output(id, mode, format):
+            return handleOutput(dashboard, id: id, mode: mode, format: format)
         case let .messages(id, since, wait):
             return await handleMessagesDelta(dashboard, id: id, since: since, wait: wait)
         case let .waitReady(id, timeoutSeconds):
@@ -401,12 +405,23 @@ public final class ControlActionHandler {
     private func handleOutput(
         _ dashboard: any ControlActionDashboard,
         id: SessionID,
-        mode: OutputMode
+        mode: OutputMode,
+        format: OutputFormat
     ) -> ControlResponse {
-        // mode は現状 screen のみ実装。scrollback も viewport テキストを返す
-        // （scrollback 抽出は後続フェーズ。visibleText は viewport 限定のため）。
+        // mode は現状 screen のみ実装。プレーンテキスト（format=text）は visibleText が
+        // viewport 限定なので scrollback を指定しても viewport を返す。
+        // format=ansi は履歴ごと返す（受け手が自分でスクロールできるように。→ ADR 0134）。
         guard let text = dashboard.sessionOutput(for: id) else {
             return .json(404, ErrorDTO(error: "session not found"))
+        }
+        // format=ansi は端末を持つセッションだけ。持たない構造化セッションは
+        // 従来のプレーンテキストへ落とす（クライアントは format フィールドで見分ける）。
+        if format == .ansi, let screen = dashboard.sessionAnsiScreen(for: id) {
+            return .json(200, OutputDTO(
+                text: screen.ansi,
+                format: OutputFormat.ansi.rawValue,
+                cols: screen.cols
+            ))
         }
         return .json(200, OutputDTO(text: text))
     }
@@ -668,6 +683,10 @@ private struct IDDTO: Codable {
 
 private struct OutputDTO: Codable {
     let text: String
+    /// `"ansi"` のときだけ付く。省略時は従来どおりプレーンテキスト。
+    var format: String?
+    /// ANSI のときの端末幅。受け手はこの桁数で描かないと折り返しがずれる。
+    var cols: Int?
 }
 
 private struct ReadyDTO: Codable {
@@ -808,6 +827,14 @@ private struct ChatMessageDTO: Encodable {
                 state: wireUserQuestionState(state),
                 questions: questions.map(UserQuestionWireDTO.from),
                 answers: answers
+            )
+        case let .taskList(id, tasks, _):
+            // タスクリストカード（task-2）。モバイル側の専用描画は未対応のため、
+            // 既存クライアントが安全に表示できるテキスト表現で流す。
+            ChatMessageDTO(
+                id: id,
+                type: "taskList",
+                text: tasks.map { "[\($0.status.rawValue)] \($0.title)" }.joined(separator: "\n")
             )
         }
     }

@@ -106,7 +106,10 @@ import AgentDomain
                 APNsNotificationBridge.keyIDEnvironmentKey: "KEY1234567",
                 APNsNotificationBridge.teamIDEnvironmentKey: "TEAM123456",
                 APNsNotificationBridge.authKeyPEMEnvironmentKey: privateKey.pemRepresentation,
-            ]
+            ],
+            credentialsFileLoader: { _ in
+                throw CocoaError(.fileNoSuchFile)
+            }
         )
 
         await bridge.notify(.sessionCompleted(sessionId: "session-123", sessionName: "Bright Lily"))
@@ -118,7 +121,10 @@ import AgentDomain
         let store = CountingDeviceTokenStore()
         let bridge = APNsNotificationBridge.configuredFromEnvironment(
             deviceTokenStore: store,
-            environment: [:]
+            environment: [:],
+            credentialsFileLoader: { _ in
+                throw CocoaError(.fileNoSuchFile)
+            }
         )
 
         await bridge.notify(.sessionCompleted(sessionId: "session-123", sessionName: "Bright Lily"))
@@ -134,7 +140,10 @@ import AgentDomain
                 APNsNotificationBridge.keyIDEnvironmentKey: "KEY1234567",
                 APNsNotificationBridge.teamIDEnvironmentKey: "TEAM123456",
                 APNsNotificationBridge.authKeyPEMEnvironmentKey: "not a pem",
-            ]
+            ],
+            credentialsFileLoader: { _ in
+                throw CocoaError(.fileNoSuchFile)
+            }
         )
 
         await bridge.notify(.sessionCompleted(sessionId: "session-123", sessionName: "Bright Lily"))

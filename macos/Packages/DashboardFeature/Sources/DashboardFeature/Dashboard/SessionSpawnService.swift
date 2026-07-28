@@ -167,7 +167,9 @@ final class SessionSpawnService {
         parentSessionID: SessionID? = nil,
         name: String,
         plan: AgentLaunchPlan,
-        launchContext: SessionLaunchContext = .interactive
+        launchContext: SessionLaunchContext = .interactive,
+        sessionOriginForWrite: (@MainActor () -> SessionOrigin)? = nil,
+        registerSessionForWrite: (@MainActor (ChatSessionViewModel) -> Void)? = nil
     ) async throws -> ChatSessionViewModel {
         let broker = ChatApprovalBroker()
         let client = try await environment.structuredClientFactory(
@@ -189,18 +191,28 @@ final class SessionSpawnService {
             approvalBroker: broker,
             workingDirectory: plan.workingDirectory,
             transcriptStore: environment.transcriptStore,
-            spawnAgentModelsProvider: CursorModelListProvider.makeSpawnAgentModelsProvider(
-                ref: plan.descriptor.ref,
-                command: plan.command,
-                env: plan.env,
-                workingDirectory: plan.workingDirectory
-            ),
+            // Keep the injectable seam on the production path, but source it exclusively
+            // from AgentModelCatalog. The catalog is the single authority shared with the API.
+            spawnAgentModelsProvider: { [ref = plan.descriptor.ref] in
+                switch ref {
+                case .builtin(.claudeCode):
+                    return AgentModelCatalog.models(for: .claudeCode).map(\.id)
+                case .builtin(.cursor):
+                    return AgentModelCatalog.models(for: .cursor).map(\.id)
+                default:
+                    return []
+                }
+            },
             historyProvider: history?.historyProvider,
             historyTranscriptLoader: history?.historyTranscriptLoader
         )
+        let sessionOrigin = sessionOriginForWrite?() ?? SessionOrigin(
+            launchContext: launchContext,
+            parentSessionID: parentSessionID
+        )
         vm.projectID = projectID
-        vm.parentSessionID = parentSessionID
-        vm.launchContext = launchContext
+        vm.parentSessionID = sessionOrigin.parentSessionID
+        vm.launchContext = sessionOrigin.launchContext
         vm.name = name
         let agentID = plan.descriptor.ref.id
         vm.codexSettingsDidChange = { [weak self] settings in
@@ -209,6 +221,7 @@ final class SessionSpawnService {
                 self?.recordLastUsedChatSettings(agentID, settings.selectedModel, settings.selectedEffort)
             }
         }
+        registerSessionForWrite?(vm)
         return vm
     }
 
@@ -298,13 +311,17 @@ final class SessionSpawnService {
         parentSessionID: SessionID?,
         name: String,
         plan: AgentLaunchPlan,
-        launchContext: SessionLaunchContext
+        launchContext: SessionLaunchContext,
+        sessionOriginForWrite: (@MainActor () -> SessionOrigin)? = nil,
+        registerSessionForWrite: (@MainActor (ChatSessionViewModel) -> Void)? = nil,
+        unregisterFailedSession: (@MainActor (SessionID) -> Void)? = nil
     ) async throws -> AppServerSpawnResult {
         // A2: この分岐ローカルの do/catch で後始末を閉じる（.pty 分岐の prepareSessionLaunch catch は
         // switch より前で完結しており、ここと重複解放しない）。throw 位置で解放対象が異なる:
         //  - makeChatSessionViewModel throw → chatVM 未生成なので terminate せず、token/workspace のみ解放。
         //  - startNew throw → chatVM 生成済みなので terminate() を追加で呼ぶ。
-        // どちらも sessionNodes へは未 append（append は startNew 成功後）・未永続化（persistSession は switch の後）。
+        // startNew 前に一覧登録された場合も、失敗時は unregisterFailedSession で除去する。
+        // 永続化は呼び出し元で startNew 成功後に行う。
         var createdChatVM: ChatSessionViewModel?
         do {
             let chatVM = try await makeChatSessionViewModel(
@@ -313,15 +330,17 @@ final class SessionSpawnService {
                 parentSessionID: parentSessionID,
                 name: name,
                 plan: plan,
-                launchContext: launchContext
+                launchContext: launchContext,
+                sessionOriginForWrite: sessionOriginForWrite,
+                registerSessionForWrite: registerSessionForWrite
             )
             createdChatVM = chatVM
             let persistedSettings = CursorModelListProvider.persistedSettings(
                 from: lastUsedChatSettings(ref.id)
             )
             try await chatVM.startNew(
-                approvalPolicy: Self.appServerApprovalPolicy(for: launchContext),
-                sandbox: Self.appServerSandboxPolicy(for: launchContext),
+                approvalPolicy: Self.appServerApprovalPolicy(for: chatVM.launchContext),
+                sandbox: Self.appServerSandboxPolicy(for: chatVM.launchContext),
                 persistedSettings: persistedSettings
             )
             return AppServerSpawnResult(
@@ -332,6 +351,7 @@ final class SessionSpawnService {
                 sessionName: chatVM.name
             )
         } catch {
+            unregisterFailedSession?(sessionID)
             await createdChatVM?.terminate()
             await environment.tokenStore.remove(session: sessionID)
             cleanupOwnedWorkspace(sessionID)
@@ -380,18 +400,18 @@ final class SessionSpawnService {
         return nil
     }
 
-    static func appServerApprovalPolicy(for context: SessionLaunchContext) -> ApprovalPolicy {
+    nonisolated static func appServerApprovalPolicy(for context: SessionLaunchContext) -> ApprovalPolicy {
         switch context {
-        case .interactive:
+        case .interactive, .remoteUser:
             .named("on-request")
         case .orchestration:
             .named("never")
         }
     }
 
-    static func appServerSandboxPolicy(for context: SessionLaunchContext) -> SandboxPolicy {
+    nonisolated static func appServerSandboxPolicy(for context: SessionLaunchContext) -> SandboxPolicy {
         switch context {
-        case .interactive:
+        case .interactive, .remoteUser:
             .named("workspace-write")
         case .orchestration:
             .named("danger-full-access")

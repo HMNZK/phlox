@@ -43,6 +43,33 @@ public final class CompositionRoot {
         let hookInfra = try await Self.startHookInfrastructure()
         let claudeSettings = try Self.prepareClaudeSettings()
         let agents = try await Self.resolveAgentBinariesAndCatalog()
+        let liveModelProvider = CachingAgentModelProvider(source: LiveAgentModelProvider(
+            // GUI apps need an explicit PATH, while cursor-agent's `set -u` wrapper needs
+            // HOME. USER/LANG preserve normal CLI identity and locale semantics.
+            environment: LiveAgentModelProvider.childEnvironment(base: ["PATH": agents.pathEnvironment]),
+            commands: agents.agentBinaryPaths
+        ))
+        AgentModelCatalog.configure(provider: liveModelProvider)
+        // GET /agents/... remains a synchronous snapshot read. Refresh runs only in this
+        // background task so request handlers never wait for a CLI process.
+        Task.detached {
+            while !Task.isCancelled {
+                await AgentModelCatalog.refresh()
+                let fallbacks = AgentModelCatalog.kindsUsingFallback()
+                if !fallbacks.isEmpty {
+                    let kinds = fallbacks.map(\.rawValue).sorted().joined(separator: ", ")
+                    await MainActor.run {
+                        Self.proxyLogger.warning("Live model catalog fallback active for: \(kinds, privacy: .public)")
+                    }
+                }
+                do {
+                    try await Task.sleep(for: .seconds(300))
+                } catch {
+                    // Cancellation is the task's normal shutdown signal.
+                    break
+                }
+            }
+        }
         let stores = try Self.createWorkspaceAndPersistenceStores()
         let deviceTokenStore = KeychainDeviceTokenStore()
         let control = try await Self.startControlServer(
@@ -222,12 +249,15 @@ public final class CompositionRoot {
         bindMode: BindMode?,
         listenPort: UInt16?
     ) {
-        // モバイル中継プロキシ: 既定は Tailscale IF の固定ポート(既定 8765)で待ち受け、受けた HTTP を
+        // モバイル中継プロキシ: Tailscale IF の flavor 別固定ポート（Release: 8765、Debug: 8766）で待ち受け、受けた HTTP を
         // 127.0.0.1:<controlPort>(ControlServer)へ無改変で中継する。controlPort はメモリから直接渡す。
         // secure-by-default: Tailscale 未検出時は loopback(127.0.0.1)限定にフォールバックし、
         // 全 IF(0.0.0.0)へは決して暗黙バインドしない(fail-closed)。露出範囲は BindMode で可観測。
         // 起動失敗(ポート使用中等)はアプリ起動を妨げないよう warning ログに留めて続行する。
-        let mobileProxy = MobileProxy(targetPort: UInt16(controlPort))
+        let mobileProxy = MobileProxy(
+            listenPort: AppFlavor.current.mobileProxyDefaultPort,
+            targetPort: UInt16(controlPort)
+        )
         var resolvedBindMode: BindMode?
         var resolvedListenPort: UInt16?
         do {

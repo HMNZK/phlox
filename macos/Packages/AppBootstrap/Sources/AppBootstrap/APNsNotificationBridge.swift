@@ -91,6 +91,17 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
     static let teamIDEnvironmentKey = "PHLOX_APNS_TEAM_ID"
     static let authKeyPEMEnvironmentKey = "PHLOX_APNS_AUTH_KEY_PEM"
     static let authKeyPathEnvironmentKey = "PHLOX_APNS_AUTH_KEY_PATH"
+    private static let supportedCredentialKeys: Set<String> = [
+        keyIDEnvironmentKey,
+        teamIDEnvironmentKey,
+        authKeyPEMEnvironmentKey,
+        authKeyPathEnvironmentKey,
+    ]
+
+    struct ResolvedCredentialEnvironment {
+        let values: [String: String]
+        let fileBackedKeys: Set<String>
+    }
 
     /// 運用時の切り分け用ログ。デバイストークンは先頭 8 桁のみ・鍵素材は一切出さない。
     private static let logger = Logger(subsystem: "com.phlox.Phlox", category: "APNs")
@@ -151,17 +162,32 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
     public static func configuredFromEnvironment(
         deviceTokenStore: any DeviceTokenStore,
         environment: [String: String] = ProcessInfo.processInfo.environment,
+        homeDirectory: String = FileManager.default.homeDirectoryForCurrentUser.path,
+        credentialsFileLoader: @escaping @Sendable (String) throws -> String = {
+            try String(contentsOfFile: $0, encoding: .utf8)
+        },
         fileLoader: @escaping @Sendable (String) throws -> String = {
             try String(contentsOfFile: $0, encoding: .utf8)
         }
     ) -> APNsNotificationBridge {
-        guard let keyID = nonEmpty(environment[keyIDEnvironmentKey]),
-              let teamID = nonEmpty(environment[teamIDEnvironmentKey]),
-              let authKeyPEM = loadAuthKeyPEM(environment: environment, fileLoader: fileLoader)
+        let resolved = resolveCredentialEnvironment(
+            environment: environment,
+            homeDirectory: homeDirectory,
+            credentialsFileLoader: credentialsFileLoader
+        )
+        guard let keyID = nonEmpty(resolved.values[keyIDEnvironmentKey]),
+              let teamID = nonEmpty(resolved.values[teamIDEnvironmentKey]),
+              let authKeyPEM = loadAuthKeyPEM(environment: resolved.values, fileLoader: fileLoader)
         else {
             logger.info("APNs notifier disabled: credentials not configured (no-op mode)")
             return APNsNotificationBridge(deviceTokenStore: deviceTokenStore, sender: nil)
         }
+
+        let source = credentialSourceDescription(
+            environment: resolved.values,
+            fileBackedKeys: resolved.fileBackedKeys
+        )
+        logger.info("APNs credentials source: \(source, privacy: .public)")
 
         do {
             let bridge = APNsNotificationBridge(
@@ -180,6 +206,121 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
         }
     }
 
+    static func resolveCredentialEnvironment(
+        environment: [String: String],
+        homeDirectory: String,
+        credentialsFileLoader: @Sendable (String) throws -> String
+    ) -> ResolvedCredentialEnvironment {
+        let credentialsPath = URL(fileURLWithPath: homeDirectory, isDirectory: true)
+            .appendingPathComponent(".phlox", isDirectory: true)
+            .appendingPathComponent("apns.env", isDirectory: false)
+            .path
+        guard let contents = try? credentialsFileLoader(credentialsPath) else {
+            return ResolvedCredentialEnvironment(values: environment, fileBackedKeys: [])
+        }
+
+        let fileValues = parseAPNsEnvironmentFile(contents, homeDirectory: homeDirectory)
+        var resolvedValues = environment
+        var fileBackedKeys: Set<String> = []
+        for (key, value) in fileValues where nonEmpty(resolvedValues[key]) == nil {
+            resolvedValues[key] = value
+            fileBackedKeys.insert(key)
+        }
+        return ResolvedCredentialEnvironment(
+            values: resolvedValues,
+            fileBackedKeys: fileBackedKeys
+        )
+    }
+
+    static func parseAPNsEnvironmentFile(
+        _ contents: String,
+        homeDirectory: String
+    ) -> [String: String] {
+        var values: [String: String] = [:]
+        var multilineKey: String?
+        var multilineValue = ""
+
+        for rawLineWithPossibleCarriageReturn in contents.split(
+            separator: "\n",
+            omittingEmptySubsequences: false
+        ) {
+            let rawLine = rawLineWithPossibleCarriageReturn.last == "\r"
+                ? rawLineWithPossibleCarriageReturn.dropLast()
+                : rawLineWithPossibleCarriageReturn[...]
+            if let key = multilineKey {
+                if let closingQuote = rawLine.firstIndex(of: "\"") {
+                    multilineValue += "\n" + rawLine[..<closingQuote]
+                    values[key] = expandHomeDirectory(
+                        in: multilineValue,
+                        homeDirectory: homeDirectory
+                    )
+                    multilineKey = nil
+                    multilineValue = ""
+                } else {
+                    multilineValue += "\n" + rawLine
+                }
+                continue
+            }
+
+            var line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty, !line.hasPrefix("#") else { continue }
+
+            if line.hasPrefix("export") {
+                let suffix = line.dropFirst("export".count)
+                if suffix.first?.isWhitespace == true {
+                    line = suffix.trimmingCharacters(in: .whitespaces)
+                }
+            }
+
+            guard let separator = line.firstIndex(of: "=") else { continue }
+            let key = line[..<separator].trimmingCharacters(in: .whitespaces)
+            guard supportedCredentialKeys.contains(key) else { continue }
+
+            var value = line[line.index(after: separator)...]
+                .trimmingCharacters(in: .whitespaces)
+            if value.first == "\"" {
+                let contentStart = value.index(after: value.startIndex)
+                if let closingQuote = value[contentStart...].firstIndex(of: "\"") {
+                    value = String(value[contentStart..<closingQuote])
+                } else {
+                    multilineKey = key
+                    multilineValue = String(value[contentStart...])
+                    continue
+                }
+            }
+
+            if value.count >= 2,
+               let first = value.first,
+               let last = value.last,
+               first == "'",
+               first == last {
+                value.removeFirst()
+                value.removeLast()
+            }
+
+            values[key] = expandHomeDirectory(
+                in: String(value),
+                homeDirectory: homeDirectory
+            )
+        }
+        return values
+    }
+
+    private static func expandHomeDirectory(
+        in value: String,
+        homeDirectory: String
+    ) -> String {
+        var expandedValue = value
+            .replacingOccurrences(of: "${HOME}", with: homeDirectory)
+            .replacingOccurrences(of: "$HOME", with: homeDirectory)
+        if expandedValue == "~" {
+            expandedValue = homeDirectory
+        } else if expandedValue.hasPrefix("~/") {
+            expandedValue = homeDirectory + expandedValue.dropFirst()
+        }
+        return expandedValue
+    }
+
     public func sessionCompleted(sessionId: String, sessionName: String) {
         enqueue(.sessionCompleted(sessionId: sessionId, sessionName: sessionName))
     }
@@ -189,12 +330,20 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
     }
 
     func notify(_ event: NotificationEvent) async {
-        guard let sender else { return }
+        guard let sender else {
+            Self.logger.notice("APNs notify skipped: event=\(event.type, privacy: .public) sessionId=\(event.sessionId, privacy: .public) reason=sender unavailable（鍵未設定）")
+            return
+        }
         let registrations: [DeviceTokenRegistration]
         do {
             registrations = try deviceTokenStore.loadAll()
         } catch {
             Self.logger.error("APNs notify skipped: device token load failed (\(String(describing: error), privacy: .public))")
+            return
+        }
+
+        guard !registrations.isEmpty else {
+            Self.logger.notice("APNs notify skipped: no registered tokens event=\(event.type, privacy: .public) session=\(event.sessionId, privacy: .public)")
             return
         }
 
@@ -265,7 +414,6 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
     }
 
     private func enqueue(_ event: NotificationEvent) {
-        guard sender != nil else { return }
         Task.detached(priority: .utility) {
             await notify(event)
         }
@@ -356,6 +504,27 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
             return nil
         }
         return try? fileLoader(path)
+    }
+
+    private static func credentialSourceDescription(
+        environment: [String: String],
+        fileBackedKeys: Set<String>
+    ) -> String {
+        var selectedKeys = [keyIDEnvironmentKey, teamIDEnvironmentKey]
+        if nonEmpty(environment[authKeyPEMEnvironmentKey]) != nil {
+            selectedKeys.append(authKeyPEMEnvironmentKey)
+        } else {
+            selectedKeys.append(authKeyPathEnvironmentKey)
+        }
+
+        let usesEnvironment = selectedKeys.contains { !fileBackedKeys.contains($0) }
+        let usesFile = selectedKeys.contains { fileBackedKeys.contains($0) }
+        return [
+            usesEnvironment ? "environment" : nil,
+            usesFile ? "file" : nil,
+        ]
+        .compactMap { $0 }
+        .joined(separator: " / ")
     }
 
     private static func nonEmpty(_ value: String?) -> String? {

@@ -70,8 +70,17 @@ private func chatMarkdownTheme(scale: CGFloat) -> Theme {
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
         }
+        // MarkdownUI の空テーマは段落・見出しの label に縦サイズ確保を付けない。そのまま
+        // selectable な Text を幅制約下へ置くと、描画が折り返しても親が 1 行高のままになり、
+        // 次のブロックへ重なり得る。非表ブロックだけに固定し、折り返した全行の高さを親へ返す。
+        // 表へは波及させない（ADR 0045）。
+        .paragraph { configuration in
+            configuration.label
+                .fixedSize(horizontal: false, vertical: true)
+        }
         .heading1 { configuration in
             configuration.label
+                .fixedSize(horizontal: false, vertical: true)
                 .markdownMargin(top: 0, bottom: DSSpacing.m)
                 .markdownTextStyle {
                     FontWeight(.bold)
@@ -81,6 +90,7 @@ private func chatMarkdownTheme(scale: CGFloat) -> Theme {
         }
         .heading2 { configuration in
             configuration.label
+                .fixedSize(horizontal: false, vertical: true)
                 .markdownMargin(top: DSSpacing.s, bottom: DSSpacing.s)
                 .markdownTextStyle {
                     FontWeight(.bold)
@@ -90,12 +100,26 @@ private func chatMarkdownTheme(scale: CGFloat) -> Theme {
         }
         .heading3 { configuration in
             configuration.label
+                .fixedSize(horizontal: false, vertical: true)
                 .markdownMargin(top: DSSpacing.s, bottom: DSSpacing.xs)
                 .markdownTextStyle {
                     FontWeight(.semibold)
                     FontSize(ChatTypography.heading3FontSize(scale: scale))
                     ForegroundColor(DSColor.chatTextPrimary)
                 }
+        }
+        // 見出し4〜6は MarkdownUI 既定の書式を維持しつつ、折り返し行の高さだけ確保する。
+        .heading4 { configuration in
+            configuration.label
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .heading5 { configuration in
+            configuration.label
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .heading6 { configuration in
+            configuration.label
+                .fixedSize(horizontal: false, vertical: true)
         }
         .blockquote { configuration in
             configuration.label

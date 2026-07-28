@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-23
+last-verified: 2026-07-26
 ---
 
 # チャットモード UX コンポーネント構成（chat-ux-batch 後の現行）
@@ -57,9 +57,9 @@ PTY read（actor＋専用キュー）・transcript 保存（actor）・Hook/Cont
 
 補足（2026-07-17）: 上記実測は**単一セッション基準**。複数チャット同時ストリーミングでは delta イベント毎の UI 無効化が積算しカクつきを生んでいたため、チャットモードの delta 適用は `TranscriptStreamCoalescer` による **50ms 窓のバッチ適用**へ変更した（ADR 0093。合成再現で無効化 8,000→8 回）。delta は即時に transcript へ書かれず、非 delta イベント・turn 境界の直前に barrier flush される（イベント観測順序は従来と同一）。
 
-## トランスクリプトの描画（末尾 N 件・ADR 0051）
+## トランスクリプトの描画（末尾 N ブロック・ADR 0051 / 0127）
 
-`ChatTranscriptView` は非 Lazy VStack（ADR 0030）のまま、`TranscriptWindow`（純粋値型・`Session/TranscriptWindow.swift`）で**末尾 N 件のみ描画**する。N は表示文脈（`TranscriptPresentationContext`）で分かれ、**単一表示 = 50 / グリッドタイル = 40**（ADR 0094 で文脈別既定を導入。単一表示は当初 200 だったが初回描画コスト削減のため 50 へ引き下げ＝ADR 0097。グリッドは全タイル常時描画のため小窓）。`reset()` は自文脈の既定値へ戻る。超過時は先頭の「以前のメッセージを表示（残り k 件）」ボタンで 50 件ずつ段階展開し、展開後は押下前の先頭可視メッセージへアンカー保持（イベント駆動 scrollTo・1回のみ）。隠れ域へのジャンプ（バックグラウンドタスクストリップ）は `reveal(index:totalCount:)` がマージン付きで可視化してから scrollTo する。window はスクロール量・可視領域に一切連動しない（拡張契機はユーザー操作のみ）。遅延 scrollTo は世代トークン（jumpGeneration）でセッション切替・後続操作時に無効化。
+`ChatTranscriptView` は非 Lazy VStack（ADR 0030）のまま、`TranscriptWindow`（純粋値型・`Session/TranscriptWindow.swift`）で**末尾 N ブロックのみ描画**する。**N が数えるのはトップレベルに描画されるブロック数**であって item 数ではない（ADR 0127）——連続するツール実行のまとまりは中に何件入っていても1枠。`ChatTranscriptGrouping.visibleSlice(from:blockLimit:)` が全 item をブロックへ畳んで末尾 `blockLimit` ブロックを返し、隠れ件数は `hiddenBlockCount`（ブロック単位）で返る。N は表示文脈（`TranscriptPresentationContext`）で分かれ、**単一表示 = 50 / グリッドタイル = 16**（ADR 0094 で文脈別既定を導入。単一表示は当初 200 だったが初回描画コスト削減のため 50 へ引き下げ＝ADR 0097。グリッドは全タイル常時描画のため小窓で、40 → 16 は ADR 0116）。`reset()` は自文脈の既定値へ戻る。超過時は先頭の「以前のメッセージを表示（残り k 件）」ボタンで 50 ブロックずつ段階展開し、展開後は押下前の先頭可視メッセージへアンカー保持（イベント駆動 scrollTo・1回のみ）。隠れ域へのジャンプ（バックグラウンドタスクストリップ）は `ChatTranscriptGrouping.blockIndex(ofItemWithID:in:)` で item→ブロック index へ翻訳してから `reveal(index:totalCount:)` がマージン付きで可視化し、scrollTo する。window はスクロール量・可視領域に一切連動しない（拡張契機はユーザー操作のみ）。遅延 scrollTo は世代トークン（jumpGeneration）でセッション切替・後続操作時に無効化。
 
 **復元中の接続表示**（ADR 0098）: セッション復元は空 transcript の VM を先に UI へ載せてから `await vm.restore()` で全件一括反映するため、その間 transcript が空になる。`ChatRestoreState`（`notRestored`/`restoring`/`restored`/`failed`）の `restoring` を `restore()` 入口で設定し、`ChatSessionView` は `restoreState == .restoring` かつ transcript 空の間だけ `ChatConnectingIndicator`（iOS `DSConnectingIndicator` の移植・Canvas + TimelineView レーダー風・`DSColor.chatAccent`・Reduce Motion 静的フォールバック・`accessibilityHidden(true)`）を中央オーバーレイ表示する。完了/失敗で消え、空データ・失敗で永久表示にならない。`SessionRestoreCoordinator` は View が状態を観測するため変更不要。
 
@@ -109,12 +109,41 @@ footer は `ComposerFooterLayout`（standard / compact / minimal）を幅から�
 
 ## 処理中インジケータの表示条件（chat-ui-context-fixes, 2026-07-10・ADR 0064）
 
-ThinkingIndicatorCell の表示条件は `status == .running` ではなく **`ChatSessionViewModel.showsProcessingIndicator`**（running またはバックグラウンドタスク/実行中サブエージェントが残存）。ターン進行中の Codex `threadStatusChanged(idle)` は無視され、interrupt/error 時は実行中サブエージェントが `.failed` へ終端される（`ChatSubAgentModel.failRunningSubAgents()`）。Codex app-server の `willRetry: true` エラー通知は非終端 `.warning` に正規化され（ターン継続＝停止ボタン維持）、プロセス EOF 時は Kit が終端 error を合成して running 固着を防ぐ（ADR 0095。凍結 `AcceptanceStopButtonPersistenceTests`）。
+ThinkingIndicatorCell の表示条件は `status == .running` ではなく **`ChatSessionViewModel.showsProcessingIndicator`**（running またはバックグラウンドタスク/実行中サブエージェントが残存）。ターン進行中の Codex `threadStatusChanged(idle)` は無視され（復元時に thread status から推定した running ターンのみ例外的に idle で終端＋完了通知。ADR 0119）、interrupt/error 時は実行中サブエージェントが `.failed` へ終端される（`ChatSubAgentModel.failRunningSubAgents()`）。Codex app-server の `willRetry: true` エラー通知は非終端 `.warning` に正規化され（ターン継続＝停止ボタン維持）、プロセス EOF 時は Kit が終端 error を合成して running 固着を防ぐ（ADR 0095。凍結 `AcceptanceStopButtonPersistenceTests`）。
 
 ## Thinking インジケータのシマーアニメーション（thinking-remove-ellipsis, 2026-07-20・ADR 0067 / CA 駆動化 2026-07-24・ADR 0117）
 
 `ThinkingIndicatorCell` は「Thinking...」テキストを、明度が**左→右へ流れるシマー**で表示する（**跳ねドットは廃止**）。通常時は純関数 `ThinkingAnimationModel.shimmerPhase(date:)`→`shimmerBandCenter(phase:)`→各 stop の `shimmerBrightness(position:phase:)`（`ThinkingAnimation.swift`）から**明度バンプを一度だけ構成した `CAGradientLayer`** を組み、`ThinkingShimmerView`（`NSViewRepresentable`）が Core Animation の `CABasicAnimation`（`position.x` を `−shimmerMargin`→`1+shimmerMargin` へ並進・周期 `shimmerPeriod`・無限反復）で**描画サーバー側**で駆動する（**ADR 0117**）。テキストは `CATextLayer` の固定マスク、`updateNSView` は色・スケール・可視性の離散変化のみ反映（毎フレーム SwiftUI 更新を誘発しない）。**旧 `TimelineView(...timelineSchedule)` 30fps 駆動は、複数セッション・グリッドで SwiftUI の AttributeGraph／アクセシビリティ木を毎フレーム再構築させメインスレッドを占有していたため置換**（隔離実測で 9 タイルのメイン負荷 ~24%→~0%）。純関数（`shimmerPhase`/`shimmerBrightness`/`shimmerBandCenter`）・viewport pause シグナル（`isTimelineVisible` を `isVisible` として渡し `layer.speed` で pause/resume）・reduceMotion 静止経路は不変。落とし穴（`CAGradientLayer.locations` は `0..1` 内・帯幅は host 幅換算で原寸維持）は ADR 0117。同設計の先例は DesignSystem `RunningBlinkDot`/`RunningSpinner`。**非表示中（セル非存在・transcript 最下部が viewport 外・シーン非アクティブ）はエントリを発行しない**（viewport シグナルは `ChatAutoFollow` の isAtBottom を `ChatTranscriptView` → `ThinkingIndicatorCell(isInTranscriptViewport:)` へ配線）。`accessibilityReduceMotion` 時は静的テキスト。iOS も同一セマンティクスのシマーへ揃えた（`DSThinkingIndicator`／`DSThinkingAnimationModel`・入力は `Date` ではなく `TimeInterval`）。設計判断・viewport pause の残余（hangAssessment 用 1Hz クロックは対象外）と、跳ねドット廃止の経緯は ADR 0067。
 
-## ツールコールのグループ集約表示（desktop-ui-polish, 2026-07-17・ADR 0096）
+## ツールコールのグループ集約表示（ADR 0096 → 0127 / 0128）
 
-連続するコマンド実行 item は1セルに集約して描画する。描画直前に純関数 `ChatTranscriptGrouping.blocks(from:)`（`ChatTranscriptGrouping.swift`）が item 列を `ChatTranscriptBlock`（`.single` / `.commandGroup(id:items:)`）へ畳み、`ChatTranscriptView` はブロック単位で ForEach する。グループ id は**先頭 item の id**（append で id 不変＝セル再利用）、末尾ウィンドウ境界での部分ブロックも外側 id を保つ。ジャンプは `scrollTargetID(containing:in:)` が item→ブロック id を解決。セルは `CommandGroupCell`（`ChatMessageCells+CommandGroup.swift`・`CommandGroupPresentation.shouldRender = isRunning || !rows.isEmpty`）。identity 設計の理由は ADR 0096、凍結 `AcceptanceToolCallGroupingTests`。
+連続するコマンド実行 item は**1件でも**1セルに集約して描画する（ADR 0127。当初は2件以上だった＝ADR 0096）。描画直前に純関数 `ChatTranscriptGrouping.blocks(from:)`（`ChatTranscriptGrouping.swift`）が item 列を `ChatTranscriptBlock`（`.single` / `.commandGroup(id:items:)`）へ畳み、`ChatTranscriptView` はブロック単位で ForEach する。グループ id は**先頭 item の id**（append で id 不変＝セル再利用）。**窓境界は必ずブロック境界に来るため部分ブロックは生じない**（ADR 0127 で旧・境界分割処理は削除）。ジャンプは `scrollTargetID(containing:in:)` が item→ブロック id を解決。
+
+セルは `CommandGroupCell`（`ChatMessageCells+CommandGroup.swift`）。窓がブロック単位になり1グループが数千件を抱えうるため、**ヘッダと行データを型で分けてある**（ADR 0128）:
+
+- `CommandGroupHeader`（`title` / `timestamp` / `isRunning` / `shouldRender`）— 行データを保持しない。**閉状態はこれだけを使う**。
+- `CommandGroupRowWindow.slice(items:lastTranscriptID:isTurnRunning:limit:) -> CommandGroupRowsSlice` — `if isExpanded` の内側でだけ呼ぶ。展開時の行は末尾 `defaultLimit = 50` 件で、残りは `hiddenRowCount` として「残り N 件を表示」（`expandStep = 50`）で段階展開する。
+- `shouldRender = isRunning || items.count == 1 || 出力が空でない item が1件以上ある`。**唯一の行には空出力フィルタを適用しない**（単独・空出力のツール実行がカードごと消えるのを防ぐ）。
+
+凍結テスト: `AcceptanceToolCallGroupingTests` / `AcceptanceBlockWindowTests` / `AcceptanceCommandGroupRowWindowTests`。
+
+## transcript の切り詰め廃止（agent-grid-jank run, 2026-07-24・ADR 0118）
+
+`DisclosureCard` のタイトルは `lineLimit(1)`/`truncationMode(.middle)` を廃止し全文を折り返す。MarkdownUI の paragraph/heading1〜6 には `.fixedSize(horizontal: false, vertical: true)` を付与し、折り返し行の縦高さを確保する（`.table` ブロックより前に限定＝ADR 0045 のレイアウト非収束を回避）。「…」クリック展開時に後続要素へ文字が重なる病理の根治。凍結 `AcceptanceMarkdownNoTruncationTests`（NSHostingView fittingSize による高さ計測＋lineLimit/truncationMode のソーススキャン禁止）。
+
+## タスクリストカード（agent-grid-jank run, 2026-07-24）
+
+Claude Code の Tasks 機能（TodoWrite/TaskCreate/TaskUpdate）を transcript 内の1枚カードで表示する。正規化は `NormalizedChatEvent.taskListUpdated(tasks: [AgentTaskItem])`（TodoWrite=全量スナップショット、TaskCreate/TaskUpdate=`toolUseResult.task.id` による差分。`ClaudeChatClient+TaskList.swift`）。transcript 側は `ChatItem.taskList`（同一カードの置換更新）を `TaskListCell`（`ChatMessageCells+TaskList.swift`・DisclosureCard ベース・accessibilityIdentifier `ChatMessage.taskList`）で描画。型は `StructuredChatKit/AgentTaskList.swift`（`AgentTaskItem`/`AgentTaskStatus`）。凍結 `AcceptanceClaudeTaskListEventTests`・`AcceptanceTaskListCardTests`。
+
+## スラッシュコマンドのサジェスト＝セッションの提供一覧が正本（ADR 0120, 2026-07-26）
+
+候補の正本は **Claude Code が `system`/`init` で申告する `slash_commands`**。`ClaudeChatClient+EventParsing.swift` が `NormalizedChatEvent.availableCommandsUpdated(commands:)`（先頭 `/` 無し・受信順・全量スナップショット）へ正規化し、`ChatSessionViewModel.availableSlashCommands: [String]?` が**置換**保持する（他イベントでクリアしない）。View 側は `ChatComposer` / `GridChatColumn` の双方が `ComposerSuggestionController.availableSlashCommands` へ生成時＋値変化時に反映する。
+
+`ComposerSuggestionSources.slashCandidates(availableCommands:homeDirectory:workingDirectory:)` の挙動:
+
+| `availableCommands` | 候補 |
+|---|---|
+| `nil`（init 未受領。初回送信前は必ずこれ） | 静的 `builtinSlashCommands` 10 件＋`.claude/commands` / `.claude/skills` 走査 |
+| 非 `nil` | その名前だけ（走査由来を混ぜ戻さない）。`__` 接頭辞は除外・重複は一意化・順序保持 |
+
+一覧由来の subtitle は ①静的リストの同名 ②`.claude/skills/<名前>/SKILL.md` の `description` ③`.claude/commands/<名前>.md` ④なし の順で補う。5 秒 TTL キャッシュ（ADR 0053）のキーには一覧を含める。静的 `builtinSlashCommands` はフォールバック専用に 10 件（`/compact` `/clear` `/model` `/init` `/config` `/mcp` `/context` `/usage` `/doctor` `/review`）へ縮小した——実測でセッションに存在しなかった 13 件（`/help` `/plugin` `/permissions` `/status` `/cost` `/memory` `/output-style` `/export` `/statusline` `/todos` `/rewind` `/resume` `/hooks`）は削除済み。凍結 `AcceptanceAvailableCommandsEventTests`・`AcceptanceInitSlashCommandsTests`・`AcceptanceBuiltinSlashCommandsTests`・`AcceptanceComposerAvailableCommandsTests`。**Codex / Cursor は一覧の供給源が無くフォールバックのまま**。

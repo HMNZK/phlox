@@ -13,6 +13,8 @@ struct SettingsView: View {
     /// モバイル専用トークンの再発行・QR ペアリング VM。初期化前（composition 未完了）は nil。
     let mobileToken: MobileTokenViewModel?
 
+    @Environment(\.openWindow) private var openWindow
+
     @AppStorage(NotificationSettings.bannerKey) private var bannerNotificationEnabled = true
     @AppStorage(NotificationSettings.soundKey) private var completionSoundEnabled = true
 
@@ -186,6 +188,20 @@ struct SettingsView: View {
                     Text("使用量")
                 } footer: {
                     Text("Codex・Cursor の使用量は自動で表示されます。Claude は Phlox 内で起動したセッションの使用量を表示します（直近に Phlox 内で Claude を起動していないと最新の値にならない場合があります）。")
+                }
+
+                Section {
+                    Button {
+                        openWindow(id: AgentConsoleCommands.windowID)
+                    } label: {
+                        Label("エージェント管理を開く", systemImage: "wrench.and.screwdriver")
+                    }
+                    .buttonStyle(RichButtonStyle())
+                    .focusEffectDisabled()
+                } header: {
+                    Text("エージェント")
+                } footer: {
+                    Text("Claude Code・Codex・Cursor の設定をここから操作できます。対話 TUI のスラッシュコマンド（/plugin・/permissions 等）や、設定ファイルの手編集でしか触れない項目が対象です。")
                 }
 
                 Section {
@@ -539,41 +555,6 @@ struct SettingsView: View {
             private var borderOpacity: Double {
                 guard isEnabled else { return 0.40 }
                 return isHovering ? 0.95 : 0.60
-            }
-        }
-    }
-
-    /// 画像準拠のピル型スイッチ。ON=アクセント色トラック＋白ノブ右、OFF=灰トラック＋白ノブ左。
-    /// ON 色はテーマの accent を使うためカラースキーマ／テーマ切替に追従する。
-    /// クリック／キーボード操作を保つため Button をラベルに使う。
-    private struct AccentSwitchToggleStyle: ToggleStyle {
-        private let trackWidth: CGFloat = 34
-        private let trackHeight: CGFloat = 20
-        private let knobInset: CGFloat = 2
-        private let offColor = DSColor.border
-
-        func makeBody(configuration: Configuration) -> some View {
-            HStack(spacing: DSSpacing.m) {
-                configuration.label
-                Spacer(minLength: DSSpacing.m)
-                Button {
-                    configuration.isOn.toggle()
-                } label: {
-                    ZStack(alignment: configuration.isOn ? .trailing : .leading) {
-                        Capsule()
-                            .fill(configuration.isOn ? DSColor.accent : offColor)
-                            .frame(width: trackWidth, height: trackHeight)
-                        Circle()
-                            .fill(.white)
-                            .frame(width: trackHeight - knobInset * 2, height: trackHeight - knobInset * 2)
-                            .padding(knobInset)
-                            .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1)
-                    }
-                    .animation(.spring(response: 0.28, dampingFraction: 0.72), value: configuration.isOn)
-                    .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .pointingHandCursor()
             }
         }
     }

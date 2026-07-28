@@ -51,11 +51,26 @@ struct ApprovalDTO: Decodable {
 
 struct OutputDTO: Decodable {
     let output: String
+    /// `?format=ansi` で要求したときだけ `"ansi"` が入る。端末を持たないセッションでは
+    /// Mac がプレーンテキストへ落とすので付かない。
+    let format: String?
+    let cols: Int?
 
     /// Mac の `GET /sessions/{id}/output` は本文を **`text`** キーで返す（実機 wire で確認）。
     /// Domain では output と呼ぶため CodingKeys で wire キー `text` を写す。
     enum CodingKeys: String, CodingKey {
         case output = "text"
+        case format
+        case cols
+    }
+
+    /// 桁数まで揃って初めて「Mac と同じ折り返しで描き直せる」と言える。
+    /// format だけ ansi で cols が欠けた応答は、色なし扱いへ落とす。
+    func toTerminalScreen() -> TerminalScreen {
+        guard format == "ansi", let cols else {
+            return TerminalScreen(text: output, cols: nil)
+        }
+        return TerminalScreen(text: output, cols: cols)
     }
 }
 

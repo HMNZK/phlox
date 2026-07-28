@@ -89,6 +89,12 @@ public actor ClaudeChatClient: StructuredAgentClient {
     var currentTurnOpen = false
     var generatedItemCounter = 0
     var toolUseItemIds: [String: String] = [:]
+    /// TodoWrite の tool_result を汎用 commandExecution として表示しないための識別子。
+    var taskListToolUseIds: Set<String> = []
+    /// TodoWrite 全量と TaskCreate/TaskUpdate 差分を統合した現在のタスクリスト。
+    var taskListTasks: [AgentTaskItem] = []
+    /// TaskCreate は tool_result まで taskId が分からないため、タイトルを一時的に保持する。
+    var pendingCreatedTaskTitles: [String: String] = [:]
     var subAgentToolUseIds: Set<String> = []
     var backgroundSubAgentToolUseIds: Set<String> = []
     var emittedSubAgentStarts: Set<String> = []

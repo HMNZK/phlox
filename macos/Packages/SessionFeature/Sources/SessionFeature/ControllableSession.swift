@@ -6,6 +6,14 @@ public enum ControllableSessionError: Error, Sendable {
     case unsupportedPartialInput
 }
 
+/// ユーザーへの働きかけの届け先。
+public enum UserNotificationChannel: Sendable, Equatable {
+    /// macOS の通知バナー・完了音。
+    case local
+    /// APNs（iPhone へ届く）。
+    case remote
+}
+
 @MainActor
 public protocol ControllableSession: AnyObject {
     var id: SessionID { get }
@@ -26,10 +34,15 @@ public protocol ControllableSession: AnyObject {
     var hasUnseenCompletion: Bool { get }
     /// `hasUnseenCompletion` の変化通知フック（Dock バッジ等の集計更新に使う）。
     var unseenCompletionDidChange: (() -> Void)? { get set }
+    /// チャネルごとに、ユーザーへの働きかけを出してよいか。
+    /// nil のときは全チャネル通知する（既定＝既存挙動）。
+    var userNotificationGate: ((UserNotificationChannel) -> Bool)? { get set }
 
     func sendText(_ text: String, submit: Bool) async throws
     func consumeSubmitBaseline()
     func readText(lines: Int) -> String
+    /// 端末画面を SGR（色・装飾）付きで返す。端末を持たないセッション（構造化 appServer）は nil。
+    func readAnsiScreen() -> AnsiScreen?
     func terminate() async
     /// 未確認停止を「確認済み」にする（選択・閲覧時に呼ぶ）。
     func markCompletionSeen()
@@ -38,6 +51,24 @@ public protocol ControllableSession: AnyObject {
 public extension ControllableSession {
     var displayStatus: SessionStatus {
         SessionDisplayStatus.resolve(rawStatus: status, isProcessing: isProcessing)
+    }
+
+    /// 既定は「端末を持たない」。PTY セッションだけが上書きする。
+    func readAnsiScreen() -> AnsiScreen? { nil }
+}
+
+/// 端末画面のスナップショット。モバイルが同じ桁数・同じ色で描き直すために使う。
+///
+/// `readText` のプレーンテキストと違い、色・太字・反転が落ちない。`cols` はデスクトップの
+/// 端末幅で、受け手はこの桁数で描かないと折り返し位置がずれる。
+public struct AnsiScreen: Sendable, Equatable {
+    /// SGR を含む画面テキスト。行区切りは `\n`。
+    public let ansi: String
+    public let cols: Int
+
+    public init(ansi: String, cols: Int) {
+        self.ansi = ansi
+        self.cols = cols
     }
 }
 

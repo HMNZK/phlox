@@ -9,20 +9,47 @@ struct SessionDetailCommandGroupRow: Identifiable, Equatable {
     let isRunning: Bool
 }
 
-struct SessionDetailCommandGroupPresentation: Equatable {
+/// 折りたたみ時に必要な値だけを持つヘッダ表現。行データ（rows）を保持しない。
+struct SessionDetailCommandGroupHeader: Equatable {
     let title: String
     let isRunning: Bool
-    let rows: [SessionDetailCommandGroupRow]
-
-    var shouldRender: Bool {
-        isRunning || !rows.isEmpty
-    }
+    let shouldRender: Bool
 
     init(items: [ChatMessage], lastTranscriptID: String?, isTurnRunning: Bool) {
         let lastItemID = items.last?.id
         let groupIsRunning = isTurnRunning && lastItemID == lastTranscriptID
         isRunning = groupIsRunning
         title = "ツール実行 ×\(items.count)"
+
+        shouldRender = groupIsRunning || items.count == 1 || items.contains(where: Self.hasNonBlankOutput)
+    }
+
+    private static func hasNonBlankOutput(_ item: ChatMessage) -> Bool {
+        guard case .command(_, _, let output) = item else {
+            return false
+        }
+        return !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
+/// 展開時にだけ構築する行データのスライス。
+struct SessionDetailCommandGroupRowsSlice: Equatable {
+    let rows: [SessionDetailCommandGroupRow]
+    let hiddenRowCount: Int
+}
+
+enum SessionDetailCommandGroupRowWindow {
+    static let defaultLimit: Int = 50
+    static let expandStep: Int = 50
+
+    static func slice(
+        items: [ChatMessage],
+        lastTranscriptID: String?,
+        isTurnRunning: Bool,
+        limit: Int
+    ) -> SessionDetailCommandGroupRowsSlice {
+        let lastItemID = items.last?.id
+        let groupIsRunning = isTurnRunning && lastItemID == lastTranscriptID
 
         let allRows = items.compactMap { item -> SessionDetailCommandGroupRow? in
             guard case .command(let id, let command, let output) = item else {
@@ -35,9 +62,20 @@ struct SessionDetailCommandGroupPresentation: Equatable {
                 isRunning: groupIsRunning && id == lastItemID
             )
         }
-        rows = allRows.filter { row in
+        // 空出力行の除外は「複数件のツールコールが並ぶときのノイズ抑制」が目的なので、
+        // 唯一の行には適用しない。適用すると単独・空出力のツールコールが
+        // 「ヘッダを押しても何も出ない＝どのコマンドが走ったのか分からない」状態になる。
+        // 受け入れテスト: AcceptanceIOSToolCallGroupingTests
+        //   「単独コマンドは出力が空でも展開でコマンド文字列を読める」/「複数件で全て空出力かつ非実行中なら従来どおり描画しない」
+        let displayRows = items.count == 1 ? allRows : allRows.filter { row in
             row.isRunning || !row.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
+
+        let visibleLimit = max(0, limit)
+        return SessionDetailCommandGroupRowsSlice(
+            rows: Array(displayRows.suffix(visibleLimit)),
+            hiddenRowCount: max(0, displayRows.count - visibleLimit)
+        )
     }
 }
 
@@ -49,26 +87,27 @@ struct SessionDetailToolCallGroupRow: View {
     let isMessageExpanded: (String) -> Bool
     let onToggleGroup: () -> Void
     let onToggleMessage: (String) -> Void
+    @State private var rowLimit = SessionDetailCommandGroupRowWindow.defaultLimit
 
     var body: some View {
-        let presentation = SessionDetailCommandGroupPresentation(
+        let header = SessionDetailCommandGroupHeader(
             items: items,
             lastTranscriptID: lastTranscriptID,
             isTurnRunning: isTurnRunning
         )
-        if presentation.shouldRender {
+        if header.shouldRender {
             VStack(alignment: .leading, spacing: DSSpacing.s) {
                 Button(action: onToggleGroup) {
                     HStack(alignment: .firstTextBaseline, spacing: DSSpacing.xs) {
                         Image(systemName: "terminal")
                             .font(DSFont.footnote.weight(.semibold))
                             .foregroundStyle(
-                                presentation.isRunning ? DSColor.statusAwaitingApproval : DSColor.chatSuccess
+                                header.isRunning ? DSColor.statusAwaitingApproval : DSColor.chatSuccess
                             )
-                        Text(presentation.title)
+                        Text(header.title)
                             .font(DSFont.footnote.weight(.bold))
                             .foregroundStyle(DSColor.campTextQuaternary)
-                        if presentation.isRunning {
+                        if header.isRunning {
                             Text("実行中")
                                 .font(DSFont.caption)
                                 .foregroundStyle(DSColor.textTertiary)
@@ -84,8 +123,20 @@ struct SessionDetailToolCallGroupRow: View {
                 .buttonStyle(.plain)
 
                 if isExpanded {
+                    let rowsSlice = SessionDetailCommandGroupRowWindow.slice(
+                        items: items,
+                        lastTranscriptID: lastTranscriptID,
+                        isTurnRunning: isTurnRunning,
+                        limit: rowLimit
+                    )
                     VStack(alignment: .leading, spacing: DSSpacing.s) {
-                        ForEach(presentation.rows) { row in
+                        if rowsSlice.hiddenRowCount > 0 {
+                            Button("残り \(rowsSlice.hiddenRowCount) 件を表示") {
+                                rowLimit += SessionDetailCommandGroupRowWindow.expandStep
+                            }
+                            .accessibilityIdentifier("SessionDetailToolCallGroupRow.loadEarlierRows")
+                        }
+                        ForEach(rowsSlice.rows) { row in
                             commandRow(row)
                                 .id(row.id)
                         }

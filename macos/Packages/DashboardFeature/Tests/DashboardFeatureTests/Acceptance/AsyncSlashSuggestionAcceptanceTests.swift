@@ -59,8 +59,8 @@ struct AsyncSlashSuggestionAcceptanceTests {
     func slashWarmCacheHit_appliesSynchronously_withoutBackgroundScan() {
         let slashGate = SlashGatedProvider()
         let controller = ComposerSuggestionController(
-            asyncSlashProvider: slashGate.provider,
-            cachedSlashProvider: { term in term == "he" ? [slashCand("/help")] : nil },
+            asyncSlashProvider: { term, _ in await slashGate.provider(term) },
+            cachedSlashProvider: { term, _ in term == "he" ? [slashCand("/help")] : nil },
             asyncFileProvider: { _ in [] },
             cachedFileProvider: { _ in nil }
         )
@@ -77,8 +77,8 @@ struct AsyncSlashSuggestionAcceptanceTests {
     func slashCacheMiss_scansInBackground_keepsPreviousCandidates_thenApplies() async throws {
         let slashGate = SlashGatedProvider()
         let controller = ComposerSuggestionController(
-            asyncSlashProvider: slashGate.provider,
-            cachedSlashProvider: { term in term == "seed" ? [slashCand("/seed")] : nil },
+            asyncSlashProvider: { term, _ in await slashGate.provider(term) },
+            cachedSlashProvider: { term, _ in term == "seed" ? [slashCand("/seed")] : nil },
             asyncFileProvider: { _ in [] },
             cachedFileProvider: { _ in nil }
         )
@@ -104,8 +104,8 @@ struct AsyncSlashSuggestionAcceptanceTests {
     func slashColdBurst_startsFirstQuery_coalescesRestToLatestPending() async throws {
         let slashGate = SlashGatedProvider()
         let controller = ComposerSuggestionController(
-            asyncSlashProvider: slashGate.provider,
-            cachedSlashProvider: { _ in nil }, // 常に miss → 背景走査
+            asyncSlashProvider: { term, _ in await slashGate.provider(term) },
+            cachedSlashProvider: { _, _ in nil }, // 常に miss → 背景走査
             asyncFileProvider: { _ in [] },
             cachedFileProvider: { _ in nil }
         )
@@ -133,8 +133,8 @@ struct AsyncSlashSuggestionAcceptanceTests {
     func fileWarmHit_invalidatesPendingSlashScan() async throws {
         let slashGate = SlashGatedProvider()
         let controller = ComposerSuggestionController(
-            asyncSlashProvider: slashGate.provider,
-            cachedSlashProvider: { _ in nil }, // slash は miss → 背景走査
+            asyncSlashProvider: { term, _ in await slashGate.provider(term) },
+            cachedSlashProvider: { _, _ in nil }, // slash は miss → 背景走査
             asyncFileProvider: { _ in [] },
             cachedFileProvider: { term in term == "f" ? [fileCand("found.txt")] : nil } // file は warm
         )
@@ -160,8 +160,8 @@ struct AsyncSlashSuggestionAcceptanceTests {
     func slashWarmHit_invalidatesPendingFileScan() async throws {
         let fileGate = SlashGatedProvider()
         let controller = ComposerSuggestionController(
-            asyncSlashProvider: { _ in [] },
-            cachedSlashProvider: { term in term == "h" ? [slashCand("/help")] : nil }, // slash は warm
+            asyncSlashProvider: { _, _ in [] },
+            cachedSlashProvider: { term, _ in term == "h" ? [slashCand("/help")] : nil }, // slash は warm
             asyncFileProvider: fileGate.provider,
             cachedFileProvider: { _ in nil } // file は miss → 背景走査
         )
@@ -186,8 +186,8 @@ struct AsyncSlashSuggestionAcceptanceTests {
     func dismissDuringSlashScan_lateResultDoesNotResurrect() async throws {
         let slashGate = SlashGatedProvider()
         let controller = ComposerSuggestionController(
-            asyncSlashProvider: slashGate.provider,
-            cachedSlashProvider: { _ in nil },
+            asyncSlashProvider: { term, _ in await slashGate.provider(term) },
+            cachedSlashProvider: { _, _ in nil },
             asyncFileProvider: { _ in [] },
             cachedFileProvider: { _ in nil }
         )

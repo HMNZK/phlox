@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-07-16
+last-verified: 2026-07-27
 ---
 
 # delivery/
@@ -23,3 +23,6 @@ last-verified: 2026-07-16
 - `delivery/0007-mobile-ui-overhaul-wave9-worklog.md` … モバイル UI 刷新 wave-9（接続中オーバーレイ・添付バッジ分離）の作業ログ
 - `delivery/0010-ask-user-question-worklog.md` … AskUserQuestion 対応（iOS ミラー実装）の作業ログ
 - `delivery/0013-inline-image-attachments-worklog.md` … 添付画像の番号付けと本文への `[Image #N]` 埋め込み（iOS 18 化）の作業ログ
+- `delivery/0014-ios-single-toolcall-row-worklog.md` … 単独ツールコールを「ツール実行 ×1」の1行集約行に畳む変更の作業ログ
+- `delivery/0015-mobile-reliability-fixes-worklog.md` … モバイル信頼性修正5件（接続中表示・入力欄消失・サブエージェント固まり・質問カード排他・モデル選択の安定化）の作業ログ
+- `delivery/0016-session-view-ux-worklog.md` … セッション表示 UX（最下部から開く・本文の折り返しと表の横スクロール・端スワイプで戻る）の作業ログ

@@ -18,7 +18,7 @@ iPhone (Phlox-mobile)
     │  HTTP (Authorization: Bearer <mobile-token>)
     │  Tailscale ネットワーク (100.64.0.0/10)
     ▼
-MobileProxy  … Packages/MobileProxy/ … 既定 listen :8765
+MobileProxy  … Packages/MobileProxy/ … アプリ既定 listen: Release :8765 / Debug :8766
     │  生 TCP 双方向リレー（HTTP をパースしない）
     │  127.0.0.1:<controlPort>
     ▼
@@ -37,7 +37,7 @@ ControlActionHandler  … Packages/AppBootstrap/Sources/AppBootstrap/ControlActi
 | フェーズ | 処理 | 参照 |
 |---|---|---|
 | 6 | `ControlServer` を `127.0.0.1` で起動。`savedPorts.controlPort` があれば優先、使用中なら OS 任せの空きポート | `CompositionRoot.startControlServer`（`App/CompositionRoot.swift:178-202`） |
-| 7 | `MobileProxy(targetPort: controlPort)` を起動。listen 既定ポート 8765 | `CompositionRoot.startMobileProxy`（`App/CompositionRoot.swift:204-235`） |
+| 7 | `MobileProxy(listenPort: AppFlavor.current.mobileProxyDefaultPort, targetPort: controlPort)` を起動。listen ポートは Release 8765 / Debug 8766 | `CompositionRoot.startMobileProxy`（`App/CompositionRoot.swift:204-238`） |
 | 8 | モバイルトークンを load/provision し `SessionTokenStore` へ register | `CompositionRoot.provisionMobileToken`（`App/CompositionRoot.swift:237-292`） |
 | 9 | `dashboard.setPrivilegedRequester(mobileRequesterSessionID)` | `CompositionRoot.swift:360` |
 
@@ -55,7 +55,7 @@ ControlActionHandler  … Packages/AppBootstrap/Sources/AppBootstrap/ControlActi
 
 | 項目 | 値 | 参照 |
 |---|---|---|
-| listen ポート | `8765`（`listenPort` 引数省略時） | `MobileProxy.swift:92` |
+| listen ポート | アプリ起動時は Release `8765` / Debug `8766` を明示指定。`MobileProxy` の `listenPort` 引数省略時は `8765` | `AppFlavor.swift`, `CompositionRoot.swift`, `MobileProxy.swift:92` |
 | 転送先 | `127.0.0.1:<targetPort>`（CompositionRoot が ControlServer の実ポートを渡す） | `MobileProxy.swift:87`, `CompositionRoot.swift:214` |
 | 同時リレー上限 | `128`（超過は accept 直後に close） | `MobileProxy.swift:69`, `POSIXSocketListener.swift:183-189` |
 
@@ -87,8 +87,8 @@ ControlActionHandler  … Packages/AppBootstrap/Sources/AppBootstrap/ControlActi
 
 - `MobileProxy.refresh()`（`MobileProxy.swift`）: `.tailscale` / `.explicitHost` は no-op、`nil` / `.loopbackOnly` は現行 listener を停止して再解決・再バインドする（冪等・actor 直列化）。
 - `MobileProxy.recoverUntilReachable(maxAttempts:delay:sleep:)`: 有限回だけ `refresh()` を試み、`.tailscale` 到達で早期打ち切り（`sleep` は DI シーム）。
-- **再バインドのソケット安全性**: `POSIXSocketListener.stop()` は `shutdown(SHUT_RDWR)` + `close()` 後、accept ループの終了を `DispatchSemaphore`（`acceptLoopExited`）で確実に待ってから返す。固定ポート 8765 の貼り替え時の fd 再利用レース・二重 accept を封じる。
-- 現在の束縛ポートは `MobileProxy.boundPort` から参照できる（再バインドで変わり得る値。本番は 8765 固定）。
+- **再バインドのソケット安全性**: `POSIXSocketListener.stop()` は `shutdown(SHUT_RDWR)` + `close()` 後、accept ループの終了を `DispatchSemaphore`（`acceptLoopExited`）で確実に待ってから返す。flavor 別固定ポート（Release 8765 / Debug 8766）の貼り替え時の fd 再利用レース・二重 accept を封じる。
+- 現在の束縛ポートは `MobileProxy.boundPort` から参照できる（再バインドで変わり得る値。アプリ起動時の既定は Release 8765 / Debug 8766）。
 - **トリガー**（UI 側配線は task-2）: 設定のモバイル接続セクション表示時の on-demand 再解決（`SettingsView` の `.task`）と、起動直後の短いバウンド付きリトライ（`MobileTokenViewModel.startAutoRecovery`）。NWPathMonitor による常時監視は入れていない。
 
 ## トークン管理（`Packages/AgentDomain/MobileToken*.swift`）
@@ -230,7 +230,7 @@ SessionViewModel（完了 / 承認待ちの観測点）
 
 - **デバイストークン登録**: iOS 側が `POST /device-tokens`（Bearer 認証は既存機構）で登録し、`KeychainDeviceTokenStore`（`Packages/AgentDomain/DeviceTokenStore.swift`。`AppFlavor` で Release/Debug 分離）へ冪等 upsert される。
 - **フック合成**: `DashboardViewModel.sessionDidSpawn` は `DashboardSessionSpawnHooks`（`Packages/AppBootstrap/APNsNotificationBridge.swift`）のキー付き多重購読で合成され、analytics フックと APNs 注入フックが共存する（単一クロージャの所有者二重化による上書き事故の再発防止）。
-- **資格情報**: 環境変数 `PHLOX_APNS_KEY_ID` / `PHLOX_APNS_TEAM_ID` / `PHLOX_APNS_AUTH_KEY_PEM`（または `_PATH`）から読む暫定注入面。未設定時は送信系全体が完全 no-op（既定状態）。
+- **資格情報**: 起動時に環境変数 `PHLOX_APNS_KEY_ID` / `PHLOX_APNS_TEAM_ID` / `PHLOX_APNS_AUTH_KEY_PEM`（または `_PATH`）を読み、未設定のキーは `~/.phlox/apns.env` から自動補完する。環境変数が常に優先され、資格情報を構成できない場合は送信系全体が完全 no-op になる。
 - **対象**: PTY セッション（`SessionViewModel`）のみ。appServer チャットセッションは対象外（別タスク）。
 
 ## QR ペアリング（2026-07-11 追加）

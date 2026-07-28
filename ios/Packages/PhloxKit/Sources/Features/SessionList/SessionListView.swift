@@ -19,6 +19,8 @@ public struct SessionListView: View {
     @Bindable var viewModel: SessionListViewModel
     @Environment(\.scenePhase) private var scenePhase
     @State private var expandedGroupIDs: Set<String> = []
+    /// 大タイトルがスクロールで隠れたか。隠れている間だけバーへ小さいタイトルを出す。
+    @State private var isScrolledPastTitle = false
     let reachability: Reachability
     let host: String
     let onSelectDetail: (String) -> Void
@@ -52,7 +54,12 @@ public struct SessionListView: View {
             .background(DSColor.background)
             .navigationTitle(Self.listTitle)
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.large)
+            // 大タイトルはシステムに任せず本文の先頭に自前で描く（→ ADR 0036）。
+            // iOS 26 のシステム大タイトルは一度スクロールすると二度と戻らないため。
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) { inlineTitle }
+            }
             #endif
             .refreshable { await viewModel.refresh() }
             .task {
@@ -70,24 +77,57 @@ public struct SessionListView: View {
         ProcessInfo.processInfo.arguments.contains("-UITesting")
     }
 
+    /// 画面最上部の大タイトル。スクロールと一緒に流れる（＝システムの large title と同じ振る舞い）。
+    private var titleHeader: some View {
+        Text(Self.listTitle)
+            .font(DSFont.largeTitle)
+            .foregroundStyle(DSColor.textPrimary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, DSSpacing.s)
+            .padding(.bottom, DSSpacing.s)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    /// 大タイトルが隠れている間だけバーに出す小さいタイトル。最上部では二重になるので空にする。
+    private var inlineTitle: some View {
+        Text(isScrolledPastTitle ? Self.listTitle : "")
+            .font(DSFont.headline)
+            .foregroundStyle(DSColor.textPrimary)
+    }
+
     @ViewBuilder
     private var content: some View {
         switch viewModel.state {
         case .loading:
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            underTitle(
+                DSConnectingIndicator(size: 96)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            )
         case .empty:
-            EmptyStateView(onCreate: { onAddSession("") })
+            underTitle(EmptyStateView(onCreate: { onAddSession("") }))
         case .offline:
-            offlineOverlay
+            underTitle(offlineOverlay)
         case .error(let error):
-            VStack(spacing: DSSpacing.m) {
-                DSResultBanner(message: error.presentation.message, isError: true)
-                DSButton("再試行", variant: .secondary) { Task { await viewModel.refresh() } }
-            }
-            .padding(DSSpacing.l)
+            underTitle(
+                VStack(spacing: DSSpacing.m) {
+                    DSResultBanner(message: error.presentation.message, isError: true)
+                    DSButton("再試行", variant: .secondary) { Task { await viewModel.refresh() } }
+                }
+                .padding(DSSpacing.l)
+            )
         case .loaded:
             loadedList
         }
+    }
+
+    /// スクロールしない状態（読み込み中・空・オフライン・エラー）でも大タイトルを同じ位置に置く。
+    private func underTitle(_ body: some View) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            titleHeader
+                .padding(.horizontal, SessionListMetrics.listHorizontalPadding)
+            body
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var offlineOverlay: some View {
@@ -134,7 +174,7 @@ public struct SessionListView: View {
 
     private var unreachableViewModel: UnreachableViewModel {
         UnreachableViewModel(
-            reachability: offlineReachability,
+            reachability: reachability,
             host: host,
             lastUpdated: offlineLastUpdated,
             onRetry: {
@@ -142,15 +182,6 @@ public struct SessionListView: View {
                 await viewModel.refresh()
             }
         )
-    }
-
-    private var offlineReachability: Reachability {
-        switch reachability {
-        case .offlineNetwork, .unreachableHost:
-            return reachability
-        default:
-            return .unreachableHost
-        }
     }
 
     private var offlineLastUpdated: Date? {
@@ -167,6 +198,8 @@ public struct SessionListView: View {
     private var loadedList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                titleHeader
+
                 if !viewModel.attentionSessions.isEmpty {
                     attentionSectionHeader
                         .padding(.bottom, DSSpacing.s)
@@ -184,6 +217,12 @@ public struct SessionListView: View {
             .padding(.horizontal, SessionListMetrics.listHorizontalPadding)
             .padding(.bottom, DSSpacing.l)
         }
+        .modifier(
+            ScrolledPastTitleReporter(
+                threshold: SessionListMetrics.titleCollapseThreshold,
+                isScrolledPast: $isScrolledPastTitle
+            )
+        )
         .onChange(of: viewModel.groupedOtherSessions.map(\.id), initial: true) { _, groupIDs in
             expandedGroupIDs.formUnion(groupIDs)
         }
@@ -300,8 +339,28 @@ public struct SessionListView: View {
 
 // MARK: - Camp metrics（カンプ②）
 
+/// 大タイトルがスクロールで隠れたかを親へ返す。`onScrollGeometryChange` は iOS 専用なので隔離する。
+private struct ScrolledPastTitleReporter: ViewModifier {
+    let threshold: CGFloat
+    @Binding var isScrolledPast: Bool
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content.onScrollGeometryChange(for: Bool.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top > threshold
+        } action: { _, newValue in
+            if isScrolledPast != newValue { isScrolledPast = newValue }
+        }
+        #else
+        content
+        #endif
+    }
+}
+
 private enum SessionListMetrics {
     static let listHorizontalPadding = DSSpacing.m - DSSpacing.xxs
+    /// 大タイトルが隠れたとみなすスクロール量。おおよそ大タイトル1行ぶんの高さ。
+    static let titleCollapseThreshold: CGFloat = 40
     static let glowDotSize: CGFloat = 7
     static let glowDotShadowRadius: CGFloat = 8
     static let sectionHeaderKerning: CGFloat = 0.8

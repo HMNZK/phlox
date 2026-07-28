@@ -382,7 +382,7 @@ private struct RawEventLogView: View {
                     Text(event)
                         .font(DSFont.monoCaption)
                         .foregroundStyle(DSColor.textSecondary)
-                        .textSelection(.enabled)
+                        .chatTextSelection()
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }

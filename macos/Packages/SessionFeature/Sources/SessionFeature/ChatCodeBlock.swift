@@ -39,7 +39,7 @@ struct CodeBlockView: View {
             ScrollView(.horizontal) {
                 Text(ChatCodeHighlighter.highlight(code.isEmpty ? " " : code))
                     .font(ChatScaledFont.mono(scale: scale))
-                    .textSelection(.enabled)
+                    .chatTextSelection()
                     .padding(.horizontal, DSSpacing.m)
                     .padding(.bottom, DSSpacing.m)
                     .frame(maxWidth: .infinity, alignment: .leading)

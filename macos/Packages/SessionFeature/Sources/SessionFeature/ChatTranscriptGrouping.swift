@@ -80,7 +80,14 @@ enum ChatTranscriptGrouping {
     }
 
     static func visibleSlice(from items: [ChatItem], blockLimit: Int) -> ChatTranscriptSlice {
-        let allBlocks = blocks(from: items)
+        visibleSlice(fromBlocks: blocks(from: items), blockLimit: blockLimit)
+    }
+
+    /// 既にブロック化済みの配列からスライスを作る。
+    /// 呼び出し側が表示件数の決定（`TranscriptRenderBudget`）のために blocks を先に必要とするとき、
+    /// この overload を使って `makeBlocks` の二度手間を避ける（body 評価ごとに全 item を
+    /// 2 回走査するのは、まさにここで削ろうとしている切替コストに乗る）。
+    static func visibleSlice(fromBlocks allBlocks: [ChatTranscriptBlock], blockLimit: Int) -> ChatTranscriptSlice {
         let visibleCount = min(allBlocks.count, max(0, blockLimit))
         let visibleBlocks = allBlocks.suffix(visibleCount).map {
             ChatTranscriptVisibleBlock(id: $0.id, content: $0)

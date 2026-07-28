@@ -57,7 +57,7 @@ struct UserMessageCell: View {
                             Text(text)
                                 .font(ChatScaledFont.body(scale: scale))
                                 .foregroundStyle(DSColor.chatTextPrimary)
-                                .textSelection(.enabled)
+                                .chatTextSelection()
                                 .lineSpacing(3)
                         }
                         if let badge = presentation.badge {
@@ -175,7 +175,7 @@ struct AgentMessageBody: View {
                 switch block {
                 case .markdown(let markdown):
                     RichMarkdownView(markdown)
-                        .textSelection(.enabled)
+                        .chatTextSelection()
                 case .code(let language, let code):
                     CodeBlockView(language: language, code: code)
                 }
@@ -201,7 +201,7 @@ struct ErrorMessageCell: View {
             Text(message)
                 .font(ChatScaledFont.body(scale: scale))
                 .foregroundStyle(DSColor.chatTextPrimary)
-                .textSelection(.enabled)
+                .chatTextSelection()
                 .lineSpacing(3)
             ChatTimestampText(timestamp: timestamp)
         }

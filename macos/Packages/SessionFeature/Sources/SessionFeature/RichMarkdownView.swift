@@ -161,7 +161,7 @@ private func chatMarkdownTheme(scale: CGFloat) -> Theme {
                     .font(ChatScaledFont.mono(scale: scale))
                     .padding(DSSpacing.m)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
+                    .chatTextSelection()
             }
             .background(DSColor.chatCard)
             .clipShape(RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))

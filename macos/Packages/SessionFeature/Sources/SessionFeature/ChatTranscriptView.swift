@@ -17,6 +17,7 @@ struct ChatTranscriptView: View {
     private let showsThinkingIndicator: Bool
     private let contentMaxWidth: CGFloat?
     private let bottomScrollContentMargin: CGFloat
+    private let defaultWindowLimit: Int
     private let onSelectSubAgent: (String) -> Void
     @State private var autoFollow = ChatAutoFollowController()
     /// Thinking は transcript の最下部セルなので、最下部が viewport 外なら TimelineView を止める。
@@ -26,6 +27,8 @@ struct ChatTranscriptView: View {
     // body 評価中には書かない（visibleRange は読み取りのみ）。expand はボタン action、
     // reset はセッション切替の onChange から呼ぶ（ADR 0010: 描画中 state 変更の禁止）。
     @State private var window: TranscriptWindow
+    /// 明示ジャンプで必要になった末尾ブロック数。通常のコスト予算より優先する。
+    @State private var revealMinimumBlockCount = 0
     // 遅延 scrollTo の世代トークン。ジャンプごと・セッション切替ごと・展開ごとに増やし、pending 遅延
     // Task は捕捉した世代が現在値と一致するときだけ scrollTo する（stale/後続操作時の誤スクロール防止）。
     @State private var jumpGeneration = 0
@@ -62,6 +65,7 @@ struct ChatTranscriptView: View {
         self.contentMaxWidth = contentMaxWidth
         self.bottomScrollContentMargin = bottomScrollContentMargin
         _window = State(initialValue: TranscriptWindow(context: presentationContext))
+        defaultWindowLimit = TranscriptWindow.defaultLimit(for: presentationContext)
         self.onSelectSubAgent = onSelectSubAgent
     }
 
@@ -118,6 +122,7 @@ struct ChatTranscriptView: View {
                 // セッション切替（vm identity 変化）で表示件数を既定へ戻す。
                 // イベント文脈での mutation なので body 中の観測 state 変更にならない（ADR 0010）。
                 window.reset()
+                revealMinimumBlockCount = 0
                 // 別セッションを開いたので、前の読み戻し状態を持ち越さず最下部へ寄せる。
                 autoFollow.sessionDidChange()
                 // 直前セッションの pending 遅延 scrollTo を無効化した上で、次のレイアウト確定後に寄せる。
@@ -158,8 +163,11 @@ struct ChatTranscriptView: View {
         // スクロール体感差なし。詳細は ADR 0030）。Lazy 化を再導入しないこと。
         // 長大トランスクリプトの先行レイアウトコストは「末尾 N 件のみ描画」（window）で
         // 抑える（遅延機構の再導入ではなく件数制限。ADR 0030:22）。
-        // window は totalCount のみに依存する純関数で、スクロール量・可視領域には連動しない。
-        let visibleSlice = ChatTranscriptGrouping.visibleSlice(from: items, blockLimit: window.limit)
+        // window と予算はいずれも内容と明示操作だけに依存する純計算で、
+        // スクロール量・可視領域・GeometryReader の値には連動しない。
+        let blocks = ChatTranscriptGrouping.blocks(from: items)
+        let blockLimit = renderBlockLimit(for: blocks)
+        let visibleSlice = ChatTranscriptGrouping.visibleSlice(fromBlocks: blocks, blockLimit: blockLimit)
         // スクラバー連動用: 各ユーザー入力ブロックだけ縦位置を測る（スクロール不変な content 座標系）。
         let userMessageIDs = Set(InputHistoryPolicy.entries(from: items).map(\.id))
         return VStack(alignment: .leading, spacing: DSSpacing.m) {
@@ -211,6 +219,15 @@ struct ChatTranscriptView: View {
         .padding(.horizontal, DSSpacing.l)
         .padding(.vertical, DSSpacing.m)
         .coordinateSpace(.named(Self.contentSpaceName))
+    }
+
+    private func renderBlockLimit(for blocks: [ChatTranscriptBlock]) -> Int {
+        TranscriptRenderBudget.allowedBlockCount(
+            blocks: blocks,
+            requestedLimit: window.limit,
+            defaultLimit: defaultWindowLimit,
+            minimumBlocks: max(TranscriptRenderBudget.minimumBlocks, revealMinimumBlockCount)
+        )
     }
 
     /// ユーザー入力ブロックの content 座標系での縦位置を preference で publish する。
@@ -388,11 +405,17 @@ struct ChatTranscriptView: View {
         let currentItems = transcriptItems
         let scrollTarget = ChatTranscriptGrouping.scrollTargetID(containing: target, in: currentItems)
         // 対象が現セッションの items にあり、かつ隠れ域なら reveal してから遅延 scrollTo。
-        let blockCount = ChatTranscriptGrouping.blockCount(of: currentItems)
+        let blocks = ChatTranscriptGrouping.blocks(from: currentItems)
+        let blockCount = blocks.count
         if let blockIndex = ChatTranscriptGrouping.blockIndex(ofItemWithID: target, in: currentItems) {
-            let start = window.visibleRange(totalCount: blockCount).startIndex
+            let start = max(0, blockCount - renderBlockLimit(for: blocks))
             if blockIndex < start {
                 window.reveal(index: blockIndex, totalCount: blockCount)
+                // reveal はユーザーが明示的に見に行った要求なので予算より優先する。
+                // window.reveal が持つ streaming 用マージンと同じ件数を最低描画数として保持し、
+                // コスト予算が引き上げ済みの window.limit を打ち消さないようにする。
+                let requiredCount = (blockCount - blockIndex) + TranscriptWindow.expandStep
+                revealMinimumBlockCount = max(revealMinimumBlockCount, requiredCount)
                 // window 拡張（@State 書込）で新規行がまだ未レンダのため、同一イベント内 scrollTo は
                 // 空振りしうる。次の MainActor ターンへ遅延させ、再レンダ後に確実に届かせる。
                 // 遅延中に後続ジャンプ・セッション切替（reset）が来たら世代不一致で何もしない。

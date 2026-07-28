@@ -242,7 +242,7 @@ struct ReasoningSummaryView: View {
             Text(text)
                 .font(ChatScaledFont.body(scale: scale))
                 .foregroundStyle(DSColor.chatTextSecondary)
-                .textSelection(.enabled)
+                .chatTextSelection()
                 .lineSpacing(3)
                 .padding(.top, DSSpacing.s)
         }
@@ -276,7 +276,7 @@ struct CommandExecutionCell: View {
                     Text(output)
                         .font(ChatScaledFont.monoCaption(scale: scale))
                         .foregroundStyle(DSColor.chatTextPrimary)
-                        .textSelection(.enabled)
+                        .chatTextSelection()
                         .padding(.leading, DSSpacing.m)
                         .padding(.vertical, DSSpacing.s)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -300,6 +300,7 @@ struct FileChangeCell: View {
     private struct DiffSection: Identifiable {
         let id: Int
         let path: String
+        let fullDiff: String
         let lines: [ClassifiedDiffLine]
     }
 
@@ -327,7 +328,12 @@ struct FileChangeCell: View {
     private var visibleSections: [DiffSection] {
         guard isTruncated else {
             return changes.enumerated().map { index, change in
-                DiffSection(id: index, path: change.path, lines: ChatMessageRenderCache.diffLines(change.diff))
+                DiffSection(
+                    id: index,
+                    path: change.path,
+                    fullDiff: change.diff,
+                    lines: ChatMessageRenderCache.diffLines(change.diff)
+                )
             }
         }
         var budget = FileChangeDisplayPolicy.visibleLineLimit
@@ -335,7 +341,12 @@ struct FileChangeCell: View {
             let lines = ChatMessageRenderCache.diffLines(change.diff)
             let take = max(0, min(lines.count, budget))
             budget -= take
-            return DiffSection(id: index, path: change.path, lines: Array(lines.prefix(take)))
+            return DiffSection(
+                id: index,
+                path: change.path,
+                fullDiff: change.diff,
+                lines: Array(lines.prefix(take))
+            )
         }
     }
 
@@ -354,9 +365,18 @@ struct FileChangeCell: View {
             VStack(alignment: .leading, spacing: DSSpacing.m) {
                 ForEach(visibleSections) { section in
                     VStack(alignment: .leading, spacing: DSSpacing.s) {
-                        Label(section.path, systemImage: "doc.text")
-                            .font(ChatScaledFont.captionStrong(scale: scale))
-                            .foregroundStyle(DSColor.chatTextPrimary)
+                        HStack(spacing: DSSpacing.s) {
+                            Label(section.path, systemImage: "doc.text")
+                                .font(ChatScaledFont.captionStrong(scale: scale))
+                                .foregroundStyle(DSColor.chatTextPrimary)
+                            Spacer(minLength: DSSpacing.s)
+                            // 省略表示中も画面上の prefix ではなく、元の file section 全文をコピーする。
+                            MessageCopyButton(
+                                text: section.fullDiff,
+                                accessibilityIdentifier: "FileChange.copyDiff.\(section.id)",
+                                scale: scale
+                            )
+                        }
                         VStack(alignment: .leading, spacing: 0) {
                             ForEach(section.lines) { line in
                                 Text(line.text.isEmpty ? " " : line.text)
@@ -366,7 +386,7 @@ struct FileChangeCell: View {
                                     .padding(.vertical, 1)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .background(background(for: line.kind))
-                                    .textSelection(.enabled)
+                                    .diffLineTextSelection()
                             }
                         }
                         .background(DSColor.chatBackground, in: RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous))

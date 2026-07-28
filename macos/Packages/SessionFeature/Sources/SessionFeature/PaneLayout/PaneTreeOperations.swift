@@ -250,22 +250,11 @@ extension PaneTree {
         guard case .split(let split) = node else { return nil }
 
         if split.id == divider.split {
-            guard
-                let leading = split.children.firstIndex(where: { $0.id == divider.leading }),
-                let trailing = split.children.firstIndex(where: { $0.id == divider.trailing }),
-                leading < trailing
-            else { return nil }
-
-            let combined = split.weights[leading] + split.weights[trailing]
-            let fraction = min(
-                max(leadingFraction, PaneTree.minimumDividerFraction),
-                1 - PaneTree.minimumDividerFraction
-            )
-            var weights = split.weights
-            weights[leading] = combined * fraction
-            weights[trailing] = combined * (1 - fraction)
-            return .split(
-                PaneSplit(id: split.id, axis: split.axis, children: split.children, weights: weights)
+            return redistributing(
+                split,
+                leading: divider.leading,
+                trailing: divider.trailing,
+                leadingFraction: leadingFraction
             )
         }
 
@@ -280,6 +269,58 @@ extension PaneTree {
             )
         }
         return nil
+    }
+
+    /// 実効ツリー（`pruned` 後）で隣り合っていた2ノードの境界を、この split の中で解決して動かす。
+    ///
+    /// **直接の子とは限らない**のが要点。`pruned` は `PaneID` を保つが、続く正規化が
+    /// 「子1個の split を畳む」「親と同じ axis の入れ子を平坦化する」ため、実効ツリーで
+    /// 隣接していた2つが永続ツリーでは同じ子の**部分木の中**に沈んでいることがある。
+    /// 直接の子としてしか探さないと対象が見つからず、絞り込み中のドラッグが丸ごと無視される。
+    ///
+    /// そこで「その `PaneID` を含む部分木」で子を特定し、両方が同じ子に入っていれば
+    /// その子へ降りて同じ解決を続ける。降り切った先が、2つを分けている唯一の split である。
+    private static func redistributing(
+        _ split: PaneSplit,
+        leading: PaneID,
+        trailing: PaneID,
+        leadingFraction: Double
+    ) -> PaneNode? {
+        guard
+            let leadingIndex = split.children.firstIndex(where: { $0.contains(leading) }),
+            let trailingIndex = split.children.firstIndex(where: { $0.contains(trailing) })
+        else { return nil }
+
+        if leadingIndex == trailingIndex {
+            guard
+                case .split(let inner) = split.children[leadingIndex],
+                let updated = redistributing(
+                    inner,
+                    leading: leading,
+                    trailing: trailing,
+                    leadingFraction: leadingFraction
+                )
+            else { return nil }
+            var children = split.children
+            children[leadingIndex] = updated
+            return .split(
+                PaneSplit(id: split.id, axis: split.axis, children: children, weights: split.weights)
+            )
+        }
+
+        guard leadingIndex < trailingIndex else { return nil }
+
+        let combined = split.weights[leadingIndex] + split.weights[trailingIndex]
+        let fraction = min(
+            max(leadingFraction, PaneTree.minimumDividerFraction),
+            1 - PaneTree.minimumDividerFraction
+        )
+        var weights = split.weights
+        weights[leadingIndex] = combined * fraction
+        weights[trailingIndex] = combined * (1 - fraction)
+        return .split(
+            PaneSplit(id: split.id, axis: split.axis, children: split.children, weights: weights)
+        )
     }
 
     /// split の子を等分に戻す。

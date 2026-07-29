@@ -3,6 +3,43 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.3.3</title>
+            <pubDate>Wed, 29 Jul 2026 14:09:14 +0900</pubDate>
+            <description xml:lang="en"><![CDATA[
+<h3>New</h3>
+<ul>
+  <li><b>Dismiss a question without answering it.</b> Question cards now have a close button in their top-right corner. Pressing it ends the turn the same way Esc does, so you can send a different instruction instead of being stuck answering.</li>
+  <li><b>Keyword highlighting in the composer.</b> <code>ultrathink</code>, <code>ultraplan</code>, <code>ultrareview</code> and <code>ultracode</code> are now colored as you type them, so you can see at a glance whether the keyword will actually take effect. Claude sessions only.</li>
+  <li><b>Slash completion works right after launch.</b> The command list of the previous session is remembered per agent and working directory, so <code>/</code> offers real candidates before the session reports its own list. The built-in fallback list grew from 10 to 22 entries, and <code>/plugin</code>, which the runtime does not accept, was dropped.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+  <li>Switching sessions in single view no longer freezes the app. A switch took 2447 ms on average and was detected as a hang 11 times out of 12; it is now 177 ms with no hangs. As part of this, text selection inside diff lines is turned off — use the copy button on each file section instead, which copies the full text even while the diff is collapsed.</li>
+  <li>In grid view, dragging a divider while the session list is filtered now works instead of being ignored.</li>
+  <li>The model picker no longer shows outdated version names. Display names are read from the CLI, so they follow the current models automatically.</li>
+</ul>
+]]></description>
+            <description xml:lang="ja"><![CDATA[
+<h3>新機能</h3>
+<ul>
+  <li><b>質問に答えずに閉じられるようになりました。</b> 質問カードの右上に閉じるボタンが付きました。押すと Esc と同じ経路でターンが終わるので、答えずに別の指示を送れます。</li>
+  <li><b>入力欄でキーワードが色付くようになりました。</b> <code>ultrathink</code>・<code>ultraplan</code>・<code>ultrareview</code>・<code>ultracode</code> を打つと色が付き、そのキーワードが実際に効く書き方になっているか一目で分かります。Claude セッションのみ対象です。</li>
+  <li><b>起動直後からスラッシュ補完が使えるようになりました。</b> 前回のコマンド一覧をエージェント・作業ディレクトリごとに覚えておくので、セッションが一覧を返す前でも <code>/</code> で実在する候補が出ます。組み込みの候補も 10 件から 22 件に増やし、実行環境が受け付けない <code>/plugin</code> は候補から外しました。</li>
+</ul>
+<h3>修正</h3>
+<ul>
+  <li>シングル表示でセッションを切り替えたときにアプリが固まる問題を修正しました。切り替え 1 回あたり平均 2447 ミリ秒かかり 12 回中 11 回がハング判定でしたが、177 ミリ秒・ハング 0 件になりました。これに伴い diff 行のテキスト選択は無効になります。差分のコピーはファイルごとのコピーボタンをお使いください（折りたたみ中でも全文をコピーします）。</li>
+  <li>グリッド表示で、セッションを絞り込んでいるときに分割線をドラッグしても効かない問題を修正しました。</li>
+  <li>モデル選択に古いバージョン名が出続ける問題を修正しました。表示名を CLI から取得するようにしたので、現行のモデルに自動で追随します。</li>
+</ul>
+]]></description>
+            <sparkle:version>20</sparkle:version>
+            <sparkle:shortVersionString>1.3.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.3.3.zip" length="15848951" type="application/octet-stream" sparkle:edSignature="IqEzYN3VAqcSW8IDnD7KfHefVn5o2gRxX+J4LXKnnw2C4iMl8fUD0yzB71hfbJg796wO8QKYHZzS6mHqcSZbCg=="/>
+        </item>
+        <item>
             <title>1.3.2</title>
             <pubDate>Sat, 25 Jul 2026 22:14:07 +0900</pubDate>
             <description xml:lang="en"><![CDATA[

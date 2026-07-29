@@ -128,7 +128,8 @@ struct AcceptanceSessionOriginTests {
             ref: .builtin(.claudeCode),
             requester: phantomRequester,
             backend: .pty,
-            workingDirectory: nil
+            workingDirectory: nil,
+            projectID: nil
         )
 
         let node = try #require(dashboard.sessionNode(id: newID))
@@ -153,7 +154,8 @@ struct AcceptanceSessionOriginTests {
             ref: .builtin(.claudeCode),
             requester: parentID,
             backend: .pty,
-            workingDirectory: nil
+            workingDirectory: nil,
+            projectID: nil
         )
 
         let child = try #require(dashboard.sessionNode(id: childID))
@@ -183,7 +185,8 @@ struct AcceptanceSessionOriginTests {
                 ref: .builtin(.claudeCode),
                 requester: phantomRequester,
                 backend: .pty,
-                workingDirectory: nil
+                workingDirectory: nil,
+                projectID: nil
             )
         }
 
@@ -192,7 +195,8 @@ struct AcceptanceSessionOriginTests {
                 ref: .builtin(.claudeCode),
                 requester: phantomRequester,
                 backend: .pty,
-                workingDirectory: nil
+                workingDirectory: nil,
+                projectID: nil
             )
         }
     }

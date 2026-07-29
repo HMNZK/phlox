@@ -79,7 +79,8 @@ func controlAPISpawn_existingRequesterInheritsParentProject() async throws {
         ref: .builtin(.claudeCode),
         requester: parentID,
         backend: .pty,
-        workingDirectory: nil
+        workingDirectory: nil,
+        projectID: nil
     )
 
     let child = try #require(dashboard.sessionNode(id: childID))
@@ -107,7 +108,8 @@ func controlAPISpawn_nilRequesterStillUsesSharedRateLimit() async throws {
             ref: .builtin(.claudeCode),
             requester: nil,
             backend: .pty,
-            workingDirectory: nil
+            workingDirectory: nil,
+            projectID: nil
         )
     }
 
@@ -116,7 +118,8 @@ func controlAPISpawn_nilRequesterStillUsesSharedRateLimit() async throws {
             ref: .builtin(.claudeCode),
             requester: nil,
             backend: .pty,
-            workingDirectory: nil
+            workingDirectory: nil,
+            projectID: nil
         )
     }
 }
@@ -144,6 +147,7 @@ func controlAPISpawn_requesterRemovedAfterOriginResolutionFallsBackToVisibleRoot
             requester: requester,
             backend: .pty,
             workingDirectory: nil,
+            projectID: nil,
             afterOriginResolution: {
                 originResolvedContinuation.yield()
                 var resumeSpawnIterator = resumeSpawn.makeAsyncIterator()

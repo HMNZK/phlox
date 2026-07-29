@@ -1135,7 +1135,7 @@ public final class DashboardViewModel {
         requester: SessionID?,
         backend: SessionBackend,
         workingDirectory: String?,
-        projectID: ProjectID? = nil
+        projectID: ProjectID?
     ) async throws -> SessionID {
         try await spawnNewSessionFromControlAPI(
             ref: ref,
@@ -1153,7 +1153,7 @@ public final class DashboardViewModel {
         requester: SessionID?,
         backend: SessionBackend,
         workingDirectory: String?,
-        projectID: ProjectID? = nil,
+        projectID: ProjectID?,
         afterOriginResolution: @MainActor () async -> Void
     ) async throws -> SessionID {
         if let projectID, !projects.contains(where: { $0.id == projectID }) {

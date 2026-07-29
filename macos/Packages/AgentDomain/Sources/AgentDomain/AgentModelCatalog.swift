@@ -24,12 +24,12 @@ public protocol AgentModelListProviding: Sendable {
 /// both the HTTP server and UI consume the same catalog without either depending on the other.
 public enum AgentModelCatalog {
     private static let logger = Logger(subsystem: "com.phlox.Phlox", category: "AgentModelCatalog")
-    private static let claudeModels = [
-        ControlModelOption(id: "opus", displayName: "Opus 4.8"),
-        ControlModelOption(id: "sonnet", displayName: "Sonnet 5"),
-        ControlModelOption(id: "fable", displayName: "Fable 5"),
-        ControlModelOption(id: "haiku", displayName: "Haiku 4.5"),
-    ]
+    // Aliases only, used when `claude` cannot be reached. Display names deliberately stay the
+    // alias itself: product names come from the CLI's own `/model` output (see
+    // `LiveAgentModelProvider`), and a version hardcoded here silently ages into a wrong label.
+    private static let claudeModels = ["opus", "sonnet", "fable", "haiku"].map {
+        ControlModelOption(id: $0, displayName: $0)
+    }
     // `cursor-agent models` (2026-07-26) lists these current, representative selectable IDs.
     // Keep `composer-2.5` so the shared default rule can preserve Cursor's established
     // default; retain current Codex and Claude families as offline choices. Deliberately

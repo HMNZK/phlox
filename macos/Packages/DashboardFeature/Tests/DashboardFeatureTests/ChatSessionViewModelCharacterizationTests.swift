@@ -150,11 +150,14 @@ func characterization_isReadyForInput_falseWhileStarting_trueWhenIdleOrRunning()
 }
 
 @Test @MainActor
-func characterization_spawnAgentModelDisplayName_mapsKnownAliasAndPassesThroughUnknown() {
+func characterization_spawnAgentModelDisplayName_followsCatalogAndPassesThroughUnknown() {
     let (vm, _) = characterizationVM()
 
-    #expect(vm.spawnAgentModelDisplayName("opus") == "Opus 4.8")
-    #expect(vm.spawnAgentModelDisplayName("sonnet") == "Sonnet 5")
+    // 表示名は共有カタログ（live は CLI 由来）から引く。CLI 未取得の内蔵フォールバックでは
+    // alias がそのまま表示名になるため、既知 alias も未知 ID も alias のまま返る。
+    let catalogName = AgentModelCatalog.models(for: .claudeCode).first { $0.id == "opus" }?.displayName
+    #expect(vm.spawnAgentModelDisplayName("opus") == catalogName)
+    #expect(vm.spawnAgentModelDisplayName("opus") == "opus")
     #expect(vm.spawnAgentModelDisplayName("cursor-custom-model") == "cursor-custom-model")
 }
 

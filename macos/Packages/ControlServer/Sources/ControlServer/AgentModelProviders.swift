@@ -40,6 +40,23 @@ public enum ClaudeModelListParser {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
+
+    /// Extracts the product name from `/model`'s `Current model:` line, e.g.
+    /// `Current model: Opus 5 (1M context) (effort: xhigh)` → `Opus 5 (1M context)`.
+    /// The alias list itself carries no version, so asking the CLI what a given alias
+    /// resolves to is the only way to label a picker without hardcoding model versions.
+    /// The trailing `(effort: …)` is the session's reasoning setting, not part of the name.
+    public static func parseCurrentModelName(resultText: String) -> String? {
+        guard let line = resultText.split(separator: "\n").first(where: { $0.contains("Current model:") }),
+              let labelRange = line.range(of: "Current model:")
+        else { return nil }
+        var name = line[labelRange.upperBound...]
+        if let effortRange = name.range(of: "(effort:", options: [.backwards, .caseInsensitive]) {
+            name = name[..<effortRange.lowerBound]
+        }
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? nil : trimmed
+    }
 }
 
 /// Parses the `cursor-agent models` text format. Keeping this pure parser separate from
@@ -121,16 +138,12 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
     public func fetchModels(for kind: AgentKind) async throws -> [ControlModelOption] {
         switch kind {
         case .claudeCode:
-            let output = try await commandRunner(
-                resolveCommand(for: kind),
-                ["--bare", "-p", "/model", "--output-format", "json"]
+            let command = resolveCommand(for: kind)
+            let aliases = ClaudeModelListParser.parse(
+                resultText: try await claudeModelReport(command: command, alias: nil)
             )
-            guard let object = try JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any],
-                  let result = object["result"] as? String
-            else { throw ProviderError.invalidOutput }
-            let aliases = ClaudeModelListParser.parse(resultText: result)
             guard !aliases.isEmpty else { throw ProviderError.invalidOutput }
-            return aliases.map(option)
+            return await claudeOptions(command: command, aliases: aliases)
 
         case .cursor:
             let output = try await commandRunner(resolveCommand(for: kind), ["models"])
@@ -144,8 +157,53 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
     }
 
     private func option(_ id: String) -> ControlModelOption {
-        let names = ["opus": "Opus 4.8", "sonnet": "Sonnet 5", "fable": "Fable 5", "haiku": "Haiku 4.5"]
-        return ControlModelOption(id: id, displayName: names[id] ?? id)
+        ControlModelOption(id: id, displayName: id)
+    }
+
+    /// Runs `/model` and returns the CLI's report text. Without `--model` it reports the
+    /// current selection plus the alias list; with `--model <alias>` it reports what that
+    /// alias resolves to for this invocation only (the persisted selection is untouched).
+    private func claudeModelReport(command: String, alias: String?) async throws -> String {
+        let selection = alias.map { ["--model", $0] } ?? []
+        let output = try await commandRunner(
+            command,
+            ["--bare"] + selection + ["-p", "/model", "--output-format", "json"]
+        )
+        guard let object = try JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any],
+              let result = object["result"] as? String
+        else { throw ProviderError.invalidOutput }
+        return result
+    }
+
+    /// Labels each alias with the product name the CLI resolves it to, so the picker follows
+    /// CLI updates instead of a hardcoded version table. Lookups run concurrently because they
+    /// are independent processes, and an alias whose lookup fails keeps the alias as its label
+    /// rather than dropping a selectable model or failing the whole list.
+    private func claudeOptions(command: String, aliases: [String]) async -> [ControlModelOption] {
+        let resolved = await withTaskGroup(of: (offset: Int, alias: String, name: String).self) { group in
+            for (offset, alias) in aliases.enumerated() {
+                group.addTask {
+                    let report = try? await claudeModelReport(command: command, alias: alias)
+                    let name = report.flatMap { ClaudeModelListParser.parseCurrentModelName(resultText: $0) }
+                    return (offset, alias, name ?? alias)
+                }
+            }
+            var items: [(offset: Int, alias: String, name: String)] = []
+            for await item in group { items.append(item) }
+            return items.sorted { $0.offset < $1.offset }
+        }
+        // Distinct aliases can resolve to the same product (`best` and `fable`, `sonnet` and
+        // `sonnet[1m]`). Qualify only the colliding labels with their alias so the picker never
+        // offers two rows the user cannot tell apart, while unique names stay uncluttered.
+        var occurrences: [String: Int] = [:]
+        for item in resolved { occurrences[item.name, default: 0] += 1 }
+        return resolved.map { item in
+            let isAmbiguous = (occurrences[item.name] ?? 0) > 1 && item.name != item.alias
+            return ControlModelOption(
+                id: item.alias,
+                displayName: isAmbiguous ? "\(item.name) (\(item.alias))" : item.name
+            )
+        }
     }
 
     private func resolveCommand(for kind: AgentKind) -> String {

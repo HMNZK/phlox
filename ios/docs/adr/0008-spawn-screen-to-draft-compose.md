@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-15
+last-verified: 2026-07-30
 ---
 
 # ADR 0008: 新規タスク（spawn）画面を廃止し、セッション一覧からのドラフト compose フローに統合する
@@ -32,6 +32,19 @@ wave-2（ADR-0005 の前提）では、新規タスクは独立したモーダ�
 - 未 spawn ドラフトは実セッションが存在しないため、`inputEnabled`/`showsModelSelectorChip`/`stopButton` 非表示などの分岐を `SessionDetailViewModel.isAwaitingInitialSpawn` で明示的にガードする必要が生じた。
 - spawn 失敗時・`waitUntilReady` タイムアウト時は `DraftComposeError.notReady` を投げて `sendState` をエラー表示に落とす（送信テキスト・添付は `sendMessage()` 冒頭で既にクリアされるため、失敗時の再入力は再度打ち直しになる。UX 上の許容トレードオフとして本 run では未改善）。
 - 429（レート制限カウントダウン）は旧 `SpawnViewModel` 依存だったため `ErrorRecoveryTests.testRateLimitedShowsCountdown` ごと削除。compose 側での再導入は task-4 に引き継がれたが、本 run では未実装（decision-log.md task-1 波及テスト処理を参照）。
+
+## その後の変更（追記。上の決定自体は有効）
+
+- **2026-07-30**: 下書きが「プロジェクトの表示名」と「送信用の ProjectID」を 1 本の `String` に
+  押し込んでいたため、(a) 選んだプロジェクトが spawn に伝わらず macOS 側で「その他」に落ちる、
+  (b) compose 画面の文脈ラベルに UUID が出る、という 2 つの不具合が出た。これを受けて
+  `SessionComposeDraft` が `project`（表示名）と `projectID`（送信用）を分けて持つようになり、
+  それに伴い **`Route.sessionComposeDraft` の associated value は `project: String` から
+  `SessionComposeDraft` 一括渡しへ、`onAddSession(project:)` は `onAddSession(draft:)`
+  （`(SessionComposeDraft) -> Void`）へ変わった**。上の §決定 の 19〜20 行目はこの変更前の形を指す。
+  経緯は [delivery/0018](../delivery/0018-ios-session-project-assign-worklog.md)、
+  ワイヤ側の決定は [macos/docs/adr/0141](../../../macos/docs/adr/0141-spawn-project-id-wire.md)。
+  「spawn 画面を廃してセッション一覧からドラフト compose に入る」という本 ADR の決定自体は変わらない。
 
 ## 却下した代替案
 

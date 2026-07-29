@@ -32,6 +32,8 @@ actor MockAPI: PhloxAPI {
     private(set) var deltaSinceLog: [String?] = []
     /// 直近の send リクエスト（images 添付の検証用）。
     private(set) var lastSentRequest: SendRequest?
+    /// 直近の spawn リクエスト（projectID の伝搬検証用）。
+    private(set) var lastSpawnRequest: SpawnRequest?
     /// subAgents の結果と呼び出し回数。
     var subAgentsOutcome: Result<[SubAgentSummary], PhloxError> = .success([])
     private(set) var subAgentsCount = 0
@@ -68,6 +70,7 @@ actor MockAPI: PhloxAPI {
 
     func spawn(_ request: SpawnRequest) async throws -> Session {
         spawnCount += 1
+        lastSpawnRequest = request
         return try spawnOutcome.get()
     }
 

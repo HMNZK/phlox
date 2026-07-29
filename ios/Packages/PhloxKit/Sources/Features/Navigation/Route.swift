@@ -4,9 +4,11 @@ import SwiftUI
 /// 未 spawn の compose 画面へ渡すプロジェクト識別子（task-1 seam / task-4 が消費）。
 public struct SessionComposeDraft: Hashable, Sendable {
     public let project: String
+    public let projectID: String?
 
-    public init(project: String) {
+    public init(project: String, projectID: String? = nil) {
         self.project = project
+        self.projectID = projectID
     }
 }
 
@@ -25,7 +27,7 @@ extension EnvironmentValues {
 /// アプリ内のスタック遷移・モーダルを型で表す（E4-10）。未定義ルートはコンパイルで弾く。
 public enum Route: Hashable, Sendable {
     case sessionDetail(id: String)
-    case sessionComposeDraft(project: String)
+    case sessionComposeDraft(SessionComposeDraft)
     case chatAnswer(sessionID: String)
     case settings
     case qrScan

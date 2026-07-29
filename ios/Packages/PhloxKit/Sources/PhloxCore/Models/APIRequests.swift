@@ -4,12 +4,20 @@ import Foundation
 public struct SpawnRequest: Sendable, Equatable {
     public let agent: AgentKind
     public let workspace: String
+    public let projectID: String?
     public let prompt: String?
     public let model: String?
 
-    public init(agent: AgentKind, workspace: String, prompt: String? = nil, model: String? = nil) {
+    public init(
+        agent: AgentKind,
+        workspace: String,
+        projectID: String? = nil,
+        prompt: String? = nil,
+        model: String? = nil
+    ) {
         self.agent = agent
         self.workspace = workspace
+        self.projectID = projectID
         self.prompt = prompt
         self.model = model
     }

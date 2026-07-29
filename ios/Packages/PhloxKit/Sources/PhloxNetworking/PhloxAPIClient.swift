@@ -55,7 +55,12 @@ public actor PhloxAPIClient: PhloxAPI {
 
     public func spawn(_ request: SpawnRequest) async throws -> Session {
         let body = try encode(
-            SpawnRequestDTO(kind: request.agent.rawValue, backend: "appServer", model: request.model)
+            SpawnRequestDTO(
+                kind: request.agent.rawValue,
+                backend: "appServer",
+                model: request.model,
+                projectId: request.projectID
+            )
         )
         // Mac は新規セッション id のみ返す（{id}）。name はサーバー採番で、一覧ポーリングが反映する。
         // spawn は二重作成を避けるため自動再試行しない（retry: false）。

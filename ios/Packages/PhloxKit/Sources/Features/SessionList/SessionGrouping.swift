@@ -4,11 +4,13 @@ import PhloxCore
 /// プロジェクト単位にまとめたセッション群（DisclosureGroup 1 件分）。
 public struct ProjectGroup: Identifiable, Equatable, Sendable {
     public let id: String
+    public let projectID: String?
     public let title: String
     public let sessions: [Session]
 
-    public init(id: String, title: String, sessions: [Session]) {
+    public init(id: String, projectID: String? = nil, title: String, sessions: [Session]) {
         self.id = id
+        self.projectID = projectID
         self.title = title
         self.sessions = sessions
     }
@@ -37,18 +39,28 @@ public enum SessionGrouping {
                 let existing = namedGroups[index]
                 namedGroups[index] = ProjectGroup(
                     id: existing.id,
+                    projectID: existing.projectID,
                     title: existing.title,
                     sessions: existing.sessions + [session]
                 )
             } else {
                 namedIndexByKey[key] = namedGroups.count
-                namedGroups.append(ProjectGroup(id: key, title: projectName, sessions: [session]))
+                namedGroups.append(ProjectGroup(
+                    id: key,
+                    projectID: session.projectId,
+                    title: projectName,
+                    sessions: [session]
+                ))
             }
         }
 
         var result = namedGroups
         if !otherSessions.isEmpty {
-            result.append(ProjectGroup(id: otherGroupID, title: otherGroupTitle, sessions: otherSessions))
+            result.append(ProjectGroup(
+                id: otherGroupID,
+                title: otherGroupTitle,
+                sessions: otherSessions
+            ))
         }
         return result
     }

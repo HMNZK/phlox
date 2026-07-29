@@ -25,7 +25,7 @@ public struct SessionListView: View {
     let host: String
     let onSelectDetail: (String) -> Void
     let onAnswerQuestion: (String) -> Void
-    let onAddSession: (String) -> Void
+    let onAddSession: (SessionComposeDraft) -> Void
     let onReconnect: () async -> Void
     let onSettings: () -> Void
 
@@ -35,7 +35,7 @@ public struct SessionListView: View {
         host: String? = nil,
         onSelectDetail: @escaping (String) -> Void,
         onAnswerQuestion: @escaping (String) -> Void,
-        onAddSession: @escaping (String) -> Void,
+        onAddSession: @escaping (SessionComposeDraft) -> Void,
         onReconnect: @escaping () async -> Void = {},
         onSettings: @escaping () -> Void = {}
     ) {
@@ -104,7 +104,7 @@ public struct SessionListView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             )
         case .empty:
-            underTitle(EmptyStateView(onCreate: { onAddSession("") }))
+            underTitle(EmptyStateView(onCreate: { onAddSession(SessionComposeDraft(project: "")) }))
         case .offline:
             underTitle(offlineOverlay)
         case .error(let error):
@@ -235,7 +235,7 @@ public struct SessionListView: View {
             // 全セッションが attention セクションに入り project グループが空でも、
             // セッション追加導線が消えないよう単独の追加行を出す
             // （セッション皆無の .empty 状態は EmptyStateView が担うので、ここは loaded で groups だけ空のケース）。
-            addSessionRow(projectID: "")
+            addSessionRow(project: "", projectID: nil)
         } else {
             VStack(spacing: DSSpacing.m) {
                 ForEach(groups) { group in
@@ -260,7 +260,7 @@ public struct SessionListView: View {
         ) {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 projectSessionsCard(group.sessions)
-                addSessionRow(projectID: group.id)
+                addSessionRow(project: group.title, projectID: group.projectID)
             }
             .padding(.top, DSSpacing.xs)
         } label: {
@@ -314,9 +314,9 @@ public struct SessionListView: View {
         .accessibilityLabel("あなたの番")
     }
 
-    private func addSessionRow(projectID: String) -> some View {
+    private func addSessionRow(project: String, projectID: String?) -> some View {
         Button {
-            onAddSession(projectID)
+            onAddSession(SessionComposeDraft(project: project, projectID: projectID))
         } label: {
             Text("+ セッションを追加")
                 .font(DSFont.subheadline)

@@ -256,7 +256,7 @@ struct AppRoot: View {
                 host: connectionHost ?? SessionListViewModel.uiTestFallbackHost,
                 onSelectDetail: { router.push(.sessionDetail(id: $0)) },
                 onAnswerQuestion: { router.push(.chatAnswer(sessionID: $0)) },
-                onAddSession: { onAddSession(project: $0) },
+                onAddSession: { onAddSession(draft: $0) },
                 onReconnect: { await refreshReachability() }
             )
             .navigationDestination(for: Route.self) { route in
@@ -267,9 +267,9 @@ struct AppRoot: View {
         .overlay { deleteConfirmationOverlay(for: router) }
     }
 
-    /// task-2 の `onAddSession(project:)` seam。未 spawn の compose 詳細へ遷移する。
-    private func onAddSession(project: String) {
-        router.push(.sessionComposeDraft(project: project))
+    /// task-2 の `onAddSession(draft:)` seam。未 spawn の compose 詳細へ遷移する。
+    private func onAddSession(draft: SessionComposeDraft) {
+        router.push(.sessionComposeDraft(draft))
     }
 
     private var settingsTab: some View {
@@ -339,9 +339,9 @@ struct AppRoot: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(DSColor.surface)
             }
-        case .sessionComposeDraft(let project):
+        case .sessionComposeDraft(let draft):
             DraftSessionComposeDestination(
-                draft: SessionComposeDraft(project: project),
+                draft: draft,
                 api: environment.apiClient
             )
         case .chatAnswer(let sessionID):

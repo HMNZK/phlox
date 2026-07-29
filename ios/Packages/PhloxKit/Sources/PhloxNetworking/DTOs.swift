@@ -216,6 +216,7 @@ struct SpawnRequestDTO: Encodable {
     let kind: String
     let backend: String
     let model: String?
+    let projectId: String?
 }
 
 /// `POST /sessions`（spawn）のレスポンス。Mac は新規セッション **id のみ**返す（`{"id": …}`）。

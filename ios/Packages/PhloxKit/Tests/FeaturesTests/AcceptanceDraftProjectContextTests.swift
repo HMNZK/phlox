@@ -54,7 +54,7 @@ struct AcceptanceDraftProjectContextTests {
     }
 
     @Test("プロジェクト未所属（「その他」）の下書きは projectID を送らない")
-    func unassignedDraftSendsNoProjectID() async {
+    func unassignedDraftSendsNoProjectID() async throws {
         let api = MockAPI()
         let vm = SessionDetailViewModel(session: makeDraftPlaceholderSession(), api: api)
 
@@ -62,8 +62,10 @@ struct AcceptanceDraftProjectContextTests {
         vm.inputText = "はじめまして"
         await vm.sendMessage()
 
-        let spawnRequest = await api.lastSpawnRequest
-        #expect(spawnRequest?.projectID == nil)
+        // spawn 自体が起きていない実装でも `spawnRequest?.projectID == nil` は通ってしまうため、
+        // 先に spawn が呼ばれたことを前提として固定する（空振り合格の防止）。
+        let spawnRequest = try #require(await api.lastSpawnRequest, "spawn が呼ばれていること")
+        #expect(spawnRequest.projectID == nil)
     }
 
     @Test("プロジェクトを持つセッションでは従来どおりサーバ由来の projectName を出す")

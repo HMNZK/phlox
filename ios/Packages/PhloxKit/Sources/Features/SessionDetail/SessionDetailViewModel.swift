@@ -117,6 +117,7 @@ public final class SessionDetailViewModel {
     }
     private var draftModelSelection: DraftModelSelection?
     private var draftProject: String?
+    private var draftProjectID: String?
     /// branch 情報は Session に無いため、取得済みのプロジェクト名だけを代替表示する。
     public var inputContextDisplayName: String? { session.projectName ?? draftProject }
     private var draftNeedsReady = false
@@ -609,6 +610,7 @@ public final class SessionDetailViewModel {
     /// Codex は既存契約どおり、空カタログでも agent-only 行を必ず持つ。
     public func prepareDraft(_ draft: SessionComposeDraft) async {
         draftProject = draft.project
+        draftProjectID = draft.projectID
         guard !hasSpawnedDraft else { return }
 
         var catalogs: [AgentKind: AgentModels] = [:]
@@ -734,6 +736,7 @@ public final class SessionDetailViewModel {
                 let spawned = try await api.spawn(SpawnRequest(
                     agent: selection.kind,
                     workspace: draftProject,
+                    projectID: draftProjectID,
                     model: selection.modelID
                 ))
                 // listSessions の反映を待たず、spawn 応答の実体をそのまま採用する。

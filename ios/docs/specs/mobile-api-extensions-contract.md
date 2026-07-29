@@ -128,7 +128,7 @@ func messagesDelta(sessionID: String, since: String?, wait: Int?) async throws -
 {
   "selectedModel": "opus",
   "availableModels": [
-    { "id": "opus", "displayName": "Opus 4.8" },
+    { "id": "opus", "displayName": "Opus 5" },
     { "id": "sonnet", "displayName": "Sonnet 5" }
   ]
 }
@@ -182,11 +182,12 @@ project 付与・アカウント単位の CLI 使用量取得を扱う。正本�
 
 `{kind}` は AgentKind rawValue。
 ```json
-{ "models": [ { "id": "opus", "displayName": "Opus 4.8" },
-              { "id": "sonnet", "displayName": "Sonnet 4.5" } ],
+{ "models": [ { "id": "opus", "displayName": "Opus 5" },
+              { "id": "sonnet", "displayName": "Sonnet 5" } ],
   "defaultModel": "sonnet" }
 ```
 - claudeCode / cursor / codex: 起動時に live provider が取得したスナップショットを返す。取得に失敗した kind は内蔵 fallback を返す。
+- `displayName` は**サーバ（macOS）が決める表示用の文字列**で、クライアントはそのまま表示する。Claude は CLI から取得した製品名（例 `Opus 5`）、fallback 時と Cursor / Codex は ID と同値になる。値の内容は契約ではないので、iOS 側でパースしたり対応表を持ったりしない。
 - codex も app-server の `model/list` 結果を返し、非空になりうる（CLI 不在などで空になることもある）。
 - 未知 kind: `404`。
 

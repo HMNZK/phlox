@@ -235,7 +235,7 @@ public struct SessionListView: View {
             // 全セッションが attention セクションに入り project グループが空でも、
             // セッション追加導線が消えないよう単独の追加行を出す
             // （セッション皆無の .empty 状態は EmptyStateView が担うので、ここは loaded で groups だけ空のケース）。
-            addSessionRow(project: "", projectID: nil)
+            addSessionRow(SessionComposeDraft(project: ""))
         } else {
             VStack(spacing: DSSpacing.m) {
                 ForEach(groups) { group in
@@ -260,7 +260,7 @@ public struct SessionListView: View {
         ) {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 projectSessionsCard(group.sessions)
-                addSessionRow(project: group.title, projectID: group.projectID)
+                addSessionRow(group.addSessionDraft)
             }
             .padding(.top, DSSpacing.xs)
         } label: {
@@ -314,9 +314,9 @@ public struct SessionListView: View {
         .accessibilityLabel("あなたの番")
     }
 
-    private func addSessionRow(project: String, projectID: String?) -> some View {
+    private func addSessionRow(_ draft: SessionComposeDraft) -> some View {
         Button {
-            onAddSession(SessionComposeDraft(project: project, projectID: projectID))
+            onAddSession(draft)
         } label: {
             Text("+ セッションを追加")
                 .font(DSFont.subheadline)

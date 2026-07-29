@@ -16,6 +16,14 @@ public struct ProjectGroup: Identifiable, Equatable, Sendable {
     }
 }
 
+public extension ProjectGroup {
+    /// 「+ セッションを追加」が作る下書き。
+    /// 表示名は title、送信用 ID は projectID（フォールバック名＝id を流用しない）。
+    var addSessionDraft: SessionComposeDraft {
+        SessionComposeDraft(project: title, projectID: projectID)
+    }
+}
+
 /// セッション一覧のプロジェクト単位グルーピング（View 非依存の純ロジック）。
 public enum SessionGrouping {
     /// `projectName == nil` のセッションを入れる末尾グループの表示名（デスクトップ版「その他」に倣う）。

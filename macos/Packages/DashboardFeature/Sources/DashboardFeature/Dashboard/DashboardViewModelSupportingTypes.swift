@@ -74,6 +74,7 @@ public enum AgentSpawnError: Error, Equatable, LocalizedError {
     case customBinaryNotFound(String)
     case spawnRateLimited
     case depthLimitExceeded
+    case unknownProject
     case noProject
     case unsupportedBackend
 
@@ -87,6 +88,8 @@ public enum AgentSpawnError: Error, Equatable, LocalizedError {
             String(localized: "短時間に作成できるセッション数の上限を超えました。")
         case .depthLimitExceeded:
             String(localized: "セッション作成の深度上限を超えました。")
+        case .unknownProject:
+            String(localized: "指定されたプロジェクトが見つかりません。")
         case .noProject:
             String(localized: "プロジェクトが登録されていません。サイドバーからフォルダを追加してください。")
         case .unsupportedBackend:

@@ -106,7 +106,7 @@ private actor RoleHandlerStub {
         )
         #expect(status == 200)
         let action = try #require(await stub.lastRequest?.action)
-        guard case let .spawn(_, backend, _) = action else {
+        guard case let .spawn(_, backend, _, _) = action else {
             Issue.record("expected spawn action, got \(action)")
             return
         }
@@ -127,7 +127,7 @@ private actor RoleHandlerStub {
         )
         #expect(status == 200)
         let action = try #require(await stub.lastRequest?.action)
-        guard case let .spawn(_, backend, _) = action else {
+        guard case let .spawn(_, backend, _, _) = action else {
             Issue.record("expected spawn action, got \(action)")
             return
         }
@@ -148,7 +148,7 @@ private actor RoleHandlerStub {
         )
         #expect(status == 200)
         let action = try #require(await stub.lastRequest?.action)
-        guard case let .spawn(_, backend, _) = action else {
+        guard case let .spawn(_, backend, _, _) = action else {
             Issue.record("expected spawn action, got \(action)")
             return
         }
@@ -169,7 +169,7 @@ private actor RoleHandlerStub {
         )
         #expect(status == 200)
         let action = try #require(await stub.lastRequest?.action)
-        guard case let .spawn(_, backend, _) = action else {
+        guard case let .spawn(_, backend, _, _) = action else {
             Issue.record("expected spawn action, got \(action)")
             return
         }

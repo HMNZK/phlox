@@ -42,7 +42,8 @@ import SessionFeature
             ref: AgentRef,
             from: SessionID?,
             backend: SessionBackend,
-            workingDirectory: String?
+            workingDirectory: String?,
+            projectID: ProjectID?
         ) async throws -> SessionID {
             try spawnResult.get()
         }
@@ -146,7 +147,8 @@ import SessionFeature
             ref: AgentRef,
             from: SessionID?,
             backend: SessionBackend,
-            workingDirectory: String?
+            workingDirectory: String?,
+            projectID: ProjectID?
         ) async throws -> SessionID { try spawnResult.get() }
         func isAuthorizedToRemove(_ id: SessionID, requester: SessionID?) -> Bool { isAuthorized }
         func removeSession(_ id: SessionID) async -> Bool { removeExisted }
@@ -427,7 +429,8 @@ import SessionFeature
         let response = await handler.handle(request(.spawn(
             ref: .builtin(.claudeCode),
             backend: .pty,
-            workingDirectory: nil
+            workingDirectory: nil,
+            projectID: nil
         )))
 
         #expect(response.statusCode == 201)
@@ -447,7 +450,8 @@ import SessionFeature
         let response = await handler.handle(request(.spawn(
             ref: .builtin(.claudeCode),
             backend: .pty,
-            workingDirectory: nil
+            workingDirectory: nil,
+            projectID: nil
         )))
 
         #expect(response.statusCode == expected)

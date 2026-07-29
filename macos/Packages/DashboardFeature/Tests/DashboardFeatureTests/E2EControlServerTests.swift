@@ -189,7 +189,8 @@ private final class E2EControlDashboard: ControlActionDashboard {
     ref: AgentRef,
     from: SessionID?,
     backend: SessionBackend,
-    workingDirectory: String?
+    workingDirectory: String?,
+    projectID: ProjectID?
   ) async throws -> SessionID {
     try await dashboard.spawnNewSession(
       ref: ref,

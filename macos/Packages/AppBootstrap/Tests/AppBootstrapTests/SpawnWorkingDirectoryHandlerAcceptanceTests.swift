@@ -30,7 +30,8 @@ import SessionFeature
             ref: AgentRef,
             from: SessionID?,
             backend: SessionBackend,
-            workingDirectory: String?
+            workingDirectory: String?,
+            projectID: ProjectID?
         ) async throws -> SessionID {
             spawnCallCount += 1
             receivedWorkingDirectory = workingDirectory
@@ -73,7 +74,7 @@ import SessionFeature
     private func spawnRequest(workingDirectory: String?) -> ControlRequest {
         ControlRequest(
             requester: nil,
-            action: .spawn(ref: .builtin(.claudeCode), backend: .pty, workingDirectory: workingDirectory)
+            action: .spawn(ref: .builtin(.claudeCode), backend: .pty, workingDirectory: workingDirectory, projectID: nil)
         )
     }
 

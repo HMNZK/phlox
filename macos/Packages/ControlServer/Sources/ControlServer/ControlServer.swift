@@ -361,6 +361,7 @@ public actor ControlServer {
             // 省略時は既定 .pty。モバイルは "appServer" を送る。
             let backend: String?
             let workingDirectory: String?
+            let projectId: String?
             let role: String?
             let model: String?
         }
@@ -402,17 +403,27 @@ public actor ControlServer {
             backend = .pty
         }
 
+        let projectID: ProjectID?
+        if let rawProjectID = payload.projectId {
+            guard let uuid = UUID(uuidString: rawProjectID) else {
+                return .failure(.json(400, ErrorDTO(error: "invalid projectId")))
+            }
+            projectID = ProjectID(rawValue: uuid)
+        } else {
+            projectID = nil
+        }
+
         if let kind = AgentKind(rawValue: payload.kind) {
             pendingSpawnRole = role
             pendingSpawnModel = Self.normalizedSpawnModel(payload.model, for: kind)
-            return .success(.spawn(ref: .builtin(kind), backend: backend, workingDirectory: payload.workingDirectory))
+            return .success(.spawn(ref: .builtin(kind), backend: backend, workingDirectory: payload.workingDirectory, projectID: projectID))
         }
 
         let ref = AgentRef.custom(payload.kind)
         if agentCatalog.descriptor(for: ref) != nil {
             pendingSpawnRole = role
             pendingSpawnModel = nil
-            return .success(.spawn(ref: ref, backend: backend, workingDirectory: payload.workingDirectory))
+            return .success(.spawn(ref: ref, backend: backend, workingDirectory: payload.workingDirectory, projectID: projectID))
         }
 
         return .failure(.json(400, ErrorDTO(error: "unknown agent kind: \(payload.kind)")))

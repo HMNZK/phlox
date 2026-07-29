@@ -28,7 +28,8 @@ import SessionFeature
             ref: AgentRef,
             from: SessionID?,
             backend: SessionBackend,
-            workingDirectory: String?
+            workingDirectory: String?,
+            projectID: ProjectID?
         ) async throws -> SessionID {
             spawnCallCount += 1
             return spawnedID
@@ -75,7 +76,7 @@ import SessionFeature
     private func spawnRequest() -> ControlRequest {
         ControlRequest(
             requester: nil,
-            action: .spawn(ref: .builtin(.claudeCode), backend: .appServer, workingDirectory: nil)
+            action: .spawn(ref: .builtin(.claudeCode), backend: .appServer, workingDirectory: nil, projectID: nil)
         )
     }
 

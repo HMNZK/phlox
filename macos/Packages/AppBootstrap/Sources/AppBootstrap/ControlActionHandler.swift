@@ -52,7 +52,8 @@ public protocol ControlActionDashboard: AnyObject {
         ref: AgentRef,
         from: SessionID?,
         backend: SessionBackend,
-        workingDirectory: String?
+        workingDirectory: String?,
+        projectID: ProjectID?
     ) async throws -> SessionID
     func isAuthorizedToRemove(_ id: SessionID, requester: SessionID?) -> Bool
     func removeSession(_ id: SessionID) async -> Bool
@@ -146,13 +147,14 @@ public final class ControlActionHandler {
                 inReplyTo: inReplyTo,
                 images: images
             )
-        case let .spawn(ref, backend, workingDirectory):
+        case let .spawn(ref, backend, workingDirectory, projectID):
             return await handleSpawn(
                 dashboard,
                 ref: ref,
                 requester: request.requester,
                 backend: backend,
                 workingDirectory: workingDirectory,
+                projectID: projectID,
                 model: ControlSpawnContext.model
             )
         case let .remove(id):
@@ -324,6 +326,7 @@ public final class ControlActionHandler {
         requester: SessionID?,
         backend: SessionBackend,
         workingDirectory: String?,
+        projectID: ProjectID?,
         model: String?
     ) async -> ControlResponse {
         guard Self.isValidWorkingDirectory(workingDirectory) else {
@@ -335,7 +338,8 @@ public final class ControlActionHandler {
                 ref: ref,
                 from: requester,
                 backend: backend,
-                workingDirectory: workingDirectory
+                workingDirectory: workingDirectory,
+                projectID: projectID
             )
             let modelApplied = await ControlSpawnModelApplier.apply(model, to: id) { model, sessionID in
                 await dashboard.setSessionModel(model, for: sessionID)
@@ -620,6 +624,8 @@ public final class ControlActionHandler {
             return .json(429, ErrorDTO(error: "spawn rate limited"))
         case AgentSpawnError.depthLimitExceeded:
             return .json(403, ErrorDTO(error: "spawn depth limit exceeded"))
+        case AgentSpawnError.unknownProject:
+            return .json(422, ErrorDTO(error: "unknown projectId"))
         default:
             return .json(400, ErrorDTO(error: "spawn failed"))
         }

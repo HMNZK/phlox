@@ -38,7 +38,7 @@ import SessionFeature
             ref: AgentRef,
             from: SessionID?,
             backend: SessionBackend,
-            workingDirectory: String?
+            workingDirectory: String?, projectID: ProjectID?
         ) async throws -> SessionID { SessionID() }
         func isAuthorizedToRemove(_ id: SessionID, requester: SessionID?) -> Bool { true }
         func removeSession(_ id: SessionID) async -> Bool { true }

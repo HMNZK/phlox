@@ -1134,13 +1134,15 @@ public final class DashboardViewModel {
         ref: AgentRef,
         requester: SessionID?,
         backend: SessionBackend,
-        workingDirectory: String?
+        workingDirectory: String?,
+        projectID: ProjectID? = nil
     ) async throws -> SessionID {
         try await spawnNewSessionFromControlAPI(
             ref: ref,
             requester: requester,
             backend: backend,
             workingDirectory: workingDirectory,
+            projectID: projectID,
             afterOriginResolution: {}
         )
     }
@@ -1151,8 +1153,12 @@ public final class DashboardViewModel {
         requester: SessionID?,
         backend: SessionBackend,
         workingDirectory: String?,
+        projectID: ProjectID? = nil,
         afterOriginResolution: @MainActor () async -> Void
     ) async throws -> SessionID {
+        if let projectID, !projects.contains(where: { $0.id == projectID }) {
+            throw AgentSpawnError.unknownProject
+        }
         let requesterIsExistingSession = requester.map { sessionNode(id: $0) != nil } ?? false
         let origin = SessionOriginPolicy.origin(
             requester: requester,
@@ -1161,6 +1167,7 @@ public final class DashboardViewModel {
         await afterOriginResolution()
         return try await spawnNewSessionImpl(
             ref: ref,
+            projectID: projectID,
             from: origin.parentSessionID,
             backend: backend,
             launchContext: origin.launchContext,

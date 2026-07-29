@@ -38,13 +38,15 @@ extension DashboardViewModel: @retroactive ControlActionDashboard {
         ref: AgentRef,
         from: SessionID?,
         backend: SessionBackend,
-        workingDirectory: String?
+        workingDirectory: String?,
+        projectID: ProjectID?
     ) async throws -> SessionID {
         try await spawnNewSessionFromControlAPI(
             ref: ref,
             requester: from,
             backend: backend,
-            workingDirectory: workingDirectory
+            workingDirectory: workingDirectory,
+            projectID: projectID
         )
     }
 

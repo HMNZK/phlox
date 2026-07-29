@@ -59,7 +59,7 @@ private final class Task5ControllingSpawnClient: StructuredAgentClient, SpawnAge
 
         var controlSessionSummaries: [ControlSessionSummary] = []
         func sendMessage(to: Recipient, text: String, submit: Bool, from: SessionID?, inReplyTo: UUID?, images: [ControlImageAttachment]) async -> DashboardViewModel.SendOutcome { .sent }
-        func spawnSession(ref: AgentRef, from: SessionID?, backend: SessionBackend, workingDirectory: String?) async throws -> SessionID { SessionID() }
+        func spawnSession(ref: AgentRef, from: SessionID?, backend: SessionBackend, workingDirectory: String?, projectID: ProjectID?) async throws -> SessionID { SessionID() }
         func isAuthorizedToRemove(_ id: SessionID, requester: SessionID?) -> Bool { true }
         func removeSession(_ id: SessionID) async -> Bool { true }
         func renameSession(_ id: SessionID, to name: String) {}

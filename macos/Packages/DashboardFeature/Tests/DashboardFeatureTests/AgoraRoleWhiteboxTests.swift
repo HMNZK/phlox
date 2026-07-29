@@ -64,7 +64,8 @@ actor RoleSessionStore: SessionStoreProtocol {
             ref: AgentRef,
             from: SessionID?,
             backend: SessionBackend,
-            workingDirectory: String?
+            workingDirectory: String?,
+            projectID: ProjectID?
         ) async throws -> SessionID {
             try spawnResult.get()
         }
@@ -110,7 +111,7 @@ actor RoleSessionStore: SessionStoreProtocol {
         let response = await ControlSpawnContext.$role.withValue("推進者") {
             await handler.handle(ControlRequest(
                 requester: nil,
-                action: .spawn(ref: .builtin(.claudeCode), backend: .pty, workingDirectory: nil)
+                action: .spawn(ref: .builtin(.claudeCode), backend: .pty, workingDirectory: nil, projectID: nil)
             ))
         }
 

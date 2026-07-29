@@ -199,7 +199,7 @@ private actor HandlerStub {
         #expect(status == 200)
 
         let last = await stub.lastRequest
-        guard case .spawn(let ref, _, _)? = last?.action else {
+        guard case .spawn(let ref, _, _, _)? = last?.action else {
             Issue.record("expected spawn")
             return
         }
@@ -224,7 +224,7 @@ private actor HandlerStub {
         #expect(status == 200)
 
         let last = await stub.lastRequest
-        guard case .spawn(let ref, _, _)? = last?.action else {
+        guard case .spawn(let ref, _, _, _)? = last?.action else {
             Issue.record("expected spawn")
             return
         }

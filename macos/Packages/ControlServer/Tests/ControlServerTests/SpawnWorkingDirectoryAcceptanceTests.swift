@@ -40,7 +40,7 @@ private actor WDHandlerStub {
         #expect(status == 200)
 
         let last = await stub.lastRequest
-        guard case .spawn(let ref, _, let workingDirectory)? = last?.action else {
+        guard case .spawn(let ref, _, let workingDirectory, _)? = last?.action else {
             Issue.record("expected spawn, got \(String(describing: last?.action))")
             return
         }
@@ -62,7 +62,7 @@ private actor WDHandlerStub {
         #expect(status == 200)
 
         let last = await stub.lastRequest
-        guard case .spawn(_, _, let workingDirectory)? = last?.action else {
+        guard case .spawn(_, _, let workingDirectory, _)? = last?.action else {
             Issue.record("expected spawn, got \(String(describing: last?.action))")
             return
         }
@@ -83,7 +83,7 @@ private actor WDHandlerStub {
         #expect(status == 200)
 
         let last = await stub.lastRequest
-        guard case .spawn(_, let backend, let workingDirectory)? = last?.action else {
+        guard case .spawn(_, let backend, let workingDirectory, _)? = last?.action else {
             Issue.record("expected spawn, got \(String(describing: last?.action))")
             return
         }

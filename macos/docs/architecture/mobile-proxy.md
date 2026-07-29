@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-19
+last-verified: 2026-07-30
 ---
 
 # モバイル連携（MobileProxy・ControlServer）
@@ -145,7 +145,7 @@ provision 後、`mobileRequesterSessionID` が Dashboard の特権 requester と
 | 操作 | メソッド | パス | リクエスト | 成功時 | ハンドラ |
 |---|---|---|---|---|---|
 | **list** | `GET` | `/sessions` | — | `200` + `{ "sessions":[…] }`（既存包装を維持。各要素に `projectId`/`projectName` が付与。wave-2） | `handleListSessions` |
-| **spawn** | `POST` | `/sessions` | JSON: `{ "kind", "backend"?, "workingDirectory"?, "model"? }`。`backend` 省略時 `.pty`。モバイルは `"appServer"` を送る例あり（`ControlServer.swift:255`）。`model`（任意・wave-2）は spawn 後に既存 setSessionModel 経路でベストエフォート適用 | `201` + `{ "id" }` | `ControlActionHandler.handleSpawn` |
+| **spawn** | `POST` | `/sessions` | JSON: `{ "kind", "backend"?, "workingDirectory"?, "model"?, "projectId"? }`。`backend` 省略時 `.pty`。モバイルは `"appServer"` を送る例あり（`ControlServer.swift:255`）。`model`（任意・wave-2）は spawn 後に既存 setSessionModel 経路でベストエフォート適用。`projectId`（任意・ProjectID の UUID 文字列）は所属プロジェクトの指定 | `201` + `{ "id" }` / 形式不正の `projectId` は `400` / 未知の `projectId` は `422` | `ControlActionHandler.handleSpawn` |
 | **send** | `POST` | `/send` | JSON: `{ "to", "text", "submit"?, "inReplyTo"?, "images"? }`。`to` は SessionID UUID または名前。`images` は下記参照 | `200` 他（404/409/413/425 等） | `handleSendText` |
 | **approve** | `POST` | `/approvals/{id}` | JSON: `{ "decision" }`（`ApprovalDecision` rawValue） | `200` / 未知 id は `404` | `handleRespondApproval` |
 | **messages** | `GET` | `/sessions/{id}/messages?since=<cursor>&wait=<秒>` | `since`/`wait` とも省略可（下記「差分取得」参照） | 構造化: `200` + `{ messages, cursor, snapshot? }`。非構造化/不在: `404` | `handleMessagesDelta` |
@@ -181,6 +181,14 @@ provision 後、`mobileRequesterSessionID` が Dashboard の特権 requester と
   `Encodable` 合成のため、両方 `nil` ならキー省略。null 値では出力しない）。供給元は
   `App/ControlActionDashboard+DashboardViewModel.swift` の `controlSessionSummaries`（`node.projectID` から
   `projects.first{...}` で解決）。
+- **`POST /sessions` の projectId（所属指定・上り方向）**: `ControlServer.parseSpawn` が `SpawnBody.projectId` を
+  `UUID(uuidString:)` で検証し、成功時のみ `ProjectID` にして `Action.spawn(ref:backend:workingDirectory:projectID:)`
+  へ載せる（parse 失敗は `400 invalid projectId`。`pendingSpawnRole`/`pendingSpawnModel` を設定する**前**に
+  return するので、拒否時に stale な pending 状態を残さない）。存在検査は
+  `DashboardViewModel.spawnNewSessionFromControlAPI` が spawn 開始前に行い、無ければ
+  `AgentSpawnError.unknownProject` を throw、`ControlActionHandler.mapSpawnError` が `422 unknown projectId` に写す。
+  CWD は `workingDirectoryOverride ?? project.directoryPath` の順で解決される＝`workingDirectory` 明示時はそちらが
+  優先され、`projectId` は所属の決定にのみ効く。決定理由は [ADR 0141](../adr/0141-spawn-project-id-wire.md)。
 - **`GET /agents/{kind}/models`**: 新規 `ControlServer/AgentModelCatalog.swift` が静的カタログを持つ
   （claudeCode 4種・cursor 静的 fallback・codex は意図的に空＝モデル選択非対応）。pre-spawn（生存 session 無し）
   のため provider 連携ではなく静的定義。

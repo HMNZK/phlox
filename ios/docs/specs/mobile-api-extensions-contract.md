@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-15
+last-verified: 2026-07-30
 ---
 
 # Phlox ⇔ Phlox-mobile API 拡張契約（凍結版 v1）
@@ -164,6 +164,34 @@ project 付与・アカウント単位の CLI 使用量取得を扱う。正本�
   setSessionModel 経路で適用する。適用失敗は spawn 自体を失敗させずログのみ（ベストエフォート）。
   カタログに存在しない不正 model 文字列は **400 にせず黙って無視**（既定モデルのまま spawn 成功）。
 - レスポンスは不変: `201 { "id": "<uuid>" }`。
+
+#### 7.1.1 POST /sessions（spawn）— projectId 追加（所属指定・上り方向。2026-07-30）
+
+§7.2 が下り方向で返す `projectId` に対応する**上り方向**。省略可の **`projectId`**（ProjectID の
+UUID 文字列）を追加する:
+```json
+{ "kind": "codex", "backend": "appServer", "model": "gpt-5.6",
+  "projectId": "6C2F0E2A-1111-4222-8333-444455556666" }
+```
+
+| 条件 | 応答 |
+|---|---|
+| `projectId` 省略 | `201`。従来どおり未所属（macOS サイドバーの「その他」）で作成＝完全な後方互換 |
+| UUID かつ該当プロジェクトあり | `201`。そのプロジェクト配下に作成し、CWD をプロジェクトの `directoryPath` にする |
+| UUID として parse 不能（空文字含む） | `400 {"error":"invalid projectId"}`。spawn しない |
+| UUID だが該当プロジェクトなし | `422 {"error":"unknown projectId"}`。spawn しない |
+
+- **形式の誤り＝400（パース層）／存在しない＝422（ハンドラ層）** で切り分ける。422 を選ぶのは、
+  iOS が 422 のときだけ `PhloxError.spawnRejected(reason:)` としてサーバの `error` 文字列を画面に
+  出せるため（400 は汎用エラーに丸められて理由が埋もれる）。
+- `projectId` と `workingDirectory` を同時指定した場合は **`workingDirectory` が CWD を決める**。
+  `projectId` は所属の決定にのみ効く。
+- **iOS の送信条件**: セッション一覧のグループは `session.projectId ?? projectName` を id にする
+  フォールバックを持つため、id をそのまま送ってはならない。`ProjectGroup.projectID`（本物の
+  `session.projectId` のときだけ非 nil）を送る。「その他」グループとグループ皆無時は送らない。
+- **旧 macOS との組み合わせ**: 未知フィールドは無視されるため、`201` が返りつつセッションは
+  「その他」に作られる（サイレント劣化）。能力ネゴシエーションは行わない。
+- 決定理由: [macos/docs/adr/0141](../../../macos/docs/adr/0141-spawn-project-id-wire.md)。
 
 ### 7.2 GET /sessions（list）— project 追加
 

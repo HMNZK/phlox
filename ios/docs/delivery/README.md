@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-07-27
+last-verified: 2026-07-30
 ---
 
 # delivery/
@@ -26,3 +26,5 @@ last-verified: 2026-07-27
 - `delivery/0014-ios-single-toolcall-row-worklog.md` … 単独ツールコールを「ツール実行 ×1」の1行集約行に畳む変更の作業ログ
 - `delivery/0015-mobile-reliability-fixes-worklog.md` … モバイル信頼性修正5件（接続中表示・入力欄消失・サブエージェント固まり・質問カード排他・モデル選択の安定化）の作業ログ
 - `delivery/0016-session-view-ux-worklog.md` … セッション表示 UX（最下部から開く・本文の折り返しと表の横スクロール・端スワイプで戻る）の作業ログ
+- `delivery/0017-tool-call-collapse-threshold-worklog.md` … ツールコール件数と折りたたみ閾値の分離の作業ログ
+- `delivery/0018-ios-session-project-assign-worklog.md` … iOS で作ったセッションが macOS の「その他」に落ちる問題（spawn への projectId 伝搬）の作業ログ

@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-29
+last-verified: 2026-07-30
 ---
 
 # チャットモード UX コンポーネント構成（chat-ux-batch 後の現行）
@@ -145,11 +145,23 @@ ThinkingIndicatorCell の表示条件は `status == .running` ではなく **`Ch
 
 セルは `CommandGroupCell`（`ChatMessageCells+CommandGroup.swift`）。窓がブロック単位になり1グループが数千件を抱えうるため、**ヘッダと行データを型で分けてある**（ADR 0128）:
 
-- `CommandGroupHeader`（`title` / `timestamp` / `isRunning` / `shouldRender`）— 行データを保持しない。**閉状態はこれだけを使う**。
+- `CommandGroupHeader`（`title` / `subtitle` / `timestamp` / `isRunning` / `shouldRender`）— 行データを保持しない。**閉状態はこれだけを使う**。`title` は固定文字列ではなく `CommandGroupTitle.derive(items:isRunning:liveRecap:)`（`ChatRecap.swift` の純関数）が決める: 実行中は live recap（時間追従）、完了後は最後のコマンドの完了形ラベル、コマンドが 1 件も無ければ従来の `"ツール実行 ×N"`。件数は `subtitle`（実行中 `"実行中 ×N"` / 完了 `"×N"`）へ移した（ADR 0145）。
 - `CommandGroupRowWindow.slice(items:lastTranscriptID:isTurnRunning:limit:) -> CommandGroupRowsSlice` — `if isExpanded` の内側でだけ呼ぶ。展開時の行は末尾 `defaultLimit = 50` 件で、残りは `hiddenRowCount` として「残り N 件を表示」（`expandStep = 50`）で段階展開する。
 - `shouldRender = isRunning || items.count == 1 || 出力が空でない item が1件以上ある`。**唯一の行には空出力フィルタを適用しない**（単独・空出力のツール実行がカードごと消えるのを防ぐ）。
 
-凍結テスト: `AcceptanceToolCallGroupingTests` / `AcceptanceBlockWindowTests` / `AcceptanceCommandGroupRowWindowTests`。
+展開時の各行は「`$ コマンド`（等幅・primary）＋出力（等幅・secondary・空なら非表示）」の 2 段。出力は 20 行で省略し「さらに N 行を表示」で全文へ広げられ、コピーは省略中でも全文を返す（`CommandGroupOutputDisplay`）。開閉シェブロンは `DisclosureGroup` 既定の左端ではなく**ヘッダ右端**（時刻の右）に自前で置き、ラベルの `.contentShape(Rectangle())` でヘッダ全体をクリック領域にする。live recap の追従はタイトル `Text` を包む `TimelineView` で行い、クロージャは `CommandGroupCell.==` の比較対象に含めない（ADR 0116 の再評価抑制と両立させるため）。viewport 判定は実行中グループにだけ効く。
+
+凍結テスト: `AcceptanceToolCallGroupingTests` / `AcceptanceBlockWindowTests` / `AcceptanceCommandGroupRowWindowTests` / `AcceptanceCommandGroupRecapHeaderTests`。
+
+## カードの装飾とファイル変更のコードビュー（chat-toolcall-view run, 2026-07-30）
+
+共通の `DisclosureCard` は**アイコンもステータスグリフも持たない**（`systemImage` / `accent` / `status` 引数と `StatusGlyph` / `DisclosureRunningSpinner` は削除済み。ADR 0144）。実行中／完了はサブタイトルとテキスト色だけで表し、transcript に回転アニメーションは存在しない。ツールコール系カードの文字色は `DSColor.chatToolCallText`（半透明・無彩色）で、色の選択は純粋関数 `DisclosureCardPalette.title(isToolCall:)` / `.subtitle(isToolCall:)` に集約する。`AvatarMessageRow` はブランドアイコンを描かず本文を左端へ詰める（**チームビュー `TeamTimelineView` とアゴラの発言者行のアイコンは従来どおり**）。
+
+`FileChangeCell` の diff は行番号付きのコードビュー（ADR 0146）。分類は `DiffLineClassifier`（`ChatTranscriptFormatting.swift`）が行い、`@@ -a,b +c,d @@` から採番する（削除行＝旧側、追加行とコンテキスト行＝新側、hunk/ヘッダは空欄）。**hunk ヘッダが無い・壊れている・加算がオーバーフローする場合は以降の採番を諦めて空欄にする**（推測しない）。本文は `ChatCodeHighlighter` の共有トークナイザで keyword / string / number / comment / plain に分類し、未対応拡張子は全て plain。`---`/`+++` と `\ No newline at end of file` は本文から除き、**コピーは元の diff 全文**を返す。セクション見出しのパスは末尾 2 階層（`DiffPathDisplay.shorten`）で、完全パスは各見出しの `help` に出す。行番号・ハイライト・表示対象行は `ChatMessageRenderCache` にメモ化する。
+
+既知の制約: Claude セッションの Edit/Write 由来 diff は生成側（`ClaudeChatClient+Formatting.swift`）が `@@` としか出さないため、行番号は空欄のままになる。
+
+凍結テスト: `AcceptanceQuietChatChromeTests` / `ChatToolCallTokenTests`（DesignSystem）/ `AcceptanceFileChangeCodeViewTests`。
 
 ## transcript の切り詰め廃止（agent-grid-jank run, 2026-07-24・ADR 0118）
 

@@ -6,6 +6,7 @@ import PhloxCore
 /// サブエージェント詳細画面（task-10）。親セッションの subAgent メッセージをチャット形式で表示する。
 public struct SubAgentDetailView: View {
     @State private var viewModel: SubAgentDetailViewModel
+    @State private var expansionOverrides: [String: Bool] = [:]
 
     public init(viewModel: SubAgentDetailViewModel) {
         self._viewModel = State(initialValue: viewModel)
@@ -45,48 +46,71 @@ public struct SubAgentDetailView: View {
     @ViewBuilder
     private func chatRow(for message: ChatMessage) -> some View {
         let copyText = ChatMessageCopyText.copyText(for: message)
-        switch message {
-        case let .user(_, text):
-            let rendered = SubAgentDetailViewModel.renderedBody(text)
-            DSChatBubble(role: .user, message: renderedDisplayText(rendered), copyText: copyText)
-        case let .agent(_, text):
-            let rendered = SubAgentDetailViewModel.renderedBody(text)
-            DSChatBubble(
-                role: .agent,
-                message: renderedDisplayText(rendered),
-                agentKind: viewModel.session.agent,
-                copyText: copyText
-            )
-        case let .reasoning(_, text):
-            let rendered = SubAgentDetailViewModel.renderedBody(text)
-            chatRowWithCopy(copyText: copyText) {
-                DSReasoningText(text: renderedDisplayText(rendered))
+        switch ChatRowKind.forMessage(message) {
+        case .userBubble:
+            if case let .user(_, text) = message {
+                let rendered = SubAgentDetailViewModel.renderedBody(text)
+                DSChatBubble(role: .user, message: renderedDisplayText(rendered), copyText: copyText)
             }
-        case let .subAgent(_, text):
-            let rendered = SubAgentDetailViewModel.renderedBody(text)
-            chatRowWithCopy(copyText: copyText) {
-                DSSubAgentRow(text: renderedDisplayText(rendered))
+        case .agentBubble:
+            if case let .agent(_, text) = message {
+                let rendered = SubAgentDetailViewModel.renderedBody(text)
+                DSChatBubble(
+                    role: .agent,
+                    message: renderedDisplayText(rendered),
+                    agentKind: viewModel.session.agent,
+                    copyText: copyText
+                )
             }
-        case let .command(_, command, output):
-            let rendered = SubAgentDetailViewModel.renderedBody(output)
-            chatRowWithCopy(copyText: copyText) {
-                chatMonospaceCard(title: command.map { "$ \($0)" } ?? "$", body: renderedDisplayText(rendered))
+        case .reasoning:
+            if case let .reasoning(_, text) = message {
+                let rendered = SubAgentDetailViewModel.renderedBody(text)
+                chatRowWithCopy(copyText: copyText) {
+                    DSReasoningText(text: renderedDisplayText(rendered))
+                }
             }
-        case let .fileChange(_, changes):
-            let rendered = SubAgentDetailViewModel.renderedBody(
-                changes.map { "\($0.path)\n\($0.diff)" }.joined(separator: "\n\n")
-            )
-            chatRowWithCopy(copyText: copyText) {
-                chatMonospaceCard(title: "ファイル変更", body: renderedDisplayText(rendered))
+        case .subAgent:
+            if case let .subAgent(_, text) = message {
+                let rendered = SubAgentDetailViewModel.renderedBody(text)
+                chatRowWithCopy(copyText: copyText) {
+                    DSSubAgentRow(text: renderedDisplayText(rendered))
+                }
             }
-        case let .error(_, message):
-            let rendered = SubAgentDetailViewModel.renderedBody(message)
-            chatRowWithCopy(copyText: copyText) {
-                DSResultBanner(message: renderedDisplayText(rendered), isError: true)
+        case .commandCard:
+            if case let .command(id, command, output) = message {
+                let rendered = SubAgentDetailViewModel.renderedBody(output)
+                chatRowWithCopy(copyText: copyText) {
+                    SessionDetailCommandCard(
+                        command: command,
+                        output: renderedDisplayText(rendered),
+                        isExpanded: isMessageExpanded(id),
+                        onToggle: { toggleMessageExpansion(id) }
+                    )
+                }
+            }
+        case .fileChangeCard:
+            if case let .fileChange(id, changes) = message {
+                let data = SessionDetailDiffCodeViewData(changes: changes)
+                chatRowWithCopy(copyText: copyText) {
+                    SessionDetailFileChangeCard(
+                        data: data,
+                        isExpanded: isMessageExpanded(id),
+                        onToggle: { toggleMessageExpansion(id) }
+                    )
+                }
+            }
+        case .error:
+            if case let .error(_, message) = message {
+                let rendered = SubAgentDetailViewModel.renderedBody(message)
+                chatRowWithCopy(copyText: copyText) {
+                    DSResultBanner(message: renderedDisplayText(rendered), isError: true)
+                }
             }
         case .userQuestion:
-            // AskUserQuestion はサブエージェント内では使えない（CLI 制約）ため表示なし。
-            EmptyView()
+            if case .userQuestion = message {
+                // AskUserQuestion はサブエージェント内では使えない（CLI 制約）ため表示なし。
+                EmptyView()
+            }
         }
     }
 
@@ -115,29 +139,13 @@ public struct SubAgentDetailView: View {
         """
     }
 
-    private func chatMonospaceCard(title: String, body: String) -> some View {
-        VStack(alignment: .leading, spacing: DSSpacing.s) {
-            Text(title)
-                .font(DSFont.footnote.weight(.bold))
-                .foregroundStyle(DSColor.campTextQuaternary)
-            if !body.isEmpty {
-                Text(body)
-                    .font(DSFont.campMonoCaption)
-                    .tracking(-0.5)
-                    .foregroundStyle(DSColor.textSecondary)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DSSpacing.m)
-        .background(DSColor.campOutputBackground, in: outputCardShape)
-        .clipShape(outputCardShape)
+    private func isMessageExpanded(_ messageID: String) -> Bool {
+        expansionOverrides[messageID] ?? false
     }
 
-    private var outputCardShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: DSRadius.card, style: .continuous)
+    private func toggleMessageExpansion(_ messageID: String) {
+        let current = expansionOverrides[messageID] ?? false
+        expansionOverrides[messageID] = !current
     }
 }
 

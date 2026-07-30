@@ -1,4 +1,5 @@
 import SwiftUI
+import ChatRenderKit
 
 /// Reasoning（思考過程）の控えめ表示。通常のエージェントバブルと視覚的に区別する。
 /// `onToggle` を渡すと折りたたみ可能（既定は折りたたみ）。未指定時は従来どおり常時全文表示。
@@ -13,36 +14,66 @@ public struct DSReasoningText: View {
         self.onToggle = onToggle
     }
 
+    /// Reasoning の見出し・本文・開閉判定は共有の表示データへ委譲する。
+    public static func presentation(for text: String) -> ChatReasoningPresentation {
+        ChatReasoningPresentation(text: text)
+    }
+
+    /// 呼び出し元がトグルを渡し、かつ本文が見出しより長い場合だけ開閉表示にする。
+    public static func showsDisclosure(text: String, hasToggle: Bool) -> Bool {
+        hasToggle && presentation(for: text).usesDisclosure
+    }
+
     public var body: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            if let onToggle {
+        let presentation = Self.presentation(for: text)
+
+        if let onToggle, Self.showsDisclosure(text: text, hasToggle: true) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Button(action: onToggle) {
-                    header(showChevron: true, trailingPreview: isExpanded ? nil : Self.collapsedPreview(text))
+                    header(
+                        title: presentation.headline,
+                        showChevron: true,
+                        trailingPreview: isExpanded ? nil : Self.collapsedPreview(presentation.trimmedText)
+                    )
                 }
                 .buttonStyle(.plain)
                 if isExpanded {
-                    bodyText
+                    bodyText(presentation.trimmedText)
                 }
-            } else {
-                header(showChevron: false, trailingPreview: nil)
-                bodyText
+            }
+        } else if onToggle != nil {
+            Text(presentation.trimmedText)
+                .font(DSFont.caption)
+                .foregroundStyle(DSColor.chatToolCallText)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                legacyHeader
+                bodyText(text)
             }
         }
     }
 
-    private var bodyText: some View {
+    private func bodyText(_ text: String) -> some View {
         Text(text)
             .font(DSFont.caption)
             .foregroundStyle(DSColor.textSecondary)
             .textSelection(.enabled)
     }
 
-    private func header(showChevron: Bool, trailingPreview: String?) -> some View {
+    private var legacyHeader: some View {
+        Label("Thinking", systemImage: "brain.head.profile")
+            .font(DSFont.captionStrong)
+            .foregroundStyle(DSColor.textSecondary)
+            .labelStyle(.titleAndIcon)
+    }
+
+    private func header(title: String, showChevron: Bool, trailingPreview: String?) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: DSSpacing.xs) {
-            Label("Thinking", systemImage: "brain.head.profile")
+            Text(title)
                 .font(DSFont.captionStrong)
                 .foregroundStyle(DSColor.textSecondary)
-                .labelStyle(.titleAndIcon)
             if let trailingPreview, !trailingPreview.isEmpty {
                 Text(trailingPreview)
                     .font(DSFont.caption)

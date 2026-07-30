@@ -4,6 +4,38 @@ import DesignSystemIOS
 import PhloxCore
 import TerminalScreenIOS
 
+enum ChatRowKind: Equatable {
+    case userBubble
+    case agentBubble
+    case reasoning
+    case subAgent
+    case commandCard
+    case fileChangeCard
+    case error
+    case userQuestion
+
+    static func forMessage(_ message: ChatMessage) -> Self {
+        switch message {
+        case .user:
+            .userBubble
+        case .agent:
+            .agentBubble
+        case .reasoning:
+            .reasoning
+        case .subAgent:
+            .subAgent
+        case .command:
+            .commandCard
+        case .fileChange:
+            .fileChangeCard
+        case .error:
+            .error
+        case .userQuestion:
+            .userQuestion
+        }
+    }
+}
+
 /// セッション詳細画面（カンプ③）。承認リクエスト + ターミナル出力 + 入力バー。
 public struct SessionDetailView: View {
     /// task-6 契約（凍結・PM 著）: 入力バー付近にモデル選択チップ（現在モデルの表示名を表示し、
@@ -356,76 +388,92 @@ public struct SessionDetailView: View {
     @ViewBuilder
     private func chatRow(for message: ChatMessage) -> some View {
         let copyText = ChatMessageCopyText.copyText(for: message)
-        switch message {
-        case let .user(id, text):
-            DSChatBubble(
-                role: .user,
-                message: text,
-                attachmentImageCount: viewModel.attachmentImageCount(forMessageID: id),
-                copyText: copyText
-            )
-        case let .agent(_, text):
-            DSChatBubble(
-                role: .agent,
-                message: text,
-                agentKind: viewModel.session.agent,
-                copyText: copyText
-            )
-        case let .reasoning(id, text):
-            chatRowWithCopy(copyText: copyText) {
-                DSReasoningText(
-                    text: text,
-                    isExpanded: viewModel.isMessageExpanded(id),
-                    onToggle: { viewModel.toggleMessageExpansion(id) }
+        switch ChatRowKind.forMessage(message) {
+        case .userBubble:
+            if case let .user(id, text) = message {
+                DSChatBubble(
+                    role: .user,
+                    message: text,
+                    attachmentImageCount: viewModel.attachmentImageCount(forMessageID: id),
+                    copyText: copyText
                 )
             }
-        case let .subAgent(id, text):
-            let linkedSubAgentID = viewModel.subAgentID(forMessageID: id)
-            chatRowWithCopy(copyText: copyText) {
-                DSSubAgentRow(
-                    text: text,
-                    isTappable: linkedSubAgentID != nil,
-                    onTap: linkedSubAgentID.map { subAgentID in
-                        { selectedSubAgentID = subAgentID }
-                    }
+        case .agentBubble:
+            if case let .agent(_, text) = message {
+                DSChatBubble(
+                    role: .agent,
+                    message: text,
+                    agentKind: viewModel.session.agent,
+                    copyText: copyText
                 )
             }
-        case let .command(id, command, output):
-            chatRowWithCopy(copyText: copyText) {
-                SessionDetailCommandCard(
-                    command: command,
-                    output: output,
-                    isExpanded: viewModel.isMessageExpanded(id),
-                    onToggle: { viewModel.toggleMessageExpansion(id) }
-                )
+        case .reasoning:
+            if case let .reasoning(id, text) = message {
+                chatRowWithCopy(copyText: copyText) {
+                    DSReasoningText(
+                        text: text,
+                        isExpanded: viewModel.isMessageExpanded(id),
+                        onToggle: { viewModel.toggleMessageExpansion(id) }
+                    )
+                }
             }
-        case let .fileChange(id, changes):
-            let data = SessionDetailDiffCodeViewData(changes: changes)
-            chatRowWithCopy(
-                hasCopyableText: !data.copyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                copyTextProvider: { data.copyText }
-            ) {
-                SessionDetailFileChangeCard(
-                    data: data,
-                    isExpanded: viewModel.isMessageExpanded(id),
-                    onToggle: { viewModel.toggleMessageExpansion(id) }
-                )
+        case .subAgent:
+            if case let .subAgent(id, text) = message {
+                let linkedSubAgentID = viewModel.subAgentID(forMessageID: id)
+                chatRowWithCopy(copyText: copyText) {
+                    DSSubAgentRow(
+                        text: text,
+                        isTappable: linkedSubAgentID != nil,
+                        onTap: linkedSubAgentID.map { subAgentID in
+                            { selectedSubAgentID = subAgentID }
+                        }
+                    )
+                }
             }
-        case let .error(_, message):
-            chatRowWithCopy(copyText: copyText) {
-                DSResultBanner(message: message, isError: true)
+        case .commandCard:
+            if case let .command(id, command, output) = message {
+                chatRowWithCopy(copyText: copyText) {
+                    SessionDetailCommandCard(
+                        command: command,
+                        output: output,
+                        isExpanded: viewModel.isMessageExpanded(id),
+                        onToggle: { viewModel.toggleMessageExpansion(id) }
+                    )
+                }
             }
-        case let .userQuestion(_, requestId, questions, answers, state):
-            chatRowWithCopy(copyText: copyText) {
-                UserQuestionCard(
-                    requestId: requestId,
-                    questions: questions,
-                    answers: answers,
-                    state: state,
-                    onSubmit: { requestId, answers in
-                        await viewModel.answerQuestion(requestId: requestId, answers: answers)
-                    }
-                )
+        case .fileChangeCard:
+            if case let .fileChange(id, changes) = message {
+                let data = SessionDetailDiffCodeViewData(changes: changes)
+                chatRowWithCopy(
+                    hasCopyableText: !data.copyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                    copyTextProvider: { data.copyText }
+                ) {
+                    SessionDetailFileChangeCard(
+                        data: data,
+                        isExpanded: viewModel.isMessageExpanded(id),
+                        onToggle: { viewModel.toggleMessageExpansion(id) }
+                    )
+                }
+            }
+        case .error:
+            if case let .error(_, message) = message {
+                chatRowWithCopy(copyText: copyText) {
+                    DSResultBanner(message: message, isError: true)
+                }
+            }
+        case .userQuestion:
+            if case let .userQuestion(_, requestId, questions, answers, state) = message {
+                chatRowWithCopy(copyText: copyText) {
+                    UserQuestionCard(
+                        requestId: requestId,
+                        questions: questions,
+                        answers: answers,
+                        state: state,
+                        onSubmit: { requestId, answers in
+                            await viewModel.answerQuestion(requestId: requestId, answers: answers)
+                        }
+                    )
+                }
             }
         }
     }

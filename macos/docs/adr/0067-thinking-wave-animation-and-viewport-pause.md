@@ -11,6 +11,8 @@ last-verified: 2026-07-10
 
 > **拡張**（2026-07-24・agent-grid-jank run / task-1 → ADR 0117）: シマーの**駆動方式のみ**を SwiftUI `TimelineView`（30fps）から Core Animation 駆動の `NSViewRepresentable`（`ThinkingShimmerView`）へ移した。実測で、`TimelineView` が SwiftUI の依存グラフ（AttributeGraph）とアクセシビリティ木を毎フレーム再構築させ、複数セッション・グリッドでメインスレッドを占有していた（`sample` でメインの約半分が `AccessibilityViewGraph.postUpdate`）。CA 化でシマーの見た目（明度帯・周期 `shimmerPeriod`）と純関数契約（`shimmerPhase`/`shimmerBrightness`/`shimmerBandCenter`・`AcceptanceThinkingShimmerTests`）・reduceMotion 静止経路・viewport pause シグナル（`isTimelineVisible`）はすべて不変のまま、シマー駆動のメインスレッド負荷を隔離実測で ~24%→~0%（9タイル）にした。本 ADR の「シマーは `LinearGradient` の mask で TimelineView 駆動」の記述は駆動方式に限り ADR 0117 で置換される（純関数・viewport pause の方針は不変）。詳細・落とし穴（CAGradientLayer.locations は 0..1 内・帯幅は host 幅換算）は ADR 0117。
 
+> **後継**（2026-07-30・thinking-orbs run → ADR 0142）: Thinking インジケータの表示自体を**点描 orb**（thinking-orbs の Swift 移植）へ置き換えたため、本 ADR が定義した「Thinking... テキストのシマー」は**Thinking 表示としては廃止**された。凍結オラクル `AcceptanceThinkingShimmerTests`（DashboardFeature）と`ThinkingShimmerWhiteboxTests` も削除し、回帰保護は `ThinkingOrbEngineTests` / `ThinkingOrbHostViewTests`（DesignSystem）が引き継ぐ。ただし**シマー純関数（`ThinkingAnimationModel.shimmerPhase`/`shimmerBrightness`/`shimmerBandCenter`）は残存**する——圧縮中インジケータ（`CompactingIndicatorCell`）が引き続き使うため。viewport pause のシグナル（`isTimelineVisible`）と reduceMotion 静止経路の方針は orb でも不変。詳細は ADR 0142。
+
 ## 状況
 
 transcript の Thinking インジケータは3点の二値点滅（`TimelineView(.periodic(by: 0.28))` + opacity 切替）で、「安易な点滅ではないリッチな表現にしたい」というユーザー要望があった（composer-agent-ux run / task-2）。一方、この領域には ADR 0010 の事故実績（view body 評価中の @Observable state 変更 → 無限再無効化 → CPU 100% 固着）があり、リッチ化は CPU ハザードと隣り合わせである。

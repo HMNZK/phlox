@@ -9,6 +9,8 @@ last-verified: 2026-07-24
 
 採択・実装済み（agent-grid-jank run / task-1）。ADR 0067 が定義した Thinking シマーの**駆動方式のみ**を、SwiftUI `TimelineView`（30fps）から Core Animation 駆動の `NSViewRepresentable`（`ThinkingShimmerView`）へ置換する。シマーの純関数仕様（`ThinkingAnimationModel.shimmerPhase`/`shimmerBrightness`/`shimmerBandCenter`）と reduceMotion 静止経路は不変。ADR 0116（`.appServer` グリッドの live-resize カクつき＝CoreAnimation Commit 停滞）とはスコープが別問題——0116 はリサイズ時の折返し計算、本 ADR は**定常状態**でシマーがメインスレッドを占有する経路を扱う。手本は ADR に未起票だが実在する `RunningBlinkDot`（DesignSystem、SwiftUI repeat-forever 回避のため CA 化済み）。
 
+> **後継**（2026-07-30・thinking-orbs run → ADR 0142）: Thinking 表示は**点描 orb**（`ThinkingOrbView`・DesignSystem）へ置き換わり、本 ADR の `ThinkingShimmerView` とそのテスト（`AcceptanceThinkingShimmerViewTests` / `ThinkingShimmerViewWhiteboxTests`、および DashboardFeature の`AcceptanceThinkingShimmerTests`）は削除された。回帰保護は `ThinkingOrbEngineTests` /`ThinkingOrbHostViewTests` が引き継ぐ。決定 5 のアクセシビリティラベルは固定文字列 `"Thinking..."` ではなく**活動状態に応じた `state.orbLabel`**（"Searching..." 等）になった。**本 ADR の核心＝「アニメーションは SwiftUI の外（display link / Core Animation）で回し、表示木を毎フレーム再評価しない」「非表示中は止める」「reduceMotion は静止フレーム」は orb でも不変**で、ADR 0142 がこれを引き継ぐ。なおシマー純関数自体は圧縮中インジケータが使い続けるため残存する。
+
 ## コンテキスト
 
 ### 問題（実測で確定）

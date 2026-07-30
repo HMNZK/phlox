@@ -46,9 +46,28 @@ last-verified: 2026-07-30
 視覚確認: 6 状態 × 2 サイズをオフスクリーン描画して目視（orbits の粒子・globe の走査・rubik の帯回転・
 morph の円→三角ブレンド・ribbon の帯・wave の波が原実装どおり出ることを確認）。
 
+## 追補: 状態語のシマー復帰（同日・ADR 0143）
+
+デバッグ版での目視で「シマーが無くなった」ため、orb は残したまま状態語のラベルにシマーを戻した。
+
+- **追加（共有）** `macos/Packages/DesignSystem/Sources/DesignSystem/Shimmer/`
+  - `ShimmerBandModel.swift`（帯の純関数。ADR 0067 の凍結値を移設。目視を受けて周期 1.6s → 2.0s、
+    下限明度 0.45 → 0.55 へ変更。基準色も secondary → 本文色に変え、ライトモードでの可読性を確保）
+  - `ShimmerTextView.swift`（任意ラベル対応。macOS は Core Animation 駆動、iOS は TimelineView + LinearGradient）
+- **移設・削除**: `ThinkingAnimationModel.shimmer*`（macOS）を削除し、圧縮中インジケータは
+  `ShimmerBandModel` を使う。`DSFont.bodyPointSize` / `ChatScaledFont.bodyPointSize(scale:)` を追加。
+- **表示面 3 つ**（チャットの Thinking セル・アゴラ行・iOS セッション詳細）を `ShimmerTextView` へ差し替え。
+- 追加検証（すべて実走・pass）: DesignSystem 110 tests / 22 suites（シマー 21 件を新規追加）、
+  SessionFeature 723、DashboardFeature 1484、iOS PhloxKit 643、macOS アプリ Debug ビルドと
+  iOS シミュレータ向け `Features` ビルドは BUILD SUCCEEDED。
+- 視覚確認: シマーの帯が乗ったラベルをオフスクリーン描画して目視（帯が中央で明るく端が暗い＝平坦な塗りでないこと）。
+
 ## 積み残し
 
 - 実機・実セッションでの動作確認（起動しての目視）は未実施。稼働中のリリース版を落とさない方針のため、
   デバッグ版の起動確認はユーザーの判断に委ねる。
 - 20px プリセットは原実装の調整値をそのまま使用。実チャットでの見え方に応じて `OrbPresets` の
   1 か所で調整できる。
+- iOS の SwiftUI 経路（TimelineView + LinearGradient）はユニットテストで通っていない
+  （パッケージのテストは macOS ターゲットで走るため AppKit 経路のみ）。iOS 向けビルドで
+  コンパイルのみ確認済み。

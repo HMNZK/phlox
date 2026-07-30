@@ -129,9 +129,15 @@ struct ThinkingIndicatorCell: View {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 HStack(spacing: DSSpacing.xs) {
                     ThinkingOrbView(state: state, size: .inline, isVisible: isTimelineVisible)
-                    Text(state.orbLabel)
-                        .font(ChatScaledFont.body(scale: scale).italic())
-                        .foregroundStyle(DSColor.chatTextSecondary)
+                    ShimmerTextView(
+                        text: state.orbLabel,
+                        font: ChatScaledFont.body(scale: scale),
+                        pointSize: ChatScaledFont.bodyPointSize(scale: scale),
+                        // 帯の明度で不透明度を変調するため、基準色は本文色。下限（0.55）で
+                        // ちょうど secondary 相当の濃さになり、帯の頂点で本文色まで濃くなる。
+                        color: DSColor.chatTextPrimary,
+                        isVisible: isTimelineVisible
+                    )
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(state.orbLabel)

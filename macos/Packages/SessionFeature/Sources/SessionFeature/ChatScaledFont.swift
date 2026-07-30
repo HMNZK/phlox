@@ -7,7 +7,12 @@ import SwiftUI
 enum ChatScaledFont {
     /// DSFont.body 相当（Font.body=13pt）。
     static func body(scale: CGFloat) -> Font {
-        .system(size: 13 * scale)
+        .system(size: bodyPointSize(scale: scale))
+    }
+
+    /// `body(scale:)` の実寸。Core Animation 経路（CATextLayer）へ渡すために公開する。
+    static func bodyPointSize(scale: CGFloat) -> CGFloat {
+        13 * scale
     }
 
     /// DSFont.caption 相当（Font.caption=10pt）。

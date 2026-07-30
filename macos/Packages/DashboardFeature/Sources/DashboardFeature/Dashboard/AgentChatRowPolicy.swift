@@ -96,9 +96,12 @@ struct AgoraThinkingIndicatorRow: View {
             }
             HStack(spacing: DSSpacing.s) {
                 ThinkingOrbView(state: state, size: .inline)
-                Text(state.orbLabel)
-                    .font(.system(size: ChatTypography.bodyFontSize(scale: scale)).italic())
-                    .foregroundStyle(DSColor.chatTextSecondary)
+                ShimmerTextView(
+                    text: state.orbLabel,
+                    font: .system(size: ChatTypography.bodyFontSize(scale: scale)),
+                    pointSize: ChatTypography.bodyFontSize(scale: scale),
+                    color: DSColor.chatTextPrimary
+                )
             }
             .padding(.horizontal, DSSpacing.m)
             .padding(.vertical, DSSpacing.s)

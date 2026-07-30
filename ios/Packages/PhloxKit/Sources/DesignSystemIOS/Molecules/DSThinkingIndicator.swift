@@ -17,9 +17,13 @@ public struct DSThinkingIndicator: View {
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             HStack(spacing: DSSpacing.xs) {
                 ThinkingOrbView(state: state, size: .inline)
-                Text(state.orbLabel)
-                    .font(DSFont.body.italic())
-                    .foregroundStyle(DSColor.textSecondary)
+                ShimmerTextView(
+                    text: state.orbLabel,
+                    font: DSFont.body,
+                    pointSize: DSFont.bodyPointSize,
+                    // 帯の明度で不透明度を変調するため、基準色は本文色（下限で secondary 相当）。
+                    color: DSColor.textPrimary
+                )
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(state.orbLabel)

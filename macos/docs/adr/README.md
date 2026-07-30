@@ -12,6 +12,7 @@ last-verified: 2026-07-30
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0143 | [活動状態のラベルにシマーを戻し、帯の純関数を共有モデルへ1本化する](0143-activity-label-keeps-shimmer.md) | accepted |
 | 0142 | [Thinking 表示を点描 orb に置き換え、活動状態を transcript から導出する](0142-thinking-orb-replaces-shimmer.md) | accepted |
 | 0141 | [spawn の projectId をワイヤに載せ、未知のプロジェクトは 422 で拒否する](0141-spawn-project-id-wire.md) | accepted |
 | 0140 | [Claude モデルの表示名を CLI に問い合わせて解決する（バージョン名をコードに持たない）](0140-claude-model-display-names-from-cli.md) | accepted |

@@ -73,11 +73,11 @@ struct CompactingIndicatorCell: View {
     }
 
     private func shimmeringCompactingText(scale: CGFloat, date: Date) -> some View {
-        let phase = ThinkingAnimationModel.shimmerPhase(date: date)
-        let center = ThinkingAnimationModel.shimmerBandCenter(phase: phase)
+        let phase = ShimmerBandModel.phase(date: date)
+        let center = ShimmerBandModel.bandCenter(phase: phase)
         let stops = (0...20).map { index in
             let position = Double(index) / 20
-            let brightness = ThinkingAnimationModel.shimmerBrightness(
+            let brightness = ShimmerBandModel.brightness(
                 position: position,
                 phase: center
             )

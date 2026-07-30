@@ -29,6 +29,14 @@ public enum DSFont {
     public static let monoCaption = Font.system(.caption, design: .monospaced)
     /// バッジ等の極小アイコン用。生値 `.system(size: 9)` の直書きを排除する。
     public static let iconTiny = Font.system(size: 9, weight: .bold)
+
+    /// `body` の実寸。`Font` から実寸を取り出せないため、CATextLayer 等の
+    /// Core Animation 経路（`ShimmerTextView`）に渡す値として明示する。
+    #if os(macOS)
+    public static let bodyPointSize: CGFloat = 13
+    #else
+    public static let bodyPointSize: CGFloat = 17
+    #endif
 }
 
 /// レイアウト寸法のトークン。8pt グリッドに乗らない固有寸法（進捗バー高）を

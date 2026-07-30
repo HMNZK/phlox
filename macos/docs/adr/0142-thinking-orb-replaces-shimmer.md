@@ -68,6 +68,9 @@ last-verified: 2026-07-30
   アゴラ行の点滅ドット。ADR 0117 の判断（＝アニメーションを SwiftUI の外で回す）自体は本 ADR が引き継ぐ。
   なお macOS の圧縮中インジケータは同じシマー純関数（`ThinkingAnimationModel.shimmer*`）を使い続けるため、
   そちらは残している。
+  > **訂正**（2026-07-30・[ADR 0143](0143-activity-label-keeps-shimmer.md)）: ラベルを静的テキストにしたのは誤りだった。
+  > シマーは**状態語のラベル側に戻した**（orb はそのまま）。共有の `ShimmerTextView` / `ShimmerBandModel`
+  > （`DesignSystem`）が後継で、`ThinkingAnimationModel.shimmer*` は共有モデルへ移して削除済み。
 - 移植元は MIT。`THIRD_PARTY_NOTICES.md` に「Ported source」節を起こして帰属を記載した。
 - 調整値（各モードの点数・半径・速度）は原実装の数値をそのまま持ち込んでいる。見た目を変えたいときは
   `OrbPresets` の 1 か所だけを触ればよい。

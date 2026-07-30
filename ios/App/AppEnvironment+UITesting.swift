@@ -167,7 +167,46 @@ private struct UITestPhloxAPI: PhloxAPI {
             cols: 80
         )
     }
-    func messages(sessionID: String) async throws -> [ChatMessage] { [] }
+    /// スクリーンショット・目視確認用の代表的な transcript。
+    /// ツール実行グループ（コマンド原文の見出し）・ファイル変更の diff コードビュー・Reasoning を 1 画面に含める。
+    func messages(sessionID: String) async throws -> [ChatMessage] {
+        [
+            .user(id: "m1", text: "チャットのツール表示をモバイルにも入れて"),
+            .reasoning(id: "m2", text: "既存の器を確認する"),
+            .reasoning(
+                id: "m3",
+                text: "# 方針\nデスクトップと同じ規則を共有パッケージから呼び、モバイルの余白は保つ。"
+            ),
+            .command(id: "m4", command: "Read ios/Packages/PhloxKit/Package.swift", output: "// swift-tools-version: 6.0"),
+            .command(
+                id: "m5",
+                command: "swift test --package-path ios/Packages/PhloxKit",
+                output: "Test run with 693 tests in 135 suites passed after 0.19 seconds."
+            ),
+            .fileChange(
+                id: "m6",
+                changes: [
+                    ChatFileChange(
+                        path: "ios/Packages/PhloxKit/Sources/Features/SessionDetail/SessionDetailFileChangeCard.swift",
+                        diff: """
+                        --- a/SessionDetailFileChangeCard.swift
+                        +++ b/SessionDetailFileChangeCard.swift
+                        @@ -12,6 +12,8 @@
+                         struct SessionDetailFileChangeCard: View {
+                             let data: SessionDetailDiffCodeViewData
+                        -    let isExpanded: Bool
+                        +    /// 既定は折りたたみ。行数に依存した自動展開はしない（ADR 0147）。
+                        +    @State private var userExpandedOverride: Bool?
+                        +    @ScaledMetric private var lineNumberWidth: CGFloat = 8
+                             var body: some View {
+                        """,
+                        kind: "edit"
+                    ),
+                ]
+            ),
+            .agent(id: "m7", text: "モバイルにも同じ表示を入れました。"),
+        ]
+    }
     func remove(sessionID: String) async throws {}
     func respond(approvalID: String, decision: ApprovalDecision) async throws {}
     func send(_ request: SendRequest) async throws -> SendResult { SendResult(accepted: true) }

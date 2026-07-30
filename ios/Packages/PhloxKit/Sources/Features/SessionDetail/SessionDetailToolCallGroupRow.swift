@@ -151,10 +151,9 @@ struct SessionDetailToolCallGroupRow: View {
                     }
                 }
             }
+            // グループ自体は器を持たない（見出しと展開状態だけ）。器は中身のコマンドカードが持つ。
+            // 外側にも背景を敷くと、ファイル変更カードと見た目が割れ、カードの入れ子で枠が二重になる（ADR 0147）。
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(DSSpacing.m)
-            .background(DSColor.campOutputBackground, in: outputCardShape)
-            .clipShape(outputCardShape)
             .accessibilityIdentifier("SessionDetailToolCallGroupRow")
         }
     }
@@ -166,9 +165,5 @@ struct SessionDetailToolCallGroupRow: View {
             isExpanded: isMessageExpanded(row.id),
             onToggle: { onToggleMessage(row.id) }
         )
-    }
-
-    private var outputCardShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: DSRadius.card, style: .continuous)
     }
 }

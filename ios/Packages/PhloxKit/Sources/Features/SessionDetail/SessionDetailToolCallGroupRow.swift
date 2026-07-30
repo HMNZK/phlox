@@ -1,4 +1,5 @@
 import SwiftUI
+import ChatRenderKit
 import DesignSystemIOS
 import PhloxCore
 
@@ -9,9 +10,18 @@ struct SessionDetailCommandGroupRow: Identifiable, Equatable {
     let isRunning: Bool
 }
 
+enum SessionDetailCommandGroupHeaderElement: Equatable {
+    case title
+    case chevron
+    case spacer
+    case subtitle
+}
+
 /// 折りたたみ時に必要な値だけを持つヘッダ表現。行データ（rows）を保持しない。
 struct SessionDetailCommandGroupHeader: Equatable {
     let title: String
+    let subtitle: String?
+    let elements: [SessionDetailCommandGroupHeaderElement]
     let isRunning: Bool
     let shouldRender: Bool
 
@@ -19,7 +29,15 @@ struct SessionDetailCommandGroupHeader: Equatable {
         let lastItemID = items.last?.id
         let groupIsRunning = isTurnRunning && lastItemID == lastTranscriptID
         isRunning = groupIsRunning
-        title = "ツール実行 ×\(items.count)"
+        let commands = items.map { item -> String? in
+            guard case .command(_, let command, _) = item else {
+                return nil
+            }
+            return command
+        }
+        title = ChatCommandGroupTitle.derive(commands: commands, itemCount: items.count)
+        subtitle = nil
+        elements = [.title, .chevron, .spacer]
 
         shouldRender = groupIsRunning || items.count == 1 || items.contains(where: Self.hasNonBlankOutput)
     }
@@ -66,7 +84,7 @@ enum SessionDetailCommandGroupRowWindow {
         // 唯一の行には適用しない。適用すると単独・空出力のツールコールが
         // 「ヘッダを押しても何も出ない＝どのコマンドが走ったのか分からない」状態になる。
         // 受け入れテスト: AcceptanceIOSToolCallGroupingTests
-        //   「単独コマンドは出力が空でも展開でコマンド文字列を読める」/「複数件で全て空出力かつ非実行中なら従来どおり描画しない」
+        //   「単独コマンドは出力が空でも展開でコマンド文字列を読める」/「複数件で全て空出力かつ完了済みなら従来どおり描画しない」
         let displayRows = items.count == 1 ? allRows : allRows.filter { row in
             row.isRunning || !row.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
@@ -99,25 +117,15 @@ struct SessionDetailToolCallGroupRow: View {
             VStack(alignment: .leading, spacing: DSSpacing.s) {
                 Button(action: onToggleGroup) {
                     HStack(alignment: .firstTextBaseline, spacing: DSSpacing.xs) {
-                        Image(systemName: "terminal")
-                            .font(DSFont.footnote.weight(.semibold))
-                            .foregroundStyle(
-                                header.isRunning ? DSColor.statusAwaitingApproval : DSColor.chatSuccess
-                            )
                         Text(header.title)
                             .font(DSFont.footnote.weight(.bold))
                             .foregroundStyle(DSColor.campTextQuaternary)
-                        if header.isRunning {
-                            Text("実行中")
-                                .font(DSFont.caption)
-                                .foregroundStyle(DSColor.textTertiary)
-                        }
-                        Spacer(minLength: 0)
                         Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                             .font(DSFont.footnote.weight(.semibold))
                             .foregroundStyle(DSColor.campTextQuaternary)
+                        Spacer(minLength: 0)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, minHeight: DSTouch.minSize, alignment: .leading)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -151,46 +159,13 @@ struct SessionDetailToolCallGroupRow: View {
         }
     }
 
-    @ViewBuilder
     private func commandRow(_ row: SessionDetailCommandGroupRow) -> some View {
-        let title = row.command.map { "$ \($0)" } ?? "$"
-        let preview = SessionDetailViewModel.collapsedMessagePreview(
-            for: .command(id: row.id, command: row.command, output: row.output)
+        SessionDetailCommandCard(
+            command: row.command,
+            output: row.output,
+            isExpanded: isMessageExpanded(row.id),
+            onToggle: { onToggleMessage(row.id) }
         )
-        let isRowExpanded = isMessageExpanded(row.id)
-        VStack(alignment: .leading, spacing: DSSpacing.s) {
-            Button {
-                onToggleMessage(row.id)
-            } label: {
-                HStack(alignment: .firstTextBaseline, spacing: DSSpacing.xs) {
-                    Text(title)
-                        .font(DSFont.footnote.weight(.bold))
-                        .foregroundStyle(DSColor.campTextQuaternary)
-                    if !isRowExpanded, !preview.isEmpty {
-                        Text(preview)
-                            .font(DSFont.caption)
-                            .foregroundStyle(DSColor.textTertiary)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: isRowExpanded ? "chevron.down" : "chevron.right")
-                        .font(DSFont.footnote.weight(.semibold))
-                        .foregroundStyle(DSColor.campTextQuaternary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            if isRowExpanded, !row.output.isEmpty {
-                Text(row.output)
-                    .font(DSFont.campMonoCaption)
-                    .tracking(-0.5)
-                    .foregroundStyle(DSColor.textSecondary)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
     }
 
     private var outputCardShape: RoundedRectangle {

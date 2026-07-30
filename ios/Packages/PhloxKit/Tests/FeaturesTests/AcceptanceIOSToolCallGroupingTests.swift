@@ -12,7 +12,7 @@
 //   - .command 以外の message は single であり、グループ境界になる
 //   - blocks の平坦化は入力と完全一致（欠落・重複・並べ替えなし）
 //   - グループ末尾への追記で既存グループの id は変わらない（identity 安定）
-//   - 見出しは "ツール実行 ×\(件数)"。単独コマンドは "ツール実行 ×1"
+//   - 見出しは最後のコマンド原文。コマンドが無いグループだけ "ツール実行 ×\(件数)" へフォールバックする
 //   - 単独コマンドは出力が空でもヘッダを描画し、展開すると `$ <コマンド>` が読める（可視性の後退を防ぐ）
 //     ＝「複数件のノイズ抑制のための空出力行フィルタ」を唯一の行には適用しない
 //   - 2件以上で全件空出力かつ非実行中なら描画しない（従来ルールの維持）
@@ -155,14 +155,14 @@ struct AcceptanceIOSToolCallGroupingTests {
     // 「行スライス（展開時のみ・上限つき）」へ分離した。下の3件は**アサーションの意味を変えず**、
     // 参照する型名だけを新 API へ移した（decision-log.md 参照）。
 
-    @Test func 単独コマンドの見出しは件数1つきの集約ヘッダになる() {
+    @Test func コマンドが無い単独グループの見出しは件数1つきのフォールバックになる() {
         let header = SessionDetailCommandGroupHeader(
-            items: [cmd("c1")],
+            items: [.command(id: "c1", command: nil, output: "output")],
             lastTranscriptID: "c1",
             isTurnRunning: false
         )
         let slice = SessionDetailCommandGroupRowWindow.slice(
-            items: [cmd("c1")],
+            items: [.command(id: "c1", command: nil, output: "output")],
             lastTranscriptID: "c1",
             isTurnRunning: false,
             limit: SessionDetailCommandGroupRowWindow.defaultLimit

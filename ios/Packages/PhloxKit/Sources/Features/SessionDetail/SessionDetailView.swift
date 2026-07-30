@@ -392,11 +392,11 @@ public struct SessionDetailView: View {
             }
         case let .command(id, command, output):
             chatRowWithCopy(copyText: copyText) {
-                collapsibleMonospaceCard(
-                    messageID: id,
-                    title: command.map { "$ \($0)" } ?? "$",
-                    preview: SessionDetailViewModel.collapsedMessagePreview(for: message),
-                    body: output
+                SessionDetailCommandCard(
+                    command: command,
+                    output: output,
+                    isExpanded: viewModel.isMessageExpanded(id),
+                    onToggle: { viewModel.toggleMessageExpansion(id) }
                 )
             }
         case let .fileChange(id, changes):

@@ -69,8 +69,11 @@ struct IOSToolCallGroupingWhiteboxTests {
         #expect(grouped.map(\.id) == ["c1", "c2", "c3"])
     }
 
-    @Test func 集約カードは件数見出しと末尾コマンドの実行中状態を持つ() {
-        let items = [cmd("c1"), cmd("c2", output: "")]
+    @Test func コマンドが無い集約カードは件数フォールバックと末尾コマンドの実行中状態を持つ() {
+        let items: [ChatMessage] = [
+            .command(id: "c1", command: nil, output: "output"),
+            .command(id: "c2", command: nil, output: ""),
+        ]
 
         let header = SessionDetailCommandGroupHeader(
             items: items,

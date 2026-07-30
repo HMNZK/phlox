@@ -49,11 +49,18 @@ struct AcceptanceIOSCommandGroupRowWindowTests {
 
     // === ヘッダ（折りたたみ時に使う値。行データを作らない） ===
 
-    @Test func 見出しは件数付きでitem件数に依らず正しい() {
-        let single = SessionDetailCommandGroupHeader(items: cmds(1), lastTranscriptID: nil, isTurnRunning: false)
+    @Test func コマンドが無いグループは件数付きフォールバック見出しになる() {
+        let single = SessionDetailCommandGroupHeader(
+            items: [.command(id: "c0", command: nil, output: "output")],
+            lastTranscriptID: nil,
+            isTurnRunning: false
+        )
         #expect(single.title == "ツール実行 ×1")
 
-        let huge = SessionDetailCommandGroupHeader(items: cmds(5000), lastTranscriptID: nil, isTurnRunning: false)
+        let hugeItems = (0..<5000).map {
+            ChatMessage.command(id: "c\($0)", command: nil, output: "output")
+        }
+        let huge = SessionDetailCommandGroupHeader(items: hugeItems, lastTranscriptID: nil, isTurnRunning: false)
         #expect(huge.title == "ツール実行 ×5000")
     }
 

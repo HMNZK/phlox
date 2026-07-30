@@ -400,12 +400,15 @@ public struct SessionDetailView: View {
                 )
             }
         case let .fileChange(id, changes):
-            chatRowWithCopy(copyText: copyText) {
-                collapsibleMonospaceCard(
-                    messageID: id,
-                    title: "ファイル変更",
-                    preview: SessionDetailViewModel.collapsedMessagePreview(for: message),
-                    body: changes.map { "\($0.path)\n\($0.diff)" }.joined(separator: "\n\n")
+            let data = SessionDetailDiffCodeViewData(changes: changes)
+            chatRowWithCopy(
+                hasCopyableText: !data.copyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                copyTextProvider: { data.copyText }
+            ) {
+                SessionDetailFileChangeCard(
+                    data: data,
+                    isExpanded: viewModel.isMessageExpanded(id),
+                    onToggle: { viewModel.toggleMessageExpansion(id) }
                 )
             }
         case let .error(_, message):

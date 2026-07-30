@@ -47,7 +47,8 @@ struct AcceptanceIOSFileChangeCodeViewTests {
 
     @Test("採番は共有実装と一致する（規則を二重に持たない）")
     func numberingMatchesSharedRule() {
-        let shared = ChatDiffClassifier.classify(sampleDiff).filter(\.isDisplayable)
+        // 表示対象は「isDisplayable かつ hunk 行でない」行（hunk は採番のデータとしてだけ残す・ADR 0147）。
+        let shared = ChatDiffClassifier.classify(sampleDiff).filter { $0.isDisplayable && $0.kind != .hunk }
         let data = SessionDetailDiffCodeViewData(changes: [change()])
         #expect(data.lines.map(\.displayLineNumber) == shared.map(\.displayLineNumber))
     }

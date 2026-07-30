@@ -1,5 +1,6 @@
 import SwiftUI
 import AgentDomain
+import ChatRenderKit
 import DesignSystem
 import StructuredChatKit
 
@@ -227,50 +228,26 @@ struct ReasoningSummaryView: View {
     }
 }
 
-struct ReasoningPresentation: Equatable {
-    let headline: String
-    let trimmedText: String
+typealias ReasoningPresentation = ChatReasoningPresentation
 
-    init(text: String) {
-        trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        headline = ThinkingRecap.headline(from: text) ?? "Reasoning"
-    }
-
-    var usesDisclosure: Bool { trimmedText != headline }
-}
-
+/// FilePatchChange から共有の値型へ変換する macOS 側の薄いアダプタ。
 enum FileChangePresentation {
-    struct Counts: Equatable {
-        let additions: Int
-        let deletions: Int
-    }
+    typealias Counts = ChatFileChangePresentation.Counts
 
     static func verb(for kind: String?) -> String {
-        let normalized = kind?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
-        if normalized.contains("edit") { return "編集済み" }
-        if normalized.contains("write") || normalized.contains("create") { return "作成済み" }
-        if normalized.contains("delete") { return "削除済み" }
-        return "変更済み"
+        ChatFileChangePresentation.verb(for: kind)
     }
 
     static func counts(for changes: [FilePatchChange]) -> Counts {
-        let lines = changes.flatMap { DiffLineClassifier.classify($0.diff) }
-        return Counts(
-            additions: lines.count { $0.kind == .addition },
-            deletions: lines.count { $0.kind == .deletion }
-        )
+        ChatFileChangePresentation.counts(for: changes.map {
+            ChatFilePatch(path: $0.path, diff: $0.diff, kind: $0.kind)
+        })
     }
 
     static func title(for changes: [FilePatchChange]) -> String {
-        let verb = verb(for: changes.first?.kind)
-        if changes.count == 1, let path = changes.first?.path {
-            return "\(verb) \(filename(from: path))"
-        }
-        return "\(verb) \(changes.count) 件のファイル"
-    }
-
-    private static func filename(from path: String) -> String {
-        path.split(separator: "/", omittingEmptySubsequences: true).last.map(String.init) ?? path
+        ChatFileChangePresentation.title(for: changes.map {
+            ChatFilePatch(path: $0.path, diff: $0.diff, kind: $0.kind)
+        })
     }
 }
 

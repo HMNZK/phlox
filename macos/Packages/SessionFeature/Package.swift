@@ -22,6 +22,7 @@ let package = Package(
             name: "SessionFeature",
             dependencies: [
                 "AgentDomain",
+                .product(name: "ChatRenderKit", package: "AgentDomain"),
                 "DesignSystem",
                 "HookServer",
                 "PTYKit",

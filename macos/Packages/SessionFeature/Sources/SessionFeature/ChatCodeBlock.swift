@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import ChatRenderKit
 import DesignSystem
 
 struct CodeBlockView: View {
@@ -59,30 +60,20 @@ struct CodeBlockView: View {
 }
 
 enum ChatCodeHighlighter {
-    private static let keywords: Set<String> = [
-        "actor", "as", "async", "await", "break", "case", "catch", "class", "continue", "default",
-        "defer", "do", "else", "enum", "false", "for", "func", "guard", "if", "import", "in",
-        "init", "let", "nil", "private", "public", "return", "self", "static", "struct", "switch",
-        "throw", "throws", "true", "try", "var", "while",
-    ]
-
     /// 内容同一性をキーにメモ化した窓口（P2）。同一内容の再ハイライトは走らない。
     /// キャッシュは非観測ストレージ（static NSCache）なので body から呼んでも @Observable state を書かない。
     static func highlight(_ code: String) -> AttributedString {
         ChatMessageRenderCache.highlightedCode(code)
     }
 
-    /// diff 本文用のトークン分類。未対応拡張子は装飾せず plain にフォールバックする。
+    /// diff 本文用のトークン分類。分類規則は ChatRenderKit に委譲する。
     static func tokens(for code: String, path: String) -> [ChatCodeToken] {
-        guard path.lowercased().hasSuffix(".swift") else {
-            return code.isEmpty ? [] : [ChatCodeToken(text: code, kind: .plain)]
-        }
-        return tokenizeSwift(code)
+        ChatCodeTokenizer.tokens(for: code, path: path)
     }
 
     static func computeDiffHighlight(_ code: String, path: String) -> AttributedString {
         var output = AttributedString()
-        for token in tokens(for: code, path: path) {
+        for token in ChatCodeTokenizer.tokens(for: code, path: path) {
             append(token.text, color: color(for: token.kind), to: &output)
         }
         return output
@@ -90,7 +81,7 @@ enum ChatCodeHighlighter {
 
     static func computeShellHighlight(_ command: String) -> AttributedString {
         var output = AttributedString()
-        for token in tokenizeShell(command) {
+        for token in ChatCodeTokenizer.shell(command) {
             append(token.text, color: color(for: token.kind), to: &output)
         }
         return output
@@ -101,7 +92,7 @@ enum ChatCodeHighlighter {
     /// 出力は旧・1文字連結版と完全同値（属性境界＝色切替点は1文字もズレない）。
     static func computeHighlight(_ code: String) -> AttributedString {
         var output = AttributedString()
-        for token in tokenizeSwift(code) {
+        for token in ChatCodeTokenizer.swift(code) {
             append(token.text, color: color(for: token.kind), to: &output)
         }
         return output
@@ -113,162 +104,8 @@ enum ChatCodeHighlighter {
         output += chunk
     }
 
-    private static func tokenizeSwift(_ code: String) -> [ChatCodeToken] {
-        var tokens: [ChatCodeToken] = []
-        var index = code.startIndex
-
-        func append(_ text: String, _ kind: ChatCodeTokenKind) {
-            guard !text.isEmpty else { return }
-            if tokens.last?.kind == kind {
-                tokens[tokens.count - 1].text += text
-            } else {
-                tokens.append(ChatCodeToken(text: text, kind: kind))
-            }
-        }
-
-        while index < code.endIndex {
-            if code[index] == "/", code.index(after: index) < code.endIndex, code[code.index(after: index)] == "/" {
-                let end = code[index...].firstIndex(of: "\n") ?? code.endIndex
-                append(String(code[index..<end]), .comment)
-                index = end
-                continue
-            }
-            if code[index] == "\"" {
-                var end = code.index(after: index)
-                var escaped = false
-                while end < code.endIndex {
-                    let character = code[end]
-                    if character == "\"" && !escaped {
-                        end = code.index(after: end)
-                        break
-                    }
-                    escaped = character == "\\" && !escaped
-                    end = code.index(after: end)
-                }
-                append(String(code[index..<end]), .string)
-                index = end
-                continue
-            }
-            if code[index].isNumber {
-                let end = code[index...].firstIndex { !$0.isNumber && $0 != "." } ?? code.endIndex
-                append(String(code[index..<end]), .number)
-                index = end
-                continue
-            }
-            if code[index].isLetter || code[index] == "_" {
-                let end = code[index...].firstIndex { !$0.isLetter && !$0.isNumber && $0 != "_" } ?? code.endIndex
-                let word = String(code[index..<end])
-                append(word, keywords.contains(word) ? .keyword : .plain)
-                index = end
-                continue
-            }
-            append(String(code[index]), .plain)
-            index = code.index(after: index)
-        }
-        return tokens
-    }
-
-    static func tokenizeShell(_ command: String) -> [ChatCodeToken] {
-        var tokens: [ChatCodeToken] = []
-        var index = command.startIndex
-        var expectsCommand = true
-
-        func append(_ text: String, _ kind: ChatCodeTokenKind) {
-            guard !text.isEmpty else { return }
-            if tokens.last?.kind == kind {
-                tokens[tokens.count - 1].text += text
-            } else {
-                tokens.append(ChatCodeToken(text: text, kind: kind))
-            }
-        }
-
-        func advanceWord(from start: String.Index) -> String.Index {
-            command[start...].firstIndex { $0.isWhitespace || "|><;&\"'#$".contains($0) } ?? command.endIndex
-        }
-
-        while index < command.endIndex {
-            let character = command[index]
-            if character.isWhitespace {
-                let end = command[index...].firstIndex(where: { !$0.isWhitespace }) ?? command.endIndex
-                append(String(command[index..<end]), .plain)
-                if command[index..<end].contains("\n") {
-                    expectsCommand = true
-                }
-                index = end
-                continue
-            }
-            let isCommentBoundary = index == command.startIndex
-                || command[command.index(before: index)].isWhitespace
-                || "|><;&".contains(command[command.index(before: index)])
-            if character == "#", isCommentBoundary {
-                let end = command[index...].firstIndex(of: "\n") ?? command.endIndex
-                append(String(command[index..<end]), .comment)
-                index = end
-                expectsCommand = true
-                continue
-            }
-            if character == "\"" || character == "'" {
-                let quote = character
-                var end = command.index(after: index)
-                var escaped = false
-                while end < command.endIndex {
-                    let current = command[end]
-                    if current == quote && !escaped {
-                        end = command.index(after: end)
-                        break
-                    }
-                    escaped = current == "\\" && !escaped
-                    end = command.index(after: end)
-                }
-                append(String(command[index..<end]), .string)
-                index = end
-                expectsCommand = false
-                continue
-            }
-            if character == "$" {
-                let afterDollar = command.index(after: index)
-                if afterDollar < command.endIndex, command[afterDollar] == "{" {
-                    let end = command[afterDollar...].firstIndex(of: "}").map { command.index(after: $0) } ?? command.endIndex
-                    append(String(command[index..<end]), .variable)
-                    index = end
-                    continue
-                }
-                let end = command[afterDollar...].firstIndex { !$0.isLetter && !$0.isNumber && $0 != "_" } ?? command.endIndex
-                if end > afterDollar {
-                    append(String(command[index..<end]), .variable)
-                    index = end
-                    continue
-                }
-            }
-            let remaining = command[index...]
-            if let op = [">>", "&&", "||", "2>", "|", ">", "<", ";", "&"].first(where: { remaining.hasPrefix($0) }) {
-                let end = command.index(index, offsetBy: op.count)
-                append(op, .operator)
-                index = end
-                expectsCommand = true
-                continue
-            }
-            let end = advanceWord(from: index)
-            guard end > index else {
-                append(String(character), .plain)
-                index = command.index(after: index)
-                continue
-            }
-            let word = String(command[index..<end])
-            if word.hasPrefix("-") {
-                append(word, .option)
-            } else if expectsCommand {
-                append(word, .command)
-                expectsCommand = false
-            } else if ["add", "branch", "checkout", "clone", "commit", "diff", "log", "push", "status", "test"].contains(word) {
-                append(word, .subcommand)
-            } else {
-                append(word, .plain)
-            }
-            index = end
-        }
-        return tokens
-    }
+    // 既存テスト用の窓口。分類規則は共有トークナイザへ委譲する。
+    static let tokenizeShell: @Sendable (String) -> [ChatCodeToken] = ChatCodeTokenizer.shell
 
     private static func color(for kind: ChatCodeTokenKind) -> Color {
         switch kind {
@@ -286,20 +123,5 @@ enum ChatCodeHighlighter {
     }
 }
 
-enum ChatCodeTokenKind: Equatable, Sendable {
-    case keyword
-    case string
-    case number
-    case comment
-    case plain
-    case command
-    case subcommand
-    case variable
-    case `operator`
-    case option
-}
-
-struct ChatCodeToken: Equatable, Sendable {
-    var text: String
-    let kind: ChatCodeTokenKind
-}
+typealias ChatCodeTokenKind = ChatRenderKit.ChatCodeTokenKind
+typealias ChatCodeToken = ChatRenderKit.ChatCodeToken

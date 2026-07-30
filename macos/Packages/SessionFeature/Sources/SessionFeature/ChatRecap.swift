@@ -1,5 +1,6 @@
 import Foundation
 import AgentDomain
+import ChatRenderKit
 
 /// 実行中ターンの transcript から Thinking recap 文字列を導出する（純粋関数・task-3）。
 public enum ChatRecap {
@@ -45,20 +46,12 @@ public enum ChatRecap {
 /// ツール実行グループのヘッダタイトルを導出する純粋関数。
 enum CommandGroupTitle {
     static func derive(items: [ChatItem]) -> String {
-        guard let item = items.last(where: { item in
-            guard case .commandExecution(_, let command, _, _) = item,
-                  let command,
-                  !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return false
+        let commands = items.map { item -> String? in
+            guard case .commandExecution(_, let command, _, _) = item else {
+                return nil
             }
-            return true
-        }), case let .commandExecution(_, command?, _, _) = item else {
-            return "ツール実行 ×\(items.count)"
+            return command
         }
-
-        let normalizedCommand = command
-            .split(whereSeparator: { $0.isWhitespace })
-            .joined(separator: " ")
-        return ThinkingRecap.clamp(normalizedCommand)
+        return ChatCommandGroupTitle.derive(commands: commands, itemCount: items.count)
     }
 }

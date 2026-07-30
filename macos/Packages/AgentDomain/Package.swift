@@ -8,9 +8,12 @@ let package = Package(
     platforms: [.macOS(.v14), .iOS(.v17)],
     products: [
         .library(name: "AgentDomain", targets: ["AgentDomain"]),
+        .library(name: "ChatRenderKit", targets: ["ChatRenderKit"]),
     ],
     targets: [
         .target(name: "AgentDomain"),
+        .target(name: "ChatRenderKit", dependencies: ["AgentDomain"]),
         .testTarget(name: "AgentDomainTests", dependencies: ["AgentDomain"]),
+        .testTarget(name: "ChatRenderKitTests", dependencies: ["AgentDomain", "ChatRenderKit"]),
     ]
 )

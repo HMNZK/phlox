@@ -1,4 +1,5 @@
 import Foundation
+import ChatRenderKit
 import DesignSystem
 
 // PM3 task-6（監査 P2/P4）: ChatMessageCells の body 評価毎の重い再計算を潰すための
@@ -149,7 +150,7 @@ struct DiffCodeLine: Identifiable {
     var id: Int { line.id }
 }
 
-extension ClassifiedDiffLine {
+extension ChatDiffLine {
     /// 先頭の diff マーカーを除いた、構文ハイライト対象の本文。
     var diffBody: String {
         switch kind {

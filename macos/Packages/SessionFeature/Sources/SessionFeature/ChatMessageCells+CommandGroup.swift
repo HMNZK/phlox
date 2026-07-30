@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import ChatRenderKit
 import DesignSystem
 
 struct CommandGroupRow: Identifiable, Equatable {
@@ -49,23 +50,8 @@ struct CommandGroupRowsSlice: Equatable {
     let hiddenRowCount: Int
 }
 
-enum CommandToolLabel {
-    private static let knownTools: Set<String> = [
-        "Read", "Write", "Edit", "Glob", "Grep", "LS", "Task", "Skill", "WebFetch", "WebSearch", "NotebookEdit", "TodoWrite",
-    ]
-
-    static func derive(command: String?) -> (label: String, body: String) {
-        guard let command, !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return ("Bash", "")
-        }
-        let parts = command.split(maxSplits: 1, whereSeparator: \.isWhitespace)
-        guard let first = parts.first, knownTools.contains(String(first)) else {
-            return ("Bash", command)
-        }
-        let body = parts.dropFirst().first.map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) } ?? ""
-        return (String(first), body)
-    }
-}
+// 既存の macOS 側参照を壊さないための薄い型名アダプタ。実装本体は ChatRenderKit にある。
+typealias CommandToolLabel = ChatCommandToolLabel
 
 struct CommandGroupExecutionDisplayData: Equatable {
     let label: String

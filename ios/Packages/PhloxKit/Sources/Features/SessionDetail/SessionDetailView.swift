@@ -459,53 +459,6 @@ public struct SessionDetailView: View {
         }
     }
 
-    private func collapsibleMonospaceCard(
-        messageID: String,
-        title: String,
-        preview: String,
-        body: String
-    ) -> some View {
-        let isExpanded = viewModel.isMessageExpanded(messageID)
-        return VStack(alignment: .leading, spacing: DSSpacing.s) {
-            Button {
-                viewModel.toggleMessageExpansion(messageID)
-            } label: {
-                HStack(alignment: .firstTextBaseline, spacing: DSSpacing.xs) {
-                    Text(title)
-                        .font(DSFont.footnote.weight(.bold))
-                        .foregroundStyle(DSColor.campTextQuaternary)
-                    if !isExpanded, !preview.isEmpty {
-                        Text(preview)
-                            .font(DSFont.caption)
-                            .foregroundStyle(DSColor.textTertiary)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(DSFont.footnote.weight(.semibold))
-                        .foregroundStyle(DSColor.campTextQuaternary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            if isExpanded, !body.isEmpty {
-                Text(body)
-                    // 端末出力と同じく密度優先（caption=12pt・字間を詰める）。
-                    .font(DSFont.campMonoCaption)
-                    .tracking(-0.5)
-                    .foregroundStyle(DSColor.textSecondary)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DSSpacing.m)
-        .background(DSColor.campOutputBackground, in: outputCardShape)
-        .clipShape(outputCardShape)
-    }
-
     @ViewBuilder
     private var outputSection: some View {
         if viewModel.terminalScreen.isANSI, !viewModel.outputText.isEmpty {

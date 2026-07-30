@@ -5,6 +5,27 @@ import DesignSystemIOS
 import PhloxCore
 
 /// 1 行分の diff 表示データ。`text` は元の diff 行、`body` はマーカーを除いた本文。
+private final class SessionDetailDiffCodeHighlightCache {
+    let body: String
+    private let path: String
+    private var value: AttributedString?
+
+    init(body: String, path: String) {
+        self.body = body
+        self.path = path
+    }
+
+    func resolve() -> AttributedString {
+        if let value {
+            return value
+        }
+
+        let value = CodeHighlighter.diff(body, path: path)
+        self.value = value
+        return value
+    }
+}
+
 struct SessionDetailDiffCodeLine: Identifiable {
     let id: Int
     let fileIndex: Int
@@ -12,17 +33,27 @@ struct SessionDetailDiffCodeLine: Identifiable {
     let text: String
     let kind: ChatDiffLineKind
     let displayLineNumber: Int?
-    let highlightedBody: AttributedString
+    private let highlightCache: SessionDetailDiffCodeHighlightCache
+
+    init(id: Int, fileIndex: Int, path: String, classified: ChatDiffLine) {
+        self.id = id
+        self.fileIndex = fileIndex
+        self.path = path
+        self.text = classified.text
+        self.kind = classified.kind
+        self.displayLineNumber = classified.displayLineNumber
+        self.highlightCache = SessionDetailDiffCodeHighlightCache(
+            body: Self.body(of: classified),
+            path: path
+        )
+    }
 
     var body: String {
-        switch kind {
-        case .addition, .deletion:
-            return String(text.dropFirst())
-        case .context:
-            return text.first == " " ? String(text.dropFirst()) : text
-        case .fileHeader, .hunk:
-            return text
-        }
+        highlightCache.body
+    }
+
+    var highlightedBody: AttributedString {
+        highlightCache.resolve()
     }
 
     var marker: String {
@@ -32,61 +63,6 @@ struct SessionDetailDiffCodeLine: Identifiable {
         case .context: text.first == " " ? " " : ""
         case .fileHeader, .hunk: ""
         }
-    }
-}
-
-/// ファイル変更カードが必要とする表示用の値を、共有分類結果から組み立てる純粋なデータ。
-struct SessionDetailDiffCodeViewData {
-    let lines: [SessionDetailDiffCodeLine]
-    let hasLineNumbers: Bool
-    let lineNumberWidth: Int
-    let title: String
-    let additions: Int
-    let deletions: Int
-    let fullPaths: [String]
-    /// 表示用に除去した行を含む、入力 diff の原文。
-    let copyText: String
-    let isExpandedByDefault: Bool
-
-    init(changes: [ChatFileChange]) {
-        let patches = changes.map {
-            ChatFilePatch(path: $0.path, diff: $0.diff, kind: $0.kind)
-        }
-        let counts = ChatFileChangePresentation.counts(for: patches)
-
-        var nextID = 0
-        lines = changes.enumerated().flatMap { fileIndex, change in
-            ChatDiffClassifier.classify(change.diff).compactMap { classified in
-                guard classified.isDisplayable, classified.kind != .hunk else { return nil }
-
-                let body = Self.body(of: classified)
-                let line = SessionDetailDiffCodeLine(
-                    id: nextID,
-                    fileIndex: fileIndex,
-                    path: change.path,
-                    text: classified.text,
-                    kind: classified.kind,
-                    displayLineNumber: classified.displayLineNumber,
-                    highlightedBody: CodeHighlighter.diff(body, path: change.path)
-                )
-                nextID += 1
-                return line
-            }
-        }
-
-        let confirmedNumbers = lines.compactMap(\.displayLineNumber)
-        lineNumberWidth = confirmedNumbers.map { String($0).count }.max() ?? 0
-        hasLineNumbers = !confirmedNumbers.isEmpty
-        title = ChatFileChangePresentation.title(for: patches)
-        additions = counts.additions
-        deletions = counts.deletions
-        fullPaths = changes.map(\.path)
-        copyText = changes.map(\.diff).joined(separator: "\n\n")
-        isExpandedByDefault = false
-    }
-
-    func lines(forFileAt fileIndex: Int) -> [SessionDetailDiffCodeLine] {
-        lines.filter { $0.fileIndex == fileIndex }
     }
 
     private static func body(of line: ChatDiffLine) -> String {
@@ -101,10 +77,72 @@ struct SessionDetailDiffCodeViewData {
     }
 }
 
+/// ファイル変更カードが必要とする表示用の値を、共有分類結果から組み立てる純粋なデータ。
+struct SessionDetailDiffCodeViewData {
+    let lines: [SessionDetailDiffCodeLine]
+    let hasLineNumbers: Bool
+    let lineNumberWidth: Int
+    let title: String
+    let additions: Int
+    let deletions: Int
+    let fullPaths: [String]
+    private let linesByFile: [Int: [SessionDetailDiffCodeLine]]
+    /// 表示用に除去した行を含む、入力 diff の原文。
+    let copyText: String
+    let isExpandedByDefault: Bool
+
+    init(changes: [ChatFileChange]) {
+        let patches = changes.map {
+            ChatFilePatch(path: $0.path, diff: $0.diff, kind: $0.kind)
+        }
+        let counts = ChatFileChangePresentation.counts(for: patches)
+
+        var linesByFile: [Int: [SessionDetailDiffCodeLine]] = [:]
+        var nextID = 0
+        for (fileIndex, change) in changes.enumerated() {
+            var fileLines: [SessionDetailDiffCodeLine] = []
+            for classified in ChatDiffClassifier.classify(change.diff) {
+                guard classified.isDisplayable, classified.kind != .hunk else { continue }
+
+                fileLines.append(
+                    SessionDetailDiffCodeLine(
+                        id: nextID,
+                        fileIndex: fileIndex,
+                        path: change.path,
+                        classified: classified
+                    )
+                )
+                nextID += 1
+            }
+
+            if !fileLines.isEmpty {
+                linesByFile[fileIndex] = fileLines
+            }
+        }
+
+        self.linesByFile = linesByFile
+        lines = linesByFile.keys.sorted().flatMap { linesByFile[$0] ?? [] }
+        let confirmedNumbers = lines.compactMap(\.displayLineNumber)
+        lineNumberWidth = confirmedNumbers.map { String($0).count }.max() ?? 0
+        hasLineNumbers = !confirmedNumbers.isEmpty
+        title = ChatFileChangePresentation.title(for: patches)
+        additions = counts.additions
+        deletions = counts.deletions
+        fullPaths = changes.map(\.path)
+        copyText = changes.map(\.diff).joined(separator: "\n\n")
+        isExpandedByDefault = false
+    }
+
+    func lines(forFileAt fileIndex: Int) -> [SessionDetailDiffCodeLine] {
+        linesByFile[fileIndex] ?? []
+    }
+}
+
 struct SessionDetailFileChangeCard: View {
     let data: SessionDetailDiffCodeViewData
     let isExpanded: Bool
     let onToggle: () -> Void
+    @ScaledMetric(relativeTo: .caption) private var monoAdvance: CGFloat = 8
 
     init(
         changes: [ChatFileChange],
@@ -152,6 +190,8 @@ struct SessionDetailFileChangeCard: View {
             .buttonStyle(.plain)
         } content: {
             if isExpanded {
+                // パス見出しは横スクロールの外に置く。中に入れると幅の提案が nil になり
+                // lineLimit/truncationMode が効かず、スクロール範囲がパス長で決まってしまう。
                 VStack(alignment: .leading, spacing: DSSpacing.m) {
                     ForEach(Array(data.fullPaths.enumerated()), id: \.offset) { file in
                         VStack(alignment: .leading, spacing: .zero) {
@@ -161,12 +201,15 @@ struct SessionDetailFileChangeCard: View {
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                                 .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, DSSpacing.m)
                                 .padding(.bottom, DSSpacing.xs)
 
-                            VStack(alignment: .leading, spacing: .zero) {
-                                ForEach(data.lines(forFileAt: file.offset)) { line in
-                                    diffLineView(line)
+                            ScrollView(.horizontal, showsIndicators: true) {
+                                VStack(alignment: .leading, spacing: .zero) {
+                                    ForEach(data.lines(forFileAt: file.offset)) { line in
+                                        diffLineView(line)
+                                    }
                                 }
                             }
                         }
@@ -186,13 +229,13 @@ struct SessionDetailFileChangeCard: View {
                 Text(line.displayLineNumber.map(String.init) ?? "")
                     .font(DSFont.campMonoCaption)
                     .foregroundStyle(foreground(for: line.kind))
-                    .frame(width: CGFloat(data.lineNumberWidth) * 8, alignment: .trailing)
+                    .frame(width: CGFloat(data.lineNumberWidth) * monoAdvance, alignment: .trailing)
             }
 
             Text(line.marker)
                 .font(DSFont.campMonoCaption)
                 .foregroundStyle(foreground(for: line.kind))
-                .frame(width: 8, alignment: .leading)
+                .frame(width: monoAdvance, alignment: .leading)
 
             Text(line.highlightedBody)
                 .font(DSFont.campMonoCaption)

@@ -90,3 +90,37 @@ public enum ChatRecap {
         return state
     }
 }
+
+/// ツール実行グループのヘッダタイトルを導出する純粋関数。
+enum CommandGroupTitle {
+    static func derive(items: [ChatItem], isRunning: Bool, liveRecap: String?) -> String {
+        if isRunning, let liveRecap {
+            return liveRecap
+        }
+
+        guard let item = items.last(where: { item in
+            guard case .commandExecution(_, let command, _, _) = item,
+                  let command,
+                  !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return false
+            }
+            return true
+        }), case let .commandExecution(_, command?, _, _) = item else {
+            return "ツール実行 ×\(items.count)"
+        }
+
+        let normalizedCommand = command
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+        let label: String
+        switch RecapActivity.fromCommand(command) {
+        case .reading:
+            label = "\(normalizedCommand) を読み込み"
+        case .running:
+            label = "\(normalizedCommand) を実行"
+        case .editing:
+            label = "\(normalizedCommand) を編集"
+        }
+        return ThinkingRecap.clamp(label)
+    }
+}

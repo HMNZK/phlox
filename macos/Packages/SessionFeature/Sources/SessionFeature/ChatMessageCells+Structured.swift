@@ -67,8 +67,6 @@ struct ThinkingIndicatorCell: View {
     let descriptor: AgentDescriptor
     /// orb と状態語に出す活動状態。
     var state: AgentActivityState = .thinking
-    /// 実行中ターンの recap（時間追従）。TimelineView 内で評価し、描画中に state を書かない（ADR 0030）。
-    var recap: ((Date) -> String?)? = nil
     var hangAssessment: ((Date) -> ChatHangAssessment?)? = nil
     var onInterrupt: (() async -> Void)? = nil
     /// transcript 最下部が viewport 内にあるか。スクロール位置のイベントから親が渡す。
@@ -82,32 +80,12 @@ struct ThinkingIndicatorCell: View {
     init(
         descriptor: AgentDescriptor,
         state: AgentActivityState = .thinking,
-        recap: ((Date) -> String?)? = nil,
         hangAssessment: ((Date) -> ChatHangAssessment?)? = nil,
         onInterrupt: (() async -> Void)? = nil,
         isInTranscriptViewport: Bool = true
     ) {
         self.descriptor = descriptor
         self.state = state
-        self.recap = recap
-        self.hangAssessment = hangAssessment
-        self.onInterrupt = onInterrupt
-        self.isInTranscriptViewport = isInTranscriptViewport
-    }
-
-    /// SubAgentDrawerView 向け互換（allowed_paths 外のためこちらで吸収）。
-    /// 静的プレビューを recap クロージャへ包む。
-    init(
-        descriptor: AgentDescriptor,
-        state: AgentActivityState = .thinking,
-        reasoningPreview: String?,
-        hangAssessment: ((Date) -> ChatHangAssessment?)? = nil,
-        onInterrupt: (() async -> Void)? = nil,
-        isInTranscriptViewport: Bool = true
-    ) {
-        self.descriptor = descriptor
-        self.state = state
-        self.recap = reasoningPreview.map { preview in { _ in preview } }
         self.hangAssessment = hangAssessment
         self.onInterrupt = onInterrupt
         self.isInTranscriptViewport = isInTranscriptViewport
@@ -125,7 +103,7 @@ struct ThinkingIndicatorCell: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        AvatarMessageRow(descriptor: descriptor, timestamp: .distantPast) {
+        AvatarMessageRow(timestamp: .distantPast) {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 HStack(spacing: DSSpacing.xs) {
                     ThinkingOrbView(state: state, size: .inline, isVisible: isTimelineVisible)
@@ -141,16 +119,6 @@ struct ThinkingIndicatorCell: View {
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(state.orbLabel)
-                if let recap {
-                    TimelineView(HangStatusTimelineSchedule(isVisible: isTimelineVisible)) { context in
-                        if let text = recap(context.date) {
-                            Text(text)
-                                .font(ChatScaledFont.caption(scale: scale))
-                                .foregroundStyle(DSColor.chatTextSecondary)
-                                .lineLimit(3)
-                        }
-                    }
-                }
                 if let hangAssessment {
                     TimelineView(HangStatusTimelineSchedule(isVisible: isTimelineVisible)) { context in
                         if let assessment = hangAssessment(context.date) {
@@ -236,10 +204,7 @@ struct ReasoningSummaryView: View {
             isExpanded: $isExpanded,
             title: "Reasoning",
             subtitle: nil,
-            timestamp: timestamp,
-            systemImage: "brain.head.profile",
-            accent: DSColor.chatAccent,
-            status: .complete
+            timestamp: timestamp
         ) {
             Text(text)
                 .font(ChatScaledFont.body(scale: scale))
@@ -267,11 +232,9 @@ struct CommandExecutionCell: View {
         DisclosureCard(
             isExpanded: $isExpanded,
             title: command?.isEmpty == false ? command! : "Command",
-            subtitle: output.isEmpty ? nil : "Output available",
+            subtitle: isRunning ? "実行中" : (output.isEmpty ? nil : "Output available"),
             timestamp: timestamp,
-            systemImage: "terminal",
-            accent: isRunning ? DSColor.statusAwaitingApproval : DSColor.chatSuccess,
-            status: isRunning ? .running : .complete
+            isToolCall: true
         ) {
             if !output.isEmpty {
                 ScrollView(.horizontal) {
@@ -359,10 +322,7 @@ struct FileChangeCell: View {
             isExpanded: expansionBinding,
             title: changes.count == 1 ? "File Change" : "\(changes.count) File Changes",
             subtitle: changes.first?.path,
-            timestamp: timestamp,
-            systemImage: "doc.badge.gearshape",
-            accent: DSColor.chatSuccess,
-            status: .complete
+            timestamp: timestamp
         ) {
             VStack(alignment: .leading, spacing: DSSpacing.m) {
                 ForEach(visibleSections) { section in

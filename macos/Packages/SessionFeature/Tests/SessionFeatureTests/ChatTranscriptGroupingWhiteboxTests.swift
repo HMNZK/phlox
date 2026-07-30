@@ -95,8 +95,11 @@ struct ChatTranscriptGroupingWhiteboxTests {
         #expect(grouped.map(\.id) == ["c1", "c2", "c3"])
     }
 
-    @Test func 集約カードは件数見出しと末尾コマンドの実行中状態を持つ() {
-        let items = [groupingCommand("c1"), groupingCommand("c2", output: "")]
+    @Test func コマンドが無い集約カードは件数見出しと末尾コマンドの実行中状態を持つ() {
+        let items: [ChatItem] = [
+            .commandExecution(id: "c1", command: nil, output: "output", timestamp: groupingTestTime),
+            .commandExecution(id: "c2", command: "", output: "", timestamp: groupingTestTime)
+        ]
 
         let header = CommandGroupHeader(
             items: items,

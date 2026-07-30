@@ -17,10 +17,15 @@ struct CommandGroupHeader: Equatable {
     let isRunning: Bool
     let shouldRender: Bool
 
-    init(items: [ChatItem], lastTranscriptID: String?, isTurnRunning: Bool) {
+    init(
+        items: [ChatItem],
+        lastTranscriptID: String?,
+        isTurnRunning: Bool,
+        liveRecap: String? = nil
+    ) {
         let lastItem = items.last
         isRunning = isTurnRunning && lastItem?.id == lastTranscriptID
-        title = "ツール実行 ×\(items.count)"
+        title = CommandGroupTitle.derive(items: items, isRunning: isRunning, liveRecap: liveRecap)
 
         if case .commandExecution(_, _, _, let timestamp)? = lastItem {
             self.timestamp = timestamp
@@ -43,6 +48,42 @@ struct CommandGroupHeader: Equatable {
 struct CommandGroupRowsSlice: Equatable {
     let rows: [CommandGroupRow]
     let hiddenRowCount: Int
+}
+
+/// 出力の省略表示と全文表示を行単位で決める。コピー対象は常に元の出力全文。
+struct CommandGroupOutputDisplay: Equatable {
+    static let visibleLineLimit = 20
+
+    let output: String
+    let isExpanded: Bool
+
+    /// 出力の行分割は body 評価のたびに走るため、init で 1 回だけ行う。
+    /// 計算プロパティにすると isTruncated / hiddenLineCount / displayedOutput の各参照で
+    /// 出力全体を split し直し、ストリーミング中の長大出力で線形コストが積み上がる。
+    private let lineCount: Int
+    private let truncatedOutput: String
+
+    init(output: String, isExpanded: Bool) {
+        self.output = output
+        self.isExpanded = isExpanded
+        let lines = output.split(separator: "\n", omittingEmptySubsequences: false)
+        lineCount = lines.count
+        truncatedOutput = lines.prefix(Self.visibleLineLimit).joined(separator: "\n")
+    }
+
+    var isTruncated: Bool {
+        !isExpanded && lineCount > Self.visibleLineLimit
+    }
+
+    var hiddenLineCount: Int {
+        max(0, lineCount - Self.visibleLineLimit)
+    }
+
+    var displayedOutput: String {
+        isTruncated ? truncatedOutput : output
+    }
+
+    var copyText: String { output }
 }
 
 enum CommandGroupRowWindow {
@@ -92,9 +133,26 @@ struct CommandGroupCell: View, Equatable {
     let items: [ChatItem]
     let lastTranscriptID: String?
     let isTurnRunning: Bool
+    let isInTranscriptViewport: Bool
+    /// 実行中の最新グループだけに渡される。ADR 0116 のため同値比較には含めない。
+    let recap: ((Date) -> String?)?
     @State private var isExpanded = false
     @State private var rowLimit = CommandGroupRowWindow.defaultLimit
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+
+    init(
+        items: [ChatItem],
+        lastTranscriptID: String?,
+        isTurnRunning: Bool,
+        isInTranscriptViewport: Bool = true,
+        recap: ((Date) -> String?)? = nil
+    ) {
+        self.items = items
+        self.lastTranscriptID = lastTranscriptID
+        self.isTurnRunning = isTurnRunning
+        self.isInTranscriptViewport = isInTranscriptViewport
+        self.recap = recap
+    }
 
     /// ADR 0116: 未変更ブロックの body 再評価をスキップするための同値性（呼び出し側で `.equatable()`）。
     /// 比較するのは表示に効く保持値のみ。`@State`(isExpanded) と `@AppStorage`(themeID) は
@@ -103,6 +161,9 @@ struct CommandGroupCell: View, Equatable {
         lhs.items == rhs.items
             && lhs.lastTranscriptID == rhs.lastTranscriptID
             && lhs.isTurnRunning == rhs.isTurnRunning
+            // viewport は実行中グループの TimelineView にだけ効く。非実行中まで
+            // スクロール境界で再評価しない（ADR 0116）。
+            && (!lhs.isTurnRunning || lhs.isInTranscriptViewport == rhs.isInTranscriptViewport)
     }
 
     var body: some View {
@@ -110,17 +171,18 @@ struct CommandGroupCell: View, Equatable {
         let header = CommandGroupHeader(
             items: items,
             lastTranscriptID: lastTranscriptID,
-            isTurnRunning: isTurnRunning
+            isTurnRunning: isTurnRunning,
+            liveRecap: nil
         )
         if header.shouldRender {
             DisclosureCard(
                 isExpanded: $isExpanded,
                 title: header.title,
-                subtitle: header.isRunning ? "実行中" : nil,
+                subtitle: header.isRunning ? "実行中 ×\(items.count)" : "×\(items.count)",
                 timestamp: header.timestamp,
-                systemImage: "terminal",
-                accent: header.isRunning ? DSColor.statusAwaitingApproval : DSColor.chatSuccess,
-                status: header.isRunning ? .running : .complete
+                isToolCall: true,
+                isTimelineVisible: isInTranscriptViewport,
+                liveTitle: liveTitle
             ) {
                 if isExpanded {
                     let rowsSlice = CommandGroupRowWindow.slice(
@@ -137,11 +199,9 @@ struct CommandGroupCell: View, Equatable {
                             .accessibilityIdentifier("CommandGroupCell.loadEarlierRows")
                         }
                         ForEach(rowsSlice.rows) { row in
-                            CommandExecutionCell(
+                            CommandGroupExecutionRow(
                                 command: row.command,
-                                output: row.output,
-                                timestamp: row.timestamp,
-                                isRunning: row.isRunning
+                                output: row.output
                             )
                             .id(row.id)
                         }
@@ -152,5 +212,74 @@ struct CommandGroupCell: View, Equatable {
             .frame(maxWidth: 800, alignment: .leading)
             .accessibilityIdentifier("CommandGroupCell")
         }
+    }
+
+    var liveTitle: ((Date) -> String)? {
+        guard isTurnRunning, let recap else { return nil }
+        return { date in
+            CommandGroupTitle.derive(items: items, isRunning: true, liveRecap: recap(date))
+        }
+    }
+}
+
+private struct CommandGroupExecutionRow: View {
+    let command: String?
+    let output: String
+    @State private var isOutputExpanded = false
+    @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+    @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
+
+    var body: some View {
+        let _ = themeID
+        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
+        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+            Text("$ \(displayCommand)")
+                .font(ChatScaledFont.mono(scale: scale))
+                .foregroundStyle(DSColor.chatTextPrimary)
+                .chatTextSelection()
+            if !output.isEmpty {
+                let outputDisplay = CommandGroupOutputDisplay(
+                    output: output,
+                    isExpanded: isOutputExpanded
+                )
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                    HStack {
+                        Spacer(minLength: 0)
+                        // 省略中でも描画中の prefix ではなく、元の出力全文をコピーする。
+                        MessageCopyButton(
+                            text: outputDisplay.copyText,
+                            accessibilityIdentifier: "CommandGroupExecutionRow.copyOutput",
+                            scale: scale
+                        )
+                    }
+                    Text(outputDisplay.displayedOutput)
+                        .font(ChatScaledFont.monoCaption(scale: scale))
+                        .foregroundStyle(DSColor.chatTextSecondary)
+                        .chatTextSelection()
+                    if outputDisplay.isTruncated {
+                        Button {
+                            isOutputExpanded = true
+                        } label: {
+                            Label(
+                                "さらに \(outputDisplay.hiddenLineCount) 行を表示",
+                                systemImage: "chevron.down"
+                            )
+                            .font(ChatScaledFont.captionStrong(scale: scale))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(DSColor.chatAccent)
+                        .accessibilityIdentifier("CommandGroupExecutionRow.showMoreOutput")
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var displayCommand: String {
+        guard let command, !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return "(コマンドなし)"
+        }
+        return command
     }
 }

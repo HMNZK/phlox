@@ -31,7 +31,11 @@ import Testing
 private let t0 = Date(timeIntervalSince1970: 1_700_000_000)
 
 private func cmd(_ id: String, output: String = "output", offset: TimeInterval = 0) -> ChatItem {
-    .commandExecution(id: id, command: "cmd \(id)", output: output, timestamp: t0.addingTimeInterval(offset))
+    cmd(id, command: "cmd \(id)", output: output, offset: offset)
+}
+
+private func cmd(_ id: String, command: String?, output: String = "output", offset: TimeInterval = 0) -> ChatItem {
+    .commandExecution(id: id, command: command, output: output, timestamp: t0.addingTimeInterval(offset))
 }
 
 private func cmds(_ count: Int, output: String = "output") -> [ChatItem] {
@@ -49,12 +53,13 @@ struct AcceptanceCommandGroupRowWindowTests {
 
     // === ヘッダ（折りたたみ時に使う値。行データを作らない） ===
 
-    @Test func 見出しは件数付きでitem件数に依らず正しい() {
-        let single = CommandGroupHeader(items: cmds(1), lastTranscriptID: nil, isTurnRunning: false)
+    @Test func コマンドが無い見出しは件数付きでitem件数に依らず正しい() {
+        let single = CommandGroupHeader(items: [cmd("c0", command: nil)], lastTranscriptID: nil, isTurnRunning: false)
         #expect(single.title == "ツール実行 ×1")
 
-        let huge = CommandGroupHeader(items: cmds(5000), lastTranscriptID: nil, isTurnRunning: false)
-        #expect(huge.title == "ツール実行 ×5000")
+        let huge = (0..<5000).map { cmd("c\($0)", command: "", offset: TimeInterval($0)) }
+        let hugeHeader = CommandGroupHeader(items: huge, lastTranscriptID: nil, isTurnRunning: false)
+        #expect(hugeHeader.title == "ツール実行 ×5000")
     }
 
     @Test func ヘッダの時刻は最後のコマンドの時刻() {

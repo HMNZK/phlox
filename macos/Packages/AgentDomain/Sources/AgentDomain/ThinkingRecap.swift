@@ -99,7 +99,7 @@ public enum ThinkingRecap {
     }
 
     /// 最大 60 文字。超過は prefix(60)+"…"。ラベルの意図的な空白は落とさない。
-    private static func clamp(_ text: String) -> String {
+    public static func clamp(_ text: String) -> String {
         guard text.count > 60 else { return text }
         return String(text.prefix(60)) + "…"
     }

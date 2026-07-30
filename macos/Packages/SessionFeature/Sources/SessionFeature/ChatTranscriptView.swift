@@ -202,7 +202,6 @@ struct ChatTranscriptView: View {
                 ThinkingIndicatorCell(
                     descriptor: agentDescriptor,
                     state: activityState,
-                    recap: { viewModel.recap(now: $0) },
                     hangAssessment: { viewModel.hangAssessment(now: $0) },
                     onInterrupt: { await viewModel.turnInterrupt() },
                     isInTranscriptViewport: isThinkingIndicatorInViewport
@@ -270,10 +269,13 @@ struct ChatTranscriptView: View {
             // ここで止めないと窓内の全行（グリッドは最大 40 件×9 タイル）が毎 tick 再評価される。
             .equatable()
         case .commandGroup(_, let items):
+            let isLatestRunningGroup = viewModel.status.isRunning && items.last?.id == lastTranscriptID
             CommandGroupCell(
                 items: items,
                 lastTranscriptID: lastTranscriptID,
-                isTurnRunning: viewModel.status.isRunning
+                isTurnRunning: viewModel.status.isRunning,
+                isInTranscriptViewport: isThinkingIndicatorInViewport,
+                recap: isLatestRunningGroup ? { viewModel.recap(now: $0) } : nil
             )
             .equatable()
         }

@@ -104,10 +104,6 @@ struct SubAgentDrawerView: View {
                             state: SubAgentDrawerPresentation.activityState(
                                 transcript: transcript,
                                 status: subAgent.status
-                            ),
-                            reasoningPreview: SubAgentDrawerPresentation.reasoningPreview(
-                                transcript: transcript,
-                                status: subAgent.status
                             )
                         )
                         .id("subagent-thinking")

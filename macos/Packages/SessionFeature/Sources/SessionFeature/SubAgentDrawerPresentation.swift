@@ -1,3 +1,4 @@
+import AgentDomain
 import Foundation
 
 /// SubAgentDrawerView の表示述語（subagent-view-parity run / task-2 の契約面）。
@@ -16,6 +17,13 @@ enum SubAgentDrawerPresentation {
         guard status == .running else { return false }
         guard case .commandExecution = item else { return false }
         return item.id == lastItemID
+    }
+
+    /// Thinking インジケータに出す活動状態（メイン ChatSessionViewModel.activityState 相当）。
+    /// サブエージェントはユーザーの承認待ちを持たないため、常に実行中として導出する。
+    static func activityState(transcript: [ChatItem], status: SubAgentStatus) -> AgentActivityState {
+        guard status == .running else { return .thinking }
+        return ChatRecap.deriveActivityState(transcript: transcript, status: .running)
     }
 
     /// Thinking インジケータに添える最新 reasoning のプレビュー

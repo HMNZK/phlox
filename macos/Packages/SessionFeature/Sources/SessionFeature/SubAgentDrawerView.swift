@@ -101,6 +101,10 @@ struct SubAgentDrawerView: View {
                     if SubAgentDrawerPresentation.showsThinkingIndicator(status: subAgent.status) {
                         ThinkingIndicatorCell(
                             descriptor: agentDescriptor,
+                            state: SubAgentDrawerPresentation.activityState(
+                                transcript: transcript,
+                                status: subAgent.status
+                            ),
                             reasoningPreview: SubAgentDrawerPresentation.reasoningPreview(
                                 transcript: transcript,
                                 status: subAgent.status

@@ -65,13 +65,14 @@ struct SubAgentMarkerCell: View {
 
 struct ThinkingIndicatorCell: View {
     let descriptor: AgentDescriptor
+    /// orb と状態語に出す活動状態。
+    var state: AgentActivityState = .thinking
     /// 実行中ターンの recap（時間追従）。TimelineView 内で評価し、描画中に state を書かない（ADR 0030）。
     var recap: ((Date) -> String?)? = nil
     var hangAssessment: ((Date) -> ChatHangAssessment?)? = nil
     var onInterrupt: (() async -> Void)? = nil
     /// transcript 最下部が viewport 内にあるか。スクロール位置のイベントから親が渡す。
     var isInTranscriptViewport = true
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     /// 表示ライフサイクルのイベントでのみ更新する。アニメーション状態には使わない。
     @State private var isInViewHierarchy = false
@@ -80,12 +81,14 @@ struct ThinkingIndicatorCell: View {
 
     init(
         descriptor: AgentDescriptor,
+        state: AgentActivityState = .thinking,
         recap: ((Date) -> String?)? = nil,
         hangAssessment: ((Date) -> ChatHangAssessment?)? = nil,
         onInterrupt: (() async -> Void)? = nil,
         isInTranscriptViewport: Bool = true
     ) {
         self.descriptor = descriptor
+        self.state = state
         self.recap = recap
         self.hangAssessment = hangAssessment
         self.onInterrupt = onInterrupt
@@ -96,12 +99,14 @@ struct ThinkingIndicatorCell: View {
     /// 静的プレビューを recap クロージャへ包む。
     init(
         descriptor: AgentDescriptor,
+        state: AgentActivityState = .thinking,
         reasoningPreview: String?,
         hangAssessment: ((Date) -> ChatHangAssessment?)? = nil,
         onInterrupt: (() async -> Void)? = nil,
         isInTranscriptViewport: Bool = true
     ) {
         self.descriptor = descriptor
+        self.state = state
         self.recap = reasoningPreview.map { preview in { _ in preview } }
         self.hangAssessment = hangAssessment
         self.onInterrupt = onInterrupt
@@ -122,17 +127,14 @@ struct ThinkingIndicatorCell: View {
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         AvatarMessageRow(descriptor: descriptor, timestamp: .distantPast) {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                if reduceMotion {
-                    staticThinkingText(scale: scale)
-                } else {
-                    ThinkingShimmerView(
-                        color: DSColor.chatTextSecondary,
-                        scale: scale,
-                        isVisible: isTimelineVisible
-                    )
-                    .accessibilityLabel("Thinking...")
-                    .accessibilityElement(children: .ignore)
+                HStack(spacing: DSSpacing.xs) {
+                    ThinkingOrbView(state: state, size: .inline, isVisible: isTimelineVisible)
+                    Text(state.orbLabel)
+                        .font(ChatScaledFont.body(scale: scale).italic())
+                        .foregroundStyle(DSColor.chatTextSecondary)
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(state.orbLabel)
                 if let recap {
                     TimelineView(HangStatusTimelineSchedule(isVisible: isTimelineVisible)) { context in
                         if let text = recap(context.date) {
@@ -163,12 +165,6 @@ struct ThinkingIndicatorCell: View {
         .onDisappear {
             isInViewHierarchy = false
         }
-    }
-
-    private func staticThinkingText(scale: CGFloat) -> some View {
-        Text("Thinking...")
-            .font(ChatScaledFont.body(scale: scale).italic())
-            .foregroundStyle(DSColor.chatTextSecondary)
     }
 
 }

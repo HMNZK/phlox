@@ -63,91 +63,24 @@ struct AgoraAgentMessageBubble: View {
     }()
 }
 
-/// アゴラ Thinking 行のドットアニメーション（SessionFeature の ThinkingAnimationModel と同型の位相）。
-private enum AgoraThinkingDotsAnimation {
-    static let period: TimeInterval = 2.4
-
-    struct DotState: Equatable {
-        var opacity: Double
-        var scale: Double
-        var yOffset: Double
-    }
-
-    static func dotState(index: Int, dotCount: Int, date: Date) -> DotState {
-        let safeDotCount = max(dotCount, 1)
-        let normalizedIndex = ((index % safeDotCount) + safeDotCount) % safeDotCount
-        let elapsed = date.timeIntervalSinceReferenceDate
-        let cycleProgress = elapsed
-            .truncatingRemainder(dividingBy: period) / period
-        let phase = 2 * Double.pi * (
-            cycleProgress - Double(normalizedIndex) / Double(safeDotCount)
-        )
-        let wave = (sin(phase) + 1) / 2
-
-        return DotState(
-            opacity: 0.35 + 0.65 * wave,
-            scale: 0.85 + 0.30 * wave,
-            yOffset: 1.5 - 3 * wave
-        )
-    }
-}
-
-private struct AgoraThinkingDots: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.controlActiveState) private var controlActiveState
-    private static let dotCount = 3
-
-    private var shouldAnimate: Bool {
-        !reduceMotion && controlActiveState == .key
-    }
-
-    var body: some View {
-        Group {
-            if shouldAnimate {
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-                    staticDots(date: context.date)
-                }
-            } else {
-                staticDots(date: nil)
-            }
-        }
-    }
-
-    private func staticDots(date: Date?) -> some View {
-        HStack(spacing: DSSpacing.xs) {
-            ForEach(0..<Self.dotCount, id: \.self) { index in
-                let state = dotState(for: index, date: date)
-                Circle()
-                    .fill(DSColor.chatTextSecondary)
-                    .frame(width: 4, height: 4)
-                    .scaleEffect(state.scale)
-                    .offset(y: state.yOffset)
-                    .opacity(state.opacity)
-            }
-        }
-        .frame(width: 20, height: 8, alignment: .center)
-        .accessibilityHidden(true)
-    }
-
-    private func dotState(for index: Int, date: Date?) -> AgoraThinkingDotsAnimation.DotState {
-        guard let date else {
-            return .init(opacity: 0.55, scale: 1, yOffset: 0)
-        }
-        return AgoraThinkingDotsAnimation.dotState(
-            index: index,
-            dotCount: Self.dotCount,
-            date: date
-        )
-    }
-}
-
 /// アゴラタイムライン末尾の Thinking インジケータ行（アイコン＋セッション名＋アニメーション）。
 struct AgoraThinkingIndicatorRow: View {
     let source: TeamTimelineSource
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
+    /// タイムラインの取り込み済みメッセージから活動状態を導出する（チャットの Thinking セルと同じ規則）。
+    /// タイムラインは実行中セッションだけを流すため、常に実行中として扱う。
+    static func activityState(source: TeamTimelineSource) -> AgentActivityState {
+        let items: [ChatItem] = source.messages.compactMap { message in
+            guard case .chatItem(let item) = message.content else { return nil }
+            return item
+        }
+        return ChatRecap.deriveActivityState(transcript: items, status: .running)
+    }
+
     var body: some View {
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
+        let state = Self.activityState(source: source)
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             HStack(spacing: DSSpacing.xs) {
                 AgentBrandIcon(descriptor: source.agentDescriptor, size: 16)
@@ -162,16 +95,16 @@ struct AgoraThinkingIndicatorRow: View {
                 Spacer(minLength: 0)
             }
             HStack(spacing: DSSpacing.s) {
-                Text("Thinking...")
+                ThinkingOrbView(state: state, size: .inline)
+                Text(state.orbLabel)
                     .font(.system(size: ChatTypography.bodyFontSize(scale: scale)).italic())
                     .foregroundStyle(DSColor.chatTextSecondary)
-                AgoraThinkingDots()
             }
             .padding(.horizontal, DSSpacing.m)
             .padding(.vertical, DSSpacing.s)
             .frame(maxWidth: 560, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityLabel("\(source.displayName) が考え中")
+        .accessibilityLabel("\(source.displayName): \(state.orbLabel)")
     }
 }

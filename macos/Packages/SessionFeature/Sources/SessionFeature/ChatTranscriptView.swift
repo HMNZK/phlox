@@ -192,13 +192,16 @@ struct ChatTranscriptView: View {
                 )
                 .id("chat-compacting")
             }
-            if CompactingIndicatorPresentation.shouldShowThinkingIndicator(
-                showsThinkingIndicator: showsThinkingIndicator,
-                showsProcessingIndicator: viewModel.showsProcessingIndicator,
-                isCompacting: viewModel.isCompacting
-            ) {
+            if let activityState = viewModel.activityState,
+               CompactingIndicatorPresentation.shouldShowThinkingIndicator(
+                   showsThinkingIndicator: showsThinkingIndicator,
+                   showsProcessingIndicator: viewModel.showsProcessingIndicator,
+                   isCompacting: viewModel.isCompacting,
+                   isAwaitingUser: activityState == .waiting
+               ) {
                 ThinkingIndicatorCell(
                     descriptor: agentDescriptor,
+                    state: activityState,
                     recap: { viewModel.recap(now: $0) },
                     hangAssessment: { viewModel.hangAssessment(now: $0) },
                     onInterrupt: { await viewModel.turnInterrupt() },

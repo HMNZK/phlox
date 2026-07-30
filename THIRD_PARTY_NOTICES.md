@@ -11,6 +11,15 @@ The copyright notices below are retained as required by those licenses.
   SourceLair Private Company) and blessed (Copyright (c) Christopher Jeffrey).
   Located under `macos/Vendor/SwiftTerm`. Contains local modifications.
 
+## Ported source
+
+- **thinking-orbs** — MIT License. Copyright (c) 2026 Jakub Antalik
+  (<https://github.com/Jakubantalik/thinking-orbs>). The dotted thinking-orb
+  rendering engine (six animation modes, density profiles and tuned presets)
+  was ported from TypeScript/Canvas 2D to Swift/CoreGraphics. The Swift port
+  lives under `macos/Packages/DesignSystem/Sources/DesignSystem/ThinkingOrb`
+  and is used by both the macOS and iOS apps.
+
 ## Swift Package Manager dependencies
 
 ### macOS app (`macos/`)

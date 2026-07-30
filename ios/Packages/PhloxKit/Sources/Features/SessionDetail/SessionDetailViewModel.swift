@@ -394,6 +394,15 @@ public final class SessionDetailViewModel {
     /// 生成中インジケータの表示条件: チャット表示中 かつ currentStatus == .running。
     public var isAgentWorking: Bool { showsChat && currentStatus == .running }
 
+    /// Thinking インジケータに出す活動状態。表示しないときは nil。
+    /// 承認・回答待ちは実行中でなくても待機として出す（orb の 6 状態のうち waiting）。
+    public var activityState: AgentActivityState? {
+        guard showsChat else { return nil }
+        if let waiting = AgentActivityClassifier.waitingState(for: currentStatus) { return waiting }
+        guard isAgentWorking else { return nil }
+        return ChatRecapIOS.deriveActivityState(messages: chatMessages, status: currentStatus)
+    }
+
     /// 描画対象メッセージ（空メッセージを除外した chatMessages）。
     public var visibleMessages: [ChatMessage] {
         chatMessages.filter(Self.isVisible)

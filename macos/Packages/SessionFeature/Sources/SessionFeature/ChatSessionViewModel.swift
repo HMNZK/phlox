@@ -480,6 +480,14 @@ public final class ChatSessionViewModel: Identifiable {
         )
     }
 
+    /// Thinking インジケータに出す活動状態。表示すべきものが無ければ nil。
+    /// 承認・回答待ちは処理中でなくても待機として出す（orb の 6 状態のうち waiting）。
+    public var activityState: AgentActivityState? {
+        if let waiting = AgentActivityClassifier.waitingState(for: status) { return waiting }
+        guard showsProcessingIndicator else { return nil }
+        return ChatRecap.deriveActivityState(transcript: transcript, status: status)
+    }
+
     /// 実行中ターンの最新 reasoning テキスト末尾3行（task-5 契約。受け入れテスト ReasoningPreview が凍結）。
     public var runningReasoningPreview: String? {
         guard status == .running else { return nil }

@@ -50,4 +50,40 @@ enum ChatRecapIOS {
             threshold: threshold
         )
     }
+
+    /// messages とセッション状態から Thinking インジケータの活動状態を導出する（純粋関数）。
+    /// macOS の `ChatRecap.deriveActivityState` と同一の規則。
+    static func deriveActivityState(
+        messages: [ChatMessage],
+        status: SessionStatus
+    ) -> AgentActivityState {
+        if let waiting = AgentActivityClassifier.waitingState(for: status) { return waiting }
+
+        let scoped: ArraySlice<ChatMessage>
+        if let lastUserIndex = messages.lastIndex(where: {
+            if case .user = $0 { return true }
+            return false
+        }) {
+            scoped = messages[(lastUserIndex + 1)...]
+        } else {
+            scoped = messages[...]
+        }
+
+        var state = AgentActivityState.thinking
+        for message in scoped {
+            switch message {
+            case .reasoning:
+                state = .thinking
+            case .command(_, let command, _):
+                state = AgentActivityClassifier.state(forCommand: command)
+            case .fileChange:
+                state = .editing
+            case .agent:
+                state = .writing
+            default:
+                break
+            }
+        }
+        return state
+    }
 }

@@ -50,7 +50,7 @@ body: store.items を VStack（非遅延。LazyVStack 禁止 = ADR 0045）で描
 
 ## Thinking インジケータ（生成中の可視化）
 
-タイムライン末尾に、生成中の参加者ごとに `AgoraThinkingIndicatorRow`（アイコン＋セッション名ヘッダ＋「Thinking...」＋ドットアニメーション）を出す。表示対象は `AgoraThinkingPolicy.thinkingSessionIDs(sources:statusesByID:)`＝status が `.running` の参加者（sources の表示順を維持）。ドットは `TimelineView(.animation)` 駆動だが、`accessibilityReduceMotion` かつ非アクティブウィンドウ（`controlActiveState != .key`）では静止フレームに落とす（常時 30fps 固着の回避。2026-07-11 UX 修正）。
+タイムライン末尾に、生成中の参加者ごとに `AgoraThinkingIndicatorRow`（アイコン＋セッション名ヘッダ＋点描 orb ＋状態語）を出す。表示対象は `AgoraThinkingPolicy.thinkingSessionIDs(sources:statusesByID:)`＝status が `.running` の参加者（sources の表示順を維持）。状態は `AgoraThinkingIndicatorRow.activityState(source:)`＝取り込み済みの `ChatItem` 列を `ChatRecap.deriveActivityState` へ渡して導出し、チャットの Thinking セルと同じ規則で出し分ける（ADR 0142）。orb は display link 駆動で、`accessibilityReduceMotion` 時は静止フレームになる。
 
 ## 参加者チップ列＋「＋」ボタン
 

@@ -8,12 +8,14 @@ enum CompactingIndicatorPresentation {
         isCompacting
     }
 
+    /// `isAwaitingUser` は承認・回答待ち。処理中でなくても待機状態として出す。
     static func shouldShowThinkingIndicator(
         showsThinkingIndicator: Bool,
         showsProcessingIndicator: Bool,
-        isCompacting: Bool
+        isCompacting: Bool,
+        isAwaitingUser: Bool = false
     ) -> Bool {
-        showsThinkingIndicator && showsProcessingIndicator && !isCompacting
+        showsThinkingIndicator && (showsProcessingIndicator || isAwaitingUser) && !isCompacting
     }
 }
 

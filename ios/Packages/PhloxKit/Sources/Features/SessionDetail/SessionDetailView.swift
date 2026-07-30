@@ -288,9 +288,12 @@ public struct SessionDetailView: View {
                 )
                 .id(visibleBlock.id)
             }
-            if viewModel.isAgentWorking {
+            if let activityState = viewModel.activityState {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
-                    DSThinkingIndicator(reasoningPreview: viewModel.recap(now: context.date))
+                    DSThinkingIndicator(
+                        state: activityState,
+                        reasoningPreview: viewModel.recap(now: context.date)
+                    )
                 }
             }
         }

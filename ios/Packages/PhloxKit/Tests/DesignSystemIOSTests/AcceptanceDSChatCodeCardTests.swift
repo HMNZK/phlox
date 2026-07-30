@@ -7,7 +7,10 @@ import ChatRenderKit
 // 目的: iOS 側に「枠線付きコードカード」という共通の器を 1 つだけ用意し、
 // 共有トークン列（ChatRenderKit）を iOS のテーマ色へ対応付ける入口を固定する。
 
+// SwiftUI の View は MainActor 隔離なので、body の評価はメインアクタ上で行う
+// （production 側の隔離を剥がすのではなく、ハーネス側を合わせる）。
 @Suite("DSChatCodeCard: 共通のカード器")
+@MainActor
 struct AcceptanceDSChatCodeCardTests {
     @Test("見出しと中身を受け取って組み立てられる")
     func composesHeaderAndContent() {

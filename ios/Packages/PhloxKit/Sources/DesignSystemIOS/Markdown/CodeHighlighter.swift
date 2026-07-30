@@ -1,4 +1,6 @@
 import Foundation
+import SwiftUI
+import ChatRenderKit
 
 /// コードブロックの簡易シンタックスハイライタ（Phlox 本体 ChatCodeHighlighter の iOS 移植面）。
 /// 連続走査ベースの軽量トークナイザで、正確なパースは狙わない（表示用途）。
@@ -126,5 +128,47 @@ public enum CodeHighlighter {
         }
 
         return tokens
+    }
+}
+
+public extension CodeHighlighter {
+    /// ChatRenderKit のトークン列を iOS のテーマ色付き文字列へ変換する。
+    static func attributed(tokens: [ChatCodeToken]) -> AttributedString {
+        var output = AttributedString()
+        for token in tokens {
+            append(token.text, color: color(for: token.kind), to: &output)
+        }
+        return output
+    }
+
+    /// シェルコマンドを共有トークナイザ経由で色付けする。
+    static func shell(_ command: String) -> AttributedString {
+        attributed(tokens: ChatCodeTokenizer.shell(command))
+    }
+
+    /// ファイルパスに応じた共有トークナイザで diff 本文を色付けする。
+    static func diff(_ code: String, path: String) -> AttributedString {
+        attributed(tokens: ChatCodeTokenizer.tokens(for: code, path: path))
+    }
+
+    private static func append(_ string: String, color: Color, to output: inout AttributedString) {
+        var chunk = AttributedString(string)
+        chunk.foregroundColor = color
+        output += chunk
+    }
+
+    private static func color(for kind: ChatCodeTokenKind) -> Color {
+        switch kind {
+        case .keyword, .command, .operator:
+            DSColor.codeSyntaxKeyword
+        case .string, .variable:
+            DSColor.codeSyntaxString
+        case .number, .subcommand, .option:
+            DSColor.codeSyntaxNumber
+        case .comment:
+            DSColor.codeSyntaxComment
+        case .plain:
+            DSColor.chatTextPrimary
+        }
     }
 }

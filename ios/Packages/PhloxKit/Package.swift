@@ -61,6 +61,7 @@ let package = Package(
                 "PhloxCore",
                 .product(name: "DesignSystem", package: "DesignSystem"),
                 .product(name: "AgentDomain", package: "AgentDomain"),
+                .product(name: "ChatRenderKit", package: "AgentDomain"),
                 .product(name: "MarkdownUI", package: "swift-markdown-ui"),
             ]
         ),
@@ -84,6 +85,7 @@ let package = Package(
                 "DesignSystemIOS",
                 "TerminalScreenIOS",
                 .product(name: "DesignSystem", package: "DesignSystem"),
+                .product(name: "ChatRenderKit", package: "AgentDomain"),
             ]
         ),
 

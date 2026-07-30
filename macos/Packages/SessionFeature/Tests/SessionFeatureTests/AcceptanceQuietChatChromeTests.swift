@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Testing
+import AgentDomain
 import DesignSystem
 @testable import SessionFeature
 
@@ -8,14 +9,41 @@ import DesignSystem
 @Suite("Acceptance: quiet chat chrome (task-1)")
 @MainActor
 struct AcceptanceQuietChatChromeTests {
-    @Test("DisclosureCard はアイコン・アクセント引数なしで構築できる")
-    func disclosureCardHasNoIconOrAccentArguments() {
+    @Test("DisclosureCard は時刻・アイコン・アクセント引数なしで構築できる")
+    func disclosureCardHasNoTimestampIconOrAccentArguments() {
         _ = DisclosureCard(
             isExpanded: .constant(false),
             title: "Command",
-            subtitle: "実行中",
-            timestamp: .distantPast
+            subtitle: "実行中"
         ) { EmptyView() }
+    }
+
+    @Test("カードヘッダは時刻を描画せず、メッセージ行は時刻を残す")
+    func cardHeaderOmitsTimestampWhileAvatarRowKeepsIt() throws {
+        let source = try sourceText("ChatMessageCellsCommon.swift")
+        let afterCardDeclaration = try #require(source.components(separatedBy: "struct DisclosureCard<Content: View>").last)
+        let cardSource = try #require(afterCardDeclaration.components(separatedBy: "private struct DisclosureCardStyle").first)
+        #expect(!cardSource.contains("ChatTimestampText"))
+        #expect(source.contains("struct AvatarMessageRow"))
+        #expect(source.contains("ChatTimestampText(timestamp: timestamp)"))
+    }
+
+    @Test("Reasoning 見出しは本文の見出し、末尾行、既定値を使う")
+    func reasoningHeadlineUsesSharedThinkingRecapHeuristic() {
+        #expect(ThinkingRecap.headline(from: "本文\n## 認証フローを設計\n続き") == "認証フローを設計")
+        #expect(ThinkingRecap.headline(from: "最初\n最後の行") == "最後の行")
+        #expect(ThinkingRecap.headline(from: "  \n ") == nil)
+    }
+
+    @Test("非表示のコピーボタンも描画サイズを保持する")
+    func hiddenCopyButtonPreservesLayoutSize() throws {
+        let visible = try #require(ImageRenderer(content: MessageCopyButton(
+            text: "copy", accessibilityIdentifier: "visible", scale: 1, isVisible: true
+        )).nsImage)
+        let hidden = try #require(ImageRenderer(content: MessageCopyButton(
+            text: "copy", accessibilityIdentifier: "hidden", scale: 1, isVisible: false
+        )).nsImage)
+        #expect(visible.size == hidden.size)
     }
 
     @Test("実行中のコマンドセルをレンダリングできる")

@@ -202,9 +202,8 @@ struct ReasoningSummaryView: View {
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         DisclosureCard(
             isExpanded: $isExpanded,
-            title: "Reasoning",
-            subtitle: nil,
-            timestamp: timestamp
+            title: ThinkingRecap.headline(from: text) ?? "Reasoning",
+            subtitle: nil
         ) {
             Text(text)
                 .font(ChatScaledFont.body(scale: scale))
@@ -233,7 +232,6 @@ struct CommandExecutionCell: View {
             isExpanded: $isExpanded,
             title: command?.isEmpty == false ? command! : "Command",
             subtitle: isRunning ? "実行中" : (output.isEmpty ? nil : "Output available"),
-            timestamp: timestamp,
             isToolCall: true
         ) {
             if !output.isEmpty {
@@ -259,6 +257,7 @@ struct FileChangeCell: View {
     /// ユーザーが明示トグルしたときだけ設定される override。nil の間は policy 由来の既定に追随する。
     @State private var userExpandedOverride: Bool?
     @State private var showAllLines = false
+    @State private var isHovering = false
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
@@ -325,8 +324,7 @@ struct FileChangeCell: View {
         DisclosureCard(
             isExpanded: expansionBinding,
             title: changes.count == 1 ? "File Change" : "\(changes.count) File Changes",
-            subtitle: changes.first.map { DiffPathDisplay.shorten($0.path) },
-            timestamp: timestamp
+            subtitle: changes.first.map { DiffPathDisplay.shorten($0.path) }
         ) {
             VStack(alignment: .leading, spacing: DSSpacing.m) {
                 ForEach(visibleSections) { section in
@@ -344,9 +342,12 @@ struct FileChangeCell: View {
                             MessageCopyButton(
                                 text: section.copyText,
                                 accessibilityIdentifier: "FileChange.copyDiff.\(section.id)",
-                                scale: scale
+                                scale: scale,
+                                isVisible: isHovering
                             )
                         }
+                        .onHover { isHovering = $0 }
+                        .animation(.easeInOut(duration: 0.12), value: isHovering)
                         VStack(alignment: .leading, spacing: 0) {
                             ForEach(section.codeView.lines) { codeLine in
                                 diffLineView(codeLine, lineNumberWidth: section.codeView.lineNumberWidth, scale: scale)

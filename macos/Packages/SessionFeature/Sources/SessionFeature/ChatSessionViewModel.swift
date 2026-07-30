@@ -469,17 +469,6 @@ public final class ChatSessionViewModel: Identifiable {
         )
     }
 
-    /// 実行中ターンの recap 要約（task-3 契約。受け入れテスト ChatRecapAcceptance が凍結）。
-    /// 呼び出しは読み取り専用（状態を書かない）。`hangAssessment(now:)` と同型。
-    func recap(now: Date) -> String? {
-        ChatRecap.derive(
-            transcript: transcript,
-            status: status,
-            turnStartedAt: turnStartedAt,
-            now: now
-        )
-    }
-
     /// Thinking インジケータに出す活動状態。表示すべきものが無ければ nil。
     /// 承認・回答待ちは処理中でなくても待機として出す（orb の 6 状態のうち waiting）。
     public var activityState: AgentActivityState? {

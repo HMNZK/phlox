@@ -20,12 +20,11 @@ struct CommandGroupHeader: Equatable {
     init(
         items: [ChatItem],
         lastTranscriptID: String?,
-        isTurnRunning: Bool,
-        liveRecap: String? = nil
+        isTurnRunning: Bool
     ) {
         let lastItem = items.last
         isRunning = isTurnRunning && lastItem?.id == lastTranscriptID
-        title = CommandGroupTitle.derive(items: items, isRunning: isRunning, liveRecap: liveRecap)
+        title = CommandGroupTitle.derive(items: items)
 
         if case .commandExecution(_, _, _, let timestamp)? = lastItem {
             self.timestamp = timestamp
@@ -133,9 +132,6 @@ struct CommandGroupCell: View, Equatable {
     let items: [ChatItem]
     let lastTranscriptID: String?
     let isTurnRunning: Bool
-    let isInTranscriptViewport: Bool
-    /// 実行中の最新グループだけに渡される。ADR 0116 のため同値比較には含めない。
-    let recap: ((Date) -> String?)?
     @State private var isExpanded = false
     @State private var rowLimit = CommandGroupRowWindow.defaultLimit
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
@@ -143,15 +139,11 @@ struct CommandGroupCell: View, Equatable {
     init(
         items: [ChatItem],
         lastTranscriptID: String?,
-        isTurnRunning: Bool,
-        isInTranscriptViewport: Bool = true,
-        recap: ((Date) -> String?)? = nil
+        isTurnRunning: Bool
     ) {
         self.items = items
         self.lastTranscriptID = lastTranscriptID
         self.isTurnRunning = isTurnRunning
-        self.isInTranscriptViewport = isInTranscriptViewport
-        self.recap = recap
     }
 
     /// ADR 0116: 未変更ブロックの body 再評価をスキップするための同値性（呼び出し側で `.equatable()`）。
@@ -161,9 +153,6 @@ struct CommandGroupCell: View, Equatable {
         lhs.items == rhs.items
             && lhs.lastTranscriptID == rhs.lastTranscriptID
             && lhs.isTurnRunning == rhs.isTurnRunning
-            // viewport は実行中グループの TimelineView にだけ効く。非実行中まで
-            // スクロール境界で再評価しない（ADR 0116）。
-            && (!lhs.isTurnRunning || lhs.isInTranscriptViewport == rhs.isInTranscriptViewport)
     }
 
     var body: some View {
@@ -171,18 +160,14 @@ struct CommandGroupCell: View, Equatable {
         let header = CommandGroupHeader(
             items: items,
             lastTranscriptID: lastTranscriptID,
-            isTurnRunning: isTurnRunning,
-            liveRecap: nil
+            isTurnRunning: isTurnRunning
         )
         if header.shouldRender {
             DisclosureCard(
                 isExpanded: $isExpanded,
                 title: header.title,
                 subtitle: header.isRunning ? "実行中 ×\(items.count)" : "×\(items.count)",
-                timestamp: header.timestamp,
-                isToolCall: true,
-                isTimelineVisible: isInTranscriptViewport,
-                liveTitle: liveTitle
+                isToolCall: true
             ) {
                 if isExpanded {
                     let rowsSlice = CommandGroupRowWindow.slice(
@@ -214,18 +199,13 @@ struct CommandGroupCell: View, Equatable {
         }
     }
 
-    var liveTitle: ((Date) -> String)? {
-        guard isTurnRunning, let recap else { return nil }
-        return { date in
-            CommandGroupTitle.derive(items: items, isRunning: true, liveRecap: recap(date))
-        }
-    }
 }
 
 private struct CommandGroupExecutionRow: View {
     let command: String?
     let output: String
     @State private var isOutputExpanded = false
+    @State private var isHovering = false
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
@@ -249,9 +229,12 @@ private struct CommandGroupExecutionRow: View {
                         MessageCopyButton(
                             text: outputDisplay.copyText,
                             accessibilityIdentifier: "CommandGroupExecutionRow.copyOutput",
-                            scale: scale
+                            scale: scale,
+                            isVisible: isHovering
                         )
                     }
+                    .onHover { isHovering = $0 }
+                    .animation(.easeInOut(duration: 0.12), value: isHovering)
                     Text(outputDisplay.displayedOutput)
                         .font(ChatScaledFont.monoCaption(scale: scale))
                         .foregroundStyle(DSColor.chatTextSecondary)

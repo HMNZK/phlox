@@ -89,24 +89,25 @@ struct TranscriptCellEquatableWhiteboxTests {
         #expect(running != idle)
     }
 
-    @Test("非実行中グループは viewport だけが変わっても equal のまま")
-    func commandGroupCell_idleViewportChange_isEqual() {
+    @Test("グループの最終項目が変われば not equal になる")
+    func commandGroupCell_changedItems_areNotEqual() {
         let items = [
             ChatItem.commandExecution(id: "cmd-1", command: "swift test", output: "ok", timestamp: timestamp),
         ]
-        let visible = CommandGroupCell(
+        let updatedItems = [
+            ChatItem.commandExecution(id: "cmd-1", command: "swift test --verbose", output: "ok", timestamp: timestamp),
+        ]
+        let original = CommandGroupCell(
             items: items,
             lastTranscriptID: "cmd-1",
-            isTurnRunning: false,
-            isInTranscriptViewport: true
+            isTurnRunning: false
         )
-        let offscreen = CommandGroupCell(
-            items: items,
+        let updated = CommandGroupCell(
+            items: updatedItems,
             lastTranscriptID: "cmd-1",
-            isTurnRunning: false,
-            isInTranscriptViewport: false
+            isTurnRunning: false
         )
 
-        #expect(visible == offscreen)
+        #expect(original != updated)
     }
 }

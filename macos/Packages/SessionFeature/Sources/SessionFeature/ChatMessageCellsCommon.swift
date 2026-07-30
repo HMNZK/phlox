@@ -52,10 +52,7 @@ struct DisclosureCard<Content: View>: View {
     @Binding var isExpanded: Bool
     let title: String
     let subtitle: String?
-    let timestamp: Date
     let isToolCall: Bool
-    let isTimelineVisible: Bool
-    let liveTitle: ((Date) -> String)?
     @ViewBuilder let content: Content
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
@@ -64,19 +61,13 @@ struct DisclosureCard<Content: View>: View {
         isExpanded: Binding<Bool>,
         title: String,
         subtitle: String?,
-        timestamp: Date,
         isToolCall: Bool = false,
-        isTimelineVisible: Bool = true,
-        liveTitle: ((Date) -> String)? = nil,
         @ViewBuilder content: () -> Content
     ) {
         _isExpanded = isExpanded
         self.title = title
         self.subtitle = subtitle
-        self.timestamp = timestamp
         self.isToolCall = isToolCall
-        self.isTimelineVisible = isTimelineVisible
-        self.liveTitle = liveTitle
         self.content = content()
     }
 
@@ -88,7 +79,10 @@ struct DisclosureCard<Content: View>: View {
         } label: {
             HStack(spacing: DSSpacing.s) {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    titleText(scale: scale)
+                    Text(title)
+                        .font(ChatScaledFont.captionStrong(scale: scale))
+                        .foregroundStyle(DisclosureCardPalette.title(isToolCall: isToolCall))
+                        .fixedSize(horizontal: false, vertical: true)
                     if let subtitle, !subtitle.isEmpty {
                         Text(subtitle)
                             .font(ChatScaledFont.caption(scale: scale))
@@ -96,30 +90,12 @@ struct DisclosureCard<Content: View>: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                Spacer(minLength: DSSpacing.s)
-                ChatTimestampText(timestamp: timestamp)
             }
         }
         .disclosureGroupStyle(DisclosureCardStyle())
         .padding(.vertical, DSSpacing.xs)
     }
 
-    @ViewBuilder
-    private func titleText(scale: CGFloat) -> some View {
-        if let liveTitle {
-            TimelineView(HangStatusTimelineSchedule(isVisible: isTimelineVisible)) { context in
-                Text(liveTitle(context.date))
-                    .font(ChatScaledFont.captionStrong(scale: scale))
-                    .foregroundStyle(DisclosureCardPalette.title(isToolCall: isToolCall))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        } else {
-            Text(title)
-                .font(ChatScaledFont.captionStrong(scale: scale))
-                .foregroundStyle(DisclosureCardPalette.title(isToolCall: isToolCall))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
 }
 
 private struct DisclosureCardStyle: DisclosureGroupStyle {
@@ -134,6 +110,7 @@ private struct DisclosureCardStyle: DisclosureGroupStyle {
                         .font(.system(size: DSIconSize.s, weight: .semibold))
                         .rotationEffect(.degrees(configuration.isExpanded ? 90 : 0))
                         .accessibilityHidden(true)
+                    Spacer(minLength: 0)
                 }
                 .contentShape(Rectangle())
             }

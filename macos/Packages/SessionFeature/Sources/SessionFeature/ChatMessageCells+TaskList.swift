@@ -19,8 +19,7 @@ struct TaskListCell: View {
         DisclosureCard(
             isExpanded: .constant(true),
             title: "Tasks",
-            subtitle: tasks.isEmpty ? "No tasks" : "\(tasks.count) tasks",
-            timestamp: timestamp
+            subtitle: tasks.isEmpty ? "No tasks" : "\(tasks.count) tasks"
         ) {
             VStack(alignment: .leading, spacing: DSSpacing.s) {
                 ForEach(tasks) { task in

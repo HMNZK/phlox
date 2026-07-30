@@ -13,8 +13,16 @@ struct MessageCopyButton: View {
     let text: String
     let accessibilityIdentifier: String
     let scale: CGFloat
+    let isVisible: Bool
     @State private var didCopy = false
     @State private var resetTask: Task<Void, Never>?
+
+    init(text: String, accessibilityIdentifier: String, scale: CGFloat, isVisible: Bool = true) {
+        self.text = text
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.scale = scale
+        self.isVisible = isVisible
+    }
 
     var body: some View {
         Button(action: copyAndShowFeedback) {
@@ -35,6 +43,8 @@ struct MessageCopyButton: View {
         .help(didCopy ? "コピーしました" : "Copy message")
         .accessibilityLabel(didCopy ? "コピーしました" : "Copy message")
         .accessibilityIdentifier(accessibilityIdentifier)
+        .opacity(isVisible ? 1 : 0)
+        .allowsHitTesting(isVisible)
     }
 
     private func copyAndShowFeedback() {

@@ -35,6 +35,7 @@ struct UserMessageCell: View {
     let text: String
     let timestamp: Date
     let attachments: [ChatUserAttachment]
+    @State private var isHovering = false
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
@@ -74,10 +75,13 @@ struct UserMessageCell: View {
                         MessageCopyButton(
                             text: text,
                             accessibilityIdentifier: "ChatMessage.copyButton.user",
-                            scale: scale
+                            scale: scale,
+                            isVisible: isHovering
                         )
                     }
                 }
+                .onHover { isHovering = $0 }
+                .animation(.easeInOut(duration: 0.12), value: isHovering)
                 ChatTimestampText(timestamp: timestamp)
             }
             .frame(maxWidth: 560, alignment: .trailing)
@@ -111,6 +115,7 @@ struct AgentMessageCell: View {
     let text: String
     let timestamp: Date
     let descriptor: AgentDescriptor
+    @State private var isHovering = false
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
@@ -123,9 +128,12 @@ struct AgentMessageCell: View {
                 MessageCopyButton(
                     text: text,
                     accessibilityIdentifier: "ChatMessage.copyButton.agent",
-                    scale: scale
+                    scale: scale,
+                    isVisible: isHovering
                 )
             }
+            .onHover { isHovering = $0 }
+            .animation(.easeInOut(duration: 0.12), value: isHovering)
         }
     }
 }

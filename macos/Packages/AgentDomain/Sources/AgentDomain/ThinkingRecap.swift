@@ -51,6 +51,12 @@ public enum ThinkingRecap {
             return clamp(label(for: activity))
         }
 
+        guard let result = headline(from: reasoningText) else { return nil }
+        return result.isEmpty ? nil : result
+    }
+
+    /// reasoning 本文からカード見出しを抽出する。末尾側の見出しを優先し、無ければ末尾の非空白行を返す。
+    public static func headline(from reasoningText: String?) -> String? {
         guard let extracted = extract(from: reasoningText) else { return nil }
         let result = clamp(extracted)
         return result.isEmpty ? nil : result

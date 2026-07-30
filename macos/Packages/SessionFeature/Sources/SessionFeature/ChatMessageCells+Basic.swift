@@ -117,7 +117,7 @@ struct AgentMessageCell: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        AvatarMessageRow(descriptor: descriptor, timestamp: timestamp) {
+        AvatarMessageRow(timestamp: timestamp) {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 AgentMessageBody(text: text)
                 MessageCopyButton(

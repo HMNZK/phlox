@@ -20,10 +20,7 @@ struct TaskListCell: View {
             isExpanded: .constant(true),
             title: "Tasks",
             subtitle: tasks.isEmpty ? "No tasks" : "\(tasks.count) tasks",
-            timestamp: timestamp,
-            systemImage: "checklist",
-            accent: hasInProgressTask ? DSColor.chatAccent : DSColor.chatSuccess,
-            status: hasInProgressTask ? .running : .complete
+            timestamp: timestamp
         ) {
             VStack(alignment: .leading, spacing: DSSpacing.s) {
                 ForEach(tasks) { task in
@@ -47,10 +44,6 @@ struct TaskListCell: View {
         }
         .frame(maxWidth: 720, alignment: .leading)
         .accessibilityIdentifier("ChatMessage.taskList")
-    }
-
-    private var hasInProgressTask: Bool {
-        tasks.contains { $0.status == .inProgress }
     }
 
     private func glyph(for status: AgentTaskStatus) -> String {

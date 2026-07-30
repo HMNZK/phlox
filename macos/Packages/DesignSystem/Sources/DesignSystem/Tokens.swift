@@ -106,6 +106,8 @@ public enum DSColor {
     public static var chatSuccess: Color { theme.statusCompleted.color }
     public static var chatTextPrimary: Color { theme.textPrimary.color }
     public static var chatTextSecondary: Color { theme.textSecondary.color }
+    /// ツール呼び出しの本文色。テーマの前景色を無彩色のまま半透明化し、チャット本文より控えめにする。
+    public static var chatToolCallText: Color { theme.textPrimary.color.opacity(0.68) }
     // コードのシンタックスハイライト色（ChatMessageCells の自前ハイライタが使用）。
     // ライトテーマでは白地でも沈まない濃色へ切り替える。
     public static var codeSyntaxKeyword: Color {

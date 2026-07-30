@@ -45,19 +45,13 @@ struct AcceptanceMarkdownNoTruncationTests {
             isExpanded: .constant(false),
             title: "短いタイトル",
             subtitle: nil,
-            timestamp: .distantPast,
-            systemImage: "terminal",
-            accent: .green,
-            status: .complete
+            timestamp: .distantPast
         ) { EmptyView() }
         let longCard = DisclosureCard(
             isExpanded: .constant(false),
             title: longTitle,
             subtitle: nil,
-            timestamp: .distantPast,
-            systemImage: "terminal",
-            accent: .green,
-            status: .complete
+            timestamp: .distantPast
         ) { EmptyView() }
 
         let shortHeight = fittingHeight(shortCard, width: 300)

@@ -43,7 +43,7 @@ struct CompactingIndicatorCell: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        AvatarMessageRow(descriptor: descriptor, timestamp: .distantPast) {
+        AvatarMessageRow(timestamp: .distantPast) {
             Group {
                 if reduceMotion {
                     staticCompactingText(scale: scale)

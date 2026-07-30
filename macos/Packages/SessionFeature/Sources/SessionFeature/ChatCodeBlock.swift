@@ -72,31 +72,60 @@ enum ChatCodeHighlighter {
         ChatMessageRenderCache.highlightedCode(code)
     }
 
+    /// diff 本文用のトークン分類。未対応拡張子は装飾せず plain にフォールバックする。
+    static func tokens(for code: String, path: String) -> [ChatCodeToken] {
+        guard path.lowercased().hasSuffix(".swift") else {
+            return code.isEmpty ? [] : [ChatCodeToken(text: code, kind: .plain)]
+        }
+        return tokenizeSwift(code)
+    }
+
+    static func computeDiffHighlight(_ code: String, path: String) -> AttributedString {
+        var output = AttributedString()
+        for token in tokens(for: code, path: path) {
+            append(token.text, color: color(for: token.kind), to: &output)
+        }
+        return output
+    }
+
     /// 純粋なハイライト計算。非トークン文字は同色 run にまとめて1回だけ append する
     /// （1文字ずつの連結を廃止 = P2）。AttributedString は隣接同属性 run を凝集するため、
     /// 出力は旧・1文字連結版と完全同値（属性境界＝色切替点は1文字もズレない）。
     static func computeHighlight(_ code: String) -> AttributedString {
         var output = AttributedString()
-        var index = code.startIndex
-        var plainStart: String.Index?
+        for token in tokenizeSwift(code) {
+            append(token.text, color: color(for: token.kind), to: &output)
+        }
+        return output
+    }
 
-        func flushPlain(before boundary: String.Index) {
-            guard let start = plainStart else { return }
-            append(String(code[start..<boundary]), color: DSColor.chatTextPrimary, to: &output)
-            plainStart = nil
+    private static func append(_ string: String, color: Color, to output: inout AttributedString) {
+        var chunk = AttributedString(string)
+        chunk.foregroundColor = color
+        output += chunk
+    }
+
+    private static func tokenizeSwift(_ code: String) -> [ChatCodeToken] {
+        var tokens: [ChatCodeToken] = []
+        var index = code.startIndex
+
+        func append(_ text: String, _ kind: ChatCodeTokenKind) {
+            guard !text.isEmpty else { return }
+            if tokens.last?.kind == kind {
+                tokens[tokens.count - 1].text += text
+            } else {
+                tokens.append(ChatCodeToken(text: text, kind: kind))
+            }
         }
 
         while index < code.endIndex {
             if code[index] == "/", code.index(after: index) < code.endIndex, code[code.index(after: index)] == "/" {
-                flushPlain(before: index)
                 let end = code[index...].firstIndex(of: "\n") ?? code.endIndex
-                append(String(code[index..<end]), color: DSColor.codeSyntaxComment, to: &output)
+                append(String(code[index..<end]), .comment)
                 index = end
                 continue
             }
-
             if code[index] == "\"" {
-                flushPlain(before: index)
                 var end = code.index(after: index)
                 var escaped = false
                 while end < code.endIndex {
@@ -106,45 +135,51 @@ enum ChatCodeHighlighter {
                         break
                     }
                     escaped = character == "\\" && !escaped
-                    if character != "\\" {
-                        escaped = false
-                    }
                     end = code.index(after: end)
                 }
-                append(String(code[index..<end]), color: DSColor.codeSyntaxString, to: &output)
+                append(String(code[index..<end]), .string)
                 index = end
                 continue
             }
-
             if code[index].isNumber {
-                flushPlain(before: index)
                 let end = code[index...].firstIndex { !$0.isNumber && $0 != "." } ?? code.endIndex
-                append(String(code[index..<end]), color: DSColor.codeSyntaxNumber, to: &output)
+                append(String(code[index..<end]), .number)
                 index = end
                 continue
             }
-
             if code[index].isLetter || code[index] == "_" {
-                flushPlain(before: index)
                 let end = code[index...].firstIndex { !$0.isLetter && !$0.isNumber && $0 != "_" } ?? code.endIndex
                 let word = String(code[index..<end])
-                append(word, color: keywords.contains(word) ? DSColor.codeSyntaxKeyword : DSColor.chatTextPrimary, to: &output)
+                append(word, keywords.contains(word) ? .keyword : .plain)
                 index = end
                 continue
             }
-
-            // 非トークン文字（空白・演算子・記号）: run を切らず貯めて同色でまとめて出す。
-            if plainStart == nil { plainStart = index }
+            append(String(code[index]), .plain)
             index = code.index(after: index)
         }
-
-        flushPlain(before: code.endIndex)
-        return output
+        return tokens
     }
 
-    private static func append(_ string: String, color: Color, to output: inout AttributedString) {
-        var chunk = AttributedString(string)
-        chunk.foregroundColor = color
-        output += chunk
+    private static func color(for kind: ChatCodeTokenKind) -> Color {
+        switch kind {
+        case .keyword: DSColor.codeSyntaxKeyword
+        case .string: DSColor.codeSyntaxString
+        case .number: DSColor.codeSyntaxNumber
+        case .comment: DSColor.codeSyntaxComment
+        case .plain: DSColor.chatTextPrimary
+        }
     }
+}
+
+enum ChatCodeTokenKind: Equatable, Sendable {
+    case keyword
+    case string
+    case number
+    case comment
+    case plain
+}
+
+struct ChatCodeToken: Equatable, Sendable {
+    var text: String
+    let kind: ChatCodeTokenKind
 }

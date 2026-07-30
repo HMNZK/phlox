@@ -262,11 +262,15 @@ struct FileChangeCell: View {
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
-    private struct DiffSection: Identifiable {
+    struct DiffSection: Identifiable {
         let id: Int
         let path: String
-        let fullDiff: String
-        let lines: [ClassifiedDiffLine]
+        let copyText: String
+        let codeView: DiffCodeViewData
+
+        var displayPath: String {
+            DiffPathDisplay.shorten(path)
+        }
     }
 
     /// 全 change の diff 総行数（メモ化済みの classify を使う）。
@@ -290,27 +294,27 @@ struct FileChangeCell: View {
     }
 
     /// 描画対象の各 change と行。非省略時は全行（＝従来と同一構造）、省略時は上限まで先頭を残す。
-    private var visibleSections: [DiffSection] {
+    var visibleSections: [DiffSection] {
         guard isTruncated else {
             return changes.enumerated().map { index, change in
                 DiffSection(
                     id: index,
                     path: change.path,
-                    fullDiff: change.diff,
-                    lines: ChatMessageRenderCache.diffLines(change.diff)
+                    copyText: change.diff,
+                    codeView: ChatMessageRenderCache.diffCodeView(diff: change.diff, path: change.path)
                 )
             }
         }
         var budget = FileChangeDisplayPolicy.visibleLineLimit
         return changes.enumerated().map { index, change in
-            let lines = ChatMessageRenderCache.diffLines(change.diff)
-            let take = max(0, min(lines.count, budget))
+            let codeView = ChatMessageRenderCache.diffCodeView(diff: change.diff, path: change.path)
+            let take = max(0, min(codeView.sourceLineCount, budget))
             budget -= take
             return DiffSection(
                 id: index,
                 path: change.path,
-                fullDiff: change.diff,
-                lines: Array(lines.prefix(take))
+                copyText: change.diff,
+                codeView: codeView.prefix(sourceLineCount: take)
             )
         }
     }
@@ -321,34 +325,31 @@ struct FileChangeCell: View {
         DisclosureCard(
             isExpanded: expansionBinding,
             title: changes.count == 1 ? "File Change" : "\(changes.count) File Changes",
-            subtitle: changes.first?.path,
+            subtitle: changes.first.map { DiffPathDisplay.shorten($0.path) },
             timestamp: timestamp
         ) {
             VStack(alignment: .leading, spacing: DSSpacing.m) {
                 ForEach(visibleSections) { section in
                     VStack(alignment: .leading, spacing: DSSpacing.s) {
                         HStack(spacing: DSSpacing.s) {
-                            Label(section.path, systemImage: "doc.text")
+                            Image(systemName: "doc.text")
                                 .font(ChatScaledFont.captionStrong(scale: scale))
                                 .foregroundStyle(DSColor.chatTextPrimary)
+                            Text(section.displayPath)
+                                .font(ChatScaledFont.captionStrong(scale: scale))
+                                .foregroundStyle(DSColor.chatTextPrimary)
+                                .help(section.path)
                             Spacer(minLength: DSSpacing.s)
                             // 省略表示中も画面上の prefix ではなく、元の file section 全文をコピーする。
                             MessageCopyButton(
-                                text: section.fullDiff,
+                                text: section.copyText,
                                 accessibilityIdentifier: "FileChange.copyDiff.\(section.id)",
                                 scale: scale
                             )
                         }
                         VStack(alignment: .leading, spacing: 0) {
-                            ForEach(section.lines) { line in
-                                Text(line.text.isEmpty ? " " : line.text)
-                                    .font(ChatScaledFont.monoCaption(scale: scale))
-                                    .foregroundStyle(foreground(for: line.kind))
-                                    .padding(.horizontal, DSSpacing.s)
-                                    .padding(.vertical, 1)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(background(for: line.kind))
-                                    .diffLineTextSelection()
+                            ForEach(section.codeView.lines) { codeLine in
+                                diffLineView(codeLine, lineNumberWidth: section.codeView.lineNumberWidth, scale: scale)
                             }
                         }
                         .background(DSColor.chatBackground, in: RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous))
@@ -376,19 +377,59 @@ struct FileChangeCell: View {
         .frame(maxWidth: 860, alignment: .leading)
     }
 
-    private func foreground(for kind: DiffLineKind) -> Color {
+    private func diffLineView(_ codeLine: DiffCodeLine, lineNumberWidth: Int, scale: CGFloat) -> some View {
+        let line = codeLine.line
+        return HStack(spacing: DSSpacing.s) {
+            Text(line.displayLineNumber.map(String.init) ?? "")
+                .font(ChatScaledFont.monoCaption(scale: scale))
+                .foregroundStyle(lineNumberForeground(for: line.kind))
+                .frame(width: CGFloat(lineNumberWidth) * 7 * scale, alignment: .trailing)
+            Text(marker(for: line.kind))
+                .font(ChatScaledFont.monoCaption(scale: scale))
+                .foregroundStyle(markerForeground(for: line.kind))
+                .frame(width: 8 * scale, alignment: .leading)
+            if line.kind == .hunk {
+                Text(line.text)
+                    .font(ChatScaledFont.monoCaption(scale: scale))
+                    .foregroundStyle(DSColor.chatTextSecondary)
+            } else {
+                Text(codeLine.body)
+                    .font(ChatScaledFont.monoCaption(scale: scale))
+            }
+        }
+        .padding(.horizontal, DSSpacing.s)
+        .padding(.vertical, 1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(background(for: line.kind))
+        .diffLineTextSelection()
+    }
+
+    private func marker(for kind: DiffLineKind) -> String {
+        switch kind {
+        case .addition: "+"
+        case .deletion: "-"
+        case .context: " "
+        case .fileHeader, .hunk: ""
+        }
+    }
+
+    private func markerForeground(for kind: DiffLineKind) -> Color {
         switch kind {
         case .addition:
             DSColor.diffAdded
         case .deletion:
             DSColor.diffRemoved
         case .hunk:
-            DSColor.chatAccent
+            DSColor.chatTextSecondary
         case .fileHeader:
             DSColor.chatTextSecondary
         case .context:
             DSColor.chatTextPrimary
         }
+    }
+
+    private func lineNumberForeground(for kind: DiffLineKind) -> Color {
+        markerForeground(for: kind)
     }
 
     private func background(for kind: DiffLineKind) -> Color {
@@ -398,7 +439,7 @@ struct FileChangeCell: View {
         case .deletion:
             DSColor.diffRemoved.opacity(0.12)
         case .hunk:
-            DSColor.chatAccent.opacity(0.12)
+            .clear
         case .fileHeader, .context:
             .clear
         }

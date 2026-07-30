@@ -57,6 +57,7 @@ enum ChatMessageRenderCache {
     static let markdownCache = ContentMemoCache<[ChatMarkdownBlock]>()
     static let diffCache = ContentMemoCache<[ClassifiedDiffLine]>()
     static let highlightCache = ContentMemoCache<AttributedString>()
+    static let diffCodeCache = ContentMemoCache<DiffCodeViewData>()
 
     /// fenced code block の分割（`ChatMarkdownFormatter.splitFencedCodeBlocks` をメモ化）。
     static func markdownBlocks(_ text: String) -> [ChatMarkdownBlock] {
@@ -77,6 +78,70 @@ enum ChatMessageRenderCache {
 
     static func highlightCacheKey(code: String, themeID: String) -> String {
         "\(themeID)\u{0}\(code)"
+    }
+
+    /// diff の行番号・表示可否・構文ハイライトを内容とパス単位でメモ化する。
+    static func diffCodeView(diff: String, path: String) -> DiffCodeViewData {
+        let key = "\(ThemeStore.active.id)\u{0}\(path)\u{0}\(diff)"
+        return diffCodeCache.value(for: key) { _ in
+            DiffCodeViewData(diff: diff, path: path)
+        }
+    }
+}
+
+struct DiffCodeViewData {
+    let lines: [DiffCodeLine]
+    let lineNumberWidth: Int
+    /// 元の diff 文字列に含まれる行数。表示対象外のヘッダ・注記行も含み、省略の予算に使う。
+    let sourceLineCount: Int
+
+    init(lines: [DiffCodeLine], lineNumberWidth: Int, sourceLineCount: Int) {
+        self.lines = lines
+        self.lineNumberWidth = lineNumberWidth
+        self.sourceLineCount = sourceLineCount
+    }
+
+    init(diff: String, path: String) {
+        let classified = DiffLineClassifier.classify(diff)
+        lines = classified.filter(\.isDisplayable).map { line in
+            DiffCodeLine(
+                line: line,
+                body: line.kind == .hunk
+                    ? AttributedString()
+                    : ChatCodeHighlighter.computeDiffHighlight(line.diffBody, path: path)
+            )
+        }
+        lineNumberWidth = max(1, classified.compactMap(\.displayLineNumber).map { String($0).count }.max() ?? 1)
+        sourceLineCount = classified.count
+    }
+
+    func prefix(sourceLineCount: Int) -> DiffCodeViewData {
+        DiffCodeViewData(
+            lines: lines.filter { $0.line.id < sourceLineCount },
+            lineNumberWidth: lineNumberWidth,
+            sourceLineCount: min(self.sourceLineCount, sourceLineCount)
+        )
+    }
+}
+
+struct DiffCodeLine: Identifiable {
+    let line: ClassifiedDiffLine
+    let body: AttributedString
+
+    var id: Int { line.id }
+}
+
+extension ClassifiedDiffLine {
+    /// 先頭の diff マーカーを除いた、構文ハイライト対象の本文。
+    var diffBody: String {
+        switch kind {
+        case .addition, .deletion:
+            String(text.dropFirst())
+        case .context:
+            text.first == " " ? String(text.dropFirst()) : text
+        case .fileHeader, .hunk:
+            text
+        }
     }
 }
 

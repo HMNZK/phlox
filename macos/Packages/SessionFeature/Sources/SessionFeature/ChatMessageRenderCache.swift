@@ -58,6 +58,8 @@ enum ChatMessageRenderCache {
     static let diffCache = ContentMemoCache<[ClassifiedDiffLine]>()
     static let highlightCache = ContentMemoCache<AttributedString>()
     static let diffCodeCache = ContentMemoCache<DiffCodeViewData>()
+    static let shellHighlightCache = ContentMemoCache<AttributedString>()
+    static let commandExecutionCache = ContentMemoCache<CommandGroupExecutionDisplayData>()
 
     /// fenced code block の分割（`ChatMarkdownFormatter.splitFencedCodeBlocks` をメモ化）。
     static func markdownBlocks(_ text: String) -> [ChatMarkdownBlock] {
@@ -80,6 +82,19 @@ enum ChatMessageRenderCache {
         "\(themeID)\u{0}\(code)"
     }
 
+    static func highlightedShell(_ command: String) -> AttributedString {
+        let key = "\(ThemeStore.active.id)\u{0}shell\u{0}\(command)"
+        return shellHighlightCache.value(for: key) { _ in ChatCodeHighlighter.computeShellHighlight(command) }
+    }
+
+    static func commandExecution(command: String?, output: String) -> CommandGroupExecutionDisplayData {
+        let commandText = command ?? ""
+        let key = "\(ThemeStore.active.id)\u{0}\(commandText)\u{0}\(output)"
+        return commandExecutionCache.value(for: key) { _ in
+            CommandGroupExecutionDisplayData(command: command, output: output)
+        }
+    }
+
     /// diff の行番号・表示可否・構文ハイライトを内容とパス単位でメモ化する。
     static func diffCodeView(diff: String, path: String) -> DiffCodeViewData {
         let key = "\(ThemeStore.active.id)\u{0}\(path)\u{0}\(diff)"
@@ -91,33 +106,36 @@ enum ChatMessageRenderCache {
 
 struct DiffCodeViewData {
     let lines: [DiffCodeLine]
+    let hasLineNumbers: Bool
     let lineNumberWidth: Int
-    /// 元の diff 文字列に含まれる行数。表示対象外のヘッダ・注記行も含み、省略の予算に使う。
+    /// hunk・ファイルヘッダを除いた表示対象の行数。
     let sourceLineCount: Int
 
-    init(lines: [DiffCodeLine], lineNumberWidth: Int, sourceLineCount: Int) {
+    init(lines: [DiffCodeLine], hasLineNumbers: Bool, lineNumberWidth: Int, sourceLineCount: Int) {
         self.lines = lines
+        self.hasLineNumbers = hasLineNumbers
         self.lineNumberWidth = lineNumberWidth
         self.sourceLineCount = sourceLineCount
     }
 
     init(diff: String, path: String) {
         let classified = DiffLineClassifier.classify(diff)
-        lines = classified.filter(\.isDisplayable).map { line in
+        lines = classified.filter { $0.isDisplayable && $0.kind != .hunk }.map { line in
             DiffCodeLine(
                 line: line,
-                body: line.kind == .hunk
-                    ? AttributedString()
-                    : ChatCodeHighlighter.computeDiffHighlight(line.diffBody, path: path)
+                body: ChatCodeHighlighter.computeDiffHighlight(line.diffBody, path: path)
             )
         }
-        lineNumberWidth = max(1, classified.compactMap(\.displayLineNumber).map { String($0).count }.max() ?? 1)
-        sourceLineCount = classified.count
+        let numbers = lines.compactMap { $0.line.displayLineNumber }
+        hasLineNumbers = !numbers.isEmpty
+        lineNumberWidth = numbers.map { String($0).count }.max() ?? 0
+        sourceLineCount = lines.count
     }
 
     func prefix(sourceLineCount: Int) -> DiffCodeViewData {
         DiffCodeViewData(
-            lines: lines.filter { $0.line.id < sourceLineCount },
+            lines: Array(lines.prefix(sourceLineCount)),
+            hasLineNumbers: hasLineNumbers,
             lineNumberWidth: lineNumberWidth,
             sourceLineCount: min(self.sourceLineCount, sourceLineCount)
         )

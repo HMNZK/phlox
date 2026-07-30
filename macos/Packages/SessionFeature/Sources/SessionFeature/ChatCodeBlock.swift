@@ -88,6 +88,14 @@ enum ChatCodeHighlighter {
         return output
     }
 
+    static func computeShellHighlight(_ command: String) -> AttributedString {
+        var output = AttributedString()
+        for token in tokenizeShell(command) {
+            append(token.text, color: color(for: token.kind), to: &output)
+        }
+        return output
+    }
+
     /// 純粋なハイライト計算。非トークン文字は同色 run にまとめて1回だけ append する
     /// （1文字ずつの連結を廃止 = P2）。AttributedString は隣接同属性 run を凝集するため、
     /// 出力は旧・1文字連結版と完全同値（属性境界＝色切替点は1文字もズレない）。
@@ -160,6 +168,108 @@ enum ChatCodeHighlighter {
         return tokens
     }
 
+    static func tokenizeShell(_ command: String) -> [ChatCodeToken] {
+        var tokens: [ChatCodeToken] = []
+        var index = command.startIndex
+        var expectsCommand = true
+
+        func append(_ text: String, _ kind: ChatCodeTokenKind) {
+            guard !text.isEmpty else { return }
+            if tokens.last?.kind == kind {
+                tokens[tokens.count - 1].text += text
+            } else {
+                tokens.append(ChatCodeToken(text: text, kind: kind))
+            }
+        }
+
+        func advanceWord(from start: String.Index) -> String.Index {
+            command[start...].firstIndex { $0.isWhitespace || "|><;&\"'#$".contains($0) } ?? command.endIndex
+        }
+
+        while index < command.endIndex {
+            let character = command[index]
+            if character.isWhitespace {
+                let end = command[index...].firstIndex(where: { !$0.isWhitespace }) ?? command.endIndex
+                append(String(command[index..<end]), .plain)
+                if command[index..<end].contains("\n") {
+                    expectsCommand = true
+                }
+                index = end
+                continue
+            }
+            let isCommentBoundary = index == command.startIndex
+                || command[command.index(before: index)].isWhitespace
+                || "|><;&".contains(command[command.index(before: index)])
+            if character == "#", isCommentBoundary {
+                let end = command[index...].firstIndex(of: "\n") ?? command.endIndex
+                append(String(command[index..<end]), .comment)
+                index = end
+                expectsCommand = true
+                continue
+            }
+            if character == "\"" || character == "'" {
+                let quote = character
+                var end = command.index(after: index)
+                var escaped = false
+                while end < command.endIndex {
+                    let current = command[end]
+                    if current == quote && !escaped {
+                        end = command.index(after: end)
+                        break
+                    }
+                    escaped = current == "\\" && !escaped
+                    end = command.index(after: end)
+                }
+                append(String(command[index..<end]), .string)
+                index = end
+                expectsCommand = false
+                continue
+            }
+            if character == "$" {
+                let afterDollar = command.index(after: index)
+                if afterDollar < command.endIndex, command[afterDollar] == "{" {
+                    let end = command[afterDollar...].firstIndex(of: "}").map { command.index(after: $0) } ?? command.endIndex
+                    append(String(command[index..<end]), .variable)
+                    index = end
+                    continue
+                }
+                let end = command[afterDollar...].firstIndex { !$0.isLetter && !$0.isNumber && $0 != "_" } ?? command.endIndex
+                if end > afterDollar {
+                    append(String(command[index..<end]), .variable)
+                    index = end
+                    continue
+                }
+            }
+            let remaining = command[index...]
+            if let op = [">>", "&&", "||", "2>", "|", ">", "<", ";", "&"].first(where: { remaining.hasPrefix($0) }) {
+                let end = command.index(index, offsetBy: op.count)
+                append(op, .operator)
+                index = end
+                expectsCommand = true
+                continue
+            }
+            let end = advanceWord(from: index)
+            guard end > index else {
+                append(String(character), .plain)
+                index = command.index(after: index)
+                continue
+            }
+            let word = String(command[index..<end])
+            if word.hasPrefix("-") {
+                append(word, .option)
+            } else if expectsCommand {
+                append(word, .command)
+                expectsCommand = false
+            } else if ["add", "branch", "checkout", "clone", "commit", "diff", "log", "push", "status", "test"].contains(word) {
+                append(word, .subcommand)
+            } else {
+                append(word, .plain)
+            }
+            index = end
+        }
+        return tokens
+    }
+
     private static func color(for kind: ChatCodeTokenKind) -> Color {
         switch kind {
         case .keyword: DSColor.codeSyntaxKeyword
@@ -167,6 +277,11 @@ enum ChatCodeHighlighter {
         case .number: DSColor.codeSyntaxNumber
         case .comment: DSColor.codeSyntaxComment
         case .plain: DSColor.chatTextPrimary
+        case .command: DSColor.codeSyntaxKeyword
+        case .subcommand: DSColor.codeSyntaxNumber
+        case .variable: DSColor.codeSyntaxString
+        case .operator: DSColor.codeSyntaxKeyword
+        case .option: DSColor.codeSyntaxNumber
         }
     }
 }
@@ -177,6 +292,11 @@ enum ChatCodeTokenKind: Equatable, Sendable {
     case number
     case comment
     case plain
+    case command
+    case subcommand
+    case variable
+    case `operator`
+    case option
 }
 
 struct ChatCodeToken: Equatable, Sendable {

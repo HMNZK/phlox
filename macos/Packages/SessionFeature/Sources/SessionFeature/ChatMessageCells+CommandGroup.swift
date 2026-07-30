@@ -49,9 +49,45 @@ struct CommandGroupRowsSlice: Equatable {
     let hiddenRowCount: Int
 }
 
-enum CommandGroupPresentation {
-    static func subtitle(isRunning: Bool) -> String? {
-        isRunning ? "実行中" : nil
+enum CommandToolLabel {
+    private static let knownTools: Set<String> = [
+        "Read", "Write", "Edit", "Glob", "Grep", "LS", "Task", "Skill", "WebFetch", "WebSearch", "NotebookEdit", "TodoWrite",
+    ]
+
+    static func derive(command: String?) -> (label: String, body: String) {
+        guard let command, !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return ("Bash", "")
+        }
+        let parts = command.split(maxSplits: 1, whereSeparator: \.isWhitespace)
+        guard let first = parts.first, knownTools.contains(String(first)) else {
+            return ("Bash", command)
+        }
+        let body = parts.dropFirst().first.map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) } ?? ""
+        return (String(first), body)
+    }
+}
+
+struct CommandGroupExecutionDisplayData: Equatable {
+    let label: String
+    let commandBody: String
+    let highlightedCommand: AttributedString
+    private let collapsedOutputDisplay: CommandGroupOutputDisplay
+    let copyText: String
+
+    init(command: String?, output: String) {
+        let tool = CommandToolLabel.derive(command: command)
+        label = tool.label
+        commandBody = tool.body
+        highlightedCommand = ChatMessageRenderCache.highlightedShell(tool.body)
+        collapsedOutputDisplay = CommandGroupOutputDisplay(output: output, isExpanded: false)
+        let commandText = command ?? ""
+        copyText = output.isEmpty ? commandText : "\(commandText)\n\n\(output)"
+    }
+
+    func outputDisplay(isExpanded: Bool) -> CommandGroupOutputDisplay {
+        var display = collapsedOutputDisplay
+        display.isExpanded = isExpanded
+        return display
     }
 }
 
@@ -60,7 +96,7 @@ struct CommandGroupOutputDisplay: Equatable {
     static let visibleLineLimit = 20
 
     let output: String
-    let isExpanded: Bool
+    var isExpanded: Bool
 
     /// 出力の行分割は body 評価のたびに走るため、init で 1 回だけ行う。
     /// 計算プロパティにすると isTruncated / hiddenLineCount / displayedOutput の各参照で
@@ -172,7 +208,7 @@ struct CommandGroupCell: View, Equatable {
             DisclosureCard(
                 isExpanded: $isExpanded,
                 title: header.title,
-                subtitle: CommandGroupPresentation.subtitle(isRunning: header.isRunning),
+                subtitle: nil,
                 isToolCall: true
             ) {
                 if isExpanded {
@@ -211,40 +247,43 @@ private struct CommandGroupExecutionRow: View {
     let command: String?
     let output: String
     @State private var isOutputExpanded = false
-    @State private var isHovering = false
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-            Text("$ \(displayCommand)")
-                .font(ChatScaledFont.mono(scale: scale))
-                .foregroundStyle(DSColor.chatTextPrimary)
-                .chatTextSelection()
-            if !output.isEmpty {
-                let outputDisplay = CommandGroupOutputDisplay(
-                    output: output,
-                    isExpanded: isOutputExpanded
-                )
-                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    HStack {
-                        Spacer(minLength: 0)
-                        // 省略中でも描画中の prefix ではなく、元の出力全文をコピーする。
-                        MessageCopyButton(
-                            text: outputDisplay.copyText,
-                            accessibilityIdentifier: "CommandGroupExecutionRow.copyOutput",
-                            scale: scale,
-                            isVisible: isHovering
-                        )
+        let display = ChatMessageRenderCache.commandExecution(command: command, output: output)
+        ChatCodeCard(
+            copyText: display.copyText,
+            copyAccessibilityIdentifier: "CommandGroupExecutionRow.copyOutput",
+            header: {
+                Text(display.label)
+                    .font(ChatScaledFont.captionStrong(scale: scale))
+                    .foregroundStyle(DSColor.chatTextSecondary)
+            }
+        ) {
+            VStack(alignment: .leading, spacing: 0) {
+                if display.commandBody.isEmpty {
+                    Text("(コマンドなし)")
+                        .font(ChatScaledFont.mono(scale: scale))
+                        .foregroundStyle(DSColor.chatTextSecondary)
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: 0) {
+                        Text("$ ")
+                        Text(display.highlightedCommand)
                     }
-                    .onHover { isHovering = $0 }
-                    .animation(.easeInOut(duration: 0.12), value: isHovering)
+                    .font(ChatScaledFont.mono(scale: scale))
+                    .foregroundStyle(DSColor.chatTextPrimary)
+                    .chatTextSelection()
+                }
+                if !output.isEmpty {
+                    let outputDisplay = display.outputDisplay(isExpanded: isOutputExpanded)
                     Text(outputDisplay.displayedOutput)
                         .font(ChatScaledFont.monoCaption(scale: scale))
                         .foregroundStyle(DSColor.chatTextSecondary)
                         .chatTextSelection()
+                        .padding(.top, DSSpacing.s)
                     if outputDisplay.isTruncated {
                         Button {
                             isOutputExpanded = true
@@ -261,14 +300,10 @@ private struct CommandGroupExecutionRow: View {
                     }
                 }
             }
+            .padding(.horizontal, DSSpacing.m)
+            .padding(.bottom, DSSpacing.m)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var displayCommand: String {
-        guard let command, !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return "(コマンドなし)"
-        }
-        return command
-    }
 }

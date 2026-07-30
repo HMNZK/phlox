@@ -315,7 +315,6 @@ struct FileChangeCell: View {
     /// ユーザーが明示トグルしたときだけ設定される override。nil の間は policy 由来の既定に追随する。
     @State private var userExpandedOverride: Bool?
     @State private var showAllLines = false
-    @State private var isHovering = false
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
@@ -325,9 +324,6 @@ struct FileChangeCell: View {
         let copyText: String
         let codeView: DiffCodeViewData
 
-        var displayPath: String {
-            DiffPathDisplay.shorten(path)
-        }
     }
 
     /// 全 change の diff 総行数（メモ化済みの classify を使う）。
@@ -395,33 +391,25 @@ struct FileChangeCell: View {
         ) {
             VStack(alignment: .leading, spacing: DSSpacing.m) {
                 ForEach(visibleSections) { section in
-                    VStack(alignment: .leading, spacing: DSSpacing.s) {
-                        HStack(spacing: DSSpacing.s) {
-                            Image(systemName: "doc.text")
-                                .font(ChatScaledFont.captionStrong(scale: scale))
-                                .foregroundStyle(DSColor.chatTextPrimary)
-                            Text(section.displayPath)
-                                .font(ChatScaledFont.captionStrong(scale: scale))
-                                .foregroundStyle(DSColor.chatTextPrimary)
-                                .help(section.path)
-                            Spacer(minLength: DSSpacing.s)
-                            // 省略表示中も画面上の prefix ではなく、元の file section 全文をコピーする。
-                            MessageCopyButton(
-                                text: section.copyText,
-                                accessibilityIdentifier: "FileChange.copyDiff.\(section.id)",
-                                scale: scale,
-                                isVisible: isHovering
-                            )
+                    ChatCodeCard(
+                        copyText: section.copyText,
+                        copyAccessibilityIdentifier: "FileChange.copyDiff.\(section.id)",
+                        header: {
+                            Text(section.path)
+                                .font(ChatScaledFont.caption(scale: scale))
+                                .foregroundStyle(DSColor.chatTextSecondary)
                         }
-                        .onHover { isHovering = $0 }
-                        .animation(.easeInOut(duration: 0.12), value: isHovering)
+                    ) {
                         VStack(alignment: .leading, spacing: 0) {
                             ForEach(section.codeView.lines) { codeLine in
-                                diffLineView(codeLine, lineNumberWidth: section.codeView.lineNumberWidth, scale: scale)
+                                diffLineView(
+                                    codeLine,
+                                    hasLineNumbers: section.codeView.hasLineNumbers,
+                                    lineNumberWidth: section.codeView.lineNumberWidth,
+                                    scale: scale
+                                )
                             }
                         }
-                        .background(DSColor.chatBackground, in: RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous))
-                        .clipShape(RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous))
                     }
                 }
                 if isTruncated {
@@ -445,25 +433,21 @@ struct FileChangeCell: View {
         .frame(maxWidth: 860, alignment: .leading)
     }
 
-    private func diffLineView(_ codeLine: DiffCodeLine, lineNumberWidth: Int, scale: CGFloat) -> some View {
+    private func diffLineView(_ codeLine: DiffCodeLine, hasLineNumbers: Bool, lineNumberWidth: Int, scale: CGFloat) -> some View {
         let line = codeLine.line
         return HStack(spacing: DSSpacing.s) {
-            Text(line.displayLineNumber.map(String.init) ?? "")
-                .font(ChatScaledFont.monoCaption(scale: scale))
-                .foregroundStyle(lineNumberForeground(for: line.kind))
-                .frame(width: CGFloat(lineNumberWidth) * 7 * scale, alignment: .trailing)
+            if hasLineNumbers {
+                Text(line.displayLineNumber.map(String.init) ?? "")
+                    .font(ChatScaledFont.monoCaption(scale: scale))
+                    .foregroundStyle(lineNumberForeground(for: line.kind))
+                    .frame(width: CGFloat(lineNumberWidth) * 7 * scale, alignment: .trailing)
+            }
             Text(marker(for: line.kind))
                 .font(ChatScaledFont.monoCaption(scale: scale))
                 .foregroundStyle(markerForeground(for: line.kind))
                 .frame(width: 8 * scale, alignment: .leading)
-            if line.kind == .hunk {
-                Text(line.text)
-                    .font(ChatScaledFont.monoCaption(scale: scale))
-                    .foregroundStyle(DSColor.chatTextSecondary)
-            } else {
-                Text(codeLine.body)
-                    .font(ChatScaledFont.monoCaption(scale: scale))
-            }
+            Text(codeLine.body)
+                .font(ChatScaledFont.monoCaption(scale: scale))
         }
         .padding(.horizontal, DSSpacing.s)
         .frame(maxWidth: .infinity, alignment: .leading)

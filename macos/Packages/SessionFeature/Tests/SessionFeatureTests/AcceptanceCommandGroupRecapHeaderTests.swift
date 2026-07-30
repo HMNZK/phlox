@@ -96,19 +96,26 @@ struct AcceptanceCommandGroupRecapHeaderTests {
 
     @Test func 長い出力は省略中でも全文をコピーでき展開後は全行を描画する() {
         let output = (1...21).map { "line \($0)" }.joined(separator: "\n")
-        let collapsed = CommandGroupOutputDisplay(output: output, isExpanded: false)
-        let expanded = CommandGroupOutputDisplay(output: output, isExpanded: true)
+        let display = CommandGroupExecutionDisplayData(command: "swift test", output: output)
+        let collapsed = display.outputDisplay(isExpanded: false)
+        let expanded = display.outputDisplay(isExpanded: true)
 
         #expect(collapsed.isTruncated)
         #expect(collapsed.hiddenLineCount == 1)
         #expect(collapsed.displayedOutput == (1...20).map { "line \($0)" }.joined(separator: "\n"))
-        #expect(collapsed.copyText == output)
+        #expect(display.copyText == "swift test\n\n\(output)")
         #expect(!expanded.isTruncated)
         #expect(expanded.displayedOutput == output)
     }
 
-    @Test func 件数サブタイトルを表示せず実行中だけ状態を表示する() {
-        #expect(CommandGroupPresentation.subtitle(isRunning: true) == "実行中")
-        #expect(CommandGroupPresentation.subtitle(isRunning: false) == nil)
+    @Test func コマンドカードのコピーはコマンドと出力の全文である() {
+        let display = CommandGroupExecutionDisplayData(command: "git status", output: "clean\nready")
+        #expect(display.copyText == "git status\n\nclean\nready")
+        #expect(display.outputDisplay(isExpanded: false).displayedOutput == "clean\nready")
+    }
+
+    @Test func 出力が空ならコマンドだけをコピーする() {
+        let display = CommandGroupExecutionDisplayData(command: "git status", output: "")
+        #expect(display.copyText == "git status")
     }
 }

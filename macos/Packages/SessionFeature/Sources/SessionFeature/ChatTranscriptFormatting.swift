@@ -141,11 +141,6 @@ enum DiffLineClassifier {
         }
     }
 
-    /// file header と末尾改行注記を除いた、コードビューで描く行。
-    static func displayLines(_ diff: String) -> [ClassifiedDiffLine] {
-        classify(diff).filter(\.isDisplayable)
-    }
-
     private static func kind(for line: String) -> DiffLineKind {
         if line.hasPrefix("@@") {
             return .hunk
@@ -192,13 +187,5 @@ extension ClassifiedDiffLine {
         case .addition, .context: newLineNumber
         case .fileHeader, .hunk: nil
         }
-    }
-}
-
-enum DiffPathDisplay {
-    static func shorten(_ path: String) -> String {
-        let components = path.split(separator: "/", omittingEmptySubsequences: true)
-        guard components.count >= 2 else { return path }
-        return components.suffix(2).joined(separator: "/")
     }
 }

@@ -106,26 +106,16 @@ struct AcceptanceFileChangeCodeViewTests {
     }
 
     @Test
-    func fileHeaderとnoNewline注記は描画行から除く() {
-        let lines = DiffLineClassifier.displayLines("""
+    func hunkとfileHeaderとnoNewline注記はカード描画行から除く() {
+        let view = DiffCodeViewData(diff: """
         --- a/A.swift
         +++ b/A.swift
         @@ -1 +1 @@
         -old
         +new
         \\ No newline at end of file
-        """)
-        #expect(lines.map(\.text) == ["@@ -1 +1 @@", "-old", "+new"])
-    }
-
-    @Test(arguments: [
-        ("/Users/me/Project/Sources/SessionFeature/ChatMessageCells+Structured.swift", "SessionFeature/ChatMessageCells+Structured.swift"),
-        ("/Sources/A.swift", "Sources/A.swift"),
-        ("Single.swift", "Single.swift"),
-        ("", ""),
-    ])
-    func pathは末尾二階層へ短縮される(input: String, expected: String) {
-        #expect(DiffPathDisplay.shorten(input) == expected)
+        """, path: "A.swift")
+        #expect(view.lines.map { $0.line.text } == ["-old", "+new"])
     }
 
     @Test
@@ -145,13 +135,13 @@ struct AcceptanceFileChangeCodeViewTests {
         let sections = cell.visibleSections
 
         #expect(sections.count == 1)
-        #expect(sections[0].codeView.lines.count < DiffLineClassifier.classify(fullDiff).count)
+        #expect(sections[0].codeView.lines.count == FileChangeDisplayPolicy.visibleLineLimit)
         #expect(sections[0].codeView.lines.map { $0.line.text }.joined(separator: "\n") != fullDiff)
         #expect(sections[0].copyText == fullDiff)
     }
 
     @Test @MainActor
-    func 複数ファイルの各セクションは自分の完全パスをツールチップ用に保持する() {
+    func 複数ファイルの各セクションはカードヘッダ用の完全パスを保持する() {
         let cell = FileChangeCell(
             changes: [
                 FilePatchChange(path: "/repo/Sources/First.swift", diff: "+first"),
@@ -162,10 +152,20 @@ struct AcceptanceFileChangeCodeViewTests {
 
         let sections = cell.visibleSections
         #expect(sections.count == 2)
-        #expect(sections[0].displayPath == "Sources/First.swift")
         #expect(sections[0].path == "/repo/Sources/First.swift")
-        #expect(sections[1].displayPath == "Tests/Second.swift")
         #expect(sections[1].path == "/repo/Tests/Second.swift")
+    }
+
+    @Test
+    func 行番号が皆無なら列を確保せず混在時は分かる行だけを表示する() {
+        let withoutNumbers = DiffCodeViewData(diff: "-old\n+new", path: "A.swift")
+        #expect(!withoutNumbers.hasLineNumbers)
+        #expect(withoutNumbers.lineNumberWidth == 0)
+
+        let mixed = DiffCodeViewData(diff: "@@ -10 +20 @@\n-old\n+new\n@@ malformed @@\n+unknown", path: "A.swift")
+        #expect(mixed.hasLineNumbers)
+        #expect(mixed.lineNumberWidth == 2)
+        #expect(mixed.lines.map { $0.line.displayLineNumber } == [10, 20, nil])
     }
 
     @Test @MainActor

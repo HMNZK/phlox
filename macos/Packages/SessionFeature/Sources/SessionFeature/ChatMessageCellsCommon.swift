@@ -12,15 +12,10 @@ enum DisclosureCardPalette {
 }
 
 struct AvatarMessageRow<Content: View>: View {
-    let timestamp: Date
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.s) {
-            ChatTimestampText(timestamp: timestamp)
-            content
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        content.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -50,7 +45,7 @@ struct ChatTimestampText: View {
 
 struct DisclosureCard<Content: View>: View {
     @Binding var isExpanded: Bool
-    let title: String
+    private let titleContent: AnyView
     let subtitle: String?
     let isToolCall: Bool
     @ViewBuilder let content: Content
@@ -65,7 +60,21 @@ struct DisclosureCard<Content: View>: View {
         @ViewBuilder content: () -> Content
     ) {
         _isExpanded = isExpanded
-        self.title = title
+        titleContent = AnyView(Text(title))
+        self.subtitle = subtitle
+        self.isToolCall = isToolCall
+        self.content = content()
+    }
+
+    init<TitleContent: View>(
+        isExpanded: Binding<Bool>,
+        subtitle: String?,
+        isToolCall: Bool = false,
+        @ViewBuilder titleContent: () -> TitleContent,
+        @ViewBuilder content: () -> Content
+    ) {
+        _isExpanded = isExpanded
+        self.titleContent = AnyView(titleContent())
         self.subtitle = subtitle
         self.isToolCall = isToolCall
         self.content = content()
@@ -79,7 +88,7 @@ struct DisclosureCard<Content: View>: View {
         } label: {
             HStack(spacing: DSSpacing.s) {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    Text(title)
+                    titleContent
                         .font(ChatScaledFont.captionStrong(scale: scale))
                         .foregroundStyle(DisclosureCardPalette.title(isToolCall: isToolCall))
                         .fixedSize(horizontal: false, vertical: true)

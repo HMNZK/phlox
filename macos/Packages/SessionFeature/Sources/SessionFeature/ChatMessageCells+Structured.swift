@@ -103,7 +103,7 @@ struct ThinkingIndicatorCell: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        AvatarMessageRow(timestamp: .distantPast) {
+        AvatarMessageRow {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 HStack(spacing: DSSpacing.xs) {
                     ThinkingOrbView(state: state, size: .inline, isVisible: isTimelineVisible)
@@ -200,19 +200,77 @@ struct ReasoningSummaryView: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        DisclosureCard(
-            isExpanded: $isExpanded,
-            title: ThinkingRecap.headline(from: text) ?? "Reasoning",
-            subtitle: nil
-        ) {
-            Text(text)
-                .font(ChatScaledFont.body(scale: scale))
-                .foregroundStyle(DSColor.chatTextSecondary)
-                .chatTextSelection()
-                .lineSpacing(3)
-                .padding(.top, DSSpacing.s)
+        let presentation = ReasoningPresentation(text: text)
+        Group {
+            if presentation.usesDisclosure {
+                DisclosureCard(
+                    isExpanded: $isExpanded,
+                    title: presentation.headline,
+                    subtitle: nil,
+                    isToolCall: true
+                ) {
+                    Text(text)
+                        .font(ChatScaledFont.body(scale: scale))
+                        .foregroundStyle(DSColor.chatTextSecondary)
+                        .chatTextSelection()
+                        .lineSpacing(3)
+                        .padding(.top, DSSpacing.s)
+                }
+            } else {
+                Text(presentation.trimmedText)
+                    .font(ChatScaledFont.body(scale: scale))
+                    .foregroundStyle(DSColor.chatToolCallText)
+                    .chatTextSelection()
+            }
         }
         .frame(maxWidth: 720, alignment: .leading)
+    }
+}
+
+struct ReasoningPresentation: Equatable {
+    let headline: String
+    let trimmedText: String
+
+    init(text: String) {
+        trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        headline = ThinkingRecap.headline(from: text) ?? "Reasoning"
+    }
+
+    var usesDisclosure: Bool { trimmedText != headline }
+}
+
+enum FileChangePresentation {
+    struct Counts: Equatable {
+        let additions: Int
+        let deletions: Int
+    }
+
+    static func verb(for kind: String?) -> String {
+        let normalized = kind?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        if normalized.contains("edit") { return "編集済み" }
+        if normalized.contains("write") || normalized.contains("create") { return "作成済み" }
+        if normalized.contains("delete") { return "削除済み" }
+        return "変更済み"
+    }
+
+    static func counts(for changes: [FilePatchChange]) -> Counts {
+        let lines = changes.flatMap { DiffLineClassifier.classify($0.diff) }
+        return Counts(
+            additions: lines.count { $0.kind == .addition },
+            deletions: lines.count { $0.kind == .deletion }
+        )
+    }
+
+    static func title(for changes: [FilePatchChange]) -> String {
+        let verb = verb(for: changes.first?.kind)
+        if changes.count == 1, let path = changes.first?.path {
+            return "\(verb) \(filename(from: path))"
+        }
+        return "\(verb) \(changes.count) 件のファイル"
+    }
+
+    private static func filename(from path: String) -> String {
+        path.split(separator: "/", omittingEmptySubsequences: true).last.map(String.init) ?? path
     }
 }
 
@@ -321,10 +379,19 @@ struct FileChangeCell: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
+        let counts = FileChangePresentation.counts(for: changes)
         DisclosureCard(
             isExpanded: expansionBinding,
-            title: changes.count == 1 ? "File Change" : "\(changes.count) File Changes",
-            subtitle: changes.first.map { DiffPathDisplay.shorten($0.path) }
+            subtitle: nil,
+            titleContent: {
+                HStack(spacing: DSSpacing.xxs) {
+                    Text(FileChangePresentation.title(for: changes))
+                    Text("+\(counts.additions)")
+                        .foregroundStyle(DSColor.diffAdded)
+                    Text("-\(counts.deletions)")
+                        .foregroundStyle(DSColor.diffRemoved)
+                }
+            }
         ) {
             VStack(alignment: .leading, spacing: DSSpacing.m) {
                 ForEach(visibleSections) { section in
@@ -399,9 +466,10 @@ struct FileChangeCell: View {
             }
         }
         .padding(.horizontal, DSSpacing.s)
-        .padding(.vertical, 1)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(background(for: line.kind))
+        .background {
+            Rectangle().fill(background(for: line.kind))
+        }
         .diffLineTextSelection()
     }
 

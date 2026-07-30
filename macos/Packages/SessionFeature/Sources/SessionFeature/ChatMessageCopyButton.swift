@@ -14,6 +14,7 @@ struct MessageCopyButton: View {
     let accessibilityIdentifier: String
     let scale: CGFloat
     let isVisible: Bool
+    @State private var isHovering = false
     @State private var didCopy = false
     @State private var resetTask: Task<Void, Never>?
 
@@ -39,7 +40,12 @@ struct MessageCopyButton: View {
         .buttonStyle(.plain)
         .foregroundStyle(DSColor.chatTextSecondary)
         .padding(DSSpacing.xs)
-        .background(DSColor.fillSubtle, in: Capsule())
+        .background {
+            if MessageCopyButtonPresentation.showsHoverBackground(isHovering: isHovering) {
+                Capsule().fill(DSColor.fillSubtle)
+            }
+        }
+        .onHover { isHovering = $0 }
         .help(didCopy ? "コピーしました" : "Copy message")
         .accessibilityLabel(didCopy ? "コピーしました" : "Copy message")
         .accessibilityIdentifier(accessibilityIdentifier)
@@ -58,4 +64,8 @@ struct MessageCopyButton: View {
             resetTask = nil
         }
     }
+}
+
+enum MessageCopyButtonPresentation {
+    static func showsHoverBackground(isHovering: Bool) -> Bool { isHovering }
 }

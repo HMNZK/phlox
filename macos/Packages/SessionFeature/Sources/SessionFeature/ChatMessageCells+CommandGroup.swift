@@ -49,6 +49,12 @@ struct CommandGroupRowsSlice: Equatable {
     let hiddenRowCount: Int
 }
 
+enum CommandGroupPresentation {
+    static func subtitle(isRunning: Bool) -> String? {
+        isRunning ? "実行中" : nil
+    }
+}
+
 /// 出力の省略表示と全文表示を行単位で決める。コピー対象は常に元の出力全文。
 struct CommandGroupOutputDisplay: Equatable {
     static let visibleLineLimit = 20
@@ -166,7 +172,7 @@ struct CommandGroupCell: View, Equatable {
             DisclosureCard(
                 isExpanded: $isExpanded,
                 title: header.title,
-                subtitle: header.isRunning ? "実行中 ×\(items.count)" : "×\(items.count)",
+                subtitle: CommandGroupPresentation.subtitle(isRunning: header.isRunning),
                 isToolCall: true
             ) {
                 if isExpanded {

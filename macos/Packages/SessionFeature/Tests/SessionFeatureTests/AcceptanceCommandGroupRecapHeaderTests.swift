@@ -106,4 +106,9 @@ struct AcceptanceCommandGroupRecapHeaderTests {
         #expect(!expanded.isTruncated)
         #expect(expanded.displayedOutput == output)
     }
+
+    @Test func 件数サブタイトルを表示せず実行中だけ状態を表示する() {
+        #expect(CommandGroupPresentation.subtitle(isRunning: true) == "実行中")
+        #expect(CommandGroupPresentation.subtitle(isRunning: false) == nil)
+    }
 }

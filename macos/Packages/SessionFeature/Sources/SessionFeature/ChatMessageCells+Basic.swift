@@ -72,17 +72,20 @@ struct UserMessageCell: View {
                             .fill(DSColor.userBubble)
                     )
                     if presentation.showsText {
-                        MessageCopyButton(
-                            text: text,
-                            accessibilityIdentifier: "ChatMessage.copyButton.user",
-                            scale: scale,
-                            isVisible: isHovering
-                        )
+                        HStack(spacing: DSSpacing.xs) {
+                            MessageCopyButton(
+                                text: text,
+                                accessibilityIdentifier: "ChatMessage.copyButton.user",
+                                scale: scale,
+                                isVisible: isHovering
+                            )
+                            ChatTimestampText(timestamp: timestamp)
+                                .opacity(isHovering ? 1 : 0)
+                        }
                     }
                 }
                 .onHover { isHovering = $0 }
                 .animation(.easeInOut(duration: 0.12), value: isHovering)
-                ChatTimestampText(timestamp: timestamp)
             }
             .frame(maxWidth: 560, alignment: .trailing)
         }
@@ -122,15 +125,19 @@ struct AgentMessageCell: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        AvatarMessageRow(timestamp: timestamp) {
+        AvatarMessageRow {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 AgentMessageBody(text: text)
-                MessageCopyButton(
-                    text: text,
-                    accessibilityIdentifier: "ChatMessage.copyButton.agent",
-                    scale: scale,
-                    isVisible: isHovering
-                )
+                HStack(spacing: DSSpacing.xs) {
+                    MessageCopyButton(
+                        text: text,
+                        accessibilityIdentifier: "ChatMessage.copyButton.agent",
+                        scale: scale,
+                        isVisible: isHovering
+                    )
+                    ChatTimestampText(timestamp: timestamp)
+                        .opacity(isHovering ? 1 : 0)
+                }
             }
             .onHover { isHovering = $0 }
             .animation(.easeInOut(duration: 0.12), value: isHovering)

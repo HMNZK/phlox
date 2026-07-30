@@ -18,14 +18,18 @@ struct AcceptanceQuietChatChromeTests {
         ) { EmptyView() }
     }
 
-    @Test("カードヘッダは時刻を描画せず、メッセージ行は時刻を残す")
-    func cardHeaderOmitsTimestampWhileAvatarRowKeepsIt() throws {
+    @Test("時刻は常時描画せず、発言のコピーボタンと同じホバー状態で表示する")
+    func timestampsAppearOnlyWithMessageCopyButtons() throws {
         let source = try sourceText("ChatMessageCellsCommon.swift")
         let afterCardDeclaration = try #require(source.components(separatedBy: "struct DisclosureCard<Content: View>").last)
         let cardSource = try #require(afterCardDeclaration.components(separatedBy: "private struct DisclosureCardStyle").first)
         #expect(!cardSource.contains("ChatTimestampText"))
-        #expect(source.contains("struct AvatarMessageRow"))
-        #expect(source.contains("ChatTimestampText(timestamp: timestamp)"))
+        let avatarRowSource = try #require(source.components(separatedBy: "struct AvatarMessageRow<Content: View>").last?.components(separatedBy: "struct ChatTimestampText").first)
+        #expect(!avatarRowSource.contains("timestamp"))
+
+        let basicSource = try sourceText("ChatMessageCells+Basic.swift")
+        #expect(basicSource.contains("ChatTimestampText(timestamp: timestamp)"))
+        #expect(basicSource.contains(".opacity(isHovering ? 1 : 0)"))
     }
 
     @Test("Reasoning 見出しは本文の見出し、末尾行、既定値を使う")
@@ -44,6 +48,22 @@ struct AcceptanceQuietChatChromeTests {
             text: "copy", accessibilityIdentifier: "hidden", scale: 1, isVisible: false
         )).nsImage)
         #expect(visible.size == hidden.size)
+    }
+
+    @Test("コピーボタンの背景はボタン自身のホバー時だけ表示する")
+    func copyButtonBackgroundIsHoverOnly() {
+        #expect(!MessageCopyButtonPresentation.showsHoverBackground(isHovering: false))
+        #expect(MessageCopyButtonPresentation.showsHoverBackground(isHovering: true))
+    }
+
+    @Test("本文と見出しが同じ Reasoning は折りたたまない")
+    func reasoningWithMatchingHeadlineUsesSingleLine() {
+        let matching = ReasoningPresentation(text: "  認証フローを設計  ")
+        let detailed = ReasoningPresentation(text: "最初の検討\n認証フローを設計\n補足")
+
+        #expect(matching.headline == "認証フローを設計")
+        #expect(!matching.usesDisclosure)
+        #expect(detailed.usesDisclosure)
     }
 
     @Test("実行中のコマンドセルをレンダリングできる")

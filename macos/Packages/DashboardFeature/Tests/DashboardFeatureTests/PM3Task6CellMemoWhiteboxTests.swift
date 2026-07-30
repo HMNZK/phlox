@@ -142,20 +142,20 @@ struct PM3Task6CellMemoWhiteboxTests {
         #expect(FileChangeDisplayPolicy.defaultExpanded(lineCount: Int.max) == false)
     }
 
-    // MARK: - ステージ2差し戻し: 展開状態の導出が同一 id 内の diff 置換（行数変化）に追随すること
+    // MARK: - task-5: 未操作のファイル変更カードは行数によらず常に折りたたみで始まる
 
-    /// userOverride=nil のとき、行数変化で既定判定が追随する。
-    /// 「小さい started diff → 大きい completed diff」を同一 item.id で置換しても既定折りたたみが効く根拠。
+    /// userOverride=nil なら行数に関わらず折りたたみ（task-5 契約 3）。
+    /// 旧契約（行数が閾値以下なら自動展開）はユーザー要望で撤回された。
+    /// 同一 item.id で「小さい started diff → 大きい completed diff」へ置換されても開かない点は変わらない。
     @Test
-    func expansionDerivation_followsLineCountWhenNotOverridden() {
+    func expansionDerivation_isAlwaysCollapsedWhenNotOverridden() {
         let small = 5
         let large = 1000
-        // 同じ override=nil でも行数が変われば導出結果が変わる（＝行数に追随している）。
-        #expect(FileChangeDisplayPolicy.isExpanded(userOverride: nil, lineCount: small) == true)
+        #expect(FileChangeDisplayPolicy.isExpanded(userOverride: nil, lineCount: small) == false)
         #expect(FileChangeDisplayPolicy.isExpanded(userOverride: nil, lineCount: large) == false)
-        // 閾値境界でも単調。
+        // 閾値の前後でも変わらない（行数に依存しない）。
         let t = FileChangeDisplayPolicy.collapseThresholdLines
-        #expect(FileChangeDisplayPolicy.isExpanded(userOverride: nil, lineCount: t) == true)
+        #expect(FileChangeDisplayPolicy.isExpanded(userOverride: nil, lineCount: t) == false)
         #expect(FileChangeDisplayPolicy.isExpanded(userOverride: nil, lineCount: t + 1) == false)
     }
 

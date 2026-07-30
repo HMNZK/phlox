@@ -7,6 +7,40 @@ import StructuredChatKit
 
 @Suite("File change code view acceptance (task-3)")
 struct AcceptanceFileChangeCodeViewTests {
+    @Test(arguments: [
+        ("edit", "編集済み"),
+        ("MultiEdit", "編集済み"),
+        ("write", "作成済み"),
+        ("create", "作成済み"),
+        ("delete", "削除済み"),
+        ("rename", "変更済み"),
+        (nil, "変更済み"),
+    ])
+    func ファイル変更種別から見出しの動詞を決める(kind: String?, expected: String) {
+        #expect(FileChangePresentation.verb(for: kind) == expected)
+    }
+
+    @Test
+    func 変更行数は複数ファイルを合算しヘッダとhunkを数えない() {
+        let changes = [
+            FilePatchChange(path: "Sources/A.swift", diff: "--- a/A.swift\n+++ b/A.swift\n@@ -1,2 +1,2 @@\n-old\n keep\n+new", kind: "edit"),
+            FilePatchChange(path: "Sources/B.swift", diff: "+onlyAddition\n-deleteMe\n@@ -9 +9 @@", kind: "write"),
+            FilePatchChange(path: "Sources/C.swift", diff: "@@ -1 +1 @@", kind: "edit"),
+        ]
+
+        #expect(FileChangePresentation.counts(for: changes) == .init(additions: 2, deletions: 2))
+        #expect(FileChangePresentation.counts(for: [FilePatchChange(path: "Empty", diff: "@@ -0,0 +0,0 @@")]) == .init(additions: 0, deletions: 0))
+        #expect(FileChangePresentation.title(for: [changes[0]]) == "編集済み A.swift")
+        #expect(FileChangePresentation.title(for: changes) == "編集済み 3 件のファイル")
+    }
+
+    @Test(arguments: [0, 1, 500, 10_000])
+    func ファイル変更は行数によらず既定で折りたたむ(lineCount: Int) {
+        #expect(!FileChangeDisplayPolicy.isExpanded(userOverride: nil, lineCount: lineCount))
+        #expect(FileChangeDisplayPolicy.isExpanded(userOverride: true, lineCount: lineCount))
+        #expect(!FileChangeDisplayPolicy.isExpanded(userOverride: false, lineCount: lineCount))
+    }
+
     @Test
     func hunk起点の行番号は行種ごとに正しく付与される() {
         let lines = DiffLineClassifier.classify("""

@@ -145,24 +145,21 @@ extension ClassifiedDiffLine {
     }
 }
 
-/// FileChangeCell の表示ポリシー: 大きい diff は既定折りたたみ・表示行数に上限を持つ。
-/// 閾値・上限はここで一元定義する（P4）。
+/// FileChangeCell の表示ポリシー: diff は既定折りたたみ・表示行数に上限を持つ。
 enum FileChangeDisplayPolicy {
-    /// 折りたたみ閾値: diff の総行数がこれを超えたら既定で折りたたむ。
+    /// transcript の描画予算算定で使う重み判定。カードの既定展開状態には使わない。
     static let collapseThresholdLines: Int = 200
     /// 展開時に一度に描画する diff 行数の上限（超過分は「さらに表示」で展開する）。
     static let visibleLineLimit: Int = 500
 
-    /// 既定展開の判定。閾値以下は展開、閾値超は折りたたみ。
+    /// transcript の描画予算用の従来判定。カード表示は `isExpanded` が常に折りたたみを返す。
     static func defaultExpanded(lineCount: Int) -> Bool {
         lineCount <= collapseThresholdLines
     }
 
     /// 表示中の展開状態を純導出する。ユーザーが明示トグルしていればそれを尊重（`userOverride`）、
-    /// 未操作なら現在の行数から既定を導出する。
-    /// これにより、同一 item.id のまま diff が置換され行数が変わっても（Cursor の started→completed 等）、
-    /// 未操作なら既定折りたたみが自動追随する（`@State(initialValue:)` の identity 固定バグを回避）。
+    /// 未操作なら常に折りたたむ。
     static func isExpanded(userOverride: Bool?, lineCount: Int) -> Bool {
-        userOverride ?? defaultExpanded(lineCount: lineCount)
+        userOverride ?? false
     }
 }

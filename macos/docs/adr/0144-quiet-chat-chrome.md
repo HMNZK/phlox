@@ -1,6 +1,6 @@
 ---
 status: accepted
-last-verified: 2026-07-30
+last-verified: 2026-07-31
 ---
 
 # ADR 0144: チャットの装飾を落とす（カードのアイコン・ステータスグリフ・アバターの撤去）
@@ -9,6 +9,11 @@ last-verified: 2026-07-30
 > エージェントアバターを外し、ツールコールを半透明グレーにした理由。
 > **書かないもの**: ツール実行グループの見出し文言（→ [ADR 0145](0145-tool-group-recap-header.md)）、
 > diff の描画（→ [ADR 0146](0146-diff-code-view.md)）、Thinking の orb 表示（→ [ADR 0142](0142-thinking-orb-replaces-shimmer.md)）。
+
+> **後継**（2026-07-31・[ADR 0147](0147-chat-code-card-and-header-dedup.md)）: 「静かにする」をさらに進め、
+> **カードヘッダの時刻を削除**（`DisclosureCard` の `timestamp` 引数ごと。時刻はホバーで出るコピーボタンの右へ）、
+> **サブタイトルによる実行中表示 `"実行中"` を廃止**（常に `nil`。実行中は orb だけが示す）した。
+> `AvatarMessageRow` のメッセージ単位の時刻と、チームビュー・アゴラのアイコン存置は不変。
 
 ## 文脈
 

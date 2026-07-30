@@ -1,6 +1,6 @@
 ---
 status: accepted
-last-verified: 2026-07-30
+last-verified: 2026-07-31
 ---
 
 # ADR 0145: ツール実行グループの見出しを recap にし、開閉トグルを右端へ移す
@@ -10,6 +10,17 @@ last-verified: 2026-07-30
 > **書かないもの**: カードの装飾を落とした判断（→ [ADR 0144](0144-quiet-chat-chrome.md)）、
 > recap 文字列そのものの導出規則（→ `ChatRecap` / `ThinkingRecap` の実装）、
 > ブロック再評価の抑制（→ [ADR 0116](0116-transcript-block-equatable.md)）。
+
+> **後継**（2026-07-31・[ADR 0147](0147-chat-code-card-and-header-dedup.md)）: 実機で使った結果、次の 3 決定を**覆した**。
+> ①**完了形ラベル**（`… を実行` / `を読み込み` / `を編集`）をやめ、`CommandGroupTitle.derive(items:)` は
+> **コマンド原文**（空白正規化＋`ThinkingRecap.clamp`）を返す。`RecapActivity` による分類は言い換えで情報が減るため。
+> ②**`liveRecap` クロージャと `TimelineView` 追従を廃止**（`items` が変われば `Equatable` 経由で追従するため不要）。
+> 未使用になった `ChatRecap.derive` / `ChatSessionViewModel.recap(now:)` は削除（`deriveActivityState` は残存）。
+> ③**件数サブタイトル `実行中 ×N` / `×N` を廃止**（常に `nil`）。`×1` は情報量ゼロ、`実行中` は orb と重複。
+> フォールバック `"ツール実行 ×N"`（コマンドが 1 件も無いグループ）と、シェブロンを自前で置く方針は不変。
+> ただしシェブロンの位置は**右端 → タイトル直後**（`AGENTS.md >`）へ変更した。
+> **60 文字クランプの共有・`.contentShape(Rectangle())`・`Equatable` を壊さないこと・
+> 出力 20 行省略とコピー全文は不変**で、ADR 0147 がこれを引き継ぐ。
 
 ## 文脈
 

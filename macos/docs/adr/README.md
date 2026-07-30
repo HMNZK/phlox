@@ -12,6 +12,7 @@ last-verified: 2026-07-30
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0147 | [コードビューを枠線付きカードへ 1 本化し、見出しの重複・時刻・件数を落とす](0147-chat-code-card-and-header-dedup.md) | accepted |
 | 0146 | [ファイル変更をコードビューで描く（行番号は推測しない）](0146-diff-code-view.md) | accepted |
 | 0145 | [ツール実行グループの見出しを recap にし、開閉トグルを右端へ移す](0145-tool-group-recap-header.md) | accepted |
 | 0144 | [チャットの装飾を落とす（カードのアイコン・ステータスグリフ・アバターの撤去）](0144-quiet-chat-chrome.md) | accepted |

@@ -15,6 +15,7 @@ iOS コンパニオンアプリ固有の決定の **理由** を残す。追記�
 | 番号 | 決定 | ステータス |
 |---|---|---|
 | 0040 | [モバイルの端末は桁の格子を守る（折り返さない・全角を 2 桁に釘付けする）](0040-mobile-terminal-keeps-the-column-grid.md) | accepted |
+| 0041 | [チャット表示の純関数を ChatRenderKit へ 1 本化し、モバイルにも同じ表示規則を適用する](0041-chat-render-rules-shared-via-chatrenderkit.md) | accepted |
 | 0039 | [モバイルの端末画面は装飾付きテキストとして描く（端末エミュレータを使わない）](0039-mobile-terminal-is-styled-text-not-an-emulator.md) | accepted |
 | 0038 | [ツール実行カードは閉状態で行データもコピー文字列も作らず、展開時は行数を有界化する](0038-command-group-cost-bounding.md) | accepted |
 | 0037 | [transcript の表示窓はブロック単位で数える](0037-transcript-window-counts-blocks.md) | accepted |

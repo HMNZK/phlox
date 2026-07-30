@@ -28,3 +28,4 @@ last-verified: 2026-07-30
 - `delivery/0016-session-view-ux-worklog.md` … セッション表示 UX（最下部から開く・本文の折り返しと表の横スクロール・端スワイプで戻る）の作業ログ
 - `delivery/0017-tool-call-collapse-threshold-worklog.md` … ツールコール件数と折りたたみ閾値の分離の作業ログ
 - `delivery/0018-ios-session-project-assign-worklog.md` … iOS で作ったセッションが macOS の「その他」に落ちる問題（spawn への projectId 伝搬）の作業ログ
+- `delivery/0019-mobile-chat-parity-worklog.md` … デスクトップのチャット表示刷新（コードカード・ツール実行の見出し・diff コードビュー）をモバイルへ適用した作業ログ

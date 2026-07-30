@@ -143,6 +143,13 @@ ThinkingIndicatorCell の表示条件は `status == .running` ではなく **`Ch
 
 連続するコマンド実行 item は**1件でも**1セルに集約して描画する（ADR 0127。当初は2件以上だった＝ADR 0096）。描画直前に純関数 `ChatTranscriptGrouping.blocks(from:)`（`ChatTranscriptGrouping.swift`）が item 列を `ChatTranscriptBlock`（`.single` / `.commandGroup(id:items:)`）へ畳み、`ChatTranscriptView` はブロック単位で ForEach する。グループ id は**先頭 item の id**（append で id 不変＝セル再利用）。**窓境界は必ずブロック境界に来るため部分ブロックは生じない**（ADR 0127 で旧・境界分割処理は削除）。ジャンプは `scrollTargetID(containing:in:)` が item→ブロック id を解決。
 
+> **表示規則の純関数は共有ターゲット `ChatRenderKit`（`macos/Packages/AgentDomain` 内・Foundation のみ）にある**
+> （2026-07-31・モバイル適用に伴う移設 → [iOS ADR 0041](../../../ios/docs/adr/0041-chat-render-rules-shared-via-chatrenderkit.md)）。
+> 対象は `ChatDiffClassifier`（旧 `DiffLineClassifier`）／`ChatCodeTokenizer`（旧 `ChatCodeHighlighter` の Swift・シェル トークナイザ）／
+> `ChatCommandToolLabel`／`ChatFileChangePresentation`／`ChatReasoningPresentation`／`ChatCommandGroupTitle`。
+> `SessionFeature` 側に残るのは型変換・トークン→`Color` の対応付け・`ChatMessageRenderCache` のメモ化だけで、
+> **同じ規則の実装は 2 箇所に持たない**。以下の記述の規則そのものは移設前後で不変（macOS の受け入れテストは 1 行も変えていない）。
+
 セルは `CommandGroupCell`（`ChatMessageCells+CommandGroup.swift`）。窓がブロック単位になり1グループが数千件を抱えうるため、**ヘッダと行データを型で分けてある**（ADR 0128）:
 
 - `CommandGroupHeader`（`title` / `timestamp` / `isRunning` / `shouldRender`）— 行データを保持しない。**閉状態はこれだけを使う**。`title` は固定文字列ではなく `CommandGroupTitle.derive(items:)`（`ChatRecap.swift` の純関数）が決める: 最後のコマンドを**原文のまま**（改行・連続空白を単一スペースへ畳み `ThinkingRecap.clamp` で 60 文字クランプ）出し、コマンドが 1 件も無いときだけ `"ツール実行 ×N"` へフォールバックする。**サブタイトルは持たない**（件数 `×N` も `実行中` も出さない。実行中は Thinking の orb だけが示す。ADR 0145 → 0147）。

@@ -50,10 +50,8 @@ struct AcceptanceTerminalPanelWiringTests {
         #expect(panel.contains(#"accessibilityIdentifier("user-terminal-panel")"#))
     }
 
-    @Test("独立ウィンドウ方式のプロトタイプが隔離ファイルに存在する")
-    func windowVariantPrototypeExists() throws {
-        let prototype = try source(
-            "macos/Packages/DashboardFeature/Sources/DashboardFeature/UserTerminal/PanelContainerPrototype.swift")
-        #expect(prototype.contains("Window") || prototype.contains("openWindow"))
-    }
+    // 「独立ウィンドウ方式のプロトタイプが隔離ファイルに存在する」テストは、
+    // ゲート②（2026-07-31・ドロワー確定）でプロトタイプ撤去が確定したため PM が撤去した。
+    // 撤去の検査は AcceptancePanelIntegrationTests.prototypeIsRemoved（task-5）が担う。
+    // （task-3 時点の存在要求と task-5 の撤去要求が矛盾する契約欠陥の解消。decision-log 参照）
 }

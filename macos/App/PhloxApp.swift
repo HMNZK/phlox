@@ -38,7 +38,7 @@ struct PhloxApp: App {
     @State private var composition: CompositionRoot?
     @State private var initFailure: InitFailure?
     @State private var initializing = false
-    /// ドロワーと Window scene が同じ実シェルを共有するための唯一の所有者。
+    /// ドロワーを閉じても実シェルを維持する唯一の所有者。
     @State private var terminalPanelSession: TerminalPanelSession?
 
     @AppStorage(LanguageSettings.languageKey) private var appLanguageRaw = AppLanguage.system.rawValue
@@ -94,6 +94,7 @@ struct PhloxApp: App {
                 if terminalPanelSession == nil {
                     terminalPanelSession = makeTerminalPanelSession(environment: composition.environment)
                 }
+                appDelegate.userTerminalController = terminalPanelSession?.controller
                 appDelegate.ptyManager = composition.environment.pty as? PTYManager
                 appDelegate.dashboard = composition.dashboard
                 appDelegate.router = composition.router
@@ -111,6 +112,7 @@ struct PhloxApp: App {
             )
             AgentConsoleCommands()
             TerminalPanelCommands(router: composition?.router)
+            EditorPanelCommands(router: composition?.router)
         }
 
         Settings {
@@ -138,13 +140,6 @@ struct PhloxApp: App {
         }
         .defaultSize(width: 900, height: 620)
 
-        // PROTOTYPE(task-3): 独立 Window 方式の実装は PanelContainerPrototype.swift に隔離する。
-        PanelContainerPrototype.windowScene(
-            panel: terminalPanelSession,
-            router: composition?.router,
-            preferredColorScheme: ThemeStore.active.preferredColorScheme,
-            locale: appLanguage.locale
-        )
     }
 
     /// 選択中セッションが属するプロジェクトのディレクトリ。管理画面の「メモリ」で
@@ -245,25 +240,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
     }
     var router: AppRouter?
+    /// ドロワーを閉じても保持されるユーザー用シェル。終了経路だけが明示的に停止する。
+    var userTerminalController: UserTerminalController?
     private var closeSessionMonitor: Any?
 
     /// 子セッションの一括終了を「高々 1 回」だけ起動するためのガード。
     /// シグナル終了経路（SIGTERM/SIGINT）と GUI 正常終了経路（applicationShouldTerminate）が
     /// 競合・二重発火しても、実際の終了処理は 1 回だけにする。
-    private let cleanupGuard = CleanupGuard()
+    let cleanupGuard = CleanupGuard()
 
     /// シグナルハンドラから MainActor を経由せずに PTYManager を読むための nonisolated な箱。
     /// `ptyManager` の didSet で同期する。PTYManager は actor（Sendable）なので参照を安全に保持できる。
-    nonisolated private let ptyManagerBox = SignalSafeBox<PTYManager?>(nil)
+    nonisolated fileprivate let ptyManagerBox = SignalSafeBox<PTYManager?>(nil)
 
     /// SIGTERM / SIGINT を監視する DispatchSource。AppDelegate が保持して生存させる
     /// （ローカル変数のままだと即座に cancel され、ハンドラが発火しない）。
     private var signalSources: [DispatchSourceSignal] = []
 
     /// 子終了処理のタイムアウト。applicationShouldTerminate と揃える。
-    private static let cleanupTimeout: Duration = .seconds(5)
+    static let cleanupTimeout: Duration = .seconds(5)
     /// チャット transcript flush の上限。書き込み完了を待つが、終了不能ハングは作らない。
-    private static let transcriptFlushTimeout: Duration = .seconds(3)
+    static let transcriptFlushTimeout: Duration = .seconds(3)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
@@ -294,34 +291,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
     }
 
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        // シグナル経路と同じガードで「高々 1 回」を担保する。シグナルハンドラが先に
-        // 起動権を取得済みなら、ここでは子終了を再実行せずそのまま終了させる。
-        guard cleanupGuard.beginCleanup() else { return .terminateNow }
-
-        let ptyManager = self.ptyManager
-        let dashboard = self.dashboard
-        Task { @MainActor in
-            // PTY kill と transcript flush を併走し、両方終わってから reply する。
-            // TaskGroup に @MainActor 閉包を載せず、Sendable な Task ハンドルだけで競合させる
-            // （Swift 6 region-based isolation checker 回避）。
-            let ptyTask = Task {
-                guard let ptyManager else { return }
-                await ptyManager.terminateAllAndWait(timeout: Self.cleanupTimeout)
-            }
-            let flushTask = Task { @MainActor in
-                await Self.flushChatTranscriptsForTermination(
-                    dashboard: dashboard,
-                    timeout: Self.transcriptFlushTimeout
-                )
-            }
-            await ptyTask.value
-            await flushTask.value
-            NSApplication.shared.reply(toApplicationShouldTerminate: true)
-        }
-        return .terminateLater
-    }
-
     /// 全チャットセッションの transcript を書き切り、タイムアウトで打ち切る。
     ///
     /// 各セッションの `flushTranscriptNow()` は子タスクで同時起動する（直列 await だと
@@ -329,7 +298,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// 全体完了を `TerminationFlushRace` で timeout と競わせる。timeout 勝利後は flush
     /// 側を await しない（`withTaskGroup` の暗黙 await で reply がハングするのを避ける）。
     @MainActor
-    private static func flushChatTranscriptsForTermination(
+    static func flushChatTranscriptsForTermination(
         dashboard: DashboardViewModel?,
         timeout: Duration
     ) async {
@@ -477,22 +446,29 @@ struct AgentConsoleCommands: Commands {
     }
 }
 
-/// 通常は Dashboard のドロワーを切り替える。比較用 UserDefaults が有効なときだけ
-/// 同じ共有シェルを表示する Window scene も開く。
 private struct TerminalPanelCommands: Commands {
     var router: AppRouter?
-
-    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         CommandGroup(after: .sidebar) {
             Button("ターミナル") {
                 router?.toggleTerminalPanel()
-                PanelContainerPrototype.openWindowIfNeeded(router: router) { windowID in
-                    openWindow(id: windowID)
-                }
             }
             .keyboardShortcut("t", modifiers: [.command, .option])
+            .disabled(router == nil)
+        }
+    }
+}
+
+private struct EditorPanelCommands: Commands {
+    var router: AppRouter?
+
+    var body: some Commands {
+        CommandGroup(after: .sidebar) {
+            Button("エディタ") {
+                router?.toggleEditorPanel()
+            }
+            .keyboardShortcut("e", modifiers: [.command, .option])
             .disabled(router == nil)
         }
     }

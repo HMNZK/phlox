@@ -5,7 +5,6 @@ import DesignSystem
 import SessionFeature
 
 public struct DashboardView: View {
-    private static let terminalDrawerPreferredWidth: CGFloat = 420
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
     @Bindable var usageMonitor: UsageMonitor
@@ -32,6 +31,16 @@ public struct DashboardView: View {
     @State private var measuredLeadingOverlayWidth: CGFloat = 0
     @State private var hasMeasuredLeadingOverlayWidth = false
     @State private var measuredTrailingOverlayHeight: CGFloat = 0
+    @AppStorage(PanelDrawerLayout.defaultsKey) private var storedDrawerWidth = PanelDrawerLayout.preferredWidth
+    @State private var drawerWidthAtDragStart = PanelDrawerLayout.preferredWidth
+    /// ゴースト境界だけを動かす一時値。本文 HStack の幅はドラッグ確定まで変えない。
+    @State private var drawerDragTranslation: CGFloat = 0
+    /// 今のジェスチャーで `drawerWidthAtDragStart` を既に採取したか。ドラッグ開始時の
+    /// 表示幅（`storedDrawerWidth` の保存値ではなく実際にクランプ済みの幅）を一度だけ
+    /// 採る起点として使う。
+    @State private var isDraggingDrawer = false
+    @State private var editorPanelViewModel = EditorPanelViewModel(service: nil)
+    @State private var editorPanelProjectID: ProjectID?
 
     /// Claude Code 管理ウィンドウの識別子。App 側が Window シーンを持つときだけ渡す。
     private let agentConsoleWindowID: String?
@@ -229,17 +238,16 @@ public struct DashboardView: View {
                 }
                 .animation(.easeInOut(duration: 0.18), value: router.inspectorVisible)
 
-                // AppKit の TerminalView を overlay に置くと既存 PTY タイルの前後関係で
-                // 隠れるため、本文幅を縮める HStack のレイアウトフローに置く。
-                // 開閉にアニメーションは付けず、グリッド全体の毎フレーム再レイアウトを避ける。
-                if PanelContainerPrototype.isDrawerActive(visible: router.terminalPanelVisible),
-                   let terminalPanel,
-                   terminalDrawerWidth(windowWidth: geometry.size.width) > 0 {
+                // パネルは本文と同じレイアウトフローに置く。TerminalView の AppKit NSView を
+                // overlay に置くと既存 PTY タイルとの前後関係で隠れるためである。
+                // 開閉・幅確定時だけ本文幅を変え、ドラッグ中は下のゴースト境界だけを動かす。
+                if drawerIsVisible,
+                   drawerWidth(windowWidth: geometry.size.width) > 0 {
                     Rectangle()
                         .fill(DSColor.separator)
                         .frame(width: 1)
-                    TerminalPanelView(panel: terminalPanel)
-                        .frame(width: terminalDrawerWidth(windowWidth: geometry.size.width))
+                    drawerContent
+                        .frame(width: drawerWidth(windowWidth: geometry.size.width))
                         .background(DSColor.background)
                 }
             }
@@ -335,6 +343,45 @@ public struct DashboardView: View {
                     .onAppear { inspectorWidthAtDragStart = inspectorWidth }
                 }
             }
+            // 分割線は AppKit の TerminalView より前面の最後の overlay に置く。ドラッグ中は
+            // ゴースト線のみを移動し、onEnded でだけ HStack のドロワー幅を確定・永続化する。
+            .overlay(alignment: .topTrailing) {
+                if drawerIsVisible, drawerWidth(windowWidth: geometry.size.width) > 0 {
+                    ResizeGripView(
+                        onChanged: { value in
+                            // 開始幅は「保存値」ではなく、掴んだ瞬間に実際に表示されている
+                            // （available でクランプ済みの）幅から採る。保存値のまま採ると、
+                            // ウィンドウ縮小等で表示幅が既にクランプされているケースで
+                            // ドラッグ開始直後は無反応になる（クランプ後の値へ戻すまで
+                            // translation が吸収されるため）。
+                            if !isDraggingDrawer {
+                                isDraggingDrawer = true
+                                drawerWidthAtDragStart = drawerWidth(windowWidth: geometry.size.width)
+                            }
+                            drawerDragTranslation = value.translation.width
+                        },
+                        onEnded: {
+                            storedDrawerWidth = proposedDrawerWidth(windowWidth: geometry.size.width)
+                            isDraggingDrawer = false
+                            drawerDragTranslation = 0
+                        }
+                    )
+                    .offset(
+                        x: -(drawerWidth(windowWidth: geometry.size.width) + 0.5
+                            - ResizeGripView.gripWidth / 2)
+                    )
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if drawerIsVisible, drawerDragTranslation != 0 {
+                    Rectangle()
+                        .fill(DSColor.accent)
+                        .frame(width: 2)
+                        .frame(maxHeight: .infinity)
+                        .offset(x: -proposedDrawerWidth(windowWidth: geometry.size.width))
+                        .allowsHitTesting(false)
+                }
+            }
             .onChange(of: geometry.size.width, initial: true) { _, _ in
                 applyPaneWidthClamp(windowWidth: geometry.size.width)
             }
@@ -347,11 +394,17 @@ public struct DashboardView: View {
             .onChange(of: router.terminalPanelVisible) { _, _ in
                 applyPaneWidthClamp(windowWidth: geometry.size.width)
             }
+            .onChange(of: router.editorPanelVisible) { _, _ in
+                applyPaneWidthClamp(windowWidth: geometry.size.width)
+            }
         }
         // hiddenTitleBar でも SwiftUI は上部にタイトルバー分のセーフエリアを確保するため、
         // detail ヘッダーが押し下げられて不自然な隙間になる。上部セーフエリアを無視して
         // コンテンツを最上部まで詰め、トラフィックライト回避はサイドバー側の上余白に一任する。
         .ignoresSafeArea(.container, edges: .top)
+        .onAppear {
+            updateEditorPanelProject()
+        }
         .onChange(of: router.viewMode, initial: true) { _, newMode in
             if newMode != .grid {
                 router.clearGridFilter()
@@ -374,6 +427,7 @@ public struct DashboardView: View {
         }
         .onChange(of: router.selectedSession) { _, selectedID in
             markCompletionSeen(for: selectedID)
+            updateEditorPanelProject()
             if let selectedID,
                let session = viewModel.sessionNode(id: selectedID),
                let projectID = session.projectID {
@@ -435,24 +489,88 @@ public struct DashboardView: View {
         inspectorWidthAtDragStart = clamped.inspector
     }
 
-    /// ターミナル表示中も detail の最小幅を侵食しない。十分な幅がないときは、まず
-    /// sidebar / inspector を既存ポリシーで最小値まで縮め、残余だけをドロワーへ渡す。
-    private func terminalDrawerWidth(windowWidth: CGFloat) -> CGFloat {
-        guard router.terminalPanelVisible else {
-            return 0
-        }
-        let sidebar = router.sidebarVisible ? sidebarWidth + 1 : 0
-        let inspector = router.inspectorVisible ? inspectorWidth + 1 : 0
-        let available = windowWidth - PaneWidthPolicy.detailMinWidth - sidebar - inspector - 1
-        return min(Self.terminalDrawerPreferredWidth, max(0, available))
+    private var drawerIsVisible: Bool {
+        router.terminalPanelVisible || router.editorPanelVisible
     }
 
-    /// ポリシーにターミナル幅を予約して sidebar / inspector を先に縮める。実際の
-    /// ドロワー幅は残余に合わせて上の `terminalDrawerWidth` が算出する。
+    /// ドロワー表示中も detail の最小幅を侵食しない。十分な幅がないときは、まず
+    /// sidebar / inspector を既存ポリシーで最小値まで縮め、残余だけをドロワーへ渡す。
+    private func drawerAvailableWidth(windowWidth: CGFloat) -> CGFloat {
+        let sidebar = router.sidebarVisible ? sidebarWidth + 1 : 0
+        let inspector = router.inspectorVisible ? inspectorWidth + 1 : 0
+        return max(0, windowWidth - PaneWidthPolicy.detailMinWidth - sidebar - inspector - 1)
+    }
+
+    private func drawerWidth(windowWidth: CGFloat) -> CGFloat {
+        guard drawerIsVisible else { return 0 }
+        return PanelDrawerLayout.clamped(
+            width: storedDrawerWidth,
+            availableWidth: drawerAvailableWidth(windowWidth: windowWidth)
+        )
+    }
+
+    private func proposedDrawerWidth(windowWidth: CGFloat) -> CGFloat {
+        PanelDrawerLayout.proposedWidth(
+            startWidth: drawerWidthAtDragStart,
+            translation: drawerDragTranslation,
+            availableWidth: drawerAvailableWidth(windowWidth: windowWidth)
+        )
+    }
+
+    /// ポリシーには最後に確定した幅だけを予約する。ドラッグ中のゴースト位置は
+    /// ここへ反映しないため、グリッドタイルの再レイアウトが毎フレーム起きない。
     private var terminalDrawerReservation: CGFloat {
-        PanelContainerPrototype.drawerReservation(
-            visible: router.terminalPanelVisible,
-            preferredWidth: Self.terminalDrawerPreferredWidth
+        drawerIsVisible ? max(0, storedDrawerWidth) + 1 : 0
+    }
+
+    /// トップバーオーバーレイの回避インセット（28pt）は、ドロワー内で最上段に来る
+    /// 要素にだけ付ける。両パネル同時表示（VSplitView）では下段のエディタが最上段
+    /// ではなくなるため 0 を渡し、理由のない空白帯が入らないようにする。
+    private static let drawerTopInset: CGFloat = 28
+
+    @ViewBuilder
+    private var drawerContent: some View {
+        if router.terminalPanelVisible, router.editorPanelVisible {
+            VSplitView {
+                terminalDrawerContent(topInset: Self.drawerTopInset)
+                editorDrawerContent(topInset: 0)
+            }
+        } else if router.terminalPanelVisible {
+            terminalDrawerContent(topInset: Self.drawerTopInset)
+        } else {
+            editorDrawerContent(topInset: Self.drawerTopInset)
+        }
+    }
+
+    @ViewBuilder
+    private func terminalDrawerContent(topInset: CGFloat) -> some View {
+        if let terminalPanel {
+            TerminalPanelView(panel: terminalPanel, topInset: topInset)
+        } else {
+            ContentUnavailableView("ターミナルを準備しています", systemImage: "terminal")
+        }
+    }
+
+    private func editorDrawerContent(topInset: CGFloat) -> some View {
+        EditorPanelView(viewModel: editorPanelViewModel, topInset: topInset)
+            .task(id: editorPanelProjectID) {
+                await editorPanelViewModel.refresh()
+            }
+    }
+
+    private func updateEditorPanelProject() {
+        let project: Project? = {
+            guard let selectedID = router.selectedSession,
+                  let projectID = viewModel.sessionNode(id: selectedID)?.projectID else {
+                return nil
+            }
+            return viewModel.projects.first(where: { $0.id == projectID })
+        }()
+        guard editorPanelProjectID != project?.id else { return }
+
+        editorPanelProjectID = project?.id
+        editorPanelViewModel = EditorPanelViewModel(
+            service: project.map { WorkingTreeService(repositoryRoot: $0.directoryURL) }
         )
     }
 

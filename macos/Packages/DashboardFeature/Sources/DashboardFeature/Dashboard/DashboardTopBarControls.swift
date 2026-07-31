@@ -82,6 +82,13 @@ struct DashboardTrailingTopBarControls: View {
     @State private var trailingControlsGeometryWidth: CGFloat = 0
 
     private var usageAvailableWidth: CGFloat {
+        // `windowWidth` は Dashboard 全体の GeometryReader から渡す。trailing ドロワーの
+        // 実効幅をここから引かないことで、Usage はパネルの開閉・リサイズで縮まらない。
+        // 根本原因調査（task-5 review MEDIUM-1）: ドロワー導入前の task-3 時点の
+        // DashboardView.swift でも `windowWidth: geometry.size.width`（全幅）が渡っており、
+        // この画面のこの経路がドロワー幅を差し引いて縮めていた形跡はコード上には無い。
+        // ゲート②の文言はドロワー確定前の懸念事項として記された想定リスクであり、
+        // この経路固有の回帰ではない、というのがコード調査からの結論。
         TrailingTopBarLayout.usageAvailableWidth(
             windowWidth: windowWidth,
             occupiedSidebarWidth: occupiedSidebarWidth,

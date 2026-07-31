@@ -4,7 +4,7 @@ import PTYKit
 import Testing
 @testable import DashboardFeature
 
-@Suite("User terminal controller white-box tests")
+@Suite("User terminal controller white-box tests", .timeLimit(.minutes(1)))
 @MainActor
 struct UserTerminalControllerWhiteboxTests {
 
@@ -242,17 +242,59 @@ struct UserTerminalControllerWhiteboxTests {
 
         try await controller.ensureStarted()
         let firstID = try #require(controller.sessionID)
+        await controller.shutdown()
+        try await controller.ensureStarted()
+        let secondID = try #require(controller.sessionID)
+        #expect(firstID == secondID)
+
         let collector = OutputCollector()
         let stream = controller.makeOutputStream()
-        let consumeTask = Task {
+        let consumeTask = Task.detached {
             for await chunk in stream {
                 await collector.append(chunk)
             }
         }
         defer { consumeTask.cancel() }
 
+        pty.emitOutput(
+            for: firstID,
+            spawnGeneration: 0,
+            data: Data("stale-output".utf8)
+        )
+        pty.emitOutput(
+            for: secondID,
+            spawnGeneration: 1,
+            data: Data("current-output".utf8)
+        )
+
+        try await waitUntilAsync { await collector.text().contains("current-output") }
+        #expect(!(await collector.text().contains("stale-output")))
+
+        await controller.shutdown()
+    }
+
+    @Test("自然終了をまたいで生きている購読者にも旧世代の出力は混入しない")
+    func staleOutputDoesNotReachSubscriberAcrossNaturalRestart() async throws {
+        let pty = GenerationRacePTY()
+        let controller = makeController(pty: pty)
+
+        try await controller.ensureStarted()
+        let firstID = try #require(controller.sessionID)
+
+        let collector = OutputCollector()
+        let stream = controller.makeOutputStream()
+        let consumeTask = Task.detached {
+            for await chunk in stream {
+                await collector.append(chunk)
+            }
+        }
+        defer { consumeTask.cancel() }
+
+        // relay が output stream の next() を待っている状態で自然終了を観測させる。
+        await Task.yield()
         pty.emitExit(for: firstID, spawnGeneration: 0, code: 0, finish: true)
-        // 実 PTYManager は exit code より先に output stream を finish する。
+        // 実 PTYManager は exit code より先に output stream を finish する。旧世代の
+        // relay task を解放するため、テストダブルでも明示的に output stream を閉じる。
         pty.emitOutput(
             for: firstID,
             spawnGeneration: 0,
@@ -260,10 +302,8 @@ struct UserTerminalControllerWhiteboxTests {
             finish: true
         )
         try await waitUntil { !controller.isRunning }
-
         try await controller.ensureStarted()
         let secondID = try #require(controller.sessionID)
-        #expect(firstID == secondID)
 
         pty.emitOutput(
             for: firstID,

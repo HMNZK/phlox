@@ -1,24 +1,64 @@
 import SessionFeature
 import SwiftUI
 
+/// エディタパネルの内部レイアウトモードを、確定容器幅から純粋に決定する規則。
+/// ドロワーの既定幅・最小幅（`PanelDrawerLayout.preferredWidth` / `.minimumWidth`）は
+/// 左右分割表示の内在最小幅（`splitMinimumWidth`）より狭いため、幅が足りないときは
+/// 変更リストと詳細ペインを縦積みへ切り替えて操作可能性を保つ。
+public enum EditorPanelLayout: Equatable {
+    case split
+    case stacked
+
+    /// 左右分割時の変更リストペインの最小幅。
+    public static let changeListMinWidth: CGFloat = 180
+    /// 左右分割時の詳細ペインの最小幅。
+    public static let detailPaneMinWidth: CGFloat = 360
+    /// HSplitView の区切り線幅の概算。
+    private static let dividerWidth: CGFloat = 1
+
+    /// 左右分割表示が内在的に必要とする最小幅。これを下回る幅では `.stacked` を選ぶ。
+    public static let splitMinimumWidth: CGFloat =
+        changeListMinWidth + detailPaneMinWidth + dividerWidth
+
+    public static func mode(forWidth width: CGFloat) -> EditorPanelLayout {
+        width >= splitMinimumWidth ? .split : .stacked
+    }
+}
+
 /// 変更ファイルの確認と保存を行う、容器に依存しないエディタパネル。
 public struct EditorPanelView: View {
     @Bindable private var viewModel: EditorPanelViewModel
     @State private var showsConflictAlert = false
     @State private var previewLineLimit = 500
+    /// ドロワー内での最上段要素にだけ 28pt（最前面オーバーレイのトップバーと非衝突分）を
+    /// 付ける。容器（DashboardView）側が積み位置に応じて渡す。
+    private let topInset: CGFloat
 
-    public init(viewModel: EditorPanelViewModel) {
+    public init(viewModel: EditorPanelViewModel, topInset: CGFloat = 28) {
         _viewModel = Bindable(wrappedValue: viewModel)
+        self.topInset = topInset
     }
 
     public var body: some View {
-        HSplitView {
-            changeList
-                .frame(minWidth: 180, idealWidth: 240, maxWidth: 320)
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "doc.text")
+                    .foregroundStyle(.secondary)
+                Text("エディタ")
+                    .font(.body.weight(.medium))
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
 
-            detailPane
-                .frame(minWidth: 360)
+            Divider()
+
+            GeometryReader { geometry in
+                editorContent(for: EditorPanelLayout.mode(forWidth: geometry.size.width))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .padding(.top, topInset)
         .accessibilityIdentifier("editor-panel")
         .onChange(of: viewModel.selectedPath) { _, _ in
             previewLineLimit = 500
@@ -30,6 +70,34 @@ public struct EditorPanelView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("The file was changed after it was loaded. Overwrite it with your draft?")
+        }
+    }
+
+    /// ドロワー幅に応じて左右分割・上下積みを切り替える。しきい値の判断は
+    /// `EditorPanelLayout`（純粋型・白箱テスト対象）へ切り出してある。
+    @ViewBuilder
+    private func editorContent(for mode: EditorPanelLayout) -> some View {
+        switch mode {
+        case .split:
+            HSplitView {
+                changeList
+                    .frame(
+                        minWidth: EditorPanelLayout.changeListMinWidth,
+                        idealWidth: 240,
+                        maxWidth: 320
+                    )
+
+                detailPane
+                    .frame(minWidth: EditorPanelLayout.detailPaneMinWidth)
+            }
+        case .stacked:
+            VSplitView {
+                changeList
+                    .frame(minHeight: 120, idealHeight: 180)
+
+                detailPane
+                    .frame(minHeight: 200)
+            }
         }
     }
 

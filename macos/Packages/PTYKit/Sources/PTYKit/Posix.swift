@@ -79,7 +79,17 @@ public enum Posix {
         sigemptyset(&sigEmpty)
         try checkSpawnResult(posix_spawnattr_setsigmask(&attributes, &sigEmpty))
 
-        let flags = Int16(POSIX_SPAWN_SETSID | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK)
+        // POSIX_SPAWN_CLOEXEC_DEFAULT: file_actions で明示的に dup2 されなかった fd
+        // （0/1/2 以外の全て）を子側で既定 close-on-exec 扱いにする。これが無いと、
+        // 親プロセスが他所で開いている Pipe（例: WorkingTreeService.runGit の git 実行用
+        // pipe）の write 端を、このシェル spawn がたまたま同時に走ったときに継承してしまい、
+        // pipe の read 側が EOF を受け取れず恒久ブロックしうる（review-task-5-r2.md MUST-A）。
+        // dup2 済みの STDIN/STDOUT/STDERR（PTY の slaveFD 複製）はこのフラグの対象外で、
+        // 通常どおり引き継がれる。
+        let flags = Int16(
+            POSIX_SPAWN_SETSID | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK
+                | POSIX_SPAWN_CLOEXEC_DEFAULT
+        )
         try checkSpawnResult(posix_spawnattr_setflags(&attributes, flags))
 
         let argvStrings = [command] + args

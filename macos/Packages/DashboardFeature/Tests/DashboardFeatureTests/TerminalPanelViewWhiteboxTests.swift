@@ -50,33 +50,7 @@ struct TerminalPanelViewWhiteboxTests {
         await controller.shutdown()
     }
 
-    @Test("独立 Window 方式の判定はプロトタイプ用ファイルだけに隔離する")
-    func windowModeDecisionIsIsolatedInPrototype() throws {
-        var root = URL(fileURLWithPath: #filePath)
-        for _ in 0..<6 { root.deleteLastPathComponent() }
-
-        let dashboard = try String(
-            contentsOf: root.appendingPathComponent(
-                "macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardView.swift"
-            ),
-            encoding: .utf8
-        )
-        let app = try String(
-            contentsOf: root.appendingPathComponent("macos/App/PhloxApp.swift"),
-            encoding: .utf8
-        )
-        let prototype = try String(
-            contentsOf: root.appendingPathComponent(
-                "macos/Packages/DashboardFeature/Sources/DashboardFeature/UserTerminal/PanelContainerPrototype.swift"
-            ),
-            encoding: .utf8
-        )
-
-        #expect(!dashboard.contains("usesSeparateWindow"))
-        #expect(!app.contains("usesSeparateWindow"))
-        #expect(prototype.contains("usesSeparateWindow"))
-    }
-
+    // ゲート②で独立 Window 方式のプロトタイプを撤去したため、この失効テストも撤去する。
     private func waitUntil(
         timeout: Duration = .seconds(1),
         condition: @escaping @MainActor () -> Bool

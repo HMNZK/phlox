@@ -71,9 +71,13 @@ public final class TerminalPanelSession {
 /// ドロワー・独立ウィンドウのどちらにも埋め込める、実シェルの SwiftTerm 表示。
 public struct TerminalPanelView: View {
     public let panel: TerminalPanelSession
+    /// ドロワー内での最上段要素にだけ 28pt（最前面オーバーレイのトップバーと非衝突分）を
+    /// 付ける。容器（DashboardView）側が積み位置に応じて渡す。
+    private let topInset: CGFloat
 
-    public init(panel: TerminalPanelSession) {
+    public init(panel: TerminalPanelSession, topInset: CGFloat = 28) {
         self.panel = panel
+        self.topInset = topInset
     }
 
     public var body: some View {
@@ -101,7 +105,8 @@ public struct TerminalPanelView: View {
         .background(DSColor.background)
         // 最前面オーバーレイのトップバー（32pt）と競合しない、既存 trailing pane と
         // 同じ上端インセット。TerminalView の AppKit NSView を操作系から離す。
-        .padding(.top, 28)
+        // ドロワー内で最上段でない（他パネルの下に積まれている）場合は容器が 0 を渡す。
+        .padding(.top, topInset)
         .accessibilityIdentifier("user-terminal-panel")
         .task {
             await panel.ensureStarted()

@@ -111,9 +111,10 @@ task-5 最終レビュー（r3）が「フェーズ4で要実施」と挙げた�
   ことを目視確認。
 - **トップバー独立**: 全スクリーンショットを通じ、Usage チップがパネルの開閉・状態変化で
   移動・縮小しないことを確認。
-- **保存後の diff 更新**: 保存成功後に一覧・diff が自動更新されることをコード
-  （`EditorPanelViewModel.reloadAfterSaving`: `refresh()`＋`select(path)`）と AX 読み取りの両方で
-  確認（外部リロード起因の競合表示のみ手動 Refresh が必要）。
+- **保存後の diff 更新**: コード上は保存成功後に自動更新される
+  （`EditorPanelViewModel.reloadAfterSaving`: `refresh()`＋`select(path)`）。実機では保存約 1 秒後の
+  スクリーンショットで旧 diff のままの区間が観測され、手動 Refresh 後に反映を確認した
+  （描画反映のタイミングは未確定。実害は Refresh 操作で解消する軽微事象）。
 
 ## 未実施・積み残し
 

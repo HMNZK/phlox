@@ -59,15 +59,15 @@ struct CodeBlockView: View {
     }
 }
 
-enum ChatCodeHighlighter {
+public enum ChatCodeHighlighter {
     /// 内容同一性をキーにメモ化した窓口（P2）。同一内容の再ハイライトは走らない。
     /// キャッシュは非観測ストレージ（static NSCache）なので body から呼んでも @Observable state を書かない。
-    static func highlight(_ code: String) -> AttributedString {
+    public static func highlight(_ code: String) -> AttributedString {
         ChatMessageRenderCache.highlightedCode(code)
     }
 
     /// diff 本文用のトークン分類。分類規則は ChatRenderKit に委譲する。
-    static func tokens(for code: String, path: String) -> [ChatCodeToken] {
+    public static func tokens(for code: String, path: String) -> [ChatCodeToken] {
         ChatCodeTokenizer.tokens(for: code, path: path)
     }
 
@@ -123,5 +123,5 @@ enum ChatCodeHighlighter {
     }
 }
 
-typealias ChatCodeTokenKind = ChatRenderKit.ChatCodeTokenKind
-typealias ChatCodeToken = ChatRenderKit.ChatCodeToken
+public typealias ChatCodeTokenKind = ChatRenderKit.ChatCodeTokenKind
+public typealias ChatCodeToken = ChatRenderKit.ChatCodeToken

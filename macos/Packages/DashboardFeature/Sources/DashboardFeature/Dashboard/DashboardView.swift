@@ -5,6 +5,7 @@ import DesignSystem
 import SessionFeature
 
 public struct DashboardView: View {
+    private static let terminalDrawerPreferredWidth: CGFloat = 420
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
     @Bindable var usageMonitor: UsageMonitor
@@ -34,17 +35,21 @@ public struct DashboardView: View {
 
     /// Claude Code 管理ウィンドウの識別子。App 側が Window シーンを持つときだけ渡す。
     private let agentConsoleWindowID: String?
+    /// App が寿命を持つユーザー用シェル。nil は初期化中だけで、既存の Dashboard 利用者は無変更。
+    private let terminalPanel: TerminalPanelSession?
 
     public init(
         viewModel: DashboardViewModel,
         router: AppRouter,
         usageMonitor: UsageMonitor,
-        agentConsoleWindowID: String? = nil
+        agentConsoleWindowID: String? = nil,
+        terminalPanel: TerminalPanelSession? = nil
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
         _router = Bindable(wrappedValue: router)
         _usageMonitor = Bindable(wrappedValue: usageMonitor)
         self.agentConsoleWindowID = agentConsoleWindowID
+        self.terminalPanel = terminalPanel
     }
 
     private var deletionDialogTitle: String {
@@ -223,6 +228,20 @@ public struct DashboardView: View {
                     }
                 }
                 .animation(.easeInOut(duration: 0.18), value: router.inspectorVisible)
+
+                // AppKit の TerminalView を overlay に置くと既存 PTY タイルの前後関係で
+                // 隠れるため、本文幅を縮める HStack のレイアウトフローに置く。
+                // 開閉にアニメーションは付けず、グリッド全体の毎フレーム再レイアウトを避ける。
+                if PanelContainerPrototype.isDrawerActive(visible: router.terminalPanelVisible),
+                   let terminalPanel,
+                   terminalDrawerWidth(windowWidth: geometry.size.width) > 0 {
+                    Rectangle()
+                        .fill(DSColor.separator)
+                        .frame(width: 1)
+                    TerminalPanelView(panel: terminalPanel)
+                        .frame(width: terminalDrawerWidth(windowWidth: geometry.size.width))
+                        .background(DSColor.background)
+                }
             }
             // サイドバー開閉トグルを三色ボタンの右隣に固定表示。GeometryReader の内側に置くことで
             // 下の .ignoresSafeArea(.top) と同じくウィンドウ最上部を基準に配置され、三色ボタンと
@@ -286,6 +305,7 @@ public struct DashboardView: View {
                             let maxWidth = max(
                                 PaneWidthPolicy.sidebarMinWidth,
                                 geometry.size.width - PaneWidthPolicy.detailMinWidth
+                                    - terminalDrawerReservation
                             )
                             let proposed = sidebarWidthAtDragStart + value.translation.width
                             sidebarWidth = min(max(PaneWidthPolicy.sidebarMinWidth, proposed), maxWidth)
@@ -304,6 +324,7 @@ public struct DashboardView: View {
                                 PaneWidthPolicy.inspectorMinWidth,
                                 geometry.size.width - PaneWidthPolicy.detailMinWidth
                                     - (router.sidebarVisible ? sidebarWidth : 0)
+                                    - terminalDrawerReservation
                             )
                             let proposed = inspectorWidthAtDragStart - value.translation.width
                             inspectorWidth = min(max(PaneWidthPolicy.inspectorMinWidth, proposed), maxWidth)
@@ -321,6 +342,9 @@ public struct DashboardView: View {
                 applyPaneWidthClamp(windowWidth: geometry.size.width)
             }
             .onChange(of: router.inspectorVisible) { _, _ in
+                applyPaneWidthClamp(windowWidth: geometry.size.width)
+            }
+            .onChange(of: router.terminalPanelVisible) { _, _ in
                 applyPaneWidthClamp(windowWidth: geometry.size.width)
             }
         }
@@ -399,7 +423,7 @@ public struct DashboardView: View {
 
     private func applyPaneWidthClamp(windowWidth: CGFloat) {
         let clamped = PaneWidthPolicy.clamped(
-            windowWidth: windowWidth,
+            windowWidth: max(0, windowWidth - terminalDrawerReservation),
             sidebarVisible: router.sidebarVisible,
             inspectorVisible: router.inspectorVisible,
             sidebarWidth: sidebarWidth,
@@ -409,6 +433,27 @@ public struct DashboardView: View {
         inspectorWidth = clamped.inspector
         sidebarWidthAtDragStart = clamped.sidebar
         inspectorWidthAtDragStart = clamped.inspector
+    }
+
+    /// ターミナル表示中も detail の最小幅を侵食しない。十分な幅がないときは、まず
+    /// sidebar / inspector を既存ポリシーで最小値まで縮め、残余だけをドロワーへ渡す。
+    private func terminalDrawerWidth(windowWidth: CGFloat) -> CGFloat {
+        guard router.terminalPanelVisible else {
+            return 0
+        }
+        let sidebar = router.sidebarVisible ? sidebarWidth + 1 : 0
+        let inspector = router.inspectorVisible ? inspectorWidth + 1 : 0
+        let available = windowWidth - PaneWidthPolicy.detailMinWidth - sidebar - inspector - 1
+        return min(Self.terminalDrawerPreferredWidth, max(0, available))
+    }
+
+    /// ポリシーにターミナル幅を予約して sidebar / inspector を先に縮める。実際の
+    /// ドロワー幅は残余に合わせて上の `terminalDrawerWidth` が算出する。
+    private var terminalDrawerReservation: CGFloat {
+        PanelContainerPrototype.drawerReservation(
+            visible: router.terminalPanelVisible,
+            preferredWidth: Self.terminalDrawerPreferredWidth
+        )
     }
 
     @ViewBuilder

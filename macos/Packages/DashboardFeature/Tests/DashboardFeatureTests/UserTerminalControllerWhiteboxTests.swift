@@ -56,6 +56,55 @@ struct UserTerminalControllerWhiteboxTests {
         await controller.shutdown()
     }
 
+    @Test("resize は現在のセッションの PTY へ列と行を転送する")
+    func resizeForwardsCurrentSessionSize() async throws {
+        let pty = MockPTYManager()
+        let controller = makeController(pty: pty)
+
+        try await controller.ensureStarted()
+        let id = try #require(controller.sessionID)
+        try await controller.resize(cols: 58, rows: 40)
+
+        #expect(pty.resizeCalls == [ResizeCall(id: id, cols: 58, rows: 40)])
+
+        await controller.shutdown()
+    }
+
+    @Test("起動前に来た表示サイズを spawn の initialSize に渡す")
+    func resizeBeforeStartIsAppliedToSpawn() async throws {
+        let pty = MockPTYManager()
+        let controller = makeController(pty: pty)
+
+        try await controller.resize(cols: 58, rows: 40)
+        try await controller.ensureStarted()
+
+        let spawn = try #require(pty.spawnCalls.first)
+        #expect(spawn.initialSize == PTYInitialSize(cols: 58, rows: 40))
+        #expect(pty.resizeCalls.isEmpty)
+
+        await controller.shutdown()
+    }
+
+    @Test("spawn 中に変わった表示サイズを起動完了後の PTY へ反映する")
+    func resizeDuringStartIsFlushedAfterSpawn() async throws {
+        let pty = SpawnGatePTYManager()
+        let controller = makeController(pty: pty)
+
+        let start = Task { @MainActor in
+            try await controller.ensureStarted()
+        }
+        #expect(await pty.waitForFirstSpawnToBegin())
+
+        try await controller.resize(cols: 58, rows: 40)
+        await pty.releaseFirstSpawn()
+        try await start.value
+
+        let id = try #require(controller.sessionID)
+        #expect((await pty.resizeCalls()) == [ResizeCall(id: id, cols: 58, rows: 40)])
+
+        await controller.shutdown()
+    }
+
     @Test("旧世代の exit は再起動後のセッションを停止させない")
     func staleExitDoesNotStopRestartedSession() async throws {
         let pty = GenerationRacePTY()
@@ -575,6 +624,10 @@ private actor SpawnGatePTYManager: PTYManagerProtocol {
 
     func killedIDs() -> [SessionID] {
         base.killedIDs
+    }
+
+    func resizeCalls() -> [ResizeCall] {
+        base.resizeCalls
     }
 
     func write(_ data: Data, to id: SessionID) async throws {

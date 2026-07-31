@@ -2,6 +2,7 @@ import AgentDomain
 import AppBootstrap
 import AppKit
 import Combine
+import Darwin
 import Sparkle
 import SwiftUI
 import DashboardFeature
@@ -37,6 +38,8 @@ struct PhloxApp: App {
     @State private var composition: CompositionRoot?
     @State private var initFailure: InitFailure?
     @State private var initializing = false
+    /// ドロワーと Window scene が同じ実シェルを共有するための唯一の所有者。
+    @State private var terminalPanelSession: TerminalPanelSession?
 
     @AppStorage(LanguageSettings.languageKey) private var appLanguageRaw = AppLanguage.system.rawValue
 
@@ -65,7 +68,8 @@ struct PhloxApp: App {
                         viewModel: composition.dashboard,
                         router: composition.router,
                         usageMonitor: composition.usage,
-                        agentConsoleWindowID: AgentConsoleCommands.windowID
+                        agentConsoleWindowID: AgentConsoleCommands.windowID,
+                        terminalPanel: terminalPanelSession
                     )
                 } else if let initFailure {
                     InitErrorView(failure: initFailure, retry: { Task { await initialize() } })
@@ -87,6 +91,9 @@ struct PhloxApp: App {
                     appDelegate.router = nil
                     return
                 }
+                if terminalPanelSession == nil {
+                    terminalPanelSession = makeTerminalPanelSession(environment: composition.environment)
+                }
                 appDelegate.ptyManager = composition.environment.pty as? PTYManager
                 appDelegate.dashboard = composition.dashboard
                 appDelegate.router = composition.router
@@ -103,6 +110,7 @@ struct PhloxApp: App {
                 router: composition?.router
             )
             AgentConsoleCommands()
+            TerminalPanelCommands(router: composition?.router)
         }
 
         Settings {
@@ -129,6 +137,14 @@ struct PhloxApp: App {
             .environment(\.locale, appLanguage.locale)
         }
         .defaultSize(width: 900, height: 620)
+
+        // PROTOTYPE(task-3): 独立 Window 方式の実装は PanelContainerPrototype.swift に隔離する。
+        PanelContainerPrototype.windowScene(
+            panel: terminalPanelSession,
+            router: composition?.router,
+            preferredColorScheme: ThemeStore.active.preferredColorScheme,
+            locale: appLanguage.locale
+        )
     }
 
     /// 選択中セッションが属するプロジェクトのディレクトリ。管理画面の「メモリ」で
@@ -142,6 +158,32 @@ struct PhloxApp: App {
               let project = composition.dashboard.projects.first(where: { $0.id == projectID })
         else { return nil }
         return project.directoryURL
+    }
+
+    @MainActor
+    private func makeTerminalPanelSession(environment: AppEnvironment) -> TerminalPanelSession {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return TerminalPanelSession(
+            controller: UserTerminalController(
+                pty: environment.pty,
+                shellPath: loginShellPath(),
+                workingDirectory: home,
+                environment: [
+                    "HOME": home,
+                    "PATH": environment.pathEnvironment,
+                    "TERM": "xterm-256color",
+                ]
+            )
+        )
+    }
+
+    /// GUI 起動では `SHELL` が注入されないことがあるため、ログイン設定の shell を使う。
+    private func loginShellPath() -> String {
+        guard let shell = getpwuid(getuid())?.pointee.pw_shell else {
+            return "/bin/zsh"
+        }
+        let path = String(cString: shell)
+        return path.isEmpty ? "/bin/zsh" : path
     }
 
     private func initialize() async {
@@ -431,6 +473,27 @@ struct AgentConsoleCommands: Commands {
                 openWindow(id: Self.windowID)
             }
             .keyboardShortcut(",", modifiers: [.command, .shift])
+        }
+    }
+}
+
+/// 通常は Dashboard のドロワーを切り替える。比較用 UserDefaults が有効なときだけ
+/// 同じ共有シェルを表示する Window scene も開く。
+private struct TerminalPanelCommands: Commands {
+    var router: AppRouter?
+
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(after: .sidebar) {
+            Button("ターミナル") {
+                router?.toggleTerminalPanel()
+                PanelContainerPrototype.openWindowIfNeeded(router: router) { windowID in
+                    openWindow(id: windowID)
+                }
+            }
+            .keyboardShortcut("t", modifiers: [.command, .option])
+            .disabled(router == nil)
         }
     }
 }

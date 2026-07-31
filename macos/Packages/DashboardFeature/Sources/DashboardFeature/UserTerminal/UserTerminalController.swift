@@ -26,6 +26,9 @@ public final class UserTerminalController {
     private var shutdownWaiters: [CheckedContinuation<Void, Never>] = []
     private var shutdownRequested = false
     private var spawnGeneration: UInt64 = 0
+    /// 表示器から最後に要求されたサイズ。PTY の fd がまだ使えない起動前・起動中も
+    /// 保持し、spawn の初期サイズまたは spawn 完了直後の resize に使う。
+    private var requestedSize: PTYInitialSize?
 
     private enum StartOutcome {
         case started
@@ -102,6 +105,17 @@ public final class UserTerminalController {
         try await pty.write(Data(input.utf8), to: sessionID)
     }
 
+    /// 表示器の列数・行数を記憶し、起動済みなら現在の PTY へも伝える。
+    public func resize(cols: UInt16, rows: UInt16) async throws {
+        let size = PTYInitialSize(cols: cols, rows: rows)
+        requestedSize = size
+
+        guard isRunning, let sessionID else {
+            return
+        }
+        try await pty.resize(sessionID, cols: cols, rows: rows)
+    }
+
     /// 購読者ごとにストリームを作り、PTY 出力を各購読者へ複製して届ける。
     /// 再購読時は過去の出力を再送せず、購読開始後の出力だけを受け取る。
     public func makeOutputStream() -> AsyncStream<Data> {
@@ -144,14 +158,28 @@ public final class UserTerminalController {
             _ = await relay.value
         }
 
+        let initialSize = requestedSize
         let id = try await pty.spawn(
             command: shellPath,
             args: [],
             env: environment,
             id: nil,
-            initialSize: nil,
+            initialSize: initialSize,
             workingDirectory: workingDirectory
         )
+
+        // spawn の await 中に新しいサイズが来た場合、fd が有効になってから最新値を
+        // 反映する。起動前に使った initialSize と同じ値なら resize は不要である。
+        var appliedSize = initialSize
+        do {
+            while let latestSize = requestedSize, latestSize != appliedSize {
+                try await pty.resize(id, cols: latestSize.cols, rows: latestSize.rows)
+                appliedSize = latestSize
+            }
+        } catch {
+            await pty.kill(id)
+            throw error
+        }
 
         let outputStream = pty.outputStream(for: id)
         let exitStream = pty.exitStream(for: id)

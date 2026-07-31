@@ -29,6 +29,10 @@ public final class AppRouter {
     public var sidebarVisible: Bool
     /// 右側インスペクター（使用量サイドバー）の表示状態。
     public var inspectorVisible: Bool
+    /// ターミナルパネルの表示状態。
+    public var terminalPanelVisible: Bool
+    /// エディタパネルの表示状態。
+    public var editorPanelVisible: Bool
 
     public init(
         selectedSession: SessionID? = nil,
@@ -42,6 +46,8 @@ public final class AppRouter {
         self.mainRoute = mainRoute
         self.sidebarVisible = sidebarVisible
         self.inspectorVisible = inspectorVisible
+        self.terminalPanelVisible = false
+        self.editorPanelVisible = false
     }
 
     public func showSessions() {
@@ -56,6 +62,16 @@ public final class AppRouter {
     /// 右側インスペクターの表示/非表示をトグルする。
     public func toggleInspector() {
         inspectorVisible.toggle()
+    }
+
+    /// ターミナルパネルの表示/非表示をトグルする。
+    public func toggleTerminalPanel() {
+        terminalPanelVisible.toggle()
+    }
+
+    /// エディタパネルの表示/非表示をトグルする。
+    public func toggleEditorPanel() {
+        editorPanelVisible.toggle()
     }
 
     /// 表示モード（シングル／グリッド／チーム）を順送りで切り替える。

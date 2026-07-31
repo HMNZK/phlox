@@ -19,11 +19,11 @@ import Testing
     func idleEmptyStillPlacesDisabledSend() {
         #expect(
             DSInputBar.actionState(text: "", isLoading: false, isRunning: false)
-                == DSInputBarActionState(showsStop: false, sendIsEnabled: false)
+                == DSInputBarActionState(showsStop: false, showsSend: true, sendIsEnabled: false)
         )
         #expect(
             DSInputBar.actionState(text: "   ", isLoading: false, isRunning: false)
-                == DSInputBarActionState(showsStop: false, sendIsEnabled: false)
+                == DSInputBarActionState(showsStop: false, showsSend: true, sendIsEnabled: false)
         )
     }
 
@@ -31,7 +31,7 @@ import Testing
     func enteredTextEnablesSend() {
         #expect(
             DSInputBar.actionState(text: "hi", isLoading: false, isRunning: false)
-                == DSInputBarActionState(showsStop: false, sendIsEnabled: true)
+                == DSInputBarActionState(showsStop: false, showsSend: true, sendIsEnabled: true)
         )
     }
 
@@ -39,19 +39,27 @@ import Testing
     func loadingDisablesSend() {
         #expect(
             DSInputBar.actionState(text: "hi", isLoading: true, isRunning: false)
-                == DSInputBarActionState(showsStop: false, sendIsEnabled: false)
+                == DSInputBarActionState(showsStop: false, showsSend: true, sendIsEnabled: false)
         )
     }
 
-    @Test("実行中は停止ボタンを併置しつつ、送信ボタンも残して追加指示を送れる")
-    func runningKeepsSendAlongsideStop() {
+    @Test("実行中は空入力なら停止のみ、打ち始めたら送信を併置して追加指示を送れる")
+    func runningRevealsSendOnlyWhenTextEntered() {
         #expect(
             DSInputBar.actionState(text: "", isLoading: false, isRunning: true)
-                == DSInputBarActionState(showsStop: true, sendIsEnabled: false)
+                == DSInputBarActionState(showsStop: true, showsSend: false, sendIsEnabled: false)
         )
         #expect(
             DSInputBar.actionState(text: "draft", isLoading: false, isRunning: true)
-                == DSInputBarActionState(showsStop: true, sendIsEnabled: true)
+                == DSInputBarActionState(showsStop: true, showsSend: true, sendIsEnabled: true)
+        )
+    }
+
+    @Test("実行中の送信直後は本文が空でも送信スロットを保つ（進捗表示が消えない）")
+    func runningKeepsSendSlotWhileSending() {
+        #expect(
+            DSInputBar.actionState(text: "", isLoading: true, isRunning: true)
+                == DSInputBarActionState(showsStop: true, showsSend: true, sendIsEnabled: false)
         )
     }
 

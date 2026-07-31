@@ -20,9 +20,13 @@ public struct DSAttachmentStripItem: Identifiable, Equatable, Sendable {
 
 /// 入力バー右端の操作ボタンの状態。停止と送信は排他ではない——実行中でも
 /// 追加指示を送れるよう、停止ボタンは送信ボタンの隣に**併置**する（macOS 版と同じ）。
+/// ただし実行中に何も打っていない間は停止ボタンだけを出し、打ち始めたら
+/// 送信ボタンを右から現す（停止ボタンは左へ寄る）。
 struct DSInputBarActionState: Equatable {
     /// 実行中に停止ボタンを併置するか。
     let showsStop: Bool
+    /// 送信ボタンを置くか。実行外では無効状態で常設し、実行中は入力があるときだけ現す。
+    let showsSend: Bool
     /// 送信ボタンを押せるか（実行中かどうかとは独立）。
     let sendIsEnabled: Bool
 }
@@ -194,8 +198,11 @@ public struct DSInputBar: View {
     }
 
     static func actionState(text: String, isLoading: Bool, isRunning: Bool) -> DSInputBarActionState {
-        DSInputBarActionState(
+        let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return DSInputBarActionState(
             showsStop: isRunning,
+            // 送信中（isLoading）は楽観クリアで本文が空になるため、進捗を出したまま保つ。
+            showsSend: !isRunning || hasText || isLoading,
             sendIsEnabled: canSubmit(text: text, isLoading: isLoading)
         )
     }
@@ -467,8 +474,12 @@ public struct DSInputBar: View {
             if actionState.showsStop {
                 stopButton
             }
-            sendButton
+            if actionState.showsSend {
+                sendButton
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
         }
+        .animation(DSMotion.spring, value: actionState)
     }
 
     private var sendButton: some View {

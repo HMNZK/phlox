@@ -6,29 +6,29 @@ import Testing
     @Test func idleEmptyInputAlwaysShowsDisabledSendSlot() {
         let state = DSInputBar.actionState(text: "", isLoading: false, isRunning: false)
 
-        #expect(state == DSInputBarActionState(showsStop: false, sendIsEnabled: false))
+        #expect(state == DSInputBarActionState(showsStop: false, showsSend: true, sendIsEnabled: false))
     }
 
     @Test func enteredTextUsesEnabledSendSlot() {
         let state = DSInputBar.actionState(text: "Follow up", isLoading: false, isRunning: false)
 
-        #expect(state == DSInputBarActionState(showsStop: false, sendIsEnabled: true))
+        #expect(state == DSInputBarActionState(showsStop: false, showsSend: true, sendIsEnabled: true))
     }
 
     @Test func loadingTextKeepsSendSlotButDisablesIt() {
         let state = DSInputBar.actionState(text: "Follow up", isLoading: true, isRunning: false)
 
-        #expect(state == DSInputBarActionState(showsStop: false, sendIsEnabled: false))
+        #expect(state == DSInputBarActionState(showsStop: false, showsSend: true, sendIsEnabled: false))
     }
 
-    @Test func runningKeepsSendAlongsideStop() {
+    @Test func runningRevealsSendOnlyWhenTextEntered() {
         #expect(
             DSInputBar.actionState(text: "", isLoading: false, isRunning: true)
-                == DSInputBarActionState(showsStop: true, sendIsEnabled: false)
+                == DSInputBarActionState(showsStop: true, showsSend: false, sendIsEnabled: false)
         )
         #expect(
             DSInputBar.actionState(text: "draft", isLoading: false, isRunning: true)
-                == DSInputBarActionState(showsStop: true, sendIsEnabled: true)
+                == DSInputBarActionState(showsStop: true, showsSend: true, sendIsEnabled: true)
         )
     }
 

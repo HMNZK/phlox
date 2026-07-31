@@ -5,6 +5,8 @@ last-verified: 2026-07-16
 
 # ADR 0018: 入力欄からドラッグ閉じバーと音声入力ボタンを撤去し、送信/停止を右スロットに常設する
 
+> **一部 superseded**: 「送信/停止を右スロットに**排他**で常設する」決定は [ADR 0042](0042-input-bar-send-reveal-and-transcript-long-press-copy.md) が置き換えた（実行中は停止と送信を併置し、実行中・空入力のときだけ停止のみを出す）。ドラッグ閉じバー・音声入力ボタンの撤去は有効。
+
 > **このファイルの役割**: wave-7 で、コンパクトピル型入力欄（[ADR 0016](0016-input-bar-compact-pill-redesign.md)）から上部ドラッグ閉じバーとマイク（音声入力）ボタンを撤去し、右端スロットに送信ボタンを常設（実行中は停止）へ変更した決定を記録する。ADR 0016 を supersede せず**精緻化**する（ピル外形・中立枠・送信/停止同一スロットの核は不変）。
 > **書かないもの**: 入力欄の現行の詳細構成（→ [architecture/overview.md](../architecture/overview.md)）。音声入力のクラッシュ堅牢化（→ [ADR 0015](0015-voice-input-crash-hardening.md)、本 wave で supersede しない）。
 

@@ -2,28 +2,288 @@ import AgentDomain
 import Foundation
 import PTYKit
 
-/// ユーザーターミナルの公開面を凍結するためのスタブ。
+/// パネルから独立して動作するユーザー用シェルのライフサイクルを管理する。
 @MainActor
 public final class UserTerminalController {
     public private(set) var isRunning = false
     public private(set) var sessionID: SessionID?
+
+    // PTYKit の出力ストリームと同じ上限を relay 側にも設け、購読者が停止しても
+    // コントローラ内のストリームが無制限に蓄積しないようにする。
+    private static let outputBufferLimit = 2048
+
+    private let pty: any PTYManagerProtocol
+    private let shellPath: String
+    private let workingDirectory: String
+    private let environment: [String: String]
+
+    private var outputTasks: [UInt64: Task<Void, Never>] = [:]
+    // 購読者はセッション再起動をまたいで保持し、明示的な shutdown でのみ finish する。
+    private var outputSubscribers: [UUID: AsyncStream<Data>.Continuation] = [:]
+    private var exitTask: Task<Void, Never>?
+    private var startInProgress = false
+    private var startWaiters: [CheckedContinuation<StartOutcome, Error>] = []
+    private var shutdownWaiters: [CheckedContinuation<Void, Never>] = []
+    private var shutdownRequested = false
+    private var spawnGeneration: UInt64 = 0
+
+    private enum StartOutcome {
+        case started
+        case stoppedByShutdown
+    }
+
+    private enum UserTerminalControllerError: Error {
+        case notRunning
+    }
 
     public init(
         pty: any PTYManagerProtocol,
         shellPath: String,
         workingDirectory: String,
         environment: [String: String]
-    ) {}
+    ) {
+        self.pty = pty
+        self.shellPath = shellPath
+        self.workingDirectory = workingDirectory
+        self.environment = environment
+    }
 
-    public func ensureStarted() async throws {}
+    public func ensureStarted() async throws {
+        while true {
+            if isRunning {
+                return
+            }
 
-    public func send(_ input: String) async throws {}
+            if startInProgress {
+                let outcome = try await withCheckedThrowingContinuation {
+                    (continuation: CheckedContinuation<StartOutcome, Error>) in
+                    startWaiters.append(continuation)
+                }
+                if case .stoppedByShutdown = outcome {
+                    return
+                }
+                continue
+            }
 
-    public func makeOutputStream() -> AsyncStream<Data> {
-        AsyncStream { continuation in
-            continuation.finish()
+            startInProgress = true
+            do {
+                var outcome = try await startSession()
+
+                // startSession() の await 復帰直後に shutdown() が割り込む可能性が
+                // あるため、ここでも要求を確認してから待機者を再開する。
+                if shutdownRequested, case .started = outcome {
+                    await stopCurrentSession()
+                    outcome = .stoppedByShutdown
+                }
+
+                startInProgress = false
+                resumeStartWaiters(with: .success(outcome))
+
+                if case .stoppedByShutdown = outcome {
+                    shutdownRequested = false
+                    resumeShutdownWaiters()
+                    return
+                }
+                return
+            } catch {
+                startInProgress = false
+                shutdownRequested = false
+                resumeStartWaiters(with: .failure(error))
+                resumeShutdownWaiters()
+                throw error
+            }
         }
     }
 
-    public func shutdown() async {}
+    public func send(_ input: String) async throws {
+        guard isRunning, let sessionID else {
+            throw UserTerminalControllerError.notRunning
+        }
+        try await pty.write(Data(input.utf8), to: sessionID)
+    }
+
+    /// 購読者ごとにストリームを作り、PTY 出力を各購読者へ複製して届ける。
+    /// 再購読時は過去の出力を再送せず、購読開始後の出力だけを受け取る。
+    public func makeOutputStream() -> AsyncStream<Data> {
+        let subscriberID = UUID()
+        let (stream, continuation) = AsyncStream<Data>.makeStream(
+            bufferingPolicy: .bufferingNewest(Self.outputBufferLimit)
+        )
+        continuation.onTermination = { @Sendable [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.removeOutputSubscriber(subscriberID)
+            }
+        }
+        outputSubscribers[subscriberID] = continuation
+        return stream
+    }
+
+    public func shutdown() async {
+        if startInProgress {
+            shutdownRequested = true
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                shutdownWaiters.append(continuation)
+            }
+            return
+        }
+
+        await stopCurrentSession()
+    }
+
+    private func startSession() async throws -> StartOutcome {
+        exitTask?.cancel()
+        exitTask = nil
+        sessionID = nil
+        isRunning = false
+
+        // 自然終了後の旧 relay が PTY の残出力を配り終えるまで待ってから世代を
+        // 進める。PTY は exit code を流す前に output stream を finish するため、
+        // この待機は有限である。明示 shutdown では relay が既に cancel・除去されている。
+        let pendingRelays = Array(outputTasks.values)
+        for relay in pendingRelays {
+            _ = await relay.value
+        }
+
+        let id = try await pty.spawn(
+            command: shellPath,
+            args: [],
+            env: environment,
+            id: nil,
+            initialSize: nil,
+            workingDirectory: workingDirectory
+        )
+
+        let outputStream = pty.outputStream(for: id)
+        let exitStream = pty.exitStream(for: id)
+
+        spawnGeneration &+= 1
+        let generation = spawnGeneration
+        self.sessionID = id
+        isRunning = true
+        startOutputObservation(
+            stream: outputStream,
+            generation: generation
+        )
+        startExitObservation(
+            stream: exitStream,
+            sessionID: id,
+            generation: generation
+        )
+
+        if shutdownRequested {
+            await stopCurrentSession()
+            return .stoppedByShutdown
+        }
+        return .started
+    }
+
+    private func startOutputObservation(
+        stream: AsyncStream<Data>,
+        generation: UInt64
+    ) {
+        let task = Task { @MainActor [weak self] in
+            defer {
+                self?.outputTasks.removeValue(forKey: generation)
+            }
+
+            for await data in stream {
+                guard let self,
+                      self.spawnGeneration == generation else {
+                    return
+                }
+                self.broadcastOutput(data)
+            }
+        }
+        outputTasks[generation] = task
+    }
+
+    private func startExitObservation(
+        stream: AsyncStream<Int32>,
+        sessionID: SessionID,
+        generation: UInt64
+    ) {
+        exitTask?.cancel()
+        exitTask = Task { @MainActor [weak self] in
+            for await _ in stream {
+                guard let self,
+                      self.spawnGeneration == generation,
+                      self.sessionID == sessionID else {
+                    return
+                }
+                self.markCurrentSessionExited()
+                return
+            }
+
+            guard let self,
+                  self.spawnGeneration == generation,
+                  self.sessionID == sessionID else {
+                return
+            }
+            self.markCurrentSessionExited()
+        }
+    }
+
+    private func markCurrentSessionExited() {
+        isRunning = false
+        sessionID = nil
+    }
+
+    private func stopCurrentSession() async {
+        let id = sessionID
+        let shouldKill = isRunning
+
+        exitTask?.cancel()
+        exitTask = nil
+        let tasks = Array(outputTasks.values)
+        outputTasks.removeAll()
+        for task in tasks {
+            task.cancel()
+        }
+        isRunning = false
+        sessionID = nil
+
+        if shouldKill, let id {
+            await pty.kill(id)
+        }
+        finishOutputSubscribers()
+    }
+
+    private func resumeStartWaiters(with result: Result<StartOutcome, Error>) {
+        let waiters = startWaiters
+        startWaiters.removeAll()
+        for waiter in waiters {
+            switch result {
+            case .success(let outcome):
+                waiter.resume(returning: outcome)
+            case .failure(let error):
+                waiter.resume(throwing: error)
+            }
+        }
+    }
+
+    private func resumeShutdownWaiters() {
+        let waiters = shutdownWaiters
+        shutdownWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume()
+        }
+    }
+
+    private func broadcastOutput(_ data: Data) {
+        for continuation in outputSubscribers.values {
+            continuation.yield(data)
+        }
+    }
+
+    private func removeOutputSubscriber(_ subscriberID: UUID) {
+        outputSubscribers.removeValue(forKey: subscriberID)
+    }
+
+    private func finishOutputSubscribers() {
+        let subscribers = outputSubscribers.values
+        outputSubscribers.removeAll()
+        for continuation in subscribers {
+            continuation.finish()
+        }
+    }
 }

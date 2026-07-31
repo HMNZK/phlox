@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-07-30
+last-verified: 2026-08-01
 ---
 
 # ADR（アーキテクチャ決定記録）索引
@@ -12,6 +12,10 @@ last-verified: 2026-07-30
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0151 | [PTY spawn は継承可能な fd を既定で close-on-exec にする（`POSIX_SPAWN_CLOEXEC_DEFAULT`）](0151-pty-spawn-fd-hygiene.md) | accepted |
+| 0150 | [エディタパネルの git 連動仕様（変更一覧の一本化・保存競合・不変条件の意味論化）](0150-editor-panel-git-semantics.md) | accepted |
+| 0149 | [ユーザーターミナルはセッション非依存・cwd はホーム固定・シェルは閉じても保持](0149-user-terminal-lifecycle.md) | accepted |
+| 0148 | [ターミナル／エディタパネルの容器はメインウィンドウ内のドロワーにする](0148-terminal-editor-panel-container-drawer.md) | accepted |
 | 0147 | [コードビューを枠線付きカードへ 1 本化し、見出しの重複・時刻・件数を落とす](0147-chat-code-card-and-header-dedup.md) | accepted |
 | 0146 | [ファイル変更をコードビューで描く（行番号は推測しない）](0146-diff-code-view.md) | accepted |
 | 0145 | [ツール実行グループの見出しを recap にし、開閉トグルを右端へ移す](0145-tool-group-recap-header.md) | accepted |

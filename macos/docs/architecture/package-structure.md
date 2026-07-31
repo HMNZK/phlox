@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-09
+last-verified: 2026-08-01
 ---
 
 # package-structure
@@ -11,7 +11,7 @@ last-verified: 2026-07-09
 
 **Diátaxis**: Reference
 
-## 構成（App ターゲット + 16 SPM パッケージ）
+## 構成（App ターゲット + 18 SPM パッケージ）
 
 App ターゲット（`App/`）が全体を束ね、機能は SPM パッケージへ分割している（ADR 0001: MVVM + @Observable + SPM マルチモジュール）。本番依存は循環のない DAG で、下層ほど依存されるリーフ、上層ほど合成側。
 
@@ -23,6 +23,7 @@ App ターゲット（`App/`）が全体を束ね、機能は SPM パッケー�
 | L0 | `TerminalUI` | なし | 端末描画コンポーネント |
 | L0 | `MobileProxy` | なし | モバイル連携プロキシ |
 | L0 | `AgentConfigKit` | なし | `~/.claude` / `~/.codex` / `~/.cursor` の設定・メモリの読み書きと各 CLI 非対話サブコマンドの実行（「エージェント管理」ウィンドウの土台） |
+| L0 | `APNsClient` | なし | APNs（Apple Push Notification service）送信クライアントの薄いラッパー |
 | L1 | `DesignSystem` | AgentDomain | デザインシステム（色・フォント・共通 UI） |
 | L1 | `MessageStore` | AgentDomain | メッセージ永続化（SQLite） |
 | L1 | `PTYKit` | AgentDomain | PTY プロセス管理 |
@@ -33,7 +34,7 @@ App ターゲット（`App/`）が全体を束ね、機能は SPM パッケー�
 | L1 | `CodexAppServerKit` | AgentDomain, StructuredChatKit | Codex app-server クライアント |
 | **L2** | **`SessionFeature`** | AgentDomain, DesignSystem, HookServer, PTYKit, TerminalUI, CodexAppServerKit, StructuredChatKit | **セッション UI/VM（チャット・グリッド・トランスクリプト・composer）** |
 | L3 | `DashboardFeature` | SessionFeature + 上記 L0/L1 各種（ClaudeAgentKit/CursorAgentKit/MessageStore 等） | ダッシュボード・spawn・使用状況・ルーティング。`import SessionFeature` |
-| L4 | `AppBootstrap` | AgentDomain, ControlServer, DashboardFeature, SessionFeature, StructuredChatKit | 起動合成・ControlActionHandler |
+| L4 | `AppBootstrap` | AgentDomain, APNsClient, ControlServer, DashboardFeature, SessionFeature, StructuredChatKit | 起動合成・ControlActionHandler・APNs/Live Activity 連携ブリッジ |
 | L5 | App ターゲット | AppBootstrap, DashboardFeature, SessionFeature, ControlServer, MobileProxy, MessageStore, PTYKit, AgentConfigKit（+ Sparkle） | CompositionRoot・エントリポイント |
 
 ## SessionFeature 分割（R1・2026-07-09）

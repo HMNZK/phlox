@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-07-28
+last-verified: 2026-08-01
 ---
 
 # specs/
@@ -32,3 +32,4 @@ last-verified: 2026-07-28
 | `opencode-integration.md` | superseded | opencode 統合仕様。ADR 0041 で削除済み |
 | `rearchitecture-refactoring-plan.md` | active | コードベース全体のリアーキテクチャリング・リファクタリング計画（Phase 0〜7・WP 分割ドラフト） |
 | `review-remediation.md` | active | Codex レビュー指摘（重大+中）の修正仕様 |
+| `terminal-editor-panels.md` | active | ターミナルパネル・エディタパネルの要件（FR/NFR・受け入れ基準・仮定・スコープ外。決定は ADR 0148〜0151） |

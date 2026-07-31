@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import PhloxCore
+import DesignSystemIOS
 @testable import Features
 
 private func rowWindowCommand(_ id: String, output: String = "output") -> ChatMessage {
@@ -57,7 +58,7 @@ struct IOSCommandGroupRowWindowWhiteboxTests {
     @Test func 遅延コピー文字列は要求されるまで生成しない() {
         let items = [rowWindowCommand("c1", output: "output")]
         var generationCount = 0
-        let deferredText = ChatMessageCopyButton.DeferredText {
+        let deferredText = ChatMessageDeferredCopyText {
             generationCount += 1
             return ChatMessageCopyText.commandGroupCopyText(items)
         }

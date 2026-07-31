@@ -18,9 +18,13 @@ public struct DSAttachmentStripItem: Identifiable, Equatable, Sendable {
     }
 }
 
-enum DSInputBarActionState: Equatable {
-    case send(isEnabled: Bool)
-    case stop
+/// 入力バー右端の操作ボタンの状態。停止と送信は排他ではない——実行中でも
+/// 追加指示を送れるよう、停止ボタンは送信ボタンの隣に**併置**する（macOS 版と同じ）。
+struct DSInputBarActionState: Equatable {
+    /// 実行中に停止ボタンを併置するか。
+    let showsStop: Bool
+    /// 送信ボタンを押せるか（実行中かどうかとは独立）。
+    let sendIsEnabled: Bool
 }
 
 /// UTF-16 カーソル位置の正規化と公開タイミング（プラットフォーム非依存・白箱テスト対象）。
@@ -190,8 +194,10 @@ public struct DSInputBar: View {
     }
 
     static func actionState(text: String, isLoading: Bool, isRunning: Bool) -> DSInputBarActionState {
-        if isRunning { return .stop }
-        return .send(isEnabled: canSubmit(text: text, isLoading: isLoading))
+        DSInputBarActionState(
+            showsStop: isRunning,
+            sendIsEnabled: canSubmit(text: text, isLoading: isLoading)
+        )
     }
 
     private var canSubmit: Bool { Self.canSubmit(text: text, isLoading: isLoading) }
@@ -456,13 +462,12 @@ public struct DSInputBar: View {
         DSColor.campCardBorder
     }
 
-    @ViewBuilder
     private var actionButton: some View {
-        switch actionState {
-        case .send:
+        HStack(spacing: DSSpacing.xs) {
+            if actionState.showsStop {
+                stopButton
+            }
             sendButton
-        case .stop:
-            stopButton
         }
     }
 
@@ -483,8 +488,8 @@ public struct DSInputBar: View {
             .background(DSColor.accent, in: Circle())
         }
         .buttonStyle(.plain)
-        .disabled(!canSubmit)
-        .opacity(canSubmit ? 1 : 0.45)
+        .disabled(!actionState.sendIsEnabled)
+        .opacity(actionState.sendIsEnabled ? 1 : 0.45)
         .accessibilityLabel(Text(Self.sendAccessibilityLabel))
     }
 

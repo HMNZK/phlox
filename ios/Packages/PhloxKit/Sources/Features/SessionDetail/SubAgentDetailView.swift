@@ -114,18 +114,14 @@ public struct SubAgentDetailView: View {
         }
     }
 
-    @ViewBuilder
+    /// コピーは行ごとのボタンではなく長押しメニューで出す（SessionDetailView と同じ作法）。
     private func chatRowWithCopy<Content: View>(
         copyText: String?,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        HStack(alignment: .top, spacing: DSSpacing.xs) {
-            content()
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if let copyText {
-                ChatMessageCopyButton(text: copyText)
-            }
-        }
+        content()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .chatMessageCopyContextMenu(copyText: copyText)
     }
 
     private func renderedDisplayText(_ rendered: SubAgentDetailViewModel.RenderedBody) -> String {

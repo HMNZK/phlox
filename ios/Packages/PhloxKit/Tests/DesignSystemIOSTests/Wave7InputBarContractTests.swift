@@ -17,24 +17,42 @@ import Testing
 
     @Test("空入力・実行外でも右スロットに送信ボタンを常設する（無効状態）")
     func idleEmptyStillPlacesDisabledSend() {
-        #expect(DSInputBar.actionState(text: "", isLoading: false, isRunning: false) == .send(isEnabled: false))
-        #expect(DSInputBar.actionState(text: "   ", isLoading: false, isRunning: false) == .send(isEnabled: false))
+        #expect(
+            DSInputBar.actionState(text: "", isLoading: false, isRunning: false)
+                == DSInputBarActionState(showsStop: false, sendIsEnabled: false)
+        )
+        #expect(
+            DSInputBar.actionState(text: "   ", isLoading: false, isRunning: false)
+                == DSInputBarActionState(showsStop: false, sendIsEnabled: false)
+        )
     }
 
     @Test("テキスト入力時は有効な送信ボタン")
     func enteredTextEnablesSend() {
-        #expect(DSInputBar.actionState(text: "hi", isLoading: false, isRunning: false) == .send(isEnabled: true))
+        #expect(
+            DSInputBar.actionState(text: "hi", isLoading: false, isRunning: false)
+                == DSInputBarActionState(showsStop: false, sendIsEnabled: true)
+        )
     }
 
     @Test("送信中（isLoading）は送信ボタンを無効化する")
     func loadingDisablesSend() {
-        #expect(DSInputBar.actionState(text: "hi", isLoading: true, isRunning: false) == .send(isEnabled: false))
+        #expect(
+            DSInputBar.actionState(text: "hi", isLoading: true, isRunning: false)
+                == DSInputBarActionState(showsStop: false, sendIsEnabled: false)
+        )
     }
 
-    @Test("実行中は空でも入力中でも同じスロットに停止ボタン")
-    func runningShowsStopInSameSlot() {
-        #expect(DSInputBar.actionState(text: "", isLoading: false, isRunning: true) == .stop)
-        #expect(DSInputBar.actionState(text: "draft", isLoading: false, isRunning: true) == .stop)
+    @Test("実行中は停止ボタンを併置しつつ、送信ボタンも残して追加指示を送れる")
+    func runningKeepsSendAlongsideStop() {
+        #expect(
+            DSInputBar.actionState(text: "", isLoading: false, isRunning: true)
+                == DSInputBarActionState(showsStop: true, sendIsEnabled: false)
+        )
+        #expect(
+            DSInputBar.actionState(text: "draft", isLoading: false, isRunning: true)
+                == DSInputBarActionState(showsStop: true, sendIsEnabled: true)
+        )
     }
 
     @Test("モデルセレクタ差し込みスロットとフォーカス state は維持（凍結 Task3 と整合）")

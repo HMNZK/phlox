@@ -1,16 +1,7 @@
 import Foundation
 import PhloxCore
-import SwiftUI
-import DesignSystemIOS
 
-#if canImport(UIKit)
-import UIKit
-#elseif canImport(AppKit)
-import AppKit
-#endif
-
-/// メッセージのコピーボタンがクリップボードへ入れる文字列の生成（純関数）。
-/// View（task-8）はバブルのコピーボタンからこれを呼ぶ。
+/// メッセージのコピー（長押しメニュー）がクリップボードへ入れる文字列の生成（純関数）。
 /// 契約は Tests/FeaturesTests/ChatSurfaceAcceptanceTests.swift。
 public enum ChatMessageCopyText {
     /// メッセージ種別ごとのコピー文字列。
@@ -64,54 +55,5 @@ public enum ChatMessageCopyText {
         let parts = messages.compactMap(commandGroupCopyablePart(for:))
         guard !parts.isEmpty else { return nil }
         return parts.joined(separator: "\n\n")
-    }
-}
-
-/// チャットメッセージ用コピーボタン（`doc.on.doc` → `checkmark` トグル）。
-public struct ChatMessageCopyButton: View {
-    struct DeferredText {
-        let provider: () -> String?
-
-        func value() -> String? {
-            provider()
-        }
-    }
-
-    private let deferredText: DeferredText
-    @State private var copied = false
-
-    public init(text: String) {
-        deferredText = DeferredText(provider: { text })
-    }
-
-    public init(textProvider: @escaping () -> String?) {
-        deferredText = DeferredText(provider: textProvider)
-    }
-
-    public var body: some View {
-        Button(action: copyToPasteboard) {
-            Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                .font(DSFont.captionStrong)
-                .foregroundStyle(DSColor.textSecondary)
-                .frame(width: DSTouch.minSize, height: DSTouch.minSize)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(copied ? "コピーしました" : "コピー")
-    }
-
-    private func copyToPasteboard() {
-        guard let text = deferredText.value() else { return }
-        #if canImport(UIKit)
-        UIPasteboard.general.string = text
-        #elseif canImport(AppKit)
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-        #endif
-        copied = true
-        Task {
-            try? await Task.sleep(for: .seconds(2))
-            copied = false
-        }
     }
 }

@@ -478,33 +478,28 @@ public struct SessionDetailView: View {
         }
     }
 
-    @ViewBuilder
+    /// コピーは行ごとのボタンではなく長押しメニューで出す（バブルと同じ作法）。
+    /// 全行にボタンを常設すると転写が読めなくなるため。
     private func chatRowWithCopy<Content: View>(
         copyText: String?,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        HStack(alignment: .top, spacing: DSSpacing.xs) {
-            content()
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if let copyText {
-                ChatMessageCopyButton(text: copyText)
-            }
-        }
+        content()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .chatMessageCopyContextMenu(copyText: copyText)
     }
 
-    @ViewBuilder
     private func chatRowWithCopy<Content: View>(
         hasCopyableText: Bool,
         copyTextProvider: @escaping () -> String?,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        HStack(alignment: .top, spacing: DSSpacing.xs) {
-            content()
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if hasCopyableText {
-                ChatMessageCopyButton(textProvider: copyTextProvider)
-            }
-        }
+        content()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .chatMessageCopyContextMenu(
+                hasCopyableText: hasCopyableText,
+                deferredCopyText: ChatMessageDeferredCopyText(copyTextProvider)
+            )
     }
 
     @ViewBuilder

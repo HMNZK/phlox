@@ -39,6 +39,8 @@ public enum ServerNotification: Equatable, Sendable {
 }
 
 public enum ServerRequest: Equatable, Sendable {
+    public static let userInputRequestMethod = "item/tool/requestUserInput"
+
     case commandExecutionApproval(CommandExecutionApprovalRequest)
     case fileChangeApproval(FileChangeApprovalRequest)
     case permissionsApproval(PermissionsApprovalRequest)
@@ -55,7 +57,7 @@ public enum ServerRequest: Equatable, Sendable {
         case .permissionsApproval:
             return "item/permissions/requestApproval"
         case .userInputRequest:
-            return "item/tool/requestUserInput"
+            return Self.userInputRequestMethod
         case .unknown(let method, _):
             return method
         }
@@ -324,6 +326,9 @@ public actor JSONRPCClient {
                 ?? .unknown(method: method, params: params)
         case "item/permissions/requestApproval":
             return decode(params, as: PermissionsApprovalRequest.self).map(ServerRequest.permissionsApproval)
+                ?? .unknown(method: method, params: params)
+        case ServerRequest.userInputRequestMethod:
+            return decode(params, as: ToolRequestUserInputRequest.self).map(ServerRequest.userInputRequest)
                 ?? .unknown(method: method, params: params)
         default:
             return .unknown(method: method, params: params)

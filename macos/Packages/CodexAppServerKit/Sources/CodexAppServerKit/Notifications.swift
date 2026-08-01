@@ -167,6 +167,25 @@ public struct ToolRequestUserInputQuestion: Codable, Equatable, Sendable {
         self.isOther = isOther
         self.isSecret = isSecret
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case header
+        case question
+        case options
+        case isOther
+        case isSecret
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        header = try container.decode(String.self, forKey: .header)
+        question = try container.decode(String.self, forKey: .question)
+        options = try container.decodeIfPresent([ToolRequestUserInputOption].self, forKey: .options)
+        isOther = try container.decodeIfPresent(Bool.self, forKey: .isOther) ?? false
+        isSecret = try container.decodeIfPresent(Bool.self, forKey: .isSecret) ?? false
+    }
 }
 
 /// `item/tool/requestUserInput` のパラメータ（`ToolRequestUserInputParams` と 1:1。task-0 契約）。

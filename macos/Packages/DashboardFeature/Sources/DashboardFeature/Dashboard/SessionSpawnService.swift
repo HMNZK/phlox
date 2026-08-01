@@ -400,32 +400,36 @@ final class SessionSpawnService {
         return nil
     }
 
-    // codex-full-access-approval task-0: `defaults` 引数は公開面の凍結（task-3 が本実装で使う）。
-    // 現時点では値を読まないため挙動は従来どおり。
     nonisolated static func appServerApprovalPolicy(
         for context: SessionLaunchContext,
         defaults: UserDefaults = .phloxDefaults()
     ) -> ApprovalPolicy {
-        _ = defaults
-        switch context {
-        case .interactive, .remoteUser:
-            return .named("on-request")
-        case .orchestration:
-            return .named("never")
-        }
+        appServerPolicies(for: context, defaults: defaults).approvalPolicy
     }
 
     nonisolated static func appServerSandboxPolicy(
         for context: SessionLaunchContext,
         defaults: UserDefaults = .phloxDefaults()
     ) -> SandboxPolicy {
-        _ = defaults
+        appServerPolicies(for: context, defaults: defaults).sandbox
+    }
+
+    private nonisolated static func appServerPolicies(
+        for context: SessionLaunchContext,
+        defaults: UserDefaults
+    ) -> (approvalPolicy: ApprovalPolicy, sandbox: SandboxPolicy) {
+        let fullAccess: Bool
         switch context {
         case .interactive, .remoteUser:
-            return .named("workspace-write")
+            fullAccess = BypassSettings.isEnabled(for: .codex, defaults: defaults)
         case .orchestration:
-            return .named("danger-full-access")
+            fullAccess = true
         }
+
+        if fullAccess {
+            return (.named("never"), .named("danger-full-access"))
+        }
+        return (.named("on-request"), .named("workspace-write"))
     }
 
     private func sanitizeCursorLaunchPlanIfNeeded(_ plan: AgentLaunchPlan) -> AgentLaunchPlan {

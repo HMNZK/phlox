@@ -33,3 +33,4 @@ last-verified: 2026-08-01
 | `rearchitecture-refactoring-plan.md` | active | コードベース全体のリアーキテクチャリング・リファクタリング計画（Phase 0〜7・WP 分割ドラフト） |
 | `review-remediation.md` | active | Codex レビュー指摘（重大+中）の修正仕様 |
 | `terminal-editor-panels.md` | active | ターミナルパネル・エディタパネルの要件（FR/NFR・受け入れ基準・仮定・スコープ外。決定は ADR 0148〜0151） |
+| `codex-full-access-and-user-input.md` | active | Codex のフルアクセスとユーザー質問の要件（FR/NFR・受け入れ基準・用語。決定は ADR 0152〜0155） |

@@ -35,3 +35,4 @@ last-verified: 2026-08-01
 | `session-pane-layout.md` | グリッドビューの分割ツリーレイアウト（モデル/幾何/操作/描画制約/永続ツリーと実効ツリー） |
 | `session-grid-layout.md` | **superseded** → session-pane-layout.md（旧 固定 N×N・セル結合） |
 | `terminal-editor-panels.md` | ターミナルパネル・エディタパネルの現行構成（`UserTerminalController`・`WorkingTreeService`・`EditorPanelViewModel`・ドロワー統合・終了時の後始末） |
+| `codex-app-server-server-requests.md` | codex app-server の server request 処理（承認／質問／未対応の 3 経路・質問カードへの橋渡し・フルアクセス設定の適用） |

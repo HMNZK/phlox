@@ -187,6 +187,8 @@ private struct PaneTileView: View {
     let onDrop: (_ moved: SessionID, _ target: PaneDropTarget) -> Void
 
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+    @State private var clickObserver: PaneTileClickObserver?
+    @State private var clickFrameSource = PaneTileWindowFrameSource()
 
     var body: some View {
         tileShell
@@ -207,6 +209,30 @@ private struct PaneTileView: View {
             .clipShape(RoundedRectangle(cornerRadius: DSRadius.m))
             .dsShadow(.gridTile)
             .contentShape(Rectangle())
+            .background {
+                PaneTileWindowFrameReader { view in
+                    clickFrameSource.update(view: view)
+                }
+                .allowsHitTesting(false)
+            }
+            .onAppear {
+                guard clickObserver == nil else { return }
+                let observer = PaneTileClickObserver(
+                    tileFrameInWindow: { [clickFrameSource] in clickFrameSource.frameInWindow },
+                    tileWindow: { [clickFrameSource] in clickFrameSource.window },
+                    isFocused: isFocused,
+                    onSelect: onSelect
+                )
+                clickObserver = observer
+                observer.start()
+            }
+            .onChange(of: isFocused) { _, focused in
+                clickObserver?.update(isFocused: focused)
+            }
+            .onDisappear {
+                clickObserver?.stop()
+                clickObserver = nil
+            }
             // 本文は TapGesture のみ。TerminalView / NSTextView の選択・スクロールを含む
             // AppKit のマウストラッキングへゼロ距離 DragGesture を渡さない。
             .simultaneousGesture(TapGesture().onEnded { onSelect() })

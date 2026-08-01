@@ -16,6 +16,22 @@ import Testing
 // -34018 ではなく errSecItemNotFound(-25300) を返す。読み取りで判定すると、権限がある環境でも
 // 「項目が無いだけ」を「権限が無い」と誤判定しうる。
 
+// --- 判定規則そのもの（唯一の正本）------------------------------------------
+// 本番実装もフェイクもこの関数を呼ぶ。ここを固定しておけば、どちらかの実装だけが
+// 規則を手書きで複製して変異が生き残る、という穴が塞がる（レビュー指摘 [HIGH] 1）。
+
+@Test func backendResolver_isTheSingleSourceOfTheRule() throws {
+    #expect(try KeychainBackendResolver.resolve(dataProtectionWriteStatus: errSecSuccess) == .dataProtection)
+    #expect(try KeychainBackendResolver.resolve(dataProtectionWriteStatus: errSecMissingEntitlement) == .fileBased)
+    #expect(throws: KeychainAccessError.keychain(errSecIO)) {
+        _ = try KeychainBackendResolver.resolve(dataProtectionWriteStatus: errSecIO)
+    }
+    // 「見つからない」は権限の話ではないので、フォールバックではなく throw。
+    #expect(throws: KeychainAccessError.keychain(errSecItemNotFound)) {
+        _ = try KeychainBackendResolver.resolve(dataProtectionWriteStatus: errSecItemNotFound)
+    }
+}
+
 @Test func keychainAccessor_prefersDataProtection_whenEntitled() throws {
     let accessor = InMemoryKeychainAccessor(dataProtectionWriteStatus: errSecSuccess)
 

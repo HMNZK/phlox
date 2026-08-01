@@ -57,6 +57,28 @@ private func runAccessorContract(_ accessor: any KeychainItemAccessor, service: 
     )
 }
 
+// 本番実装 SecItemKeychainAccessor が、判定を自前で手書きせず
+// KeychainBackendResolver に委ねていることを、実際の戻り値で固定する。
+// この環境（未署名のテストプロセス）では DPK が使えないので .fileBased が期待値になる。
+@Test func secItemAccessor_backend_isResolvedByTheSharedRule() throws {
+    let accessor = SecItemKeychainAccessor()
+    let resolved: KeychainBackend
+    do {
+        resolved = try accessor.backend()
+    } catch {
+        Issue.record("Keychain unavailable in this environment — backend() not verified. \(error)")
+        return
+    }
+
+    // テストプロセスは keychain-access-groups entitlement を持たないため、
+    // DPK への書き込みは errSecMissingEntitlement になり .fileBased へ落ちる（docs/phase0.md 2.2 の実測）。
+    // 共有規則へ同じ status を渡した結果と一致すること＝本番実装が規則を手書きで複製していないこと。
+    #expect(resolved == (try KeychainBackendResolver.resolve(dataProtectionWriteStatus: errSecMissingEntitlement)))
+    #expect(resolved == .fileBased)
+    // 2 回目以降も同じ値（プロセス内で安定）。
+    #expect(try accessor.backend() == resolved)
+}
+
 @Test func accessorContract_holdsFor_secItem() throws {
     // 実 Keychain はサンドボックス・CI で使えないことがある。使えないときは黙って return せず、
     // 未検証である事実を Issue.record で残す（skip の不可視化を避ける）。

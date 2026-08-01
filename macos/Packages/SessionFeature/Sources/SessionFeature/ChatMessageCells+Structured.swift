@@ -97,7 +97,7 @@ struct ThinkingIndicatorCell: View {
         ThinkingAnimationModel.isTimelineVisible(
             isInViewHierarchy: isInViewHierarchy,
             isInTranscriptViewport: isInTranscriptViewport,
-            isSceneActive: scenePhase == .active
+            scenePhase: scenePhase
         )
     }
 

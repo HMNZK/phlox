@@ -82,19 +82,35 @@ public struct ChatUserQuestion: Codable, Equatable, Sendable {
     /// 同一文言の質問が複数あっても取り違えないよう、この id を運ぶ。
     /// Optional なので synthesized Codable は nil を JSON に書き出さない（既存の永続データと互換）。
     public let id: String?
+    /// 伏せ字入力が要る質問か（codex-full-access-approval task-5 契約）。
+    /// codex の `questions[].isSecret` に対応する。既定 false で Claude 経路は挙動不変。
+    /// 既存の永続データ（このキーが無い JSON）も従来どおり読めるよう、デコード時は既定 false。
+    public let isSecret: Bool
 
     public init(
         question: String,
         header: String,
         options: [ChatUserQuestionOption],
         multiSelect: Bool,
-        id: String? = nil
+        id: String? = nil,
+        isSecret: Bool = false
     ) {
         self.question = question
         self.header = header
         self.options = options
         self.multiSelect = multiSelect
         self.id = id
+        self.isSecret = isSecret
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        question = try container.decode(String.self, forKey: .question)
+        header = try container.decode(String.self, forKey: .header)
+        options = try container.decode([ChatUserQuestionOption].self, forKey: .options)
+        multiSelect = try container.decode(Bool.self, forKey: .multiSelect)
+        id = try container.decodeIfPresent(String.self, forKey: .id)
+        isSecret = try container.decodeIfPresent(Bool.self, forKey: .isSecret) ?? false
     }
 
     /// 回答ディクショナリのキー。id があればそれ、無ければ質問文。

@@ -34,3 +34,45 @@ import Testing
     #expect(accessor.probeCount == 1)
     #expect(accessor.itemCount == 0)
 }
+
+@Test func secItemAccessor_usesSharedResolverForMissingEntitlement() throws {
+    let accessor = SecItemKeychainAccessor(dataProtectionWriteProbe: { errSecMissingEntitlement })
+
+    #expect(try accessor.backend() == .fileBased)
+}
+
+@Test func secItemAccessor_rejectsItemNotFoundFromWriteProbe() throws {
+    let accessor = SecItemKeychainAccessor(dataProtectionWriteProbe: { errSecItemNotFound })
+
+    #expect(throws: KeychainAccessError.keychain(errSecItemNotFound)) {
+        _ = try accessor.backend()
+    }
+}
+
+@Test func secItemAccessor_runsWriteProbeOnlyOnce() throws {
+    final class ProbeCounter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+
+        func recordProbe() -> OSStatus {
+            lock.lock()
+            defer { lock.unlock() }
+            count += 1
+            return errSecSuccess
+        }
+
+        var value: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return count
+        }
+    }
+
+    let counter = ProbeCounter()
+    let accessor = SecItemKeychainAccessor(dataProtectionWriteProbe: { counter.recordProbe() })
+
+    _ = try accessor.backend()
+    _ = try accessor.backend()
+
+    #expect(counter.value == 1)
+}

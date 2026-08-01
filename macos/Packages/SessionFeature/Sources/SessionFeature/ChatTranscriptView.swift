@@ -259,9 +259,19 @@ struct ChatTranscriptView: View {
                     await viewModel.respondToUserQuestion(requestId: requestId, answers: answers)
                 },
                 onDismissUserQuestion: {
-                    // 回答せずに別の指示を出したいとき用。Esc・中断ボタンと同じ経路へ寄せる
-                    // （カードは `.turnInterrupted` を受けて期限切れになる）。
-                    Task { await viewModel.turnInterrupt() }
+                    Task {
+                        // Codex の質問なら、先に broker の wire を決着させる。
+                        // Claude の質問と未知のカードは、従来どおり直接中断する。
+                        let accepted: Bool
+                        if case .userQuestion(_, let requestId, _, _, _, _) = item {
+                            accepted = await viewModel.declineUserQuestion(requestId: requestId)
+                        } else {
+                            accepted = false
+                        }
+                        if !accepted {
+                            await viewModel.turnInterrupt()
+                        }
+                    }
                 }
             )
             // ADR 0116: 変化していない行の body 再評価を飛ばす。transcript は配列全体が

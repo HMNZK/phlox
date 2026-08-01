@@ -140,6 +140,9 @@ public final class ChatSessionViewModel: Identifiable {
     private var eventTask: Task<Void, Never>?
     private var codexSettingsEventTask: Task<Void, Never>?
     private var approvalTask: Task<Void, Never>?
+    private var userInputTask: Task<Void, Never>?
+    /// Codex の wire request と質問カードを結び付ける。Claude の requestId はこの表に登録しない。
+    private var codexUserInputRequestIDs: [String: UUID] = [:]
     private let transcriptPersistenceQueue: TranscriptPersistenceQueue?
     private var pendingInput = ""
     /// リバート後に予約される文脈リプレイのプリアンブル。次の submit 送信で client.turnStart の
@@ -633,6 +636,7 @@ public final class ChatSessionViewModel: Identifiable {
         let startedGeneration = turnGeneration
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
+            await self.expireAllPendingUserQuestions()
             do {
                 try await self.client.interrupt()
             } catch {
@@ -809,13 +813,19 @@ public final class ChatSessionViewModel: Identifiable {
     /// requestId を記録して真の同時二重回答（両方 true・answers の競合上書き）を防ぐ。
     private var respondingUserQuestionIds: Set<String> = []
 
-    /// 質問への回答を拒否する（codex-full-access-approval task-0 スタブ＝task-4 が本実装する）。
-    /// 本実装では broker の `declineUserInput` で wire を決着させ、続けてターンを中断する（決定 D4）。
+    /// Codex 質問への回答を拒否し、wire を決着させてからターンを中断する（決定 D4）。
     /// 戻り値: 拒否を受理したら true。
     @discardableResult
     public func declineUserQuestion(requestId: String) async -> Bool {
-        _ = requestId
-        return false
+        guard let index = userQuestionCardIndex(requestId: requestId),
+              case .userQuestion(_, _, _, _, .pending, _) = transcript[index],
+              codexUserInputRequestIDs[requestId] != nil
+        else {
+            return false
+        }
+
+        await turnInterrupt()
+        return true
     }
 
     public func respondToUserQuestion(requestId: String, answers: [String: [String]]) async -> Bool {
@@ -828,6 +838,16 @@ public final class ChatSessionViewModel: Identifiable {
 
         respondingUserQuestionIds.insert(requestId)
         defer { respondingUserQuestionIds.remove(requestId) }
+
+        if let userInputID = codexUserInputRequestIDs.removeValue(forKey: requestId) {
+            await approvalBroker.answerUserInput(id: userInputID, answers: answers)
+            applyUserQuestionResolution(
+                requestId: requestId,
+                outcome: .answered(answers: answers)
+            )
+            touchOutput()
+            return true
+        }
 
         await client.respondToUserQuestion(requestId: requestId, answers: answers)
         appendOrReplace(.userQuestion(
@@ -1141,7 +1161,7 @@ public final class ChatSessionViewModel: Identifiable {
             let events = client.events
             eventTask = Task { @MainActor [weak self] in
                 for await event in events {
-                    self?.handle(event)
+                    await self?.handle(event)
                 }
             }
         }
@@ -1160,6 +1180,21 @@ public final class ChatSessionViewModel: Identifiable {
                     self?.pendingApprovals.append(approval)
                     self?.enterAwaitingApproval(prompt: approval.prompt)
                     self?.touchOutput()
+                }
+            }
+        }
+        if userInputTask == nil {
+            let userInputRequests = approvalBroker.userInputRequests
+            userInputTask = Task { @MainActor [weak self] in
+                for await request in userInputRequests {
+                    guard let self else { return }
+                    let requestId = request.id.uuidString
+                    self.codexUserInputRequestIDs[requestId] = request.id
+                    self.receiveUserQuestion(
+                        requestId: requestId,
+                        questions: request.questions,
+                        timestamp: Date()
+                    )
                 }
             }
         }
@@ -1283,7 +1318,7 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
-    private func handle(_ event: NormalizedChatEvent) {
+    private func handle(_ event: NormalizedChatEvent) async {
         let rawEvent = String(describing: event)
         if enqueueStreamDeltaIfNeeded(event, rawEvent: rawEvent) {
             return
@@ -1334,6 +1369,7 @@ public final class ChatSessionViewModel: Identifiable {
             if let nativeSessionId, shouldAdoptNativeSessionId(nativeSessionId) {
                 updateNativeSessionId(nativeSessionId)
             }
+            await expireAllPendingUserQuestions()
             appendPendingTurnCostIfNeeded(timestamp: eventDate)
             let previousStatus = status
             let hadActiveTurn = turnStartedAt != nil
@@ -1350,7 +1386,7 @@ public final class ChatSessionViewModel: Identifiable {
             if let nativeSessionId, shouldAdoptNativeSessionId(nativeSessionId) {
                 updateNativeSessionId(nativeSessionId)
             }
-            expireAllPendingUserQuestions()
+            await expireAllPendingUserQuestions()
             isCompacting = false
             clearRunningTurn()
             clearRunningBackgroundTasks()
@@ -1359,7 +1395,7 @@ public final class ChatSessionViewModel: Identifiable {
             flushTranscriptAtTurnBoundary()
             midTurnPersistenceGate.noteExternalFlush()
         case .error(let message):
-            expireAllPendingUserQuestions()
+            await expireAllPendingUserQuestions()
             isCompacting = false
             let previousStatus = status
             let hadActiveTurn = turnStartedAt != nil
@@ -1416,18 +1452,10 @@ public final class ChatSessionViewModel: Identifiable {
             isCompacting = false
         case .userQuestionRequested(let requestId, let questions):
             markRunningEventReceived(at: eventDate)
-            appendOrReplace(.userQuestion(
-                id: "question-\(requestId)",
-                requestId: requestId,
-                questions: questions,
-                answers: nil,
-                state: .pending,
-                timestamp: eventDate
-            ))
-            enterAwaitingUserQuestion()
-            touchOutput()
+            receiveUserQuestion(requestId: requestId, questions: questions, timestamp: eventDate)
         case .userQuestionResolved(let requestId, let outcome):
             markRunningEventReceived(at: eventDate)
+            codexUserInputRequestIDs.removeValue(forKey: requestId)
             applyUserQuestionResolution(requestId: requestId, outcome: outcome)
             touchOutput()
         }
@@ -1447,6 +1475,24 @@ public final class ChatSessionViewModel: Identifiable {
             guard case .userQuestion(_, let rid, _, _, _, _) = item else { return false }
             return rid == requestId
         }
+    }
+
+    /// Claude と Codex の質問を同じ質問カード経路へ載せる。
+    private func receiveUserQuestion(
+        requestId: String,
+        questions: [ChatUserQuestion],
+        timestamp: Date
+    ) {
+        appendOrReplace(.userQuestion(
+            id: "question-\(requestId)",
+            requestId: requestId,
+            questions: questions,
+            answers: nil,
+            state: .pending,
+            timestamp: timestamp
+        ))
+        enterAwaitingUserQuestion()
+        touchOutput()
     }
 
     private func applyUserQuestionResolution(requestId: String, outcome: ChatUserQuestionOutcome) {
@@ -1485,7 +1531,10 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
-    private func expireAllPendingUserQuestions() {
+    private func expireAllPendingUserQuestions() async {
+        let pendingCodexUserInputIDs = Set(codexUserInputRequestIDs.values)
+        codexUserInputRequestIDs.removeAll()
+
         var didChange = false
         for index in transcript.indices {
             guard case .userQuestion(let id, let requestId, let questions, let answers, .pending, let timestamp) = transcript[index]
@@ -1504,6 +1553,10 @@ public final class ChatSessionViewModel: Identifiable {
         }
         if didChange {
             markTranscriptChanged()
+        }
+
+        for userInputID in pendingCodexUserInputIDs {
+            await approvalBroker.declineUserInput(id: userInputID)
         }
     }
 
@@ -2233,10 +2286,13 @@ extension ChatSessionViewModel: ControllableSession {
         eventTask?.cancel()
         codexSettingsEventTask?.cancel()
         approvalTask?.cancel()
+        userInputTask?.cancel()
         eventTask = nil
         codexSettingsEventTask = nil
         approvalTask = nil
+        userInputTask = nil
         // 承認待ちで await 中の continuation を全て否認で解決する（リーク防止・S1）。冪等。
+        await expireAllPendingUserQuestions()
         await approvalBroker.cancelAll()
         clearRunningBackgroundTasks()
         await transcriptPersistenceQueue?.waitForPendingWrites()

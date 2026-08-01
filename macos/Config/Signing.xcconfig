@@ -1,0 +1,24 @@
+// macOS アプリの署名設定。Debug / Release の両構成がこのファイルを読む
+// （`project.yml` の `configFiles`）。
+//
+// 既定値は「Apple Developer 証明書を持たない環境」向けで、Debug は ad-hoc 署名
+// （Sign to Run Locally）のままビルドできる。証明書を持つ開発者は、リポジトリ直下の
+// `Signing.local.xcconfig`（.gitignore 対象）で下の変数を上書きする。
+// 雛形は `Signing.example.xcconfig` を参照。
+//
+// なぜ Debug も正規署名できるようにするか:
+//   ad-hoc 署名の designated requirement は `cdhash H"..."` そのもの。リビルドのたびに
+//   cdhash が変わるため、macOS の TCC（ファイルとフォルダ・画面収録・アクセシビリティ等）に
+//   記録済みの許可／拒否が毎回無効化され、ビルドし直すたびに同じ承認ダイアログが出る。
+//   証明書で署名すると designated requirement が bundle id ＋ チーム ID になり、
+//   リビルドを跨いで同一に保たれるので、一度答えた結果がそのまま残る。詳細は ADR 0158。
+
+// Debug / Release 共通のチーム ID。空なら署名しない（＝ad-hoc）。
+PHLOX_DEVELOPMENT_TEAM =
+
+// Debug 構成の署名方式。既定は現状維持の ad-hoc。
+PHLOX_DEBUG_CODE_SIGN_STYLE = Automatic
+PHLOX_DEBUG_CODE_SIGN_IDENTITY = -
+
+// ローカルの上書き。ファイルが無ければ黙って読み飛ばす（`#include?`）。
+#include? "../../Signing.local.xcconfig"

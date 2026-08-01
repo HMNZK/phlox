@@ -7,13 +7,34 @@
 // Two options:
 //   1. Xcode UI — open the generated project and pick your team under
 //      "Signing & Capabilities" (Xcode writes to the local, gitignored project).
-//   2. Local xcconfig — copy this file and fill in your Team ID:
+//   2. Local xcconfig — copy this file and fill in the values below:
 //        cp Signing.example.xcconfig Signing.local.xcconfig
-//      then reference it from project.yml `configFiles:` (see docs) or set the
-//      value directly in your local checkout. Signing.local.xcconfig is
-//      gitignored so your Team ID is never committed.
+//      macos/Config/Signing.xcconfig picks it up automatically via `#include?`,
+//      so no further wiring is needed. Signing.local.xcconfig is gitignored so
+//      your Team ID is never committed.
 //
 // Your Apple Developer Team ID is the 10-character identifier shown in the
 // Apple Developer portal (Membership) — e.g. ABCDE12345.
 
 DEVELOPMENT_TEAM =
+
+// --- macOS app --------------------------------------------------------------
+// Team ID used by both the Debug and Release configurations of the macOS app.
+PHLOX_DEVELOPMENT_TEAM =
+
+// Signing for the Debug configuration. The defaults below keep ad-hoc signing
+// ("Sign to Run Locally"), which needs no certificate.
+//
+// If you have a certificate, prefer real signing:
+//
+//   PHLOX_DEVELOPMENT_TEAM = ABCDE12345
+//   PHLOX_DEBUG_CODE_SIGN_STYLE = Manual
+//   PHLOX_DEBUG_CODE_SIGN_IDENTITY = Developer ID Application
+//
+// Why: an ad-hoc signature's designated requirement is the cdhash itself, so it
+// changes on every rebuild. macOS then discards the TCC decisions (Files and
+// Folders, Screen Recording, Accessibility, ...) recorded for the Debug app and
+// re-prompts after every build. A certificate keeps the designated requirement
+// stable across rebuilds, so a single answer sticks. See ADR 0158.
+PHLOX_DEBUG_CODE_SIGN_STYLE = Automatic
+PHLOX_DEBUG_CODE_SIGN_IDENTITY = -

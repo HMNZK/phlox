@@ -40,6 +40,9 @@ last-verified: 2026-07-30
 - **アニメーションは display link で回し、SwiftUI の状態を触らない。** ADR 0117 と同じ方針。
   非表示のとき（transcript の最下部が viewport 外・シーン非アクティブ）は display link を止め、
   ReduceMotion 時は代表フレーム 1 枚だけを描く。
+  〔更新 2026-08-02・[ADR 0159](0159-thinking-indicator-viewport-signal-recovery.md)〕「シーン非アクティブ」の条件は
+  `scenePhase == .active` から **`scenePhase != .background`** へ変わった（可視だが非キーのウィンドウでは止めない）。
+  viewport シグナルもコンテンツ寸法変化・documentView 差し替えで再評価するようになった。display link 方針自体は不変。
 - **状態はドメインの `AgentActivityState` として `AgentDomain` に置き、transcript から純関数で導出する。**
   UI の enum にしない。macOS の `ChatItem` 列と iOS の `ChatMessage` 列は別型なので、走査だけは
   各プラットフォーム（`ChatRecap` / `ChatRecapIOS`）に置き、分類規則（読み取り系ツール名の集合、

@@ -3,15 +3,15 @@ status: accepted
 last-verified: 2026-08-01
 ---
 
-# ADR 0154: フルアクセス設定を app-server セッションの承認・サンドボックス方針へ適用する
+# ADR 0156: フルアクセス設定を app-server セッションの承認・サンドボックス方針へ適用する
 
 > **このファイルの役割**: 設定「フルアクセス（bypass）」が Codex の app-server セッションにも
 > 効くようにした決定と、設定とコンポーザの Permission メニューの役割分担。
-> **書かないもの**: 承認バナーそのものの是非（→ [ADR 0152](0152-codex-unsupported-server-request-is-not-an-approval.md)）。
+> **書かないもの**: 承認バナーそのものの是非（→ [ADR 0154](0154-codex-unsupported-server-request-is-not-an-approval.md)）。
 
 ## 文脈
 
-不具合報告の調査で、ADR 0152 の写像バグとは**独立した 2 つ目の欠陥**が見つかった。
+不具合報告の調査で、ADR 0154 の写像バグとは**独立した 2 つ目の欠陥**が見つかった。
 `BypassSettings`（キー `phlox.bypass.codex`、未設定時は既定 ON）はターミナルモードの
 CLI 起動オプションにしか届いておらず、app-server セッションでは
 `SessionSpawnService` が `approvalPolicy` / `sandboxPolicy` を**固定値でハードコード**していた。

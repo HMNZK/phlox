@@ -36,10 +36,10 @@ last-verified: 2026-08-01
 | task-6 | 伏せ字の回答を永続化・エクスポートに残さない | r1 pass |
 
 決定は ADR へ蒸留した:
-[0152](../adr/0152-codex-unsupported-server-request-is-not-an-approval.md)（未対応は承認に化けさせない）/
-[0153](../adr/0153-codex-request-user-input-as-question-card.md)（質問カードへ合流・拒否は中断）/
-[0154](../adr/0154-full-access-setting-applies-to-app-server.md)（フルアクセス設定の適用先）/
-[0155](../adr/0155-secret-answers-are-not-persisted.md)（伏せ字の回答は保存しない）。
+[0154](../adr/0154-codex-unsupported-server-request-is-not-an-approval.md)（未対応は承認に化けさせない）/
+[0155](../adr/0155-codex-request-user-input-as-question-card.md)（質問カードへ合流・拒否は中断）/
+[0156](../adr/0156-full-access-setting-applies-to-app-server.md)（フルアクセス設定の適用先）/
+[0157](../adr/0157-secret-answers-are-not-persisted.md)（伏せ字の回答は保存しない）。
 現行構成は [architecture/codex-app-server-server-requests.md](../architecture/codex-app-server-server-requests.md)、
 要件・受け入れ基準は [specs/codex-full-access-and-user-input.md](../specs/codex-full-access-and-user-input.md)。
 
@@ -79,6 +79,6 @@ last-verified: 2026-08-01
 - **GUI の E2E は未実施**。ユーザーが実作業中のリリース版 Phlox を落とさないため、Debug 版の
   起動確認を行っていない。実際に codex から質問が飛んできたときの画面表示は**未観測**。
 - 未対応のまま残る 8 種の server request は `-32601` を返すだけで、診断ログに現れない。
-- 秘密の質問が選択肢を持つ場合、`options[].description` は平文で表示・保存される（ADR 0155）。
+- 秘密の質問が選択肢を持つ場合、`options[].description` は平文で表示・保存される（ADR 0157）。
 - 環境メモ: このマシンには Homebrew / XcodeGen が無く、`.xcodeproj` の生成に
   XcodeGen をソースからビルドして使った（`/tmp/XcodeGen`）。

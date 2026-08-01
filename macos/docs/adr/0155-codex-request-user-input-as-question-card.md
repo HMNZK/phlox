@@ -3,16 +3,16 @@ status: accepted
 last-verified: 2026-08-01
 ---
 
-# ADR 0153: `item/tool/requestUserInput` は既存の質問カードで受ける（拒否はターン中断）
+# ADR 0155: `item/tool/requestUserInput` は既存の質問カードで受ける（拒否はターン中断）
 
 > **このファイルの役割**: codex app-server の「モデルからの質問」を、Claude の AskUserQuestion 用に
 > 既にある質問カード UI へ合流させた決定と、回答キー・拒否時の挙動の決定。
-> **書かないもの**: 未対応 method 一般の扱い（→ [ADR 0152](0152-codex-unsupported-server-request-is-not-an-approval.md)）、
-> 伏せ字回答の保存方針（→ [ADR 0155](0155-secret-answers-are-not-persisted.md)）。
+> **書かないもの**: 未対応 method 一般の扱い（→ [ADR 0154](0154-codex-unsupported-server-request-is-not-an-approval.md)）、
+> 伏せ字回答の保存方針（→ [ADR 0157](0157-secret-answers-are-not-persisted.md)）。
 
 ## 文脈
 
-ADR 0152 で未対応 method をエラーで返すようにしたが、報告の発端になった
+ADR 0154 で未対応 method をエラーで返すようにしたが、報告の発端になった
 `item/tool/requestUserInput` は「モデルがユーザーに質問している」要求であり、
 エラーで返すと**質問に答える手段が無くなる**（ゲート①でユーザーは「質問 UI をきちんと実装する」を選択）。
 

@@ -8,7 +8,7 @@ last-verified: 2026-08-01
 > **このファイルの役割**: 「フルアクセス ON のとき承認を出さない」「codex の質問に答えられる」が
 > 満たすべき条件と、その受け入れ基準・用語。
 > **書かないもの**: 今どう動いているか（→ [architecture/codex-app-server-server-requests.md](../architecture/codex-app-server-server-requests.md)）、
-> なぜこの設計か（→ ADR 0152〜0155）。
+> なぜこの設計か（→ ADR 0154〜0157）。
 
 ## 用語
 

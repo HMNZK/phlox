@@ -3,12 +3,12 @@ status: accepted
 last-verified: 2026-08-01
 ---
 
-# ADR 0152: codex app-server の未対応 server request を承認バナーに化けさせない
+# ADR 0154: codex app-server の未対応 server request を承認バナーに化けさせない
 
 > **このファイルの役割**: `ChatApprovalBroker` が未知の server request を「権限承認」として
 > 扱っていたのをやめ、JSON-RPC のエラー（`-32601 Method not found`）で返すことにした決定。
-> **書かないもの**: `item/tool/requestUserInput` を質問カードとして実装した決定（→ [ADR 0153](0153-codex-request-user-input-as-question-card.md)）、
-> フルアクセス設定の適用先（→ [ADR 0154](0154-full-access-setting-applies-to-app-server.md)）。
+> **書かないもの**: `item/tool/requestUserInput` を質問カードとして実装した決定（→ [ADR 0155](0155-codex-request-user-input-as-question-card.md)）、
+> フルアクセス設定の適用先（→ [ADR 0156](0156-full-access-setting-applies-to-app-server.md)）。
 
 ## 文脈
 
@@ -39,6 +39,6 @@ codex app-server は client 側へ 11 種の server request を送る。Phlox �
 - 承認バナーに出るのは**本当に承認である 3 種だけ**になり、`approvalPolicy` の設定と
   画面に出る承認が一致する（ADR 0154 の前提でもある）。
 - 未対応のまま残る 8 種は、必要になった時点で個別に実装する。今回そのうち
-  `item/tool/requestUserInput` だけを実装した（→ ADR 0153）。
+  `item/tool/requestUserInput` だけを実装した（→ ADR 0155）。
 - 代償: 未対応 method は「静かに失敗する」ため、ユーザーには何も起きていないように見える。
   可視化（診断ログへの記録）は今回のスコープに含めていない。

@@ -3,11 +3,11 @@ status: accepted
 last-verified: 2026-08-01
 ---
 
-# ADR 0155: 伏せ字（`isSecret`）の回答は wire 送信後に破棄し、保存しない
+# ADR 0157: 伏せ字（`isSecret`）の回答は wire 送信後に破棄し、保存しない
 
 > **このファイルの役割**: codex の質問が `isSecret` のとき、入力を伏せ字にするだけでなく
 > **回答そのものを保持しない**ことにした決定。
-> **書かないもの**: 質問カードへの合流と回答キーの決定（→ [ADR 0153](0153-codex-request-user-input-as-question-card.md)）。
+> **書かないもの**: 質問カードへの合流と回答キーの決定（→ [ADR 0155](0155-codex-request-user-input-as-question-card.md)）。
 
 ## 文脈
 

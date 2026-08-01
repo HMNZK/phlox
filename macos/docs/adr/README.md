@@ -12,10 +12,10 @@ last-verified: 2026-08-01
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
-| 0155 | [伏せ字（`isSecret`）の回答は wire 送信後に破棄し、保存しない](0155-secret-answers-are-not-persisted.md) | accepted |
-| 0154 | [フルアクセス設定を app-server セッションの承認・サンドボックス方針へ適用する](0154-full-access-setting-applies-to-app-server.md) | accepted |
-| 0153 | [`item/tool/requestUserInput` は既存の質問カードで受ける（拒否はターン中断）](0153-codex-request-user-input-as-question-card.md) | accepted |
-| 0152 | [codex app-server の未対応 server request を承認バナーに化けさせない](0152-codex-unsupported-server-request-is-not-an-approval.md) | accepted |
+| 0157 | [伏せ字（`isSecret`）の回答は wire 送信後に破棄し、保存しない](0157-secret-answers-are-not-persisted.md) | accepted |
+| 0156 | [フルアクセス設定を app-server セッションの承認・サンドボックス方針へ適用する](0156-full-access-setting-applies-to-app-server.md) | accepted |
+| 0155 | [`item/tool/requestUserInput` は既存の質問カードで受ける（拒否はターン中断）](0155-codex-request-user-input-as-question-card.md) | accepted |
+| 0154 | [codex app-server の未対応 server request を承認バナーに化けさせない](0154-codex-unsupported-server-request-is-not-an-approval.md) | accepted |
 | 0151 | [PTY spawn は継承可能な fd を既定で close-on-exec にする（`POSIX_SPAWN_CLOEXEC_DEFAULT`）](0151-pty-spawn-fd-hygiene.md) | accepted |
 | 0150 | [エディタパネルの git 連動仕様（変更一覧の一本化・保存競合・不変条件の意味論化）](0150-editor-panel-git-semantics.md) | accepted |
 | 0149 | [ユーザーターミナルはセッション非依存・cwd はホーム固定・シェルは閉じても保持](0149-user-terminal-lifecycle.md) | accepted |

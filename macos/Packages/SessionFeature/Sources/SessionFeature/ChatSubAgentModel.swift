@@ -8,10 +8,13 @@ import StructuredChatKit
 final class ChatSubAgentModel {
     public private(set) var subAgents: [SubAgentRef] = []
     public var stripSubAgents: [SubAgentRef] {
-        subAgents.filter { $0.status != .completed }
+        subAgents.filter {
+            $0.status != .completed && !dismissedSubAgentIDs.contains($0.id)
+        }
     }
     public private(set) var selectedSubAgentId: String?
 
+    private var dismissedSubAgentIDs: Set<String> = []
     private var subAgentTranscripts: [String: [ChatItem]] = [:]
     @ObservationIgnored private var subAgentTranscriptCache: [String: CachedSubAgentTranscript] = [:]
     @ObservationIgnored private var markerSink: (@MainActor (ChatItem) -> Void)?
@@ -27,6 +30,13 @@ final class ChatSubAgentModel {
 
     func selectSubAgent(_ id: String?) {
         selectedSubAgentId = id
+    }
+
+    func dismissSubAgent(_ id: String) {
+        dismissedSubAgentIDs.insert(id)
+        if selectedSubAgentId == id {
+            selectedSubAgentId = nil
+        }
     }
 
     /// 表示する transcript を選ぶ。規則は2通り＋例外1つ（ADR 0113）:

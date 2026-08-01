@@ -11,6 +11,7 @@ struct SessionActivityOverlayStrip: View {
     let selectedSubAgentId: String?
     let onJump: (String) -> Void
     let onSelectSubAgent: (String) -> Void
+    let onDismissSubAgent: (String) -> Void
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
     var body: some View {
@@ -26,7 +27,8 @@ struct SessionActivityOverlayStrip: View {
                 selectedSubAgentId: selectedSubAgentId,
                 includesMainButton: false,
                 onSelectMain: {},
-                onSelectSubAgent: onSelectSubAgent
+                onSelectSubAgent: onSelectSubAgent,
+                onDismiss: onDismissSubAgent
             )
         }
     }
@@ -161,6 +163,7 @@ struct SubAgentStrip: View {
     let includesMainButton: Bool
     let onSelectMain: () -> Void
     let onSelectSubAgent: (String) -> Void
+    let onDismiss: (String) -> Void
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
     var body: some View {
@@ -182,7 +185,8 @@ struct SubAgentStrip: View {
                             SubAgentStripRow(
                                 subAgent: subAgent,
                                 isSelected: selectedSubAgentId == subAgent.id,
-                                onSelect: { onSelectSubAgent(subAgent.id) }
+                                onSelect: { onSelectSubAgent(subAgent.id) },
+                                onDismiss: { onDismiss(subAgent.id) }
                             )
                         }
                     }
@@ -231,43 +235,76 @@ private struct SubAgentMainSwitchButton: View {
     }
 }
 
+enum SubAgentDismissButtonPresentation {
+    static func state(isHovering: Bool) -> (isVisible: Bool, allowsHitTesting: Bool) {
+        (isVisible: isHovering, allowsHitTesting: isHovering)
+    }
+}
+
 private struct SubAgentStripRow: View {
     let subAgent: SubAgentRef
     let isSelected: Bool
     let onSelect: () -> Void
+    let onDismiss: () -> Void
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+    @State private var isHovering = false
 
     var body: some View {
         let _ = themeID
-        Button(action: onSelect) {
-            HStack(spacing: DSSpacing.xs) {
-                statusIcon
-                    .frame(width: 16, height: 16)
-                Text(subAgent.subagentType)
-                    .font(DSFont.captionStrong)
-                    .foregroundStyle(isSelected ? DSColor.chatBackground : DSColor.chatAccent)
-                    .lineLimit(1)
-                Text(subAgent.description)
-                    .font(DSFont.caption)
-                    .foregroundStyle(isSelected ? DSColor.chatBackground.opacity(0.86) : DSColor.chatTextPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: 220, alignment: .leading)
+        let dismissPresentation = SubAgentDismissButtonPresentation.state(isHovering: isHovering)
+        ZStack(alignment: .trailing) {
+            Button(action: onSelect) {
+                rowContent
+                    .padding(.leading, DSSpacing.s)
+                    .padding(.trailing, DSSpacing.s + DSSpacing.xs + 16)
+                    .padding(.vertical, DSSpacing.xs)
+                    .contentShape(Rectangle())
             }
-            .padding(.horizontal, DSSpacing.s)
-            .padding(.vertical, DSSpacing.xs)
-            .background(
-                RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
-                    .fill(isSelected ? DSColor.chatAccent : DSColor.chatCard.opacity(0.86))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
-                    .strokeBorder(DSColor.chatAccent.opacity(isSelected ? 0 : 0.24), lineWidth: 1)
-            )
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("SubAgentStrip.row")
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: DSIconSize.s, weight: .semibold))
+                    .foregroundStyle(isSelected ? DSColor.chatBackground.opacity(0.86) : DSColor.chatTextSecondary)
+                    .frame(width: 16, height: 16)
+            }
+            .buttonStyle(.plain)
+            .help("サブエージェントを閉じる")
+            .accessibilityLabel("サブエージェントを閉じる")
+            .accessibilityIdentifier("SubAgentStrip.dismiss")
+            .opacity(dismissPresentation.isVisible ? 1 : 0)
+            .allowsHitTesting(dismissPresentation.allowsHitTesting)
+            .offset(x: -DSSpacing.s)
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("SubAgentStrip.row")
+        .background(
+            RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
+                .fill(isSelected ? DSColor.chatAccent : DSColor.chatCard.opacity(0.86))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
+                .strokeBorder(DSColor.chatAccent.opacity(isSelected ? 0 : 0.24), lineWidth: 1)
+        )
+        .onHover { isHovering = $0 }
+        .animation(.easeInOut(duration: 0.12), value: isHovering)
         .help(isSelected ? "メインへ戻る" : "サブエージェントを表示")
+    }
+
+    private var rowContent: some View {
+        HStack(spacing: DSSpacing.xs) {
+            statusIcon
+                .frame(width: 16, height: 16)
+            Text(subAgent.subagentType)
+                .font(DSFont.captionStrong)
+                .foregroundStyle(isSelected ? DSColor.chatBackground : DSColor.chatAccent)
+                .lineLimit(1)
+            Text(subAgent.description)
+                .font(DSFont.caption)
+                .foregroundStyle(isSelected ? DSColor.chatBackground.opacity(0.86) : DSColor.chatTextPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: 220, alignment: .leading)
+        }
     }
 
     @ViewBuilder

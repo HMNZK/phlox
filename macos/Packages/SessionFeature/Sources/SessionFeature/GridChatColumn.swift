@@ -44,7 +44,8 @@ struct GridChatColumn: View {
                             selectedSubAgentId: viewModel.selectedSubAgentId,
                             includesMainButton: true,
                             onSelectMain: { viewModel.selectSubAgent(nil) },
-                            onSelectSubAgent: { viewModel.selectSubAgent($0) }
+                            onSelectSubAgent: { viewModel.selectSubAgent($0) },
+                            onDismiss: { viewModel.dismissSubAgent($0) }
                         )
                     }
                     .overlay(alignment: .bottom) {

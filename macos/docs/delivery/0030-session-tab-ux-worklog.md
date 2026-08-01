@@ -34,11 +34,14 @@ run: `session-tab-ux`（agentic-loop multi・backend=codex）／ブランチ `fe
 - `swift test --package-path macos/Packages/DashboardFeature`: **1565 tests pass**
 - `swift test --package-path macos/Packages/SessionFeature`: **768 tests pass**
 - `xcodebuild -project macos/Phlox.xcodeproj -scheme Phlox -configuration Debug build`: **BUILD SUCCEEDED**（別 derivedDataPath。稼働中のリリース版は終了させていない）
-- 実機（Debug 版をリリース版と併存起動して確認）:
+- 実機（Debug 版をリリース版と併存起動し、CGEvent の実マウス相当イベントで操作して目視確認）:
   - タイル本文（トランスクリプトの空白領域）をクリック → そのセッションが選択された（サイドバーの選択とタイルの選択枠が移動）
   - 別タイルの入力欄をクリック → そのセッションが選択され、キャレットも入力欄に入った
-  - 入力欄への文字入力が従来どおり効くことを確認
-- **未検証（申し送り）**: サブエージェントタブの閉じるボタンの実機目視（実サブエージェントの起動が要るため未実施）、ターミナル／トランスクリプトのテキスト選択・スクロール・ヘッダーからのドラッグ＆ドロップの実機確認（合成マウスイベントでは検証しきれない。素通しは単体テストで凍結済み）
+  - サブエージェントを 1 体起動 → ストリップにタブが出る。**非ホバー時は × 非表示／ホバーで × 表示（タブ内に収まりタブ名のクリップなし）／× クリックでタブが消える**。ターンを中断して `.failed`（⚠）にした状態でも同じ挙動
+  - 入力欄のテキストをドラッグ選択 → 選択ハイライトが出る。トランスクリプト本文のドラッグ選択も従来どおり動く
+  - タイル上でのスクロール → 内容がスクロールする
+  - タイルヘッダーからのドラッグ移動 → タイル配置が変わる（ドラッグ＆ドロップが従来どおり開始する）
+- 検証手段の注意: System Events の `click at` はアクセシビリティ経由の擬似クリックで、`NSEvent` のローカル監視や `NSView.mouseDown` には届かない（実測）。実機確認は Quartz の `CGEventPost(kCGHIDEventTap, …)` で行うこと。
 
 ## 差し戻しの経緯（レビューで捕まえたもの）
 

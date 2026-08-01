@@ -226,7 +226,7 @@ public final class DashboardViewModel {
                 self?.publishRestoredSessionPresentation()
             },
             privilegedRequesterProvider: { [weak self] in
-                self?.privilegedRequester
+                self?.privilegedRequesters ?? []
             },
             logError: { error, context in
                 let message = "Phlox: \(context): \(error)\n"
@@ -1313,15 +1313,15 @@ public final class DashboardViewModel {
         normalizeGridSessionSelection()
     }
 
-    /// MC-2b: モバイルトークンの安定 requester。設定時は全 remove（cascade 含む）を
+    /// MC-2b: モバイルトークンごとの安定 requester。集合の各要素は全 remove（cascade 含む）を
     /// 無条件許可する特権 requester として `SpawnPolicy.isAuthorizedToRemove` へ渡す。
-    /// 既定 nil では認可挙動は従来どおり（ancestor ベース）で不変。
-    private var privilegedRequester: SessionID?
+    /// 既定の空集合では認可挙動は従来どおり（ancestor ベース）で不変。
+    private var privilegedRequesters: Set<SessionID> = []
 
-    /// 特権 requester を注入する（CompositionRoot から mobileRequesterSessionID を配線する）。
-    /// nil を渡すと特権を解除し既定の ancestor ベース認可へ戻す。
-    public func setPrivilegedRequester(_ requester: SessionID?) {
-        privilegedRequester = requester
+    /// 特権 requester 集合を注入する（CompositionRoot から端末ごとの requester SessionID を配線する）。
+    /// 空集合を渡すと特権を解除し既定の ancestor ベース認可へ戻す。
+    public func setPrivilegedRequesters(_ requesters: Set<SessionID>) {
+        privilegedRequesters = requesters
     }
 
     /// kill(remove) 専用の認可。rename 等へ広げる時点で operation 付きの一般関数へ拡張する。
@@ -1330,7 +1330,7 @@ public final class DashboardViewModel {
             id,
             requester: requester,
             parents: parentLinks(),
-            privilegedRequester: privilegedRequester
+            privilegedRequesters: privilegedRequesters
         )
     }
 

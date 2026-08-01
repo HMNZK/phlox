@@ -29,10 +29,10 @@ func privilegedRequester_authorizesRemovalOfRootNonDescendantAndUnknown() {
     #expect(!SpawnPolicy.isAuthorizedToRemove(unrelated, requester: mobile, parents: parents))
 
     // 特権設定時: root・非子孫の任意セッション・unknown のいずれも remove 許可になる。
-    #expect(SpawnPolicy.isAuthorizedToRemove(root, requester: mobile, parents: parents, privilegedRequester: mobile))
-    #expect(SpawnPolicy.isAuthorizedToRemove(child, requester: mobile, parents: parents, privilegedRequester: mobile))
-    #expect(SpawnPolicy.isAuthorizedToRemove(unrelated, requester: mobile, parents: parents, privilegedRequester: mobile))
-    #expect(SpawnPolicy.isAuthorizedToRemove(missing, requester: mobile, parents: parents, privilegedRequester: mobile))
+    #expect(SpawnPolicy.isAuthorizedToRemove(root, requester: mobile, parents: parents, privilegedRequesters: [mobile]))
+    #expect(SpawnPolicy.isAuthorizedToRemove(child, requester: mobile, parents: parents, privilegedRequesters: [mobile]))
+    #expect(SpawnPolicy.isAuthorizedToRemove(unrelated, requester: mobile, parents: parents, privilegedRequesters: [mobile]))
+    #expect(SpawnPolicy.isAuthorizedToRemove(missing, requester: mobile, parents: parents, privilegedRequesters: [mobile]))
 }
 
 @Test
@@ -49,17 +49,17 @@ func privilegedRequester_defaultNilLeavesAncestorBehaviorUnchanged() {
     ]
 
     // 明示 nil（= 既定）でも、特権引数を付けない呼び出しと完全に同じ判定であること。
-    #expect(SpawnPolicy.isAuthorizedToRemove(child, requester: root, parents: parents, privilegedRequester: nil)
+    #expect(SpawnPolicy.isAuthorizedToRemove(child, requester: root, parents: parents, privilegedRequesters: [])
         == SpawnPolicy.isAuthorizedToRemove(child, requester: root, parents: parents))
-    #expect(SpawnPolicy.isAuthorizedToRemove(grandchild, requester: root, parents: parents, privilegedRequester: nil)
+    #expect(SpawnPolicy.isAuthorizedToRemove(grandchild, requester: root, parents: parents, privilegedRequesters: [])
         == SpawnPolicy.isAuthorizedToRemove(grandchild, requester: root, parents: parents))
-    #expect(SpawnPolicy.isAuthorizedToRemove(grandchild, requester: sibling, parents: parents, privilegedRequester: nil)
+    #expect(SpawnPolicy.isAuthorizedToRemove(grandchild, requester: sibling, parents: parents, privilegedRequesters: [])
         == SpawnPolicy.isAuthorizedToRemove(grandchild, requester: sibling, parents: parents))
 
     // ancestor ベースの本来挙動: sibling は grandchild を削除できない。
-    #expect(!SpawnPolicy.isAuthorizedToRemove(grandchild, requester: sibling, parents: parents, privilegedRequester: nil))
+    #expect(!SpawnPolicy.isAuthorizedToRemove(grandchild, requester: sibling, parents: parents, privilegedRequesters: []))
     // root は子孫 grandchild を削除できる。
-    #expect(SpawnPolicy.isAuthorizedToRemove(grandchild, requester: root, parents: parents, privilegedRequester: nil))
+    #expect(SpawnPolicy.isAuthorizedToRemove(grandchild, requester: root, parents: parents, privilegedRequesters: []))
 }
 
 @Test
@@ -77,15 +77,15 @@ func privilegedRequester_doesNotElevateNonPrivilegedRequesters() {
     ]
 
     // 特権を設定しても、その特権 ID と一致しない sibling は従来どおり ancestor 範囲のみ。
-    #expect(!SpawnPolicy.isAuthorizedToRemove(grandchild, requester: sibling, parents: parents, privilegedRequester: mobile))
-    #expect(!SpawnPolicy.isAuthorizedToRemove(root, requester: sibling, parents: parents, privilegedRequester: mobile))
+    #expect(!SpawnPolicy.isAuthorizedToRemove(grandchild, requester: sibling, parents: parents, privilegedRequesters: [mobile]))
+    #expect(!SpawnPolicy.isAuthorizedToRemove(root, requester: sibling, parents: parents, privilegedRequesters: [mobile]))
     // root は依然として子孫 grandchild を削除できる（緩めも締めもしない）。
-    #expect(SpawnPolicy.isAuthorizedToRemove(grandchild, requester: root, parents: parents, privilegedRequester: mobile))
+    #expect(SpawnPolicy.isAuthorizedToRemove(grandchild, requester: root, parents: parents, privilegedRequesters: [mobile]))
 }
 
 @Test
 func privilegedRequester_nilNeverGrantsBlanketAuthority() {
-    // privilegedRequester=nil のとき、requester=nil の対象不明等を除き
+    // privilegedRequesters=[] のとき、requester=nil の対象不明等を除き
     // 非子孫 requester に全権を与えてはならない（誤って nil==nil 一致で許可しないこと）。
     let sibling = SessionID()
     let root = SessionID()
@@ -95,5 +95,5 @@ func privilegedRequester_nilNeverGrantsBlanketAuthority() {
         child: root,
     ]
 
-    #expect(!SpawnPolicy.isAuthorizedToRemove(child, requester: sibling, parents: parents, privilegedRequester: nil))
+    #expect(!SpawnPolicy.isAuthorizedToRemove(child, requester: sibling, parents: parents, privilegedRequesters: []))
 }

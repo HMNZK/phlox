@@ -136,6 +136,39 @@ struct AcceptanceCodexUserInputDismissTests {
         #expect(interrupted, "拒否はターンを中断すること（ゲート①の決定 D4）")
     }
 
+    @Test @MainActor
+    func ターン中断でも保留中の質問はwireを決着させる() async throws {
+        // 2026-08-01 追記（独立レビュー2回目の HIGH 指摘）: 拒否ボタン以外の中断経路
+        // （思考インジケータの中断ボタン・エラー経路・失効）でも、保留中の Codex 質問を
+        // 決着させないと terminate まで宙吊りになる。入口ごとではなく**ターンが終わる時点で**塞ぐ。
+        let client = DismissRecordingClient()
+        let broker = ChatApprovalBroker()
+        let vm = ChatSessionViewModel(
+            id: SessionID(),
+            agentRef: .builtin(.codex),
+            client: client,
+            approvalBroker: broker,
+            workingDirectory: "/tmp/phlox-codex-interrupt-test"
+        )
+
+        client.yield(.turnStarted)
+        _ = await waitUntil { vm.status == .running }
+
+        let handler = broker.serverRequestHandler
+        let box = WireBox()
+        Task {
+            _ = try? await handler(.userInputRequest(codexRequest()))
+            await box.mark()
+        }
+        _ = await waitUntil { firstQuestionRequestId(vm) != nil }
+
+        // 拒否ボタンではなく、汎用のターン中断を呼ぶ。
+        await vm.turnInterrupt()
+
+        let wireSettled = await settled(box)
+        #expect(wireSettled, "ターン中断でも保留中の質問を決着させること（Codex を宙吊りにしない）")
+    }
+
     @Test
     func 質問カードのdismissボタンが拒否経路へ配線されている() throws {
         // 到達性: `declineUserQuestion` を実装しても、カードの dismiss ボタンから呼ばれなければ

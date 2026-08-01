@@ -129,8 +129,13 @@ struct PM3Task2DashboardCorrectnessWhiteboxTests {
         let params = try #require(transport.capturedParams(for: "thread/resume").first)
         let approval = String(describing: params["approvalPolicy"] ?? "nil")
         let sandbox = String(describing: params["sandbox"] ?? "nil")
-        #expect(approval.contains("on-request"), "interactive 復元の approvalPolicy が on-request でない: \(approval)")
-        #expect(sandbox.contains("workspace-write"), "interactive 復元の sandbox が workspace-write でない: \(sandbox)")
+        // codex-full-access-approval task-3 以降、interactive のポリシーは設定「フルアクセス」に従う。
+        // このテストの意図は「復元経路が interactive のポリシーをそのまま渡す」ことなので、
+        // 固定値ではなく現行の interactive ポリシーと突き合わせる。
+        let expectedApproval = String(describing: SessionSpawnService.appServerApprovalPolicy(for: .interactive))
+        let expectedSandbox = String(describing: SessionSpawnService.appServerSandboxPolicy(for: .interactive))
+        #expect(expectedApproval.contains(approval), "interactive 復元の approvalPolicy が interactive ポリシーと不一致: \(approval) vs \(expectedApproval)")
+        #expect(expectedSandbox.contains(sandbox), "interactive 復元の sandbox が interactive ポリシーと不一致: \(sandbox) vs \(expectedSandbox)")
     }
 
     // A2a 網羅: makeChatSessionViewModel（factory）throw 時、登録済みトークンが tokenStore から除去される。

@@ -68,13 +68,22 @@ struct AcceptanceSessionOriginTests {
             SessionSpawnService.appServerSandboxPolicy(for: .remoteUser)
                 == SessionSpawnService.appServerSandboxPolicy(for: .interactive)
         )
+        // codex-full-access-approval task-3 以降、interactive/remoteUser のポリシーは
+        // 設定「フルアクセス」に従う。ON のときは orchestration と同値になるのが正しいので、
+        // 「CLI 内部サブセッション向けの緩いポリシーを無条件に継承しない」ことは
+        // **フルアクセス OFF** の状態で確かめる。
+        let suiteName = "phlox.tests.sessionorigin.fullaccess.off"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults.set(false, forKey: BypassSettings.codexKey)
+
         #expect(
-            SessionSpawnService.appServerApprovalPolicy(for: .remoteUser)
-                != SessionSpawnService.appServerApprovalPolicy(for: .orchestration)
+            SessionSpawnService.appServerApprovalPolicy(for: .remoteUser, defaults: defaults)
+                != SessionSpawnService.appServerApprovalPolicy(for: .orchestration, defaults: defaults)
         )
         #expect(
-            SessionSpawnService.appServerSandboxPolicy(for: .remoteUser)
-                != SessionSpawnService.appServerSandboxPolicy(for: .orchestration)
+            SessionSpawnService.appServerSandboxPolicy(for: .remoteUser, defaults: defaults)
+                != SessionSpawnService.appServerSandboxPolicy(for: .orchestration, defaults: defaults)
         )
     }
 

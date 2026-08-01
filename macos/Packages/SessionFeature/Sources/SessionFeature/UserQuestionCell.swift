@@ -2,6 +2,16 @@ import SwiftUI
 import DesignSystem
 import StructuredChatKit
 
+enum UserQuestionAnswerDisplay {
+    static let secretMask = String(repeating: "●", count: 8)
+
+    /// 回答済みカードで描画するラベルを生成する。
+    /// 秘密の回答は表示時だけ同一の固定長マスクへ置き換え、送信値は変更しない。
+    static func labels(for answers: [String], isSecret: Bool) -> [String] {
+        isSecret ? Array(repeating: secretMask, count: answers.count) : answers
+    }
+}
+
 /// AskUserQuestion の質問カード（task-2）。
 struct UserQuestionCell: View {
     let itemId: String
@@ -153,11 +163,16 @@ struct UserQuestionCell: View {
         question: ChatUserQuestion,
         scale: CGFloat
     ) -> some View {
+        let displayLabels = UserQuestionAnswerDisplay.labels(
+            for: selected,
+            isSecret: question.isSecret
+        )
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            ForEach(selected, id: \.self) { label in
+            ForEach(selected.indices, id: \.self) { index in
+                let answer = selected[index]
                 optionLabel(
-                    label: label,
-                    description: question.options.first { $0.label == label }?.description,
+                    label: displayLabels[index],
+                    description: question.options.first { $0.label == answer }?.description,
                     scale: scale,
                     isSelected: true,
                     isEnabled: false
@@ -237,18 +252,38 @@ struct UserQuestionCell: View {
     @ViewBuilder
     private func freeTextInput(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
         if isInteractive {
-            TextField("自由入力", text: binding(for: question.answerKey), axis: .vertical)
-                .textFieldStyle(.roundedBorder)
-                .font(ChatScaledFont.body(scale: scale))
-                .lineLimit(1...4)
-                .focused($focusedFreeTextQuestion, equals: question.answerKey)
-                .onChange(of: focusedFreeTextQuestion) { _, focusedQuestion in
-                    guard focusedQuestion == question.answerKey else { return }
-                    form.freeTextDidFocus(question: question.answerKey)
-                }
-                .accessibilityIdentifier("UserQuestionCell.freeText.\(question.answerKey)")
-                .disabled(isSubmitting)
+            if question.isSecret {
+                configuredFreeTextInput(
+                    SecureField("自由入力", text: binding(for: question.answerKey)),
+                    question: question,
+                    scale: scale
+                )
+            } else {
+                configuredFreeTextInput(
+                    TextField("自由入力", text: binding(for: question.answerKey), axis: .vertical)
+                        .lineLimit(1...4),
+                    question: question,
+                    scale: scale
+                )
+            }
         }
+    }
+
+    private func configuredFreeTextInput<Content: View>(
+        _ content: Content,
+        question: ChatUserQuestion,
+        scale: CGFloat
+    ) -> some View {
+        content
+            .textFieldStyle(.roundedBorder)
+            .font(ChatScaledFont.body(scale: scale))
+            .focused($focusedFreeTextQuestion, equals: question.answerKey)
+            .onChange(of: focusedFreeTextQuestion) { _, focusedQuestion in
+                guard focusedQuestion == question.answerKey else { return }
+                form.freeTextDidFocus(question: question.answerKey)
+            }
+            .accessibilityIdentifier("UserQuestionCell.freeText.\(question.answerKey)")
+            .disabled(isSubmitting)
     }
 
     private func binding(for questionText: String) -> Binding<String> {

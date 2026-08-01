@@ -203,7 +203,8 @@ public actor ChatApprovalBroker {
                         ChatUserQuestionOption(label: $0.label, description: $0.description)
                     } ?? [],
                     multiSelect: false,
-                    id: question.id
+                    id: question.id,
+                    isSecret: question.isSecret ?? false
                 )
             }
         )

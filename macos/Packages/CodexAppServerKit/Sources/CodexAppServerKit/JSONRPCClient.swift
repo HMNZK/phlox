@@ -42,6 +42,8 @@ public enum ServerRequest: Equatable, Sendable {
     case commandExecutionApproval(CommandExecutionApprovalRequest)
     case fileChangeApproval(FileChangeApprovalRequest)
     case permissionsApproval(PermissionsApprovalRequest)
+    /// モデルからユーザーへの質問（承認ではない）。task-0 で公開面を凍結し task-1 がデコードを実装する。
+    case userInputRequest(ToolRequestUserInputRequest)
     case unknown(method: String, params: JSONValue?)
 
     public var method: String {
@@ -52,6 +54,8 @@ public enum ServerRequest: Equatable, Sendable {
             return "item/fileChange/requestApproval"
         case .permissionsApproval:
             return "item/permissions/requestApproval"
+        case .userInputRequest:
+            return "item/tool/requestUserInput"
         case .unknown(let method, _):
             return method
         }

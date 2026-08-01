@@ -400,21 +400,31 @@ final class SessionSpawnService {
         return nil
     }
 
-    nonisolated static func appServerApprovalPolicy(for context: SessionLaunchContext) -> ApprovalPolicy {
+    // codex-full-access-approval task-0: `defaults` 引数は公開面の凍結（task-3 が本実装で使う）。
+    // 現時点では値を読まないため挙動は従来どおり。
+    nonisolated static func appServerApprovalPolicy(
+        for context: SessionLaunchContext,
+        defaults: UserDefaults = .phloxDefaults()
+    ) -> ApprovalPolicy {
+        _ = defaults
         switch context {
         case .interactive, .remoteUser:
-            .named("on-request")
+            return .named("on-request")
         case .orchestration:
-            .named("never")
+            return .named("never")
         }
     }
 
-    nonisolated static func appServerSandboxPolicy(for context: SessionLaunchContext) -> SandboxPolicy {
+    nonisolated static func appServerSandboxPolicy(
+        for context: SessionLaunchContext,
+        defaults: UserDefaults = .phloxDefaults()
+    ) -> SandboxPolicy {
+        _ = defaults
         switch context {
         case .interactive, .remoteUser:
-            .named("workspace-write")
+            return .named("workspace-write")
         case .orchestration:
-            .named("danger-full-access")
+            return .named("danger-full-access")
         }
     }
 

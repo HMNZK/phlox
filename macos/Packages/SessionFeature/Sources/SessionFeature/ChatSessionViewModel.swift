@@ -809,6 +809,15 @@ public final class ChatSessionViewModel: Identifiable {
     /// requestId を記録して真の同時二重回答（両方 true・answers の競合上書き）を防ぐ。
     private var respondingUserQuestionIds: Set<String> = []
 
+    /// 質問への回答を拒否する（codex-full-access-approval task-0 スタブ＝task-4 が本実装する）。
+    /// 本実装では broker の `declineUserInput` で wire を決着させ、続けてターンを中断する（決定 D4）。
+    /// 戻り値: 拒否を受理したら true。
+    @discardableResult
+    public func declineUserQuestion(requestId: String) async -> Bool {
+        _ = requestId
+        return false
+    }
+
     public func respondToUserQuestion(requestId: String, answers: [String: [String]]) async -> Bool {
         guard !respondingUserQuestionIds.contains(requestId),
               let index = userQuestionCardIndex(requestId: requestId),

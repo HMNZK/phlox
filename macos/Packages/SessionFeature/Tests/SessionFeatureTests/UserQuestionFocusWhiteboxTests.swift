@@ -74,8 +74,9 @@ struct UserQuestionFocusWhiteboxTests {
         let source = try cellSource()
 
         #expect(source.contains("@FocusState private var focusedFreeTextQuestion"))
-        #expect(source.contains(".focused($focusedFreeTextQuestion, equals: question.question)"))
-        #expect(source.contains("form.freeTextDidFocus(question: question.question)"))
+        // 回答キーは codex-full-access-approval task-0 で `question.answerKey`（id ?? 質問文）へ移行した。
+        #expect(source.contains(".focused($focusedFreeTextQuestion, equals: question.answerKey)"))
+        #expect(source.contains("form.freeTextDidFocus(question: question.answerKey)"))
         #expect(source.contains("form.freeTextDidChangeWhileFocused(question: questionText, text: newValue)"))
     }
 

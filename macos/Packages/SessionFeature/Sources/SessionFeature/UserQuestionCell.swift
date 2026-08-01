@@ -137,7 +137,7 @@ struct UserQuestionCell: View {
                 .font(ChatScaledFont.body(scale: scale).weight(.semibold))
                 .foregroundStyle(DSColor.chatTextPrimary)
 
-            if state == .answered, let selected = answers?[question.question], !selected.isEmpty {
+            if state == .answered, let selected = answers?[question.answerKey], !selected.isEmpty {
                 answeredLabels(selected, question: question, scale: scale)
             } else if state == .expired {
                 expiredQuestionBody(question, scale: scale)
@@ -198,7 +198,7 @@ struct UserQuestionCell: View {
 
     @ViewBuilder
     private func singleSelectOptions(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
-        let selected = form.selections[question.question, default: []]
+        let selected = form.selections[question.answerKey, default: []]
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             ForEach(question.options, id: \.label) { option in
                 optionLabel(
@@ -209,7 +209,7 @@ struct UserQuestionCell: View {
                     isEnabled: isInteractive && !isSubmitting
                 ) {
                     guard isInteractive, !isSubmitting else { return }
-                    form.selectSingle(question: question.question, label: option.label)
+                    form.selectSingle(question: question.answerKey, label: option.label)
                 }
             }
         }
@@ -217,7 +217,7 @@ struct UserQuestionCell: View {
 
     @ViewBuilder
     private func multiSelectOptions(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
-        let selections = form.selections[question.question, default: []]
+        let selections = form.selections[question.answerKey, default: []]
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             ForEach(question.options, id: \.label) { option in
                 optionLabel(
@@ -228,7 +228,7 @@ struct UserQuestionCell: View {
                     isEnabled: isInteractive && !isSubmitting
                 ) {
                     guard isInteractive, !isSubmitting else { return }
-                    form.toggleMulti(question: question.question, label: option.label)
+                    form.toggleMulti(question: question.answerKey, label: option.label)
                 }
             }
         }
@@ -237,16 +237,16 @@ struct UserQuestionCell: View {
     @ViewBuilder
     private func freeTextInput(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
         if isInteractive {
-            TextField("自由入力", text: binding(for: question.question), axis: .vertical)
+            TextField("自由入力", text: binding(for: question.answerKey), axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .font(ChatScaledFont.body(scale: scale))
                 .lineLimit(1...4)
-                .focused($focusedFreeTextQuestion, equals: question.question)
+                .focused($focusedFreeTextQuestion, equals: question.answerKey)
                 .onChange(of: focusedFreeTextQuestion) { _, focusedQuestion in
-                    guard focusedQuestion == question.question else { return }
-                    form.freeTextDidFocus(question: question.question)
+                    guard focusedQuestion == question.answerKey else { return }
+                    form.freeTextDidFocus(question: question.answerKey)
                 }
-                .accessibilityIdentifier("UserQuestionCell.freeText.\(question.question)")
+                .accessibilityIdentifier("UserQuestionCell.freeText.\(question.answerKey)")
                 .disabled(isSubmitting)
         }
     }

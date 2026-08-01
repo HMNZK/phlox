@@ -1,6 +1,7 @@
 import Foundation
 import AgentDomain
 import CodexAppServerKit
+import StructuredChatKit
 
 // Hidden secret: session DTOs and app-server conversion adapters shared by chat sessions.
 public enum ChatApprovalKind: Sendable, Equatable {
@@ -16,6 +17,32 @@ public struct ChatApprovalRequest: Identifiable, Equatable, Sendable {
     public let turnId: String
     public let itemId: String
     public let prompt: String
+}
+
+/// Codex の `item/tool/requestUserInput`（モデル→ユーザーの質問）1件。
+/// **承認ではない**ので `ChatApprovalRequest` とは別型にする（codex-full-access-approval task-0 契約）。
+/// `questions` の各要素は `ChatUserQuestion.id` に codex の `questions[].id` を保持しており、
+/// 回答ディクショナリのキーはその id（＝`answerKey`）になる。
+public struct ChatUserInputRequest: Identifiable, Equatable, Sendable {
+    public let id: UUID
+    public let threadId: String
+    public let turnId: String
+    public let itemId: String
+    public let questions: [ChatUserQuestion]
+
+    public init(
+        id: UUID,
+        threadId: String,
+        turnId: String,
+        itemId: String,
+        questions: [ChatUserQuestion]
+    ) {
+        self.id = id
+        self.threadId = threadId
+        self.turnId = turnId
+        self.itemId = itemId
+        self.questions = questions
+    }
 }
 
 public struct RunningBackgroundTask: Identifiable, Equatable, Sendable {

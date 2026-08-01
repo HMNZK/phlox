@@ -16,10 +16,31 @@ public actor ChatApprovalBroker {
     private let continuation: AsyncStream<ChatApprovalRequest>.Continuation
     public let requests: AsyncStream<ChatApprovalRequest>
 
+    /// Codex の `item/tool/requestUserInput`（質問）を流すストリーム。承認とは別経路。
+    /// codex-full-access-approval task-0 で公開面を凍結し、task-2 が本実装する。
+    private let userInputContinuation: AsyncStream<ChatUserInputRequest>.Continuation
+    public let userInputRequests: AsyncStream<ChatUserInputRequest>
+
     public init() {
         var continuation: AsyncStream<ChatApprovalRequest>.Continuation?
         self.requests = AsyncStream { continuation = $0 }
         self.continuation = continuation!
+
+        var userInputContinuation: AsyncStream<ChatUserInputRequest>.Continuation?
+        self.userInputRequests = AsyncStream { userInputContinuation = $0 }
+        self.userInputContinuation = userInputContinuation!
+    }
+
+    /// 質問への回答を wire へ返す（task-0 スタブ＝task-2 が本実装する）。
+    /// `answers` のキーは `ChatUserQuestion.answerKey`（＝codex の `questions[].id`）。
+    public func answerUserInput(id: UUID, answers: [String: [String]]) {
+        _ = (id, answers)
+    }
+
+    /// 質問への回答を拒否し、wire を空回答で決着させる（task-0 スタブ＝task-2 が本実装する）。
+    /// ターンの中断そのものは呼び出し元（ViewModel）の責務。
+    public func declineUserInput(id: UUID) {
+        _ = id
     }
 
     public nonisolated var serverRequestHandler: JSONRPCClient.ServerRequestHandler {
@@ -113,14 +134,16 @@ public actor ChatApprovalBroker {
                 itemId: value.itemId,
                 prompt: value.reason ?? "Permission approval requested"
             )
-        case .unknown(let method, _):
+        // task-0 スタブ: 質問も一旦は従来どおり「未対応の要求」として扱う（挙動不変）。
+        // task-2 が userInputRequests へ振り分ける本実装に置き換える。
+        case .userInputRequest, .unknown:
             ChatApprovalRequest(
                 id: UUID(),
                 kind: .permissions,
                 threadId: "",
                 turnId: "",
                 itemId: "",
-                prompt: "Unsupported server request: \(method)"
+                prompt: "Unsupported server request: \(request.method)"
             )
         }
     }

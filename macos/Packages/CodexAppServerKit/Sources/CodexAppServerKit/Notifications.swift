@@ -130,6 +130,69 @@ public struct PermissionsApprovalRequest: Codable, Equatable, Sendable {
     public var permissions: JSONValue
 }
 
+/// `item/tool/requestUserInput` の選択肢 1 件（codex app-server の
+/// `ToolRequestUserInputOption` と 1:1。task-0 契約）。
+public struct ToolRequestUserInputOption: Codable, Equatable, Sendable {
+    public var label: String
+    public var description: String
+
+    public init(label: String, description: String) {
+        self.label = label
+        self.description = description
+    }
+}
+
+/// `item/tool/requestUserInput` の質問 1 件（`ToolRequestUserInputQuestion` と 1:1。task-0 契約）。
+/// `options` が nil のときは自由入力。`isOther` / `isSecret` は省略時 false。
+public struct ToolRequestUserInputQuestion: Codable, Equatable, Sendable {
+    public var id: String
+    public var header: String
+    public var question: String
+    public var options: [ToolRequestUserInputOption]?
+    public var isOther: Bool?
+    public var isSecret: Bool?
+
+    public init(
+        id: String,
+        header: String,
+        question: String,
+        options: [ToolRequestUserInputOption]? = nil,
+        isOther: Bool? = nil,
+        isSecret: Bool? = nil
+    ) {
+        self.id = id
+        self.header = header
+        self.question = question
+        self.options = options
+        self.isOther = isOther
+        self.isSecret = isSecret
+    }
+}
+
+/// `item/tool/requestUserInput` のパラメータ（`ToolRequestUserInputParams` と 1:1。task-0 契約）。
+/// これは承認要求ではなく「モデルからユーザーへの質問」であり、承認ポリシーの管轄外である。
+public struct ToolRequestUserInputRequest: Codable, Equatable, Sendable {
+    public var threadId: String
+    public var turnId: String
+    public var itemId: String
+    public var questions: [ToolRequestUserInputQuestion]
+    public var autoResolutionMs: Int?
+
+    public init(
+        threadId: String,
+        turnId: String,
+        itemId: String,
+        questions: [ToolRequestUserInputQuestion],
+        autoResolutionMs: Int? = nil
+    ) {
+        self.threadId = threadId
+        self.turnId = turnId
+        self.itemId = itemId
+        self.questions = questions
+        self.autoResolutionMs = autoResolutionMs
+    }
+}
+
 public typealias ApprovalDecision = AgentDomain.ApprovalDecision
 
 public struct ApprovalDecisionResponse: Codable, Equatable, Sendable {

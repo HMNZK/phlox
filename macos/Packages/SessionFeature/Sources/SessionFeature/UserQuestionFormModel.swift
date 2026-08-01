@@ -58,13 +58,14 @@ struct UserQuestionFormModel {
         questions.allSatisfy { isAnswered($0) }
     }
 
-    /// 送信ペイロード（質問文 → 回答 label 配列）。canSubmit == false のときは nil。
+    /// 送信ペイロード（回答キー → 回答 label 配列）。canSubmit == false のときは nil。
+    /// キーは `ChatUserQuestion.answerKey`（id があればそれ、無ければ質問文）。
     var payload: [String: [String]]? {
         guard canSubmit else { return nil }
         var result: [String: [String]] = [:]
         for question in questions {
             guard let labels = answerLabels(for: question) else { return nil }
-            result[question.question] = labels
+            result[question.answerKey] = labels
         }
         return result
     }
@@ -74,18 +75,18 @@ struct UserQuestionFormModel {
     }
 
     private func isAnswered(_ question: ChatUserQuestion) -> Bool {
-        if !trimmedFreeText(for: question.question).isEmpty {
+        if !trimmedFreeText(for: question.answerKey).isEmpty {
             return true
         }
-        return !selections[question.question, default: []].isEmpty
+        return !selections[question.answerKey, default: []].isEmpty
     }
 
     private func answerLabels(for question: ChatUserQuestion) -> [String]? {
-        let trimmed = trimmedFreeText(for: question.question)
+        let trimmed = trimmedFreeText(for: question.answerKey)
         if !trimmed.isEmpty {
             return [trimmed]
         }
-        let selected = selections[question.question, default: []]
+        let selected = selections[question.answerKey, default: []]
         guard !selected.isEmpty else { return nil }
         if question.multiSelect {
             return selected.sorted()

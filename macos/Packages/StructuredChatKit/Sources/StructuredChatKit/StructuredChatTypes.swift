@@ -76,13 +76,29 @@ public struct ChatUserQuestion: Codable, Equatable, Sendable {
     public let header: String
     public let options: [ChatUserQuestionOption]
     public let multiSelect: Bool
+    /// 回答ディクショナリの安定キー（codex-full-access-approval task-0 契約）。
+    /// nil のときは質問文 `question` をキーにする（Claude 経路は nil のまま＝挙動不変）。
+    /// Codex の `item/tool/requestUserInput` は `questions[].id` を回答キーに要求するため、
+    /// 同一文言の質問が複数あっても取り違えないよう、この id を運ぶ。
+    /// Optional なので synthesized Codable は nil を JSON に書き出さない（既存の永続データと互換）。
+    public let id: String?
 
-    public init(question: String, header: String, options: [ChatUserQuestionOption], multiSelect: Bool) {
+    public init(
+        question: String,
+        header: String,
+        options: [ChatUserQuestionOption],
+        multiSelect: Bool,
+        id: String? = nil
+    ) {
         self.question = question
         self.header = header
         self.options = options
         self.multiSelect = multiSelect
+        self.id = id
     }
+
+    /// 回答ディクショナリのキー。id があればそれ、無ければ質問文。
+    public var answerKey: String { id ?? question }
 }
 
 /// 保留中の質問がどう決着したか。answered は VM 起点の回答、expired は turn 中断・

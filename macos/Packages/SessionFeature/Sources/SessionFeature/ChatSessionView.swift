@@ -180,7 +180,8 @@ public struct ChatSessionView: View {
                         subAgents: viewModel.stripSubAgents,
                         selectedSubAgentId: viewModel.selectedSubAgentId,
                         onJump: { requestedTranscriptTarget = $0 },
-                        onSelectSubAgent: toggleSubAgentSelection
+                        onSelectSubAgent: toggleSubAgentSelection,
+                        onDismissSubAgent: { viewModel.dismissSubAgent($0) }
                     )
                 }
                 // composer は ScrollView の上に浮かせ、ScrollView 自体は画面下端まで広げる。

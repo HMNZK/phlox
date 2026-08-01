@@ -877,6 +877,10 @@ public final class ChatSessionViewModel: Identifiable {
         subAgentModel.selectSubAgent(id)
     }
 
+    public func dismissSubAgent(_ id: String) {
+        subAgentModel.dismissSubAgent(id)
+    }
+
     public func subAgentTranscript(for id: String) -> [ChatItem] {
         subAgentModel.transcript(for: id)
     }

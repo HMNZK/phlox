@@ -16,6 +16,8 @@ last-verified: 2026-08-01
 | 0156 | [フルアクセス設定を app-server セッションの承認・サンドボックス方針へ適用する](0156-full-access-setting-applies-to-app-server.md) | accepted |
 | 0155 | [`item/tool/requestUserInput` は既存の質問カードで受ける（拒否はターン中断）](0155-codex-request-user-input-as-question-card.md) | accepted |
 | 0154 | [codex app-server の未対応 server request を承認バナーに化けさせない](0154-codex-unsupported-server-request-is-not-an-approval.md) | accepted |
+| 0153 | [タイル内クリックでの即時選択は「イベントを消費しないローカル監視」で行う](0153-pane-tile-click-selection.md) | accepted |
+| 0152 | [サブエージェントタブの「閉じる」はストリップからの除去だけを行う](0152-subagent-strip-dismiss.md) | accepted |
 | 0151 | [PTY spawn は継承可能な fd を既定で close-on-exec にする（`POSIX_SPAWN_CLOEXEC_DEFAULT`）](0151-pty-spawn-fd-hygiene.md) | accepted |
 | 0150 | [エディタパネルの git 連動仕様（変更一覧の一本化・保存競合・不変条件の意味論化）](0150-editor-panel-git-semantics.md) | accepted |
 | 0149 | [ユーザーターミナルはセッション非依存・cwd はホーム固定・シェルは閉じても保持](0149-user-terminal-lifecycle.md) | accepted |

@@ -26,6 +26,7 @@ last-verified: 2026-07-28
 | ドラッグ | `PaneDividerDragMachine` / `PaneDividerInteraction` | SwiftUI / AppKit を import しない純粋型。`changed` は**必ず nil を返す**（＝ドラッグ中はレイアウトを更新できない） |
 | ドロップ判定 | `PaneDropZone.target(for:in:)` | タイル内のローカル座標から `.swap` / `.split(edge)` を決める。4辺への距離を**絶対値**の比で測り、点がタイルの外なら常に最も近い辺への split |
 | 描画 | `PaneLayoutView` / `PaneDividerHandleView`（SessionFeature） | フラットな `ZStack` にタイルを絶対配置し、分割線ハンドルを最前面に置く |
+| クリック選択 | `PaneTileClickSelectionPolicy` / `PaneTileClickSelector` / `PaneTileClickObserver` / `PaneTileWindowFrameSource`（SessionFeature） | タイル矩形内の左マウスダウンで即選択する（ADR 0153）。`NSEvent` のローカル監視だが**イベントは無変更で素通し**し、矩形はクリックのたびに backing view から取り直す（キャッシュしない） |
 | 殻 | `SessionGridView` | `PaneLayoutView` を包み、余白と背景だけを与える薄いラッパ |
 | 永続化 | `PaneLayoutStore`（DashboardFeature） | キー `phlox.grid.paneLayout`。保存失敗時も throw せず、壊れたデータは nil を返して既定へフォールバック |
 | 配線 | `DashboardViewModel.paneLayout` / `paneLayoutForDisplay()` / `handlePaneLayoutAction(_:)` / `reconcilePaneLayout(persist:)` | 永続ツリーの保持と、描画用の実効ツリーの導出 |
@@ -68,6 +69,10 @@ last-verified: 2026-07-28
   `onLayoutAction` を呼ぶ。
 - **タイルヘッダーは `.draggable` をゼロ距離 `DragGesture` より先に適用する。** 順序が逆だとゼロ距離の
   DragGesture がマウスダウンを取り切り、ドラッグセッションが開始しない（ADR 0136 の受容残余）。
+- **タイル選択のためにマウスダウンを消費しない。** クリック選択のローカル監視は受け取った `NSEvent` を
+  必ずそのまま返す（`AcceptancePaneTileClickPassthroughTests` が凍結）。飲み込むとアプリ全体のクリックが死ぬ。
+- **タイル矩形をキャッシュしない。** `.position` による原点だけの移動では AppKit の `layout()` が呼ばれず、
+  push したキャッシュが陳腐化して別セッションを誤選択する（ADR 0153）。
 - `LazyVStack` / `LazyHStack` を使わない（ADR 0030）。`fixedSize` を新規に足さない（ADR 0045 の趣旨）。
 - view body 評価中に `@Observable` を変更しない（ADR 0010）。
 
@@ -88,6 +93,8 @@ last-verified: 2026-07-28
 | `AcceptancePaneTreeTests` | モデルの不変条件・操作の純粋性・幾何（bounds への接触・spacing・退化ケース） |
 | `ContractPaneTreeCodableTests` | `Codable` の往復とスキーマ互換 |
 | `AcceptancePaneDividerDragTests` / `ContractPaneDividerCommitTests` | `changed` が決してレイアウト操作を返さないこと（ADR 0116 の防壁） |
+| `AcceptancePaneTileClickSelectionTests` | タイル矩形内クリックでの選択条件（半開区間・選択済みなら非発火・矩形未確定なら非発火） |
+| `AcceptancePaneTileClickPassthroughTests` | ローカル監視が左マウスダウンを消費しないこと（ADR 0153 の防壁） |
 | `AcceptancePaneLayoutViewTests` | 描画の制約（フラット ZStack・`.id`・禁止修飾子・純粋型経由・`.draggable` の適用順） |
 | `AcceptancePaneLayoutVMTests` / `ContractPaneLayoutPersistenceTests` | 永続ツリーと実効ツリーの分離・書き込み経路・永続化の往復 |
 | `AcceptancePaneLayoutPresetMenuTests` | プリセットの一覧と幾何、トップバーとグリッドへの配線 |

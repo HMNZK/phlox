@@ -63,7 +63,8 @@ Claude Code stdout (stream-json)
 
 ## 表示（`ChatSessionView`）
 
-- **ストリップ**（上部チップ）: `stripSubAgents`（`status != .completed`）を表示。単一は `SessionActivityOverlayStrip`（`.safeAreaInset(edge:.top)`）、グリッドは `GridChatColumn` の `SubAgentStrip`。完了は非表示。
+- **ストリップ**（上部チップ）: `stripSubAgents`（`status != .completed` かつ**閉じられていない**もの）を表示。単一は `SessionActivityOverlayStrip`（`.safeAreaInset(edge:.top)`）、グリッドは `GridChatColumn` の `SubAgentStrip`。完了は非表示。
+- **タブを閉じる**（ADR 0152）: タブをホバーすると閉じるボタン（`xmark`）が現れ、`dismissSubAgent(id:)` がその id をストリップから除く。可視性・ヒットテストは純粋関数 `SubAgentDismissButtonPresentation` が決める。閉じた id は sticky（後着イベントで復活しない）。`subAgents` 本体からは消さないので、インラインマーカー／ドロワーからは引き続き閲覧できる。閉じた対象が選択中なら選択はメイン（nil）へ戻る。永続化はしない。
 - **選択時の表示**:
   - シングル: `ChatSessionView` の HStack 水平分割。左=メイン（縮む）／右=`SubAgentDrawerView`。境界は 1pt separator ＋ `ResizeGripView`（`.overlay(.topTrailing)`＋offset）。幅は `SubAgentSplitLayout.paneWidth(fraction:availableWidth:)`（既定 0.42・下限 320・上限 60%）、比率は `@AppStorage("phlox.chat.subAgentPaneFraction")` 永続。
   - グリッド: `GridChatColumn` がタイル内で `selectedSubAgentTranscript` を表示（メイン⇔サブを置換）。
@@ -74,4 +75,4 @@ Claude Code stdout (stream-json)
 
 ## 受け入れテスト（契約）
 
-`Packages/ClaudeAgentKit/Tests/.../SubAgentPromptDisplayAcceptanceTests`・`SubAgentIsolationAcceptanceTests`・`AcceptanceSubAgentActivityItemIdTests`、`Packages/SessionFeature/Tests/.../AcceptanceSubAgentTranscriptMergeTests`・`AcceptanceSubAgentDrawerParityTests`・`AcceptanceSubAgentStopParityTests`、`Packages/DashboardFeature/Tests/.../SubAgentSplitLayoutAcceptanceTests`・`SubAgentTranscriptMergeAcceptanceTests`・`SubAgentReasoningPreferenceAcceptanceTests`・`SubAgentOutputDedupAcceptanceTests`・`SubAgentStripFilterAcceptanceTests`・`SubAgentTranscriptCacheAcceptanceTests`・`SubAgentTranscriptSourceRuleAcceptanceTests`、`Packages/ClaudeAgentKit/Tests/.../AcceptanceSubAgentToolIdentityTests`、`Packages/SessionFeature/Tests/.../AcceptanceSubAgentLiveToolMergeTests`。
+`Packages/ClaudeAgentKit/Tests/.../SubAgentPromptDisplayAcceptanceTests`・`SubAgentIsolationAcceptanceTests`・`AcceptanceSubAgentActivityItemIdTests`、`Packages/SessionFeature/Tests/.../AcceptanceSubAgentTranscriptMergeTests`・`AcceptanceSubAgentDrawerParityTests`・`AcceptanceSubAgentStopParityTests`、`Packages/DashboardFeature/Tests/.../SubAgentSplitLayoutAcceptanceTests`・`SubAgentTranscriptMergeAcceptanceTests`・`SubAgentReasoningPreferenceAcceptanceTests`・`SubAgentOutputDedupAcceptanceTests`・`SubAgentStripFilterAcceptanceTests`・`SubAgentDismissAcceptanceTests`・`SubAgentTranscriptCacheAcceptanceTests`・`SubAgentTranscriptSourceRuleAcceptanceTests`、`Packages/ClaudeAgentKit/Tests/.../AcceptanceSubAgentToolIdentityTests`、`Packages/SessionFeature/Tests/.../AcceptanceSubAgentLiveToolMergeTests`。

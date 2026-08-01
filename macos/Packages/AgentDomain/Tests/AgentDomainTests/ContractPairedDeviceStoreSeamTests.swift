@@ -37,6 +37,15 @@ private func runStoreContract(_ store: any PairedDeviceStore) throws {
     let bothIDs = Set(try store.loadAll().map(\.id))
     #expect(bothIDs == Set([first.id, second.id]))
 
+    // 3b. 同一 id の再 upsert は置換であり、重複しない（実装に依らず成立する不変条件）。
+    var renamed = second
+    renamed.name = "second-renamed"
+    try store.upsert(renamed)
+    let afterRename = try store.loadAll()
+    #expect(afterRename.count == 2)
+    #expect(Set(afterRename.map(\.id)) == Set([first.id, second.id]))
+    #expect(afterRename.first(where: { $0.id == second.id })?.name == "second-renamed")
+
     // 4. remove は対象だけを落とす。
     try store.remove(id: first.id)
     #expect(try store.loadAll().map(\.id) == [second.id])
@@ -45,6 +54,15 @@ private func runStoreContract(_ store: any PairedDeviceStore) throws {
     let a = makeDevice(name: "a")
     let b = makeDevice(name: "b")
     try store.replaceAll([a, b])
+    #expect(try store.loadAll().map(\.id) == [a.id, b.id])
+
+    // 5b. id の一意性はストアの不変条件。重複 id を含む replaceAll は保存せず throw する。
+    //     （PairedDevice は Identifiable であり、UI は id で一意に並べるため）
+    var clone = a
+    clone.name = "a-clone"
+    #expect(throws: PairedDeviceStoreError.duplicateID(a.id)) {
+        try store.replaceAll([a, b, clone])
+    }
     #expect(try store.loadAll().map(\.id) == [a.id, b.id])
 
     // 6. purgeLegacySingleToken は端末一覧を壊さない。

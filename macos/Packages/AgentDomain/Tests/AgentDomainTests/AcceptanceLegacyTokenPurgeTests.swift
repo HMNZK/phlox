@@ -28,6 +28,22 @@ private let legacyRequesterAccount = "mobile-token.requester"
     #expect(try accessor.loadData(service: service, account: legacyRequesterAccount) == nil)
 }
 
+// 旧モデルの項目は kSecUseDataProtectionKeychain を付けずに書かれている＝ファイルベース側にある。
+// DPK が有効な環境では、新ストアが使うドメインへ削除を出しても空振りする（errSecItemNotFound は成功扱い）。
+// 「移行したつもりで旧 Bearer トークンが残る」ことを防ぐため、purge は両ドメインを対象にする。
+@Test func purgeLegacySingleToken_deletesFileBasedLegacyItems_whenBackendIsDataProtection() throws {
+    let service = "com.phlox.test.\(UUID().uuidString)"
+    let accessor = InMemoryKeychainAccessor(dataProtectionWriteStatus: errSecSuccess)
+    accessor.seedFileBasedItem(Data("legacy-token".utf8), service: service, account: legacyTokenAccount)
+    accessor.seedFileBasedItem(Data(UUID().uuidString.utf8), service: service, account: legacyRequesterAccount)
+    #expect(accessor.fileBasedItemCount(service: service) == 2)
+
+    let store = KeychainPairedDeviceStore(accessor: accessor, service: service)
+    try store.purgeLegacySingleToken()
+
+    #expect(accessor.fileBasedItemCount(service: service) == 0)
+}
+
 @Test func purgeLegacySingleToken_isIdempotent_andSucceedsWhenNothingToPurge() throws {
     let service = "com.phlox.test.\(UUID().uuidString)"
     let accessor = InMemoryKeychainAccessor(dataProtectionWriteStatus: errSecSuccess)

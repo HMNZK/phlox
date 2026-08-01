@@ -11,13 +11,13 @@ import AppKit
 @MainActor
 struct PaneTileClickPassthroughAcceptanceTests {
 
-    private func leftMouseDownEvent() throws -> NSEvent {
+    private func leftMouseDownEvent(windowNumber: Int = 0) throws -> NSEvent {
         try #require(NSEvent.mouseEvent(
             with: .leftMouseDown,
             location: NSPoint(x: 20, y: 30),
             modifierFlags: [],
             timestamp: 0,
-            windowNumber: 0,
+            windowNumber: windowNumber,
             context: nil,
             eventNumber: 0,
             clickCount: 1,
@@ -66,10 +66,10 @@ struct PaneTileClickPassthroughAcceptanceTests {
         )
         observer.start()
 
-        let event = try leftMouseDownEvent()
+        let event = try leftMouseDownEvent(windowNumber: window.windowNumber)
         let handler = try #require(captured)
 
         #expect(handler(event) === event, "left mouse down must be passed through untouched")
-        #expect(selections == 0, "an event from another window must not select this tile")
+        #expect(selections == 1, "a click inside the unfocused tile must select it")
     }
 }

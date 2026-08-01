@@ -850,11 +850,12 @@ public final class ChatSessionViewModel: Identifiable {
         }
 
         await client.respondToUserQuestion(requestId: requestId, answers: answers)
+        let persistedAnswers = ChatUserQuestion.persistedAnswers(from: answers, for: questions)
         appendOrReplace(.userQuestion(
             id: id,
             requestId: rid,
             questions: questions,
-            answers: answers,
+            answers: persistedAnswers,
             state: .answered,
             timestamp: timestamp
         ))
@@ -1510,11 +1511,15 @@ public final class ChatSessionViewModel: Identifiable {
                 status = .running
             }
             guard state != .answered else { return }
+            let persistedAnswers = ChatUserQuestion.persistedAnswers(
+                from: resolvedAnswers,
+                for: questions
+            )
             appendOrReplace(.userQuestion(
                 id: id,
                 requestId: rid,
                 questions: questions,
-                answers: resolvedAnswers,
+                answers: persistedAnswers,
                 state: .answered,
                 timestamp: timestamp
             ))

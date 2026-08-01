@@ -115,6 +115,23 @@ public struct ChatUserQuestion: Codable, Equatable, Sendable {
 
     /// 回答ディクショナリのキー。id があればそれ、無ければ質問文。
     public var answerKey: String { id ?? question }
+
+    /// 転写・永続化用の回答へ変換する。
+    /// 秘密の回答は固定長の文字列に置き換え、平文を転写以後に保持しない。
+    public static func persistedAnswers(
+        from answers: [String: [String]],
+        for questions: [ChatUserQuestion]
+    ) -> [String: [String]] {
+        let secretKeys = Set(questions.lazy.filter(\.isSecret).map(\.answerKey))
+        var persisted = answers
+        for key in secretKeys {
+            guard let values = persisted[key] else { continue }
+            persisted[key] = Array(repeating: secretAnswerMask, count: values.count)
+        }
+        return persisted
+    }
+
+    private static let secretAnswerMask = String(repeating: "●", count: 8)
 }
 
 /// 保留中の質問がどう決着したか。answered は VM 起点の回答、expired は turn 中断・

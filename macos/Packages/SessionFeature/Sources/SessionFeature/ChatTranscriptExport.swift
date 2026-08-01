@@ -148,7 +148,7 @@ public enum ChatTranscriptExporter {
                 for option in question.options {
                     lines.append("- \(option.label)\(option.description.map { " — \($0)" } ?? "")")
                 }
-                if let selected = answers?[question.question], !selected.isEmpty {
+                if let selected = answers?[question.answerKey], !selected.isEmpty {
                     lines.append("")
                     lines.append("→ 回答: \(selected.joined(separator: " / "))")
                 }

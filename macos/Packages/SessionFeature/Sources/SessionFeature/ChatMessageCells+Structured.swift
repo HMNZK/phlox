@@ -92,12 +92,12 @@ struct ThinkingIndicatorCell: View {
         self.isInTranscriptViewport = isInTranscriptViewport
     }
 
-    /// セルのライフサイクル、transcript の viewport、シーンのアクティブ状態から導出する。
+    /// セルのライフサイクル、transcript の viewport、シーンがバックグラウンドではないことから導出する。
     private var isTimelineVisible: Bool {
         ThinkingAnimationModel.isTimelineVisible(
             isInViewHierarchy: isInViewHierarchy,
             isInTranscriptViewport: isInTranscriptViewport,
-            isSceneActive: scenePhase == .active
+            scenePhase: scenePhase
         )
     }
 

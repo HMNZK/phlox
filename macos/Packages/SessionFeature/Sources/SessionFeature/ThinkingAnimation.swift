@@ -16,9 +16,9 @@ enum ThinkingAnimationModel {
     static func isTimelineVisible(
         isInViewHierarchy: Bool,
         isInTranscriptViewport: Bool,
-        isSceneActive: Bool
+        scenePhase: ScenePhase
     ) -> Bool {
-        isInViewHierarchy && isInTranscriptViewport && isSceneActive
+        isInViewHierarchy && isInTranscriptViewport && scenePhase != .background
     }
 }
 

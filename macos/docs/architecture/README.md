@@ -31,6 +31,7 @@ last-verified: 2026-08-01
 | `claude-usage-supply.md` | Claude Usage（5h/7d 残量）キャッシュの供給経路（statusLine＋`/usage` プローブ） |
 | `design-system.md` | Phlox デザインシステム（macOS 本体・`Packages/DesignSystem`） |
 | `mobile-proxy.md` | モバイル連携（Tailscale→MobileProxy→ControlServer、トークン・API・バインド方針） |
+| `mobile-device-pairing.md` | 端末別モバイルトークンと Keychain 保護（`PairedDevice`・DPK/ファイルベースの選択・起動シーケンス・発行/失効） |
 | `team-timeline-view.md` | チームビュー (Beta)（旧アゴラ・グループチャット）の構造 |
 | `session-pane-layout.md` | グリッドビューの分割ツリーレイアウト（モデル/幾何/操作/描画制約/永続ツリーと実効ツリー） |
 | `session-grid-layout.md` | **superseded** → session-pane-layout.md（旧 固定 N×N・セル結合） |

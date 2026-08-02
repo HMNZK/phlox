@@ -21,7 +21,7 @@ phlox://pair?v=1&host=<HOST>&port=<PORT>&token=<TOKEN>&name=<NAME>
 | `v` | 必須 | 固定値 `1` | 契約バージョン。iOS 側は `1` 以外を拒否しエラー表示する |
 | `host` | 必須 | Tailscale IPv4（dotted quad、例 `100.64.12.34`） | MobileProxy の待受アドレス。**スキャン時点の値**であり、Tailscale IP が変わったら再ペアリング（QR は Mac 側で都度生成・キャッシュしない） |
 | `port` | 必須 | 10 進整数（1–65535） | MobileProxy の待受ポート |
-| `token` | 必須 | 64 文字の16進小文字 `[0-9a-f]{64}` | モバイルトークン（[apns-companion-contract.md](apns-companion-contract.md) と同一のもの。Bearer 認証に使う） |
+| `token` | 必須 | 64 文字の16進小文字 `[0-9a-f]{64}` | モバイルトークン（Bearer 認証に使う）。**2026-08-02 以降は端末ごとに 1 本発行される**（→ ADR [0159](../adr/0159-data-protection-keychain-and-per-device-mobile-tokens.md)）。形式・用途は変わらないため契約 v1 は不変 |
 | `name` | 任意 | percent-encoded UTF-8 | 接続先 Mac の表示名（iOS 側の接続一覧表示用） |
 
 - パラメータ順序は上表のとおり固定（`v` → `host` → `port` → `token` → `name`）。iOS 側は順序に依存せずパースしてよいが、Mac 側は固定順で生成する。
@@ -31,7 +31,7 @@ phlox://pair?v=1&host=<HOST>&port=<PORT>&token=<TOKEN>&name=<NAME>
 ## Mac 側（本リポジトリ）の実装要件
 
 1. ペイロード生成: `Packages/MobileProxy` の `PairingPayload`（host/port/token/name → 上記 URL 文字列。検証付き・ユニットテストで固定）。
-2. QR 表示: 設定画面のモバイル接続セクション（`isCompanionClientBundled` ゲート配下 = iOS アプリ同梱まで非表示）。CoreImage `CIFilter.qrCodeGenerator` で描画。明示操作で表示・60秒で自動非表示・トークン再発行時は即時更新。
+2. QR 表示: 設定画面のモバイル接続セクション（`isCompanionClientBundled` ゲート配下 = iOS アプリ同梱まで非表示）。CoreImage `CIFilter.qrCodeGenerator` で描画。明示操作で表示・60秒で自動非表示。**「QR を表示」のたびに新しい端末を発行し、その端末のトークンで QR を作る**（既存端末は切れない。旧「トークンを再発行」は端末単位の失効へ置き換えた → [architecture/mobile-device-pairing.md](../architecture/mobile-device-pairing.md)）。
 
 ## iOS 側（Phlox-mobile）への実装依頼
 

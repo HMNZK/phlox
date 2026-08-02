@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-30
+last-verified: 2026-08-02
 ---
 
 # モバイル連携（MobileProxy・ControlServer）
@@ -99,17 +99,13 @@ ControlActionHandler  … Packages/AppBootstrap/Sources/AppBootstrap/ControlActi
 
 ### 永続化
 
+> **2026-08-02 更新**: トークンは**単一・全権**から**端末ごとに 1 本**へ変わった（`PairedDevice` / `PairedDeviceStore` / `MobileDeviceProvisioner`）。旧 `KeychainMobileTokenStore` / `MobileTokenProvisioner` と、それらが持っていた `regenerate()`（全端末を一斉に切る再発行）は廃止された。永続化・起動シーケンス・発行/失効の現行仕様は
+> **[mobile-device-pairing.md](mobile-device-pairing.md)** を参照（決定の理由は ADR [0159](../adr/0159-data-protection-keychain-and-per-device-mobile-tokens.md)）。
+
 | 実装 | 用途 | 保存先 |
 |---|---|---|
-| `KeychainMobileTokenStore` | 本番 | Keychain `kSecClassGenericPassword`。service は `AppFlavor.current.mobileTokenKeychainService`（Release: `com.phlox.Phlox.mobileToken` / Debug: `com.phlox.Phlox.debug.mobileToken`）。token と requester SessionID を別 account で upsert（`MobileTokenStore.swift:51-75`, `136-155`） |
-| `InMemoryMobileTokenStore` | テスト・フォールバック | プロセス内メモリのみ（`MobileTokenStore.swift:17-48`） |
-
-`MobileTokenProvisioner`（`MobileTokenProvisioner.swift`）のライフサイクル:
-
-1. **初回**: `loadOrProvision()` が requester SessionID を生成・永続化し、トークンが無ければ `MobileToken.generate()` して Keychain（または store）へ保存（`MobileTokenProvisioner.swift:39-47`, `67-74`）。
-2. **2 回目以降**: 永続化済み token + requester をロード。requester SessionID は一度確定したら変わらない（`MobileTokenProvisioner.swift:37-38`）。
-3. **再発行**: `regenerate()` が token のみ更新。requester は維持（`MobileTokenProvisioner.swift:49-57`）。
-4. **register**: `register(_:into:)` が `SessionTokenStore.register(token, for: requesterSessionID)` を呼ぶ（`MobileTokenProvisioner.swift:59-65`）。
+| `KeychainPairedDeviceStore` | 本番 | Keychain `kSecClassGenericPassword` 1 項目へ全端末を JSON でまとめて保存。service は `AppFlavor` で Release/Debug を分離。Data Protection Keychain を優先し、entitlement が無ければファイルベースへフォールバック |
+| `InMemoryPairedDeviceStore` | テスト・Keychain 失敗時のフォールバック | プロセス内メモリのみ |
 
 ### 検証フロー（ControlServer）
 
@@ -122,19 +118,19 @@ ControlActionHandler  … Packages/AppBootstrap/Sources/AppBootstrap/ControlActi
 
 ### 起動時供給（`App/CompositionRoot.swift`）
 
-| 条件 | store | 参照 |
-|---|---|---|
-| Release | `KeychainMobileTokenStore`（失敗時 `InMemoryMobileTokenStore` へフォールバック） | `CompositionRoot.swift:272-282` |
-| Debug + `PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN=1` | `InMemoryMobileTokenStore` のみ（Keychain 非接触） | `CompositionRoot.swift:250-259` |
-| Debug（上記 env なし） | Keychain 経路（失敗時インメモリ） | `CompositionRoot.swift:260-270` |
+| 条件 | store |
+|---|---|
+| Release | `KeychainPairedDeviceStore`（失敗時 `InMemoryPairedDeviceStore` へフォールバックし、その事実をログへ残す） |
+| Debug + `PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN=1` | `InMemoryPairedDeviceStore` のみ（Keychain 非接触） |
+| Debug（上記 env なし） | Keychain 経路（失敗時インメモリ） |
 
-`PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN` 分岐は `#if DEBUG` 内にのみ存在し、Release バイナリでは env に関わらず Keychain 経路のみ（`CompositionRoot.swift:250-254`, `272-283`）。
+`PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN` 分岐は `#if DEBUG` 内にのみ存在し、Release バイナリでは env に関わらず Keychain 経路のみ。起動手順そのものは `MobileBootstrap.run(provisioner:tokenStore:)` が正本で、`CompositionRoot` はこれを呼ぶだけにする（→ [mobile-device-pairing.md](mobile-device-pairing.md)）。
 
 provision 後、`mobileRequesterSessionID` が Dashboard の特権 requester として設定される（`CompositionRoot.swift:360`）。
 
-### 設定 UI（QR 表示・再発行）
+### 設定 UI（QR 表示・端末一覧・失効）
 
-`MobileTokenViewModel`（`App/MobileTokenViewModel.swift`）が QR ペアリング用ペイロードの生成と、トークンの再発行（`regenerate` + `SessionTokenStore` 再 register）を担う。設定 UI にトークン文字列の表示・クリップボードコピーはなく、接続情報の供給手段は QR コード表示のみ。
+`MobileTokenViewModel`（`App/MobileTokenViewModel.swift`）が QR ペアリング用ペイロードの生成と、ペアリング済み端末一覧（名前・ペアリング日時・失効）を担う。「QR を表示」のたびに新しい端末を発行する。設定 UI にトークン文字列の表示・クリップボードコピーはなく、接続情報の供給手段は QR コード表示のみ。
 
 `SettingsView` は `MobileConnectionGuidePolicy.showsSettingsConnectionSection` が `true` のときのみ `MobileTokenSection` を表示する（`App/SettingsView.swift:124-126`, `257-315`）。
 
@@ -220,7 +216,7 @@ provision 後、`mobileRequesterSessionID` が Dashboard の特権 requester と
 | シンボル | 現在値 | 役割 |
 |---|---|---|
 | `isCompanionClientBundled` | `false` | 配布物に iPhone コンパニオンアプリが同梱されているかのフラグ（`POSIXSocketListener.swift:21`） |
-| `showsSettingsConnectionSection` | `isCompanionClientBundled` と同一 | `SettingsView` のモバイル接続セクション（QR 表示・再発行・接続案内）の表示可否（`POSIXSocketListener.swift:24`, `SettingsView.swift:124-126`） |
+| `showsSettingsConnectionSection` | `isCompanionClientBundled` と同一 | `SettingsView` のモバイル接続セクション（QR 表示・端末一覧と失効・接続案内）の表示可否（`POSIXSocketListener.swift:24`, `SettingsView.swift:124-126`） |
 
 現行は `false` のため、設定画面のモバイル接続 UI（`MobileTokenSection`）は表示されない。`App/SettingsView.swift` は `import MobileProxy` して正本を直接参照する。
 

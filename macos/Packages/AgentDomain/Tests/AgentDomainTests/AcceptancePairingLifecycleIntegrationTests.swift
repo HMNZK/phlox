@@ -58,8 +58,8 @@ private func makeProvisioner(
 // 一生: QR 発行 → 認証成立 → 別端末を追加 → 1 台失効 → 残りは繋がったまま。
 @Test func fullLifecycle_issueThenPairThenRevoke_keepsOtherDeviceConnected() async throws {
     let store = InMemoryPairedDeviceStore()
-    var current = Date(timeIntervalSince1970: 10_000)
-    let provisioner = makeProvisioner(store: store, now: { current })
+    let clock = TestClock(Date(timeIntervalSince1970: 10_000))
+    let provisioner = makeProvisioner(store: store, now: { clock.now })
     let tokenStore = SessionTokenStore()
 
     // 1 台目: QR 発行 → スキャンして初回認証（ControlServer が解決した直後に markPaired が呼ばれる想定）。
@@ -69,7 +69,7 @@ private func makeProvisioner(
     try provisioner.markPaired(token: phone.token.value)
 
     // 2 台目を追加しても 1 台目は切れない。
-    current = current.addingTimeInterval(60)
+    clock.advance(60)
     let pad = try provisioner.issueDevice(name: "iPad")
     await provisioner.syncRegistrations(into: tokenStore)
     try provisioner.markPaired(token: pad.token.value)
@@ -87,11 +87,11 @@ private func makeProvisioner(
 // 起動時に、使われないまま期限切れになったトークンは掃除される（Q2 の決定）。
 @Test func bootstrap_prunesExpiredPendingTokens() async throws {
     let store = InMemoryPairedDeviceStore()
-    var current = Date(timeIntervalSince1970: 10_000)
-    let provisioner = makeProvisioner(store: store, now: { current })
+    let clock = TestClock(Date(timeIntervalSince1970: 10_000))
+    let provisioner = makeProvisioner(store: store, now: { clock.now })
     let stale = try provisioner.issueDevice(name: "スキャンされなかった QR")
 
-    current = current.addingTimeInterval(601)
+    clock.advance(601)
     let result = try await MobileBootstrap.run(provisioner: provisioner, tokenStore: SessionTokenStore())
 
     #expect(result.devices.isEmpty)

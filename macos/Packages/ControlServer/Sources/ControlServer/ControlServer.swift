@@ -17,6 +17,7 @@ public actor ControlServer {
 
     private let tokenStore: SessionTokenStore
     private let agentCatalog: AgentCatalog
+    private let onAuthenticatedToken: (@Sendable (String) -> Void)?
     private let handler: @Sendable (ControlRequest) async -> ControlResponse
     private let makeListener: MakeListener
 
@@ -28,10 +29,12 @@ public actor ControlServer {
     public init(
         tokenStore: SessionTokenStore,
         agentCatalog: AgentCatalog = .builtins,
+        onAuthenticatedToken: (@Sendable (String) -> Void)? = nil,
         handler: @escaping @Sendable (ControlRequest) async -> ControlResponse
     ) {
         self.tokenStore = tokenStore
         self.agentCatalog = agentCatalog
+        self.onAuthenticatedToken = onAuthenticatedToken
         self.handler = handler
         self.makeListener = { try NWListener(using: $0) }
     }
@@ -39,11 +42,13 @@ public actor ControlServer {
     internal init(
         tokenStore: SessionTokenStore,
         agentCatalog: AgentCatalog = .builtins,
+        onAuthenticatedToken: (@Sendable (String) -> Void)? = nil,
         handler: @escaping @Sendable (ControlRequest) async -> ControlResponse,
         makeListener: @escaping MakeListener
     ) {
         self.tokenStore = tokenStore
         self.agentCatalog = agentCatalog
+        self.onAuthenticatedToken = onAuthenticatedToken
         self.handler = handler
         self.makeListener = makeListener
     }
@@ -181,6 +186,9 @@ public actor ControlServer {
         await send(connection: connection, response: controlResponse)
     }
 
+    /// Bearer トークンを `SessionID` へ解決する。認証が成立したときだけ（401 になる経路では
+    /// 呼ばない）`onAuthenticatedToken` へ生トークンを通知する（task-4: ペアリング成立の記録）。
+    /// `AgentDomain` の端末モデルへは依存させず、`String` のトークンだけを渡す。
     private func authenticate(headers: [String: String]) async -> SessionID? {
         guard let authorization = headers["authorization"] else {
             return nil
@@ -194,7 +202,11 @@ public actor ControlServer {
         guard !token.isEmpty else {
             return nil
         }
-        return await tokenStore.session(forToken: token)
+        guard let session = await tokenStore.session(forToken: token) else {
+            return nil
+        }
+        onAuthenticatedToken?(token)
+        return session
     }
 
     private enum RouteResult {

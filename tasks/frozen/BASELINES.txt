@@ -6,3 +6,4 @@
 14ab70a	macos/Packages/AgentDomain/Tests/AgentDomainTests/AcceptanceDeviceRevocationTests.swift
 14ab70a	macos/Packages/AgentDomain/Tests/AgentDomainTests/AcceptancePendingTokenExpiryTests.swift
 5f7a0fd	macos/scripts/tests/test_signing_entitlements_variants.sh
+6b30d32	macos/Packages/AgentDomain/Tests/AgentDomainTests/AcceptancePairingLifecycleIntegrationTests.swift

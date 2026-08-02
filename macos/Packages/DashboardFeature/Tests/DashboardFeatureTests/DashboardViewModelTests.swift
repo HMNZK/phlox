@@ -3009,7 +3009,7 @@ func waitUntilDone_returnsDoneForStopAfterWaitStarts() async throws {
     let waitTask = Task { @MainActor in
         await dashboard.waitUntilDone(
             for: sessionID,
-            timeout: .milliseconds(500),
+            timeout: .seconds(5),   // 完了シグナルが届くまでの上限。並列実行の負荷下でも偽 red にならない幅を取る（検出力は「届かなければ最後に timedOut で落ちる」ことで保たれる）
             sentinel: nil
         )
     }
@@ -3081,7 +3081,7 @@ func waitUntilDone_returnsDoneWhenSentinelAppears() async throws {
     let waitTask = Task { @MainActor in
         await dashboard.waitUntilDone(
             for: sessionID,
-            timeout: .milliseconds(500),
+            timeout: .seconds(5),   // 完了シグナルが届くまでの上限。並列実行の負荷下でも偽 red にならない幅を取る（検出力は「届かなければ最後に timedOut で落ちる」ことで保たれる）
             sentinel: "DONE"
         )
     }
@@ -3158,7 +3158,7 @@ func waitUntilDone_returnsDoneForMatchingTurnIdStop() async throws {
     let waitTask = Task { @MainActor in
         await dashboard.waitUntilDone(
             for: sessionID,
-            timeout: .milliseconds(500),
+            timeout: .seconds(5),   // 完了シグナルが届くまでの上限。並列実行の負荷下でも偽 red にならない幅を取る（検出力は「届かなければ最後に timedOut で落ちる」ことで保たれる）
             sentinel: nil
         )
     }
@@ -3220,7 +3220,7 @@ func waitUntilDone_returnsDoneForStopWithoutTurnId() async throws {
     let waitTask = Task { @MainActor in
         await dashboard.waitUntilDone(
             for: sessionID,
-            timeout: .milliseconds(500),
+            timeout: .seconds(5),   // 完了シグナルが届くまでの上限。並列実行の負荷下でも偽 red にならない幅を取る（検出力は「届かなければ最後に timedOut で落ちる」ことで保たれる）
             sentinel: nil
         )
     }

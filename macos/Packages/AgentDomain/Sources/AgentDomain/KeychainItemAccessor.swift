@@ -33,6 +33,9 @@ public protocol KeychainItemAccessor: Sendable {
     func saveData(_ data: Data, service: String, account: String) throws
     /// 冪等な削除（存在しなくてもエラーにしない）。
     func deleteItem(service: String, account: String) throws
+    /// DPK / ファイルベースの**両方**の実装から削除する。冪等（どちらに無くてもエラーにしない）。
+    /// 旧モデルの移行専用。通常の削除は deleteItem を使う。
+    func deleteItemInAllBackends(service: String, account: String) throws
 }
 
 public enum KeychainAccessError: Error, Equatable {
@@ -43,14 +46,22 @@ public enum KeychainAccessError: Error, Equatable {
 public final class SecItemKeychainAccessor: KeychainItemAccessor, @unchecked Sendable {
     private let lock = NSLock()
     private let dataProtectionWriteProbe: @Sendable () throws -> OSStatus
+    /// テスト専用フック: deleteItemInAllBackends が両バックエンドへ出す SecItemDelete を差し替える。
+    /// 既存4メソッドはこのフックを使わず、常に SecItemDelete を直接呼ぶ（振る舞い不変）。
+    private let deleteItemInAllBackendsHook: @Sendable (CFDictionary) -> OSStatus
     private var resolvedBackend: KeychainBackend?
 
     public init() {
         dataProtectionWriteProbe = Self.runDataProtectionWriteProbe
+        deleteItemInAllBackendsHook = SecItemDelete
     }
 
-    init(dataProtectionWriteProbe: @escaping @Sendable () throws -> OSStatus) {
+    init(
+        dataProtectionWriteProbe: @escaping @Sendable () throws -> OSStatus,
+        deleteItemInAllBackendsHook: @escaping @Sendable (CFDictionary) -> OSStatus = SecItemDelete
+    ) {
         self.dataProtectionWriteProbe = dataProtectionWriteProbe
+        self.deleteItemInAllBackendsHook = deleteItemInAllBackendsHook
     }
 
     public func backend() throws -> KeychainBackend {
@@ -113,6 +124,26 @@ public final class SecItemKeychainAccessor: KeychainItemAccessor, @unchecked Sen
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainAccessError.keychain(status)
         }
+    }
+
+    public func deleteItemInAllBackends(service: String, account: String) throws {
+        // 両ドメインへ必ず削除を試みる。片方が想定外ステータスを返しても、もう片方の削除を諦めない
+        // （旧モデルのファイルベース側トークンが残るのを防ぐのがこのメソッドの存在理由のため）。
+        let dataProtectionStatus = deleteItemInAllBackendsHook(
+            Self.query(service: service, account: account, backend: .dataProtection) as CFDictionary
+        )
+        let fileBasedStatus = deleteItemInAllBackendsHook(
+            Self.query(service: service, account: account, backend: .fileBased) as CFDictionary
+        )
+
+        // 複数が想定外なら DPK 側を優先して報告する。
+        for status in [dataProtectionStatus, fileBasedStatus] where !Self.isAcceptableDeleteInAllBackendsStatus(status) {
+            throw KeychainAccessError.keychain(status)
+        }
+    }
+
+    private static func isAcceptableDeleteInAllBackendsStatus(_ status: OSStatus) -> Bool {
+        status == errSecSuccess || status == errSecItemNotFound || status == errSecMissingEntitlement
     }
 
     private static func query(service: String, account: String, backend: KeychainBackend) -> [String: Any] {
@@ -218,6 +249,29 @@ public final class InMemoryKeychainAccessor: KeychainItemAccessor, @unchecked Se
         case .fileBased:
             fileBasedItems.removeValue(forKey: key)
         }
+    }
+
+    public func deleteItemInAllBackends(service: String, account: String) throws {
+        let key = ItemKey(service: service, account: account)
+        lock.lock()
+        defer { lock.unlock() }
+        dataProtectionItems.removeValue(forKey: key)
+        fileBasedItems.removeValue(forKey: key)
+    }
+
+    /// テスト専用: 解決済みバックエンドに依らずファイルベース側へ直接書く（旧ストアが残した項目を模す）。
+    public func seedFileBasedItem(_ data: Data, service: String, account: String) {
+        let key = ItemKey(service: service, account: account)
+        lock.lock()
+        defer { lock.unlock() }
+        fileBasedItems[key] = data
+    }
+
+    /// テスト専用: 指定 service でファイルベース側に残っている項目数。
+    public func fileBasedItemCount(service: String) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return fileBasedItems.keys.filter { $0.service == service }.count
     }
 
     private struct ItemKey: Hashable {

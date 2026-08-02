@@ -92,9 +92,18 @@ else
     fail "Signing.local.xcconfig が読めない（権限を確認すること）: $local_xcconfig"
     team=""
   else
-    # grep は「一致なし」でも exit 1 を返すので、その1件だけを吸収する（読取りエラーは上で分離済み）。
-    team_line="$({ grep -hE '^[[:space:]]*PHLOX_DEVELOPMENT_TEAM[[:space:]]*=' "$local_xcconfig" || true; } | tail -1)"
-    team="$(printf '%s' "$team_line" | sed 's/.*=[[:space:]]*//' | tr -d '[:space:]')"
+    # grep の exit code を区別する: 0=一致、1=一致なし（正常）、2 以上=エラー。
+    # `|| true` でまとめて吸収すると、エラーまで「チーム ID なし」に化けて検査が黙って SKIP になる。
+    set +e
+    team_line="$(grep -hE '^[[:space:]]*PHLOX_DEVELOPMENT_TEAM[[:space:]]*=' "$local_xcconfig" | tail -1)"
+    grep_status=${PIPESTATUS[0]}
+    set -e
+    if [ "$grep_status" -gt 1 ]; then
+      fail "Signing.local.xcconfig の読み取りに失敗した（grep exit=$grep_status）: $local_xcconfig"
+      team=""
+    else
+      team="$(printf '%s' "$team_line" | sed 's/.*=[[:space:]]*//' | tr -d '[:space:]')"
+    fi
   fi
   if [ -z "$team" ]; then
     echo "  SKIP  Signing.local.xcconfig にチーム ID が無い環境のためビルド検査を実行していない（未検証）"

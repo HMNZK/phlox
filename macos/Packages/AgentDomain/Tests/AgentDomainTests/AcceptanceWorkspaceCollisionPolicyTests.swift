@@ -155,4 +155,27 @@ struct AcceptanceWorkspaceCollisionPolicyTests {
         ])
         #expect(peers.isEmpty)
     }
+
+    /// 上の「自分が終了済みならpeersは空」は、相手が 1 件だけだと衝突自体が成立しない
+    /// （2 件以上でなければ collisions に載らない）ため、`peers` 側の「自分がアクティブか」の
+    /// 判定を消しても green のままだった。アクティブな相手を 2 件置いて、その分岐を実際に固定する。
+    @Test func 終了済みセッションは他のアクティブ2件が衝突していてもpeersを持たない() {
+        let dead = sid(), a = sid(), b = sid()
+        let peers = WorkspaceCollisionPolicy.peers(of: dead, among: [
+            ws(dead, "/tmp/phlox-ca/repo", active: false),
+            ws(a, "/tmp/phlox-ca/repo"),
+            ws(b, "/tmp/phlox-ca/repo"),
+        ])
+        #expect(peers.isEmpty, "終了済みセッションが他者の衝突を自分のものとして拾っている")
+    }
+
+    @Test func 終了済みセッションは他セッションのpeersに数えられない() {
+        let dead = sid(), a = sid(), b = sid()
+        let peers = WorkspaceCollisionPolicy.peers(of: a, among: [
+            ws(dead, "/tmp/phlox-ca/repo", active: false),
+            ws(a, "/tmp/phlox-ca/repo"),
+            ws(b, "/tmp/phlox-ca/repo"),
+        ])
+        #expect(peers == Set([b]))
+    }
 }

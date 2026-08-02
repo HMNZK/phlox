@@ -38,3 +38,33 @@ PHLOX_DEVELOPMENT_TEAM =
 // stable across rebuilds, so a single answer sticks. See ADR 0158.
 PHLOX_DEBUG_CODE_SIGN_STYLE = Automatic
 PHLOX_DEBUG_CODE_SIGN_IDENTITY = -
+
+// Entitlements file to sign with. The default (App/Phlox.entitlements) has no
+// keychain-access-groups entitlement and works without a certificate.
+//
+// To enable the Data Protection Keychain, switch to the DPK entitlements file.
+// This REQUIRES an Apple Developer Program membership: the
+// keychain-access-groups entitlement must be authorized by a provisioning
+// profile embedded in the .app, or macOS refuses to launch the app at all
+// (AMFI kills it with SIGKILL on startup, not just a missing feature).
+//
+// `xcodebuild -allowProvisioningUpdates` (already used by our build scripts)
+// fetches/embeds that profile automatically — but ONLY under Automatic
+// signing. It does NOT work with the "Manual + Developer ID Application"
+// Debug setup shown above (ADR 0158): Manual style has no profile to
+// auto-create without an explicit PROVISIONING_PROFILE_SPECIFIER (observed:
+// `"Phlox" requires a provisioning profile. Select a provisioning profile in
+// the Signing & Capabilities editor.`), and switching to Automatic while
+// CODE_SIGN_IDENTITY is still "Developer ID Application" fails too (observed:
+// `Phlox has conflicting provisioning settings. ... Set the code signing
+// identity value to "Apple Development"...`). So, to enable DPK in Debug, use
+// Automatic signing instead:
+//
+//   PHLOX_DEVELOPMENT_TEAM = ABCDE12345
+//   PHLOX_DEBUG_CODE_SIGN_STYLE = Automatic
+//   PHLOX_DEBUG_CODE_SIGN_IDENTITY = -
+//   PHLOX_CODE_SIGN_ENTITLEMENTS = App/Phlox-DataProtectionKeychain.entitlements
+//
+// This still signs with your certificate (not ad-hoc), so ADR 0158's goal — a
+// designated requirement that stays stable across rebuilds — is preserved.
+PHLOX_CODE_SIGN_ENTITLEMENTS = App/Phlox.entitlements

@@ -83,7 +83,19 @@ echo "== 4. DPK 構成で実際にビルドでき、成果物に profile と ent
 if [ "${SKIP_BUILD:-0}" = "1" ]; then
   echo "  SKIP  SKIP_BUILD=1 のためビルド検査を実行していない（未検証）"
 else
-  team="$(grep -hE '^[[:space:]]*PHLOX_DEVELOPMENT_TEAM[[:space:]]*=' "$PROJECT_ROOT/Signing.local.xcconfig" 2>/dev/null | tail -1 | sed 's/.*=[[:space:]]*//' | tr -d '[:space:]' || true)"
+  # 「ファイルが無い」と「あるが読めない」を区別する。後者を SKIP に丸めると、
+  # 検査していないことを「証明書の無い環境だから」と誤って説明してしまう。
+  local_xcconfig="$PROJECT_ROOT/Signing.local.xcconfig"
+  if [ ! -e "$local_xcconfig" ]; then
+    team=""
+  elif [ ! -r "$local_xcconfig" ]; then
+    fail "Signing.local.xcconfig が読めない（権限を確認すること）: $local_xcconfig"
+    team=""
+  else
+    # grep は「一致なし」でも exit 1 を返すので、その1件だけを吸収する（読取りエラーは上で分離済み）。
+    team_line="$({ grep -hE '^[[:space:]]*PHLOX_DEVELOPMENT_TEAM[[:space:]]*=' "$local_xcconfig" || true; } | tail -1)"
+    team="$(printf '%s' "$team_line" | sed 's/.*=[[:space:]]*//' | tr -d '[:space:]')"
+  fi
   if [ -z "$team" ]; then
     echo "  SKIP  Signing.local.xcconfig にチーム ID が無い環境のためビルド検査を実行していない（未検証）"
   else

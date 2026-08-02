@@ -20,5 +20,19 @@ PHLOX_DEVELOPMENT_TEAM =
 PHLOX_DEBUG_CODE_SIGN_STYLE = Automatic
 PHLOX_DEBUG_CODE_SIGN_IDENTITY = -
 
+// 使用する entitlements ファイル。既定は証明書を持たない環境向けの現行ファイル。
+//
+// なぜ 2 系統に分けるのか:
+//   Data Protection Keychain を使うには entitlement `keychain-access-groups` が要り、
+//   その entitlement はプロビジョニングプロファイルで認可され、`.app` に
+//   `embedded.provisionprofile` として埋め込まれている必要がある。プロファイルの
+//   無い ad-hoc 署名のまま `keychain-access-groups` を claim すると、認可する
+//   プロファイルが無いため AMFI がアプリを起動時に SIGKILL する（単に DPK が
+//   使えないのではなく、アプリそのものが起動しなくなる）。そのため既定の
+//   `App/Phlox.entitlements` には keychain-access-groups を含めず、証明書を
+//   持つ環境（`Signing.local.xcconfig` で本変数を上書きした環境）だけが
+//   `App/Phlox-DataProtectionKeychain.entitlements` を選べるようにする。
+PHLOX_CODE_SIGN_ENTITLEMENTS = App/Phlox.entitlements
+
 // ローカルの上書き。ファイルが無ければ黙って読み飛ばす（`#include?`）。
 #include? "../../Signing.local.xcconfig"

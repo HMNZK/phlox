@@ -2,3 +2,7 @@
 0f8c49a	macos/Packages/AgentDomain/Tests/AgentDomainTests/AcceptancePairedDeviceStoreTests.swift
 4c0f309	macos/Packages/AgentDomain/Tests/AgentDomainTests/AcceptanceLegacyTokenPurgeTests.swift
 4c0f309	macos/Packages/AgentDomain/Tests/AgentDomainTests/ContractPairedDeviceStoreSeamTests.swift
+14ab70a	macos/Packages/AgentDomain/Tests/AgentDomainTests/AcceptanceDeviceProvisioningTests.swift
+14ab70a	macos/Packages/AgentDomain/Tests/AgentDomainTests/AcceptanceDeviceRevocationTests.swift
+14ab70a	macos/Packages/AgentDomain/Tests/AgentDomainTests/AcceptancePendingTokenExpiryTests.swift
+f6e46df	macos/scripts/tests/test_signing_entitlements_variants.sh

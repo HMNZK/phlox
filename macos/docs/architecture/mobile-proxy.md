@@ -100,7 +100,7 @@ ControlActionHandler  … Packages/AppBootstrap/Sources/AppBootstrap/ControlActi
 ### 永続化
 
 > **2026-08-02 更新**: トークンは**単一・全権**から**端末ごとに 1 本**へ変わった（`PairedDevice` / `PairedDeviceStore` / `MobileDeviceProvisioner`）。旧 `KeychainMobileTokenStore` / `MobileTokenProvisioner` と、それらが持っていた `regenerate()`（全端末を一斉に切る再発行）は廃止された。永続化・起動シーケンス・発行/失効の現行仕様は
-> **[mobile-device-pairing.md](mobile-device-pairing.md)** を参照（決定の理由は ADR [0159](../adr/0159-data-protection-keychain-and-per-device-mobile-tokens.md)）。
+> **[mobile-device-pairing.md](mobile-device-pairing.md)** を参照（決定の理由は ADR [0160](../adr/0160-data-protection-keychain-and-per-device-mobile-tokens.md)）。
 
 | 実装 | 用途 | 保存先 |
 |---|---|---|

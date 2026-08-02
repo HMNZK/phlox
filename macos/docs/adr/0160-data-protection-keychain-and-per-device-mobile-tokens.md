@@ -3,10 +3,10 @@ status: active
 last-verified: 2026-08-02
 ---
 
-# ADR 0159: Data Protection Keychain への移行と、端末別モバイルトークン
+# ADR 0160: Data Protection Keychain への移行と、端末別モバイルトークン
 
 > **このファイルの役割**: ADR [0047](0047-session-secrets-not-persisted-to-sessions-json.md) の決定6（Data Protection Keychain 移行の見送り）を覆し、あわせてモバイルトークンを単一・全権から端末単位へ変えると決めた理由・棄却案・帰結。
-> **書かないもの**: 現行の構成・データモデル（→ [architecture/mobile-device-pairing.md](../architecture/mobile-device-pairing.md)）、移行時の運用手順（→ [operations/mobile-per-device-token-migration.md](../operations/mobile-per-device-token-migration.md)）、run の作業経緯（→ [delivery/0032-keychain-hardening-per-device-tokens-worklog.md](../delivery/0032-keychain-hardening-per-device-tokens-worklog.md)）。
+> **書かないもの**: 現行の構成・データモデル（→ [architecture/mobile-device-pairing.md](../architecture/mobile-device-pairing.md)）、移行時の運用手順（→ [operations/mobile-per-device-token-migration.md](../operations/mobile-per-device-token-migration.md)）、run の作業経緯（→ [delivery/0033-keychain-hardening-per-device-tokens-worklog.md](../delivery/0033-keychain-hardening-per-device-tokens-worklog.md)）。
 
 ## 文脈
 

@@ -6,7 +6,7 @@ last-verified: 2026-08-02
 # Runbook: 端末別モバイルトークンへの移行と、DPK 署名要件
 
 > **このファイルの役割**: 端末別トークン導入リリースの移行手順（ユーザー影響・確認方法・切り戻し）と、Data Protection Keychain（DPK）を有効にしたビルドを作るときの署名手順。
-> **書かないもの**: 採用理由（→ ADR [0159](../adr/0159-data-protection-keychain-and-per-device-mobile-tokens.md)）、現行の構成（→ [architecture/mobile-device-pairing.md](../architecture/mobile-device-pairing.md)）。
+> **書かないもの**: 採用理由（→ ADR [0160](../adr/0160-data-protection-keychain-and-per-device-mobile-tokens.md)）、現行の構成（→ [architecture/mobile-device-pairing.md](../architecture/mobile-device-pairing.md)）。
 
 ## ユーザー影響（このリリースで 1 回だけ）
 

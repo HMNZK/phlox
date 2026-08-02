@@ -12,7 +12,7 @@ last-verified: 2026-08-01
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
-| 0159 | [Data Protection Keychain への移行と、端末別モバイルトークン](0159-data-protection-keychain-and-per-device-mobile-tokens.md) | active |
+| 0160 | [Data Protection Keychain への移行と、端末別モバイルトークン](0160-data-protection-keychain-and-per-device-mobile-tokens.md) | active |
 | 0158 | [Debug ビルドも証明書で署名できるようにし、TCC の承認をリビルドを跨いで保持する](0158-debug-build-stable-code-signature.md) | accepted |
 | 0157 | [伏せ字（`isSecret`）の回答は wire 送信後に破棄し、保存しない](0157-secret-answers-are-not-persisted.md) | accepted |
 | 0156 | [フルアクセス設定を app-server セッションの承認・サンドボックス方針へ適用する](0156-full-access-setting-applies-to-app-server.md) | accepted |

@@ -21,7 +21,7 @@ phlox://pair?v=1&host=<HOST>&port=<PORT>&token=<TOKEN>&name=<NAME>
 | `v` | 必須 | 固定値 `1` | 契約バージョン。iOS 側は `1` 以外を拒否しエラー表示する |
 | `host` | 必須 | Tailscale IPv4（dotted quad、例 `100.64.12.34`） | MobileProxy の待受アドレス。**スキャン時点の値**であり、Tailscale IP が変わったら再ペアリング（QR は Mac 側で都度生成・キャッシュしない） |
 | `port` | 必須 | 10 進整数（1–65535） | MobileProxy の待受ポート |
-| `token` | 必須 | 64 文字の16進小文字 `[0-9a-f]{64}` | モバイルトークン（Bearer 認証に使う）。**2026-08-02 以降は端末ごとに 1 本発行される**（→ ADR [0159](../adr/0159-data-protection-keychain-and-per-device-mobile-tokens.md)）。形式・用途は変わらないため契約 v1 は不変 |
+| `token` | 必須 | 64 文字の16進小文字 `[0-9a-f]{64}` | モバイルトークン（Bearer 認証に使う）。**2026-08-02 以降は端末ごとに 1 本発行される**（→ ADR [0160](../adr/0160-data-protection-keychain-and-per-device-mobile-tokens.md)）。形式・用途は変わらないため契約 v1 は不変 |
 | `name` | 任意 | percent-encoded UTF-8 | 接続先 Mac の表示名（iOS 側の接続一覧表示用） |
 
 - パラメータ順序は上表のとおり固定（`v` → `host` → `port` → `token` → `name`）。iOS 側は順序に依存せずパースしてよいが、Mac 側は固定順で生成する。

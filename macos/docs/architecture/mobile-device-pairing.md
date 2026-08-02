@@ -6,7 +6,7 @@ last-verified: 2026-08-02
 # モバイル端末ペアリング（端末別トークンと Keychain 保護）
 
 > **このファイルの役割**: iPhone と Mac のペアリングを支える**現行の**構成・データモデル・I/F（端末別トークン、Keychain のバックエンド選択、起動シーケンス）。
-> **書かないもの**: なぜこの形にしたか（→ ADR [0159](../adr/0159-data-protection-keychain-and-per-device-mobile-tokens.md)）、QR ペイロード形式（→ [specs/qr-pairing-contract.md](../specs/qr-pairing-contract.md)）、移行手順（→ [operations/mobile-per-device-token-migration.md](../operations/mobile-per-device-token-migration.md)）。
+> **書かないもの**: なぜこの形にしたか（→ ADR [0160](../adr/0160-data-protection-keychain-and-per-device-mobile-tokens.md)）、QR ペイロード形式（→ [specs/qr-pairing-contract.md](../specs/qr-pairing-contract.md)）、移行手順（→ [operations/mobile-per-device-token-migration.md](../operations/mobile-per-device-token-migration.md)）。
 
 ## 全体像
 

@@ -35,7 +35,7 @@ last-verified: 2026-07-08
 5. **`PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN` ゲートは `#if DEBUG` で隔離**（Release バイナリから経路を物理的に排除）。
 6. `KeychainMobileTokenStore` の `kSecUseDataProtectionKeychain` 属性追加は**見送り、doc 修正で乖離解消**
    （既存 Keychain 項目との互換リスクに対し、得られる保護が macOS ファイルベース Keychain では限定的なため）。
-   > **2026-08-02 追記: 決定6 は ADR [0159](0159-data-protection-keychain-and-per-device-mobile-tokens.md) で覆した**（Debug ビルドも正規署名できるようになり entitlement を載せられるため、DPK 優先＋ファイルベースへのフォールバックへ移行）。決定1〜5 は有効。
+   > **2026-08-02 追記: 決定6 は ADR [0160](0160-data-protection-keychain-and-per-device-mobile-tokens.md) で覆した**（Debug ビルドも正規署名できるようになり entitlement を載せられるため、DPK 優先＋ファイルベースへのフォールバックへ移行）。決定1〜5 は有効。
 
 ## 棄却案
 

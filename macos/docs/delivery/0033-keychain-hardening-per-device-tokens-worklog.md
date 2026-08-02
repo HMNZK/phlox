@@ -6,7 +6,7 @@ last-verified: 2026-08-02
 # 0032: Keychain 保護強化（Data Protection Keychain）＋端末別モバイルトークン
 
 > **このファイルの役割**: 2026-08 の agentic-loop run（backend=codex・タスク6件）の作業経緯・状態スナップショット・積み残し。
-> **書かないもの**: 恒久仕様（→ [architecture/mobile-device-pairing.md](../architecture/mobile-device-pairing.md)・[specs/qr-pairing-contract.md](../specs/qr-pairing-contract.md)）、決定の理由（→ ADR [0159](../adr/0159-data-protection-keychain-and-per-device-mobile-tokens.md)）。
+> **書かないもの**: 恒久仕様（→ [architecture/mobile-device-pairing.md](../architecture/mobile-device-pairing.md)・[specs/qr-pairing-contract.md](../specs/qr-pairing-contract.md)）、決定の理由（→ ADR [0160](../adr/0160-data-protection-keychain-and-per-device-mobile-tokens.md)）。
 
 ## やったこと
 

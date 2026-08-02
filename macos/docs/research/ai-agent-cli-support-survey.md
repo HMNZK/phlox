@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-04
+last-verified: 2026-08-02
 ---
 
 # 調査レポート: Phlox が対応可能な AI エージェント CLI
@@ -13,7 +13,7 @@ last-verified: 2026-07-04
 ---
 
 ## Context（なぜこの調査か）
-Phlox は複数の AI エージェント CLI をペイン上で起動・制御するオーケストレーター。現状は `AgentKind` enum に **Claude Code / Codex / Cursor の3種をハードコード**して対応している。「あらゆる AI エージェント CLI に対応したい」というゴールに対し、本調査は現アーキで **どの CLI が対応可能か / どの程度のコストか / 対象外は何か** を切り分け、優先度とロードマップを示す。
+Phlox は複数の AI エージェント CLI をペイン上で起動・制御するオーケストレーター。現状は `AgentKind` enum に **組込み CLI として Claude Code / Codex / Cursor の3種を定義**し、カスタム CLI は `agents.json` から別の識別子空間（`AgentRef.custom`）として追加できる。「あらゆる AI エージェント CLI に対応したい」というゴールに対し、本調査は現アーキで **どの CLI が対応可能か / どの程度のコストか / 対象外は何か** を切り分け、優先度とロードマップを示す。
 
 ---
 
@@ -26,11 +26,11 @@ Phlox は複数の AI エージェント CLI をペイン上で起動・制御�
 - **出力回収**: 端末ビューポートの可視テキストを取得（`terminalCoordinator.visibleText()`）。CLI 固有差はない。scrollback は未実装（screen モードのみ）。
 - **CLI 検出**: login shell の `$PATH` から `command -v <binaryName>` で解決。見つかった CLI だけ起動可能になる。
   - `App/CompositionRoot.swift`（`resolveClaudeBinaryAndPath`, 行 232-329）
-- **UI 露出**: メニューは `availableAgentKinds` を動的列挙。enum に case があり PATH 上にバイナリがあれば自動でメニューに出る。
+- **UI 露出**: 組込み CLI は `availableAgentKinds`、カスタムを含む新規セッションメニューは `availableAgentDescriptors` を動的列挙。PATH 上でバイナリが解決できたものだけがメニューに出る。カスタムはターミナルモードのみ。
   - `Packages/DashboardFeature/.../Dashboard/DashboardView.swift`（L716-743, L323-339）
 
 ### 1-2. CLI ごとに分岐が必要な部分（=対応コストの正体）
-新規 CLI 追加時に switch/分岐を足す必要があるファイル群（約11箇所）:
+新規 CLI を**組込みとして**追加する時に switch/分岐を足す必要があるファイル群（約11箇所）:
 1. `Packages/AgentDomain/.../AgentKind.swift` — enum case + displayName/binaryName/symbolName
 2. `Packages/DashboardFeature/.../Spawn/AgentLaunchPlanner.swift` — 起動引数・hook統合・状態初期化（`profile`, `applyLaunchMode`）
 3. `Packages/DashboardFeature/.../Spawn/SessionHookInstaller.swift` — hookファイル設置の分岐
@@ -43,7 +43,9 @@ Phlox は複数の AI エージェント CLI をペイン上で起動・制御�
 10. `App/PhloxApp.swift` — メニュー/コマンド
 11. `Packages/ControlServer/.../ControlTypes.swift` — spawn の AgentKind 参照
 
-**設定ファイル/プラグインによる外部追加機構は存在しない**（enum 改修=コード変更が必須）。
+**カスタム CLI の追加**: `CustomAgentRegistryLoader` は、環境変数 `PHLOX_AGENTS_JSON` があればそのパス、なければ macOS の `~/.config/phlox/agents.json` を読み込む。`CustomAgentDefinition.swift`（`CustomAgentRegistryLoader` / `CustomAgentDefinition`）が `agents` 配列を `AgentDescriptor` に変換し、`AgentRef.custom` として組込み3種と同じカタログへマージする。JSON の項目と制約は [カスタムエージェント JSON 仕様](../specs/custom-agents-json.md) を参照。
+
+- **組込みとカスタムの機能差**: 組込みの Claude Code / Codex / Cursor は `AgentRegistry` に定義された3種で、3種とも構造化チャット、CLI ごとの hook、使用量プロバイダ、専用の設定画面（エージェント管理コンソール）を使える。カスタムは、PATH でバイナリが解決できれば、JSON で表示名・実行ファイル・起動／bypass／resume 引数を指定してターミナルセッションを起動できる。一方、カスタムは `supportsStructuredChat=false`、使用量プロバイダは `.none`、hook は `.none` 固定であるため、構造化チャット・使用量計測・専用設定画面は提供されず、完了検知は idle-fallback になる。
 
 ### 1-3. 完了検知の2系統（対応可否の主要分岐点）
 | 方式 | 対象 | 仕組み | 正確さ |
@@ -102,10 +104,11 @@ opencode / Goose（Block） / Amazon Q Developer CLI（`q chat`） / GitHub Copi
 ---
 
 ## 4. 追加コスト（現アーキ前提）
-- **Tier B の CLI 1個追加**: enum case + §1-2 の分岐（主に Launch/UI/色/検出）。hook不要なので `idleOnSpawnComplete` を流用でき比較的軽い。UsageProvider は任意。
-- **Tier A の CLI 1個追加**: 上記に加え `XxxHooksManager`（`.xxx/hooks.json` スキーマ作成）と `hook-dispatcher.sh` の対応（現スクリプトは codex/cursor 形を汎用処理しているため、`stop` の JSON 形が同型なら流用可）。
+- **組込み方式で Tier B の CLI 1個追加**: enum case + §1-2 の分岐（主に Launch/UI/色/検出）。hook不要なので `idleOnSpawnComplete` を流用でき比較的軽い。UsageProvider は任意。
+- **組込み方式で Tier A の CLI 1個追加**: 上記に加え `XxxHooksManager`（`.xxx/hooks.json` スキーマ作成）と `hook-dispatcher.sh` の対応（現スクリプトは codex/cursor 形を汎用処理しているため、`stop` の JSON 形が同型なら流用可）。
+- **カスタム CLI 1個追加**: JSON に descriptor と起動／bypass／resume の仕様を記述する。`AgentKind` enum や組込み用の分岐を改修せずに追加できるが、構造化チャット・使用量計測・専用設定画面は付かない。
 - **共通の隠れコスト**: resume/session-id の意味づけが CLI ごとに異なる（`initialResumeID`）、bypass フラグ（自律実行許可）の有無と引数、表示色/アイコン。
-- **本質的な負債**: §1-2 のとおり「1 CLI = 約11ファイル改修」。CLI を増やすほど switch 分岐が散らばる。将来的には設定駆動レジストリ（`agentapi` の `--type` モデル）への refactor が効く。
+- **本質的な負債**: §1-2 のとおり「1 組込み CLI = 約11ファイル改修」。組込み CLI を増やすほど switch 分岐が散らばる。将来的には設定駆動レジストリ（`agentapi` の `--type` モデル）への refactor が効く。
 
 ---
 
@@ -122,7 +125,6 @@ opencode / Goose（Block） / Amazon Q Developer CLI（`q chat`） / GitHub Copi
 1. **短期（既存パターンで足せる本命）**: **Gemini CLI**（Tier A、`stop` hook あり）を追加。既存 codex/cursor の hooks.json パターンに最も近い。
 2. **短期（idle-fallbackで広く）**: **opencode / Goose / Amazon Q Developer CLI** を Tier B として追加。hook不要で取り込め、カバレッジを一気に広げられる。
 3. **中期（負債解消）**: `AgentKind` enum を **設定駆動レジストリ**へ refactor（binary / 起動引数 / hookスキーマ / 完了検知モード / 色 を宣言的プロファイル化）。`agentapi` の `--type` 抽象が参考。1 CLI=11ファイル改修を解消する。
-4. **長期（あらゆる対応）**: ユーザー定義 CLI を JSON で追加できる仕組み（カスタムコマンド）。ここまで来れば「あらゆる AI エージェント CLI」を enum 改修なしで取り込める。
 
 ---
 

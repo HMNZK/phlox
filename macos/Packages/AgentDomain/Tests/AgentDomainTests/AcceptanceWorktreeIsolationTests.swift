@@ -209,6 +209,26 @@ struct AcceptanceWorktreeIsolationTests {
         #expect(outcome == .recreate(worktreePath: workspaceDir, branchName: branch))
     }
 
+    /// git には worktree の登録が残っているのに、実ディレクトリが消えている状態（`git worktree list --porcelain`
+    /// が `prunable` を付けて報告する）。`isRegisteredWorktree` だけを見て `.reuse` にすると、
+    /// 存在しない作業ディレクトリで PTY を起動しようとして毎回失敗し、`git worktree prune` を
+    /// 人が手で叩くまで復元できなくなる。**登録の有無ではなく、実体があるかで判定すること。**
+    @Test func 復元時に登録だけ残りディレクトリが失われていれば作り直す() {
+        let sessionID = SessionID()
+        let branch = WorktreeIsolationPlanner.branchName(for: sessionID)
+        let outcome = WorktreeIsolationPlanner.plan(
+            project: makeProject(worktreeIsolationEnabled: true),
+            sessionID: sessionID,
+            sessionWorkspaceDirectory: workspaceDir,
+            isGitRepository: true,
+            existingBranchNames: [branch],
+            worktreePathExists: false,
+            isRegisteredWorktree: true,
+            intent: .restore
+        )
+        #expect(outcome == .recreate(worktreePath: workspaceDir, branchName: branch))
+    }
+
     @Test func 復元時にパスはあるがworktreeとして未登録なら中止する() {
         let sessionID = SessionID()
         let outcome = WorktreeIsolationPlanner.plan(

@@ -51,7 +51,7 @@ struct AcceptanceRestoreAbortNoSpawnTests {
     @Test @MainActor
     func 隔離を中止した復元は共有ディレクトリでエージェントを起動しない() async throws {
         let ptyManager = MockPTYManager()
-        let repository = try makeAcceptanceRestoreAbortRepository()
+        let repository = try AcceptanceRestoreAbortRepositoryFixture.repository()
         let workspaceRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("phlox-abort-nospawn-shared-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
@@ -64,7 +64,6 @@ struct AcceptanceRestoreAbortNoSpawnTests {
         try FileManager.default.createDirectory(at: worktreePath, withIntermediateDirectories: true)
         defer {
             try? FileManager.default.removeItem(at: workspaceRoot)
-            try? FileManager.default.removeItem(at: repository)
         }
 
         let project = Project(
@@ -116,7 +115,7 @@ struct AcceptanceRestoreAbortNoSpawnTests {
     @Test @MainActor
     func worktree生成に失敗した復元はエージェントを起動しない() async throws {
         let ptyManager = MockPTYManager()
-        let repository = try makeAcceptanceRestoreAbortRepository()
+        let repository = try AcceptanceRestoreAbortRepositoryFixture.repository()
         let workspaceRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("phlox-abort-nospawn-failed-\(UUID().uuidString)", isDirectory: true)
         // ワークスペース基点を**ファイル**にして、worktree の親ディレクトリ生成を必ず失敗させる。
@@ -128,7 +127,6 @@ struct AcceptanceRestoreAbortNoSpawnTests {
         )
         defer {
             try? FileManager.default.removeItem(at: workspaceRoot)
-            try? FileManager.default.removeItem(at: repository)
         }
 
         let project = Project(
@@ -230,6 +228,26 @@ private func runAcceptanceRestoreAbortGit(_ arguments: [String], in directory: U
         throw AcceptanceRestoreAbortGitError()
     }
     return String(decoding: data, as: UTF8.self)
+}
+
+/// 実 git の起動回数を抑えるため、スイート内で 1 リポジトリを共有する。
+///
+/// このスイートは `.serialized` なので同時アクセスは起きない。どちらのテストも
+/// リポジトリの中身を変更しない（`.abort` は何も作らず、`.recreate` は worktree 生成に失敗する）。
+/// 各テストで `git init` + `commit` をやり直すと、DashboardFeature 全数実行の
+/// 時間予算テストを押し倒すだけの負荷になる（独立レビューが実測）。
+private enum AcceptanceRestoreAbortRepositoryFixture {
+    static let result: Result<URL, Error> = {
+        do {
+            return .success(try makeAcceptanceRestoreAbortRepository())
+        } catch {
+            return .failure(error)
+        }
+    }()
+
+    static func repository() throws -> URL {
+        try result.get()
+    }
 }
 
 private func makeAcceptanceRestoreAbortRepository() throws -> URL {

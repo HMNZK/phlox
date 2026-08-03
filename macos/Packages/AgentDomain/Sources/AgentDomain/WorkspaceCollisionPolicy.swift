@@ -60,6 +60,22 @@ public enum WorkspaceCollisionPolicy {
         return collisions(among: workspaces)[path, default: []].subtracting([sessionID])
     }
 
+    /// 指定した作業ディレクトリにいる、稼働中の別セッション。
+    ///
+    /// 選択セッション自身が終了済みでも、同じ作業ツリーで稼働中のセッションを返す。
+    /// 既存の `peers` は終了済みセッション自身を対象外にする契約のため、意味を分けて追加する。
+    public static func activePeers(
+        at workingDirectory: String,
+        excluding sessionID: SessionID,
+        among workspaces: [SessionWorkspace]
+    ) -> Set<SessionID> {
+        let path = canonicalPath(workingDirectory)
+        guard !path.isEmpty else { return [] }
+
+        return activeGroups(among: workspaces)[path, default: []]
+            .subtracting([sessionID])
+    }
+
     private static func activeGroups(
         among workspaces: [SessionWorkspace]
     ) -> [String: Set<SessionID>] {

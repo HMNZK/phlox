@@ -39,8 +39,7 @@ public struct DashboardView: View {
     /// 表示幅（`storedDrawerWidth` の保存値ではなく実際にクランプ済みの幅）を一度だけ
     /// 採る起点として使う。
     @State private var isDraggingDrawer = false
-    @State private var editorPanelViewModel = EditorPanelViewModel(service: nil)
-    @State private var editorPanelProjectID: ProjectID?
+    @State private var editorPanel = EditorPanelCoordinator()
 
     /// Claude Code 管理ウィンドウの識別子。App 側が Window シーンを持つときだけ渡す。
     private let agentConsoleWindowID: String?
@@ -416,7 +415,7 @@ public struct DashboardView: View {
         // コンテンツを最上部まで詰め、トラフィックライト回避はサイドバー側の上余白に一任する。
         .ignoresSafeArea(.container, edges: .top)
         .onAppear {
-            updateEditorPanelProject()
+            updateEditorPanel()
         }
         .onChange(of: router.viewMode, initial: true) { _, newMode in
             if newMode != .grid {
@@ -440,12 +439,15 @@ public struct DashboardView: View {
         }
         .onChange(of: router.selectedSession) { _, selectedID in
             markCompletionSeen(for: selectedID)
-            updateEditorPanelProject()
+            updateEditorPanel()
             if let selectedID,
                let session = viewModel.sessionNode(id: selectedID),
                let projectID = session.projectID {
                 expandedProjectIDs.insert(projectID)
             }
+        }
+        .onChange(of: editorPanelWorkspaces) { _, _ in
+            updateEditorPanel()
         }
         .onChange(of: viewModel.unseenCompletionCount) { _, _ in
             markCompletionSeen(for: router.selectedSession)
@@ -602,26 +604,21 @@ public struct DashboardView: View {
     }
 
     private func editorDrawerContent(topInset: CGFloat) -> some View {
-        EditorPanelView(viewModel: editorPanelViewModel, topInset: topInset)
-            .task(id: editorPanelProjectID) {
-                await editorPanelViewModel.refresh()
+        EditorPanelView(viewModel: editorPanel.viewModel, topInset: topInset)
+            .task(id: editorPanel.target) {
+                await editorPanel.resolve(workspaces: editorPanelWorkspaces)
             }
     }
 
-    private func updateEditorPanelProject() {
-        let project: Project? = {
-            guard let selectedID = router.selectedSession,
-                  let projectID = viewModel.sessionNode(id: selectedID)?.projectID else {
-                return nil
-            }
-            return viewModel.projects.first(where: { $0.id == projectID })
-        }()
-        guard editorPanelProjectID != project?.id else { return }
-
-        editorPanelProjectID = project?.id
-        editorPanelViewModel = EditorPanelViewModel(
-            service: project.map { WorkingTreeService(repositoryRoot: $0.directoryURL) }
+    private func updateEditorPanel() {
+        editorPanel.update(
+            selectedSessionID: router.selectedSession,
+            workspaces: editorPanelWorkspaces
         )
+    }
+
+    private var editorPanelWorkspaces: [SessionWorkspace] {
+        viewModel.workspaceSessionWorkspaces
     }
 
     @ViewBuilder

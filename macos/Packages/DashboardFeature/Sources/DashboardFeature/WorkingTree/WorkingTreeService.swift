@@ -49,6 +49,13 @@ public actor WorkingTreeService {
                 .trimmingCharacters(in: .whitespacesAndNewlines) == "true"
     }
 
+    /// このサービスの作業ディレクトリから解決した Git リポジトリのルート。
+    /// `requireRepository()` を通すことで、他の Git 読み取りと同じ実行規則を使う。
+    public func resolvedRepositoryRootPath() -> String? {
+        guard let repositoryURL = try? requireRepository() else { return nil }
+        return repositoryURL.path
+    }
+
     public func changes() throws -> [WorkingTreeChange] {
         let repositoryURL = try requireRepository()
 

@@ -103,6 +103,23 @@ public struct EditorPanelView: View {
 
     private var changeList: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if case .shared = viewModel.changeScope {
+                Label {
+                    Text(
+                        "このプロジェクトの全変更を表示しており、このセッションの変更とは限らないことがあります。"
+                    )
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel(
+                    "このプロジェクトの全変更を表示しており、このセッションの変更とは限らないことがあります。"
+                )
+                .accessibilityIdentifier("session-change-scope-notice")
+            }
+
             HStack {
                 Text("Changes")
                     .font(.headline)

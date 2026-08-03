@@ -35,12 +35,12 @@ public extension SessionChangeScope {
 /// 選択中セッションから、変更一覧の対象スコープを導く（task-3 契約）。
 ///
 /// 受け入れテスト `AcceptanceSessionChangeScopeTests` が凍結する。
-/// **スタブ実装＝task-3 が本実装する。**
+/// 共有判定は `WorkspaceCollisionPolicy.activePeers` に委譲する。
 public enum SessionChangeScopeResolver {
     /// - Parameters:
     ///   - selectedSessionID: 選択中のセッション。`nil` なら `.unavailable`。
     ///   - workspaces: アクティブ判定つきの全セッションの作業ディレクトリ。
-    ///     共有判定は `WorkspaceCollisionPolicy.peers` に委ねる（規則の正本を 2 箇所に持たない）。
+    ///     共有判定は `WorkspaceCollisionPolicy.activePeers` に委ねる（規則の正本を 2 箇所に持たない）。
     ///   - repositoryRootProvider: 作業ディレクトリ → git リポジトリのルート。
     ///     リポジトリ外なら `nil` を返す（`git rev-parse --show-toplevel` 相当）。
     public static func resolve(
@@ -48,6 +48,23 @@ public enum SessionChangeScopeResolver {
         workspaces: [SessionWorkspace],
         repositoryRootProvider: (String) -> String?
     ) -> SessionChangeScope {
-        .unavailable
+        guard let selectedSessionID,
+              let selectedWorkspace = workspaces.first(where: {
+                  $0.sessionID == selectedSessionID
+              }),
+              let repositoryRoot = repositoryRootProvider(selectedWorkspace.workingDirectory)
+        else {
+            return .unavailable
+        }
+
+        let peerCount = WorkspaceCollisionPolicy.activePeers(
+            at: selectedWorkspace.workingDirectory,
+            excluding: selectedSessionID,
+            among: workspaces
+        ).count
+        if peerCount > 0 {
+            return .shared(repositoryRoot: repositoryRoot, peerCount: peerCount)
+        }
+        return .isolated(repositoryRoot: repositoryRoot)
     }
 }

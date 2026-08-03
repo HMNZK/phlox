@@ -14,7 +14,8 @@ extension DashboardViewModel {
         }
     }
 
-    private var workspaceSessionWorkspaces: [SessionWorkspace] {
+    /// エディタパネルを含む共有判定の入力。セッションの重複除去と稼働中判定の正本。
+    var workspaceSessionWorkspaces: [SessionWorkspace] {
         let ptyWorkspaces = sessions.map(Self.workspace(for:))
         let ptySessionIDs = Set(ptyWorkspaces.map(\.sessionID))
         let appServerWorkspaces = sessionNodes.compactMap { node -> SessionWorkspace? in

@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import AgentDomain
 
 @MainActor
 @Observable
@@ -26,6 +27,8 @@ public final class EditorPanelViewModel {
     public private(set) var changes: [WorkingTreeChange] = []
     public private(set) var selectedPath: String?
     public private(set) var detail: Detail = .none
+    /// 変更一覧の帰属範囲。`ListState`（表示対象の有無）とは分離して保持する。
+    public private(set) var changeScope: SessionChangeScope
     var listErrorMessage: String?
     var readOnlyMessage: String?
     public var draft = "" {
@@ -46,8 +49,17 @@ public final class EditorPanelViewModel {
         selectedPath != nil && loadedDiskContent != nil
     }
 
-    public init(service: WorkingTreeService?) {
+    public init(
+        service: WorkingTreeService?,
+        changeScope: SessionChangeScope = .unavailable
+    ) {
         self.service = service
+        self.changeScope = changeScope
+    }
+
+    /// 共有相手の増減など、表示対象の変更を伴わない帰属範囲の変化だけを反映する。
+    public func updateChangeScope(_ changeScope: SessionChangeScope) {
+        self.changeScope = changeScope
     }
 
     public func refresh() async {

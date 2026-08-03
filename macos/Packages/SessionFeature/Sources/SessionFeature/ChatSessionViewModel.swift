@@ -509,6 +509,11 @@ public final class ChatSessionViewModel: Identifiable {
         return (workingDirectory as NSString).abbreviatingWithTildeInPath
     }
 
+    /// 現在のワークスペース (CWD) の生パス。衝突判定など、表示用に短縮しない用途で使う。
+    public var rawWorkspacePath: String {
+        workingDirectory ?? ""
+    }
+
     public var isReadyForInput: Bool {
         switch status {
         case .starting:

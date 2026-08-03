@@ -3,6 +3,13 @@ import AgentDomain
 import DesignSystem
 import SessionFeature
 
+/// セッション行に出す作業ディレクトリ共有警告の表示規則。
+enum WorkspaceCollisionWarningPresentation {
+    static let symbolName = "exclamationmark.triangle.fill"
+    static let accessibilityLabel = "作業ディレクトリを共有中"
+    static let accessibilityIdentifier = "workspace-collision-warning"
+}
+
 struct DashboardSidebarView<NewSessionMenuContent: View>: View {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
@@ -49,6 +56,7 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
     }
 
     var body: some View {
+        let workspaceCollisionSessionIDs = viewModel.workspaceCollisionSessionIDs
         Group {
             if viewModel.projects.isEmpty {
                 sidebarEmptyState
@@ -62,13 +70,19 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
                             projectHeader(project)
                                 .listRowSeparator(.hidden)
                             if isProjectExpanded(project.id) {
-                                projectSessionRows(project)
+                                projectSessionRows(
+                                    project,
+                                    workspaceCollisionSessionIDs: workspaceCollisionSessionIDs
+                                )
                             }
                         }
                         if !viewModel.unassignedSessionNodes.isEmpty {
                             Section("その他") {
                                 ForEach(viewModel.unassignedSessionNodes, id: \.id) { session in
-                                    sessionSidebarRow(session)
+                                    sessionSidebarRow(
+                                        session,
+                                        workspaceCollisionSessionIDs: workspaceCollisionSessionIDs
+                                    )
                                 }
                             }
                         }
@@ -137,19 +151,30 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
     }
 
     @ViewBuilder
-    private func projectSessionRows(_ project: Project) -> some View {
+    private func projectSessionRows(
+        _ project: Project,
+        workspaceCollisionSessionIDs: Set<SessionID>
+    ) -> some View {
         ForEach(sessionTreeViewModel.rows(from: viewModel.sessionForest(in: project.id))) { row in
             if let session = viewModel.sessionNode(id: row.id) {
-                sessionSidebarRow(session, treeRow: row)
+                sessionSidebarRow(
+                    session,
+                    treeRow: row,
+                    workspaceCollisionSessionIDs: workspaceCollisionSessionIDs
+                )
             }
         }
     }
 
-    private func sessionSidebarRow(_ session: SessionNode) -> some View {
+    private func sessionSidebarRow(
+        _ session: SessionNode,
+        workspaceCollisionSessionIDs: Set<SessionID>
+    ) -> some View {
         SessionSidebarRowView(
             session: session,
             treeRow: nil,
-            isSelected: router.selectedSession == session.id
+            isSelected: router.selectedSession == session.id,
+            hasWorkspaceCollision: workspaceCollisionSessionIDs.contains(session.id)
         ) {
             router.selectedSession = session.id
         } onToggleExpansion: {}
@@ -166,11 +191,16 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
             }
     }
 
-    private func sessionSidebarRow(_ session: SessionNode, treeRow: SessionTreeViewModel.Row) -> some View {
+    private func sessionSidebarRow(
+        _ session: SessionNode,
+        treeRow: SessionTreeViewModel.Row,
+        workspaceCollisionSessionIDs: Set<SessionID>
+    ) -> some View {
         SessionSidebarRowView(
             session: session,
             treeRow: treeRow,
-            isSelected: router.selectedSession == session.id
+            isSelected: router.selectedSession == session.id,
+            hasWorkspaceCollision: workspaceCollisionSessionIDs.contains(session.id)
         ) {
             router.selectedSession = session.id
         } onToggleExpansion: {
@@ -404,6 +434,7 @@ private struct SessionSidebarRowView: View {
     let session: SessionNode
     let treeRow: SessionTreeViewModel.Row?
     let isSelected: Bool
+    let hasWorkspaceCollision: Bool
     let onSelect: () -> Void
     let onToggleExpansion: () -> Void
     @State private var isHovering = false
@@ -421,6 +452,17 @@ private struct SessionSidebarRowView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
             Spacer(minLength: DSSpacing.s)
+            if hasWorkspaceCollision {
+                Image(systemName: WorkspaceCollisionWarningPresentation.symbolName)
+                    .font(.system(size: DSIconSize.s, weight: .semibold))
+                    .foregroundStyle(DSColor.statusAwaitingApproval)
+                    .frame(width: 16, height: 16)
+                    .fixedSize()
+                    .layoutPriority(1)
+                    .help(WorkspaceCollisionWarningPresentation.accessibilityLabel)
+                    .accessibilityLabel(WorkspaceCollisionWarningPresentation.accessibilityLabel)
+                    .accessibilityIdentifier(WorkspaceCollisionWarningPresentation.accessibilityIdentifier)
+            }
             TimelineView(.periodic(from: session.startedAt, by: 60)) { timeline in
                 Text(SidebarRelativeTime.label(from: session.startedAt, to: timeline.date))
                     .font(DSFont.caption)

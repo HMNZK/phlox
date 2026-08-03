@@ -33,18 +33,42 @@ public enum WorkspaceCollisionPolicy {
     /// 大文字小文字は**畳まない**。APFS は既定で大小無視だが case-sensitive ボリュームも
     /// 選べるため、無条件に畳むと別ディレクトリを同一と誤判定する。
     public static func canonicalPath(_ path: String) -> String {
-        path
+        guard !path.isEmpty else { return "" }
+
+        return URL(fileURLWithPath: path)
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+            .path
     }
 
     /// アクティブなセッションのうち、作業ディレクトリを共有している集合。
     ///
     /// - Returns: 正準パス → そのパスを共有するセッション集合。**2 件以上のものだけ**を含む。
     public static func collisions(among workspaces: [SessionWorkspace]) -> [String: Set<SessionID>] {
-        [:]
+        activeGroups(among: workspaces).filter { $0.value.count >= 2 }
     }
 
     /// 指定セッションが作業ディレクトリを共有している相手（自分自身は含まない）。
     public static func peers(of sessionID: SessionID, among workspaces: [SessionWorkspace]) -> Set<SessionID> {
-        []
+        guard let workspace = workspaces.first(where: {
+            $0.sessionID == sessionID && $0.isActive
+        }) else {
+            return []
+        }
+
+        let path = canonicalPath(workspace.workingDirectory)
+        return collisions(among: workspaces)[path, default: []].subtracting([sessionID])
+    }
+
+    private static func activeGroups(
+        among workspaces: [SessionWorkspace]
+    ) -> [String: Set<SessionID>] {
+        workspaces.reduce(into: [String: Set<SessionID>]()) { groups, workspace in
+            guard workspace.isActive else { return }
+
+            let path = canonicalPath(workspace.workingDirectory)
+            guard !path.isEmpty else { return }
+            groups[path, default: []].insert(workspace.sessionID)
+        }
     }
 }

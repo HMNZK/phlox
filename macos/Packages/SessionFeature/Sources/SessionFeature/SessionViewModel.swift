@@ -132,6 +132,11 @@ public final class SessionViewModel: Identifiable {
         return (dir as NSString).abbreviatingWithTildeInPath
     }
 
+    /// 現在のワークスペース (CWD) の生パス。衝突判定など、表示用に短縮しない用途で使う。
+    public var rawWorkspacePath: String {
+        spawnRequest.workingDirectory ?? ""
+    }
+
     private let ptyManager: any PTYManagerProtocol
     // restart 時に新 hook stream / 新 workingDirectory へ差し替えるため var とする
     // （API 契約上 private メンバーの let→var 化は許容）。

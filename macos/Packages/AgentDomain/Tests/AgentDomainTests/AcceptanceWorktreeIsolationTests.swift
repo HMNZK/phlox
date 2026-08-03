@@ -169,6 +169,148 @@ struct AcceptanceWorktreeIsolationTests {
         #expect(outcome == .abort(.worktreePathOccupied(workspaceDir)))
     }
 
+    // MARK: - 復元（同じ SessionID で再度呼ばれる経路）
+    //
+    // `SessionRestoreCoordinator` は `spawnNewSessionImpl` を経由せず `prepareSessionLaunch` を
+    // 直接呼び、`sessionID` は初回と同じ。`branchName(for:)` は SessionID の純関数なので、
+    // 新規と同じ規則で判定すると必ず `.abort(.branchAlreadyExists)` になり、隔離セッションは
+    // **アプリ再起動後に二度と復元できず worktree とブランチが恒久的に残る**。
+    // 独立レビューが実 git で再現した MUST 指摘への対処として、復元は再利用を正とする。
+
+    @Test func 復元時に登録済みworktreeがあればそれを再利用する() {
+        let sessionID = SessionID()
+        let branch = WorktreeIsolationPlanner.branchName(for: sessionID)
+        let outcome = WorktreeIsolationPlanner.plan(
+            project: makeProject(worktreeIsolationEnabled: true),
+            sessionID: sessionID,
+            sessionWorkspaceDirectory: workspaceDir,
+            isGitRepository: true,
+            existingBranchNames: [branch],
+            worktreePathExists: true,
+            isRegisteredWorktree: true,
+            intent: .restore
+        )
+        #expect(outcome == .reuse(worktreePath: workspaceDir, branchName: branch))
+    }
+
+    @Test func 復元時にブランチだけ残りworktreeが失われていれば作り直す() {
+        let sessionID = SessionID()
+        let branch = WorktreeIsolationPlanner.branchName(for: sessionID)
+        let outcome = WorktreeIsolationPlanner.plan(
+            project: makeProject(worktreeIsolationEnabled: true),
+            sessionID: sessionID,
+            sessionWorkspaceDirectory: workspaceDir,
+            isGitRepository: true,
+            existingBranchNames: [branch],
+            worktreePathExists: false,
+            isRegisteredWorktree: false,
+            intent: .restore
+        )
+        #expect(outcome == .recreate(worktreePath: workspaceDir, branchName: branch))
+    }
+
+    /// git には worktree の登録が残っているのに、実ディレクトリが消えている状態（`git worktree list --porcelain`
+    /// が `prunable` を付けて報告する）。`isRegisteredWorktree` だけを見て `.reuse` にすると、
+    /// 存在しない作業ディレクトリで PTY を起動しようとして毎回失敗し、`git worktree prune` を
+    /// 人が手で叩くまで復元できなくなる。**登録の有無ではなく、実体があるかで判定すること。**
+    @Test func 復元時に登録だけ残りディレクトリが失われていれば作り直す() {
+        let sessionID = SessionID()
+        let branch = WorktreeIsolationPlanner.branchName(for: sessionID)
+        let outcome = WorktreeIsolationPlanner.plan(
+            project: makeProject(worktreeIsolationEnabled: true),
+            sessionID: sessionID,
+            sessionWorkspaceDirectory: workspaceDir,
+            isGitRepository: true,
+            existingBranchNames: [branch],
+            worktreePathExists: false,
+            isRegisteredWorktree: true,
+            intent: .restore
+        )
+        #expect(outcome == .recreate(worktreePath: workspaceDir, branchName: branch))
+    }
+
+    @Test func 復元時にパスはあるがworktreeとして未登録なら中止する() {
+        let sessionID = SessionID()
+        let outcome = WorktreeIsolationPlanner.plan(
+            project: makeProject(worktreeIsolationEnabled: true),
+            sessionID: sessionID,
+            sessionWorkspaceDirectory: workspaceDir,
+            isGitRepository: true,
+            existingBranchNames: [],
+            worktreePathExists: true,
+            isRegisteredWorktree: false,
+            intent: .restore
+        )
+        #expect(outcome == .abort(.worktreePathOccupied(workspaceDir)))
+    }
+
+    @Test func 復元でも隔離フラグがoffなら従来どおり() {
+        let outcome = WorktreeIsolationPlanner.plan(
+            project: makeProject(worktreeIsolationEnabled: false),
+            sessionID: SessionID(),
+            sessionWorkspaceDirectory: workspaceDir,
+            isGitRepository: true,
+            existingBranchNames: [],
+            worktreePathExists: false,
+            isRegisteredWorktree: false,
+            intent: .restore
+        )
+        #expect(outcome == .disabled)
+    }
+
+    @Test func 復元でブランチもworktreeも無ければ新規に作る() {
+        let sessionID = SessionID()
+        let branch = WorktreeIsolationPlanner.branchName(for: sessionID)
+        let outcome = WorktreeIsolationPlanner.plan(
+            project: makeProject(worktreeIsolationEnabled: true),
+            sessionID: sessionID,
+            sessionWorkspaceDirectory: workspaceDir,
+            isGitRepository: true,
+            existingBranchNames: [],
+            worktreePathExists: false,
+            isRegisteredWorktree: false,
+            intent: .restore
+        )
+        #expect(outcome == .create(worktreePath: workspaceDir, branchName: branch))
+    }
+
+    @Test func 復元でも非gitリポジトリなら中止する() {
+        let outcome = WorktreeIsolationPlanner.plan(
+            project: makeProject(worktreeIsolationEnabled: true),
+            sessionID: SessionID(),
+            sessionWorkspaceDirectory: workspaceDir,
+            isGitRepository: false,
+            existingBranchNames: [],
+            worktreePathExists: true,
+            isRegisteredWorktree: true,
+            intent: .restore
+        )
+        #expect(outcome == .abort(.notAGitRepository(path: "/tmp/phlox-wt/repo")))
+    }
+
+    /// 新規 spawn 側の規則が復元の追加で緩んでいないこと。登録済み worktree があっても
+    /// 新規セッションでは再利用せず中止する（別セッションの作業ツリーを奪わない）。
+    @Test func 新規セッションは登録済みworktreeがあっても再利用しない() {
+        let sessionID = SessionID()
+        let outcome = WorktreeIsolationPlanner.plan(
+            project: makeProject(worktreeIsolationEnabled: true),
+            sessionID: sessionID,
+            sessionWorkspaceDirectory: workspaceDir,
+            isGitRepository: true,
+            existingBranchNames: [WorktreeIsolationPlanner.branchName(for: sessionID)],
+            worktreePathExists: true,
+            isRegisteredWorktree: true,
+            intent: .newSession
+        )
+        if case .reuse = outcome {
+            Issue.record("新規セッションで既存 worktree を再利用している: \(outcome)")
+        }
+        if case .recreate = outcome {
+            Issue.record("新規セッションで既存ブランチから作り直している: \(outcome)")
+        }
+        #expect(outcome == .abort(.branchAlreadyExists(WorktreeIsolationPlanner.branchName(for: sessionID))))
+    }
+
     @Test func 失敗時に従来の共有ディレクトリへフォールバックしない() {
         // 隔離できない条件をすべて同時に与えても、.disabled（＝従来挙動で起動）にはならない。
         for (isRepo, branches, pathExists) in [

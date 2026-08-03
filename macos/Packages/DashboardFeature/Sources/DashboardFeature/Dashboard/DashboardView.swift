@@ -99,6 +99,16 @@ public struct DashboardView: View {
             } message: { err in
                 Text(err.message)
             }
+            .alert(
+                viewModel.workspaceCleanupWarning?.title ?? "セッションの後始末に失敗しました",
+                isPresented: workspaceCleanupWarningBinding
+            ) {
+                Button("OK", role: .cancel) {
+                    viewModel.clearWorkspaceCleanupWarning()
+                }
+            } message: {
+                Text(viewModel.workspaceCleanupWarning?.message ?? "セッションの後始末に失敗しました。")
+            }
             .confirmationDialog(
                 deletionDialogTitle,
                 isPresented: deletionDialogBinding,
@@ -255,12 +265,15 @@ public struct DashboardView: View {
             // 下の .ignoresSafeArea(.top) と同じくウィンドウ最上部を基準に配置され、三色ボタンと
             // 同じ高さに揃う（外側に置くとセーフエリア分だけ下にずれる）。
             .overlay(alignment: .topLeading) {
-                DashboardLeadingTopBarControls(
-                    viewModel: viewModel,
-                    router: router,
-                    onOpenSettings: { openSettings() },
-                    agentConsoleWindowID: agentConsoleWindowID
-                )
+                HStack(spacing: DSSpacing.s) {
+                    DashboardLeadingTopBarControls(
+                        viewModel: viewModel,
+                        router: router,
+                        onOpenSettings: { openSettings() },
+                        agentConsoleWindowID: agentConsoleWindowID
+                    )
+                    projectIsolationMenu
+                }
                     .padding(.leading, 78)
                     // 三色ボタンの中心はウィンドウ上端から 16pt（実測: ボタン上端 8pt + 高さ 16pt の半分）。
                     // トグルは 28pt 枠で中心が top + 14 になるため、top = 2 で三色ボタンと中心が揃う。
@@ -449,6 +462,43 @@ public struct DashboardView: View {
               let session = viewModel.sessionNode(id: selectedID),
               case .appServer(let chatSession) = session else { return nil }
         return chatSession
+    }
+
+    private var selectedProject: Project? {
+        guard let projectID = router.selectedProjectID else { return nil }
+        return viewModel.projects.first(where: { $0.id == projectID })
+    }
+
+    @ViewBuilder
+    private var projectIsolationMenu: some View {
+        if let selectedProject {
+            Menu {
+                Toggle(isOn: worktreeIsolationBinding) {
+                    Label("セッションを Git worktree で隔離", systemImage: "arrow.triangle.branch")
+                }
+            } label: {
+                Image(systemName: selectedProject.usesWorktreeIsolation
+                    ? "arrow.triangle.branch.circle.fill"
+                    : "arrow.triangle.branch.circle")
+                    .font(.system(size: DSIconSize.l, weight: .medium))
+                    .foregroundStyle(DSColor.textSecondary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .menuStyle(.borderlessButton)
+            .buttonStyle(HoverableIconButtonStyle())
+            .help("選択中プロジェクトのセッション隔離")
+        }
+    }
+
+    private var worktreeIsolationBinding: Binding<Bool> {
+        Binding(
+            get: { selectedProject?.usesWorktreeIsolation ?? false },
+            set: { enabled in
+                guard let projectID = router.selectedProjectID else { return }
+                viewModel.setWorktreeIsolationEnabled(enabled, for: projectID)
+            }
+        )
     }
 
     // MARK: - Header actions
@@ -712,6 +762,13 @@ public struct DashboardView: View {
         Binding(
             get: { spawnError != nil },
             set: { if !$0 { spawnError = nil } }
+        )
+    }
+
+    private var workspaceCleanupWarningBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.workspaceCleanupWarning != nil },
+            set: { if !$0 { viewModel.clearWorkspaceCleanupWarning() } }
         )
     }
 

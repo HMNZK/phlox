@@ -69,11 +69,65 @@ public enum WorktreeIsolationPlanner {
         isRegisteredWorktree: Bool = false,
         intent: WorktreeIsolationIntent = .newSession
     ) -> WorktreeIsolationOutcome {
-        .disabled
+        guard let project, project.usesWorktreeIsolation else {
+            return .disabled
+        }
+
+        guard isGitRepository else {
+            return .abort(.notAGitRepository(path: project.directoryPath))
+        }
+
+        let branchName = branchName(for: sessionID)
+
+        switch intent {
+        case .newSession:
+            guard !existingBranchNames.contains(branchName) else {
+                return .abort(.branchAlreadyExists(branchName))
+            }
+
+            guard !worktreePathExists else {
+                return .abort(.worktreePathOccupied(sessionWorkspaceDirectory))
+            }
+
+            return .create(
+                worktreePath: sessionWorkspaceDirectory,
+                branchName: branchName
+            )
+        case .restore:
+            if isRegisteredWorktree && worktreePathExists {
+                return .reuse(
+                    worktreePath: sessionWorkspaceDirectory,
+                    branchName: branchName
+                )
+            }
+
+            if isRegisteredWorktree {
+                return .recreate(
+                    worktreePath: sessionWorkspaceDirectory,
+                    branchName: branchName
+                )
+            }
+
+            guard !worktreePathExists else {
+                return .abort(.worktreePathOccupied(sessionWorkspaceDirectory))
+            }
+
+            if existingBranchNames.contains(branchName) {
+                return .recreate(
+                    worktreePath: sessionWorkspaceDirectory,
+                    branchName: branchName
+                )
+            }
+
+            return .create(
+                worktreePath: sessionWorkspaceDirectory,
+                branchName: branchName
+            )
+        }
     }
 
     /// セッションに割り当てるブランチ名。衝突を避けるため `SessionID` を含める。
     public static func branchName(for sessionID: SessionID) -> String {
-        ""
+        "phlox/session/\(sessionID.rawValue.uuidString.lowercased())"
     }
 }

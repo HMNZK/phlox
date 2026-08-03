@@ -13,6 +13,29 @@ import CodexAppServerKit
 import StructuredChatKit
 import SessionFeature
 
+public enum WorkspaceCleanupWarning: Equatable, Sendable {
+    case worktreeRetained(path: String)
+    case branchRetained(branchName: String)
+
+    public var title: String {
+        switch self {
+        case .worktreeRetained:
+            return "セッション用 worktree を残しています"
+        case .branchRetained:
+            return "セッション用ブランチを残しています"
+        }
+    }
+
+    public var message: String {
+        switch self {
+        case .worktreeRetained(let path):
+            return "セッション用 worktree を削除できませんでした。未コミット変更がある場合は worktree を残しています: \(path)"
+        case .branchRetained(let branchName):
+            return "worktree は削除しましたが、セッション用ブランチを削除できませんでした。ブランチを確認してください: \(branchName)"
+        }
+    }
+}
+
 /// セッション一覧と新規作成・削除を担当する。
 ///
 /// API 契約 (M6a で本実装、M6b は本シグネチャに依存):
@@ -24,6 +47,11 @@ public final class DashboardViewModel {
     private enum APISpawnLimitSource {
         case parent(SessionID?)
         case controlRequester(SessionID?)
+    }
+
+    private struct OwnedWorkspace {
+        let directory: URL
+        let worktreeRepository: URL?
     }
 
     public private(set) var sessions: [SessionViewModel] = []
@@ -39,6 +67,8 @@ public final class DashboardViewModel {
     @ObservationIgnored public var sessionDidSpawn: ((AgentRef) -> Void)?
 
     public private(set) var projects: [Project] = []
+    /// worktree の削除を安全に拒否したとき、ユーザーへ残置を伝えるための警告。
+    public private(set) var workspaceCleanupWarning: WorkspaceCleanupWarning?
     public private(set) var restoredSessionPresentation: RestoredSessionPresentation?
 
     /// グリッドに表示するセッションの選択（nil = 全表示）。永続化しない。
@@ -70,7 +100,7 @@ public final class DashboardViewModel {
     private var spawnTimestamps: [SessionID: [Date]] = [:]
     private var unattributedControlAPISpawnTimestamps: [Date] = []
     private let sessionHooks: SessionHookInstaller
-    private var ownedWorkspaceDirectories: [SessionID: URL] = [:]
+    private var ownedWorkspaceDirectories: [SessionID: OwnedWorkspace] = [:]
     /// 永続化の直列実行キュー。すべての保存はこの coordinator 経由で行う。
     private let persistence: SessionPersistenceCoordinator
     /// エージェント間メッセージング（送信・レート制限・記録）。
@@ -168,11 +198,14 @@ public final class DashboardViewModel {
             setHookContinuation: { [weak self] sessionID, continuation in
                 self?.sessionHookContinuations[sessionID] = continuation
             },
-            registerOwnedWorkspace: { [weak self] sessionID, url in
-                self?.ownedWorkspaceDirectories[sessionID] = url
+            registerOwnedWorkspace: { [weak self] sessionID, url, worktreeRepository in
+                self?.ownedWorkspaceDirectories[sessionID] = OwnedWorkspace(
+                    directory: url,
+                    worktreeRepository: worktreeRepository
+                )
             },
             cleanupOwnedWorkspace: { [weak self] sessionID in
-                self?.cleanupOwnedWorkspace(for: sessionID)
+                await self?.cleanupOwnedWorkspace(for: sessionID)
             },
             lastUsedChatSettings: { [weak self] agentID in
                 self?.lastUsedChatSettingsStore.lastUsed(agentID: agentID)
@@ -778,6 +811,18 @@ public final class DashboardViewModel {
         persistProjects()
     }
 
+    /// 指定プロジェクトのセッションごとの git worktree 隔離を切り替える。
+    /// Optional の永続化フィールドは保持し、旧スキーマの nil は読み出し側で false として扱う。
+    public func setWorktreeIsolationEnabled(_ enabled: Bool, for projectID: ProjectID) {
+        guard let index = projects.firstIndex(where: { $0.id == projectID }) else { return }
+        projects[index].worktreeIsolationEnabled = enabled
+        persistProjects()
+    }
+
+    public func clearWorkspaceCleanupWarning() {
+        workspaceCleanupWarning = nil
+    }
+
     /// セッション名を変更する。空白のみの名前はトリムして空にする。
     public func renameSession(_ id: SessionID, to name: String) {
         guard let vm = sessionNodes.first(where: { $0.id == id })?.controllable else { return }
@@ -947,7 +992,7 @@ public final class DashboardViewModel {
 
         let plan: AgentLaunchPlan
         do {
-            plan = try sessionSpawnService.prepareSessionLaunch(
+            plan = try await sessionSpawnService.prepareSessionLaunchAsync(
                 ref: ref,
                 sessionID: sessionID,
                 sessionToken: token,
@@ -959,15 +1004,15 @@ public final class DashboardViewModel {
             )
         } catch AgentLaunchPlannerError.binaryNotFound(let k) {
             await environment.tokenStore.remove(session: sessionID)
-            cleanupOwnedWorkspace(for: sessionID)
+            await cleanupOwnedWorkspace(for: sessionID)
             throw AgentSpawnError.binaryNotFound(k)
         } catch AgentLaunchPlannerError.customBinaryNotFound(let id) {
             await environment.tokenStore.remove(session: sessionID)
-            cleanupOwnedWorkspace(for: sessionID)
+            await cleanupOwnedWorkspace(for: sessionID)
             throw AgentSpawnError.customBinaryNotFound(id)
         } catch {
             await environment.tokenStore.remove(session: sessionID)
-            cleanupOwnedWorkspace(for: sessionID)
+            await cleanupOwnedWorkspace(for: sessionID)
             throw error
         }
 
@@ -1299,7 +1344,7 @@ public final class DashboardViewModel {
 
         sessionHooks.cleanup(for: id)
         await session.terminate()
-        cleanupOwnedWorkspace(for: id)
+        await cleanupOwnedWorkspace(for: id)
         sessionHookContinuations[id]?.finish()
         sessionHookContinuations.removeValue(forKey: id)
         codexDiscoveryController.cancel(for: id)
@@ -1720,10 +1765,14 @@ public final class DashboardViewModel {
         return Array(directoryComponents.prefix(rootComponents.count)) == rootComponents
     }
 
-    private func cleanupOwnedWorkspace(for sessionID: SessionID) {
-        guard let directory = ownedWorkspaceDirectories.removeValue(forKey: sessionID) else { return }
+    private func cleanupOwnedWorkspace(for sessionID: SessionID) async {
+        guard let ownedWorkspace = ownedWorkspaceDirectories[sessionID] else { return }
+        let directory = ownedWorkspace.directory
         let fm = FileManager.default
-        guard fm.fileExists(atPath: directory.path) else { return }
+        guard fm.fileExists(atPath: directory.path) else {
+            ownedWorkspaceDirectories.removeValue(forKey: sessionID)
+            return
+        }
 
         let normalizedDirectory = directory.standardizedFileURL.resolvingSymlinksInPath()
         let expectedDirectory = environment.sessionWorkspaceDirectory(for: sessionID)
@@ -1732,8 +1781,37 @@ public final class DashboardViewModel {
         guard normalizedDirectory == expectedDirectory else { return }
         guard isContainedInWorkspaceDirectory(normalizedDirectory) else { return }
 
+        if let repository = ownedWorkspace.worktreeRepository {
+            do {
+                try await WorktreeIsolationGit.removeWorktree(
+                    at: normalizedDirectory,
+                    from: repository
+                )
+            } catch {
+                workspaceCleanupWarning = .worktreeRetained(path: normalizedDirectory.path)
+                logError(error, context: "Failed to cleanup worktree for \(sessionID)")
+                return
+            }
+
+            do {
+                try await WorktreeIsolationGit.removeBranch(
+                    WorktreeIsolationPlanner.branchName(for: sessionID),
+                    from: repository,
+                    force: false
+                )
+            } catch {
+                workspaceCleanupWarning = .branchRetained(
+                    branchName: WorktreeIsolationPlanner.branchName(for: sessionID)
+                )
+                logError(error, context: "Failed to cleanup worktree branch for \(sessionID)")
+            }
+            ownedWorkspaceDirectories.removeValue(forKey: sessionID)
+            return
+        }
+
         do {
             try fm.removeItem(at: normalizedDirectory)
+            ownedWorkspaceDirectories.removeValue(forKey: sessionID)
         } catch {
             logError(error, context: "Failed to cleanup workspace for \(sessionID)")
         }

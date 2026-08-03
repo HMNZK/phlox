@@ -23,6 +23,18 @@ final class SessionRestoreCoordinator {
     /// 復元走査完了まで pid 書き戻しを遅延する（部分復元中の破壊的保存を避ける）。
     private var pendingRestorePIDUpdates: [PersistedSessionDescriptor] = []
 
+    nonisolated static func shouldSuppressSpawn(for error: Error) -> Bool {
+        error is WorktreeIsolationSpawnError || error is WorktreeIsolationGitError
+    }
+
+    private static func restoreFailureDetail(_ error: Error) -> String {
+        if let localizedError = error as? LocalizedError,
+           let errorDescription = localizedError.errorDescription {
+            return errorDescription
+        }
+        return String(describing: error)
+    }
+
     init(
         environment: AppEnvironment,
         persistence: SessionPersistenceCoordinator,
@@ -115,14 +127,15 @@ final class SessionRestoreCoordinator {
         }
 
         do {
-            let plan = try spawnService.prepareSessionLaunch(
+            let plan = try await spawnService.prepareSessionLaunchAsync(
                 ref: descriptor.agentRef,
                 sessionID: sessionID,
                 sessionToken: token,
                 workingDirectoryOverride: descriptor.workingDirectory,
                 projectID: descriptor.projectID,
                 launchMode: descriptor.resumeID.map { .resume(resumeID: $0) } ?? .newSession(),
-                backend: .pty
+                backend: .pty,
+                isolationIntent: .restore
             )
             let vm = spawnService.makeSessionViewModel(
                 id: sessionID,
@@ -157,10 +170,12 @@ final class SessionRestoreCoordinator {
                 descriptor.updating(pid: await livePIDProvider(sessionID))
             )
         } catch {
+            let isolationFailed = Self.shouldSuppressSpawn(for: error)
             let vm = spawnService.makeRestoreErrorSession(
                 descriptor,
                 sessionToken: token,
-                message: "restore failed: \(error)"
+                message: "restore failed: \(Self.restoreFailureDetail(error))",
+                suppressSpawn: isolationFailed
             )
             appendPTYSession(vm)
             await vm.start()
@@ -169,14 +184,15 @@ final class SessionRestoreCoordinator {
 
     private func restoreChatSession(_ descriptor: PersistedSessionDescriptor, token: String) async {
         do {
-            let plan = try spawnService.prepareSessionLaunch(
+            let plan = try await spawnService.prepareSessionLaunchAsync(
                 ref: descriptor.agentRef,
                 sessionID: descriptor.id,
                 sessionToken: token,
                 workingDirectoryOverride: descriptor.workingDirectory,
                 projectID: descriptor.projectID,
                 launchMode: .newSession(),
-                backend: .appServer
+                backend: .appServer,
+                isolationIntent: .restore
             )
             let vm = try await spawnService.makeChatSessionViewModel(
                 id: descriptor.id,
@@ -211,7 +227,7 @@ final class SessionRestoreCoordinator {
             // ここは復元走査ループから呼ばれるため、throw を外へ漏らさず他 descriptor の復元を継続させる。
             let placeholder = spawnService.makeRestoreErrorChatSession(
                 descriptor,
-                message: "chat restore failed: \(error)"
+                message: "chat restore failed: \(Self.restoreFailureDetail(error))"
             )
             appendAppServerSession(placeholder)
             refreshUnseenCompletionCount()

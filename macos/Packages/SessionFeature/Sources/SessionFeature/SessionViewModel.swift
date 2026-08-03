@@ -138,6 +138,8 @@ public final class SessionViewModel: Identifiable {
     private var hookEvents: AsyncStream<(SessionID, HookEvent)>
     private var spawnRequest: SpawnRequest
     private var didSpawn = false
+    /// 復元準備を中止したプレースホルダを、resize/eager のどの経路からも起動させない。
+    private var spawnSuppressed = false
     /// PTY spawn の await が成功して fd が有効になったあと true。spawn 中 (didSpawn=true,
     /// didSpawnComplete=false) に handleResize が PTY resize を呼ぶと未登録 fd で silently
     /// 失敗するため、その間の resize は pendingResize に退避して spawn 完了後に反映する。
@@ -284,6 +286,7 @@ public final class SessionViewModel: Identifiable {
     /// PTY spawn の共通コア。spawnIfNeeded（確定サイズ）と spawnEager（既定サイズ）の双方から呼ぶ。
     /// didSpawn ガードで二重 spawn を防ぐ。exitTask を spawn 後に張る理由は本メソッド末尾参照。
     private func spawnOnce(cols: UInt16, rows: UInt16) async {
+        guard !spawnSuppressed else { return }
         guard !didSpawn else { return }
         didSpawn = true
         // debounce 待機中の初回 spawn タスクがあれば破棄する（eager から呼ばれた場合の保険）。
@@ -564,6 +567,9 @@ public final class SessionViewModel: Identifiable {
 
         // 2. 状態リセット。didSpawn を false に戻すことで spawnIfNeeded が再実行できる。
         didSpawn = false
+        // restart はユーザーが明示的に別 CWD での再起動を選んだ経路なので、
+        // 復元中止プレースホルダの起動抑止を解除する。
+        spawnSuppressed = false
         didSpawnComplete = false
         hasProducedOutput = false
         lastOutputAt = nil
@@ -610,6 +616,15 @@ public final class SessionViewModel: Identifiable {
         transitionStatus(to: .error(message: message), at: Date())
     }
 
+    /// 隔離を用意できず復元を中止した descriptor を、遅延 spawn なしで UI に残す。
+    /// 通常の復元失敗プレースホルダは手動の再試行を許すため、そちらの挙動は変えない。
+    public func markRestoreFailedWithoutSpawn(_ message: String) {
+        initialSpawnTask?.cancel()
+        initialSpawnTask = nil
+        spawnSuppressed = true
+        markRestoreFailed(message)
+    }
+
     private func bindCoordinator() {
         terminalCoordinator.onInput = { [weak self] data in
             Task { await self?.sendInput(data) }
@@ -622,6 +637,7 @@ public final class SessionViewModel: Identifiable {
     }
 
     private func handleResize(cols: UInt16, rows: UInt16) async {
+        guard !spawnSuppressed else { return }
         if !didSpawn {
             // 初回 spawn のみ trailing debounce する。起動直後のレイアウト確定やサイドバー
             // 開閉アニメーションでターミナル幅が連続変化し、その途中幅で spawn→resize を

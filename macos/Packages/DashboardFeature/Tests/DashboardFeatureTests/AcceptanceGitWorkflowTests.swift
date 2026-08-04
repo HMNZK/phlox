@@ -164,6 +164,28 @@ struct AcceptanceGitWorkflowTests {
         #expect(tracked.contains("c.txt"))
     }
 
+    /// ユーザーが外部（ターミナル）で `git mv` した状態＝ステージにリネームが載っている。
+    /// 変更一覧はこれを新パス 1 件（kind=renamed）としてしか返さないため、新パスだけを
+    /// pathspec にすると旧パスの削除が取り残され、HEAD にファイルが二重に残る。
+    @Test func ステージ済みリネームを選んでコミットすると旧パスが残らない() async throws {
+        let root = try makeBaseRepo()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try git(["mv", "a.txt", "renamed.txt"], cwd: root)
+
+        let service = GitWorkflowService(repositoryRoot: root)
+        _ = try await service.commit(paths: ["renamed.txt"], message: "a.txt を renamed.txt へ改名")
+
+        let tree = try git(["ls-tree", "-r", "--name-only", "HEAD"], cwd: root)
+        #expect(tree.contains("renamed.txt"), "新パスがコミットされていない: \(tree)")
+        #expect(!tree.contains("a.txt"), "旧パスが HEAD に残り二重になっている: \(tree)")
+
+        let status = try porcelainStatus(root)
+        #expect(!status.contains("a.txt"), "旧パスの削除がステージに取り残されている: \(status)")
+
+        // 選択していない b.txt には触れない。
+        #expect(tree.contains("b.txt"), "無関係な b.txt が失われている: \(tree)")
+    }
+
     // MARK: - 失敗出力を握りつぶさない
 
     @Test func 失敗したgitコマンドの出力がエラーに含まれる() async throws {

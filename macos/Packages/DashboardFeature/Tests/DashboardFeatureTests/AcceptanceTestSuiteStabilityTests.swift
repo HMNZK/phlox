@@ -13,6 +13,7 @@ import Testing
 ///  2. アサーションが骨抜きにされていない（`#expect` / `#require` / `confirmation` の合計が基準以上）
 ///  3. skip・無効化・既知の問題扱い・直列化・時間制限の追加で通していない（弱体化トークンが基準以下）
 ///  4. 壁時計待ち（`Task.sleep`）を増やしていない（減らす・無くすのは可）
+///  5. 待ちを `Task.yield` へ置き換えて否定テストを骨抜きにしていない
 ///
 /// 基準値は 2026-08-04 の `feature/plan-remediation`（task-7 着手前）の実測値。
 /// **正当な理由で基準を下回る／上回る変更が要るなら、実装役はこのファイルを書き換えず PM に報告し、
@@ -32,41 +33,49 @@ struct AcceptanceTestSuiteStabilityTests {
         let maxWeakeningTokens: Int
         /// `Task.sleep` の出現数の上限
         let maxWallClockSleeps: Int
+        /// `Task.yield` の出現数の上限。
+        ///
+        /// 第1ラウンド（2026-08-04）で、`Task.sleep` の禁止を回避するために
+        /// 「一定時間待っても状態が変わらないこと」を検査する否定テストの待ちが
+        /// `await Task.yield()` へ置換された。`Task.yield()` は 1 回のスケジューリング機会しか
+        /// 与えないので、バグを戻しても green のままになる＝アサーションの実質的な骨抜きである。
+        /// 増やすには PM の再凍結が要る。
+        let maxYields: Int
     }
 
     static let baselines: [Baseline] = [
         Baseline(
             path: "Packages/DashboardFeature/Tests/DashboardFeatureTests/DashboardViewModelTests.swift",
-            minTestCases: 96, minAssertions: 329, maxWeakeningTokens: 0, maxWallClockSleeps: 17
+            minTestCases: 96, minAssertions: 329, maxWeakeningTokens: 0, maxWallClockSleeps: 17, maxYields: 0
         ),
         Baseline(
             path: "Packages/DashboardFeature/Tests/DashboardFeatureTests/SessionViewModelTests.swift",
-            minTestCases: 51, minAssertions: 103, maxWeakeningTokens: 0, maxWallClockSleeps: 22
+            minTestCases: 51, minAssertions: 103, maxWeakeningTokens: 0, maxWallClockSleeps: 22, maxYields: 0
         ),
         Baseline(
             path: "Packages/DashboardFeature/Tests/DashboardFeatureTests/SessionViewModelCharacterizationTests.swift",
-            minTestCases: 30, minAssertions: 72, maxWeakeningTokens: 0, maxWallClockSleeps: 2
+            minTestCases: 30, minAssertions: 72, maxWeakeningTokens: 0, maxWallClockSleeps: 2, maxYields: 0
         ),
         Baseline(
             path: "Packages/DashboardFeature/Tests/DashboardFeatureTests/CursorChatCreatorTests.swift",
-            minTestCases: 5, minAssertions: 6, maxWeakeningTokens: 0, maxWallClockSleeps: 0
+            minTestCases: 5, minAssertions: 6, maxWeakeningTokens: 0, maxWallClockSleeps: 0, maxYields: 0
         ),
         Baseline(
             path: "Packages/DashboardFeature/Tests/DashboardFeatureTests/StructuredPreApprovalWiringTests.swift",
-            minTestCases: 10, minAssertions: 34, maxWeakeningTokens: 0, maxWallClockSleeps: 1
+            minTestCases: 10, minAssertions: 34, maxWeakeningTokens: 0, maxWallClockSleeps: 1, maxYields: 0
         ),
         Baseline(
             path: "Packages/DashboardFeature/Tests/DashboardFeatureTests/UserTerminalControllerWhiteboxTests.swift",
             // 既存の `.timeLimit(.minutes(1))`（スイート単位）が 1 件ある。これ以上増やさない。
-            minTestCases: 16, minAssertions: 53, maxWeakeningTokens: 1, maxWallClockSleeps: 3
+            minTestCases: 16, minAssertions: 53, maxWeakeningTokens: 1, maxWallClockSleeps: 3, maxYields: 6
         ),
         Baseline(
             path: "Packages/DashboardFeature/Tests/DashboardFeatureTests/TerminalPanelViewWhiteboxTests.swift",
-            minTestCases: 2, minAssertions: 5, maxWeakeningTokens: 0, maxWallClockSleeps: 1
+            minTestCases: 2, minAssertions: 5, maxWeakeningTokens: 0, maxWallClockSleeps: 1, maxYields: 0
         ),
         Baseline(
             path: "Packages/SessionFeature/Tests/SessionFeatureTests/MidTurnPersistenceWhiteboxTests.swift",
-            minTestCases: 12, minAssertions: 33, maxWeakeningTokens: 0, maxWallClockSleeps: 4
+            minTestCases: 12, minAssertions: 33, maxWeakeningTokens: 0, maxWallClockSleeps: 4, maxYields: 0
         ),
     ]
 
@@ -149,6 +158,18 @@ struct AcceptanceTestSuiteStabilityTests {
             #expect(
                 count <= baseline.maxWallClockSleeps,
                 "\(baseline.path): Task.sleep が \(baseline.maxWallClockSleeps) から \(count) へ増えている。待ち時間の水増し・ポーリングの追加ではなく、状態変化そのものを待つ形にすること。"
+            )
+        }
+    }
+
+    @Test("Task.yield への置き換えでアサーションを骨抜きにしていない")
+    func yieldsNotIncreased() throws {
+        for baseline in Self.baselines {
+            let source = try String(contentsOf: Self.macosDirectory.appendingPathComponent(baseline.path), encoding: .utf8)
+            let count = Self.occurrences(of: [#"Task\.yield"#], in: source)
+            #expect(
+                count <= baseline.maxYields,
+                "\(baseline.path): Task.yield が \(baseline.maxYields) から \(count) へ増えている。「一定時間待っても状態が変わらない」ことを検査する否定テストの待ちを Task.yield へ置き換えると、バグを戻しても green のままになる＝アサーションの骨抜きである。"
             )
         }
     }

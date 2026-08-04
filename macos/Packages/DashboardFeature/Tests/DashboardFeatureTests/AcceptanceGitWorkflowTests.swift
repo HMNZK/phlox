@@ -186,6 +186,33 @@ struct AcceptanceGitWorkflowTests {
         #expect(tree.contains("b.txt"), "無関係な b.txt が失われている: \(tree)")
     }
 
+    /// 既定の `git status --porcelain` はパスに空白・非 ASCII があると引用と C エスケープが掛かる。
+    /// 旧パスの解決がそれを考慮していないと、ASCII 名だけ直って特殊文字名で二重に残る。
+    @Test func 空白と日本語を含むステージ済みリネームでも旧パスが残らない() async throws {
+        let root = try makeBaseRepo()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write("s\n", to: "sp ace.txt", in: root)
+        try write("j\n", to: "日本語.txt", in: root)
+        try git(["add", "--", "sp ace.txt", "日本語.txt"], cwd: root)
+        try git(["commit", "-m", "add special"], cwd: root)
+        try git(["mv", "sp ace.txt", "sp ace2.txt"], cwd: root)
+        try git(["mv", "日本語.txt", "日本語2.txt"], cwd: root)
+
+        let service = GitWorkflowService(repositoryRoot: root)
+        _ = try await service.commit(paths: ["sp ace2.txt", "日本語2.txt"], message: "特殊文字の改名")
+
+        // ls-tree は既定でパスを引用するので -z で生パスを取る（比較を引用規則に依存させない）。
+        let treeRaw = try git(["ls-tree", "-r", "--name-only", "-z", "HEAD"], cwd: root)
+        let tracked = Set(treeRaw.split(separator: "\0").map(String.init))
+        #expect(tracked.contains("sp ace2.txt"), "空白入りの新パスがコミットされていない: \(tracked)")
+        #expect(tracked.contains("日本語2.txt"), "日本語の新パスがコミットされていない: \(tracked)")
+        #expect(!tracked.contains("sp ace.txt"), "空白入りの旧パスが HEAD に残っている: \(tracked)")
+        #expect(!tracked.contains("日本語.txt"), "日本語の旧パスが HEAD に残っている: \(tracked)")
+
+        let status = try porcelainStatus(root)
+        #expect(status.isEmpty, "旧パスの削除がステージに取り残されている: \(status)")
+    }
+
     // MARK: - 失敗出力を握りつぶさない
 
     @Test func 失敗したgitコマンドの出力がエラーに含まれる() async throws {

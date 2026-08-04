@@ -20,7 +20,8 @@ last-verified: 2026-08-01
 | 0153 | [タイル内クリックでの即時選択は「イベントを消費しないローカル監視」で行う](0153-pane-tile-click-selection.md) | accepted |
 | 0152 | [サブエージェントタブの「閉じる」はストリップからの除去だけを行う](0152-subagent-strip-dismiss.md) | accepted |
 | 0151 | [PTY spawn は継承可能な fd を既定で close-on-exec にする（`POSIX_SPAWN_CLOEXEC_DEFAULT`）](0151-pty-spawn-fd-hygiene.md) | accepted |
-| 0150 | [エディタパネルの git 連動仕様（変更一覧の一本化・保存競合・不変条件の意味論化）](0150-editor-panel-git-semantics.md) | accepted |
+| 0169 | [エディタパネルの git 書き込み操作（stage/commit/push/PR）](0169-editor-panel-git-write-operations.md) | accepted |
+| 0150 | [エディタパネルの git 連動仕様（変更一覧の一本化・保存競合・不変条件の意味論化）](0150-editor-panel-git-semantics.md) | superseded → 0169 |
 | 0149 | [ユーザーターミナルはセッション非依存・cwd はホーム固定・シェルは閉じても保持](0149-user-terminal-lifecycle.md) | accepted |
 | 0148 | [ターミナル／エディタパネルの容器はメインウィンドウ内のドロワーにする](0148-terminal-editor-panel-container-drawer.md) | accepted |
 | 0147 | [コードビューを枠線付きカードへ 1 本化し、見出しの重複・時刻・件数を落とす](0147-chat-code-card-and-header-dedup.md) | accepted |

@@ -20,6 +20,18 @@ public enum EditorPanelLayout: Equatable {
     public static let splitMinimumWidth: CGFloat =
         changeListMinWidth + detailPaneMinWidth + dividerWidth
 
+    /// stacked 時の変更リスト領域の最小高（ファイル行スクロール領域）。
+    /// ターミナルと同時表示でもエディタ枠内に収めるため内在最小高は抑える。
+    /// コミット UI の可視性は独立ペイン化・`GitCommitPanel` のコンパクト化と
+    /// `stackedCommitPanelBudget` で担保する。
+    public static let stackedChangeListMinHeight: CGFloat = 72
+    /// stacked 時の変更リストの理想高。
+    public static let stackedChangeListIdealHeight: CGFloat = 180
+    /// stacked 時に `GitCommitPanel` が占有してよい最大固有高（変更リスト行の残りを確保）。
+    public static let stackedCommitPanelBudget: CGFloat = 168
+    /// `workflowStatusMessage` 表示の最大高。長い git 出力でもボタン列を押し出さない。
+    public static let commitStatusMaxHeight: CGFloat = 40
+
     public static func mode(forWidth width: CGFloat) -> EditorPanelLayout {
         width >= splitMinimumWidth ? .split : .stacked
     }
@@ -92,87 +104,169 @@ public struct EditorPanelView: View {
             }
         case .stacked:
             VSplitView {
-                changeList
-                    .frame(minHeight: 120, idealHeight: 180)
+                ScrollView {
+                    changeFilesSection(embedsFileListInScrollView: false)
+                        .padding()
+                }
+                .frame(
+                    minHeight: EditorPanelLayout.stackedChangeListMinHeight,
+                    idealHeight: EditorPanelLayout.stackedChangeListIdealHeight
+                )
+
+                if showsCommitPanel {
+                    GitCommitPanel(viewModel: viewModel)
+                        .padding(.horizontal)
+                        .frame(maxHeight: EditorPanelLayout.stackedCommitPanelBudget)
+                }
 
                 detailPane
-                    .frame(minHeight: 200)
+                    .frame(minHeight: 72, idealHeight: 100)
             }
+        }
+    }
+
+    private var showsCommitPanel: Bool {
+        switch viewModel.listState {
+        case .ready:
+            return viewModel.listErrorMessage == nil
+        case .noProject, .notARepository:
+            return false
         }
     }
 
     private var changeList: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if case .shared = viewModel.changeScope {
-                Label {
-                    Text(
-                        "このプロジェクトの全変更を表示しており、このセッションの変更とは限らないことがあります。"
-                    )
-                } icon: {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityLabel(
-                    "このプロジェクトの全変更を表示しており、このセッションの変更とは限らないことがあります。"
-                )
-                .accessibilityIdentifier("session-change-scope-notice")
-            }
-
-            HStack {
-                Text("Changes")
-                    .font(.headline)
-                Spacer()
-                Button("Refresh") {
-                    Task { await viewModel.refresh() }
-                }
-            }
-
-            switch viewModel.listState {
-            case .noProject:
-                ContentUnavailableView("No project selected", systemImage: "folder")
-            case .notARepository:
-                ContentUnavailableView("Not a Git repository", systemImage: "exclamationmark.triangle")
-            case .ready:
-                if let listErrorMessage = viewModel.listErrorMessage {
-                    ContentUnavailableView(
-                        "Unable to load changes",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text(listErrorMessage)
-                    )
-                } else {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 2) {
-                            ForEach(viewModel.changes, id: \.path) { change in
-                                Button {
-                                    Task { await viewModel.select(change.path) }
-                                } label: {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: icon(for: change))
-                                        Text(change.path)
-                                            .lineLimit(1)
-                                        Spacer(minLength: 0)
-                                        if change.isBinary {
-                                            Image(systemName: "doc.badge.ellipsis")
-                                        }
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.vertical, 5)
-                                    .padding(.horizontal, 6)
-                                    .background(
-                                        viewModel.selectedPath == change.path ? Color.accentColor.opacity(0.16) : .clear,
-                                        in: RoundedRectangle(cornerRadius: 5)
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                }
+            changeFilesSection(embedsFileListInScrollView: true)
+            if showsCommitPanel {
+                Divider()
+                GitCommitPanel(viewModel: viewModel)
             }
         }
         .padding()
+    }
+
+    /// 変更一覧のファイル行だけ（Commit パネルは含めない）。
+    /// - Parameter embedsFileListInScrollView: split 列内ではファイル行だけを ScrollView に包む。
+    ///   stacked では外側 ScrollView がスクロールを担うため `false` にする。
+    @ViewBuilder
+    private func changeFilesSection(embedsFileListInScrollView: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            changeFilesSectionHeader
+            if embedsFileListInScrollView && showsChangeFileRows {
+                ScrollView {
+                    changeFilesBody
+                }
+            } else {
+                changeFilesBody
+            }
+        }
+    }
+
+    private var showsChangeFileRows: Bool {
+        if case .ready = viewModel.listState, viewModel.listErrorMessage == nil {
+            return true
+        }
+        return false
+    }
+
+    @ViewBuilder
+    private var changeFilesSectionHeader: some View {
+        if case .shared = viewModel.changeScope {
+            Label {
+                Text(
+                    "このプロジェクトの全変更を表示しており、このセッションの変更とは限らないことがあります。"
+                )
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityLabel(
+                "このプロジェクトの全変更を表示しており、このセッションの変更とは限らないことがあります。"
+            )
+            .accessibilityIdentifier("session-change-scope-notice")
+        }
+
+        HStack {
+            Text("Changes")
+                .font(.headline)
+            Spacer()
+            Button("Refresh") {
+                Task { await viewModel.refresh() }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var changeFilesBody: some View {
+        switch viewModel.listState {
+        case .noProject:
+            ContentUnavailableView("No project selected", systemImage: "folder")
+        case .notARepository:
+            ContentUnavailableView("Not a Git repository", systemImage: "exclamationmark.triangle")
+        case .ready:
+            if let listErrorMessage = viewModel.listErrorMessage {
+                ContentUnavailableView(
+                    "Unable to load changes",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text(listErrorMessage)
+                )
+            } else {
+                changeFileRows
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var changeFileRows: some View {
+        LazyVStack(alignment: .leading, spacing: 2) {
+            ForEach(viewModel.changes, id: \.path) { change in
+                changeFileRow(change)
+            }
+        }
+    }
+
+    private func changeFileRow(_ change: WorkingTreeChange) -> some View {
+        HStack(spacing: 6) {
+            Button {
+                viewModel.toggleCommitSelection(for: change.path)
+            } label: {
+                Image(
+                    systemName: viewModel.pathsSelectedForCommit.contains(change.path)
+                        ? "checkmark.square.fill"
+                        : "square"
+                )
+                .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Select \(change.path) for commit")
+            .accessibilityIdentifier("git-commit-select-\(change.path)")
+
+            Button {
+                Task { await viewModel.select(change.path) }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: icon(for: change))
+                    Text(change.path)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    if change.isBinary {
+                        Image(systemName: "doc.badge.ellipsis")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 5)
+                .padding(.horizontal, 6)
+                .background(
+                    viewModel.selectedPath == change.path
+                        ? Color.accentColor.opacity(0.16)
+                        : .clear,
+                    in: RoundedRectangle(cornerRadius: 5)
+                )
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private var detailPane: some View {

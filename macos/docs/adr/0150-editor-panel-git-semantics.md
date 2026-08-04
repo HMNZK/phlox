@@ -1,6 +1,7 @@
 ---
-status: accepted
+status: superseded
 last-verified: 2026-08-01
+superseded-by: 0169-editor-panel-git-write-operations.md
 ---
 
 # ADR 0150: エディタパネルの git 連動仕様（変更一覧の一本化・保存競合・不変条件の意味論化）

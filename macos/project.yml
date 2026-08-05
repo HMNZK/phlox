@@ -78,6 +78,9 @@ targets:
       - path: scripts
         buildPhase: resources
         type: folder
+    configFiles:
+      Debug: Config/Signing.xcconfig
+      Release: Config/Signing.xcconfig
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phlox.Phlox
@@ -85,7 +88,7 @@ targets:
         MARKETING_VERSION: "1.4.0"
         CURRENT_PROJECT_VERSION: "21"
         ENABLE_HARDENED_RUNTIME: YES
-        CODE_SIGN_ENTITLEMENTS: App/Phlox.entitlements
+        CODE_SIGN_ENTITLEMENTS: "$(PHLOX_CODE_SIGN_ENTITLEMENTS)"
         CODE_SIGN_INJECT_BASE_ENTITLEMENTS: YES
         CODE_SIGN_STYLE: Automatic
         SWIFT_VERSION: "6.0"
@@ -93,11 +96,17 @@ targets:
         Debug:
           PRODUCT_BUNDLE_IDENTIFIER: com.phlox.Phlox.debug
           PHLOX_APP_DISPLAY_NAME: "Phlox (Debug)"
+          # 署名は Config/Signing.xcconfig の既定（ad-hoc）を使い、証明書を持つ環境だけ
+          # Signing.local.xcconfig で正規署名へ切り替える。ad-hoc のままだとリビルドごとに
+          # cdhash が変わり TCC の承認が毎回リセットされる（ADR 0158）。
+          CODE_SIGN_STYLE: "$(PHLOX_DEBUG_CODE_SIGN_STYLE)"
+          CODE_SIGN_IDENTITY: "$(PHLOX_DEBUG_CODE_SIGN_IDENTITY)"
+          DEVELOPMENT_TEAM: "$(PHLOX_DEVELOPMENT_TEAM)"
         Release:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Developer ID Application"
           # 各自の Apple Developer Team ID を設定すること（Signing.example.xcconfig / README 参照）。
-          DEVELOPMENT_TEAM: ""
+          DEVELOPMENT_TEAM: "$(PHLOX_DEVELOPMENT_TEAM)"
     dependencies:
       - package: AgentConfigKit
       - package: AppBootstrap

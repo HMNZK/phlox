@@ -7,13 +7,64 @@
 // Two options:
 //   1. Xcode UI — open the generated project and pick your team under
 //      "Signing & Capabilities" (Xcode writes to the local, gitignored project).
-//   2. Local xcconfig — copy this file and fill in your Team ID:
+//   2. Local xcconfig — copy this file and fill in the values below:
 //        cp Signing.example.xcconfig Signing.local.xcconfig
-//      then reference it from project.yml `configFiles:` (see docs) or set the
-//      value directly in your local checkout. Signing.local.xcconfig is
-//      gitignored so your Team ID is never committed.
+//      macos/Config/Signing.xcconfig picks it up automatically via `#include?`,
+//      so no further wiring is needed. Signing.local.xcconfig is gitignored so
+//      your Team ID is never committed.
 //
 // Your Apple Developer Team ID is the 10-character identifier shown in the
 // Apple Developer portal (Membership) — e.g. ABCDE12345.
 
 DEVELOPMENT_TEAM =
+
+// --- macOS app --------------------------------------------------------------
+// Team ID used by both the Debug and Release configurations of the macOS app.
+PHLOX_DEVELOPMENT_TEAM =
+
+// Signing for the Debug configuration. The defaults below keep ad-hoc signing
+// ("Sign to Run Locally"), which needs no certificate.
+//
+// If you have a certificate, prefer real signing:
+//
+//   PHLOX_DEVELOPMENT_TEAM = ABCDE12345
+//   PHLOX_DEBUG_CODE_SIGN_STYLE = Manual
+//   PHLOX_DEBUG_CODE_SIGN_IDENTITY = Developer ID Application
+//
+// Why: an ad-hoc signature's designated requirement is the cdhash itself, so it
+// changes on every rebuild. macOS then discards the TCC decisions (Files and
+// Folders, Screen Recording, Accessibility, ...) recorded for the Debug app and
+// re-prompts after every build. A certificate keeps the designated requirement
+// stable across rebuilds, so a single answer sticks. See ADR 0158.
+PHLOX_DEBUG_CODE_SIGN_STYLE = Automatic
+PHLOX_DEBUG_CODE_SIGN_IDENTITY = -
+
+// Entitlements file to sign with. The default (App/Phlox.entitlements) has no
+// keychain-access-groups entitlement and works without a certificate.
+//
+// To enable the Data Protection Keychain, switch to the DPK entitlements file.
+// This REQUIRES an Apple Developer Program membership: the
+// keychain-access-groups entitlement must be authorized by a provisioning
+// profile embedded in the .app, or macOS refuses to launch the app at all
+// (AMFI kills it with SIGKILL on startup, not just a missing feature).
+//
+// `xcodebuild -allowProvisioningUpdates` (already used by our build scripts)
+// fetches/embeds that profile automatically — but ONLY under Automatic
+// signing. It does NOT work with the "Manual + Developer ID Application"
+// Debug setup shown above (ADR 0158): Manual style has no profile to
+// auto-create without an explicit PROVISIONING_PROFILE_SPECIFIER (observed:
+// `"Phlox" requires a provisioning profile. Select a provisioning profile in
+// the Signing & Capabilities editor.`), and switching to Automatic while
+// CODE_SIGN_IDENTITY is still "Developer ID Application" fails too (observed:
+// `Phlox has conflicting provisioning settings. ... Set the code signing
+// identity value to "Apple Development"...`). So, to enable DPK in Debug, use
+// Automatic signing instead:
+//
+//   PHLOX_DEVELOPMENT_TEAM = ABCDE12345
+//   PHLOX_DEBUG_CODE_SIGN_STYLE = Automatic
+//   PHLOX_DEBUG_CODE_SIGN_IDENTITY = -
+//   PHLOX_CODE_SIGN_ENTITLEMENTS = App/Phlox-DataProtectionKeychain.entitlements
+//
+// This still signs with your certificate (not ad-hoc), so ADR 0158's goal — a
+// designated requirement that stays stable across rebuilds — is preserved.
+PHLOX_CODE_SIGN_ENTITLEMENTS = App/Phlox.entitlements

@@ -20,7 +20,7 @@ struct OrphanRescueWhiteboxTests {
 
         let migrated = OrphanedRemoteSessionMigration.migrate(
             descriptors: [parent, child],
-            privilegedRequester: requester
+            privilegedRequesters: [requester]
         )
 
         #expect(migrated == [parent, child])

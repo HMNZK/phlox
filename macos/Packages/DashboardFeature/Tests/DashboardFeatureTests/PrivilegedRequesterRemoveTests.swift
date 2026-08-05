@@ -9,7 +9,7 @@ import PTYKit
 // MARK: - DashboardViewModel privileged requester wiring (MC-2b)
 
 /// モバイルトークンの安定 requester（どの木にも属さない固定 SessionID）に
-/// `setPrivilegedRequester` で特権を付与し、全 remove（cascade 含む）が通ることを検証する。
+/// `setPrivilegedRequesters` で特権を付与し、全 remove（cascade 含む）が通ることを検証する。
 
 @MainActor
 private func makePrivilegedDashboard(
@@ -41,7 +41,7 @@ func privilegedRequester_setEnablesRemovalOfNonDescendantRootAndUnknown() async 
     #expect(!dashboard.isAuthorizedToRemove(root, requester: mobile))
     #expect(!dashboard.isAuthorizedToRemove(child, requester: mobile))
 
-    dashboard.setPrivilegedRequester(mobile)
+    dashboard.setPrivilegedRequesters([mobile])
 
     // 設定後: root・非子孫の任意セッション・unknown のいずれも remove 許可。
     #expect(dashboard.isAuthorizedToRemove(root, requester: mobile))
@@ -57,7 +57,7 @@ func privilegedRequester_isLimitedToRemoveOnlyAndDoesNotElevateOthers() async th
     let root = try await dashboard.spawnNewSession(kind: .claudeCode)
     let sibling = try await dashboard.spawnNewSession(kind: .claudeCode)
 
-    dashboard.setPrivilegedRequester(mobile)
+    dashboard.setPrivilegedRequesters([mobile])
 
     // 特権 ID と一致しない sibling は従来どおり ancestor 範囲のみ（緩めない）。
     #expect(!dashboard.isAuthorizedToRemove(root, requester: sibling))
@@ -78,7 +78,7 @@ func privilegedRequester_cascadeDeleteActuallyRemovesDescendants() async throws 
     let grandchild = try await dashboard.spawnNewSession(kind: .claudeCode, from: child)
     let sibling = try await dashboard.spawnNewSession(kind: .claudeCode, from: grandparent)
 
-    dashboard.setPrivilegedRequester(mobile)
+    dashboard.setPrivilegedRequesters([mobile])
 
     // 認可は mobile（非子孫）経由でも grandparent（root）を削除できる。
     #expect(dashboard.isAuthorizedToRemove(grandparent, requester: mobile))
@@ -107,10 +107,10 @@ func privilegedRequester_settingNilRestoresAncestorBehavior() async throws {
     let mobile = SessionID()
     let root = try await dashboard.spawnNewSession(kind: .claudeCode)
 
-    dashboard.setPrivilegedRequester(mobile)
+    dashboard.setPrivilegedRequesters([mobile])
     #expect(dashboard.isAuthorizedToRemove(root, requester: mobile))
 
     // 特権を解除すると、非子孫 mobile は再び root を削除できない（既定挙動へ復帰）。
-    dashboard.setPrivilegedRequester(nil)
+    dashboard.setPrivilegedRequesters([])
     #expect(!dashboard.isAuthorizedToRemove(root, requester: mobile))
 }

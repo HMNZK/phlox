@@ -5,18 +5,17 @@ public enum OrphanedRemoteSessionMigration {
     /// 対象外の descriptor は一切変更しない。順序・件数を保つ。冪等。
     public nonisolated static func migrate(
         descriptors: [PersistedSessionDescriptor],
-        privilegedRequester: SessionID?
+        privilegedRequesters: Set<SessionID>
     ) -> [PersistedSessionDescriptor] {
-        guard let privilegedRequester else { return descriptors }
+        guard !privilegedRequesters.isEmpty else { return descriptors }
 
         let existingSessionIDs = Set(descriptors.map(\.id))
-        guard !existingSessionIDs.contains(privilegedRequester) else {
-            return descriptors
-        }
 
         return descriptors.map { descriptor in
             guard descriptor.launchContext == .orchestration,
-                  descriptor.parentSessionID == privilegedRequester
+                  let parentSessionID = descriptor.parentSessionID,
+                  privilegedRequesters.contains(parentSessionID),
+                  !existingSessionIDs.contains(parentSessionID)
             else {
                 return descriptor
             }

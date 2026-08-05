@@ -10,7 +10,7 @@ struct SettingsView: View {
     @ObservedObject var appUpdater: AppUpdater
     let agentCatalog: AgentCatalog
     let hookDispatcherPath: String?
-    /// モバイル専用トークンの再発行・QR ペアリング VM。初期化前（composition 未完了）は nil。
+    /// モバイル端末の QR ペアリング・一覧・失効 VM。初期化前（composition 未完了）は nil。
     let mobileToken: MobileTokenViewModel?
 
     @Environment(\.openWindow) private var openWindow
@@ -290,24 +290,26 @@ struct SettingsView: View {
         }
     }
 
-    /// モバイル専用トークンの再発行・QR ペアリング UI。
+    /// モバイル端末のペアリング（QR 発行）・一覧・失効 UI。
     /// `@ObservedObject` を非 optional で受けるため、optional な VM は親で `if let` してから渡す。
     private struct MobileTokenSection: View {
         @ObservedObject var viewModel: MobileTokenViewModel
-        @State private var confirmRegenerate = false
+        @State private var newDeviceName = String(localized: "iPhone")
 
         var body: some View {
             Section {
-                Button("再発行", role: .destructive) {
-                    confirmRegenerate = true
-                }
+                TextField("端末名", text: $newDeviceName)
+                    .textFieldStyle(.roundedBorder)
                 if let disabledReason = viewModel.pairingQRDisabledReason {
                     Text(disabledReason)
                         .font(DSFont.caption)
                         .foregroundStyle(DSColor.textSecondary)
                 }
                 Button {
-                    viewModel.showPairingQR()
+                    Task {
+                        let name = newDeviceName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        await viewModel.showPairingQR(deviceName: name.isEmpty ? String(localized: "iPhone") : name)
+                    }
                 } label: {
                     Label("QR コードを表示", systemImage: "qrcode")
                 }
@@ -325,23 +327,55 @@ struct SettingsView: View {
             } header: {
                 Text("モバイル接続")
             } footer: {
-                Text("iPhone アプリで QR コードを読み取ると、同一 Tailscale ネットワーク経由で接続できます。再発行すると古いトークンは無効になり、接続済みの端末は再度 QR コードの読み取りが必要になります。")
-            }
-            .confirmationDialog(
-                "トークンを再発行しますか？",
-                isPresented: $confirmRegenerate,
-                titleVisibility: .visible
-            ) {
-                Button("再発行", role: .destructive) {
-                    Task { await viewModel.regenerate() }
-                }
-                Button("キャンセル", role: .cancel) {}
-            } message: {
-                Text("古いトークンは即座に無効になります。接続済みの iPhone では再度 QR コードの読み取りが必要です。")
+                Text("iPhone アプリで QR コードを読み取ると、同一 Tailscale ネットワーク経由で接続できます。「QR コードを表示」を押すたびに新しい端末として発行されます。既存の端末は影響を受けません。")
             }
             .task {
                 await viewModel.refreshReachability()
             }
+
+            if !viewModel.devices.isEmpty {
+                Section {
+                    ForEach(viewModel.devices) { device in
+                        MobileDeviceRow(device: device) {
+                            Task { await viewModel.revoke(id: device.id) }
+                        }
+                    }
+                } header: {
+                    Text("接続済みの端末")
+                }
+            }
+        }
+    }
+
+    /// ペアリング済み端末一覧の 1 行。名前・ペアリング日時（未ペアリングなら「未接続」）・失効ボタン。
+    private struct MobileDeviceRow: View {
+        let device: PairedDevice
+        let onRevoke: () -> Void
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                HStack(spacing: DSSpacing.s) {
+                    Text(device.name)
+                        .foregroundStyle(DSColor.textPrimary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer(minLength: DSSpacing.s)
+                    Button("失効", role: .destructive, action: onRevoke)
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(DSColor.statusError)
+                }
+                Text(pairedAtText)
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.textSecondary)
+            }
+            .padding(.vertical, DSSpacing.xxs)
+        }
+
+        private var pairedAtText: String {
+            guard let pairedAt = device.pairedAt else {
+                return String(localized: "未接続")
+            }
+            return pairedAt.formatted(date: .abbreviated, time: .shortened)
         }
     }
 

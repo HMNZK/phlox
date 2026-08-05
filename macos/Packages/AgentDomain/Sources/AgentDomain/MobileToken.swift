@@ -1,10 +1,10 @@
 import Foundation
 import Security
 
-/// iPhone アプリへ入力する安定したモバイル専用 Bearer トークン。
+/// iPhone アプリへ入力するモバイル専用 Bearer トークン。
 ///
 /// 32 バイトの暗号乱数を 64 文字の小文字 hex で表現した文字列をラップする。
-/// 値は Keychain に永続化される（`MobileTokenStore` / `KeychainMobileTokenStore`）。
+/// 値は端末エントリ（`PairedDevice`）の一部として Keychain に永続化される（`PairedDeviceStore`）。
 /// 平文を UserDefaults・ログに残さないこと（不変条件）。
 public struct MobileToken: Hashable, Sendable {
     public let value: String

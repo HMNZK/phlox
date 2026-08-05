@@ -1,0 +1,9 @@
+# <凍結コミットSHA>	<配置先パス>  （PM がディスパッチ時に追記）
+0f8c49a	macos/Packages/AgentDomain/Tests/AgentDomainTests/AcceptancePairedDeviceStoreTests.swift
+4c0f309	macos/Packages/AgentDomain/Tests/AgentDomainTests/AcceptanceLegacyTokenPurgeTests.swift
+4c0f309	macos/Packages/AgentDomain/Tests/AgentDomainTests/ContractPairedDeviceStoreSeamTests.swift
+14ab70a	macos/Packages/AgentDomain/Tests/AgentDomainTests/AcceptanceDeviceProvisioningTests.swift
+14ab70a	macos/Packages/AgentDomain/Tests/AgentDomainTests/AcceptanceDeviceRevocationTests.swift
+14ab70a	macos/Packages/AgentDomain/Tests/AgentDomainTests/AcceptancePendingTokenExpiryTests.swift
+5f7a0fd	macos/scripts/tests/test_signing_entitlements_variants.sh
+6b30d32	macos/Packages/AgentDomain/Tests/AgentDomainTests/AcceptancePairingLifecycleIntegrationTests.swift

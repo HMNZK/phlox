@@ -72,7 +72,7 @@ struct AcceptanceOrphanRescueTests {
 
         let migrated = OrphanedRemoteSessionMigration.migrate(
             descriptors: [orphan],
-            privilegedRequester: Self.mobileRequester
+            privilegedRequesters: [Self.mobileRequester]
         )
 
         #expect(migrated.count == 1)
@@ -100,7 +100,7 @@ struct AcceptanceOrphanRescueTests {
 
         let migrated = OrphanedRemoteSessionMigration.migrate(
             descriptors: [parent, child],
-            privilegedRequester: Self.mobileRequester
+            privilegedRequesters: [Self.mobileRequester]
         )
 
         #expect(migrated == [parent, child])
@@ -120,7 +120,7 @@ struct AcceptanceOrphanRescueTests {
 
         let migrated = OrphanedRemoteSessionMigration.migrate(
             descriptors: [orphan],
-            privilegedRequester: Self.mobileRequester
+            privilegedRequesters: [Self.mobileRequester]
         )
 
         #expect(migrated == [orphan])
@@ -137,7 +137,7 @@ struct AcceptanceOrphanRescueTests {
 
         let migrated = OrphanedRemoteSessionMigration.migrate(
             descriptors: [orphan],
-            privilegedRequester: nil
+            privilegedRequesters: []
         )
 
         #expect(migrated == [orphan])
@@ -154,7 +154,7 @@ struct AcceptanceOrphanRescueTests {
 
         let migrated = OrphanedRemoteSessionMigration.migrate(
             descriptors: [interactive],
-            privilegedRequester: Self.mobileRequester
+            privilegedRequesters: [Self.mobileRequester]
         )
 
         #expect(migrated == [interactive])
@@ -171,11 +171,11 @@ struct AcceptanceOrphanRescueTests {
 
         let once = OrphanedRemoteSessionMigration.migrate(
             descriptors: [orphan],
-            privilegedRequester: Self.mobileRequester
+            privilegedRequesters: [Self.mobileRequester]
         )
         let twice = OrphanedRemoteSessionMigration.migrate(
             descriptors: once,
-            privilegedRequester: Self.mobileRequester
+            privilegedRequesters: [Self.mobileRequester]
         )
 
         #expect(once == twice)
@@ -198,7 +198,7 @@ struct AcceptanceOrphanRescueTests {
 
         let migrated = OrphanedRemoteSessionMigration.migrate(
             descriptors: [orphan],
-            privilegedRequester: Self.mobileRequester
+            privilegedRequesters: [Self.mobileRequester]
         )
         let rescued = try #require(migrated.first)
 
@@ -241,7 +241,7 @@ struct AcceptanceOrphanRescueTests {
 
         let migrated = OrphanedRemoteSessionMigration.migrate(
             descriptors: [first, orphan, last],
-            privilegedRequester: Self.mobileRequester
+            privilegedRequesters: [Self.mobileRequester]
         )
 
         #expect(migrated.map(\.id) == [first.id, orphan.id, last.id])
@@ -275,8 +275,8 @@ struct AcceptanceOrphanRescueTests {
         )
 
         let dashboard = DashboardViewModel(environment: environment)
-        // 本番の配線順（CompositionRoot: setPrivilegedRequester → start）と同じ。
-        dashboard.setPrivilegedRequester(Self.mobileRequester)
+        // 本番の配線順（CompositionRoot: setPrivilegedRequesters → start）と同じ。
+        dashboard.setPrivilegedRequesters([Self.mobileRequester])
         await dashboard.start()
 
         // 復元されたセッションが UI に現れる。
@@ -325,7 +325,7 @@ struct AcceptanceOrphanRescueTests {
         )
 
         let dashboard = DashboardViewModel(environment: environment)
-        dashboard.setPrivilegedRequester(Self.mobileRequester)
+        dashboard.setPrivilegedRequesters([Self.mobileRequester])
         await dashboard.start()
 
         try await waitUntil { dashboard.sessionNode(id: sessionID) != nil }

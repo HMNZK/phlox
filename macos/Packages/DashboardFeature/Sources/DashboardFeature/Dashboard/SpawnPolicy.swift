@@ -57,19 +57,19 @@ enum SpawnPolicy {
     /// kill(remove) 専用の認可。requester なし・自己 kill・対象不明は許可、
     /// それ以外は requester が対象の祖先であるときだけ許可する。
     ///
-    /// MC-2b: `privilegedRequester`（既定 nil）に一致する requester は、
+    /// MC-2b: `privilegedRequesters`（既定は空集合）に含まれる requester は、
     /// cascade delete を含む全 remove を無条件に許可する。これは脅威モデル
     /// 「モバイルトークン漏洩 = Mac の全権奪取」と整合する特権付与であり、
     /// 範囲は remove のみ（他操作の認可は一切変更しない）。
-    /// 既定 nil では ancestor ベースの既存挙動を完全に保つ。
+    /// 既定の空集合では ancestor ベースの既存挙動を完全に保つ。
     static func isAuthorizedToRemove(
         _ id: SessionID,
         requester: SessionID?,
         parents: [SessionID: SessionID?],
-        privilegedRequester: SessionID? = nil
+        privilegedRequesters: Set<SessionID> = []
     ) -> Bool {
         guard let requester else { return true }
-        if let privilegedRequester, requester == privilegedRequester { return true }
+        if privilegedRequesters.contains(requester) { return true }
         guard requester != id else { return true }
         guard let targetParentLink = parents[id] else { return true }
 

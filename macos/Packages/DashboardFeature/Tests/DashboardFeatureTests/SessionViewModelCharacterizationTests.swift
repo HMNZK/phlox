@@ -543,7 +543,12 @@ func sessionVM_characterization_sendText_codex_processingObserved_suppressesDiag
     try await characterizationSpawnCodex(vm, ptyManager: ptyManager)
 
     vm.submitKeyDelay = .zero
-    vm.submitTurnStartTimeout = .milliseconds(80)
+    // 診断の締切は、出力のデバウンス（20ms）＋スケジューリング遅延より十分に長く取る。
+    // 80ms だと全数並列実行時に「デバウンスが明ける前に締切が来る」競合で偽 red になっていた
+    // （単体では常に pass・全数では不定期に fail）。このテストの検出力は下の
+    // `#expect(observedProcessing)` が担っており（処理中を観測できない実装はそこで落ちる）、
+    // 締切を伸ばしてもそれは変わらない。
+    vm.submitTurnStartTimeout = .milliseconds(600)
     vm.submitDiagnosticSink = { capture.append($0) }
 
     try await vm.sendText("task", submit: true)

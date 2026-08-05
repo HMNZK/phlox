@@ -3,17 +3,17 @@ import Foundation
 import MobileProxy
 import os
 
-/// 設定画面のモバイルトークン再発行・QR ペアリングを司る ViewModel。
+/// 設定画面のペアリング済み端末一覧・QR ペアリングを司る ViewModel。
 ///
-/// 永続化・生成・register のロジックは `MobileTokenProvisioner`（AgentDomain）に委譲し、
-/// ここは UI 状態とユーザー操作（再発行・QR 表示）だけを持つ。
-/// 再発行時は `SessionTokenStore` への再 register まで行い、旧トークンを失効させる。
+/// 永続化・発行・失効・register のロジックは `MobileDeviceProvisioner`（AgentDomain）に委譲し、
+/// ここは UI 状態とユーザー操作（QR 発行・端末失効）だけを持つ。
+/// トークン文字列そのものは表示・コピーせず、QR 画像の生成にのみ使う。
 @MainActor
 public final class MobileTokenViewModel: ObservableObject {
-  /// 表示用トークン文字列（64hex）。永続化済みの値。
-  @Published public private(set) var token: String
+  /// ペアリング済み・発行済みの端末一覧。行の表示規則（名前・ペアリング日時）はここが唯一の正本。
+  @Published public private(set) var devices: [PairedDevice] = []
 
-  /// 直近の再発行失敗を表すユーザー向けメッセージ。成功時・初期状態は nil。
+  /// 直近の発行・失効失敗を表すユーザー向けメッセージ。成功時・初期状態は nil。
   @Published public private(set) var lastError: String?
 
   /// QR ペアリング表示中か。明示操作で開始し、60 秒後に自動非表示。
@@ -25,10 +25,15 @@ public final class MobileTokenViewModel: ObservableObject {
   /// 直近に解決したモバイルプロキシの待ち受けポート。回復・再解決で更新される。
   @Published public private(set) var mobileProxyPort: Int?
 
-  private let provisioner: MobileTokenProvisioner
+  private let provisioner: MobileDeviceProvisioner
   private let tokenStore: SessionTokenStore
   private let proxy: MobileProxy
-  private var current: ProvisionedMobileToken
+  /// 端末集合の変化（QR 発行・失効）のたびに、最新の特権 requester 集合を Dashboard へ
+  /// 反映するためのフック。集合の算出規則自体は `MobileBootstrap.privilegedRequesters(for:)`
+  /// （AgentDomain 側）が正本で、ここでは再実装しない（task-4 レビュー2巡目 HIGH）。
+  private let onPrivilegedRequestersChanged: (Set<SessionID>) -> Void
+  /// 直近に「QR を表示」で発行した端末のトークン。QR 画像の生成にのみ使う（表示・コピーはしない）。
+  private var pendingQRToken: String?
   private var hidePairingQRTask: Task<Void, Never>?
   private var autoRecoveryTask: Task<Void, Never>?
 
@@ -38,20 +43,21 @@ public final class MobileTokenViewModel: ObservableObject {
   private static let pairingQRVisibleDuration: TimeInterval = 60
 
   public init(
-    provisioned: ProvisionedMobileToken,
-    provisioner: MobileTokenProvisioner,
+    devices: [PairedDevice],
+    provisioner: MobileDeviceProvisioner,
     tokenStore: SessionTokenStore,
     proxy: MobileProxy,
     bindMode: BindMode?,
-    mobileProxyPort: Int?
+    mobileProxyPort: Int?,
+    onPrivilegedRequestersChanged: @escaping (Set<SessionID>) -> Void
   ) {
-    self.current = provisioned
-    self.token = provisioned.token.value
+    self.devices = devices
     self.provisioner = provisioner
     self.tokenStore = tokenStore
     self.proxy = proxy
     self.bindMode = bindMode
     self.mobileProxyPort = mobileProxyPort
+    self.onPrivilegedRequestersChanged = onPrivilegedRequestersChanged
   }
 
   /// オンデマンドで Tailscale 到達性を再解決し、UI 向け状態へ反映する。
@@ -103,24 +109,35 @@ public final class MobileTokenViewModel: ObservableObject {
     }
   }
 
-  /// 表示要求のたびに `PairingPayload` を都度生成する（キャッシュしない）。
+  /// 直近に発行した端末のトークンから `PairingPayload` を生成する（キャッシュしない）。
   public func makePairingPayload() -> Result<PairingPayload, PairingPayloadError> {
-    guard let bindMode, let port = mobileProxyPort else {
+    guard let bindMode, let port = mobileProxyPort, let pendingQRToken else {
       return .failure(.unsupportedBindMode)
     }
     return PairingPayload.make(
       bindMode: bindMode,
       port: port,
-      token: token,
+      token: pendingQRToken,
       name: Host.current().localizedName
     )
   }
 
-  /// QR ペアリング表示を開始する。60 秒後に自動非表示。
-  public func showPairingQR() {
+  /// 新しい端末を発行し QR 表示を開始する。既存端末の token / requester には触れない。
+  /// 60 秒後に自動非表示。
+  public func showPairingQR(deviceName: String) async {
     guard isPairingQREnabled else { return }
-    isPairingQRVisible = true
-    schedulePairingQRAutoHide()
+    do {
+      let device = try provisioner.issueDevice(name: deviceName)
+      await provisioner.syncRegistrations(into: tokenStore)
+      try reloadDevicesAndPrivilegedRequesters()
+      pendingQRToken = device.token.value
+      lastError = nil
+      isPairingQRVisible = true
+      schedulePairingQRAutoHide()
+    } catch {
+      lastError = String(localized: "端末の発行に失敗しました。しばらくしてから再度お試しください。")
+      Self.logger.error("Mobile device issue failed: \(String(describing: error), privacy: .public)")
+    }
   }
 
   /// QR ペアリング表示を手動で終了する。
@@ -130,25 +147,49 @@ public final class MobileTokenViewModel: ObservableObject {
     isPairingQRVisible = false
   }
 
-  /// トークンを再発行する。旧トークンを失効させ、新トークンを SessionTokenStore へ再 register する。
-  /// requester SessionID は安定のまま維持される。失敗時は `lastError` に公開し、os.Logger にも記録する
-  /// （トークン値そのものはログへ残さない）。
-  public func regenerate() async {
+  /// 端末を 1 台失効させる。失効後は `SessionTokenStore` への登録も取り消し、一覧を更新する。
+  public func revoke(id: UUID) async {
     do {
-      let regenerated = try provisioner.regenerate()
-      await provisioner.register(regenerated, into: tokenStore)
-      current = regenerated
-      token = regenerated.token.value
+      try provisioner.revoke(id: id)
+      await provisioner.syncRegistrations(into: tokenStore)
+      try reloadDevicesAndPrivilegedRequesters()
       lastError = nil
     } catch {
-      lastError = String(localized: "トークンの再発行に失敗しました。しばらくしてから再度お試しください。")
-      Self.logger.error("Mobile token regenerate failed: \(String(describing: error), privacy: .public)")
+      lastError = String(localized: "端末の失効に失敗しました。しばらくしてから再度お試しください。")
+      Self.logger.error("Mobile device revoke failed: \(String(describing: error), privacy: .public)")
+    }
+  }
+
+  /// `CompositionRoot` が `MobileDevicePairingRelay` 経由で、認証成立によりある端末の
+  /// `pairedAt` が永続化されたことを知らせてきたときに呼ぶ（task-4 レビュー3巡目 HIGH）。
+  ///
+  /// iPhone で QR を読んでペアリングが成立しても、この通知が無いと設定画面の一覧が
+  /// 「未接続」のまま更新されなかった。呼び出し元は既に MainActor へホップ済みである前提
+  /// （`CompositionRoot` 側で `Task { @MainActor in ... }` を使う契約）。
+  ///
+  /// 一覧の算出規則は `showPairingQR` / `revoke` と同じ `reloadDevicesAndPrivilegedRequesters()`
+  /// を使い、ここで新しい規則を作らない。再読込自体が失敗しても認証済み接続は継続しているため、
+  /// ユーザー向けエラー表示（`lastError`）は出さずログにのみ残す。
+  public func handleAuthenticatedPairingRecorded() {
+    do {
+      try reloadDevicesAndPrivilegedRequesters()
+    } catch {
+      Self.logger.error("Mobile device list refresh after pairing failed: \(String(describing: error), privacy: .public)")
     }
   }
 
   deinit {
     hidePairingQRTask?.cancel()
     autoRecoveryTask?.cancel()
+  }
+
+  /// 端末一覧・特権 requester 集合を再読込する規則の唯一の実装（task-4 レビュー3巡目 HIGH）。
+  /// `showPairingQR` / `revoke` / `handleAuthenticatedPairingRecorded` はすべてこれを使い、
+  /// `provisioner.loadAndMigrate()` + `MobileBootstrap.privilegedRequesters(for:)` の
+  /// 呼び出しをそれぞれで再実装しない。
+  private func reloadDevicesAndPrivilegedRequesters() throws {
+    devices = try provisioner.loadAndMigrate()
+    onPrivilegedRequestersChanged(MobileBootstrap.privilegedRequesters(for: devices))
   }
 
   private func schedulePairingQRAutoHide() {

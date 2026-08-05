@@ -17,7 +17,7 @@ final class SessionRestoreCoordinator {
     private let appendAppServerSession: @MainActor (ChatSessionViewModel) -> Void
     private let refreshUnseenCompletionCount: @MainActor () -> Void
     private let publishRestoredSessionPresentation: @MainActor () -> Void
-    private let privilegedRequesterProvider: @MainActor () -> SessionID?
+    private let privilegedRequesterProvider: @MainActor () -> Set<SessionID>
     private let logError: @MainActor (Error, String) -> Void
 
     /// 復元走査完了まで pid 書き戻しを遅延する（部分復元中の破壊的保存を避ける）。
@@ -47,7 +47,7 @@ final class SessionRestoreCoordinator {
         appendAppServerSession: @escaping @MainActor (ChatSessionViewModel) -> Void,
         refreshUnseenCompletionCount: @escaping @MainActor () -> Void,
         publishRestoredSessionPresentation: @escaping @MainActor () -> Void,
-        privilegedRequesterProvider: @escaping @MainActor () -> SessionID?,
+        privilegedRequesterProvider: @escaping @MainActor () -> Set<SessionID>,
         logError: @escaping @MainActor (Error, String) -> Void
     ) {
         self.environment = environment
@@ -69,7 +69,7 @@ final class SessionRestoreCoordinator {
         let loaded = await environment.sessions.load()
         let persisted = OrphanedRemoteSessionMigration.migrate(
             descriptors: loaded,
-            privilegedRequester: privilegedRequesterProvider()
+            privilegedRequesters: privilegedRequesterProvider()
         )
         if persisted != loaded {
             do {

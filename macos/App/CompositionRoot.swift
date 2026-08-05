@@ -24,13 +24,13 @@ public final class CompositionRoot {
     /// プロキシ起動に失敗した場合は nil。
     public let mobileProxyBindMode: BindMode?
 
-    /// モバイル専用トークンの表示・コピー・再発行 UI を駆動する ViewModel（設定画面で使用）。
+    /// モバイル専用トークンの表示・QR ペアリング・端末一覧 UI を駆動する ViewModel（設定画面で使用）。
     public let mobileTokenViewModel: MobileTokenViewModel
 
-    /// モバイルトークンに紐づく安定した requester SessionID。
+    /// ペアリング済み・発行済みの各モバイル端末に紐づく安定した requester SessionID の集合。
     /// MC-2b が特権 requester（kill 認可の親扱い）として参照するために公開する。
     /// 本タスクでは authz 判定には一切使わない（公開のみ）。
-    public let mobileRequesterSessionID: SessionID
+    public let mobilePrivilegedRequesterSessionIDs: Set<SessionID>
 
     private let controlServer: ControlServer
     private let mobileProxy: MobileProxy
@@ -72,25 +72,24 @@ public final class CompositionRoot {
         }
         let stores = try Self.createWorkspaceAndPersistenceStores()
         let deviceTokenStore = KeychainDeviceTokenStore()
+        let mobileDevices = try await Self.provisionMobileDevices(tokenStore: hookInfra.tokenStore)
+        // 認証成立（ControlServer 側）を、まだ存在しない MobileTokenViewModel へ後から橋渡しする
+        // リレー。ControlServer の onAuthenticatedToken クロージャはここで先に捕捉し、
+        // ViewModel 構築後に setHandler で差し込む（task-4 レビュー3巡目 HIGH）。
+        let pairingRelay = MobileDevicePairingRelay()
         let control = try await Self.startControlServer(
             tokenStore: hookInfra.tokenStore,
             deviceTokenStore: deviceTokenStore,
             agentCatalog: agents.agentCatalog,
             savedPorts: hookInfra.savedPorts,
-            hookPort: hookInfra.port
+            hookPort: hookInfra.port,
+            mobileProvisioner: mobileDevices.provisioner,
+            pairingRelay: pairingRelay
         )
-        let mobileProxyResult = await Self.startMobileProxy(controlPort: control.controlPort)
-        let mobileToken = try await Self.provisionMobileToken(tokenStore: hookInfra.tokenStore)
-        let mobileTokenViewModel = MobileTokenViewModel(
-            provisioned: mobileToken.provisioned,
-            provisioner: mobileToken.mobileProvisioner,
-            tokenStore: hookInfra.tokenStore,
-            proxy: mobileProxyResult.proxy,
-            bindMode: mobileProxyResult.bindMode,
-            mobileProxyPort: mobileProxyResult.listenPort.map(Int.init)
-        )
-        mobileTokenViewModel.startAutoRecovery()
         let remoteSessionNotifier = Self.wireAPNsNotifications(deviceTokenStore: deviceTokenStore)
+        // Dashboard を MobileTokenViewModel より先に組み立てる（下記 mobileTokenViewModel の
+        // onPrivilegedRequestersChanged が dashboard を弱参照するため。task-4 レビュー2巡目 HIGH:
+        // 起動後に QR 発行した端末を特権 requester 集合へ反映するにはこの参照が要る）。
         let started = try await Self.assembleEnvironmentAndStartDashboard(
             pty: hookInfra.pty,
             hook: hookInfra.hook,
@@ -100,10 +99,37 @@ public final class CompositionRoot {
             stores: stores,
             controlURL: control.controlURL,
             tokenStore: hookInfra.tokenStore,
-            mobileRequesterSessionID: mobileToken.provisioned.requesterSessionID,
+            mobilePrivilegedRequesterSessionIDs: mobileDevices.bootstrap.privilegedRequesters,
             remoteSessionNotifier: remoteSessionNotifier,
             onDashboardReady: onDashboardReady
         )
+        let dashboard = started.dashboard
+        let mobileProxyResult = await Self.startMobileProxy(controlPort: control.controlPort)
+        let mobileTokenViewModel = MobileTokenViewModel(
+            devices: mobileDevices.bootstrap.devices,
+            provisioner: mobileDevices.provisioner,
+            tokenStore: hookInfra.tokenStore,
+            proxy: mobileProxyResult.proxy,
+            bindMode: mobileProxyResult.bindMode,
+            mobileProxyPort: mobileProxyResult.listenPort.map(Int.init),
+            onPrivilegedRequestersChanged: { [weak dashboard] requesters in
+                // QR 発行・失効のたびに、その端末の requesterSessionID を Dashboard の特権
+                // requester 集合へ反映する。起動時の一度きりの setPrivilegedRequesters だけでは、
+                // 起動後に発行した端末に特権が付かない不整合が起きるため（task-4 レビュー2巡目 HIGH）。
+                // 算出規則は MobileBootstrap.privilegedRequesters(for:) が正本（ここでは再実装しない）。
+                dashboard?.setPrivilegedRequesters(requesters)
+            }
+        )
+        // ControlServer の onAuthenticatedToken（別スレッド由来）から、markPaired の永続化成功時に
+        // ここへ到達する。設定画面の一覧が「未接続」のまま更新されない不具合の修正（task-4
+        // レビュー3巡目 HIGH）。MainActor へのホップはここで明示し、ControlServer・MobileBootstrap
+        // 側は MainActor を意識しない。
+        await pairingRelay.setHandler { [weak mobileTokenViewModel] in
+            Task { @MainActor in
+                mobileTokenViewModel?.handleAuthenticatedPairingRecorded()
+            }
+        }
+        mobileTokenViewModel.startAutoRecovery()
         self.environment = started.environment
         self.dashboard = started.dashboard
         self.router = started.router
@@ -111,7 +137,7 @@ public final class CompositionRoot {
         self.appSupportMigrationOutcome = appSupportMigrationOutcome
         self.mobileProxyBindMode = mobileProxyResult.bindMode
         self.mobileTokenViewModel = mobileTokenViewModel
-        self.mobileRequesterSessionID = mobileToken.provisioned.requesterSessionID
+        self.mobilePrivilegedRequesterSessionIDs = mobileDevices.bootstrap.privilegedRequesters
         self.controlServer = control.controlServer
         self.mobileProxy = mobileProxyResult.proxy
         self.actionHandler = control.actionHandler
@@ -217,12 +243,19 @@ public final class CompositionRoot {
     }
 
     /// フェーズ 6: ControlServer 起動
+    ///
+    /// `onAuthenticatedToken` は Bearer トークンが `SessionID` へ解決できたとき（＝ 401 にならない
+    /// とき）だけ呼ばれる（`ControlServer` 側の契約）。モバイル端末以外のトークン（セッション個別の
+    /// operator トークン等）でも呼ばれ得るが、`markPaired` は該当端末が無ければ何もしない契約なので
+    /// 安全（task-4）。
     private static func startControlServer(
         tokenStore: SessionTokenStore,
         deviceTokenStore: any DeviceTokenStore,
         agentCatalog: AgentCatalog,
         savedPorts: SavedPorts?,
-        hookPort: Int
+        hookPort: Int,
+        mobileProvisioner: MobileDeviceProvisioner,
+        pairingRelay: MobileDevicePairingRelay
     ) async throws -> (
         controlServer: ControlServer,
         actionHandler: ControlActionHandler,
@@ -230,7 +263,26 @@ public final class CompositionRoot {
         controlPort: Int
     ) {
         let actionHandler = ControlActionHandler(deviceTokenStore: deviceTokenStore)
-        let controlServer = ControlServer(tokenStore: tokenStore, agentCatalog: agentCatalog) { [actionHandler] req in
+        // `Self.tokenLogger` は @MainActor 隔離の static let なので、@Sendable クロージャの
+        // 内側から直接参照できない。Logger 自体は Sendable な値型なので、ここ（@MainActor
+        // 文脈の startControlServer 内）でローカルへコピーしてから閉包に渡す。
+        let pairingLogger = Self.tokenLogger
+        let controlServer = ControlServer(
+            tokenStore: tokenStore,
+            agentCatalog: agentCatalog,
+            // 「記録する → 成功なら一覧を最新化するよう通知する / 失敗ならログへ残す」の配線は
+            // AgentDomain 側（テスト可能な場所）に置く。ここには渡すものだけを書く。
+            // 握りつぶさない: 認証自体は成立済みなので接続は切らないが、pairedAt の記録に
+            // 失敗した事実（設定画面が「未接続」のまま化ける原因）をログへ残す。
+            // トークン値は載せない（不変条件）。
+            onAuthenticatedToken: MobileBootstrap.makeAuthenticatedTokenHook(
+                provisioner: mobileProvisioner,
+                relay: pairingRelay,
+                onRecordFailure: { error in
+                    pairingLogger.warning("Mobile device pairing record failed: \(String(describing: error), privacy: .public)")
+                }
+            )
+        ) { [actionHandler] req in
             await actionHandler.handle(req)
         }
         let controlPort = try await controlServer.start(preferredPort: savedPorts?.controlPort ?? 0)
@@ -282,55 +334,48 @@ public final class CompositionRoot {
         return (mobileProxy, resolvedBindMode, resolvedListenPort)
     }
 
-    /// フェーズ 8: モバイルトークン供給
-    private static func provisionMobileToken(
+    /// フェーズ 6 の前段: モバイル端末プロビジョニング（起動時のペアリング状態復元）
+    ///
+    /// `KeychainPairedDeviceStore` の直列化ロックはインスタンス変数のため、同じ Keychain 項目を
+    /// 指すストアを 2 つ作るとロストアップデートが起きる（task-1 申し送り）。ここで生成する
+    /// `provisioner` を単一インスタンスとして全消費者（`ControlServer` の markPaired フック・
+    /// `MobileTokenViewModel`）へ共有すること。
+    ///
+    /// 起動手順そのもの（旧項目の削除 → 期限切れ掃除 → SessionTokenStore への登録 → 特権
+    /// requester 集合の算出）の正本は `MobileBootstrap.run` にあり、ここでは再実装しない。
+    private static func provisionMobileDevices(
         tokenStore: SessionTokenStore
     ) async throws -> (
-        mobileProvisioner: MobileTokenProvisioner,
-        provisioned: ProvisionedMobileToken
+        provisioner: MobileDeviceProvisioner,
+        bootstrap: MobileBootstrapResult
     ) {
-        // モバイル専用 Bearer トークンを Keychain からロード（初回は生成・永続化）し、
-        // 安定した requester SessionID へ register する。token 値はログに残さない。
-        // Keychain アクセス失敗時はアプリ起動を妨げないよう、一時的なインメモリへフォールバックして続行する。
-        let mobileProvisioner: MobileTokenProvisioner
-        let provisioned: ProvisionedMobileToken
         #if DEBUG
         // PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN=1: Keychain に一切触れずインメモリで供給する。
         // adhoc 署名のテストビルドはビルドごとに Designated Requirement が変わり、
         // Keychain 許可ダイアログが毎回再発して UI 自動化を塞ぐため、その回避用。
         // この分岐自体が Debug ビルドにのみ存在し、Release では env に関わらず Keychain 経路のみを通る。
         if ProcessInfo.processInfo.environment["PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN"] == "1" {
-            Self.tokenLogger.info("Mobile token: ephemeral in-memory store (test build; keychain untouched)")
-            let ephemeral = MobileTokenProvisioner(store: InMemoryMobileTokenStore())
-            provisioned = try ephemeral.loadOrProvision()
-            mobileProvisioner = ephemeral
-        } else {
-            do {
-                let keychainProvisioner = MobileTokenProvisioner(store: KeychainMobileTokenStore())
-                provisioned = try keychainProvisioner.loadOrProvision()
-                mobileProvisioner = keychainProvisioner
-            } catch {
-                Self.tokenLogger.warning("Mobile token provisioning failed; using ephemeral token: \(String(describing: error), privacy: .public)")
-                let fallback = MobileTokenProvisioner(store: InMemoryMobileTokenStore())
-                provisioned = try fallback.loadOrProvision()
-                mobileProvisioner = fallback
-            }
-        }
-        #else
-        do {
-            let keychainProvisioner = MobileTokenProvisioner(store: KeychainMobileTokenStore())
-            provisioned = try keychainProvisioner.loadOrProvision()
-            mobileProvisioner = keychainProvisioner
-        } catch {
-            Self.tokenLogger.warning("Mobile token provisioning failed; using ephemeral token: \(String(describing: error), privacy: .public)")
-            let fallback = MobileTokenProvisioner(store: InMemoryMobileTokenStore())
-            provisioned = try fallback.loadOrProvision()
-            mobileProvisioner = fallback
+            Self.tokenLogger.info("Mobile devices: ephemeral in-memory store (test build; keychain untouched)")
+            let provisioner = MobileDeviceProvisioner(store: InMemoryPairedDeviceStore())
+            let bootstrap = try await MobileBootstrap.run(provisioner: provisioner, tokenStore: tokenStore)
+            return (provisioner, bootstrap)
         }
         #endif
-        await mobileProvisioner.register(provisioned, into: tokenStore)
-        Self.tokenLogger.info("Mobile token registered to requester session \(provisioned.requesterSessionID.rawValue.uuidString, privacy: .private)")
-        return (mobileProvisioner, provisioned)
+        // Keychain アクセスが失敗しても起動は続行する。一時的なインメモリストアへフォールバックし、
+        // その事実をログに残す（トークン値は出さない）。
+        let accessor = SecItemKeychainAccessor()
+        do {
+            let backend = try accessor.backend()
+            Self.tokenLogger.info("Mobile devices: keychain backend = \(String(describing: backend), privacy: .public)")
+            let provisioner = MobileDeviceProvisioner(store: KeychainPairedDeviceStore(accessor: accessor))
+            let bootstrap = try await MobileBootstrap.run(provisioner: provisioner, tokenStore: tokenStore)
+            return (provisioner, bootstrap)
+        } catch {
+            Self.tokenLogger.warning("Mobile device provisioning failed; using ephemeral store: \(String(describing: error), privacy: .public)")
+            let provisioner = MobileDeviceProvisioner(store: InMemoryPairedDeviceStore())
+            let bootstrap = try await MobileBootstrap.run(provisioner: provisioner, tokenStore: tokenStore)
+            return (provisioner, bootstrap)
+        }
     }
 
     /// フェーズ 9: APNs 通知ブリッジ配線
@@ -361,7 +406,7 @@ public final class CompositionRoot {
         ),
         controlURL: URL,
         tokenStore: SessionTokenStore,
-        mobileRequesterSessionID: SessionID,
+        mobilePrivilegedRequesterSessionIDs: Set<SessionID>,
         remoteSessionNotifier: any RemoteSessionNotifier,
         onDashboardReady: (@MainActor (DashboardViewModel, PTYManager) -> Void)?
     ) async throws -> (
@@ -406,10 +451,10 @@ public final class CompositionRoot {
         // 起動時 reconcile の生存孤児 reap が production で発火しない。pid 未取得時は nil。
         onDashboardReady?(dashboard, pty)
         installRemoteSessionNotifier(remoteSessionNotifier, on: dashboard)
-        // MC-2b: モバイルトークンの安定 requester を「特権 requester」として認可へ配線する。
-        // この requester は cascade delete を含む全 remove を無条件で許可される
-        // （脅威モデル「トークン漏洩 = Mac 全権」と整合。特権の範囲は remove のみ）。
-        dashboard.setPrivilegedRequester(mobileRequesterSessionID)
+        // MC-2b: ペアリング済み・発行済みの各モバイル端末の安定 requester を「特権 requester」
+        // として認可へ配線する。この requester は cascade delete を含む全 remove を無条件で
+        // 許可される（脅威モデル「トークン漏洩 = Mac 全権」と整合。特権の範囲は remove のみ）。
+        dashboard.setPrivilegedRequesters(mobilePrivilegedRequesterSessionIDs)
         let router = AppRouter()
         return (env, dashboard, router, usage)
     }

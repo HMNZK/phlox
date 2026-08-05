@@ -9,6 +9,18 @@ last-verified: 2026-07-06
 
 ## 手順
 
+0. **署名を用意する**（初回のみ・任意だが強く推奨）。証明書を持っているなら、リポジトリ直下に
+   `Signing.local.xcconfig` を置いて Debug も正規署名にする（雛形は `Signing.example.xcconfig`）:
+   ```
+   PHLOX_DEVELOPMENT_TEAM = <あなたの Team ID>
+   PHLOX_DEBUG_CODE_SIGN_STYLE = Manual
+   PHLOX_DEBUG_CODE_SIGN_IDENTITY = Developer ID Application
+   ```
+   置かなければ従来どおり ad-hoc 署名でビルドできる。ただし ad-hoc は**リビルドのたびに
+   designated requirement（cdhash）が変わる**ため、TCC（ファイルとフォルダ・画面収録・
+   アクセシビリティ）の許可／拒否が毎回リセットされ、ビルドし直すたびに同じ承認ダイアログが出る
+   （→ [ADR 0158](../adr/0158-debug-build-stable-code-signature.md)）。
+
 1. **プロジェクトを再生成**（`project.yml` を変更したとき、または初回）:
    ```bash
    xcodegen generate
@@ -42,6 +54,7 @@ Debug 版は空の `Phlox-Debug` から始まる（Release のセッションを
 ## 注意
 
 - **`scripts/debug-build-restart.sh` は共存目的に使わない**: このスクリプトは `osascript -e 'quit app "Phlox"'` → `pkill -x Phlox`（プロセス名一致）で既存インスタンスを終了させる。Release 版と Debug 版は実行ファイル名がどちらも `Phlox` のため、これを実行すると**稼働中の Release 版まで巻き込んで終了する**。Release 版を残したまま Debug 版を起動するには、本ガイドの手動手順（別 `derivedDataPath` へ `xcodebuild` → `open`）を使う。
-- **TCC 権限は別扱い**: bundle id が違うため、Debug 版の画面収録・アクセシビリティ権限は Release 版とは別に、初回に再取得を求められる。
+- **TCC 権限は別扱い**: bundle id が違うため、Debug 版の画面収録・アクセシビリティ権限は Release 版とは別に、初回に再取得を求められる。手順 0 の正規署名をしていれば、答えた結果はリビルドを跨いで保持される（ad-hoc のままだと毎回聞かれる）。署名方式を切り替えた直後は、ad-hoc 時代の記録が引き継がれないためサービスごとに一度ずつ聞かれる。
+- **ダイアログが「Phlox」名義でも、触っているのは子プロセスのことがある**: `claude` などの下層 CLI がファイルへアクセスすると、macOS は責任プロセスである Phlox の名前で許可を求める。何が要求したかは `log show --predicate 'process == "tccd"'` の `AUTHREQ_ATTRIBUTION`（`accessing=` が実際のアクセス元）で確認できる。
 - **稼働中 Debug の上書き禁止**: 手順2のとおり、動いている Debug 版と同じ `derivedDataPath` へビルドしない。
 - **下層 CLI は共有**: 分離されるのは Phlox 自身のデータ層まで。spawn 先の `claude`/`codex`/`cursor` 自身の home（`~/.claude` 等）は両インスタンスで共有される。

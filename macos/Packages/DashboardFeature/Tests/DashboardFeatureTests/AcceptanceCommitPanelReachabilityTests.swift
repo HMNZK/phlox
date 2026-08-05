@@ -130,6 +130,10 @@ struct AcceptanceCommitPanelReachabilityTests {
                 gitHubCLIPath: fakeGh.path
             )
         )
+        // 実 UI では commit パネル自体が listState == .ready のときしか出ない
+        // （`EditorPanelView.showsCommitPanel`）。初版はこの refresh を落としていたため、
+        // 実装役が本番へ到達不能な自動 refresh を足す誘因になった（同上の裁定）。
+        await viewModel.refresh()
         viewModel.commitMessage = ""   // 入力が空なので直近コミット subject を引きにいく
 
         await viewModel.createPullRequest()
@@ -224,8 +228,14 @@ struct AcceptanceCommitPanelReachabilityTests {
         measureCommitPanelSize(viewModel: viewModel, width: width).height
     }
 
+    /// **実合成で測る**。`EditorPanelView.swift` の stacked 経路は
+    /// `GitCommitPanel(...).padding(.horizontal).frame(maxHeight: budget)` なので、
+    /// 横 padding を付けずに測ると内容幅が実機より 32pt 広くなり、高さを過小評価する
+    /// （初版はこれを落としていた。`decision-log.md` 2026-08-05 の裁定）。
     static func measureCommitPanelSize(viewModel: EditorPanelViewModel, width: CGFloat) -> CGSize {
-        let root = GitCommitPanel(viewModel: viewModel).frame(width: width)
+        let root = GitCommitPanel(viewModel: viewModel)
+            .padding(.horizontal)
+            .frame(width: width)
         let hosting = NSHostingView(rootView: root)
         hosting.frame = NSRect(x: 0, y: 0, width: width, height: 4000)
         hosting.layoutSubtreeIfNeeded()

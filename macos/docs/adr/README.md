@@ -12,6 +12,7 @@ last-verified: 2026-08-01
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0170 | [worktree 隔離に失敗したら起動を中止する（従来挙動へフォールバックしない）](0170-worktree-isolation-aborts-instead-of-falling-back.md) | accepted |
 | 0160 | [Data Protection Keychain への移行と、端末別モバイルトークン](0160-data-protection-keychain-and-per-device-mobile-tokens.md) | active |
 | 0159 | [Thinking インジケータ可視性シグナルの固着解消と、非アクティブウィンドウでの継続](0159-thinking-indicator-viewport-signal-recovery.md) | accepted |
 | 0158 | [Debug ビルドも証明書で署名できるようにし、TCC の承認をリビルドを跨いで保持する](0158-debug-build-stable-code-signature.md) | accepted |

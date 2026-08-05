@@ -25,7 +25,7 @@ Debug ビルドに独立したアイデンティティを与え、Release の値
 
 1. **`AgentDomain.AppFlavor`**（`enum`、`#if DEBUG` で `.debug`/`.release` を確定）を導入し、「データディレクトリ名（`Phlox` / `Phlox-Debug`）」「Keychain サービス名（`com.phlox.Phlox.mobileToken` / `com.phlox.Phlox.debug.mobileToken`）」「レガシー移行の可否（Release=true / Debug=false）」を集約する。
 2. **`AgentDomain.AppSupportLocator`** を単一リゾルバとし、分散ハードコードされていた全箇所をこれ経由に統一する（FileManager 版と home 注入版の2オーバーロード）。
-3. **`KeychainMobileTokenStore`** の既定 service を `AppFlavor.current.mobileTokenKeychainService` に変更する。
+3. **`KeychainPairedDeviceStore`** の既定 service を `AppFlavor.current.mobileTokenKeychainService` に変更する（本 ADR 制定時の実装は `KeychainMobileTokenStore` だったが、端末別トークンへの移行〔ADR 0160〕で `KeychainPairedDeviceStore` に置き換わり、この既定 service を引き継いでいる）。
 4. **`project.yml`**: Debug 構成のみ `PRODUCT_BUNDLE_IDENTIFIER = com.phlox.Phlox.debug`、表示名を build setting `PHLOX_APP_DISPLAY_NAME`（base=`Phlox` / Debug=`Phlox (Debug)`）経由の `CFBundleDisplayName` にする。
 5. **レガシー移行スキップ**: Debug は `runsLegacyMigration == false` で `AgentDashboard→Phlox` 移行を実行せず、空の `Phlox-Debug` から始める。
 

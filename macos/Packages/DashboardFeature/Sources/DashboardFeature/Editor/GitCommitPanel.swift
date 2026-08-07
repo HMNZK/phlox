@@ -1,83 +1,104 @@
+import DesignSystem
 import SwiftUI
 
 /// エディタパネル変更一覧向けの commit / push / PR 作成 UI（ADR 0169）。
 ///
-/// 狭いドロワー（stacked）でもメッセージ欄とボタンが押せるよう、変更リストの
-/// ScrollView の外・下部に置く前提。無効な操作は理由を同じ面に出す。
-/// 長い git 失敗出力は高さ上下限付きのテキスト表示にし、閉じる手段を必ず用意する
-/// （出力でボタンが画面外へ押し出されると復旧不能になるため。ScrollView は
-/// 変更リスト側と競合して高さ 0 に潰れるため使わない）。
+/// 狭いドロワー（stacked）でもメッセージ欄とボタンが押せるよう、専用の
+/// ScrollView に置く。無効な操作は理由を同じ面に出す。
+/// 長い git 失敗出力は要約と展開可能な詳細に分け、詳細部だけを固有高付きでスクロールする。
 struct GitCommitPanel: View {
     @Bindable var viewModel: EditorPanelViewModel
+    @ScaledMetric(relativeTo: .body) private var workflowStatusDetailsHeight: CGFloat = 220
+    @ScaledMetric(relativeTo: .body) private var minimumTapTarget: CGFloat = 28
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Commit")
-                .font(.subheadline.weight(.semibold))
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            Text("コミット")
+                .font(DSFont.sectionHeader)
 
-            TextField("Commit message", text: $viewModel.commitMessage, axis: .vertical)
+            TextField("コミットメッセージ", text: $viewModel.commitMessage, axis: .vertical)
                 .lineLimit(1...3)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityIdentifier("git-commit-message")
                 .disabled(viewModel.isWorkflowBusy)
 
+            if case .shared = viewModel.changeScope {
+                ChangeScopeNotice()
+            }
+
             workflowActionButtons
 
             if let pushAvailabilityReason = viewModel.pushAvailabilityReason {
                 Label(pushAvailabilityReason, systemImage: "externaldrive.badge.xmark")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("git-push-unavailable-reason")
             }
 
             if let pullRequestAvailabilityReason = viewModel.pullRequestAvailabilityReason {
                 Label(pullRequestAvailabilityReason, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("git-pr-unavailable-reason")
             }
 
             if let workflowStatusMessage = viewModel.workflowStatusMessage {
-                HStack(alignment: .top, spacing: 6) {
-                    Text(workflowStatusMessage)
-                        .font(.caption)
-                        .foregroundStyle(
-                            viewModel.workflowStatusIsError ? .red : .secondary
-                        )
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
-                        .lineLimit(nil)
-                        .frame(
-                            height: EditorPanelLayout.commitStatusMaxHeight,
-                            alignment: .top
-                        )
-                        .clipped()
-                        .accessibilityIdentifier("git-workflow-status")
+                HStack(alignment: .top, spacing: DSSpacing.xs) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                        Label {
+                            Text(workflowStatusMessage)
+                                .lineLimit(viewModel.workflowStatusIsError ? 2 : nil)
+                        } icon: {
+                            Image(systemName: viewModel.workflowStatusIsError
+                                ? "exclamationmark.triangle.fill"
+                                : "checkmark.circle.fill")
+                        }
+                        .font(DSFont.caption)
+                        .foregroundStyle(viewModel.workflowStatusIsError ? DSColor.statusError : DSColor.textSecondary)
+
+                        if viewModel.workflowStatusIsError {
+                            DisclosureGroup("詳細") {
+                                ScrollView {
+                                    Text(workflowStatusMessage)
+                                        .font(DSFont.monoCaption)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .textSelection(.enabled)
+                                }
+                                .frame(height: workflowStatusDetailsHeight)
+                                .padding(.top, DSSpacing.xs)
+                            }
+                            .font(DSFont.caption)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("git-workflow-status")
 
                     Button {
                         viewModel.dismissWorkflowStatus()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DSColor.textSecondary)
+                            .frame(width: minimumTapTarget, height: minimumTapTarget)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help("Dismiss status")
-                    .accessibilityLabel("Dismiss workflow status")
+                    .help("状態を閉じる")
+                    .accessibilityLabel("処理状態を閉じる")
                     .accessibilityIdentifier("git-workflow-status-dismiss")
                 }
             }
 
             if let lastPullRequestURL = viewModel.lastPullRequestURL {
                 Text(lastPullRequestURL)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.textSecondary)
                     .textSelection(.enabled)
                     .accessibilityIdentifier("git-pr-url")
             }
         }
-        .padding(.top, 2)
+        .padding(.top, DSSpacing.xxs)
         .accessibilityIdentifier("git-commit-panel")
     }
 
@@ -85,24 +106,31 @@ struct GitCommitPanel: View {
     /// 収まらなければ縦積みへ落とす。
     @ViewBuilder
     private var workflowActionButtons: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-                commitButton
-                pushButton
-                createPullRequestButton
+        HStack(alignment: .top, spacing: DSSpacing.s) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: DSSpacing.s) {
+                    commitButton
+                    pushButton
+                    createPullRequestButton
+                }
+                .controlSize(.small)
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                    commitButton
+                    pushButton
+                    createPullRequestButton
+                }
+                .controlSize(.small)
             }
-            .controlSize(.small)
-            VStack(alignment: .leading, spacing: 4) {
-                commitButton
-                pushButton
-                createPullRequestButton
+            ProgressView()
+                .controlSize(.small)
+                .accessibilityLabel("Git処理中")
+                .opacity(viewModel.isWorkflowBusy ? 1 : 0)
+                .accessibilityHidden(!viewModel.isWorkflowBusy)
             }
-            .controlSize(.small)
-        }
     }
 
     private var commitButton: some View {
-        Button("Commit") {
+        Button("コミット") {
             Task { await viewModel.commitSelectedPaths() }
         }
         .disabled(!viewModel.canCommit || viewModel.isWorkflowBusy)
@@ -110,7 +138,7 @@ struct GitCommitPanel: View {
     }
 
     private var pushButton: some View {
-        Button("Push") {
+        Button("プッシュ") {
             Task { await viewModel.pushCommittedChanges() }
         }
         .disabled(!viewModel.canPush || viewModel.isWorkflowBusy)
@@ -118,10 +146,32 @@ struct GitCommitPanel: View {
     }
 
     private var createPullRequestButton: some View {
-        Button("Create PR") {
+        Button("PRを作成") {
             Task { await viewModel.createPullRequest() }
         }
         .disabled(!viewModel.canCreatePullRequest || viewModel.isWorkflowBusy)
         .accessibilityIdentifier("git-create-pr-button")
+    }
+}
+
+/// 共有スコープで他セッションの変更を誤ってコミットしないための注意バナー。
+struct ChangeScopeNotice: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: DSSpacing.xs) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(DSColor.statusAwaitingApprovalForeground)
+            Text("このプロジェクトの全変更を表示しています。他のセッションの変更を含む場合があります。")
+                .foregroundStyle(DSColor.textPrimary)
+        }
+        .font(DSFont.body)
+        .padding(DSSpacing.s)
+        .background(DSColor.statusAwaitingApprovalFill, in: RoundedRectangle(cornerRadius: DSRadius.m))
+        .overlay(
+            RoundedRectangle(cornerRadius: DSRadius.m)
+                .stroke(DSColor.statusAwaitingApprovalBorder)
+        )
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityLabel("このプロジェクトの全変更を表示しています。他のセッションの変更を含む場合があります。")
+        .accessibilityIdentifier("session-change-scope-notice")
     }
 }

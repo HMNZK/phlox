@@ -37,6 +37,7 @@ public final class EditorPanelViewModel {
         }
     }
     public private(set) var isDirty = false
+    public private(set) var isRefreshing = false
 
     // MARK: - git write workflow（ADR 0169）
 
@@ -95,6 +96,8 @@ public final class EditorPanelViewModel {
     }
 
     public func refresh() async {
+        isRefreshing = true
+        defer { isRefreshing = false }
         guard let service else {
             listState = .noProject
             listErrorMessage = nil
@@ -123,7 +126,7 @@ public final class EditorPanelViewModel {
             changes = []
             clearSelection()
             listState = .ready
-            listErrorMessage = "Unable to load changes. Try refreshing."
+            listErrorMessage = "変更を読み込めませんでした。更新を試してください。"
             pathsSelectedForCommit = []
         }
     }
@@ -148,7 +151,7 @@ public final class EditorPanelViewModel {
             if let remoteFailure = await workflow.remoteLookupFailureReason() {
                 pushAvailabilityReason = remoteFailure
             } else {
-                pushAvailabilityReason = "リモートが設定されていません。push するには remote を追加してください。"
+                pushAvailabilityReason = "リモートが設定されていません。プッシュするにはリモートを追加してください。"
             }
         } else {
             pushAvailabilityReason = nil
@@ -176,7 +179,7 @@ public final class EditorPanelViewModel {
         do {
             // actor 上の Process 待ちは MainActor を解放する（UI 固着を避ける）。
             let sha = try await workflow.commit(paths: paths, message: message)
-            workflowStatusMessage = "Committed \(String(sha.prefix(7)))."
+            workflowStatusMessage = "\(String(sha.prefix(7))) をコミットしました。"
             workflowStatusIsError = false
             commitMessage = ""
             pathsSelectedForCommit = []
@@ -200,7 +203,7 @@ public final class EditorPanelViewModel {
         workflowStatusIsError = false
         do {
             try await workflow.push()
-            workflowStatusMessage = "Pushed to remote."
+            workflowStatusMessage = "リモートへプッシュしました。"
             workflowStatusIsError = false
             await refreshWorkflowCapabilities()
         } catch {
@@ -228,15 +231,15 @@ public final class EditorPanelViewModel {
             // commit 成功後はメッセージ欄を空にするため、直近コミット subject を既定にする。
             do {
                 let subject = try await workflow.latestCommitSubject()
-                title = subject.isEmpty ? "Update" : subject
+                title = subject.isEmpty ? "更新" : subject
             } catch {
-                title = "Update"
+                title = "更新"
             }
         }
         do {
             let url = try await workflow.createPullRequest(title: title, body: "")
             lastPullRequestURL = url
-            workflowStatusMessage = "Pull request created."
+            workflowStatusMessage = "プルリクエストを作成しました。"
             workflowStatusIsError = false
         } catch {
             presentWorkflowError(describeWorkflowError(error))
@@ -261,7 +264,7 @@ public final class EditorPanelViewModel {
                 selectedPath = path
                 detail = .binary
                 clearDraft()
-                readOnlyMessage = "Binary files cannot be edited."
+                readOnlyMessage = "バイナリファイルは編集できません。"
             case .diff(let diff):
                 selectedPath = path
                 detail = .diff(diff)
@@ -272,7 +275,7 @@ public final class EditorPanelViewModel {
                 } catch {
                     guard generation == selectionGeneration else { return }
                     clearDraft()
-                    readOnlyMessage = "This file is unavailable or is not valid UTF-8. Its diff is read-only."
+                    readOnlyMessage = "このファイルは利用できないか、有効なUTF-8ではありません。差分は読み取り専用です。"
                 }
             case .untrackedContent(let contents):
                 selectedPath = path
@@ -328,7 +331,7 @@ public final class EditorPanelViewModel {
     private func loadDraft(_ contents: String) {
         guard contents.utf8.count <= Self.maximumEditableFileSize else {
             clearDraft()
-            readOnlyMessage = "This file is too large to edit here."
+            readOnlyMessage = "このファイルは大きすぎるため、ここでは編集できません。"
             return
         }
 
@@ -411,9 +414,9 @@ public final class EditorPanelViewModel {
             let command = arguments.joined(separator: " ")
             let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty {
-                return "git \(command) failed."
+                return "git \(command) が失敗しました。"
             }
-            return "git \(command) failed:\n\(trimmed)"
+            return "git \(command) が失敗しました:\n\(trimmed)"
         }
     }
 }

@@ -32,6 +32,7 @@ public struct DashboardView: View {
     @State private var hasMeasuredLeadingOverlayWidth = false
     @State private var measuredTrailingOverlayHeight: CGFloat = 0
     @AppStorage(PanelDrawerLayout.defaultsKey) private var storedDrawerWidth = PanelDrawerLayout.preferredWidth
+    @AppStorage(PanelDrawerLayout.migrationDefaultsKey) private var hasMigratedDrawerWidth = false
     @State private var drawerWidthAtDragStart = PanelDrawerLayout.preferredWidth
     /// ゴースト境界だけを動かす一時値。本文 HStack の幅はドラッグ確定まで変えない。
     @State private var drawerDragTranslation: CGFloat = 0
@@ -415,6 +416,9 @@ public struct DashboardView: View {
         // コンテンツを最上部まで詰め、トラフィックライト回避はサイドバー側の上余白に一任する。
         .ignoresSafeArea(.container, edges: .top)
         .onAppear {
+            migrateLegacyDrawerWidthIfNeeded()
+        }
+        .onAppear {
             updateEditorPanel()
         }
         .onChange(of: router.viewMode, initial: true) { _, newMode in
@@ -559,6 +563,18 @@ public struct DashboardView: View {
             width: storedDrawerWidth,
             availableWidth: drawerAvailableWidth(windowWidth: windowWidth)
         )
+    }
+
+    private func migrateLegacyDrawerWidthIfNeeded() {
+        let savedWidth = (UserDefaults.standard.object(forKey: PanelDrawerLayout.defaultsKey) as? NSNumber)
+            .map { CGFloat($0.doubleValue) }
+        if let migratedWidth = PanelDrawerLayout.migratedWidth(
+            savedWidth: savedWidth,
+            hasMigrated: hasMigratedDrawerWidth
+        ) {
+            storedDrawerWidth = migratedWidth
+        }
+        hasMigratedDrawerWidth = true
     }
 
     private func proposedDrawerWidth(windowWidth: CGFloat) -> CGFloat {

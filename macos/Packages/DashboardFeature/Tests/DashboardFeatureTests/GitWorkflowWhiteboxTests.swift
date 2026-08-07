@@ -453,8 +453,8 @@ struct EditorPanelGitCommitUIWhiteboxTests {
         #expect(title != "Update")
     }
 
-    /// `GitCommitPanel` の実測固有高が stacked 予算内に収まることを固定する。
-    @Test func stackedのコミットパネルは予算内に収まる() {
+    /// 折りたたまれた状態メッセージは、詳細表示を開くまでコンパクトに保たれる。
+    @Test func コミットパネルの折りたたまれた状態メッセージはコンパクトに保たれる() {
         let viewModel = EditorPanelViewModel(service: nil, changeScope: .unavailable)
         let withoutStatus = measureCommitPanelHeight(viewModel: viewModel, width: 388)
         viewModel.presentWorkflowError("git commit failed: hook rejected")
@@ -463,29 +463,22 @@ struct EditorPanelGitCommitUIWhiteboxTests {
             withStatus >= withoutStatus + 40,
             "状態表示ブロックが無い／潰れている: without=\(withoutStatus) with=\(withStatus)"
         )
-        #expect(
-            withStatus <= EditorPanelLayout.stackedCommitPanelBudget,
-            "パネル実測 \(withStatus) が予算 \(EditorPanelLayout.stackedCommitPanelBudget) を超える"
-        )
+        #expect(withStatus < withoutStatus + 120, "折りたたまれた状態表示が大きすぎる: \(withStatus)")
     }
 
-    /// 26 行の git 失敗出力でも、有界化によりパネル固有高が stacked 予算を超えない（回帰止め）。
-    @Test func 長いgit失敗出力でもコミットパネルはstacked予算を超えない() {
+    /// 長い git 失敗出力は、展開操作まで要約表示に留めて操作部を押し出さない。
+    @Test func 長いgit失敗出力でも折りたたまれた状態表示はコンパクトに保たれる() {
         let viewModel = EditorPanelViewModel(service: nil, changeScope: .unavailable)
         let withoutStatus = measureCommitPanelHeight(viewModel: viewModel, width: 388)
         let longOutput = (1...26).map { "hook: lint failed on file_\($0).swift" }.joined(separator: "\n")
         viewModel.presentWorkflowError("git commit -m x -- a.txt failed:\n\(longOutput)")
 
         let measured = measureCommitPanelHeight(viewModel: viewModel, width: 388)
-        let budget = EditorPanelLayout.stackedCommitPanelBudget
         #expect(
             measured >= withoutStatus + 40,
             "長い失敗出力でも状態表示ブロックが無い: without=\(withoutStatus) with=\(measured)"
         )
-        #expect(
-            measured <= budget,
-            "失敗表示でパネルが stacked 予算を超え、ボタンが押し出される: \(measured) > \(budget)"
-        )
+        #expect(measured < withoutStatus + 120, "長い失敗表示が折りたたまれていない: \(measured)")
         #expect(viewModel.workflowStatusMessage != nil)
 
         viewModel.dismissWorkflowStatus()

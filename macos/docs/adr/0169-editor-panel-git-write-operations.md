@@ -65,9 +65,11 @@ push / PR まで進めたい」という一連の作業を製品の外（CLI）�
    `VSplitView` に分け、コミット UI は常に独立ペインで表示する。変更リスト最小高は 72pt。
    コミットパネルは `stackedCommitPanelBudget`（固有高の上限）とコンパクトな余白・
    コントロールサイズで予算内に収める。`workflowStatusMessage` は `Text` を `commitStatusMaxHeight` の固定高に収め、
-   長い git 失敗出力でもボタン列を押し出さない（`ScrollView` は変更リスト側と
-   競合して高さ 0 に潰れるため使わない）。溢れた行はクリップし、全文は
-   `.textSelection(.enabled)` でコピー可能。閉じる（消す）手段も必ず用意する。
+    長い git 失敗出力でもボタン列を押し出さない（`ScrollView` は変更リスト側と
+    競合して高さ 0 に潰れるため使わない）。溢れた行はクリップし、全文は
+    `.textSelection(.enabled)` でコピー可能。閉じる（消す）手段も必ず用意する。
+    この表示方針は詳細を展開可能にする方式へ変更したため、固定高に関する記述は
+    [ADR 0171](0171-editor-panel-workflow-status-disclosure.md) で superseded とする。
    狭い split 列では `ViewThatFits` でボタンを縦積みへ落とし、ラベルが判別できるようにする。
    リモート未設定なら push を無効化して理由を表示し、
    `gh` 不在なら PR 作成を「利用不可」と明示する（ログだけに出して UI が黙るのは不可）。

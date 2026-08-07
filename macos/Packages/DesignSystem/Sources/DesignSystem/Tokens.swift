@@ -22,6 +22,7 @@ public enum DSFont {
     public static let caption = Font.caption
     public static let captionStrong = Font.caption.weight(.medium)
     public static let body = Font.body
+    public static let bodyMedium = Font.body.weight(.medium)
     public static let sectionHeader = Font.subheadline.weight(.semibold)
     public static let title = Font.title3.weight(.semibold)
     public static let heroTitle = Font.title2.weight(.semibold)
@@ -178,8 +179,21 @@ public enum DSColor {
 
     public static var statusRunning: Color { theme.statusRunning.color }
     public static var statusAwaitingApproval: Color { theme.statusAwaiting.color }
+    /// 警告面は明色テーマでも白地から判別できる濃さにする。
+    public static var statusAwaitingApprovalFill: Color {
+        statusAwaitingApproval.opacity(theme.preferredColorScheme == .light ? 0.24 : 0.14)
+    }
+    public static var statusAwaitingApprovalBorder: Color {
+        statusAwaitingApproval.opacity(theme.preferredColorScheme == .light ? 0.65 : 0.5)
+    }
+    public static var statusAwaitingApprovalForeground: Color {
+        theme.preferredColorScheme == .light ? RGB(0x92, 0x40, 0x0E).color : statusAwaitingApproval
+    }
     public static var statusCompleted: Color { theme.statusCompleted.color }
-    public static var statusError: Color { theme.statusError.color }
+    /// 明色テーマでは caption でも AA を満たす濃い赤を使う。
+    public static var statusError: Color {
+        theme.preferredColorScheme == .light ? RGB(0xB9, 0x1C, 0x1C).color : theme.statusError.color
+    }
 
     /// New session ボタンのブランドグラデ（紫→ピンク）。テーマ由来にすると、両端が同色になる
     /// テーマ（例: Tokyo Night は accent と ansi[5] がともに 0xBB9AF7）でフラット化するため、

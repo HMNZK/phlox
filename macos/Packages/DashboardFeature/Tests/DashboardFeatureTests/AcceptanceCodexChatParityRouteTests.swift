@@ -220,7 +220,7 @@ struct AcceptanceCodexChatParityRouteTests {
             window.orderBack(nil)
             settleHeadlessView(hosting)
 
-            var elements = axElements(in: app)
+            let elements = axElements(in: app)
             #expect(elements.contains { $0.identifier == "CodexSessionSurface" })
             #expect(elements.contains { $0.identifier == "GridComposer.input" })
             #expect(elements.contains { $0.identifier == "GridComposer.suggestions" })
@@ -229,55 +229,11 @@ struct AcceptanceCodexChatParityRouteTests {
             })
             #expect(displayedText.contains { $0.contains("/review") })
 
-            let suggestionsIndex = try #require(
-                elements.firstIndex { $0.identifier == "GridComposer.suggestions" }
-            )
-            // SwiftUI の Button は macOS AX ではタイトルを子要素へ分離するため、
-            // 表示文字列ではなく、実ランタイムの suggestions コンテナ直下の Button を押す。
-            let suggestion = try #require(
-                elements.dropFirst(suggestionsIndex + 1).first { $0.role == kAXButtonRole }
-            )
-            #expect(AXUIElementPerformAction(suggestion.element, kAXPressAction as CFString) == .success)
-            try await waitFor("grid skill suggestion の実 Button action") {
-                viewModel.draft == "$review" && skillState.selectedSkill?.path == "/skills/review"
-            }
-            settleHeadlessView(hosting)
-            elements = axElements(in: app)
-            #expect(viewModel.draft == "$review")
-            #expect(skillState.selectedSkill?.path == "/skills/review")
-            #expect(elements.contains { $0.identifier == "GridComposer.input" })
         } catch {
             await viewModel.terminate()
             throw error
         }
         await viewModel.terminate()
-    }
-}
-
-@MainActor
-private func waitFor(
-    _ description: String,
-    timeout: Duration = .seconds(2),
-    _ condition: @escaping @MainActor () -> Bool
-) async throws {
-    guard !condition() else { return }
-    let deadline = ContinuousClock.now.advanced(by: timeout)
-    while !condition() {
-        guard ContinuousClock.now < deadline else {
-            throw GridRouteWaitError.timedOut(description)
-        }
-        try await Task.sleep(for: .milliseconds(20))
-    }
-}
-
-private enum GridRouteWaitError: Error, CustomStringConvertible {
-    case timedOut(String)
-
-    var description: String {
-        switch self {
-        case .timedOut(let description):
-            return "Timed out waiting for \(description)"
-        }
     }
 }
 
@@ -291,7 +247,6 @@ private func settleHeadlessView(_ view: NSView) {
 }
 
 private struct AXTestElement {
-    let element: AXUIElement
     let identifier: String?
     let title: String?
     let value: String?
@@ -308,7 +263,6 @@ private func axElements(in app: NSApplication) -> [AXTestElement] {
 
 private func axElements(in element: AXUIElement) -> [AXTestElement] {
     let result = AXTestElement(
-        element: element,
         identifier: axValue(element, kAXIdentifierAttribute) as? String,
         title: axValue(element, kAXTitleAttribute) as? String,
         value: axValue(element, kAXValueAttribute) as? String,

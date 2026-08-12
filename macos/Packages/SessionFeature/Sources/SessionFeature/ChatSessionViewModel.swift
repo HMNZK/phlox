@@ -2753,7 +2753,7 @@ extension ChatSessionViewModel: ControllableSession {
                 guard imageSnapshot.supportsImages else {
                     attachmentStore.setError(ControlImageSendError.imagesUnsupported.localizedDescription)
                     restoreDraftAfterRejectedSend(input)
-                    throw ControlImageSendError.imagesUnsupported
+                    return
                 }
                 await configureCodexImageInputIfNeeded(supportsImages: imageSnapshot.supportsImages)
                 guard imageSnapshot == imageSendSnapshot(for: buildChatInputs(text: clientInput)) else {

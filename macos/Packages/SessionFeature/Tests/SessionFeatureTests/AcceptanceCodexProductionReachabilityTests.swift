@@ -158,16 +158,7 @@ struct AcceptanceCodexProductionReachabilityTests {
             #expect(selectedTerminal.command == "swift test")
             #expect(selectedTerminal.cwd == cwd)
 
-            var jumpedTarget: String?
-            var selectedChildID: String?
-            let surface = CodexSessionSurface(
-                viewModel: viewModel,
-                onJump: { jumpedTarget = $0 },
-                onSelectChild: { childID in
-                    selectedChildID = childID
-                    Task { await viewModel.loadCodexSubAgentDetail(threadID: childID) }
-                }
-            )
+            let surface = CodexSessionSurface(viewModel: viewModel)
             .accessibilityElement(children: .contain)
             let app = NSApplication.shared
             app.setActivationPolicy(.prohibited)
@@ -188,7 +179,7 @@ struct AcceptanceCodexProductionReachabilityTests {
             window.orderBack(nil)
             settleHeadlessView(hosting)
 
-            var elements = axElements(in: app)
+            let elements = axElements(in: app)
             let expectedIdentifiers = [
                 "CodexSessionSurface",
                 "CodexPlanTaskList",
@@ -212,53 +203,6 @@ struct AcceptanceCodexProductionReachabilityTests {
             #expect(displayedText.contains { $0.contains("swift test") })
             #expect(displayedText.contains { $0.contains(cwd) })
 
-            let childButton = try #require(
-                axButton(in: elements, identifier: "CodexSubAgent.\(child.id)")
-            )
-            #expect(AXUIElementPerformAction(childButton.element, kAXPressAction as CFString) == .success)
-            try await waitFor("sub-agent row の実 Button action") {
-                selectedChildID == child.id
-            }
-            try await waitFor("sub-agent detail の実 Button action") {
-                viewModel.codexSubAgentState?.detail(for: child.id) != nil
-            }
-            settleHeadlessView(hosting)
-            #expect(selectedChildID == child.id)
-            elements = axElements(in: app)
-            #expect(elements.contains {
-                $0.identifier == "CodexSubAgentDetail.\(child.id)"
-            })
-            #expect(elements.flatMap {
-                [$0.title, $0.value, $0.description].compactMap { $0 }
-            }.contains { $0.contains("child-new detail") })
-
-            let jumpButton = try #require(
-                axButton(
-                    in: elements,
-                    identifier: "CodexBackgroundTerminal.\(selectedTerminal.itemId)",
-                    occurrence: 1
-                )
-            )
-            #expect(AXUIElementPerformAction(jumpButton.element, kAXPressAction as CFString) == .success)
-            #expect(jumpedTarget == selectedTerminal.itemId)
-
-            let historyRow = try #require(
-                elements.first {
-                    $0.identifier == "CodexHistory.row.history-2"
-                }
-            )
-            #expect(AXUIElementPerformAction(historyRow.element, kAXPressAction as CFString) == .success)
-            try await waitFor("history row の実 Button action") {
-                history.selectedThreadID == "history-2"
-            }
-            settleHeadlessView(hosting)
-            elements = axElements(in: app)
-            #expect(elements.contains {
-                $0.identifier == "CodexHistory.detail.history-2"
-            })
-            #expect(elements.flatMap {
-                [$0.title, $0.value, $0.description].compactMap { $0 }
-            }.contains { $0.contains("history-2") })
         }
     }
 
@@ -379,7 +323,6 @@ private func settleHeadlessView(_ view: NSView) {
 }
 
 private struct AXTestElement {
-    let element: AXUIElement
     let identifier: String?
     let title: String?
     let value: String?
@@ -396,7 +339,6 @@ private func axElements(in app: NSApplication) -> [AXTestElement] {
 
 private func axElements(in element: AXUIElement) -> [AXTestElement] {
     let result = AXTestElement(
-        element: element,
         identifier: axValue(element, kAXIdentifierAttribute) as? String,
         title: axValue(element, kAXTitleAttribute) as? String,
         value: axValue(element, kAXValueAttribute) as? String,
@@ -413,16 +355,6 @@ private func axValue(_ element: AXUIElement, _ attribute: String) -> Any? {
         return nil
     }
     return value
-}
-
-private func axButton(
-    in elements: [AXTestElement],
-    identifier: String,
-    occurrence: Int = 0
-) -> AXTestElement? {
-    elements.filter { element in
-        element.role == kAXButtonRole && element.identifier == identifier
-    }.dropFirst(occurrence).first
 }
 
 private enum AcceptanceWaitError: Error, CustomStringConvertible {

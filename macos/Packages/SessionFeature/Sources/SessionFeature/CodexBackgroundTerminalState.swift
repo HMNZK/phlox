@@ -81,6 +81,7 @@ public final class CodexBackgroundTerminalState {
     public private(set) var threadId: String?
 
     private var threadGeneration = 0
+    private var listGeneration = 0
     private let operationGate = CodexBackgroundTerminalOperationGate()
 
     /// UI が「一覧」と呼ぶ場合の読み取り用別名。
@@ -110,10 +111,9 @@ public final class CodexBackgroundTerminalState {
     public func updateThreadId(_ threadId: String?) {
         guard self.threadId != threadId else { return }
         threadGeneration += 1
+        listGeneration += 1
         self.threadId = threadId
-        terminals = []
-        selectedItemId = nil
-        confirmedTerminationItemIds = []
+        invalidateList()
         errorMessage = nil
     }
 
@@ -130,14 +130,21 @@ public final class CodexBackgroundTerminalState {
         defer { isRefreshing = false }
 
         guard let threadId, !threadId.isEmpty else {
+            invalidateList()
             errorMessage = CodexBackgroundTerminalError.threadNotStarted.localizedDescription
             return
         }
         let generation = threadGeneration
+        listGeneration += 1
+        let requestGeneration = listGeneration
 
         do {
             let fetched = try await listRequest(threadId)
-            guard generation == threadGeneration, self.threadId == threadId else { return }
+            guard isCurrentList(
+                threadGeneration: generation,
+                listGeneration: requestGeneration,
+                threadId: threadId
+            ) else { return }
             terminals = fetched
             if let selectedItemId,
                !terminals.contains(where: { $0.itemId == selectedItemId }) {
@@ -145,8 +152,14 @@ public final class CodexBackgroundTerminalState {
             }
             errorMessage = nil
         } catch {
-            guard generation == threadGeneration, self.threadId == threadId else { return }
-            errorMessage = String(describing: error)
+            guard isCurrentList(
+                threadGeneration: generation,
+                listGeneration: requestGeneration,
+                threadId: threadId
+            ) else { return }
+            let message = String(describing: error)
+            invalidateList()
+            errorMessage = message
         }
     }
 
@@ -203,6 +216,8 @@ public final class CodexBackgroundTerminalState {
             return false
         }
         let generation = threadGeneration
+        listGeneration += 1
+        let requestGeneration = listGeneration
 
         terminatingItemIds.insert(itemId)
         isTerminating = true
@@ -211,38 +226,66 @@ public final class CodexBackgroundTerminalState {
             isTerminating = !terminatingItemIds.isEmpty
         }
 
+        let response: ThreadBackgroundTerminalsTerminateResponse
         do {
-            let response = try await terminateRequest(threadId, terminal.processId)
-            guard response.terminated else {
-                errorMessage = "背景ターミナルを停止できませんでした"
-                return false
-            }
-
-            // terminate=true でも必ず同じ thread の一覧を再取得して確認する。
-            let fetched = try await listRequest(threadId)
-            guard generation == threadGeneration, self.threadId == threadId else { return false }
-            terminals = fetched
-            if let selectedItemId,
-               !terminals.contains(where: { $0.itemId == selectedItemId }) {
-                self.selectedItemId = nil
-            }
-            errorMessage = nil
-            // item が消えても processId が別 item に再利用されていれば未確認とする。
-            let confirmed = self.terminal(itemId: itemId) == nil
-                && !terminals.contains(where: { $0.processId == terminal.processId })
-            if confirmed {
-                confirmedTerminationItemIds.insert(itemId)
-                if selectedItemId == itemId {
-                    selectedItemId = nil
-                }
-            } else {
-                errorMessage = "背景ターミナルの停止を確認できませんでした"
-            }
-            return confirmed
+            response = try await terminateRequest(threadId, terminal.processId)
         } catch {
+            // terminate RPC の失敗は一覧の信頼性を壊さないため、対象を保持する。
+            guard isCurrentList(
+                threadGeneration: generation,
+                listGeneration: requestGeneration,
+                threadId: threadId
+            ) else { return false }
             errorMessage = String(describing: error)
             return false
         }
+        guard isCurrentList(
+            threadGeneration: generation,
+            listGeneration: requestGeneration,
+            threadId: threadId
+        ) else { return false }
+        guard response.terminated else {
+            errorMessage = "背景ターミナルを停止できませんでした"
+            return false
+        }
+
+        // terminate=true でも必ず同じ thread の一覧を再取得して確認する。
+        let fetched: [ThreadBackgroundTerminal]
+        do {
+            fetched = try await listRequest(threadId)
+        } catch {
+            guard isCurrentList(
+                threadGeneration: generation,
+                listGeneration: requestGeneration,
+                threadId: threadId
+            ) else { return false }
+            invalidateList()
+            errorMessage = String(describing: error)
+            return false
+        }
+        guard isCurrentList(
+            threadGeneration: generation,
+            listGeneration: requestGeneration,
+            threadId: threadId
+        ) else { return false }
+        terminals = fetched
+        if let selectedItemId,
+           !terminals.contains(where: { $0.itemId == selectedItemId }) {
+            self.selectedItemId = nil
+        }
+        errorMessage = nil
+        // item が消えても processId が別 item に再利用されていれば未確認とする。
+        let confirmed = self.terminal(itemId: itemId) == nil
+            && !terminals.contains(where: { $0.processId == terminal.processId })
+        if confirmed {
+            confirmedTerminationItemIds.insert(itemId)
+            if selectedItemId == itemId {
+                selectedItemId = nil
+            }
+        } else {
+            errorMessage = "背景ターミナルの停止を確認できませんでした"
+        }
+        return confirmed
     }
 
     @discardableResult
@@ -260,6 +303,22 @@ public final class CodexBackgroundTerminalState {
 
     private let listRequest: ListRequest
     private let terminateRequest: TerminateRequest
+
+    private func invalidateList() {
+        terminals.removeAll()
+        selectedItemId = nil
+        confirmedTerminationItemIds.removeAll()
+    }
+
+    private func isCurrentList(
+        threadGeneration: Int,
+        listGeneration: Int,
+        threadId: String
+    ) -> Bool {
+        threadGeneration == self.threadGeneration
+            && listGeneration == self.listGeneration
+            && self.threadId == threadId
+    }
 
     private static func requests<Client: CodexBackgroundTerminalProviding>(
         for client: Client,

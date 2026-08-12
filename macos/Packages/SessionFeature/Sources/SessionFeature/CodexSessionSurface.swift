@@ -31,7 +31,7 @@ struct CodexSessionSurface: View {
 
     init(
         viewModel: ChatSessionViewModel,
-        onJump: @escaping (String) -> Void,
+        onJump: @escaping (String) -> Void = { _ in },
         onSelectChild: @escaping (String) -> Void = { _ in },
         onStopChild: @escaping (String) -> Void = { _ in }
     ) {

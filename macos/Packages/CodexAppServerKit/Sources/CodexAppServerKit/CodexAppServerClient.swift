@@ -461,10 +461,10 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
             guard !imageTurnInFlight, !modelChangeInFlight else {
                 throw CodexStructuredClientError.imageTurnInProgress
             }
+            guard nativeImageInputEnabled else {
+                throw CodexStructuredClientError.imageInputUnsupported
+            }
             imageTurnInFlight = true
-        }
-        guard !hasImages || nativeImageInputEnabled else {
-            throw CodexStructuredClientError.imageInputUnsupported
         }
         defer {
             if hasImages {
@@ -497,10 +497,10 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
             guard !imageTurnInFlight, !modelChangeInFlight else {
                 throw CodexStructuredClientError.imageTurnInProgress
             }
+            guard nativeImageInputEnabled else {
+                throw CodexStructuredClientError.imageInputUnsupported
+            }
             imageTurnInFlight = true
-        }
-        guard !hasImages || nativeImageInputEnabled else {
-            throw CodexStructuredClientError.imageInputUnsupported
         }
         defer {
             if hasImages {

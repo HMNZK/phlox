@@ -213,6 +213,46 @@ private extension NSLock {
     await adapter.close()
 }
 
+@Test func imageCapabilityRejectionDoesNotStickAcrossRegularAndNativeTurns() async throws {
+    let transport = RespondingTransport()
+    let client = CodexAppServerClient(transport: transport)
+    let adapter = CodexStructuredAgentClient(client: client)
+    await adapter.start()
+    _ = try await adapter.threadStart(ThreadStartParams(cwd: "/tmp/work"))
+
+    for _ in 0..<2 {
+        await #expect(throws: CodexStructuredClientError.imageInputUnsupported) {
+            try await adapter.turnStart([
+                .text("describe"),
+                .image(data: Data([1, 2, 3]), mediaType: "image/png"),
+            ])
+        }
+        await #expect(throws: CodexStructuredClientError.imageInputUnsupported) {
+            try await adapter.turnStartNative([
+                .text("describe"),
+                .localImage(path: "/tmp/image.png", detail: nil),
+            ])
+        }
+    }
+
+    let rejectedTurns = await transport.sent.all().filter { $0["method"]?.stringValue == "turn/start" }
+    #expect(rejectedTurns.isEmpty)
+
+    await adapter.setNativeImageInputEnabled(true)
+    try await adapter.turnStart([
+        .text("describe"),
+        .image(data: Data([1, 2, 3]), mediaType: "image/png"),
+    ])
+    try await adapter.turnStartNative([
+        .text("describe"),
+        .localImage(path: "/tmp/image.png", detail: nil),
+    ])
+
+    let successfulTurns = await transport.sent.all().filter { $0["method"]?.stringValue == "turn/start" }
+    #expect(successfulTurns.count == 2)
+    await adapter.close()
+}
+
 @Test func completedTurnRejectsLateEventsAndAcceptsTheNextTurn() async throws {
     let transport = MockTransport()
     let client = CodexAppServerClient(transport: transport)

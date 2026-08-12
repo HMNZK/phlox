@@ -3,7 +3,8 @@ import Testing
 import StructuredChatKit
 @testable import CodexAppServerKit
 
-@Test func imageTurnRejectsModelChangeUntilTurnStartReturns() async throws {
+@Test(.timeLimit(.minutes(1)))
+func imageTurnRejectsModelChangeUntilTurnStartReturns() async throws {
     let transport = ImageTurnBarrierTransport()
     let adapter = CodexStructuredAgentClient(
         client: CodexAppServerClient(transport: transport)
@@ -18,32 +19,55 @@ import StructuredChatKit
             .image(data: Data([1, 2, 3]), mediaType: "image/png"),
         ])
     }
-    var started = transport.turnStartRequests.makeAsyncIterator()
-    _ = await started.next()
-
-    await #expect(throws: CodexStructuredClientError.imageTurnInProgress) {
-        try await adapter.updateThreadSettings(ThreadSettingsUpdateParams(
-            threadId: "thread-image",
-            model: "text-only-model"
-        ))
-    }
-    #expect(await transport.sent.first { $0["method"]?.stringValue == "thread/settings/update" } == nil)
-
-    await transport.releaseTurnStart()
-    try await turnTask.value
-
-    let turn = try #require(await transport.sent.first { $0["method"]?.stringValue == "turn/start" })
-    guard case .array(let input) = turn["params"]?["input"] else {
-        Issue.record("turn/start input が配列でない")
+    func cleanup() async {
+        await transport.close()
+        turnTask.cancel()
+        _ = await turnTask.result
         await adapter.close()
-        return
     }
-    #expect(input.contains { $0["type"] == .string("localImage") })
 
-    await adapter.close()
+    do {
+        let requestSent = await waitUntil(events: transport.sent.changes) {
+            await transport.sent.first { $0["method"]?.stringValue == "turn/start" } != nil
+        }
+        guard requestSent else {
+            Issue.record("turn/start request が timeout した")
+            await cleanup()
+            return
+        }
+
+        await #expect(throws: CodexStructuredClientError.imageTurnInProgress) {
+            try await adapter.updateThreadSettings(ThreadSettingsUpdateParams(
+                threadId: "thread-image",
+                model: "text-only-model"
+            ))
+        }
+        #expect(await transport.sent.first { $0["method"]?.stringValue == "thread/settings/update" } == nil)
+
+        await transport.releaseTurnStart()
+        try await turnTask.value
+
+        guard let turn = await transport.sent.first(where: { $0["method"]?.stringValue == "turn/start" }) else {
+            Issue.record("turn/start request がない")
+            await cleanup()
+            return
+        }
+        guard case .array(let input) = turn["params"]?["input"] else {
+            Issue.record("turn/start input が配列でない")
+            await cleanup()
+            return
+        }
+        #expect(input.contains { $0["type"] == .string("localImage") })
+    } catch {
+        await cleanup()
+        throw error
+    }
+
+    await cleanup()
 }
 
-@Test func nativeImageTurnRejectsModelChangeUntilTurnStartReturns() async throws {
+@Test(.timeLimit(.minutes(1)))
+func nativeImageTurnRejectsModelChangeUntilTurnStartReturns() async throws {
     let transport = ImageTurnBarrierTransport()
     let adapter = CodexStructuredAgentClient(
         client: CodexAppServerClient(transport: transport)
@@ -58,32 +82,55 @@ import StructuredChatKit
             .localImage(path: "/tmp/image.png", detail: "high"),
         ])
     }
-    var started = transport.turnStartRequests.makeAsyncIterator()
-    _ = await started.next()
-
-    await #expect(throws: CodexStructuredClientError.imageTurnInProgress) {
-        try await adapter.updateThreadSettings(ThreadSettingsUpdateParams(
-            threadId: "thread-image",
-            model: "text-only-model"
-        ))
-    }
-    #expect(await transport.sent.first { $0["method"]?.stringValue == "thread/settings/update" } == nil)
-
-    await transport.releaseTurnStart()
-    try await turnTask.value
-
-    let turn = try #require(await transport.sent.first { $0["method"]?.stringValue == "turn/start" })
-    guard case .array(let input) = turn["params"]?["input"] else {
-        Issue.record("native turn/start input が配列でない")
+    func cleanup() async {
+        await transport.close()
+        turnTask.cancel()
+        _ = await turnTask.result
         await adapter.close()
-        return
     }
-    #expect(input.contains { $0["type"] == .string("localImage") })
 
-    await adapter.close()
+    do {
+        let requestSent = await waitUntil(events: transport.sent.changes) {
+            await transport.sent.first { $0["method"]?.stringValue == "turn/start" } != nil
+        }
+        guard requestSent else {
+            Issue.record("native turn/start request が timeout した")
+            await cleanup()
+            return
+        }
+
+        await #expect(throws: CodexStructuredClientError.imageTurnInProgress) {
+            try await adapter.updateThreadSettings(ThreadSettingsUpdateParams(
+                threadId: "thread-image",
+                model: "text-only-model"
+            ))
+        }
+        #expect(await transport.sent.first { $0["method"]?.stringValue == "thread/settings/update" } == nil)
+
+        await transport.releaseTurnStart()
+        try await turnTask.value
+
+        guard let turn = await transport.sent.first(where: { $0["method"]?.stringValue == "turn/start" }) else {
+            Issue.record("native turn/start request がない")
+            await cleanup()
+            return
+        }
+        guard case .array(let input) = turn["params"]?["input"] else {
+            Issue.record("native turn/start input が配列でない")
+            await cleanup()
+            return
+        }
+        #expect(input.contains { $0["type"] == .string("localImage") })
+    } catch {
+        await cleanup()
+        throw error
+    }
+
+    await cleanup()
 }
 
-@Test func modelChangeRejectsImageTurnsUntilSettingsUpdateReturns() async throws {
+@Test(.timeLimit(.minutes(1)))
+func modelChangeRejectsImageTurnsUntilSettingsUpdateReturns() async throws {
     let transport = ImageTurnBarrierTransport()
     let adapter = CodexStructuredAgentClient(
         client: CodexAppServerClient(transport: transport)
@@ -98,60 +145,109 @@ import StructuredChatKit
             model: "text-only-model"
         ))
     }
-    var settingsStarted = transport.settingsUpdateRequests.makeAsyncIterator()
-    _ = await settingsStarted.next()
-
-    await #expect(throws: CodexStructuredClientError.imageTurnInProgress) {
-        try await adapter.turnStart([
-            .text("describe"),
-            .image(data: Data([1, 2, 3]), mediaType: "image/png"),
-        ])
+    func cleanup() async {
+        await transport.close()
+        settingsTask.cancel()
+        _ = await settingsTask.result
+        await adapter.close()
     }
-    await #expect(throws: CodexStructuredClientError.imageTurnInProgress) {
-        try await adapter.turnStartNative([
-            .text("describe"),
-            .localImage(path: "/tmp/image.png", detail: nil),
-        ])
-    }
-    #expect(await transport.sent.first { $0["method"]?.stringValue == "turn/start" } == nil)
 
-    await transport.releaseSettingsUpdate()
-    _ = try await settingsTask.value
-    await adapter.close()
+    do {
+        let requestSent = await waitUntil(events: transport.sent.changes) {
+            await transport.sent.first { $0["method"]?.stringValue == "thread/settings/update" } != nil
+        }
+        guard requestSent else {
+            Issue.record("thread/settings/update request が timeout した")
+            await cleanup()
+            return
+        }
+
+        await #expect(throws: CodexStructuredClientError.imageTurnInProgress) {
+            try await adapter.turnStart([
+                .text("describe"),
+                .image(data: Data([1, 2, 3]), mediaType: "image/png"),
+            ])
+        }
+        await #expect(throws: CodexStructuredClientError.imageTurnInProgress) {
+            try await adapter.turnStartNative([
+                .text("describe"),
+                .localImage(path: "/tmp/image.png", detail: nil),
+            ])
+        }
+        #expect(await transport.sent.first { $0["method"]?.stringValue == "turn/start" } == nil)
+
+        await transport.releaseSettingsUpdate()
+        _ = try await settingsTask.value
+    } catch {
+        await cleanup()
+        throw error
+    }
+
+    await cleanup()
 }
 
 private actor ImageTurnBarrier {
     nonisolated let requests: AsyncStream<Void>
-    private let continuation: AsyncStream<Void>.Continuation
-    private var releaseContinuation: CheckedContinuation<Void, Never>?
-    private var releaseRequested = false
+    private let requestContinuation: AsyncStream<Void>.Continuation
+    private nonisolated let releases: AsyncStream<Void>
+    private let releaseContinuation: AsyncStream<Void>.Continuation
 
     init() {
-        var captured: AsyncStream<Void>.Continuation?
-        requests = AsyncStream(bufferingPolicy: .unbounded) { captured = $0 }
-        continuation = captured!
+        var requestContinuation: AsyncStream<Void>.Continuation?
+        requests = AsyncStream(bufferingPolicy: .unbounded) { requestContinuation = $0 }
+        self.requestContinuation = requestContinuation!
+
+        var releaseContinuation: AsyncStream<Void>.Continuation?
+        releases = AsyncStream(bufferingPolicy: .unbounded) { releaseContinuation = $0 }
+        self.releaseContinuation = releaseContinuation!
     }
 
     func markRequest() {
-        continuation.yield(())
+        requestContinuation.yield(())
     }
 
-    func waitForRelease() async {
-        if releaseRequested {
-            releaseRequested = false
-            return
+    func waitForRelease(timeout: Duration = .seconds(2)) async throws {
+        let releases = releases
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask {
+                var iterator = releases.makeAsyncIterator()
+                guard await iterator.next() != nil else {
+                    throw ImageTurnBarrierError.closed
+                }
+            }
+            group.addTask {
+                do {
+                    try await Task.sleep(for: timeout)
+                } catch {
+                    return
+                }
+                throw ImageTurnBarrierError.timedOut
+            }
+            do {
+                guard try await group.next() != nil else {
+                    throw ImageTurnBarrierError.closed
+                }
+                group.cancelAll()
+            } catch {
+                group.cancelAll()
+                throw error
+            }
         }
-        await withCheckedContinuation { releaseContinuation = $0 }
     }
 
     func release() {
-        if let releaseContinuation {
-            releaseContinuation.resume()
-            self.releaseContinuation = nil
-        } else {
-            releaseRequested = true
-        }
+        releaseContinuation.yield(())
     }
+
+    func close() {
+        requestContinuation.finish()
+        releaseContinuation.finish()
+    }
+}
+
+private enum ImageTurnBarrierError: Error {
+    case closed
+    case timedOut
 }
 
 private final class ImageTurnBarrierTransport: AppServerTransport, @unchecked Sendable {
@@ -177,11 +273,11 @@ private final class ImageTurnBarrierTransport: AppServerTransport, @unchecked Se
         guard let id = request["id"] else { return }
         if request["method"]?.stringValue == "turn/start" {
             await turnStartBarrier.markRequest()
-            await turnStartBarrier.waitForRelease()
+            try await turnStartBarrier.waitForRelease()
         }
         if request["method"]?.stringValue == "thread/settings/update" {
             await settingsUpdateBarrier.markRequest()
-            await settingsUpdateBarrier.waitForRelease()
+            try await settingsUpdateBarrier.waitForRelease()
         }
 
         let result: JSONValue
@@ -212,6 +308,8 @@ private final class ImageTurnBarrierTransport: AppServerTransport, @unchecked Se
     }
 
     func close() async {
+        await turnStartBarrier.close()
+        await settingsUpdateBarrier.close()
         continuation.finish()
     }
 }

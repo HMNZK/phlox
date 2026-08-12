@@ -73,7 +73,7 @@ struct AcceptanceCodexBackgroundTerminalStateTests {
     }
 
     @Test("thread が切り替わった後に返る旧一覧を状態へ適用しない")
-    func staleThreadListIsDiscarded() async {
+    func staleThreadListIsDiscarded() async throws {
         let gate = StateClientListGate()
         let client = StateClient(
             lists: [[terminal(itemId: "old", processId: "p-old")]],
@@ -81,7 +81,7 @@ struct AcceptanceCodexBackgroundTerminalStateTests {
         )
         let state = CodexBackgroundTerminalState(client: client, threadId: "thread-old")
         let refresh = Task { await state.refresh() }
-        await gate.waitUntilEntered()
+        try await gate.waitUntilEntered()
         state.updateThreadId("thread-new")
         await gate.release()
         await refresh.value
@@ -91,7 +91,7 @@ struct AcceptanceCodexBackgroundTerminalStateTests {
     }
 
     @Test("thread 切替後に返る旧一覧エラーを状態へ適用しない")
-    func staleThreadErrorIsDiscarded() async {
+    func staleThreadErrorIsDiscarded() async throws {
         let gate = StateClientListGate()
         let client = StateClient(
             listError: "old-thread-offline",
@@ -99,7 +99,7 @@ struct AcceptanceCodexBackgroundTerminalStateTests {
         )
         let state = CodexBackgroundTerminalState(client: client, threadId: "thread-old")
         let refresh = Task { await state.refresh() }
-        await gate.waitUntilEntered()
+        try await gate.waitUntilEntered()
         state.updateThreadId("thread-new")
         await gate.release()
         await refresh.value
@@ -176,26 +176,89 @@ private actor StateClientRecorder {
 private actor StateClientListGate {
     private var entered = false
     private var released = false
-    private var enteredWaiter: CheckedContinuation<Void, Never>?
-    private var releaseWaiter: CheckedContinuation<Void, Never>?
+    private let enteredEvents: AsyncStream<Void>
+    private let enteredEventContinuation: AsyncStream<Void>.Continuation
+    private let releaseEvents: AsyncStream<Void>
+    private let releaseEventContinuation: AsyncStream<Void>.Continuation
+
+    init() {
+        var enteredCaptured: AsyncStream<Void>.Continuation?
+        enteredEvents = AsyncStream(bufferingPolicy: .bufferingNewest(1)) {
+            enteredCaptured = $0
+        }
+        enteredEventContinuation = enteredCaptured!
+
+        var releaseCaptured: AsyncStream<Void>.Continuation?
+        releaseEvents = AsyncStream(bufferingPolicy: .bufferingNewest(1)) {
+            releaseCaptured = $0
+        }
+        releaseEventContinuation = releaseCaptured!
+    }
 
     func enterAndWait() async {
         entered = true
-        enteredWaiter?.resume()
-        enteredWaiter = nil
+        enteredEventContinuation.yield()
         guard !released else { return }
-        await withCheckedContinuation { releaseWaiter = $0 }
+        for await _ in releaseEvents { return }
     }
 
-    func waitUntilEntered() async {
+    func waitUntilEntered(timeout: Duration = .seconds(2)) async throws {
         guard !entered else { return }
-        await withCheckedContinuation { enteredWaiter = $0 }
+        let result = await withTaskGroup(of: StateClientListGateWaitResult.self) { group in
+            group.addTask { [enteredEvents] in
+                for await _ in enteredEvents { return .entered }
+                return .cancelled
+            }
+            group.addTask {
+                do {
+                    try await Task.sleep(for: timeout)
+                    return .timedOut
+                } catch {
+                    return .cancelled
+                }
+            }
+            let result = await group.next() ?? .cancelled
+            group.cancelAll()
+            if result != .entered {
+                release()
+                enteredEventContinuation.finish()
+            }
+            await group.waitForAll()
+            return result
+        }
+        switch result {
+        case .entered:
+            return
+        case .timedOut:
+            throw StateClientListGateError.timedOut
+        case .cancelled:
+            throw StateClientListGateError.streamFinished
+        }
     }
 
     func release() {
         released = true
-        releaseWaiter?.resume()
-        releaseWaiter = nil
+        releaseEventContinuation.yield()
+    }
+}
+
+private enum StateClientListGateWaitResult: Sendable, Equatable {
+    case entered
+    case timedOut
+    case cancelled
+}
+
+private enum StateClientListGateError: Error, CustomStringConvertible {
+    case timedOut
+    case streamFinished
+
+    var description: String {
+        switch self {
+        case .timedOut:
+            return "Timed out waiting for StateClient list request to enter the gate"
+        case .streamFinished:
+            return "StateClient list gate event stream finished before entry"
+        }
     }
 }
 

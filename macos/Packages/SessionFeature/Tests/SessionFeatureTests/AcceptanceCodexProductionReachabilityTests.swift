@@ -45,7 +45,7 @@ struct AcceptanceCodexProductionReachabilityTests {
         let threadID = try #require(viewModel.threadId)
 
         transport.receive(planNotification(threadID: threadID))
-        await waitFor {
+        try await waitFor("plan が transcript へ届く") {
             viewModel.transcript.contains { item in
                 guard case .taskList = item else { return false }
                 return true
@@ -60,11 +60,24 @@ struct AcceptanceCodexProductionReachabilityTests {
             return tasks.map(\.status) == [.inProgress, .pending]
         })
 
-        transport.receive(backgroundItemCompletedNotification(threadID: threadID))
-        await waitFor { viewModel.transcriptItemIDs.contains("background-item") }
+        transport.receive(backgroundItemStartedNotification(threadID: threadID))
+        try await waitFor("background item が transcript へ届く") {
+            viewModel.transcriptItemIDs.contains("background-item")
+        }
+        try await transport.waitForMethod("thread/backgroundTerminals/list")
 
         let state = try #require(viewModel.codexBackgroundTerminalState)
-        await state.refresh()
+        try await waitFor("itemStarted 後の background 一覧が VM へ届く") {
+            state.items.map(\.itemId) == ["background-item", "other-item"]
+        }
+
+        transport.receive(turnCompletedNotification(threadID: threadID))
+        try await transport.waitForMethod("thread/backgroundTerminals/list")
+        try await waitFor("turnCompleted 後も background 一覧が再読込される") {
+            state.items.map(\.itemId) == ["background-item", "other-item"]
+        }
+
+        #expect(await transport.methods().filter { $0 == "thread/backgroundTerminals/list" }.count == 2)
         #expect(state.items.map(\.itemId) == ["background-item", "other-item"])
         #expect(state.items.first?.processId == "background-process")
         #expect(state.select(itemId: "background-item"))
@@ -78,7 +91,7 @@ struct AcceptanceCodexProductionReachabilityTests {
 
         #expect(await state.stop(itemId: "background-item"))
         #expect(state.items.map(\.itemId) == ["other-item"])
-        #expect(await transport.methods().filter { $0 == "thread/backgroundTerminals/list" }.count == 2)
+        #expect(await transport.methods().filter { $0 == "thread/backgroundTerminals/list" }.count == 3)
         #expect(await transport.methods().filter { $0 == "thread/backgroundTerminals/terminate" }.count == 1)
 
         await client.close()
@@ -101,6 +114,24 @@ struct AcceptanceCodexProductionReachabilityTests {
                 .frame(width: 720, height: 360)
         )
         #expect(try #require(renderer.nsImage).size.width > 0)
+
+        let source = try sourceText("CodexSessionSurface.swift")
+        #expect(source.contains(#".accessibilityIdentifier("CodexSessionSurface")"#))
+        #expect(source.contains(#".accessibilityIdentifier("CodexHistory.row.\(thread.id)")"#))
+        #expect(source.contains(#".accessibilityIdentifier("CodexHistory.resume.\(thread.id)")"#))
+        #expect(source.contains(#".accessibilityIdentifier("CodexHistory.detail.\(selected.id)")"#))
+        #expect(source.contains(#".accessibilityIdentifier("CodexBackgroundTerminal.\(terminal.itemId)")"#))
+        #expect(source.contains(#".accessibilityIdentifier("CodexBackgroundTerminal.detail.\(selected.itemId)")"#))
+        #expect(source.contains(#"Text(thread.name ?? thread.preview)"#))
+        #expect(source.contains(#"Text(terminal.command)"#))
+        #expect(source.contains(#"Button("再開")"#))
+        #expect(source.contains(#"Button("ジャンプ")"#))
+        #expect(source.contains(#"Button("停止")"#))
+        #expect(source.contains("history.readIfPossible(threadID: thread.id)"))
+        #expect(source.contains("history.resumeIfPossible(threadID: thread.id)"))
+        #expect(source.contains("terminals.select(itemId: terminal.itemId)"))
+        #expect(source.contains("terminals.stop(itemId: terminal.itemId)"))
+        #expect(source.contains("onJump(target)"))
         await client.close()
     }
 
@@ -126,11 +157,38 @@ struct AcceptanceCodexProductionReachabilityTests {
         return (viewModel, client, transport)
     }
 
-    private func waitFor(_ condition: @escaping @MainActor () -> Bool) async {
+    private func waitFor(
+        _ description: String,
+        timeout: Duration = .seconds(2),
+        _ condition: @escaping @MainActor () -> Bool
+    ) async throws {
         guard !condition() else { return }
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            let waiter = ObservationWaiter(condition: condition, continuation: continuation)
-            waiter.arm()
+        let waiter = ObservationWaiter(condition: condition)
+        let result = await withTaskGroup(of: AcceptanceWaitRaceResult.self) { group in
+            group.addTask {
+                await waiter.wait() ? .fulfilled : .cancelled
+            }
+            group.addTask {
+                do {
+                    try await Task.sleep(for: timeout)
+                    return .timedOut
+                } catch {
+                    return .cancelled
+                }
+            }
+            let result = await group.next() ?? .cancelled
+            group.cancelAll()
+            waiter.cancel()
+            await group.waitForAll()
+            return result
+        }
+        switch result {
+        case .fulfilled:
+            return
+        case .timedOut:
+            throw AcceptanceWaitError.timedOut(description)
+        case .cancelled:
+            throw AcceptanceWaitError.cancelled
         }
     }
 
@@ -140,40 +198,88 @@ struct AcceptanceCodexProductionReachabilityTests {
         """
     }
 
-    private func backgroundItemCompletedNotification(threadID: String) -> String {
+    private func backgroundItemStartedNotification(threadID: String) -> String {
         """
-        {"jsonrpc":"2.0","method":"item/completed","params":{"threadId":"\(threadID)","turnId":"turn-1","item":{"type":"backgroundTerminal","id":"background-item","itemId":"background-item","text":"completed"}}}
+        {"jsonrpc":"2.0","method":"item/started","params":{"threadId":"\(threadID)","turnId":"turn-1","item":{"type":"backgroundTerminal","id":"background-item","itemId":"background-item","processId":"background-process","command":"swift test","cwd":"\(cwd)","text":"background started"}}}
         """
     }
+
+    private func turnCompletedNotification(threadID: String) -> String {
+        """
+        {"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"\(threadID)","turn":{"id":"turn-1","status":"completed","items":[]}}}
+        """
+    }
+
+    private func sourceText(_ relativePath: String) throws -> String {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let sourceURL = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/SessionFeature/\(relativePath)")
+        return try String(contentsOf: sourceURL, encoding: .utf8)
+    }
+}
+
+private enum AcceptanceWaitError: Error, CustomStringConvertible {
+    case timedOut(String)
+    case cancelled
+    case streamFinished(String)
+
+    var description: String {
+        switch self {
+        case .timedOut(let description):
+            return "Timed out waiting for \(description)"
+        case .cancelled:
+            return "Observation waiter cancelled before the condition became true"
+        case .streamFinished(let description):
+            return "Event stream finished before \(description)"
+        }
+    }
+}
+
+private enum AcceptanceWaitRaceResult: Sendable {
+    case fulfilled
+    case timedOut
+    case cancelled
 }
 
 @MainActor
 private final class ObservationWaiter {
     private let condition: @MainActor () -> Bool
-    private var continuation: CheckedContinuation<Void, Never>?
-    private var resumed = false
+    private let signals: AsyncStream<Void>
+    private let signalContinuation: AsyncStream<Void>.Continuation
+    private var cancelled = false
 
-    init(
-        condition: @escaping @MainActor () -> Bool,
-        continuation: CheckedContinuation<Void, Never>
-    ) {
+    init(condition: @escaping @MainActor () -> Bool) {
         self.condition = condition
-        self.continuation = continuation
+        var captured: AsyncStream<Void>.Continuation?
+        signals = AsyncStream(bufferingPolicy: .bufferingNewest(1)) { captured = $0 }
+        signalContinuation = captured!
     }
 
-    func arm() {
-        guard !resumed else { return }
-        if condition() {
-            resumed = true
-            continuation?.resume()
-            continuation = nil
-            return
+    func wait() async -> Bool {
+        guard !condition() else { return true }
+        arm()
+        for await _ in signals {
+            guard !cancelled else { return false }
+            if condition() { return true }
+            arm()
         }
+        return !cancelled && condition()
+    }
+
+    func cancel() {
+        cancelled = true
+        signalContinuation.finish()
+    }
+
+    private func arm() {
         withObservationTracking {
             _ = condition()
         } onChange: { [self] in
             Task { @MainActor [self] in
-                arm()
+                signalContinuation.yield()
             }
         }
     }
@@ -201,6 +307,8 @@ private final class CodexProductionTransport: AppServerTransport, @unchecked Sen
 
     let receivedLines: AsyncStream<Data>
     private let continuation: AsyncStream<Data>.Continuation
+    let methodEvents: AsyncStream<String>
+    private let methodEventContinuation: AsyncStream<String>.Continuation
     private let state = State()
     private let cwd: String
 
@@ -209,6 +317,9 @@ private final class CodexProductionTransport: AppServerTransport, @unchecked Sen
         var captured: AsyncStream<Data>.Continuation?
         receivedLines = AsyncStream(bufferingPolicy: .unbounded) { captured = $0 }
         continuation = captured!
+        var methodCaptured: AsyncStream<String>.Continuation?
+        methodEvents = AsyncStream(bufferingPolicy: .unbounded) { methodCaptured = $0 }
+        methodEventContinuation = methodCaptured!
     }
 
     func send(_ data: Data) async throws {
@@ -218,6 +329,7 @@ private final class CodexProductionTransport: AppServerTransport, @unchecked Sen
 
         guard let id = request["id"] else { return }
         let method = request["method"]?.stringValue
+        if let method { methodEventContinuation.yield(method) }
         let result: JSONValue
         switch method {
         case "initialize":
@@ -296,6 +408,7 @@ private final class CodexProductionTransport: AppServerTransport, @unchecked Sen
 
     func close() async {
         continuation.finish()
+        methodEventContinuation.finish()
     }
 
     func receive(_ json: String) {
@@ -304,6 +417,40 @@ private final class CodexProductionTransport: AppServerTransport, @unchecked Sen
 
     func methods() async -> [String] {
         await state.methods()
+    }
+
+    func waitForMethod(
+        _ method: String,
+        timeout: Duration = .seconds(2)
+    ) async throws {
+        let result = await withTaskGroup(of: AcceptanceWaitRaceResult.self) { group in
+            group.addTask { [methodEvents] in
+                for await received in methodEvents {
+                    if received == method { return .fulfilled }
+                }
+                return .cancelled
+            }
+            group.addTask {
+                do {
+                    try await Task.sleep(for: timeout)
+                    return .timedOut
+                } catch {
+                    return .cancelled
+                }
+            }
+            let result = await group.next() ?? .cancelled
+            group.cancelAll()
+            await group.waitForAll()
+            return result
+        }
+        switch result {
+        case .fulfilled:
+            return
+        case .timedOut:
+            throw AcceptanceWaitError.timedOut(method)
+        case .cancelled:
+            throw AcceptanceWaitError.streamFinished(method)
+        }
     }
 
     private func threadJSON(

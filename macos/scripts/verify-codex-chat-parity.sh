@@ -10,8 +10,10 @@ CODEX_PACKAGE="$REPO_ROOT/macos/Packages/CodexAppServerKit"
 SESSION_PACKAGE="$REPO_ROOT/macos/Packages/SessionFeature"
 DASHBOARD_PACKAGE="$REPO_ROOT/macos/Packages/DashboardFeature"
 CODEX_FILTER='AcceptanceCodex|ContractCodex'
+SESSION_PRODUCTION_REACHABILITY_FILTER='AcceptanceCodexProductionReachabilityTests'
 SESSION_BACKGROUND_TERMINAL_FILTER='AcceptanceCodexBackgroundTerminalStateTests'
 DASHBOARD_FILTER='AcceptanceCodex.*Route|Codex.*Route'
+FOCUSED_TEST_TIMEOUT_SECONDS="${PHLOX_FOCUSED_TEST_TIMEOUT_SECONDS:-60}"
 
 test_count() {
     # Swift Testing と XCTest のどちらのサマリでも実行件数を拾う。
@@ -53,7 +55,17 @@ run_package() {
 
     log="$(mktemp -t phlox-codex-parity-run.XXXXXX)"
     echo "=== swift test --package-path $package_path $* ==="
-    if swift test --package-path "$package_path" "$@" >"$log" 2>&1; then
+    if [ -n "${RUN_PACKAGE_TIMEOUT_SECONDS:-}" ]; then
+        if /usr/bin/perl -e '
+            my $seconds = shift @ARGV;
+            alarm($seconds);
+            exec @ARGV or die "exec failed: $!\n";
+        ' "$RUN_PACKAGE_TIMEOUT_SECONDS" swift test --package-path "$package_path" "$@" >"$log" 2>&1; then
+            status=0
+        else
+            status=$?
+        fi
+    elif swift test --package-path "$package_path" "$@" >"$log" 2>&1; then
         status=0
     else
         status=$?
@@ -61,7 +73,11 @@ run_package() {
 
     count="$(test_count "$log")"
     if [ "$count" -eq 0 ]; then
-        echo "FAIL: $label (tests=0, 実行テスト件数が0です)" >&2
+        if [ -n "${RUN_PACKAGE_TIMEOUT_SECONDS:-}" ] && [ "$status" -eq 142 ]; then
+            echo "FAIL: $label (tests=0, process timeout=${RUN_PACKAGE_TIMEOUT_SECONDS}s, exit=$status)" >&2
+        else
+            echo "FAIL: $label (tests=0, 実行テスト件数が0です)" >&2
+        fi
         tail -100 "$log" >&2
         rm -f "$log"
         [ "$status" -eq 0 ] && return 1
@@ -69,7 +85,11 @@ run_package() {
     fi
 
     if [ "$status" -ne 0 ]; then
-        echo "FAIL: $label (tests=$count, exit=$status)" >&2
+        if [ -n "${RUN_PACKAGE_TIMEOUT_SECONDS:-}" ] && [ "$status" -eq 142 ]; then
+            echo "FAIL: $label (tests=$count, process timeout=${RUN_PACKAGE_TIMEOUT_SECONDS}s, exit=$status)" >&2
+        else
+            echo "FAIL: $label (tests=$count, exit=$status)" >&2
+        fi
         tail -100 "$log" >&2
         rm -f "$log"
         return "$status"
@@ -86,6 +106,15 @@ if run_package "CodexAppServerKit 凍結/基盤" "$CODEX_PACKAGE" --filter "$COD
     :
 else
     failed=$?
+fi
+
+if RUN_PACKAGE_TIMEOUT_SECONDS="$FOCUSED_TEST_TIMEOUT_SECONDS" run_package \
+    "SessionFeature Codex production reachability (timeout付き)" "$SESSION_PACKAGE" \
+    --filter "$SESSION_PRODUCTION_REACHABILITY_FILTER" --no-parallel; then
+    :
+else
+    reachability_status=$?
+    [ "$failed" -ne 0 ] || failed="$reachability_status"
 fi
 
 if run_package "SessionFeature Codex background terminal state (parallel)" "$SESSION_PACKAGE" \

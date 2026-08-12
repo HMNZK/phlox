@@ -154,6 +154,6 @@ enum ComposerAttachmentCapability {
     static let unsupportedImageMessage = "画像添付は Claude のみ対応です"
 
     static func supportsImageAttachments(agentRef: AgentRef) -> Bool {
-        agentRef == .builtin(.claudeCode)
+        agentRef == .builtin(.claudeCode) || agentRef == .builtin(.codex)
     }
 }

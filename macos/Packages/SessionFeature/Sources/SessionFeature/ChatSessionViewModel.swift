@@ -3,7 +3,6 @@ import Observation
 import AgentDomain
 import CodexAppServerKit
 import StructuredChatKit
-
 private enum UserNotification {
     case completed
     case awaitingInput
@@ -40,6 +39,11 @@ public final class ChatSessionViewModel: Identifiable {
     public private(set) var threadId: String?
     public private(set) var chatNativeSessionId: String?
     public private(set) var appServerUserAgent: String?
+    /// Codex 専用状態。既存の composer・transcript・背景端末 surface から利用する。
+    public private(set) var codexSkillSelectionState: CodexSkillSelectionState?
+    public private(set) var codexPlanTaskState: CodexPlanTaskState?
+    public private(set) var codexBackgroundTerminalState: CodexBackgroundTerminalState?
+    public var backgroundTerminalState: CodexBackgroundTerminalState? { codexBackgroundTerminalState }
     public private(set) var transcript: [ChatItem] = []
     public var inputHistoryEntries: [InputHistoryEntry] {
         InputHistoryPolicy.entries(from: transcript)
@@ -192,6 +196,20 @@ public final class ChatSessionViewModel: Identifiable {
         self.client = client
         self.approvalBroker = approvalBroker
         self.workingDirectory = workingDirectory
+        if agentRef == .builtin(.codex), let codexClient = client as? any CodexSkillSelectionClient {
+            self.codexSkillSelectionState = CodexSkillSelectionState(
+                client: codexClient,
+                sessionCWD: workingDirectory ?? ""
+            )
+        } else {
+            self.codexSkillSelectionState = nil
+        }
+        if agentRef == .builtin(.codex), let codexClient = client as? any CodexBackgroundTerminalProviding {
+            self.codexBackgroundTerminalState = CodexBackgroundTerminalState(client: codexClient)
+        } else {
+            self.codexBackgroundTerminalState = nil
+        }
+        self.codexPlanTaskState = agentRef == .builtin(.codex) ? CodexPlanTaskState() : nil
         self.transcriptStore = transcriptStore
         self.transcriptPersistenceQueue = transcriptStore.map {
             TranscriptPersistenceQueue(sessionID: id, store: $0)
@@ -227,6 +245,20 @@ public final class ChatSessionViewModel: Identifiable {
         self.client = client
         self.approvalBroker = approvalBroker
         self.workingDirectory = workingDirectory
+        if agentRef == .builtin(.codex), let codexClient = client as? any CodexSkillSelectionClient {
+            self.codexSkillSelectionState = CodexSkillSelectionState(
+                client: codexClient,
+                sessionCWD: workingDirectory ?? ""
+            )
+        } else {
+            self.codexSkillSelectionState = nil
+        }
+        if agentRef == .builtin(.codex), let codexClient = client as? any CodexBackgroundTerminalProviding {
+            self.codexBackgroundTerminalState = CodexBackgroundTerminalState(client: codexClient)
+        } else {
+            self.codexBackgroundTerminalState = nil
+        }
+        self.codexPlanTaskState = agentRef == .builtin(.codex) ? CodexPlanTaskState() : nil
         self.transcriptStore = nil
         self.transcriptPersistenceQueue = nil
         self.attachmentStore = attachmentStore
@@ -328,7 +360,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// 新規 Claude チャットの中央に「履歴から再開」を出すか（task-9 契約）。
     public var shouldOfferHistoryStart: Bool {
-        guard agentRef == .builtin(.claudeCode) else { return false }
+        guard agentRef == .builtin(.claudeCode) || agentRef == .builtin(.codex) else { return false }
         guard historyProvider != nil else { return false }
         guard transcript.isEmpty, submitBaselineTurnSeq == nil else { return false }
         return !cachedHistoryEntries.isEmpty
@@ -430,10 +462,10 @@ public final class ChatSessionViewModel: Identifiable {
         case .builtin(.claudeCode):
             true
         case .builtin(.codex):
-            CodexImageInputState.acceptsImageAttachments(
+            client is any CodexImageInputConfiguring && (availableModels.isEmpty || CodexImageInputState.acceptsImageAttachments(
                 selectedModel: selectedModel,
                 availableModels: availableModels
-            )
+            ))
         default:
             false
         }
@@ -445,10 +477,10 @@ public final class ChatSessionViewModel: Identifiable {
         case .builtin(.claudeCode):
             true
         case .builtin(.codex):
-            CodexImageInputState.acceptsImageAttachments(
+            client is any CodexImageInputConfiguring && (availableModels.isEmpty || CodexImageInputState.acceptsImageAttachments(
                 selectedModel: selectedModel,
                 availableModels: availableModels
-            )
+            ))
         default:
             false
         }
@@ -1656,6 +1688,10 @@ public final class ChatSessionViewModel: Identifiable {
                 }
                 touchOutput()
             }
+        case .planUpdated:
+            _ = codexPlanTaskState?.apply(event: event)
+        case .skillsChanged:
+            codexSkillSelectionState?.invalidate()
         default:
             break
         }
@@ -2112,7 +2148,7 @@ public final class ChatSessionViewModel: Identifiable {
 
 
     private var shouldTrackBackgroundTasks: Bool {
-        agentRef == .builtin(.claudeCode)
+        agentRef == .builtin(.claudeCode) || agentRef == .builtin(.codex)
     }
 
     private func upsertRunningBackgroundTask(
@@ -2167,6 +2203,7 @@ public final class ChatSessionViewModel: Identifiable {
         let previous = chatNativeSessionId
         threadId = id
         chatNativeSessionId = id
+        codexBackgroundTerminalState?.updateThreadId(id)
         if let id, let previous, id != previous {
             clearRunningBackgroundTasks()
         }

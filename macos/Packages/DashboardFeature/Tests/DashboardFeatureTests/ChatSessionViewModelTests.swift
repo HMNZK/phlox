@@ -23,6 +23,7 @@ final class ScriptedAppServerTransport: AppServerTransport, @unchecked Sendable 
         "status": ["type": "idle"],
         "turns": [],
     ]
+    var threadReadErrorMessage: String?
     var threadResponseModel: String? = "gpt-5-codex"
     var threadResponseReasoningEffort: String? = "medium"
     var threadResponsePermissionProfile: String? = ":workspace"
@@ -113,6 +114,14 @@ final class ScriptedAppServerTransport: AppServerTransport, @unchecked Sendable 
         case "thread/resume":
             result = threadResponse(threadId: "thread-1")
         case "thread/read":
+            if let message = threadReadErrorMessage {
+                receiveObject([
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": ["code": -32000, "message": message],
+                ])
+                return
+            }
             result = ["thread": readThreadJSON]
         case "model/list":
             result = ["data": modelListData, "nextCursor": NSNull()]
@@ -1996,9 +2005,10 @@ func chatSessionViewModel_codexRestorePrefersTranscriptStoreOverThreadRead() asy
     ]
     let broker = ChatApprovalBroker()
     let client = CodexAppServerClient(transport: transport, serverRequestHandler: broker.serverRequestHandler)
+    let adapter = CodexStructuredAgentClient(client: client)
     let vm = ChatSessionViewModel(
         id: sessionID,
-        client: CodexStructuredAgentClient(client: client),
+        client: adapter,
         approvalBroker: broker,
         workingDirectory: "/tmp/work",
         transcriptStore: store
@@ -2015,6 +2025,11 @@ func chatSessionViewModel_codexRestorePrefersTranscriptStoreOverThreadRead() asy
     #expect(vm.transcript == persisted)
     #expect(transport.sentMethods().contains("thread/resume"))
     #expect(!transport.sentMethods().contains("thread/read"))
+
+    // store 復元後の無関係な history read 失敗でも、確定済み thread を旧 identity へ戻さない。
+    transport.threadReadErrorMessage = "unrelated history read failed"
+    #expect(await vm.codexSessionHistory?.readIfPossible(threadID: "thread-1") == nil)
+    #expect(await adapter.activeThreadId() == "thread-1")
 }
 
 @Test @MainActor

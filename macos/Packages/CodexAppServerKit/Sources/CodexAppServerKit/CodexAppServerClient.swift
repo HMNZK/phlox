@@ -894,6 +894,14 @@ extension CodexStructuredAgentClient {
         self.pendingResumeRollback = nil
     }
 
+    /// store から復元でき、thread/read を省略した resume を確定する。
+    public func commitThreadResumeIfCurrent(threadID: String) {
+        guard pendingResumeRollback?.threadID == threadID,
+              pendingResumeRollback?.generation == threadIdentityGeneration,
+              currentThreadId == threadID else { return }
+        pendingResumeRollback = nil
+    }
+
     public func threadList(_ params: ThreadListParams = ThreadListParams()) async throws -> ThreadListResponse {
         try await client.threadList(params)
     }

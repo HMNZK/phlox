@@ -900,6 +900,7 @@ public final class ChatSessionViewModel: Identifiable {
                 guard restoreGeneration == codexRestoreGeneration else { return }
                 updateNativeSessionId(response.thread.id)
                 applyRestoredThreadStatus(response.thread.status?.sessionStatus ?? .idle)
+                await codexClient.commitThreadResumeIfCurrent(threadID: threadId)
             } else {
                 let read = try await codexClient.threadRead(ThreadReadParams(threadId: threadId, includeTurns: true))
                 guard restoreGeneration == codexRestoreGeneration,

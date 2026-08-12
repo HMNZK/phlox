@@ -96,17 +96,19 @@ func unknownUserInputRoundTripPreservesDiscriminatorAndFields() throws {
     #expect(encoded["opaque"]?["nested"]?.arrayValue?.count == 2)
 }
 
-@Test("Codex wire に旧 image_url discriminator を出さない")
-func legacyImageURLWireShapeIsRejected() throws {
+@Test("legacy image_url は空 text に丸めず discriminator と fields を保持する")
+func legacyImageURLWireShapeRoundTripsLosslessly() throws {
     let legacyInput: JSONValue = .object([
         "type": .string("image_url"),
         "image_url": .string("https://example.invalid/image.png"),
+        "opaque": .object(["keep": .bool(true)]),
     ])
     let decoded = try decodeFromJSONValue(legacyInput, as: UserInput.self)
     let encoded = try encodeToJSONValue(decoded)
-    #expect(encoded["type"] != .string("image_url"))
-    #expect(encoded["image_url"] == nil)
-    #expect(encoded["text"] != .string(""))
+    #expect(encoded == legacyInput)
+    #expect(encoded["type"]?.stringValue == "image_url")
+    #expect(encoded["image_url"]?.stringValue == "https://example.invalid/image.png")
+    #expect(encoded["text"] == nil)
 }
 
 @Test("model/list の inputModalities は decode される")

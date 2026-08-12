@@ -388,7 +388,7 @@ public enum UserInput: Codable, Equatable, Sendable {
                 ? .text(raw["text"]?.stringValue ?? "")
                 : .unknown(raw)
         case "image_url":
-            self = .text(raw["image_url"]?.stringValue ?? "")
+            self = .unknown(raw)
         case "localImage":
             let knownKeys = Set(["type", "path", "detail"])
             self = Self.rawObjectHasOnly(raw, keys: knownKeys)

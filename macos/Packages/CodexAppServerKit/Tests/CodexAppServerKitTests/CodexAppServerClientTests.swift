@@ -118,6 +118,24 @@ private extension NSLock {
     await adapter.close()
 }
 
+@Test func codexStructuredAdapterCommitsStoreBackedResumeWithoutRead() async throws {
+    let transport = RespondingTransport(resumeThreadId: "restored")
+    let client = CodexAppServerClient(transport: transport)
+    let adapter = CodexStructuredAgentClient(client: client)
+    await adapter.start()
+
+    _ = try await adapter.threadStart(ThreadStartParams(cwd: "/tmp/work"))
+    _ = try await adapter.threadResume(ThreadResumeParams(threadId: "restored", cwd: "/tmp/work"))
+    await adapter.commitThreadResumeIfCurrent(threadID: "restored")
+    await adapter.rollbackThreadResumeIfCurrent(threadID: "restored")
+
+    #expect(await adapter.activeThreadId() == "restored")
+    let sent = await transport.sent.all()
+    #expect(!sent.contains { $0["method"]?.stringValue == "thread/read" })
+
+    await adapter.close()
+}
+
 @Test func childInterruptedCompletionDoesNotNormalizeIntoParentTurnStop() async throws {
     let transport = RespondingTransport()
     let client = CodexAppServerClient(transport: transport)

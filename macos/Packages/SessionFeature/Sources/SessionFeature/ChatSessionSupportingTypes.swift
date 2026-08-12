@@ -97,6 +97,8 @@ public protocol CodexSettingsProviding: Sendable {
     /// `threadResume` 後の read が失敗した場合に、直前の active thread へ戻す。
     /// structured adapter 以外では rollback 可能な active identity を持たないため no-op。
     func rollbackThreadResumeIfCurrent(threadID: String) async
+    /// store から復元でき、`thread/read` を省略した resume を確定する。
+    func commitThreadResumeIfCurrent(threadID: String) async
     func listModels(_ params: ModelListParams) async throws -> ModelListResponse
     func listPermissionProfiles(_ params: PermissionProfileListParams) async throws -> PermissionProfileListResponse
     func listCollaborationModes(_ params: CollaborationModeListParams) async throws -> CollaborationModeListResponse
@@ -105,6 +107,7 @@ public protocol CodexSettingsProviding: Sendable {
 
 public extension CodexSettingsProviding {
     func rollbackThreadResumeIfCurrent(threadID: String) async {}
+    func commitThreadResumeIfCurrent(threadID: String) async {}
 }
 
 /// Codex 子 thread 専用の app-server 操作。親 thread の `interrupt()` とは分離する。

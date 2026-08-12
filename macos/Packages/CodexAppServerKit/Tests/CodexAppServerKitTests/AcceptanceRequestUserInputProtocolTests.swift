@@ -10,7 +10,19 @@ struct AcceptanceRequestUserInputProtocolTests {
     /// ハンドラが受け取った ServerRequest を1件だけ捕まえる箱。
     private actor Captured {
         var request: ServerRequest?
-        func set(_ value: ServerRequest) { request = value }
+        let changes: AsyncStream<Void>
+        private let changeContinuation: AsyncStream<Void>.Continuation
+
+        init() {
+            var captured: AsyncStream<Void>.Continuation?
+            changes = AsyncStream(bufferingPolicy: .unbounded) { captured = $0 }
+            changeContinuation = captured!
+        }
+
+        func set(_ value: ServerRequest) {
+            request = value
+            changeContinuation.yield()
+        }
     }
 
     private func run(rawMessage: String) async -> ServerRequest? {
@@ -22,7 +34,9 @@ struct AcceptanceRequestUserInputProtocolTests {
         }
         await rpc.start()
         transport.receive(rawMessage)
-        _ = await waitUntil { await captured.request != nil }
+        _ = await waitUntil(events: captured.changes) {
+            await captured.request != nil
+        }
         await rpc.close()
         return await captured.request
     }

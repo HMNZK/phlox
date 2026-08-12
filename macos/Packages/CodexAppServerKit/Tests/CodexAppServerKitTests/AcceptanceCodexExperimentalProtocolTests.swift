@@ -57,7 +57,7 @@ func backgroundTerminalListResponsePreservesProcessAndItemIDs() async throws {
         method: "thread/backgroundTerminals/list",
         params: params
     )
-    #expect(await waitUntil {
+    #expect(await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains {
             $0["method"]?.stringValue == "thread/backgroundTerminals/list"
         }
@@ -100,7 +100,7 @@ func backgroundTerminalTerminateUsesTargetThreadAndProcess() async throws {
         method: "thread/backgroundTerminals/terminate",
         params: params
     )
-    #expect(await waitUntil {
+    #expect(await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains {
             $0["method"]?.stringValue == "thread/backgroundTerminals/terminate"
         }
@@ -127,7 +127,7 @@ func interruptRequestIncludesThreadAndTurnIDs() async throws {
         "turnId": .string("turn-9"),
     ])
     async let response = rpc.requestJSON(method: "turn/interrupt", params: params)
-    #expect(await waitUntil {
+    #expect(await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains { $0["method"]?.stringValue == "turn/interrupt" }
     })
     let request = try #require(await transport.sent.first {
@@ -251,7 +251,7 @@ func unsupportedExperimentalRequestRemainsServerError() async throws {
             ])
         )
     }
-    #expect(await waitUntil {
+    #expect(await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains {
             $0["method"]?.stringValue == "thread/backgroundTerminals/terminate"
         }

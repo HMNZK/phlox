@@ -154,7 +154,19 @@ private actor Gate {
 
 private actor ResultBox {
     private(set) var value: JSONValue?
-    func set(_ newValue: JSONValue) { value = newValue }
+    let changes: AsyncStream<Void>
+    private let changeContinuation: AsyncStream<Void>.Continuation
+
+    init() {
+        var captured: AsyncStream<Void>.Continuation?
+        changes = AsyncStream(bufferingPolicy: .unbounded) { captured = $0 }
+        changeContinuation = captured!
+    }
+
+    func set(_ newValue: JSONValue) {
+        value = newValue
+        changeContinuation.yield()
+    }
     var isResolved: Bool { value != nil }
 }
 
@@ -180,7 +192,7 @@ private actor ResultBox {
             await box.set(value)
         }
     }
-    let requestSent = await waitUntil {
+    let requestSent = await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains { $0["method"]?.stringValue == "initialize" }
     }
     #expect(requestSent)
@@ -196,13 +208,15 @@ private actor ResultBox {
     {"jsonrpc":"2.0","id":1,"result":{"ok":true}}
     """)
 
-    let resolvedWhileApprovalPending = await waitUntil { await box.isResolved }
+    let resolvedWhileApprovalPending = await waitUntil(events: box.changes) {
+        await box.isResolved
+    }
     #expect(resolvedWhileApprovalPending)
     #expect(await box.value?["ok"]?.boolValueForTest == true)
 
     // 承認を解放すると、承認 response（id=100）が送られる。
     await gate.open()
-    let approvalReplied = await waitUntil {
+    let approvalReplied = await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains { $0["id"]?.intValue == 100 }
     }
     #expect(approvalReplied)
@@ -223,7 +237,7 @@ private actor ResultBox {
 
     // thread/start で currentThreadId を "thread-1" に確定させる。
     let startTask = Task { try await adapter.threadStart(ThreadStartParams(cwd: "/tmp/work")) }
-    let startSent = await waitUntil {
+    let startSent = await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains { $0["method"]?.stringValue == "thread/start" }
     }
     #expect(startSent)
@@ -246,7 +260,9 @@ private actor ResultBox {
     {"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"thread-1","turn":{"id":"turn-1","status":"interrupted"}}}
     """)
 
-    let received = await waitUntil { await eventBox.value != nil }
+    let received = await waitUntil(events: eventBox.changes) {
+        await eventBox.value != nil
+    }
     #expect(received)
     if case .turnCompleted(let threadId, let turn)? = await eventBox.value {
         #expect(threadId == "thread-1")
@@ -262,7 +278,19 @@ private actor ResultBox {
 
 private actor ThreadEventBox {
     private(set) var value: ThreadEvent?
-    func set(_ newValue: ThreadEvent) { value = newValue }
+    let changes: AsyncStream<Void>
+    private let changeContinuation: AsyncStream<Void>.Continuation
+
+    init() {
+        var captured: AsyncStream<Void>.Continuation?
+        changes = AsyncStream(bufferingPolicy: .unbounded) { captured = $0 }
+        changeContinuation = captured!
+    }
+
+    func set(_ newValue: ThreadEvent) {
+        value = newValue
+        changeContinuation.yield()
+    }
 }
 
 private extension JSONValue {

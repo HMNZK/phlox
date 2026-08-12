@@ -12,7 +12,9 @@ import Testing
         params: InitializeParams(clientInfo: ClientInfo(name: "PhloxTests", version: "1"))
     )
 
-    let sent = await waitUntil { await !transport.sent.all().isEmpty }
+    let sent = await waitUntil(events: transport.sent.changes) {
+        await !transport.sent.all().isEmpty
+    }
     #expect(sent)
     let request = try #require(await transport.sent.all().first)
     #expect(request["method"]?.stringValue == "initialize")
@@ -61,7 +63,7 @@ import Testing
     {"jsonrpc":"2.0","id":7,"method":"item/commandExecution/requestApproval","params":{"threadId":"thread-1","turnId":"turn-1","itemId":"item-1","startedAtMs":1,"command":"pwd","cwd":"/tmp"}}
     """)
 
-    let replied = await waitUntil {
+    let replied = await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains { $0["id"]?.intValue == 7 }
     }
     #expect(replied)
@@ -79,7 +81,7 @@ import Testing
     {"jsonrpc":"2.0","id":9,"method":"item/tool/requestUserInput","params":{"itemId":"item-1"}}
     """)
 
-    let replied = await waitUntil {
+    let replied = await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains { $0["id"]?.intValue == 9 }
     }
     #expect(replied)
@@ -106,7 +108,9 @@ import Testing
         method: "initialize",
         params: InitializeParams(clientInfo: ClientInfo(name: "PhloxTests", version: "1"))
     )
-    let sent = await waitUntil { await !transport.sent.all().isEmpty }
+    let sent = await waitUntil(events: transport.sent.changes) {
+        await !transport.sent.all().isEmpty
+    }
     #expect(sent)
     await rpc.close()
 

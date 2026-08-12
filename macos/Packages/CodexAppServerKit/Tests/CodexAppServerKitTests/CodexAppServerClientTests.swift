@@ -136,7 +136,7 @@ private extension NSLock {
     {"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"child-1","turn":{"id":"turn-child","status":"interrupted","items":[]}}}
     """)
 
-    #expect(await waitUntil { await recorder.count == 1 })
+    #expect(await waitUntil(events: recorder.changes) { await recorder.count == 1 })
     #expect(await recorder.events == [
         .thread(.turnCompleted(
             threadId: "child-1",
@@ -243,9 +243,18 @@ private final class ImageWriteRecorder: @unchecked Sendable {
 
 private actor OrderedEventRecorder {
     private(set) var events: [CodexStructuredEvent] = []
+    let changes: AsyncStream<Void>
+    private let changeContinuation: AsyncStream<Void>.Continuation
+
+    init() {
+        var captured: AsyncStream<Void>.Continuation?
+        changes = AsyncStream(bufferingPolicy: .unbounded) { captured = $0 }
+        changeContinuation = captured!
+    }
 
     func append(_ event: CodexStructuredEvent) {
         events.append(event)
+        changeContinuation.yield()
     }
 
     var count: Int { events.count }
@@ -356,13 +365,15 @@ private actor OrderedEventRecorder {
     transport.receive("""
     {"jsonrpc":"2.0","method":"error","params":{"error":{"message":"retrying"},"willRetry":true,"threadId":"thread-1","turnId":"turn-1"}}
     """)
-    #expect(await waitUntil { await recorder.contains(.warning(message: "retrying")) })
+    #expect(await waitUntil(events: recorder.changes) {
+        await recorder.contains(.warning(message: "retrying"))
+    })
 
     // adapter.close() ではなく、子プロセス異常終了相当の EOF を発生させる。
     await transport.close()
 
-    #expect(await waitUntil { await recorder.containsTerminalProcessExitError })
-    #expect(await waitUntil { await recorder.isFinished })
+    #expect(await waitUntil(events: recorder.changes) { await recorder.containsTerminalProcessExitError })
+    #expect(await waitUntil(events: recorder.changes) { await recorder.isFinished })
     await adapter.close()
     _ = await collector.result
 }
@@ -385,17 +396,21 @@ private actor OrderedEventRecorder {
     transport.receive("""
     {"jsonrpc":"2.0","method":"error","params":{"error":{"message":"retrying-1"},"willRetry":true,"threadId":"thread-1","turnId":"turn-1"}}
     """)
-    #expect(await waitUntil { await recorder.contains(.warning(message: "retrying-1")) })
+    #expect(await waitUntil(events: recorder.changes) {
+        await recorder.contains(.warning(message: "retrying-1"))
+    })
 
     transport.receive("""
     {"jsonrpc":"2.0","method":"error","params":{"error":{"message":"retrying-2"},"willRetry":true}}
     """)
-    #expect(await waitUntil { await recorder.contains(.warning(message: "retrying-2")) })
+    #expect(await waitUntil(events: recorder.changes) {
+        await recorder.contains(.warning(message: "retrying-2"))
+    })
 
     await transport.close()
 
-    #expect(await waitUntil { await recorder.containsTerminalProcessExitError })
-    #expect(await waitUntil { await recorder.isFinished })
+    #expect(await waitUntil(events: recorder.changes) { await recorder.containsTerminalProcessExitError })
+    #expect(await waitUntil(events: recorder.changes) { await recorder.isFinished })
     await adapter.close()
     _ = await collector.result
 }
@@ -416,7 +431,7 @@ private actor OrderedEventRecorder {
     transport.receive("""
     {"jsonrpc":"2.0","method":"error","params":{"error":{"message":"retrying"},"willRetry":true,"threadId":"thread-1","turnId":"turn-1"}}
     """)
-    #expect(await waitUntil {
+    #expect(await waitUntil(events: recorder.changes) {
         await recorder.contains(.error(
             threadId: "thread-1",
             turnId: "turn-1",
@@ -427,7 +442,7 @@ private actor OrderedEventRecorder {
 
     await client.close()
 
-    #expect(await waitUntil { await recorder.isFinished })
+    #expect(await waitUntil(events: recorder.changes) { await recorder.isFinished })
     #expect(await recorder.containsTerminalProcessExitError == false)
     _ = await collector.result
 }
@@ -447,7 +462,7 @@ private actor OrderedEventRecorder {
 
     await adapter.close()
 
-    #expect(await waitUntil { await recorder.isFinished })
+    #expect(await waitUntil(events: recorder.changes) { await recorder.isFinished })
     _ = await collector.result
 }
 
@@ -466,7 +481,7 @@ private actor OrderedEventRecorder {
 
     await transport.close()
 
-    #expect(await waitUntil { await recorder.isFinished })
+    #expect(await waitUntil(events: recorder.changes) { await recorder.isFinished })
     await adapter.close()
     _ = await collector.result
 }
@@ -491,13 +506,23 @@ private func decodeErrorNotificationThroughClient(
 private actor NormalizedEventRecorder {
     private var recordedEvents: [NormalizedChatEvent] = []
     private(set) var isFinished = false
+    let changes: AsyncStream<Void>
+    private let changeContinuation: AsyncStream<Void>.Continuation
+
+    init() {
+        var captured: AsyncStream<Void>.Continuation?
+        changes = AsyncStream(bufferingPolicy: .unbounded) { captured = $0 }
+        changeContinuation = captured!
+    }
 
     func append(_ event: NormalizedChatEvent) {
         recordedEvents.append(event)
+        changeContinuation.yield()
     }
 
     func markFinished() {
         isFinished = true
+        changeContinuation.yield()
     }
 
     func contains(_ event: NormalizedChatEvent) -> Bool {
@@ -515,13 +540,23 @@ private actor NormalizedEventRecorder {
 private actor ThreadEventRecorder {
     private var recordedEvents: [ThreadEvent] = []
     private(set) var isFinished = false
+    let changes: AsyncStream<Void>
+    private let changeContinuation: AsyncStream<Void>.Continuation
+
+    init() {
+        var captured: AsyncStream<Void>.Continuation?
+        changes = AsyncStream(bufferingPolicy: .unbounded) { captured = $0 }
+        changeContinuation = captured!
+    }
 
     func append(_ event: ThreadEvent) {
         recordedEvents.append(event)
+        changeContinuation.yield()
     }
 
     func markFinished() {
         isFinished = true
+        changeContinuation.yield()
     }
 
     func contains(_ event: ThreadEvent) -> Bool {

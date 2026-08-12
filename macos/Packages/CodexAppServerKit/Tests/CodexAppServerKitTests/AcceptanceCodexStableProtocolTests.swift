@@ -255,7 +255,7 @@ func threadListRequestUsesSessionCwdAndInteractiveSources() async throws {
     ])
     async let response = rpc.requestJSON(method: "thread/list", params: params)
 
-    #expect(await waitUntil {
+    #expect(await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains { $0["method"]?.stringValue == "thread/list" }
     })
     let request = try #require(await transport.sent.first { $0["method"]?.stringValue == "thread/list" })

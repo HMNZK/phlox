@@ -17,7 +17,7 @@ func backgroundTerminalListRequestUsesExperimentalMethodAndIDs() async throws {
         method: "thread/backgroundTerminals/list",
         params: params
     )
-    #expect(await waitUntil {
+    #expect(await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains {
             $0["method"]?.stringValue == "thread/backgroundTerminals/list"
         }
@@ -59,7 +59,7 @@ func backgroundTerminalTerminatePreservesFalseResult() async throws {
             "processId": .string("stale-process"),
         ])
     )
-    #expect(await waitUntil {
+    #expect(await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains {
             $0["method"]?.stringValue == "thread/backgroundTerminals/terminate"
         }
@@ -81,7 +81,7 @@ func interruptSeamUsesThreadAndTurnIdentifiers() async throws {
         "turnId": .string("turn-1"),
     ])
     async let response = rpc.requestJSON(method: "turn/interrupt", params: params)
-    #expect(await waitUntil {
+    #expect(await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains { $0["method"]?.stringValue == "turn/interrupt" }
     })
     let sent = try #require(await transport.sent.first { $0["method"]?.stringValue == "turn/interrupt" })

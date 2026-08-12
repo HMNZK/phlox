@@ -36,7 +36,7 @@ func codexClientTurnStartSendsNativeImageAndSkillItems() async throws {
         input: [.text("inspect"), imageInput, skillInput]
     ))
 
-    #expect(await waitUntil {
+    #expect(await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains { $0["method"]?.stringValue == "turn/start" }
     })
     let request = try #require(await transport.sent.first { $0["method"]?.stringValue == "turn/start" })
@@ -60,7 +60,7 @@ func codexClientThreadReadPreservesSelectedIDAndMetadata() async throws {
     async let read: ThreadReadResponse = client.threadRead(
         ThreadReadParams(threadId: "thread-child", includeTurns: true)
     )
-    #expect(await waitUntil {
+    #expect(await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains { $0["method"]?.stringValue == "thread/read" }
     })
     let request = try #require(await transport.sent.first { $0["method"]?.stringValue == "thread/read" })
@@ -106,7 +106,7 @@ func codexClientRejectsThreadResumeIDMismatch() async throws {
     let resumeTask = Task {
         try await client.threadResume(ThreadResumeParams(threadId: "selected-thread"))
     }
-    #expect(await waitUntil {
+    #expect(await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains { $0["method"]?.stringValue == "thread/resume" }
     })
     let mismatchResult = try stableFixtureJSON("payloads/thread-resume-mismatch-full.json")
@@ -149,7 +149,7 @@ func skillsListRequestUsesOnlySessionCwd() async throws {
     ])
     async let response = rpc.requestJSON(method: "skills/list", params: params)
 
-    #expect(await waitUntil {
+    #expect(await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains { $0["method"]?.stringValue == "skills/list" }
     })
     let request = try #require(await transport.sent.first { $0["method"]?.stringValue == "skills/list" })

@@ -146,7 +146,7 @@ import Testing
     await client.start()
 
     async let models: ModelListResponse = client.listModels(ModelListParams(limit: 20))
-    let sentModelRequest = await waitUntil {
+    let sentModelRequest = await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains { $0["method"]?.stringValue == "model/list" }
     }
     #expect(sentModelRequest)
@@ -160,7 +160,7 @@ import Testing
     async let profiles: PermissionProfileListResponse = client.listPermissionProfiles(
         PermissionProfileListParams(cwd: "/tmp/project")
     )
-    let sentProfileRequest = await waitUntil {
+    let sentProfileRequest = await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains { $0["method"]?.stringValue == "permissionProfile/list" }
     }
     #expect(sentProfileRequest)
@@ -174,7 +174,7 @@ import Testing
     #expect(try await profiles.data.map(\.id) == [":read-only", ":workspace"])
 
     async let modes: CollaborationModeListResponse = client.listCollaborationModes()
-    let sentModesRequest = await waitUntil {
+    let sentModesRequest = await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains { $0["method"]?.stringValue == "collaborationMode/list" }
     }
     #expect(sentModesRequest)
@@ -191,7 +191,7 @@ import Testing
             permissions: ":workspace"
         )
     )
-    let sentUpdateRequest = await waitUntil {
+    let sentUpdateRequest = await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains { $0["method"]?.stringValue == "thread/settings/update" }
     }
     #expect(sentUpdateRequest)

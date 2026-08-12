@@ -31,7 +31,7 @@ struct CodexAppServerE2ETests {
         let threadId = started.thread.id
         #expect(!threadId.isEmpty)
 
-        var iterator = client.events.makeAsyncIterator()
+        let eventWaiter = CodexThreadEventWaiter(stream: client.events)
         _ = try await client.turnStart(
             TurnStartParams(
                 threadId: threadId,
@@ -40,12 +40,7 @@ struct CodexAppServerE2ETests {
         )
 
         let completed = await waitUntil(timeoutNanoseconds: 90_000_000_000) {
-            while let event = await iterator.next() {
-                if case .turnCompleted(let completedThreadId, _) = event {
-                    return completedThreadId == threadId
-                }
-            }
-            return false
+            await eventWaiter.waitForTurnCompleted(threadID: threadId)
         }
         #expect(completed)
 
@@ -115,7 +110,7 @@ struct CodexAppServerE2ETests {
         let threadId = started.thread.id
         #expect(!threadId.isEmpty)
 
-        var iterator = client.events.makeAsyncIterator()
+        let eventWaiter = CodexThreadEventWaiter(stream: client.events)
         let collaborationMode = supportsPlanMode
             ? CollaborationMode(
                 mode: .plan,
@@ -138,15 +133,42 @@ struct CodexAppServerE2ETests {
         )
 
         let received = await waitUntil(timeoutNanoseconds: 30_000_000_000) {
-            while let event = await iterator.next() {
-                if case .threadSettingsUpdated(let updatedThreadId, let settings) = event {
-                    return updatedThreadId == threadId
-                        && settings.model == selectedModel.id
-                        && settings.effort == selectedModel.defaultReasoningEffort
-                }
-            }
-            return false
+            await eventWaiter.waitForThreadSettings(
+                threadID: threadId,
+                model: selectedModel.id,
+                effort: selectedModel.defaultReasoningEffort
+            )
         }
         #expect(received)
+    }
+}
+
+private final class CodexThreadEventWaiter: @unchecked Sendable {
+    private let stream: AsyncStream<ThreadEvent>
+
+    init(stream: AsyncStream<ThreadEvent>) {
+        self.stream = stream
+    }
+
+    func waitForTurnCompleted(threadID: String) async -> Bool {
+        for await event in stream {
+            if case .turnCompleted(let completedThreadID, _) = event,
+               completedThreadID == threadID {
+                return true
+            }
+        }
+        return false
+    }
+
+    func waitForThreadSettings(threadID: String, model: String, effort: String) async -> Bool {
+        for await event in stream {
+            if case .threadSettingsUpdated(let updatedThreadID, let settings) = event,
+               updatedThreadID == threadID,
+               settings.model == model,
+               settings.effort == effort {
+                return true
+            }
+        }
+        return false
     }
 }

@@ -4,10 +4,19 @@ import Testing
 
 private actor PublicEventDescriptionBox {
     private var stored: String?
+    let changes: AsyncStream<Void>
+    private let changeContinuation: AsyncStream<Void>.Continuation
+
+    init() {
+        var captured: AsyncStream<Void>.Continuation?
+        changes = AsyncStream(bufferingPolicy: .unbounded) { captured = $0 }
+        changeContinuation = captured!
+    }
 
     func store(_ value: String) {
         guard stored == nil else { return }
         stored = value
+        changeContinuation.yield()
     }
 
     func value() -> String? {
@@ -77,7 +86,10 @@ func publicStructuredClientBridgesPlanNotification() async throws {
       ]
     }}
     """)
-    let received = await waitUntil(timeoutNanoseconds: 500_000_000) {
+    let received = await waitUntil(
+        timeoutNanoseconds: 500_000_000,
+        events: box.changes
+    ) {
         await box.value() != nil
     }
     #expect(received, "public structured client eventへplanが届いていない")
@@ -183,7 +195,7 @@ func publicClientExperimentalInterruptBridgeUsesTransport() async throws {
             TurnInterruptParams(threadId: "thread-child", turnId: "turn-9")
         )
     }
-    #expect(await waitUntil {
+    #expect(await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains { $0["method"]?.stringValue == "turn/interrupt" }
     })
     let request = try #require(await transport.sent.first {

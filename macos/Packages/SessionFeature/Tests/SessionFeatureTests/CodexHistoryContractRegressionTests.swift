@@ -86,26 +86,34 @@ struct CodexHistoryContractRegressionTests {
             approvalBroker: ChatApprovalBroker(),
             workingDirectory: "/workspace"
         )
-        try await viewModel.startNew(
-            approvalPolicy: .named("on-request"),
-            sandbox: .named("workspace-write")
-        )
+        do {
+            try await viewModel.startNew(
+                approvalPolicy: .named("on-request"),
+                sandbox: .named("workspace-write")
+            )
 
-        #expect(viewModel.threadId == "active")
-        await viewModel.restore(
-            threadId: "next",
-            approvalPolicy: .named("on-request"),
-            sandbox: .named("workspace-write")
-        )
+            #expect(viewModel.threadId == "active")
+            await viewModel.restore(
+                threadId: "next",
+                approvalPolicy: .named("on-request"),
+                sandbox: .named("workspace-write")
+            )
 
-        #expect(viewModel.threadId == "active")
-        #expect(await adapter.activeThreadId() == "active")
-        guard case .failed(let message) = viewModel.restoreState else {
-            Issue.record("Codex restore failure was not observable")
+            #expect(viewModel.threadId == "active")
+            #expect(await adapter.activeThreadId() == "active")
+            guard case .failed(let message) = viewModel.restoreState else {
+                Issue.record("Codex restore failure was not observable")
+                await viewModel.terminate()
+                await adapter.close()
+                return
+            }
+            #expect(message.contains("read failed"))
+        } catch {
+            await viewModel.terminate()
             await adapter.close()
-            return
+            throw error
         }
-        #expect(message.contains("read failed"))
+        await viewModel.terminate()
         await adapter.close()
     }
 
@@ -119,9 +127,9 @@ struct CodexHistoryContractRegressionTests {
         let history = CodexSessionHistory(client: adapter, workingDirectory: "/workspace")
 
         let first = Task { await history.resumeIfPossible(threadID: "A") }
-        #expect(await waitUntil { await transport.resumeRequestCount == 1 })
+        try await transport.waitForResumeRequest(count: 1)
         let second = Task { await history.resumeIfPossible(threadID: "B") }
-        #expect(await waitUntil { await transport.resumeRequestCount == 2 })
+        try await transport.waitForResumeRequest(count: 2)
 
         await transport.releaseResume(threadID: "B")
         await transport.releaseResume(threadID: "A")
@@ -133,15 +141,11 @@ struct CodexHistoryContractRegressionTests {
         await adapter.close()
     }
 
-    private func waitUntil(
-        _ condition: @escaping @Sendable () async -> Bool
-    ) async -> Bool {
-        for _ in 0..<1_000 {
-            if await condition() { return true }
-            await Task.yield()
-        }
-        return false
-    }
+}
+
+private enum HistoryResumeWaitError: Error {
+    case timedOut
+    case streamFinished
 }
 
 private final class HistoryContractTransport: AppServerTransport, @unchecked Sendable {
@@ -158,9 +162,12 @@ private final class HistoryContractTransport: AppServerTransport, @unchecked Sen
         var resumeWaiters: [String: [CheckedContinuation<Void, Never>]] = [:]
 
         func noteListRequest() { listRequestCount += 1 }
-        func noteResumeRequest(_ threadID: String, wait: Bool) async {
+        func noteResumeRequest(_ threadID: String) -> Int {
             resumeRequestCount += 1
-            guard wait else { return }
+            return resumeRequestCount
+        }
+
+        func waitForResume(threadID: String) async {
             await withCheckedContinuation { continuation in
                 resumeWaiters[threadID, default: []].append(continuation)
             }
@@ -175,12 +182,19 @@ private final class HistoryContractTransport: AppServerTransport, @unchecked Sen
     private let continuation: AsyncStream<Data>.Continuation
     private let mode: Mode
     private let state = State()
+    private let resumeRequestEvents: AsyncStream<Int>
+    private let resumeRequestEventContinuation: AsyncStream<Int>.Continuation
 
     init(mode: Mode) {
         self.mode = mode
         var captured: AsyncStream<Data>.Continuation?
         receivedLines = AsyncStream { captured = $0 }
         continuation = captured!
+        var resumeRequestCaptured: AsyncStream<Int>.Continuation?
+        resumeRequestEvents = AsyncStream(bufferingPolicy: .unbounded) {
+            resumeRequestCaptured = $0
+        }
+        resumeRequestEventContinuation = resumeRequestCaptured!
     }
 
     var listRequestCount: Int {
@@ -213,7 +227,11 @@ private final class HistoryContractTransport: AppServerTransport, @unchecked Sen
             result = listResponse(request: request)
         case "thread/resume":
             let threadID = request["params"]?["threadId"]?.stringValue ?? ""
-            await state.noteResumeRequest(threadID, wait: mode == .resumeRace)
+            let requestCount = await state.noteResumeRequest(threadID)
+            resumeRequestEventContinuation.yield(requestCount)
+            if mode == .resumeRace {
+                await state.waitForResume(threadID: threadID)
+            }
             result = .object(["thread": threadJSON(id: threadID)])
         case "thread/read":
             let threadID = request["params"]?["threadId"]?.stringValue ?? ""
@@ -243,6 +261,25 @@ private final class HistoryContractTransport: AppServerTransport, @unchecked Sen
 
     func releaseResume(threadID: String) async {
         await state.releaseResume(threadID: threadID)
+    }
+
+    func waitForResumeRequest(count expected: Int, timeout: Duration = .seconds(2)) async throws {
+        guard await resumeRequestCount < expected else { return }
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { [resumeRequestEvents] in
+                for await count in resumeRequestEvents where count >= expected {
+                    return
+                }
+                throw HistoryResumeWaitError.streamFinished
+            }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                throw HistoryResumeWaitError.timedOut
+            }
+            try await group.next()
+            group.cancelAll()
+        }
     }
 
     private func listResponse(request: JSONValue) -> JSONValue {

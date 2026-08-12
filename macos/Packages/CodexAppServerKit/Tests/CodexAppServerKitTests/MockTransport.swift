@@ -3,6 +3,14 @@ import Foundation
 
 actor SentMessages {
     private var messages: [JSONValue] = []
+    let changes: AsyncStream<Void>
+    private let changeContinuation: AsyncStream<Void>.Continuation
+
+    init() {
+        var captured: AsyncStream<Void>.Continuation?
+        changes = AsyncStream(bufferingPolicy: .unbounded) { captured = $0 }
+        changeContinuation = captured!
+    }
 
     func append(_ data: Data) throws {
         let trimmed: Data
@@ -13,6 +21,7 @@ actor SentMessages {
         }
         let value = try JSONDecoder.appServer.decode(JSONValue.self, from: trimmed)
         messages.append(value)
+        changeContinuation.yield()
     }
 
     func all() -> [JSONValue] {
@@ -55,14 +64,52 @@ func jsonLine(_ value: JSONValue) throws -> String {
 
 func waitUntil(
     timeoutNanoseconds: UInt64 = 2_000_000_000,
-    pollIntervalNanoseconds: UInt64 = 10_000_000,
-    _ condition: @escaping () async -> Bool
+    _ condition: @escaping @Sendable () async -> Bool
 ) async -> Bool {
-    var elapsed: UInt64 = 0
-    while await !condition() {
-        guard elapsed < timeoutNanoseconds else { return false }
-        try? await Task.sleep(nanoseconds: pollIntervalNanoseconds)
-        elapsed += pollIntervalNanoseconds
+    await withTaskGroup(of: Bool.self) { group in
+        group.addTask {
+            await condition()
+        }
+        group.addTask {
+            do {
+                try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                return false
+            } catch {
+                return false
+            }
+        }
+        let result = await group.next() ?? false
+        group.cancelAll()
+        await group.waitForAll()
+        return result
     }
-    return true
+}
+
+func waitUntil(
+    timeoutNanoseconds: UInt64 = 2_000_000_000,
+    events: AsyncStream<Void>,
+    _ condition: @escaping @Sendable () async -> Bool
+) async -> Bool {
+    guard await condition() == false else { return true }
+
+    return await withTaskGroup(of: Bool.self) { group in
+        group.addTask {
+            for await _ in events {
+                if await condition() { return true }
+            }
+            return false
+        }
+        group.addTask {
+            do {
+                try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                return false
+            } catch {
+                return false
+            }
+        }
+        let result = await group.next() ?? false
+        group.cancelAll()
+        await group.waitForAll()
+        return result
+    }
 }

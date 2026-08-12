@@ -11,40 +11,13 @@ private func fixtureJSON(_ relativePath: String) throws -> JSONValue {
     return try JSONDecoder.appServer.decode(JSONValue.self, from: Data(contentsOf: url))
 }
 
-private protocol RuntimeEncodableBox {
-    func encodedJSON() throws -> JSONValue
-}
-
-private struct ConcreteRuntimeEncodableBox<Value: Encodable>: RuntimeEncodableBox {
-    let value: Value
-
-    func encodedJSON() throws -> JSONValue {
-        let data = try JSONEncoder.appServer.encode(value)
-        return try JSONDecoder.appServer.decode(JSONValue.self, from: data)
-    }
-}
-
-private func eraseRuntimeEncodable<Value: Encodable>(
-    _ value: Value
-) -> any RuntimeEncodableBox {
-    ConcreteRuntimeEncodableBox(value: value)
-}
-
-private func runtimeRoundTrip(
-    typeNames: [String],
+private func runtimeRoundTrip<Value: Codable & Sendable>(
+    _ type: Value.Type,
     raw: JSONValue
-) throws -> (typeName: String, encoded: JSONValue)? {
-    guard let (typeName, type) = typeNames.lazy.compactMap({ name in
-        _typeByName(name).flatMap { metatype in
-            (metatype as? any Decodable.Type).map { (name, $0) }
-        }
-    }).first else {
-        return nil
-    }
+) throws -> JSONValue {
     let data = try JSONEncoder.appServer.encode(raw)
     let decoded = try JSONDecoder.appServer.decode(type, from: data)
-    guard let encodable = decoded as? any Encodable else { return nil }
-    return (typeName, try eraseRuntimeEncodable(encodable).encodedJSON())
+    return try encodeToJSONValue(decoded)
 }
 
 @Test("生成 schema の実ファイルと JSON path が固定されている")
@@ -253,38 +226,15 @@ func typedStableRequestDTOsEncodeExpectedWireShape() throws {
         "forceReload": .bool(true),
     ])
 
-    for (names, raw, requiredMessage) in [
-        (
-            ["CodexAppServerKit.ThreadListParams"],
-            threadList,
-            "ThreadListParams DTO が未実装"
-        ),
-        (
-            ["CodexAppServerKit.SkillsListParams"],
-            skillsList,
-            "SkillsListParams DTO が未実装"
-        ),
-    ] {
-        guard let result = try runtimeRoundTrip(typeNames: names, raw: raw) else {
-            #expect(Bool(false), "DTO が未実装: \(requiredMessage)")
-            continue
-        }
-        #expect(result.encoded == raw)
-    }
+    #expect(try runtimeRoundTrip(ThreadListParams.self, raw: threadList) == threadList)
+    #expect(try runtimeRoundTrip(SkillsListParams.self, raw: skillsList) == skillsList)
 
     let ancestorThreadList: JSONValue = .object([
         "cwd": .string("/tmp/project"),
         "sourceKinds": .array([.string("subAgent")]),
         "ancestorThreadId": .string("ancestor-thread"),
     ])
-    guard let ancestorResult = try runtimeRoundTrip(
-        typeNames: ["CodexAppServerKit.ThreadListParams"],
-        raw: ancestorThreadList
-    ) else {
-        #expect(Bool(false), "ThreadListParams DTO が ancestorThreadId を提供していない")
-        return
-    }
-    #expect(ancestorResult.encoded == ancestorThreadList)
+    #expect(try runtimeRoundTrip(ThreadListParams.self, raw: ancestorThreadList) == ancestorThreadList)
 }
 
 @Test("thread/list の cwd・sourceKinds・main thread 条件をそのまま送る")

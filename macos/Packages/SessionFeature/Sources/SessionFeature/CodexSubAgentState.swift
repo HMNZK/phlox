@@ -102,7 +102,7 @@ public struct CodexSubAgentState: Equatable, Sendable {
             }
             children = order.compactMap { latest[$0] }
             let currentIDs = Set(children.map(\.id))
-            staleIDs.subtract(currentIDs)
+            staleIDs = staleIDs.intersection(currentIDs)
             details = details.filter { currentIDs.contains($0.key) }
             pendingStops = pendingStops.filter { currentIDs.contains($0.key) }
             stopAttempts = stopAttempts.filter { currentIDs.contains($0.key) }
@@ -152,6 +152,7 @@ public struct CodexSubAgentState: Equatable, Sendable {
             }
         case .turnCompleted(let threadId, let turnId, let status):
             guard let index = children.firstIndex(where: { $0.id == threadId }) else { return }
+            guard !staleIDs.contains(threadId) else { return }
             guard children[index].activeTurnId == turnId else { return }
             if status == "interrupted", let request = pendingStops[threadId], request.turnId == turnId {
                 _ = acceptInterruptCompletion(request: request, threadId: threadId, turnId: turnId, status: status)

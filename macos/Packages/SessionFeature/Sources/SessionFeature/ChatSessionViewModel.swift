@@ -479,8 +479,11 @@ public final class ChatSessionViewModel: Identifiable {
                 latestByID[thread.id] = thread
             }
             var children = childOrder.compactMap { latestByID[$0].map(Self.codexChild) }
-            var readError: Error?
-            for index in children.indices where Self.needsCodexSubAgentRead(children[index]) {
+            var readFailures: [String: String] = [:]
+            var validatedReadIDs: Set<String> = []
+            for index in children.indices
+                where Self.needsCodexSubAgentRead(children[index])
+                    || codexSubAgentState?.controlState(for: children[index].id) == .stale {
                 let child = children[index]
                 do {
                     let read = try await client.threadRead(
@@ -489,27 +492,37 @@ public final class ChatSessionViewModel: Identifiable {
                     guard isCurrentCodexSubAgentRefresh(generation, parentThreadId: parentThreadId) else {
                         return
                     }
-                    guard read.thread.id == child.id,
-                          Self.isCodexChild(read.thread, parentThreadId: parentThreadId) else {
+                    guard let expected = latestByID[child.id],
+                          Self.isMatchingCodexChildRead(
+                              read.thread,
+                              expected: expected,
+                              parentThreadId: parentThreadId
+                          ) else {
+                        readFailures[child.id] = Self.codexSubAgentReadMismatchMessage(
+                            requestedThreadID: child.id,
+                            receivedThreadID: read.thread.id
+                        )
                         continue
                     }
                     children[index] = Self.codexChild(read.thread)
+                    validatedReadIDs.insert(child.id)
                 } catch {
                     guard isCurrentCodexSubAgentRefresh(generation, parentThreadId: parentThreadId) else {
                         return
                     }
-                    readError = error
+                    readFailures[child.id] = String(describing: error)
                 }
             }
             guard isCurrentCodexSubAgentRefresh(generation, parentThreadId: parentThreadId) else { return }
-            if let readError {
-                let message = String(describing: readError)
-                codexSubAgentState?.apply(.unavailable(reason: message))
-                codexSubAgentError = message
-            } else {
-                codexSubAgentState?.apply(.available(children: children))
-                codexSubAgentError = nil
+            codexSubAgentState?.apply(.available(children: children))
+            for (threadID, reason) in readFailures {
+                codexSubAgentState?.apply(.stale(threadId: threadID, reason: reason))
             }
+            for threadID in validatedReadIDs {
+                guard let child = children.first(where: { $0.id == threadID }) else { continue }
+                codexSubAgentState?.apply(.validated(child: child))
+            }
+            codexSubAgentError = readFailures.first.map { "サブエージェント \($0.key): \($0.value)" }
         } catch {
             guard isCurrentCodexSubAgentRefresh(generation, parentThreadId: parentThreadId) else { return }
             let message = String(describing: error)
@@ -520,7 +533,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// child の詳細を `thread/read(includeTurns: true)` から読み込む。
     public func loadCodexSubAgentDetail(threadID: String) async {
-        guard codexSubAgentState?.children.contains(where: { $0.id == threadID }) == true else { return }
+        guard let child = codexSubAgentState?.children.first(where: { $0.id == threadID }) else { return }
         guard let client = client as? any CodexSubAgentProviding else { return }
         guard let parentThreadId = threadId else { return }
         let generation = codexSubAgentRefreshGeneration
@@ -528,17 +541,31 @@ public final class ChatSessionViewModel: Identifiable {
             let response = try await client.threadRead(ThreadReadParams(threadId: threadID, includeTurns: true))
             guard threadId == parentThreadId,
                   codexSubAgentState?.parentThreadId == parentThreadId,
-                  generation == codexSubAgentRefreshGeneration,
-                  response.thread.id == threadID,
-                  Self.isCodexChild(response.thread, parentThreadId: parentThreadId) else { return }
+                  generation == codexSubAgentRefreshGeneration else { return }
+            guard Self.isMatchingCodexChildRead(
+                response.thread,
+                child: child,
+                parentThreadId: parentThreadId
+            ) else {
+                let message = Self.codexSubAgentReadMismatchMessage(
+                    requestedThreadID: threadID,
+                    receivedThreadID: response.thread.id
+                )
+                codexSubAgentState?.apply(.stale(threadId: threadID, reason: message))
+                codexSubAgentError = message
+                return
+            }
             let transcript = response.thread.turns?.flatMap { $0.items ?? [] }.compactMap(\.text) ?? []
+            codexSubAgentState?.apply(.validated(child: Self.codexChild(response.thread)))
             codexSubAgentState?.apply(.detail(threadId: threadID, transcript: transcript))
             codexSubAgentError = nil
         } catch {
             guard threadId == parentThreadId,
                   codexSubAgentState?.parentThreadId == parentThreadId,
                   generation == codexSubAgentRefreshGeneration else { return }
-            codexSubAgentError = String(describing: error)
+            let message = String(describing: error)
+            codexSubAgentState?.apply(.stale(threadId: threadID, reason: message))
+            codexSubAgentError = "サブエージェント \(threadID): \(message)"
         }
     }
 
@@ -2589,6 +2616,7 @@ public final class ChatSessionViewModel: Identifiable {
             id: thread.id,
             parentThreadId: thread.parentThreadId ?? "",
             ancestorThreadId: codexSubAgentAncestorThreadID(thread.source),
+            sourceIdentity: codexSubAgentSourceIdentity(thread.source),
             activeTurnId: activeTurn?.id,
             status: status,
             summary: thread.preview,
@@ -2630,6 +2658,44 @@ public final class ChatSessionViewModel: Identifiable {
         return true
     }
 
+    private static func isMatchingCodexChildRead(
+        _ read: ThreadSummary,
+        expected: ThreadSummary,
+        parentThreadId: String
+    ) -> Bool {
+        guard read.id == expected.id,
+              read.parentThreadId == expected.parentThreadId,
+              read.parentThreadId == parentThreadId,
+              codexSubAgentSourceIdentity(read.source) == codexSubAgentSourceIdentity(expected.source),
+              codexSubAgentAncestorThreadID(read.source)
+                == codexSubAgentAncestorThreadID(expected.source),
+              isCodexChild(read, parentThreadId: parentThreadId) else { return false }
+        return true
+    }
+
+    private static func isMatchingCodexChildRead(
+        _ read: ThreadSummary,
+        child: CodexChildThread,
+        parentThreadId: String
+    ) -> Bool {
+        guard read.id == child.id,
+              read.parentThreadId == child.parentThreadId,
+              read.parentThreadId == parentThreadId,
+              codexSubAgentAncestorThreadID(read.source) == child.ancestorThreadId,
+              isCodexChild(read, parentThreadId: parentThreadId) else { return false }
+        if let sourceIdentity = child.sourceIdentity {
+            guard codexSubAgentSourceIdentity(read.source) == sourceIdentity else { return false }
+        }
+        return true
+    }
+
+    private static func codexSubAgentReadMismatchMessage(
+        requestedThreadID: String,
+        receivedThreadID: String
+    ) -> String {
+        "サブエージェント \(requestedThreadID) の thread/read identity が不一致です (received: \(receivedThreadID))"
+    }
+
     private static func isKnownCodexSubAgentSource(_ source: JSONValue) -> Bool {
         if let value = source.stringValue {
             return ["review", "compact", "memory_consolidation"].contains(value)
@@ -2645,6 +2711,21 @@ public final class ChatSessionViewModel: Identifiable {
         // while still requiring the source to carry a parent identity below.
         return source["parentThreadId"]?.stringValue != nil
             || source["parent_thread_id"]?.stringValue != nil
+    }
+
+    private static func codexSubAgentSourceIdentity(_ source: ThreadSessionSource) -> String? {
+        switch source {
+        case .subAgent(let value):
+            if let kind = value.stringValue { return "subAgent:\(kind)" }
+            if value["thread_spawn"] != nil { return "subAgent:thread_spawn" }
+            if value["other"] != nil { return "subAgent:other" }
+            if codexSubAgentParentThreadID(value) != nil { return "subAgent:parent" }
+            return nil
+        case .unknownRaw(.null):
+            return "legacy:none"
+        default:
+            return nil
+        }
     }
 
     private static func codexSubAgentParentThreadID(_ source: JSONValue) -> String? {

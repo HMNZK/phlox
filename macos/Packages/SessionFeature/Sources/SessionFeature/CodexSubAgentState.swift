@@ -4,6 +4,7 @@ public struct CodexChildThread: Identifiable, Equatable, Sendable {
     public let id: String
     public let parentThreadId: String
     public let ancestorThreadId: String?
+    public let sourceIdentity: String?
     public var activeTurnId: String?
     public var status: String
     public var summary: String?
@@ -13,6 +14,7 @@ public struct CodexChildThread: Identifiable, Equatable, Sendable {
         id: String,
         parentThreadId: String,
         ancestorThreadId: String? = nil,
+        sourceIdentity: String? = nil,
         activeTurnId: String? = nil,
         status: String,
         summary: String? = nil,
@@ -21,6 +23,7 @@ public struct CodexChildThread: Identifiable, Equatable, Sendable {
         self.id = id
         self.parentThreadId = parentThreadId
         self.ancestorThreadId = ancestorThreadId
+        self.sourceIdentity = sourceIdentity
         self.activeTurnId = activeTurnId
         self.status = status
         self.summary = summary
@@ -66,6 +69,7 @@ public enum CodexSubAgentStopState: Equatable, Sendable {
 
 public enum CodexSubAgentEvent: Equatable, Sendable {
     case available(children: [CodexChildThread])
+    case validated(child: CodexChildThread)
     case detail(threadId: String, transcript: [String])
     case stale(threadId: String, reason: String)
     case unavailable(reason: String)
@@ -114,35 +118,25 @@ public struct CodexSubAgentState: Equatable, Sendable {
                     pendingStops.removeValue(forKey: child.id)
                 }
             }
-            for child in children {
-                if staleIDs.contains(child.id) {
-                    controlStates[child.id] = .stale
-                    stopStates[child.id] = .stale
-                } else if pendingStops[child.id] != nil {
-                    controlStates[child.id] = .available
-                    stopStates[child.id] = .stopping
-                } else if stopStates[child.id] == .stopped, child.activeTurnId == nil {
-                    controlStates[child.id] = .unavailable
-                    stopStates[child.id] = .stopped
-                } else if child.activeTurnId == nil {
-                    controlStates[child.id] = .unavailable
-                    stopStates[child.id] = .unavailable
-                } else {
-                    controlStates[child.id] = .available
-                    stopStates[child.id] = .available
-                }
-            }
+            for child in children { updateControlState(for: child) }
             for id in old.keys where !currentIDs.contains(id) {
                 controlStates.removeValue(forKey: id)
                 stopStates.removeValue(forKey: id)
             }
+        case .validated(let child):
+            guard child.parentThreadId == parentThreadId,
+                  let index = children.firstIndex(where: { $0.id == child.id }) else { return }
+            children[index] = child
+            staleIDs.remove(child.id)
+            updateControlState(for: child)
         case .detail(let threadId, let transcript):
             guard children.contains(where: { $0.id == threadId }), !staleIDs.contains(threadId) else { return }
             details[threadId] = CodexSubAgentDetail(threadId: threadId, transcript: transcript)
         case .stale(let threadId, _):
-            guard children.contains(where: { $0.id == threadId }) else { return }
+            guard let index = children.firstIndex(where: { $0.id == threadId }) else { return }
             staleIDs.insert(threadId)
             pendingStops.removeValue(forKey: threadId)
+            children[index].status = "stale"
             controlStates[threadId] = .stale
             stopStates[threadId] = .stale
             details.removeValue(forKey: threadId)
@@ -249,6 +243,25 @@ public struct CodexSubAgentState: Equatable, Sendable {
               let child = children.first(where: { $0.id == threadId }) else { return }
         stopStates[threadId] = child.activeTurnId == nil ? .unavailable : .available
         controlStates[threadId] = child.activeTurnId == nil ? .unavailable : .available
+    }
+
+    private mutating func updateControlState(for child: CodexChildThread) {
+        if staleIDs.contains(child.id) {
+            controlStates[child.id] = .stale
+            stopStates[child.id] = .stale
+        } else if pendingStops[child.id] != nil {
+            controlStates[child.id] = .available
+            stopStates[child.id] = .stopping
+        } else if stopStates[child.id] == .stopped, child.activeTurnId == nil {
+            controlStates[child.id] = .unavailable
+            stopStates[child.id] = .stopped
+        } else if child.activeTurnId == nil {
+            controlStates[child.id] = .unavailable
+            stopStates[child.id] = .unavailable
+        } else {
+            controlStates[child.id] = .available
+            stopStates[child.id] = .available
+        }
     }
 }
 

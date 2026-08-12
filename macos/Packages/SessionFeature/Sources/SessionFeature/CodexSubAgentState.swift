@@ -148,11 +148,13 @@ public struct CodexSubAgentState: Equatable, Sendable {
             details.removeValue(forKey: threadId)
         case .unavailable:
             unavailable = true
+            children.removeAll()
+            details.removeAll()
             pendingStops.removeAll()
-            for child in children {
-                controlStates[child.id] = .unavailable
-                stopStates[child.id] = .unavailable
-            }
+            controlStates.removeAll()
+            stopStates.removeAll()
+            stopAttempts.removeAll()
+            staleIDs.removeAll()
         case .turnCompleted(let threadId, let turnId, let status):
             guard let index = children.firstIndex(where: { $0.id == threadId }) else { return }
             guard !staleIDs.contains(threadId) else { return }

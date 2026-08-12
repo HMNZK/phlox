@@ -502,11 +502,19 @@ public final class ChatSessionViewModel: Identifiable {
                 }
             }
             guard isCurrentCodexSubAgentRefresh(generation, parentThreadId: parentThreadId) else { return }
-            codexSubAgentState?.apply(.available(children: children))
-            codexSubAgentError = readError.map { String(describing: $0) }
+            if let readError {
+                let message = String(describing: readError)
+                codexSubAgentState?.apply(.unavailable(reason: message))
+                codexSubAgentError = message
+            } else {
+                codexSubAgentState?.apply(.available(children: children))
+                codexSubAgentError = nil
+            }
         } catch {
             guard isCurrentCodexSubAgentRefresh(generation, parentThreadId: parentThreadId) else { return }
-            codexSubAgentError = String(describing: error)
+            let message = String(describing: error)
+            codexSubAgentState?.apply(.unavailable(reason: message))
+            codexSubAgentError = message
         }
     }
 
@@ -539,13 +547,21 @@ public final class ChatSessionViewModel: Identifiable {
         guard var state = codexSubAgentState,
               let request = state.stopRequest(for: threadID),
               let client = client as? any CodexSubAgentProviding else { return }
+        let generation = codexSubAgentRefreshGeneration
+        let parentThreadId = request.parentThreadId
         codexSubAgentState = state
         do {
             _ = try await client.turnInterrupt(
                 TurnInterruptParams(threadId: request.threadId, turnId: request.turnId)
             )
+            guard isCurrentCodexSubAgentRefresh(generation, parentThreadId: parentThreadId) else {
+                return
+            }
             codexSubAgentError = nil
         } catch {
+            guard isCurrentCodexSubAgentRefresh(generation, parentThreadId: parentThreadId) else {
+                return
+            }
             state = codexSubAgentState ?? state
             state.rejectStop(for: threadID)
             codexSubAgentState = state
@@ -2593,10 +2609,19 @@ public final class ChatSessionViewModel: Identifiable {
         _ thread: ThreadSummary,
         parentThreadId: String
     ) -> Bool {
-        guard thread.parentThreadId == parentThreadId,
-              case .subAgent(let source) = thread.source,
-              isKnownCodexSubAgentSource(source) else { return false }
-        guard let sourceParent = codexSubAgentParentThreadID(source) else { return true }
+        guard thread.parentThreadId == parentThreadId else { return false }
+        let source: JSONValue?
+        switch thread.source {
+        case .subAgent(let value):
+            guard isKnownCodexSubAgentSource(value) else { return false }
+            source = value
+        case .unknownRaw(.null):
+            // 旧 app-server の thread/list は source を省略することがある。
+            source = nil
+        default:
+            return false
+        }
+        guard let source, let sourceParent = codexSubAgentParentThreadID(source) else { return true }
         guard sourceParent == parentThreadId else { return false }
         if let sourceAncestor = codexSubAgentAncestorThreadID(source) {
             return sourceAncestor == parentThreadId

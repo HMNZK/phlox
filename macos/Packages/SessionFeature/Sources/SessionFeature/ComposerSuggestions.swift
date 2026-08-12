@@ -13,18 +13,35 @@ enum SuggestionKind: Equatable {
 
 /// サジェスト候補1件。
 struct SuggestionCandidate: Equatable, Identifiable {
-    var id: String { insertionText }
+    var id: String {
+        guard let skillIdentity else { return insertionText }
+        return "\(insertionText)\u{0}\(skillIdentity.name)\u{0}\(skillIdentity.path)"
+    }
     let title: String
     let insertionText: String
     let subtitle: String?
     let kind: SuggestionKind
+    let skillIdentity: SkillIdentity?
 
-    init(title: String, insertionText: String, subtitle: String? = nil, kind: SuggestionKind) {
+    init(
+        title: String,
+        insertionText: String,
+        subtitle: String? = nil,
+        kind: SuggestionKind,
+        skillIdentity: SkillIdentity? = nil
+    ) {
         self.title = title
         self.insertionText = insertionText
         self.subtitle = subtitle
         self.kind = kind
+        self.skillIdentity = skillIdentity
     }
+}
+
+/// 外部サジェストを確定したときに渡す、表示名と実体パスの識別子。
+struct SkillIdentity: Equatable, Hashable {
+    let name: String
+    let path: String
 }
 
 /// 入力テキストから検出したサジェストのトリガー。
@@ -100,9 +117,11 @@ final class ComposerSuggestionController {
     /// 受領済みなら `ComposerSuggestionSources` 側で完全に無視される（task-2 契約）。
     var seedSlashCommands: [String]?
     var isPresented: Bool { !candidates.isEmpty }
+    var onAcceptSkill: ((SkillIdentity) -> Void)?
 
     private let slashProvider: () -> [SuggestionCandidate]
     private let fileProvider: (String) -> [SuggestionCandidate]
+    private var externalCandidates: [SuggestionCandidate]? = nil
     private var currentQuery: SuggestionQuery?
 
     /// 非同期候補走査: 走査中 true。走査中も前回候補は保持される。
@@ -206,6 +225,13 @@ final class ComposerSuggestionController {
 
         switch query.kind {
         case .slashCommand:
+            if let externalCandidates {
+                applySynchronousCandidates(
+                    Self.filteredSlashCandidates(externalCandidates, searchTerm: query.searchTerm),
+                    for: query
+                )
+                return
+            }
             let availableCommands = availableSlashCommands
             let seedCommands = seedSlashCommands
             if asyncSlashProvider != nil {
@@ -367,7 +393,20 @@ final class ComposerSuggestionController {
         guard let currentQuery, candidates.indices.contains(selectedIndex) else { return nil }
         let candidate = candidates[selectedIndex]
         dismiss()
+        if let skillIdentity = candidate.skillIdentity {
+            onAcceptSkill?(skillIdentity)
+        }
         return SuggestionReplacement(range: currentQuery.tokenRange, text: candidate.insertionText + " ")
+    }
+
+    /// 外部候補を設定する。非 nil の間、slash 候補は外部候補だけを表示する。
+    func updateExternalCandidates(_ candidates: [SuggestionCandidate]?) {
+        externalCandidates = candidates
+        guard let query = currentQuery, query.kind == .slashCommand else { return }
+        applySynchronousCandidates(
+            Self.filteredSlashCandidates(candidates ?? [], searchTerm: query.searchTerm),
+            for: query
+        )
     }
 
     func dismiss() {

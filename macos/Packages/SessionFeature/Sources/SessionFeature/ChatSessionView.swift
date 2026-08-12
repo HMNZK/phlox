@@ -165,6 +165,9 @@ public struct ChatSessionView: View {
                         ChatConnectingIndicator()
                     }
                 }
+                .overlay(alignment: .top) {
+                    CodexSessionSurface(viewModel: viewModel) { requestedTranscriptTarget = $0 }
+                }
                 .animation(.easeOut(duration: 0.15), value: viewModel.shouldOfferHistoryStart)
                 // ストリップはトランスクリプトのレイアウト兄弟にせず safeAreaInset で上部に置く。
                 // 兄弟配置(VStack)だと出現/消滅・行数変化のたびに LazyVStack の配置キャッシュが

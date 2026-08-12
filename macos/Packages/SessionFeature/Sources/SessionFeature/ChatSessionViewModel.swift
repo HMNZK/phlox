@@ -43,6 +43,8 @@ public final class ChatSessionViewModel: Identifiable {
     public private(set) var codexSkillSelectionState: CodexSkillSelectionState?
     public private(set) var codexPlanTaskState: CodexPlanTaskState?
     public private(set) var codexBackgroundTerminalState: CodexBackgroundTerminalState?
+    public private(set) var codexSessionHistory: CodexSessionHistory?
+    public private(set) var codexSubAgentState: CodexSubAgentState?
     public var backgroundTerminalState: CodexBackgroundTerminalState? { codexBackgroundTerminalState }
     public private(set) var transcript: [ChatItem] = []
     public var inputHistoryEntries: [InputHistoryEntry] {
@@ -209,6 +211,12 @@ public final class ChatSessionViewModel: Identifiable {
         } else {
             self.codexBackgroundTerminalState = nil
         }
+        if agentRef == .builtin(.codex), let historyClient = client as? any CodexSessionHistoryProviding {
+            self.codexSessionHistory = CodexSessionHistory(client: historyClient, workingDirectory: workingDirectory ?? "")
+        } else {
+            self.codexSessionHistory = nil
+        }
+        self.codexSubAgentState = agentRef == .builtin(.codex) ? CodexSubAgentState(parentThreadId: "") : nil
         self.codexPlanTaskState = agentRef == .builtin(.codex) ? CodexPlanTaskState() : nil
         self.transcriptStore = transcriptStore
         self.transcriptPersistenceQueue = transcriptStore.map {
@@ -258,6 +266,12 @@ public final class ChatSessionViewModel: Identifiable {
         } else {
             self.codexBackgroundTerminalState = nil
         }
+        if agentRef == .builtin(.codex), let historyClient = client as? any CodexSessionHistoryProviding {
+            self.codexSessionHistory = CodexSessionHistory(client: historyClient, workingDirectory: workingDirectory ?? "")
+        } else {
+            self.codexSessionHistory = nil
+        }
+        self.codexSubAgentState = agentRef == .builtin(.codex) ? CodexSubAgentState(parentThreadId: "") : nil
         self.codexPlanTaskState = agentRef == .builtin(.codex) ? CodexPlanTaskState() : nil
         self.transcriptStore = nil
         self.transcriptPersistenceQueue = nil
@@ -371,6 +385,14 @@ public final class ChatSessionViewModel: Identifiable {
         cachedHistoryEntries
     }
 
+    /// Codex履歴の選択結果を既存のチャット転写へ反映する。
+    public func reloadCodexHistory(threadID: String) async {
+        guard let history = codexSessionHistory,
+              let thread = try? await history.read(threadID: threadID)
+        else { return }
+        updateNativeSessionId(thread.id)
+    }
+
     /// init 時に off-main で一度だけ provider を呼び、完了時に MainActor で observable キャッシュへ格納する。
     private func scheduleHistoryCacheLoadIfNeeded() {
         guard let historyProvider, !historyCacheLoaded else { return }
@@ -462,10 +484,10 @@ public final class ChatSessionViewModel: Identifiable {
         case .builtin(.claudeCode):
             true
         case .builtin(.codex):
-            client is any CodexImageInputConfiguring && (availableModels.isEmpty || CodexImageInputState.acceptsImageAttachments(
+            client is any CodexImageInputConfiguring && CodexImageInputState.acceptsImageAttachments(
                 selectedModel: selectedModel,
                 availableModels: availableModels
-            ))
+            )
         default:
             false
         }
@@ -477,10 +499,10 @@ public final class ChatSessionViewModel: Identifiable {
         case .builtin(.claudeCode):
             true
         case .builtin(.codex):
-            client is any CodexImageInputConfiguring && (availableModels.isEmpty || CodexImageInputState.acceptsImageAttachments(
+            client is any CodexImageInputConfiguring && CodexImageInputState.acceptsImageAttachments(
                 selectedModel: selectedModel,
                 availableModels: availableModels
-            ))
+            )
         default:
             false
         }

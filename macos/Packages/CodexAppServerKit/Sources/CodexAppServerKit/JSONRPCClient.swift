@@ -30,6 +30,8 @@ public enum ServerNotification: Equatable, Sendable {
     case turnStarted(TurnLifecycleNotification)
     case turnCompleted(TurnLifecycleNotification)
     case turnInterrupted(TurnInterruptedNotification)
+    case turnPlanUpdated(TurnPlanUpdatedNotification)
+    case skillsChanged(SkillsChangedNotification)
     case threadTokenUsageUpdated(ThreadTokenUsageUpdatedNotification)
     case threadStatusChanged(ThreadStatusChangedNotification)
     case threadSettingsUpdated(ThreadSettingsUpdatedNotification)
@@ -294,7 +296,16 @@ public actor JSONRPCClient {
             return decode(params, as: TurnLifecycleNotification.self).map(ServerNotification.turnCompleted)
                 ?? .unknown(method: method, params: params)
         case "turn/interrupted":
-            return decode(params, as: TurnInterruptedNotification.self).map(ServerNotification.turnInterrupted)
+            // `turn/interrupted` was removed from the current app-server schema.
+            // Keep the raw notification available for diagnostics, but never turn it
+            // into a completion event.  The authoritative stop signal is
+            // `turn/completed` with an interrupted turn status.
+            return .unknown(method: method, params: params)
+        case "turn/plan/updated":
+            return decode(params, as: TurnPlanUpdatedNotification.self).map(ServerNotification.turnPlanUpdated)
+                ?? .unknown(method: method, params: params)
+        case "skills/changed":
+            return decode(params, as: SkillsChangedNotification.self).map(ServerNotification.skillsChanged)
                 ?? .unknown(method: method, params: params)
         case "thread/tokenUsage/updated":
             return decode(params, as: ThreadTokenUsageUpdatedNotification.self).map(ServerNotification.threadTokenUsageUpdated)

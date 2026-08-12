@@ -1,6 +1,11 @@
 import AgentDomain
 import Foundation
 
+/// `skills/list` の再取得を促す無効化通知。
+public struct SkillsChangedNotification: Codable, Equatable, Sendable {
+    public init() {}
+}
+
 public struct AgentMessageDeltaNotification: Codable, Equatable, Sendable {
     public var threadId: String
     public var turnId: String

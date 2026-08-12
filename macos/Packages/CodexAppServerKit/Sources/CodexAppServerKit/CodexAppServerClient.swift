@@ -11,11 +11,17 @@ public enum ThreadEvent: Equatable, Sendable {
     case turnStarted(threadId: String, turn: TurnSummary)
     case turnCompleted(threadId: String, turn: TurnSummary)
     case turnInterrupted(threadId: String, turnId: String?)
+    case planUpdated(threadId: String, turnId: String, plan: [TurnPlanStep], explanation: String?)
+    case skillsChanged
     case tokenUsageUpdated(threadId: String, turnId: String, tokenUsage: ThreadTokenUsage)
     case threadStatusChanged(threadId: String, status: ThreadStatus)
     case threadSettingsUpdated(threadId: String, threadSettings: ThreadSettings)
     case error(threadId: String?, turnId: String?, message: String, willRetry: Bool?)
     case warning(threadId: String?, message: String)
+}
+
+public enum CodexAppServerClientError: Error, Equatable, Sendable {
+    case threadIDMismatch(requested: String, received: String)
 }
 
 public actor CodexAppServerClient {
@@ -72,11 +78,29 @@ public actor CodexAppServerClient {
     }
 
     public func threadResume(_ params: ThreadResumeParams) async throws -> ThreadResponse {
-        try await rpc.request(method: "thread/resume", params: params)
+        let response: ThreadResponse = try await rpc.request(method: "thread/resume", params: params)
+        guard response.thread.id == params.threadId else {
+            throw CodexAppServerClientError.threadIDMismatch(
+                requested: params.threadId,
+                received: response.thread.id
+            )
+        }
+        return response
     }
 
     public func threadRead(_ params: ThreadReadParams) async throws -> ThreadReadResponse {
-        try await rpc.request(method: "thread/read", params: params)
+        let response: ThreadReadResponse = try await rpc.request(method: "thread/read", params: params)
+        guard response.thread.id == params.threadId else {
+            throw CodexAppServerClientError.threadIDMismatch(
+                requested: params.threadId,
+                received: response.thread.id
+            )
+        }
+        return response
+    }
+
+    public func threadList(_ params: ThreadListParams = ThreadListParams()) async throws -> ThreadListResponse {
+        try await rpc.request(method: "thread/list", params: params)
     }
 
     public func turnStart(_ params: TurnStartParams) async throws -> TurnStartResponse {
@@ -91,6 +115,27 @@ public actor CodexAppServerClient {
 
     public func turnInterrupt(_ params: TurnInterruptParams) async throws -> TurnInterruptResponse {
         try await rpc.request(method: "turn/interrupt", params: params)
+    }
+
+    public func skillsList(_ params: SkillsListParams = SkillsListParams()) async throws -> SkillsListResponse {
+        try await rpc.request(method: "skills/list", params: params)
+    }
+
+    public func threadBackgroundTerminalsList(
+        _ params: ThreadBackgroundTerminalsListParams
+    ) async throws -> ThreadBackgroundTerminalsListResponse {
+        try await rpc.request(method: "thread/backgroundTerminals/list", params: params)
+    }
+
+    public func threadBackgroundTerminalsTerminate(
+        _ params: ThreadBackgroundTerminalsTerminateParams
+    ) async throws -> ThreadBackgroundTerminalsTerminateResponse {
+        try await rpc.request(method: "thread/backgroundTerminals/terminate", params: params)
+    }
+
+    /// `turn/started` でサーバーが通知した ID だけを停止リクエストに使う。
+    public func activeTurnId(for threadId: String) -> String? {
+        activeTurns.first(where: { $0.threadId == threadId })?.turnId ?? nil
     }
 
     public func listModels(_ params: ModelListParams = ModelListParams()) async throws -> ModelListResponse {
@@ -211,6 +256,15 @@ public actor CodexAppServerClient {
             return .turnCompleted(threadId: value.threadId, turn: value.turn)
         case .turnInterrupted(let value):
             return .turnInterrupted(threadId: value.threadId, turnId: value.turnId)
+        case .turnPlanUpdated(let value):
+            return .planUpdated(
+                threadId: value.threadId,
+                turnId: value.turnId,
+                plan: value.plan,
+                explanation: value.explanation
+            )
+        case .skillsChanged:
+            return .skillsChanged
         case .threadTokenUsageUpdated(let value):
             return .tokenUsageUpdated(
                 threadId: value.threadId,
@@ -328,8 +382,10 @@ public actor CodexStructuredAgentClient: StructuredAgentClient {
     }
 
     public func interrupt() async throws {
-        guard let currentThreadId else { return }
-        _ = try await client.turnInterrupt(TurnInterruptParams(threadId: currentThreadId))
+        guard let currentThreadId,
+              let turnId = await client.activeTurnId(for: currentThreadId)
+        else { return }
+        _ = try await client.turnInterrupt(TurnInterruptParams(threadId: currentThreadId, turnId: turnId))
     }
 
     /// 会話文脈をリセットする。app-server は特定メッセージ時点への巻き戻し API を持たないため、
@@ -390,6 +446,10 @@ public actor CodexStructuredAgentClient: StructuredAgentClient {
             return threadId
         case .turnInterrupted(let threadId, _):
             return threadId
+        case .planUpdated(let threadId, _, _, _):
+            return threadId
+        case .skillsChanged:
+            return nil
         case .error(let threadId, _, _, _):
             return threadId
         case .warning(let threadId, _):
@@ -433,6 +493,26 @@ extension CodexStructuredAgentClient {
         return response
     }
 
+    public func threadList(_ params: ThreadListParams = ThreadListParams()) async throws -> ThreadListResponse {
+        try await client.threadList(params)
+    }
+
+    public func skillsList(_ params: SkillsListParams = SkillsListParams()) async throws -> SkillsListResponse {
+        try await client.skillsList(params)
+    }
+
+    public func threadBackgroundTerminalsList(
+        _ params: ThreadBackgroundTerminalsListParams
+    ) async throws -> ThreadBackgroundTerminalsListResponse {
+        try await client.threadBackgroundTerminalsList(params)
+    }
+
+    public func threadBackgroundTerminalsTerminate(
+        _ params: ThreadBackgroundTerminalsTerminateParams
+    ) async throws -> ThreadBackgroundTerminalsTerminateResponse {
+        try await client.threadBackgroundTerminalsTerminate(params)
+    }
+
     public func listModels(_ params: ModelListParams) async throws -> ModelListResponse {
         try await client.listModels(params)
     }
@@ -463,10 +543,29 @@ extension CodexStructuredAgentClient {
             })
         case .turnStarted:
             .turnStarted
-        case .turnCompleted(let threadId, _):
-            .turnCompleted(nativeSessionId: threadId)
+        case .turnCompleted(let threadId, let turn):
+            turn.status == "interrupted"
+                ? .turnInterrupted(nativeSessionId: threadId)
+                : .turnCompleted(nativeSessionId: threadId)
         case .turnInterrupted(let threadId, _):
             .turnInterrupted(nativeSessionId: threadId)
+        case .planUpdated(_, _, let plan, _):
+            .taskListUpdated(tasks: plan.enumerated().compactMap { index, step in
+                let status: AgentTaskStatus
+                switch step.status {
+                case .pending:
+                    status = .pending
+                case .inProgress:
+                    status = .inProgress
+                case .completed:
+                    status = .completed
+                case .unknown:
+                    return nil
+                }
+                return AgentTaskItem(id: "codex-plan-\(index)-\(step.step)", title: step.step, status: status)
+            })
+        case .skillsChanged:
+            nil
         case .error(_, _, let message, let willRetry):
             willRetry == true ? .warning(message: message) : .error(message: message)
         case .warning(_, let message):

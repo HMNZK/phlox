@@ -113,6 +113,10 @@ public actor CodexAppServerClient {
         }
     }
 
+    public func turnStartNative(_ input: [UserInput], threadId: String) async throws {
+        _ = try await turnStart(TurnStartParams(threadId: threadId, input: input))
+    }
+
     public func turnInterrupt(_ params: TurnInterruptParams) async throws -> TurnInterruptResponse {
         try await rpc.request(method: "turn/interrupt", params: params)
     }
@@ -360,6 +364,12 @@ public actor CodexStructuredAgentClient: StructuredAgentClient {
             threadId: currentThreadId,
             input: materialized.inputs
         ))
+    }
+
+    /// Native Codex入力（skillを含む）をそのままapp-serverへ渡す。
+    public func turnStartNative(_ input: [UserInput]) async throws {
+        guard let currentThreadId else { throw CodexStructuredClientError.threadNotStarted }
+        _ = try await client.turnStart(TurnStartParams(threadId: currentThreadId, input: input))
     }
 
     public func setNativeImageInputEnabled(_ enabled: Bool) {

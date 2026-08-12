@@ -11,9 +11,14 @@ public protocol CodexSkillSelectionClient: Sendable {
     func skillsList(_ params: SkillsListParams) async throws -> SkillsListResponse
 }
 
+public protocol CodexNativeSkillInputSending: Sendable {
+    func turnStartNative(_ input: [UserInput]) async throws
+}
+
 extension CodexAppServerClient: CodexSkillSelectionClient {
     public nonisolated var skillEvents: AsyncStream<ThreadEvent> { events }
 }
+extension CodexStructuredAgentClient: CodexNativeSkillInputSending {}
 
 extension CodexStructuredAgentClient: CodexSkillSelectionClient {
     public nonisolated var skillEvents: AsyncStream<ThreadEvent> { threadEvents }

@@ -2294,7 +2294,14 @@ extension ChatSessionViewModel: ControllableSession {
                 clientInput = input
             }
             do {
-                try await client.turnStart(buildChatInputs(text: clientInput))
+                if agentRef == .builtin(.codex),
+                   let native = client as? any CodexNativeSkillInputSending,
+                   let skillInputs = codexSkillSelectionState?.nativeInputs(for: clientInput),
+                   skillInputs.contains(where: { if case .skill = $0 { true } else { false } }) {
+                    try await native.turnStartNative(skillInputs)
+                } else {
+                    try await client.turnStart(buildChatInputs(text: clientInput))
+                }
             } catch {
                 // A3: turnStart 失敗時は status を .idle に戻す（.running 固着を防ぐ）。
                 // reservation（pendingReplayContext）・添付・記録済み userMessage は

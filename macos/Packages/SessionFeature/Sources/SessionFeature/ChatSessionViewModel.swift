@@ -2304,6 +2304,11 @@ public final class ChatSessionViewModel: Identifiable {
                     ChatNativeSessionIDNotification.nativeSessionIDKey: id,
                 ]
             )
+            if agentRef == .builtin(.codex) {
+                Task { @MainActor [weak self] in
+                    await self?.codexSkillSelectionState?.refresh()
+                }
+            }
         }
     }
 
@@ -2340,9 +2345,25 @@ extension ChatSessionViewModel: ControllableSession {
 
     public func sendText(_ text: String, submit: Bool) async throws {
         if submit {
+            let input = pendingInput + text
+            let clientInput: String
+            if let preamble = pendingReplayContext {
+                clientInput = preamble + "\n\n---\n\n" + input
+            } else {
+                clientInput = input
+            }
+            let nativeSkillInputs: [UserInput]?
+            if agentRef == .builtin(.codex), codexSkillSelectionState?.selectedSkill != nil {
+                nativeSkillInputs = codexSkillSelectionState?.nativeInputs(for: clientInput)
+                guard nativeSkillInputs != nil else {
+                    restoreDraftAfterRejectedSend(input)
+                    return
+                }
+            } else {
+                nativeSkillInputs = nil
+            }
             submitBaselineTurnSeq = completedTurnSeq
             clearRunningTurn()
-            let input = pendingInput + text
             let hasAttachments = !attachmentStore.attachments.isEmpty
             if hasAttachments && !attachmentStore.isWithinTotalRawBytesLimit {
                 attachmentStore.setError("画像は合計8MiBまでです")
@@ -2376,17 +2397,10 @@ extension ChatSessionViewModel: ControllableSession {
                 isCompacting = true
             }
             status = .running
-            // リバートで予約された文脈リプレイがあれば、CLI 入力にのみプリアンブルを前置する。
-            let clientInput: String
-            if let preamble = pendingReplayContext {
-                clientInput = preamble + "\n\n---\n\n" + input
-            } else {
-                clientInput = input
-            }
             do {
                 if agentRef == .builtin(.codex),
                    let native = client as? any CodexNativeSkillInputSending,
-                   let skillInputs = codexSkillSelectionState?.nativeInputs(for: clientInput),
+                   let skillInputs = nativeSkillInputs,
                    skillInputs.contains(where: { if case .skill = $0 { true } else { false } }) {
                     try await native.turnStartNative(skillInputs)
                 } else {
@@ -2403,6 +2417,7 @@ extension ChatSessionViewModel: ControllableSession {
             }
             // 単一適用: 送信成功後にクリアする。throw 時は予約を残し、再送で二重付与しない。
             pendingReplayContext = nil
+            codexSkillSelectionState?.clearSelection()
             attachmentStore.clear()
         } else {
             pendingInput += text

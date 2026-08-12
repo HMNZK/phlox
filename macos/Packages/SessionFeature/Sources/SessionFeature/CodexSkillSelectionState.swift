@@ -29,6 +29,7 @@ public final class CodexSkillSelectionState {
     public private(set) var skills: [SkillMetadata] = []
     public private(set) var filteredSkills: [SkillMetadata] = []
     public private(set) var selectedSkill: SkillMetadata?
+    public private(set) var selectedIndex: Int = 0
     public private(set) var draft = ""
     public private(set) var searchTerm = ""
     public private(set) var isLoading = false
@@ -103,6 +104,7 @@ public final class CodexSkillSelectionState {
     public func updateSearchTerm(_ value: String) {
         searchTerm = value
         filteredSkills = Self.filtered(skills, searchTerm: value)
+        selectedIndex = min(selectedIndex, max(filteredSkills.count - 1, 0))
     }
 
     public func search(_ value: String) {
@@ -121,6 +123,7 @@ public final class CodexSkillSelectionState {
             return false
         }
         selectedSkill = current
+        selectedIndex = filteredSkills.firstIndex(where: { Self.sameIdentity($0, current) }) ?? 0
         selectionGeneration = generation
         isStale = false
         return true
@@ -137,6 +140,18 @@ public final class CodexSkillSelectionState {
     public func clearSelection() {
         selectedSkill = nil
         selectionGeneration = nil
+    }
+
+    /// 本番 composer と同じ上下/Enter 操作を surface から利用する seam。
+    public func moveSelection(_ delta: Int) {
+        guard !filteredSkills.isEmpty else { selectedIndex = 0; return }
+        selectedIndex = min(max(selectedIndex + delta, 0), filteredSkills.count - 1)
+    }
+
+    @discardableResult
+    public func acceptSelection() -> Bool {
+        guard filteredSkills.indices.contains(selectedIndex) else { return false }
+        return select(filteredSkills[selectedIndex])
     }
 
     /// 選択を composer に表示する文字列。これは送信 payload ではない。
@@ -158,7 +173,6 @@ public final class CodexSkillSelectionState {
     public func inputs(for value: String? = nil) -> [UserInput]? {
         let text = value ?? draft
         guard let selectedSkill else {
-            guard !isStale else { return nil }
             return text.isEmpty ? [] : [.text(text)]
         }
         guard canSendSelectedSkill else { return nil }

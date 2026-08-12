@@ -32,9 +32,11 @@ struct ChatComposer: View {
         self.controlsLayout = controlsLayout
         self.onSend = onSend
         self.onInterrupt = onInterrupt
-        _suggestionController = State(
-            wrappedValue: ComposerSuggestionController.production(workingDirectory: viewModel.workspacePath)
-        )
+        let controller = ComposerSuggestionController.production(workingDirectory: viewModel.workspacePath)
+        controller.onAcceptSkill = { [weak viewModel] identity in
+            viewModel?.codexSkillSelectionState?.select(name: identity.name, path: identity.path)
+        }
+        _suggestionController = State(wrappedValue: controller)
     }
 
     var body: some View {
@@ -113,10 +115,18 @@ struct ChatComposer: View {
         .padding(DSSpacing.m)
         .onChange(of: text) { oldValue, newValue in
             viewModel.syncAttachmentsWithDraftEdit(oldText: oldValue, newText: newValue)
+            updateCodexSkillSuggestions()
         }
         .onAppear {
             suggestionController.availableSlashCommands = viewModel.availableSlashCommands
             suggestionController.seedSlashCommands = viewModel.seedSlashCommands
+            updateCodexSkillSuggestions()
+        }
+        .onChange(of: viewModel.codexSkillSelectionState?.filteredSkills.map { "\($0.name)\u{0}\($0.path)" }) { _, _ in
+            updateCodexSkillSuggestions()
+        }
+        .onChange(of: viewModel.codexSkillSelectionState?.isStale) { _, _ in
+            updateCodexSkillSuggestions()
         }
         .onChange(of: viewModel.availableSlashCommands) { _, commands in
             suggestionController.availableSlashCommands = commands
@@ -134,6 +144,32 @@ struct ChatComposer: View {
         suggestionController.select(index)
         guard let replacement = suggestionController.acceptSelected() else { return }
         text = ComposerSuggestionTextReplacement.apply(replacement, to: text).text
+    }
+
+    private func updateCodexSkillSuggestions() {
+        guard viewModel.agentRef == .builtin(.codex),
+              let state = viewModel.codexSkillSelectionState,
+              !state.isStale,
+              let query = SuggestionTrigger.query(text: text, cursorUTF16: text.utf16.count),
+              query.kind == .slashCommand
+        else {
+            suggestionController.updateExternalCandidates(nil)
+            return
+        }
+
+        state.search(query.searchTerm)
+        suggestionController.updateExternalCandidates(
+            state.filteredSkills.compactMap { skill in
+                guard skill.enabled, !skill.name.isEmpty, !skill.path.isEmpty else { return nil }
+                return SuggestionCandidate(
+                    title: "/\(skill.name)",
+                    insertionText: "$\(skill.name)",
+                    subtitle: skill.description,
+                    kind: .slashCommand,
+                    skillIdentity: SkillIdentity(name: skill.name, path: skill.path)
+                )
+            }
+        )
     }
 
     private func addPastedImage(data: Data, mediaType: String) -> ComposerPasteImageOutcome {

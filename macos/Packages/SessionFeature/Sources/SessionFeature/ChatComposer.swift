@@ -46,6 +46,13 @@ struct ChatComposer: View {
                 ComposerSuggestionPopup(controller: suggestionController, onAccept: acceptSuggestionFromPopup)
                     .accessibilityIdentifier("ChatComposer.suggestions")
             }
+            if let error = viewModel.codexSkillSelectionState?.errorMessage {
+                Text("Codex skill の取得に失敗しました: \(error)")
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.statusError)
+                    .lineLimit(2)
+                    .accessibilityIdentifier("ChatComposer.codexSkillError")
+            }
             ComposerAttachmentStrip(
                 store: viewModel.attachmentStore,
                 layout: controlsLayout.settingsLayout,

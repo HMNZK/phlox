@@ -54,5 +54,9 @@ struct PMTurnStartFailureTerminalizationTests {
         }
         #expect(!vm.showsProcessingIndicator)
         #expect(vm.status == .idle)
+        #expect(vm.transcript.contains { item in
+            guard case .error(_, let message, _) = item else { return false }
+            return message.contains("ターン開始に失敗しました")
+        })
     }
 }

@@ -153,7 +153,7 @@ private extension NSLock {
         .image(data: Data([4, 5, 6]), mediaType: "image/jpeg"),
     ])
 
-    #expect(await iterator.next() == .warning(message: "画像添付は Claude のみ対応"))
+    #expect(await iterator.next() == .warning(message: "画像添付は Claude と画像対応モデルの Codex に対応"))
     let sent = await transport.sent.all()
     let turnStart = try #require(sent.first { message in
         message["method"]?.stringValue == "turn/start"

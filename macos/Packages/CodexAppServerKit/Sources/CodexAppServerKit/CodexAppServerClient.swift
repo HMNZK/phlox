@@ -362,7 +362,7 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
         guard nativeImageInputEnabled else {
             let hasImages = input.contains { if case .image = $0 { true } else { false } }
             if hasImages {
-                eventContinuation.yield(.warning(message: "画像添付は Claude のみ対応"))
+                eventContinuation.yield(.warning(message: "画像添付は Claude と画像対応モデルの Codex に対応"))
             }
             _ = try await client.turnStart(TurnStartParams(
                 threadId: currentThreadId,

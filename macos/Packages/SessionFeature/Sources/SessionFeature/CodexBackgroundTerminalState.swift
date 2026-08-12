@@ -198,7 +198,10 @@ public final class CodexBackgroundTerminalState {
               let terminal = terminal(itemId: itemId),
               let threadId,
               !threadId.isEmpty
-        else { return false }
+        else {
+            errorMessage = "背景ターミナルを停止できませんでした"
+            return false
+        }
         let generation = threadGeneration
 
         terminatingItemIds.insert(itemId)
@@ -210,7 +213,10 @@ public final class CodexBackgroundTerminalState {
 
         do {
             let response = try await terminateRequest(threadId, terminal.processId)
-            guard response.terminated else { return false }
+            guard response.terminated else {
+                errorMessage = "背景ターミナルを停止できませんでした"
+                return false
+            }
 
             // terminate=true でも必ず同じ thread の一覧を再取得して確認する。
             let fetched = try await listRequest(threadId)
@@ -229,6 +235,8 @@ public final class CodexBackgroundTerminalState {
                 if selectedItemId == itemId {
                     selectedItemId = nil
                 }
+            } else {
+                errorMessage = "背景ターミナルの停止を確認できませんでした"
             }
             return confirmed
         } catch {

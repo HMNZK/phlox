@@ -114,7 +114,11 @@ struct GridChatColumn: View {
     private func sendDraft() {
         guard let text = viewModel.consumeDraftForSend() else { return }
         Task {
-            try? await viewModel.sendText(text, submit: true)
+            do {
+                try await viewModel.sendText(text, submit: true)
+            } catch {
+                viewModel.reportError("ターン開始に失敗しました: \(error)")
+            }
         }
     }
 
@@ -189,6 +193,13 @@ struct GridComposerBar: View {
             if suggestionController.isPresented {
                 ComposerSuggestionPopup(controller: suggestionController, onAccept: acceptSuggestionFromPopup)
                     .accessibilityIdentifier("GridComposer.suggestions")
+            }
+            if let error = viewModel.codexSkillSelectionState?.errorMessage {
+                Text("Codex skill の取得に失敗しました: \(error)")
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.statusError)
+                    .lineLimit(2)
+                    .accessibilityIdentifier("GridComposer.codexSkillError")
             }
             ComposerAttachmentStrip(
                 store: viewModel.attachmentStore,

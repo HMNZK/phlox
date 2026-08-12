@@ -142,7 +142,7 @@ func composerAttachment_nonClaudeImageOnlySendIsBlockedAndKeepsAttachments() asy
 
     #expect(client.receivedInputs.isEmpty)
     #expect(viewModel.attachmentStore.attachments.count == 1)
-    #expect(viewModel.attachmentStore.lastError == "画像添付は Claude のみ対応です")
+    #expect(viewModel.attachmentStore.lastError == "画像添付は Claude と画像対応モデルの Codex に対応しています")
 }
 
 @Test @MainActor

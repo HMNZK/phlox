@@ -151,7 +151,7 @@ enum ComposerPastePolicy {
 }
 
 enum ComposerAttachmentCapability {
-    static let unsupportedImageMessage = "画像添付は Claude のみ対応です"
+    static let unsupportedImageMessage = "画像添付は Claude と Codex に対応しています"
 
     static func supportsImageAttachments(agentRef: AgentRef) -> Bool {
         agentRef == .builtin(.claudeCode) || agentRef == .builtin(.codex)

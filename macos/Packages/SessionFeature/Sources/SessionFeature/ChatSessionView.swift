@@ -43,7 +43,11 @@ public struct ChatSessionView: View {
                         canSendFollowUp: viewModel.isReadyForInput,
                         onSendFollowUp: { text in
                             Task {
-                                try? await viewModel.sendSubAgentFollowUp(subAgent: selectedSubAgent, text: text)
+                                do {
+                                    try await viewModel.sendSubAgentFollowUp(subAgent: selectedSubAgent, text: text)
+                                } catch {
+                                    viewModel.reportError("サブエージェントへの送信に失敗しました: \(error)")
+                                }
                             }
                         },
                         onClose: { viewModel.selectSubAgent(nil) }
@@ -266,7 +270,11 @@ public struct ChatSessionView: View {
     private func sendDraft() {
         guard let text = viewModel.consumeDraftForSend() else { return }
         Task {
-            try? await viewModel.sendText(text, submit: true)
+            do {
+                try await viewModel.sendText(text, submit: true)
+            } catch {
+                viewModel.reportError("ターン開始に失敗しました: \(error)")
+            }
         }
     }
 

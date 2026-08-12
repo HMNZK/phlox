@@ -107,22 +107,37 @@ public final class CodexSessionHistory {
         return try await read(threadID: selectedThreadID)
     }
 
+    /// UI から呼ぶ読み取り。失敗は `errorMessage` に保持して surface へ表示する。
+    public func readIfPossible(threadID: String) async -> ThreadSummary? {
+        do {
+            return try await read(threadID: threadID)
+        } catch {
+            return nil
+        }
+    }
+
     public func read(threadID: String) async throws -> ThreadSummary {
         selectionGeneration += 1
         let selection = selectionGeneration
-        let response = try await client.threadRead(ThreadReadParams(threadId: threadID, includeTurns: true))
-        guard response.thread.id == threadID else {
-            throw CodexAppServerClientError.threadIDMismatch(
-                requested: threadID,
-                received: response.thread.id
-            )
-        }
-        guard selection == selectionGeneration,
-              selectedThreadID == nil || selectedThreadID == threadID else {
+        do {
+            let response = try await client.threadRead(ThreadReadParams(threadId: threadID, includeTurns: true))
+            guard response.thread.id == threadID else {
+                throw CodexAppServerClientError.threadIDMismatch(
+                    requested: threadID,
+                    received: response.thread.id
+                )
+            }
+            guard selection == selectionGeneration,
+                  selectedThreadID == nil || selectedThreadID == threadID else {
+                return response.thread
+            }
+            update(thread: response.thread)
+            errorMessage = nil
             return response.thread
+        } catch {
+            errorMessage = String(describing: error)
+            throw error
         }
-        update(thread: response.thread)
-        return response.thread
     }
 
     public func read(threadId: String) async throws -> ThreadSummary {
@@ -134,25 +149,40 @@ public final class CodexSessionHistory {
         return try await resume(threadID: selectedThreadID)
     }
 
+    /// UI から呼ぶ再開。失敗は `errorMessage` に保持して surface へ表示する。
+    public func resumeIfPossible(threadID: String) async -> ThreadSummary? {
+        do {
+            return try await resume(threadID: threadID)
+        } catch {
+            return nil
+        }
+    }
+
     public func resume(threadID: String) async throws -> ThreadSummary {
         selectionGeneration += 1
         let selection = selectionGeneration
-        let response = try await client.threadResume(
-            ThreadResumeParams(threadId: threadID, cwd: workingDirectory)
-        )
-        guard response.thread.id == threadID else {
-            throw CodexAppServerClientError.threadIDMismatch(
-                requested: threadID,
-                received: response.thread.id
+        do {
+            let response = try await client.threadResume(
+                ThreadResumeParams(threadId: threadID, cwd: workingDirectory)
             )
-        }
-        guard selection == selectionGeneration,
-              selectedThreadID == nil || selectedThreadID == threadID else {
+            guard response.thread.id == threadID else {
+                throw CodexAppServerClientError.threadIDMismatch(
+                    requested: threadID,
+                    received: response.thread.id
+                )
+            }
+            guard selection == selectionGeneration,
+                  selectedThreadID == nil || selectedThreadID == threadID else {
+                return response.thread
+            }
+            selectedThreadID = threadID
+            update(thread: response.thread)
+            errorMessage = nil
             return response.thread
+        } catch {
+            errorMessage = String(describing: error)
+            throw error
         }
-        selectedThreadID = threadID
-        update(thread: response.thread)
-        return response.thread
     }
 
     public func resume(threadId: String) async throws -> ThreadSummary {

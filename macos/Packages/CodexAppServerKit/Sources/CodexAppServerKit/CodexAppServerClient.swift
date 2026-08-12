@@ -308,6 +308,8 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
     private let client: CodexAppServerClient
     private var bridgeTask: Task<Void, Never>?
     private var currentThreadId: String?
+    /// 子 thread 停止を要求済みで、親 thread の filter を越えてよい完了だけを保持する。
+    private var pendingChildInterrupts: [String: String] = [:]
     private var nativeImageInputEnabled = false
     private var imageInputWriter: (@Sendable (Data, URL) throws -> Void)?
     /// resetConversation で新規 thread を開始し直すために、直近の thread/start 引数を保持する。
@@ -399,6 +401,7 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
 
     public func resume(sessionRef: String) async throws {
         let params = ThreadResumeParams(threadId: sessionRef)
+        pendingChildInterrupts.removeAll()
         let response = try await client.threadResume(params)
         currentThreadId = response.thread.id
         lastThreadStartParams = Self.threadStartParams(from: params)
@@ -440,8 +443,10 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
     public func resetConversation() async {
         guard let params = lastThreadStartParams else {
             currentThreadId = nil
+            pendingChildInterrupts.removeAll()
             return
         }
+        pendingChildInterrupts.removeAll()
         do {
             let response = try await client.threadStart(params)
             currentThreadId = response.thread.id
@@ -461,11 +466,13 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
         // reset 後も app-server 上で生き残る旧 thread の遅延イベントを source で遮断する。
         // 現在の thread が確定していて（currentThreadId != nil）、イベントの thread id が
         // それと異なるなら、旧 thread 由来なので両ストリームへ流さない（normalized delta も含む）。
+        // ただし子停止を要求済みの場合だけ、要求した turn の interrupted 完了を通す。
         // currentThreadId 未確定（起動直後）や thread id を持たないイベントは通す（正常経路を壊さない）。
         if let currentThreadId,
            let eventThreadId = Self.threadId(of: event),
            !eventThreadId.isEmpty,
-           eventThreadId != currentThreadId {
+           eventThreadId != currentThreadId,
+           !acceptsPendingChildInterruptCompletion(event, threadId: eventThreadId) {
             return
         }
         orderedEventContinuation.yield(.thread(event))
@@ -507,6 +514,17 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
         eventContinuation.finish()
         threadEventContinuation.finish()
         orderedEventContinuation.finish()
+    }
+
+    private func acceptsPendingChildInterruptCompletion(_ event: ThreadEvent, threadId: String) -> Bool {
+        guard let expectedTurnId = pendingChildInterrupts[threadId],
+              case .turnCompleted(_, let turn) = event,
+              turn.id == expectedTurnId,
+              turn.status == "interrupted"
+        else { return false }
+
+        pendingChildInterrupts.removeValue(forKey: threadId)
+        return true
     }
 }
 
@@ -582,6 +600,7 @@ extension CodexStructuredAgentClient {
     }
 
     public func threadStart(_ params: ThreadStartParams) async throws -> ThreadResponse {
+        pendingChildInterrupts.removeAll()
         let response = try await client.threadStart(params)
         currentThreadId = response.thread.id
         lastThreadStartParams = params
@@ -589,6 +608,7 @@ extension CodexStructuredAgentClient {
     }
 
     public func threadResume(_ params: ThreadResumeParams) async throws -> ThreadResponse {
+        pendingChildInterrupts.removeAll()
         let response = try await client.threadResume(params)
         currentThreadId = response.thread.id
         // 復元セッションでも reset で新 thread を開始できるよう、再開始可能な引数を捕捉する。
@@ -597,9 +617,7 @@ extension CodexStructuredAgentClient {
     }
 
     public func threadRead(_ params: ThreadReadParams) async throws -> ThreadReadResponse {
-        let response = try await client.threadRead(params)
-        currentThreadId = response.thread.id
-        return response
+        try await client.threadRead(params)
     }
 
     public func threadList(_ params: ThreadListParams = ThreadListParams()) async throws -> ThreadListResponse {
@@ -608,7 +626,15 @@ extension CodexStructuredAgentClient {
 
     /// 子 thread 専用。`interrupt()` は現在の親 thread 用なので流用しない。
     public func turnInterrupt(_ params: TurnInterruptParams) async throws -> TurnInterruptResponse {
-        try await client.turnInterrupt(params)
+        pendingChildInterrupts[params.threadId] = params.turnId
+        do {
+            return try await client.turnInterrupt(params)
+        } catch {
+            if pendingChildInterrupts[params.threadId] == params.turnId {
+                pendingChildInterrupts.removeValue(forKey: params.threadId)
+            }
+            throw error
+        }
     }
 
     public func skillsList(_ params: SkillsListParams = SkillsListParams()) async throws -> SkillsListResponse {

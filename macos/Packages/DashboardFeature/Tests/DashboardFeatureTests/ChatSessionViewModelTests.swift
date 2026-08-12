@@ -1021,7 +1021,7 @@ func chatSessionViewModel_turnStartedWithoutSpawnSettingsChangeKeepsBackgroundTa
 }
 
 @Test @MainActor
-func chatSessionViewModel_backgroundTasksStayEmptyForCursorAndCodexSessions() async throws {
+func chatSessionViewModel_backgroundTasksStayEmptyForCursorSessions() async throws {
     let cursorClient = EventYieldingStructuredClient()
     let cursor = ChatSessionViewModel(
         id: SessionID(),
@@ -1040,25 +1040,6 @@ func chatSessionViewModel_backgroundTasksStayEmptyForCursorAndCodexSessions() as
     ))
     try await waitUntil { cursor.rawEventLog.count >= 1 }
     #expect(cursor.runningBackgroundTasks.isEmpty)
-
-    let codexClient = EventYieldingStructuredClient()
-    let codex = ChatSessionViewModel(
-        id: SessionID(),
-        agentRef: .builtin(.codex),
-        client: codexClient,
-        approvalBroker: ChatApprovalBroker(),
-        workingDirectory: "/tmp/work"
-    )
-    try await codex.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
-
-    codexClient.yield(.backgroundTaskStarted(
-        taskId: "codex-task",
-        taskType: "local_agent",
-        description: "ignored",
-        toolUseId: "codex-tool"
-    ))
-    try await waitUntil { codex.rawEventLog.count >= 1 }
-    #expect(codex.runningBackgroundTasks.isEmpty)
 }
 
 @Test @MainActor
@@ -1864,8 +1845,10 @@ func chatSessionViewModel_turnInterruptedDoesNotIncrementCompletedTurnSeq() asyn
     """)
     try await waitUntil { vm.status == .running }
 
+    // 停止完了は非schemaの turn/interrupted ではなく、正式な turn/completed payload
+    // の interrupted status で通知される。
     transport.receive("""
-    {"jsonrpc":"2.0","method":"turn/interrupted","params":{"threadId":"thread-1","turnId":"turn-1"}}
+    {"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"thread-1","turn":{"id":"turn-1","status":"interrupted"}}}
     """)
 
     try await waitUntil { vm.status == .idle }

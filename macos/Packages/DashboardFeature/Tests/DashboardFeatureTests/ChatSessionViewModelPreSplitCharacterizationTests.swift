@@ -215,7 +215,7 @@ func characterization_backgroundTaskUpsert_updatesExistingTaskInPlace() async th
 }
 
 @Test @MainActor
-func characterization_nonClaudeBackgroundTaskEvent_clearsTrackedTasks() async throws {
+func characterization_claudeAndCodexBackgroundTaskEvent_preservesExactTrackedTasks() async throws {
     let claudeClient = EventYieldingStructuredClient()
     let claude = ChatSessionViewModel(
         id: SessionID(),
@@ -250,8 +250,19 @@ func characterization_nonClaudeBackgroundTaskEvent_clearsTrackedTasks() async th
     ))
     try await waitUntil { codex.rawEventLog.count >= 1 }
 
-    #expect(claude.runningBackgroundTasks.map(\.taskId) == ["tracked-task"])
-    #expect(codex.runningBackgroundTasks.isEmpty)
+    let claudeTask = try #require(claude.runningBackgroundTasks.first)
+    #expect(claude.runningBackgroundTasks.count == 1)
+    #expect(claudeTask.taskId == "tracked-task")
+    #expect(claudeTask.taskType == "local_bash")
+    #expect(claudeTask.description == "tracked")
+    #expect(claudeTask.toolUseId == "tool-tracked")
+
+    let codexTask = try #require(codex.runningBackgroundTasks.first)
+    #expect(codex.runningBackgroundTasks.count == 1)
+    #expect(codexTask.taskId == "ignored-task")
+    #expect(codexTask.taskType == "local_bash")
+    #expect(codexTask.description == "ignored")
+    #expect(codexTask.toolUseId == "tool-ignored")
 }
 
 // MARK: - C6 reapplyPersistedSettings

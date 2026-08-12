@@ -196,11 +196,9 @@ public final class CodexSessionHistory {
                     received: thread.id
                 )
             }
-            guard selection == selectionGeneration,
-                  selectedThreadID == nil || selectedThreadID == threadID else {
+            guard selection == selectionGeneration else {
                 return thread
             }
-            selectedThreadID = threadID
             update(thread: thread)
             errorMessage = nil
             return thread

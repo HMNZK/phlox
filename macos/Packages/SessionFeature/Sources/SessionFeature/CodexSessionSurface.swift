@@ -88,8 +88,7 @@ struct CodexSessionSurface: View {
                                     .accessibilityIdentifier("CodexHistory.row.\(thread.id)")
                                     Button("再開") {
                                         Task {
-                                            guard history.select(threadID: thread.id),
-                                                  let resumed = await history.resumeIfPossible(threadID: thread.id)
+                                            guard let resumed = await history.resumeIfPossible(threadID: thread.id)
                                             else { return }
                                             viewModel.applyCodexHistory(resumed)
                                         }

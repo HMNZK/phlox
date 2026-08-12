@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import Testing
 import AgentDomain
 import StructuredChatKit
@@ -29,14 +30,55 @@ struct AcceptanceCodexChatParityRouteTests {
         func yield(_ event: NormalizedChatEvent) { continuation.yield(event) }
     }
 
-    private func waitUntil(
+    private enum ObservationWaitError: Error {
+        case timedOut
+    }
+
+    private func awaitObservation(
         timeout: Duration = .seconds(2),
-        _ condition: @escaping () -> Bool
-    ) async {
-        let deadline = ContinuousClock.now.advanced(by: timeout)
-        while ContinuousClock.now < deadline {
-            if condition() { return }
-            try? await Task.sleep(for: .milliseconds(10))
+        observing: @escaping () -> Void,
+        trigger: () -> Void
+    ) async throws {
+        let (changes, continuation) = AsyncStream<Void>.makeStream()
+        withObservationTracking {
+            observing()
+        } onChange: {
+            continuation.yield()
+            continuation.finish()
+        }
+        trigger()
+        defer { continuation.finish() }
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask {
+                var iterator = changes.makeAsyncIterator()
+                guard await iterator.next() != nil else {
+                    throw ObservationWaitError.timedOut
+                }
+            }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                throw ObservationWaitError.timedOut
+            }
+            defer { group.cancelAll() }
+            guard try await group.next() != nil else {
+                throw ObservationWaitError.timedOut
+            }
+        }
+    }
+
+    private func withRemovedSession<T>(
+        _ dashboard: DashboardViewModel,
+        id: SessionID,
+        operation: () async throws -> T
+    ) async throws -> T {
+        do {
+            let result = try await operation()
+            _ = await dashboard.removeSession(id)
+            return result
+        } catch {
+            _ = await dashboard.removeSession(id)
+            throw error
         }
     }
 
@@ -54,47 +96,50 @@ struct AcceptanceCodexChatParityRouteTests {
         await dashboard.start()
 
         let sessionID = try await dashboard.spawnNewSession(kind: .codex, backend: .appServer)
-        let node = try #require(dashboard.sessionNode(id: sessionID))
-        guard case .appServer(let chat) = node else {
-            Issue.record("Codex app-server spawn が ChatSessionView の node になっていない")
-            return
-        }
-
-        let router = AppRouter(viewMode: .team)
-        router.openSingle(sessionID: sessionID)
-        #expect(router.viewMode == .single)
-        #expect(router.selectedSession == sessionID)
-        #expect(chat.agentRef == .builtin(.codex))
-
-        // 実セッションの event stream を通して、route 先で task/background/sub-agent
-        // の surface が更新されることを確認する。View の存在だけは検査しない。
-        client.yield(.taskListUpdated(tasks: [
-            AgentTaskItem(id: "route-plan", title: "route", status: .inProgress),
-        ]))
-        client.yield(.backgroundTaskStarted(
-            taskId: "route-process",
-            taskType: "backgroundTerminal",
-            description: "route command",
-            toolUseId: "route-item"
-        ))
-        client.yield(.subAgentStarted(
-            toolUseId: "route-child",
-            subagentType: "worker",
-            description: "route child"
-        ))
-
-        await waitUntil {
-            chat.subAgents.contains { $0.id == "route-child" }
-        }
-
-        #expect(chat.transcript.contains { item in
-            if case .taskList(_, let tasks, _) = item {
-                return tasks.map(\.id) == ["route-plan"]
+        try await withRemovedSession(dashboard, id: sessionID) {
+            let node = try #require(dashboard.sessionNode(id: sessionID))
+            guard case .appServer(let chat) = node else {
+                Issue.record("Codex app-server spawn が ChatSessionView の node になっていない")
+                return
             }
-            return false
-        })
-        #expect(chat.runningBackgroundTasks.contains { $0.taskId == "route-process" },
-                "Dashboard route から Codex background terminal を一覧 surface へ届けること")
-        #expect(chat.subAgents.contains { $0.id == "route-child" })
+
+            let router = AppRouter(viewMode: .team)
+            router.openSingle(sessionID: sessionID)
+            #expect(router.viewMode == .single)
+            #expect(router.selectedSession == sessionID)
+            #expect(chat.agentRef == .builtin(.codex))
+
+            // 実セッションの event stream を通して、route 先で task/background/sub-agent
+            // の surface が更新されることを確認する。View の存在だけは検査しない。
+            try await awaitObservation(
+                observing: { _ = chat.subAgents },
+                trigger: {
+                    client.yield(.taskListUpdated(tasks: [
+                        AgentTaskItem(id: "route-plan", title: "route", status: .inProgress),
+                    ]))
+                    client.yield(.backgroundTaskStarted(
+                        taskId: "route-process",
+                        taskType: "backgroundTerminal",
+                        description: "route command",
+                        toolUseId: "route-item"
+                    ))
+                    client.yield(.subAgentStarted(
+                        toolUseId: "route-child",
+                        subagentType: "worker",
+                        description: "route child"
+                    ))
+                }
+            )
+
+            #expect(chat.transcript.contains { item in
+                if case .taskList(_, let tasks, _) = item {
+                    return tasks.map(\.id) == ["route-plan"]
+                }
+                return false
+            })
+            #expect(chat.runningBackgroundTasks.contains { $0.taskId == "route-process" },
+                    "Dashboard route から Codex background terminal を一覧 surface へ届けること")
+            #expect(chat.subAgents.contains { $0.id == "route-child" })
+        }
     }
 }

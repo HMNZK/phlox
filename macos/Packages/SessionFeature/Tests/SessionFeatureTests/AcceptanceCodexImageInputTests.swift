@@ -77,22 +77,39 @@ struct AcceptanceCodexImageInputTests {
             workingDirectory: "/tmp/phlox-codex-image"
         )
 
-        try await viewModel.startNew(
-            approvalPolicy: .named("on-request"),
-            sandbox: .named("workspace-write")
-        )
-
-        #expect(viewModel.availableModels == [model])
-        #expect(viewModel.availableModels.first?.inputModalities == ["text", "future-image"])
-        #expect(viewModel.acceptsImageAttachments == false)
-        await #expect(throws: ChatSessionViewModel.ControlImageSendError.imagesUnsupported) {
-            try await viewModel.sendTextWithControlImages(
-                "画像を送る",
-                submit: true,
-                images: [(mediaType: "image/png", data: png)]
+        try await withTerminatedViewModel(viewModel) {
+            try await viewModel.startNew(
+                approvalPolicy: .named("on-request"),
+                sandbox: .named("workspace-write")
             )
+
+            #expect(viewModel.availableModels == [model])
+            #expect(viewModel.availableModels.first?.inputModalities == ["text", "future-image"])
+            #expect(viewModel.acceptsImageAttachments == false)
+            await #expect(throws: ChatSessionViewModel.ControlImageSendError.imagesUnsupported) {
+                try await viewModel.sendTextWithControlImages(
+                    "画像を送る",
+                    submit: true,
+                    images: [(mediaType: "image/png", data: png)]
+                )
+            }
+            #expect(viewModel.attachmentStore.attachments.isEmpty)
         }
-        #expect(viewModel.attachmentStore.attachments.isEmpty)
+    }
+
+    @MainActor
+    private func withTerminatedViewModel<T>(
+        _ viewModel: ChatSessionViewModel,
+        operation: () async throws -> T
+    ) async throws -> T {
+        do {
+            let result = try await operation()
+            await viewModel.terminate()
+            return result
+        } catch {
+            await viewModel.terminate()
+            throw error
+        }
     }
 }
 

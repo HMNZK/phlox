@@ -263,53 +263,6 @@ struct AcceptanceCodexChatParityIntegrationTests {
         func messages() async -> [JSONValue] { await recorder.snapshot }
     }
 
-    private func waitForStopState(_ viewModel: ChatSessionViewModel, threadID: String) async {
-        guard viewModel.codexSubAgentState?.stopState(for: threadID) != .stopped else { return }
-        await withCheckedContinuation { continuation in
-            let waiter = StopStateWaiter(
-                viewModel: viewModel,
-                threadID: threadID,
-                continuation: continuation
-            )
-            waiter.arm()
-        }
-    }
-
-    @MainActor
-    private final class StopStateWaiter {
-        private let viewModel: ChatSessionViewModel
-        private let threadID: String
-        private var continuation: CheckedContinuation<Void, Never>?
-        private var resumed = false
-
-        init(
-            viewModel: ChatSessionViewModel,
-            threadID: String,
-            continuation: CheckedContinuation<Void, Never>
-        ) {
-            self.viewModel = viewModel
-            self.threadID = threadID
-            self.continuation = continuation
-        }
-
-        func arm() {
-            guard !resumed else { return }
-            if viewModel.codexSubAgentState?.stopState(for: threadID) == .stopped {
-                resumed = true
-                continuation?.resume()
-                continuation = nil
-                return
-            }
-            withObservationTracking {
-                _ = viewModel.codexSubAgentState?.stopState(for: threadID)
-            } onChange: { [self] in
-                Task { @MainActor [self] in
-                    arm()
-                }
-            }
-        }
-    }
-
     private func makeCodexVM(
         client: any StructuredAgentClient = RecordingClient(),
         historyProvider: (@Sendable () -> [ClaudeSessionHistoryEntry])? = nil,
@@ -326,14 +279,54 @@ struct AcceptanceCodexChatParityIntegrationTests {
         )
     }
 
-    private func waitUntil(
+    private enum ObservationWaitError: Error {
+        case timedOut
+    }
+
+    private func awaitObservation(
         timeout: Duration = .seconds(2),
-        _ condition: @escaping () -> Bool
-    ) async {
-        let deadline = ContinuousClock.now.advanced(by: timeout)
-        while ContinuousClock.now < deadline {
-            if condition() { return }
-            try? await Task.sleep(for: .milliseconds(10))
+        observing: @escaping () -> Void,
+        trigger: () -> Void
+    ) async throws {
+        let (changes, continuation) = AsyncStream<Void>.makeStream()
+        withObservationTracking {
+            observing()
+        } onChange: {
+            continuation.yield()
+            continuation.finish()
+        }
+        trigger()
+        defer { continuation.finish() }
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask {
+                var iterator = changes.makeAsyncIterator()
+                guard await iterator.next() != nil else {
+                    throw ObservationWaitError.timedOut
+                }
+            }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                throw ObservationWaitError.timedOut
+            }
+            defer { group.cancelAll() }
+            guard try await group.next() != nil else {
+                throw ObservationWaitError.timedOut
+            }
+        }
+    }
+
+    private func withTerminatedViewModel<T>(
+        _ viewModel: ChatSessionViewModel,
+        operation: () async throws -> T
+    ) async throws -> T {
+        do {
+            let result = try await operation()
+            await viewModel.terminate()
+            return result
+        } catch {
+            await viewModel.terminate()
+            throw error
         }
     }
 
@@ -370,14 +363,21 @@ struct AcceptanceCodexChatParityIntegrationTests {
             }
         )
 
-        await waitUntil { viewModel.historyEntries == [entry] }
-        #expect(viewModel.historyEntries == [entry], "Codex 履歴一覧が現在の session cwd の結果を保持すること")
-        #expect(viewModel.shouldOfferHistoryStart, "Codex の新規チャットでも履歴から再開を提示すること")
+        try await withTerminatedViewModel(viewModel) {
+            // startNew は履歴キャッシュのロード完了を待つため、polling を使わず
+            // 起動経路自身の完了をバリアとして利用する。
+            try await viewModel.startNew(
+                approvalPolicy: .named("on-request"),
+                sandbox: .named("workspace-write")
+            )
+            #expect(viewModel.historyEntries == [entry], "Codex 履歴一覧が現在の session cwd の結果を保持すること")
+            #expect(viewModel.shouldOfferHistoryStart, "Codex の新規チャットでも履歴から再開を提示すること")
 
-        await viewModel.startFromHistory(entry)
-        #expect(await client.resumes == [entry.sessionID], "選択した履歴 ID だけを resume へ渡すこと")
-        #expect(viewModel.threadId == entry.sessionID, "resume 成功後の current thread ID が選択 ID と一致すること")
-        #expect(viewModel.transcript.contains { $0.id == "history-agent" })
+            await viewModel.startFromHistory(entry)
+            #expect(await client.resumes == [entry.sessionID], "選択した履歴 ID だけを resume へ渡すこと")
+            #expect(viewModel.threadId == entry.sessionID, "resume 成功後の current thread ID が選択 ID と一致すること")
+            #expect(viewModel.transcript.contains { $0.id == "history-agent" })
+        }
     }
 
     @Test("Codex の plan/background/sub-agent 通知は別 surface を混線させない")
@@ -385,39 +385,41 @@ struct AcceptanceCodexChatParityIntegrationTests {
         let client = RecordingClient()
         let viewModel = makeCodexVM(client: client)
 
-        client.yield(.turnStarted)
-        client.yield(.taskListUpdated(tasks: [
-            AgentTaskItem(id: "plan-1", title: "履歴を接続", status: .inProgress),
-            AgentTaskItem(id: "plan-2", title: "UIを更新", status: .pending),
-        ]))
-        client.yield(.backgroundTaskStarted(
-            taskId: "process-1",
-            taskType: "backgroundTerminal",
-            description: "npm test",
-            toolUseId: "item-1"
-        ))
-        client.yield(.subAgentStarted(
-            toolUseId: "child-thread-1",
-            subagentType: "explorer",
-            description: "Codex child thread"
-        ))
-        client.yield(.subAgentOutput(toolUseId: "child-thread-1", text: "child-only-output"))
-        client.yield(.turnCompleted(nativeSessionId: "codex-thread-1"))
+        try await withTerminatedViewModel(viewModel) {
+            try await awaitObservation(
+                observing: { _ = viewModel.completedTurnSeq },
+                trigger: {
+                    client.yield(.turnStarted)
+                    client.yield(.taskListUpdated(tasks: [
+                        AgentTaskItem(id: "plan-1", title: "履歴を接続", status: .inProgress),
+                        AgentTaskItem(id: "plan-2", title: "UIを更新", status: .pending),
+                    ]))
+                    client.yield(.backgroundTaskStarted(
+                        taskId: "process-1",
+                        taskType: "backgroundTerminal",
+                        description: "npm test",
+                        toolUseId: "item-1"
+                    ))
+                    client.yield(.subAgentStarted(
+                        toolUseId: "child-thread-1",
+                        subagentType: "explorer",
+                        description: "Codex child thread"
+                    ))
+                    client.yield(.subAgentOutput(toolUseId: "child-thread-1", text: "child-only-output"))
+                    client.yield(.turnCompleted(nativeSessionId: "codex-thread-1"))
+                }
+            )
 
-        await waitUntil {
-            taskCards(in: viewModel).count == 1
-                && viewModel.subAgents.contains { $0.id == "child-thread-1" }
+            #expect(taskCards(in: viewModel).count == 1)
+            #expect(taskCards(in: viewModel).first?.map(\.id) == ["plan-1", "plan-2"])
+            #expect(viewModel.runningBackgroundTasks.contains { $0.taskId == "process-1" },
+                    "Codex background terminal が親 turn 完了で消えず、一覧 surface に残ること")
+            #expect(!viewModel.transcript.contains { $0.plainText.contains("child-only-output") },
+                    "child output を親 transcript へ混ぜないこと")
+            #expect(viewModel.subAgentTranscript(for: "child-thread-1").contains {
+                $0.plainText.contains("child-only-output")
+            })
         }
-
-        #expect(taskCards(in: viewModel).count == 1)
-        #expect(taskCards(in: viewModel).first?.map(\.id) == ["plan-1", "plan-2"])
-        #expect(viewModel.runningBackgroundTasks.contains { $0.taskId == "process-1" },
-                "Codex background terminal が親 turn 完了で消えず、一覧 surface に残ること")
-        #expect(!viewModel.transcript.contains { $0.plainText.contains("child-only-output") },
-                "child output を親 transcript へ混ぜないこと")
-        #expect(viewModel.subAgentTranscript(for: "child-thread-1").contains {
-            $0.plainText.contains("child-only-output")
-        })
     }
 
     @Test("Codex 画像入力は app-server wire で画像を捨てない")
@@ -426,36 +428,36 @@ struct AcceptanceCodexChatParityIntegrationTests {
         let appServer = CodexAppServerClient(transport: transport)
         let adapter = CodexStructuredAgentClient(client: appServer)
         let viewModel = makeCodexVM(client: adapter)
-        try await viewModel.startNew(
-            approvalPolicy: .named("on-request"),
-            sandbox: .named("workspace-write")
-        )
-        #expect(viewModel.availableModels.map(\.id) == ["gpt-5-codex"])
-        let attachment = Data([0x89, 0x50, 0x4E, 0x47])
-        #expect(viewModel.attachmentStore.addImage(
-            data: attachment,
-            mediaType: "image/png",
-            filename: "evidence.png"
-        ) != nil)
+        try await withTerminatedViewModel(viewModel) {
+            try await viewModel.startNew(
+                approvalPolicy: .named("on-request"),
+                sandbox: .named("workspace-write")
+            )
+            #expect(viewModel.availableModels.map(\.id) == ["gpt-5-codex"])
+            let attachment = Data([0x89, 0x50, 0x4E, 0x47])
+            #expect(viewModel.attachmentStore.addImage(
+                data: attachment,
+                mediaType: "image/png",
+                filename: "evidence.png"
+            ) != nil)
 
-        try await viewModel.sendText("画像を確認", submit: true)
+            try await viewModel.sendText("画像を確認", submit: true)
 
-        let messages = await transport.messages()
-        let request = try #require(messages.first { message in
-            message["method"]?.stringValue == "turn/start"
-        })
-        let input = try #require(request["params"]?["input"])
-        guard case .array(let values) = input else {
-            Issue.record("turn/start input が配列でない")
-            return
+            let messages = await transport.messages()
+            let request = try #require(messages.first { message in
+                message["method"]?.stringValue == "turn/start"
+            })
+            let input = try #require(request["params"]?["input"])
+            guard case .array(let values) = input else {
+                Issue.record("turn/start input が配列でない")
+                return
+            }
+            #expect(values.count == 2, "text と native image の2要素を wire へ送ること")
+            #expect(values.contains { value in
+                value["type"]?.stringValue == "localImage"
+                    || value["type"]?.stringValue == "image"
+            }, "画像要素を text-only へ丸めないこと")
         }
-        #expect(values.count == 2, "text と native image の2要素を wire へ送ること")
-        #expect(values.contains { value in
-            value["type"]?.stringValue == "localImage"
-                || value["type"]?.stringValue == "image"
-        }, "画像要素を text-only へ丸めないこと")
-
-        await adapter.close()
     }
 
     @Test("Codex 子 thread の詳細読込と停止は実 app-server RPC を通る")
@@ -464,47 +466,51 @@ struct AcceptanceCodexChatParityIntegrationTests {
         let appServer = CodexAppServerClient(transport: transport)
         let adapter = CodexStructuredAgentClient(client: appServer)
         let viewModel = makeCodexVM(client: adapter)
-        try await viewModel.startNew(
-            approvalPolicy: .named("on-request"),
-            sandbox: .named("workspace-write")
-        )
+        try await withTerminatedViewModel(viewModel) {
+            try await viewModel.startNew(
+                approvalPolicy: .named("on-request"),
+                sandbox: .named("workspace-write")
+            )
 
-        await viewModel.refreshCodexSubAgents()
-        #expect(viewModel.codexSubAgentState?.children.map(\.id) == [
-            "codex-child-1",
-            "codex-child-2",
-        ])
-        let children = try #require(viewModel.codexSubAgentState?.children)
-        #expect(children.map(\.id) == ["codex-child-1", "codex-child-2"],
-                "重複 child は初回の配列位置を維持すること")
-        #expect(children.map(\.summary) == ["latest child summary", "second child summary"],
-                "同一 ID の child は最新 content を採用すること")
-        #expect(children.first?.status == "idle",
-                "同一 ID の child は最新 status を採用すること")
-        #expect(children.first?.activeTurnId == nil,
-                "同一 ID の child は最新 turn を採用すること")
-        #expect(children.last?.activeTurnId == "codex-child-2-turn-1")
-        await viewModel.loadCodexSubAgentDetail(threadID: "codex-child-1")
+            await viewModel.refreshCodexSubAgents()
+            #expect(viewModel.codexSubAgentState?.children.map(\.id) == [
+                "codex-child-1",
+                "codex-child-2",
+            ])
+            let children = try #require(viewModel.codexSubAgentState?.children)
+            #expect(children.map(\.id) == ["codex-child-1", "codex-child-2"],
+                    "重複 child は初回の配列位置を維持すること")
+            #expect(children.map(\.summary) == ["latest child summary", "second child summary"],
+                    "同一 ID の child は最新 content を採用すること")
+            #expect(children.first?.status == "idle",
+                    "同一 ID の child は最新 status を採用すること")
+            #expect(children.first?.activeTurnId == nil,
+                    "同一 ID の child は最新 turn を採用すること")
+            #expect(children.last?.activeTurnId == "codex-child-2-turn-1")
+            await viewModel.loadCodexSubAgentDetail(threadID: "codex-child-1")
 
-        let state = try #require(viewModel.codexSubAgentState)
-        #expect(state.detail(for: "codex-child-1")?.transcript == ["child question", "child answer"])
-        #expect(state.transcript(for: "codex-child-1") == ["child question", "child answer"])
+            let state = try #require(viewModel.codexSubAgentState)
+            #expect(state.detail(for: "codex-child-1")?.transcript == ["child question", "child answer"])
+            #expect(state.transcript(for: "codex-child-1") == ["child question", "child answer"])
 
-        await viewModel.stopCodexSubAgent(threadID: "codex-child-2")
-        let interrupt = try #require((await transport.messages()).last { message in
-            message["method"]?.stringValue == "turn/interrupt"
-        })
-        #expect(interrupt["params"]?["threadId"] == .string("codex-child-2"))
-        #expect(interrupt["params"]?["turnId"] == .string("codex-child-2-turn-1"))
-        #expect(viewModel.codexSubAgentState?.stopState(for: "codex-child-2") == .stopping)
+            await viewModel.stopCodexSubAgent(threadID: "codex-child-2")
+            let interrupt = try #require((await transport.messages()).last { message in
+                message["method"]?.stringValue == "turn/interrupt"
+            })
+            #expect(interrupt["params"]?["threadId"] == .string("codex-child-2"))
+            #expect(interrupt["params"]?["turnId"] == .string("codex-child-2-turn-1"))
+            #expect(viewModel.codexSubAgentState?.stopState(for: "codex-child-2") == .stopping)
 
-        transport.receive(#"{"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"codex-child-2","turn":{"id":"codex-child-2-turn-1","status":"interrupted","items":[]}}}"#)
-        await waitForStopState(viewModel, threadID: "codex-child-2")
-        #expect(viewModel.codexSubAgentState?.stopState(for: "codex-child-2") == .stopped)
-        #expect(viewModel.codexSubAgentState?.children.last?.status == "interrupted")
-        #expect(viewModel.codexSubAgentState?.children.last?.activeTurnId == nil)
-
-        await adapter.close()
+            try await awaitObservation(
+                observing: { _ = viewModel.codexSubAgentState?.stopState(for: "codex-child-2") },
+                trigger: {
+                    transport.receive(#"{"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"codex-child-2","turn":{"id":"codex-child-2-turn-1","status":"interrupted","items":[]}}}"#)
+                }
+            )
+            #expect(viewModel.codexSubAgentState?.stopState(for: "codex-child-2") == .stopped)
+            #expect(viewModel.codexSubAgentState?.children.last?.status == "interrupted")
+            #expect(viewModel.codexSubAgentState?.children.last?.activeTurnId == nil)
+        }
     }
 
     @Test("ChatComposer は Codex skill の name/path identity を slash 候補へ反映する")
@@ -513,32 +519,32 @@ struct AcceptanceCodexChatParityIntegrationTests {
         let appServer = CodexAppServerClient(transport: transport)
         let adapter = CodexStructuredAgentClient(client: appServer)
         let viewModel = makeCodexVM(client: adapter)
-        try await viewModel.startNew(
-            approvalPolicy: .named("on-request"),
-            sandbox: .named("workspace-write")
-        )
-        await viewModel.codexSkillSelectionState?.refresh()
+        try await withTerminatedViewModel(viewModel) {
+            try await viewModel.startNew(
+                approvalPolicy: .named("on-request"),
+                sandbox: .named("workspace-write")
+            )
+            await viewModel.codexSkillSelectionState?.refresh()
 
-        let composer = ChatComposer(
-            viewModel: viewModel,
-            text: .constant("/rev"),
-            isRunning: false,
-            canSend: true,
-            onSend: {},
-            onInterrupt: {}
-        )
-        composer.suggestionControllerForTesting.update(text: "/rev", cursorUTF16: 4)
-        composer.updateCodexSkillSuggestions()
+            let composer = ChatComposer(
+                viewModel: viewModel,
+                text: .constant("/rev"),
+                isRunning: false,
+                canSend: true,
+                onSend: {},
+                onInterrupt: {}
+            )
+            composer.suggestionControllerForTesting.update(text: "/rev", cursorUTF16: 4)
+            composer.updateCodexSkillSuggestions()
 
-        #expect(composer.suggestionControllerForTesting.candidates.map(\.skillIdentity?.path) == [
-            "/tmp/skills/review",
-            "/tmp/skills/review-repo",
-        ])
-        #expect(composer.suggestionControllerForTesting.candidates.allSatisfy {
-            $0.skillIdentity?.name == "review"
-        })
-
-        await adapter.close()
+            #expect(composer.suggestionControllerForTesting.candidates.map(\.skillIdentity?.path) == [
+                "/tmp/skills/review",
+                "/tmp/skills/review-repo",
+            ])
+            #expect(composer.suggestionControllerForTesting.candidates.allSatisfy {
+                $0.skillIdentity?.name == "review"
+            })
+        }
     }
 
     @Test("Codex の skill と本文と画像は sendText から同じ native turn/start に届く")
@@ -547,45 +553,45 @@ struct AcceptanceCodexChatParityIntegrationTests {
         let appServer = CodexAppServerClient(transport: transport)
         let adapter = CodexStructuredAgentClient(client: appServer)
         let viewModel = makeCodexVM(client: adapter)
-        try await viewModel.startNew(
-            approvalPolicy: .named("on-request"),
-            sandbox: .named("workspace-write")
-        )
+        try await withTerminatedViewModel(viewModel) {
+            try await viewModel.startNew(
+                approvalPolicy: .named("on-request"),
+                sandbox: .named("workspace-write")
+            )
 
-        let skillState = try #require(viewModel.codexSkillSelectionState)
-        await skillState.refresh()
-        #expect(skillState.select(name: "review", path: "/tmp/skills/review"))
-        #expect(viewModel.attachmentStore.addImage(
-            data: Data([0x89, 0x50, 0x4E, 0x47]),
-            mediaType: "image/png",
-            filename: "evidence.png"
-        ) != nil)
+            let skillState = try #require(viewModel.codexSkillSelectionState)
+            await skillState.refresh()
+            #expect(skillState.select(name: "review", path: "/tmp/skills/review"))
+            #expect(viewModel.attachmentStore.addImage(
+                data: Data([0x89, 0x50, 0x4E, 0x47]),
+                mediaType: "image/png",
+                filename: "evidence.png"
+            ) != nil)
 
-        try await viewModel.sendText("本文", submit: true)
+            try await viewModel.sendText("本文", submit: true)
 
-        let messages = await transport.messages()
-        let request = try #require(messages.last { message in
-            message["method"]?.stringValue == "turn/start"
-        })
-        let rawInput = try #require(request["params"]?["input"])
-        guard case .array(let values) = rawInput else {
-            Issue.record("native turn/start input が配列でない")
-            return
+            let messages = await transport.messages()
+            let request = try #require(messages.last { message in
+                message["method"]?.stringValue == "turn/start"
+            })
+            let rawInput = try #require(request["params"]?["input"])
+            guard case .array(let values) = rawInput else {
+                Issue.record("native turn/start input が配列でない")
+                return
+            }
+            #expect(values.count == 3)
+            let hasText = values.contains { value in
+                value["type"]?.stringValue == "text" && value["text"]?.stringValue == "本文"
+            }
+            let hasSkill = values.contains { value in
+                value["type"]?.stringValue == "skill"
+                    && value["name"]?.stringValue == "review"
+                    && value["path"]?.stringValue == "/tmp/skills/review"
+            }
+            let hasImage = values.contains { value in value["type"]?.stringValue == "localImage" }
+            #expect(hasText)
+            #expect(hasSkill)
+            #expect(hasImage)
         }
-        #expect(values.count == 3)
-        let hasText = values.contains { value in
-            value["type"]?.stringValue == "text" && value["text"]?.stringValue == "本文"
-        }
-        let hasSkill = values.contains { value in
-            value["type"]?.stringValue == "skill"
-                && value["name"]?.stringValue == "review"
-                && value["path"]?.stringValue == "/tmp/skills/review"
-        }
-        let hasImage = values.contains { value in value["type"]?.stringValue == "localImage" }
-        #expect(hasText)
-        #expect(hasSkill)
-        #expect(hasImage)
-
-        await adapter.close()
     }
 }

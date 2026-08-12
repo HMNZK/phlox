@@ -50,6 +50,19 @@ public enum ThreadSessionSource: Codable, Equatable, Sendable {
     case subAgent(JSONValue)
     case unknownRaw(JSONValue)
 
+    public var displayName: String {
+        switch self {
+        case .cli: "CLI"
+        case .vscode: "VS Code"
+        case .exec: "Exec"
+        case .appServer: "App Server"
+        case .unknown: "Unknown"
+        case .custom(let value): value
+        case .subAgent: "Sub-agent"
+        case .unknownRaw: "Unknown"
+        }
+    }
+
     public init(from decoder: Decoder) throws {
         let raw = try JSONValue(from: decoder)
         if let value = raw.stringValue {

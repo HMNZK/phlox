@@ -77,16 +77,21 @@ struct CodexSessionSurface: View {
                                             _ = await history.readIfPossible(threadID: thread.id)
                                         }
                                     } label: {
-                                        Text(thread.name ?? thread.preview)
-                                            .lineLimit(1)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(thread.name ?? thread.preview)
+                                                .lineLimit(1)
+                                            Text(thread.source.displayName)
+                                                .font(DSFont.monoCaption)
+                                        }
                                     }
                                     .buttonStyle(.bordered)
                                     .accessibilityIdentifier("CodexHistory.row.\(thread.id)")
                                     Button("再開") {
                                         Task {
-                                            guard history.select(threadID: thread.id) else { return }
-                                            guard await history.resumeIfPossible(threadID: thread.id) != nil else { return }
-                                            await viewModel.reloadCodexHistory(threadID: thread.id)
+                                            guard history.select(threadID: thread.id),
+                                                  let resumed = await history.resumeIfPossible(threadID: thread.id)
+                                            else { return }
+                                            viewModel.applyCodexHistory(resumed)
                                         }
                                     }
                                     .accessibilityIdentifier("CodexHistory.resume.\(thread.id)")
@@ -99,6 +104,8 @@ struct CodexSessionSurface: View {
                                     .font(DSFont.monoCaption)
                                 Text(selected.name ?? selected.preview)
                                     .lineLimit(2)
+                                Text(selected.source.displayName)
+                                    .font(DSFont.monoCaption)
                                 ForEach(viewModel.codexHistoryItems(for: selected), id: \.id) { item in
                                     ChatItemView(
                                         item: item,

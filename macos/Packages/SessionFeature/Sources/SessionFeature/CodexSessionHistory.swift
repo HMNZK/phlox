@@ -6,10 +6,33 @@ public protocol CodexSessionHistoryProviding: Sendable {
     func threadList(_ params: ThreadListParams) async throws -> ThreadListResponse
     func threadRead(_ params: ThreadReadParams) async throws -> ThreadReadResponse
     func threadResume(_ params: ThreadResumeParams) async throws -> ThreadResponse
+
+    /// 履歴からの再開を、詳細取得まで完了した場合だけ active thread に反映する。
+    /// 通常の client は既存の2呼び出しへフォールバックし、Codex の structured adapter
+    /// は active thread の commit を最後へ遅延させる。
+    func threadResumeAndRead(_ params: ThreadResumeParams) async throws -> ThreadSummary
+}
+
+public extension CodexSessionHistoryProviding {
+    func threadResumeAndRead(_ params: ThreadResumeParams) async throws -> ThreadSummary {
+        _ = try await threadResume(params)
+        return try await threadRead(ThreadReadParams(threadId: params.threadId, includeTurns: true)).thread
+    }
 }
 
 extension CodexAppServerClient: CodexSessionHistoryProviding {}
 extension CodexStructuredAgentClient: CodexSessionHistoryProviding {}
+
+public enum CodexSessionHistoryError: Error, Equatable, Sendable, CustomStringConvertible {
+    case repeatedCursor(String)
+
+    public var description: String {
+        switch self {
+        case .repeatedCursor(let cursor):
+            "thread/list pagination stopped: repeated nextCursor \(cursor)"
+        }
+    }
+}
 
 /// Codex app-server の履歴一覧と選択中 thread の詳細を管理する。
 @MainActor
@@ -146,15 +169,44 @@ public final class CodexSessionHistory {
 
     public func resumeSelected() async throws -> ThreadSummary? {
         guard let selectedThreadID else { return nil }
-        return try await resume(threadID: selectedThreadID)
+        return try await resumeAndRead(threadID: selectedThreadID)
     }
 
     /// UI から呼ぶ再開。失敗は `errorMessage` に保持して surface へ表示する。
     public func resumeIfPossible(threadID: String) async -> ThreadSummary? {
         do {
-            return try await resume(threadID: threadID)
+            return try await resumeAndRead(threadID: threadID)
         } catch {
             return nil
+        }
+    }
+
+    /// resume と read を一つの操作世代で扱う。read が失敗した場合は履歴 state を更新せず、
+    /// structured adapter 側も active thread を commit しない。
+    public func resumeAndRead(threadID: String) async throws -> ThreadSummary {
+        selectionGeneration += 1
+        let selection = selectionGeneration
+        do {
+            let thread = try await client.threadResumeAndRead(
+                ThreadResumeParams(threadId: threadID, cwd: workingDirectory)
+            )
+            guard thread.id == threadID else {
+                throw CodexAppServerClientError.threadIDMismatch(
+                    requested: threadID,
+                    received: thread.id
+                )
+            }
+            guard selection == selectionGeneration,
+                  selectedThreadID == nil || selectedThreadID == threadID else {
+                return thread
+            }
+            selectedThreadID = threadID
+            update(thread: thread)
+            errorMessage = nil
+            return thread
+        } catch {
+            errorMessage = String(describing: error)
+            throw error
         }
     }
 
@@ -192,16 +244,31 @@ public final class CodexSessionHistory {
     private func fetchAllPages() async throws -> [ThreadSummary] {
         var cursor: String?
         var result: [ThreadSummary] = []
+        var seenCursors = Set<String>()
         repeat {
             let response = try await client.threadList(ThreadListParams(
                 cwd: .multiple([workingDirectory]),
                 sourceKinds: [.cli, .vscode, .appServer],
                 cursor: cursor
             ))
-            result.append(contentsOf: response.data)
-            cursor = response.nextCursor
+            result.append(contentsOf: response.data.filter(Self.isMainThread))
+            guard let nextCursor = response.nextCursor else { break }
+            guard seenCursors.insert(nextCursor).inserted else {
+                throw CodexSessionHistoryError.repeatedCursor(nextCursor)
+            }
+            cursor = nextCursor
         } while cursor != nil
         return result
+    }
+
+    private static func isMainThread(_ thread: ThreadSummary) -> Bool {
+        guard thread.parentThreadId?.isEmpty != false else { return false }
+        switch thread.source {
+        case .cli, .vscode, .appServer:
+            return true
+        case .exec, .unknown, .custom, .subAgent, .unknownRaw:
+            return false
+        }
     }
 
     private func update(thread: ThreadSummary) {

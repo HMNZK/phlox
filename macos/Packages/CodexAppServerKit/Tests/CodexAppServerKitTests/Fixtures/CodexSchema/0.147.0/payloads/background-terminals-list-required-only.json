@@ -1,0 +1,10 @@
+{
+  "data": [
+    {
+      "itemId": "item-terminal-required-only",
+      "processId": "process-required-only",
+      "command": "swift test",
+      "cwd": "/tmp/project"
+    }
+  ]
+}

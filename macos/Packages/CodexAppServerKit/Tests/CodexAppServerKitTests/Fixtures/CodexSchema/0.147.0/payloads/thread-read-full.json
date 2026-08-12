@@ -1,0 +1,22 @@
+{
+  "thread": {
+    "id": "thread-child",
+    "cliVersion": "0.147.0",
+    "createdAt": 1700000000,
+    "cwd": "/tmp/project",
+    "ephemeral": false,
+    "modelProvider": "openai",
+    "preview": "child preview",
+    "sessionId": "session-1",
+    "source": "appServer",
+    "status": { "type": "idle" },
+    "turns": [],
+    "updatedAt": 1700000001,
+    "name": "worker",
+    "parentThreadId": "parent-thread",
+    "canAcceptDirectInput": false,
+    "path": null,
+    "recencyAt": 1700000001,
+    "threadSource": null
+  }
+}

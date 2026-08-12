@@ -1,0 +1,24 @@
+{
+  "thread": {
+    "id": "thread-active",
+    "cliVersion": "0.147.0",
+    "createdAt": 1700000000,
+    "cwd": "/tmp/project",
+    "ephemeral": false,
+    "modelProvider": "openai",
+    "preview": "active child preview",
+    "sessionId": "session-1",
+    "source": "appServer",
+    "status": { "type": "active", "activeFlags": [] },
+    "turns": [
+      {
+        "id": "turn-active",
+        "items": [],
+        "status": "inProgress"
+      }
+    ],
+    "updatedAt": 1700000001,
+    "parentThreadId": "parent-thread",
+    "canAcceptDirectInput": false
+  }
+}

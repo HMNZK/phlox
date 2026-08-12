@@ -166,6 +166,8 @@ public final class ChatSessionViewModel: Identifiable {
     /// turnStarted イベント由来のターンは ADR 0064 の idle 無視ガードの対象になる。
     private var turnIsRestoredInference = false
     private var turnGeneration = 0
+    /// ordered Codex event の turn identity。正規化で失われる identity を VM 境界で再検証する。
+    private var codexEventTurnId: String?
     private var isAwaitingLocallyStartedTurnEvent = false
     private var activeInterruptTask: Task<Void, Never>?
     private var activeInterruptID: UUID?
@@ -174,7 +176,9 @@ public final class ChatSessionViewModel: Identifiable {
     private var codexSurfaceRefreshTask: Task<Void, Never>?
     private var codexSubAgentRefreshPending = false
     private var codexBackgroundTerminalRefreshPending = false
+    private var codexSubAgentRefreshGeneration = 0
     private var codexHistoryReloadGeneration = 0
+    private var codexRestoreGeneration = 0
     private let transcriptStore: (any TranscriptStore)?
     private let spawnAgentModelsProvider: SpawnAgentModelsProvider?
     /// 利用可能スラッシュコマンド一覧の永続ストア。生成時の読み出しと init 受領時の記録に使う。
@@ -402,8 +406,14 @@ public final class ChatSessionViewModel: Identifiable {
               thread.id == threadID,
               history.selectedThreadID == nil || history.selectedThreadID == threadID
         else { return }
-        updateNativeSessionId(thread.id)
-        rebuildTranscript(from: thread)
+        commitCodexHistory(thread, generation: generation, expectedThreadID: threadID)
+    }
+
+    /// 履歴側で resume + read が成功した thread だけを、現在の選択世代へ反映する。
+    public func applyCodexHistory(_ thread: ThreadSummary) {
+        codexHistoryReloadGeneration += 1
+        let generation = codexHistoryReloadGeneration
+        commitCodexHistory(thread, generation: generation, expectedThreadID: thread.id)
     }
 
     /// UI 操作で発生した失敗を既存の ErrorMessageCell 経路へ載せる。
@@ -426,25 +436,73 @@ public final class ChatSessionViewModel: Identifiable {
         thread.turns?.flatMap { $0.items ?? [] }.compactMap { chatItem(from: $0) } ?? []
     }
 
+    private func commitCodexHistory(
+        _ thread: ThreadSummary,
+        generation: Int,
+        expectedThreadID: String
+    ) {
+        guard generation == codexHistoryReloadGeneration,
+              thread.id == expectedThreadID,
+              (codexSessionHistory?.selectedThreadID == nil ||
+                codexSessionHistory?.selectedThreadID == expectedThreadID) else { return }
+        updateNativeSessionId(thread.id)
+        rebuildTranscript(from: thread)
+    }
+
     public var canStopCodexSubAgents: Bool {
         codexSubAgentState?.children.contains {
             codexSubAgentState?.stopState(for: $0.id) == .available
         } == true
     }
 
-    /// 親 thread に属する child だけを `thread/list` から取得する。
+    /// 親 thread に属する child を取得する。`thread/list` の turns は空仕様のため、
+    /// 実行中で turn ID が欠ける child だけ `thread/read(includeTurns: true)` で補完する。
     public func refreshCodexSubAgents() async {
         guard let parentThreadId = threadId,
               !parentThreadId.isEmpty,
               let client = client as? any CodexSubAgentProviding else { return }
+        codexSubAgentRefreshGeneration += 1
+        let generation = codexSubAgentRefreshGeneration
         do {
             let response = try await client.threadList(ThreadListParams(parentThreadId: parentThreadId))
-            guard threadId == parentThreadId else { return }
-            let children = response.data.map(Self.codexChild)
+            guard isCurrentCodexSubAgentRefresh(generation, parentThreadId: parentThreadId) else { return }
+
+            var latestByID: [String: ThreadSummary] = [:]
+            var childOrder: [String] = []
+            for thread in response.data where thread.parentThreadId == parentThreadId {
+                if latestByID[thread.id] == nil {
+                    childOrder.append(thread.id)
+                }
+                latestByID[thread.id] = thread
+            }
+            var children = childOrder.compactMap { latestByID[$0].map(Self.codexChild) }
+            var readError: Error?
+            for index in children.indices where Self.needsCodexSubAgentRead(children[index]) {
+                let child = children[index]
+                do {
+                    let read = try await client.threadRead(
+                        ThreadReadParams(threadId: child.id, includeTurns: true)
+                    )
+                    guard isCurrentCodexSubAgentRefresh(generation, parentThreadId: parentThreadId) else {
+                        return
+                    }
+                    guard read.thread.id == child.id,
+                          read.thread.parentThreadId == parentThreadId else {
+                        continue
+                    }
+                    children[index] = Self.codexChild(read.thread)
+                } catch {
+                    guard isCurrentCodexSubAgentRefresh(generation, parentThreadId: parentThreadId) else {
+                        return
+                    }
+                    readError = error
+                }
+            }
+            guard isCurrentCodexSubAgentRefresh(generation, parentThreadId: parentThreadId) else { return }
             codexSubAgentState?.apply(.available(children: children))
-            codexSubAgentError = nil
+            codexSubAgentError = readError.map { String(describing: $0) }
         } catch {
-            guard threadId == parentThreadId else { return }
+            guard isCurrentCodexSubAgentRefresh(generation, parentThreadId: parentThreadId) else { return }
             codexSubAgentError = String(describing: error)
         }
     }
@@ -453,12 +511,22 @@ public final class ChatSessionViewModel: Identifiable {
     public func loadCodexSubAgentDetail(threadID: String) async {
         guard codexSubAgentState?.children.contains(where: { $0.id == threadID }) == true else { return }
         guard let client = client as? any CodexSubAgentProviding else { return }
+        let parentThreadId = threadId
+        let generation = codexSubAgentRefreshGeneration
         do {
             let response = try await client.threadRead(ThreadReadParams(threadId: threadID, includeTurns: true))
+            guard threadId == parentThreadId,
+                  codexSubAgentState?.parentThreadId == parentThreadId,
+                  generation == codexSubAgentRefreshGeneration,
+                  response.thread.id == threadID,
+                  response.thread.parentThreadId == parentThreadId else { return }
             let transcript = response.thread.turns?.flatMap { $0.items ?? [] }.compactMap(\.text) ?? []
             codexSubAgentState?.apply(.detail(threadId: threadID, transcript: transcript))
             codexSubAgentError = nil
         } catch {
+            guard threadId == parentThreadId,
+                  codexSubAgentState?.parentThreadId == parentThreadId,
+                  generation == codexSubAgentRefreshGeneration else { return }
             codexSubAgentError = String(describing: error)
         }
     }
@@ -700,6 +768,7 @@ public final class ChatSessionViewModel: Identifiable {
         sandbox: SandboxPolicy,
         persistedSettings: CodexAppServerSessionSettings? = nil
     ) async throws {
+        codexRestoreGeneration += 1
         scheduleHistoryCacheLoadIfNeeded()
         await historyCacheLoadTask?.value
         clearRunningBackgroundTasks()
@@ -735,6 +804,8 @@ public final class ChatSessionViewModel: Identifiable {
         persistedSettings: CodexAppServerSessionSettings? = nil
     ) async {
         restoreState = .restoring
+        codexRestoreGeneration += 1
+        let restoreGeneration = codexRestoreGeneration
         clearRunningBackgroundTasks()
         startEventTasks()
         guard let codexClient else {
@@ -761,6 +832,7 @@ public final class ChatSessionViewModel: Identifiable {
         await client.start()
         do {
             let initialized = try await codexClient.initialize(Self.initializeParams)
+            guard restoreGeneration == codexRestoreGeneration else { return }
             appServerUserAgent = initialized.userAgent
             let response = try await codexClient.threadResume(ThreadResumeParams(
                 threadId: threadId,
@@ -768,24 +840,44 @@ public final class ChatSessionViewModel: Identifiable {
                 approvalPolicy: approvalPolicy,
                 sandbox: sandbox
             ))
-            updateNativeSessionId(response.thread.id)
+            guard restoreGeneration == codexRestoreGeneration else { return }
             syncSettings(from: response)
             await loadAvailableSettings(persistedSettings: persistedSettings)
+            guard restoreGeneration == codexRestoreGeneration else { return }
             if let persistedSettings, persistedSettings.hasAnyValue {
                 await reapplyPersistedSettings(persistedSettings)
             }
+            guard restoreGeneration == codexRestoreGeneration else { return }
             await restoreTurnUsageFromStore()
-            if await restoreTranscriptFromStore() {
+            guard restoreGeneration == codexRestoreGeneration else { return }
+            let storedTranscript = await loadTranscriptFromStore()
+            guard restoreGeneration == codexRestoreGeneration else { return }
+            if let storedTranscript {
+                applyRestoredTranscript(storedTranscript)
+                guard restoreGeneration == codexRestoreGeneration else { return }
+                updateNativeSessionId(response.thread.id)
                 applyRestoredThreadStatus(response.thread.status?.sessionStatus ?? .idle)
             } else {
                 let read = try await codexClient.threadRead(ThreadReadParams(threadId: threadId, includeTurns: true))
+                guard restoreGeneration == codexRestoreGeneration,
+                      read.thread.id == threadId else {
+                    if restoreGeneration == codexRestoreGeneration {
+                        throw CodexAppServerClientError.threadIDMismatch(
+                            requested: threadId,
+                            received: read.thread.id
+                        )
+                    }
+                    return
+                }
                 updateNativeSessionId(read.thread.id)
                 rebuildTranscript(from: read.thread)
                 applyRestoredThreadStatus(read.thread.status?.sessionStatus ?? .idle)
             }
+            guard restoreGeneration == codexRestoreGeneration else { return }
             restoreState = .restored
         } catch {
-            updateNativeSessionId(threadId)
+            guard restoreGeneration == codexRestoreGeneration else { return }
+            await codexClient.rollbackThreadResumeIfCurrent(threadID: threadId)
             status = .error(message: "chat restore failed: \(error)")
             restoreState = .failed(message: String(describing: error))
             if transcript.isEmpty {
@@ -1349,6 +1441,12 @@ public final class ChatSessionViewModel: Identifiable {
                         self.handleCodexSettingsEvent(threadEvent)
                     case .normalized(let normalizedEvent):
                         await self.handle(normalizedEvent)
+                    case .normalizedWithIdentity(let eventThreadId, let eventTurnId, let normalizedEvent):
+                        guard self.acceptsCodexNormalizedEvent(
+                            threadId: eventThreadId,
+                            turnId: eventTurnId
+                        ) else { continue }
+                        await self.handle(normalizedEvent)
                     }
                 }
             }
@@ -1515,6 +1613,28 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
+    /// Codex の normalized event は本文型だけでは thread/turn を表せないため、ordered stream
+    /// の identity をここで検証する。thread 切替失敗で current id が nil の場合も受け付けない。
+    private func acceptsCodexNormalizedEvent(
+        threadId eventThreadId: String?,
+        turnId eventTurnId: String?
+    ) -> Bool {
+        guard codexClient != nil else { return true }
+        guard let expectedThreadId = threadId,
+              !expectedThreadId.isEmpty,
+              let eventThreadId,
+              !eventThreadId.isEmpty,
+              eventThreadId == expectedThreadId else {
+            return false
+        }
+        guard let eventTurnId, !eventTurnId.isEmpty else { return true }
+        if let codexEventTurnId {
+            return codexEventTurnId == eventTurnId
+        }
+        codexEventTurnId = eventTurnId
+        return true
+    }
+
     private func handle(_ event: NormalizedChatEvent) async {
         let rawEvent = String(describing: event)
         if enqueueStreamDeltaIfNeeded(event, rawEvent: rawEvent) {
@@ -1566,6 +1686,9 @@ public final class ChatSessionViewModel: Identifiable {
             if let nativeSessionId, shouldAdoptNativeSessionId(nativeSessionId) {
                 updateNativeSessionId(nativeSessionId)
             }
+            if codexClient != nil {
+                codexEventTurnId = nil
+            }
             await expireAllPendingUserQuestions()
             appendPendingTurnCostIfNeeded(timestamp: eventDate)
             let previousStatus = status
@@ -1583,6 +1706,9 @@ public final class ChatSessionViewModel: Identifiable {
             if let nativeSessionId, shouldAdoptNativeSessionId(nativeSessionId) {
                 updateNativeSessionId(nativeSessionId)
             }
+            if codexClient != nil {
+                codexEventTurnId = nil
+            }
             await expireAllPendingUserQuestions()
             isCompacting = false
             clearRunningTurn()
@@ -1592,6 +1718,9 @@ public final class ChatSessionViewModel: Identifiable {
             flushTranscriptAtTurnBoundary()
             midTurnPersistenceGate.noteExternalFlush()
         case .error(let message):
+            if codexClient != nil {
+                codexEventTurnId = nil
+            }
             await expireAllPendingUserQuestions()
             isCompacting = false
             let previousStatus = status
@@ -1782,6 +1911,7 @@ public final class ChatSessionViewModel: Identifiable {
         switch event {
         case .turnStarted(let updatedThreadId, let turn):
             guard updatedThreadId == threadId else { return }
+            codexEventTurnId = turn.id
             codexPlanTaskState?.reset(
                 threadId: updatedThreadId,
                 turnId: turn.id ?? ""
@@ -1791,6 +1921,14 @@ public final class ChatSessionViewModel: Identifiable {
                 threadId: updatedThreadId,
                 turnId: turn.id ?? "",
                 status: turn.status ?? ""
+            ))
+            guard updatedThreadId == threadId else { return }
+            scheduleCodexSurfaceRefresh()
+        case .turnInterrupted(let updatedThreadId, let turnId):
+            codexSubAgentState?.apply(.turnCompleted(
+                threadId: updatedThreadId,
+                turnId: turnId ?? "",
+                status: "interrupted"
             ))
             guard updatedThreadId == threadId else { return }
             scheduleCodexSurfaceRefresh()
@@ -1832,11 +1970,14 @@ public final class ChatSessionViewModel: Identifiable {
                 let type = item.type?.lowercased() ?? ""
                 scheduleCodexSurfaceRefresh(
                     subAgents: type.contains("collabagent") || type.contains("subagent"),
-                    backgroundTerminals: type.contains("background")
+                    backgroundTerminals: type.contains("background") || type.contains("commandexecution")
                 )
             }
-        case .planUpdated:
-            _ = codexPlanTaskState?.apply(event: event)
+        case .planUpdated(let updatedThreadId, let turnId, _, _):
+            if codexPlanTaskState?.apply(event: event) == true,
+               updatedThreadId == threadId {
+                codexEventTurnId = turnId
+            }
         case .skillsChanged:
             codexSkillSelectionState?.handle(event)
         default:
@@ -2172,21 +2313,29 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
-    private func restoreTranscriptFromStore() async -> Bool {
-        guard let transcriptStore else { return false }
+    private func loadTranscriptFromStore() async -> [ChatItem]? {
+        guard let transcriptStore else { return nil }
         do {
             let persisted = try await transcriptStore.loadTranscript(for: id)
-            guard !persisted.isEmpty else { return false }
-            setTranscript([])
-            for item in persisted {
-                appendOrReplace(item)
-            }
-            touchOutput()
-            return true
+            return persisted.isEmpty ? nil : persisted
         } catch {
             logRestoreFailure(error)
-            return false
+            return nil
         }
+    }
+
+    private func applyRestoredTranscript(_ persisted: [ChatItem]) {
+        setTranscript([])
+        for item in persisted {
+            appendOrReplace(item)
+        }
+        touchOutput()
+    }
+
+    private func restoreTranscriptFromStore() async -> Bool {
+        guard let persisted = await loadTranscriptFromStore() else { return false }
+        applyRestoredTranscript(persisted)
+        return true
     }
 
     private func restoreTurnUsageFromStore() async {
@@ -2345,6 +2494,7 @@ public final class ChatSessionViewModel: Identifiable {
         let previous = chatNativeSessionId
         if id != previous {
             codexHistoryReloadGeneration += 1
+            codexSubAgentRefreshGeneration += 1
         }
         threadId = id
         chatNativeSessionId = id
@@ -2352,6 +2502,7 @@ public final class ChatSessionViewModel: Identifiable {
             codexSubAgentState = CodexSubAgentState(parentThreadId: id)
         }
         if agentRef == .builtin(.codex), id != previous {
+            codexEventTurnId = nil
             codexPlanTaskState?.reset(threadId: id ?? "")
         }
         codexBackgroundTerminalState?.updateThreadId(id)
@@ -2397,6 +2548,20 @@ public final class ChatSessionViewModel: Identifiable {
             summary: thread.preview,
             canAcceptDirectInput: thread.canAcceptDirectInput
         )
+    }
+
+    private static func needsCodexSubAgentRead(_ child: CodexChildThread) -> Bool {
+        guard child.activeTurnId == nil else { return false }
+        return ["active", "running", "inprogress", "in_progress"].contains(child.status.lowercased())
+    }
+
+    private func isCurrentCodexSubAgentRefresh(
+        _ generation: Int,
+        parentThreadId: String
+    ) -> Bool {
+        generation == codexSubAgentRefreshGeneration
+            && threadId == parentThreadId
+            && codexSubAgentState?.parentThreadId == parentThreadId
     }
 
     /// 子 thread / 背景端末は親 turn の item event・完了 event を契機に一覧を再取得する。

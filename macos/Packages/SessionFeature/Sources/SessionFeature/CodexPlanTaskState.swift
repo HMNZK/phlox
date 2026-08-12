@@ -14,6 +14,8 @@ public final class CodexPlanTaskState {
     public private(set) var turnId: String
     public private(set) var tasks: [AgentTaskItem] = []
     public private(set) var explanation: String?
+    /// resetConversation が失敗して thread identity を失った間は、空 identity を wildcard にしない。
+    private var invalidated = false
 
     public init(threadId: String = "", turnId: String = "") {
         self.threadId = threadId
@@ -27,6 +29,7 @@ public final class CodexPlanTaskState {
     public func reset(threadId: String = "", turnId: String = "") {
         self.threadId = threadId
         self.turnId = turnId
+        invalidated = threadId.isEmpty
         tasks = []
         explanation = nil
     }
@@ -116,7 +119,8 @@ public final class CodexPlanTaskState {
     }
 
     private func accepts(threadId: String, turnId: String) -> Bool {
-        (self.threadId.isEmpty || self.threadId == threadId)
+        guard !invalidated else { return false }
+        return (self.threadId.isEmpty || self.threadId == threadId)
             && (self.turnId.isEmpty || self.turnId == turnId)
     }
 

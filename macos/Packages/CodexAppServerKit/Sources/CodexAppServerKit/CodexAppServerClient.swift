@@ -24,6 +24,12 @@ public enum ThreadEvent: Equatable, Sendable {
 public enum CodexStructuredEvent: Equatable, Sendable {
     case thread(ThreadEvent)
     case normalized(NormalizedChatEvent)
+    /// 正規化後も app-server の thread/turn identity を VM 境界まで保持する。
+    case normalizedWithIdentity(
+        threadId: String?,
+        turnId: String?,
+        event: NormalizedChatEvent
+    )
 }
 
 public protocol CodexOrderedEventsProviding: Sendable {
@@ -308,12 +314,25 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
     private let client: CodexAppServerClient
     private var bridgeTask: Task<Void, Never>?
     private var currentThreadId: String?
+    /// 切替中に `currentThreadId` を nil にしても、失敗時に戻せる最後の確定 identity。
+    private var committedThreadId: String?
+    /// 初回 thread 確立前は wire event を観測できる既存契約を保ち、確立後の切替中は fail closed にする。
+    private var hasEstablishedThread = false
+    /// 複数の resume/start が同時に返っても、最後に開始した操作だけが active thread を commit する。
+    private var threadIdentityGeneration = 0
     /// 子 thread 停止を要求済みで、親 thread の filter を越えてよい完了だけを保持する。
     private var pendingChildInterrupts: [String: String] = [:]
     private var nativeImageInputEnabled = false
     private var imageInputWriter: (@Sendable (Data, URL) throws -> Void)?
     /// resetConversation で新規 thread を開始し直すために、直近の thread/start 引数を保持する。
     private var lastThreadStartParams: ThreadStartParams?
+    /// threadResume 単体で一時的に切り替えた active identity を read 失敗時に戻すための状態。
+    private var pendingResumeRollback: (
+        threadID: String,
+        previousThreadID: String?,
+        previousThreadStartParams: ThreadStartParams?,
+        generation: Int
+    )?
     private let eventContinuation: AsyncStream<NormalizedChatEvent>.Continuation
     public nonisolated let events: AsyncStream<NormalizedChatEvent>
     private let threadEventContinuation: AsyncStream<ThreadEvent>.Continuation
@@ -359,6 +378,7 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
         guard let currentThreadId else {
             throw CodexStructuredClientError.threadNotStarted
         }
+        pendingResumeRollback = nil
         guard nativeImageInputEnabled else {
             let hasImages = input.contains { if case .image = $0 { true } else { false } }
             if hasImages {
@@ -388,6 +408,7 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
     /// Native Codex入力（skillを含む）をそのままapp-serverへ渡す。
     public func turnStartNative(_ input: [UserInput]) async throws {
         guard let currentThreadId else { throw CodexStructuredClientError.threadNotStarted }
+        pendingResumeRollback = nil
         _ = try await client.turnStart(TurnStartParams(threadId: currentThreadId, input: input))
     }
 
@@ -401,10 +422,32 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
 
     public func resume(sessionRef: String) async throws {
         let params = ThreadResumeParams(threadId: sessionRef)
+        threadIdentityGeneration += 1
+        let generation = threadIdentityGeneration
+        let previousThreadId = committedThreadId
+        let previousThreadStartParams = lastThreadStartParams
         pendingChildInterrupts.removeAll()
-        let response = try await client.threadResume(params)
-        currentThreadId = response.thread.id
-        lastThreadStartParams = Self.threadStartParams(from: params)
+        pendingResumeRollback = nil
+        currentThreadId = nil
+        do {
+            let response = try await client.threadResume(params)
+            guard generation == threadIdentityGeneration else { return }
+            currentThreadId = response.thread.id
+            committedThreadId = response.thread.id
+            hasEstablishedThread = true
+            lastThreadStartParams = Self.threadStartParams(from: params)
+            pendingResumeRollback = (
+                threadID: response.thread.id,
+                previousThreadID: previousThreadId,
+                previousThreadStartParams: previousThreadStartParams,
+                generation: generation
+            )
+        } catch {
+            if generation == threadIdentityGeneration {
+                currentThreadId = previousThreadId
+            }
+            throw error
+        }
     }
 
     /// 現在アクティブな thread id（resetConversation 後は新 thread）。VM が reset 直後に
@@ -441,17 +484,28 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
     /// または再開始に失敗した場合は currentThreadId を nil にし、次の turnStart を threadNotStarted
     /// で明示的に失敗させる（旧 thread への誤送信を避ける）。
     public func resetConversation() async {
+        threadIdentityGeneration += 1
+        let generation = threadIdentityGeneration
+        pendingResumeRollback = nil
         guard let params = lastThreadStartParams else {
             currentThreadId = nil
+            committedThreadId = nil
             pendingChildInterrupts.removeAll()
             return
         }
         pendingChildInterrupts.removeAll()
+        pendingResumeRollback = nil
+        currentThreadId = nil
         do {
             let response = try await client.threadStart(params)
+            guard generation == threadIdentityGeneration else { return }
             currentThreadId = response.thread.id
+            committedThreadId = response.thread.id
         } catch {
-            currentThreadId = nil
+            if generation == threadIdentityGeneration {
+                currentThreadId = nil
+                committedThreadId = nil
+            }
         }
     }
 
@@ -464,22 +518,65 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
 
     private func yield(_ event: ThreadEvent) {
         // reset 後も app-server 上で生き残る旧 thread の遅延イベントを source で遮断する。
-        // 現在の thread が確定していて（currentThreadId != nil）、イベントの thread id が
-        // それと異なるなら、旧 thread 由来なので両ストリームへ流さない（normalized delta も含む）。
+        // thread 切替中（currentThreadId == nil）は thread identity を持つイベントを流さない。
+        // 現在の thread が確定していて、イベントの thread id がそれと異なるなら、旧 thread
+        // 由来なので両ストリームへ流さない（normalized delta も含む）。
         // ただし子停止を要求済みの場合だけ、要求した turn の interrupted 完了を通す。
-        // currentThreadId 未確定（起動直後）や thread id を持たないイベントは通す（正常経路を壊さない）。
+        let eventThreadId = Self.threadId(of: event)
+        let childCompletionAccepted: Bool
         if let currentThreadId,
-           let eventThreadId = Self.threadId(of: event),
+           let eventThreadId,
            !eventThreadId.isEmpty,
-           eventThreadId != currentThreadId,
-           !acceptsPendingChildInterruptCompletion(event, threadId: eventThreadId) {
-            return
+           eventThreadId != currentThreadId {
+            childCompletionAccepted = acceptsPendingChildInterruptCompletion(
+                event,
+                threadId: eventThreadId
+            )
+            guard childCompletionAccepted else { return }
+        } else if let eventThreadId, !eventThreadId.isEmpty {
+            // 初回 thread/start 前の既存観測契約だけは維持する。いったん thread を確立した
+            // 後の resume/reset 切替中は、nil を wildcard にしない。
+            guard currentThreadId != nil || !hasEstablishedThread else { return }
+            childCompletionAccepted = false
+        } else {
+            childCompletionAccepted = false
         }
         orderedEventContinuation.yield(.thread(event))
         threadEventContinuation.yield(event)
-        if let normalized = Self.normalizedEvent(from: event) {
-            orderedEventContinuation.yield(.normalized(normalized))
+        if !childCompletionAccepted,
+           let normalized = Self.normalizedEvent(from: event) {
+            let turnId = Self.turnId(of: event)
+            // threadId が無い retry/error も、生成時点の active thread を context identity として
+            // 運ぶ。切替中は currentThreadId が nil なので VM 側で fail closed になる。
+            let normalizedThreadId = eventThreadId ?? currentThreadId
+            orderedEventContinuation.yield(.normalizedWithIdentity(
+                threadId: normalizedThreadId,
+                turnId: turnId,
+                event: normalized
+            ))
             eventContinuation.yield(normalized)
+        }
+    }
+
+    private static func turnId(of event: ThreadEvent) -> String? {
+        switch event {
+        case .agentMessageDelta(_, let turnId, _, _),
+             .reasoningSummaryDelta(_, let turnId, _, _),
+             .commandOutputDelta(_, let turnId, _, _),
+             .filePatchUpdated(_, let turnId, _, _),
+             .itemStarted(_, let turnId, _),
+             .itemCompleted(_, let turnId, _),
+             .planUpdated(_, let turnId, _, _),
+             .tokenUsageUpdated(_, let turnId, _):
+            return turnId
+        case .turnStarted(_, let turn), .turnCompleted(_, let turn):
+            return turn.id
+        case .turnInterrupted(_, let turnId):
+            return turnId
+        case .error(_, let turnId, _, _):
+            return turnId
+        case .threadStatusChanged, .threadSettingsUpdated, .warning, .skillsChanged:
+            return nil
         }
     }
 
@@ -517,11 +614,15 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
     }
 
     private func acceptsPendingChildInterruptCompletion(_ event: ThreadEvent, threadId: String) -> Bool {
-        guard let expectedTurnId = pendingChildInterrupts[threadId],
-              case .turnCompleted(_, let turn) = event,
-              turn.id == expectedTurnId,
-              turn.status == "interrupted"
-        else { return false }
+        guard let expectedTurnId = pendingChildInterrupts[threadId] else { return false }
+        switch event {
+        case .turnCompleted(_, let turn):
+            guard turn.id == expectedTurnId, turn.status == "interrupted" else { return false }
+        case .turnInterrupted(_, let turnId):
+            guard turnId == expectedTurnId else { return false }
+        default:
+            return false
+        }
 
         pendingChildInterrupts.removeValue(forKey: threadId)
         return true
@@ -600,24 +701,111 @@ extension CodexStructuredAgentClient {
     }
 
     public func threadStart(_ params: ThreadStartParams) async throws -> ThreadResponse {
+        threadIdentityGeneration += 1
+        let generation = threadIdentityGeneration
         pendingChildInterrupts.removeAll()
-        let response = try await client.threadStart(params)
-        currentThreadId = response.thread.id
-        lastThreadStartParams = params
-        return response
+        currentThreadId = nil
+        do {
+            let response = try await client.threadStart(params)
+            guard generation == threadIdentityGeneration else { return response }
+            currentThreadId = response.thread.id
+            committedThreadId = response.thread.id
+            hasEstablishedThread = true
+            lastThreadStartParams = params
+            pendingResumeRollback = nil
+            return response
+        } catch {
+            if generation == threadIdentityGeneration {
+                currentThreadId = nil
+                committedThreadId = nil
+            }
+            throw error
+        }
     }
 
     public func threadResume(_ params: ThreadResumeParams) async throws -> ThreadResponse {
+        threadIdentityGeneration += 1
+        let generation = threadIdentityGeneration
+        let previousThreadId = committedThreadId
+        let previousThreadStartParams = lastThreadStartParams
         pendingChildInterrupts.removeAll()
-        let response = try await client.threadResume(params)
-        currentThreadId = response.thread.id
-        // 復元セッションでも reset で新 thread を開始できるよう、再開始可能な引数を捕捉する。
-        lastThreadStartParams = Self.threadStartParams(from: params)
-        return response
+        pendingResumeRollback = nil
+        currentThreadId = nil
+        do {
+            let response = try await client.threadResume(params)
+            guard generation == threadIdentityGeneration else { return response }
+            currentThreadId = response.thread.id
+            committedThreadId = response.thread.id
+            hasEstablishedThread = true
+            // 復元セッションでも reset で新 thread を開始できるよう、再開始可能な引数を捕捉する。
+            lastThreadStartParams = Self.threadStartParams(from: params)
+            pendingResumeRollback = (
+                threadID: response.thread.id,
+                previousThreadID: previousThreadId,
+                previousThreadStartParams: previousThreadStartParams,
+                generation: generation
+            )
+            return response
+        } catch {
+            if generation == threadIdentityGeneration {
+                currentThreadId = previousThreadId
+            }
+            throw error
+        }
+    }
+
+    /// resume 成功後の read 失敗で active thread だけが切り替わらないよう、
+    /// 詳細取得まで終わった時点で currentThreadId と再開始引数を commit する。
+    public func threadResumeAndRead(_ params: ThreadResumeParams) async throws -> ThreadSummary {
+        threadIdentityGeneration += 1
+        let generation = threadIdentityGeneration
+        let previousThreadId = committedThreadId
+        pendingChildInterrupts.removeAll()
+        pendingResumeRollback = nil
+        currentThreadId = nil
+        do {
+            let response = try await client.threadResume(params)
+            let read = try await client.threadRead(ThreadReadParams(threadId: params.threadId, includeTurns: true))
+            guard read.thread.id == params.threadId else {
+                throw CodexAppServerClientError.threadIDMismatch(
+                    requested: params.threadId,
+                    received: read.thread.id
+                )
+            }
+            guard generation == threadIdentityGeneration else { return read.thread }
+            currentThreadId = response.thread.id
+            committedThreadId = response.thread.id
+            hasEstablishedThread = true
+            lastThreadStartParams = Self.threadStartParams(from: params)
+            pendingResumeRollback = nil
+            return read.thread
+        } catch {
+            if generation == threadIdentityGeneration {
+                currentThreadId = previousThreadId
+            }
+            throw error
+        }
     }
 
     public func threadRead(_ params: ThreadReadParams) async throws -> ThreadReadResponse {
-        try await client.threadRead(params)
+        let response = try await client.threadRead(params)
+        if pendingResumeRollback?.threadID == params.threadId,
+           pendingResumeRollback?.generation == threadIdentityGeneration {
+            pendingResumeRollback = nil
+        }
+        return response
+    }
+
+    /// VM の Codex 復元で read が失敗したときだけ、同じ世代の resume を元へ戻す。
+    public func rollbackThreadResumeIfCurrent(threadID: String) {
+        guard let pendingResumeRollback,
+              pendingResumeRollback.threadID == threadID,
+              pendingResumeRollback.generation == threadIdentityGeneration,
+              currentThreadId == threadID else { return }
+        currentThreadId = pendingResumeRollback.previousThreadID
+        committedThreadId = pendingResumeRollback.previousThreadID
+        lastThreadStartParams = pendingResumeRollback.previousThreadStartParams
+        self.pendingResumeRollback = nil
     }
 
     public func threadList(_ params: ThreadListParams = ThreadListParams()) async throws -> ThreadListResponse {

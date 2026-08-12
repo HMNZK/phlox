@@ -54,6 +54,10 @@ final class RespondingTransport: AppServerTransport, @unchecked Sendable {
     func close() async {
         continuation.finish()
     }
+
+    func receive(_ json: String) {
+        continuation.yield(Data(json.utf8))
+    }
 }
 
 private extension NSLock {
@@ -111,6 +115,38 @@ private extension NSLock {
     }
     #expect(turnStartThreadIds == ["restored", "thread-1"])
 
+    await adapter.close()
+}
+
+@Test func childInterruptedCompletionDoesNotNormalizeIntoParentTurnStop() async throws {
+    let transport = RespondingTransport()
+    let client = CodexAppServerClient(transport: transport)
+    let adapter = CodexStructuredAgentClient(client: client)
+    await adapter.start()
+    _ = try await adapter.threadStart(ThreadStartParams(cwd: "/tmp/work"))
+    _ = try await adapter.turnInterrupt(TurnInterruptParams(threadId: "child-1", turnId: "turn-child"))
+
+    let recorder = OrderedEventRecorder()
+    let collector = Task {
+        for await event in adapter.orderedEvents {
+            await recorder.append(event)
+        }
+    }
+    transport.receive("""
+    {"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"child-1","turn":{"id":"turn-child","status":"interrupted","items":[]}}}
+    """)
+
+    #expect(await waitUntil { await recorder.count == 1 })
+    #expect(await recorder.events == [
+        .thread(.turnCompleted(
+            threadId: "child-1",
+            turn: TurnSummary(id: "turn-child", status: "interrupted", items: [])
+        )),
+    ])
+    try await Task.sleep(for: .milliseconds(20))
+    #expect(await recorder.count == 1)
+
+    collector.cancel()
     await adapter.close()
 }
 
@@ -203,6 +239,16 @@ private final class ImageWriteRecorder: @unchecked Sendable {
         data.append(value)
         lock.unlock()
     }
+}
+
+private actor OrderedEventRecorder {
+    private(set) var events: [CodexStructuredEvent] = []
+
+    func append(_ event: CodexStructuredEvent) {
+        events.append(event)
+    }
+
+    var count: Int { events.count }
 }
 
 @Test func codexStructuredAdapterMaterializationFailureDoesNotSendTurn() async throws {

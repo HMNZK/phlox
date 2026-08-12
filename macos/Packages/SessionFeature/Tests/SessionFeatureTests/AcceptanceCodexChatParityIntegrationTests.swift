@@ -594,4 +594,38 @@ struct AcceptanceCodexChatParityIntegrationTests {
             #expect(hasImage)
         }
     }
+
+    @Test("子 thread の interrupted completion は stop state だけを更新し、親 turn を終了しない")
+    func childInterruptedCompletionDoesNotEndParentTurn() async throws {
+        let transport = JSONRPCTransport()
+        let appServer = CodexAppServerClient(transport: transport)
+        let adapter = CodexStructuredAgentClient(client: appServer)
+        let viewModel = makeCodexVM(client: adapter)
+        try await withTerminatedViewModel(viewModel) {
+            try await viewModel.startNew(
+                approvalPolicy: .named("on-request"),
+                sandbox: .named("workspace-write")
+            )
+            await viewModel.refreshCodexSubAgents()
+            await viewModel.stopCodexSubAgent(threadID: "codex-child-2")
+            #expect(viewModel.codexSubAgentState?.stopState(for: "codex-child-2") == .stopping)
+
+            transport.receive(#"{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"codex-integration-thread","turn":{"id":"parent-turn","status":"inProgress","items":[]}}}"#)
+            try await awaitObservation(
+                observing: { _ = viewModel.status },
+                trigger: {}
+            )
+            #expect(viewModel.status == .running)
+
+            try await awaitObservation(
+                observing: { _ = viewModel.codexSubAgentState?.stopState(for: "codex-child-2") },
+                trigger: {
+                    transport.receive(#"{"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"codex-child-2","turn":{"id":"codex-child-2-turn-1","status":"interrupted","items":[]}}}"#)
+                }
+            )
+            #expect(viewModel.codexSubAgentState?.stopState(for: "codex-child-2") == .stopped)
+            #expect(viewModel.status == .running)
+            #expect(viewModel.completedTurnSeq == 0)
+        }
+    }
 }

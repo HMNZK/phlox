@@ -90,6 +90,17 @@ struct AcceptanceCodexBackgroundTerminalStateTests {
         #expect(state.items.isEmpty)
     }
 
+    @Test("同じ pagination cursor が返っても一覧取得を無限に繰り返さない")
+    func repeatedPaginationCursorStopsFetching() async {
+        let client = RepeatingCursorClient()
+        let state = CodexBackgroundTerminalState(client: client, threadId: "thread-1")
+
+        await state.refresh()
+
+        #expect(state.items.map(\.itemId) == ["item-1", "item-2"])
+        #expect(await client.requestCount == 2)
+    }
+
     @Test("thread 切替後に返る旧一覧エラーを状態へ適用しない")
     func staleThreadErrorIsDiscarded() async throws {
         let gate = StateClientListGate()
@@ -302,5 +313,41 @@ private final class StateClient: CodexBackgroundTerminalProviding, @unchecked Se
 
     var lastTerminate: (String, String)? {
         get async { await recorder.lastTerminate }
+    }
+}
+
+private actor RepeatingCursorRecorder {
+    private(set) var requestCursors: [String?] = []
+
+    func record(cursor: String?) {
+        requestCursors.append(cursor)
+    }
+}
+
+private final class RepeatingCursorClient: CodexBackgroundTerminalProviding, @unchecked Sendable {
+    private let recorder = RepeatingCursorRecorder()
+
+    func threadBackgroundTerminalsList(
+        _ params: ThreadBackgroundTerminalsListParams
+    ) async throws -> ThreadBackgroundTerminalsListResponse {
+        await recorder.record(cursor: params.cursor)
+        let data: [ThreadBackgroundTerminal] = params.cursor == nil
+            ? [
+                ThreadBackgroundTerminal(itemId: "item-1", processId: "process-1", command: "one", cwd: "/tmp"),
+            ]
+            : [
+                ThreadBackgroundTerminal(itemId: "item-2", processId: "process-2", command: "two", cwd: "/tmp"),
+            ]
+        return ThreadBackgroundTerminalsListResponse(data: data, nextCursor: "same-cursor")
+    }
+
+    func threadBackgroundTerminalsTerminate(
+        _ params: ThreadBackgroundTerminalsTerminateParams
+    ) async throws -> ThreadBackgroundTerminalsTerminateResponse {
+        ThreadBackgroundTerminalsTerminateResponse(terminated: true)
+    }
+
+    var requestCount: Int {
+        get async { await recorder.requestCursors.count }
     }
 }

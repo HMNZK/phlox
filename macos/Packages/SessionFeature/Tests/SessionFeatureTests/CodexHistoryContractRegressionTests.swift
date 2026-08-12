@@ -66,6 +66,11 @@ struct CodexHistoryContractRegressionTests {
         #expect(await adapter.activeThreadId() == "next")
         #expect(await history.readIfPossible(threadID: "next") == nil)
         #expect(await adapter.activeThreadId() == "active")
+
+        _ = try await history.resume(threadID: "next-again")
+        #expect(await adapter.activeThreadId() == "next-again")
+        #expect(await history.readIfPossible(threadID: "next-again") == nil)
+        #expect(await adapter.activeThreadId() == "active")
         await adapter.close()
     }
 

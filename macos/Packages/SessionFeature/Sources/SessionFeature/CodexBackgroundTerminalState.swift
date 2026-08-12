@@ -267,8 +267,12 @@ public final class CodexBackgroundTerminalState {
     ) -> (list: ListRequest, terminate: TerminateRequest) {
         let list: ListRequest = { threadId in
             var cursor: String?
+            var seenCursors = Set<String>()
             var result: [ThreadBackgroundTerminal] = []
             repeat {
+                if let cursor, !seenCursors.insert(cursor).inserted {
+                    break
+                }
                 let response = try await client.threadBackgroundTerminalsList(
                     ThreadBackgroundTerminalsListParams(threadId: threadId, cursor: cursor, limit: pageSize)
                 )

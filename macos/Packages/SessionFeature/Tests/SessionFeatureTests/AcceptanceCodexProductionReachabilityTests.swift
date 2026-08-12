@@ -97,6 +97,27 @@ struct AcceptanceCodexProductionReachabilityTests {
         await client.close()
     }
 
+    @Test("thread/list の空 turns を child read で補完し、遅い古い refresh を捨てる")
+    func codexSubAgentRefreshUsesReadAndGenerationGuard() async throws {
+        let (viewModel, client, transport) = try await makeStack(subAgentOutOfOrder: true)
+
+        let first = Task { await viewModel.refreshCodexSubAgents() }
+        try await transport.waitForMethod("thread/read:child-old")
+        let second = Task { await viewModel.refreshCodexSubAgents() }
+        await first.value
+        await second.value
+
+        let child = try #require(viewModel.codexSubAgentState?.children)
+        #expect(child.map(\.id) == ["child-new"])
+        #expect(child.first?.activeTurnId == "child-new-turn")
+        #expect(await transport.methods().filter { $0 == "thread/read" }.count == 2)
+
+        await viewModel.stopCodexSubAgent(threadID: "child-new")
+        #expect(viewModel.codexSubAgentState?.stopState(for: "child-new") == .stopping)
+        #expect((await transport.methods()).contains("turn/interrupt"))
+        await client.close()
+    }
+
     @Test("CodexSessionSurface は履歴・背景端末の本番状態を描画できる")
     func codexSessionSurfaceRendersProductionState() async throws {
         let (viewModel, client, _) = try await makeStack()
@@ -140,7 +161,15 @@ struct AcceptanceCodexProductionReachabilityTests {
         CodexStructuredAgentClient,
         CodexProductionTransport
     ) {
-        let transport = CodexProductionTransport(cwd: cwd)
+        try await makeStack(subAgentOutOfOrder: false)
+    }
+
+    private func makeStack(subAgentOutOfOrder: Bool) async throws -> (
+        ChatSessionViewModel,
+        CodexStructuredAgentClient,
+        CodexProductionTransport
+    ) {
+        let transport = CodexProductionTransport(cwd: cwd, subAgentOutOfOrder: subAgentOutOfOrder)
         let appServer = CodexAppServerClient(transport: transport)
         let client = CodexStructuredAgentClient(client: appServer)
         let viewModel = ChatSessionViewModel(
@@ -200,7 +229,7 @@ struct AcceptanceCodexProductionReachabilityTests {
 
     private func backgroundItemStartedNotification(threadID: String) -> String {
         """
-        {"jsonrpc":"2.0","method":"item/started","params":{"threadId":"\(threadID)","turnId":"turn-1","item":{"type":"backgroundTerminal","id":"background-item","itemId":"background-item","processId":"background-process","command":"swift test","cwd":"\(cwd)","text":"background started"}}}
+        {"jsonrpc":"2.0","method":"item/started","params":{"threadId":"\(threadID)","turnId":"turn-1","item":{"type":"commandExecution","id":"background-item","itemId":"background-item","processId":"background-process","command":"swift test","cwd":"\(cwd)","text":"background started"}}}
         """
     }
 
@@ -289,6 +318,7 @@ private final class CodexProductionTransport: AppServerTransport, @unchecked Sen
     private actor State {
         private var requests: [JSONValue] = []
         private var terminated = false
+        private var subAgentListCalls = 0
 
         func append(_ request: JSONValue) {
             requests.append(request)
@@ -302,6 +332,11 @@ private final class CodexProductionTransport: AppServerTransport, @unchecked Sen
             terminated = true
         }
 
+        func nextSubAgentListCall() -> Int {
+            subAgentListCalls += 1
+            return subAgentListCalls
+        }
+
         var isTerminated: Bool { terminated }
     }
 
@@ -309,17 +344,26 @@ private final class CodexProductionTransport: AppServerTransport, @unchecked Sen
     private let continuation: AsyncStream<Data>.Continuation
     let methodEvents: AsyncStream<String>
     private let methodEventContinuation: AsyncStream<String>.Continuation
+    private let childNewReadEvents: AsyncStream<Void>
+    private let childNewReadEventContinuation: AsyncStream<Void>.Continuation
     private let state = State()
     private let cwd: String
+    private let subAgentOutOfOrder: Bool
 
-    init(cwd: String) {
+    init(cwd: String, subAgentOutOfOrder: Bool = false) {
         self.cwd = cwd
+        self.subAgentOutOfOrder = subAgentOutOfOrder
         var captured: AsyncStream<Data>.Continuation?
         receivedLines = AsyncStream(bufferingPolicy: .unbounded) { captured = $0 }
         continuation = captured!
         var methodCaptured: AsyncStream<String>.Continuation?
         methodEvents = AsyncStream(bufferingPolicy: .unbounded) { methodCaptured = $0 }
         methodEventContinuation = methodCaptured!
+        var childNewReadCaptured: AsyncStream<Void>.Continuation?
+        childNewReadEvents = AsyncStream(bufferingPolicy: .bufferingNewest(1)) {
+            childNewReadCaptured = $0
+        }
+        childNewReadEventContinuation = childNewReadCaptured!
     }
 
     func send(_ data: Data) async throws {
@@ -345,16 +389,36 @@ private final class CodexProductionTransport: AppServerTransport, @unchecked Sen
                 : request["params"]?["threadId"]?.stringValue ?? "history-1"
             result = .object(["thread": threadJSON(id: threadID)])
         case "thread/list":
-            result = .object([
-                "data": .array([
-                    threadJSON(id: "history-1", name: "first history"),
-                    threadJSON(id: "history-2", name: "second history"),
-                ]),
-                "nextCursor": .null,
-            ])
+            if subAgentOutOfOrder,
+               request["params"]?["parentThreadId"]?.stringValue == "live-thread" {
+                let call = await state.nextSubAgentListCall()
+                let childID = call == 1 ? "child-old" : "child-new"
+                result = .object([
+                    "data": .array([childJSON(id: childID, parent: "live-thread", includeTurns: false)]),
+                    "nextCursor": .null,
+                ])
+            } else {
+                result = .object([
+                    "data": .array([
+                        threadJSON(id: "history-1", name: "first history"),
+                        threadJSON(id: "history-2", name: "second history"),
+                    ]),
+                    "nextCursor": .null,
+                ])
+            }
         case "thread/read":
             let threadID = request["params"]?["threadId"]?.stringValue ?? "history-1"
-            result = .object(["thread": threadJSON(id: threadID, includeHistoryItems: true)])
+            if subAgentOutOfOrder, threadID == "child-old" || threadID == "child-new" {
+                if threadID == "child-old" {
+                    methodEventContinuation.yield("thread/read:child-old")
+                    for await _ in childNewReadEvents { break }
+                } else {
+                    childNewReadEventContinuation.yield()
+                }
+                result = .object(["thread": childJSON(id: threadID, parent: "live-thread", includeTurns: true)])
+            } else {
+                result = .object(["thread": threadJSON(id: threadID, includeHistoryItems: true)])
+            }
         case "model/list":
             result = .object(["data": .array([.object([
                 "id": .string("gpt-5-codex"),
@@ -409,6 +473,7 @@ private final class CodexProductionTransport: AppServerTransport, @unchecked Sen
     func close() async {
         continuation.finish()
         methodEventContinuation.finish()
+        childNewReadEventContinuation.finish()
     }
 
     func receive(_ json: String) {
@@ -489,6 +554,33 @@ private final class CodexProductionTransport: AppServerTransport, @unchecked Sen
                         "text": .string("past answer"),
                     ]),
                 ]),
+            ])])
+        }
+        return .object(object)
+    }
+
+    private func childJSON(id: String, parent: String, includeTurns: Bool) -> JSONValue {
+        var object: [String: JSONValue] = [
+            "id": .string(id),
+            "cliVersion": .string("0.147.0"),
+            "createdAt": .number(1),
+            "cwd": .string(cwd),
+            "ephemeral": .bool(false),
+            "modelProvider": .string("openai"),
+            "preview": .string(id),
+            "sessionId": .string("session-(id)"),
+            "source": .object(["subAgent": .object(["parentThreadId": .string(parent)])]),
+            "status": .object(["type": .string("active"), "activeFlags": .array([])]),
+            "turns": .array([]),
+            "updatedAt": .number(2),
+            "parentThreadId": .string(parent),
+            "canAcceptDirectInput": .bool(false),
+        ]
+        if includeTurns {
+            object["turns"] = .array([.object([
+                "id": .string("\(id)-turn"),
+                "status": .string("inProgress"),
+                "items": .array([]),
             ])])
         }
         return .object(object)

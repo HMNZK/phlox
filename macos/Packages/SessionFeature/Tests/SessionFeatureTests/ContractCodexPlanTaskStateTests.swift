@@ -51,4 +51,24 @@ struct ContractCodexPlanTaskStateTests {
         #expect(state.turnId.isEmpty)
         #expect(state.tasks.isEmpty)
     }
+
+    @Test("reset 失敗後の空 thread identity は wildcard にならない")
+    func failedResetRejectsPlansUntilNewThreadIsBound() {
+        let state = CodexPlanTaskState(threadId: "thread-old", turnId: "turn-old")
+        #expect(state.apply(threadId: "thread-old", turnId: "turn-old", plan: [
+            TurnPlanStep(step: "old", status: .completed),
+        ]))
+
+        state.reset(threadId: "")
+        #expect(!state.apply(threadId: "thread-late", turnId: "turn-late", plan: [
+            TurnPlanStep(step: "stale", status: .completed),
+        ]))
+        #expect(state.tasks.isEmpty)
+
+        state.reset(threadId: "thread-new")
+        #expect(state.apply(threadId: "thread-new", turnId: "turn-new", plan: [
+            TurnPlanStep(step: "fresh", status: .inProgress),
+        ]))
+        #expect(state.tasks.map(\.title) == ["fresh"])
+    }
 }

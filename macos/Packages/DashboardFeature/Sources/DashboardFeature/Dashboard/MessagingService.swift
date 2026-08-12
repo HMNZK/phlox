@@ -115,6 +115,10 @@ final class MessagingService {
             deliveryOutcome = .sent
         } catch ChatSessionViewModel.ControlImageSendError.imagesUnsupported {
             deliveryOutcome = .imagesUnsupported
+        } catch ChatSessionViewModel.ControlImageSendError.imageSendSnapshotChanged {
+            // 送信直前に画像能力が変わった場合も text-only へ縮退せず、Control API には
+            // 画像送信拒否として明示する（添付下書きは SessionFeature 側で保持する）。
+            deliveryOutcome = .imagesUnsupported
         } catch PTYError.sessionNotFound, ControllableSessionError.notSpawned {
             deliveryOutcome = .notSpawned
         } catch {

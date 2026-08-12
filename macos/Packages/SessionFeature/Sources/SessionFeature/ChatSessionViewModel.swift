@@ -2884,6 +2884,14 @@ extension ChatSessionViewModel: ControllableSession {
                 isAwaitingLocallyStartedTurnEvent = false
                 status = .idle
                 restoreDraftAfterRejectedSend(input)
+                if hasAttachments,
+                   let codexError = error as? CodexStructuredClientError,
+                   codexError == .imageInputUnsupported || codexError == .imageTurnInProgress {
+                    let snapshotError = ControlImageSendError.imageSendSnapshotChanged
+                    attachmentStore.setError(snapshotError.localizedDescription)
+                    reportError("ターン開始に失敗しました: \(snapshotError)")
+                    throw snapshotError
+                }
                 reportError("ターン開始に失敗しました: \(error)")
                 throw error
             }

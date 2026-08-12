@@ -395,6 +395,10 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
     /// 子 thread 停止を要求済みで、親 thread の filter を越えてよい完了だけを保持する。
     private var pendingChildInterrupts: [String: String] = [:]
     private var nativeImageInputEnabled = false
+    /// 画像を含む turn/start の await 中は、モデル変更を受け付けない。
+    /// actor は await 中に再入されるため、UI 側の再チェックだけではこの窓を塞げない。
+    private var imageTurnInFlight = false
+    private var modelChangeInFlight = false
     private var imageInputWriter: (@Sendable (Data, URL) throws -> Void)?
     /// resetConversation で新規 thread を開始し直すために、直近の thread/start 引数を保持する。
     private var lastThreadStartParams: ThreadStartParams?
@@ -456,6 +460,17 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
         guard !hasImages || nativeImageInputEnabled else {
             throw CodexStructuredClientError.imageInputUnsupported
         }
+        if hasImages {
+            guard !imageTurnInFlight else {
+                throw CodexStructuredClientError.imageTurnInProgress
+            }
+            imageTurnInFlight = true
+        }
+        defer {
+            if hasImages {
+                imageTurnInFlight = false
+            }
+        }
         let materialized = try Self.materializeImageInputs(input, write: imageInputWriter)
         defer {
             if let directory = materialized.temporaryDirectory {
@@ -477,8 +492,20 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
         guard let currentThreadId else { throw CodexStructuredClientError.threadNotStarted }
         let threadGeneration = threadIdentityGeneration
         pendingResumeRollback = nil
-        guard !input.contains(where: Self.isImageInput) || nativeImageInputEnabled else {
+        let hasImages = input.contains(where: Self.isImageInput)
+        guard !hasImages || nativeImageInputEnabled else {
             throw CodexStructuredClientError.imageInputUnsupported
+        }
+        if hasImages {
+            guard !imageTurnInFlight else {
+                throw CodexStructuredClientError.imageTurnInProgress
+            }
+            imageTurnInFlight = true
+        }
+        defer {
+            if hasImages {
+                imageTurnInFlight = false
+            }
         }
         _ = try await client.turnStart(TurnStartParams(threadId: currentThreadId, input: input))
         guard threadGeneration == threadIdentityGeneration,
@@ -488,6 +515,7 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
     }
 
     public func setNativeImageInputEnabled(_ enabled: Bool) {
+        guard !imageTurnInFlight, !modelChangeInFlight else { return }
         nativeImageInputEnabled = enabled
     }
 
@@ -708,6 +736,7 @@ public enum CodexStructuredClientError: Error, Equatable, Sendable {
     case threadNotStarted
     case staleThreadOperation
     case imageInputUnsupported
+    case imageTurnInProgress
     case imageMaterializationFailed
 }
 
@@ -948,7 +977,23 @@ extension CodexStructuredAgentClient {
     }
 
     public func updateThreadSettings(_ params: ThreadSettingsUpdateParams) async throws -> ThreadSettingsUpdateResponse {
-        try await client.updateThreadSettings(params)
+        // `CodexStructuredAgentClient` は actor でも await 中に再入される。
+        // モデル変更が先に入った場合は capability を即時無効化し、後続の画像 turn/start を拒否する。
+        // 画像送信が先に入っていた場合は設定変更自体を拒否して、送信中のモデルを不変にする。
+        let changesModel = params.model != nil || params.collaborationMode != nil
+        if changesModel {
+            guard !imageTurnInFlight else {
+                throw CodexStructuredClientError.imageTurnInProgress
+            }
+            nativeImageInputEnabled = false
+            modelChangeInFlight = true
+        }
+        defer {
+            if changesModel {
+                modelChangeInFlight = false
+            }
+        }
+        return try await client.updateThreadSettings(params)
     }
 
     public static func normalizedEvent(from event: ThreadEvent) -> NormalizedChatEvent? {

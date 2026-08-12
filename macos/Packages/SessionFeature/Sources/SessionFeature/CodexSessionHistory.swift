@@ -11,6 +11,10 @@ public protocol CodexSessionHistoryProviding: Sendable {
     /// 通常の client は既存の2呼び出しへフォールバックし、Codex の structured adapter
     /// は active thread の commit を最後へ遅延させる。
     func threadResumeAndRead(_ params: ThreadResumeParams) async throws -> ThreadSummary
+
+    /// raw な resume の直後に read が失敗した場合、adapter が保持する
+    /// active thread を resume 前へ戻す。通常の client では何もしない。
+    func rollbackThreadResumeIfCurrent(threadID: String) async
 }
 
 public extension CodexSessionHistoryProviding {
@@ -18,6 +22,8 @@ public extension CodexSessionHistoryProviding {
         _ = try await threadResume(params)
         return try await threadRead(ThreadReadParams(threadId: params.threadId, includeTurns: true)).thread
     }
+
+    func rollbackThreadResumeIfCurrent(threadID: String) async {}
 }
 
 extension CodexAppServerClient: CodexSessionHistoryProviding {}
@@ -158,6 +164,7 @@ public final class CodexSessionHistory {
             errorMessage = nil
             return response.thread
         } catch {
+            await client.rollbackThreadResumeIfCurrent(threadID: threadID)
             errorMessage = String(describing: error)
             throw error
         }

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import AgentDomain
 import CodexAppServerKit
 @testable import SessionFeature
 
@@ -49,6 +50,57 @@ struct CodexHistoryContractRegressionTests {
         #expect(await history.resumeIfPossible(threadID: "next") == nil)
         #expect(await adapter.activeThreadId() == "active")
         #expect(history.errorMessage?.contains("read failed") == true)
+        await adapter.close()
+    }
+
+    @Test("raw resume 後の read 失敗でも adapter の active thread を元へ戻す")
+    func failedRawResumeReadRollsBackActiveThread() async throws {
+        let transport = HistoryContractTransport(mode: .readFailure)
+        let appServer = CodexAppServerClient(transport: transport)
+        let adapter = CodexStructuredAgentClient(client: appServer)
+        await adapter.start()
+        _ = try await adapter.threadStart(ThreadStartParams(cwd: "/workspace"))
+        let history = CodexSessionHistory(client: adapter, workingDirectory: "/workspace")
+
+        _ = try await history.resume(threadID: "next")
+        #expect(await adapter.activeThreadId() == "next")
+        #expect(await history.readIfPossible(threadID: "next") == nil)
+        #expect(await adapter.activeThreadId() == "active")
+        await adapter.close()
+    }
+
+    @Test("Codex restore の read 失敗は VM と adapter の元 identity を保持する")
+    func failedRestoreKeepsViewModelIdentity() async throws {
+        let transport = HistoryContractTransport(mode: .readFailure)
+        let appServer = CodexAppServerClient(transport: transport)
+        let adapter = CodexStructuredAgentClient(client: appServer)
+        let viewModel = ChatSessionViewModel(
+            id: SessionID(),
+            agentRef: .builtin(.codex),
+            client: adapter,
+            approvalBroker: ChatApprovalBroker(),
+            workingDirectory: "/workspace"
+        )
+        try await viewModel.startNew(
+            approvalPolicy: .named("on-request"),
+            sandbox: .named("workspace-write")
+        )
+
+        #expect(viewModel.threadId == "active")
+        await viewModel.restore(
+            threadId: "next",
+            approvalPolicy: .named("on-request"),
+            sandbox: .named("workspace-write")
+        )
+
+        #expect(viewModel.threadId == "active")
+        #expect(await adapter.activeThreadId() == "active")
+        guard case .failed(let message) = viewModel.restoreState else {
+            Issue.record("Codex restore failure was not observable")
+            await adapter.close()
+            return
+        }
+        #expect(message.contains("read failed"))
         await adapter.close()
     }
 
@@ -142,6 +194,13 @@ private final class HistoryContractTransport: AppServerTransport, @unchecked Sen
 
         let result: JSONValue
         switch method {
+        case "initialize":
+            result = .object([
+                "codexHome": .string("/tmp/codex"),
+                "platformFamily": .string("macOS"),
+                "platformOs": .string("macOS"),
+                "userAgent": .string("history-contract-test"),
+            ])
         case "thread/start":
             result = .object(["thread": threadJSON(id: "active")])
         case "thread/list":

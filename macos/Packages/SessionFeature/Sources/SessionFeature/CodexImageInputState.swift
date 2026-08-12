@@ -1,16 +1,15 @@
 import CodexAppServerKit
 
 /// Codex の画像入力可否を model/list の modality だけから判定する。
-/// 未取得時は起動直後の既存送信経路を維持し、取得済みなら `image` のみを許可する。
+/// 対応確認済みの model だけを許可する。
 enum CodexImageInputState {
     private static let knownModalities: Set<String> = ["text", "image"]
 
     static func acceptsImageAttachments(
         selectedModel: String?,
-        availableModels: [AppServerModel],
-        allowWhenUnavailable: Bool = true
+        availableModels: [AppServerModel]
     ) -> Bool {
-        guard !availableModels.isEmpty else { return allowWhenUnavailable }
+        guard !availableModels.isEmpty else { return false }
 
         let model: AppServerModel?
         if let selectedModel {

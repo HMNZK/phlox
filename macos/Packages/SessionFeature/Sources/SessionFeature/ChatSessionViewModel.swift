@@ -432,8 +432,7 @@ public final class ChatSessionViewModel: Identifiable {
         case .builtin(.codex):
             CodexImageInputState.acceptsImageAttachments(
                 selectedModel: selectedModel,
-                availableModels: availableModels,
-                allowWhenUnavailable: true
+                availableModels: availableModels
             )
         default:
             false
@@ -448,8 +447,7 @@ public final class ChatSessionViewModel: Identifiable {
         case .builtin(.codex):
             CodexImageInputState.acceptsImageAttachments(
                 selectedModel: selectedModel,
-                availableModels: availableModels,
-                allowWhenUnavailable: false
+                availableModels: availableModels
             )
         default:
             false

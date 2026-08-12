@@ -169,6 +169,60 @@ private extension NSLock {
     await adapter.close()
 }
 
+@Test func codexStructuredAdapterMaterializesImagesAsLocalImage() async throws {
+    let transport = RespondingTransport()
+    let client = CodexAppServerClient(transport: transport)
+    let adapter = CodexStructuredAgentClient(client: client)
+    await adapter.start()
+    _ = try await adapter.threadStart(ThreadStartParams(cwd: "/tmp/work"))
+    await adapter.setNativeImageInputEnabled(true)
+
+    let writes = ImageWriteRecorder()
+    await adapter.setImageInputWriterForTesting { data, url in
+        writes.append(data, url)
+        try data.write(to: url)
+    }
+    try await adapter.turnStart([.text("describe"), .image(data: Data([1, 2, 3]), mediaType: "image/png")])
+
+    let request = try #require(await transport.sent.first { $0["method"]?.stringValue == "turn/start" })
+    guard case .array(let inputs) = request["params"]?["input"] else {
+        Issue.record("turn/start input が配列でない")
+        return
+    }
+    #expect(inputs.contains { $0["type"] == .string("localImage") })
+    #expect(writes.data == [Data([1, 2, 3])])
+    await adapter.close()
+}
+
+private final class ImageWriteRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private(set) var data: [Data] = []
+
+    func append(_ value: Data, _ url: URL) {
+        lock.lock()
+        data.append(value)
+        lock.unlock()
+    }
+}
+
+@Test func codexStructuredAdapterMaterializationFailureDoesNotSendTurn() async throws {
+    let transport = RespondingTransport()
+    let client = CodexAppServerClient(transport: transport)
+    let adapter = CodexStructuredAgentClient(client: client)
+    await adapter.start()
+    _ = try await adapter.threadStart(ThreadStartParams(cwd: "/tmp/work"))
+    await adapter.setNativeImageInputEnabled(true)
+    await adapter.setImageInputWriterForTesting { _, _ in
+        throw NSError(domain: "test", code: 1)
+    }
+
+    await #expect(throws: CodexStructuredClientError.imageMaterializationFailed) {
+        try await adapter.turnStart([.text("describe"), .image(data: Data([1, 2, 3]), mediaType: "image/png")])
+    }
+    #expect(await transport.sent.first { $0["method"]?.stringValue == "turn/start" } == nil)
+    await adapter.close()
+}
+
 @Test func clientNormalizesKnownNotificationsAndIgnoresUnknown() async throws {
     let transport = MockTransport()
     let client = CodexAppServerClient(transport: transport)

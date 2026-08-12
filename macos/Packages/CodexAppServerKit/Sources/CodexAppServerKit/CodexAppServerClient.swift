@@ -295,6 +295,7 @@ public actor CodexStructuredAgentClient: StructuredAgentClient {
     private var bridgeTask: Task<Void, Never>?
     private var currentThreadId: String?
     private var nativeImageInputEnabled = false
+    private var imageInputWriter: (@Sendable (Data, URL) throws -> Void)?
     /// resetConversation で新規 thread を開始し直すために、直近の thread/start 引数を保持する。
     private var lastThreadStartParams: ThreadStartParams?
     private let eventContinuation: AsyncStream<NormalizedChatEvent>.Continuation
@@ -349,7 +350,7 @@ public actor CodexStructuredAgentClient: StructuredAgentClient {
             ))
             return
         }
-        let materialized = try Self.materializeImageInputs(input)
+        let materialized = try Self.materializeImageInputs(input, write: imageInputWriter)
         defer {
             if let directory = materialized.temporaryDirectory {
                 _ = try? FileManager.default.removeItem(at: directory)
@@ -363,6 +364,10 @@ public actor CodexStructuredAgentClient: StructuredAgentClient {
 
     public func setNativeImageInputEnabled(_ enabled: Bool) {
         nativeImageInputEnabled = enabled
+    }
+
+    func setImageInputWriterForTesting(_ writer: (@Sendable (Data, URL) throws -> Void)?) {
+        imageInputWriter = writer
     }
 
     public func resume(sessionRef: String) async throws {
@@ -492,7 +497,10 @@ private extension CodexStructuredAgentClient {
         let temporaryDirectory: URL?
     }
 
-    static func materializeImageInputs(_ input: [ChatInput]) throws -> MaterializedImageInputs {
+    static func materializeImageInputs(
+        _ input: [ChatInput],
+        write: (@Sendable (Data, URL) throws -> Void)? = nil
+    ) throws -> MaterializedImageInputs {
         guard input.contains(where: { if case .image = $0 { true } else { false } }) else {
             let textInputs = input.compactMap { chatInput -> UserInput? in
                 if case .text(let text) = chatInput { return .text(text) }
@@ -516,7 +524,11 @@ private extension CodexStructuredAgentClient {
                 case .image(let data, _):
                     let imageURL = directory.appendingPathComponent("image-\(imageIndex)")
                     imageIndex += 1
-                    try data.write(to: imageURL, options: .atomic)
+                    if let write {
+                        try write(data, imageURL)
+                    } else {
+                        try data.write(to: imageURL, options: .atomic)
+                    }
                     guard FileManager.default.isReadableFile(atPath: imageURL.path) else {
                         throw CodexStructuredClientError.imageMaterializationFailed
                     }

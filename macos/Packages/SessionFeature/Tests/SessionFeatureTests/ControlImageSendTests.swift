@@ -183,6 +183,47 @@ struct ControlImageSendTests {
             #expect(await client.lastTurnStartInput() == nil)
         }
     }
+
+    @Test
+    func sendText_imageTurnInProgressBecomesExplicitImageRejectionAndRestoresDraftAndAttachment() async throws {
+        let imageModel = try JSONDecoder().decode(
+            AppServerModel.self,
+            from: Data(#"{"id":"image-model","model":"image-model","displayName":"Image","description":"","hidden":false,"supportedReasoningEfforts":["medium"],"defaultReasoningEffort":"medium","isDefault":true,"inputModalities":["text","image"]}"#.utf8)
+        )
+        let client = RacingCodexImageClient(models: [imageModel])
+        let vm = ChatSessionViewModel(
+            id: SessionID(),
+            agentRef: .builtin(.codex),
+            client: client,
+            approvalBroker: ChatApprovalBroker(),
+            workingDirectory: "/tmp/work"
+        )
+        try await withTerminatedViewModel(vm) {
+            try await vm.startNew(
+                approvalPolicy: .named("on-request"),
+                sandbox: .named("workspace-write")
+            )
+            await client.setConfigurationBlocked(false)
+
+            vm.draft = "画像を説明して"
+            let attachment = try #require(
+                vm.attachmentStore.addImage(data: tinyPNG, mediaType: "image/png")
+            )
+            let input = try #require(vm.consumeDraftForSend())
+            await client.setTurnStartError(.imageTurnInProgress)
+
+            await #expect(throws: ChatSessionViewModel.ControlImageSendError.imageSendSnapshotChanged) {
+                try await vm.sendText(input, submit: true)
+            }
+            #expect(vm.draft == input)
+            #expect(vm.attachmentStore.attachments == [attachment])
+            #expect(vm.attachmentStore.lastError == "画像対応モデルまたは添付が送信前に変更されたため、送信を中止しました")
+            #expect(await client.turnStartInputs() == [[
+                .text(input),
+                .image(data: tinyPNG, mediaType: "image/png"),
+            ]])
+        }
+    }
 }
 
 private actor RacingCodexImageClient: StructuredAgentClient, CodexSettingsProviding, CodexImageInputConfiguring {
@@ -194,7 +235,10 @@ private actor RacingCodexImageClient: StructuredAgentClient, CodexSettingsProvid
     private let configurationStartedContinuation: AsyncStream<Void>.Continuation
     private let models: [AppServerModel]
     private var configurationContinuation: CheckedContinuation<Void, Never>?
+    private var configurationBlocked = true
     private var lastInput: [ChatInput]?
+    private var turnStartInputsStorage: [[ChatInput]] = []
+    private var turnStartError: CodexStructuredClientError?
 
     init(models: [AppServerModel]) {
         self.models = models
@@ -213,6 +257,10 @@ private actor RacingCodexImageClient: StructuredAgentClient, CodexSettingsProvid
 
     func turnStart(_ input: [ChatInput]) async throws {
         lastInput = input
+        turnStartInputsStorage.append(input)
+        if let turnStartError {
+            throw turnStartError
+        }
     }
 
     func resume(sessionRef: String) async throws {}
@@ -265,6 +313,7 @@ private actor RacingCodexImageClient: StructuredAgentClient, CodexSettingsProvid
     }
 
     func setNativeImageInputEnabled(_ enabled: Bool) async {
+        guard configurationBlocked else { return }
         configurationStartedContinuation.yield(())
         await withCheckedContinuation { continuation in
             configurationContinuation = continuation
@@ -277,6 +326,16 @@ private actor RacingCodexImageClient: StructuredAgentClient, CodexSettingsProvid
     }
 
     func lastTurnStartInput() -> [ChatInput]? { lastInput }
+
+    func setConfigurationBlocked(_ blocked: Bool) {
+        configurationBlocked = blocked
+    }
+
+    func setTurnStartError(_ error: CodexStructuredClientError?) {
+        turnStartError = error
+    }
+
+    func turnStartInputs() -> [[ChatInput]] { turnStartInputsStorage }
 
     private func decode<T: Decodable>(_ json: String) throws -> T {
         try JSONDecoder().decode(T.self, from: Data(json.utf8))

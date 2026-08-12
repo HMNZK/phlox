@@ -1,8 +1,11 @@
 import Foundation
 import Testing
 import AgentDomain
+import CodexAppServerKit
+import ControlServer
 import HookServer
 import PTYKit
+import StructuredChatKit
 @testable import DashboardFeature
 @testable import SessionFeature
 
@@ -504,4 +507,134 @@ func sendMessage_21stMessageWithinOneSecond_returnsRateLimited() async throws {
     // レート制限で弾かれたメッセージは PTY 書込もメッセージ記録もされない。
     #expect(ptyManager.writtenCalls.count == 20)
     #expect(messageStore.recorded.count == 20)
+}
+
+@Test @MainActor
+func sendMessage_imageTurnInProgressReturnsImageUnsupportedWithoutTextFallback() async throws {
+    let model = try JSONDecoder().decode(
+        AppServerModel.self,
+        from: Data(#"{"id":"image-model","model":"image-model","displayName":"Image","description":"","hidden":false,"supportedReasoningEfforts":["medium"],"defaultReasoningEffort":"medium","isDefault":true,"inputModalities":["text","image"]}"#.utf8)
+    )
+    let client = MessagingImageRejectingClient(model: model)
+    let vm = ChatSessionViewModel(
+        id: SessionID(),
+        agentRef: .builtin(.codex),
+        client: client,
+        approvalBroker: ChatApprovalBroker(),
+        workingDirectory: "/tmp/work"
+    )
+    let messages = MockMessageStore()
+    let service = MessagingService(pty: MockPTYManager(), messages: messages)
+
+    do {
+        try await vm.startNew(
+            approvalPolicy: .named("on-request"),
+            sandbox: .named("workspace-write")
+        )
+        vm.draft = "既存の下書き"
+        let outcome = await service.send(
+            to: .id(vm.id),
+            text: "画像を説明して",
+            submit: true,
+            from: nil,
+            inReplyTo: nil,
+            images: [ControlImageAttachment(mediaType: "image/png", data: Data([1, 2, 3]))],
+            sessions: [.appServer(vm)]
+        )
+
+        #expect(outcome == .imagesUnsupported)
+        #expect(vm.draft == "既存の下書き")
+        #expect(vm.attachmentStore.attachments.count == 1)
+        #expect(await client.turnStartInputs() == [[
+            .text("画像を説明して"),
+            .image(data: Data([1, 2, 3]), mediaType: "image/png"),
+        ]])
+        #expect(messages.recorded.count == 1)
+        #expect(messages.recorded.first?.delivered == false)
+    } catch {
+        await vm.terminate()
+        throw error
+    }
+    await vm.terminate()
+}
+
+private actor MessagingImageRejectingClient: StructuredAgentClient, CodexSettingsProviding, CodexImageInputConfiguring {
+    nonisolated let events: AsyncStream<NormalizedChatEvent>
+    nonisolated let threadEvents: AsyncStream<ThreadEvent>
+    private let eventContinuation: AsyncStream<NormalizedChatEvent>.Continuation
+    private let threadEventContinuation: AsyncStream<ThreadEvent>.Continuation
+    private let model: AppServerModel
+    private var inputs: [[ChatInput]] = []
+
+    init(model: AppServerModel) {
+        self.model = model
+        var eventCaptured: AsyncStream<NormalizedChatEvent>.Continuation?
+        events = AsyncStream { eventCaptured = $0 }
+        eventContinuation = eventCaptured!
+        var threadEventCaptured: AsyncStream<ThreadEvent>.Continuation?
+        threadEvents = AsyncStream { threadEventCaptured = $0 }
+        threadEventContinuation = threadEventCaptured!
+    }
+
+    func start() async {}
+
+    func turnStart(_ input: [ChatInput]) async throws {
+        inputs.append(input)
+        throw CodexStructuredClientError.imageTurnInProgress
+    }
+
+    func resume(sessionRef: String) async throws {}
+    func interrupt() async throws {}
+
+    func close() async {
+        eventContinuation.finish()
+        threadEventContinuation.finish()
+    }
+
+    func activeThreadId() async -> String? { "thread-image" }
+
+    func initialize(_ params: InitializeParams) async throws -> InitializeResponse {
+        try decode(#"{"codexHome":"/tmp","platformFamily":"macOS","platformOs":"macOS","userAgent":"test"}"#)
+    }
+
+    func threadStart(_ params: ThreadStartParams) async throws -> ThreadResponse {
+        try decode(#"{"thread":{"id":"thread-image","status":{"type":"idle"}}}"#)
+    }
+
+    func threadResume(_ params: ThreadResumeParams) async throws -> ThreadResponse {
+        try decode(#"{"thread":{"id":"thread-image","status":{"type":"idle"}}}"#)
+    }
+
+    func threadRead(_ params: ThreadReadParams) async throws -> ThreadReadResponse {
+        try decode(#"{"thread":{"id":"thread-image","status":{"type":"idle"}}}"#)
+    }
+
+    func listModels(_ params: ModelListParams) async throws -> ModelListResponse {
+        let value = try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(model))
+        return try decode(JSONValue.object(["data": .array([value]), "nextCursor": .null]))
+    }
+
+    func listPermissionProfiles(_ params: PermissionProfileListParams) async throws -> PermissionProfileListResponse {
+        try decode(#"{"data":[]}"#)
+    }
+
+    func listCollaborationModes(_ params: CollaborationModeListParams) async throws -> CollaborationModeListResponse {
+        try decode(#"{"data":[]}"#)
+    }
+
+    func updateThreadSettings(_ params: ThreadSettingsUpdateParams) async throws -> ThreadSettingsUpdateResponse {
+        ThreadSettingsUpdateResponse()
+    }
+
+    func setNativeImageInputEnabled(_ enabled: Bool) async {}
+
+    func turnStartInputs() -> [[ChatInput]] { inputs }
+
+    private func decode<T: Decodable>(_ json: String) throws -> T {
+        try JSONDecoder().decode(T.self, from: Data(json.utf8))
+    }
+
+    private func decode<T: Decodable>(_ value: JSONValue) throws -> T {
+        try JSONDecoder().decode(T.self, from: JSONEncoder().encode(value))
+    }
 }

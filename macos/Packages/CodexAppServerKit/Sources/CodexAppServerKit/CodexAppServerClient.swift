@@ -457,14 +457,14 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
         let threadGeneration = threadIdentityGeneration
         pendingResumeRollback = nil
         let hasImages = input.contains { if case .image = $0 { true } else { false } }
-        guard !hasImages || nativeImageInputEnabled else {
-            throw CodexStructuredClientError.imageInputUnsupported
-        }
         if hasImages {
-            guard !imageTurnInFlight else {
+            guard !imageTurnInFlight, !modelChangeInFlight else {
                 throw CodexStructuredClientError.imageTurnInProgress
             }
             imageTurnInFlight = true
+        }
+        guard !hasImages || nativeImageInputEnabled else {
+            throw CodexStructuredClientError.imageInputUnsupported
         }
         defer {
             if hasImages {
@@ -493,14 +493,14 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
         let threadGeneration = threadIdentityGeneration
         pendingResumeRollback = nil
         let hasImages = input.contains(where: Self.isImageInput)
-        guard !hasImages || nativeImageInputEnabled else {
-            throw CodexStructuredClientError.imageInputUnsupported
-        }
         if hasImages {
-            guard !imageTurnInFlight else {
+            guard !imageTurnInFlight, !modelChangeInFlight else {
                 throw CodexStructuredClientError.imageTurnInProgress
             }
             imageTurnInFlight = true
+        }
+        guard !hasImages || nativeImageInputEnabled else {
+            throw CodexStructuredClientError.imageInputUnsupported
         }
         defer {
             if hasImages {

@@ -2464,7 +2464,7 @@ extension ChatSessionViewModel: ControllableSession {
                 return
             }
             if hasAttachments && !supportsImageAttachments {
-                attachmentStore.setError("画像添付は Claude のみ対応です")
+                attachmentStore.setError("画像添付は Claude と画像対応モデルの Codex に対応しています")
                 restoreDraftAfterRejectedSend(input)
                 return
             }
@@ -2511,6 +2511,7 @@ extension ChatSessionViewModel: ControllableSession {
                 isAwaitingLocallyStartedTurnEvent = false
                 status = .idle
                 restoreDraftAfterRejectedSend(input)
+                reportError("ターン開始に失敗しました: \(error)")
                 throw error
             }
             // 単一適用: 送信成功後にクリアする。throw 時は予約を残し、再送で二重付与しない。
@@ -2610,6 +2611,7 @@ extension ChatSessionViewModel: ControllableSession {
             // sendText の A3 と同型: turnStart 失敗時は .running 固着を防ぐ。
             isAwaitingLocallyStartedTurnEvent = false
             status = .idle
+            reportError("サブエージェントへの送信に失敗しました: \(error)")
             throw error
         }
         pendingReplayContext = nil

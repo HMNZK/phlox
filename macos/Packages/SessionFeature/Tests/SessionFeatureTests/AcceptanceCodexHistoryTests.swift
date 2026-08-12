@@ -79,4 +79,19 @@ struct AcceptanceCodexHistoryTests {
         #expect(resumeRaw["threadId"] == JSONValue.string("selected"))
         #expect(resumeRaw["cwd"] == JSONValue.string(cwd))
     }
+
+    @Test("CodexSessionHistory は ID を保ったまま全ページを一覧へ反映する")
+    @MainActor
+    func concreteHistoryKeepsDistinctThreadIDs() async throws {
+        let transport = CodexHistoryTransport()
+        let client = CodexAppServerClient(transport: transport)
+        await client.start()
+
+        let history = CodexSessionHistory(client: client, cwd: cwd)
+        await history.refresh()
+
+        #expect(history.threads.map(\.id) == ["cli-1", "app-1", "app-2"])
+        #expect(history.threads.map(\.preview) == ["shared title", "shared title", "shared title"])
+        await client.close()
+    }
 }

@@ -426,12 +426,41 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private var supportsImageAttachments: Bool {
-        agentRef == .builtin(.claudeCode)
+        switch agentRef {
+        case .builtin(.claudeCode):
+            true
+        case .builtin(.codex):
+            CodexImageInputState.acceptsImageAttachments(
+                selectedModel: selectedModel,
+                availableModels: availableModels,
+                allowWhenUnavailable: true
+            )
+        default:
+            false
+        }
     }
 
     /// Control API 経路の画像非対応判定用。
     public var acceptsImageAttachments: Bool {
-        supportsImageAttachments
+        switch agentRef {
+        case .builtin(.claudeCode):
+            true
+        case .builtin(.codex):
+            CodexImageInputState.acceptsImageAttachments(
+                selectedModel: selectedModel,
+                availableModels: availableModels,
+                allowWhenUnavailable: false
+            )
+        default:
+            false
+        }
+    }
+
+    private func configureCodexImageInputIfNeeded() async {
+        guard agentRef == .builtin(.codex),
+              let configurable = client as? any CodexImageInputConfiguring
+        else { return }
+        await configurable.setNativeImageInputEnabled(supportsImageAttachments)
     }
 
     public enum ControlImageSendError: Error, Sendable {
@@ -444,7 +473,7 @@ public final class ChatSessionViewModel: Identifiable {
         submit: Bool,
         images: [(mediaType: String, data: Data)]
     ) async throws {
-        guard images.isEmpty || supportsImageAttachments else {
+        guard images.isEmpty || acceptsImageAttachments else {
             throw ControlImageSendError.imagesUnsupported
         }
 
@@ -456,7 +485,9 @@ public final class ChatSessionViewModel: Identifiable {
         do {
             try await sendText(text, submit: submit)
         } catch {
-            attachmentStore.clear()
+            if agentRef != .builtin(.codex) {
+                attachmentStore.clear()
+            }
             throw error
         }
     }
@@ -2168,11 +2199,16 @@ extension ChatSessionViewModel: ControllableSession {
             let hasAttachments = !attachmentStore.attachments.isEmpty
             if hasAttachments && !attachmentStore.isWithinTotalRawBytesLimit {
                 attachmentStore.setError("画像は合計8MiBまでです")
+                restoreDraftAfterRejectedSend(input)
                 return
             }
-            if hasAttachments && input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !supportsImageAttachments {
+            if hasAttachments && !supportsImageAttachments {
                 attachmentStore.setError("画像添付は Claude のみ対応です")
+                restoreDraftAfterRejectedSend(input)
                 return
+            }
+            if hasAttachments {
+                await configureCodexImageInputIfNeeded()
             }
             pendingInput = ""
             let userAttachments = attachmentStore.attachments.map {
@@ -2208,6 +2244,7 @@ extension ChatSessionViewModel: ControllableSession {
                 // 変更せず残す（再送でプリアンブルをちょうど1回適用する既存セマンティクス）。
                 isAwaitingLocallyStartedTurnEvent = false
                 status = .idle
+                restoreDraftAfterRejectedSend(input)
                 throw error
             }
             // 単一適用: 送信成功後にクリアする。throw 時は予約を残し、再送で二重付与しない。
@@ -2217,6 +2254,12 @@ extension ChatSessionViewModel: ControllableSession {
             pendingInput += text
             touchOutput()
         }
+    }
+
+    private func restoreDraftAfterRejectedSend(_ text: String) {
+        guard draftClearedForSend != nil else { return }
+        draft = text
+        draftClearedForSend = text
     }
 
     /// サブエージェントタブからのフォローアップ送信（task-3 契約。

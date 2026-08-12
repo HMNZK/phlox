@@ -294,6 +294,7 @@ public actor CodexStructuredAgentClient: StructuredAgentClient {
     private let client: CodexAppServerClient
     private var bridgeTask: Task<Void, Never>?
     private var currentThreadId: String?
+    private var nativeImageInputEnabled = false
     /// resetConversation で新規 thread を開始し直すために、直近の thread/start 引数を保持する。
     private var lastThreadStartParams: ThreadStartParams?
     private let eventContinuation: AsyncStream<NormalizedChatEvent>.Continuation
@@ -334,23 +335,34 @@ public actor CodexStructuredAgentClient: StructuredAgentClient {
         guard let currentThreadId else {
             throw CodexStructuredClientError.threadNotStarted
         }
-        if input.contains(where: { chatInput in
-            if case .image = chatInput { return true }
-            return false
-        }) {
-            eventContinuation.yield(.warning(message: "画像添付は Claude のみ対応"))
+        guard nativeImageInputEnabled else {
+            let hasImages = input.contains { if case .image = $0 { true } else { false } }
+            if hasImages {
+                eventContinuation.yield(.warning(message: "画像添付は Claude のみ対応"))
+            }
+            _ = try await client.turnStart(TurnStartParams(
+                threadId: currentThreadId,
+                input: input.compactMap { chatInput in
+                    if case .text(let text) = chatInput { return .text(text) }
+                    return nil
+                }
+            ))
+            return
+        }
+        let materialized = try Self.materializeImageInputs(input)
+        defer {
+            if let directory = materialized.temporaryDirectory {
+                _ = try? FileManager.default.removeItem(at: directory)
+            }
         }
         _ = try await client.turnStart(TurnStartParams(
             threadId: currentThreadId,
-            input: input.compactMap { chatInput in
-                switch chatInput {
-                case .text(let text):
-                    return .text(text)
-                case .image:
-                    return nil
-                }
-            }
+            input: materialized.inputs
         ))
+    }
+
+    public func setNativeImageInputEnabled(_ enabled: Bool) {
+        nativeImageInputEnabled = enabled
     }
 
     public func resume(sessionRef: String) async throws {
@@ -465,6 +477,61 @@ public actor CodexStructuredAgentClient: StructuredAgentClient {
 
 public enum CodexStructuredClientError: Error, Equatable, Sendable {
     case threadNotStarted
+    case imageMaterializationFailed
+}
+
+public protocol CodexImageInputConfiguring: Sendable {
+    func setNativeImageInputEnabled(_ enabled: Bool) async
+}
+
+extension CodexStructuredAgentClient: CodexImageInputConfiguring {}
+
+private extension CodexStructuredAgentClient {
+    struct MaterializedImageInputs {
+        let inputs: [UserInput]
+        let temporaryDirectory: URL?
+    }
+
+    static func materializeImageInputs(_ input: [ChatInput]) throws -> MaterializedImageInputs {
+        guard input.contains(where: { if case .image = $0 { true } else { false } }) else {
+            let textInputs = input.compactMap { chatInput -> UserInput? in
+                if case .text(let text) = chatInput { return .text(text) }
+                return nil
+            }
+            return MaterializedImageInputs(
+                inputs: textInputs,
+                temporaryDirectory: nil
+            )
+        }
+
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("phlox-codex-images-\(UUID().uuidString)", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            var imageIndex = 0
+            let inputs = try input.map { chatInput -> UserInput in
+                switch chatInput {
+                case .text(let text):
+                    return .text(text)
+                case .image(let data, _):
+                    let imageURL = directory.appendingPathComponent("image-\(imageIndex)")
+                    imageIndex += 1
+                    try data.write(to: imageURL, options: .atomic)
+                    guard FileManager.default.isReadableFile(atPath: imageURL.path) else {
+                        throw CodexStructuredClientError.imageMaterializationFailed
+                    }
+                    return .localImage(path: imageURL.path, detail: nil)
+                }
+            }
+            return MaterializedImageInputs(inputs: inputs, temporaryDirectory: directory)
+        } catch let error as CodexStructuredClientError {
+            _ = try? FileManager.default.removeItem(at: directory)
+            throw error
+        } catch {
+            _ = try? FileManager.default.removeItem(at: directory)
+            throw CodexStructuredClientError.imageMaterializationFailed
+        }
+    }
 }
 
 extension CodexStructuredAgentClient {

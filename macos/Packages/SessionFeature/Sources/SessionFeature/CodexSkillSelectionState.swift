@@ -111,6 +111,7 @@ public final class CodexSkillSelectionState {
     /// 一覧に存在し、enabled かつ identity が一致する候補だけを選択する。
     @discardableResult
     public func select(_ skill: SkillMetadata) -> Bool {
+        guard !isStale else { return false }
         guard let current = skills.first(where: { Self.sameIdentity($0, skill) }), Self.isUsable(current) else {
             return false
         }
@@ -203,10 +204,19 @@ public final class CodexSkillSelectionState {
 
     private static func removingDisplayToken(from value: String, name: String) -> String {
         let token = "$\(name)"
-        guard value.hasPrefix(token) else { return value }
-        let remainder = String(value.dropFirst(token.count))
-        guard remainder.isEmpty || remainder.first?.isWhitespace == true else { return value }
-        return remainder.trimmingCharacters(in: .whitespacesAndNewlines)
+        var result = value
+        var searchStart = result.startIndex
+        while let range = result.range(of: token, range: searchStart..<result.endIndex) {
+            let before = range.lowerBound == result.startIndex ? nil : result[result.index(before: range.lowerBound)]
+            let after = range.upperBound == result.endIndex ? nil : result[range.upperBound]
+            guard (before == nil || before!.isWhitespace), (after == nil || after!.isWhitespace) else {
+                searchStart = range.upperBound
+                continue
+            }
+            result.removeSubrange(range)
+            searchStart = range.lowerBound
+        }
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

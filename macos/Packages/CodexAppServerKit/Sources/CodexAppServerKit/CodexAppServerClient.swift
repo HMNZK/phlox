@@ -506,6 +506,7 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
     private func finish() {
         eventContinuation.finish()
         threadEventContinuation.finish()
+        orderedEventContinuation.finish()
     }
 }
 

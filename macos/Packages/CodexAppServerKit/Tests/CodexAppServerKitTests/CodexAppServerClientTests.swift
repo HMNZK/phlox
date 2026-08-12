@@ -386,6 +386,45 @@ private final class ImageWriteRecorder: @unchecked Sendable {
     _ = await collector.result
 }
 
+@Test func orderedEventsFinishAfterStructuredClientClose() async {
+    let transport = MockTransport()
+    let adapter = CodexStructuredAgentClient(
+        client: CodexAppServerClient(transport: transport)
+    )
+    let recorder = NormalizedEventRecorder()
+    await adapter.start()
+
+    let collector = Task {
+        for await _ in adapter.orderedEvents {}
+        await recorder.markFinished()
+    }
+
+    await adapter.close()
+
+    #expect(await waitUntil { await recorder.isFinished })
+    _ = await collector.result
+}
+
+@Test func orderedEventsFinishAfterTransportEOF() async {
+    let transport = MockTransport()
+    let adapter = CodexStructuredAgentClient(
+        client: CodexAppServerClient(transport: transport)
+    )
+    let recorder = NormalizedEventRecorder()
+    await adapter.start()
+
+    let collector = Task {
+        for await _ in adapter.orderedEvents {}
+        await recorder.markFinished()
+    }
+
+    await transport.close()
+
+    #expect(await waitUntil { await recorder.isFinished })
+    await adapter.close()
+    _ = await collector.result
+}
+
 private func decodeErrorNotificationThroughClient(
     _ json: String
 ) async -> (ThreadEvent?, NormalizedChatEvent?) {

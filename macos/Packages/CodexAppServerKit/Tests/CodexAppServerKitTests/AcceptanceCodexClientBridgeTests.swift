@@ -179,7 +179,9 @@ func publicClientExperimentalInterruptBridgeUsesTransport() async throws {
     await client.start()
 
     let interruptTask = Task {
-        try await client.turnInterrupt(TurnInterruptParams(threadId: "thread-child"))
+        try await client.turnInterrupt(
+            TurnInterruptParams(threadId: "thread-child", turnId: "turn-9")
+        )
     }
     #expect(await waitUntil {
         await transport.sent.all().contains { $0["method"]?.stringValue == "turn/interrupt" }

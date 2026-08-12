@@ -11,40 +11,13 @@ private func experimentalFixture(_ relativePath: String) throws -> JSONValue {
     return try JSONDecoder.appServer.decode(JSONValue.self, from: Data(contentsOf: url))
 }
 
-private protocol ExperimentalRuntimeEncodableBox {
-    func encodedJSON() throws -> JSONValue
-}
-
-private struct ConcreteExperimentalRuntimeEncodableBox<Value: Encodable>:
-    ExperimentalRuntimeEncodableBox
-{
-    let value: Value
-
-    func encodedJSON() throws -> JSONValue {
-        let data = try JSONEncoder.appServer.encode(value)
-        return try JSONDecoder.appServer.decode(JSONValue.self, from: data)
-    }
-}
-
-private func eraseExperimentalRuntimeEncodable<Value: Encodable>(
-    _ value: Value
-) -> any ExperimentalRuntimeEncodableBox {
-    ConcreteExperimentalRuntimeEncodableBox(value: value)
-}
-
-private func experimentalRuntimeRoundTrip(
-    typeNames: [String],
+private func experimentalRuntimeRoundTrip<Value: Codable & Sendable>(
+    _ type: Value.Type,
     raw: JSONValue
-) throws -> JSONValue? {
-    guard let type = typeNames.lazy.compactMap({ name in
-        _typeByName(name).flatMap { $0 as? any Decodable.Type }
-    }).first else {
-        return nil
-    }
+) throws -> JSONValue {
     let data = try JSONEncoder.appServer.encode(raw)
     let decoded = try JSONDecoder.appServer.decode(type, from: data)
-    guard let encodable = decoded as? any Encodable else { return nil }
-    return try eraseExperimentalRuntimeEncodable(encodable).encodedJSON()
+    return try encodeToJSONValue(decoded)
 }
 
 @Test("experimental schema は process/item/thread/turn の ID を別フィールドで固定する")
@@ -200,77 +173,67 @@ func experimentalDTOsDecodeAndEncodeLosslessly() throws {
     let requiredOnlyBackgroundList = try experimentalFixture(
         "payloads/background-terminals-list-required-only.json"
     )
-    let cases: [([String], JSONValue, String)] = [
-        (
-            ["CodexAppServerKit.ThreadBackgroundTerminalsListParams"],
-            .object([
-                "threadId": .string("thread-parent"),
-                "cursor": .null,
-                "limit": .number(20),
-            ]),
-            "ThreadBackgroundTerminalsListParams"
-        ),
-        (
-            ["CodexAppServerKit.ThreadBackgroundTerminalsListResponse"],
-            .object([
-                "data": .array([
-                    .object([
-                        "itemId": .string("item-terminal-1"),
-                        "processId": .string("process-42"),
-                        "command": .string("swift test"),
-                        "cwd": .string("/tmp/project"),
-                        "osPid": .number(4242),
-                        "cpuPercent": .number(1.25),
-                        "rssKb": .number(2048),
-                    ]),
-                ]),
-                "nextCursor": .null,
-            ]),
-            "ThreadBackgroundTerminalsListResponse"
-        ),
-        (
-            ["CodexAppServerKit.ThreadBackgroundTerminalsListResponse"],
-            requiredOnlyBackgroundList,
-            "ThreadBackgroundTerminalsListResponse (required fields; optional fields omitted)"
-        ),
-        (
-            ["CodexAppServerKit.ThreadBackgroundTerminalsTerminateParams"],
-            .object([
-                "threadId": .string("thread-child"),
-                "processId": .string("process-42"),
-            ]),
-            "ThreadBackgroundTerminalsTerminateParams"
-        ),
-        (
-            ["CodexAppServerKit.ThreadBackgroundTerminalsTerminateResponse"],
-            .object(["terminated": .bool(false)]),
-            "ThreadBackgroundTerminalsTerminateResponse"
-        ),
-        (
-            ["CodexAppServerKit.TurnInterruptParams"],
-            .object([
-                "threadId": .string("thread-child"),
-                "turnId": .string("turn-9"),
-            ]),
-            "TurnInterruptParams"
-        ),
-        (
-            ["CodexAppServerKit.TurnInterruptResponse"],
-            .object([:]),
-            "TurnInterruptResponse"
-        ),
-    ]
+    let listParams: JSONValue = .object([
+        "threadId": .string("thread-parent"),
+        "cursor": .null,
+        "limit": .number(20),
+    ])
+    #expect(try experimentalRuntimeRoundTrip(
+        ThreadBackgroundTerminalsListParams.self,
+        raw: listParams
+    ) == listParams)
 
-    for (typeNames, raw, label) in cases {
-        guard let encoded = try experimentalRuntimeRoundTrip(
-            typeNames: typeNames,
-            raw: raw
-        ) else {
-            #expect(Bool(false), "DTO が未実装: \(label)")
-            continue
-        }
-        #expect(encoded == raw)
-    }
+    let listResponse: JSONValue = .object([
+        "data": .array([
+            .object([
+                "itemId": .string("item-terminal-1"),
+                "processId": .string("process-42"),
+                "command": .string("swift test"),
+                "cwd": .string("/tmp/project"),
+                "osPid": .number(4242),
+                "cpuPercent": .number(1.25),
+                "rssKb": .number(2048),
+            ]),
+        ]),
+        "nextCursor": .null,
+    ])
+    #expect(try experimentalRuntimeRoundTrip(
+        ThreadBackgroundTerminalsListResponse.self,
+        raw: listResponse
+    ) == listResponse)
+    #expect(try experimentalRuntimeRoundTrip(
+        ThreadBackgroundTerminalsListResponse.self,
+        raw: requiredOnlyBackgroundList
+    ) == requiredOnlyBackgroundList)
+
+    let terminateParams: JSONValue = .object([
+        "threadId": .string("thread-child"),
+        "processId": .string("process-42"),
+    ])
+    #expect(try experimentalRuntimeRoundTrip(
+        ThreadBackgroundTerminalsTerminateParams.self,
+        raw: terminateParams
+    ) == terminateParams)
+
+    let terminateResponse: JSONValue = .object(["terminated": .bool(false)])
+    #expect(try experimentalRuntimeRoundTrip(
+        ThreadBackgroundTerminalsTerminateResponse.self,
+        raw: terminateResponse
+    ) == terminateResponse)
+
+    let interruptParams: JSONValue = .object([
+        "threadId": .string("thread-child"),
+        "turnId": .string("turn-9"),
+    ])
+    #expect(try experimentalRuntimeRoundTrip(
+        TurnInterruptParams.self,
+        raw: interruptParams
+    ) == interruptParams)
+    let interruptResponse: JSONValue = .object([:])
+    #expect(try experimentalRuntimeRoundTrip(
+        TurnInterruptResponse.self,
+        raw: interruptResponse
+    ) == interruptResponse)
 }
 
 @Test("experimental server error は unsupported を成功へ丸めない")

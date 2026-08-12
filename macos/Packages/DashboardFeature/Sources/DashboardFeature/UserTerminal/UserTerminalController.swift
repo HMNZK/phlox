@@ -232,12 +232,14 @@ public final class UserTerminalController {
     ) {
         exitTask?.cancel()
         exitTask = Task { @MainActor [weak self] in
+            var receivedExitCode = false
             for await _ in stream {
                 guard let self,
                       self.spawnGeneration == generation,
                       self.sessionID == sessionID else {
                     return
                 }
+                receivedExitCode = true
                 self.markCurrentSessionExited()
                 return
             }
@@ -248,6 +250,16 @@ public final class UserTerminalController {
                 return
             }
             self.markCurrentSessionExited()
+
+            // PTYManager は終了コードを 1 要素流してからストリームを閉じる契約だが、
+            // テスト用実装や将来の transport が「要素なしで finish」する場合も、
+            // 出力リレーを未完了のまま残してはいけない。次の ensureStarted() は
+            // 前世代の残出力を待つため、この状態を放置すると永久に再起動できない。
+            // 終了コードを受け取った通常経路では、PTYKit が output stream を finish
+            // するまでリレーを待つ（終了直前の残出力を捨てない）。
+            if !receivedExitCode {
+                outputTasks[generation]?.cancel()
+            }
         }
     }
 

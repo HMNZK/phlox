@@ -104,6 +104,9 @@ struct CodexSessionSurface: View {
                 await viewModel.codexSessionHistory?.refresh()
                 await viewModel.codexBackgroundTerminalState?.refresh()
             }
+            .onChange(of: viewModel.threadId) { _, _ in
+                Task { await viewModel.refreshCodexSubAgents() }
+            }
             .accessibilityIdentifier("CodexSessionSurface")
         }
     }

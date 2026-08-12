@@ -171,6 +171,10 @@ public final class ChatSessionViewModel: Identifiable {
     private var activeInterruptID: UUID?
     private var lastEventAt: Date?
     private var pendingTurnCostUSD: Double?
+    private var codexSurfaceRefreshTask: Task<Void, Never>?
+    private var codexSubAgentRefreshPending = false
+    private var codexBackgroundTerminalRefreshPending = false
+    private var codexHistoryReloadGeneration = 0
     private let transcriptStore: (any TranscriptStore)?
     private let spawnAgentModelsProvider: SpawnAgentModelsProvider?
     /// 利用可能スラッシュコマンド一覧の永続ストア。生成時の読み出しと init 受領時の記録に使う。
@@ -390,10 +394,31 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// Codex履歴の選択結果を既存のチャット転写へ反映する。
     public func reloadCodexHistory(threadID: String) async {
-        guard let history = codexSessionHistory,
-              let thread = try? await history.read(threadID: threadID)
+        guard let history = codexSessionHistory else { return }
+        codexHistoryReloadGeneration += 1
+        let generation = codexHistoryReloadGeneration
+        guard let thread = await history.readIfPossible(threadID: threadID),
+              generation == codexHistoryReloadGeneration,
+              thread.id == threadID,
+              history.selectedThreadID == nil || history.selectedThreadID == threadID
         else { return }
         updateNativeSessionId(thread.id)
+        rebuildTranscript(from: thread)
+    }
+
+    /// UI 操作で発生した失敗を既存の ErrorMessageCell 経路へ載せる。
+    func reportError(_ message: String) {
+        let message = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty else { return }
+        if case .error(_, let previous, _) = transcript.last, previous == message {
+            return
+        }
+        appendOrReplace(.error(
+            id: "ui-error-\(UUID().uuidString)",
+            message: message,
+            timestamp: Date()
+        ))
+        touchOutput()
     }
 
     /// 履歴詳細を既存のチャットセルへ表示するための変換。
@@ -1755,12 +1780,20 @@ public final class ChatSessionViewModel: Identifiable {
     private func handleCodexSettingsEvent(_ event: ThreadEvent) {
         appendRawEventLog(String(describing: event))
         switch event {
+        case .turnStarted(let updatedThreadId, let turn):
+            guard updatedThreadId == threadId else { return }
+            codexPlanTaskState?.reset(
+                threadId: updatedThreadId,
+                turnId: turn.id ?? ""
+            )
         case .turnCompleted(let updatedThreadId, let turn):
             codexSubAgentState?.apply(.turnCompleted(
                 threadId: updatedThreadId,
                 turnId: turn.id ?? "",
                 status: turn.status ?? ""
             ))
+            guard updatedThreadId == threadId else { return }
+            scheduleCodexSurfaceRefresh()
         case .threadSettingsUpdated(let updatedThreadId, let settings):
             guard updatedThreadId == threadId else { return }
             syncSettings(from: settings)
@@ -1794,6 +1827,13 @@ public final class ChatSessionViewModel: Identifiable {
                     enqueueTranscriptUpsert([chatItem])
                 }
                 touchOutput()
+            }
+            if case .itemStarted = event {
+                let type = item.type?.lowercased() ?? ""
+                scheduleCodexSurfaceRefresh(
+                    subAgents: type.contains("collabagent") || type.contains("subagent"),
+                    backgroundTerminals: type.contains("background")
+                )
             }
         case .planUpdated:
             _ = codexPlanTaskState?.apply(event: event)
@@ -2196,14 +2236,9 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private func rebuildTranscript(from thread: ThreadSummary) {
-        setTranscript([])
+        setTranscript(codexHistoryItems(for: thread))
         completedTurnSeq = 0
         for turn in thread.turns ?? [] {
-            for item in turn.items ?? [] {
-                if let chatItem = chatItem(from: item) {
-                    appendOrReplace(chatItem)
-                }
-            }
             if turn.status == "completed" || turn.status == "idle" || turn.status == nil {
                 completedTurnSeq += 1
             }
@@ -2308,10 +2343,16 @@ public final class ChatSessionViewModel: Identifiable {
 
     private func updateNativeSessionId(_ id: String?) {
         let previous = chatNativeSessionId
+        if id != previous {
+            codexHistoryReloadGeneration += 1
+        }
         threadId = id
         chatNativeSessionId = id
         if agentRef == .builtin(.codex), let id, id != codexSubAgentState?.parentThreadId {
             codexSubAgentState = CodexSubAgentState(parentThreadId: id)
+        }
+        if agentRef == .builtin(.codex), id != previous {
+            codexPlanTaskState?.reset(threadId: id ?? "")
         }
         codexBackgroundTerminalState?.updateThreadId(id)
         if let id, let previous, id != previous {
@@ -2356,6 +2397,36 @@ public final class ChatSessionViewModel: Identifiable {
             summary: thread.preview,
             canAcceptDirectInput: thread.canAcceptDirectInput
         )
+    }
+
+    /// 子 thread / 背景端末は親 turn の item event・完了 event を契機に一覧を再取得する。
+    /// 常駐ポーリングはせず、同時に複数 signal が来ても1本へまとめる。
+    private func scheduleCodexSurfaceRefresh(
+        subAgents: Bool = true,
+        backgroundTerminals: Bool = true
+    ) {
+        codexSubAgentRefreshPending = codexSubAgentRefreshPending || subAgents
+        codexBackgroundTerminalRefreshPending = codexBackgroundTerminalRefreshPending || backgroundTerminals
+        guard subAgents || backgroundTerminals else { return }
+        if codexSurfaceRefreshTask != nil {
+            return
+        }
+        codexSurfaceRefreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            repeat {
+                let refreshSubAgents = self.codexSubAgentRefreshPending
+                let refreshBackgroundTerminals = self.codexBackgroundTerminalRefreshPending
+                self.codexSubAgentRefreshPending = false
+                self.codexBackgroundTerminalRefreshPending = false
+                if refreshSubAgents {
+                    await self.refreshCodexSubAgents()
+                }
+                if refreshBackgroundTerminals {
+                    await self.codexBackgroundTerminalState?.refresh()
+                }
+            } while self.codexSubAgentRefreshPending || self.codexBackgroundTerminalRefreshPending
+            self.codexSurfaceRefreshTask = nil
+        }
     }
 }
 

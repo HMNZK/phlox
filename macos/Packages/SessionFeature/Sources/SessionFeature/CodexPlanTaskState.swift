@@ -20,6 +20,17 @@ public final class CodexPlanTaskState {
         self.turnId = turnId
     }
 
+    /// thread/turn 境界で、前の plan スナップショットを破棄する。
+    ///
+    /// plan 通知は turn 単位で届くため、次の turn を受け付ける前に
+    /// identity と表示内容を一緒に更新する。
+    public func reset(threadId: String = "", turnId: String = "") {
+        self.threadId = threadId
+        self.turnId = turnId
+        tasks = []
+        explanation = nil
+    }
+
     /// plan event を適用する。対象外・不正な event は false を返し、状態を変えない。
     @discardableResult
     public func apply(_ event: ThreadEvent) -> Bool {

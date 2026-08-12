@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import SwiftUI
 import AgentDomain
 import CodexAppServerKit
 import StructuredChatKit
@@ -137,6 +138,99 @@ struct AcceptanceCodexChatParityIntegrationTests {
                     "isDefault": .bool(true),
                     "inputModalities": .array([.string("text"), .string("image")]),
                 ])])])
+            case "skills/list":
+                result = .object(["data": .array([.object([
+                    "cwd": .string("/tmp/phlox-codex-parity"),
+                    "errors": .array([]),
+                    "skills": .array([
+                        .object([
+                            "description": .string("レビューを実行"),
+                            "enabled": .bool(true),
+                            "name": .string("review"),
+                            "path": .string("/tmp/skills/review"),
+                            "scope": .string("user"),
+                        ]),
+                        .object([
+                            "description": .string("別のレビュー"),
+                            "enabled": .bool(true),
+                            "name": .string("review"),
+                            "path": .string("/tmp/skills/review-repo"),
+                            "scope": .string("repo"),
+                        ]),
+                        .object([
+                            "description": .string("無効"),
+                            "enabled": .bool(false),
+                            "name": .string("disabled"),
+                            "path": .string("/tmp/skills/disabled"),
+                            "scope": .string("user"),
+                        ]),
+                    ]),
+                ])])])
+            case "thread/list":
+                result = .object(["data": .array([.object([
+                    "id": .string("codex-child-1"),
+                    "parentThreadId": .string("codex-integration-thread"),
+                    "status": .object([
+                        "type": .string("active"),
+                        "activeFlags": .array([]),
+                    ]),
+                    "turns": .array([.object([
+                        "id": .string("codex-child-turn-1"),
+                        "status": .string("inProgress"),
+                        "items": .array([]),
+                    ])]),
+                ]), .object([
+                    "id": .string("codex-child-2"),
+                    "parentThreadId": .string("codex-integration-thread"),
+                    "status": .object([
+                        "type": .string("active"),
+                        "activeFlags": .array([]),
+                    ]),
+                    "turns": .array([.object([
+                        "id": .string("codex-child-2-turn-1"),
+                        "status": .string("inProgress"),
+                        "items": .array([]),
+                    ])]),
+                ]), .object([
+                    "id": .string("codex-child-1"),
+                    "parentThreadId": .string("codex-integration-thread"),
+                    "status": .object([
+                        "type": .string("active"),
+                        "activeFlags": .array([]),
+                    ]),
+                    "turns": .array([.object([
+                        "id": .string("codex-child-turn-1"),
+                        "status": .string("running"),
+                        "items": .array([]),
+                    ])]),
+                ])])])
+            case "thread/read":
+                result = .object(["thread": .object([
+                    "id": .string("codex-child-1"),
+                    "parentThreadId": .string("codex-integration-thread"),
+                    "status": .object([
+                        "type": .string("active"),
+                        "activeFlags": .array([]),
+                    ]),
+                    "turns": .array([.object([
+                        "id": .string("codex-child-turn-1"),
+                        "status": .string("inProgress"),
+                        "items": .array([
+                            .object([
+                                "id": .string("child-item-1"),
+                                "type": .string("userMessage"),
+                                "text": .string("child question"),
+                            ]),
+                            .object([
+                                "id": .string("child-item-2"),
+                                "type": .string("agentMessage"),
+                                "text": .string("child answer"),
+                            ]),
+                        ]),
+                    ])]),
+                ])])
+            case "turn/interrupt":
+                result = .object([:])
             case "permissionProfile/list", "collaborationMode/list":
                 result = .object(["data": .array([])])
             default:
@@ -302,6 +396,122 @@ struct AcceptanceCodexChatParityIntegrationTests {
             value["type"]?.stringValue == "localImage"
                 || value["type"]?.stringValue == "image"
         }, "画像要素を text-only へ丸めないこと")
+
+        await adapter.close()
+    }
+
+    @Test("Codex 子 thread の詳細読込と停止は実 app-server RPC を通る")
+    func codexSubAgentDetailAndStopUseNativeRPC() async throws {
+        let transport = JSONRPCTransport()
+        let appServer = CodexAppServerClient(transport: transport)
+        let adapter = CodexStructuredAgentClient(client: appServer)
+        let viewModel = makeCodexVM(client: adapter)
+        try await viewModel.startNew(
+            approvalPolicy: .named("on-request"),
+            sandbox: .named("workspace-write")
+        )
+
+        await viewModel.refreshCodexSubAgents()
+        #expect(viewModel.codexSubAgentState?.children.map(\.id) == [
+            "codex-child-1",
+            "codex-child-2",
+        ])
+        #expect(viewModel.codexSubAgentState?.children.first?.activeTurnId == "codex-child-turn-1")
+        await viewModel.loadCodexSubAgentDetail(threadID: "codex-child-1")
+
+        let state = try #require(viewModel.codexSubAgentState)
+        #expect(state.detail(for: "codex-child-1")?.transcript == ["child question", "child answer"])
+        #expect(state.transcript(for: "codex-child-1") == ["child question", "child answer"])
+
+        await viewModel.stopCodexSubAgent(threadID: "codex-child-1")
+        let interrupt = try #require((await transport.messages()).last { message in
+            message["method"]?.stringValue == "turn/interrupt"
+        })
+        #expect(interrupt["params"]?["threadId"] == .string("codex-child-1"))
+        #expect(interrupt["params"]?["turnId"] == .string("codex-child-turn-1"))
+        #expect(viewModel.codexSubAgentState?.stopState(for: "codex-child-1") == .stopping)
+
+        await adapter.close()
+    }
+
+    @Test("ChatComposer は Codex skill の name/path identity を slash 候補へ反映する")
+    func chatComposerUpdatesCodexSkillSuggestionsThroughViewModel() async throws {
+        let transport = JSONRPCTransport()
+        let appServer = CodexAppServerClient(transport: transport)
+        let adapter = CodexStructuredAgentClient(client: appServer)
+        let viewModel = makeCodexVM(client: adapter)
+        try await viewModel.startNew(
+            approvalPolicy: .named("on-request"),
+            sandbox: .named("workspace-write")
+        )
+        await viewModel.codexSkillSelectionState?.refresh()
+
+        let composer = ChatComposer(
+            viewModel: viewModel,
+            text: .constant("/rev"),
+            isRunning: false,
+            canSend: true,
+            onSend: {},
+            onInterrupt: {}
+        )
+        composer.suggestionControllerForTesting.update(text: "/rev", cursorUTF16: 4)
+        composer.updateCodexSkillSuggestions()
+
+        #expect(composer.suggestionControllerForTesting.candidates.map(\.skillIdentity?.path) == [
+            "/tmp/skills/review",
+            "/tmp/skills/review-repo",
+        ])
+        #expect(composer.suggestionControllerForTesting.candidates.allSatisfy {
+            $0.skillIdentity?.name == "review"
+        })
+
+        await adapter.close()
+    }
+
+    @Test("Codex の skill と本文と画像は sendText から同じ native turn/start に届く")
+    func codexSendTextUsesNativeSkillIdentityWithTextAndImage() async throws {
+        let transport = JSONRPCTransport()
+        let appServer = CodexAppServerClient(transport: transport)
+        let adapter = CodexStructuredAgentClient(client: appServer)
+        let viewModel = makeCodexVM(client: adapter)
+        try await viewModel.startNew(
+            approvalPolicy: .named("on-request"),
+            sandbox: .named("workspace-write")
+        )
+
+        let skillState = try #require(viewModel.codexSkillSelectionState)
+        await skillState.refresh()
+        #expect(skillState.select(name: "review", path: "/tmp/skills/review"))
+        #expect(viewModel.attachmentStore.addImage(
+            data: Data([0x89, 0x50, 0x4E, 0x47]),
+            mediaType: "image/png",
+            filename: "evidence.png"
+        ) != nil)
+
+        try await viewModel.sendText("本文", submit: true)
+
+        let messages = await transport.messages()
+        let request = try #require(messages.last { message in
+            message["method"]?.stringValue == "turn/start"
+        })
+        let rawInput = try #require(request["params"]?["input"])
+        guard case .array(let values) = rawInput else {
+            Issue.record("native turn/start input が配列でない")
+            return
+        }
+        #expect(values.count == 3)
+        let hasText = values.contains { value in
+            value["type"]?.stringValue == "text" && value["text"]?.stringValue == "本文"
+        }
+        let hasSkill = values.contains { value in
+            value["type"]?.stringValue == "skill"
+                && value["name"]?.stringValue == "review"
+                && value["path"]?.stringValue == "/tmp/skills/review"
+        }
+        let hasImage = values.contains { value in value["type"]?.stringValue == "localImage" }
+        #expect(hasText)
+        #expect(hasSkill)
+        #expect(hasImage)
 
         await adapter.close()
     }

@@ -146,7 +146,9 @@ struct ChatComposer: View {
         text = ComposerSuggestionTextReplacement.apply(replacement, to: text).text
     }
 
-    private func updateCodexSkillSuggestions() {
+    /// Codex の skills/list 結果を、入力中の slash 候補へ反映する。
+    /// テストでは本番の ViewModel → Composer 経路を通して候補 identity を検証する。
+    func updateCodexSkillSuggestions() {
         guard viewModel.agentRef == .builtin(.codex),
               let state = viewModel.codexSkillSelectionState,
               !state.isStale,
@@ -170,6 +172,10 @@ struct ChatComposer: View {
                 )
             }
         )
+    }
+
+    var suggestionControllerForTesting: ComposerSuggestionController {
+        suggestionController
     }
 
     private func addPastedImage(data: Data, mediaType: String) -> ComposerPasteImageOutcome {

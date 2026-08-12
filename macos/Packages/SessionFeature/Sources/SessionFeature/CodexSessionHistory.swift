@@ -31,11 +31,17 @@ extension CodexStructuredAgentClient: CodexSessionHistoryProviding {}
 
 public enum CodexSessionHistoryError: Error, Equatable, Sendable, CustomStringConvertible {
     case repeatedCursor(String)
+    case unavailable(String)
+    case superseded
 
     public var description: String {
         switch self {
         case .repeatedCursor(let cursor):
             "thread/list pagination stopped: repeated nextCursor \(cursor)"
+        case .unavailable(let threadID):
+            "thread \(threadID) is unavailable until history refresh succeeds"
+        case .superseded:
+            "thread operation superseded by a newer history operation"
         }
     }
 }
@@ -59,6 +65,8 @@ public final class CodexSessionHistory {
     private let workingDirectory: String
     private var loadGeneration = 0
     private var selectionGeneration = 0
+    private var hasLoadedList = false
+    private var listTrustInvalidated = false
 
     public init(
         client: any CodexSessionHistoryProviding,
@@ -91,6 +99,8 @@ public final class CodexSessionHistory {
             let fetched = try await fetchAllPages()
             guard generation == loadGeneration else { return }
             threads = Self.deduplicated(fetched)
+            hasLoadedList = true
+            listTrustInvalidated = false
             if let selectedThreadID,
                let refreshed = threads.first(where: { $0.id == selectedThreadID }) {
                 selectedThread = refreshed
@@ -101,6 +111,7 @@ public final class CodexSessionHistory {
             errorMessage = nil
         } catch {
             guard generation == loadGeneration else { return }
+            invalidateList()
             errorMessage = String(describing: error)
         }
     }
@@ -115,7 +126,8 @@ public final class CodexSessionHistory {
 
     @discardableResult
     public func select(threadID: String) -> Bool {
-        guard let thread = threads.first(where: { $0.id == threadID }) else { return false }
+        guard !listTrustInvalidated,
+              let thread = threads.first(where: { $0.id == threadID }) else { return false }
         selectionGeneration += 1
         selectedThreadID = threadID
         selectedThread = thread
@@ -146,8 +158,14 @@ public final class CodexSessionHistory {
     }
 
     public func read(threadID: String) async throws -> ThreadSummary {
+        guard canUseThread(threadID) else {
+            let error = CodexSessionHistoryError.unavailable(threadID)
+            errorMessage = String(describing: error)
+            throw error
+        }
         selectionGeneration += 1
         let selection = selectionGeneration
+        let selectedAtStart = selectedThreadID
         do {
             let response = try await client.threadRead(ThreadReadParams(threadId: threadID, includeTurns: true))
             guard response.thread.id == threadID else {
@@ -156,14 +174,22 @@ public final class CodexSessionHistory {
                     received: response.thread.id
                 )
             }
-            guard selection == selectionGeneration,
-                  selectedThreadID == nil || selectedThreadID == threadID else {
-                return response.thread
+            guard isCurrentOperation(
+                selection,
+                threadID: threadID,
+                selectedAtStart: selectedAtStart
+            ) else {
+                throw CodexSessionHistoryError.superseded
             }
             update(thread: response.thread)
             errorMessage = nil
             return response.thread
         } catch {
+            guard isCurrentOperation(
+                selection,
+                threadID: threadID,
+                selectedAtStart: selectedAtStart
+            ) else { throw error }
             await client.rollbackThreadResumeIfCurrent(threadID: threadID)
             errorMessage = String(describing: error)
             throw error
@@ -191,8 +217,14 @@ public final class CodexSessionHistory {
     /// resume と read を一つの操作世代で扱う。read が失敗した場合は履歴 state を更新せず、
     /// structured adapter 側も active thread を commit しない。
     public func resumeAndRead(threadID: String) async throws -> ThreadSummary {
+        guard canUseThread(threadID) else {
+            let error = CodexSessionHistoryError.unavailable(threadID)
+            errorMessage = String(describing: error)
+            throw error
+        }
         selectionGeneration += 1
         let selection = selectionGeneration
+        let selectedAtStart = selectedThreadID
         do {
             let thread = try await client.threadResumeAndRead(
                 ThreadResumeParams(threadId: threadID, cwd: workingDirectory)
@@ -203,21 +235,37 @@ public final class CodexSessionHistory {
                     received: thread.id
                 )
             }
-            guard selection == selectionGeneration else {
-                return thread
+            guard isCurrentOperation(
+                selection,
+                threadID: threadID,
+                selectedAtStart: selectedAtStart
+            ) else {
+                throw CodexSessionHistoryError.superseded
             }
             update(thread: thread)
             errorMessage = nil
             return thread
         } catch {
+            guard isCurrentOperation(
+                selection,
+                threadID: threadID,
+                selectedAtStart: selectedAtStart
+            ) else { throw error }
+            await client.rollbackThreadResumeIfCurrent(threadID: threadID)
             errorMessage = String(describing: error)
             throw error
         }
     }
 
     public func resume(threadID: String) async throws -> ThreadSummary {
+        guard canUseThread(threadID) else {
+            let error = CodexSessionHistoryError.unavailable(threadID)
+            errorMessage = String(describing: error)
+            throw error
+        }
         selectionGeneration += 1
         let selection = selectionGeneration
+        let selectedAtStart = selectedThreadID
         do {
             let response = try await client.threadResume(
                 ThreadResumeParams(threadId: threadID, cwd: workingDirectory)
@@ -228,15 +276,24 @@ public final class CodexSessionHistory {
                     received: response.thread.id
                 )
             }
-            guard selection == selectionGeneration,
-                  selectedThreadID == nil || selectedThreadID == threadID else {
-                return response.thread
+            guard isCurrentOperation(
+                selection,
+                threadID: threadID,
+                selectedAtStart: selectedAtStart
+            ) else {
+                throw CodexSessionHistoryError.superseded
             }
             selectedThreadID = threadID
             update(thread: response.thread)
             errorMessage = nil
             return response.thread
         } catch {
+            guard isCurrentOperation(
+                selection,
+                threadID: threadID,
+                selectedAtStart: selectedAtStart
+            ) else { throw error }
+            await client.rollbackThreadResumeIfCurrent(threadID: threadID)
             errorMessage = String(describing: error)
             throw error
         }
@@ -284,6 +341,28 @@ public final class CodexSessionHistory {
         } else {
             threads.append(thread)
         }
+    }
+
+    private func canUseThread(_ threadID: String) -> Bool {
+        guard hasLoadedList else { return true }
+        return !listTrustInvalidated && threads.contains { $0.id == threadID }
+    }
+
+    private func isCurrentOperation(
+        _ generation: Int,
+        threadID: String,
+        selectedAtStart: String?
+    ) -> Bool {
+        generation == selectionGeneration
+            && (selectedThreadID == selectedAtStart || selectedThreadID == threadID)
+    }
+
+    private func invalidateList() {
+        hasLoadedList = true
+        listTrustInvalidated = true
+        threads.removeAll()
+        selectedThreadID = nil
+        selectedThread = nil
     }
 
     private static func deduplicated(_ threads: [ThreadSummary]) -> [ThreadSummary] {

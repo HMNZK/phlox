@@ -464,12 +464,15 @@ public final class ChatSessionViewModel: Identifiable {
         codexSubAgentRefreshGeneration += 1
         let generation = codexSubAgentRefreshGeneration
         do {
-            let response = try await client.threadList(ThreadListParams(parentThreadId: parentThreadId))
+            let response = try await client.threadList(ThreadListParams(
+                sourceKinds: Self.codexChildSourceKinds,
+                parentThreadId: parentThreadId
+            ))
             guard isCurrentCodexSubAgentRefresh(generation, parentThreadId: parentThreadId) else { return }
 
             var latestByID: [String: ThreadSummary] = [:]
             var childOrder: [String] = []
-            for thread in response.data where thread.parentThreadId == parentThreadId {
+            for thread in response.data where Self.isCodexChild(thread, parentThreadId: parentThreadId) {
                 if latestByID[thread.id] == nil {
                     childOrder.append(thread.id)
                 }
@@ -487,7 +490,7 @@ public final class ChatSessionViewModel: Identifiable {
                         return
                     }
                     guard read.thread.id == child.id,
-                          read.thread.parentThreadId == parentThreadId else {
+                          Self.isCodexChild(read.thread, parentThreadId: parentThreadId) else {
                         continue
                     }
                     children[index] = Self.codexChild(read.thread)
@@ -511,7 +514,7 @@ public final class ChatSessionViewModel: Identifiable {
     public func loadCodexSubAgentDetail(threadID: String) async {
         guard codexSubAgentState?.children.contains(where: { $0.id == threadID }) == true else { return }
         guard let client = client as? any CodexSubAgentProviding else { return }
-        let parentThreadId = threadId
+        guard let parentThreadId = threadId else { return }
         let generation = codexSubAgentRefreshGeneration
         do {
             let response = try await client.threadRead(ThreadReadParams(threadId: threadID, includeTurns: true))
@@ -519,7 +522,7 @@ public final class ChatSessionViewModel: Identifiable {
                   codexSubAgentState?.parentThreadId == parentThreadId,
                   generation == codexSubAgentRefreshGeneration,
                   response.thread.id == threadID,
-                  response.thread.parentThreadId == parentThreadId else { return }
+                  Self.isCodexChild(response.thread, parentThreadId: parentThreadId) else { return }
             let transcript = response.thread.turns?.flatMap { $0.items ?? [] }.compactMap(\.text) ?? []
             codexSubAgentState?.apply(.detail(threadId: threadID, transcript: transcript))
             codexSubAgentError = nil
@@ -2568,11 +2571,73 @@ public final class ChatSessionViewModel: Identifiable {
         return CodexChildThread(
             id: thread.id,
             parentThreadId: thread.parentThreadId ?? "",
+            ancestorThreadId: codexSubAgentAncestorThreadID(thread.source),
             activeTurnId: activeTurn?.id,
             status: status,
             summary: thread.preview,
             canAcceptDirectInput: thread.canAcceptDirectInput
         )
+    }
+
+    private static let codexChildSourceKinds: [ThreadSourceKind] = [
+        .subAgent,
+        .subAgentReview,
+        .subAgentCompact,
+        .subAgentThreadSpawn,
+        .subAgentOther,
+    ]
+
+    /// `parentThreadId` は direct-parent の正式 filter。source も sub-agent の
+    /// 正式 variant に限定し、server が filter を緩く実装しても root/history を通さない。
+    private static func isCodexChild(
+        _ thread: ThreadSummary,
+        parentThreadId: String
+    ) -> Bool {
+        guard thread.parentThreadId == parentThreadId,
+              case .subAgent(let source) = thread.source,
+              isKnownCodexSubAgentSource(source) else { return false }
+        guard let sourceParent = codexSubAgentParentThreadID(source) else { return true }
+        guard sourceParent == parentThreadId else { return false }
+        if let sourceAncestor = codexSubAgentAncestorThreadID(source) {
+            return sourceAncestor == parentThreadId
+        }
+        return true
+    }
+
+    private static func isKnownCodexSubAgentSource(_ source: JSONValue) -> Bool {
+        if let value = source.stringValue {
+            return ["review", "compact", "memory_consolidation"].contains(value)
+        }
+        if let threadSpawn = source["thread_spawn"] {
+            return threadSpawn["parent_thread_id"]?.stringValue != nil
+                || threadSpawn["parentThreadId"]?.stringValue != nil
+        }
+        if source["other"]?.stringValue != nil {
+            return true
+        }
+        // Older app-server fixtures used a parent-only object. Keep accepting it
+        // while still requiring the source to carry a parent identity below.
+        return source["parentThreadId"]?.stringValue != nil
+            || source["parent_thread_id"]?.stringValue != nil
+    }
+
+    private static func codexSubAgentParentThreadID(_ source: JSONValue) -> String? {
+        source["parentThreadId"]?.stringValue
+            ?? source["parent_thread_id"]?.stringValue
+            ?? source["thread_spawn"]?["parent_thread_id"]?.stringValue
+            ?? source["thread_spawn"]?["parentThreadId"]?.stringValue
+    }
+
+    private static func codexSubAgentAncestorThreadID(_ source: JSONValue) -> String? {
+        source["ancestorThreadId"]?.stringValue
+            ?? source["ancestor_thread_id"]?.stringValue
+            ?? source["thread_spawn"]?["ancestor_thread_id"]?.stringValue
+            ?? source["thread_spawn"]?["ancestorThreadId"]?.stringValue
+    }
+
+    private static func codexSubAgentAncestorThreadID(_ source: ThreadSessionSource) -> String? {
+        guard case .subAgent(let value) = source else { return nil }
+        return codexSubAgentAncestorThreadID(value)
     }
 
     private static func needsCodexSubAgentRead(_ child: CodexChildThread) -> Bool {

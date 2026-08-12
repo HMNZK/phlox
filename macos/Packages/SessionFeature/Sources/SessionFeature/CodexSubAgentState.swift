@@ -92,7 +92,10 @@ public struct CodexSubAgentState: Equatable, Sendable {
         switch event {
         case .available(let incoming):
             unavailable = false
-            let filtered = incoming.filter { $0.parentThreadId == parentThreadId }
+            let filtered = incoming.filter {
+                $0.parentThreadId == parentThreadId
+                    && ($0.ancestorThreadId == nil || $0.ancestorThreadId == parentThreadId)
+            }
             let old = Dictionary(uniqueKeysWithValues: children.map { ($0.id, $0) })
             var latest: [String: CodexChildThread] = [:]
             var order: [String] = []

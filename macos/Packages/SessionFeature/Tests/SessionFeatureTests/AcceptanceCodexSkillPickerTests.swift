@@ -77,6 +77,63 @@ struct AcceptanceCodexSkillPickerTests {
             return
         }
     }
+
+    @Test("実 state は identity・検索・disabled/invalid を保持し、fresh 選択を native input にする")
+    @MainActor
+    func stateFiltersAndBuildsNativeInput() async throws {
+        let result: JSONValue = .object([
+            "data": .array([.object([
+                "cwd": .string(cwd),
+                "errors": .array([]),
+                "skills": .array([
+                    .object(["description": .string(""), "enabled": .bool(true), "name": .string("レビュー"), "path": .string("/one"), "scope": .string("user")]),
+                    .object(["description": .string(""), "enabled": .bool(true), "name": .string("レビュー"), "path": .string("/one"), "scope": .string("user")]),
+                    .object(["description": .string(""), "enabled": .bool(true), "name": .string("レビュー"), "path": .string("/two"), "scope": .string("user")]),
+                    .object(["description": .string(""), "enabled": .bool(false), "name": .string("無効"), "path": .string("/disabled"), "scope": .string("user")]),
+                    .object(["description": .string(""), "enabled": .bool(true), "name": .string(""), "path": .string("/invalid"), "scope": .string("user")]),
+                ]),
+            ])]),
+        ])
+        let transport = CodexPlanSkillFakeTransport(skillsListResult: result)
+        let client = CodexAppServerClient(transport: transport)
+        await client.start()
+        let state = CodexSkillSelectionState(client: client, sessionCWD: cwd)
+        await state.refresh()
+
+        #expect(state.skills.count == 4)
+        state.search("レビュー")
+        #expect(state.filteredSkills.map(\.path) == ["/one", "/two"])
+        #expect(state.select(name: "無効", path: "/disabled") == false)
+        #expect(state.select(name: "レビュー", path: "/two"))
+        #expect(state.inputs(for: "本文 $レビュー 後 $レビュー") == [
+            .text("本文  後"),
+            .skill(name: "レビュー", path: "/two"),
+        ])
+        await client.close()
+    }
+
+    @Test("実 state は changed 後に旧選択を再採用せず、stale input を送らない")
+    @MainActor
+    func stateRejectsStaleSelection() async throws {
+        let result: JSONValue = .object([
+            "data": .array([.object([
+                "cwd": .string(cwd), "errors": .array([]), "skills": .array([
+                    .object(["description": .string(""), "enabled": .bool(true), "name": .string("review"), "path": .string("/review"), "scope": .string("user")]),
+                ]),
+            ])]),
+        ])
+        let transport = CodexPlanSkillFakeTransport(skillsListResult: result)
+        let client = CodexAppServerClient(transport: transport)
+        await client.start()
+        let state = CodexSkillSelectionState(client: client, sessionCWD: cwd)
+        await state.refresh()
+        let old = try #require(state.skills.first)
+        #expect(state.select(old))
+        state.invalidate()
+        #expect(state.select(old) == false)
+        #expect(state.inputs(for: "$review 本文") == nil)
+        await client.close()
+    }
 }
 
 private extension JSONValue {

@@ -47,6 +47,7 @@ struct CodexSessionSurface: View {
                 if let plan = viewModel.codexPlanTaskState, !plan.tasks.isEmpty {
                     TaskListCell(tasks: plan.tasks, timestamp: Date())
                     .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.plan)
+                    .accessibilityElement(children: .contain)
                 }
                 if let subAgents = viewModel.codexSubAgentState {
                     if !subAgents.children.isEmpty {
@@ -59,6 +60,7 @@ struct CodexSessionSurface: View {
                                     Text(child.summary ?? child.id).lineLimit(1)
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityLabel(child.summary ?? child.id)
                                 Spacer()
                                 Text(child.status)
                                 Button("停止") {
@@ -67,15 +69,18 @@ struct CodexSessionSurface: View {
                                 .disabled(subAgents.stopState(for: child.id) != .available)
                             }
                             .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.subAgent(child.id))
+                            .accessibilityElement(children: .contain)
                         }
                         if let selectedChildID,
                            let detail = subAgents.detail(for: selectedChildID) {
                             ScrollView {
                                 Text(detail.transcript.joined(separator: "\n"))
                                     .frame(maxWidth: .infinity, alignment: .leading)
+                                    .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.subAgentDetail(selectedChildID))
                             }
                             .frame(maxHeight: 120)
                             .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.subAgentDetail(selectedChildID))
+                            .accessibilityElement(children: .contain)
                         }
                     }
                     if let error = viewModel.codexSubAgentError {
@@ -131,6 +136,7 @@ struct CodexSessionSurface: View {
                                 }
                             }
                             .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.historyDetail(selected.id))
+                            .accessibilityElement(children: .contain)
                         }
                     }
                     if let error = history.errorMessage {
@@ -156,6 +162,7 @@ struct CodexSessionSurface: View {
                                 Button("停止") { Task { _ = await terminals.stop(itemId: terminal.itemId) } }
                             }
                             .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.backgroundTerminal(terminal.itemId))
+                            .accessibilityElement(children: .contain)
                         }
                         if let selected = terminals.selectedTerminal {
                             let cpu = selected.cpuPercent.map { String(format: "%.2f%%", $0) } ?? "不明"
@@ -174,6 +181,7 @@ struct CodexSessionSurface: View {
                                 }
                             }
                             .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.backgroundDetail(selected.itemId))
+                            .accessibilityElement(children: .contain)
                         }
                     }
                     if let error = terminals.errorMessage {

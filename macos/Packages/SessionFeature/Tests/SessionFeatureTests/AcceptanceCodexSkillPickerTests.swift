@@ -162,47 +162,53 @@ struct AcceptanceCodexSkillPickerTests {
             approvalBroker: ChatApprovalBroker(),
             workingDirectory: cwd
         )
-        try await viewModel.startNew(
-            approvalPolicy: .named("on-request"),
-            sandbox: .named("workspace-write")
-        )
+        do {
+            try await viewModel.startNew(
+                approvalPolicy: .named("on-request"),
+                sandbox: .named("workspace-write")
+            )
 
-        let state = try #require(viewModel.codexSkillSelectionState)
-        try await waitUntil("initial skills/list") {
-            state.skills.first?.path == "/old/review"
+            let state = try #require(viewModel.codexSkillSelectionState)
+            try await waitUntil("initial skills/list") {
+                state.skills.first?.path == "/old/review"
+            }
+            #expect(state.select(name: "review", path: "/old/review"))
+            #expect(state.inputs(for: "$review 本文") == [
+                .text("本文"),
+                .skill(name: "review", path: "/old/review"),
+            ])
+
+            // state.handle(.skillsChanged) を直接呼ばず、app-server transport の JSON-RPC 通知から投入する。
+            transport.receive(#"{"jsonrpc":"2.0","method":"skills/changed","params":{}}"#)
+            try await waitUntil("skills/changed の自動再取得とエラー反映") {
+                state.skills.first?.path == "/new/review" && state.errorMessage == "skill scan failed"
+            }
+            #expect(await transport.methods().filter { $0 == "skills/list" }.count == 2)
+            #expect(state.isStale)
+            #expect(state.requiresReselection)
+            #expect(state.inputs(for: "$review 本文") == nil)
+            #expect(state.select(name: "review", path: "/new/review") == false)
+            #expect(state.invalidSelectionMessage?.contains("再選択") == true)
+
+            // エラー後の再取得が成功しても、旧 identity は自動採用せず、明示的な再選択を要求する。
+            transport.receive(#"{"jsonrpc":"2.0","method":"skills/changed","params":{}}"#)
+            try await waitUntil("エラー後の skills/list 再取得") {
+                state.skills.first?.path == "/fresh/review" && state.errorMessage == nil
+            }
+            #expect(state.requiresReselection)
+            #expect(state.inputs(for: "$review 本文") == nil)
+            #expect(state.select(name: "review", path: "/fresh/review"))
+            #expect(state.inputs(for: "$review 本文") == [
+                .text("本文"),
+                .skill(name: "review", path: "/fresh/review"),
+            ])
+            #expect(await transport.methods().filter { $0 == "skills/list" }.count == 3)
+        } catch {
+            await viewModel.terminate()
+            await client.close()
+            throw error
         }
-        #expect(state.select(name: "review", path: "/old/review"))
-        #expect(state.inputs(for: "$review 本文") == [
-            .text("本文"),
-            .skill(name: "review", path: "/old/review"),
-        ])
-
-        // state.handle(.skillsChanged) を直接呼ばず、app-server transport の JSON-RPC 通知から投入する。
-        transport.receive(#"{"jsonrpc":"2.0","method":"skills/changed","params":{}}"#)
-        try await waitUntil("skills/changed の自動再取得とエラー反映") {
-            state.skills.first?.path == "/new/review" && state.errorMessage == "skill scan failed"
-        }
-        #expect(await transport.methods().filter { $0 == "skills/list" }.count == 2)
-        #expect(state.isStale)
-        #expect(state.requiresReselection)
-        #expect(state.inputs(for: "$review 本文") == nil)
-        #expect(state.select(name: "review", path: "/new/review") == false)
-        #expect(state.invalidSelectionMessage?.contains("再選択") == true)
-
-        // エラー後の再取得が成功しても、旧 identity は自動採用せず、明示的な再選択を要求する。
-        transport.receive(#"{"jsonrpc":"2.0","method":"skills/changed","params":{}}"#)
-        try await waitUntil("エラー後の skills/list 再取得") {
-            state.skills.first?.path == "/fresh/review" && state.errorMessage == nil
-        }
-        #expect(state.requiresReselection)
-        #expect(state.inputs(for: "$review 本文") == nil)
-        #expect(state.select(name: "review", path: "/fresh/review"))
-        #expect(state.inputs(for: "$review 本文") == [
-            .text("本文"),
-            .skill(name: "review", path: "/fresh/review"),
-        ])
-        #expect(await transport.methods().filter { $0 == "skills/list" }.count == 3)
-
+        await viewModel.terminate()
         await client.close()
     }
 

@@ -1,7 +1,11 @@
 import Foundation
 import Observation
+import AppKit
+import ApplicationServices
+import SwiftUI
 import Testing
 import AgentDomain
+import CodexAppServerKit
 import StructuredChatKit
 @testable import DashboardFeature
 @testable import SessionFeature
@@ -12,21 +16,44 @@ import StructuredChatKit
 @Suite("AcceptanceCodexChatParityRouteTests")
 @MainActor
 struct AcceptanceCodexChatParityRouteTests {
-    private final class RouteClient: StructuredAgentClient, @unchecked Sendable {
+    private final class RouteClient: StructuredAgentClient, CodexSkillSelectionClient, @unchecked Sendable {
         let events: AsyncStream<NormalizedChatEvent>
         private let continuation: AsyncStream<NormalizedChatEvent>.Continuation
+        let skillEvents: AsyncStream<ThreadEvent>
+        private let skillContinuation: AsyncStream<ThreadEvent>.Continuation
 
         init() {
             var captured: AsyncStream<NormalizedChatEvent>.Continuation?
             events = AsyncStream { captured = $0 }
             continuation = captured!
+            var skillCaptured: AsyncStream<ThreadEvent>.Continuation?
+            skillEvents = AsyncStream { skillCaptured = $0 }
+            skillContinuation = skillCaptured!
         }
 
         func start() async {}
         func turnStart(_ input: [ChatInput]) async throws {}
         func resume(sessionRef: String) async throws {}
         func interrupt() async throws {}
-        func close() async { continuation.finish() }
+        func close() async {
+            continuation.finish()
+            skillContinuation.finish()
+        }
+
+        func skillsList(_ params: SkillsListParams) async throws -> SkillsListResponse {
+            SkillsListResponse(data: [SkillsListEntry(
+                cwd: params.cwds?.first ?? "",
+                errors: [],
+                skills: [SkillMetadata(
+                    description: "grid route skill",
+                    enabled: true,
+                    name: "review",
+                    path: "/skills/review",
+                    scope: .user
+                )]
+            )])
+        }
+
         func yield(_ event: NormalizedChatEvent) { continuation.yield(event) }
     }
 
@@ -144,24 +171,158 @@ struct AcceptanceCodexChatParityRouteTests {
     }
 
     @Test("Codex grid route は single と同じ surface・skill 配線へ到達する")
-    func codexGridRouteReusesChatSurfaceAndSkillWiring() throws {
-        let grid = try sessionFeatureSource("GridChatColumn.swift")
-        let pane = try sessionFeatureSource("PaneLayoutView.swift")
+    func codexGridRouteReusesChatSurfaceAndSkillWiring() async throws {
+        let client = RouteClient()
+        let sessionID = SessionID()
+        let viewModel = ChatSessionViewModel(
+            id: sessionID,
+            agentRef: .builtin(.codex),
+            client: client,
+            approvalBroker: ChatApprovalBroker(),
+            workingDirectory: "/workspace/grid"
+        )
 
-        #expect(grid.contains("CodexSessionSurface("))
-        #expect(grid.contains("requestedScrollTarget: $requestedTranscriptTarget"))
-        #expect(grid.contains("controller.onAcceptSkill"))
-        #expect(grid.contains("updateCodexSkillSuggestions()"))
-        #expect(pane.contains("GridChatColumn(viewModel: session"))
-    }
+        do {
+            let skillState = try #require(viewModel.codexSkillSelectionState)
+            await skillState.refresh()
+            #expect(skillState.skills.map(\.path) == ["/skills/review"])
+            viewModel.draft = "/review"
 
-    private func sessionFeatureSource(_ relativePath: String) throws -> String {
-        let testFile = URL(fileURLWithPath: #filePath)
-        let sourceURL = testFile
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("../../SessionFeature/Sources/SessionFeature/\(relativePath)")
-            .standardizedFileURL
-        return try String(contentsOf: sourceURL, encoding: .utf8)
+            let tree = try PaneTree(root: .leaf(
+                id: PaneID("grid-route"),
+                session: sessionID
+            ))
+            let pane = PaneLayoutView(
+                sessions: [.appServer(viewModel)],
+                tree: tree,
+                focusedID: .constant(nil),
+                onRemove: { _ in },
+                onRename: { _ in },
+                onChangeWorkspace: { _ in },
+                onLayoutAction: { _ in }
+            )
+            let app = NSApplication.shared
+            app.setActivationPolicy(.prohibited)
+            app.finishLaunching()
+            let hosting = NSHostingView(rootView: pane)
+            hosting.frame = NSRect(x: 0, y: 0, width: 960, height: 720)
+            let window = NSWindow(
+                contentRect: hosting.frame,
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false
+            )
+            window.isReleasedWhenClosed = false
+            window.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
+            window.alphaValue = 0
+            window.contentView = hosting
+            defer { window.close() }
+            window.orderBack(nil)
+            settleHeadlessView(hosting)
+
+            var elements = axElements(in: app)
+            #expect(elements.contains { $0.identifier == "CodexSessionSurface" })
+            #expect(elements.contains { $0.identifier == "GridComposer.input" })
+            #expect(elements.contains { $0.identifier == "GridComposer.suggestions" })
+            let displayedText = Set(elements.flatMap {
+                [$0.title, $0.value, $0.description].compactMap { $0 }
+            })
+            #expect(displayedText.contains { $0.contains("/review") })
+
+            let suggestionsIndex = try #require(
+                elements.firstIndex { $0.identifier == "GridComposer.suggestions" }
+            )
+            // SwiftUI の Button は macOS AX ではタイトルを子要素へ分離するため、
+            // 表示文字列ではなく、実ランタイムの suggestions コンテナ直下の Button を押す。
+            let suggestion = try #require(
+                elements.dropFirst(suggestionsIndex + 1).first { $0.role == kAXButtonRole }
+            )
+            #expect(AXUIElementPerformAction(suggestion.element, kAXPressAction as CFString) == .success)
+            try await waitFor("grid skill suggestion の実 Button action") {
+                viewModel.draft == "$review" && skillState.selectedSkill?.path == "/skills/review"
+            }
+            settleHeadlessView(hosting)
+            elements = axElements(in: app)
+            #expect(viewModel.draft == "$review")
+            #expect(skillState.selectedSkill?.path == "/skills/review")
+            #expect(elements.contains { $0.identifier == "GridComposer.input" })
+        } catch {
+            await viewModel.terminate()
+            throw error
+        }
+        await viewModel.terminate()
     }
+}
+
+@MainActor
+private func waitFor(
+    _ description: String,
+    timeout: Duration = .seconds(2),
+    _ condition: @escaping @MainActor () -> Bool
+) async throws {
+    guard !condition() else { return }
+    let deadline = ContinuousClock.now.advanced(by: timeout)
+    while !condition() {
+        guard ContinuousClock.now < deadline else {
+            throw GridRouteWaitError.timedOut(description)
+        }
+        try await Task.sleep(for: .milliseconds(20))
+    }
+}
+
+private enum GridRouteWaitError: Error, CustomStringConvertible {
+    case timedOut(String)
+
+    var description: String {
+        switch self {
+        case .timedOut(let description):
+            return "Timed out waiting for \(description)"
+        }
+    }
+}
+
+@MainActor
+private func settleHeadlessView(_ view: NSView) {
+    view.layoutSubtreeIfNeeded()
+    for _ in 0..<3 {
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+        view.layoutSubtreeIfNeeded()
+    }
+}
+
+private struct AXTestElement {
+    let element: AXUIElement
+    let identifier: String?
+    let title: String?
+    let value: String?
+    let description: String?
+    let role: String?
+}
+
+@MainActor
+private func axElements(in app: NSApplication) -> [AXTestElement] {
+    let appElement = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
+    let windows = axValue(appElement, kAXWindowsAttribute) as? [AXUIElement] ?? []
+    return windows.flatMap(axElements(in:))
+}
+
+private func axElements(in element: AXUIElement) -> [AXTestElement] {
+    let result = AXTestElement(
+        element: element,
+        identifier: axValue(element, kAXIdentifierAttribute) as? String,
+        title: axValue(element, kAXTitleAttribute) as? String,
+        value: axValue(element, kAXValueAttribute) as? String,
+        description: axValue(element, kAXDescriptionAttribute) as? String,
+        role: axValue(element, kAXRoleAttribute) as? String
+    )
+    let children = axValue(element, kAXChildrenAttribute) as? [AXUIElement] ?? []
+    return [result] + children.flatMap(axElements(in:))
+}
+
+private func axValue(_ element: AXUIElement, _ attribute: String) -> Any? {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else {
+        return nil
+    }
+    return value
 }

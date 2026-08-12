@@ -1,5 +1,7 @@
 import Foundation
 import Observation
+import AppKit
+import ApplicationServices
 import SwiftUI
 import Testing
 import AgentDomain
@@ -141,24 +143,12 @@ struct AcceptanceCodexProductionReachabilityTests {
 
             let state = try #require(viewModel.codexBackgroundTerminalState)
             await state.refresh()
-            let terminal = try #require(state.items.first)
-            #expect(state.select(itemId: terminal.itemId))
+            #expect(state.select(itemId: "background-item"))
             let selectedTerminal = try #require(state.selectedTerminal)
-
-            // View と同じ identifier 定義を用い、実状態から現れる全 row/detail/action の到達先を確認する。
-            let identifiers = [
-                CodexSessionSurfaceAccessibilityID.root,
-                CodexSessionSurfaceAccessibilityID.plan,
-                CodexSessionSurfaceAccessibilityID.subAgent(child.id),
-                CodexSessionSurfaceAccessibilityID.subAgentDetail(child.id),
-                CodexSessionSurfaceAccessibilityID.historyRow(historyDetail.id),
-                CodexSessionSurfaceAccessibilityID.historyResume(historyDetail.id),
-                CodexSessionSurfaceAccessibilityID.historyDetail(historyDetail.id),
-                CodexSessionSurfaceAccessibilityID.backgroundTerminal(selectedTerminal.itemId),
-                CodexSessionSurfaceAccessibilityID.backgroundDetail(selectedTerminal.itemId),
-            ]
-            #expect(Set(identifiers).count == identifiers.count)
-            #expect(identifiers.allSatisfy { !$0.isEmpty })
+            transport.receive(backgroundItemStartedNotification(threadID: threadID))
+            try await waitFor("background item の transcript 到達") {
+                viewModel.transcriptItemIDs.contains("background-item")
+            }
 
             #expect(viewModel.codexPlanTaskState?.tasks.map(\.title) == ["inspect", "verify"])
             #expect(child.summary == "child-new")
@@ -169,15 +159,106 @@ struct AcceptanceCodexProductionReachabilityTests {
             #expect(selectedTerminal.cwd == cwd)
 
             var jumpedTarget: String?
-            let onJump: (String) -> Void = { jumpedTarget = $0 }
-            let surface = CodexSessionSurface(viewModel: viewModel, onJump: onJump)
-            _ = surface.body
-            let target = try #require(state.jumpTarget(
-                for: selectedTerminal.itemId,
-                transcriptItemIds: [selectedTerminal.itemId]
-            ))
-            onJump(target)
+            var selectedChildID: String?
+            let surface = CodexSessionSurface(
+                viewModel: viewModel,
+                onJump: { jumpedTarget = $0 },
+                onSelectChild: { childID in
+                    selectedChildID = childID
+                    Task { await viewModel.loadCodexSubAgentDetail(threadID: childID) }
+                }
+            )
+            .accessibilityElement(children: .contain)
+            let app = NSApplication.shared
+            app.setActivationPolicy(.prohibited)
+            app.finishLaunching()
+            let hosting = NSHostingView(rootView: surface)
+            hosting.frame = NSRect(x: 0, y: 0, width: 960, height: 720)
+            let window = NSWindow(
+                contentRect: hosting.frame,
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false
+            )
+            window.isReleasedWhenClosed = false
+            window.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
+            window.alphaValue = 0
+            window.contentView = hosting
+            defer { window.close() }
+            window.orderBack(nil)
+            settleHeadlessView(hosting)
+
+            var elements = axElements(in: app)
+            let expectedIdentifiers = [
+                "CodexSessionSurface",
+                "CodexPlanTaskList",
+                "CodexSubAgent.\(child.id)",
+                "CodexHistory.row.history-1",
+                "CodexHistory.resume.history-1",
+                "CodexHistory.detail.history-1",
+                "CodexBackgroundTerminal.background-item",
+                "CodexBackgroundTerminal.detail.background-item",
+            ]
+            for identifier in expectedIdentifiers {
+                #expect(
+                    elements.contains { $0.identifier == identifier },
+                    "実ランタイムAXツリーに identifier がない: \(identifier)"
+                )
+            }
+            let displayedText = Set(elements.flatMap { [$0.title, $0.value, $0.description].compactMap { $0 } })
+            #expect(displayedText.contains { $0.contains("inspect") })
+            #expect(displayedText.contains { $0.contains("child-new") })
+            #expect(displayedText.contains { $0.contains("history-1") })
+            #expect(displayedText.contains { $0.contains("swift test") })
+            #expect(displayedText.contains { $0.contains(cwd) })
+
+            let childButton = try #require(
+                axButton(in: elements, identifier: "CodexSubAgent.\(child.id)")
+            )
+            #expect(AXUIElementPerformAction(childButton.element, kAXPressAction as CFString) == .success)
+            try await waitFor("sub-agent row の実 Button action") {
+                selectedChildID == child.id
+            }
+            try await waitFor("sub-agent detail の実 Button action") {
+                viewModel.codexSubAgentState?.detail(for: child.id) != nil
+            }
+            settleHeadlessView(hosting)
+            #expect(selectedChildID == child.id)
+            elements = axElements(in: app)
+            #expect(elements.contains {
+                $0.identifier == "CodexSubAgentDetail.\(child.id)"
+            })
+            #expect(elements.flatMap {
+                [$0.title, $0.value, $0.description].compactMap { $0 }
+            }.contains { $0.contains("child-new detail") })
+
+            let jumpButton = try #require(
+                axButton(
+                    in: elements,
+                    identifier: "CodexBackgroundTerminal.\(selectedTerminal.itemId)",
+                    occurrence: 1
+                )
+            )
+            #expect(AXUIElementPerformAction(jumpButton.element, kAXPressAction as CFString) == .success)
             #expect(jumpedTarget == selectedTerminal.itemId)
+
+            let historyRow = try #require(
+                elements.first {
+                    $0.identifier == "CodexHistory.row.history-2"
+                }
+            )
+            #expect(AXUIElementPerformAction(historyRow.element, kAXPressAction as CFString) == .success)
+            try await waitFor("history row の実 Button action") {
+                history.selectedThreadID == "history-2"
+            }
+            settleHeadlessView(hosting)
+            elements = axElements(in: app)
+            #expect(elements.contains {
+                $0.identifier == "CodexHistory.detail.history-2"
+            })
+            #expect(elements.flatMap {
+                [$0.title, $0.value, $0.description].compactMap { $0 }
+            }.contains { $0.contains("history-2") })
         }
     }
 
@@ -286,6 +367,62 @@ struct AcceptanceCodexProductionReachabilityTests {
         """
     }
 
+}
+
+@MainActor
+private func settleHeadlessView(_ view: NSView) {
+    view.layoutSubtreeIfNeeded()
+    for _ in 0..<3 {
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+        view.layoutSubtreeIfNeeded()
+    }
+}
+
+private struct AXTestElement {
+    let element: AXUIElement
+    let identifier: String?
+    let title: String?
+    let value: String?
+    let description: String?
+    let role: String?
+}
+
+@MainActor
+private func axElements(in app: NSApplication) -> [AXTestElement] {
+    let appElement = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
+    let windows = axValue(appElement, kAXWindowsAttribute) as? [AXUIElement] ?? []
+    return windows.flatMap(axElements(in:))
+}
+
+private func axElements(in element: AXUIElement) -> [AXTestElement] {
+    let result = AXTestElement(
+        element: element,
+        identifier: axValue(element, kAXIdentifierAttribute) as? String,
+        title: axValue(element, kAXTitleAttribute) as? String,
+        value: axValue(element, kAXValueAttribute) as? String,
+        description: axValue(element, kAXDescriptionAttribute) as? String,
+        role: axValue(element, kAXRoleAttribute) as? String
+    )
+    let children = axValue(element, kAXChildrenAttribute) as? [AXUIElement] ?? []
+    return [result] + children.flatMap(axElements(in:))
+}
+
+private func axValue(_ element: AXUIElement, _ attribute: String) -> Any? {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else {
+        return nil
+    }
+    return value
+}
+
+private func axButton(
+    in elements: [AXTestElement],
+    identifier: String,
+    occurrence: Int = 0
+) -> AXTestElement? {
+    elements.filter { element in
+        element.role == kAXButtonRole && element.identifier == identifier
+    }.dropFirst(occurrence).first
 }
 
 private enum AcceptanceWaitError: Error, CustomStringConvertible {
@@ -637,7 +774,11 @@ final class CodexProductionTransport: AppServerTransport, @unchecked Sendable {
             object["turns"] = .array([.object([
                 "id": .string("\(id)-turn"),
                 "status": .string("inProgress"),
-                "items": .array([]),
+                "items": .array([.object([
+                    "id": .string("\(id)-item"),
+                    "type": .string("agentMessage"),
+                    "text": .string("\(id) detail"),
+                ])]),
             ])])
         }
         return .object(object)

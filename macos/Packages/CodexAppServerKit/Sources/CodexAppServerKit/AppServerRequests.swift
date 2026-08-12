@@ -110,6 +110,196 @@ public struct ThreadReadParams: Codable, Equatable, Sendable {
     }
 }
 
+public enum ThreadListCwdFilter: Codable, Equatable, Sendable {
+    case single(String)
+    case multiple([String])
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let value = try? container.decode(String.self) {
+            self = .single(value)
+        } else {
+            self = .multiple(try container.decode([String].self))
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .single(let value): try value.encode(to: encoder)
+        case .multiple(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public enum ThreadSourceKind: Codable, Equatable, Sendable {
+    case cli
+    case vscode
+    case exec
+    case appServer
+    case subAgent
+    case subAgentReview
+    case subAgentCompact
+    case subAgentThreadSpawn
+    case subAgentOther
+    case unknown(String)
+
+    public init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        switch value {
+        case "cli": self = .cli
+        case "vscode": self = .vscode
+        case "exec": self = .exec
+        case "appServer": self = .appServer
+        case "subAgent": self = .subAgent
+        case "subAgentReview": self = .subAgentReview
+        case "subAgentCompact": self = .subAgentCompact
+        case "subAgentThreadSpawn": self = .subAgentThreadSpawn
+        case "subAgentOther": self = .subAgentOther
+        default: self = .unknown(value)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        let value: String
+        switch self {
+        case .cli: value = "cli"
+        case .vscode: value = "vscode"
+        case .exec: value = "exec"
+        case .appServer: value = "appServer"
+        case .subAgent: value = "subAgent"
+        case .subAgentReview: value = "subAgentReview"
+        case .subAgentCompact: value = "subAgentCompact"
+        case .subAgentThreadSpawn: value = "subAgentThreadSpawn"
+        case .subAgentOther: value = "subAgentOther"
+        case .unknown(let unknown): value = unknown
+        }
+        try value.encode(to: encoder)
+    }
+}
+
+public struct ThreadListParams: Codable, Equatable, Sendable {
+    public var cwd: ThreadListCwdFilter?
+    public var sourceKinds: [ThreadSourceKind]?
+    public var limit: UInt32?
+    public var parentThreadId: String?
+    public var ancestorThreadId: String?
+    public var archived: Bool?
+    public var cursor: String?
+    public var modelProviders: [String]?
+    public var searchTerm: String?
+    public var sectionId: String?
+    public var sortDirection: String?
+    public var sortKey: String?
+    public var useStateDbOnly: Bool?
+
+    private var raw: JSONValue?
+
+    public init(
+        cwd: ThreadListCwdFilter? = nil,
+        sourceKinds: [ThreadSourceKind]? = nil,
+        limit: UInt32? = nil,
+        parentThreadId: String? = nil,
+        ancestorThreadId: String? = nil,
+        archived: Bool? = nil,
+        cursor: String? = nil,
+        modelProviders: [String]? = nil,
+        searchTerm: String? = nil,
+        sectionId: String? = nil,
+        sortDirection: String? = nil,
+        sortKey: String? = nil,
+        useStateDbOnly: Bool? = nil
+    ) {
+        self.cwd = cwd
+        self.sourceKinds = sourceKinds
+        self.limit = limit
+        self.parentThreadId = parentThreadId
+        self.ancestorThreadId = ancestorThreadId
+        self.archived = archived
+        self.cursor = cursor
+        self.modelProviders = modelProviders
+        self.searchTerm = searchTerm
+        self.sectionId = sectionId
+        self.sortDirection = sortDirection
+        self.sortKey = sortKey
+        self.useStateDbOnly = useStateDbOnly
+        self.raw = nil
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case cwd, sourceKinds, limit, parentThreadId, ancestorThreadId, archived
+        case cursor, modelProviders, searchTerm, sectionId, sortDirection, sortKey
+        case useStateDbOnly
+    }
+
+    public init(from decoder: Decoder) throws {
+        raw = try JSONValue(from: decoder)
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        cwd = try container.decodeIfPresent(ThreadListCwdFilter.self, forKey: .cwd)
+        sourceKinds = try container.decodeIfPresent([ThreadSourceKind].self, forKey: .sourceKinds)
+        limit = try container.decodeIfPresent(UInt32.self, forKey: .limit)
+        parentThreadId = try container.decodeIfPresent(String.self, forKey: .parentThreadId)
+        ancestorThreadId = try container.decodeIfPresent(String.self, forKey: .ancestorThreadId)
+        archived = try container.decodeIfPresent(Bool.self, forKey: .archived)
+        cursor = try container.decodeIfPresent(String.self, forKey: .cursor)
+        modelProviders = try container.decodeIfPresent([String].self, forKey: .modelProviders)
+        searchTerm = try container.decodeIfPresent(String.self, forKey: .searchTerm)
+        sectionId = try container.decodeIfPresent(String.self, forKey: .sectionId)
+        sortDirection = try container.decodeIfPresent(String.self, forKey: .sortDirection)
+        sortKey = try container.decodeIfPresent(String.self, forKey: .sortKey)
+        useStateDbOnly = try container.decodeIfPresent(Bool.self, forKey: .useStateDbOnly)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var object: [String: JSONValue]
+        if case .object(let original)? = raw {
+            object = original
+        } else {
+            object = [:]
+        }
+        try encodeOptional(cwd, key: "cwd", into: &object)
+        try encodeOptional(sourceKinds, key: "sourceKinds", into: &object)
+        try encodeOptional(limit, key: "limit", into: &object)
+        try encodeOptional(parentThreadId, key: "parentThreadId", into: &object)
+        try encodeOptional(ancestorThreadId, key: "ancestorThreadId", into: &object)
+        try encodeOptional(archived, key: "archived", into: &object)
+        try encodeOptional(cursor, key: "cursor", into: &object)
+        try encodeOptional(modelProviders, key: "modelProviders", into: &object)
+        try encodeOptional(searchTerm, key: "searchTerm", into: &object)
+        try encodeOptional(sectionId, key: "sectionId", into: &object)
+        try encodeOptional(sortDirection, key: "sortDirection", into: &object)
+        try encodeOptional(sortKey, key: "sortKey", into: &object)
+        try encodeOptional(useStateDbOnly, key: "useStateDbOnly", into: &object)
+        try JSONValue.object(object).encode(to: encoder)
+    }
+
+    private func encodeOptional<T: Encodable>(
+        _ value: T?,
+        key: String,
+        into object: inout [String: JSONValue]
+    ) throws {
+        guard let value else {
+            if case .object(let original)? = raw, original[key] == .null {
+                object[key] = .null
+            } else {
+                object.removeValue(forKey: key)
+            }
+            return
+        }
+        let data = try JSONEncoder.appServer.encode(value)
+        object[key] = try JSONDecoder.appServer.decode(JSONValue.self, from: data)
+    }
+}
+
+public struct SkillsListParams: Codable, Equatable, Sendable {
+    public var cwds: [String]?
+    public var forceReload: Bool?
+
+    public init(cwds: [String]? = nil, forceReload: Bool? = nil) {
+        self.cwds = cwds
+        self.forceReload = forceReload
+    }
+}
+
 public struct TurnStartParams: Codable, Equatable, Sendable {
     public var threadId: String
     public var input: [UserInput]
@@ -149,9 +339,11 @@ public struct TurnStartParams: Codable, Equatable, Sendable {
 
 public struct TurnInterruptParams: Codable, Equatable, Sendable {
     public var threadId: String
+    public var turnId: String
 
-    public init(threadId: String) {
+    public init(threadId: String, turnId: String) {
         self.threadId = threadId
+        self.turnId = turnId
     }
 }
 

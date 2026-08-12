@@ -40,11 +40,191 @@ public enum SessionStartSource: String, Sendable {
     case clear
 }
 
+public enum ThreadSessionSource: Codable, Equatable, Sendable {
+    case cli
+    case vscode
+    case exec
+    case appServer
+    case unknown
+    case custom(String)
+    case subAgent(JSONValue)
+    case unknownRaw(JSONValue)
+
+    public init(from decoder: Decoder) throws {
+        let raw = try JSONValue(from: decoder)
+        if let value = raw.stringValue {
+            switch value {
+            case "cli": self = .cli
+            case "vscode": self = .vscode
+            case "exec": self = .exec
+            case "appServer": self = .appServer
+            case "unknown": self = .unknown
+            default: self = .unknownRaw(raw)
+            }
+            return
+        }
+        if let custom = raw["custom"]?.stringValue, case .object = raw {
+            self = .custom(custom)
+        } else if let subAgent = raw["subAgent"], case .object = raw {
+            self = .subAgent(subAgent)
+        } else {
+            self = .unknownRaw(raw)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .cli: try JSONValue.string("cli").encode(to: encoder)
+        case .vscode: try JSONValue.string("vscode").encode(to: encoder)
+        case .exec: try JSONValue.string("exec").encode(to: encoder)
+        case .appServer: try JSONValue.string("appServer").encode(to: encoder)
+        case .unknown: try JSONValue.string("unknown").encode(to: encoder)
+        case .custom(let value): try JSONValue.object(["custom": .string(value)]).encode(to: encoder)
+        case .subAgent(let value): try JSONValue.object(["subAgent": value]).encode(to: encoder)
+        case .unknownRaw(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public typealias SessionSource = ThreadSessionSource
+
 public struct ThreadSummary: Codable, Equatable, Sendable {
     public var id: String
+    public var cliVersion: String
+    public var createdAt: Int64
+    public var cwd: String
+    public var ephemeral: Bool
+    public var modelProvider: String
+    public var preview: String
+    public var sessionId: String
+    public var source: ThreadSessionSource
     public var name: String?
     public var status: ThreadStatus?
     public var turns: [TurnSummary]?
+    public var updatedAt: Int64
+    public var parentThreadId: String?
+    public var canAcceptDirectInput: Bool?
+    public var path: String?
+    public var recencyAt: Int64?
+    public var threadSource: String?
+
+    private var raw: JSONValue?
+
+    public init(
+        id: String,
+        cliVersion: String,
+        createdAt: Int64,
+        cwd: String,
+        ephemeral: Bool,
+        modelProvider: String,
+        preview: String,
+        sessionId: String,
+        source: ThreadSessionSource,
+        status: ThreadStatus?,
+        turns: [TurnSummary]?,
+        updatedAt: Int64,
+        name: String? = nil,
+        parentThreadId: String? = nil,
+        canAcceptDirectInput: Bool? = nil,
+        path: String? = nil,
+        recencyAt: Int64? = nil,
+        threadSource: String? = nil
+    ) {
+        self.id = id
+        self.cliVersion = cliVersion
+        self.createdAt = createdAt
+        self.cwd = cwd
+        self.ephemeral = ephemeral
+        self.modelProvider = modelProvider
+        self.preview = preview
+        self.sessionId = sessionId
+        self.source = source
+        self.status = status
+        self.turns = turns
+        self.updatedAt = updatedAt
+        self.name = name
+        self.parentThreadId = parentThreadId
+        self.canAcceptDirectInput = canAcceptDirectInput
+        self.path = path
+        self.recencyAt = recencyAt
+        self.threadSource = threadSource
+        self.raw = nil
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, cliVersion, createdAt, cwd, ephemeral, modelProvider, preview, sessionId
+        case source, status, turns, updatedAt, name, parentThreadId, canAcceptDirectInput
+        case path, recencyAt, threadSource
+    }
+
+    public init(from decoder: Decoder) throws {
+        let value = try JSONValue(from: decoder)
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? ""
+        cliVersion = try container.decodeIfPresent(String.self, forKey: .cliVersion) ?? ""
+        createdAt = try container.decodeIfPresent(Int64.self, forKey: .createdAt) ?? 0
+        cwd = try container.decodeIfPresent(String.self, forKey: .cwd) ?? ""
+        ephemeral = try container.decodeIfPresent(Bool.self, forKey: .ephemeral) ?? false
+        modelProvider = try container.decodeIfPresent(String.self, forKey: .modelProvider) ?? ""
+        preview = try container.decodeIfPresent(String.self, forKey: .preview) ?? ""
+        sessionId = try container.decodeIfPresent(String.self, forKey: .sessionId) ?? ""
+        source = try container.decodeIfPresent(ThreadSessionSource.self, forKey: .source) ?? .unknownRaw(.null)
+        status = try container.decodeIfPresent(ThreadStatus.self, forKey: .status)
+        turns = try container.decodeIfPresent([TurnSummary].self, forKey: .turns)
+        updatedAt = try container.decodeIfPresent(Int64.self, forKey: .updatedAt) ?? 0
+        name = try container.decodeIfPresent(String.self, forKey: .name)
+        parentThreadId = try container.decodeIfPresent(String.self, forKey: .parentThreadId)
+        canAcceptDirectInput = try container.decodeIfPresent(Bool.self, forKey: .canAcceptDirectInput)
+        path = try container.decodeIfPresent(String.self, forKey: .path)
+        recencyAt = try container.decodeIfPresent(Int64.self, forKey: .recencyAt)
+        threadSource = try container.decodeIfPresent(String.self, forKey: .threadSource)
+        raw = value
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var object: [String: JSONValue]
+        if case .object(let original)? = raw {
+            object = original
+        } else {
+            object = [:]
+        }
+        setRequired(.string(id), key: "id", into: &object)
+        setRequired(.string(cliVersion), key: "cliVersion", into: &object)
+        setRequired(.number(Double(createdAt)), key: "createdAt", into: &object)
+        setRequired(.string(cwd), key: "cwd", into: &object)
+        setRequired(.bool(ephemeral), key: "ephemeral", into: &object)
+        setRequired(.string(modelProvider), key: "modelProvider", into: &object)
+        setRequired(.string(preview), key: "preview", into: &object)
+        setRequired(.string(sessionId), key: "sessionId", into: &object)
+        setRequired(try encodeValue(source), key: "source", into: &object)
+        encodeOptional(status, key: "status", into: &object)
+        encodeOptional(turns, key: "turns", into: &object)
+        setRequired(.number(Double(updatedAt)), key: "updatedAt", into: &object)
+        encodeOptional(name, key: "name", into: &object)
+        encodeOptional(parentThreadId, key: "parentThreadId", into: &object)
+        encodeOptional(canAcceptDirectInput, key: "canAcceptDirectInput", into: &object)
+        encodeOptional(path, key: "path", into: &object)
+        encodeOptional(recencyAt, key: "recencyAt", into: &object)
+        encodeOptional(threadSource, key: "threadSource", into: &object)
+        try JSONValue.object(object).encode(to: encoder)
+    }
+
+    private func encodeValue<T: Encodable>(_ value: T) throws -> JSONValue {
+        let data = try JSONEncoder.appServer.encode(value)
+        return try JSONDecoder.appServer.decode(JSONValue.self, from: data)
+    }
+
+    private func setRequired(_ value: JSONValue, key: String, into object: inout [String: JSONValue]) {
+        if raw == nil || object[key] != nil { object[key] = value }
+    }
+
+    private func encodeOptional<T>(_ value: T?, key: String, into object: inout [String: JSONValue]) where T: Encodable {
+        guard let value else {
+            if object[key] == nil { object.removeValue(forKey: key) }
+            return
+        }
+        if let encoded = try? encodeValue(value) { object[key] = encoded }
+    }
 }
 
 public struct AppServerModel: Codable, Equatable, Sendable {
@@ -170,36 +350,97 @@ public struct ActivePermissionProfile: Codable, Equatable, Sendable {
 public enum UserInput: Codable, Equatable, Sendable {
     case text(String)
     case imageURL(String)
+    case image(url: String, detail: String?)
+    case localImage(path: String, detail: String?)
+    case skill(name: String, path: String)
+    case unknown(JSONValue)
 
     private enum CodingKeys: String, CodingKey {
         case type
         case text
         case imageURL = "image_url"
+        case url
+        case path
+        case detail
+        case name
     }
 
     public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let type = try container.decode(String.self, forKey: .type)
+        let raw = try JSONValue(from: decoder)
+        let type = raw["type"]?.stringValue
         switch type {
         case "text", "input_text":
-            self = .text(try container.decode(String.self, forKey: .text))
+            let knownKeys = Set(["type", "text"])
+            self = Self.rawObjectHasOnly(raw, keys: knownKeys)
+                ? .text(raw["text"]?.stringValue ?? "")
+                : .unknown(raw)
         case "image_url":
-            self = .imageURL(try container.decode(String.self, forKey: .imageURL))
+            self = .text(raw["image_url"]?.stringValue ?? "")
+        case "localImage":
+            let knownKeys = Set(["type", "path", "detail"])
+            self = Self.rawObjectHasOnly(raw, keys: knownKeys)
+                ? .localImage(
+                    path: raw["path"]?.stringValue ?? "",
+                    detail: raw["detail"]?.stringValue
+                )
+                : .unknown(raw)
+        case "skill":
+            let knownKeys = Set(["type", "name", "path"])
+            self = Self.rawObjectHasOnly(raw, keys: knownKeys)
+                ? .skill(
+                    name: raw["name"]?.stringValue ?? "",
+                    path: raw["path"]?.stringValue ?? ""
+                )
+                : .unknown(raw)
+        case "image":
+            let knownKeys = Set(["type", "url", "detail"])
+            if !Self.rawObjectHasOnly(raw, keys: knownKeys) {
+                self = .unknown(raw)
+            } else if raw["detail"] == .null {
+                self = .unknown(raw)
+            } else if raw["detail"] != nil {
+                self = .image(url: raw["url"]?.stringValue ?? "", detail: raw["detail"]?.stringValue)
+            } else {
+                self = .imageURL(raw["url"]?.stringValue ?? "")
+            }
         default:
-            self = .text("")
+            self = .unknown(raw)
         }
     }
 
     public func encode(to encoder: Encoder) throws {
+        if case .unknown(let raw) = self {
+            try raw.encode(to: encoder)
+            return
+        }
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
         case .text(let text):
             try container.encode("text", forKey: .type)
             try container.encode(text, forKey: .text)
         case .imageURL(let url):
-            try container.encode("image_url", forKey: .type)
-            try container.encode(url, forKey: .imageURL)
+            try container.encode("image", forKey: .type)
+            try container.encode(url, forKey: .url)
+        case .image(let url, let detail):
+            try container.encode("image", forKey: .type)
+            try container.encode(url, forKey: .url)
+            try container.encodeIfPresent(detail, forKey: .detail)
+        case .localImage(let path, let detail):
+            try container.encode("localImage", forKey: .type)
+            try container.encode(path, forKey: .path)
+            try container.encodeIfPresent(detail, forKey: .detail)
+        case .skill(let name, let path):
+            try container.encode("skill", forKey: .type)
+            try container.encode(name, forKey: .name)
+            try container.encode(path, forKey: .path)
+        case .unknown:
+            break
         }
+    }
+
+    private static func rawObjectHasOnly(_ value: JSONValue, keys: Set<String>) -> Bool {
+        guard case .object(let object) = value else { return false }
+        return Set(object.keys).isSubset(of: keys)
     }
 }
 
@@ -281,7 +522,7 @@ public enum ThreadStatus: Codable, Equatable, Sendable {
     case idle
     case systemError
     case active(flags: [String])
-    case unknown(String)
+    case unknown(JSONValue)
 
     private enum CodingKeys: String, CodingKey {
         case type
@@ -289,8 +530,12 @@ public enum ThreadStatus: Codable, Equatable, Sendable {
     }
 
     public init(from decoder: Decoder) throws {
+        let raw = try JSONValue(from: decoder)
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let type = try container.decode(String.self, forKey: .type)
+        guard let type = raw["type"]?.stringValue else {
+            self = .unknown(raw)
+            return
+        }
         switch type {
         case "notLoaded":
             self = .notLoaded
@@ -301,11 +546,15 @@ public enum ThreadStatus: Codable, Equatable, Sendable {
         case "active":
             self = .active(flags: (try? container.decode([String].self, forKey: .activeFlags)) ?? [])
         default:
-            self = .unknown(type)
+            self = .unknown(raw)
         }
     }
 
     public func encode(to encoder: Encoder) throws {
+        if case .unknown(let raw) = self {
+            try raw.encode(to: encoder)
+            return
+        }
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
         case .notLoaded:
@@ -317,9 +566,103 @@ public enum ThreadStatus: Codable, Equatable, Sendable {
         case .active(let flags):
             try container.encode("active", forKey: .type)
             try container.encode(flags, forKey: .activeFlags)
-        case .unknown(let type):
-            try container.encode(type, forKey: .type)
+        case .unknown:
+            break
         }
+    }
+}
+
+public enum TurnPlanStepStatus: Codable, Equatable, Sendable {
+    case pending
+    case inProgress
+    case completed
+    case unknown(String)
+
+    public init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        switch value {
+        case "pending": self = .pending
+        case "inProgress": self = .inProgress
+        case "completed": self = .completed
+        default: self = .unknown(value)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        let value: String
+        switch self {
+        case .pending: value = "pending"
+        case .inProgress: value = "inProgress"
+        case .completed: value = "completed"
+        case .unknown(let unknown): value = unknown
+        }
+        try value.encode(to: encoder)
+    }
+}
+
+public struct TurnPlanStep: Codable, Equatable, Sendable {
+    public var step: String
+    public var status: TurnPlanStepStatus
+
+    public init(step: String, status: TurnPlanStepStatus) {
+        self.step = step
+        self.status = status
+    }
+}
+
+public struct TurnPlanUpdatedNotification: Codable, Equatable, Sendable {
+    public var threadId: String
+    public var turnId: String
+    public var plan: [TurnPlanStep]
+    public var explanation: String?
+
+    private var raw: JSONValue?
+
+    public init(threadId: String, turnId: String, plan: [TurnPlanStep], explanation: String? = nil) {
+        self.threadId = threadId
+        self.turnId = turnId
+        self.plan = plan
+        self.explanation = explanation
+        self.raw = nil
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case threadId, turnId, plan, explanation
+    }
+
+    public init(from decoder: Decoder) throws {
+        raw = try JSONValue(from: decoder)
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        threadId = try container.decode(String.self, forKey: .threadId)
+        turnId = try container.decode(String.self, forKey: .turnId)
+        plan = try container.decode([TurnPlanStep].self, forKey: .plan)
+        explanation = try container.decodeIfPresent(String.self, forKey: .explanation)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var object: [String: JSONValue]
+        if case .object(let original)? = raw { object = original } else { object = [:] }
+        object["threadId"] = .string(threadId)
+        object["turnId"] = .string(turnId)
+        object["plan"] = try encodeValue(plan)
+        try encodeOptional(explanation, key: "explanation", into: &object)
+        try JSONValue.object(object).encode(to: encoder)
+    }
+
+    private func encodeValue<T: Encodable>(_ value: T) throws -> JSONValue {
+        try JSONDecoder.appServer.decode(JSONValue.self, from: JSONEncoder.appServer.encode(value))
+    }
+
+    private func encodeOptional<T: Encodable>(_ value: T?, key: String, into object: inout [String: JSONValue]) throws {
+        guard let value else {
+            if case .object(let original)? = raw, original[key] == .null {
+                object[key] = .null
+            } else {
+                object.removeValue(forKey: key)
+            }
+            return
+        }
+        object[key] = try encodeValue(value)
     }
 }
 

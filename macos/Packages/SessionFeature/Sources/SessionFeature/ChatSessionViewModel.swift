@@ -845,7 +845,7 @@ public final class ChatSessionViewModel: Identifiable {
             await loadAvailableSettings(persistedSettings: persistedSettings)
             guard restoreGeneration == codexRestoreGeneration else { return }
             if let persistedSettings, persistedSettings.hasAnyValue {
-                await reapplyPersistedSettings(persistedSettings)
+                await reapplyPersistedSettings(persistedSettings, threadID: threadId)
             }
             guard restoreGeneration == codexRestoreGeneration else { return }
             await restoreTurnUsageFromStore()
@@ -2071,8 +2071,11 @@ public final class ChatSessionViewModel: Identifiable {
         refreshPlanModeAvailability()
     }
 
-    private func reapplyPersistedSettings(_ settings: CodexAppServerSessionSettings) async {
-        guard let threadId else { return }
+    private func reapplyPersistedSettings(
+        _ settings: CodexAppServerSessionSettings,
+        threadID: String? = nil
+    ) async {
+        guard let threadId = threadID ?? self.threadId else { return }
         guard let codexClient else { return }
         let model = settings.selectedModel ?? selectedModel
         let effort = settings.selectedEffort ?? selectedEffort

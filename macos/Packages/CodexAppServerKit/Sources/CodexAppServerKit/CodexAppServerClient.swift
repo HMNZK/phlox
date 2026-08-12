@@ -20,6 +20,16 @@ public enum ThreadEvent: Equatable, Sendable {
     case warning(threadId: String?, message: String)
 }
 
+/// Codex の wire event と正規化 event を同じ順序で配送するための共有ストリーム項目。
+public enum CodexStructuredEvent: Equatable, Sendable {
+    case thread(ThreadEvent)
+    case normalized(NormalizedChatEvent)
+}
+
+public protocol CodexOrderedEventsProviding: Sendable {
+    var orderedEvents: AsyncStream<CodexStructuredEvent> { get }
+}
+
 public enum CodexAppServerClientError: Error, Equatable, Sendable {
     case threadIDMismatch(requested: String, received: String)
 }
@@ -294,7 +304,7 @@ public actor CodexAppServerClient {
     }
 }
 
-public actor CodexStructuredAgentClient: StructuredAgentClient {
+public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEventsProviding {
     private let client: CodexAppServerClient
     private var bridgeTask: Task<Void, Never>?
     private var currentThreadId: String?
@@ -306,6 +316,8 @@ public actor CodexStructuredAgentClient: StructuredAgentClient {
     public nonisolated let events: AsyncStream<NormalizedChatEvent>
     private let threadEventContinuation: AsyncStream<ThreadEvent>.Continuation
     public nonisolated let threadEvents: AsyncStream<ThreadEvent>
+    private let orderedEventContinuation: AsyncStream<CodexStructuredEvent>.Continuation
+    public nonisolated let orderedEvents: AsyncStream<CodexStructuredEvent>
 
     public init(client: CodexAppServerClient) {
         self.client = client
@@ -316,12 +328,17 @@ public actor CodexStructuredAgentClient: StructuredAgentClient {
         var threadEventContinuation: AsyncStream<ThreadEvent>.Continuation?
         self.threadEvents = AsyncStream { threadEventContinuation = $0 }
         self.threadEventContinuation = threadEventContinuation!
+
+        var orderedEventContinuation: AsyncStream<CodexStructuredEvent>.Continuation?
+        self.orderedEvents = AsyncStream { orderedEventContinuation = $0 }
+        self.orderedEventContinuation = orderedEventContinuation!
     }
 
     deinit {
         bridgeTask?.cancel()
         eventContinuation.finish()
         threadEventContinuation.finish()
+        orderedEventContinuation.finish()
     }
 
     public func start() async {
@@ -451,8 +468,10 @@ public actor CodexStructuredAgentClient: StructuredAgentClient {
            eventThreadId != currentThreadId {
             return
         }
+        orderedEventContinuation.yield(.thread(event))
         threadEventContinuation.yield(event)
         if let normalized = Self.normalizedEvent(from: event) {
+            orderedEventContinuation.yield(.normalized(normalized))
             eventContinuation.yield(normalized)
         }
     }

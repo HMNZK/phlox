@@ -1307,7 +1307,20 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private func startEventTasks() {
-        if eventTask == nil {
+        if eventTask == nil, let orderedCodexClient = client as? any CodexOrderedEventsProviding {
+            let events = orderedCodexClient.orderedEvents
+            eventTask = Task { @MainActor [weak self] in
+                for await event in events {
+                    guard let self else { return }
+                    switch event {
+                    case .thread(let threadEvent):
+                        self.handleCodexSettingsEvent(threadEvent)
+                    case .normalized(let normalizedEvent):
+                        await self.handle(normalizedEvent)
+                    }
+                }
+            }
+        } else if eventTask == nil {
             let events = client.events
             eventTask = Task { @MainActor [weak self] in
                 for await event in events {
@@ -1315,7 +1328,9 @@ public final class ChatSessionViewModel: Identifiable {
                 }
             }
         }
-        if codexSettingsEventTask == nil, let codexClient {
+        if codexSettingsEventTask == nil,
+           let codexClient,
+           !(client is any CodexOrderedEventsProviding) {
             let events = codexClient.threadEvents
             codexSettingsEventTask = Task { @MainActor [weak self] in
                 for await event in events {

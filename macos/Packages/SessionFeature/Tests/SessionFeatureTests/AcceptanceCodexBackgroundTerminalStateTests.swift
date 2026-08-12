@@ -88,6 +88,19 @@ struct AcceptanceCodexBackgroundTerminalStateTests {
         #expect(state.items.isEmpty)
     }
 
+    @Test("thread 切替後に返る旧一覧エラーを状態へ適用しない")
+    func staleThreadErrorIsDiscarded() async {
+        let client = StateClient(listError: "old-thread-offline", listDelayNanoseconds: 20_000_000)
+        let state = CodexBackgroundTerminalState(client: client, threadId: "thread-old")
+        let refresh = Task { await state.refresh() }
+        try? await Task.sleep(nanoseconds: 1_000_000)
+        state.updateThreadId("thread-new")
+        await refresh.value
+
+        #expect(state.threadId == "thread-new")
+        #expect(state.errorMessage == nil)
+    }
+
     @Test("一覧にある item でも transcript に無ければ jump しない")
     func jumpRequiresTranscriptMembership() async {
         let item = terminal(itemId: "item-1", processId: "process-1")

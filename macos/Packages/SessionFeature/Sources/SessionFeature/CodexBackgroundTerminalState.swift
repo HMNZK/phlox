@@ -145,6 +145,7 @@ public final class CodexBackgroundTerminalState {
             }
             errorMessage = nil
         } catch {
+            guard generation == threadGeneration, self.threadId == threadId else { return }
             errorMessage = String(describing: error)
         }
     }

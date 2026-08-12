@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Codex chat parity の Phase 1 検証。
-# CodexAppServerKit の凍結/基盤テストと SessionFeature 全件を UI E2E なしで実行する。
+# CodexAppServerKit 全件と SessionFeature 全件を UI E2E なしで実行する。
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,11 +9,11 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CODEX_PACKAGE="$REPO_ROOT/macos/Packages/CodexAppServerKit"
 SESSION_PACKAGE="$REPO_ROOT/macos/Packages/SessionFeature"
 DASHBOARD_PACKAGE="$REPO_ROOT/macos/Packages/DashboardFeature"
-CODEX_FILTER='AcceptanceCodex|ContractCodex'
 SESSION_PRODUCTION_REACHABILITY_FILTER='AcceptanceCodexProductionReachabilityTests'
 SESSION_BACKGROUND_TERMINAL_FILTER='AcceptanceCodexBackgroundTerminalStateTests'
 DASHBOARD_FILTER='AcceptanceCodex.*Route|Codex.*Route'
-FOCUSED_TEST_TIMEOUT_SECONDS="${PHLOX_FOCUSED_TEST_TIMEOUT_SECONDS:-60}"
+DEFAULT_SWIFT_TEST_TIMEOUT_SECONDS="${PHLOX_SWIFT_TEST_TIMEOUT_SECONDS:-300}"
+TIMEOUT_EXIT_STATUS=142
 
 test_count() {
     # Swift Testing と XCTest のどちらのサマリでも実行件数を拾う。
@@ -46,7 +46,13 @@ run_package() {
     local label="$1"
     local package_path="$2"
     shift 2
-    local log status count
+    local log status count timeout_seconds
+
+    timeout_seconds="${RUN_PACKAGE_TIMEOUT_SECONDS:-$DEFAULT_SWIFT_TEST_TIMEOUT_SECONDS}"
+    if ! [[ "$timeout_seconds" =~ ^[1-9][0-9]*$ ]]; then
+        echo "FAIL: $label (invalid timeout=${timeout_seconds}, 正の整数秒を指定してください)" >&2
+        return 2
+    fi
 
     if [ ! -f "$package_path/Package.swift" ]; then
         echo "verify-codex-chat-parity: package が見つかりません: $package_path" >&2
@@ -55,17 +61,11 @@ run_package() {
 
     log="$(mktemp -t phlox-codex-parity-run.XXXXXX)"
     echo "=== swift test --package-path $package_path $* ==="
-    if [ -n "${RUN_PACKAGE_TIMEOUT_SECONDS:-}" ]; then
-        if /usr/bin/perl -e '
-            my $seconds = shift @ARGV;
-            alarm($seconds);
-            exec @ARGV or die "exec failed: $!\n";
-        ' "$RUN_PACKAGE_TIMEOUT_SECONDS" swift test --package-path "$package_path" "$@" >"$log" 2>&1; then
-            status=0
-        else
-            status=$?
-        fi
-    elif swift test --package-path "$package_path" "$@" >"$log" 2>&1; then
+    if /usr/bin/perl -e '
+        my $seconds = shift @ARGV;
+        alarm($seconds);
+        exec @ARGV or die "exec failed: $!\n";
+    ' "$timeout_seconds" swift test --package-path "$package_path" "$@" >"$log" 2>&1; then
         status=0
     else
         status=$?
@@ -73,8 +73,8 @@ run_package() {
 
     count="$(test_count "$log")"
     if [ "$count" -eq 0 ]; then
-        if [ -n "${RUN_PACKAGE_TIMEOUT_SECONDS:-}" ] && [ "$status" -eq 142 ]; then
-            echo "FAIL: $label (tests=0, process timeout=${RUN_PACKAGE_TIMEOUT_SECONDS}s, exit=$status)" >&2
+        if [ "$status" -eq "$TIMEOUT_EXIT_STATUS" ]; then
+            echo "FAIL: $label (tests=0, process timeout=${timeout_seconds}s, exit=$status)" >&2
         else
             echo "FAIL: $label (tests=0, 実行テスト件数が0です)" >&2
         fi
@@ -85,8 +85,8 @@ run_package() {
     fi
 
     if [ "$status" -ne 0 ]; then
-        if [ -n "${RUN_PACKAGE_TIMEOUT_SECONDS:-}" ] && [ "$status" -eq 142 ]; then
-            echo "FAIL: $label (tests=$count, process timeout=${RUN_PACKAGE_TIMEOUT_SECONDS}s, exit=$status)" >&2
+        if [ "$status" -eq "$TIMEOUT_EXIT_STATUS" ]; then
+            echo "FAIL: $label (tests=$count, process timeout=${timeout_seconds}s, exit=$status)" >&2
         else
             echo "FAIL: $label (tests=$count, exit=$status)" >&2
         fi
@@ -102,14 +102,13 @@ run_package() {
 
 failed=0
 
-if run_package "CodexAppServerKit 凍結/基盤" "$CODEX_PACKAGE" --filter "$CODEX_FILTER" --no-parallel; then
+if run_package "CodexAppServerKit 全suite" "$CODEX_PACKAGE" --no-parallel; then
     :
 else
     failed=$?
 fi
 
-if RUN_PACKAGE_TIMEOUT_SECONDS="$FOCUSED_TEST_TIMEOUT_SECONDS" run_package \
-    "SessionFeature Codex production reachability (timeout付き)" "$SESSION_PACKAGE" \
+if run_package "SessionFeature Codex production reachability" "$SESSION_PACKAGE" \
     --filter "$SESSION_PRODUCTION_REACHABILITY_FILTER" --no-parallel; then
     :
 else

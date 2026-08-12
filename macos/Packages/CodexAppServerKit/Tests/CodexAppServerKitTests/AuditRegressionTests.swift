@@ -7,6 +7,42 @@ import Testing
 // 符号化し、修正後は緑になる。与えられた受け入れテスト（このファイル）は編集対象だが、
 // 実装を直して緑にする方針でありアサーションは弱めない。
 
+private enum ProcessTransportTestError: Error {
+    case timedOut
+}
+
+private func collectProcessLines(
+    from transport: ProcessTransport,
+    timeout: Duration = .seconds(5)
+) async throws -> [String] {
+    do {
+        let lines = try await withThrowingTaskGroup(of: [String].self) { group in
+            group.addTask {
+                var lines: [String] = []
+                for await line in transport.receivedLines {
+                    lines.append(String(data: line, encoding: .utf8) ?? "")
+                }
+                return lines
+            }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                await transport.close()
+                throw ProcessTransportTestError.timedOut
+            }
+            defer { group.cancelAll() }
+            guard let lines = try await group.next() else {
+                throw ProcessTransportTestError.timedOut
+            }
+            return lines
+        }
+        await transport.close()
+        return lines
+    } catch {
+        await transport.close()
+        throw error
+    }
+}
+
 // MARK: - I11: JSONValue.intValue の overflow/NaN クラッシュ（最優先・クラッシュ）
 
 @Test func intValueReturnsNilForOverflowAndNaNAndKeepsValidIntegers() {
@@ -37,7 +73,8 @@ import Testing
 
 // MARK: - I8: stderr 未ドレインによる子プロセスの write ブロック（hang）
 
-@Test func processTransportDoesNotHangWhenChildFloodsStderr() async throws {
+@Test(.timeLimit(.minutes(1)))
+func processTransportDoesNotHangWhenChildFloodsStderr() async throws {
     // 子が 64KiB を超える stderr を出してから stdout に応答を書く。stderr を並行ドレインしないと、
     // 子は stderr write でブロックし stdout に到達できず、transport は永遠に応答を返さない（hang）。
     let transport = ProcessTransport(
@@ -49,10 +86,7 @@ import Testing
     )
     try transport.start()
 
-    var lines: [String] = []
-    for await line in transport.receivedLines {
-        lines.append(String(data: line, encoding: .utf8) ?? "")
-    }
+    let lines = try await collectProcessLines(from: transport)
 
     #expect(lines == ["STDOUT_SURVIVED"])
 }

@@ -123,7 +123,21 @@ struct AcceptanceCodexChatParityIntegrationTests {
                         "status": .object(["type": .string("idle")]),
                     ]),
                 ])
-            case "model/list", "permissionProfile/list", "collaborationMode/list":
+            case "model/list":
+                // 画像送信の fixture は、実際に画像 modality を広告する model を
+                // 選択可能な状態にしてから turn/start へ進める。
+                result = .object(["data": .array([.object([
+                    "id": .string("gpt-5-codex"),
+                    "model": .string("gpt-5-codex"),
+                    "displayName": .string("GPT-5 Codex"),
+                    "description": .string(""),
+                    "hidden": .bool(false),
+                    "supportedReasoningEfforts": .array([.string("medium")]),
+                    "defaultReasoningEffort": .string("medium"),
+                    "isDefault": .bool(true),
+                    "inputModalities": .array([.string("text"), .string("image")]),
+                ])])])
+            case "permissionProfile/list", "collaborationMode/list":
                 result = .object(["data": .array([])])
             default:
                 result = .object([:])
@@ -259,14 +273,12 @@ struct AcceptanceCodexChatParityIntegrationTests {
         let transport = JSONRPCTransport()
         let appServer = CodexAppServerClient(transport: transport)
         let adapter = CodexStructuredAgentClient(client: appServer)
-        await adapter.start()
-        _ = try await adapter.initialize(InitializeParams(
-            clientInfo: ClientInfo(name: "phlox", title: "Phlox", version: "test"),
-            capabilities: InitializeCapabilities(experimentalApi: true)
-        ))
-        _ = try await adapter.threadStart(ThreadStartParams(cwd: "/tmp/phlox-codex-parity"))
-
         let viewModel = makeCodexVM(client: adapter)
+        try await viewModel.startNew(
+            approvalPolicy: .named("on-request"),
+            sandbox: .named("workspace-write")
+        )
+        #expect(viewModel.availableModels.map(\.id) == ["gpt-5-codex"])
         let attachment = Data([0x89, 0x50, 0x4E, 0x47])
         #expect(viewModel.attachmentStore.addImage(
             data: attachment,

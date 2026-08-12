@@ -74,14 +74,16 @@ struct AcceptanceCodexBackgroundTerminalStateTests {
 
     @Test("thread が切り替わった後に返る旧一覧を状態へ適用しない")
     func staleThreadListIsDiscarded() async {
+        let gate = StateClientListGate()
         let client = StateClient(
             lists: [[terminal(itemId: "old", processId: "p-old")]],
-            listDelayNanoseconds: 20_000_000
+            listGate: gate
         )
         let state = CodexBackgroundTerminalState(client: client, threadId: "thread-old")
         let refresh = Task { await state.refresh() }
-        try? await Task.sleep(nanoseconds: 1_000_000)
+        await gate.waitUntilEntered()
         state.updateThreadId("thread-new")
+        await gate.release()
         await refresh.value
 
         #expect(state.threadId == "thread-new")
@@ -90,11 +92,16 @@ struct AcceptanceCodexBackgroundTerminalStateTests {
 
     @Test("thread 切替後に返る旧一覧エラーを状態へ適用しない")
     func staleThreadErrorIsDiscarded() async {
-        let client = StateClient(listError: "old-thread-offline", listDelayNanoseconds: 20_000_000)
+        let gate = StateClientListGate()
+        let client = StateClient(
+            listError: "old-thread-offline",
+            listGate: gate
+        )
         let state = CodexBackgroundTerminalState(client: client, threadId: "thread-old")
         let refresh = Task { await state.refresh() }
-        try? await Task.sleep(nanoseconds: 1_000_000)
+        await gate.waitUntilEntered()
         state.updateThreadId("thread-new")
+        await gate.release()
         await refresh.value
 
         #expect(state.threadId == "thread-new")
@@ -137,25 +144,23 @@ private actor StateClientRecorder {
     var lists: [[ThreadBackgroundTerminal]]
     var terminateResult: Bool
     let listError: String?
-    let listDelayNanoseconds: UInt64
+    let listGate: StateClientListGate?
     var terminateRequests: [(String, String)] = []
 
     init(
         lists: [[ThreadBackgroundTerminal]] = [],
         terminateResult: Bool = false,
         listError: String? = nil,
-        listDelayNanoseconds: UInt64 = 0
+        listGate: StateClientListGate? = nil
     ) {
         self.lists = lists
         self.terminateResult = terminateResult
         self.listError = listError
-        self.listDelayNanoseconds = listDelayNanoseconds
+        self.listGate = listGate
     }
 
     func list() async throws -> [ThreadBackgroundTerminal] {
-        if listDelayNanoseconds > 0 {
-            try await Task.sleep(nanoseconds: listDelayNanoseconds)
-        }
+        await listGate?.enterAndWait()
         if let listError { throw StateClientError.message(listError) }
         return lists.isEmpty ? [] : lists.removeFirst()
     }
@@ -166,6 +171,32 @@ private actor StateClientRecorder {
     }
 
     var lastTerminate: (String, String)? { terminateRequests.last }
+}
+
+private actor StateClientListGate {
+    private var entered = false
+    private var released = false
+    private var enteredWaiter: CheckedContinuation<Void, Never>?
+    private var releaseWaiter: CheckedContinuation<Void, Never>?
+
+    func enterAndWait() async {
+        entered = true
+        enteredWaiter?.resume()
+        enteredWaiter = nil
+        guard !released else { return }
+        await withCheckedContinuation { releaseWaiter = $0 }
+    }
+
+    func waitUntilEntered() async {
+        guard !entered else { return }
+        await withCheckedContinuation { enteredWaiter = $0 }
+    }
+
+    func release() {
+        released = true
+        releaseWaiter?.resume()
+        releaseWaiter = nil
+    }
 }
 
 private enum StateClientError: Error, CustomStringConvertible {
@@ -182,13 +213,13 @@ private final class StateClient: CodexBackgroundTerminalProviding, @unchecked Se
         lists: [[ThreadBackgroundTerminal]] = [],
         terminateResult: Bool = false,
         listError: String? = nil,
-        listDelayNanoseconds: UInt64 = 0
+        listGate: StateClientListGate? = nil
     ) {
         recorder = StateClientRecorder(
             lists: lists,
             terminateResult: terminateResult,
             listError: listError,
-            listDelayNanoseconds: listDelayNanoseconds
+            listGate: listGate
         )
     }
 

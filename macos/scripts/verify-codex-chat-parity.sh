@@ -10,6 +10,7 @@ CODEX_PACKAGE="$REPO_ROOT/macos/Packages/CodexAppServerKit"
 SESSION_PACKAGE="$REPO_ROOT/macos/Packages/SessionFeature"
 DASHBOARD_PACKAGE="$REPO_ROOT/macos/Packages/DashboardFeature"
 CODEX_FILTER='AcceptanceCodex|ContractCodex'
+SESSION_BACKGROUND_TERMINAL_FILTER='AcceptanceCodexBackgroundTerminalStateTests'
 DASHBOARD_FILTER='AcceptanceCodex.*Route|Codex.*Route'
 
 test_count() {
@@ -85,6 +86,14 @@ if run_package "CodexAppServerKit 凍結/基盤" "$CODEX_PACKAGE" --filter "$COD
     :
 else
     failed=$?
+fi
+
+if run_package "SessionFeature Codex background terminal state (parallel)" "$SESSION_PACKAGE" \
+    --filter "$SESSION_BACKGROUND_TERMINAL_FILTER" --parallel; then
+    :
+else
+    session_parallel_status=$?
+    [ "$failed" -ne 0 ] || failed="$session_parallel_status"
 fi
 
 if run_package "SessionFeature 全suite" "$SESSION_PACKAGE" --no-parallel; then

@@ -84,7 +84,7 @@ public enum ChatSettingsUpdateError: Error, Equatable, Sendable {
     case codexSettingsUnavailable
 }
 
-public protocol CodexSettingsProviding: Sendable, CodexBackgroundTerminalProviding {
+public protocol CodexSettingsProviding: Sendable {
     var threadEvents: AsyncStream<ThreadEvent> { get }
 
     /// 現在アクティブな thread id。reset 後の新 thread を VM が採用し、旧 thread の遅延イベントを

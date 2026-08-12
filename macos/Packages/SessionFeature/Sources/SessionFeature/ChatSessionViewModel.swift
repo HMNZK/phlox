@@ -40,12 +40,6 @@ public final class ChatSessionViewModel: Identifiable {
     public private(set) var threadId: String?
     public private(set) var chatNativeSessionId: String?
     public private(set) var appServerUserAgent: String?
-    /// Codex の実験的 background terminal 一覧・詳細・停止を保持する状態。
-    /// Codex 以外、または実験 API を持たない client では nil。
-    public private(set) var codexBackgroundTerminalState: CodexBackgroundTerminalState?
-    public var backgroundTerminalState: CodexBackgroundTerminalState? {
-        codexBackgroundTerminalState
-    }
     public private(set) var transcript: [ChatItem] = []
     public var inputHistoryEntries: [InputHistoryEntry] {
         InputHistoryPolicy.entries(from: transcript)
@@ -179,16 +173,6 @@ public final class ChatSessionViewModel: Identifiable {
     /// 供給結果が空/未注入なら小さなハードコード fallback を使い、起動を妨げない。
     public typealias SpawnAgentModelsProvider = @Sendable () async -> [String]
 
-    private static func makeCodexBackgroundTerminalState(
-        agentRef: AgentRef,
-        client: any StructuredAgentClient
-    ) -> CodexBackgroundTerminalState? {
-        guard agentRef == .builtin(.codex),
-              let terminalClient = client as? any CodexBackgroundTerminalProviding
-        else { return nil }
-        return CodexBackgroundTerminalState(client: terminalClient, threadId: "")
-    }
-
     public init(
         id: SessionID,
         startedAt: Date = Date(),
@@ -208,10 +192,6 @@ public final class ChatSessionViewModel: Identifiable {
         self.client = client
         self.approvalBroker = approvalBroker
         self.workingDirectory = workingDirectory
-        self.codexBackgroundTerminalState = Self.makeCodexBackgroundTerminalState(
-            agentRef: agentRef,
-            client: client
-        )
         self.transcriptStore = transcriptStore
         self.transcriptPersistenceQueue = transcriptStore.map {
             TranscriptPersistenceQueue(sessionID: id, store: $0)
@@ -247,10 +227,6 @@ public final class ChatSessionViewModel: Identifiable {
         self.client = client
         self.approvalBroker = approvalBroker
         self.workingDirectory = workingDirectory
-        self.codexBackgroundTerminalState = Self.makeCodexBackgroundTerminalState(
-            agentRef: agentRef,
-            client: client
-        )
         self.transcriptStore = nil
         self.transcriptPersistenceQueue = nil
         self.attachmentStore = attachmentStore
@@ -2162,7 +2138,6 @@ public final class ChatSessionViewModel: Identifiable {
         let previous = chatNativeSessionId
         threadId = id
         chatNativeSessionId = id
-        codexBackgroundTerminalState?.updateThreadId(id)
         if let id, let previous, id != previous {
             clearRunningBackgroundTasks()
         }

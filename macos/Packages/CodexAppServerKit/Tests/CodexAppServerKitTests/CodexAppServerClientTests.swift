@@ -10,10 +10,12 @@ final class RespondingTransport: AppServerTransport, @unchecked Sendable {
     let sent = SentMessages()
     let receivedLines: AsyncStream<Data>
     private let continuation: AsyncStream<Data>.Continuation
+    private let resumeThreadId: String
     private let lock = NSLock()
     private var threadStartCount = 0
 
-    init() {
+    init(resumeThreadId: String = "thread-resumed") {
+        self.resumeThreadId = resumeThreadId
         var continuation: AsyncStream<Data>.Continuation?
         self.receivedLines = AsyncStream { continuation = $0 }
         self.continuation = continuation!
@@ -40,7 +42,7 @@ final class RespondingTransport: AppServerTransport, @unchecked Sendable {
             }
             result = ["thread": ["id": "thread-\(n)", "status": ["type": "idle"]]]
         case "thread/resume":
-            result = ["thread": ["id": "thread-resumed", "status": ["type": "idle"]]]
+            result = ["thread": ["id": resumeThreadId, "status": ["type": "idle"]]]
         default:
             result = [:]
         }
@@ -87,20 +89,19 @@ private extension NSLock {
     await adapter.close()
 }
 
-// task-8 差し戻し MUST1 回帰: threadResume（復元セッション）でも lastThreadStartParams を捕捉し、
-// resetConversation → turnStart が新 thread へ届く（従来は currentThreadId=nil で threadNotStarted）。
-@Test func codexResetAfterResumeStartsNewThreadAndRetargetsTurns() async throws {
-    let transport = RespondingTransport()
+// 成功した thread/resume 後も resetConversation が新しい thread を開始し、
+// 以後の turnStart がその新 thread へ向かう回帰を保持する。
+@Test func codexResetAfterSuccessfulResumeStartsNewThreadAndRetargetsTurns() async throws {
+    let transport = RespondingTransport(resumeThreadId: "restored")
     let client = CodexAppServerClient(transport: transport)
     let adapter = CodexStructuredAgentClient(client: client)
     await adapter.start()
 
     let resumed = try await adapter.threadResume(ThreadResumeParams(threadId: "restored", cwd: "/tmp/work"))
-    #expect(resumed.thread.id == "thread-resumed")
+    #expect(resumed.thread.id == "restored")
     try await adapter.turnStart([.text("first")])
 
     await adapter.resetConversation()
-    // reset 後の turnStart は throw せず新 thread へ届くこと（回帰の核心）。
     try await adapter.turnStart([.text("second")])
 
     let sent = await transport.sent.all()
@@ -108,8 +109,32 @@ private extension NSLock {
         guard message["method"]?.stringValue == "turn/start" else { return nil }
         return message["params"]?["threadId"]?.stringValue
     }
-    // 復元 thread → reset 後は thread/start による新 thread-1 へ向かう。
-    #expect(turnStartThreadIds == ["thread-resumed", "thread-1"])
+    #expect(turnStartThreadIds == ["restored", "thread-1"])
+
+    await adapter.close()
+}
+
+// 現行契約: thread/resume が要求 ID と異なる thread を返した場合はエラーとし、
+// 返された別 thread へ currentThreadId や後続 turn を retarget しない。
+@Test func codexResumeRejectsMismatchedThreadWithoutRetargetingTurns() async throws {
+    let transport = RespondingTransport()
+    let client = CodexAppServerClient(transport: transport)
+    let adapter = CodexStructuredAgentClient(client: client)
+    await adapter.start()
+
+    do {
+        _ = try await adapter.threadResume(ThreadResumeParams(threadId: "restored", cwd: "/tmp/work"))
+        Issue.record("thread/resume の ID mismatch が成功扱いになっている")
+    } catch let error as CodexAppServerClientError {
+        #expect(error == .threadIDMismatch(requested: "restored", received: "thread-resumed"))
+    } catch {
+        Issue.record("thread/resume の ID mismatch が想定外のエラーになっている: \(error)")
+    }
+
+    let sent = await transport.sent.all()
+    #expect(sent.contains { $0["method"]?.stringValue == "thread/resume" })
+    #expect(!sent.contains { $0["method"]?.stringValue == "turn/start" })
+    #expect(await adapter.activeThreadId() == nil)
 
     await adapter.close()
 }

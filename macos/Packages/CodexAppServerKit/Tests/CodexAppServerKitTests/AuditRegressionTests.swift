@@ -179,9 +179,9 @@ private actor ResultBox {
     await rpc.close()
 }
 
-// MARK: - S: 空 threadId の interrupt 完了イベントを取りこぼさない
+// MARK: - S: interrupted の turn/completed を取りこぼさない
 
-@Test func emptyThreadIdInterruptEventIsNotDroppedAfterThreadStart() async throws {
+@Test func interruptedTurnCompletionIsDeliveredAfterThreadStart() async throws {
     let transport = MockTransport()
     let client = CodexAppServerClient(transport: transport)
     let adapter = CodexStructuredAgentClient(client: client)
@@ -200,8 +200,7 @@ private actor ResultBox {
     """)
     _ = try await startTask.value
 
-    // threadId を欠いた turn/interrupted 通知（threadId は "" に補完される）。
-    // フィルタが "" を別 thread として扱うと、この完了イベントが破棄される。
+    // 現行契約では停止完了は turn/completed の interrupted status で通知される。
     let eventBox = ThreadEventBox()
     let consumer = Task {
         var iterator = adapter.threadEvents.makeAsyncIterator()
@@ -210,15 +209,17 @@ private actor ResultBox {
         }
     }
     transport.receive("""
-    {"jsonrpc":"2.0","method":"turn/interrupted","params":{"turnId":"turn-1"}}
+    {"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"thread-1","turn":{"id":"turn-1","status":"interrupted"}}}
     """)
 
     let received = await waitUntil { await eventBox.value != nil }
     #expect(received)
-    if case .turnInterrupted(_, let turnId)? = await eventBox.value {
-        #expect(turnId == "turn-1")
+    if case .turnCompleted(let threadId, let turn)? = await eventBox.value {
+        #expect(threadId == "thread-1")
+        #expect(turn.id == "turn-1")
+        #expect(turn.status == "interrupted")
     } else {
-        Issue.record("Expected turnInterrupted event to be delivered, got \(String(describing: await eventBox.value))")
+        Issue.record("Expected interrupted turnCompleted event to be delivered, got \(String(describing: await eventBox.value))")
     }
 
     consumer.cancel()

@@ -36,7 +36,7 @@ import StructuredChatKit
     await adapter.close()
 }
 
-@Test func codexStructuredAdapterSeparatesWarningAndInterruptedEvents() async throws {
+@Test func codexStructuredAdapterSeparatesWarningAndInterruptedCompletionEvents() async throws {
     let transport = MockTransport()
     let client = CodexAppServerClient(transport: transport)
     let adapter = CodexStructuredAgentClient(client: client)
@@ -47,7 +47,7 @@ import StructuredChatKit
     {"jsonrpc":"2.0","method":"warning","params":{"threadId":"thread-1","message":"heads up"}}
     """)
     transport.receive("""
-    {"jsonrpc":"2.0","method":"turn/interrupted","params":{"threadId":"thread-1","turnId":"turn-1"}}
+    {"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"thread-1","turn":{"id":"turn-1","status":"interrupted"}}}
     """)
 
     #expect(await iterator.next() == .warning(message: "heads up"))

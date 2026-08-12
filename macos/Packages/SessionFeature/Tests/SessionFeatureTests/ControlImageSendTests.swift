@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import AgentDomain
+import CodexAppServerKit
 import StructuredChatKit
 @testable import SessionFeature
 
@@ -118,5 +119,146 @@ struct ControlImageSendTests {
 
         #expect(client.lastTurnStartInput == nil)
         #expect(vm.attachmentStore.attachments.isEmpty)
+    }
+
+    @Test
+    func sendTextWithControlImages_modelChangesDuringCapabilityAwait_abortsWithoutTextOnlySend() async throws {
+        let imageModel = try JSONDecoder().decode(
+            AppServerModel.self,
+            from: Data(#"{"id":"image-model","model":"image-model","displayName":"Image","description":"","hidden":false,"supportedReasoningEfforts":["medium"],"defaultReasoningEffort":"medium","isDefault":true,"inputModalities":["text","image"]}"#.utf8)
+        )
+        let textModel = try JSONDecoder().decode(
+            AppServerModel.self,
+            from: Data(#"{"id":"text-model","model":"text-model","displayName":"Text","description":"","hidden":false,"supportedReasoningEfforts":["medium"],"defaultReasoningEffort":"medium","isDefault":false,"inputModalities":["text"]}"#.utf8)
+        )
+        let client = RacingCodexImageClient(models: [imageModel, textModel])
+        let vm = ChatSessionViewModel(
+            id: SessionID(),
+            agentRef: .builtin(.codex),
+            client: client,
+            approvalBroker: ChatApprovalBroker(),
+            workingDirectory: "/tmp/work"
+        )
+        try await vm.startNew(
+            approvalPolicy: .named("on-request"),
+            sandbox: .named("workspace-write")
+        )
+
+        var started = client.configurationStarted.makeAsyncIterator()
+        let sendTask = Task { @MainActor in
+            try await vm.sendTextWithControlImages(
+                "画像を説明して",
+                submit: true,
+                images: [(mediaType: "image/png", data: tinyPNG)]
+            )
+        }
+        _ = await started.next()
+        try await vm.setModel(model: "text-model", effort: "medium")
+        await client.releaseConfiguration()
+
+        await #expect(throws: ChatSessionViewModel.ControlImageSendError.imageSendSnapshotChanged) {
+            try await sendTask.value
+        }
+        #expect(await client.lastTurnStartInput() == nil)
+    }
+}
+
+private actor RacingCodexImageClient: StructuredAgentClient, CodexSettingsProviding, CodexImageInputConfiguring {
+    nonisolated let events: AsyncStream<NormalizedChatEvent>
+    nonisolated let threadEvents: AsyncStream<ThreadEvent>
+    nonisolated let configurationStarted: AsyncStream<Void>
+    private let eventContinuation: AsyncStream<NormalizedChatEvent>.Continuation
+    private let threadEventContinuation: AsyncStream<ThreadEvent>.Continuation
+    private let configurationStartedContinuation: AsyncStream<Void>.Continuation
+    private let models: [AppServerModel]
+    private var configurationContinuation: CheckedContinuation<Void, Never>?
+    private var lastInput: [ChatInput]?
+
+    init(models: [AppServerModel]) {
+        self.models = models
+        var eventContinuation: AsyncStream<NormalizedChatEvent>.Continuation?
+        events = AsyncStream { eventContinuation = $0 }
+        self.eventContinuation = eventContinuation!
+        var threadEventContinuation: AsyncStream<ThreadEvent>.Continuation?
+        threadEvents = AsyncStream { threadEventContinuation = $0 }
+        self.threadEventContinuation = threadEventContinuation!
+        var startedContinuation: AsyncStream<Void>.Continuation?
+        configurationStarted = AsyncStream(bufferingPolicy: .unbounded) { startedContinuation = $0 }
+        self.configurationStartedContinuation = startedContinuation!
+    }
+
+    func start() async {}
+
+    func turnStart(_ input: [ChatInput]) async throws {
+        lastInput = input
+    }
+
+    func resume(sessionRef: String) async throws {}
+    func interrupt() async throws {}
+
+    func close() async {
+        eventContinuation.finish()
+        threadEventContinuation.finish()
+        configurationStartedContinuation.finish()
+    }
+
+    func activeThreadId() async -> String? { "thread-image-race" }
+
+    func initialize(_ params: InitializeParams) async throws -> InitializeResponse {
+        try decode(#"{"codexHome":"/tmp","platformFamily":"macOS","platformOs":"macOS","userAgent":"test"}"#)
+    }
+
+    func threadStart(_ params: ThreadStartParams) async throws -> ThreadResponse {
+        try decode(#"{"thread":{"id":"thread-image-race","status":{"type":"idle"}}}"#)
+    }
+
+    func threadResume(_ params: ThreadResumeParams) async throws -> ThreadResponse {
+        try decode(#"{"thread":{"id":"thread-image-race","status":{"type":"idle"}}}"#)
+    }
+
+    func threadRead(_ params: ThreadReadParams) async throws -> ThreadReadResponse {
+        try decode(#"{"thread":{"id":"thread-image-race","status":{"type":"idle"}}}"#)
+    }
+
+    func listModels(_ params: ModelListParams) async throws -> ModelListResponse {
+        let value = try JSONDecoder().decode(
+            JSONValue.self,
+            from: JSONEncoder().encode(models)
+        )
+        return try decode(JSONEncoder().encode(JSONValue.object(["data": value, "nextCursor": .null])))
+    }
+
+    func listPermissionProfiles(_ params: PermissionProfileListParams) async throws -> PermissionProfileListResponse {
+        try decode(#"{"data":[]}"#)
+    }
+
+    func listCollaborationModes(_ params: CollaborationModeListParams) async throws -> CollaborationModeListResponse {
+        try decode(#"{"data":[]}"#)
+    }
+
+    func updateThreadSettings(_ params: ThreadSettingsUpdateParams) async throws -> ThreadSettingsUpdateResponse {
+        ThreadSettingsUpdateResponse()
+    }
+
+    func setNativeImageInputEnabled(_ enabled: Bool) async {
+        configurationStartedContinuation.yield(())
+        await withCheckedContinuation { continuation in
+            configurationContinuation = continuation
+        }
+    }
+
+    func releaseConfiguration() {
+        configurationContinuation?.resume()
+        configurationContinuation = nil
+    }
+
+    func lastTurnStartInput() -> [ChatInput]? { lastInput }
+
+    private func decode<T: Decodable>(_ json: String) throws -> T {
+        try JSONDecoder().decode(T.self, from: Data(json.utf8))
+    }
+
+    private func decode<T: Decodable>(_ data: Data) throws -> T {
+        try JSONDecoder().decode(T.self, from: data)
     }
 }

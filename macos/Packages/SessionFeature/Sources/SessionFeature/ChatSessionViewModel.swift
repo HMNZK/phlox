@@ -636,6 +636,20 @@ public final class ChatSessionViewModel: Identifiable {
         return inputs
     }
 
+    private struct ImageSendSnapshot: Equatable {
+        let model: String?
+        let supportsImages: Bool
+        let input: [ChatInput]
+    }
+
+    private func imageSendSnapshot(for input: [ChatInput]) -> ImageSendSnapshot {
+        ImageSendSnapshot(
+            model: selectedModel,
+            supportsImages: supportsImageAttachments,
+            input: input
+        )
+    }
+
     private var supportsImageAttachments: Bool {
         switch agentRef {
         case .builtin(.claudeCode):
@@ -665,15 +679,25 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
-    private func configureCodexImageInputIfNeeded() async {
+    private func configureCodexImageInputIfNeeded(supportsImages: Bool) async {
         guard agentRef == .builtin(.codex),
               let configurable = client as? any CodexImageInputConfiguring
         else { return }
-        await configurable.setNativeImageInputEnabled(supportsImageAttachments)
+        await configurable.setNativeImageInputEnabled(supportsImages)
     }
 
-    public enum ControlImageSendError: Error, Sendable {
+    public enum ControlImageSendError: Error, Equatable, Sendable, LocalizedError {
         case imagesUnsupported
+        case imageSendSnapshotChanged
+
+        public var errorDescription: String? {
+            switch self {
+            case .imagesUnsupported:
+                "画像添付は Claude と画像対応モデルの Codex に対応しています"
+            case .imageSendSnapshotChanged:
+                "画像対応モデルまたは添付が送信前に変更されたため、送信を中止しました"
+            }
+        }
     }
 
     /// Control API から画像付きで送信する。turnStart 失敗時は添付を残さない。
@@ -2633,13 +2657,20 @@ extension ChatSessionViewModel: ControllableSession {
                 restoreDraftAfterRejectedSend(input)
                 return
             }
-            if hasAttachments && !supportsImageAttachments {
-                attachmentStore.setError("画像添付は Claude と画像対応モデルの Codex に対応しています")
-                restoreDraftAfterRejectedSend(input)
-                return
-            }
-            if hasAttachments {
-                await configureCodexImageInputIfNeeded()
+            let sendInputs = buildChatInputs(text: clientInput)
+            let imageSnapshot = hasAttachments ? imageSendSnapshot(for: sendInputs) : nil
+            if let imageSnapshot {
+                guard imageSnapshot.supportsImages else {
+                    attachmentStore.setError(ControlImageSendError.imagesUnsupported.localizedDescription)
+                    restoreDraftAfterRejectedSend(input)
+                    throw ControlImageSendError.imagesUnsupported
+                }
+                await configureCodexImageInputIfNeeded(supportsImages: imageSnapshot.supportsImages)
+                guard imageSnapshot == imageSendSnapshot(for: buildChatInputs(text: clientInput)) else {
+                    attachmentStore.setError(ControlImageSendError.imageSendSnapshotChanged.localizedDescription)
+                    restoreDraftAfterRejectedSend(input)
+                    throw ControlImageSendError.imageSendSnapshotChanged
+                }
             }
             pendingInput = ""
             let userAttachments = attachmentStore.attachments.map {
@@ -2667,12 +2698,12 @@ extension ChatSessionViewModel: ControllableSession {
                    skillInputs.contains(where: { if case .skill = $0 { true } else { false } }) {
                     let nativeInputs = try materializeNativeSkillInputs(
                         skillInputs,
-                        chatInputs: buildChatInputs(text: "")
+                        chatInputs: sendInputs
                     )
                     defer { Self.removeNativeSkillInputDirectory(nativeInputs.temporaryDirectory) }
                     try await native.turnStartNative(nativeInputs.inputs)
                 } else {
-                    try await client.turnStart(buildChatInputs(text: clientInput))
+                    try await client.turnStart(sendInputs)
                 }
             } catch {
                 // A3: turnStart 失敗時は status を .idle に戻す（.running 固着を防ぐ）。

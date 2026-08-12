@@ -175,34 +175,73 @@ private extension NSLock {
     await adapter.close()
 }
 
-@Test func codexStructuredAdapterDegradesImagesWithSingleWarningAndTextOnlyInput() async throws {
+@Test func codexStructuredAdapterRejectsImagesWithoutCapabilityAndDoesNotSend() async throws {
     let transport = RespondingTransport()
     let client = CodexAppServerClient(transport: transport)
     let adapter = CodexStructuredAgentClient(client: client)
     await adapter.start()
     _ = try await adapter.threadStart(ThreadStartParams(cwd: "/tmp/work"))
 
-    var iterator = adapter.events.makeAsyncIterator()
-    try await adapter.turnStart([
-        .text("describe"),
-        .image(data: Data([1, 2, 3]), mediaType: "image/png"),
-        .image(data: Data([4, 5, 6]), mediaType: "image/jpeg"),
-    ])
-
-    #expect(await iterator.next() == .warning(message: "画像添付は Claude と画像対応モデルの Codex に対応"))
+    await #expect(throws: CodexStructuredClientError.imageInputUnsupported) {
+        try await adapter.turnStart([
+            .text("describe"),
+            .image(data: Data([1, 2, 3]), mediaType: "image/png"),
+            .image(data: Data([4, 5, 6]), mediaType: "image/jpeg"),
+        ])
+    }
     let sent = await transport.sent.all()
-    let turnStart = try #require(sent.first { message in
-        message["method"]?.stringValue == "turn/start"
-    })
-    let input = try #require(turnStart["params"]?["input"])
-    #expect(input == .array([
-        .object([
-            "text": .string("describe"),
-            "type": .string("text"),
-        ]),
-    ]))
+    #expect(sent.first { $0["method"]?.stringValue == "turn/start" } == nil)
 
     await adapter.close()
+}
+
+@Test func completedTurnRejectsLateEventsAndAcceptsTheNextTurn() async throws {
+    let transport = MockTransport()
+    let client = CodexAppServerClient(transport: transport)
+    await client.start()
+    let recorder = ThreadEventRecorder()
+    let collector = Task {
+        for await event in client.events {
+            await recorder.append(event)
+        }
+    }
+
+    transport.receive("""
+    {"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"thread-1","turn":{"id":"turn-1","status":"inProgress","items":[]}}}
+    """)
+    transport.receive("""
+    {"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"threadId":"thread-1","turnId":"turn-1","itemId":"item-1","delta":"first"}}
+    """)
+    transport.receive("""
+    {"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"thread-1","turn":{"id":"turn-1","status":"completed","items":[]}}}
+    """)
+    // 完了後に遅れて届いた旧 turn の delta/plan は、active=nil でも受理しない。
+    transport.receive("""
+    {"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"threadId":"thread-1","turnId":"turn-1","itemId":"item-1","delta":"late"}}
+    """)
+    transport.receive("""
+    {"jsonrpc":"2.0","method":"turn/plan/updated","params":{"threadId":"thread-1","turnId":"turn-1","explanation":null,"plan":[]}}
+    """)
+
+    // 新しい turn identity は閉じた集合に入っていないため通す。
+    transport.receive("""
+    {"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"thread-1","turn":{"id":"turn-2","status":"inProgress","items":[]}}}
+    """)
+    transport.receive("""
+    {"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"threadId":"thread-1","turnId":"turn-2","itemId":"item-2","delta":"second"}}
+    """)
+
+    // turn/started + delta + completed + turn/started + delta
+    // （非同期配送が追いつくまで待ってから stale 件数を確認する）。
+    // 完了イベントは turn-1 のみなので、activeTurnId は turn-2 になる。
+    // 旧イベントが混入すると count が 5 を超える。
+    #expect(await waitUntil(events: recorder.changes) { await recorder.count == 5 })
+    try await Task.sleep(for: .milliseconds(20))
+    #expect(await recorder.count == 5)
+    #expect(await client.activeTurnId(for: "thread-1") == "turn-2")
+
+    collector.cancel()
+    await client.close()
 }
 
 @Test func codexStructuredAdapterMaterializesImagesAsLocalImage() async throws {
@@ -561,6 +600,10 @@ private actor ThreadEventRecorder {
 
     func contains(_ event: ThreadEvent) -> Bool {
         recordedEvents.contains(event)
+    }
+
+    var count: Int {
+        recordedEvents.count
     }
 
     var containsTerminalProcessExitError: Bool {

@@ -41,14 +41,17 @@ public enum CodexAppServerClientError: Error, Equatable, Sendable {
 }
 
 public actor CodexAppServerClient {
-    private struct ActiveTurn: Hashable {
-        let threadId: String
-        let turnId: String?
+    private struct TurnState {
+        var activeTurnId: String?
+        var closedTurnIds: Set<String> = []
+        var pendingStartGeneration: UInt64?
+        var hasObservedLifecycle = false
     }
 
     private let rpc: JSONRPCClient
     private var notificationTask: Task<Void, Never>?
-    private var activeTurns: Set<ActiveTurn> = []
+    private var turnStates: [String: TurnState] = [:]
+    private var nextTurnStartGeneration: UInt64 = 0
     private var closeRequested = false
     private let eventContinuation: AsyncStream<ThreadEvent>.Continuation
     public nonisolated let events: AsyncStream<ThreadEvent>
@@ -120,11 +123,13 @@ public actor CodexAppServerClient {
     }
 
     public func turnStart(_ params: TurnStartParams) async throws -> TurnStartResponse {
-        markTurnActive(threadId: params.threadId, turnId: nil)
+        let generation = markTurnStartPending(threadId: params.threadId)
         do {
-            return try await rpc.request(method: "turn/start", params: params)
+            let response: TurnStartResponse = try await rpc.request(method: "turn/start", params: params)
+            finishTurnStart(threadId: params.threadId, generation: generation)
+            return response
         } catch {
-            activeTurns = activeTurns.filter { $0.threadId != params.threadId }
+            finishTurnStart(threadId: params.threadId, generation: generation)
             throw error
         }
     }
@@ -155,7 +160,7 @@ public actor CodexAppServerClient {
 
     /// `turn/started` でサーバーが通知した ID だけを停止リクエストに使う。
     public func activeTurnId(for threadId: String) -> String? {
-        activeTurns.first(where: { $0.threadId == threadId })?.turnId ?? nil
+        turnStates[threadId]?.activeTurnId
     }
 
     public func listModels(_ params: ModelListParams = ModelListParams()) async throws -> ModelListResponse {
@@ -188,7 +193,7 @@ public actor CodexAppServerClient {
     }
 
     private func yield(_ event: ThreadEvent) {
-        updateActiveTurns(for: event)
+        guard updateActiveTurns(for: event) else { return }
         eventContinuation.yield(event)
     }
 
@@ -198,42 +203,109 @@ public actor CodexAppServerClient {
             return
         }
 
-        for turn in activeTurns {
+        for (threadId, state) in turnStates where
+            state.activeTurnId != nil || state.pendingStartGeneration != nil {
             eventContinuation.yield(.error(
-                threadId: turn.threadId,
-                turnId: turn.turnId,
+                threadId: threadId,
+                turnId: state.activeTurnId,
                 message: "Codex app-server process exited before the turn completed",
                 willRetry: false
             ))
         }
-        activeTurns.removeAll()
+        turnStates.removeAll()
         eventContinuation.finish()
     }
 
-    private func updateActiveTurns(for event: ThreadEvent) {
+    /// turn identity を閉じた後は active=nil でも wildcard に戻さない。
+    /// closedTurnIds は遅延した旧 turn の delta/plan/item を遮断し、新しい identity だけを再束縛する。
+    private func updateActiveTurns(for event: ThreadEvent) -> Bool {
         switch event {
         case .turnStarted(let threadId, let turn):
-            markTurnActive(threadId: threadId, turnId: turn.id)
-        case .turnCompleted(let threadId, _), .turnInterrupted(let threadId, _):
-            activeTurns = activeTurns.filter { $0.threadId != threadId }
+            guard beginObservedTurn(threadId: threadId, turnId: turn.id) else { return false }
+        case .turnCompleted(let threadId, let turn):
+            guard acceptTurnEvent(threadId: threadId, turnId: turn.id) else { return false }
+            closeTurn(threadId: threadId, turnId: turn.id)
+        case .turnInterrupted(let threadId, let turnId):
+            guard acceptTurnEvent(threadId: threadId, turnId: turnId) else { return false }
+            closeTurn(threadId: threadId, turnId: turnId)
+        case .agentMessageDelta(let threadId, let turnId, _, _),
+             .reasoningSummaryDelta(let threadId, let turnId, _, _),
+             .commandOutputDelta(let threadId, let turnId, _, _),
+             .filePatchUpdated(let threadId, let turnId, _, _),
+             .itemStarted(let threadId, let turnId, _),
+             .itemCompleted(let threadId, let turnId, _),
+             .planUpdated(let threadId, let turnId, _, _),
+             .tokenUsageUpdated(let threadId, let turnId, _):
+            guard acceptTurnEvent(threadId: threadId, turnId: turnId) else { return false }
         case .error(let threadId, let turnId, _, let willRetry):
-            if willRetry == true {
-                if let threadId {
-                    markTurnActive(threadId: threadId, turnId: turnId)
-                }
-            } else if let threadId {
-                activeTurns = activeTurns.filter { $0.threadId != threadId }
-            } else {
-                activeTurns.removeAll()
+            guard let threadId else { return true }
+            guard acceptTurnEvent(threadId: threadId, turnId: turnId) else { return false }
+            if willRetry != true {
+                closeTurn(threadId: threadId, turnId: turnId)
             }
         default:
-            break
+            return true
         }
+        return true
     }
 
-    private func markTurnActive(threadId: String, turnId: String?) {
-        activeTurns = activeTurns.filter { $0.threadId != threadId }
-        activeTurns.insert(ActiveTurn(threadId: threadId, turnId: turnId))
+    @discardableResult
+    private func markTurnStartPending(threadId: String) -> UInt64 {
+        nextTurnStartGeneration &+= 1
+        var state = turnStates[threadId, default: TurnState()]
+        state.pendingStartGeneration = nextTurnStartGeneration
+        turnStates[threadId] = state
+        return nextTurnStartGeneration
+    }
+
+    private func finishTurnStart(threadId: String, generation: UInt64) {
+        guard var state = turnStates[threadId], state.pendingStartGeneration == generation else { return }
+        state.pendingStartGeneration = nil
+        turnStates[threadId] = state
+    }
+
+    private func beginObservedTurn(threadId: String, turnId: String?) -> Bool {
+        guard let turnId, !turnId.isEmpty else { return true }
+        var state = turnStates[threadId, default: TurnState()]
+        guard !state.closedTurnIds.contains(turnId) else { return false }
+        // lifecycle event が見えている間は、別 identity の turn/started を旧 turn として捨てる。
+        if let activeTurnId = state.activeTurnId, activeTurnId != turnId {
+            return false
+        }
+        state.activeTurnId = turnId
+        state.pendingStartGeneration = nil
+        state.hasObservedLifecycle = true
+        turnStates[threadId] = state
+        return true
+    }
+
+    private func acceptTurnEvent(threadId: String, turnId: String?) -> Bool {
+        guard let turnId, !turnId.isEmpty else { return true }
+        var state = turnStates[threadId, default: TurnState()]
+        guard !state.closedTurnIds.contains(turnId) else { return false }
+        if let activeTurnId = state.activeTurnId, activeTurnId != turnId {
+            // lifecycle 前の古い公開契約では turn/started 無しの複数 delta を許容していた。
+            // lifecycle 後だけ identity を固定し、完了後の stale event は閉じた集合で拒否する。
+            guard !state.hasObservedLifecycle else { return false }
+        }
+        state.activeTurnId = turnId
+        turnStates[threadId] = state
+        return true
+    }
+
+    private func closeTurn(threadId: String, turnId: String?) {
+        guard var state = turnStates[threadId] else { return }
+        state.hasObservedLifecycle = true
+        if let turnId, !turnId.isEmpty {
+            state.closedTurnIds.insert(turnId)
+            if state.activeTurnId == turnId {
+                state.activeTurnId = nil
+            }
+        } else if let activeTurnId = state.activeTurnId {
+            state.closedTurnIds.insert(activeTurnId)
+            state.activeTurnId = nil
+        }
+        turnStates[threadId] = state
     }
 
     private static func threadEvent(from notification: ServerNotification) -> ThreadEvent? {
@@ -378,20 +450,11 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
         guard let currentThreadId else {
             throw CodexStructuredClientError.threadNotStarted
         }
+        let threadGeneration = threadIdentityGeneration
         pendingResumeRollback = nil
-        guard nativeImageInputEnabled else {
-            let hasImages = input.contains { if case .image = $0 { true } else { false } }
-            if hasImages {
-                eventContinuation.yield(.warning(message: "画像添付は Claude と画像対応モデルの Codex に対応"))
-            }
-            _ = try await client.turnStart(TurnStartParams(
-                threadId: currentThreadId,
-                input: input.compactMap { chatInput in
-                    if case .text(let text) = chatInput { return .text(text) }
-                    return nil
-                }
-            ))
-            return
+        let hasImages = input.contains { if case .image = $0 { true } else { false } }
+        guard !hasImages || nativeImageInputEnabled else {
+            throw CodexStructuredClientError.imageInputUnsupported
         }
         let materialized = try Self.materializeImageInputs(input, write: imageInputWriter)
         defer {
@@ -403,13 +466,25 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
             threadId: currentThreadId,
             input: materialized.inputs
         ))
+        guard threadGeneration == threadIdentityGeneration,
+              self.currentThreadId == currentThreadId else {
+            throw CodexStructuredClientError.staleThreadOperation
+        }
     }
 
     /// Native Codex入力（skillを含む）をそのままapp-serverへ渡す。
     public func turnStartNative(_ input: [UserInput]) async throws {
         guard let currentThreadId else { throw CodexStructuredClientError.threadNotStarted }
+        let threadGeneration = threadIdentityGeneration
         pendingResumeRollback = nil
+        guard !input.contains(where: Self.isImageInput) || nativeImageInputEnabled else {
+            throw CodexStructuredClientError.imageInputUnsupported
+        }
         _ = try await client.turnStart(TurnStartParams(threadId: currentThreadId, input: input))
+        guard threadGeneration == threadIdentityGeneration,
+              self.currentThreadId == currentThreadId else {
+            throw CodexStructuredClientError.staleThreadOperation
+        }
     }
 
     public func setNativeImageInputEnabled(_ enabled: Bool) {
@@ -631,6 +706,8 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
 
 public enum CodexStructuredClientError: Error, Equatable, Sendable {
     case threadNotStarted
+    case staleThreadOperation
+    case imageInputUnsupported
     case imageMaterializationFailed
 }
 
@@ -691,6 +768,15 @@ private extension CodexStructuredAgentClient {
         } catch {
             _ = try? FileManager.default.removeItem(at: directory)
             throw CodexStructuredClientError.imageMaterializationFailed
+        }
+    }
+
+    static func isImageInput(_ input: UserInput) -> Bool {
+        switch input {
+        case .imageURL, .image, .localImage:
+            true
+        default:
+            false
         }
     }
 }

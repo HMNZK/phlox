@@ -8,7 +8,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 CODEX_PACKAGE="$REPO_ROOT/macos/Packages/CodexAppServerKit"
 SESSION_PACKAGE="$REPO_ROOT/macos/Packages/SessionFeature"
+DASHBOARD_PACKAGE="$REPO_ROOT/macos/Packages/DashboardFeature"
 CODEX_FILTER='AcceptanceCodex|ContractCodex'
+DASHBOARD_FILTER='AcceptanceCodex.*Route|Codex.*Route'
 
 test_count() {
     # Swift Testing と XCTest のどちらのサマリでも実行件数を拾う。
@@ -90,6 +92,13 @@ if run_package "SessionFeature 全suite" "$SESSION_PACKAGE" --no-parallel; then
 else
     session_status=$?
     [ "$failed" -ne 0 ] || failed="$session_status"
+fi
+
+if run_package "DashboardFeature Codex route" "$DASHBOARD_PACKAGE" --filter "$DASHBOARD_FILTER" --no-parallel; then
+    :
+else
+    dashboard_status=$?
+    [ "$failed" -ne 0 ] || failed="$dashboard_status"
 fi
 
 if [ "$failed" -ne 0 ]; then

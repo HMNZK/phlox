@@ -131,7 +131,7 @@ else
     [ "$failed" -ne 0 ] || failed="$session_status"
 fi
 
-if run_package "DashboardFeature Codex route" "$DASHBOARD_PACKAGE" --filter "$DASHBOARD_FILTER" --no-parallel; then
+if run_package "DashboardFeature Codex route (parallel)" "$DASHBOARD_PACKAGE" --filter "$DASHBOARD_FILTER" --parallel; then
     :
 else
     dashboard_status=$?

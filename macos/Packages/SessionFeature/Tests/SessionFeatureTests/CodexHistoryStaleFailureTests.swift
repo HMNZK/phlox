@@ -12,16 +12,20 @@ struct CodexHistoryStaleFailureTests {
         let history = CodexSessionHistory(client: client, workingDirectory: "/workspace")
 
         let first = Task { await history.readIfPossible(threadID: "A") }
-        await client.waitForStart("A")
-        let second = Task { await history.readIfPossible(threadID: "B") }
-        await client.waitForStart("B")
+        try await withTaskCleanup(first) {
+            try await client.waitForStart("A")
+            let second = Task { await history.readIfPossible(threadID: "B") }
+            try await withTaskCleanup(second) {
+                try await client.waitForStart("B")
 
-        _ = await second.value
-        await client.fail("A")
-        _ = await first.value
+                _ = await second.value
+                await client.fail("A")
+                _ = await first.value
 
-        #expect(history.selectedThreadID == "B")
-        #expect(history.errorMessage == nil)
+                #expect(history.selectedThreadID == "B")
+                #expect(history.errorMessage == nil)
+            }
+        }
     }
 
     @Test("古い read の失敗は後続 B の失敗内容も上書きしない")
@@ -30,16 +34,20 @@ struct CodexHistoryStaleFailureTests {
         let history = CodexSessionHistory(client: client, workingDirectory: "/workspace")
 
         let first = Task { await history.readIfPossible(threadID: "A") }
-        await client.waitForStart("A")
-        let second = Task { await history.readIfPossible(threadID: "B") }
-        await client.waitForStart("B")
+        try await withTaskCleanup(first) {
+            try await client.waitForStart("A")
+            let second = Task { await history.readIfPossible(threadID: "B") }
+            try await withTaskCleanup(second) {
+                try await client.waitForStart("B")
 
-        _ = await second.value
-        #expect(history.errorMessage?.contains("B") == true)
-        await client.fail("A")
-        _ = await first.value
+                _ = await second.value
+                #expect(history.errorMessage?.contains("B") == true)
+                await client.fail("A")
+                _ = await first.value
 
-        #expect(history.errorMessage?.contains("B") == true)
+                #expect(history.errorMessage?.contains("B") == true)
+            }
+        }
     }
 
     @Test("古い resume の失敗は後続 B の成功を errorMessage で上書きしない")
@@ -48,16 +56,20 @@ struct CodexHistoryStaleFailureTests {
         let history = CodexSessionHistory(client: client, workingDirectory: "/workspace")
 
         let first = Task { await history.resumeIfPossible(threadID: "A") }
-        await client.waitForStart("resume:A")
-        let second = Task { await history.resumeIfPossible(threadID: "B") }
-        await client.waitForStart("resume:B")
+        try await withTaskCleanup(first) {
+            try await client.waitForStart("resume:A")
+            let second = Task { await history.resumeIfPossible(threadID: "B") }
+            try await withTaskCleanup(second) {
+                try await client.waitForStart("resume:B")
 
-        _ = await second.value
-        await client.fail("resume:A")
-        _ = await first.value
+                _ = await second.value
+                await client.fail("resume:A")
+                _ = await first.value
 
-        #expect(history.selectedThreadID == "B")
-        #expect(history.errorMessage == nil)
+                #expect(history.selectedThreadID == "B")
+                #expect(history.errorMessage == nil)
+            }
+        }
     }
 
     @Test("古い resume の失敗は後続 B の失敗内容も上書きしない")
@@ -66,16 +78,20 @@ struct CodexHistoryStaleFailureTests {
         let history = CodexSessionHistory(client: client, workingDirectory: "/workspace")
 
         let first = Task { await history.resumeIfPossible(threadID: "A") }
-        await client.waitForStart("resume:A")
-        let second = Task { await history.resumeIfPossible(threadID: "B") }
-        await client.waitForStart("resume:B")
+        try await withTaskCleanup(first) {
+            try await client.waitForStart("resume:A")
+            let second = Task { await history.resumeIfPossible(threadID: "B") }
+            try await withTaskCleanup(second) {
+                try await client.waitForStart("resume:B")
 
-        _ = await second.value
-        #expect(history.errorMessage?.contains("B") == true)
-        await client.fail("resume:A")
-        _ = await first.value
+                _ = await second.value
+                #expect(history.errorMessage?.contains("B") == true)
+                await client.fail("resume:A")
+                _ = await first.value
 
-        #expect(history.errorMessage?.contains("B") == true)
+                #expect(history.errorMessage?.contains("B") == true)
+            }
+        }
     }
 }
 
@@ -89,31 +105,128 @@ private enum StaleHistoryError: Error, CustomStringConvertible, Sendable {
     }
 }
 
+private enum StaleHistoryWaitError: Error, CustomStringConvertible, Sendable {
+    case timedOut(String)
+
+    var description: String {
+        switch self {
+        case .timedOut(let operation): "Timed out waiting for \(operation)"
+        }
+    }
+}
+
 private final class StaleHistoryClient: CodexSessionHistoryProviding, @unchecked Sendable {
     private actor Gate {
         var started: Set<String> = []
-        var startWaiters: [String: [CheckedContinuation<Void, Never>]] = [:]
+        var startWaiters: [String: CheckedContinuation<Void, Error>] = [:]
         var responses: [String: CheckedContinuation<ThreadReadResponse, Error>] = [:]
         var resumeResponses: [String: CheckedContinuation<ThreadSummary, Error>] = [:]
 
         func noteStart(_ id: String) {
             started.insert(id)
-            for waiter in startWaiters.removeValue(forKey: id) ?? [] {
-                waiter.resume()
-            }
+            startWaiters.removeValue(forKey: id)?.resume()
         }
 
-        func waitForStart(_ id: String) async {
+        func waitForStart(_ id: String, timeout: Duration = .seconds(2)) async throws {
             guard !started.contains(id) else { return }
-            await withCheckedContinuation { continuation in
-                startWaiters[id, default: []].append(continuation)
-            }
+
+            try await withTaskCancellationHandler(operation: {
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    group.addTask { try await self.waitForStartContinuation(id) }
+                    group.addTask {
+                        try await Task.sleep(for: timeout)
+                        throw StaleHistoryWaitError.timedOut("start \(id)")
+                    }
+                    defer { group.cancelAll() }
+                    try await group.next()
+                }
+            }, onCancel: {
+                Task { await self.cancelStartWaiter(id) }
+            })
         }
 
-        func waitForResponse(_ id: String) async throws -> ThreadReadResponse {
-            try await withCheckedThrowingContinuation { continuation in
-                responses[id] = continuation
-            }
+        private func waitForStartContinuation(_ id: String) async throws {
+            try await withTaskCancellationHandler(operation: {
+                try await withCheckedThrowingContinuation(isolation: self) {
+                    (continuation: CheckedContinuation<Void, Error>) in
+                    if started.contains(id) {
+                        continuation.resume()
+                    } else {
+                        startWaiters[id] = continuation
+                    }
+                }
+            }, onCancel: {
+                Task { await self.cancelStartWaiter(id) }
+            })
+        }
+
+        private func cancelStartWaiter(_ id: String) {
+            startWaiters.removeValue(forKey: id)?.resume(throwing: CancellationError())
+        }
+
+        func waitForResponse(_ id: String, timeout: Duration = .seconds(2)) async throws -> ThreadReadResponse {
+            try await withTaskCancellationHandler(operation: {
+                try await withThrowingTaskGroup(of: ThreadReadResponse.self) { group in
+                    group.addTask { try await self.waitForResponseContinuation(id) }
+                    group.addTask {
+                        try await Task.sleep(for: timeout)
+                        throw StaleHistoryWaitError.timedOut("response \(id)")
+                    }
+                    defer { group.cancelAll() }
+                    return try await group.next()!
+                }
+            }, onCancel: {
+                Task { await self.cancelResponseWaiter(id) }
+            })
+        }
+
+        private func waitForResponseContinuation(_ id: String) async throws -> ThreadReadResponse {
+            try await withTaskCancellationHandler(operation: {
+                try await withCheckedThrowingContinuation(isolation: self) {
+                    (continuation: CheckedContinuation<ThreadReadResponse, Error>) in
+                    responses[id] = continuation
+                }
+            }, onCancel: {
+                Task { await self.cancelResponseWaiter(id) }
+            })
+        }
+
+        private func cancelResponseWaiter(_ id: String) {
+            responses.removeValue(forKey: id)?.resume(throwing: CancellationError())
+        }
+
+        func waitForResumeResponse(
+            _ id: String,
+            timeout: Duration = .seconds(2)
+        ) async throws -> ThreadSummary {
+            try await withTaskCancellationHandler(operation: {
+                try await withThrowingTaskGroup(of: ThreadSummary.self) { group in
+                    group.addTask { try await self.waitForResumeResponseContinuation(id) }
+                    group.addTask {
+                        try await Task.sleep(for: timeout)
+                        throw StaleHistoryWaitError.timedOut("resume response \(id)")
+                    }
+                    defer { group.cancelAll() }
+                    return try await group.next()!
+                }
+            }, onCancel: {
+                Task { await self.cancelResumeResponseWaiter(id) }
+            })
+        }
+
+        private func waitForResumeResponseContinuation(_ id: String) async throws -> ThreadSummary {
+            try await withTaskCancellationHandler(operation: {
+                try await withCheckedThrowingContinuation(isolation: self) {
+                    (continuation: CheckedContinuation<ThreadSummary, Error>) in
+                    resumeResponses[id] = continuation
+                }
+            }, onCancel: {
+                Task { await self.cancelResumeResponseWaiter(id) }
+            })
+        }
+
+        private func cancelResumeResponseWaiter(_ id: String) {
+            resumeResponses.removeValue(forKey: id)?.resume(throwing: CancellationError())
         }
 
         func fail(_ id: String) {
@@ -121,11 +234,6 @@ private final class StaleHistoryClient: CodexSessionHistoryProviding, @unchecked
             resumeResponses.removeValue(forKey: id)?.resume(throwing: StaleHistoryError.failed(id))
         }
 
-        func waitForResumeResponse(_ id: String) async throws -> ThreadSummary {
-            try await withCheckedThrowingContinuation { continuation in
-                resumeResponses[id] = continuation
-            }
-        }
     }
 
     private let gate = Gate()
@@ -135,8 +243,8 @@ private final class StaleHistoryClient: CodexSessionHistoryProviding, @unchecked
         self.failB = failB
     }
 
-    func waitForStart(_ id: String) async {
-        await gate.waitForStart(id)
+    func waitForStart(_ id: String) async throws {
+        try await gate.waitForStart(id)
     }
 
     func fail(_ id: String) async {
@@ -209,5 +317,19 @@ private final class StaleHistoryClient: CodexSessionHistoryProviding, @unchecked
             ThreadResponse.self,
             from: JSONEncoder().encode(JSONValue.object(["thread": rawThread]))
         )
+    }
+}
+
+@MainActor
+private func withTaskCleanup<Value, Result>(
+    _ task: Task<Value, Never>,
+    operation: () async throws -> Result
+) async throws -> Result {
+    do {
+        return try await operation()
+    } catch {
+        task.cancel()
+        _ = await task.value
+        throw error
     }
 }

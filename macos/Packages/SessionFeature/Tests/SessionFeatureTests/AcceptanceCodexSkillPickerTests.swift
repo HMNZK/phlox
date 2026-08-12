@@ -36,19 +36,24 @@ struct AcceptanceCodexSkillPickerTests {
         ])
         let transport = CodexPlanSkillFakeTransport(skillsListResult: result)
         let client = CodexAppServerClient(transport: transport)
-        await client.start()
+        do {
+            await client.start()
 
-        let response = try await client.skillsList(SkillsListParams(cwds: [cwd], forceReload: true))
-        let request = try #require(await transport.firstRequest(method: "skills/list"))
-        #expect(request["method"] == .string("skills/list"))
-        #expect(request["params"] == .object([
-            "cwds": .array([.string(cwd)]),
-            "forceReload": .bool(true),
-        ]))
-        #expect(response.data.first?.cwd == cwd)
-        #expect(response.data.first?.skills.map(\.name) == ["日本語レビュー", "disabled"])
-        #expect(response.data.first?.skills.map(\.path) == ["/workspace/skills/review", "/disabled"])
-        #expect(response.data.first?.skills.last?.enabled == false)
+            let response = try await client.skillsList(SkillsListParams(cwds: [cwd], forceReload: true))
+            let request = try #require(await transport.firstRequest(method: "skills/list"))
+            #expect(request["method"] == .string("skills/list"))
+            #expect(request["params"] == .object([
+                "cwds": .array([.string(cwd)]),
+                "forceReload": .bool(true),
+            ]))
+            #expect(response.data.first?.cwd == cwd)
+            #expect(response.data.first?.skills.map(\.name) == ["日本語レビュー", "disabled"])
+            #expect(response.data.first?.skills.map(\.path) == ["/workspace/skills/review", "/disabled"])
+            #expect(response.data.first?.skills.last?.enabled == false)
+        } catch {
+            await client.close()
+            throw error
+        }
         await client.close()
     }
 
@@ -56,16 +61,21 @@ struct AcceptanceCodexSkillPickerTests {
     func sendUsesOneNativeSkillInputWithoutDuplicateText() async throws {
         let transport = CodexPlanSkillFakeTransport()
         let client = CodexAppServerClient(transport: transport)
-        await client.start()
-        _ = try await client.turnStart(TurnStartParams(
-            threadId: "thread-skill",
-            input: [.text("質問本文"), .skill(name: "review", path: "/skills/review")]
-        ))
-        let request = try #require(await transport.firstRequest(method: "turn/start"))
-        let raw = try #require(request["params"]?["input"])
-        #expect(raw.arrayValue?.filter { $0["type"] == .string("skill") }.count == 1)
-        #expect(raw.arrayValue?.contains { $0["type"] == .string("text") && $0["text"] == .string("$review") } == false)
-        #expect(raw.arrayValue?.contains { $0["name"] == .string("review") && $0["path"] == .string("/skills/review") } == true)
+        do {
+            await client.start()
+            _ = try await client.turnStart(TurnStartParams(
+                threadId: "thread-skill",
+                input: [.text("質問本文"), .skill(name: "review", path: "/skills/review")]
+            ))
+            let request = try #require(await transport.firstRequest(method: "turn/start"))
+            let raw = try #require(request["params"]?["input"])
+            #expect(raw.arrayValue?.filter { $0["type"] == .string("skill") }.count == 1)
+            #expect(raw.arrayValue?.contains { $0["type"] == .string("text") && $0["text"] == .string("$review") } == false)
+            #expect(raw.arrayValue?.contains { $0["name"] == .string("review") && $0["path"] == .string("/skills/review") } == true)
+        } catch {
+            await client.close()
+            throw error
+        }
         await client.close()
     }
 
@@ -127,14 +137,19 @@ struct AcceptanceCodexSkillPickerTests {
         ])
         let transport = CodexPlanSkillFakeTransport(skillsListResult: result)
         let client = CodexAppServerClient(transport: transport)
-        await client.start()
-        let state = CodexSkillSelectionState(client: client, sessionCWD: cwd)
-        await state.refresh()
-        let old = try #require(state.skills.first)
-        #expect(state.select(old))
-        state.invalidate()
-        #expect(state.select(old) == false)
-        #expect(state.inputs(for: "$review 本文") == nil)
+        do {
+            await client.start()
+            let state = CodexSkillSelectionState(client: client, sessionCWD: cwd)
+            await state.refresh()
+            let old = try #require(state.skills.first)
+            #expect(state.select(old))
+            state.invalidate()
+            #expect(state.select(old) == false)
+            #expect(state.inputs(for: "$review 本文") == nil)
+        } catch {
+            await client.close()
+            throw error
+        }
         await client.close()
     }
 

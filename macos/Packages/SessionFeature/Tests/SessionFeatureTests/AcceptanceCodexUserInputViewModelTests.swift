@@ -62,6 +62,21 @@ private func makeViewModel() -> (ChatSessionViewModel, InterruptRecordingClient,
     return (vm, client, broker)
 }
 
+@MainActor
+private func withTerminatedViewModel<T>(
+    _ viewModel: ChatSessionViewModel,
+    operation: () async throws -> T
+) async throws -> T {
+    do {
+        let result = try await operation()
+        await viewModel.terminate()
+        return result
+    } catch {
+        await viewModel.terminate()
+        throw error
+    }
+}
+
 private func codexRequest(ids: [String] = ["q1"]) -> ToolRequestUserInputRequest {
     ToolRequestUserInputRequest(
         threadId: "thread-1",
@@ -96,87 +111,119 @@ struct AcceptanceCodexUserInputViewModelTests {
     @Test @MainActor
     func 質問が届くと質問カードが出て入力待ちになる() async throws {
         let (vm, client, broker) = makeViewModel()
-        client.yield(.turnStarted)
-        _ = await waitUntil { vm.status == .running }
+        try await withTerminatedViewModel(vm) {
+            client.yield(.turnStarted)
+            _ = await waitUntil { vm.status == .running }
 
-        let handler = broker.serverRequestHandler
-        Task { _ = try? await handler(.userInputRequest(codexRequest())) }
+            let handler = broker.serverRequestHandler
+            let requestTask = Task { _ = try? await handler(.userInputRequest(codexRequest())) }
+            do {
+                let appeared = await waitUntil { questionCard(vm) != nil }
+                #expect(appeared, "Codex の質問が質問カードとして transcript に出ること")
 
-        let appeared = await waitUntil { questionCard(vm) != nil }
-        #expect(appeared, "Codex の質問が質問カードとして transcript に出ること")
+                let card = try #require(questionCard(vm))
+                #expect(card.state == .pending)
+                #expect(card.questions.count == 1)
+                #expect(card.questions.first?.id == "q1")
+                #expect(card.questions.first?.question == "質問-q1")
+                #expect(card.questions.first?.options.first?.label == "A案")
 
-        let card = try #require(questionCard(vm))
-        #expect(card.state == .pending)
-        #expect(card.questions.count == 1)
-        #expect(card.questions.first?.id == "q1")
-        #expect(card.questions.first?.question == "質問-q1")
-        #expect(card.questions.first?.options.first?.label == "A案")
-
-        #expect(vm.status == .awaitingUserQuestion, "質問中は入力待ち状態にすること")
-        #expect(vm.pendingApprovals.isEmpty, "承認バナーとして出してはならない")
+                #expect(vm.status == .awaitingUserQuestion, "質問中は入力待ち状態にすること")
+                #expect(vm.pendingApprovals.isEmpty, "承認バナーとして出してはならない")
+                await vm.terminate()
+                _ = await requestTask.value
+            } catch {
+                await vm.terminate()
+                requestTask.cancel()
+                _ = await requestTask.value
+                throw error
+            }
+        }
     }
 
     @Test @MainActor
     func 回答するとカードがansweredになりrunningへ戻る() async throws {
         let (vm, client, broker) = makeViewModel()
-        client.yield(.turnStarted)
-        _ = await waitUntil { vm.status == .running }
+        try await withTerminatedViewModel(vm) {
+            client.yield(.turnStarted)
+            _ = await waitUntil { vm.status == .running }
 
-        let handler = broker.serverRequestHandler
-        Task { _ = try? await handler(.userInputRequest(codexRequest())) }
-        _ = await waitUntil { questionCard(vm) != nil }
+            let handler = broker.serverRequestHandler
+            let requestTask = Task { _ = try? await handler(.userInputRequest(codexRequest())) }
+            do {
+                _ = await waitUntil { questionCard(vm) != nil }
 
-        let card = try #require(questionCard(vm))
-        let accepted = await vm.respondToUserQuestion(requestId: card.requestId, answers: ["q1": ["A案"]])
-        #expect(accepted)
+                let card = try #require(questionCard(vm))
+                let accepted = await vm.respondToUserQuestion(requestId: card.requestId, answers: ["q1": ["A案"]])
+                #expect(accepted)
 
-        let answered = await waitUntil { questionCard(vm)?.state == .answered }
-        #expect(answered)
-        #expect(vm.status == .running)
+                let answered = await waitUntil { questionCard(vm)?.state == .answered }
+                #expect(answered)
+                #expect(vm.status == .running)
+                _ = await requestTask.value
+            } catch {
+                await vm.terminate()
+                requestTask.cancel()
+                _ = await requestTask.value
+                throw error
+            }
+        }
     }
 
     @Test @MainActor
     func 拒否するとターンを中断する() async throws {
         let (vm, client, broker) = makeViewModel()
-        client.yield(.turnStarted)
-        _ = await waitUntil { vm.status == .running }
+        try await withTerminatedViewModel(vm) {
+            client.yield(.turnStarted)
+            _ = await waitUntil { vm.status == .running }
 
-        let handler = broker.serverRequestHandler
-        Task { _ = try? await handler(.userInputRequest(codexRequest())) }
-        _ = await waitUntil { questionCard(vm) != nil }
+            let handler = broker.serverRequestHandler
+            let requestTask = Task { _ = try? await handler(.userInputRequest(codexRequest())) }
+            do {
+                _ = await waitUntil { questionCard(vm) != nil }
 
-        let card = try #require(questionCard(vm))
-        let declined = await vm.declineUserQuestion(requestId: card.requestId)
-        #expect(declined, "拒否は受理されること")
+                let card = try #require(questionCard(vm))
+                let declined = await vm.declineUserQuestion(requestId: card.requestId)
+                #expect(declined, "拒否は受理されること")
 
-        let interrupted = await waitUntil { client.interruptCount >= 1 }
-        #expect(interrupted, "拒否はターンを中断すること（ゲート①の決定 D4）")
+                let interrupted = await waitUntil { client.interruptCount >= 1 }
+                #expect(interrupted, "拒否はターンを中断すること（ゲート①の決定 D4）")
+                _ = await requestTask.value
+            } catch {
+                await vm.terminate()
+                requestTask.cancel()
+                _ = await requestTask.value
+                throw error
+            }
+        }
     }
 
     @Test @MainActor
     func Claude経路の質問は従来どおり動く_非回帰() async throws {
         let (vm, client, _) = makeViewModel()
-        client.yield(.turnStarted)
-        _ = await waitUntil { vm.status == .running }
+        try await withTerminatedViewModel(vm) {
+            client.yield(.turnStarted)
+            _ = await waitUntil { vm.status == .running }
 
-        let claudeQuestion = ChatUserQuestion(
-            question: "どの方式にしますか？",
-            header: "方式",
-            options: [ChatUserQuestionOption(label: "A案")],
-            multiSelect: false
-        )
-        client.yield(.userQuestionRequested(requestId: "q-claude", questions: [claudeQuestion]))
-        _ = await waitUntil { vm.status == .awaitingUserQuestion }
+            let claudeQuestion = ChatUserQuestion(
+                question: "どの方式にしますか？",
+                header: "方式",
+                options: [ChatUserQuestionOption(label: "A案")],
+                multiSelect: false
+            )
+            client.yield(.userQuestionRequested(requestId: "q-claude", questions: [claudeQuestion]))
+            _ = await waitUntil { vm.status == .awaitingUserQuestion }
 
-        let card = try #require(questionCard(vm))
-        #expect(card.requestId == "q-claude")
-        #expect(card.questions.first?.id == nil, "Claude 経路は id を持たない（挙動不変）")
+            let card = try #require(questionCard(vm))
+            #expect(card.requestId == "q-claude")
+            #expect(card.questions.first?.id == nil, "Claude 経路は id を持たない（挙動不変）")
 
-        let accepted = await vm.respondToUserQuestion(
-            requestId: "q-claude",
-            answers: ["どの方式にしますか？": ["A案"]]
-        )
-        #expect(accepted)
-        #expect(client.respondCount == 1, "Claude の質問は従来どおり client へ返送すること")
+            let accepted = await vm.respondToUserQuestion(
+                requestId: "q-claude",
+                answers: ["どの方式にしますか？": ["A案"]]
+            )
+            #expect(accepted)
+            #expect(client.respondCount == 1, "Claude の質問は従来どおり client へ返送すること")
+        }
     }
 }

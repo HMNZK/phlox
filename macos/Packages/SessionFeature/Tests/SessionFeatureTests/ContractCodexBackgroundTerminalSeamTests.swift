@@ -54,26 +54,31 @@ struct ContractCodexBackgroundTerminalSeamTests {
     func clientBridgesBackgroundTerminalMethods() async throws {
         let transport = ContractBackgroundTerminalTransport()
         let client = CodexAppServerClient(transport: transport)
-        await client.start()
+        do {
+            await client.start()
 
-        let response = try await client.threadBackgroundTerminalsList(
-            ThreadBackgroundTerminalsListParams(threadId: "thread-parent", cursor: nil, limit: 20)
-        )
-        #expect(response.data.map(\.itemId) == ["item-1"])
-        #expect(response.data.first?.processId == "process-1")
+            let response = try await client.threadBackgroundTerminalsList(
+                ThreadBackgroundTerminalsListParams(threadId: "thread-parent", cursor: nil, limit: 20)
+            )
+            #expect(response.data.map(\.itemId) == ["item-1"])
+            #expect(response.data.first?.processId == "process-1")
 
-        let terminated = try await client.threadBackgroundTerminalsTerminate(
-            ThreadBackgroundTerminalsTerminateParams(threadId: "thread-parent", processId: "process-1")
-        )
-        #expect(terminated.terminated == false)
+            let terminated = try await client.threadBackgroundTerminalsTerminate(
+                ThreadBackgroundTerminalsTerminateParams(threadId: "thread-parent", processId: "process-1")
+            )
+            #expect(terminated.terminated == false)
 
-        let requests = await transport.requests.all()
-        #expect(requests.map { $0["method"]?.stringValue } == [
-            "thread/backgroundTerminals/list",
-            "thread/backgroundTerminals/terminate",
-        ])
-        #expect(requests[0]["params"]?["threadId"] == .string("thread-parent"))
-        #expect(requests[1]["params"]?["processId"] == .string("process-1"))
+            let requests = await transport.requests.all()
+            #expect(requests.map { $0["method"]?.stringValue } == [
+                "thread/backgroundTerminals/list",
+                "thread/backgroundTerminals/terminate",
+            ])
+            #expect(requests[0]["params"]?["threadId"] == .string("thread-parent"))
+            #expect(requests[1]["params"]?["processId"] == .string("process-1"))
+        } catch {
+            await client.close()
+            throw error
+        }
         await client.close()
     }
 
@@ -86,15 +91,14 @@ struct ContractCodexBackgroundTerminalSeamTests {
 
         transport.receive(#"{"jsonrpc":"2.0","method":"item/started","params":{"threadId":"thread-parent","turnId":"turn-1","item":{"type":"backgroundTerminal","id":"item-1","itemId":"item-1","processId":"process-1","command":"echo contract","cwd":"/contract"}}}"#)
 
-        guard case .itemStarted(let threadId, let turnId, let item) = await events.next() else {
+        if case .itemStarted(let threadId, let turnId, let item) = await events.next() {
+            #expect(threadId == "thread-parent")
+            #expect(turnId == "turn-1")
+            #expect(item.itemId == "item-1")
+            #expect(item.raw?["processId"] == .string("process-1"))
+        } else {
             Issue.record("item/started が typed ThreadEvent へ到達していない")
-            await client.close()
-            return
         }
-        #expect(threadId == "thread-parent")
-        #expect(turnId == "turn-1")
-        #expect(item.itemId == "item-1")
-        #expect(item.raw?["processId"] == .string("process-1"))
         await client.close()
     }
 

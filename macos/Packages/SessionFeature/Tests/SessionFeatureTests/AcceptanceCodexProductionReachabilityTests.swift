@@ -101,19 +101,23 @@ struct AcceptanceCodexProductionReachabilityTests {
     func codexSubAgentRefreshUsesReadAndGenerationGuard() async throws {
         try await withStack(subAgentOutOfOrder: true) { viewModel, _, transport in
             let first = Task { await viewModel.refreshCodexSubAgents() }
-            try await transport.waitForMethod("thread/read:child-old")
-            let second = Task { await viewModel.refreshCodexSubAgents() }
-            await first.value
-            await second.value
+            try await withTaskCleanup(first) {
+                try await transport.waitForMethod("thread/read:child-old")
+                let second = Task { await viewModel.refreshCodexSubAgents() }
+                try await withTaskCleanup(second) {
+                    await first.value
+                    await second.value
 
-            let child = try #require(viewModel.codexSubAgentState?.children)
-            #expect(child.map(\.id) == ["child-new"])
-            #expect(child.first?.activeTurnId == "child-new-turn")
-            #expect(await transport.methods().filter { $0 == "thread/read" }.count == 2)
+                    let child = try #require(viewModel.codexSubAgentState?.children)
+                    #expect(child.map(\.id) == ["child-new"])
+                    #expect(child.first?.activeTurnId == "child-new-turn")
+                    #expect(await transport.methods().filter { $0 == "thread/read" }.count == 2)
 
-            await viewModel.stopCodexSubAgent(threadID: "child-new")
-            #expect(viewModel.codexSubAgentState?.stopState(for: "child-new") == .stopping)
-            #expect((await transport.methods()).contains("turn/interrupt"))
+                    await viewModel.stopCodexSubAgent(threadID: "child-new")
+                    #expect(viewModel.codexSubAgentState?.stopState(for: "child-new") == .stopping)
+                    #expect((await transport.methods()).contains("turn/interrupt"))
+                }
+            }
         }
     }
 
@@ -127,82 +131,86 @@ struct AcceptanceCodexProductionReachabilityTests {
             }
 
             let firstRefresh = Task { await viewModel.refreshCodexSubAgents() }
-            try await transport.waitForMethod("thread/read:child-old")
-            let secondRefresh = Task { await viewModel.refreshCodexSubAgents() }
-            await firstRefresh.value
-            await secondRefresh.value
-            let child = try #require(viewModel.codexSubAgentState?.children.first)
-            #expect(child.id == "child-new")
-            await viewModel.loadCodexSubAgentDetail(threadID: child.id)
-            let childDetail = try #require(viewModel.codexSubAgentState?.detail(for: child.id))
+            try await withTaskCleanup(firstRefresh) {
+                try await transport.waitForMethod("thread/read:child-old")
+                let secondRefresh = Task { await viewModel.refreshCodexSubAgents() }
+                try await withTaskCleanup(secondRefresh) {
+                    await firstRefresh.value
+                    await secondRefresh.value
+                    let child = try #require(viewModel.codexSubAgentState?.children.first)
+                    #expect(child.id == "child-new")
+                    await viewModel.loadCodexSubAgentDetail(threadID: child.id)
+                    let childDetail = try #require(viewModel.codexSubAgentState?.detail(for: child.id))
 
-            let history = try #require(viewModel.codexSessionHistory)
-            await history.refresh()
-            #expect(history.select(threadID: "history-1"))
-            let historyDetail = try await history.read(threadID: "history-1")
+                    let history = try #require(viewModel.codexSessionHistory)
+                    await history.refresh()
+                    #expect(history.select(threadID: "history-1"))
+                    let historyDetail = try await history.read(threadID: "history-1")
 
-            let state = try #require(viewModel.codexBackgroundTerminalState)
-            await state.refresh()
-            #expect(state.select(itemId: "background-item"))
-            let selectedTerminal = try #require(state.selectedTerminal)
-            transport.receive(backgroundItemStartedNotification(threadID: threadID))
-            try await waitFor("background item の transcript 到達") {
-                viewModel.transcriptItemIDs.contains("background-item")
+                    let state = try #require(viewModel.codexBackgroundTerminalState)
+                    await state.refresh()
+                    #expect(state.select(itemId: "background-item"))
+                    let selectedTerminal = try #require(state.selectedTerminal)
+                    transport.receive(backgroundItemStartedNotification(threadID: threadID))
+                    try await waitFor("background item の transcript 到達") {
+                        viewModel.transcriptItemIDs.contains("background-item")
+                    }
+
+                    #expect(viewModel.codexPlanTaskState?.tasks.map(\.title) == ["inspect", "verify"])
+                    #expect(child.summary == "child-new")
+                    #expect(childDetail.threadId == child.id)
+                    #expect((historyDetail.name ?? historyDetail.preview) == "history-1")
+                    #expect(viewModel.codexHistoryItems(for: historyDetail).map(\.id) == ["history-user", "history-agent"])
+                    #expect(selectedTerminal.command == "swift test")
+                    #expect(selectedTerminal.cwd == cwd)
+
+                    let surface = CodexSessionSurface(viewModel: viewModel)
+                        .accessibilityElement(children: .contain)
+                    let app = NSApplication.shared
+                    app.setActivationPolicy(.prohibited)
+                    app.finishLaunching()
+                    let hosting = NSHostingView(rootView: surface)
+                    hosting.frame = NSRect(x: 0, y: 0, width: 960, height: 720)
+                    let window = NSWindow(
+                        contentRect: hosting.frame,
+                        styleMask: [.borderless],
+                        backing: .buffered,
+                        defer: false
+                    )
+                    window.isReleasedWhenClosed = false
+                    window.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
+                    window.alphaValue = 0
+                    window.contentView = hosting
+                    defer { window.close() }
+                    window.orderBack(nil)
+                    settleHeadlessView(hosting)
+
+                    let elements = axElements(in: app)
+                    let expectedIdentifiers = [
+                        "CodexSessionSurface",
+                        "CodexPlanTaskList",
+                        "CodexSubAgent.\(child.id)",
+                        "CodexHistory.row.history-1",
+                        "CodexHistory.resume.history-1",
+                        "CodexHistory.detail.history-1",
+                        "CodexBackgroundTerminal.background-item",
+                        "CodexBackgroundTerminal.detail.background-item",
+                    ]
+                    for identifier in expectedIdentifiers {
+                        #expect(
+                            elements.contains { $0.identifier == identifier },
+                            "実ランタイムAXツリーに identifier がない: \(identifier)"
+                        )
+                    }
+                    let displayedText = Set(elements.flatMap { [$0.title, $0.value, $0.description].compactMap { $0 } })
+                    #expect(displayedText.contains { $0.contains("inspect") })
+                    #expect(displayedText.contains { $0.contains("child-new") })
+                    #expect(displayedText.contains { $0.contains("history-1") })
+                    #expect(displayedText.contains { $0.contains("swift test") })
+                    #expect(displayedText.contains { $0.contains(cwd) })
+
+                }
             }
-
-            #expect(viewModel.codexPlanTaskState?.tasks.map(\.title) == ["inspect", "verify"])
-            #expect(child.summary == "child-new")
-            #expect(childDetail.threadId == child.id)
-            #expect((historyDetail.name ?? historyDetail.preview) == "history-1")
-            #expect(viewModel.codexHistoryItems(for: historyDetail).map(\.id) == ["history-user", "history-agent"])
-            #expect(selectedTerminal.command == "swift test")
-            #expect(selectedTerminal.cwd == cwd)
-
-            let surface = CodexSessionSurface(viewModel: viewModel)
-            .accessibilityElement(children: .contain)
-            let app = NSApplication.shared
-            app.setActivationPolicy(.prohibited)
-            app.finishLaunching()
-            let hosting = NSHostingView(rootView: surface)
-            hosting.frame = NSRect(x: 0, y: 0, width: 960, height: 720)
-            let window = NSWindow(
-                contentRect: hosting.frame,
-                styleMask: [.borderless],
-                backing: .buffered,
-                defer: false
-            )
-            window.isReleasedWhenClosed = false
-            window.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
-            window.alphaValue = 0
-            window.contentView = hosting
-            defer { window.close() }
-            window.orderBack(nil)
-            settleHeadlessView(hosting)
-
-            let elements = axElements(in: app)
-            let expectedIdentifiers = [
-                "CodexSessionSurface",
-                "CodexPlanTaskList",
-                "CodexSubAgent.\(child.id)",
-                "CodexHistory.row.history-1",
-                "CodexHistory.resume.history-1",
-                "CodexHistory.detail.history-1",
-                "CodexBackgroundTerminal.background-item",
-                "CodexBackgroundTerminal.detail.background-item",
-            ]
-            for identifier in expectedIdentifiers {
-                #expect(
-                    elements.contains { $0.identifier == identifier },
-                    "実ランタイムAXツリーに identifier がない: \(identifier)"
-                )
-            }
-            let displayedText = Set(elements.flatMap { [$0.title, $0.value, $0.description].compactMap { $0 } })
-            #expect(displayedText.contains { $0.contains("inspect") })
-            #expect(displayedText.contains { $0.contains("child-new") })
-            #expect(displayedText.contains { $0.contains("history-1") })
-            #expect(displayedText.contains { $0.contains("swift test") })
-            #expect(displayedText.contains { $0.contains(cwd) })
-
         }
     }
 
@@ -229,10 +237,16 @@ struct AcceptanceCodexProductionReachabilityTests {
             approvalBroker: ChatApprovalBroker(),
             workingDirectory: cwd
         )
-        try await viewModel.startNew(
-            approvalPolicy: .named("on-request"),
-            sandbox: .named("workspace-write")
-        )
+        do {
+            try await viewModel.startNew(
+                approvalPolicy: .named("on-request"),
+                sandbox: .named("workspace-write")
+            )
+        } catch {
+            await viewModel.terminate()
+            await client.close()
+            throw error
+        }
         return (viewModel, client, transport)
     }
 
@@ -290,6 +304,19 @@ struct AcceptanceCodexProductionReachabilityTests {
             throw AcceptanceWaitError.timedOut(description)
         case .cancelled:
             throw AcceptanceWaitError.cancelled
+        }
+    }
+
+    private func withTaskCleanup<Value, Result>(
+        _ task: Task<Value, Never>,
+        operation: () async throws -> Result
+    ) async throws -> Result {
+        do {
+            return try await operation()
+        } catch {
+            task.cancel()
+            _ = await task.value
+            throw error
         }
     }
 

@@ -16,25 +16,30 @@ struct ContractCodexHistorySeamTests {
     func listRequestHasExactFilters() async throws {
         let transport = CodexHistoryTransport()
         let client = CodexAppServerClient(transport: transport)
-        await client.start()
-        let history = CodexSessionHistory(client: client, cwd: cwd)
-        await history.refresh()
+        do {
+            await client.start()
+            let history = CodexSessionHistory(client: client, cwd: cwd)
+            await history.refresh()
 
-        let response = try await client.threadList(ThreadListParams(
-            cwd: .multiple([cwd]),
-            sourceKinds: [.cli, .vscode, .appServer],
-            parentThreadId: nil,
-            ancestorThreadId: nil
-        ))
-        let request = try #require(await transport.firstRequest(method: "thread/list"))
+            let response = try await client.threadList(ThreadListParams(
+                cwd: .multiple([cwd]),
+                sourceKinds: [.cli, .vscode, .appServer],
+                parentThreadId: nil,
+                ancestorThreadId: nil
+            ))
+            let request = try #require(await transport.firstRequest(method: "thread/list"))
 
-        #expect(request["params"] == JSONValue.object([
-            "cwd": .array([.string(cwd)]),
-            "sourceKinds": .array([.string("cli"), .string("vscode"), .string("appServer")]),
-        ]))
-        #expect(response.data.map(\.id) == ["cli-1", "app-1"])
-        #expect(response.nextCursor == "page-2")
-        #expect(history.threads.map(\.id) == ["cli-1", "app-1", "app-2"])
+            #expect(request["params"] == JSONValue.object([
+                "cwd": .array([.string(cwd)]),
+                "sourceKinds": .array([.string("cli"), .string("vscode"), .string("appServer")]),
+            ]))
+            #expect(response.data.map(\.id) == ["cli-1", "app-1"])
+            #expect(response.nextCursor == "page-2")
+            #expect(history.threads.map(\.id) == ["cli-1", "app-1", "app-2"])
+        } catch {
+            await client.close()
+            throw error
+        }
         await client.close()
     }
 
@@ -42,22 +47,27 @@ struct ContractCodexHistorySeamTests {
     func readRequestIncludesTurns() async throws {
         let transport = CodexHistoryTransport()
         let client = CodexAppServerClient(transport: transport)
-        await client.start()
-        let history = CodexSessionHistory(client: client, cwd: cwd)
+        do {
+            await client.start()
+            let history = CodexSessionHistory(client: client, cwd: cwd)
 
-        let response = try await client.threadRead(ThreadReadParams(threadId: "thread-1"))
-        let read = try await history.read(threadID: "thread-1")
-        let request = try #require(await transport.firstRequest(method: "thread/read"))
+            let response = try await client.threadRead(ThreadReadParams(threadId: "thread-1"))
+            let read = try await history.read(threadID: "thread-1")
+            let request = try #require(await transport.firstRequest(method: "thread/read"))
 
-        #expect(request["params"] == JSONValue.object([
-            "threadId": .string("thread-1"),
-            "includeTurns": .bool(true),
-        ]))
-        #expect(response.thread.id == "thread-1")
-        #expect(response.thread.parentThreadId == "parent-thread")
-        #expect(response.thread.canAcceptDirectInput == false)
-        #expect(read.id == "thread-1")
-        #expect(history.selectedThreadID == "thread-1")
+            #expect(request["params"] == JSONValue.object([
+                "threadId": .string("thread-1"),
+                "includeTurns": .bool(true),
+            ]))
+            #expect(response.thread.id == "thread-1")
+            #expect(response.thread.parentThreadId == "parent-thread")
+            #expect(response.thread.canAcceptDirectInput == false)
+            #expect(read.id == "thread-1")
+            #expect(history.selectedThreadID == "thread-1")
+        } catch {
+            await client.close()
+            throw error
+        }
         await client.close()
     }
 
@@ -65,17 +75,22 @@ struct ContractCodexHistorySeamTests {
     func staleReadResponseCannotReplaceSelection() async throws {
         let transport = CodexHistoryTransport(readResponseID: "thread-1")
         let client = CodexAppServerClient(transport: transport)
-        await client.start()
-        let history = CodexSessionHistory(client: client, cwd: cwd)
-
         do {
-            _ = try await history.read(threadID: "thread-2")
-            Issue.record("thread/read の ID mismatch が成功扱いになっている")
-        } catch let error as CodexAppServerClientError {
-            #expect(error == .threadIDMismatch(requested: "thread-2", received: "thread-1"))
+            await client.start()
+            let history = CodexSessionHistory(client: client, cwd: cwd)
+
+            do {
+                _ = try await history.read(threadID: "thread-2")
+                Issue.record("thread/read の ID mismatch が成功扱いになっている")
+            } catch let error as CodexAppServerClientError {
+                #expect(error == .threadIDMismatch(requested: "thread-2", received: "thread-1"))
+            }
+            #expect(history.selectedThreadID == nil)
+            #expect(history.threads.isEmpty)
+        } catch {
+            await client.close()
+            throw error
         }
-        #expect(history.selectedThreadID == nil)
-        #expect(history.threads.isEmpty)
         await client.close()
     }
 
@@ -83,17 +98,22 @@ struct ContractCodexHistorySeamTests {
     func resumeStateChangesOnlyAfterMatchingResponse() async throws {
         let transport = CodexHistoryTransport()
         let client = CodexAppServerClient(transport: transport)
-        await client.start()
-        let history = CodexSessionHistory(client: client, cwd: cwd)
+        do {
+            await client.start()
+            let history = CodexSessionHistory(client: client, cwd: cwd)
 
-        let response = try await history.resume(threadID: "thread-1")
-        let request = try #require(await transport.firstRequest(method: "thread/resume"))
+            let response = try await history.resume(threadID: "thread-1")
+            let request = try #require(await transport.firstRequest(method: "thread/resume"))
 
-        #expect(response.id == "thread-1")
-        #expect(history.selectedThreadID == "thread-1")
-        #expect(history.selectedThread?.id == "thread-1")
-        #expect(request["params"]?["threadId"] == JSONValue.string("thread-1"))
-        #expect(request["params"]?["cwd"] == JSONValue.string(cwd))
+            #expect(response.id == "thread-1")
+            #expect(history.selectedThreadID == "thread-1")
+            #expect(history.selectedThread?.id == "thread-1")
+            #expect(request["params"]?["threadId"] == JSONValue.string("thread-1"))
+            #expect(request["params"]?["cwd"] == JSONValue.string(cwd))
+        } catch {
+            await client.close()
+            throw error
+        }
         await client.close()
     }
 
@@ -101,18 +121,23 @@ struct ContractCodexHistorySeamTests {
     func staleResumeResponseCannotReplaceSelection() async throws {
         let transport = CodexHistoryTransport(resumeResponseID: "thread-1")
         let client = CodexAppServerClient(transport: transport)
-        await client.start()
-        let history = CodexSessionHistory(client: client, cwd: cwd)
-
         do {
-            _ = try await history.resume(threadID: "thread-2")
-            Issue.record("thread/resume の ID mismatch が成功扱いになっている")
-        } catch let error as CodexAppServerClientError {
-            #expect(error == .threadIDMismatch(requested: "thread-2", received: "thread-1"))
+            await client.start()
+            let history = CodexSessionHistory(client: client, cwd: cwd)
+
+            do {
+                _ = try await history.resume(threadID: "thread-2")
+                Issue.record("thread/resume の ID mismatch が成功扱いになっている")
+            } catch let error as CodexAppServerClientError {
+                #expect(error == .threadIDMismatch(requested: "thread-2", received: "thread-1"))
+            }
+            #expect(history.selectedThreadID == nil)
+            #expect(history.selectedThread == nil)
+            #expect(history.threads.isEmpty)
+        } catch {
+            await client.close()
+            throw error
         }
-        #expect(history.selectedThreadID == nil)
-        #expect(history.selectedThread == nil)
-        #expect(history.threads.isEmpty)
         await client.close()
     }
 
@@ -125,14 +150,13 @@ struct ContractCodexHistorySeamTests {
 
         transport.receive(#"{"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"thread-1","turn":{"id":"turn-1","status":"interrupted","items":[]}}}"#)
 
-        guard case .turnCompleted(let threadId, let turn) = await events.next() else {
+        if case .turnCompleted(let threadId, let turn) = await events.next() {
+            #expect(threadId == "thread-1")
+            #expect(turn.id == "turn-1")
+            #expect(turn.status == "interrupted")
+        } else {
             Issue.record("turn/completed が typed event へ到達していない")
-            await client.close()
-            return
         }
-        #expect(threadId == "thread-1")
-        #expect(turn.id == "turn-1")
-        #expect(turn.status == "interrupted")
         await client.close()
     }
 }

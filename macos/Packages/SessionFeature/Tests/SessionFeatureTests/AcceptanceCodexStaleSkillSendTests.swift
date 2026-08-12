@@ -18,23 +18,28 @@ struct AcceptanceCodexStaleSkillSendTests {
             approvalBroker: ChatApprovalBroker(),
             workingDirectory: "/workspace/project"
         )
-        let state = try #require(viewModel.codexSkillSelectionState)
-        await state.refresh()
-        let skill = try #require(state.skills.first)
-        #expect(state.select(skill))
+        do {
+            let state = try #require(viewModel.codexSkillSelectionState)
+            await state.refresh()
+            let skill = try #require(state.skills.first)
+            #expect(state.select(skill))
 
-        viewModel.draft = "$review 本文"
-        let input = try #require(viewModel.consumeDraftForSend())
-        state.invalidate()
+            viewModel.draft = "$review 本文"
+            let input = try #require(viewModel.consumeDraftForSend())
+            state.invalidate()
 
-        try await viewModel.sendText(input, submit: true)
+            try await viewModel.sendText(input, submit: true)
 
-        #expect(viewModel.draft == "$review 本文")
-        #expect(viewModel.transcript.contains { item in
-            guard case .error(_, let message, _) = item else { return false }
-            return message.contains("再選択")
-        })
-        #expect(await client.sentInputs.isEmpty)
+            #expect(viewModel.draft == "$review 本文")
+            #expect(viewModel.transcript.contains { item in
+                guard case .error(_, let message, _) = item else { return false }
+                return message.contains("再選択")
+            })
+            #expect(await client.sentInputs.isEmpty)
+        } catch {
+            await viewModel.terminate()
+            throw error
+        }
         await viewModel.terminate()
     }
 }

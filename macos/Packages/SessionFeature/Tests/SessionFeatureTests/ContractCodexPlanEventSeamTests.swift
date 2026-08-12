@@ -167,17 +167,29 @@ final class CodexPlanSkillFakeTransport: AppServerTransport, @unchecked Sendable
 func receiveCodexThreadEvent(method: String, params: JSONValue) async throws -> ThreadEvent? {
     let transport = CodexPlanSkillFakeTransport()
     let client = CodexAppServerClient(transport: transport)
-    await client.start()
+    do {
+        await client.start()
 
-    let eventTask = Task { await firstCodexThreadEvent(from: client.events) }
-    try transport.receive(.object([
-        "jsonrpc": .string("2.0"),
-        "method": .string(method),
-        "params": params,
-    ]))
-    let event = await eventTask.value
-    await client.close()
-    return event
+        let eventTask = Task { await firstCodexThreadEvent(from: client.events) }
+        do {
+            try transport.receive(.object([
+                "jsonrpc": .string("2.0"),
+                "method": .string(method),
+                "params": params,
+            ]))
+        } catch {
+            eventTask.cancel()
+            _ = await eventTask.value
+            await client.close()
+            throw error
+        }
+        let event = await eventTask.value
+        await client.close()
+        return event
+    } catch {
+        await client.close()
+        throw error
+    }
 }
 
 func firstCodexThreadEvent(from events: AsyncStream<ThreadEvent>) async -> ThreadEvent? {

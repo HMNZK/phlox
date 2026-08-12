@@ -20,23 +20,29 @@ struct CodexChildHistoryIsolationTests {
             approvalBroker: ChatApprovalBroker(),
             workingDirectory: "/workspace"
         )
-        try await viewModel.startNew(
-            approvalPolicy: .named("on-request"),
-            sandbox: .named("workspace-write")
-        )
-        await viewModel.refreshCodexSubAgents()
+        do {
+            try await viewModel.startNew(
+                approvalPolicy: .named("on-request"),
+                sandbox: .named("workspace-write")
+            )
+            await viewModel.refreshCodexSubAgents()
 
-        #expect(viewModel.codexSubAgentState?.children.map(\.id) == ["direct-review", "direct-spawn"])
-        #expect(await transport.listParams == JSONValue.object([
-            "sourceKinds": .array([
-                .string("subAgent"),
-                .string("subAgentReview"),
-                .string("subAgentCompact"),
-                .string("subAgentThreadSpawn"),
-                .string("subAgentOther"),
-            ]),
-            "parentThreadId": .string("live-parent"),
-        ]))
+            #expect(viewModel.codexSubAgentState?.children.map(\.id) == ["direct-review", "direct-spawn"])
+            #expect(await transport.listParams == JSONValue.object([
+                "sourceKinds": .array([
+                    .string("subAgent"),
+                    .string("subAgentReview"),
+                    .string("subAgentCompact"),
+                    .string("subAgentThreadSpawn"),
+                    .string("subAgentOther"),
+                ]),
+                "parentThreadId": .string("live-parent"),
+            ]))
+        } catch {
+            await viewModel.terminate()
+            await client.close()
+            throw error
+        }
 
         await viewModel.terminate()
         await client.close()

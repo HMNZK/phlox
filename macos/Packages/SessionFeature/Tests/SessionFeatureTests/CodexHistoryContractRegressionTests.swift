@@ -42,14 +42,19 @@ struct CodexHistoryContractRegressionTests {
         let transport = HistoryContractTransport(mode: .readFailure)
         let appServer = CodexAppServerClient(transport: transport)
         let adapter = CodexStructuredAgentClient(client: appServer)
-        await adapter.start()
-        _ = try await adapter.threadStart(ThreadStartParams(cwd: "/workspace"))
-        let history = CodexSessionHistory(client: adapter, workingDirectory: "/workspace")
+        do {
+            await adapter.start()
+            _ = try await adapter.threadStart(ThreadStartParams(cwd: "/workspace"))
+            let history = CodexSessionHistory(client: adapter, workingDirectory: "/workspace")
 
-        #expect(await adapter.activeThreadId() == "active")
-        #expect(await history.resumeIfPossible(threadID: "next") == nil)
-        #expect(await adapter.activeThreadId() == "active")
-        #expect(history.errorMessage?.contains("read failed") == true)
+            #expect(await adapter.activeThreadId() == "active")
+            #expect(await history.resumeIfPossible(threadID: "next") == nil)
+            #expect(await adapter.activeThreadId() == "active")
+            #expect(history.errorMessage?.contains("read failed") == true)
+        } catch {
+            await adapter.close()
+            throw error
+        }
         await adapter.close()
     }
 
@@ -58,19 +63,24 @@ struct CodexHistoryContractRegressionTests {
         let transport = HistoryContractTransport(mode: .readFailure)
         let appServer = CodexAppServerClient(transport: transport)
         let adapter = CodexStructuredAgentClient(client: appServer)
-        await adapter.start()
-        _ = try await adapter.threadStart(ThreadStartParams(cwd: "/workspace"))
-        let history = CodexSessionHistory(client: adapter, workingDirectory: "/workspace")
+        do {
+            await adapter.start()
+            _ = try await adapter.threadStart(ThreadStartParams(cwd: "/workspace"))
+            let history = CodexSessionHistory(client: adapter, workingDirectory: "/workspace")
 
-        _ = try await history.resume(threadID: "next")
-        #expect(await adapter.activeThreadId() == "next")
-        #expect(await history.readIfPossible(threadID: "next") == nil)
-        #expect(await adapter.activeThreadId() == "active")
+            _ = try await history.resume(threadID: "next")
+            #expect(await adapter.activeThreadId() == "next")
+            #expect(await history.readIfPossible(threadID: "next") == nil)
+            #expect(await adapter.activeThreadId() == "active")
 
-        _ = try await history.resume(threadID: "next-again")
-        #expect(await adapter.activeThreadId() == "next-again")
-        #expect(await history.readIfPossible(threadID: "next-again") == nil)
-        #expect(await adapter.activeThreadId() == "active")
+            _ = try await history.resume(threadID: "next-again")
+            #expect(await adapter.activeThreadId() == "next-again")
+            #expect(await history.readIfPossible(threadID: "next-again") == nil)
+            #expect(await adapter.activeThreadId() == "active")
+        } catch {
+            await adapter.close()
+            throw error
+        }
         await adapter.close()
     }
 
@@ -122,22 +132,43 @@ struct CodexHistoryContractRegressionTests {
         let transport = HistoryContractTransport(mode: .resumeRace)
         let appServer = CodexAppServerClient(transport: transport)
         let adapter = CodexStructuredAgentClient(client: appServer)
-        await adapter.start()
-        _ = try await adapter.threadStart(ThreadStartParams(cwd: "/workspace"))
-        let history = CodexSessionHistory(client: adapter, workingDirectory: "/workspace")
+        var first: Task<ThreadSummary?, Never>?
+        var second: Task<ThreadSummary?, Never>?
+        do {
+            await adapter.start()
+            _ = try await adapter.threadStart(ThreadStartParams(cwd: "/workspace"))
+            let history = CodexSessionHistory(client: adapter, workingDirectory: "/workspace")
 
-        let first = Task { await history.resumeIfPossible(threadID: "A") }
-        try await transport.waitForResumeRequest(count: 1)
-        let second = Task { await history.resumeIfPossible(threadID: "B") }
-        try await transport.waitForResumeRequest(count: 2)
+            first = Task { await history.resumeIfPossible(threadID: "A") }
+            try await transport.waitForResumeRequest(count: 1)
+            second = Task { await history.resumeIfPossible(threadID: "B") }
+            try await transport.waitForResumeRequest(count: 2)
 
-        await transport.releaseResume(threadID: "B")
-        await transport.releaseResume(threadID: "A")
-        _ = await first.value
-        _ = await second.value
+            await transport.releaseResume(threadID: "B")
+            await transport.releaseResume(threadID: "A")
+            if let first {
+                _ = await first.value
+            }
+            if let second {
+                _ = await second.value
+            }
+            first = nil
+            second = nil
 
-        #expect(await adapter.activeThreadId() == "B")
-        #expect(history.selectedThreadID == "B")
+            #expect(await adapter.activeThreadId() == "B")
+            #expect(history.selectedThreadID == "B")
+        } catch {
+            first?.cancel()
+            second?.cancel()
+            await adapter.close()
+            if let first {
+                _ = await first.value
+            }
+            if let second {
+                _ = await second.value
+            }
+            throw error
+        }
         await adapter.close()
     }
 
@@ -146,6 +177,13 @@ struct CodexHistoryContractRegressionTests {
 private enum HistoryResumeWaitError: Error {
     case timedOut
     case streamFinished
+}
+
+private enum HistoryResumeWaitResult: Sendable {
+    case fulfilled
+    case timedOut
+    case streamFinished
+    case cancelled
 }
 
 private final class HistoryContractTransport: AppServerTransport, @unchecked Sendable {
@@ -175,6 +213,13 @@ private final class HistoryContractTransport: AppServerTransport, @unchecked Sen
 
         func releaseResume(threadID: String) {
             resumeWaiters.removeValue(forKey: threadID)?.forEach { $0.resume() }
+        }
+
+        func releaseAllResumeWaiters() {
+            for waiters in resumeWaiters.values {
+                waiters.forEach { $0.resume() }
+            }
+            resumeWaiters.removeAll()
         }
     }
 
@@ -257,7 +302,10 @@ private final class HistoryContractTransport: AppServerTransport, @unchecked Sen
         continuation.yield(try JSONEncoder().encode(response))
     }
 
-    func close() async { continuation.finish() }
+    func close() async {
+        await state.releaseAllResumeWaiters()
+        continuation.finish()
+    }
 
     func releaseResume(threadID: String) async {
         await state.releaseResume(threadID: threadID)
@@ -266,19 +314,35 @@ private final class HistoryContractTransport: AppServerTransport, @unchecked Sen
     func waitForResumeRequest(count expected: Int, timeout: Duration = .seconds(2)) async throws {
         guard await resumeRequestCount < expected else { return }
 
-        try await withThrowingTaskGroup(of: Void.self) { group in
+        let result = await withTaskGroup(of: HistoryResumeWaitResult.self) { group in
             group.addTask { [resumeRequestEvents] in
                 for await count in resumeRequestEvents where count >= expected {
-                    return
+                    return .fulfilled
                 }
-                throw HistoryResumeWaitError.streamFinished
+                return .streamFinished
             }
             group.addTask {
-                try await Task.sleep(for: timeout)
-                throw HistoryResumeWaitError.timedOut
+                do {
+                    try await Task.sleep(for: timeout)
+                    return .timedOut
+                } catch {
+                    return .cancelled
+                }
             }
-            try await group.next()
+            let result = await group.next() ?? .cancelled
             group.cancelAll()
+            await group.waitForAll()
+            return result
+        }
+        switch result {
+        case .fulfilled:
+            return
+        case .timedOut:
+            throw HistoryResumeWaitError.timedOut
+        case .streamFinished:
+            throw HistoryResumeWaitError.streamFinished
+        case .cancelled:
+            throw CancellationError()
         }
     }
 

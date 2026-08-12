@@ -51,25 +51,30 @@ struct ContractCodexImageInputSeamTests {
     func clientForwardsNativeLocalImage() async throws {
         let transport = ImageInputTransport()
         let client = CodexAppServerClient(transport: transport)
-        await client.start()
+        do {
+            await client.start()
 
-        _ = try await client.turnStart(TurnStartParams(
-            threadId: "thread-image",
-            input: [
-                .text("本文"),
-                .localImage(path: "/tmp/image.png", detail: "high"),
-            ]
-        ))
+            _ = try await client.turnStart(TurnStartParams(
+                threadId: "thread-image",
+                input: [
+                    .text("本文"),
+                    .localImage(path: "/tmp/image.png", detail: "high"),
+                ]
+            ))
 
-        let request = try #require(await transport.firstRequest(method: "turn/start"))
-        #expect(request["params"]?["input"] == JSONValue.array([
-            .object(["type": .string("text"), "text": .string("本文")]),
-            .object([
-                "type": .string("localImage"),
-                "path": .string("/tmp/image.png"),
-                "detail": .string("high"),
-            ]),
-        ]))
+            let request = try #require(await transport.firstRequest(method: "turn/start"))
+            #expect(request["params"]?["input"] == JSONValue.array([
+                .object(["type": .string("text"), "text": .string("本文")]),
+                .object([
+                    "type": .string("localImage"),
+                    "path": .string("/tmp/image.png"),
+                    "detail": .string("high"),
+                ]),
+            ]))
+        } catch {
+            await client.close()
+            throw error
+        }
         await client.close()
     }
 

@@ -26,17 +26,22 @@ struct ContractCodexSkillInputSeamTests {
         ])
         let transport = CodexPlanSkillFakeTransport(skillsListResult: responseJSON)
         let client = CodexAppServerClient(transport: transport)
-        await client.start()
+        do {
+            await client.start()
 
-        let response = try await client.skillsList(SkillsListParams(cwds: [cwd], forceReload: true))
-        let request = try #require(await transport.firstRequest(method: "skills/list"))
-        #expect(request["method"] == .string("skills/list"))
-        #expect(request["params"] == .object([
-            "cwds": .array([.string(cwd)]),
-            "forceReload": .bool(true),
-        ]))
-        #expect(response.data.first?.cwd == cwd)
-        #expect(response.data.first?.skills.first?.path == "/contract/skills/review")
+            let response = try await client.skillsList(SkillsListParams(cwds: [cwd], forceReload: true))
+            let request = try #require(await transport.firstRequest(method: "skills/list"))
+            #expect(request["method"] == .string("skills/list"))
+            #expect(request["params"] == .object([
+                "cwds": .array([.string(cwd)]),
+                "forceReload": .bool(true),
+            ]))
+            #expect(response.data.first?.cwd == cwd)
+            #expect(response.data.first?.skills.first?.path == "/contract/skills/review")
+        } catch {
+            await client.close()
+            throw error
+        }
         await client.close()
     }
 
@@ -83,24 +88,29 @@ struct ContractCodexSkillInputSeamTests {
     func nativeSkillInputIsOneAndNotText() async throws {
         let transport = CodexPlanSkillFakeTransport()
         let client = CodexAppServerClient(transport: transport)
-        await client.start()
-        _ = try await client.turnStart(TurnStartParams(
-            threadId: "thread-skill",
-            input: [
-                .text("質問本文"),
-                .skill(name: "review", path: "/contract/skills/review"),
-            ]
-        ))
+        do {
+            await client.start()
+            _ = try await client.turnStart(TurnStartParams(
+                threadId: "thread-skill",
+                input: [
+                    .text("質問本文"),
+                    .skill(name: "review", path: "/contract/skills/review"),
+                ]
+            ))
 
-        let request = try #require(await transport.firstRequest(method: "turn/start"))
-        let raw = try #require(request["params"]?["input"])
-        #expect(raw.arrayValue?.filter { $0["type"] == .string("skill") }.count == 1)
-        #expect(raw.arrayValue?.contains {
-            $0["type"] == .string("text") && $0["text"] == .string("$review")
-        } == false)
-        #expect(raw.arrayValue?.contains {
-            $0["name"] == .string("review") && $0["path"] == .string("/contract/skills/review")
-        } == true)
+            let request = try #require(await transport.firstRequest(method: "turn/start"))
+            let raw = try #require(request["params"]?["input"])
+            #expect(raw.arrayValue?.filter { $0["type"] == .string("skill") }.count == 1)
+            #expect(raw.arrayValue?.contains {
+                $0["type"] == .string("text") && $0["text"] == .string("$review")
+            } == false)
+            #expect(raw.arrayValue?.contains {
+                $0["name"] == .string("review") && $0["path"] == .string("/contract/skills/review")
+            } == true)
+        } catch {
+            await client.close()
+            throw error
+        }
         await client.close()
     }
 }

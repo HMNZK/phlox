@@ -85,13 +85,18 @@ struct AcceptanceCodexHistoryTests {
     func concreteHistoryKeepsDistinctThreadIDs() async throws {
         let transport = CodexHistoryTransport()
         let client = CodexAppServerClient(transport: transport)
-        await client.start()
+        do {
+            await client.start()
 
-        let history = CodexSessionHistory(client: client, cwd: cwd)
-        await history.refresh()
+            let history = CodexSessionHistory(client: client, cwd: cwd)
+            await history.refresh()
 
-        #expect(history.threads.map(\.id) == ["cli-1", "app-1", "app-2"])
-        #expect(history.threads.map(\.preview) == ["shared title", "shared title", "shared title"])
+            #expect(history.threads.map(\.id) == ["cli-1", "app-1", "app-2"])
+            #expect(history.threads.map(\.preview) == ["shared title", "shared title", "shared title"])
+        } catch {
+            await client.close()
+            throw error
+        }
         await client.close()
     }
 }

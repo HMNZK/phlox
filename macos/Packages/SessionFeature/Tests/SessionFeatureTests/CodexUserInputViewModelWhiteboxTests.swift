@@ -59,6 +59,21 @@ private func waitForCodexUserInputWireResult(
     return await result.current
 }
 
+@MainActor
+private func withTerminatedViewModel<T>(
+    _ viewModel: ChatSessionViewModel,
+    operation: () async throws -> T
+) async throws -> T {
+    do {
+        let result = try await operation()
+        await viewModel.terminate()
+        return result
+    } catch {
+        await viewModel.terminate()
+        throw error
+    }
+}
+
 @Test("Codex 質問だけを broker へ返し、未知の requestId は wire を決着させない")
 @MainActor
 func codexUserInputResponseRoutesOnlyKnownRequestIDsToBroker() async throws {
@@ -71,54 +86,60 @@ func codexUserInputResponseRoutesOnlyKnownRequestIDsToBroker() async throws {
         approvalBroker: broker,
         workingDirectory: "/tmp/phlox-codex-userinput-whitebox"
     )
-    let request = ToolRequestUserInputRequest(
-        threadId: "thread",
-        turnId: "turn",
-        itemId: "item",
-        questions: [
-            ToolRequestUserInputQuestion(
-                id: "choice",
-                header: "選択",
-                question: "どちらですか？",
-                options: nil
-            )
-        ]
-    )
-    let wireResult = CodexUserInputWireResult()
-    Task {
-        if let result = try? await broker.serverRequestHandler(.userInputRequest(request)) {
-            await wireResult.set(result)
+    try await withTerminatedViewModel(viewModel) {
+        let request = ToolRequestUserInputRequest(
+            threadId: "thread",
+            turnId: "turn",
+            itemId: "item",
+            questions: [
+                ToolRequestUserInputQuestion(
+                    id: "choice",
+                    header: "選択",
+                    question: "どちらですか？",
+                    options: nil
+                )
+            ]
+        )
+        let wireResult = CodexUserInputWireResult()
+        let requestTask = Task {
+            if let result = try? await broker.serverRequestHandler(.userInputRequest(request)) {
+                await wireResult.set(result)
+            }
+        }
+        do {
+            let appeared = await waitForCodexUserInputViewModel {
+                viewModel.transcript.contains { item in
+                    if case .userQuestion = item { return true }
+                    return false
+                }
+            }
+            #expect(appeared)
+
+            #expect(await viewModel.respondToUserQuestion(requestId: "unknown", answers: [:]) == false)
+            #expect(await waitForCodexUserInputWireResult(wireResult, timeoutNanoseconds: 100_000_000) == nil)
+
+            let requestID = try #require(viewModel.transcript.compactMap { item -> String? in
+                if case .userQuestion(_, let requestID, _, _, _, _) = item { return requestID }
+                return nil
+            }.first)
+
+            #expect(await viewModel.respondToUserQuestion(requestId: requestID, answers: ["choice": ["A"]]))
+            let result = try #require(await waitForCodexUserInputWireResult(wireResult))
+            if let encodedAnswers = result["answers"]?["choice"]?["answers"],
+               case .array(let values) = encodedAnswers
+            {
+                #expect(values.compactMap(\.stringValue) == ["A"])
+            } else {
+                Issue.record("Codex の回答が wire 形式で返っていない")
+            }
+            _ = await requestTask.value
+        } catch {
+            await viewModel.terminate()
+            requestTask.cancel()
+            _ = await requestTask.value
+            throw error
         }
     }
-
-    let appeared = await waitForCodexUserInputViewModel {
-        viewModel.transcript.contains { item in
-            if case .userQuestion = item { return true }
-            return false
-        }
-    }
-    #expect(appeared)
-
-    #expect(await viewModel.respondToUserQuestion(requestId: "unknown", answers: [:]) == false)
-    #expect(await waitForCodexUserInputWireResult(wireResult, timeoutNanoseconds: 100_000_000) == nil)
-
-    guard let requestID = viewModel.transcript.compactMap({ item -> String? in
-        if case .userQuestion(_, let requestID, _, _, _, _) = item { return requestID }
-        return nil
-    }).first else {
-        Issue.record("Codex question card is missing")
-        return
-    }
-
-    #expect(await viewModel.respondToUserQuestion(requestId: requestID, answers: ["choice": ["A"]]))
-    let result = try #require(await waitForCodexUserInputWireResult(wireResult))
-    guard let encodedAnswers = result["answers"]?["choice"]?["answers"],
-          case .array(let values) = encodedAnswers
-    else {
-        Issue.record("Codex の回答が wire 形式で返っていない")
-        return
-    }
-    #expect(values.compactMap(\.stringValue) == ["A"])
 }
 
 @Test("terminate は保留中の Codex 質問を expired にして wire を空回答で決着させる")
@@ -133,47 +154,56 @@ func terminateExpiresPendingCodexUserInput() async throws {
         approvalBroker: broker,
         workingDirectory: "/tmp/phlox-codex-userinput-terminate"
     )
-    let request = ToolRequestUserInputRequest(
-        threadId: "thread",
-        turnId: "turn",
-        itemId: "item",
-        questions: [
-            ToolRequestUserInputQuestion(
-                id: "choice",
-                header: "選択",
-                question: "どちらですか？",
-                options: nil
-            )
-        ]
-    )
-    let wireResult = CodexUserInputWireResult()
-    Task {
-        if let result = try? await broker.serverRequestHandler(.userInputRequest(request)) {
-            await wireResult.set(result)
+    try await withTerminatedViewModel(viewModel) {
+        let request = ToolRequestUserInputRequest(
+            threadId: "thread",
+            turnId: "turn",
+            itemId: "item",
+            questions: [
+                ToolRequestUserInputQuestion(
+                    id: "choice",
+                    header: "選択",
+                    question: "どちらですか？",
+                    options: nil
+                )
+            ]
+        )
+        let wireResult = CodexUserInputWireResult()
+        let requestTask = Task {
+            if let result = try? await broker.serverRequestHandler(.userInputRequest(request)) {
+                await wireResult.set(result)
+            }
+        }
+        do {
+            #expect(await waitForCodexUserInputViewModel {
+                viewModel.transcript.contains { item in
+                    if case .userQuestion = item { return true }
+                    return false
+                }
+            })
+
+            await viewModel.terminate()
+
+            if case .userQuestion(_, _, _, _, let state, _) = viewModel.transcript.first {
+                #expect(state == .expired)
+            } else {
+                Issue.record("Codex question card is missing")
+            }
+
+            let result = try #require(await waitForCodexUserInputWireResult(wireResult))
+            if let answers = result["answers"], case .object(let entries) = answers {
+                #expect(entries.isEmpty)
+            } else {
+                Issue.record("Codex の空回答が wire 形式で返っていない")
+            }
+            _ = await requestTask.value
+        } catch {
+            await viewModel.terminate()
+            requestTask.cancel()
+            _ = await requestTask.value
+            throw error
         }
     }
-
-    #expect(await waitForCodexUserInputViewModel {
-        viewModel.transcript.contains { item in
-            if case .userQuestion = item { return true }
-            return false
-        }
-    })
-
-    await viewModel.terminate()
-
-    if case .userQuestion(_, _, _, _, let state, _) = viewModel.transcript.first {
-        #expect(state == .expired)
-    } else {
-        Issue.record("Codex question card is missing")
-    }
-
-    let result = try #require(await waitForCodexUserInputWireResult(wireResult))
-    guard let answers = result["answers"], case .object(let entries) = answers else {
-        Issue.record("Codex の空回答が wire 形式で返っていない")
-        return
-    }
-    #expect(entries.isEmpty)
 }
 
 @Test("ターン中断は保留中の Codex 質問を expired にして wire を空回答で決着させる")
@@ -188,51 +218,53 @@ func turnInterruptExpiresPendingCodexUserInput() async throws {
         approvalBroker: broker,
         workingDirectory: "/tmp/phlox-codex-userinput-interrupt"
     )
-    let request = ToolRequestUserInputRequest(
-        threadId: "thread",
-        turnId: "turn",
-        itemId: "item",
-        questions: [
-            ToolRequestUserInputQuestion(
-                id: "choice",
-                header: "選択",
-                question: "どちらですか？",
-                options: nil
-            )
-        ]
-    )
-    let wireResult = CodexUserInputWireResult()
-    Task {
-        if let result = try? await broker.serverRequestHandler(.userInputRequest(request)) {
-            await wireResult.set(result)
+    try await withTerminatedViewModel(viewModel) {
+        let request = ToolRequestUserInputRequest(
+            threadId: "thread",
+            turnId: "turn",
+            itemId: "item",
+            questions: [
+                ToolRequestUserInputQuestion(
+                    id: "choice",
+                    header: "選択",
+                    question: "どちらですか？",
+                    options: nil
+                )
+            ]
+        )
+        let wireResult = CodexUserInputWireResult()
+        let requestTask = Task {
+            if let result = try? await broker.serverRequestHandler(.userInputRequest(request)) {
+                await wireResult.set(result)
+            }
+        }
+        do {
+            #expect(await waitForCodexUserInputViewModel {
+                viewModel.transcript.contains { item in
+                    if case .userQuestion = item { return true }
+                    return false
+                }
+            })
+
+            await viewModel.turnInterrupt()
+
+            let result = await waitForCodexUserInputWireResult(wireResult, timeoutNanoseconds: 200_000_000)
+            #expect(result != nil)
+            if let result,
+               let answers = result["answers"],
+               case .object(let entries) = answers
+            {
+                #expect(entries.isEmpty)
+            } else if result != nil {
+                Issue.record("Codex の空回答が wire 形式で返っていない")
+            }
+
+            if case .userQuestion(_, _, _, _, let state, _) = viewModel.transcript.first {
+                #expect(state == .expired)
+            } else {
+                Issue.record("Codex question card is missing")
+            }
+            _ = await requestTask.value
         }
     }
-
-    #expect(await waitForCodexUserInputViewModel {
-        viewModel.transcript.contains { item in
-            if case .userQuestion = item { return true }
-            return false
-        }
-    })
-
-    await viewModel.turnInterrupt()
-
-    let result = await waitForCodexUserInputWireResult(wireResult, timeoutNanoseconds: 200_000_000)
-    #expect(result != nil)
-    if let result,
-       let answers = result["answers"],
-       case .object(let entries) = answers
-    {
-        #expect(entries.isEmpty)
-    } else if result != nil {
-        Issue.record("Codex の空回答が wire 形式で返っていない")
-    }
-
-    if case .userQuestion(_, _, _, _, let state, _) = viewModel.transcript.first {
-        #expect(state == .expired)
-    } else {
-        Issue.record("Codex question card is missing")
-    }
-
-    await viewModel.terminate()
 }

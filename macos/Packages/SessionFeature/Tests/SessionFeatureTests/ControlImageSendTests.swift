@@ -57,23 +57,39 @@ private func makeCodexViewModel(client: RecordingStructuredClient) -> ChatSessio
 
 @Suite @MainActor
 struct ControlImageSendTests {
+    private func withTerminatedViewModel<T>(
+        _ viewModel: ChatSessionViewModel,
+        operation: () async throws -> T
+    ) async throws -> T {
+        do {
+            let result = try await operation()
+            await viewModel.terminate()
+            return result
+        } catch {
+            await viewModel.terminate()
+            throw error
+        }
+    }
+
     @Test
     func sendTextWithControlImages_includesImageInTurnStartInput() async throws {
         let client = RecordingStructuredClient()
         let vm = makeClaudeViewModel(client: client)
 
-        try await vm.sendTextWithControlImages(
-            "この画面を見て",
-            submit: true,
-            images: [(mediaType: "image/png", data: tinyPNG)]
-        )
+        try await withTerminatedViewModel(vm) {
+            try await vm.sendTextWithControlImages(
+                "この画面を見て",
+                submit: true,
+                images: [(mediaType: "image/png", data: tinyPNG)]
+            )
 
-        let input = try #require(client.lastTurnStartInput)
-        #expect(input == [
-            .text("この画面を見て"),
-            .image(data: tinyPNG, mediaType: "image/png"),
-        ])
-        #expect(vm.attachmentStore.attachments.isEmpty)
+            let input = try #require(client.lastTurnStartInput)
+            #expect(input == [
+                .text("この画面を見て"),
+                .image(data: tinyPNG, mediaType: "image/png"),
+            ])
+            #expect(vm.attachmentStore.attachments.isEmpty)
+        }
     }
 
     @Test
@@ -82,26 +98,28 @@ struct ControlImageSendTests {
         client.turnStartError = NSError(domain: "test", code: 1)
         let vm = makeClaudeViewModel(client: client)
 
-        await #expect(throws: (any Error).self) {
+        try await withTerminatedViewModel(vm) {
+            await #expect(throws: (any Error).self) {
+                try await vm.sendTextWithControlImages(
+                    "retry me",
+                    submit: true,
+                    images: [(mediaType: "image/png", data: tinyPNG)]
+                )
+            }
+
+            #expect(vm.attachmentStore.attachments.isEmpty)
+
+            client.turnStartError = nil
             try await vm.sendTextWithControlImages(
-                "retry me",
+                "second try",
                 submit: true,
                 images: [(mediaType: "image/png", data: tinyPNG)]
             )
+
+            let input = try #require(client.lastTurnStartInput)
+            #expect(input.contains(.image(data: tinyPNG, mediaType: "image/png")))
+            #expect(input.contains(.text("second try")))
         }
-
-        #expect(vm.attachmentStore.attachments.isEmpty)
-
-        client.turnStartError = nil
-        try await vm.sendTextWithControlImages(
-            "second try",
-            submit: true,
-            images: [(mediaType: "image/png", data: tinyPNG)]
-        )
-
-        let input = try #require(client.lastTurnStartInput)
-        #expect(input.contains(.image(data: tinyPNG, mediaType: "image/png")))
-        #expect(input.contains(.text("second try")))
     }
 
     @Test
@@ -109,16 +127,18 @@ struct ControlImageSendTests {
         let client = RecordingStructuredClient()
         let vm = makeCodexViewModel(client: client)
 
-        await #expect(throws: ChatSessionViewModel.ControlImageSendError.imagesUnsupported) {
-            try await vm.sendTextWithControlImages(
-                "image please",
-                submit: true,
-                images: [(mediaType: "image/png", data: tinyPNG)]
-            )
-        }
+        try await withTerminatedViewModel(vm) {
+            await #expect(throws: ChatSessionViewModel.ControlImageSendError.imagesUnsupported) {
+                try await vm.sendTextWithControlImages(
+                    "image please",
+                    submit: true,
+                    images: [(mediaType: "image/png", data: tinyPNG)]
+                )
+            }
 
-        #expect(client.lastTurnStartInput == nil)
-        #expect(vm.attachmentStore.attachments.isEmpty)
+            #expect(client.lastTurnStartInput == nil)
+            #expect(vm.attachmentStore.attachments.isEmpty)
+        }
     }
 
     @Test
@@ -139,27 +159,29 @@ struct ControlImageSendTests {
             approvalBroker: ChatApprovalBroker(),
             workingDirectory: "/tmp/work"
         )
-        try await vm.startNew(
-            approvalPolicy: .named("on-request"),
-            sandbox: .named("workspace-write")
-        )
-
-        var started = client.configurationStarted.makeAsyncIterator()
-        let sendTask = Task { @MainActor in
-            try await vm.sendTextWithControlImages(
-                "画像を説明して",
-                submit: true,
-                images: [(mediaType: "image/png", data: tinyPNG)]
+        try await withTerminatedViewModel(vm) {
+            try await vm.startNew(
+                approvalPolicy: .named("on-request"),
+                sandbox: .named("workspace-write")
             )
-        }
-        _ = await started.next()
-        try await vm.setModel(model: "text-model", effort: "medium")
-        await client.releaseConfiguration()
 
-        await #expect(throws: ChatSessionViewModel.ControlImageSendError.imageSendSnapshotChanged) {
-            try await sendTask.value
+            var started = client.configurationStarted.makeAsyncIterator()
+            let sendTask = Task { @MainActor in
+                try await vm.sendTextWithControlImages(
+                    "画像を説明して",
+                    submit: true,
+                    images: [(mediaType: "image/png", data: tinyPNG)]
+                )
+            }
+            _ = await started.next()
+            try await vm.setModel(model: "text-model", effort: "medium")
+            await client.releaseConfiguration()
+
+            await #expect(throws: ChatSessionViewModel.ControlImageSendError.imageSendSnapshotChanged) {
+                try await sendTask.value
+            }
+            #expect(await client.lastTurnStartInput() == nil)
         }
-        #expect(await client.lastTurnStartInput() == nil)
     }
 }
 
@@ -197,6 +219,8 @@ private actor RacingCodexImageClient: StructuredAgentClient, CodexSettingsProvid
     func interrupt() async throws {}
 
     func close() async {
+        configurationContinuation?.resume()
+        configurationContinuation = nil
         eventContinuation.finish()
         threadEventContinuation.finish()
         configurationStartedContinuation.finish()

@@ -75,20 +75,24 @@ struct AcceptanceCodexSubAgentTests {
     func clientEventPreservesChildIdentity() async throws {
         let transport = SubAgentEventTransport()
         let client = CodexAppServerClient(transport: transport)
-        await client.start()
-        var iterator = client.events.makeAsyncIterator()
+        do {
+            await client.start()
+            var iterator = client.events.makeAsyncIterator()
 
-        transport.receive(#"{"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"threadId":"child-1","turnId":"turn-1","itemId":"item-1","delta":"child output"}}"#)
-        let event = try #require(await iterator.next())
-        guard case .agentMessageDelta(let threadId, let turnId, let itemId, let delta) = event else {
-            Issue.record("child agent message が実client eventへ届いていない")
+            transport.receive(#"{"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"threadId":"child-1","turnId":"turn-1","itemId":"item-1","delta":"child output"}}"#)
+            let event = try #require(await iterator.next())
+            if case .agentMessageDelta(let threadId, let turnId, let itemId, let delta) = event {
+                #expect(threadId == "child-1")
+                #expect(turnId == "turn-1")
+                #expect(itemId == "item-1")
+                #expect(delta == "child output")
+            } else {
+                Issue.record("child agent message が実client eventへ届いていない")
+            }
+        } catch {
             await client.close()
-            return
+            throw error
         }
-        #expect(threadId == "child-1")
-        #expect(turnId == "turn-1")
-        #expect(itemId == "item-1")
-        #expect(delta == "child output")
         await client.close()
     }
 

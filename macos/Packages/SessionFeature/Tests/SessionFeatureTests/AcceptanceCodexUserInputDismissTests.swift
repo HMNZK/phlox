@@ -97,6 +97,21 @@ private func source(of fileName: String) throws -> String {
     return try String(contentsOf: url, encoding: .utf8)
 }
 
+@MainActor
+private func withTerminatedViewModel<T>(
+    _ viewModel: ChatSessionViewModel,
+    operation: () async throws -> T
+) async throws -> T {
+    do {
+        let result = try await operation()
+        await viewModel.terminate()
+        return result
+    } catch {
+        await viewModel.terminate()
+        throw error
+    }
+}
+
 @Suite("Acceptance: Codex 質問の拒否が wire を決着させる（task-4 追加契約）")
 struct AcceptanceCodexUserInputDismissTests {
     @Test @MainActor
@@ -110,30 +125,38 @@ struct AcceptanceCodexUserInputDismissTests {
             approvalBroker: broker,
             workingDirectory: "/tmp/phlox-codex-dismiss-test"
         )
+        try await withTerminatedViewModel(vm) {
+            client.yield(.turnStarted)
+            _ = await waitUntil { vm.status == .running }
 
-        client.yield(.turnStarted)
-        _ = await waitUntil { vm.status == .running }
+            let handler = broker.serverRequestHandler
+            let box = WireBox()
+            let requestTask = Task {
+                _ = try? await handler(.userInputRequest(codexRequest()))
+                await box.mark()
+            }
+            do {
+                let appeared = await waitUntil { firstQuestionRequestId(vm) != nil }
+                #expect(appeared)
+                let requestId = try #require(firstQuestionRequestId(vm))
 
-        let handler = broker.serverRequestHandler
-        let box = WireBox()
-        Task {
-            _ = try? await handler(.userInputRequest(codexRequest()))
-            await box.mark()
+                let declined = await vm.declineUserQuestion(requestId: requestId)
+                #expect(declined)
+
+                // ここが本丸: 拒否したら Codex 側の要求が**決着している**こと（宙吊りにしない）。
+                let wireSettled = await settled(box)
+                #expect(wireSettled, "拒否は broker.declineUserInput で wire を決着させること（Codex を待たせない）")
+
+                let interrupted = await waitUntil { client.interruptCount >= 1 }
+                #expect(interrupted, "拒否はターンを中断すること（ゲート①の決定 D4）")
+                _ = await requestTask.value
+            } catch {
+                await vm.terminate()
+                requestTask.cancel()
+                _ = await requestTask.value
+                throw error
+            }
         }
-
-        let appeared = await waitUntil { firstQuestionRequestId(vm) != nil }
-        #expect(appeared)
-        let requestId = try #require(firstQuestionRequestId(vm))
-
-        let declined = await vm.declineUserQuestion(requestId: requestId)
-        #expect(declined)
-
-        // ここが本丸: 拒否したら Codex 側の要求が**決着している**こと（宙吊りにしない）。
-        let wireSettled = await settled(box)
-        #expect(wireSettled, "拒否は broker.declineUserInput で wire を決着させること（Codex を待たせない）")
-
-        let interrupted = await waitUntil { client.interruptCount >= 1 }
-        #expect(interrupted, "拒否はターンを中断すること（ゲート①の決定 D4）")
     }
 
     @Test @MainActor
@@ -150,23 +173,25 @@ struct AcceptanceCodexUserInputDismissTests {
             approvalBroker: broker,
             workingDirectory: "/tmp/phlox-codex-interrupt-test"
         )
+        try await withTerminatedViewModel(vm) {
+            client.yield(.turnStarted)
+            _ = await waitUntil { vm.status == .running }
 
-        client.yield(.turnStarted)
-        _ = await waitUntil { vm.status == .running }
+            let handler = broker.serverRequestHandler
+            let box = WireBox()
+            let requestTask = Task {
+                _ = try? await handler(.userInputRequest(codexRequest()))
+                await box.mark()
+            }
+            _ = await waitUntil { firstQuestionRequestId(vm) != nil }
 
-        let handler = broker.serverRequestHandler
-        let box = WireBox()
-        Task {
-            _ = try? await handler(.userInputRequest(codexRequest()))
-            await box.mark()
+            // 拒否ボタンではなく、汎用のターン中断を呼ぶ。
+            await vm.turnInterrupt()
+
+            let wireSettled = await settled(box)
+            #expect(wireSettled, "ターン中断でも保留中の質問を決着させること（Codex を宙吊りにしない）")
+            _ = await requestTask.value
         }
-        _ = await waitUntil { firstQuestionRequestId(vm) != nil }
-
-        // 拒否ボタンではなく、汎用のターン中断を呼ぶ。
-        await vm.turnInterrupt()
-
-        let wireSettled = await settled(box)
-        #expect(wireSettled, "ターン中断でも保留中の質問を決着させること（Codex を宙吊りにしない）")
     }
 
     @Test

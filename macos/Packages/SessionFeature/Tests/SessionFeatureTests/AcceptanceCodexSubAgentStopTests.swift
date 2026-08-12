@@ -47,19 +47,23 @@ struct AcceptanceCodexSubAgentStopTests {
     func clientEventPreservesInterruptedChildCompletion() async throws {
         let transport = SubAgentStopEventTransport()
         let client = CodexAppServerClient(transport: transport)
-        await client.start()
-        var iterator = client.events.makeAsyncIterator()
+        do {
+            await client.start()
+            var iterator = client.events.makeAsyncIterator()
 
-        transport.receive(#"{"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"child-1","turn":{"id":"turn-1","status":"interrupted","items":[]}}}"#)
-        let event = try #require(await iterator.next())
-        guard case .turnCompleted(let threadId, let turn) = event else {
-            Issue.record("interrupted completion が実client eventへ届いていない")
+            transport.receive(#"{"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"child-1","turn":{"id":"turn-1","status":"interrupted","items":[]}}}"#)
+            let event = try #require(await iterator.next())
+            if case .turnCompleted(let threadId, let turn) = event {
+                #expect(threadId == "child-1")
+                #expect(turn.id == "turn-1")
+                #expect(turn.status == "interrupted")
+            } else {
+                Issue.record("interrupted completion が実client eventへ届いていない")
+            }
+        } catch {
             await client.close()
-            return
+            throw error
         }
-        #expect(threadId == "child-1")
-        #expect(turn.id == "turn-1")
-        #expect(turn.status == "interrupted")
         await client.close()
     }
 

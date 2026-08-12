@@ -60,26 +60,31 @@ struct AcceptanceCodexBackgroundTerminalTests {
     func clientBridgesBackgroundTerminalMethods() async throws {
         let transport = BackgroundTerminalTransport()
         let client = CodexAppServerClient(transport: transport)
-        await client.start()
+        do {
+            await client.start()
 
-        let response = try await client.threadBackgroundTerminalsList(
-            ThreadBackgroundTerminalsListParams(threadId: "thread-parent", cursor: nil, limit: 20)
-        )
-        #expect(response.data.map { $0.itemId } == ["item-1"])
-        #expect(response.data.first?.processId == "process-1")
+            let response = try await client.threadBackgroundTerminalsList(
+                ThreadBackgroundTerminalsListParams(threadId: "thread-parent", cursor: nil, limit: 20)
+            )
+            #expect(response.data.map { $0.itemId } == ["item-1"])
+            #expect(response.data.first?.processId == "process-1")
 
-        let terminated = try await client.threadBackgroundTerminalsTerminate(
-            ThreadBackgroundTerminalsTerminateParams(threadId: "thread-parent", processId: "process-1")
-        )
-        #expect(terminated.terminated)
+            let terminated = try await client.threadBackgroundTerminalsTerminate(
+                ThreadBackgroundTerminalsTerminateParams(threadId: "thread-parent", processId: "process-1")
+            )
+            #expect(terminated.terminated)
 
-        let requests = await transport.requests.all()
-        #expect(requests.map { $0["method"]?.stringValue } == [
-            "thread/backgroundTerminals/list",
-            "thread/backgroundTerminals/terminate",
-        ])
-        #expect(requests[0]["params"]?["threadId"] == .string("thread-parent"))
-        #expect(requests[1]["params"]?["processId"] == .string("process-1"))
+            let requests = await transport.requests.all()
+            #expect(requests.map { $0["method"]?.stringValue } == [
+                "thread/backgroundTerminals/list",
+                "thread/backgroundTerminals/terminate",
+            ])
+            #expect(requests[0]["params"]?["threadId"] == .string("thread-parent"))
+            #expect(requests[1]["params"]?["processId"] == .string("process-1"))
+        } catch {
+            await client.close()
+            throw error
+        }
         await client.close()
     }
 

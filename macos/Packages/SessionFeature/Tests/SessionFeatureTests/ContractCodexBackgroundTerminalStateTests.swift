@@ -10,22 +10,27 @@ struct ContractCodexBackgroundTerminalStateTests {
     func stateUsesRealExperimentalClientSeam() async throws {
         let transport = ContractStateTransport()
         let client = CodexAppServerClient(transport: transport)
-        await client.start()
-        let state = CodexBackgroundTerminalState(client: client, threadId: "thread-contract")
+        do {
+            await client.start()
+            let state = CodexBackgroundTerminalState(client: client, threadId: "thread-contract")
 
-        await state.refresh()
-        #expect(state.terminal(itemId: "item-1")?.processId == "process-1")
-        #expect(await state.terminate(itemId: "item-1"))
-        #expect(state.terminal(itemId: "item-1") == nil)
+            await state.refresh()
+            #expect(state.terminal(itemId: "item-1")?.processId == "process-1")
+            #expect(await state.terminate(itemId: "item-1"))
+            #expect(state.terminal(itemId: "item-1") == nil)
 
-        let requests = await transport.requests.all()
-        #expect(requests.map { $0["method"]?.stringValue } == [
-            "thread/backgroundTerminals/list",
-            "thread/backgroundTerminals/terminate",
-            "thread/backgroundTerminals/list",
-        ])
-        #expect(requests[1]["params"]?["threadId"] == .string("thread-contract"))
-        #expect(requests[1]["params"]?["processId"] == .string("process-1"))
+            let requests = await transport.requests.all()
+            #expect(requests.map { $0["method"]?.stringValue } == [
+                "thread/backgroundTerminals/list",
+                "thread/backgroundTerminals/terminate",
+                "thread/backgroundTerminals/list",
+            ])
+            #expect(requests[1]["params"]?["threadId"] == .string("thread-contract"))
+            #expect(requests[1]["params"]?["processId"] == .string("process-1"))
+        } catch {
+            await client.close()
+            throw error
+        }
         await client.close()
     }
 }

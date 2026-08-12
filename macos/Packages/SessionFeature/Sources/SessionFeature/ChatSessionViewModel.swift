@@ -396,6 +396,11 @@ public final class ChatSessionViewModel: Identifiable {
         updateNativeSessionId(thread.id)
     }
 
+    /// 履歴詳細を既存のチャットセルへ表示するための変換。
+    public func codexHistoryItems(for thread: ThreadSummary) -> [ChatItem] {
+        thread.turns?.flatMap { $0.items ?? [] }.compactMap { chatItem(from: $0) } ?? []
+    }
+
     public var canStopCodexSubAgents: Bool {
         codexSubAgentState?.children.contains {
             codexSubAgentState?.stopState(for: $0.id) == .available
@@ -409,10 +414,12 @@ public final class ChatSessionViewModel: Identifiable {
               let client = client as? any CodexSubAgentProviding else { return }
         do {
             let response = try await client.threadList(ThreadListParams(parentThreadId: parentThreadId))
+            guard threadId == parentThreadId else { return }
             let children = response.data.map(Self.codexChild)
             codexSubAgentState?.apply(.available(children: children))
             codexSubAgentError = nil
         } catch {
+            guard threadId == parentThreadId else { return }
             codexSubAgentError = String(describing: error)
         }
     }
@@ -2417,7 +2424,12 @@ extension ChatSessionViewModel: ControllableSession {
                    let native = client as? any CodexNativeSkillInputSending,
                    let skillInputs = nativeSkillInputs,
                    skillInputs.contains(where: { if case .skill = $0 { true } else { false } }) {
-                    try await native.turnStartNative(skillInputs)
+                    let nativeInputs = try materializeNativeSkillInputs(
+                        skillInputs,
+                        chatInputs: buildChatInputs(text: "")
+                    )
+                    defer { Self.removeNativeSkillInputDirectory(nativeInputs.temporaryDirectory) }
+                    try await native.turnStartNative(nativeInputs.inputs)
                 } else {
                     try await client.turnStart(buildChatInputs(text: clientInput))
                 }
@@ -2444,6 +2456,53 @@ extension ChatSessionViewModel: ControllableSession {
         guard draftClearedForSend != nil else { return }
         draft = text
         draftClearedForSend = text
+    }
+
+    private struct MaterializedNativeSkillInputs {
+        let inputs: [UserInput]
+        let temporaryDirectory: URL?
+    }
+
+    private func materializeNativeSkillInputs(
+        _ skillInputs: [UserInput],
+        chatInputs: [ChatInput]
+    ) throws -> MaterializedNativeSkillInputs {
+        let images = chatInputs.compactMap { input -> (Data, String)? in
+            guard case .image(let data, let mediaType) = input else { return nil }
+            return (data, mediaType)
+        }
+        guard !images.isEmpty else {
+            return MaterializedNativeSkillInputs(inputs: skillInputs, temporaryDirectory: nil)
+        }
+
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("phlox-codex-images-\(UUID().uuidString)", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let localImages = try images.enumerated().map { index, image -> UserInput in
+                let path = directory.appendingPathComponent("image-\(index)")
+                try image.0.write(to: path, options: .atomic)
+                guard FileManager.default.isReadableFile(atPath: path.path) else {
+                    throw CodexStructuredClientError.imageMaterializationFailed
+                }
+                return .localImage(path: path.path, detail: nil)
+            }
+            return MaterializedNativeSkillInputs(
+                inputs: skillInputs + localImages,
+                temporaryDirectory: directory
+            )
+        } catch let error as CodexStructuredClientError {
+            Self.removeNativeSkillInputDirectory(directory)
+            throw error
+        } catch {
+            Self.removeNativeSkillInputDirectory(directory)
+            throw CodexStructuredClientError.imageMaterializationFailed
+        }
+    }
+
+    private static func removeNativeSkillInputDirectory(_ directory: URL?) {
+        guard let directory else { return }
+        try? FileManager.default.removeItem(at: directory)
     }
 
     /// サブエージェントタブからのフォローアップ送信（task-3 契約。

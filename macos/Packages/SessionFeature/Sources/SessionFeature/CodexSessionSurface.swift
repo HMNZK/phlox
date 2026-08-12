@@ -1,4 +1,6 @@
+import Foundation
 import SwiftUI
+import AgentDomain
 import CodexAppServerKit
 import DesignSystem
 
@@ -68,9 +70,9 @@ struct CodexSessionSurface: View {
                         HStack(spacing: DSSpacing.xs) {
                             ForEach(history.entries, id: \.id) { thread in
                                 Button {
+                                    guard history.select(threadID: thread.id) else { return }
                                     Task {
-                                        _ = try? await history.resume(threadID: thread.id)
-                                        await viewModel.reloadCodexHistory(threadID: thread.id)
+                                        _ = try? await history.read(threadID: thread.id)
                                     }
                                 } label: {
                                     Text(thread.name ?? thread.preview)
@@ -78,15 +80,44 @@ struct CodexSessionSurface: View {
                                 }
                                 .buttonStyle(.bordered)
                                 .accessibilityIdentifier("CodexHistory.row.\(thread.id)")
+                                Button("再開") {
+                                    Task {
+                                        guard history.select(threadID: thread.id) else { return }
+                                        _ = try? await history.resume(threadID: thread.id)
+                                        await viewModel.reloadCodexHistory(threadID: thread.id)
+                                    }
+                                }
+                                .accessibilityIdentifier("CodexHistory.resume.\(thread.id)")
                             }
                         }
+                    }
+                    if let selected = history.selectedThread {
+                        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                            Text("ID: \(selected.id)")
+                                .font(DSFont.monoCaption)
+                            Text(selected.name ?? selected.preview)
+                                .lineLimit(2)
+                            ForEach(viewModel.codexHistoryItems(for: selected), id: \.id) { item in
+                                ChatItemView(
+                                    item: item,
+                                    isRunningCommand: false,
+                                    agentDescriptor: AgentRegistry.descriptor(for: .codex)
+                                )
+                            }
+                        }
+                        .accessibilityIdentifier("CodexHistory.detail.\(selected.id)")
                     }
                 }
                 if let terminals = viewModel.codexBackgroundTerminalState,
                    !terminals.items.isEmpty {
                     ForEach(terminals.items, id: \.itemId) { terminal in
                         HStack {
-                            Button(terminal.command) {
+                            Button {
+                                _ = terminals.select(itemId: terminal.itemId)
+                            } label: {
+                                Text(terminal.command)
+                            }
+                            Button("ジャンプ") {
                                 if let target = terminals.jumpTarget(for: terminal.itemId, transcriptItemIds: viewModel.transcriptItemIDs) {
                                     onJump(target)
                                 }
@@ -94,6 +125,25 @@ struct CodexSessionSurface: View {
                             .disabled(terminals.jumpTarget(for: terminal.itemId, transcriptItemIds: viewModel.transcriptItemIDs) == nil)
                             Button("停止") { Task { _ = await terminals.stop(itemId: terminal.itemId) } }
                         }
+                        .accessibilityIdentifier("CodexBackgroundTerminal.\(terminal.itemId)")
+                    }
+                    if let selected = terminals.selectedTerminal {
+                        let cpu = selected.cpuPercent.map { String(format: "%.2f%%", $0) } ?? "不明"
+                        let memory = selected.rssKb.map { "\($0) KiB" } ?? "不明"
+                        let pid = selected.osPid.map(String.init) ?? "不明"
+                        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                            Text("コマンド: \(selected.command)")
+                            Text("作業ディレクトリ: \(selected.cwd)")
+                            Text("状態: 実行中")
+                            Text("PID: \(pid)")
+                            Text("CPU: \(cpu)")
+                            Text("メモリ: \(memory)")
+                            if let output = viewModel.transcript.first(where: { $0.id == selected.itemId })?.plainText,
+                               !output.isEmpty {
+                                Text("出力: \(output)")
+                            }
+                        }
+                        .accessibilityIdentifier("CodexBackgroundTerminal.detail.\(selected.itemId)")
                     }
                 }
             }
@@ -105,7 +155,10 @@ struct CodexSessionSurface: View {
                 await viewModel.codexBackgroundTerminalState?.refresh()
             }
             .onChange(of: viewModel.threadId) { _, _ in
-                Task { await viewModel.refreshCodexSubAgents() }
+                Task {
+                    await viewModel.refreshCodexSubAgents()
+                    await viewModel.codexBackgroundTerminalState?.refresh()
+                }
             }
             .accessibilityIdentifier("CodexSessionSurface")
         }

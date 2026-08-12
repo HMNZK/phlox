@@ -4,8 +4,8 @@ import Observation
 
 /// `skills/list` の結果を保持し、選択した skill を native input に変換する状態。
 ///
-/// 一覧の再取得は明示的な `refresh()` だけで行う。`skills/changed` は一覧を無効化する
-/// 通知なので、自動で wire request を発行せず、選択中の skill も再選択が必要になる。
+/// 一覧は `refresh()` で取得する。`skills/changed` を受けたときは stale を表示したまま
+/// 自動で再取得し、再取得後も旧選択を再利用せず再選択を要求する。
 public protocol CodexSkillSelectionClient: Sendable {
     var skillEvents: AsyncStream<ThreadEvent> { get }
     func skillsList(_ params: SkillsListParams) async throws -> SkillsListResponse
@@ -34,11 +34,15 @@ public final class CodexSkillSelectionState {
     public private(set) var searchTerm = ""
     public private(set) var isLoading = false
     public private(set) var isStale = false
+    /// 一覧の更新後、変更前に選択していた skill を再選択する必要があるか。
+    public private(set) var requiresReselection = false
     public private(set) var errorMessage: String?
 
     private let client: any CodexSkillSelectionClient
     private let sessionCWD: String
     @ObservationIgnored private var eventTask: Task<Void, Never>?
+    @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var refreshTaskID = 0
     private var generation = 0
     private var selectionGeneration: Int?
 
@@ -48,13 +52,14 @@ public final class CodexSkillSelectionState {
         eventTask = Task { @MainActor [weak self, client] in
             for await event in client.skillEvents {
                 guard case .skillsChanged = event else { continue }
-                self?.invalidate()
+                self?.handle(event)
             }
         }
     }
 
     deinit {
         eventTask?.cancel()
+        refreshTask?.cancel()
     }
 
     /// 現在の session cwd だけを `skills/list` へ渡して一覧を更新する。
@@ -79,25 +84,31 @@ public final class CodexSkillSelectionState {
             isLoading = false
             errorMessage = entry.errors.map(\.message).joined(separator: "\n").nilIfEmpty
             isStale = !entry.errors.isEmpty
+            requiresReselection = selectedSkill != nil
         } catch {
             guard requestGeneration == generation else { return }
             isLoading = false
             isStale = true
+            requiresReselection = selectedSkill != nil
             errorMessage = error.localizedDescription
         }
     }
 
-    /// `skills/changed` を受けたときの無効化処理。再取得は呼び出し側が行う。
+    /// 明示的に一覧を stale 化する。直接呼び出した場合は送信を止めるだけで、再取得は行わない。
     public func invalidate() {
         generation += 1
         isLoading = false
         isStale = true
+        requiresReselection = selectedSkill != nil
         errorMessage = nil
     }
 
     public func handle(_ event: ThreadEvent) {
         if case .skillsChanged = event {
+            refreshTask?.cancel()
+            refreshTask = nil
             invalidate()
+            scheduleRefresh()
         }
     }
 
@@ -118,13 +129,14 @@ public final class CodexSkillSelectionState {
     /// 一覧に存在し、enabled かつ identity が一致する候補だけを選択する。
     @discardableResult
     public func select(_ skill: SkillMetadata) -> Bool {
-        guard !isStale else { return false }
+        guard !isStale, !isLoading else { return false }
         guard let current = skills.first(where: { Self.sameIdentity($0, skill) }), Self.isUsable(current) else {
             return false
         }
         selectedSkill = current
         selectedIndex = filteredSkills.firstIndex(where: { Self.sameIdentity($0, current) }) ?? 0
         selectionGeneration = generation
+        requiresReselection = false
         isStale = false
         return true
     }
@@ -140,6 +152,7 @@ public final class CodexSkillSelectionState {
     public func clearSelection() {
         selectedSkill = nil
         selectionGeneration = nil
+        requiresReselection = false
     }
 
     /// 本番 composer と同じ上下/Enter 操作を surface から利用する seam。
@@ -164,12 +177,13 @@ public final class CodexSkillSelectionState {
               let selectionGeneration,
               selectionGeneration == generation,
               !isStale,
+              !requiresReselection,
               skills.contains(where: { Self.sameIdentity($0, selectedSkill) && Self.isUsable($0) })
         else { return false }
         return true
     }
 
-    /// draft を wire 入力へ変換する。stale な選択は送信せず `nil` を返す。
+    /// draft を wire 入力へ変換する。stale/再選択待ちの選択は送信せず `nil` を返す。
     public func inputs(for value: String? = nil) -> [UserInput]? {
         let text = value ?? draft
         guard let selectedSkill else {
@@ -188,6 +202,30 @@ public final class CodexSkillSelectionState {
 
     public func nativeInputs(for value: String? = nil) -> [UserInput]? {
         inputs(for: value)
+    }
+
+    /// 本文を保持したまま送信を拒否した理由。UI はこれを既存のエラー表示へ載せる。
+    public var invalidSelectionMessage: String? {
+        guard selectedSkill != nil, !canSendSelectedSkill else { return nil }
+        if isLoading || isStale {
+            return "Codex skill の候補を更新中です。完了後に skill を再選択してください。"
+        }
+        if requiresReselection {
+            return "Codex skill の候補が更新されました。送信前に skill を再選択してください。"
+        }
+        return "選択した Codex skill は現在の候補から送信できません。再選択してください。"
+    }
+
+    private func scheduleRefresh() {
+        guard refreshTask == nil else { return }
+        refreshTaskID += 1
+        let taskID = refreshTaskID
+        refreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await refresh()
+            guard refreshTaskID == taskID else { return }
+            refreshTask = nil
+        }
     }
 
     private enum StateError: LocalizedError {

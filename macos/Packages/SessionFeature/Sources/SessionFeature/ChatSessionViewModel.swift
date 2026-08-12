@@ -1838,7 +1838,7 @@ public final class ChatSessionViewModel: Identifiable {
         case .planUpdated:
             _ = codexPlanTaskState?.apply(event: event)
         case .skillsChanged:
-            codexSkillSelectionState?.invalidate()
+            codexSkillSelectionState?.handle(event)
         default:
             break
         }
@@ -2450,6 +2450,10 @@ extension ChatSessionViewModel: ControllableSession {
                 nativeSkillInputs = codexSkillSelectionState?.nativeInputs(for: clientInput)
                 guard nativeSkillInputs != nil else {
                     restoreDraftAfterRejectedSend(input)
+                    reportError(
+                        codexSkillSelectionState?.invalidSelectionMessage
+                            ?? "Codex skill の候補が更新されたため、送信前に skill を再選択してください。"
+                    )
                     return
                 }
             } else {

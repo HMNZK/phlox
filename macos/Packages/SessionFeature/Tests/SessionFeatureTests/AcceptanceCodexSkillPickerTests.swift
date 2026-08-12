@@ -134,11 +134,92 @@ struct AcceptanceCodexSkillPickerTests {
         #expect(state.inputs(for: "$review 本文") == nil)
         await client.close()
     }
+
+    @Test("skills/changed は一覧を自動再取得し、旧選択の再送を止める")
+    @MainActor
+    func changedReloadsAndRequiresReselection() async throws {
+        let client = ReloadingSkillClient(responses: [
+            skillListResponse(path: "/old/review", cwd: cwd),
+            skillListResponse(path: "/new/review", cwd: cwd),
+        ])
+        let state = CodexSkillSelectionState(client: client, sessionCWD: cwd)
+        await state.refresh()
+        let old = try #require(state.skills.first)
+        #expect(state.select(old))
+
+        state.handle(.skillsChanged)
+        #expect(state.isStale || state.isLoading)
+
+        for _ in 0..<100 {
+            if await client.callCount >= 2 { break }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(await client.callCount == 2)
+        #expect(state.skills.first?.path == "/new/review")
+        #expect(state.requiresReselection)
+        #expect(state.inputs(for: "$review 本文") == nil)
+        #expect(state.invalidSelectionMessage?.contains("再選択") == true)
+
+        #expect(state.select(name: "review", path: "/new/review"))
+        #expect(state.inputs(for: "$review 本文") == [
+            .text("本文"),
+            .skill(name: "review", path: "/new/review"),
+        ])
+    }
 }
 
 private extension JSONValue {
     var arrayValue: [JSONValue]? {
         guard case .array(let values) = self else { return nil }
         return values
+    }
+}
+
+private func skillListResponse(path: String, cwd: String) -> SkillsListResponse {
+    SkillsListResponse(data: [SkillsListEntry(
+        cwd: cwd,
+        errors: [],
+        skills: [SkillMetadata(
+            description: "",
+            enabled: true,
+            name: "review",
+            path: path,
+            scope: .user
+        )]
+    )])
+}
+
+private final class ReloadingSkillClient: CodexSkillSelectionClient, @unchecked Sendable {
+    let skillEvents = AsyncStream<ThreadEvent> { continuation in
+        continuation.finish()
+    }
+
+    private actor CallState {
+        var responses: [SkillsListResponse]
+        var calls = 0
+
+        init(responses: [SkillsListResponse]) {
+            self.responses = responses
+        }
+
+        func next() -> SkillsListResponse {
+            let response = responses[min(calls, responses.count - 1)]
+            calls += 1
+            return response
+        }
+    }
+
+    private let state: CallState
+
+    init(responses: [SkillsListResponse]) {
+        state = CallState(responses: responses)
+    }
+
+    func skillsList(_ params: SkillsListParams) async throws -> SkillsListResponse {
+        await state.next()
+    }
+
+    var callCount: Int {
+        get async { await state.calls }
     }
 }

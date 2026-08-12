@@ -10,6 +10,7 @@ import DesignSystem
 struct GridChatColumn: View {
     @Bindable var viewModel: ChatSessionViewModel
     let onFocusGained: () -> Void
+    @State private var requestedTranscriptTarget: String?
     @State private var composerHeight: CGFloat = 0
     /// ウィンドウの live resize（ドラッグ）中か。ADR 0116。
     @State private var isLiveResizing = false
@@ -32,6 +33,7 @@ struct GridChatColumn: View {
                     showsThinkingIndicator: viewModel.selectedSubAgentId == nil,
                     contentMaxWidth: ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: formattingWidth),
                     bottomScrollContentMargin: composerHeight,
+                    requestedScrollTarget: $requestedTranscriptTarget,
                     presentationContext: .gridTile,
                     onSelectSubAgent: { viewModel.selectSubAgent($0) }
                 )
@@ -72,6 +74,18 @@ struct GridChatColumn: View {
                         } action: { height in
                             composerHeight = height
                         }
+                    }
+                    .overlay(alignment: .top) {
+                        CodexSessionSurface(
+                            viewModel: viewModel,
+                            onJump: { requestedTranscriptTarget = $0 },
+                            onSelectChild: { childID in
+                                Task { await viewModel.loadCodexSubAgentDetail(threadID: childID) }
+                            },
+                            onStopChild: { childID in
+                                Task { await viewModel.stopCodexSubAgent(threadID: childID) }
+                            }
+                        )
                     }
             }
             // 凍結中は「実際に提案される幅」も固定する。maxWidth を止めるだけでは、タイルが縮んだ
@@ -165,8 +179,12 @@ struct GridComposerBar: View {
         self.onSend = onSend
         self.onInterrupt = onInterrupt
         self.onFocusGained = onFocusGained
+        let controller = ComposerSuggestionController.production(workingDirectory: viewModel.workspacePath)
+        controller.onAcceptSkill = { [weak viewModel] identity in
+            viewModel?.codexSkillSelectionState?.select(name: identity.name, path: identity.path)
+        }
         _suggestionController = State(
-            wrappedValue: ComposerSuggestionController.production(workingDirectory: viewModel.workspacePath)
+            wrappedValue: controller
         )
     }
 
@@ -200,6 +218,13 @@ struct GridComposerBar: View {
                     .foregroundStyle(DSColor.statusError)
                     .lineLimit(2)
                     .accessibilityIdentifier("GridComposer.codexSkillError")
+            }
+            if let staleMessage = viewModel.codexSkillSelectionState?.invalidSelectionMessage {
+                Text(staleMessage)
+                .font(DSFont.caption)
+                .foregroundStyle(DSColor.statusAwaitingApproval)
+                .lineLimit(2)
+                .accessibilityIdentifier("GridComposer.codexSkillStale")
             }
             ComposerAttachmentStrip(
                 store: viewModel.attachmentStore,
@@ -267,10 +292,12 @@ struct GridComposerBar: View {
         .padding(DSSpacing.s)
         .onChange(of: text) { oldValue, newValue in
             viewModel.syncAttachmentsWithDraftEdit(oldText: oldValue, newText: newValue)
+            updateCodexSkillSuggestions()
         }
         .onAppear {
             suggestionController.availableSlashCommands = viewModel.availableSlashCommands
             suggestionController.seedSlashCommands = viewModel.seedSlashCommands
+            updateCodexSkillSuggestions()
         }
         .onChange(of: viewModel.availableSlashCommands) { _, commands in
             suggestionController.availableSlashCommands = commands
@@ -278,12 +305,47 @@ struct GridComposerBar: View {
         .onChange(of: viewModel.seedSlashCommands) { _, commands in
             suggestionController.seedSlashCommands = commands
         }
+        .onChange(of: viewModel.codexSkillSelectionState?.filteredSkills.map { "\($0.name)\u{0}\($0.path)" }) { _, _ in
+            updateCodexSkillSuggestions()
+        }
+        .onChange(of: viewModel.codexSkillSelectionState?.isStale) { _, _ in
+            updateCodexSkillSuggestions()
+        }
+        .onChange(of: viewModel.codexSkillSelectionState?.requiresReselection) { _, _ in
+            updateCodexSkillSuggestions()
+        }
     }
 
     private func acceptSuggestionFromPopup(_ index: Int) {
         suggestionController.select(index)
         guard let replacement = suggestionController.acceptSelected() else { return }
         text = ComposerSuggestionTextReplacement.apply(replacement, to: text).text
+    }
+
+    private func updateCodexSkillSuggestions() {
+        guard viewModel.agentRef == .builtin(.codex),
+              let state = viewModel.codexSkillSelectionState,
+              !state.isStale,
+              let query = SuggestionTrigger.query(text: text, cursorUTF16: text.utf16.count),
+              query.kind == .slashCommand
+        else {
+            suggestionController.updateExternalCandidates(nil)
+            return
+        }
+
+        state.search(query.searchTerm)
+        suggestionController.updateExternalCandidates(
+            state.filteredSkills.compactMap { skill in
+                guard skill.enabled, !skill.name.isEmpty, !skill.path.isEmpty else { return nil }
+                return SuggestionCandidate(
+                    title: "/\(skill.name)",
+                    insertionText: "$\(skill.name)",
+                    subtitle: skill.description,
+                    kind: .slashCommand,
+                    skillIdentity: SkillIdentity(name: skill.name, path: skill.path)
+                )
+            }
+        )
     }
 
     private func addPastedImage(data: Data, mediaType: String) -> ComposerPasteImageOutcome {

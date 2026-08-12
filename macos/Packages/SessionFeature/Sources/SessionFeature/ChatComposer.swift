@@ -53,6 +53,13 @@ struct ChatComposer: View {
                     .lineLimit(2)
                     .accessibilityIdentifier("ChatComposer.codexSkillError")
             }
+            if let staleMessage = viewModel.codexSkillSelectionState?.invalidSelectionMessage {
+                Text(staleMessage)
+                .font(DSFont.caption)
+                .foregroundStyle(DSColor.statusAwaitingApproval)
+                .lineLimit(2)
+                .accessibilityIdentifier("ChatComposer.codexSkillStale")
+            }
             ComposerAttachmentStrip(
                 store: viewModel.attachmentStore,
                 layout: controlsLayout.settingsLayout,
@@ -133,6 +140,9 @@ struct ChatComposer: View {
             updateCodexSkillSuggestions()
         }
         .onChange(of: viewModel.codexSkillSelectionState?.isStale) { _, _ in
+            updateCodexSkillSuggestions()
+        }
+        .onChange(of: viewModel.codexSkillSelectionState?.requiresReselection) { _, _ in
             updateCodexSkillSuggestions()
         }
         .onChange(of: viewModel.availableSlashCommands) { _, commands in

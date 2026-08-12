@@ -142,4 +142,26 @@ struct AcceptanceCodexChatParityRouteTests {
             #expect(chat.subAgents.contains { $0.id == "route-child" })
         }
     }
+
+    @Test("Codex grid route は single と同じ surface・skill 配線へ到達する")
+    func codexGridRouteReusesChatSurfaceAndSkillWiring() throws {
+        let grid = try sessionFeatureSource("GridChatColumn.swift")
+        let pane = try sessionFeatureSource("PaneLayoutView.swift")
+
+        #expect(grid.contains("CodexSessionSurface("))
+        #expect(grid.contains("requestedScrollTarget: $requestedTranscriptTarget"))
+        #expect(grid.contains("controller.onAcceptSkill"))
+        #expect(grid.contains("updateCodexSkillSuggestions()"))
+        #expect(pane.contains("GridChatColumn(viewModel: session"))
+    }
+
+    private func sessionFeatureSource(_ relativePath: String) throws -> String {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let sourceURL = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("../../SessionFeature/Sources/SessionFeature/\(relativePath)")
+            .standardizedFileURL
+        return try String(contentsOf: sourceURL, encoding: .utf8)
+    }
 }

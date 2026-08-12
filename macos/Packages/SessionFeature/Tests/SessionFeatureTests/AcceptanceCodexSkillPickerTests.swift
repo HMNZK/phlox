@@ -1,6 +1,9 @@
 import Foundation
+import Observation
 import Testing
+import AgentDomain
 import CodexAppServerKit
+import StructuredChatKit
 @testable import SessionFeature
 
 @Suite("Acceptance: Codex /skill picker")
@@ -135,36 +138,101 @@ struct AcceptanceCodexSkillPickerTests {
         await client.close()
     }
 
-    @Test("skills/changed は一覧を自動再取得し、旧選択の再送を止める")
+    @Test("skills/changed は実 transport から VM へ届き、自動再取得・エラー・再選択を反映する")
     @MainActor
-    func changedReloadsAndRequiresReselection() async throws {
-        let client = ReloadingSkillClient(responses: [
-            skillListResponse(path: "/old/review", cwd: cwd),
-            skillListResponse(path: "/new/review", cwd: cwd),
-        ])
-        let state = CodexSkillSelectionState(client: client, sessionCWD: cwd)
-        await state.refresh()
-        let old = try #require(state.skills.first)
-        #expect(state.select(old))
+    func changedReloadsThroughViewModelAndRequiresReselection() async throws {
+        let transport = CodexProductionTransport(
+            cwd: cwd,
+            skillListResponses: [
+                skillListResponseJSON(path: "/old/review", cwd: cwd),
+                skillListResponseJSON(
+                    path: "/new/review",
+                    cwd: cwd,
+                    errors: [("skill scan failed", "/new/review")]
+                ),
+                skillListResponseJSON(path: "/fresh/review", cwd: cwd),
+            ]
+        )
+        let appServer = CodexAppServerClient(transport: transport)
+        let client = CodexStructuredAgentClient(client: appServer)
+        let viewModel = ChatSessionViewModel(
+            id: SessionID(),
+            agentRef: .builtin(.codex),
+            client: client,
+            approvalBroker: ChatApprovalBroker(),
+            workingDirectory: cwd
+        )
+        try await viewModel.startNew(
+            approvalPolicy: .named("on-request"),
+            sandbox: .named("workspace-write")
+        )
 
-        state.handle(.skillsChanged)
-        #expect(state.isStale || state.isLoading)
-
-        for _ in 0..<100 {
-            if await client.callCount >= 2 { break }
-            try await Task.sleep(for: .milliseconds(5))
+        let state = try #require(viewModel.codexSkillSelectionState)
+        try await waitUntil("initial skills/list") {
+            state.skills.first?.path == "/old/review"
         }
-        #expect(await client.callCount == 2)
-        #expect(state.skills.first?.path == "/new/review")
-        #expect(state.requiresReselection)
-        #expect(state.inputs(for: "$review 本文") == nil)
-        #expect(state.invalidSelectionMessage?.contains("再選択") == true)
-
-        #expect(state.select(name: "review", path: "/new/review"))
+        #expect(state.select(name: "review", path: "/old/review"))
         #expect(state.inputs(for: "$review 本文") == [
             .text("本文"),
-            .skill(name: "review", path: "/new/review"),
+            .skill(name: "review", path: "/old/review"),
         ])
+
+        // state.handle(.skillsChanged) を直接呼ばず、app-server transport の JSON-RPC 通知から投入する。
+        transport.receive(#"{"jsonrpc":"2.0","method":"skills/changed","params":{}}"#)
+        try await waitUntil("skills/changed の自動再取得とエラー反映") {
+            state.skills.first?.path == "/new/review" && state.errorMessage == "skill scan failed"
+        }
+        #expect(await transport.methods().filter { $0 == "skills/list" }.count == 2)
+        #expect(state.isStale)
+        #expect(state.requiresReselection)
+        #expect(state.inputs(for: "$review 本文") == nil)
+        #expect(state.select(name: "review", path: "/new/review") == false)
+        #expect(state.invalidSelectionMessage?.contains("再選択") == true)
+
+        // エラー後の再取得が成功しても、旧 identity は自動採用せず、明示的な再選択を要求する。
+        transport.receive(#"{"jsonrpc":"2.0","method":"skills/changed","params":{}}"#)
+        try await waitUntil("エラー後の skills/list 再取得") {
+            state.skills.first?.path == "/fresh/review" && state.errorMessage == nil
+        }
+        #expect(state.requiresReselection)
+        #expect(state.inputs(for: "$review 本文") == nil)
+        #expect(state.select(name: "review", path: "/fresh/review"))
+        #expect(state.inputs(for: "$review 本文") == [
+            .text("本文"),
+            .skill(name: "review", path: "/fresh/review"),
+        ])
+        #expect(await transport.methods().filter { $0 == "skills/list" }.count == 3)
+
+        await client.close()
+    }
+
+    @MainActor
+    private func waitUntil(
+        _ description: String,
+        timeout: Duration = .seconds(2),
+        _ condition: @escaping @MainActor () -> Bool
+    ) async throws {
+        guard condition() == false else { return }
+        let waiter = SkillPickerObservationWaiter(condition: condition)
+        let fulfilled = await withTaskGroup(of: Bool.self) { group in
+            group.addTask { await waiter.wait() }
+            group.addTask {
+                do {
+                    try await Task.sleep(for: timeout)
+                    return false
+                } catch {
+                    return false
+                }
+            }
+            let result = await group.next() ?? false
+            group.cancelAll()
+            waiter.cancel()
+            await group.waitForAll()
+            return result
+        }
+        guard fulfilled else {
+            throw SkillPickerWaitError.timedOut(description)
+        }
     }
 }
 
@@ -189,37 +257,76 @@ private func skillListResponse(path: String, cwd: String) -> SkillsListResponse 
     )])
 }
 
-private final class ReloadingSkillClient: CodexSkillSelectionClient, @unchecked Sendable {
-    let skillEvents = AsyncStream<ThreadEvent> { continuation in
-        continuation.finish()
-    }
+private func skillListResponseJSON(
+    path: String,
+    cwd: String,
+    errors: [(message: String, path: String)] = []
+) -> JSONValue {
+    .object([
+        "data": .array([.object([
+            "cwd": .string(cwd),
+            "errors": .array(errors.map { .object([
+                "message": .string($0.message),
+                "path": .string($0.path),
+            ]) }),
+            "skills": .array([.object([
+                "description": .string(""),
+                "enabled": .bool(true),
+                "name": .string("review"),
+                "path": .string(path),
+                "scope": .string("user"),
+            ])]),
+        ])]),
+    ])
+}
 
-    private actor CallState {
-        var responses: [SkillsListResponse]
-        var calls = 0
+private enum SkillPickerWaitError: Error, CustomStringConvertible {
+    case timedOut(String)
 
-        init(responses: [SkillsListResponse]) {
-            self.responses = responses
+    var description: String {
+        switch self {
+        case .timedOut(let description): "Timed out waiting for \(description)"
         }
+    }
+}
 
-        func next() -> SkillsListResponse {
-            let response = responses[min(calls, responses.count - 1)]
-            calls += 1
-            return response
+@MainActor
+private final class SkillPickerObservationWaiter {
+    private let condition: @MainActor () -> Bool
+    private let signals: AsyncStream<Void>
+    private let signalContinuation: AsyncStream<Void>.Continuation
+    private var cancelled = false
+
+    init(condition: @escaping @MainActor () -> Bool) {
+        self.condition = condition
+        var captured: AsyncStream<Void>.Continuation?
+        signals = AsyncStream(bufferingPolicy: .bufferingNewest(1)) { captured = $0 }
+        signalContinuation = captured!
+    }
+
+    func wait() async -> Bool {
+        guard !condition() else { return true }
+        arm()
+        for await _ in signals {
+            guard !cancelled else { return false }
+            if condition() { return true }
+            arm()
         }
+        return !cancelled && condition()
     }
 
-    private let state: CallState
-
-    init(responses: [SkillsListResponse]) {
-        state = CallState(responses: responses)
+    func cancel() {
+        cancelled = true
+        signalContinuation.finish()
     }
 
-    func skillsList(_ params: SkillsListParams) async throws -> SkillsListResponse {
-        await state.next()
-    }
-
-    var callCount: Int {
-        get async { await state.calls }
+    private func arm() {
+        withObservationTracking {
+            _ = condition()
+        } onChange: { [self] in
+            Task { @MainActor [self] in
+                signalContinuation.yield()
+            }
+        }
     }
 }

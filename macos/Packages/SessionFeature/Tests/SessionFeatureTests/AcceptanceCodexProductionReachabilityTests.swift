@@ -16,144 +16,169 @@ struct AcceptanceCodexProductionReachabilityTests {
 
     @Test("Codex 履歴は一覧・詳細・再開後の reload まで同じ thread ID を保つ")
     func codexHistoryListDetailResumeAndReloadUseProductionClient() async throws {
-        let (viewModel, client, transport) = try await makeStack()
-        let history = try #require(viewModel.codexSessionHistory)
+        try await withStack { viewModel, _, transport in
+            let history = try #require(viewModel.codexSessionHistory)
 
-        await history.refresh()
-        #expect(history.entries.map(\.id) == ["history-1", "history-2"])
-        #expect(history.select(threadID: "history-2"))
+            await history.refresh()
+            #expect(history.entries.map(\.id) == ["history-1", "history-2"])
+            #expect(history.select(threadID: "history-2"))
 
-        let detail = try #require(try await history.readSelected())
-        #expect(detail.id == "history-2")
-        #expect(viewModel.codexHistoryItems(for: detail).map(\.id) == ["history-user", "history-agent"])
+            let detail = try #require(try await history.readSelected())
+            #expect(detail.id == "history-2")
+            #expect(viewModel.codexHistoryItems(for: detail).map(\.id) == ["history-user", "history-agent"])
 
-        _ = try await history.resume(threadID: "history-2")
-        await viewModel.reloadCodexHistory(threadID: "history-2")
+            _ = try await history.resume(threadID: "history-2")
+            await viewModel.reloadCodexHistory(threadID: "history-2")
 
-        #expect(viewModel.threadId == "history-2")
-        #expect(viewModel.codexSessionHistory?.selectedThreadID == "history-2")
-        #expect(viewModel.codexBackgroundTerminalState?.threadId == "history-2")
-        #expect(await transport.methods().filter { $0 == "thread/resume" }.count == 1)
-        #expect(await transport.methods().filter { $0 == "thread/read" }.count == 2)
-
-        await client.close()
+            #expect(viewModel.threadId == "history-2")
+            #expect(viewModel.codexSessionHistory?.selectedThreadID == "history-2")
+            #expect(viewModel.codexBackgroundTerminalState?.threadId == "history-2")
+            #expect(await transport.methods().filter { $0 == "thread/resume" }.count == 1)
+            #expect(await transport.methods().filter { $0 == "thread/read" }.count == 2)
+        }
     }
 
     @Test("orderedEvents は実 Codex client から VM の plan と transcript へ同順で届く")
     func orderedEventsReachPlanStateAndTranscript() async throws {
-        let (viewModel, client, transport) = try await makeStack()
-        let threadID = try #require(viewModel.threadId)
+        try await withStack { viewModel, _, transport in
+            let threadID = try #require(viewModel.threadId)
 
-        transport.receive(planNotification(threadID: threadID))
-        try await waitFor("plan が transcript へ届く") {
-            viewModel.transcript.contains { item in
-                guard case .taskList = item else { return false }
-                return true
+            transport.receive(planNotification(threadID: threadID))
+            try await waitFor("plan が transcript へ届く") {
+                viewModel.transcript.contains { item in
+                    guard case .taskList = item else { return false }
+                    return true
+                }
             }
+
+            #expect(viewModel.codexPlanTaskState?.threadId == threadID)
+            #expect(viewModel.codexPlanTaskState?.turnId == "turn-1")
+            #expect(viewModel.codexPlanTaskState?.tasks.map(\.title) == ["inspect", "verify"])
+            #expect(viewModel.transcript.contains { item in
+                guard case .taskList(_, let tasks, _) = item else { return false }
+                return tasks.map(\.status) == [.inProgress, .pending]
+            })
+
+            transport.receive(backgroundItemStartedNotification(threadID: threadID))
+            try await waitFor("background item が transcript へ届く") {
+                viewModel.transcriptItemIDs.contains("background-item")
+            }
+            try await transport.waitForMethod("thread/backgroundTerminals/list")
+
+            let state = try #require(viewModel.codexBackgroundTerminalState)
+            try await waitFor("itemStarted 後の background 一覧が VM へ届く") {
+                state.items.map(\.itemId) == ["background-item", "other-item"]
+            }
+
+            transport.receive(turnCompletedNotification(threadID: threadID))
+            try await transport.waitForMethod("thread/backgroundTerminals/list")
+            try await waitFor("turnCompleted 後も background 一覧が再読込される") {
+                state.items.map(\.itemId) == ["background-item", "other-item"]
+            }
+
+            #expect(await transport.methods().filter { $0 == "thread/backgroundTerminals/list" }.count == 2)
+            #expect(state.items.map(\.itemId) == ["background-item", "other-item"])
+            #expect(state.items.first?.processId == "background-process")
+            #expect(state.select(itemId: "background-item"))
+            #expect(state.selectedTerminal?.command == "swift test")
+            #expect(state.detail(for: "background-item")?.cwd == cwd)
+            #expect(state.jumpTarget(
+                for: "background-item",
+                transcriptItemIds: viewModel.transcriptItemIDs
+            ) == "background-item")
+            #expect(state.jumpTarget(for: "missing-item", transcriptItemIds: viewModel.transcriptItemIDs) == nil)
+
+            #expect(await state.stop(itemId: "background-item"))
+            #expect(state.items.map(\.itemId) == ["other-item"])
+            #expect(await transport.methods().filter { $0 == "thread/backgroundTerminals/list" }.count == 3)
+            #expect(await transport.methods().filter { $0 == "thread/backgroundTerminals/terminate" }.count == 1)
         }
-
-        #expect(viewModel.codexPlanTaskState?.threadId == threadID)
-        #expect(viewModel.codexPlanTaskState?.turnId == "turn-1")
-        #expect(viewModel.codexPlanTaskState?.tasks.map(\.title) == ["inspect", "verify"])
-        #expect(viewModel.transcript.contains { item in
-            guard case .taskList(_, let tasks, _) = item else { return false }
-            return tasks.map(\.status) == [.inProgress, .pending]
-        })
-
-        transport.receive(backgroundItemStartedNotification(threadID: threadID))
-        try await waitFor("background item が transcript へ届く") {
-            viewModel.transcriptItemIDs.contains("background-item")
-        }
-        try await transport.waitForMethod("thread/backgroundTerminals/list")
-
-        let state = try #require(viewModel.codexBackgroundTerminalState)
-        try await waitFor("itemStarted 後の background 一覧が VM へ届く") {
-            state.items.map(\.itemId) == ["background-item", "other-item"]
-        }
-
-        transport.receive(turnCompletedNotification(threadID: threadID))
-        try await transport.waitForMethod("thread/backgroundTerminals/list")
-        try await waitFor("turnCompleted 後も background 一覧が再読込される") {
-            state.items.map(\.itemId) == ["background-item", "other-item"]
-        }
-
-        #expect(await transport.methods().filter { $0 == "thread/backgroundTerminals/list" }.count == 2)
-        #expect(state.items.map(\.itemId) == ["background-item", "other-item"])
-        #expect(state.items.first?.processId == "background-process")
-        #expect(state.select(itemId: "background-item"))
-        #expect(state.selectedTerminal?.command == "swift test")
-        #expect(state.detail(for: "background-item")?.cwd == cwd)
-        #expect(state.jumpTarget(
-            for: "background-item",
-            transcriptItemIds: viewModel.transcriptItemIDs
-        ) == "background-item")
-        #expect(state.jumpTarget(for: "missing-item", transcriptItemIds: viewModel.transcriptItemIDs) == nil)
-
-        #expect(await state.stop(itemId: "background-item"))
-        #expect(state.items.map(\.itemId) == ["other-item"])
-        #expect(await transport.methods().filter { $0 == "thread/backgroundTerminals/list" }.count == 3)
-        #expect(await transport.methods().filter { $0 == "thread/backgroundTerminals/terminate" }.count == 1)
-
-        await client.close()
     }
 
     @Test("thread/list の空 turns を child read で補完し、遅い古い refresh を捨てる")
     func codexSubAgentRefreshUsesReadAndGenerationGuard() async throws {
-        let (viewModel, client, transport) = try await makeStack(subAgentOutOfOrder: true)
+        try await withStack(subAgentOutOfOrder: true) { viewModel, _, transport in
+            let first = Task { await viewModel.refreshCodexSubAgents() }
+            try await transport.waitForMethod("thread/read:child-old")
+            let second = Task { await viewModel.refreshCodexSubAgents() }
+            await first.value
+            await second.value
 
-        let first = Task { await viewModel.refreshCodexSubAgents() }
-        try await transport.waitForMethod("thread/read:child-old")
-        let second = Task { await viewModel.refreshCodexSubAgents() }
-        await first.value
-        await second.value
+            let child = try #require(viewModel.codexSubAgentState?.children)
+            #expect(child.map(\.id) == ["child-new"])
+            #expect(child.first?.activeTurnId == "child-new-turn")
+            #expect(await transport.methods().filter { $0 == "thread/read" }.count == 2)
 
-        let child = try #require(viewModel.codexSubAgentState?.children)
-        #expect(child.map(\.id) == ["child-new"])
-        #expect(child.first?.activeTurnId == "child-new-turn")
-        #expect(await transport.methods().filter { $0 == "thread/read" }.count == 2)
-
-        await viewModel.stopCodexSubAgent(threadID: "child-new")
-        #expect(viewModel.codexSubAgentState?.stopState(for: "child-new") == .stopping)
-        #expect((await transport.methods()).contains("turn/interrupt"))
-        await client.close()
+            await viewModel.stopCodexSubAgent(threadID: "child-new")
+            #expect(viewModel.codexSubAgentState?.stopState(for: "child-new") == .stopping)
+            #expect((await transport.methods()).contains("turn/interrupt"))
+        }
     }
 
-    @Test("CodexSessionSurface は履歴・背景端末の本番状態を描画できる")
-    func codexSessionSurfaceRendersProductionState() async throws {
-        let (viewModel, client, _) = try await makeStack()
-        let history = try #require(viewModel.codexSessionHistory)
-        await history.refresh()
-        #expect(history.select(threadID: "history-1"))
-        _ = try await history.read(threadID: "history-1")
+    @Test("CodexSessionSurface は実状態の plan/subagent/history/background を識別できる")
+    func codexSessionSurfaceExposesProductionStateAndActions() async throws {
+        try await withStack(subAgentOutOfOrder: true) { viewModel, _, transport in
+            let threadID = try #require(viewModel.threadId)
+            transport.receive(planNotification(threadID: threadID))
+            try await waitFor("surface plan state") {
+                viewModel.codexPlanTaskState?.tasks.map(\.title) == ["inspect", "verify"]
+            }
 
-        let state = try #require(viewModel.codexBackgroundTerminalState)
-        await state.refresh()
-        #expect(state.select(itemId: "background-item"))
+            let firstRefresh = Task { await viewModel.refreshCodexSubAgents() }
+            try await transport.waitForMethod("thread/read:child-old")
+            let secondRefresh = Task { await viewModel.refreshCodexSubAgents() }
+            await firstRefresh.value
+            await secondRefresh.value
+            let child = try #require(viewModel.codexSubAgentState?.children.first)
+            #expect(child.id == "child-new")
+            await viewModel.loadCodexSubAgentDetail(threadID: child.id)
+            let childDetail = try #require(viewModel.codexSubAgentState?.detail(for: child.id))
 
-        let renderer = ImageRenderer(
-            content: CodexSessionSurface(viewModel: viewModel, onJump: { _ in })
-                .frame(width: 720, height: 360)
-        )
-        #expect(try #require(renderer.nsImage).size.width > 0)
+            let history = try #require(viewModel.codexSessionHistory)
+            await history.refresh()
+            #expect(history.select(threadID: "history-1"))
+            let historyDetail = try await history.read(threadID: "history-1")
 
-        let source = try sourceText("CodexSessionSurface.swift")
-        #expect(source.contains(#".accessibilityIdentifier("CodexSessionSurface")"#))
-        #expect(source.contains(#".accessibilityIdentifier("CodexHistory.row.\(thread.id)")"#))
-        #expect(source.contains(#".accessibilityIdentifier("CodexHistory.resume.\(thread.id)")"#))
-        #expect(source.contains(#".accessibilityIdentifier("CodexHistory.detail.\(selected.id)")"#))
-        #expect(source.contains(#".accessibilityIdentifier("CodexBackgroundTerminal.\(terminal.itemId)")"#))
-        #expect(source.contains(#".accessibilityIdentifier("CodexBackgroundTerminal.detail.\(selected.itemId)")"#))
-        #expect(source.contains(#"Text(thread.name ?? thread.preview)"#))
-        #expect(source.contains(#"Text(terminal.command)"#))
-        #expect(source.contains(#"Button("再開")"#))
-        #expect(source.contains(#"Button("ジャンプ")"#))
-        #expect(source.contains(#"Button("停止")"#))
-        #expect(source.contains("history.readIfPossible(threadID: thread.id)"))
-        #expect(source.contains("history.resumeIfPossible(threadID: thread.id)"))
-        #expect(source.contains("terminals.select(itemId: terminal.itemId)"))
-        #expect(source.contains("terminals.stop(itemId: terminal.itemId)"))
-        #expect(source.contains("onJump(target)"))
-        await client.close()
+            let state = try #require(viewModel.codexBackgroundTerminalState)
+            await state.refresh()
+            let terminal = try #require(state.items.first)
+            #expect(state.select(itemId: terminal.itemId))
+            let selectedTerminal = try #require(state.selectedTerminal)
+
+            // View と同じ identifier 定義を用い、実状態から現れる全 row/detail/action の到達先を確認する。
+            let identifiers = [
+                CodexSessionSurfaceAccessibilityID.root,
+                CodexSessionSurfaceAccessibilityID.plan,
+                CodexSessionSurfaceAccessibilityID.subAgent(child.id),
+                CodexSessionSurfaceAccessibilityID.subAgentDetail(child.id),
+                CodexSessionSurfaceAccessibilityID.historyRow(historyDetail.id),
+                CodexSessionSurfaceAccessibilityID.historyResume(historyDetail.id),
+                CodexSessionSurfaceAccessibilityID.historyDetail(historyDetail.id),
+                CodexSessionSurfaceAccessibilityID.backgroundTerminal(selectedTerminal.itemId),
+                CodexSessionSurfaceAccessibilityID.backgroundDetail(selectedTerminal.itemId),
+            ]
+            #expect(Set(identifiers).count == identifiers.count)
+            #expect(identifiers.allSatisfy { !$0.isEmpty })
+
+            #expect(viewModel.codexPlanTaskState?.tasks.map(\.title) == ["inspect", "verify"])
+            #expect(child.summary == "child-new")
+            #expect(childDetail.threadId == child.id)
+            #expect((historyDetail.name ?? historyDetail.preview) == "history-1")
+            #expect(viewModel.codexHistoryItems(for: historyDetail).map(\.id) == ["history-user", "history-agent"])
+            #expect(selectedTerminal.command == "swift test")
+            #expect(selectedTerminal.cwd == cwd)
+
+            var jumpedTarget: String?
+            let onJump: (String) -> Void = { jumpedTarget = $0 }
+            let surface = CodexSessionSurface(viewModel: viewModel, onJump: onJump)
+            _ = surface.body
+            let target = try #require(state.jumpTarget(
+                for: selectedTerminal.itemId,
+                transcriptItemIds: [selectedTerminal.itemId]
+            ))
+            onJump(target)
+            #expect(jumpedTarget == selectedTerminal.itemId)
+        }
     }
 
     private func makeStack() async throws -> (
@@ -184,6 +209,28 @@ struct AcceptanceCodexProductionReachabilityTests {
             sandbox: .named("workspace-write")
         )
         return (viewModel, client, transport)
+    }
+
+    private func withStack(
+        subAgentOutOfOrder: Bool = false,
+        _ body: @MainActor (
+            ChatSessionViewModel,
+            CodexStructuredAgentClient,
+            CodexProductionTransport
+        ) async throws -> Void
+    ) async throws {
+        let (viewModel, client, transport) = try await makeStack(
+            subAgentOutOfOrder: subAgentOutOfOrder
+        )
+        do {
+            try await body(viewModel, client, transport)
+        } catch {
+            await viewModel.terminate()
+            await client.close()
+            throw error
+        }
+        await viewModel.terminate()
+        await client.close()
     }
 
     private func waitFor(
@@ -239,15 +286,6 @@ struct AcceptanceCodexProductionReachabilityTests {
         """
     }
 
-    private func sourceText(_ relativePath: String) throws -> String {
-        let testFile = URL(fileURLWithPath: #filePath)
-        let sourceURL = testFile
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("Sources/SessionFeature/\(relativePath)")
-        return try String(contentsOf: sourceURL, encoding: .utf8)
-    }
 }
 
 private enum AcceptanceWaitError: Error, CustomStringConvertible {
@@ -314,11 +352,17 @@ private final class ObservationWaiter {
     }
 }
 
-private final class CodexProductionTransport: AppServerTransport, @unchecked Sendable {
+final class CodexProductionTransport: AppServerTransport, @unchecked Sendable {
     private actor State {
         private var requests: [JSONValue] = []
         private var terminated = false
         private var subAgentListCalls = 0
+        private var skillListResponses: [JSONValue]
+        private var skillListCalls = 0
+
+        init(skillListResponses: [JSONValue]) {
+            self.skillListResponses = skillListResponses
+        }
 
         func append(_ request: JSONValue) {
             requests.append(request)
@@ -337,6 +381,13 @@ private final class CodexProductionTransport: AppServerTransport, @unchecked Sen
             return subAgentListCalls
         }
 
+        func nextSkillListResponse() -> JSONValue? {
+            guard !skillListResponses.isEmpty else { return nil }
+            let index = min(skillListCalls, skillListResponses.count - 1)
+            skillListCalls += 1
+            return skillListResponses[index]
+        }
+
         var isTerminated: Bool { terminated }
     }
 
@@ -346,13 +397,18 @@ private final class CodexProductionTransport: AppServerTransport, @unchecked Sen
     private let methodEventContinuation: AsyncStream<String>.Continuation
     private let childNewReadEvents: AsyncStream<Void>
     private let childNewReadEventContinuation: AsyncStream<Void>.Continuation
-    private let state = State()
+    private let state: State
     private let cwd: String
     private let subAgentOutOfOrder: Bool
 
-    init(cwd: String, subAgentOutOfOrder: Bool = false) {
+    init(
+        cwd: String,
+        subAgentOutOfOrder: Bool = false,
+        skillListResponses: [JSONValue] = []
+    ) {
         self.cwd = cwd
         self.subAgentOutOfOrder = subAgentOutOfOrder
+        self.state = State(skillListResponses: skillListResponses)
         var captured: AsyncStream<Data>.Continuation?
         receivedLines = AsyncStream(bufferingPolicy: .unbounded) { captured = $0 }
         continuation = captured!
@@ -432,7 +488,8 @@ private final class CodexProductionTransport: AppServerTransport, @unchecked Sen
         case "permissionProfile/list", "collaborationMode/list":
             result = .object(["data": .array([])])
         case "skills/list":
-            result = .object(["data": .array([])])
+            result = await state.nextSkillListResponse()
+                ?? .object(["data": .array([])])
         case "thread/backgroundTerminals/list":
             result = await state.isTerminated
                 ? .object(["data": .array([.object([

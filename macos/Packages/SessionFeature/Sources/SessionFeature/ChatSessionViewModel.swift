@@ -1978,8 +1978,6 @@ public final class ChatSessionViewModel: Identifiable {
                updatedThreadId == threadId {
                 codexEventTurnId = turnId
             }
-        case .skillsChanged:
-            codexSkillSelectionState?.handle(event)
         default:
             break
         }

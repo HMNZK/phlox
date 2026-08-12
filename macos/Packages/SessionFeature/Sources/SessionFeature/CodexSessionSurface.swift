@@ -4,6 +4,23 @@ import AgentDomain
 import CodexAppServerKit
 import DesignSystem
 
+/// Codex surface の AX 識別子。View と headless 検査で同じ値を使う。
+enum CodexSessionSurfaceAccessibilityID {
+    static let root = "CodexSessionSurface"
+    static let plan = "CodexPlanTaskList"
+    static let subAgentError = "CodexSubAgent.error"
+    static let historyError = "CodexHistory.error"
+    static let backgroundError = "CodexBackgroundTerminal.error"
+
+    static func subAgent(_ id: String) -> String { "CodexSubAgent.\(id)" }
+    static func subAgentDetail(_ id: String) -> String { "CodexSubAgentDetail.\(id)" }
+    static func historyRow(_ id: String) -> String { "CodexHistory.row.\(id)" }
+    static func historyResume(_ id: String) -> String { "CodexHistory.resume.\(id)" }
+    static func historyDetail(_ id: String) -> String { "CodexHistory.detail.\(id)" }
+    static func backgroundTerminal(_ id: String) -> String { "CodexBackgroundTerminal.\(id)" }
+    static func backgroundDetail(_ id: String) -> String { "CodexBackgroundTerminal.detail.\(id)" }
+}
+
 /// Codex専用の既存セッション面。新画面を増やさず、チャット上部の既存surfaceへ状態を載せる。
 struct CodexSessionSurface: View {
     @Bindable var viewModel: ChatSessionViewModel
@@ -29,7 +46,7 @@ struct CodexSessionSurface: View {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 if let plan = viewModel.codexPlanTaskState, !plan.tasks.isEmpty {
                     TaskListCell(tasks: plan.tasks, timestamp: Date())
-                    .accessibilityIdentifier("CodexPlanTaskList")
+                    .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.plan)
                 }
                 if let subAgents = viewModel.codexSubAgentState {
                     if !subAgents.children.isEmpty {
@@ -49,7 +66,7 @@ struct CodexSessionSurface: View {
                                 }
                                 .disabled(subAgents.stopState(for: child.id) != .available)
                             }
-                            .accessibilityIdentifier("CodexSubAgent.\(child.id)")
+                            .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.subAgent(child.id))
                         }
                         if let selectedChildID,
                            let detail = subAgents.detail(for: selectedChildID) {
@@ -58,12 +75,12 @@ struct CodexSessionSurface: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             .frame(maxHeight: 120)
-                            .accessibilityIdentifier("CodexSubAgentDetail.\(selectedChildID)")
+                            .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.subAgentDetail(selectedChildID))
                         }
                     }
                     if let error = viewModel.codexSubAgentError {
                         ErrorMessageCell(message: "サブエージェント: \(error)", timestamp: Date())
-                            .accessibilityIdentifier("CodexSubAgent.error")
+                            .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.subAgentError)
                     }
                 }
                 if let history = viewModel.codexSessionHistory {
@@ -85,7 +102,7 @@ struct CodexSessionSurface: View {
                                         }
                                     }
                                     .buttonStyle(.bordered)
-                                    .accessibilityIdentifier("CodexHistory.row.\(thread.id)")
+                                    .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.historyRow(thread.id))
                                     Button("再開") {
                                         Task {
                                             guard let resumed = await history.resumeIfPossible(threadID: thread.id)
@@ -93,7 +110,7 @@ struct CodexSessionSurface: View {
                                             viewModel.applyCodexHistory(resumed)
                                         }
                                     }
-                                    .accessibilityIdentifier("CodexHistory.resume.\(thread.id)")
+                                    .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.historyResume(thread.id))
                                 }
                             }
                         }
@@ -113,12 +130,12 @@ struct CodexSessionSurface: View {
                                     )
                                 }
                             }
-                            .accessibilityIdentifier("CodexHistory.detail.\(selected.id)")
+                            .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.historyDetail(selected.id))
                         }
                     }
                     if let error = history.errorMessage {
                         ErrorMessageCell(message: "履歴: \(error)", timestamp: Date())
-                            .accessibilityIdentifier("CodexHistory.error")
+                            .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.historyError)
                     }
                 }
                 if let terminals = viewModel.codexBackgroundTerminalState {
@@ -138,7 +155,7 @@ struct CodexSessionSurface: View {
                                 .disabled(terminals.jumpTarget(for: terminal.itemId, transcriptItemIds: viewModel.transcriptItemIDs) == nil)
                                 Button("停止") { Task { _ = await terminals.stop(itemId: terminal.itemId) } }
                             }
-                            .accessibilityIdentifier("CodexBackgroundTerminal.\(terminal.itemId)")
+                            .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.backgroundTerminal(terminal.itemId))
                         }
                         if let selected = terminals.selectedTerminal {
                             let cpu = selected.cpuPercent.map { String(format: "%.2f%%", $0) } ?? "不明"
@@ -156,12 +173,12 @@ struct CodexSessionSurface: View {
                                     Text("出力: \(output)")
                                 }
                             }
-                            .accessibilityIdentifier("CodexBackgroundTerminal.detail.\(selected.itemId)")
+                            .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.backgroundDetail(selected.itemId))
                         }
                     }
                     if let error = terminals.errorMessage {
                         ErrorMessageCell(message: "背景ターミナル: \(error)", timestamp: Date())
-                            .accessibilityIdentifier("CodexBackgroundTerminal.error")
+                        .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.backgroundError)
                     }
                 }
             }
@@ -178,7 +195,7 @@ struct CodexSessionSurface: View {
                     await viewModel.codexBackgroundTerminalState?.refresh()
                 }
             }
-            .accessibilityIdentifier("CodexSessionSurface")
+            .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.root)
         }
     }
 }

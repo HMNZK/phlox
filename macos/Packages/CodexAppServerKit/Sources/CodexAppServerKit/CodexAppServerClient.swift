@@ -586,6 +586,11 @@ extension CodexStructuredAgentClient {
         try await client.threadList(params)
     }
 
+    /// 子 thread 専用。`interrupt()` は現在の親 thread 用なので流用しない。
+    public func turnInterrupt(_ params: TurnInterruptParams) async throws -> TurnInterruptResponse {
+        try await client.turnInterrupt(params)
+    }
+
     public func skillsList(_ params: SkillsListParams = SkillsListParams()) async throws -> SkillsListResponse {
         try await client.skillsList(params)
     }

@@ -166,7 +166,16 @@ public struct ChatSessionView: View {
                     }
                 }
                 .overlay(alignment: .top) {
-                    CodexSessionSurface(viewModel: viewModel) { requestedTranscriptTarget = $0 }
+                    CodexSessionSurface(
+                        viewModel: viewModel,
+                        onJump: { requestedTranscriptTarget = $0 },
+                        onSelectChild: { childID in
+                            Task { await viewModel.loadCodexSubAgentDetail(threadID: childID) }
+                        },
+                        onStopChild: { childID in
+                            Task { await viewModel.stopCodexSubAgent(threadID: childID) }
+                        }
+                    )
                 }
                 .animation(.easeOut(duration: 0.15), value: viewModel.shouldOfferHistoryStart)
                 // ストリップはトランスクリプトのレイアウト兄弟にせず safeAreaInset で上部に置く。

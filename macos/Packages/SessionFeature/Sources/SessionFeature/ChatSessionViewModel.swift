@@ -45,6 +45,7 @@ public final class ChatSessionViewModel: Identifiable {
     public private(set) var codexBackgroundTerminalState: CodexBackgroundTerminalState?
     public private(set) var codexSessionHistory: CodexSessionHistory?
     public private(set) var codexSubAgentState: CodexSubAgentState?
+    public private(set) var codexSubAgentError: String?
     public var backgroundTerminalState: CodexBackgroundTerminalState? { codexBackgroundTerminalState }
     public private(set) var transcript: [ChatItem] = []
     public var inputHistoryEntries: [InputHistoryEntry] {
@@ -217,6 +218,7 @@ public final class ChatSessionViewModel: Identifiable {
             self.codexSessionHistory = nil
         }
         self.codexSubAgentState = agentRef == .builtin(.codex) ? CodexSubAgentState(parentThreadId: "") : nil
+        self.codexSubAgentError = nil
         self.codexPlanTaskState = agentRef == .builtin(.codex) ? CodexPlanTaskState() : nil
         self.transcriptStore = transcriptStore
         self.transcriptPersistenceQueue = transcriptStore.map {
@@ -272,6 +274,7 @@ public final class ChatSessionViewModel: Identifiable {
             self.codexSessionHistory = nil
         }
         self.codexSubAgentState = agentRef == .builtin(.codex) ? CodexSubAgentState(parentThreadId: "") : nil
+        self.codexSubAgentError = nil
         self.codexPlanTaskState = agentRef == .builtin(.codex) ? CodexPlanTaskState() : nil
         self.transcriptStore = nil
         self.transcriptPersistenceQueue = nil
@@ -391,6 +394,60 @@ public final class ChatSessionViewModel: Identifiable {
               let thread = try? await history.read(threadID: threadID)
         else { return }
         updateNativeSessionId(thread.id)
+    }
+
+    public var canStopCodexSubAgents: Bool {
+        codexSubAgentState?.children.contains {
+            codexSubAgentState?.stopState(for: $0.id) == .available
+        } == true
+    }
+
+    /// 親 thread に属する child だけを `thread/list` から取得する。
+    public func refreshCodexSubAgents() async {
+        guard let parentThreadId = threadId,
+              !parentThreadId.isEmpty,
+              let client = client as? any CodexSubAgentProviding else { return }
+        do {
+            let response = try await client.threadList(ThreadListParams(parentThreadId: parentThreadId))
+            let children = response.data.map(Self.codexChild)
+            codexSubAgentState?.apply(.available(children: children))
+            codexSubAgentError = nil
+        } catch {
+            codexSubAgentError = String(describing: error)
+        }
+    }
+
+    /// child の詳細を `thread/read(includeTurns: true)` から読み込む。
+    public func loadCodexSubAgentDetail(threadID: String) async {
+        guard codexSubAgentState?.children.contains(where: { $0.id == threadID }) == true else { return }
+        guard let client = client as? any CodexSubAgentProviding else { return }
+        do {
+            let response = try await client.threadRead(ThreadReadParams(threadId: threadID, includeTurns: true))
+            let transcript = response.thread.turns?.flatMap { $0.items ?? [] }.compactMap(\.text) ?? []
+            codexSubAgentState?.apply(.detail(threadId: threadID, transcript: transcript))
+            codexSubAgentError = nil
+        } catch {
+            codexSubAgentError = String(describing: error)
+        }
+    }
+
+    /// child の active turn にだけ `turn/interrupt` を送り、完了は event で確定する。
+    public func stopCodexSubAgent(threadID: String) async {
+        guard var state = codexSubAgentState,
+              let request = state.stopRequest(for: threadID),
+              let client = client as? any CodexSubAgentProviding else { return }
+        codexSubAgentState = state
+        do {
+            _ = try await client.turnInterrupt(
+                TurnInterruptParams(threadId: request.threadId, turnId: request.turnId)
+            )
+            codexSubAgentError = nil
+        } catch {
+            state = codexSubAgentState ?? state
+            state.rejectStop(for: threadID)
+            codexSubAgentState = state
+            codexSubAgentError = String(describing: error)
+        }
     }
 
     /// init 時に off-main で一度だけ provider を呼び、完了時に MainActor で observable キャッシュへ格納する。
@@ -1676,6 +1733,12 @@ public final class ChatSessionViewModel: Identifiable {
     private func handleCodexSettingsEvent(_ event: ThreadEvent) {
         appendRawEventLog(String(describing: event))
         switch event {
+        case .turnCompleted(let updatedThreadId, let turn):
+            codexSubAgentState?.apply(.turnCompleted(
+                threadId: updatedThreadId,
+                turnId: turn.id ?? "",
+                status: turn.status ?? ""
+            ))
         case .threadSettingsUpdated(let updatedThreadId, let settings):
             guard updatedThreadId == threadId else { return }
             syncSettings(from: settings)
@@ -2225,6 +2288,9 @@ public final class ChatSessionViewModel: Identifiable {
         let previous = chatNativeSessionId
         threadId = id
         chatNativeSessionId = id
+        if agentRef == .builtin(.codex), let id, id != codexSubAgentState?.parentThreadId {
+            codexSubAgentState = CodexSubAgentState(parentThreadId: id)
+        }
         codexBackgroundTerminalState?.updateThreadId(id)
         if let id, let previous, id != previous {
             clearRunningBackgroundTasks()
@@ -2239,6 +2305,30 @@ public final class ChatSessionViewModel: Identifiable {
                 ]
             )
         }
+    }
+
+    private static func codexChild(_ thread: ThreadSummary) -> CodexChildThread {
+        let activeTurn = thread.turns?.last { turn in
+            guard let status = turn.status?.lowercased() else { return false }
+            return ["inprogress", "in_progress", "running", "active"].contains(status)
+        }
+        let status: String
+        switch thread.status {
+        case .active: status = "active"
+        case .idle: status = "idle"
+        case .systemError: status = "error"
+        case .notLoaded: status = "unknown"
+        case .unknown(let value): status = value.stringValue ?? "unknown"
+        case nil: status = "unknown"
+        }
+        return CodexChildThread(
+            id: thread.id,
+            parentThreadId: thread.parentThreadId ?? "",
+            activeTurnId: activeTurn?.id,
+            status: status,
+            summary: thread.preview,
+            canAcceptDirectInput: thread.canAcceptDirectInput
+        )
     }
 }
 

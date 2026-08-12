@@ -201,7 +201,7 @@ public struct CodexSubAgentState: Equatable, Sendable {
               !staleIDs.contains(threadId),
               let turnId = children[index].activeTurnId,
               !turnId.isEmpty,
-              !["completed", "interrupted", "failed", "error"].contains(children[index].status),
+              ["active", "running", "inProgress", "in_progress"].contains(children[index].status),
               pendingStops[threadId] == nil else { return nil }
 
         let request = CodexSubAgentStopRequest(
@@ -236,6 +236,14 @@ public struct CodexSubAgentState: Equatable, Sendable {
         stopStates[threadId] = .stopped
         controlStates[threadId] = .unavailable
         return true
+    }
+
+    /// interrupt RPC が失敗したときだけ停止待ちを解除する。完了イベントの代用にはしない。
+    public mutating func rejectStop(for threadId: String) {
+        guard pendingStops.removeValue(forKey: threadId) != nil,
+              let child = children.first(where: { $0.id == threadId }) else { return }
+        stopStates[threadId] = child.activeTurnId == nil ? .unavailable : .available
+        controlStates[threadId] = child.activeTurnId == nil ? .unavailable : .available
     }
 }
 

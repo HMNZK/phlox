@@ -100,7 +100,16 @@ public protocol CodexSettingsProviding: Sendable {
     func updateThreadSettings(_ params: ThreadSettingsUpdateParams) async throws -> ThreadSettingsUpdateResponse
 }
 
+/// Codex 子 thread 専用の app-server 操作。親 thread の `interrupt()` とは分離する。
+public protocol CodexSubAgentProviding: Sendable {
+    func threadList(_ params: ThreadListParams) async throws -> ThreadListResponse
+    func threadRead(_ params: ThreadReadParams) async throws -> ThreadReadResponse
+    func turnInterrupt(_ params: TurnInterruptParams) async throws -> TurnInterruptResponse
+}
+
 extension CodexStructuredAgentClient: CodexSettingsProviding {}
+extension CodexAppServerClient: CodexSubAgentProviding {}
+extension CodexStructuredAgentClient: CodexSubAgentProviding {}
 
 extension ThreadStatus {
     var isWaitingOnApproval: Bool {

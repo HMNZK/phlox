@@ -125,8 +125,9 @@ extension AppEnvironment {
                 id: "sess-codex",
                 name: "Mint",
                 agent: .codex,
-                status: .awaitingApproval(prompt: "add /approvals endpoint · Codex"),
-                subtitle: "承認待ち",
+                // 実環境の再現: 承認は保留中でもチャットのポーリング状態は running に戻りうる。
+                status: .running,
+                subtitle: "実行中",
                 updatedAt: Date()
             ),
         ]

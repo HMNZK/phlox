@@ -272,7 +272,7 @@ public struct SessionDetailView: View {
 
     @ViewBuilder
     private var approvalSection: some View {
-        if case .awaitingApproval = viewModel.currentStatus, let approvalViewModel {
+        if let approvalViewModel {
             ApprovalBarView(viewModel: approvalViewModel)
         }
     }

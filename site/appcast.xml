@@ -3,6 +3,55 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.5.0</title>
+            <pubDate>Fri, 21 Aug 2026 02:54:39 +0900</pubDate>
+            <description xml:lang="en"><![CDATA[
+<h3>New</h3>
+<ul>
+  <li><b>Codex CLI is now a first-class agent in the chat.</b> Skill selection, resuming past sessions and image attachments all work from the same screen as your other agents, and full-access execution can be toggled from the dashboard.</li>
+  <li><b>Sensitive answers can be typed as masked input.</b> What you type is hidden like a password and is kept out of saved history and exports.</li>
+  <li><b>Git work happens in the app.</b> Review changes, commit, push and open a pull request from the editor panel without leaving Phlox.</li>
+  <li><b>Each session can use its own git working folder.</b> Phlox warns you when multiple sessions target the same folder at once.</li>
+  <li><b>Per-device tokens for the mobile app.</b> Each device gets its own token, and paired devices are listed in Settings.</li>
+  <li><b>Terminal and editor are now one drawer.</b> Open, close and resize it with a shortcut or by dragging.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+  <li>The pending-approval screen on mobile no longer disappears unexpectedly.</li>
+  <li>The "thinking" indicator no longer stays stuck while you work in another window.</li>
+  <li>Copy actions on mobile are consolidated into a long-press menu, and you can send follow-up instructions while a task is still running.</li>
+  <li>File path headers in the diff view no longer scroll horizontally out of view.</li>
+  <li>Codex errors are now shown on screen instead of being swallowed.</li>
+  <li>Images can no longer be sent to models that do not accept image input.</li>
+</ul>
+]]></description>
+            <description xml:lang="ja"><![CDATA[
+<h3>新機能</h3>
+<ul>
+  <li><b>Codex CLI をアプリ内チャットに統合しました。</b> 他のエージェントと同じ画面から、スキル選択・履歴の再開・画像添付が使えます。フルアクセス実行の可否はダッシュボードから設定できます。</li>
+  <li><b>回答を伏せ字で入力できるようになりました。</b> パスワードのように隠して入力でき、履歴やエクスポートにも残りません。</li>
+  <li><b>Git 操作がアプリ内で完結します。</b> 変更の確認・コミット・プッシュ・プルリクエスト作成をエディタパネルから行えます。</li>
+  <li><b>セッションごとに作業フォルダを分離できます。</b> 同じフォルダで複数セッションが同時に動いている場合は警告が出ます。</li>
+  <li><b>モバイルの認証が端末ごとの個別トークンになりました。</b> 連携中の端末は設定画面で一覧できます。</li>
+  <li><b>ターミナルとエディタをドロワーに統合しました。</b> ショートカットキーやドラッグで開閉・リサイズできます。</li>
+</ul>
+<h3>修正</h3>
+<ul>
+  <li>モバイルで承認待ちの画面が意図せず消える問題を修正しました。</li>
+  <li>別のウィンドウを操作している間「思考中」表示が固まったままになる問題を修正しました。</li>
+  <li>モバイルのコピー操作を長押しメニューにまとめ、処理の実行中でも追加の指示を送れるようにしました。</li>
+  <li>差分表示でファイルパスの見出しが横スクロールして見えなくなる問題を修正しました。</li>
+  <li>Codex でエラーが発生したとき、画面に内容が表示されるようにしました。</li>
+  <li>画像に対応していないモデルへ画像を送信できてしまう問題を修正しました。</li>
+</ul>
+]]></description>
+            <sparkle:version>22</sparkle:version>
+            <sparkle:shortVersionString>1.5.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.5.0.zip" length="17631751" type="application/octet-stream" sparkle:edSignature="l+jCpdYeFzUF1joHRyJ5pto67q4HiifcwLcM8lNWoC1z+WgFzaC5imAVjUE/7UigUgs1jVDk9ETRe33TSyodDg=="/>
+        </item>
+        <item>
             <title>1.4.0</title>
             <pubDate>Fri, 31 Jul 2026 02:08:44 +0900</pubDate>
             <description xml:lang="en"><![CDATA[

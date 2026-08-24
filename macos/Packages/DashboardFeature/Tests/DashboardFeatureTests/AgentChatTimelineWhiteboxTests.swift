@@ -189,7 +189,7 @@ private func whiteboxShape(_ entries: [AgentTimelineEntry]) -> [String] {
     #expect(whiteboxShape(second) == expected)
 }
 
-@Test func whitebox_timeline_buildsDeepChainWithinPerformanceBudget() {
+@MainActor @Test func whitebox_timeline_buildsDeepChainWithinPerformanceBudget() {
     let root = SessionID()
     var sources = [
         whiteboxSrc(root, parent: nil, name: "main", [

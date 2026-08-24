@@ -25,6 +25,8 @@ extension ClaudeChatClient {
             handleSystemEvent(event)
         case "assistant":
             handleAssistantEvent(event)
+        case "stream_event":
+            handleStreamEvent(event)
         case "user":
             handleUserEvent(event)
         case "result":
@@ -53,6 +55,9 @@ extension ClaudeChatClient {
             if let commands = event["slash_commands"] as? [String], !commands.isEmpty {
                 eventContinuation.yield(.availableCommandsUpdated(commands: commands))
             }
+            if let message = mcpServerWarningMessage(from: event["mcp_server_errors"]) {
+                eventContinuation.yield(.warning(message: message))
+            }
         case "task_started":
             guard let taskId = event["task_id"] as? String else { return }
             let taskType = event["task_type"] as? String ?? ""
@@ -79,6 +84,7 @@ extension ClaudeChatClient {
             if let toolUseId = event["tool_use_id"] as? String,
                subAgentToolUseIds.contains(toolUseId) {
                 // 実サブエージェントは完了もサブエージェント側のみ（二重表現回避）。
+                observeSubAgentCompletion(toolUseId)
                 eventContinuation.yield(.subAgentCompleted(
                     toolUseId: toolUseId,
                     status: event["status"] as? String ?? "",
@@ -102,11 +108,185 @@ extension ClaudeChatClient {
         }
     }
 
+    func handleStreamEvent(_ wrapper: [String: Any]) {
+        // stream_event 自体を無視する一次ゲート。下の shouldSuppress... は
+        // include-partial-messages が有効な場合の完成 assistant だけを抑制する規則であり、役割が異なる。
+        guard
+            includePartialMessages,
+            let event = wrapper["event"] as? [String: Any],
+            let type = event["type"] as? String
+        else { return }
+
+        let parentToolUseId = wrapper["parent_tool_use_id"] as? String
+        if let parentToolUseId {
+            // 親 ID がまだ完全な assistant イベントで登録されていなくても、メインへ漏らさず隔離する。
+            markSubAgentToolUse(parentToolUseId)
+        }
+
+        switch type {
+        case "message_start":
+            guard
+                let message = event["message"] as? [String: Any],
+                let messageId = message["id"] as? String
+            else { return }
+            let parentKey = partialParentKey(parentToolUseId)
+            partialMessageIdsByParent[parentKey] = messageId
+            removePartialBlocks(for: parentKey)
+        case "content_block_start":
+            guard let block = event["content_block"] as? [String: Any] else { return }
+            guard let blockType = block["type"] as? String else { return }
+            if parentToolUseId != nil,
+               blockType == "tool_use",
+               let toolUseId = block["id"] as? String,
+               let name = block["name"] as? String,
+               isSubAgentTool(name) {
+                // tool_use の完全イベントより先に孫の stream_event が来ても取りこぼさない。
+                markSubAgentToolUse(toolUseId)
+            }
+        case "content_block_delta":
+            let index = event["index"] as? Int ?? 0
+            guard let delta = event["delta"] as? [String: Any] else { return }
+            switch delta["type"] as? String {
+            case "text_delta":
+                guard let text = delta["text"] as? String, !text.isEmpty else { return }
+                yieldPartialContent(
+                    text,
+                    parentToolUseId: parentToolUseId,
+                    index: index,
+                    type: "text",
+                    kind: .message
+                )
+            case "thinking_delta":
+                guard let thinking = delta["thinking"] as? String, !thinking.isEmpty else { return }
+                yieldPartialContent(
+                    thinking,
+                    parentToolUseId: parentToolUseId,
+                    index: index,
+                    type: "thinking",
+                    kind: .reasoning
+                )
+            default:
+                break
+            }
+        default:
+            break
+        }
+    }
+
+    func yieldPartialContent(
+        _ text: String,
+        parentToolUseId: String?,
+        index: Int,
+        type: String,
+        kind: SubAgentActivityKind
+    ) {
+        let itemId = partialItemId(parentToolUseId: parentToolUseId, index: index, type: type)
+        if let parentToolUseId {
+            eventContinuation.yield(.subAgentActivity(
+                toolUseId: parentToolUseId,
+                kind: kind,
+                itemId: itemId,
+                text: text
+            ))
+        } else if kind == .message {
+            eventContinuation.yield(.agentMessageDelta(itemId: itemId, text))
+        } else {
+            eventContinuation.yield(.reasoningDelta(itemId: itemId, text))
+        }
+    }
+
+    func partialParentKey(_ parentToolUseId: String?) -> String {
+        parentToolUseId ?? "<main>"
+    }
+
+    func partialBlockKey(_ parentToolUseId: String?, index: Int) -> String {
+        "\(partialParentKey(parentToolUseId))|\(index)"
+    }
+
+    func partialItemKey(_ parentToolUseId: String?, index: Int, type: String) -> String {
+        "\(partialBlockKey(parentToolUseId, index: index))|\(type)"
+    }
+
+    func partialContentKey(_ parentToolUseId: String?, messageId: String, type: String) -> String {
+        "\(partialParentKey(parentToolUseId))|\(messageId)|\(type)"
+    }
+
+    func partialItemId(parentToolUseId: String?, index: Int, type: String) -> String {
+        let key = partialItemKey(parentToolUseId, index: index, type: type)
+        if let itemId = partialItemIdsByKey[key] {
+            return itemId
+        }
+
+        let itemId: String
+        if let messageId = partialMessageIdsByParent[partialParentKey(parentToolUseId)] {
+            itemId = "\(messageId):\(type)"
+            partialContentKeys.insert(partialContentKey(parentToolUseId, messageId: messageId, type: type))
+        } else {
+            itemId = generatedItemId(
+                prefix: parentToolUseId == nil ? "assistant" : "subagent",
+                index: index
+            )
+        }
+        partialItemIdsByKey[key] = itemId
+        partialItemIds.insert(itemId)
+        return itemId
+    }
+
+    func removePartialBlocks(for parentKey: String) {
+        let prefix = "\(parentKey)|"
+        let removedItemIds = partialItemIdsByKey
+            .filter { $0.key.hasPrefix(prefix) }
+            .map(\.value)
+        partialItemIdsByKey.keys
+            .filter { $0.hasPrefix(prefix) }
+            .forEach { partialItemIdsByKey.removeValue(forKey: $0) }
+        partialItemIds.subtract(removedItemIds)
+        partialContentKeys = partialContentKeys.filter { !$0.hasPrefix(prefix) }
+    }
+
+    func pruneSubAgentPartialBlocks() {
+        // result は launcher のターン境界であり、background の子ターンの境界ではない。
+        // 完了を観測した ID だけを解放し、result 後も流れ続ける本文の抑制キーを残す。
+        let completedParentKeys = completedSubAgentToolUseIds
+        for parentKey in completedParentKeys {
+            removePartialBlocks(for: parentKey)
+            partialMessageIdsByParent.removeValue(forKey: parentKey)
+        }
+        completedSubAgentToolUseIds.subtract(completedParentKeys)
+    }
+
+    func observeSubAgentCompletion(_ toolUseId: String) {
+        completedSubAgentToolUseIds.insert(toolUseId)
+        // ここでは解放しない。完了通知が最終 assistant メッセージより先に届くと、
+        // 抑制キーが先に消えて完成本文が再送され二重表示になるため。
+        // 解放は result 境界の pruneSubAgentPartialBlocks() に委ねる。
+    }
+
+    func mcpServerWarningMessage(from raw: Any?) -> String? {
+        guard let entries = raw as? [Any] else { return nil }
+        let messages = entries.compactMap { mcpServerErrorDescription($0) }
+        guard !messages.isEmpty else { return nil }
+        return messages.joined(separator: "\n")
+    }
+
+    func mcpServerErrorDescription(_ raw: Any) -> String? {
+        guard
+            let entry = raw as? [String: Any],
+            let name = entry["name"] as? String,
+            let message = entry["message"] as? String
+        else { return nil }
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty, !trimmedMessage.isEmpty else { return nil }
+        return "MCPサーバー「\(trimmedName)」: \(trimmedMessage)"
+    }
+
     func handleResultEvent(_ event: [String: Any], generation: Int) {
         if let sessionId = event["session_id"] as? String {
             currentSessionId = sessionId
         }
         recordConversationEvidenceFromResult(event)
+        pruneSubAgentPartialBlocks()
 
         if event["is_error"] as? Bool == true || event["subtype"] as? String == "error" {
             if shouldAbsorbInterruptedResultError(event, generation: generation) {

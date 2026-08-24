@@ -6,6 +6,18 @@ import StructuredChatKit
 @MainActor
 @Observable
 final class ChatSubAgentModel {
+    struct StreamActivity {
+        let toolUseId: String
+        let kind: SubAgentActivityKind
+        let itemId: String
+        let text: String
+    }
+
+    struct DedupScanMetrics: Equatable {
+        let callCount: Int
+        let characterCount: Int
+    }
+
     public private(set) var subAgents: [SubAgentRef] = []
     public var stripSubAgents: [SubAgentRef] {
         subAgents.filter {
@@ -17,8 +29,19 @@ final class ChatSubAgentModel {
     private var dismissedSubAgentIDs: Set<String> = []
     private var subAgentTranscripts: [String: [ChatItem]] = [:]
     @ObservationIgnored private var subAgentTranscriptCache: [String: CachedSubAgentTranscript] = [:]
+    @ObservationIgnored private var dedupTextCache: [String: CachedDedupText] = [:]
+    @ObservationIgnored private(set) var dedupScanMetricsForTesting = DedupScanMetrics(callCount: 0, characterCount: 0)
     @ObservationIgnored private var markerSink: (@MainActor (ChatItem) -> Void)?
     @ObservationIgnored private var outputTouched: (@MainActor () -> Void)?
+
+    private struct CachedDedupText {
+        let source: String
+        let stripped: String
+    }
+
+    var dedupTextCacheCountForTesting: Int {
+        dedupTextCache.count
+    }
 
     func configure(
         markerSink: @escaping @MainActor (ChatItem) -> Void,
@@ -26,6 +49,10 @@ final class ChatSubAgentModel {
     ) {
         self.markerSink = markerSink
         self.outputTouched = outputTouched
+    }
+
+    func resetDedupScanMetricsForTesting() {
+        dedupScanMetricsForTesting = DedupScanMetrics(callCount: 0, characterCount: 0)
     }
 
     func selectSubAgent(_ id: String?) {
@@ -123,6 +150,7 @@ final class ChatSubAgentModel {
                 item: .agentMessage(id: "\(toolUseId)-summary", text: summary, timestamp: Date())
             )
         }
+        clearDedupTextCache(for: toolUseId)
     }
 
     func failRunningSubAgents() {
@@ -139,6 +167,9 @@ final class ChatSubAgentModel {
                 outputFile: existing.outputFile
             )
             upsertSubAgentMarker(toolUseId: existing.id)
+            // 完了と同様に dedup キャッシュ（本文の完全コピー）を解放する。
+            // failed になったサブエージェントの本文が残り続けるのを防ぐ。
+            clearDedupTextCache(for: existing.id)
             didChange = true
         }
         if didChange {
@@ -153,7 +184,12 @@ final class ChatSubAgentModel {
         text: String
     ) {
         if let itemId, kind == .message || kind == .reasoning {
-            appendMergeableSubAgentActivity(toolUseId: toolUseId, kind: kind, itemId: itemId, text: text)
+            appendSubAgentActivities([StreamActivity(
+                toolUseId: toolUseId,
+                kind: kind,
+                itemId: itemId,
+                text: text
+            )])
             return
         }
         if let itemId, kind == .tool || kind == .toolResult {
@@ -174,6 +210,95 @@ final class ChatSubAgentModel {
             item = .commandExecution(id: "\(toolUseId)-tool-\(subAgentTranscripts[toolUseId, default: []].count)", command: nil, output: text, timestamp: Date())
         }
         appendSubAgentTranscriptItem(toolUseId: toolUseId, item: item)
+    }
+
+    func appendSubAgentActivities(_ activities: [StreamActivity]) {
+        guard !activities.isEmpty else { return }
+
+        struct ActivityKey: Hashable {
+            let toolUseId: String
+            let isMessage: Bool
+            let itemId: String
+        }
+
+        var order: [ActivityKey] = []
+        var mergedText: [ActivityKey: String] = [:]
+        for activity in activities {
+            let key = ActivityKey(
+                toolUseId: activity.toolUseId,
+                isMessage: activity.kind == .message,
+                itemId: activity.itemId
+            )
+            if mergedText[key] == nil {
+                order.append(key)
+            }
+            mergedText[key, default: ""] += activity.text
+        }
+
+        var updatedTranscripts = subAgentTranscripts
+        var didChange = false
+        for key in order {
+            let activity = StreamActivity(
+                toolUseId: key.toolUseId,
+                kind: key.isMessage ? .message : .reasoning,
+                itemId: key.itemId,
+                text: mergedText[key] ?? ""
+            )
+            guard !activity.text.isEmpty,
+                  activity.kind == .message || activity.kind == .reasoning
+            else { continue }
+
+            let stableId = mergeableSubAgentActivityId(
+                toolUseId: activity.toolUseId,
+                kind: activity.kind,
+                itemId: activity.itemId
+            )
+            let existing = updatedTranscripts[activity.toolUseId, default: []].first { $0.id == stableId }
+            let timestamp = Date()
+            let item: ChatItem
+            let normalizedText: String
+            switch (activity.kind, existing) {
+            case (.message, .agentMessage(_, let existingText, _)):
+                let fullText = existingText + activity.text
+                normalizedText = normalizedStreamText(
+                    itemId: stableId,
+                    existingText: existingText,
+                    appendedText: activity.text,
+                    fullText: fullText
+                )
+                item = .agentMessage(id: stableId, text: fullText, timestamp: timestamp)
+            case (.reasoning, .reasoning(_, let existingText, _)):
+                let fullText = existingText + activity.text
+                normalizedText = normalizedStreamText(
+                    itemId: stableId,
+                    existingText: existingText,
+                    appendedText: activity.text,
+                    fullText: fullText
+                )
+                item = .reasoning(id: stableId, text: fullText, timestamp: timestamp)
+            case (.message, _):
+                normalizedText = whitespaceStrippedForDedup(activity.text)
+                item = .agentMessage(id: stableId, text: activity.text, timestamp: timestamp)
+            case (.reasoning, _):
+                normalizedText = whitespaceStrippedForDedup(activity.text)
+                item = .reasoning(id: stableId, text: activity.text, timestamp: timestamp)
+            default:
+                continue
+            }
+
+            if appendSubAgentTranscriptItem(
+                toolUseId: activity.toolUseId,
+                item: item,
+                normalizedAgentText: normalizedText,
+                to: &updatedTranscripts
+            ) {
+                didChange = true
+            }
+        }
+
+        guard didChange else { return }
+        subAgentTranscripts = updatedTranscripts
+        outputTouched?()
     }
 
     /// 子のツール呼び出しと結果を、tool_use_id ごとの 1 セルへマージする。
@@ -218,33 +343,6 @@ final class ChatSubAgentModel {
         return previous + "\n" + next
     }
 
-    private func appendMergeableSubAgentActivity(
-        toolUseId: String,
-        kind: SubAgentActivityKind,
-        itemId: String,
-        text: String
-    ) {
-        guard !text.isEmpty else { return }
-
-        let stableId = mergeableSubAgentActivityId(toolUseId: toolUseId, kind: kind, itemId: itemId)
-        let existing = subAgentTranscripts[toolUseId, default: []].first { $0.id == stableId }
-        let timestamp = Date()
-        let item: ChatItem
-        switch (kind, existing) {
-        case (.message, .agentMessage(_, let existingText, _)):
-            item = .agentMessage(id: stableId, text: existingText + text, timestamp: timestamp)
-        case (.reasoning, .reasoning(_, let existingText, _)):
-            item = .reasoning(id: stableId, text: existingText + text, timestamp: timestamp)
-        case (.message, _):
-            item = .agentMessage(id: stableId, text: text, timestamp: timestamp)
-        case (.reasoning, _):
-            item = .reasoning(id: stableId, text: text, timestamp: timestamp)
-        case (.prompt, _), (.tool, _), (.toolResult, _):
-            return
-        }
-        appendSubAgentTranscriptItem(toolUseId: toolUseId, item: item)
-    }
-
     private func mergeableSubAgentActivityId(
         toolUseId: String,
         kind: SubAgentActivityKind,
@@ -275,32 +373,88 @@ final class ChatSubAgentModel {
         id.hasSuffix("-output") || id.hasSuffix("-summary")
     }
 
+    /// ストリーム追記分だけを正規化し、累積本文の再走査を避ける。
+    private func normalizedStreamText(
+        itemId: String,
+        existingText: String,
+        appendedText: String,
+        fullText: String
+    ) -> String {
+        let previous = normalizedDedupText(itemId: itemId, source: existingText)
+        let stripped = previous + whitespaceStrippedForDedup(appendedText)
+        dedupTextCache[itemId] = CachedDedupText(source: fullText, stripped: stripped)
+        return stripped
+    }
+
+    private func normalizedDedupText(itemId: String, source: String) -> String {
+        if let cached = dedupTextCache[itemId], cached.source == source {
+            return cached.stripped
+        }
+        let stripped = whitespaceStrippedForDedup(source)
+        dedupTextCache[itemId] = CachedDedupText(source: source, stripped: stripped)
+        return stripped
+    }
+
     /// Dedup 比較専用: スペース・タブ・改行を全て除去した本文。表示・保存には使わない。
-    private static func whitespaceStrippedForDedup(_ text: String) -> String {
-        text.filter { !$0.isWhitespace }
+    private func whitespaceStrippedForDedup(_ text: String) -> String {
+        dedupScanMetricsForTesting = DedupScanMetrics(
+            callCount: dedupScanMetricsForTesting.callCount + 1,
+            characterCount: dedupScanMetricsForTesting.characterCount + text.count
+        )
+        return text.filter { !$0.isWhitespace }
     }
 
     private func appendSubAgentTranscriptItem(toolUseId: String, item: ChatItem) {
+        var updatedTranscripts = subAgentTranscripts
+        guard appendSubAgentTranscriptItem(
+            toolUseId: toolUseId,
+            item: item,
+            to: &updatedTranscripts
+        ) else { return }
+        subAgentTranscripts = updatedTranscripts
+        outputTouched?()
+    }
+
+    private func clearDedupTextCache(for toolUseId: String) {
+        var itemIDs = Set((subAgentTranscripts[toolUseId] ?? []).map(\.id))
+        // output と summary が同一本文で重複排除された場合、採用されなかった側の
+        // item は transcript に存在しないため、既知の完了レポート ID も消す。
+        itemIDs.insert("\(toolUseId)-output")
+        itemIDs.insert("\(toolUseId)-summary")
+        for itemID in itemIDs {
+            dedupTextCache.removeValue(forKey: itemID)
+        }
+    }
+
+    @discardableResult
+    private func appendSubAgentTranscriptItem(
+        toolUseId: String,
+        item: ChatItem,
+        normalizedAgentText: String? = nil,
+        to transcripts: inout [String: [ChatItem]]
+    ) -> Bool {
         if case .agentMessage(_, let newText, _) = item {
-            let stripped = Self.whitespaceStrippedForDedup(newText)
+            let stripped = normalizedAgentText
+                ?? normalizedDedupText(itemId: item.id, source: newText)
+            dedupTextCache[item.id] = CachedDedupText(source: newText, stripped: stripped)
             if !stripped.isEmpty {
                 let newIsReportChannel = Self.isCompletionReportId(item.id)
-                let alreadyPresent = subAgentTranscripts[toolUseId, default: []].contains { existing in
+                let alreadyPresent = transcripts[toolUseId, default: []].contains { existing in
                     if case .agentMessage(let existingId, let existingText, _) = existing, existingId != item.id {
                         guard newIsReportChannel || Self.isCompletionReportId(existingId) else { return false }
-                        return Self.whitespaceStrippedForDedup(existingText) == stripped
+                        return normalizedDedupText(itemId: existingId, source: existingText) == stripped
                     }
                     return false
                 }
-                if alreadyPresent { return }
+                if alreadyPresent { return false }
             }
         }
-        if let index = subAgentTranscripts[toolUseId, default: []].firstIndex(where: { $0.id == item.id }) {
-            subAgentTranscripts[toolUseId, default: []][index] = item
+        if let index = transcripts[toolUseId, default: []].firstIndex(where: { $0.id == item.id }) {
+            transcripts[toolUseId, default: []][index] = item
         } else {
-            subAgentTranscripts[toolUseId, default: []].append(item)
+            transcripts[toolUseId, default: []].append(item)
         }
-        outputTouched?()
+        return true
     }
 
     private func cachedParsedSubAgentTranscript(at path: String) -> [ChatItem]? {

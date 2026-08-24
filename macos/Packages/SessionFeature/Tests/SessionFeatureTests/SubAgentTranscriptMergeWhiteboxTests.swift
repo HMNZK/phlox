@@ -97,3 +97,130 @@ func whiteboxSameItemIdButDifferentKindStaysSeparate() async throws {
     #expect(whiteboxAgentTexts(transcript) == ["say"])
     #expect(transcript.count == 2)
 }
+
+@Test @MainActor
+func transcriptReplacementPreservesPendingSubAgentDelta() async throws {
+    let client = WhiteboxMergeClient()
+    let entry = ClaudeSessionHistoryEntry(
+        sessionID: "history-subagent",
+        preview: "history",
+        firstUserAt: nil,
+        lastModified: Date(),
+        gitBranch: nil,
+        fileURL: URL(fileURLWithPath: "/tmp/history-subagent.jsonl")
+    )
+    let vm = ChatSessionViewModel(
+        id: SessionID(),
+        agentRef: .builtin(.claudeCode),
+        client: client,
+        approvalBroker: ChatApprovalBroker(),
+        workingDirectory: "/tmp/phlox-subagent-restore-whitebox",
+        historyTranscriptLoader: { _ in [] }
+    )
+
+    client.yield(.subAgentActivity(
+        toolUseId: "tu-preserve",
+        kind: .message,
+        itemId: "msg-preserve:text",
+        text: "preserved"
+    ))
+    try await waitForWhiteboxMerge { vm.hasPendingTranscriptStreamDeltasForTesting }
+    await vm.startFromHistory(entry)
+
+    try await waitForWhiteboxMerge {
+        whiteboxAgentTexts(vm.subAgentTranscript(for: "tu-preserve")) == ["preserved"]
+    }
+    #expect(whiteboxAgentTexts(vm.subAgentTranscript(for: "tu-preserve")) == ["preserved"])
+    await client.close()
+}
+
+@Test @MainActor
+func subAgentDeltaRefreshesRunningActivityTimestamp() async throws {
+    let (vm, client) = makeWhiteboxChatVM()
+    client.yield(.turnStarted)
+    try await waitForWhiteboxMerge { vm.status == .running }
+
+    client.yield(.subAgentActivity(
+        toolUseId: "tu-live",
+        kind: .message,
+        itemId: "msg-live:text",
+        text: "live"
+    ))
+    try await waitForWhiteboxMerge { vm.lastOutputAt != nil }
+
+    #expect(vm.lastOutputAt != nil)
+    #expect(vm.lastRunningEventAtForTesting != nil)
+    await client.close()
+}
+
+@Test @MainActor
+func completedSubAgentClearsDedupTextCache() {
+    let model = ChatSubAgentModel()
+    model.appendSubAgentActivity(
+        toolUseId: "tu-cache",
+        kind: .message,
+        itemId: "msg-cache:text",
+        text: "本文"
+    )
+    #expect(model.dedupTextCacheCountForTesting == 1)
+
+    model.completeSubAgent(
+        toolUseId: "tu-cache",
+        status: "completed",
+        summary: "本文",
+        outputFile: nil
+    )
+
+    #expect(model.dedupTextCacheCountForTesting == 0)
+}
+
+@Test @MainActor
+func subAgentStreamDedupScansEachDirectDeltaOnce() {
+    let model = ChatSubAgentModel()
+    model.resetDedupScanMetricsForTesting()
+    model.upsertSubAgent(
+        toolUseId: "tu-performance",
+        subagentType: "general-purpose",
+        description: "scan",
+        status: .running,
+        summary: nil,
+        outputFile: nil
+    )
+
+    let deltaCount = 5_000
+    for _ in 0..<deltaCount {
+        model.appendSubAgentActivities([ChatSubAgentModel.StreamActivity(
+            toolUseId: "tu-performance",
+            kind: .message,
+            itemId: "m1:text",
+            text: "x"
+        )])
+    }
+
+    #expect(whiteboxAgentTexts(model.transcript(for: "tu-performance")) == [String(repeating: "x", count: deltaCount)])
+    #expect(model.dedupScanMetricsForTesting.callCount == deltaCount)
+    #expect(model.dedupScanMetricsForTesting.characterCount == deltaCount)
+}
+
+@Test @MainActor
+func repeatedWarningMessageReplacesItsExistingTranscriptItem() async throws {
+    let (vm, client) = makeWhiteboxChatVM()
+    client.yield(.warning(message: "MCPサーバー「github」: connection refused"))
+    client.yield(.warning(message: "MCPサーバー「github」: connection refused"))
+
+    try await waitForWhiteboxMerge {
+        vm.transcript.contains { item in
+            if case .error(_, let message, _) = item {
+                return message.contains("connection refused")
+            }
+            return false
+        }
+    }
+
+    let warnings = vm.transcript.compactMap { item -> String? in
+        guard case .error(_, let message, _) = item,
+              message.contains("connection refused") else { return nil }
+        return message
+    }
+    #expect(warnings == ["MCPサーバー「github」: connection refused"])
+}

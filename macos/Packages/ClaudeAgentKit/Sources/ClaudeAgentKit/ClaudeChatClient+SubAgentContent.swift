@@ -21,8 +21,8 @@ extension ClaudeChatClient {
 
         // バックグラウンドサブエージェントは子のターン（thinking/text/tool_use）を
         // parent_tool_use_id 付きでインライン流入させる。これをメインに出さず隔離する。
-        if let parentToolUseId = event["parent_tool_use_id"] as? String,
-           subAgentToolUseIds.contains(parentToolUseId) {
+        if let parentToolUseId = event["parent_tool_use_id"] as? String {
+            markSubAgentToolUse(parentToolUseId)
             let messageId = message["id"] as? String
             for (index, item) in content.enumerated() {
                 yieldSubAgentAssistantActivity(
@@ -51,26 +51,45 @@ extension ClaudeChatClient {
         guard let type = item["type"] as? String else { return }
         switch type {
         case "text":
-            if let text = item["text"] as? String, !text.isEmpty {
+            let itemId = assistantContentItemId(item, messageId: messageId, type: type, index: index)
+            if let text = item["text"] as? String,
+               !text.isEmpty,
+               !shouldSuppressCompletedPartialContent(
+                itemId: itemId,
+                parentToolUseId: parentToolUseId,
+                messageId: messageId,
+                type: type
+               ) {
                 eventContinuation.yield(.subAgentActivity(
                     toolUseId: parentToolUseId,
                     kind: .message,
-                    itemId: assistantContentItemId(item, messageId: messageId, type: type, index: index),
+                    itemId: itemId,
                     text: text
                 ))
             }
         case "thinking":
-            if let thinking = item["thinking"] as? String ?? item["text"] as? String, !thinking.isEmpty {
+            let itemId = assistantContentItemId(item, messageId: messageId, type: type, index: index)
+            if let thinking = item["thinking"] as? String ?? item["text"] as? String,
+               !thinking.isEmpty,
+               !shouldSuppressCompletedPartialContent(
+                itemId: itemId,
+                parentToolUseId: parentToolUseId,
+                messageId: messageId,
+                type: type
+               ) {
                 eventContinuation.yield(.subAgentActivity(
                     toolUseId: parentToolUseId,
                     kind: .reasoning,
-                    itemId: assistantContentItemId(item, messageId: messageId, type: type, index: index),
+                    itemId: itemId,
                     text: thinking
                 ))
             }
         case "tool_use":
             if let name = item["name"] as? String {
                 let input = item["input"] as? [String: Any] ?? [:]
+                if isSubAgentTool(name) {
+                    registerNestedSubAgentToolUse(item)
+                }
                 // 子の tool_use.id を itemId に載せる。対になる tool_result（.toolResult）が
                 // 同じ id で届き、受け側が 1 ツールコール = 1 セルへマージできる。
                 eventContinuation.yield(.subAgentActivity(
@@ -91,11 +110,23 @@ extension ClaudeChatClient {
 
         switch type {
         case "text":
-            if let text = item["text"] as? String {
+            if let text = item["text"] as? String,
+               !shouldSuppressCompletedPartialContent(
+                itemId: itemId,
+                parentToolUseId: nil,
+                messageId: messageId,
+                type: type
+               ) {
                 eventContinuation.yield(.agentMessageDelta(itemId: itemId, text))
             }
         case "thinking":
-            if let thinking = item["thinking"] as? String ?? item["text"] as? String {
+            if let thinking = item["thinking"] as? String ?? item["text"] as? String,
+               !shouldSuppressCompletedPartialContent(
+                itemId: itemId,
+                parentToolUseId: nil,
+                messageId: messageId,
+                type: type
+               ) {
                 eventContinuation.yield(.reasoningDelta(itemId: itemId, thinking))
             }
         case "tool_use":
@@ -186,8 +217,8 @@ extension ClaudeChatClient {
         // 子（サブエージェント）のインライン user イベント（プロンプトのエコー・tool_result 等）は
         // parent_tool_use_id で識別し、メインに出さず隔離して return する。子内部ツールの
         // tool_use_id は launcher と異なるため、下の tool_result ループでは拾えない（漏洩する）。
-        if let parentToolUseId = event["parent_tool_use_id"] as? String,
-           subAgentToolUseIds.contains(parentToolUseId) {
+        if let parentToolUseId = event["parent_tool_use_id"] as? String {
+            markSubAgentToolUse(parentToolUseId)
             for item in content {
                 if item["type"] as? String == "tool_result" {
                     let text = toolResultText(from: item["content"])
@@ -199,6 +230,16 @@ extension ClaudeChatClient {
                             kind: .toolResult,
                             itemId: item["tool_use_id"] as? String,
                             text: text
+                        ))
+                    }
+                    if let nestedToolUseId = item["tool_use_id"] as? String,
+                       subAgentToolUseIds.contains(nestedToolUseId) {
+                        observeSubAgentCompletion(nestedToolUseId)
+                        eventContinuation.yield(.subAgentCompleted(
+                            toolUseId: nestedToolUseId,
+                            status: item["is_error"] as? Bool == true ? "failed" : "completed",
+                            summary: text,
+                            outputFile: nil
                         ))
                     }
                 } else if let text = item["text"] as? String, !text.isEmpty {
@@ -233,6 +274,13 @@ extension ClaudeChatClient {
                     toolUseId: toolUseId,
                     text: text
                 ))
+                observeSubAgentCompletion(toolUseId)
+                eventContinuation.yield(.subAgentCompleted(
+                    toolUseId: toolUseId,
+                    status: item["is_error"] as? Bool == true ? "failed" : "completed",
+                    summary: text,
+                    outputFile: nil
+                ))
                 continue
             }
             let itemId = toolUseItemIds[toolUseId] ?? toolUseId
@@ -261,6 +309,52 @@ extension ClaudeChatClient {
 
     func markSubAgentToolUse(_ toolUseId: String) {
         subAgentToolUseIds.insert(toolUseId)
+    }
+
+    func registerNestedSubAgentToolUse(
+        _ item: [String: Any]
+    ) {
+        guard
+            let toolUseId = item["id"] as? String,
+            let name = item["name"] as? String,
+            isSubAgentTool(name)
+        else { return }
+
+        let input = item["input"] as? [String: Any] ?? [:]
+        markSubAgentToolUse(toolUseId)
+        let description: String
+        if let explicitDescription = input["description"] as? String {
+            description = explicitDescription
+        } else {
+            description = commandDescription(toolName: name, input: input)
+        }
+        yieldSubAgentStartedIfNeeded(
+            toolUseId: toolUseId,
+            subagentType: input["subagent_type"] as? String ?? name,
+            description: description
+        )
+        if let prompt = input["prompt"] as? String, !prompt.isEmpty {
+            eventContinuation.yield(.subAgentActivity(
+                toolUseId: toolUseId,
+                kind: .prompt,
+                itemId: nil,
+                text: prompt
+            ))
+        }
+    }
+
+    func shouldSuppressCompletedPartialContent(
+        itemId: String,
+        parentToolUseId: String?,
+        messageId: String?,
+        type: String
+    ) -> Bool {
+        guard includePartialMessages else { return false }
+        if partialItemIds.contains(itemId) {
+            return true
+        }
+        guard let messageId else { return false }
+        return partialContentKeys.contains(partialContentKey(parentToolUseId, messageId: messageId, type: type))
     }
 
     func assistantContentItemId(_ item: [String: Any], messageId: String?, type: String, index: Int) -> String {

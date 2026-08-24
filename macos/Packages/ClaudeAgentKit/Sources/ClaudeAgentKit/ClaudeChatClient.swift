@@ -14,6 +14,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
         case none
         case sessionId(String)
         case resume(String)
+        case fork(String)
     }
 
     struct PendingResultError {
@@ -79,6 +80,9 @@ public actor ClaudeChatClient: StructuredAgentClient {
     let environment: [String: String]
     let allowedTools: [String]
     let phloxSessionID: String?
+    let includePartialMessages: Bool
+    let settingSources: String?
+    let agents: String?
     private let preApprovalPolicy: PreApprovalPolicy?
     let transportFactory: TransportFactory
     let eventContinuation: AsyncStream<NormalizedChatEvent>.Continuation
@@ -98,6 +102,11 @@ public actor ClaudeChatClient: StructuredAgentClient {
     var subAgentToolUseIds: Set<String> = []
     var backgroundSubAgentToolUseIds: Set<String> = []
     var emittedSubAgentStarts: Set<String> = []
+    var completedSubAgentToolUseIds: Set<String> = []
+    var partialMessageIdsByParent: [String: String] = [:]
+    var partialItemIdsByKey: [String: String] = [:]
+    var partialItemIds: Set<String> = []
+    var partialContentKeys: Set<String> = []
     var currentModel: String?
     var currentPermissionMode: String?
     var currentEffort: String?
@@ -132,6 +141,12 @@ public actor ClaudeChatClient: StructuredAgentClient {
         usageRequestTimeout = timeout
     }
 
+    /// Claude Code の spawn 引数を構成するクライアント API。
+    /// `settingSources` と `agents` は現時点で UI からの呼び出し元は無く、将来の配線を
+    /// 前提にしたクライアント API として保持する。
+    /// - Parameters:
+    ///   - settingSources: Claude Code に渡す設定ソース。
+    ///   - agents: Claude Code に渡すカスタムエージェント定義。
     public init(
         command: String,
         workingDirectory: String?,
@@ -140,6 +155,9 @@ public actor ClaudeChatClient: StructuredAgentClient {
         model: String? = nil,
         allowedTools: [String] = [],
         phloxSessionID: String? = nil,
+        includePartialMessages: Bool = true,
+        settingSources: String? = nil,
+        agents: String? = nil,
         preApprovalPolicy: PreApprovalPolicy? = nil
     ) {
         self.command = command
@@ -149,6 +167,9 @@ public actor ClaudeChatClient: StructuredAgentClient {
         self.currentPermissionMode = Self.resolvedPermissionMode(permissionMode, preApprovalPolicy: preApprovalPolicy)
         self.allowedTools = Self.resolvedAllowedTools(allowedTools, preApprovalPolicy: preApprovalPolicy)
         self.phloxSessionID = Self.resolvePhloxSessionID(explicit: phloxSessionID, environment: environment)
+        self.includePartialMessages = includePartialMessages
+        self.settingSources = settingSources
+        self.agents = agents
         self.preApprovalPolicy = preApprovalPolicy
         self.transportFactory = { command, arguments, environment, workingDirectory in
             LineDelimitedProcessTransport(
@@ -163,6 +184,11 @@ public actor ClaudeChatClient: StructuredAgentClient {
         self.eventContinuation = eventContinuation!
     }
 
+    /// `settingSources` と `agents` は現時点で UI からの呼び出し元は無く、将来の配線を
+    /// 前提にしたクライアント API として保持する。
+    /// - Parameters:
+    ///   - settingSources: Claude Code に渡す設定ソース。
+    ///   - agents: Claude Code に渡すカスタムエージェント定義。
     public init(
         command: String = "claude",
         workingDirectory: URL? = nil,
@@ -171,6 +197,9 @@ public actor ClaudeChatClient: StructuredAgentClient {
         model: String? = nil,
         allowedTools: [String] = [],
         phloxSessionID: String? = nil,
+        includePartialMessages: Bool = true,
+        settingSources: String? = nil,
+        agents: String? = nil,
         preApprovalPolicy: PreApprovalPolicy? = nil,
         transportFactory: @escaping TransportFactory
     ) {
@@ -181,6 +210,9 @@ public actor ClaudeChatClient: StructuredAgentClient {
         self.currentPermissionMode = Self.resolvedPermissionMode(permissionMode, preApprovalPolicy: preApprovalPolicy)
         self.allowedTools = Self.resolvedAllowedTools(allowedTools, preApprovalPolicy: preApprovalPolicy)
         self.phloxSessionID = Self.resolvePhloxSessionID(explicit: phloxSessionID, environment: environment)
+        self.includePartialMessages = includePartialMessages
+        self.settingSources = settingSources
+        self.agents = agents
         self.preApprovalPolicy = preApprovalPolicy
         self.transportFactory = transportFactory
         var eventContinuation: AsyncStream<NormalizedChatEvent>.Continuation?
@@ -308,6 +340,13 @@ public actor ClaudeChatClient: StructuredAgentClient {
 
     public func resume(sessionRef: String) async throws {
         try await spawn(sessionArgument: .resume(sessionRef))
+        callerResumedSession = true
+    }
+
+    /// 指定したセッションを元に新しい Claude Code セッションを fork する。
+    /// 現時点で UI からの呼び出し元は無く、将来の配線を前提にしたクライアント API である。
+    public func forkSession(from sessionRef: String) async throws {
+        try await spawn(sessionArgument: .fork(sessionRef))
         callerResumedSession = true
     }
 

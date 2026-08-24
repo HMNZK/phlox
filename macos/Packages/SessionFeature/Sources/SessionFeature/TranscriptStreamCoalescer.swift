@@ -14,6 +14,7 @@ final class TranscriptStreamCoalescer {
         let kind: DeltaKind
         let delta: String
         let receivedAt: Date
+        let subAgentToolUseId: String?
     }
 
     struct Batch: Equatable {
@@ -34,6 +35,10 @@ final class TranscriptStreamCoalescer {
     private var pendingRawEvents: [String] = []
     private var latestEventAt: Date?
 
+    var hasPendingDeltasForTesting: Bool {
+        !pendingDeltas.isEmpty
+    }
+
     init(
         flushInterval: TimeInterval = 0.05,
         now: @escaping Clock = Date.init,
@@ -49,13 +54,20 @@ final class TranscriptStreamCoalescer {
         self.schedule = schedule
     }
 
-    func enqueue(itemId: String, kind: DeltaKind, delta: String, rawEvent: String) {
+    func enqueue(
+        itemId: String,
+        kind: DeltaKind,
+        delta: String,
+        rawEvent: String,
+        subAgentToolUseId: String? = nil
+    ) {
         let receivedAt = now()
         pendingDeltas.append(PendingDelta(
             itemId: itemId,
             kind: kind,
             delta: delta,
-            receivedAt: receivedAt
+            receivedAt: receivedAt,
+            subAgentToolUseId: subAgentToolUseId
         ))
         pendingRawEvents.append(rawEvent)
         latestEventAt = receivedAt

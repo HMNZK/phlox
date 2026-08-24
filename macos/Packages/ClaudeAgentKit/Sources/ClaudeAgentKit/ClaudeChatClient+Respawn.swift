@@ -4,6 +4,16 @@ import Foundation
 extension ClaudeChatClient {
     func spawn(sessionArgument: SpawnSessionArgument) async throws {
         currentTurnLatestContextTokens = nil
+        if case .fork = sessionArgument {
+            // fork は CLI が init で新しい ID を発行する。fork 元 ID を respawn 用状態へ残さない。
+            currentSessionId = nil
+            observedExistingConversation = false
+        }
+        partialMessageIdsByParent.removeAll()
+        partialItemIdsByKey.removeAll()
+        partialItemIds.removeAll()
+        partialContentKeys.removeAll()
+        completedSubAgentToolUseIds.removeAll()
         await expirePendingUserQuestions()
         if let transport {
             failAllPendingUsageRequests(ClaudeChatClientError.transportClosed)
@@ -31,6 +41,8 @@ extension ClaudeChatClient {
             break
         case .sessionId(let sessionId), .resume(let sessionId):
             currentSessionId = sessionId
+        case .fork:
+            break
         }
 
         let lines = nextTransport.receivedLines
@@ -134,7 +146,11 @@ extension ClaudeChatClient {
             "--output-format", "stream-json",
             "--verbose",
             "--permission-prompt-tool", "stdio",
+            "--forward-subagent-text",
         ]
+        if includePartialMessages {
+            arguments.append("--include-partial-messages")
+        }
         if let currentModel {
             arguments.append(contentsOf: ["--model", currentModel])
         }
@@ -147,6 +163,12 @@ extension ClaudeChatClient {
         if !allowedTools.isEmpty {
             arguments.append(contentsOf: ["--allowedTools", allowedTools.joined(separator: ",")])
         }
+        if let settingSources {
+            arguments.append(contentsOf: ["--setting-sources", settingSources])
+        }
+        if let agents {
+            arguments.append(contentsOf: ["--agents", agents])
+        }
         switch sessionArgument {
         case .none:
             break
@@ -154,6 +176,8 @@ extension ClaudeChatClient {
             arguments.append(contentsOf: ["--session-id", sessionId])
         case .resume(let resumeSessionId):
             arguments.append(contentsOf: ["--resume", resumeSessionId])
+        case .fork(let resumeSessionId):
+            arguments.append(contentsOf: ["--resume", resumeSessionId, "--fork-session"])
         }
         return arguments
     }
@@ -166,6 +190,10 @@ extension ClaudeChatClient {
     }
 
     func settingsRespawnSessionArgument() -> SpawnSessionArgument {
+        if case .fork = activeSpawnArgument, currentSessionId == nil {
+            // system.init 前は fork 元も新しい session ID も使わず、新規 spawn にする。
+            return .none
+        }
         if observedExistingConversation || callerResumedSession, let currentSessionId {
             return .resume(currentSessionId)
         }

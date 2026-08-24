@@ -1226,6 +1226,22 @@ public final class ChatSessionViewModel: Identifiable {
         subAgentModel.transcript(for: id)
     }
 
+    var subAgentDedupScanMetricsForTesting: ChatSubAgentModel.DedupScanMetrics {
+        subAgentModel.dedupScanMetricsForTesting
+    }
+
+    func resetSubAgentDedupScanMetricsForTesting() {
+        subAgentModel.resetDedupScanMetricsForTesting()
+    }
+
+    var hasPendingTranscriptStreamDeltasForTesting: Bool {
+        transcriptStreamCoalescer.hasPendingDeltasForTesting
+    }
+
+    var lastRunningEventAtForTesting: Date? {
+        lastEventAt
+    }
+
     public func subAgentControlSummaries() -> [SubAgentControlSummary] {
         subAgents.map { ref in
             let markerMessageId = transcript.first { item in
@@ -1666,6 +1682,15 @@ public final class ChatSessionViewModel: Identifiable {
         ))
     }
 
+    private static func warningItemID(for message: String) -> String {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in message.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 0x0000_0100_0000_01b3
+        }
+        return "warning-\(String(hash, radix: 16))"
+    }
+
     private static let rawEventLogCap = 500
 
     private func appendRawEventLog(_ eventDescription: String) {
@@ -1808,7 +1833,7 @@ public final class ChatSessionViewModel: Identifiable {
             midTurnPersistenceGate.noteExternalFlush()
         case .warning(let message):
             markRunningEventReceived(at: eventDate)
-            appendOrReplace(.error(id: "warning-\(UUID().uuidString)", message: message, timestamp: eventDate))
+            appendOrReplace(.error(id: Self.warningItemID(for: message), message: message, timestamp: eventDate))
             touchOutput()
         case .backgroundTaskStarted(let taskId, let taskType, let description, let toolUseId):
             markRunningEventReceived(at: eventDate)
@@ -1972,6 +1997,17 @@ public final class ChatSessionViewModel: Identifiable {
             return true
         case .commandExecution(let itemId, let command, let delta) where command?.isEmpty != false:
             transcriptStreamCoalescer.enqueue(itemId: itemId, kind: .command, delta: delta, rawEvent: rawEvent)
+            return true
+        case .subAgentActivity(let toolUseId, let kind, let itemId, let text)
+            where kind == .message || kind == .reasoning:
+            guard let itemId else { return false }
+            transcriptStreamCoalescer.enqueue(
+                itemId: itemId,
+                kind: kind == .message ? .agent : .reasoning,
+                delta: text,
+                rawEvent: rawEvent,
+                subAgentToolUseId: toolUseId
+            )
             return true
         default:
             return false
@@ -2242,6 +2278,7 @@ public final class ChatSessionViewModel: Identifiable {
     private func setTranscript(_ items: [ChatItem]) {
         if let discardedBatch = transcriptStreamCoalescer.invalidate() {
             appendRawEventLogs(discardedBatch.rawEvents)
+            subAgentModel.appendSubAgentActivities(subAgentActivities(from: discardedBatch))
         }
         transcript = items
         transcriptItemIDs = Set(items.map(\.id))
@@ -2279,10 +2316,27 @@ public final class ChatSessionViewModel: Identifiable {
         applyStreamBatch(batch)
     }
 
+    private func subAgentActivities(
+        from batch: TranscriptStreamCoalescer.Batch
+    ) -> [ChatSubAgentModel.StreamActivity] {
+        batch.deltas.compactMap { pending in
+            guard let toolUseId = pending.subAgentToolUseId else { return nil }
+            return ChatSubAgentModel.StreamActivity(
+                toolUseId: toolUseId,
+                kind: pending.kind == .agent ? .message : .reasoning,
+                itemId: pending.itemId,
+                text: pending.delta
+            )
+        }
+    }
+
     private func applyStreamBatch(_ batch: TranscriptStreamCoalescer.Batch) {
+        markRunningEventReceived(at: batch.latestEventAt)
         appendRawEventLogs(batch.rawEvents)
         var didChange = false
+        let subAgentActivities = subAgentActivities(from: batch)
         for pending in batch.deltas {
+            guard pending.subAgentToolUseId == nil else { continue }
             if let index = transcriptIndexByID[pending.itemId] {
                 switch (pending.kind, transcript[index]) {
                 case (.agent, .agentMessage(let id, let text, let timestamp)):
@@ -2333,10 +2387,11 @@ public final class ChatSessionViewModel: Identifiable {
             }
         }
 
+        subAgentModel.appendSubAgentActivities(subAgentActivities)
+
         if didChange {
             markTranscriptChanged()
         }
-        markRunningEventReceived(at: batch.latestEventAt)
         lastOutputAt = batch.latestEventAt
     }
 

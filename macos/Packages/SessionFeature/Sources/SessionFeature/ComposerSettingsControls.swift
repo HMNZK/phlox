@@ -20,6 +20,8 @@ struct ComposerModeOption: Hashable {
     let isPlan: Bool
 }
 
+private let dontAskModeCaption = "承認が要る操作は確認されずスキップされます"
+
 /// agentRef ごとに表示する設定コントロール集合（単一表示・グリッド表示の共通真実源）。
 func composerControls(for agentRef: AgentRef) -> [ComposerControlKind] {
     switch agentRef {
@@ -43,9 +45,13 @@ func composerModeOptions(for agentRef: AgentRef, codexProfileIDs: [String]) -> [
             ComposerModeOption(value: "plan", title: "Plan", isPlan: true),
         ]
     case .builtin(.claudeCode):
+        // Claude のモードごとの承認境界を表示し、Don't Ask の意味をキャプションで補足する。
         [
             ComposerModeOption(value: "acceptEdits", title: "Accept Edits", isPlan: false),
+            ComposerModeOption(value: "auto", title: "Auto", isPlan: false),
             ComposerModeOption(value: "bypassPermissions", title: "Bypass", isPlan: false),
+            ComposerModeOption(value: "manual", title: "Manual", isPlan: false),
+            ComposerModeOption(value: "dontAsk", title: "Don't Ask", isPlan: false),
             ComposerModeOption(value: "plan", title: "Plan", isPlan: true),
         ]
     case .builtin(.cursor):
@@ -222,7 +228,8 @@ struct ComposerSettingsControlsView: View {
                     } label: {
                         SettingsMenuRow(
                             title: option.title,
-                            isSelected: modeOptionIsSelected(option, currentValue: selectedClaudePermission)
+                            isSelected: modeOptionIsSelected(option, currentValue: selectedClaudePermission),
+                            detail: option.value == "dontAsk" ? dontAskModeCaption : nil
                         )
                     }
                     .disabled(option.isPlan && !viewModel.isPlanModeAvailable)
@@ -443,7 +450,10 @@ struct ComposerSettingsControlsView: View {
     private static func claudePermissionTitle(for value: String) -> String {
         switch value {
         case "acceptEdits": "Accept Edits"
+        case "auto": "Auto"
         case "bypassPermissions": "Bypass"
+        case "manual": "Manual"
+        case "dontAsk": "Don't Ask"
         default: value
         }
     }
@@ -767,7 +777,8 @@ struct ComposerSettingsOverflowMenu: View {
             } label: {
                 SettingsMenuRow(
                     title: option.title,
-                    isSelected: modeOptionIsSelected(option, currentValue: selectedClaudePermission)
+                    isSelected: modeOptionIsSelected(option, currentValue: selectedClaudePermission),
+                    detail: option.value == "dontAsk" ? dontAskModeCaption : nil
                 )
             }
             .disabled(option.isPlan && !viewModel.isPlanModeAvailable)
@@ -1050,10 +1061,25 @@ struct ComposerControlChip: View {
 struct SettingsMenuRow: View {
     let title: String
     let isSelected: Bool
+    let detail: String?
+
+    init(title: String, isSelected: Bool, detail: String? = nil) {
+        self.title = title
+        self.isSelected = isSelected
+        self.detail = detail
+    }
 
     var body: some View {
         HStack {
-            Text(title)
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                Text(title)
+                if let detail {
+                    Text(detail)
+                        .font(DSFont.caption)
+                        .foregroundStyle(DSColor.chatTextSecondary)
+                        .lineLimit(2)
+                }
+            }
             if isSelected {
                 Spacer()
                 Image(systemName: "checkmark")

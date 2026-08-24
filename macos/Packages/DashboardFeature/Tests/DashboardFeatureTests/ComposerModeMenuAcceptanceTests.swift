@@ -30,7 +30,10 @@ struct ComposerModeMenuAcceptanceTests {
     func claudeModeOptionsAppendPlan() {
         #expect(composerModeOptions(for: .builtin(.claudeCode), codexProfileIDs: []) == [
             ComposerModeOption(value: "acceptEdits", title: "Accept Edits", isPlan: false),
+            ComposerModeOption(value: "auto", title: "Auto", isPlan: false),
             ComposerModeOption(value: "bypassPermissions", title: "Bypass", isPlan: false),
+            ComposerModeOption(value: "manual", title: "Manual", isPlan: false),
+            ComposerModeOption(value: "dontAsk", title: "Don't Ask", isPlan: false),
             ComposerModeOption(value: "plan", title: "Plan", isPlan: true),
         ])
     }

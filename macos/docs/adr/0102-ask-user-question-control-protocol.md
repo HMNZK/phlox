@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 last-verified: 2026-07-19
 ---
 
@@ -7,6 +7,8 @@ last-verified: 2026-07-19
 
 > **このファイルの役割**: Claude チャットが `AskUserQuestion` ツール（選択肢提示→回答）に対応するため、`claude -p` の stream-json 輸送層へ CLI control protocol（`can_use_tool` → `control_response`）を最小実装した決定と理由。
 > **書かないもの**: 現状の spawn/respawn 状態機械全体（→ [architecture/claude-chat-session-lifecycle.md](../architecture/claude-chat-session-lifecycle.md)）、wire DTO・REST 経路（→ [ADR 0103](0103-user-question-wire-mirror.md)）。
+
+> **Superseded:** 通常ツールの `can_use_tool` を即時 deny する決定は [ADR 0172](0172-tool-permission-requests-forwarded-to-user-approval.md) に置き換えられた。`AskUserQuestion` の wire 形式・回答射影・失効の基本は本 ADR の履歴として残す。
 
 ## 文脈
 

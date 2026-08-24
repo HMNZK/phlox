@@ -1189,6 +1189,7 @@ public final class ChatSessionViewModel: Identifiable {
             return true
         }
 
+        // 既知の制約: answered 表示と actor の実送信がずれうるが、未承認ツールは実行されず表示上のずれに留まる。
         await client.respondToUserQuestion(requestId: requestId, answers: answers)
         let persistedAnswers = ChatUserQuestion.persistedAnswers(from: answers, for: questions)
         appendOrReplace(.userQuestion(

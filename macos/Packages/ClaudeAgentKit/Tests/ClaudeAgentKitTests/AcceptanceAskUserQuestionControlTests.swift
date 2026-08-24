@@ -275,7 +275,7 @@ private func waitFor(
     task.cancel()
 }
 
-@Test func nonAskUserQuestionToolGetsImmediateDenyWithoutEvent() async throws {
+@Test func nonAskUserQuestionToolYieldsPermissionQuestion() async throws {
     let mock = AskQMockTransport()
     let recorder = AskQTransportRecorder(mock)
     let client = makeClient(recorder)
@@ -287,24 +287,17 @@ private func waitFor(
     "tool_name":"Bash","input":{"command":"echo hi"},"tool_use_id":"toolu_3"}}
     """)
 
-    try await waitFor("deny が返送される") { controlResponses(in: mock).count == 1 }
-    let envelope = try #require(controlResponses(in: mock).first?["response"] as? [String: Any])
-    #expect(envelope["request_id"] as? String == "req-3")
-    let inner = try #require(envelope["response"] as? [String: Any])
-    #expect(inner["behavior"] as? String == "deny")
-    let message = inner["message"] as? String ?? ""
-    #expect(message.contains("Phlox"))
-
-    // 質問イベントは yield されない。
-    mock.receive("""
-    {"type":"result","subtype":"success","is_error":false}
-    """)
-    try await waitFor("turn 完了") { collector.all.contains(.turnCompleted(nativeSessionId: nil)) }
-    let hasQuestionEvent = collector.all.contains { event in
-        if case .userQuestionRequested = event { return true }
-        return false
+    try await waitFor("ツール許可の質問が yield される") {
+        collector.all.contains { event in
+            if case .userQuestionRequested(let requestId, let questions) = event {
+                return requestId == "req-3"
+                    && questions.first?.header == "Bash"
+                    && questions.first?.options.map(\.label) == ["Allow", "Deny"]
+            }
+            return false
+        }
     }
-    #expect(!hasQuestionEvent)
+    #expect(controlResponses(in: mock).isEmpty)
     await client.close()
     task.cancel()
 }

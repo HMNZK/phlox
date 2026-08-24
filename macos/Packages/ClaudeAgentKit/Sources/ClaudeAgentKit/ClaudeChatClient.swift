@@ -35,7 +35,12 @@ public actor ClaudeChatClient: StructuredAgentClient {
         var input: [String: Any]
         var questions: [ChatUserQuestion]
         var generation: Int
+        var permission: PendingToolPermission?
         var isResponding = false
+    }
+
+    struct PendingToolPermission {
+        let toolName: String
     }
 
     public struct PreApprovalRequest: Equatable, Sendable {
@@ -77,7 +82,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
     let command: String
     let workingDirectory: URL?
     let environment: [String: String]
-    let allowedTools: [String]
+    let requestedAllowedTools: [String]
     let phloxSessionID: String?
     private let preApprovalPolicy: PreApprovalPolicy?
     let transportFactory: TransportFactory
@@ -121,11 +126,20 @@ public actor ClaudeChatClient: StructuredAgentClient {
     var nextUsageRequestID = 1
     var pendingUsageRequests: [String: PendingUsageRequest] = [:]
     var pendingUserQuestions: [String: PendingUserQuestion] = [:]
+    var expiringUserQuestionIDs: Set<String> = []
     var interruptingControlGeneration: Int?
     /// get_usage 応答待ちの内部タイムアウト（契約: 15 秒以下・テスト注入可能）。
     /// 実 CLI はターン処理中でも control_response を即応するが（2026-07-10 実測）、
     /// 重負荷時の余裕を見て既定 10 秒にする。
     var usageRequestTimeout: Duration = .seconds(10)
+
+    var allowedTools: [String] {
+        Self.resolvedAllowedTools(
+            requestedAllowedTools,
+            permissionMode: currentPermissionMode,
+            preApprovalPolicy: preApprovalPolicy
+        )
+    }
 
     /// テスト専用: get_usage の内部タイムアウトを注入する（actor 隔離のため setter を関数で公開）。
     func setUsageRequestTimeoutForTesting(_ timeout: Duration) {
@@ -146,8 +160,9 @@ public actor ClaudeChatClient: StructuredAgentClient {
         self.workingDirectory = workingDirectory.map { URL(fileURLWithPath: $0) }
         self.environment = environment
         self.currentModel = model
-        self.currentPermissionMode = Self.resolvedPermissionMode(permissionMode, preApprovalPolicy: preApprovalPolicy)
-        self.allowedTools = Self.resolvedAllowedTools(allowedTools, preApprovalPolicy: preApprovalPolicy)
+        let resolvedPermissionMode = Self.resolvedPermissionMode(permissionMode, preApprovalPolicy: preApprovalPolicy)
+        self.currentPermissionMode = resolvedPermissionMode
+        self.requestedAllowedTools = allowedTools
         self.phloxSessionID = Self.resolvePhloxSessionID(explicit: phloxSessionID, environment: environment)
         self.preApprovalPolicy = preApprovalPolicy
         self.transportFactory = { command, arguments, environment, workingDirectory in
@@ -178,8 +193,9 @@ public actor ClaudeChatClient: StructuredAgentClient {
         self.workingDirectory = workingDirectory
         self.environment = environment
         self.currentModel = model
-        self.currentPermissionMode = Self.resolvedPermissionMode(permissionMode, preApprovalPolicy: preApprovalPolicy)
-        self.allowedTools = Self.resolvedAllowedTools(allowedTools, preApprovalPolicy: preApprovalPolicy)
+        let resolvedPermissionMode = Self.resolvedPermissionMode(permissionMode, preApprovalPolicy: preApprovalPolicy)
+        self.currentPermissionMode = resolvedPermissionMode
+        self.requestedAllowedTools = allowedTools
         self.phloxSessionID = Self.resolvePhloxSessionID(explicit: phloxSessionID, environment: environment)
         self.preApprovalPolicy = preApprovalPolicy
         self.transportFactory = transportFactory
@@ -341,9 +357,11 @@ public actor ClaudeChatClient: StructuredAgentClient {
         // request_id に allow+deny の二重 control_response が届きうる（stage2 MEDIUM）。
         // 送信中のものは deny 対象から除外する（失効処理は expire 側で行われる）。
         let pendingQuestions = pendingUserQuestions.filter {
-            $0.value.generation == generation && !$0.value.isResponding
+            $0.value.generation == generation
+                && !$0.value.isResponding
+                && $0.value.permission == nil
         }
-        expirePendingUserQuestions(generation: generation)
+        await expirePendingUserQuestions(generation: generation)
         let shouldSuppressInterruptedResult = currentTurnOpen
         currentTurnOpen = false
         currentTurnLine = nil
@@ -383,7 +401,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
         receiveTask?.cancel()
         receiveTask = nil
         failAllPendingUsageRequests(ClaudeChatClientError.transportClosed)
-        expirePendingUserQuestions()
+        await expirePendingUserQuestions()
         yieldPendingResultErrorIfNeeded()
         currentTurnOpen = false
         currentTurnLine = nil
@@ -392,7 +410,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
         // await close() の suspension 窓で登録された pending の取りこぼし防止
         // （spawn() と同じ理由。stage2 レビュー MUST）。
         failAllPendingUsageRequests(ClaudeChatClientError.transportClosed)
-        expirePendingUserQuestions()
+        await expirePendingUserQuestions()
         eventContinuation.finish()
     }
 
@@ -423,10 +441,21 @@ public actor ClaudeChatClient: StructuredAgentClient {
 
     private static func resolvedAllowedTools(
         _ allowedTools: [String],
+        permissionMode: String?,
         preApprovalPolicy: PreApprovalPolicy?
     ) -> [String] {
         guard preApprovalPolicy != nil, allowedTools.isEmpty else { return allowedTools }
-        return defaultAllowedTools
+        switch permissionMode {
+        case "acceptEdits", "bypassPermissions", "plan", nil:
+            // Plan と nil は従来どおり、承認ポリシーの blanket allow を付ける。
+            return defaultAllowedTools
+        case "auto", "manual", "dontAsk":
+            // これらのモードでは CLI の can_use_tool を Phlox の承認カードへ中継するため、blanket allow を付けない。
+            return []
+        default:
+            // 未知のモードには blanket allow を付けず、将来の CLI 追加で権限を広げない。
+            return []
+        }
     }
 
     private static func promptText(from input: [ChatInput]) -> String {

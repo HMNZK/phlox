@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-19
+last-verified: 2026-08-21
 ---
 
 # Claude チャットセッションのプロセスライフサイクル（現状仕様）
@@ -45,11 +45,12 @@ last-verified: 2026-07-19
 - 中断時にターンが開いていた場合、同一世代の次の `error_during_execution` result は「後始末」として1件だけ吸収する（次の turnStart では解除しない・世代交代で解除・新ターンの状態には触れない。ADR 0022）。
 - **中断後の transport 復活（Bug2・2026-07-13）**: `claude -p` は SIGINT で終了する（`interrupt()`→`transport.interrupt()`→`process.interrupt()`）。中断でターンが閉じた後にプロセスが死ぬと `handleStreamEnded` は自己修復ブランチ（`currentTurnOpen` が既に false）を素通りして `transport=nil` に落とす。この状態で次の `turnStart` が来ると、以前は `notStarted` を throw して**「停止後に送っても処理が始まらない」無音失敗**になっていた。現行の `turnStart` は入口で `transport==nil` を検出したら `settingsRespawnSessionArgument()`（会話確立後は `--resume <currentSessionId>`）で respawn してから送信し、respawn 失敗時のみ `.error` を yield して throw する（握りつぶさない）。Cursor/Codex 経路は interrupt が transport/thread を殺さないため構造的にこの穴が無い。ADR 0083。
 
-## control protocol（AskUserQuestion 中継）
+## control protocol（ツール許可・AskUserQuestion 中継）
 
-- spawn 引数は `--permission-prompt-tool stdio` を常時含む（`buildArguments`）。CLI が発行する `control_request`（subtype `can_use_tool`）のうち `tool_name == "AskUserQuestion"` のみを保留台帳（`pendingUserQuestions[requestId]`）へ登録し `.userQuestionRequested` を yield する。それ以外のツールは `sendControlDeny` で即時 deny する（`ClaudeChatClient+ControlProtocol.swift`。設計理由は [ADR 0102](../adr/0102-ask-user-question-control-protocol.md)）。
-- `respondToUserQuestion(requestId:answers:)` は pending 一致・同世代・`!isResponding`・transport 存在の全条件で `behavior: "allow"` + `updatedInput.answers` を `control_response` として stdin へ書き、`.userQuestionResolved(.answered)` を yield する。回答の内部表現は「質問文→label 配列」、wire では single=String / multiSelect=[String] に射影する。
-- 保留質問は `close()` / respawn（全世代）、`interrupt()` / stream 終了（当該世代）で `.expired` へ失効する。世代ガード（`pending.generation == spawnGeneration`）により旧世代の応答が新 transport へ流れることはない。
+- spawn 引数は `--permission-prompt-tool stdio` を常時含む（`buildArguments`）。CLI の `control_request`（subtype `can_use_tool`）は `AskUserQuestion` と通常ツールの両方を保留台帳（`pendingUserQuestions[requestId]`）へ登録し、`.userQuestionRequested` を yield する（設計理由は [ADR 0172](../adr/0172-tool-permission-requests-forwarded-to-user-approval.md)）。
+- `acceptEdits` / `bypassPermissions` / `plan`（およびモード未指定の `nil`）では従来どおり `defaultAllowedTools` を spawn 引数へ付ける。`auto` / `manual` / `dontAsk` と**未知のモード文字列**（fail-closed）では blanket な `--allowedTools` を付けず、呼び出し側が明示した値だけを渡す。これにより通常ツールの許可要求が Phlox の承認カードへ到達する。
+- `allowedTools` に含まれる通常ツールと `bypassPermissions` の要求は質問カードを出さず `behavior: "allow"` + 元の `pending.input` を返す。それ以外は Allow だけを allow とし、Deny・未知ラベル・空回答は deny にする。`AskUserQuestion` は従来どおり回答を `updatedInput.answers` へ射影する。
+- `close()` / respawn / `interrupt()` は保留要求を `.expired` へ失効し、旧 transport へ deny を送る。CLI プロセスが既に終了した `handleStreamEnded` では deny を送らず、死因エラーへのノイズを避ける。世代ガード（`pending.generation == spawnGeneration`）により旧世代の応答が新 transport へ流れることはない。
 - `interrupt()` の deny 対象スナップショットは `isResponding`（allow 送信 suspend 中）の質問を除外する。除外しないと同一 `request_id` へ allow/deny の二重 `control_response` が届きうる不整合があったため（2026-07-19 修正）。
 
 ## バックグラウンドタスクイベント

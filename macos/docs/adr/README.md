@@ -12,6 +12,7 @@ last-verified: 2026-08-01
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0172 | [Claude のツール許可要求をユーザー承認へ中継する](0172-tool-permission-requests-forwarded-to-user-approval.md) | accepted |
 | 0171 | [エディタパネルの Git 状態詳細は展開可能なスクロール領域で表示する](0171-editor-panel-workflow-status-disclosure.md) | accepted |
 | 0170 | [worktree 隔離に失敗したら起動を中止する（従来挙動へフォールバックしない）](0170-worktree-isolation-aborts-instead-of-falling-back.md) | accepted |
 | 0160 | [Data Protection Keychain への移行と、端末別モバイルトークン](0160-data-protection-keychain-and-per-device-mobile-tokens.md) | active |

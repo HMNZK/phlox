@@ -180,6 +180,114 @@ import StructuredChatKit
     await client.close()
 }
 
+@Test func manualSpawnDoesNotApplyDefaultAllowedTools() async throws {
+    let mock = MockTransport()
+    let recorder = TransportRecorder(mock)
+    let client = ClaudeChatClient(
+        permissionMode: "manual",
+        preApprovalPolicy: { _ in .approve },
+        transportFactory: recorder.makeTransport
+    )
+
+    await client.start()
+
+    let arguments = try #require(recorder.starts.first?.arguments)
+    #expect(arguments.contains("--permission-mode"))
+    #expect(arguments.contains("manual"))
+    #expect(!arguments.contains("--allowedTools"))
+    await client.close()
+}
+
+@Test func bypassSpawnKeepsDefaultAllowedTools() async throws {
+    let mock = MockTransport()
+    let recorder = TransportRecorder(mock)
+    let client = ClaudeChatClient(
+        permissionMode: "bypassPermissions",
+        preApprovalPolicy: { _ in .approve },
+        transportFactory: recorder.makeTransport
+    )
+
+    await client.start()
+
+    let arguments = try #require(recorder.starts.first?.arguments)
+    #expect(arguments.contains("--allowedTools"))
+    #expect(arguments.contains(ClaudeChatClient.defaultAllowedTools.joined(separator: ",")))
+    await client.close()
+}
+
+@Test func autoSpawnPassesOnlyExplicitAllowedTools() async throws {
+    let mock = MockTransport()
+    let recorder = TransportRecorder(mock)
+    let client = ClaudeChatClient(
+        permissionMode: "auto",
+        allowedTools: ["Read"],
+        preApprovalPolicy: { _ in .approve },
+        transportFactory: recorder.makeTransport
+    )
+
+    await client.start()
+
+    let arguments = try #require(recorder.starts.first?.arguments)
+    let allowedToolsIndexes = arguments.indices.filter { arguments[$0] == "--allowedTools" }
+    #expect(allowedToolsIndexes.count == 1)
+    if let index = allowedToolsIndexes.first {
+        #expect(index + 1 < arguments.count)
+        #expect(arguments[index + 1] == "Read")
+    }
+    #expect(!arguments.contains(ClaudeChatClient.defaultAllowedTools.joined(separator: ",")))
+    await client.close()
+}
+
+@Test func spawnAllowedToolsFollowPermissionModeTable() async throws {
+    let cases: [(mode: String, appliesDefaultAllowedTools: Bool)] = [
+        ("auto", false),
+        ("manual", false),
+        ("dontAsk", false),
+        ("acceptEdits", true),
+        ("bypassPermissions", true),
+        ("plan", true),
+    ]
+    let defaultAllowedTools = ClaudeChatClient.defaultAllowedTools.joined(separator: ",")
+
+    for testCase in cases {
+        let mock = MockTransport()
+        let recorder = TransportRecorder(mock)
+        let client = ClaudeChatClient(
+            permissionMode: testCase.mode,
+            preApprovalPolicy: { _ in .approve },
+            transportFactory: recorder.makeTransport
+        )
+
+        await client.start()
+
+        let arguments = try #require(recorder.starts.first?.arguments)
+        #expect(arguments.contains("--permission-mode"))
+        #expect(arguments.contains(testCase.mode))
+        #expect(arguments.contains("--allowedTools") == testCase.appliesDefaultAllowedTools)
+        #expect(arguments.contains(defaultAllowedTools) == testCase.appliesDefaultAllowedTools)
+        await client.close()
+    }
+}
+
+@Test func unknownPermissionModeDoesNotApplyDefaultAllowedTools() async throws {
+    let mock = MockTransport()
+    let recorder = TransportRecorder(mock)
+    let client = ClaudeChatClient(
+        permissionMode: "futureRestrictedMode",
+        preApprovalPolicy: { _ in .approve },
+        transportFactory: recorder.makeTransport
+    )
+
+    await client.start()
+
+    let arguments = try #require(recorder.starts.first?.arguments)
+    #expect(arguments.contains("--permission-mode"))
+    #expect(arguments.contains("futureRestrictedMode"))
+    #expect(!arguments.contains("--allowedTools"))
+    #expect(!arguments.contains(ClaudeChatClient.defaultAllowedTools.joined(separator: ",")))
+    await client.close()
+}
+
 @Test func assistantTextAndThinkingBecomeNormalizedDeltas() async throws {
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)

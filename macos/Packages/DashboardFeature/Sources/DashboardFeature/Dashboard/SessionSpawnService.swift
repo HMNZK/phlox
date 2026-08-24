@@ -661,10 +661,18 @@ final class SessionSpawnService {
             plan.env,
             broker.serverRequestHandler
         )
-        // Claude 新規チャットに履歴一覧 provider/loader を注入（task-9。Claude 以外は nil）。
-        let history = plan.descriptor.ref == .builtin(.claudeCode)
-            ? environment.claudeSessionHistoryProviders(workingDirectory: plan.workingDirectory)
-            : nil
+        // 新規 Claude/Codex チャットへ同一の履歴一覧 provider/loader を注入する。
+        let history: (
+            historyProvider: @Sendable () -> [ClaudeSessionHistoryEntry],
+            historyTranscriptLoader: @Sendable (ClaudeSessionHistoryEntry) -> [ChatItem]
+        )? = switch plan.descriptor.ref {
+        case .builtin(.claudeCode):
+            environment.claudeSessionHistoryProviders(workingDirectory: plan.workingDirectory)
+        case .builtin(.codex):
+            environment.codexSessionHistoryProviders(workingDirectory: plan.workingDirectory)
+        default:
+            nil
+        }
         let vm = ChatSessionViewModel(
             id: sessionID,
             startedAt: startedAt,

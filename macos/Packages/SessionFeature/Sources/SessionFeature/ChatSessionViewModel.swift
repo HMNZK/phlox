@@ -383,7 +383,7 @@ public final class ChatSessionViewModel: Identifiable {
     @ObservationIgnored private var historyCacheLoaded = false
     @ObservationIgnored private var historyCacheLoadTask: Task<Void, Never>?
 
-    /// 新規 Claude チャットの中央に「履歴から再開」を出すか（task-9 契約）。
+    /// 新規 Claude/Codex チャットの中央に「履歴から再開」を出すか。
     public var shouldOfferHistoryStart: Bool {
         guard agentRef == .builtin(.claudeCode) || agentRef == .builtin(.codex) else { return false }
         guard historyProvider != nil else { return false }

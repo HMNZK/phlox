@@ -155,7 +155,7 @@ public struct AppEnvironment: Sendable {
     }
 
     /// Claude チャット用の履歴一覧 provider と転写 loader（task-9）。
-    /// Claude 以外・cwd 未設定では nil（既存セッション生成はデフォルト引数のまま無変更）。
+    /// cwd 未設定では nil（既存セッション生成はデフォルト引数のまま無変更）。
     func claudeSessionHistoryProviders(
         workingDirectory: String?
     ) -> (
@@ -165,6 +165,28 @@ public struct AppEnvironment: Sendable {
         guard let workingDirectory, !workingDirectory.isEmpty else { return nil }
         let discovery = ClaudeSessionHistoryDiscovery(projectsRoot: Self.claudeProjectsRoot)
         let loader = ClaudeSessionTranscriptLoader()
+        let listLimit = 20
+        let transcriptItemLimit = 500
+        return (
+            historyProvider: {
+                discovery.entries(forWorkingDirectory: workingDirectory, limit: listLimit)
+            },
+            historyTranscriptLoader: { entry in
+                loader.load(fileURL: entry.fileURL, maxItems: transcriptItemLimit)
+            }
+        )
+    }
+
+    /// Codex チャット用の履歴一覧 provider と転写 loader。
+    func codexSessionHistoryProviders(
+        workingDirectory: String?
+    ) -> (
+        historyProvider: @Sendable () -> [ClaudeSessionHistoryEntry],
+        historyTranscriptLoader: @Sendable (ClaudeSessionHistoryEntry) -> [ChatItem]
+    )? {
+        guard let workingDirectory, !workingDirectory.isEmpty else { return nil }
+        let discovery = CodexSessionHistoryDiscovery(codexHome: codexHome)
+        let loader = CodexSessionTranscriptLoader()
         let listLimit = 20
         let transcriptItemLimit = 500
         return (

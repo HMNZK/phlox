@@ -46,6 +46,18 @@ public struct ClaudeConfigPaths: Sendable, Equatable {
     public func projectMemoryFile(projectDirectory: URL) -> URL {
         projectDirectory.appendingPathComponent("CLAUDE.md", isDirectory: false)
     }
+
+    /// ユーザースキル `~/.claude/skills`
+    public var userSkillsDirectory: URL {
+        claudeDirectory.appendingPathComponent("skills", isDirectory: true)
+    }
+
+    /// プロジェクトスキル `<project>/.claude/skills`
+    public func projectSkillsDirectory(projectDirectory: URL) -> URL {
+        projectDirectory
+            .appendingPathComponent(".claude", isDirectory: true)
+            .appendingPathComponent("skills", isDirectory: true)
+    }
 }
 
 /// 設定の適用範囲。Claude Code の設定は「ユーザー共通」「プロジェクト共有」「プロジェクト個人」の3層。

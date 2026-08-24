@@ -49,6 +49,7 @@ enum AgentConsoleSection: String, CaseIterable, Identifiable {
     // Claude Code — いずれも対話 TUI 専用のスラッシュコマンドの置き換え。
     case claudeStatus
     case claudePlugins
+    case claudeSkills
     case claudePermissions
     case claudeMemory
     case claudeHooks
@@ -72,7 +73,7 @@ enum AgentConsoleSection: String, CaseIterable, Identifiable {
 
     var agent: AgentConsoleAgent {
         switch self {
-        case .claudeStatus, .claudePlugins, .claudePermissions, .claudeMemory,
+        case .claudeStatus, .claudePlugins, .claudeSkills, .claudePermissions, .claudeMemory,
              .claudeHooks, .claudeStatusLine, .claudeOutputStyle:
             return .claude
         case .codexStatus, .codexSettings, .codexPlugins, .codexMCP, .codexMemory, .codexTrust:
@@ -86,6 +87,7 @@ enum AgentConsoleSection: String, CaseIterable, Identifiable {
         switch self {
         case .claudeStatus, .codexStatus, .cursorStatus: return "状態"
         case .claudePlugins, .codexPlugins: return "プラグイン"
+        case .claudeSkills: return "スキル"
         case .claudePermissions, .cursorPermissions: return "権限"
         case .claudeMemory, .codexMemory: return "メモリ"
         case .claudeHooks: return "フック"
@@ -104,6 +106,7 @@ enum AgentConsoleSection: String, CaseIterable, Identifiable {
         switch self {
         case .claudeStatus: return "/status"
         case .claudePlugins: return "/plugin"
+        case .claudeSkills: return "skills"
         case .claudePermissions: return "/permissions"
         case .claudeMemory: return "/memory"
         case .claudeHooks: return "/hooks"
@@ -127,6 +130,7 @@ enum AgentConsoleSection: String, CaseIterable, Identifiable {
         switch self {
         case .claudeStatus, .codexStatus, .cursorStatus: return "info.circle"
         case .claudePlugins, .codexPlugins: return "puzzlepiece.extension"
+        case .claudeSkills: return "books.vertical"
         case .claudePermissions, .cursorPermissions: return "checkmark.shield"
         case .claudeMemory, .codexMemory: return "brain"
         case .claudeHooks: return "link"

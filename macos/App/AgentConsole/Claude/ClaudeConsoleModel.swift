@@ -20,6 +20,7 @@ final class ClaudeConsoleModel {
     private(set) var marketplaces: [ClaudeMarketplace] = []
 
     private(set) var memoryFiles: [AgentMemoryFile] = []
+    private(set) var skills: [ClaudeSkill] = []
 
     var isLoadingSettings = false
     var isLoadingPlugins = false
@@ -30,6 +31,7 @@ final class ClaudeConsoleModel {
 
     private let settingsStore: JSONSettingsStore
     private let memory: ClaudeMemoryFiles
+    private let skillsStore: ClaudeSkillFiles
     private var projectDirectory: URL?
 
     init(
@@ -44,6 +46,7 @@ final class ClaudeConsoleModel {
         self.projectDirectory = projectDirectory
         self.settingsStore = JSONSettingsStore(fileURL: paths.userSettingsFile)
         self.memory = ClaudeMemoryFiles(paths: paths)
+        self.skillsStore = ClaudeSkillFiles(paths: paths)
     }
 
     var isClaudeAvailable: Bool { pluginService != nil }
@@ -99,7 +102,12 @@ final class ClaudeConsoleModel {
             errorMessage = "settings.json を読めませんでした: \(error.localizedDescription)"
         }
         memoryFiles = memory.discover(projectDirectory: projectDirectory)
+        loadSkills()
         rebuildStatus()
+    }
+
+    func loadSkills() {
+        skills = skillsStore.discover(projectDirectory: projectDirectory)
     }
 
     func loadPlugins() async {
@@ -172,6 +180,34 @@ final class ClaudeConsoleModel {
             rebuildStatus()
         } catch {
             errorMessage = "\(file.displayPath) を保存できませんでした: \(error.localizedDescription)"
+        }
+    }
+
+    // MARK: - スキル
+
+    func readSkill(_ skill: ClaudeSkill) -> String {
+        (try? skillsStore.read(skill)) ?? ""
+    }
+
+    func writeSkill(_ text: String, to skill: ClaudeSkill) {
+        do {
+            try skillsStore.write(text, to: skill)
+            loadSkills()
+            infoMessage = "\(skill.displayPath) を保存しました。"
+            errorMessage = nil
+        } catch {
+            errorMessage = "\(skill.displayPath) を保存できませんでした: \(error.localizedDescription)"
+        }
+    }
+
+    func deleteSkill(_ skill: ClaudeSkill) {
+        do {
+            try skillsStore.delete(skill)
+            loadSkills()
+            infoMessage = "\(skill.name) をゴミ箱へ移しました。"
+            errorMessage = nil
+        } catch {
+            errorMessage = "\(skill.name) を削除できませんでした: \(error.localizedDescription)"
         }
     }
 

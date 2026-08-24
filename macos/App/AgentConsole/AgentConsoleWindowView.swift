@@ -184,6 +184,7 @@ struct AgentConsoleWindowView: View {
         switch selection ?? .claudeStatus {
         case .claudeStatus: ClaudeStatusPane(model: claude)
         case .claudePlugins: ClaudePluginsPane(model: claude)
+        case .claudeSkills: ClaudeSkillsPane(model: claude)
         case .claudePermissions: ClaudePermissionsPane(model: claude)
         case .claudeMemory: ClaudeMemoryPane(model: claude)
         case .claudeHooks: ClaudeHooksPane(model: claude)

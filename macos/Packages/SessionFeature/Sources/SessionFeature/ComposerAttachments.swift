@@ -132,6 +132,12 @@ final class ComposerAttachmentStore {
         lastError = nil
     }
 
+    /// 送信済みメッセージへのリバート時に、保存済みの添付をそのまま復元する。
+    func restore(_ attachments: [ComposerAttachment]) {
+        self.attachments = attachments
+        lastError = nil
+    }
+
     func setError(_ message: String) {
         lastError = message
     }

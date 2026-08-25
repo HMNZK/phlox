@@ -12,12 +12,19 @@ final class RespondingTransport: AppServerTransport, @unchecked Sendable {
     private let continuation: AsyncStream<Data>.Continuation
     private let resumeThreadId: String
     private let failTurnStart: Bool
+    private let failTurnStartOnAttempt: Int?
     private let lock = NSLock()
     private var threadStartCount = 0
+    private var turnStartCount = 0
 
-    init(resumeThreadId: String = "thread-resumed", failTurnStart: Bool = false) {
+    init(
+        resumeThreadId: String = "thread-resumed",
+        failTurnStart: Bool = false,
+        failTurnStartOnAttempt: Int? = nil
+    ) {
         self.resumeThreadId = resumeThreadId
         self.failTurnStart = failTurnStart
+        self.failTurnStartOnAttempt = failTurnStartOnAttempt
         var continuation: AsyncStream<Data>.Continuation?
         self.receivedLines = AsyncStream { continuation = $0 }
         self.continuation = continuation!
@@ -35,15 +42,21 @@ final class RespondingTransport: AppServerTransport, @unchecked Sendable {
               let method = object["method"] as? String,
               let id = object["id"]
         else { return }
-        if method == "turn/start", failTurnStart {
-            let response: [String: Any] = [
-                "jsonrpc": "2.0",
-                "id": id,
-                "error": ["code": -32000, "message": "turn/start failed"],
-            ]
-            let responseData = try JSONSerialization.data(withJSONObject: response)
-            continuation.yield(responseData)
-            return
+        if method == "turn/start" {
+            let attempt = lock.withLock { () -> Int in
+                turnStartCount += 1
+                return turnStartCount
+            }
+            if failTurnStart || failTurnStartOnAttempt == attempt {
+                let response: [String: Any] = [
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": ["code": -32000, "message": "turn/start failed"],
+                ]
+                let responseData = try JSONSerialization.data(withJSONObject: response)
+                continuation.yield(responseData)
+                return
+            }
         }
 
         let result: [String: Any]

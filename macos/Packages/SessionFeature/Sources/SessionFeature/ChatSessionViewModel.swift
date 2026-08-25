@@ -658,6 +658,10 @@ public final class ChatSessionViewModel: Identifiable {
     /// 送信ペイロード（`buildChatInputs`）はライブの `attachmentStore` を読むので、
     /// ここで添付を外すと画像が送られない／失敗時に復元できない。
     private var draftClearedForSend: String?
+    /// 送信成功した userMessage ID に対応する添付（プロセス内・セッション存続中のみ）。
+    @ObservationIgnored private var sentRuntimeAttachmentsByUserMessageID: [String: [ComposerAttachment]] = [:]
+    /// Codex native skill + 画像経路で materialize した一時ディレクトリ（terminate まで保持）。
+    @ObservationIgnored private var nativeSkillInputDirectories: Set<URL> = []
 
     /// composer 本文の編集を添付へ同期する（本文から `[Image #N]` が消えたら添付も外す）。
     /// 送信によるクリアは何度発火しても添付を外さない。
@@ -1126,6 +1130,8 @@ public final class ChatSessionViewModel: Identifiable {
 
         // 文脈リプレイを 1 回だけ予約する（保持分が空なら nil＝素の新規会話）。
         pendingReplayContext = EscapeRevertPolicy.replayContext(from: retained)
+
+        restoreRuntimeAttachmentsForRevert(userMessageID: id)
 
         return userText
     }
@@ -2901,7 +2907,8 @@ extension ChatSessionViewModel: ControllableSession {
                 }
             }
             pendingInput = ""
-            let userAttachments = attachmentStore.attachments.map {
+            let sentAttachments = attachmentStore.attachments
+            let userAttachments = sentAttachments.map {
                 ChatUserAttachment(filename: $0.filename, mediaType: $0.mediaType)
             }
             let item = ChatItem.userMessage(
@@ -2928,8 +2935,15 @@ extension ChatSessionViewModel: ControllableSession {
                         skillInputs,
                         chatInputs: sendInputs
                     )
-                    defer { Self.removeNativeSkillInputDirectory(nativeInputs.temporaryDirectory) }
-                    try await native.turnStartNative(nativeInputs.inputs)
+                    do {
+                        try await native.turnStartNative(nativeInputs.inputs)
+                        if let directory = nativeInputs.temporaryDirectory {
+                            nativeSkillInputDirectories.insert(directory)
+                        }
+                    } catch {
+                        Self.removeNativeSkillInputDirectory(nativeInputs.temporaryDirectory)
+                        throw error
+                    }
                 } else {
                     try await client.turnStart(sendInputs)
                 }
@@ -2954,6 +2968,7 @@ extension ChatSessionViewModel: ControllableSession {
             // 単一適用: 送信成功後にクリアする。throw 時は予約を残し、再送で二重付与しない。
             pendingReplayContext = nil
             codexSkillSelectionState?.clearSelection()
+            cacheSentAttachments(sentAttachments, forUserMessageID: item.id)
             attachmentStore.clear()
         } else {
             pendingInput += text
@@ -3012,6 +3027,30 @@ extension ChatSessionViewModel: ControllableSession {
     private static func removeNativeSkillInputDirectory(_ directory: URL?) {
         guard let directory else { return }
         try? FileManager.default.removeItem(at: directory)
+    }
+
+    private func cacheSentAttachments(_ attachments: [ComposerAttachment], forUserMessageID id: String) {
+        guard !attachments.isEmpty else { return }
+        sentRuntimeAttachmentsByUserMessageID[id] = attachments
+    }
+
+    private func restoreRuntimeAttachmentsForRevert(userMessageID id: String) {
+        if let cached = sentRuntimeAttachmentsByUserMessageID[id], !cached.isEmpty {
+            attachmentStore.restore(cached)
+        } else {
+            attachmentStore.clear()
+        }
+    }
+
+    private func clearSentRuntimeAttachmentCache() {
+        sentRuntimeAttachmentsByUserMessageID.removeAll()
+    }
+
+    private func releaseNativeSkillInputDirectories() {
+        for directory in nativeSkillInputDirectories {
+            Self.removeNativeSkillInputDirectory(directory)
+        }
+        nativeSkillInputDirectories.removeAll()
     }
 
     /// サブエージェントタブからのフォローアップ送信（task-3 契約。
@@ -3106,6 +3145,8 @@ extension ChatSessionViewModel: ControllableSession {
         await approvalBroker.cancelAll()
         clearRunningBackgroundTasks()
         await transcriptPersistenceQueue?.waitForPendingWrites()
+        clearSentRuntimeAttachmentCache()
+        releaseNativeSkillInputDirectories()
         await client.close()
         status = .completed(exitCode: 0)
     }

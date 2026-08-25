@@ -43,7 +43,6 @@ public final class ChatSessionViewModel: Identifiable {
     public private(set) var codexSkillSelectionState: CodexSkillSelectionState?
     public private(set) var codexPlanTaskState: CodexPlanTaskState?
     public private(set) var codexBackgroundTerminalState: CodexBackgroundTerminalState?
-    public private(set) var codexSessionHistory: CodexSessionHistory?
     public private(set) var codexSubAgentState: CodexSubAgentState?
     public private(set) var codexSubAgentError: String?
     public var backgroundTerminalState: CodexBackgroundTerminalState? { codexBackgroundTerminalState }
@@ -177,7 +176,6 @@ public final class ChatSessionViewModel: Identifiable {
     private var codexSubAgentRefreshPending = false
     private var codexBackgroundTerminalRefreshPending = false
     private var codexSubAgentRefreshGeneration = 0
-    private var codexHistoryReloadGeneration = 0
     private var codexRestoreGeneration = 0
     private let transcriptStore: (any TranscriptStore)?
     private let spawnAgentModelsProvider: SpawnAgentModelsProvider?
@@ -219,11 +217,6 @@ public final class ChatSessionViewModel: Identifiable {
             self.codexBackgroundTerminalState = CodexBackgroundTerminalState(client: codexClient)
         } else {
             self.codexBackgroundTerminalState = nil
-        }
-        if agentRef == .builtin(.codex), let historyClient = client as? any CodexSessionHistoryProviding {
-            self.codexSessionHistory = CodexSessionHistory(client: historyClient, workingDirectory: workingDirectory ?? "")
-        } else {
-            self.codexSessionHistory = nil
         }
         self.codexSubAgentState = agentRef == .builtin(.codex) ? CodexSubAgentState(parentThreadId: "") : nil
         self.codexSubAgentError = nil
@@ -275,11 +268,6 @@ public final class ChatSessionViewModel: Identifiable {
             self.codexBackgroundTerminalState = CodexBackgroundTerminalState(client: codexClient)
         } else {
             self.codexBackgroundTerminalState = nil
-        }
-        if agentRef == .builtin(.codex), let historyClient = client as? any CodexSessionHistoryProviding {
-            self.codexSessionHistory = CodexSessionHistory(client: historyClient, workingDirectory: workingDirectory ?? "")
-        } else {
-            self.codexSessionHistory = nil
         }
         self.codexSubAgentState = agentRef == .builtin(.codex) ? CodexSubAgentState(parentThreadId: "") : nil
         self.codexSubAgentError = nil
@@ -396,26 +384,6 @@ public final class ChatSessionViewModel: Identifiable {
         cachedHistoryEntries
     }
 
-    /// Codex履歴の選択結果を既存のチャット転写へ反映する。
-    public func reloadCodexHistory(threadID: String) async {
-        guard let history = codexSessionHistory else { return }
-        codexHistoryReloadGeneration += 1
-        let generation = codexHistoryReloadGeneration
-        guard let thread = await history.readIfPossible(threadID: threadID),
-              generation == codexHistoryReloadGeneration,
-              thread.id == threadID,
-              history.selectedThreadID == nil || history.selectedThreadID == threadID
-        else { return }
-        commitCodexHistory(thread, generation: generation, expectedThreadID: threadID)
-    }
-
-    /// 履歴側で resume + read が成功した thread だけを、現在の選択世代へ反映する。
-    public func applyCodexHistory(_ thread: ThreadSummary) {
-        codexHistoryReloadGeneration += 1
-        let generation = codexHistoryReloadGeneration
-        commitCodexHistory(thread, generation: generation, expectedThreadID: thread.id)
-    }
-
     /// UI 操作で発生した失敗を既存の ErrorMessageCell 経路へ載せる。
     func reportError(_ message: String) {
         let message = message.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -429,24 +397,6 @@ public final class ChatSessionViewModel: Identifiable {
             timestamp: Date()
         ))
         touchOutput()
-    }
-
-    /// 履歴詳細を既存のチャットセルへ表示するための変換。
-    public func codexHistoryItems(for thread: ThreadSummary) -> [ChatItem] {
-        thread.turns?.flatMap { $0.items ?? [] }.compactMap { chatItem(from: $0) } ?? []
-    }
-
-    private func commitCodexHistory(
-        _ thread: ThreadSummary,
-        generation: Int,
-        expectedThreadID: String
-    ) {
-        guard generation == codexHistoryReloadGeneration,
-              thread.id == expectedThreadID,
-              (codexSessionHistory?.selectedThreadID == nil ||
-                codexSessionHistory?.selectedThreadID == expectedThreadID) else { return }
-        updateNativeSessionId(thread.id)
-        rebuildTranscript(from: thread)
     }
 
     public var canStopCodexSubAgents: Bool {
@@ -2519,7 +2469,10 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private func rebuildTranscript(from thread: ThreadSummary) {
-        setTranscript(codexHistoryItems(for: thread))
+        let items = thread.turns?
+            .flatMap { $0.items ?? [] }
+            .compactMap { chatItem(from: $0) } ?? []
+        setTranscript(items)
         completedTurnSeq = 0
         for turn in thread.turns ?? [] {
             if turn.status == "completed" || turn.status == "idle" || turn.status == nil {
@@ -2627,7 +2580,6 @@ public final class ChatSessionViewModel: Identifiable {
     private func updateNativeSessionId(_ id: String?) {
         let previous = chatNativeSessionId
         if id != previous {
-            codexHistoryReloadGeneration += 1
             codexSubAgentRefreshGeneration += 1
         }
         threadId = id

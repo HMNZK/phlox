@@ -64,7 +64,7 @@ struct CodexSubAgentReadStaleTests {
         client: ChildReadClient,
         operation: (ChatSessionViewModel) async throws -> Void
     ) async throws {
-        let viewModel = makeViewModel(client: client)
+        let viewModel = try await makeViewModel(client: client)
         do {
             try await operation(viewModel)
         } catch {
@@ -74,7 +74,7 @@ struct CodexSubAgentReadStaleTests {
         await viewModel.terminate()
     }
 
-    private func makeViewModel(client: ChildReadClient) -> ChatSessionViewModel {
+    private func makeViewModel(client: ChildReadClient) async throws -> ChatSessionViewModel {
         let viewModel = ChatSessionViewModel(
             id: SessionID(),
             agentRef: .builtin(.codex),
@@ -82,24 +82,13 @@ struct CodexSubAgentReadStaleTests {
             approvalBroker: ChatApprovalBroker(),
             workingDirectory: "/workspace"
         )
-        viewModel.applyCodexHistory(Self.parentThread)
+        await viewModel.restore(
+            threadId: "parent",
+            approvalPolicy: .named("on-request"),
+            sandbox: .named("workspace-write")
+        )
         return viewModel
     }
-
-    private static let parentThread = ThreadSummary(
-        id: "parent",
-        cliVersion: "test",
-        createdAt: 0,
-        cwd: "/workspace",
-        ephemeral: false,
-        modelProvider: "test",
-        preview: "parent",
-        sessionId: "parent-session",
-        source: .appServer,
-        status: .idle,
-        turns: [],
-        updatedAt: 0
-    )
 }
 
 private enum ChildReadMode: Sendable {

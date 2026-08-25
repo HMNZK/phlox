@@ -9,14 +9,10 @@ enum CodexSessionSurfaceAccessibilityID {
     static let root = "CodexSessionSurface"
     static let plan = "CodexPlanTaskList"
     static let subAgentError = "CodexSubAgent.error"
-    static let historyError = "CodexHistory.error"
     static let backgroundError = "CodexBackgroundTerminal.error"
 
     static func subAgent(_ id: String) -> String { "CodexSubAgent.\(id)" }
     static func subAgentDetail(_ id: String) -> String { "CodexSubAgentDetail.\(id)" }
-    static func historyRow(_ id: String) -> String { "CodexHistory.row.\(id)" }
-    static func historyResume(_ id: String) -> String { "CodexHistory.resume.\(id)" }
-    static func historyDetail(_ id: String) -> String { "CodexHistory.detail.\(id)" }
     static func backgroundTerminal(_ id: String) -> String { "CodexBackgroundTerminal.\(id)" }
     static func backgroundDetail(_ id: String) -> String { "CodexBackgroundTerminal.detail.\(id)" }
 }
@@ -88,62 +84,6 @@ struct CodexSessionSurface: View {
                             .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.subAgentError)
                     }
                 }
-                if let history = viewModel.codexSessionHistory {
-                    if !history.entries.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: DSSpacing.xs) {
-                                ForEach(history.entries, id: \.id) { thread in
-                                    Button {
-                                        guard history.select(threadID: thread.id) else { return }
-                                        Task {
-                                            _ = await history.readIfPossible(threadID: thread.id)
-                                        }
-                                    } label: {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(thread.name ?? thread.preview)
-                                                .lineLimit(1)
-                                            Text(thread.source.displayName)
-                                                .font(DSFont.monoCaption)
-                                        }
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.historyRow(thread.id))
-                                    Button("再開") {
-                                        Task {
-                                            guard let resumed = await history.resumeIfPossible(threadID: thread.id)
-                                            else { return }
-                                            viewModel.applyCodexHistory(resumed)
-                                        }
-                                    }
-                                    .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.historyResume(thread.id))
-                                }
-                            }
-                        }
-                        if let selected = history.selectedThread {
-                            VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                                Text("ID: \(selected.id)")
-                                    .font(DSFont.monoCaption)
-                                Text(selected.name ?? selected.preview)
-                                    .lineLimit(2)
-                                Text(selected.source.displayName)
-                                    .font(DSFont.monoCaption)
-                                ForEach(viewModel.codexHistoryItems(for: selected), id: \.id) { item in
-                                    ChatItemView(
-                                        item: item,
-                                        isRunningCommand: false,
-                                        agentDescriptor: AgentRegistry.descriptor(for: .codex)
-                                    )
-                                }
-                            }
-                            .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.historyDetail(selected.id))
-                            .accessibilityElement(children: .contain)
-                        }
-                    }
-                    if let error = history.errorMessage {
-                        ErrorMessageCell(message: "履歴: \(error)", timestamp: Date())
-                            .accessibilityIdentifier(CodexSessionSurfaceAccessibilityID.historyError)
-                    }
-                }
                 if let terminals = viewModel.codexBackgroundTerminalState {
                     if !terminals.items.isEmpty {
                         ForEach(terminals.items, id: \.itemId) { terminal in
@@ -194,7 +134,6 @@ struct CodexSessionSurface: View {
             .background(DSColor.chatCard)
             .task {
                 await viewModel.refreshCodexSubAgents()
-                await viewModel.codexSessionHistory?.refresh()
                 await viewModel.codexBackgroundTerminalState?.refresh()
             }
             .onChange(of: viewModel.threadId) { _, _ in

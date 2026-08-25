@@ -16,30 +16,6 @@ import StructuredChatKit
 struct AcceptanceCodexProductionReachabilityTests {
     private let cwd = "/workspace/codex"
 
-    @Test("Codex 履歴は一覧・詳細・再開後の reload まで同じ thread ID を保つ")
-    func codexHistoryListDetailResumeAndReloadUseProductionClient() async throws {
-        try await withStack { viewModel, _, transport in
-            let history = try #require(viewModel.codexSessionHistory)
-
-            await history.refresh()
-            #expect(history.entries.map(\.id) == ["history-1", "history-2"])
-            #expect(history.select(threadID: "history-2"))
-
-            let detail = try #require(try await history.readSelected())
-            #expect(detail.id == "history-2")
-            #expect(viewModel.codexHistoryItems(for: detail).map(\.id) == ["history-user", "history-agent"])
-
-            _ = try await history.resume(threadID: "history-2")
-            await viewModel.reloadCodexHistory(threadID: "history-2")
-
-            #expect(viewModel.threadId == "history-2")
-            #expect(viewModel.codexSessionHistory?.selectedThreadID == "history-2")
-            #expect(viewModel.codexBackgroundTerminalState?.threadId == "history-2")
-            #expect(await transport.methods().filter { $0 == "thread/resume" }.count == 1)
-            #expect(await transport.methods().filter { $0 == "thread/read" }.count == 2)
-        }
-    }
-
     @Test("orderedEvents は実 Codex client から VM の plan と transcript へ同順で届く")
     func orderedEventsReachPlanStateAndTranscript() async throws {
         try await withStack { viewModel, _, transport in
@@ -121,7 +97,7 @@ struct AcceptanceCodexProductionReachabilityTests {
         }
     }
 
-    @Test("CodexSessionSurface は実状態の plan/subagent/history/background を識別できる")
+    @Test("CodexSessionSurface は実状態の plan/subagent/background を識別できる")
     func codexSessionSurfaceExposesProductionStateAndActions() async throws {
         try await withStack(subAgentOutOfOrder: true) { viewModel, _, transport in
             let threadID = try #require(viewModel.threadId)
@@ -142,11 +118,6 @@ struct AcceptanceCodexProductionReachabilityTests {
                     await viewModel.loadCodexSubAgentDetail(threadID: child.id)
                     let childDetail = try #require(viewModel.codexSubAgentState?.detail(for: child.id))
 
-                    let history = try #require(viewModel.codexSessionHistory)
-                    await history.refresh()
-                    #expect(history.select(threadID: "history-1"))
-                    let historyDetail = try await history.read(threadID: "history-1")
-
                     let state = try #require(viewModel.codexBackgroundTerminalState)
                     await state.refresh()
                     #expect(state.select(itemId: "background-item"))
@@ -159,8 +130,6 @@ struct AcceptanceCodexProductionReachabilityTests {
                     #expect(viewModel.codexPlanTaskState?.tasks.map(\.title) == ["inspect", "verify"])
                     #expect(child.summary == "child-new")
                     #expect(childDetail.threadId == child.id)
-                    #expect((historyDetail.name ?? historyDetail.preview) == "history-1")
-                    #expect(viewModel.codexHistoryItems(for: historyDetail).map(\.id) == ["history-user", "history-agent"])
                     #expect(selectedTerminal.command == "swift test")
                     #expect(selectedTerminal.cwd == cwd)
 
@@ -190,9 +159,6 @@ struct AcceptanceCodexProductionReachabilityTests {
                         "CodexSessionSurface",
                         "CodexPlanTaskList",
                         "CodexSubAgent.\(child.id)",
-                        "CodexHistory.row.history-1",
-                        "CodexHistory.resume.history-1",
-                        "CodexHistory.detail.history-1",
                         "CodexBackgroundTerminal.background-item",
                         "CodexBackgroundTerminal.detail.background-item",
                     ]
@@ -205,7 +171,6 @@ struct AcceptanceCodexProductionReachabilityTests {
                     let displayedText = Set(elements.flatMap { [$0.title, $0.value, $0.description].compactMap { $0 } })
                     #expect(displayedText.contains { $0.contains("inspect") })
                     #expect(displayedText.contains { $0.contains("child-new") })
-                    #expect(displayedText.contains { $0.contains("history-1") })
                     #expect(displayedText.contains { $0.contains("swift test") })
                     #expect(displayedText.contains { $0.contains(cwd) })
 

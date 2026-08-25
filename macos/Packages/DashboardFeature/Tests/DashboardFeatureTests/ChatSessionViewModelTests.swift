@@ -2025,11 +2025,6 @@ func chatSessionViewModel_codexRestorePrefersTranscriptStoreOverThreadRead() asy
     #expect(vm.transcript == persisted)
     #expect(transport.sentMethods().contains("thread/resume"))
     #expect(!transport.sentMethods().contains("thread/read"))
-
-    // store 復元後の無関係な history read 失敗でも、確定済み thread を旧 identity へ戻さない。
-    transport.threadReadErrorMessage = "unrelated history read failed"
-    #expect(await vm.codexSessionHistory?.readIfPossible(threadID: "thread-1") == nil)
-    #expect(await adapter.activeThreadId() == "thread-1")
 }
 
 @Test @MainActor

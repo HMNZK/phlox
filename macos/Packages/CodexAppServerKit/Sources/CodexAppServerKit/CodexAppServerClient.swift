@@ -400,6 +400,8 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
     private var imageTurnInFlight = false
     private var modelChangeInFlight = false
     private var imageInputWriter: (@Sendable (Data, URL) throws -> Void)?
+    /// materialize 済み画像ディレクトリ（thread ごとに1件。app-server も 1 thread 1 active turn）。
+    private var imageDirectoriesByThreadId: [String: URL] = [:]
     /// resetConversation で新規 thread を開始し直すために、直近の thread/start 引数を保持する。
     private var lastThreadStartParams: ThreadStartParams?
     /// threadResume 単体で一時的に切り替えた active identity を read 失敗時に戻すための状態。
@@ -472,15 +474,21 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
             }
         }
         let materialized = try Self.materializeImageInputs(input, write: imageInputWriter)
-        defer {
-            if let directory = materialized.temporaryDirectory {
-                _ = try? FileManager.default.removeItem(at: directory)
-            }
+        let imageDirectory = materialized.temporaryDirectory
+        if let imageDirectory {
+            registerImageDirectory(imageDirectory, threadId: currentThreadId)
         }
-        _ = try await client.turnStart(TurnStartParams(
-            threadId: currentThreadId,
-            input: materialized.inputs
-        ))
+        do {
+            _ = try await client.turnStart(TurnStartParams(
+                threadId: currentThreadId,
+                input: materialized.inputs
+            ))
+        } catch {
+            if imageDirectory != nil {
+                deleteImageDirectory(forThreadId: currentThreadId)
+            }
+            throw error
+        }
         guard threadGeneration == threadIdentityGeneration,
               self.currentThreadId == currentThreadId else {
             throw CodexStructuredClientError.staleThreadOperation
@@ -615,11 +623,16 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
     public func close() async {
         bridgeTask?.cancel()
         bridgeTask = nil
+        releaseAllImageDirectories()
         await client.close()
         finish()
     }
 
     private func yield(_ event: ThreadEvent) {
+        // 画像の内部後始末は UI 向け thread identity フィルタとは独立に、フィルタ前で処理する。
+        // reset/resume 後に旧 thread の終端イベントが届いても、一時画像はここで削除される。
+        releaseImageDirectoryIfTerminal(event)
+
         // reset 後も app-server 上で生き残る旧 thread の遅延イベントを source で遮断する。
         // thread 切替中（currentThreadId == nil）は thread identity を持つイベントを流さない。
         // 現在の thread が確定していて、イベントの thread id がそれと異なるなら、旧 thread
@@ -806,6 +819,39 @@ private extension CodexStructuredAgentClient {
             true
         default:
             false
+        }
+    }
+
+    func registerImageDirectory(_ directory: URL, threadId: String) {
+        imageDirectoriesByThreadId[threadId] = directory
+    }
+
+    func deleteImageDirectory(_ directory: URL) {
+        _ = try? FileManager.default.removeItem(at: directory)
+    }
+
+    func deleteImageDirectory(forThreadId threadId: String) {
+        guard let directory = imageDirectoriesByThreadId.removeValue(forKey: threadId) else { return }
+        deleteImageDirectory(directory)
+    }
+
+    func releaseAllImageDirectories() {
+        for directory in imageDirectoriesByThreadId.values {
+            deleteImageDirectory(directory)
+        }
+        imageDirectoriesByThreadId.removeAll()
+    }
+
+    func releaseImageDirectoryIfTerminal(_ event: ThreadEvent) {
+        switch event {
+        case .turnCompleted(let threadId, _),
+             .turnInterrupted(let threadId, _):
+            deleteImageDirectory(forThreadId: threadId)
+        case .error(let threadId, _, _, let willRetry):
+            guard willRetry != true, let threadId else { return }
+            deleteImageDirectory(forThreadId: threadId)
+        default:
+            break
         }
     }
 }

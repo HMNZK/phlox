@@ -21,8 +21,7 @@ enum CompactingIndicatorPresentation {
 
 struct CompactingIndicatorCell: View {
     let descriptor: AgentDescriptor
-    /// transcript 最下部が viewport 内にあるか。スクロール位置のイベントから親が渡す。
-    var isInTranscriptViewport = true
+    @State private var isInViewport = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var isInViewHierarchy = false
@@ -35,7 +34,7 @@ struct CompactingIndicatorCell: View {
     private var isTimelineVisible: Bool {
         ThinkingAnimationModel.isTimelineVisible(
             isInViewHierarchy: isInViewHierarchy,
-            isInTranscriptViewport: isInTranscriptViewport,
+            isInTranscriptViewport: isInViewport,
             scenePhase: scenePhase
         )
     }
@@ -64,6 +63,7 @@ struct CompactingIndicatorCell: View {
         .onDisappear {
             isInViewHierarchy = false
         }
+        .onViewportVisibilityChange { isInViewport = $0 }
     }
 
     private func staticCompactingText(scale: CGFloat) -> some View {

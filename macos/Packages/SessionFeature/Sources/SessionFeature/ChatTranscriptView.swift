@@ -20,9 +20,6 @@ struct ChatTranscriptView: View {
     private let defaultWindowLimit: Int
     private let onSelectSubAgent: (String) -> Void
     @State private var autoFollow = ChatAutoFollowController()
-    /// Thinking は transcript の最下部セルなので、最下部が viewport 外なら TimelineView を止める。
-    /// 値は NSScrollView の bounds 変更イベントからのみ更新する。
-    @State private var isThinkingIndicatorInViewport = true
     // 表示件数制限（末尾 N 件のみ描画。ADR 0030:22）。view-local な @State に住み、
     // body 評価中には書かない（visibleRange は読み取りのみ）。expand はボタン action、
     // reset はセッション切替の onChange から呼ぶ（ADR 0010: 描画中 state 変更の禁止）。
@@ -79,7 +76,6 @@ struct ChatTranscriptView: View {
                     .background(
                         ChatAutoFollowScrollObserver(
                             controller: autoFollow,
-                            onViewportVisibilityChanged: updateThinkingIndicatorViewport,
                             onViewportCenterChanged: { updateCurrentInputPosition(viewportCenterY: $0, items: items) }
                         )
                     )
@@ -187,8 +183,7 @@ struct ChatTranscriptView: View {
                 isCompacting: viewModel.isCompacting
             ) {
                 CompactingIndicatorCell(
-                    descriptor: agentDescriptor,
-                    isInTranscriptViewport: isThinkingIndicatorInViewport
+                    descriptor: agentDescriptor
                 )
                 .id("chat-compacting")
             }
@@ -203,8 +198,7 @@ struct ChatTranscriptView: View {
                     descriptor: agentDescriptor,
                     state: activityState,
                     hangAssessment: { viewModel.hangAssessment(now: $0) },
-                    onInterrupt: { await viewModel.turnInterrupt() },
-                    isInTranscriptViewport: isThinkingIndicatorInViewport
+                    onInterrupt: { await viewModel.turnInterrupt() }
                 )
                     .id("chat-thinking")
             }
@@ -375,15 +369,9 @@ struct ChatTranscriptView: View {
         }
     }
 
-    /// NSScrollView のスクロールイベント側でのみ呼ばれる。body 内では変更しない。
-    private func updateThinkingIndicatorViewport(_ isInViewport: Bool) {
-        guard isThinkingIndicatorInViewport != isInViewport else { return }
-        isThinkingIndicatorInViewport = isInViewport
-    }
-
     /// スクロール位置（ビューポート中央）に対応するユーザー入力を求め、スクラバーへ返す。
     /// NSScrollView のイベント側でのみ呼ばれ、値が変わった時だけ @Binding を更新する
-    /// （isThinkingIndicatorInViewport と同じ、ADR 0010/0030 で安全と確定した経路）。
+    /// （ADR 0010/0030 で安全と確定した経路）。
     private func updateCurrentInputPosition(viewportCenterY: CGFloat, items: [ChatItem]) {
         let id = currentUserMessageID(viewportCenterY: viewportCenterY, items: items)
         guard currentInputPositionID != id else { return }

@@ -70,8 +70,7 @@ struct ThinkingIndicatorCell: View {
     var state: AgentActivityState = .thinking
     var hangAssessment: ((Date) -> ChatHangAssessment?)? = nil
     var onInterrupt: (() async -> Void)? = nil
-    /// transcript 最下部が viewport 内にあるか。スクロール位置のイベントから親が渡す。
-    var isInTranscriptViewport = true
+    @State private var isInViewport = false
     @Environment(\.scenePhase) private var scenePhase
     /// 表示ライフサイクルのイベントでのみ更新する。アニメーション状態には使わない。
     @State private var isInViewHierarchy = false
@@ -82,21 +81,19 @@ struct ThinkingIndicatorCell: View {
         descriptor: AgentDescriptor,
         state: AgentActivityState = .thinking,
         hangAssessment: ((Date) -> ChatHangAssessment?)? = nil,
-        onInterrupt: (() async -> Void)? = nil,
-        isInTranscriptViewport: Bool = true
+        onInterrupt: (() async -> Void)? = nil
     ) {
         self.descriptor = descriptor
         self.state = state
         self.hangAssessment = hangAssessment
         self.onInterrupt = onInterrupt
-        self.isInTranscriptViewport = isInTranscriptViewport
     }
 
     /// セルのライフサイクル、transcript の viewport、シーンがバックグラウンドではないことから導出する。
     private var isTimelineVisible: Bool {
         ThinkingAnimationModel.isTimelineVisible(
             isInViewHierarchy: isInViewHierarchy,
-            isInTranscriptViewport: isInTranscriptViewport,
+            isInTranscriptViewport: isInViewport,
             scenePhase: scenePhase
         )
     }
@@ -140,6 +137,7 @@ struct ThinkingIndicatorCell: View {
         .onDisappear {
             isInViewHierarchy = false
         }
+        .onViewportVisibilityChange { isInViewport = $0 }
     }
 
 }

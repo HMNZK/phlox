@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 public protocol LineDelimitedTransport: Sendable {
     var receivedLines: AsyncStream<Data> { get }
@@ -149,7 +150,20 @@ public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unche
     }
 
     public func close() async {
-        lock.withLock { self.process }?.terminate()
+        let process = lock.withLock { self.process }
+        process?.terminate()
+        if let process {
+            for _ in 0..<10 where process.isRunning {
+                do {
+                    try await Task.sleep(for: .milliseconds(100))
+                } catch {
+                    break
+                }
+            }
+            if process.isRunning {
+                _ = Darwin.kill(process.processIdentifier, SIGKILL)
+            }
+        }
         finishWhenReaderIsDone()
     }
 

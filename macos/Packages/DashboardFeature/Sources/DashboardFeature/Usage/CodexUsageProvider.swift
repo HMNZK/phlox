@@ -4,6 +4,8 @@ import Foundation
 public final class CodexUsageProvider: UsageProvider {
     public let kind: AgentKind = .codex
 
+    // ponytail: 末尾2MiBに利用量イベントが無い形式へ変わったら、後方チャンク走査へ切り替える。
+    private static let usageTailBytes: UInt64 = 2 * 1_024 * 1_024
     private let sessionsRoot: URL
 
     public init(sessionsRoot: URL = FileManager.default.homeDirectoryForCurrentUser.appending(path: ".codex/sessions")) {
@@ -16,8 +18,7 @@ public final class CodexUsageProvider: UsageProvider {
             return CLIUsage(kind: kind, state: .unavailable(reason: String(localized: "セッション履歴なし")), updatedAt: now)
         }
 
-        guard let data = try? Data(contentsOf: latestFile),
-              let text = String(data: data, encoding: .utf8),
+        guard let text = Self.tailText(from: latestFile),
               let buckets = Self.buckets(fromJSONL: text),
               !buckets.isEmpty
         else {
@@ -25,6 +26,23 @@ public final class CodexUsageProvider: UsageProvider {
         }
 
         return CLIUsage(kind: kind, state: .ok(buckets), updatedAt: now)
+    }
+
+    private static func tailText(from url: URL) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        guard let end = try? handle.seekToEnd() else { return nil }
+        let offset = end > usageTailBytes ? end - usageTailBytes : 0
+        try? handle.seek(toOffset: offset)
+        do {
+            var data = try handle.readToEnd() ?? Data()
+            if offset > 0, let newline = data.firstIndex(of: 0x0A) {
+                data.removeSubrange(...newline)
+            }
+            return String(data: data, encoding: .utf8)
+        } catch {
+            return nil
+        }
     }
 
     private func latestRolloutFile() -> URL? {

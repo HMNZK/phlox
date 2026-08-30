@@ -3096,6 +3096,7 @@ extension ChatSessionViewModel: ControllableSession {
         await expireAllPendingUserQuestions()
         await approvalBroker.cancelAll()
         clearRunningBackgroundTasks()
+        subAgentModel.failRunningSubAgents()
         await transcriptPersistenceQueue?.waitForPendingWrites()
         clearSentRuntimeAttachmentCache()
         releaseNativeSkillInputDirectories()

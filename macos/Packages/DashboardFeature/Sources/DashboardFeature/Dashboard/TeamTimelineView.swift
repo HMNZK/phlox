@@ -13,7 +13,8 @@ public struct TeamTimelineView: View {
 
     private static let ptyScrollbackLines = 400
     private static let messageLimitPerSession = 200
-    private static let refreshInterval: Duration = .milliseconds(350)
+    private static let activeRefreshInterval: Duration = .milliseconds(350)
+    private static let idleRefreshInterval: Duration = .seconds(5)
 
     private var selectedSessionID: SessionID? { router.selectedSession }
 
@@ -272,13 +273,19 @@ public struct TeamTimelineView: View {
 
         while !Task.isCancelled {
             do {
-                try await Task.sleep(for: Self.refreshInterval)
+                try await Task.sleep(for: refreshInterval)
             } catch {
                 break
             }
             guard !Task.isCancelled else { break }
             refreshTimeline(selectedSessionID: selectedSessionID)
         }
+    }
+
+    private var refreshInterval: Duration {
+        viewModel.sessionNodes.contains { $0.status == .running || $0.status == .starting }
+            ? Self.activeRefreshInterval
+            : Self.idleRefreshInterval
     }
 
     @MainActor

@@ -146,6 +146,7 @@ public final class ThinkingOrbHostView: ThinkingOrbPlatformView {
         if isAnimating {
             guard displayLink == nil else { return }
             let link = makeDisplayLink()
+            link.preferredFrameRateRange = CAFrameRateRange(minimum: 15, maximum: 30, preferred: 30)
             link.add(to: .main, forMode: .common)
             displayLink = link
         } else {

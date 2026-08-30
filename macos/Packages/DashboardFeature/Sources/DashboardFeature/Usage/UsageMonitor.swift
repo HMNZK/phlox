@@ -171,7 +171,7 @@ public final class UsageMonitor {
                 return
             }
 
-            codexCursorTick = 0
+            codexCursorTick = (codexCursorTick + 60) % 300
             claudeTick = (claudeTick + 60) % 300
         }
     }

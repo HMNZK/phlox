@@ -88,32 +88,24 @@ enum ChatAutoFollowGeometry {
 @MainActor
 final class ChatAutoFollowScrollEventBridge: NSObject {
     private var controller: ChatAutoFollowController
-    private var onViewportVisibilityChanged: (Bool) -> Void
     /// ビューポート中央の Y（documentView 座標）。スクラバーの現在位置算出に使う。
     private var onViewportCenterChanged: (CGFloat) -> Void
     private weak var scrollView: NSScrollView?
     private weak var observedClipView: NSClipView?
-    private weak var observedDocumentView: NSView?
-    private var documentViewObservation: NSKeyValueObservation?
-    private var lastViewportVisibility: Bool?
 
     init(
         controller: ChatAutoFollowController,
-        onViewportVisibilityChanged: @escaping (Bool) -> Void = { _ in },
         onViewportCenterChanged: @escaping (CGFloat) -> Void = { _ in }
     ) {
         self.controller = controller
-        self.onViewportVisibilityChanged = onViewportVisibilityChanged
         self.onViewportCenterChanged = onViewportCenterChanged
     }
 
     func update(
         controller: ChatAutoFollowController,
-        onViewportVisibilityChanged: @escaping (Bool) -> Void,
         onViewportCenterChanged: @escaping (CGFloat) -> Void
     ) {
         self.controller = controller
-        self.onViewportVisibilityChanged = onViewportVisibilityChanged
         self.onViewportCenterChanged = onViewportCenterChanged
     }
 
@@ -123,8 +115,6 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
             return
         }
         guard self.scrollView !== scrollView else {
-            observeDocumentView(in: scrollView)
-            observeDocumentViewChanges(in: scrollView)
             return
         }
 
@@ -160,9 +150,6 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
             name: NSView.frameDidChangeNotification,
             object: scrollView.contentView
         )
-        observeDocumentView(in: scrollView)
-        observeDocumentViewChanges(in: scrollView)
-        updateViewportVisibility(isAtBottom: ChatAutoFollowGeometry.isAtBottom(scrollView))
         onViewportCenterChanged(scrollView.documentVisibleRect.midY)
     }
 
@@ -176,14 +163,8 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
             center.removeObserver(self, name: NSView.boundsDidChangeNotification, object: observedClipView)
             center.removeObserver(self, name: NSView.frameDidChangeNotification, object: observedClipView)
         }
-        if let observedDocumentView {
-            center.removeObserver(self, name: NSView.frameDidChangeNotification, object: observedDocumentView)
-        }
         scrollView = nil
         observedClipView = nil
-        observedDocumentView = nil
-        documentViewObservation = nil
-        lastViewportVisibility = nil
     }
 
     @objc private func willStartLiveScroll(_ notification: Notification) {
@@ -194,7 +175,6 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
         guard let scrollView else { return }
         let isAtBottom = ChatAutoFollowGeometry.isAtBottom(scrollView)
         controller.userScrollEnded(isAtBottom: isAtBottom)
-        updateViewportVisibility(isAtBottom: isAtBottom)
         onViewportCenterChanged(scrollView.documentVisibleRect.midY)
     }
 
@@ -202,62 +182,23 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
         guard let scrollView else { return }
         let isAtBottom = ChatAutoFollowGeometry.isAtBottom(scrollView)
         controller.scrollPositionChanged(isAtBottom: isAtBottom)
-        updateViewportVisibility(isAtBottom: isAtBottom)
         onViewportCenterChanged(scrollView.documentVisibleRect.midY)
     }
 
     @objc private func frameDidChange(_ notification: Notification) {
         guard let scrollView else { return }
-        updateViewportVisibility(isAtBottom: ChatAutoFollowGeometry.isAtBottom(scrollView))
+        onViewportCenterChanged(scrollView.documentVisibleRect.midY)
     }
 
-    private func observeDocumentView(in scrollView: NSScrollView) {
-        let documentView = scrollView.documentView
-        guard observedDocumentView !== documentView else { return }
-
-        let center = NotificationCenter.default
-        if let observedDocumentView {
-            center.removeObserver(self, name: NSView.frameDidChangeNotification, object: observedDocumentView)
-        }
-        observedDocumentView = documentView
-        documentView?.postsFrameChangedNotifications = true
-        if let documentView {
-            center.addObserver(
-                self,
-                selector: #selector(frameDidChange(_:)),
-                name: NSView.frameDidChangeNotification,
-                object: documentView
-            )
-        }
-    }
-
-    private func observeDocumentViewChanges(in scrollView: NSScrollView) {
-        guard documentViewObservation == nil else { return }
-        documentViewObservation = scrollView.observe(\.documentView, options: [.new]) { [weak self] scrollView, _ in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                self.observeDocumentView(in: scrollView)
-                self.updateViewportVisibility(isAtBottom: ChatAutoFollowGeometry.isAtBottom(scrollView))
-            }
-        }
-    }
-
-    private func updateViewportVisibility(isAtBottom: Bool) {
-        guard lastViewportVisibility != isAtBottom else { return }
-        lastViewportVisibility = isAtBottom
-        onViewportVisibilityChanged(isAtBottom)
-    }
 }
 
 struct ChatAutoFollowScrollObserver: NSViewRepresentable {
     let controller: ChatAutoFollowController
-    let onViewportVisibilityChanged: (Bool) -> Void
     var onViewportCenterChanged: (CGFloat) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             controller: controller,
-            onViewportVisibilityChanged: onViewportVisibilityChanged,
             onViewportCenterChanged: onViewportCenterChanged
         )
     }
@@ -273,7 +214,6 @@ struct ChatAutoFollowScrollObserver: NSViewRepresentable {
     func updateNSView(_ nsView: ResolverView, context: Context) {
         context.coordinator.update(
             controller: controller,
-            onViewportVisibilityChanged: onViewportVisibilityChanged,
             onViewportCenterChanged: onViewportCenterChanged
         )
         nsView.onResolve = { [weak coordinator = context.coordinator] view in
@@ -292,24 +232,20 @@ struct ChatAutoFollowScrollObserver: NSViewRepresentable {
 
         init(
             controller: ChatAutoFollowController,
-            onViewportVisibilityChanged: @escaping (Bool) -> Void,
             onViewportCenterChanged: @escaping (CGFloat) -> Void
         ) {
             bridge = ChatAutoFollowScrollEventBridge(
                 controller: controller,
-                onViewportVisibilityChanged: onViewportVisibilityChanged,
                 onViewportCenterChanged: onViewportCenterChanged
             )
         }
 
         func update(
             controller: ChatAutoFollowController,
-            onViewportVisibilityChanged: @escaping (Bool) -> Void,
             onViewportCenterChanged: @escaping (CGFloat) -> Void
         ) {
             bridge.update(
                 controller: controller,
-                onViewportVisibilityChanged: onViewportVisibilityChanged,
                 onViewportCenterChanged: onViewportCenterChanged
             )
         }

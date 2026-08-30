@@ -66,6 +66,9 @@ struct AgoraAgentMessageBubble: View {
 /// アゴラタイムライン末尾の Thinking インジケータ行（アイコン＋セッション名＋アニメーション）。
 struct AgoraThinkingIndicatorRow: View {
     let source: TeamTimelineSource
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isInViewHierarchy = false
+    @State private var isInViewport = false
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
     /// タイムラインの取り込み済みメッセージから活動状態を導出する（チャットの Thinking セルと同じ規則）。
@@ -81,6 +84,7 @@ struct AgoraThinkingIndicatorRow: View {
     var body: some View {
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         let state = Self.activityState(source: source)
+        let isVisible = isInViewHierarchy && isInViewport && scenePhase != .background
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             HStack(spacing: DSSpacing.xs) {
                 AgentBrandIcon(descriptor: source.agentDescriptor, size: 16)
@@ -95,12 +99,13 @@ struct AgoraThinkingIndicatorRow: View {
                 Spacer(minLength: 0)
             }
             HStack(spacing: DSSpacing.s) {
-                ThinkingOrbView(state: state, size: .inline)
+                ThinkingOrbView(state: state, size: .inline, isVisible: isVisible)
                 ShimmerTextView(
                     text: state.orbLabel,
                     font: .system(size: ChatTypography.bodyFontSize(scale: scale)),
                     pointSize: ChatTypography.bodyFontSize(scale: scale),
-                    color: DSColor.chatTextPrimary
+                    color: DSColor.chatTextPrimary,
+                    isVisible: isVisible
                 )
             }
             .padding(.horizontal, DSSpacing.m)
@@ -109,5 +114,8 @@ struct AgoraThinkingIndicatorRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityLabel("\(source.displayName): \(state.orbLabel)")
+        .onAppear { isInViewHierarchy = true }
+        .onDisappear { isInViewHierarchy = false }
+        .onViewportVisibilityChange { isInViewport = $0 }
     }
 }

@@ -15,6 +15,7 @@
 #   SWIFT_TEST_SKIP             空白区切りで除外するテストスイート名（swift test --skip に渡す）
 #   SWIFT_TEST_SERIAL_PACKAGES  --no-parallel で走らせるパッケージ（既定 DashboardFeature）
 #   SWIFT_TEST_GIT_SUITES       実 git を起動するスイート。DashboardFeature の別パスで走らせる
+#   SWIFT_TEST_OUTPUT           compact（成功時は要約）または full（全ログ）。既定 compact
 #
 # 注意（macOS の bash は 3.2）: 全角文字の直前の変数は必ず ${var} と括る。
 # 3.2 は `$label）` を変数名 `label）` として読み、unbound variable で落ちる。
@@ -22,6 +23,7 @@
 set -uo pipefail
 
 MACOS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+COMPACT_COMMAND="$MACOS_DIR/scripts/compact-command.sh"
 
 DEFAULT_PACKAGES="AgentDomain DesignSystem MessageStore SessionFeature DashboardFeature"
 
@@ -70,7 +72,6 @@ SERIAL_PACKAGES="${SWIFT_TEST_SERIAL_PACKAGES-DashboardFeature}"
 # （5 アーム計 48 回で実測）。**どちらのパスも green を要求するので、除外して隠しているのではない。**
 GIT_SUITES="${SWIFT_TEST_GIT_SUITES-WorktreeIsolationSpawnTests AcceptanceRestoreAbortNoSpawnTests}"
 GIT_PASS_PACKAGE="DashboardFeature"
-
 PACKAGES="${*:-${SWIFT_TEST_PACKAGES:-$DEFAULT_PACKAGES}}"
 
 SKIP_ARGS=()
@@ -88,20 +89,10 @@ serial_args_for() {  # <package>
 run_swift_test() {
   local pkg="$1"; shift
   local label="$1"; shift
-  local log
-  log="$(mktemp)"
   echo "=== swift test --package-path Packages/${pkg} $* [${label}] ==="
-  if ! swift test --package-path "Packages/$pkg" "$@" > "$log" 2>&1; then
-    echo "--- 失敗したテスト [${pkg} / ${label}] ---"
-    grep -E '^✘ (Test|Suite) ' "$log" | sort -u || true
-    echo "--- 末尾 40 行 [${pkg} / ${label}] ---"
-    tail -40 "$log"
-    rm -f "$log"
-    return 1
-  fi
-  tail -40 "$log"
-  rm -f "$log"
-  return 0
+  COMPACT_COMMAND_OUTPUT="${SWIFT_TEST_OUTPUT-compact}" \
+    COMPACT_COMMAND_SUMMARY_PATTERN='^(✔ Test run with|[[:space:]]*Executed [0-9]+ tests)' \
+    "$COMPACT_COMMAND" "${pkg} / ${label}" swift test --package-path "Packages/$pkg" "$@"
 }
 
 cd "$MACOS_DIR" || { echo "run-swift-tests: macos ディレクトリが無い: $MACOS_DIR" >&2; exit 1; }

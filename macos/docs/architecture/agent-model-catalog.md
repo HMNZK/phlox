@@ -36,7 +36,7 @@ last-verified: 2026-07-29
 
 | kind | コマンド | パース |
 |---|---|---|
-| `claudeCode` | ① `claude --bare -p "/model" --output-format json` ② alias ごとに `claude --bare --model <alias> -p "/model" --output-format json` | ① 応答テキスト中の `Available: a, b, c` を分解して alias 一覧を得る（API 呼び出しなし・課金 0）。`default` / `opusplan` / `[1m]` 付き alias も**除外しない**（CLI 自身が選択肢として提示しているため → ADR 0122）。② 各 alias の `Current model: <表示名> (effort: …)` から表示名を取る（→ ADR 0140） |
+| `claudeCode` | ① `claude --bare -p "/model" --output-format json` ② alias ごとに `claude --bare --model <alias> -p "/model" --output-format json` | ① 応答テキスト中の `Available: a, b, c` を分解して alias 一覧を得る（API 呼び出しなし・課金 0）。`default` / `opusplan` / `[1m]` 付き alias も**除外しない**（CLI 自身が選択肢として提示しているため → ADR 0122）。② 各 alias の `Current model: <表示名> (effort: …)` から表示名を取る（→ ADR 0140）。CLI は表示名を Markdown のバッククォートで囲んで返すため、パース時に前後のバッククォートを除去する |
 | `cursor` | `cursor-agent models` | ヘッダ行・空行・不正行を捨て、`<id> - <displayName>` 形式と素の ID を拾う |
 | `codex` | `codex` の app-server | ADR 0085 / 0087 で「空カタログ」としていたものを ADR 0122 で解禁 |
 

@@ -176,9 +176,10 @@ struct AcceptanceLiveModelCatalogTests {
 
     @Test("claude --bare -p \"/model\" の実出力からモデル ID 一覧を取り出せる")
     func parsesRealClaudeModelOutput() {
-        // 2026-07-26 に PM が実測した実出力（`--output-format json` の result フィールド）。
+        // 2026-08-31 に PM が実測した実出力（`--output-format json` の result フィールド）。
+        // CLI はモデル名を Markdown のバッククォートで囲んで返す。
         let resultText = """
-        Current model: Opus 5 (1M context) (effort: xhigh)
+        Current model: `Opus 5 (1M context)` (effort: xhigh)
         Usage: /model <name>. Available: sonnet, opus, haiku, fable, best, sonnet[1m], opus[1m], fable[1m], opusplan, default, or a full model ID.
         """
 

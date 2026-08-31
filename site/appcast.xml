@@ -3,6 +3,43 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.6.0</title>
+            <pubDate>Mon, 31 Aug 2026 08:32:47 +0900</pubDate>
+            <description xml:lang="en"><![CDATA[
+<h3>New</h3>
+<ul>
+  <li><b>Claude Code skills can now be managed inside Phlox.</b> Browse, edit, save and remove user or project skills from the Agent Console.</li>
+  <li><b>Tool permission requests from Claude Code now reach you.</b> Allow or deny them from Phlox on your Mac or paired iPhone instead of having the request fail silently.</li>
+  <li><b>Sub-agent work appears as it happens.</b> Partial messages and reasoning from nested Claude Code sub-agents stream into the chat without duplicate final messages.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+  <li>Codex chat history now loads faster and no longer shows a redundant history strip above the conversation.</li>
+  <li>Image attachments no longer disappear before the active turn has finished.</li>
+  <li>The thinking indicator now reflects whether it is actually visible, and idle sessions use less power.</li>
+</ul>
+]]></description>
+            <description xml:lang="ja"><![CDATA[
+<h3>新機能</h3>
+<ul>
+  <li><b>Claude Code のスキルを Phlox 内で管理できるようになりました。</b> ユーザー用・プロジェクト用のスキルを Agent Console から閲覧・編集・保存・削除できます。</li>
+  <li><b>Claude Code のツール許可要求を受け取れるようになりました。</b> 要求が黙って拒否されることなく、Mac または連携中の iPhone から許可・拒否できます。</li>
+  <li><b>サブエージェントの作業内容を進行中から表示します。</b> ネストした Claude Code サブエージェントの途中メッセージや思考内容が、最終メッセージと重複せずチャットへ流れます。</li>
+</ul>
+<h3>修正</h3>
+<ul>
+  <li>Codex のチャット履歴を高速化し、会話上部の重複した履歴表示を廃止しました。</li>
+  <li>実行中のターンが終わる前に画像添付が消える問題を修正しました。</li>
+  <li>Thinking 表示が実際の表示状態へ正しく追随するようにし、待機中の消費電力を減らしました。</li>
+</ul>
+]]></description>
+            <sparkle:version>23</sparkle:version>
+            <sparkle:shortVersionString>1.6.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.6.0.zip" length="17834046" type="application/octet-stream" sparkle:edSignature="nnsHrU+OC7YA/3HVexJPHIQOehFPYCm852UrGRC0sWRTOfGJn8YiyKz7C0d+hWbsNUgUMsv9fs9nARfELQEbCA=="/>
+        </item>
+        <item>
             <title>1.5.0</title>
             <pubDate>Fri, 21 Aug 2026 02:54:39 +0900</pubDate>
             <description xml:lang="en"><![CDATA[

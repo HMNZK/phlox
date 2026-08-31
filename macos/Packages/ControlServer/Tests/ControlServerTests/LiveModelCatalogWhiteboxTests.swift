@@ -26,7 +26,7 @@ struct LiveModelCatalogWhiteboxTests {
     func claudeParserExtractsCurrentModelName() {
         #expect(
             ClaudeModelListParser.parseCurrentModelName(
-                resultText: "Current model: Opus 5 (1M context) (effort: xhigh)\nUsage: /model <name>."
+                resultText: "Current model: `Opus 5 (1M context)` (effort: xhigh)\nUsage: /model <name>."
             ) == "Opus 5 (1M context)"
         )
         #expect(ClaudeModelListParser.parseCurrentModelName(resultText: "Current model: Sonnet 5") == "Sonnet 5")

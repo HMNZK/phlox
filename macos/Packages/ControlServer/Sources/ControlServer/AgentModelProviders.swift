@@ -42,7 +42,9 @@ public enum ClaudeModelListParser {
     }
 
     /// Extracts the product name from `/model`'s `Current model:` line, e.g.
-    /// `Current model: Opus 5 (1M context) (effort: xhigh)` → `Opus 5 (1M context)`.
+    /// ``Current model: `Opus 5 (1M context)` (effort: xhigh)`` → `Opus 5 (1M context)`.
+    /// The CLI wraps the name in Markdown backticks; they are stripped so the picker
+    /// shows the bare product name.
     /// The alias list itself carries no version, so asking the CLI what a given alias
     /// resolves to is the only way to label a picker without hardcoding model versions.
     /// The trailing `(effort: …)` is the session's reasoning setting, not part of the name.
@@ -54,7 +56,7 @@ public enum ClaudeModelListParser {
         if let effortRange = name.range(of: "(effort:", options: [.backwards, .caseInsensitive]) {
             name = name[..<effortRange.lowerBound]
         }
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        let trimmed = name.trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: "`")))
         return trimmed.isEmpty ? nil : trimmed
     }
 }

@@ -2,18 +2,6 @@ import AgentDomain
 import SessionFeature
 
 extension DashboardViewModel {
-    /// 正準パスごとの共有セッション集合。衝突判定の規則は AgentDomain に委譲する。
-    public var workspaceCollisions: [String: Set<SessionID>] {
-        WorkspaceCollisionPolicy.collisions(among: workspaceSessionWorkspaces)
-    }
-
-    /// 現在のセッション一覧で作業ディレクトリを共有しているセッション ID。
-    public var workspaceCollisionSessionIDs: Set<SessionID> {
-        workspaceCollisions.values.reduce(into: Set<SessionID>()) { result, sessionIDs in
-            result.formUnion(sessionIDs)
-        }
-    }
-
     /// エディタパネルを含む共有判定の入力。セッションの重複除去と稼働中判定の正本。
     var workspaceSessionWorkspaces: [SessionWorkspace] {
         let ptyWorkspaces = sessions.map(Self.workspace(for:))

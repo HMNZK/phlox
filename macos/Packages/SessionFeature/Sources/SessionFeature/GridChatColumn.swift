@@ -78,7 +78,6 @@ struct GridChatColumn: View {
                     .overlay(alignment: .top) {
                         CodexSessionSurface(
                             viewModel: viewModel,
-                            onJump: { requestedTranscriptTarget = $0 },
                             onSelectChild: { childID in
                                 Task { await viewModel.loadCodexSubAgentDetail(threadID: childID) }
                             },

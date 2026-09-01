@@ -20,100 +20,13 @@ private func experimentalRuntimeRoundTrip<Value: Codable & Sendable>(
     return try encodeToJSONValue(decoded)
 }
 
-@Test("experimental schema は process/item/thread/turn の ID を別フィールドで固定する")
-func experimentalSchemasPinDistinctIdentifiers() throws {
-    let background = try experimentalFixture("v2/ThreadBackgroundTerminalsListResponse.json")
-    let backgroundDefinition = background["definitions"]?["ThreadBackgroundTerminal"]
-    #expect(backgroundDefinition?["properties"]?["itemId"]?["type"] == .string("string"))
-    #expect(backgroundDefinition?["properties"]?["processId"]?["type"] == .string("string"))
-    #expect(backgroundDefinition?["required"]?.arrayValue?.contains(.string("itemId")) == true)
-    #expect(backgroundDefinition?["required"]?.arrayValue?.contains(.string("processId")) == true)
-
-    let terminate = try experimentalFixture("v2/ThreadBackgroundTerminalsTerminateParams.json")
-    #expect(terminate["required"]?.arrayValue == [
-        .string("processId"),
-        .string("threadId"),
-    ])
-
+@Test("experimental schema は turn/interrupt の threadId と turnId を必須にする")
+func experimentalSchemasPinInterruptIdentifiers() throws {
     let interrupt = try experimentalFixture("v2/TurnInterruptParams.json")
     #expect(interrupt["required"]?.arrayValue == [
         .string("threadId"),
         .string("turnId"),
     ])
-}
-
-@Test("background terminal list は processId と itemId を取り違えずに返す")
-func backgroundTerminalListResponsePreservesProcessAndItemIDs() async throws {
-    let transport = MockTransport()
-    let rpc = JSONRPCClient(transport: transport)
-    await rpc.start()
-
-    let params: JSONValue = .object([
-        "threadId": .string("thread-parent"),
-        "cursor": .null,
-        "limit": .number(20),
-    ])
-    async let response = rpc.requestJSON(
-        method: "thread/backgroundTerminals/list",
-        params: params
-    )
-    #expect(await waitUntil(events: transport.sent.changes) {
-        await transport.sent.all().contains {
-            $0["method"]?.stringValue == "thread/backgroundTerminals/list"
-        }
-    })
-    let request = try #require(await transport.sent.first {
-        $0["method"]?.stringValue == "thread/backgroundTerminals/list"
-    })
-    #expect(request["params"] == params)
-
-    transport.receive("""
-    {"jsonrpc":"2.0","id":1,"result":{"data":[{
-      "itemId":"item-terminal-1",
-      "processId":"process-42",
-      "command":"swift test",
-      "cwd":"/tmp/project",
-      "osPid":4242,
-      "cpuPercent":1.25,
-      "rssKb":2048
-    }],"nextCursor":null}}
-    """)
-    let result = try await response
-    let item = try #require(result["data"]?.arrayValue?.first)
-    #expect(item["itemId"]?.stringValue == "item-terminal-1")
-    #expect(item["processId"]?.stringValue == "process-42")
-    #expect(item["itemId"]?.stringValue != item["processId"]?.stringValue)
-    await rpc.close()
-}
-
-@Test("background terminal terminate は threadId と processId を両方送る")
-func backgroundTerminalTerminateUsesTargetThreadAndProcess() async throws {
-    let transport = MockTransport()
-    let rpc = JSONRPCClient(transport: transport)
-    await rpc.start()
-
-    let params: JSONValue = .object([
-        "threadId": .string("thread-child"),
-        "processId": .string("process-42"),
-    ])
-    async let response = rpc.requestJSON(
-        method: "thread/backgroundTerminals/terminate",
-        params: params
-    )
-    #expect(await waitUntil(events: transport.sent.changes) {
-        await transport.sent.all().contains {
-            $0["method"]?.stringValue == "thread/backgroundTerminals/terminate"
-        }
-    })
-    let request = try #require(await transport.sent.first {
-        $0["method"]?.stringValue == "thread/backgroundTerminals/terminate"
-    })
-    #expect(request["params"] == params)
-
-    transport.receive(#"{"jsonrpc":"2.0","id":1,"result":{"terminated":false}}"#)
-    let result = try await response
-    #expect(result["terminated"] == .bool(false))
-    await rpc.close()
 }
 
 @Test("turn/interrupt は threadId と active turnId を必須にする")
@@ -168,59 +81,8 @@ func obsoleteTurnInterruptedNotificationIsNotAcceptedAsCompletion() async throws
     await rpc.close()
 }
 
-@Test("task-8 experimental DTO は background/terminate/interrupt の wire を lossless にする")
-func experimentalDTOsDecodeAndEncodeLosslessly() throws {
-    let requiredOnlyBackgroundList = try experimentalFixture(
-        "payloads/background-terminals-list-required-only.json"
-    )
-    let listParams: JSONValue = .object([
-        "threadId": .string("thread-parent"),
-        "cursor": .null,
-        "limit": .number(20),
-    ])
-    #expect(try experimentalRuntimeRoundTrip(
-        ThreadBackgroundTerminalsListParams.self,
-        raw: listParams
-    ) == listParams)
-
-    let listResponse: JSONValue = .object([
-        "data": .array([
-            .object([
-                "itemId": .string("item-terminal-1"),
-                "processId": .string("process-42"),
-                "command": .string("swift test"),
-                "cwd": .string("/tmp/project"),
-                "osPid": .number(4242),
-                "cpuPercent": .number(1.25),
-                "rssKb": .number(2048),
-            ]),
-        ]),
-        "nextCursor": .null,
-    ])
-    #expect(try experimentalRuntimeRoundTrip(
-        ThreadBackgroundTerminalsListResponse.self,
-        raw: listResponse
-    ) == listResponse)
-    #expect(try experimentalRuntimeRoundTrip(
-        ThreadBackgroundTerminalsListResponse.self,
-        raw: requiredOnlyBackgroundList
-    ) == requiredOnlyBackgroundList)
-
-    let terminateParams: JSONValue = .object([
-        "threadId": .string("thread-child"),
-        "processId": .string("process-42"),
-    ])
-    #expect(try experimentalRuntimeRoundTrip(
-        ThreadBackgroundTerminalsTerminateParams.self,
-        raw: terminateParams
-    ) == terminateParams)
-
-    let terminateResponse: JSONValue = .object(["terminated": .bool(false)])
-    #expect(try experimentalRuntimeRoundTrip(
-        ThreadBackgroundTerminalsTerminateResponse.self,
-        raw: terminateResponse
-    ) == terminateResponse)
-
+@Test("experimental DTO は turn/interrupt の wire を lossless にする")
+func experimentalInterruptDTOsDecodeAndEncodeLosslessly() throws {
     let interruptParams: JSONValue = .object([
         "threadId": .string("thread-child"),
         "turnId": .string("turn-9"),
@@ -244,16 +106,16 @@ func unsupportedExperimentalRequestRemainsServerError() async throws {
 
     let requestTask = Task {
         try await rpc.requestJSON(
-            method: "thread/backgroundTerminals/terminate",
+            method: "turn/interrupt",
             params: .object([
                 "threadId": .string("thread-child"),
-                "processId": .string("stale-process"),
+                "turnId": .string("turn-9"),
             ])
         )
     }
     #expect(await waitUntil(events: transport.sent.changes) {
         await transport.sent.all().contains {
-            $0["method"]?.stringValue == "thread/backgroundTerminals/terminate"
+            $0["method"]?.stringValue == "turn/interrupt"
         }
     })
     transport.receive("""

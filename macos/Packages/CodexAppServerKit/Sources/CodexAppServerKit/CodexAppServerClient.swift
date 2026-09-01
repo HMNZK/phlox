@@ -146,18 +146,6 @@ public actor CodexAppServerClient {
         try await rpc.request(method: "skills/list", params: params)
     }
 
-    public func threadBackgroundTerminalsList(
-        _ params: ThreadBackgroundTerminalsListParams
-    ) async throws -> ThreadBackgroundTerminalsListResponse {
-        try await rpc.request(method: "thread/backgroundTerminals/list", params: params)
-    }
-
-    public func threadBackgroundTerminalsTerminate(
-        _ params: ThreadBackgroundTerminalsTerminateParams
-    ) async throws -> ThreadBackgroundTerminalsTerminateResponse {
-        try await rpc.request(method: "thread/backgroundTerminals/terminate", params: params)
-    }
-
     /// `turn/started` でサーバーが通知した ID だけを停止リクエストに使う。
     public func activeTurnId(for threadId: String) -> String? {
         turnStates[threadId]?.activeTurnId
@@ -976,18 +964,6 @@ extension CodexStructuredAgentClient {
 
     public func skillsList(_ params: SkillsListParams = SkillsListParams()) async throws -> SkillsListResponse {
         try await client.skillsList(params)
-    }
-
-    public func threadBackgroundTerminalsList(
-        _ params: ThreadBackgroundTerminalsListParams
-    ) async throws -> ThreadBackgroundTerminalsListResponse {
-        try await client.threadBackgroundTerminalsList(params)
-    }
-
-    public func threadBackgroundTerminalsTerminate(
-        _ params: ThreadBackgroundTerminalsTerminateParams
-    ) async throws -> ThreadBackgroundTerminalsTerminateResponse {
-        try await client.threadBackgroundTerminalsTerminate(params)
     }
 
     public func listModels(_ params: ModelListParams) async throws -> ModelListResponse {

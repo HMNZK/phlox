@@ -10,7 +10,6 @@ CODEX_PACKAGE="$REPO_ROOT/macos/Packages/CodexAppServerKit"
 SESSION_PACKAGE="$REPO_ROOT/macos/Packages/SessionFeature"
 DASHBOARD_PACKAGE="$REPO_ROOT/macos/Packages/DashboardFeature"
 SESSION_PRODUCTION_REACHABILITY_FILTER='AcceptanceCodexProductionReachabilityTests'
-SESSION_BACKGROUND_TERMINAL_FILTER='AcceptanceCodexBackgroundTerminalStateTests'
 DASHBOARD_FILTER='AcceptanceCodex.*Route|Codex.*Route'
 DEFAULT_SWIFT_TEST_TIMEOUT_SECONDS="${PHLOX_SWIFT_TEST_TIMEOUT_SECONDS:-300}"
 TIMEOUT_EXIT_STATUS=142
@@ -114,14 +113,6 @@ if run_package "SessionFeature Codex production reachability" "$SESSION_PACKAGE"
 else
     reachability_status=$?
     [ "$failed" -ne 0 ] || failed="$reachability_status"
-fi
-
-if run_package "SessionFeature Codex background terminal state (parallel)" "$SESSION_PACKAGE" \
-    --filter "$SESSION_BACKGROUND_TERMINAL_FILTER" --parallel; then
-    :
-else
-    session_parallel_status=$?
-    [ "$failed" -ne 0 ] || failed="$session_parallel_status"
 fi
 
 if run_package "SessionFeature 全suite" "$SESSION_PACKAGE" --no-parallel; then

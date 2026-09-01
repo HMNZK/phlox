@@ -10,7 +10,7 @@ import StructuredChatKit
 @testable import SessionFeature
 
 /// Codex の本番構成（app-server transport → structured client → ViewModel）を通し、
-/// 履歴・plan・背景端末の既存 surface が実際の状態を受け取れることを検査する。
+/// 履歴・plan の既存 surface が実際の状態を受け取れることを検査する。
 @Suite("Acceptance: Codex production reachability")
 @MainActor
 struct AcceptanceCodexProductionReachabilityTests {
@@ -38,38 +38,9 @@ struct AcceptanceCodexProductionReachabilityTests {
             })
 
             transport.receive(backgroundItemStartedNotification(threadID: threadID))
-            try await waitFor("background item が transcript へ届く") {
+            try await waitFor("commandExecution item が transcript へ届く") {
                 viewModel.transcriptItemIDs.contains("background-item")
             }
-            try await transport.waitForMethod("thread/backgroundTerminals/list")
-
-            let state = try #require(viewModel.codexBackgroundTerminalState)
-            try await waitFor("itemStarted 後の background 一覧が VM へ届く") {
-                state.items.map(\.itemId) == ["background-item", "other-item"]
-            }
-
-            transport.receive(turnCompletedNotification(threadID: threadID))
-            try await transport.waitForMethod("thread/backgroundTerminals/list")
-            try await waitFor("turnCompleted 後も background 一覧が再読込される") {
-                state.items.map(\.itemId) == ["background-item", "other-item"]
-            }
-
-            #expect(await transport.methods().filter { $0 == "thread/backgroundTerminals/list" }.count == 2)
-            #expect(state.items.map(\.itemId) == ["background-item", "other-item"])
-            #expect(state.items.first?.processId == "background-process")
-            #expect(state.select(itemId: "background-item"))
-            #expect(state.selectedTerminal?.command == "swift test")
-            #expect(state.detail(for: "background-item")?.cwd == cwd)
-            #expect(state.jumpTarget(
-                for: "background-item",
-                transcriptItemIds: viewModel.transcriptItemIDs
-            ) == "background-item")
-            #expect(state.jumpTarget(for: "missing-item", transcriptItemIds: viewModel.transcriptItemIDs) == nil)
-
-            #expect(await state.stop(itemId: "background-item"))
-            #expect(state.items.map(\.itemId) == ["other-item"])
-            #expect(await transport.methods().filter { $0 == "thread/backgroundTerminals/list" }.count == 3)
-            #expect(await transport.methods().filter { $0 == "thread/backgroundTerminals/terminate" }.count == 1)
         }
     }
 
@@ -97,7 +68,7 @@ struct AcceptanceCodexProductionReachabilityTests {
         }
     }
 
-    @Test("CodexSessionSurface は実状態の plan/subagent/background を識別できる")
+    @Test("CodexSessionSurface は実状態の plan/subagent を識別できる")
     func codexSessionSurfaceExposesProductionStateAndActions() async throws {
         try await withStack(subAgentOutOfOrder: true) { viewModel, _, transport in
             let threadID = try #require(viewModel.threadId)
@@ -118,20 +89,9 @@ struct AcceptanceCodexProductionReachabilityTests {
                     await viewModel.loadCodexSubAgentDetail(threadID: child.id)
                     let childDetail = try #require(viewModel.codexSubAgentState?.detail(for: child.id))
 
-                    let state = try #require(viewModel.codexBackgroundTerminalState)
-                    await state.refresh()
-                    #expect(state.select(itemId: "background-item"))
-                    let selectedTerminal = try #require(state.selectedTerminal)
-                    transport.receive(backgroundItemStartedNotification(threadID: threadID))
-                    try await waitFor("background item の transcript 到達") {
-                        viewModel.transcriptItemIDs.contains("background-item")
-                    }
-
                     #expect(viewModel.codexPlanTaskState?.tasks.map(\.title) == ["inspect", "verify"])
                     #expect(child.summary == "child-new")
                     #expect(childDetail.threadId == child.id)
-                    #expect(selectedTerminal.command == "swift test")
-                    #expect(selectedTerminal.cwd == cwd)
 
                     let surface = CodexSessionSurface(viewModel: viewModel)
                         .accessibilityElement(children: .contain)
@@ -159,8 +119,6 @@ struct AcceptanceCodexProductionReachabilityTests {
                         "CodexSessionSurface",
                         "CodexPlanTaskList",
                         "CodexSubAgent.\(child.id)",
-                        "CodexBackgroundTerminal.background-item",
-                        "CodexBackgroundTerminal.detail.background-item",
                     ]
                     for identifier in expectedIdentifiers {
                         #expect(
@@ -168,11 +126,10 @@ struct AcceptanceCodexProductionReachabilityTests {
                             "実ランタイムAXツリーに identifier がない: \(identifier)"
                         )
                     }
+                    #expect(elements.contains { $0.identifier?.hasPrefix("CodexBackgroundTerminal.") == true } == false)
                     let displayedText = Set(elements.flatMap { [$0.title, $0.value, $0.description].compactMap { $0 } })
                     #expect(displayedText.contains { $0.contains("inspect") })
                     #expect(displayedText.contains { $0.contains("child-new") })
-                    #expect(displayedText.contains { $0.contains("swift test") })
-                    #expect(displayedText.contains { $0.contains(cwd) })
 
                 }
             }
@@ -297,12 +254,6 @@ struct AcceptanceCodexProductionReachabilityTests {
         """
     }
 
-    private func turnCompletedNotification(threadID: String) -> String {
-        """
-        {"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"\(threadID)","turn":{"id":"turn-1","status":"completed","items":[]}}}
-        """
-    }
-
 }
 
 @MainActor
@@ -416,7 +367,6 @@ private final class ObservationWaiter {
 final class CodexProductionTransport: AppServerTransport, @unchecked Sendable {
     private actor State {
         private var requests: [JSONValue] = []
-        private var terminated = false
         private var subAgentListCalls = 0
         private var skillListResponses: [JSONValue]
         private var skillListCalls = 0
@@ -433,10 +383,6 @@ final class CodexProductionTransport: AppServerTransport, @unchecked Sendable {
             requests.compactMap { $0["method"]?.stringValue }
         }
 
-        func markTerminated() {
-            terminated = true
-        }
-
         func nextSubAgentListCall() -> Int {
             subAgentListCalls += 1
             return subAgentListCalls
@@ -448,8 +394,6 @@ final class CodexProductionTransport: AppServerTransport, @unchecked Sendable {
             skillListCalls += 1
             return skillListResponses[index]
         }
-
-        var isTerminated: Bool { terminated }
     }
 
     let receivedLines: AsyncStream<Data>
@@ -551,31 +495,6 @@ final class CodexProductionTransport: AppServerTransport, @unchecked Sendable {
         case "skills/list":
             result = await state.nextSkillListResponse()
                 ?? .object(["data": .array([])])
-        case "thread/backgroundTerminals/list":
-            result = await state.isTerminated
-                ? .object(["data": .array([.object([
-                    "itemId": .string("other-item"),
-                    "processId": .string("other-process"),
-                    "command": .string("swift build"),
-                    "cwd": .string(cwd),
-                ])]), "nextCursor": .null])
-                : .object(["data": .array([
-                    .object([
-                        "itemId": .string("background-item"),
-                        "processId": .string("background-process"),
-                        "command": .string("swift test"),
-                        "cwd": .string(cwd),
-                    ]),
-                    .object([
-                        "itemId": .string("other-item"),
-                        "processId": .string("other-process"),
-                        "command": .string("swift build"),
-                        "cwd": .string(cwd),
-                    ]),
-                ]), "nextCursor": .null])
-        case "thread/backgroundTerminals/terminate":
-            await state.markTerminated()
-            result = .object(["terminated": .bool(true)])
         default:
             result = .object([:])
         }

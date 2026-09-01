@@ -30,7 +30,6 @@ func codexSchemaFixturePinsGeneratedFilesAndNativePaths() throws {
     let files = manifest["files"]
     #expect(files?.arrayValue?.contains(.string("v2/TurnStartParams.json")) == true)
     #expect(files?.arrayValue?.contains(.string("v2/SkillsListResponse.json")) == true)
-    #expect(files?.arrayValue?.contains(.string("v2/ThreadBackgroundTerminalsListResponse.json")) == true)
 
     let turnStartSchema = try fixtureJSON("v2/TurnStartParams.json")
     #expect(turnStartSchema["title"]?.stringValue == "TurnStartParams")

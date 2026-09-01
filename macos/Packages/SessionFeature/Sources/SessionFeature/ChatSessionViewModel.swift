@@ -39,13 +39,11 @@ public final class ChatSessionViewModel: Identifiable {
     public private(set) var threadId: String?
     public private(set) var chatNativeSessionId: String?
     public private(set) var appServerUserAgent: String?
-    /// Codex 専用状態。既存の composer・transcript・背景端末 surface から利用する。
+    /// Codex 専用状態。既存の composer・transcript・plan/sub-agent surface から利用する。
     public private(set) var codexSkillSelectionState: CodexSkillSelectionState?
     public private(set) var codexPlanTaskState: CodexPlanTaskState?
-    public private(set) var codexBackgroundTerminalState: CodexBackgroundTerminalState?
     public private(set) var codexSubAgentState: CodexSubAgentState?
     public private(set) var codexSubAgentError: String?
-    public var backgroundTerminalState: CodexBackgroundTerminalState? { codexBackgroundTerminalState }
     public private(set) var transcript: [ChatItem] = []
     public var inputHistoryEntries: [InputHistoryEntry] {
         InputHistoryPolicy.entries(from: transcript)
@@ -174,7 +172,6 @@ public final class ChatSessionViewModel: Identifiable {
     private var pendingTurnCostUSD: Double?
     private var codexSurfaceRefreshTask: Task<Void, Never>?
     private var codexSubAgentRefreshPending = false
-    private var codexBackgroundTerminalRefreshPending = false
     private var codexSubAgentRefreshGeneration = 0
     private var codexRestoreGeneration = 0
     private let transcriptStore: (any TranscriptStore)?
@@ -212,11 +209,6 @@ public final class ChatSessionViewModel: Identifiable {
             )
         } else {
             self.codexSkillSelectionState = nil
-        }
-        if agentRef == .builtin(.codex), let codexClient = client as? any CodexBackgroundTerminalProviding {
-            self.codexBackgroundTerminalState = CodexBackgroundTerminalState(client: codexClient)
-        } else {
-            self.codexBackgroundTerminalState = nil
         }
         self.codexSubAgentState = agentRef == .builtin(.codex) ? CodexSubAgentState(parentThreadId: "") : nil
         self.codexSubAgentError = nil
@@ -263,11 +255,6 @@ public final class ChatSessionViewModel: Identifiable {
             )
         } else {
             self.codexSkillSelectionState = nil
-        }
-        if agentRef == .builtin(.codex), let codexClient = client as? any CodexBackgroundTerminalProviding {
-            self.codexBackgroundTerminalState = CodexBackgroundTerminalState(client: codexClient)
-        } else {
-            self.codexBackgroundTerminalState = nil
         }
         self.codexSubAgentState = agentRef == .builtin(.codex) ? CodexSubAgentState(parentThreadId: "") : nil
         self.codexSubAgentError = nil
@@ -2032,10 +2019,9 @@ public final class ChatSessionViewModel: Identifiable {
             }
             if case .itemStarted = event {
                 let type = item.type?.lowercased() ?? ""
-                scheduleCodexSurfaceRefresh(
-                    subAgents: type.contains("collabagent") || type.contains("subagent"),
-                    backgroundTerminals: type.contains("background") || type.contains("commandexecution")
-                )
+                if type.contains("collabagent") || type.contains("subagent") {
+                    scheduleCodexSurfaceRefresh()
+                }
             }
         case .planUpdated(let updatedThreadId, let turnId, _, _):
             if codexPlanTaskState?.apply(event: event) == true,
@@ -2591,7 +2577,6 @@ public final class ChatSessionViewModel: Identifiable {
             codexEventTurnId = nil
             codexPlanTaskState?.reset(threadId: id ?? "")
         }
-        codexBackgroundTerminalState?.updateThreadId(id)
         if let id, let previous, id != previous {
             clearRunningBackgroundTasks()
         }
@@ -2775,32 +2760,19 @@ public final class ChatSessionViewModel: Identifiable {
             && codexSubAgentState?.parentThreadId == parentThreadId
     }
 
-    /// 子 thread / 背景端末は親 turn の item event・完了 event を契機に一覧を再取得する。
+    /// 子 thread は親 turn の item event・完了 event を契機に一覧を再取得する。
     /// 常駐ポーリングはせず、同時に複数 signal が来ても1本へまとめる。
-    private func scheduleCodexSurfaceRefresh(
-        subAgents: Bool = true,
-        backgroundTerminals: Bool = true
-    ) {
-        codexSubAgentRefreshPending = codexSubAgentRefreshPending || subAgents
-        codexBackgroundTerminalRefreshPending = codexBackgroundTerminalRefreshPending || backgroundTerminals
-        guard subAgents || backgroundTerminals else { return }
+    private func scheduleCodexSurfaceRefresh() {
+        codexSubAgentRefreshPending = true
         if codexSurfaceRefreshTask != nil {
             return
         }
         codexSurfaceRefreshTask = Task { @MainActor [weak self] in
             guard let self else { return }
             repeat {
-                let refreshSubAgents = self.codexSubAgentRefreshPending
-                let refreshBackgroundTerminals = self.codexBackgroundTerminalRefreshPending
                 self.codexSubAgentRefreshPending = false
-                self.codexBackgroundTerminalRefreshPending = false
-                if refreshSubAgents {
-                    await self.refreshCodexSubAgents()
-                }
-                if refreshBackgroundTerminals {
-                    await self.codexBackgroundTerminalState?.refresh()
-                }
-            } while self.codexSubAgentRefreshPending || self.codexBackgroundTerminalRefreshPending
+                await self.refreshCodexSubAgents()
+            } while self.codexSubAgentRefreshPending
             self.codexSurfaceRefreshTask = nil
         }
     }

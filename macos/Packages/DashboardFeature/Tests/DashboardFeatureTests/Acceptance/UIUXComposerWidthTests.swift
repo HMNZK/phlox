@@ -28,6 +28,28 @@ struct UIUXComposerWidthTests {
     }
 
     @Test
+    func actualComposerInputsFollowTheWidthContract() throws {
+        let cases: [(CGFloat, CGFloat, ComposerFooterLayout, ComposerFooterLayout)] = [
+            (500.5, 450.45, .minimal, .minimal),
+            (544, 489.6, .minimal, .minimal),
+            (545, 490.5, .compact, .compact),
+            (666, 599.4, .compact, .compact),
+            (667, 600.3, .standard, .compact),
+            (888.5, 799.65, .standard, .compact),
+            (889, 800, .standard, .compact),
+            (1000, 800, .standard, .compact)
+        ]
+        for (parent, expected, single, grid) in cases {
+            let transcript = try #require(ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: parent))
+            let composer = try #require(ComposerLayout.proposedWidth(mainColumnWidth: parent))
+            #expect(abs(transcript - expected) < 0.001)
+            #expect(abs(composer - expected) < 0.001)
+            #expect(ComposerLayout.controlsLayout(proposedWidth: composer) == single)
+            #expect(ComposerLayout.gridControlsLayout(proposedWidth: composer) == grid)
+        }
+    }
+
+    @Test
     func unresolvedWidthAndFooterBoundariesRemainStable() {
         #expect(ComposerLayout.maxWidth(mainColumnWidth: 0) == nil)
         #expect(ComposerLayout.maxWidth(mainColumnWidth: -1) == nil)

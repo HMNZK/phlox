@@ -191,9 +191,7 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
                     guard let name = report.flatMap({ ClaudeModelListParser.parseCurrentModelName(resultText: $0) }) else {
                         return (offset, option)
                     }
-                    let displayName = option.id == "default"
-                        ? "Default (recommended) — \(name)"
-                        : name
+                    let displayName = option.id == "default" ? option.displayName : name
                     return (offset, ControlModelOption(id: option.id, displayName: displayName))
                 }
             }

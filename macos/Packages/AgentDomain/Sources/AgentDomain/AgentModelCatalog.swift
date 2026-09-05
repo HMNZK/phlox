@@ -27,7 +27,7 @@ public enum AgentModelCatalog {
     // Claude Code `/model` picker order (v2.1.261, observed 2026-09-05). The non-interactive
     // `/model` report also lists internal aliases, so it cannot be used as the picker itself.
     private static let claudeModels = [
-        ControlModelOption(id: "default", displayName: "Default (recommended) — Opus 5 (1M context)"),
+        ControlModelOption(id: "default", displayName: "Default (Opus 5)"),
         ControlModelOption(id: "opus[1m]", displayName: "Opus 5 (1M context)"),
         ControlModelOption(id: "fable", displayName: "Fable 5.1"),
         ControlModelOption(id: "sonnet", displayName: "Sonnet 5"),

@@ -62,7 +62,7 @@ struct LiveModelCatalogWhiteboxTests {
         let models = try await provider.fetchModels(for: .claudeCode)
 
         #expect(models == [
-            ControlModelOption(id: "default", displayName: "Default (recommended) — Opus 5 (1M context)"),
+            ControlModelOption(id: "default", displayName: "Default (Opus 5)"),
             ControlModelOption(id: "opus[1m]", displayName: "Opus 5 (1M context)"),
             ControlModelOption(id: "fable", displayName: "Fable 5.1"),
             ControlModelOption(id: "sonnet", displayName: "Sonnet 5"),
@@ -111,7 +111,7 @@ struct LiveModelCatalogWhiteboxTests {
 
         #expect(
             models == [
-                ControlModelOption(id: "default", displayName: "Default (recommended) — Opus 5 (1M context)"),
+                ControlModelOption(id: "default", displayName: "Default (Opus 5)"),
                 ControlModelOption(id: "opus[1m]", displayName: "Opus 5 (1M context)"),
                 ControlModelOption(id: "fable", displayName: "Fable 5.1"),
                 ControlModelOption(id: "sonnet", displayName: "Sonnet 5"),

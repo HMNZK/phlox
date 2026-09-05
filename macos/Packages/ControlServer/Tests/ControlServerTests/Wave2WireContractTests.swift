@@ -49,7 +49,7 @@ struct DefaultModelRuleTests {
     func builtinModelsRemainCurrent() {
         #expect(AgentModelCatalog.builtinModels(for: .claudeCode).map(\.id) == ["default", "opus[1m]", "fable", "sonnet", "haiku"])
         #expect(AgentModelCatalog.builtinModels(for: .claudeCode).map(\.displayName) == [
-            "Default (recommended) — Opus 5 (1M context)", "Opus 5 (1M context)",
+            "Default (Opus 5)", "Opus 5 (1M context)",
             "Fable 5.1", "Sonnet 5", "Haiku 4.5",
         ])
         #expect(AgentModelCatalog.builtinModels(for: .codex).map(\.id) == [

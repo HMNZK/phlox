@@ -7,7 +7,8 @@ import CoreGraphics
 ///
 /// 駆動源#1（composerMaxWidth の計測→@State→レイアウト往復）根治の契約:
 /// composer 幅は親から演繹された幅のみを入力とする純関数 `ComposerLayout.maxWidth` に一本化する。
-/// 数式は現行と同一: w<=0→nil / 0.6w<800→0.9w / それ以外→min(0.6w,800)=800。
+/// UI-02（2026-09-05）の新仕様: w<=0→nil / 正の幅→min(0.9w,800)。
+/// 旧境界で約400pt縮む不連続を除き、単一真実源と上限は維持する。
 /// 「計測フィードバックが消えたこと」自体は構造制約のためレビュー（Rubric）と実機統合検証が担う。
 @Suite("task-5 ComposerLayout acceptance")
 struct Task5ComposerLayoutAcceptanceTests {
@@ -26,9 +27,14 @@ struct Task5ComposerLayoutAcceptanceTests {
 
     @Test
     func narrowColumnUses90Percent() throws {
-        // 60% (600) < 800 → 90% にフォールバック。
+        let w = try #require(ComposerLayout.maxWidth(mainColumnWidth: 500))
+        #expect(abs(w - 450) < 0.001)
+    }
+
+    @Test
+    func mediumColumnAlsoRespectsMaximumWidth() throws {
         let w = try #require(ComposerLayout.maxWidth(mainColumnWidth: 1000))
-        #expect(abs(w - 900) < 0.001)
+        #expect(abs(w - 800) < 0.001)
     }
 
     @Test
@@ -39,10 +45,10 @@ struct Task5ComposerLayoutAcceptanceTests {
     }
 
     @Test
-    func justBelowBoundaryUses90Percent() throws {
-        // 境界直下: 60% of 1332 = 799.2 < 800 → 0.9 * 1332 = 1198.8。
+    func justBelowOldBoundaryCapsAt800() throws {
+        // 旧境界直下も800: 親を広げた際の急減を除去する。
         let w = try #require(ComposerLayout.maxWidth(mainColumnWidth: 1332))
-        #expect(abs(w - 1198.8) < 0.001)
+        #expect(abs(w - 800) < 0.001)
     }
 
     @Test

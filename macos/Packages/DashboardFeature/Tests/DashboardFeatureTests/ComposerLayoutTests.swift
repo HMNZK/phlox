@@ -16,10 +16,10 @@ struct ComposerLayoutTests {
     }
 
     @Test
-    func epsilonBelowBoundaryUses90Percent() throws {
+    func epsilonBelowOldBoundaryAlsoCapsAt800() throws {
         let column = (800 / 0.6) - 1
         let w = try #require(ComposerLayout.maxWidth(mainColumnWidth: column))
-        #expect(abs(w - column * 0.9) < 0.001)
+        #expect(abs(w - 800) < 0.001)
     }
 
     @Test

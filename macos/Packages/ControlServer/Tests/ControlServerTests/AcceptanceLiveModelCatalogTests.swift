@@ -44,9 +44,10 @@ import Testing
 /// 注: `models(for:)` を同期のまま保つこと。`ControlServer.route()` は同期文脈で
 /// `normalizedSpawnModel` を呼ぶため、ここを async にすると経路全体を書き換える羽目になる。
 /// live 取得は `refresh()` で背景更新し、`models(for:)` はスナップショットを返す設計にする。
-/// 注: 各テストは `AgentModelCatalog` のプロセス全体で共有されるスナップショットを差し替えるため、
-/// `.serialized` で直列実行する（Swift Testing の既定は並列実行で、並列だと相互にスナップショットを壊す）。
-@Suite("Acceptance: live モデルカタログと spawn 受理（task-2）", .serialized)
+/// 注: `AgentModelCatalog` を触る全 suite は共通の `ModelCatalogTestIsolation` 配下で
+/// 直列実行する（suite ごとの `.serialized` では別 suite と並列になり、スナップショットを壊す）。
+extension ModelCatalogTestIsolation {
+@Suite("Acceptance: live モデルカタログと spawn 受理（task-2）")
 struct AcceptanceLiveModelCatalogTests {
 
     private let token = "task-2-token"
@@ -246,6 +247,7 @@ struct AcceptanceLiveModelCatalogTests {
             return (response as? HTTPURLResponse)?.statusCode ?? -1
         }
     }
+}
 }
 
 // MARK: - stubs（受け入れテスト専用。実装役は編集しない）

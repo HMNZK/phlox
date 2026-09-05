@@ -2,7 +2,12 @@ import AgentDomain
 import Testing
 @testable import ControlServer
 
-@Suite("既定モデル規則", .serialized)
+/// AgentModelCatalog はプロセス共有状態を持つため、触る suite を同じ親で直列化する。
+@Suite("モデルカタログ共有状態", .serialized)
+struct ModelCatalogTestIsolation {}
+
+extension ModelCatalogTestIsolation {
+@Suite("既定モデル規則")
 struct DefaultModelRuleTests {
     @Test("Claude の既定は先頭ではなく opus を優先する")
     func claudeDefaultPrefersOpusOverFirstEntry() async {
@@ -40,9 +45,15 @@ struct DefaultModelRuleTests {
         #expect(AgentModelCatalog.defaultModel(for: .cursor) == "auto")
     }
 
-    @Test("Claude の内蔵 fallback はユーザー向けの既定一覧を保持する")
-    func claudeBuiltinModelsRemainFrozen() {
+    @Test("内蔵 fallback は現行 CLI のモデルを保持する")
+    func builtinModelsRemainCurrent() {
         #expect(AgentModelCatalog.builtinModels(for: .claudeCode).map(\.id) == ["opus", "sonnet", "fable", "haiku"])
+        #expect(AgentModelCatalog.builtinModels(for: .codex).map(\.id) == [
+            "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
+        ])
+        #expect(AgentModelCatalog.builtinModels(for: .cursor).map(\.id) == [
+            "composer-2.5", "gpt-5.6-sol-medium", "claude-fable-5-1-high",
+        ])
     }
 
     private func refreshCatalog(using provider: any AgentModelListProviding) async {
@@ -55,6 +66,7 @@ struct DefaultModelRuleTests {
         ControlModelOption(id: id, displayName: id)
     }
 }
+}
 
 /// task-1 受け入れテスト（PM 著・実装役は編集禁止）。
 /// spawn 前のモデル選択に使うエージェント別モデルカタログの契約を凍結する。
@@ -63,7 +75,8 @@ struct DefaultModelRuleTests {
 /// 実装役の白箱テスト（Wave2ServerWireWhiteboxTests）と Phase4 E2E で担保する。
 /// acceptance_tests のアサーションは変更禁止。ただしテストハーネスの欠陥を発見した場合は、
 /// PM に報告し承認を得たうえでハーネス部分に限り修理してよい。
-struct Wave2WireContractTests {
+extension ModelCatalogTestIsolation {
+@Suite struct Wave2WireContractTests {
 
     @Test("claudeCode は非空のモデルカタログと既定モデルを持つ")
     func claudeCatalogNonEmptyWithDefault() {
@@ -85,6 +98,7 @@ struct Wave2WireContractTests {
         #expect(AgentModelCatalog.models(for: .cursor).map(\.id) == ["composer-2.5"])
         #expect(AgentModelCatalog.defaultModel(for: .cursor) == "composer-2.5")
     }
+}
 }
 
 private struct WireContractProvider: AgentModelListProviding {

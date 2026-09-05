@@ -25,6 +25,7 @@ private struct Wave2SpawnResponse: Encodable {
     let id: String
 }
 
+extension ModelCatalogTestIsolation {
 @Suite struct Wave2ServerWireWhiteboxTests {
     private let token = "wave-2-token"
     private let requester = SessionID()
@@ -221,4 +222,5 @@ private struct Wave2SpawnResponse: Encodable {
         let (data, response) = try await URLSession.shared.data(for: request)
         return ((response as? HTTPURLResponse)?.statusCode ?? -1, data)
     }
+}
 }

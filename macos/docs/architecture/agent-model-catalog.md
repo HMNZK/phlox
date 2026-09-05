@@ -46,7 +46,7 @@ Claude の表示名解決（②）は alias ごとに 1 プロセスを並列に
 
 ## フォールバックと観測
 
-- CLI 取得が失敗した kind は `builtinModels(for:)`（コード内蔵の固定一覧）へ落ちる。**内蔵一覧は live が死んだときにしか使われないので陳腐化に気づきにくい**。実在する ID だけを置くこと（→ ADR 0123 §4）。Claude の内蔵一覧は alias だけを持ち、表示名も alias と同値にする（バージョン名を書くと古びる → ADR 0140）。Codex の内蔵一覧は空。
+- CLI 取得が失敗した kind は `builtinModels(for:)`（コード内蔵の固定一覧）へ落ちる。**内蔵一覧は live が死んだときにしか使われないので陳腐化に気づきにくい**。実在する ID だけを置くこと（→ ADR 0123 §4）。Claude の内蔵一覧は alias だけを持ち、表示名も alias と同値にする（バージョン名を書くと古びる → ADR 0140）。Codex と Cursor は現行の代表モデルを保持する。
 - フォールバック中の kind は `kindsUsingFallback()` で読め、`CompositionRoot` が起動ログに warning を出す。
 - `configure(provider:)` は**直前の完了スナップショットを保持する**。provider を差し替えている最中に同期読み取り側が一瞬カタログを失わないため。`generation` カウンタで、差し替え中に走っていた古い refresh の結果を捨てる。
 

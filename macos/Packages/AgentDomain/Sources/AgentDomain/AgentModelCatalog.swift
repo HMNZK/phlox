@@ -30,11 +30,18 @@ public enum AgentModelCatalog {
     private static let claudeModels = ["opus", "sonnet", "fable", "haiku"].map {
         ControlModelOption(id: $0, displayName: $0)
     }
-    // `cursor-agent models` (2026-07-26) lists these current, representative selectable IDs.
+    // Current families from `codex app-server` model/list (2026-09-05). Keep the live order
+    // so the first model remains Codex's current default when discovery is unavailable.
+    private static let codexModels = [
+        "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
+    ].map {
+        ControlModelOption(id: $0, displayName: $0)
+    }
+    // `cursor-agent models` (2026-09-05) lists these current, representative selectable IDs.
     // Keep `composer-2.5` so the shared default rule can preserve Cursor's established
     // default; retain current Codex and Claude families as offline choices. Deliberately
     // exclude `auto`: it is Cursor's routing mode, not a stable explicit model fallback.
-    private static let cursorModels = ["composer-2.5", "gpt-5.3-codex", "claude-opus-5-high"].map {
+    private static let cursorModels = ["composer-2.5", "gpt-5.6-sol-medium", "claude-fable-5-1-high"].map {
         ControlModelOption(id: $0, displayName: $0)
     }
     private static let state = State()
@@ -46,7 +53,7 @@ public enum AgentModelCatalog {
     public static func builtinModels(for kind: AgentKind) -> [ControlModelOption] {
         switch kind {
         case .claudeCode: claudeModels
-        case .codex: []
+        case .codex: codexModels
         case .cursor: cursorModels
         }
     }

@@ -3,6 +3,31 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.6.1</title>
+            <pubDate>Sat, 05 Sep 2026 14:15:09 +0900</pubDate>
+            <description xml:lang="en"><![CDATA[
+<h3>Fixed</h3>
+<ul>
+  <li><b>Model pickers now match the current Claude Code, Codex and Cursor CLI choices.</b> Claude shows only its five interactive choices without duplicate internal aliases, while Cursor mirrors its 35-model list with Auto first.</li>
+  <li>Claude model names include their current version while the default label stays compact enough to fit the composer.</li>
+  <li>The misleading shared-working-directory warning badge and unsupported Codex background-terminal details have been removed.</li>
+</ul>
+]]></description>
+            <description xml:lang="ja"><![CDATA[
+<h3>修正</h3>
+<ul>
+  <li><b>モデル選択を現在の Claude Code・Codex・Cursor CLI に揃えました。</b> Claude は内部エイリアスの重複を除いた対話型の5件だけを表示し、Cursor は Auto を先頭にCLIと同じ35件を同じ順序で表示します。</li>
+  <li>Claude のモデル名に現在のバージョンを表示しつつ、既定モデル名が入力欄からはみ出さない長さにしました。</li>
+  <li>誤解を招いていた作業フォルダ共有の警告バッジと、未対応の Codex バックグラウンド端末詳細を削除しました。</li>
+</ul>
+]]></description>
+            <sparkle:version>24</sparkle:version>
+            <sparkle:shortVersionString>1.6.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.6.1.zip" length="17697704" type="application/octet-stream" sparkle:edSignature="Rt1LwM8QWaox2c/9Xk8iURh0KuUMFdx/PDT5cKIai8QH1A6VFJHSdUiBRVRMiFA/hPXLwZOEDJ4GRdVK2D1iAQ=="/>
+        </item>
+        <item>
             <title>1.6.0</title>
             <pubDate>Mon, 31 Aug 2026 08:32:47 +0900</pubDate>
             <description xml:lang="en"><![CDATA[

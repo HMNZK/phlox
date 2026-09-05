@@ -151,9 +151,7 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
             let output = try await commandRunner(resolveCommand(for: kind), ["models"])
             let ids = CursorModelListParser.parse(output)
             guard !ids.isEmpty else { throw ProviderError.invalidOutput }
-            // Cursor publishes its recommended/latest order. Preserve it and only pin its
-            // routing mode to the top in case a CLI version emits `auto` elsewhere.
-            return (ids.filter { $0 == "auto" } + ids.filter { $0 != "auto" }).map(option)
+            return AgentModelCatalog.builtinModels(for: .cursor)
 
         case .codex:
             return try await runCodexModelList(command: resolveCommand(for: kind))
@@ -196,17 +194,12 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
             for await item in group { items.append(item) }
             return items.sorted { $0.offset < $1.offset }
         }
-        // Distinct aliases can resolve to the same product (`best` and `fable`, `sonnet` and
-        // `sonnet[1m]`). Qualify only the colliding labels with their alias so the picker never
-        // offers two rows the user cannot tell apart, while unique names stay uncluttered.
-        var occurrences: [String: Int] = [:]
-        for item in resolved { occurrences[item.name, default: 0] += 1 }
-        return resolved.map { item in
-            let isAmbiguous = (occurrences[item.name] ?? 0) > 1 && item.name != item.alias
-            return ControlModelOption(
-                id: item.alias,
-                displayName: isAmbiguous ? "\(item.name) (\(item.alias))" : item.name
-            )
+        // Several aliases can resolve to the same product. Keep the CLI's first choice so the
+        // picker has one row per effective model without inventing a second ordering rule.
+        var seenNames = Set<String>()
+        return resolved.compactMap { item in
+            guard seenNames.insert(item.name).inserted else { return nil }
+            return ControlModelOption(id: item.alias, displayName: item.name)
         }
     }
 

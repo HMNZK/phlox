@@ -39,13 +39,46 @@ public enum AgentModelCatalog {
     ].map {
         ControlModelOption(id: $0, displayName: $0)
     }
-    // `cursor-agent models` (2026-09-05) lists these current, representative selectable IDs.
-    // Keep `composer-2.5` so the shared default rule can preserve Cursor's established
-    // default; retain current Codex and Claude families as offline choices. Deliberately
-    // exclude `auto`: it is Cursor's routing mode, not a stable explicit model fallback.
-    private static let cursorModels = ["composer-2.5", "gpt-5.6-sol-medium", "claude-fable-5-1-high"].map {
-        ControlModelOption(id: $0, displayName: $0)
-    }
+    // Cursor Agent `/model` picker order (v2026.09.02, observed 2026-09-05). The scriptable
+    // `models` command expands these 35 families into roughly 170 parameter combinations;
+    // exposing those IDs would not match Cursor's own picker.
+    private static let cursorModels = [
+        ControlModelOption(id: "auto", displayName: "Auto"),
+        ControlModelOption(id: "grok-4.6", displayName: "Cursor Grok 4.6"),
+        ControlModelOption(id: "composer-2.5", displayName: "Composer 2.5"),
+        ControlModelOption(id: "claude-opus-5", displayName: "Claude Opus 5"),
+        ControlModelOption(id: "claude-opus-4-8", displayName: "Claude Opus 4.8"),
+        ControlModelOption(id: "gpt-5.6-sol", displayName: "GPT-5.6 Sol"),
+        ControlModelOption(id: "gpt-5.5", displayName: "GPT-5.5"),
+        ControlModelOption(id: "claude-fable-5-1", displayName: "Claude Fable 5.1"),
+        ControlModelOption(id: "claude-fable-5", displayName: "Claude Fable 5"),
+        ControlModelOption(id: "gemini-3.8-flash", displayName: "Gemini 3.8 Flash"),
+        ControlModelOption(id: "gemini-3.7-flash", displayName: "Gemini 3.7 Flash"),
+        ControlModelOption(id: "gpt-5.6-terra", displayName: "GPT-5.6 Terra"),
+        ControlModelOption(id: "claude-sonnet-5", displayName: "Claude Sonnet 5"),
+        ControlModelOption(id: "claude-sonnet-4-6", displayName: "Claude Sonnet 4.6"),
+        ControlModelOption(id: "gpt-5.3-codex", displayName: "Codex 5.3"),
+        ControlModelOption(id: "claude-opus-4-7", displayName: "Claude Opus 4.7"),
+        ControlModelOption(id: "gpt-5.4", displayName: "GPT-5.4"),
+        ControlModelOption(id: "claude-opus-4-6", displayName: "Claude Opus 4.6"),
+        ControlModelOption(id: "claude-opus-4-5", displayName: "Claude Opus 4.5"),
+        ControlModelOption(id: "gpt-5.2", displayName: "GPT-5.2"),
+        ControlModelOption(id: "gpt-5.6-luna", displayName: "GPT-5.6 Luna"),
+        ControlModelOption(id: "gemini-3.6-flash", displayName: "Gemini 3.6 Flash"),
+        ControlModelOption(id: "gemini-3.1-pro", displayName: "Gemini 3.1 Pro"),
+        ControlModelOption(id: "gpt-5.4-mini", displayName: "GPT-5.4 Mini"),
+        ControlModelOption(id: "gpt-5.4-nano", displayName: "GPT-5.4 Nano"),
+        ControlModelOption(id: "claude-haiku-4-5", displayName: "Claude Haiku 4.5"),
+        ControlModelOption(id: "claude-sonnet-4-5", displayName: "Claude Sonnet 4.5"),
+        ControlModelOption(id: "gpt-5.1", displayName: "GPT-5.1"),
+        ControlModelOption(id: "gemini-3-flash", displayName: "Gemini 3 Flash"),
+        ControlModelOption(id: "gemini-3.5-flash", displayName: "Gemini 3.5 Flash"),
+        ControlModelOption(id: "claude-sonnet-4", displayName: "Claude Sonnet 4"),
+        ControlModelOption(id: "gpt-5-mini", displayName: "GPT-5 Mini"),
+        ControlModelOption(id: "kimi-k3", displayName: "Kimi K3"),
+        ControlModelOption(id: "kimi-k2.7-code", displayName: "Kimi K2.7 Code"),
+        ControlModelOption(id: "glm-5.2", displayName: "GLM 5.2"),
+    ]
     private static let state = State()
 
     public static func models(for kind: AgentKind) -> [ControlModelOption] {

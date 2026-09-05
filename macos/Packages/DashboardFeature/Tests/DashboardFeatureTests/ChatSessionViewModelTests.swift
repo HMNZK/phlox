@@ -1152,7 +1152,7 @@ func chatSessionViewModel_cursorFallsBackToHardcodedModelsWhenProviderEmpty() as
 
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
 
-    #expect(vm.availableSpawnAgentModels == ["composer-2.5", "gpt-5.6-sol-medium", "claude-fable-5-1-high"])
+    #expect(vm.availableSpawnAgentModels == AgentModelCatalog.builtinModels(for: .cursor).map(\.id))
 }
 
 @Test @MainActor

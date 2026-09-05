@@ -70,8 +70,8 @@ struct LiveModelCatalogWhiteboxTests {
         )
     }
 
-    @Test("Claude provider は同じ表示名になる alias だけ alias を添えて区別する")
-    func claudeProviderDisambiguatesAliasesSharingOneProductName() async throws {
+    @Test("Claude provider は同じ表示名になる alias を最初の1件にまとめる")
+    func claudeProviderDeduplicatesAliasesSharingOneProductName() async throws {
         let provider = LiveAgentModelProvider(
             environment: ["PATH": "/usr/bin:/bin"],
             commandRunner: { _, arguments in
@@ -88,8 +88,7 @@ struct LiveModelCatalogWhiteboxTests {
         let models = try await provider.fetchModels(for: .claudeCode)
 
         #expect(models == [
-            ControlModelOption(id: "fable", displayName: "Fable 5 (fable)"),
-            ControlModelOption(id: "best", displayName: "Fable 5 (best)"),
+            ControlModelOption(id: "fable", displayName: "Fable 5"),
             ControlModelOption(id: "haiku", displayName: "Haiku 4.5"),
         ])
     }
@@ -138,8 +137,8 @@ struct LiveModelCatalogWhiteboxTests {
         #expect(CursorModelListParser.parse("").isEmpty)
     }
 
-    @Test("Cursor provider は models サブコマンドを使い、パース結果を返す")
-    func cursorProviderRunsModelsSubcommandAndReturnsParsedIDs() async throws {
+    @Test("Cursor provider はCLIを確認し、対話型 /model と同じ35件を同じ順序で返す")
+    func cursorProviderReturnsInteractiveModelSnapshot() async throws {
         let calls = CommandCalls()
         let provider = LiveAgentModelProvider(
             environment: ["PATH": "/usr/bin:/bin"],
@@ -151,7 +150,8 @@ struct LiveModelCatalogWhiteboxTests {
 
         let models = try await provider.fetchModels(for: .cursor)
 
-        #expect(models.map(\.id) == ["auto", "composer-2.5", "gpt-5.6-sol-high"])
+        #expect(models == AgentModelCatalog.builtinModels(for: .cursor))
+        #expect(models.count == 35)
         #expect(await calls.arguments == [["models"]])
     }
 

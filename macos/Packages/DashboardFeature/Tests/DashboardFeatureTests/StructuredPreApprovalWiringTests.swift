@@ -356,7 +356,7 @@ func chatSessionViewModelClaudeEffortSelectionRespawnsWithEffortKeepingModelAndP
 
     try await assertEventuallyFileExists(markerURL)
     let argsText = try String(contentsOf: argsURL, encoding: .utf8)
-    #expect(argsText.contains("--model\nopus\n"))
+    #expect(argsText.contains("--model\ndefault\n"))
     #expect(argsText.contains("--permission-mode\nbypassPermissions\n"))
     #expect(argsText.contains("--effort\nlow\n"))
 

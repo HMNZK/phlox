@@ -9,17 +9,17 @@ struct ModelCatalogTestIsolation {}
 extension ModelCatalogTestIsolation {
 @Suite("既定モデル規則")
 struct DefaultModelRuleTests {
-    @Test("Claude の既定は先頭ではなく opus を優先する")
-    func claudeDefaultPrefersOpusOverFirstEntry() async {
+    @Test("Claude の既定は対話型と同じ default を優先する")
+    func claudeDefaultPrefersDefaultOverFirstEntry() async {
         await refreshCatalog(using: DefaultModelRuleProvider(models: [
-            .claudeCode: [option("sonnet"), option("opus"), option("haiku")],
+            .claudeCode: [option("sonnet"), option("default"), option("haiku")],
         ]))
 
-        #expect(AgentModelCatalog.defaultModel(for: .claudeCode) == "opus")
+        #expect(AgentModelCatalog.defaultModel(for: .claudeCode) == "default")
     }
 
-    @Test("Claude は opus がなければ先頭へフォールバックする")
-    func claudeDefaultFallsBackToFirstWhenOpusAbsent() async {
+    @Test("Claude は default がなければ先頭へフォールバックする")
+    func claudeDefaultFallsBackToFirstWhenDefaultAbsent() async {
         await refreshCatalog(using: DefaultModelRuleProvider(models: [
             .claudeCode: [option("sonnet"), option("haiku")],
         ]))
@@ -47,9 +47,10 @@ struct DefaultModelRuleTests {
 
     @Test("内蔵 fallback は現行 CLI のモデルを保持する")
     func builtinModelsRemainCurrent() {
-        #expect(AgentModelCatalog.builtinModels(for: .claudeCode).map(\.id) == ["opus", "sonnet", "fable", "haiku"])
+        #expect(AgentModelCatalog.builtinModels(for: .claudeCode).map(\.id) == ["default", "opus[1m]", "fable", "sonnet", "haiku"])
         #expect(AgentModelCatalog.builtinModels(for: .claudeCode).map(\.displayName) == [
-            "Opus 5", "Sonnet 5", "Fable 5", "Haiku 4.5",
+            "Default (recommended) — Opus 5 (1M context)", "Opus 5 (1M context)",
+            "Fable 5.1", "Sonnet 5", "Haiku 4.5",
         ])
         #expect(AgentModelCatalog.builtinModels(for: .codex).map(\.id) == [
             "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",

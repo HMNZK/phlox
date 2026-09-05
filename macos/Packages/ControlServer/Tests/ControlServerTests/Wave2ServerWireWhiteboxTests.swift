@@ -42,7 +42,7 @@ extension ModelCatalogTestIsolation {
             port: port,
             method: "POST",
             path: "/sessions",
-            body: #"{"kind":"claudeCode","backend":"appServer","model":"opus"}"#
+            body: #"{"kind":"claudeCode","backend":"appServer","model":"default"}"#
         )
         let withoutModel = try await request(
             port: port,
@@ -62,7 +62,7 @@ extension ModelCatalogTestIsolation {
         #expect(invalidModel.status == 201)
         let models = await recorder.spawnModels
         #expect(models.count == 3)
-        #expect(models[0] == "opus")
+        #expect(models[0] == "default")
         #expect(models[1] == nil)
         #expect(models[2] == nil)
     }

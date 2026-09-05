@@ -1113,12 +1113,12 @@ func chatSessionViewModel_claudeExposesFixedModelAliases() async throws {
         client: EventYieldingStructuredClient(),
         approvalBroker: ChatApprovalBroker(),
         workingDirectory: "/tmp/work",
-        spawnAgentModelsProvider: { ["opus", "sonnet", "fable", "haiku"] }
+        spawnAgentModelsProvider: { ["default", "opus[1m]", "fable", "sonnet", "haiku"] }
     )
 
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
 
-    #expect(vm.availableSpawnAgentModels == ["opus", "sonnet", "fable", "haiku"])
+    #expect(vm.availableSpawnAgentModels == ["default", "opus[1m]", "fable", "sonnet", "haiku"])
 }
 
 // task-10 成功基準2: Cursor は注入された provider（cursor-agent models 相当）の結果を公開する。
@@ -1164,17 +1164,17 @@ func chatSessionViewModel_spawnAgentDefaultsPresetModelPermissionAndPlanAvailabi
         client: claudeClient,
         approvalBroker: ChatApprovalBroker(),
         workingDirectory: "/tmp/work",
-        spawnAgentModelsProvider: { ["opus", "sonnet", "fable", "haiku"] }
+        spawnAgentModelsProvider: { ["default", "opus[1m]", "fable", "sonnet", "haiku"] }
     )
 
     try await claude.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
 
-    #expect(claude.selectedModel == "opus")
+    #expect(claude.selectedModel == "default")
     #expect(claude.selectedPermissionProfile == "bypassPermissions")
     #expect(claude.isPlanMode == false)
     #expect(claude.isPlanModeAvailable)
     #expect(claudeClient.calls == [
-        RecordedSpawnSettingsCall(model: "opus", permissionOrMode: "bypassPermissions", effort: "high"),
+        RecordedSpawnSettingsCall(model: "default", permissionOrMode: "bypassPermissions", effort: "high"),
     ])
 
     let cursorClient = RecordingSpawnSettingsClient()
@@ -1207,30 +1207,30 @@ func chatSessionViewModel_spawnAgentNewBehaviorDoesNotDependOnTestClientTypeName
         client: client,
         approvalBroker: ChatApprovalBroker(),
         workingDirectory: "/tmp/work",
-        spawnAgentModelsProvider: { ["opus", "sonnet", "fable", "haiku"] }
+        spawnAgentModelsProvider: { ["default", "opus[1m]", "fable", "sonnet", "haiku"] }
     )
 
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
 
-    #expect(vm.selectedModel == "opus")
+    #expect(vm.selectedModel == "default")
     #expect(vm.selectedPermissionProfile == "bypassPermissions")
     #expect(vm.isPlanMode == false)
     #expect(vm.isPlanModeAvailable)
     #expect(client.calls == [
-        RecordedSpawnSettingsCall(model: "opus", permissionOrMode: "bypassPermissions", effort: "high"),
+        RecordedSpawnSettingsCall(model: "default", permissionOrMode: "bypassPermissions", effort: "high"),
     ])
 
     await vm.setSpawnAgentPermission("plan")
 
     #expect(vm.isPlanMode)
     #expect(vm.selectedPermissionProfile == "bypassPermissions")
-    #expect(client.calls.last == RecordedSpawnSettingsCall(model: "opus", permissionOrMode: "plan", effort: "high"))
+    #expect(client.calls.last == RecordedSpawnSettingsCall(model: "default", permissionOrMode: "plan", effort: "high"))
 
     await vm.setSpawnAgentPermission("acceptEdits")
 
     #expect(!vm.isPlanMode)
     #expect(vm.selectedPermissionProfile == "acceptEdits")
-    #expect(client.calls.last == RecordedSpawnSettingsCall(model: "opus", permissionOrMode: "acceptEdits", effort: "high"))
+    #expect(client.calls.last == RecordedSpawnSettingsCall(model: "default", permissionOrMode: "acceptEdits", effort: "high"))
 }
 
 @Test @MainActor
@@ -1242,7 +1242,7 @@ func chatSessionViewModel_spawnAgentPersistedSettingsOverrideDefaults() async th
         client: client,
         approvalBroker: ChatApprovalBroker(),
         workingDirectory: "/tmp/work",
-        spawnAgentModelsProvider: { ["opus", "sonnet", "fable", "haiku"] }
+        spawnAgentModelsProvider: { ["default", "opus[1m]", "fable", "sonnet", "haiku"] }
     )
 
     await vm.restore(
@@ -1273,7 +1273,7 @@ func chatSessionViewModel_spawnAgentMigratesPersistedPlanOutOfPermissionProfile(
         client: client,
         approvalBroker: ChatApprovalBroker(),
         workingDirectory: "/tmp/work",
-        spawnAgentModelsProvider: { ["opus", "sonnet", "fable", "haiku"] }
+        spawnAgentModelsProvider: { ["default", "opus[1m]", "fable", "sonnet", "haiku"] }
     )
 
     await vm.restore(
@@ -1305,19 +1305,19 @@ func chatSessionViewModel_spawnPlanModeAppliesEffectiveModeWithoutOverwritingPer
         client: claudeClient,
         approvalBroker: ChatApprovalBroker(),
         workingDirectory: "/tmp/work",
-        spawnAgentModelsProvider: { ["opus", "sonnet", "fable", "haiku"] }
+        spawnAgentModelsProvider: { ["default", "opus[1m]", "fable", "sonnet", "haiku"] }
     )
 
     try await claude.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
     try await claude.setPlanMode(true)
     #expect(claude.isPlanMode)
     #expect(claude.selectedPermissionProfile == "bypassPermissions")
-    #expect(claudeClient.calls.last == RecordedSpawnSettingsCall(model: "opus", permissionOrMode: "plan", effort: "high"))
+    #expect(claudeClient.calls.last == RecordedSpawnSettingsCall(model: "default", permissionOrMode: "plan", effort: "high"))
 
     try await claude.setPlanMode(false)
     #expect(!claude.isPlanMode)
     #expect(claude.selectedPermissionProfile == "bypassPermissions")
-    #expect(claudeClient.calls.last == RecordedSpawnSettingsCall(model: "opus", permissionOrMode: "bypassPermissions", effort: "high"))
+    #expect(claudeClient.calls.last == RecordedSpawnSettingsCall(model: "default", permissionOrMode: "bypassPermissions", effort: "high"))
 
     let cursorClient = RecordingSpawnSettingsClient()
     let cursor = ChatSessionViewModel(
@@ -1350,7 +1350,7 @@ func chatSessionViewModel_spawnAgentClaudeExposesEffortLevelsAndSelectionReaches
         client: client,
         approvalBroker: ChatApprovalBroker(),
         workingDirectory: "/tmp/work",
-        spawnAgentModelsProvider: { ["opus", "sonnet", "fable", "haiku"] }
+        spawnAgentModelsProvider: { ["default", "opus[1m]", "fable", "sonnet", "haiku"] }
     )
 
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
@@ -1362,7 +1362,7 @@ func chatSessionViewModel_spawnAgentClaudeExposesEffortLevelsAndSelectionReaches
 
     #expect(vm.selectedEffort == "xhigh")
     #expect(client.calls.last == RecordedSpawnSettingsCall(
-        model: "opus",
+        model: "default",
         permissionOrMode: "bypassPermissions",
         effort: "xhigh"
     ))

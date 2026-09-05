@@ -24,12 +24,13 @@ public protocol AgentModelListProviding: Sendable {
 /// both the HTTP server and UI consume the same catalog without either depending on the other.
 public enum AgentModelCatalog {
     private static let logger = Logger(subsystem: "com.phlox.Phlox", category: "AgentModelCatalog")
-    // Current aliases from Claude Code (2026-09-05). Live discovery remains authoritative;
-    // these labels keep the picker useful when the CLI is temporarily unavailable.
+    // Claude Code `/model` picker order (v2.1.261, observed 2026-09-05). The non-interactive
+    // `/model` report also lists internal aliases, so it cannot be used as the picker itself.
     private static let claudeModels = [
-        ControlModelOption(id: "opus", displayName: "Opus 5"),
+        ControlModelOption(id: "default", displayName: "Default (recommended) — Opus 5 (1M context)"),
+        ControlModelOption(id: "opus[1m]", displayName: "Opus 5 (1M context)"),
+        ControlModelOption(id: "fable", displayName: "Fable 5.1"),
         ControlModelOption(id: "sonnet", displayName: "Sonnet 5"),
-        ControlModelOption(id: "fable", displayName: "Fable 5"),
         ControlModelOption(id: "haiku", displayName: "Haiku 4.5"),
     ]
     // Current families from `codex app-server` model/list (2026-09-05). Keep the live order
@@ -131,12 +132,12 @@ public enum AgentModelCatalog {
     public static func defaultModel(for kind: AgentKind) -> String? {
         let models = models(for: kind)
         // This is the sole default-selection rule for both the control API and macOS UI.
-        // Prefer the user-selected Claude default `opus`, and preserve Cursor's established
+        // Prefer Claude's interactive `default`, and preserve Cursor's established
         // `composer-2.5` default when it is available. This avoids letting CLI ordering make
         // the API select Cursor's leading `auto` while the macOS UI selects composer-2.5.
         // When either preferred ID is absent, use the CLI's first available model.
         let preferred: String? = switch kind {
-        case .claudeCode: "opus"
+        case .claudeCode: "default"
         case .cursor: "composer-2.5"
         case .codex: nil
         }

@@ -203,7 +203,7 @@ func composerRendersSettingsMenusForSpawnAgents() async throws {
     let unsupported = try await startedSpawnViewModel(agentRef: .custom("unknown-cli"))
 
     // 前提: 分岐に必要な軽量表示状態が用意されている。
-    #expect(claude.availableSpawnAgentModels == ["opus", "sonnet", "fable", "haiku"])
+    #expect(claude.availableSpawnAgentModels == AgentModelCatalog.builtinModels(for: .claudeCode).map(\.id))
     #expect(claude.selectedPermissionProfile == "bypassPermissions")
     #expect(!cursor.availableSpawnAgentModels.isEmpty)
     #expect(unsupported.availableSpawnAgentModels.isEmpty)

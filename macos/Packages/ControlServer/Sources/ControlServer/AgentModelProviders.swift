@@ -145,7 +145,11 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
                 resultText: try await claudeModelReport(command: command, alias: nil)
             )
             guard !aliases.isEmpty else { throw ProviderError.invalidOutput }
-            return await claudeOptions(command: command, aliases: aliases)
+            let available = Set(aliases)
+            let pickerModels = AgentModelCatalog.builtinModels(for: .claudeCode)
+                .filter { available.contains($0.id) }
+            guard !pickerModels.isEmpty else { throw ProviderError.invalidOutput }
+            return await claudeOptions(command: command, pickerModels: pickerModels)
 
         case .cursor:
             let output = try await commandRunner(resolveCommand(for: kind), ["models"])
@@ -177,29 +181,25 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
         return result
     }
 
-    /// Labels each alias with the product name the CLI resolves it to, so the picker follows
-    /// CLI updates instead of a hardcoded version table. Lookups run concurrently because they
-    /// are independent processes, and an alias whose lookup fails keeps the alias as its label
-    /// rather than dropping a selectable model or failing the whole list.
-    private func claudeOptions(command: String, aliases: [String]) async -> [ControlModelOption] {
-        let resolved = await withTaskGroup(of: (offset: Int, alias: String, name: String).self) { group in
-            for (offset, alias) in aliases.enumerated() {
+    /// Resolves the five entries shown by Claude's interactive `/model` picker. Lookups run
+    /// concurrently; a failed lookup keeps the dated built-in label rather than dropping a row.
+    private func claudeOptions(command: String, pickerModels: [ControlModelOption]) async -> [ControlModelOption] {
+        await withTaskGroup(of: (offset: Int, option: ControlModelOption).self) { group in
+            for (offset, option) in pickerModels.enumerated() {
                 group.addTask {
-                    let report = try? await claudeModelReport(command: command, alias: alias)
-                    let name = report.flatMap { ClaudeModelListParser.parseCurrentModelName(resultText: $0) }
-                    return (offset, alias, name ?? alias)
+                    let report = try? await claudeModelReport(command: command, alias: option.id)
+                    guard let name = report.flatMap({ ClaudeModelListParser.parseCurrentModelName(resultText: $0) }) else {
+                        return (offset, option)
+                    }
+                    let displayName = option.id == "default"
+                        ? "Default (recommended) — \(name)"
+                        : name
+                    return (offset, ControlModelOption(id: option.id, displayName: displayName))
                 }
             }
-            var items: [(offset: Int, alias: String, name: String)] = []
+            var items: [(offset: Int, option: ControlModelOption)] = []
             for await item in group { items.append(item) }
-            return items.sorted { $0.offset < $1.offset }
-        }
-        // Several aliases can resolve to the same product. Keep the CLI's first choice so the
-        // picker has one row per effective model without inventing a second ordering rule.
-        var seenNames = Set<String>()
-        return resolved.compactMap { item in
-            guard seenNames.insert(item.name).inserted else { return nil }
-            return ControlModelOption(id: item.alias, displayName: item.name)
+            return items.sorted { $0.offset < $1.offset }.map(\.option)
         }
     }
 

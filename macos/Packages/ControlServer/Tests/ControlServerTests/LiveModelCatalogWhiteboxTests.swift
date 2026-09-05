@@ -34,8 +34,8 @@ struct LiveModelCatalogWhiteboxTests {
         #expect(ClaudeModelListParser.parseCurrentModelName(resultText: "Current model:   (effort: high)") == nil)
     }
 
-    @Test("Claude provider は alias ごとに CLI へ表示名を問い合わせる")
-    func claudeProviderResolvesDisplayNamesFromCLI() async throws {
+    @Test("Claude provider は対話型 /model と同じ5件を同じ順序で返す")
+    func claudeProviderMatchesInteractivePicker() async throws {
         let calls = CommandCalls()
         let provider = LiveAgentModelProvider(
             environment: ["PATH": "/usr/bin:/bin"],
@@ -44,13 +44,15 @@ struct LiveModelCatalogWhiteboxTests {
                 guard let index = arguments.firstIndex(of: "--model") else {
                     return claudeModelJSON(
                         "Current model: Opus 5 (effort: xhigh)\n"
-                            + "Usage: /model <name>. Available: opus, haiku, opusplan, or a full model ID."
+                            + "Usage: /model <name>. Available: sonnet, opus, haiku, fable, best, sonnet[1m], opus[1m], fable[1m], opusplan, default, or a full model ID."
                     )
                 }
                 let names = [
-                    "opus": "Opus 5 (1M context)",
+                    "default": "Opus 5 (1M context)",
+                    "opus[1m]": "Opus 5 (1M context)",
+                    "fable": "Fable 5.1",
+                    "sonnet": "Sonnet 5",
                     "haiku": "Haiku 4.5",
-                    "opusplan": "Opus in plan mode, else Sonnet",
                 ]
                 let alias = arguments[index + 1]
                 return claudeModelJSON("Current model: \(names[alias] ?? alias) (effort: xhigh)")
@@ -60,27 +62,30 @@ struct LiveModelCatalogWhiteboxTests {
         let models = try await provider.fetchModels(for: .claudeCode)
 
         #expect(models == [
-            ControlModelOption(id: "opus", displayName: "Opus 5 (1M context)"),
+            ControlModelOption(id: "default", displayName: "Default (recommended) — Opus 5 (1M context)"),
+            ControlModelOption(id: "opus[1m]", displayName: "Opus 5 (1M context)"),
+            ControlModelOption(id: "fable", displayName: "Fable 5.1"),
+            ControlModelOption(id: "sonnet", displayName: "Sonnet 5"),
             ControlModelOption(id: "haiku", displayName: "Haiku 4.5"),
-            ControlModelOption(id: "opusplan", displayName: "Opus in plan mode, else Sonnet"),
         ])
         #expect(
-            await calls.arguments.contains(["--bare", "--model", "opus", "-p", "/model", "--output-format", "json"]),
+            await calls.arguments.contains(["--bare", "--model", "default", "-p", "/model", "--output-format", "json"]),
             "alias の表示名は --model 付きの /model 実行から得る（バージョンを埋め込まない）"
         )
+        #expect(await calls.arguments.count == 6, "一覧取得1回と表示中の5モデルだけを問い合わせる")
     }
 
-    @Test("Claude provider は同じ表示名になる alias を最初の1件にまとめる")
-    func claudeProviderDeduplicatesAliasesSharingOneProductName() async throws {
+    @Test("Claude provider は対話型に無い内部 alias を表示しない")
+    func claudeProviderExcludesInternalAliases() async throws {
         let provider = LiveAgentModelProvider(
             environment: ["PATH": "/usr/bin:/bin"],
             commandRunner: { _, arguments in
                 guard let index = arguments.firstIndex(of: "--model") else {
                     return claudeModelJSON(
-                        "Usage: /model <name>. Available: fable, best, haiku, or a full model ID."
+                        "Usage: /model <name>. Available: fable, best, fable[1m], opusplan, or a full model ID."
                     )
                 }
-                let names = ["fable": "Fable 5", "best": "Fable 5", "haiku": "Haiku 4.5"]
+                let names = ["fable": "Fable 5.1"]
                 return claudeModelJSON("Current model: \(names[arguments[index + 1]] ?? "?") (effort: xhigh)")
             }
         )
@@ -88,8 +93,7 @@ struct LiveModelCatalogWhiteboxTests {
         let models = try await provider.fetchModels(for: .claudeCode)
 
         #expect(models == [
-            ControlModelOption(id: "fable", displayName: "Fable 5"),
-            ControlModelOption(id: "haiku", displayName: "Haiku 4.5"),
+            ControlModelOption(id: "fable", displayName: "Fable 5.1"),
         ])
     }
 
@@ -99,7 +103,7 @@ struct LiveModelCatalogWhiteboxTests {
             environment: ["PATH": "/usr/bin:/bin"],
             commandRunner: { _, arguments in
                 guard !arguments.contains("--model") else { throw StubCommandFailure() }
-                return claudeModelJSON("Usage: /model <name>. Available: opus, haiku, or a full model ID.")
+                return claudeModelJSON("Usage: /model <name>. Available: default, opus[1m], fable, sonnet, haiku, or a full model ID.")
             }
         )
 
@@ -107,8 +111,11 @@ struct LiveModelCatalogWhiteboxTests {
 
         #expect(
             models == [
-                ControlModelOption(id: "opus", displayName: "opus"),
-                ControlModelOption(id: "haiku", displayName: "haiku"),
+                ControlModelOption(id: "default", displayName: "Default (recommended) — Opus 5 (1M context)"),
+                ControlModelOption(id: "opus[1m]", displayName: "Opus 5 (1M context)"),
+                ControlModelOption(id: "fable", displayName: "Fable 5.1"),
+                ControlModelOption(id: "sonnet", displayName: "Sonnet 5"),
+                ControlModelOption(id: "haiku", displayName: "Haiku 4.5"),
             ],
             "表示名が取れなくても選択肢を落とさない（一覧全体を失敗させない）"
         )

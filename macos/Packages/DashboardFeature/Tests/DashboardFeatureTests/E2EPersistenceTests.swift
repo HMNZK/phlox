@@ -216,7 +216,7 @@ struct E2EPersistenceTests {
         let bypassURL = dataDirectory.appendingPathComponent("hooks.json")
         let restrictedURL = dataDirectory.appendingPathComponent("hooks-restricted.json")
         try writeClaudeHooksSettingsFile(to: bypassURL, defaultMode: "bypassPermissions", dispatcherPath: dispatcherPath)
-        try writeClaudeHooksSettingsFile(to: restrictedURL, defaultMode: "default", dispatcherPath: dispatcherPath)
+        try writeClaudeHooksSettingsFile(to: restrictedURL, defaultMode: "auto", dispatcherPath: dispatcherPath)
 
         let environment = makeBypassPlannerEnvironment(
             claudeSettingsURL: bypassURL,
@@ -248,7 +248,7 @@ struct E2EPersistenceTests {
         let bypassOnMode = try readClaudeDefaultMode(from: bypassURL)
         let restrictedMode = try readClaudeDefaultMode(from: restrictedURL)
         #expect(bypassOnMode == "bypassPermissions")
-        #expect(restrictedMode == "default")
+        #expect(restrictedMode == "auto")
         #expect(bypassOnMode != restrictedMode)
     }
 

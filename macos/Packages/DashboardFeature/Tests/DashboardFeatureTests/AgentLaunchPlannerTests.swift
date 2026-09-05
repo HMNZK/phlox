@@ -244,7 +244,7 @@ private func makePlannerEnvironment(
     #expect(plan.workingDirectory == environment.sessionWorkspaceDirectory(for: sessionID).path)
 }
 
-@Test func plan_cursor_bypassDisabled_omitsBypassArgs() throws {
+@Test func plan_cursor_bypassDisabled_usesAutoReviewAndSandbox() throws {
     let cursorPath = "/usr/local/bin/cursor-agent"
     let environment = makePlannerEnvironment(agentBinaryPaths: [.cursor: cursorPath])
 
@@ -257,7 +257,7 @@ private func makePlannerEnvironment(
     )
 
     #expect(plan.command == cursorPath)
-    #expect(plan.args == [])
+    #expect(plan.args == ["--auto-review", "--sandbox", "enabled"])
     #expect(plan.env["CLAUDE_HOOKS_URL"] == environment.hookURL.absoluteString)
 }
 

@@ -87,6 +87,7 @@ func makeTestEnvironment(
     customAgentBinaryPaths: [String: String] = [:],
     agentCatalog: AgentCatalog = .builtins,
     transcriptStore: any TranscriptStore = NoOpTranscriptStore(),
+    fullAccessProvider: @escaping @Sendable (AgentRef) -> Bool = { _ in true },
     appServerClientFactory: AppEnvironment.AppServerClientFactory? = nil
 ) -> AppEnvironment {
     AppEnvironment(
@@ -109,6 +110,7 @@ func makeTestEnvironment(
         sessions: sessions,
         transcriptStore: transcriptStore,
         cliPath: "/tmp/agent-dashboard-test-cli",
+        fullAccessProvider: fullAccessProvider,
         appServerClientFactory: appServerClientFactory
     )
 }

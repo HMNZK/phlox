@@ -59,17 +59,19 @@ struct AcceptanceFullAccessPolicyTests {
         )
     }
 
-    @Test("orchestration は設定に依らず never / danger-full-access（非回帰）")
-    func orchestrationIsUnaffected() {
+    @Test("orchestration も設定に従う")
+    func orchestrationFollowsFullAccessSetting() {
         for value in [true, false] {
             let defaults = defaults(fullAccess: value, function: "orchestration\(value)")
+            let expectedApproval: ApprovalPolicy = .named(value ? "never" : "on-request")
+            let expectedSandbox: SandboxPolicy = .named(value ? "danger-full-access" : "workspace-write")
             #expect(
                 SessionSpawnService.appServerApprovalPolicy(for: .orchestration, defaults: defaults)
-                    == .named("never")
+                    == expectedApproval
             )
             #expect(
                 SessionSpawnService.appServerSandboxPolicy(for: .orchestration, defaults: defaults)
-                    == .named("danger-full-access")
+                    == expectedSandbox
             )
         }
     }

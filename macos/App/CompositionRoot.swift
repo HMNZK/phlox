@@ -500,7 +500,7 @@ public final class CompositionRoot {
         try fm.createDirectory(at: appSupport, withIntermediateDirectories: true)
 
         let settings = ClaudeSettingsGenerator.settings(
-            defaultMode: bypass ? "bypassPermissions" : "default",
+            defaultMode: bypass ? "bypassPermissions" : "auto",
             dispatcher: Self.hookDispatcherPath,
             statusLineCommand: statusLineCommand
         )

@@ -148,7 +148,7 @@ struct SettingsView: View {
                 } header: {
                     Text("権限")
                 } footer: {
-                    Text("変更は次回セッション開始から反映されます。OFF の場合、コマンド承認プロンプトが出るため自律実行が止まり得ます。ON（フルアクセス／bypass）は承認なしでコマンドを実行します。信頼できるプロジェクトでのみ有効にしてください。")
+                    Text("変更は次回セッション開始から反映されます。OFF は通常の安全モード（Claude Auto／Codex Auto／Cursor Auto-review）、ON は承認なしのフルアクセスです。信頼できるプロジェクトでのみ有効にしてください。")
                 }
 
                 if let mobileToken, MobileConnectionGuidePolicy.showsSettingsConnectionSection {

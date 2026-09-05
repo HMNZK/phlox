@@ -98,10 +98,10 @@ private func pm3Task2WhiteboxCodexChatDescriptor(
 @Suite(.serialized)
 struct PM3Task2DashboardCorrectnessWhiteboxTests {
 
-    // A1 回帰: interactive の chat 復元は launchContext 由来の on-request / workspace-write を渡す。
-    // 実装が never へハードコードされていない（= descriptor.launchContext を尊重する）ことを保証する。
+    // A1 回帰: interactive の chat 復元は現在のフルアクセス設定を渡す。
+    // 実装がポリシーを固定値へハードコードしていないことを保証する。
     @Test @MainActor
-    func restore_interactiveDescriptor_passesOnRequestWorkspaceWriteToThreadResume() async throws {
+    func restore_interactiveDescriptor_passesCurrentFullAccessPolicyToThreadResume() async throws {
         let transport = ScriptedAppServerTransport()
         let sessionID = SessionID()
         let descriptor = pm3Task2WhiteboxCodexChatDescriptor(

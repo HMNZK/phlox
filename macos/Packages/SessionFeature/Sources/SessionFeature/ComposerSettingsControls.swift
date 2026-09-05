@@ -56,7 +56,7 @@ func composerModeOptions(for agentRef: AgentRef, codexProfileIDs: [String]) -> [
         ]
     case .builtin(.cursor):
         [
-            ComposerModeOption(value: nil, title: "Run Everything", isPlan: false),
+            ComposerModeOption(value: nil, title: "Agent", isPlan: false),
             ComposerModeOption(value: "ask", title: "Ask", isPlan: false),
             ComposerModeOption(value: "plan", title: "Plan", isPlan: true),
         ]
@@ -462,7 +462,7 @@ struct ComposerSettingsControlsView: View {
         switch value {
         case "ask": "Ask"
         case .some(let raw): raw
-        case nil: "Run Everything"
+        case nil: "Agent"
         }
     }
 
@@ -785,7 +785,7 @@ struct ComposerSettingsOverflowMenu: View {
         }
     }
 
-    // Cursor の Mode は既定が nil（Run Everything）なので、Claude 用の
+    // Cursor の Mode は既定が nil（Agent）なので、Claude 用の
     // bypassPermissions フォールバック（selectedClaudePermission）を使わない。
     private var cursorModeItems: some View {
         ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: []), id: \.self) { option in

@@ -41,7 +41,7 @@ struct ComposerModeMenuAcceptanceTests {
     @Test
     func cursorModeOptionsAppendPlan() {
         #expect(composerModeOptions(for: .builtin(.cursor), codexProfileIDs: []) == [
-            ComposerModeOption(value: nil, title: "Run Everything", isPlan: false),
+            ComposerModeOption(value: nil, title: "Agent", isPlan: false),
             ComposerModeOption(value: "ask", title: "Ask", isPlan: false),
             ComposerModeOption(value: "plan", title: "Plan", isPlan: true),
         ])

@@ -210,7 +210,7 @@ public struct AgentLaunchPlanner: Sendable {
             !(codexUserHooksEnabled && descriptor.ref == .builtin(.codex) && arg == "--dangerously-bypass-hook-trust")
         }
         return AgentLaunchProfile(
-            extraArgs: spec.baseArgs + (bypassEnabled ? bypassArgs : []),
+            extraArgs: spec.baseArgs + (bypassEnabled ? bypassArgs : spec.restrictedArgs),
             extraEnv: bypassEnabled ? spec.bypassEnv : [:],
             hookIntegration: hookIntegration(for: spec.hookKind, environment: environment, bypassEnabled: bypassEnabled),
             scrollbackPolicy: spec.scrollbackPolicy,

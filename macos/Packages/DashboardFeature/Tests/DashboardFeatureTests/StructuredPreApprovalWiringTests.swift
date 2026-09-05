@@ -46,10 +46,9 @@ func appEnvironmentCodexFactoryPassesReasoningSummaryArgsToProcess() async throw
     #expect(argsText == "app-server\n-c\nmodel_reasoning_summary=detailed\n")
 }
 
-// task-8: Claude/Cursor 送信は「常に自動承認（handler を呼ばない）」に変更された。
+// フルアクセス ON の Claude/Cursor 送信は handler を呼ばずに実行する。
 // これらのテストは「承認 handler（ChatApprovalBroker への request）が呼ばれない」
-// ＝バナーが出ないこと、かつツール権限付与（Claude: acceptEdits + allowedTools /
-// Cursor: -f）が維持されることを検証する。
+// ＝バナーが出ないこと、かつ各 CLI の bypass 引数が維持されることを検証する。
 
 @Test
 @MainActor
@@ -89,9 +88,9 @@ func appEnvironmentClaudeAutoApprovesWithoutInvokingApprovalHandler() async thro
     try await assertEventuallyFileExists(markerURL)
     #expect(recorder.wasCalled == false)
 
-    // ツール権限付与（acceptEdits + allowedTools）が維持されていること。
+    // bypassPermissions + allowedTools が維持されていること。
     let argsText = try String(contentsOf: argsURL, encoding: .utf8)
-    #expect(argsText.contains("--permission-mode\nacceptEdits\n"))
+    #expect(argsText.contains("--permission-mode\nbypassPermissions\n"))
     #expect(argsText.contains("--allowedTools\nBash,Read,Glob,Grep,LS,Edit,Write,MultiEdit\n"))
 
     var iterator = client.events.makeAsyncIterator()
@@ -136,9 +135,10 @@ func appEnvironmentCursorAutoApprovesWithForceWithoutInvokingApprovalHandler() a
     #expect(FileManager.default.fileExists(atPath: markerURL.path))
     #expect(recorder.wasCalled == false)
 
-    // pre-approved 相当（force）が付与されていること。
+    // Run Everything と sandbox 無効化が付与されていること。
     let argsText = try String(contentsOf: argsURL, encoding: .utf8)
-    #expect(argsText.contains("-f\n"))
+    #expect(argsText.contains("--force\n"))
+    #expect(argsText.contains("--sandbox\ndisabled\n"))
 
     var iterator = client.events.makeAsyncIterator()
     #expect(await iterator.next() == .turnStarted)
@@ -451,7 +451,8 @@ func chatSessionViewModelCursorSelectionAppliesModelAndModeOnNextTurn() async th
     let argsText = try String(contentsOf: argsURL, encoding: .utf8)
     #expect(argsText.contains("--model\ngpt-5.2\n"))
     #expect(argsText.contains("--mode\nplan\n"))
-    #expect(argsText.contains("-f\n"))
+    #expect(argsText.contains("--force\n"))
+    #expect(argsText.contains("--sandbox\ndisabled\n"))
 
     await vm.terminate()
 }

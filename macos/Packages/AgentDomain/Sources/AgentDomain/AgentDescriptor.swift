@@ -51,6 +51,7 @@ public enum AgentUsageProviderKind: Sendable, Equatable {
 public struct AgentLaunchSpec: Sendable, Equatable {
     public let baseArgs: [String]
     public let bypassArgs: [String]
+    public let restrictedArgs: [String]
     public let bypassEnv: [String: String]
     public let hookKind: AgentHookKind
     public let scrollbackPolicy: ScrollbackPolicy
@@ -65,6 +66,7 @@ public struct AgentLaunchSpec: Sendable, Equatable {
     public init(
         baseArgs: [String] = [],
         bypassArgs: [String] = [],
+        restrictedArgs: [String] = [],
         bypassEnv: [String: String] = [:],
         hookKind: AgentHookKind = .none,
         scrollbackPolicy: ScrollbackPolicy = .keep,
@@ -78,6 +80,7 @@ public struct AgentLaunchSpec: Sendable, Equatable {
     ) {
         self.baseArgs = baseArgs
         self.bypassArgs = bypassArgs
+        self.restrictedArgs = restrictedArgs
         self.bypassEnv = bypassEnv
         self.hookKind = hookKind
         self.scrollbackPolicy = scrollbackPolicy
@@ -208,6 +211,7 @@ public enum AgentRegistry {
             usageProviderKind: .cursor,
             launchSpec: AgentLaunchSpec(
                 bypassArgs: ["--force", "--sandbox", "disabled"],
+                restrictedArgs: ["--auto-review", "--sandbox", "enabled"],
                 hookKind: .cursorStyle,
                 statusBootstrap: .idleOnSpawnComplete,
                 debugDump: false,

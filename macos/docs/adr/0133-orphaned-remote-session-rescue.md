@@ -1,6 +1,6 @@
 ---
 status: accepted
-last-verified: 2026-07-27
+last-verified: 2026-09-05
 ---
 
 # ADR 0133: 取り残された iPhone 由来セッションは、由来を特定できるものだけ救済する
@@ -45,7 +45,7 @@ last-verified: 2026-07-27
 - 該当セッションは次回起動時に `.remoteUser` のルートとして復元され、画面に現れて通常操作（選択・削除）ができる。
 - 対象外の3ケース（親が実在する／要求元と一致しない／要求元が未設定）は**一切変更されない**。
 - 受け入れテスト `AcceptanceOrphanRescueTests` と白箱テストで、救済・非対象・冪等性・永続化を凍結。
-- **副作用（意図的）**: `.orchestration` → `.remoteUser` になることで、そのセッションの承認方針が「承認しない」→「on-request」、サンドボックスが「フルアクセス」→「workspace-write」へ変わる。これはユーザー本人が起動したセッションを CLI 内部サブセッションの緩い方針から外す意図的な変更であり、ADR 0131 の決定3と整合する。
+- 承認方針とサンドボックスは起動元にかかわらず設定「フルアクセス」に従うため、`.orchestration` → `.remoteUser` の正規化では変化しない。
 - **未検証（リポジトリ外の証拠）**: 実機の4件と Keychain 要求元 ID の一致は、ユーザー環境の実測に基づく。この前提が崩れると救済対象が0件になる（何も壊れないが、何も救われない）。
 
 作業経緯は [delivery/0022-unseen-attention-consistency-worklog.md](../delivery/0022-unseen-attention-consistency-worklog.md) を参照。

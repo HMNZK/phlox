@@ -239,7 +239,7 @@ func composerRendersIndependentPlanToggleForSpawnAgents() async throws {
 }
 
 // task-16 成功基準4: Plan トグル操作は permission/mode 選択から独立して ViewModel 状態を切り替える。
-// Claude は常に具体値（nil を渡さない）、Cursor の Run Everything は nil でよい。
+// Claude は常に具体値（nil を渡さない）、Cursor の Agent mode は nil でよい。
 @Test @MainActor
 func spawnAgentSelectionHandlersUpdateViewModelState() async throws {
     let claude = try await startedSpawnViewModel(agentRef: .builtin(.claudeCode))

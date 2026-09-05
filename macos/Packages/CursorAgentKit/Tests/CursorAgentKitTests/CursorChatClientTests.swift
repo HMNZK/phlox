@@ -361,6 +361,49 @@ private func jsonLine(_ object: [String: Any]) -> String {
     await client.close()
 }
 
+@Test func cursorChatClientAutoReviewUsesSandboxWithoutForce() async throws {
+    let runner = MockOneShotProcessRunner()
+    runner.enqueueSuccess(lines: [
+        jsonLine([
+            "type": "result",
+            "subtype": "success",
+            "session_id": "sess-auto-review",
+            "result": "done",
+        ]),
+    ])
+    let client = CursorChatClient(command: "cursor-agent", runMode: .autoReview, runner: runner)
+
+    _ = try await eventsDuringTurn(client: client, input: [.text("hello")])
+
+    let arguments = try #require(runner.recordedInvocations().first?.arguments)
+    #expect(arguments.contains("--auto-review"))
+    #expect(arguments.contains("--sandbox"))
+    #expect(arguments.contains("enabled"))
+    #expect(!arguments.contains("--force"))
+    #expect(!arguments.contains("-f"))
+}
+
+@Test func cursorChatClientRunEverythingDisablesSandbox() async throws {
+    let runner = MockOneShotProcessRunner()
+    runner.enqueueSuccess(lines: [
+        jsonLine([
+            "type": "result",
+            "subtype": "success",
+            "session_id": "sess-run-everything",
+            "result": "done",
+        ]),
+    ])
+    let client = CursorChatClient(command: "cursor-agent", runMode: .runEverything, runner: runner)
+
+    _ = try await eventsDuringTurn(client: client, input: [.text("hello")])
+
+    let arguments = try #require(runner.recordedInvocations().first?.arguments)
+    #expect(arguments.contains("--force"))
+    #expect(arguments.contains("--sandbox"))
+    #expect(arguments.contains("disabled"))
+    #expect(!arguments.contains("--auto-review"))
+}
+
 @Test func cursorChatClientWithoutPreApprovalDoesNotPassForce() async throws {
     let runner = MockOneShotProcessRunner()
     runner.enqueueSuccess(lines: [

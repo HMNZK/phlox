@@ -1199,6 +1199,31 @@ func chatSessionViewModel_spawnAgentDefaultsPresetModelPermissionAndPlanAvailabi
 }
 
 @Test @MainActor
+func chatSessionViewModel_claudeLaunchPermissionOverridesPersistedPermission() async throws {
+    let client = RecordingSpawnSettingsClient()
+    let vm = ChatSessionViewModel(
+        id: SessionID(),
+        agentRef: .builtin(.claudeCode),
+        client: client,
+        approvalBroker: ChatApprovalBroker(),
+        workingDirectory: "/tmp/work",
+        spawnAgentPermissionOverride: "auto",
+        spawnAgentModelsProvider: { ["default"] }
+    )
+
+    try await vm.startNew(
+        approvalPolicy: .named("on-request"),
+        sandbox: .named("workspace-write"),
+        persistedSettings: CodexAppServerSessionSettings(
+            selectedPermissionProfile: "bypassPermissions"
+        )
+    )
+
+    #expect(vm.selectedPermissionProfile == "auto")
+    #expect(client.calls.last?.permissionOrMode == "auto")
+}
+
+@Test @MainActor
 func chatSessionViewModel_spawnAgentNewBehaviorDoesNotDependOnTestClientTypeName() async throws {
     let client = ProductionLikeSpawnSettingsClient()
     let vm = ChatSessionViewModel(

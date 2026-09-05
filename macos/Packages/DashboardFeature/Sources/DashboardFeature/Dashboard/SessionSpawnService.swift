@@ -547,7 +547,7 @@ final class SessionSpawnService {
             workingDirectoryOverride: workingDirectoryOverride,
             launchMode: launchMode,
             backend: backend,
-            bypassEnabled: BypassSettings.isEnabled(for: ref, catalog: environment.agentCatalog),
+            bypassEnabled: environment.isFullAccessEnabled(ref),
             codexUserHooksEnabled: codexUserHooksEnabled,
             extraEnv: extraEnv
         )
@@ -681,6 +681,9 @@ final class SessionSpawnService {
             approvalBroker: broker,
             workingDirectory: plan.workingDirectory,
             transcriptStore: environment.transcriptStore,
+            spawnAgentPermissionOverride: plan.descriptor.ref == .builtin(.claudeCode)
+                ? (environment.isFullAccessEnabled(plan.descriptor.ref) ? "bypassPermissions" : "auto")
+                : nil,
             // Keep the injectable seam on the production path, but source it exclusively
             // from AgentModelCatalog. The catalog is the single authority shared with the API.
             spawnAgentModelsProvider: { [ref = plan.descriptor.ref] in
@@ -896,32 +899,23 @@ final class SessionSpawnService {
     }
 
     nonisolated static func appServerApprovalPolicy(
-        for context: SessionLaunchContext,
+        for _: SessionLaunchContext,
         defaults: UserDefaults = .phloxDefaults()
     ) -> ApprovalPolicy {
-        appServerPolicies(for: context, defaults: defaults).approvalPolicy
+        appServerPolicies(defaults: defaults).approvalPolicy
     }
 
     nonisolated static func appServerSandboxPolicy(
-        for context: SessionLaunchContext,
+        for _: SessionLaunchContext,
         defaults: UserDefaults = .phloxDefaults()
     ) -> SandboxPolicy {
-        appServerPolicies(for: context, defaults: defaults).sandbox
+        appServerPolicies(defaults: defaults).sandbox
     }
 
     private nonisolated static func appServerPolicies(
-        for context: SessionLaunchContext,
         defaults: UserDefaults
     ) -> (approvalPolicy: ApprovalPolicy, sandbox: SandboxPolicy) {
-        let fullAccess: Bool
-        switch context {
-        case .interactive, .remoteUser:
-            fullAccess = BypassSettings.isEnabled(for: .codex, defaults: defaults)
-        case .orchestration:
-            fullAccess = true
-        }
-
-        if fullAccess {
+        if BypassSettings.isEnabled(for: .codex, defaults: defaults) {
             return (.named("never"), .named("danger-full-access"))
         }
         return (.named("on-request"), .named("workspace-write"))

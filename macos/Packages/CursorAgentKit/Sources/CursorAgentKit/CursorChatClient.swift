@@ -2,6 +2,12 @@ import Foundation
 import StructuredChatKit
 
 public actor CursorChatClient: StructuredAgentClient {
+    public enum RunMode: Sendable {
+        case configured
+        case autoReview
+        case runEverything
+    }
+
     public struct PreApprovalRequest: Equatable, Sendable {
         public let summary: String
         public let workingDirectory: String?
@@ -23,6 +29,7 @@ public actor CursorChatClient: StructuredAgentClient {
     private let workingDirectory: URL?
     private let environment: [String: String]
     private let preApprovalPolicy: PreApprovalPolicy?
+    private let runMode: RunMode
     private let runner: any OneShotProcessRunning
 
     private let eventContinuation: AsyncStream<NormalizedChatEvent>.Continuation
@@ -55,6 +62,7 @@ public actor CursorChatClient: StructuredAgentClient {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         model: String? = nil,
         mode: String? = nil,
+        runMode: RunMode = .configured,
         preApprovalPolicy: PreApprovalPolicy? = nil,
         runner: any OneShotProcessRunning = OneShotProcessRunner(timeout: CursorChatClient.defaultOneShotTimeout)
     ) {
@@ -63,6 +71,7 @@ public actor CursorChatClient: StructuredAgentClient {
         self.environment = environment
         self.currentModel = model
         self.currentMode = mode
+        self.runMode = runMode
         self.preApprovalPolicy = preApprovalPolicy
         self.runner = runner
 
@@ -122,8 +131,15 @@ public actor CursorChatClient: StructuredAgentClient {
         if let modeSnapshot {
             arguments.append(contentsOf: ["--mode", modeSnapshot])
         }
-        if isPreApproved {
-            arguments.append("-f")
+        switch runMode {
+        case .configured:
+            if isPreApproved {
+                arguments.append("-f")
+            }
+        case .autoReview:
+            arguments.append(contentsOf: ["--auto-review", "--sandbox", "enabled"])
+        case .runEverything:
+            arguments.append(contentsOf: ["--force", "--sandbox", "disabled"])
         }
         if let resumeSessionId {
             arguments.append(contentsOf: ["--resume", resumeSessionId])

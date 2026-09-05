@@ -89,11 +89,10 @@ private func pm3Task2OrchestrationDescriptor(
 @Suite(.serialized)
 struct PM3Task2DashboardRestoreSpawnAcceptanceTests {
 
-    // A1: orchestration の chat 復元は launchContext の policy（never / danger-full-access）を
-    // thread/resume に渡す。descriptor.launchContext を無視して .interactive（on-request /
-    // workspace-write）で復元してはならない。
+    // A1: chat 復元は現在のフルアクセス設定を thread/resume に渡す。
+    // 設定未保存時の既定 ON では never / danger-full-access になる。
     @Test @MainActor
-    func restore_orchestrationDescriptor_passesLaunchContextPolicyToThreadResume() async throws {
+    func restore_orchestrationDescriptor_passesCurrentFullAccessPolicyToThreadResume() async throws {
         let transport = ScriptedAppServerTransport()
         let sessionID = SessionID()
         let descriptor = pm3Task2OrchestrationDescriptor(

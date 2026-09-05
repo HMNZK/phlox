@@ -175,6 +175,7 @@ public final class ChatSessionViewModel: Identifiable {
     private var codexSubAgentRefreshGeneration = 0
     private var codexRestoreGeneration = 0
     private let transcriptStore: (any TranscriptStore)?
+    private let spawnAgentPermissionOverride: String?
     private let spawnAgentModelsProvider: SpawnAgentModelsProvider?
     /// 利用可能スラッシュコマンド一覧の永続ストア。生成時の読み出しと init 受領時の記録に使う。
     private let availableCommandsStore: AvailableCommandsStore
@@ -191,6 +192,7 @@ public final class ChatSessionViewModel: Identifiable {
         approvalBroker: ChatApprovalBroker,
         workingDirectory: String?,
         transcriptStore: (any TranscriptStore)? = nil,
+        spawnAgentPermissionOverride: String? = nil,
         spawnAgentModelsProvider: SpawnAgentModelsProvider? = nil,
         historyProvider: (@Sendable () -> [ClaudeSessionHistoryEntry])? = nil,
         historyTranscriptLoader: (@Sendable (ClaudeSessionHistoryEntry) -> [ChatItem])? = nil,
@@ -214,6 +216,7 @@ public final class ChatSessionViewModel: Identifiable {
         self.codexSubAgentError = nil
         self.codexPlanTaskState = agentRef == .builtin(.codex) ? CodexPlanTaskState() : nil
         self.transcriptStore = transcriptStore
+        self.spawnAgentPermissionOverride = spawnAgentPermissionOverride
         self.transcriptPersistenceQueue = transcriptStore.map {
             TranscriptPersistenceQueue(sessionID: id, store: $0)
         }
@@ -262,6 +265,7 @@ public final class ChatSessionViewModel: Identifiable {
         self.transcriptStore = nil
         self.transcriptPersistenceQueue = nil
         self.attachmentStore = attachmentStore
+        self.spawnAgentPermissionOverride = nil
         self.spawnAgentModelsProvider = nil
         self.historyProvider = nil
         self.historyTranscriptLoader = nil
@@ -1354,7 +1358,8 @@ public final class ChatSessionViewModel: Identifiable {
 
     private func loadSpawnAgentSettings(persistedSettings: CodexAppServerSessionSettings?) async {
         availableSpawnAgentModels = await resolveSpawnAgentModels()
-        let persistedPermissionOrMode = persistedSettings?.selectedPermissionProfile
+        let persistedPermissionOrMode = spawnAgentPermissionOverride
+            ?? persistedSettings?.selectedPermissionProfile
         let persistedPlanMode = persistedSettings?.isPlanMode ?? (persistedPermissionOrMode == "plan")
 
         switch agentRef {

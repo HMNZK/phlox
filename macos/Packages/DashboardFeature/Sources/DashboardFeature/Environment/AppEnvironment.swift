@@ -74,6 +74,7 @@ public struct AppEnvironment: Sendable {
     /// 全 appServer セッションの表示用 transcript を Phlox 側に保存するストア。
     public let transcriptStore: any TranscriptStore
     public let cliPath: String
+    public let isFullAccessEnabled: @Sendable (AgentRef) -> Bool
     public let structuredClientFactory: StructuredClientFactory
 
     public init(
@@ -101,6 +102,7 @@ public struct AppEnvironment: Sendable {
         sessions: any SessionStoreProtocol = NoOpSessionStore(),
         transcriptStore: any TranscriptStore = NoOpTranscriptStore(),
         cliPath: String,
+        fullAccessProvider: (@Sendable (AgentRef) -> Bool)? = nil,
         structuredClientFactory: StructuredClientFactory? = nil,
         appServerClientFactory: AppServerClientFactory? = nil
     ) {
@@ -125,7 +127,13 @@ public struct AppEnvironment: Sendable {
         self.sessions = sessions
         self.transcriptStore = transcriptStore
         self.cliPath = cliPath
-        self.structuredClientFactory = structuredClientFactory ?? appServerClientFactory ?? Self.defaultStructuredClientFactory
+        let resolvedFullAccessProvider = fullAccessProvider ?? { ref in
+            BypassSettings.isEnabled(for: ref, catalog: agentCatalog)
+        }
+        self.isFullAccessEnabled = resolvedFullAccessProvider
+        self.structuredClientFactory = structuredClientFactory
+            ?? appServerClientFactory
+            ?? Self.defaultStructuredClientFactory(fullAccessProvider: resolvedFullAccessProvider)
     }
 
     /// 指定 CLI の実行ファイル絶対パス。claudeCode は既存の claudeBinaryPath を返す。
@@ -205,7 +213,9 @@ public struct AppEnvironment: Sendable {
         ["app-server", "-c", "model_reasoning_summary=detailed"]
     }
 
-    private static var defaultStructuredClientFactory: StructuredClientFactory {
+    private static func defaultStructuredClientFactory(
+        fullAccessProvider: @escaping @Sendable (AgentRef) -> Bool
+    ) -> StructuredClientFactory {
         { agentRef, command, workingDirectory, environment, handler in
             switch agentRef {
             case .builtin(.codex):
@@ -219,18 +229,21 @@ public struct AppEnvironment: Sendable {
                 let client = CodexAppServerClient(transport: transport, serverRequestHandler: handler)
                 return CodexStructuredAgentClient(client: client)
             case .builtin(.claudeCode):
+                let fullAccess = fullAccessProvider(agentRef)
                 return ClaudeChatClient(
                     command: command,
                     workingDirectory: workingDirectory,
                     environment: environment,
-                    preApprovalPolicy: claudeAutoApprovePolicy
+                    permissionMode: fullAccess ? "bypassPermissions" : "auto",
+                    preApprovalPolicy: fullAccess ? claudeAutoApprovePolicy : nil
                 )
             case .builtin(.cursor):
+                let fullAccess = fullAccessProvider(agentRef)
                 return CursorChatClient(
                     command: command,
                     workingDirectory: workingDirectory,
                     environment: environment,
-                    preApprovalPolicy: cursorAutoApprovePolicy
+                    runMode: fullAccess ? .runEverything : .autoReview
                 )
             default:
                 throw AppEnvironmentError.unsupportedStructuredAgent(agentRef.id)
@@ -238,12 +251,10 @@ public struct AppEnvironment: Sendable {
         }
     }
 
-    /// Claude/Cursor 送信時のバナーを出さずに常に承認する auto-approve policy。
+    /// Claude 送信時のバナーを出さずに常に承認する auto-approve policy。
     /// handler（ChatApprovalBroker 経由でバナーを出す経路）を呼ばないためバナーは表示されない。
-    /// 一方で policy が非 nil であることにより、ClaudeChatClient は acceptEdits +
-    /// defaultAllowedTools を、CursorChatClient は `-f`（force）をそれぞれ維持する。
+    /// policy が非 nil であることにより、ClaudeChatClient は defaultAllowedTools を維持する。
     private static let claudeAutoApprovePolicy: ClaudeChatClient.PreApprovalPolicy = { _ in .approve }
-    private static let cursorAutoApprovePolicy: CursorChatClient.PreApprovalPolicy = { _ in .approve }
 }
 
 public enum AppEnvironmentError: Error, Equatable, Sendable {

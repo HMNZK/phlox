@@ -151,7 +151,9 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
             let output = try await commandRunner(resolveCommand(for: kind), ["models"])
             let ids = CursorModelListParser.parse(output)
             guard !ids.isEmpty else { throw ProviderError.invalidOutput }
-            return ids.map(option)
+            // Cursor publishes its recommended/latest order. Preserve it and only pin its
+            // routing mode to the top in case a CLI version emits `auto` elsewhere.
+            return (ids.filter { $0 == "auto" } + ids.filter { $0 != "auto" }).map(option)
 
         case .codex:
             return try await runCodexModelList(command: resolveCommand(for: kind))

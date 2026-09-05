@@ -48,6 +48,9 @@ struct DefaultModelRuleTests {
     @Test("内蔵 fallback は現行 CLI のモデルを保持する")
     func builtinModelsRemainCurrent() {
         #expect(AgentModelCatalog.builtinModels(for: .claudeCode).map(\.id) == ["opus", "sonnet", "fable", "haiku"])
+        #expect(AgentModelCatalog.builtinModels(for: .claudeCode).map(\.displayName) == [
+            "Opus 5", "Sonnet 5", "Fable 5", "Haiku 4.5",
+        ])
         #expect(AgentModelCatalog.builtinModels(for: .codex).map(\.id) == [
             "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
         ])

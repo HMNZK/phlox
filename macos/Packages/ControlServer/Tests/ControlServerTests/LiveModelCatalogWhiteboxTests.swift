@@ -145,13 +145,13 @@ struct LiveModelCatalogWhiteboxTests {
             environment: ["PATH": "/usr/bin:/bin"],
             commandRunner: { command, arguments in
                 await calls.record(command: command, arguments: arguments)
-                return "Available models\n\nauto - Auto (default)\ncomposer-2.5 - Composer 2.5 (current)\n"
+                return "Available models\n\ncomposer-2.5 - Composer 2.5 (current)\nauto - Auto (default)\ngpt-5.6-sol-high - GPT-5.6 Sol High\n"
             }
         )
 
         let models = try await provider.fetchModels(for: .cursor)
 
-        #expect(models.map(\.id) == ["auto", "composer-2.5"])
+        #expect(models.map(\.id) == ["auto", "composer-2.5", "gpt-5.6-sol-high"])
         #expect(await calls.arguments == [["models"]])
     }
 

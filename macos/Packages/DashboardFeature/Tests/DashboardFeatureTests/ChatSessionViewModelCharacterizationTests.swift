@@ -153,11 +153,11 @@ func characterization_isReadyForInput_falseWhileStarting_trueWhenIdleOrRunning()
 func characterization_spawnAgentModelDisplayName_followsCatalogAndPassesThroughUnknown() {
     let (vm, _) = characterizationVM()
 
-    // 表示名は共有カタログ（live は CLI 由来）から引く。CLI 未取得の内蔵フォールバックでは
-    // alias がそのまま表示名になるため、既知 alias も未知 ID も alias のまま返る。
+    // 表示名は共有カタログ（live は CLI 由来）から引く。CLI 未取得時も現行バージョン付きの
+    // 内蔵フォールバックを使い、未知 ID だけはそのまま返す。
     let catalogName = AgentModelCatalog.models(for: .claudeCode).first { $0.id == "opus" }?.displayName
     #expect(vm.spawnAgentModelDisplayName("opus") == catalogName)
-    #expect(vm.spawnAgentModelDisplayName("opus") == "opus")
+    #expect(vm.spawnAgentModelDisplayName("opus") == "Opus 5")
     #expect(vm.spawnAgentModelDisplayName("cursor-custom-model") == "cursor-custom-model")
 }
 

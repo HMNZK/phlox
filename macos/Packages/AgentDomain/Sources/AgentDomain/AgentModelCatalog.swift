@@ -24,12 +24,14 @@ public protocol AgentModelListProviding: Sendable {
 /// both the HTTP server and UI consume the same catalog without either depending on the other.
 public enum AgentModelCatalog {
     private static let logger = Logger(subsystem: "com.phlox.Phlox", category: "AgentModelCatalog")
-    // Aliases only, used when `claude` cannot be reached. Display names deliberately stay the
-    // alias itself: product names come from the CLI's own `/model` output (see
-    // `LiveAgentModelProvider`), and a version hardcoded here silently ages into a wrong label.
-    private static let claudeModels = ["opus", "sonnet", "fable", "haiku"].map {
-        ControlModelOption(id: $0, displayName: $0)
-    }
+    // Current aliases from Claude Code (2026-09-05). Live discovery remains authoritative;
+    // these labels keep the picker useful when the CLI is temporarily unavailable.
+    private static let claudeModels = [
+        ControlModelOption(id: "opus", displayName: "Opus 5"),
+        ControlModelOption(id: "sonnet", displayName: "Sonnet 5"),
+        ControlModelOption(id: "fable", displayName: "Fable 5"),
+        ControlModelOption(id: "haiku", displayName: "Haiku 4.5"),
+    ]
     // Current families from `codex app-server` model/list (2026-09-05). Keep the live order
     // so the first model remains Codex's current default when discovery is unavailable.
     private static let codexModels = [

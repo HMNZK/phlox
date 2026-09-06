@@ -53,6 +53,67 @@ struct AcceptanceModelWorkingDirectoryTests {
         #expect(failed, "フォルダ準備失敗を既存の取得失敗として返す")
         #expect(try fixture.records().isEmpty, "失敗後にcwd未指定で実行するフォールバックは禁止")
     }
+
+    @Test("実アプリ環境の継承・空文字・明示override優先を別プロセスで検査する")
+    func runtimeEnvironmentPrecedence() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        if let childRoot = environment["PHLOX_MODEL_PROBE_CHILD_ROOT"] {
+            let fixture = try ModelDirectoryFixture(existingRoot: URL(fileURLWithPath: childRoot))
+            let mode = try #require(environment["PHLOX_MODEL_PROBE_CHILD_MODE"])
+            let appRoot = URL(fileURLWithPath: try #require(environment["PHLOX_DATA_DIR"]))
+            let explicitRoot = fixture.root.appendingPathComponent("provider-B")
+            let provider = fixture.provider(dataRoot: mode == "explicit" ? explicitRoot : nil, emptyOverride: mode == "empty")
+            for kind in [AgentKind.claudeCode, .cursor, .codex] {
+                #expect(try await !provider.fetchModels(for: kind).isEmpty)
+            }
+            let records = try fixture.records()
+            #expect(records.count == 8)
+            let expected = (mode == "explicit" ? explicitRoot : appRoot)
+                .appendingPathComponent("model-catalog").resolvingSymlinksInPath().path
+            for record in records { #expect(record.first == expected) }
+            return
+        }
+
+        // SwiftPMが実際に使ったヘルパーを再利用し、ビルドロックを取らずにテストを別プロセスで実行する。
+        let bundleFlag = try #require(CommandLine.arguments.firstIndex(of: "--test-bundle-path"))
+        let testBundle = CommandLine.arguments[bundleFlag + 1]
+        let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        for mode in ["inherit", "empty", "explicit"] {
+            let fixture = try ModelDirectoryFixture()
+            defer { fixture.remove() }
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
+            process.arguments = ["--test-bundle-path", testBundle, "--package-path", package.path,
+                "--filter", "AcceptanceModelWorkingDirectoryTests.runtimeEnvironmentPrecedence",
+                testBundle, "--testing-library", "swift-testing"]
+            var childEnvironment = environment
+            childEnvironment["PHLOX_DATA_DIR"] = fixture.root.appendingPathComponent("application-A").path
+            childEnvironment["PHLOX_MODEL_PROBE_CHILD_ROOT"] = fixture.root.path
+            childEnvironment["PHLOX_MODEL_PROBE_CHILD_MODE"] = mode
+            process.environment = childEnvironment
+            let output = Pipe()
+            process.standardOutput = output
+            process.standardError = output
+            try process.run()
+            let log = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            process.waitUntilExit()
+            #expect(process.terminationStatus == 0, "\(mode)の隔離プロセス検査:\n\(log)")
+        }
+    }
+
+    @Test("alias途中でcwdが使えなくても誤起動せず取得済み一覧を保持する")
+    func invalidDirectoryDuringAliasesDoesNotStartAliases() async throws {
+        let fixture = try ModelDirectoryFixture()
+        defer { fixture.remove() }
+        let provider = fixture.provider(dataRoot: fixture.root.appendingPathComponent("data"), blockAliases: true)
+
+        let models = try await provider.fetchModels(for: .claudeCode)
+
+        #expect(models == AgentModelCatalog.builtinModels(for: .claudeCode), "表示名取得失敗時は既存の一覧維持を守る")
+        let records = try fixture.records()
+        #expect(records.count == 1, "専用cwdが通常ファイルになった後はaliasのCLIを起動しない")
+        #expect(records.first.map { Array($0.dropFirst()) } == ["--bare", "-p", "/model", "--output-format", "json"])
+    }
 }
 
 private struct ModelDirectoryFixture {
@@ -60,8 +121,8 @@ private struct ModelDirectoryFixture {
     let executable: URL
     let logs: URL
 
-    init() throws {
-        root = FileManager.default.temporaryDirectory.appendingPathComponent("phlox-model-cwd-" + UUID().uuidString)
+    init(existingRoot: URL? = nil) throws {
+        root = existingRoot ?? FileManager.default.temporaryDirectory.appendingPathComponent("phlox-model-cwd-" + UUID().uuidString)
         logs = root.appendingPathComponent("logs")
         executable = root.appendingPathComponent("model-probe")
         try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
@@ -74,6 +135,13 @@ private struct ModelDirectoryFixture {
         } > "$PHLOX_MODEL_PROBE_LOG/$$"
         case "$1" in
           --bare)
+            if [ "${PHLOX_MODEL_PROBE_BLOCK_ALIAS:-0}" = 1 ] && [ "$2" = -p ]; then
+              mkdir -p "$PHLOX_DATA_DIR"
+              if [ -d "$PHLOX_DATA_DIR/model-catalog" ]; then
+                rmdir "$PHLOX_DATA_DIR/model-catalog"
+              fi
+              printf '%s' blocked > "$PHLOX_DATA_DIR/model-catalog"
+            fi
             printf '%s\n' '{"result":"Current model: Probe\nUsage: /model <name>. Available: default, opus[1m], fable, sonnet, haiku, or a full model ID."}'
             ;;
           models)
@@ -97,9 +165,13 @@ private struct ModelDirectoryFixture {
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
     }
 
-    func provider(dataRoot: URL) -> LiveAgentModelProvider {
-        LiveAgentModelProvider(
-            environment: ["PATH": "/usr/bin:/bin", "PHLOX_DATA_DIR": dataRoot.path, "PHLOX_MODEL_PROBE_LOG": logs.path],
+    func provider(dataRoot: URL?, emptyOverride: Bool = false, blockAliases: Bool = false) -> LiveAgentModelProvider {
+        var environment = ["PATH": "/usr/bin:/bin", "PHLOX_MODEL_PROBE_LOG": logs.path]
+        if let dataRoot { environment["PHLOX_DATA_DIR"] = dataRoot.path }
+        else if emptyOverride { environment["PHLOX_DATA_DIR"] = "" }
+        if blockAliases { environment["PHLOX_MODEL_PROBE_BLOCK_ALIAS"] = "1" }
+        return LiveAgentModelProvider(
+            environment: environment,
             commands: [.claudeCode: executable.path, .cursor: executable.path, .codex: executable.path],
             timeout: 3
         )

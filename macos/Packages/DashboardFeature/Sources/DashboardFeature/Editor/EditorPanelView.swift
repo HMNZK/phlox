@@ -91,6 +91,8 @@ public struct EditorPanelView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(.top, topInset)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("エディタ")
         .accessibilityIdentifier("editor-panel")
         .onChange(of: viewModel.selectedPath) { _, _ in
             previewLineLimit = 500

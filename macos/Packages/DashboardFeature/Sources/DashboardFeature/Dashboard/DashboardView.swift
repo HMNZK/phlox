@@ -26,13 +26,13 @@ public struct DashboardView: View {
     @State private var expandedProjectIDs: Set<ProjectID> = []
     @State private var sessionTreeViewModel = SessionTreeViewModel()
 
-    @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+    @AppStorage(ThemeStore.themeKey, store: UserDefaults.phloxDefaults()) private var themeID = AppTheme.phlox.id
     @State private var gridSessionPickerPresented = false
     @State private var measuredLeadingOverlayWidth: CGFloat = 0
     @State private var hasMeasuredLeadingOverlayWidth = false
     @State private var measuredTrailingOverlayHeight: CGFloat = 0
-    @AppStorage(PanelDrawerLayout.defaultsKey) private var storedDrawerWidth = PanelDrawerLayout.preferredWidth
-    @AppStorage(PanelDrawerLayout.migrationDefaultsKey) private var hasMigratedDrawerWidth = false
+    @AppStorage(PanelDrawerLayout.defaultsKey, store: UserDefaults.phloxDefaults()) private var storedDrawerWidth = PanelDrawerLayout.preferredWidth
+    @AppStorage(PanelDrawerLayout.migrationDefaultsKey, store: UserDefaults.phloxDefaults()) private var hasMigratedDrawerWidth = false
     @State private var drawerWidthAtDragStart = PanelDrawerLayout.preferredWidth
     /// ゴースト境界だけを動かす一時値。本文 HStack の幅はドラッグ確定まで変えない。
     @State private var drawerDragTranslation: CGFloat = 0
@@ -566,7 +566,7 @@ public struct DashboardView: View {
     }
 
     private func migrateLegacyDrawerWidthIfNeeded() {
-        let savedWidth = (UserDefaults.standard.object(forKey: PanelDrawerLayout.defaultsKey) as? NSNumber)
+        let savedWidth = (UserDefaults.phloxDefaults().object(forKey: PanelDrawerLayout.defaultsKey) as? NSNumber)
             .map { CGFloat($0.doubleValue) }
         if let migratedWidth = PanelDrawerLayout.migratedWidth(
             savedWidth: savedWidth,

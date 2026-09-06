@@ -107,6 +107,8 @@ public struct TerminalPanelView: View {
         // 同じ上端インセット。TerminalView の AppKit NSView を操作系から離す。
         // ドロワー内で最上段でない（他パネルの下に積まれている）場合は容器が 0 を渡す。
         .padding(.top, topInset)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("ターミナル")
         .accessibilityIdentifier("user-terminal-panel")
         .task {
             await panel.ensureStarted()

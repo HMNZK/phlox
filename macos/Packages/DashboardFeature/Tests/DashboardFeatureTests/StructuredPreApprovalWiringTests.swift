@@ -21,10 +21,11 @@ func appEnvironmentCodexFactoryPassesReasoningSummaryArgsToProcess() async throw
     let tempDirectory = try makeTemporaryDirectory(named: "codex-app-server-args")
     let argsURL = tempDirectory.appendingPathComponent("codex-args.txt")
     let executableURL = tempDirectory.appendingPathComponent("fake-codex.sh")
+    // 存在待ちで書込み途中を読まないよう、完成した引数ログだけを同じディレクトリ内で公開する。
     try writeExecutableScript(
         """
         #!/bin/sh
-        printf '%s\\n' "$@" > "\(argsURL.path)"
+        printf '%s\\n' "$@" > "\(argsURL.path).tmp" && mv "\(argsURL.path).tmp" "\(argsURL.path)"
         """,
         to: executableURL
     )
@@ -411,10 +412,11 @@ func chatSessionViewModelCursorSelectionAppliesModelAndModeOnNextTurn() async th
     let tempDirectory = try makeTemporaryDirectory(named: "cursor-vm-model")
     let argsURL = tempDirectory.appendingPathComponent("cursor-args.txt")
     let executableURL = tempDirectory.appendingPathComponent("fake-cursor.sh")
+    // 引数ログを直接待つ兄弟経路も、完成後に公開する。
     try writeExecutableScript(
         """
         #!/bin/sh
-        printf '%s\\n' "$@" > "\(argsURL.path)"
+        printf '%s\\n' "$@" > "\(argsURL.path).tmp" && mv "\(argsURL.path).tmp" "\(argsURL.path)"
         printf '{"type":"result","subtype":"success","session_id":"cursor-test"}\\n'
         """,
         to: executableURL

@@ -134,6 +134,11 @@ targets:
         SWIFT_VERSION: "6.0"
         CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: YES
+      configs:
+        Debug:
+          # Runnerの既定sandbox権限も専用entitlementsで明示的に上書きする。
+          ENABLE_APP_SANDBOX: NO
+          CODE_SIGN_ENTITLEMENTS: PhloxUITests/PhloxUITests.entitlements
 
 schemes:
   Phlox:

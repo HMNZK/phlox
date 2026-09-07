@@ -8,6 +8,7 @@ final class IsolatedPhloxApplication {
     private static let bundleID = "com.phlox.Phlox.debug"
     private static let widthKey = "phlox.panelDrawer.width"
     private static let migrationKey = "phlox.panelDrawer.width.migratedTo560"
+    private static let paneLayoutKey = "phlox.grid.paneLayout"
 
     private let appURL: URL
     private let executableURL: URL
@@ -83,7 +84,7 @@ final class IsolatedPhloxApplication {
             "PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN": "1",
         ]
         print("Phlox UI isolation: data=\(isolated.dataURL.path) suite=\(isolated.suite)")
-        print("Phlox UI standard before: domain=\(bundleID) values=\(isolated.originalDefaults)")
+        print("Phlox UI standard before: domain=\(bundleID) protectedKeys=\(isolated.originalDefaults.count)")
         isolated.launchRequested = true
         NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { running, error in
             // SDKのコールバックは並行キュー上。状態変更と後始末はMainActorに直列化する。
@@ -178,16 +179,24 @@ final class IsolatedPhloxApplication {
         guard CFPreferencesSynchronize(domain as CFString, kCFPreferencesCurrentUser, kCFPreferencesAnyHost) else {
             throw Failure.unsafe("defaultsの同期に失敗: \(domain)")
         }
-        return CFPreferencesCopyMultiple(
-            [widthKey, migrationKey] as CFArray, domain as CFString,
+        let values = CFPreferencesCopyMultiple(
+            nil, domain as CFString,
             kCFPreferencesCurrentUser, kCFPreferencesAnyHost
         ) as NSDictionary
+        var protected: [String: Any] = [:]
+        for (rawKey, value) in values {
+            guard let key = rawKey as? String else { continue }
+            if key == widthKey || key == migrationKey || key == paneLayoutKey || key.hasPrefix("SU") {
+                protected[key] = value
+            }
+        }
+        return protected as NSDictionary
     }
 
     private func assertStandardUnchanged() throws {
         let current = try Self.drawerDefaults(in: Self.bundleID)
         guard current.isEqual(originalDefaults) else {
-            throw Failure.unsafe("通常Debugの保存値が変化: before=\(originalDefaults) after=\(current)")
+            throw Failure.unsafe("通常Debugの保護対象設定（幅・画面配置・更新確認）が変化")
         }
     }
 
@@ -235,7 +244,7 @@ final class IsolatedPhloxApplication {
                 defer {
                     do {
                         try self.assertStandardUnchanged()
-                        print("Phlox UI standard after: domain=\(Self.bundleID) values=\(self.originalDefaults) unchanged=true")
+                        print("Phlox UI standard after: domain=\(Self.bundleID) protectedKeys=\(self.originalDefaults.count) unchanged=true")
                     }
                     catch { XCTFail("後始末時の通常Debug保存先検査に失敗: \(error)") }
                 }

@@ -217,6 +217,17 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
         return candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) ?? name
     }
 
+    private static func prepareModelWorkingDirectory(environment: [String: String]) throws -> URL {
+        var locatorEnvironment = environment
+        if locatorEnvironment["PHLOX_DATA_DIR"]?.isEmpty != false {
+            locatorEnvironment["PHLOX_DATA_DIR"] = ProcessInfo.processInfo.environment["PHLOX_DATA_DIR"]
+        }
+        let directory = try AppSupportLocator.appSupportDirectoryURL(environment: locatorEnvironment)
+            .appendingPathComponent("model-catalog", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
     private static func runCommand(
         _ command: String,
         arguments: [String],
@@ -235,6 +246,7 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
                 process.standardError = stderr
                 let gate = CompletionGate<String>(continuation)
                 do {
+                    process.currentDirectoryURL = try Self.prepareModelWorkingDirectory(environment: environment)
                     try process.run()
                     DispatchQueue.global(qos: .utility).async {
                         let output = String(decoding: stdout.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
@@ -269,6 +281,7 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
                 process.standardError = FileHandle.nullDevice
                 let gate = CompletionGate<[ControlModelOption]>(continuation)
                 do {
+                    process.currentDirectoryURL = try Self.prepareModelWorkingDirectory(environment: environment)
                     try process.run()
                     let initialize = #"{"id":1,"method":"initialize","params":{"clientInfo":{"name":"Phlox","version":"1"}}}"#
                     let list = #"{"id":2,"method":"model/list","params":{}}"#

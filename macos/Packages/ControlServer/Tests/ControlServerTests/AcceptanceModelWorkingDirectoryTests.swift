@@ -179,7 +179,14 @@ private struct ModelDirectoryFixture {
 
     func records() throws -> [[String]] {
         try FileManager.default.contentsOfDirectory(at: logs, includingPropertiesForKeys: nil)
-            .map { try String(contentsOf: $0, encoding: .utf8).split(separator: "\n").map(String.init) }
+            .map {
+                var record = try String(contentsOf: $0, encoding: .utf8).split(separator: "\n").map(String.init)
+                // pwd -Pと期待値で、/private/varと/varなど同じ場所の表記を揃える。
+                if let directory = record.first {
+                    record[0] = URL(fileURLWithPath: directory).resolvingSymlinksInPath().path
+                }
+                return record
+            }
     }
 
     func remove() {

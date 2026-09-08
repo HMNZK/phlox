@@ -155,7 +155,7 @@ public final class DashboardViewModel {
         rateLimitNow: @escaping @Sendable () -> Date = Date.init,
         orphanReaper: any OrphanReaper = PosixOrphanReaper(),
         livePIDProvider: @escaping @MainActor @Sendable (SessionID) async -> pid_t? = { _ in nil },
-        paneLayoutStore: PaneLayoutStore = PaneLayoutStore(userDefaults: .standard)
+        paneLayoutStore: PaneLayoutStore = PaneLayoutStore(userDefaults: .phloxDefaults())
     ) {
         self.environment = environment
         self.paneLayoutStore = paneLayoutStore

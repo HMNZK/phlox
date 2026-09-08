@@ -404,7 +404,7 @@ final class AppUpdater: ObservableObject {
 
     init() {
         updaterController = SPUStandardUpdaterController(
-            startingUpdater: true,
+            startingUpdater: ProcessInfo.processInfo.environment["PHLOX_DEFAULTS_SUITE"]?.isEmpty ?? true,
             updaterDelegate: nil,
             userDriverDelegate: nil
         )

@@ -171,7 +171,6 @@ struct DashboardTrailingTopBarControls: View {
         // 標準セグメントの明るいベゼルを避け、淡いトラックの上で選択セグメントだけを
         // fill で示すボーダーレストグル。選択/ホバーを「枠」ではなく「面」で表現する。
         ViewModeToggle(mode: $router.viewMode)
-            .help("表示モードを切り替え")
     }
 
     private var gridSessionPickerCandidates: [SessionNode] {
@@ -247,6 +246,7 @@ private struct ViewModeToggle: View {
 
     private func segment(_ value: ViewMode, symbol: String, help: String) -> some View {
         ModeSegmentButton(
+            identifier: "view-mode-\(value.rawValue)",
             symbol: symbol,
             help: help,
             isOn: mode == value,
@@ -256,6 +256,7 @@ private struct ViewModeToggle: View {
 }
 
 private struct ModeSegmentButton: View {
+    let identifier: String
     let symbol: String
     let help: String
     let isOn: Bool
@@ -283,5 +284,8 @@ private struct ModeSegmentButton: View {
         }
         .pointingHandCursor()
         .help(help)
+        .accessibilityIdentifier(identifier)
+        .accessibilityLabel(help)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }

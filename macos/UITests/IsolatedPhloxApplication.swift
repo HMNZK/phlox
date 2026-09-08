@@ -37,7 +37,9 @@ final class IsolatedPhloxApplication {
     static func launch(
         in test: XCTestCase,
         initialWidth: Double = 420,
-        expectedWidth: Double = 560
+        expectedWidth: Double = 560,
+        arguments: [String] = [],
+        prepareData: ((URL) throws -> Void)? = nil
     ) async throws -> IsolatedPhloxApplication {
         // 設定文字列ではなく実行中Runnerの署名を検査。保存先の読み書きより先に拒否する。
         try requireUnsandboxedRunner()
@@ -66,6 +68,7 @@ final class IsolatedPhloxApplication {
         try FileManager.default.createDirectory(at: isolated.dataURL, withIntermediateDirectories: false)
         // 所有権取得より前に登録し、起動・接続・窓待ちのどこで失敗しても処理する。
         test.addTeardownBlock { await isolated.tearDown() }
+        try prepareData?(isolated.dataURL)
         // 初期化・検査・削除はすべてcurrent user / any hostの同じ永続ドメインを使う。
         CFPreferencesSetValue(
             widthKey as CFString, NSNumber(value: initialWidth), isolated.suite as CFString,
@@ -76,6 +79,7 @@ final class IsolatedPhloxApplication {
             throw Failure.unsafe("専用suiteの移行前条件（\(initialWidth)・移行済みなし）が成立しない: \(seeded)")
         }
         let configuration = NSWorkspace.OpenConfiguration()
+        configuration.arguments = arguments
         configuration.createsNewApplicationInstance = true
         configuration.allowsRunningApplicationSubstitution = false
         configuration.environment = [
@@ -83,6 +87,10 @@ final class IsolatedPhloxApplication {
             "PHLOX_DEFAULTS_SUITE": isolated.suite,
             "PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN": "1",
         ]
+        let agentsURL = isolated.dataURL.appendingPathComponent("agents.json")
+        if FileManager.default.fileExists(atPath: agentsURL.path) {
+            configuration.environment["PHLOX_AGENTS_JSON"] = agentsURL.path
+        }
         print("Phlox UI isolation: data=\(isolated.dataURL.path) suite=\(isolated.suite)")
         print("Phlox UI standard before: domain=\(bundleID) protectedKeys=\(isolated.originalDefaults.count)")
         isolated.launchRequested = true
@@ -186,7 +194,9 @@ final class IsolatedPhloxApplication {
         var protected: [String: Any] = [:]
         for (rawKey, value) in values {
             guard let key = rawKey as? String else { continue }
-            if key == widthKey || key == migrationKey || key == paneLayoutKey || key.hasPrefix("SU") {
+            if key == widthKey || key == migrationKey || key == paneLayoutKey || key.hasPrefix("SU")
+                || key == "phlox.theme" || key == "phlox.appLanguage"
+                || key == "AppleLanguages" || key == "AppleLocale" {
                 protected[key] = value
             }
         }

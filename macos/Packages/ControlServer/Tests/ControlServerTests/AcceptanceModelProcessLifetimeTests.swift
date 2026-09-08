@@ -6,15 +6,15 @@ import Testing
 
 @Suite("モデル取得の終了と出力", .serialized)
 struct AcceptanceModelProcessLifetimeTests {
-    @Test("正常終了と両パイプ容量超過でも一覧を取得する", arguments: ["small", "leading", "trailing"])
-    func drainsBothOutputs(payload: String) async throws {
+    @Test("正常終了と両パイプ容量超過でも一覧を取得する", arguments: ["small", "leading", "trailing"], ["stderr-first", "stdout-first", "stdout-only", "stderr-only"])
+    func drainsBothOutputs(payload: String, direction: String) async throws {
         let list = "printf '\\nAvailable models\\nauto - Auto\\n'\n"
         let flood = #"""
         line=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
         i=0
-        while [ "$i" -lt 4096 ]; do printf '%s' "$line" >&2; i=$((i + 1)); done
+        while [ "$i" -lt 4096 ]; do printf '%s' "$line" >&\#(direction.hasPrefix("stdout") ? 1 : 2); i=$((i + 1)); done
         i=0
-        while [ "$i" -lt 4096 ]; do printf '%s' "$line"; i=$((i + 1)); done
+        while [ "$i" -lt \#(direction.hasSuffix("only") ? 0 : 4096) ]; do printf '%s' "$line" >&\#(direction.hasPrefix("stdout") ? 2 : 1); i=$((i + 1)); done
         """# + "\n"
         let fixture = try LifetimeFixture(script: payload == "small" ? list :
             (payload == "leading" ? list + flood : flood + list))
@@ -25,6 +25,18 @@ struct AcceptanceModelProcessLifetimeTests {
         } catch {
             Issue.record("モデル一覧取得に失敗: \(error)")
         }
+    }
+
+    @Test("Claudeの大きなJSONとstderrを先頭末尾とも欠落なく回収する", arguments: [false, true])
+    func preservesLargeClaudeJSON(payloadFirst: Bool) async throws {
+        let padding = String(repeating: "x", count: 262144)
+        let result = #""result":"Current model: Probe\nAvailable: fable, or a full model ID.""#
+        let fields = payloadFirst ? result + ",\"padding\":\"" + padding + "\""
+            : "\"padding\":\"" + padding + "\"," + result
+        let fixture = try LifetimeFixture(script: "printf '%s' '{" + fields + "}'\nprintf '%s' '" + padding + "' >&2")
+        defer { fixture.remove() }
+        let models = try await fixture.provider(timeout: 3, kind: .claudeCode).fetchModels(for: .claudeCode)
+        #expect(models == [ControlModelOption(id: "fable", displayName: "Probe")])
     }
 
     @Test("Process.run自体の失敗を期限切れへ置換しない")
@@ -158,9 +170,8 @@ struct AcceptanceModelProcessLifetimeTests {
         let before = try openDescriptorCount()
         var fixtures: [LifetimeFixture] = []
         defer { fixtures.forEach { $0.remove() } }
-        for _ in 0..<4 {
-            let fixture = try LifetimeFixture(script: #"""
-            /bin/sleep 20 &
+        for redirection in ["", "2>/dev/null", ">/dev/null"].flatMap({ Array(repeating: $0, count: 4) }) {
+            let fixture = try LifetimeFixture(script: "/bin/sleep 20 " + redirection + " &\n" + #"""
             printf '%s' "$!" > "$PHLOX_LIFETIME_DESCENDANT"
             exit 0
             """#)
@@ -203,11 +214,11 @@ private struct LifetimeFixture {
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
     }
 
-    func provider(timeout: TimeInterval) -> LiveAgentModelProvider {
+    func provider(timeout: TimeInterval, kind: AgentKind = .cursor) -> LiveAgentModelProvider {
         LiveAgentModelProvider(
             environment: ["PATH": "/usr/bin:/bin", "PHLOX_DATA_DIR": root.appendingPathComponent("data").path,
                           "PHLOX_LIFETIME_PID": pidFile.path, "PHLOX_LIFETIME_DESCENDANT": descendantFile.path],
-            commands: [.cursor: executable.path], timeout: timeout
+            commands: [kind: executable.path], timeout: timeout
         )
     }
 

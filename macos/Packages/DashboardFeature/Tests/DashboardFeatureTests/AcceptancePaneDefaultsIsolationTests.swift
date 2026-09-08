@@ -13,7 +13,9 @@ struct AcceptancePaneDefaultsIsolationTests {
         if let mode = environment["PHLOX_PANE_DEFAULTS_PROBE_MODE"] {
             let suite = try #require(environment["PHLOX_PANE_DEFAULTS_PROBE_SUITE"])
             let defaults = try #require(UserDefaults(suiteName: suite))
-            let injectedSuite = suite + ".injected"
+            // 空白付き名ではtrim後の所有ドメインを別ストアにして誤選択も検出する。
+            let injectedSuite = suite.hasPrefix(" ")
+                ? suite.trimmingCharacters(in: .whitespaces) : suite + ".injected"
             let injected = try #require(UserDefaults(suiteName: injectedSuite))
             defer {
                 defaults.removePersistentDomain(forName: suite)
@@ -78,11 +80,14 @@ struct AcceptancePaneDefaultsIsolationTests {
         let testBundle = CommandLine.arguments[bundleFlag + 1]
         let package = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        for mode in ["suite", "missing", "empty", "explicit"] {
-            let suite = "phlox.pane-probe." + UUID().uuidString
+        for (mode, paddedName) in [("suite", false), ("suite", true),
+                                   ("missing", false), ("empty", false), ("explicit", false)] {
+            let name = "phlox.pane-probe." + UUID().uuidString
+            let suite = paddedName ? " \(name) " : name
+            let injectedSuite = paddedName ? name : suite + ".injected"
             defer {
                 UserDefaults.standard.removePersistentDomain(forName: suite)
-                UserDefaults.standard.removePersistentDomain(forName: suite + ".injected")
+                UserDefaults.standard.removePersistentDomain(forName: injectedSuite)
             }
             let process = Process()
             process.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])

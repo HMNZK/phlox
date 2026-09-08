@@ -38,6 +38,7 @@ last-verified: 2026-09-05
 
 ### 2026-09-08 追加調査と現在の未完事項
 
+- UI-05の設定補助ボタン3件を追加調査。既存actionと更新確認のdisabled条件を保ち、標準ボタンへ寄せる候補を確認した。設定表示時には専用Debug自身のモバイル待受を再構築する経路もあり、現在の起動helperは通常設定全体・通信の隔離を保証しない。観測用テスト案のビルドと正本回帰検査は成功したがGUIは未実行、下書きへ退避し既存テストは不変。製品未変更・UI-05未完。既存ビルド警告3件と検証範囲は `docs/agent-output/ui05-observation-preflight.md`、コード上の経路は `docs/agent-output/ui05-settings-button-read-map.md` に記録した。
 - 13:49時点: task-26は42fc93aへローカルコミット済み。task-25は更新開始と配置保存先を製品2ファイル各1行で修正し、PM正本8パッケージ3436件（実git別14件を含む）・更新12条件と担当Debugビルドが成功。初回PMゲートの原因不明失敗は記録を保持し、再実走成功だけで原因解消としない。新GUIはOS本人認証待ちでRunner初期化失敗、予定3件は未開始。通常設定・データ・既存セッションの前後一致はこの未起動試行に限る。画面を含むtask-25とtask-24、残21改善は未完。詳細は `docs/agent-output/visual-task-25.md`。
 - 続く独立Codexレビューは配置15件・更新12条件が成功し製品必須指摘0。ただし画面確認が未成立のため総合needs_changes、完了扱いにはしない。同系統の別文脈審査で、契約全文に過去経緯が同居した入力分離の制限も報告へ開示した。詳細は `docs/agent-output/review-task-25.json` と同名MD。
 - UI-01の検査準備を新しいCodexセッションへ限定委譲し、実コードでPM照合した。既存ThemeStore.all/RGBを使い、空文字名だけでなく空白名・通常名・「その他」の見出しも検査対象へ含めるやることを追加した。数値検査とソース接続検査は実描画の代わりにしない。調査報告は `docs/agent-output/ui01-acceptance-read-map.md`、追補は `docs/agent-output/ui01-contrast-investigation-20260908.md`。製品実装・新しい比率再計算・描画は未実施。

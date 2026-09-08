@@ -1,4 +1,5 @@
 import AgentDomain
+import Darwin
 import Foundation
 
 /// Keeps CLI results out of the model-picker request path. Failed fetches are deliberately
@@ -236,31 +237,135 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
     ) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: command)
-                process.arguments = arguments
-                process.environment = environment
-                let stdout = Pipe()
-                process.standardOutput = stdout
-                let stderr = Pipe()
-                process.standardError = stderr
-                let gate = CompletionGate<String>(continuation)
-                do {
-                    process.currentDirectoryURL = try Self.prepareModelWorkingDirectory(environment: environment)
-                    try process.run()
-                    DispatchQueue.global(qos: .utility).async {
-                        let output = String(decoding: stdout.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-                        let errorOutput = String(decoding: stderr.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-                        process.waitUntilExit()
-                        gate.resume(process.terminationStatus == 0 ? .success(output) : .failure(ProviderError.commandFailed(errorOutput)))
+                continuation.resume(with: Result {
+                    func posixError(_ code: Int32) -> NSError {
+                        NSError(domain: NSPOSIXErrorDomain, code: Int(code))
                     }
-                    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) {
-                        if process.isRunning { process.terminate() }
-                        gate.resume(.failure(ProviderError.timedOut))
+                    func check(_ code: Int32) throws {
+                        if code != 0 { throw posixError(code) }
                     }
-                } catch {
-                    gate.resume(.failure(error))
-                }
+                    let executable = URL(fileURLWithPath: command).path
+                    let directory = try Self.prepareModelWorkingDirectory(environment: environment)
+                    // Foundation rejects missing/non-executable paths before spawning; failures
+                    // such as a missing shebang interpreter instead retain their POSIX error.
+                    guard FileManager.default.isExecutableFile(atPath: executable) else {
+                        throw NSError(domain: NSCocoaErrorDomain, code: NSFileNoSuchFileError,
+                                      userInfo: [NSFilePathErrorKey: executable])
+                    }
+
+                    let inheritInput = fcntl(STDIN_FILENO, F_GETFD) != -1
+                    if !inheritInput && errno != EBADF { try check(errno) }
+                    var descriptors: [Int32] = []
+                    defer { for fd in descriptors where fd >= 0 { Darwin.close(fd) } }
+                    for _ in 0..<2 {
+                        var pair: [Int32] = [-1, -1]
+                        guard pipe(&pair) == 0 else { throw posixError(errno) }
+                        defer { for fd in pair { Darwin.close(fd) } }
+                        // Keep sources above stdio even if the host has closed fd 0, 1 or 2.
+                        for fd in pair {
+                            let copy = fcntl(fd, F_DUPFD_CLOEXEC, STDERR_FILENO + 1)
+                            guard copy >= 0 else { throw posixError(errno) }
+                            descriptors.append(copy)
+                        }
+                    }
+                    for index in [0, 2] {
+                        let flags = fcntl(descriptors[index], F_GETFL)
+                        guard flags >= 0 else { throw posixError(errno) }
+                        if fcntl(descriptors[index], F_SETFL, flags | O_NONBLOCK) == -1 { try check(errno) }
+                    }
+
+                    var actions: posix_spawn_file_actions_t?
+                    try check(posix_spawn_file_actions_init(&actions))
+                    defer { posix_spawn_file_actions_destroy(&actions) }
+                    try check(posix_spawn_file_actions_adddup2(&actions, descriptors[1], STDOUT_FILENO))
+                    try check(posix_spawn_file_actions_adddup2(&actions, descriptors[3], STDERR_FILENO))
+                    if inheritInput { try check(posix_spawn_file_actions_addinherit_np(&actions, STDIN_FILENO)) }
+                    try check(directory.path.withCString { posix_spawn_file_actions_addchdir_np(&actions, $0) })
+                    var attributes: posix_spawnattr_t?
+                    try check(posix_spawnattr_init(&attributes))
+                    defer { posix_spawnattr_destroy(&attributes) }
+                    var defaults = sigset_t()
+                    sigfillset(&defaults)
+                    try check(posix_spawnattr_setsigdefault(&attributes, &defaults))
+                    var mask = sigset_t()
+                    sigemptyset(&mask)
+                    try check(posix_spawnattr_setsigmask(&attributes, &mask))
+                    try check(posix_spawnattr_setflags(&attributes, Int16(
+                        POSIX_SPAWN_CLOEXEC_DEFAULT | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK
+                    )))
+                    var argv = ([executable] + arguments).map { strdup($0) }
+                    var envp = environment.map { strdup("\($0.key)=\($0.value)") }
+                    defer { for pointer in argv + envp { free(pointer) } }
+                    guard (argv + envp).allSatisfy({ $0 != nil }) else {
+                        throw posixError(ENOMEM)
+                    }
+                    argv.append(nil)
+                    envp.append(nil)
+                    var pid: pid_t = 0
+                    try check(posix_spawn(&pid, executable, &actions, &attributes, &argv, &envp))
+
+                    // This worker is the only waiter and signal sender. Until it reaps, the
+                    // child (including a zombie) reserves its PID; Foundation never owns it.
+                    var unreaped = true
+                    var status: Int32 = 0
+                    func reap(_ options: Int32) throws {
+                        guard unreaped else { return }
+                        var result: pid_t
+                        repeat { result = waitpid(pid, &status, options) } while result == -1 && errno == EINTR
+                        if result == pid { unreaped = false }
+                        if result == -1 {
+                            let code = errno
+                            if code == ECHILD { unreaped = false }
+                            try check(code)
+                        }
+                    }
+                    do {
+                        for index in [1, 3] {
+                            let fd = descriptors[index]
+                            descriptors[index] = -1
+                            if Darwin.close(fd) == -1 { try check(errno) }
+                        }
+                        let deadline = DispatchTime.now() + timeout
+                        var readers = [0, 2].map { pollfd(fd: descriptors[$0], events: Int16(POLLIN), revents: 0) }
+                        var output = [Data(), Data()]
+                        var buffer = [UInt8](repeating: 0, count: 65536)
+                        while true {
+                            try reap(WNOHANG)
+                            // EOF alone is insufficient: the child can close both pipes and
+                            // later exit unsuccessfully. Conversely, descendants can hold EOF open.
+                            if !unreaped && readers.allSatisfy({ $0.fd == -1 }) {
+                                guard status == 0 else {
+                                    throw ProviderError.commandFailed(String(decoding: output[1], as: UTF8.self))
+                                }
+                                return String(decoding: output[0], as: UTF8.self)
+                            }
+                            guard DispatchTime.now() < deadline else { throw ProviderError.timedOut }
+                            // Bound each read so a continuously busy pipe cannot starve its peer
+                            // or the deadline. poll also waits when both EOFs precede child exit.
+                            // ponytail: one worker per CLI; use event sources if fan-out grows.
+                            let ready = poll(&readers, nfds_t(readers.count), 10)
+                            if ready == -1 {
+                                if errno == EINTR { continue }
+                                try check(errno)
+                            }
+                            for index in readers.indices where readers[index].fd >= 0 && readers[index].revents != 0 {
+                                let count = Darwin.read(readers[index].fd, &buffer, buffer.count)
+                                if count > 0 { output[index].append(contentsOf: buffer.prefix(count)) }
+                                else if count == 0 { readers[index].fd = -1 }
+                                else if errno != EINTR && errno != EAGAIN { try check(errno) }
+                            }
+                        }
+                    } catch {
+                        try reap(WNOHANG)
+                        if unreaped {
+                            // No TERM grace/timer is needed for this read-only request. SIGKILL
+                            // also handles TERM-ignoring children; never signal a group or a reaped PID.
+                            if Darwin.kill(pid, SIGKILL) == -1 && errno != ESRCH { try check(errno) }
+                            try reap(0)
+                        }
+                        throw error
+                    }
+                })
             }
         }
     }

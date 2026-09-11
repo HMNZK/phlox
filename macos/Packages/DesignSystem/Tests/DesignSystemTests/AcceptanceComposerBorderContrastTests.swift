@@ -122,6 +122,26 @@ struct AcceptanceComposerBorderContrastTests {
         }
     }
 
+    @Test("ライト系4テーマの枠色はテーマの textPrimary 由来の半透明で、固定色や不透明色ではない") @MainActor
+    func borderFollowsThemeTextPrimaryWithPartialAlpha() throws {
+        // 固定 Color.black や不透明 100% でも 3:1 は満たせてしまうため、テーマ追随を直接検査する。
+        // 期待: RGB 成分が theme.textPrimary と一致（許容 ±1/255）、alpha は 0 < a < 1。
+        // 上限: パネル面とのコントラスト比 12 以下（純黒級の強い枠を排除。調査 §3 の候補値 0.82〜0.95 は 3.0〜7 程度）。
+        for theme in Self.lightThemes {
+            try withStandardTheme(theme.id) {
+                let s = try sample(DSColor.composerBorder)
+                let tp = theme.textPrimary
+                #expect(abs(s.r * 255 - Double(tp.r)) <= 1.0, "\(theme.name): 枠色 R が textPrimary と一致しない")
+                #expect(abs(s.g * 255 - Double(tp.g)) <= 1.0, "\(theme.name): 枠色 G が textPrimary と一致しない")
+                #expect(abs(s.b * 255 - Double(tp.b)) <= 1.0, "\(theme.name): 枠色 B が textPrimary と一致しない")
+                #expect(s.a > 0.0 && s.a < 1.0, "\(theme.name): 枠色は半透明であること（alpha=\(s.a)）")
+                let panelFace = overlaidWithWhite(theme.background, alpha: 0.04)
+                let ratio = contrastRatio(composited(s, over: panelFace), panelFace)
+                #expect(ratio <= 12.0, "\(theme.name): 枠が強すぎる（比 \(ratio)、12 以下）")
+            }
+        }
+    }
+
     @Test("ダーク系6テーマは既存の white 6% 固定値のまま変化しない") @MainActor
     func borderUnchangedForDarkThemes() throws {
         for theme in Self.darkThemes {

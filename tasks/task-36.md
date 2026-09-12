@@ -5,7 +5,7 @@ depends_on: [task-35]
 user_visible: true
 acceptance_tests:
   - macos/Packages/AgentConfigKit/Tests/AgentConfigKitTests/Acceptance/AcceptanceAgentConsoleNavigationModelTests.swift
-baseline_commit: 094f86a
+baseline_commit: a704d51
 contract_tests: []
 allowed_paths:
   - macos/Packages/AgentConfigKit/Sources/AgentConfigKit/Shared/AgentConsoleNavigationModel.swift

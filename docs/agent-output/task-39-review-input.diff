@@ -1,0 +1,123 @@
+diff --git a/macos/Packages/TerminalUI/Sources/TerminalUI/TerminalView.swift b/macos/Packages/TerminalUI/Sources/TerminalUI/TerminalView.swift
+index a1c4aff..336b2ab 100644
+--- a/macos/Packages/TerminalUI/Sources/TerminalUI/TerminalView.swift
++++ b/macos/Packages/TerminalUI/Sources/TerminalUI/TerminalView.swift
+@@ -10,22 +10,26 @@ public struct TerminalView: NSViewRepresentable {
+         self.coordinator = coordinator
+     }
+ 
++    /// mount 寿命で同じ Coordinator を返す。struct 再評価のたびに所有者を新規発行しない。
++    public func makeCoordinator() -> TerminalCoordinator {
++        coordinator
++    }
++
+     public func makeNSView(context: Context) -> NSView {
+         // SwiftUI が安全に所有・破棄できる軽量コンテナを毎回新規に作る。
+         // 永続化された terminal 本体 (coordinator.hostingView) は updateNSView で
+         // このコンテナへ reparent する。グリッドタイルと単体表示のように同じ
+-        // hostingView を複数のマウント先で共有しても、現在表示中のコンテナへ確実に
+-        // 張り替えられるため、モード切替後に片方が空白になる問題を防ぐ。
++        // hostingView を複数のマウント先で共有しても、最後に有効な接続を要求した
++        // コンテナだけが所有し、旧 mount の後着 update では奪い返されない。
+         let container = NSView()
+         container.translatesAutoresizingMaskIntoConstraints = false
+         return container
+     }
+ 
+     public func updateNSView(_ nsView: NSView, context: Context) {
+-        // hostingView は coordinator が寿命を通じて1個だけ保持する。表示先の
+-        // コンテナが変わった（モード切替・セッション切替）ときだけ、現在のコンテナへ
+-        // 載せ替える。NSView は1つの superview にしか属せないため、まず旧 superview から
+-        // 外してから addSubview し、コンテナ全面に追従する制約を張り直す。
++        // hostingView は coordinator が寿命を通じて1個だけ保持する。
++        // 最後に有効な接続を要求したコンテナだけが所有する。window == nil や
++        // frame 0 では拒否しない（新しい単一コンテナも接続時点でこの状態になる）。
+         guard TerminalMount.attach(coordinator.hostingView, to: nsView) else { return }
+         // reparent 直後はコンテナのレイアウトが未確定なので、次の runloop で最下部へ戻す。
+         // updateNSView 中に同期的なスクロール副作用を起こさない（ADR 0010）。
+@@ -33,18 +37,62 @@ public struct TerminalView: NSViewRepresentable {
+             coordinator?.scrollToBottom()
+         }
+     }
++
++    public static func dismantleNSView(_ nsView: NSView, coordinator: TerminalCoordinator) {
++        _ = TerminalMount.detach(coordinator.hostingView, from: nsView)
++    }
+ }
+ 
+-/// terminal を container へ載せ替える。実際に載せ替えたときだけ true を返すため、
+-/// SwiftUI の Context に依存せず「開いたときだけ最下部へ寄せる」判定を検証できる。
++/// terminal を container へ載せ替える。所有権は最後に有効な接続を要求した
++/// container に固定し、失効した旧 mount の後着 update では載せ替えない。
++/// 実際に載せ替えたときだけ true を返すため、SwiftUI の Context に依存せず
++/// 「開いたときだけ最下部へ寄せる」判定を検証できる。
+ @MainActor
+ enum TerminalMount {
++    /// 端末ごとの所有権。キーは terminal（hostingView）の弱参照なので、
++    /// 破棄済みビューをプロセス寿命で積み上げない。
++    private static let records = NSMapTable<NSView, Record>.weakToStrongObjects()
++
++    private final class Record: NSObject {
++        weak var owner: NSView?
++        let formerOwners = NSHashTable<NSView>.weakObjects()
++    }
++
++    private static func record(for terminal: NSView) -> Record {
++        if let existing = records.object(forKey: terminal) {
++            return existing
++        }
++        let created = Record()
++        records.setObject(created, forKey: terminal)
++        return created
++    }
++
+     static func attach(_ terminal: NSView, to container: NSView) -> Bool {
+-        // 単体表示はコンテナを再利用したまま coordinator だけ差し替えるため、直前の terminal を除去する。
++        let rec = record(for: terminal)
++        if rec.owner == nil {
++            rec.formerOwners.removeAllObjects()
++        }
++        // 所有権確認を subview の除去・追加・制約変更より先に行う。
++        // 拒否する要求が別端末を container から除去してはならない。
++        if rec.owner === container {
++            return false
++        }
++        if rec.owner != nil && rec.formerOwners.contains(container) {
++            return false
++        }
++
++        // 単体表示はコンテナを再利用したまま coordinator だけ差し替えるため、直前の terminal を解放する。
+         for subview in container.subviews where subview !== terminal {
++            if let other = records.object(forKey: subview), other.owner === container {
++                other.owner = nil
++                other.formerOwners.removeAllObjects()
++            }
+             subview.removeFromSuperview()
+         }
+-        guard terminal.superview !== container else { return false }
++
++        if let previous = rec.owner, previous !== container {
++            rec.formerOwners.add(previous)
++        }
+ 
+         terminal.removeFromSuperview()
+         container.addSubview(terminal)
+@@ -54,6 +102,18 @@ enum TerminalMount {
+             terminal.topAnchor.constraint(equalTo: container.topAnchor),
+             terminal.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+         ])
++        rec.owner = container
++        return true
++    }
++
++    static func detach(_ terminal: NSView, from container: NSView) -> Bool {
++        let rec = record(for: terminal)
++        guard rec.owner === container else {
++            return false
++        }
++        terminal.removeFromSuperview()
++        rec.owner = nil
++        rec.formerOwners.removeAllObjects()
+         return true
+     }
+ }

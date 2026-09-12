@@ -326,3 +326,11 @@ PM 判断:
 - **[指摘4]** rb: `TerminalMount.attach` の呼び出しは TerminalView.swift 内のどの関数からでも許容するが、**すべての `scrollToBottom` 予約が attach 成功（戻り値 true）に条件付けられている**ことを検査する（guard の前の無条件予約は NG）。
 - **[指摘5]** rb: 通常検査と `--selftest` は同じ判定関数を使う。追加ログ検査はコメント・文字列を除去したうえで `print`／`os_log`／`Logger` の**呼び出し数**を baseline と比較する（同一行への追加も検出）。
 - **[指摘6]** 凍結時に PM が frontmatter `baseline_commit` を実 SHA に置換する。rb は契約の `baseline_commit` を読み、欠落・プレースホルダ・不正値・環境変数との不一致をすべて NG にする。
+
+## 契約改訂 2（2026-09-13、独立レビュー `docs/agent-output/review-task-39.json` 指摘1 の反映・PM 裁定）
+
+- **欠陥の所在**: 契約は「破棄時に現在その mount が扱う端末を解放」を求めるが、凍結テストは `dismantleNSView(container, coordinator: Y)` と現在の端末を手渡ししており、SwiftUI が破棄時に渡すのは `makeCoordinator()` 時点のオブジェクトである、という実ライフサイクルを表現していなかった（ハーネスの前提欠陥）。実装は `makeCoordinator()` でセッションの `TerminalCoordinator` を返したため、同一 mount で X→Y に差し替えた後の破棄が Y を解放できない（実装の欠陥）。両方を直す。
+- **公開面の追加**: mount ごとの状態を持つ `final class TerminalMountCoordinator`（`@MainActor`、TerminalUI 内、`@testable` で可視）を新設する。`var current: TerminalCoordinator`（init で初期 coordinator）、`var hostingView: NSView { current.hostingView }`。`TerminalView.makeCoordinator() -> TerminalMountCoordinator` は毎 mount 1 個を生成し、`updateNSView` は attach の前に `context.coordinator.current = coordinator` で現在端末を更新する。`dismantleNSView(_:coordinator: TerminalMountCoordinator)` は `TerminalMount.detach(coordinator.hostingView, from: nsView)` で**現在の**端末を解放する。
+- **凍結テストの改訂**（PM 側）: 実破棄経路の 2 ケースを `let mount = TerminalView(coordinator: x).makeCoordinator()` から始め、(a) `TerminalMount.attach(x.hostingView, to: c)` → `mount.current = y`（updateNSView 相当）→ `TerminalMount.attach(y.hostingView, to: c)` → `TerminalView.dismantleNSView(c, coordinator: mount)` で `y.hostingView.superview == nil`・`c.subviews.isEmpty`・その後 `y` が旧タイル（別コンテナ）へ attach できる（レビュアー提示の再現テストを採用）。(b) A→B 後に A の mount を破棄しても B の所有権が残る。既存 8 ケースと 2 端末ケースは不変。
+- **rb の改訂**（PM 側）: `makeCoordinator` の戻り型が `TerminalMountCoordinator` であり、`updateNSView` で `context.coordinator.current = coordinator` が attach より前に到達可能であること、`dismantleNSView` の引数型が `TerminalMountCoordinator` で `coordinator.hostingView` を detach していることを検査。whitebox の `guard TerminalMount.attach(coordinator.hostingView, to: nsView) else { return }` は維持。
+- 差し戻しは 1 回目（実装の欠陥＝dismantle が現在端末を解放しない）。再凍結後に `drive.sh rework` する。

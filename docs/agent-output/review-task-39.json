@@ -1,0 +1,105 @@
+{
+  "reviewer": "codex-gpt-6-astra",
+  "dimensions_swept": [
+    {
+      "dimension": "契約適合",
+      "result": "finding",
+      "note": "契約改訂の「差し替え後の Y を破棄時に解放」に違反する。指摘1参照。"
+    },
+    {
+      "dimension": "正しさ",
+      "result": "finding",
+      "note": "attach/detach の所有者照合は成立するが、SwiftUI の破棄経路が古い coordinator を使う。指摘1参照。"
+    },
+    {
+      "dimension": "誠実性",
+      "result": "ok",
+      "note": "対象差分に失敗の握りつぶし、テスト弱体化、調査コードを検出せず。禁止された実装役レポートは未読。"
+    },
+    {
+      "dimension": "根本原因",
+      "result": "finding",
+      "note": "記録された後着 update は遮断するが、coordinator 差し替え後の所有権解放が未成立。指摘1参照。"
+    },
+    {
+      "dimension": "構造",
+      "result": "ok",
+      "note": "所有権判定は TerminalMount に集約され、上位層への依存追加や迂回する載せ替え経路はない。"
+    },
+    {
+      "dimension": "到達性",
+      "result": "finding",
+      "note": "単一・グリッド双方が同じ attach を通る。差し替え後の現端末を detach する破棄経路には欠陥がある。指摘1参照。"
+    },
+    {
+      "dimension": "非機能",
+      "result": "ok",
+      "note": "records は MainActor 内で同期操作される。キー・owner・formerOwners は弱参照で、端末やコンテナを台帳から恒久保持しない。Foundation の弱参照エントリ回収は即時とは限らないが、破棄済みアドレスを生存所有者として保存する方式ではない。"
+    },
+    {
+      "dimension": "テストの質",
+      "result": "finding",
+      "note": "固定期待値による所有権テストは有効。ただし破棄テストが SwiftUI では渡らない差し替え後の Y を手渡しし、指摘1を見逃す。配線検査も同じ前提を固定している。"
+    },
+    {
+      "dimension": "Rubric：因果への適合",
+      "result": "ok",
+      "note": "B の takeover 時に旧所有者 A を formerOwners に登録するため、実行時ログのグリッド残骸 A の後着 update を拒否する。再描画強制・待ち時間・端末再生成による隠蔽はない。"
+    },
+    {
+      "dimension": "Rubric：所有権の対称性",
+      "result": "finding",
+      "note": "直接 API では旧 A の detach は B に無害で、B の解放後は A/C を接続できる。ただし実破棄で B の現端末を解放できない場合がある。指摘1参照。"
+    },
+    {
+      "dimension": "Rubric：製品への到達性",
+      "result": "finding",
+      "note": "SessionView と PaneLayoutView の PTY 分岐から TerminalView.updateNSView に到達する。dismantle の引数と現在の表示端末が一致しない。指摘1参照。"
+    },
+    {
+      "dimension": "Rubric：再利用と寿命",
+      "result": "finding",
+      "note": "新規生成されたタイルは takeover 可能。同一タイルの再利用は現 owner の detach または解放後に可能で、owner=nil 時には履歴を消す。弱参照のゼロ化によりアドレス再利用による旧所有者との混同は避ける。ただし指摘1では解放が漏れ、生存する旧タイルの再接続を拒否し続ける。"
+    },
+    {
+      "dimension": "Rubric：副作用の順序",
+      "result": "ok",
+      "note": "拒否判定は別 subview の除去より先。同一 owner の更新は制約を変更せず、scrollToBottom の予約も attach 成功時だけ。"
+    },
+    {
+      "dimension": "Rubric：既存挙動の保持",
+      "result": "ok",
+      "note": "PTY・feed・バッファ・サイズ通知・非同期 refresh の経路は変更されていない。ADR-0010 の観測状態変更回避と非同期スクロール、ADR-0116 の幅保持・通知処理、タイル配置を静的確認した。"
+    },
+    {
+      "dimension": "Rubric：検査の効力",
+      "result": "finding",
+      "note": "c8a2010 に対してテストと rb は無変更。固定 baseline の検証と負例の自己検査は存在するが、現在の端末を coordinator.hostingView と同一視する検査が指摘1を通してしまう。"
+    },
+    {
+      "dimension": "Rubric：完了の証拠",
+      "result": "unverified",
+      "note": "独立したテスト・ビルド成功は呼び出し元から供給済み。自身の実走は環境で阻止された。PM の A/B/C・PNG 確認は並行実施中として扱い、その未了は差し戻し理由にしていない。"
+    },
+    {
+      "dimension": "Rubric：スコープ",
+      "result": "ok",
+      "note": "0b2f61e..2e27c8b は TerminalView.swift のみ。現在の同ファイルも対象コミットと一致し、作業ツリーはクリーン。"
+    }
+  ],
+  "verdict": "needs_changes",
+  "tests_run": [],
+  "findings": [
+    {
+      "severity": "HIGH",
+      "file": "macos/Packages/TerminalUI/Sources/TerminalUI/TerminalView.swift",
+      "line": 42,
+      "summary": "指摘1：同一 mount で coordinator を X→Y に差し替えると、dismantle が初期 X を使うため現在の Y の接続と所有権を解放できない。",
+      "evidence": "14–15行の makeCoordinator は初期 X を返す。33行の updateNSView は再評価後の self.coordinator（Y）を attach するが、42行は `_ = TerminalMount.detach(coordinator.hostingView, from: nsView)` と、SwiftUI が保持した初期 X を detach する。X の owner は Y の attach 時に nil へ変更済みなので、この detach は false となり Y が残る。コンテナがまだ生存していれば Y の formerOwners も失効せず、旧タイルの再接続を拒否する。これは tasks/task-39.md:324 の契約に反する。受け入れテスト250行は `TerminalView.dismantleNSView(container, coordinator: terminalY)` と Y を手渡ししており実ライフサイクルを再現していない。.claude/scripts/task39-wiring.rb:754 も `coordinator.hostingView` という引数を現端末の証拠としている。現在の端末を mount から解決する破棄処理と、PM による凍結ハーネスの前提修正が必要。",
+      "repro_test": "import AppKit\nimport Testing\n@testable import TerminalUI\n\n@Test @MainActor\nfunc dismantleAfterSwapUsesCurrentTerminal() {\n    let x = TerminalCoordinator()\n    let y = TerminalCoordinator()\n    let container = NSView()\n    let oldTile = NSView()\n    let initialCoordinator = TerminalView(coordinator: x).makeCoordinator()\n\n    #expect(TerminalMount.attach(x.hostingView, to: container))\n    #expect(TerminalMount.attach(y.hostingView, to: oldTile))\n    #expect(TerminalMount.attach(y.hostingView, to: container))\n\n    // SwiftUI の破棄引数は makeCoordinator 時点の X。\n    withExtendedLifetime(container) {\n        TerminalView.dismantleNSView(container, coordinator: initialCoordinator)\n        #expect(y.hostingView.superview == nil)\n        #expect(container.subviews.isEmpty)\n        #expect(TerminalMount.attach(y.hostingView, to: oldTile))\n        #expect(y.hostingView.superview === oldTile)\n    }\n}",
+      "confidence": "verified"
+    }
+  ],
+  "integrity_check": "対象差分で握りつぶし・偽装・テスト弱体化は検出せず。自身のテスト実走は未検証。試行したコマンドは `/Users/ryosuke/.agents/scripts/compact-test task39-terminalui bash macos/scripts/run-swift-tests.sh TerminalUI`、`TASK39_BASELINE=c8a2010 /Users/ryosuke/.agents/scripts/compact-test task39-wiring ruby .claude/scripts/task39-wiring.rb`、`/Users/ryosuke/.agents/scripts/compact-test task39-wiring-selftest ruby .claude/scripts/task39-wiring.rb --selftest`。いずれも exit 1。最初の失敗原文は `mktemp: mkstemp failed on /tmp/tmp.r1t5Eh2GLy: Operation not permitted`、続いて `/Users/ryosuke/.agents/scripts/compact-test: line 26: : No such file or directory`、`cat: : No such file or directory`。他2本も一時パス以外は同じ失敗。ラッパーのログ作成段階で停止しており、製品コードやテスト本体の失敗ではない。回避策は実施していない。呼び出し元が独立したテスト・配線検査・ビルドの客観層を供給しているため環境例外を適用する。なお現ファイルには @Test が13件あり、供給された「10ケース」を自分による13件の実走成功とは読み替えない。PM 目視ゲートは未検証のまま区別した。",
+  "root_cause_assessment": "ログの A→B→後着A に対しては根本原因に到達している。B 接続時に生存する旧グリッド A を formerOwners に追加し、後着 A を subview 操作前に拒否する。静的変異として formerOwners の拒否分岐または旧 owner の登録を削除すると staleOwnerACannotStealFromB の false/B 期待が破れる。detach の owner 照合を削除すると旧 A の解放が B を外すテストが破れ、拒否判定を別 subview 除去後へ移すと2端末保持テストが破れる。一方、実装には mount の現在端末と初期 coordinator の不一致が残る。既存の破棄テストは Y を手渡しするためこれを検出できず、提示した再現テストでは現在コードが Y の解放と旧タイル再接続の期待に反する。これらは静的評価であり、変異・再現テストを実走したという主張ではない。"
+}

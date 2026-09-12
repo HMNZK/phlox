@@ -120,6 +120,19 @@ def extract_func_body(src, name)
   extract_balanced(src, brace, "{", "}")
 end
 
+def extract_func_header_parts(src, name)
+  m = src.match(/(?:^|\n)[ \t]*(?:@\w+(?:\([^)]*\))?[ \t]*)*(?:(?:private|public|fileprivate|internal|open|override|final|static|nonisolated)\s+)*func\s+#{Regexp.escape(name)}\s*\(/)
+  return nil unless m
+  paren = src.index("(", m.begin(0))
+  return nil unless paren
+  params = extract_balanced(src, paren, "(", ")")
+  return nil if params.nil?
+  after = paren + 1 + params.length + 1
+  brace = src.index("{", after)
+  return { params: params, return_clause: nil } unless brace
+  { params: params, return_clause: src[after...brace] }
+end
+
 def extract_var_body(src, name)
   m = src.match(/(?:^|\n)[ \t]*(?:@[A-Za-z_][\w.]*[ \t]*)*(?:private\s+|public\s+|fileprivate\s+|internal\s+)?(?:static\s+)?var\s+#{Regexp.escape(name)}\b/)
   return nil unless m
@@ -284,11 +297,11 @@ def scroll_reservation_errors(src)
 end
 
 def baseline_tv_has_detach?(src)
+  # 契約改訂 2 以降: 「実装前」の判定は新公開面 TerminalMountCoordinator の不在で行う
+  # （改訂 1 の attach/detach 実装は 2e27c8b で既にコミット済みのため）。
   return false if src.nil?
-  mount = extract_enum_body(src, "TerminalMount")
-  return false unless mount
-  masked = mask_strings_and_comments(mount)
-  masked.match?(/static\s+func\s+detach\s*\(/) && mount.include?("-> Bool")
+  masked = mask_strings_and_comments(src)
+  masked.match?(/TerminalMountCoordinator/)
 end
 
 CONTRACT_BASELINE_PLACEHOLDER_RE = /PM|凍結|設定|TBD|TODO|FIXME|placeholder|未設定/i
@@ -351,7 +364,7 @@ def check_frozen_baseline(baseline)
   if tv_blob.nil?
     ng << "基準時点の TerminalView.swift を git show できない（git show #{full}:#{PATHS[:terminal_view]}）"
   elsif baseline_tv_has_detach?(tv_blob)
-    ng << "基準時点の TerminalView.swift に TerminalMount.detach がある（実装前の凍結ではない）"
+    ng << "基準時点の TerminalView.swift に TerminalMountCoordinator がある（改訂 2 実装前の凍結ではない）"
   end
   test_blob = git_show(full, ACCEPTANCE_TEST_PATH)
   rb_blob = git_show(full, WIRING_RB_PATH)
@@ -760,6 +773,39 @@ def check_dismantle_reaches_detach(src)
   ng
 end
 
+CURRENT_ASSIGNMENT = "context.coordinator.current=coordinator"
+
+def check_mount_coordinator(src)
+  ng = []
+  return ["TerminalView.swift が存在しない"] if src.nil?
+  header = extract_func_header_parts(src, "makeCoordinator")
+  ret = header && header[:return_clause]
+  unless ret && compact(ret).include?("->TerminalMountCoordinator")
+    ng << "makeCoordinator の戻り型が TerminalMountCoordinator ではない"
+  end
+  update = extract_func_body(src, "updateNSView")
+  if update.nil?
+    ng << "updateNSView の本文を括弧対応で切り出せない"
+  else
+    reachable = compact(reachable_code(update))
+    unless reachable.include?(CURRENT_ASSIGNMENT)
+      ng << "updateNSView で context.coordinator.current = coordinator が到達可能ではない"
+    else
+      assign_idx = reachable.index(CURRENT_ASSIGNMENT)
+      attach_idx = reachable.index("TerminalMount.attach")
+      if attach_idx && assign_idx > attach_idx
+        ng << "updateNSView の current 更新が attach より前に到達可能ではない"
+      end
+    end
+  end
+  dheader = extract_func_header_parts(src, "dismantleNSView")
+  dparams = dheader && dheader[:params]
+  unless dparams && compact(dparams).include?("coordinator:TerminalMountCoordinator")
+    ng << "dismantleNSView の引数型が TerminalMountCoordinator ではない"
+  end
+  ng
+end
+
 def check_investigation(files)
   ng = []
   files.each do |path, src|
@@ -914,13 +960,17 @@ end
 
 def good_terminal_view_src
   <<~SWIFT
+    public func makeCoordinator() -> TerminalMountCoordinator {
+      TerminalMountCoordinator(current: coordinator)
+    }
     public func updateNSView(_ nsView: NSView, context: Context) {
+      context.coordinator.current = coordinator
       guard TerminalMount.attach(coordinator.hostingView, to: nsView) else { return }
       DispatchQueue.main.async { [weak coordinator] in
         coordinator?.scrollToBottom()
       }
     }
-    static func dismantleNSView(_ nsView: NSView, coordinator: TerminalCoordinator) {
+    static func dismantleNSView(_ nsView: NSView, coordinator: TerminalMountCoordinator) {
       _ = TerminalMount.detach(coordinator.hostingView, from: nsView)
     }
     enum TerminalMount {
@@ -981,9 +1031,14 @@ def run_selftest
   tv = good_terminal_view_src
   selftest_assert check_terminal_mount(tv).empty?, "正例: 所有権付き TerminalView は合格 (#{check_terminal_mount(tv).inspect})"
   selftest_assert check_dismantle_reaches_detach(tv).empty?, "正例: dismantle から detach に到達"
+  selftest_assert check_mount_coordinator(tv).empty?, "正例: makeCoordinator / current 更新 / dismantle 引数型 (#{check_mount_coordinator(tv).inspect})"
 
   helper_tv = <<~SWIFT
+    public func makeCoordinator() -> TerminalMountCoordinator {
+      TerminalMountCoordinator(current: coordinator)
+    }
     public func updateNSView(_ nsView: NSView, context: Context) {
+      context.coordinator.current = coordinator
       attachCurrent(to: nsView)
     }
     private func attachCurrent(to nsView: NSView) {
@@ -992,7 +1047,7 @@ def run_selftest
         coordinator?.scrollToBottom()
       }
     }
-    static func dismantleNSView(_ nsView: NSView, coordinator: TerminalCoordinator) {
+    static func dismantleNSView(_ nsView: NSView, coordinator: TerminalMountCoordinator) {
       _ = TerminalMount.detach(coordinator.hostingView, from: nsView)
     }
     enum TerminalMount {
@@ -1002,6 +1057,7 @@ def run_selftest
   SWIFT
   selftest_assert check_terminal_mount(helper_tv).empty?, "正例: attach が TerminalView 内の helper にあっても合格 (#{check_terminal_mount(helper_tv).inspect})"
   selftest_assert check_dismantle_reaches_detach(helper_tv).empty?, "正例: helper 構成でも dismantle から detach に到達"
+  selftest_assert check_mount_coordinator(helper_tv).empty?, "正例: helper 構成でも makeCoordinator / current 更新"
 
   no_single = good_detail_src.sub("case .single:", "case .gone:")
   selftest_assert check_detail_branches(no_single).any? { |m| m.include?("single") }, "負例: single 分岐の削除"
@@ -1038,7 +1094,8 @@ def run_selftest
   discarded = tv.sub("guard TerminalMount.attach(coordinator.hostingView, to: nsView) else { return }", "_ = TerminalMount.attach(coordinator.hostingView, to: nsView)")
   selftest_assert check_terminal_mount(discarded).any? { |m| m.include?("戻り値") || m.include?("スクロール") }, "負例: 戻り値を捨てたスクロール"
 
-  no_dismantle = tv.sub("static func dismantleNSView(_ nsView: NSView, coordinator: TerminalCoordinator) {", "static func otherTeardown(_ nsView: NSView, coordinator: TerminalCoordinator) {")
+  renamed_dismantle = "static func otherTeardown(_ nsView: NSView, coordinator: TerminalMountCoordinator) {"
+  no_dismantle = tv.sub("static func dismantleNSView(_ nsView: NSView, coordinator: TerminalMountCoordinator) {", renamed_dismantle)
                    .sub("TerminalMount.detach(coordinator.hostingView, from: nsView)", "nsView.removeFromSuperview()")
   selftest_assert check_dismantle_reaches_detach(no_dismantle).any? { |m| m.include?("detach") }, "負例: detach の未接続"
 
@@ -1050,6 +1107,21 @@ def run_selftest
 
   wrong_detach_arg = tv.sub("coordinator.hostingView, from: nsView", "oldTerminal, from: nsView")
   selftest_assert check_dismantle_reaches_detach(wrong_detach_arg).any? { |m| m.include?("coordinator.hostingView") }, "負例: detach 引数が現在の端末ではない"
+
+  old_make = tv.sub(
+    "public func makeCoordinator() -> TerminalMountCoordinator {",
+    "public func makeCoordinator() -> TerminalCoordinator {"
+  )
+  selftest_assert check_mount_coordinator(old_make).any? { |m| m.include?("makeCoordinator") && m.include?("TerminalMountCoordinator") }, "負例: makeCoordinator が TerminalCoordinator を返す（旧形）"
+
+  no_current = tv.sub("context.coordinator.current = coordinator\n", "")
+  selftest_assert check_mount_coordinator(no_current).any? { |m| m.include?("current") }, "負例: current 更新が無い"
+
+  initial_prop = tv.sub(
+    "TerminalMount.detach(coordinator.hostingView, from: nsView)",
+    "TerminalMount.detach(coordinator.initial.hostingView, from: nsView)"
+  )
+  selftest_assert check_dismantle_reaches_detach(initial_prop).any? { |m| m.include?("coordinator.hostingView") }, "負例: dismantle が初期 coordinator の別プロパティを使う"
 
   uncond_scroll = tv.sub(
     "guard TerminalMount.attach(coordinator.hostingView, to: nsView) else { return }",
@@ -1198,9 +1270,9 @@ def run_selftest
   else
     frozen_tv = git_show(baseline_sha_for_tv, PATHS[:terminal_view])
     selftest_assert !frozen_tv.nil?, "正例: 凍結基準の TerminalView.swift を git show できる"
-    selftest_assert !baseline_tv_has_detach?(frozen_tv), "正例: 現行 TerminalView 基準は detach 無し"
+    selftest_assert !baseline_tv_has_detach?(frozen_tv), "正例: 凍結基準の TerminalView に TerminalMountCoordinator 無し"
   end
-  selftest_assert baseline_tv_has_detach?(tv), "負例: 基準時点に detach がある"
+  selftest_assert baseline_tv_has_detach?(tv), "負例: 基準時点に TerminalMountCoordinator がある"
 
   selftest_assert parse_contract_baseline_text("---\nfoo: 1\n") == :missing, "負例: 契約 baseline_commit 欠落"
   selftest_assert parse_contract_baseline_text("---\nbaseline_commit: \"PM が凍結時に設定\"\n") == :placeholder, "負例: 契約 baseline_commit プレースホルダ"
@@ -1263,6 +1335,7 @@ ng.concat(check_size_drawing(sources[:hosting], sources[:coordinator]))
 ng.concat(check_whitebox(sources[:whitebox]))
 ng.concat(check_terminal_mount(sources[:terminal_view]))
 ng.concat(check_dismantle_reaches_detach(sources[:terminal_view]))
+ng.concat(check_mount_coordinator(sources[:terminal_view]))
 
 current_product = worktree_product_files
 ng.concat(check_investigation_walk)

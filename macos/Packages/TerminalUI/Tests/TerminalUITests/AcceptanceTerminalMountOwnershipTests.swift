@@ -229,43 +229,52 @@ struct AcceptanceTerminalMountOwnershipTests {
         #expect(coordinator.hostingView.superview === containerB)
     }
 
-    // MARK: - 契約改訂（敵対レビュー指摘 2・3）
+    // MARK: - 契約改訂 2（独立レビュー指摘1）
 
-    /// 実破棄経路。現行 `TerminalView.swift` に `dismantleNSView` は無く、
-    /// `NSViewRepresentable` 既定は `Coordinator == Void`。凍結 API は
-    /// `makeCoordinator() -> TerminalCoordinator` を前提に、現在その mount が扱う
-    /// `TerminalCoordinator` を渡して `dismantleNSView(_:coordinator:)` を直接呼ぶ。
+    /// 実破棄経路。SwiftUI が破棄時に渡すのは `makeCoordinator()` 時点のオブジェクト。
+    /// mount 状態は `TerminalMountCoordinator` が保持し、`updateNSView` 相当で
+    /// `mount.current` を差し替えたあと、その mount を `dismantleNSView` に渡す。
     @Test("coordinator を X→Y に差し替えた mount の破棄で Y が解放され X は影響しない")
     func dismantleAfterCoordinatorSwapReleasesYNotX() {
-        let terminalX = makeCoordinator()
-        let terminalY = makeCoordinator()
-        let container = makeContainer()
-        #expect(container.window == nil)
+        let x = makeCoordinator()
+        let y = makeCoordinator()
+        let c = makeContainer()
+        let oldTile = makeContainer()
+        let mount: TerminalMountCoordinator = TerminalView(coordinator: x).makeCoordinator()
+        #expect(c.window == nil)
 
-        #expect(TerminalMount.attach(terminalX.hostingView, to: container) == true)
-        #expect(TerminalMount.attach(terminalY.hostingView, to: container) == true)
-        #expect(terminalY.hostingView.superview === container)
-        #expect(terminalX.hostingView.superview == nil)
+        #expect(TerminalMount.attach(x.hostingView, to: c) == true)
+        #expect(TerminalMount.attach(y.hostingView, to: oldTile) == true)
+        mount.current = y
+        #expect(TerminalMount.attach(y.hostingView, to: c) == true)
+        #expect(y.hostingView.superview === c)
+        #expect(x.hostingView.superview == nil)
 
-        TerminalView.dismantleNSView(container, coordinator: terminalY)
-
-        #expect(terminalY.hostingView.superview == nil)
-        #expect(terminalX.hostingView.superview == nil)
+        withExtendedLifetime(c) {
+            TerminalView.dismantleNSView(c, coordinator: mount)
+            #expect(y.hostingView.superview == nil)
+            #expect(x.hostingView.superview == nil)
+            #expect(c.subviews.isEmpty)
+            #expect(TerminalMount.attach(y.hostingView, to: oldTile) == true)
+            #expect(y.hostingView.superview === oldTile)
+        }
     }
 
     @Test("A→B の後に A を破棄しても hostingView.superview は B のまま")
     func dismantleStaleADoesNotReleaseB() {
-        let coordinator = makeCoordinator()
+        let x = makeCoordinator()
         let containerA = makeContainer()
         let containerB = makeContainer()
-        #expect(TerminalMount.attach(coordinator.hostingView, to: containerA) == true)
-        #expect(TerminalMount.attach(coordinator.hostingView, to: containerB) == true)
-        #expect(coordinator.hostingView.superview === containerB)
+        let mountA: TerminalMountCoordinator = TerminalView(coordinator: x).makeCoordinator()
 
-        TerminalView.dismantleNSView(containerA, coordinator: coordinator)
+        #expect(TerminalMount.attach(x.hostingView, to: containerA) == true)
+        #expect(TerminalMount.attach(x.hostingView, to: containerB) == true)
+        #expect(x.hostingView.superview === containerB)
 
-        #expect(coordinator.hostingView.superview === containerB)
-        #expect(containerB.subviews.first === coordinator.hostingView)
+        TerminalView.dismantleNSView(containerA, coordinator: mountA)
+
+        #expect(x.hostingView.superview === containerB)
+        #expect(containerB.subviews.first === x.hostingView)
         #expect(containerA.subviews.isEmpty)
     }
 

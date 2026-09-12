@@ -91,7 +91,10 @@ struct AcceptanceTeamViewLogicalLinesTests {
         let (c, cols) = makeCoordinator()
         let rows = c.terminalView.getTerminal().rows
         for i in 0..<(rows + 5) { c.feed(Data("line\(i)\r\n".utf8)) } // yBase > 0 にする
-        c.feed(Data("\u{1b}[2;1H".utf8)) // 2 行目・1 列目へ
+        // 2 行目・1 列目へ移動し、そこから画面末尾まで消去する（残存セルが継続行へ混ざらないようにする。
+        // 2026-09-12 実装役の指摘: 消去しないと row2 の旧内容 "line8" の末尾 "8" が続き行に残り、
+        // それは端末仕様どおりの画面内容なので抽出層が消してはいけない）。
+        c.feed(Data("\u{1b}[2;1H\u{1b}[0J".utf8))
         let long = String(repeating: "Q", count: cols + 4)
         c.feed(Data(long.utf8))
         let terminal = c.terminalView.getTerminal()

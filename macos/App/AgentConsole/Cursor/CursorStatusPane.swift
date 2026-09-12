@@ -6,6 +6,14 @@ import DesignSystem
 /// いまの Cursor Agent の構成をまとめて見せる。
 struct CursorStatusPane: View {
     @Bindable var model: CursorConsoleModel
+    @State private var showsCLIDetails = false
+
+    private var summary: AgentConsoleStatusSummary {
+        AgentConsoleStatusSummary.make(
+            isAvailable: model.isAvailable,
+            configFileExists: model.status.configFileExists
+        )
+    }
 
     var body: some View {
         AgentConsolePane(
@@ -14,10 +22,35 @@ struct CursorStatusPane: View {
             toolbar: AnyView(toolbar)
         ) {
             VStack(alignment: .leading, spacing: DSSpacing.l) {
+                VStack(alignment: .leading, spacing: DSSpacing.m) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                        Text(summary.availabilityText)
+                            .font(DSFont.bodyMedium)
+                            .foregroundStyle(DSColor.textPrimary)
+                        Text(summary.availabilityDetail)
+                            .font(DSFont.caption)
+                            .foregroundStyle(DSColor.textTertiary)
+                    }
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                        Text(summary.configurationText)
+                            .font(DSFont.bodyMedium)
+                            .foregroundStyle(DSColor.textPrimary)
+                        if let configurationDetail = summary.configurationDetail {
+                            Text(configurationDetail)
+                                .font(DSFont.caption)
+                                .foregroundStyle(DSColor.textTertiary)
+                        }
+                    }
+                }
                 summaryTiles
-                AgentConsoleStatusSection(title: "CLI", systemImage: "terminal") {
+                DisclosureGroup(isExpanded: $showsCLIDetails) {
                     AgentConsoleStatusRow(label: "バージョン", value: model.status.cursorVersion ?? "—")
                     AgentConsoleStatusRow(label: "実行ファイル", mono: model.status.cursorExecutablePath)
+                } label: {
+                    Text(summary.cliDetailsTitle)
+                        .font(DSFont.captionStrong)
+                        .tracking(0.4)
+                        .foregroundStyle(DSColor.textTertiary)
                 }
                 AgentConsoleStatusSection(title: "設定", systemImage: "gearshape") {
                     AgentConsoleStatusRow(

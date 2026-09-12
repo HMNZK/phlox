@@ -4,82 +4,82 @@
     {
       "dimension": "契約適合",
       "result": "ok",
-      "note": "公開値型・文言・候補RGB・Layer・色帯の順序が契約に一致。指定diffは実装2ファイルのf616757..833a7a5と一致。"
+      "note": "提供diffは対象2ファイルのfef86e7..HEADと一致。公開型・文言・候補RGB・Layer・色帯順序・用途名の1行表示指定が契約に適合する。"
     },
     {
       "dimension": "正しさ",
       "result": "ok",
-      "note": "登録テーマのANSI16色という事前条件下で添字は有効。不透明背景→半透明面→枠・文字の順序を確認。"
+      "note": "候補背景→半透明面→枠・文字の順を実コードで確認。ANSI16色という事前条件内で添字は安全。既存RGBのグレー化結果と相対輝度>=0.5を使い、ADR-0042と整合する。"
     },
     {
       "dimension": "誠実性",
       "result": "ok",
-      "note": "対象差分にテスト弱体化や失敗の隠蔽なし。UI-06は未完了、task-35はdone_pending_review。禁止された実装開示レポートは未読。"
+      "note": "対象差分に握りつぶし・検証済みの虚偽主張を検出せず。凍結テストと配線検査はfef86e7から変更なし。指定された実装役レポートは未読。"
     },
     {
       "dimension": "根本原因",
       "result": "ok",
-      "note": "ターミナル色帯だけではアプリ外観を判断できない原因に対し、候補由来のアプリ見本と用途名を追加している。"
+      "note": "ターミナル色帯だけではアプリ外観が判断できない原因に、候補由来の別見本と用途名で対応。折り返しには用途名のlineLimit(1)・fixedSizeと見本列のlayoutPriorityを適用している。"
     },
     {
       "dimension": "構造",
       "result": "ok",
-      "note": "純粋モデルをDesignSystemに置き、描画はSettingsView内に限定。選択面の定数と輝度計算を再利用し、入力面・枠の対応は配線検査で固定。"
+      "note": "純粋値モデルをDesignSystemに置き、描画はSettingsView内に限定。既存のRGB計算と選択面の不透明度定数を再利用。入力面・枠の既存レシピとの一致は配線検査で固定される。"
     },
     {
       "dimension": "到達性",
       "result": "ok",
-      "note": "コード上の到達可能性を確認：Settings→Form→テーマ選択Button。設定幅520ptに対し、見本148pt＋色帯72pt＋間隔12pt＝232ptで、用途名・チェック込みでも収まると推定（確度：中、未実測）。他設定はFormのスクロール経由で保持。実画面はPMゲートで別途確認。"
+      "note": "コード上の到達可能性を確認：Settings→Form→ThemeStore.all→選択Buttonが維持される。設定幅520pt、見本148pt、色帯72pt、列間12pt。用途名・チェックを含む必要幅は通常フォントで約300pt以内と推定（確度：中）。Form内部の実配分・クリップは未測定。実画面はPMゲートで別途確認。"
     },
     {
       "dimension": "非機能",
       "result": "ok",
-      "note": "Buttonにテーマ名と選択traitを付与し、見本・矩形・チェックはAXから隠している。追加の入力・フォーカス対象なし。処理は登録10テーマの小さな値生成に限定。実際の読み上げは未検証。"
+      "note": "Buttonにテーマ名のAXラベルと選択traitを設定。見本・色帯・チェックはAX非表示で、入力操作や追加フォーカスを増やさない。候補10件の小規模な値生成に実害のある性能問題を検出せず。"
     },
     {
       "dimension": "テストの質",
       "result": "ok",
-      "note": "凍結テストは実装差分で未変更。RGB・不透明度の固定値、独立した明色テーマID集合、連続呼び出しを検査し、配線検査がモデルから描画への接続を補完する。変異の静的評価はroot_cause_assessmentに記載。"
+      "note": "7件の受け入れテストを静読。固定RGB・不透明度・色帯順序・明色テーマID・連続呼び出しを検査し、実装の計算式だけを写した比較ではない。配線検査と実画面確認の役割も分離されている。"
     },
     {
-      "dimension": "Rubric：用途名と内容の区別",
+      "dimension": "Rubric：用途名と内容による区別",
       "result": "ok",
-      "note": "SettingsView.swift:399と405で両用途名を表示。アプリは本文・現在の会話・入力欄、ターミナルは8色の色帯。"
+      "note": "SettingsView.swift:399,407で用途名を表示。アプリ見本は本文・現在の会話・入力欄、ターミナル見本は8色の色帯として区別される。"
     },
     {
-      "dimension": "Rubric：候補テーマからの描画",
+      "dimension": "Rubric：各行の候補テーマから描画",
       "result": "ok",
-      "note": "SettingsView.swift:391で行のthemeから生成し、402と408で同じmodelを渡す。見本内の色にDSColorや選択中テーマへの参照なし。"
+      "note": "SettingsView.swift:391で行のthemeからmodelを生成し、両見本へ同じmodelを渡す。見本内部にDSColorや選択中テーマへの参照はない。"
     },
     {
-      "dimension": "Rubric：不透明背景と重ね順",
+      "dimension": "Rubric：白4%・主文字10%と不透明下地",
       "result": "ok",
-      "note": "SettingsView.swift:465と485のZStackは候補背景から開始。主文字10%、白4%、候補輝度に応じた枠を順に重ね、503にも見本全体の不透明背景がある。"
+      "note": "ThemePreviewModel.swift:48,49で既存レシピを保持。SettingsView.swift:470,490の各ZStackは不透明な候補背景を先頭に置き、その上へLayerのopacityを適用する。"
     },
     {
-      "dimension": "Rubric：既存描画・ADR-0042との対応",
+      "dimension": "Rubric：既存描画との対応と検証の分離",
       "result": "ok",
-      "note": "AppThemeのグレー化と相対輝度0.5判定、Tokensの選択面・枠、両composerの白4%面と一致。既存導出は未変更。自動検査・Debugビルドは供給された独立客観層、Dracula／GitHub Lightの実画面比較はPMゲートとして分離。"
+      "note": "AppTheme・Tokens・ChatComposer・GridChatColumnは094f86aから変更なし。既存描画との対応を静的確認。凍結テスト・配線検査・DesignSystem全数・App DebugビルドはPM提供の客観層、代表2テーマの実画面は並行中のPMゲートとして区別する。"
     },
     {
-      "dimension": "Rubric：設定画面の変更範囲",
+      "dimension": "Rubric：変更範囲と既存設定への到達性",
       "result": "ok",
-      "note": "SettingsViewの変更はテーマ行と見本に限定。テーマ列挙、themeIDへの保存、選択チェック、他Sectionを保持。"
+      "note": "SettingsViewの変更はテーマ行と見本に限定。テーマ名・条件付きチェック・themeIDへの選択保存・他の設定Sectionを維持している。"
     },
     {
-      "dimension": "Rubric：見本の非操作性",
+      "dimension": "Rubric：実入力・追加フォーカスの禁止",
       "result": "ok",
-      "note": "入力欄はTextと図形のみ。TextField・TextEditor・入れ子Button・focusableの追加なし。"
+      "note": "入力欄の見本はTextと図形のみ。TextField・TextEditor・入れ子の操作はなく、両見本はaccessibilityHidden(true)。"
     },
     {
-      "dimension": "Rubric：検証主張と完了条件",
+      "dimension": "Rubric：未測定値とUI-06完了の扱い",
       "result": "ok",
-      "note": "確認したコード・台帳には未測定寸法や実描画色の検証済み主張なし。UI-06のチェックは未完了で、入力欄を含むPM目視ゲートの未了を隠していない。開示レポートの主張はレビュー対象外。"
+      "note": "実寸・実描画色を検証済みとは扱わない。バックログのUI-06は未チェック。本レビューのpassは、入力欄比較を含むPM目視ゲートの完了を意味しない。"
     }
   ],
   "verdict": "pass",
   "tests_run": [],
   "findings": [],
-  "integrity_check": "検出せず。実走は未検証で、persona-reviewの環境例外を適用する。①「~/.agents/scripts/compact-test task35-design-system bash macos/scripts/run-swift-tests.sh DesignSystem」を試行し、原文「mktemp: mkstemp failed on /tmp/tmp.NmFlZ0ugJM: Operation not permitted」でexit 1。「~/.agents/scripts/compact-test task35-wiring env TASK35_BASELINE=f616757 ruby .claude/scripts/task35-wiring.rb」も原文「mktemp: mkstemp failed on /tmp/tmp.qASKHMq8CP: Operation not permitted」でexit 1。両方に「/Users/ryosuke/.agents/scripts/compact-test: line 26: : No such file or directory」「cat: : No such file or directory」が続いた。②ラッパーのmktempとログへのリダイレクトがread-only制約で失敗し、テスト本体の起動前に停止しているため、実装欠陥とは切り分けられる。TMPDIR変更・ラッパー迂回は行っていない。③呼び出し元が凍結Acceptanceテスト、配線検査、DesignSystem全数、App Debugビルドの独立確認を供給している。自分のgreenとしては計上しない。実画面・測色・実音声は未検証でPMゲートに分離。本判定はUI-06の完了宣言ではない。",
-  "root_cause_assessment": "根本原因に到達している。候補テーマの既存アプリRGBとターミナルRGBを明示的に分け、候補由来の不透明背景上へ既存の描画レシピを写している。静的変異評価：モデル削除はAcceptanceの参照未解決、白4%や主文字10%の変更は固定値assert、明暗分岐の反転はPhlox／GitHub Lightと明色ID集合のassert、背景のterminalBackgroundへの置換はPhloxの17対14のassert、色帯の反転は固定8色配列のassertに抵触する。行のmake引数をThemeStore.activeへ変更、片方へ別modelを渡す、ZStackの候補背景を削除・後置、Layerのopacityを除去、TextFieldを導入する変異は配線検査の対応条件に抵触する。これらはコードを変更しない静的評価で、変異テストの実走結果ではない。AXと寸法は検査文字列だけに依存せず実装を確認し、実画面での最終確認はPMゲートに残す。"
+  "integrity_check": "検出せず。ただし自身のテスト実走は未検証。①実行を試したコマンドは「~/.agents/scripts/compact-test task35-design-system bash macos/scripts/run-swift-tests.sh DesignSystem」と「~/.agents/scripts/compact-test --full task35-wiring env TASK35_BASELINE=094f86a ruby .claude/scripts/task35-wiring.rb」。それぞれexit 1で、原文は「mktemp: mkstemp failed on /tmp/tmp.OMKi7CYlbM: Operation not permitted」「mktemp: mkstemp failed on /tmp/tmp.Wz1yWCRXW7: Operation not permitted」。両方に「/Users/ryosuke/.agents/scripts/compact-test: line 26: : No such file or directory」「cat: : No such file or directory」が続いた。②ラッパーのログ作成が拒否され、Swift/Rubyの対象処理は開始していない。実装欠陥ではなくread-only環境に起因する。TMPDIR変更・ラッパー迂回は行っていない。③呼び出し元が独立確認済みと明示した凍結テスト・配線検査・DesignSystem全数・App Debugビルドを客観層として、規範の例外条項を適用した。実装・テストは変更していない。",
+  "root_cause_assessment": "根本原因に到達している。アプリ用の導出済みRGBとターミナルの元パレットを分けて表示し、候補引数だけから描くため選択状態が見本へ混入しない。静的な変異照合では、背景をterminalBackgroundへ置換するとPhloxの固定値17対14で失敗し、入力面4%や選択面10%を変更すると固定opacityの検査が失敗する。明暗分岐を削除するとPhloxまたはGitHub Lightの枠検査が失敗する。候補引数をactiveへ置換、LayerのopacityやZStack先頭の背景を削除、色帯をreversed()に変更すると配線検査の対応条件が失敗する。変異はファイルへ適用・実走していない。用途名の固定サイズ指定を戻す変異は既存自動検査では捕捉されず、選択チェック付き行の折り返し再発をPM実画面ゲートで確認する役割が残る。今回の指定は圧縮による折り返しの原因へ直接作用している。"
 }

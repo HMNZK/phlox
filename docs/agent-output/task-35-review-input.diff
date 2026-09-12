@@ -1,5 +1,5 @@
 diff --git a/macos/App/SettingsView.swift b/macos/App/SettingsView.swift
-index cd19d40..d56ab9b 100644
+index cd19d40..ffa5e03 100644
 --- a/macos/App/SettingsView.swift
 +++ b/macos/App/SettingsView.swift
 @@ -380,6 +380,7 @@ struct SettingsView: View {
@@ -10,7 +10,7 @@ index cd19d40..d56ab9b 100644
      private struct ThemeRowView: View {
          let theme: AppTheme
          let isSelected: Bool
-@@ -387,22 +388,41 @@ struct SettingsView: View {
+@@ -387,22 +388,46 @@ struct SettingsView: View {
          @State private var isHovering = false
  
          var body: some View {
@@ -29,15 +29,20 @@ index cd19d40..d56ab9b 100644
 +                                Text(model.appLabel)
 +                                    .font(DSFont.caption)
 +                                    .foregroundStyle(DSColor.textTertiary)
++                                    .lineLimit(1)
++                                    .fixedSize(horizontal: true, vertical: false)
 +                                ThemeAppPreview(model: model)
 +                            }
 +                            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
 +                                Text(model.terminalLabel)
 +                                    .font(DSFont.caption)
 +                                    .foregroundStyle(DSColor.textTertiary)
++                                    .lineLimit(1)
++                                    .fixedSize(horizontal: true, vertical: false)
 +                                ThemeSwatchStrip(model: model)
 +                            }
 +                        }
++                        .layoutPriority(1)
 +                    }
                      Spacer(minLength: DSSpacing.s)
                      if isSelected {
@@ -56,7 +61,7 @@ index cd19d40..d56ab9b 100644
              .listRowBackground(rowBackground)
              .onHover { hovering in
                  withAnimation(.easeInOut(duration: 0.12)) {
-@@ -431,6 +451,62 @@ struct SettingsView: View {
+@@ -431,6 +456,62 @@ struct SettingsView: View {
          }
      }
  
@@ -119,7 +124,7 @@ index cd19d40..d56ab9b 100644
      /// アプリアイコン選択行。ThemeRowView と同じホバー挙動＋サムネイル＋チェックマーク。
      private struct AppIconRowView: View {
          let option: AppIconOption
-@@ -486,25 +562,22 @@ struct SettingsView: View {
+@@ -486,25 +567,22 @@ struct SettingsView: View {
          }
      }
  

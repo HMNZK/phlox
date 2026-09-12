@@ -2,6 +2,7 @@
   "id": 37,
   "title": "UX-12b 状態要約・CLI詳細",
   "difficulty": "standard",
-  "status": "pending",
-  "updated_at": "2026-09-12T22:56:17+0900"
+  "status": "done_pending_review",
+  "updated_at": "2026-09-13T00:00:31+0900",
+  "review_rejections": 0
 }

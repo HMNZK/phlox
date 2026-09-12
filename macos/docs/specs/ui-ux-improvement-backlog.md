@@ -138,6 +138,7 @@ last-verified: 2026-09-12
   - 観察: 複数エージェント向けの項目が長いサイドバーに並び、概要にも技術的な情報が多い（画像 `11-agent-management.png`）。
   - 改善案: 対象エージェントを選んでから関連項目を見る構成にし、利用可否や設定が必要な点を先に示す。
   - 完了条件: 対象エージェントと現在の設定箇所が分かり、詳細な CLI 情報も必要時には確認できる。
+  - 2026-09-13 一部実装（task-37 done）: 各エージェントの「状態」先頭に `AgentConsoleStatusSummary` による要約（「CLI を検出済み／認証・通信の状態は未確認です」「設定ファイルあり／未作成」）を表示し、バージョン・実行ファイルは折り畳み「CLI の詳細」（既定で閉）へ移動。受け入れ `AcceptanceAgentConsoleStatusSummaryTests`・配線検査・Codex レビュー pass・統合 verify exit 0。実画面は Claude／Codex／Cursor の 3 状態ペインで確認（`docs/agent-output/visual-task-37.md`、負例は本環境で未撮影）。対象エージェントの選択と項目の絞り込み（task-36）は未着手のため [x] にしない。
 
 ## UI の深掘り
 

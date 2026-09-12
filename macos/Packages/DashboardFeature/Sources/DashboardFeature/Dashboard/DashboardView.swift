@@ -214,20 +214,26 @@ public struct DashboardView: View {
                 }
                 .animation(.easeInOut(duration: 0.18), value: router.sidebarVisible)
 
-                DashboardDetailView(
-                    viewModel: viewModel,
-                    router: router,
-                    pendingDeletion: $pendingDeletion,
-                    renamingSession: $renamingSession,
-                    pendingWorkspaceChange: $pendingWorkspaceChange,
-                    draftName: $draftName,
-                    onChooseProjectDirectory: chooseProjectDirectory,
-                    isCreating: isCreating,
-                    onSelectAgentKind: { kind, backend in
-                        Task { await createSessionFromKind(kind, backend: backend) }
-                    },
-                    measuredTrailingOverlayHeight: measuredTrailingOverlayHeight
-                )
+                Group {
+                    if router.viewMode == .grid, !viewModel.projects.isEmpty, gridScopeSummary.isEmpty {
+                        gridScopeEmptyState
+                    } else {
+                        DashboardDetailView(
+                            viewModel: viewModel,
+                            router: router,
+                            pendingDeletion: $pendingDeletion,
+                            renamingSession: $renamingSession,
+                            pendingWorkspaceChange: $pendingWorkspaceChange,
+                            draftName: $draftName,
+                            onChooseProjectDirectory: chooseProjectDirectory,
+                            isCreating: isCreating,
+                            onSelectAgentKind: { kind, backend in
+                                Task { await createSessionFromKind(kind, backend: backend) }
+                            },
+                            measuredTrailingOverlayHeight: measuredTrailingOverlayHeight
+                        )
+                    }
+                }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(DSColor.background)
                     .transaction { transaction in
@@ -460,6 +466,48 @@ public struct DashboardView: View {
             guard visible else { return }
             Task { await usageMonitor.refresh() }
         }
+    }
+
+    private var gridScopeSummary: GridScopeSummary {
+        GridScopeSummary.make(
+            projects: viewModel.projects,
+            filterProjectID: viewModel.gridSessionFilterProjectID,
+            visibleCount: viewModel.filteredGridSessionNodes(projectID: viewModel.gridSessionFilterProjectID).count,
+            hasSessionSelection: viewModel.gridSessionSelection != nil
+        )
+    }
+
+    @ViewBuilder
+    private var gridScopeEmptyState: some View {
+        let summary = gridScopeSummary
+        VStack(spacing: DSSpacing.l) {
+            if let emptyMessage = summary.emptyMessage {
+                Text(emptyMessage)
+                    .font(DSFont.body)
+                    .foregroundStyle(DSColor.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            ForEach(summary.clearActions, id: \.self) { action in
+                Button(action.label) {
+                    switch action {
+                    case .projectFilter:
+                        router.clearGridFilter()
+                    case .sessionSelection:
+                        viewModel.clearGridSessionSelection()
+                    }
+                }
+                .font(DSFont.body)
+                .padding(.horizontal, DSSpacing.m)
+                .padding(.vertical, DSSpacing.s)
+                .buttonStyle(HoverableSoftButtonStyle())
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(
+            .top,
+            TopBarInsetPolicy.contentTopInset(measuredOverlayHeight: measuredTrailingOverlayHeight)
+        )
+        .padding(DSSpacing.l)
     }
 
     /// 選択中の chat セッション（インスペクタの SessionInfoPanel 用）。

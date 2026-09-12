@@ -530,7 +530,7 @@ public final class DashboardViewModel {
     public func filteredGridSessionNodes(projectID: ProjectID?) -> [SessionNode] {
         let base: [SessionNode]
         if let projectID, projects.contains(where: { $0.id == projectID }) {
-            base = gridSessionNodes(in: projectID)
+            base = gridSessionNodes(in: projectID).filter { Self.isVisibleInGrid(launchContext: $0.launchContext) }
         } else {
             base = gridVisibleSessionNodes
         }

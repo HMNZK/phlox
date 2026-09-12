@@ -129,6 +129,31 @@ struct DashboardTrailingTopBarControls: View {
         HStack(spacing: DSSpacing.s) {
             modeToggle
             if router.viewMode == .grid {
+                let summary = GridScopeSummary.make(projects: viewModel.projects, filterProjectID: viewModel.gridSessionFilterProjectID, visibleCount: viewModel.filteredGridSessionNodes(projectID: viewModel.gridSessionFilterProjectID).count, hasSessionSelection: viewModel.gridSessionSelection != nil)
+                Text(summary.text)
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(minWidth: 0, maxWidth: 200, alignment: .trailing)
+                    .layoutPriority(-1)
+                    .help(summary.accessibilityText)
+                    .accessibilityLabel(summary.accessibilityText)
+                ForEach(summary.clearActions, id: \.self) { action in
+                    Button(action.label) {
+                        switch action {
+                        case .projectFilter:
+                            router.clearGridFilter()
+                        case .sessionSelection:
+                            viewModel.clearGridSessionSelection()
+                        }
+                    }
+                    .font(DSFont.caption)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(DSColor.accent)
+                    .lineLimit(1)
+                    .help(action.label)
+                }
                 gridSessionSelectionButton
                 PaneLayoutPresetMenu { preset in
                     viewModel.handlePaneLayoutAction(.applyPreset(preset))

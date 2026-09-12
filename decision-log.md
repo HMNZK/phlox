@@ -1,0 +1,127 @@
+# decision log
+
+- 2026-09-08: 保護されたテスト起動補助の限定拡張可否へのユーザー「進めて」を明示承認として受領。IsolatedPhloxApplication.swiftの登録1行だけを一時解除し、既存assertion/所有権/後始末を維持して起動引数・専用data seedを拡張する。他の凍結テスト、フック、署名、権限設定は変更しない。PMの追加確認・独立Codexレビュー後に同ファイルを再保護する。UI01/UX08の実画面条件が未実測のため製品dispatch禁止は継続、承認待ちそのものは解消。
+
+- 2026-09-08: UX08/task8初回契約審査needs_changes2件を採用。各クリック/⌘⌃Gの入力直後に期待IDだけの選択を検査する文言へ修正。英語Single view/Grid viewと既存固定チーム名を実コードで確認し日英期待値へ追加したが、所有アプリの言語固定・実効確認は未確立。保護helperの限定拡張は承認待ちで、再審査枠は消費せず凍結/dispatch禁止を維持。製品未変更。Codex同系統別文脈のLily成果を回収、wait84011 exit0/idle/親子確認後に担当だけ削除、関連5PID不存在・保護Release/3セッション生存。観測テストのpassはUX08改善合格ではない。
+
+- 2026-09-08: Phlox2199B284の実装役は子回収とSIGKILLの排他設計未確立でblocked、製品無変更。driver stepがexit2/escalate、台帳blocked。PMはDarwin方式候補の起動エラー5条件を実測しdomain/code一致を確認したが、全互換・正常起動・回収は未検証。方式変更承認を求める。担当は基準REDでStop hookに止められidle未到達、中断APIも409 unsupported。報告保存/親子確認後にユーザー指定の役割終了セッション削除を実施（2199B284のみremoved）、失敗判定と保護3セッションを保持。詳細task26-launch-method-decision.mdとtask26-phlox-session.md。
+
+- 2026-09-08: task26再凍結6d2a6f2の別copy保護力exit0を確認。正式受け入れ再審査はneeds_changes、両EOF先行→遅延非ゼロ終了の不足1件が残る。他3軸は空。phase1.5上限1回に従い未解決として保存し、再々審査せず製品実装へ進む。契約の三条件完了前の成功禁止を独立レビューへ引き継ぐ。新規Phlox2199B284はCodex gpt-6-astra high/YOLOの初期表示を実確認、CLIでモデル/effort指定はできずsettings APIも空。指定済みとは称さない。
+
+- 2026-09-08: task26正式受け入れ初回審査needs_changesを原文JSON保存。PMがロック対象1ファイルだけ解除し出力方向4種/大JSON/片側pipe各4回を追加、既存assertを維持して6d2a6f2へ再凍結・再ロック。正本ControlServer158件10issuesの製品RED、ビルド成功、FD3→27。ADR矛盾2件は既存d37a01dの製品と現行構造の変更記録を実確認し、ADR0122/0140への記録漏れを追記した。製品一覧仕様を新たに変更せず、固定表示名の陳腐化リスクを明示。旧0321f62の別copy保護力はexit0、新基準は再実走する。実装未開始。
+
+- 2026-09-08: 直前に確認した2箇所の修理を最新の続行指示で実施。共通git hookは正規gitflow-start --no-worktreeでfeature/phlox-safe-hook-cleanupへ分離し、mktemp所有領域の後片付け1行のみを非追従find -depth -deleteへ変更。3件15assert/構文検査成功、7f3da01へローカルコミット。設定の既存dirty保持、マージなし。WORKの変異ゲートはSwift Testingの正確なCaught error:timedOut行のみを製品失敗として分類し、別行のコンパイル/起動/ハーネス障害拒否を維持。新旧15件197assert成功。task26テストを0321f62へ凍結、両cwdのロックへ対象を登録。別copyの正本8pkg検査を開始。task26のタスク内検証はdriver正規のVERIFY_TASK_BIN/--verifyで正本ControlServerを通常/pgroup:true両実走し、全体verifyはtask25/最終統合に残す。検査削除/skipやtask25のREDの成功扱いはしない。
+
+- 2026-09-08: 最新「続けて」をUI改善内のローカルコミット包括承認として受領（merge/push除外）。task26の起動失敗/長大出力先頭/背景子FD/期限競合を補強、正本ControlServer157件中4issuesのRED、FD5→13、ビルド成功を実測。契約再レビューは上限1回を消化しneeds_changes、片側pipe保持の入力不足1件を未解決として記録。他4観点は空、再々レビューしない。基準コミット前に共通git pre-commitのrm-rf後片付けを発見し、禁止コマンドを間接実行せず停止。検証分類誤判定の修理と共通hook後片付けの局所修理は別途承認を求める。製品/既存テスト/安全ゲートの変更、commit/mergeは未実施。詳細docs/agent-output/task26-expanded-preflight-20260908.md。
+
+- 2026-09-08: ユーザー承認を受けPM登録IDのみ更新。保護7件79assert/待機既存6件105assert成功。task26をpending登録し製品未変更でControlServer154件中2件2issuesのREDを実測。独立契約レビューはgpt-5.6-solのnative別モデルでneeds_changes（入力3、反証可能性2、DAG2）。DAGはtask26→task24/task25へ反映し、既存task24の13行は基準コミットにある事前状態と明記。残る5指摘は未解消、正式再レビュー/凍結/実装未実施。レビューの最終JSONは意味を保ち短縮して保存し、原文はnative担当の最終回答に保持。待機の反復ガード拒否は迂回せず最終回答を回収。ローカルコミット包括承認は別途回答待ち。詳細tasks/task-26.md、docs/agent-output/pm-registration-20260908.md。
+
+- 2026-09-06: d357c05の安全な保護力検査はexit0/red_at_baseline、元7パッケージ3277件成功、新規ControlServer4テスト20 issuesを検出。新規再レビュアー88E32E88は週間枠100%で中断しJSON未生成。解除予定は実行記録の1788757624（9/7 14:07:04 JST）。phlox-reset-schedulerで14:08:04の再開予約を試したがPID18613が消失、statusは予約なしで不成立と確認。担当は未完了なので削除せず保持し、handoff-20260906-1343.mdへ復帰条件・失敗・次の手順を保存。自動再開を保証しない。
+
+- 2026-09-06: ユーザーの「許可する」を追加テストのローカルコミットへの明示承認として受領。対象1ファイルのみをd357c05へコミットしtask24 baselineを更新。改善チェックリストの未コミット変更はそのまま保持し、他のコミット・merge・pushに承認を拡張しない。安全な別worktree検査は通常の成功ログ要約で実行し、前回の共有カウンタ失敗は未解明として記録を維持する。
+
+- 2026-09-06: ACD073D1の報告保存・担当終了の最終文面、今回PMを親とし子セッションがないことを確認して個別削除。今回の累計削除は24件。成果と既存4ユーザーセッションは保持。追加テスト/改善チェックリストはgit diff --check成功、コミットは未実行。コミット承認のブロッカーは継続中だが、本ターンは実装準備報告とテストの個人パス依存解消で進捗あり。
+
+- 2026-09-06: UX-08/UI-04準備報告をview-mode-interaction-preflight.mdに回収。既存2ファイルの局所変更候補、親子help重複、メニュー外側サイズ指定の既往制約、空データだけではモード別画面を検証できない条件を記録した。草案間のviewMode識別子の大文字小文字不一致のみPMが訂正。提案の実GUI・VoiceOver・端クリックは未検証、製品は未変更。正式契約・テスト凍結・実装完了とは扱わない。
+
+- 2026-09-06: コミット承認待ちの間、製品コードを変更せずUX-08/UI-04の準備を新規Phlox Codex担当ACD073D1へ委譲し、実waitで待機。PMは改善チェックリストの旧状態を実コード・task14/23完了記録と照合して訂正した。22件中1完了は維持。task24のテスト内子ランナーは既存SwiftPMヘルパーを直接利用して個人ホーム固定と二重ラッパーを除去、外側compact-testで再実走し4テスト20 issues、子3実走24 cwd failures、コンパイル/ローダー失敗0を確認した。追加コードと文書は未コミット。
+
+- 2026-09-06: task-24の独立レビュー指摘R1へ実アプリ環境A/空文字/明示Bの別プロセス検査を追加。R2はADR0140と現claudeOptionsの一覧保持を優先し、初回準備失敗のみ伝播・alias準備失敗時は非起動かつ取得済み一覧保持へ契約を明確化した。拡張初回のTesting.framework起動失敗は検証根拠に含めず、ラッパー後の元DYLD設定引継ぎ修理後に4テスト19 issuesのアサーションREDを確認。追加テストは未コミット、全体完了・再凍結・保護力検査成功とは扱わない。今回提示されたAGENTS.mdのコミット承認規則に従い、新規コミットには明示承認を求める。過去のローカルコミットは巻き戻さず、merge/pushはしない。
+- 2026-09-06: 読取専用担当B9F1AF26とEC05F3AFは報告を保存し担当作業の終了を明示したが、未実装task-24のREDで共通Stop hookが繰り返し終了を拒否した。担当外の実装修正やフック迂回をさせず、親子関係・子なしを確認してユーザー指示どおり当該2セッションのみ削除。累計23件。EC05の調査は共有カウンタとNSCache退避の切分け未確定、限定3件/10件成功だけで根本解決とは扱わない。既存4ユーザーセッションとPMは保持。
+
+- 2026-09-06: ユーザーが「私へ伺いを立てず完了まで進めて」と継続権限を付与。承認済み22改善の範囲内で必要な修正・契約の事実訂正・検証を追加確認なしに進める。まず実AXとApple仕様で誤りと分かったPanelUITestsのOther検索2箇所をGroupへ訂正。識別子・全アサーション・操作・期限は保持する。Release停止、OS権限変更、.env*変更、無関係な変更、merge/push/releaseへ権限を拡張しない。
+
+- 2026-09-06: 引数ログ同期の担当0F2BFB20が旧競合の制御再現、修正後成功、欠落/誤引数の検出を確認。関連10件・正本3277件成功、PMもdriver客観ゲートexit0/dispatch_reviewerを実走。既知のGUI型不一致の訂正承認を待ってから最終レビューへ進むため、現時点ではdoneにしない。担当は保存・終了・idle・親子関係を確認後に削除、全22改善の範囲と既存成果を維持。
+
+- 2026-09-06 08:52: PM GUI再実走は1成功2失敗。実画面とAXGroupの公開は確認、XCTest添付もGroupとして記録。既存Other検索の前提誤りを特定し、Groupへの限定訂正をユーザーへ非同期で承認依頼。新しい検索型は未変更。依頼中も、先に承認済みの引数ログ同期修正・既存検証は継続する。
+
+- 2026-09-06: ユーザーが既存テストの待機処理の調査・修正を「進めて」で承認。task-23へStructuredPreApprovalWiringTestsの書込み完了同期だけを追加。全アサーションと引数期待値、GUI条件は維持し、製品への変更はしない。新しいPhlox Codex担当に兄弟経路を含む再現・最小修正・正本再検証を割り当てる。
+
+- 2026-09-06: 2パネルcontain化は実装・ビルド成功。正本は引数ログ比較1件失敗、単独再実走成功だけでは解消扱いにしない。PM GUIはXCTest本人認証待ちでRunner初期化タイムアウト（3画面テスト未開始）。担当報告partialをdriverがescalateとして停止。本人認証と既存テスト同期の追加修正についてユーザー判断へ返す。担当694C0A1Cは成果保存・idle・親が今回PM・子なしを確認して削除、成果と他セッションは保持。
+
+- 2026-09-06: ユーザー継続承認でPM登録を現threadへ限定引継ぎ。2フックのID置換と旧PM拒否を含む13件175アサーション成功。保護範囲は維持。task-23へ実AXコンテナ欠落の2ビュー限定修正を追記、user_visible=trueとし既存3GUI期待値は固定。driver resumeの指示に従い新規Phlox Codex担当へ渡す。
+
+- 2026-09-05: 実Runnerのsandboxによる環境注入無効・suite非共有・終了拒否を同根のHIGHとして採用。ユーザーの「許可します」を受け、テストRunnerだけのsandbox解除と事前権限検査をtask-23へ追加。製品/Release設定・OS権限・後付け再署名は対象外。修正上限に達した場合もこの原因の継続修正は今回の承認を根拠とし、新規Phlox Codexセッションへ契約から再割当てする。既存3画面条件を弱めず、GUIはPMが実署名確認後に担当。
+
+- 2026-09-05: task-23の1回の再レビューでDashboardViewの@AppStorageと移行読み取りがstandardへ固定されるHIGH指摘を確認。再々レビューは増やさず、同じデータ分離条件を満たすための許可不足としてDashboardViewの保存先だけを追加し、専用suiteの420→560移行と通常Debugの値不変をハーネスの安全検査へ明記。通常Debugの試験値書き込みはしない。実装の独立レビューでこの次元も再評価する。
+
+- 2026-09-05: UI-02/task-14はPM画面検証・独立レビュー・driver完了ゲートを通過し5ad0a7dへ保存。全22件の残り21件は継続。phase0に含めていた検証環境整備をtask-23として分離し、製品の改善件数には数えない。
+- 2026-09-05: task-23契約レビューの所有権・起動途中失敗の後始末・報告パスの指摘を反映。LaunchServicesから返されたNSRunningApplicationを所有権の根拠にし、標準APIのcreatesNewApplicationInstance/environmentを用いる。コード未着手、同パスの単独PIDという推定は不採用。環境変数の削除とsuite使い回しを不合格にするレビュー条件も明記した。
+
+- 2026-09-05: ユーザーが今回の実行・待機手順の安全な修正を承認。強制削除を含む元の変異検査は実行せず、専用gitflowを使うworktree限定の同等検査を作る。通常の45/60秒Phlox待機だけ、当該PMかつ30秒以上の間隔を条件に反復検査の誤検出から除外する。編集制限・短周期ループ検知・製品検証は維持。
+- 2026-09-05: 22項目の全体スコープを維持し、最初の実装ラウンドはUI-02（task-14）一契約のmultiとして逐次完走させる。最初の検証経路が通る前に他の製品編集を並列化しない。残り21件の草案は回収済み、正式契約・テスト凍結・実装は後続ラウンドで行う。初回0タスクからの分解であり、依頼項目の削除はない。
+- 2026-09-05: ユーザー指定により委譲は毎回新しいPhlox Codexセッションとする。モデル/effortの指定は現APIで反映確認できないため、クロスモデル検証と称さず、独立コンテキストで契約・テスト・実装を分離する。
+- 2026-09-05T21:49:25+0900 task-23 rework: DashboardFeature 1651件中1 issue。AcceptancePanelIntegrationTests.swift:60がPanelUITests内のXCUIApplication使用を要求。共通起動化後も接続型は同じだが型推論で参照が消えた。既存アサーションを変更せずPanelUITestsのapp変数へ実際のXCUIApplication型を明示し、再ビルドと正本検証を実施する。
+- 2026-09-05: 終了済みの今回のPhloxワーカー11件を、ユーザー指示により親子関係・idle・成果保存を確認して個別削除。記録はdocs/agent-output/session-cleanup-20260905.md。稼働中のセッションと成果は保持。
+- 2026-09-05: 待機用の絶対CLIパスが既存PM限定ガード例外に一致せず拒否された。ユーザーの追加承認後、完全一致の実行パスだけを追加。セッション・cwd・45/60秒・30秒間隔・非連結の制限を維持。回帰6件100アサーション成功。詳細はdocs/agent-output/wait-guard-path-fix-20260905.md。
+- 2026-09-05: task-23の実装独立レビューで、通常Debug幅420なら読み取りstandard変異を見逃すHIGH指摘を採用。通常設定を変更しないまま、既存3画面テストの専用suiteを旧幅420→560（スモーク/エディタ）と任意幅700保持（ターミナル）へ分担させる契約修正。アプリ起動数・画面アサーション・許可パスは増やさない。現環境の通常幅834.82421875だけを一般保証には用いない。
+- 2026-09-05T22:07:43+0900 task-23 rework: 独立レビューHIGH採用。通常Debug幅420なら専用suite420単独では読み取りstandard変異を見逃す。契約5を旧幅420→560（スモーク/エディタ）と任意幅700保持（ターミナル）へ修正済み。既存3アサーションと通常設定非変更を保持して検査条件だけ補強する。
+- 2026-09-05T22:58:12+0900 task-23 resume: ユーザーへ正常GUI3件失敗とsandbox原因・テストRunnerだけの解除方針を報告し、直近の許可しますで継続承認を得た。新規実装役へ再割当て。
+- 2026-09-06T08:38:11+0900 task-23 resume: ユーザー継続承認後。sandbox原因は解消を実測、正常GUIは1成功2失敗。両パネルのAXコンテナ欠落を録画とツリーで特定したため既存期待値を維持して2ビューの標準contain化を新規Phlox Codex担当へ依頼する。PM識別子引継ぎも限定承認の範囲で回帰確認済み。
+- 2026-09-06T08:51:09+0900 task-23 resume: 本人認証待ちと既存テスト1件失敗を報告後、ユーザーが待機処理の調査修正を進めてと承認。期待値を維持した書込み完了同期を限定修正する。
+- 2026-09-06T09:08:54+0900 task-23 resume: ユーザーが追加確認なしの完了までの継続を明示。実AX/XCTest/Apple仕様によりGroupが正しいと実測済み。PanelUITestsのOther固定という契約前提をGroupへ訂正し、全操作と存在/非存在アサーションを維持して新規担当へ依頼する。
+- 2026-09-06: task-23はGroup訂正後のGUI3成功、端末キー入力の追加画像検証、独立レビュー8次元pass、driver completeの客観ゲートexit0でdone。旧失敗/証拠不足判定は保存。起動時モデル取得cwdが「/」である別問題はmodel-cwd-contract-draft.mdへ分離し、未解決として継続する。全22改善の完了数はUI-02の1件のみ。
+- 2026-09-06: 継続承認と追加確認を不要とする最新指示に従い、検証済みtask-23の所有9ファイルだけをfeatureブランチのローカル区切りとして記録する。ユーザーのroot作業ツリーは不変、merge/push/releaseは行わない。
+- 2026-09-06: 担当03FCF8DB/D61924B8/8F1C5F0Fは成果保存・最終ターン・idle・親子関係・子孫なしを確認して削除。今回の不要セッション削除は累計21件。端末検証の専用suiteはexport後に削除し、専用dataはpm-terminal-input-dataへ移動したため復元可能。Release61465を維持。Codex週間枠10%未満の警告をユーザーへ報告済み、実行制限到達ではない。
+- 2026-09-06 14:18: Codex上限でtask24再審査が中断し、旧再開予約PID18613も消失。ユーザー承認後、別.agents worktreeで予約のグループ継承を修正。新規1件/既存44件成功、別呼出しをまたぐ短時間予約の偽送信1回と後始末を確認。修正版からPID30078で9月7日14:08:04 JSTの再審査再開を予約し、別呼出しのstatus/psで生存を確認。未来の実送信は未検証。未コミット・未マージの予約worktreeと未完了レビュー担当88E32E88は保持。詳細はdocs/agent-output/scheduler-lifetime-fix.md。UI改善全体は未完了。
+- 2026-09-06 15:05: ユーザー続行後の一度の再送で88E32E88が実際に再開し、予約30078だけを取消。受け入れ再審査の不足1件は上限規則に従って未解決として記録し、新規CC0E6940へtask24を委譲。製品13行/Debugビルドは成功、正本ControlServerはcwd表記差で11 issuesとなり未合格。PMも同一ディレクトリのdevice/inodeとFoundation正規化を実測。凍結テスト修理は未承認で止め、driverはescalate/blocked。PM GUIは本人認証待ちのRunner初期化失敗で3画面未開始。保護対象の前後ハッシュ一致。両担当は成果保存・役割終了・親子確認後に削除し、失敗記録は保持。PMチェックリストstashは復元済み。詳細visual-task-24.md、引き継ぎhandoff-20260906-1505.md。
+- 2026-09-06 15:28: ユーザー外出によるGUI保留を維持し、比較修理を進めてと承認されたため、PMが記録cwdだけを正規化。既存アサーション不変、修理後ControlServer150成功・正本8パッケージ検証exit0。d357c05＋修理テストだけの別worktreeは20 issues/exit1で旧不具合を検出し、通常cleanupで削除済み。新規Phlox Codex DB426B29の独立確認もコード範囲pass/指摘0、関連21件と正規化5比較成功。GUI/TCCと部分集合の既知不足は未検証。テスト修理は未コミット・再凍結前、台帳blockedを維持。詳細visual-task-24.mdとtask24-normalization-review.md。
+- 2026-09-06 16:01: 「じゃあできるところを進めて」に従いGUIを再起動せず、既知不足の部分一覧保持をPMの補助回帰テスト1件で確認。ControlServer151件、PMの最終正本8パッケージexit0。全件置換変異は新規2/既存1 assertions、独立指摘後のNUL記録修理に対する空引数変異は新規1/既存1 assertionsで検出。専用worktree2つは通常cleanup済み。C91A1E72の限定独立確認は最終pass、終了hookの失敗はログ未保存で原因不明のまま記録し判定と区別。A1F81021のBUG-01/02調査とUX-08の契約草案も保存し、実コードの重要箇所をPMが確認。両担当は成果と最終wait/idle/親子関係を確認して削除。製品追加変更・既存凍結テスト改変・コミット・マージ・権限変更なし、22改善中UI-02のみ完了、task24はGUI/再凍結待ちblockedを維持。
+- 2026-09-08: ユーザーが更新確認・画面配置の設定分離と期限切れrunロックの再取得を承認。解除スクリプトに禁止された再帰削除があるため実行せず、旧ロックを所有一時フォルダへ移動して保存し、正規acquireで再取得した。履歴・既存タスクは保持。task25を正規add-taskでpending登録し、製品2ファイルの起動時設定保護契約を作成した。追加受け入れテストは修正前の両不具合を検出し、GUIハーネスの比較対象を幅・配置・SU接頭辞へ追加、build-for-testingはexit0。ビルド警告3件は未解消。初回の非対応filter引数・プローブの同名domain警告・非永続ドメインの検索優先によるテスト前提不備は、製品のREDと区別して修理・再実測する。Phlox新規Codexの契約レビューは入力条件の不足2件を指摘し、非空の通常配置と更新設定true/falseを契約とテストへ追加。レビューは同系統の独立セッションであり別モデル検証とは呼ばない。製品実装のディスパッチと新規コミットはまだ行っていない。詳細tasks/task-25.md、docs/agent-output/task25-contract-review.json、証拠/tmp/phlox-startup-isolation.pZWrsB/。
+- 2026-09-08: 補強後の契約再レビューはpass・指摘0（上限1回を消化）。配置テストは追加1件の1 issue、更新確認12条件は6成功6失敗で、製品未修正の原因を検出するREDを保持。正式凍結・実装後検証とは区別する。今回のPhlox担当3件は成果と終了・所有確認後に削除、最後のUUID不在はsessions.jsonで確認した。list再取得の反復検知拒否は迂回・フック変更しない。新規ローカルコミットの承認待ちで終了するため、所有確認済みのrunロックと一致するレジストリ1件だけを/tmp/phlox-ui-resume-lock.XKiTsX/paused-run.lockとpaused-run.registryへ移動して保存し、正規statusのnone/exit0を確認。禁止再帰削除を含むreleaseは実行していない。製品・成果・タスク履歴は保持し、次回承認後は正規acquireから再開する。
+- 2026-09-08T12:01:36+0900 task-26 resume: ユーザーの実入力「続けて。」で再開。前回提示したDarwin標準APIによる直接子所有への方式変更のみ許可し、公開動作と凍結合格条件は維持する。自動goal通知とは区別する。
+- 2026-09-08 task-26: Claudeの認証切れによる独立レビュー停止に対し、ユーザーが「Codexでレビューして。」と明示承認。新しいPhlox Codexセッションへdiff/契約/Rubricのみを渡す。同系統モデルの独立コンテキストであり、別モデルによる検証とは称さない。コミット・待機保護設定変更・合格基準変更の承認には広げない。
+- 2026-09-08 task-26: 新規Codex 2E0EBA2Eの独立レビューはpass/製品指摘0、全8次元確認。通常/pgroup:true各158件を担当が実走成功。PMはJSON/MD整合、Schemaの当該値に必要なフィールド・型・enum・余剰キー不在をjqで確認し、製品SHA256と凍結テスト不変を確認。正規driver stepはexit0/ready_for_integration、台帳testing。EOF先行後の遅延非ゼロ終了は構造審査のみ、起動エラー全条件・OSのPID再利用・全メモリ解放・GUI/アプリ全体は未検証として保持。task24/25/残21改善の完了にはしない。
+- 2026-09-08 続行: task26は正規complete再検証exit0でdone。task25は対象5ファイル同一性を確認して基準6d2a6f2に合わせ、修理済み保護力検査96b2ed235312がexit0/red_at_baseline。配置読込の実assertion失敗をControlServerの別件REDから切り分け、updaterも別実走で6成功6失敗を再確認。受け入れ初回審査はユーザーのPhlox新規セッション/Codexレビュー指定に従いE7A17C6Fへ委譲。同系統モデルの別文脈による独立審査であり、クロスモデルとは呼ばない。未承認コミット・フック変更・マージ・公開はしない。
+- 2026-09-08 ローカルコミットの包括承認: ユーザー「ローカルコミットは常に許可する。いちいちセッションを止めないで」により、以降この作業のローカルコミットは追加確認不要。マージ・push・公開の許可には拡張しない。task26のレビュー済み製品がSHA256不変であることを確認し42fc93aへ保存した。task25の受け入れ指摘1件は、既存の全assertionを維持してsuite入力を1組追加し、trim後の別所有ドメインへ異なるツリーを置く最小補強で反映する。PM用ロック解除をWORK側だけに適用した初回編集はROOT側の同一対象ロックで拒否され、製品/テスト無変更を確認した。両側の対象1件をPM手順で解除して追加後即復旧した。フック・検証正本自体は変更していない。製品未実装のREDを再確認中。
+- 2026-09-08 task25製品審査後の裁定: 2行の補助修正と正本進捗を721e3a7へローカル保存。PM全数3436件＋更新12条件とDebugビルド成功、独立Codexの配置15件＋更新12条件成功・製品必須指摘0を確認。一方GUI3件はOS本人認証待ちで未開始のためreview needs_changesを維持、driverもadjudicate_reworkを返した。修正すべき製品欠陥は今回検出されておらず、残る作業はPMのGUI証拠取得であるため、同じ認証状態で再実装を依頼するループは回さない。台帳はdone_pending_reviewに保持し、本人認証後のGUI・保護確認・再判定を待つ。初回PMゲートのログ破棄による原因不明失敗、既存警告、レビュー契約文書の入力分離制限は各報告へ残した。GUIの成功基準変更・署名/権限変更・merge/pushはしていない。
+- 2026-09-08T15:21:56+0900 task-24 resume: ユーザーの継続・ローカルコミット包括承認と本人認証完了を受け、task26とtask25完了後にモデル取得分離の既存実装を統合検証する。テスト保存点と未実装RED基準を区別し、失敗・制約を保持する。
+- 2026-09-08 task8: 最終製品5追加1削除の正本回帰3436件＋更新12条件がexit0、正規driver客観層もexit0/dispatch_reviewer。ユーザーのCodex指定に従い新Phloxセッション97465A74へ同系統・別文脈審査を依頼した。入力は契約規範部分・Rubric・実diff・原証拠に限定し実装report/過去レビュー/PM推論は禁止。VoiceOver実音声は未検証・一時有効化の回答待ちで、AX成功を音声確認へ読み替えない。過去Stop hook原因未確定も保持。
+- 2026-09-08 UI05: 新Phlox調査50FB6056で既存観測テストの自動RED不足を確認し、task17の未登録草案へ明暗/通常/hover/無効/焦点と副作用の確認条件を記載。見た目の目視判定と自動テストを混同せず、受け入れ方式が未確定のまま実装ディスパッチしない。調査担当は終了wait/idle/親子を確認して削除、関連5PID不存在とRelease61465生存を確認。製品未変更。
+- 2026-09-08 task8最終裁定: 独立レビューneeds_changes・製品必須指摘0、自己GUI日英2成功。実音声未検証を推測の製品バグへ置換せず、VoiceOver一時有効化の回答を待つ。製品と進捗はe08844eへ保存、正規driverはexit2/adjudicate_rework、done_pending_review維持。担当2セッションを終了後削除し関連プロセス不存在。最終正本ログの3436集計は3422個別成功＋既設skip14と判明し、MD/台帳文書とユーザー報告を訂正、L-1へ捕捉した。過去hook原因未確定・警告も保持する。
+- 2026-09-11 PM引き継ぎ: Sunflower(Codex, weekly 0%)から本Claudeセッションへ PM を交代。Sunflower が /tmp へ退避した run.lock・レジストリは消失していたため acquire で新規取得。driver は task-8 で adjudicate_rework（review needs_changes・製品指摘0・VoiceOver実音声未検証）を返す状態を確認。Codex 枯渇のため以降のレビューは Claude persona-reviewer へフォールバックする方針（ユーザー確認待ち）。製品未変更。
+- 2026-09-11 task8契約明確化: ユーザー裁定によりVoiceOver実音声は「未検証と記録して完了扱い」とし、task-8.mdに追記（受け入れテスト・凍結基準は無変更）。PMはVoiceOver一時有効化を1回試行し、VoiceOver本体は起動できたが親Phlox.app→VoiceOverのApple Events権限不足(-1743)で読み上げ文を取得できず、ユーザーの意向で権限追加はせず中止。VoiceOver停止・voiceOverOnOffKeyを0へ復元・SCREnableAppleScriptを削除・隔離Debugアプリと一時データを削除、Release61465生存。レビュアーは実装者がCodexのためClaude persona-reviewerが正規の別モデルであり、Codex枯渇によるフォールバックではない。
+- 2026-09-11T21:18:56+0900 task-8 rework: 契約の明確化: 独立レビューneeds_changesは製品指摘0でVoiceOver実音声未検証のみが理由。ユーザー裁定(2026-09-11)で実音声は未検証と記録して完了扱いとし、task-8.mdへ追記。製品変更なしで再検証・再レビューへ
+- 2026-09-11 task8完了: 契約追記後の再検証は正規driver客観層exit0（受け入れGUI日英2件）、Claude persona-reviewerはpass・指摘0・13次元（JSONスキーマ検証OK、旧Codexレビューはreview-task-8-codex-20260908.*へ退避）。統合検証は.claude/verify.sh exit0（8パッケージ419+111+40+896+1652+14+59+87+158・更新12条件・diff check）。drive.sh completeでdone。仕様書チェックリストのUX-08にチェック、実施記録・冒頭要約・last-verifiedを更新。ユーザー範囲指定によりrunはここで区切り、handoff-20260911-2200.mdを作成しロックをreleaseする。merge/pushなし。
+- 2026-09-11 訂正: voiceOverOnOffKey は PM 試行前は不在だった（0 は PM の起動試行で生成された値）。元の状態に合わせてキーを削除した。なお Phlox.app→VoiceOver の Apple Events 拒否(-1743)は macOS 側にオートメーション設定の拒否記録として残る可能性があり、PM は tccutil reset を行わない（影響範囲が広いため）。
+- 2026-09-11 run再開(PM=Claude): ユーザーの /goal「taskを全て完了させよ」により残20件を継続。タスク10件超・実働4時間超の分割閾値を超えるが、goal指示に従いセッション分割せず継続し、各タスクdone時にhandoffを更新する。Codexは枯渇のため実装役はClaude(implementer)またはCursor、レビューは実装者と別モデルを原則とし、同一モデルになる場合はタスクごとに1行記録する。Phloxセッションのspawn（課金）は行わずAgentツールのみ使う。
+- 2026-09-11 task-17(UI-05) 受け入れ方式を確定: 自動REDは旧スタイル除去のソース検査（正本スクリプト先頭）、動作不変は隔離GUI2件、外観・焦点はPM目視ゲート（ユーザー承認済み方式）。ソース文字列の不存在だけを外観合格にしない。
+- 2026-09-12 ブロッカー記録: XCUITest の GUI 実走が「Timed out while enabling automation mode」で失敗。automationmodetool は「Automation Mode is disabled. This device requires user authentication」を返し、画面に XCTest の Touch ID/パスワード認証ダイアログが出ていた（ユーザー操作が必要、PM は代行不可）。task-17 の受け入れ GUI（凍結前実測）と PM 目視ゲートは認証が済むまで保留し、GUI 不要なタスク（task-27 等）を先行させる。滞留 testmanagerd(7166) は kill 済み（自セッション起因）。
+- 2026-09-12 task-27(UI-07) 受け入れテスト凍結 25db9a4、変異検査 red_at_baseline（コンパイル不能による red）。
+- 2026-09-12 敵対レビュー(adversarial-phase1-task17-27.md, persona-reviewer)反映: task-27 にテーマ追随assert・配線検査を追加し c227d0c で再凍結（変異検査 red_at_baseline）。task-17 は正本の順序を GUI→ソース検査に改め肯定検査を追加、GUI 凍結前実測は Automation Mode 認証待ちのため未凍結のまま。task-27 を先行ディスパッチ（verify.sh の DesignSystem red は task-27 完了で解消する想定）。
+- 2026-09-12 task-27 レビュアー: 実装者は Claude(implementer) のため規則上 Codex だが Codex weekly 0%（リセット 09/15）で使用不能。Claude persona-reviewer へフォールバック（同一ベンダーのレビューになる run として記録）。
+- 2026-09-12 インシデント: task-27 目視ゲート用サブエージェントが Release Phlox(61465) を前面化・サイドバー開閉を AX click（状態反転の可能性・未確認）、System Events click が別アプリ(Suno)へ2回着弾、seed セッション経由で実 claude CLI(PID 33746) が約15-20秒起動（課金有無未検証）。~/.claude/projects/ に -private-tmp-phlox-t27-visual-*-model-catalog 4件が新規作成（未削除）。教訓 L-3 を記録。ユーザーへ報告する。
+- 2026-09-12 task-27(UI-07) done: verify-task pass、persona-reviewer pass(LOW1)、統合 verify.sh exit0。PM 実画面ゲートは入力欄が実セッション（課金）無しで描画されないため未検証（visual-task-27.md）。ユーザーの承認(a)/(b)待ち。
+- 2026-09-12 task-27 を done→testing に修復（--repair）。理由: user_visible の PM 実画面ゲート未通過。以後の user_visible タスクは ready_for_integration で止め complete を打たない。UI-01「テスト保護解除の承認待ち」はコード上に textSecondary/textTertiary 導出を固定するテストが見つからず、実体不明のため前提無しで進める（誤りならユーザー指摘で戻す）。
+- 2026-09-12 task-13（UI-01）契約を確定・受け入れテスト凍結（467c394）→ 敵対レビュー（persona-reviewer/opus、needs_changes: MUST2/HIGH4/MED4）を反映して再凍結（7577b42）。採用: 不変条件 fingerprint（MUST-1）・条件付き階層検査 6.0/0.90（MUST-2）・実装目標 4.56（HIGH-3）・出典引用の是正（HIGH-4）・レース検出（HIGH-5）・配線検査に行内ラベル 2 行（MED-7）・secondary は 4.5 維持で注記修正（MED-8 案b）・PM 測色ゲートに Latte/Solarized＋見出し行を追加（HIGH-13/MED-6）。LOW-12（定数一元化の自動検査）は Rubric に委ねる。実描画は Dracula 3 面のみ・注意面 G+1 残差未解明のまま凍結（出典の限定を契約へ転記）。
+- 2026-09-12 task-13 レビュアー: 規則は Codex（Claude 実装）だが Codex weekly 上限 0%（09/15 リセット）のため Claude persona-reviewer へフォールバック（task-27 と同じ理由）。同一ベンダーの自己レビューになる run として記録。
+- 2026-09-12 task-13 独立レビュー（persona-reviewer フォールバック）needs_changes: HIGH H-1（全テーマ secondary==tertiary 縮退）は契約の前提誤り（暗色テーマにも 42% の余裕がある想定が実値 0.24〜0.39 で偽）。裁定: Rubric の階層保持を優先し、契約を「tertiary をクランプ・secondary は 42/62 按分」に修正、受け入れテストに secondary≠tertiary（主文字最悪面比 6.0 以上の 8 テーマ）を追加して再凍結 f084245（現実装に対して 8 テーマ red を実走で確認）。L-1（黒/白の選択を最悪面比で決める）も差し戻しに含める。M-1/L-2 は PM 測色ゲート事項。1 回目の差し戻し＝同一実装エージェントへ SendMessage。
+- 2026-09-12T10:28:10+0900 task-13 rework: レビュー H-1: 契約の前提誤り（暗色テーマにも混合 42% の余裕があると想定）を修正。tertiary のみクランプ・secondary は 42/62 按分。L-1: 主文字補正の黒/白は最悪面比が大きい方を選ぶ。受け入れテスト再凍結 f084245
+- 2026-09-12 task-13（UI-01）done: 再レビュー pass、verify.sh は初回 exit 1（SessionFeature の時間依存テスト flush完了がtimeoutより先なら即戻る が 0.59s>0.5s。xcodebuild・撮影と同時実行の負荷起因と判断し、単独再実走で exit 0。製品変更は DesignSystem/DashboardSidebarView のみで無関係）。PM 測色ゲート通過（visual-task-13.md、hover 未実測）。
+- 2026-09-12 task-28（BUG-02）方針変更: Sunflower 草案の resize シーム案を廃止し、調査推奨 3（isWrapped で論理行復元、PTY 非 resize）で契約を書き直し。旧凍結草案は tasks/frozen/retired/ へ。
+- 2026-09-12 task-28 敵対レビュー（persona-reviewer）needs_changes MUST3/HIGH1/MED1/LOW3 を反映して再凍結 799eca2: MUST-1 仕様への制約明記は PM 担当と明記、MUST-2 r==0 規定＋テスト追加、MUST-3 配線検査を protocol 要件行に固定、HIGH-4 は (i) 採用＝Vendor Buffer.swift の yBase 加算 2 行を allowed_paths に追加しテストで固定。
+- 2026-09-12 task-28 実装役エスカレーション: 凍結テスト wrapAfterScrollbackWithCursorMovedUpIsRestored の期待値が端末仕様（上書きされない残存セル "8"）と矛盾＝契約（テスト）側の欠陥と裁定。シナリオに ESC[0J（画面末尾まで消去）を追加して再凍結 a13b3d3。Vendor Buffer.swift 修正を外すと同テストが red になることを stash で確認（保護力維持）。
+- 2026-09-12 task-28 レビュアー: Codex weekly 0%（09/15 リセット）のため Claude persona-reviewer へフォールバック。
+- 2026-09-12T11:25:10+0900 task-28 resume: blocked の原因は PM 凍結テストの前提誤り（残存セル）。テスト再凍結 a13b3d3 で解消、実装役が再検証 green・status completed。ユーザー判断事項ではなく /goal 自律継続の範囲として PM が再開
+- 2026-09-12 task-28 blocked→resume（--human-approved はユーザー確認ではなく PM 裁定: 原因が PM 側テスト欠陥で解消済み。/goal 自律継続の範囲）。
+- 2026-09-12 task-28（BUG-02）done: レビュー pass（MED1=目視ゲートへの幅変更撮影提案は未実施）、verify.sh exit 0、PM 目視ゲート通過（visual-task-28.md）。仕様に残る制約（Ink 自前改行）を明記。
+- 2026-09-12 task-29（UX-09）契約・受け入れテスト凍結 b1bde59（残量文字列とヘルプを UsageDisplay に集約）。task-30（UX-02）契約・受け入れテスト凍結 75c7d71。既存 StatusBadgeTests/StatusLocalizedLabelTests の語彙ピン（待機中／完了 (N)／非エラー help 空）は仕様 UX-02 の語彙（入力待ち／停止／help に語彙）へ PM が更新（契約変更であり実装側のテスト弱体化ではない）。
+- 2026-09-12 task-29/30 敵対レビュー（persona-reviewer、2 契約同時）: task-29 pass（MED-1 狭幅でチップ消失→目視ゲートに追加、LOW 反映）、task-30 needs_changes（HIGH-1「入力待ち」の意味衝突→(a) SessionCompletionNotifier を allowed_paths に追加し通知文言を揃える、MED-2 StatusLabel に accessibilityHidden、MED-3 英語ロケールは (b) 日本語固定を受容、MED-4 目視ゲートに最小幅・小タイル追加、LOW-5/6 反映）。再凍結 d260f48。
+- 2026-09-12 task-29 レビュアー: Codex weekly 0% のため Claude persona-reviewer へフォールバック（同一ベンダー）。
+- 2026-09-12 task-30 実装役エスカレーション: 配線検査が通知タイトル「入力待ち」を一律 NG にしていたが、契約はターン完了通知の title を「入力待ち」に揃えることを要求（承認通知の title だけが NG 対象）。検査側の欠陥と裁定し regex を承認通知ブロック限定に修正。
+- 2026-09-12 ユーザー指示: 以後の独立レビューは Cursor（grok 4.6）で行う（コスト最適化）。CURSOR_BIN=.claude/scripts/cursor-agent-grok.sh 経由で run-headless.sh を使い、モデル cursor-grok-4.6-high。Claude persona-reviewer への切替は Cursor 不可時のフォールバックに限る。
+- 2026-09-12 task-30 独立レビュー: Cursor grok-4.6-high（初回 e2e、約6分、rc=0、JSON スキーマ適合、tests_run 空＝Ask mode で実走拒否、客観層は driver 供給）pass。task-29/30 を complete、UX-09/UX-02 を仕様で [x]。実画面所見: 既定 900pt 幅で利用枠チップが縮退非表示（既存）、カスタム kind のライブ終了が状態へ反映されない（既存、task 外）。
+- 2026-09-12 ユーザー指示: Codex 復活。以後 PM（Claude）は進捗管理のみ。独立レビュー担当＝Codex（run-headless.sh read-only）、実装担当＝Cursor grok-4.6-high（run-headless.sh full）。調査・撮影も外部エージェントへ委譲し PM は回収と判定に限定する。
+- 2026-09-12 インシデント（PM 自身）: BUG-01 再現ハーネス run1 で、自 PID の前面確認を経ずに System Events の key code（⌘⌃G）を送り、前面だった Brave（PID 79793）へ 3 回着弾した。以後 key code は使わず、AX の click を自 PID の要素へ直接当てる方式に変更。Release Phlox(61465) が前面のときはガードで送信をスキップした（run2）。
+- 2026-09-12 所見（task 外の既存不具合候補）: (1) BinaryPathResolver.resolveBinary が "$dir/$name" 連結のため、カスタム kind の binaryName に絶対パスを書くと解決できず、復元セッションが「エラー」になる。(2) idleOnSpawnComplete のカスタム kind はプロセス終了（exit 0/3）後も「入力待ち」のまま（task-30 の語彙で「死んだプロセスが入力待ち」と読める）。
+- 2026-09-12 task-31/32 敵対レビュー（Codex read-only、初回 e2e）: needs_changes（HIGH×4・MED×3・LOW×1）。裁定: H1 同ターゲット同居→task-32 テストは task-31 完了まで作業ツリーから外し段階投入（凍結 SHA 5747566 は維持）／H2 空白名→契約に isProjectFiltered と projects: オーバーロード追加／H3 フォーカス→不変条件＋目視ゲート追加／H4・L8 配線検査を括弧対応・struct 本文限定・空白無視に強化、ProjectSidebarHeader に修正／M5 実 Project を使う検査を追加、モードは wiring／M6 compile-RED は記録し実装後に変異で補う／M7 個別ゲートの swift test 直叩きは task-30 と同方針で受容（完了時 verify.sh が正本）。
+- 2026-09-12 Codex ヘッドレスの Stop フック（.codex/hooks/verify_before_stop.sh）が read-only レビューにも .claude/verify.sh を要求し、凍結 RED で 3 回ブロック→約 10 分の空転。以後レビュー実行は CODEX_VERIFY_CMD=true を渡す（客観層は driver 側で供給、レビューは変更を伴わない）。
+- 2026-09-12T18:14:17+0900 task-31 rework: 独立レビュー HIGH: プロジェクト0件でグリッド表示にすると DashboardDetailView の「プロジェクトを追加」導線が消える。契約側に projects.isEmpty の除外条件を追記し、配線検査にも追加したうえで差し戻し（1回目）
+- 2026-09-12 task-31 独立レビュー（Codex、CODEX_VERIFY_CMD=true で Stop フック空転なし、約12分）: needs_changes HIGH×1（プロジェクト0件で追加導線が消える）。契約の記述不足（該当なし表示の条件に projects.isEmpty 除外が無かった）と裁定し、契約と task31-wiring.rb を修正して 1 回目の差し戻し。Codex は read-only sandbox で compact-test の mktemp が拒否され tests_run 空（客観層は driver）。
+- 2026-09-12T18:23:35+0900 task-31 rework: 独立レビュー MEDIUM: filteredGridSessionNodes のプロジェクト分岐が内部サブセッションを含み、要約件数が描画タイル数とずれる（既存の不整合が新表示に伝播）。契約の前提の誤りと裁定し、DashboardViewModel.swift の当該分岐 1 点を allowed_paths に追加・配線検査を追加して 2 回目の差し戻し
+- 2026-09-12 task-31 再レビュー（Codex）: needs_changes MEDIUM×1（filteredGridSessionNodes の project 分岐が isVisibleInGrid を掛けず内部サブセッションを数える既存不整合）。契約前提の誤りと裁定、DashboardViewModel の 1 分岐を許可範囲に追加し配線検査で固定、2 回目の差し戻し（新規エージェント＝Cursor ヘッドレスは常に新規）。
+- 2026-09-12T18:44:46+0900 task-32 rework: 独立レビュー MEDIUM: 固定幅の「絞り込み中」文字バッジがプロジェクト名の幅を奪う。PM 目視でも現在会話マーカーの HStack スロットで「文字の読みやすさ」が 280pt で省略される退行を確認。契約の指定（スロット常設・文字バッジ）が原因と裁定し、overlay マーカー＋アイコン表示へ契約を修正、配線検査を更新して 1 回目の差し戻し
+- 2026-09-12 task-32 独立レビュー（Codex）: needs_changes MEDIUM×1（文字バッジが名前幅を奪う）。PM 目視でもマーカー用スロットによる名前省略の退行を確認。両方とも契約の指定が原因と裁定し、マーカーを overlay、絞り込み表示をアイコン（line.3.horizontal.decrease）＋help/accessibilityLabel に変更して差し戻し 1 回目。
+- 2026-09-12 task-31（UX-04）・task-32（UI-08）complete。Cursor grok 実装＋Codex レビューの体制で 2 タスク完了（差し戻し計 3 回、いずれも契約側の不足を PM が修正）。
+- 2026-09-12 task-33（UX-07）・task-34（UI-04）契約を PM が作成（6ba2628）。受け入れテストと配線検査は Cursor grok-4.6-high が契約から作成（73a66ca、NewSessionMenuModel/DSHitTarget 未実装のためコンパイル RED。task-31/32 と同じく変異検査は実装後に補う）。baseline 33494b2 で登録。敵対レビューは Codex read-only（CODEX_VERIFY_CMD=true）へ委譲。
+- 2026-09-12 task-33/34 敵対レビュー（Codex read-only、約9分）needs_changes HIGH×6・MED×4。裁定: 1 逆順・custom 入力をテストに追加／2 入力 ref.id 一意を事前条件化、trim は whitespacesAndNewlines／3 DSHitTarget 等値テスト追加／4 配線検査に projectID 素通し・名前取得・Label 対応・描画順を追加／5 task34 配線検査を exact frame＋modifier 保持＋コメント除去に強化／6 Section header 形・Button{}label:{} 形を許容／7 基準 SHA は verify スクリプトが固定値で渡し HEAD 自己比較を禁止、task-33 の不変条件から DashboardSidebarView を外す／8 PM ゲートに端クリック・AXPress・enabled 検査を追加、primary/組込経路は課金のため実行しない旨を明記／9 モデルは modes(for:)/backend を再利用、ADR 0082 追記はフェーズ5で PM／10 task-33 を複合契約と明示。テスト・rb の改訂は Cursor grok へ再委譲。

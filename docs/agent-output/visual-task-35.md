@@ -1,5 +1,5 @@
 v6 の深い AX 走査は時間切れで止まりました。テーマ切替の完走は後続の v7（PID 30170）で済んでおり、報告は `docs/agent-output/visual-task-35.md` にあります。隔離 Debug は終了済みで、Release（PID 61465）はそのまま残っています。
-��（チャット composer）の実画面比較は課金なし表示経路が無いため未実施。
+��（チャット composer）の実画面比較は課金なし表示経路が無いため未実施。
 
 PM 目視ゲートは PM が PNG を確認して判定する。
 
@@ -142,5 +142,12 @@ close=clicked-subrole
 - v1–v5 は設定 AX が空／click 失敗（System Events がプロセス名 `Phlox` で Release 側を掴む、`rd`/`th` 予約語、`ApplicationServices` 未インストール）。v6 は AX 原文取得後に深い走査で時間切れ。いずれも Release md5 は不変。
 
 PM 目視ゲートは PM が PNG を確認して判定する。
+
+## PM 判定（Claude、2026-09-12）
+- PNG 目視（v7 と r1）: 設定「外観」一覧の各候補行に「アプリ外観」カード（候補テーマの背景・本文・現在の会話（太字＋左マーカー）・入力欄の見本）と「ターミナル配色」色帯が候補ごとに固有の色で出る。GitHub Light 選択時（`t35-v7-settings-github-light.png`）もクロームだけ明色になり各カードは候補色のまま。Dracula/GitHub Light 適用後のメイン（`t35-v7-main-*.png`）でサイドバー背景・文字・現在の会話行のマーカーが見本と対応。
+- v7 で Dracula 行（チェック付き）だけ「ターミナル配色」が 2 行に折り返した → 差し戻し 1 回目で 1 行固定（`t35-r1-settings-dracula.png` で解消を確認）。
+- 隔離: テーマ書き込み先は `com.phlox.Phlox.debug`（Debug 標準 domain）で、Release の `com.phlox.Phlox` の md5 は全時点不変。
+- 未達: チャット入力欄（composer）の実画面比較は課金なし表示経路が無く未実施（UI-07 と同じユーザー判断待ち）。この 1 点を理由に UI-06 は仕様上 [x] にしない。
+- 判定: 実装・自動検査・入力欄以外の実画面は合格。
 
 === REPORT COMPLETE ===

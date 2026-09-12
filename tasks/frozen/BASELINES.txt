@@ -9,3 +9,4 @@
 6b30d32	macos/Packages/AgentDomain/Tests/AgentDomainTests/AcceptancePairingLifecycleIntegrationTests.swift
 c227d0c	macos/Packages/DesignSystem/Tests/DesignSystemTests/AcceptanceComposerBorderContrastTests.swift
 f084245	macos/Packages/DesignSystem/Tests/DesignSystemTests/AcceptanceSidebarTextContrastTests.swift
+76ec503	macos/Packages/TerminalUI/Tests/TerminalUITests/AcceptanceTeamViewLogicalLinesTests.swift

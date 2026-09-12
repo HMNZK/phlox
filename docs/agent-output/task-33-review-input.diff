@@ -1,0 +1,155 @@
+diff --git a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardView.swift b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardView.swift
+index dd27085..898566e 100644
+--- a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardView.swift
++++ b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardView.swift
+@@ -687,34 +687,32 @@ public struct DashboardView: View {
+ 
+     @ViewBuilder
+     private func newSessionMenuItems(projectID: ProjectID?) -> some View {
+-        ForEach(viewModel.availableAgentDescriptors, id: \.ref) { descriptor in
+-            ForEach(AgentStartCardsModel.modes(for: descriptor), id: \.self) { mode in
+-                Button {
+-                    Task {
+-                        await createSession(
+-                            ref: descriptor.ref,
+-                            projectID: projectID,
+-                            backend: mode.backend
+-                        )
+-                    }
+-                } label: {
+-                    Label(
+-                        newSessionMenuTitle(descriptor: descriptor, mode: mode),
+-                        systemImage: newSessionMenuSymbol(mode: mode)
+-                    )
++        let model = NewSessionMenuModel.make(
++            projectName: viewModel.projects.first { $0.id == projectID }?.name,
++            descriptors: viewModel.availableAgentDescriptors
++        )
++        Text(model.destinationText)
++        if let primary = model.primary {
++            Button {
++                Task {
++                    await createSession(ref: primary.ref, projectID: projectID, backend: primary.backend)
+                 }
++            } label: {
++                Label(primary.title, systemImage: primary.systemImage)
+             }
+         }
+-    }
+-
+-    private func newSessionMenuTitle(descriptor: AgentDescriptor, mode: AgentStartCardMode) -> String {
+-        "\(descriptor.displayName) — \(mode.label)"
+-    }
+-
+-    private func newSessionMenuSymbol(mode: AgentStartCardMode) -> String {
+-        switch mode {
+-        case .chat: "bubble.left.and.bubble.right"
+-        case .terminal: "terminal"
++        ForEach(model.sections, id: \.title) { section in
++            Section(section.title) {
++                ForEach(section.items) { item in
++                    Button {
++                        Task {
++                            await createSession(ref: item.ref, projectID: projectID, backend: item.backend)
++                        }
++                    } label: {
++                        Label(item.title, systemImage: item.systemImage)
++                    }
++                }
++            }
+         }
+     }
+ 
+diff --git a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/NewSessionMenuModel.swift b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/NewSessionMenuModel.swift
+new file mode 100644
+index 0000000..a8a90fb
+--- /dev/null
++++ b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/NewSessionMenuModel.swift
+@@ -0,0 +1,87 @@
++import Foundation
++import AgentDomain
++import SessionFeature
++
++/// サイドバー「＋」メニューの作成先と起動候補。SwiftUI 非依存の純粋値型。
++struct NewSessionMenuModel: Equatable {
++    struct Item: Equatable, Identifiable {
++        let id: String
++        let title: String
++        let systemImage: String
++        let ref: AgentRef
++        let backend: SessionBackend
++    }
++
++    struct Section: Equatable {
++        let title: String
++        let items: [Item]
++    }
++
++    static let chatSectionTitle = "チャット — 会話形式で応答を読む"
++    static let terminalSectionTitle = "ターミナル — CLI をそのまま端末で操作"
++
++    let destinationText: String
++    let primary: Item?
++    let sections: [Section]
++
++    static func make(projectName: String?, descriptors: [AgentDescriptor]) -> NewSessionMenuModel {
++        let trimmed = projectName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
++        let destinationText = "作成先: " + (trimmed.isEmpty ? "名称未設定のプロジェクト" : trimmed)
++
++        var chatItems: [Item] = []
++        var terminalItems: [Item] = []
++        for descriptor in descriptors {
++            for mode in AgentStartCardsModel.modes(for: descriptor) {
++                switch mode {
++                case .chat:
++                    chatItems.append(
++                        Item(
++                            id: "chat:\(descriptor.ref.id)",
++                            title: descriptor.displayName,
++                            systemImage: "bubble.left.and.bubble.right",
++                            ref: descriptor.ref,
++                            backend: mode.backend
++                        )
++                    )
++                case .terminal:
++                    terminalItems.append(
++                        Item(
++                            id: "terminal:\(descriptor.ref.id)",
++                            title: descriptor.displayName,
++                            systemImage: "terminal",
++                            ref: descriptor.ref,
++                            backend: mode.backend
++                        )
++                    )
++                }
++            }
++        }
++
++        let primary: Item?
++        if let firstChat = chatItems.first {
++            primary = Item(
++                id: "primary",
++                title: "新しいチャット（\(firstChat.title)）",
++                systemImage: "plus.bubble",
++                ref: firstChat.ref,
++                backend: firstChat.backend
++            )
++        } else {
++            primary = nil
++        }
++
++        var sections: [Section] = []
++        if !chatItems.isEmpty {
++            sections.append(Section(title: chatSectionTitle, items: chatItems))
++        }
++        if !terminalItems.isEmpty {
++            sections.append(Section(title: terminalSectionTitle, items: terminalItems))
++        }
++
++        return NewSessionMenuModel(
++            destinationText: destinationText,
++            primary: primary,
++            sections: sections
++        )
++    }
++}

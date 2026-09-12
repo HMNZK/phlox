@@ -128,3 +128,4 @@
 - 2026-09-12 ユーザー指示: Claude の使用を最小化し、Codex と Cursor でオーケストレーションする。以後 PM（Claude）は driver 操作・裁定・回収に限定し、契約草案は Codex、テスト/実装/PM 目視ゲートの撮影・AX 計測は Cursor（full）へ委譲する。Claude サブエージェント（persona-reviewer/explore-map 等）は原則使わない。
 - 2026-09-12 task-33 開示レポート: Cursor の最終メッセージ先頭に前置き段落があり frontmatter が 1 行目でなく driver が status: unknown → escalate。前置き段落だけを除去（原本 /tmp/task-33-report-raw.md）。内容は不変。以後のプロンプトで「レポートは --- から始める」を明記する。
 - 2026-09-12T21:39:54+0900 task-33 resume: blocked の原因は開示レポートの前置き段落（書式）であり実装欠陥ではない。PM 裁定で再開（/goal 自律継続の範囲）
+- 2026-09-12 task-33 統合 verify.sh が DesignSystem で失敗＝task-34 凍結テスト（DSHitTarget 未実装）のコンパイル RED。task-31/32 と同じく task-34 テストを tasks/frozen/staged/ へ退避し、task-34 着手時に c615c0a から復元する。

@@ -2,6 +2,7 @@
   "id": 33,
   "title": "UX-07 新規作成メニューの整理",
   "difficulty": "standard",
-  "status": "in_progress",
-  "updated_at": "2026-09-12T21:28:43+0900"
+  "status": "done",
+  "updated_at": "2026-09-12T22:08:36+0900",
+  "review_rejections": 0
 }

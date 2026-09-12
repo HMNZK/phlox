@@ -17,7 +17,7 @@
 | task-30 | standard | done |
 | task-31 | standard | done |
 | task-32 | standard | done |
-| task-33 | standard | done_pending_review |
+| task-33 | standard | done |
 | task-34 | standard | pending |
 | task-35 | standard | pending |
 | task-36 | standard | pending |

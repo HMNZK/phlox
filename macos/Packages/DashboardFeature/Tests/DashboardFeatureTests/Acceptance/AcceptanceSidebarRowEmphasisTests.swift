@@ -51,6 +51,12 @@ struct AcceptanceSidebarRowEmphasisTests {
         )
         #expect(defaultBeatsHover.fill == DSColor.fillSelected)
         #expect(defaultBeatsHover.border == Color.clear)
+
+        let filteringAndDefaultAndHover = SidebarRowEmphasis.resolve(
+            .projectScope(isFiltering: true, isDefaultTarget: true, isHovering: true)
+        )
+        #expect(filteringAndDefaultAndHover.fill == DSColor.fillSelected)
+        #expect(filteringAndDefaultAndHover.border == Color.clear)
     }
 
     @Test("session の fill/border は current → hover → attention → その他の順")

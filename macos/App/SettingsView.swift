@@ -380,6 +380,7 @@ struct SettingsView: View {
     }
 
     /// テーマ選択行。ホバーで背景ハイライト＋手のカーソルを出し、クリック可能と分かるようにする。
+    /// 候補ごとの ThemePreviewModel でアプリ外観の見本とターミナル配色の色帯を描く。
     private struct ThemeRowView: View {
         let theme: AppTheme
         let isSelected: Bool
@@ -387,22 +388,41 @@ struct SettingsView: View {
         @State private var isHovering = false
 
         var body: some View {
+            let model = ThemePreviewModel.make(theme: theme)
             Button(action: onSelect) {
-                HStack(spacing: DSSpacing.m) {
-                    ThemeSwatchStrip(theme: theme)
-                    Text(theme.name)
-                        .foregroundStyle(DSColor.textPrimary)
+                HStack(alignment: .center, spacing: DSSpacing.m) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                        Text(theme.name)
+                            .foregroundStyle(DSColor.textPrimary)
+                        HStack(alignment: .top, spacing: DSSpacing.m) {
+                            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                                Text(model.appLabel)
+                                    .font(DSFont.caption)
+                                    .foregroundStyle(DSColor.textTertiary)
+                                ThemeAppPreview(model: model)
+                            }
+                            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                                Text(model.terminalLabel)
+                                    .font(DSFont.caption)
+                                    .foregroundStyle(DSColor.textTertiary)
+                                ThemeSwatchStrip(model: model)
+                            }
+                        }
+                    }
                     Spacer(minLength: DSSpacing.s)
                     if isSelected {
                         Image(systemName: "checkmark")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(DSColor.accent)
+                            .accessibilityHidden(true)
                     }
                 }
                 .padding(.vertical, DSSpacing.xxs)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(theme.name)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
             .listRowBackground(rowBackground)
             .onHover { hovering in
                 withAnimation(.easeInOut(duration: 0.12)) {
@@ -428,6 +448,62 @@ struct SettingsView: View {
             } else {
                 Color.clear
             }
+        }
+    }
+
+    /// 候補テーマのアプリ外観見本。本文・現在の会話行・入力欄を model の RGB だけで描く。
+    private struct ThemeAppPreview: View {
+        let model: ThemePreviewModel
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                Text(model.bodyText)
+                    .font(DSFont.caption)
+                    .foregroundStyle(model.textPrimary.color)
+                    .lineLimit(1)
+
+                ZStack(alignment: .leading) {
+                    Rectangle()
+                        .fill(model.background.color)
+                    Rectangle()
+                        .fill(model.selectedRow.rgb.color.opacity(model.selectedRow.opacity))
+                    HStack(spacing: DSSpacing.xs) {
+                        RoundedRectangle(cornerRadius: 1.5)
+                            .fill(model.currentMarker.color)
+                            .frame(width: 3, height: 10)
+                        Text(model.selectedRowText)
+                            .font(DSFont.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(model.textPrimary.color)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, DSSpacing.xs)
+                }
+                .frame(height: 18)
+                .clipShape(RoundedRectangle(cornerRadius: DSRadius.s))
+
+                ZStack(alignment: .leading) {
+                    Rectangle()
+                        .fill(model.background.color)
+                    RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
+                        .fill(model.inputFill.rgb.color.opacity(model.inputFill.opacity))
+                    RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
+                        .strokeBorder(model.inputBorder.rgb.color.opacity(model.inputBorder.opacity), lineWidth: 1)
+                    Text(model.inputText)
+                        .font(DSFont.caption)
+                        .foregroundStyle(model.textPrimary.color)
+                        .lineLimit(1)
+                        .padding(.horizontal, DSSpacing.xs)
+                }
+                .frame(height: 20)
+                .clipShape(RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous))
+            }
+            .padding(DSSpacing.xs)
+            .frame(width: 148, alignment: .leading)
+            .background(model.background.color)
+            .clipShape(RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous))
+            .accessibilityElement(children: .ignore)
+            .accessibilityHidden(true)
         }
     }
 
@@ -486,25 +562,22 @@ struct SettingsView: View {
         }
     }
 
-    /// テーマの代表色（背景 + ANSI 6色 + 前景）を帯で見せるプレビュー。
+    /// ターミナル配色の色帯。model.terminalSwatches の順に描く。
     private struct ThemeSwatchStrip: View {
-        let theme: AppTheme
+        let model: ThemePreviewModel
 
         var body: some View {
-            let colors: [Color] = [
-                theme.terminalBackground.color,
-                theme.ansi[1].color, theme.ansi[2].color, theme.ansi[3].color,
-                theme.ansi[4].color, theme.ansi[5].color, theme.ansi[6].color,
-                theme.terminalForeground.color,
-            ]
-            return HStack(spacing: 0) {
-                ForEach(Array(colors.enumerated()), id: \.offset) { _, color in
+            HStack(spacing: 0) {
+                ForEach(Array(model.terminalSwatches.enumerated()), id: \.offset) { _, rgb in
                     Rectangle()
-                        .fill(color)
-                        .frame(width: 9, height: 14)
+                        .fill(rgb.color)
+                        .frame(width: 9, height: 22)
+                        .accessibilityHidden(true)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 3))
+            .clipShape(RoundedRectangle(cornerRadius: DSRadius.s))
+            .accessibilityElement(children: .ignore)
+            .accessibilityHidden(true)
         }
     }
 

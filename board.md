@@ -19,7 +19,7 @@
 | task-32 | standard | done |
 | task-33 | standard | done |
 | task-34 | standard | in_progress |
-| task-35 | standard | in_progress |
+| task-35 | standard | done_pending_review |
 | task-36 | standard | pending |
 | task-37 | standard | pending |
 <!-- AGENTIC-LOOP:END -->

@@ -7,7 +7,7 @@ hazard: "SwiftUI の新旧 mount のライフサイクルが交錯し、新 moun
 acceptance_tests:
   - macos/Packages/TerminalUI/Tests/TerminalUITests/AcceptanceTerminalMountOwnershipTests.swift
   - .claude/scripts/task39-wiring.rb
-baseline_commit: "PM が凍結時に設定"
+baseline_commit: a43113a
 contract_tests: []
 allowed_paths:
   - macos/Packages/TerminalUI/Sources/TerminalUI/TerminalView.swift

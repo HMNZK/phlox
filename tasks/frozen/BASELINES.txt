@@ -24,3 +24,5 @@ c615c0a	macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/Acceptanc
 a704d51	macos/Packages/AgentConfigKit/Tests/AgentConfigKitTests/Acceptance/AcceptanceAgentConsoleNavigationModelTests.swift
 8e628e5	macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptanceSettingsGroupingModelTests.swift
 8e628e5	.claude/scripts/task38-wiring.rb
+a43113a	macos/Packages/TerminalUI/Tests/TerminalUITests/AcceptanceTerminalMountOwnershipTests.swift
+a43113a	.claude/scripts/task39-wiring.rb

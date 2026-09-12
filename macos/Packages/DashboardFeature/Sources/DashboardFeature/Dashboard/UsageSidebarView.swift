@@ -183,7 +183,7 @@ private struct UsageBucketRow: View {
             .animation(.easeOut(duration: 0.5), value: bucket.usedPercent)
 
             HStack(spacing: DSSpacing.xs) {
-                Text("残り \(Int(round(remainingPercent)))%")
+                Text(UsageDisplay.remainingPercentText(usedPercent: bucket.usedPercent))
                     .font(DSFont.caption)
                     .foregroundStyle(
                         isPercentDimmed
@@ -196,7 +196,7 @@ private struct UsageBucketRow: View {
                 Spacer(minLength: 0)
 
                 if bucket.resetsAt != nil {
-                    // 毎分 now を更新し、残り時間の表示と赤色判定を追従させる。
+                    // 毎分 now を更新し、リセットまでの時間表示と赤色判定を追従させる。
                     TimelineView(.periodic(from: .now, by: 60)) { context in
                         if let reset = UsageDisplay.sidebarResetDisplay(for: bucket, now: context.date) {
                             Text("リセット \(reset.text)")

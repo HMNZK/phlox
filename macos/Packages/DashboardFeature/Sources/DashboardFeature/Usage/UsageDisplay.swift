@@ -189,4 +189,33 @@ enum UsageDisplay {
             : absoluteResetText(resetsAt)
         return ResetDisplay(text: text, isUrgent: urgent)
     }
+
+    // MARK: - 残量文字列（要約・詳細の唯一の生成点）
+
+    /// 残量文字列「残りN%」を返す。usedPercent は 0…100 にクランプしてから 100 から引き、Int/round する。
+    static func remainingPercentText(usedPercent: Double) -> String {
+        let clamped = max(0, min(100, usedPercent))
+        return "残り\(Int(round(100 - clamped)))%"
+    }
+
+    /// トップバー chip のヘルプ文字列。
+    /// - unavailable: 提供元名と理由だけ（% も「残り」も含めない）。
+    /// - ok: 1行目に提供元名、続けて各バケットの「ラベル 残量（リセット …）」、最後に staleNote（あれば）。
+    static func topBarHelpText(chip: TopBarChip, now: Date) -> String {
+        if let reason = chip.unavailableReason {
+            return "\(chip.kind.displayName): \(reason)"
+        }
+        var lines = [chip.kind.displayName]
+        lines += chip.allBuckets.map { bucket in
+            var line = "\(bucket.label) \(remainingPercentText(usedPercent: bucket.usedPercent))"
+            if let reset = sidebarResetDisplay(for: bucket, now: now) {
+                line += "（リセット \(reset.text)）"
+            }
+            return line
+        }
+        if let staleNote = chip.staleNote {
+            lines.append(staleNote)
+        }
+        return lines.joined(separator: "\n")
+    }
 }

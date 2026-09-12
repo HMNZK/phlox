@@ -99,16 +99,7 @@ struct UsageTopBarView: View {
     }
 
     private func chipHelp(_ chip: TopBarChip) -> String {
-        if let reason = chip.unavailableReason {
-            return reason
-        }
-        var lines = chip.allBuckets.map { bucket in
-            "\(bucket.label) 残り\(Int(round(100 - bucket.usedPercent)))%"
-        }
-        if let staleNote = chip.staleNote {
-            lines.append(staleNote)
-        }
-        return lines.joined(separator: "\n")
+        UsageDisplay.topBarHelpText(chip: chip, now: Date())
     }
 
     private func gaugeRow(bucket: UsageBucket, isPercentDimmed: Bool) -> some View {
@@ -120,7 +111,7 @@ struct UsageTopBarView: View {
     }
 
     private func shortLabelText(for bucket: UsageBucket) -> some View {
-        // 5h は残り1時間以下、7d(週次)は残り1日以下でラベルを赤くする。毎分 now を更新して追従。
+        // 5h はあと1時間以下、7d(週次)はあと1日以下でラベルを赤くする。毎分 now を更新して追従。
         TimelineView(.periodic(from: .now, by: 60)) { context in
             Text(UsageDisplay.topBarShortLabel(for: bucket))
                 .font(DSFont.caption)
@@ -133,7 +124,7 @@ struct UsageTopBarView: View {
     }
 
     private func percentText(for bucket: UsageBucket, isDimmed: Bool = false) -> some View {
-        Text("\(Int(round(100 - bucket.usedPercent)))%")
+        Text(UsageDisplay.remainingPercentText(usedPercent: bucket.usedPercent))
             .font(DSFont.captionStrong)
             .foregroundStyle(
                 isDimmed

@@ -1,0 +1,472 @@
+diff --git a/macos/App/AgentConsole/AgentConsoleSection.swift b/macos/App/AgentConsole/AgentConsoleSection.swift
+index 794c765..5b5f251 100644
+--- a/macos/App/AgentConsole/AgentConsoleSection.swift
++++ b/macos/App/AgentConsole/AgentConsoleSection.swift
+@@ -1,30 +1,8 @@
++import AgentConfigKit
+ import SwiftUI
+ import DesignSystem
+ 
+-/// 管理ウィンドウが面倒を見るエージェント。
+-enum AgentConsoleAgent: String, CaseIterable, Identifiable {
+-    case claude
+-    case codex
+-    case cursor
+-
+-    var id: String { rawValue }
+-
+-    var displayName: String {
+-        switch self {
+-        case .claude: return "Claude Code"
+-        case .codex: return "Codex"
+-        case .cursor: return "Cursor"
+-        }
+-    }
+-
+-    var symbolName: String {
+-        switch self {
+-        case .claude: return "sparkles"
+-        case .codex: return "chevron.left.forwardslash.chevron.right"
+-        case .cursor: return "cursorarrow.rays"
+-        }
+-    }
+-
++extension AgentConsoleAgent {
+     /// グループ見出しの色。セッション一覧の色分けとは独立に、ここだけで完結させる。
+     var tint: Color {
+         switch self {
+@@ -33,117 +11,4 @@ enum AgentConsoleAgent: String, CaseIterable, Identifiable {
+         case .cursor: return DSColor.statusRunning
+         }
+     }
+-
+-    /// 設定の実体がどこにあるか（状態ペインと案内文で使う）。
+-    var configLocation: String {
+-        switch self {
+-        case .claude: return "~/.claude/settings.json"
+-        case .codex: return "~/.codex/config.toml"
+-        case .cursor: return "~/.cursor/cli-config.json"
+-        }
+-    }
+-}
+-
+-/// サイドバーに並ぶ1項目。エージェントごとにグループ分けして並べる。
+-enum AgentConsoleSection: String, CaseIterable, Identifiable {
+-    // Claude Code — いずれも対話 TUI 専用のスラッシュコマンドの置き換え。
+-    case claudeStatus
+-    case claudePlugins
+-    case claudeSkills
+-    case claudePermissions
+-    case claudeMemory
+-    case claudeHooks
+-    case claudeStatusLine
+-    case claudeOutputStyle
+-    // Codex
+-    case codexStatus
+-    case codexSettings
+-    case codexPlugins
+-    case codexMCP
+-    case codexMemory
+-    case codexTrust
+-    // Cursor
+-    case cursorStatus
+-    case cursorPermissions
+-    case cursorModel
+-    case cursorMCP
+-    case cursorSettings
+-
+-    var id: String { rawValue }
+-
+-    var agent: AgentConsoleAgent {
+-        switch self {
+-        case .claudeStatus, .claudePlugins, .claudeSkills, .claudePermissions, .claudeMemory,
+-             .claudeHooks, .claudeStatusLine, .claudeOutputStyle:
+-            return .claude
+-        case .codexStatus, .codexSettings, .codexPlugins, .codexMCP, .codexMemory, .codexTrust:
+-            return .codex
+-        case .cursorStatus, .cursorPermissions, .cursorModel, .cursorMCP, .cursorSettings:
+-            return .cursor
+-        }
+-    }
+-
+-    var title: String {
+-        switch self {
+-        case .claudeStatus, .codexStatus, .cursorStatus: return "状態"
+-        case .claudePlugins, .codexPlugins: return "プラグイン"
+-        case .claudeSkills: return "スキル"
+-        case .claudePermissions, .cursorPermissions: return "権限"
+-        case .claudeMemory, .codexMemory: return "メモリ"
+-        case .claudeHooks: return "フック"
+-        case .claudeStatusLine: return "ステータスライン"
+-        case .claudeOutputStyle: return "出力スタイル"
+-        case .codexSettings, .cursorSettings: return "設定"
+-        case .codexMCP, .cursorMCP: return "MCP"
+-        case .codexTrust: return "信頼設定"
+-        case .cursorModel: return "モデル"
+-        }
+-    }
+-
+-    /// 行の下に添える短い説明。Claude はもともとのスラッシュコマンド、
+-    /// Codex / Cursor は触る対象を示す。
+-    var detail: String {
+-        switch self {
+-        case .claudeStatus: return "/status"
+-        case .claudePlugins: return "/plugin"
+-        case .claudeSkills: return "skills"
+-        case .claudePermissions: return "/permissions"
+-        case .claudeMemory: return "/memory"
+-        case .claudeHooks: return "/hooks"
+-        case .claudeStatusLine: return "/statusline"
+-        case .claudeOutputStyle: return "/output-style"
+-        case .codexStatus: return "config.toml"
+-        case .codexSettings: return "model / sandbox"
+-        case .codexPlugins: return "codex plugin"
+-        case .codexMCP: return "codex mcp"
+-        case .codexMemory: return "AGENTS.md"
+-        case .codexTrust: return "[projects]"
+-        case .cursorStatus: return "cli-config.json"
+-        case .cursorPermissions: return "permissions"
+-        case .cursorModel: return "model"
+-        case .cursorMCP: return "mcp.json"
+-        case .cursorSettings: return "display / git"
+-        }
+-    }
+-
+-    var symbolName: String {
+-        switch self {
+-        case .claudeStatus, .codexStatus, .cursorStatus: return "info.circle"
+-        case .claudePlugins, .codexPlugins: return "puzzlepiece.extension"
+-        case .claudeSkills: return "books.vertical"
+-        case .claudePermissions, .cursorPermissions: return "checkmark.shield"
+-        case .claudeMemory, .codexMemory: return "brain"
+-        case .claudeHooks: return "link"
+-        case .claudeStatusLine: return "text.line.first.and.arrowtriangle.forward"
+-        case .claudeOutputStyle: return "textformat"
+-        case .codexSettings, .cursorSettings: return "slider.horizontal.3"
+-        case .codexMCP, .cursorMCP: return "server.rack"
+-        case .codexTrust: return "folder.badge.person.crop"
+-        case .cursorModel: return "cpu"
+-        }
+-    }
+-
+-    static func sections(for agent: AgentConsoleAgent) -> [AgentConsoleSection] {
+-        allCases.filter { $0.agent == agent }
+-    }
+ }
+diff --git a/macos/App/AgentConsole/AgentConsoleWindowView.swift b/macos/App/AgentConsole/AgentConsoleWindowView.swift
+index 8ab5511..99f9af8 100644
+--- a/macos/App/AgentConsole/AgentConsoleWindowView.swift
++++ b/macos/App/AgentConsole/AgentConsoleWindowView.swift
+@@ -19,9 +19,13 @@ struct AgentConsoleWindowView: View {
+     @State private var claude: ClaudeConsoleModel
+     @State private var codex: CodexConsoleModel
+     @State private var cursor: CursorConsoleModel
+-    /// 選択は Optional で持ち、表示時に既定へ倒す。
++    /// 選択は Optional で持ち、表示時に既定へ倒す。正本はこれだけ。
+     @State private var selection: AgentConsoleSection? = .claudeStatus
+ 
++    private var navigation: AgentConsoleNavigationModel {
++        AgentConsoleNavigationModel.make(agent: selection?.agent ?? .claude, selection: selection)
++    }
++
+     init(claudeExecutablePath: String?, pathEnvironment: String, projectDirectory: URL?) {
+         self.claudeExecutablePath = claudeExecutablePath
+         self.pathEnvironment = pathEnvironment
+@@ -58,6 +62,13 @@ struct AgentConsoleWindowView: View {
+ 
+             VStack(spacing: 0) {
+                 messageBar
++                Text(navigation.locationText)
++                    .font(DSFont.captionStrong)
++                    .foregroundStyle(DSColor.textSecondary)
++                    .frame(maxWidth: .infinity, alignment: .leading)
++                    .padding(.horizontal, DSSpacing.xl)
++                    .padding(.top, DSSpacing.l)
++                    .accessibilityIdentifier("agent-console-location")
+                 detail
+             }
+             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+@@ -81,8 +92,26 @@ struct AgentConsoleWindowView: View {
+                 sidebarHeader
+ 
+                 VStack(alignment: .leading, spacing: DSSpacing.m) {
+-                    ForEach(AgentConsoleAgent.allCases) { agent in
+-                        agentGroup(agent)
++                    Picker(navigation.agentPickerLabel, selection: Binding(
++                        get: { navigation.agent },
++                        set: { newAgent in
++                            selection = AgentConsoleNavigationModel.make(agent: newAgent, selection: nil).selectedSection
++                        }
++                    )) {
++                        ForEach(AgentConsoleAgent.allCases) { agent in
++                            Text(agent.displayName).tag(agent)
++                        }
++                    }
++                    .pickerStyle(.menu)
++                    .accessibilityIdentifier("agent-console-agent-picker")
++
++                    ForEach(navigation.sections) { section in
++                        AgentConsoleSectionRow(
++                            section: section,
++                            isSelected: navigation.selectedSection == section
++                        ) {
++                            selection = section
++                        }
+                     }
+                 }
+                 .padding(.horizontal, DSSpacing.s)
+@@ -93,27 +122,6 @@ struct AgentConsoleWindowView: View {
+         .scrollContentBackground(.hidden)
+     }
+ 
+-    private func agentGroup(_ agent: AgentConsoleAgent) -> some View {
+-        VStack(alignment: .leading, spacing: 2) {
+-            AgentConsoleGroupHeader(
+-                title: agent.displayName,
+-                systemImage: agent.symbolName,
+-                tint: agent.tint
+-            )
+-            .padding(.horizontal, DSSpacing.s)
+-            .padding(.bottom, DSSpacing.xxs)
+-
+-            ForEach(AgentConsoleSection.sections(for: agent)) { section in
+-                AgentConsoleSectionRow(
+-                    section: section,
+-                    isSelected: (selection ?? .claudeStatus) == section
+-                ) {
+-                    selection = section
+-                }
+-            }
+-        }
+-    }
+-
+     private var sidebarHeader: some View {
+         HStack(spacing: DSSpacing.m) {
+             ZStack {
+@@ -181,7 +189,7 @@ struct AgentConsoleWindowView: View {
+ 
+     @ViewBuilder
+     private var detail: some View {
+-        switch selection ?? .claudeStatus {
++        switch navigation.selectedSection {
+         case .claudeStatus: ClaudeStatusPane(model: claude)
+         case .claudePlugins: ClaudePluginsPane(model: claude)
+         case .claudeSkills: ClaudeSkillsPane(model: claude)
+@@ -207,7 +215,7 @@ struct AgentConsoleWindowView: View {
+     /// 結果と失敗は、いま見ているエージェントのものだけを出す。
+     @ViewBuilder
+     private var messageBar: some View {
+-        switch (selection ?? .claudeStatus).agent {
++        switch navigation.agent {
+         case .claude:
+             banner(error: claude.errorMessage, info: claude.infoMessage) { claude.clearMessages() }
+         case .codex:
+@@ -246,15 +254,9 @@ private struct AgentConsoleSectionRow: View {
+                         .font(.system(size: DSIconSize.m, weight: .semibold))
+                         .foregroundStyle(isSelected ? tint : DSColor.textSecondary)
+                 }
+-                VStack(alignment: .leading, spacing: 0) {
+-                    Text(section.title)
+-                        .font(DSFont.body)
+-                        .foregroundStyle(isSelected ? DSColor.textPrimary : DSColor.textSecondary)
+-                    Text(section.detail)
+-                        .font(DSFont.monoCaption)
+-                        .foregroundStyle(DSColor.textTertiary)
+-                        .lineLimit(1)
+-                }
++                Text(section.title)
++                    .font(DSFont.body)
++                    .foregroundStyle(isSelected ? DSColor.textPrimary : DSColor.textSecondary)
+                 Spacer(minLength: 0)
+             }
+             .padding(.vertical, DSSpacing.s)
+@@ -271,6 +273,8 @@ private struct AgentConsoleSectionRow: View {
+             withAnimation(.easeInOut(duration: 0.12)) { isHovering = hovering }
+         }
+         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
++        .help(section.detail)
++        .accessibilityIdentifier("agent-console-section-\(section.rawValue)")
+     }
+ 
+     private var tint: Color { section.agent.tint }
+diff --git a/macos/Packages/AgentConfigKit/Sources/AgentConfigKit/Shared/AgentConsoleNavigationModel.swift b/macos/Packages/AgentConfigKit/Sources/AgentConfigKit/Shared/AgentConsoleNavigationModel.swift
+new file mode 100644
+index 0000000..4058d34
+--- /dev/null
++++ b/macos/Packages/AgentConfigKit/Sources/AgentConfigKit/Shared/AgentConsoleNavigationModel.swift
+@@ -0,0 +1,175 @@
++/// 管理ウィンドウが面倒を見るエージェント。
++public enum AgentConsoleAgent: String, CaseIterable, Identifiable, Hashable, Sendable {
++    case claude
++    case codex
++    case cursor
++
++    public var id: String { rawValue }
++
++    public var displayName: String {
++        switch self {
++        case .claude: return "Claude Code"
++        case .codex: return "Codex"
++        case .cursor: return "Cursor"
++        }
++    }
++
++    public var symbolName: String {
++        switch self {
++        case .claude: return "sparkles"
++        case .codex: return "chevron.left.forwardslash.chevron.right"
++        case .cursor: return "cursorarrow.rays"
++        }
++    }
++
++    /// 設定の実体がどこにあるか（状態ペインと案内文で使う）。
++    public var configLocation: String {
++        switch self {
++        case .claude: return "~/.claude/settings.json"
++        case .codex: return "~/.codex/config.toml"
++        case .cursor: return "~/.cursor/cli-config.json"
++        }
++    }
++}
++
++/// サイドバーに並ぶ1項目。エージェントごとにグループ分けして並べる。
++public enum AgentConsoleSection: String, CaseIterable, Identifiable, Hashable, Sendable {
++    // Claude Code — いずれも対話 TUI 専用のスラッシュコマンドの置き換え。
++    case claudeStatus
++    case claudePlugins
++    case claudeSkills
++    case claudePermissions
++    case claudeMemory
++    case claudeHooks
++    case claudeStatusLine
++    case claudeOutputStyle
++    // Codex
++    case codexStatus
++    case codexSettings
++    case codexPlugins
++    case codexMCP
++    case codexMemory
++    case codexTrust
++    // Cursor
++    case cursorStatus
++    case cursorPermissions
++    case cursorModel
++    case cursorMCP
++    case cursorSettings
++
++    public var id: String { rawValue }
++
++    public var agent: AgentConsoleAgent {
++        switch self {
++        case .claudeStatus, .claudePlugins, .claudeSkills, .claudePermissions, .claudeMemory,
++             .claudeHooks, .claudeStatusLine, .claudeOutputStyle:
++            return .claude
++        case .codexStatus, .codexSettings, .codexPlugins, .codexMCP, .codexMemory, .codexTrust:
++            return .codex
++        case .cursorStatus, .cursorPermissions, .cursorModel, .cursorMCP, .cursorSettings:
++            return .cursor
++        }
++    }
++
++    public var title: String {
++        switch self {
++        case .claudeStatus, .codexStatus, .cursorStatus: return "状態"
++        case .claudePlugins, .codexPlugins: return "プラグイン"
++        case .claudeSkills: return "スキル"
++        case .claudePermissions, .cursorPermissions: return "権限"
++        case .claudeMemory, .codexMemory: return "メモリ"
++        case .claudeHooks: return "フック"
++        case .claudeStatusLine: return "ステータスライン"
++        case .claudeOutputStyle: return "出力スタイル"
++        case .codexSettings, .cursorSettings: return "設定"
++        case .codexMCP, .cursorMCP: return "MCP"
++        case .codexTrust: return "信頼設定"
++        case .cursorModel: return "モデル"
++        }
++    }
++
++    /// 行の下に添える短い説明。Claude はもともとのスラッシュコマンド、
++    /// Codex / Cursor は触る対象を示す。
++    public var detail: String {
++        switch self {
++        case .claudeStatus: return "/status"
++        case .claudePlugins: return "/plugin"
++        case .claudeSkills: return "skills"
++        case .claudePermissions: return "/permissions"
++        case .claudeMemory: return "/memory"
++        case .claudeHooks: return "/hooks"
++        case .claudeStatusLine: return "/statusline"
++        case .claudeOutputStyle: return "/output-style"
++        case .codexStatus: return "config.toml"
++        case .codexSettings: return "model / sandbox"
++        case .codexPlugins: return "codex plugin"
++        case .codexMCP: return "codex mcp"
++        case .codexMemory: return "AGENTS.md"
++        case .codexTrust: return "[projects]"
++        case .cursorStatus: return "cli-config.json"
++        case .cursorPermissions: return "permissions"
++        case .cursorModel: return "model"
++        case .cursorMCP: return "mcp.json"
++        case .cursorSettings: return "display / git"
++        }
++    }
++
++    public var symbolName: String {
++        switch self {
++        case .claudeStatus, .codexStatus, .cursorStatus: return "info.circle"
++        case .claudePlugins, .codexPlugins: return "puzzlepiece.extension"
++        case .claudeSkills: return "books.vertical"
++        case .claudePermissions, .cursorPermissions: return "checkmark.shield"
++        case .claudeMemory, .codexMemory: return "brain"
++        case .claudeHooks: return "link"
++        case .claudeStatusLine: return "text.line.first.and.arrowtriangle.forward"
++        case .claudeOutputStyle: return "textformat"
++        case .codexSettings, .cursorSettings: return "slider.horizontal.3"
++        case .codexMCP, .cursorMCP: return "server.rack"
++        case .codexTrust: return "folder.badge.person.crop"
++        case .cursorModel: return "cpu"
++        }
++    }
++
++    public static func sections(for agent: AgentConsoleAgent) -> [AgentConsoleSection] {
++        allCases.filter { $0.agent == agent }
++    }
++}
++
++/// 対象エージェントと、その対象に属する設定項目・現在地を束ねる。
++public struct AgentConsoleNavigationModel: Equatable, Sendable {
++    public let agent: AgentConsoleAgent
++    public let sections: [AgentConsoleSection]
++    public let selectedSection: AgentConsoleSection
++
++    public var locationText: String {
++        "\(agent.displayName) / \(selectedSection.title)"
++    }
++
++    public var agentPickerLabel: String {
++        "対象エージェント"
++    }
++
++    public static func make(agent: AgentConsoleAgent, selection: AgentConsoleSection?) -> AgentConsoleNavigationModel {
++        let sections = AgentConsoleSection.sections(for: agent)
++        let selectedSection: AgentConsoleSection
++        if let selection, selection.agent == agent {
++            selectedSection = selection
++        } else {
++            selectedSection = statusSection(for: agent)
++        }
++        return AgentConsoleNavigationModel(
++            agent: agent,
++            sections: sections,
++            selectedSection: selectedSection
++        )
++    }
++
++    private static func statusSection(for agent: AgentConsoleAgent) -> AgentConsoleSection {
++        switch agent {
++        case .claude: return .claudeStatus
++        case .codex: return .codexStatus
++        case .cursor: return .cursorStatus
++        }
++    }
++}

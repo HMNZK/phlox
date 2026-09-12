@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-26
+last-verified: 2026-09-13
 ---
 
 # ADR-0121: 対話 TUI・設定ファイル手編集でしか触れない設定を Phlox の管理画面へ集約する（Claude Code / Codex / Cursor）
@@ -42,6 +42,14 @@ Phlox から起動したセッションの設定を Phlox の中で確認・変�
   Codex・Cursor の各行には設定の実体（`config.toml`・`permissions` 等）を併記する。
 - エージェントの**切替器（セグメント/タブ）にはしない**。3 エージェントを見比べながら
   触る用途が主で、切替器だと「いま何を見ているか」を保持する状態が増えるため。
+
+  > **2026-09-13 部分的に置換（仕様 UX-12 / task-36）**: 上記 2 点（3 グループの縦並び・切替器にしない）は、
+  > 仕様 `docs/specs/ui-ux-improvement-backlog.md` UX-12「対象エージェントを選んでから関連項目を見る構成」により置換した。
+  > 現行はサイドバー上部の「対象エージェント」Picker で 1 対象を選び、その対象の項目だけを表示し、本文上部に
+  > 現在地「<対象> / <項目>」を常時出す。選択状態の正本は従来どおり `selection: AgentConsoleSection?` の 1 つで、
+  > 対象は `selection.agent` から導出する（独立した selectedAgent 状態は持たない）ため、当初懸念した「状態が増える」問題は生じない。
+  > 列挙は `AgentConfigKit/Shared/AgentConsoleNavigationModel.swift` に移設（`tint` のみ App 側）。区分は 19（task-37 で状態要約・CLI 詳細の折りたたみを追加）。
+  > 残りの決定（AgentConfigKit の土台・会話エクスポートの置き場・各区分の内容）は有効。
 - **会話エクスポート**はウィンドウではなくセッションメニューに置く（対象が
   「いま選んでいるセッション」であり、グローバルな設定ではないため）。
 - 土台は新パッケージ **`AgentConfigKit`**（L0・依存なし）に置く。

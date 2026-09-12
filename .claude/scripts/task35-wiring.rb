@@ -138,6 +138,331 @@ def remainder_without_theme_structs(src)
   compact(rest)
 end
 
+def normalize_code(src)
+  stripped = strip_comments(src)
+  protected, strings = protect_strings(stripped)
+  restore_strings(protected.gsub(/\s+/, ""), strings)
+end
+
+def skip_ws(src, i)
+  i += 1 while i < src.length && src[i] =~ /\s/
+  i
+end
+
+def parse_trailing_labeled_closures(src, i)
+  found = {}
+  loop do
+    i = skip_ws(src, i)
+    break if i >= src.length
+    rest = src[i..]
+    break unless rest =~ /\A(header|footer)[ \t]*:/
+    label = Regexp.last_match(1)
+    colon = src.index(":", i)
+    break unless colon
+    j = skip_ws(src, colon + 1)
+    break unless src[j] == "{"
+    body = extract_balanced(src, j, "{", "}")
+    break if body.nil?
+    found[label] = body
+    i = j + 1 + body.length + 1
+  end
+  [found, i]
+end
+
+def header_title(header)
+  return nil if header.nil?
+  m = header.match(/Text\s*\(\s*"((?:\\.|[^"\\])*)"/)
+  m && m[1]
+end
+
+def extract_all_sections(src)
+  sections = []
+  pos = 0
+  while (m = src.match(/\bSection\b/, pos))
+    i = skip_ws(src, m.end(0))
+    args = nil
+    if i < src.length && src[i] == "("
+      args = extract_balanced(src, i, "(", ")")
+      if args.nil?
+        pos = m.end(0)
+        next
+      end
+      i = skip_ws(src, i + 1 + args.length + 1)
+    end
+    unless i < src.length && src[i] == "{"
+      pos = m.end(0)
+      next
+    end
+    content = extract_balanced(src, i, "{", "}")
+    if content.nil?
+      pos = m.end(0)
+      next
+    end
+    close = i + 1 + content.length + 1
+    trailing, finish = parse_trailing_labeled_closures(src, close)
+    sections << {
+      title: header_title(trailing["header"]),
+      content: content,
+      header: trailing["header"],
+      footer: trailing["footer"],
+      args: args,
+      start: m.begin(0),
+      finish: finish,
+    }
+    pos = finish
+  end
+  sections
+end
+
+def section_titles_in_order(src)
+  extract_all_sections(strip_comments(src)).map { |sec| sec[:title] }.compact
+end
+
+def section_title_duplicates(src)
+  titles = section_titles_in_order(src)
+  titles.group_by { |t| t }.select { |_, v| v.size > 1 }.keys
+end
+
+def section_map(src)
+  map = {}
+  extract_all_sections(strip_comments(src)).each do |sec|
+    next if sec[:title].nil?
+    next if map.key?(sec[:title])
+    map[sec[:title]] = normalize_code(sec[:content].to_s + "\n" + sec[:footer].to_s)
+  end
+  map
+end
+
+def section_contents_match?(a, b)
+  return false unless section_title_duplicates(a).empty? && section_title_duplicates(b).empty?
+  ma = section_map(a)
+  mb = section_map(b)
+  return false if ma.empty? || mb.empty?
+  return false unless ma.keys.sort == mb.keys.sort
+  ma.all? { |title, body| body == mb[title] }
+end
+
+def section_diff_messages(current, previous)
+  msgs = []
+  cur_dups = section_title_duplicates(current)
+  prev_dups = section_title_duplicates(previous)
+  cur_dups.each { |title| msgs << "同名 Section「#{title}」が重複している" }
+  prev_dups.each { |title| msgs << "baseline の同名 Section「#{title}」が重複している" }
+  return msgs unless cur_dups.empty? && prev_dups.empty?
+
+  cur = section_map(current)
+  prev = section_map(previous)
+  if prev.empty?
+    msgs << "baseline の Section を見出しリテラルで切り出せない"
+    return msgs
+  end
+  if cur.empty?
+    msgs << "HEAD の Section を見出しリテラルで切り出せない"
+    return msgs
+  end
+  prev.each do |title, body|
+    if !cur.key?(title)
+      msgs << "Section「#{title}」が無い"
+    elsif cur[title] != body
+      msgs << "Section「#{title}」の内容が #{ENV["TASK35_BASELINE"] || "baseline"} から改変されている"
+    end
+  end
+  msgs
+end
+
+def skip_attributes_and_modifiers(src, i)
+  loop do
+    i = skip_ws(src, i)
+    break if i >= src.length
+    if src[i] == "@"
+      j = i + 1
+      j += 1 while j < src.length && src[j] =~ /[A-Za-z0-9_.]/
+      k = skip_ws(src, j)
+      if k < src.length && src[k] == "("
+        args = extract_balanced(src, k, "(", ")")
+        return j if args.nil?
+        i = k + 1 + args.length + 1
+      else
+        i = j
+      end
+      next
+    end
+    if src[i..] =~ /\A(private|public|fileprivate|internal|static|override|final|mutating)\s+/
+      i += Regexp.last_match(1).length
+      next
+    end
+    break
+  end
+  i
+end
+
+def skip_type(src, i)
+  depth_a = 0
+  depth_p = 0
+  while i < src.length
+    if src[i] == '"'
+      i = index_after_string(src, i)
+      next
+    end
+    if depth_a == 0 && depth_p == 0
+      break if src[i] == "{" || src[i] == "=" || src[i] == "\n"
+    end
+    depth_a += 1 if src[i] == "<"
+    depth_a -= 1 if src[i] == ">"
+    depth_p += 1 if src[i] == "("
+    depth_p -= 1 if src[i] == ")"
+    i += 1
+  end
+  i
+end
+
+def end_of_expr(src, i)
+  depth = 0
+  while i < src.length
+    if src[i] == '"'
+      i = index_after_string(src, i)
+      next
+    end
+    case src[i]
+    when "(", "[", "{" then depth += 1
+    when ")", "]", "}" then depth -= 1
+    when "\n"
+      return i if depth <= 0
+    end
+    i += 1
+  end
+  i
+end
+
+def extract_top_level_decls(struct_body)
+  decls = {}
+  src = struct_body
+  i = 0
+  while i < src.length
+    i = skip_ws(src, i)
+    break if i >= src.length
+    if src[i] =~ /[;{}]/
+      i += 1
+      next
+    end
+    start = i
+    i2 = skip_attributes_and_modifiers(src, i)
+    rest = src[i2..]
+    if rest =~ /\Astruct\s+([A-Za-z_][A-Za-z0-9_]*)/
+      name = Regexp.last_match(1)
+      brace = src.index("{", i2)
+      break unless brace
+      inner = extract_balanced(src, brace, "{", "}")
+      break unless inner
+      close = brace + 1 + inner.length + 1
+      decls[name] = normalize_code(src[start...close])
+      i = close
+    elsif rest =~ /\Ainit\b/
+      paren = src.index("(", i2)
+      unless paren
+        i += 1
+        next
+      end
+      params = extract_balanced(src, paren, "(", ")")
+      unless params
+        i += 1
+        next
+      end
+      after = paren + 1 + params.length + 1
+      brace = src.index("{", after)
+      unless brace
+        i += 1
+        next
+      end
+      inner = extract_balanced(src, brace, "{", "}")
+      break unless inner
+      close = brace + 1 + inner.length + 1
+      decls["init"] = normalize_code(src[start...close])
+      i = close
+    elsif rest =~ /\Afunc\s+([A-Za-z_][A-Za-z0-9_]*)/
+      name = Regexp.last_match(1)
+      paren = src.index("(", i2)
+      unless paren
+        i += 1
+        next
+      end
+      params = extract_balanced(src, paren, "(", ")")
+      unless params
+        i += 1
+        next
+      end
+      after = paren + 1 + params.length + 1
+      brace = src.index("{", after)
+      unless brace
+        i += 1
+        next
+      end
+      inner = extract_balanced(src, brace, "{", "}")
+      break unless inner
+      close = brace + 1 + inner.length + 1
+      decls[name] = normalize_code(src[start...close])
+      i = close
+    elsif rest =~ /\A(?:var|let)\s+([A-Za-z_][A-Za-z0-9_]*)/
+      name = Regexp.last_match(1)
+      name_end = i2 + Regexp.last_match(0).length
+      j = skip_ws(src, name_end)
+      j = skip_type(src, j + 1) if j < src.length && src[j] == ":"
+      j = skip_ws(src, j)
+      if j < src.length && src[j] == "{"
+        inner = extract_balanced(src, j, "{", "}")
+        break unless inner
+        close = j + 1 + inner.length + 1
+        decls[name] = normalize_code(src[start...close])
+        i = close
+      elsif j < src.length && src[j] == "="
+        close = end_of_expr(src, j + 1)
+        decls[name] = normalize_code(src[start...close])
+        i = close
+      else
+        close = name_end
+        close += 1 while close < src.length && src[close] != "\n"
+        decls[name] = normalize_code(src[start...close])
+        i = close
+      end
+    else
+      i += 1
+    end
+  end
+  decls
+end
+
+def settings_view_decl_map(src)
+  inner = extract_struct_body(src, "SettingsView")
+  return {} if inner.nil?
+  extract_top_level_decls(inner)
+end
+
+TASK35_DECL_SKIP = %w[body ThemeRowView ThemeAppPreview ThemeSwatchStrip].freeze
+
+def non_section_decl_messages(current, previous, skip: TASK35_DECL_SKIP)
+  msgs = []
+  prev_map = settings_view_decl_map(previous)
+  cur_map = settings_view_decl_map(current)
+  if prev_map.empty?
+    msgs << "baseline の SettingsView 宣言を切り出せない"
+    return msgs
+  end
+  if cur_map.empty?
+    msgs << "HEAD の SettingsView 宣言を切り出せない"
+    return msgs
+  end
+  skip_set = skip.map(&:to_s)
+  prev_map.each do |name, body|
+    next if skip_set.include?(name)
+    if !cur_map.key?(name)
+      msgs << "宣言 #{name} が欠落している"
+    elsif cur_map[name] != body
+      msgs << "宣言 #{name} が baseline から変化している"
+    end
+  end
+  msgs
+end
+
 def git_show(rev, path)
   text = IO.popen(["git", "show", "#{rev}:#{path}"], err: [:child, :out], &:read)
   return text if $?.success?
@@ -289,6 +614,69 @@ def run_selftest
   selftest_assert swatches_reordered?("ForEach(model.terminalSwatches.reversed())"), "負例: .reversed()"
   selftest_assert swatches_reordered?("model.terminalSwatches.shuffled()"), "負例: .shuffled()"
   selftest_assert swatches_reordered?("model.terminalSwatches[0]"), "負例: 添字"
+
+  original_sections = <<~SWIFT
+    Form {
+      Section { Text("システム") } header: { Text("言語") }
+      Section { Toggle("x") } header: { Text("通知") }
+    }
+  SWIFT
+  moved_sections = <<~SWIFT
+    Form {
+      Section { Toggle("x") } header: { Text("通知") }
+    }
+    Form {
+      Section { Text("システム") } header: { Text("言語") }
+    }
+  SWIFT
+  selftest_assert section_diff_messages(moved_sections, original_sections).empty?,
+                  "正例: Section 移動は OK (#{section_diff_messages(moved_sections, original_sections).inspect})"
+
+  tampered_sections = <<~SWIFT
+    Form {
+      Section { Text("CHANGED") } header: { Text("言語") }
+      Section { Toggle("x") } header: { Text("通知") }
+    }
+  SWIFT
+  selftest_assert section_diff_messages(tampered_sections, original_sections).any? { |m| m.include?("内容") },
+                  "負例: Section 内容改変は NG"
+
+  dup_sections = original_sections + %(\nSection { Text("x") } header: { Text("言語") }\n)
+  selftest_assert section_diff_messages(dup_sections, original_sections).any? { |m| m.include?("重複") },
+                  "負例: 同名 Section 重複は NG"
+
+  base_view = <<~SWIFT
+    struct SettingsView: View {
+      @AppStorage(NotificationSettings.bannerKey) private var bannerNotificationEnabled = true
+      private var header: some View { Text("設定") }
+      var body: some View {
+        Form {
+          Section { Text("システム") } header: { Text("言語") }
+        }
+      }
+      private struct BypassToggleRow: View { var body: some View { Text("x") } }
+    }
+  SWIFT
+  moved_body = <<~SWIFT
+    struct SettingsView: View {
+      @AppStorage(NotificationSettings.bannerKey) private var bannerNotificationEnabled = true
+      private var header: some View { Text("設定") }
+      var body: some View {
+        TabView {
+          Form {
+            Section { Text("システム") } header: { Text("言語") }
+          }
+        }
+      }
+      private struct BypassToggleRow: View { var body: some View { Text("x") } }
+    }
+  SWIFT
+  selftest_assert non_section_decl_messages(moved_body, base_view).empty?,
+                  "正例: body の TabView 化は宣言単位では許容 (#{non_section_decl_messages(moved_body, base_view).inspect})"
+
+  header_changed = base_view.sub('Text("設定")', 'Text("Settings")')
+  selftest_assert non_section_decl_messages(header_changed, base_view).any? { |m| m.include?("header") },
+                  "負例: Section 外の宣言改変は NG"
 end
 
 if ARGV.include?("--selftest")
@@ -351,6 +739,9 @@ else
   end
   unless settings_c.include?("themeID=theme.id")
     ng << "SettingsView に themeID = theme.id が無い"
+  end
+  unless settings_c.include?("MobileTokenSection(viewModel:")
+    ng << "SettingsView に MobileTokenSection(viewModel:) 呼び出しが無い"
   end
 
   row = extract_struct_body(settings_src, "ThemeRowView")
@@ -551,8 +942,11 @@ if baseline
   elsif previous.nil?
     ng << "git show #{baseline}:#{settings_path} に失敗"
   else
-    unless remainder_without_theme_structs(current) == remainder_without_theme_structs(previous)
-      ng << "SettingsView.swift のテーマ行・見本以外が #{baseline} から差分あり"
+    section_diff_messages(current, previous).each do |msg|
+      ng << "SettingsView.swift の #{msg}"
+    end
+    non_section_decl_messages(current, previous).each do |msg|
+      ng << "SettingsView.swift の #{msg}"
     end
   end
 end

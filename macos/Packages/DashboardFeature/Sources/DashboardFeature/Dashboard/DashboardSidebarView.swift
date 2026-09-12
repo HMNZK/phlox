@@ -305,6 +305,14 @@ private struct ProjectSidebarHeader<NewSessionMenuContent: View>: View {
     }
 
     var body: some View {
+        if let accessibilityValue = emphasis.accessibilityValue {
+            projectRow.accessibilityValue(Text(accessibilityValue))
+        } else {
+            projectRow
+        }
+    }
+
+    private var projectRow: some View {
         HStack(spacing: DSSpacing.s) {
             Button(action: onToggleExpansion) {
                 Image(systemName: "chevron.right")
@@ -332,6 +340,14 @@ private struct ProjectSidebarHeader<NewSessionMenuContent: View>: View {
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onToggleFilter)
                 .help("このプロジェクトを選択")
+
+            if let scopeBadgeText = emphasis.scopeBadgeText {
+                Image(systemName: "line.3.horizontal.decrease")
+                    .font(.system(size: DSIconSize.s))
+                    .foregroundStyle(DSColor.textTertiary)
+                    .help(scopeBadgeText)
+                    .accessibilityLabel(scopeBadgeText)
+            }
 
             Menu {
                 Button("名前を変更", action: onRename)
@@ -397,10 +413,18 @@ private struct ProjectSidebarHeader<NewSessionMenuContent: View>: View {
         isHovering ? 1 : 0
     }
 
+    private var emphasis: SidebarRowEmphasis {
+        SidebarRowEmphasis.resolve(
+            .projectScope(
+                isFiltering: isFilterSelected,
+                isDefaultTarget: isProjectSelected,
+                isHovering: isHovering
+            )
+        )
+    }
+
     private var backgroundFill: Color {
-        if isFilterSelected || isProjectSelected { return DSColor.fillSelected }
-        if isHovering { return DSColor.fillSubtle }
-        return .clear
+        emphasis.fill
     }
 }
 
@@ -415,6 +439,14 @@ private struct SessionSidebarRowView: View {
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
     var body: some View {
+        if let accessibilityValue = emphasis.accessibilityValue {
+            sessionRow.accessibilityValue(Text(accessibilityValue))
+        } else {
+            sessionRow
+        }
+    }
+
+    private var sessionRow: some View {
         HStack(spacing: DSSpacing.xs) {
             expansionControl
             StatusDot(status: session.displayStatus)
@@ -423,6 +455,7 @@ private struct SessionSidebarRowView: View {
             AgentSessionIcon(descriptor: session.agentDescriptor, status: session.displayStatus, size: 16)
             Text(session.displayName)
                 .font(session.name.isEmpty ? DSFont.mono : DSFont.body)
+                .fontWeight(emphasis.nameWeight)
                 .foregroundStyle(session.name.isEmpty ? DSColor.textTertiary : DSColor.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -441,6 +474,13 @@ private struct SessionSidebarRowView: View {
         .background(
             RoundedRectangle(cornerRadius: DSRadius.m)
                 .fill(backgroundFill)
+                .overlay(alignment: .leading) {
+                    if emphasis.showsCurrentMarker {
+                        RoundedRectangle(cornerRadius: 1.5)
+                            .fill(DSColor.accent)
+                            .frame(width: 3, height: 14)
+                    }
+                }
         )
         .overlay(
             RoundedRectangle(cornerRadius: DSRadius.m)
@@ -483,16 +523,21 @@ private struct SessionSidebarRowView: View {
         )
     }
 
+    private var emphasis: SidebarRowEmphasis {
+        SidebarRowEmphasis.resolve(
+            .session(
+                isCurrent: isSelected,
+                isHovering: isHovering,
+                requiresAttention: requiresAttention
+            )
+        )
+    }
+
     private var backgroundFill: Color {
-        if isSelected { return DSColor.sessionRowSelected }
-        if isHovering { return DSColor.sessionRowHover }
-        if requiresAttention { return DSColor.idleHighlight }
-        return .clear
+        emphasis.fill
     }
 
     private var borderColor: Color {
-        if isSelected { return DSColor.sessionRowSelectedBorder }
-        if isHovering { return DSColor.sessionRowHoverBorder }
-        return .clear
+        emphasis.border
     }
 }

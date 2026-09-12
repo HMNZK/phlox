@@ -5,7 +5,7 @@ depends_on: []
 user_visible: true
 acceptance_tests:
   - macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Acceptance/AcceptanceNewSessionMenuModelTests.swift
-baseline_commit: TBD
+baseline_commit: 73a66ca
 contract_tests: []
 allowed_paths:
   - macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/NewSessionMenuModel.swift

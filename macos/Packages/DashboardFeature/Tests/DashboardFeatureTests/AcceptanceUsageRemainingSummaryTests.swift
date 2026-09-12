@@ -24,6 +24,7 @@ struct AcceptanceUsageRemainingSummaryTests {
         #expect(UsageDisplay.remainingPercentText(usedPercent: 100) == "残り0%")
         #expect(UsageDisplay.remainingPercentText(usedPercent: 33.4) == "残り67%")
         #expect(UsageDisplay.remainingPercentText(usedPercent: 66.5) == "残り34%") // round(33.5) = 34
+        #expect(UsageDisplay.remainingPercentText(usedPercent: 67.5) == "残り33%") // round(32.5) = 33（%.0f の偶数丸めなら 32 になる＝区別）
     }
 
     @Test("使用率が範囲外でも残量は 0〜100 に収まる")

@@ -55,7 +55,7 @@ struct AcceptanceSessionStatusWordsTests {
         #expect(StatusBadge.helpText(for: .error(message: "out of memory")) == "エラー — 選択して原因を確認し、再開または削除する\nout of memory")
     }
 
-    @Test("表示状態は経過時間に依存せず SessionStatus と処理中フラグだけで決まる（既存規則の回帰ガード）")
+    @Test("語彙関数は SessionStatus 以外の入力（経過時間など）を受け取らない。resolve 自体は allowed_paths 外で不変")
     func displayStatusDoesNotUseElapsedTime() {
         // 語彙側の関数は SessionStatus 以外の入力を取らないことを型で保証する。
         let f: (SessionStatus) -> String = StatusBadge.label(for:)

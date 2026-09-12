@@ -36,6 +36,6 @@ if [ "${1:-}" = task-33 ]; then
   exec bash "$verifier" "$@" --verify '/Users/ryosuke/.agents/scripts/compact-test task33-wiring env TASK33_BASELINE=c615c0a ruby .claude/scripts/task33-wiring.rb && (cd macos/Packages/DashboardFeature && /Users/ryosuke/.agents/scripts/compact-test task33-dashboard swift test) && git diff --check'
 fi
 if [ "${1:-}" = task-34 ]; then
-  exec bash "$verifier" "$@" --verify '/Users/ryosuke/.agents/scripts/compact-test task34-wiring env TASK34_BASELINE=c615c0a ruby .claude/scripts/task34-wiring.rb && (cd macos/Packages/DesignSystem && /Users/ryosuke/.agents/scripts/compact-test task34-design-system swift test) && (cd macos/Packages/DashboardFeature && /Users/ryosuke/.agents/scripts/compact-test task34-dashboard swift build) && (cd macos/Packages/SessionFeature && /Users/ryosuke/.agents/scripts/compact-test task34-session swift build) && git diff --check'
+  exec bash "$verifier" "$@" --verify '/Users/ryosuke/.agents/scripts/compact-test task34-wiring env TASK34_BASELINE=40533aa ruby .claude/scripts/task34-wiring.rb && (cd macos/Packages/DesignSystem && /Users/ryosuke/.agents/scripts/compact-test task34-design-system swift test) && (cd macos/Packages/DashboardFeature && /Users/ryosuke/.agents/scripts/compact-test task34-dashboard swift build) && (cd macos/Packages/SessionFeature && /Users/ryosuke/.agents/scripts/compact-test task34-session swift build) && git diff --check'
 fi
 exec bash "$verifier" "$@"

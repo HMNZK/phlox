@@ -381,3 +381,13 @@ PM 目視ゲート：
 3. **分類**: 草案の 5 グループ・所属・順序を採用する（更新は「一般」）。
 4. **acceptance_tests の rb**: `.claude/scripts/task38-wiring.rb` は PM 所有の配線検査として frontmatter に残すが、実装役の allowed_paths 外である。
 5. **task-17（UI-05）**: 本タスクで吸収しない。task-17 草案は task-38 完了後に再ベースする（decision-log 2026-09-13）。
+
+## 契約改訂（2026-09-13、敵対レビュー `docs/agent-output/task38-acceptance-adversarial.md` の反映・PM 裁定）
+
+- **[指摘1]** 配線検査は `body` から実際に到達する描画経路だけを検査対象にする（未使用ヘルパー内の分岐を配線済みと数えない）。タブは `ForEach(SettingsGroup.all)`（`reversed()`・並べ替え・部分列は NG）で列挙し、タブのタイトル・シンボルは `group.title`／`group.systemImage` から描くこと。AX identifier は `.accessibilityIdentifier("settings-group-\(group.id)")` の形でタブ側に付ける（`help` 等への置換は NG）。
+- **[指摘2]** `@AppStorage` は**宣言単位**（属性・キー・変数名・既定値をひとまとめ）で `TASK38_BASELINE` と一致すること。内部を固定する独自 View の一覧に `AppIconRowView` を加える（`BypassToggleRow`・`MobileTokenSection`・`ThemeRowView`・`ThemeAppPreview`・`ThemeSwatchStrip`・`AppIconRowView`）。
+- **[指摘3]** 「開いただけでは値を変えない」: SettingsView の保存対象（`@AppStorage` 変数・`ThemeStore`・`appUpdater` 等）への**代入・呼び出し箇所の集合**が baseline と一致すること（`onAppear`／`task`／`onChange`／描画ヘルパー内の新規書き込みは NG）。`SettingsGroup.all` は `SettingsGroup(...)` イニシャライザ呼び出しだけを要素とするリテラル配列（クロージャ・関数呼び出し・`print`・副作用を含まない）であること。
+- **[指摘4]** Section 以外のコード（保存宣言・Binding 実装・計算プロパティ・独自 View・Section 外の条件分岐）は従来どおり**宣言単位で baseline と一致**を要求する（保護範囲を Section 本文と footer に狭めない）。同名 Section の重複は NG（後勝ち上書き・`.uniq` による吸収を禁止）。task35-wiring.rb にも同じ扱いを適用する。
+- **[指摘5]** `TASK38_BASELINE` は「HEAD と一致しないこと」ではなく、**凍結基準の内容**で検証する: ①HEAD の祖先である ②基準時点で `SettingsGroup.swift` が存在せず SettingsView に `TabView` が無い（＝実装前） ③基準時点の受け入れテストと本 rb が現在と同一。凍結 HEAD 上の未コミット実装を検査する通常運用を拒否しない。
+- **[指摘6]** `--selftest` の負例は「正例 fixture に違反を 1 つだけ加えたもの」とし、**本番と同じ検査関数**で NG になることを確認する（重複分岐・並べ替え・未使用コード偽装・`if false` 包みを含む）。task35-wiring.rb の selftest も本番関数を使う。
+- **[指摘7]** PM 目視ゲートの起動条件に `PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN=1` を加え、通常 Debug の Keychain（端末ストア）を隔離する。

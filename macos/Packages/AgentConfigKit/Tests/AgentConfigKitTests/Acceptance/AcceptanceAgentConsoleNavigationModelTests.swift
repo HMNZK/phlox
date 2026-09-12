@@ -162,18 +162,18 @@ struct AcceptanceAgentConsoleNavigationModelTests {
 
         for pair in Self.claudePairs {
             let section = AgentConsoleSection.allCases.first { $0.rawValue == pair.id }
-            #expect(section != nil, pair.id)
-            #expect(section?.agent == .claude, pair.id)
+            #expect(section != nil, Comment(rawValue: pair.id))
+            #expect(section?.agent == .claude, Comment(rawValue: pair.id))
         }
         for pair in Self.codexPairs {
             let section = AgentConsoleSection.allCases.first { $0.rawValue == pair.id }
-            #expect(section != nil, pair.id)
-            #expect(section?.agent == .codex, pair.id)
+            #expect(section != nil, Comment(rawValue: pair.id))
+            #expect(section?.agent == .codex, Comment(rawValue: pair.id))
         }
         for pair in Self.cursorPairs {
             let section = AgentConsoleSection.allCases.first { $0.rawValue == pair.id }
-            #expect(section != nil, pair.id)
-            #expect(section?.agent == .cursor, pair.id)
+            #expect(section != nil, Comment(rawValue: pair.id))
+            #expect(section?.agent == .cursor, Comment(rawValue: pair.id))
         }
 
         #expect(AgentConsoleSection.claudeStatus.agent == .claude)
@@ -242,11 +242,11 @@ struct AcceptanceAgentConsoleNavigationModelTests {
 
         for row in Self.sectionMeta {
             let section = byID[row.id]
-            #expect(section != nil, row.id)
+            #expect(section != nil, Comment(rawValue: row.id))
             #expect(section?.rawValue == row.id)
-            #expect(section?.title == row.title, row.id)
-            #expect(section?.detail == row.detail, row.id)
-            #expect(section?.symbolName == row.symbol, row.id)
+            #expect(section?.title == row.title, Comment(rawValue: row.id))
+            #expect(section?.detail == row.detail, Comment(rawValue: row.id))
+            #expect(section?.symbolName == row.symbol, Comment(rawValue: row.id))
         }
     }
 

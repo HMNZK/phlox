@@ -687,34 +687,32 @@ public struct DashboardView: View {
 
     @ViewBuilder
     private func newSessionMenuItems(projectID: ProjectID?) -> some View {
-        ForEach(viewModel.availableAgentDescriptors, id: \.ref) { descriptor in
-            ForEach(AgentStartCardsModel.modes(for: descriptor), id: \.self) { mode in
-                Button {
-                    Task {
-                        await createSession(
-                            ref: descriptor.ref,
-                            projectID: projectID,
-                            backend: mode.backend
-                        )
-                    }
-                } label: {
-                    Label(
-                        newSessionMenuTitle(descriptor: descriptor, mode: mode),
-                        systemImage: newSessionMenuSymbol(mode: mode)
-                    )
+        let model = NewSessionMenuModel.make(
+            projectName: viewModel.projects.first { $0.id == projectID }?.name,
+            descriptors: viewModel.availableAgentDescriptors
+        )
+        Text(model.destinationText)
+        if let primary = model.primary {
+            Button {
+                Task {
+                    await createSession(ref: primary.ref, projectID: projectID, backend: primary.backend)
                 }
+            } label: {
+                Label(primary.title, systemImage: primary.systemImage)
             }
         }
-    }
-
-    private func newSessionMenuTitle(descriptor: AgentDescriptor, mode: AgentStartCardMode) -> String {
-        "\(descriptor.displayName) — \(mode.label)"
-    }
-
-    private func newSessionMenuSymbol(mode: AgentStartCardMode) -> String {
-        switch mode {
-        case .chat: "bubble.left.and.bubble.right"
-        case .terminal: "terminal"
+        ForEach(model.sections, id: \.title) { section in
+            Section(section.title) {
+                ForEach(section.items) { item in
+                    Button {
+                        Task {
+                            await createSession(ref: item.ref, projectID: projectID, backend: item.backend)
+                        }
+                    } label: {
+                        Label(item.title, systemImage: item.systemImage)
+                    }
+                }
+            }
         }
     }
 

@@ -5,7 +5,7 @@ depends_on: []
 user_visible: true
 acceptance_tests:
   - macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptanceThemePreviewModelTests.swift
-baseline_commit: TBD
+baseline_commit: 18bbcc4
 contract_tests: []
 allowed_paths:
   - macos/Packages/DesignSystem/Sources/DesignSystem/ThemePreviewModel.swift

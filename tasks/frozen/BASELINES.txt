@@ -22,3 +22,5 @@ c615c0a	macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/Acceptanc
 094f86a	tasks/frozen/staged/AcceptanceAgentConsoleNavigationModelTests.swift
 094f86a	tasks/frozen/staged/AcceptanceAgentConsoleStatusSummaryTests.swift
 a704d51	macos/Packages/AgentConfigKit/Tests/AgentConfigKitTests/Acceptance/AcceptanceAgentConsoleNavigationModelTests.swift
+8e628e5	macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptanceSettingsGroupingModelTests.swift
+8e628e5	.claude/scripts/task38-wiring.rb

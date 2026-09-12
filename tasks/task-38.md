@@ -6,7 +6,7 @@ user_visible: true
 acceptance_tests:
   - macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptanceSettingsGroupingModelTests.swift
   - .claude/scripts/task38-wiring.rb
-baseline_commit: "PM が凍結時に設定"
+baseline_commit: 8e628e5
 contract_tests: []
 allowed_paths:
   - macos/App/SettingsView.swift

@@ -8,7 +8,7 @@ import AgentDomain
     }
 
     @Test func idleLabel() {
-        #expect(StatusBadge.label(for: .idle) == "待機中")
+        #expect(StatusBadge.label(for: .idle) == "入力待ち") // task-30（UX-02）で語彙変更
     }
 
     @Test func runningLabel() {
@@ -20,8 +20,10 @@ import AgentDomain
     }
 
     @Test(arguments: [0, 1, 137])
-    func completedLabelIncludesExitCode(code: Int32) {
-        #expect(StatusBadge.label(for: .completed(exitCode: code)) == "完了 (\(code))")
+    func completedLabelIsStopAndExitCodeMovesToHint(code: Int32) {
+        // task-30（UX-02）: 一覧の語彙は「停止」。終了コードは nextActionHint / helpText で確認できる。
+        #expect(StatusBadge.label(for: .completed(exitCode: code)) == "停止")
+        #expect(StatusBadge.nextActionHint(for: .completed(exitCode: code))?.contains("終了コード \(code)") == true)
     }
 
     @Test func errorLabel() {
@@ -94,7 +96,8 @@ import AgentDomain
 
 @Suite @MainActor struct StatusBadgeHelpTextTests {
     @Test func errorHelpShowsMessage() {
-        #expect(StatusBadge.helpText(for: .error(message: "out of memory")) == "out of memory")
+        // task-30（UX-02）: ヘルプは語彙＋次の操作＋本文。本文は必ず含まれる。
+        #expect(StatusBadge.helpText(for: .error(message: "out of memory")).hasSuffix("\nout of memory"))
     }
 
     @Test(arguments: [
@@ -104,7 +107,8 @@ import AgentDomain
         .awaitingApproval(prompt: "x"),
         .completed(exitCode: 0),
     ])
-    func nonErrorHelpIsEmpty(status: SessionStatus) {
-        #expect(StatusBadge.helpText(for: status) == "")
+    func nonErrorHelpStartsWithLabel(status: SessionStatus) {
+        // task-30（UX-02）: 色だけに頼らないため、非エラーでもヘルプに語彙が入る。
+        #expect(StatusBadge.helpText(for: status).hasPrefix(StatusBadge.label(for: status)))
     }
 }

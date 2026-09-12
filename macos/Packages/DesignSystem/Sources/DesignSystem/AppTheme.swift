@@ -92,6 +92,101 @@ public struct AppTheme: Sendable, Identifiable {
 extension AppTheme {
     private static let claudeCoral = RGB(0xD9, 0x77, 0x57)
 
+    // MARK: - サイドバー4面の不透明度（Tokens.swift の fillSubtle/fillSelected/idleHighlight と共有する唯一の定義）
+
+    /// hover 面（`DSColor.fillSubtle`）。
+    static let sidebarHoverOpacity = 0.05
+    /// 選択面（`DSColor.fillSelected`）。
+    static let sidebarSelectedOpacity = 0.10
+    /// attention 面（`DSColor.idleHighlight`）。
+    static let sidebarAttentionOpacity = 0.22
+
+    /// 補助文字コントラストの実装目標（WCAG 4.5 に丸め・実測残差の余裕を足した値）。
+    private static let minimumAuxiliaryContrast = 4.56
+    private static let secondaryIdealMix = 0.42
+    private static let tertiaryIdealMix = 0.62
+
+    /// サイドバーで実際に重なる4面（基底／hover／選択／attention）。優先順の2枚重ねは作らない。
+    private static func sidebarFaces(background: RGB, hoverOverlay: RGB, attention: RGB) -> [RGB] {
+        [
+            background,
+            background.mixed(hoverOverlay, sidebarHoverOpacity),
+            background.mixed(hoverOverlay, sidebarSelectedOpacity),
+            background.mixed(attention, sidebarAttentionOpacity),
+        ]
+    }
+
+    private static func contrastRatio(_ a: RGB, _ b: RGB) -> Double {
+        let (hi, lo) = a.relativeLuminance > b.relativeLuminance
+            ? (a.relativeLuminance, b.relativeLuminance)
+            : (b.relativeLuminance, a.relativeLuminance)
+        return (hi + 0.05) / (lo + 0.05)
+    }
+
+    private static func worstContrast(_ text: RGB, faces: [RGB]) -> Double {
+        faces.map { contrastRatio(text, $0) }.min() ?? 0
+    }
+
+    /// 主文字を background へ混ぜる比率を、4 面の最悪コントラストが `minimumAuxiliaryContrast` を
+    /// 下回らない範囲でクランプする（理想上限は `idealMix`）。
+    private static func clampedMixRatio(primary: RGB, background: RGB, attention: RGB, idealMix: Double) -> Double {
+        func satisfies(_ t: Double) -> Bool {
+            let candidate = primary.mixed(background, t)
+            let faces = sidebarFaces(background: background, hoverOverlay: primary, attention: attention)
+            return worstContrast(candidate, faces: faces) >= minimumAuxiliaryContrast
+        }
+        guard !satisfies(idealMix) else { return idealMix }
+        var lo = 0.0
+        var hi = idealMix
+        for _ in 0 ..< 40 {
+            let mid = (lo + hi) / 2
+            if satisfies(mid) { lo = mid } else { hi = mid }
+        }
+        return lo
+    }
+
+    /// 主文字自体が最悪面で `minimumAuxiliaryContrast` を割るとき（Solarized Light）だけ最小補正を行う。
+    /// 補正先（黒/白）は輝度しきい値で決めず、黒・白それぞれへ寄せた場合の最悪面比を実際に比較し、
+    /// 大きい方を採る（2026-09-12 独立レビュー L-1）。
+    private static func correctedPrimary(_ primary: RGB, background: RGB, attention: RGB) -> RGB {
+        let faces = sidebarFaces(background: background, hoverOverlay: primary, attention: attention)
+        guard worstContrast(primary, faces: faces) < minimumAuxiliaryContrast else { return primary }
+        let black = RGB(0, 0, 0)
+        let white = RGB(255, 255, 255)
+        let blackWorst = worstContrast(black, faces: sidebarFaces(background: background, hoverOverlay: black, attention: attention))
+        let whiteWorst = worstContrast(white, faces: sidebarFaces(background: background, hoverOverlay: white, attention: attention))
+        let target = blackWorst >= whiteWorst ? black : white
+        func satisfies(_ t: Double) -> Bool {
+            let candidate = primary.mixed(target, t)
+            let faces = sidebarFaces(background: background, hoverOverlay: candidate, attention: attention)
+            return worstContrast(candidate, faces: faces) >= minimumAuxiliaryContrast
+        }
+        // t=1（target 自体）でも満たせない場合（現行10テーマでは発生しない）は、
+        // 到達可能な最善として target をそのまま返す。
+        guard satisfies(1.0) else { return target }
+        var lo = 0.0
+        var hi = 1.0
+        for _ in 0 ..< 40 {
+            let mid = (lo + hi) / 2
+            if satisfies(mid) { hi = mid } else { lo = mid }
+        }
+        return primary.mixed(target, hi)
+    }
+
+    /// 補助文字（secondary/tertiary）を主文字から導出する唯一の入口。
+    /// クランプは tertiary にだけ適用し、secondary は tertiary の比率を理想比（42/62）で按分する
+    /// （2026-09-12 独立レビュー H-1: 両役を同じ上限へクランプすると、暗色テーマでも上限が 0.42 に届かず
+    /// secondary == tertiary に縮退する）。
+    private static func derivedAuxiliaryText(
+        primary: RGB,
+        background: RGB,
+        attention: RGB
+    ) -> (secondary: RGB, tertiary: RGB) {
+        let tertiaryRatio = clampedMixRatio(primary: primary, background: background, attention: attention, idealMix: tertiaryIdealMix)
+        let secondaryRatio = min(secondaryIdealMix, tertiaryRatio * (secondaryIdealMix / tertiaryIdealMix))
+        return (primary.mixed(background, secondaryRatio), primary.mixed(background, tertiaryRatio))
+    }
+
     /// 標準的なターミナルパレット(bg/fg/ANSI16)から UI トークンを導出してテーマを作る。
     /// 人気テーマを少ない記述で取り込むためのファクトリ。
     static func fromPalette(
@@ -103,10 +198,13 @@ extension AppTheme {
         accent _: RGB
     ) -> AppTheme {
         let background = bg.grayscale
-        let textPrimary = fg.grayscale
+        let rawTextPrimary = fg.grayscale
+        let attentionColor = ansi[9]
+        let textPrimary = correctedPrimary(rawTextPrimary, background: background, attention: attentionColor)
         let isLight = background.relativeLuminance >= 0.5
         let surface = isLight ? background.darkened(7) : background.lightened(7)
         let surfaceElevated = isLight ? background.darkened(14) : background.lightened(14)
+        let auxiliaryText = derivedAuxiliaryText(primary: textPrimary, background: background, attention: attentionColor)
         // Palette 固有の accent はターミナル由来テーマの互換入力として受け取り、UI accent は共有色に統一する。
         return AppTheme(
             id: id,
@@ -115,20 +213,20 @@ extension AppTheme {
             surface: surface,
             surfaceElevated: surfaceElevated,
             textPrimary: textPrimary,
-            textSecondary: textPrimary.mixed(background, 0.42),
-            textTertiary: textPrimary.mixed(background, 0.62),
+            textSecondary: auxiliaryText.secondary,
+            textTertiary: auxiliaryText.tertiary,
             accent: Self.claudeCoral,
             statusRunning: ansi[2],
             statusAwaiting: ansi[3],
             statusError: ansi[1],
             statusCompleted: ansi[10],
-            statusStarting: textPrimary.mixed(background, 0.38),
-            statusIdle: textPrimary.mixed(background, 0.52),
+            statusStarting: rawTextPrimary.mixed(background, 0.38),
+            statusIdle: rawTextPrimary.mixed(background, 0.52),
             attention: ansi[9],
             agentColors: [
                 .claudeCode: ansi[3],
                 .codex: ansi[4],
-                .cursor: textPrimary.mixed(background, 0.35),
+                .cursor: rawTextPrimary.mixed(background, 0.35),
             ],
             terminalBackground: bg,
             terminalForeground: fg,
@@ -141,37 +239,45 @@ extension AppTheme {
 
 extension AppTheme {
     /// 既定テーマ。UI chrome はニュートラルグレー、アクセントは Claude コーラルに統一する。
-    public static let phlox = AppTheme(
-        id: "phlox",
-        name: "Phlox",
-        background: RGB(0x11, 0x11, 0x11),
-        surface: RGB(0x18, 0x18, 0x18),
-        surfaceElevated: RGB(0x20, 0x20, 0x20),
-        textPrimary: RGB(0xE6, 0xE6, 0xE6),
-        textSecondary: RGB(0x96, 0x96, 0x96),
-        textTertiary: RGB(0x6C, 0x6C, 0x6C),
-        accent: claudeCoral,
-        statusRunning: RGB(0x34, 0xD3, 0x99),
-        statusAwaiting: RGB(0xFB, 0xBF, 0x24),
-        statusError: RGB(0xEF, 0x44, 0x44),
-        statusCompleted: RGB(0x6E, 0xE7, 0xB7),
-        statusStarting: RGB(0xA3, 0xA3, 0xA3),
-        statusIdle: RGB(0x86, 0x86, 0x86),
-        attention: claudeCoral,
-        agentColors: [
-            .claudeCode: RGB(0xE0, 0xAF, 0x68),
-            .codex: RGB(0x7C, 0x8C, 0xFF),
-            .cursor: RGB(0xB8, 0xB8, 0xB8),
-        ],
-        terminalBackground: RGB(0x0E, 0x0E, 0x0E),
-        terminalForeground: RGB(0xD6, 0xD6, 0xD6),
-        ansi: [
-            RGB(0x0D, 0x0D, 0x0D), RGB(0xEF, 0x44, 0x44), RGB(0x34, 0xD3, 0x99), RGB(0xFB, 0xBF, 0x24),
-            RGB(0x60, 0xA5, 0xFA), RGB(0xD9, 0x77, 0x57), RGB(0x38, 0xBD, 0xF8), RGB(0xE5, 0xE5, 0xE5),
-            RGB(0x3F, 0x3F, 0x46), RGB(0xFB, 0x71, 0x71), RGB(0x6E, 0xE7, 0xB7), RGB(0xFD, 0xE6, 0x8A),
-            RGB(0x93, 0xC5, 0xFD), RGB(0xFB, 0xA8, 0x8A), RGB(0x7D, 0xD3, 0xFC), RGB(0xFF, 0xFF, 0xFF),
-        ]
-    )
+    /// textSecondary/textTertiary は固定 RGB 直書きをやめ、fromPalette と共有する導出関数の呼び出しへ
+    /// 置き換える（主文字 0xE6 は最悪面でも十分読めるため、そのまま変えない）。
+    public static let phlox: AppTheme = {
+        let background = RGB(0x11, 0x11, 0x11)
+        let textPrimary = RGB(0xE6, 0xE6, 0xE6)
+        let attention = claudeCoral
+        let auxiliaryText = derivedAuxiliaryText(primary: textPrimary, background: background, attention: attention)
+        return AppTheme(
+            id: "phlox",
+            name: "Phlox",
+            background: background,
+            surface: RGB(0x18, 0x18, 0x18),
+            surfaceElevated: RGB(0x20, 0x20, 0x20),
+            textPrimary: textPrimary,
+            textSecondary: auxiliaryText.secondary,
+            textTertiary: auxiliaryText.tertiary,
+            accent: claudeCoral,
+            statusRunning: RGB(0x34, 0xD3, 0x99),
+            statusAwaiting: RGB(0xFB, 0xBF, 0x24),
+            statusError: RGB(0xEF, 0x44, 0x44),
+            statusCompleted: RGB(0x6E, 0xE7, 0xB7),
+            statusStarting: RGB(0xA3, 0xA3, 0xA3),
+            statusIdle: RGB(0x86, 0x86, 0x86),
+            attention: claudeCoral,
+            agentColors: [
+                .claudeCode: RGB(0xE0, 0xAF, 0x68),
+                .codex: RGB(0x7C, 0x8C, 0xFF),
+                .cursor: RGB(0xB8, 0xB8, 0xB8),
+            ],
+            terminalBackground: RGB(0x0E, 0x0E, 0x0E),
+            terminalForeground: RGB(0xD6, 0xD6, 0xD6),
+            ansi: [
+                RGB(0x0D, 0x0D, 0x0D), RGB(0xEF, 0x44, 0x44), RGB(0x34, 0xD3, 0x99), RGB(0xFB, 0xBF, 0x24),
+                RGB(0x60, 0xA5, 0xFA), RGB(0xD9, 0x77, 0x57), RGB(0x38, 0xBD, 0xF8), RGB(0xE5, 0xE5, 0xE5),
+                RGB(0x3F, 0x3F, 0x46), RGB(0xFB, 0x71, 0x71), RGB(0x6E, 0xE7, 0xB7), RGB(0xFD, 0xE6, 0x8A),
+                RGB(0x93, 0xC5, 0xFD), RGB(0xFB, 0xA8, 0x8A), RGB(0x7D, 0xD3, 0xFC), RGB(0xFF, 0xFF, 0xFF),
+            ]
+        )
+    }()
 
     /// Tokyo Night（enkia）
     public static let tokyoNight = AppTheme.fromPalette(

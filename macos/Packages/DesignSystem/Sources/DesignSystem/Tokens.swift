@@ -98,8 +98,8 @@ public enum DSColor {
     // 前景色由来の低不透明 hairline/fill。暗背景では白系、明背景では黒系として可視性を保つ。
     public static var border: Color { theme.textPrimary.color.opacity(0.14) }
     public static var separator: Color { theme.textPrimary.color.opacity(0.10) }
-    public static var fillSubtle: Color { theme.textPrimary.color.opacity(0.05) }   // ホバー
-    public static var fillSelected: Color { theme.textPrimary.color.opacity(0.10) } // 選択・アクティブ
+    public static var fillSubtle: Color { theme.textPrimary.color.opacity(AppTheme.sidebarHoverOpacity) }   // ホバー
+    public static var fillSelected: Color { theme.textPrimary.color.opacity(AppTheme.sidebarSelectedOpacity) } // 選択・アクティブ
     public static var chatBackground: Color { theme.background.color }
     public static var chatCard: Color { theme.surface.color }
     public static var chatElevated: Color { theme.surfaceElevated.color }
@@ -169,7 +169,7 @@ public enum DSColor {
     // 未確認完了=「あなたの番」。テーマの attention 色を不透明度違いで使い回す。
     private static var attention: Color { theme.attention.color }
     /// サイドバーで未確認完了セッション行の背景面。
-    public static var idleHighlight: Color { attention.opacity(0.22) }
+    public static var idleHighlight: Color { attention.opacity(AppTheme.sidebarAttentionOpacity) }
     /// 未確認完了行の左端アクセントバー（行コンテンツに直接描画）。
     public static var idleHighlightBar: Color { attention.opacity(0.95) }
     /// グリッドビューで未確認完了カードの背景面。

@@ -66,10 +66,14 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
                             }
                         }
                         if !viewModel.unassignedSessionNodes.isEmpty {
-                            Section("その他") {
+                            Section {
                                 ForEach(viewModel.unassignedSessionNodes, id: \.id) { session in
                                     sessionSidebarRow(session)
                                 }
+                            } header: {
+                                Text("その他")
+                                    .font(DSFont.caption)
+                                    .foregroundStyle(DSColor.textTertiary)
                             }
                         }
                     }

@@ -317,3 +317,12 @@ PM 判断:
 4. **rb の attach 呼び出し検査**: 所有権実装に伴う attach 呼び出しの追加・移動は TerminalView.swift 内に限り許容し、SessionViewModel/DashboardView の呼び出し経路は `TASK39_BASELINE` と一致を要求する。
 5. **PM 目視ゲート**: 再現 A（タイル見出し AXPress）は現環境で選択が変わらないことが既知（actions=AXShowMenu のみ）。A は「操作を記録し、単一が空白でないこと」を確認対象とし、選択変更の成否は問わない。B（axclick.py）と C（3 往復）が主判定。
 6. **トレース**: `docs/agent-output/bug01-spike-trace.patch` の調査用差分は製品に入れない（rb で `[BUG01]`・`Bug01Trace` の不在を検査）。
+
+## 契約改訂（2026-09-13、敵対レビュー `docs/agent-output/task39-acceptance-adversarial.md` の反映・PM 裁定）
+
+- **[指摘1]** `TASK39_BASELINE` は「HEAD と一致しないこと」で拒否しない。検証は凍結基準の内容で行う: ①HEAD の祖先 ②基準時点の TerminalView.swift に `TerminalMount.detach` が無い（＝実装前） ③基準時点の受け入れテストと本 rb が現在と同一。凍結 HEAD 上の未コミット実装の検査を拒否しない。
+- **[指摘2]** 受け入れテストに**実際の破棄経路**を加える: `TerminalView.dismantleNSView(_:coordinator:)`（または同等の静的破棄経路）を直接呼び、(a) mount X→Y と coordinator を差し替えて更新した後の破棄で **Y が解放**される（X ではない）こと、(b) A→B の後に **A の破棄が B の所有権を解放しない**こと。rb の dismantle 検査は文字列の呼び出し数ではなく、到達可能な経路（`if false` 包み・コメント内は不可）で「現在その mount が扱う端末」を引数に detach していることを検査する。
+- **[指摘3]** 受け入れテストに 2 端末ケースを加える: X を A→B に載せ替え、Y を A に載せた後、X の後着 update（A への再 attach）は `false` で `X.superview === B` かつ `Y.superview === A`（別端末を消す誤実装を拒否）。
+- **[指摘4]** rb: `TerminalMount.attach` の呼び出しは TerminalView.swift 内のどの関数からでも許容するが、**すべての `scrollToBottom` 予約が attach 成功（戻り値 true）に条件付けられている**ことを検査する（guard の前の無条件予約は NG）。
+- **[指摘5]** rb: 通常検査と `--selftest` は同じ判定関数を使う。追加ログ検査はコメント・文字列を除去したうえで `print`／`os_log`／`Logger` の**呼び出し数**を baseline と比較する（同一行への追加も検出）。
+- **[指摘6]** 凍結時に PM が frontmatter `baseline_commit` を実 SHA に置換する。rb は契約の `baseline_commit` を読み、欠落・プレースホルダ・不正値・環境変数との不一致をすべて NG にする。

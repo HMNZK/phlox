@@ -19,8 +19,12 @@ struct AgentConsoleWindowView: View {
     @State private var claude: ClaudeConsoleModel
     @State private var codex: CodexConsoleModel
     @State private var cursor: CursorConsoleModel
-    /// 選択は Optional で持ち、表示時に既定へ倒す。
+    /// 選択は Optional で持ち、表示時に既定へ倒す。正本はこれだけ。
     @State private var selection: AgentConsoleSection? = .claudeStatus
+
+    private var navigation: AgentConsoleNavigationModel {
+        AgentConsoleNavigationModel.make(agent: selection?.agent ?? .claude, selection: selection)
+    }
 
     init(claudeExecutablePath: String?, pathEnvironment: String, projectDirectory: URL?) {
         self.claudeExecutablePath = claudeExecutablePath
@@ -58,6 +62,13 @@ struct AgentConsoleWindowView: View {
 
             VStack(spacing: 0) {
                 messageBar
+                Text(navigation.locationText)
+                    .font(DSFont.captionStrong)
+                    .foregroundStyle(DSColor.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, DSSpacing.xl)
+                    .padding(.top, DSSpacing.l)
+                    .accessibilityIdentifier("agent-console-location")
                 detail
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -81,8 +92,26 @@ struct AgentConsoleWindowView: View {
                 sidebarHeader
 
                 VStack(alignment: .leading, spacing: DSSpacing.m) {
-                    ForEach(AgentConsoleAgent.allCases) { agent in
-                        agentGroup(agent)
+                    Picker(navigation.agentPickerLabel, selection: Binding(
+                        get: { navigation.agent },
+                        set: { newAgent in
+                            selection = AgentConsoleNavigationModel.make(agent: newAgent, selection: nil).selectedSection
+                        }
+                    )) {
+                        ForEach(AgentConsoleAgent.allCases) { agent in
+                            Text(agent.displayName).tag(agent)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("agent-console-agent-picker")
+
+                    ForEach(navigation.sections) { section in
+                        AgentConsoleSectionRow(
+                            section: section,
+                            isSelected: navigation.selectedSection == section
+                        ) {
+                            selection = section
+                        }
                     }
                 }
                 .padding(.horizontal, DSSpacing.s)
@@ -91,27 +120,6 @@ struct AgentConsoleWindowView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .scrollContentBackground(.hidden)
-    }
-
-    private func agentGroup(_ agent: AgentConsoleAgent) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            AgentConsoleGroupHeader(
-                title: agent.displayName,
-                systemImage: agent.symbolName,
-                tint: agent.tint
-            )
-            .padding(.horizontal, DSSpacing.s)
-            .padding(.bottom, DSSpacing.xxs)
-
-            ForEach(AgentConsoleSection.sections(for: agent)) { section in
-                AgentConsoleSectionRow(
-                    section: section,
-                    isSelected: (selection ?? .claudeStatus) == section
-                ) {
-                    selection = section
-                }
-            }
-        }
     }
 
     private var sidebarHeader: some View {
@@ -181,7 +189,7 @@ struct AgentConsoleWindowView: View {
 
     @ViewBuilder
     private var detail: some View {
-        switch selection ?? .claudeStatus {
+        switch navigation.selectedSection {
         case .claudeStatus: ClaudeStatusPane(model: claude)
         case .claudePlugins: ClaudePluginsPane(model: claude)
         case .claudeSkills: ClaudeSkillsPane(model: claude)
@@ -207,7 +215,7 @@ struct AgentConsoleWindowView: View {
     /// 結果と失敗は、いま見ているエージェントのものだけを出す。
     @ViewBuilder
     private var messageBar: some View {
-        switch (selection ?? .claudeStatus).agent {
+        switch navigation.agent {
         case .claude:
             banner(error: claude.errorMessage, info: claude.infoMessage) { claude.clearMessages() }
         case .codex:
@@ -246,15 +254,9 @@ private struct AgentConsoleSectionRow: View {
                         .font(.system(size: DSIconSize.m, weight: .semibold))
                         .foregroundStyle(isSelected ? tint : DSColor.textSecondary)
                 }
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(section.title)
-                        .font(DSFont.body)
-                        .foregroundStyle(isSelected ? DSColor.textPrimary : DSColor.textSecondary)
-                    Text(section.detail)
-                        .font(DSFont.monoCaption)
-                        .foregroundStyle(DSColor.textTertiary)
-                        .lineLimit(1)
-                }
+                Text(section.title)
+                    .font(DSFont.body)
+                    .foregroundStyle(isSelected ? DSColor.textPrimary : DSColor.textSecondary)
                 Spacer(minLength: 0)
             }
             .padding(.vertical, DSSpacing.s)
@@ -271,6 +273,8 @@ private struct AgentConsoleSectionRow: View {
             withAnimation(.easeInOut(duration: 0.12)) { isHovering = hovering }
         }
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .help(section.detail)
+        .accessibilityIdentifier("agent-console-section-\(section.rawValue)")
     }
 
     private var tint: Color { section.agent.tint }

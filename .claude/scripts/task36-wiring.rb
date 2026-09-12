@@ -1,83 +1,72 @@
 #!/usr/bin/env ruby
 # task-36 配線検査: AgentConsoleNavigationModel に列挙と選択が集約され、
-# 対象 Picker・19 経路・状態ペイン先頭の StatusSummary と CLI 詳細が接続され、
-# 既存設定行・reload・messageBar が固定 SHA から欠落していないこと。
-ng = []
-nav_path = "macos/Packages/AgentConfigKit/Sources/AgentConfigKit/Shared/AgentConsoleNavigationModel.swift"
-section_path = "macos/App/AgentConsole/AgentConsoleSection.swift"
-window_path = "macos/App/AgentConsole/AgentConsoleWindowView.swift"
-claude_pane = "macos/App/AgentConsole/Claude/ClaudeStatusPane.swift"
-codex_pane = "macos/App/AgentConsole/Codex/CodexStatusPane.swift"
-cursor_pane = "macos/App/AgentConsole/Cursor/CursorStatusPane.swift"
-settings_path = "macos/App/SettingsView.swift"
-custom_path = "macos/Packages/AgentDomain/Sources/AgentDomain/CustomAgentDefinition.swift"
-composition_path = "macos/App/CompositionRoot.swift"
-
-DETAIL_CASES = [
-  ["claudeStatus", "ClaudeStatusPane", "model:claude"],
-  ["claudePlugins", "ClaudePluginsPane", "model:claude"],
-  ["claudeSkills", "ClaudeSkillsPane", "model:claude"],
-  ["claudePermissions", "ClaudePermissionsPane", "model:claude"],
-  ["claudeMemory", "ClaudeMemoryPane", "model:claude"],
-  ["claudeHooks", "ClaudeHooksPane", "model:claude"],
-  ["claudeStatusLine", "ClaudeStatusLinePane", "model:claude"],
-  ["claudeOutputStyle", "ClaudeOutputStylePane", "model:claude"],
-  ["codexStatus", "CodexStatusPane", "model:codex"],
-  ["codexSettings", "CodexSettingsPane", "model:codex"],
-  ["codexPlugins", "CodexPluginsPane", "model:codex"],
-  ["codexMCP", "CodexMCPPane", "model:codex"],
-  ["codexMemory", "CodexMemoryPane", "model:codex"],
-  ["codexTrust", "CodexTrustPane", "model:codex"],
-  ["cursorStatus", "CursorStatusPane", "model:cursor"],
-  ["cursorPermissions", "CursorPermissionsPane", "model:cursor"],
-  ["cursorModel", "CursorModelPane", "model:cursor"],
-  ["cursorMCP", "CursorMCPPane", "model:cursor"],
-  ["cursorSettings", "CursorSettingsPane", "model:cursor"],
-]
-
-UNCHANGED_PATHS = [
-  settings_path,
-  custom_path,
-  composition_path,
-  "macos/App/AgentConsole/Claude/ClaudeConsoleModel.swift",
-  "macos/App/AgentConsole/Codex/CodexConsoleModel.swift",
-  "macos/App/AgentConsole/Cursor/CursorConsoleModel.swift",
-  "macos/App/AgentConsole/Claude/ClaudePluginsPane.swift",
-  "macos/App/AgentConsole/Claude/ClaudeSkillsPane.swift",
-  "macos/App/AgentConsole/Claude/ClaudePermissionsPane.swift",
-  "macos/App/AgentConsole/Claude/ClaudeMemoryPane.swift",
-  "macos/App/AgentConsole/Claude/ClaudeHooksPane.swift",
-  "macos/App/AgentConsole/Claude/ClaudeStatusLinePane.swift",
-  "macos/App/AgentConsole/Claude/ClaudeOutputStylePane.swift",
-  "macos/App/AgentConsole/Codex/CodexSettingsPane.swift",
-  "macos/App/AgentConsole/Codex/CodexPluginsPane.swift",
-  "macos/App/AgentConsole/Codex/CodexMCPPane.swift",
-  "macos/App/AgentConsole/Codex/CodexMemoryPane.swift",
-  "macos/App/AgentConsole/Codex/CodexTrustPane.swift",
-  "macos/App/AgentConsole/Cursor/CursorPermissionsPane.swift",
-  "macos/App/AgentConsole/Cursor/CursorModelPane.swift",
-  "macos/App/AgentConsole/Cursor/CursorMCPPane.swift",
-  "macos/App/AgentConsole/Cursor/CursorSettingsPane.swift",
-]
-
-baseline = ENV["TASK36_BASELINE"]
-if baseline.nil? || baseline.empty?
-  ng << "TASK36_BASELINE が未設定（HEAD にフォールバックしない）"
-  baseline = nil
-end
+# 対象 Picker・19 経路が接続され、reload / init / .task / messageBar が
+# TASK36_BASELINE（task-35 完了後 SHA）から欠落していないこと。
 
 def compact(s)
   s.gsub(/\s+/, "")
 end
 
+def index_after_string(src, i)
+  return i + 1 if i >= src.length
+  if src[i, 3] == '"""'
+    j = i + 3
+    while j < src.length
+      return j + 3 if src[j, 3] == '"""'
+      j += 1
+    end
+    return src.length
+  end
+  return i unless src[i] == '"'
+  j = i + 1
+  while j < src.length
+    if src[j] == "\\"
+      j += 2
+      next
+    end
+    return j + 1 if src[j] == '"'
+    j += 1
+  end
+  src.length
+end
+
+def protect_strings(src)
+  out = +""
+  strings = []
+  i = 0
+  while i < src.length
+    if src[i, 3] == '"""' || src[i] == '"'
+      j = index_after_string(src, i)
+      strings << src[i...j]
+      out << "__STR#{strings.length - 1}__"
+      i = j
+    else
+      out << src[i]
+      i += 1
+    end
+  end
+  [out, strings]
+end
+
+def restore_strings(src, strings)
+  src.gsub(/__STR(\d+)__/) { strings[Regexp.last_match(1).to_i] }
+end
+
 def strip_comments(src)
-  src.gsub(/\/\/[^\n]*/, "")
+  protected, strings = protect_strings(src)
+  protected = protected.gsub(%r{/\*.*?\*/}m, "")
+  protected = protected.gsub(%r{//[^\n]*}, "")
+  restore_strings(protected, strings)
 end
 
 def extract_balanced(src, open_idx, open_ch, close_ch)
   depth = 0
   i = open_idx
   while i < src.length
+    if src[i, 3] == '"""' || src[i] == '"'
+      i = index_after_string(src, i)
+      next
+    end
     case src[i]
     when open_ch then depth += 1
     when close_ch
@@ -132,7 +121,7 @@ def extract_call_args(src, callee)
   extract_balanced(src, m.end(0) - 1, "(", ")")
 end
 
-def extract_initializer_body(src)
+def extract_init(src)
   m = src.match(/(?:^|\n)[ \t]*(?:private\s+|public\s+|fileprivate\s+|internal\s+)?init\s*\(/)
   return nil unless m
   paren = src.index("(", m.begin(0))
@@ -142,7 +131,9 @@ def extract_initializer_body(src)
   after = paren + 1 + params.length + 1
   brace = src.index("{", after)
   return nil unless brace
-  extract_balanced(src, brace, "{", "}")
+  body = extract_balanced(src, brace, "{", "}")
+  return nil if body.nil?
+  { params: params, body: body }
 end
 
 def git_show(rev, path)
@@ -183,7 +174,23 @@ def switch_case_mappings(switch_body)
   mappings
 end
 
-def first_disclosure(src)
+def message_bar_case_bindings(switch_body)
+  mappings = []
+  pos = 0
+  while (m = switch_body.match(/case\s+\.(\w+)\s*:/, pos))
+    after = m.end(0)
+    nxt = switch_body.index(/case\s+\./, after) || switch_body.length
+    chunk_c = compact(switch_body[after...nxt])
+    error = chunk_c[/error:([A-Za-z0-9_.]+)/, 1]
+    info = chunk_c[/info:([A-Za-z0-9_.]+)/, 1]
+    dismiss = chunk_c[/\{([A-Za-z0-9_.]+)\(\)\}/, 1]
+    mappings << [m[1], error, info, dismiss]
+    pos = after
+  end
+  mappings
+end
+
+def parse_disclosure(src)
   m = src.match(/\bDisclosureGroup\b/)
   return nil unless m
   i = m.end(0)
@@ -199,7 +206,174 @@ def first_disclosure(src)
   body = extract_balanced(src, i, "{", "}")
   return nil if body.nil?
   close = i + 1 + body.length + 1
-  { args: args, body: body, before: src[0...m.begin(0)], after: src[close..] }
+  j = close
+  j += 1 while j < src.length && src[j] =~ /\s/
+  label_body = nil
+  rest = src[j..]
+  if rest && rest.start_with?("label:")
+    k = src.index(":", j) + 1
+    k += 1 while k < src.length && src[k] =~ /\s/
+    if src[k] == "{"
+      label_body = extract_balanced(src, k, "{", "}")
+      close = k + 1 + label_body.length + 1 if label_body
+    end
+  end
+  { args: args, body: body, label: label_body, before: src[0...m.begin(0)], after: src[close..] }
+end
+
+def has_case_value(src_c, case_name, value)
+  src_c.include?("case.#{case_name}:return#{value}") || src_c.include?("case.#{case_name}:#{value}")
+end
+
+def picker_set_assignment?(src)
+  compact(src).include?("selection=AgentConsoleNavigationModel.make(agent:newAgent,selection:nil).selectedSection")
+end
+
+def traits_include_is_selected?(src)
+  args = extract_call_args(src, ".accessibilityAddTraits") || extract_call_args(src, "accessibilityAddTraits")
+  args && args.include?(".isSelected")
+end
+
+def menu_picker_style?(src)
+  c = compact(src)
+  c.include?(".pickerStyle(.menu)") || c.include?(".pickerStyle(MenuPickerStyle())")
+end
+
+def selftest_assert(cond, msg)
+  unless cond
+    puts "task36-wiring --selftest: FAIL #{msg}"
+    exit 1
+  end
+end
+
+def run_selftest
+  url = %(let url = "https://example.com" // trailing\n)
+  stripped = strip_comments(url)
+  selftest_assert stripped.include?("https://example.com"), "正例: 文字列内の // を残す"
+  selftest_assert !stripped.include?("trailing"), "正例: 行コメントを除去する"
+  selftest_assert !strip_comments("let a = 1 /* x */ let b = 2").include?("x"), "正例: /* */ を除去する"
+
+  good_set = <<~SWIFT
+    Picker(navigation.agentPickerLabel, selection: Binding(
+      get: { navigation.agent },
+      set: { newAgent in
+        selection = AgentConsoleNavigationModel.make(agent: newAgent, selection: nil).selectedSection
+      }
+    ))
+  SWIFT
+  selftest_assert picker_set_assignment?(good_set), "正例: Picker set が selectedSection を代入する"
+
+  discarded = <<~SWIFT
+    set: { newAgent in
+      AgentConsoleNavigationModel.make(agent: newAgent, selection: nil)
+    }
+  SWIFT
+  selftest_assert !picker_set_assignment?(discarded), "負例: make の結果を捨てる"
+
+  good_traits = '.accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)'
+  selftest_assert traits_include_is_selected?(good_traits), "正例: .isSelected を含む条件式"
+  selftest_assert !traits_include_is_selected?(".accessibilityAddTraits(.isButton)"), "負例: .isButton だけ"
+
+  selftest_assert menu_picker_style?(".pickerStyle(.menu)"), "正例: .pickerStyle(.menu)"
+  selftest_assert menu_picker_style?(".pickerStyle(MenuPickerStyle())"), "正例: MenuPickerStyle()"
+  selftest_assert !menu_picker_style?(".pickerStyle(.segmented)"), "負例: segmented"
+
+  dg = parse_disclosure(<<~SWIFT)
+    DisclosureGroup(isExpanded: $showsCLIDetails) {
+      Text("version")
+    } label: {
+      Text(summary.cliDetailsTitle)
+    }
+  SWIFT
+  selftest_assert !dg.nil?, "正例: DisclosureGroup(isExpanded:) { } label: { } を切り出せる"
+  selftest_assert compact(dg[:args].to_s).include?("$showsCLIDetails"), "正例: isExpanded を読む"
+  selftest_assert compact(dg[:label].to_s).include?("summary.cliDetailsTitle"), "正例: label クロージャを読む"
+
+  tint = compact(<<~SWIFT)
+    switch self {
+    case .claude: DSColor.accent
+    case .codex: DSColor.statusCompleted
+    case .cursor: DSColor.statusRunning
+    }
+  SWIFT
+  selftest_assert has_case_value(tint, "claude", "DSColor.accent"), "正例: return 省略 switch"
+  with_return = compact("case .claude: return DSColor.accent")
+  selftest_assert has_case_value(with_return, "claude", "DSColor.accent"), "正例: return 付き switch"
+end
+
+if ARGV.include?("--selftest")
+  run_selftest
+  puts "task36-wiring --selftest: OK"
+  exit 0
+end
+
+ng = []
+nav_path = "macos/Packages/AgentConfigKit/Sources/AgentConfigKit/Shared/AgentConsoleNavigationModel.swift"
+section_path = "macos/App/AgentConsole/AgentConsoleSection.swift"
+window_path = "macos/App/AgentConsole/AgentConsoleWindowView.swift"
+settings_path = "macos/App/SettingsView.swift"
+custom_path = "macos/Packages/AgentDomain/Sources/AgentDomain/CustomAgentDefinition.swift"
+composition_path = "macos/App/CompositionRoot.swift"
+
+DETAIL_CASES = [
+  ["claudeStatus", "ClaudeStatusPane", "model:claude"],
+  ["claudePlugins", "ClaudePluginsPane", "model:claude"],
+  ["claudeSkills", "ClaudeSkillsPane", "model:claude"],
+  ["claudePermissions", "ClaudePermissionsPane", "model:claude"],
+  ["claudeMemory", "ClaudeMemoryPane", "model:claude"],
+  ["claudeHooks", "ClaudeHooksPane", "model:claude"],
+  ["claudeStatusLine", "ClaudeStatusLinePane", "model:claude"],
+  ["claudeOutputStyle", "ClaudeOutputStylePane", "model:claude"],
+  ["codexStatus", "CodexStatusPane", "model:codex"],
+  ["codexSettings", "CodexSettingsPane", "model:codex"],
+  ["codexPlugins", "CodexPluginsPane", "model:codex"],
+  ["codexMCP", "CodexMCPPane", "model:codex"],
+  ["codexMemory", "CodexMemoryPane", "model:codex"],
+  ["codexTrust", "CodexTrustPane", "model:codex"],
+  ["cursorStatus", "CursorStatusPane", "model:cursor"],
+  ["cursorPermissions", "CursorPermissionsPane", "model:cursor"],
+  ["cursorModel", "CursorModelPane", "model:cursor"],
+  ["cursorMCP", "CursorMCPPane", "model:cursor"],
+  ["cursorSettings", "CursorSettingsPane", "model:cursor"],
+]
+
+EXPECTED_MESSAGE_BAR = [
+  ["claude", "claude.errorMessage", "claude.infoMessage", "claude.clearMessages"],
+  ["codex", "codex.errorMessage", "codex.infoMessage", "codex.clearMessages"],
+  ["cursor", "cursor.errorMessage", "cursor.infoMessage", "cursor.clearMessages"],
+]
+
+UNCHANGED_PATHS = [
+  settings_path,
+  custom_path,
+  composition_path,
+  "macos/App/AgentConsole/Claude/ClaudeConsoleModel.swift",
+  "macos/App/AgentConsole/Codex/CodexConsoleModel.swift",
+  "macos/App/AgentConsole/Cursor/CursorConsoleModel.swift",
+  "macos/App/AgentConsole/Claude/ClaudePluginsPane.swift",
+  "macos/App/AgentConsole/Claude/ClaudeSkillsPane.swift",
+  "macos/App/AgentConsole/Claude/ClaudePermissionsPane.swift",
+  "macos/App/AgentConsole/Claude/ClaudeMemoryPane.swift",
+  "macos/App/AgentConsole/Claude/ClaudeHooksPane.swift",
+  "macos/App/AgentConsole/Claude/ClaudeStatusLinePane.swift",
+  "macos/App/AgentConsole/Claude/ClaudeOutputStylePane.swift",
+  "macos/App/AgentConsole/Codex/CodexSettingsPane.swift",
+  "macos/App/AgentConsole/Codex/CodexPluginsPane.swift",
+  "macos/App/AgentConsole/Codex/CodexMCPPane.swift",
+  "macos/App/AgentConsole/Codex/CodexMemoryPane.swift",
+  "macos/App/AgentConsole/Codex/CodexTrustPane.swift",
+  "macos/App/AgentConsole/Cursor/CursorPermissionsPane.swift",
+  "macos/App/AgentConsole/Cursor/CursorModelPane.swift",
+  "macos/App/AgentConsole/Cursor/CursorMCPPane.swift",
+  "macos/App/AgentConsole/Cursor/CursorSettingsPane.swift",
+]
+
+TASK_SNIPPET = ".task(id:claudeExecutablePath){awaitreload()}"
+
+baseline = ENV["TASK36_BASELINE"]
+if baseline.nil? || baseline.empty?
+  ng << "TASK36_BASELINE が未設定（HEAD にフォールバックしない）"
+  baseline = nil
 end
 
 # --- 列挙の所在 ---
@@ -232,9 +406,6 @@ else
   unless nav_src =~ /\bstruct\s+AgentConsoleNavigationModel\b/
     ng << "AgentConsoleNavigationModel.swift に struct AgentConsoleNavigationModel が無い"
   end
-  unless nav_src =~ /\bstruct\s+AgentConsoleStatusSummary\b/
-    ng << "AgentConsoleNavigationModel.swift に struct AgentConsoleStatusSummary が無い"
-  end
   unless nav_src =~ /\bstatic\s+func\s+make\s*\(\s*agent\s*:/
     ng << "AgentConsoleNavigationModel.swift に static func make(agent: が無い"
   end
@@ -253,14 +424,14 @@ else
     ng << "AgentConsoleSection.swift に extension AgentConsoleAgent が無い"
   else
     ext_c = compact(ext)
-    unless ext_c.include?("case.claude:returnDSColor.accent")
-      ng << "tint に case .claude: return DSColor.accent が無い"
+    unless has_case_value(ext_c, "claude", "DSColor.accent")
+      ng << "tint に case .claude: DSColor.accent が無い"
     end
-    unless ext_c.include?("case.codex:returnDSColor.statusCompleted")
-      ng << "tint に case .codex: return DSColor.statusCompleted が無い"
+    unless has_case_value(ext_c, "codex", "DSColor.statusCompleted")
+      ng << "tint に case .codex: DSColor.statusCompleted が無い"
     end
-    unless ext_c.include?("case.cursor:returnDSColor.statusRunning")
-      ng << "tint に case .cursor: return DSColor.statusRunning が無い"
+    unless has_case_value(ext_c, "cursor", "DSColor.statusRunning")
+      ng << "tint に case .cursor: DSColor.statusRunning が無い"
     end
   end
 end
@@ -281,6 +452,10 @@ else
   ng << "WindowView に agentGroup が残っている" if window_src =~ /\bagentGroup\b/
   ng << "WindowView に AgentConsoleSection.sections(for: が残っている" if window_c.include?("AgentConsoleSection.sections(for:")
 
+  unless window_c.include?(TASK_SNIPPET)
+    ng << "WindowView に .task(id: claudeExecutablePath) { await reload() } が無い"
+  end
+
   sidebar = extract_var_body(window_src, "sidebar")
   if sidebar.nil?
     ng << "sidebar の本文を括弧対応で切り出せない"
@@ -298,17 +473,14 @@ else
     unless side_c.include?("AgentConsoleAgent.allCases")
       ng << "sidebar に AgentConsoleAgent.allCases が無い"
     end
-    unless side_c.include?(".pickerStyle(.menu)")
-      ng << "sidebar に .pickerStyle(.menu) が無い"
+    unless menu_picker_style?(sidebar)
+      ng << "sidebar に .pickerStyle(.menu) も .pickerStyle(MenuPickerStyle()) も無い"
     end
     unless side_c.include?('accessibilityIdentifier("agent-console-agent-picker")')
       ng << 'sidebar に accessibilityIdentifier("agent-console-agent-picker") が無い'
     end
-    unless side_c.include?("selection:nil")
-      ng << "Picker の set が make(..., selection: nil) を呼んでいない"
-    end
-    unless side_c.include?("AgentConsoleNavigationModel.make(agent:")
-      ng << "Picker の set に AgentConsoleNavigationModel.make(agent: が無い"
+    unless picker_set_assignment?(sidebar)
+      ng << "Picker の set が selection = AgentConsoleNavigationModel.make(agent: newAgent, selection: nil).selectedSection ではない"
     end
     unless side_c.include?("navigation.selectedSection==section") || side_c.include?("section==navigation.selectedSection")
       ng << "sidebar に navigation.selectedSection == section が無い"
@@ -332,8 +504,8 @@ else
     if row_c.include?("Text(section.detail)")
       ng << "AgentConsoleSectionRow に常時表示の Text(section.detail) が残っている"
     end
-    unless row_c.include?(".accessibilityAddTraits")
-      ng << "AgentConsoleSectionRow に .accessibilityAddTraits が無い"
+    unless traits_include_is_selected?(row)
+      ng << "AgentConsoleSectionRow の .accessibilityAddTraits に .isSelected が無い"
     end
     unless row.include?('accessibilityIdentifier("agent-console-section-\\(section.rawValue)")')
       ng << 'AgentConsoleSectionRow に accessibilityIdentifier("agent-console-section-\\(section.rawValue)") が無い'
@@ -380,14 +552,9 @@ else
     unless message =~ /\bswitch\s+navigation\.agent\b/ || msg_c.include?("switchnavigation.agent")
       ng << "messageBar の switch が navigation.agent ではない"
     end
-    unless msg_c.include?("claude.errorMessage")
-      ng << "messageBar に claude.errorMessage が無い"
-    end
-    unless msg_c.include?("codex.errorMessage")
-      ng << "messageBar に codex.errorMessage が無い"
-    end
-    unless msg_c.include?("cursor.errorMessage")
-      ng << "messageBar に cursor.errorMessage が無い"
+    got_bar = message_bar_case_bindings(message)
+    unless got_bar == EXPECTED_MESSAGE_BAR
+      ng << "messageBar の case ごとの error/info/dismiss が #{got_bar.inspect}（期待 #{EXPECTED_MESSAGE_BAR.inspect}）"
     end
   end
 
@@ -416,11 +583,20 @@ else
     end
   end
 
-  initializer = extract_initializer_body(window_src)
+  initializer = extract_init(window_src)
   if initializer.nil?
-    ng << "init の本文を括弧対応で切り出せない"
+    ng << "init の引数・本文を括弧対応で切り出せない"
   else
-    init_c = compact(initializer)
+    init_c = compact(initializer[:body])
+    unless compact(initializer[:params]).include?("claudeExecutablePath:String?")
+      ng << "init 引数に claudeExecutablePath: String? が無い"
+    end
+    unless compact(initializer[:params]).include?("pathEnvironment:String")
+      ng << "init 引数に pathEnvironment: String が無い"
+    end
+    unless compact(initializer[:params]).include?("projectDirectory:URL?")
+      ng << "init 引数に projectDirectory: URL? が無い"
+    end
     unless init_c.include?("ClaudeConsoleModel(")
       ng << "init に ClaudeConsoleModel( が無い"
     end
@@ -430,154 +606,6 @@ else
     unless init_c.include?("CursorConsoleModel(")
       ng << "init に CursorConsoleModel( が無い"
     end
-  end
-end
-
-# --- 状態ペイン ---
-status_specs = [
-  {
-    path: claude_pane,
-    name: "ClaudeStatusPane",
-    available: "model.isClaudeAvailable",
-    config: "model.status.settingsFileExists",
-    version_value: "model.status.claudeVersion??\"—\"",
-    path_mono: "model.status.claudeExecutablePath",
-    extra_needles: [
-      "summaryTiles",
-      'AgentConsoleStatusSection(title:"設定"',
-      'AgentConsoleStatusSection(title:"メモリ"',
-      "settings.json",
-      "model.status.memoryFiles",
-      "model.loadSettings()",
-      "model.loadVersion()",
-      "model.loadPlugins()",
-      "installedPluginCount",
-      "marketplaceCount",
-      "permissionRuleCount",
-      "hookCount",
-    ],
-  },
-  {
-    path: codex_pane,
-    name: "CodexStatusPane",
-    available: "model.isAvailable",
-    config: "model.status.configFileExists",
-    version_value: "model.status.codexVersion??\"—\"",
-    path_mono: "model.status.codexExecutablePath",
-    extra_needles: [
-      "summaryTiles",
-      'AgentConsoleStatusSection(title:"設定"',
-      'AgentConsoleStatusSection(title:"メモリ"',
-      "config.toml",
-      "model.status.memoryFiles",
-      "model.loadConfig()",
-      "model.loadVersion()",
-      "installedPluginCount",
-      "mcpServerCount",
-      "trustedProjectCount",
-    ],
-  },
-  {
-    path: cursor_pane,
-    name: "CursorStatusPane",
-    available: "model.isAvailable",
-    config: "model.status.configFileExists",
-    version_value: "model.status.cursorVersion??\"—\"",
-    path_mono: "model.status.cursorExecutablePath",
-    extra_needles: [
-      "summaryTiles",
-      'AgentConsoleStatusSection(title:"設定"',
-      "cli-config.json",
-      "mcp.json",
-      "model.loadSettings()",
-      "model.loadVersionAndModels()",
-      "allowRuleCount",
-      "denyRuleCount",
-      "mcpServerCount",
-      "認証情報とキャッシュは画面に出さず、書き込みでも触りません。",
-    ],
-  },
-]
-
-status_specs.each do |spec|
-  unless File.exist?(spec[:path])
-    ng << "#{spec[:path]} が存在しない"
-    next
-  end
-  src = strip_comments(File.read(spec[:path]))
-  body = extract_struct_body(src, spec[:name])
-  if body.nil?
-    ng << "#{spec[:name]} の struct 本文を括弧対応で切り出せない"
-    next
-  end
-  body_c = compact(body)
-
-  unless body_c.include?("@StateprivatevarshowsCLIDetails=false") || body_c.include?("@StateprivatevarshowsCLIDetails:Bool=false")
-    ng << "#{spec[:name]} に @State private var showsCLIDetails = false が無い"
-  end
-
-  make_args = extract_call_args(body, "AgentConsoleStatusSummary.make")
-  if make_args.nil?
-    ng << "#{spec[:name]} に AgentConsoleStatusSummary.make( が無い"
-  else
-    make_c = compact(make_args)
-    unless make_c.include?("isAvailable:#{spec[:available]}")
-      ng << "#{spec[:name]} の make に isAvailable: #{spec[:available]} が無い"
-    end
-    unless make_c.include?("configFileExists:#{spec[:config]}")
-      ng << "#{spec[:name]} の make に configFileExists: #{spec[:config]} が無い"
-    end
-  end
-
-  %w[
-    summary.availabilityText
-    summary.availabilityDetail
-    summary.configurationText
-    summary.configurationDetail
-  ].each do |needle|
-    ng << "#{spec[:name]} に #{needle} が無い" unless body_c.include?(needle)
-  end
-
-  i_avail = body_c.index("summary.availabilityText")
-  i_tiles = body_c.index("summaryTiles")
-  if i_avail.nil? || i_tiles.nil?
-    ng << "#{spec[:name]} の先頭表示順検査に availabilityText / summaryTiles が足りない"
-  elsif !(i_avail < i_tiles)
-    ng << "#{spec[:name]} で summary.availabilityText が summaryTiles より後にある"
-  end
-
-  dg = first_disclosure(body)
-  if dg.nil?
-    ng << "#{spec[:name]} の DisclosureGroup を括弧対応で切り出せない"
-  else
-    joined = compact([dg[:args], dg[:body]].compact.join)
-    unless compact(dg[:args].to_s).include?("$showsCLIDetails") || joined.include?("isExpanded:$showsCLIDetails")
-      ng << "#{spec[:name]} の DisclosureGroup に isExpanded: $showsCLIDetails が無い"
-    end
-    unless compact(dg[:args].to_s).include?("summary.cliDetailsTitle") || compact(dg[:body]).include?("summary.cliDetailsTitle")
-      ng << "#{spec[:name]} の DisclosureGroup に summary.cliDetailsTitle が無い"
-    end
-    dg_c = compact(dg[:body])
-    unless dg_c.include?('label:"バージョン"')
-      ng << "#{spec[:name]} の DisclosureGroup 内に label: \"バージョン\" が無い"
-    end
-    unless dg_c.include?('label:"実行ファイル"')
-      ng << "#{spec[:name]} の DisclosureGroup 内に label: \"実行ファイル\" が無い"
-    end
-    unless dg_c.include?(spec[:version_value])
-      ng << "#{spec[:name]} の DisclosureGroup 内に #{spec[:version_value]} が無い"
-    end
-    unless dg_c.include?(spec[:path_mono])
-      ng << "#{spec[:name]} の DisclosureGroup 内に #{spec[:path_mono]} が無い"
-    end
-    outside = compact(dg[:before].to_s + dg[:after].to_s)
-    if outside.include?('label:"バージョン"') || outside.include?('AgentConsoleStatusSection(title:"CLI"')
-      ng << "#{spec[:name]} で CLI の 2 行が DisclosureGroup の外にも残っている"
-    end
-  end
-
-  spec[:extra_needles].each do |needle|
-    ng << "#{spec[:name]} に #{needle} が無い" unless body_c.include?(compact(needle)) || body.include?(needle)
   end
 end
 
@@ -595,8 +623,10 @@ if baseline
       ng << "git show #{baseline}:#{window_path} に失敗"
     else
       prev_src = strip_comments(previous)
+      cur_src = strip_comments(File.read(window_path))
+
       prev_detail = extract_var_body(prev_src, "detail")
-      cur_detail = File.exist?(window_path) ? extract_var_body(strip_comments(File.read(window_path)), "detail") : nil
+      cur_detail = extract_var_body(cur_src, "detail")
       if prev_detail.nil? || cur_detail.nil?
         ng << "baseline または HEAD の detail switch を切り出せない"
       else
@@ -605,6 +635,34 @@ if baseline
         unless prev_map.map { |sid, pane, args| [sid, pane, args] } == cur_map.map { |sid, pane, args| [sid, pane, args] }
           ng << "detail switch の 19 case→Pane→引数が #{baseline} から変化している"
         end
+      end
+
+      prev_reload = extract_func_body(prev_src, "reload")
+      cur_reload = extract_func_body(cur_src, "reload")
+      if prev_reload.nil? || cur_reload.nil?
+        ng << "baseline または HEAD の reload 本文を切り出せない"
+      elsif compact(prev_reload) != compact(cur_reload)
+        ng << "reload 本文が #{baseline} から変化している"
+      end
+
+      prev_init = extract_init(prev_src)
+      cur_init = extract_init(cur_src)
+      if prev_init.nil? || cur_init.nil?
+        ng << "baseline または HEAD の init を切り出せない"
+      elsif compact(prev_init[:params]) != compact(cur_init[:params]) || compact(prev_init[:body]) != compact(cur_init[:body])
+        ng << "init 引数または本文が #{baseline} から変化している"
+      end
+
+      unless compact(prev_src).include?(TASK_SNIPPET) && compact(cur_src).include?(TASK_SNIPPET)
+        ng << ".task(id: claudeExecutablePath) { await reload() } が #{baseline} または HEAD に無い"
+      end
+
+      prev_message = extract_var_body(prev_src, "messageBar")
+      cur_message = extract_var_body(cur_src, "messageBar")
+      if prev_message.nil? || cur_message.nil?
+        ng << "baseline または HEAD の messageBar を切り出せない"
+      elsif message_bar_case_bindings(prev_message) != message_bar_case_bindings(cur_message)
+        ng << "messageBar の case ごとの error/info/dismiss が #{baseline} から変化している"
       end
     end
   end

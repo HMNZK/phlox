@@ -104,6 +104,9 @@ struct AcceptanceThemePreviewModelTests {
             #expect(model.inputFill.opacity == 0.04)
             #expect(model.appLabel == "アプリ外観")
             #expect(model.terminalLabel == "ターミナル配色")
+            #expect(model.bodyText == "本文の見本")
+            #expect(model.selectedRowText == "現在の会話")
+            #expect(model.inputText == "メッセージを入力")
 
             if Self.lightThemeIDs.contains(theme.id) {
                 #expect(model.inputBorder.rgb == theme.textPrimary, "\(theme.id) 明色枠 RGB")
@@ -151,8 +154,16 @@ struct AcceptanceThemePreviewModelTests {
         #expect(third.background != second.background)
     }
 
+    @Test("ThemePreviewModel と Layer は Equatable & Sendable")
+    func modelIsEquatableAndSendable() {
+        requireEquatable(ThemePreviewModel.self)
+        requireEquatable(ThemePreviewModel.Layer.self)
+    }
+
     /// AppTheme.swift の bg 実値から、相対輝度 0.5 以上になる明色 4 テーマ。
     private static let lightThemeIDs: Set<String> = [
         "catppuccin-latte", "solarized-light", "github-light", "phlox-light",
     ]
 }
+
+private func requireEquatable<T: Equatable & Sendable>(_: T.Type) {}

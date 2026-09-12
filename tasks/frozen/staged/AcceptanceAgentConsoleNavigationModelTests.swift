@@ -1,13 +1,14 @@
-// task-36（UX-12）の受け入れテスト。
+// task-36（UX-12）の受け入れテスト。ナビゲーションと列挙の移設。
 //
-// ベースラインでの red 理由: `AgentConsoleNavigationModel` /
-// `AgentConsoleStatusSummary` と、AgentConfigKit へ移設した public な
-// `AgentConsoleAgent` / `AgentConsoleSection` は本タスクが新設・移設を
-// 要求する API で、baseline_commit の AgentConfigKit には存在しない
+// ベースラインでの red 理由: `AgentConsoleNavigationModel` と、
+// AgentConfigKit へ移設した public な `AgentConsoleAgent` /
+// `AgentConsoleSection` は本タスクが新設・移設を要求する API で、
+// baseline_commit の AgentConfigKit には存在しない
 // （参照未解決でコンパイル不能＝red）。
 //
 // 契約: 既存 19 項目の case / rawValue / title / 順序をリテラルで固定し、
 // allCases から期待値を生成しない。ファイル・CLI・UserDefaults は読まない。
+// 状態要約（AgentConsoleStatusSummary）は task-37 の契約。
 
 import AgentConfigKit
 import Testing
@@ -64,6 +65,50 @@ struct AcceptanceAgentConsoleNavigationModelTests {
         ("cursorSettings", "設定", "display / git", "slider.horizontal.3"),
     ]
 
+    private static let agentDisplayNames: [(agent: AgentConsoleAgent, name: String)] = [
+        (.claude, "Claude Code"),
+        (.codex, "Codex"),
+        (.cursor, "Cursor"),
+    ]
+
+    private static var allPairIDs: [String] {
+        (claudePairs + codexPairs + cursorPairs).map(\.id)
+    }
+
+    private static func pairs(for agent: AgentConsoleAgent) -> [(id: String, title: String)] {
+        switch agent {
+        case .claude: claudePairs
+        case .codex: codexPairs
+        case .cursor: cursorPairs
+        }
+    }
+
+    private static func statusID(for agent: AgentConsoleAgent) -> String {
+        switch agent {
+        case .claude: "claudeStatus"
+        case .codex: "codexStatus"
+        case .cursor: "cursorStatus"
+        }
+    }
+
+    private static func title(forSectionID id: String) -> String {
+        (claudePairs + codexPairs + cursorPairs).first { $0.id == id }?.title ?? ""
+    }
+
+    private static func displayName(for agent: AgentConsoleAgent) -> String {
+        agentDisplayNames.first { $0.agent == agent }?.name ?? ""
+    }
+
+    private static func expectedSelectedID(agent: AgentConsoleAgent, selection: AgentConsoleSection?) -> String {
+        if let selection {
+            let belonging = pairs(for: agent).map(\.id)
+            if belonging.contains(selection.rawValue) {
+                return selection.rawValue
+            }
+        }
+        return statusID(for: agent)
+    }
+
     @Test("agent の rawValue と表示名を固定する")
     func agentRawValuesAndDisplayNames() {
         #expect(AgentConsoleAgent.allCases.map(\.rawValue) == ["claude", "codex", "cursor"])
@@ -82,9 +127,12 @@ struct AcceptanceAgentConsoleNavigationModelTests {
         let codex = AgentConsoleNavigationModel.make(agent: .codex, selection: nil)
         let cursor = AgentConsoleNavigationModel.make(agent: .cursor, selection: nil)
 
-        #expect(claude.sections.map { ($0.rawValue, $0.title) } == Self.claudePairs.map { ($0.id, $0.title) })
-        #expect(codex.sections.map { ($0.rawValue, $0.title) } == Self.codexPairs.map { ($0.id, $0.title) })
-        #expect(cursor.sections.map { ($0.rawValue, $0.title) } == Self.cursorPairs.map { ($0.id, $0.title) })
+        #expect(claude.sections.map(\.rawValue) == Self.claudePairs.map(\.id))
+        #expect(claude.sections.map(\.title) == Self.claudePairs.map(\.title))
+        #expect(codex.sections.map(\.rawValue) == Self.codexPairs.map(\.id))
+        #expect(codex.sections.map(\.title) == Self.codexPairs.map(\.title))
+        #expect(cursor.sections.map(\.rawValue) == Self.cursorPairs.map(\.id))
+        #expect(cursor.sections.map(\.title) == Self.cursorPairs.map(\.title))
 
         #expect(claude.sections.count == 8)
         #expect(codex.sections.count == 6)
@@ -93,7 +141,7 @@ struct AcceptanceAgentConsoleNavigationModelTests {
 
     @Test("19 項目の和集合は 19 件で重複なし")
     func nineteenSectionUnionIsUnique() {
-        let ids = (Self.claudePairs + Self.codexPairs + Self.cursorPairs).map(\.id)
+        let ids = Self.allPairIDs
         #expect(ids.count == 19)
         #expect(Set(ids).count == 19)
 
@@ -107,76 +155,55 @@ struct AcceptanceAgentConsoleNavigationModelTests {
         #expect(Set(got).count == 19)
     }
 
-    @Test("selection=nil なら各 agent の状態項目になる")
-    func nilSelectionResolvesToStatus() {
-        let claude = AgentConsoleNavigationModel.make(agent: .claude, selection: nil)
-        let codex = AgentConsoleNavigationModel.make(agent: .codex, selection: nil)
-        let cursor = AgentConsoleNavigationModel.make(agent: .cursor, selection: nil)
+    @Test("section.agent の 19 組写像と allCases 順序を固定する")
+    func sectionAgentMappingAndAllCasesOrder() {
+        #expect(AgentConsoleSection.allCases.map(\.rawValue) == Self.allPairIDs)
+        #expect(AgentConsoleSection.allCases.count == 19)
 
-        #expect(claude.selectedSection == .claudeStatus)
-        #expect(codex.selectedSection == .codexStatus)
-        #expect(cursor.selectedSection == .cursorStatus)
-        #expect(claude.agent == .claude)
-        #expect(codex.agent == .codex)
-        #expect(cursor.agent == .cursor)
+        for pair in Self.claudePairs {
+            let section = AgentConsoleSection.allCases.first { $0.rawValue == pair.id }
+            #expect(section != nil, pair.id)
+            #expect(section?.agent == .claude, pair.id)
+        }
+        for pair in Self.codexPairs {
+            let section = AgentConsoleSection.allCases.first { $0.rawValue == pair.id }
+            #expect(section != nil, pair.id)
+            #expect(section?.agent == .codex, pair.id)
+        }
+        for pair in Self.cursorPairs {
+            let section = AgentConsoleSection.allCases.first { $0.rawValue == pair.id }
+            #expect(section != nil, pair.id)
+            #expect(section?.agent == .cursor, pair.id)
+        }
+
+        #expect(AgentConsoleSection.claudeStatus.agent == .claude)
+        #expect(AgentConsoleSection.codexTrust.agent == .codex)
+        #expect(AgentConsoleSection.cursorModel.agent == .cursor)
     }
 
-    @Test("所属する各項目を渡すとそのまま保持する")
-    func belongingSelectionIsKept() {
-        let claudeKeep: [AgentConsoleSection] = [
-            .claudeStatus, .claudePlugins, .claudeSkills, .claudePermissions,
-            .claudeMemory, .claudeHooks, .claudeStatusLine, .claudeOutputStyle,
-        ]
-        let codexKeep: [AgentConsoleSection] = [
-            .codexStatus, .codexSettings, .codexPlugins, .codexMCP, .codexMemory, .codexTrust,
-        ]
-        let cursorKeep: [AgentConsoleSection] = [
-            .cursorStatus, .cursorPermissions, .cursorModel, .cursorMCP, .cursorSettings,
-        ]
+    @Test("3 agent × (19 selection + nil) = 60 組で agent・sections・selectedSection・locationText を検査する")
+    func sixtyAgentSelectionCombinations() {
+        let agents: [AgentConsoleAgent] = [.claude, .codex, .cursor]
+        let selections: [AgentConsoleSection?] = AgentConsoleSection.allCases.map { Optional($0) } + [nil]
+        #expect(AgentConsoleSection.allCases.count == 19)
+        #expect(agents.count * selections.count == 60)
 
-        for section in claudeKeep {
-            let model = AgentConsoleNavigationModel.make(agent: .claude, selection: section)
-            #expect(model.selectedSection == section)
-            #expect(model.agent == .claude)
-        }
-        for section in codexKeep {
-            let model = AgentConsoleNavigationModel.make(agent: .codex, selection: section)
-            #expect(model.selectedSection == section)
-            #expect(model.agent == .codex)
-        }
-        for section in cursorKeep {
-            let model = AgentConsoleNavigationModel.make(agent: .cursor, selection: section)
-            #expect(model.selectedSection == section)
-            #expect(model.agent == .cursor)
-        }
-    }
+        for agent in agents {
+            let expectedPairs = Self.pairs(for: agent)
+            for selection in selections {
+                let model = AgentConsoleNavigationModel.make(agent: agent, selection: selection)
+                #expect(model.agent == agent)
+                #expect(model.sections.map(\.rawValue) == expectedPairs.map(\.id))
+                #expect(model.sections.map(\.title) == expectedPairs.map(\.title))
 
-    @Test("他 agent 所属の selection は状態へ戻る")
-    func foreignSelectionResetsToStatus() {
-        #expect(
-            AgentConsoleNavigationModel.make(agent: .claude, selection: .codexTrust).selectedSection
-                == .claudeStatus
-        )
-        #expect(
-            AgentConsoleNavigationModel.make(agent: .claude, selection: .cursorModel).selectedSection
-                == .claudeStatus
-        )
-        #expect(
-            AgentConsoleNavigationModel.make(agent: .codex, selection: .claudePermissions).selectedSection
-                == .codexStatus
-        )
-        #expect(
-            AgentConsoleNavigationModel.make(agent: .codex, selection: .cursorSettings).selectedSection
-                == .codexStatus
-        )
-        #expect(
-            AgentConsoleNavigationModel.make(agent: .cursor, selection: .claudeOutputStyle).selectedSection
-                == .cursorStatus
-        )
-        #expect(
-            AgentConsoleNavigationModel.make(agent: .cursor, selection: .codexMCP).selectedSection
-                == .cursorStatus
-        )
+                let expectedID = Self.expectedSelectedID(agent: agent, selection: selection)
+                #expect(model.selectedSection.rawValue == expectedID)
+                #expect(
+                    model.locationText
+                        == "\(Self.displayName(for: agent)) / \(Self.title(forSectionID: expectedID))"
+                )
+            }
+        }
     }
 
     @Test("locationText の例と Picker ラベルを固定する")
@@ -223,34 +250,12 @@ struct AcceptanceAgentConsoleNavigationModelTests {
         }
     }
 
-    @Test("StatusSummary の Bool 2 入力 4 組で 4 つの表示フィールドと CLI 詳細ラベルをリテラル比較する")
-    func statusSummaryFourCombinations() {
-        let bothTrue = AgentConsoleStatusSummary.make(isAvailable: true, configFileExists: true)
-        #expect(bothTrue.availabilityText == "CLI を検出済み")
-        #expect(bothTrue.availabilityDetail == "認証・通信の状態は未確認です")
-        #expect(bothTrue.configurationText == "設定ファイルあり")
-        #expect(bothTrue.configurationDetail == nil)
-        #expect(bothTrue.cliDetailsTitle == "CLI の詳細")
-
-        let cliOnly = AgentConsoleStatusSummary.make(isAvailable: true, configFileExists: false)
-        #expect(cliOnly.availabilityText == "CLI を検出済み")
-        #expect(cliOnly.availabilityDetail == "認証・通信の状態は未確認です")
-        #expect(cliOnly.configurationText == "設定ファイル未作成")
-        #expect(cliOnly.configurationDetail == "必要な設定は左の項目から変更できます")
-        #expect(cliOnly.cliDetailsTitle == "CLI の詳細")
-
-        let fileOnly = AgentConsoleStatusSummary.make(isAvailable: false, configFileExists: true)
-        #expect(fileOnly.availabilityText == "CLI を検出できていません")
-        #expect(fileOnly.availabilityDetail == "インストール先と PATH を確認してください")
-        #expect(fileOnly.configurationText == "設定ファイルあり")
-        #expect(fileOnly.configurationDetail == nil)
-        #expect(fileOnly.cliDetailsTitle == "CLI の詳細")
-
-        let bothFalse = AgentConsoleStatusSummary.make(isAvailable: false, configFileExists: false)
-        #expect(bothFalse.availabilityText == "CLI を検出できていません")
-        #expect(bothFalse.availabilityDetail == "インストール先と PATH を確認してください")
-        #expect(bothFalse.configurationText == "設定ファイル未作成")
-        #expect(bothFalse.configurationDetail == "必要な設定は左の項目から変更できます")
-        #expect(bothFalse.cliDetailsTitle == "CLI の詳細")
+    @Test("NavigationModel・Agent・Section は Equatable & Sendable")
+    func modelsAreEquatableAndSendable() {
+        requireEquatable(AgentConsoleNavigationModel.self)
+        requireEquatable(AgentConsoleAgent.self)
+        requireEquatable(AgentConsoleSection.self)
     }
 }
+
+private func requireEquatable<T: Equatable & Sendable>(_: T.Type) {}

@@ -88,21 +88,24 @@ UI-06。テーマ一覧の色帯だけでは、適用後のアプリ外観を判
    Phloxの色帯を [(14,14,14),(239,68,68),(52,211,153),(251,191,36),(96,165,250),(217,119,87),(56,189,248),(214,214,214)] に固定する（`AppTheme.swift:245,273`）。
    GitHub Lightではbackground=(255,255,255)、inputBorderのopacity=0.86、RGBが同テーマのtextPrimaryであることを確認する。
    文言5種、themeID/name、マーカー色、色帯の8色と順序を検査する。
-   登録10テーマについて候補由来の背景・文字・選択行・枠・色帯への写像を検査し、Phlox→GitHub Light→Phloxの呼び出しで前の候補が混入しないことを確認する。
+   登録10テーマについて候補由来の背景・文字・選択行・枠・色帯への写像を検査し、各テーマで `bodyText` / `selectedRowText` / `inputText` / `appLabel` / `terminalLabel` の文言を固定する。Phlox→GitHub Light→Phloxの呼び出しで前の候補が混入しないことを確認する。
+   `ThemePreviewModel` と `Layer` は `func requireEquatable<T: Equatable & Sendable>(_: T.Type)` で Equatable & Sendable を確認する。
    数値は実コード上のRGB・不透明度の契約であり、スクリーンショットの測色値ではない。
    `~/.agents/scripts/compact-test task35-design-system bash macos/scripts/run-swift-tests.sh DesignSystem` green。
    Appを含む隔離Debugビルド成功。統合時は既存 `.claude/verify.sh` を正本として実行し、パッケージテストの成功をAppのビルド成功と読み替えない。
 
 2. 配線検査 `.claude/scripts/task35-wiring.rb` OK。
    PMが凍結し、`~/.agents/scripts/compact-test task35-wiring env TASK35_BASELINE=<凍結SHA> ruby .claude/scripts/task35-wiring.rb` で実行する。
-   コメントを除去し、括弧・波括弧対応で対象View本文と引数を取り出して以下を検査する。
-   ThemeRowViewが候補のthemeでmakeを呼ぶ／同じmodelを両見本へ渡す／アプリ・ターミナル双方の用途名をTextとして表示する／各見本がmodelの該当フィールドを実描画へ使う／selectedRowとinputFillに不透明なmodel.backgroundの下地がある／各Layerのopacityを適用する／見本内にDSColor・ThemeStore.active・UserDefaults・入力コントロールがない。
+   文字列リテラルを先にプレースホルダ化したうえで `//` と `/* */` を除去し、括弧・波括弧対応で対象View本文と引数を取り出して以下を検査する。
+   ThemeRowViewが候補のthemeでmakeを呼ぶ／`ThemePreviewModel.make` の戻り値が変数に代入され、その変数が ThemeAppPreview と ThemeSwatchStrip の両方に渡る／アプリ・ターミナル双方の用途名をTextとして表示する／各見本がmodelの該当フィールドを実描画へ使う／selectedRowとinputFillは、それぞれを含む ZStack の先頭で不透明な `model.background` を下地にする／各Layerのopacityを適用する／色帯は `model.terminalSwatches` の直後に `.reversed()`・`.shuffled()`・添字が無い／見本内にDSColor・ThemeStore.active・UserDefaults・入力コントロールがない。
    既存のテーマ列挙、選択action、選択チェックが残ることを検査する。
    モデルのSwiftUI/AppKit importおよびColor/View/ColorScheme保持がないことを検査する。
    読み取り対象のTokens・ChatComposer・GridChatColumn・AppThemeについて、前述の選択面・入力面・枠・輝度判定が契約どおりであることを検査する。製品側だけ変更された場合も検査を落とす。
-   SettingsViewの変更をテーマ行・テーマ見本に限定し、他の設定Sectionとactionの欠落を固定SHAとの差分で検出する。HEADとの自己比較は使わない。
+   SettingsViewの変更をテーマ行・テーマ見本に限定し、他の設定Sectionとactionの欠落を固定SHAとの差分で検出する。比較時は ThemeRowView / ThemeAppPreview / ThemeSwatchStrip を両側から空文字で除去した残余を使う（新規 struct がプレースホルダ残留で偽陽性にならないこと）。HEADとの自己比較は使わない。
+   `--selftest` で、残余比較の正例・負例、文字列内 `//` を壊さないこと、`/* */` 除去、make 代入、入力欄 ZStack 先頭、色帯の順序改変拒否を自己検査する。
 
-3. PM目視ゲート:
+3. 隔離 Debug の App ビルド（`xcodebuild -scheme Phlox -configuration Debug -derivedDataPath /tmp/phlox-t13-visual.SPfR9c/Build -destination platform=macOS build`）成功を PM ゲートの必須項目とする。
+   PM目視ゲート:
    この変更から作った隔離Debugを専用DerivedData・専用データディレクトリで起動する。
    `PHLOX_DATA_DIR`、`PHLOX_AGENTS_JSON`、専用defaults suiteを利用し、実際にテーマ選択を書き込むdefaultsドメインも隔離されていることを事前確認する。suite指定だけでSettingsViewのAppStorageまで隔離されたと仮定しない（`SettingsView.swift:26`）。
    起動結果から自PIDを取得し、実行ファイルパスとウィンドウ所有PIDを照合する。自PIDに対するAX取得・AXPress、必要時のみ遮蔽確認付き座標クリックを使用する。キー送信は禁止。
@@ -112,7 +115,7 @@ UI-06。テーマ一覧の色帯だけでは、適用後のアプリ外観を判
    スクリーンショットには対象テーマ・PID・ウィンドウ寸法を記録する。測色する場合は同じ表示環境で内部の平坦面を比較し、文字縁・枠のアンチエイリアスを色差と混同しない。
    終了時は自分が起動したPIDと子プロセスだけを確認して終了する。撮影不能・AX取得不能は未検証として記録する。
 
-- PM 追記（2026-09-12）: 見本の入力欄と実チャット入力欄の実画面比較は、課金なしで入力欄を表示する経路が現状無い（UI-07 と同じ制約）。ユーザー判断（UI-07 の (a)/(b)）が出るまで「入力欄比較は未検証」として記録し、他の 3 要素（背景・本文・現在の会話行）と色帯の比較で目視ゲートを行う。仕様 UI-06 の完了マークはその旨を併記する。
+- PM 追記（2026-09-12）: 入力欄の実画面比較が済むか、ユーザーが比較免除を判断するまで、UI-06 は完了マークしない（UI-07 と同じ扱い）。他 3 要素（背景・本文・現在の会話行）と色帯の比較は先に行う。入力欄比較が未達のまま配色テストや他 3 要素の目視で代替合格にしない。
 
 ## レビュー観点（Rubric）
 

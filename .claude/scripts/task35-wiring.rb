@@ -2,32 +2,71 @@
 # task-35 配線検査: ThemePreviewModel が見本の唯一の入力になり、
 # SettingsView のテーマ行が同じ model でアプリ見本と色帯を描き、
 # 製品側の選択面・入力面・枠・輝度判定レシピが契約どおりであること。
-ng = []
-model_path = "macos/Packages/DesignSystem/Sources/DesignSystem/ThemePreviewModel.swift"
-settings_path = "macos/App/SettingsView.swift"
-tokens_path = "macos/Packages/DesignSystem/Sources/DesignSystem/Tokens.swift"
-theme_path = "macos/Packages/DesignSystem/Sources/DesignSystem/AppTheme.swift"
-composer_path = "macos/Packages/SessionFeature/Sources/SessionFeature/ChatComposer.swift"
-grid_path = "macos/Packages/SessionFeature/Sources/SessionFeature/GridChatColumn.swift"
-
-baseline = ENV["TASK35_BASELINE"]
-if baseline.nil? || baseline.empty?
-  ng << "TASK35_BASELINE が未設定（HEAD にフォールバックしない）"
-  baseline = nil
-end
 
 def compact(s)
   s.gsub(/\s+/, "")
 end
 
+def index_after_string(src, i)
+  return i + 1 if i >= src.length
+  if src[i, 3] == '"""'
+    j = i + 3
+    while j < src.length
+      return j + 3 if src[j, 3] == '"""'
+      j += 1
+    end
+    return src.length
+  end
+  return i unless src[i] == '"'
+  j = i + 1
+  while j < src.length
+    if src[j] == "\\"
+      j += 2
+      next
+    end
+    return j + 1 if src[j] == '"'
+    j += 1
+  end
+  src.length
+end
+
+def protect_strings(src)
+  out = +""
+  strings = []
+  i = 0
+  while i < src.length
+    if src[i, 3] == '"""' || src[i] == '"'
+      j = index_after_string(src, i)
+      strings << src[i...j]
+      out << "__STR#{strings.length - 1}__"
+      i = j
+    else
+      out << src[i]
+      i += 1
+    end
+  end
+  [out, strings]
+end
+
+def restore_strings(src, strings)
+  src.gsub(/__STR(\d+)__/) { strings[Regexp.last_match(1).to_i] }
+end
+
 def strip_comments(src)
-  src.gsub(/\/\/[^\n]*/, "")
+  protected, strings = protect_strings(src)
+  protected = protected.gsub(%r{/\*.*?\*/}m, "")
+  protected = protected.gsub(%r{//[^\n]*}, "")
+  restore_strings(protected, strings)
 end
 
 def extract_balanced(src, open_idx, open_ch, close_ch)
   depth = 0
   i = open_idx
   while i < src.length
+    if src[i, 3] == '"""' || src[i] == '"'
+      i = index_after_string(src, i)
+      next
+    end
     case src[i]
     when open_ch then depth += 1
     when close_ch
@@ -80,7 +119,7 @@ def labeled_arg(args, label)
   m && m[1]
 end
 
-def replace_struct(src, name, placeholder)
+def replace_struct(src, name, placeholder = "")
   m = src.match(/(?:private\s+|public\s+|fileprivate\s+|internal\s+)?struct\s+#{Regexp.escape(name)}\b/)
   return src unless m
   brace = src.index("{", m.begin(0))
@@ -89,6 +128,14 @@ def replace_struct(src, name, placeholder)
   return src if body.nil?
   close = brace + 1 + body.length + 1
   src[0...m.begin(0)] + placeholder + src[close..]
+end
+
+def remainder_without_theme_structs(src)
+  rest = strip_comments(src)
+  %w[ThemeRowView ThemeAppPreview ThemeSwatchStrip].each do |name|
+    rest = replace_struct(rest, name, "")
+  end
+  compact(rest)
 end
 
 def git_show(rev, path)
@@ -110,6 +157,158 @@ def count_calls(src, callee)
     pos = m.begin(0) + 1
   end
   n
+end
+
+def assigned_var_for_call(src, callee)
+  m = src.match(/(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?::[^=\n{]+)?=\s*#{Regexp.escape(callee)}\s*\(/)
+  m && m[1]
+end
+
+def zstack_bodies(src)
+  bodies = []
+  pos = 0
+  while (m = src.match(/\bZStack\b/, pos))
+    i = m.end(0)
+    i += 1 while i < src.length && src[i] =~ /\s/
+    if src[i] == "("
+      args = extract_balanced(src, i, "(", ")")
+      unless args
+        pos = m.end(0)
+        next
+      end
+      i = i + 1 + args.length + 1
+      i += 1 while i < src.length && src[i] =~ /\s/
+    end
+    unless src[i] == "{"
+      pos = m.end(0)
+      next
+    end
+    body = extract_balanced(src, i, "{", "}")
+    bodies << body if body
+    pos = i + 1
+  end
+  bodies
+end
+
+def zstack_starts_with_background?(src, needle)
+  zstack_bodies(src).any? do |body|
+    c = compact(body)
+    next false unless c.include?(needle)
+    first = c.match(/model\.[A-Za-z]+/)
+    first && first[0] == "model.background"
+  end
+end
+
+def swatches_reordered?(src)
+  c = compact(src)
+  return true if c.match?(/model\.terminalSwatches\.(reversed|shuffled)\(/)
+  return true if c.match?(/model\.terminalSwatches\[/)
+  false
+end
+
+def selftest_assert(cond, msg)
+  unless cond
+    puts "task35-wiring --selftest: FAIL #{msg}"
+    exit 1
+  end
+end
+
+def run_selftest
+  before = "struct SettingsView {}\n"
+  after = before + "private struct ThemeAppPreview: View {}\n"
+  selftest_assert remainder_without_theme_structs(before) == remainder_without_theme_structs(after),
+                  "正例: 新規 ThemeAppPreview を空文字除去した残余は同一"
+
+  after_all = before + "private struct ThemeAppPreview: View {}\nprivate struct ThemeSwatchStrip: View {}\nstruct ThemeRowView { let x = 1 }\n"
+  selftest_assert remainder_without_theme_structs(before) == remainder_without_theme_structs(after_all),
+                  "正例: ThemeAppPreview/ThemeSwatchStrip/ThemeRowView を両側から除去した残余は同一"
+
+  row_before = "struct SettingsView { let keep = 1 }\nstruct ThemeRowView { let x = 1 }\n"
+  row_after = "struct SettingsView { let keep = 1 }\nstruct ThemeRowView { let x = 2 }\n"
+  selftest_assert remainder_without_theme_structs(row_before) == remainder_without_theme_structs(row_after),
+                  "正例: ThemeRowView 本体の変更は残余から消える"
+
+  tampered = "struct SettingsView { let keep = 2 }\nprivate struct ThemeAppPreview: View {}\n"
+  selftest_assert remainder_without_theme_structs(before.sub("{}", "{ let keep = 1 }")) != remainder_without_theme_structs(tampered),
+                  "負例: 他フィールド変更は残余が異なる"
+
+  placeholder_after = replace_struct(after, "ThemeAppPreview", "/*stripped:ThemeAppPreview*/")
+  selftest_assert compact(placeholder_after) != compact(before),
+                  "負例: プレースホルダ置換だと新規 struct が残余に残る"
+
+  url = %(let url = "https://example.com" // trailing comment\n)
+  stripped = strip_comments(url)
+  selftest_assert stripped.include?("https://example.com"), "正例: 文字列内の // を残す"
+  selftest_assert !stripped.include?("trailing comment"), "正例: 行コメントを除去する"
+
+  block = "let a = 1 /* block comment */ let b = 2"
+  block_stripped = strip_comments(block)
+  selftest_assert !block_stripped.include?("block comment"), "正例: /* */ を除去する"
+  selftest_assert block_stripped.include?("let a = 1") && block_stripped.include?("let b = 2"), "正例: /* */ 除去後も前後が残る"
+
+  good_make = <<~SWIFT
+    let model = ThemePreviewModel.make(theme: theme)
+    ThemeAppPreview(model: model)
+    ThemeSwatchStrip(model: model)
+  SWIFT
+  var_name = assigned_var_for_call(good_make, "ThemePreviewModel.make")
+  selftest_assert var_name == "model", "正例: make の戻り値が変数に代入される"
+  selftest_assert labeled_arg(extract_call_args(good_make, "ThemeAppPreview"), "model") == var_name, "正例: ThemeAppPreview にその変数を渡す"
+  selftest_assert labeled_arg(extract_call_args(good_make, "ThemeSwatchStrip"), "model") == var_name, "正例: ThemeSwatchStrip にその変数を渡す"
+
+  discarded_make = <<~SWIFT
+    ThemePreviewModel.make(theme: theme)
+    ThemeAppPreview(model: model)
+    ThemeSwatchStrip(model: model)
+  SWIFT
+  selftest_assert assigned_var_for_call(discarded_make, "ThemePreviewModel.make").nil?, "負例: make の戻り値を捨てる"
+
+  other_make = <<~SWIFT
+    let model = ThemePreviewModel.make(theme: theme)
+    ThemeAppPreview(model: other)
+    ThemeSwatchStrip(model: other)
+  SWIFT
+  assigned = assigned_var_for_call(other_make, "ThemePreviewModel.make")
+  selftest_assert labeled_arg(extract_call_args(other_make, "ThemeAppPreview"), "model") != assigned, "負例: 別変数を両 View に渡す"
+
+  good_input = <<~SWIFT
+    ZStack {
+      model.background.color
+      RoundedRectangle().fill(model.inputFill.rgb.color.opacity(model.inputFill.opacity))
+    }
+  SWIFT
+  selftest_assert zstack_starts_with_background?(good_input, "model.inputFill"), "正例: 入力欄 ZStack の先頭が model.background"
+
+  bad_input = <<~SWIFT
+    ZStack { model.background.color }
+    ZStack { model.inputFill.rgb.color }
+  SWIFT
+  selftest_assert !zstack_starts_with_background?(bad_input, "model.inputFill"), "負例: 入力欄に background 下地が無い"
+
+  selftest_assert !swatches_reordered?("ForEach(model.terminalSwatches)"), "正例: terminalSwatches を順に列挙"
+  selftest_assert swatches_reordered?("ForEach(model.terminalSwatches.reversed())"), "負例: .reversed()"
+  selftest_assert swatches_reordered?("model.terminalSwatches.shuffled()"), "負例: .shuffled()"
+  selftest_assert swatches_reordered?("model.terminalSwatches[0]"), "負例: 添字"
+end
+
+if ARGV.include?("--selftest")
+  run_selftest
+  puts "task35-wiring --selftest: OK"
+  exit 0
+end
+
+ng = []
+model_path = "macos/Packages/DesignSystem/Sources/DesignSystem/ThemePreviewModel.swift"
+settings_path = "macos/App/SettingsView.swift"
+tokens_path = "macos/Packages/DesignSystem/Sources/DesignSystem/Tokens.swift"
+theme_path = "macos/Packages/DesignSystem/Sources/DesignSystem/AppTheme.swift"
+composer_path = "macos/Packages/SessionFeature/Sources/SessionFeature/ChatComposer.swift"
+grid_path = "macos/Packages/SessionFeature/Sources/SessionFeature/GridChatColumn.swift"
+
+baseline = ENV["TASK35_BASELINE"]
+if baseline.nil? || baseline.empty?
+  ng << "TASK35_BASELINE が未設定（HEAD にフォールバックしない）"
+  baseline = nil
 end
 
 # --- ThemePreviewModel.swift ---
@@ -187,6 +386,11 @@ else
       end
     end
 
+    make_var = assigned_var_for_call(row, "ThemePreviewModel.make")
+    if make_var.nil?
+      ng << "ThemePreviewModel.make の戻り値が変数に代入されていない"
+    end
+
     app_args = extract_call_args(row, "ThemeAppPreview")
     strip_args = extract_call_args(row, "ThemeSwatchStrip")
     if app_args.nil?
@@ -200,8 +404,10 @@ else
       strip_model = labeled_arg(strip_args, "model")
       if app_model.nil? || strip_model.nil?
         ng << "ThemeAppPreview / ThemeSwatchStrip の model: 引数を取れない"
-      elsif app_model != strip_model
-        ng << "ThemeAppPreview と ThemeSwatchStrip に渡す model が異なる（#{app_model} vs #{strip_model}）"
+      elsif make_var.nil?
+        # already reported
+      elsif app_model != make_var || strip_model != make_var
+        ng << "ThemeAppPreview / ThemeSwatchStrip に渡す model が make の代入先 #{make_var} ではない（#{app_model} / #{strip_model}）"
       end
     end
   end
@@ -224,9 +430,11 @@ else
     ].each do |needle|
       ng << "ThemeAppPreview 本文に #{needle} が無い" unless preview_c.include?(needle)
     end
-    bg_count = preview_c.scan("model.background.color").size
-    unless bg_count >= 2
-      ng << "ThemeAppPreview 本文の model.background.color が #{bg_count} 回（selectedRow と inputFill の不透明下地として 2 以上）"
+    unless zstack_starts_with_background?(preview, "model.selectedRow")
+      ng << "ThemeAppPreview の selectedRow を含む ZStack 先頭が model.background ではない"
+    end
+    unless zstack_starts_with_background?(preview, "model.inputFill")
+      ng << "ThemeAppPreview の inputFill を含む ZStack 先頭が model.background ではない"
     end
     unless preview_c.include?("model.selectedRow.rgb.color.opacity(model.selectedRow.opacity)")
       ng << "ThemeAppPreview 本文に model.selectedRow.rgb.color.opacity(model.selectedRow.opacity) が無い"
@@ -253,6 +461,9 @@ else
     strip_c = compact(strip)
     unless strip_c.include?("model.terminalSwatches")
       ng << "ThemeSwatchStrip 本文に model.terminalSwatches が無い"
+    end
+    if swatches_reordered?(strip)
+      ng << "ThemeSwatchStrip 本文で model.terminalSwatches の直後に .reversed() / .shuffled() / 添字がある"
     end
     ng << "ThemeSwatchStrip 本文に DSColor がある" if strip =~ /\bDSColor\b/
     ng << "ThemeSwatchStrip 本文に ThemeStore.active がある" if strip_c.include?("ThemeStore.active")
@@ -340,13 +551,7 @@ if baseline
   elsif previous.nil?
     ng << "git show #{baseline}:#{settings_path} に失敗"
   else
-    cur_rest = strip_comments(current)
-    prev_rest = strip_comments(previous)
-    %w[ThemeRowView ThemeAppPreview ThemeSwatchStrip].each do |name|
-      cur_rest = replace_struct(cur_rest, name, "/*stripped:#{name}*/")
-      prev_rest = replace_struct(prev_rest, name, "/*stripped:#{name}*/")
-    end
-    unless compact(cur_rest) == compact(prev_rest)
+    unless remainder_without_theme_structs(current) == remainder_without_theme_structs(previous)
       ng << "SettingsView.swift のテーマ行・見本以外が #{baseline} から差分あり"
     end
   end

@@ -143,3 +143,5 @@
 - 2026-09-13T02:13:40+0900 BUG-01 実行時再現（Cursor、spike/bug01-repro）: 決定的に再現し、原因はグリッドタイルの後着 updateNSView による hostingView の奪い返し（所有権競合）。task-39（deep）を Codex 草案から採用。task-38（UX-06）契約も Codex 草案から採用、Cursor がテスト・rb・task35-wiring.rb の Section 単位比較化を作成、Codex 敵対レビュー中。
 - 2026-09-13T02:24:19+0900 task-38 敵対レビュー（Codex）needs_changes HIGH3/MED4。裁定: 全 7 件を受理し契約改訂節へ反映（到達経路検査／宣言単位比較＋AppIconRowView／書き込み箇所集合＋リテラル配列／Section 外の保護維持＋重複 NG／基準は HEAD 不一致でなく凍結内容で検証／selftest は本番関数で単一違反／PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN）。rb・テスト改訂は Cursor へ委譲。
 - 2026-09-13T02:45:11+0900 task-39 敵対レビュー（Codex）needs_changes HIGH3/MED3。裁定: 全 6 件受理し契約改訂節へ反映（基準は凍結内容で検証／実破棄経路テスト／2 端末ケース／scrollToBottom 予約の条件付け／同一判定関数・呼び出し数比較／baseline_commit 実 SHA 必須）。テスト・rb 改訂は Cursor へ委譲。
+- 2026-09-13T04:00:21+0900 task-38 PM 目視 pass。制限として記録: 標準 TabView のツールバー型タブは .accessibilityIdentifier を AX に露出しない（Cursor 観測 v8/v9 の AX ログ）。契約の『標準 TabView を使う』決定を優先し、identifier はコード上の付与（rb 検査）で受容。接続済みの端末は隔離データ不在で未検証（契約 PM 決定 2 どおり）。
+- 2026-09-13T04:07:30+0900 task-38 完了: Codex レビュー pass（指摘 0・20 次元）、PM 目視 pass、統合 verify exit 0。フェーズ5: 仕様 UX-06 を [x]。task-17（UI-05）草案は 5 タブ化後の SettingsView へ再ベースが必要（未着手）。

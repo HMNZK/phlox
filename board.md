@@ -22,7 +22,7 @@
 | task-35 | standard | done |
 | task-36 | standard | done |
 | task-37 | standard | done |
-| task-38 | standard | done_pending_review |
+| task-38 | standard | done |
 | task-39 | deep | pending |
 <!-- AGENTIC-LOOP:END -->
 

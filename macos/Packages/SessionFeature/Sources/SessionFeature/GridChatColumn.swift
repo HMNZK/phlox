@@ -286,7 +286,7 @@ struct GridComposerBar: View {
         }
         .overlay(
             RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+                .strokeBorder(DSColor.composerBorder, lineWidth: 1)
         )
         .padding(DSSpacing.s)
         .onChange(of: text) { oldValue, newValue in

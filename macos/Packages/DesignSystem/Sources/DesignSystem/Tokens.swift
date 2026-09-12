@@ -132,6 +132,13 @@ public enum DSColor {
     /// アクセント面ではなく、テーマ前景由来のニュートラルな薄い面で示す。
     public static var userBubble: Color { theme.textPrimary.color.opacity(0.08) }
 
+    /// 入力欄（composer）パネルの枠線。ライトテーマでは背景がほぼ白系のため、固定 white 6% では
+    /// 視認できない（コントラスト比 1.0〜1.02:1、UI-07）。textPrimary 由来の半透明にして 3:1 以上を確保する。
+    /// ダークテーマは既存の見た目を変えない。
+    public static var composerBorder: Color {
+        theme.preferredColorScheme == .light ? theme.textPrimary.color.opacity(0.86) : Color.white.opacity(0.06)
+    }
+
     /// ファイル差分の色。追加行=青・削除行=赤（全テーマ共通のセマンティック色。明度で微調整）。
     public static var diffAdded: Color {
         theme.preferredColorScheme == .light ? RGB(0x25, 0x63, 0xEB).color : RGB(0x60, 0xA5, 0xFA).color

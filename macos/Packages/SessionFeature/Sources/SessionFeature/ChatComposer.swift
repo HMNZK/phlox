@@ -124,7 +124,7 @@ struct ChatComposer: View {
             // 入力欄パネルにごく薄いグレー味（white 4%）を足し、コンテンツ領域から少しだけ持ち上げて
             // 強調する。ストリップ・コンテンツは chatBackground のままで、境界はごく薄い枠のみ。
             RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+                .strokeBorder(DSColor.composerBorder, lineWidth: 1)
         )
         .padding(DSSpacing.m)
         .onChange(of: text) { oldValue, newValue in

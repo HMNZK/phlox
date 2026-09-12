@@ -177,7 +177,12 @@ public final class TerminalCoordinator: NSObject, TerminalViewDelegate {
     }
 
     /// 現在の SwiftTerm viewport をプレーンテキスト化する。scrollback は含まない。
-    public func visibleText() -> String {
+    ///
+    /// `joinWrappedRows: true` は task-28（BUG-02）向けの論理行抽出層。SwiftTerm がソフトラップで
+    /// 折り返した続き行（`BufferLine.isWrapped`）を直前の論理行へ末尾空白を落とさず連結し、
+    /// 明示改行（CR/LF）由来の行はそのまま独立させる。`false`（既定）は従来どおり各物理行の
+    /// 末尾空白を落として LF 連結する（`phlox read` 等の互換を壊さない）。
+    public func visibleText(joinWrappedRows: Bool = false) -> String {
         let terminal = terminalView.getTerminal()
         let cols = terminal.cols
         let rows = terminal.rows
@@ -190,12 +195,21 @@ public final class TerminalCoordinator: NSObject, TerminalViewDelegate {
             for col in 0..<cols {
                 line.append(TerminalDump.displayCharacter(terminal.getCharacter(col: col, row: row)))
             }
-            if let lastNonWhitespace = line.lastIndex(where: { !$0.isWhitespace }) {
-                line = String(line[...lastNonWhitespace])
+            let isContinuation = joinWrappedRows && row > 0 && !lines.isEmpty
+                && terminal.getLine(row: row)?.isWrapped == true
+            if isContinuation {
+                lines[lines.count - 1] += line
             } else {
-                line = ""
+                lines.append(line)
             }
-            lines.append(line)
+        }
+
+        for i in lines.indices {
+            if let lastNonWhitespace = lines[i].lastIndex(where: { !$0.isWhitespace }) {
+                lines[i] = String(lines[i][...lastNonWhitespace])
+            } else {
+                lines[i] = ""
+            }
         }
 
         while lines.last?.isEmpty == true {

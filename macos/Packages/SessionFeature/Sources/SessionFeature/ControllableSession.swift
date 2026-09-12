@@ -41,6 +41,8 @@ public protocol ControllableSession: AnyObject {
     func sendText(_ text: String, submit: Bool) async throws
     func consumeSubmitBaseline()
     func readText(lines: Int) -> String
+    /// task-28: チーム表示専用の論理行版。ソフトラップ由来の改行を復元して返す（PTY のみ意味を持つ）。
+    func readLogicalText(lines: Int) -> String
     /// 端末画面を SGR（色・装飾）付きで返す。端末を持たないセッション（構造化 appServer）は nil。
     func readAnsiScreen() -> AnsiScreen?
     func terminate() async
@@ -55,6 +57,11 @@ public extension ControllableSession {
 
     /// 既定は「端末を持たない」。PTY セッションだけが上書きする。
     func readAnsiScreen() -> AnsiScreen? { nil }
+
+    /// 既定実装は `readText(lines:)` にフォールバックする（論理行抽出を持たない適合型はそのまま）。
+    func readLogicalText(lines: Int) -> String {
+        readText(lines: lines)
+    }
 }
 
 /// 端末画面のスナップショット。モバイルが同じ桁数・同じ色で描き直すために使う。

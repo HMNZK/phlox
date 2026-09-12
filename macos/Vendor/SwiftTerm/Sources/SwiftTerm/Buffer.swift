@@ -1158,7 +1158,8 @@ public final class Buffer {
                     scroll(true)
                 } else {
                     _y += 1
-                    _lines[_y].isWrapped = true
+                    // Phlox パッチ (task-28): セル書き込みと同じ _yBase 加算でないと、yBase > 0 のとき別行にフラグが立つ。
+                    _lines[_y + _yBase].isWrapped = true
                 }
             }
             let available = right - _x + 1
@@ -1198,7 +1199,8 @@ public final class Buffer {
                     // The line already exists (eg. the initial viewport), mark it as a
                     // wrapped line
                     _y += 1
-                    _lines [_y].isWrapped = true
+                    // Phlox パッチ (task-28): セル書き込みと同じ _yBase 加算でないと、yBase > 0 のとき別行にフラグが立つ。
+                    _lines [_y + _yBase].isWrapped = true
                 }
                 // row changed, get it again
             } else {

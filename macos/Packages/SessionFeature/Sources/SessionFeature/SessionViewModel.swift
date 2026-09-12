@@ -831,6 +831,15 @@ extension SessionViewModel: ControllableSession {
             .joined(separator: "\n")
     }
 
+    /// task-28: チーム表示専用。ソフトラップ由来の改行を復元した論理行を返す。
+    public func readLogicalText(lines: Int) -> String {
+        let text = terminalCoordinator.visibleText(joinWrappedRows: true)
+        guard lines > 0 else { return text }
+        return text.split(separator: "\n", omittingEmptySubsequences: false)
+            .suffix(lines)
+            .joined(separator: "\n")
+    }
+
     public func readAnsiScreen() -> AnsiScreen? {
         AnsiScreen(
             ansi: terminalCoordinator.ansiScreenText(),

@@ -393,7 +393,7 @@ public struct TeamTimelineView: View {
             messages = AgoraTimelineContentPolicy.filteredTranscript(chatItems)
                 .map(TeamTimelineSourceMessage.chatItem)
         } else {
-            let text = node.controllable.readText(lines: Self.ptyScrollbackLines)
+            let text = node.controllable.readLogicalText(lines: Self.ptyScrollbackLines)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             messages = text.isEmpty
                 ? []

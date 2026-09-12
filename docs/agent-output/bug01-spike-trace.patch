@@ -1,0 +1,244 @@
+diff --git a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardView.swift b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardView.swift
+index 898566e..4d3deb7 100644
+--- a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardView.swift
++++ b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardView.swift
+@@ -3,6 +3,7 @@ import AppKit
+ import AgentDomain
+ import DesignSystem
+ import SessionFeature
++import TerminalUI
+ 
+ public struct DashboardView: View {
+     @Bindable var viewModel: DashboardViewModel
+@@ -447,7 +448,18 @@ public struct DashboardView: View {
+         .onChange(of: viewModel.restoredSessionPresentation, initial: true) { _, presentation in
+             applyRestoredSessionPresentation(presentation)
+         }
+-        .onChange(of: router.selectedSession) { _, selectedID in
++        .onChange(of: router.viewMode) { oldMode, newMode in
++            let selectedName = router.selectedSession.flatMap { viewModel.sessionNode(id: $0)?.displayName } ?? "nil"
++            Bug01Trace.log(
++                "viewMode \(oldMode.rawValue)->\(newMode.rawValue) selected=\(router.selectedSession?.rawValue.uuidString ?? "nil")(\(selectedName))"
++            )
++        }
++        .onChange(of: router.selectedSession) { oldID, selectedID in
++            let oldName = oldID.flatMap { viewModel.sessionNode(id: $0)?.displayName } ?? "nil"
++            let newName = selectedID.flatMap { viewModel.sessionNode(id: $0)?.displayName } ?? "nil"
++            Bug01Trace.log(
++                "selection \(oldID?.rawValue.uuidString ?? "nil")(\(oldName))->\(selectedID?.rawValue.uuidString ?? "nil")(\(newName)) viewMode=\(router.viewMode.rawValue)"
++            )
+             markCompletionSeen(for: selectedID)
+             updateEditorPanel()
+             if let selectedID,
+diff --git a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardViewModel.swift b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardViewModel.swift
+index 6bd0d7e..0ba61ac 100644
+--- a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardViewModel.swift
++++ b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardViewModel.swift
+@@ -1042,6 +1042,9 @@ public final class DashboardViewModel {
+                 launchContext: sessionOrigin.launchContext
+             )
+             sessionVM.name = generatedName
++            Bug01Trace.log(
++                "spawned pty session=\(sessionVM.id.rawValue.uuidString) name=\(generatedName) short=\(SessionViewModel.shortID(for: sessionVM.id))"
++            )
+ 
+             observeUnseenCompletion(for: sessionVM)
+             sessions.append(sessionVM)
+diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/SessionViewModel.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/SessionViewModel.swift
+index 64fb535..4c38817 100644
+--- a/macos/Packages/SessionFeature/Sources/SessionFeature/SessionViewModel.swift
++++ b/macos/Packages/SessionFeature/Sources/SessionFeature/SessionViewModel.swift
+@@ -19,7 +19,11 @@ public final class SessionViewModel: Identifiable {
+     public private(set) var status: SessionStatus
+     public var isProcessing: Bool { status == .running }
+     public let terminalCoordinator: TerminalCoordinator
+-    public var name: String = ""
++    public var name: String = "" {
++        didSet {
++            terminalCoordinator.bug01SessionID = "\(Self.shortID(for: id)) name=\(displayName)"
++        }
++    }
+     /// 所属ワークスペース（内部は Project）。生成後に DashboardViewModel が代入する。
+     public var projectID: ProjectID?
+     /// API spawn の親セッション。kill 認可と深さ判定の単一ソース。
+@@ -227,6 +231,7 @@ public final class SessionViewModel: Identifiable {
+             agentKind: { spawnRequest.agentDescriptor.kind },
+             visibleText: { terminalCoordinator.visibleText() }
+         )
++        terminalCoordinator.bug01SessionID = "\(Self.shortID(for: id)) name=\(displayName)"
+         bindCoordinator()
+     }
+ 
+@@ -642,6 +647,9 @@ public final class SessionViewModel: Identifiable {
+     }
+ 
+     private func handleResize(cols: UInt16, rows: UInt16) async {
++        Bug01Trace.log(
++            "ptyResize session=\(terminalCoordinator.bug01SessionID) cols=\(cols) rows=\(rows) didSpawn=\(didSpawn) didSpawnComplete=\(didSpawnComplete) hostingFrame=\(String(format: "%.1fx%.1f", terminalCoordinator.hostingView.frame.size.width, terminalCoordinator.hostingView.frame.size.height))"
++        )
+         guard !spawnSuppressed else { return }
+         if !didSpawn {
+             // 初回 spawn のみ trailing debounce する。起動直後のレイアウト確定やサイドバー
+diff --git a/macos/Packages/TerminalUI/Sources/TerminalUI/Bug01Trace.swift b/macos/Packages/TerminalUI/Sources/TerminalUI/Bug01Trace.swift
+new file mode 100644
+index 0000000..aad78e4
+--- /dev/null
++++ b/macos/Packages/TerminalUI/Sources/TerminalUI/Bug01Trace.swift
+@@ -0,0 +1,28 @@
++import Foundation
++import OSLog
++
++/// BUG-01 実行時トレース用の一時ロガー。製品恒久コードではない。
++public enum Bug01Trace {
++    private static let logger = Logger(subsystem: "com.phlox.Phlox", category: "BUG01")
++    private static let path = "/tmp/phlox-bug01-repro/trace.log"
++
++    public static func log(_ message: String) {
++        let ts = String(format: "%.3f", Date().timeIntervalSince1970)
++        let line = "\(ts) [BUG01] \(message)"
++        print(line)
++        logger.notice("\(message, privacy: .public)")
++        let data = Data((line + "\n").utf8)
++        if !FileManager.default.fileExists(atPath: path) {
++            FileManager.default.createFile(atPath: path, contents: data)
++            return
++        }
++        guard let handle = FileHandle(forWritingAtPath: path) else { return }
++        defer { try? handle.close() }
++        _ = try? handle.seekToEnd()
++        try? handle.write(contentsOf: data)
++    }
++
++    public static func identity(_ object: AnyObject) -> String {
++        String(UInt(bitPattern: ObjectIdentifier(object)))
++    }
++}
+diff --git a/macos/Packages/TerminalUI/Sources/TerminalUI/TerminalCoordinator.swift b/macos/Packages/TerminalUI/Sources/TerminalUI/TerminalCoordinator.swift
+index afc2b88..25a6405 100644
+--- a/macos/Packages/TerminalUI/Sources/TerminalUI/TerminalCoordinator.swift
++++ b/macos/Packages/TerminalUI/Sources/TerminalUI/TerminalCoordinator.swift
+@@ -55,6 +55,9 @@ public final class TerminalCoordinator: NSObject, TerminalViewDelegate {
+     /// 実体は TerminalUI 内部で生成し、外部からは NSView としてだけ公開する。
+     public let hostingView: NSView
+ 
++    /// BUG-01 調査用。製品恒久 API ではない。
++    public var bug01SessionID: String = "?"
++
+     public var onInput: (Data) -> Void = { _ in }
+     public var onResize: (UInt16, UInt16) -> Void = { _, _ in }
+ 
+@@ -310,6 +313,11 @@ public final class TerminalCoordinator: NSObject, TerminalViewDelegate {
+         let cols = UInt16(clamping: newCols)
+         let rows = UInt16(clamping: newRows)
+         Task { @MainActor [weak self] in
++            if let self {
++                Bug01Trace.log(
++                    "sizeChanged session=\(self.bug01SessionID) pty=\(cols)x\(rows) hosting=\(Bug01Trace.identity(self.hostingView)) frame=\(String(format: "%.1fx%.1f", self.hostingView.frame.size.width, self.hostingView.frame.size.height))"
++                )
++            }
+             self?.onResize(cols, rows)
+         }
+     }
+diff --git a/macos/Packages/TerminalUI/Sources/TerminalUI/TerminalHostingView.swift b/macos/Packages/TerminalUI/Sources/TerminalUI/TerminalHostingView.swift
+index 6acd39b..f1e6198 100644
+--- a/macos/Packages/TerminalUI/Sources/TerminalUI/TerminalHostingView.swift
++++ b/macos/Packages/TerminalUI/Sources/TerminalUI/TerminalHostingView.swift
+@@ -43,6 +43,9 @@ final class TerminalHostingView: NSView {
+     /// 受け取れるようにする。
+     override func viewDidMoveToWindow() {
+         super.viewDidMoveToWindow()
++        Bug01Trace.log(
++            "viewDidMoveToWindow hosting=\(Bug01Trace.identity(self)) window=\(window == nil ? "nil" : "set") superview=\(superview.map(Bug01Trace.identity) ?? "nil") frame=\(fmtSize(frame.size))"
++        )
+         guard window != nil else { return }
+         DispatchQueue.main.async { [weak self] in
+             guard let self, let window = self.window else { return }
+@@ -56,6 +59,10 @@ final class TerminalHostingView: NSView {
+     /// バッファは保持し、描画レイヤーだけを full refresh で invalidate する非破壊処理。
+     override func setFrameSize(_ newSize: NSSize) {
+         let sizeChanged = newSize != frame.size
++        let oldSize = frame.size
++        Bug01Trace.log(
++            "setFrameSize hosting=\(Bug01Trace.identity(self)) old=\(fmtSize(oldSize)) new=\(fmtSize(newSize)) sizeChanged=\(sizeChanged) superview=\(superview.map(Bug01Trace.identity) ?? "nil") pty=\(terminalView.getTerminal().cols)x\(terminalView.getTerminal().rows)"
++        )
+         super.setFrameSize(newSize)
+         guard sizeChanged else { return }
+         // SwiftTerm 側のグリッド再計算が終わってから再描画させるため次の runloop に回す。
+@@ -64,6 +71,9 @@ final class TerminalHostingView: NSView {
+             let terminal = self.terminalView.getTerminal()
+             terminal.refresh(startRow: 0, endRow: max(0, terminal.rows - 1))
+             self.terminalView.needsDisplay = true
++            Bug01Trace.log(
++                "setFrameSize refresh hosting=\(Bug01Trace.identity(self)) frame=\(fmtSize(self.frame.size)) pty=\(terminal.cols)x\(terminal.rows)"
++            )
+         }
+     }
+ 
+@@ -80,4 +90,8 @@ final class TerminalHostingView: NSView {
+         }
+     }
+ }
++
++private func fmtSize(_ size: NSSize) -> String {
++    String(format: "%.1fx%.1f", size.width, size.height)
++}
+ #endif
+diff --git a/macos/Packages/TerminalUI/Sources/TerminalUI/TerminalView.swift b/macos/Packages/TerminalUI/Sources/TerminalUI/TerminalView.swift
+index a1c4aff..7e14254 100644
+--- a/macos/Packages/TerminalUI/Sources/TerminalUI/TerminalView.swift
++++ b/macos/Packages/TerminalUI/Sources/TerminalUI/TerminalView.swift
+@@ -26,6 +26,9 @@ public struct TerminalView: NSViewRepresentable {
+         // コンテナが変わった（モード切替・セッション切替）ときだけ、現在のコンテナへ
+         // 載せ替える。NSView は1つの superview にしか属せないため、まず旧 superview から
+         // 外してから addSubview し、コンテナ全面に追従する制約を張り直す。
++        Bug01Trace.log(
++            "updateNSView session=\(coordinator.bug01SessionID) hosting=\(Bug01Trace.identity(coordinator.hostingView)) container=\(Bug01Trace.identity(nsView)) pty=\(coordinator.currentCols)x\(coordinator.currentRows) containerFrame=\(fmt(nsView.frame)) hostingFrame=\(fmt(coordinator.hostingView.frame)) oldSuper=\(coordinator.hostingView.superview.map(Bug01Trace.identity) ?? "nil")"
++        )
+         guard TerminalMount.attach(coordinator.hostingView, to: nsView) else { return }
+         // reparent 直後はコンテナのレイアウトが未確定なので、次の runloop で最下部へ戻す。
+         // updateNSView 中に同期的なスクロール副作用を起こさない（ADR 0010）。
+@@ -40,12 +43,25 @@ public struct TerminalView: NSViewRepresentable {
+ @MainActor
+ enum TerminalMount {
+     static func attach(_ terminal: NSView, to container: NSView) -> Bool {
++        let terminalID = Bug01Trace.identity(terminal)
++        let containerID = Bug01Trace.identity(container)
++        let oldSuper = terminal.superview.map(Bug01Trace.identity) ?? "nil"
++        Bug01Trace.log(
++            "attach enter terminal=\(terminalID) container=\(containerID) oldSuper=\(oldSuper) containerFrame=\(fmt(container.frame)) terminalFrame=\(fmt(terminal.frame)) containerSubviews=\(container.subviews.count)"
++        )
+         // 単体表示はコンテナを再利用したまま coordinator だけ差し替えるため、直前の terminal を除去する。
+         for subview in container.subviews where subview !== terminal {
++            Bug01Trace.log(
++                "detach other-subview=\(Bug01Trace.identity(subview)) from container=\(containerID) (owner-conflict candidate)"
++            )
+             subview.removeFromSuperview()
+         }
+-        guard terminal.superview !== container else { return false }
++        guard terminal.superview !== container else {
++            Bug01Trace.log("attach skip already-owned terminal=\(terminalID) container=\(containerID)")
++            return false
++        }
+ 
++        Bug01Trace.log("detach terminal=\(terminalID) from oldSuper=\(oldSuper)")
+         terminal.removeFromSuperview()
+         container.addSubview(terminal)
+         NSLayoutConstraint.activate([
+@@ -54,10 +70,17 @@ enum TerminalMount {
+             terminal.topAnchor.constraint(equalTo: container.topAnchor),
+             terminal.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+         ])
++        Bug01Trace.log(
++            "attach done terminal=\(terminalID) owner=\(containerID) terminalFrame=\(fmt(terminal.frame)) containerFrame=\(fmt(container.frame))"
++        )
+         return true
+     }
+ }
+ 
++private func fmt(_ rect: NSRect) -> String {
++    String(format: "%.1f,%.1f,%.1fx%.1f", rect.origin.x, rect.origin.y, rect.size.width, rect.size.height)
++}
++
+ #if DEBUG
+ private struct TerminalViewPreviewContainer: View {
+     @State private var coordinator = TerminalCoordinator()

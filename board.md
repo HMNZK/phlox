@@ -22,6 +22,8 @@
 | task-35 | standard | done |
 | task-36 | standard | done |
 | task-37 | standard | done |
+| task-38 | standard | pending |
+| task-39 | deep | pending |
 <!-- AGENTIC-LOOP:END -->
 
 ## notes

@@ -1,0 +1,7 @@
+{
+  "id": 39,
+  "title": "BUG-01 ターミナル載せ替えの所有権競合を修正",
+  "difficulty": "deep",
+  "status": "pending",
+  "updated_at": "2026-09-13T02:13:40+0900"
+}

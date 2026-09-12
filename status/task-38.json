@@ -2,6 +2,7 @@
   "id": 38,
   "title": "UX-06 設定を目的別にまとめる",
   "difficulty": "standard",
-  "status": "in_progress",
-  "updated_at": "2026-09-13T02:55:20+0900"
+  "status": "done_pending_review",
+  "updated_at": "2026-09-13T03:05:53+0900",
+  "review_rejections": 0
 }

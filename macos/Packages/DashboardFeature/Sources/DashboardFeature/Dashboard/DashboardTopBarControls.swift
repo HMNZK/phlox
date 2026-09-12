@@ -294,7 +294,7 @@ private struct ModeSegmentButton: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 13, weight: .medium))
-                .frame(width: 26, height: 20)
+                .frame(width: DSHitTarget.modeSegmentWidth, height: DSHitTarget.modeSegmentHeight)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

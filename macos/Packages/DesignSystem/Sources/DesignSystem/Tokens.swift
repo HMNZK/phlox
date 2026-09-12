@@ -55,6 +55,13 @@ public enum DSIconSize {
     public static let l: CGFloat = 15
 }
 
+/// 小さなアイコン操作の押せる範囲。絵柄（DSIconSize）とは別系統。
+public enum DSHitTarget {
+    public static let icon: CGFloat = 24            // サイドバー＋/…、タイル×
+    public static let modeSegmentWidth: CGFloat = 30
+    public static let modeSegmentHeight: CGFloat = 24 // トラック padding 2pt×2 を足して 28pt。行 32pt に収まる
+}
+
 /// elevation（面の持ち上げ）を表す影トークン。生値の `.shadow(...)` 直書きを排除し、
 /// `View.dsShadow(_:)` 経由でのみ適用する。grid タイル（black 0.4/r10/y4）より一段弱い値を基準にする。
 public struct DSShadow: Equatable, Sendable {

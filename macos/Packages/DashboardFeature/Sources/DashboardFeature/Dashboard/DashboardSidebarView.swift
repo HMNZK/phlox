@@ -97,7 +97,7 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: DSIconSize.s, weight: .semibold))
-                    .frame(width: 22, height: 22)
+                    .frame(width: DSHitTarget.icon, height: DSHitTarget.icon)
                     .contentShape(Rectangle())
             }
             .buttonStyle(HoverableIconButtonStyle())
@@ -355,7 +355,7 @@ private struct ProjectSidebarHeader<NewSessionMenuContent: View>: View {
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: DSIconSize.s, weight: .semibold))
-                    .frame(width: 20, height: 20)
+                    .frame(width: DSHitTarget.icon, height: DSHitTarget.icon)
                     .contentShape(Rectangle())
             }
             .menuStyle(.borderlessButton)
@@ -369,7 +369,7 @@ private struct ProjectSidebarHeader<NewSessionMenuContent: View>: View {
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: DSIconSize.s, weight: .semibold))
-                    .frame(width: 20, height: 20)
+                    .frame(width: DSHitTarget.icon, height: DSHitTarget.icon)
                     .contentShape(Rectangle())
             }
             .menuStyle(.borderlessButton)

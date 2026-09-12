@@ -345,7 +345,7 @@ private struct PaneTileView: View {
                 Image(systemName: "xmark")
                     .imageScale(.small)
                     .foregroundStyle(DSColor.textSecondary)
-                    .frame(width: 20, height: 20)
+                    .frame(width: DSHitTarget.icon, height: DSHitTarget.icon)
                     .contentShape(Rectangle())
             }
             .buttonStyle(HoverableIconButtonStyle())

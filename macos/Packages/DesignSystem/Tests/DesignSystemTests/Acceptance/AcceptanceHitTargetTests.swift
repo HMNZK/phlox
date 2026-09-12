@@ -30,9 +30,19 @@ struct AcceptanceHitTargetTests {
         #expect(DSHitTarget.modeSegmentHeight + 2 * DSSpacing.xxs <= 32)
     }
 
-    @Test("DSIconSize.s は 10、DSIconSize.m は 12（絵柄を大きくしていない指紋）")
+    @Test("DSIconSize.s は 10、DSIconSize.m は 12、DSIconSize.l は 15（絵柄を大きくしていない指紋）")
     func iconGlyphSizesUnchanged() {
         #expect(DSIconSize.s == 10)
         #expect(DSIconSize.m == 12)
+        #expect(DSIconSize.l == 15)
+    }
+
+    @Test("DSHitTarget と余白の契約値は等値（不等式だけでは 24/30/24 を固定できない）")
+    func hitTargetLiteralValues() {
+        #expect(DSHitTarget.icon == 24)
+        #expect(DSHitTarget.modeSegmentWidth == 30)
+        #expect(DSHitTarget.modeSegmentHeight == 24)
+        #expect(DSSpacing.xxs == 2)
+        #expect(DSIconSize.l == 15)
     }
 }

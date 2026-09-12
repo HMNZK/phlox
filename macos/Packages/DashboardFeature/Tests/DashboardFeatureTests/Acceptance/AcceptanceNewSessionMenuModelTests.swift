@@ -8,6 +8,7 @@
 //
 // 契約: 作成先を明示し、「新しいチャット」を先頭の主操作にし、
 // 残りをチャット／ターミナルの節に分ける。既存の各エージェント×表示方式への経路は残す。
+// descriptors の ref.id は一意（重複入力の挙動は未定義）。
 
 import AgentDomain
 import SessionFeature
@@ -16,7 +17,7 @@ import Testing
 
 @Suite("task-33: new session menu model")
 struct AcceptanceNewSessionMenuModelTests {
-    @Test("destinationText は trim 済み非空なら「作成先: 」+名前。nil・空・空白のみは「作成先: 名称未設定のプロジェクト」")
+    @Test("destinationText は trim 済み非空なら「作成先: 」+名前。nil・空・空白のみは「作成先: 名称未設定のプロジェクト」。タブ・改行も trim する")
     func destinationTextTrimsEmptyAndNil() {
         #expect(
             NewSessionMenuModel.make(projectName: "UI検証A", descriptors: []).destinationText
@@ -24,6 +25,10 @@ struct AcceptanceNewSessionMenuModelTests {
         )
         #expect(
             NewSessionMenuModel.make(projectName: "  UI検証A  ", descriptors: []).destinationText
+                == "作成先: UI検証A"
+        )
+        #expect(
+            NewSessionMenuModel.make(projectName: "\t UI検証A \n", descriptors: []).destinationText
                 == "作成先: UI検証A"
         )
         #expect(
@@ -42,11 +47,12 @@ struct AcceptanceNewSessionMenuModelTests {
 
     @Test("primary は descriptors の順で最初の supportsStructuredChat == true。id/title/systemImage/backend は契約どおり")
     func primaryIsFirstChatCapableDescriptorInOrder() {
-        let claude = AgentRegistry.allDescriptors[0]
-        let cursorOnly = terminalOnlyCopy(AgentRegistry.allDescriptors[2])
+        let claude = AgentRegistry.descriptor(for: .claudeCode)
+        let codex = AgentRegistry.descriptor(for: .codex)
+        let cursorOnly = terminalOnlyCopy(AgentRegistry.descriptor(for: .cursor))
         let model = NewSessionMenuModel.make(
             projectName: "UI検証A",
-            descriptors: [cursorOnly] + AgentRegistry.allDescriptors
+            descriptors: [cursorOnly, claude, codex]
         )
 
         #expect(model.primary != nil)
@@ -57,10 +63,74 @@ struct AcceptanceNewSessionMenuModelTests {
         #expect(model.primary?.ref == claude.ref)
     }
 
+    @Test("逆順 [codex, claude] なら primary は Codex。チャット節 id も descriptors 順")
+    func primaryFollowsDescriptorOrderWhenCodexComesFirst() {
+        let codex = AgentRegistry.descriptor(for: .codex)
+        let claude = AgentRegistry.descriptor(for: .claudeCode)
+        let reordered = NewSessionMenuModel.make(
+            projectName: "P",
+            descriptors: [codex, claude]
+        )
+
+        #expect(reordered.primary?.ref == .builtin(.codex))
+        #expect(reordered.primary?.title == "新しいチャット（Codex）")
+        #expect(reordered.primary?.id == "primary")
+        #expect(reordered.primary?.systemImage == "plus.bubble")
+        #expect(reordered.primary?.backend == .appServer)
+        #expect(reordered.sections[0].items.map(\.id) == ["chat:codex", "chat:claudeCode"])
+    }
+
+    @Test("Claude 不在なら primary は最初のチャット対応（Codex）")
+    func primaryIsCodexWhenClaudeAbsent() {
+        let codex = AgentRegistry.descriptor(for: .codex)
+        let cursorOnly = terminalOnlyCopy(AgentRegistry.descriptor(for: .cursor))
+        let model = NewSessionMenuModel.make(
+            projectName: "P",
+            descriptors: [cursorOnly, codex]
+        )
+
+        #expect(model.primary?.ref == .builtin(.codex))
+        #expect(model.primary?.title == "新しいチャット（Codex）")
+        #expect(model.sections[0].items.map(\.id) == ["chat:codex"])
+    }
+
+    @Test("custom descriptor のみなら primary nil、ターミナル項目 terminal:ui01-probe だけ")
+    func customDescriptorOnlyHasTerminalItem() {
+        let custom = probeDescriptor()
+        let customOnly = NewSessionMenuModel.make(
+            projectName: "P",
+            descriptors: [custom]
+        )
+
+        #expect(customOnly.primary == nil)
+        #expect(customOnly.sections.flatMap(\.items).map(\.id) == ["terminal:ui01-probe"])
+        #expect(customOnly.sections.flatMap(\.items).map(\.ref) == [.custom("ui01-probe")])
+        #expect(customOnly.sections.flatMap(\.items).map(\.backend) == [.pty])
+        #expect(!customOnly.sections.contains { $0.title == NewSessionMenuModel.chatSectionTitle })
+        #expect(customOnly.sections.map(\.title) == [NewSessionMenuModel.terminalSectionTitle])
+    }
+
+    @Test("混在 [claude, custom] のターミナル節 id は descriptors 順で custom を含む")
+    func mixedClaudeAndCustomKeepsTerminalOrder() {
+        let claude = AgentRegistry.descriptor(for: .claudeCode)
+        let custom = probeDescriptor()
+        let mixed = NewSessionMenuModel.make(
+            projectName: "P",
+            descriptors: [claude, custom]
+        )
+
+        #expect(mixed.primary?.ref == claude.ref)
+        #expect(mixed.sections[0].items.map(\.id) == ["chat:claudeCode"])
+        let terminal = mixed.sections.first { $0.title == NewSessionMenuModel.terminalSectionTitle }
+        #expect(terminal?.items.map(\.id) == ["terminal:claudeCode", "terminal:ui01-probe"])
+        #expect(terminal?.items.map(\.ref) == [claude.ref, .custom("ui01-probe")])
+        #expect(terminal?.items.map(\.backend) == [.pty, .pty])
+    }
+
     @Test("チャット非対応のみなら primary は nil かつチャット節なし")
     func chatIncapableOnlyHasNoPrimaryAndNoChatSection() {
-        let claudeOnly = terminalOnlyCopy(AgentRegistry.allDescriptors[0])
-        let codexOnly = terminalOnlyCopy(AgentRegistry.allDescriptors[1])
+        let claudeOnly = terminalOnlyCopy(AgentRegistry.descriptor(for: .claudeCode))
+        let codexOnly = terminalOnlyCopy(AgentRegistry.descriptor(for: .codex))
         let model = NewSessionMenuModel.make(
             projectName: "UI検証A",
             descriptors: [claudeOnly, codexOnly]
@@ -79,9 +149,9 @@ struct AcceptanceNewSessionMenuModelTests {
 
     @Test("全 descriptor にターミナル項目、チャット対応 descriptor にチャット項目が descriptors の順序どおり存在する")
     func chatAndTerminalItemsFollowDescriptorOrder() {
-        let cursorOnly = terminalOnlyCopy(AgentRegistry.allDescriptors[2])
-        let claude = AgentRegistry.allDescriptors[0]
-        let codex = AgentRegistry.allDescriptors[1]
+        let cursorOnly = terminalOnlyCopy(AgentRegistry.descriptor(for: .cursor))
+        let claude = AgentRegistry.descriptor(for: .claudeCode)
+        let codex = AgentRegistry.descriptor(for: .codex)
         let model = NewSessionMenuModel.make(
             projectName: "UI検証A",
             descriptors: [cursorOnly, claude, codex]
@@ -159,7 +229,7 @@ struct AcceptanceNewSessionMenuModelTests {
 
 private func terminalOnlyCopy(_ source: AgentDescriptor) -> AgentDescriptor {
     AgentDescriptor(
-        kind: source.kind,
+        ref: source.ref,
         displayName: source.displayName,
         binaryName: source.binaryName,
         symbolName: source.symbolName,
@@ -167,6 +237,19 @@ private func terminalOnlyCopy(_ source: AgentDescriptor) -> AgentDescriptor {
         bypassKey: source.bypassKey,
         usageProviderKind: source.usageProviderKind,
         launchSpec: source.launchSpec,
+        supportsStructuredChat: false
+    )
+}
+
+private func probeDescriptor() -> AgentDescriptor {
+    AgentDescriptor(
+        ref: .custom("ui01-probe"),
+        displayName: "Probe",
+        binaryName: "probe",
+        symbolName: "terminal",
+        colorRGB: AgentRGB(0, 0, 0),
+        bypassKey: "probe",
+        launchSpec: AgentRegistry.descriptor(for: .claudeCode).launchSpec,
         supportsStructuredChat: false
     )
 }

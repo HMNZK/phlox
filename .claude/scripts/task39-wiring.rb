@@ -292,12 +292,20 @@ def baseline_tv_has_detach?(src)
 end
 
 CONTRACT_BASELINE_PLACEHOLDER_RE = /PM|凍結|設定|TBD|TODO|FIXME|placeholder|未設定/i
+CONTRACT_BASELINE_LINE_RE = /^baseline_commit:\s*(?:"([^"]*)"|(\S+))/
+
+def match_contract_baseline_line(text)
+  return nil if text.nil?
+  m = text.match(CONTRACT_BASELINE_LINE_RE)
+  return nil unless m
+  m[1] || m[2]
+end
 
 def parse_contract_baseline_text(text)
   return :missing if text.nil?
-  m = text.match(/^baseline_commit:\s*"([^"]*)"/)
-  return :missing unless m
-  value = m[1].strip
+  raw = match_contract_baseline_line(text)
+  return :missing unless raw
+  value = raw.strip
   return :missing if value.empty?
   return :placeholder if value.match?(CONTRACT_BASELINE_PLACEHOLDER_RE)
   return :invalid unless value.match?(/\A[0-9a-fA-F]{7,40}\z/)
@@ -312,7 +320,7 @@ def contract_baseline_errors(contract_text, env_sha)
   when :placeholder
     ["契約 baseline_commit がプレースホルダ（凍結時に実 SHA へ置換する）"]
   when :invalid
-    raw = contract_text && contract_text[/^baseline_commit:\s*"([^"]*)"/, 1]
+    raw = match_contract_baseline_line(contract_text)
     ["契約 baseline_commit が不正: #{raw}"]
   else
     errs = []
@@ -1178,7 +1186,20 @@ def run_selftest
   selftest_assert !workdir_matches_git_blob?("a", nil), "負例: git show 失敗は同一ではない"
   selftest_assert !workdir_matches_git_blob?("a", "b"), "負例: git show 内容の不一致"
   selftest_assert git_is_ancestor?(git_full_sha("HEAD"), "HEAD"), "正例: HEAD は HEAD の祖先"
-  selftest_assert !baseline_tv_has_detach?(File.read(PATHS[:terminal_view])), "正例: 現行 TerminalView 基準は detach 無し"
+  env_sha, env_errs = baseline_env_errors(ENV["TASK39_BASELINE"])
+  baseline_sha_for_tv = if env_sha && env_errs.empty?
+    env_sha
+  else
+    parsed = parse_contract_baseline_text(read_if_exist(CONTRACT_PATH))
+    parsed.is_a?(String) ? parsed : nil
+  end
+  if baseline_sha_for_tv.nil?
+    puts "task39-wiring --selftest: SKIP 正例: 現行 TerminalView 基準は detach 無し（基準未指定のためスキップ）"
+  else
+    frozen_tv = git_show(baseline_sha_for_tv, PATHS[:terminal_view])
+    selftest_assert !frozen_tv.nil?, "正例: 凍結基準の TerminalView.swift を git show できる"
+    selftest_assert !baseline_tv_has_detach?(frozen_tv), "正例: 現行 TerminalView 基準は detach 無し"
+  end
   selftest_assert baseline_tv_has_detach?(tv), "負例: 基準時点に detach がある"
 
   selftest_assert parse_contract_baseline_text("---\nfoo: 1\n") == :missing, "負例: 契約 baseline_commit 欠落"

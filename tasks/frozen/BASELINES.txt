@@ -11,3 +11,4 @@ c227d0c	macos/Packages/DesignSystem/Tests/DesignSystemTests/AcceptanceComposerBo
 f084245	macos/Packages/DesignSystem/Tests/DesignSystemTests/AcceptanceSidebarTextContrastTests.swift
 a13b3d3	macos/Packages/TerminalUI/Tests/TerminalUITests/AcceptanceTeamViewLogicalLinesTests.swift
 b1bde59	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/AcceptanceUsageRemainingSummaryTests.swift
+75c7d71	macos/Packages/DesignSystem/Tests/DesignSystemTests/AcceptanceSessionStatusWordsTests.swift

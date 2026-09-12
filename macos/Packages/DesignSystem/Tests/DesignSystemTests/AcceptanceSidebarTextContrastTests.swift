@@ -154,6 +154,16 @@ struct AcceptanceSidebarTextContrastTests {
         }
     }
 
+    @Test("色差の余裕があるテーマでは secondary と tertiary が別色である（2026-09-12 レビュー H-1 反映）")
+    func auxiliaryRolesAreDistinctWhereHeadroomExists() {
+        for theme in ThemeStore.all {
+            let faces = sidebarFaces(theme)
+            let worst = faces.min { contrast(theme.textPrimary, on: $0) < contrast(theme.textPrimary, on: $1) }!
+            guard contrast(theme.textPrimary, on: worst) >= 6.0 else { continue } // Latte / Solarized Light は除外
+            #expect(theme.textSecondary != theme.textTertiary, Comment(rawValue: theme.id))
+        }
+    }
+
     // MARK: - 製品トークンと契約定数の一致
 
     private func sample(_ color: Color) throws -> (r: Double, g: Double, b: Double, a: Double) {

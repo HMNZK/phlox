@@ -21,6 +21,7 @@
 | task-34 | standard | in_progress |
 | task-35 | standard | pending |
 | task-36 | standard | pending |
+| task-37 | standard | pending |
 <!-- AGENTIC-LOOP:END -->
 
 ## notes

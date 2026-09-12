@@ -5,7 +5,7 @@ depends_on: []
 user_visible: true
 acceptance_tests:
   - macos/Packages/AgentConfigKit/Tests/AgentConfigKitTests/Acceptance/AcceptanceAgentConsoleStatusSummaryTests.swift
-baseline_commit: TBD
+baseline_commit: 094f86a
 contract_tests: []
 allowed_paths:
   - macos/Packages/AgentConfigKit/Sources/AgentConfigKit/Shared/AgentConsoleStatusSummary.swift

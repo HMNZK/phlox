@@ -18,5 +18,6 @@ d260f48	macos/Packages/DesignSystem/Tests/DesignSystemTests/AcceptanceSessionSta
 73a66ca	macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptanceHitTargetTests.swift
 c615c0a	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Acceptance/AcceptanceNewSessionMenuModelTests.swift
 c615c0a	macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptanceHitTargetTests.swift
-18bbcc4	tasks/frozen/staged/AcceptanceThemePreviewModelTests.swift
-18bbcc4	tasks/frozen/staged/AcceptanceAgentConsoleNavigationModelTests.swift
+094f86a	tasks/frozen/staged/AcceptanceThemePreviewModelTests.swift
+094f86a	tasks/frozen/staged/AcceptanceAgentConsoleNavigationModelTests.swift
+094f86a	tasks/frozen/staged/AcceptanceAgentConsoleStatusSummaryTests.swift

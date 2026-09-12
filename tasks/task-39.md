@@ -7,7 +7,7 @@ hazard: "SwiftUI の新旧 mount のライフサイクルが交錯し、新 moun
 acceptance_tests:
   - macos/Packages/TerminalUI/Tests/TerminalUITests/AcceptanceTerminalMountOwnershipTests.swift
   - .claude/scripts/task39-wiring.rb
-baseline_commit: c8a2010
+baseline_commit: 521e838
 contract_tests: []
 allowed_paths:
   - macos/Packages/TerminalUI/Sources/TerminalUI/TerminalView.swift

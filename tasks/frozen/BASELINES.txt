@@ -27,3 +27,5 @@ a704d51	macos/Packages/AgentConfigKit/Tests/AgentConfigKitTests/Acceptance/Accep
 a43113a	macos/Packages/TerminalUI/Tests/TerminalUITests/AcceptanceTerminalMountOwnershipTests.swift
 a43113a	.claude/scripts/task39-wiring.rb
 c8a2010	.claude/scripts/task39-wiring.rb
+521e838	macos/Packages/TerminalUI/Tests/TerminalUITests/AcceptanceTerminalMountOwnershipTests.swift
+521e838	.claude/scripts/task39-wiring.rb

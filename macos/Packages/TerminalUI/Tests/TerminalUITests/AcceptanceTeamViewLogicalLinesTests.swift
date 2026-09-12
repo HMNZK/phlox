@@ -72,4 +72,33 @@ struct AcceptanceTeamViewLogicalLinesTests {
         #expect(c.visibleText(joinWrappedRows: true) == c.visibleText())
         #expect(c.visibleText().components(separatedBy: "\n") == ["alpha", "beta", "", "gamma"])
     }
+    @Test("viewport 先頭行が継続行でも落ちず、独立した論理行として扱う（2026-09-12 敵対レビュー MUST-2）")
+    func continuationRowAtViewportTopDoesNotCrash() {
+        let (c, cols) = makeCoordinator()
+        let rows = c.terminalView.getTerminal().rows
+        for i in 0..<(rows - 1) { c.feed(Data("f\(i)\r\n".utf8)) }
+        c.feed(Data(String(repeating: "W", count: cols * 3 + 2).utf8))
+        c.feed(Data("\r\n".utf8))
+        for i in 0..<(rows - 3) { c.feed(Data("g\(i)\r\n".utf8)) }
+        // 先頭行は継続行（頭は scrollback 側）。クラッシュせず、画面内に残った継続 2 行ぶんが 1 本にまとまる。
+        let logical = c.visibleText(joinWrappedRows: true).components(separatedBy: "\n")
+        #expect(logical.first == String(repeating: "W", count: cols + 2))
+        #expect(logical.contains("g0"))
+    }
+
+    @Test("スクロール発生後にカーソルを画面上部へ戻して書いた折り返しも復元される（Vendor Buffer の yBase 加算。敵対レビュー HIGH-4）")
+    func wrapAfterScrollbackWithCursorMovedUpIsRestored() {
+        let (c, cols) = makeCoordinator()
+        let rows = c.terminalView.getTerminal().rows
+        for i in 0..<(rows + 5) { c.feed(Data("line\(i)\r\n".utf8)) } // yBase > 0 にする
+        c.feed(Data("\u{1b}[2;1H".utf8)) // 2 行目・1 列目へ
+        let long = String(repeating: "Q", count: cols + 4)
+        c.feed(Data(long.utf8))
+        let terminal = c.terminalView.getTerminal()
+        #expect(terminal.getLine(row: 2)?.isWrapped == true, "継続行（3 行目）に isWrapped が立つ")
+        #expect(terminal.getLine(row: 1)?.isWrapped == false)
+        let logical = c.visibleText(joinWrappedRows: true).components(separatedBy: "\n")
+        #expect(logical.contains(long), "折り返しが 1 本の論理行に戻る")
+        #expect(!logical.contains("QQQQ"), "続き 4 文字だけの行が残らない")
+    }
 }

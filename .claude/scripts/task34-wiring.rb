@@ -134,7 +134,9 @@ if baseline
     want = count_needles(previous)
     got.each do |needle, n|
       w = want[needle]
-      unless n == w
+      # 差し戻し1回目: .contentShape(Rectangle()) は Menu の押せる範囲拡大のため追加を許容（基準以上）。他は同数。
+      ok = needle == ".contentShape(Rectangle())" ? n >= w : n == w
+      unless ok
         ng << "#{path} の #{needle} 出現数が #{n}（基準 #{baseline} は #{w}）"
       end
     end

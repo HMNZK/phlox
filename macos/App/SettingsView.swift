@@ -399,15 +399,20 @@ struct SettingsView: View {
                                 Text(model.appLabel)
                                     .font(DSFont.caption)
                                     .foregroundStyle(DSColor.textTertiary)
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
                                 ThemeAppPreview(model: model)
                             }
                             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                                 Text(model.terminalLabel)
                                     .font(DSFont.caption)
                                     .foregroundStyle(DSColor.textTertiary)
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
                                 ThemeSwatchStrip(model: model)
                             }
                         }
+                        .layoutPriority(1)
                     }
                     Spacer(minLength: DSSpacing.s)
                     if isSelected {

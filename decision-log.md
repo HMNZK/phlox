@@ -136,3 +136,4 @@
 - 2026-09-12 task-34 差し戻し 2 回目の結果: partial（AX 24×24・端クリックは合格、row 1 高さ 40 > 36）。3 回目の差し戻しは driver がブロックするため自動では回さない。ユーザー報告の材料として、台帳外の技術スパイク（s1〜s3: .button+.plain+.fixedSize 系）を Cursor に委譲。合格変種があれば resume --human-approved の判断をユーザーへ諮る。
 - 2026-09-12 task-35/36/37 を 094f86a で再凍結。task-36 は depends_on task-35（TASK36_BASELINE は task-35 完了後に更新）。
 - 2026-09-12 task-34 スパイク結果: .menuStyle(.button) 系は全変種で行高 40（+8）、.borderlessButton 系は端クリック不可。SwiftUI 修飾子の組合せでは 4 条件を同時に満たせない。作業ツリーは 1 回目実装（HEAD 7a…: モード 30×24・見出し＋ 24×24 合格、行の…/＋は AX 20×14 のまま）へ戻し、r2 差分を docs/agent-output/task-34-r2.patch に保存。判断（A 行高+8 を受容／B 行の縦 padding を 4→2 に縮めて 36 以内／C 行のメニューは対象外として部分完了／D Menu を Button+NSMenu に置換する別タスク）はユーザーへ諮る。task-34 は in_progress のまま保留。
+- 2026-09-12T23:46:49+0900 task-35 rework: PM 目視: 選択中（チェック付き）行で「ターミナル配色」ラベルが 2 行に折り返す（t35-v7-settings-dracula.png）。契約に用途名の 1 行表示（折り返し禁止）を明記して 1 回目の差し戻し

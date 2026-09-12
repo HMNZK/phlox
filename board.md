@@ -17,7 +17,7 @@
 | task-30 | standard | done |
 | task-31 | standard | done |
 | task-32 | standard | done |
-| task-33 | standard | pending |
+| task-33 | standard | in_progress |
 | task-34 | standard | pending |
 <!-- AGENTIC-LOOP:END -->
 

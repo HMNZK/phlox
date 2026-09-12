@@ -50,7 +50,7 @@ UI-06。テーマ一覧の色帯だけでは、適用後のアプリ外観を判
   - ThemeStore.active、UserDefaults、ファイル、プロセス、グローバルな選択状態を参照・変更しない。渡された候補テーマだけから決定する。
 
 - 配色対応の根拠:
-  - 選択行は `macos/Packages/DesignSystem/Sources/DesignSystem/Tokens.swift:102,157` の「主文字色を10%重ねる」描画に対応する。不透明な事前合成色へ置き換えない。
+  - 選択行は `macos/Packages/DesignSystem/Sources/DesignSystem/Tokens.swift:109,164` の「主文字色を10%重ねる」描画に対応する。不透明な事前合成色へ置き換えない。
   - 入力欄は `macos/Packages/SessionFeature/Sources/SessionFeature/ChatComposer.swift:117` と `GridChatColumn.swift:281` の「chatBackgroundに白4%を重ねる」描画に対応する。
   - 入力欄の枠は `macos/Packages/DesignSystem/Sources/DesignSystem/Tokens.swift:138` の明色86%・暗色白6%に対応する。
   - 輝度判定の正本は `macos/Packages/DesignSystem/Sources/DesignSystem/AppTheme.swift:87`。
@@ -85,7 +85,7 @@ UI-06。テーマ一覧の色帯だけでは、適用後のアプリ外観を判
 
 1. 凍結テスト `AcceptanceThemePreviewModelTests` green。
    Phloxでbackground=(17,17,17)、textPrimary=(230,230,230)、selectedRow=((230,230,230),0.10)、inputFill=((255,255,255),0.04)、inputBorder=((255,255,255),0.06)を字面で固定する。
-   Phloxの色帯を [(14,14,14),(239,68,68),(52,211,153),(251,191,36),(96,165,250),(217,119,87),(56,189,248),(214,214,214)] に固定する（`AppTheme.swift:245,271`）。
+   Phloxの色帯を [(14,14,14),(239,68,68),(52,211,153),(251,191,36),(96,165,250),(217,119,87),(56,189,248),(214,214,214)] に固定する（`AppTheme.swift:245,273`）。
    GitHub Lightではbackground=(255,255,255)、inputBorderのopacity=0.86、RGBが同テーマのtextPrimaryであることを確認する。
    文言5種、themeID/name、マーカー色、色帯の8色と順序を検査する。
    登録10テーマについて候補由来の背景・文字・選択行・枠・色帯への写像を検査し、Phlox→GitHub Light→Phloxの呼び出しで前の候補が混入しないことを確認する。

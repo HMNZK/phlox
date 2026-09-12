@@ -324,6 +324,8 @@ private struct PaneTileView: View {
     private var header: some View {
         HStack(spacing: DSSpacing.s) {
             StatusDot(status: session.displayStatus)
+            StatusLabel(status: session.displayStatus)
+                .accessibilityHidden(true)
             AgentSessionIcon(descriptor: session.agentDescriptor, status: session.displayStatus, size: 24)
             Text(session.displayName)
                 .font(DSFont.heroTitle)

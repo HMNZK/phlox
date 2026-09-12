@@ -418,6 +418,8 @@ private struct SessionSidebarRowView: View {
         HStack(spacing: DSSpacing.xs) {
             expansionControl
             StatusDot(status: session.displayStatus)
+            StatusLabel(status: session.displayStatus)
+                .accessibilityHidden(true)
             AgentSessionIcon(descriptor: session.agentDescriptor, status: session.displayStatus, size: 16)
             Text(session.displayName)
                 .font(session.name.isEmpty ? DSFont.mono : DSFont.body)

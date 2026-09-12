@@ -28,8 +28,8 @@ public enum SessionCompletionNotifier {
         Task {
             let center = UNUserNotificationCenter.current()
             let content = UNMutableNotificationContent()
-            content.title = String(localized: "作業完了")
-            content.body = String(localized: "\(sessionName) が待機中になりました")
+            content.title = String(localized: "入力待ち")
+            content.body = String(localized: "\(sessionName) が入力待ちになりました")
             // 音は NSSound 側で鳴らすため、通知側のサウンドは付けない（二重再生の回避）。
             content.sound = nil
 
@@ -59,7 +59,7 @@ public enum SessionCompletionNotifier {
         Task {
             let center = UNUserNotificationCenter.current()
             let content = UNMutableNotificationContent()
-            content.title = String(localized: "入力待ち")
+            content.title = String(localized: "承認待ち")
             content.body = String(localized: "\(sessionName) が承認待ちです")
             // 音は NSSound 側で鳴らすため、通知側のサウンドは付けない（二重再生の回避）。
             content.sound = nil

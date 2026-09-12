@@ -39,7 +39,11 @@ public struct StatusDot: View {
         }
         .frame(width: 12, height: 12)
         .help(StatusBadge.helpText(for: status))
-        .accessibilityLabel(StatusBadge.localizedLabel(for: status, locale: locale))
+        .accessibilityLabel(
+            [StatusBadge.localizedLabel(for: status, locale: locale), StatusBadge.nextActionHint(for: status)]
+                .compactMap { $0 }
+                .joined(separator: " — ")
+        )
     }
 }
 

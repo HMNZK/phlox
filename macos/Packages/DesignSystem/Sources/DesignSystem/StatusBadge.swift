@@ -30,17 +30,33 @@ public enum StatusBadge {
         case .starting:
             "起動中"
         case .idle:
-            "待機中"
+            "入力待ち"
         case .running:
             "実行中"
         case .awaitingApproval:
             "承認待ち"
         case .awaitingUserQuestion:
-            "入力待ち"
-        case .completed(let exitCode):
-            "完了 (\(exitCode))"
+            "回答待ち"
+        case .completed:
+            "停止"
         case .error:
             "エラー"
+        }
+    }
+
+    /// 次に取れる操作の一言。対応が必要な状態にだけ存在する。
+    public static func nextActionHint(for status: SessionStatus) -> String? {
+        switch status {
+        case .starting, .idle, .running:
+            nil
+        case .awaitingApproval:
+            "選択して承認内容を確認する"
+        case .awaitingUserQuestion:
+            "選択して質問に回答する"
+        case .completed(let exitCode):
+            "終了コード \(exitCode)。再開または削除する"
+        case .error:
+            "選択して原因を確認し、再開または削除する"
         }
     }
 
@@ -89,11 +105,13 @@ public enum StatusBadge {
     }
 
     public static func helpText(for status: SessionStatus) -> String {
-        switch status {
-        case .starting, .idle, .running, .awaitingApproval, .awaitingUserQuestion, .completed:
-            ""
-        case .error(let message):
-            message
+        var text = label(for: status)
+        if let hint = nextActionHint(for: status) {
+            text += " — " + hint
         }
+        if case .error(let message) = status {
+            text += "\n" + message
+        }
+        return text
     }
 }

@@ -16,3 +16,5 @@ d260f48	macos/Packages/DesignSystem/Tests/DesignSystemTests/AcceptanceSessionSta
 19f999f	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Acceptance/AcceptanceSidebarRowEmphasisTests.swift
 73a66ca	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Acceptance/AcceptanceNewSessionMenuModelTests.swift
 73a66ca	macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptanceHitTargetTests.swift
+c615c0a	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Acceptance/AcceptanceNewSessionMenuModelTests.swift
+c615c0a	macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptanceHitTargetTests.swift

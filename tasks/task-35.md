@@ -64,6 +64,7 @@ UI-06。テーマ一覧の色帯だけでは、適用後のアプリ外観を判
   - 現在の会話行は本文より太くし、leading側に `model.currentMarker.color` の小さなマーカーを出す。既存UI-08の「現在の会話」という意味を保つ。
   - 各Layerは `.rgb.color.opacity(.opacity)` で適用する。入力欄にも不透明なmodel.backgroundの下地を敷き、設定行のhover・選択色が透け込まないようにする。
   - `Text(model.appLabel)` と `Text(model.terminalLabel)` を実際に表示する。用途をhelpだけに隠さない。
+  - **差し戻し 1 回目（PM 目視）**: 用途名は 1 行で表示し折り返さない（`.lineLimit(1)` かつ `.fixedSize(horizontal: true, vertical: false)`、または見本列を `layoutPriority(1)` で確保）。選択チェックが付く行でも「ターミナル配色」が 2 行にならないこと（`t35-v7-settings-dracula.png` で Dracula 行のみ折り返した）。
   - 色帯は `model.terminalSwatches` の順に描く。アプリ見本にterminalBackgroundやANSI色を背景色として流用しない。
   - 見本の入力欄はTextと図形で描き、TextFieldやTextEditorにはしない。テーマ選択Button内に別の操作を入れない。
   - テーマ名・選択状態がAXから分かること。見本を別のフォーカス対象にせず、色帯の各矩形を独立した操作として読み上げさせない。

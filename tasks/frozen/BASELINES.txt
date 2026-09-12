@@ -8,4 +8,4 @@
 5f7a0fd	macos/scripts/tests/test_signing_entitlements_variants.sh
 6b30d32	macos/Packages/AgentDomain/Tests/AgentDomainTests/AcceptancePairingLifecycleIntegrationTests.swift
 c227d0c	macos/Packages/DesignSystem/Tests/DesignSystemTests/AcceptanceComposerBorderContrastTests.swift
-7577b42	macos/Packages/DesignSystem/Tests/DesignSystemTests/AcceptanceSidebarTextContrastTests.swift
+f084245	macos/Packages/DesignSystem/Tests/DesignSystemTests/AcceptanceSidebarTextContrastTests.swift

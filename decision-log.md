@@ -160,3 +160,4 @@
 - 2026-09-13T11:40:56+0900 task-17 resume: blocked の原因は開示レポートの frontmatter 欠落（形式のみ）。PM が frontmatter を付与して修理、本文・製品は不変
 - 2026-09-13 task-17 実装完了（Cursor、rb GREEN・App ビルド成功）。開示レポートの frontmatter 欠落で driver が blocked → PM が frontmatter と注記を付与（本文・製品不変）し --human-approved で再開、done_pending_review。Codex レビューと Cursor 観測（PM ゲート）を並行ディスパッチ。
 - 2026-09-13 task-40 敵対レビュー MUST1/HIGH11、task-41 MUST1/HIGH6/MED1: テスト・rb 側の指摘は Cursor に修正委譲（再凍結予定）。裁定: task-40 は分割しない（gap 適用は 1 View・同一正本）、凍結時点のコンパイル RED＋実装後変異検査の運用を継続、PM ゲートのテーマ/倍率は起動引数で与えアプリ内倍率操作はしない、プレースホルダ到達手順は visual-task-27-35-composer.md を正本（task-44/45 にも注記）。task-41 rb は回帰検査と変更範囲検査（TASK41_SCOPE_CHECK）に分離。
+- 2026-09-13 task-17 ハーネス修理（PM 承認・PM 実施）: task17-wiring.rb の selftest が「HEAD の SettingsView は実装前 blob」を前提にしていたため、実装コミット後に selftest が FAIL し verify が落ちた。参照コミットを契約 baseline_commit（無ければ TASK17_BASELINE、無ければ HEAD）へ変更。再凍結のため SettingsView を一時的に実装前へ戻したコミット（05fdbcf）→ rb 修理（4ef83d4＝新基準）→ 実装再適用（649006f）の順で履歴に残した。RED→GREEN を確認。

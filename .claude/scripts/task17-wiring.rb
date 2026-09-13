@@ -7,42 +7,119 @@ def compact(s)
   s.gsub(/\s+/, "")
 end
 
+def skip_block_comment(src, i)
+  depth = 1
+  j = i + 2
+  while j < src.length
+    if src[j, 2] == "/*"
+      depth += 1
+      j += 2
+    elsif src[j, 2] == "*/"
+      depth -= 1
+      j += 2
+      return j if depth == 0
+    else
+      j += 1
+    end
+  end
+  src.length
+end
+
+def skip_interpolation(src, open_paren_idx)
+  depth = 0
+  i = open_paren_idx
+  while i < src.length
+    n = comment_or_string_end(src, i)
+    if n
+      i = n
+      next
+    end
+    case src[i]
+    when "(" then depth += 1
+    when ")"
+      depth -= 1
+      return i + 1 if depth == 0
+    end
+    i += 1
+  end
+  src.length
+end
+
 def index_after_string(src, i)
   return i + 1 if i >= src.length
   if src[i, 3] == '"""'
-    j = i + 3
-    while j < src.length
-      return j + 3 if src[j, 3] == '"""'
-      j += 1
-    end
-    return src.length
+    return skip_string_content(src, i + 3, true)
   end
   return i unless src[i] == '"'
-  j = i + 1
+  skip_string_content(src, i + 1, false)
+end
+
+def skip_string_content(src, j, triple)
   while j < src.length
+    if triple && src[j, 3] == '"""'
+      return j + 3
+    end
+    if !triple && src[j] == '"'
+      return j + 1
+    end
     if src[j] == "\\"
+      if j + 1 < src.length && src[j + 1] == "("
+        j = skip_interpolation(src, j + 1)
+        next
+      end
       j += 2
       next
     end
-    return j + 1 if src[j] == '"'
     j += 1
   end
   src.length
 end
 
+def comment_or_string_end(src, i)
+  return nil if i >= src.length
+  if src[i, 2] == "//"
+    j = i + 2
+    j += 1 while j < src.length && src[j] != "\n"
+    return j
+  end
+  return skip_block_comment(src, i) if src[i, 2] == "/*"
+  return index_after_string(src, i) if src[i, 3] == '"""' || src[i] == '"'
+  nil
+end
+
+def each_lexeme(src)
+  i = 0
+  code_start = nil
+  flush_code = lambda do
+    if code_start
+      yield :code, code_start, i
+      code_start = nil
+    end
+  end
+  while i < src.length
+    n = comment_or_string_end(src, i)
+    if n
+      flush_code.call
+      kind = (src[i, 2] == "//" || src[i, 2] == "/*") ? :comment : :string
+      yield kind, i, n
+      i = n
+    else
+      code_start ||= i
+      i += 1
+    end
+  end
+  flush_code.call
+end
+
 def protect_strings(src)
   out = +""
   strings = []
-  i = 0
-  while i < src.length
-    if src[i, 3] == '"""' || src[i] == '"'
-      j = index_after_string(src, i)
-      strings << src[i...j]
+  each_lexeme(src) do |kind, a, b|
+    if kind == :string
+      strings << src[a...b]
       out << "__STR#{strings.length - 1}__"
-      i = j
     else
-      out << src[i]
-      i += 1
+      out << src[a...b]
     end
   end
   [out, strings]
@@ -53,29 +130,31 @@ def restore_strings(src, strings)
 end
 
 def strip_comments(src)
-  protected, strings = protect_strings(src)
-  protected = protected.gsub(%r{/\*.*?\*/}m, "")
-  protected = protected.gsub(%r{//[^\n]*}, "")
-  restore_strings(protected, strings)
+  out = +""
+  each_lexeme(src) do |kind, a, b|
+    out << src[a...b] unless kind == :comment
+  end
+  out
 end
 
 def mask_strings_and_comments(src)
-  protected, _strings = protect_strings(src)
-  protected = protected.gsub(%r{/\*.*?\*/}m, "")
-  protected.gsub(%r{//[^\n]*}, "")
+  out = +""
+  each_lexeme(src) do |kind, a, b|
+    case kind
+    when :code then out << src[a...b]
+    when :string then out << (" " * (b - a))
+    end
+  end
+  out
 end
 
 def blank_strings(src)
   out = +""
-  i = 0
-  while i < src.length
-    if src[i, 3] == '"""' || src[i] == '"'
-      j = index_after_string(src, i)
-      out << (" " * (j - i))
-      i = j
+  each_lexeme(src) do |kind, a, b|
+    if kind == :string
+      out << (" " * (b - a))
     else
-      out << src[i]
-      i += 1
+      out << src[a...b]
     end
   end
   out
@@ -92,7 +171,8 @@ def extract_balanced(src, open_idx, open_ch, close_ch)
   i = open_idx
   while i < src.length
     if src[i, 3] == '"""' || src[i] == '"'
-      i = index_after_string(src, i)
+      n = index_after_string(src, i)
+      i = (n > i) ? n : i + 1
       next
     end
     case src[i]
@@ -706,6 +786,18 @@ def has_direct_rich_style?(btn)
   btn[:modifiers].any? { |mod| mod[:name] == "buttonStyle" && modifier_args_compact(mod) == "RichButtonStyle()" }
 end
 
+def non_focus_modifiers(btn)
+  btn[:modifiers].reject { |mod| mod[:name] == "focusEffectDisabled" }
+end
+
+def button_style_indices(mods, arg)
+  found = []
+  mods.each_with_index do |mod, idx|
+    found << idx if mod[:name] == "buttonStyle" && modifier_args_compact(mod) == arg
+  end
+  found
+end
+
 def has_direct_focus_disabled?(btn)
   btn[:modifiers].any? { |mod| mod[:name] == "focusEffectDisabled" }
 end
@@ -739,9 +831,17 @@ end
 def strip_allowed_modifiers(btn)
   head_end = btn[:modifiers].empty? ? btn[:text].length : (btn[:modifiers].first[:start] - btn[:start])
   head = btn[:text][0...head_end]
-  kept = btn[:modifiers].reject { |mod| allowed_modifier?(mod) }
+  stripped_style = false
   rebuilt = +head
-  kept.each do |mod|
+  btn[:modifiers].each do |mod|
+    next if mod[:name] == "focusEffectDisabled"
+    if !stripped_style && mod[:name] == "buttonStyle"
+      arg = modifier_args_compact(mod)
+      if arg == "RichButtonStyle()" || arg == ".bordered"
+        stripped_style = true
+        next
+      end
+    end
     rebuilt << btn[:text][(mod[:start] - btn[:start])...(mod[:finish] - btn[:start])]
   end
   rebuilt
@@ -887,7 +987,7 @@ def baseline_env_errors(raw)
   [value, errs]
 end
 
-def check_frozen_baseline(baseline)
+def check_frozen_baseline(baseline, settings_blob: :from_git, rb_now: :from_disk, rb_blob: :from_git)
   ng = []
   full = git_full_sha(baseline)
   if full.nil?
@@ -897,14 +997,16 @@ def check_frozen_baseline(baseline)
   unless git_is_ancestor?(full, "HEAD")
     ng << "TASK17_BASELINE が HEAD の祖先ではない"
   end
-  settings_blob = git_show(full, SETTINGS_PATH)
+  settings_blob = git_show(full, SETTINGS_PATH) if settings_blob == :from_git
   if settings_blob.nil?
     ng << "基準時点の SettingsView.swift を git show できない（git show #{full}:#{SETTINGS_PATH}）"
   elsif !baseline_settings_is_pre_ui05?(settings_blob)
     ng << "基準時点の SettingsView.swift が UI-05 実装前（5タブ・RichButtonStyle 定義と対象 3 Button の旧スタイル／焦点抑制）ではない"
   end
-  rb_blob = git_show(full, WIRING_RB_PATH)
-  rb_now = File.exist?(WIRING_RB_PATH) ? File.read(WIRING_RB_PATH) : nil
+  rb_blob = git_show(full, WIRING_RB_PATH) if rb_blob == :from_git
+  if rb_now == :from_disk
+    rb_now = File.exist?(WIRING_RB_PATH) ? File.read(WIRING_RB_PATH) : nil
+  end
   ng.concat(frozen_script_errors(rb_now, rb_blob))
   ng
 end
@@ -1039,8 +1141,19 @@ def check_product(current, baseline)
     if prev_found.size != 1
       ng << "基準の Button「#{spec[:label]}」が #{prev_found.size} 件（期待 1）"
     end
-    unless has_direct_bordered?(found[0])
-      ng << "Button「#{spec[:label]}」に直接 .buttonStyle(.bordered) が無い"
+    cur_style_mods = non_focus_modifiers(found[0])
+    cur_bordered = button_style_indices(cur_style_mods, ".bordered")
+    if cur_bordered.size != 1
+      ng << "Button「#{spec[:label]}」の .buttonStyle(.bordered) が #{cur_bordered.size} 件（期待ちょうど 1）"
+    end
+    if prev_found.size == 1
+      prev_style_mods = non_focus_modifiers(prev_found[0])
+      prev_rich = button_style_indices(prev_style_mods, "RichButtonStyle()")
+      if prev_rich.size != 1
+        ng << "基準の Button「#{spec[:label]}」の .buttonStyle(RichButtonStyle()) が #{prev_rich.size} 件（期待ちょうど 1）"
+      elsif cur_bordered.size == 1 && cur_bordered[0] != prev_rich[0]
+        ng << "Button「#{spec[:label]}」の .buttonStyle(.bordered) が基準の .buttonStyle(RichButtonStyle()) と異なる位置にある"
+      end
     end
     owners = section_containing(reach_sections, spec[:id])
     if owners == :unparseable
@@ -1291,6 +1404,11 @@ def has_ng?(current, baseline, *needles)
   needles.any? { |n| msgs.any? { |m| m.include?(n) } }
 end
 
+def has_all_ng?(current, baseline, *needles)
+  msgs = ng_of(current, baseline)
+  needles.all? { |n| msgs.any? { |m| m.include?(n) } }
+end
+
 def run_selftest
   $stdout.sync = true
   url = %(let url = "https://phlox.cc/privacy" // trailing\n)
@@ -1298,6 +1416,16 @@ def run_selftest
   selftest_assert stripped.include?("https://phlox.cc/privacy"), "正例: 文字列内の // を残す"
   selftest_assert !stripped.include?("trailing"), "正例: 行コメントを除去する"
   selftest_assert !strip_comments("let a = 1 /* x */ let b = 2").include?("x"), "正例: /* */ を除去する"
+  nested_c = "let a = 1 /* x /* y */ z */ let b = 2"
+  nested_stripped = strip_comments(nested_c)
+  selftest_assert !nested_stripped.include?("x") && !nested_stripped.include?("z") && nested_stripped.include?("let b = 2"), "正例: 入れ子ブロックコメントを除去する"
+  quote_in_comment = "let a = 1\n// \"\nlet b = 2\n// \"\n"
+  quote_stripped = strip_comments(quote_in_comment)
+  selftest_assert quote_stripped.include?("let b = 2"), "正例: コメント内の引用符を文字列開始としない"
+  interp_q = %q{let s = "hello \(foo("bar")) world"}
+  selftest_assert strip_comments(interp_q).include?('foo("bar")'), "正例: 補間内の引用符を文字列終端としない"
+  triple = %(let s = """\n// not a comment\n"""\nlet b = 1\n)
+  selftest_assert strip_comments(triple).include?("// not a comment") && strip_comments(triple).include?("let b = 1"), "正例: 三重引用符内の // を残す"
 
   interp = %(let id = "settings-group-\\(group.id)")
   selftest_assert strip_comments(interp).include?("settings-group-"), "正例: 補間文字列を保持する"
@@ -1349,6 +1477,15 @@ def run_selftest
   commented = commented.sub(NOTIFY_NEW, "#{NOTIFY_NEW}\n")
   selftest_assert ng_of(commented, baseline).empty?, "正例: コメント・改行・文字列中の括弧・URL・補間を正しく扱う (#{ng_of(commented, baseline).inspect})"
 
+  quoted_comment = current.sub("Text(\"設定\")", %(Text("設定") /* " quoted in comment */))
+  selftest_assert ng_of(quoted_comment, baseline).empty?, "正例: コメント内引用符だけを加える (#{ng_of(quoted_comment, baseline).inspect})"
+  nested_keep = current.sub("Text(\"設定\")", %(Text("設定") /* outer /* inner */ still */))
+  selftest_assert ng_of(nested_keep, baseline).empty?, "正例: 入れ子コメントだけを加える (#{ng_of(nested_keep, baseline).inspect})"
+
+  hidden_disabled = current.sub(NOTIFY_NEW, %(#{NOTIFY_NEW}\n      // "\n      .disabled(true)\n      // "\n))
+  hidden_msgs = ng_of(hidden_disabled, baseline)
+  selftest_assert hidden_msgs.any? { |m| m.include?("Button「通知テスト」の許可差分以外") }, "負例: コメント内引用符で .disabled(true) を隠す (#{hidden_msgs.inspect})"
+
   extra_base = settings_scaffold(notify: NOTIFY_OLD, update: UPDATE_OLD, agent: AGENT_OLD, revoke: "#{REVOKE}.focusEffectDisabled()", rich: true)
   extra_cur = settings_scaffold(notify: NOTIFY_NEW, update: UPDATE_NEW, agent: AGENT_NEW, revoke: "#{REVOKE}.focusEffectDisabled()", rich: false)
   selftest_assert ng_of(extra_cur, extra_base).empty?, "正例: 対象外に焦点抑制がある基準でも対象3件だけ削除 (#{ng_of(extra_cur, extra_base).inspect})"
@@ -1357,23 +1494,45 @@ def run_selftest
   selftest_assert unimplemented.any? { |m| m.include?("RichButtonStyle") }, "負例: 未実装 (#{unimplemented.inspect})"
   selftest_assert unimplemented.any? { |m| m.include?(".bordered") || m.include?("減少") }, "負例: 未実装は旧3ボタン／焦点抑制を理由にする"
 
-  one_old = settings_scaffold(notify: NOTIFY_OLD, update: UPDATE_NEW, agent: AGENT_NEW, rich: false)
-  selftest_assert has_ng?(one_old, baseline, "RichButtonStyle", "通知テスト", ".bordered"), "負例: 1ボタンだけ旧スタイル"
+  style_only = settings_scaffold(
+    notify: NOTIFY_NEW.sub(".buttonStyle(.bordered)", ".buttonStyle(RichButtonStyle())"),
+    update: UPDATE_NEW,
+    agent: AGENT_NEW,
+    rich: false
+  )
+  selftest_assert has_all_ng?(style_only, baseline, "Button「通知テスト」の .buttonStyle(.bordered) が 0 件（期待ちょうど 1）", "RichButtonStyle の使用"), "負例: スタイルだけ旧に戻す"
 
   def_left = settings_scaffold(notify: NOTIFY_NEW, update: UPDATE_NEW, agent: AGENT_NEW, rich: true)
   selftest_assert has_ng?(def_left, baseline, "RichButtonStyle"), "負例: 旧定義残存"
 
   missing_style = current.sub(".buttonStyle(.bordered)", "")
-  selftest_assert has_ng?(missing_style, baseline, "通知テスト", ".bordered"), "負例: 標準スタイルの欠落"
+  selftest_assert has_all_ng?(missing_style, baseline, "Button「通知テスト」の .buttonStyle(.bordered) が 0 件（期待ちょうど 1）"), "負例: 標準スタイルの欠落"
 
-  other_bordered = current.sub(REVOKE, %q{Button("失効", role: .destructive, action: onRevoke).buttonStyle(.bordered).foregroundStyle(DSColor.statusError)})
-  selftest_assert has_ng?(other_bordered, baseline, "失効", "borderless", "残余", "MobileDeviceRow"), "負例: 別ボタンへの適用"
+  moved_style = settings_scaffold(
+    notify: NOTIFY_NEW.sub(".buttonStyle(.bordered)", ""),
+    update: UPDATE_NEW,
+    agent: AGENT_NEW,
+    revoke: REVOKE.sub(".buttonStyle(.borderless)", ".buttonStyle(.bordered)"),
+    rich: false
+  )
+  selftest_assert has_all_ng?(moved_style, baseline, "Button「通知テスト」の .buttonStyle(.bordered) が 0 件（期待ちょうど 1）", "失効 Button の .buttonStyle(.borderless) が無い"), "負例: 対象のスタイルを別ボタンへ移す"
+
+  double_style = settings_scaffold(notify: "#{NOTIFY_NEW}.buttonStyle(.bordered)", update: UPDATE_NEW, agent: AGENT_NEW, rich: false)
+  selftest_assert has_all_ng?(double_style, baseline, "Button「通知テスト」の .buttonStyle(.bordered) が 2 件（期待ちょうど 1）"), "負例: .buttonStyle(.bordered) の二重付与"
+
+  moved_pos = settings_scaffold(
+    notify: NOTIFY_NEW,
+    update: %q{Button("今すぐ確認") { appUpdater.checkForUpdates() }.disabled(!appUpdater.canCheckForUpdates).buttonStyle(.bordered)},
+    agent: AGENT_NEW,
+    rich: false
+  )
+  selftest_assert has_all_ng?(moved_pos, baseline, "Button「今すぐ確認」の .buttonStyle(.bordered) が基準の .buttonStyle(RichButtonStyle()) と異なる位置にある"), "負例: スタイル修飾の位置移動"
 
   prominent = current.sub(NOTIFY_NEW, NOTIFY_NEW.sub(".bordered", ".borderedProminent"))
-  selftest_assert has_ng?(prominent, baseline, "通知テスト", ".bordered"), "負例: 強調スタイルへの置換"
+  selftest_assert has_all_ng?(prominent, baseline, "Button「通知テスト」の .buttonStyle(.bordered) が 0 件（期待ちょうど 1）"), "負例: 強調スタイルへの置換"
 
   fed_left = settings_scaffold(notify: "#{NOTIFY_NEW}.focusEffectDisabled()", update: UPDATE_NEW, agent: AGENT_NEW, rich: false)
-  selftest_assert has_ng?(fed_left, baseline, "focusEffectDisabled", "通知テスト"), "負例: 焦点抑制の残存"
+  selftest_assert has_all_ng?(fed_left, baseline, "Button「通知テスト」に .focusEffectDisabled() が残っている"), "負例: 焦点抑制だけ残す"
 
   extra_removed = settings_scaffold(notify: NOTIFY_NEW, update: UPDATE_NEW, agent: AGENT_NEW, revoke: REVOKE, rich: false)
   selftest_assert has_ng?(extra_removed, extra_base, "対象外", "focusEffectDisabled"), "負例: 対象外の削除"
@@ -1496,7 +1655,24 @@ def run_selftest
   selftest_assert parse_contract_baseline_text("---\nbaseline_commit: \"abc1234\"\n") == "abc1234", "正例: 契約 baseline_commit がクォート付き SHA"
   selftest_assert parse_contract_baseline_text("---\nbaseline_commit: abc1234\n") == "abc1234", "正例: 契約 baseline_commit がクォート無し SHA"
   mismatch_errs = contract_baseline_errors("---\nbaseline_commit: \"aaaaaaaa\"\n", "bbbbbbbb")
-  selftest_assert mismatch_errs.any? { |m| m.include?("一致しない") || m.include?("無効") }, "負例: 環境変数との不一致"
+  selftest_assert mismatch_errs.any? { |m| m.include?("無効") }, "負例: 存在しない SHA は無効"
+  selftest_assert mismatch_errs.none? { |m| m.include?("一致しない") }, "負例: 存在しない SHA を不一致と数えない"
+
+  head_full = git_full_sha("HEAD")
+  other_full = git_full_sha("HEAD~1")
+  selftest_assert !head_full.nil? && !other_full.nil? && head_full != other_full, "selftest 用に有効で異なる 2 コミットが必要"
+  real_mismatch = contract_baseline_errors("---\nbaseline_commit: \"#{head_full}\"\n", other_full)
+  selftest_assert real_mismatch.any? { |m| m.include?("一致しない") }, "負例: 有効だが異なる SHA の不一致 (#{real_mismatch.inspect})"
+  selftest_assert real_mismatch.none? { |m| m.include?("無効") }, "負例: 有効 SHA 同士の不一致は無効ではない"
+
+  head_settings = git_show(head_full, SETTINGS_PATH)
+  head_rb = git_show(head_full, WIRING_RB_PATH)
+  selftest_assert !head_settings.nil? && !head_rb.nil?, "HEAD の SettingsView / rb blob を git show できる"
+  selftest_assert baseline_settings_is_pre_ui05?(head_settings), "正例前提: HEAD の SettingsView は実装前 blob"
+  head_ok = check_frozen_baseline(head_full, settings_blob: head_settings, rb_now: head_rb, rb_blob: head_rb)
+  selftest_assert head_ok.empty?, "正例: HEAD 同値かつ実装前 blob (#{head_ok.inspect})"
+  post_ng = check_frozen_baseline(head_full, settings_blob: current, rb_now: head_rb, rb_blob: head_rb)
+  selftest_assert post_ng.any? { |m| m.include?("UI-05 実装前") }, "負例: 実装後 blob (#{post_ng.inspect})"
 
   selftest_assert ng_of(current, nil).any? { |m| m.include?("git show") }, "負例: blob 欠落"
   selftest_assert !baseline_settings_is_pre_ui05?(current), "負例: 実装済み基準"

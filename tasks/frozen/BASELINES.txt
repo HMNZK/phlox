@@ -29,3 +29,4 @@ a43113a	.claude/scripts/task39-wiring.rb
 c8a2010	.claude/scripts/task39-wiring.rb
 521e838	macos/Packages/TerminalUI/Tests/TerminalUITests/AcceptanceTerminalMountOwnershipTests.swift
 521e838	.claude/scripts/task39-wiring.rb
+3abd7d1	.claude/scripts/task17-wiring.rb

@@ -393,16 +393,27 @@ private func subAgent() -> SubAgentRef {
     )
 }
 
-private func unidentifiedSupplementJSON(id: String) -> String {
-    "{\"id\":\"\(id)\",\"type\":\"user\",\"text\":\"/review\\nログイン画面を修正\"}"
+private func unidentifiedSupplementJSON(id: String, isMeta: Bool? = nil) -> String {
+    appendIsMeta("{\"id\":\"\(id)\",\"type\":\"user\",\"text\":\"/review\\nログイン画面を修正\"}", isMeta)
 }
 
-private func identifiedOriginalJSON(id: String, originalText: String) -> String {
-    "{\"id\":\"\(id)\",\"type\":\"user\",\"text\":\"/review\\nログイン画面を修正\",\"originalText\":\(jsonString(originalText))}"
+private func identifiedOriginalJSON(id: String, originalText: String, isMeta: Bool? = nil) -> String {
+    appendIsMeta(
+        "{\"id\":\"\(id)\",\"type\":\"user\",\"text\":\"/review\\nログイン画面を修正\",\"originalText\":\(jsonString(originalText))}",
+        isMeta
+    )
 }
 
-private func identifiedPlainJSON(id: String, text: String) -> String {
-    "{\"id\":\"\(id)\",\"type\":\"user\",\"text\":\(jsonString(text)),\"originalText\":\(jsonString(text))}"
+private func identifiedPlainJSON(id: String, text: String, isMeta: Bool? = nil) -> String {
+    appendIsMeta(
+        "{\"id\":\"\(id)\",\"type\":\"user\",\"text\":\(jsonString(text)),\"originalText\":\(jsonString(text))}",
+        isMeta
+    )
+}
+
+private func appendIsMeta(_ json: String, _ isMeta: Bool?) -> String {
+    guard let isMeta else { return json }
+    return String(json.dropLast()) + ",\"isMeta\":\(isMeta)}"
 }
 
 private func jsonString(_ value: String) -> String {
@@ -1006,6 +1017,54 @@ struct AcceptanceSessionTitleLifecycleTests {
                 && vm.transcript.contains { $0.id == "srv-review" }
         }
         expectState(vm.titleState, "Rose", .flower, "Rose", nil, "identifiable /review original")
+    }
+
+    @Test @MainActor
+    func サーバー履歴でisMeta真ならoriginalTextがあってもflowerのまま() async throws {
+        let client = TitleCodexClient()
+        client.threadReadItemsJSON = "[\(identifiedOriginalJSON(id: "srv-meta", originalText: "ログイン画面を修正", isMeta: true))]"
+        let (vm, _) = makeCodexVM(client: client)
+        let revision = vm.transcriptRevision
+        await vm.restore(
+            threadId: "thread-meta",
+            approvalPolicy: .named("on-request"),
+            sandbox: .named("workspace-write")
+        )
+        try await waitUntil {
+            vm.transcriptRevision > revision
+                && vm.restoreState == .restored
+                && vm.transcript.contains { $0.id == "srv-meta" }
+        }
+        expectState(vm.titleState, "Rose", .flower, "Rose", nil, "isMeta true server history")
+    }
+
+    @Test @MainActor
+    func ライブのisMeta真user項目は不採用で後続の通常user項目を採用する() async throws {
+        let (vm, client) = makeCodexVM()
+        try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+        let threadId = try #require(vm.threadId)
+        try await yieldUserItem(
+            client,
+            threadId: threadId,
+            itemJSON: identifiedOriginalJSON(id: "live-meta", originalText: "ログイン画面を修正", isMeta: true)
+        )
+        try await waitUntil { vm.transcript.contains { $0.id == "live-meta" } }
+        expectState(vm.titleState, "Rose", .flower, "Rose", nil, "isMeta true live item")
+
+        try await yieldUserItem(
+            client,
+            threadId: threadId,
+            itemJSON: identifiedPlainJSON(id: "live-readme", text: "README を更新")
+        )
+        try await waitUntil { vm.transcript.contains { $0.id == "live-readme" } }
+        expectState(
+            vm.titleState,
+            "README を更新",
+            .derived,
+            "Rose",
+            "README を更新",
+            "subsequent normal user item"
+        )
     }
 
     @Test @MainActor

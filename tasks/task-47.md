@@ -516,3 +516,11 @@ PM は `docs/agent-output/visual-task-47.md` にコミット、起動コマン�
 - 未検証・失敗・警告を記録し、PM がフェーズ5で ADR 0147 の後継決定と関連仕様を反映する。
 
 旧単一草案を第三の実装契約として併用しない。UX-05 の完了には task-46・task-47 の検査、独立レビュー、PM 目視、フェーズ5の文書反映を必要とする。
+
+## 受け入れ検査の敵対レビュー反映（2026-09-13、`docs/agent-output/task47-acceptance-adversarial.md` を PM 裁定）
+
+- MUST1（基準に task-46 実装が無い）: 採択（工程）。task-46 done 後に再凍結し、基準検査は分類・開閉の実配線を確認する。
+- MUST2（`AgentMessageBody` 内の `ChatFontSettings.adjusted` 要求が task-46 契約と衝突）: 採択。倍率は `RichMarkdownView`／`CodeBlockView` の実適用箇所で検査し、正例は実物から作る。
+- HIGH3〜9: 採択（secondary 転送とキャッシュキーの実使用、`prepare`／`summary` の入口ごとの原入力→戻り値→描画先対応、許可構造以外の残余比較と保護領域、折り返し・リンク・コピー・表セル `fixedSize` 禁止・専用色の構造比較、必須ファイル欠落と git 障害の区別、PM ハーネスは実カード操作で既定閉→展開→同一 ID 更新→空白→再表示を表示状態で照合、完全な回答への復元操作・真正の同長更新・実イベント追記・コード境界／最新コマンドの固定シナリオ）。
+- HIGH10（テーマが standard を書き換える）: PM 裁定。ハーネスは `UserDefaults.standard` の永続値を書き換えない。テーマ差はハーネスでは扱わず、PM 目視ゲートで起動引数（`-phlox.theme`）により確認する（task-40 ゲート A と同方式）。
+- MED11〜15: 採択（未被覆領域のリテラル追加、`prepare`／`summary` 実結果の固定 UTF-8 比較、selftest の 1 違反 1 集合と本番区切り行の独立抽出、製品と同じ overlay 構成と高さ追随、ハーネス内型のアクセス範囲統一）。

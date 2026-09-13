@@ -259,3 +259,10 @@ App のコンパイル・リンクを別に確認する。
 - **描画への接続**：未使用モデルだけで合格せず、実際の行・help・AX・案内へ接続している。
 - **責務境界**：task-51 の許可パスと交差せず、目視のために表示条件・復元処理を弱めていない。
 - **証拠の正確さ**：Swift Testing、Ruby、App ビルド、PM 目視を区別し、課金なし到達経路が成立しなければ未達を明記している。
+
+## 受け入れ検査の敵対レビュー反映（2026-09-13、`docs/agent-output/task49-acceptance-adversarial.md` を PM 裁定）
+
+- MUST1（`ChatSessionViewModel` は class で `extract_struct_body` が解析不能）: 採択。class を解析し、比較元・比較先欠落は非ゼロ。
+- HIGH2〜6: 採択（View の凍結比較と表示条件・`maxCardHeight`・`bottomInset`・composer 配線の単一違反負例、`ForEach` 要素→行→モデル→Button action→再開引数の同値確認、補助表示・help・AX の実接続、導出結果→公開フィールドの代入確認と `UserDefaults.standard`／`Date.now` 依存の拒否、材料複数・`[]`＋summary・nil＋不適格 preview＋summary・summary 内コマンド／改行・先頭空白保存のリテラル追加）。
+- MED7・8: 採択（変更範囲はリポジトリ全体、受け入れテストは `import SessionFeature` で公開 API と非 Optional・`Sendable` を固定）。
+- MED9: 記録（entry の値不変は契約指定の確認として残し、副作用保護の証拠には数えない）。

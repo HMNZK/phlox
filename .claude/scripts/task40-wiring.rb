@@ -470,6 +470,20 @@ def baseline_env_errors(raw)
   [value, []]
 end
 
+def rb_baseline_env_errors(raw)
+  if raw.nil? || raw.strip.empty?
+    return [nil, ["TASK40_RB_BASELINE が未設定（HEAD にフォールバックしない）"]]
+  end
+  value = raw.strip
+  if value == "HEAD" || value == "@" || value == "HEAD~0" || value.start_with?("HEAD~") || value.start_with?("HEAD^")
+    return [nil, ["TASK40_RB_BASELINE に HEAD は使えない（短い SHA を渡す）"]]
+  end
+  unless value.match?(/\A[0-9a-fA-F]{7,40}\z/)
+    return [nil, ["TASK40_RB_BASELINE がコミット SHA ではない（ブランチ名は使えない）: #{value}"]]
+  end
+  [value, []]
+end
+
 def evaluate_frozen_baseline(full_sha:, is_ancestor:, typography_blob:, test_pairs:, rb_now:, rb_blob:)
   ng = []
   ng << "TASK40_BASELINE が HEAD の祖先ではない" unless is_ancestor
@@ -484,31 +498,40 @@ def evaluate_frozen_baseline(full_sha:, is_ancestor:, typography_blob:, test_pai
     end
   end
   if rb_blob.nil?
-    ng << "基準時点の rb 自身を git show できない（git show #{full_sha}:#{WIRING_RB_PATH}）"
+    ng << "基準時点の rb 自身を git show できない（git show TASK40_RB_BASELINE:#{WIRING_RB_PATH}）"
   elsif !workdir_matches_git_blob?(rb_now, rb_blob)
     ng << "基準時点の rb 自身が現在と同一ではない"
   end
   ng
 end
 
-def check_frozen_baseline(baseline)
+def check_frozen_baseline(baseline, rb_baseline: nil)
   full = git_full_sha(baseline)
   if full.nil?
     return ["TASK40_BASELINE が無効なコミット: #{baseline}"]
   end
-  rb_blob = git_show(full, WIRING_RB_PATH)
-  evaluate_frozen_baseline(
+  ng = []
+  rb_now = read_if_exist(WIRING_RB_PATH)
+  rb_blob = nil
+  if rb_baseline
+    rb_full = git_full_sha(rb_baseline)
+    if rb_full.nil?
+      ng << "TASK40_RB_BASELINE が無効なコミット: #{rb_baseline}"
+    else
+      rb_blob = git_show(rb_full, WIRING_RB_PATH)
+    end
+  end
+  ng.concat(evaluate_frozen_baseline(
     full_sha: full,
     is_ancestor: git_is_ancestor?(full, "HEAD"),
     typography_blob: git_show(full, PATHS[:typography]),
     test_pairs: ACCEPTANCE_TEST_PATHS.map { |path|
       [path, { now: read_if_exist(path), git: git_show(full, path) }]
     },
-    # PM 2026-09-13: rb マスク拡張は承認済み。作業ツリーの rb 同一性は生産検査から外し、
-    # evaluate_frozen_baseline の rb 不一致検出（selftest 負例「検査自身の改変」）は維持する。
-    rb_now: rb_blob,
+    rb_now: rb_now,
     rb_blob: rb_blob
-  )
+  ))
+  ng
 end
 
 def check_canonical(src)
@@ -897,6 +920,15 @@ def check_gap_application(transcript_src, typography_src)
   if c =~ /TranscriptTypography\.gap\([^)]*\)\*scale/ || c =~ /gap\([^)]*\)\*scale/
     ng << "gap に倍率を再適用している"
   end
+  foreach_body = extract_visible_blocks_foreach_body(stack)
+  if foreach_body.nil?
+    ng << "transcriptStack のブロック ForEach を切り出せない"
+  else
+    gap_mod_count = compact(foreach_body).scan(/\.padding\(\.top,TranscriptTypography\.gap/).length
+    unless gap_mod_count == 1
+      ng << "ブロックあたり gap 修飾はちょうど 1 個ではない（#{gap_mod_count}）"
+    end
+  end
   unless c =~ /VStack\([^)]*spacing:0/
     if reachable.include?("TranscriptTypography.gap") && (c =~ /VStack\([^)]*spacing:DSSpacing\.m/ || c =~ /VStack\([^)]*spacing:12/)
       ng << "gap と親Stack間隔を二重加算している"
@@ -1084,10 +1116,31 @@ end
 
 def mask_typography_draw_in_struct(src, name)
   replace_struct_body(src, name) do |body|
-    masked = body.dup
-    TYPOGRAPHY_DRAW_PREFIXES.each { |prefix| masked = mask_prefix_calls(masked, prefix) }
-    mask_typo_spacing(masked)
+    mask_typo_spacing(strip_draw_attribute_modifiers(body))
   end
+end
+
+def map_func_inner(src, name)
+  body = extract_func_body(src, name)
+  return src if body.nil?
+  src.sub(body, yield(body))
+end
+
+def extract_visible_blocks_foreach_body(stack)
+  pos = 0
+  while (m = stack.match(/ForEach\s*\(/, pos))
+    paren = stack.index("(", m.begin(0))
+    break unless paren
+    args = extract_balanced(stack, paren, "(", ")")
+    break if args.nil?
+    after = paren + 1 + args.length + 1
+    brace = stack.index("{", after)
+    if brace && args.include?("visibleSlice.blocks")
+      return extract_balanced(stack, brace, "{", "}")
+    end
+    pos = m.end(0)
+  end
+  nil
 end
 
 def normalize_typography_role(src)
@@ -1156,8 +1209,6 @@ def normalize_allowed_surface(src, key)
   result = src.dup
   result = strip_design_system_import(result)
   result = strip_chat_scale_appstorage(result)
-  result = strip_draw_attribute_modifiers(result)
-  result = mask_typo_spacing(result)
   case key
   when :chat_typography
     %w[bodyFontSize codeFontSize heading1FontSize heading2FontSize heading3FontSize].each do |n|
@@ -1174,7 +1225,7 @@ def normalize_allowed_surface(src, key)
     result = mask_typography_draw_in_struct(result, "DisclosureCard")
     result = mask_typography_draw_in_struct(result, "ChatTimestampText")
   when :basic
-    %w[UserMessageCell ErrorMessageCell TurnCostCell AgentMessageBody].each do |n|
+    %w[UserMessageCell ErrorMessageCell TurnCostCell AgentMessageBody AgentMessageCell].each do |n|
       result = mask_typography_draw_in_struct(result, n)
     end
   when :structured
@@ -1202,7 +1253,10 @@ def normalize_allowed_surface(src, key)
     %w[heading4 heading5 heading6].each do |h|
       result = replace_modifier_closure(result, h, "__PERMITTED_HEADING__")
     end
-    TYPOGRAPHY_DRAW_PREFIXES.each { |prefix| result = mask_prefix_calls(result, prefix) }
+    result = mask_typography_draw_in_struct(result, "RichMarkdownView")
+    result = map_func_inner(result, "chatMarkdownTheme") { |body|
+      mask_typo_spacing(strip_draw_attribute_modifiers(body))
+    }
   end
   result
 end
@@ -1228,6 +1282,14 @@ end
 
 def check_protected_frozen_attrs(sources, baseline_sources)
   ng = []
+  cur_err = sources[:basic] && extract_struct_body(sources[:basic], "ErrorMessageCell")
+  if cur_err.nil?
+    ng << "ErrorMessageCell を切り出せない"
+  else
+    unless reachable_code(cur_err).include?("statusError")
+      ng << "エラー色（error ink）が失われている"
+    end
+  end
   cur_fc = sources[:structured] && extract_struct_body(sources[:structured], "FileChangeCell")
   base_fc = baseline_sources[:structured] && extract_struct_body(baseline_sources[:structured], "FileChangeCell")
   if cur_fc.nil?
@@ -1243,7 +1305,9 @@ def check_protected_frozen_attrs(sources, baseline_sources)
     end
   end
   cur_cost = sources[:basic] && extract_struct_body(sources[:basic], "TurnCostCell")
-  if cur_cost
+  if cur_cost.nil?
+    ng << "TurnCostCell を切り出せない"
+  else
     unless compact(reachable_code(cur_cost)).include?("opacity(0.7)")
       ng << "料金の opacity 0.7 が失われている"
     end
@@ -1494,6 +1558,9 @@ def good_basic_src
           .foregroundStyle(DSColor.statusError)
           .lineSpacing(TranscriptTypography.textLineSpacing)
       }
+    }
+    struct ChatAttachmentBadge: View {
+      var body: some View { Text(title) }
     }
   SWIFT
 end
@@ -1844,6 +1911,9 @@ def frozen_basic_src
           .foregroundStyle(DSColor.statusError)
           .lineSpacing(3)
       }
+    }
+    struct ChatAttachmentBadge: View {
+      var body: some View { Text(title) }
     }
   SWIFT
 end
@@ -2206,6 +2276,25 @@ def run_selftest
   cost_op_ng = inspect_like_prod(cost_opacity, frozen)
   selftest_assert cost_op_ng.any? { |m| m.include?("opacity") }, "負例: 料金 opacity 喪失 (#{cost_op_ng.inspect})"
 
+  err_ink = mutate(good, :basic) { |src| src.sub("DSColor.statusError", "DSColor.chatTextPrimary") }
+  err_ink_ng = inspect_like_prod(err_ink, frozen)
+  selftest_assert err_ink_ng.any? { |m| m.include?("error ink") || m.include?("エラー色") }, "負例: エラー色→primary (#{err_ink_ng.inspect})"
+
+  dup_gap = mutate(good, :transcript) { |src|
+    src.sub(
+      ".padding(.top, TranscriptTypography.gap(after: after, before: block.content.typographyRole))",
+      ".padding(.top, TranscriptTypography.gap(after: after, before: block.content.typographyRole))\n              .padding(.top, TranscriptTypography.gap(after: after, before: block.content.typographyRole))"
+    )
+  }
+  dup_gap_ng = inspect_like_prod(dup_gap, frozen)
+  selftest_assert dup_gap_ng.any? { |m| m.include?("ちょうど 1 個") }, "負例: gap padding 複製 (#{dup_gap_ng.inspect})"
+
+  outside_font = mutate(good, :basic) { |src|
+    src.sub("var body: some View { Text(title) }", "var body: some View { Text(title).font(ChatScaledFont.caption(scale: 1)) }")
+  }
+  outside_font_ng = inspect_like_prod(outside_font, frozen)
+  selftest_assert outside_font_ng.any? { |m| m.include?("残余") }, "負例: 範囲外での .font 変更 (#{outside_font_ng.inspect})"
+
   unset, unset_errs = baseline_env_errors(nil)
   selftest_assert unset.nil? && unset_errs.any? { |m| m.include?("未設定") }, "負例: SHA欠落"
   _, head_errs = baseline_env_errors("HEAD")
@@ -2287,6 +2376,35 @@ def run_selftest
   )
   selftest_assert rb_changed.any? { |m| m.include?("rb 自身") }, "負例: 検査自身の改変"
 
+  _, rb_unset_errs = rb_baseline_env_errors(nil)
+  selftest_assert rb_unset_errs.any? { |m| m.include?("未設定") }, "負例: TASK40_RB_BASELINE 欠落"
+  _, rb_head_errs = rb_baseline_env_errors("HEAD")
+  selftest_assert rb_head_errs.any? { |m| m.include?("HEAD") }, "負例: TASK40_RB_BASELINE に HEAD"
+  _, rb_branch_errs = rb_baseline_env_errors("main")
+  selftest_assert rb_branch_errs.any? { |m| m.include?("ブランチ") || m.include?("SHA") }, "負例: TASK40_RB_BASELINE ブランチ名"
+
+  require "fileutils"
+  require "tmpdir"
+  Dir.mktmpdir("t40-rb-selftest-") do |tmpdir|
+    Dir.chdir(tmpdir) do
+      system("git", "init", "-q")
+      system("git", "config", "user.email", "t40@example.com")
+      system("git", "config", "user.name", "t40")
+      FileUtils.mkdir_p(File.dirname(WIRING_RB_PATH))
+      File.write(WIRING_RB_PATH, "# original rb\n")
+      ACCEPTANCE_TEST_PATHS.each do |path|
+        FileUtils.mkdir_p(File.dirname(path))
+        File.write(path, "test\n")
+      end
+      system("git", "add", "-A")
+      selftest_assert system("git", "commit", "-qm", "base"), "正例: 一時リポジトリへ commit できる"
+      rb_sha = IO.popen(["git", "rev-parse", "--short", "HEAD"], &:read).strip
+      File.write(WIRING_RB_PATH, "# tampered rb\n")
+      prod_rb_ng = check_frozen_baseline(rb_sha, rb_baseline: rb_sha)
+      selftest_assert prod_rb_ng.any? { |m| m.include?("rb 自身") }, "負例: 本番経路で rb_now を作業ツリーから読む (#{prod_rb_ng.inspect})"
+    end
+  end
+
   selftest_assert parse_contract_baseline_text("---\nfoo: 1\n") == :missing, "負例: 契約 baseline_commit 欠落"
   selftest_assert parse_contract_baseline_text("---\nbaseline_commit: \"PM が凍結時に設定\"\n") == :placeholder, "負例: 契約 baseline_commit プレースホルダ"
   selftest_assert parse_contract_baseline_text("---\nbaseline_commit: \"not-a-sha\"\n") == :invalid, "負例: 契約 baseline_commit 不正"
@@ -2329,6 +2447,10 @@ raw = ENV["TASK40_BASELINE"]
 baseline, env_errs = baseline_env_errors(raw)
 ng.concat(env_errs)
 
+rb_raw = ENV["TASK40_RB_BASELINE"]
+rb_baseline, rb_env_errs = rb_baseline_env_errors(rb_raw)
+ng.concat(rb_env_errs)
+
 contract_text = File.exist?(CONTRACT_PATH) ? File.read(CONTRACT_PATH) : nil
 if contract_text.nil?
   ng << "契約ファイル #{CONTRACT_PATH} が無い"
@@ -2342,7 +2464,7 @@ if baseline
     ng << "TASK40_BASELINE が無効なコミット: #{baseline}"
     baseline = nil
   else
-    ng.concat(check_frozen_baseline(full))
+    ng.concat(check_frozen_baseline(full, rb_baseline: rb_baseline))
     baseline = full
   end
 end

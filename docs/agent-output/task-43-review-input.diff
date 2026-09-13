@@ -1,0 +1,440 @@
+diff --git a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/ComposerDestinationLabel+Agora.swift b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/ComposerDestinationLabel+Agora.swift
+new file mode 100644
+index 0000000..f6c1aed
+--- /dev/null
++++ b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/ComposerDestinationLabel+Agora.swift
+@@ -0,0 +1,15 @@
++import SessionFeature
++
++extension ComposerDestinationLabel {
++    static func teamDestination(
++        action: AgoraComposerAction,
++        rootProjectName: String?,
++        rootTaskName: String?
++    ) -> Destination {
++        switch action {
++        case .startDiscussion: return .startDiscussion
++        case .discussionUtterance: return .discussionUtterance
++        case .legacyRootSend: return .parentSession(projectName: rootProjectName, taskName: rootTaskName)
++        }
++    }
++}
+diff --git a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardDetailView.swift b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardDetailView.swift
+index 5de3d89..cd67373 100644
+--- a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardDetailView.swift
++++ b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardDetailView.swift
+@@ -49,7 +49,8 @@ struct DashboardDetailView: View {
+                         draftName = session.name
+                     },
+                     onChangeWorkspace: { session in pendingWorkspaceChange = session },
+-                    onLayoutAction: { viewModel.handlePaneLayoutAction($0) }
++                    onLayoutAction: { viewModel.handlePaneLayoutAction($0) },
++                    projectNames: Dictionary(uniqueKeysWithValues: viewModel.projects.map { ($0.id, $0.name) })
+                 )
+             case .team:
+                 TeamTimelineView(
+@@ -70,7 +71,7 @@ struct DashboardDetailView: View {
+             case .pty(let session):
+                 SessionView(viewModel: session)
+             case .appServer(let session):
+-                ChatSessionView(viewModel: session)
++                ChatSessionView(viewModel: session, projectName: viewModel.projects.first(where: { $0.id == session.projectID })?.name)
+                     .id(session.id)
+             }
+         } else {
+diff --git a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/TeamComposer.swift b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/TeamComposer.swift
+index c8526cf..da47935 100644
+--- a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/TeamComposer.swift
++++ b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/TeamComposer.swift
+@@ -6,6 +6,7 @@ import SessionFeature
+ struct TeamComposer: View {
+     let targetDisplayName: String?
+     let isReadyForInput: Bool
++    let destination: ComposerDestinationLabel.Destination
+     let onSend: (String) async throws -> Void
+ 
+     @State private var draft = ""
+@@ -24,11 +25,19 @@ struct TeamComposer: View {
+     var body: some View {
+         HStack(alignment: .bottom, spacing: DSSpacing.s) {
+             VStack(alignment: .leading, spacing: DSSpacing.xs) {
+-                if let targetDisplayName {
+-                    Text("宛先: \(targetDisplayName)")
+-                        .font(DSFont.caption)
+-                        .foregroundStyle(DSColor.textTertiary)
+-                }
++                let destinationText = ComposerDestinationLabel.text(
++                    for: destination,
++                    hasDestination: targetDisplayName != nil,
++                    isReadyForInput: isReadyForInput,
++                    hasContent: !trimmedDraft.isEmpty
++                )
++                Text(destinationText)
++                    .font(DSFont.caption)
++                    .foregroundStyle(DSColor.textTertiary)
++                    .lineLimit(1)
++                    .help(destinationText)
++                    .accessibilityLabel(destinationText)
++                    .accessibilityIdentifier("TeamComposer.destination")
+                 ZStack(alignment: .topLeading) {
+                     TeamComposerTextInput(
+                         text: $draft,
+diff --git a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/TeamTimelineView.swift b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/TeamTimelineView.swift
+index 65bcc75..ff0986e 100644
+--- a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/TeamTimelineView.swift
++++ b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/TeamTimelineView.swift
+@@ -90,6 +90,7 @@ public struct TeamTimelineView: View {
+             TeamComposer(
+                 targetDisplayName: composerTargetDisplayName,
+                 isReadyForInput: composerIsReadyForInput,
++                destination: teamComposerDestination,
+                 onSend: sendTeamMessage
+             )
+         }
+@@ -190,6 +191,21 @@ public struct TeamTimelineView: View {
+         return composerTargetNode?.displayName
+     }
+ 
++    private var teamComposerDestination: ComposerDestinationLabel.Destination {
++        let action = AgoraComposerRouting.action(
++            phase: viewModel.agoraDiscussionCoordinator?.phase,
++            canStartDiscussion: TeamTimelineAgoraPolicy.canStartDiscussion(
++                canResolveProject: canResolveProjectForNewSession
++            ),
++            text: ""
++        )
++        return ComposerDestinationLabel.teamDestination(
++            action: action,
++            rootProjectName: viewModel.projects.first(where: { $0.id == composerTargetNode?.projectID })?.name,
++            rootTaskName: composerTargetNode?.displayName
++        )
++    }
++
+     private var composerIsReadyForInput: Bool {
+         if TeamTimelineAgoraPolicy.isDiscussionActive(
+             phase: viewModel.agoraDiscussionCoordinator?.phase
+diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatComposer.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/ChatComposer.swift
+index decd433..7892bec 100644
+--- a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatComposer.swift
++++ b/macos/Packages/SessionFeature/Sources/SessionFeature/ChatComposer.swift
+@@ -9,6 +9,7 @@ struct ChatComposer: View {
+     @Binding var text: String
+     let isRunning: Bool
+     let canSend: Bool
++    let projectName: String?
+     let onSend: () -> Void
+     let onInterrupt: () -> Void
+     let controlsLayout: ComposerFooterLayout
+@@ -21,6 +22,7 @@ struct ChatComposer: View {
+         text: Binding<String>,
+         isRunning: Bool,
+         canSend: Bool,
++        projectName: String? = nil,
+         controlsLayout: ComposerFooterLayout = .standard,
+         onSend: @escaping () -> Void,
+         onInterrupt: @escaping () -> Void
+@@ -29,6 +31,7 @@ struct ChatComposer: View {
+         _text = text
+         self.isRunning = isRunning
+         self.canSend = canSend
++        self.projectName = projectName
+         self.controlsLayout = controlsLayout
+         self.onSend = onSend
+         self.onInterrupt = onInterrupt
+@@ -40,7 +43,7 @@ struct ChatComposer: View {
+     }
+ 
+     var body: some View {
+-        // パネル全体≈80px の要件（ADR 0046）: 間隔 xs・縦余白 s に圧縮（8+36+4+28+8=84）。
++        // ADR 0046 の約 80px に、宛先キャプション 1 行を足す。間隔 xs・縦余白 s は維持。
+         VStack(alignment: .leading, spacing: DSSpacing.xs) {
+             if suggestionController.isPresented {
+                 ComposerSuggestionPopup(controller: suggestionController, onAccept: acceptSuggestionFromPopup)
+@@ -65,6 +68,21 @@ struct ChatComposer: View {
+                 layout: controlsLayout.settingsLayout,
+                 onRemove: removeAttachment
+             )
++            let destinationText = ComposerDestinationLabel.text(
++                for: .conversation(projectName: projectName, taskName: viewModel.displayName),
++                hasDestination: true,
++                isReadyForInput: canSend,
++                hasContent: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
++                    || !viewModel.attachmentStore.attachments.isEmpty
++            )
++            Text(destinationText)
++                .font(DSFont.caption)
++                .foregroundStyle(DSColor.chatTextSecondary)
++                .lineLimit(1)
++                .help(destinationText)
++                .accessibilityLabel(destinationText)
++                .accessibilityIdentifier("ChatComposer.destination")
++                .padding(.horizontal, DSSpacing.xs)
+             ZStack(alignment: .topLeading) {
+                 IMESafeTextView(
+                     text: $text,
+diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionView.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionView.swift
+index 086f415..3b5df0e 100644
+--- a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionView.swift
++++ b/macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionView.swift
+@@ -6,6 +6,7 @@ import DesignSystem
+ 
+ public struct ChatSessionView: View {
+     @Bindable var viewModel: ChatSessionViewModel
++    let projectName: String?
+     @State private var requestedTranscriptTarget: String?
+     /// スクラバーのハイライトをトランスクリプトのスクロール位置に連動させるための現在位置。
+     /// 値の更新はトランスクリプトの NSScrollView イベント側からのみ行う（ADR 0010）。
+@@ -17,8 +18,9 @@ public struct ChatSessionView: View {
+     @State private var subAgentPaneWidthAtDragStart: CGFloat = 0
+     @State private var composerHeight: CGFloat = 0
+ 
+-    public init(viewModel: ChatSessionViewModel) {
++    public init(viewModel: ChatSessionViewModel, projectName: String? = nil) {
+         _viewModel = Bindable(wrappedValue: viewModel)
++        self.projectName = projectName
+     }
+ 
+     public var body: some View {
+@@ -208,6 +210,7 @@ public struct ChatSessionView: View {
+                         text: $viewModel.draft,
+                         isRunning: viewModel.showsProcessingIndicator,
+                         canSend: viewModel.isReadyForInput,
++                        projectName: projectName,
+                         controlsLayout: proposedComposerWidth.map(ComposerLayout.controlsLayout(proposedWidth:)) ?? .standard,
+                         onSend: sendDraft,
+                         onInterrupt: interruptTurn
+diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/ComposerDestinationLabel.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/ComposerDestinationLabel.swift
+new file mode 100644
+index 0000000..4463ae1
+--- /dev/null
++++ b/macos/Packages/SessionFeature/Sources/SessionFeature/ComposerDestinationLabel.swift
+@@ -0,0 +1,59 @@
++import Foundation
++
++public enum ComposerDestinationLabel {
++    public enum Destination: Equatable, Sendable {
++        case conversation(projectName: String?, taskName: String)
++        case startDiscussion
++        case discussionUtterance
++        case parentSession(projectName: String?, taskName: String?)
++    }
++
++    public static func text(
++        for destination: Destination,
++        hasDestination: Bool,
++        isReadyForInput: Bool,
++        hasContent: Bool
++    ) -> String {
++        let base = baseText(for: destination)
++        if !hasDestination {
++            return base + " — 送信不可（送信先がありません）"
++        }
++        if !isReadyForInput {
++            return base + " — 送信不可（入力を受け付けられません）"
++        }
++        if !hasContent {
++            return base + " — 送信不可（メッセージを入力してください）"
++        }
++        return base
++    }
++
++    private static func baseText(for destination: Destination) -> String {
++        switch destination {
++        case .conversation(let projectName, let taskName):
++            return "\(displayProjectName(projectName)) / \(displayTaskName(taskName))"
++        case .startDiscussion:
++            return "討論を開始"
++        case .discussionUtterance:
++            return "討論への発言"
++        case .parentSession(let projectName, let taskName):
++            guard let taskName = normalizedName(taskName) else {
++                return "親セッションへの送信"
++            }
++            return "\(displayProjectName(projectName)) / \(taskName) — 親セッションへの送信"
++        }
++    }
++
++    private static func displayProjectName(_ raw: String?) -> String {
++        normalizedName(raw) ?? "プロジェクト名不明"
++    }
++
++    private static func displayTaskName(_ raw: String) -> String {
++        normalizedName(raw) ?? "作業名不明"
++    }
++
++    private static func normalizedName(_ raw: String?) -> String? {
++        guard let raw else { return nil }
++        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
++        return trimmed.isEmpty ? nil : trimmed
++    }
++}
+diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/GridChatColumn.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/GridChatColumn.swift
+index 43464ce..fb18c92 100644
+--- a/macos/Packages/SessionFeature/Sources/SessionFeature/GridChatColumn.swift
++++ b/macos/Packages/SessionFeature/Sources/SessionFeature/GridChatColumn.swift
+@@ -9,6 +9,7 @@ import DesignSystem
+ /// 各タイルから直接返信できる composer を足す（single へ切り替えずグリッドのまま返信・承認可能にする）。
+ struct GridChatColumn: View {
+     @Bindable var viewModel: ChatSessionViewModel
++    var projectName: String? = nil
+     let onFocusGained: () -> Void
+     @State private var requestedTranscriptTarget: String?
+     @State private var composerHeight: CGFloat = 0
+@@ -56,6 +57,7 @@ struct GridChatColumn: View {
+                             viewModel: viewModel,
+                             text: $viewModel.draft,
+                             controlsLayout: proposedComposerWidth.map(ComposerLayout.gridControlsLayout(proposedWidth:)) ?? .compact,
++                            projectName: projectName,
+                             onSend: sendDraft,
+                             onInterrupt: interruptTurn,
+                             onFocusGained: onFocusGained
+@@ -157,6 +159,7 @@ struct GridComposerBar: View {
+     @Bindable var viewModel: ChatSessionViewModel
+     @Binding var text: String
+     var controlsLayout: ComposerFooterLayout?
++    let projectName: String?
+     let onSend: () -> Void
+     let onInterrupt: () -> Void
+     let onFocusGained: () -> Void
+@@ -168,6 +171,7 @@ struct GridComposerBar: View {
+         viewModel: ChatSessionViewModel,
+         text: Binding<String>,
+         controlsLayout: ComposerFooterLayout? = nil,
++        projectName: String? = nil,
+         onSend: @escaping () -> Void,
+         onInterrupt: @escaping () -> Void,
+         onFocusGained: @escaping () -> Void = {}
+@@ -175,6 +179,7 @@ struct GridComposerBar: View {
+         _viewModel = Bindable(wrappedValue: viewModel)
+         _text = text
+         self.controlsLayout = controlsLayout
++        self.projectName = projectName
+         self.onSend = onSend
+         self.onInterrupt = onInterrupt
+         self.onFocusGained = onFocusGained
+@@ -205,7 +210,7 @@ struct GridComposerBar: View {
+     }
+ 
+     private func composerContent(controlsLayout: ComposerFooterLayout) -> some View {
+-        // パネル全体≈80px の要件（ADR 0046）: 間隔 xs に圧縮（8+36+4+28+8=84）。
++        // ADR 0046 の約 80px に、宛先キャプション 1 行を足す。間隔 xs は維持。
+         VStack(alignment: .leading, spacing: DSSpacing.xs) {
+             if suggestionController.isPresented {
+                 ComposerSuggestionPopup(controller: suggestionController, onAccept: acceptSuggestionFromPopup)
+@@ -230,6 +235,21 @@ struct GridComposerBar: View {
+                 layout: controlsLayout.settingsLayout,
+                 onRemove: removeAttachment
+             )
++            let destinationText = ComposerDestinationLabel.text(
++                for: .conversation(projectName: projectName, taskName: viewModel.displayName),
++                hasDestination: true,
++                isReadyForInput: viewModel.isReadyForInput,
++                hasContent: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
++                    || !viewModel.attachmentStore.attachments.isEmpty
++            )
++            Text(destinationText)
++                .font(DSFont.caption)
++                .foregroundStyle(DSColor.chatTextSecondary)
++                .lineLimit(1)
++                .help(destinationText)
++                .accessibilityLabel(destinationText)
++                .accessibilityIdentifier("GridComposer.destination")
++                .padding(.horizontal, DSSpacing.xs)
+             ZStack(alignment: .topLeading) {
+                 IMESafeTextView(
+                     text: $text,
+diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/PaneLayoutView.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/PaneLayoutView.swift
+index 2b237a3..ec5ed7c 100644
+--- a/macos/Packages/SessionFeature/Sources/SessionFeature/PaneLayoutView.swift
++++ b/macos/Packages/SessionFeature/Sources/SessionFeature/PaneLayoutView.swift
+@@ -29,6 +29,7 @@ public struct PaneLayoutView: View {
+     let onRename: (SessionNode) -> Void
+     let onChangeWorkspace: (SessionViewModel) -> Void
+     let onLayoutAction: (PaneLayoutAction) -> Void
++    let projectNames: [ProjectID: String]
+ 
+     /// ドロップ中に出すインジケータ（どのタイルの・どの操作か）。ドロップの判定そのものは
+     /// `PaneDropZone` が持ち、ここはその結果を描くためだけに保持する。
+@@ -41,7 +42,8 @@ public struct PaneLayoutView: View {
+         onRemove: @escaping (SessionNode) -> Void,
+         onRename: @escaping (SessionNode) -> Void,
+         onChangeWorkspace: @escaping (SessionViewModel) -> Void,
+-        onLayoutAction: @escaping (PaneLayoutAction) -> Void
++        onLayoutAction: @escaping (PaneLayoutAction) -> Void,
++        projectNames: [ProjectID: String] = [:]
+     ) {
+         self.sessions = sessions
+         self.tree = tree
+@@ -50,6 +52,7 @@ public struct PaneLayoutView: View {
+         self.onRename = onRename
+         self.onChangeWorkspace = onChangeWorkspace
+         self.onLayoutAction = onLayoutAction
++        self.projectNames = projectNames
+     }
+ 
+     public var body: some View {
+@@ -63,6 +66,7 @@ public struct PaneLayoutView: View {
+                     if let session = sessions.first(where: { $0.id == tile.session }) {
+                         PaneTileView(
+                             session: session,
++                            projectName: session.projectID.flatMap { projectNames[$0] },
+                             size: tile.rect.size,
+                             isFocused: focusedID == session.id,
+                             onSelect: { focusedID = session.id },
+@@ -176,6 +180,7 @@ private struct PaneDropIndicator {
+ /// 位置を受け取れる `DropDelegate` を使う（旧タイルの `dropDestination` は位置を渡さない）。
+ private struct PaneTileView: View {
+     let session: SessionNode
++    let projectName: String?
+     /// タイルの矩形サイズ。ドロップ位置の判定に使う（`DropInfo.location` と同じ座標系）。
+     let size: CGSize
+     let isFocused: Bool
+@@ -254,7 +259,7 @@ private struct PaneTileView: View {
+                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                 .clipped()
+         case .appServer(let session):
+-            GridChatColumn(viewModel: session, onFocusGained: onSelect)
++            GridChatColumn(viewModel: session, projectName: projectName, onFocusGained: onSelect)
+                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                 .clipped()
+         }
+diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/SessionGridView.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/SessionGridView.swift
+index 35e94c1..fd3faa4 100644
+--- a/macos/Packages/SessionFeature/Sources/SessionFeature/SessionGridView.swift
++++ b/macos/Packages/SessionFeature/Sources/SessionFeature/SessionGridView.swift
+@@ -24,6 +24,7 @@ public struct SessionGridView: View {
+     let onRename: (SessionNode) -> Void
+     let onChangeWorkspace: (SessionViewModel) -> Void
+     let onLayoutAction: (PaneLayoutAction) -> Void
++    let projectNames: [ProjectID: String]
+     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+ 
+     public init(
+@@ -33,7 +34,8 @@ public struct SessionGridView: View {
+         onRemove: @escaping (SessionNode) -> Void,
+         onRename: @escaping (SessionNode) -> Void,
+         onChangeWorkspace: @escaping (SessionViewModel) -> Void,
+-        onLayoutAction: @escaping (PaneLayoutAction) -> Void
++        onLayoutAction: @escaping (PaneLayoutAction) -> Void,
++        projectNames: [ProjectID: String] = [:]
+     ) {
+         self.sessions = sessions
+         self.paneLayout = paneLayout
+@@ -42,6 +44,7 @@ public struct SessionGridView: View {
+         self.onRename = onRename
+         self.onChangeWorkspace = onChangeWorkspace
+         self.onLayoutAction = onLayoutAction
++        self.projectNames = projectNames
+     }
+ 
+     public var body: some View {
+@@ -52,7 +55,8 @@ public struct SessionGridView: View {
+             onRemove: onRemove,
+             onRename: onRename,
+             onChangeWorkspace: onChangeWorkspace,
+-            onLayoutAction: onLayoutAction
++            onLayoutAction: onLayoutAction,
++            projectNames: projectNames
+         )
+         // 上余白だけ詰めてトップバーとの隙間を無くす（左右下は通常マージン）。
+         .padding(.horizontal, DSSpacing.s)

@@ -1,0 +1,109 @@
+{
+  "reviewer": "codex-gpt-6-astra",
+  "dimensions_swept": [
+    {
+      "dimension": "契約適合",
+      "result": "finding",
+      "note": "状態・descriptor・保存契約は確認。本文採否に2件の不適合がある（findings参照）。"
+    },
+    {
+      "dimension": "正しさ",
+      "result": "finding",
+      "note": "復元経路による採否の違いと、isMeta項目の採用を確認。保存キューの競合制御には追加指摘なし。"
+    },
+    {
+      "dimension": "誠実性",
+      "result": "ok",
+      "note": "凍結テストの変更を対象差分に検出せず。E2E更新はH5の裁定に対応する最小変更。"
+    },
+    {
+      "dimension": "根本原因",
+      "result": "finding",
+      "note": "static辞書は解消したが、本文採否の経路間不一致とメタ項目の由来喪失が残る。"
+    },
+    {
+      "dimension": "構造",
+      "result": "finding",
+      "note": "状態正規化の一元化とMainActor上のliveTitleState注入は妥当。候補採否は履歴・サーバー間で統一されていない。"
+    },
+    {
+      "dimension": "到達性",
+      "result": "ok",
+      "note": "生成・rename・導出通知・保存・通常復元・両失敗プレースホルダへの配線を確認。目視は指定どおりtask-45の対象。"
+    },
+    {
+      "dimension": "非機能",
+      "result": "ok",
+      "note": "名前目的のAI・外部プロセス・ネットワーク追加なし。辞書はVM内に限定されterminateで解放。確定状態の履歴抽出前ガードを確認。"
+    },
+    {
+      "dimension": "テストの質",
+      "result": "finding",
+      "note": "状態リテラル、PID待機点、削除順序の検査は有効。ただしサーバー由来不明の適格先頭行とisMetaの経路別・再復元ケースが不足する。"
+    },
+    {
+      "dimension": "Rubric：initializer・旧名・手動名・空名の保護",
+      "result": "ok",
+      "note": "不整合状態のmanual退避、前後のみのrename正規化、空名維持、手動優先を確認。"
+    },
+    {
+      "dimension": "Rubric：本文由来と補足混入防止",
+      "result": "finding",
+      "note": "ローカル対応辞書と先頭行制限は確認したが、findingsの2件が残る。"
+    },
+    {
+      "dimension": "Rubric：確定後の履歴抽出抑止",
+      "result": "ok",
+      "note": "履歴再開・ローカル復元・サーバー復元の各採用関数で、抽出より前にflowerガードがある。"
+    },
+    {
+      "dimension": "Rubric：初回保存・復元待ち・PID・削除競合",
+      "result": "ok",
+      "note": "初回load後の生存確認・最新状態取得、rename同値抑止、H5削除の繰り越し、同一キューで現存descriptorへのPID限定更新を確認。"
+    },
+    {
+      "dimension": "Rubric：descriptor互換・workspace・秘密情報・PTY・認可",
+      "result": "ok",
+      "note": "両initializer、旧JSON、未知source退避、四フィールド転記を確認。既存token非encode・秘密env除去・PTY入出力・認可経路を維持。"
+    },
+    {
+      "dimension": "Rubric：scope検査と恒久検査の分離",
+      "result": "ok",
+      "note": "Ruby本番入口でscopeだけをTASK44_SCOPE_CHECKにより条件化し、凍結・製品・typography検査は維持。D4の短SHA裁定にも対応。"
+    },
+    {
+      "dimension": "Rubric：task-45向けAPIと表示責務",
+      "result": "ok",
+      "note": "両VM・ControllableSession・SessionNodeにtitleStateを公開し、表示レイアウトの追加はない。"
+    },
+    {
+      "dimension": "Rubric：検証証拠の区別と課金回避",
+      "result": "ok",
+      "note": "テスト実走は環境制約で未検証。提供された客観層と静的確認を区別し、実CLIや目視確認の実施は主張しない。"
+    }
+  ],
+  "verdict": "needs_changes",
+  "tests_run": [],
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "file": "macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionViewModel.swift",
+      "line": 2574,
+      "summary": "サーバー履歴だけ由来不明項目の適格な先頭行を採用せず、復元経路によって名前が変わる。",
+      "evidence": "adoptTitleFromServerThreadは「guard let original = identifiableOriginalText(from: item) else { continue }」でoriginalText不在項目をすべて飛ばす。identifiableOriginalTextの実体は2589行の「item.raw?[\"originalText\"]?.stringValue」のみ。一方、ローカル復元は2597行でunknownOriginTitleCandidateを使う。契約末尾はサーバー履歴も含め、由来不明項目は先頭行が適格なら採用すると確定している。そのためtextが「ログイン画面を修正\\n詳細」の同じ項目でも、threadRead復元ではRose、保存transcript復元では導出名になる。",
+      "repro_test": "// AcceptanceSessionTitleLifecycleTests.swift内の既存ヘルパーを使用。未実走。\n@Test @MainActor\nfunc serverUnknownOriginAdoptsEligibleFirstLine() async throws {\n    let client = TitleCodexClient()\n    client.threadReadItemsJSON = #\"[{\"id\":\"plain\",\"type\":\"user\",\"text\":\"ログイン画面を修正\\n詳細\"}]\"#\n    let (vm, _) = makeCodexVM(client: client)\n    await vm.restore(threadId: \"thread-plain\", approvalPolicy: .named(\"on-request\"), sandbox: .named(\"workspace-write\"))\n    #expect(vm.restoreState == .restored)\n    #expect(vm.titleState.name == \"ログイン画面を修正\")\n    #expect(vm.titleState.source == .derived)\n    await vm.terminate()\n}",
+      "confidence": "verified"
+    },
+    {
+      "severity": "HIGH",
+      "file": "macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionViewModel.swift",
+      "line": 2588,
+      "summary": "isMetaの不採用がサーバー入力と履歴の再保存・復元で維持されず、メタ本文が導出名になる。",
+      "evidence": "2588〜2589行はoriginalTextだけを返し、ThreadItem.rawに保持されたisMetaを検査しない。サーバー履歴とitemStarted/itemCompletedの双方がこの結果を採用する。また履歴再開では2544行のtitleUserMessagesで初回だけメタ項目を除外するが、575行の「setTranscript(loaded)」は無印のChatItemを保持し、2465行の「enqueueTranscriptUpsert(transcript.filter(shouldStoreInTranscript))」で保存する。既存ClaudeSessionTranscriptLoaderの243〜254行はisMetaを除外せずuserMessageへ変換するため、再復元時には2597行の先頭行候補として採用される。これは契約末尾のisMeta不採用と、履歴再開項目の無印取り込み禁止に反する。",
+      "repro_test": "// AcceptanceSessionTitleLifecycleTests.swift内の既存ヘルパーを使用。未実走。\n@Test @MainActor\nfunc serverMetaOriginalTextMustNotBecomeTitle() async throws {\n    let client = TitleCodexClient()\n    client.threadReadItemsJSON = #\"[{\"id\":\"meta\",\"type\":\"user\",\"text\":\"内部補足\",\"originalText\":\"内部補足\",\"isMeta\":true}]\"#\n    let (vm, _) = makeCodexVM(client: client)\n    await vm.restore(threadId: \"thread-meta\", approvalPolicy: .named(\"on-request\"), sandbox: .named(\"workspace-write\"))\n    #expect(vm.restoreState == .restored)\n    #expect(vm.titleState.source == .flower)\n    #expect(vm.titleState.name == \"Rose\")\n    await vm.terminate()\n}\n\n@Test @MainActor\nfunc historyMetaExclusionSurvivesTranscriptRestore() async throws {\n    // isMetaだけの履歴：discoveryは候補を空にし、既存loaderは本文をuserMessageとして返す。\n    let entry = ClaudeSessionHistoryEntry(sessionID: \"history-meta\", preview: \"内部補足\", firstUserAt: nil, lastModified: Date(), gitBranch: nil, fileURL: URL(fileURLWithPath: \"/tmp/history-meta.jsonl\"), titleUserMessages: [])\n    let (vm, _) = makeChatVM(historyTranscriptLoader: { _ in\n        [.userMessage(id: \"meta\", text: \"内部補足\", timestamp: Date())]\n    })\n    await vm.startFromHistory(entry)\n    #expect(vm.titleState.source == .flower)\n    // ターン境界保存の対象と同じtranscriptを、既存の復元テスト方式で再投入する。\n    let store = TitleLifecycleTranscriptStore(vm.transcript)\n    let (restored, _) = makeChatVM(transcriptStore: store)\n    await restored.restore(threadId: \"history-meta\", approvalPolicy: .named(\"on-request\"), sandbox: .named(\"workspace-write\"))\n    #expect(restored.restoreState == .restored)\n    #expect(restored.titleState.source == .flower)\n    #expect(restored.titleState.name == \"Rose\")\n    await vm.terminate()\n    await restored.terminate()\n}",
+      "confidence": "verified"
+    }
+  ],
+  "integrity_check": "新規のテスト弱体化・成功偽装は検出せず。E2E更新は復元中saveCount=0を維持し、復元終了後の繰り越し削除と次の削除を検査している。applyRemovalのtry?による削除失敗の黙殺は基準実装から継承されたもの。実走は未検証。/tmp/ui-ux-wt-44で「/Users/ryosuke/.agents/scripts/compact-test task44-models bash macos/scripts/run-swift-tests.sh AgentDomain」と「/Users/ryosuke/.agents/scripts/compact-test task44-wiring-selftest ruby .claude/scripts/task44-wiring.rb --selftest」を試行し、いずれもexit 1。原文はそれぞれ「mktemp: mkstemp failed on /tmp/tmp.tGS8lEpkVy: Operation not permitted」「mktemp: mkstemp failed on /tmp/tmp.mCWSAIEH8L: Operation not permitted」、続いて「/Users/ryosuke/.agents/scripts/compact-test: line 26: : No such file or directory」「cat: : No such file or directory」。テストランナー開始前のラッパー一時ファイル作成拒否であり、製品の失敗ではない。全面read-onlyのためTMPDIR変更やラッパー迂回は行っていない。独立機序の客観層はユーザー指定のdriver/PM検証結果として供給済み。git差分確認でもxcrunキャッシュ作成拒否とFSEvents・キャッシュディレクトリ取得の環境警告が出た。実装レポートと前回レビューは未参照。指摘のverifiedは実コードによる静的裏取りを意味し、再現テストの実走成功を意味しない。",
+  "root_cause_assessment": "静的確認対象は実装HEAD 8c2586691e09444487f9d3683e7a09b9734c19fe。r1の初回load後の最新状態取得・削除確認とrename同値抑止は維持されている。r2のstatic共有辞書はVM内辞書に置き換わり、terminateで解放され、本文マーカーもない。ただし採否規則がサーバー経路へ統一されず、履歴のメタ除外も再復元まで保持されないため、根本解消は未達。変異を静的に当てると、manual保護を削除すればmanualIgnoresUserMessage、PID保存を旧descriptor全体へ戻せば最新名・roleを検査するrunPIDWritebackCase、繰り越し削除を削除すればE2Eの復元後count=4、先頭行制限を外せば保存transcriptの/review補足復元ケースが失敗する。履歴抽出前ガードのみの削除は名前結果が不変でもRubyのextraction_guard_errorsで検出する構成。一方、今回の適格な由来不明サーバー本文とisMetaのケースは、この被覆だけでは排除できない。変異・再現コードの実行はしていない。"
+}

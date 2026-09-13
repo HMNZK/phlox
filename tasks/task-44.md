@@ -21,6 +21,7 @@ allowed_paths:
   - macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/SessionSpawnService.swift
   - macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/SessionRestoreCoordinator.swift
   - macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/SessionPersistenceCoordinator.swift
+  - macos/Packages/DashboardFeature/Sources/DashboardFeature/Spawn/ClaudeSessionHistory.swift
   - docs/agent-output/task-44.md
 ---
 
@@ -455,5 +456,7 @@ Cursor は `docs/agent-output/task-44.md` に責務ごとの実装状況、実�
 ## 契約の曖昧点の確定（2026-09-13、レビュー r2 後の PM 裁定）
 
 - 由来情報の保持方法: `static` な共有状態、SessionID を含まない辞書、保存 transcript 本文へのマーカー埋め込み（205 行違反）はいずれも不可。ライブ経路の対応付け（ローカル送信 ↔ サーバー item）は VM インスタンス内の状態だけで行い、terminate で解放する。`ChatItem`・`TranscriptStore`・descriptor のスキーマは変更しない（allowed_paths 外）。
-- 復元・履歴再開（由来不明の項目）の採否: 保存 transcript／ローカル履歴／サーバー履歴から取り込んだユーザー項目で `originalText` 等の元本文情報が無いものは、**本文の先頭行だけを元本文候補**とし、先頭行がスラッシュコマンド（`/` 始まり）なら「補足付き入力」として不採用（花名を維持）。先頭行が適格なら採用する（`ローカル履歴の識別可能本文は採用しサーバー履歴とは分離する` と `ローカル_review_のサーバー補足受信後に保存transcriptから復元してもflowerのまま` の両立条件）。`isMeta` が判る項目は不採用。
+- 復元・履歴再開（由来不明の項目）の採否: **保存 transcript／ローカル履歴**から取り込んだユーザー項目で `originalText` 等の元本文情報が無いものは、**本文の先頭行だけを元本文候補**とし、先頭行がスラッシュコマンド（`/` 始まり）なら「補足付き入力」として不採用（花名を維持）。先頭行が適格なら採用する（`ローカル履歴の識別可能本文は採用しサーバー履歴とは分離する` と `ローカル_review_のサーバー補足受信後に保存transcriptから復元してもflowerのまま` の両立条件）。`isMeta` が判る項目は不採用。
 - 履歴再開で取り込んだ項目は上記規則で評価し、無印のまま「元本文」として後続の保存・復元で採用してはならない（採用規則は復元・履歴・追加で共通）。
+- 訂正（レビュー r3 後）: サーバー履歴（threadRead 等）は 197 行どおり `originalText` 等で元本文を識別できる項目だけを採用し、由来不明項目は先頭行候補にも**しない**（`ローカル履歴なしのthreadReadで由来の無い同一本文はflowerのまま` が正）。上記の先頭行規則は保存 transcript とローカル履歴に限る。r3 の MEDIUM は本契約文の誤りであり実装欠陥ではない。
+- 訂正（レビュー r3 後）: サーバー item の `isMeta`（`ThreadItem.raw`）が真なら `originalText` があっても不採用。履歴再開で loader が `isMeta` 項目を `userMessage` に変換して transcript に取り込むと再復元時に先頭行候補になるため、loader 側で `isMeta` のユーザー項目を transcript へ変換しない（task-51 の `titleUserMessages` の除外と同じ判定）。このため `allowed_paths` に `macos/Packages/DashboardFeature/Sources/DashboardFeature/Spawn/ClaudeSessionHistory.swift` を追加する（変更はこの除外のみ。`titleUserMessages`／`titleSummary`／preview／firstUserLine は不変）。

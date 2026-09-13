@@ -189,3 +189,4 @@
 - 2026-09-13 task-43 再凍結 026ed2d（強化版。旧 276018d は無効）。task-51 凍結 57bfa9e。両方ともコンパイル RED のため task-40 統合中は退避。task-43 強化版の 2 回目敵対レビューは省略（採択項目の反映確認は PM が tests-task-43-r2.md と rb selftest で行う）。
 - 2026-09-13 task-51 受け入れ検査の敵対レビュー（MUST1/HIGH7/MED2）: 全採択→Cursor に修正委譲（再凍結）。task-48 凍結 2b457e6（DesignSystem コンパイル RED は AcceptanceUIWordingTests の UIWording 未定義のみ、退避）。
 - 2026-09-13 task-40 レビュー r3（rb HIGH 3 件: ForEach id 正規化、H4〜H6 クロージャ全体マスク、字体削除マスクの要素別不足）: 製品指摘は 3 ラウンド連続で 0。PM が指摘の変異 3 種を実コードで照合: ForEach id は `\.element.id` のまま（identity 不変）、RichMarkdownView の `.fixedSize(horizontal: false, vertical: true)` は基準と同数 9、差分本文の `monoCaption` は 425 行に存在。差し戻し上限に達するためユーザーへ諮る。
+- 2026-09-13 task-40 レビュー r3 needs_changes を PM 裁定で pass 相当（ユーザー承認「PM 裁定で pass にして完了へ」）。独立証拠: 指摘 3 変異の実コード照合（不在）、製品指摘 0×3 ラウンド、変異検査 baseline RED、目視ゲート A/B pass。rb の既知の限界を契約に記録。台帳は --repair で testing へ。

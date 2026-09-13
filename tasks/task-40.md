@@ -414,3 +414,7 @@ PMは `docs/agent-output/visual-task-40.md` に、コミット、App／fixture�
 ## 適用範囲の注記（2026-09-13、task-44/45/46/47 敵対レビューの MUST を受けて）
 
 `task40-wiring.rb` の残余比較（allowed_paths 内製品ファイルの凍結 blob 比較）は **task-40 の着手時検査**であり、task-40 done 以降の後続タスク（44/45/46/47 等）には適用しない。後続タスクは自分の rb で「対象 View が `TranscriptTypography` を参照し直値へ戻していない」ことを検査する。task-40 の値・順序テスト（DesignSystem／SessionFeature の Swift Testing）は恒久回帰として統合 verify に残る。
+
+## 配線検査 rb の既知の限界（2026-09-13、レビュー r3 を受けて PM 記録・ユーザー承認）
+
+`task40-wiring.rb` は task-40 の着手時検査であり、次の変異は残余比較で見逃す（実コードには存在しないことを PM が照合済み）: (1) `ChatTranscriptView` の `ForEach` の `id:` を配列位置へ変える、(2) H4〜H6 の見出しクロージャ内の `.fixedSize`／`configuration.label` の改変、(3) 差分本文だけの `monoCaption` 削除（行番号・マーカーの同参照が残る場合）。値・順序は DesignSystem／SessionFeature の凍結テスト（変異検査 baseline RED 済み）が恒久回帰として守る。

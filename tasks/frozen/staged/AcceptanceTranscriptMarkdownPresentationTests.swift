@@ -76,102 +76,102 @@ private enum FrozenSixty {
 struct AcceptanceTranscriptMarkdownPrepareTests {
     @Test("閉じた強調・見出しは入力不変")
     func closedEmphasisUnchanged() {
-        #expect(prepare("**確認済み**") == "**確認済み**")
-        #expect(prepare("## **確認結果**") == "## **確認結果**")
+        expectPrepared("**確認済み**", "**確認済み**")
+        expectPrepared("## **確認結果**", "## **確認結果**")
     }
 
     @Test("未閉じの4区切りを最終物理行末で閉じる")
     func unclosedDelimitersOnLastPhysicalLine() {
-        #expect(prepare("**確認") == "**確認**")
-        #expect(prepare("*確認") == "*確認*")
-        #expect(prepare("__確認") == "__確認__")
-        #expect(prepare("_確認") == "_確認_")
-        #expect(prepare("説明 **確認") == "説明 **確認**")
-        #expect(prepare("説明 *確認") == "説明 *確認*")
-        #expect(prepare("説明 __確認") == "説明 __確認__")
-        #expect(prepare("説明 _確認") == "説明 _確認_")
+        expectPrepared("**確認", "**確認**")
+        expectPrepared("*確認", "*確認*")
+        expectPrepared("__確認", "__確認__")
+        expectPrepared("_確認", "_確認_")
+        expectPrepared("説明 **確認", "説明 **確認**")
+        expectPrepared("説明 *確認", "説明 *確認*")
+        expectPrepared("説明 __確認", "説明 __確認__")
+        expectPrepared("説明 _確認", "説明 _確認_")
     }
 
     @Test("部分閉じは不足1文字だけ補う")
     func partialCloseAddsOneDelimiter() {
-        #expect(prepare("**確認*") == "**確認**")
-        #expect(prepare("__確認_") == "__確認__")
+        expectPrepared("**確認*", "**確認**")
+        expectPrepared("__確認_", "__確認__")
     }
 
     @Test("閉じた強調の後の未閉じだけ補正し、最外だけ補正する")
     func closedThenUnclosedAndOutermostOnly() {
-        #expect(prepare("**済み** と *確認") == "**済み** と *確認*")
-        #expect(prepare("**外 *内") == "**外 *内**")
-        #expect(prepare("**外 *内**") == "**外 *内**")
+        expectPrepared("**済み** と *確認", "**済み** と *確認*")
+        expectPrepared("**外 *内", "**外 *内**")
+        expectPrepared("**外 *内**", "**外 *内**")
     }
 
     @Test("閉じ記号は行末空白・タブの直前へ補う")
     func closeBeforeTrailingWhitespace() {
-        #expect(prepare("**確認  \t") == "**確認**  \t")
+        expectPrepared("**確認  \t", "**確認**  \t")
     }
 
     @Test("改行を跨ぐ未閉じは対象外、最終物理行と空行区切り段落は対象")
     func newlineBoundaries() {
-        #expect(prepare("**確認\n次行") == "**確認\n次行")
-        #expect(prepare("前行\n**確認") == "前行\n**確認**")
-        #expect(prepare("**確認\n\n次段") == "**確認**\n\n次段")
-        #expect(prepare("**確認\n\n") == "**確認**\n\n")
+        expectPrepared("**確認\n次行", "**確認\n次行")
+        expectPrepared("前行\n**確認", "前行\n**確認**")
+        expectPrepared("**確認\n\n次段", "**確認**\n\n次段")
+        expectPrepared("**確認\n\n", "**確認**\n\n")
     }
 
     @Test("本文のない区切り・見出し・3連・識別子内部・演算子は補正しない")
     func outOfScopeKept() {
-        #expect(prepare("**") == "**")
-        #expect(prepare("*") == "*")
-        #expect(prepare("__") == "__")
-        #expect(prepare("_") == "_")
-        #expect(prepare("## ") == "## ")
-        #expect(prepare("***確認") == "***確認")
-        #expect(prepare("___確認") == "___確認")
-        #expect(prepare("説明**確認") == "説明**確認")
-        #expect(prepare("a * b") == "a * b")
-        #expect(prepare("2 ** 3") == "2 ** 3")
-        #expect(prepare("foo_bar") == "foo_bar")
-        #expect(prepare("C#") == "C#")
-        #expect(prepare("##tag") == "##tag")
-        #expect(prepare("\\*\\*literal\\*\\*") == "\\*\\*literal\\*\\*")
-        #expect(prepare("~~未閉じ") == "~~未閉じ")
-        #expect(prepare("[未閉じ](url") == "[未閉じ](url")
+        expectPrepared("**", "**")
+        expectPrepared("*", "*")
+        expectPrepared("__", "__")
+        expectPrepared("_", "_")
+        expectPrepared("## ", "## ")
+        expectPrepared("***確認", "***確認")
+        expectPrepared("___確認", "___確認")
+        expectPrepared("説明**確認", "説明**確認")
+        expectPrepared("a * b", "a * b")
+        expectPrepared("2 ** 3", "2 ** 3")
+        expectPrepared("foo_bar", "foo_bar")
+        expectPrepared("C#", "C#")
+        expectPrepared("##tag", "##tag")
+        expectPrepared("\\*\\*literal\\*\\*", "\\*\\*literal\\*\\*")
+        expectPrepared("~~未閉じ", "~~未閉じ")
+        expectPrepared("[未閉じ](url", "[未閉じ](url")
     }
 
     @Test("保護領域の内部は補正しない")
     func protectedRegionsUnchanged() {
-        #expect(prepare("`**未閉じ`") == "`**未閉じ`")
-        #expect(prepare("`**未閉じ") == "`**未閉じ")
-        #expect(prepare("    **未閉じ") == "    **未閉じ")
-        #expect(prepare("\t**未閉じ") == "\t**未閉じ")
-        #expect(prepare("```\n**未閉じ") == "```\n**未閉じ")
-        #expect(prepare("~~~\n**未閉じ") == "~~~\n**未閉じ")
+        expectPrepared("`**未閉じ`", "`**未閉じ`")
+        expectPrepared("`**未閉じ", "`**未閉じ")
+        expectPrepared("    **未閉じ", "    **未閉じ")
+        expectPrepared("\t**未閉じ", "\t**未閉じ")
+        expectPrepared("```\n**未閉じ", "```\n**未閉じ")
+        expectPrepared("~~~\n**未閉じ", "~~~\n**未閉じ")
     }
 
     @Test("CRLF は LF へ正規化し、その後の最終段落を補正する")
     func crlfNormalizedThenPrepared() {
-        #expect(prepare("説明\r\n**確認\r\n\r\n") == "説明\n**確認**\n\n")
+        expectPrepared("説明\r\n**確認\r\n\r\n", "説明\n**確認**\n\n")
     }
 
     @Test("正常な Markdown は改行正規化を除いて入力不変")
     func wellFormedMarkdownUnchanged() {
-        #expect(prepare("# 見出し") == "# 見出し")
-        #expect(prepare("- 項目") == "- 項目")
-        #expect(prepare("> 引用") == "> 引用")
-        #expect(prepare("[詳細](https://example.com)") == "[詳細](https://example.com)")
-        #expect(prepare("| A | B |\n| --- | --- |\n| x | y |") == "| A | B |\n| --- | --- |\n| x | y |")
-        #expect(prepare("*斜体*") == "*斜体*")
-        #expect(prepare("**太字**") == "**太字**")
+        expectPrepared("# 見出し", "# 見出し")
+        expectPrepared("- 項目", "- 項目")
+        expectPrepared("> 引用", "> 引用")
+        expectPrepared("[詳細](https://example.com)", "[詳細](https://example.com)")
+        expectPrepared("| A | B |\n| --- | --- |\n| x | y |", "| A | B |\n| --- | --- |\n| x | y |")
+        expectPrepared("*斜体*", "*斜体*")
+        expectPrepared("**太字**", "**太字**")
     }
 
     @Test("ストリーミング原入力ごとに結果を作り、同長別内容を取り違えない")
     func progressiveAndSameLengthReplacement() {
-        #expect(prepare("**確") == "**確**")
-        #expect(prepare("**確認") == "**確認**")
-        #expect(prepare("**確認**") == "**確認**")
-        #expect(prepare("**更新") == "**更新**")
+        expectPrepared("**確", "**確**")
+        expectPrepared("**確認", "**確認**")
+        expectPrepared("**確認**", "**確認**")
+        expectPrepared("**更新", "**更新**")
         #expect("**確認".count == "**更新".count)
-        #expect(prepare("**確認") != prepare("**更新"))
+        #expect(utf8(prepare("**確認")) != utf8(prepare("**更新")))
     }
 
     @Test("固定入力は冪等で、呼び出し後も元入力の値は変わらない")
@@ -185,12 +185,13 @@ struct AcceptanceTranscriptMarkdownPrepareTests {
             "```\n**未閉じ",
             "説明\r\n**確認\r\n\r\n",
             "foo_bar",
+            "e\u{301}",
         ]
         for source in sources {
-            let original = source
+            let originalBytes = utf8(source)
             let once = prepare(source)
-            #expect(source == original)
-            #expect(prepare(once) == once)
+            #expect(utf8(source) == originalBytes)
+            #expect(utf8(prepare(once)) == utf8(once))
         }
     }
 }
@@ -199,8 +200,8 @@ struct AcceptanceTranscriptMarkdownPrepareTests {
 struct AcceptanceTranscriptMarkdownSummaryTests {
     @Test("未閉じ強調は prepare の有限規則で補正してから装飾を除く")
     func summaryStripsPreparedEmphasis() {
-        #expect(summary("**確認済み**") == "確認済み")
-        #expect(summary("**確認") == "確認")
+        expectSummary("**確認済み**", "確認済み")
+        expectSummary("**確認", "確認")
     }
 
     @Test("ATX 見出し 1〜6 と装飾除去、最終見出し優先、空なら遡る")
@@ -218,23 +219,29 @@ struct AcceptanceTranscriptMarkdownSummaryTests {
         #expect(summary("本文\n## ") == "本文")
         #expect(summary("## ") == nil)
         #expect(summary("## 確認 ###") == "確認")
-        #expect(summary("## C#") == "C#")
-        #expect(summary("##tag") == "##tag")
-        #expect(summary("####### 見出し外") == "####### 見出し外")
+        expectSummary("## C#", "C#")
+        expectSummary("##tag", "##tag")
+        expectSummary("####### 見出し外", "####### 見出し外")
+        expectSummary("   # 一", "一")
+        expectSummary("#\t一", "一")
+        expectSummary("    # 四空白", nil)
     }
 
     @Test("見出しが無ければ最後の通常段落の最後の非空文章行")
     func lastParagraphLine() {
-        #expect(summary("一行目\n二行目") == "二行目")
+        expectSummary("一行目\n二行目", "二行目")
     }
 
     @Test("Setext・箇条書き・番号・引用・表は候補外")
     func excludedBlocks() {
-        #expect(summary("タイトル\n====") == nil)
-        #expect(summary("残す\n\nタイトル\n----") == "残す")
-        #expect(summary("- 項目") == nil)
-        #expect(summary("1. 項目") == nil)
-        #expect(summary("> 引用") == nil)
+        expectSummary("タイトル\n====", nil)
+        expectSummary("残す\n\nタイトル\n----", "残す")
+        expectSummary("- 項目", nil)
+        expectSummary("- 項目\n  継続", nil)
+        expectSummary("1. 項目", nil)
+        expectSummary("1. 項目\n   継続", nil)
+        expectSummary("> 引用", nil)
+        expectSummary("---", nil)
         #expect(summary("| A | B |\n| --- | --- |\n| x | y |") == nil)
         #expect(summary("本文\n\n- 項目") == "本文")
         #expect(summary("本文\n\n> 引用") == "本文")
@@ -255,14 +262,14 @@ struct AcceptanceTranscriptMarkdownSummaryTests {
 
     @Test("コード領域だけの入力は nil、文章があれば文章を残す")
     func codeOnlySummaryIsNil() {
-        #expect(summary("```\n## コード\n```") == nil)
-        #expect(summary("```\n**未閉じ") == nil)
-        #expect(summary("~~~\n## コード\n~~~") == nil)
-        #expect(summary("    ## コード") == nil)
-        #expect(summary("\t## コード") == nil)
-        #expect(summary("文章\n\n```\n## コード\n```") == "文章")
-        #expect(summary("") == nil)
-        #expect(summary(" \t\n") == nil)
+        expectSummary("```\n## コード\n```", nil)
+        expectSummary("```\n**未閉じ", nil)
+        expectSummary("~~~\n## コード\n~~~", nil)
+        expectSummary("    ## コード", nil)
+        expectSummary("\t## コード", nil)
+        expectSummary("文章\n\n```\n## コード\n```", "文章")
+        expectSummary("", nil)
+        expectSummary(" \t\n", nil)
     }
 
     @Test("60 Character は切り詰めず、61 は 60 文字の後に …。結合文字と家族絵文字は 1 Character")
@@ -275,12 +282,18 @@ struct AcceptanceTranscriptMarkdownSummaryTests {
         #expect(FrozenSixty.part5.count == 10)
         #expect(FrozenSixty.part6.count == 10)
         #expect(sixty.count == 60)
-        #expect(summary(sixty) == sixty)
+        expectSummary(sixty, sixty)
         let sixtyOne = sixty + "追"
         #expect(sixtyOne.count == 61)
-        #expect(summary(sixtyOne) == sixty + "…")
+        expectSummary(sixtyOne, sixty + "…")
         #expect(sixty.contains("e\u{301}"))
-        #expect(sixty != sixty.precomposedStringWithCanonicalMapping || sixty.contains("\u{301}"))
+        let decomposed = "e\u{301}"
+        let nfc = "é"
+        #expect(decomposed == nfc)
+        #expect(utf8(decomposed) != utf8(nfc))
+        expectSummary(decomposed, decomposed)
+        #expect(utf8(summary(decomposed) ?? "") != utf8(nfc))
+        expectPrepared(decomposed, decomposed)
     }
 }
 
@@ -324,9 +337,14 @@ struct AcceptanceTranscriptMarkdownSplitTests {
         )
         expectBlocks(
             "   ```swift\n\t  **x  \n\n   ```",
-            [.code(language: "swift", text: code)]
+            [.code(language: "swift", text: "\t  **x  \n")]
         )
-        #expect(utf8(code) == utf8("\t  **x  \n"))
+        let productCode = ChatMarkdownFormatter.splitFencedCodeBlocks("```swift\n\t  **x  \n\n```")
+        if case .code(_, let text) = productCode.first {
+            #expect(utf8(text) == utf8("\t  **x  \n"))
+        } else {
+            Issue.record("0空白フェンスの .code.text が無い")
+        }
     }
 
     @Test("4空白とタブ字下げはインデントコードとして .markdown に残す")
@@ -405,16 +423,41 @@ struct AcceptanceTranscriptMarkdownSplitTests {
     func prepareAndSummaryProtectSplitMarkdown() {
         let unclosed = "``` json\n**x\n\n"
         expectBlocks("```json\n**x\n\n", [.markdown(unclosed)])
-        #expect(prepare(unclosed) == unclosed)
-        #expect(summary(unclosed) == nil)
+        expectPrepared(unclosed, unclosed)
+        expectSummary(unclosed, nil)
 
         let fourSpace = "    ```swift\n    **x  \n\n    ```\n\n"
-        #expect(prepare(fourSpace) == fourSpace)
-        #expect(summary(fourSpace) == nil)
-        #expect(prepare("    **未閉じ") == "    **未閉じ")
-        #expect(summary("    ## コード") == nil)
-        #expect(prepare("\t**未閉じ") == "\t**未閉じ")
-        #expect(summary("\t## コード") == nil)
+        expectPrepared(fourSpace, fourSpace)
+        expectSummary(fourSpace, nil)
+        expectPrepared("    **未閉じ", "    **未閉じ")
+        expectSummary("    ## コード", nil)
+        expectPrepared("\t**未閉じ", "\t**未閉じ")
+        expectSummary("\t## コード", nil)
+        expectPrepared("~~~\n**未閉じ", "~~~\n**未閉じ")
+        expectSummary("~~~\n## コード\n~~~", nil)
+    }
+
+    @Test("情報文字列にバッククォートがあると開始フェンスにしない")
+    func splitInfoStringWithBacktickIsNotOpener() {
+        expectBlocks(
+            "```js`x\n**未閉じ\n```",
+            [.markdown("```js`x\n**未閉じ\n```")]
+        )
+        expectPrepared("```js`x\n**未閉じ\n```", "```js`x\n**未閉じ\n```")
+        expectSummary("```js`x\n## 見出し\n```", nil)
+    }
+
+    @Test("終了フェンス後の空白・タブは閉じとして認め、後続文章は保護しない")
+    func splitClosingFenceAllowsTrailingWhitespaceThenUnprotects() {
+        expectBlocks(
+            "```\na\n```  \t\n後",
+            [
+                .code(language: nil, text: "a"),
+                .markdown("後"),
+            ]
+        )
+        expectPrepared("```\n**x\n```\n**確認", "```\n**x\n```\n**確認**")
+        expectSummary("```\n## コード\n```\n本文", "本文")
     }
 
     @Test("同長別内容を markdownBlocks へ渡しても取り違えない")

@@ -284,6 +284,8 @@ def git_show_result(rev, path)
     { status: :ok, text: text, stderr: nil }
   elsif git_tree_has_path?(rev, path)
     { status: :git_error, text: nil, stderr: text.to_s.strip }
+  elsif git_full_sha(rev).nil?
+    { status: :git_error, text: nil, stderr: text.to_s.strip }
   else
     { status: :missing, text: nil, stderr: text.to_s.strip }
   end
@@ -654,6 +656,25 @@ def scale_follows?(c)
     !c.match?(/font\(for:[^)]*scale:1\)/)
 end
 
+def scale_applied_in_markdown?(src)
+  struct = extract_struct_body(src, "RichMarkdownView")
+  return false if struct.nil?
+  body = extract_var_body(struct, "body").to_s
+  theme = [extract_func_body(src, "theme"), extract_func_body(src, "chatMarkdownTheme")].compact.join("\n")
+  live = live_code(body + "\n" + theme)
+  live.include?("ChatFontSettings.adjusted") &&
+    (live.include?("scale:scale") || live.include?("ChatTypography.bodyFontSize(scale:scale)"))
+end
+
+def scale_applied_in_code_block?(src)
+  struct = extract_struct_body(src, "CodeBlockView")
+  return false if struct.nil?
+  body = extract_var_body(struct, "body").to_s
+  copy = extract_func_body(struct, "copyCode").to_s
+  live = live_code(body + "\n" + copy)
+  live.include?("ChatFontSettings.adjusted") && live.include?("ChatScaledFont")
+end
+
 def spacing_ok?(c)
   %w[withinAnswer metadataGap cardHorizontalInset cardVerticalInset codeContentInset].any? { |tok| c.include?("TranscriptTypography.#{tok}") }
 end
@@ -663,7 +684,16 @@ def leading_ok?(c)
 end
 
 def typography_ok?(c, scaled_src, require_leading: true)
-  font_role_ok?(c, scaled_src) && scale_follows?(c) && spacing_ok?(c) && (!require_leading || leading_ok?(c))
+  font_role_ok?(c, scaled_src) && spacing_ok?(c) && (!require_leading || leading_ok?(c))
+end
+
+def typography_errors(c, scaled_src, label:, require_leading: true, require_scale: false)
+  ng = []
+  ng << "#{label}のフォント役割が無い" unless font_role_ok?(c, scaled_src)
+  ng << "#{label}の倍率追随が無い" if require_scale && !scale_follows?(c)
+  ng << "#{label}の余白接続が無い" unless spacing_ok?(c)
+  ng << "#{label}の行間接続が無い" if require_leading && !leading_ok?(c)
+  ng
 end
 
 def check_scaled_font_adapter(src)
@@ -696,9 +726,14 @@ def summary_only_body?(c)
 end
 
 def summary_wired?(c)
-  c.include?("TranscriptMarkdownPresentation.summary") &&
-    (c.include?("summary:TranscriptMarkdownPresentation.summary(text)") ||
-      (c.include?("TranscriptMarkdownPresentation.summary(text)") && c.include?("summary:")))
+  live = compact(c)
+  live.include?("summary:TranscriptMarkdownPresentation.summary(text)")
+end
+
+def agent_forwards_body_color?(basic)
+  amb = compact_reach(basic, "AgentMessageBody")
+  return false if amb.is_a?(Symbol)
+  compact(amb).match?(/RichMarkdownView\([^)]*bodyColor:bodyColor/)
 end
 
 def reasoning_body_ok?(c, basic)
@@ -708,7 +743,7 @@ def reasoning_body_ok?(c, basic)
   return false unless c.include?("bodyColor:")
   amb = compact_reach(basic, "AgentMessageBody")
   return false if amb.is_a?(Symbol)
-  amb.include?("RichMarkdownView") && amb.include?("bodyColor")
+  amb.include?("RichMarkdownView") && agent_forwards_body_color?(basic)
 end
 
 def secondary_on_reasoning?(c)
@@ -720,11 +755,30 @@ def has_init?(src, kind)
   !extract_init_params_and_body(src, kind).nil?
 end
 
-def init_calls_prepare?(src, kind)
+def init_prepare_binds_source?(src, kind)
   found = extract_init_params_and_body(src, kind)
   return false if found.nil?
-  live_code(found[:body] + found[:params]).include?("TranscriptMarkdownPresentation.prepare") ||
-    live_code(found[:body]).include?("TranscriptMarkdownPresentation.prepare")
+  live = live_code(found[:body])
+  live.match?(/TranscriptMarkdownPresentation\.prepare\(\s*markdown\s*\)/) &&
+    !live.match?(/TranscriptMarkdownPresentation\.prepare\(\s*""\s*\)/)
+end
+
+def init_stores_color?(src, kind)
+  found = extract_init_params_and_body(src, kind)
+  return false if found.nil?
+  compact(mask_strings_and_comments(found[:params])).include?("bodyColor") &&
+    live_code(found[:body]).match?(/bodyColor\s*=/)
+end
+
+def init_calls_prepare?(src, kind)
+  init_prepare_binds_source?(src, kind)
+end
+
+def init_stores_markdown?(src, kind)
+  found = extract_init_params_and_body(src, kind)
+  return false if found.nil?
+  c = live_code(found[:body])
+  c.include?("markdown=") || c.include?("self.markdown=")
 end
 
 def init_stores_markdown_and_color?(src, kind)
@@ -732,7 +786,8 @@ def init_stores_markdown_and_color?(src, kind)
   return false if found.nil?
   c = live_code(found[:body] + found[:params])
   compact(mask_strings_and_comments(found[:params])).include?("bodyColor") &&
-    (c.include?("markdown=") || c.include?("self.markdown="))
+    (c.include?("markdown=") || c.include?("self.markdown=")) &&
+    init_stores_color?(src, kind)
 end
 
 def view_body_calls_prepare?(src)
@@ -772,13 +827,16 @@ def check_markdown_entries(src)
   ng = missing_struct(src, "RichMarkdownView", "RichMarkdownView")
   return ng unless ng.empty?
   body_prep = view_body_calls_prepare?(src)
-  unless has_init?(src, :normal) && init_stores_markdown_and_color?(src, :normal) && (body_prep || init_calls_prepare?(src, :normal))
+  unless has_init?(src, :normal) && init_stores_markdown?(src, :normal) && (body_prep || init_prepare_binds_source?(src, :normal))
     ng << "通常入口未接続"
   end
-  unless has_init?(src, :streaming) && init_stores_markdown_and_color?(src, :streaming) && (body_prep || init_calls_prepare?(src, :streaming))
+  unless has_init?(src, :streaming) && init_stores_markdown?(src, :streaming) && (body_prep || init_prepare_binds_source?(src, :streaming))
     ng << "streaming 入口未接続"
   end
-  if prepare_token_present?(markdown_view_reach(src)) && !markdown_consumes_prepare?(src)
+  unless init_stores_color?(src, :normal) && init_stores_color?(src, :streaming)
+    ng << "色引数未保存"
+  end
+  if (prepare_token_present?(markdown_view_reach(src)) || init_prepare_binds_source?(src, :normal) || init_prepare_binds_source?(src, :streaming)) && !markdown_consumes_prepare?(src)
     ng << "補正結果未使用"
   end
   ng.uniq
@@ -807,7 +865,26 @@ def theme_body_primary_locked?(src)
   reach = theme_func_reach(src)
   return true if reach.to_s.strip.empty?
   c = live_code(reach)
-  !c.include?("ForegroundColor(bodyColor)")
+  !c.include?("ForegroundColor(bodyColor)") || c.match?(/\.text\{[^}]*ForegroundColor\(DSColor\.chatTextPrimary\)/)
+end
+
+def heading_color_locked?(src)
+  reach = theme_func_reach(src)
+  return true if reach.to_s.strip.empty?
+  c = compact(mask_strings_and_comments(erase_if_false(reach.to_s)))
+  (1..6).any? do |n|
+    heading = c[/\.heading#{n}\{.*?\}/m]
+    heading && heading.include?("ForegroundColor(DSColor.chatTextPrimary)") && !heading.include?("ForegroundColor(bodyColor)")
+  end
+end
+
+def theme_cache_used_for_read_write?(src)
+  body = extract_func_body(src, "theme").to_s
+  live = live_code(body)
+  live.include?("themeCacheKey") &&
+    live.include?("bodyColor") &&
+    (live.include?("themes[cacheKey]") || live.match?(/themes\[cacheKey\]/)) &&
+    live.include?("themes[cacheKey]=")
 end
 
 def answer_default_primary?(src)
@@ -839,10 +916,10 @@ def check_reasoning(src, basic, scaled_src)
     ng << "要約だけの本文"
   elsif !reasoning_body_ok?(c, basic)
     ng << "思考の展開本文へ原文が届いていない"
-  elsif !secondary_on_reasoning?(c)
+  elsif !secondary_on_reasoning?(c) || !agent_forwards_body_color?(basic)
     ng << "secondary 転送欠落"
   end
-  ng << "typography 退行" unless typography_ok?(c, scaled_src)
+  ng.concat(typography_errors(c, scaled_src, label: "思考", require_leading: true, require_scale: false))
   ng << "開閉リセット" if expansion_reset?(src)
   ng.uniq
 end
@@ -854,7 +931,7 @@ def check_answer(src, scaled_src)
   return ["AgentMessageBody を解析できない"] if c.is_a?(Symbol)
   ng << "回答が詳細カードへ収納されている" if c.include?("DisclosureCard")
   ng << "回答既定色の変更" unless answer_default_primary?(src)
-  ng << "typography 退行" unless spacing_ok?(c) && scale_follows?(c)
+  ng << "回答の余白接続が無い" unless spacing_ok?(c)
   ng
 end
 
@@ -896,22 +973,43 @@ def code_prepare_leak?(basic, structured, formatting)
   false
 end
 
+def code_summary_leak?(basic, structured, formatting)
+  leak_in = lambda do |reach|
+    return false if reach.is_a?(Symbol)
+    reach.include?("TranscriptMarkdownPresentation.summary")
+  end
+  return true if leak_in.call(compact_reach(basic, "ErrorMessageCell"))
+  return true if leak_in.call(compact_reach(basic, "UserMessageCell"))
+  return true if leak_in.call(compact_reach(structured, "CommandExecutionCell"))
+  return true if leak_in.call(compact_reach(structured, "FileChangeCell"))
+  fmt = live_code(formatting.to_s)
+  return true if fmt.include?("TranscriptMarkdownPresentation.summary")
+  amb = compact_reach(basic, "AgentMessageBody")
+  unless amb.is_a?(Symbol)
+    return true if compact(amb).match?(/CodeBlockView\([^)]*TranscriptMarkdownPresentation\.summary/)
+  end
+  false
+end
+
+def link_ok?(src)
+  return false if src.nil?
+  live = live_code(src)
+  open_fn = extract_func_body(src, "openChatMarkdownLink")
+  return false if open_fn.nil?
+  live.include?("openChatMarkdownLink") && live.include?("OpenURLAction")
+end
+
 def copy_ok?(markdown, code_block)
   paste = extract_func_body(markdown.to_s, "copyToPasteboard")
-  if paste
-    c = live_code(paste)
-    return false if c.include?("TranscriptMarkdownPresentation.prepare")
-    return false unless c.include?("content")
-  end
+  return false if paste.nil?
+  c = live_code(paste)
+  return false if c.include?("TranscriptMarkdownPresentation.prepare")
+  return false unless c.include?("content")
   code_struct = extract_struct_body(code_block.to_s, "CodeBlockView")
-  if code_struct
-    copy = extract_func_body(code_struct, "copyCode")
-    if copy
-      c = live_code(copy)
-      return false if c.include?("TranscriptMarkdownPresentation.prepare")
-    end
-  end
-  true
+  return false if code_struct.nil?
+  copy = extract_func_body(code_struct, "copyCode")
+  return false if copy.nil?
+  live_code(copy).include?("TranscriptMarkdownPresentation.prepare") == false
 end
 
 def wrap_ok?(src)
@@ -924,6 +1022,24 @@ def wrap_ok?(src)
   true
 end
 
+def wrap_errors(src)
+  return ["RichMarkdownView.swift が存在しない"] if src.nil?
+  ng = []
+  c = compact(mask_strings_and_comments(src.to_s))
+  unless wrap_ok?(src)
+    ng << "折り返し保護欠落" unless c.include?("fixedSize(horizontal:false,vertical:true)")
+    table = c[/\.table\{.*?\}/m]
+    if table && table.include?("fixedSize(horizontal:false,vertical:true)")
+      ng << "表セル fixedSize"
+    end
+  end
+  cell = c[/\.tableCell\{.*?\}/m]
+  if cell && cell.include?("fixedSize(horizontal:false,vertical:true)")
+    ng << "表セル fixedSize"
+  end
+  ng.uniq
+end
+
 def check_product(files)
   ng = []
   scaled = files[:scaled_font]
@@ -931,16 +1047,28 @@ def check_product(files)
   ng.concat(check_answer(files[:basic], scaled))
   ng.concat(check_markdown_entries(files[:markdown]))
   ng << "テーマ本文 primary 固定" if theme_body_primary_locked?(files[:markdown])
+  ng << "見出し色 primary 固定" if heading_color_locked?(files[:markdown].to_s)
   ng << "色役割のキャッシュキー欠落" unless theme_cache_has_color_role?(files[:markdown])
+  ng << "キャッシュキー未使用" unless theme_cache_used_for_read_write?(files[:markdown].to_s)
   ng.concat(check_empty_thinking(files[:cells]))
   ng << "コードへの補正" if code_prepare_leak?(files[:basic], files[:structured], files[:formatting])
+  ng << "summary の禁止先流入" if code_summary_leak?(files[:basic], files[:structured], files[:formatting])
   ng << "コピー変更" unless copy_ok?(files[:markdown], files[:code_block])
+  ng.concat(wrap_errors(files[:markdown]))
+  ng << "リンク処理欠落" unless link_ok?(files[:markdown])
+  ng << "RichMarkdownView の倍率追随が無い" unless scale_applied_in_markdown?(files[:markdown].to_s)
+  ng << "CodeBlockView の倍率追随が無い" unless scale_applied_in_code_block?(files[:code_block].to_s)
   ng.concat(check_scaled_font_adapter(scaled))
   ng.uniq
 end
 
-def protected_symbol_errors(current, previous, name, kind)
-  return [] if current.nil? || previous.nil?
+def protected_symbol_errors(current, previous, name, kind, file_label: nil)
+  if current.nil?
+    return ["#{file_label || name} が存在しない"]
+  end
+  if previous.nil?
+    return ["基準時点の #{file_label || name} を git show できない"]
+  end
   cur = kind == :enum ? extract_enum_body(current, name) : extract_struct_body(current, name)
   prev = kind == :enum ? extract_enum_body(previous, name) : extract_struct_body(previous, name)
   return ["#{name} を解析できない"] if cur.nil? || prev.nil?
@@ -948,11 +1076,61 @@ def protected_symbol_errors(current, previous, name, kind)
   ["保護宣言変更"]
 end
 
+def strip_allowed_body_color(src)
+  src.to_s
+    .gsub(/,?\s*bodyColor:\s*Color\s*=\s*DSColor\.chatText(?:Primary|Secondary)/, "")
+    .gsub(/\s*var bodyColor:[^\n]*\n/, "")
+    .gsub(/,\s*bodyColor:\s*bodyColor/, "")
+    .gsub(/,\s*bodyColor:\s*DSColor\.chatText(?:Primary|Secondary)/, "")
+end
+
+def residual_agent_message_body_errors(current, previous)
+  return ["AgentMessageBody が存在しない"] if current.nil?
+  return ["基準時点の AgentMessageBody を git show できない"] if previous.nil?
+  cur = extract_struct_body(current, "AgentMessageBody")
+  prev = extract_struct_body(previous, "AgentMessageBody")
+  return ["AgentMessageBody を解析できない"] if cur.nil? || prev.nil?
+  return [] if normalize_code(strip_allowed_body_color(cur)) == normalize_code(strip_allowed_body_color(prev))
+  ["許可構造以外の残余変更: AgentMessageBody"]
+end
+
+def canonicalize_reasoning_summary(src)
+  body = extract_struct_body(src, "ReasoningSummaryView")
+  return nil if body.nil?
+  body
+    .gsub(/TranscriptMarkdownPresentation\.summary\(\s*text\s*\)/, "TASK47_SUMMARY")
+    .gsub(/ReasoningPresentation\(\s*text:\s*text\s*\)\.headline/, "TASK47_SUMMARY")
+    .gsub(/ChatReasoningPresentation\(\s*text:\s*text\s*\)\.headline/, "TASK47_SUMMARY")
+    .gsub(/AgentMessageBody\(\s*text:\s*text\s*,\s*bodyColor:\s*DSColor\.chatTextSecondary\s*\)/, "TASK47_BODY")
+    .gsub(/Text\(\s*text\s*\)/, "TASK47_BODY")
+end
+
+def residual_reasoning_errors(current, previous)
+  return ["ReasoningSummaryView が存在しない"] if current.nil?
+  return ["基準時点の ReasoningSummaryView を git show できない"] if previous.nil?
+  cur = canonicalize_reasoning_summary(current)
+  prev = canonicalize_reasoning_summary(previous)
+  return ["ReasoningSummaryView を解析できない"] if cur.nil? || prev.nil?
+  return [] if normalize_code(cur) == normalize_code(prev)
+  ["許可構造以外の残余変更: ReasoningSummaryView"]
+end
+
 def extra_changed_product_paths(rev)
-  tracked = IO.popen(["git", "diff", "--name-only", rev, "--", SESSION_FEATURE_SRC], err: [:child, :out], &:read)
-  untracked = IO.popen(["git", "ls-files", "--others", "--exclude-standard", "--", SESSION_FEATURE_SRC], err: [:child, :out], &:read)
+  tracked = IO.popen(["git", "diff", "--name-only", rev], err: [:child, :out], &:read)
+  untracked = IO.popen(["git", "ls-files", "--others", "--exclude-standard"], err: [:child, :out], &:read)
   names = (tracked.to_s + untracked.to_s).split("\n").reject(&:empty?).uniq
-  names - ALLOWED_PRODUCT_PATHS
+  names.select { |path| product_tree_path?(path) } - ALLOWED_PRODUCT_PATHS
+end
+
+def product_tree_path?(path)
+  return false if path.nil? || path.empty?
+  return false if path.start_with?("docs/")
+  return false if path.start_with?("tasks/")
+  return false if path.start_with?("status/")
+  return false if path.start_with?(".claude/")
+  return false if path.include?("/Tests/")
+  return true if path.end_with?("Package.swift") || path.end_with?("Package.resolved")
+  path.start_with?("macos/")
 end
 
 def other_struct_errors(current, previous, names)
@@ -986,7 +1164,9 @@ def scope_errors(current_files, baseline_files)
     end
   end
   ng.concat(other_struct_errors(current_files[:basic], baseline_files[:basic], BASIC_PROTECTED_STRUCTS))
-  ng.concat(other_struct_errors(current_files[:structured], baseline_files[:structured], STRUCTURED_PROTECTED_STRUCTS))
+  ng.concat(other_struct_errors(current_files[:structured], baseline_files[:structured], STRUCTURED_PROTECTED_STRUCTS + %w[RunningTurnStatusView]))
+  ng.concat(residual_agent_message_body_errors(current_files[:basic], baseline_files[:basic]))
+  ng.concat(residual_reasoning_errors(current_files[:structured], baseline_files[:structured]))
   extra = current_files[:extra_changed]
   extra.to_a.each do |path|
     ng << "許可パス外の製品変更: #{path}"
@@ -1003,9 +1183,10 @@ def permanent_structure_errors(current_files, baseline_files)
     [:common, "DisclosureCard", :struct],
     [:structured, "SubAgentMarkerCell", :struct],
   ].each do |key, name, kind|
-    next if current_files[key].nil? || baseline_files[key].nil?
-    ng.concat(protected_symbol_errors(current_files[key], baseline_files[key], name, kind))
+    ng.concat(protected_symbol_errors(current_files[key], baseline_files[key], name, kind, file_label: key.to_s))
   end
+  ng.concat(wrap_errors(current_files[:markdown]))
+  ng << "リンク処理欠落" unless link_ok?(current_files[:markdown])
   unless copy_ok?(current_files[:markdown], current_files[:code_block])
     ng << "コピー変更"
   end
@@ -1099,7 +1280,12 @@ def good_markdown
       }
       static func theme(for themeID: String, scale: CGFloat, bodyColor: Color) -> Theme {
         let cacheKey = themeCacheKey(themeID: themeID, scale: scale, bodyColor: bodyColor)
-        return chatMarkdownTheme(scale: scale, bodyColor: bodyColor)
+        if let theme = themes[cacheKey] {
+          return theme
+        }
+        let theme = chatMarkdownTheme(scale: scale, bodyColor: bodyColor)
+        themes[cacheKey] = theme
+        return theme
       }
       static func themeCacheKey(themeID: String, scale: CGFloat, bodyColor: Color) -> String {
         "\\(themeID):\\(scale):\\(bodyColor)"
@@ -1142,9 +1328,7 @@ def good_basic
     struct AgentMessageBody: View {
       let text: String
       var bodyColor: Color = DSColor.chatTextPrimary
-      @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
       var body: some View {
-        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
           ForEach(Array(ChatMessageRenderCache.markdownBlocks(text).enumerated()), id: \\.offset) { _, block in
             switch block {
@@ -1226,6 +1410,9 @@ def good_structured
     struct SubAgentMarkerCell: View {
       var body: some View { Button { onSelect?(id) } label: { Text("sub") } }
     }
+    struct RunningTurnStatusView: View {
+      var body: some View { Text("hang") }
+    }
   SWIFT
 end
 
@@ -1266,7 +1453,11 @@ def good_code_block
     struct CodeBlockView: View {
       let language: String?
       let code: String
-      var body: some View { Text(code) }
+      @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
+      var body: some View {
+        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
+        Text(code).font(ChatScaledFont.mono(scale: scale))
+      }
       private func copyCode() {
         NSPasteboard.general.setString(code, forType: .string)
       }
@@ -1299,9 +1490,10 @@ def with_file(files, key)
 end
 
 def production_checks_source(src = File.read(__FILE__))
-  i = src.index(PRODUCTION_MARKER)
+  lines = src.lines
+  i = lines.index { |line| line.chomp == "# === task47 production checks ===" }
   return "" if i.nil?
-  src[i..]
+  lines[i..].join
 end
 
 def baseline_check_connected?(src)
@@ -1410,7 +1602,7 @@ def run_selftest
   selftest_errors_eq check_reasoning(no_secondary[:structured], no_secondary[:basic], no_secondary[:scaled_font]), ["secondary 転送欠落"], "負例: secondary 転送欠落"
 
   locked = with_file(good, :markdown) { |src|
-    src.gsub("ForegroundColor(bodyColor)", "ForegroundColor(DSColor.chatTextPrimary)")
+    src.sub("ForegroundColor(bodyColor); FontSize", "ForegroundColor(DSColor.chatTextPrimary); FontSize")
   }
   selftest_errors_eq check_product(locked), ["テーマ本文 primary 固定"], "負例: テーマ本文 primary 固定"
 
@@ -1461,13 +1653,82 @@ def run_selftest
   }
   selftest_errors_eq permanent_structure_errors(protected_ng, good), ["保護宣言変更"], "負例: 保護宣言変更"
 
-  no_font = with_file(good, :structured) { |src|
+  no_font_role = with_file(good, :structured) { |src|
     src.sub("TranscriptTypography.font(for: .body, scale: scale)", "Font.system(size: 13)")
-      .sub(".padding(.top, TranscriptTypography.withinAnswer)", ".padding(.top, 8)")
-      .sub(".lineSpacing(TranscriptTypography.textLineSpacing)", "")
-      .gsub("ChatFontSettings.adjusted(from: chatScale, by: 0)", "1")
   }
-  selftest_errors_eq check_reasoning(no_font[:structured], no_font[:basic], no_font[:scaled_font]), ["typography 退行"], "負例: typography 退行"
+  selftest_errors_eq check_reasoning(no_font_role[:structured], no_font_role[:basic], no_font_role[:scaled_font]), ["思考のフォント役割が無い"], "負例: 思考のフォント役割が無い"
+
+  no_spacing = with_file(good, :structured) { |src|
+    src.sub(".padding(.top, TranscriptTypography.withinAnswer)", ".padding(.top, 8)")
+  }
+  selftest_errors_eq check_reasoning(no_spacing[:structured], no_spacing[:basic], no_spacing[:scaled_font]), ["思考の余白接続が無い"], "負例: 思考の余白接続が無い"
+
+  no_leading = with_file(good, :structured) { |src|
+    src.sub(".lineSpacing(TranscriptTypography.textLineSpacing)", "")
+  }
+  selftest_errors_eq check_reasoning(no_leading[:structured], no_leading[:basic], no_leading[:scaled_font]), ["思考の行間接続が無い"], "負例: 思考の行間接続が無い"
+
+  no_md_scale = with_file(good, :markdown) { |src|
+    src.sub("let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)", "let scale = 1")
+  }
+  selftest_errors_eq check_product(no_md_scale), ["RichMarkdownView の倍率追随が無い"], "負例: RichMarkdownView の倍率追随が無い"
+
+  no_cb_scale = with_file(good, :code_block) { |src|
+    src.sub("let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)", "let scale = 1")
+  }
+  selftest_errors_eq check_product(no_cb_scale), ["CodeBlockView の倍率追随が無い"], "負例: CodeBlockView の倍率追随が無い"
+
+  empty_prep = with_file(good, :markdown) { |src|
+    src.sub("self.markdown = TranscriptMarkdownPresentation.prepare(markdown)", 'self.markdown = TranscriptMarkdownPresentation.prepare("")')
+  }
+  selftest_errors_eq check_markdown_entries(empty_prep[:markdown]), ["通常入口未接続"], "負例: 通常入口の空文字差し替え"
+
+  if_false = with_file(good, :markdown) { |src|
+    src.sub("self.markdown = TranscriptMarkdownPresentation.prepare(markdown)", "if false { self.markdown = TranscriptMarkdownPresentation.prepare(markdown) } else { self.markdown = markdown }")
+  }
+  selftest_errors_eq check_markdown_entries(if_false[:markdown]), ["通常入口未接続"], "負例: if false の補正"
+
+  unused_fn = with_file(good, :markdown) { |src|
+    src.sub("self.markdown = TranscriptMarkdownPresentation.prepare(markdown)", "self.markdown = markdown") + "\nfunc unusedPrepare(_ s: String) { _ = TranscriptMarkdownPresentation.prepare(s) }\n"
+  }
+  selftest_errors_eq check_markdown_entries(unused_fn[:markdown]), ["通常入口未接続"], "負例: 未使用関数の prepare"
+
+  no_color_store = with_file(good, :markdown) { |src|
+    src.sub("self.bodyColor = bodyColor\n", "")
+  }
+  selftest_errors_eq check_markdown_entries(no_color_store[:markdown]), ["色引数未保存"], "負例: 色引数未保存"
+
+  head_lock = with_file(good, :markdown) { |src|
+    src.sub("ForegroundColor(bodyColor); FontWeight(.bold)", "ForegroundColor(DSColor.chatTextPrimary); FontWeight(.bold)")
+  }
+  selftest_errors_eq check_product(head_lock), ["見出し色 primary 固定"], "負例: 見出し色 primary 固定"
+
+  no_cache_use = with_file(good, :markdown) { |src|
+    src.sub("themes[cacheKey] = theme", "")
+  }
+  selftest_errors_eq check_product(no_cache_use), ["キャッシュキー未使用"], "負例: キャッシュキー未使用"
+
+  sum_nil = with_file(good, :structured) { |src|
+    src.sub("summary: TranscriptMarkdownPresentation.summary(text)", "summary: nil")
+  }
+  selftest_errors_eq check_reasoning(sum_nil[:structured], sum_nil[:basic], sum_nil[:scaled_font]), ["思考の補足が summary(text) から届いていない"], "負例: 要約引数 nil"
+
+  child_ov = with_file(good, :basic) { |src|
+    src.sub("RichMarkdownView(markdown, bodyColor: bodyColor)", "RichMarkdownView(markdown, bodyColor: DSColor.chatTextPrimary)")
+  }
+  child_ng = check_reasoning(child_ov[:structured], child_ov[:basic], child_ov[:scaled_font])
+  selftest_assert child_ng.include?("secondary 転送欠落") || child_ng.include?("思考の展開本文へ原文が届いていない"), "負例: 子View上書き (#{child_ng.inspect})"
+
+  no_copy_fn = with_file(good, :markdown) { |src|
+    src.sub("func copyToPasteboard", "func copyToPasteboardUnused")
+  }
+  selftest_errors_eq check_product(no_copy_fn), ["コピー変更"], "負例: コピー関数不在"
+
+  domain_out = good.merge(extra_changed: ["macos/Packages/AgentDomain/Sources/AgentDomain/ThinkingRecap.swift"])
+  selftest_errors_eq scope_errors(domain_out, good), ["許可パス外の製品変更: macos/Packages/AgentDomain/Sources/AgentDomain/ThinkingRecap.swift"], "負例: 共有ドメインの範囲外変更"
+
+  missing_now = permanent_structure_errors(good.merge(markdown: nil), good)
+  selftest_assert !missing_now.empty?, "負例: 必須ファイル欠落 (#{missing_now.inspect})"
 
   unused_let = with_file(good, :structured) { |src|
     src.sub(
@@ -1573,7 +1834,7 @@ def run_selftest
   selftest_errors_eq evaluate_checks(out_of_scope, good, scope: one_pred), ["許可パス外の製品変更: #{CELLS_PATH}"], "正例: SCOPE_CHECK=1 の本番分岐"
 
   permanent_fail = with_file(good, :markdown) { |src|
-    src.gsub("ForegroundColor(bodyColor)", "ForegroundColor(DSColor.chatTextPrimary)")
+    src.sub("ForegroundColor(bodyColor); FontSize", "ForegroundColor(DSColor.chatTextPrimary); FontSize")
   }
   selftest_errors_eq evaluate_checks(permanent_fail, good, scope: false), ["テーマ本文 primary 固定"], "負例: 恒久契約違反は scope なしでも失敗"
   selftest_errors_eq evaluate_checks(permanent_fail, good, scope: true), ["テーマ本文 primary 固定"], "負例: 恒久契約違反は scope ありでも失敗"

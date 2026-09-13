@@ -2,7 +2,7 @@
 // task-47 PM 目視ハーネス（PM 著・不変）。製品へデモモードやテスト専用 setter は追加しない。
 // 固定シナリオと状態アサーションは環境変数なしでも常時実行する。
 // PHLOX_PM_VISUAL_TASK=47 のときだけウィンドウを前面表示し、ハーネス内の終了操作まで保持する。
-// 描画ホストは Harness/TranscriptTypographyRenderHarness.swift と同じ NSHostingView + 同一 identity。
+// 描画ホストは NSHostingView + 同一 identity。テーマ差は扱わず UserDefaults.standard を書き換えない。
 
 import AgentDomain
 import AppKit
@@ -25,9 +25,6 @@ struct PMTranscriptVisualTask47Tests {
         let suite = try #require(UserDefaults(suiteName: suiteName))
         suite.removePersistentDomain(forName: suiteName)
         ChatFontSettings.save(1.0, defaults: suite)
-        suite.set(AppTheme.phloxLight.id, forKey: ThemeStore.themeKey)
-        let previousTheme = UserDefaults.standard.object(forKey: ThemeStore.themeKey)
-        UserDefaults.standard.set(AppTheme.phloxLight.id, forKey: ThemeStore.themeKey)
 
         let client = Task47VisualClient()
         let viewModel = ChatSessionViewModel(
@@ -46,14 +43,7 @@ struct PMTranscriptVisualTask47Tests {
             try assertFixedFixture(scenario: scenario)
 
             let columnWidth = scenario.columnWidth
-            let contentMaxWidth = ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: columnWidth)
-            let bottomMargin = measureComposerHeight(
-                viewModel: viewModel,
-                columnWidth: columnWidth,
-                suite: suite
-            )
-            scenario.bottomMargin = bottomMargin
-            scenario.contentMaxWidth = contentMaxWidth
+            scenario.contentMaxWidth = ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: columnWidth)
 
             let root = Task47VisualRoot(
                 scenario: scenario,
@@ -62,6 +52,17 @@ struct PMTranscriptVisualTask47Tests {
             let hostView = NSHostingView(rootView: root)
             hosting = hostView
             hostView.frame = NSRect(x: 0, y: 0, width: columnWidth, height: 900)
+
+            let nsWindow = NSWindow(
+                contentRect: hostView.frame,
+                styleMask: [.titled, .closable, .resizable],
+                backing: .buffered,
+                defer: false
+            )
+            nsWindow.title = "task-47 PM visual"
+            nsWindow.isReleasedWhenClosed = false
+            nsWindow.contentView = hostView
+            window = nsWindow
             hostView.layoutSubtreeIfNeeded()
             RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
 
@@ -69,46 +70,20 @@ struct PMTranscriptVisualTask47Tests {
             try await waitUntil { viewModel.status.isRunning }
             #expect(viewModel.status.isRunning)
 
-            scenario.replaceAnswerSameLength()
+            try assertCardExpansionSequence(host: hostView, scenario: scenario)
+            try await assertRealEventAppend(viewModel: viewModel, client: client, scenario: scenario, host: hostView)
+            try assertSameLengthAnswer(scenario: scenario, host: hostView)
+            try assertCodeBoundaryAndCommands(scenario: scenario, host: hostView)
+            scenario.restoreFullAnswer()
             hostView.layoutSubtreeIfNeeded()
-            #expect(scenario.agentText(id: "a-md") == Task47VisualFixture.unclosedPartial)
-
-            scenario.growUnclosedAnswer()
-            hostView.layoutSubtreeIfNeeded()
-            #expect(scenario.agentText(id: "a-md") == Task47VisualFixture.unclosedConfirm)
-
-            scenario.closeUnclosedAnswer()
-            hostView.layoutSubtreeIfNeeded()
-            #expect(scenario.agentText(id: "a-md") == Task47VisualFixture.closedConfirm)
-
-            scenario.replaceReasoningSameLength()
-            hostView.layoutSubtreeIfNeeded()
-            #expect(scenario.reasoningText(id: "r-summary")?.count == Task47VisualFixture.reasoningWithHeading.count)
-
-            scenario.blankReasoning()
-            hostView.layoutSubtreeIfNeeded()
-            #expect(scenario.reasoningText(id: "r-summary")?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true)
-
-            scenario.restoreReasoning()
-            hostView.layoutSubtreeIfNeeded()
-            #expect(scenario.reasoningText(id: "r-summary") == Task47VisualFixture.reasoningWithHeading)
+            #expect(scenario.agentText(id: "a-md") == Task47VisualFixture.markdownAnswer)
 
             client.yield(.turnCompleted(nativeSessionId: nil))
             try await waitUntil { !viewModel.status.isRunning }
             #expect(!viewModel.status.isRunning)
 
             if showWindow {
-                let nsWindow = NSWindow(
-                    contentRect: hostView.frame,
-                    styleMask: [.titled, .closable, .resizable],
-                    backing: .buffered,
-                    defer: false
-                )
-                nsWindow.title = "task-47 PM visual"
-                nsWindow.isReleasedWhenClosed = false
-                nsWindow.contentView = hostView
                 nsWindow.makeKeyAndOrderFront(nil)
-                window = nsWindow
                 let finished = Task47VisualFinishBox()
                 let closer = Task47VisualWindowCloser(finished: finished)
                 nsWindow.delegate = closer
@@ -125,8 +100,7 @@ struct PMTranscriptVisualTask47Tests {
                 window: window,
                 hosting: hosting,
                 suiteName: suiteName,
-                suite: suite,
-                previousTheme: previousTheme
+                suite: suite
             )
         } catch {
             await finishVisual(
@@ -135,8 +109,7 @@ struct PMTranscriptVisualTask47Tests {
                 window: window,
                 hosting: hosting,
                 suiteName: suiteName,
-                suite: suite,
-                previousTheme: previousTheme
+                suite: suite
             )
             throw error
         }
@@ -150,8 +123,7 @@ private func finishVisual(
     window: NSWindow?,
     hosting: NSHostingView<Task47VisualRoot>?,
     suiteName: String,
-    suite: UserDefaults,
-    previousTheme: Any?
+    suite: UserDefaults
 ) async {
     await viewModel.terminate()
     client.finish()
@@ -159,11 +131,6 @@ private func finishVisual(
     window?.contentView = nil
     hosting?.removeFromSuperview()
     suite.removePersistentDomain(forName: suiteName)
-    if let previousTheme {
-        UserDefaults.standard.set(previousTheme, forKey: ThemeStore.themeKey)
-    } else {
-        UserDefaults.standard.removeObject(forKey: ThemeStore.themeKey)
-    }
 }
 
 @MainActor
@@ -172,25 +139,114 @@ private func assertFixedFixture(scenario: Task47VisualScenario) throws {
     #expect(ids.contains("a-md"))
     #expect(ids.contains("r-summary"))
     #expect(ids.contains("r-code"))
-    #expect(ids.contains("cmd-stars"))
+    #expect(ids.contains("cmd-past"))
+    #expect(ids.contains("cmd-latest"))
     #expect(ids.contains("err-1"))
     #expect(scenario.agentText(id: "a-md") == Task47VisualFixture.markdownAnswer)
     #expect(scenario.reasoningText(id: "r-summary") == Task47VisualFixture.reasoningWithHeading)
     #expect(scenario.reasoningText(id: "r-code") == Task47VisualFixture.codeOnlyReasoning)
+    #expect(ids.last == "cmd-latest")
     #expect(Set([360, 720] as [CGFloat]).isSuperset(of: [scenario.columnWidth]))
     #expect(([0.8, 1.0, 2.0] as [CGFloat]).contains(scenario.fontScale))
+    #expect(Task47VisualFixture.sameLengthLeft.count == Task47VisualFixture.sameLengthRight.count)
+    #expect(Task47VisualFixture.unclosedPartial.count != Task47VisualFixture.markdownAnswer.count)
+}
+
+@MainActor
+private func assertCardExpansionSequence(host: NSView, scenario: Task47VisualScenario) throws {
+    host.layoutSubtreeIfNeeded()
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
+
+    let closedBefore = disclosureValues(in: host, headingHint: "思考の詳細")
+    #expect(closedBefore.contains("折りたたみ中"))
+    #expect(!closedBefore.contains("展開中"))
+
+    let expanded = pressDisclosure(in: host, headingHint: "思考の詳細", matching: "折りたたみ中")
+    #expect(expanded)
+    host.layoutSubtreeIfNeeded()
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
+    let afterOpen = disclosureValues(in: host, headingHint: "思考の詳細")
+    #expect(afterOpen.contains("展開中"))
+
+    scenario.replaceReasoningSameLength()
+    host.layoutSubtreeIfNeeded()
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
+    #expect(scenario.reasoningText(id: "r-summary")?.count == Task47VisualFixture.reasoningWithHeading.count)
+    let afterSameID = disclosureValues(in: host, headingHint: "思考の詳細")
+    #expect(afterSameID.contains("展開中"))
+
+    scenario.blankReasoning()
+    host.layoutSubtreeIfNeeded()
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
+    #expect(scenario.reasoningText(id: "r-summary")?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true)
+
+    scenario.restoreReasoning()
+    host.layoutSubtreeIfNeeded()
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
+    #expect(scenario.reasoningText(id: "r-summary") == Task47VisualFixture.reasoningWithHeading)
+    let afterRemount = disclosureValues(in: host, headingHint: "思考の詳細")
+    #expect(afterRemount.contains("折りたたみ中"))
+}
+
+@MainActor
+private func assertRealEventAppend(
+    viewModel: ChatSessionViewModel,
+    client: Task47VisualClient,
+    scenario: Task47VisualScenario,
+    host: NSView
+) async throws {
+    client.yield(.agentMessageDelta(itemId: "a-append", Task47VisualFixture.appendedAnswer))
+    try await waitUntil {
+        viewModel.transcript.contains { item in
+            if case .agentMessage(let id, let text, _) = item {
+                return id == "a-append" && text == Task47VisualFixture.appendedAnswer
+            }
+            return false
+        }
+    }
+    scenario.absorbAppended(from: viewModel.transcript)
+    host.layoutSubtreeIfNeeded()
+    #expect(scenario.agentText(id: "a-append") == Task47VisualFixture.appendedAnswer)
+}
+
+@MainActor
+private func assertSameLengthAnswer(scenario: Task47VisualScenario, host: NSView) throws {
+    scenario.applySameLengthLeft()
+    host.layoutSubtreeIfNeeded()
+    #expect(scenario.agentText(id: "a-md") == Task47VisualFixture.sameLengthLeft)
+    scenario.applySameLengthRight()
+    host.layoutSubtreeIfNeeded()
+    #expect(scenario.agentText(id: "a-md") == Task47VisualFixture.sameLengthRight)
+    #expect(Task47VisualFixture.sameLengthLeft.count == Task47VisualFixture.sameLengthRight.count)
+    scenario.restoreFullAnswer()
+    host.layoutSubtreeIfNeeded()
+    #expect(scenario.agentText(id: "a-md") == Task47VisualFixture.markdownAnswer)
+}
+
+@MainActor
+private func assertCodeBoundaryAndCommands(scenario: Task47VisualScenario, host: NSView) throws {
+    for fixture in Task47VisualFixture.codeBoundaryCases {
+        scenario.showCodeBoundary(fixture)
+        host.layoutSubtreeIfNeeded()
+        #expect(scenario.agentText(id: "a-code") == fixture.text)
+    }
+    scenario.showLatestCommand()
+    host.layoutSubtreeIfNeeded()
+    #expect(scenario.items.last?.id == "cmd-latest")
+    scenario.showPastCommand()
+    host.layoutSubtreeIfNeeded()
+    #expect(scenario.items.contains { $0.id == "cmd-past" })
+    #expect(scenario.items.last?.id != "cmd-past")
 }
 
 @Observable
 @MainActor
-final class Task47VisualScenario {
+private final class Task47VisualScenario {
     var items: [ChatItem]
     var columnWidth: CGFloat = 720
     var fontScale: CGFloat = 1.0
-    var themeID: String = AppTheme.phloxLight.id
-    var colorScheme: ColorScheme = .light
     var contentMaxWidth: CGFloat = 720
-    var bottomMargin: CGFloat = 84
+    var bottomMargin: CGFloat = 0
     let suite: UserDefaults
     let client: Task47VisualClient
 
@@ -218,32 +274,28 @@ final class Task47VisualScenario {
         return nil
     }
 
-    func replaceAnswerSameLength() {
-        items = items.map { item in
-            guard case .agentMessage(let id, let text, let timestamp) = item, id == "a-md" else {
-                return item
-            }
-            _ = text
-            return .agentMessage(id: id, text: Task47VisualFixture.unclosedPartial, timestamp: timestamp)
-        }
+    func replaceAnswerUnclosedPartial() {
+        replaceAgent(id: "a-md", text: Task47VisualFixture.unclosedPartial)
     }
 
     func growUnclosedAnswer() {
-        items = items.map { item in
-            guard case .agentMessage(let id, _, let timestamp) = item, id == "a-md" else {
-                return item
-            }
-            return .agentMessage(id: id, text: Task47VisualFixture.unclosedConfirm, timestamp: timestamp)
-        }
+        replaceAgent(id: "a-md", text: Task47VisualFixture.unclosedConfirm)
     }
 
     func closeUnclosedAnswer() {
-        items = items.map { item in
-            guard case .agentMessage(let id, _, let timestamp) = item, id == "a-md" else {
-                return item
-            }
-            return .agentMessage(id: id, text: Task47VisualFixture.closedConfirm, timestamp: timestamp)
-        }
+        replaceAgent(id: "a-md", text: Task47VisualFixture.closedConfirm)
+    }
+
+    func restoreFullAnswer() {
+        replaceAgent(id: "a-md", text: Task47VisualFixture.markdownAnswer)
+    }
+
+    func applySameLengthLeft() {
+        replaceAgent(id: "a-md", text: Task47VisualFixture.sameLengthLeft)
+    }
+
+    func applySameLengthRight() {
+        replaceAgent(id: "a-md", text: Task47VisualFixture.sameLengthRight)
     }
 
     func replaceReasoningSameLength() {
@@ -274,12 +326,40 @@ final class Task47VisualScenario {
         }
     }
 
+    func absorbAppended(from transcript: [ChatItem]) {
+        for item in transcript {
+            if case .agentMessage(let id, _, _) = item, id == "a-append", !items.contains(where: { $0.id == id }) {
+                items.append(item)
+            }
+        }
+    }
+
+    func showCodeBoundary(_ fixture: Task47VisualCodeBoundary) {
+        if items.contains(where: { $0.id == "a-code" }) {
+            replaceAgent(id: "a-code", text: fixture.text)
+        } else {
+            items.append(.agentMessage(id: "a-code", text: fixture.text, timestamp: Task47VisualFixture.time))
+        }
+    }
+
+    func showLatestCommand() {
+        items = Task47VisualFixture.transcriptItems
+    }
+
+    func showPastCommand() {
+        items = Task47VisualFixture.pastCommandItems
+    }
+
     func startTurn() {
         client.yield(.turnStarted)
     }
 
     func completeTurn() {
         client.yield(.turnCompleted(nativeSessionId: nil))
+    }
+
+    func appendViaEvent() {
+        client.yield(.agentMessageDelta(itemId: "a-append", Task47VisualFixture.appendedAnswer))
     }
 
     func applyWidth(_ width: CGFloat) {
@@ -292,18 +372,13 @@ final class Task47VisualScenario {
         ChatFontSettings.save(scale, defaults: suite)
     }
 
-    func applyLightTheme() {
-        themeID = AppTheme.phloxLight.id
-        colorScheme = .light
-        suite.set(themeID, forKey: ThemeStore.themeKey)
-        UserDefaults.standard.set(themeID, forKey: ThemeStore.themeKey)
-    }
-
-    func applyDarkTheme() {
-        themeID = AppTheme.dracula.id
-        colorScheme = .dark
-        suite.set(themeID, forKey: ThemeStore.themeKey)
-        UserDefaults.standard.set(themeID, forKey: ThemeStore.themeKey)
+    private func replaceAgent(id: String, text: String) {
+        items = items.map { item in
+            guard case .agentMessage(let itemID, _, let timestamp) = item, itemID == id else {
+                return item
+            }
+            return .agentMessage(id: itemID, text: text, timestamp: timestamp)
+        }
     }
 }
 
@@ -313,33 +388,50 @@ private struct Task47VisualRoot: View {
     @State private var composerText = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            controls
-            ChatTranscriptView(
-                viewModel: viewModel,
-                transcript: scenario.items,
-                showsThinkingIndicator: true,
-                contentMaxWidth: scenario.contentMaxWidth,
-                bottomScrollContentMargin: scenario.bottomMargin
-            )
-            composer
-        }
+        ChatTranscriptView(
+            viewModel: viewModel,
+            transcript: scenario.items,
+            showsThinkingIndicator: true,
+            contentMaxWidth: scenario.contentMaxWidth,
+            bottomScrollContentMargin: scenario.bottomMargin
+        )
         .frame(width: scenario.columnWidth, height: 900)
         .background(DSColor.chatBackground)
+        .overlay(alignment: .bottom) {
+            composer
+                .background {
+                    DSColor.chatBackground
+                        .padding(.top, DSSpacing.m)
+                        .padding(.trailing, ComposerLayout.scrollerCorridorWidth)
+                }
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { height in
+                    scenario.bottomMargin = height
+                }
+        }
+        .overlay(alignment: .topLeading) {
+            controls
+        }
         .defaultAppStorage(scenario.suite)
-        .preferredColorScheme(scenario.colorScheme)
-        .environment(\.colorScheme, scenario.colorScheme)
+        .preferredColorScheme(.light)
     }
 
     private var controls: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Button("**確") { scenario.replaceAnswerSameLength() }
+                Button("全文へ戻す") { scenario.restoreFullAnswer() }
+                Button("同長左") { scenario.applySameLengthLeft() }
+                Button("同長右") { scenario.applySameLengthRight() }
+                Button("**確") { scenario.replaceAnswerUnclosedPartial() }
                 Button("**確認") { scenario.growUnclosedAnswer() }
                 Button("**確認**") { scenario.closeUnclosedAnswer() }
+            }
+            HStack {
                 Button("思考同長") { scenario.replaceReasoningSameLength() }
                 Button("空白") { scenario.blankReasoning() }
                 Button("再表示") { scenario.restoreReasoning() }
+                Button("実イベント追記") { scenario.appendViaEvent() }
             }
             HStack {
                 Button("実行開始") { scenario.startTurn() }
@@ -349,11 +441,17 @@ private struct Task47VisualRoot: View {
                 Button("0.8") { scenario.applyScale(0.8) }
                 Button("1.0") { scenario.applyScale(1.0) }
                 Button("2.0") { scenario.applyScale(2.0) }
-                Button("明") { scenario.applyLightTheme() }
-                Button("暗") { scenario.applyDarkTheme() }
+            }
+            HStack {
+                Button("最新コマンド") { scenario.showLatestCommand() }
+                Button("過去コマンド") { scenario.showPastCommand() }
+                ForEach(Task47VisualFixture.codeBoundaryCases, id: \.id) { fixture in
+                    Button(fixture.id) { scenario.showCodeBoundary(fixture) }
+                }
             }
         }
         .padding(8)
+        .background(DSColor.chatBackground.opacity(0.92))
     }
 
     private var composer: some View {
@@ -425,43 +523,86 @@ private func waitUntil(_ condition: () -> Bool) async throws {
 }
 
 @MainActor
-private func measureComposerHeight(
-    viewModel: ChatSessionViewModel,
-    columnWidth: CGFloat,
-    suite: UserDefaults
-) -> CGFloat {
-    let proposed = ComposerLayout.proposedWidth(mainColumnWidth: columnWidth) ?? columnWidth
-    let layout = ComposerLayout.controlsLayout(proposedWidth: proposed)
-    let composer = ChatComposer(
-        viewModel: viewModel,
-        text: .constant(""),
-        isRunning: false,
-        canSend: true,
-        controlsLayout: layout,
-        onSend: {},
-        onInterrupt: {}
-    )
-    .frame(maxWidth: proposed)
-    .frame(width: columnWidth)
-    .defaultAppStorage(suite)
+private func stringValue(_ value: Any?) -> String {
+    guard let value else { return "" }
+    if let text = value as? String { return text }
+    if let number = value as? NSNumber { return number.stringValue }
+    return String(describing: value)
+}
 
-    let hosting = NSHostingView(rootView: composer)
-    hosting.frame = NSRect(x: 0, y: 0, width: columnWidth, height: 200)
-    let window = NSWindow(
-        contentRect: hosting.frame,
-        styleMask: [.borderless],
-        backing: .buffered,
-        defer: false
-    )
-    window.isReleasedWhenClosed = false
-    window.contentView = hosting
-    hosting.layoutSubtreeIfNeeded()
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
-    hosting.layoutSubtreeIfNeeded()
-    let height = max(hosting.fittingSize.height, 84)
-    window.orderOut(nil)
-    window.contentView = nil
-    return height
+@MainActor
+private func disclosureValues(in root: NSView, headingHint: String) -> [String] {
+    var values: [String] = []
+    var seen = Set<ObjectIdentifier>()
+    func visit(_ element: Any) {
+        let object = element as AnyObject
+        let identity = ObjectIdentifier(object)
+        guard seen.insert(identity).inserted else { return }
+        let value = stringValue(object.accessibilityValue())
+        let label = stringValue(object.accessibilityLabel())
+        let title = stringValue(object.accessibilityTitle())
+        if label.contains(headingHint) || title.contains(headingHint) {
+            if value == "展開中" || value == "折りたたみ中" {
+                values.append(value)
+            }
+        }
+        if let children = object.accessibilityChildren() {
+            for child in children {
+                visit(child)
+            }
+        }
+        if let view = element as? NSView {
+            for subview in view.subviews {
+                visit(subview)
+            }
+        }
+    }
+    visit(root)
+    return values
+}
+
+@MainActor
+private func pressDisclosure(in root: NSView, headingHint: String, matching: String) -> Bool {
+    var seen = Set<ObjectIdentifier>()
+    func visit(_ element: Any) -> Bool {
+        let object = element as AnyObject
+        let identity = ObjectIdentifier(object)
+        guard seen.insert(identity).inserted else { return false }
+        let value = stringValue(object.accessibilityValue())
+        let label = stringValue(object.accessibilityLabel())
+        let title = stringValue(object.accessibilityTitle())
+        if (label.contains(headingHint) || title.contains(headingHint)) && value == matching {
+            if let button = element as? NSButton {
+                button.performClick(nil)
+                return true
+            }
+            let names = object.accessibilityActionNames()
+            if names.contains(NSAccessibility.Action.press) {
+                object.accessibilityPerformAction(.press)
+                return true
+            }
+            if object.responds(to: #selector(NSAccessibilityProtocol.accessibilityPerformPress)) {
+                return object.accessibilityPerformPress()
+            }
+        }
+        if let children = object.accessibilityChildren() {
+            for child in children {
+                if visit(child) { return true }
+            }
+        }
+        if let view = element as? NSView {
+            for subview in view.subviews {
+                if visit(subview) { return true }
+            }
+        }
+        return false
+    }
+    return visit(root)
+}
+
+private struct Task47VisualCodeBoundary: Equatable {
+    let id: String
+    let text: String
 }
 
 private enum Task47VisualFixture {
@@ -469,6 +610,9 @@ private enum Task47VisualFixture {
     static let unclosedPartial = "**確"
     static let unclosedConfirm = "**確認"
     static let closedConfirm = "**確認**"
+    static let sameLengthLeft = "**確認"
+    static let sameLengthRight = "**更新"
+    static let appendedAnswer = "追記された回答"
 
     static let markdownAnswer = """
     # 確認結果
@@ -504,6 +648,20 @@ private enum Task47VisualFixture {
     /tmp/a/**/b: ok
     """
 
+    static let codeBoundaryCases: [Task47VisualCodeBoundary] = [
+        Task47VisualCodeBoundary(id: "0空白", text: "```swift\n\t  **x  \n\n```"),
+        Task47VisualCodeBoundary(id: "3空白", text: "   ```swift\n\t  **x  \n\n   ```"),
+        Task47VisualCodeBoundary(id: "4空白", text: "    ```swift\n    **x  \n\n    ```\n\n"),
+        Task47VisualCodeBoundary(id: "タブ", text: "\t```swift\n\t**x\n\t```\n\n"),
+        Task47VisualCodeBoundary(id: "3本", text: "```\na\n```"),
+        Task47VisualCodeBoundary(id: "4本", text: "````\na\n```\nb\n````"),
+        Task47VisualCodeBoundary(id: "チルダ", text: "~~~\n**x\n~~~\n"),
+        Task47VisualCodeBoundary(id: "未閉じ", text: "```json\n**x\n\n"),
+        Task47VisualCodeBoundary(id: "インライン", text: "`**未閉じ` と **確認"),
+        Task47VisualCodeBoundary(id: "CRLF", text: "```swift\r\n\t  x  \r\n\r\n```"),
+        Task47VisualCodeBoundary(id: "末尾空行", text: "```swift\n\t  **x  \n\n```\n\n"),
+    ]
+
     static var transcriptItems: [ChatItem] {
         [
             .userMessage(id: "u1", text: "Markdown と思考色を確認する。", timestamp: time),
@@ -511,8 +669,29 @@ private enum Task47VisualFixture {
             .reasoning(id: "r-summary", text: reasoningWithHeading, timestamp: time),
             .reasoning(id: "r-code", text: codeOnlyReasoning, timestamp: time),
             .commandExecution(
-                id: "cmd-stars",
+                id: "cmd-past",
+                command: "echo past",
+                output: commandOutput,
+                timestamp: time
+            ),
+            .error(id: "err-1", message: "a/**/b: error", timestamp: time),
+            .commandExecution(
+                id: "cmd-latest",
                 command: "echo **ok",
+                output: commandOutput,
+                timestamp: time
+            ),
+        ]
+    }
+
+    static var pastCommandItems: [ChatItem] {
+        [
+            .userMessage(id: "u1", text: "Markdown と思考色を確認する。", timestamp: time),
+            .agentMessage(id: "a-md", text: markdownAnswer, timestamp: time),
+            .reasoning(id: "r-summary", text: reasoningWithHeading, timestamp: time),
+            .commandExecution(
+                id: "cmd-past",
+                command: "echo past",
                 output: commandOutput,
                 timestamp: time
             ),

@@ -250,3 +250,4 @@
 - 2026-09-13 task-49 再凍結 5a5e647（旧 fc8519e 無効。task-44 が startFromHistory を変更したため rb 恒久保護が偽陽性。cherry-pick 4 件を revert → index 凍結 → revert を revert で再適用。途中の誤操作（zsh の単語分割なし変数で revert が失敗、961f62d を基準にした誤コミット）は reset --hard 961f62d で取り消し）。
 - 2026-09-14T00:04:19+0900 task-48 rework: レビュー r1: HIGH 単体コマンド見出しを原文へ戻し task-46 の「処理の詳細（1件）」を失った（実装欠陥）。MEDIUM 既存 3 テストが言語を製品へ渡していない／rb の数値供給式比較が実装前基準で無効＝PM 側ハーネス欠陥→PM 承認で修理・再凍結
 - 2026-09-14 task-48 レビュー r1 裁定: HIGH（単体コマンド見出しの task-46 回帰）は実装欠陥→差し戻し 1 回目。PM 裁定: カード見出しは task-46 の presentation.heading を維持し、UIWording の missingCommand は展開内容のコマンド原文表示（空コマンド時）にのみ使う。MEDIUM×2（既存 3 テストの言語未伝播、rb 数値供給式の比較が基準に新 API が無いと無効）は PM 側ハーネス欠陥→PM 承認でハーネス修理（Cursor、wt-48）→再凍結。review-task-48-r1.json に保存。
+- 2026-09-14 task-48 PM 目視ゲート pass（PNG 6 枚: ja single/grid/grid-narrow/team, en single/grid）。範囲外の観察（英語起動時の送信先行・サイドバー状態/相対時刻/フィルタの日英混在）は Phase 5 フォローアップへ。docs/agent-output/visual-task-48.md。spec UX-11 を [x] に更新。

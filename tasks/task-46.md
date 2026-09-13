@@ -323,3 +323,12 @@ PM は `docs/agent-output/visual-task-46.md` にコミット、起動コマン�
 - 必須テスト・品質ゲート・独立レビュー・PM 目視が成立し、未検証を隠していない。
 
 task-46 の成立だけを UX-05 全体の完了としない。UX-05 の完了には task-47 と PM のフェーズ5での文書反映も必要とする。
+
+## 受け入れ検査の敵対レビュー反映（2026-09-13、`docs/agent-output/task46-acceptance-adversarial.md` を PM 裁定）
+
+- MUST1（同一入力に true/false の相反期待）: 採択。共通関数は `userOverride ?? defaultExpanded` に統一し、回答の常時表示は「実回答 View が詳細用 Binding に依存しない」配線条件として rb で検査。
+- HIGH2（task-47 の `AgentMessageBody(text:, bodyColor:)` 経路を拒否）: 採択。正常 fixture を契約 task-47 の経路にし、別ファイルへの原文・本文色転送まで追跡。
+- HIGH3〜6（存在確認のみ・コメント内偽宣言・変更範囲未取得・typography 参照 1 個で代用）: 採択。実カードの引数・Binding getter/setter・表示ガードをモデル結果と対応づけ、宣言抽出はコード領域から、B46 からの実変更一覧で範囲外検出、フォント役割・倍率・余白・行間を別々に確認（`ChatScaledFont` 経由の転送を追う）。負例は 1 変更 1 期待エラー集合。
+- HIGH7（環境変数なしでアサーション回避）: 採択。固定シナリオと状態アサーションは常時実行、ウィンドウ表示・操作待ちだけ環境変数で切替。
+- HIGH8（目視ハーネスが更新・経路・条件を再現できない）: 採択。Observable なシナリオモデルと操作ボタンで同一 ID 更新・空白挟み再表示・開閉後終了を発生させ、単体経路・1 件グループ・51 件・501 行、幅 360/720・倍率 0.8/1.0/2.0・明暗を選べるようにし、composer と transcript に同じ設定を注入。
+- MED9〜12: 採択（実 `FileChangeCell.visibleSections` の切り出し照合、selftest の単一違反分割、`viewModel.terminate()` の保証、基準不存在と git 障害の区別）。

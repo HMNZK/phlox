@@ -241,3 +241,11 @@ PM は凍結時に適用される品質設定を再確認する。lint・型チ�
 - Cursor がテストを書き換えていない。
 - 生成・保存される状態説明を UX-10 の完了対象へ戻していない。
 - テスト、配線検査、App ビルド、目視の実施範囲と未検証を区別している。
+
+## 受け入れ検査の敵対レビュー反映（2026-09-13、`docs/agent-output/task48-acceptance-adversarial.md` を PM 裁定）
+
+- MUST1（通常メニューに無い見出しを要求）・MUST2（struct 外ヘルパーを追跡できない）: 採択。実在する位置で検査し、ファイル直下ヘルパー（`chatMarkdownTheme`・`composerPermissionTitle`）まで追跡。
+- MUST3（既存検査の改訂）: PM 裁定。`task13-wiring.rb` は task-13 の着手時検査で後続に適用しない（task-13.md 注記）。既存 Swift テスト `AcceptanceContextPopoverBranchTests`・`ComposerModeMenuAcceptanceTests`・`GridComposerSettingsAcceptanceTests` の旧英語逐語期待値は、**PM 承認のもと本タスクの検査修正で言語引数付き期待値へ改訂**する（項目集合・順序・内部値・計算検査は保持。task-50 が変える権限表示名は旧英語へ固定しない）。改訂後のテストは凍結 blob に含める。
+- HIGH4〜8: 採択（Text/Label/help/AX/選択中表示の引数と分岐の固定対応、環境 Locale からの言語伝播と Markdown テーマキャッシュの言語キー、操作本体・Binding・tag の baseline 比較、数値供給式・条件式の比較、必須 blob 欠落は即 NG）。
+- MED9（ADR 0147 サブタイトル）: PM 裁定。単独コマンドセルのサブタイトル（実行中／出力あり）は現状維持し翻訳のために復活・削除しない。ADR 0147 への適用範囲追記はフェーズ 5。
+- MED10・11: 採択（自己比較の削除、受け入れテストは `import DesignSystem` で公開 API を使用）。

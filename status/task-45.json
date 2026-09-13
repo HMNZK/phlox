@@ -2,6 +2,7 @@
   "id": 45,
   "title": "UX-01c 作業名主・花名補助の表示",
   "difficulty": "standard",
-  "status": "in_progress",
-  "updated_at": "2026-09-14T01:05:00+0900"
+  "status": "done_pending_review",
+  "updated_at": "2026-09-14T01:32:24+0900",
+  "review_rejections": 0
 }

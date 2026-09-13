@@ -2,6 +2,7 @@
   "id": 41,
   "title": "UX-01a セッションタイトル導出 SessionTitleDeriver",
   "difficulty": "standard",
-  "status": "in_progress",
-  "updated_at": "2026-09-13T12:04:51+0900"
+  "status": "done_pending_review",
+  "updated_at": "2026-09-13T12:39:46+0900",
+  "review_rejections": 0
 }

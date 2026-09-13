@@ -358,9 +358,12 @@ private struct ProjectSidebarHeader<NewSessionMenuContent: View>: View {
                     .frame(width: DSHitTarget.icon, height: DSHitTarget.icon)
                     .contentShape(Rectangle())
             }
-            .menuStyle(.borderlessButton)
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .controlSize(.mini)
             .menuIndicator(.hidden)
-            .fixedSize()
+            .frame(width: DSHitTarget.icon, height: DSHitTarget.icon)
+            .contentShape(Rectangle())
             .opacity(actionOpacity)
             .help("プロジェクト操作")
 
@@ -372,13 +375,16 @@ private struct ProjectSidebarHeader<NewSessionMenuContent: View>: View {
                     .frame(width: DSHitTarget.icon, height: DSHitTarget.icon)
                     .contentShape(Rectangle())
             }
-            .menuStyle(.borderlessButton)
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .controlSize(.mini)
             .menuIndicator(.hidden)
-            .fixedSize()
+            .frame(width: DSHitTarget.icon, height: DSHitTarget.icon)
+            .contentShape(Rectangle())
             .help("このプロジェクトで新規セッションを開始")
         }
         .padding(.horizontal, DSSpacing.s)
-        .padding(.vertical, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(
             backgroundFill,
             in: RoundedRectangle(cornerRadius: DSRadius.s)

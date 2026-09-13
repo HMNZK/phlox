@@ -380,12 +380,163 @@ def language_code_pinned?(src)
   compact(strip_comments(src.to_s)).match?(/languageCode:"(?:en|ja|en-US|ja-JP|en_US|ja_JP)"/)
 end
 
+def same_code?(a, b)
+  normalize_code(a.to_s) == normalize_code(b.to_s)
+end
+
+def language_code_from_locale?(src)
+  compact(src.to_s).include?("locale.language.languageCode")
+end
+
+def passes_env_language_code?(src)
+  c = compact(erase_if_false(src.to_s))
+  has_locale_environment?(src) &&
+    language_code_from_locale?(src) &&
+    (c.include?("languageCode:languageCode") || c.include?("languageCode: languageCode")) &&
+    !language_code_pinned?(src)
+end
+
+def option_value_sequence(src)
+  composer_options_src(src).scan(/ComposerModeOption\(\s*value:\s*("[^"]*"|nil)/).flatten
+end
+
+def tag_sequence(src)
+  compact(src.to_s).scan(/\.tag\(([^)]*)\)/).flatten
+end
+
+def appstorage_signature(src)
+  row = extract_struct_body(src.to_s, "BypassToggleRow").to_s
+  return nil if row.empty?
+  m = compact(row).match(/AppStorage\([^)]*\)/)
+  m && m[0]
+end
+
+def on_appear_perform_names(src)
+  compact(src.to_s).scan(/\.onAppear\(perform:([A-Za-z_][A-Za-z0-9_]*)\)/).flatten
+end
+
+def each_on_appear_closure_body(src)
+  text = src.to_s
+  i = 0
+  bodies = []
+  while i < text.length
+    m = text.match(/\.?onAppear\s*\{/, i)
+    break unless m
+    brace = text.index("{", m.begin(0))
+    break unless brace
+    body = extract_balanced(text, brace, "{", "}")
+    bodies << body if body
+    i = brace + 1
+  end
+  bodies
+end
+
+def contains_save_call?(blob)
+  c = compact(blob.to_s)
+  c.include?("applyConfig") || c.include?("applySettings")
+end
+
+def on_appear_saves?(src)
+  return false if src.nil?
+  return true if each_on_appear_closure_body(src).any? { |b| contains_save_call?(b) }
+  on_appear_perform_names(src).any? do |name|
+    body = extract_func_body(src, name)
+    body && contains_save_call?(body)
+  end
+end
+
+def wording_displayed?(src)
+  cleaned = erase_if_false(strip_comments(src.to_s))
+  c = compact(cleaned)
+  c.match?(/Text\((?:w|wording)\.(?:title|explanation|rowLabel|offExplanation|onExplanation)/) ||
+    c.include?("option.explanation") ||
+    c.match?(/Text\(UIWording\.(?:permission|launchPermission|settingsPermissionFooter)/) ||
+    c.match?(/Label\((?:w|wording)\.(?:title|rowLabel)/) ||
+    c.match?(/Label\(UIWording\./) ||
+    c.match?(/ComposerControlChip\(title:[^;]*UIWording/) ||
+    c.include?("AgentConsolePane(") && c.include?("UIWording.permission") ||
+    c.include?("AgentConsoleGroupHeader(title:w.title") ||
+    (c.include?("SettingsMenuRow(title:option.title") && c.include?("explanation:option.explanation"))
+end
+
+def truncation_kind(blob)
+  c = compact(blob.to_s)
+  return :line_limit if c.match?(/lineLimit\([12]\)/) || c.match?(/lineLimit:[12]/)
+  return :fixed_height if c.match?(/\.frame\(height:\d+/)
+  return :shrunk if c.include?("minimumScaleFactor") || c.match?(/scaleEffect\(0\./)
+  nil
+end
+
+def truncation_message(kind, label)
+  case kind
+  when :line_limit then "#{label} の説明が行数制限されている"
+  when :fixed_height then "#{label} の説明が固定高で切断されている"
+  when :shrunk then "#{label} の説明が縮小されている"
+  end
+end
+
+def extract_switch_body(src, header)
+  idx = src.to_s.index(header)
+  return nil unless idx
+  brace = src.index("{", idx)
+  return nil unless brace
+  extract_balanced(src, brace, "{", "}")
+end
+
+def launch_fingerprint(key, src)
+  return :missing if src.nil?
+  case key
+  when :spawn
+    body = extract_func_body(src, "appServerPolicies")
+    return :unparseable if body.nil?
+    extra = src.to_s.scan(/isFullAccessEnabled[^?\n]*\?[^\n]+/).join("\n")
+    normalize_code(body + extra)
+  when :planner
+    body = extract_func_body(src, "profile")
+    return :unparseable if body.nil?
+    normalize_code(body)
+  when :app_env
+    hits = src.to_s.scan(/permissionMode:\s*[^\n]+|runMode:\s*[^\n]+/)
+    return :unparseable if hits.empty?
+    normalize_code(hits.join("\n"))
+  when :descriptor
+    body = extract_enum_body(src, "AgentRegistry")
+    return :unparseable if body.nil?
+    args = body.scan(/bypassArgs:[^\n]+|restrictedArgs:[^\n]+/)
+    return :unparseable if args.empty?
+    normalize_code(args.join("\n"))
+  when :cursor_chat
+    body = extract_switch_body(src, "switch runMode")
+    return :unparseable if body.nil?
+    normalize_code(body)
+  when :composition_root
+    body = extract_func_body(src, "writeClaudeSettings")
+    return :unparseable if body.nil?
+    normalize_code(body)
+  else
+    normalize_code(src)
+  end
+end
+
+def named_body(src, struct_name, name)
+  struct = extract_struct_body(src.to_s, struct_name).to_s
+  return nil if struct.empty?
+  extract_var_body(struct, name) || extract_func_body(struct, name) || extract_var_body(src.to_s, name) || extract_func_body(src.to_s, name)
+end
+
+def locale_injection_ok?(src)
+  return false if src.nil?
+  compact(src).include?("environment(\\.locale,appLanguage.locale)") ||
+    src.include?(".environment(\\.locale, appLanguage.locale)")
+end
+
 CONTRACT_PATH = "tasks/task-50.md"
 WIRING_RB_PATH = ".claude/scripts/task50-wiring.rb"
 TEST_PATH = "macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptancePermissionWordingTests.swift"
 
 PATHS = {
   permissions: "macos/Packages/DesignSystem/Sources/DesignSystem/UIWording+Permissions.swift",
+  uiwording: "macos/Packages/DesignSystem/Sources/DesignSystem/UIWording.swift",
   settings: "macos/Packages/SessionFeature/Sources/SessionFeature/ComposerSettingsControls.swift",
   settings_view: "macos/App/SettingsView.swift",
   claude_perm: "macos/App/AgentConsole/Claude/ClaudePermissionsPane.swift",
@@ -395,10 +546,14 @@ PATHS = {
   planner: "macos/Packages/DashboardFeature/Sources/DashboardFeature/Spawn/AgentLaunchPlanner.swift",
   spawn: "macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/SessionSpawnService.swift",
   app_env: "macos/Packages/DashboardFeature/Sources/DashboardFeature/Environment/AppEnvironment.swift",
+  descriptor: "macos/Packages/AgentDomain/Sources/AgentDomain/AgentDescriptor.swift",
+  cursor_chat: "macos/Packages/CursorAgentKit/Sources/CursorAgentKit/CursorChatClient.swift",
+  composition_root: "macos/App/CompositionRoot.swift",
+  phlox_app: "macos/App/PhloxApp.swift",
 }.freeze
 
 PRODUCT_KEYS = %i[permissions settings settings_view claude_perm cursor_perm codex_settings cursor_settings].freeze
-PROTECTED_KEYS = %i[planner spawn app_env].freeze
+PROTECTED_KEYS = %i[planner spawn app_env descriptor cursor_chat composition_root].freeze
 
 FORBIDDEN_PERMISSIONS_IO = [
   "Locale.current",
@@ -517,6 +672,31 @@ def implementation_in_baseline_errors(permissions_blob)
   end
 end
 
+def task48_canonical_errors(uiwording_blob, settings_blob)
+  ng = []
+  if uiwording_blob.nil?
+    ng << "基準時点に UIWording.swift が無い（task-48 完成実装を含まない）"
+    return ng
+  end
+  unless code_has_ident?(uiwording_blob, "planOption") && code_has_ident?(uiwording_blob, "permissionLabel")
+    ng << "基準時点の UIWording.swift が task-48 正本として接続できない"
+  end
+  params = extract_func_params(uiwording_blob, "text")
+  if params.nil? || !compact(params).include?("languageCode")
+    msg = "基準時点の UIWording.swift が task-48 正本として接続できない"
+    ng << msg unless ng.include?(msg)
+  end
+  if settings_blob
+    sc = compact(settings_blob)
+    unless sc.include?("UIWording.text(.planOption") || sc.include?("UIWording.text(.permissionLabel")
+      ng << "基準時点の ComposerSettingsControls が task-48 正本へ接続していない"
+    end
+  else
+    ng << "基準時点の ComposerSettingsControls が task-48 正本へ接続していない"
+  end
+  ng
+end
+
 def check_frozen_baseline(baseline, opts = {})
   ng = []
   full = git_full_sha(baseline)
@@ -529,6 +709,9 @@ def check_frozen_baseline(baseline, opts = {})
   end
   perm_blob = opts.key?(:permissions_blob) ? opts[:permissions_blob] : git_show(full, PATHS[:permissions])
   ng.concat(implementation_in_baseline_errors(perm_blob))
+  ui_blob = opts.key?(:uiwording_blob) ? opts[:uiwording_blob] : git_show(full, PATHS[:uiwording])
+  settings_base = opts.key?(:settings_blob) ? opts[:settings_blob] : git_show(full, PATHS[:settings])
+  ng.concat(task48_canonical_errors(ui_blob, settings_base))
   test_blob = opts.key?(:test_blob) ? opts[:test_blob] : git_show(full, TEST_PATH)
   rb_blob = opts.key?(:rb_blob) ? opts[:rb_blob] : git_show(full, WIRING_RB_PATH)
   test_now = opts.key?(:test_now) ? opts[:test_now] : read_if_exist(TEST_PATH)
@@ -549,19 +732,21 @@ def leftover_errors(src, path, leftovers)
 end
 
 def uses_permission_api?(src)
-  c = compact(erase_if_false(src.to_s))
+  masked = mask_strings_and_comments(erase_if_false(src.to_s))
+  c = compact(masked)
   code_has_ident?(src, "UIWording") && c.include?("UIWording.permission") && c.include?("languageCode")
 end
 
 def uses_launch_api?(src)
-  c = compact(erase_if_false(src.to_s))
+  masked = mask_strings_and_comments(erase_if_false(src.to_s))
+  c = compact(masked)
   code_has_ident?(src, "UIWording") && c.include?("launchPermission") && c.include?("languageCode")
 end
 
 def explanation_truncated?(src)
   row = extract_struct_body(src.to_s, "SettingsMenuRow")
   return false if row.nil?
-  compact(row).include?("lineLimit(2)") || compact(row).include?("lineLimit:2")
+  !truncation_kind(row).nil?
 end
 
 def check_permissions_api(src)
@@ -616,6 +801,37 @@ def composer_options_src(src)
   extract_func_body(src.to_s, "composerModeOptions").to_s
 end
 
+def menu_explains?(blob)
+  return false if blob.nil?
+  c = compact(blob)
+  code_has_ident?(blob, "composerModeOptions") && c.include?("option.explanation")
+end
+
+def check_named_menu(src, struct_name, name, message)
+  blob = named_body(src, struct_name, name)
+  return [] if blob.nil?
+  ok = menu_explains?(blob) && compact(blob).include?("composerModeOptions(for:viewModel.agentRef")
+  ok ? [] : [message]
+end
+
+def check_named_permission_site(src, struct_name, name, kind_token, message)
+  blob = named_body(src, struct_name, name)
+  return [] if blob.nil?
+  uses_permission_api?(blob) && compact(blob).include?(kind_token) ? [] : [message]
+end
+
+def check_locale_chain(src, missing_msg, env_msg, pinned_msg)
+  if !has_locale_environment?(src)
+    [missing_msg]
+  elsif language_code_pinned?(src)
+    [pinned_msg]
+  elsif !passes_env_language_code?(src)
+    [env_msg]
+  else
+    []
+  end
+end
+
 def check_composer(src)
   ng = []
   if src.nil?
@@ -631,6 +847,11 @@ def check_composer(src)
   unless uses_permission_api?(options) && opt_c.include?("kind:.claudePermissionMode")
     ng << "通常メニューが UIWording.permission に接続していない"
   end
+  unless opt_c.include?("kind:.codexProfile") && opt_c.include?("kind:.cursorOperationMode") && opt_c.include?("kind:.claudePermissionMode") && opt_c.include?("codexProfileIDs")
+    unless uses_permission_api?(options) && opt_c.include?("kind:.claudePermissionMode") && opt_c.include?("codexProfileIDs") && opt_c.include?("kind:.codexProfile")
+      ng << "通常メニューが UIWording.permission に接続していない" unless ng.include?("通常メニューが UIWording.permission に接続していない")
+    end
+  end
   regular = extract_struct_body(src, "ComposerSettingsControlsView").to_s
   overflow = extract_struct_body(src, "ComposerSettingsOverflowMenu").to_s
   if regular.empty?
@@ -640,16 +861,29 @@ def check_composer(src)
     if reach == :unparseable
       ng << "ComposerSettingsControlsView の body を括弧対応で切り出せない"
     else
-      unless code_has_ident?(reach, "composerModeOptions") && compact(reach).include?("option.explanation")
+      unless menu_explains?(reach)
         ng << "通常メニューが UIWording.permission に接続していない" unless ng.include?("通常メニューが UIWording.permission に接続していない")
       end
-      chip = compact(reach)
+      unless wording_displayed?(reach)
+        ng << "通常メニューが UIWording.permission に接続していない" unless ng.include?("通常メニューが UIWording.permission に接続していない")
+      end
+      chip = compact(mask_strings_and_comments(reach.to_s))
       unless chip.include?("ComposerControlChip") && chip.include?("kind:.claudePermissionMode")
         ng << "選択中ラベルが UIWording.permission に接続していない"
       end
+      unless chip.include?("ComposerControlChip") && chip.include?("kind:.cursorOperationMode")
+        ng << "Cursor の選択中ラベルが UIWording.permission に接続していない"
+      end
+      unless chip.include?("ComposerControlChip") && chip.include?("kind:.codexProfile")
+        ng << "Codex の選択中ラベルが UIWording.permission に接続していない"
+      end
     end
-    ng << "ComposerSettingsControls が表示言語を languageCode リテラルへ固定している" if language_code_pinned?(regular)
-    ng << "ComposerSettingsControls が locale を受け取っていない" unless has_locale_environment?(regular)
+    ng.concat(check_locale_chain(
+      regular,
+      "ComposerSettingsControls が locale を受け取っていない",
+      "ComposerSettingsControls が環境 locale から languageCode を渡していない",
+      "ComposerSettingsControls が表示言語を languageCode リテラルへ固定している"
+    ))
   end
   if overflow.empty?
     ng << "ComposerSettingsOverflowMenu を括弧対応で切り出せない"
@@ -658,11 +892,21 @@ def check_composer(src)
     if over_reach == :unparseable
       ng << "ComposerSettingsOverflowMenu の body を括弧対応で切り出せない"
     else
-      unless code_has_ident?(over_reach, "composerModeOptions") && compact(over_reach).include?("option.explanation")
+      unless menu_explains?(over_reach)
         ng << "省略メニューが UIWording.permission に接続していない"
       end
+      unless wording_displayed?(over_reach)
+        ng << "省略メニューが UIWording.permission に接続していない" unless ng.include?("省略メニューが UIWording.permission に接続していない")
+      end
     end
+    ng << "ComposerSettingsOverflowMenu が環境 locale から languageCode を渡していない" unless passes_env_language_code?(overflow)
   end
+  ng.concat(check_named_menu(src, "ComposerSettingsControlsView", "claudePermissionMenu", "Claude の通常メニューが UIWording.permission に接続していない"))
+  ng.concat(check_named_menu(src, "ComposerSettingsControlsView", "cursorModeMenu", "Cursor の通常メニューが UIWording.permission に接続していない"))
+  ng.concat(check_named_menu(src, "ComposerSettingsControlsView", "permissionMenu", "Codex の通常メニューが UIWording.permission に接続していない"))
+  ng.concat(check_named_menu(src, "ComposerSettingsOverflowMenu", "spawnPermissionItems", "Claude の省略メニューが UIWording.permission に接続していない"))
+  ng.concat(check_named_menu(src, "ComposerSettingsOverflowMenu", "cursorModeItems", "Cursor の省略メニューが UIWording.permission に接続していない"))
+  ng.concat(check_named_menu(src, "ComposerSettingsOverflowMenu", "codexPermissionItems", "Codex の省略メニューが UIWording.permission に接続していない"))
   if opt_c.include?('value:"default"')
     ng << "composerModeOptions に default 項目が増えている"
   end
@@ -680,10 +924,14 @@ def check_composer(src)
   if compact(title_blob).include?("kind:.codexSandboxMode") || compact(title_blob).include?("kind:.codexApprovalPolicy")
     ng << "Codex のプロフィールが実行制限の正本へ接続している"
   end
-  unless compact(src).include?("kind:.codexProfile")
+  unless compact(src).include?("kind:.codexProfile") && opt_c.include?("kind:.codexProfile") && opt_c.include?("codexProfileIDs")
     ng << "Codex のプロフィールが実行制限の正本へ接続している" unless ng.include?("Codex のプロフィールが実行制限の正本へ接続している")
   end
-  ng << "説明が常時省略されている" if explanation_truncated?(src)
+  row = extract_struct_body(src.to_s, "SettingsMenuRow")
+  if row
+    kind = truncation_kind(row)
+    ng << truncation_message(kind, "SettingsMenuRow") if kind
+  end
   unless compact(src).include?("UIWording.text(.planOption") || compact(src).include?("UIWording.text(.planOption,")
     ng << "Plan の正本参照が巻き戻っている"
   end
@@ -706,15 +954,40 @@ def check_settings_view(src)
   if reach == :unparseable
     ng << "BypassToggleRow の body を括弧対応で切り出せない"
   else
+    rc = compact(reach)
     unless uses_launch_api?(reach)
       ng << "設定の権限行が UIWording.launchPermission に接続していない"
     end
-    unless compact(reach).include?("offExplanation") && compact(reach).include?("onExplanation")
+    displayed = wording_displayed?(reach) || (rc.include?("wording.onExplanation") && rc.include?("wording.offExplanation"))
+    unless displayed && rc.include?("wording.rowLabel")
       ng << "設定の権限行が UIWording.launchPermission に接続していない" unless ng.include?("設定の権限行が UIWording.launchPermission に接続していない")
     end
+    has_off = rc.include?("Text(wording.offExplanation")
+    has_on = rc.include?("Text(wording.onExplanation")
+    ternary = rc.include?("isEnabled?wording.onExplanation:wording.offExplanation") ||
+      rc.include?("isEnabled?wording.offExplanation:wording.onExplanation")
+    if ternary || !(has_off && has_on)
+      ng << "設定の権限行が ON/OFF 説明を同時に描画していない"
+    end
+    if rc.match?(/launchPermission\(agent:\.(claude|codex|cursor)/)
+      ng << "設定の権限行が agent を固定している"
+    end
+    kind = truncation_kind(row)
+    ng << truncation_message(kind, "BypassToggleRow") if kind
   end
-  unless compact(src).include?("settingsPermissionFooter")
-    ng << "設定の footer が UIWording.settingsPermissionFooter に接続していない"
+  view = extract_struct_body(src, "SettingsView").to_s
+  view_reach = view.empty? ? :unparseable : reachable_from(view, "body")
+  if view_reach == :unparseable || view.empty?
+    unless compact(src).include?("Text(UIWording.settingsPermissionFooter")
+      ng << "設定の footer が UIWording.settingsPermissionFooter に接続していない"
+    end
+  else
+    unless compact(view_reach).include?("Text(UIWording.settingsPermissionFooter")
+      ng << "設定の footer が UIWording.settingsPermissionFooter に接続していない"
+    end
+    body_var = extract_var_body(view, "body").to_s
+    fk = truncation_kind(body_var)
+    ng << truncation_message(fk, "SettingsView") if fk
   end
   unless compact(src).include?("agentCatalog.allDescriptors")
     ng << "動的エージェント一覧が固定3行になっている"
@@ -723,7 +996,11 @@ def check_settings_view(src)
     ng << "カスタムエージェントをフルアクセス扱いしている"
   end
   ng.concat(leftover_errors(src, PATHS[:settings_view], SETTINGS_LEFTOVER))
-  ng << "SettingsView が表示言語を languageCode リテラルへ固定している" if language_code_pinned?(src)
+  if language_code_pinned?(src)
+    ng << "SettingsView が表示言語を languageCode リテラルへ固定している"
+  elsif !(passes_env_language_code?(row) || passes_env_language_code?(src))
+    ng << "SettingsView が環境 locale から languageCode を渡していない"
+  end
   ng.uniq
 end
 
@@ -743,10 +1020,14 @@ def check_pane(src, struct, kind_token, message)
     ng << "#{struct} の body を括弧対応で切り出せない"
     return ng
   end
-  unless uses_permission_api?(reach) && compact(reach).include?(kind_token)
+  unless uses_permission_api?(reach) && compact(reach).include?(kind_token) && wording_displayed?(reach)
     ng << message
   end
-  ng << "#{struct} が表示言語を languageCode リテラルへ固定している" if language_code_pinned?(src)
+  if language_code_pinned?(src)
+    ng << "#{struct} が表示言語を languageCode リテラルへ固定している"
+  elsif !passes_env_language_code?(src)
+    ng << "#{struct} が環境 locale から languageCode を渡していない"
+  end
   ng
 end
 
@@ -755,6 +1036,25 @@ def check_management(files)
   ng.concat(check_pane(files[:claude_perm], "ClaudePermissionsPane", "kind:.claudeRuleBucket", "ClaudePermissionsPane の権限説明が UIWording.permission に接続していない"))
   ng.concat(check_pane(files[:cursor_perm], "CursorPermissionsPane", "kind:.cursorRuleBucket", "CursorPermissionsPane の権限説明が UIWording.permission に接続していない"))
   ng.concat(check_pane(files[:claude_perm], "ClaudePermissionsPane", "kind:.permissionsPaneIntro", "ClaudePermissionsPane の権限説明が UIWording.permission に接続していない")) unless files[:claude_perm].nil?
+  if files[:claude_perm]
+    ng.concat(check_named_permission_site(files[:claude_perm], "ClaudePermissionsPane", "editor", "kind:.claudeRuleBucket", "ClaudePermissionsPane の editor が UIWording.permission に接続していない"))
+    ng.concat(check_named_permission_site(files[:claude_perm], "ClaudePermissionsPane", "bucketSection", "kind:.claudeRuleBucket", "ClaudePermissionsPane の bucketSection が UIWording.permission に接続していない"))
+    bsec = named_body(files[:claude_perm], "ClaudePermissionsPane", "bucketSection")
+    if bsec && (k = truncation_kind(bsec))
+      ng << truncation_message(k, "ClaudePermissionsPane")
+    end
+  end
+  if files[:cursor_perm]
+    ng.concat(check_named_permission_site(files[:cursor_perm], "CursorPermissionsPane", "editor", "kind:.cursorRuleBucket", "CursorPermissionsPane の editor が UIWording.permission に接続していない"))
+    ng.concat(check_named_permission_site(files[:cursor_perm], "CursorPermissionsPane", "bucketSection", "kind:.cursorRuleBucket", "CursorPermissionsPane の bucketSection が UIWording.permission に接続していない"))
+    unless compact(files[:cursor_perm]).include?("kind:.permissionsPaneIntro")
+      ng << "CursorPermissionsPane の導入文が UIWording.permission に接続していない"
+    end
+    cbsec = named_body(files[:cursor_perm], "CursorPermissionsPane", "bucketSection")
+    if cbsec && (k = truncation_kind(cbsec))
+      ng << truncation_message(k, "CursorPermissionsPane")
+    end
+  end
   if files[:codex_settings]
     src = files[:codex_settings]
     reach = reachable_in_struct(src, "CodexSettingsPane", "body")
@@ -776,6 +1076,22 @@ def check_management(files)
       end
       unless compact(src).include?("successMessage")
         ng << "成功通知の生成経路が変わっている"
+      end
+    end
+    setting_row = named_body(src, "CodexSettingsPane", "settingRow")
+    if setting_row
+      sr = compact(setting_row)
+      unless sr.include?("kind:.settingKeyTitle") && sr.include?("kind:.codexApprovalPolicy") && sr.include?("kind:.codexSandboxMode")
+        ng << "CodexSettingsPane の承認方針が正本へ接続していない" unless ng.include?("CodexSettingsPane の承認方針が正本へ接続していない") || ng.include?("Codex の承認方針が実行制限の正本へ接続している")
+      end
+      sk = truncation_kind(setting_row)
+      ng << truncation_message(sk, "CodexSettingsPane") if sk
+    end
+    choice = named_body(src, "CodexSettingsPane", "choiceControl")
+    if choice
+      masked_choice = compact(mask_strings_and_comments(choice))
+      unless uses_permission_api?(choice) && !masked_choice.include?("Text(option)")
+        ng << "CodexSettingsPane の choiceControl が UIWording.permission に接続していない"
       end
     end
   else
@@ -800,6 +1116,16 @@ def check_management(files)
         ng << "成功通知の生成経路が変わっている" unless ng.include?("成功通知の生成経路が変わっている")
       end
     end
+    ctrl = named_body(src, "CursorSettingsPane", "control")
+    if ctrl
+      unless uses_permission_api?(ctrl) && compact(ctrl).include?("kind:.cursorSandboxMode") && compact(ctrl).include?("kind:.cursorApprovalMode")
+        ng << "CursorSettingsPane の control が UIWording.permission に接続していない"
+      end
+    end
+    crow = named_body(src, "CursorSettingsPane", "settingRow")
+    if crow && (k = truncation_kind(crow))
+      ng << truncation_message(k, "CursorSettingsPane")
+    end
   else
     ng << "#{PATHS[:cursor_settings]} が存在しない"
   end
@@ -814,6 +1140,13 @@ def check_product(files)
   ng.concat(check_settings_view(files[:settings_view])) unless files[:settings_view].nil?
   if PRODUCT_KEYS.all? { |k| k == :permissions || files[k] }
     ng.concat(check_management(files))
+  end
+  if files.key?(:phlox_app)
+    if files[:phlox_app].nil?
+      ng << "#{PATHS[:phlox_app]} が存在しない"
+    elsif !locale_injection_ok?(files[:phlox_app])
+      ng << "PhloxApp が環境 locale を注入していない"
+    end
   end
   ng.uniq
 end
@@ -892,13 +1225,16 @@ def check_invariants(current, previous)
     unless compact(src).include?("applySettings")
       ng << "action が TASK50_BASELINE から変化している"
     end
+    prev = previous[key]
+    if prev && tag_sequence(src) != tag_sequence(prev)
+      ng << "tag が TASK50_BASELINE から変化している"
+    end
   end
 
   %i[codex_settings cursor_settings].each do |key|
     src = current[key]
     next if src.nil?
-    ac = compact(src)
-    if ac.include?("onAppear") && (ac.include?("applySettings") || ac.include?("applyConfig"))
+    if on_appear_saves?(src)
       ng << "表示時に保存処理が追加されている"
     end
   end
@@ -906,16 +1242,58 @@ def check_invariants(current, previous)
   PROTECTED_KEYS.each do |key|
     now = current[key]
     prev = previous[key]
-    next if now.nil? || prev.nil?
-    if launch_tokens(now) != launch_tokens(prev)
+    if now.nil?
+      ng << "#{PATHS[key]} が存在しない"
+      next
+    end
+    if prev.nil?
+      ng << "基準時点の #{PATHS[key]} を git show できない"
+      next
+    end
+    fp_now = launch_fingerprint(key, now)
+    fp_prev = launch_fingerprint(key, prev)
+    if fp_now == :unparseable || fp_prev == :unparseable
+      ng << "起動処理を括弧対応で切り出せない"
+    elsif fp_now != fp_prev
       ng << "起動引数が TASK50_BASELINE から変化している"
     end
   end
 
   if current[:settings] && previous[:settings]
     now_opts = composer_options_src(current[:settings])
-    if now_opts.empty?
-      ng << "コントロールが削除されている"
+    prev_opts = composer_options_src(previous[:settings])
+    if now_opts.empty? || prev_opts.empty?
+      if now_opts.empty?
+        ng << "コントロールが削除されている"
+      else
+        ng << "composerModeOptions を括弧対応で切り出せない"
+      end
+    elsif option_value_sequence(current[:settings]) != option_value_sequence(previous[:settings])
+      ng << "メニューの項目集合・順序が TASK50_BASELINE から変化している"
+    end
+    %w[setSpawnPermission setSpawnAgentPermission].each do |fn|
+      now_call = extract_call_args(current[:settings], fn)
+      prev_call = extract_call_args(previous[:settings], fn)
+      if now_call && prev_call && !same_code?(now_call, prev_call)
+        ng << "action が TASK50_BASELINE から変化している"
+      end
+    end
+    if tag_sequence(current[:settings]) != tag_sequence(previous[:settings])
+      ng << "tag が TASK50_BASELINE から変化している"
+    end
+  end
+
+  if current[:settings_view] && previous[:settings_view]
+    now_sig = appstorage_signature(current[:settings_view])
+    prev_sig = appstorage_signature(previous[:settings_view])
+    now_row = extract_struct_body(current[:settings_view], "BypassToggleRow")
+    prev_row = extract_struct_body(previous[:settings_view], "BypassToggleRow")
+    if now_row && prev_row
+      if now_sig.nil? || prev_sig.nil?
+        ng << "BypassToggleRow を括弧対応で切り出せない"
+      elsif now_sig != prev_sig
+        ng << "BypassToggleRow の Binding が TASK50_BASELINE から変化している"
+      end
     end
   end
 
@@ -1078,6 +1456,43 @@ def good_settings_src
           .accessibilityIdentifier("ChatComposer.claudePermissionMenu")
         ComposerControlChip(title: UIWording.permission(agent: .cursor, kind: .cursorOperationMode, value: viewModel.selectedPermissionProfile, languageCode: languageCode).title)
           .accessibilityIdentifier("ChatComposer.cursorModeMenu")
+        ComposerControlChip(title: UIWording.permission(agent: .codex, kind: .codexProfile, value: viewModel.selectedPermissionProfile, languageCode: languageCode).title)
+        claudePermissionMenu
+        cursorModeMenu
+        permissionMenu
+      }
+      private var claudePermissionMenu: some View {
+        Menu {
+          ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: [], languageCode: languageCode), id: \\.self) { option in
+            Button {
+              setSpawnPermission(option.value)
+            } label: {
+              SettingsMenuRow(title: option.title, isSelected: false, explanation: option.explanation)
+            }
+          }
+        } label: { Text("claude") }
+      }
+      private var cursorModeMenu: some View {
+        Menu {
+          ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: [], languageCode: languageCode), id: \\.self) { option in
+            Button {
+              setSpawnPermission(option.value)
+            } label: {
+              SettingsMenuRow(title: option.title, isSelected: false, explanation: option.explanation)
+            }
+          }
+        } label: { Text("cursor") }
+      }
+      private var permissionMenu: some View {
+        Menu {
+          ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: [], languageCode: languageCode), id: \\.self) { option in
+            Button {
+              setSpawnPermission(option.value)
+            } label: {
+              SettingsMenuRow(title: option.title, isSelected: false, explanation: option.explanation)
+            }
+          }
+        } label: { Text("codex") }
       }
       private func modeOptionIsSelected(_ option: ComposerModeOption, currentValue: String?) -> Bool {
         if option.isPlan {
@@ -1099,8 +1514,26 @@ def good_settings_src
             }
             .disabled(option.isPlan && !viewModel.isPlanModeAvailable)
           }
+          spawnPermissionItems
+          cursorModeItems
+          codexPermissionItems
         } label: {
           Image(systemName: "ellipsis.circle")
+        }
+      }
+      private var spawnPermissionItems: some View {
+          ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: viewModel.permissionProfiles.map(\\.id), languageCode: languageCode), id: \\.self) { option in
+          SettingsMenuRow(title: option.title, isSelected: false, explanation: option.explanation)
+        }
+      }
+      private var cursorModeItems: some View {
+          ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: viewModel.permissionProfiles.map(\\.id), languageCode: languageCode), id: \\.self) { option in
+          SettingsMenuRow(title: option.title, isSelected: false, explanation: option.explanation)
+        }
+      }
+      private var codexPermissionItems: some View {
+          ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: viewModel.permissionProfiles.map(\\.id), languageCode: languageCode), id: \\.self) { option in
+          SettingsMenuRow(title: option.title, isSelected: false, explanation: option.explanation)
         }
       }
     }
@@ -1134,13 +1567,17 @@ def good_settings_view_src
           self.descriptor = descriptor
           _isEnabled = AppStorage(wrappedValue: true, descriptor.bypassKey)
         }
+    #{locale_and_code}
+        private var agentKind: UIWording.PermissionAgent {
+          switch descriptor.ref { default: .custom }
+        }
         var body: some View {
           let wording = UIWording.launchPermission(agent: agentKind, displayName: descriptor.displayName, languageCode: languageCode)
           Toggle(isOn: $isEnabled) {
             VStack {
               Label(wording.rowLabel, systemImage: descriptor.symbolName)
-              Text(isEnabled ? wording.onExplanation : wording.offExplanation)
-                .fixedSize(horizontal: false, vertical: true)
+              Text(wording.offExplanation).fixedSize(horizontal: false, vertical: true)
+              Text(wording.onExplanation).fixedSize(horizontal: false, vertical: true)
             }
           }
         }
@@ -1156,14 +1593,31 @@ def good_claude_perm_src
       var body: some View {
         AgentConsolePane(
           title: UIWording.permission(agent: .claude, kind: .permissionsPaneIntro, value: nil, languageCode: languageCode).title,
-          subtitle: UIWording.permission(agent: .claude, kind: .permissionsPaneIntro, value: nil, languageCode: languageCode).explanation
+          subtitle: UIWording.permission(agent: .claude, kind: .permissionsPaneIntro, value: nil, languageCode: languageCode).explanation,
+          controls: AnyView(editor)
         ) {
           ForEach(ClaudePermissionBucket.allCases) { bucket in
+            bucketSection(bucket)
             let w = UIWording.permission(agent: .claude, kind: .claudeRuleBucket, value: bucket.rawValue, languageCode: languageCode)
             Text(w.title)
             Text(w.explanation).fixedSize(horizontal: false, vertical: true)
             Label(w.title, systemImage: bucket.symbolName).tag(bucket)
           }
+        }
+      }
+      private var editor: some View {
+        Picker("", selection: $draftBucket) {
+          ForEach(ClaudePermissionBucket.allCases) { bucket in
+            let w = UIWording.permission(agent: .claude, kind: .claudeRuleBucket, value: bucket.rawValue, languageCode: languageCode)
+            Label(w.title, systemImage: bucket.symbolName).tag(bucket)
+          }
+        }
+      }
+      private func bucketSection(_ bucket: ClaudePermissionBucket) -> some View {
+        let w = UIWording.permission(agent: .claude, kind: .claudeRuleBucket, value: bucket.rawValue, languageCode: languageCode)
+        VStack {
+          Text(w.title)
+          Text(w.explanation).fixedSize(horizontal: false, vertical: true)
         }
       }
       func addRule() {
@@ -1180,14 +1634,31 @@ def good_cursor_perm_src
       var body: some View {
         AgentConsolePane(
           title: UIWording.permission(agent: .cursor, kind: .permissionsPaneIntro, value: nil, languageCode: languageCode).title,
-          subtitle: UIWording.permission(agent: .cursor, kind: .permissionsPaneIntro, value: nil, languageCode: languageCode).explanation
+          subtitle: UIWording.permission(agent: .cursor, kind: .permissionsPaneIntro, value: nil, languageCode: languageCode).explanation,
+          controls: AnyView(editor)
         ) {
           ForEach(CursorPermissionBucket.allCases) { bucket in
+            bucketSection(bucket)
             let w = UIWording.permission(agent: .cursor, kind: .cursorRuleBucket, value: bucket.rawValue, languageCode: languageCode)
             Text(w.title)
             Text(w.explanation).fixedSize(horizontal: false, vertical: true)
             Label(w.title, systemImage: bucket.symbolName).tag(bucket)
           }
+        }
+      }
+      private var editor: some View {
+        Picker("", selection: $draftBucket) {
+          ForEach(CursorPermissionBucket.allCases) { bucket in
+            let w = UIWording.permission(agent: .cursor, kind: .cursorRuleBucket, value: bucket.rawValue, languageCode: languageCode)
+            Label(w.title, systemImage: bucket.symbolName).tag(bucket)
+          }
+        }
+      }
+      private func bucketSection(_ bucket: CursorPermissionBucket) -> some View {
+        let w = UIWording.permission(agent: .cursor, kind: .cursorRuleBucket, value: bucket.rawValue, languageCode: languageCode)
+        VStack {
+          Text(w.title)
+          Text(w.explanation).fixedSize(horizontal: false, vertical: true)
         }
       }
       func addRule() {
@@ -1205,30 +1676,35 @@ def good_codex_settings_src
         ForEach(CodexGeneralSettings.editableKeys) { key in
           settingRow(key)
         }
+        .onAppear(perform: syncModelDraft)
       }
+      func syncModelDraft() { modelDraft = current }
       func settingRow(_ key: CodexSettingKey) -> some View {
         let current = CodexGeneralSettings.value(key, in: model.config)
         if key == .approvalPolicy {
           Text(UIWording.permission(agent: .codex, kind: .settingKeyTitle, value: "approval_policy", languageCode: languageCode).title)
           Text(UIWording.permission(agent: .codex, kind: .codexApprovalPolicy, value: current, languageCode: languageCode).explanation)
-          Picker("", selection: Binding(get: { current ?? "" }, set: { newValue in
-            model.applyConfig({ CodexGeneralSettings.setValue(newValue, for: key, in: &$0) }, successMessage: "\\(key.displayName)を「\\(newValue)」にしました。")
-          })) {
-            ForEach(key.options(current: current), id: \\.self) { option in
-              Text(UIWording.permission(agent: .codex, kind: .codexApprovalPolicy, value: option, languageCode: languageCode).title).tag(option)
-            }
-          }
+          choiceControl(key, current, kind: .codexApprovalPolicy)
         } else if key == .sandboxMode {
           Text(UIWording.permission(agent: .codex, kind: .settingKeyTitle, value: "sandbox_mode", languageCode: languageCode).title)
           Text(UIWording.permission(agent: .codex, kind: .codexSandboxMode, value: current, languageCode: languageCode).explanation)
-          Picker("", selection: Binding(get: { current ?? "" }, set: { _ in })) {
-            ForEach(key.options(current: current), id: \\.self) { option in
-              Text(option).tag(option)
-            }
-          }
+          choiceControl(key, current, kind: .codexSandboxMode)
         } else {
           Text(key.displayName)
           Text(key.explanation)
+        }
+      }
+      func choiceControl(_ key: CodexSettingKey, _ current: String?, kind: UIWording.PermissionKind) -> some View {
+        Picker("", selection: Binding(get: { current ?? "" }, set: { newValue in
+          model.applyConfig({ CodexGeneralSettings.setValue(newValue, for: key, in: &$0) }, successMessage: "\\(key.displayName)を「\\(newValue)」にしました。")
+        })) {
+          ForEach(key.options(current: current), id: \\.self) { option in
+            if kind == .codexSandboxMode {
+              Text(UIWording.permission(agent: .codex, kind: .codexSandboxMode, value: option, languageCode: languageCode).title).tag(option)
+            } else {
+              Text(UIWording.permission(agent: .codex, kind: .codexApprovalPolicy, value: option, languageCode: languageCode).title).tag(option)
+            }
+          }
         }
       }
     }
@@ -1249,6 +1725,20 @@ def good_cursor_settings_src
         if key == .approvalMode {
           Text(UIWording.permission(agent: .cursor, kind: .settingKeyTitle, value: "approvalMode", languageCode: languageCode).title)
           Text(UIWording.permission(agent: .cursor, kind: .cursorApprovalMode, value: current, languageCode: languageCode).explanation)
+          control(key)
+        } else if key == .sandboxMode {
+          Text(UIWording.permission(agent: .cursor, kind: .settingKeyTitle, value: "sandbox.mode", languageCode: languageCode).title)
+          Text(UIWording.permission(agent: .cursor, kind: .cursorSandboxMode, value: current, languageCode: languageCode).explanation)
+          control(key)
+        } else {
+          Text(key.displayName)
+          if let explanation = key.explanation { Text(explanation) }
+          Toggle("", isOn: Binding(get: { false }, set: { _ in }))
+        }
+      }
+      func control(_ key: CursorSettingKey) -> some View {
+        let current = CursorGeneralSettings.string(key, in: model.settings)
+        if key == .approvalMode {
           Picker("", selection: Binding(get: { current ?? "" }, set: { newValue in
             model.applySettings({ CursorGeneralSettings.setString(newValue, for: key, in: $0) }, successMessage: "\\(key.displayName)を「\\(newValue)」にしました。")
           })) {
@@ -1257,12 +1747,11 @@ def good_cursor_settings_src
             }
           }
         } else if key == .sandboxMode {
-          Text(UIWording.permission(agent: .cursor, kind: .settingKeyTitle, value: "sandbox.mode", languageCode: languageCode).title)
-          Text(UIWording.permission(agent: .cursor, kind: .cursorSandboxMode, value: current, languageCode: languageCode).explanation)
-        } else {
-          Text(key.displayName)
-          if let explanation = key.explanation { Text(explanation) }
-          Toggle("", isOn: Binding(get: { false }, set: { _ in }))
+          Picker("", selection: Binding(get: { current ?? "" }, set: { _ in })) {
+            ForEach(key.options(current: current), id: \\.self) { option in
+              Text(UIWording.permission(agent: .cursor, kind: .cursorSandboxMode, value: option, languageCode: languageCode).title).tag(option)
+            }
+          }
         }
       }
     }
@@ -1272,8 +1761,9 @@ end
 def good_planner_src
   <<~SWIFT
     enum AgentLaunchPlanner {
-      static func args(force: Bool) -> [String] {
-        force ? ["--force", "--sandbox", "disabled"] : ["--auto-review", "--sandbox", "enabled"]
+      static func profile(spec: AgentLaunchSpec, bypassEnabled: Bool) -> [String] {
+        let bypassArgs = ["--force", "--sandbox", "disabled"]
+        return bypassEnabled ? bypassArgs : spec.restrictedArgs
       }
     }
   SWIFT
@@ -1292,10 +1782,59 @@ end
 def good_app_env_src
   <<~SWIFT
     struct AppEnvironment {
-      func permissionMode(fullAccess: Bool) -> String {
-        fullAccess ? "bypassPermissions" : "auto"
+      func make(fullAccess: Bool) {
+        Spec(
+          permissionMode: fullAccess ? "bypassPermissions" : "auto",
+          runMode: fullAccess ? .runEverything : .autoReview
+        )
       }
     }
+  SWIFT
+end
+
+def good_uiwording_src
+  <<~SWIFT
+    public enum UIWording {
+      public enum Key: String, CaseIterable { case planOption, permissionLabel, modeLabel }
+      public static func text(_ key: Key, languageCode: String) -> String { key.rawValue }
+    }
+  SWIFT
+end
+
+def good_descriptor_src
+  <<~SWIFT
+    public enum AgentRegistry {
+      public static let allDescriptors: [AgentDescriptor] = [
+        AgentDescriptor(kind: .codex, launchSpec: AgentLaunchSpec(bypassArgs: ["--dangerously-bypass-approvals-and-sandbox"], restrictedArgs: [])),
+        AgentDescriptor(kind: .cursor, launchSpec: AgentLaunchSpec(bypassArgs: ["--force", "--sandbox", "disabled"], restrictedArgs: ["--auto-review", "--sandbox", "enabled"])),
+      ]
+    }
+  SWIFT
+end
+
+def good_cursor_chat_src
+  <<~SWIFT
+    switch runMode {
+    case .configured: break
+    case .autoReview: arguments.append(contentsOf: ["--auto-review", "--sandbox", "enabled"])
+    case .runEverything: arguments.append(contentsOf: ["--force", "--sandbox", "disabled"])
+    }
+  SWIFT
+end
+
+def good_composition_root_src
+  <<~SWIFT
+    static func writeClaudeSettings(bypass: Bool, statusLineCommand: String) throws -> URL {
+      let settings = ClaudeSettingsGenerator.settings(defaultMode: bypass ? "bypassPermissions" : "auto", dispatcher: "", statusLineCommand: statusLineCommand)
+    }
+  SWIFT
+end
+
+def good_phlox_app_src
+  <<~SWIFT
+    WindowGroup { ContentView().environment(\\.locale, appLanguage.locale) }
+    Settings { SettingsView().environment(\\.locale, appLanguage.locale) }
+    Window("Agent Console", id: "console") { ConsoleView().environment(\\.locale, appLanguage.locale) }
   SWIFT
 end
 
@@ -1311,6 +1850,11 @@ def good_files
     planner: good_planner_src,
     spawn: good_spawn_src,
     app_env: good_app_env_src,
+    descriptor: good_descriptor_src,
+    cursor_chat: good_cursor_chat_src,
+    composition_root: good_composition_root_src,
+    phlox_app: good_phlox_app_src,
+    uiwording: good_uiwording_src,
   }
 end
 
@@ -1348,6 +1892,7 @@ def run_selftest
   }
   selftest_errors_eq check_product(overflow_old), [
     "省略メニューが UIWording.permission に接続していない",
+    "ComposerSettingsOverflowMenu が環境 locale から languageCode を渡していない",
     "#{PATHS[:settings]} に権限文言の直値 \"Don't Ask\" が残っている",
   ], "負例: 省略メニューだけ未修正"
 
@@ -1389,6 +1934,7 @@ def run_selftest
     src.gsub("kind: .cursorOperationMode", "kind: .cursorApprovalMode")
   }
   selftest_errors_eq check_product(cursor_mix), [
+    "Cursor の選択中ラベルが UIWording.permission に接続していない",
     "Cursor の動作モードが承認方式の正本へ接続している",
   ], "負例: Cursor の動作モードへ承認説明を流用"
 
@@ -1430,7 +1976,7 @@ def run_selftest
   ], "負例: 既定値・ボタン様式の改変"
 
   action_changed = with_file(good, :settings) { |src|
-    src.sub("setSpawnPermission(option.value)", "saveNow()")
+    src.gsub("setSpawnPermission(option.value)", "saveNow()")
   }
   selftest_errors_eq check_invariants(action_changed, good), [
     "action が TASK50_BASELINE から変化している",
@@ -1459,7 +2005,7 @@ def run_selftest
   ], "負例: task-48 の一般文言の巻き戻し"
 
   deleted = with_file(good, :settings) { |src|
-    src.sub("ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: [], languageCode: languageCode)", "ForEach([] as [ComposerModeOption]")
+    src.gsub("ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: [], languageCode: languageCode)", "ForEach([] as [ComposerModeOption]")
   }
   deleted_prod = check_product(deleted)
   deleted_inv = check_invariants(deleted, good)
@@ -1473,6 +2019,165 @@ def run_selftest
   }
   unused_ng = check_product(unused)
   selftest_assert unused_ng.include?("設定の権限行が UIWording.launchPermission に接続していない"), "負例: 未使用の正本参照 (#{unused_ng.inspect})"
+
+  h1 = with_file(good, :settings) { |src|
+    src.sub(
+      'ComposerModeOption(value: "acceptEdits", title: UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: "acceptEdits"',
+      'ComposerModeOption(value: "auto", title: UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: "acceptEdits"'
+    ).sub(
+      'ComposerModeOption(value: "auto", title: UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: "auto"',
+      'ComposerModeOption(value: "acceptEdits", title: UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: "auto"'
+    )
+  }
+  selftest_errors_eq check_invariants(h1, good), [
+    "メニューの項目集合・順序が TASK50_BASELINE から変化している",
+  ], "負例: H1 メニュー項目順序の変化"
+
+  h2_swap = with_file(good, :spawn) { |src|
+    src.sub('fullAccess ? "never" : "on-request"', 'fullAccess ? "on-request" : "never"')
+  }
+  selftest_errors_eq check_invariants(h2_swap, good), [
+    "起動引数が TASK50_BASELINE から変化している",
+  ], "負例: H2 起動引数の入れ替え"
+
+  h2_missing = check_invariants(good, good.merge(spawn: nil))
+  selftest_errors_eq h2_missing, [
+    "基準時点の #{PATHS[:spawn]} を git show できない",
+  ], "負例: H2 基準 spawn 欠落"
+
+  h3_unused = with_file(good, :settings_view) { |src|
+    src.sub('Label(wording.rowLabel, systemImage: descriptor.symbolName)', 'Label("row", systemImage: descriptor.symbolName)')
+  }
+  selftest_errors_eq check_product(h3_unused), [
+    "設定の権限行が UIWording.launchPermission に接続していない",
+  ], "負例: H3 未使用の launchPermission"
+
+  h3_string = with_file(good, :settings) { |src|
+    src.sub(
+      "ComposerControlChip(title: viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: selectedClaudePermission, languageCode: languageCode).title)",
+      'ComposerControlChip(title: "UIWording.permission")'
+    )
+  }
+  selftest_errors_eq check_product(h3_string), [
+    "選択中ラベルが UIWording.permission に接続していない",
+  ], "負例: H3 文字列に UIWording.permission"
+
+  h3_comment = with_file(good, :settings) { |src|
+    src.sub(
+      "ComposerControlChip(title: viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: selectedClaudePermission, languageCode: languageCode).title)",
+      'ComposerControlChip(title: viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : /* UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: selectedClaudePermission, languageCode: languageCode).title */ "Bypass")'
+    )
+  }
+  selftest_errors_eq check_product(h3_comment), [
+    "選択中ラベルが UIWording.permission に接続していない",
+  ], "負例: H3 コメントアウトした permission"
+
+  h3_iffalse = with_file(good, :settings) { |src|
+    src.sub(
+      "ComposerControlChip(title: viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: selectedClaudePermission, languageCode: languageCode).title)",
+      'ComposerControlChip(title: "Bypass")\n        if false { UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: selectedClaudePermission, languageCode: languageCode) }'
+    )
+  }
+  selftest_errors_eq check_product(h3_iffalse), [
+    "選択中ラベルが UIWording.permission に接続していない",
+  ], "負例: H3 if false の permission"
+
+  h4_one = with_file(good, :settings_view) { |src|
+    src.sub("Text(wording.offExplanation).fixedSize(horizontal: false, vertical: true)", "Text(isEnabled ? wording.onExplanation : wording.offExplanation).fixedSize(horizontal: false, vertical: true)")
+  }
+  selftest_errors_eq check_product(h4_one), [
+    "設定の権限行が ON/OFF 説明を同時に描画していない",
+  ], "負例: H4 三項演算子の片側描画"
+
+  h4_agent = with_file(good, :settings_view) { |src|
+    src.sub("agent: agentKind", "agent: .claude")
+  }
+  selftest_errors_eq check_product(h4_agent), [
+    "設定の権限行が agent を固定している",
+  ], "負例: H4 agent 固定"
+
+  h4_footer = with_file(good, :settings_view) { |src|
+    src.sub("Text(UIWording.settingsPermissionFooter(languageCode: languageCode))", 'Text("old")') +
+      "\n    func decoy() { _ = UIWording.settingsPermissionFooter(languageCode: languageCode) }\n"
+  }
+  selftest_errors_eq check_product(h4_footer), [
+    "設定の footer が UIWording.settingsPermissionFooter に接続していない",
+  ], "負例: H4 footer 未使用参照"
+
+  h4_list = with_file(good, :settings_view) { |src|
+    src.sub("agentCatalog.allDescriptors", "[d1, d2, d3]")
+  }
+  selftest_errors_eq check_product(h4_list), [
+    "動的エージェント一覧が固定3行になっている",
+  ], "負例: H4 固定3行"
+
+  h5_intro = with_file(good, :cursor_perm) { |src|
+    src.gsub("kind: .permissionsPaneIntro", "kind: .cursorRuleBucket")
+  }
+  selftest_errors_eq check_product(h5_intro), [
+    "CursorPermissionsPane の導入文が UIWording.permission に接続していない",
+  ], "負例: H5 Cursor 導入文の欠落"
+
+  h5_choice = with_file(good, :codex_settings) { |src|
+    src.sub(
+      "Text(UIWording.permission(agent: .codex, kind: .codexSandboxMode, value: option, languageCode: languageCode).title).tag(option)",
+      "Text(option).tag(option)"
+    )
+  }
+  selftest_errors_eq check_product(h5_choice), [
+    "CodexSettingsPane の choiceControl が UIWording.permission に接続していない",
+  ], "負例: H5 Codex choiceControl の生 Text(option)"
+
+  h6 = with_file(good, :settings) { |src|
+    blob = named_body(src, "ComposerSettingsControlsView", "cursorModeMenu")
+    src.sub(blob, blob.sub(", explanation: option.explanation", ""))
+  }
+  selftest_errors_eq check_product(h6), [
+    "Cursor の通常メニューが UIWording.permission に接続していない",
+  ], "負例: H6 Cursor 通常メニューの explanation 欠落"
+
+  h7_locale = with_file(good, :settings) { |src|
+    src.sub("@Environment(\\.locale) private var locale\n", "")
+  }
+  selftest_errors_eq check_product(h7_locale), [
+    "ComposerSettingsControls が locale を受け取っていない",
+  ], "負例: H7 locale 未受信"
+
+  h7_current = with_file(good, :settings) { |src|
+    src.sub("private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }", "private var languageCode: String { Locale.current.identifier }")
+  }
+  selftest_errors_eq check_product(h7_current), [
+    "ComposerSettingsControls が環境 locale から languageCode を渡していない",
+  ], "負例: H7 Locale.current"
+
+  h7_ignore = with_file(good, :settings) { |src|
+    struct = extract_struct_body(src, "ComposerSettingsControlsView")
+    src.sub(struct, struct.gsub("languageCode: languageCode", "languageCode: Locale.current.identifier"))
+  }
+  selftest_errors_eq check_product(h7_ignore), [
+    "ComposerSettingsControls が環境 locale から languageCode を渡していない",
+  ], "負例: H7 languageCode 引数無視"
+
+  d2_line = with_file(good, :settings) { |src|
+    src.sub("Text(explanation).fixedSize(horizontal: false, vertical: true)", "Text(explanation).lineLimit(1)")
+  }
+  selftest_errors_eq check_product(d2_line), [
+    "SettingsMenuRow の説明が行数制限されている",
+  ], "負例: D2 lineLimit"
+
+  d2_frame = with_file(good, :settings) { |src|
+    src.sub("Text(explanation).fixedSize(horizontal: false, vertical: true)", "Text(explanation).frame(height: 8)")
+  }
+  selftest_errors_eq check_product(d2_frame), [
+    "SettingsMenuRow の説明が固定高で切断されている",
+  ], "負例: D2 固定高"
+
+  d2_scale = with_file(good, :settings) { |src|
+    src.sub("Text(explanation).fixedSize(horizontal: false, vertical: true)", "Text(explanation).minimumScaleFactor(0.1)")
+  }
+  selftest_errors_eq check_product(d2_scale), [
+    "SettingsMenuRow の説明が縮小されている",
+  ], "負例: D2 縮小"
 
   unset, unset_errs = baseline_env_errors(nil)
   selftest_errors_eq unset_errs, ["TASK50_BASELINE が未設定（HEAD にフォールバックしない）"], "負例: 基準の未設定"
@@ -1506,6 +2211,8 @@ def run_selftest
   pre_ok = check_frozen_baseline(
     head_full,
     permissions_blob: nil,
+    uiwording_blob: good_uiwording_src,
+    settings_blob: good_settings_src,
     test_blob: "test",
     test_now: "test",
     rb_blob: "rb",
@@ -1513,9 +2220,23 @@ def run_selftest
   )
   selftest_errors_eq pre_ok, [], "正例: 固定 SHA が HEAD と同じでも実装前 blob なら拒否しない"
 
+  m2 = check_frozen_baseline(
+    head_full,
+    permissions_blob: nil,
+    uiwording_blob: nil,
+    settings_blob: good_settings_src,
+    test_blob: "test",
+    test_now: "test",
+    rb_blob: "rb",
+    rb_now: "rb"
+  )
+  selftest_errors_eq m2, ["基準時点に UIWording.swift が無い（task-48 完成実装を含まない）"], "負例: M2 基準に UIWording が無い"
+
   post_ng = check_frozen_baseline(
     head_full,
     permissions_blob: good_permissions_src,
+    uiwording_blob: good_uiwording_src,
+    settings_blob: good_settings_src,
     test_blob: "test",
     test_now: "test",
     rb_blob: "rb",

@@ -232,3 +232,5 @@
 - 2026-09-13T20:49:17+0900 task-44 resume: ユーザー承認（2026-09-13「承認して全部続行」）: 3 回目の差し戻し。r3 HIGH の isMeta 除外（サーバー item の raw.isMeta 検査＋履歴 loader の isMeta 除外）の最小修正
 - 2026-09-13 task-44 3 回目の差し戻しをユーザー承認（「承認して全部続行（推奨）」）。resume --human-approved 済み。
 - 2026-09-13 task-44 3 回目差し戻し中の ESCALATION を裁定: (b) loader の isMeta 除外は task-51 凍結テスト（transcript 変換 4 件）と衝突→撤回。(a) のみ実装。既知の限界（meta のみで再開→後日復元で meta 採用の可能性）を契約に明記し後続項目へ。
+- 2026-09-13T21:20:42+0900 task-44 resume: 同一の承認済み 3 回目差し戻しの続き。blocked は実装役 ESCALATION（loader 変更が task-51 凍結テストと衝突）の自動遷移で、PM 裁定により loader 変更を撤回して completed（wt-44 288f858）
+- 2026-09-13 task-44 blocked→resume（ユーザー承認済みの 3 回目差し戻しの継続。追加の差し戻しではない）。task-46 統合検証の初回 fail は PM が誤って混入させた空ファイル（同名の重複 .swift）による multiple producers。削除後に再実行。

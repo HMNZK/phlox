@@ -101,3 +101,5 @@ Swift コンパイル警告は無し。上記 2 件は destination 複数一致�
 作業ツリー（レポート書き込み前）: `macos/App/SettingsView.swift` のみ変更（3 insertions, 91 deletions）。コミットしていない。
 
 === REPORT COMPLETE ===
+
+<!-- PM 形式修理 2026-09-13: frontmatter を付与（本文不変）。driver の「レポートが古い」判定を更新するための注記 -->

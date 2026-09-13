@@ -1665,13 +1665,22 @@ def run_selftest
   selftest_assert real_mismatch.any? { |m| m.include?("一致しない") }, "負例: 有効だが異なる SHA の不一致 (#{real_mismatch.inspect})"
   selftest_assert real_mismatch.none? { |m| m.include?("無効") }, "負例: 有効 SHA 同士の不一致は無効ではない"
 
-  head_settings = git_show(head_full, SETTINGS_PATH)
-  head_rb = git_show(head_full, WIRING_RB_PATH)
-  selftest_assert !head_settings.nil? && !head_rb.nil?, "HEAD の SettingsView / rb blob を git show できる"
-  selftest_assert baseline_settings_is_pre_ui05?(head_settings), "正例前提: HEAD の SettingsView は実装前 blob"
-  head_ok = check_frozen_baseline(head_full, settings_blob: head_settings, rb_now: head_rb, rb_blob: head_rb)
-  selftest_assert head_ok.empty?, "正例: HEAD 同値かつ実装前 blob (#{head_ok.inspect})"
-  post_ng = check_frozen_baseline(head_full, settings_blob: current, rb_now: head_rb, rb_blob: head_rb)
+  # 実装前 blob を持つ参照コミットは、HEAD ではなく契約の baseline_commit（無ければ TASK17_BASELINE、それも無ければ HEAD）から取る。
+  # 実装コミット後の HEAD は実装済み blob なので、HEAD 固定だと selftest が製品の進行に依存して壊れる（2026-09-13 PM 修理）。
+  ref_candidates = []
+  contract_text_for_selftest = File.exist?(CONTRACT_PATH) ? File.read(CONTRACT_PATH) : nil
+  parsed_ref = contract_text_for_selftest ? parse_contract_baseline_text(contract_text_for_selftest) : nil
+  ref_candidates << parsed_ref if parsed_ref.is_a?(String)
+  ref_candidates << ENV["TASK17_BASELINE"] if ENV["TASK17_BASELINE"] && !ENV["TASK17_BASELINE"].empty?
+  ref_candidates << "HEAD"
+  ref_full = ref_candidates.map { |c| git_full_sha(c) }.compact.first
+  ref_settings = git_show(ref_full, SETTINGS_PATH)
+  ref_rb = git_show(ref_full, WIRING_RB_PATH)
+  selftest_assert !ref_settings.nil? && !ref_rb.nil?, "参照コミットの SettingsView / rb blob を git show できる"
+  selftest_assert baseline_settings_is_pre_ui05?(ref_settings), "正例前提: 参照コミット（契約 baseline）の SettingsView は実装前 blob"
+  ref_ok = check_frozen_baseline(ref_full, settings_blob: ref_settings, rb_now: ref_rb, rb_blob: ref_rb)
+  selftest_assert ref_ok.empty?, "正例: 参照コミット同値かつ実装前 blob（HEAD と同じでも拒否しない） (#{ref_ok.inspect})"
+  post_ng = check_frozen_baseline(ref_full, settings_blob: current, rb_now: ref_rb, rb_blob: ref_rb)
   selftest_assert post_ng.any? { |m| m.include?("UI-05 実装前") }, "負例: 実装後 blob (#{post_ng.inspect})"
 
   selftest_assert ng_of(current, nil).any? { |m| m.include?("git show") }, "負例: blob 欠落"

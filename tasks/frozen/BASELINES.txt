@@ -46,3 +46,5 @@ bdbf1d9	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/Accep
 bdbf1d9	.claude/scripts/task40-wiring.rb
 78becdd	macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceSessionTitleDeriverTests.swift
 78becdd	.claude/scripts/task41-wiring.rb
+201e846	macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceSessionTitleDeriverTests.swift
+201e846	.claude/scripts/task41-wiring.rb

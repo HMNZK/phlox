@@ -255,11 +255,12 @@ struct AcceptanceTranscriptItemPresentationTests {
             timestamp: frozenTime
         )
         let sections = cell.visibleSections
-        let total = ChatMessageRenderCache.diffLines(diff).count
-        #expect(total == 501)
+        // 契約の 501 行はカード描画行（---/+++/@@ を除く）。
+        let displayLineCount = ChatMessageRenderCache.diffCodeView(diff: diff, path: "A.swift").sourceLineCount
+        #expect(displayLineCount == 501)
         #expect(sections.count == 1)
         #expect(sections[0].codeView.lines.count == 500)
-        #expect(total - FileChangeDisplayPolicy.visibleLineLimit == 1)
+        #expect(displayLineCount - FileChangeDisplayPolicy.visibleLineLimit == 1)
         let displayed = sections[0].codeView.lines.map(\.line.text)
         #expect(!displayed.contains(where: { $0.contains("line501") }))
         #expect(sections[0].copyText.contains("+line501"))

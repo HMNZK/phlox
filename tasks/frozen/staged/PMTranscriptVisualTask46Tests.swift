@@ -63,7 +63,7 @@ struct PMTranscriptVisualTask46Tests {
             hosting = hostView
             hostView.frame = NSRect(x: 0, y: 0, width: columnWidth, height: 900)
             hostView.layoutSubtreeIfNeeded()
-            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
+            pumpMainRunLoop(seconds: 0.12)
 
             client.yield(.turnStarted)
             try await waitUntil { viewModel.status.isRunning }
@@ -102,7 +102,7 @@ struct PMTranscriptVisualTask46Tests {
                 nsWindow.delegate = closer
                 withExtendedLifetime(closer) {
                     while !finished.value {
-                        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.2))
+                        pumpMainRunLoop(seconds: 0.2)
                     }
                 }
             }
@@ -200,7 +200,12 @@ private func assertFixedFixture(scenario: Task46VisualScenario) throws {
     let sections = cell.visibleSections
     #expect(sections.count == 1)
     #expect(sections[0].codeView.lines.count == FileChangeDisplayPolicy.visibleLineLimit)
-    #expect(ChatMessageRenderCache.diffLines(Task46VisualFixture.fileChange501.diff).count == 501)
+    #expect(
+        ChatMessageRenderCache.diffCodeView(
+            diff: Task46VisualFixture.fileChange501.diff,
+            path: Task46VisualFixture.fileChange501.path
+        ).sourceLineCount == 501
+    )
 
     #expect(Set([360, 720] as [CGFloat]).isSuperset(of: [scenario.columnWidth]))
     #expect(([0.8, 1.0, 2.0] as [CGFloat]).contains(scenario.fontScale))
@@ -212,14 +217,14 @@ private func commandItem(id: String, output: String) -> ChatItem {
 
 @Observable
 @MainActor
-final class Task46VisualScenario {
+private final class Task46VisualScenario {
     var items: [ChatItem]
     var singleCommand: ChatItem
     var columnWidth: CGFloat = 720
     var fontScale: CGFloat = 1.0
     var themeID: String = AppTheme.phloxLight.id
     var colorScheme: ColorScheme = .light
-    var contentMaxWidth: CGFloat = 720
+    var contentMaxWidth: CGFloat? = ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: 720)
     var bottomMargin: CGFloat = 84
     let suite: UserDefaults
     let client: Task46VisualClient
@@ -413,6 +418,11 @@ private final class Task46VisualWindowCloser: NSObject, NSWindowDelegate {
 }
 
 @MainActor
+private func pumpMainRunLoop(seconds: TimeInterval) {
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: seconds))
+}
+
+@MainActor
 private func waitUntil(_ condition: () -> Bool) async throws {
     for _ in 0..<50 {
         if condition() { return }
@@ -453,7 +463,7 @@ private func measureComposerHeight(
     window.isReleasedWhenClosed = false
     window.contentView = hosting
     hosting.layoutSubtreeIfNeeded()
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
+    pumpMainRunLoop(seconds: 0.12)
     hosting.layoutSubtreeIfNeeded()
     let height = max(hosting.fittingSize.height, 84)
     window.orderOut(nil)

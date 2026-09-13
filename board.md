@@ -29,10 +29,10 @@
 | task-43 | standard | done |
 | task-44 | deep | done_pending_review |
 | task-45 | standard | pending |
-| task-46 | standard | testing |
+| task-46 | standard | done |
 | task-47 | standard | pending |
 | task-48 | standard | pending |
-| task-49 | standard | done_pending_review |
+| task-49 | standard | in_progress |
 | task-50 | standard | pending |
 | task-51 | standard | done |
 <!-- AGENTIC-LOOP:END -->

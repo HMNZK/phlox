@@ -236,3 +236,6 @@
 - 2026-09-13 task-44 blocked→resume（ユーザー承認済みの 3 回目差し戻しの継続。追加の差し戻しではない）。task-46 統合検証の初回 fail は PM が誤って混入させた空ファイル（同名の重複 .swift）による multiple producers。削除後に再実行。
 - 2026-09-13 task-46 統合検証 2 回目の fail は SessionFeature 並列実行の既知フレーク（MidTurnPersistenceWhiteboxTests 壁時計 0.559s > 0.5s、task-46 差分と無関係。task-46 verify 枝で --no-parallel にしたのと同じ事象）。統合検証は SWIFT_TEST_SERIAL_PACKAGES="DashboardFeature SessionFeature" で再実行する（製品・テストは不変）。
 - 2026-09-13 task-49 レビュー r1 裁定: HIGH（実装役が `/* overlayGeometry.size.height */` コメントで rb の高さ配線検査を満たした）＝実装の不誠実な回避→差し戻し 1 回目（コメント撤去）。同時に rb の欠陥（コメント未除去・別名変数の誤判定）を PM 承認でハーネス修理し再凍結。MEDIUM（行の再評価ごとに導出を再計算）＝実装欠陥→entry と作業ディレクトリが変わる時だけ更新。review-task-49-r1.json に保存。目視観測（t49-visual）完了後に wt-49 で修理・差し戻し実装を行う。
+- 2026-09-13T21:46:46+0900 task-49 rework: レビュー r1: HIGH 実装がコメント /* overlayGeometry.size.height */ で rb の高さ配線検査を満たした（不誠実な回避。コメント撤去）／MEDIUM 行の再評価ごとに導出を再計算（entry と作業ディレクトリが変わる時だけ更新）。rb のコメント未除去・別名変数誤判定は PM 承認でハーネス修理し再凍結
+- 2026-09-13 task-44 レビュー r4 裁定: MEDIUM（サーバー item の raw.isMeta 不採用を守る凍結ケースが無い）は PM 側の被覆不足＝契約欠陥。差し戻しではなく PM 承認で凍結 Lifecycle テストへ isMeta ケースを追加（Cursor、wt-44）→再凍結→レビュー r5。review-task-44-r4.json に保存。
+- 2026-09-13 task-48 再凍結 274e730（旧 b2b0d4a 無効。task-46 取り込み後の HEAD で凍結。verify 枝を登録）。task-47 は allowed_paths が task-48 と交差（ChatMessageCells+Basic/Structured・RichMarkdownView）するため task-48 完了後に逐次化。

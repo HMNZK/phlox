@@ -113,3 +113,8 @@ eb04e86	.claude/scripts/task47-wiring.rb
 9b93efc	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptItemPresentationTests.swift
 9b93efc	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask46Tests.swift
 9b93efc	.claude/scripts/task46-wiring.rb
+274e730	macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptanceUIWordingTests.swift
+274e730	.claude/scripts/task48-wiring.rb
+274e730	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/AcceptanceContextPopoverBranchTests.swift
+274e730	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/ComposerModeMenuAcceptanceTests.swift
+274e730	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/GridComposerSettingsAcceptanceTests.swift

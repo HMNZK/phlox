@@ -82,7 +82,7 @@ public enum SessionTitleDeriver {
         let length = runLength(of: marker, in: line, from: indexAfterIndent)
         guard length >= minimumLength else { return false }
         let remainderStart = line.index(indexAfterIndent, offsetBy: length)
-        return line[remainderStart...].unicodeScalars.allSatisfy(isInternalCollapsibleWhitespace)
+        return line[remainderStart...].unicodeScalars.allSatisfy(isUnicodeWhitespace)
     }
 
     private static func indexAfterFenceIndent(in line: String) -> String.Index? {
@@ -160,25 +160,19 @@ public enum SessionTitleDeriver {
     }
 
     /// 行頭・行末の Unicode 空白（`CharacterSet.whitespaces` 相当）を除く。
-    /// 先頭/末尾 Character の先頭スカラーが空白ならそのスカラーだけ落とし、結合文字は残す。
+    /// 空白でない最初／最後のスカラーを一度求め、一回のスライスで切り出す（O(n)）。
     private static func trimCollapsibleWhitespace(_ text: String) -> String {
-        var result = text
-        while let first = result.first,
-              let scalar = first.unicodeScalars.first,
-              CharacterSet.whitespaces.contains(scalar)
-        {
-            result = String(result.unicodeScalars.dropFirst())
+        let scalars = text.unicodeScalars
+        var start = scalars.startIndex
+        while start < scalars.endIndex, isUnicodeWhitespace(scalars[start]) {
+            start = scalars.index(after: start)
         }
-        while let last = result.last,
-              let scalar = last.unicodeScalars.first,
-              CharacterSet.whitespaces.contains(scalar)
-        {
-            let keptCount = result.unicodeScalars.count - last.unicodeScalars.count
-            let kept = result.unicodeScalars.prefix(keptCount)
-            let remainder = last.unicodeScalars.dropFirst()
-            result = String(kept) + String(String.UnicodeScalarView(remainder))
+        guard start < scalars.endIndex else { return "" }
+        var last = scalars.index(before: scalars.endIndex)
+        while last > start, isUnicodeWhitespace(scalars[last]) {
+            last = scalars.index(before: last)
         }
-        return result
+        return String(scalars[start...last])
     }
 
     /// 連続する半角空白・タブ・U+3000 を半角空白 1 個にする。結合文字は維持する。
@@ -199,6 +193,10 @@ public enum SessionTitleDeriver {
             }
         }
         return String(result)
+    }
+
+    private static func isUnicodeWhitespace(_ scalar: Unicode.Scalar) -> Bool {
+        CharacterSet.whitespaces.contains(scalar)
     }
 
     private static func isInternalCollapsibleWhitespace(_ scalar: Unicode.Scalar) -> Bool {

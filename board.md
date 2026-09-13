@@ -27,12 +27,12 @@
 | task-40 | standard | done |
 | task-41 | standard | done |
 | task-43 | standard | done |
-| task-44 | deep | in_progress |
+| task-44 | deep | done_pending_review |
 | task-45 | standard | pending |
-| task-46 | standard | done_pending_review |
+| task-46 | standard | testing |
 | task-47 | standard | pending |
 | task-48 | standard | pending |
-| task-49 | standard | in_progress |
+| task-49 | standard | done_pending_review |
 | task-50 | standard | pending |
 | task-51 | standard | done |
 <!-- AGENTIC-LOOP:END -->

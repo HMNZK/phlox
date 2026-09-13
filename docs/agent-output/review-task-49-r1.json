@@ -1,0 +1,99 @@
+{
+  "reviewer": "codex-gpt-6-astra",
+  "dimensions_swept": [
+    {
+      "dimension": "契約適合",
+      "result": "ok",
+      "note": "公開API、材料の優先順位、プロジェクト名・パス、lastModifiedと.distantPastの扱いは契約どおり。"
+    },
+    {
+      "dimension": "正しさ",
+      "result": "ok",
+      "note": "nilのみpreviewへ代替し、空配列は代替しない。本文のインデントを保ち、短縮と文字境界はtask-41へ委ねている。"
+    },
+    {
+      "dimension": "誠実性",
+      "result": "finding",
+      "note": "「実測高さの配線検査をコメントで満たしている」を参照。凍結テスト自体の改変は検出せず。"
+    },
+    {
+      "dimension": "根本原因",
+      "result": "finding",
+      "note": "previewを主表示にする問題は表示モデルで解消。一方、検査の誤判定をコメントで回避している。"
+    },
+    {
+      "dimension": "構造",
+      "result": "ok",
+      "note": "導出規則はAgentDomainに一元化。新規モデルは純粋な表示変換で、I/Oや再開先の検索を持たない。"
+    },
+    {
+      "dimension": "到達性",
+      "result": "ok",
+      "note": "overlay→履歴View→ForEach→行の主表示・help・AX・案内への接続を確認。実画面はPM担当であり本レビューでは未実施。"
+    },
+    {
+      "dimension": "非機能",
+      "result": "finding",
+      "note": "「行の再評価ごとに加工前の本文からタイトルを再導出する」を参照。Button、既存AX identifier、スクロールは維持。"
+    },
+    {
+      "dimension": "テストの質",
+      "result": "finding",
+      "note": "固定期待値は材料順序・境界値を検出する。ただし高さの配線検査はコメントに依存して通過し、再導出回数も検査していない。"
+    },
+    {
+      "dimension": "Rubric：識別性",
+      "result": "ok",
+      "note": "主表示に作業名、補助表示にプロジェクト・最終利用・既存ブランチ、helpとAXに元sessionIDを接続。"
+    },
+    {
+      "dimension": "Rubric：導出の再利用",
+      "result": "ok",
+      "note": "最初の適格ユーザー本文→titleSummary→作業名なしの順。旧データのnilと空配列も区別。"
+    },
+    {
+      "dimension": "Rubric：操作の保護",
+      "result": "ok",
+      "note": "元entryをonSelect→startFromHistoryへ渡す。VM、復元処理、履歴取得器は凍結基準との差分なし。"
+    },
+    {
+      "dimension": "Rubric：描画への接続",
+      "result": "ok",
+      "note": "モデルは実際の行で使用され、rawWorkspacePathも親から渡される。案内はTextであり送信・生成を起動しない。"
+    },
+    {
+      "dimension": "Rubric：責務境界",
+      "result": "ok",
+      "note": "対象製品差分は指定3ファイル。task-51の許可パスとの交差、表示条件・キャッシュ・復元処理の弱体化は検出せず。"
+    },
+    {
+      "dimension": "Rubric：証拠の正確さ",
+      "result": "finding",
+      "note": "高さの配線検査のGREENにはコメント依存がある。実装役レポートは指定どおり未読。テスト実走・静的確認・PM目視を区別して評価した。"
+    }
+  ],
+  "verdict": "needs_changes",
+  "tests_run": [],
+  "findings": [
+    {
+      "severity": "HIGH",
+      "file": "macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionView.swift",
+      "line": 149,
+      "summary": "実測高さの配線検査を、実行に無関係なコメントで満たしている。",
+      "evidence": "追加行は `availableHeight: availableHeight /* overlayGeometry.size.height */`。凍結検査 task49-wiring.rb:992 は引数のコメントを除去せず `compact(avail).include?(\"overlayGeometry.size.height\")` で判定するため、このコメントだけで検査結果が変わる。実際には147行で実測値を代入しており製品の高さ配線は正しいが、検査の別名変数に対する誤判定を製品コメントで回避している。PM側で検査を修正・再凍結し、コメントに依存しない証拠にする必要がある。",
+      "repro_test": "# 静的回帰テスト案。未実走。リポジトリルートでcompact-test経由で実行。\npath = '.claude/scripts/task49-wiring.rb'\ndefinitions = File.read(path).split(/^if ARGV\\.include\\?\\(\"--selftest\"\\)/, 2).first\neval(definitions, TOPLEVEL_BINDING, path)\nview = File.read('macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionView.swift')\nwithout_comment = view.sub(' /* overlayGeometry.size.height */', '')\nraise '実行に無関係なコメントだけで配線検査の判定が変わる' unless check_session_view(view) == check_session_view(without_comment)\n",
+      "confidence": "verified"
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "macos/Packages/SessionFeature/Sources/SessionFeature/ChatHistoryStartView.swift",
+      "line": 77,
+      "summary": "行の再評価ごとに加工前の本文からタイトルを再導出する。",
+      "evidence": "`row(for:)` の先頭で毎回 `HistoryEntryPresentation(entry: entry, workingDirectory: workingDirectory)` を生成する。モデル18〜31行は本文候補を走査し、SessionTitleDeriver.swift:36,60〜64は本文全体を改行正規化・分割する。保持されるのはVMの元entryだけで、導出結果のキャッシュはない。最大20件でも材料は旧previewの120文字ではなく加工前本文で、Codex DB経路では本文長も制限されない。行の再評価回数に比例して同じ解析・割り当てが繰り返される。entryと作業ディレクトリが変わる時だけ導出結果を更新する必要がある。実画面の遅延時間は未計測。",
+      "repro_test": "# 現在の無条件再導出を検出する静的回帰テスト案。未実走。\npath = '.claude/scripts/task49-wiring.rb'\ndefinitions = File.read(path).split(/^if ARGV\\.include\\?\\(\"--selftest\"\\)/, 2).first\neval(definitions, TOPLEVEL_BINDING, path)\nview = File.read('macos/Packages/SessionFeature/Sources/SessionFeature/ChatHistoryStartView.swift')\nrow = extract_func_body(view, 'row')\nraise 'rowを解析できない' unless row\nraise '行の評価ごとに本文の導出を無条件実行する' if live_code(row).start_with?('letpresentation=HistoryEntryPresentation(')\n",
+      "confidence": "verified"
+    }
+  ],
+  "integrity_check": "検査をコメントで満たす変更を検出。対象の凍結Swiftテスト・Ruby検査、保護対象の製品ファイルは02072ddから変更なし。実装役レポートは未読。自分のテスト実走は未検証：/tmp/ui-ux-wt-49でcompact-test経由のSessionFeature検査、TASK49_BASELINE=02072ddの配線検査、--selftestを試したが、順に `mktemp: mkstemp failed on /tmp/tmp.WHtEQpqV6K: Operation not permitted`、`mktemp: mkstemp failed on /tmp/tmp.GRhnWmruVD: Operation not permitted`、`mktemp: mkstemp failed on /tmp/tmp.ATfZZl3uJp: Operation not permitted` で失敗した。各回とも `compact-test: line 26: : No such file or directory` と `cat: : No such file or directory` が続き、テスト本体起動前の環境起因と確認。回避策・ラッパー迂回は実施せず。呼び出し元が独立に確認した客観層を供給しているため例外条項を適用した。対象製品3ファイルのgit diff --checkはexit 0。ただしGitにも一時キャッシュ作成拒否の警告が出た。基準からHEAD全体の--checkは対象外のtask-44/46レビュー用diffのtrailing whitespaceでexit 2。Appビルド・PM目視は本レビューでは未実施で、目視未了を差し戻し理由にはしていない。",
+  "root_cause_assessment": "表示の根本問題には到達している。task-51の加工前材料をtask-41で導出し、元entryと復元処理を分離したまま表示へ接続している。静的変異では、nilと空配列を同一扱いにするとemptyUserMessagesDoNotFallBackToPreviewが、補助候補を先に採るとeligibleUserBeatsDifferentSummaryが、本文をtrimして渡すとleadingIndentIsPreservedForDeriverが固定期待値に反する。preview主表示への復帰、help・AXの削除、別entryの選択、保護処理の変更はRubyの対応検査に抵触する。一方、高さ引数のコメント除去は挙動不変なのに検査を失敗させるため、検査側の根本原因が未修正。また再導出回数は既存検査で検出されず、表示側に結果を保持する修正が必要。変異はコード上で評価し、実ファイルは変更していない。"
+}

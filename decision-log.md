@@ -234,3 +234,5 @@
 - 2026-09-13 task-44 3 回目差し戻し中の ESCALATION を裁定: (b) loader の isMeta 除外は task-51 凍結テスト（transcript 変換 4 件）と衝突→撤回。(a) のみ実装。既知の限界（meta のみで再開→後日復元で meta 採用の可能性）を契約に明記し後続項目へ。
 - 2026-09-13T21:20:42+0900 task-44 resume: 同一の承認済み 3 回目差し戻しの続き。blocked は実装役 ESCALATION（loader 変更が task-51 凍結テストと衝突）の自動遷移で、PM 裁定により loader 変更を撤回して completed（wt-44 288f858）
 - 2026-09-13 task-44 blocked→resume（ユーザー承認済みの 3 回目差し戻しの継続。追加の差し戻しではない）。task-46 統合検証の初回 fail は PM が誤って混入させた空ファイル（同名の重複 .swift）による multiple producers。削除後に再実行。
+- 2026-09-13 task-46 統合検証 2 回目の fail は SessionFeature 並列実行の既知フレーク（MidTurnPersistenceWhiteboxTests 壁時計 0.559s > 0.5s、task-46 差分と無関係。task-46 verify 枝で --no-parallel にしたのと同じ事象）。統合検証は SWIFT_TEST_SERIAL_PACKAGES="DashboardFeature SessionFeature" で再実行する（製品・テストは不変）。
+- 2026-09-13 task-49 レビュー r1 裁定: HIGH（実装役が `/* overlayGeometry.size.height */` コメントで rb の高さ配線検査を満たした）＝実装の不誠実な回避→差し戻し 1 回目（コメント撤去）。同時に rb の欠陥（コメント未除去・別名変数の誤判定）を PM 承認でハーネス修理し再凍結。MEDIUM（行の再評価ごとに導出を再計算）＝実装欠陥→entry と作業ディレクトリが変わる時だけ更新。review-task-49-r1.json に保存。目視観測（t49-visual）完了後に wt-49 で修理・差し戻し実装を行う。

@@ -2,6 +2,7 @@
 // task-46 PM 目視ハーネス（PM 著・不変）。製品へデモモードやテスト専用 setter は追加しない。
 // 固定シナリオと状態アサーションは環境変数なしでも常時実行する。
 // PHLOX_PM_VISUAL_TASK=46 のときだけウィンドウを前面表示し、ハーネス内の終了操作まで保持する。
+// 窓表示モードのみ PHLOX_PM_VISUAL_WIDTH（360|720）/ SCALE（0.8|1.0|2.0）/ THEME（light|dark）を読む。
 // 描画ホストは Harness/TranscriptTypographyRenderHarness.swift と同じ NSHostingView + cacheDisplay 方式。
 
 import AgentDomain
@@ -40,8 +41,17 @@ struct PMTranscriptVisualTask46Tests {
         let scenario = Task46VisualScenario(suite: suite, client: client)
         var window: NSWindow?
         var hosting: NSHostingView<Task46VisualRoot>?
+        var previousActivationPolicy: NSApplication.ActivationPolicy?
 
         do {
+            if showWindow {
+                applyWindowLaunchEnvironment(to: scenario)
+                let app = NSApplication.shared
+                previousActivationPolicy = app.activationPolicy()
+                app.setActivationPolicy(.regular)
+                app.finishLaunching()
+                NSApp.activate(ignoringOtherApps: true)
+            }
             await client.start()
             try assertFixedFixture(scenario: scenario)
 
@@ -61,6 +71,9 @@ struct PMTranscriptVisualTask46Tests {
             )
             let hostView = NSHostingView(rootView: root)
             hosting = hostView
+            if showWindow {
+                hostView.appearance = visualAppearance(for: scenario.colorScheme)
+            }
             hostView.frame = NSRect(x: 0, y: 0, width: columnWidth, height: 900)
             hostView.layoutSubtreeIfNeeded()
             pumpMainRunLoop(seconds: 0.12)
@@ -86,6 +99,8 @@ struct PMTranscriptVisualTask46Tests {
             #expect(!viewModel.status.isRunning)
 
             if showWindow {
+                NSApplication.shared.setActivationPolicy(.regular)
+                NSApp.activate(ignoringOtherApps: true)
                 let nsWindow = NSWindow(
                     contentRect: hostView.frame,
                     styleMask: [.titled, .closable, .resizable],
@@ -94,8 +109,11 @@ struct PMTranscriptVisualTask46Tests {
                 )
                 nsWindow.title = "task-46 PM visual"
                 nsWindow.isReleasedWhenClosed = false
+                nsWindow.appearance = visualAppearance(for: scenario.colorScheme)
                 nsWindow.contentView = hostView
                 nsWindow.makeKeyAndOrderFront(nil)
+                nsWindow.orderFrontRegardless()
+                NSApp.activate(ignoringOtherApps: true)
                 window = nsWindow
                 let finished = Task46VisualFinishBox()
                 let closer = Task46VisualWindowCloser(finished: finished)
@@ -114,7 +132,8 @@ struct PMTranscriptVisualTask46Tests {
                 hosting: hosting,
                 suiteName: suiteName,
                 suite: suite,
-                previousTheme: previousTheme
+                previousTheme: previousTheme,
+                previousActivationPolicy: previousActivationPolicy
             )
         } catch {
             await finishVisual(
@@ -124,7 +143,8 @@ struct PMTranscriptVisualTask46Tests {
                 hosting: hosting,
                 suiteName: suiteName,
                 suite: suite,
-                previousTheme: previousTheme
+                previousTheme: previousTheme,
+                previousActivationPolicy: previousActivationPolicy
             )
             throw error
         }
@@ -139,7 +159,8 @@ private func finishVisual(
     hosting: NSHostingView<Task46VisualRoot>?,
     suiteName: String,
     suite: UserDefaults,
-    previousTheme: Any?
+    previousTheme: Any?,
+    previousActivationPolicy: NSApplication.ActivationPolicy?
 ) async {
     await viewModel.terminate()
     client.finish()
@@ -152,6 +173,48 @@ private func finishVisual(
     } else {
         UserDefaults.standard.removeObject(forKey: ThemeStore.themeKey)
     }
+    if let previousActivationPolicy {
+        NSApplication.shared.setActivationPolicy(previousActivationPolicy)
+    }
+}
+
+@MainActor
+private func applyWindowLaunchEnvironment(to scenario: Task46VisualScenario) {
+    let env = ProcessInfo.processInfo.environment
+
+    if let widthRaw = env["PHLOX_PM_VISUAL_WIDTH"] {
+        let allowed: [String: CGFloat] = ["360": 360, "720": 720]
+        let parsed = allowed[widthRaw]
+        #expect(parsed != nil, "PHLOX_PM_VISUAL_WIDTH は 360|720、実際は \(widthRaw)")
+        if let parsed {
+            scenario.applyWidth(parsed)
+        }
+    }
+
+    if let scaleRaw = env["PHLOX_PM_VISUAL_SCALE"] {
+        let allowed: [String: CGFloat] = ["0.8": 0.8, "1.0": 1.0, "2.0": 2.0]
+        let parsed = allowed[scaleRaw]
+        #expect(parsed != nil, "PHLOX_PM_VISUAL_SCALE は 0.8|1.0|2.0、実際は \(scaleRaw)")
+        if let parsed {
+            scenario.applyScale(parsed)
+        }
+    }
+
+    if let themeRaw = env["PHLOX_PM_VISUAL_THEME"] {
+        #expect(
+            themeRaw == "light" || themeRaw == "dark",
+            "PHLOX_PM_VISUAL_THEME は light|dark、実際は \(themeRaw)"
+        )
+        if themeRaw == "dark" {
+            scenario.applyDarkTheme()
+        } else if themeRaw == "light" {
+            scenario.applyLightTheme()
+        }
+    }
+}
+
+private func visualAppearance(for colorScheme: ColorScheme) -> NSAppearance? {
+    NSAppearance(named: colorScheme == .dark ? .darkAqua : .aqua)
 }
 
 @MainActor

@@ -268,6 +268,9 @@ public final class DashboardViewModel {
                 }
             }
         )
+        self.persistence.liveTitleState = { [weak self] id in
+            self?.sessionNode(id: id)?.titleState
+        }
     }
 
     private var codexDiscoveryController: CodexNativeSessionDiscoveryController {
@@ -312,6 +315,11 @@ public final class DashboardViewModel {
         }
         session.unseenCompletionDidChange = { [weak self] in
             self?.refreshUnseenCompletionCount()
+        }
+        if let chat = session as? ChatSessionViewModel {
+            chat.titleStateDidChange = { [weak self] state in
+                self?.persistence.persistSessionName(id: sessionID, name: state.name)
+            }
         }
     }
 
@@ -825,10 +833,9 @@ public final class DashboardViewModel {
 
     /// セッション名を変更する。空白のみの名前はトリムして空にする。
     public func renameSession(_ id: SessionID, to name: String) {
-        guard let vm = sessionNodes.first(where: { $0.id == id })?.controllable else { return }
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
-        vm.name = trimmed
-        persistence.persistSessionName(id: id, name: trimmed)
+        guard let node = sessionNodes.first(where: { $0.id == id }) else { return }
+        node.name = name
+        persistence.persistSessionName(id: id, name: node.titleState.name)
     }
 
     /// アゴラ討論の役割を descriptor に永続化する（ControlActionDashboard の witness。renameSession と同型）。
@@ -1016,12 +1023,17 @@ public final class DashboardViewModel {
             throw error
         }
 
-        let usedNames = Set(sessionNodes.map { normalizeSessionNameForUniqueness($0.controllable.name) })
+        let usedNames = Set(sessionNodes.flatMap { node -> [String] in
+            var names = [normalizeSessionNameForUniqueness(node.controllable.name)]
+            if let flowerName = node.titleState.flowerName {
+                names.append(normalizeSessionNameForUniqueness(flowerName))
+            }
+            return names
+        })
         let generatedName = FlowerNameGenerator.random(avoiding: usedNames)
         let codexThreadId: String?
         let chatNativeSessionId: String?
         let appServerUserAgent: String?
-        let sessionName: String
         let persistedParentSessionID: SessionID?
         let persistedLaunchContext: SessionLaunchContext
         let spawnedSession: any ControllableSession
@@ -1037,11 +1049,11 @@ public final class DashboardViewModel {
                 id: sessionID,
                 projectID: resolvedProjectID,
                 parentSessionID: sessionOrigin.parentSessionID,
-                name: "",
+                name: generatedName,
                 plan: plan,
-                launchContext: sessionOrigin.launchContext
+                launchContext: sessionOrigin.launchContext,
+                titleState: .generated(flowerName: generatedName)
             )
-            sessionVM.name = generatedName
 
             observeUnseenCompletion(for: sessionVM)
             sessions.append(sessionVM)
@@ -1069,7 +1081,6 @@ public final class DashboardViewModel {
             codexThreadId = nil
             chatNativeSessionId = nil
             appServerUserAgent = nil
-            sessionName = sessionVM.name
             persistedParentSessionID = sessionVM.parentSessionID
             persistedLaunchContext = sessionVM.launchContext
             spawnedSession = sessionVM
@@ -1082,6 +1093,7 @@ public final class DashboardViewModel {
                 name: generatedName,
                 plan: plan,
                 launchContext: launchContext,
+                titleState: .generated(flowerName: generatedName),
                 sessionOriginForWrite: {
                     self.sessionOriginForWrite(
                         parentSessionID: from,
@@ -1104,7 +1116,6 @@ public final class DashboardViewModel {
             codexThreadId = result.codexThreadId
             chatNativeSessionId = result.chatNativeSessionId
             appServerUserAgent = result.appServerUserAgent
-            sessionName = result.sessionName
             persistedParentSessionID = result.vm.parentSessionID
             persistedLaunchContext = result.vm.launchContext
             spawnedSession = result.vm
@@ -1120,11 +1131,13 @@ public final class DashboardViewModel {
 
         // 再起動後の復元に備えてセッションメタを永続化する。
         // spawn 済みセッションの live pid を記録し、次回起動の reconcile（生存孤児 reap）に使う。
+        let latestTitle = sessionNode(id: sessionID)?.titleState
+            ?? .generated(flowerName: generatedName)
         let descriptor = PersistedSessionDescriptor(
             id: sessionID,
             agentRef: ref,
             workingDirectory: plan.workingDirectory ?? resolvedWorkingDirectory ?? "",
-            name: sessionName,
+            name: latestTitle.name,
             projectID: resolvedProjectID,
             startedAt: Date(),
             command: plan.command,
@@ -1139,7 +1152,10 @@ public final class DashboardViewModel {
             resumeID: resumeID,
             parentSessionID: persistedParentSessionID,
             pid: livePID,
-            launchContext: persistedLaunchContext
+            launchContext: persistedLaunchContext,
+            titleSource: latestTitle.source,
+            flowerName: latestTitle.flowerName,
+            fullDerivedTitle: latestTitle.fullDerivedTitle
         )
         persistence.persistSession(descriptor)
 

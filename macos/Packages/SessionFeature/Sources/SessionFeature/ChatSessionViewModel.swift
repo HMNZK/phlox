@@ -32,7 +32,17 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
     @ObservationIgnored public var unseenCompletionDidChange: (() -> Void)?
-    public var name: String = ""
+    public var titleState: SessionTitleState = .legacy(name: "") {
+        didSet {
+            guard titleState != oldValue else { return }
+            titleStateDidChange?(titleState)
+        }
+    }
+    public var name: String {
+        get { titleState.name }
+        set { titleState = titleState.renamed(to: newValue) }
+    }
+    @ObservationIgnored public var titleStateDidChange: ((SessionTitleState) -> Void)?
     public var projectID: ProjectID?
     public var parentSessionID: SessionID?
     public var launchContext: SessionLaunchContext = .interactive
@@ -196,7 +206,8 @@ public final class ChatSessionViewModel: Identifiable {
         spawnAgentModelsProvider: SpawnAgentModelsProvider? = nil,
         historyProvider: (@Sendable () -> [ClaudeSessionHistoryEntry])? = nil,
         historyTranscriptLoader: (@Sendable (ClaudeSessionHistoryEntry) -> [ChatItem])? = nil,
-        availableCommandsStore: AvailableCommandsStore = AvailableCommandsStore()
+        availableCommandsStore: AvailableCommandsStore = AvailableCommandsStore(),
+        titleState: SessionTitleState = .legacy(name: "")
     ) {
         self.id = id
         self.startedAt = startedAt
@@ -229,6 +240,7 @@ public final class ChatSessionViewModel: Identifiable {
             agentRef: agentRef,
             workingDirectory: workingDirectory
         )
+        self.titleState = titleState
         configureSubAgentModel()
         configureTranscriptStreamCoalescer()
         configureMidTurnPersistenceGate()
@@ -243,7 +255,8 @@ public final class ChatSessionViewModel: Identifiable {
         approvalBroker: ChatApprovalBroker,
         workingDirectory: String?,
         attachmentStore: ComposerAttachmentStore,
-        availableCommandsStore: AvailableCommandsStore = AvailableCommandsStore()
+        availableCommandsStore: AvailableCommandsStore = AvailableCommandsStore(),
+        titleState: SessionTitleState = .legacy(name: "")
     ) {
         self.id = id
         self.startedAt = Date()
@@ -274,6 +287,7 @@ public final class ChatSessionViewModel: Identifiable {
             agentRef: agentRef,
             workingDirectory: workingDirectory
         )
+        self.titleState = titleState
         configureSubAgentModel()
         configureTranscriptStreamCoalescer()
         configureMidTurnPersistenceGate()
@@ -576,8 +590,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public var displayName: String {
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
-        return trimmed.isEmpty ? SessionViewModel.shortID(for: id) : trimmed
+        titleState.effectiveName(fallback: SessionViewModel.shortID(for: id))
     }
 
     /// trim 後が空なら nil（draft 不変）。非空なら trim 済みを返し draft をクリアする（task-4 契約）。
@@ -601,6 +614,8 @@ public final class ChatSessionViewModel: Identifiable {
     private var draftClearedForSend: String?
     /// 送信成功した userMessage ID に対応する添付（プロセス内・セッション存続中のみ）。
     @ObservationIgnored private var sentRuntimeAttachmentsByUserMessageID: [String: [ComposerAttachment]] = [:]
+    /// ローカル確定したユーザー本文。サーバー項目の補足付き text より優先する。
+    @ObservationIgnored private var localOriginalUserTextByID: [String: String] = [:]
     /// Codex native skill + 画像経路で materialize した一時ディレクトリ（terminate まで保持）。
     @ObservationIgnored private var nativeSkillInputDirectories: Set<URL> = []
 
@@ -2017,6 +2032,7 @@ public final class ChatSessionViewModel: Identifiable {
             flushPendingStreamDeltasBarrier()
             if let chatItem = chatItem(from: item) {
                 appendOrReplace(chatItem)
+                adoptTitleFromThreadItem(item, chatItem: chatItem)
                 if case .itemCompleted = event {
                     enqueueTranscriptUpsert([chatItem])
                 }
@@ -2405,6 +2421,7 @@ public final class ChatSessionViewModel: Identifiable {
             appendOrReplace(item)
         }
         touchOutput()
+        adoptTitleFromLocalTranscript(persisted)
     }
 
     private func restoreTranscriptFromStore() async -> Bool {
@@ -2473,6 +2490,7 @@ public final class ChatSessionViewModel: Identifiable {
         if !transcript.isEmpty {
             touchOutput()
         }
+        adoptTitleFromServerThread(thread)
     }
 
     private func chatItem(from item: ThreadItem) -> ChatItem? {
@@ -2509,6 +2527,44 @@ public final class ChatSessionViewModel: Identifiable {
         }
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         return .agentMessage(id: id, text: text, timestamp: Date())
+    }
+
+    private func adoptTitleFromOriginalUserText(_ text: String) {
+        guard titleState.source == .flower else { return }
+        titleState = titleState.receivingUserMessage(text)
+    }
+
+    private func adoptTitleFromLocalTranscript(_ items: [ChatItem]) {
+        guard titleState.source == .flower else { return }
+        let entries = InputHistoryPolicy.entries(from: items)
+        for entry in entries {
+            titleState = titleState.receivingUserMessage(entry.text)
+            if titleState.source != .flower { return }
+        }
+    }
+
+    private func adoptTitleFromServerThread(_ thread: ThreadSummary) {
+        guard titleState.source == .flower else { return }
+        let items = thread.turns?.flatMap { $0.items ?? [] } ?? []
+        for item in items {
+            let type = item.type ?? ""
+            guard type.contains("user") else { continue }
+            guard let original = identifiableOriginalText(from: item) else { continue }
+            titleState = titleState.receivingUserMessage(original)
+            if titleState.source != .flower { return }
+        }
+    }
+
+    private func adoptTitleFromThreadItem(_ item: ThreadItem, chatItem: ChatItem) {
+        guard titleState.source == .flower else { return }
+        guard case .userMessage(let id, _, _, _) = chatItem else { return }
+        let original = localOriginalUserTextByID[id] ?? identifiableOriginalText(from: item)
+        guard let original else { return }
+        titleState = titleState.receivingUserMessage(original)
+    }
+
+    private func identifiableOriginalText(from item: ThreadItem) -> String? {
+        item.raw?["originalText"]?.stringValue
     }
 
     private func touchOutput() {
@@ -2848,6 +2904,8 @@ extension ChatSessionViewModel: ControllableSession {
             )
             // 表示・store には新規入力のみを記録する（プリアンブルは載せない）。
             appendOrReplace(item)
+            localOriginalUserTextByID[item.id] = input
+            adoptTitleFromOriginalUserText(input)
             enqueueTranscriptUpsert([item])
             turnGeneration += 1
             isAwaitingLocallyStartedTurnEvent = true
@@ -2998,6 +3056,8 @@ extension ChatSessionViewModel: ControllableSession {
             attachments: []
         )
         appendOrReplace(item)
+        localOriginalUserTextByID[item.id] = input
+        adoptTitleFromOriginalUserText(input)
         enqueueTranscriptUpsert([item])
         turnGeneration += 1
         isAwaitingLocallyStartedTurnEvent = true

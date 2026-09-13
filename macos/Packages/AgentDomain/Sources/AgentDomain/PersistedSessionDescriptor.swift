@@ -30,10 +30,18 @@ public enum SessionLaunchContext: String, Codable, Sendable, Equatable {
 /// ライブ状態（pid/masterFD/出力バッファ）はデーモンメモリに残り、
 /// ここには VM 再構築に必要な静的情報のみ保存する。
 public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Codable {
+    private static let logger = Logger(
+        subsystem: "com.phlox.Phlox",
+        category: "PersistedSessionDescriptor"
+    )
+
     public let id: SessionID
     public let agentRef: AgentRef
     public let workingDirectory: String
     public var name: String
+    public private(set) var titleSource: SessionTitleSource?
+    public private(set) var flowerName: String?
+    public private(set) var fullDerivedTitle: String?
     public let projectID: ProjectID?
     public let startedAt: Date
     /// cold restart（デーモンも死んでいた）場合に同じ環境で再 spawn するための情報。
@@ -97,7 +105,10 @@ public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Coda
         parentSessionID: SessionID? = nil,
         pid: pid_t? = nil,
         launchContext: SessionLaunchContext = .interactive,
-        role: String? = nil
+        role: String? = nil,
+        titleSource: SessionTitleSource? = nil,
+        flowerName: String? = nil,
+        fullDerivedTitle: String? = nil
     ) {
         self.init(
             id: id,
@@ -119,7 +130,10 @@ public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Coda
             parentSessionID: parentSessionID,
             pid: pid,
             launchContext: launchContext,
-            role: role
+            role: role,
+            titleSource: titleSource,
+            flowerName: flowerName,
+            fullDerivedTitle: fullDerivedTitle
         )
     }
 
@@ -143,12 +157,14 @@ public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Coda
         parentSessionID: SessionID? = nil,
         pid: pid_t? = nil,
         launchContext: SessionLaunchContext = .interactive,
-        role: String? = nil
+        role: String? = nil,
+        titleSource: SessionTitleSource? = nil,
+        flowerName: String? = nil,
+        fullDerivedTitle: String? = nil
     ) {
         self.id = id
         self.agentRef = agentRef
         self.workingDirectory = workingDirectory
-        self.name = name
         self.projectID = projectID
         self.startedAt = startedAt
         self.command = command
@@ -165,6 +181,37 @@ public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Coda
         self.pid = pid
         self.launchContext = launchContext
         self.role = role
+        let fields = Self.normalizedTitleFields(
+            name: name,
+            titleSource: titleSource,
+            flowerName: flowerName,
+            fullDerivedTitle: fullDerivedTitle
+        )
+        self.name = fields.name
+        self.titleSource = fields.titleSource
+        self.flowerName = fields.flowerName
+        self.fullDerivedTitle = fields.fullDerivedTitle
+    }
+
+    public var titleState: SessionTitleState {
+        guard let titleSource else {
+            return .legacy(name: name)
+        }
+        return SessionTitleState(
+            name: name,
+            source: titleSource,
+            flowerName: flowerName,
+            fullDerivedTitle: fullDerivedTitle
+        )
+    }
+
+    public func updating(titleState: SessionTitleState) -> PersistedSessionDescriptor {
+        copying {
+            $0.name = titleState.name
+            $0.titleSource = titleState.source
+            $0.flowerName = titleState.flowerName
+            $0.fullDerivedTitle = titleState.fullDerivedTitle
+        }
     }
 
     /// 1 フィールドだけ変えたコピーを返す共通ヘルパー。
@@ -176,7 +223,7 @@ public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Coda
     }
 
     public func updating(name: String) -> PersistedSessionDescriptor {
-        copying { $0.name = name }
+        updating(titleState: titleState.renamed(to: name))
     }
 
     public func updating(resumeID: String?) -> PersistedSessionDescriptor {
@@ -242,6 +289,9 @@ public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Coda
         case pid
         case launchContext
         case role
+        case titleSource
+        case flowerName
+        case fullDerivedTitle
     }
 
     public init(from decoder: Decoder) throws {
@@ -267,6 +317,46 @@ public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Coda
         self.pid = try container.decodeIfPresent(pid_t.self, forKey: .pid)
         self.launchContext = try container.decodeIfPresent(SessionLaunchContext.self, forKey: .launchContext) ?? .interactive
         self.role = try container.decodeIfPresent(String.self, forKey: .role)
+        let decodedName = self.name
+        let decodedFlower = try container.decodeIfPresent(String.self, forKey: .flowerName)
+        let decodedFull = try container.decodeIfPresent(String.self, forKey: .fullDerivedTitle)
+        if let rawSource = try container.decodeIfPresent(String.self, forKey: .titleSource) {
+            if let source = SessionTitleSource(rawValue: rawSource) {
+                let state = SessionTitleState(
+                    name: decodedName,
+                    source: source,
+                    flowerName: decodedFlower,
+                    fullDerivedTitle: decodedFull
+                )
+                if state.source != source {
+                    Self.logger.warning(
+                        "inconsistent titleSource \(rawSource, privacy: .public); retreated to \(state.source.rawValue, privacy: .public)"
+                    )
+                }
+                self.name = state.name
+                self.titleSource = state.source
+                self.flowerName = state.flowerName
+                self.fullDerivedTitle = state.fullDerivedTitle
+            } else {
+                Self.logger.warning(
+                    "unknown titleSource \(rawSource, privacy: .public); keeping name as manual"
+                )
+                let state = SessionTitleState(
+                    name: decodedName,
+                    source: .manual,
+                    flowerName: decodedFlower,
+                    fullDerivedTitle: nil
+                )
+                self.name = state.name
+                self.titleSource = .manual
+                self.flowerName = state.flowerName
+                self.fullDerivedTitle = nil
+            }
+        } else {
+            self.titleSource = .manual
+            self.flowerName = nil
+            self.fullDerivedTitle = nil
+        }
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -295,6 +385,32 @@ public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Coda
             try container.encode(launchContext, forKey: .launchContext)
         }
         try container.encodeIfPresent(role, forKey: .role)
+        try container.encodeIfPresent(titleSource, forKey: .titleSource)
+        try container.encodeIfPresent(flowerName, forKey: .flowerName)
+        try container.encodeIfPresent(fullDerivedTitle, forKey: .fullDerivedTitle)
+    }
+
+    private static func normalizedTitleFields(
+        name: String,
+        titleSource: SessionTitleSource?,
+        flowerName: String?,
+        fullDerivedTitle: String?
+    ) -> (
+        name: String,
+        titleSource: SessionTitleSource?,
+        flowerName: String?,
+        fullDerivedTitle: String?
+    ) {
+        guard let titleSource else {
+            return (name, .manual, nil, nil)
+        }
+        let state = SessionTitleState(
+            name: name,
+            source: titleSource,
+            flowerName: flowerName,
+            fullDerivedTitle: fullDerivedTitle
+        )
+        return (state.name, state.source, state.flowerName, state.fullDerivedTitle)
     }
 
     /// 大文字化したキー名の接尾辞または完全一致で秘密系とみなし、`env` から除外した辞書を返す。

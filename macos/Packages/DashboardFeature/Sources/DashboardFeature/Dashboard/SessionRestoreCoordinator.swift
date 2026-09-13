@@ -21,7 +21,7 @@ final class SessionRestoreCoordinator {
     private let logError: @MainActor (Error, String) -> Void
 
     /// 復元走査完了まで pid 書き戻しを遅延する（部分復元中の破壊的保存を避ける）。
-    private var pendingRestorePIDUpdates: [PersistedSessionDescriptor] = []
+    private var pendingRestorePIDUpdates: [(id: SessionID, pid: pid_t?)] = []
 
     nonisolated static func shouldSuppressSpawn(for error: Error) -> Bool {
         error is WorktreeIsolationSpawnError || error is WorktreeIsolationGitError
@@ -89,11 +89,24 @@ final class SessionRestoreCoordinator {
             await restoreSession(descriptor)
         }
         persistence.completeSessionRestore()
-        for descriptor in pendingRestorePIDUpdates {
-            persistence.persistSession(descriptor)
+        for update in pendingRestorePIDUpdates {
+            persistPID(id: update.id, pid: update.pid)
         }
         pendingRestorePIDUpdates.removeAll(keepingCapacity: false)
         publishRestoredSessionPresentation()
+    }
+
+    private func persistPID(id: SessionID, pid: pid_t?) {
+        persistence.enqueue {
+            var current = await self.environment.sessions.load()
+            guard let index = current.firstIndex(where: { $0.id == id }) else { return }
+            current[index] = current[index].updating(pid: pid)
+            do {
+                try await self.environment.sessions.save(current)
+            } catch {
+                self.logError(error, "Failed to persist session pid for \(id)")
+            }
+        }
     }
 
     /// 起動時 reconcile: descriptor に記録された前回プロセスの pid が生存していれば、
@@ -144,7 +157,8 @@ final class SessionRestoreCoordinator {
                 parentSessionID: descriptor.parentSessionID,
                 name: descriptor.name,
                 plan: plan,
-                launchContext: descriptor.launchContext
+                launchContext: descriptor.launchContext,
+                titleState: descriptor.titleState
             )
             appendPTYSession(vm)
             await vm.start()
@@ -167,7 +181,7 @@ final class SessionRestoreCoordinator {
 
             // 再 spawn 後の新世代 live pid を descriptor へ書き戻す。復元走査完了後にまとめて永続化する。
             pendingRestorePIDUpdates.append(
-                descriptor.updating(pid: await livePIDProvider(sessionID))
+                (sessionID, await livePIDProvider(sessionID))
             )
         } catch {
             let isolationFailed = Self.shouldSuppressSpawn(for: error)
@@ -201,7 +215,8 @@ final class SessionRestoreCoordinator {
                 parentSessionID: descriptor.parentSessionID,
                 name: descriptor.name,
                 plan: plan,
-                launchContext: descriptor.launchContext
+                launchContext: descriptor.launchContext,
+                titleState: descriptor.titleState
             )
             appendAppServerSession(vm)
             guard let threadId = descriptor.chatNativeSessionId ?? descriptor.codexThreadId ?? descriptor.resumeID else {
@@ -219,7 +234,7 @@ final class SessionRestoreCoordinator {
 
             // PTY 経路と同様、復元成功後の live pid は走査完了後にまとめて書き戻す。
             pendingRestorePIDUpdates.append(
-                descriptor.updating(pid: await livePIDProvider(descriptor.id))
+                (descriptor.id, await livePIDProvider(descriptor.id))
             )
         } catch {
             // A4: 復元準備・生成が throw しても silent drop しない。client 不在で安全に生成できる

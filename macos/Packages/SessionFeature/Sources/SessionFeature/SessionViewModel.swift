@@ -19,7 +19,11 @@ public final class SessionViewModel: Identifiable {
     public private(set) var status: SessionStatus
     public var isProcessing: Bool { status == .running }
     public let terminalCoordinator: TerminalCoordinator
-    public var name: String = ""
+    public var titleState: SessionTitleState = .legacy(name: "")
+    public var name: String {
+        get { titleState.name }
+        set { titleState = titleState.renamed(to: newValue) }
+    }
     /// 所属ワークスペース（内部は Project）。生成後に DashboardViewModel が代入する。
     public var projectID: ProjectID?
     /// API spawn の親セッション。kill 認可と深さ判定の単一ソース。
@@ -73,8 +77,7 @@ public final class SessionViewModel: Identifiable {
 
     /// 行に出す表示名。name が空白のみなら shortID をフォールバック。
     public var displayName: String {
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
-        return trimmed.isEmpty ? Self.shortID(for: id) : trimmed
+        titleState.effectiveName(fallback: Self.shortID(for: id))
     }
 
     public static func shortID(for id: SessionID) -> String {
@@ -209,7 +212,8 @@ public final class SessionViewModel: Identifiable {
         ptyManager: any PTYManagerProtocol,
         hookEvents: AsyncStream<(SessionID, HookEvent)>,
         terminalCoordinator: TerminalCoordinator,
-        spawnRequest: SpawnRequest
+        spawnRequest: SpawnRequest,
+        titleState: SessionTitleState = .legacy(name: "")
     ) {
         self.id = id
         self.startedAt = startedAt
@@ -218,6 +222,7 @@ public final class SessionViewModel: Identifiable {
         self.hookEvents = hookEvents
         self.terminalCoordinator = terminalCoordinator
         self.spawnRequest = spawnRequest
+        self.titleState = titleState
         self.nonHookIdleFallbackTracker = NonHookIdleFallbackTracker(
             settleDuration: SessionViewModel.inputReadinessSettleDuration
         )

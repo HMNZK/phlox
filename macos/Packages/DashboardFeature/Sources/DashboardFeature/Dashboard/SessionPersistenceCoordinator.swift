@@ -25,6 +25,7 @@ final class SessionPersistenceCoordinator {
     private let sessionStore: any SessionStoreProtocol
     private let projectStore: any ProjectStoreProtocol
     private let logError: @MainActor @Sendable (Error, String) -> Void
+    var liveTitleState: @MainActor @Sendable (SessionID) -> SessionTitleState?
     private var chain: Task<Void, Never> = Task {}
     /// codex native resumeID を保存済みのセッション（多重保存ガード）。
     private var persistedCodexNativeResumeIDs: Set<SessionID> = []
@@ -33,6 +34,10 @@ final class SessionPersistenceCoordinator {
     private var chatNativeSessionObserver: NotificationObserver?
     /// 起動時セッション復元の走査完了前は、ストアのエントリ数を減らしうる保存を抑止する。
     private var isSessionRestoreInProgress = false
+    /// 復元中に要求された明示削除。件数減少抑止を維持し、復元終了後へ繰り越す。
+    private var pendingSessionRemovals: Set<SessionID> = []
+    /// 明示削除済み ID。初回保存や PID 更新での再作成を防ぐ。
+    private var deletedSessionIDs: Set<SessionID> = []
 
     init(
         sessionStore: any SessionStoreProtocol,
@@ -42,6 +47,7 @@ final class SessionPersistenceCoordinator {
         self.sessionStore = sessionStore
         self.projectStore = projectStore
         self.logError = logError
+        self.liveTitleState = { _ in nil }
         self.chatNativeSessionObserver = NotificationObserver(token: NotificationCenter.default.addObserver(
             forName: ChatNativeSessionIDNotification.name,
             object: nil,
@@ -78,6 +84,13 @@ final class SessionPersistenceCoordinator {
     /// セッション復元の走査完了を宣言し、通常の保存経路を再開する。
     func completeSessionRestore() {
         isSessionRestoreInProgress = false
+        let pending = pendingSessionRemovals
+        pendingSessionRemovals.removeAll()
+        for id in pending {
+            enqueue {
+                await self.applyRemoval(id)
+            }
+        }
     }
 
     /// 直列チェーン上の保留作業がすべて完了するまで待つ（テスト用。production の終了経路からは呼ばれない）。
@@ -87,9 +100,11 @@ final class SessionPersistenceCoordinator {
 
     /// descriptor を upsert する（同一 id の既存エントリは置き換え）。
     func persistSession(_ descriptor: PersistedSessionDescriptor) {
+        if deletedSessionIDs.contains(descriptor.id) { return }
         persistedSessionIDs.insert(descriptor.id)
         enqueue {
-            let descriptorToPersist: PersistedSessionDescriptor
+            if self.deletedSessionIDs.contains(descriptor.id) { return }
+            var descriptorToPersist: PersistedSessionDescriptor
             if descriptor.agentRef.builtinKind == .cursor,
                let nativeSessionId = self.latestChatNativeSessionIDs[descriptor.id] {
                 descriptorToPersist = descriptor.updating(chatNativeSessionId: nativeSessionId)
@@ -99,23 +114,39 @@ final class SessionPersistenceCoordinator {
                 }
                 descriptorToPersist = descriptor
             }
+            if let latestTitle = self.liveTitleState(descriptor.id) {
+                descriptorToPersist = descriptorToPersist.updating(titleState: latestTitle)
+            }
             var current = await self.sessionStore.load()
             let loadedCount = current.count
             current.removeAll { $0.id == descriptorToPersist.id }
             current.append(descriptorToPersist)
-            try? await self.saveSessionsIfAllowed(loadedCount: loadedCount, updated: current)
+            do {
+                try await self.saveSessionsIfAllowed(loadedCount: loadedCount, updated: current)
+            } catch {
+                self.logError(error, "Failed to persist session")
+            }
         }
     }
 
     func removeSession(_ id: SessionID) {
         persistedSessionIDs.remove(id)
         latestChatNativeSessionIDs.removeValue(forKey: id)
+        deletedSessionIDs.insert(id)
         enqueue {
-            var current = await self.sessionStore.load()
-            let loadedCount = current.count
-            current.removeAll { $0.id == id }
-            try? await self.saveSessionsIfAllowed(loadedCount: loadedCount, updated: current)
+            if self.isSessionRestoreInProgress {
+                self.pendingSessionRemovals.insert(id)
+                return
+            }
+            await self.applyRemoval(id)
         }
+    }
+
+    private func applyRemoval(_ id: SessionID) async {
+        var current = await sessionStore.load()
+        let loadedCount = current.count
+        current.removeAll { $0.id == id }
+        try? await saveSessionsIfAllowed(loadedCount: loadedCount, updated: current)
     }
 
     func persistSessionName(id: SessionID, name: String) {
@@ -123,7 +154,8 @@ final class SessionPersistenceCoordinator {
             var current = await self.sessionStore.load()
             guard let index = current.firstIndex(where: { $0.id == id }) else { return }
             let loadedCount = current.count
-            current[index] = current[index].updating(name: name)
+            let nextState = self.liveTitleState(id) ?? current[index].titleState.renamed(to: name)
+            current[index] = current[index].updating(titleState: nextState)
             do {
                 try await self.saveSessionsIfAllowed(loadedCount: loadedCount, updated: current)
             } catch {
@@ -180,6 +212,7 @@ final class SessionPersistenceCoordinator {
             var current = await self.sessionStore.load()
             guard let index = current.firstIndex(where: { $0.id == id }) else { return }
             let existing = current[index]
+            _ = existing.titleState
             current[index] = PersistedSessionDescriptor(
                 id: existing.id,
                 agentRef: existing.agentRef,
@@ -200,7 +233,10 @@ final class SessionPersistenceCoordinator {
                 parentSessionID: existing.parentSessionID,
                 pid: existing.pid,
                 launchContext: existing.launchContext,
-                role: existing.role
+                role: existing.role,
+                titleSource: existing.titleSource,
+                flowerName: existing.flowerName,
+                fullDerivedTitle: existing.fullDerivedTitle
             )
             do {
                 try await self.saveSessionsIfAllowed(loadedCount: current.count, updated: current)

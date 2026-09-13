@@ -608,7 +608,8 @@ final class SessionSpawnService {
         parentSessionID: SessionID? = nil,
         name: String,
         plan: AgentLaunchPlan,
-        launchContext: SessionLaunchContext = .interactive
+        launchContext: SessionLaunchContext = .interactive,
+        titleState: SessionTitleState? = nil
     ) -> SessionViewModel {
         let terminalCoordinator = TerminalCoordinator()
         terminalCoordinator.applyFontSize(TerminalFontSettings.currentSize())
@@ -632,12 +633,12 @@ final class SessionSpawnService {
             ptyManager: environment.pty,
             hookEvents: hookStream,
             terminalCoordinator: terminalCoordinator,
-            spawnRequest: spawnRequest
+            spawnRequest: spawnRequest,
+            titleState: titleState ?? .legacy(name: name)
         )
         vm.projectID = projectID
         vm.parentSessionID = parentSessionID
         vm.launchContext = launchContext
-        vm.name = name
         TerminalPreparation.apply(plan.scrollbackPolicy, to: terminalCoordinator)
         return vm
     }
@@ -650,6 +651,7 @@ final class SessionSpawnService {
         name: String,
         plan: AgentLaunchPlan,
         launchContext: SessionLaunchContext = .interactive,
+        titleState: SessionTitleState? = nil,
         sessionOriginForWrite: (@MainActor () -> SessionOrigin)? = nil,
         registerSessionForWrite: (@MainActor (ChatSessionViewModel) -> Void)? = nil
     ) async throws -> ChatSessionViewModel {
@@ -697,7 +699,8 @@ final class SessionSpawnService {
                 }
             },
             historyProvider: history?.historyProvider,
-            historyTranscriptLoader: history?.historyTranscriptLoader
+            historyTranscriptLoader: history?.historyTranscriptLoader,
+            titleState: titleState ?? .legacy(name: name)
         )
         let sessionOrigin = sessionOriginForWrite?() ?? SessionOrigin(
             launchContext: launchContext,
@@ -706,7 +709,6 @@ final class SessionSpawnService {
         vm.projectID = projectID
         vm.parentSessionID = sessionOrigin.parentSessionID
         vm.launchContext = sessionOrigin.launchContext
-        vm.name = name
         let agentID = plan.descriptor.ref.id
         vm.codexSettingsDidChange = { [weak self] settings in
             self?.persistence.persistCodexSettings(id: sessionID, settings: settings)
@@ -748,12 +750,12 @@ final class SessionSpawnService {
             ptyManager: environment.pty,
             hookEvents: hookStream,
             terminalCoordinator: terminalCoordinator,
-            spawnRequest: spawnRequest
+            spawnRequest: spawnRequest,
+            titleState: descriptor.titleState
         )
         vm.projectID = descriptor.projectID
         vm.parentSessionID = descriptor.parentSessionID
         vm.launchContext = descriptor.launchContext
-        vm.name = descriptor.name
         if suppressSpawn {
             vm.markRestoreFailedWithoutSpawn(message)
         } else {
@@ -777,12 +779,12 @@ final class SessionSpawnService {
             agentRef: descriptor.agentRef,
             client: DisconnectedStructuredAgentClient(),
             approvalBroker: ChatApprovalBroker(),
-            workingDirectory: descriptor.workingDirectory
+            workingDirectory: descriptor.workingDirectory,
+            titleState: descriptor.titleState
         )
         vm.projectID = descriptor.projectID
         vm.parentSessionID = descriptor.parentSessionID
         vm.launchContext = descriptor.launchContext
-        vm.name = descriptor.name
         vm.markRestoreFailed(message)
         return vm
     }
@@ -810,6 +812,7 @@ final class SessionSpawnService {
         name: String,
         plan: AgentLaunchPlan,
         launchContext: SessionLaunchContext,
+        titleState: SessionTitleState? = nil,
         sessionOriginForWrite: (@MainActor () -> SessionOrigin)? = nil,
         registerSessionForWrite: (@MainActor (ChatSessionViewModel) -> Void)? = nil,
         unregisterFailedSession: (@MainActor (SessionID) -> Void)? = nil
@@ -829,6 +832,7 @@ final class SessionSpawnService {
                 name: name,
                 plan: plan,
                 launchContext: launchContext,
+                titleState: titleState,
                 sessionOriginForWrite: sessionOriginForWrite,
                 registerSessionForWrite: registerSessionForWrite
             )

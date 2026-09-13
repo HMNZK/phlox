@@ -18,6 +18,7 @@ public enum UserNotificationChannel: Sendable, Equatable {
 public protocol ControllableSession: AnyObject {
     var id: SessionID { get }
     var name: String { get set }
+    var titleState: SessionTitleState { get }
     var displayName: String { get }
     var status: SessionStatus { get }
     var isProcessing: Bool { get }
@@ -54,6 +55,8 @@ public extension ControllableSession {
     var displayStatus: SessionStatus {
         SessionDisplayStatus.resolve(rawStatus: status, isProcessing: isProcessing)
     }
+
+    var titleState: SessionTitleState { .legacy(name: name) }
 
     /// 既定は「端末を持たない」。PTY セッションだけが上書きする。
     func readAnsiScreen() -> AnsiScreen? { nil }
@@ -96,6 +99,8 @@ public enum SessionNode {
     }
 
     public var displayName: String { controllable.displayName }
+
+    public var titleState: SessionTitleState { controllable.titleState }
 
     public var name: String {
         get { controllable.name }

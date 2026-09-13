@@ -1,8 +1,8 @@
 diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatHistoryStartView.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/ChatHistoryStartView.swift
-index c5c39b5..63fd0dc 100644
+index c5c39b5..cf9f361 100644
 --- a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatHistoryStartView.swift
 +++ b/macos/Packages/SessionFeature/Sources/SessionFeature/ChatHistoryStartView.swift
-@@ -1,10 +1,11 @@
+@@ -1,12 +1,15 @@
  import SwiftUI
  import DesignSystem
  
@@ -14,40 +14,81 @@ index c5c39b5..63fd0dc 100644
 +    let workingDirectory: String?
      let onSelect: (ClaudeSessionHistoryEntry) -> Void
  
++    @State private var presentations: [String: HistoryEntryPresentation]
++
      private static let shortDateFormatter: DateFormatter = {
-@@ -17,8 +18,10 @@ struct ChatHistoryStartView: View {
+         let formatter = DateFormatter()
+         formatter.dateStyle = .short
+@@ -16,9 +19,28 @@ struct ChatHistoryStartView: View {
+         return formatter
      }()
  
++    init(
++        entries: [ClaudeSessionHistoryEntry],
++        maxCardHeight: CGFloat = ChatHistoryStartLayout.maxCardHeightCap,
++        workingDirectory: String?,
++        onSelect: @escaping (ClaudeSessionHistoryEntry) -> Void
++    ) {
++        self.entries = entries
++        self.maxCardHeight = maxCardHeight
++        self.workingDirectory = workingDirectory
++        self.onSelect = onSelect
++        _presentations = State(
++            initialValue: Self.makePresentations(
++                entries: entries,
++                workingDirectory: workingDirectory
++            )
++        )
++    }
++
      var body: some View {
-+        let presentationsByID = presentationsBySessionID()
          VStack(spacing: DSSpacing.m) {
              header
 +            newSessionHint
              if entries.isEmpty {
                  Text("履歴がありません")
                      .font(DSFont.body)
-@@ -29,7 +32,7 @@ struct ChatHistoryStartView: View {
+@@ -29,7 +51,9 @@ struct ChatHistoryStartView: View {
                  ScrollView {
                      LazyVStack(spacing: DSSpacing.xs) {
                          ForEach(entries) { entry in
 -                            row(for: entry)
-+                            row(for: entry, presentation: presentationsByID[entry.id]!)
++                            if let presentation = presentations[entry.id] {
++                                row(for: entry, presentation: presentation)
++                            }
                          }
                      }
                  }
-@@ -48,33 +51,64 @@ struct ChatHistoryStartView: View {
+@@ -46,35 +70,81 @@ struct ChatHistoryStartView: View {
+         )
+         .dsShadow(.cardHover)
          .accessibilityIdentifier("ChatHistoryStartView")
-     }
- 
-+    private func presentationsBySessionID() -> [String: HistoryEntryPresentation] {
++        .task(id: HistoryPresentationInputs(entries: entries, workingDirectory: workingDirectory)) {
++            presentations = Self.makePresentations(
++                entries: entries,
++                workingDirectory: workingDirectory
++            )
++        }
++        .onChange(of: HistoryPresentationInputs(entries: entries, workingDirectory: workingDirectory)) { _, inputs in
++            presentations = Self.makePresentations(
++                entries: inputs.entries,
++                workingDirectory: inputs.workingDirectory
++            )
++        }
++    }
++
++    private static func makePresentations(
++        entries: [ClaudeSessionHistoryEntry],
++        workingDirectory: String?
++    ) -> [String: HistoryEntryPresentation] {
 +        Dictionary(
 +            entries.map { entry in
 +                (entry.id, HistoryEntryPresentation(entry: entry, workingDirectory: workingDirectory))
 +            },
 +            uniquingKeysWith: { first, _ in first }
 +        )
-+    }
-+
+     }
+ 
      private var header: some View {
          HStack(spacing: DSSpacing.s) {
              Image(systemName: "clock.arrow.circlepath")
@@ -95,21 +136,29 @@ index c5c39b5..63fd0dc 100644
 +                            .lineLimit(1)
 +                            .help(presentation.projectPath ?? "")
 +                        Text("最終利用")
-+                            .font(DSFont.caption)
-+                            .foregroundStyle(DSColor.chatTextSecondary)
-+                        Text(formattedLastUsed(presentation.lastUsedAt))
                              .font(DSFont.caption)
                              .foregroundStyle(DSColor.chatTextSecondary)
++                        Text(formattedLastUsed(presentation.lastUsedAt))
++                            .font(DSFont.caption)
++                            .foregroundStyle(DSColor.chatTextSecondary)
 +                            .lineLimit(1)
                          if let branch = entry.gitBranch, !branch.isEmpty {
                              Text(branch)
                                  .font(DSFont.caption)
-@@ -96,11 +130,13 @@ struct ChatHistoryStartView: View {
+@@ -96,11 +166,26 @@ struct ChatHistoryStartView: View {
              .contentShape(Rectangle())
          }
          .buttonStyle(.plain)
 +        .help(entry.sessionID)
-+        .accessibilityLabel(presentation.fullTitle + " " + entry.sessionID)
++        .accessibilityLabel(
++            presentation.fullTitle
++                + " "
++                + presentation.accessibilityDetails(
++                    lastUsedText: formattedLastUsed(presentation.lastUsedAt)
++                )
++                + " "
++                + entry.sessionID
++        )
          .accessibilityIdentifier("ChatHistoryStartView.row")
      }
  
@@ -120,6 +169,11 @@ index c5c39b5..63fd0dc 100644
          return Self.shortDateFormatter.string(from: date)
      }
  }
++
++private struct HistoryPresentationInputs: Equatable {
++    var entries: [ClaudeSessionHistoryEntry]
++    var workingDirectory: String?
++}
 diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionView.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionView.swift
 index 3b5df0e..35a633c 100644
 --- a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionView.swift
@@ -134,10 +188,10 @@ index 3b5df0e..35a633c 100644
                                  }
 diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/HistoryEntryPresentation.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/HistoryEntryPresentation.swift
 new file mode 100644
-index 0000000..304171b
+index 0000000..75958b2
 --- /dev/null
 +++ b/macos/Packages/SessionFeature/Sources/SessionFeature/HistoryEntryPresentation.swift
-@@ -0,0 +1,68 @@
+@@ -0,0 +1,78 @@
 +import Foundation
 +import AgentDomain
 +
@@ -184,6 +238,16 @@ index 0000000..304171b
 +        }
 +
 +        lastUsedAt = entry.lastModified == .distantPast ? nil : entry.lastModified
++    }
++
++    /// VoiceOver 用。プロジェクト名、パス（あれば）、最終利用文言。作業名全文と元 ID は行側で結合する。
++    public func accessibilityDetails(lastUsedText: String) -> String {
++        var parts = [projectName]
++        if let projectPath, !projectPath.isEmpty {
++            parts.append(projectPath)
++        }
++        parts.append(lastUsedText)
++        return parts.joined(separator: " ")
 +    }
 +
 +    private static func isBoilerplatePrefix(_ text: String) -> Bool {

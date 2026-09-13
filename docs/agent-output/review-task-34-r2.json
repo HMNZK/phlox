@@ -1,0 +1,80 @@
+{
+  "reviewer": "codex-gpt-6-astra",
+  "dimensions_swept": [
+    {
+      "dimension": "1 契約適合",
+      "result": "finding",
+      "note": "製品差分は指定の4ファイル・5箇所のframe置換とトークン追加に一致する。コード上の契約違反は検出せず。ただし成功基準3の実画面ゲートは未確認（指摘1）。"
+    },
+    {
+      "dimension": "2 正しさ",
+      "result": "ok",
+      "note": "24/30/24pt、グリフサイズ、アクション、選択trait、identifier、helpを確認。変更による分岐・状態管理の回帰は検出せず。"
+    },
+    {
+      "dimension": "3 誠実性",
+      "result": "ok",
+      "note": "指定差分と40533aa..HEADの製品差分が一致。凍結テスト・配線検査に同区間の変更なし。握りつぶし・テスト弱体化は検出せず。禁止された実装役レポートは未読。"
+    },
+    {
+      "dimension": "4 根本原因",
+      "result": "ok",
+      "note": "グリフとは別にラベルの固定枠を拡張し、その内側のcontentShapeを維持している。対象5箇所に共通トークンが配線され、押下領域が小さい原因へ直接対処している。"
+    },
+    {
+      "dimension": "5 構造",
+      "result": "ok",
+      "note": "寸法の正本はDesignSystemのDSHitTarget。既存スタイルを再利用し、依存逆転・不要な抽象・デッドコードの追加なし。"
+    },
+    {
+      "dimension": "6 到達性",
+      "result": "unverified",
+      "note": "ImageはButtonのラベル内にあり、frame→contentShapeの順序は適切。plainおよびラベルに背景を置くだけのHoverableIconButtonStyleでは、レイアウト枠30×24／24×24になるという静的判断の確度は高い。ただしmacOSのAX枠との一致・端クリックは未確認。プロジェクトの＋と…はButtonではなくネイティブのborderless Menuであり、AX枠24×24の断定はできない。トラックは24+2×2=28ptで32pt行に上下2ptずつ残る。1440／1024ptでの遮蔽・横方向の収まりは未確認。"
+    },
+    {
+      "dimension": "7 非機能",
+      "result": "unverified",
+      "note": "アクセシビリティ属性・フォーカス関連modifierは維持されている。AXによるフォーカス設定、選択面と区別できるリング、AXPressは未確認。性能・メモリ・セキュリティに影響する処理追加はない。"
+    },
+    {
+      "dimension": "8 テストの質",
+      "result": "ok",
+      "note": "凍結6テストは寸法の上下限・等値・グリフ指紋を検査し、配線検査がトークン未使用を補う。定数を検査する目的に適合する。実際のAX・クリック・描画は検査対象外で、成功基準3が別途必要。"
+    },
+    {
+      "dimension": "Rubric：密度・絵柄・余白リズム",
+      "result": "unverified",
+      "note": "グリフとspacing/padding値は不変だが、配置寸法まで不変ではない。プロジェクト行はラベル高が支配する通常条件なら28→32pt（+4pt）；Menu装飾とList最小行高を含む実測値は未確認。両Menuの幅拡張で名前の割当幅は計8pt減る。Projects見出しは通常+2pt、モードトラックは86×24→98×28pt。PaneTileViewは既存の24pt AgentSessionIconが高さを確保しており、×の拡張によるヘッダー高の増分は0pt、横の割当幅だけ4pt減る。コード上は契約が許す密度変化の範囲だが、実画面での余白リズムは未確認。"
+    },
+    {
+      "dimension": "Rubric：隣接Menuの非重複・hover",
+      "result": "ok",
+      "note": "ProjectSidebarHeaderはHStack(spacing:8)、両MenuはfixedSize。通常のレイアウトでは拡張後も枠間8ptを保ち、重なる構造ではない。…の表示切替はopacityだけなので領域を常時予約し、hover前後で名前・バッジの配置は変わらない。ネイティブMenuの実際の押下境界は指摘1の確認対象。"
+    },
+    {
+      "dimension": "Rubric：システム標準フォーカス",
+      "result": "ok",
+      "note": "フォーカス表示の上書きは追加されていない。既存の選択・hover背景と.isSelected traitを維持。実際のリング表示の成立とは区別して判定した。"
+    },
+    {
+      "dimension": "Rubric：規格適合の過大主張",
+      "result": "ok",
+      "note": "追加コメントは押せる範囲と32pt行への収まりを説明するのみ。24ptという数値によるHIG準拠の断定はない。"
+    }
+  ],
+  "verdict": "needs_changes",
+  "tests_run": [],
+  "findings": [
+    {
+      "severity": "LOW",
+      "file": "tasks/task-34.md",
+      "line": 46,
+      "summary": "指摘1：成功基準3のAX枠・端クリック・画面密度・フォーカスの成立を、このレビュー入力では確認できない。",
+      "evidence": "契約46行は「AXで…30×24」「プロジェクト行の＋が24×24」、端クリック、1440／1024ptでの表示、フォーカスリングとAXPressを要求する。実コードではDashboardTopBarControls.swift:297のframeはImageに付き、DashboardSidebarView.swift:375は.menuStyle(.borderlessButton)。この構成自体を欠陥とは判定しないが、ラベル寸法だけからネイティブMenuを含むAX枠と操作結果を証明できない。供給された独立客観層にはこの実画面ゲートが含まれていない。",
+      "repro_test": "// 隔離Debugの対象PIDから取得したグリッドボタンを渡す検証案。未実行。\nimport ApplicationServices\nimport XCTest\n\nfunc verifyGridButtonAX(_ grid: AXUIElement) {\n    var raw: CFTypeRef?\n    XCTAssertEqual(AXUIElementCopyAttributeValue(grid, kAXSizeAttribute as CFString, &raw), .success)\n    guard let raw else { XCTFail(\"AXSizeなし\"); return }\n    guard CFGetTypeID(raw) == AXValueGetTypeID() else { XCTFail(\"AXSizeの型不一致\"); return }\n    var size = CGSize.zero\n    XCTAssertTrue(AXValueGetValue(raw as! AXValue, .cgSize, &size))\n    XCTAssertEqual(size.width, 30, accuracy: 0.1)\n    XCTAssertEqual(size.height, 24, accuracy: 0.1)\n    XCTAssertEqual(AXUIElementSetAttributeValue(grid, kAXFocusedAttribute as CFString, kCFBooleanTrue), .success)\n    XCTAssertEqual(AXUIElementPerformAction(grid, kAXPressAction as CFString), .success)\n}\n// 別途、契約46行の遮蔽確認付き端クリック・状態変化・リング画像・2画面幅の比較が必要。",
+      "confidence": "unverified"
+    }
+  ],
+  "integrity_check": "実コードの欠陥・握りつぶし・弱体化は検出せず。テスト実走は未検証。試行1: `/Users/ryosuke/.agents/scripts/compact-test task34-acceptance swift test --package-path macos/Packages/DesignSystem --filter AcceptanceHitTargetTests`。原文: `mktemp: mkstemp failed on /tmp/tmp.WrBGm0ikrj: Operation not permitted`、`/Users/ryosuke/.agents/scripts/compact-test: line 26: : No such file or directory`、`cat: : No such file or directory`。試行2: `TASK34_BASELINE=40533aa /Users/ryosuke/.agents/scripts/compact-test task34-wiring ruby .claude/scripts/task34-wiring.rb`も`mktemp: mkstemp failed on /tmp/tmp.PR4OBYCIT2: Operation not permitted`と同じ後続エラーでexit 1。いずれもラッパーのログ作成段階で停止し、Swift／Rubyは起動していないため実装起因ではない。ラッパー迂回・TMPDIR変更はしていない。driverによるAcceptanceHitTargetTests、配線検査、DesignSystem全数、2パッケージのビルドgreen供給は環境例外の客観層として受領した。needs_changesはテスト実走不可ではなく、客観層に含まれない成功基準3が未確認のため。git diff --checkはexit 0。Apple API詳細の補助取得は`400 Unsupported content-type: text/markdown`で失敗し、AX挙動の証拠には使用していない。ファイル変更なし。",
+  "root_cause_assessment": "修正は根本原因に到達している。グリフを拡大せず、Button／Menuのラベル領域を拡張して既存contentShapeへ渡す構成であり、Imageにframeが付いていること自体は誤りではない。frameが子を包むレイアウト領域を定める点は[Appleのレイアウト説明](https://developer.apple.com/documentation/swiftui/laying-out-a-simple-view)とも整合する。ただしAX枠との一致はそこからの保証ではない。静的変異評価：iconを20へ戻すとiconIsAtLeast24とhitTargetLiteralValuesが失敗する。modeSegmentHeightを20へ戻すと高さ下限と等値検査が失敗する。定数を残して各frameを旧値へ戻すと数値テストは通るが配線検査が失敗する。contentShapeを削除しても配線検査が失敗する。一方、ボタンにoffsetを追加して32pt行外へ移しても、この数値テストと配線検査では検出できない。従って数値・配線の根本修正は裏付けられるが、到達性・アクセシビリティの最終合格には契約の実画面ゲートが必要。"
+}

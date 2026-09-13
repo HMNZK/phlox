@@ -1,0 +1,2179 @@
+diff --git a/macos/Packages/AgentDomain/Sources/AgentDomain/SessionTitlePresentation.swift b/macos/Packages/AgentDomain/Sources/AgentDomain/SessionTitlePresentation.swift
+new file mode 100644
+index 0000000..a9ed75a
+--- /dev/null
++++ b/macos/Packages/AgentDomain/Sources/AgentDomain/SessionTitlePresentation.swift
+@@ -0,0 +1,35 @@
++import Foundation
++
++public struct SessionTitlePresentation: Equatable, Sendable {
++    public let primary: String
++    public let secondary: String?
++    public let fullTitle: String
++    public let helpText: String
++    public let accessibilityValue: String
++
++    public init(
++        state: SessionTitleState,
++        fallback: String,
++        workspacePath: String
++    ) {
++        let primary = state.effectiveName(fallback: fallback)
++        self.primary = primary
++        if let flowerName = state.flowerName, flowerName != primary {
++            self.secondary = flowerName
++        } else {
++            self.secondary = nil
++        }
++        if state.source == .derived, let fullDerivedTitle = state.fullDerivedTitle {
++            self.fullTitle = fullDerivedTitle
++        } else {
++            self.fullTitle = primary
++        }
++        var helpLines = [fullTitle]
++        if let flowerName = state.flowerName {
++            helpLines.append("花名: \(flowerName)")
++        }
++        helpLines.append("作業場所: \(workspacePath)")
++        self.helpText = helpLines.joined(separator: "\n")
++        self.accessibilityValue = fullTitle
++    }
++}
+diff --git a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/AgentChatRowPolicy.swift b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/AgentChatRowPolicy.swift
+index fba8f4a..f6b3b38 100644
+--- a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/AgentChatRowPolicy.swift
++++ b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/AgentChatRowPolicy.swift
+@@ -66,6 +66,7 @@ struct AgoraAgentMessageBubble: View {
+ /// アゴラタイムライン末尾の Thinking インジケータ行（アイコン＋セッション名＋アニメーション）。
+ struct AgoraThinkingIndicatorRow: View {
+     let source: TeamTimelineSource
++    let presentation: SessionTitlePresentation
+     @Environment(\.scenePhase) private var scenePhase
+     @State private var isInViewHierarchy = false
+     @State private var isInViewport = false
+@@ -88,10 +89,22 @@ struct AgoraThinkingIndicatorRow: View {
+         VStack(alignment: .leading, spacing: DSSpacing.xs) {
+             HStack(spacing: DSSpacing.xs) {
+                 AgentBrandIcon(descriptor: source.agentDescriptor, size: 16)
+-                Text(source.displayName)
++                Text(presentation.primary)
+                     .font(DSFont.captionStrong)
+                     .foregroundStyle(DSColor.textPrimary)
+                     .lineLimit(1)
++                    .truncationMode(.tail)
++                    .layoutPriority(1)
++                    .help(presentation.helpText)
++                    .accessibilityValue(presentation.accessibilityValue)
++                if let secondary = presentation.secondary {
++                    Text(secondary)
++                        .font(DSFont.caption)
++                        .foregroundStyle(DSColor.textPrimary)
++                        .lineLimit(1)
++                        .truncationMode(.tail)
++                        .accessibilityHidden(true)
++                }
+                 Text(source.agentDescriptor.displayName)
+                     .font(DSFont.caption)
+                     .foregroundStyle(DSColor.textTertiary)
+diff --git a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardSidebarView.swift b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardSidebarView.swift
+index de180bb..ce93841 100644
+--- a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardSidebarView.swift
++++ b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardSidebarView.swift
+@@ -462,12 +462,28 @@ private struct SessionSidebarRowView: View {
+             StatusLabel(status: session.displayStatus)
+                 .accessibilityHidden(true)
+             AgentSessionIcon(descriptor: session.agentDescriptor, status: session.displayStatus, size: 16)
+-            Text(session.displayName)
++            let presentation = SessionTitlePresentation(
++                state: session.titleState,
++                fallback: SessionViewModel.shortID(for: session.id),
++                workspacePath: session.workspacePath
++            )
++            Text(presentation.primary)
+                 .font(session.name.isEmpty ? DSFont.mono : DSFont.body)
+                 .fontWeight(emphasis.nameWeight)
+-                .foregroundStyle(session.name.isEmpty ? DSColor.textTertiary : DSColor.textPrimary)
++                .foregroundStyle(DSColor.textPrimary)
+                 .lineLimit(1)
+                 .truncationMode(.tail)
++                .layoutPriority(1)
++                .help(presentation.helpText)
++                .accessibilityValue(presentation.accessibilityValue)
++            if let secondary = presentation.secondary {
++                Text(secondary)
++                    .font(DSFont.caption)
++                    .foregroundStyle(DSColor.textPrimary)
++                    .lineLimit(1)
++                    .truncationMode(.tail)
++                    .accessibilityHidden(true)
++            }
+             Spacer(minLength: DSSpacing.s)
+             TimelineView(.periodic(from: session.startedAt, by: 60)) { timeline in
+                 Text(SidebarRelativeTime.label(from: session.startedAt, to: timeline.date))
+diff --git a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardTopBarControls.swift b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardTopBarControls.swift
+index 23d1d31..678ff0f 100644
+--- a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardTopBarControls.swift
++++ b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardTopBarControls.swift
+@@ -19,9 +19,37 @@ struct DashboardLeadingTopBarControls: View {
+             if let agentConsoleWindowID {
+                 agentConsoleButton(windowID: agentConsoleWindowID)
+             }
++            let presentation = SessionTitlePresentation(
++                state: selectedNode?.titleState ?? .legacy(name: ""),
++                fallback: selectedNode.map { SessionViewModel.shortID(for: $0.id) } ?? "",
++                workspacePath: selectedNode?.workspacePath ?? ""
++            )
++            Text(presentation.primary)
++                .font(DSFont.body)
++                .foregroundStyle(DSColor.textPrimary)
++                .lineLimit(1)
++                .truncationMode(.tail)
++                .layoutPriority(1)
++                .help(presentation.helpText)
++                .accessibilityValue(presentation.accessibilityValue)
++                .opacity(selectedNode == nil ? 0 : 1)
++                .frame(minWidth: 0, maxWidth: selectedNode == nil ? 0 : 280, alignment: .leading)
++                .accessibilityHidden(selectedNode == nil)
++            if let secondary = presentation.secondary {
++                Text(secondary)
++                    .font(DSFont.caption)
++                    .foregroundStyle(DSColor.textPrimary)
++                    .lineLimit(1)
++                    .truncationMode(.tail)
++                    .accessibilityHidden(true)
++            }
+         }
+     }
+ 
++    private var selectedNode: SessionNode? {
++        router.selectedSession.flatMap { viewModel.sessionNode(id: $0) }
++    }
++
+     private var settingsButton: some View {
+         Button {
+             onOpenSettings()
+diff --git a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/TeamTimelineView.swift b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/TeamTimelineView.swift
+index ff0986e..5f9deb0 100644
+--- a/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/TeamTimelineView.swift
++++ b/macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/TeamTimelineView.swift
+@@ -75,9 +75,10 @@ public struct TeamTimelineView: View {
+                     if items.isEmpty, thinkingSources(from: sources).isEmpty {
+                         emptyTimeline
+                     } else {
+-                        AgoraTimelineRows(items: items, onOpenSession: openSession)
++                        AgoraTimelineRows(items: items, presentationFor: titlePresentation, onOpenSession: openSession)
+                         AgoraThinkingIndicatorRows(
+-                            sources: thinkingSources(from: sources)
++                            sources: thinkingSources(from: sources),
++                            presentationFor: titlePresentation
+                         )
+                     }
+                     Color.clear.frame(height: 1)
+@@ -127,7 +128,10 @@ public struct TeamTimelineView: View {
+                 ScrollView(.horizontal, showsIndicators: false) {
+                     HStack(spacing: DSSpacing.xs) {
+                         ForEach(sources) { source in
+-                            TeamTimelineSourceChip(source: source)
++                            TeamTimelineSourceChip(
++                                source: source,
++                                presentation: titlePresentation(sessionID: source.id, fallbackName: source.displayName)
++                            )
+                         }
+                         addAgentMenu
+                     }
+@@ -472,6 +476,21 @@ public struct TeamTimelineView: View {
+         router.openSingle(sessionID: sessionID)
+     }
+ 
++    private func titlePresentation(sessionID: SessionID, fallbackName: String) -> SessionTitlePresentation {
++        if let node = viewModel.sessionNodes.first(where: { $0.id == sessionID }) {
++            return SessionTitlePresentation(
++                state: node.titleState,
++                fallback: SessionViewModel.shortID(for: node.id),
++                workspacePath: node.workspacePath
++            )
++        }
++        return SessionTitlePresentation(
++            state: .legacy(name: fallbackName),
++            fallback: fallbackName,
++            workspacePath: ""
++        )
++    }
++
+     private func sendTeamMessage(_ text: String) async throws {
+         let action = AgoraComposerRouting.action(
+             phase: viewModel.agoraDiscussionCoordinator?.phase,
+@@ -529,6 +548,7 @@ private struct TeamTimelineSpawnError: Identifiable {
+ 
+ private struct TeamTimelineSourceChip: View {
+     let source: TeamTimelineSource
++    let presentation: SessionTitlePresentation
+ 
+     var body: some View {
+         HStack(spacing: DSSpacing.xs) {
+@@ -536,10 +556,22 @@ private struct TeamTimelineSourceChip: View {
+             Text(source.agentDescriptor.displayName)
+                 .font(DSFont.captionStrong)
+                 .foregroundStyle(DSColor.textPrimary)
+-            Text(source.displayName)
++            Text(presentation.primary)
+                 .font(DSFont.caption)
+-                .foregroundStyle(DSColor.textTertiary)
++                .foregroundStyle(DSColor.textPrimary)
+                 .lineLimit(1)
++                .truncationMode(.tail)
++                .layoutPriority(1)
++                .help(presentation.helpText)
++                .accessibilityValue(presentation.accessibilityValue)
++            if let secondary = presentation.secondary {
++                Text(secondary)
++                    .font(DSFont.caption)
++                    .foregroundStyle(DSColor.textPrimary)
++                    .lineLimit(1)
++                    .truncationMode(.tail)
++                    .accessibilityHidden(true)
++            }
+         }
+         .padding(.horizontal, DSSpacing.s)
+         .padding(.vertical, DSSpacing.xs)
+@@ -549,12 +581,17 @@ private struct TeamTimelineSourceChip: View {
+ 
+ private struct AgoraTimelineRows: View {
+     let items: [TeamTimelineItem]
++    let presentationFor: (SessionID, String) -> SessionTitlePresentation
+     let onOpenSession: (SessionID) -> Void
+ 
+     var body: some View {
+         VStack(alignment: .leading, spacing: DSSpacing.m) {
+             ForEach(items) { item in
+-                AgoraTimelineRow(item: item, onOpenSession: onOpenSession)
++                AgoraTimelineRow(
++                    item: item,
++                    presentation: presentationFor(item.sessionID, item.sessionDisplayName),
++                    onOpenSession: onOpenSession
++                )
+             }
+         }
+     }
+@@ -562,11 +599,15 @@ private struct AgoraTimelineRows: View {
+ 
+ private struct AgoraThinkingIndicatorRows: View {
+     let sources: [TeamTimelineSource]
++    let presentationFor: (SessionID, String) -> SessionTitlePresentation
+ 
+     var body: some View {
+         VStack(alignment: .leading, spacing: DSSpacing.m) {
+             ForEach(sources) { source in
+-                AgoraThinkingIndicatorRow(source: source)
++                AgoraThinkingIndicatorRow(
++                    source: source,
++                    presentation: presentationFor(source.id, source.displayName)
++                )
+             }
+         }
+     }
+@@ -574,6 +615,7 @@ private struct AgoraThinkingIndicatorRows: View {
+ 
+ private struct AgoraTimelineRow: View {
+     let item: TeamTimelineItem
++    let presentation: SessionTitlePresentation
+     let onOpenSession: (SessionID) -> Void
+ 
+     var body: some View {
+@@ -595,10 +637,22 @@ private struct AgoraTimelineRow: View {
+         } label: {
+             HStack(spacing: DSSpacing.xs) {
+                 AgentBrandIcon(descriptor: item.agentDescriptor, size: 16)
+-                Text(item.sessionDisplayName)
++                Text(presentation.primary)
+                     .font(DSFont.captionStrong)
+                     .foregroundStyle(DSColor.textPrimary)
+                     .lineLimit(1)
++                    .truncationMode(.tail)
++                    .layoutPriority(1)
++                    .help(presentation.helpText)
++                    .accessibilityValue(presentation.accessibilityValue)
++                if let secondary = presentation.secondary {
++                    Text(secondary)
++                        .font(DSFont.caption)
++                        .foregroundStyle(DSColor.textPrimary)
++                        .lineLimit(1)
++                        .truncationMode(.tail)
++                        .accessibilityHidden(true)
++                }
+                 Text(item.agentDescriptor.displayName)
+                     .font(DSFont.caption)
+                     .foregroundStyle(DSColor.textTertiary)
+diff --git a/macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptancePermissionWordingTests.swift b/macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptancePermissionWordingTests.swift
+deleted file mode 100644
+index bd55dda..0000000
+--- a/macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptancePermissionWordingTests.swift
++++ /dev/null
+@@ -1,564 +0,0 @@
+-// 実パス: macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptancePermissionWordingTests.swift
+-// task-50（UX-10b）受け入れテスト（PM 著・不変）。UIWording+Permissions 未実装のコンパイル RED が正常。
+-// 期待値は tasks/task-50.md の独立リテラル。製品の辞書・列挙・出力から生成しない。
+-// 公開面の解釈は task-48 凍結テストに従う: enum UIWording / enum Key: String, CaseIterable / text(_:languageCode:)
+-//
+-// 凍結する公開面（UIWording.swift は変更せず、本ファイルが要求する拡張を UIWording+Permissions.swift に置く）:
+-//   enum UIWording.PermissionAgent: String, CaseIterable, Equatable, Hashable, Sendable
+-//   enum UIWording.PermissionKind: String, CaseIterable, Equatable, Hashable, Sendable
+-//   struct UIWording.PermissionWording: Equatable, Hashable, Sendable { title, explanation }
+-//   struct UIWording.LaunchPermissionWording: Equatable, Hashable, Sendable { rowLabel, offExplanation, onExplanation }
+-//   static func permission(agent:kind:value:languageCode:) -> PermissionWording
+-//   static func launchPermission(agent:displayName:languageCode:) -> LaunchPermissionWording
+-//   static func settingsPermissionFooter(languageCode:) -> String
+-// 言語: task-48 と同じ。主言語（`-` / `_` の前）を大小無視。en は英語、ja は日本語、それ以外は日本語。
+-// default と manual は同じ表示。正本は nil → bypass へ倒さない。Cursor 動作モード nil は Agent。Codex プロフィール nil は未選択。
+-
+-import Testing
+-@testable import DesignSystem
+-
+-private func requireKeyTraits<T: CaseIterable & Equatable & Hashable & Sendable>(_: T.Type) {}
+-
+-private enum FrozenUnknown {
+-    static let japanese = "この設定値の詳細は未確認です。エージェントの設定を確認してください。"
+-    static let english = "Details of this setting value are unconfirmed. Check the agent settings."
+-}
+-
+-private enum FrozenUnset {
+-    static let titleJA = "既定（未設定）"
+-    static let titleEN = "Default (unset)"
+-    static let explanationJA = "値は未設定です。適用される既定値はエージェントの設定を確認してください。"
+-    static let explanationEN = "The value is unset. Check the agent settings for the applied default."
+-}
+-
+-private func permission(
+-    _ agent: UIWording.PermissionAgent,
+-    _ kind: UIWording.PermissionKind,
+-    _ value: String?,
+-    _ languageCode: String
+-) -> UIWording.PermissionWording {
+-    UIWording.permission(agent: agent, kind: kind, value: value, languageCode: languageCode)
+-}
+-
+-@Suite("task-50: UIWording 権限文言の正本")
+-struct AcceptancePermissionWordingTests {
+-
+-    @Test("PermissionAgent / PermissionKind の命名規則と集合が契約と一致する")
+-    func permissionTypesMatchContract() {
+-        requireKeyTraits(UIWording.PermissionAgent.self)
+-        requireKeyTraits(UIWording.PermissionKind.self)
+-        #expect(UIWording.PermissionAgent.allCases == [.claude, .codex, .cursor, .custom])
+-        #expect(UIWording.PermissionAgent.claude.rawValue == "claude")
+-        #expect(UIWording.PermissionAgent.codex.rawValue == "codex")
+-        #expect(UIWording.PermissionAgent.cursor.rawValue == "cursor")
+-        #expect(UIWording.PermissionAgent.custom.rawValue == "custom")
+-        #expect(UIWording.PermissionKind.allCases == [
+-            .claudePermissionMode,
+-            .codexApprovalPolicy,
+-            .codexSandboxMode,
+-            .codexProfile,
+-            .cursorApprovalMode,
+-            .cursorSandboxMode,
+-            .cursorOperationMode,
+-            .claudeRuleBucket,
+-            .cursorRuleBucket,
+-            .settingKeyTitle,
+-            .permissionsPaneIntro,
+-        ])
+-        #expect(UIWording.PermissionKind.claudePermissionMode.rawValue == "claudePermissionMode")
+-        #expect(UIWording.PermissionKind.codexApprovalPolicy.rawValue == "codexApprovalPolicy")
+-        #expect(UIWording.PermissionKind.codexSandboxMode.rawValue == "codexSandboxMode")
+-        #expect(UIWording.PermissionKind.codexProfile.rawValue == "codexProfile")
+-        #expect(UIWording.PermissionKind.cursorApprovalMode.rawValue == "cursorApprovalMode")
+-        #expect(UIWording.PermissionKind.cursorSandboxMode.rawValue == "cursorSandboxMode")
+-        #expect(UIWording.PermissionKind.cursorOperationMode.rawValue == "cursorOperationMode")
+-        #expect(UIWording.PermissionKind.claudeRuleBucket.rawValue == "claudeRuleBucket")
+-        #expect(UIWording.PermissionKind.cursorRuleBucket.rawValue == "cursorRuleBucket")
+-        #expect(UIWording.PermissionKind.settingKeyTitle.rawValue == "settingKeyTitle")
+-        #expect(UIWording.PermissionKind.permissionsPaneIntro.rawValue == "permissionsPaneIntro")
+-        #expect(UIWording.PermissionKind.allCases.count == 11)
+-        #expect(Set(UIWording.PermissionKind.allCases).count == 11)
+-    }
+-
+-    @Test("公開関数の型が agent・kind・value・languageCode を区別する")
+-    func publicFunctionSignature() {
+-        let permissionFn: (UIWording.PermissionAgent, UIWording.PermissionKind, String?, String) -> UIWording.PermissionWording = UIWording.permission
+-        let launchFn: (UIWording.PermissionAgent, String, String) -> UIWording.LaunchPermissionWording = UIWording.launchPermission
+-        let footerFn: (String) -> String = UIWording.settingsPermissionFooter
+-        let ja = permissionFn(.claude, .claudePermissionMode, "manual", "ja")
+-        #expect(ja.title == "手動承認")
+-        #expect(ja.explanation == "読み取り以外は権限ルールに従って承認を求めます。実行範囲の制限とは別の設定です。")
+-        let launch = launchFn(.claude, "ignored", "ja")
+-        #expect(launch.rowLabel == "Claude Code: 承認確認を省略")
+-        #expect(footerFn("ja") == "変更は次回セッション開始から反映されます。承認方式と実行制限はエージェントごとに異なります。解除は信頼できるプロジェクトでのみ有効にしてください。")
+-    }
+-
+-    @Test("Claude 権限モードの日本語表示名・説明が契約表の独立リテラルと逐語一致する")
+-    func claudePermissionModeJapanese() {
+-        let manual = permission(.claude, .claudePermissionMode, "manual", "ja")
+-        #expect(manual.title == "手動承認")
+-        #expect(manual.explanation == "読み取り以外は権限ルールに従って承認を求めます。実行範囲の制限とは別の設定です。")
+-        let defaultMode = permission(.claude, .claudePermissionMode, "default", "ja")
+-        #expect(defaultMode.title == "手動承認")
+-        #expect(defaultMode.explanation == "読み取り以外は権限ルールに従って承認を求めます。実行範囲の制限とは別の設定です。")
+-        #expect(defaultMode == manual)
+-        let acceptEdits = permission(.claude, .claudePermissionMode, "acceptEdits", "ja")
+-        #expect(acceptEdits.title == "編集を自動承認")
+-        #expect(acceptEdits.explanation == "ファイル編集などを自動承認します。すべてのコマンド実行を承認する設定ではありません。")
+-        let auto = permission(.claude, .claudePermissionMode, "auto", "ja")
+-        #expect(auto.title == "自動判定")
+-        #expect(auto.explanation == "Claude Code が操作を判定します。すべての操作を無条件に許可する設定ではありません。")
+-        let bypass = permission(.claude, .claudePermissionMode, "bypassPermissions", "ja")
+-        #expect(bypass.title == "承認確認を省略")
+-        #expect(bypass.explanation == "通常の承認確認を省略します。サンドボックスの解除を意味する設定ではありません。")
+-        let dontAsk = permission(.claude, .claudePermissionMode, "dontAsk", "ja")
+-        #expect(dontAsk.title == "承認が必要な操作を拒否")
+-        #expect(dontAsk.explanation == "事前に許可された操作などを実行し、承認が必要な操作は確認せず拒否します。")
+-        let plan = permission(.claude, .claudePermissionMode, "plan", "ja")
+-        #expect(plan.title == "計画")
+-        #expect(plan.explanation == "調査と計画を行うモードです。編集を進めるモードとは区別されます。")
+-        #expect(dontAsk.explanation != bypass.explanation)
+-        #expect(dontAsk.title != bypass.title)
+-        #expect(bypass.explanation.contains("サンドボックス") )
+-        #expect(!bypass.explanation.contains("すべて許可"))
+-        #expect(!dontAsk.explanation.contains("すべて許可"))
+-    }
+-
+-    @Test("Claude 権限モードの英語表示名・説明が凍結リテラルと逐語一致する")
+-    func claudePermissionModeEnglish() {
+-        let manual = permission(.claude, .claudePermissionMode, "manual", "en")
+-        #expect(manual.title == "Manual")
+-        #expect(manual.explanation == "Asks for approval according to permission rules except for reads. This is separate from execution-scope limits.")
+-        #expect(permission(.claude, .claudePermissionMode, "default", "en") == manual)
+-        let acceptEdits = permission(.claude, .claudePermissionMode, "acceptEdits", "en")
+-        #expect(acceptEdits.title == "Accept Edits")
+-        #expect(acceptEdits.explanation == "Automatically approves file edits and similar actions. This does not approve every command.")
+-        let auto = permission(.claude, .claudePermissionMode, "auto", "en")
+-        #expect(auto.title == "Auto")
+-        #expect(auto.explanation == "Claude Code decides how to handle each action. This does not unconditionally allow every action.")
+-        let bypass = permission(.claude, .claudePermissionMode, "bypassPermissions", "en")
+-        #expect(bypass.title == "Bypass")
+-        #expect(bypass.explanation == "Skips the usual approval prompts. This does not disable the sandbox.")
+-        let dontAsk = permission(.claude, .claudePermissionMode, "dontAsk", "en")
+-        #expect(dontAsk.title == "Don't Ask")
+-        #expect(dontAsk.explanation == "Runs previously allowed actions and rejects actions that would need approval, without asking.")
+-        let plan = permission(.claude, .claudePermissionMode, "plan", "en")
+-        #expect(plan.title == "Plan")
+-        #expect(plan.explanation == "A mode for research and planning. It is distinct from modes that proceed with edits.")
+-        #expect(dontAsk.explanation != bypass.explanation)
+-        #expect(!bypass.explanation.lowercased().contains("disable the sandbox") || bypass.explanation.contains("does not disable the sandbox"))
+-        #expect(!dontAsk.title.contains("Full Access"))
+-        #expect(!bypass.explanation.contains("full access"))
+-    }
+-
+-    @Test("Codex 承認方針の日英が契約表の独立リテラルと逐語一致する")
+-    func codexApprovalPolicyBothLanguages() {
+-        let untrustedJA = permission(.codex, .codexApprovalPolicy, "untrusted", "ja")
+-        #expect(untrustedJA.title == "信頼対象外の操作を確認")
+-        #expect(untrustedJA.explanation == "自動実行できる操作以外は承認を求めます。実行範囲はサンドボックス設定に従います。")
+-        let untrustedEN = permission(.codex, .codexApprovalPolicy, "untrusted", "en")
+-        #expect(untrustedEN.title == "Confirm untrusted actions")
+-        #expect(untrustedEN.explanation == "Asks for approval except for actions that can run automatically. Execution scope follows the sandbox setting.")
+-        let onRequestJA = permission(.codex, .codexApprovalPolicy, "on-request", "ja")
+-        #expect(onRequestJA.title == "必要時に承認を要求")
+-        #expect(onRequestJA.explanation == "Codex が必要と判断したときに承認を求めます。実行範囲はサンドボックス設定に従います。")
+-        let onRequestEN = permission(.codex, .codexApprovalPolicy, "on-request", "en")
+-        #expect(onRequestEN.title == "Ask when needed")
+-        #expect(onRequestEN.explanation == "Asks for approval when Codex decides it is needed. Execution scope follows the sandbox setting.")
+-        let neverJA = permission(.codex, .codexApprovalPolicy, "never", "ja")
+-        #expect(neverJA.title == "承認を要求しない")
+-        #expect(neverJA.explanation == "承認を求めず、設定された実行制限の範囲で動作します。実行制限を解除する設定ではありません。")
+-        let neverEN = permission(.codex, .codexApprovalPolicy, "never", "en")
+-        #expect(neverEN.title == "Do not ask for approval")
+-        #expect(neverEN.explanation == "Runs without asking for approval, within the configured execution limits. This does not lift those limits.")
+-        let granularJA = permission(.codex, .codexApprovalPolicy, "granular", "ja")
+-        #expect(granularJA.title == "項目別の承認設定")
+-        #expect(granularJA.explanation == "承認要求の種類ごとに扱いを定める設定です。この名前だけでは具体的な許可範囲は分かりません。")
+-        let granularEN = permission(.codex, .codexApprovalPolicy, "granular", "en")
+-        #expect(granularEN.title == "Per-item approval")
+-        #expect(granularEN.explanation == "Defines how each kind of approval request is handled. This name alone does not describe the allowed scope.")
+-        #expect(!neverJA.title.contains("すべて許可"))
+-        #expect(!neverJA.explanation.contains("すべて許可"))
+-        #expect(!neverEN.title.lowercased().contains("allow everything"))
+-        #expect(!neverEN.explanation.lowercased().contains("allow everything"))
+-    }
+-
+-    @Test("Codex 実行制限の日英が契約表の独立リテラルと逐語一致する")
+-    func codexSandboxModeBothLanguages() {
+-        let readOnlyJA = permission(.codex, .codexSandboxMode, "read-only", "ja")
+-        #expect(readOnlyJA.title == "読み取り専用")
+-        #expect(readOnlyJA.explanation == "サンドボックス内での書き込みを制限します。承認を求める条件は別の設定です。")
+-        let readOnlyEN = permission(.codex, .codexSandboxMode, "read-only", "en")
+-        #expect(readOnlyEN.title == "Read-only")
+-        #expect(readOnlyEN.explanation == "Restricts writes inside the sandbox. Approval conditions are a separate setting.")
+-        let workspaceJA = permission(.codex, .codexSandboxMode, "workspace-write", "ja")
+-        #expect(workspaceJA.title == "作業領域への書き込み")
+-        #expect(workspaceJA.explanation == "作業領域など、設定された範囲への書き込みを許可します。ネットワークや保護対象の制限は別途適用されます。")
+-        let workspaceEN = permission(.codex, .codexSandboxMode, "workspace-write", "en")
+-        #expect(workspaceEN.title == "Workspace write")
+-        #expect(workspaceEN.explanation == "Allows writes to the workspace and other configured scopes. Network and protected-path limits still apply.")
+-        let fullJA = permission(.codex, .codexSandboxMode, "danger-full-access", "ja")
+-        #expect(fullJA.title == "サンドボックス制限なし")
+-        #expect(fullJA.explanation == "Codex のサンドボックスによる実行制限を外します。承認を求める条件は別の設定です。")
+-        let fullEN = permission(.codex, .codexSandboxMode, "danger-full-access", "en")
+-        #expect(fullEN.title == "No sandbox limits")
+-        #expect(fullEN.explanation == "Removes Codex sandbox execution limits. Approval conditions are a separate setting.")
+-    }
+-
+-    @Test("Codex プロフィール ID と設定値を混同しない")
+-    func codexProfileDistinctFromSettings() {
+-        let readOnlyProfileJA = permission(.codex, .codexProfile, ":read-only", "ja")
+-        #expect(readOnlyProfileJA.title == "読み取り専用")
+-        #expect(readOnlyProfileJA.explanation == "読み取り専用のプロフィールです。承認方針の詳細はエージェントの設定を確認してください。")
+-        let readOnlyProfileEN = permission(.codex, .codexProfile, ":read-only", "en")
+-        #expect(readOnlyProfileEN.title == "Read Only")
+-        #expect(readOnlyProfileEN.explanation == "A read-only profile. Check the agent settings for approval-policy details.")
+-        let workspaceProfileJA = permission(.codex, .codexProfile, ":workspace", "ja")
+-        #expect(workspaceProfileJA.title == "作業領域への書き込み")
+-        #expect(workspaceProfileJA.explanation == "作業領域への書き込みを許可するプロフィールです。承認方針の詳細はエージェントの設定を確認してください。")
+-        let workspaceProfileEN = permission(.codex, .codexProfile, ":workspace", "en")
+-        #expect(workspaceProfileEN.title == "Auto")
+-        #expect(workspaceProfileEN.explanation == "A profile that allows workspace writes. Check the agent settings for approval-policy details.")
+-        let dangerProfileJA = permission(.codex, .codexProfile, ":danger-full-access", "ja")
+-        #expect(dangerProfileJA.title == "承認なし・実行制限なし")
+-        #expect(dangerProfileJA.explanation == "承認と実行制限を解除するプロフィールです。適用内容はエージェントの設定を確認してください。")
+-        let dangerProfileEN = permission(.codex, .codexProfile, ":danger-full-access", "en")
+-        #expect(dangerProfileEN.title == "Full Access")
+-        #expect(dangerProfileEN.explanation == "A profile that lifts approval and execution limits. Check the agent settings for what actually applies.")
+-        let unsetProfileJA = permission(.codex, .codexProfile, nil, "ja")
+-        #expect(unsetProfileJA.title == "承認設定")
+-        #expect(unsetProfileJA.explanation == "プロフィールは未選択です。実際の適用内容はエージェントの設定を確認してください。")
+-        let unsetProfileEN = permission(.codex, .codexProfile, nil, "en")
+-        #expect(unsetProfileEN.title == "Approval")
+-        #expect(unsetProfileEN.explanation == "No profile is selected. Check the agent settings for what actually applies.")
+-        let sandboxRead = permission(.codex, .codexSandboxMode, "read-only", "en")
+-        #expect(sandboxRead.title != readOnlyProfileEN.title)
+-        #expect(sandboxRead.explanation != readOnlyProfileEN.explanation)
+-        let never = permission(.codex, .codexApprovalPolicy, "never", "en")
+-        let dangerSandbox = permission(.codex, .codexSandboxMode, "danger-full-access", "en")
+-        #expect(never.title != dangerProfileEN.title)
+-        #expect(never.explanation != dangerSandbox.explanation)
+-        #expect(dangerSandbox.title != dangerProfileEN.title)
+-        let neverAsProfile = permission(.codex, .codexProfile, "never", "ja")
+-        #expect(neverAsProfile.title == "never")
+-        #expect(neverAsProfile.explanation == FrozenUnknown.japanese)
+-        let dangerAsApproval = permission(.codex, .codexApprovalPolicy, "danger-full-access", "ja")
+-        #expect(dangerAsApproval.title == "danger-full-access")
+-        #expect(dangerAsApproval.explanation == FrozenUnknown.japanese)
+-    }
+-
+-    @Test("Cursor 承認方式・実行制限・動作モードの日英が契約表の独立リテラルと逐語一致する")
+-    func cursorSettingsBothLanguages() {
+-        let allowlistJA = permission(.cursor, .cursorApprovalMode, "allowlist", "ja")
+-        #expect(allowlistJA.title == "許可リストで確認")
+-        #expect(allowlistJA.explanation == "許可リスト外の操作では確認を求める設定です。サンドボックス設定とは別です。")
+-        let allowlistEN = permission(.cursor, .cursorApprovalMode, "allowlist", "en")
+-        #expect(allowlistEN.title == "Confirm with allowlist")
+-        #expect(allowlistEN.explanation == "Asks for confirmation outside the allowlist. This is separate from the sandbox setting.")
+-        let unrestrictedJA = permission(.cursor, .cursorApprovalMode, "unrestricted", "ja")
+-        #expect(unrestrictedJA.title == "承認確認を省略")
+-        #expect(unrestrictedJA.explanation == "操作の承認確認を省略する設定です。サンドボックス設定とは別です。")
+-        let unrestrictedEN = permission(.cursor, .cursorApprovalMode, "unrestricted", "en")
+-        #expect(unrestrictedEN.title == "Skip approval prompts")
+-        #expect(unrestrictedEN.explanation == "Skips approval prompts. This is separate from the sandbox setting.")
+-        let autoReviewJA = permission(.cursor, .cursorApprovalMode, "auto-review", "ja")
+-        #expect(autoReviewJA.title == "Cursor の自動判定")
+-        #expect(autoReviewJA.explanation == "Cursor の判定に従って操作を実行します。Claude の権限モードや Codex の承認方針とは別の設定です。")
+-        let autoReviewEN = permission(.cursor, .cursorApprovalMode, "auto-review", "en")
+-        #expect(autoReviewEN.title == "Cursor auto review")
+-        #expect(autoReviewEN.explanation == "Runs actions according to Cursor's judgment. This is a different setting from Claude permission modes and Codex approval policy.")
+-        let enabledJA = permission(.cursor, .cursorSandboxMode, "enabled", "ja")
+-        #expect(enabledJA.title == "実行制限を有効化")
+-        #expect(enabledJA.explanation == "コマンドをサンドボックス内で実行する設定です。")
+-        let enabledEN = permission(.cursor, .cursorSandboxMode, "enabled", "en")
+-        #expect(enabledEN.title == "Enable execution limits")
+-        #expect(enabledEN.explanation == "Runs commands inside a sandbox.")
+-        let disabledJA = permission(.cursor, .cursorSandboxMode, "disabled", "ja")
+-        #expect(disabledJA.title == "実行制限を無効化")
+-        #expect(disabledJA.explanation == "サンドボックスによる実行制限を無効にする設定です。")
+-        let disabledEN = permission(.cursor, .cursorSandboxMode, "disabled", "en")
+-        #expect(disabledEN.title == "Disable execution limits")
+-        #expect(disabledEN.explanation == "Disables sandbox execution limits.")
+-        let agentJA = permission(.cursor, .cursorOperationMode, nil, "ja")
+-        #expect(agentJA.title == "エージェント")
+-        #expect(agentJA.explanation == "通常の作業モードです。承認方式や実行制限を選ぶ項目ではありません。")
+-        let agentEN = permission(.cursor, .cursorOperationMode, nil, "en")
+-        #expect(agentEN.title == "Agent")
+-        #expect(agentEN.explanation == "The usual working mode. This is not a control for approval method or execution limits.")
+-        let askJA = permission(.cursor, .cursorOperationMode, "ask", "ja")
+-        #expect(askJA.title == "質問")
+-        #expect(askJA.explanation == "質問向けの動作モードです。承認方式を選ぶ項目ではありません。")
+-        let askEN = permission(.cursor, .cursorOperationMode, "ask", "en")
+-        #expect(askEN.title == "Ask")
+-        #expect(askEN.explanation == "A question-oriented working mode. This is not a control for choosing an approval method.")
+-        let planJA = permission(.cursor, .cursorOperationMode, "plan", "ja")
+-        #expect(planJA.title == "計画")
+-        #expect(planJA.explanation == "計画向けの動作モードです。承認方式や実行制限を選ぶ項目ではありません。")
+-        let planEN = permission(.cursor, .cursorOperationMode, "plan", "en")
+-        #expect(planEN.title == "Plan")
+-        #expect(planEN.explanation == "A planning-oriented working mode. This is not a control for approval method or execution limits.")
+-        #expect(unrestrictedEN.title != "Bypass")
+-        #expect(askEN.title == "Ask")
+-    }
+-
+-    @Test("同じ raw value を別のエージェント・設定種類で問い合わせても混同しない")
+-    func sameRawValueDoesNotCrossKinds() {
+-        let cursorAsk = permission(.cursor, .cursorOperationMode, "ask", "ja")
+-        let claudeAskRule = permission(.claude, .claudeRuleBucket, "ask", "ja")
+-        let claudeAskMode = permission(.claude, .claudePermissionMode, "ask", "ja")
+-        let cursorAskApproval = permission(.cursor, .cursorApprovalMode, "ask", "ja")
+-        #expect(cursorAsk.title == "質問")
+-        #expect(claudeAskRule.title == "確認する")
+-        #expect(claudeAskMode.title == "ask")
+-        #expect(claudeAskMode.explanation == FrozenUnknown.japanese)
+-        #expect(cursorAskApproval.title == "ask")
+-        #expect(cursorAskApproval.explanation == FrozenUnknown.japanese)
+-        #expect(cursorAsk.title != claudeAskRule.title)
+-        #expect(cursorAsk.explanation != claudeAskRule.explanation)
+-        let claudePlan = permission(.claude, .claudePermissionMode, "plan", "ja")
+-        let cursorPlan = permission(.cursor, .cursorOperationMode, "plan", "ja")
+-        #expect(claudePlan.title == "計画")
+-        #expect(cursorPlan.title == "計画")
+-        #expect(claudePlan.explanation == "調査と計画を行うモードです。編集を進めるモードとは区別されます。")
+-        #expect(cursorPlan.explanation == "計画向けの動作モードです。承認方式や実行制限を選ぶ項目ではありません。")
+-        #expect(claudePlan.explanation != cursorPlan.explanation)
+-        let autoClaude = permission(.claude, .claudePermissionMode, "auto", "ja")
+-        let autoCursor = permission(.cursor, .cursorOperationMode, "auto", "ja")
+-        #expect(autoClaude.title == "自動判定")
+-        #expect(autoCursor.title == "auto")
+-        #expect(autoCursor.explanation == FrozenUnknown.japanese)
+-        let allowClaude = permission(.claude, .claudeRuleBucket, "allow", "ja")
+-        let allowCursor = permission(.cursor, .cursorRuleBucket, "allow", "ja")
+-        #expect(allowClaude.title == "許可")
+-        #expect(allowCursor.title == "許可")
+-        #expect(allowClaude.explanation == "確認なしで実行を許可するルールです。拒否ルールなど、他の権限設定も適用されます。")
+-        #expect(allowCursor.explanation == "確認なしで実行を許可するルールです。拒否ルールが優先されます。")
+-        #expect(allowClaude.explanation != allowCursor.explanation)
+-    }
+-
+-    @Test("ルール区分の日英が契約表の独立リテラルと逐語一致する")
+-    func ruleBucketsBothLanguages() {
+-        let claudeAllowJA = permission(.claude, .claudeRuleBucket, "allow", "ja")
+-        #expect(claudeAllowJA.title == "許可")
+-        #expect(claudeAllowJA.explanation == "確認なしで実行を許可するルールです。拒否ルールなど、他の権限設定も適用されます。")
+-        let claudeAllowEN = permission(.claude, .claudeRuleBucket, "allow", "en")
+-        #expect(claudeAllowEN.title == "Allow")
+-        #expect(claudeAllowEN.explanation == "Permits execution without confirmation. Other permission settings, such as deny rules, also apply.")
+-        let claudeAskJA = permission(.claude, .claudeRuleBucket, "ask", "ja")
+-        #expect(claudeAskJA.title == "確認する")
+-        #expect(claudeAskJA.explanation == "実行前に確認を求めるルールです。確認できないモードでは実行が拒否される場合があります。")
+-        let claudeAskEN = permission(.claude, .claudeRuleBucket, "ask", "en")
+-        #expect(claudeAskEN.title == "Ask to confirm")
+-        #expect(claudeAskEN.explanation == "Asks for confirmation before execution. In modes that cannot confirm, execution may be denied.")
+-        let claudeDenyJA = permission(.claude, .claudeRuleBucket, "deny", "ja")
+-        #expect(claudeDenyJA.title == "拒否")
+-        #expect(claudeDenyJA.explanation == "実行を拒否するルールです。許可ルールより優先されます。")
+-        let claudeDenyEN = permission(.claude, .claudeRuleBucket, "deny", "en")
+-        #expect(claudeDenyEN.title == "Deny")
+-        #expect(claudeDenyEN.explanation == "Denies execution. Takes precedence over allow rules.")
+-        let cursorAllowJA = permission(.cursor, .cursorRuleBucket, "allow", "ja")
+-        #expect(cursorAllowJA.title == "許可")
+-        #expect(cursorAllowJA.explanation == "確認なしで実行を許可するルールです。拒否ルールが優先されます。")
+-        let cursorAllowEN = permission(.cursor, .cursorRuleBucket, "allow", "en")
+-        #expect(cursorAllowEN.title == "Allow")
+-        #expect(cursorAllowEN.explanation == "Permits execution without confirmation. Deny rules take precedence.")
+-        let cursorDenyJA = permission(.cursor, .cursorRuleBucket, "deny", "ja")
+-        #expect(cursorDenyJA.title == "拒否")
+-        #expect(cursorDenyJA.explanation == "実行を拒否するルールです。許可ルールより優先されます。")
+-        let cursorDenyEN = permission(.cursor, .cursorRuleBucket, "deny", "en")
+-        #expect(cursorDenyEN.title == "Deny")
+-        #expect(cursorDenyEN.explanation == "Denies execution. Takes precedence over allow rules.")
+-        #expect(claudeAskEN.title != "Ask")
+-        #expect(permission(.cursor, .cursorRuleBucket, "ask", "ja").title == "ask")
+-        #expect(permission(.cursor, .cursorRuleBucket, "ask", "ja").explanation == FrozenUnknown.japanese)
+-    }
+-
+-    @Test("設定項目名と管理画面の導入文が凍結リテラルと逐語一致する")
+-    func settingKeyTitlesAndPaneIntros() {
+-        #expect(permission(.codex, .settingKeyTitle, "approval_policy", "ja").title == "承認方針")
+-        #expect(permission(.codex, .settingKeyTitle, "approval_policy", "en").title == "Approval policy")
+-        #expect(permission(.codex, .settingKeyTitle, "sandbox_mode", "ja").title == "実行制限（サンドボックス）")
+-        #expect(permission(.codex, .settingKeyTitle, "sandbox_mode", "en").title == "Execution limits (sandbox)")
+-        #expect(permission(.cursor, .settingKeyTitle, "approvalMode", "ja").title == "承認方式")
+-        #expect(permission(.cursor, .settingKeyTitle, "approvalMode", "en").title == "Approval method")
+-        #expect(permission(.cursor, .settingKeyTitle, "sandbox.mode", "ja").title == "実行制限（サンドボックス）")
+-        #expect(permission(.cursor, .settingKeyTitle, "sandbox.mode", "en").title == "Execution limits (sandbox)")
+-        #expect(permission(.codex, .settingKeyTitle, "approval_policy", "ja").title != permission(.cursor, .settingKeyTitle, "approvalMode", "ja").title)
+-        let claudeIntroJA = permission(.claude, .permissionsPaneIntro, nil, "ja")
+-        #expect(claudeIntroJA.title == "権限")
+-        #expect(claudeIntroJA.explanation == "対話 TUI の /permissions に相当します。~/.claude/settings.json の permissions を編集します。ルール編集は設定画面の起動時トグルとは別の設定です。")
+-        let claudeIntroEN = permission(.claude, .permissionsPaneIntro, nil, "en")
+-        #expect(claudeIntroEN.title == "Permissions")
+-        #expect(claudeIntroEN.explanation == "Equivalent to /permissions in the interactive TUI. Edits permissions in ~/.claude/settings.json. Rule editing is a different setting from the launch toggle in Settings.")
+-        let cursorIntroJA = permission(.cursor, .permissionsPaneIntro, nil, "ja")
+-        #expect(cursorIntroJA.title == "権限")
+-        #expect(cursorIntroJA.explanation == "~/.cursor/cli-config.json の permissions を編集します。拒否は許可より優先されます。ルール編集は設定画面の起動時トグルとは別の設定です。")
+-        let cursorIntroEN = permission(.cursor, .permissionsPaneIntro, nil, "en")
+-        #expect(cursorIntroEN.title == "Permissions")
+-        #expect(cursorIntroEN.explanation == "Edits permissions in ~/.cursor/cli-config.json. Deny rules take precedence over allow. Rule editing is a different setting from the launch toggle in Settings.")
+-        #expect(claudeIntroJA.explanation.contains("~/.claude/settings.json"))
+-        #expect(cursorIntroJA.explanation.contains("~/.cursor/cli-config.json"))
+-    }
+-
+-    @Test("組み込み3エージェントとカスタムの起動説明が契約表の独立リテラルと逐語一致する")
+-    func launchPermissionRows() {
+-        let claudeJA = UIWording.launchPermission(agent: .claude, displayName: "ignored", languageCode: "ja")
+-        #expect(claudeJA.rowLabel == "Claude Code: 承認確認を省略")
+-        #expect(claudeJA.offExplanation == "次回開始時に自動判定（auto）を指定します。")
+-        #expect(claudeJA.onExplanation == "次回開始時に承認確認の省略（bypassPermissions）を指定します。サンドボックスの解除を意味しません。")
+-        let claudeEN = UIWording.launchPermission(agent: .claude, displayName: "ignored", languageCode: "en")
+-        #expect(claudeEN.rowLabel == "Claude Code: Skip approval prompts")
+-        #expect(claudeEN.offExplanation == "Specifies auto (automatic judgment) at the next launch.")
+-        #expect(claudeEN.onExplanation == "Specifies bypassPermissions (skip approval prompts) at the next launch. This does not disable the sandbox.")
+-        let codexJA = UIWording.launchPermission(agent: .codex, displayName: "ignored", languageCode: "ja")
+-        #expect(codexJA.rowLabel == "Codex: 承認と実行制限を解除")
+-        #expect(codexJA.offExplanation == "チャットでは on-request と workspace-write を指定します。ターミナルでは解除引数を付けず、Codex の設定に従います。")
+-        #expect(codexJA.onExplanation == "チャットでは never と danger-full-access を指定します。ターミナルでは承認とサンドボックスの解除引数を付けます。")
+-        let codexEN = UIWording.launchPermission(agent: .codex, displayName: "ignored", languageCode: "en")
+-        #expect(codexEN.rowLabel == "Codex: Lift approval and execution limits")
+-        #expect(codexEN.offExplanation == "Specifies on-request and workspace-write in chat. Terminal launches omit the lift arguments and follow Codex settings.")
+-        #expect(codexEN.onExplanation == "Specifies never and danger-full-access in chat. Terminal launches add arguments that lift approval and the sandbox.")
+-        let cursorJA = UIWording.launchPermission(agent: .cursor, displayName: "ignored", languageCode: "ja")
+-        #expect(cursorJA.rowLabel == "Cursor: 承認と実行制限を解除")
+-        #expect(cursorJA.offExplanation == "次回開始時に --auto-review と --sandbox enabled を指定します。")
+-        #expect(cursorJA.onExplanation == "次回開始時に --force と --sandbox disabled を指定します。")
+-        let cursorEN = UIWording.launchPermission(agent: .cursor, displayName: "ignored", languageCode: "en")
+-        #expect(cursorEN.rowLabel == "Cursor: Lift approval and execution limits")
+-        #expect(cursorEN.offExplanation == "Specifies --auto-review and --sandbox enabled at the next launch.")
+-        #expect(cursorEN.onExplanation == "Specifies --force and --sandbox disabled at the next launch.")
+-        let customJA = UIWording.launchPermission(agent: .custom, displayName: "My Agent", languageCode: "ja")
+-        #expect(customJA.rowLabel == "My Agent: 起動時の権限設定")
+-        #expect(customJA.offExplanation == "このエージェントの起動設定に従います。許可範囲はエージェント設定を確認してください。")
+-        #expect(customJA.onExplanation == "このエージェントの起動設定に従います。許可範囲はエージェント設定を確認してください。")
+-        let customEN = UIWording.launchPermission(agent: .custom, displayName: "My Agent", languageCode: "en")
+-        #expect(customEN.rowLabel == "My Agent: Launch permission settings")
+-        #expect(customEN.offExplanation == "Follows this agent's launch settings. Check the agent settings for the allowed scope.")
+-        #expect(customEN.onExplanation == "Follows this agent's launch settings. Check the agent settings for the allowed scope.")
+-        let otherCustom = UIWording.launchPermission(agent: .custom, displayName: "Other", languageCode: "ja")
+-        #expect(otherCustom.rowLabel == "Other: 起動時の権限設定")
+-        #expect(customJA.rowLabel != claudeJA.rowLabel)
+-        #expect(!customJA.rowLabel.contains("フルアクセス"))
+-        #expect(!customEN.rowLabel.contains("Full Access"))
+-        #expect(claudeJA.offExplanation != claudeJA.onExplanation)
+-        #expect(codexJA.offExplanation != cursorJA.offExplanation)
+-        #expect(UIWording.settingsPermissionFooter(languageCode: "ja") == "変更は次回セッション開始から反映されます。承認方式と実行制限はエージェントごとに異なります。解除は信頼できるプロジェクトでのみ有効にしてください。")
+-        #expect(UIWording.settingsPermissionFooter(languageCode: "en") == "Changes take effect from the next session start. Approval method and execution limits differ by agent. Enable lift only on projects you trust.")
+-    }
+-
+-    @Test("未知値は原文を表示し、未設定と各 nil の意味を混同しない")
+-    func unknownUnsetAndNilMeanings() {
+-        let unknownClaude = permission(.claude, .claudePermissionMode, "mystery", "ja")
+-        #expect(unknownClaude.title == "mystery")
+-        #expect(unknownClaude.explanation == FrozenUnknown.japanese)
+-        let unknownClaudeEN = permission(.claude, .claudePermissionMode, "mystery", "en")
+-        #expect(unknownClaudeEN.title == "mystery")
+-        #expect(unknownClaudeEN.explanation == FrozenUnknown.english)
+-        let unknownProfile = permission(.codex, .codexProfile, ":experimental", "ja")
+-        #expect(unknownProfile.title == ":experimental")
+-        #expect(unknownProfile.explanation == FrozenUnknown.japanese)
+-        let unknownProfileEN = permission(.codex, .codexProfile, ":experimental", "en")
+-        #expect(unknownProfileEN.title == ":experimental")
+-        #expect(unknownProfileEN.explanation == FrozenUnknown.english)
+-        let unsetApprovalJA = permission(.codex, .codexApprovalPolicy, nil, "ja")
+-        #expect(unsetApprovalJA.title == FrozenUnset.titleJA)
+-        #expect(unsetApprovalJA.explanation == FrozenUnset.explanationJA)
+-        let unsetApprovalEN = permission(.codex, .codexApprovalPolicy, nil, "en")
+-        #expect(unsetApprovalEN.title == FrozenUnset.titleEN)
+-        #expect(unsetApprovalEN.explanation == FrozenUnset.explanationEN)
+-        let unsetSandbox = permission(.codex, .codexSandboxMode, nil, "ja")
+-        #expect(unsetSandbox.title == FrozenUnset.titleJA)
+-        #expect(unsetSandbox.explanation == FrozenUnset.explanationJA)
+-        let unsetCursorApproval = permission(.cursor, .cursorApprovalMode, nil, "ja")
+-        #expect(unsetCursorApproval.title == FrozenUnset.titleJA)
+-        #expect(unsetCursorApproval.explanation == FrozenUnset.explanationJA)
+-        let unsetCursorSandbox = permission(.cursor, .cursorSandboxMode, nil, "en")
+-        #expect(unsetCursorSandbox.title == FrozenUnset.titleEN)
+-        #expect(unsetCursorSandbox.explanation == FrozenUnset.explanationEN)
+-        let cursorNilMode = permission(.cursor, .cursorOperationMode, nil, "ja")
+-        #expect(cursorNilMode.title == "エージェント")
+-        #expect(cursorNilMode.title != FrozenUnset.titleJA)
+-        let profileNil = permission(.codex, .codexProfile, nil, "ja")
+-        #expect(profileNil.title == "承認設定")
+-        #expect(profileNil.title != FrozenUnset.titleJA)
+-        let claudeNil = permission(.claude, .claudePermissionMode, nil, "ja")
+-        let bypass = permission(.claude, .claudePermissionMode, "bypassPermissions", "ja")
+-        #expect(claudeNil.title != bypass.title)
+-        #expect(claudeNil.explanation == FrozenUnknown.japanese)
+-        #expect(claudeNil.title != FrozenUnset.titleJA)
+-        #expect(claudeNil.title != "bypassPermissions")
+-        #expect(unknownClaude.title != FrozenUnset.titleJA)
+-        #expect(permission(.codex, .codexApprovalPolicy, "never", "ja").title != FrozenUnset.titleJA)
+-        let unknownCodexSandboxJA = permission(.codex, .codexSandboxMode, "mystery-sandbox", "ja")
+-        #expect(unknownCodexSandboxJA.title == "mystery-sandbox")
+-        #expect(unknownCodexSandboxJA.explanation == FrozenUnknown.japanese)
+-        let unknownCursorSandboxEN = permission(.cursor, .cursorSandboxMode, "mystery-sandbox", "en")
+-        #expect(unknownCursorSandboxEN.title == "mystery-sandbox")
+-        #expect(unknownCursorSandboxEN.explanation == FrozenUnknown.english)
+-        let unsetCodexSandboxEN = permission(.codex, .codexSandboxMode, nil, "en")
+-        #expect(unsetCodexSandboxEN.title == FrozenUnset.titleEN)
+-        #expect(unsetCodexSandboxEN.explanation == FrozenUnset.explanationEN)
+-        let unsetCursorApprovalEN = permission(.cursor, .cursorApprovalMode, nil, "en")
+-        #expect(unsetCursorApprovalEN.title == FrozenUnset.titleEN)
+-        #expect(unsetCursorApprovalEN.explanation == FrozenUnset.explanationEN)
+-        let unsetCursorSandboxJA = permission(.cursor, .cursorSandboxMode, nil, "ja")
+-        #expect(unsetCursorSandboxJA.title == FrozenUnset.titleJA)
+-        #expect(unsetCursorSandboxJA.explanation == FrozenUnset.explanationJA)
+-        let spacedUnknown = permission(.claude, .claudePermissionMode, " mystery\nvalue ", "ja")
+-        #expect(spacedUnknown.title == " mystery\nvalue ")
+-        #expect(spacedUnknown.explanation == FrozenUnknown.japanese)
+-        let newlineUnknownEN = permission(.codex, .codexProfile, ":\nexperimental\t", "en")
+-        #expect(newlineUnknownEN.title == ":\nexperimental\t")
+-        #expect(newlineUnknownEN.explanation == FrozenUnknown.english)
+-        let agentIgnored = permission(.claude, .codexApprovalPolicy, "never", "ja")
+-        #expect(agentIgnored.title == "never")
+-        #expect(agentIgnored.explanation == FrozenUnknown.japanese)
+-        #expect(agentIgnored.title != permission(.codex, .codexApprovalPolicy, "never", "ja").title)
+-        let kindKeptAgentChanged = permission(.cursor, .claudePermissionMode, "auto", "ja")
+-        #expect(kindKeptAgentChanged.title == "auto")
+-        #expect(kindKeptAgentChanged.explanation == FrozenUnknown.japanese)
+-        #expect(kindKeptAgentChanged.title != permission(.claude, .claudePermissionMode, "auto", "ja").title)
+-        let launchRegional = UIWording.launchPermission(agent: .claude, displayName: "x", languageCode: "ja-JP")
+-        #expect(launchRegional.rowLabel == "Claude Code: 承認確認を省略")
+-        #expect(launchRegional.offExplanation == "次回開始時に自動判定（auto）を指定します。")
+-        let launchUnsupported = UIWording.launchPermission(agent: .codex, displayName: "x", languageCode: "zh")
+-        #expect(launchUnsupported.rowLabel == "Codex: 承認と実行制限を解除")
+-        let launchEnglishRegion = UIWording.launchPermission(agent: .cursor, displayName: "x", languageCode: "en-US")
+-        #expect(launchEnglishRegion.onExplanation == "Specifies --force and --sandbox disabled at the next launch.")
+-        #expect(UIWording.launchPermission(agent: .custom, displayName: "My Agent", languageCode: "fr").rowLabel == "My Agent: 起動時の権限設定")
+-        #expect(UIWording.launchPermission(agent: .custom, displayName: "My Agent", languageCode: "en_GB").rowLabel == "My Agent: Launch permission settings")
+-    }
+-
+-    @Test("日本語・英語・未対応言語、言語変更後の再取得")
+-    func languageSwitchFallbackAndRestore() {
+-        let firstJA = permission(.claude, .claudePermissionMode, "auto", "ja")
+-        let thenEN = permission(.claude, .claudePermissionMode, "auto", "en")
+-        let backJA = permission(.claude, .claudePermissionMode, "auto", "ja")
+-        #expect(firstJA.title == "自動判定")
+-        #expect(thenEN.title == "Auto")
+-        #expect(backJA.title == "自動判定")
+-        #expect(firstJA == backJA)
+-        #expect(firstJA != thenEN)
+-        #expect(permission(.claude, .claudePermissionMode, "auto", "zh").title == "自動判定")
+-        #expect(permission(.claude, .claudePermissionMode, "auto", "fr").title == "自動判定")
+-        #expect(permission(.claude, .claudePermissionMode, "auto", "").title == "自動判定")
+-        #expect(permission(.claude, .claudePermissionMode, "auto", "ja-JP").title == "自動判定")
+-        #expect(permission(.claude, .claudePermissionMode, "auto", "ja_JP").title == "自動判定")
+-        #expect(permission(.claude, .claudePermissionMode, "auto", "JA").title == "自動判定")
+-        #expect(permission(.claude, .claudePermissionMode, "auto", "en-US").title == "Auto")
+-        #expect(permission(.claude, .claudePermissionMode, "auto", "en_GB").title == "Auto")
+-        #expect(permission(.claude, .claudePermissionMode, "auto", "EN").title == "Auto")
+-        #expect(permission(.cursor, .cursorOperationMode, "ask", "en-US").title == "Ask")
+-        #expect(permission(.cursor, .cursorOperationMode, "ask", "de").title == "質問")
+-        #expect(UIWording.settingsPermissionFooter(languageCode: "zh") == "変更は次回セッション開始から反映されます。承認方式と実行制限はエージェントごとに異なります。解除は信頼できるプロジェクトでのみ有効にしてください。")
+-        #expect(UIWording.settingsPermissionFooter(languageCode: "en-US") == "Changes take effect from the next session start. Approval method and execution limits differ by agent. Enable lift only on projects you trust.")
+-        let launchJA = UIWording.launchPermission(agent: .codex, displayName: "x", languageCode: "ja")
+-        let launchEN = UIWording.launchPermission(agent: .codex, displayName: "x", languageCode: "en")
+-        let launchBack = UIWording.launchPermission(agent: .codex, displayName: "x", languageCode: "ja")
+-        #expect(launchJA.rowLabel == launchBack.rowLabel)
+-        #expect(launchJA.rowLabel != launchEN.rowLabel)
+-        #expect(UIWording.text(.planOption, languageCode: "ja") == "計画")
+-        #expect(UIWording.text(.planOption, languageCode: "en") == "Plan")
+-        #expect(UIWording.text(.permissionLabel, languageCode: "ja") == "承認設定")
+-        #expect(UIWording.text(.modeLabel, languageCode: "en") == "Mode")
+-    }
+-}
+diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/PaneLayoutView.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/PaneLayoutView.swift
+index ec5ed7c..718517d 100644
+--- a/macos/Packages/SessionFeature/Sources/SessionFeature/PaneLayoutView.swift
++++ b/macos/Packages/SessionFeature/Sources/SessionFeature/PaneLayoutView.swift
+@@ -332,12 +332,27 @@ private struct PaneTileView: View {
+             StatusLabel(status: session.displayStatus)
+                 .accessibilityHidden(true)
+             AgentSessionIcon(descriptor: session.agentDescriptor, status: session.displayStatus, size: 24)
+-            Text(session.displayName)
++            let presentation = SessionTitlePresentation(
++                state: session.titleState,
++                fallback: SessionViewModel.shortID(for: session.id),
++                workspacePath: session.workspacePath
++            )
++            Text(presentation.primary)
+                 .font(DSFont.heroTitle)
+                 .foregroundStyle(DSColor.textPrimary)
+                 .lineLimit(1)
+-                .truncationMode(.middle)
++                .truncationMode(.tail)
+                 .layoutPriority(1)
++                .help(presentation.helpText)
++                .accessibilityValue(presentation.accessibilityValue)
++            if let secondary = presentation.secondary {
++                Text(secondary)
++                    .font(DSFont.caption)
++                    .foregroundStyle(DSColor.textPrimary)
++                    .lineLimit(1)
++                    .truncationMode(.tail)
++                    .accessibilityHidden(true)
++            }
+             if !session.workspaceName.isEmpty {
+                 Text(session.workspaceName)
+                     .font(DSFont.caption)
+diff --git a/macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptMarkdownPresentationTests.swift b/macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptMarkdownPresentationTests.swift
+deleted file mode 100644
+index 0f333ae..0000000
+--- a/macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptMarkdownPresentationTests.swift
++++ /dev/null
+@@ -1,556 +0,0 @@
+-// 実パス: macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptMarkdownPresentationTests.swift
+-// task-47（UX-05b）受け入れテスト（PM 著・不変）。TranscriptMarkdownPresentation と
+-// AgentMessageBody(text:bodyColor:) / RichMarkdownView 本文色付き入口が未実装ならコンパイル RED が正常。
+-// 期待値は tasks/task-47.md の独立リテラル。製品の prepare / summary / 切り詰めから生成しない。
+-//
+-// 凍結する公開面:
+-//   enum TranscriptMarkdownPresentation
+-//     static func prepare(_ source: String) -> String
+-//     static func summary(_ source: String) -> String?
+-//   AgentMessageBody(text:bodyColor:) 既定 primary（DSColor.chatTextPrimary）
+-//   RichMarkdownView(_:) / RichMarkdownView(streaming:) に bodyColor 既定 primary
+-//   RichMarkdownView.themeCacheKey(themeID:scale:bodyColor:)
+-// ChatMarkdownFormatter.splitFencedCodeBlocks / ChatMarkdownBlock は既存 API を維持する。
+-
+-import DesignSystem
+-import Foundation
+-import Testing
+-@testable import SessionFeature
+-
+-private func prepare(_ source: String) -> String {
+-    TranscriptMarkdownPresentation.prepare(source)
+-}
+-
+-private func summary(_ source: String) -> String? {
+-    TranscriptMarkdownPresentation.summary(source)
+-}
+-
+-private func utf8(_ value: String) -> [UInt8] {
+-    Array(value.utf8)
+-}
+-
+-private func expectPrepared(_ source: String, _ want: String) {
+-    #expect(utf8(prepare(source)) == utf8(want))
+-}
+-
+-private func expectSummary(_ source: String, _ want: String?) {
+-    let got = summary(source)
+-    switch (got, want) {
+-    case (nil, nil):
+-        break
+-    case let (got?, want?):
+-        #expect(utf8(got) == utf8(want))
+-    default:
+-        Issue.record("summary の Optional が一致しない got=\(String(describing: got)) want=\(String(describing: want))")
+-    }
+-}
+-
+-private func expectBlocks(_ source: String, _ expected: [ChatMarkdownBlock]) {
+-    let blocks = ChatMarkdownFormatter.splitFencedCodeBlocks(source)
+-    #expect(blocks == expected)
+-    #expect(blocks.count == expected.count)
+-    for (got, want) in zip(blocks, expected) {
+-        switch (got, want) {
+-        case (.markdown(let gotText), .markdown(let wantText)):
+-            #expect(utf8(gotText) == utf8(wantText))
+-        case (.code(let gotLang, let gotText), .code(let wantLang, let wantText)):
+-            #expect(gotLang == wantLang)
+-            #expect(utf8(gotText) == utf8(wantText))
+-        default:
+-            Issue.record("ChatMarkdownBlock の case が一致しない")
+-        }
+-    }
+-}
+-
+-private enum FrozenSixty {
+-    static let part1 = "あいうえおかきくけこ"
+-    static let part2 = "さしすせそたちつてと"
+-    static let part3 = "なにぬねのはひふへほ"
+-    static let part4 = "まみむめもやゆよわを"
+-    static let part5 = "0123456789"
+-    static let part6 = "Ae\u{301}👨‍👩‍👧‍👦BCDEFGH"
+-    static let sixty = part1 + part2 + part3 + part4 + part5 + part6
+-}
+-
+-@Suite("task-47: TranscriptMarkdownPresentation prepare")
+-struct AcceptanceTranscriptMarkdownPrepareTests {
+-    @Test("閉じた強調・見出しは入力不変")
+-    func closedEmphasisUnchanged() {
+-        expectPrepared("**確認済み**", "**確認済み**")
+-        expectPrepared("## **確認結果**", "## **確認結果**")
+-    }
+-
+-    @Test("未閉じの4区切りを最終物理行末で閉じる")
+-    func unclosedDelimitersOnLastPhysicalLine() {
+-        expectPrepared("**確認", "**確認**")
+-        expectPrepared("*確認", "*確認*")
+-        expectPrepared("__確認", "__確認__")
+-        expectPrepared("_確認", "_確認_")
+-        expectPrepared("説明 **確認", "説明 **確認**")
+-        expectPrepared("説明 *確認", "説明 *確認*")
+-        expectPrepared("説明 __確認", "説明 __確認__")
+-        expectPrepared("説明 _確認", "説明 _確認_")
+-    }
+-
+-    @Test("部分閉じは不足1文字だけ補う")
+-    func partialCloseAddsOneDelimiter() {
+-        expectPrepared("**確認*", "**確認**")
+-        expectPrepared("__確認_", "__確認__")
+-    }
+-
+-    @Test("閉じた強調の後の未閉じだけ補正し、最外だけ補正する")
+-    func closedThenUnclosedAndOutermostOnly() {
+-        expectPrepared("**済み** と *確認", "**済み** と *確認*")
+-        expectPrepared("**外 *内", "**外 *内**")
+-        expectPrepared("**外 *内**", "**外 *内**")
+-    }
+-
+-    @Test("閉じ記号は行末空白・タブの直前へ補う")
+-    func closeBeforeTrailingWhitespace() {
+-        expectPrepared("**確認  \t", "**確認**  \t")
+-    }
+-
+-    @Test("改行を跨ぐ未閉じは対象外、最終物理行と空行区切り段落は対象")
+-    func newlineBoundaries() {
+-        expectPrepared("**確認\n次行", "**確認\n次行")
+-        expectPrepared("前行\n**確認", "前行\n**確認**")
+-        expectPrepared("**確認\n\n次段", "**確認**\n\n次段")
+-        expectPrepared("**確認\n\n", "**確認**\n\n")
+-    }
+-
+-    @Test("本文のない区切り・見出し・3連・識別子内部・演算子は補正しない")
+-    func outOfScopeKept() {
+-        expectPrepared("**", "**")
+-        expectPrepared("*", "*")
+-        expectPrepared("__", "__")
+-        expectPrepared("_", "_")
+-        expectPrepared("## ", "## ")
+-        expectPrepared("***確認", "***確認")
+-        expectPrepared("___確認", "___確認")
+-        expectPrepared("説明**確認", "説明**確認")
+-        expectPrepared("a * b", "a * b")
+-        expectPrepared("2 ** 3", "2 ** 3")
+-        expectPrepared("foo_bar", "foo_bar")
+-        expectPrepared("C#", "C#")
+-        expectPrepared("##tag", "##tag")
+-        expectPrepared("\\*\\*literal\\*\\*", "\\*\\*literal\\*\\*")
+-        expectPrepared("~~未閉じ", "~~未閉じ")
+-        expectPrepared("[未閉じ](url", "[未閉じ](url")
+-    }
+-
+-    @Test("保護領域の内部は補正しない")
+-    func protectedRegionsUnchanged() {
+-        expectPrepared("`**未閉じ`", "`**未閉じ`")
+-        expectPrepared("`**未閉じ", "`**未閉じ")
+-        expectPrepared("    **未閉じ", "    **未閉じ")
+-        expectPrepared("\t**未閉じ", "\t**未閉じ")
+-        expectPrepared("```\n**未閉じ", "```\n**未閉じ")
+-        expectPrepared("~~~\n**未閉じ", "~~~\n**未閉じ")
+-    }
+-
+-    @Test("CRLF は LF へ正規化し、その後の最終段落を補正する")
+-    func crlfNormalizedThenPrepared() {
+-        expectPrepared("説明\r\n**確認\r\n\r\n", "説明\n**確認**\n\n")
+-    }
+-
+-    @Test("正常な Markdown は改行正規化を除いて入力不変")
+-    func wellFormedMarkdownUnchanged() {
+-        expectPrepared("# 見出し", "# 見出し")
+-        expectPrepared("- 項目", "- 項目")
+-        expectPrepared("> 引用", "> 引用")
+-        expectPrepared("[詳細](https://example.com)", "[詳細](https://example.com)")
+-        expectPrepared("| A | B |\n| --- | --- |\n| x | y |", "| A | B |\n| --- | --- |\n| x | y |")
+-        expectPrepared("*斜体*", "*斜体*")
+-        expectPrepared("**太字**", "**太字**")
+-    }
+-
+-    @Test("ストリーミング原入力ごとに結果を作り、同長別内容を取り違えない")
+-    func progressiveAndSameLengthReplacement() {
+-        expectPrepared("**確", "**確**")
+-        expectPrepared("**確認", "**確認**")
+-        expectPrepared("**確認**", "**確認**")
+-        expectPrepared("**更新", "**更新**")
+-        #expect("**確認".count == "**更新".count)
+-        #expect(utf8(prepare("**確認")) != utf8(prepare("**更新")))
+-    }
+-
+-    @Test("固定入力は冪等で、呼び出し後も元入力の値は変わらない")
+-    func prepareIsIdempotentAndDoesNotMutateSource() {
+-        let sources = [
+-            "**確認済み**",
+-            "**確認",
+-            "**確認\n次行",
+-            "**確認\n\n次段",
+-            "`**未閉じ`",
+-            "```\n**未閉じ",
+-            "説明\r\n**確認\r\n\r\n",
+-            "foo_bar",
+-            "e\u{301}",
+-        ]
+-        for source in sources {
+-            let originalBytes = utf8(source)
+-            let once = prepare(source)
+-            #expect(utf8(source) == originalBytes)
+-            #expect(utf8(prepare(once)) == utf8(once))
+-        }
+-    }
+-}
+-
+-@Suite("task-47: TranscriptMarkdownPresentation summary")
+-struct AcceptanceTranscriptMarkdownSummaryTests {
+-    @Test("未閉じ強調は prepare の有限規則で補正してから装飾を除く")
+-    func summaryStripsPreparedEmphasis() {
+-        expectSummary("**確認済み**", "確認済み")
+-        expectSummary("**確認", "確認")
+-    }
+-
+-    @Test("ATX 見出し 1〜6 と装飾除去、最終見出し優先、空なら遡る")
+-    func atxHeadings() {
+-        #expect(summary("# 一") == "一")
+-        #expect(summary("## 二") == "二")
+-        #expect(summary("### 三") == "三")
+-        #expect(summary("#### 四") == "四")
+-        #expect(summary("##### 五") == "五")
+-        #expect(summary("###### 六") == "六")
+-        #expect(summary("## **確認結果**") == "確認結果")
+-        #expect(summary("## 前\n## 後\n本文") == "後")
+-        #expect(summary("## 有効\n## ") == "有効")
+-        #expect(summary("## **有効**\n## ~~ ~~") == "有効")
+-        #expect(summary("本文\n## ") == "本文")
+-        #expect(summary("## ") == nil)
+-        #expect(summary("## 確認 ###") == "確認")
+-        expectSummary("## C#", "C#")
+-        expectSummary("##tag", "##tag")
+-        expectSummary("####### 見出し外", "####### 見出し外")
+-        expectSummary("   # 一", "一")
+-        expectSummary("#\t一", "一")
+-        expectSummary("    # 四空白", nil)
+-    }
+-
+-    @Test("見出しが無ければ最後の通常段落の最後の非空文章行")
+-    func lastParagraphLine() {
+-        expectSummary("一行目\n二行目", "二行目")
+-    }
+-
+-    @Test("Setext・箇条書き・番号・引用・表は候補外")
+-    func excludedBlocks() {
+-        expectSummary("タイトル\n====", nil)
+-        expectSummary("残す\n\nタイトル\n----", "残す")
+-        expectSummary("- 項目", nil)
+-        expectSummary("- 項目\n  継続", nil)
+-        expectSummary("1. 項目", nil)
+-        expectSummary("1. 項目\n   継続", nil)
+-        expectSummary("> 引用", nil)
+-        expectSummary("---", nil)
+-        #expect(summary("| A | B |\n| --- | --- |\n| x | y |") == nil)
+-        #expect(summary("本文\n\n- 項目") == "本文")
+-        #expect(summary("本文\n\n> 引用") == "本文")
+-        #expect(summary("## 見出し\n\n| A | B |\n| --- | --- |") == "見出し")
+-    }
+-
+-    @Test("複数行インライン装飾とリンク表示名、取り消し線、エスケープ")
+-    func multilineInlineAndLinks() {
+-        #expect(summary("**前\n後**") == "後")
+-        #expect(summary("[前\n後](https://example.com)") == "後")
+-        #expect(summary("[詳細](\nhttps://example.com)") == "詳細")
+-        #expect(summary("[詳細](https://example.com/a#b)") == "詳細")
+-        #expect(summary("~~古い~~") == "古い")
+-        #expect(summary("`**x** ## y`") == "**x** ## y")
+-        #expect(summary("``a ` b **c**``") == "a ` b **c**")
+-        #expect(summary("\\*literal\\*") == "*literal*")
+-    }
+-
+-    @Test("コード領域だけの入力は nil、文章があれば文章を残す")
+-    func codeOnlySummaryIsNil() {
+-        expectSummary("```\n## コード\n```", nil)
+-        expectSummary("```\n**未閉じ", nil)
+-        expectSummary("~~~\n## コード\n~~~", nil)
+-        expectSummary("    ## コード", nil)
+-        expectSummary("\t## コード", nil)
+-        expectSummary("文章\n\n```\n## コード\n```", "文章")
+-        expectSummary("", nil)
+-        expectSummary(" \t\n", nil)
+-    }
+-
+-    @Test("60 Character は切り詰めず、61 は 60 文字の後に …。結合文字と家族絵文字は 1 Character")
+-    func characterLimitSixty() {
+-        let sixty = FrozenSixty.sixty
+-        #expect(FrozenSixty.part1.count == 10)
+-        #expect(FrozenSixty.part2.count == 10)
+-        #expect(FrozenSixty.part3.count == 10)
+-        #expect(FrozenSixty.part4.count == 10)
+-        #expect(FrozenSixty.part5.count == 10)
+-        #expect(FrozenSixty.part6.count == 10)
+-        #expect(sixty.count == 60)
+-        expectSummary(sixty, sixty)
+-        let sixtyOne = sixty + "追"
+-        #expect(sixtyOne.count == 61)
+-        expectSummary(sixtyOne, sixty + "…")
+-        #expect(sixty.contains("e\u{301}"))
+-        let decomposed = "e\u{301}"
+-        let nfc = "é"
+-        #expect(decomposed == nfc)
+-        #expect(utf8(decomposed) != utf8(nfc))
+-        expectSummary(decomposed, decomposed)
+-        #expect(utf8(summary(decomposed) ?? "") != utf8(nfc))
+-        expectPrepared(decomposed, decomposed)
+-    }
+-}
+-
+-@Suite("task-47: フェンス分割とコード保護")
+-struct AcceptanceTranscriptMarkdownSplitTests {
+-    @Test("閉じたバッククォートフェンスは .code へ分割する")
+-    func splitClosedBacktickFence() {
+-        expectBlocks(
+-            "Before\n```json\n{\"ok\": true}\n```\nAfter",
+-            [
+-                .markdown("Before"),
+-                .code(language: "json", text: "{\"ok\": true}"),
+-                .markdown("After"),
+-            ]
+-        )
+-    }
+-
+-    @Test("未閉じ3本・字下げなしは既存の言語表記正規化で .markdown へ戻す")
+-    func splitUnclosedBareFenceStaysMarkdown() {
+-        expectBlocks(
+-            "Before\n```json\n{\"ok\": true}",
+-            [
+-                .markdown("Before"),
+-                .markdown("``` json\n{\"ok\": true}"),
+-            ]
+-        )
+-        expectBlocks(
+-            "```json\n**x\n\n",
+-            [
+-                .markdown("``` json\n**x\n\n"),
+-            ]
+-        )
+-    }
+-
+-    @Test("0空白と3空白フェンスの .code.text は同じリテラルで、字下げと末尾空行を保持する")
+-    func splitIndentedFencesKeepCodeText() {
+-        let code = "\t  **x  \n"
+-        expectBlocks(
+-            "```swift\n\t  **x  \n\n```",
+-            [.code(language: "swift", text: code)]
+-        )
+-        expectBlocks(
+-            "   ```swift\n\t  **x  \n\n   ```",
+-            [.code(language: "swift", text: "\t  **x  \n")]
+-        )
+-        let productCode = ChatMarkdownFormatter.splitFencedCodeBlocks("```swift\n\t  **x  \n\n```")
+-        if case .code(_, let text) = productCode.first {
+-            #expect(utf8(text) == utf8("\t  **x  \n"))
+-        } else {
+-            Issue.record("0空白フェンスの .code.text が無い")
+-        }
+-    }
+-
+-    @Test("4空白とタブ字下げはインデントコードとして .markdown に残す")
+-    func splitFourSpaceAndTabStayMarkdown() {
+-        expectBlocks(
+-            "    ```swift\n    **x  \n\n    ```\n\n",
+-            [.markdown("    ```swift\n    **x  \n\n    ```\n\n")]
+-        )
+-        expectBlocks(
+-            "\t```swift\n\t**x\n\t```\n\n",
+-            [.markdown("\t```swift\n\t**x\n\t```\n\n")]
+-        )
+-    }
+-
+-    @Test("フェンスの CRLF／単独 CR は LF へ正規化し、コード本文の空行改行は残す")
+-    func splitNormalizesFenceNewlines() {
+-        expectBlocks(
+-            "```swift\r\n\t  x  \r\n\r\n```",
+-            [.code(language: "swift", text: "\t  x  \n")]
+-        )
+-        expectBlocks(
+-            "```swift\r\t  x  \r\r```",
+-            [.code(language: "swift", text: "\t  x  \n")]
+-        )
+-        expectBlocks(
+-            "本文\r\n\r\n",
+-            [.markdown("本文\n\n")]
+-        )
+-    }
+-
+-    @Test("3空白字下げ・4本以上・チルダの未閉じ開始行は 3本へ書き換えない")
+-    func splitDoesNotRewriteUnclosedOpeners() {
+-        expectBlocks(
+-            "   ```json\n  **x\n\n",
+-            [.markdown("   ```json\n  **x\n\n")]
+-        )
+-        expectBlocks(
+-            "````json\n```\n**x\n\n",
+-            [.markdown("````json\n```\n**x\n\n")]
+-        )
+-        expectBlocks(
+-            "~~~\n```\n**x\n~~~\n\n",
+-            [.markdown("~~~\n```\n**x\n~~~\n\n")]
+-        )
+-        expectBlocks(
+-            "~~~\n**x\n\n",
+-            [.markdown("~~~\n**x\n\n")]
+-        )
+-    }
+-
+-    @Test("長いフェンスは短い終了候補や別文字種では閉じない")
+-    func splitFenceLengthAndInfoString() {
+-        expectBlocks(
+-            "````\na\n```\nb\n````",
+-            [.code(language: nil, text: "a\n```\nb")]
+-        )
+-        expectBlocks(
+-            "```\na\n~~~\nb\n```",
+-            [.code(language: nil, text: "a\n~~~\nb")]
+-        )
+-        expectBlocks(
+-            "```\na\n```text\nb\n```",
+-            [.code(language: nil, text: "a\n```text\nb")]
+-        )
+-        expectBlocks(
+-            "```\na\n````",
+-            [.code(language: nil, text: "a")]
+-        )
+-        expectBlocks(
+-            "```\na\n    ```\nb\n```",
+-            [.code(language: nil, text: "a\n    ```\nb")]
+-        )
+-    }
+-
+-    @Test("分割後の未閉じ .markdown を prepare／summary してもコード内部は補正しない")
+-    func prepareAndSummaryProtectSplitMarkdown() {
+-        let unclosed = "``` json\n**x\n\n"
+-        expectBlocks("```json\n**x\n\n", [.markdown(unclosed)])
+-        expectPrepared(unclosed, unclosed)
+-        expectSummary(unclosed, nil)
+-
+-        let fourSpace = "    ```swift\n    **x  \n\n    ```\n\n"
+-        expectPrepared(fourSpace, fourSpace)
+-        expectSummary(fourSpace, nil)
+-        expectPrepared("    **未閉じ", "    **未閉じ")
+-        expectSummary("    ## コード", nil)
+-        expectPrepared("\t**未閉じ", "\t**未閉じ")
+-        expectSummary("\t## コード", nil)
+-        expectPrepared("~~~\n**未閉じ", "~~~\n**未閉じ")
+-        expectSummary("~~~\n## コード\n~~~", nil)
+-    }
+-
+-    @Test("情報文字列にバッククォートがあると開始フェンスにしない")
+-    func splitInfoStringWithBacktickIsNotOpener() {
+-        expectBlocks(
+-            "```js`x\n**未閉じ\n```",
+-            [.markdown("```js`x\n**未閉じ\n```")]
+-        )
+-        expectPrepared("```js`x\n**未閉じ\n```", "```js`x\n**未閉じ\n```")
+-        expectSummary("```js`x\n## 見出し\n```", nil)
+-    }
+-
+-    @Test("終了フェンス後の空白・タブは閉じとして認め、後続文章は保護しない")
+-    func splitClosingFenceAllowsTrailingWhitespaceThenUnprotects() {
+-        expectBlocks(
+-            "```\na\n```  \t\n後",
+-            [
+-                .code(language: nil, text: "a"),
+-                .markdown("後"),
+-            ]
+-        )
+-        expectPrepared("```\n**x\n```\n**確認", "```\n**x\n```\n**確認**")
+-        expectSummary("```\n## コード\n```\n本文", "本文")
+-    }
+-
+-    @Test("同長別内容を markdownBlocks へ渡しても取り違えない")
+-    func renderCacheDoesNotConfuseSameLength() {
+-        let first = "**確認済み**"
+-        let second = "**確認更新**"
+-        #expect(first.count == second.count)
+-        let a = ChatMessageRenderCache.markdownBlocks(first)
+-        let b = ChatMessageRenderCache.markdownBlocks(second)
+-        #expect(a != b)
+-        #expect(a == ChatMarkdownFormatter.splitFencedCodeBlocks(first))
+-        #expect(b == ChatMarkdownFormatter.splitFencedCodeBlocks(second))
+-    }
+-}
+-
+-@Suite("task-47: 本文色と View 入口")
+-struct AcceptanceTranscriptMarkdownViewAPITests {
+-    @Test("AgentMessageBody は text のみと bodyColor 付きを受け、既定は primary")
+-    func agentMessageBodyColorDefault() {
+-        let defaulted = AgentMessageBody(text: "回答本文")
+-        let primary = AgentMessageBody(text: "回答本文", bodyColor: DSColor.chatTextPrimary)
+-        let secondary = AgentMessageBody(text: "回答本文", bodyColor: DSColor.chatTextSecondary)
+-        _ = defaulted
+-        _ = primary
+-        _ = secondary
+-    }
+-
+-    @Test("RichMarkdownView の通常・streaming 両入口は bodyColor を省略できる")
+-    func richMarkdownViewEntriesAcceptBodyColor() {
+-        _ = RichMarkdownView("**確認")
+-        _ = RichMarkdownView("**確認", bodyColor: DSColor.chatTextPrimary)
+-        _ = RichMarkdownView("**確認", bodyColor: DSColor.chatTextSecondary)
+-        _ = RichMarkdownView(streaming: "**確認")
+-        _ = RichMarkdownView(streaming: "**確認", bodyColor: DSColor.chatTextPrimary)
+-        _ = RichMarkdownView(streaming: "**確認", bodyColor: DSColor.chatTextSecondary)
+-    }
+-
+-    @Test("同じ theme ID・倍率でも primary／secondary のキャッシュキーは異なり、同じ役割は同じキー")
+-    func themeCacheKeySeparatesBodyColorRole() {
+-        let themeID = "phlox"
+-        let scale: CGFloat = 1.0
+-        let primary = RichMarkdownView.themeCacheKey(
+-            themeID: themeID,
+-            scale: scale,
+-            bodyColor: DSColor.chatTextPrimary
+-        )
+-        let secondary = RichMarkdownView.themeCacheKey(
+-            themeID: themeID,
+-            scale: scale,
+-            bodyColor: DSColor.chatTextSecondary
+-        )
+-        #expect(primary != secondary)
+-        #expect(
+-            RichMarkdownView.themeCacheKey(
+-                themeID: themeID,
+-                scale: scale,
+-                bodyColor: DSColor.chatTextPrimary
+-            ) == primary
+-        )
+-        #expect(
+-            RichMarkdownView.themeCacheKey(
+-                themeID: themeID,
+-                scale: scale,
+-                bodyColor: DSColor.chatTextSecondary
+-            ) == secondary
+-        )
+-    }
+-
+-    @Test("明暗・倍率を変えても本文色の役割はキーに残り、キー不一致を実描画と読み替えない")
+-    func themeCacheKeyKeepsRoleAcrossThemeAndScale() {
+-        let lightPrimary = RichMarkdownView.themeCacheKey(
+-            themeID: "phlox-light",
+-            scale: 0.8,
+-            bodyColor: DSColor.chatTextPrimary
+-        )
+-        let lightSecondary = RichMarkdownView.themeCacheKey(
+-            themeID: "phlox-light",
+-            scale: 0.8,
+-            bodyColor: DSColor.chatTextSecondary
+-        )
+-        let darkPrimary = RichMarkdownView.themeCacheKey(
+-            themeID: "dracula",
+-            scale: 2.0,
+-            bodyColor: DSColor.chatTextPrimary
+-        )
+-        let darkSecondary = RichMarkdownView.themeCacheKey(
+-            themeID: "dracula",
+-            scale: 2.0,
+-            bodyColor: DSColor.chatTextSecondary
+-        )
+-        #expect(lightPrimary != lightSecondary)
+-        #expect(darkPrimary != darkSecondary)
+-        #expect(lightPrimary != darkPrimary)
+-        #expect(lightSecondary != darkSecondary)
+-    }
+-}
+diff --git a/macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask47Tests.swift b/macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask47Tests.swift
+deleted file mode 100644
+index 7379d54..0000000
+--- a/macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask47Tests.swift
++++ /dev/null
+@@ -1,701 +0,0 @@
+-// 実パス: macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask47Tests.swift
+-// task-47 PM 目視ハーネス（PM 著・不変）。製品へデモモードやテスト専用 setter は追加しない。
+-// 固定シナリオと状態アサーションは環境変数なしでも常時実行する。
+-// PHLOX_PM_VISUAL_TASK=47 のときだけウィンドウを前面表示し、ハーネス内の終了操作まで保持する。
+-// 描画ホストは NSHostingView + 同一 identity。テーマ差は扱わず UserDefaults.standard を書き換えない。
+-
+-import AgentDomain
+-import AppKit
+-import DesignSystem
+-import Foundation
+-import Observation
+-import StructuredChatKit
+-import SwiftUI
+-import Testing
+-@testable import SessionFeature
+-
+-@Suite("PMTranscriptVisualTask47", .serialized)
+-@MainActor
+-struct PMTranscriptVisualTask47Tests {
+-    @Test("PM visual: ChatTranscriptView host for task-47")
+-    func pmVisualTask47() async throws {
+-        let showWindow = ProcessInfo.processInfo.environment["PHLOX_PM_VISUAL_TASK"] == "47"
+-
+-        let suiteName = "phlox.t47.pmvisual.\(UUID().uuidString)"
+-        let suite = try #require(UserDefaults(suiteName: suiteName))
+-        suite.removePersistentDomain(forName: suiteName)
+-        ChatFontSettings.save(1.0, defaults: suite)
+-
+-        let client = Task47VisualClient()
+-        let viewModel = ChatSessionViewModel(
+-            id: SessionID(),
+-            agentRef: .builtin(.claudeCode),
+-            client: client,
+-            approvalBroker: ChatApprovalBroker(),
+-            workingDirectory: "/tmp/phlox-t47-pm-visual"
+-        )
+-        let scenario = Task47VisualScenario(suite: suite, client: client)
+-        var window: NSWindow?
+-        var hosting: NSHostingView<Task47VisualRoot>?
+-
+-        do {
+-            await client.start()
+-            try assertFixedFixture(scenario: scenario)
+-
+-            let columnWidth = scenario.columnWidth
+-            scenario.contentMaxWidth = ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: columnWidth)
+-
+-            let root = Task47VisualRoot(
+-                scenario: scenario,
+-                viewModel: viewModel
+-            )
+-            let hostView = NSHostingView(rootView: root)
+-            hosting = hostView
+-            hostView.frame = NSRect(x: 0, y: 0, width: columnWidth, height: 900)
+-
+-            let nsWindow = NSWindow(
+-                contentRect: hostView.frame,
+-                styleMask: [.titled, .closable, .resizable],
+-                backing: .buffered,
+-                defer: false
+-            )
+-            nsWindow.title = "task-47 PM visual"
+-            nsWindow.isReleasedWhenClosed = false
+-            nsWindow.contentView = hostView
+-            window = nsWindow
+-            hostView.layoutSubtreeIfNeeded()
+-            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
+-
+-            client.yield(.turnStarted)
+-            try await waitUntil { viewModel.status.isRunning }
+-            #expect(viewModel.status.isRunning)
+-
+-            try assertCardExpansionSequence(host: hostView, scenario: scenario)
+-            try await assertRealEventAppend(viewModel: viewModel, client: client, scenario: scenario, host: hostView)
+-            try assertSameLengthAnswer(scenario: scenario, host: hostView)
+-            try assertCodeBoundaryAndCommands(scenario: scenario, host: hostView)
+-            scenario.restoreFullAnswer()
+-            hostView.layoutSubtreeIfNeeded()
+-            #expect(scenario.agentText(id: "a-md") == Task47VisualFixture.markdownAnswer)
+-
+-            client.yield(.turnCompleted(nativeSessionId: nil))
+-            try await waitUntil { !viewModel.status.isRunning }
+-            #expect(!viewModel.status.isRunning)
+-
+-            if showWindow {
+-                nsWindow.makeKeyAndOrderFront(nil)
+-                let finished = Task47VisualFinishBox()
+-                let closer = Task47VisualWindowCloser(finished: finished)
+-                nsWindow.delegate = closer
+-                withExtendedLifetime(closer) {
+-                    while !finished.value {
+-                        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.2))
+-                    }
+-                }
+-            }
+-
+-            await finishVisual(
+-                viewModel: viewModel,
+-                client: client,
+-                window: window,
+-                hosting: hosting,
+-                suiteName: suiteName,
+-                suite: suite
+-            )
+-        } catch {
+-            await finishVisual(
+-                viewModel: viewModel,
+-                client: client,
+-                window: window,
+-                hosting: hosting,
+-                suiteName: suiteName,
+-                suite: suite
+-            )
+-            throw error
+-        }
+-    }
+-}
+-
+-@MainActor
+-private func finishVisual(
+-    viewModel: ChatSessionViewModel,
+-    client: Task47VisualClient,
+-    window: NSWindow?,
+-    hosting: NSHostingView<Task47VisualRoot>?,
+-    suiteName: String,
+-    suite: UserDefaults
+-) async {
+-    await viewModel.terminate()
+-    client.finish()
+-    window?.orderOut(nil)
+-    window?.contentView = nil
+-    hosting?.removeFromSuperview()
+-    suite.removePersistentDomain(forName: suiteName)
+-}
+-
+-@MainActor
+-private func assertFixedFixture(scenario: Task47VisualScenario) throws {
+-    let ids = scenario.items.map(\.id)
+-    #expect(ids.contains("a-md"))
+-    #expect(ids.contains("r-summary"))
+-    #expect(ids.contains("r-code"))
+-    #expect(ids.contains("cmd-past"))
+-    #expect(ids.contains("cmd-latest"))
+-    #expect(ids.contains("err-1"))
+-    #expect(scenario.agentText(id: "a-md") == Task47VisualFixture.markdownAnswer)
+-    #expect(scenario.reasoningText(id: "r-summary") == Task47VisualFixture.reasoningWithHeading)
+-    #expect(scenario.reasoningText(id: "r-code") == Task47VisualFixture.codeOnlyReasoning)
+-    #expect(ids.last == "cmd-latest")
+-    #expect(Set([360, 720] as [CGFloat]).isSuperset(of: [scenario.columnWidth]))
+-    #expect(([0.8, 1.0, 2.0] as [CGFloat]).contains(scenario.fontScale))
+-    #expect(Task47VisualFixture.sameLengthLeft.count == Task47VisualFixture.sameLengthRight.count)
+-    #expect(Task47VisualFixture.unclosedPartial.count != Task47VisualFixture.markdownAnswer.count)
+-}
+-
+-@MainActor
+-private func assertCardExpansionSequence(host: NSView, scenario: Task47VisualScenario) throws {
+-    host.layoutSubtreeIfNeeded()
+-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
+-
+-    let closedBefore = disclosureValues(in: host, headingHint: "思考の詳細")
+-    #expect(closedBefore.contains("折りたたみ中"))
+-    #expect(!closedBefore.contains("展開中"))
+-
+-    let expanded = pressDisclosure(in: host, headingHint: "思考の詳細", matching: "折りたたみ中")
+-    #expect(expanded)
+-    host.layoutSubtreeIfNeeded()
+-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
+-    let afterOpen = disclosureValues(in: host, headingHint: "思考の詳細")
+-    #expect(afterOpen.contains("展開中"))
+-
+-    scenario.replaceReasoningSameLength()
+-    host.layoutSubtreeIfNeeded()
+-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
+-    #expect(scenario.reasoningText(id: "r-summary")?.count == Task47VisualFixture.reasoningWithHeading.count)
+-    let afterSameID = disclosureValues(in: host, headingHint: "思考の詳細")
+-    #expect(afterSameID.contains("展開中"))
+-
+-    scenario.blankReasoning()
+-    host.layoutSubtreeIfNeeded()
+-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
+-    #expect(scenario.reasoningText(id: "r-summary")?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true)
+-
+-    scenario.restoreReasoning()
+-    host.layoutSubtreeIfNeeded()
+-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
+-    #expect(scenario.reasoningText(id: "r-summary") == Task47VisualFixture.reasoningWithHeading)
+-    let afterRemount = disclosureValues(in: host, headingHint: "思考の詳細")
+-    #expect(afterRemount.contains("折りたたみ中"))
+-}
+-
+-@MainActor
+-private func assertRealEventAppend(
+-    viewModel: ChatSessionViewModel,
+-    client: Task47VisualClient,
+-    scenario: Task47VisualScenario,
+-    host: NSView
+-) async throws {
+-    client.yield(.agentMessageDelta(itemId: "a-append", Task47VisualFixture.appendedAnswer))
+-    try await waitUntil {
+-        viewModel.transcript.contains { item in
+-            if case .agentMessage(let id, let text, _) = item {
+-                return id == "a-append" && text == Task47VisualFixture.appendedAnswer
+-            }
+-            return false
+-        }
+-    }
+-    scenario.absorbAppended(from: viewModel.transcript)
+-    host.layoutSubtreeIfNeeded()
+-    #expect(scenario.agentText(id: "a-append") == Task47VisualFixture.appendedAnswer)
+-}
+-
+-@MainActor
+-private func assertSameLengthAnswer(scenario: Task47VisualScenario, host: NSView) throws {
+-    scenario.applySameLengthLeft()
+-    host.layoutSubtreeIfNeeded()
+-    #expect(scenario.agentText(id: "a-md") == Task47VisualFixture.sameLengthLeft)
+-    scenario.applySameLengthRight()
+-    host.layoutSubtreeIfNeeded()
+-    #expect(scenario.agentText(id: "a-md") == Task47VisualFixture.sameLengthRight)
+-    #expect(Task47VisualFixture.sameLengthLeft.count == Task47VisualFixture.sameLengthRight.count)
+-    scenario.restoreFullAnswer()
+-    host.layoutSubtreeIfNeeded()
+-    #expect(scenario.agentText(id: "a-md") == Task47VisualFixture.markdownAnswer)
+-}
+-
+-@MainActor
+-private func assertCodeBoundaryAndCommands(scenario: Task47VisualScenario, host: NSView) throws {
+-    for fixture in Task47VisualFixture.codeBoundaryCases {
+-        scenario.showCodeBoundary(fixture)
+-        host.layoutSubtreeIfNeeded()
+-        #expect(scenario.agentText(id: "a-code") == fixture.text)
+-    }
+-    scenario.showLatestCommand()
+-    host.layoutSubtreeIfNeeded()
+-    #expect(scenario.items.last?.id == "cmd-latest")
+-    scenario.showPastCommand()
+-    host.layoutSubtreeIfNeeded()
+-    #expect(scenario.items.contains { $0.id == "cmd-past" })
+-    #expect(scenario.items.last?.id != "cmd-past")
+-}
+-
+-@Observable
+-@MainActor
+-private final class Task47VisualScenario {
+-    var items: [ChatItem]
+-    var columnWidth: CGFloat = 720
+-    var fontScale: CGFloat = 1.0
+-    var contentMaxWidth: CGFloat = 720
+-    var bottomMargin: CGFloat = 0
+-    let suite: UserDefaults
+-    let client: Task47VisualClient
+-
+-    init(suite: UserDefaults, client: Task47VisualClient) {
+-        self.suite = suite
+-        self.client = client
+-        items = Task47VisualFixture.transcriptItems
+-    }
+-
+-    func agentText(id: String) -> String? {
+-        for item in items {
+-            if case .agentMessage(let itemID, let text, _) = item, itemID == id {
+-                return text
+-            }
+-        }
+-        return nil
+-    }
+-
+-    func reasoningText(id: String) -> String? {
+-        for item in items {
+-            if case .reasoning(let itemID, let text, _) = item, itemID == id {
+-                return text
+-            }
+-        }
+-        return nil
+-    }
+-
+-    func replaceAnswerUnclosedPartial() {
+-        replaceAgent(id: "a-md", text: Task47VisualFixture.unclosedPartial)
+-    }
+-
+-    func growUnclosedAnswer() {
+-        replaceAgent(id: "a-md", text: Task47VisualFixture.unclosedConfirm)
+-    }
+-
+-    func closeUnclosedAnswer() {
+-        replaceAgent(id: "a-md", text: Task47VisualFixture.closedConfirm)
+-    }
+-
+-    func restoreFullAnswer() {
+-        replaceAgent(id: "a-md", text: Task47VisualFixture.markdownAnswer)
+-    }
+-
+-    func applySameLengthLeft() {
+-        replaceAgent(id: "a-md", text: Task47VisualFixture.sameLengthLeft)
+-    }
+-
+-    func applySameLengthRight() {
+-        replaceAgent(id: "a-md", text: Task47VisualFixture.sameLengthRight)
+-    }
+-
+-    func replaceReasoningSameLength() {
+-        items = items.map { item in
+-            guard case .reasoning(let id, let text, let timestamp) = item, id == "r-summary" else {
+-                return item
+-            }
+-            let next = String(repeating: "あ", count: text.count)
+-            return .reasoning(id: id, text: next, timestamp: timestamp)
+-        }
+-    }
+-
+-    func blankReasoning() {
+-        items = items.map { item in
+-            guard case .reasoning(let id, _, let timestamp) = item, id == "r-summary" else {
+-                return item
+-            }
+-            return .reasoning(id: id, text: " \n", timestamp: timestamp)
+-        }
+-    }
+-
+-    func restoreReasoning() {
+-        items = items.map { item in
+-            guard case .reasoning(let id, _, let timestamp) = item, id == "r-summary" else {
+-                return item
+-            }
+-            return .reasoning(id: id, text: Task47VisualFixture.reasoningWithHeading, timestamp: timestamp)
+-        }
+-    }
+-
+-    func absorbAppended(from transcript: [ChatItem]) {
+-        for item in transcript {
+-            if case .agentMessage(let id, _, _) = item, id == "a-append", !items.contains(where: { $0.id == id }) {
+-                items.append(item)
+-            }
+-        }
+-    }
+-
+-    func showCodeBoundary(_ fixture: Task47VisualCodeBoundary) {
+-        if items.contains(where: { $0.id == "a-code" }) {
+-            replaceAgent(id: "a-code", text: fixture.text)
+-        } else {
+-            items.append(.agentMessage(id: "a-code", text: fixture.text, timestamp: Task47VisualFixture.time))
+-        }
+-    }
+-
+-    func showLatestCommand() {
+-        items = Task47VisualFixture.transcriptItems
+-    }
+-
+-    func showPastCommand() {
+-        items = Task47VisualFixture.pastCommandItems
+-    }
+-
+-    func startTurn() {
+-        client.yield(.turnStarted)
+-    }
+-
+-    func completeTurn() {
+-        client.yield(.turnCompleted(nativeSessionId: nil))
+-    }
+-
+-    func appendViaEvent() {
+-        client.yield(.agentMessageDelta(itemId: "a-append", Task47VisualFixture.appendedAnswer))
+-    }
+-
+-    func applyWidth(_ width: CGFloat) {
+-        columnWidth = width
+-        contentMaxWidth = ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: width)
+-    }
+-
+-    func applyScale(_ scale: CGFloat) {
+-        fontScale = scale
+-        ChatFontSettings.save(scale, defaults: suite)
+-    }
+-
+-    private func replaceAgent(id: String, text: String) {
+-        items = items.map { item in
+-            guard case .agentMessage(let itemID, _, let timestamp) = item, itemID == id else {
+-                return item
+-            }
+-            return .agentMessage(id: itemID, text: text, timestamp: timestamp)
+-        }
+-    }
+-}
+-
+-private struct Task47VisualRoot: View {
+-    @Bindable var scenario: Task47VisualScenario
+-    @Bindable var viewModel: ChatSessionViewModel
+-    @State private var composerText = ""
+-
+-    var body: some View {
+-        ChatTranscriptView(
+-            viewModel: viewModel,
+-            transcript: scenario.items,
+-            showsThinkingIndicator: true,
+-            contentMaxWidth: scenario.contentMaxWidth,
+-            bottomScrollContentMargin: scenario.bottomMargin
+-        )
+-        .frame(width: scenario.columnWidth, height: 900)
+-        .background(DSColor.chatBackground)
+-        .overlay(alignment: .bottom) {
+-            composer
+-                .background {
+-                    DSColor.chatBackground
+-                        .padding(.top, DSSpacing.m)
+-                        .padding(.trailing, ComposerLayout.scrollerCorridorWidth)
+-                }
+-                .onGeometryChange(for: CGFloat.self) { proxy in
+-                    proxy.size.height
+-                } action: { height in
+-                    scenario.bottomMargin = height
+-                }
+-        }
+-        .overlay(alignment: .topLeading) {
+-            controls
+-        }
+-        .defaultAppStorage(scenario.suite)
+-        .preferredColorScheme(.light)
+-    }
+-
+-    private var controls: some View {
+-        VStack(alignment: .leading, spacing: 4) {
+-            HStack {
+-                Button("全文へ戻す") { scenario.restoreFullAnswer() }
+-                Button("同長左") { scenario.applySameLengthLeft() }
+-                Button("同長右") { scenario.applySameLengthRight() }
+-                Button("**確") { scenario.replaceAnswerUnclosedPartial() }
+-                Button("**確認") { scenario.growUnclosedAnswer() }
+-                Button("**確認**") { scenario.closeUnclosedAnswer() }
+-            }
+-            HStack {
+-                Button("思考同長") { scenario.replaceReasoningSameLength() }
+-                Button("空白") { scenario.blankReasoning() }
+-                Button("再表示") { scenario.restoreReasoning() }
+-                Button("実イベント追記") { scenario.appendViaEvent() }
+-            }
+-            HStack {
+-                Button("実行開始") { scenario.startTurn() }
+-                Button("実行終了") { scenario.completeTurn() }
+-                Button("幅360") { scenario.applyWidth(360) }
+-                Button("幅720") { scenario.applyWidth(720) }
+-                Button("0.8") { scenario.applyScale(0.8) }
+-                Button("1.0") { scenario.applyScale(1.0) }
+-                Button("2.0") { scenario.applyScale(2.0) }
+-            }
+-            HStack {
+-                Button("最新コマンド") { scenario.showLatestCommand() }
+-                Button("過去コマンド") { scenario.showPastCommand() }
+-                ForEach(Task47VisualFixture.codeBoundaryCases, id: \.id) { fixture in
+-                    Button(fixture.id) { scenario.showCodeBoundary(fixture) }
+-                }
+-            }
+-        }
+-        .padding(8)
+-        .background(DSColor.chatBackground.opacity(0.92))
+-    }
+-
+-    private var composer: some View {
+-        let proposed = ComposerLayout.proposedWidth(mainColumnWidth: scenario.columnWidth) ?? scenario.columnWidth
+-        let layout = ComposerLayout.controlsLayout(proposedWidth: proposed)
+-        return ChatComposer(
+-            viewModel: viewModel,
+-            text: $composerText,
+-            isRunning: viewModel.status.isRunning,
+-            canSend: true,
+-            controlsLayout: layout,
+-            onSend: {},
+-            onInterrupt: {}
+-        )
+-        .frame(maxWidth: proposed)
+-        .frame(width: scenario.columnWidth)
+-        .defaultAppStorage(scenario.suite)
+-    }
+-}
+-
+-private final class Task47VisualClient: StructuredAgentClient, @unchecked Sendable {
+-    let events: AsyncStream<NormalizedChatEvent>
+-    private let continuation: AsyncStream<NormalizedChatEvent>.Continuation
+-
+-    init() {
+-        var captured: AsyncStream<NormalizedChatEvent>.Continuation?
+-        events = AsyncStream { captured = $0 }
+-        continuation = captured!
+-    }
+-
+-    func start() async {}
+-    func turnStart(_ input: [ChatInput]) async throws {}
+-    func resume(sessionRef: String) async throws {}
+-    func interrupt() async throws {}
+-    func close() async { continuation.finish() }
+-
+-    func yield(_ event: NormalizedChatEvent) {
+-        continuation.yield(event)
+-    }
+-
+-    func finish() {
+-        continuation.finish()
+-    }
+-}
+-
+-private final class Task47VisualFinishBox: @unchecked Sendable {
+-    var value = false
+-}
+-
+-private final class Task47VisualWindowCloser: NSObject, NSWindowDelegate {
+-    let finished: Task47VisualFinishBox
+-
+-    init(finished: Task47VisualFinishBox) {
+-        self.finished = finished
+-    }
+-
+-    func windowWillClose(_ notification: Notification) {
+-        finished.value = true
+-    }
+-}
+-
+-@MainActor
+-private func waitUntil(_ condition: () -> Bool) async throws {
+-    for _ in 0..<50 {
+-        if condition() { return }
+-        try await Task.sleep(nanoseconds: 20_000_000)
+-    }
+-    try #require(condition())
+-}
+-
+-@MainActor
+-private func stringValue(_ value: Any?) -> String {
+-    guard let value else { return "" }
+-    if let text = value as? String { return text }
+-    if let number = value as? NSNumber { return number.stringValue }
+-    return String(describing: value)
+-}
+-
+-@MainActor
+-private func disclosureValues(in root: NSView, headingHint: String) -> [String] {
+-    var values: [String] = []
+-    var seen = Set<ObjectIdentifier>()
+-    func visit(_ element: Any) {
+-        let object = element as AnyObject
+-        let identity = ObjectIdentifier(object)
+-        guard seen.insert(identity).inserted else { return }
+-        let value = stringValue(object.accessibilityValue())
+-        let label = stringValue(object.accessibilityLabel())
+-        let title = stringValue(object.accessibilityTitle())
+-        if label.contains(headingHint) || title.contains(headingHint) {
+-            if value == "展開中" || value == "折りたたみ中" {
+-                values.append(value)
+-            }
+-        }
+-        if let children = object.accessibilityChildren() {
+-            for child in children {
+-                visit(child)
+-            }
+-        }
+-        if let view = element as? NSView {
+-            for subview in view.subviews {
+-                visit(subview)
+-            }
+-        }
+-    }
+-    visit(root)
+-    return values
+-}
+-
+-@MainActor
+-private func pressDisclosure(in root: NSView, headingHint: String, matching: String) -> Bool {
+-    var seen = Set<ObjectIdentifier>()
+-    func visit(_ element: Any) -> Bool {
+-        let object = element as AnyObject
+-        let identity = ObjectIdentifier(object)
+-        guard seen.insert(identity).inserted else { return false }
+-        let value = stringValue(object.accessibilityValue())
+-        let label = stringValue(object.accessibilityLabel())
+-        let title = stringValue(object.accessibilityTitle())
+-        if (label.contains(headingHint) || title.contains(headingHint)) && value == matching {
+-            if let button = element as? NSButton {
+-                button.performClick(nil)
+-                return true
+-            }
+-            let names = object.accessibilityActionNames()
+-            if names.contains(NSAccessibility.Action.press) {
+-                object.accessibilityPerformAction(.press)
+-                return true
+-            }
+-            if object.responds(to: #selector(NSAccessibilityProtocol.accessibilityPerformPress)) {
+-                return object.accessibilityPerformPress()
+-            }
+-        }
+-        if let children = object.accessibilityChildren() {
+-            for child in children {
+-                if visit(child) { return true }
+-            }
+-        }
+-        if let view = element as? NSView {
+-            for subview in view.subviews {
+-                if visit(subview) { return true }
+-            }
+-        }
+-        return false
+-    }
+-    return visit(root)
+-}
+-
+-private struct Task47VisualCodeBoundary: Equatable {
+-    let id: String
+-    let text: String
+-}
+-
+-private enum Task47VisualFixture {
+-    static let time = Date(timeIntervalSince1970: 1_700_000_000)
+-    static let unclosedPartial = "**確"
+-    static let unclosedConfirm = "**確認"
+-    static let closedConfirm = "**確認**"
+-    static let sameLengthLeft = "**確認"
+-    static let sameLengthRight = "**更新"
+-    static let appendedAnswer = "追記された回答"
+-
+-    static let markdownAnswer = """
+-    # 確認結果
+-
+-    **太字** と *斜体*
+-
+-    - 箇条書き
+-
+-    > 引用
+-
+-    [詳細](https://example.com)
+-
+-    | A | B |
+-    | --- | --- |
+-    | x | y |
+-    """
+-
+-    static let reasoningWithHeading = """
+-    ## 有効
+-
+-    ## 
+-    """
+-
+-    static let codeOnlyReasoning = """
+-    ```swift
+-    let value = "**x"
+-    ```
+-    """
+-
+-    static let commandOutput = """
+-    ** not markdown
+-    ## also not
+-    /tmp/a/**/b: ok
+-    """
+-
+-    static let codeBoundaryCases: [Task47VisualCodeBoundary] = [
+-        Task47VisualCodeBoundary(id: "0空白", text: "```swift\n\t  **x  \n\n```"),
+-        Task47VisualCodeBoundary(id: "3空白", text: "   ```swift\n\t  **x  \n\n   ```"),
+-        Task47VisualCodeBoundary(id: "4空白", text: "    ```swift\n    **x  \n\n    ```\n\n"),
+-        Task47VisualCodeBoundary(id: "タブ", text: "\t```swift\n\t**x\n\t```\n\n"),
+-        Task47VisualCodeBoundary(id: "3本", text: "```\na\n```"),
+-        Task47VisualCodeBoundary(id: "4本", text: "````\na\n```\nb\n````"),
+-        Task47VisualCodeBoundary(id: "チルダ", text: "~~~\n**x\n~~~\n"),
+-        Task47VisualCodeBoundary(id: "未閉じ", text: "```json\n**x\n\n"),
+-        Task47VisualCodeBoundary(id: "インライン", text: "`**未閉じ` と **確認"),
+-        Task47VisualCodeBoundary(id: "CRLF", text: "```swift\r\n\t  x  \r\n\r\n```"),
+-        Task47VisualCodeBoundary(id: "末尾空行", text: "```swift\n\t  **x  \n\n```\n\n"),
+-    ]
+-
+-    static var transcriptItems: [ChatItem] {
+-        [
+-            .userMessage(id: "u1", text: "Markdown と思考色を確認する。", timestamp: time),
+-            .agentMessage(id: "a-md", text: markdownAnswer, timestamp: time),
+-            .reasoning(id: "r-summary", text: reasoningWithHeading, timestamp: time),
+-            .reasoning(id: "r-code", text: codeOnlyReasoning, timestamp: time),
+-            .commandExecution(
+-                id: "cmd-past",
+-                command: "echo past",
+-                output: commandOutput,
+-                timestamp: time
+-            ),
+-            .error(id: "err-1", message: "a/**/b: error", timestamp: time),
+-            .commandExecution(
+-                id: "cmd-latest",
+-                command: "echo **ok",
+-                output: commandOutput,
+-                timestamp: time
+-            ),
+-        ]
+-    }
+-
+-    static var pastCommandItems: [ChatItem] {
+-        [
+-            .userMessage(id: "u1", text: "Markdown と思考色を確認する。", timestamp: time),
+-            .agentMessage(id: "a-md", text: markdownAnswer, timestamp: time),
+-            .reasoning(id: "r-summary", text: reasoningWithHeading, timestamp: time),
+-            .commandExecution(
+-                id: "cmd-past",
+-                command: "echo past",
+-                output: commandOutput,
+-                timestamp: time
+-            ),
+-            .error(id: "err-1", message: "a/**/b: error", timestamp: time),
+-        ]
+-    }
+-}

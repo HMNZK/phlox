@@ -182,3 +182,4 @@
 - 2026-09-13 task-41 差し戻し上限（2 回）到達 → ユーザー承認「3 回目の修正へ進む」（AskUserQuestion）。resume --human-approved で継続。
 - 2026-09-13T13:53:07+0900 task-41 resume: ユーザー承認: r3 指摘（trim O(n²)・フェンス末尾空白）の 3 回目修正へ進む
 - 2026-09-13 task-40 PM 目視ゲート A: pass（visual-task-40-a.md）。判定外観測: 倍率 2.0 で履歴スクラバーのチップ「workspace」がエラーカード時刻と重なる（allowed_paths 外・以前からかは未検証）→ フェーズ 5 で追跡項目として記録。起動時 `claude -p /model` probe の transcript は課金なし（ローカルコマンドのみ）と確認し削除。
+- 2026-09-13 task-40 レビュー r2（HIGH: struct 単位の修飾一括削除が意味色・追加 padding を見逃す／HIGH: 文字列内にもマスクが作用し AX identifier 変更を消す）: 再びハーネス欠陥と裁定（製品指摘なし）。rb 修理 2 回目を Cursor に委譲（文字列・コメント保護を先に、修飾削除は修飾呼び出し単位、要素対応の色検査、padding 追加の個数検査、DisclosureCard 外側 padding 復活の拒否）。

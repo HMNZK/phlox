@@ -114,10 +114,11 @@ final class SessionPersistenceCoordinator {
                 }
                 descriptorToPersist = descriptor
             }
+            var current = await self.sessionStore.load()
+            if self.deletedSessionIDs.contains(descriptor.id) { return }
             if let latestTitle = self.liveTitleState(descriptor.id) {
                 descriptorToPersist = descriptorToPersist.updating(titleState: latestTitle)
             }
-            var current = await self.sessionStore.load()
             let loadedCount = current.count
             current.removeAll { $0.id == descriptorToPersist.id }
             current.append(descriptorToPersist)
@@ -155,6 +156,7 @@ final class SessionPersistenceCoordinator {
             guard let index = current.firstIndex(where: { $0.id == id }) else { return }
             let loadedCount = current.count
             let nextState = self.liveTitleState(id) ?? current[index].titleState.renamed(to: name)
+            guard current[index].titleState != nextState else { return }
             current[index] = current[index].updating(titleState: nextState)
             do {
                 try await self.saveSessionsIfAllowed(loadedCount: loadedCount, updated: current)

@@ -163,3 +163,5 @@
 - 2026-09-13 task-17 ハーネス修理（PM 承認・PM 実施）: task17-wiring.rb の selftest が「HEAD の SettingsView は実装前 blob」を前提にしていたため、実装コミット後に selftest が FAIL し verify が落ちた。参照コミットを契約 baseline_commit（無ければ TASK17_BASELINE、無ければ HEAD）へ変更。再凍結のため SettingsView を一時的に実装前へ戻したコミット（05fdbcf）→ rb 修理（4ef83d4＝新基準）→ 実装再適用（649006f）の順で履歴に残した。RED→GREEN を確認。
 - 2026-09-13 task-17（UI-05）done: Codex レビュー pass（指摘 0）、PM 目視 pass（標準 bordered・無効の見分け・フォーカスリング、明暗）、統合 verify exit 0。旧 XCUITest 経路は AX 観測へ置換。
 - 2026-09-13 task-41 再凍結（Cursor 修正後、契約の曖昧点 5 件を PM 確定）。UX-11 は Codex 分割推奨に従い task-51（履歴材料の取得）/task-49（表示・UI）を採択。task-49 の履歴一覧の目視は既存経路では課金なしで到達不能（草案の実コード調査）→ ユーザー承認済みの課金セッション 1 体を、task-40/46/47 の transcript 目視と task-49 の履歴一覧目視に**まとめて 1 回**使う計画（実装完了後に実施）。
+- 2026-09-13 task-41 実装役エスカレーション: 凍結テストが「ログイン」不変と「カタカナ→ｶﾀｶﾅ」を同時に要求し矛盾。原因は PM の曖昧点確定 2（行全体を fullwidthToHalfwidth）が UX 上誤り（カナを半角化）で、Cursor の追加ケースがそれに従ったこと。契約を「全角英数→半角、半角カナ→全角、カナは半角化しない」へ修正し、該当 2 ケースのテスト修正を Cursor に委譲・再凍結（PM 承認）。実装は途中コミット、テストは退避。
+- 2026-09-13 task-40 再凍結（Cursor 修正後、基準は verify スクリプト参照）。

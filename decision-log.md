@@ -207,3 +207,4 @@
 - 2026-09-13T17:03:10+0900 task-51 rework: レビュー r1 MEDIUM: rb の列挙保護不足と fixture の URL 比較 → ハーネス修理、製品の fileURL 再構築を撤回
 - 2026-09-13 task-47 凍結 eb04e86、task-49 凍結 4018caa（index のみ・退避維持）。task-51 は差し戻し 1 回目。
 - 2026-09-13 task-47（MUST2/HIGH8/MED5）・task-49（MUST1/HIGH5/MED3）受け入れ検査の敵対レビュー: 47 MUST1 は task-46 done 後の再凍結、HIGH10 はハーネスで standard を書かずテーマは目視ゲートの起動引数で確認と裁定。他は全採択→Cursor 2 ジョブに委譲。
+- 2026-09-13 task-51 再凍結 57a8092（旧 a2c5882 無効。実装を一時 revert → 修理版テスト/rb を index 凍結 → worktree task/51 HEAD の製品ファイルを再適用）。

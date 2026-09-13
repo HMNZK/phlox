@@ -14,6 +14,8 @@ public struct ClaudeSessionHistoryEntry: Equatable, Sendable, Identifiable {
     public let lastModified: Date
     public let gitBranch: String?
     public let fileURL: URL
+    public let titleUserMessages: [String]?
+    public let titleSummary: String?
 
     public init(
         sessionID: String,
@@ -21,7 +23,9 @@ public struct ClaudeSessionHistoryEntry: Equatable, Sendable, Identifiable {
         firstUserAt: Date?,
         lastModified: Date,
         gitBranch: String?,
-        fileURL: URL
+        fileURL: URL,
+        titleUserMessages: [String]? = nil,
+        titleSummary: String? = nil
     ) {
         self.sessionID = sessionID
         self.preview = preview
@@ -29,5 +33,7 @@ public struct ClaudeSessionHistoryEntry: Equatable, Sendable, Identifiable {
         self.lastModified = lastModified
         self.gitBranch = gitBranch
         self.fileURL = fileURL
+        self.titleUserMessages = titleUserMessages
+        self.titleSummary = titleSummary
     }
 }

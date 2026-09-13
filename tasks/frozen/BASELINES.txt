@@ -90,3 +90,5 @@ eb04e86	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTra
 eb04e86	.claude/scripts/task47-wiring.rb
 4018caa	macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceHistoryEntryPresentationTests.swift
 4018caa	.claude/scripts/task49-wiring.rb
+57a8092	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Acceptance/AcceptanceHistoryTitleSourcesTests.swift
+57a8092	.claude/scripts/task51-wiring.rb

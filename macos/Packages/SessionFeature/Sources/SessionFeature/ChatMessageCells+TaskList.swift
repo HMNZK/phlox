@@ -10,18 +10,34 @@ import DesignSystem
 struct TaskListCell: View {
     let tasks: [AgentTaskItem]
     let timestamp: Date
+    @State private var userOverride: Bool?
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
+        let presentation = TranscriptItemPresentation.taskList(count: tasks.count)
         DisclosureCard(
-            isExpanded: .constant(true),
-            title: "Tasks",
-            subtitle: tasks.isEmpty ? "No tasks" : "\(tasks.count) tasks"
+            isExpanded: Binding(
+                get: {
+                    TranscriptItemPresentation.isExpanded(
+                        userOverride: userOverride,
+                        defaultExpanded: presentation.defaultExpanded
+                    )
+                },
+                set: { userOverride = $0 }
+            ),
+            title: presentation.heading ?? "",
+            subtitle: nil,
+            isToolCall: presentation.semanticInk == .process
         ) {
             VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
+                if tasks.isEmpty {
+                    Text(presentation.expandedBody ?? "")
+                        .font(ChatScaledFont.body(scale: scale))
+                        .foregroundStyle(DSColor.chatTextSecondary)
+                }
                 ForEach(tasks) { task in
                     HStack(alignment: .firstTextBaseline, spacing: DSSpacing.s) {
                         Image(systemName: glyph(for: task.status))

@@ -160,9 +160,10 @@ struct CommandGroupCell: View, Equatable {
     let items: [ChatItem]
     let lastTranscriptID: String?
     let isTurnRunning: Bool
-    @State private var isExpanded = false
+    @State private var userOverride: Bool?
     @State private var rowLimit = CommandGroupRowWindow.defaultLimit
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+    @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
     init(
         items: [ChatItem],
@@ -185,20 +186,43 @@ struct CommandGroupCell: View, Equatable {
 
     var body: some View {
         let _ = themeID
+        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         let header = CommandGroupHeader(
             items: items,
             lastTranscriptID: lastTranscriptID,
             isTurnRunning: isTurnRunning
         )
+        let hasNonBlankOutput = items.contains { item in
+            guard case .commandExecution(_, _, let output, _) = item else { return false }
+            return !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        let presentation = TranscriptItemPresentation.command(
+            path: .group,
+            itemCount: items.count,
+            isRunning: header.isRunning,
+            hasNonBlankOutput: hasNonBlankOutput
+        )
+        let expanded = TranscriptItemPresentation.isExpanded(
+            userOverride: userOverride,
+            defaultExpanded: presentation.defaultExpanded
+        )
         if header.shouldRender {
             DisclosureCard(
-                isExpanded: $isExpanded,
-                title: header.title,
-                subtitle: nil,
-                isToolCall: true
+                isExpanded: Binding(
+                    get: {
+                        TranscriptItemPresentation.isExpanded(
+                            userOverride: userOverride,
+                            defaultExpanded: presentation.defaultExpanded
+                        )
+                    },
+                    set: { userOverride = $0 }
+                ),
+                title: presentation.heading ?? "",
+                subtitle: presentation.subtitle,
+                isToolCall: true && presentation.semanticInk == .process
             ) {
-                if isExpanded {
-                    let rowsSlice = CommandGroupRowWindow.slice(
+                if expanded {
+                    let rowsSlice = CommandGroupDisplayedRows.make(
                         items: items,
                         lastTranscriptID: lastTranscriptID,
                         isTurnRunning: isTurnRunning,
@@ -209,6 +233,7 @@ struct CommandGroupCell: View, Equatable {
                             Button("残り \(rowsSlice.hiddenRowCount) 件を表示") {
                                 rowLimit += CommandGroupRowWindow.expandStep
                             }
+                            .font(TranscriptTypography.font(for: .processSummary, scale: scale))
                             .accessibilityIdentifier("CommandGroupCell.loadEarlierRows")
                         }
                         ForEach(rowsSlice.rows) { row in

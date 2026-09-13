@@ -192,21 +192,32 @@ private struct RunningTurnStatusView: View {
 struct ReasoningSummaryView: View {
     let text: String
     let timestamp: Date
-    @State private var isExpanded = false
+    @State private var userOverride: Bool?
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        let presentation = ReasoningPresentation(text: text)
+        let presentation = TranscriptItemPresentation.reasoning(
+            text: text,
+            summary: ReasoningPresentation(text: text).headline
+        )
         Group {
-            if presentation.usesDisclosure {
+            if presentation.isVisible {
                 DisclosureCard(
-                    isExpanded: $isExpanded,
-                    title: presentation.headline,
-                    subtitle: nil,
-                    isToolCall: true
+                    isExpanded: Binding(
+                        get: {
+                            TranscriptItemPresentation.isExpanded(
+                                userOverride: userOverride,
+                                defaultExpanded: presentation.defaultExpanded
+                            )
+                        },
+                        set: { userOverride = $0 }
+                    ),
+                    title: presentation.heading ?? "",
+                    subtitle: presentation.subtitle,
+                    isToolCall: presentation.semanticInk == .process
                 ) {
                     Text(text)
                         .font(ChatScaledFont.body(scale: scale))
@@ -215,11 +226,6 @@ struct ReasoningSummaryView: View {
                         .lineSpacing(TranscriptTypography.textLineSpacing)
                         .padding(.top, TranscriptTypography.withinAnswer)
                 }
-            } else {
-                Text(presentation.trimmedText)
-                    .font(TranscriptTypography.font(for: .processSummary, scale: scale))
-                    .foregroundStyle(DSColor.chatToolCallText)
-                    .chatTextSelection()
             }
         }
         .frame(maxWidth: 720, alignment: .leading)
@@ -227,6 +233,22 @@ struct ReasoningSummaryView: View {
 }
 
 typealias ReasoningPresentation = ChatReasoningPresentation
+
+enum CommandGroupDisplayedRows {
+    static func make(
+        items: [ChatItem],
+        lastTranscriptID: String?,
+        isTurnRunning: Bool,
+        limit: Int
+    ) -> CommandGroupRowsSlice {
+        CommandGroupRowWindow.slice(
+            items: items,
+            lastTranscriptID: lastTranscriptID,
+            isTurnRunning: isTurnRunning,
+            limit: limit
+        )
+    }
+}
 
 /// FilePatchChange から共有の値型へ変換する macOS 側の薄いアダプタ。
 enum FileChangePresentation {
@@ -254,31 +276,53 @@ struct CommandExecutionCell: View {
     let output: String
     let timestamp: Date
     let isRunning: Bool
-    @State private var isExpanded = false
+    @State private var userOverride: Bool?
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
+        let presentation = TranscriptItemPresentation.command(
+            path: .single,
+            itemCount: 1,
+            isRunning: isRunning,
+            hasNonBlankOutput: !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        )
         DisclosureCard(
-            isExpanded: $isExpanded,
-            title: command?.isEmpty == false ? command! : "Command",
-            subtitle: isRunning ? "実行中" : (output.isEmpty ? nil : "Output available"),
-            isToolCall: true
+            isExpanded: Binding(
+                get: {
+                    TranscriptItemPresentation.isExpanded(
+                        userOverride: userOverride,
+                        defaultExpanded: presentation.defaultExpanded
+                    )
+                },
+                set: { userOverride = $0 }
+            ),
+            title: presentation.heading ?? "",
+            subtitle: presentation.subtitle,
+            isToolCall: true && presentation.semanticInk == .process
         ) {
-            if !output.isEmpty {
-                ScrollView(.horizontal) {
-                    Text(output)
-                        .font(ChatScaledFont.monoCaption(scale: scale))
+            VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
+                if let command, !command.isEmpty {
+                    Text(command)
+                        .font(ChatScaledFont.mono(scale: scale))
                         .foregroundStyle(DSColor.chatTextPrimary)
                         .chatTextSelection()
-                        .padding(.leading, TranscriptTypography.codeContentInset)
-                        .padding(.vertical, TranscriptTypography.cardVerticalInset)
-                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.top, TranscriptTypography.withinAnswer)
+                if !output.isEmpty {
+                    ScrollView(.horizontal) {
+                        Text(output)
+                            .font(ChatScaledFont.monoCaption(scale: scale))
+                            .foregroundStyle(DSColor.chatTextPrimary)
+                            .chatTextSelection()
+                            .padding(.leading, TranscriptTypography.codeContentInset)
+                            .padding(.vertical, TranscriptTypography.cardVerticalInset)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
             }
+            .padding(.top, TranscriptTypography.withinAnswer)
         }
         .frame(maxWidth: 800, alignment: .leading)
     }
@@ -351,12 +395,14 @@ struct FileChangeCell: View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         let counts = FileChangePresentation.counts(for: changes)
+        let presentation = TranscriptItemPresentation.fileChange(title: FileChangePresentation.title(for: changes))
         DisclosureCard(
             isExpanded: expansionBinding,
-            subtitle: nil,
+            subtitle: presentation.subtitle,
+            isToolCall: presentation.semanticInk == .process,
             titleContent: {
                 HStack(spacing: DSSpacing.xxs) {
-                    Text(FileChangePresentation.title(for: changes))
+                    Text(presentation.heading ?? "")
                     Text("+\(counts.additions)")
                         .foregroundStyle(DSColor.diffAdded)
                     Text("-\(counts.deletions)")

@@ -941,6 +941,52 @@ def check_history_view(src)
   ng.uniq
 end
 
+def code_compact(expr)
+  compact(mask_strings_and_comments(expr.to_s))
+end
+
+def overlay_geometry_reader_scope(src)
+  indexed = code_only_indexed(src.to_s)
+  pos = 0
+  re = /GeometryReader\s*\{/
+  while (m = indexed.match(re, pos))
+    brace = m.end(0) - 1
+    body = extract_balanced(src, brace, "{", "}")
+    if body && compact(mask_strings_and_comments(body)).include?("ChatHistoryStartLayout.maxCardHeight")
+      return body
+    end
+    pos = m.end(0)
+  end
+  src
+end
+
+def overlay_height_alias_bound?(name, scope_src)
+  return false unless name.match?(/\A[A-Za-z_][A-Za-z0-9_]*\z/)
+  indexed = code_only_indexed(scope_src.to_s)
+  pos = 0
+  re = /\blet\s+#{Regexp.escape(name)}(?:\s*:\s*[A-Za-z_][A-Za-z0-9_.]*)?\s*=/
+  while (m = indexed.match(re, pos))
+    i = m.end(0)
+    i += 1 while i < indexed.length && indexed[i] =~ /\s/
+    rest = indexed[i..]
+    break if rest.nil?
+    rm = rest.match(/\AoverlayGeometry\s*\.\s*size\s*\.\s*height\b/)
+    if rm
+      after = rest[rm.end(0)..].to_s.lstrip
+      return true if after.empty? || after.start_with?(";") || after.match?(/\A(?:let|var|return|if|guard|switch|for|while)\b/)
+    end
+    pos = m.end(0)
+  end
+  false
+end
+
+def measured_overlay_height?(avail, scope_src)
+  expr = code_compact(avail)
+  return false if expr.empty?
+  return true if expr == "overlayGeometry.size.height"
+  overlay_height_alias_bound?(expr, overlay_geometry_reader_scope(scope_src))
+end
+
 def check_session_view(src)
   return ["ChatSessionView.swift が存在しない"] if src.nil?
   reach = struct_reachable(src, "ChatSessionView")
@@ -989,7 +1035,7 @@ def check_session_view(src)
   mh_args = extract_call_args(reach, "ChatHistoryStartLayout.maxCardHeight")
   avail = labeled_arg(mh_args, "availableHeight")
   composer_h = labeled_arg(mh_args, "composerHeight")
-  unless avail && compact(avail).include?("overlayGeometry.size.height")
+  unless avail && measured_overlay_height?(avail, reach)
     ng << "maxCardHeight の availableHeight が実測値ではない"
   end
   unless composer_h && compact(composer_h).include?("composerHeight")
@@ -1665,6 +1711,23 @@ def run_selftest
     src.sub("availableHeight: overlayGeometry.size.height", "availableHeight: 800")
   }
   selftest_errors_eq check_session_view(height_arg[:session]), ["maxCardHeight の availableHeight が実測値ではない"], "負例: maxCardHeight 引数を固定値にする"
+
+  comment_only_height = with_file(good, :session) { |src|
+    src.sub("availableHeight: overlayGeometry.size.height", "availableHeight: 800 /* overlayGeometry.size.height */")
+  }
+  selftest_errors_eq check_session_view(comment_only_height[:session]), ["maxCardHeight の availableHeight が実測値ではない"], "負例: コメントだけで availableHeight を満たす"
+
+  alias_height = with_file(good, :session) { |src|
+    src.sub("GeometryReader { overlayGeometry in", "GeometryReader { overlayGeometry in\n              let availableHeight = overlayGeometry.size.height")
+      .sub("availableHeight: overlayGeometry.size.height", "availableHeight: availableHeight")
+  }
+  selftest_errors_eq check_session_view(alias_height[:session]), [], "正例: 別名代入の availableHeight"
+
+  unrelated_height = with_file(good, :session) { |src|
+    src.sub("GeometryReader { overlayGeometry in", "GeometryReader { overlayGeometry in\n              let availableHeight = composerHeight")
+      .sub("availableHeight: overlayGeometry.size.height", "availableHeight: availableHeight")
+  }
+  selftest_errors_eq check_session_view(unrelated_height[:session]), ["maxCardHeight の availableHeight が実測値ではない"], "負例: availableHeight が無関係な値"
 
   view_mh = with_file(good, :session) { |src|
     src.sub("maxCardHeight: cardMaxHeight", "maxCardHeight: 360")

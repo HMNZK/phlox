@@ -244,3 +244,4 @@
 - 2026-09-13 task-49 再凍結 fc8519e（旧 02072dd 無効。rb 高さ配線検査の修理を取り込み）。
 - 2026-09-13T22:32:38+0900 task-49 rework: レビュー r2: MEDIUM 一覧単位の導出が body 評価ごとに実行されキャッシュになっていない／MEDIUM 行の accessibilityLabel がタイトル＋ID のみでプロジェクト・最終利用が読み上げられない（Rubric 識別性）。実装欠陥（2 回目→該当部分を契約から作り直し）
 - 2026-09-13 task-49 レビュー r2 裁定: MEDIUM×2 とも実装欠陥→差し戻し 2 回目（導出キャッシュを状態に保持し entries/作業ディレクトリ変更時のみ更新、AX ラベルに副行の情報を含める）。review-task-49-r2.json に保存。
+- 2026-09-13 task-44 統合検証 1 回目 fail は verify worktree の DesignSystem/MessageStore/ControlServer の .build が AgentDomain の新規ファイル（SessionTitleState.swift）を拾わない stale キャッシュ（AgentDomain・SessionFeature・DashboardFeature は GREEN）。.build を削除して再実行。

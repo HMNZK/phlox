@@ -2,8 +2,8 @@
   "id": 44,
   "title": "UX-01b 名前状態・チャット接続・保存復元",
   "difficulty": "deep",
-  "status": "testing",
-  "updated_at": "2026-09-13T22:25:35+0900",
+  "status": "done",
+  "updated_at": "2026-09-13T22:47:45+0900",
   "last_repair": {
     "reason": "partial の原因（凍結テストのコンパイル不能）は PM 承認のハーネス修理と再凍結で解消し、実装役が再検証して開示レポートを completed に更新済み（wt-44）。blocked は escalate 時の自動遷移で人間判断は不要",
     "to": "in_progress",

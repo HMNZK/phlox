@@ -27,7 +27,7 @@
 | task-40 | standard | done |
 | task-41 | standard | done |
 | task-43 | standard | done |
-| task-44 | deep | testing |
+| task-44 | deep | done |
 | task-45 | standard | pending |
 | task-46 | standard | done |
 | task-47 | standard | pending |

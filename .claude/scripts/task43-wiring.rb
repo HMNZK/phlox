@@ -299,20 +299,28 @@ SWIFTUI_SKIP = %w[
   Tab Item TextField Bool String Int Double Optional true false nil some any body
   Task URL Bundle GeometryReader RoundedRectangle Circle Capsule Overlay alignment
   ChatComposerFooter ComposerAttachmentStrip ComposerSuggestionPopup IMESafeTextView
-  TeamComposerTextInput DSFont DSColor DSSpacing DSRadius
+  TeamComposerTextInput DSFont DSColor DSSpacing DSRadius ComposerSendButton
 ].freeze
 
-def collect_reachable(src, start_blob)
-  result = start_blob.to_s.dup
+def code_idents(src)
+  mask_strings_and_comments(src.to_s).scan(/\b([A-Za-z_][A-Za-z0-9_]*)\b/).flatten.uniq
+end
+
+def collect_reachable(src, start_blob, skip: [])
+  cleaned_src = erase_if_false(src.to_s)
+  start = erase_if_false(start_blob.to_s)
+  result = start.dup
   seen = {}
-  queue = [start_blob.to_s]
+  skip.each { |n| seen[n] = true }
+  queue = [start]
   while (blob = queue.shift)
-    blob.scan(/\b([A-Za-z_][A-Za-z0-9_]*)\b/).flatten.uniq.each do |name|
+    code_idents(blob).each do |name|
       next if SWIFTUI_SKIP.include?(name)
       next if seen[name]
       seen[name] = true
-      helper = extract_var_body(src, name) || extract_func_body(src, name) || extract_struct_body(src, name)
+      helper = extract_var_body(cleaned_src, name) || extract_func_body(cleaned_src, name)
       next if helper.nil?
+      helper = erase_if_false(helper)
       result << "\n" << helper
       queue << helper
     end
@@ -320,34 +328,263 @@ def collect_reachable(src, start_blob)
   result
 end
 
-def reachable_from(src, name = "body")
+def reachable_from(src, name = "body", skip: [])
   return :unparseable if src.nil?
   stripped = strip_comments(src)
-  start = extract_var_body(stripped, name) || extract_func_body(stripped, name)
+  cleaned = erase_if_false(stripped)
+  start = extract_var_body(cleaned, name) || extract_func_body(cleaned, name)
   return :unparseable if start.nil?
-  erase_if_false(collect_reachable(stripped, start))
+  collect_reachable(cleaned, start, skip: skip)
+end
+
+def reachable_in_struct(src, struct_name, start = "body", skip: [])
+  return :unparseable if src.nil?
+  struct = extract_struct_body(strip_comments(src), struct_name)
+  return :unparseable if struct.nil?
+  reachable_from(struct, start, skip: skip)
 end
 
 def code_has_ident?(src, name)
   mask_strings_and_comments(src.to_s).match?(/\b#{Regexp.escape(name)}\b/)
 end
 
-def visible_model_text?(reachable, _ax_id)
-  return false if reachable == :unparseable || reachable.nil?
-  masked = mask_strings_and_comments(reachable)
-  return false unless masked.include?("ComposerDestinationLabel.text")
-  reachable.match?(/\bText\s*\(\s*destinationText\s*\)/) ||
-    reachable.match?(/\bText\s*\(\s*ComposerDestinationLabel\.text/)
+def labeled_arg(args, label)
+  return nil if args.nil?
+  re = /(?:^|,)\s*#{Regexp.escape(label)}\s*:/
+  m = args.match(re)
+  return nil unless m
+  i = skip_ws(args, m.end(0))
+  start = i
+  depth_p = 0
+  depth_b = 0
+  depth_a = 0
+  while i < args.length
+    n = comment_or_string_end(args, i)
+    if n
+      i = n
+      next
+    end
+    case args[i]
+    when "(" then depth_p += 1
+    when ")" then depth_p -= 1
+    when "{" then depth_b += 1
+    when "}" then depth_b -= 1
+    when "[" then depth_a += 1
+    when "]" then depth_a -= 1
+    when ","
+      if depth_p == 0 && depth_b == 0 && depth_a == 0
+        return args[start...i].strip
+      end
+    end
+    i += 1
+  end
+  args[start...i].strip
 end
 
-def help_only?(reachable, ax_id)
-  return false if reachable == :unparseable || reachable.nil?
-  masked = mask_strings_and_comments(reachable)
-  return false unless masked.include?("ComposerDestinationLabel.text")
-  has_text_call = reachable.match?(/\bText\s*\(\s*destinationText\s*\)/) ||
-                  reachable.match?(/\bText\s*\(\s*ComposerDestinationLabel\.text/)
-  has_help = masked.include?(".help(") || reachable.include?(".help(destinationText)")
-  has_help && !has_text_call && reachable.include?(ax_id)
+def all_labeled_args(src, callee, label)
+  all_call_args(src.to_s, callee).map { |a| labeled_arg(a, label) }
+end
+
+def first_labeled_arg(src, callee, label)
+  all_labeled_args(src, callee, label).compact.first
+end
+
+def modifier_args(src, name)
+  args = []
+  pos = 0
+  re = /\.#{Regexp.escape(name)}\s*\(/
+  while (m = src.to_s.match(re, pos))
+    a = extract_balanced(src, m.end(0) - 1, "(", ")")
+    args << a if a
+    pos = m.end(0)
+  end
+  args
+end
+
+def compact_eq?(a, b)
+  compact(a.to_s) == compact(b.to_s)
+end
+
+def expr_is_nil?(expr)
+  compact(expr.to_s) == "nil"
+end
+
+def expr_is_empty_dict?(expr)
+  c = compact(expr.to_s)
+  c == "[:]" || c == "[:]" || c == "[ProjectID:String]()"
+end
+
+def text_argument_idents(src)
+  idents = []
+  src.to_s.scan(/\bText\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)/) { idents << $1 }
+  idents
+end
+
+def start_member(src, name)
+  extract_var_body(src, name) || extract_func_body(src, name)
+end
+
+def struct_scope(src, struct_name)
+  extract_struct_body(strip_comments(src.to_s), struct_name)
+end
+
+def destination_display_start(src, struct_name, start_name)
+  scope = struct_scope(src, struct_name)
+  return [nil, nil, nil] if scope.nil?
+  start = start_member(erase_if_false(scope), start_name)
+  return [scope, nil, nil] if start.nil?
+  start = erase_if_false(start)
+  reach = collect_reachable(scope, start)
+  [scope, start, reach]
+end
+
+def visible_model_text_in?(src, struct_name, start_name = "body")
+  _scope, start, reach = destination_display_start(src, struct_name, start_name)
+  return false if start.nil? || reach.nil?
+  return false unless mask_strings_and_comments(reach).include?("ComposerDestinationLabel.text")
+  return true if reach.match?(/\bText\s*\(\s*ComposerDestinationLabel\.text/)
+  names = model_bound_names(src, struct_name, start_name)
+  names.any? { |name| reach.match?(/\bText\s*\(\s*#{Regexp.escape(name)}\s*\)/) }
+end
+
+def model_bound_names(src, struct_name, start_name)
+  scope, start, reach = destination_display_start(src, struct_name, start_name)
+  return [] if start.nil? || reach.nil?
+  names = []
+  reach.to_s.scan(/(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*ComposerDestinationLabel\.text/) { names << $1 }
+  text_argument_idents(reach).each do |name|
+    next if names.include?(name)
+    helper = extract_var_body(scope, name) || extract_func_body(scope, name)
+    if helper && mask_strings_and_comments(helper).include?("ComposerDestinationLabel.text")
+      names << name
+    end
+  end
+  names.uniq
+end
+
+def destination_text_span(src, struct_name, start_name, editor_ident)
+  _scope, start, reach = destination_display_start(src, struct_name, start_name)
+  return nil if start.nil? || reach.nil?
+  names = model_bound_names(src, struct_name, start_name)
+  names.each do |name|
+    m = reach.match(/\bText\s*\(\s*#{Regexp.escape(name)}\s*\)/)
+    next unless m
+    editor = reach.index(editor_ident, m.begin(0)) || [m.begin(0) + 1200, reach.length].min
+    return [name, reach[m.begin(0)...editor], reach, m.begin(0)]
+  end
+  m = reach.match(/\bText\s*\(\s*ComposerDestinationLabel\.text/)
+  if m
+    editor = reach.index(editor_ident, m.begin(0)) || [m.begin(0) + 1200, reach.length].min
+    return [nil, reach[m.begin(0)...editor], reach, m.begin(0)]
+  end
+  nil
+end
+
+def visible_model_text?(src, struct_name, start_name = "body")
+  visible_model_text_in?(src, struct_name, start_name)
+end
+
+def help_only?(src, struct_name, start_name, ax_id)
+  _scope, start, reach = destination_display_start(src, struct_name, start_name)
+  return false if start.nil? || reach.nil?
+  return false unless mask_strings_and_comments(reach).include?("ComposerDestinationLabel.text")
+  has_text = visible_model_text_in?(src, struct_name, start_name)
+  has_help = reach.include?(".help(")
+  has_help && !has_text && reach.include?(ax_id)
+end
+
+def destination_before_editor?(src, struct_name, start_name, editor_ident)
+  span = destination_text_span(src, struct_name, start_name, editor_ident)
+  return false if span.nil?
+  _name, _window, surface, text_idx = span
+  editor_idx = surface.index(editor_ident)
+  return false if editor_idx.nil?
+  text_idx < editor_idx
+end
+
+def destination_modifiers_ok?(src, struct_name, start_name, editor_ident, ax_id)
+  span = destination_text_span(src, struct_name, start_name, editor_ident)
+  return { help: false, ax_label: false, ax_id: false, font: false, color: false } if span.nil?
+  name, window, _surface, _idx = span
+  help_ok = if name
+    window.include?(".help(#{name})")
+  else
+    window.include?(".help(")
+  end
+  ax_label_ok = if name
+    window.include?(".accessibilityLabel(#{name})")
+  else
+    window.include?(".accessibilityLabel(")
+  end
+  {
+    help: help_ok,
+    ax_label: ax_label_ok,
+    ax_id: window.include?(%(.accessibilityIdentifier("#{ax_id}"))),
+    font: compact(window).include?("DSFont.caption"),
+    color: compact(window).include?("DSColor.chatTextSecondary")
+  }
+end
+
+def height_geometry_covers?(src, callee)
+  idx = src.to_s.index(callee)
+  return false if idx.nil?
+  window = src[idx, 1800]
+  window.include?("onGeometryChange") && window.include?("proxy.size.height") && window.include?("composerHeight")
+end
+
+def width_only_geometry?(src)
+  has_width = src.to_s.include?("proxy.size.width")
+  has_height = src.to_s.include?("proxy.size.height") && src.to_s.include?("composerHeight")
+  has_width && !has_height
+end
+
+def hides_label_without_destination?(src)
+  chunks = []
+  src.to_s.scan(/if\s+let\s+targetDisplayName\b[\s\S]{0,800}/) { chunks << $& }
+  src.to_s.scan(/if\s+targetDisplayName\s*!=\s*nil[\s\S]{0,800}/) { chunks << $& }
+  chunks.any? do |chunk|
+    chunk.include?("ComposerDestinationLabel.text") ||
+      chunk.match?(/\bText\s*\(\s*[A-Za-z_][A-Za-z0-9_]*\s*\)/)
+  end
+end
+
+def has_content_defects(expr, require_attachments:)
+  ng = []
+  c = compact(expr.to_s)
+  if require_attachments
+    unless c.match?(/![\w.]*attachments\.isEmpty/)
+      ng << "画像のみを送信不可表示している（hasContent が添付を見ていない）"
+    end
+    if c.include?("attachments.isEmpty") && c.include?("&&") && !c.include?("||")
+      ng << "hasContent が trim と添付を AND している"
+    end
+  end
+  unless c.include?("trimmingCharacters") || c.include?("trimmedDraft")
+    ng << "hasContent が空白・改行のみを本文ありと扱っている"
+  end
+  ng
+end
+
+def readiness_ok?(expr, allowed)
+  c = compact(expr.to_s)
+  allowed.any? { |a| c == compact(a) }
+end
+
+def team_destination_mapping_errors(agora)
+  ng = []
+  body = extract_func_body(strip_comments(agora.to_s), "teamDestination")
+  body ||= agora.to_s
+  c = compact(body)
+  unless c.include?("case.startDiscussion:return.startDiscussion")
+    ng << "終了後を親送信に固定している"
+  end
+  unless c.include?("case.discussionUtterance:return.discussionUtterance")
+    ng << ".concluding を討論外扱いしている"
+  end
+  unless c.include?("case.legacyRootSend:return.parentSession")
+    ng << "teamDestination が既存 action 3 件に接続していない"
+  end
+  ng
 end
 
 CONTRACT_PATH = "tasks/task-43.md"
@@ -525,10 +762,10 @@ def check_single(files)
   ng.concat(missing_file(files, :detail, PATHS[:detail]))
   return ng unless files[:chat_composer] && files[:chat_session] && files[:detail]
 
-  composer = reachable_from(files[:chat_composer], "body")
+  composer_reach = reachable_in_struct(files[:chat_composer], "ChatComposer", "body")
   session = reachable_from(files[:chat_session], "body")
   detail = reachable_from(files[:detail], "singleDetail")
-  if composer == :unparseable
+  if composer_reach == :unparseable
     ng << "ChatComposer の body を括弧対応で切り出せない"
     return ng
   end
@@ -541,61 +778,77 @@ def check_single(files)
     return ng
   end
 
-  unless visible_model_text?(composer, "ChatComposer.destination")
-    if help_only?(composer, "ChatComposer.destination")
+  unless visible_model_text?(files[:chat_composer], "ChatComposer")
+    if help_only?(files[:chat_composer], "ChatComposer", "body", "ChatComposer.destination")
       ng << "ChatComposer の送信先表示を help のみに移している"
     else
       ng << "単一経路から ComposerDestinationLabel.text の Text に到達しない"
     end
   end
-  unless composer.include?(%(.accessibilityIdentifier("ChatComposer.destination")))
-    ng << "ChatComposer.destination の AX identifier が無い" unless ng.any? { |m| m.include?("単一経路") || m.include?("help のみ") }
+  mods = destination_modifiers_ok?(files[:chat_composer], "ChatComposer", "body", "IMESafeTextView", "ChatComposer.destination")
+  skip_ax = ng.any? { |m| m.include?("単一経路") || m.include?("help のみ") }
+  ng << "ChatComposer.destination の AX identifier が無い" unless mods[:ax_id] || skip_ax
+  ng << "ChatComposer の全文 help が無い" unless mods[:help] || skip_ax
+  ng << "ChatComposer のアクセシビリティラベルが無い" unless mods[:ax_label] || skip_ax
+  ng << "ChatComposer が DSFont.caption を使っていない" unless mods[:font] || skip_ax
+  ng << "ChatComposer が DSColor.chatTextSecondary を使っていない" unless mods[:color] || skip_ax
+  unless destination_before_editor?(files[:chat_composer], "ChatComposer", "body", "IMESafeTextView")
+    ng << "ChatComposer の送信先表示が編集領域の直前に無い" unless skip_ax
   end
-  unless composer.include?(".help(destinationText)") || compact(composer).include?(".help(destinationText)")
-    ng << "ChatComposer の全文 help が無い"
-  end
-  unless composer.include?(".accessibilityLabel(destinationText)") || compact(composer).include?(".accessibilityLabel(destinationText)")
-    ng << "ChatComposer のアクセシビリティラベルが無い"
-  end
-  unless compact(composer).include?("DSFont.caption")
-    ng << "ChatComposer が DSFont.caption を使っていない"
-  end
-  unless compact(composer).include?("DSColor.chatTextSecondary")
-    ng << "ChatComposer が DSColor.chatTextSecondary を使っていない"
-  end
-  text_idx = composer.index("ComposerDestinationLabel.text")
-  editor_idx = composer.index("IMESafeTextView")
-  if text_idx && editor_idx && text_idx > editor_idx
-    ng << "ChatComposer の送信先表示が編集領域の直前に無い"
-  elsif text_idx.nil? || editor_idx.nil?
-    ng << "ChatComposer の送信先表示が編集領域の直前に無い" unless ng.any? { |m| m.include?("単一経路") || m.include?("help のみ") }
-  end
-  unless compact(session).include?("ChatComposer(") && compact(session).include?("onGeometryChange")
+  unless code_has_ident?(session, "ChatComposer") && height_geometry_covers?(files[:chat_session], "ChatComposer")
     ng << "ChatComposer の送信先表示が composer の計測範囲に無い"
   end
-  unless call_has_label?(session, "ChatComposer", "projectName")
+
+  session_pn = first_labeled_arg(session, "ChatComposer", "projectName")
+  if session_pn.nil? || expr_is_nil?(session_pn)
     ng << "ChatSessionView が projectName を ChatComposer へ渡していない"
+  elsif compact(session_pn) != "projectName"
+    ng << "ChatSessionView が projectName を ChatComposer へ渡していない" unless ng.include?("ChatSessionView が projectName を ChatComposer へ渡していない")
+  end
+  composer_init = files[:chat_composer]
+  if compact(composer_init).include?("self.projectName=nil")
+    ng << "ChatComposer が projectName を nil に差し替えている"
   end
   unless init_has_default_project_name?(files[:chat_session]) && init_has_default_project_name?(files[:chat_composer])
     ng << "projectName: String? = nil の既定が無い"
   end
-  unless call_has_label?(detail, "ChatSessionView", "projectName")
+  detail_pn = first_labeled_arg(detail, "ChatSessionView", "projectName")
+  if detail_pn.nil? || expr_is_nil?(detail_pn)
     ng << "DashboardDetailView の ChatSessionView が projectName を明示していない（既定 nil）"
+  else
+    dpc = compact(detail_pn)
+    ng << "単一のプロジェクト名が session.projectID から取得されていない" unless dpc.include?("session.projectID")
+    ng << "単一のプロジェクト名に router.selectedProjectID を使っている" if dpc.include?("selectedProjectID")
   end
-  chat_args = extract_call_args(detail, "ChatSessionView")
-  if chat_args
-    c = compact(chat_args)
-    ng << "単一のプロジェクト名が session.projectID から取得されていない" unless c.include?("session.projectID") || c.include?("session.projectID")
-    ng << "単一のプロジェクト名に router.selectedProjectID を使っている" if c.include?("selectedProjectID")
+
+  text_args = extract_call_args(composer_reach, "ComposerDestinationLabel.text")
+  text_args ||= begin
+    scope = struct_scope(files[:chat_composer], "ChatComposer")
+    extract_call_args(scope.to_s, "ComposerDestinationLabel.text") if scope
   end
-  text_args = extract_call_args(composer, "ComposerDestinationLabel.text")
   if text_args
-    tc = compact(text_args)
-    unless tc.include?("attachments.isEmpty")
-      ng << "画像のみを送信不可表示している（hasContent が添付を見ていない）"
+    task = labeled_arg(text_args, "taskName")
+    unless task && compact(task).include?("viewModel.displayName")
+      ng << "単一の作業名が viewModel.displayName ではない"
     end
-    if tc.include?("selectedSubAgentId") || tc.include?("focusedID")
-      ng << "単一の送信先に選択カード名を使っている"
+    tc = compact(text_args)
+    ng << "単一の送信先に選択カード名を使っている" if tc.include?("selectedSubAgentId") || tc.include?("focusedID")
+    has_c = labeled_arg(text_args, "hasContent")
+    ng.concat(has_content_defects(has_c, require_attachments: true)) if has_c
+    ready = labeled_arg(text_args, "isReadyForInput")
+    unless ready && readiness_ok?(ready, ["canSend", "viewModel.isReadyForInput", "canSubmit"])
+      ng << "単一の isReadyForInput が既存の送信準備と結びついていない"
+    end
+    dest = labeled_arg(text_args, "hasDestination")
+    if dest && compact(dest) != "true"
+      ng << "単一の hasDestination が既存の送信条件と結びついていない"
+    end
+    pn = labeled_arg(text_args, "projectName") || labeled_arg(text_args, "for")
+    conv = compact(text_args)
+    if conv.include?("projectName:nil") && conv.include?(".conversation")
+      ng << "ChatComposer が projectName を nil に差し替えている"
+    elsif pn && expr_is_nil?(pn)
+      ng << "ChatComposer が projectName を nil に差し替えている"
     end
   end
   ng
@@ -608,15 +861,19 @@ def check_grid(files)
   end
   return ng unless files[:grid_column] && files[:grid_view] && files[:pane] && files[:detail]
 
-  bar = reachable_from(files[:grid_column], "composerContent")
-  bar = reachable_from(files[:grid_column], "body") if bar == :unparseable
+  column_struct = struct_scope(files[:grid_column], "GridChatColumn")
+  column_body = column_struct && start_member(erase_if_false(column_struct), "body")
+  bar = reachable_in_struct(files[:grid_column], "GridComposerBar", "body")
   grid = reachable_from(files[:grid_view], "body")
   pane = reachable_from(files[:pane], "body")
   tile = extract_var_body(strip_comments(files[:pane]), "tileContent")
   detail = reachable_from(files[:detail], "detailMainContent")
-  if bar == :unparseable
+  if bar == :unparseable || column_body.nil?
     ng << "GridComposerBar の本文を括弧対応で切り出せない"
     return ng
+  end
+  unless code_has_ident?(column_body, "GridComposerBar")
+    ng << "グリッド経路から ComposerDestinationLabel.text の Text に到達しない"
   end
   if grid == :unparseable
     ng << "SessionGridView の body を括弧対応で切り出せない"
@@ -631,70 +888,86 @@ def check_grid(files)
     return ng
   end
 
-  unless visible_model_text?(bar, "GridComposer.destination")
-    if help_only?(bar, "GridComposer.destination")
+  unless visible_model_text?(files[:grid_column], "GridComposerBar")
+    if help_only?(files[:grid_column], "GridComposerBar", "body", "GridComposer.destination")
       ng << "GridComposer の送信先表示を help のみに移している"
     else
-      ng << "グリッド経路から ComposerDestinationLabel.text の Text に到達しない"
+      ng << "グリッド経路から ComposerDestinationLabel.text の Text に到達しない" unless ng.include?("グリッド経路から ComposerDestinationLabel.text の Text に到達しない")
     end
   end
-  unless bar.include?(%(.accessibilityIdentifier("GridComposer.destination")))
-    ng << "GridComposer.destination の AX identifier が無い" unless ng.any? { |m| m.include?("グリッド経路") || m.include?("help のみ") }
+  mods = destination_modifiers_ok?(files[:grid_column], "GridComposerBar", "body", "IMESafeTextView", "GridComposer.destination")
+  skip_ax = ng.any? { |m| m.include?("グリッド経路") || m.include?("help のみ") }
+  ng << "GridComposer.destination の AX identifier が無い" unless mods[:ax_id] || skip_ax
+  ng << "GridComposer の全文 help が無い" unless mods[:help] || skip_ax
+  ng << "GridComposer のアクセシビリティラベルが無い" unless mods[:ax_label] || skip_ax
+  ng << "GridComposer が DSFont.caption を使っていない" unless mods[:font] || skip_ax
+  ng << "GridComposer が DSColor.chatTextSecondary を使っていない" unless mods[:color] || skip_ax
+  unless destination_before_editor?(files[:grid_column], "GridComposerBar", "body", "IMESafeTextView")
+    ng << "GridComposer の送信先表示が編集領域の直前に無い" unless skip_ax
   end
-  unless bar.include?(".help(destinationText)") || compact(bar).include?(".help(destinationText)")
-    ng << "GridComposer の全文 help が無い"
+  if width_only_geometry?(files[:grid_column]) || !height_geometry_covers?(files[:grid_column], "GridComposerBar")
+    ng << "GridComposer の高さ計測が無い（幅計測だけでは足りない）"
   end
-  unless bar.include?(".accessibilityLabel(destinationText)") || compact(bar).include?(".accessibilityLabel(destinationText)")
-    ng << "GridComposer のアクセシビリティラベルが無い"
+
+  bar_pn = first_labeled_arg(column_body, "GridComposerBar", "projectName")
+  if bar_pn.nil? || expr_is_nil?(bar_pn) || compact(bar_pn) != "projectName"
+    ng << "GridChatColumn が projectName を GridComposerBar へ渡していない"
   end
-  unless compact(bar).include?("DSFont.caption")
-    ng << "GridComposer が DSFont.caption を使っていない"
-  end
-  unless compact(bar).include?("DSColor.chatTextSecondary")
-    ng << "GridComposer が DSColor.chatTextSecondary を使っていない"
-  end
-  text_idx = bar.index("ComposerDestinationLabel.text")
-  editor_idx = bar.index("IMESafeTextView")
-  if text_idx && editor_idx && text_idx > editor_idx
-    ng << "GridComposer の送信先表示が編集領域の直前に無い"
-  elsif text_idx.nil? || editor_idx.nil?
-    ng << "GridComposer の送信先表示が編集領域の直前に無い" unless ng.any? { |m| m.include?("グリッド経路") || m.include?("help のみ") }
-  end
-  unless compact(files[:grid_column]).include?("onGeometryChange")
-    ng << "GridComposer の送信先表示が composer の計測範囲に無い"
+  if compact(files[:grid_column]).include?("self.projectName=nil")
+    ng << "GridComposerBar が projectName を nil に差し替えている"
   end
   unless call_has_label?(grid, "PaneLayoutView", "projectNames")
     ng << "SessionGridView が projectNames を PaneLayoutView へ渡していない"
   end
+  grid_to_pane = first_labeled_arg(grid, "PaneLayoutView", "projectNames")
+  if grid_to_pane && expr_is_empty_dict?(grid_to_pane)
+    ng << "SessionGridView が projectNames を PaneLayoutView へ渡していない"
+  end
   tile_c = compact(tile)
-  unless tile_c.include?("GridChatColumn(") && (tile_c.include?("projectName:") || compact(pane).include?("projectName:"))
+  pane_pn = first_labeled_arg(tile, "GridChatColumn", "projectName") || first_labeled_arg(pane, "GridChatColumn", "projectName")
+  unless tile_c.include?("GridChatColumn(") && pane_pn && !expr_is_nil?(pane_pn)
     ng << "PaneLayoutView が projectName を GridChatColumn へ渡していない"
   end
   unless pane.include?("session.projectID") || tile.include?("session.projectID")
     ng << "グリッドのプロジェクト名がタイルの session.projectID から取得されていない"
   end
   text_args = extract_call_args(bar, "ComposerDestinationLabel.text")
+  text_args ||= begin
+    scope = struct_scope(files[:grid_column], "GridComposerBar")
+    extract_call_args(scope.to_s, "ComposerDestinationLabel.text") if scope
+  end
   if text_args
     tc = compact(text_args)
-    ng << "グリッドが選択中カード名を送信先に使っている" if tc.include?("focusedID") || tc.include?("selectedSubAgent")
-    unless tc.include?("attachments.isEmpty")
-      ng << "画像のみを送信不可表示している（hasContent が添付を見ていない）"
-    end
-    unless tc.include?("viewModel.displayName") || tc.include?("taskName:viewModel.displayName")
+    ng << "グリッドが選択中カード名を送信先に使っている" if tc.include?("focusedID") || tc.include?("selectedSubAgent") || tc.include?("focusedSession")
+    task = labeled_arg(text_args, "taskName")
+    unless task && compact(task).include?("viewModel.displayName")
       ng << "グリッドが選択中カード名を送信先に使っている" unless ng.any? { |m| m.include?("選択中カード") }
+    end
+    has_c = labeled_arg(text_args, "hasContent")
+    ng.concat(has_content_defects(has_c, require_attachments: true)) if has_c
+    ready = labeled_arg(text_args, "isReadyForInput")
+    unless ready && readiness_ok?(ready, ["canSend", "viewModel.isReadyForInput", "canSubmit"])
+      ng << "グリッドの isReadyForInput が既存の送信準備と結びついていない"
+    end
+    dest = labeled_arg(text_args, "hasDestination")
+    if dest && compact(dest) != "true"
+      ng << "グリッドの hasDestination が既存の送信条件と結びついていない"
+    end
+    pn = labeled_arg(text_args, "projectName")
+    if pn && expr_is_nil?(pn)
+      ng << "GridComposerBar が projectName を nil に差し替えている"
     end
   end
   unless init_has_default_project_names?(files[:grid_view]) && init_has_default_project_names?(files[:pane])
     ng << "projectNames: [ProjectID: String] = [:] の既定が無い"
   end
-  unless call_has_label?(detail, "SessionGridView", "projectNames")
+  detail_pn = first_labeled_arg(detail, "SessionGridView", "projectNames")
+  if detail_pn.nil? || expr_is_empty_dict?(detail_pn)
     ng << "DashboardDetailView の SessionGridView が projectNames を明示していない（既定の空辞書）"
-  end
-  grid_args = extract_call_args(detail, "SessionGridView")
-  if grid_args
-    c = compact(grid_args)
+  else
+    c = compact(detail_pn)
     ng << "グリッドのプロジェクト名に router.selectedProjectID を使っている" if c.include?("selectedProjectID")
-    ng << "グリッド全体の選択名を代入している" if c.include?("selectedSession") && c.include?("projectNames") && !c.include?("projects")
+    ng << "グリッド全体の選択名を代入している" if c.include?("selectedSession") && !c.include?("projects")
   end
   ng
 end
@@ -705,6 +978,31 @@ def without_func(src, name)
   src.sub(body, "")
 end
 
+def team_display_generation(timeline_src)
+  stripped = strip_comments(timeline_src.to_s)
+  cleaned = erase_if_false(stripped)
+  struct = extract_struct_body(cleaned, "TeamTimelineView") || cleaned
+  body = extract_var_body(struct, "body")
+  return [nil, nil, nil] if body.nil?
+  reach = collect_reachable(struct, body, skip: ["sendTeamMessage"])
+  composer_args = extract_call_args(reach, "TeamComposer") || extract_call_args(body, "TeamComposer")
+  dest = labeled_arg(composer_args, "destination")
+  expr = dest.to_s
+  if dest && dest.match?(/\A[A-Za-z_][A-Za-z0-9_]*\z/)
+    helper = extract_var_body(struct, dest) || extract_func_body(struct, dest)
+    expr = helper if helper
+  end
+  display_action_args = []
+  td_call = extract_call_args(expr, "ComposerDestinationLabel.teamDestination")
+  action_passed = labeled_arg(td_call, "action")
+  if action_passed && action_passed.match?(/\A[A-Za-z_][A-Za-z0-9_]*\z/) && expr.match?(/let\s+#{Regexp.escape(action_passed)}\s*=\s*AgoraComposerRouting\.action/)
+    display_action_args = all_call_args(expr, "AgoraComposerRouting.action")
+  elsif action_passed && compact(action_passed).include?("AgoraComposerRouting.action")
+    display_action_args = all_call_args(action_passed, "AgoraComposerRouting.action")
+  end
+  [reach, expr, display_action_args]
+end
+
 def check_team(files)
   ng = []
   %i[timeline team_composer agora].each do |key|
@@ -712,9 +1010,9 @@ def check_team(files)
   end
   return ng unless files[:timeline] && files[:team_composer] && files[:agora]
 
-  composer = reachable_from(files[:team_composer], "body")
-  timeline = reachable_from(files[:timeline], "body")
-  if composer == :unparseable
+  composer_reach = reachable_in_struct(files[:team_composer], "TeamComposer", "body")
+  timeline = reachable_from(files[:timeline], "body", skip: ["sendTeamMessage"])
+  if composer_reach == :unparseable
     ng << "TeamComposer の body を括弧対応で切り出せない"
     return ng
   end
@@ -723,100 +1021,88 @@ def check_team(files)
     return ng
   end
 
-  unless visible_model_text?(composer, "TeamComposer.destination")
-    if help_only?(composer, "TeamComposer.destination")
+  unless visible_model_text?(files[:team_composer], "TeamComposer")
+    if help_only?(files[:team_composer], "TeamComposer", "body", "TeamComposer.destination")
       ng << "TeamComposer の送信先表示を help のみに移している"
     else
       ng << "チーム経路から ComposerDestinationLabel.text の Text に到達しない"
     end
   end
-  unless composer.include?(%(.accessibilityIdentifier("TeamComposer.destination")))
-    ng << "TeamComposer.destination の AX identifier が無い" unless ng.any? { |m| m.include?("チーム経路") || m.include?("help のみ") }
+  mods = destination_modifiers_ok?(files[:team_composer], "TeamComposer", "body", "TeamComposerTextInput", "TeamComposer.destination")
+  skip_ax = ng.any? { |m| m.include?("チーム経路") || m.include?("help のみ") }
+  ng << "TeamComposer.destination の AX identifier が無い" unless mods[:ax_id] || skip_ax
+  ng << "TeamComposer の全文 help が無い" unless mods[:help] || skip_ax
+  ng << "TeamComposer のアクセシビリティラベルが無い" unless mods[:ax_label] || skip_ax
+  unless destination_before_editor?(files[:team_composer], "TeamComposer", "body", "TeamComposerTextInput")
+    ng << "TeamComposer の送信先表示が編集領域の直前に無い" unless skip_ax
   end
-  unless composer.include?(".help(destinationText)") || compact(composer).include?(".help(destinationText)")
-    ng << "TeamComposer の全文 help が無い"
+  if hides_label_without_destination?(composer_reach) || hides_label_without_destination?(struct_scope(files[:team_composer], "TeamComposer").to_s)
+    ng << "宛先なしでラベルを非表示にしている"
   end
-  unless composer.include?(".accessibilityLabel(destinationText)") || compact(composer).include?(".accessibilityLabel(destinationText)")
-    ng << "TeamComposer のアクセシビリティラベルが無い"
-  end
-  text_idx = composer.index("ComposerDestinationLabel.text")
-  editor_idx = composer.index("TeamComposerTextInput")
-  if text_idx && editor_idx && text_idx > editor_idx
-    ng << "TeamComposer の送信先表示が編集領域の直前に無い"
-  elsif text_idx.nil? || editor_idx.nil?
-    ng << "TeamComposer の送信先表示が編集領域の直前に無い" unless ng.any? { |m| m.include?("チーム経路") || m.include?("help のみ") }
-  end
-  if composer.match?(/if\s+let\s+targetDisplayName/)
-    after = composer[/if\s+let\s+targetDisplayName.*/m].to_s
-    if after.include?("ComposerDestinationLabel.text") || after.include?("destinationText")
-      ng << "宛先なしでラベルを非表示にしている"
-    end
-  end
-  unless compact(composer).include?(".disabled(!canSend)")
+  disabled_args = modifier_args(files[:team_composer], "disabled")
+  unless disabled_args.any? { |a| compact(a) == "!canSend" }
     ng << "TeamComposer の disabled 条件が変わっている"
   end
-  unless compact(composer).include?("isEnabled:targetDisplayName!=nil")
+  enabled = first_labeled_arg(files[:team_composer], "TeamComposerTextInput", "isEnabled")
+  unless enabled && compact(enabled) == "targetDisplayName!=nil"
     ng << "TeamComposer の編集可否条件が変わっている"
   end
 
   send_body = extract_func_body(strip_comments(files[:timeline]), "sendTeamMessage")
-  display_src = without_func(strip_comments(files[:timeline]), "sendTeamMessage")
-  display_reach = erase_if_false(collect_reachable(strip_comments(files[:timeline]), extract_var_body(strip_comments(files[:timeline]), "body").to_s))
-  display_reach = without_func(display_reach, "sendTeamMessage")
+  display_reach, display_expr, display_args = team_display_generation(files[:timeline])
   send_args = all_call_args(send_body.to_s, "AgoraComposerRouting.action")
-  display_args = all_call_args(display_reach, "AgoraComposerRouting.action")
-  if display_args.empty?
+  if display_args.nil? || display_args.empty?
     ng << "チーム表示用 action が sendTeamMessage と同じ入力元でない（未接続）"
   end
   if send_args.empty?
     ng << "sendTeamMessage の AgoraComposerRouting.action を切り出せない"
   end
-  if send_args[0] && display_args[0]
-    sc = compact(send_args[0])
-    dc = compact(display_args[0])
-    unless dc.include?("viewModel.agoraDiscussionCoordinator?.phase") || dc.include?("viewModel.agoraDiscussionCoordinator?.phase")
+  if send_args[0] && display_args && display_args[0]
+    send_phase = labeled_arg(send_args[0], "phase")
+    disp_phase = labeled_arg(display_args[0], "phase")
+    send_can = labeled_arg(send_args[0], "canStartDiscussion")
+    disp_can = labeled_arg(display_args[0], "canStartDiscussion")
+    unless compact_eq?(send_phase, disp_phase)
       ng << "チーム表示用 action の phase が sendTeamMessage と異なる"
     end
-    unless sc.include?("viewModel.agoraDiscussionCoordinator?.phase")
-      ng << "sendTeamMessage の phase 入力が契約と異なる"
-    end
-    unless dc.include?("TeamTimelineAgoraPolicy.canStartDiscussion") && dc.include?("canResolveProjectForNewSession")
+    unless compact_eq?(send_can, disp_can)
       ng << "チーム表示用 action の開始可否が sendTeamMessage と異なる"
     end
-    unless sc.include?("TeamTimelineAgoraPolicy.canStartDiscussion") && sc.include?("canResolveProjectForNewSession")
+    unless compact(send_phase.to_s).include?("viewModel.agoraDiscussionCoordinator?.phase")
+      ng << "sendTeamMessage の phase 入力が契約と異なる"
+    end
+    unless compact(send_can.to_s).include?("TeamTimelineAgoraPolicy.canStartDiscussion") && compact(send_can.to_s).include?("canResolveProjectForNewSession")
       ng << "sendTeamMessage の開始可否入力が契約と異なる"
     end
   end
-  unless code_has_ident?(display_reach, "teamDestination")
+  unless code_has_ident?(display_expr.to_s, "teamDestination") || code_has_ident?(display_reach.to_s, "teamDestination")
     ng << "TeamTimelineView が表示用 teamDestination を呼んでいない"
   end
-  dest_args = extract_call_args(display_reach, "ComposerDestinationLabel.teamDestination")
-  dest_args ||= extract_call_args(files[:timeline], "ComposerDestinationLabel.teamDestination")
+  dest_args = extract_call_args(display_expr.to_s, "ComposerDestinationLabel.teamDestination")
+  dest_args ||= extract_call_args(display_reach.to_s, "ComposerDestinationLabel.teamDestination")
   if dest_args
-    d = compact(dest_args)
-    unless d.include?("rootTaskName:composerTargetNode")
+    root_task = labeled_arg(dest_args, "rootTaskName")
+    root_proj = labeled_arg(dest_args, "rootProjectName")
+    unless root_task && compact(root_task).include?("composerTargetNode") && compact(root_task).include?("displayName")
       ng << "親名を子名に差し替えている"
+    end
+    unless root_proj && compact(root_proj).include?("composerTargetNode") && compact(root_proj).include?("projectID")
+      ng << "チームの rootProjectName が composerTargetNode の projectID から取得されていない"
     end
   end
 
-  agora = files[:agora]
-  agora_masked = mask_strings_and_comments(agora)
-  if agora_masked.match?(/\.ended\b/) || agora_masked.match?(/case\s+\.ended/)
-    ng << "終了後を親送信に固定している"
-  end
-  if agora_masked.match?(/\.concluding\b/) && !agora_masked.include?("discussionUtterance")
-    ng << ".concluding を討論外扱いしている"
-  end
-  if agora_masked.match?(/case\s+\.concluding/)
-    ng << ".concluding を討論外扱いしている"
-  end
-  unless code_has_ident?(agora, "startDiscussion") && code_has_ident?(agora, "discussionUtterance") && code_has_ident?(agora, "legacyRootSend")
-    ng << "teamDestination が既存 action 3 件に接続していない"
-  end
-
+  ng.concat(team_destination_mapping_errors(files[:agora]))
   can_send = extract_var_body(strip_comments(files[:team_composer]), "canSend")
   if can_send && compact(can_send).include?("canStartDiscussion")
     ng << "討論開始可能を理由にボタンを有効化している"
+  end
+  if (team_text = extract_call_args(composer_reach, "ComposerDestinationLabel.text"))
+    dest_bool = labeled_arg(team_text, "hasDestination")
+    ng << "チームの hasDestination が targetDisplayName != nil と結びついていない" unless dest_bool && compact(dest_bool).include?("targetDisplayName") && compact(dest_bool).include?("!=nil")
+    ready = labeled_arg(team_text, "isReadyForInput")
+    ng << "チームの isReadyForInput が既存の送信準備と結びついていない" unless ready && readiness_ok?(ready, ["isReadyForInput", "composerIsReadyForInput"])
+    has_c = labeled_arg(team_text, "hasContent")
+    ng.concat(has_content_defects(has_c, require_attachments: false)) if has_c
   end
   ng.uniq
 end
@@ -839,6 +1125,19 @@ INVARIANT_VARS = [
   [:timeline, "composerTargetNode"],
   [:timeline, "composerTargetDisplayName"],
   [:timeline, "composerIsReadyForInput"],
+].freeze
+
+INVARIANT_CALLS = [
+  [:chat_composer, "ChatComposerFooter", "canSubmit"],
+  [:grid_column, "ChatComposerFooter", "canSubmit"],
+  [:chat_composer, "IMESafeTextView", "onSubmit"],
+  [:grid_column, "IMESafeTextView", "onSubmit"],
+  [:grid_column, "GridComposerBar", "onFocusGained"],
+].freeze
+
+INVARIANT_DISABLED = [
+  [:chat_composer, "canSubmit"],
+  [:team_composer, "canSend"],
 ].freeze
 
 def check_func_unchanged(files, previous, key, name)
@@ -877,10 +1176,46 @@ def check_var_unchanged(files, previous, key, name)
   ng
 end
 
+def check_call_label_unchanged(files, previous, key, callee, label)
+  ng = []
+  cur = files[key]
+  prev = previous[key]
+  if cur.nil? || prev.nil?
+    ng << "#{PATHS[key]} の #{callee} を baseline または作業ツリーから切り出せない"
+    return ng
+  end
+  cur_vals = all_labeled_args(strip_comments(cur), callee, label).map { |a| compact(a.to_s) }
+  prev_vals = all_labeled_args(strip_comments(prev), callee, label).map { |a| compact(a.to_s) }
+  if cur_vals != prev_vals
+    ng << "#{callee} の #{label}: が TASK43_BASELINE から変化している"
+  end
+  ng
+end
+
+def check_disabled_unchanged(files, previous, key, predicate)
+  ng = []
+  cur = files[key]
+  prev = previous[key]
+  if cur.nil? || prev.nil?
+    ng << "#{PATHS[key]} の disabled を baseline または作業ツリーから切り出せない"
+    return ng
+  end
+  cur_vals = modifier_args(strip_comments(cur), "disabled").map { |a| compact(a) }
+  prev_vals = modifier_args(strip_comments(prev), "disabled").map { |a| compact(a) }
+  if cur_vals != prev_vals
+    ng << "#{PATHS[key].split('/').last} の disabled が TASK43_BASELINE から変化している"
+  elsif !cur_vals.any? { |v| v == "!#{predicate}" || v.include?(predicate) }
+    ng << "#{PATHS[key].split('/').last} の disabled が TASK43_BASELINE から変化している" unless prev_vals.empty?
+  end
+  ng
+end
+
 def check_invariants(files, previous)
   ng = []
   INVARIANT_FUNCS.each { |key, name| ng.concat(check_func_unchanged(files, previous, key, name)) }
   INVARIANT_VARS.each { |key, name| ng.concat(check_var_unchanged(files, previous, key, name)) }
+  INVARIANT_CALLS.each { |key, callee, label| ng.concat(check_call_label_unchanged(files, previous, key, callee, label)) }
+  INVARIANT_DISABLED.each { |key, predicate| ng.concat(check_disabled_unchanged(files, previous, key, predicate)) }
   ng
 end
 
@@ -964,6 +1299,9 @@ def good_chat_composer_src
           ZStack {
             IMESafeTextView(text: $text, onSubmit: onSend)
           }
+          ChatComposerFooter(canSubmit: canSubmit, onSend: onSend)
+          Button(action: onSend) { Image(systemName: "paperplane.fill") }
+            .disabled(!canSubmit)
         }
       }
       private var canSubmit: Bool {
@@ -999,6 +1337,7 @@ def good_grid_column_src
       var body: some View {
         GridComposerBar(viewModel: viewModel, text: $viewModel.draft, projectName: projectName, onSend: sendDraft, onInterrupt: interruptTurn, onFocusGained: onFocusGained)
           .onGeometryChange(for: CGFloat.self) { proxy in proxy.size.height } action: { height in composerHeight = height }
+          .onGeometryChange(for: CGFloat.self) { proxy in proxy.size.width } action: { width in stableWidth = width }
       }
       private func sendDraft() {
         guard let text = viewModel.consumeDraftForSend() else { return }
@@ -1017,8 +1356,11 @@ def good_grid_column_src
         VStack {
     #{destination_view("GridComposer.destination")}
           ZStack {
-            IMESafeTextView(text: $text, onSubmit: onSend)
+            IMESafeTextView(text: $text, onSubmit: onSend, onFocusGained: onFocusGained)
           }
+          ChatComposerFooter(canSubmit: canSubmit, onSend: onSend)
+          Button(action: onSend) { Image(systemName: "paperplane.fill") }
+            .disabled(!canSubmit)
         }
       }
       private var canSubmit: Bool {
@@ -1272,6 +1614,7 @@ def run_selftest
   interp = %(let id = "ChatComposer.\\(group.id)")
   selftest_assert strip_comments(interp).include?("ChatComposer."), "正例: 補間文字列を保持する"
   parens = %(let s = "foo(bar)"; Text(s))
+  selftest_assert parens.include?("foo(bar)") && extract_balanced("{#{parens}}", 0, "{", "}").to_s.include?("foo(bar)"), "正例: 文字列内括弧をアサートする"
   selftest_assert extract_balanced(" { a ", 0, "{", "}").nil?, "負例: 構文切り出し失敗は nil"
   spaced = %(Text("hello world"))
   selftest_assert normalize_code(spaced).include?("hello world"), "正例: 文字列内空白を正規化で消さない"
@@ -1283,8 +1626,18 @@ def run_selftest
   commented = with_file(good, :chat_composer) { |src| src.sub("var body", "// keep https://phlox.cc/privacy \\(x)\n      var body") }
   selftest_errors_eq check_product(commented), [], "正例: コメント・URL・補間だけを加える"
 
+  alias_ok = with_file(good, :chat_composer) { |src| src.gsub("destinationText", "caption") }
+  selftest_errors_eq check_product(alias_ok), [], "正例: 別名 caption で表示"
+
+  computed_ok = with_file(good, :chat_composer) { |src|
+    src.sub(/^[ \t]*let destinationText = ComposerDestinationLabel\.text.*\n/, "")
+       .gsub("destinationText", "destinationCaption")
+       .sub("private var canSubmit:", "private var destinationCaption: String {\n        ComposerDestinationLabel.text(for: .conversation(projectName: projectName, taskName: viewModel.displayName), hasDestination: true, isReadyForInput: canSend, hasContent: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !viewModel.attachmentStore.attachments.isEmpty)\n      }\n      private var canSubmit:")
+  }
+  selftest_errors_eq check_product(computed_ok), [], "正例: 計算プロパティ経由の表示"
+
   single_unwired = with_file(good, :chat_composer) { |src| src.gsub(destination_view("ChatComposer.destination"), "EmptyView()\n") }
-  selftest_errors_eq check_single(single_unwired), ["単一経路から ComposerDestinationLabel.text の Text に到達しない", "ChatComposer の全文 help が無い", "ChatComposer のアクセシビリティラベルが無い", "ChatComposer が DSFont.caption を使っていない", "ChatComposer が DSColor.chatTextSecondary を使っていない"], "負例: 単一だけ未接続"
+  selftest_errors_eq check_single(single_unwired), ["単一経路から ComposerDestinationLabel.text の Text に到達しない"], "負例: 単一だけ未接続"
 
   grid_card = with_file(good, :grid_column) { |src| src.sub("taskName: viewModel.displayName", "taskName: focusedSession.displayName") }
   selftest_errors_eq check_grid(grid_card).select { |m| m.include?("選択中カード") }, ["グリッドが選択中カード名を送信先に使っている"], "負例: グリッドだけ選択中カード名を表示"
@@ -1292,10 +1645,10 @@ def run_selftest
   parent_swap = with_file(good, :timeline) { |src| src.sub("rootTaskName: composerTargetNode?.displayName", "rootTaskName: selectedSession.displayName") }
   selftest_errors_eq check_team(parent_swap).select { |m| m.include?("親名") }, ["親名を子名に差し替えている"], "負例: 親名を子名に差替え"
 
-  ended_fixed = with_file(good, :agora) { |src| src.sub("switch action {", "switch action {\n        case .ended: return .parentSession(projectName: rootProjectName, taskName: rootTaskName)") }
+  ended_fixed = with_file(good, :agora) { |src| src.sub("case .startDiscussion: return .startDiscussion", "case .startDiscussion: return .parentSession(projectName: rootProjectName, taskName: rootTaskName)") }
   selftest_errors_eq check_team(ended_fixed).select { |m| m.include?("終了後") }, ["終了後を親送信に固定している"], "負例: 終了後を親送信に固定"
 
-  concluding_out = with_file(good, :agora) { |src| src.sub("case .discussionUtterance: return .discussionUtterance", "case .concluding: return .startDiscussion") }
+  concluding_out = with_file(good, :agora) { |src| src.sub("case .discussionUtterance: return .discussionUtterance", "case .discussionUtterance: return .legacyRootSend") }
   selftest_errors_eq check_team(concluding_out).select { |m| m.include?("concluding") }, [".concluding を討論外扱いしている"], "負例: .concluding を討論外扱い"
 
   enable_start = with_file(good, :team_composer) { |src| src.sub("targetDisplayName != nil && isReadyForInput && !trimmedDraft.isEmpty", "targetDisplayName != nil && isReadyForInput && !trimmedDraft.isEmpty || canStartDiscussion") }
@@ -1332,6 +1685,69 @@ def run_selftest
   unparsed = with_file(good, :chat_composer) { |src| src.sub(/var body: some View \{.*\z/m, "var body: some View {") }
   unparsed_ng = check_single(unparsed)
   selftest_assert unparsed_ng.any? { |m| m.include?("切り出せない") || m.include?("括弧") }, "負例: 構文切り出し失敗 (#{unparsed_ng.inspect})"
+
+  detail_nil = with_file(good, :detail) { |src| src.sub("projectName: viewModel.projects.first(where: { $0.id == session.projectID })?.name", "projectName: nil") }
+  selftest_errors_eq check_single(detail_nil).select { |m| m.include?("既定 nil") || m.include?("session.projectID") }, ["DashboardDetailView の ChatSessionView が projectName を明示していない（既定 nil）"], "負例: 単一の projectName を nil"
+
+  init_nil = with_file(good, :chat_composer) { |src| src.sub("self.projectName = projectName", "self.projectName = nil") }
+  selftest_errors_eq check_single(init_nil).select { |m| m.include?("nil に差し替え") }, ["ChatComposer が projectName を nil に差し替えている"], "負例: initializer で projectName を nil"
+
+  grid_empty = with_file(good, :detail) { |src| src.sub("projectNames: Dictionary(uniqueKeysWithValues: viewModel.projects.map { ($0.id, $0.name) })", "projectNames: [:]") }
+  selftest_errors_eq check_grid(grid_empty).select { |m| m.include?("空辞書") }, ["DashboardDetailView の SessionGridView が projectNames を明示していない（既定の空辞書）"], "負例: グリッドの projectNames 空辞書"
+
+  bar_drop = with_file(good, :grid_column) { |src| src.sub("projectName: projectName, onSend: sendDraft", "projectName: nil, onSend: sendDraft") }
+  selftest_errors_eq check_grid(bar_drop).select { |m| m.include?("GridComposerBar") }, ["GridChatColumn が projectName を GridComposerBar へ渡していない"], "負例: GridChatColumn が projectName を渡さない"
+
+  selected_proj = with_file(good, :detail) { |src| src.sub("session.projectID", "router.selectedProjectID") }
+  selftest_errors_eq check_single(selected_proj).select { |m| m.include?("selectedProjectID") }, ["単一のプロジェクト名に router.selectedProjectID を使っている"], "負例: 選択プロジェクトへ差替え"
+
+  if_false_label = with_file(good, :chat_composer) { |src| src.gsub(destination_view("ChatComposer.destination"), "if false {\n#{destination_view("ChatComposer.destination")}\n            }\n") }
+  selftest_errors_eq check_single(if_false_label).select { |m| m.include?("単一経路") || m.include?("help のみ") }, ["単一経路から ComposerDestinationLabel.text の Text に到達しない"], "負例: if false 経由の参照"
+
+  string_only = with_file(good, :chat_composer) { |src| src.gsub(destination_view("ChatComposer.destination"), "EmptyView()\n") + %(    let decoy = "ComposerDestinationLabel.text"\n) }
+  selftest_errors_eq check_single(string_only).select { |m| m.include?("単一経路") || m.include?("help のみ") }, ["単一経路から ComposerDestinationLabel.text の Text に到達しない"], "負例: 文字列だけの参照"
+
+  grid_dead_helper = with_file(good, :grid_column) { |src| src.sub("composerContent()", "EmptyView()") }
+  selftest_errors_eq check_grid(grid_dead_helper).select { |m| m.include?("グリッド経路") || m.include?("help のみ") }, ["グリッド経路から ComposerDestinationLabel.text の Text に到達しない"], "負例: body から呼ばれない helper"
+
+  display_deleted = with_file(good, :timeline) { |src| src.sub("let action = AgoraComposerRouting.action(", "let unusedSendAction = AgoraComposerRouting.action(") }
+  selftest_errors_eq check_team(display_deleted).select { |m| m.include?("未接続") || m.include?("開始可否") || m.include?("phase") }, ["チーム表示用 action が sendTeamMessage と同じ入力元でない（未接続）"], "負例: 表示用 action の削除"
+
+  other_action = with_file(good, :timeline) { |src| src.sub("action: action,", "action: .legacyRootSend(\"\"),") }
+  selftest_errors_eq check_team(other_action).select { |m| m.include?("未接続") }, ["チーム表示用 action が sendTeamMessage と同じ入力元でない（未接続）"], "負例: 別 action の受け渡し"
+
+  invert_can = with_file(good, :timeline) { |src| src.sub("canStartDiscussion: TeamTimelineAgoraPolicy.canStartDiscussion(canResolveProject: canResolveProjectForNewSession)", "canStartDiscussion: !TeamTimelineAgoraPolicy.canStartDiscussion(canResolveProject: canResolveProjectForNewSession)") }
+  selftest_errors_eq check_team(invert_can).select { |m| m.include?("開始可否") }, ["チーム表示用 action の開始可否が sendTeamMessage と異なる"], "負例: 開始可否の反転"
+
+  and_content = with_file(good, :chat_composer) { |src| src.sub("|| !viewModel.attachmentStore.attachments.isEmpty", "&& !viewModel.attachmentStore.attachments.isEmpty") }
+  selftest_errors_eq check_single(and_content).select { |m| m.include?("AND") }, ["hasContent が trim と添付を AND している"], "負例: hasContent の || を && に"
+
+  no_trim = with_file(good, :chat_composer) { |src| src.sub("!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty", "!text.isEmpty") }
+  selftest_errors_eq check_single(no_trim).select { |m| m.include?("空白") }, ["hasContent が空白・改行のみを本文ありと扱っている"], "負例: hasContent から trim 削除"
+
+  ready_true = with_file(good, :chat_composer) { |src| src.sub("isReadyForInput: canSend", "isReadyForInput: true") }
+  selftest_errors_eq check_single(ready_true).select { |m| m.include?("isReadyForInput") }, ["単一の isReadyForInput が既存の送信準備と結びついていない"], "負例: starting/error の readiness を直書き"
+
+  dest_true = with_file(good, :team_composer) { |src| src.sub("hasDestination: targetDisplayName != nil", "hasDestination: true") }
+  selftest_errors_eq check_team(dest_true).select { |m| m.include?("hasDestination") }, ["チームの hasDestination が targetDisplayName != nil と結びついていない"], "負例: 宛先なしでも hasDestination true"
+
+  footer_true = with_file(good, :chat_composer) { |src| src.sub("canSubmit: canSubmit", "canSubmit: true") }
+  selftest_errors_eq check_invariants(footer_true, good).select { |m| m.include?("canSubmit") }, ["ChatComposerFooter の canSubmit: が TASK43_BASELINE から変化している"], "負例: footer の canSubmit を true に"
+
+  focus_cb = with_file(good, :grid_column) { |src| src.sub("onFocusGained: onFocusGained)", "onFocusGained: {})") }
+  selftest_errors_eq check_invariants(focus_cb, good).select { |m| m.include?("onFocusGained") }, ["GridComposerBar の onFocusGained: が TASK43_BASELINE から変化している"], "負例: フォーカス callback の変更"
+
+  submit_cb = with_file(good, :chat_composer) { |src| src.sub("onSubmit: onSend", "onSubmit: {}") }
+  selftest_errors_eq check_invariants(submit_cb, good).select { |m| m.include?("onSubmit") }, ["IMESafeTextView の onSubmit: が TASK43_BASELINE から変化している"], "負例: 送信本文 callback の変更"
+
+  width_only = with_file(good, :grid_column) { |src| src.sub(".onGeometryChange(for: CGFloat.self) { proxy in proxy.size.height } action: { height in composerHeight = height }\n", "") }
+  selftest_errors_eq check_grid(width_only).select { |m| m.include?("高さ計測") }, ["GridComposer の高さ計測が無い（幅計測だけでは足りない）"], "負例: 幅計測だけ残す"
+
+  ax_moved = with_file(good, :chat_composer) { |src| src.sub('.accessibilityIdentifier("ChatComposer.destination")', "").sub("IMESafeTextView(text: $text, onSubmit: onSend)", "IMESafeTextView(text: $text, onSubmit: onSend).accessibilityIdentifier(\"ChatComposer.destination\")") }
+  selftest_errors_eq check_single(ax_moved).select { |m| m.include?("AX identifier") }, ["ChatComposer.destination の AX identifier が無い"], "負例: AX を別 View へ移動"
+
+  hidden_ne = with_file(good, :team_composer) { |src| src.sub("Text(destinationText)", "if targetDisplayName != nil { Text(destinationText) }") }
+  selftest_errors_eq check_team(hidden_ne).select { |m| m.include?("非表示") }, ["宛先なしでラベルを非表示にしている"], "負例: if != nil でラベル非表示"
 
   unset, unset_errs = baseline_env_errors(nil)
   selftest_errors_eq unset_errs, ["TASK43_BASELINE が未設定（HEAD にフォールバックしない）"], "負例: 基準の未設定"

@@ -88,6 +88,14 @@ struct AcceptanceComposerDestinationLabelTests {
                 hasContent: true
             ) == "プロジェクト名不明 / 入力欄改善"
         )
+        #expect(
+            ComposerDestinationLabel.text(
+                for: .conversation(projectName: " \nPhlox\t ", taskName: "入力欄改善"),
+                hasDestination: true,
+                isReadyForInput: true,
+                hasContent: true
+            ) == "Phlox / 入力欄改善"
+        )
     }
 
     @Test("作業名の空白のみを 作業名不明 にし、日本語・英語・内部空白は保持する")
@@ -99,6 +107,30 @@ struct AcceptanceComposerDestinationLabelTests {
                 isReadyForInput: true,
                 hasContent: true
             ) == "Phlox / 作業名不明"
+        )
+        #expect(
+            ComposerDestinationLabel.text(
+                for: .conversation(projectName: "Phlox", taskName: ""),
+                hasDestination: true,
+                isReadyForInput: true,
+                hasContent: true
+            ) == "Phlox / 作業名不明"
+        )
+        #expect(
+            ComposerDestinationLabel.text(
+                for: .conversation(projectName: "Phlox", taskName: "\n\t"),
+                hasDestination: true,
+                isReadyForInput: true,
+                hasContent: true
+            ) == "Phlox / 作業名不明"
+        )
+        #expect(
+            ComposerDestinationLabel.text(
+                for: .conversation(projectName: "Phlox", taskName: " 調査 "),
+                hasDestination: true,
+                isReadyForInput: true,
+                hasContent: true
+            ) == "Phlox / 調査"
         )
         #expect(
             ComposerDestinationLabel.text(
@@ -189,6 +221,14 @@ struct AcceptanceComposerDestinationLabelTests {
                 isReadyForInput: true,
                 hasContent: true
             ) == "親セッションへの送信"
+        )
+        #expect(
+            ComposerDestinationLabel.text(
+                for: .parentSession(projectName: nil, taskName: "全体作業"),
+                hasDestination: true,
+                isReadyForInput: true,
+                hasContent: true
+            ) == "プロジェクト名不明 / 全体作業 — 親セッションへの送信"
         )
     }
 

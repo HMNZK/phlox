@@ -359,7 +359,7 @@ struct AcceptanceTeamComposerDestinationLabelTests {
         let b = SessionID()
         let parentByID: [SessionID: SessionID?] = [a: b, b: a]
         let resolved = TeamComposerTarget.resolveRootSessionID(selectedSessionID: a, parentByID: parentByID)
-        #expect(resolved != nil)
+        #expect(resolved == a)
 
         let names: [SessionID: (project: String, task: String)] = [
             a: ("Phlox", "循環A"),
@@ -377,10 +377,7 @@ struct AcceptanceTeamComposerDestinationLabelTests {
             isReadyForInput: true,
             hasContent: true
         )
-        #expect(
-            label == "Phlox / 循環A — 親セッションへの送信"
-                || label == "Garden / 循環B — 親セッションへの送信"
-        )
+        #expect(label == "Phlox / 循環A — 親セッションへの送信")
     }
 
     @Test("同じ名前のセッションを別プロジェクトに置き、名前一致で取り違えない")

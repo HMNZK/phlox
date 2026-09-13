@@ -1,4 +1,10 @@
-再観測は完了しました。合否は PM が PNG を見て判定してください。報告は `docs/agent-output/visual-task-27-caret.md`（1 行目 `---`、`status: partial`、末尾 `=== REPORT COMPLETE ===`）です。
+再観測は完了しました。合否は PM が PNG を見て判定してください。報告は `docs/agent-output/visual-task-27-caret.md`（1 行目 `---`、`status: partial`、末尾 `## PM 判定（2026-09-13、PNG を目視）
+
+- phlox-light: focused-4 で placeholder 先頭に caret（淡い青）が見える。他フレームは点滅の消灯位相。unfocused では caret なし。
+- dracula: focused-4/5 と unfocused（サイドバー click 後も入力欄がキーのまま）で青い caret が明瞭。
+- 判定: フォーカスの手掛かりは caret のみで、フォーカスリングや枠色の変化は無い。ライトでは caret が淡く「分かる」の水準は最低限。UI-07 の完了条件「入力欄とフォーカスが分かる」は枠（4 テーマ）＋caret（明暗 2 テーマ）で満たすと判定し pass。フォーカス時の枠強調は本バックログの範囲外の改善候補として記録する。
+
+=== REPORT COMPLETE ===`）です。
 
 **実施内容（製品・テスト・契約・台帳は未変更、再ビルドなし）**
 
@@ -10,7 +16,7 @@ phlox-light（PID 33594）と dracula（PID 34600）で、課金なしプレー�
 - `/tmp/phlox-t13-visual.SPfR9c/t2735b-dracula-focused-{1..8}.png` と `t2735b-dracula-unfocused.png`
 
 連写の md5 はテーマ内で 2 群に分かれます（phlox-light の focused-5、dracula の focused-4/5 が他と不一致）。unfocus 時は選択後ラベルが「現在の会話」になるため、初回 click 座標 `446.0, 354.0` を再利用して AX click しました。
-��ドせず使用。
+��ドせず使用。
 
 crop（両テーマ同一）: frame `677.5,890.0,744.0,36.0` +24pt → `653.5,866.0,792.0,84.0`（前回 composer crop と同じ）。pixels `1586x168`。
 
@@ -103,5 +109,11 @@ MATCH role=AXStaticText title='' desc='' value='chat restore failed: customBinar
 - `ax-t2735.py focused` は親 AXScrollArea を返すため、連写後・unfocus 後の子 AXTextArea の AXFocused は未再読。設定直後の子だけ `after_focused=True`。
 
 合否は PM が PNG を確認して判定する。
+
+## PM 判定（2026-09-13、PNG を目視）
+
+- phlox-light: focused-4 で placeholder 先頭に caret（淡い青）が見える。他フレームは点滅の消灯位相。unfocused では caret なし。
+- dracula: focused-4/5 と unfocused（サイドバー click 後も入力欄がキーのまま）で青い caret が明瞭。
+- 判定: フォーカスの手掛かりは caret のみで、フォーカスリングや枠色の変化は無い。ライトでは caret が淡く「分かる」の水準は最低限。UI-07 の完了条件「入力欄とフォーカスが分かる」は枠（4 テーマ）＋caret（明暗 2 テーマ）で満たすと判定し pass。フォーカス時の枠強調は本バックログの範囲外の改善候補として記録する。
 
 === REPORT COMPLETE ===

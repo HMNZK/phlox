@@ -208,6 +208,7 @@ private func waitForTitleCondition(
     return true
 }
 
+@MainActor
 private func capturingStandardError<R>(_ operation: () async throws -> R) async rethrows -> (R, String) {
     let pipe = Pipe()
     let original = dup(FileHandle.standardError.fileDescriptor)
@@ -282,7 +283,7 @@ struct AcceptanceSessionTitlePersistenceTests {
         #expect(await store.load().isEmpty, Comment(rawValue: "unsaved before first persist"))
         let flowerBefore = dashboard.sessionNode(id: id)?.titleState.flowerName
         dashboard.renameSession(id, to: "通知を修正")
-        gate.resume()
+        await gate.resume()
         _ = try await spawnTask.value
         await dashboard.waitForPendingPersistenceWritesForTesting()
         let saved = try #require(await store.load().first)
@@ -313,7 +314,7 @@ struct AcceptanceSessionTitlePersistenceTests {
         let chat = try #require(dashboard.sessionNode(id: id)?.appServer)
         let flowerBefore = chat.titleState.flowerName
         try await chat.sendText("ログイン画面を修正", submit: true)
-        gate.resume()
+        await gate.resume()
         _ = try await spawnTask.value
         await dashboard.waitForPendingPersistenceWritesForTesting()
         let saved = try #require(await store.load().first(where: { $0.id == id }))
@@ -347,7 +348,7 @@ struct AcceptanceSessionTitlePersistenceTests {
         let id = await gate.nextObservedSessionID()
         #expect(await store.load().isEmpty)
         _ = await dashboard.removeSession(id)
-        gate.resume()
+        await gate.resume()
         _ = try? await spawnTask.value
         await dashboard.waitForPendingPersistenceWritesForTesting()
         #expect(await store.load().contains(where: { $0.id == id }) == false)

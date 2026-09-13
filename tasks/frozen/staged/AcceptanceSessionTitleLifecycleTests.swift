@@ -147,7 +147,7 @@ private final class TitleCodexClient: StructuredAgentClient, CodexSettingsProvid
 
     func threadResume(_ params: ThreadResumeParams) async throws -> ThreadResponse {
         liveThreadID = params.threadId
-        try TitleLifecycleJSON.threadResponse(id: params.threadId)
+        return try TitleLifecycleJSON.threadResponse(id: params.threadId)
     }
 
     func threadRead(_ params: ThreadReadParams) async throws -> ThreadReadResponse {

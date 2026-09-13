@@ -697,13 +697,32 @@ def check_typography(current, baseline)
   ng.uniq
 end
 
-def check_no_name_ai(files)
+NAME_AI_RE = /Process\(|NSTask|URLSession\.shared/
+
+def added_source(base, current)
+  return current.to_s if base.nil?
+  remaining = Hash.new(0)
+  base.to_s.lines.each { |line| remaining[line] += 1 }
+  added = +""
+  current.to_s.lines.each do |line|
+    if remaining[line] > 0
+      remaining[line] -= 1
+    else
+      added << line
+    end
+  end
+  added
+end
+
+def check_no_name_ai(files, baseline_files = {})
   ng = []
   files.each do |path, src|
     next if src.nil?
     next unless ALLOWED_PRODUCT_PATHS.include?(path)
-    c = compact(mask_strings_and_comments(src))
-    if c =~ /Process\(|NSTask|URLSession\.shared/
+    next if path.end_with?(".md")
+    added = added_source(baseline_files[path], src)
+    c = compact(mask_strings_and_comments(added))
+    if c =~ NAME_AI_RE
       ng << "#{path} に名前目的のプロセス起動がある"
     end
   end
@@ -736,7 +755,7 @@ def check_rename(src)
   end
 end
 
-def check_product(files)
+def check_product(files, baseline_files = {})
   ng = []
   ng.concat(check_title_state_api(files[TITLE_STATE_PATH]))
   ng.concat(check_descriptor(files[DESCRIPTOR_PATH]))
@@ -752,7 +771,7 @@ def check_product(files)
   ng.concat(check_persist(files[PERSIST_PATH]))
   ng.concat(check_pid(files[RESTORE_PATH]))
   ng.concat(check_auth(files[CONTROL_PATH]))
-  ng.concat(check_no_name_ai(files))
+  ng.concat(check_no_name_ai(files, baseline_files))
   ng.uniq
 end
 
@@ -1170,6 +1189,13 @@ def run_selftest
   good = good_files
   selftest_errors_eq check_product(good), [], "正例: 契約どおりの配線は空 NG"
 
+  spawn_with_process = with_file(good, SPAWN_PATH) { |src| src + "\nlet process = Process()\n" }
+  selftest_errors_eq check_no_name_ai(spawn_with_process, spawn_with_process), [], "正例: 基準からある Process() は誤検知しない"
+  selftest_errors_eq check_no_name_ai(spawn_with_process, good), ["#{SPAWN_PATH} に名前目的のプロセス起動がある"], "負例: 新規追加の Process() は拒否する"
+  selftest_errors_eq check_no_name_ai(spawn_with_process), ["#{SPAWN_PATH} に名前目的のプロセス起動がある"], "負例: 基準なしでは Process() を拒否する"
+  md_with_process = good.merge("docs/agent-output/task-44.md" => "let process = Process()\n")
+  selftest_errors_eq check_no_name_ai(md_with_process), [], "正例: 開示レポートの Process() は対象外"
+
   comment_only = good_title_state.sub("public enum SessionTitleSource", "// public enum SessionTitleSource")
   selftest_errors_eq check_title_state_api(comment_only).select { |m| m.include?("SessionTitleSource") }, ["public enum SessionTitleSource が無い"], "負例: コメントだけの宣言偽装"
 
@@ -1386,8 +1412,7 @@ else
 end
 
 files = worktree_files
-ng.concat(check_product(files))
-
+base_files = {}
 if baseline
   full = git_full_sha(baseline)
   if full.nil?
@@ -1403,6 +1428,7 @@ if baseline
     baseline = full
   end
 end
+ng.concat(check_product(files, base_files))
 
 ng = ng.uniq
 if ng.empty?

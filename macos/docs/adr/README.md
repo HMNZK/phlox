@@ -12,6 +12,7 @@ last-verified: 2026-08-01
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0174 | [表示切替後のターミナル空白を、接続先の所有権管理で防ぐ](0174-terminal-mount-ownership-prevents-blank-after-view-mode-switch.md) | active |
 | 0173 | [Claude Code の stream フラグとサブエージェント部分メッセージ](0173-claude-code-stream-flags-and-subagent-partials.md) | accepted |
 | 0172 | [Claude のツール許可要求をユーザー承認へ中継する](0172-tool-permission-requests-forwarded-to-user-approval.md) | accepted |
 | 0171 | [エディタパネルの Git 状態詳細は展開可能なスクロール領域で表示する](0171-editor-panel-workflow-status-disclosure.md) | accepted |

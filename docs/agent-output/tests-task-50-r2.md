@@ -12,7 +12,7 @@ PM 承認（decision-log 2026-09-14「task-50 レビュー r1 裁定」）どお
 ## 修理内容
 
 1. **1093 行付近の `Text(option)` 一律拒否**を、権限 2 キー（`approvalPolicy` / `sandboxMode`）の行と `choiceControl` の権限 kind 枝に限定して拒否する検査へ変更した。権限以外の行で `Text(option)` を使う正例を `good_codex_settings_src` の else 枝へ追加し、権限行で `Text(option)` を使う負例（H5）は維持した。
-2. **1234 行付近の `codex_settings` / `cursor_settings`** に、Picker setter・保存 action（`CodexGeneralSettings.setValue` / `CursorGeneralSettings.setString` / `setBool`）の引数式を基準 blob と比較する検査を追加した。`setValue("never", ...)` の固定化を負例として selftest に追加し、good 同士の自己比較にはしていない。
+2. **1234 行付近の `codex_settings` / `cursor_settings`** に、Picker setter・保存 action（`CodexGeneralSettings.setValue` / `CursorGeneralSettings.setString` / `setBool`）の引数式を基準 blob と比較する検査を追加した。`setValue("never", ...)` の固定化を負例として selftest に追加し、good 同士の自己比較にはしていない。引数の切り出しは呼び出しの閉じ括弧位置（`match.end - 1`）を使い、コメント除去後のオフセットでは切らない。
 
 ## 検証原文
 

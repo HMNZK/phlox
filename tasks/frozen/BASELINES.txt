@@ -39,3 +39,5 @@ c8a2010	.claude/scripts/task39-wiring.rb
 4ef83d4	.claude/scripts/task17-wiring.rb
 932f65f	macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceSessionTitleDeriverTests.swift
 932f65f	.claude/scripts/task41-wiring.rb
+1ad3e09	macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceSessionTitleDeriverTests.swift
+1ad3e09	.claude/scripts/task41-wiring.rb

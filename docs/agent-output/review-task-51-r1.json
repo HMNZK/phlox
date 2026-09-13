@@ -1,0 +1,90 @@
+{
+  "reviewer": "codex-gpt-6-astra",
+  "dimensions_swept": [
+    {
+      "dimension": "契約適合",
+      "result": "finding",
+      "note": "材料追加は適合。材料追加以外を凍結比較する成功基準に不足がある（指摘1）。"
+    },
+    {
+      "dimension": "正しさ",
+      "result": "ok",
+      "note": "user判定、メタ除外、DBのNULL・空白処理、JSON解析失敗経路を確認。既存preview・firstUserAtの選定は維持。"
+    },
+    {
+      "dimension": "誠実性",
+      "result": "ok",
+      "note": "凍結テスト・Ruby検査の改変なし。新たなエラー隠蔽なし。指定された実装役レポートは未読。"
+    },
+    {
+      "dimension": "根本原因",
+      "result": "ok",
+      "note": "正規化済みpreviewとは別に、元本文を既存走査から収集してentryへ渡している。"
+    },
+    {
+      "dimension": "構造",
+      "result": "ok",
+      "note": "DashboardFeatureからSessionFeatureへの依存方向を維持。既存の本文抽出処理を再利用。"
+    },
+    {
+      "dimension": "到達性",
+      "result": "ok",
+      "note": "Claude・Codex rollout・Codex DBの各entry生成へ接続済み。既存providerから公開フィールドへ到達する。表示は別タスク。"
+    },
+    {
+      "dimension": "非機能",
+      "result": "ok",
+      "note": "追加全件走査・書込み・通信なし。Codexの16 KiB／512 KiBと行打切りを維持。Claudeの巨大単一行では256 KiBを超えて読み得る既存挙動も不変であり、厳密なメモリ上限とは評価しない。"
+    },
+    {
+      "dimension": "テストの質",
+      "result": "finding",
+      "note": "Swiftの固定期待値と境界検査は有効。ただし列挙処理の変異がRubyの凍結比較を通過する（指摘1）。"
+    },
+    {
+      "dimension": "Rubric：材料の忠実性",
+      "result": "ok",
+      "note": "改行・長さ・前後空白・順序を保持。ClaudeのisMeta除外は材料だけに適用し、Codexは実roleを確認。"
+    },
+    {
+      "dimension": "Rubric：互換性",
+      "result": "unverified",
+      "note": "nilと[]、既存init、Sendable、ID・preview・日時は確認。Codableは従来から未採用。両取得器のURL再構築について、凍結実装とのfileURL値の同一性は確認できず。既存loaderはそのURLを直接読む。"
+    },
+    {
+      "dimension": "Rubric：履歴保護",
+      "result": "ok",
+      "note": "loader本文と共有抽出処理は不変。sqlite3_open_v2のSQLITE_OPEN_READONLY、SQL、bindを維持。"
+    },
+    {
+      "dimension": "Rubric：取得コスト",
+      "result": "ok",
+      "note": "本文材料は既存走査内で収集。DB成功時は空結果でも即return。URL再構築にはファイルごとの追加パス解決があるが、追加の本文走査はない。"
+    },
+    {
+      "dimension": "Rubric：責務境界",
+      "result": "finding",
+      "note": "タイトル導出・UI・起動配線の変更なし。ただし材料追加と無関係なURL再構築が差分に含まれ、凍結検査が保護していない（指摘1）。"
+    },
+    {
+      "dimension": "Rubric：検証の独立性",
+      "result": "finding",
+      "note": "受け入れテストとRubyはa2c5882から不変。独立した期待値はあるが、凍結比較の対象漏れが残る（指摘1）。"
+    }
+  ],
+  "verdict": "needs_changes",
+  "tests_run": [],
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "file": ".claude/scripts/task51-wiring.rb",
+      "line": 934,
+      "summary": "凍結比較が列挙処理と既存引数の生成元を保護しておらず、材料追加以外の変更を検出する契約を満たしていない。",
+      "evidence": "check_frozen_restoreは954・970行でcheck_legacy_entry_argsを呼ぶが、その検査は呼出し引数の式だけを比較する。rolloutFiles全体とClaude entriesの列挙処理は比較していない。実際の製品差分にはClaudeSessionHistory.swift:95の「let fileURL = projectDir.appendingPathComponent(listed.lastPathComponent)」とCodexSessionHistory.swift:217以降のURL再構築がある。引数表記の「fileURL: fileURL」「fileURL: candidate.url」が同じなので、この変更は検出されない。以下の隠しファイル除外を削除する単一変異にも検出処理がない。これはPM管理の凍結検査への指摘であり、実装役による検査の無断変更を求めるものではない。",
+      "repro_test": "path = '.claude/scripts/task51-wiring.rb'\neval(File.read(path).split(/^if ARGV\\.include\\?/).first, TOPLEVEL_BINDING, path)\nfiles = worktree_files\nbaseline = baseline_product_files('a2c5882')\nold = \"options: [.skipsHiddenFiles]\\n        ) else { return [] }\"\nchanged = files[:codex].sub(old, \"options: []\\n        ) else { return [] }\")\nraise '変異を適用できない' if changed == files[:codex]\nerrors = check_product(files.merge(codex: changed), baseline)\nraise '隠しファイル除外の削除を検出できていない' if errors.empty?",
+      "confidence": "verified"
+    }
+  ],
+  "integrity_check": "新たな握りつぶし・テスト弱体化は検出せず。自身のテスト実走は未検証。必須ラッパー経由で「/Users/ryosuke/.agents/scripts/compact-test task51-sources bash macos/scripts/run-swift-tests.sh SessionFeature DashboardFeature」と「/Users/ryosuke/.agents/scripts/compact-test task51-wiring-selftest ruby .claude/scripts/task51-wiring.rb --selftest」を試行したが、前者は「mktemp: mkstemp failed on /tmp/tmp.xpdCp3IXaj: Operation not permitted」、後者も同じ権限エラーで停止。続いて「/Users/ryosuke/.agents/scripts/compact-test: line 26: : No such file or directory」「cat: : No such file or directory」。製品コード実行前の一時ログ作成失敗であり、read-only環境起因。ラッパー迂回やTMPDIR変更は行っていない。独立客観層として呼出し元からDashboardFeature 1761件GREEN、凍結配線検査・selftest GREENが供給されており、実走不可の例外条件を適用した。自身では製品3ファイルに限定したgit diff --check a2c5882..HEADがexit 0。全差分の同検査は保存されたtask-43／task-51のdiff文書中のtrailing whitespaceでexit 2だった。契約に記載された.claude/verify.shは存在せず、統合検証・Appビルドは自身では未実施。",
+  "root_cause_assessment": "材料取得の実装は根本原因に到達している。静的変異では、appendを削除すると原文配列の期待値、isMeta除外を削除するとメタ先行テスト、Codexのrole確認を削除するとassistant先行テスト、DB列を取り違えると本文・補助材料の分離テストが失敗する。打切り変更はClaude 200/201行、Codex index 201/202、不正JSONによるcontinue、512 KiBの各期待値に反する。一方、列挙処理の変異をRubyが拒否する経路はなく、URL再構築も凍結比較をすり抜ける。材料追加以外の比較漏れをPM側で補い、URL再構築を除去するか既存値との互換性を裏付ける必要がある。再現テストと変異は静的に評価しており、実走したとは主張しない。"
+}

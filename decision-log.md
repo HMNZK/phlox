@@ -201,3 +201,6 @@
 - 2026-09-13 task-46 再凍結 11fbb08（旧 dde44dc 無効、index のみ）。verify に task-44/46/51 分岐を登録。
 - 2026-09-13 task-48 再凍結 b2b0d4a（旧 2b457e6 無効。既存テスト 3 本の改訂を含む）。task-44/46/51 は SessionFeature/DashboardFeature のテストターゲットを共有するため、並列実装は 1 タスク=1 worktree（/tmp/ui-ux-wt-NN、ブランチ task/NN）で行い、成果は cherry-pick で feature へ取り込む（parallel-worktrees 規定）。
 - 2026-09-13 task-50 検査修正をコミット（再凍結は task-48 done 後に実施）。
+- 2026-09-13 task-44 実装 partial: 凍結テストがコンパイル不能（`return` 欠落・actor `resume()` 未 await）、rb が基準から存在する `SessionSpawnService` の `Process()` を名前目的の起動と誤検知。いずれもハーネス欠陥（退避中は parse のみで検査したため）と裁定し、PM 承認で Cursor に修理を委譲（worktree task/44 で実装に対してコンパイル確認、feature 側で再凍結）。製品は改変させない。
+- 2026-09-13 task-46 実装 partial: PM 目視ハーネス `PMTranscriptVisualTask46Tests` がコンパイル不能（private 型の保持・`CGFloat?` 未展開・async からの `RunLoop.run`）。ハーネス欠陥と裁定し同様に修理委譲。実装役の逸脱 2 点（`AgentMessageBody` への倍率フォント追加、`isToolCall: true &&` 併記）はレビューで判定。
+- 2026-09-13 task-51 レビュー r1 MEDIUM（rb が列挙処理を保護せず、実装の fileURL 再構築が検出されない）: 実装役の開示どおり fileURL 変更は凍結テストの URL 一致（/tmp と /private/tmp のルート差）を満たすための逸脱であり、原因はテスト fixture の URL 比較（標準化不足）。裁定: テスト側を `standardizedFileURL`／symlink 解決で比較するよう修理、製品の URL 再構築は撤回、rb に列挙処理・隠しファイル除外の凍結比較を追加。再凍結は feature で実装を一時 revert して行う。

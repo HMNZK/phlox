@@ -82,7 +82,7 @@ public enum SessionTitleDeriver {
         let length = runLength(of: marker, in: line, from: indexAfterIndent)
         guard length >= minimumLength else { return false }
         let remainderStart = line.index(indexAfterIndent, offsetBy: length)
-        return line[remainderStart...].unicodeScalars.allSatisfy(isCollapsibleWhitespace)
+        return line[remainderStart...].unicodeScalars.allSatisfy(isInternalCollapsibleWhitespace)
     }
 
     private static func indexAfterFenceIndent(in line: String) -> String.Index? {
@@ -159,21 +159,26 @@ public enum SessionTitleDeriver {
         return String(result)
     }
 
-    /// 行頭・行末の半角空白・タブ・U+3000 を Unicode スカラー単位で除く。
-    /// Character 比較だと U+3000+結合文字が空白と判定されず残る。
+    /// 行頭・行末の Unicode 空白（`CharacterSet.whitespaces` 相当）を除く。
+    /// 先頭/末尾 Character の先頭スカラーが空白ならそのスカラーだけ落とし、結合文字は残す。
     private static func trimCollapsibleWhitespace(_ text: String) -> String {
-        let scalars = text.unicodeScalars
-        var start = scalars.startIndex
-        var end = scalars.endIndex
-        while start < end, isCollapsibleWhitespace(scalars[start]) {
-            start = scalars.index(after: start)
+        var result = text
+        while let first = result.first,
+              let scalar = first.unicodeScalars.first,
+              CharacterSet.whitespaces.contains(scalar)
+        {
+            result = String(result.unicodeScalars.dropFirst())
         }
-        while start < end {
-            let last = scalars.index(before: end)
-            guard isCollapsibleWhitespace(scalars[last]) else { break }
-            end = last
+        while let last = result.last,
+              let scalar = last.unicodeScalars.first,
+              CharacterSet.whitespaces.contains(scalar)
+        {
+            let keptCount = result.unicodeScalars.count - last.unicodeScalars.count
+            let kept = result.unicodeScalars.prefix(keptCount)
+            let remainder = last.unicodeScalars.dropFirst()
+            result = String(kept) + String(String.UnicodeScalarView(remainder))
         }
-        return String(scalars[start..<end])
+        return result
     }
 
     /// 連続する半角空白・タブ・U+3000 を半角空白 1 個にする。結合文字は維持する。
@@ -183,7 +188,7 @@ public enum SessionTitleDeriver {
         result.reserveCapacity(text.unicodeScalars.count)
         var previousWasWhitespace = false
         for scalar in text.unicodeScalars {
-            if isCollapsibleWhitespace(scalar) {
+            if isInternalCollapsibleWhitespace(scalar) {
                 if !previousWasWhitespace {
                     result.append(" ")
                     previousWasWhitespace = true
@@ -196,7 +201,7 @@ public enum SessionTitleDeriver {
         return String(result)
     }
 
-    private static func isCollapsibleWhitespace(_ scalar: Unicode.Scalar) -> Bool {
+    private static func isInternalCollapsibleWhitespace(_ scalar: Unicode.Scalar) -> Bool {
         scalar == " " || scalar == "\t" || scalar == "\u{3000}"
     }
 

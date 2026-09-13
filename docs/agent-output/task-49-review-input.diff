@@ -1,5 +1,5 @@
 diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatHistoryStartView.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/ChatHistoryStartView.swift
-index c5c39b5..fec7563 100644
+index c5c39b5..63fd0dc 100644
 --- a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatHistoryStartView.swift
 +++ b/macos/Packages/SessionFeature/Sources/SessionFeature/ChatHistoryStartView.swift
 @@ -1,10 +1,11 @@
@@ -15,15 +15,40 @@ index c5c39b5..fec7563 100644
      let onSelect: (ClaudeSessionHistoryEntry) -> Void
  
      private static let shortDateFormatter: DateFormatter = {
-@@ -19,6 +20,7 @@ struct ChatHistoryStartView: View {
+@@ -17,8 +18,10 @@ struct ChatHistoryStartView: View {
+     }()
+ 
      var body: some View {
++        let presentationsByID = presentationsBySessionID()
          VStack(spacing: DSSpacing.m) {
              header
 +            newSessionHint
              if entries.isEmpty {
                  Text("履歴がありません")
                      .font(DSFont.body)
-@@ -52,29 +54,52 @@ struct ChatHistoryStartView: View {
+@@ -29,7 +32,7 @@ struct ChatHistoryStartView: View {
+                 ScrollView {
+                     LazyVStack(spacing: DSSpacing.xs) {
+                         ForEach(entries) { entry in
+-                            row(for: entry)
++                            row(for: entry, presentation: presentationsByID[entry.id]!)
+                         }
+                     }
+                 }
+@@ -48,33 +51,64 @@ struct ChatHistoryStartView: View {
+         .accessibilityIdentifier("ChatHistoryStartView")
+     }
+ 
++    private func presentationsBySessionID() -> [String: HistoryEntryPresentation] {
++        Dictionary(
++            entries.map { entry in
++                (entry.id, HistoryEntryPresentation(entry: entry, workingDirectory: workingDirectory))
++            },
++            uniquingKeysWith: { first, _ in first }
++        )
++    }
++
+     private var header: some View {
          HStack(spacing: DSSpacing.s) {
              Image(systemName: "clock.arrow.circlepath")
                  .foregroundStyle(DSColor.chatAccent)
@@ -35,6 +60,7 @@ index c5c39b5..fec7563 100644
          }
      }
  
+-    private func row(for entry: ClaudeSessionHistoryEntry) -> some View {
 +    private var newSessionHint: some View {
 +        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
 +            Text("新規作成")
@@ -47,10 +73,8 @@ index c5c39b5..fec7563 100644
 +        .frame(maxWidth: .infinity, alignment: .leading)
 +    }
 +
-     private func row(for entry: ClaudeSessionHistoryEntry) -> some View {
--        Button {
-+        let presentation = HistoryEntryPresentation(entry: entry, workingDirectory: workingDirectory)
-+        return Button {
++    private func row(for entry: ClaudeSessionHistoryEntry, presentation: HistoryEntryPresentation) -> some View {
+         Button {
              onSelect(entry)
          } label: {
              HStack(alignment: .top, spacing: DSSpacing.m) {
@@ -80,7 +104,7 @@ index c5c39b5..fec7563 100644
                          if let branch = entry.gitBranch, !branch.isEmpty {
                              Text(branch)
                                  .font(DSFont.caption)
-@@ -96,11 +121,13 @@ struct ChatHistoryStartView: View {
+@@ -96,11 +130,13 @@ struct ChatHistoryStartView: View {
              .contentShape(Rectangle())
          }
          .buttonStyle(.plain)
@@ -97,18 +121,9 @@ index c5c39b5..fec7563 100644
      }
  }
 diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionView.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionView.swift
-index 3b5df0e..73cf971 100644
+index 3b5df0e..35a633c 100644
 --- a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionView.swift
 +++ b/macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionView.swift
-@@ -146,7 +146,7 @@ public struct ChatSessionView: View {
-                         GeometryReader { overlayGeometry in
-                             let availableHeight = overlayGeometry.size.height
-                             let cardMaxHeight = ChatHistoryStartLayout.maxCardHeight(
--                                availableHeight: availableHeight,
-+                                availableHeight: availableHeight /* overlayGeometry.size.height */,
-                                 composerHeight: composerHeight
-                             )
-                             let bottomInset = ChatHistoryStartLayout.bottomInset(
 @@ -155,6 +155,7 @@ public struct ChatSessionView: View {
                              ChatHistoryStartView(
                                  entries: viewModel.historyEntries,

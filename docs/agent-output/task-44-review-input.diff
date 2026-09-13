@@ -779,7 +779,7 @@ index 7790bbf..8a8fdd5 100644
  }
  
 diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionViewModel.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionViewModel.swift
-index 785c1d7..dd8bc38 100644
+index 785c1d7..8ab0ba6 100644
 --- a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionViewModel.swift
 +++ b/macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionViewModel.swift
 @@ -32,7 +32,17 @@ public final class ChatSessionViewModel: Identifiable {
@@ -889,7 +889,7 @@ index 785c1d7..dd8bc38 100644
      }
  
      private func chatItem(from item: ThreadItem) -> ChatItem? {
-@@ -2511,6 +2531,89 @@ public final class ChatSessionViewModel: Identifiable {
+@@ -2511,6 +2531,92 @@ public final class ChatSessionViewModel: Identifiable {
          return .agentMessage(id: id, text: text, timestamp: Date())
      }
  
@@ -948,7 +948,10 @@ index 785c1d7..dd8bc38 100644
 +    }
 +
 +    private func identifiableOriginalText(from item: ThreadItem) -> String? {
-+        item.raw?["originalText"]?.stringValue
++        if case .bool(true) = item.raw?["isMeta"] {
++            return nil
++        }
++        return item.raw?["originalText"]?.stringValue
 +    }
 +
 +    /// ライブ確定本文があればそれを使う。それ以外の由来不明項目は先頭行だけを候補にする。
@@ -979,7 +982,7 @@ index 785c1d7..dd8bc38 100644
      private func touchOutput() {
          lastOutputAt = Date()
      }
-@@ -2848,6 +2951,8 @@ extension ChatSessionViewModel: ControllableSession {
+@@ -2848,6 +2954,8 @@ extension ChatSessionViewModel: ControllableSession {
              )
              // 表示・store には新規入力のみを記録する（プリアンブルは載せない）。
              appendOrReplace(item)
@@ -988,7 +991,7 @@ index 785c1d7..dd8bc38 100644
              enqueueTranscriptUpsert([item])
              turnGeneration += 1
              isAwaitingLocallyStartedTurnEvent = true
-@@ -2998,6 +3103,8 @@ extension ChatSessionViewModel: ControllableSession {
+@@ -2998,6 +3106,8 @@ extension ChatSessionViewModel: ControllableSession {
              attachments: []
          )
          appendOrReplace(item)
@@ -997,7 +1000,7 @@ index 785c1d7..dd8bc38 100644
          enqueueTranscriptUpsert([item])
          turnGeneration += 1
          isAwaitingLocallyStartedTurnEvent = true
-@@ -3076,6 +3183,7 @@ extension ChatSessionViewModel: ControllableSession {
+@@ -3076,6 +3186,7 @@ extension ChatSessionViewModel: ControllableSession {
          subAgentModel.failRunningSubAgents()
          await transcriptPersistenceQueue?.waitForPendingWrites()
          clearSentRuntimeAttachmentCache()

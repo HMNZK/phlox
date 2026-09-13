@@ -10,7 +10,7 @@
 
 import Foundation
 import Testing
-@testable import AgentDomain
+import AgentDomain
 
 @Suite("task-41: session title deriver")
 struct AcceptanceSessionTitleDeriverTests {
@@ -31,6 +31,17 @@ struct AcceptanceSessionTitleDeriverTests {
         #expect(result?.fullTitle == "ログイン画面を修正", Comment(rawValue: "public fullTitle"))
         let again = SessionTitleDeriver.derive(from: "ログイン画面を修正")
         #expect(result == again, Comment(rawValue: "equatable"))
+    }
+
+    @Test("公開契約: title と fullTitle は非 Optional の String に代入できる")
+    func publicTitlePropertiesAreNonOptionalStrings() {
+        let result = SessionTitleDeriver.derive(from: "ログイン画面を修正")
+        #expect(result != nil, Comment(rawValue: "derive returns a value"))
+        guard let derived = result else { return }
+        let title: String = derived.title
+        let fullTitle: String = derived.fullTitle
+        #expect(title == "ログイン画面を修正", Comment(rawValue: "non-optional title"))
+        #expect(fullTitle == "ログイン画面を修正", Comment(rawValue: "non-optional fullTitle"))
     }
 
     @Test("最初の適格行を title/fullTitle にする")
@@ -64,6 +75,7 @@ struct AcceptanceSessionTitleDeriverTests {
         expectNil("\n", "lf")
         expectNil("\r\n", "crlf")
         expectNil("\n\n", "lfs")
+        expectNil("\r", "cr")
     }
 
     @Test("スラッシュコマンド行だけなら nil")
@@ -151,6 +163,16 @@ struct AcceptanceSessionTitleDeriverTests {
     @Test("半角空白4個の貼り付けコード行を除外する")
     func fourSpaceIndentedLineIsExcluded() {
         expectBoth("    let value = 1\nログインを修正", "ログインを修正", "4-space indent")
+    }
+
+    @Test("半角空白4個の説明行は let 接頭辞なしでも貼り付けコードとして除外する")
+    func fourSpaceIndentedPlainLineIsExcluded() {
+        expectBoth("    説明\nログインを修正", "ログインを修正", "4-space 説明")
+    }
+
+    @Test("半角空白3個の行は貼り付けコードとして除外せず説明を採る")
+    func threeSpaceIndentedLineIsEligible() {
+        expectBoth("   説明\nログインを修正", "説明", "3-space 説明")
     }
 
     @Test("タブ始まりの行を除外する")
@@ -262,5 +284,79 @@ struct AcceptanceSessionTitleDeriverTests {
         #expect(once?.title == "API の 接続を修正", Comment(rawValue: "normalized title"))
         #expect(once?.fullTitle == "API の 接続を修正", Comment(rawValue: "normalized fullTitle"))
         #expect(normalized == normalizedSnapshot, Comment(rawValue: "normalized input unchanged"))
+    }
+
+    @Test("URL 行はコマンドとして除外しない")
+    func urlLineIsEligible() {
+        expectBoth("https://example.com", "https://example.com", "url only")
+        expectBoth("https://example.com\nログインを修正", "https://example.com", "url first")
+    }
+
+    @Test("10000 Character の適格行は fullTitle を全文保持し title は 31 Character と …")
+    func tenThousandCharacterLineKeepsFullTitle() {
+        let input = String(repeating: "a", count: 10_000)
+        #expect(input.count == 10_000, Comment(rawValue: "10000 Character fixture"))
+        let result = SessionTitleDeriver.derive(from: input)
+        #expect(result?.fullTitle == input, Comment(rawValue: "10000 fullTitle retained"))
+        #expect(result?.fullTitle.count == 10_000, Comment(rawValue: "10000 fullTitle count"))
+        #expect(result?.title == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…", Comment(rawValue: "10000 title"))
+        #expect(result?.title.count == 32, Comment(rawValue: "31 + ellipsis Character"))
+    }
+
+    @Test("単独 CR を行境界として扱う")
+    func bareCRIsLineBoundary() {
+        expectBoth("説明\rログインを修正", "説明", "CR between lines")
+        expectBoth("\rログインを修正", "ログインを修正", "leading CR")
+    }
+
+    @Test("全角空白のみは nil")
+    func ideographicSpaceOnlyIsNil() {
+        expectNil("\u{3000}", "ideographic space")
+        expectNil("\u{3000}\u{3000}", "ideographic spaces")
+    }
+
+    @Test("連続する内部の全角空白・タブを半角空白1個にする")
+    func consecutiveInternalWhitespaceCollapses() {
+        expectBoth("API\u{3000}\u{3000}\u{3000}接続を修正", "API 接続を修正", "ideographic run")
+        expectBoth("API \t\u{3000}接続を修正", "API 接続を修正", "mixed internal")
+    }
+
+    @Test(arguments: [1, 2, 3])
+    func leadingSpacesFenceIsExcluded(_ spaces: Int) {
+        let indent = String(repeating: " ", count: spaces)
+        let input = "\(indent)```\nprint(1)\n```\nログインを修正"
+        expectBoth(input, "ログインを修正", "\(spaces)-space fence")
+    }
+
+    @Test("開始より長い終了フェンスで閉じ、次の適格行を採る")
+    func longerClosingFenceCloses() {
+        expectBoth("```\nprint(1)\n````\nログインを修正", "ログインを修正", "longer closer")
+    }
+
+    @Test("終了フェンス後の非空白文字では閉じず、開始後から候補を採らない")
+    func closingFenceWithTrailingNonWhitespaceDoesNotClose() {
+        expectNil("```\nprint(1)\n```x\nログインを修正", "closer with trailing text")
+    }
+
+    @Test("除外接頭辞に似た英語の適格行は採る")
+    func englishLinesThatLookLikeExcludedPrefixesRemain() {
+        expectBoth("Return home", "Return home", "Return home")
+        expectBoth("important fix", "important fix", "important fix")
+    }
+
+    @Test("全角カタカナを半角カナへ幅変換する")
+    func fullwidthKatakanaConvertsToHalfwidth() {
+        expectBoth("カタカナ修正", "ｶﾀｶﾅ修正", "fw katakana")
+    }
+
+    @Test("濁点付き全角カナを半角カナ+半角濁点へ幅変換する")
+    func fullwidthVoicedKatakanaConverts() {
+        expectBoth("ガ行を修正", "ｶﾞ行を修正", "fw dakuten")
+    }
+
+    @Test("半角カナと半角濁点は幅変換後も保持する")
+    func halfwidthKatakanaAndDakutenAreKept() {
+        expectBoth("ｶﾀｶﾅ修正", "ｶﾀｶﾅ修正", "hw katakana")
+        expectBoth("ｶﾞ行を修正", "ｶﾞ行を修正", "hw dakuten")
     }
 }

@@ -31,7 +31,7 @@
 | task-45 | standard | pending |
 | task-46 | standard | done |
 | task-47 | standard | pending |
-| task-48 | standard | in_progress |
+| task-48 | standard | testing |
 | task-49 | standard | done |
 | task-50 | standard | pending |
 | task-51 | standard | done |

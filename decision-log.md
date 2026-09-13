@@ -171,3 +171,5 @@
 - 2026-09-13 task-41 レビュー MEDIUM（結合文字付き U+3000 が圧縮されない）は実装欠陥と裁定（契約は内部 U+3000 の圧縮を要求済み）→ Cursor が Unicode スカラー単位判定へ修正。PM が AgentDomain 全数と rb を再走してから再レビュー。
 - 2026-09-13 task-40 実装 partial（rb 残余 NG 5 件）の裁定: NG の実体は `import DesignSystem` 追加（3 ファイル）・`ChatCodeCard` ヘッダーへの新規 `.font()`・`padding(.vertical, 2)` の `DSSpacing.xxs` 化。いずれも契約が要求する「正本 TranscriptTypography への接続」の必然的な帰結で、契約 12 の「変更許可箇所は描画属性と分類接続」に含まれる。ハーネス欠陥（rb のマスクが狭い）と裁定し、rb マスク拡張（import DesignSystem 行・`.font(...)`/`.padding(...)` 修飾行・DSSpacing トークン化）を PM 承認で Cursor に委譲。同時に実装役が残余 NG を恐れて見送った契約項目（Markdown 段落下 8 / 箇条書き 4、外側余白の正本接続、履歴ボタンの @AppStorage）を完了させる。負例（操作クロージャ・ID・条件分岐の改変検知）は維持。
 - 2026-09-13 task-43 凍結: テスト 2 ファイル＋rb を凍結コミットし、コンパイル RED のため task-40 統合中は `tasks/frozen/staged/` へ退避（task-31〜34 と同じ運用）。
+- 2026-09-13T13:08:35+0900 task-41 rework: レビュー MEDIUM: 結合文字付き U+3000 が Character 比較で圧縮されない → 実装欠陥と裁定、Unicode スカラー単位判定へ修正済み
+- 2026-09-13 task-41 レビュー r2 MEDIUM（前後 trim を圧縮 3 種に狭めたため NBSP 等が残る）: 原因は PM の差し戻し指示が trim と圧縮の空白集合を混同したこと。契約の曖昧点 6 として「trim は Unicode 空白全般（スカラー単位）、圧縮は 3 種」を確定し、2 回目の差し戻し（Cursor、小修正）。契約明確化のため段階エスカレーション（契約から作り直し）は適用しない。

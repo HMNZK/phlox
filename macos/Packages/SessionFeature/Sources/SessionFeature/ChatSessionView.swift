@@ -146,7 +146,7 @@ public struct ChatSessionView: View {
                         GeometryReader { overlayGeometry in
                             let availableHeight = overlayGeometry.size.height
                             let cardMaxHeight = ChatHistoryStartLayout.maxCardHeight(
-                                availableHeight: availableHeight /* overlayGeometry.size.height */,
+                                availableHeight: availableHeight,
                                 composerHeight: composerHeight
                             )
                             let bottomInset = ChatHistoryStartLayout.bottomInset(
@@ -155,7 +155,6 @@ public struct ChatSessionView: View {
                             ChatHistoryStartView(
                                 entries: viewModel.historyEntries,
                                 maxCardHeight: cardMaxHeight,
-                                workingDirectory: viewModel.rawWorkspacePath,
                                 onSelect: { entry in
                                     Task { await viewModel.startFromHistory(entry) }
                                 }

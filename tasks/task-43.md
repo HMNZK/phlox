@@ -338,3 +338,12 @@ PM 確認済みの `sessions.json` 復元失敗プレースホルダ経路を使
 
 - 受け入れテスト・配線検査の作成は Cursor（テスト作成担当）に委譲し、PM が凍結前に RED と `--selftest` を確認する。分割案の①〜③は本契約に含めない（別タスク化はユーザー判断待ちとせず、UX-03 の完了条件を「既存の宛先・操作の表示」で満たすと PM が裁定。decision-log に記録）。
 - PM 目視ゲートの実施（Debug ビルド・AX 操作・撮影）は Cursor 観測担当が手順どおり実行し、PM が PNG を確認して判定する。
+
+## 受け入れ検査の敵対レビュー反映（2026-09-13、`docs/agent-output/task43-acceptance-adversarial.md` を PM 裁定）
+
+- MUST1（verify 入口未登録）: 採択。PM が実装ディスパッチ前に `ui-ux-verify-task.sh` に task-43 分岐（selftest・`TASK43_BASELINE` 付き rb・SessionFeature/DashboardFeature `swift test`・`git diff --check`）を登録する。
+- MUST2（コンパイル RED）: 却下。本 run は新規型導入タスクを「凍結時はコンパイル RED、実装後に変異検査で保護力を補う」運用と決定済み（decision-log 2026-09-12、task-40 注 9 と同じ）。
+- HIGH3〜8・MEDIUM12（rb の保護力）: 採択。rb を強化する: 中間 View の実引数（`projectName`/`projectNames`/`taskName`/`rootProjectName`）の取得元と代入を経路ごとに追跡し nil・空辞書・別カード名・選択プロジェクト差替えを負例化（3）／到達性探索は文字列・非実行分岐（`if false` 等）を除外してから型スコープを保って実参照を追う（4）／チームの表示用 Destination の生成式から action を逆追跡し `sendTeamMessage` 本文を到達集合から除く、phase・開始可否の式を送信側と同一比較（5）／各ラベルへ渡す Bool（`hasDestination`・readiness・`hasContent`）の実引数を既存送信条件へ結び付け、否定欠落・`||`↔`&&`・trim 削除を負例化（6）／不変条件は宣言・条件式・呼び出し引数（footer の `canSubmit`・送信ボタン `.disabled`・フォーカス callback）を比較（7）／表示 Text の修飾・編集領域との順序・composer 高さ計測範囲を構造で検査し、`if x != nil` 形の条件も扱う（8）／表示変数名を固定しない・実在する `AgoraComposerAction` の case だけで負例を作る・`parens` 正例をアサートする（12）。
+- MEDIUM9（名前正規化の未被覆）・MEDIUM11（循環 resolver）: 採択。SessionFeature テストに `" \nPhlox\t "`・作業名 `""`/`"\n\t"`/`" 調査 "`・`.parentSession(projectName: nil, taskName: "全体作業")` を追加。Dashboard テストは実 resolver の結果（a 開始→a）に対応する表示だけを期待する。
+- MEDIUM10（画面×状態がモデル単体検査）: 採択（記録）。該当テストはモデル単体の確認であり被覆件数に数えない。実値の取得・引き渡しは rb（3・5・6）で保護する。
+- MEDIUM13（ADR 0046 パネル高）: PM 裁定。宛先ラベルはキャプション 1 行（約 16pt）をエディタ上部に常設し、composer パネル全体の高さは ADR 0046 の約 80px からその分増える。これを採択し、フェーズ 5 で ADR 0046 に追記する。実合成の高さは PM 目視ゲートで測る。

@@ -194,3 +194,4 @@
 - 2026-09-13 task-44 凍結 a3822de（AgentDomain 2 本は実パス、SessionFeature/DashboardFeature 2 本はコンパイル RED のため退避）。
 - 2026-09-13 task-43 着手: 凍結テストを実パスへ復帰、verify に task-43 分岐を登録（敵対レビュー MUST1）。task-44 の AgentDomain テスト 2 本もコンパイル RED のため実装開始まで退避。
 - 2026-09-13 再凍結/凍結（index のみ・作業ツリー不変）: task-51 a2c5882（旧 57bfa9e 無効）、task-46 dde44dc、task-50 e95ebf8。いずれもコンパイル RED のため実装開始まで退避。
+- 2026-09-13 task-44 受け入れ検査の敵対レビュー（MUST3/HIGH10/MED4）: M2 は task-39 rb を着手時検査と裁定（task-39.md 注記）、M3 は PM 登録、H5 は「復元中削除は復元終了後へ繰り越す」を契約要件に追加、D4 却下（短 SHA 運用に統一）、他は全採択→Cursor に修正委譲（再凍結）。

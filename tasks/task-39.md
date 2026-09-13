@@ -334,3 +334,7 @@ PM 判断:
 - **凍結テストの改訂**（PM 側）: 実破棄経路の 2 ケースを `let mount = TerminalView(coordinator: x).makeCoordinator()` から始め、(a) `TerminalMount.attach(x.hostingView, to: c)` → `mount.current = y`（updateNSView 相当）→ `TerminalMount.attach(y.hostingView, to: c)` → `TerminalView.dismantleNSView(c, coordinator: mount)` で `y.hostingView.superview == nil`・`c.subviews.isEmpty`・その後 `y` が旧タイル（別コンテナ）へ attach できる（レビュアー提示の再現テストを採用）。(b) A→B 後に A の mount を破棄しても B の所有権が残る。既存 8 ケースと 2 端末ケースは不変。
 - **rb の改訂**（PM 側）: `makeCoordinator` の戻り型が `TerminalMountCoordinator` であり、`updateNSView` で `context.coordinator.current = coordinator` が attach より前に到達可能であること、`dismantleNSView` の引数型が `TerminalMountCoordinator` で `coordinator.hostingView` を detach していることを検査。whitebox の `guard TerminalMount.attach(coordinator.hostingView, to: nsView) else { return }` は維持。
 - 差し戻しは 1 回目（実装の欠陥＝dismantle が現在端末を解放しない）。再凍結後に `drive.sh rework` する。
+
+## 適用範囲の注記（2026-09-13、task-44 敵対レビュー M2 を受けて）
+
+`task39-wiring.rb` の全体比較（`SessionViewModel.swift`・`PaneLayoutView.swift`）は **task-39 の着手時検査**であり、task-39 done 以降の後続タスク（task-44/45 等）には適用しない。後続タスクは自分の rb で必要な不変（端末所有権・入出力）を限定検査する。

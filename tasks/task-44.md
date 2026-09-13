@@ -438,3 +438,16 @@ Cursor は `docs/agent-output/task-44.md` に責務ごとの実装状況、実�
 - scope 検査と恒久検査を分離し、後続タスクを旧全体比較で妨げていないか。
 - task-45 に必要な読み取り API が成立し、表示責務を先取りしていないか。
 - テスト、Ruby、ビルド、隔離目視の証拠を区別し、課金を要求していないか。
+
+## 受け入れ検査の敵対レビュー反映（2026-09-13、`docs/agent-output/task44-acceptance-adversarial.md` を PM 裁定）
+
+- M1（サーバー履歴テストがローカル TranscriptStore で由来情報を持たない）: 採択。ローカル履歴とサーバー履歴を分離し、後者は実 `threadRead` 経路へ注入。由来情報の有無だけを変えた同一本文で採否を固定。本文の見た目で推測させない。
+- M2（task-39 rb の全体比較との衝突）: PM 裁定で解消。task-39 の `task39-wiring.rb`（`SessionViewModel.swift`・`PaneLayoutView.swift` の全体比較）は task-40 と同じく **task-39 の着手時検査**であり、task-39 done 以降の後続タスクには適用しない（tasks/task-39.md に注記）。統合 verify.sh は rb を実行しない。よって task-44 の凍結条件は満たす。
+- M3（verify 入口未登録）: 採択。PM が実装ディスパッチ前に `ui-ux-verify-task.sh` に task-44 分岐を登録する。
+- H1（別種イベント）: 採択。ユーザー項目は `.itemStarted/.itemCompleted` → `chatItem` → `appendOrReplace` の実経路で反映し、処理完了を待ってから名前を検査。質問回答も独立ケース。
+- H2（置換・巻き戻し・復元競合）: 採択。VM の実際の置換・再読込・巻き戻し経路を呼ぶ。競合は適格本文を返す履歴取得を停止→rename→解放で derived/manual を固定。
+- H3（初回保存前の変更・削除）: 採択。`livePIDProvider` 等の待機点で spawn を止め、未保存区間の導出・rename・削除を PTY/チャット別に検査。
+- H4（PID ゲートの取りこぼし）: 採択。A の復元完了と B の待機到達を明示的に待ち、解放済み状態を記録、期限付き。B 待機中の role 更新と最終 descriptor の保持検査。
+- H5（復元中削除と ADR 0024）: PM 裁定。**復元中の明示削除は復元終了後へ繰り越して反映する**（既存の件数減少抑止は維持。`SessionPersistenceCoordinator` は allowed_paths 内）。テストは要求時点・保存時点・PID 更新の順序を固定し、最終ストアから消えることを期待。契約本文にこの要件を追加。
+- H6〜H10・D1〜D3（rb と被覆）: 採択。実経路と支配ガードの限定検査（同等の正しいガードは許容）、入口→状態設定→四フィールド→保存キューの接続検査、基準差分からの製品変更ファイル列挙、認可・送信・PTY・秘密情報の恒久検査、`logError` 受信観測、花名は rename 前の値と比較し重複検査は全予約で決定的に、typography 検査は凍結 blob 比較、33 文字以上の derived・source 不在 JSON・descriptor 実フィールド・既存更新後の保持、両プレースホルダへ 4 状態を descriptor 経由、送信前拒否と通信失敗の分離。
+- D4（完全 SHA）: 却下・契約修正。本 run の他タスクと同じく `TASK44_BASELINE` は短い SHA を許し、契約 `baseline_commit` と解決後の一致を検査する（frontmatter 記述を短 SHA に統一）。

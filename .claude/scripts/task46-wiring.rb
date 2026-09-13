@@ -776,7 +776,7 @@ def check_answer(src, scaled_src)
   return ["AgentMessageBody を解析できない"] if c.is_a?(Symbol)
   ng << "回答が詳細カードへ収納されている" if c.include?("DisclosureCard")
   ng << "回答が詳細用 Binding に依存している" if c.include?("userOverride") || (c.include?("isExpanded") && c.include?("Binding"))
-  ng.concat(typography_errors(c, scaled_src, "回答", require_leading: false))
+  ng << "回答が RichMarkdownView へ委譲していない" unless c.include?("RichMarkdownView")
   ng
 end
 
@@ -1097,12 +1097,9 @@ def good_basic
   <<~SWIFT
     struct AgentMessageBody: View {
       let text: String
-      @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
       var body: some View {
-        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
           RichMarkdownView(text)
-            .font(TranscriptTypography.font(for: .body, scale: scale))
           CodeBlockView(language: nil, code: text)
         }
       }
@@ -1501,6 +1498,8 @@ def run_selftest
   }
   selftest_errors_eq check_task(discarded[:task_list], discarded[:scaled_font]), ["タスクから分類モデルが未接続"], "負例: 戻り値破棄"
 
+  selftest_errors_eq check_answer(good[:basic], good[:scaled_font]), [], "正例: 回答は RichMarkdownView 委譲で足り、局所のフォント役割・倍率追随を要求しない"
+
   bound_answer = with_file(good, :basic) { |src|
     src.sub(
       "VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {",
@@ -1508,6 +1507,11 @@ def run_selftest
     )
   }
   selftest_errors_eq check_answer(bound_answer[:basic], bound_answer[:scaled_font]), ["回答が詳細用 Binding に依存している"], "負例: 回答が詳細 Binding に依存"
+
+  no_rich_answer = with_file(good, :basic) { |src|
+    src.sub("RichMarkdownView(text)", "Text(text)")
+  }
+  selftest_errors_eq check_answer(no_rich_answer[:basic], no_rich_answer[:scaled_font]), ["回答が RichMarkdownView へ委譲していない"], "負例: AgentMessageBody から RichMarkdownView を外す"
 
   unparsed = "struct TaskListCell: View { var body: some View {"
   selftest_errors_eq check_task(unparsed, good[:scaled_font]), ["TaskListCell を解析できない"], "負例: 構文切り出し失敗"

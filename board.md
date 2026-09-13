@@ -32,7 +32,9 @@
 | task-46 | standard | pending |
 | task-47 | standard | pending |
 | task-48 | standard | pending |
+| task-49 | standard | pending |
 | task-50 | standard | pending |
+| task-51 | standard | pending |
 <!-- AGENTIC-LOOP:END -->
 
 ## notes

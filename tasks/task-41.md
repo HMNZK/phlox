@@ -139,3 +139,10 @@ Ruby検査は以下を要求する。
 - **責務境界**：名前状態、保存、View、呼び出し元を変更していない。
 - **検証の独立性**：Swift Testingが実関数を検査し、凍結blob・`--selftest` が検査の改変と自己比較を拒否する。
 - **報告の正確さ**：task-41の成立をUX-01全体の完了と報告していない。
+
+## 敵対レビュー反映（2026-09-13、`docs/agent-output/task41-acceptance-adversarial.md`）
+
+- 1（MUST）: rb を「導出契約の回帰検査（`SessionTitleDeriver.swift` の公開面・純粋性）」と「task-41 着手時の変更範囲検査（AgentDomain 他ファイル不変）」に分け、後者は環境変数 `TASK41_SCOPE_CHECK=1` のときだけ実行する（task-41 の verify 分岐で付与。task-44/45 の回帰再検査では付与しない）。
+- 2・3・4・5・8: テスト／rb 側の欠陥として Cursor に修正を委譲し、再凍結する（`String` 非 Optional のコンパイル検査と Optional 変異負例、補間内コード・属性付き import・出力/設定/時計/乱数の独立負例、4 空白除外の単独保護テスト、単一違反 selftest と期待エラー集合の厳密比較、未被覆領域（URL・長文・単独 CR・全角空白のみ・1〜3 空白フェンス・長い終了フェンス・終了フェンス後の文字・除外接頭辞に似た英語・半角カナ）の固定期待値）。
+- 6（アサーション RED）: task-40 と同じ運用（凍結はコンパイル RED、実装後に変異検査）。
+- 7（課金なし目視）: task-44/45 の PM 目視ゲートは `docs/agent-output/visual-task-27-35-composer.md` の sessions.json 手順（custom kind `ui-chat-probe`・`backend: appServer`・`pid` 無し→`customBinaryNotFound`→プレースホルダ、`pgrep -P` で子プロセス 0 件）を正本とする。両契約に注記する。

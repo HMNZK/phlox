@@ -401,3 +401,12 @@ PMは `docs/agent-output/visual-task-40.md` に、コミット、App／fixture�
 - 成功基準 1 の統合テストのうち「実セルの `NSHostingView`／`ImageRenderer` で描画する」項目は凍結テストから外し、PM 目視ゲート B のハーネス（`macos/Packages/SessionFeature/Tests/SessionFeatureTests/Harness/TranscriptTypographyRenderHarness.swift` 等、凍結対象外・PM 所有）として実装する。凍結テストは値・順序・`typographyRole`・`gap` 系列の決定的検査に限定する。
 - 配線検査の項目 12（残余の凍結 blob 比較）は `allowed_paths` に列挙した製品ファイルに限定し、それ以外の変更禁止対象は「変更なし（blob 同一）」で検査する。
 - ユーザー本文 13→15pt の統一は意図した変更として採択する（回答本文と同じ本文サイズにそろえる）。それ以外の既存サイズ（H1〜3・コード・インラインコード）は維持する。
+
+## 敵対レビュー反映（2026-09-13、`docs/agent-output/task40-acceptance-adversarial.md`）
+
+- 1（MUST）・2・3・4・5・6・7: テスト／rb 側の欠陥として Cursor に修正を委譲し、再凍結する（凍結製品→契約準拠製品の正例、`body` からの到達検査と文字要素ごとの必須修飾、`font(for:scale:)`／`color(for:)` の独立期待値テスト、実 View の境界計算検査、要素単位の直値・意味色・コード連結 0 の凍結値比較、単一違反の selftest、変更禁止対象に `DashboardViewModel.swift` の文字倍率経路と各 `Package.swift` を追加）。
+- 8（分割）: 分割しない。境界 gap の適用は `ChatTranscriptView` 1 箇所で、字体正本と同じ `TranscriptTypography` を参照する。分けると凍結サイクルが 1 回増える一方、独立に失敗する場面は「gap 二重加算」のみで、それは統合テストの gap 系列と rb 項目 11 で拾う（`--split-considered` 相当の理由として記録）。
+- 9（アサーション RED）: 新規型を導入するタスクでは凍結時点はコンパイル RED とし、実装後に `agentic-loop-mutation-check.sh`（変異を当てて RED）で保護力を補う。本 run の task-31/32/33/34 と同じ運用（decision-log 2026-09-12）。
+- 10（設定隔離）: PM 目視ゲート A ではテーマ・倍率を起動引数（`-phlox.theme`、`NSArgumentDomain` 経由で `UserDefaults.standard` から読める）で与え、アプリ内の「文字を大きく／小さく」は操作しない（`ChatFontSettings.save` が standard へ書くため）。倍率別の確認はゲート B（fixture）で `ChatFontSettings` のテスト用 suite または直接倍率注入で行う。
+- 11（プレースホルダ到達条件）: ゲート A の sessions.json は `docs/agent-output/visual-task-27-35-composer.md` の手順を正本とする（`PHLOX_AGENTS_JSON` に PATH 不在 `binaryName` の custom kind `ui-chat-probe` を追加、descriptor は `kind: {type: custom, id: ui-chat-probe}`・`backend: appServer`・**`pid` キー無し**。`AgentLaunchPlanner` が `customBinaryNotFound` を throw → 実クライアント生成前に catch → プレースホルダ）。起動後 `pgrep -P <PID>` で子プロセス 0 件を記録する。
+- 12（fixture 忠実度）: ゲート B のホストは製品 `ChatSessionView.swift` の `mainColumn(width:)` と同じ `contentMaxWidth`・末尾余白を渡し、表・質問（回答済み／期限切れ）・タスク各状態・空出力グループを fixture に含める。

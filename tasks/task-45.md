@@ -243,3 +243,7 @@ Cursorは `docs/agent-output/task-45.md` に表示モデル、4面、省略、he
 - **操作維持**：ドラッグ・選択・展開・閉じる・rename・端末接続を損なわない。
 - **責務境界**：Viewと表示モデルが名前状態・導出・保存を変更しない。
 - **証拠と費用**：表示モデルテスト、Ruby、Appビルド、4面の隔離目視を区別し、課金セッションを要求しない。
+
+## PM 注記（2026-09-13）
+
+PM 目視ゲートの課金なし到達手順は `docs/agent-output/visual-task-27-35-composer.md` を正本とする（`PHLOX_AGENTS_JSON` に PATH 不在 binaryName の custom kind `ui-chat-probe`、sessions.json の descriptor は `kind: {type: custom, id: ui-chat-probe}`・`backend: appServer`・`pid` キー無し。`AgentLaunchPlanner` が `customBinaryNotFound` を throw し実クライアント生成前にプレースホルダへ入る。起動後 `pgrep -P <PID>` で子プロセス 0 件を記録）。task-41 の rb 回帰再検査では `TASK41_SCOPE_CHECK` を付与しない。

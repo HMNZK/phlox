@@ -30,7 +30,7 @@ struct TaskListCell: View {
                             .frame(width: 16)
                             .accessibilityHidden(true)
                         Text(task.title)
-                            .font(titleFont(for: task.status, scale: scale))
+                            .font(task.status == .inProgress ? TranscriptTypography.font(for: .bodyStrong, scale: scale) : titleFont(for: task.status, scale: scale))
                             .foregroundStyle(task.status == .completed ? DSColor.chatTextSecondary : DSColor.chatTextPrimary)
                             .strikethrough(task.status == .completed, color: DSColor.chatTextSecondary)
                             .frame(maxWidth: .infinity, alignment: .leading)

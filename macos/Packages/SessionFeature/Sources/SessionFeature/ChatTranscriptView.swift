@@ -166,16 +166,19 @@ struct ChatTranscriptView: View {
         let visibleSlice = ChatTranscriptGrouping.visibleSlice(fromBlocks: blocks, blockLimit: blockLimit)
         // スクラバー連動用: 各ユーザー入力ブロックだけ縦位置を測る（スクロール不変な content 座標系）。
         let userMessageIDs = Set(InputHistoryPolicy.entries(from: items).map(\.id))
-        return VStack(alignment: .leading, spacing: DSSpacing.m) {
+        return VStack(alignment: .leading, spacing: 0) {
             if visibleSlice.hiddenBlockCount > 0 {
                 // 展開前の先頭可視 block をアンカーに（押下時に見えていた最初のメッセージ）。
                 loadEarlierButton(
                     hiddenCount: visibleSlice.hiddenBlockCount,
                     anchorID: visibleSlice.blocks.first?.id
                 )
+                .padding(.bottom, TranscriptTypography.betweenAnswers)
             }
-            ForEach(visibleSlice.blocks) { block in
+            ForEach(Array(visibleSlice.blocks.enumerated()), id: \.element.id) { index, block in
+                let after: TranscriptTypography.BlockRole? = index == 0 ? nil : visibleSlice.blocks[index - 1].content.typographyRole
                 transcriptBlock(block.content, lastTranscriptID: transcriptSignal.lastID)
+                    .padding(.top, TranscriptTypography.gap(after: after, before: block.content.typographyRole))
                     .id(block.id)
                     .background(userMessagePositionProbe(id: block.id, isTracked: userMessageIDs.contains(block.id)))
             }
@@ -185,6 +188,7 @@ struct ChatTranscriptView: View {
                 CompactingIndicatorCell(
                     descriptor: agentDescriptor
                 )
+                .padding(.top, TranscriptTypography.withinAnswer)
                 .id("chat-compacting")
             }
             if let activityState = viewModel.activityState,
@@ -200,6 +204,7 @@ struct ChatTranscriptView: View {
                     hangAssessment: { viewModel.hangAssessment(now: $0) },
                     onInterrupt: { await viewModel.turnInterrupt() }
                 )
+                    .padding(.top, TranscriptTypography.withinAnswer)
                     .id("chat-thinking")
             }
             // 浮遊 composer の逃し余白はスクロールコンテンツ内部のスペーサーで確保する。
@@ -297,9 +302,9 @@ struct ChatTranscriptView: View {
                 Image(systemName: "chevron.up")
                 Text("以前のメッセージを表示")
                 Text("残り \(hiddenCount) 件")
-                    .font(DSFont.caption)
+                    .font(ChatScaledFont.caption(scale: ChatFontSettings.adjusted(from: ChatFontSettings.currentScale(), by: 0)))
             }
-                .font(DSFont.captionStrong)
+                .font(ChatScaledFont.captionStrong(scale: ChatFontSettings.adjusted(from: ChatFontSettings.currentScale(), by: 0)))
                 .foregroundStyle(DSColor.chatTextSecondary)
                 .padding(.horizontal, DSSpacing.m)
                 .padding(.vertical, DSSpacing.s)

@@ -87,9 +87,9 @@ struct DisclosureCard<Content: View>: View {
             content
         } label: {
             HStack(spacing: DSSpacing.s) {
-                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
                     titleContent
-                        .font(ChatScaledFont.captionStrong(scale: scale))
+                        .font(TranscriptTypography.font(for: .processSummary, scale: scale))
                         .foregroundStyle(DisclosureCardPalette.title(isToolCall: isToolCall))
                         .fixedSize(horizontal: false, vertical: true)
                     if let subtitle, !subtitle.isEmpty {
@@ -102,7 +102,6 @@ struct DisclosureCard<Content: View>: View {
             }
         }
         .disclosureGroupStyle(DisclosureCardStyle())
-        .padding(.vertical, DSSpacing.xs)
     }
 
 }

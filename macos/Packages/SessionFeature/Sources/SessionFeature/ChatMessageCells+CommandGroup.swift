@@ -204,7 +204,7 @@ struct CommandGroupCell: View, Equatable {
                         isTurnRunning: isTurnRunning,
                         limit: rowLimit
                     )
-                    VStack(alignment: .leading, spacing: DSSpacing.s) {
+                    VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
                         if rowsSlice.hiddenRowCount > 0 {
                             Button("残り \(rowsSlice.hiddenRowCount) 件を表示") {
                                 rowLimit += CommandGroupRowWindow.expandStep
@@ -245,7 +245,7 @@ private struct CommandGroupExecutionRow: View {
             copyAccessibilityIdentifier: "CommandGroupExecutionRow.copyOutput",
             header: {
                 Text(display.label)
-                    .font(ChatScaledFont.captionStrong(scale: scale))
+                    .font(TranscriptTypography.font(for: .processSummary, scale: scale))
                     .foregroundStyle(DSColor.chatTextSecondary)
             }
         ) {

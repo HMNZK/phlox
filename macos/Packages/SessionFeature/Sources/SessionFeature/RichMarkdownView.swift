@@ -81,7 +81,7 @@ private func chatMarkdownTheme(scale: CGFloat) -> Theme {
         .heading1 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
-                .markdownMargin(top: 0, bottom: DSSpacing.m)
+                .markdownMargin(top: 0, bottom: TranscriptTypography.withinAnswer)
                 .markdownTextStyle {
                     FontWeight(.bold)
                     FontSize(ChatTypography.heading1FontSize(scale: scale))
@@ -91,7 +91,7 @@ private func chatMarkdownTheme(scale: CGFloat) -> Theme {
         .heading2 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
-                .markdownMargin(top: DSSpacing.s, bottom: DSSpacing.s)
+                .markdownMargin(top: TranscriptTypography.betweenAnswers, bottom: TranscriptTypography.withinAnswer)
                 .markdownTextStyle {
                     FontWeight(.bold)
                     FontSize(ChatTypography.heading2FontSize(scale: scale))
@@ -101,25 +101,42 @@ private func chatMarkdownTheme(scale: CGFloat) -> Theme {
         .heading3 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
-                .markdownMargin(top: DSSpacing.s, bottom: DSSpacing.xs)
+                .markdownMargin(top: TranscriptTypography.withinAnswer, bottom: TranscriptTypography.withinAnswer)
                 .markdownTextStyle {
                     FontWeight(.semibold)
                     FontSize(ChatTypography.heading3FontSize(scale: scale))
                     ForegroundColor(DSColor.chatTextPrimary)
                 }
         }
-        // 見出し4〜6は MarkdownUI 既定の書式を維持しつつ、折り返し行の高さだけ確保する。
         .heading4 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+                .markdownMargin(top: TranscriptTypography.withinAnswer, bottom: TranscriptTypography.withinAnswer)
+                .markdownTextStyle {
+                    FontWeight(.semibold)
+                    FontSize(TranscriptTypography.pointSize(for: .heading4, scale: scale))
+                    ForegroundColor(DSColor.chatTextPrimary)
+                }
         }
         .heading5 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+                .markdownMargin(top: TranscriptTypography.withinAnswer, bottom: TranscriptTypography.withinAnswer)
+                .markdownTextStyle {
+                    FontWeight(.semibold)
+                    FontSize(TranscriptTypography.pointSize(for: .heading5, scale: scale))
+                    ForegroundColor(DSColor.chatTextPrimary)
+                }
         }
         .heading6 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+                .markdownMargin(top: TranscriptTypography.withinAnswer, bottom: TranscriptTypography.withinAnswer)
+                .markdownTextStyle {
+                    FontWeight(.semibold)
+                    FontSize(TranscriptTypography.pointSize(for: .heading6, scale: scale))
+                    ForegroundColor(DSColor.chatTextPrimary)
+                }
         }
         .blockquote { configuration in
             configuration.label

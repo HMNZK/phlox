@@ -59,7 +59,7 @@ struct UserMessageCell: View {
                                 .font(ChatScaledFont.body(scale: scale))
                                 .foregroundStyle(DSColor.chatTextPrimary)
                                 .chatTextSelection()
-                                .lineSpacing(3)
+                                .lineSpacing(TranscriptTypography.textLineSpacing)
                         }
                         if let badge = presentation.badge {
                             ChatAttachmentBadge(title: badge.title, scale: scale)
@@ -157,7 +157,7 @@ struct TurnCostCell: View {
         HStack {
             Spacer(minLength: 72)
             Text(Self.format(costUSD))
-                .font(.system(size: 9 * scale, weight: .regular, design: .monospaced))
+                .font(ChatScaledFont.monoCaption(scale: scale))
                 .foregroundStyle(DSColor.chatTextSecondary.opacity(0.7))
                 .accessibilityLabel("Turn cost \(Self.format(costUSD))")
         }
@@ -185,7 +185,7 @@ struct AgentMessageBody: View {
     let text: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.m) {
+        VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
             ForEach(Array(ChatMessageRenderCache.markdownBlocks(text).enumerated()), id: \.offset) { _, block in
                 switch block {
                 case .markdown(let markdown):
@@ -217,7 +217,7 @@ struct ErrorMessageCell: View {
                 .font(ChatScaledFont.body(scale: scale))
                 .foregroundStyle(DSColor.chatTextPrimary)
                 .chatTextSelection()
-                .lineSpacing(3)
+                .lineSpacing(TranscriptTypography.textLineSpacing)
             ChatTimestampText(timestamp: timestamp)
         }
         .padding(.horizontal, DSSpacing.m)

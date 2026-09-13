@@ -31,9 +31,9 @@ struct SubAgentMarkerCell: View {
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         HStack(spacing: DSSpacing.s) {
             statusIcon
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
                 Text(description.isEmpty ? "Sub-agent" : description)
-                    .font(ChatScaledFont.body(scale: scale))
+                    .font(TranscriptTypography.font(for: .processSummary, scale: scale))
                     .foregroundStyle(DSColor.chatTextPrimary)
                 Text("\(subagentType) · \(status.rawValue)")
                     .font(ChatScaledFont.caption(scale: scale))
@@ -212,12 +212,12 @@ struct ReasoningSummaryView: View {
                         .font(ChatScaledFont.body(scale: scale))
                         .foregroundStyle(DSColor.chatTextSecondary)
                         .chatTextSelection()
-                        .lineSpacing(3)
+                        .lineSpacing(TranscriptTypography.textLineSpacing)
                         .padding(.top, DSSpacing.s)
                 }
             } else {
                 Text(presentation.trimmedText)
-                    .font(ChatScaledFont.body(scale: scale))
+                    .font(TranscriptTypography.font(for: .processSummary, scale: scale))
                     .foregroundStyle(DSColor.chatToolCallText)
                     .chatTextSelection()
             }
@@ -364,7 +364,7 @@ struct FileChangeCell: View {
                 }
             }
         ) {
-            VStack(alignment: .leading, spacing: DSSpacing.m) {
+            VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
                 ForEach(visibleSections) { section in
                     ChatCodeCard(
                         copyText: section.copyText,

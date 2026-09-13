@@ -15,7 +15,7 @@ struct CodeBlockView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: DSSpacing.s) {
                 Text(language?.isEmpty == false ? language! : "text")
-                    .font(ChatScaledFont.captionStrong(scale: scale))
+                    .font(ChatScaledFont.monoCaption(scale: scale))
                     .foregroundStyle(DSColor.chatTextSecondary)
                     .padding(.horizontal, DSSpacing.s)
                     .padding(.vertical, DSSpacing.xs)

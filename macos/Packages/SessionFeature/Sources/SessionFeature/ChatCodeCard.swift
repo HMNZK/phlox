@@ -18,6 +18,7 @@ struct ChatCodeCard<Header: View, Content: View>: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: DSSpacing.s) {
                 header
+                    .font(ChatScaledFont.monoCaption(scale: scale))
                 Spacer(minLength: 0)
                 MessageCopyButton(
                     text: copyText,

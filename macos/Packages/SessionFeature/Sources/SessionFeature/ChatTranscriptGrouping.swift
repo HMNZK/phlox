@@ -1,3 +1,5 @@
+import DesignSystem
+
 enum ChatTranscriptBlock: Identifiable, Equatable {
     case single(ChatItem)
     case commandGroup(id: String, items: [ChatItem])
@@ -8,6 +10,24 @@ enum ChatTranscriptBlock: Identifiable, Equatable {
             item.id
         case .commandGroup(let id, _):
             id
+        }
+    }
+
+    var typographyRole: TranscriptTypography.BlockRole {
+        switch self {
+        case .commandGroup:
+            .process
+        case .single(let item):
+            switch item {
+            case .userMessage:
+                .user
+            case .agentMessage:
+                .answer
+            case .reasoning, .commandExecution, .fileChange, .subAgentMarker, .taskList, .userQuestion:
+                .process
+            case .error, .turnCost:
+                .auxiliary
+            }
         }
     }
 }

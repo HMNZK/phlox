@@ -65,7 +65,7 @@ struct UserQuestionCell: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        VStack(alignment: .leading, spacing: DSSpacing.m) {
+        VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
             if state == .expired || canDismiss {
                 HStack(spacing: DSSpacing.s) {
                     if state == .expired {
@@ -135,16 +135,16 @@ struct UserQuestionCell: View {
 
     @ViewBuilder
     private func questionBlock(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: DSSpacing.s) {
+        VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
             Text(question.header)
                 .font(ChatScaledFont.captionStrong(scale: scale))
                 .foregroundStyle(DSColor.chatTextSecondary)
                 .padding(.horizontal, DSSpacing.s)
-                .padding(.vertical, 2)
+                .padding(.vertical, DSSpacing.xxs)
                 .background(DSColor.fillSubtle, in: Capsule())
 
             Text(question.question)
-                .font(ChatScaledFont.body(scale: scale).weight(.semibold))
+                .font(TranscriptTypography.font(for: .bodyStrong, scale: scale))
                 .foregroundStyle(DSColor.chatTextPrimary)
 
             if state == .answered, let selected = answers?[question.answerKey], !selected.isEmpty {
@@ -314,7 +314,7 @@ struct UserQuestionCell: View {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(DSColor.chatSuccess)
                 }
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
                     Text(label)
                         .font(ChatScaledFont.body(scale: scale))
                         .foregroundStyle(DSColor.chatTextPrimary)

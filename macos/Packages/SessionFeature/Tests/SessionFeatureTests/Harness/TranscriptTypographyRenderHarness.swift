@@ -44,18 +44,35 @@ struct TranscriptTypographyRenderHarness {
         )
         let items = GateBFixture.items
         let widths: [CGFloat] = [360, 720]
-        let scales: [(label: String, value: CGFloat)] = [
+        let env = ProcessInfo.processInfo.environment
+        let themeFilter = env["TRANSCRIPT_TYPOGRAPHY_HARNESS_THEME"].flatMap { $0.isEmpty ? nil : $0 }
+        let scaleFilter = env["TRANSCRIPT_TYPOGRAPHY_HARNESS_SCALE"].flatMap { $0.isEmpty ? nil : $0 }
+        let isolated = themeFilter != nil || scaleFilter != nil
+        let namePrefix = isolated ? "isolated-" : ""
+
+        var scales: [(label: String, value: CGFloat)] = [
             ("0.8", 0.8),
             ("1.0", 1.0),
             ("2.0", 2.0),
         ]
-        let themes: [(label: String, id: String)] = [
+        var themes: [(label: String, id: String)] = [
             ("phlox-light", AppTheme.phloxLight.id),
             ("dracula", AppTheme.dracula.id),
         ]
+        if let scaleFilter {
+            scales = scales.filter { $0.label == scaleFilter }
+            try #require(!scales.isEmpty, "unknown TRANSCRIPT_TYPOGRAPHY_HARNESS_SCALE=\(scaleFilter)")
+        }
+        if let themeFilter {
+            themes = themes.filter { $0.label == themeFilter || $0.id == themeFilter }
+            try #require(!themes.isEmpty, "unknown TRANSCRIPT_TYPOGRAPHY_HARNESS_THEME=\(themeFilter)")
+        }
 
         var manifest: [String] = [
             "path\tpixelWidth\tpixelHeight\twidthPt\tscale\ttheme\texpansion\tkind",
+        ]
+        var activeThemeLog: [String] = [
+            "file\tThemeStore.active.id\tsuite.theme\tstandard.theme",
         ]
 
         let previousTheme = UserDefaults.standard.object(forKey: ThemeStore.themeKey)
@@ -85,8 +102,11 @@ struct TranscriptTypographyRenderHarness {
                         defaults: suite
                     )
 
-                    let collapsedName = "transcript-w\(int(width))-s\(scale.label)-\(theme.label)-collapsed.png"
+                    let collapsedName = "\(namePrefix)transcript-w\(int(width))-s\(scale.label)-\(theme.label)-collapsed.png"
                     let collapsedURL = outDir.appendingPathComponent(collapsedName)
+                    activeThemeLog.append(
+                        "\(collapsedName)\t\(ThemeStore.active.id)\t\(suite.string(forKey: ThemeStore.themeKey) ?? "")\t\(UserDefaults.standard.string(forKey: ThemeStore.themeKey) ?? "")"
+                    )
                     let collapsed = try captureTranscriptPNG(
                         root: host,
                         width: width,
@@ -105,7 +125,7 @@ struct TranscriptTypographyRenderHarness {
                         )
                     )
 
-                    let expandedName = "transcript-w\(int(width))-s\(scale.label)-\(theme.label)-expanded.png"
+                    let expandedName = "\(namePrefix)transcript-w\(int(width))-s\(scale.label)-\(theme.label)-expanded.png"
                     let expandedURL = outDir.appendingPathComponent(expandedName)
                     let expanded = try captureTranscriptPNG(
                         root: host,
@@ -128,18 +148,27 @@ struct TranscriptTypographyRenderHarness {
             }
         }
 
-        ChatFontSettings.save(1.0, defaults: suite)
-        suite.set(AppTheme.phloxLight.id, forKey: ThemeStore.themeKey)
-        UserDefaults.standard.set(AppTheme.phloxLight.id, forKey: ThemeStore.themeKey)
-        try writeCellPNGs(outDir: outDir, viewModel: viewModel, defaults: suite, manifest: &manifest)
-        try writeExpandedStatePNGs(outDir: outDir, defaults: suite, manifest: &manifest)
+        if !isolated {
+            ChatFontSettings.save(1.0, defaults: suite)
+            suite.set(AppTheme.phloxLight.id, forKey: ThemeStore.themeKey)
+            UserDefaults.standard.set(AppTheme.phloxLight.id, forKey: ThemeStore.themeKey)
+            try writeCellPNGs(outDir: outDir, viewModel: viewModel, defaults: suite, manifest: &manifest)
+            try writeExpandedStatePNGs(outDir: outDir, defaults: suite, manifest: &manifest)
+        }
 
         try manifest.joined(separator: "\n").write(
-            to: outDir.appendingPathComponent("manifest.tsv"),
+            to: outDir.appendingPathComponent(isolated ? "isolated-manifest.tsv" : "manifest.tsv"),
             atomically: true,
             encoding: .utf8
         )
         try writeComposerHeights(composerHeights, to: outDir.appendingPathComponent("composer-heights.txt"))
+        if isolated {
+            try activeThemeLog.joined(separator: "\n").write(
+                to: outDir.appendingPathComponent("isolated-active-theme.txt"),
+                atomically: true,
+                encoding: .utf8
+            )
+        }
     }
 }
 

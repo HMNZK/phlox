@@ -185,3 +185,4 @@
 - 2026-09-13 task-40 レビュー r2（HIGH: struct 単位の修飾一括削除が意味色・追加 padding を見逃す／HIGH: 文字列内にもマスクが作用し AX identifier 変更を消す）: 再びハーネス欠陥と裁定（製品指摘なし）。rb 修理 2 回目を Cursor に委譲（文字列・コメント保護を先に、修飾削除は修飾呼び出し単位、要素対応の色検査、padding 追加の個数検査、DisclosureCard 外側 padding 復活の拒否）。
 - 2026-09-13T14:28:06+0900 task-40 rework: レビュー r2: rb の struct 単位マスクと文字列内マスク → ハーネス欠陥、rb 修理 2 回目
 - 2026-09-13 task-41（UX-01a）done: Codex レビュー r4 pass（指摘 0、差し戻し 3 回はユーザー承認済み）、統合 verify.sh exit 0（検証用 worktree /tmp/ui-ux-verify-wt、HEAD 6fb3360）。
+- 2026-09-13 task-40 PM 目視ゲート B: pass（visual-task-40-b.md）。dracula の質問カード面が薄灰に見えた件は Cursor の切り分けで「ハーネスがカラースキームを与えず半透明 fill が明面に載る」と判明（単独プロセスでもバイト一致、製品の色キャッシュは実コードで否定）。追跡項目: PhloxApp の preferredColorScheme が ThemeStore を購読しない（allowed_paths 外）。

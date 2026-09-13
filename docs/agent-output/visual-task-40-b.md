@@ -161,4 +161,72 @@ PNG（`/tmp/phlox-t13-visual.SPfR9c/t40-gateB/`、pixelWidth x pixelHeight）:
 
 環境変数なしの filter 実行は 0.001 秒で成功（描画せず）。コミットしていない。
 
+## 切り分け（テーマ配色の古さ）
+
+PM 目視の「s1.0 dracula だけカード／表ヘッダーが暗い緑・赤、s0.8／s2.0 は明テーマの緑・薄灰」は、契約 B 節 6（テーマ変更と倍率変更を連続して行い、キャッシュが古い字体・色を返さない）の疑いだった。結論: **同一プロセス内の連続変更で古いテーマ色が残ったものではない。原因の所在はハーネスのホスト（色スキーム未指定）であり、製品の色キャッシュではない。**
+
+### 実測
+
+`TRANSCRIPT_TYPOGRAPHY_HARNESS_THEME=dracula` と `TRANSCRIPT_TYPOGRAPHY_HARNESS_SCALE` で 1 組合せだけ描く経路をハーネスに足し、別プロセスで dracula×0.8 と dracula×2.0 を出した。描画直前の `ThemeStore.active.id`／suite／standard はいずれも `dracula`（`isolated-active-theme-s0.8-dracula.txt`、`isolated-active-theme-s2.0-dracula.txt`）。
+
+| ファイル | 寸法 | 幅pt | 倍率 | テーマ |
+| --- | --- | ---: | ---: | --- |
+| isolated-transcript-w360-s0.8-dracula-collapsed.png | 720x4122 | 360 | 0.8 | dracula |
+| isolated-transcript-w360-s0.8-dracula-expanded.png | 720x4122 | 360 | 0.8 | dracula |
+| isolated-transcript-w720-s0.8-dracula-collapsed.png | 1440x3424 | 720 | 0.8 | dracula |
+| isolated-transcript-w720-s0.8-dracula-expanded.png | 1440x3424 | 720 | 0.8 | dracula |
+| isolated-transcript-w360-s2.0-dracula-collapsed.png | 720x14028 | 360 | 2.0 | dracula |
+| isolated-transcript-w360-s2.0-dracula-expanded.png | 720x14028 | 360 | 2.0 | dracula |
+| isolated-transcript-w720-s2.0-dracula-collapsed.png | 1440x7844 | 720 | 2.0 | dracula |
+| isolated-transcript-w720-s2.0-dracula-expanded.png | 1440x7844 | 720 | 2.0 | dracula |
+
+`isolated-transcript-w720-s0.8-dracula-collapsed.png` は連続描画の `transcript-w720-s0.8-dracula-collapsed.png` と SHA256 先頭 16 桁 `ded7d35df17f795c` で一致。s2.0 も `1dfd0152224790c0` で一致。中点画素はどちらも dracula 背景 `(49,49,49)`。質問カード面は薄灰・明るい緑／赤のままで、単独プロセスでも再現する。連続描画の s1.0（`transcript-w720-s1.0-dracula-collapsed.png`）も同じ薄灰カードであり、倍率キーでテーマ色が入れ替わった証拠にはならない。
+
+### 根拠（型・行）
+
+ハーネス側:
+
+- ホスト `hostedTranscript`（`TranscriptTypographyRenderHarness.swift:264-282`）は `.background(DSColor.chatBackground)` と `.defaultAppStorage(suite)` だけで、製品 `PhloxApp.swift:81` にある `.preferredColorScheme(ThemeStore.active.preferredColorScheme)` も `NSWindow.appearance` も付けない。
+- テーマ id は suite（`@AppStorage`）と `UserDefaults.standard`（`DSColor` → `ThemeStore.active`）の両方へ書いており、単独描画時は一致している。書込順のずれがこの PNG 差の原因ではない。
+
+製品側（キャッシュ仮説の否定）:
+
+- `DSColor` は `static var` の計算プロパティで、都度 `ThemeStore.active` を読む（`Tokens.swift:97-114`）。`static let Color` ではない。`fillSubtle`／`fillSelected` は `textPrimary.color.opacity(0.05)`／`opacity(0.10)`（同:108-109）。不透明な chatBackground／chatTextPrimary は dracula のまま、半透明 fill だけがライトなウィンドウ面に合成されて薄灰・明るい緑に見える。
+- `UserQuestionCell` は `@AppStorage(ThemeStore.themeKey)` と `let _ = themeID` で購読し、面は body 内の `DSColor.fillSubtle`／`chatSuccess.opacity`／`statusError.opacity`（`UserQuestionCell.swift:31`、`65-66`、`97-104`、`125-133`）。色を `@State` に固定していない。
+- 表ヘッダーは `RichMarkdownView` の MarkdownUI テーマで `DSColor.fillSubtle`／`fillSelected`（`RichMarkdownView.swift:199-209`）。`static var themes: [String: Theme]` は `themeID:scale` で色を初回キャプチャする（同:22-40）。キーにテーマ id を含むので、同一プロセスで phlox-light のあと dracula を描いても「dracula:0.8」へ明テーマ色が残る経路ではない。単独プロセスでも同じ薄灰になることが決定打。
+- `DisclosureCardPalette` は `static func` で都度 `DSColor` を返す（`ChatMessageCellsCommon.swift:4-12`）。`ChatMessageRenderCache` はハイライト等を `ThemeStore.active.id` 付きキーで持つだけで、質問カード面は保管しない。
+
+製品で実行中にテーマを切り替えたとき: トランスクリプト各 View は `@AppStorage(ThemeStore.themeKey)` で UserDefaults を購読する（`ChatTranscriptView.swift:39-40`、`70-71` ほか）。`ThemeStore` は Observable ではなく、`active` が `UserDefaults.standard` を都度読む（`AppTheme.swift:432-435`、キャッシュは selectedID 一致時のみ `454-468`）。設定画面は同じキーへ書く（`SettingsView.swift:26`、`207`）。製品では AppStorage と `DSColor` がどちらも standard なので、ハーネス固有の suite／standard 分裂は起きない。ウィンドウの `preferredColorScheme` は `PhloxApp` が `ThemeStore.active` を購読せずに付けているため、実行中切替でウィンドウ外観だけ遅れる余地はある（今回の PNG 症状の主因ではない）。
+
+allowed_paths: 今回の所在はハーネス（PM 所有）と `Tokens.swift` の半透明 fill（task-40 の allowed_paths 外）。`UserQuestionCell.swift`／`RichMarkdownView.swift` は allowed_paths 内だが、古いテーマ色を static／`@State` に固定しているわけではない。
+
+### 検証原文
+
+```
+(cd macos/Packages/SessionFeature && TRANSCRIPT_TYPOGRAPHY_HARNESS_OUT=/tmp/phlox-t13-visual.SPfR9c/t40-gateB TRANSCRIPT_TYPOGRAPHY_HARNESS_THEME=dracula TRANSCRIPT_TYPOGRAPHY_HARNESS_SCALE=0.8 ~/.agents/scripts/compact-test t40-gateB-iso08 swift test --filter TranscriptTypographyRenderHarness)
+✔ Test run with 1 test in 1 suite passed after 3.879 seconds.
+
+(cd macos/Packages/SessionFeature && TRANSCRIPT_TYPOGRAPHY_HARNESS_OUT=/tmp/phlox-t13-visual.SPfR9c/t40-gateB TRANSCRIPT_TYPOGRAPHY_HARNESS_THEME=dracula TRANSCRIPT_TYPOGRAPHY_HARNESS_SCALE=2.0 ~/.agents/scripts/compact-test t40-gateB-iso20 swift test --filter TranscriptTypographyRenderHarness)
+✔ Test run with 1 test in 1 suite passed after 4.835 seconds.
+
+(cd macos/Packages/SessionFeature && ~/.agents/scripts/compact-test t40-gateB-iso-noenv swift test --filter TranscriptTypographyRenderHarness)
+✔ Test run with 1 test in 1 suite passed after 0.001 seconds.
+
+(cd macos/Packages/SessionFeature && ~/.agents/scripts/compact-test t40-gateB-iso-full swift test)
+✔ Test run with 902 tests in 113 suites passed after 1.257 seconds.
+```
+
+環境変数なしの filter 実行は 0.001 秒で成功（描画せず）。SessionFeature 全数は GREEN。コミットしていない。
+
+## PM 判定（2026-09-13、Claude=PM が PNG を目視）
+
+閲覧: `transcript-w720-s1.0-{phlox-light,dracula}-collapsed.png`、`transcript-w360-s1.0-phlox-light-collapsed.png`、`transcript-w720-s{2.0,0.8}-dracula-collapsed.png`、`cell-agent-markdown-w720-s1.0-phlox-light.png`、`expanded-command-group-w720-s1.0-phlox-light.png`、`expanded-output-20plus-w720-s1.0-phlox-light.png`。
+
+- 読順: ユーザー入力（右寄せ吹き出し）→ H1 → 本文 15 → 長い H2 の折り返し → H3〜H6 の段階 → 箇条書き・番号（入れ子の字下げ、マーカー重なりなし）→ 表 → コード（水平方向へ到達、末尾で切れずカード内で続く）→ 処理見出し（semibold、右に chevron）→ 差分 `+2 -1` の意味色 → タスク各状態（未着手・実行中 semibold・完了の取り消し線＋補助色）→ 質問カード（回答済み／期限切れ）→ 料金 10pt 右寄せ → 次のユーザー入力。幅 360 でも同じ順で崩れなし。
+- 間隔: 回答内 8 と処理カード群の詰まり、ユーザー入力前後の 16／24 の差が目視で区別できる。倍率 0.8／2.0 で文字だけ拡縮し、カード間隔は一定。
+- 展開: コマンドグループ展開（見出し 15 semibold → Bash カード → 出力 mono）、20 行超の出力全文、Reasoning・差分の展開セルを確認。欠けなし。
+- テーマ: phlox-light の全高 PNG は背景が透過（黒）で描かれるがハーネスのホスト背景の問題で、セル単位 PNG と実アプリ（ゲート A）は明背景。dracula の質問カード面が薄灰に見える件は切り分け節どおりハーネス（`preferredColorScheme` 未指定で半透明 fill が明面に載る）と判定。製品側のキャッシュは実コードで否定された。
+- **ゲート B: pass**。未達のまま残す項目: Reduce Motion 両状態（システム設定を変えない方針）、処理中インジケーター（切断クライアントでは出ない）。これらは実装ではなくハーネスの限界として記録する。
+- 判定外の観測: `PhloxApp` の `preferredColorScheme` が `ThemeStore.active` を購読せず、実行中のテーマ切替でウィンドウ外観だけ遅れる余地（allowed_paths 外・未再現）。フェーズ 5 で追跡項目として記録。
+
 === REPORT COMPLETE ===

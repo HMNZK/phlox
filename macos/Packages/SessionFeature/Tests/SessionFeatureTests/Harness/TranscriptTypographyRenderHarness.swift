@@ -132,6 +132,7 @@ struct TranscriptTypographyRenderHarness {
         suite.set(AppTheme.phloxLight.id, forKey: ThemeStore.themeKey)
         UserDefaults.standard.set(AppTheme.phloxLight.id, forKey: ThemeStore.themeKey)
         try writeCellPNGs(outDir: outDir, viewModel: viewModel, defaults: suite, manifest: &manifest)
+        try writeExpandedStatePNGs(outDir: outDir, defaults: suite, manifest: &manifest)
 
         try manifest.joined(separator: "\n").write(
             to: outDir.appendingPathComponent("manifest.tsv"),
@@ -750,6 +751,335 @@ private func writeCellPNGs(
     }
 
     _ = viewModel
+}
+
+// MARK: - 展開状態のセル単位描画（製品コード変更なし）
+
+/// CommandGroupCell / ReasoningSummaryView / FileChangeCell / CommandGroupExecutionRow は
+/// `@State private var isExpanded = false`（差分は `userExpandedOverride: Bool? = nil`）で、
+/// 展開を init・環境値・AppStorage 記憶キーから与える経路は無い。
+/// 製品の公開面として使えるのは `DisclosureCard(isExpanded: Binding<Bool>)` と
+/// `CommandGroupExecutionDisplayData.outputDisplay(isExpanded:)`。合成クリックはしない。
+@MainActor
+private func writeExpandedStatePNGs(
+    outDir: URL,
+    defaults: UserDefaults,
+    manifest: inout [String]
+) throws {
+    let width: CGFloat = 720
+    let scaleLabel = "1.0"
+    ChatFontSettings.save(1.0, defaults: defaults)
+    #expect(ChatFontSettings.currentScale(defaults: defaults) == 1.0)
+
+    let themes: [(label: String, id: String)] = [
+        ("phlox-light", AppTheme.phloxLight.id),
+        ("dracula", AppTheme.dracula.id),
+    ]
+    let commandItems = [GateBFixture.items[3], GateBFixture.items[4]]
+    let reasoning = GateBFixture.items[5]
+    let reasoningText: String = {
+        if case .reasoning(_, let text, _) = reasoning { return text }
+        return ""
+    }()
+    let filePatches: [FilePatchChange] = {
+        if case .fileChange(_, let changes, _) = GateBFixture.fileChange {
+            return changes
+        }
+        return []
+    }()
+
+    func wrap<V: View>(_ view: V) -> some View {
+        view
+            .frame(width: width)
+            .padding(16)
+            .background(DSColor.chatBackground)
+            .defaultAppStorage(defaults)
+    }
+
+    var pathNote: [String] = [
+        "DisclosureCard.init(isExpanded: Binding<Bool>) ChatMessageCellsCommon.swift:55-67",
+        "CommandGroupExecutionDisplayData.outputDisplay(isExpanded:) ChatMessageCells+CommandGroup.swift:73-77",
+        "CommandGroupCell.isExpanded @State private = false / init に展開引数なし ChatMessageCells+CommandGroup.swift:163-175",
+        "ReasoningSummaryView.isExpanded @State private = false ChatMessageCells+Structured.swift:195-196",
+        "FileChangeCell.userExpandedOverride @State private = nil / FileChangeDisplayPolicy.isExpanded(userOverride: nil) => false ChatMessageCells+Structured.swift:291-316 ChatMessageRenderCache.swift:181-183",
+        "CommandGroupExecutionRow.isOutputExpanded @State private = false（private struct） ChatMessageCells+CommandGroup.swift:232-235",
+        "展開記憶の @AppStorage キーは無い。合成マウスは使わない。",
+    ]
+
+    for theme in themes {
+        defaults.set(theme.id, forKey: ThemeStore.themeKey)
+        UserDefaults.standard.set(theme.id, forKey: ThemeStore.themeKey)
+
+        let specs: [(name: String, view: AnyView)] = [
+            (
+                "expanded-command-group-w720-s1.0-\(theme.label).png",
+                AnyView(wrap(GateBExpandedCommandGroup(items: commandItems)))
+            ),
+            (
+                "expanded-reasoning-w720-s1.0-\(theme.label).png",
+                AnyView(wrap(GateBExpandedReasoning(text: reasoningText)))
+            ),
+            (
+                "expanded-file-change-w720-s1.0-\(theme.label).png",
+                AnyView(wrap(GateBExpandedFileChange(changes: filePatches)))
+            ),
+            (
+                "expanded-output-20plus-w720-s1.0-\(theme.label).png",
+                AnyView(wrap(GateBExpandedCommandRow(
+                    command: "swift test --filter TranscriptTypography",
+                    output: GateBFixture.twentyFiveLineOutput
+                )))
+            ),
+        ]
+
+        for spec in specs {
+            let hosted = spec.view
+            // AcceptanceCommandGroupRecapHeaderTests と同じく製品 View を ImageRenderer でホストできることを確認する。
+            // PNG の寸法は既存セルと同じ NSHostingView + cacheDisplay（Retina 2x）で書く。
+            #expect(ImageRenderer(content: hosted.frame(width: width)).cgImage != nil)
+            let url = outDir.appendingPathComponent(spec.name)
+            let size = try captureCellPNG(root: hosted, width: width, url: url, expand: false)
+            manifest.append(
+                row(
+                    url.path,
+                    size,
+                    width: width,
+                    scale: scaleLabel,
+                    theme: theme.label,
+                    expansion: "expanded",
+                    kind: "expanded-cell"
+                )
+            )
+            pathNote.append("\(spec.name)\t\(size.pixelWidth)x\(size.pixelHeight)")
+        }
+    }
+
+    try pathNote.joined(separator: "\n").write(
+        to: outDir.appendingPathComponent("expanded-path.txt"),
+        atomically: true,
+        encoding: .utf8
+    )
+}
+
+private struct GateBExpandedCommandGroup: View {
+    let items: [ChatItem]
+    @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+
+    var body: some View {
+        let _ = themeID
+        let header = CommandGroupHeader(
+            items: items,
+            lastTranscriptID: nil,
+            isTurnRunning: false
+        )
+        let rowsSlice = CommandGroupRowWindow.slice(
+            items: items,
+            lastTranscriptID: nil,
+            isTurnRunning: false,
+            limit: CommandGroupRowWindow.defaultLimit
+        )
+        DisclosureCard(
+            isExpanded: .constant(true),
+            title: header.title,
+            subtitle: nil,
+            isToolCall: true
+        ) {
+            VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
+                ForEach(rowsSlice.rows) { row in
+                    GateBExpandedCommandRow(command: row.command, output: row.output)
+                        .id(row.id)
+                }
+            }
+            .padding(.top, TranscriptTypography.withinAnswer)
+        }
+        .frame(maxWidth: 800, alignment: .leading)
+    }
+}
+
+private struct GateBExpandedReasoning: View {
+    let text: String
+    @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+    @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
+
+    var body: some View {
+        let _ = themeID
+        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
+        let presentation = ReasoningPresentation(text: text)
+        DisclosureCard(
+            isExpanded: .constant(true),
+            title: presentation.headline,
+            subtitle: nil,
+            isToolCall: true
+        ) {
+            Text(text)
+                .font(ChatScaledFont.body(scale: scale))
+                .foregroundStyle(DSColor.chatTextSecondary)
+                .chatTextSelection()
+                .lineSpacing(TranscriptTypography.textLineSpacing)
+                .padding(.top, TranscriptTypography.withinAnswer)
+        }
+        .frame(maxWidth: 720, alignment: .leading)
+    }
+}
+
+private struct GateBExpandedFileChange: View {
+    let changes: [FilePatchChange]
+    @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+    @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
+
+    var body: some View {
+        let _ = themeID
+        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
+        let counts = FileChangePresentation.counts(for: changes)
+        DisclosureCard(
+            isExpanded: .constant(true),
+            subtitle: nil,
+            titleContent: {
+                HStack(spacing: DSSpacing.xxs) {
+                    Text(FileChangePresentation.title(for: changes))
+                    Text("+\(counts.additions)")
+                        .foregroundStyle(DSColor.diffAdded)
+                    Text("-\(counts.deletions)")
+                        .foregroundStyle(DSColor.diffRemoved)
+                }
+            }
+        ) {
+            VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
+                ForEach(Array(changes.enumerated()), id: \.offset) { index, change in
+                    let codeView = ChatMessageRenderCache.diffCodeView(diff: change.diff, path: change.path)
+                    ChatCodeCard(
+                        copyText: change.diff,
+                        copyAccessibilityIdentifier: "GateBExpandedFileChange.copyDiff.\(index)",
+                        header: {
+                            Text(change.path)
+                                .font(ChatScaledFont.caption(scale: scale))
+                                .foregroundStyle(DSColor.chatTextSecondary)
+                        }
+                    ) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(codeView.lines) { codeLine in
+                                GateBExpandedDiffLine(
+                                    codeLine: codeLine,
+                                    hasLineNumbers: codeView.hasLineNumbers,
+                                    lineNumberWidth: codeView.lineNumberWidth,
+                                    scale: scale
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.top, TranscriptTypography.withinAnswer)
+        }
+        .frame(maxWidth: 860, alignment: .leading)
+    }
+}
+
+private struct GateBExpandedDiffLine: View {
+    let codeLine: DiffCodeLine
+    let hasLineNumbers: Bool
+    let lineNumberWidth: Int
+    let scale: CGFloat
+
+    var body: some View {
+        let line = codeLine.line
+        HStack(spacing: DSSpacing.s) {
+            if hasLineNumbers {
+                Text(line.displayLineNumber.map(String.init) ?? "")
+                    .font(ChatScaledFont.monoCaption(scale: scale))
+                    .foregroundStyle(markerForeground)
+                    .frame(width: CGFloat(lineNumberWidth) * 7 * scale, alignment: .trailing)
+            }
+            Text(marker)
+                .font(ChatScaledFont.monoCaption(scale: scale))
+                .foregroundStyle(markerForeground)
+                .frame(width: 8 * scale, alignment: .leading)
+            Text(codeLine.body)
+                .font(ChatScaledFont.monoCaption(scale: scale))
+        }
+        .padding(.horizontal, DSSpacing.s)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            Rectangle().fill(lineBackground)
+        }
+        .diffLineTextSelection()
+    }
+
+    private var marker: String {
+        switch codeLine.line.kind {
+        case .addition: "+"
+        case .deletion: "-"
+        case .context: " "
+        case .fileHeader, .hunk: ""
+        }
+    }
+
+    private var markerForeground: Color {
+        switch codeLine.line.kind {
+        case .addition: DSColor.diffAdded
+        case .deletion: DSColor.diffRemoved
+        case .hunk, .fileHeader: DSColor.chatTextSecondary
+        case .context: DSColor.chatTextPrimary
+        }
+    }
+
+    private var lineBackground: Color {
+        switch codeLine.line.kind {
+        case .addition: DSColor.diffAdded.opacity(0.12)
+        case .deletion: DSColor.diffRemoved.opacity(0.12)
+        case .hunk, .fileHeader, .context: .clear
+        }
+    }
+}
+
+/// CommandGroupExecutionRow 相当。`outputDisplay(isExpanded: true)` で 20 行超も全文。
+private struct GateBExpandedCommandRow: View {
+    let command: String?
+    let output: String
+    @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+    @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
+
+    var body: some View {
+        let _ = themeID
+        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
+        let display = ChatMessageRenderCache.commandExecution(command: command, output: output)
+        ChatCodeCard(
+            copyText: display.copyText,
+            copyAccessibilityIdentifier: "GateBExpandedCommandRow.copyOutput",
+            header: {
+                Text(display.label)
+                    .font(TranscriptTypography.font(for: .processSummary, scale: scale))
+                    .foregroundStyle(DSColor.chatTextSecondary)
+            }
+        ) {
+            VStack(alignment: .leading, spacing: 0) {
+                if display.commandBody.isEmpty {
+                    Text("(コマンドなし)")
+                        .font(ChatScaledFont.mono(scale: scale))
+                        .foregroundStyle(DSColor.chatTextSecondary)
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: 0) {
+                        Text("$ ")
+                        Text(display.highlightedCommand)
+                    }
+                    .font(ChatScaledFont.mono(scale: scale))
+                    .foregroundStyle(DSColor.chatTextPrimary)
+                    .chatTextSelection()
+                }
+                if !output.isEmpty {
+                    let outputDisplay = display.outputDisplay(isExpanded: true)
+                    Text(outputDisplay.displayedOutput)
+                        .font(ChatScaledFont.monoCaption(scale: scale))
+                        .foregroundStyle(DSColor.chatTextSecondary)
+                        .chatTextSelection()
+                        .padding(.top, TranscriptTypography.withinAnswer)
+                }
+            }
+            .padding(.horizontal, TranscriptTypography.cardHorizontalInset)
+            .padding(.bottom, TranscriptTypography.codeContentInset)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 
 // MARK: - fixture

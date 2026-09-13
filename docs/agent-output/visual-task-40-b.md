@@ -100,6 +100,40 @@ png_dir: /tmp/phlox-t13-visual.SPfR9c/t40-gateB/
 - 空出力グループのカード: 連続空白コマンド 2 件は `shouldRender=false` で描かれない（製品挙動）。fixture には入れてある。
 - 課金セッションでの代替はしていない。
 
+## 追補（展開状態）
+
+セル本体（`CommandGroupCell` / `ReasoningSummaryView` / `FileChangeCell` / `CommandGroupExecutionRow`）に展開を渡す init・環境値・`@AppStorage` 記憶キーは無い。合成マウスは使っていない。
+
+使った経路:
+
+- `DisclosureCard.init(isExpanded: Binding<Bool>)`（`ChatMessageCellsCommon.swift:55-67`）。ハーネスは `.constant(true)`。
+- `CommandGroupExecutionDisplayData.outputDisplay(isExpanded:)`（`ChatMessageCells+CommandGroup.swift:73-77`）。20 行超は `true` で全文。
+
+セル側に無く、製品コード変更なしでは使えない根拠:
+
+- `CommandGroupCell`: `@State private var isExpanded = false`、init は `items` / `lastTranscriptID` / `isTurnRunning` のみ（`ChatMessageCells+CommandGroup.swift:163-175`）
+- `ReasoningSummaryView`: `@State private var isExpanded = false`（`ChatMessageCells+Structured.swift:195-196`）
+- `FileChangeCell`: `@State private var userExpandedOverride: Bool?` 初期 nil。`FileChangeDisplayPolicy.isExpanded(userOverride: nil, lineCount:)` は常に `false`（`ChatMessageCells+Structured.swift:291-316`、`ChatMessageRenderCache.swift:181-183`）。`defaultExpanded` は描画予算用でカードには使わない
+- `CommandGroupExecutionRow`: `private struct`、`@State private var isOutputExpanded = false`（`ChatMessageCells+CommandGroup.swift:232-235`）
+- 展開記憶の `@AppStorage` キーはソースに無い
+
+描画: 幅 720pt・倍率 1.0・phlox-light / dracula。`ImageRenderer` でホスト確認（`AcceptanceCommandGroupRecapHeaderTests` と同じ）、PNG は既存ハーネスの `NSHostingView` + `cacheDisplay`（2x）。`CommandGroupExecutionRow` は private のため、同一の `ChatCodeCard` / `CommandGroupExecutionDisplayData` / `outputDisplay(isExpanded: true)` で合成。
+
+PNG（`/tmp/phlox-t13-visual.SPfR9c/t40-gateB/`、pixelWidth x pixelHeight）:
+
+| ファイル | 寸法 |
+| --- | ---: |
+| expanded-command-group-w720-s1.0-phlox-light.png | 1440x1198 |
+| expanded-command-group-w720-s1.0-dracula.png | 1440x1198 |
+| expanded-reasoning-w720-s1.0-phlox-light.png | 1440x240 |
+| expanded-reasoning-w720-s1.0-dracula.png | 1440x240 |
+| expanded-file-change-w720-s1.0-phlox-light.png | 1440x352 |
+| expanded-file-change-w720-s1.0-dracula.png | 1440x352 |
+| expanded-output-20plus-w720-s1.0-phlox-light.png | 1440x864 |
+| expanded-output-20plus-w720-s1.0-dracula.png | 1440x864 |
+
+折りたたみセルとの差: コマンドグループ 1440x102 → 1440x1198、Reasoning 1440x140 → 1440x240、差分 1440x102 → 1440x352。バイト不一致。経路メモ: `expanded-path.txt`。トランスクリプト全体の展開 PNG・Reduce Motion・処理中表示は未達のまま。
+
 ## 検証原文
 
 ```
@@ -114,5 +148,17 @@ png_dir: /tmp/phlox-t13-visual.SPfR9c/t40-gateB/
 ```
 
 環境変数なしの filter 実行は 0.001 秒で成功（描画せず）。SessionFeature 全数は GREEN。コミットしていない。
+
+追補:
+
+```
+(cd macos/Packages/SessionFeature && TRANSCRIPT_TYPOGRAPHY_HARNESS_OUT=/tmp/phlox-t13-visual.SPfR9c/t40-gateB ~/.agents/scripts/compact-test t40-gateB2 swift test --filter TranscriptTypographyRenderHarness)
+✔ Test run with 1 test in 1 suite passed after 32.494 seconds.
+
+(cd macos/Packages/SessionFeature && ~/.agents/scripts/compact-test t40-gateB2-noenv swift test --filter TranscriptTypographyRenderHarness)
+✔ Test run with 1 test in 1 suite passed after 0.001 seconds.
+```
+
+環境変数なしの filter 実行は 0.001 秒で成功（描画せず）。コミットしていない。
 
 === REPORT COMPLETE ===

@@ -7,7 +7,7 @@ acceptance_tests:
   - macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptanceTranscriptTypographyTests.swift
   - macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptTypographyIntegrationTests.swift
   - .claude/scripts/task40-wiring.rb
-baseline_commit: 4285918
+baseline_commit: bdbf1d9
 contract_tests: []
 allowed_paths:
   - macos/Packages/DesignSystem/Sources/DesignSystem/TranscriptTypography.swift

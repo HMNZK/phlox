@@ -229,6 +229,11 @@ struct CommandGroupCell: View, Equatable {
                         limit: rowLimit
                     )
                     VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
+                        Text(header.title)
+                            .font(TranscriptTypography.font(for: .processSummary, scale: scale))
+                            .foregroundStyle(DSColor.chatTextSecondary)
+                            .chatTextSelection()
+                            .fixedSize(horizontal: false, vertical: true)
                         if rowsSlice.hiddenRowCount > 0 {
                             Button("残り \(rowsSlice.hiddenRowCount) 件を表示") {
                                 rowLimit += CommandGroupRowWindow.expandStep

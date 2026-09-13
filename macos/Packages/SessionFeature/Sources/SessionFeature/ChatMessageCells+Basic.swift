@@ -183,16 +183,13 @@ struct TurnCostCell: View {
 
 struct AgentMessageBody: View {
     let text: String
-    @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
     var body: some View {
-        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
             ForEach(Array(ChatMessageRenderCache.markdownBlocks(text).enumerated()), id: \.offset) { _, block in
                 switch block {
                 case .markdown(let markdown):
                     RichMarkdownView(markdown)
-                        .font(TranscriptTypography.font(for: .body, scale: scale))
                         .chatTextSelection()
                 case .code(let language, let code):
                     CodeBlockView(language: language, code: code)

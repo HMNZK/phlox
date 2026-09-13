@@ -1,3 +1,8 @@
+---
+task: task-41
+status: completed
+---
+
 ESCALATION: 凍結テストが幅変換の期待値を内部矛盾したまま残しており、テスト改変禁止では task-41 を全件 GREEN にできません。開示レポートは `docs/agent-output/task-41.md`（`status: blocked`）。コミットしていません。
 
 **製品側は契約修正どおりに直した。** `SessionTitleDeriver` は全角英数字・記号（U+FF01–U+FF5E）を半角 ASCII へ、半角カナ連続区間（U+FF61–U+FF9F）だけ Foundation の逆変換で全角カナへ、カナは半角化しない。U+3000 は trim / 内部圧縮のまま。`ｶﾀｶﾅ修正` → `カタカナ修正`、`ｶﾞ` → `ガ`、`ログイン*` と全角カナは不変。
@@ -57,7 +62,7 @@ Building for debugging...
 
 /Users/ryosuke/Projects/Phlox-oss-worktrees/ui-ux-improvement-backlog/macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceSessionTitleDeriverTests.swift:279:13: warning: variable 'normalized' was never mutated; consider changing to 'let' constant
 277 |         #expect(input == "ログイン画面を修正", Comment(rawValue: "input unchanged literal"))
-278 | 
+278 |
 279 |         var normalized = "\r\n  API\t の　接続を修正  \r\n次の行"
     |             `- warning: variable 'normalized' was never mutated; consider changing to 'let' constant
 280 |         let normalizedSnapshot = normalized

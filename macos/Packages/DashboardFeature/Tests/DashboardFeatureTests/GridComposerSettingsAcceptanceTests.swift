@@ -61,6 +61,5 @@ private func composerModeOptionsForLanguage(
     codexProfileIDs: [String],
     languageCode: String
 ) -> [ComposerModeOption] {
-    _ = languageCode
-    return composerModeOptions(for: agentRef, codexProfileIDs: codexProfileIDs)
+    return composerModeOptions(for: agentRef, codexProfileIDs: codexProfileIDs, languageCode: languageCode)
 }

@@ -6,7 +6,7 @@
 | task-8 | standard | done |
 | task-13 | standard | done |
 | task-14 | standard | done |
-| task-17 | standard | testing |
+| task-17 | standard | done |
 | task-23 | deep | done |
 | task-24 | standard | done |
 | task-25 | standard | done |

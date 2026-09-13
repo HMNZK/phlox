@@ -8,7 +8,7 @@ user_visible: true
 acceptance_tests:
   - macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceHistoryEntryPresentationTests.swift
   - .claude/scripts/task49-wiring.rb
-baseline_commit: "PM が凍結時に設定"
+baseline_commit: "4018caa"
 contract_tests: []
 allowed_paths:
   - macos/Packages/SessionFeature/Sources/SessionFeature/HistoryEntryPresentation.swift

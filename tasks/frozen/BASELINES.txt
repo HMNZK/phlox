@@ -85,3 +85,8 @@ b2b0d4a	.claude/scripts/task48-wiring.rb
 b2b0d4a	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/AcceptanceContextPopoverBranchTests.swift
 b2b0d4a	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/ComposerModeMenuAcceptanceTests.swift
 b2b0d4a	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/GridComposerSettingsAcceptanceTests.swift
+eb04e86	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptMarkdownPresentationTests.swift
+eb04e86	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask47Tests.swift
+eb04e86	.claude/scripts/task47-wiring.rb
+4018caa	macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceHistoryEntryPresentationTests.swift
+4018caa	.claude/scripts/task49-wiring.rb

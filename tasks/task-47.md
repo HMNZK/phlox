@@ -7,7 +7,7 @@ acceptance_tests:
   - macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptMarkdownPresentationTests.swift
   - macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask47Tests.swift
   - .claude/scripts/task47-wiring.rb
-baseline_commit: "PM が凍結時に設定"
+baseline_commit: "eb04e86"
 contract_tests: []
 allowed_paths:
   - macos/Packages/SessionFeature/Sources/SessionFeature/TranscriptMarkdownPresentation.swift

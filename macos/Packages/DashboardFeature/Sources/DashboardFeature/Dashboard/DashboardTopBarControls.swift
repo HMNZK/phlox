@@ -19,7 +19,35 @@ struct DashboardLeadingTopBarControls: View {
             if let agentConsoleWindowID {
                 agentConsoleButton(windowID: agentConsoleWindowID)
             }
+            let presentation = SessionTitlePresentation(
+                state: selectedNode?.titleState ?? .legacy(name: ""),
+                fallback: selectedNode.map { SessionViewModel.shortID(for: $0.id) } ?? "",
+                workspacePath: selectedNode?.workspacePath ?? ""
+            )
+            Text(presentation.primary)
+                .font(DSFont.body)
+                .foregroundStyle(DSColor.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(1)
+                .help(presentation.helpText)
+                .accessibilityValue(presentation.accessibilityValue)
+                .opacity(selectedNode == nil ? 0 : 1)
+                .frame(minWidth: 0, maxWidth: selectedNode == nil ? 0 : 280, alignment: .leading)
+                .accessibilityHidden(selectedNode == nil)
+            if let secondary = presentation.secondary {
+                Text(secondary)
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .accessibilityHidden(true)
+            }
         }
+    }
+
+    private var selectedNode: SessionNode? {
+        router.selectedSession.flatMap { viewModel.sessionNode(id: $0) }
     }
 
     private var settingsButton: some View {

@@ -332,12 +332,27 @@ private struct PaneTileView: View {
             StatusLabel(status: session.displayStatus)
                 .accessibilityHidden(true)
             AgentSessionIcon(descriptor: session.agentDescriptor, status: session.displayStatus, size: 24)
-            Text(session.displayName)
+            let presentation = SessionTitlePresentation(
+                state: session.titleState,
+                fallback: SessionViewModel.shortID(for: session.id),
+                workspacePath: session.workspacePath
+            )
+            Text(presentation.primary)
                 .font(DSFont.heroTitle)
                 .foregroundStyle(DSColor.textPrimary)
                 .lineLimit(1)
-                .truncationMode(.middle)
+                .truncationMode(.tail)
                 .layoutPriority(1)
+                .help(presentation.helpText)
+                .accessibilityValue(presentation.accessibilityValue)
+            if let secondary = presentation.secondary {
+                Text(secondary)
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .accessibilityHidden(true)
+            }
             if !session.workspaceName.isEmpty {
                 Text(session.workspaceName)
                     .font(DSFont.caption)

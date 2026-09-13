@@ -66,6 +66,7 @@ struct AgoraAgentMessageBubble: View {
 /// アゴラタイムライン末尾の Thinking インジケータ行（アイコン＋セッション名＋アニメーション）。
 struct AgoraThinkingIndicatorRow: View {
     let source: TeamTimelineSource
+    let presentation: SessionTitlePresentation
     @Environment(\.scenePhase) private var scenePhase
     @State private var isInViewHierarchy = false
     @State private var isInViewport = false
@@ -88,10 +89,22 @@ struct AgoraThinkingIndicatorRow: View {
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             HStack(spacing: DSSpacing.xs) {
                 AgentBrandIcon(descriptor: source.agentDescriptor, size: 16)
-                Text(source.displayName)
+                Text(presentation.primary)
                     .font(DSFont.captionStrong)
                     .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(1)
+                    .truncationMode(.tail)
+                    .layoutPriority(1)
+                    .help(presentation.helpText)
+                    .accessibilityValue(presentation.accessibilityValue)
+                if let secondary = presentation.secondary {
+                    Text(secondary)
+                        .font(DSFont.caption)
+                        .foregroundStyle(DSColor.textPrimary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .accessibilityHidden(true)
+                }
                 Text(source.agentDescriptor.displayName)
                     .font(DSFont.caption)
                     .foregroundStyle(DSColor.textTertiary)

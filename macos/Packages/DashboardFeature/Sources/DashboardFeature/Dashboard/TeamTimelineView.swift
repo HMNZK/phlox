@@ -75,9 +75,10 @@ public struct TeamTimelineView: View {
                     if items.isEmpty, thinkingSources(from: sources).isEmpty {
                         emptyTimeline
                     } else {
-                        AgoraTimelineRows(items: items, onOpenSession: openSession)
+                        AgoraTimelineRows(items: items, presentationFor: titlePresentation, onOpenSession: openSession)
                         AgoraThinkingIndicatorRows(
-                            sources: thinkingSources(from: sources)
+                            sources: thinkingSources(from: sources),
+                            presentationFor: titlePresentation
                         )
                     }
                     Color.clear.frame(height: 1)
@@ -127,7 +128,10 @@ public struct TeamTimelineView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: DSSpacing.xs) {
                         ForEach(sources) { source in
-                            TeamTimelineSourceChip(source: source)
+                            TeamTimelineSourceChip(
+                                source: source,
+                                presentation: titlePresentation(sessionID: source.id, fallbackName: source.displayName)
+                            )
                         }
                         addAgentMenu
                     }
@@ -472,6 +476,21 @@ public struct TeamTimelineView: View {
         router.openSingle(sessionID: sessionID)
     }
 
+    private func titlePresentation(sessionID: SessionID, fallbackName: String) -> SessionTitlePresentation {
+        if let node = viewModel.sessionNodes.first(where: { $0.id == sessionID }) {
+            return SessionTitlePresentation(
+                state: node.titleState,
+                fallback: SessionViewModel.shortID(for: node.id),
+                workspacePath: node.workspacePath
+            )
+        }
+        return SessionTitlePresentation(
+            state: .legacy(name: fallbackName),
+            fallback: fallbackName,
+            workspacePath: ""
+        )
+    }
+
     private func sendTeamMessage(_ text: String) async throws {
         let action = AgoraComposerRouting.action(
             phase: viewModel.agoraDiscussionCoordinator?.phase,
@@ -529,6 +548,7 @@ private struct TeamTimelineSpawnError: Identifiable {
 
 private struct TeamTimelineSourceChip: View {
     let source: TeamTimelineSource
+    let presentation: SessionTitlePresentation
 
     var body: some View {
         HStack(spacing: DSSpacing.xs) {
@@ -536,10 +556,22 @@ private struct TeamTimelineSourceChip: View {
             Text(source.agentDescriptor.displayName)
                 .font(DSFont.captionStrong)
                 .foregroundStyle(DSColor.textPrimary)
-            Text(source.displayName)
+            Text(presentation.primary)
                 .font(DSFont.caption)
-                .foregroundStyle(DSColor.textTertiary)
+                .foregroundStyle(DSColor.textPrimary)
                 .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(1)
+                .help(presentation.helpText)
+                .accessibilityValue(presentation.accessibilityValue)
+            if let secondary = presentation.secondary {
+                Text(secondary)
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .accessibilityHidden(true)
+            }
         }
         .padding(.horizontal, DSSpacing.s)
         .padding(.vertical, DSSpacing.xs)
@@ -549,12 +581,17 @@ private struct TeamTimelineSourceChip: View {
 
 private struct AgoraTimelineRows: View {
     let items: [TeamTimelineItem]
+    let presentationFor: (SessionID, String) -> SessionTitlePresentation
     let onOpenSession: (SessionID) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.m) {
             ForEach(items) { item in
-                AgoraTimelineRow(item: item, onOpenSession: onOpenSession)
+                AgoraTimelineRow(
+                    item: item,
+                    presentation: presentationFor(item.sessionID, item.sessionDisplayName),
+                    onOpenSession: onOpenSession
+                )
             }
         }
     }
@@ -562,11 +599,15 @@ private struct AgoraTimelineRows: View {
 
 private struct AgoraThinkingIndicatorRows: View {
     let sources: [TeamTimelineSource]
+    let presentationFor: (SessionID, String) -> SessionTitlePresentation
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.m) {
             ForEach(sources) { source in
-                AgoraThinkingIndicatorRow(source: source)
+                AgoraThinkingIndicatorRow(
+                    source: source,
+                    presentation: presentationFor(source.id, source.displayName)
+                )
             }
         }
     }
@@ -574,6 +615,7 @@ private struct AgoraThinkingIndicatorRows: View {
 
 private struct AgoraTimelineRow: View {
     let item: TeamTimelineItem
+    let presentation: SessionTitlePresentation
     let onOpenSession: (SessionID) -> Void
 
     var body: some View {
@@ -595,10 +637,22 @@ private struct AgoraTimelineRow: View {
         } label: {
             HStack(spacing: DSSpacing.xs) {
                 AgentBrandIcon(descriptor: item.agentDescriptor, size: 16)
-                Text(item.sessionDisplayName)
+                Text(presentation.primary)
                     .font(DSFont.captionStrong)
                     .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(1)
+                    .truncationMode(.tail)
+                    .layoutPriority(1)
+                    .help(presentation.helpText)
+                    .accessibilityValue(presentation.accessibilityValue)
+                if let secondary = presentation.secondary {
+                    Text(secondary)
+                        .font(DSFont.caption)
+                        .foregroundStyle(DSColor.textPrimary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .accessibilityHidden(true)
+                }
                 Text(item.agentDescriptor.displayName)
                     .font(DSFont.caption)
                     .foregroundStyle(DSColor.textTertiary)

@@ -462,12 +462,28 @@ private struct SessionSidebarRowView: View {
             StatusLabel(status: session.displayStatus)
                 .accessibilityHidden(true)
             AgentSessionIcon(descriptor: session.agentDescriptor, status: session.displayStatus, size: 16)
-            Text(session.displayName)
+            let presentation = SessionTitlePresentation(
+                state: session.titleState,
+                fallback: SessionViewModel.shortID(for: session.id),
+                workspacePath: session.workspacePath
+            )
+            Text(presentation.primary)
                 .font(session.name.isEmpty ? DSFont.mono : DSFont.body)
                 .fontWeight(emphasis.nameWeight)
-                .foregroundStyle(session.name.isEmpty ? DSColor.textTertiary : DSColor.textPrimary)
+                .foregroundStyle(DSColor.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .layoutPriority(1)
+                .help(presentation.helpText)
+                .accessibilityValue(presentation.accessibilityValue)
+            if let secondary = presentation.secondary {
+                Text(secondary)
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .accessibilityHidden(true)
+            }
             Spacer(minLength: DSSpacing.s)
             TimelineView(.periodic(from: session.startedAt, by: 60)) { timeline in
                 Text(SidebarRelativeTime.label(from: session.startedAt, to: timeline.date))

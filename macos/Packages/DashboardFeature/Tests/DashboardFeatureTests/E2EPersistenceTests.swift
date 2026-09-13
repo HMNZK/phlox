@@ -254,6 +254,7 @@ struct E2EPersistenceTests {
 
     // MARK: - Test 5 (partialRestore: 復元未完了時の破壊的保存抑止)
 
+    /// H5: 復元中の明示削除は件数減少保存を抑止し、復元終了後へ繰り越して反映する。
     @Test @MainActor
     func partialRestore_preservesStoreEntryCountWhenDestructiveSaveRunsDuringRestore() async throws {
         let sessionCount = 5
@@ -289,11 +290,14 @@ struct E2EPersistenceTests {
         #expect(await projectStore.saveCount == 0)
 
         coordinator.completeSessionRestore()
-
-        coordinator.removeSession(descriptors[0].id)
         await coordinator.waitForPendingWrites()
-        #expect(await sessionStore.load().count == sessionCount - 1)
+        #expect(await sessionStore.load().count == 4)
         #expect(await sessionStore.saveCount == 1)
+
+        coordinator.removeSession(descriptors[1].id)
+        await coordinator.waitForPendingWrites()
+        #expect(await sessionStore.load().count == 3)
+        #expect(await sessionStore.saveCount == 2)
     }
 }
 

@@ -241,3 +241,4 @@
 - 2026-09-13 task-48 再凍結 274e730（旧 b2b0d4a 無効。task-46 取り込み後の HEAD で凍結。verify 枝を登録）。task-47 は allowed_paths が task-48 と交差（ChatMessageCells+Basic/Structured・RichMarkdownView）するため task-48 完了後に逐次化。
 - 2026-09-13 task-44 再凍結 b92e1db（旧 361f7fa 無効。isMeta 不採用ケース 2 件を追加。実装は不変）。
 - 2026-09-13 task-44 verify 枝に SWIFT_TEST_SERIAL_PACKAGES="DashboardFeature SessionFeature" を追加（SessionFeature 並列の既知フレーク回避。手動の直列実行は 3 パッケージ GREEN）。
+- 2026-09-13 task-49 再凍結 fc8519e（旧 02072dd 無効。rb 高さ配線検査の修理を取り込み）。

@@ -7,7 +7,7 @@ acceptance_tests:
   - macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptItemPresentationTests.swift
   - macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask46Tests.swift
   - .claude/scripts/task46-wiring.rb
-baseline_commit: "PM が凍結時に設定"
+baseline_commit: "dde44dc"
 contract_tests: []
 allowed_paths:
   - macos/Packages/SessionFeature/Sources/SessionFeature/TranscriptItemPresentation.swift

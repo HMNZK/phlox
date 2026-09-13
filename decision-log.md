@@ -193,3 +193,4 @@
 - 2026-09-13 task-40（UI-03）done: 統合 verify.sh exit 0（/tmp/ui-ux-verify-wt、HEAD 487d8d2）。目視 A/B pass、変異検査 RED、レビュー r3 は PM 裁定（ユーザー承認）。
 - 2026-09-13 task-44 凍結 a3822de（AgentDomain 2 本は実パス、SessionFeature/DashboardFeature 2 本はコンパイル RED のため退避）。
 - 2026-09-13 task-43 着手: 凍結テストを実パスへ復帰、verify に task-43 分岐を登録（敵対レビュー MUST1）。task-44 の AgentDomain テスト 2 本もコンパイル RED のため実装開始まで退避。
+- 2026-09-13 再凍結/凍結（index のみ・作業ツリー不変）: task-51 a2c5882（旧 57bfa9e 無効）、task-46 dde44dc、task-50 e95ebf8。いずれもコンパイル RED のため実装開始まで退避。

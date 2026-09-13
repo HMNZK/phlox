@@ -65,3 +65,10 @@ a3822de	macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceS
 a3822de	macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceSessionTitleLifecycleTests.swift
 a3822de	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Acceptance/AcceptanceSessionTitlePersistenceTests.swift
 a3822de	.claude/scripts/task44-wiring.rb
+a2c5882	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Acceptance/AcceptanceHistoryTitleSourcesTests.swift
+a2c5882	.claude/scripts/task51-wiring.rb
+dde44dc	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptItemPresentationTests.swift
+dde44dc	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask46Tests.swift
+dde44dc	.claude/scripts/task46-wiring.rb
+e95ebf8	macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptancePermissionWordingTests.swift
+e95ebf8	.claude/scripts/task50-wiring.rb

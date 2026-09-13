@@ -6,7 +6,7 @@ user_visible: false
 acceptance_tests:
   - macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Acceptance/AcceptanceHistoryTitleSourcesTests.swift
   - .claude/scripts/task51-wiring.rb
-baseline_commit: "57bfa9e"
+baseline_commit: "a2c5882"
 contract_tests: []
 allowed_paths:
   - macos/Packages/SessionFeature/Sources/SessionFeature/ClaudeSessionHistoryEntry.swift

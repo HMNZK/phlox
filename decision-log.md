@@ -186,3 +186,4 @@
 - 2026-09-13T14:28:06+0900 task-40 rework: レビュー r2: rb の struct 単位マスクと文字列内マスク → ハーネス欠陥、rb 修理 2 回目
 - 2026-09-13 task-41（UX-01a）done: Codex レビュー r4 pass（指摘 0、差し戻し 3 回はユーザー承認済み）、統合 verify.sh exit 0（検証用 worktree /tmp/ui-ux-verify-wt、HEAD 6fb3360）。
 - 2026-09-13 task-40 PM 目視ゲート B: pass（visual-task-40-b.md）。dracula の質問カード面が薄灰に見えた件は Cursor の切り分けで「ハーネスがカラースキームを与えず半透明 fill が明面に載る」と判明（単独プロセスでもバイト一致、製品の色キャッシュは実コードで否定）。追跡項目: PhloxApp の preferredColorScheme が ThemeStore を購読しない（allowed_paths 外）。
+- 2026-09-13 task-43 再凍結 026ed2d（強化版。旧 276018d は無効）。task-51 凍結 57bfa9e。両方ともコンパイル RED のため task-40 統合中は退避。task-43 強化版の 2 回目敵対レビューは省略（採択項目の反映確認は PM が tests-task-43-r2.md と rb selftest で行う）。

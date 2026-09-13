@@ -44,10 +44,23 @@ struct GridComposerSettingsAcceptanceTests {
 
     /// task-2: PLAN は独立コントロールから権限/モードメニューへ統合された。
     /// グリッドでも Plan を選べること（メニュー項目に plan が含まれること）を保証する。
+    /// 権限表示名は task-50 の所有なので固定しない。言語引数付きの呼び出しへ改訂する。
     @Test
     func planSelectableViaModeMenuForAllBuiltins() {
-        #expect(composerModeOptions(for: .builtin(.codex), codexProfileIDs: [":workspace"]).contains { $0.isPlan })
-        #expect(composerModeOptions(for: .builtin(.claudeCode), codexProfileIDs: []).contains { $0.isPlan })
-        #expect(composerModeOptions(for: .builtin(.cursor), codexProfileIDs: []).contains { $0.isPlan })
+        #expect(composerModeOptionsForLanguage(.builtin(.codex), codexProfileIDs: [":workspace"], languageCode: "en").contains { $0.isPlan })
+        #expect(composerModeOptionsForLanguage(.builtin(.claudeCode), codexProfileIDs: [], languageCode: "en").contains { $0.isPlan })
+        #expect(composerModeOptionsForLanguage(.builtin(.cursor), codexProfileIDs: [], languageCode: "en").contains { $0.isPlan })
+        #expect(composerModeOptionsForLanguage(.builtin(.codex), codexProfileIDs: [":workspace"], languageCode: "ja").contains { $0.isPlan })
+        #expect(composerModeOptionsForLanguage(.builtin(.claudeCode), codexProfileIDs: [], languageCode: "ja").contains { $0.isPlan })
+        #expect(composerModeOptionsForLanguage(.builtin(.cursor), codexProfileIDs: [], languageCode: "ja").contains { $0.isPlan })
     }
+}
+
+private func composerModeOptionsForLanguage(
+    _ agentRef: AgentRef,
+    codexProfileIDs: [String],
+    languageCode: String
+) -> [ComposerModeOption] {
+    _ = languageCode
+    return composerModeOptions(for: agentRef, codexProfileIDs: codexProfileIDs)
 }

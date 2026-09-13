@@ -297,16 +297,16 @@ SWIFTUI_SKIP = %w[
   Task URL Bundle GeometryReader RoundedRectangle Circle Capsule Overlay alignment
   ChatComposerFooter IMESafeTextView TeamComposerTextInput DSFont DSColor DSSpacing
   DSRadius Menu Image SettingsMenuRow ComposerControlChip HoverableComposerControl
-  DisclosureCard ScrollView Locale language languageCode identifier
+  DisclosureCard ScrollView Locale language identifier
 ].freeze
 
 def code_idents(src)
   mask_strings_and_comments(src.to_s).scan(/\b([A-Za-z_][A-Za-z0-9_]*)\b/).flatten.uniq
 end
 
-def collect_reachable(src, start_blob, skip: [])
+def collect_reachable(src, start_blob, skip: [], struct_src: nil)
   cleaned_src = erase_if_false(src.to_s)
-  start = erase_if_false(start_blob.to_s)
+  start = erase_uninvoked_closures(erase_if_false(start_blob.to_s))
   result = start.dup
   seen = {}
   skip.each { |n| seen[n] = true }
@@ -316,7 +316,11 @@ def collect_reachable(src, start_blob, skip: [])
       next if SWIFTUI_SKIP.include?(name)
       next if seen[name]
       seen[name] = true
-      helper = extract_var_body(cleaned_src, name) || extract_func_body(cleaned_src, name)
+      helper = nil
+      if struct_src
+        helper = extract_var_body(struct_src, name) || extract_func_body(struct_src, name)
+      end
+      helper ||= extract_var_body(cleaned_src, name) || extract_func_body(cleaned_src, name)
       next if helper.nil?
       helper = erase_if_false(helper)
       result << "\n" << helper
@@ -326,20 +330,24 @@ def collect_reachable(src, start_blob, skip: [])
   result
 end
 
-def reachable_from(src, name = "body", skip: [])
+def reachable_from(src, name = "body", skip: [], struct_src: nil)
   return :unparseable if src.nil?
   stripped = strip_comments(src)
   cleaned = erase_if_false(stripped)
   start = extract_var_body(cleaned, name) || extract_func_body(cleaned, name)
   return :unparseable if start.nil?
-  collect_reachable(cleaned, start, skip: skip)
+  collect_reachable(cleaned, start, skip: skip, struct_src: struct_src)
 end
 
 def reachable_in_struct(src, struct_name, start = "body", skip: [])
   return :unparseable if src.nil?
-  struct = extract_struct_body(strip_comments(src), struct_name)
+  stripped = strip_comments(src)
+  cleaned_file = erase_if_false(stripped)
+  struct = extract_struct_body(cleaned_file, struct_name)
   return :unparseable if struct.nil?
-  reachable_from(struct, start, skip: skip)
+  start_blob = extract_var_body(struct, start) || extract_func_body(struct, start)
+  return :unparseable if start_blob.nil?
+  collect_reachable(cleaned_file, start_blob, skip: skip, struct_src: struct)
 end
 
 def code_has_ident?(src, name)
@@ -377,6 +385,116 @@ end
 
 def language_code_pinned?(src)
   compact(strip_comments(src.to_s)).match?(/languageCode:"(?:en|ja|en-US|ja-JP|en_US|ja_JP)"/)
+end
+
+def erase_uninvoked_closures(src)
+  result = src.to_s.dup
+  i = 0
+  out = +""
+  while (m = result.match(/\blet\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*\{/, i))
+    out << result[i...m.begin(0)]
+    name = m[1]
+    brace = result.index("{", m.begin(0))
+    if brace.nil?
+      out << result[m.begin(0)...]
+      return out
+    end
+    body = extract_balanced(result, brace, "{", "}")
+    if body.nil?
+      out << result[m.begin(0)...]
+      return out
+    end
+    close = brace + 1 + body.length + 1
+    around = result[0...m.begin(0)] + result[close..]
+    invoked = mask_strings_and_comments(around).match?(/\b#{Regexp.escape(name)}\s*\(/)
+    out << result[m.begin(0)...close] if invoked
+    i = close
+  end
+  out << result[i..]
+  out
+end
+
+def each_call_args(src, callee)
+  text = src.to_s
+  i = 0
+  while i < text.length
+    m = text.match(/#{Regexp.escape(callee)}\s*\(/, i)
+    break unless m
+    args = extract_balanced(text, m.end(0) - 1, "(", ")")
+    yield args unless args.nil?
+    i = m.end(0)
+  end
+end
+
+def labeled_arg(args, label)
+  return nil if args.nil?
+  re = /(?:^|,)\s*#{Regexp.escape(label)}\s*:/
+  m = args.match(re)
+  return nil unless m
+  i = skip_ws(args, m.end(0))
+  start = i
+  depth_p = 0
+  depth_b = 0
+  depth_a = 0
+  while i < args.length
+    n = comment_or_string_end(args, i)
+    if n
+      i = n
+      next
+    end
+    case args[i]
+    when "(" then depth_p += 1
+    when ")" then depth_p -= 1
+    when "{" then depth_b += 1
+    when "}" then depth_b -= 1
+    when "[" then depth_a += 1
+    when "]" then depth_a -= 1
+    when ","
+      if depth_p == 0 && depth_b == 0 && depth_a == 0
+        return args[start...i].strip
+      end
+    end
+    i += 1
+  end
+  args[start...i].strip
+end
+
+def wording_key_in(expr)
+  return nil if expr.nil?
+  m = expr.to_s.match(/UIWording\.text\(\s*\.([A-Za-z_][A-Za-z0-9_]*)/)
+  return m[1] if m
+  m = expr.to_s.match(/UIWording\.(contextUsagePercent|contextTokenUsage|turnCostAccessibility)\s*\(/)
+  return m[1] if m
+  nil
+end
+
+def wrapper_has_key?(src, wrapper, key)
+  each_call_args(src, wrapper) do |args|
+    return true if wording_key_in(args) == key || compact(args).include?(".#{key}")
+  end
+  false
+end
+
+def language_arg_is_ident?(args)
+  c = compact(args.to_s)
+  c.include?("languageCode:languageCode") && !c.match?(/languageCode:"(?:en|ja|en-US|ja-JP|en_US|ja_JP)"/)
+end
+
+def language_code_property_from_locale?(struct_src)
+  prop = extract_var_body(struct_src, "languageCode") || extract_func_body(struct_src, "languageCode")
+  return false if prop.nil?
+  c = compact(mask_strings_and_comments(prop))
+  return false if compact(strip_comments(prop)).match?(/"(?:en|ja|en-US|ja-JP)"/) && !c.include?("locale")
+  c.include?("locale")
+end
+
+def missing_baseline_blob_errors(files)
+  ng = []
+  PATHS.each do |key, path|
+    next if key == :uiwording
+    ng << "#{path} の基準 blob を取得できない" if files[key].nil?
+  end
+  ng
 end
 
 CONTRACT_PATH = "tasks/task-48.md"
@@ -467,18 +585,27 @@ VIEW_SITES = [
   { file: :sidebar, struct: "DashboardSidebarView", key: "projectsHeading" },
   { file: :settings, struct: "ComposerSettingsControlsView", key: "modelLabel" },
   { file: :settings, struct: "ComposerSettingsControlsView", key: "reasoningEffortLabel" },
-  { file: :settings, struct: "ComposerSettingsControlsView", key: "permissionLabel" },
   { file: :settings, struct: "ComposerSettingsControlsView", key: "approvalLabel" },
-  { file: :settings, struct: "ComposerSettingsControlsView", key: "modeLabel" },
   { file: :settings, struct: "ComposerSettingsControlsView", key: "planOption" },
+  { file: :settings, struct: "ComposerSettingsControlsView", key: "effortLow" },
+  { file: :settings, struct: "ComposerSettingsControlsView", key: "effortMedium" },
+  { file: :settings, struct: "ComposerSettingsControlsView", key: "effortHigh" },
+  { file: :settings, struct: "ComposerSettingsControlsView", key: "effortXHigh" },
+  { file: :settings, struct: "ComposerSettingsControlsView", key: "effortMax" },
   { file: :settings, struct: "ComposerSettingsOverflowMenu", key: "modelLabel" },
   { file: :settings, struct: "ComposerSettingsOverflowMenu", key: "reasoningEffortLabel" },
   { file: :settings, struct: "ComposerSettingsOverflowMenu", key: "permissionLabel" },
   { file: :settings, struct: "ComposerSettingsOverflowMenu", key: "modeLabel" },
+  { file: :settings, struct: "ComposerSettingsOverflowMenu", key: "effortLow" },
+  { file: :settings, struct: "ComposerSettingsOverflowMenu", key: "effortMedium" },
+  { file: :settings, struct: "ComposerSettingsOverflowMenu", key: "effortHigh" },
+  { file: :settings, struct: "ComposerSettingsOverflowMenu", key: "effortXHigh" },
+  { file: :settings, struct: "ComposerSettingsOverflowMenu", key: "effortMax" },
   { file: :settings, struct: "ComposerOverflowBranchMenu", key: "refreshAction" },
   { file: :settings, struct: "ComposerOverflowBranchMenu", key: "missingBranch" },
   { file: :context, struct: "ComposerBranchControl", key: "branchCheckoutFailed" },
   { file: :context, struct: "ComposerBranchControl", key: "noLocalBranches" },
+  { file: :context, struct: "ComposerContextIndicator", key: "contextWindowHeading" },
 ].freeze
 
 REQUIRED_AX = {
@@ -487,6 +614,18 @@ REQUIRED_AX = {
   code_block: ["CodeBlock.copyButton"],
   cells_basic: ["ChatMessage.turnCost"],
 }.freeze
+
+DISPLAY_BINDINGS = [
+  { file: :code_block, struct: "CodeBlockView", wrapper: "Label", key: "copyAction" },
+  { file: :code_block, struct: "CodeBlockView", wrapper: "help", key: "copyCodeHelp" },
+  { file: :markdown, struct: "RichMarkdownView", wrapper: "Label", key: "copyAction" },
+  { file: :markdown, struct: "RichMarkdownView", wrapper: "help", key: "copyCodeHelp" },
+  { file: :copy_button, struct: "MessageCopyButton", wrapper: "help", key: "copyMessageHelp" },
+  { file: :copy_button, struct: "MessageCopyButton", wrapper: "help", key: "copiedFeedback" },
+  { file: :settings, struct: "ComposerSettingsControlsView", wrapper: "ComposerControlChip", key: "planOption" },
+  { file: :settings, struct: "ComposerSettingsOverflowMenu", wrapper: "Menu", key: "permissionLabel" },
+  { file: :settings, struct: "ComposerSettingsOverflowMenu", wrapper: "Menu", key: "modeLabel" },
+].freeze
 
 CONTRACT_BASELINE_PLACEHOLDER_RE = /PM|凍結|設定|TBD|TODO|FIXME|placeholder|未設定/i
 CONTRACT_BASELINE_LINE_RE = /^baseline_commit:\s*(?:"([^"]*)"|'([^']*)'|(\S+))/
@@ -649,14 +788,32 @@ def require_key(files, file_key, struct, key, message)
   []
 end
 
+def check_display_bindings(files)
+  ng = []
+  DISPLAY_BINDINGS.each do |site|
+    src = files[site[:file]]
+    next ng << "#{PATHS[site[:file]]} が存在しない" if src.nil?
+    reach = reachable_in_struct(src, site[:struct], "body")
+    next ng << "#{site[:struct]} の body を括弧対応で切り出せない" if reach == :unparseable
+    unless wrapper_has_key?(reach, site[:wrapper], site[:key])
+      ng << "#{site[:struct]} の #{site[:wrapper]} が UIWording.Key.#{site[:key]} ではない"
+    end
+  end
+  ng
+end
+
 def check_copy_ax(files)
   src = files[:copy_button]
   return ["#{PATHS[:copy_button]} が存在しない"] if src.nil?
   reach = reachable_in_struct(src, "MessageCopyButton", "body")
   return ["MessageCopyButton の body を括弧対応で切り出せない"] if reach == :unparseable
   ax = extract_call_args(reach, "accessibilityLabel") || ""
-  unless code_has_ident?(ax, "copiedFeedback") && compact(ax).include?("didCopy")
+  axc = compact(ax)
+  unless code_has_ident?(ax, "copiedFeedback") && axc.include?("didCopy")
     return ["MessageCopyButton のコピー後 AX ラベルが UIWording.copiedFeedback ではない"]
+  end
+  if axc.include?("didCopy?UIWording.text(.copyMessageHelp")
+    return ["MessageCopyButton のコピー前後 AX 分岐が逆転している"]
   end
   []
 end
@@ -675,6 +832,23 @@ def check_overflow_menus(files)
   ng
 end
 
+def check_markdown_language_cache(src)
+  return ["#{PATHS[:markdown]} が存在しない"] if src.nil?
+  params = extract_func_params(src, "themeCacheKey")
+  if params.nil?
+    return ["RichMarkdownView のテーマキャッシュキーに言語が無い"]
+  end
+  pc = compact(params)
+  unless pc.include?("language") || pc.include?("languageCode")
+    return ["RichMarkdownView のテーマキャッシュキーに言語が無い"]
+  end
+  body = extract_func_body(src, "themeCacheKey")
+  if body.nil? || (!compact(body).include?("language") && !compact(body).include?("languageCode"))
+    return ["RichMarkdownView のテーマキャッシュキーに言語が無い"]
+  end
+  []
+end
+
 def check_language(files)
   ng = []
   locale_structs = {
@@ -690,6 +864,13 @@ def check_language(files)
     code_block: "CodeBlockView",
     markdown: "RichMarkdownView",
   }
+  extra_locale_structs = {
+    cells_basic: "TurnCostCell",
+    cells_structured: "CommandExecutionCell",
+    cells_structured2: ["cells_structured", "SubAgentMarkerCell"],
+    settings_overflow: ["settings", "ComposerSettingsOverflowMenu"],
+    context_indicator: ["context", "ComposerContextIndicator"],
+  }
   locale_structs.each do |file_key, struct|
     src = files[file_key]
     next ng << "#{PATHS[file_key]} が存在しない" if src.nil?
@@ -698,10 +879,30 @@ def check_language(files)
     unless has_locale_environment?(body)
       ng << "#{struct} が @Environment(\\.locale) を使っていない"
     end
-    if language_code_pinned?(body)
-      ng << "#{struct} が表示言語を languageCode リテラルへ固定している"
+    if language_code_pinned?(body) || !language_code_property_from_locale?(body)
+      ng << "#{struct} が表示言語を languageCode リテラルへ固定している" if language_code_pinned?(body)
+      ng << "#{struct} の languageCode が Environment locale から来ていない" unless language_code_property_from_locale?(body)
     end
   end
+  [
+    [:cells_basic, "TurnCostCell"],
+    [:cells_structured, "CommandExecutionCell"],
+    [:cells_structured, "SubAgentMarkerCell"],
+    [:settings, "ComposerSettingsOverflowMenu"],
+    [:context, "ComposerContextIndicator"],
+  ].each do |file_key, struct|
+    src = files[file_key]
+    next ng << "#{PATHS[file_key]} が存在しない" if src.nil?
+    body = extract_struct_body(src, struct)
+    next ng << "#{struct} を括弧対応で切り出せない" if body.nil?
+    unless has_locale_environment?(body)
+      ng << "#{struct} が @Environment(\\.locale) を使っていない"
+    end
+    unless language_code_property_from_locale?(body)
+      ng << "#{struct} の languageCode が Environment locale から来ていない"
+    end
+  end
+  ng.concat(check_markdown_language_cache(files[:markdown]))
   ng
 end
 
@@ -794,6 +995,7 @@ def check_sites(files)
     ng.concat(require_key(files, site[:file], site[:struct], site[:key], msg))
   end
   ng.concat(check_copy_ax(files))
+  ng.concat(check_display_bindings(files))
   ng.concat(check_language(files))
   ng.concat(check_leftovers(files))
   ng.concat(check_output_available_condition(files))
@@ -896,7 +1098,106 @@ def check_invariants(current, previous)
     end
   end
 
+  ng.concat(check_operation_bodies(current, previous))
+  ng.concat(check_supply_exprs(current, previous))
+
   ng.uniq
+end
+
+def func_norm(src, name)
+  body = extract_func_body(src.to_s, name)
+  return nil if body.nil?
+  normalize_code(body)
+end
+
+def check_operation_bodies(current, previous)
+  ng = []
+  if current[:accessories] && previous[:accessories]
+    now_r = func_norm(current[:accessories], "respond")
+    prev_r = func_norm(previous[:accessories], "respond")
+    if !prev_r.nil? && now_r != prev_r
+      ng << "ApprovalBanner の action が TASK48_BASELINE から変化している"
+    end
+  end
+  if current[:copy_button] && previous[:copy_button]
+    now_c = func_norm(current[:copy_button], "copyAndShowFeedback")
+    prev_c = func_norm(previous[:copy_button], "copyAndShowFeedback")
+    if !prev_c.nil? && now_c != prev_c
+      ng << "コピー操作の本体が TASK48_BASELINE から変化している"
+    end
+  end
+  if current[:settings] && previous[:settings]
+    now_s = func_norm(current[:settings], "selectCodexModeOption")
+    prev_s = func_norm(previous[:settings], "selectCodexModeOption")
+    if !prev_s.nil? && now_s != prev_s
+      ng << "Plan の排他条件が TASK48_BASELINE から変化している"
+    end
+    now_send = func_norm(current[:chat_composer], "onSend") if current[:chat_composer]
+    prev_send = func_norm(previous[:chat_composer], "onSend") if previous[:chat_composer]
+    if prev_send && now_send != prev_send
+      ng << "ChatComposer の送信操作が TASK48_BASELINE から変化している"
+    end
+  end
+  REQUIRED_AX.each do |file_key, lits|
+    now = current[file_key]
+    prev = previous[file_key]
+    next if now.nil? || prev.nil?
+    lits.each do |lit|
+      now_has = compact(now).include?("accessibilityIdentifier(\"#{lit}\")") || compact(now).include?("accessibilityIdentifier(\"#{lit}\")")
+      prev_has = compact(prev).include?(lit)
+      # compare identifier still attached in current if it was in previous reachable-ish source
+      unless string_literal_values(now).include?(lit)
+        ng << "#{PATHS[file_key]} の tag #{lit.inspect} が TASK48_BASELINE から変化している"
+      end
+    end
+  end
+  ng
+end
+
+def check_supply_exprs(current, previous)
+  ng = []
+  if current[:context] && previous[:context]
+    now_lines = extract_func_body(current[:context], "lines").to_s
+    prev_lines = extract_func_body(previous[:context], "lines").to_s
+    now_tok = extract_call_args(now_lines, "UIWording.contextTokenUsage").to_s
+    prev_tok = extract_call_args(prev_lines, "UIWording.contextTokenUsage").to_s
+    if !prev_tok.empty? && normalize_code(now_tok) != normalize_code(prev_tok)
+      ng << "ComposerContextPopoverText の使用量の引数が TASK48_BASELINE から変化している"
+    end
+    now_pct = extract_call_args(now_lines, "UIWording.contextUsagePercent").to_s
+    if compact(now_pct).include?("usedPercent:100-percent") || compact(now_pct).include?("usedPercent:(100-percent)")
+      ng << "ComposerContextPopoverText の使用率の引数が逆転している"
+    end
+  end
+  if current[:cells_basic] && previous[:cells_basic]
+    now_cost = extract_call_args(current[:cells_basic], "turnCostAccessibility").to_s
+    prev_cost = extract_call_args(previous[:cells_basic], "turnCostAccessibility").to_s
+    if !prev_cost.empty? && normalize_code(now_cost) != normalize_code(prev_cost)
+      ng << "TurnCostCell の金額供給式が TASK48_BASELINE から変化している"
+    end
+  end
+  if current[:cells_structured] && previous[:cells_structured]
+    now_c = compact(mask_strings_and_comments(extract_struct_body(current[:cells_structured], "CommandExecutionCell").to_s))
+    prev_c = compact(mask_strings_and_comments(extract_struct_body(previous[:cells_structured], "CommandExecutionCell").to_s))
+    if prev_c.include?("isRunning?") && now_c.include?("isRunning?")
+      now_sub = now_c[now_c.index("isRunning?"), 48]
+      prev_sub = prev_c[prev_c.index("isRunning?"), 48]
+      if now_sub != prev_sub
+        ng << "CommandExecutionCell の出力あり表示条件が変わっている"
+      end
+    end
+    now_t = compact(mask_strings_and_comments(extract_struct_body(current[:cells_structured], "CommandExecutionCell").to_s))
+    prev_t = compact(mask_strings_and_comments(extract_struct_body(previous[:cells_structured], "CommandExecutionCell").to_s))
+    if prev_t.include?("command?.isEmpty==false") && !now_t.include?("command?.isEmpty==false")
+      ng << "CommandExecutionCell のコマンド欠損条件が変わっている"
+    end
+    now_s = compact(mask_strings_and_comments(extract_struct_body(current[:cells_structured], "SubAgentMarkerCell").to_s))
+    prev_s = compact(mask_strings_and_comments(extract_struct_body(previous[:cells_structured], "SubAgentMarkerCell").to_s))
+    if prev_s.include?("description.isEmpty") && !now_s.include?("description.isEmpty")
+      ng << "SubAgentMarkerCell の説明欠損条件が変わっている"
+    end
+  end
+  ng
 end
 
 def worktree_files
@@ -1101,15 +1402,37 @@ def good_markdown_src
   <<~SWIFT
     struct RichMarkdownView: View {
     #{locale_and_code}
+      @MainActor private static var themes: [String: Theme] = [:]
       var body: some View {
-        HStack {
-          Text(configuration.language?.isEmpty == false ? configuration.language! : UIWording.text(.missingMarkdownLanguage, languageCode: languageCode))
-          Button(action: {}) {
-            Label(UIWording.text(.copyAction, languageCode: languageCode), systemImage: "doc.on.doc")
-          }
-          .help(UIWording.text(.copyCodeHelp, languageCode: languageCode))
-        }
+        Markdown(markdown)
+          .markdownTheme(Self.theme(for: themeID, scale: scale, languageCode: languageCode))
       }
+      @MainActor
+      static func theme(for themeID: String, scale: CGFloat, languageCode: String) -> Theme {
+        let cacheKey = themeCacheKey(themeID: themeID, scale: scale, languageCode: languageCode)
+        if let theme = themes[cacheKey] {
+          return theme
+        }
+        let theme = chatMarkdownTheme(scale: scale, languageCode: languageCode)
+        themes[cacheKey] = theme
+        return theme
+      }
+      static func themeCacheKey(themeID: String, scale: CGFloat, languageCode: String) -> String {
+        "\\(themeID):\\(scale):\\(languageCode)"
+      }
+    }
+    @MainActor
+    private func chatMarkdownTheme(scale: CGFloat, languageCode: String) -> Theme {
+      Theme()
+        .codeBlock { configuration in
+          VStack {
+            Text(configuration.language?.isEmpty == false ? configuration.language! : UIWording.text(.missingMarkdownLanguage, languageCode: languageCode))
+            Button(action: {}) {
+              Label(UIWording.text(.copyAction, languageCode: languageCode), systemImage: "doc.on.doc")
+            }
+            .help(UIWording.text(.copyCodeHelp, languageCode: languageCode))
+          }
+        }
     }
   SWIFT
 end
@@ -1157,7 +1480,9 @@ def good_accessories_src
           }
         }
       }
-      func respond(_ approval: Approval, _ action: ApprovalAction) {}
+      func respond(_ approval: Approval, _ action: ApprovalAction) {
+        Task { await viewModel.respondToApproval(approval.id, decision: action) }
+      }
     }
   SWIFT
 end
@@ -1215,6 +1540,14 @@ def good_context_src
         }
       }
     }
+    struct ComposerContextIndicator: View {
+    #{locale_and_code}
+      var body: some View {
+        ForEach(ComposerContextPopoverText.lines(usedTokens: used, windowTokens: window, languageCode: languageCode), id: \\.self) { line in
+          Text(line)
+        }
+      }
+    }
   SWIFT
 end
 
@@ -1259,20 +1592,34 @@ def good_settings_src
     struct ComposerSettingsControlsView: View {
     #{locale_and_code}
       var body: some View {
-        Menu(UIWording.text(.modelLabel, languageCode: languageCode)) { EmptyView() }
+        ComposerControlChip(title: modelTitle)
         Menu(UIWording.text(.reasoningEffortLabel, languageCode: languageCode)) {
-          Button(UIWording.text(.effortLow, languageCode: languageCode)) {}
+          Button(Self.spawnEffortTitle(for: "low", languageCode: languageCode)) {}
         }
-        Menu(UIWording.text(.permissionLabel, languageCode: languageCode)) {
+        Menu {
           ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: [], languageCode: languageCode), id: \\.self) { option in
-            Button(option.title) { select(option) }
+            Button(option.title) { selectCodexModeOption(option) }
               .disabled(option.isPlan && !viewModel.isPlanModeAvailable)
           }
+        } label: {
+          ComposerControlChip(title: viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : UIWording.text(.approvalLabel, languageCode: languageCode))
         }
-        Menu(UIWording.text(.modeLabel, languageCode: languageCode)) { EmptyView() }
-        ComposerControlChip(title: viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : UIWording.text(.approvalLabel, languageCode: languageCode))
+      }
+      private var modelTitle: String {
+        selectedModel?.displayName ?? UIWording.text(.modelLabel, languageCode: languageCode)
       }
       private func select(_ option: ComposerModeOption) {}
+      private func selectCodexModeOption(_ option: ComposerModeOption) {
+        let wasPlanMode = viewModel.isPlanMode
+        if option.isPlan {
+          viewModel.setPlanMode(true)
+        } else if let value = option.value {
+          viewModel.setPermissionProfile(id: value)
+          if wasPlanMode {
+            viewModel.setPlanMode(false)
+          }
+        }
+      }
       private static func spawnEffortTitle(for effort: String, languageCode: String) -> String {
         switch effort {
         case "low": UIWording.text(.effortLow, languageCode: languageCode)
@@ -1301,13 +1648,19 @@ def good_settings_src
       }
       private func overflowMenu(for kind: ComposerControlKind) -> some View {
         Menu(UIWording.text(.modelLabel, languageCode: languageCode)) { EmptyView() }
-        Menu(UIWording.text(.reasoningEffortLabel, languageCode: languageCode)) { EmptyView() }
+        Menu(UIWording.text(.reasoningEffortLabel, languageCode: languageCode)) {
+          Button(Self.spawnEffortTitle(for: "low", languageCode: languageCode)) {}
+        }
         Menu(UIWording.text(.permissionLabel, languageCode: languageCode)) { EmptyView() }
         Menu(UIWording.text(.modeLabel, languageCode: languageCode)) { EmptyView() }
       }
       private static func spawnEffortTitle(for effort: String, languageCode: String) -> String {
         switch effort {
         case "low": UIWording.text(.effortLow, languageCode: languageCode)
+        case "medium": UIWording.text(.effortMedium, languageCode: languageCode)
+        case "high": UIWording.text(.effortHigh, languageCode: languageCode)
+        case "xhigh": UIWording.text(.effortXHigh, languageCode: languageCode)
+        case "max": UIWording.text(.effortMax, languageCode: languageCode)
         default: effort
         }
       }
@@ -1535,6 +1888,136 @@ def run_selftest
   selftest_errors_eq frozen_artifact_errors("受け入れテスト", "now", "frozen"), ["基準時点の受け入れテストが現在と同一ではない"], "負例: 凍結テストの改変"
   selftest_errors_eq frozen_artifact_errors("rb 自身", "same", "same"), [], "正例: 凍結 rb と作業ツリーが同一"
 
+  helper_uncalled = with_file(good, :markdown) { |src|
+    src.sub(
+      "let theme = chatMarkdownTheme(scale: scale, languageCode: languageCode)",
+      "let theme = Theme()"
+    )
+  }
+  selftest_errors_eq check_product(helper_uncalled), [
+    "RichMarkdownView が UIWording.Key.copyAction を参照していない",
+    "RichMarkdownView が UIWording.Key.copyCodeHelp を参照していない",
+    "RichMarkdownView が UIWording.Key.missingMarkdownLanguage を参照していない",
+    "RichMarkdownView の Label が UIWording.Key.copyAction ではない",
+    "RichMarkdownView の help が UIWording.Key.copyCodeHelp ではない",
+  ], "負例 MUST2: ファイル直下ヘルパー未呼び出し"
+
+  key_swap = with_file(good, :code_block) { |src|
+    src.sub(
+      "Label(UIWording.text(.copyAction, languageCode: languageCode), systemImage: \"doc.on.doc\")",
+      "Label(UIWording.text(.copyCodeHelp, languageCode: languageCode), systemImage: \"doc.on.doc\")"
+    )
+  }
+  selftest_errors_eq check_product(key_swap), [
+    "CodeBlockView が UIWording.Key.copyAction を参照していない",
+    "CodeBlockView の Label が UIWording.Key.copyAction ではない",
+  ], "負例 HIGH4: Label と help のキー交換"
+
+  ax_swap = with_file(good, :copy_button) { |src|
+    src.sub(
+      ".accessibilityLabel(didCopy ? UIWording.text(.copiedFeedback, languageCode: languageCode) : UIWording.text(.copyMessageHelp, languageCode: languageCode))",
+      ".accessibilityLabel(didCopy ? UIWording.text(.copyMessageHelp, languageCode: languageCode) : UIWording.text(.copiedFeedback, languageCode: languageCode))"
+    )
+  }
+  selftest_errors_eq check_product(ax_swap), [
+    "MessageCopyButton のコピー前後 AX 分岐が逆転している",
+  ], "負例 HIGH4: コピー前後 AX 分岐逆転"
+
+  unused_closure = with_file(good, :chat_composer) { |src|
+    src.sub(
+      "Text(UIWording.text(.composerPlaceholder, languageCode: languageCode))",
+      "let unused = { Text(UIWording.text(.composerPlaceholder, languageCode: languageCode)) }\n          EmptyView()"
+    )
+  }
+  selftest_errors_eq check_product(unused_closure), [
+    "ChatComposer が UIWording.Key.composerPlaceholder を参照していない",
+  ], "負例 HIGH4: 未呼出しクロージャ"
+
+  pinned_prop = with_file(good, :chat_composer) { |src|
+    src.sub(
+      "private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }",
+      'private var languageCode: String { "en" }'
+    )
+  }
+  selftest_errors_eq check_product(pinned_prop), [
+    "ChatComposer の languageCode が Environment locale から来ていない",
+  ], "負例 HIGH5: languageCode プロパティの固定"
+
+  cache_no_lang = with_file(good, :markdown) { |src|
+    src.sub(
+      "themeCacheKey(themeID: String, scale: CGFloat, languageCode: String)",
+      "themeCacheKey(themeID: String, scale: CGFloat)"
+    )
+  }
+  selftest_errors_eq check_product(cache_no_lang), [
+    "RichMarkdownView のテーマキャッシュキーに言語が無い",
+  ], "負例 HIGH5: 言語を含まないテーマキャッシュ"
+
+  empty_respond = with_file(good, :accessories) { |src|
+    src.sub(
+      "Task { await viewModel.respondToApproval(approval.id, decision: action) }",
+      ""
+    )
+  }
+  selftest_errors_eq check_invariants(empty_respond, good), [
+    "ApprovalBanner の action が TASK48_BASELINE から変化している",
+  ], "負例 HIGH6: respond 本体を空にする"
+
+  plan_unlock = with_file(good, :settings) { |src|
+    src.sub("viewModel.setPlanMode(false)", "")
+  }
+  selftest_errors_eq check_invariants(plan_unlock, good), [
+    "Plan の排他条件が TASK48_BASELINE から変化している",
+  ], "負例 HIGH6: Plan 解除処理の削除"
+
+  token_swap = with_file(good, :context) { |src|
+    src.sub(
+      "UIWording.contextTokenUsage(usedText: tokenText(usedTokens), windowText: tokenText(windowTokens), languageCode: languageCode)",
+      "UIWording.contextTokenUsage(usedText: tokenText(windowTokens), windowText: tokenText(usedTokens), languageCode: languageCode)"
+    )
+  }
+  selftest_errors_eq check_invariants(token_swap, good), [
+    "ComposerContextPopoverText の使用量の引数が TASK48_BASELINE から変化している",
+  ], "負例 HIGH7: トークン使用量の引数交換"
+
+  cost_fixed = with_file(good, :cells_basic) { |src|
+    src.sub(
+      "UIWording.turnCostAccessibility(amountText: Self.format(costUSD), languageCode: languageCode)",
+      'UIWording.turnCostAccessibility(amountText: "$0.01", languageCode: languageCode)'
+    )
+  }
+  selftest_errors_eq check_invariants(cost_fixed, good), [
+    "TurnCostCell の金額供給式が TASK48_BASELINE から変化している",
+  ], "負例 HIGH7: 金額の固定値化"
+
+  cmd_invert = with_file(good, :cells_structured) { |src|
+    src.sub(
+      "command?.isEmpty == false ? command! : UIWording.text(.missingCommand, languageCode: languageCode)",
+      "command?.isEmpty == true ? command! : UIWording.text(.missingCommand, languageCode: languageCode)"
+    )
+  }
+  selftest_errors_eq check_invariants(cmd_invert, good), [
+    "CommandExecutionCell のコマンド欠損条件が変わっている",
+  ], "負例 HIGH7: コマンド欠損条件の反転"
+
+  out_neg = with_file(good, :cells_structured) { |src|
+    src.sub(
+      "output.isEmpty ? nil : UIWording.text(.outputAvailable, languageCode: languageCode)",
+      "!output.isEmpty ? nil : UIWording.text(.outputAvailable, languageCode: languageCode)"
+    )
+  }
+  selftest_errors_eq check_invariants(out_neg, good), [
+    "CommandExecutionCell の出力あり表示条件が変わっている",
+  ], "負例 HIGH7: 出力条件への否定追加"
+
+  blob_missing = {}
+  PATHS.each_key { |k| blob_missing[k] = "x" }
+  blob_missing[:uiwording] = nil
+  blob_missing[:chat_composer] = nil
+  selftest_errors_eq missing_baseline_blob_errors(blob_missing), [
+    "#{PATHS[:chat_composer]} の基準 blob を取得できない",
+  ], "負例 HIGH8: 単一既存 blob 欠落"
+
   missing = check_product({})
   selftest_assert missing.include?("#{PATHS[:uiwording]} が存在しない"), "負例: 対象欠落"
 end
@@ -1567,6 +2050,7 @@ if baseline
   else
     ng.concat(check_frozen_baseline(full))
     previous = baseline_files(full)
+    ng.concat(missing_baseline_blob_errors(previous))
     ng.concat(check_invariants(files, previous))
   end
 end

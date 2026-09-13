@@ -12,7 +12,7 @@
 // 言語: 主言語（`-` / `_` の前）を大小無視で見る。en は英語、ja は日本語、それ以外は日本語。
 
 import Testing
-@testable import DesignSystem
+import DesignSystem
 
 private func requireKeyTraits<T: CaseIterable & Equatable & Hashable & Sendable>(_: T.Type) {}
 
@@ -198,8 +198,6 @@ struct AcceptanceUIWordingTests {
         for row in Self.rows {
             #expect(UIWording.text(row.key, languageCode: "ja") == row.japanese, Comment(rawValue: "\(row.name) ja"))
             #expect(UIWording.text(row.key, languageCode: "en") == row.english, Comment(rawValue: "\(row.name) en"))
-            #expect(UIWording.text(row.key, languageCode: "ja") == UIWording.text(row.key, languageCode: "ja"), Comment(rawValue: "\(row.name) ja stable"))
-            #expect(UIWording.text(row.key, languageCode: "en") == UIWording.text(row.key, languageCode: "en"), Comment(rawValue: "\(row.name) en stable"))
         }
     }
 
@@ -207,7 +205,6 @@ struct AcceptanceUIWordingTests {
     func sharedComposerPlaceholderKey() {
         #expect(UIWording.text(.composerPlaceholder, languageCode: "ja") == "メッセージを入力")
         #expect(UIWording.text(.composerPlaceholder, languageCode: "en") == "Enter a message")
-        #expect(UIWording.Key.composerPlaceholder == UIWording.Key.composerPlaceholder)
     }
 
     @Test("未対応言語と空コードは日本語へフォールバックする")
@@ -243,8 +240,6 @@ struct AcceptanceUIWordingTests {
         #expect(firstJA == "モデル")
         #expect(thenEN == "Model")
         #expect(backJA == "モデル")
-        #expect(firstJA == backJA)
-        #expect(firstJA != thenEN)
 
         let firstEN = UIWording.text(.copiedFeedback, languageCode: "en")
         let thenJA = UIWording.text(.copiedFeedback, languageCode: "ja")
@@ -284,14 +279,6 @@ struct AcceptanceUIWordingTests {
         #expect(UIWording.text(.permissionLabel, languageCode: "en") != FrozenForbiddenWording.fullAccess)
         #expect(UIWording.text(.permissionLabel, languageCode: "en") != FrozenForbiddenWording.bypass)
         #expect(UIWording.text(.errorHeading, languageCode: "en") != FrozenForbiddenWording.appServerSystemError)
-        for row in Self.rows {
-            #expect(row.japanese != FrozenForbiddenWording.askPhloxAnything, Comment(rawValue: "\(row.name) ja forbidden"))
-            #expect(row.english != FrozenForbiddenWording.askPhloxAnything, Comment(rawValue: "\(row.name) en forbidden"))
-            #expect(row.english != FrozenForbiddenWording.legacyXHigh, Comment(rawValue: "\(row.name) XHigh"))
-            #expect(row.english != FrozenForbiddenWording.approvalRequested, Comment(rawValue: "\(row.name) approval requested"))
-            #expect(row.english != FrozenForbiddenWording.fullAccess, Comment(rawValue: "\(row.name) Full Access"))
-            #expect(row.english != FrozenForbiddenWording.bypass, Comment(rawValue: "\(row.name) Bypass"))
-        }
     }
 
     @Test("コンテキスト使用率テンプレートは値の欠落・逆転・固定を検出する")

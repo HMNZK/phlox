@@ -9,15 +9,42 @@ import Testing
 @testable import DashboardFeature
 @testable import SessionFeature
 
+private func primaryLanguageCode(_ languageCode: String) -> String {
+    languageCode.split { $0 == "-" || $0 == "_" }.first.map(String.init)?.lowercased() ?? ""
+}
+
+private func expectedPopoverLines(languageCode: String) -> [String] {
+    if primaryLanguageCode(languageCode) == "en" {
+        return [
+            "Context window:",
+            "8% used (92% left)",
+            "27k / 353k tokens used",
+        ]
+    }
+    return [
+        "コンテキスト容量:",
+        "使用 8%（残り 92%）",
+        "27k / 353k トークン使用",
+    ]
+}
+
+private func expectedUsagePercentLine(languageCode: String, usedPercent: Int, remainingPercent: Int) -> String {
+    if primaryLanguageCode(languageCode) == "en" {
+        return "\(usedPercent)% used (\(remainingPercent)% left)"
+    }
+    return "使用 \(usedPercent)%（残り \(remainingPercent)%）"
+}
+
 // MARK: - ポップアップ文言（純関数）
 
 @Test
 func popoverText_formatsCursorStyleLines() {
     let lines = ComposerContextPopoverText.lines(usedTokens: 27_400, windowTokens: 353_000)
-    #expect(lines == [
-        "Context window:",
-        "8% used (92% left)",
-        "27k / 353k tokens used",
+    #expect(lines == expectedPopoverLines(languageCode: "en"))
+    #expect(expectedPopoverLines(languageCode: "ja") == [
+        "コンテキスト容量:",
+        "使用 8%（残り 92%）",
+        "27k / 353k トークン使用",
     ])
 }
 
@@ -25,7 +52,7 @@ func popoverText_formatsCursorStyleLines() {
 func popoverText_percentRoundsToNearest() {
     // 84.6% → 85% used (15% left)
     let lines = ComposerContextPopoverText.lines(usedTokens: 84_600, windowTokens: 100_000)
-    #expect(lines[1] == "85% used (15% left)")
+    #expect(lines[1] == expectedUsagePercentLine(languageCode: "en", usedPercent: 85, remainingPercent: 15))
 }
 
 @Test

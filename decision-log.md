@@ -219,3 +219,4 @@
 - 2026-09-13 task-44 レビュー r1 裁定: HIGH/MEDIUM×2 は実装欠陥→差し戻し（通算 1）。MEDIUM「凍結 Lifecycle テストの待機条件が事前成立・revert 戻り値未確認」は PM 側ハーネス欠陥→PM 承認でハーネス修理（Cursor、wt-44）→再凍結→差し戻し実装。review-task-44-r1.json に保存。
 - 2026-09-13 task-46 レビュー r1 裁定: MEDIUM×2 とも実装欠陥→差し戻し（通算 1）。AgentMessageBody 変更は契約 172 行違反として撤回させる。verify 枝の rb が scope 指定を省略している指摘は rb の引数仕様を確認して対応。review-task-46-r1.json に保存。目視観測（t46-visual）完了後に wt-46 で差し戻し実装。
 - 2026-09-13 task-46 verify 枝に TASK46_SCOPE_CHECK=1 を追加（レビュー r1 の指摘: rb の scope 検査（AgentMessageBody 宣言不変等）が verify で実行されていなかった。ハーネス修理、PM 承認）。
+- 2026-09-13 task-44 レビュー r1 HIGH（保存 transcript 復元で本文由来が失われ補足本文が derived 化）は凍結テストが検出できていない＝契約側の被覆不足。PM 承認で凍結 Lifecycle テストへ復元経路の由来保持ケースを追加（Cursor、wt-44）してから再凍結し差し戻す。

@@ -17,6 +17,9 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
     let onChooseProjectDirectory: () -> Void
     let onMoveSessionToProject: (SessionID, ProjectID) async -> Void
     let newSessionMenuItems: (ProjectID?) -> NewSessionMenuContent
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     init(
         viewModel: DashboardViewModel,
@@ -88,7 +91,7 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
 
     private var sidebarProjectTitleBar: some View {
         HStack(spacing: DSSpacing.s) {
-            Text("Projects")
+            Text(UIWording.text(.projectsHeading, languageCode: languageCode))
                 .font(DSFont.caption)
                 .foregroundStyle(DSColor.textTertiary)
             Spacer(minLength: 0)

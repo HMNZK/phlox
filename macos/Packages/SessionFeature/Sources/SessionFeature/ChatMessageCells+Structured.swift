@@ -12,6 +12,9 @@ struct SubAgentMarkerCell: View {
     let onSelect: ((String) -> Void)?
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     var body: some View {
         let _ = themeID
@@ -32,7 +35,7 @@ struct SubAgentMarkerCell: View {
         HStack(spacing: DSSpacing.s) {
             statusIcon
             VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
-                Text(description.isEmpty ? "Sub-agent" : description)
+                Text(description.isEmpty ? UIWording.text(.missingSubAgentDescription, languageCode: languageCode) : description)
                     .font(TranscriptTypography.font(for: .processSummary, scale: scale))
                     .foregroundStyle(DSColor.chatTextPrimary)
                 Text("\(subagentType) · \(status.rawValue)")
@@ -279,6 +282,9 @@ struct CommandExecutionCell: View {
     @State private var userOverride: Bool?
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     var body: some View {
         let _ = themeID
@@ -299,8 +305,8 @@ struct CommandExecutionCell: View {
                 },
                 set: { userOverride = $0 }
             ),
-            title: presentation.heading ?? "",
-            subtitle: presentation.subtitle,
+            title: command?.isEmpty == false ? command! : UIWording.text(.missingCommand, languageCode: languageCode),
+            subtitle: isRunning ? "実行中" : (output.isEmpty ? nil : UIWording.text(.outputAvailable, languageCode: languageCode)),
             isToolCall: true && presentation.semanticInk == .process
         ) {
             VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {

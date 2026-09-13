@@ -348,9 +348,24 @@ private struct ElapsedTaskTimeText: View {
     }
 }
 
+private func approvalBannerAcceptTitle(languageCode: String) -> String {
+    UIWording.text(.acceptAction, languageCode: languageCode)
+}
+
+private func approvalBannerDeclineTitle(languageCode: String) -> String {
+    UIWording.text(.declineAction, languageCode: languageCode)
+}
+
+private func approvalBannerCancelTitle(languageCode: String) -> String {
+    UIWording.text(.cancelAction, languageCode: languageCode)
+}
+
 struct ApprovalBanner: View {
     @Bindable var viewModel: ChatSessionViewModel
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     var body: some View {
         let _ = themeID
@@ -365,13 +380,13 @@ struct ApprovalBanner: View {
                             .foregroundStyle(DSColor.chatTextPrimary)
                             .lineLimit(3)
                         Spacer(minLength: 0)
-                        Button("Accept") {
+                        Button(approvalBannerAcceptTitle(languageCode: languageCode)) {
                             respond(approval, .accept)
                         }
-                        Button("Decline") {
+                        Button(approvalBannerDeclineTitle(languageCode: languageCode)) {
                             respond(approval, .decline)
                         }
-                        Button("Cancel") {
+                        Button(approvalBannerCancelTitle(languageCode: languageCode)) {
                             respond(approval, .cancel)
                         }
                     }

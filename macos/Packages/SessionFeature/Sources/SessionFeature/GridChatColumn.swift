@@ -13,6 +13,9 @@ struct GridChatColumn: View {
     let onFocusGained: () -> Void
     @State private var requestedTranscriptTarget: String?
     @State private var composerHeight: CGFloat = 0
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
     /// ウィンドウの live resize（ドラッグ）中か。ADR 0116。
     @State private var isLiveResizing = false
     /// live resize 直前に確定していたタイル幅。resize 中はこの値で整形し続ける。
@@ -60,7 +63,8 @@ struct GridChatColumn: View {
                             projectName: projectName,
                             onSend: sendDraft,
                             onInterrupt: interruptTurn,
-                            onFocusGained: onFocusGained
+                            onFocusGained: onFocusGained,
+                            placeholder: UIWording.text(.composerPlaceholder, languageCode: languageCode)
                         )
                         .frame(maxWidth: ComposerLayout.maxWidth(mainColumnWidth: formattingWidth))
                         .frame(maxWidth: .infinity)
@@ -163,6 +167,7 @@ struct GridComposerBar: View {
     let onSend: () -> Void
     let onInterrupt: () -> Void
     let onFocusGained: () -> Void
+    let placeholder: String
     @State private var editorHeight: CGFloat = ComposerHeightBounds.grid.min
     @State private var isComposing = false
     @State private var suggestionController: ComposerSuggestionController
@@ -174,7 +179,8 @@ struct GridComposerBar: View {
         projectName: String? = nil,
         onSend: @escaping () -> Void,
         onInterrupt: @escaping () -> Void,
-        onFocusGained: @escaping () -> Void = {}
+        onFocusGained: @escaping () -> Void = {},
+        placeholder: String = ""
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
         _text = text
@@ -183,6 +189,7 @@ struct GridComposerBar: View {
         self.onSend = onSend
         self.onInterrupt = onInterrupt
         self.onFocusGained = onFocusGained
+        self.placeholder = placeholder
         let controller = ComposerSuggestionController.production(workingDirectory: viewModel.workspacePath)
         controller.onAcceptSkill = { [weak viewModel] identity in
             viewModel?.codexSkillSelectionState?.select(name: identity.name, path: identity.path)
@@ -274,7 +281,7 @@ struct GridComposerBar: View {
                 )
                 .accessibilityIdentifier("GridComposer.input")
                 if ComposerPlaceholderVisibility.shouldShowPlaceholder(text: text, isComposing: isComposing) {
-                    Text("メッセージを入力")
+                    Text(placeholder)
                         .font(ComposerPlaceholderMetrics.placeholderFont)
                         .foregroundStyle(DSColor.chatTextSecondary)
                         .padding(.horizontal, ComposerPlaceholderMetrics.textInsets.width)

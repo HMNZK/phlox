@@ -16,6 +16,9 @@ struct ChatComposer: View {
     @State private var editorHeight: CGFloat = ComposerHeightBounds.single.min
     @State private var isComposing = false
     @State private var suggestionController: ComposerSuggestionController
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     init(
         viewModel: ChatSessionViewModel,
@@ -107,7 +110,7 @@ struct ChatComposer: View {
                 .accessibilityIdentifier("ChatComposer.input")
 
                 if ComposerPlaceholderVisibility.shouldShowPlaceholder(text: text, isComposing: isComposing) {
-                    Text("Ask Phlox anything...")
+                    Text(UIWording.text(.composerPlaceholder, languageCode: languageCode))
                         .font(ComposerPlaceholderMetrics.placeholderFont)
                         .foregroundStyle(DSColor.chatTextSecondary)
                         .padding(.horizontal, ComposerPlaceholderMetrics.textInsets.width)

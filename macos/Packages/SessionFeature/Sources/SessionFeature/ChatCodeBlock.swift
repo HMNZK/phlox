@@ -8,13 +8,16 @@ struct CodeBlockView: View {
     let code: String
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: DSSpacing.s) {
-                Text(language?.isEmpty == false ? language! : "text")
+                Text(language?.isEmpty == false ? language! : UIWording.text(.missingCodeBlockLanguage, languageCode: languageCode))
                     .font(ChatScaledFont.monoCaption(scale: scale))
                     .foregroundStyle(DSColor.chatTextSecondary)
                     .padding(.horizontal, DSSpacing.s)
@@ -22,7 +25,7 @@ struct CodeBlockView: View {
                     .background(DSColor.chatElevated, in: Capsule())
                 Spacer(minLength: 0)
                 Button(action: copyCode) {
-                    Label("Copy", systemImage: "doc.on.doc")
+                    Label(UIWording.text(.copyAction, languageCode: languageCode), systemImage: "doc.on.doc")
                         .font(ChatScaledFont.captionStrong(scale: scale))
                 }
                 .buttonStyle(.plain)
@@ -30,7 +33,7 @@ struct CodeBlockView: View {
                 .padding(.horizontal, DSSpacing.s)
                 .padding(.vertical, DSSpacing.xs)
                 .background(DSColor.fillSubtle, in: Capsule())
-                .help("Copy code")
+                .help(UIWording.text(.copyCodeHelp, languageCode: languageCode))
                 .accessibilityIdentifier("CodeBlock.copyButton")
             }
             .padding(.horizontal, DSSpacing.m)

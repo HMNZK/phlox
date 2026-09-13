@@ -17,6 +17,9 @@ struct MessageCopyButton: View {
     @State private var isHovering = false
     @State private var didCopy = false
     @State private var resetTask: Task<Void, Never>?
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     init(text: String, accessibilityIdentifier: String, scale: CGFloat, isVisible: Bool = true) {
         self.text = text
@@ -31,7 +34,7 @@ struct MessageCopyButton: View {
                 Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
                     .font(ChatScaledFont.captionStrong(scale: scale))
                 if didCopy {
-                    Text("コピーしました")
+                    Text(UIWording.text(.copiedFeedback, languageCode: languageCode))
                         .font(ChatScaledFont.captionStrong(scale: scale))
                 }
             }
@@ -46,8 +49,8 @@ struct MessageCopyButton: View {
             }
         }
         .onHover { isHovering = $0 }
-        .help(didCopy ? "コピーしました" : "Copy message")
-        .accessibilityLabel(didCopy ? "コピーしました" : "Copy message")
+        .help(didCopy ? UIWording.text(.copiedFeedback, languageCode: languageCode) : UIWording.text(.copyMessageHelp, languageCode: languageCode))
+        .accessibilityLabel(didCopy ? UIWording.text(.copiedFeedback, languageCode: languageCode) : UIWording.text(.copyMessageHelp, languageCode: languageCode))
         .accessibilityIdentifier(accessibilityIdentifier)
         .opacity(isVisible ? 1 : 0)
         .allowsHitTesting(isVisible)

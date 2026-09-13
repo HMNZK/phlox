@@ -13,6 +13,9 @@ struct TeamComposer: View {
     @State private var isFocused = false
     @State private var isComposing = false
     @State private var editorHeight = TeamComposerTextMetrics.minEditorHeight
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     private var trimmedDraft: String {
         draft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -58,7 +61,7 @@ struct TeamComposer: View {
                     )
 
                     if draft.isEmpty && !isComposing {
-                        Text("メッセージを入力")
+                        Text(UIWording.text(.composerPlaceholder, languageCode: languageCode))
                             .font(DSFont.body)
                             .foregroundStyle(DSColor.textTertiary)
                             .padding(.horizontal, DSSpacing.m)

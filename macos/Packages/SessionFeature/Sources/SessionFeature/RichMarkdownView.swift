@@ -10,6 +10,9 @@ public struct RichMarkdownView: View {
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
     private let markdown: String
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     public init(_ markdown: String) {
         self.markdown = markdown
@@ -24,29 +27,29 @@ public struct RichMarkdownView: View {
     public var body: some View {
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         Markdown(markdown)
-            .markdownTheme(Self.theme(for: themeID, scale: scale))
+            .markdownTheme(Self.theme(for: themeID, scale: scale, languageCode: languageCode))
             .frame(maxWidth: .infinity, alignment: .leading)
             .environment(\.openURL, OpenURLAction(handler: openChatMarkdownLink))
     }
 
     @MainActor
-    static func theme(for themeID: String, scale: CGFloat) -> Theme {
-        let cacheKey = themeCacheKey(themeID: themeID, scale: scale)
+    static func theme(for themeID: String, scale: CGFloat, languageCode: String = "") -> Theme {
+        let cacheKey = themeCacheKey(themeID: themeID, scale: scale, languageCode: languageCode)
         if let theme = themes[cacheKey] {
             return theme
         }
-        let theme = chatMarkdownTheme(scale: scale)
+        let theme = chatMarkdownTheme(scale: scale, languageCode: languageCode)
         themes[cacheKey] = theme
         return theme
     }
 
-    static func themeCacheKey(themeID: String, scale: CGFloat) -> String {
-        "\(themeID):\(scale)"
+    static func themeCacheKey(themeID: String, scale: CGFloat, languageCode: String = "") -> String {
+        "\(themeID):\(scale):\(languageCode)"
     }
 }
 
 @MainActor
-private func chatMarkdownTheme(scale: CGFloat) -> Theme {
+private func chatMarkdownTheme(scale: CGFloat, languageCode: String) -> Theme {
     Theme()
         .text {
             ForegroundColor(DSColor.chatTextPrimary)
@@ -157,19 +160,19 @@ private func chatMarkdownTheme(scale: CGFloat) -> Theme {
         .codeBlock { configuration in
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: DSSpacing.s) {
-                    Text(configuration.language?.isEmpty == false ? configuration.language! : "code")
+                    Text(configuration.language?.isEmpty == false ? configuration.language! : UIWording.text(.missingMarkdownLanguage, languageCode: languageCode))
                         .font(ChatScaledFont.monoCaption(scale: scale))
                         .foregroundStyle(DSColor.chatTextSecondary)
                     Spacer(minLength: 0)
                     Button {
                         copyToPasteboard(configuration.content)
                     } label: {
-                        Label("Copy", systemImage: "doc.on.doc")
+                        Label(UIWording.text(.copyAction, languageCode: languageCode), systemImage: "doc.on.doc")
                             .font(ChatScaledFont.captionStrong(scale: scale))
                             .foregroundStyle(DSColor.chatTextSecondary)
                     }
                     .buttonStyle(.plain)
-                    .help("Copy code")
+                    .help(UIWording.text(.copyCodeHelp, languageCode: languageCode))
                 }
                 .padding(.horizontal, TranscriptTypography.cardHorizontalInset)
                 .padding(.vertical, TranscriptTypography.cardVerticalInset)

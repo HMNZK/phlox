@@ -36,13 +36,13 @@ func composerControls(for agentRef: AgentRef) -> [ComposerControlKind] {
     }
 }
 
-func composerModeOptions(for agentRef: AgentRef, codexProfileIDs: [String]) -> [ComposerModeOption] {
+func composerModeOptions(for agentRef: AgentRef, codexProfileIDs: [String], languageCode: String = "en") -> [ComposerModeOption] {
     switch agentRef {
     case .builtin(.codex):
         codexProfileIDs.map {
-            ComposerModeOption(value: $0, title: composerPermissionTitle(for: $0), isPlan: false)
+            ComposerModeOption(value: $0, title: composerPermissionTitle(for: $0, languageCode: languageCode), isPlan: false)
         } + [
-            ComposerModeOption(value: "plan", title: "Plan", isPlan: true),
+            ComposerModeOption(value: "plan", title: UIWording.text(.planOption, languageCode: languageCode), isPlan: true),
         ]
     case .builtin(.claudeCode):
         // Claude のモードごとの承認境界を表示し、Don't Ask の意味をキャプションで補足する。
@@ -52,26 +52,26 @@ func composerModeOptions(for agentRef: AgentRef, codexProfileIDs: [String]) -> [
             ComposerModeOption(value: "bypassPermissions", title: "Bypass", isPlan: false),
             ComposerModeOption(value: "manual", title: "Manual", isPlan: false),
             ComposerModeOption(value: "dontAsk", title: "Don't Ask", isPlan: false),
-            ComposerModeOption(value: "plan", title: "Plan", isPlan: true),
+            ComposerModeOption(value: "plan", title: UIWording.text(.planOption, languageCode: languageCode), isPlan: true),
         ]
     case .builtin(.cursor):
         [
             ComposerModeOption(value: nil, title: "Agent", isPlan: false),
             ComposerModeOption(value: "ask", title: "Ask", isPlan: false),
-            ComposerModeOption(value: "plan", title: "Plan", isPlan: true),
+            ComposerModeOption(value: "plan", title: UIWording.text(.planOption, languageCode: languageCode), isPlan: true),
         ]
     default:
         []
     }
 }
 
-func composerPermissionTitle(for id: String?) -> String {
+func composerPermissionTitle(for id: String?, languageCode: String = "en") -> String {
     switch id {
     case ":read-only": "Read Only"
     case ":workspace": "Auto"
     case ":danger-full-access": "Full Access"
     case .some(let value): value
-    case nil: "Approval"
+    case nil: UIWording.text(.approvalLabel, languageCode: languageCode)
     }
 }
 
@@ -102,6 +102,9 @@ struct ComposerSettingsControlsView: View {
     var layout: ComposerSettingsLayout = .standard
     var side: ComposerControlSide
     var accessibilityPrefix: String = "ChatComposer"
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     private var controls: [ComposerControlKind] {
         composerControls(for: viewModel.agentRef, side: side)
@@ -175,7 +178,7 @@ struct ComposerSettingsControlsView: View {
                 }
             } label: {
                 ComposerControlChip(
-                    title: viewModel.selectedModel.map(viewModel.spawnAgentModelDisplayName) ?? "Model",
+                    title: viewModel.selectedModel.map(viewModel.spawnAgentModelDisplayName) ?? UIWording.text(.modelLabel, languageCode: languageCode),
                     detail: nil,
                     emphasis: .plain,
                     layout: layout,
@@ -198,14 +201,14 @@ struct ComposerSettingsControlsView: View {
                         setSpawnEffort(effort)
                     } label: {
                         SettingsMenuRow(
-                            title: Self.spawnEffortTitle(for: effort),
+                            title: Self.spawnEffortTitle(for: effort, languageCode: languageCode),
                             isSelected: effort == viewModel.selectedEffort
                         )
                     }
                 }
             } label: {
                 ComposerControlChip(
-                    title: viewModel.selectedEffort.map(Self.spawnEffortTitle) ?? "Effort",
+                    title: viewModel.selectedEffort.map { Self.spawnEffortTitle(for: $0, languageCode: languageCode) } ?? UIWording.text(.reasoningEffortLabel, languageCode: languageCode),
                     detail: nil,
                     emphasis: .plain,
                     layout: layout,
@@ -222,7 +225,7 @@ struct ComposerSettingsControlsView: View {
     private var claudePermissionMenu: some View {
         HoverableComposerControl { isHovering in
             Menu {
-                ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: []), id: \.self) { option in
+                ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: [], languageCode: languageCode), id: \.self) { option in
                     Button {
                         setSpawnPermission(option.value)
                     } label: {
@@ -236,7 +239,7 @@ struct ComposerSettingsControlsView: View {
                 }
             } label: {
                 ComposerControlChip(
-                    title: viewModel.isPlanMode ? "Plan" : Self.claudePermissionTitle(for: selectedClaudePermission),
+                    title: viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : Self.claudePermissionTitle(for: selectedClaudePermission),
                     detail: nil,
                     emphasis: .pill,
                     layout: layout,
@@ -253,7 +256,7 @@ struct ComposerSettingsControlsView: View {
     private var cursorModeMenu: some View {
         HoverableComposerControl { isHovering in
             Menu {
-                ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: []), id: \.self) { option in
+                ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: [], languageCode: languageCode), id: \.self) { option in
                     Button {
                         setSpawnPermission(option.value)
                     } label: {
@@ -266,7 +269,7 @@ struct ComposerSettingsControlsView: View {
                 }
             } label: {
                 ComposerControlChip(
-                    title: viewModel.isPlanMode ? "Plan" : Self.cursorModeTitle(for: viewModel.selectedPermissionProfile),
+                    title: viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : Self.cursorModeTitle(for: viewModel.selectedPermissionProfile),
                     detail: nil,
                     emphasis: .pill,
                     layout: layout,
@@ -292,15 +295,15 @@ struct ComposerSettingsControlsView: View {
     }
 
     private var modelTitle: String {
-        selectedModel?.displayName ?? viewModel.selectedModel ?? "Model"
+        selectedModel?.displayName ?? viewModel.selectedModel ?? UIWording.text(.modelLabel, languageCode: languageCode)
     }
 
     private var selectedEffortTitle: String? {
-        viewModel.selectedEffort.map(Self.reasoningEffortTitle)
+        viewModel.selectedEffort.map { Self.reasoningEffortTitle($0, languageCode: languageCode) }
     }
 
     private var selectedPermissionTitle: String {
-        viewModel.isPlanMode ? "Plan" : Self.permissionTitle(for: viewModel.selectedPermissionProfile)
+        viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : Self.permissionTitle(for: viewModel.selectedPermissionProfile, languageCode: languageCode)
     }
 
     private var modelMenu: some View {
@@ -318,13 +321,13 @@ struct ComposerSettingsControlsView: View {
                 }
                 if let selectedModel, !selectedModel.supportedReasoningEfforts.isEmpty {
                     Divider()
-                    Menu("Reasoning Effort") {
+                    Menu(UIWording.text(.reasoningEffortLabel, languageCode: languageCode)) {
                         ForEach(selectedModel.supportedReasoningEfforts, id: \.reasoningEffort) { option in
                             Button {
                                 setModel(selectedModel.id, effort: option.reasoningEffort)
                             } label: {
                                 SettingsMenuRow(
-                                    title: Self.reasoningEffortTitle(option.reasoningEffort),
+                                    title: Self.reasoningEffortTitle(option.reasoningEffort, languageCode: languageCode),
                                     isSelected: option.reasoningEffort == viewModel.selectedEffort
                                 )
                             }
@@ -354,7 +357,8 @@ struct ComposerSettingsControlsView: View {
                 ForEach(
                     composerModeOptions(
                         for: viewModel.agentRef,
-                        codexProfileIDs: viewModel.permissionProfiles.map(\.id)
+                        codexProfileIDs: viewModel.permissionProfiles.map(\.id),
+                        languageCode: languageCode
                     ),
                     id: \.self
                 ) { option in
@@ -466,29 +470,29 @@ struct ComposerSettingsControlsView: View {
         }
     }
 
-    private static func spawnEffortTitle(for effort: String) -> String {
+    private static func spawnEffortTitle(for effort: String, languageCode: String) -> String {
         switch effort {
-        case "low": "Low"
-        case "medium": "Medium"
-        case "high": "High"
-        case "xhigh": "XHigh"
-        case "max": "Max"
+        case "low": UIWording.text(.effortLow, languageCode: languageCode)
+        case "medium": UIWording.text(.effortMedium, languageCode: languageCode)
+        case "high": UIWording.text(.effortHigh, languageCode: languageCode)
+        case "xhigh": UIWording.text(.effortXHigh, languageCode: languageCode)
+        case "max": UIWording.text(.effortMax, languageCode: languageCode)
         default: effort
         }
     }
 
-    private static func reasoningEffortTitle(_ effort: String) -> String {
+    private static func reasoningEffortTitle(_ effort: String, languageCode: String) -> String {
         switch effort {
-        case "low": "Low"
-        case "medium": "Medium"
-        case "high": "High"
-        case "xhigh": "X High"
+        case "low": UIWording.text(.effortLow, languageCode: languageCode)
+        case "medium": UIWording.text(.effortMedium, languageCode: languageCode)
+        case "high": UIWording.text(.effortHigh, languageCode: languageCode)
+        case "xhigh": UIWording.text(.effortXHigh, languageCode: languageCode)
         default: effort
         }
     }
 
-    private static func permissionTitle(for id: String?) -> String {
-        composerPermissionTitle(for: id)
+    private static func permissionTitle(for id: String?, languageCode: String) -> String {
+        composerPermissionTitle(for: id, languageCode: languageCode)
     }
 }
 
@@ -683,6 +687,9 @@ struct ComposerSettingsOverflowMenu: View {
     @Bindable var viewModel: ChatSessionViewModel
     let workspacePath: String
     let accessibilityIdentifier: String
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     var body: some View {
         HoverableComposerControl { isHovering in
@@ -711,25 +718,25 @@ struct ComposerSettingsOverflowMenu: View {
         case .model:
             switch viewModel.agentRef {
             case .builtin(.codex):
-                Menu("Model") { codexModelItems }
+                Menu(UIWording.text(.modelLabel, languageCode: languageCode)) { codexModelItems }
                     .disabled(viewModel.availableModels.isEmpty)
             default:
-                Menu("Model") { spawnModelItems }
+                Menu(UIWording.text(.modelLabel, languageCode: languageCode)) { spawnModelItems }
                     .disabled(viewModel.availableSpawnAgentModels.isEmpty)
             }
         case .effort:
             if !viewModel.claudeEffortLevels.isEmpty {
-                Menu("Effort") { claudeEffortItems }
+                Menu(UIWording.text(.reasoningEffortLabel, languageCode: languageCode)) { claudeEffortItems }
             }
         case .permission:
             switch viewModel.agentRef {
             case .builtin(.codex):
-                Menu("Permission") { codexPermissionItems }
+                Menu(UIWording.text(.permissionLabel, languageCode: languageCode)) { codexPermissionItems }
             default:
-                Menu("Permission") { spawnPermissionItems }
+                Menu(UIWording.text(.permissionLabel, languageCode: languageCode)) { spawnPermissionItems }
             }
         case .mode:
-            Menu("Mode") { cursorModeItems }
+            Menu(UIWording.text(.modeLabel, languageCode: languageCode)) { cursorModeItems }
         case .plan:
             EmptyView()
         }
@@ -763,7 +770,7 @@ struct ComposerSettingsOverflowMenu: View {
                 Task { await viewModel.setSpawnAgentEffort(effort) }
             } label: {
                 SettingsMenuRow(
-                    title: Self.spawnEffortTitle(for: effort),
+                    title: Self.spawnEffortTitle(for: effort, languageCode: languageCode),
                     isSelected: effort == viewModel.selectedEffort
                 )
             }
@@ -771,7 +778,7 @@ struct ComposerSettingsOverflowMenu: View {
     }
 
     private var spawnPermissionItems: some View {
-        ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: []), id: \.self) { option in
+        ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: [], languageCode: languageCode), id: \.self) { option in
             Button {
                 Task { await viewModel.setSpawnAgentPermission(option.value) }
             } label: {
@@ -788,7 +795,7 @@ struct ComposerSettingsOverflowMenu: View {
     // Cursor の Mode は既定が nil（Agent）なので、Claude 用の
     // bypassPermissions フォールバック（selectedClaudePermission）を使わない。
     private var cursorModeItems: some View {
-        ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: []), id: \.self) { option in
+        ForEach(composerModeOptions(for: viewModel.agentRef, codexProfileIDs: [], languageCode: languageCode), id: \.self) { option in
             Button {
                 Task { await viewModel.setSpawnAgentPermission(option.value) }
             } label: {
@@ -815,7 +822,7 @@ struct ComposerSettingsOverflowMenu: View {
         }
         if let selectedCodexModel, !selectedCodexModel.supportedReasoningEfforts.isEmpty {
             Divider()
-            Menu("Reasoning Effort") {
+            Menu(UIWording.text(.reasoningEffortLabel, languageCode: languageCode)) {
                 ForEach(selectedCodexModel.supportedReasoningEfforts, id: \.reasoningEffort) { option in
                     Button {
                         Task {
@@ -826,7 +833,7 @@ struct ComposerSettingsOverflowMenu: View {
                         }
                     } label: {
                         SettingsMenuRow(
-                            title: Self.reasoningEffortTitle(option.reasoningEffort),
+                            title: Self.reasoningEffortTitle(option.reasoningEffort, languageCode: languageCode),
                             isSelected: option.reasoningEffort == viewModel.selectedEffort
                         )
                     }
@@ -839,7 +846,8 @@ struct ComposerSettingsOverflowMenu: View {
         ForEach(
             composerModeOptions(
                 for: viewModel.agentRef,
-                codexProfileIDs: viewModel.permissionProfiles.map(\.id)
+                codexProfileIDs: viewModel.permissionProfiles.map(\.id),
+                languageCode: languageCode
             ),
             id: \.self
         ) { option in
@@ -874,23 +882,23 @@ struct ComposerSettingsOverflowMenu: View {
         return !viewModel.isPlanMode && option.value == currentValue
     }
 
-    private static func spawnEffortTitle(for effort: String) -> String {
+    private static func spawnEffortTitle(for effort: String, languageCode: String) -> String {
         switch effort {
-        case "low": "Low"
-        case "medium": "Medium"
-        case "high": "High"
-        case "xhigh": "XHigh"
-        case "max": "Max"
+        case "low": UIWording.text(.effortLow, languageCode: languageCode)
+        case "medium": UIWording.text(.effortMedium, languageCode: languageCode)
+        case "high": UIWording.text(.effortHigh, languageCode: languageCode)
+        case "xhigh": UIWording.text(.effortXHigh, languageCode: languageCode)
+        case "max": UIWording.text(.effortMax, languageCode: languageCode)
         default: effort
         }
     }
 
-    private static func reasoningEffortTitle(_ effort: String) -> String {
+    private static func reasoningEffortTitle(_ effort: String, languageCode: String) -> String {
         switch effort {
-        case "low": "Low"
-        case "medium": "Medium"
-        case "high": "High"
-        case "xhigh": "X High"
+        case "low": UIWording.text(.effortLow, languageCode: languageCode)
+        case "medium": UIWording.text(.effortMedium, languageCode: languageCode)
+        case "high": UIWording.text(.effortHigh, languageCode: languageCode)
+        case "xhigh": UIWording.text(.effortXHigh, languageCode: languageCode)
         default: effort
         }
     }
@@ -898,10 +906,13 @@ struct ComposerSettingsOverflowMenu: View {
 
 private struct ComposerOverflowBranchMenu: View {
     let workspacePath: String
+    @Environment(\.locale) private var locale
     @State private var currentBranch: String?
     @State private var branches: [String] = []
     @State private var errorMessage: String?
     @State private var isCheckingOut = false
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     var body: some View {
         let expanded = (workspacePath as NSString).expandingTildeInPath
@@ -910,7 +921,7 @@ private struct ComposerOverflowBranchMenu: View {
                 if let errorMessage {
                     Text(errorMessage)
                 }
-                Button("Refresh") {
+                Button(UIWording.text(.refreshAction, languageCode: languageCode)) {
                     refreshBranches(at: expanded)
                 }
                 Divider()
@@ -935,7 +946,7 @@ private struct ComposerOverflowBranchMenu: View {
     private var branchTitle: String {
         if isCheckingOut { return "Branch: switching..." }
         if let currentBranch { return "Branch: \(currentBranch)" }
-        return "Branch"
+        return UIWording.text(.missingBranch, languageCode: languageCode)
     }
 
     private func refreshBranches(at path: String) {

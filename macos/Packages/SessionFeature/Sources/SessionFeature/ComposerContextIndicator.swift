@@ -50,7 +50,7 @@ enum ComposerContextGauge {
 }
 
 enum ComposerContextPopoverText {
-    static func lines(usedTokens: Int, windowTokens: Int) -> [String] {
+    static func lines(usedTokens: Int, windowTokens: Int, languageCode: String = "en") -> [String] {
         let percent: Int
         if windowTokens > 0 {
             percent = Int((Double(usedTokens) / Double(windowTokens) * 100).rounded())
@@ -58,9 +58,9 @@ enum ComposerContextPopoverText {
             percent = 0
         }
         return [
-            "Context window:",
-            "\(percent)% used (\(100 - percent)% left)",
-            "\(tokenText(usedTokens)) / \(tokenText(windowTokens)) tokens used",
+            UIWording.text(.contextWindowHeading, languageCode: languageCode),
+            UIWording.contextUsagePercent(usedPercent: percent, remainingPercent: 100 - percent, languageCode: languageCode),
+            UIWording.contextTokenUsage(usedText: tokenText(usedTokens), windowText: tokenText(windowTokens), languageCode: languageCode),
         ]
     }
 
@@ -110,6 +110,9 @@ struct ComposerContextIndicator: View {
     var layout: ComposerIndicatorLayout = .regular
     var branchNameOverride: String?
     var branchIsCheckingOutOverride = false
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     var body: some View {
         HStack(spacing: DSSpacing.xs) {
@@ -178,7 +181,7 @@ struct ComposerContextIndicator: View {
               let window = usage.contextWindowTokens,
               window > 0
         else { return nil }
-        return ComposerContextPopoverText.lines(usedTokens: used, windowTokens: window)
+        return ComposerContextPopoverText.lines(usedTokens: used, windowTokens: window, languageCode: languageCode)
     }
 }
 
@@ -208,6 +211,9 @@ private struct ComposerContextPopover: View {
 private struct ComposerBranchControl: View {
     let workspacePath: String
     var layout: ComposerIndicatorLayout = .regular
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     @State private var currentBranch: String?
     @State private var picker = ComposerBranchPickerModel()
@@ -248,7 +254,7 @@ private struct ComposerBranchControl: View {
             .popover(isPresented: pickerIsPresented, arrowEdge: .top) {
                 branchPicker
             }
-            .alert("Branch checkout failed", isPresented: checkoutErrorIsPresented) {
+            .alert(UIWording.text(.branchCheckoutFailed, languageCode: languageCode), isPresented: checkoutErrorIsPresented) {
                 Button("OK", role: .cancel) {
                     checkoutError = nil
                 }
@@ -261,7 +267,7 @@ private struct ComposerBranchControl: View {
     private var branchPicker: some View {
         VStack(alignment: .leading, spacing: 0) {
             if picker.branches.isEmpty {
-                Text("No local branches")
+                Text(UIWording.text(.noLocalBranches, languageCode: languageCode))
                     .font(DSFont.caption)
                     .foregroundStyle(DSColor.chatTextSecondary)
                     .padding(.horizontal, DSSpacing.s)

@@ -150,6 +150,9 @@ struct TurnCostCell: View {
     let timestamp: Date
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     var body: some View {
         let _ = themeID
@@ -159,7 +162,7 @@ struct TurnCostCell: View {
             Text(Self.format(costUSD))
                 .font(ChatScaledFont.monoCaption(scale: scale))
                 .foregroundStyle(DSColor.chatTextSecondary.opacity(0.7))
-                .accessibilityLabel("Turn cost \(Self.format(costUSD))")
+                .accessibilityLabel(UIWording.turnCostAccessibility(amountText: Self.format(costUSD), languageCode: languageCode))
         }
         .frame(maxWidth: 720, alignment: .trailing)
         .accessibilityIdentifier("ChatMessage.turnCost")
@@ -205,13 +208,15 @@ struct ErrorMessageCell: View {
     let timestamp: Date
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        let presentation = TranscriptItemPresentation.error(message: message)
         VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
-            Label(presentation.heading ?? "", systemImage: "exclamationmark.triangle")
+            Label(UIWording.text(.errorHeading, languageCode: languageCode), systemImage: "exclamationmark.triangle")
                 .font(ChatScaledFont.captionStrong(scale: scale))
                 .foregroundStyle(DSColor.statusError)
             Text(message)

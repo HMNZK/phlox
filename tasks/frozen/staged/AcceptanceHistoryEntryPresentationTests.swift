@@ -5,7 +5,7 @@
 
 import Foundation
 import Testing
-@testable import SessionFeature
+import SessionFeature
 
 private enum FrozenTitle {
     static let none = "作業名なし"
@@ -132,6 +132,16 @@ struct AcceptanceHistoryEntryPresentationTests {
         #expect(presentation.fullTitle == FrozenTitle.historyFix)
     }
 
+    @Test("適格なユーザー材料が複数なら最初の導出成功を採る")
+    func firstEligibleUserMaterialWins() {
+        let presentation = present(
+            makeEntry(titleUserMessages: [FrozenTitle.login, FrozenTitle.settings])
+        )
+        #expect(presentation.title == FrozenTitle.login)
+        #expect(presentation.fullTitle == FrozenTitle.login)
+        #expect(presentation.title != FrozenTitle.settings)
+    }
+
     @Test("適格なユーザー材料は異なる補助材料より優先")
     func eligibleUserBeatsDifferentSummary() {
         let presentation = present(
@@ -169,6 +179,21 @@ struct AcceptanceHistoryEntryPresentationTests {
         #expect(presentation.fullTitle == FrozenTitle.none)
     }
 
+    @Test("空配列でも適格な補助材料 履歴表示を修正 を採る")
+    func emptyUserMessagesStillUseEligibleSummary() {
+        let presentation = present(
+            makeEntry(
+                preview: FrozenTitle.oldPreview,
+                titleUserMessages: [],
+                titleSummary: FrozenTitle.historyFix
+            )
+        )
+        #expect(presentation.title == FrozenTitle.historyFix)
+        #expect(presentation.fullTitle == FrozenTitle.historyFix)
+        #expect(presentation.title != FrozenTitle.oldPreview)
+        #expect(presentation.title != FrozenTitle.none)
+    }
+
     @Test("空配列は preview へ戻らず 作業名なし")
     func emptyUserMessagesDoNotFallBackToPreview() {
         let presentation = present(
@@ -198,6 +223,55 @@ struct AcceptanceHistoryEntryPresentationTests {
         #expect(entry.titleSummary == nil)
         #expect(presentation.title == FrozenTitle.historyFix)
         #expect(presentation.fullTitle == FrozenTitle.historyFix)
+    }
+
+    @Test("nil の不適格 preview のあと適格な補助材料 履歴表示を修正")
+    func nilIneligiblePreviewFallsBackToSummary() {
+        let presentation = present(
+            makeEntry(
+                preview: "/review",
+                titleUserMessages: nil,
+                titleSummary: FrozenTitle.historyFix
+            )
+        )
+        #expect(presentation.title == FrozenTitle.historyFix)
+        #expect(presentation.fullTitle == FrozenTitle.historyFix)
+        #expect(presentation.title != "/review")
+    }
+
+    @Test("補助材料のコマンド・改行は導出器に渡し依頼行を採る")
+    func summaryCommandAndNewlineGoThroughDeriver() {
+        let presentation = present(
+            makeEntry(
+                titleUserMessages: [],
+                titleSummary: "/review\n履歴表示を修正"
+            )
+        )
+        #expect(presentation.title == FrozenTitle.historyFix)
+        #expect(presentation.fullTitle == FrozenTitle.historyFix)
+    }
+
+    @Test("補助材料の 33 Character は title 省略・fullTitle は入力33文字")
+    func summaryLongTextGoesThroughDeriver() {
+        #expect(FrozenTitle.chars33.count == 33)
+        let presentation = present(
+            makeEntry(
+                titleUserMessages: [],
+                titleSummary: FrozenTitle.chars33
+            )
+        )
+        #expect(presentation.title == FrozenTitle.chars33Title)
+        #expect(presentation.fullTitle == FrozenTitle.chars33)
+    }
+
+    @Test("本文先頭の4空白・タブは導出器へ渡し説明行を採用しない")
+    func leadingIndentIsPreservedForDeriver() {
+        for material in ["    説明\n履歴表示を修正", "\t説明\n履歴表示を修正"] {
+            let presentation = present(makeEntry(titleUserMessages: [material]))
+            #expect(presentation.title == FrozenTitle.historyFix)
+            #expect(presentation.fullTitle == FrozenTitle.historyFix)
+            #expect(presentation.title != "説明")
+        }
     }
 
     @Test("32 Character は title／fullTitle とも入力そのもの")
@@ -326,6 +400,26 @@ struct AcceptanceHistoryEntryPresentationTests {
         #expect(first.lastUsedAt == frozenLastModified)
     }
 
+    @Test("公開 API は非 Optional の String と Sendable")
+    func publicAPIIsNonOptionalStringAndSendable() {
+        let presentation = present(
+            makeEntry(titleUserMessages: [FrozenTitle.login]),
+            workingDirectory: nil
+        )
+        let title: String = presentation.title
+        let fullTitle: String = presentation.fullTitle
+        let projectName: String = presentation.projectName
+        let projectPath: String? = presentation.projectPath
+        let lastUsedAt: Date? = presentation.lastUsedAt
+        let sendable: any Sendable = presentation
+        #expect(title == FrozenTitle.login)
+        #expect(fullTitle == FrozenTitle.login)
+        #expect(projectName == FrozenTitle.unknownProject)
+        #expect(projectPath == nil)
+        #expect(lastUsedAt == frozenLastModified)
+        #expect(sendable is HistoryEntryPresentation)
+    }
+
     @Test("モデル生成前後で entry の既存・新規フィールドが変化しない")
     func presentationDoesNotMutateEntry() {
         let entry = makeEntry(
@@ -341,6 +435,7 @@ struct AcceptanceHistoryEntryPresentationTests {
         let fileURL = entry.fileURL
         let titleUserMessages = entry.titleUserMessages
         let titleSummary = entry.titleSummary
+        // 契約指定の値不変確認。entry は let の値型なので、副作用保護の証拠には数えない。
         _ = present(entry, workingDirectory: "/tmp/project-a/")
         #expect(entry.sessionID == sessionID)
         #expect(entry.preview == preview)

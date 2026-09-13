@@ -188,13 +188,21 @@ def code_only_indexed(src)
   out
 end
 
-def extract_struct_body(src, name)
+def extract_type_body(src, name)
   indexed = code_only_indexed(src.to_s)
-  m = indexed.match(/(?:private\s+|public\s+|fileprivate\s+|internal\s+)?struct\s+#{Regexp.escape(name)}\b/)
+  m = indexed.match(/(?:(?:private|public|fileprivate|internal|open|final)\s+)*(?:struct|class)\s+#{Regexp.escape(name)}\b/)
   return nil unless m
   brace = indexed.index("{", m.begin(0))
   return nil unless brace
   extract_balanced(src, brace, "{", "}")
+end
+
+def extract_struct_body(src, name)
+  extract_type_body(src, name)
+end
+
+def type_declared?(src, name)
+  code_only_indexed(src.to_s).match?(/\b(?:struct|class)\s+#{Regexp.escape(name)}\b/)
 end
 
 def extract_enum_body(src, name)
@@ -435,9 +443,8 @@ end
 
 def struct_reachable(src, name)
   return :missing if src.nil?
-  body = extract_struct_body(src, name)
-  indexed = code_only_indexed(src.to_s)
-  if indexed.match?(/\bstruct\s+#{Regexp.escape(name)}\b/) && body.nil?
+  body = extract_type_body(src, name)
+  if type_declared?(src, name) && body.nil?
     return :unparseable
   end
   return :missing if body.nil?
@@ -458,8 +465,116 @@ def expr_is_string_literal?(expr)
 end
 
 def derived_title_returned?(live)
-  live.match?(/\.fullTitle(?:[^A-Za-z0-9_]|$)/) &&
-    live.match?(/\.title(?:[^A-Za-z0-9_]|$)/)
+  live.match?(/title=[A-Za-z_][A-Za-z0-9_]*[?!]*\.title/) &&
+    live.match?(/fullTitle=[A-Za-z_][A-Za-z0-9_]*[?!]*\.fullTitle/)
+end
+
+def has_public_let_nonoptional_string?(compacted, name)
+  needle = "publiclet#{name}:String"
+  start = 0
+  while (idx = compacted.index(needle, start))
+    after_idx = idx + needle.length
+    after = after_idx < compacted.length ? compacted[after_idx] : nil
+    return true if after != "?" && after != "!"
+    start = idx + 1
+  end
+  false
+end
+
+def presentation_public_api_errors(src)
+  masked = mask_strings_and_comments(src.to_s)
+  header = masked[/(?:public\s+)?struct\s+HistoryEntryPresentation\s*:[^{]*\{/]
+  return [] if header.nil? && !masked.match?(/\bstruct\s+HistoryEntryPresentation\b/)
+  ng = []
+  if header.nil? || header !~ /\bpublic\s+struct\s+HistoryEntryPresentation\b/
+    ng << "HistoryEntryPresentation が public ではない"
+    return ng
+  end
+  ng << "HistoryEntryPresentation が Sendable ではない" unless header =~ /\bSendable\b/
+  body = extract_type_body(src, "HistoryEntryPresentation")
+  return ng + ["HistoryEntryPresentation を解析できない"] if body.nil?
+  c = compact(mask_strings_and_comments(body))
+  %w[title fullTitle projectName].each do |field|
+    unless has_public_let_nonoptional_string?(c, field)
+      ng << "public let #{field}: String が無い"
+    end
+  end
+  ng
+end
+
+def text_string_literals(src)
+  all_call_args(src, "Text").map do |args|
+    next unless expr_is_string_literal?(args.to_s.strip)
+    raw = args.to_s.strip
+    if raw.start_with?('"""') && raw.end_with?('"""') && raw.length >= 6
+      raw[3...-3]
+    elsif raw.start_with?('"') && raw.end_with?('"') && raw.length >= 2
+      raw[1...-1]
+    end
+  end.compact
+end
+
+def live_help_args(src)
+  modifier_args(src, "help").reject { |a| expr_is_string_literal?(a) }.map { |a| compact(a) }
+end
+
+def live_ax_label_args(src)
+  modifier_args(src, "accessibilityLabel").reject { |a| expr_is_string_literal?(a) }.map { |a| compact(a) }
+end
+
+def foreach_entries_ident(src)
+  m = code_only_indexed(src.to_s).match(/ForEach\s*\(\s*entries\s*\)\s*\{\s*([A-Za-z_][A-Za-z0-9_]*)\s+in\b/)
+  m && m[1]
+end
+
+def row_for_call_arg(src)
+  all_call_args(src, "row").map { |a| labeled_arg(a, "for") }.compact.first
+end
+
+def row_func_param(src)
+  indexed = code_only_indexed(src.to_s)
+  m = indexed.match(/func\s+row\s*\(\s*for\s+([A-Za-z_][A-Za-z0-9_]*)\s*:/)
+  m && m[1]
+end
+
+def on_appear_bodies(src)
+  indexed = code_only_indexed(src.to_s)
+  bodies = []
+  pos = 0
+  re = /\.onAppear\s*\{/
+  while (m = indexed.match(re, pos))
+    brace = m.end(0) - 1
+    body = extract_balanced(src, brace, "{", "}")
+    bodies << body if body
+    pos = m.end(0)
+  end
+  bodies
+end
+
+def button_action_bodies(src)
+  indexed = code_only_indexed(src.to_s)
+  bodies = []
+  pos = 0
+  re = /\bButton\s*\{/
+  while (m = indexed.match(re, pos))
+    brace = m.end(0) - 1
+    body = extract_balanced(src, brace, "{", "}")
+    bodies << body if body
+    pos = m.end(0)
+  end
+  pos = 0
+  re = /\bButton\s*\(\s*action\s*:\s*\{/
+  while (m = indexed.match(re, pos))
+    brace = m.end(0) - 1
+    body = extract_balanced(src, brace, "{", "}")
+    bodies << body if body
+    pos = m.end(0)
+  end
+  bodies
+end
+
+def mask_allowed_session_view_changes(src)
+  src.to_s.gsub(/,?\s*workingDirectory\s*:[^,)\n]+/, "")
 end
 
 def has_ponytail_comment?(src)
@@ -490,8 +605,9 @@ def forbidden_presentation_deps?(src)
   code = mask_strings_and_comments(src)
   return true if code.match?(/\bimport\s+SwiftUI\b/) || code.match?(/\bimport\s+AppKit\b/)
   live = live_code(src)
-  %w[FileManager Process URLSession NSWorkspace].any? { |n| live.include?(n) } ||
-    live.include?("Date()")
+  %w[FileManager Process URLSession NSWorkspace UserDefaults].any? { |n| live.include?(n) } ||
+    live.include?("Date()") ||
+    live.include?("Date.now")
 end
 
 def entry_has_title_materials?(src)
@@ -527,6 +643,9 @@ ALLOWED_PRODUCT_PATHS = [
   HISTORY_VIEW_PATH,
   SESSION_VIEW_PATH,
 ].freeze
+ALLOWED_SCOPE_PATHS = (
+  ALLOWED_PRODUCT_PATHS + ["docs/agent-output/task-49.md"]
+).freeze
 TASK51_PATHS = [ENTRY_PATH, CLAUDE_PATH, CODEX_PATH].freeze
 
 CONTRACT_BASELINE_PLACEHOLDER_RE = /PM|凍結|設定|TBD|TODO|FIXME|placeholder|未設定/i
@@ -732,6 +851,7 @@ def check_presentation(src)
   end
   ng << "ponytail: コメントが無い" unless has_ponytail_comment?(src)
   ng << "表示モデルが View または I/O に依存している" if forbidden_presentation_deps?(src)
+  ng.concat(presentation_public_api_errors(src))
   ng
 end
 
@@ -745,14 +865,15 @@ def check_history_view(src)
   return ["ChatHistoryStartView が存在しない"] if reach == :missing
   return ["ChatHistoryStartView を解析できない"] if reach == :unparseable
   live = live_code(reach)
-  lits = string_literals(reach)
+  code = compact(mask_strings_and_comments(reach))
+  text_lits = text_string_literals(reach)
   ng = []
   unless live.include?("HistoryEntryPresentation")
     ng << "行から表示モデルが未接続"
   end
   if preview_as_primary?(reach)
     ng << "主表示が entry.preview になっている"
-  elsif !compact(mask_strings_and_comments(reach)).include?("Text(presentation.title)")
+  elsif !code.include?("Text(presentation.title)")
     ng << "主表示が HistoryEntryPresentation.title ではない"
   end
   args = extract_call_args(reach, "HistoryEntryPresentation")
@@ -762,30 +883,60 @@ def check_history_view(src)
   elsif live.include?("HistoryEntryPresentation") && (wd.nil? || !compact(wd).include?("workingDirectory"))
     ng << "作業ディレクトリを固定値にしている"
   end
-  helps = modifier_args(reach, "help").map { |a| compact(a) }.join
-  ax = modifier_args(reach, "accessibilityLabel").map { |a| compact(a) }.join
+  helps = live_help_args(reach).join
+  ax = live_ax_label_args(reach).join
   ng << "fullTitle の help が無い" unless helps.include?("presentation.fullTitle")
   ng << "projectPath の help が無い" unless helps.include?("presentation.projectPath")
   ng << "sessionID の help が無い" unless helps.include?("sessionID")
   ng << "fullTitle のアクセシビリティラベルが無い" unless ax.include?("presentation.fullTitle")
   ng << "sessionID のアクセシビリティラベルが無い" unless ax.include?("sessionID")
   ng << "最終利用に firstUserAt を使っている" if live.include?("firstUserAt")
-  ng << "最終利用日時不明 の案内が無い" unless lits.include?("最終利用日時不明")
-  ng << "続きから再開 の案内が無い" unless lits.include?("続きから再開")
-  ng << "新規作成 の案内が無い" unless lits.include?("新規作成")
-  ng << "下の入力欄から新しい依頼を始めます の案内が無い" unless lits.include?("下の入力欄から新しい依頼を始めます")
+  unless code.include?("Text(presentation.projectName)")
+    ng << "projectName が描画されていない"
+  end
+  unless live.include?("presentation.lastUsedAt")
+    ng << "lastUsedAt が補助表示へ渡っていない"
+  end
+  ng << "最終利用 の案内が無い" unless text_lits.include?("最終利用")
+  ng << "最終利用日時不明 の案内が無い" unless text_lits.include?("最終利用日時不明") || string_literals(reach).include?("最終利用日時不明")
+  ng << "続きから再開 の案内が無い" unless text_lits.include?("続きから再開")
+  ng << "新規作成 の案内が無い" unless text_lits.include?("新規作成")
+  ng << "下の入力欄から新しい依頼を始めます の案内が無い" unless text_lits.include?("下の入力欄から新しい依頼を始めます")
+  loop_ident = foreach_entries_ident(reach)
+  row_arg = row_for_call_arg(reach)
+  row_param = row_func_param(src)
+  model_entry = labeled_arg(args, "entry")
+  if loop_ident.nil? || row_arg.nil? || compact(row_arg) != loop_ident
+    ng << "ForEach の要素が行へ渡っていない"
+  end
+  if row_param && model_entry && compact(model_entry) != row_param
+    ng << "モデルの entry が行の対象と異なる"
+  end
   select_args = all_call_args(reach, "onSelect")
-  unless select_args.any? { |a| compact(a) == "entry" }
+  unless row_param && select_args.any? { |a| compact(a) == row_param }
     ng << "onSelect が元 entry を渡していない"
   end
   if live.include?("ClaudeSessionHistoryEntry(") || select_args.any? { |a| compact(a).include?("title") }
     ng << "タイトルから再開先を引き直している"
   end
-  ng << "ChatHistoryStartView の AX identifier が無い" unless lits.include?("ChatHistoryStartView")
-  ng << "ChatHistoryStartView.row の AX identifier が無い" unless lits.include?("ChatHistoryStartView.row")
+  appear = on_appear_bodies(reach)
+  if appear.any? { |body| compact(body).include?("onSelect") }
+    ng << "表示時に再開している"
+  end
+  if select_args.length > 1
+    ng << "onSelect が重複呼び出しされている"
+  end
+  button_actions = button_action_bodies(reach)
+  unless button_actions.any? { |body| compact(body).include?("onSelect") }
+    ng << "Button が無い"
+  end
+  ax_ids = modifier_args(reach, "accessibilityIdentifier").map { |a| compact(a) }.join
+  ng << "ChatHistoryStartView の AX identifier が無い" unless ax_ids.include?("ChatHistoryStartView")
+  ng << "ChatHistoryStartView.row の AX identifier が無い" unless ax_ids.include?("ChatHistoryStartView.row")
   ng << "ForEach(entries) が無い" unless live.include?("ForEach(entries)")
   ng << "ScrollView が無い" unless live.include?("ScrollView")
   ng << "lineLimit(1) が無い" unless live.include?("lineLimit(1)")
+  ng << "maxCardHeight の frame 配線が無い" unless code.include?("frame(maxHeight:maxCardHeight)")
   ng << "ブランチ表示が無い" unless live.include?("gitBranch")
   ng.uniq
 end
@@ -829,11 +980,36 @@ def check_session_view(src)
   unless live.include?("shouldOfferHistoryStart")
     ng << "履歴表示条件 shouldOfferHistoryStart が描画経路に無い"
   end
+  if live.include?("shouldOfferHistoryStart||") || live.include?("||shouldOfferHistoryStart")
+    ng << "描画側の履歴表示条件を弱めている"
+  end
+  unless live.include?("cardMaxHeight=ChatHistoryStartLayout.maxCardHeight")
+    ng << "maxCardHeight が実測値に接続されていない"
+  end
+  mh_args = extract_call_args(reach, "ChatHistoryStartLayout.maxCardHeight")
+  avail = labeled_arg(mh_args, "availableHeight")
+  composer_h = labeled_arg(mh_args, "composerHeight")
+  unless avail && compact(avail).include?("overlayGeometry.size.height")
+    ng << "maxCardHeight の availableHeight が実測値ではない"
+  end
+  unless composer_h && compact(composer_h).include?("composerHeight")
+    ng << "maxCardHeight の composerHeight が実測値ではない"
+  end
+  hv_mh = labeled_arg(args, "maxCardHeight")
+  unless hv_mh && compact(hv_mh).include?("cardMaxHeight")
+    ng << "maxCardHeight 引数が実測値ではない"
+  end
+  unless modifier_args(reach, "padding").any? { |a| compact(a).include?(".bottom") && compact(a).include?("bottomInset") }
+    ng << "bottomInset の余白が無い"
+  end
   unless live.include?("ChatHistoryStartLayout")
     ng << "ChatHistoryStartLayout が描画経路に無い"
   end
   unless live.include?("ChatComposer")
     ng << "composer の操作領域が描画経路に無い"
+  end
+  unless compact(mask_strings_and_comments(reach)).include?("overlay(alignment:.bottom)")
+    ng << "composer の overlay 配線が無い"
   end
   ng.uniq
 end
@@ -847,9 +1023,9 @@ def check_product(files)
 end
 
 def protected_member_errors(current, previous, struct_name, member, kind)
-  return [] if current.nil? || previous.nil?
-  cur_struct = extract_struct_body(current, struct_name)
-  prev_struct = extract_struct_body(previous, struct_name)
+  return ["#{struct_name}.#{member} を解析できない"] if current.nil? || previous.nil?
+  cur_struct = extract_type_body(current, struct_name)
+  prev_struct = extract_type_body(previous, struct_name)
   return ["#{struct_name}.#{member} を解析できない"] if cur_struct.nil? || prev_struct.nil?
   cur = kind == :var ? extract_var_body(cur_struct, member) : extract_func_body(cur_struct, member)
   prev = kind == :var ? extract_var_body(prev_struct, member) : extract_func_body(prev_struct, member)
@@ -864,12 +1040,32 @@ def blob_identity_errors(label, current, previous)
 end
 
 def layout_errors(current, previous)
-  return [] if previous.nil?
-  return ["ChatHistoryStartLayout.swift が存在しない"] if current.nil?
+  return ["ChatHistoryStartLayout の比較元・比較先が欠落している"] if previous.nil? || current.nil?
   cur = extract_enum_body(current, "ChatHistoryStartLayout") || current
   prev = extract_enum_body(previous, "ChatHistoryStartLayout") || previous
   return [] if normalize_code(cur) == normalize_code(prev)
   ["ChatHistoryStartLayout が基準 blob と同一ではない"]
+end
+
+def session_view_freeze_errors(current, previous)
+  return ["ChatSessionView の比較元・比較先が欠落している"] if current.nil? || previous.nil?
+  cur = extract_type_body(current, "ChatSessionView")
+  prev = extract_type_body(previous, "ChatSessionView")
+  return ["ChatSessionView を解析できない"] if cur.nil? || prev.nil?
+  return [] if normalize_code(mask_allowed_session_view_changes(cur)) == normalize_code(mask_allowed_session_view_changes(prev))
+  ["ChatSessionView が基準 blob と同一ではない"]
+end
+
+def history_view_freeze_errors(current, previous)
+  return ["ChatHistoryStartView の比較元・比較先が欠落している"] if current.nil? || previous.nil?
+  cur = extract_type_body(current, "ChatHistoryStartView")
+  prev = extract_type_body(previous, "ChatHistoryStartView")
+  return ["ChatHistoryStartView を解析できない"] if cur.nil? || prev.nil?
+  cur_code = compact(mask_strings_and_comments(cur))
+  prev_code = compact(mask_strings_and_comments(prev))
+  return [] if cur_code.include?("frame(maxHeight:maxCardHeight)") && prev_code.include?("frame(maxHeight:maxCardHeight)") &&
+    cur_code.include?("maxCardHeight") && prev_code.include?("maxCardHeight")
+  ["ChatHistoryStartView の高さ配線が基準 blob と同一ではない"]
 end
 
 def invariant_errors(current_files, baseline_files)
@@ -878,6 +1074,8 @@ def invariant_errors(current_files, baseline_files)
   ng.concat(protected_member_errors(current_files[:vm], baseline_files[:vm], "ChatSessionViewModel", "shouldOfferHistoryStart", :var))
   ng.concat(protected_member_errors(current_files[:vm], baseline_files[:vm], "ChatSessionViewModel", "scheduleHistoryCacheLoadIfNeeded", :func))
   ng.concat(protected_member_errors(current_files[:vm], baseline_files[:vm], "ChatSessionViewModel", "startFromHistory", :func))
+  ng.concat(session_view_freeze_errors(current_files[:session], baseline_files[:session]))
+  ng.concat(history_view_freeze_errors(current_files[:history], baseline_files[:history]))
   ng.concat(layout_errors(current_files[:layout], baseline_files[:layout]))
   ng.concat(blob_identity_errors("task-51 の ClaudeSessionHistoryEntry.swift", current_files[:entry], baseline_files[:entry]))
   ng.concat(blob_identity_errors("task-51 の ClaudeSessionHistory.swift", current_files[:claude], baseline_files[:claude]))
@@ -886,10 +1084,10 @@ def invariant_errors(current_files, baseline_files)
 end
 
 def extra_changed_product_paths(rev)
-  tracked = IO.popen(["git", "diff", "--name-only", rev, "--", SESSION_FEATURE_SRC, "macos/Packages/DashboardFeature/Sources/DashboardFeature/Spawn"], err: [:child, :out], &:read)
-  untracked = IO.popen(["git", "ls-files", "--others", "--exclude-standard", "--", SESSION_FEATURE_SRC, "macos/Packages/DashboardFeature/Sources/DashboardFeature/Spawn"], err: [:child, :out], &:read)
+  tracked = IO.popen(["git", "diff", "--name-only", rev], err: [:child, :out], &:read)
+  untracked = IO.popen(["git", "ls-files", "--others", "--exclude-standard"], err: [:child, :out], &:read)
   names = (tracked.to_s + untracked.to_s).split("\n").reject(&:empty?).uniq
-  names - ALLOWED_PRODUCT_PATHS
+  names - ALLOWED_SCOPE_PATHS
 end
 
 def scope_errors(current_files, _baseline_files)
@@ -1012,6 +1210,7 @@ def good_history
               .help(presentation.fullTitle)
             Text(presentation.projectName)
               .help(presentation.projectPath ?? "")
+            Text("最終利用")
             Text(formattedLastUsed(presentation.lastUsedAt))
             if let branch = entry.gitBranch, !branch.isEmpty {
               Text(branch)
@@ -1078,7 +1277,9 @@ end
 
 def good_vm
   <<~SWIFT
-    struct ChatSessionViewModel {
+    @MainActor
+    @Observable
+    public final class ChatSessionViewModel: Identifiable {
       public var shouldOfferHistoryStart: Bool {
         guard agentRef == .builtin(.claudeCode) || agentRef == .builtin(.codex) else { return false }
         guard historyProvider != nil else { return false }
@@ -1270,7 +1471,10 @@ def run_selftest
   first_user = with_file(good, :history) { |src|
     src.sub("formattedLastUsed(presentation.lastUsedAt)", "formattedLastUsed(entry.firstUserAt)")
   }
-  selftest_errors_eq check_history_view(first_user[:history]), ["最終利用に firstUserAt を使っている"], "負例: 最終利用に firstUserAt を使う"
+  selftest_errors_eq check_history_view(first_user[:history]), [
+    "最終利用に firstUserAt を使っている",
+    "lastUsedAt が補助表示へ渡っていない",
+  ], "負例: 最終利用に firstUserAt を使う"
 
   model_first_user = with_file(good, :presentation) { |src|
     src.sub(
@@ -1437,6 +1641,124 @@ def run_selftest
   selftest_errors_eq evaluate_checks(out_of_scope, good, scope: unset_pred), [], "正例: 未設定の本番分岐"
   selftest_errors_eq evaluate_checks(out_of_scope, good, scope: zero_pred), [], "正例: SCOPE_CHECK=0 の本番分岐"
   selftest_errors_eq evaluate_checks(out_of_scope, good, scope: one_pred), ["許可パス外の製品変更: #{VM_PATH}"], "正例: SCOPE_CHECK=1 の本番分岐"
+
+  selftest_errors_eq protected_member_errors(nil, good[:vm], "ChatSessionViewModel", "shouldOfferHistoryStart", :var), ["ChatSessionViewModel.shouldOfferHistoryStart を解析できない"], "負例: VM 比較元欠落は非ゼロ"
+  selftest_errors_eq protected_member_errors(good[:vm], nil, "ChatSessionViewModel", "shouldOfferHistoryStart", :var), ["ChatSessionViewModel.shouldOfferHistoryStart を解析できない"], "負例: VM 比較先欠落は非ゼロ"
+  selftest_assert extract_type_body(good[:vm], "ChatSessionViewModel"), "正例: class ChatSessionViewModel を解析する"
+
+  weaken_view = with_file(good, :session) { |src|
+    src.sub("if viewModel.shouldOfferHistoryStart", "if viewModel.shouldOfferHistoryStart || true")
+  }
+  selftest_errors_eq check_session_view(weaken_view[:session]), ["描画側の履歴表示条件を弱めている"], "負例: 描画条件を || true にする"
+  selftest_errors_eq session_view_freeze_errors(weaken_view[:session], good[:session]), ["ChatSessionView が基準 blob と同一ではない"], "負例: 描画条件変更は View 凍結比較で検出"
+
+  measured = with_file(good, :session) { |src|
+    src.sub("ChatHistoryStartLayout.maxCardHeight", "FixedHeight.value")
+  }
+  selftest_errors_eq check_session_view(measured[:session]), [
+    "maxCardHeight が実測値に接続されていない",
+    "maxCardHeight の availableHeight が実測値ではない",
+    "maxCardHeight の composerHeight が実測値ではない",
+  ], "負例: maxCardHeight を固定値にする"
+
+  height_arg = with_file(good, :session) { |src|
+    src.sub("availableHeight: overlayGeometry.size.height", "availableHeight: 800")
+  }
+  selftest_errors_eq check_session_view(height_arg[:session]), ["maxCardHeight の availableHeight が実測値ではない"], "負例: maxCardHeight 引数を固定値にする"
+
+  view_mh = with_file(good, :session) { |src|
+    src.sub("maxCardHeight: cardMaxHeight", "maxCardHeight: 360")
+  }
+  selftest_errors_eq check_session_view(view_mh[:session]), ["maxCardHeight 引数が実測値ではない"], "負例: ChatHistoryStartView の maxCardHeight を固定値にする"
+
+  no_pad = with_file(good, :session) { |src|
+    src.sub(".padding(.bottom, bottomInset)", "")
+  }
+  selftest_errors_eq check_session_view(no_pad[:session]), ["bottomInset の余白が無い"], "負例: bottomInset 余白を削除する"
+  selftest_errors_eq session_view_freeze_errors(no_pad[:session], good[:session]), ["ChatSessionView が基準 blob と同一ではない"], "負例: 余白削除は View 凍結比較で検出"
+
+  composer_overlay = with_file(good, :session) { |src|
+    src.sub(".overlay(alignment: .bottom)", ".overlay(alignment: .top)")
+  }
+  selftest_errors_eq check_session_view(composer_overlay[:session]), ["composer の overlay 配線が無い"], "負例: composer overlay 配線を外す"
+
+  foreach_first = with_file(good, :history) { |src|
+    src.sub("row(for: entry)", "row(for: entries[0])")
+  }
+  selftest_errors_eq check_history_view(foreach_first[:history]), ["ForEach の要素が行へ渡っていない"], "負例: 全行が先頭履歴を選ぶ"
+
+  model_other = with_file(good, :history) { |src|
+    src.sub("HistoryEntryPresentation(entry: entry, workingDirectory: workingDirectory)", "HistoryEntryPresentation(entry: entries[0], workingDirectory: workingDirectory)")
+  }
+  selftest_errors_eq check_history_view(model_other[:history]), ["モデルの entry が行の対象と異なる"], "負例: モデルへ別 entry を渡す"
+
+  dup_select = with_file(good, :history) { |src|
+    src.sub("onSelect(entry)", "onSelect(entry); onSelect(entry)")
+  }
+  selftest_errors_eq check_history_view(dup_select[:history]), ["onSelect が重複呼び出しされている"], "負例: onSelect の重複呼び出し"
+
+  appear_select = with_file(good, :history) { |src|
+    src.sub(".help(entry.sessionID)", ".onAppear { onSelect(entry) }.help(entry.sessionID)")
+  }
+  selftest_errors_eq check_history_view(appear_select[:history]), [
+    "表示時に再開している",
+    "onSelect が重複呼び出しされている",
+  ], "負例: 表示時再開"
+
+  no_button = with_file(good, :history) { |src|
+    src.sub("Button {", "Group {")
+  }
+  selftest_errors_eq check_history_view(no_button[:history]), ["Button が無い"], "負例: Button 撤去"
+
+  fixed_project = with_file(good, :history) { |src|
+    src.sub("Text(presentation.projectName)", "Text(\"固定名\")")
+  }
+  selftest_errors_eq check_history_view(fixed_project[:history]), ["projectName が描画されていない"], "負例: 補助表示の固定化"
+
+  nil_last = with_file(good, :history) { |src|
+    src.sub("formattedLastUsed(presentation.lastUsedAt)", "formattedLastUsed(nil)")
+  }
+  selftest_errors_eq check_history_view(nil_last[:history]), ["lastUsedAt が補助表示へ渡っていない"], "負例: lastUsedAt を nil 固定"
+
+  fake_help = with_file(good, :history) { |src|
+    src.sub(".help(presentation.fullTitle)", ".help(\"presentation.fullTitle\")")
+  }
+  selftest_errors_eq check_history_view(fake_help[:history]), ["fullTitle の help が無い"], "負例: help の文字列偽装"
+
+  hidden_new = with_file(good, :history) { |src|
+    src.sub("Text(\"新規作成\")", ".accessibilityIdentifier(\"新規作成\")")
+  }
+  selftest_errors_eq check_history_view(hidden_new[:history]), ["新規作成 の案内が無い"], "負例: 案内を非表示用途へ移動"
+
+  discard_derived = with_file(good, :presentation) { |src|
+    src.sub("title = derived?.title ?? \"作業名なし\"", "title = \"独自処理\"")
+  }
+  selftest_errors_eq check_presentation(discard_derived[:presentation]), ["導出結果の title／fullTitle が返されていない"], "負例: 導出結果を捨てて別値を代入"
+
+  defaults_write = with_file(good, :presentation) { |src|
+    src.sub("projectName = \"プロジェクト不明\"", "projectName = \"プロジェクト不明\"; _ = UserDefaults.standard")
+  }
+  selftest_errors_eq check_presentation(defaults_write[:presentation]), ["表示モデルが View または I/O に依存している"], "負例: UserDefaults.standard 依存"
+
+  date_now = with_file(good, :presentation) { |src|
+    src.sub("projectPath = workingDirectory", "projectPath = workingDirectory; _ = Date.now")
+  }
+  selftest_errors_eq check_presentation(date_now[:presentation]), ["表示モデルが View または I/O に依存している"], "負例: Date.now 依存"
+
+  no_sendable = with_file(good, :presentation) { |src|
+    src.sub(": Equatable, Sendable", ": Equatable")
+  }
+  selftest_errors_eq check_presentation(no_sendable[:presentation]), ["HistoryEntryPresentation が Sendable ではない"], "負例: Sendable 欠落"
+
+  optional_title = with_file(good, :presentation) { |src|
+    src.sub("public let title: String", "public let title: String?")
+  }
+  selftest_errors_eq check_presentation(optional_title[:presentation]), ["public let title: String が無い"], "負例: title の Optional 変異"
+
+  hist_frame = with_file(good, :history) { |src|
+    src.sub(".frame(maxHeight: maxCardHeight)", ".frame(maxHeight: 360)")
+  }
+  selftest_errors_eq check_history_view(hist_frame[:history]), ["maxCardHeight の frame 配線が無い"], "負例: 履歴 View の高さを固定値にする"
 
   prod = production_checks_source
   selftest_assert !prod.empty?, "正例: 本番検査セクションが存在する"

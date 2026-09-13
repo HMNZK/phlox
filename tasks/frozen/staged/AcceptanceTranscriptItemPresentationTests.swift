@@ -19,6 +19,7 @@
 //   static func retainedUserOverride(previous:remainedMounted:)
 // コマンド単体／グループは path で区別する。件数 1 だけから経路を推測しない。
 
+import AgentDomain
 import Foundation
 import StructuredChatKit
 import Testing
@@ -71,6 +72,12 @@ struct AcceptanceTranscriptItemPresentationTests {
         #expect(presentation.expandedBody == text)
         #expect(
             TranscriptItemPresentation.isExpanded(
+                userOverride: nil,
+                defaultExpanded: presentation.defaultExpanded
+            )
+        )
+        #expect(
+            !TranscriptItemPresentation.isExpanded(
                 userOverride: false,
                 defaultExpanded: presentation.defaultExpanded
             )
@@ -234,15 +241,28 @@ struct AcceptanceTranscriptItemPresentationTests {
     }
 
     @Test("差分0・1・500・501行は未操作時に閉。501行は初期500・残り1")
+    @MainActor
     func fileChangeStaysCollapsedAndCapsAt500() {
         #expect(FileChangeDisplayPolicy.visibleLineLimit == 500)
         for lineCount in [0, 1, 500, 501] {
             #expect(!FileChangeDisplayPolicy.isExpanded(userOverride: nil, lineCount: lineCount))
             #expect(!TranscriptItemPresentation.fileChange(title: "編集済み A.swift").defaultExpanded)
         }
-        let total = 501
-        #expect(min(total, FileChangeDisplayPolicy.visibleLineLimit) == 500)
+        let additions = (1...501).map { "+line\($0)" }.joined(separator: "\n")
+        let diff = "--- a/A.swift\n+++ b/A.swift\n@@ -1,501 +1,501 @@\n\(additions)"
+        let cell = FileChangeCell(
+            changes: [FilePatchChange(path: "A.swift", diff: diff, kind: "edit")],
+            timestamp: frozenTime
+        )
+        let sections = cell.visibleSections
+        let total = ChatMessageRenderCache.diffLines(diff).count
+        #expect(total == 501)
+        #expect(sections.count == 1)
+        #expect(sections[0].codeView.lines.count == 500)
         #expect(total - FileChangeDisplayPolicy.visibleLineLimit == 1)
+        let displayed = sections[0].codeView.lines.map(\.line.text)
+        #expect(!displayed.contains(where: { $0.contains("line501") }))
+        #expect(sections[0].copyText.contains("+line501"))
         let presentation = TranscriptItemPresentation.fileChange(title: "編集済み A.swift")
         #expect(presentation.isVisible)
         #expect(presentation.classification == .detail)
@@ -558,7 +578,13 @@ struct AcceptanceTranscriptItemPresentationCommandTableTests {
             case .single:
                 #expect(presentation.isVisible == state.expected.visible)
                 #expect(presentation.subtitle == state.expected.subtitle)
-                #expect(state.expected.rowIDs == (state.expected.visible ? ids : []))
+                let item = items[0]
+                let reachable = chatItemViewReachableCommandIDs(
+                    item: item,
+                    isRunningCommand: header.isRunning
+                )
+                #expect(reachable == state.expected.rowIDs)
+                #expect(state.expected.visible == !reachable.isEmpty)
             case .group:
                 #expect(header.shouldRender == state.expected.visible)
                 #expect(presentation.isVisible == state.expected.visible)
@@ -575,4 +601,20 @@ struct AcceptanceTranscriptItemPresentationCommandTableTests {
             #expect(presentation.semanticInk == .process)
         }
     }
+}
+
+/// ChatItemView.body の commandExecution 分岐と同じ到達条件。View が実際に保持する item / isRunningCommand を使う。
+private func chatItemViewReachableCommandIDs(item: ChatItem, isRunningCommand: Bool) -> [String] {
+    let view = ChatItemView(
+        item: item,
+        isRunningCommand: isRunningCommand,
+        agentDescriptor: AgentRegistry.descriptor(for: .claudeCode)
+    )
+    guard case .commandExecution(let id, _, let output, _) = view.item else {
+        return []
+    }
+    if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !view.isRunningCommand {
+        return []
+    }
+    return [id]
 }

@@ -178,65 +178,92 @@ def skip_ws(src, i)
   i
 end
 
+def code_only_indexed(src)
+  out = src.dup
+  each_lexeme(src) do |kind, a, b|
+    next if kind == :code
+    out[a...b] = " " * (b - a)
+  end
+  out
+end
+
 def extract_struct_body(src, name)
-  m = src.to_s.match(/(?:private\s+|public\s+|fileprivate\s+|internal\s+)?struct\s+#{Regexp.escape(name)}\b/)
+  indexed = code_only_indexed(src.to_s)
+  m = indexed.match(/(?:private\s+|public\s+|fileprivate\s+|internal\s+)?struct\s+#{Regexp.escape(name)}\b/)
   return nil unless m
-  brace = src.index("{", m.begin(0))
+  brace = indexed.index("{", m.begin(0))
   return nil unless brace
   extract_balanced(src, brace, "{", "}")
 end
 
 def extract_enum_body(src, name)
-  m = src.to_s.match(/(?:private\s+|public\s+|fileprivate\s+|internal\s+)?enum\s+#{Regexp.escape(name)}\b/)
+  indexed = code_only_indexed(src.to_s)
+  m = indexed.match(/(?:private\s+|public\s+|fileprivate\s+|internal\s+)?enum\s+#{Regexp.escape(name)}\b/)
   return nil unless m
-  brace = src.index("{", m.begin(0))
+  brace = indexed.index("{", m.begin(0))
   return nil unless brace
   extract_balanced(src, brace, "{", "}")
 end
 
 def extract_func_body(src, name)
-  m = src.to_s.match(/(?:^|\n)[ \t]*(?:@\w+(?:\([^)]*\))?[ \t]*)*(?:(?:private|public|fileprivate|internal|open|override|final|static|nonisolated)\s+)*func\s+#{Regexp.escape(name)}\s*\(/)
+  indexed = code_only_indexed(src.to_s)
+  m = indexed.match(/(?:^|\n)[ \t]*(?:@\w+(?:\([^)]*\))?[ \t]*)*(?:(?:private|public|fileprivate|internal|open|override|final|static|nonisolated)\s+)*func\s+#{Regexp.escape(name)}\s*\(/)
   return nil unless m
-  paren = src.index("(", m.begin(0))
+  paren = indexed.index("(", m.begin(0))
   return nil unless paren
   params = extract_balanced(src, paren, "(", ")")
   return nil if params.nil?
   after = paren + 1 + params.length + 1
-  brace = src.index("{", after)
+  brace = indexed.index("{", after)
   return nil unless brace
   extract_balanced(src, brace, "{", "}")
 end
 
 def extract_var_body(src, name)
-  m = src.to_s.match(/(?:^|\n)[ \t]*(?:@[A-Za-z_][\w.]*[ \t]*)*(?:private\s+|public\s+|fileprivate\s+|internal\s+)?(?:static\s+)?var\s+#{Regexp.escape(name)}\b/)
+  indexed = code_only_indexed(src.to_s)
+  m = indexed.match(/(?:^|\n)[ \t]*(?:@[A-Za-z_][\w.]*[ \t]*)*(?:private\s+|public\s+|fileprivate\s+|internal\s+)?(?:static\s+)?var\s+#{Regexp.escape(name)}\b/)
   return nil unless m
-  i = skip_ws(src, m.end(0))
-  if i < src.length && src[i] == ":"
+  i = skip_ws(indexed, m.end(0))
+  if i < indexed.length && indexed[i] == ":"
     depth_a = 0
     depth_p = 0
-    while i < src.length
+    while i < indexed.length
       n = comment_or_string_end(src, i)
       if n
         i = n
         next
       end
-      break if depth_a == 0 && depth_p == 0 && (src[i] == "{" || src[i] == "=" || src[i] == "\n")
-      depth_a += 1 if src[i] == "<"
-      depth_a -= 1 if src[i] == ">"
-      depth_p += 1 if src[i] == "("
-      depth_p -= 1 if src[i] == ")"
+      break if depth_a == 0 && depth_p == 0 && (indexed[i] == "{" || indexed[i] == "=" || indexed[i] == "\n")
+      depth_a += 1 if indexed[i] == "<"
+      depth_a -= 1 if indexed[i] == ">"
+      depth_p += 1 if indexed[i] == "("
+      depth_p -= 1 if indexed[i] == ")"
       i += 1
     end
-    i = skip_ws(src, i)
+    i = skip_ws(indexed, i)
   end
-  return nil unless i < src.length && src[i] == "{"
+  return nil unless i < indexed.length && indexed[i] == "{"
   extract_balanced(src, i, "{", "}")
 end
 
-def git_show(rev, path)
+def git_tree_has_path?(rev, path)
+  system("git", "cat-file", "-e", "#{rev}:#{path}", out: File::NULL, err: File::NULL)
+end
+
+def git_show_result(rev, path)
   text = IO.popen(["git", "show", "#{rev}:#{path}"], err: [:child, :out], &:read)
-  return text if $?.success?
-  nil
+  if $?.success?
+    { status: :ok, text: text, stderr: nil }
+  elsif git_tree_has_path?(rev, path)
+    { status: :git_error, text: nil, stderr: text.to_s.strip }
+  else
+    { status: :missing, text: nil, stderr: text.to_s.strip }
+  end
+end
+
+def git_show(rev, path)
+  result = git_show_result(rev, path)
+  result[:status] == :ok ? result[:text] : nil
 end
 
 def git_full_sha(rev)
@@ -277,6 +304,20 @@ def strip_discarded_calls(src)
   compact(src).gsub(/_=(?:TranscriptItemPresentation|TranscriptTypography|ChatScaledFont|ChatTypography)(?:\.[A-Za-z0-9_]+)*/, "")
 end
 
+def strip_dead_model_lets(c)
+  s = c.dup
+  s.gsub(/let([A-Za-z_][A-Za-z0-9_]*)=TranscriptItemPresentation\.[A-Za-z0-9_]+\([^)]*\)/) do
+    ident = Regexp.last_match(1)
+    whole = Regexp.last_match(0)
+    without = s.sub(whole, "")
+    without.include?(ident) ? whole : ""
+  end
+end
+
+def live_code(src)
+  strip_dead_model_lets(strip_discarded_calls(compact(mask_strings_and_comments(erase_if_false(src.to_s)))))
+end
+
 SWIFTUI_SKIP = %w[
   Form Section Text Label Toggle Picker Button ForEach TabView Binding Image Link
   LabeledContent Color View EmptyView Spacer Divider Group VStack HStack ZStack
@@ -314,7 +355,8 @@ end
 def struct_reachable(src, name)
   return :missing if src.nil?
   body = extract_struct_body(src, name)
-  if src.match?(/\bstruct\s+#{Regexp.escape(name)}\b/) && body.nil?
+  indexed = code_only_indexed(src.to_s)
+  if indexed.match?(/\bstruct\s+#{Regexp.escape(name)}\b/) && body.nil?
     return :unparseable
   end
   return :missing if body.nil?
@@ -325,7 +367,7 @@ end
 def compact_reach(src, name)
   reach = struct_reachable(src, name)
   return reach if reach.is_a?(Symbol)
-  compact(mask_strings_and_comments(erase_if_false(reach)))
+  live_code(reach)
 end
 
 CONTRACT_PATH = "tasks/task-46.md"
@@ -341,6 +383,9 @@ COMMON_PATH = "macos/Packages/SessionFeature/Sources/SessionFeature/ChatMessageC
 RENDER_CACHE_PATH = "macos/Packages/SessionFeature/Sources/SessionFeature/ChatMessageRenderCache.swift"
 FORMATTING_PATH = "macos/Packages/SessionFeature/Sources/SessionFeature/ChatTranscriptFormatting.swift"
 MARKDOWN_PATH = "macos/Packages/SessionFeature/Sources/SessionFeature/RichMarkdownView.swift"
+RECAP_PATH = "macos/Packages/SessionFeature/Sources/SessionFeature/ChatRecap.swift"
+SCALED_FONT_PATH = "macos/Packages/SessionFeature/Sources/SessionFeature/ChatScaledFont.swift"
+SESSION_FEATURE_SRC = "macos/Packages/SessionFeature/Sources/SessionFeature"
 
 TEST_PRESENTATION = "macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptItemPresentationTests.swift"
 TEST_VISUAL = "macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask46Tests.swift"
@@ -360,7 +405,16 @@ SCOPE_PROTECTED_PATHS = [
   RENDER_CACHE_PATH,
   FORMATTING_PATH,
   MARKDOWN_PATH,
+  RECAP_PATH,
 ].freeze
+SCALED_FONT_FORWARD = {
+  "body" => "body",
+  "bodyPointSize" => "body",
+  "caption" => "metadata",
+  "captionStrong" => "metadataStrong",
+  "mono" => "code",
+  "monoCaption" => "codeMetadata",
+}.freeze
 
 CONTRACT_BASELINE_PLACEHOLDER_RE = /PM|凍結|設定|TBD|TODO|FIXME|placeholder|未設定/i
 CONTRACT_BASELINE_LINE_RE = /^baseline_commit:\s*(?:"([^"]*)"|'([^']*)'|(\S+))/
@@ -426,6 +480,20 @@ def baseline_env_errors(raw)
   [value, errs]
 end
 
+def blob_fetch_errors(label, result, now)
+  case result[:status]
+  when :missing
+    ["基準時点の#{label}が無い"]
+  when :git_error
+    msg = result[:stderr].to_s.empty? ? "基準時点の#{label}を git show できない" : "基準時点の#{label}を git show できない: #{result[:stderr]}"
+    [msg]
+  when :ok
+    workdir_matches_git_blob?(now, result[:text]) ? [] : ["基準時点の#{label}が現在と同一ではない"]
+  else
+    ["基準時点の#{label}を git show できない"]
+  end
+end
+
 def frozen_artifact_errors(label, blob, now)
   if blob.nil?
     ["基準時点の#{label}を git show できない"]
@@ -436,12 +504,16 @@ def frozen_artifact_errors(label, blob, now)
   end
 end
 
-def implementation_in_baseline_errors(presentation_blob, typography_blob)
+def implementation_in_baseline_errors(presentation_blob, typography_blob, presentation_error: nil, typography_error: nil)
   ng = []
-  if presentation_blob
+  if presentation_error
+    ng << "基準時点の TranscriptItemPresentation.swift を git show できない: #{presentation_error}"
+  elsif presentation_blob
     ng << "基準時点に TranscriptItemPresentation.swift がある（実装前の凍結ではない）"
   end
-  if typography_blob.nil?
+  if typography_error
+    ng << "基準時点の TranscriptTypography.swift を git show できない: #{typography_error}"
+  elsif typography_blob.nil?
     ng << "基準時点に TranscriptTypography.swift が無い（task-40 完了状態ではない）"
   end
   ng
@@ -463,17 +535,42 @@ def check_frozen_baseline(baseline, artifacts = nil)
     ng << "TASK46_BASELINE が HEAD の祖先ではない"
   end
   if artifacts
-    ng.concat(implementation_in_baseline_errors(artifacts[:presentation_blob], artifacts[:typography_blob]))
-    ACCEPTANCE_PATHS.each_with_index do |_path, idx|
-      ng.concat(frozen_artifact_errors("受け入れテスト#{idx + 1}", artifacts[:test_blobs][idx], artifacts[:test_nows][idx]))
+    ng.concat(implementation_in_baseline_errors(
+      artifacts[:presentation_blob],
+      artifacts[:typography_blob],
+      presentation_error: artifacts[:presentation_error],
+      typography_error: artifacts[:typography_error]
+    ))
+    if artifacts[:test_results]
+      ACCEPTANCE_PATHS.each_with_index do |_path, idx|
+        ng.concat(blob_fetch_errors("受け入れテスト#{idx + 1}", artifacts[:test_results][idx], artifacts[:test_nows][idx]))
+      end
+    else
+      ACCEPTANCE_PATHS.each_with_index do |_path, idx|
+        ng.concat(frozen_artifact_errors("受け入れテスト#{idx + 1}", artifacts[:test_blobs][idx], artifacts[:test_nows][idx]))
+      end
     end
-    ng.concat(frozen_artifact_errors("rb 自身", artifacts[:rb_blob], artifacts[:rb_now]))
+    if artifacts[:rb_result]
+      ng.concat(blob_fetch_errors("rb 自身", artifacts[:rb_result], artifacts[:rb_now]))
+    else
+      ng.concat(frozen_artifact_errors("rb 自身", artifacts[:rb_blob], artifacts[:rb_now]))
+    end
   else
-    ng.concat(implementation_in_baseline_errors(git_show(full, PRESENTATION_PATH), git_show(full, TYPOGRAPHY_PATH)))
-    ACCEPTANCE_PATHS.each_with_index do |path, idx|
-      ng.concat(frozen_artifact_errors("受け入れテスト#{idx + 1}", git_show(full, path), read_if_exist(path)))
+    pres = git_show_result(full, PRESENTATION_PATH)
+    typo = git_show_result(full, TYPOGRAPHY_PATH)
+    ng.concat(implementation_in_baseline_errors(
+      pres[:status] == :ok ? pres[:text] : nil,
+      typo[:status] == :ok ? typo[:text] : nil,
+      presentation_error: (pres[:status] == :git_error ? pres[:stderr] : nil),
+      typography_error: (typo[:status] == :git_error ? typo[:stderr] : nil)
+    ))
+    if typo[:status] == :missing
+      # implementation_in_baseline_errors already added the task-40 missing message when blob is nil
     end
-    ng.concat(frozen_artifact_errors("rb 自身", git_show(full, WIRING_RB_PATH), read_if_exist(WIRING_RB_PATH)))
+    ACCEPTANCE_PATHS.each_with_index do |path, idx|
+      ng.concat(blob_fetch_errors("受け入れテスト#{idx + 1}", git_show_result(full, path), read_if_exist(path)))
+    end
+    ng.concat(blob_fetch_errors("rb 自身", git_show_result(full, WIRING_RB_PATH), read_if_exist(WIRING_RB_PATH)))
   end
   ng
 end
@@ -490,131 +587,207 @@ def missing_struct(src, name, label)
   []
 end
 
-def presentation_connected?(c)
-  stripped = strip_discarded_calls(c)
-  stripped.include?("TranscriptItemPresentation")
+def model_used?(c, factory)
+  c.include?(factory) && c.match?(/presentation\.(heading|subtitle|isVisible|defaultExpanded|semanticInk|expandedBody)/)
 end
 
-def typography_connected?(c)
-  stripped = strip_discarded_calls(c)
-  stripped.include?("TranscriptTypography") ||
-    stripped.include?("ChatScaledFont") ||
-    stripped.include?("ChatTypography")
+def operable_binding?(c)
+  return false if c.include?("constant(true)") || c.include?("constant(false)")
+  c.include?("Binding(") && c.include?("get:") && c.include?("set:") &&
+    c.include?("TranscriptItemPresentation.isExpanded")
 end
 
 def short_text_direct?(c)
   c.include?("usesDisclosure") && c.include?("trimmedText")
 end
 
-def constant_true_binding?(c)
-  c.include?(".constant(true)") || c.include?("constant(true)")
-end
-
 def expansion_reset?(src)
   c = compact(mask_strings_and_comments(erase_if_false(src.to_s)))
   return false unless c.include?("onChange")
   c.match?(/onChange\([^)]*\)[^{]*\{[^}]*(?:isExpanded=false|userOverride=nil|userExpandedOverride=nil)/) ||
-    c.include?("isExpanded=false") && c.include?("onChange")
+    (c.include?("isExpanded=false") && c.include?("onChange"))
 end
 
-def check_reasoning(src)
+def font_role_ok?(c, scaled_src)
+  return true if c.include?("TranscriptTypography.font(for:")
+  SCALED_FONT_FORWARD.each do |fn, role|
+    next unless c.include?("ChatScaledFont.#{fn}(")
+    return scaled_font_forwards?(scaled_src, fn, role)
+  end
+  false
+end
+
+def scaled_font_forwards?(scaled_src, fn, role)
+  return false if scaled_src.nil?
+  body = extract_func_body(scaled_src, fn)
+  return false if body.nil?
+  c = compact(mask_strings_and_comments(body))
+  token = fn == "bodyPointSize" ? "TranscriptTypography.pointSize(for:.#{role}" : "TranscriptTypography.font(for:.#{role}"
+  c.include?(token) && c.include?("scale:scale")
+end
+
+def scale_follows?(c)
+  c.include?("ChatFontSettings.adjusted") &&
+    !c.match?(/ChatScaledFont\.[A-Za-z]+\(scale:1\)/) &&
+    !c.match?(/font\(for:[^)]*scale:1\)/)
+end
+
+def spacing_ok?(c)
+  %w[withinAnswer metadataGap cardHorizontalInset cardVerticalInset codeContentInset].any? { |tok| c.include?("TranscriptTypography.#{tok}") }
+end
+
+def leading_ok?(c)
+  c.include?("TranscriptTypography.textLineSpacing")
+end
+
+def typography_errors(c, scaled_src, label, require_leading: true)
+  ng = []
+  ng << "#{label}のフォント役割が無い" unless font_role_ok?(c, scaled_src)
+  ng << "#{label}の倍率追随が無い" unless scale_follows?(c)
+  ng << "#{label}の余白接続が無い" unless spacing_ok?(c)
+  ng << "#{label}の行間接続が無い" if require_leading && !leading_ok?(c)
+  ng
+end
+
+def check_scaled_font_adapter(src)
+  return ["ChatScaledFont.swift が存在しない"] if src.nil?
+  ng = []
+  SCALED_FONT_FORWARD.each do |fn, role|
+    body = extract_func_body(src, fn)
+    if body.nil?
+      ng << "ChatScaledFont が TranscriptTypography へ委譲していない"
+      next
+    end
+    unless scaled_font_forwards?(src, fn, role)
+      ng << "ChatScaledFont が TranscriptTypography へ委譲していない"
+    end
+  end
+  ng.uniq
+end
+
+def reasoning_body_ok?(c, basic)
+  return true if c.match?(/\bText\(text\)/)
+  if c.include?("RichMarkdownView(") && (c.include?("bodyColor") || c.include?("chatTextSecondary"))
+    return true
+  end
+  if c.include?("AgentMessageBody(")
+    return false unless c.include?("text:text")
+    return false if c.include?("text:summary") || c.include?("text:presentation.subtitle")
+    return false unless c.include?("bodyColor:")
+    amb = compact_reach(basic, "AgentMessageBody")
+    return false if amb.is_a?(Symbol)
+    return amb.include?("RichMarkdownView") && amb.include?("bodyColor")
+  end
+  false
+end
+
+def check_reasoning(src, basic, scaled_src)
   ng = missing_struct(src, "ReasoningSummaryView", "ReasoningSummaryView")
   return ng unless ng.empty?
   c = compact_reach(src, "ReasoningSummaryView")
   return ["ReasoningSummaryView を解析できない"] if c.is_a?(Symbol)
-  ng << "思考詳細から分類モデルが未接続" unless c.include?("TranscriptItemPresentation.reasoning")
+  ng << "思考詳細から分類モデルが未接続" unless model_used?(c, "TranscriptItemPresentation.reasoning")
+  ng << "思考の見出しが分類モデルから届いていない" unless c.include?("presentation.heading")
+  ng << "思考の補足が分類モデルから届いていない" unless c.include?("presentation.subtitle")
+  ng << "思考の意味色が分類モデルから届いていない" unless c.include?("presentation.semanticInk")
   ng << "短文だけ直接表示している" if short_text_direct?(c)
   ng << "思考詳細が DisclosureCard を使っていない" unless c.include?("DisclosureCard")
-  ng << "思考の展開本文へ原文が届いていない" unless c.match?(/\bText\(text\)/) || c.match?(/RichMarkdownView\(/)
-  ng << "思考詳細の TranscriptTypography 接続が無い" unless typography_connected?(c)
-  ng << "思考詳細の secondary 色が無い" unless c.include?("chatTextSecondary") || c.include?("bodyColor")
+  ng << "思考の展開本文へ原文が届いていない" unless reasoning_body_ok?(c, basic)
+  ng.concat(typography_errors(c, scaled_src, "思考詳細"))
   ng.concat(expansion_reset?(src) ? ["表示継続中の更新で開閉をリセットしている"] : [])
   ng
 end
 
-def check_command_single(src)
+def check_command_single(src, scaled_src)
   ng = missing_struct(src, "CommandExecutionCell", "CommandExecutionCell")
   return ng unless ng.empty?
   c = compact_reach(src, "CommandExecutionCell")
   return ["CommandExecutionCell を解析できない"] if c.is_a?(Symbol)
-  ng << "コマンド単体から分類モデルが未接続" unless presentation_connected?(c)
+  ng << "コマンド単体から分類モデルが未接続" unless model_used?(c, "TranscriptItemPresentation.command")
+  ng << "コマンド単体の見出しが分類モデルから届いていない" unless c.include?("presentation.heading")
+  ng << "コマンド単体の意味色が分類モデルから届いていない" unless c.include?("presentation.semanticInk")
   ng << "コマンド単体の件数が描画窓または除外後の行数になっている" if c.include?("rows.count") || c.include?("hiddenRowCount")
-  ng << "コマンド単体の実行中補足が閉じたカードへ届いていない" unless c.include?("presentation.subtitle") || c.include?("subtitle:presentation")
-  ng << "コマンド単体の TranscriptTypography 接続が無い" unless typography_connected?(c)
+  ng << "コマンド単体の実行中補足が閉じたカードへ届いていない" unless c.include?("presentation.subtitle")
   ng << "コマンド単体が DisclosureCard を使っていない" unless c.include?("DisclosureCard")
+  ng.concat(typography_errors(c, scaled_src, "コマンド単体", require_leading: false))
   ng
 end
 
-def check_command_group(src)
+def check_command_group(src, scaled_src)
   ng = missing_struct(src, "CommandGroupCell", "CommandGroupCell")
   return ng unless ng.empty?
   c = compact_reach(src, "CommandGroupCell")
   return ["CommandGroupCell を解析できない"] if c.is_a?(Symbol)
-  ng << "コマンドグループから分類モデルが未接続" unless c.include?("TranscriptItemPresentation.command")
-  ng << "グループ実行中の正本が header.isRunning ではない" unless c.include?("header.isRunning") || c.include?("isRunning:header.isRunning")
-  ng << "実行中補足が閉じたカードへ届いていない" unless c.include?("presentation.subtitle") || (c.include?("subtitle:") && !c.include?("subtitle:nil"))
+  ng << "コマンドグループから分類モデルが未接続" unless model_used?(c, "TranscriptItemPresentation.command")
+  ng << "コマンドグループの見出しが分類モデルから届いていない" unless c.include?("presentation.heading")
+  ng << "グループの表示ガードが header.shouldRender ではない" unless c.include?("header.shouldRender")
+  ng << "グループ実行中の正本が header.isRunning ではない" unless c.include?("header.isRunning")
+  ng << "実行中補足が閉じたカードへ届いていない" unless c.include?("presentation.subtitle")
   ng << "件数が描画窓または除外後の行数になっている" if c.include?("rowsSlice.rows.count") || c.include?("displayRows.count")
   ng << "描画窓 CommandGroupRowWindow が無い" unless c.include?("CommandGroupRowWindow") || src.to_s.include?("CommandGroupRowWindow")
-  ng << "コマンドグループの TranscriptTypography 接続が無い" unless typography_connected?(c)
+  ng.concat(typography_errors(c, scaled_src, "コマンドグループ", require_leading: false))
   copy_src = compact(mask_strings_and_comments(src.to_s))
   ng << "コピー原文の経路が無い" unless copy_src.include?("copyText")
   window_src = compact(mask_strings_and_comments(src.to_s))
   ng << "描画窓 CommandGroupRowWindow が無い" unless window_src.include?("enumCommandGroupRowWindow") || window_src.include?("CommandGroupRowWindow")
   ng.concat(expansion_reset?(src) ? ["表示継続中の更新で開閉をリセットしている"] : [])
-  ng
+  ng.uniq
 end
 
-def check_task(src)
+def check_task(src, scaled_src)
   ng = missing_struct(src, "TaskListCell", "TaskListCell")
   return ng unless ng.empty?
   c = compact_reach(src, "TaskListCell")
   return ["TaskListCell を解析できない"] if c.is_a?(Symbol)
-  ng << "タスクから分類モデルが未接続" unless c.include?("TranscriptItemPresentation.taskList")
-  ng << "タスクが定数 Binding で常時展開されている" if constant_true_binding?(c)
-  ng << "タスクの TranscriptTypography 接続が無い" unless typography_connected?(c)
+  ng << "タスクから分類モデルが未接続" unless model_used?(c, "TranscriptItemPresentation.taskList")
+  ng << "タスクの見出しが分類モデルから届いていない" unless c.include?("presentation.heading")
+  ng << "タスクの意味色が分類モデルから届いていない" unless c.include?("presentation.semanticInk")
+  ng << "タスクが定数 Binding で操作できない" unless operable_binding?(c)
+  ng.concat(typography_errors(c, scaled_src, "タスク", require_leading: false))
   ng.concat(expansion_reset?(src) ? ["表示継続中の更新で開閉をリセットしている"] : [])
   ng
 end
 
-def check_error(src)
+def check_error(src, scaled_src)
   ng = missing_struct(src, "ErrorMessageCell", "ErrorMessageCell")
   return ng unless ng.empty?
   c = compact_reach(src, "ErrorMessageCell")
   return ["ErrorMessageCell を解析できない"] if c.is_a?(Symbol)
-  heading_ok = c.include?("エラー") || src.to_s.include?('"エラー"')
-  ng << "エラー色・見出しの接続が無い" unless heading_ok && c.include?("statusError")
-  ng << "エラーの TranscriptTypography 接続が無い" unless typography_connected?(c)
+  ng << "エラー見出しが分類モデルから届いていない" unless c.include?("presentation.heading")
+  ng << "エラー色の接続が無い" unless c.include?("statusError")
+  ng.concat(typography_errors(c, scaled_src, "エラー"))
   ng
 end
 
-def check_thinking(src)
+def check_thinking(src, scaled_src)
   ng = missing_struct(src, "ThinkingIndicatorCell", "ThinkingIndicatorCell")
   return ng unless ng.empty?
   c = compact_reach(src, "ThinkingIndicatorCell")
   return ["ThinkingIndicatorCell を解析できない"] if c.is_a?(Symbol)
-  ng << "活動ラベルと AX が同じ実状態に由来していない" unless c.include?("orbLabel") && c.include?("accessibilityLabel")
-  ng << "処理中の TranscriptTypography 接続が無い" unless typography_connected?(c)
+  ng << "活動ラベルと AX が同じ実状態に由来していない" unless c.include?("orbLabel") && c.include?("accessibilityLabel") && c.scan("state.orbLabel").length >= 2
+  ng.concat(typography_errors(c, scaled_src, "処理中", require_leading: false))
   ng
 end
 
-def check_answer(src)
+def check_answer(src, scaled_src)
   ng = missing_struct(src, "AgentMessageBody", "AgentMessageBody")
   return ng unless ng.empty?
   c = compact_reach(src, "AgentMessageBody")
   return ["AgentMessageBody を解析できない"] if c.is_a?(Symbol)
   ng << "回答が詳細カードへ収納されている" if c.include?("DisclosureCard")
-  ng << "回答の TranscriptTypography 接続が無い" unless typography_connected?(c)
+  ng << "回答が詳細用 Binding に依存している" if c.include?("userOverride") || (c.include?("isExpanded") && c.include?("Binding"))
+  ng.concat(typography_errors(c, scaled_src, "回答", require_leading: false))
   ng
 end
 
-def check_file_change(src)
+def check_file_change(src, scaled_src)
   ng = missing_struct(src, "FileChangeCell", "FileChangeCell")
   return ng unless ng.empty?
   c = compact_reach(src, "FileChangeCell")
   return ["FileChangeCell を解析できない"] if c.is_a?(Symbol)
   ng << "ファイル変更が FileChangeDisplayPolicy.isExpanded を使っていない" unless c.include?("FileChangeDisplayPolicy.isExpanded")
   ng << "ファイル変更が defaultExpanded(lineCount:) をカード既定に流用している" if c.include?("defaultExpanded(lineCount:")
-  ng << "ファイル変更の TranscriptTypography 接続が無い" unless typography_connected?(c)
+  ng.concat(typography_errors(c, scaled_src, "ファイル変更", require_leading: false))
   ng
 end
 
@@ -630,7 +803,8 @@ end
 def check_output_window(src)
   return ["CommandGroupOutputDisplay が存在しない"] if src.nil?
   body = extract_struct_body(src, "CommandGroupOutputDisplay")
-  return ["CommandGroupOutputDisplay を解析できない"] if src.match?(/\bstruct\s+CommandGroupOutputDisplay\b/) && body.nil?
+  indexed = code_only_indexed(src.to_s)
+  return ["CommandGroupOutputDisplay を解析できない"] if indexed.match?(/\bstruct\s+CommandGroupOutputDisplay\b/) && body.nil?
   return ["CommandGroupOutputDisplay が存在しない"] if body.nil?
   c = compact(mask_strings_and_comments(body))
   ng = []
@@ -640,16 +814,18 @@ end
 
 def check_product(files)
   ng = []
-  ng.concat(check_reasoning(files[:structured]))
-  ng.concat(check_command_single(files[:structured]))
-  ng.concat(check_command_group(files[:command_group]))
-  ng.concat(check_task(files[:task_list]))
-  ng.concat(check_error(files[:basic]))
-  ng.concat(check_thinking(files[:structured]))
-  ng.concat(check_answer(files[:basic]))
-  ng.concat(check_file_change(files[:structured]))
+  scaled = files[:scaled_font]
+  ng.concat(check_reasoning(files[:structured], files[:basic], scaled))
+  ng.concat(check_command_single(files[:structured], scaled))
+  ng.concat(check_command_group(files[:command_group], scaled))
+  ng.concat(check_task(files[:task_list], scaled))
+  ng.concat(check_error(files[:basic], scaled))
+  ng.concat(check_thinking(files[:structured], scaled))
+  ng.concat(check_answer(files[:basic], scaled))
+  ng.concat(check_file_change(files[:structured], scaled))
   ng.concat(check_empty_thinking(files[:cells]))
   ng.concat(check_output_window(files[:command_group]))
+  ng.concat(check_scaled_font_adapter(scaled))
   ng.uniq
 end
 
@@ -671,6 +847,25 @@ def protected_symbol_errors(current, previous, name, kind)
   return ["#{name} を解析できない"] if cur.nil? || prev.nil?
   return [] if normalize_code(cur) == normalize_code(prev)
   ["#{name} が基準 blob と同一ではない"]
+end
+
+def protected_member_errors(current, previous, struct_name, member, kind)
+  return [] if current.nil? || previous.nil?
+  cur_struct = extract_struct_body(current, struct_name)
+  prev_struct = extract_struct_body(previous, struct_name)
+  return ["#{struct_name}.#{member} を解析できない"] if cur_struct.nil? || prev_struct.nil?
+  cur = kind == :var ? extract_var_body(cur_struct, member) : extract_func_body(cur_struct, member)
+  prev = kind == :var ? extract_var_body(prev_struct, member) : extract_func_body(prev_struct, member)
+  return ["#{struct_name}.#{member} を解析できない"] if cur.nil? || prev.nil?
+  return [] if normalize_code(cur) == normalize_code(prev)
+  ["#{struct_name}.#{member} が基準 blob と同一ではない"]
+end
+
+def extra_changed_product_paths(rev)
+  tracked = IO.popen(["git", "diff", "--name-only", rev, "--", SESSION_FEATURE_SRC], err: [:child, :out], &:read)
+  untracked = IO.popen(["git", "ls-files", "--others", "--exclude-standard", "--", SESSION_FEATURE_SRC], err: [:child, :out], &:read)
+  names = (tracked.to_s + untracked.to_s).split("\n").reject(&:empty?).uniq
+  names - ALLOWED_PRODUCT_PATHS
 end
 
 def scope_errors(current_files, baseline_files)
@@ -698,6 +893,29 @@ def scope_errors(current_files, baseline_files)
   ng.uniq
 end
 
+def permanent_structure_errors(current_files, baseline_files)
+  return [] if baseline_files.nil?
+  ng = []
+  [
+    [:command_group, "CommandGroupHeader", :struct],
+    [:command_group, "CommandGroupOutputDisplay", :struct],
+    [:command_group, "CommandGroupRowWindow", :enum],
+    [:command_group, "CommandGroupExecutionDisplayData", :struct],
+    [:render_cache, "FileChangeDisplayPolicy", :enum],
+    [:common, "DisclosureCard", :struct],
+    [:recap, "CommandGroupTitle", :enum],
+    [:structured, "SubAgentMarkerCell", :struct],
+  ].each do |key, name, kind|
+    next if current_files[key].nil? || baseline_files[key].nil?
+    ng.concat(protected_symbol_errors(current_files[key], baseline_files[key], name, kind))
+  end
+  ng.concat(protected_member_errors(current_files[:structured], baseline_files[:structured], "FileChangeCell", "visibleSections", :var))
+  %w[glyph color accessibilityStatus].each do |fn|
+    ng.concat(protected_member_errors(current_files[:task_list], baseline_files[:task_list], "TaskListCell", fn, :func))
+  end
+  ng.uniq
+end
+
 def scope_key(path)
   {
     CELLS_PATH => :cells,
@@ -709,11 +927,34 @@ def scope_key(path)
     STRUCTURED_PATH => :structured,
     COMMAND_GROUP_PATH => :command_group,
     TASK_LIST_PATH => :task_list,
+    RECAP_PATH => :recap,
+    SCALED_FONT_PATH => :scaled_font,
   }[path]
 end
 
-def worktree_files
-  {
+def file_hash(
+  structured:, basic:, command_group:, task_list:, cells:, common:, render_cache:,
+  formatting:, markdown:, recap:, scaled_font:, extra_changed: nil
+)
+  h = {
+    structured: structured,
+    basic: basic,
+    command_group: command_group,
+    task_list: task_list,
+    cells: cells,
+    common: common,
+    render_cache: render_cache,
+    formatting: formatting,
+    markdown: markdown,
+    recap: recap,
+    scaled_font: scaled_font,
+  }
+  h[:extra_changed] = extra_changed if extra_changed
+  h
+end
+
+def worktree_files(baseline_rev = nil)
+  files = {
     structured: read_if_exist(STRUCTURED_PATH),
     basic: read_if_exist(BASIC_PATH),
     command_group: read_if_exist(COMMAND_GROUP_PATH),
@@ -723,7 +964,11 @@ def worktree_files
     render_cache: read_if_exist(RENDER_CACHE_PATH),
     formatting: read_if_exist(FORMATTING_PATH),
     markdown: read_if_exist(MARKDOWN_PATH),
+    recap: read_if_exist(RECAP_PATH),
+    scaled_font: read_if_exist(SCALED_FONT_PATH),
   }
+  files[:extra_changed] = extra_changed_product_paths(baseline_rev) if baseline_rev
+  files
 end
 
 def baseline_files(rev)
@@ -737,7 +982,17 @@ def baseline_files(rev)
     render_cache: git_show(rev, RENDER_CACHE_PATH),
     formatting: git_show(rev, FORMATTING_PATH),
     markdown: git_show(rev, MARKDOWN_PATH),
+    recap: git_show(rev, RECAP_PATH),
+    scaled_font: git_show(rev, SCALED_FONT_PATH),
   }
+end
+
+def evaluate_checks(files, baseline_blobs, scope:)
+  ng = []
+  ng.concat(check_product(files))
+  ng.concat(permanent_structure_errors(files, baseline_blobs))
+  ng.concat(scope_errors(files, baseline_blobs)) if scope
+  ng.uniq
 end
 
 def good_structured
@@ -745,7 +1000,9 @@ def good_structured
     struct ReasoningSummaryView: View {
       let text: String
       @State private var userOverride: Bool?
+      @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
       var body: some View {
+        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         let presentation = TranscriptItemPresentation.reasoning(text: text, summary: nil)
         if presentation.isVisible {
           DisclosureCard(
@@ -755,12 +1012,13 @@ def good_structured
             ),
             title: presentation.heading ?? "",
             subtitle: presentation.subtitle,
-            isToolCall: true
+            isToolCall: presentation.semanticInk == .process
           ) {
             Text(text)
-              .font(TranscriptTypography.font(for: .body, scale: 1))
+              .font(TranscriptTypography.font(for: .body, scale: scale))
               .foregroundStyle(DSColor.chatTextSecondary)
               .lineSpacing(TranscriptTypography.textLineSpacing)
+              .padding(.top, TranscriptTypography.withinAnswer)
           }
         }
       }
@@ -770,7 +1028,9 @@ def good_structured
       let output: String
       let isRunning: Bool
       @State private var userOverride: Bool?
+      @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
       var body: some View {
+        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         let presentation = TranscriptItemPresentation.command(path: .single, itemCount: 1, isRunning: isRunning, hasNonBlankOutput: !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         DisclosureCard(
           isExpanded: Binding(
@@ -779,18 +1039,20 @@ def good_structured
           ),
           title: presentation.heading ?? "",
           subtitle: presentation.subtitle,
-          isToolCall: true
+          isToolCall: presentation.semanticInk == .process
         ) {
-          Text(output).font(ChatScaledFont.monoCaption(scale: 1))
+          Text(output).font(ChatScaledFont.monoCaption(scale: scale))
             .padding(.top, TranscriptTypography.withinAnswer)
         }
       }
     }
     struct ThinkingIndicatorCell: View {
       var state: AgentActivityState = .thinking
+      @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
       var body: some View {
+        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         HStack {
-          Text(state.orbLabel).font(ChatScaledFont.body(scale: 1))
+          Text(state.orbLabel).font(ChatScaledFont.body(scale: scale))
         }
         .accessibilityLabel(state.orbLabel)
         .padding(.vertical, TranscriptTypography.metadataGap)
@@ -798,7 +1060,14 @@ def good_structured
     }
     struct FileChangeCell: View {
       @State private var userExpandedOverride: Bool?
+      @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
+      var visibleSections: [DiffSection] {
+        changes.enumerated().map { index, change in
+          DiffSection(id: index, path: change.path, copyText: change.diff, codeView: ChatMessageRenderCache.diffCodeView(diff: change.diff, path: change.path))
+        }
+      }
       var body: some View {
+        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         let presentation = TranscriptItemPresentation.fileChange(title: "編集済み")
         DisclosureCard(
           isExpanded: Binding(
@@ -808,8 +1077,17 @@ def good_structured
           title: presentation.heading ?? "",
           subtitle: nil
         ) {
-          Text("diff").padding(.top, TranscriptTypography.withinAnswer)
+          Text("diff").font(ChatScaledFont.monoCaption(scale: scale)).padding(.top, TranscriptTypography.withinAnswer)
         }
+      }
+    }
+    struct SubAgentMarkerCell: View {
+      let id: String
+      let onSelect: ((String) -> Void)?
+      var body: some View {
+        Button { onSelect?(id) } label: { Text("sub") }
+          .disabled(onSelect == nil)
+          .foregroundStyle(DSColor.statusError)
       }
     }
   SWIFT
@@ -819,24 +1097,30 @@ def good_basic
   <<~SWIFT
     struct AgentMessageBody: View {
       let text: String
+      @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
       var body: some View {
+        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
           RichMarkdownView(text)
+            .font(TranscriptTypography.font(for: .body, scale: scale))
           CodeBlockView(language: nil, code: text)
         }
       }
     }
     struct ErrorMessageCell: View {
       let message: String
+      @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
       var body: some View {
+        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         let presentation = TranscriptItemPresentation.error(message: message)
         VStack {
-          Label("エラー", systemImage: "exclamationmark.triangle")
-            .font(ChatScaledFont.captionStrong(scale: 1))
+          Label(presentation.heading ?? "", systemImage: "exclamationmark.triangle")
+            .font(ChatScaledFont.captionStrong(scale: scale))
             .foregroundStyle(DSColor.statusError)
-          Text(message).font(ChatScaledFont.body(scale: 1))
+          Text(message).font(ChatScaledFont.body(scale: scale))
             .lineSpacing(TranscriptTypography.textLineSpacing)
         }
+        .padding(.horizontal, TranscriptTypography.cardHorizontalInset)
         .background(DSColor.statusError.opacity(0.14))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(DSColor.statusError.opacity(0.35), lineWidth: 1))
       }
@@ -864,18 +1148,22 @@ def good_command_group
       let copyText: String
     }
     struct CommandGroupCell: View {
+      @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
       var body: some View {
+        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         let header = CommandGroupHeader(isRunning: true, shouldRender: true)
         let presentation = TranscriptItemPresentation.command(path: .group, itemCount: items.count, isRunning: header.isRunning, hasNonBlankOutput: true)
-        DisclosureCard(
-          isExpanded: $isExpanded,
-          title: presentation.heading ?? "",
-          subtitle: presentation.subtitle,
-          isToolCall: true
-        ) {
-          let rowsSlice = CommandGroupRowWindow.slice(items: items, lastTranscriptID: lastTranscriptID, isTurnRunning: isTurnRunning, limit: rowLimit)
-          Text(copy).font(TranscriptTypography.font(for: .processSummary, scale: 1))
-            .padding(.top, TranscriptTypography.withinAnswer)
+        if header.shouldRender {
+          DisclosureCard(
+            isExpanded: $isExpanded,
+            title: presentation.heading ?? "",
+            subtitle: presentation.subtitle,
+            isToolCall: presentation.semanticInk == .process
+          ) {
+            let rowsSlice = CommandGroupRowWindow.slice(items: items, lastTranscriptID: lastTranscriptID, isTurnRunning: isTurnRunning, limit: rowLimit)
+            Text(copy).font(TranscriptTypography.font(for: .processSummary, scale: scale))
+              .padding(.top, TranscriptTypography.withinAnswer)
+          }
         }
       }
     }
@@ -893,7 +1181,9 @@ def good_task_list
     struct TaskListCell: View {
       let tasks: [AgentTaskItem]
       @State private var userOverride: Bool?
+      @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
       var body: some View {
+        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         let presentation = TranscriptItemPresentation.taskList(count: tasks.count)
         DisclosureCard(
           isExpanded: Binding(
@@ -901,12 +1191,16 @@ def good_task_list
             set: { userOverride = $0 }
           ),
           title: presentation.heading ?? "",
-          subtitle: nil
+          subtitle: nil,
+          isToolCall: presentation.semanticInk == .process
         ) {
-          Text(presentation.expandedBody ?? "").font(TranscriptTypography.font(for: .body, scale: 1))
+          Text(presentation.expandedBody ?? "").font(TranscriptTypography.font(for: .body, scale: scale))
             .padding(.top, TranscriptTypography.withinAnswer)
         }
       }
+      private func glyph(for status: AgentTaskStatus) -> String { "circle" }
+      private func color(for status: AgentTaskStatus) -> Color { DSColor.chatTextSecondary }
+      private func accessibilityStatus(for status: AgentTaskStatus) -> String { "Pending" }
     }
   SWIFT
 end
@@ -932,6 +1226,19 @@ def good_cells
   SWIFT
 end
 
+def good_scaled_font
+  <<~SWIFT
+    enum ChatScaledFont {
+      static func body(scale: CGFloat) -> Font { TranscriptTypography.font(for: .body, scale: scale) }
+      static func bodyPointSize(scale: CGFloat) -> CGFloat { TranscriptTypography.pointSize(for: .body, scale: scale) }
+      static func caption(scale: CGFloat) -> Font { TranscriptTypography.font(for: .metadata, scale: scale) }
+      static func captionStrong(scale: CGFloat) -> Font { TranscriptTypography.font(for: .metadataStrong, scale: scale) }
+      static func mono(scale: CGFloat) -> Font { TranscriptTypography.font(for: .code, scale: scale) }
+      static func monoCaption(scale: CGFloat) -> Font { TranscriptTypography.font(for: .codeMetadata, scale: scale) }
+    }
+  SWIFT
+end
+
 def good_files
   {
     structured: good_structured,
@@ -939,10 +1246,12 @@ def good_files
     command_group: good_command_group,
     task_list: good_task_list,
     cells: good_cells,
-    common: "struct DisclosureCard {}",
+    common: "struct DisclosureCard<Content: View>: View { var body: some View { content } }",
     render_cache: "enum FileChangeDisplayPolicy { static func isExpanded(userOverride: Bool?, lineCount: Int) -> Bool { userOverride ?? false } }",
     formatting: "enum ChatTranscriptFormatting {}",
     markdown: "struct RichMarkdownView {}",
+    recap: "enum CommandGroupTitle { static func derive(items: [ChatItem]) -> String { ChatCommandGroupTitle.derive(commands: [], itemCount: items.count) } }",
+    scaled_font: good_scaled_font,
   }
 end
 
@@ -1017,6 +1326,7 @@ def run_selftest
 
   good = good_files
   selftest_errors_eq check_product(good), [], "正例: 契約どおりの配線は空 NG"
+  selftest_errors_eq permanent_structure_errors(good, good), [], "正例: 恒久構造比較は同一 blob で空"
 
   commented = with_file(good, :task_list) { |src|
     src + %(\n// TranscriptItemPresentation.taskList\nlet decoy = "TranscriptTypography"\n)
@@ -1024,21 +1334,38 @@ def run_selftest
   selftest_errors_eq check_product(commented), [], "正例: コメント・文字列だけを加える"
 
   task47 = with_file(good, :structured) { |src|
-    src.sub("Text(text)", "RichMarkdownView(text, bodyColor: DSColor.chatTextSecondary)")
-      .sub("summary: nil", "summary: ReasoningPresentation(text: text).headline")
+    src.sub(
+      "Text(text)",
+      "AgentMessageBody(text: text, bodyColor: DSColor.chatTextSecondary)"
+    ).sub("summary: nil", "summary: ReasoningPresentation(text: text).headline")
   }
   task47 = with_file(task47, :basic) { |src|
-    src.sub("let text: String", "let text: String\n      var bodyColor: Color = DSColor.chatTextPrimary")
+    src.sub(
+      "let text: String",
+      "let text: String\n      var bodyColor: Color = DSColor.chatTextPrimary"
+    ).sub("RichMarkdownView(text)", "RichMarkdownView(text, bodyColor: bodyColor)")
   }
   selftest_errors_eq check_product(task47), [], "正例: task-47 許可の本文・要約・色引数変更"
 
   unwired = with_file(good, :structured) { |src|
     src.gsub("TranscriptItemPresentation.reasoning(text: text, summary: nil)", "ReasoningPresentation(text: text)")
-      .gsub("presentation.heading ?? \"\"", "\"思考\"")
-      .gsub("presentation.subtitle", "nil")
-      .gsub("presentation.isVisible", "true")
   }
-  selftest_errors_eq check_reasoning(unwired[:structured]), ["思考詳細から分類モデルが未接続"], "負例: モデル未接続"
+  selftest_errors_eq check_reasoning(unwired[:structured], unwired[:basic], unwired[:scaled_font]), ["思考詳細から分類モデルが未接続"], "負例: モデル未接続"
+
+  bad_title = with_file(good, :structured) { |src|
+    src.sub("title: presentation.heading ?? \"\"", "title: \"思考の詳細\"")
+  }
+  selftest_errors_eq check_reasoning(bad_title[:structured], bad_title[:basic], bad_title[:scaled_font]), ["思考の見出しが分類モデルから届いていない"], "負例: 思考見出し固定文字列"
+
+  bad_sub = with_file(good, :structured) { |src|
+    src.sub("subtitle: presentation.subtitle,", "subtitle: nil,")
+  }
+  selftest_errors_eq check_reasoning(bad_sub[:structured], bad_sub[:basic], bad_sub[:scaled_font]), ["思考の補足が分類モデルから届いていない"], "負例: 思考補足未配線"
+
+  bad_ink = with_file(good, :structured) { |src|
+    src.sub("isToolCall: presentation.semanticInk == .process", "isToolCall: true")
+  }
+  selftest_errors_eq check_reasoning(bad_ink[:structured], bad_ink[:basic], bad_ink[:scaled_font]), ["思考の意味色が分類モデルから届いていない"], "負例: 意味色未配線"
 
   short = with_file(good, :structured) { |src|
     src.sub(
@@ -1046,12 +1373,12 @@ def run_selftest
       "if presentation.usesDisclosure { let trimmedText = text"
     )
   }
-  selftest_errors_eq check_reasoning(short[:structured]), ["短文だけ直接表示している"], "負例: 短文だけ直接表示"
+  selftest_errors_eq check_reasoning(short[:structured], short[:basic], short[:scaled_font]), ["短文だけ直接表示している"], "負例: 短文だけ直接表示"
 
   counted = with_file(good, :command_group) { |src|
-    src.sub("title: presentation.heading ?? \"\"", "title: String(rowsSlice.rows.count)")
+    src.sub("itemCount: items.count", "itemCount: rowsSlice.rows.count")
   }
-  selftest_errors_eq check_command_group(counted[:command_group]), ["件数が描画窓または除外後の行数になっている"], "負例: 件数誤り"
+  selftest_errors_eq check_command_group(counted[:command_group], counted[:scaled_font]), ["件数が描画窓または除外後の行数になっている"], "負例: 件数誤り"
 
   always = with_file(good, :task_list) { |src|
     src.sub(
@@ -1059,7 +1386,15 @@ def run_selftest
       "isExpanded: .constant(true), unused: Binding("
     )
   }
-  selftest_errors_eq check_task(always[:task_list]), ["タスクが定数 Binding で常時展開されている"], "負例: 常時展開"
+  selftest_errors_eq check_task(always[:task_list], always[:scaled_font]), ["タスクが定数 Binding で操作できない"], "負例: 常時展開"
+
+  always_false = with_file(good, :task_list) { |src|
+    src.sub(
+      "isExpanded: Binding(",
+      "isExpanded: .constant(false), unused: Binding("
+    )
+  }
+  selftest_errors_eq check_task(always_false[:task_list], always_false[:scaled_font]), ["タスクが定数 Binding で操作できない"], "負例: constant(false)"
 
   reset = with_file(good, :task_list) { |src|
     src.sub(
@@ -1067,58 +1402,115 @@ def run_selftest
       ".padding(.top, TranscriptTypography.withinAnswer)\n        .onChange(of: tasks) { userOverride = nil; isExpanded = false }"
     )
   }
-  selftest_errors_eq check_task(reset[:task_list]), ["表示継続中の更新で開閉をリセットしている"], "負例: 更新時リセット"
+  selftest_errors_eq check_task(reset[:task_list], reset[:scaled_font]), ["表示継続中の更新で開閉をリセットしている"], "負例: 更新時リセット"
 
   no_sub = with_file(good, :command_group) { |src|
     src.sub("subtitle: presentation.subtitle", "subtitle: nil")
-      .sub("isRunning: header.isRunning", "isRunning: false")
-      .sub("let header = CommandGroupHeader(isRunning: true, shouldRender: true)", "let ignored = 1")
   }
-  selftest_errors_eq check_command_group(no_sub[:command_group]).sort, [
-    "グループ実行中の正本が header.isRunning ではない",
-    "実行中補足が閉じたカードへ届いていない",
-  ].sort, "負例: 実行中補足欠落"
+  selftest_errors_eq check_command_group(no_sub[:command_group], no_sub[:scaled_font]), ["実行中補足が閉じたカードへ届いていない"], "負例: 実行中補足欠落"
 
-  no_err = with_file(good, :basic) { |src|
-    src.gsub("エラー", "Error").gsub("DSColor.statusError", "DSColor.chatTextPrimary")
+  no_run = with_file(good, :command_group) { |src|
+    src.sub("isRunning: header.isRunning", "isRunning: false")
   }
-  selftest_errors_eq check_error(no_err[:basic]), ["エラー色・見出しの接続が無い"], "負例: エラー色欠落"
+  selftest_errors_eq check_command_group(no_run[:command_group], no_run[:scaled_font]), [
+    "グループ実行中の正本が header.isRunning ではない",
+  ], "負例: 実行中正本欠落"
+
+  no_guard = with_file(good, :command_group) { |src|
+    src.sub("if header.shouldRender {", "if true {")
+  }
+  selftest_errors_eq check_command_group(no_guard[:command_group], no_guard[:scaled_font]), ["グループの表示ガードが header.shouldRender ではない"], "負例: shouldRender 欠落"
+
+  no_err_color = with_file(good, :basic) { |src|
+    src.gsub("DSColor.statusError", "DSColor.chatTextPrimary")
+  }
+  selftest_errors_eq check_error(no_err_color[:basic], no_err_color[:scaled_font]), ["エラー色の接続が無い"], "負例: エラー色欠落"
+
+  no_err_heading = with_file(good, :basic) { |src|
+    src.sub("Label(presentation.heading ?? \"\"", "Label(\"エラー\"")
+  }
+  selftest_errors_eq check_error(no_err_heading[:basic], no_err_heading[:scaled_font]), ["エラー見出しが分類モデルから届いていない"], "負例: エラー見出しリテラル"
 
   no_ax = with_file(good, :structured) { |src|
-    src.gsub(".accessibilityLabel(state.orbLabel)", "").gsub("state.orbLabel", "\"Thinking...\"")
+    src.gsub(".accessibilityLabel(state.orbLabel)", "").gsub("Text(state.orbLabel)", "Text(\"Thinking...\")")
   }
-  selftest_errors_eq check_thinking(no_ax[:structured]), ["活動ラベルと AX が同じ実状態に由来していない"], "負例: 活動 AX 欠落"
+  selftest_errors_eq check_thinking(no_ax[:structured], no_ax[:scaled_font]), ["活動ラベルと AX が同じ実状態に由来していない"], "負例: 活動 AX 欠落"
 
   no_copy = with_file(good, :command_group) { |src|
     src.gsub("copyText", "label")
   }
-  selftest_errors_eq check_command_group(no_copy[:command_group]), ["コピー原文の経路が無い"], "負例: コピー欠落"
+  selftest_errors_eq check_command_group(no_copy[:command_group], no_copy[:scaled_font]), ["コピー原文の経路が無い"], "負例: コピー欠落"
 
   no_window = with_file(good, :command_group) { |src|
-    src.gsub("CommandGroupRowWindow", "LegacyWindow").gsub("visibleLineLimit = 20", "visibleLineLimit = 5")
+    src.gsub("CommandGroupRowWindow", "LegacyWindow")
   }
-  window_ng = check_command_group(no_window[:command_group]) + check_output_window(no_window[:command_group])
-  selftest_errors_eq window_ng.uniq.sort, [
-    "描画窓 CommandGroupRowWindow が無い",
-    "描画窓の出力20行上限が無い",
-  ].sort, "負例: 描画窓欠落"
+  selftest_errors_eq check_command_group(no_window[:command_group], no_window[:scaled_font]), ["描画窓 CommandGroupRowWindow が無い"], "負例: 描画窓欠落"
 
-  no_typo = with_file(good, :task_list) { |src|
-    src.gsub("TranscriptTypography.font(for: .body, scale: 1)", "Font.system(size: 13)")
-      .gsub("TranscriptTypography.withinAnswer", "8")
+  no_limit = with_file(good, :command_group) { |src|
+    src.gsub("visibleLineLimit = 20", "visibleLineLimit = 5")
   }
-  selftest_errors_eq check_task(no_typo[:task_list]), ["タスクの TranscriptTypography 接続が無い"], "負例: TranscriptTypography 接続欠落"
+  selftest_errors_eq check_output_window(no_limit[:command_group]), ["描画窓の出力20行上限が無い"], "負例: 20行上限欠落"
 
-  decoy = with_file(good, :task_list) { |src|
-    src.gsub("TranscriptItemPresentation.taskList(count: tasks.count)", "/* TranscriptItemPresentation.taskList */ Dummy.task()")
-      .gsub("TranscriptTypography.font(for: .body, scale: 1)", "Font.system(size: 13)")
-      .gsub("TranscriptTypography.withinAnswer", "8") + %(\nlet unused = "TranscriptTypography"\nif false { _ = TranscriptTypography.font(for: .body, scale: 1) }\n)
+  no_font = with_file(good, :structured) { |src|
+    src.sub("TranscriptTypography.font(for: .body, scale: scale)", "Font.system(size: 13)")
   }
-  decoy_ng = check_task(decoy[:task_list])
-  selftest_assert decoy_ng.include?("タスクから分類モデルが未接続") && decoy_ng.include?("タスクの TranscriptTypography 接続が無い"), "負例: コメント・if false・未使用コードによる偽装 (#{decoy_ng.inspect})"
+  selftest_errors_eq typography_errors(compact_reach(no_font[:structured], "ReasoningSummaryView"), no_font[:scaled_font], "思考詳細"), ["思考詳細のフォント役割が無い"], "負例: フォント役割退行"
+
+  no_scale = with_file(good, :structured) { |src|
+    src.gsub("scale: scale", "scale: 1")
+  }
+  selftest_errors_eq typography_errors(compact_reach(no_scale[:structured], "ReasoningSummaryView"), no_scale[:scaled_font], "思考詳細"), ["思考詳細の倍率追随が無い"], "負例: 倍率固定"
+
+  no_pad = with_file(good, :structured) { |src|
+    src.sub(".padding(.top, TranscriptTypography.withinAnswer)", ".padding(.top, 8)")
+  }
+  selftest_errors_eq typography_errors(compact_reach(no_pad[:structured], "ReasoningSummaryView"), no_pad[:scaled_font], "思考詳細"), ["思考詳細の余白接続が無い"], "負例: 余白退行"
+
+  no_lead = with_file(good, :structured) { |src|
+    src.sub(".lineSpacing(TranscriptTypography.textLineSpacing)", "")
+  }
+  selftest_errors_eq typography_errors(compact_reach(no_lead[:structured], "ReasoningSummaryView"), no_lead[:scaled_font], "思考詳細"), ["思考詳細の行間接続が無い"], "負例: 行間退行"
+
+  no_adapter = with_file(good, :scaled_font) { |src|
+    src.sub("TranscriptTypography.font(for: .body, scale: scale)", "Font.system(size: 13)")
+  }
+  selftest_errors_eq check_scaled_font_adapter(no_adapter[:scaled_font]), ["ChatScaledFont が TranscriptTypography へ委譲していない"], "負例: ChatScaledFont 転送欠落"
+
+  fake_decl = with_file(good, :task_list) { |src|
+    "/* struct TaskListCell { var body: some View { let presentation = TranscriptItemPresentation.taskList(count: 1)\n DisclosureCard(isExpanded: Binding(get: { true }, set: { _ in }), title: presentation.heading ?? \"\", subtitle: nil, isToolCall: presentation.semanticInk == .process) { Text(\"ok\").font(TranscriptTypography.font(for: .body, scale: scale)).padding(.top, TranscriptTypography.withinAnswer) } } } */\n" +
+      src.gsub("TranscriptItemPresentation.taskList(count: tasks.count)", "Dummy.task()")
+        .gsub("presentation.heading ?? \"\"", "\"Tasks\"")
+        .gsub("presentation.semanticInk == .process", "true")
+  }
+  fake_ng = check_task(fake_decl[:task_list], fake_decl[:scaled_font])
+  selftest_assert fake_ng.include?("タスクから分類モデルが未接続"), "負例: コメント内偽宣言 (#{fake_ng.inspect})"
+
+  unused = with_file(good, :task_list) { |src|
+    src.sub(
+      "let presentation = TranscriptItemPresentation.taskList(count: tasks.count)",
+      "let unused = TranscriptItemPresentation.taskList(count: tasks.count)\n        let presentation = Dummy.task()"
+    )
+  }
+  selftest_errors_eq check_task(unused[:task_list], unused[:scaled_font]), ["タスクから分類モデルが未接続"], "負例: 未使用変数"
+
+  discarded = with_file(good, :task_list) { |src|
+    src.sub(
+      "let presentation = TranscriptItemPresentation.taskList(count: tasks.count)",
+      "_ = TranscriptItemPresentation.taskList(count: tasks.count)\n        let presentation = Dummy.task()"
+    )
+  }
+  selftest_errors_eq check_task(discarded[:task_list], discarded[:scaled_font]), ["タスクから分類モデルが未接続"], "負例: 戻り値破棄"
+
+  bound_answer = with_file(good, :basic) { |src|
+    src.sub(
+      "VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {",
+      "@State private var userOverride: Bool?\n        VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {"
+    )
+  }
+  selftest_errors_eq check_answer(bound_answer[:basic], bound_answer[:scaled_font]), ["回答が詳細用 Binding に依存している"], "負例: 回答が詳細 Binding に依存"
 
   unparsed = "struct TaskListCell: View { var body: some View {"
-  selftest_errors_eq check_task(unparsed), ["TaskListCell を解析できない"], "負例: 構文切り出し失敗"
+  selftest_errors_eq check_task(unparsed, good[:scaled_font]), ["TaskListCell を解析できない"], "負例: 構文切り出し失敗"
 
   task47_reset = with_file(task47, :task_list) { |src|
     src.sub(
@@ -1129,10 +1521,9 @@ def run_selftest
   selftest_errors_eq check_product(task47_reset), ["表示継続中の更新で開閉をリセットしている"], "負例: task-47 許可 fixture に開閉リセットを1件加える"
 
   task47_typo = with_file(task47, :task_list) { |src|
-    src.gsub("TranscriptTypography.font(for: .body, scale: 1)", "Font.system(size: 13)")
-      .gsub("TranscriptTypography.withinAnswer", "8")
+    src.gsub("TranscriptTypography.font(for: .body, scale: scale)", "Font.system(size: 13)")
   }
-  selftest_errors_eq check_product(task47_typo), ["タスクの TranscriptTypography 接続が無い"], "負例: task-47 許可 fixture に typography 退行を1件加える"
+  selftest_errors_eq check_product(task47_typo), ["タスクのフォント役割が無い"], "負例: task-47 許可 fixture に typography 退行を1件加える"
 
   unset, unset_errs = baseline_env_errors(nil)
   selftest_errors_eq unset_errs, ["TASK46_BASELINE が未設定（HEAD にフォールバックしない）"], "負例: 基準の未設定"
@@ -1164,79 +1555,66 @@ def run_selftest
   selftest_errors_eq real_mismatch, ["TASK46_BASELINE が契約 baseline_commit と一致しない"], "負例: 契約不一致"
 
   same_blob = "frozen\n"
-  pre_ok = check_frozen_baseline(
-    head_full,
+  artifacts_ok = {
     presentation_blob: nil,
     typography_blob: "public enum TranscriptTypography {}",
-    test_blobs: [same_blob, same_blob],
-    test_nows: [same_blob, same_blob],
-    rb_blob: same_blob,
-    rb_now: same_blob
-  )
-  selftest_errors_eq pre_ok, [], "正例: 固定 SHA が HEAD と同じでも実装前 blob なら拒否しない"
-
-  post_ng = check_frozen_baseline(
-    head_full,
-    presentation_blob: "struct TranscriptItemPresentation {}",
-    typography_blob: "public enum TranscriptTypography {}",
-    test_blobs: [same_blob, same_blob],
-    test_nows: [same_blob, same_blob],
-    rb_blob: same_blob,
-    rb_now: same_blob
-  )
-  selftest_errors_eq post_ng, ["基準時点に TranscriptItemPresentation.swift がある（実装前の凍結ではない）"], "負例: 実装済み基準"
-
-  no_task40 = check_frozen_baseline(
-    head_full,
-    presentation_blob: nil,
-    typography_blob: nil,
-    test_blobs: [same_blob, same_blob],
-    test_nows: [same_blob, same_blob],
-    rb_blob: same_blob,
-    rb_now: same_blob
-  )
-  selftest_errors_eq no_task40, ["基準時点に TranscriptTypography.swift が無い（task-40 完了状態ではない）"], "負例: task-40 完了状態が基準に無い"
-
-  selftest_errors_eq frozen_artifact_errors("rb 自身", "now", "frozen"), ["基準時点のrb 自身が現在と同一ではない"], "負例: 凍結検査の改変"
-  selftest_errors_eq frozen_artifact_errors("受け入れテスト1", nil, "now"), ["基準時点の受け入れテスト1を git show できない"], "負例: blob 取得失敗"
-  selftest_errors_eq frozen_artifact_errors("rb 自身", "same", "same"), [], "正例: 凍結 rb と作業ツリーが同一"
-  selftest_assert workdir_matches_git_blob?("a", "a"), "正例: git show と作業ツリーが同一"
-  selftest_assert !workdir_matches_git_blob?("a", nil), "負例: git show 失敗は同一ではない"
-
-  non_anc = check_frozen_baseline(
-    other_full,
-    presentation_blob: nil,
-    typography_blob: "ok",
-    test_blobs: [same_blob, same_blob],
-    test_nows: [same_blob, same_blob],
-    rb_blob: same_blob,
-    rb_now: same_blob
-  )
-  selftest_assert !non_anc.include?("TASK46_BASELINE が HEAD の祖先ではない"), "正例: HEAD^ は祖先"
-  forced_non_ancestor = check_frozen_baseline(
-    head_full,
-    presentation_blob: nil,
-    typography_blob: "ok",
     test_blobs: [same_blob, same_blob],
     test_nows: [same_blob, same_blob],
     rb_blob: same_blob,
     rb_now: same_blob,
-    is_ancestor: false
-  )
+  }
+  selftest_errors_eq check_frozen_baseline(head_full, artifacts_ok), [], "正例: 固定 SHA が HEAD と同じでも実装前 blob なら拒否しない"
+
+  post_ng = check_frozen_baseline(head_full, artifacts_ok.merge(presentation_blob: "struct TranscriptItemPresentation {}"))
+  selftest_errors_eq post_ng, ["基準時点に TranscriptItemPresentation.swift がある（実装前の凍結ではない）"], "負例: 実装済み基準"
+
+  no_task40 = check_frozen_baseline(head_full, artifacts_ok.merge(typography_blob: nil))
+  selftest_errors_eq no_task40, ["基準時点に TranscriptTypography.swift が無い（task-40 完了状態ではない）"], "負例: task-40 完了状態が基準に無い"
+
+  git_fail = check_frozen_baseline(head_full, artifacts_ok.merge(presentation_error: "fatal: bad object"))
+  selftest_errors_eq git_fail, ["基準時点の TranscriptItemPresentation.swift を git show できない: fatal: bad object"], "負例: 基準 git 障害"
+
+  missing_pres = check_frozen_baseline(head_full, artifacts_ok.merge(presentation_blob: nil))
+  selftest_errors_eq missing_pres, [], "正例: 新規製品ファイルの基準不存在は git 障害ではない"
+
+  selftest_errors_eq blob_fetch_errors("rb 自身", { status: :ok, text: "now" }, "frozen"), ["基準時点のrb 自身が現在と同一ではない"], "負例: 凍結検査の改変"
+  selftest_errors_eq blob_fetch_errors("受け入れテスト1", { status: :git_error, text: nil, stderr: "fatal: foo" }, "now"), ["基準時点の受け入れテスト1を git show できない: fatal: foo"], "負例: blob 取得失敗"
+  selftest_errors_eq blob_fetch_errors("受け入れテスト1", { status: :missing, text: nil, stderr: "" }, "now"), ["基準時点の受け入れテスト1が無い"], "負例: 基準ファイル不存在"
+  selftest_errors_eq frozen_artifact_errors("rb 自身", "same", "same"), [], "正例: 凍結 rb と作業ツリーが同一"
+  selftest_assert workdir_matches_git_blob?("a", "a"), "正例: git show と作業ツリーが同一"
+  selftest_assert !workdir_matches_git_blob?("a", nil), "負例: git show 失敗は同一ではない"
+
+  non_anc = check_frozen_baseline(other_full, artifacts_ok)
+  selftest_assert !non_anc.include?("TASK46_BASELINE が HEAD の祖先ではない"), "正例: HEAD^ は祖先"
+  forced_non_ancestor = check_frozen_baseline(head_full, artifacts_ok.merge(is_ancestor: false))
   selftest_errors_eq forced_non_ancestor, ["TASK46_BASELINE が HEAD の祖先ではない"], "負例: 非祖先"
 
   out_of_scope = good.merge(extra_changed: [FORMATTING_PATH])
   selftest_errors_eq scope_errors(out_of_scope, good), ["許可パス外の製品変更: #{FORMATTING_PATH}"], "負例: scope のみで拒否すべき範囲外変更"
   selftest_errors_eq check_product(good.merge(formatting: "changed")), [], "正例: scope なしでは範囲外変更を範囲違反にしない"
 
-  body_changed = with_file(good, :basic) { |src|
-    src.sub("RichMarkdownView(text)", "Text(text)")
-  }
-  selftest_errors_eq agent_message_body_errors(body_changed[:basic], good[:basic]), ["AgentMessageBody の宣言が基準から変化している"], "負例: SCOPE_CHECK で AgentMessageBody 改変"
+  unset_ng = evaluate_checks(out_of_scope, good, scope: false)
+  one_ng = evaluate_checks(out_of_scope, good, scope: true)
+  selftest_errors_eq unset_ng, [], "正例: 未設定/0 相当は範囲外変更を恒久 NG にしない"
+  selftest_errors_eq one_ng, ["許可パス外の製品変更: #{FORMATTING_PATH}"], "負例: SCOPE_CHECK=1 の本番判定"
 
   with_env("TASK46_SCOPE_CHECK", "1") { selftest_assert scope_check_requested?, "正例: SCOPE_CHECK=1" }
   with_env("TASK46_SCOPE_CHECK", "0") { selftest_assert !scope_check_requested?, "正例: SCOPE_CHECK=0 では恒久のみ" }
   with_env("TASK46_SCOPE_CHECK", nil) { selftest_assert !scope_check_requested?, "正例: 未設定では恒久のみ" }
+  unset_pred = nil
+  zero_pred = nil
+  one_pred = nil
+  with_env("TASK46_SCOPE_CHECK", nil) { unset_pred = scope_check_requested? }
+  with_env("TASK46_SCOPE_CHECK", "0") { zero_pred = scope_check_requested? }
+  with_env("TASK46_SCOPE_CHECK", "1") { one_pred = scope_check_requested? }
+  selftest_errors_eq evaluate_checks(out_of_scope, good, scope: unset_pred), [], "正例: 未設定の本番分岐"
+  selftest_errors_eq evaluate_checks(out_of_scope, good, scope: zero_pred), [], "正例: SCOPE_CHECK=0 の本番分岐"
+  selftest_errors_eq evaluate_checks(out_of_scope, good, scope: one_pred), ["許可パス外の製品変更: #{FORMATTING_PATH}"], "正例: SCOPE_CHECK=1 の本番分岐"
+
+  body_changed = with_file(good, :basic) { |src|
+    src.sub("RichMarkdownView(text)", "Text(text)")
+  }
+  selftest_errors_eq agent_message_body_errors(body_changed[:basic], good[:basic]), ["AgentMessageBody の宣言が基準から変化している"], "負例: SCOPE_CHECK で AgentMessageBody 改変"
 
   prod = production_checks_source
   selftest_assert !prod.empty?, "正例: 本番検査セクションが存在する"
@@ -1274,8 +1652,11 @@ if baseline
     baseline = nil
   else
     ng.concat(check_frozen_baseline(full))
+    base_blobs = baseline_files(full)
+    files = worktree_files(full)
+    ng.concat(permanent_structure_errors(files, base_blobs))
     if baseline && scope_check_requested?
-      ng.concat(scope_errors(files, baseline_files(full)))
+      ng.concat(scope_errors(files, base_blobs))
     end
     baseline = full
   end

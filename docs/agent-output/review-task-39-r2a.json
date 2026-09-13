@@ -1,0 +1,95 @@
+{
+  "reviewer": "codex-gpt-6-astra",
+  "dimensions_swept": [
+    {
+      "dimension": "契約適合",
+      "result": "ok",
+      "note": "契約改訂2の配線を確認。TerminalView.swift:44でcurrentを更新し、45行でattach、54行で現在端末をdetachする。前回HIGH1は解消。"
+    },
+    {
+      "dimension": "正しさ",
+      "result": "ok",
+      "note": "X→Y差し替え時はXのownerと履歴を解放してYを接続する。旧Aの破棄は123行のowner照合で拒否され、Bを外さない。"
+    },
+    {
+      "dimension": "誠実性",
+      "result": "ok",
+      "note": "対象差分に握りつぶし・調査コード・テスト弱体化を検出せず。禁止された実装役レポートは未読。自身の実走失敗とPM提供結果を区別した。"
+    },
+    {
+      "dimension": "根本原因",
+      "result": "ok",
+      "note": "後着updateの奪い返しを所有権履歴で遮断し、前回残った初期coordinatorと現在端末の不一致もmount状態の更新で解消している。"
+    },
+    {
+      "dimension": "構造",
+      "result": "ok",
+      "note": "所有権規則はTerminalMountに集約。TerminalMountCoordinatorは現在端末の追跡だけを担い、上位層への依存や別の載せ替え経路を追加していない。"
+    },
+    {
+      "dimension": "到達性",
+      "result": "ok",
+      "note": "単一のSessionViewとグリッドのPaneLayoutViewのPTY分岐がTerminalViewへ到達し、更新・破棄が共通attach/detachを通る。現版の画面証拠は別項で未検証とした。"
+    },
+    {
+      "dimension": "非機能",
+      "result": "ok",
+      "note": "所有権操作はMainActor内。台帳のキー、owner、formerOwnersは弱参照で、端末・コンテナを恒久保持しない。生のアドレスを保存せず、解放済みオブジェクトと新規オブジェクトを混同しない。[Appleの弱参照仕様](https://developer.apple.com/documentation/foundation/nsmaptable/weaktostrongobjects())。"
+    },
+    {
+      "dimension": "テストの質",
+      "result": "ok",
+      "note": "固定Bool・superview・制約同一性・出力文字列を検査する。改訂後の破棄テストはmakeCoordinatorで得た同じmountを渡す。updateNSViewのcurrent更新は配線検査が補完する。"
+    },
+    {
+      "dimension": "Rubric：因果への適合",
+      "result": "ok",
+      "note": "B接続時にAをformerOwnersへ登録し、後着Aをsubview操作前に拒否する。再描画強制・待ち時間追加・選択変更・端末再生成で症状を隠していない。"
+    },
+    {
+      "dimension": "Rubric：所有権の対称性",
+      "result": "ok",
+      "note": "attachとdetachは同じRecord.ownerを使う。旧所有者の更新・破棄は現在所有者に無害で、現所有者の解放後は履歴が消えA/Cが接続できる。"
+    },
+    {
+      "dimension": "Rubric：製品への到達性",
+      "result": "ok",
+      "note": "製品の直接attachはupdateNSViewの1箇所。dismantleNSViewも現在端末をowner照合付きdetachへ渡し、テスト専用経路ではない。"
+    },
+    {
+      "dimension": "Rubric：再利用と寿命",
+      "result": "ok",
+      "note": "makeCoordinatorでmount状態を生成し、struct再評価ではcurrentだけ更新する。coordinatorがNSView寿命を通じて同一という[Appleの説明](https://developer.apple.com/videos/play/wwdc2022/10075/)に適合。X→Y→Xの再選択と旧所有者解放後の再接続も成立する。"
+    },
+    {
+      "dimension": "Rubric：副作用の順序",
+      "result": "ok",
+      "note": "89・92行の拒否判定が97行以降の別subview解放に先行。同一ownerの更新では制約を変更せず、非同期scrollToBottomも予約しない。"
+    },
+    {
+      "dimension": "Rubric：既存挙動の保持",
+      "result": "ok",
+      "note": "PTY/feed、バッファ、サイズ通知、非同期refreshの実コードを確認。ADR-0010の非同期スクロールを維持し、新規currentは観測状態ではない。ADR-0116の幅保持・通知とタイル構成も無変更。既存whitebox検査は保持されている。"
+    },
+    {
+      "dimension": "Rubric：検査の効力",
+      "result": "ok",
+      "note": "テストと配線検査は凍結521e838から無変更。固定baselineの照合、旧makeCoordinator・current更新欠落・誤ったdetach引数等の負例を確認。静的変異による検出理由はroot_cause_assessmentに記載。"
+    },
+    {
+      "dimension": "Rubric：完了の証拠",
+      "result": "unverified",
+      "note": "テスト・配線検査・SessionFeature build・App Debug build成功はPMから供給済み。ただしvisual-task-39.md:21の対象は旧製品修正2e27c8bで、現修正0f93809の再実施結果ではない。65行にはCのgrid-3だけが記載され、各往復のグリッドPNG確認も揃っていない。PMが並行実施中の現版目視結果は未検証。"
+    },
+    {
+      "dimension": "Rubric：スコープ",
+      "result": "ok",
+      "note": "指定した累積差分・r2差分は現HEADから生成したTerminalView.swiftの差分と一致。製品変更は同ファイルのみ。PMによる再凍結変更と区別し、作業ツリーがクリーンであることも確認した。"
+    }
+  ],
+  "verdict": "needs_changes",
+  "tests_run": [],
+  "findings": [],
+  "integrity_check": "前回HIGH1は解消し、追加のコード指摘は検出せず。needs_changesの理由は現修正版のPM目視証拠が未検証であること。自身のテスト実走も未検証。試行は① `/Users/ryosuke/.agents/scripts/compact-test task39-terminalui bash macos/scripts/run-swift-tests.sh TerminalUI`、② `TASK39_BASELINE=521e838 /Users/ryosuke/.agents/scripts/compact-test task39-wiring ruby .claude/scripts/task39-wiring.rb`、③ `/Users/ryosuke/.agents/scripts/compact-test task39-wiring-selftest ruby .claude/scripts/task39-wiring.rb --selftest`。すべてexit 1。失敗原文は順に `mktemp: mkstemp failed on /tmp/tmp.DSkTOHzPJg: Operation not permitted`、`mktemp: mkstemp failed on /tmp/tmp.SBxS8YmkXt: Operation not permitted`、`mktemp: mkstemp failed on /tmp/tmp.WvxeG8GXTk: Operation not permitted`。各試行で続いて `/Users/ryosuke/.agents/scripts/compact-test: line 26: : No such file or directory` と `cat: : No such file or directory`。ラッパーの一時ログ作成・リダイレクト段階の失敗で、テスト本体は起動しておらず環境起因。回避策は実施せず、ラッパーも迂回していない。PMが独立した客観層を供給しているため、実走不可の例外3条件は満たす。ただし目視未検証まで免除するものとは扱わない。受け入れファイルには@Testが13件あり、供給された「10ケース」を自身による13件成功とは読み替えていない。",
+  "root_cause_assessment": "根本原因に到達している。旧実装はSwiftUIが保持する初期Xを破棄引数にしていたが、現在は同じmount状態のcurrentを更新するため、X→Y後の破棄でYを解放できる。静的変異として、current更新を削除すると配線検査check_mount_coordinatorが拒否する。hostingViewを初期Xへ固定する変異では、dismantleAfterCoordinatorSwapReleasesYNotXのY.superview == nil、コンテナ空、旧タイルへの再接続という期待が破れる。formerOwners登録または拒否分岐の削除ではstaleOwnerACannotStealFromBが破れ、detachのowner照合削除では旧A破棄後のB保持が破れる。拒否判定を別subview除去後へ移すとstaleReattachOfXDoesNotRemoveYFromAのY保持が破れる。以上はコード上の静的変異評価であり、変異テストを実走したという主張ではない。コード修正の追加要求はないが、現版の目視ゲート完了はまだ確認できていない。"
+}

@@ -16,9 +16,6 @@ import AgentDomain
 
 @Suite("task-45: session title presentation")
 struct AcceptanceSessionTitlePresentationTests {
-    private let fallback = "abc123"
-    private let workspace = "/tmp/project"
-
     private func make(
         _ state: SessionTitleState,
         workspacePath: String = "/tmp/project"
@@ -147,6 +144,10 @@ struct AcceptanceSessionTitlePresentationTests {
         #expect(presented.secondary == "Rose", Comment(rawValue: "33 derived secondary"))
         #expect(presented.fullTitle == "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567", Comment(rawValue: "33 derived fullTitle"))
         #expect(presented.accessibilityValue == "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567", Comment(rawValue: "33 derived AX"))
+        #expect(
+            presented.helpText == "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567\n花名: Rose\n作業場所: /tmp/project",
+            Comment(rawValue: "33 derived help uses fullTitle not primary")
+        )
     }
 
     @Test("derived 全文 nil の不整合入力は task-44 正規化後の manual として表示")
@@ -356,7 +357,101 @@ struct AcceptanceSessionTitlePresentationTests {
         #expect(fullTitle == "Rose", Comment(rawValue: "public fullTitle"))
         #expect(helpText == "Rose\n花名: Rose\n作業場所: /tmp/project", Comment(rawValue: "public help"))
         #expect(accessibilityValue == "Rose", Comment(rawValue: "public AX"))
-        #expect(fallback == "abc123", Comment(rawValue: "fallback literal unused except as argument"))
-        #expect(workspace == "/tmp/project", Comment(rawValue: "workspace literal unused except as argument"))
+        let otherArgs = SessionTitlePresentation(
+            state: .legacy(name: ""),
+            fallback: "xyz999",
+            workspacePath: "/tmp/other"
+        )
+        #expect(otherArgs.primary == "xyz999", Comment(rawValue: "distinct fallback is used"))
+        #expect(otherArgs.fullTitle == "xyz999", Comment(rawValue: "distinct fallback fullTitle"))
+        #expect(
+            otherArgs.helpText == "xyz999\n作業場所: /tmp/other",
+            Comment(rawValue: "distinct fallback and workspacePath are used")
+        )
+        #expect(otherArgs.accessibilityValue == "xyz999", Comment(rawValue: "distinct fallback AX"))
+    }
+
+    @Test("前後空白付きの旧名は表示時に trim する")
+    func legacyNameWithSurroundingWhitespaceIsTrimmed() {
+        let presented = make(.legacy(name: "  Rose  "))
+        #expect(presented.primary == "Rose", Comment(rawValue: "padded legacy primary"))
+        #expect(presented.secondary == nil, Comment(rawValue: "padded legacy secondary"))
+        #expect(presented.fullTitle == "Rose", Comment(rawValue: "padded legacy fullTitle"))
+        #expect(presented.accessibilityValue == "Rose", Comment(rawValue: "padded legacy AX"))
+        #expect(
+            presented.helpText == "Rose\n作業場所: /tmp/project",
+            Comment(rawValue: "padded legacy help")
+        )
+    }
+
+    @Test("空白だけの旧名は fallback を使う")
+    func whitespaceOnlyLegacyNameUsesFallback() {
+        let presented = make(.legacy(name: " \n "))
+        #expect(presented.primary == "abc123", Comment(rawValue: "blank legacy primary"))
+        #expect(presented.secondary == nil, Comment(rawValue: "blank legacy secondary"))
+        #expect(presented.fullTitle == "abc123", Comment(rawValue: "blank legacy fullTitle"))
+        #expect(presented.accessibilityValue == "abc123", Comment(rawValue: "blank legacy AX"))
+        #expect(
+            presented.helpText == "abc123\n作業場所: /tmp/project",
+            Comment(rawValue: "blank legacy help")
+        )
+    }
+
+    @Test("花名なしの derived は補助なしで全文を保持する")
+    func derivedWithoutFlowerOmitsSecondaryAndKeepsFullTitle() {
+        let state = SessionTitleState(
+            name: "ログイン画面を修正",
+            source: .derived,
+            flowerName: nil,
+            fullDerivedTitle: "ログイン画面を修正"
+        )
+        let presented = make(state)
+        #expect(presented.primary == "ログイン画面を修正", Comment(rawValue: "flowerless derived primary"))
+        #expect(presented.secondary == nil, Comment(rawValue: "flowerless derived secondary"))
+        #expect(presented.fullTitle == "ログイン画面を修正", Comment(rawValue: "flowerless derived fullTitle"))
+        #expect(presented.accessibilityValue == "ログイン画面を修正", Comment(rawValue: "flowerless derived AX"))
+        #expect(
+            presented.helpText == "ログイン画面を修正\n作業場所: /tmp/project",
+            Comment(rawValue: "flowerless derived help omits flower line")
+        )
+    }
+
+    @Test("異なる fallback・花名・非空 workspace を引数どおり使う")
+    func distinctFallbackFlowerAndWorkspaceAreUsed() {
+        let state = SessionTitleState(
+            name: "",
+            source: .manual,
+            flowerName: "Tulip",
+            fullDerivedTitle: nil
+        )
+        let presented = SessionTitlePresentation(
+            state: state,
+            fallback: "xyz999",
+            workspacePath: "/tmp/other"
+        )
+        #expect(presented.primary == "xyz999", Comment(rawValue: "other fallback primary"))
+        #expect(presented.secondary == "Tulip", Comment(rawValue: "other flower secondary"))
+        #expect(presented.fullTitle == "xyz999", Comment(rawValue: "other fallback fullTitle"))
+        #expect(presented.accessibilityValue == "xyz999", Comment(rawValue: "other fallback AX"))
+        #expect(
+            presented.helpText == "xyz999\n花名: Tulip\n作業場所: /tmp/other",
+            Comment(rawValue: "other flower and workspace help")
+        )
+        let named = SessionTitlePresentation(
+            state: SessionTitleState(
+                name: "通知を修正",
+                source: .manual,
+                flowerName: "Tulip",
+                fullDerivedTitle: nil
+            ),
+            fallback: "xyz999",
+            workspacePath: "/tmp/other"
+        )
+        #expect(named.primary == "通知を修正", Comment(rawValue: "named other flower primary"))
+        #expect(named.secondary == "Tulip", Comment(rawValue: "named other flower secondary"))
+        #expect(
+            named.helpText == "通知を修正\n花名: Tulip\n作業場所: /tmp/other",
+            Comment(rawValue: "named other flower help")
+        )
     }
 }

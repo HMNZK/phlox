@@ -297,6 +297,176 @@ def labeled_arg(args, label)
   args[start...i].strip
 end
 
+def span_expr_with_modifiers(src, start, indexed = nil)
+  indexed ||= code_only_indexed(src)
+  return nil if start.nil? || start < 0 || start >= indexed.length
+  return nil unless indexed[start] =~ /[A-Za-z_]/
+  i = start + 1
+  i += 1 while i < indexed.length && indexed[i] =~ /[A-Za-z0-9_]/
+  loop do
+    j = skip_ws(indexed, i)
+    break if j >= indexed.length
+    case indexed[j]
+    when "("
+      args = extract_balanced(src, j, "(", ")")
+      return nil if args.nil?
+      i = j + 1 + args.length + 1
+    when "{"
+      body = extract_balanced(src, j, "{", "}")
+      return nil if body.nil?
+      i = j + 1 + body.length + 1
+    when "."
+      k = skip_ws(indexed, j + 1)
+      break unless k < indexed.length && indexed[k] =~ /[A-Za-z_]/
+      k += 1 while k < indexed.length && indexed[k] =~ /[A-Za-z0-9_]/
+      i = k
+    else
+      break
+    end
+  end
+  [start, i]
+end
+
+def compact_code(src)
+  compact(mask_strings_and_comments(src.to_s))
+end
+
+def find_text_span(src, inner_compact)
+  indexed = code_only_indexed(src.to_s)
+  pos = 0
+  best = nil
+  while (m = indexed.match(/\bText\s*\(/, pos))
+    args = extract_balanced(src, m.end(0) - 1, "(", ")")
+    if compact(mask_strings_and_comments(args.to_s)) == inner_compact
+      span = span_expr_with_modifiers(src, m.begin(0))
+      if span && (best.nil? || (span[1] - span[0]) > (best[1] - best[0]))
+        best = span
+      end
+    end
+    pos = m.end(0)
+  end
+  best
+end
+
+def mask_span!(text, a, b)
+  return if a.nil? || b.nil? || b <= a
+  text[a...b] = " " * (b - a)
+end
+
+def mask_named_decl(src, name)
+  indexed = code_only_indexed(src)
+  m = indexed.match(/(?:^|\n)[ \t]*(?:@[A-Za-z_][\w.]*[ \t]*)*(?:(?:private|public|fileprivate|internal|open|override|final|static|nonisolated)\s+)*(?:func|var)\s+#{Regexp.escape(name)}\b/)
+  return src unless m
+  brace = indexed.index("{", m.end(0))
+  return src unless brace
+  body = extract_balanced(src, brace, "{", "}")
+  return src if body.nil?
+  close = brace + 1 + body.length + 1
+  start = m.begin(0)
+  start += 1 if src[start] == "\n"
+  src[0...start] + (" " * (close - start)) + src[close..]
+end
+
+def mask_name_syntax_units(src)
+  result = src.to_s.dup
+  spans = []
+  indexed = code_only_indexed(result)
+  pos = 0
+  while (m = indexed.match(/\bif\s+let\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*[A-Za-z_][A-Za-z0-9_]*\.secondary\b/, pos))
+    brace = indexed.index("{", m.end(0))
+    break unless brace
+    body = extract_balanced(result, brace, "{", "}")
+    break if body.nil?
+    close = brace + 1 + body.length + 1
+    spans << [m.begin(0), close]
+    pos = close
+  end
+  pos = 0
+  while (m = indexed.match(/\bSessionTitlePresentation\s*\(/, pos))
+    span = span_expr_with_modifiers(result, m.begin(0), indexed)
+    break unless span
+    start = span[0]
+    pre = result[0...start]
+    if (lm = pre.match(/let\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*\z/))
+      start = lm.begin(0)
+    end
+    spans << [start, span[1]]
+    pos = span[1]
+  end
+  [
+    /[A-Za-z_][A-Za-z0-9_]*\.primary/,
+    /session\.displayName/,
+    /source\.displayName/,
+    /item\.sessionDisplayName/,
+    /viewModel\.displayName/,
+  ].each do |inner|
+    pos = 0
+    while (m = indexed.match(/\bText\s*\(\s*#{inner.source}\s*\)/, pos))
+      span = span_expr_with_modifiers(result, m.begin(0), indexed)
+      if span
+        spans << span
+        pos = span[1]
+      else
+        pos = m.end(0)
+      end
+    end
+  end
+  spans.sort_by! { |a, _| -a }
+  seen = {}
+  spans.each do |a, b|
+    next if seen[[a, b]]
+    seen[[a, b]] = true
+    mask_span!(result, a, b)
+  end
+  %w[titlePresentation selectedSessionTitle selectedNode].each do |name|
+    result = mask_named_decl(result, name)
+  end
+  result
+end
+
+def surrounding_label(src, call_start)
+  indexed = code_only_indexed(src)
+  i = call_start - 1
+  i -= 1 while i >= 0 && indexed[i] =~ /\s/
+  return nil unless i >= 0 && indexed[i] == ":"
+  j = i - 1
+  j -= 1 while j >= 0 && indexed[j] =~ /\s/
+  return nil if j < 0
+  start = j
+  start -= 1 while start >= 0 && indexed[start] =~ /[A-Za-z0-9_]/
+  indexed[(start + 1)..j]
+end
+
+def typography_sites(src)
+  sites = []
+  indexed = code_only_indexed(src.to_s)
+  pos = 0
+  re = /\b(TranscriptTypography|ChatTypography)\.([A-Za-z0-9_]+)\s*\(/
+  while (m = indexed.match(re, pos))
+    args = extract_balanced(src, m.end(0) - 1, "(", ")")
+    sites << {
+      type: m[1],
+      member: m[2],
+      args: compact(mask_strings_and_comments(args.to_s)),
+      apply: surrounding_label(src, m.begin(0)),
+    }
+    pos = m.end(0)
+  end
+  sites
+end
+
+def required_blob_present_errors(label, result)
+  case result && result[:fetch]
+  when :ok then []
+  when :missing then ["基準時点の#{label}が無い"]
+  when :git_error
+    msg = result[:stderr].to_s.empty? ? "基準時点の#{label}を git show できない" : "基準時点の#{label}を git show できない: #{result[:stderr]}"
+    [msg]
+  else
+    ["基準時点の#{label}が無い"]
+  end
+end
+
 def git_tree_has_path?(rev, path)
   system("git", "cat-file", "-e", "#{rev}:#{path}", out: File::NULL, err: File::NULL)
 end
@@ -597,6 +767,11 @@ def check_frozen_baseline(baseline, artifacts = nil)
     view_keys.each do |key|
       path = PATHS[key]
       view_blobs[path] = artifacts[:view_blobs] ? artifacts[:view_blobs][path] : artifacts[key]
+      if artifacts[:view_results] && artifacts[:view_results][path]
+        ng.concat(required_blob_present_errors(path, artifacts[:view_results][path]))
+      elsif view_blobs[path].nil?
+        ng << "基準時点の #{path} が無い"
+      end
     end
     ng.concat(implementation_in_baseline_errors(
       artifacts[:presentation_blob],
@@ -622,7 +797,11 @@ def check_frozen_baseline(baseline, artifacts = nil)
     PATHS.each do |key, path|
       next unless view_keys.include?(key)
       shown = git_show_result(full, path)
+      ng.concat(required_blob_present_errors(path, shown))
       view_blobs[path] = shown[:fetch] == :ok ? shown[:text] : nil
+    end
+    [SESSION_VIEW_PATH, CHAT_SESSION_PATH, GRID_COLUMN_PATH, INSET_PATH, DERIVER_PATH].each do |path|
+      ng.concat(required_blob_present_errors(path, git_show_result(full, path)))
     end
     ng.concat(implementation_in_baseline_errors(
       pres[:fetch] == :ok ? pres[:text] : nil,
@@ -660,41 +839,15 @@ def missing_file(files, key, label)
   files[key].nil? ? ["#{label} が存在しない"] : []
 end
 
-def drawn_primary?(c)
-  c.include?(".primary") && c.include?("Text(")
-end
-
-def uses_secondary_model?(c)
-  c.include?(".secondary")
+def struct_live_src(src, name, start = "body")
+  reach = struct_reachable(src, name, start)
+  return reach if reach.is_a?(Symbol)
+  erase_if_false(reach)
 end
 
 def flower_reimplemented?(c)
   return false unless c.include?("flowerName")
   c.match?(/flowerName\s*[!=]=/) || c.match?(/titleState\.flowerName/)
-end
-
-def has_line_limit?(c)
-  c.include?("lineLimit(1)")
-end
-
-def has_tail_truncation?(c)
-  c.include?("truncationMode(.tail)") || c.include?("truncationMode:.tail")
-end
-
-def help_uses_primary?(c)
-  c.match?(/\.help\([^)]*\.primary/)
-end
-
-def ax_uses_primary?(c)
-  c.match?(/accessibilityValue\([^)]*\.primary/)
-end
-
-def help_connected?(c)
-  c.include?("helpText") && c.include?(".help(")
-end
-
-def ax_connected?(c)
-  c.include?("accessibilityValue") && c.match?(/\.accessibilityValue\(/)
 end
 
 def model_from_title_state?(c)
@@ -709,28 +862,86 @@ def node_lookup?(c)
   c.include?("sessionNode(id:") || c.include?("sessionNodes") || c.match?(/first\s*(?:where:)?\s*\{\s*\$0\.id/)
 end
 
-def name_surface_errors(c, label)
-  return ["#{label}を解析できない"] if c.is_a?(Symbol)
-  ng = []
-  unless drawn_primary?(c) && model_from_title_state?(c)
-    ng << "#{label}が titleState の表示モデルに未接続"
+def receives_presentation_param?(src)
+  compact_code(src).match?(/letpresentation:SessionTitlePresentation/) ||
+    compact_code(src).match?(/presentation:SessionTitlePresentation/)
+end
+
+def secondary_block(src, ident)
+  indexed = code_only_indexed(src.to_s)
+  m = indexed.match(/\bif\s+let\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*#{Regexp.escape(ident)}\.secondary\b/)
+  return nil unless m
+  brace = indexed.index("{", m.end(0))
+  return nil unless brace
+  body = extract_balanced(src, brace, "{", "}")
+  return nil if body.nil?
+  [m[1], body]
+end
+
+def name_draw_errors(src, label, ident: "presentation")
+  return ["#{label}を解析できない"] if src.nil? || src.is_a?(Symbol)
+  live = erase_if_false(src.to_s)
+  c = compact_code(live)
+  primary_span = find_text_span(live, "#{ident}.primary")
+  unless primary_span
+    ng = ["#{label}が titleState の表示モデルに未接続"]
     return ng
   end
-  ng << "#{label}の1行制限が無い" unless has_line_limit?(c)
-  ng << "#{label}の末尾省略が無い" unless has_tail_truncation?(c)
-  ng << "#{label}の secondary が未接続" unless uses_secondary_model?(c)
-  ng << "花名表示条件を View で再実装している" if flower_reimplemented?(c)
-  if help_uses_primary?(c)
+  chain = live[primary_span[0]...primary_span[1]]
+  chain_c = compact_code(chain)
+  ng = []
+  ng << "#{label}の1行制限が無い" unless chain_c.include?("lineLimit(1)")
+  ng << "#{label}の末尾省略が無い" unless chain_c.include?("truncationMode(.tail)")
+  if chain_c.match?(/help\([^)]*\.primary/)
     ng << "名前 help に fullTitle ではなく primary を渡している"
-  elsif !help_connected?(c)
+  elsif !chain_c.include?("help(#{ident}.helpText)")
     ng << "#{label}の全文 help が未接続"
   end
-  if ax_uses_primary?(c)
+  if chain_c.match?(/accessibilityValue\([^)]*\.primary/)
     ng << "名前 AX value に fullTitle ではなく primary を渡している"
-  elsif !ax_connected?(c)
+  elsif !chain_c.include?("accessibilityValue(#{ident}.accessibilityValue)")
     ng << "#{label}の名前 AX value が未接続"
   end
-  ng
+  sec = secondary_block(live, ident)
+  if sec.nil?
+    ng << "#{label}の secondary が未接続"
+  else
+    sec_ident, sec_body = sec
+    sec_span = find_text_span(sec_body, sec_ident)
+    if sec_span.nil?
+      ng << "#{label}の secondary が未接続"
+    else
+      sec_chain = compact_code(sec_body[sec_span[0]...sec_span[1]])
+      ng << "#{label}の1行制限が無い" unless sec_chain.include?("lineLimit(1)") || ng.include?("#{label}の1行制限が無い")
+      ng << "#{label}の末尾省略が無い" unless sec_chain.include?("truncationMode(.tail)") || ng.include?("#{label}の末尾省略が無い")
+      ng << "#{label}の装飾花名が重複読み上げされる" unless sec_chain.include?("accessibilityHidden(true)")
+    end
+  end
+  ng << "花名表示条件を View で再実装している" if flower_reimplemented?(c)
+  ng.uniq
+end
+
+def name_surface_errors(src, label, ident: "presentation")
+  return ["#{label}を解析できない"] if src.is_a?(Symbol)
+  live = erase_if_false(src.to_s)
+  c = compact_code(live)
+  primary_span = find_text_span(live, "#{ident}.primary")
+  unless primary_span
+    return ["#{label}が titleState の表示モデルに未接続"]
+  end
+  if c.include?("SessionTitlePresentation(") && !c.include?("titleState") && !receives_presentation_param?(live)
+    return ["#{label}が titleState の表示モデルに未接続"]
+  end
+  name_draw_errors(live, label, ident: ident)
+end
+
+def forbidden_presentation_dep?(src)
+  indexed = code_only_indexed(src.to_s)
+  return true if indexed.match?(/\b(UserDefaults|FileManager|Process|URLSession|NSWorkspace|SwiftUI|AppKit)\b/)
+  src.to_s.lines.any? do |line|
+    m = line.match(/^\s*import\s+(\S+)/)
+    m && !%w[Foundation AgentDomain].include?(m[1])
+  end
 end
 
 def check_presentation_type(src)
@@ -744,43 +955,48 @@ def check_presentation_type(src)
   %w[primary secondary fullTitle helpText accessibilityValue].each do |field|
     ng << "SessionTitlePresentation.#{field} が無い" unless c.include?(field)
   end
-  ng << "View から導出を呼んでいる" if live_code(src).include?("SessionTitleDeriver")
-  ng << "View から保存を呼んでいる" if live_code(src) =~ /persistSessionName|waitForPendingWrites|renameSession/
+  ng << "表示モデルが許可されていない依存を持つ" if forbidden_presentation_dep?(src)
+  live = live_code(src)
+  ng << "View から導出を呼んでいる" if live.include?("SessionTitleDeriver")
+  ng << "View から保存を呼んでいる" if live =~ /persistSessionName|waitForPendingWrites|renameSession/
+  ng << "表示モデルが副作用を持つ" if live =~ /UserDefaults|FileManager|write\(to:|Data\(contentsOf/
   ng
 end
 
 def check_sidebar(src)
   ng = missing_file({ sidebar: src }, :sidebar, SIDEBAR_PATH)
   return ng unless ng.empty?
-  c = struct_live(src, "SessionSidebarRowView")
-  return ["サイドバーの名前領域を解析できない"] if c.is_a?(Symbol)
-  ng.concat(name_surface_errors(c, "サイドバーの名前領域"))
+  live_src = struct_live_src(src, "SessionSidebarRowView")
+  return ["サイドバーの名前領域を解析できない"] if live_src.is_a?(Symbol)
+  ng.concat(name_surface_errors(live_src, "サイドバーの名前領域"))
   body = extract_var_body(extract_struct_body(src, "SessionSidebarRowView").to_s, "body")
   body_c = compact(mask_strings_and_comments(body.to_s))
   overwritten = !body_c.include?("emphasis.accessibilityValue") ||
     body_c.match?(/sessionRow\.accessibilityValue\([^)]*(?:presentation|primary|fullTitle|helpText)/)
   ng << "サイドバー行の選択 AX value を名前で上書きしている" if overwritten
-  ng << "状態表示が維持されていない" unless c.include?("StatusDot") && c.include?("StatusLabel")
-  ng << "開始日時が維持されていない" unless c.include?("startedAt")
+  visible = compact(strip_comments(src))
+  ng << "状態表示が維持されていない" unless visible.include?("StatusDot") && visible.include?("StatusLabel")
+  ng << "開始日時が維持されていない" unless visible.include?("startedAt")
   ng.uniq
 end
 
 def check_grid(src)
   ng = missing_file({ pane: src }, :pane, PANE_PATH)
   return ng unless ng.empty?
-  header = struct_live(src, "PaneTileView", "header")
-  header = struct_live(src, "PaneTileView") if header.is_a?(Symbol)
-  return ["グリッドの名前領域を解析できない"] if header.is_a?(Symbol)
-  ng.concat(name_surface_errors(header, "グリッドの名前領域"))
+  header_src = struct_live_src(src, "PaneTileView", "header")
+  header_src = struct_live_src(src, "PaneTileView") if header_src.is_a?(Symbol)
+  return ["グリッドの名前領域を解析できない"] if header_src.is_a?(Symbol)
+  ng.concat(name_surface_errors(header_src, "グリッドの名前領域"))
   raw_header = extract_var_body(extract_struct_body(src, "PaneTileView").to_s, "header")
   raw_header ||= extract_var_body(src, "header")
   if raw_header
-    drag = raw_header.index(".draggable")
-    gesture = raw_header.index(".simultaneousGesture")
+    visible = strip_comments(raw_header)
+    drag = visible.index(".draggable")
+    gesture = visible.index(".simultaneousGesture")
     if drag.nil? || gesture.nil? || drag > gesture
       ng << "ドラッグと選択の順序が変わっている"
     end
-    ng << "閉じる操作が維持されていない" unless raw_header.include?("onRemove") && raw_header.include?("セッションを閉じる")
+    ng << "閉じる操作が維持されていない" unless compact(visible).include?("onRemove") && visible.include?("セッションを閉じる")
     ng << "状態表示が維持されていない" unless live_code(raw_header).include?("StatusDot")
   else
     ng << "ドラッグと選択の順序が変わっている"
@@ -792,15 +1008,24 @@ def check_grid(src)
   ng
 end
 
+def topbar_selected_node_connected?(src)
+  c = compact_code(src)
+  uses_selected = c.include?("router.selectedSession")
+  lookup = c.match?(/sessionNode\(id:\$0\)/) || c.match?(/sessionNode\(id:selectedSession/) || node_lookup?(c)
+  uses_node_state = c.include?("titleState")
+  uses_selected && lookup && uses_node_state
+end
+
 def check_topbar(src)
   ng = missing_file({ topbar: src }, :topbar, TOPBAR_PATH)
   return ng unless ng.empty?
-  c = struct_live(src, "DashboardLeadingTopBarControls")
-  return ["トップバーの名前領域を解析できない"] if c.is_a?(Symbol)
-  ng.concat(name_surface_errors(c, "トップバーの名前領域"))
-  unless (c.include?("router.selectedSession") || c.include?("selectedSession")) && node_lookup?(c)
+  live_src = struct_live_src(src, "DashboardLeadingTopBarControls")
+  return ["トップバーの名前領域を解析できない"] if live_src.is_a?(Symbol)
+  ng.concat(name_surface_errors(live_src, "トップバーの名前領域"))
+  unless topbar_selected_node_connected?(live_src)
     ng << "トップバーが選択ノードに追随していない" unless ng.any? { |m| m.include?("未接続") }
   end
+  c = compact_code(live_src)
   if c.include?("case.appServer") && !c.include?("case.pty")
     ng << "トップバーが PTY／チャットの選択ノードに対応していない"
   end
@@ -816,43 +1041,78 @@ def title_helper(src)
   extract_func_body(src, "titlePresentation") || extract_var_body(src, "titlePresentation")
 end
 
-def team_model_source(timeline)
+def helper_lookup_id(helper)
+  c = compact_code(helper.to_s)
+  if (m = c.match(/first\(where:\{\$0\.id==([A-Za-z_][A-Za-z0-9_]*)\}/))
+    return m[1]
+  end
+  if (m = c.match(/sessionNode\(id:([A-Za-z_][A-Za-z0-9_$]*)\)/))
+    return m[1]
+  end
+  nil
+end
+
+def helper_ignores_present_node?(helper)
+  return true if helper.nil?
+  c = compact_code(helper)
+  return true if c.include?("SessionTitlePresentation(") && !c.include?("titleState")
+  false
+end
+
+def presentation_arg_for_callee(src, callee)
+  args = all_call_args(src, callee)
+  return nil if args.empty?
+  labeled_arg(args.first, "presentation")
+end
+
+def team_child_path_errors(timeline, callee, id_expr, label)
+  pres = presentation_arg_for_callee(timeline, callee)
   helper = title_helper(timeline)
-  parts = [helper, extract_func_body(timeline, "header"), extract_func_body(timeline, "timeline"), extract_struct_body(timeline, "TeamTimelineView")]
-  live_code(parts.compact.join("\n"))
+  if pres.nil?
+    return ["#{label} が現在ノードの表示モデルに未接続"]
+  end
+  pres_c = compact_code(pres)
+  helper_ok = helper && model_from_title_state?(compact_code(helper)) && node_lookup?(compact_code(helper))
+  uses_helper = pres_c.include?("titlePresentation") || pres_c.include?("presentationFor")
+  uses_id = pres_c.include?(compact(id_expr))
+  if helper_ok && !uses_helper
+    return ["#{label} が現在ノードの表示モデルに未接続"]
+  end
+  unless uses_id && (uses_helper || model_from_title_state?(pres_c))
+    return ["#{label} が現在ノードの表示モデルに未接続"]
+  end
+  if helper && helper_lookup_id(helper) && helper_lookup_id(helper) != "sessionID" && !pres_c.include?(compact(id_expr))
+    return ["#{label} が現在ノードの表示モデルに未接続"]
+  end
+  []
 end
 
 def check_team_chip(timeline)
   ng = missing_file({ timeline: timeline }, :timeline, TIMELINE_PATH)
   return ng unless ng.empty?
-  chip = struct_live(timeline, "TeamTimelineSourceChip")
-  return ["チームの source chip を解析できない"] if chip.is_a?(Symbol)
-  unless drawn_primary?(chip)
-    return ["チームの source chip が現在ノードの表示モデルに未接続"]
-  end
-  src = team_model_source(timeline)
-  unless model_from_title_state?(src) && node_lookup?(src)
-    return ["チームの source chip が現在ノードの表示モデルに未接続"]
-  end
-  ng.concat(name_surface_errors(chip + src, "チームの source chip").reject { |m| m.include?("未接続") && m.include?("source chip") })
+  chip_src = struct_live_src(timeline, "TeamTimelineSourceChip")
+  return ["チームの source chip を解析できない"] if chip_src.is_a?(Symbol)
+  path_ng = team_child_path_errors(timeline, "TeamTimelineSourceChip", "source.id", "チームの source chip")
+  return path_ng unless path_ng.empty?
+  ng.concat(name_surface_errors(chip_src, "チームの source chip").map { |m|
+    m.include?("未接続") ? "チームの source chip が現在ノードの表示モデルに未接続" : m
+  })
   ng
 end
 
 def check_team_card(timeline)
   ng = missing_file({ timeline: timeline }, :timeline, TIMELINE_PATH)
   return ng unless ng.empty?
-  row = struct_live(timeline, "AgoraTimelineRow")
-  return ["チームの発言カードを解析できない"] if row.is_a?(Symbol)
-  unless drawn_primary?(row)
-    return ["チームの発言カードが現在ノードの表示モデルに未接続"]
-  end
-  src = team_model_source(timeline)
-  unless model_from_title_state?(src) && node_lookup?(src)
-    return ["チームの発言カードが現在ノードの表示モデルに未接続"]
-  end
+  row_src = struct_live_src(timeline, "AgoraTimelineRow")
+  return ["チームの発言カードを解析できない"] if row_src.is_a?(Symbol)
+  path_ng = team_child_path_errors(timeline, "AgoraTimelineRow", "item.sessionID", "チームの発言カード")
+  return path_ng unless path_ng.empty?
   raw = extract_struct_body(timeline, "AgoraTimelineRow").to_s
-  ng << "チームカードの移動操作が維持されていない" unless live_code(raw).include?("onOpenSession") && raw.include?("シングルビューで開く")
-  ng.concat(name_surface_errors(row + src, "チームの発言カード").reject { |m| m.include?("未接続") && m.include?("発言カード") })
+  visible = strip_comments(raw)
+  ng << "チームカードの移動操作が維持されていない" unless compact(visible).include?("onOpenSession") && visible.include?("シングルビューで開く")
+  ng.concat(name_surface_errors(row_src, "チームの発言カード").map { |m|
+    m.include?("未接続") ? "チームの発言カードが現在ノードの表示モデルに未接続" : m
+  })
   ng
 end
 
@@ -861,16 +1121,13 @@ def check_team_thinking(policy, timeline)
   ng.concat(missing_file({ policy: policy }, :policy, POLICY_PATH))
   ng.concat(missing_file({ timeline: timeline }, :timeline, TIMELINE_PATH))
   return ng unless ng.empty?
-  row = struct_live(policy, "AgoraThinkingIndicatorRow")
-  return ["チームの Thinking 行を解析できない"] if row.is_a?(Symbol)
-  unless drawn_primary?(row)
-    return ["チームの Thinking 行が現在ノードの表示モデルに未接続"]
-  end
-  src = team_model_source(timeline)
-  unless model_from_title_state?(src) && node_lookup?(src)
-    return ["チームの Thinking 行が現在ノードの表示モデルに未接続"]
-  end
-  ng.concat(name_surface_errors(row + src, "チームの Thinking 行").reject { |m| m.include?("未接続") && m.include?("Thinking") })
+  row_src = struct_live_src(policy, "AgoraThinkingIndicatorRow")
+  return ["チームの Thinking 行を解析できない"] if row_src.is_a?(Symbol)
+  path_ng = team_child_path_errors(timeline, "AgoraThinkingIndicatorRow", "source.id", "チームの Thinking 行")
+  return path_ng unless path_ng.empty?
+  ng.concat(name_surface_errors(row_src, "チームの Thinking 行").map { |m|
+    m.include?("未接続") ? "チームの Thinking 行が現在ノードの表示モデルに未接続" : m
+  })
   ng
 end
 
@@ -879,19 +1136,22 @@ def check_team(timeline, policy)
   ng.concat(missing_file({ timeline: timeline }, :timeline, TIMELINE_PATH))
   ng.concat(missing_file({ policy: policy }, :policy, POLICY_PATH))
   return ng unless ng.empty?
-  src = team_model_source(timeline)
-  chip = struct_live(timeline, "TeamTimelineSourceChip")
-  card = struct_live(timeline, "AgoraTimelineRow")
-  think = struct_live(policy, "AgoraThinkingIndicatorRow")
+  helper = title_helper(timeline)
+  chip = struct_live_src(timeline, "TeamTimelineSourceChip")
+  card = struct_live_src(timeline, "AgoraTimelineRow")
+  think = struct_live_src(policy, "AgoraThinkingIndicatorRow")
   if [chip, card, think].any? { |c| c.is_a?(Symbol) }
     ng << "チームの名前領域を解析できない"
     return ng
   end
-  unless drawn_primary?(chip) || drawn_primary?(card) || drawn_primary?(think)
+  chip_draw = !find_text_span(chip, "presentation.primary").nil?
+  card_draw = !find_text_span(card, "presentation.primary").nil?
+  think_draw = !find_text_span(think, "presentation.primary").nil?
+  unless chip_draw || card_draw || think_draw
     ng << "チームの名前領域が titleState の表示モデルに未接続"
     return ng
   end
-  if legacy_only_model?(src) || (src.include?("SessionTitlePresentation(") && !src.include?("titleState"))
+  if helper && (helper_ignores_present_node?(helper) || legacy_only_model?(compact_code(helper)))
     ng << "チームが現在ノードを無視し古い名前だけを表示している"
   end
   ng.concat(check_team_chip(timeline))
@@ -924,9 +1184,13 @@ def check_no_derive_save(files)
     src = files[key]
     next if src.nil?
     visible = compact(mask_strings_and_comments(erase_if_false(src)))
-    ng << "View から導出を呼んでいる" if visible.include?("SessionTitleDeriver")
+    ng << "View から導出を呼んでいる" if visible.include?("SessionTitleDeriver") && key != :presentation
+    ng << "View から導出を呼んでいる" if key == :presentation && visible.include?("SessionTitleDeriver")
     if visible =~ /persistSessionName|waitForPendingWrites|renameSession\(/
       ng << "View から保存を呼んでいる"
+    end
+    if key != :presentation && (visible.include?("receivingUserMessage") || visible.match?(/\bname\s*=/) && visible.match?(/session\.name=/))
+      ng << "View から状態を更新している"
     end
   end
   ng.uniq
@@ -942,6 +1206,27 @@ def unused_typography?(src)
   compact(masked) =~ /iffalse\{[^}]*(?:TranscriptTypography|ChatTypography)/
 end
 
+def typography_delegation_errors(current, baseline)
+  ng = []
+  return ng unless baseline
+  if baseline[:timeline] && compact_code(baseline[:timeline]).include?("ChatItemView(")
+    unless current[:timeline] && compact_code(current[:timeline]).include?("ChatItemView(")
+      ng << "#{TIMELINE_PATH} の typography 委譲先 ChatItemView が削除されている"
+    end
+  end
+  if baseline[:pane] && compact_code(baseline[:pane]).include?("GridChatColumn(")
+    unless current[:pane] && compact_code(current[:pane]).include?("GridChatColumn(")
+      ng << "#{PANE_PATH} の typography 委譲先 GridChatColumn が削除されている"
+    end
+  end
+  if baseline[:grid_column] && compact_code(baseline[:grid_column]).include?("ChatTranscriptView(")
+    unless current[:grid_column] && compact_code(current[:grid_column]).include?("ChatTranscriptView(")
+      ng << "#{GRID_COLUMN_PATH} の typography 委譲先 ChatTranscriptView が削除されている"
+    end
+  end
+  ng
+end
+
 def check_typography(current, baseline)
   ng = []
   TYPOGRAPHY_PATHS.each do |path|
@@ -949,18 +1234,28 @@ def check_typography(current, baseline)
     cur = current[key]
     base = baseline && baseline[key]
     next if cur.nil? && base.nil?
-    base_refs = typography_tokens(base)
+    cur_sites = typography_sites(cur)
+    base_sites = typography_sites(base)
     cur_refs = typography_tokens(cur)
-    if base_refs != cur_refs
-      (base_refs - cur_refs).each do |ref|
-        ng << "#{path} の typography 参照 #{ref} が削除されている"
+    base_refs = typography_tokens(base)
+    (base_refs - cur_refs).each do |ref|
+      ng << "#{path} の typography 参照 #{ref} が削除されている"
+    end
+    (cur_refs - base_refs).each do |ref|
+      if base_refs.empty?
+        ng << "#{path} に TranscriptTypography のダミー参照を追加している"
+      else
+        ng << "#{path} の typography 参照 #{ref} が変更されている"
       end
-      (cur_refs - base_refs).each do |ref|
-        if base_refs.empty?
-          ng << "#{path} に TranscriptTypography のダミー参照を追加している"
-        else
-          ng << "#{path} の typography 参照 #{ref} が変更されている"
-        end
+    end
+    [base_sites.length, cur_sites.length].min.times do |i|
+      b = base_sites[i]
+      c = cur_sites[i]
+      if b[:args] != c[:args]
+        ng << "#{path} の typography 引数が変更されている"
+      end
+      if b[:apply] != c[:apply]
+        ng << "#{path} の typography 適用位置が変更されている"
       end
     end
     if unused_typography?(cur)
@@ -975,13 +1270,67 @@ def check_typography(current, baseline)
       ng << "#{path} の typography 参照が未使用化されている"
     end
   end
+  ng.concat(typography_delegation_errors(current, baseline))
   ng.uniq
 end
 
-def mask_title_draw(src)
-  src.to_s.lines.reject { |line|
-    compact(mask_strings_and_comments(line)) =~ /SessionTitlePresentation|presentation\.(primary|secondary|helpText|accessibilityValue)|Text\(session\.displayName\)|Text\(source\.displayName\)|Text\(item\.sessionDisplayName\)|titlePresentation\(|selectedSessionTitle|ifletsecondary/
-  }.join
+PANE_FREEZE_EXPRS = {
+  "StatusDot(status: session.displayStatus)" => "状態表示が維持されていない",
+  "StatusLabel(status: session.displayStatus)" => "状態表示が維持されていない",
+  "session.workspaceName" => "グリッドの workspace が維持されていない",
+  "Button(action: onRemove)" => "閉じる操作が維持されていない",
+  "セッションを閉じる" => "閉じる操作が維持されていない",
+  "DraggedSession(id: session.id)" => "グリッドのドラッグ対象 ID が基準と一致しない",
+  "selectImmediately()" => "グリッドの選択 callback が維持されていない",
+  "TerminalView(coordinator: session.terminalCoordinator)" => "端末接続が維持されていない",
+  "padding(.horizontal, DSSpacing.s)" => "固定余白が基準と一致しない",
+  "padding(.vertical, DSSpacing.xs)" => "固定余白が基準と一致しない",
+}.freeze
+
+SIDEBAR_FREEZE_EXPRS = {
+  "onTapGesture(perform: onSelect)" => "サイドバーの選択・展開が維持されていない",
+  "onToggleExpansion" => "サイドバーの選択・展開が維持されていない",
+  "StatusDot(status: session.displayStatus)" => "状態表示が維持されていない",
+  "StatusLabel(status: session.displayStatus)" => "状態表示が維持されていない",
+  "session.startedAt" => "開始日時が維持されていない",
+}.freeze
+
+TOPBAR_FREEZE_EXPRS = {
+  "settingsButton" => "トップバーの既存操作が維持されていない",
+  "sidebarToggleButton" => "トップバーの既存操作が維持されていない",
+  "agentConsoleButton" => "トップバーのエージェント管理操作が維持されていない",
+  "openWindow" => "トップバーのエージェント管理操作が維持されていない",
+}.freeze
+
+INSET_FREEZE_EXPR = "max(32, ceil(measuredOverlayHeight) + 8)"
+
+def freeze_expr_errors(cur_src, base_src, exprs)
+  return [] if cur_src.nil? || base_src.nil?
+  cur_c = compact(strip_comments(cur_src))
+  base_c = compact(strip_comments(base_src))
+  ng = []
+  exprs.each do |expr, msg|
+    needle = compact(expr)
+    next unless base_c.include?(needle)
+    ng << msg unless cur_c.include?(needle)
+  end
+  ng
+end
+
+def protected_ops_errors(current, baseline)
+  return [] unless baseline
+  ng = []
+  ng.concat(freeze_expr_errors(current[:pane], baseline[:pane], PANE_FREEZE_EXPRS))
+  ng.concat(freeze_expr_errors(current[:sidebar], baseline[:sidebar], SIDEBAR_FREEZE_EXPRS))
+  ng.concat(freeze_expr_errors(current[:topbar], baseline[:topbar], TOPBAR_FREEZE_EXPRS))
+  if current[:inset] && baseline[:inset]
+    base_c = compact(strip_comments(baseline[:inset]))
+    cur_c = compact(strip_comments(current[:inset]))
+    if base_c.include?(compact(INSET_FREEZE_EXPR)) && !cur_c.include?(compact(INSET_FREEZE_EXPR))
+      ng << "余白・共有ヘッダー高さのポリシーが基準から変化している"
+    end
+  end
+  ng.uniq
 end
 
 def extra_changed_product_paths(rev)
@@ -1002,8 +1351,18 @@ def scope_errors(current_files, baseline_files)
     next if key == :presentation
     cur = current_files[key]
     base = baseline_files[key]
-    next if cur.nil? || base.nil?
-    unless normalize_code(mask_title_draw(cur)) == normalize_code(mask_title_draw(base))
+    if cur.nil? && base.nil?
+      next
+    end
+    if base.nil?
+      ng << "基準時点の #{path} が無い"
+      next
+    end
+    if cur.nil?
+      ng << "#{path} が存在しない"
+      next
+    end
+    unless normalize_code(mask_name_syntax_units(cur)) == normalize_code(mask_name_syntax_units(base))
       ng << "許可ファイル内の名前領域以外が基準と一致しない: #{path}"
     end
   end
@@ -1013,15 +1372,22 @@ def scope_errors(current_files, baseline_files)
     base = key ? baseline_files[key] : baseline_files[:scoped] && baseline_files[:scoped][path]
     cur ||= current_files[:scoped] && current_files[:scoped][path]
     base ||= baseline_files[:scoped] && baseline_files[:scoped][path]
+    if cur.nil? && base.nil?
+      next
+    end
+    if base.nil?
+      ng << "基準時点の #{path} が無い"
+      next
+    end
     if path == DERIVER_PATH || TASK44_PRODUCT_PATHS.include?(path)
-      if !cur.nil? && !base.nil? && !workdir_matches_git_blob?(cur, base)
+      if !cur.nil? && !workdir_matches_git_blob?(cur, base)
         ng << "task-41/44 の製品ソースが基準から変化している: #{path}"
       end
     elsif path == INSET_PATH
-      if !cur.nil? && !base.nil? && !workdir_matches_git_blob?(cur, base)
+      if !cur.nil? && !workdir_matches_git_blob?(cur, base)
         ng << "余白・共有ヘッダー高さのポリシーが基準から変化している"
       end
-    elsif !cur.nil? && !base.nil? && !workdir_matches_git_blob?(cur, base)
+    elsif !cur.nil? && !workdir_matches_git_blob?(cur, base)
       ng << "#{path} が基準から変化している"
     end
   end
@@ -1043,6 +1409,7 @@ end
 def evaluate_checks(files, baseline_blobs, scope:)
   ng = []
   ng.concat(check_product(files))
+  ng.concat(protected_ops_errors(files, baseline_blobs)) if baseline_blobs
   ng.concat(check_typography(files, baseline_blobs)) if baseline_blobs
   ng.concat(scope_errors(files, baseline_blobs)) if scope && baseline_blobs
   ng.uniq
@@ -1081,6 +1448,7 @@ def name_view_block(state_expr = "session.titleState", id_expr = "session.id", w
               Text(secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .accessibilityHidden(true)
             }
   SWIFT
 end
@@ -1117,6 +1485,7 @@ def good_sidebar
       }
       private var sessionRow: some View {
         HStack {
+          Button(action: onToggleExpansion) { Image(systemName: "chevron.right") }
           StatusDot(status: session.displayStatus)
           StatusLabel(status: session.displayStatus)
     #{name_view_block}
@@ -1124,6 +1493,7 @@ def good_sidebar
             Text(SidebarRelativeTime.label(from: session.startedAt, to: timeline.date))
           }
         }
+        .onTapGesture(perform: onSelect)
         .help(session.workspacePath)
       }
       private var emphasis: SidebarRowEmphasis {
@@ -1185,6 +1555,9 @@ def good_topbar
         HStack(spacing: DSSpacing.s) {
           sidebarToggleButton
           settingsButton
+          if let agentConsoleWindowID {
+            agentConsoleButton(windowID: agentConsoleWindowID)
+          }
           selectedSessionTitle
         }
       }
@@ -1199,6 +1572,9 @@ def good_topbar
       }
       private var settingsButton: some View {
         Button { onOpenSettings() } label: { Image(systemName: "gearshape") }.help("設定")
+      }
+      private func agentConsoleButton(windowID: String) -> some View {
+        Button { openWindow(id: windowID) } label: { Image(systemName: "wrench.and.screwdriver") }.help("エージェント管理")
       }
       private var sidebarToggleButton: some View {
         Button { router.toggleSidebar() } label: { Image(systemName: "sidebar.leading") }
@@ -1249,7 +1625,7 @@ def good_timeline
             .help(presentation.helpText)
             .accessibilityValue(presentation.accessibilityValue)
           if let secondary = presentation.secondary {
-            Text(secondary).lineLimit(1).truncationMode(.tail)
+            Text(secondary).lineLimit(1).truncationMode(.tail).accessibilityHidden(true)
           }
         }
       }
@@ -1272,11 +1648,14 @@ def good_timeline
               .help(presentation.helpText)
               .accessibilityValue(presentation.accessibilityValue)
             if let secondary = presentation.secondary {
-              Text(secondary).lineLimit(1).truncationMode(.tail)
+              Text(secondary).lineLimit(1).truncationMode(.tail).accessibilityHidden(true)
             }
           }
         }
         .help("シングルビューで開く")
+      }
+      private var messageContent: some View {
+        ChatItemView(item: chatItem, isRunningCommand: false, agentDescriptor: item.agentDescriptor)
       }
     }
     private struct AgoraTimelineRows: View {
@@ -1319,7 +1698,7 @@ def good_policy
               .help(presentation.helpText)
               .accessibilityValue(presentation.accessibilityValue)
             if let secondary = presentation.secondary {
-              Text(secondary).lineLimit(1).truncationMode(.tail)
+              Text(secondary).lineLimit(1).truncationMode(.tail).accessibilityHidden(true)
             }
           }
           ShimmerTextView(
@@ -1400,13 +1779,23 @@ def with_file(files, key)
 end
 
 def production_checks_source(src = File.read(__FILE__))
-  i = src.index(PRODUCTION_MARKER)
-  return "" if i.nil?
-  src[i..]
+  offset = 0
+  src.each_line do |line|
+    return src[offset..] if line.chomp == "# === task45 production checks ==="
+    offset += line.length
+  end
+  ""
+end
+
+def production_call_line?(src, name)
+  strip_comments(src).lines.any? do |line|
+    c = compact(line)
+    c.include?("#{name}(") && !c.start_with?("def") && !c.start_with?("#{name}=")
+  end
 end
 
 def baseline_check_connected?(src)
-  strip_comments(src).include?("check_frozen_baseline")
+  production_call_line?(src, "check_frozen_baseline")
 end
 
 def scope_check_gated?(src)
@@ -1414,6 +1803,55 @@ def scope_check_gated?(src)
   code.include?("scope_check_requested?") &&
     code.include?("scope_errors") &&
     code.match?(/if baseline && scope_check_requested\?/)
+end
+
+def disk_product_files
+  files = {}
+  PATHS.each { |key, path| files[key] = read_if_exist(path) }
+  files[:scoped] = {}
+  (SCOPE_UNCHANGED_PATHS + TASK44_PRODUCT_PATHS).each do |path|
+    files[:scoped][path] = read_if_exist(path)
+  end
+  files[:extra_changed] = []
+  files
+end
+
+def rewrite_first_display_name_text(src)
+  indexed = code_only_indexed(src)
+  m = indexed.match(/\bText\s*\(\s*session\.displayName\s*\)/)
+  return [src, nil] unless m
+  span = span_expr_with_modifiers(src, m.begin(0))
+  [src, span]
+end
+
+def retarget_name_truncation(src, from_mode, to_mode)
+  original, span = rewrite_first_display_name_text(src)
+  return src if span.nil?
+  chain = original[span[0]...span[1]].sub("truncationMode(.#{from_mode})", "truncationMode(.#{to_mode})")
+  original[0...span[0]] + chain + original[span[1]..]
+end
+
+def rewire_name_text_to_presentation(src)
+  original, span = rewrite_first_display_name_text(src)
+  return src if span.nil?
+  replacement = <<~SWIFT.rstrip
+    let presentation = SessionTitlePresentation(state: session.titleState, fallback: SessionViewModel.shortID(for: session.id), workspacePath: session.workspacePath)
+                Text(presentation.primary)
+                    .font(DSFont.heroTitle)
+                    .foregroundStyle(DSColor.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .layoutPriority(1)
+                    .help(presentation.helpText)
+                    .accessibilityValue(presentation.accessibilityValue)
+                if let secondary = presentation.secondary {
+                  Text(secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .accessibilityHidden(true)
+                }
+  SWIFT
+  original[0...span[0]] + replacement + original[span[1]..]
 end
 
 def selftest_assert(cond, msg = "assertion")
@@ -1424,7 +1862,7 @@ def selftest_assert(cond, msg = "assertion")
 end
 
 def selftest_errors_eq(actual, expected, msg)
-  unless actual == expected
+unless actual == expected
     puts "task45-wiring --selftest: FAIL #{msg}"
     puts "  expected: #{expected.inspect}"
     puts "  actual:   #{actual.inspect}"
@@ -1449,7 +1887,7 @@ ensure
 end
 
 def run_selftest
-  url = %(let url = "https://example.com" // trailing\n)
+url = %(let url = "https://example.com" // trailing\n)
   stripped = strip_comments(url)
   selftest_assert stripped.include?("https://example.com"), "正例: 文字列内の // を残す"
   selftest_assert !stripped.include?("trailing"), "正例: 行コメントを除去する"
@@ -1463,7 +1901,7 @@ def run_selftest
   selftest_assert normalize_code(spaced).include?("hello world"), "正例: 文字列内空白を正規化で消さない"
 
   good = good_files
-  selftest_errors_eq check_product(good), [], "正例: 契約どおりの配線は空 NG"
+selftest_errors_eq check_product(good), [], "正例: 契約どおりの配線は空 NG"
   selftest_errors_eq check_typography(good, good), [], "正例: typography 同一 blob は空"
 
   commented = with_file(good, :sidebar) { |src|
@@ -1479,12 +1917,12 @@ def run_selftest
   grid_off = with_file(good, :pane) { |src|
     src.gsub(name_view_block, "            Text(session.displayName)\n")
   }
-  selftest_errors_eq check_grid(grid_off[:pane]).select { |m| m.include?("未接続") }, ["グリッドの名前領域が titleState の表示モデルに未接続"], "負例: グリッドだけ未接続"
+  selftest_errors_eq check_grid(grid_off[:pane]), ["グリッドの名前領域が titleState の表示モデルに未接続"], "負例: グリッドだけ未接続"
 
   top_off = with_file(good, :topbar) { |src|
     src.gsub(name_view_block, "")
   }
-  selftest_errors_eq check_topbar(top_off[:topbar]).select { |m| m.include?("未接続") }, ["トップバーの名前領域が titleState の表示モデルに未接続"], "負例: トップバーだけ未接続"
+  selftest_errors_eq check_topbar(top_off[:topbar]), ["トップバーの名前領域が titleState の表示モデルに未接続"], "負例: トップバーだけ未接続"
 
   team_off = with_file(good, :timeline) { |src|
     src.gsub("presentation: titlePresentation(sessionID: source.id, fallbackName: source.displayName)", "")
@@ -1494,7 +1932,7 @@ def run_selftest
   team_off = with_file(team_off, :policy) { |src|
     src.gsub("Text(presentation.primary)", "Text(source.displayName)")
   }
-  selftest_errors_eq check_product(team_off).select { |m| m.include?("チームの名前領域が") }, ["チームの名前領域が titleState の表示モデルに未接続"], "負例: チームだけ未接続"
+  selftest_errors_eq check_product(team_off), ["チームの名前領域が titleState の表示モデルに未接続"], "負例: チームだけ未接続"
 
   chip_off = with_file(good, :timeline) { |src|
     src.sub("Text(presentation.primary)", "Text(source.displayName)")
@@ -1504,7 +1942,7 @@ def run_selftest
   card_off = with_file(good, :timeline) { |src|
     src.sub("  var body: some View {\n    speakerHeader\n  }", "  var body: some View {\n    Text(item.sessionDisplayName)\n  }")
   }
-  selftest_errors_eq check_team_card(card_off[:timeline]).select { |m| m.include?("発言カード") && m.include?("未接続") }, ["チームの発言カードが現在ノードの表示モデルに未接続"], "負例: 発言カードだけ未接続"
+  selftest_errors_eq check_team_card(card_off[:timeline]), ["チームの発言カードが現在ノードの表示モデルに未接続"], "負例: 発言カードだけ未接続"
 
   think_off = with_file(good, :policy) { |src|
     src.gsub("Text(presentation.primary)", "Text(source.displayName)")
@@ -1514,39 +1952,39 @@ def run_selftest
   old_names = with_file(good, :timeline) { |src|
     src.gsub("state: node.titleState", "state: .legacy(name: fallbackName)")
   }
-  selftest_errors_eq check_team(old_names[:timeline], old_names[:policy]).select { |m| m.include?("古い名前") }, ["チームが現在ノードを無視し古い名前だけを表示している"], "負例: 現在ノードを無視して古い名前だけ表示"
+  selftest_errors_eq check_team(old_names[:timeline], old_names[:policy]), ["チームが現在ノードを無視し古い名前だけを表示している"], "負例: 現在ノードを無視して古い名前だけ表示"
 
   help_primary = with_file(good, :sidebar) { |src|
     src.sub(".help(presentation.helpText)", ".help(presentation.primary)")
   }
-  selftest_errors_eq check_sidebar(help_primary[:sidebar]).select { |m| m.include?("help") }, ["名前 help に fullTitle ではなく primary を渡している"], "負例: help に primary"
+  selftest_errors_eq check_sidebar(help_primary[:sidebar]), ["名前 help に fullTitle ではなく primary を渡している"], "負例: help に primary"
 
   ax_primary = with_file(good, :sidebar) { |src|
     src.sub(".accessibilityValue(presentation.accessibilityValue)", ".accessibilityValue(presentation.primary)")
   }
-  selftest_errors_eq check_sidebar(ax_primary[:sidebar]).select { |m| m.include?("AX") }, ["名前 AX value に fullTitle ではなく primary を渡している"], "負例: AX に primary"
+  selftest_errors_eq check_sidebar(ax_primary[:sidebar]), ["名前 AX value に fullTitle ではなく primary を渡している"], "負例: AX に primary"
 
   no_limit = with_file(good, :sidebar) { |src| src.gsub(".lineLimit(1)", "") }
-  selftest_errors_eq check_sidebar(no_limit[:sidebar]).select { |m| m.include?("1行") }, ["サイドバーの名前領域の1行制限が無い"], "負例: 1行制限欠落"
+  selftest_errors_eq check_sidebar(no_limit[:sidebar]), ["サイドバーの名前領域の1行制限が無い"], "負例: 1行制限欠落"
 
   no_tail = with_file(good, :sidebar) { |src| src.gsub(".truncationMode(.tail)", "") }
-  selftest_errors_eq check_sidebar(no_tail[:sidebar]).select { |m| m.include?("末尾") }, ["サイドバーの名前領域の末尾省略が無い"], "負例: 末尾省略欠落"
+  selftest_errors_eq check_sidebar(no_tail[:sidebar]), ["サイドバーの名前領域の末尾省略が無い"], "負例: 末尾省略欠落"
 
   no_secondary = with_file(good, :sidebar) { |src|
     src.gsub(/if let secondary = presentation.secondary \{.*?\}/m, "")
   }
-  selftest_errors_eq check_sidebar(no_secondary[:sidebar]).select { |m| m.include?("secondary") }, ["サイドバーの名前領域の secondary が未接続"], "負例: secondary 欠落"
+  selftest_errors_eq check_sidebar(no_secondary[:sidebar]), ["サイドバーの名前領域の secondary が未接続"], "負例: secondary 欠落"
 
   flower_view = with_file(good, :sidebar) { |src|
     src.sub("if let secondary = presentation.secondary {", "if let secondary = presentation.secondary, session.titleState.flowerName != presentation.primary {")
   }
-  selftest_errors_eq check_sidebar(flower_view[:sidebar]).select { |m| m.include?("花名") }, ["花名表示条件を View で再実装している"], "負例: 花名条件を View で再実装"
+  selftest_errors_eq check_sidebar(flower_view[:sidebar]), ["花名表示条件を View で再実装している"], "負例: 花名条件を View で再実装"
 
   ax_overwrite = with_file(good, :sidebar) { |src|
     src.sub("sessionRow.accessibilityValue(Text(accessibilityValue))", "sessionRow.accessibilityValue(Text(presentation.primary))")
       .sub("if let accessibilityValue = emphasis.accessibilityValue {", "if true {")
   }
-  selftest_errors_eq check_sidebar(ax_overwrite[:sidebar]).select { |m| m.include?("選択 AX") }, ["サイドバー行の選択 AX value を名前で上書きしている"], "負例: 選択 AX を名前で上書き"
+  selftest_errors_eq check_sidebar(ax_overwrite[:sidebar]), ["サイドバー行の選択 AX value を名前で上書きしている"], "負例: 選択 AX を名前で上書き"
 
   single_header = with_file(good, :session_view) { |src|
     src.sub("Text(\"開始", "Text(viewModel.displayName)\n            Text(\"開始")
@@ -1561,28 +1999,28 @@ def run_selftest
   two_line = with_file(good, :topbar) { |src|
     src.sub("HStack(spacing: DSSpacing.s) {", "VStack(spacing: DSSpacing.s) {")
   }
-  selftest_errors_eq check_topbar(two_line[:topbar]).select { |m| m.include?("2段") }, ["トップバータイトルを2段化している"], "負例: トップバータイトルの2段化"
+  selftest_errors_eq check_topbar(two_line[:topbar]), ["トップバータイトルを2段化している"], "負例: トップバータイトルの2段化"
 
   drag_swap = with_file(good, :pane) { |src|
     src.sub(".draggable(DraggedSession(id: session.id))", ".zzDrag(")
       .sub(".simultaneousGesture(", ".draggable(DraggedSession(id: session.id)) { Text(session.displayName) }\n    .simultaneousGesture(")
       .sub(".zzDrag(", ".simultaneousGesture(")
   }
-  selftest_errors_eq check_grid(drag_swap[:pane]).select { |m| m.include?("ドラッグ") }, ["ドラッグと選択の順序が変わっている"], "負例: ドラッグと選択の順序"
+  selftest_errors_eq check_grid(drag_swap[:pane]), ["ドラッグと選択の順序が変わっている"], "負例: ドラッグと選択の順序"
 
   no_status = with_file(good, :sidebar) { |src| src.gsub("StatusDot(status: session.displayStatus)", "").gsub("StatusLabel(status: session.displayStatus)", "") }
-  selftest_errors_eq check_sidebar(no_status[:sidebar]).select { |m| m.include?("状態") }, ["状態表示が維持されていない"], "負例: 状態表示の欠落"
+  selftest_errors_eq check_sidebar(no_status[:sidebar]), ["状態表示が維持されていない"], "負例: 状態表示の欠落"
 
   no_close = with_file(good, :pane) { |src| src.gsub('.help("セッションを閉じる")', "").gsub("onRemove", "onIgnore") }
-  selftest_errors_eq check_grid(no_close[:pane]).select { |m| m.include?("閉じる") }, ["閉じる操作が維持されていない"], "負例: 閉じる操作の欠落"
+  selftest_errors_eq check_grid(no_close[:pane]), ["閉じる操作が維持されていない"], "負例: 閉じる操作の欠落"
 
   no_term = with_file(good, :pane) { |src| src.gsub("TerminalView(coordinator: session.terminalCoordinator)", "EmptyView()") }
-  selftest_errors_eq check_grid(no_term[:pane]).select { |m| m.include?("端末") }, ["端末接続が維持されていない"], "負例: 端末接続の改変"
+  selftest_errors_eq check_grid(no_term[:pane]), ["端末接続が維持されていない"], "負例: 端末接続の改変"
 
   no_nav = with_file(good, :timeline) { |src|
     src.gsub("onOpenSession(item.sessionID)", "").gsub("シングルビューで開く", "詳細")
   }
-  selftest_errors_eq check_team_card(no_nav[:timeline]).select { |m| m.include?("移動") }, ["チームカードの移動操作が維持されていない"], "負例: チーム移動操作の改変"
+  selftest_errors_eq check_team_card(no_nav[:timeline]), ["チームカードの移動操作が維持されていない"], "負例: チーム移動操作の改変"
 
   derive_call = with_file(good, :sidebar) { |src|
     src.sub("let presentation = SessionTitlePresentation", "let _ = SessionTitleDeriver.derive(from: session.name)\n            let presentation = SessionTitlePresentation")
@@ -1596,7 +2034,7 @@ def run_selftest
 
   typo_base = good
   typo_del = with_file(good, :policy) { |src| src.gsub("ChatTypography.bodyFontSize", "13") }
-  selftest_errors_eq check_typography(typo_del, typo_base).select { |m| m.include?("削除") || m.include?("定数") }, [
+  selftest_errors_eq check_typography(typo_del, typo_base), [
     "#{POLICY_PATH} の typography 参照 ChatTypography.bodyFontSize が削除されている",
     "#{POLICY_PATH} の typography 参照を定数化している",
   ], "負例: typography 参照の削除・定数化"
@@ -1604,11 +2042,15 @@ def run_selftest
   typo_unused = with_file(good, :policy) { |src|
     src.gsub("font: .system(size: ChatTypography.bodyFontSize(scale: scale), pointSize: ChatTypography.bodyFontSize(scale: scale), color: DSColor.chatTextPrimary, isVisible: isVisible)", "font: .system(size: 13)") + "\n    func decoy() { if false { _ = ChatTypography.bodyFontSize(scale: 1) } }\n"
   }
-  selftest_assert check_typography(typo_unused, typo_base).any? { |m| m.include?("未使用") || m.include?("削除") }, "負例: typography 参照の未使用化 (#{check_typography(typo_unused, typo_base).inspect})"
+  selftest_errors_eq check_typography(typo_unused, typo_base), [
+    "#{POLICY_PATH} の typography 引数が変更されている",
+    "#{POLICY_PATH} の typography 適用位置が変更されている",
+    "#{POLICY_PATH} の typography 参照が未使用化されている",
+  ], "負例: typography 参照の未使用化"
 
   dummy = with_file(good, :sidebar) { |src| src + "\n    let unused = TranscriptTypography.body\n" }
   dummy_base = good
-  selftest_errors_eq check_typography(dummy, dummy_base).select { |m| m.include?("ダミー") }, ["#{SIDEBAR_PATH} に TranscriptTypography のダミー参照を追加している"], "負例: 無参照ファイルへのダミー追加"
+  selftest_errors_eq check_typography(dummy, dummy_base), ["#{SIDEBAR_PATH} に TranscriptTypography のダミー参照を追加している"], "負例: 無参照ファイルへのダミー追加"
 
   decoy = with_file(good, :sidebar) { |src|
     src.gsub(name_view_block, "            Text(session.displayName)\n") +
@@ -1719,6 +2161,90 @@ def run_selftest
   selftest_assert !prod.empty?, "正例: 本番検査セクションが存在する"
   selftest_assert baseline_check_connected?(prod), "正例: 基準検査が本番に接続されている"
   selftest_assert scope_check_gated?(prod), "正例: 変更範囲検査が TASK45_SCOPE_CHECK でゲートされている"
+  selftest_assert prod.lines.first.to_s.chomp == "# === task45 production checks ===", "正例: 本番 marker は行全体"
+  selftest_assert !baseline_check_connected?("def check_frozen_baseline(baseline, artifacts = nil)\nend\n"), "負例: 関数定義は本番接続ではない"
+
+  unused_model = with_file(good, :sidebar) { |src|
+    src.sub("Text(presentation.primary)", "Text(session.displayName)\n            let unusedPrimary = presentation.primary")
+  }
+  selftest_errors_eq check_sidebar(unused_model[:sidebar]), ["サイドバーの名前領域が titleState の表示モデルに未接続"], "負例: 表示モデルを読んでも旧名を描画"
+
+  no_ax_hide = with_file(good, :sidebar) { |src| src.gsub(".accessibilityHidden(true)", "") }
+  selftest_errors_eq check_sidebar(no_ax_hide[:sidebar]), ["サイドバーの名前領域の装飾花名が重複読み上げされる"], "負例: 装飾花名の重複読み上げ"
+
+  unused_helper = with_file(good, :timeline) { |src|
+    src.sub(
+      "presentation: titlePresentation(sessionID: source.id, fallbackName: source.displayName)",
+      "presentation: SessionTitlePresentation(state: .legacy(name: source.displayName), fallback: source.displayName, workspacePath: \"\")"
+    )
+  }
+  selftest_errors_eq check_team_chip(unused_helper[:timeline]), ["チームの source chip が現在ノードの表示モデルに未接続"], "負例: 未使用 helper のまま chip へ legacy"
+
+  wrong_id = with_file(good, :timeline) { |src| src.sub("sessionID: source.id", "sessionID: other.id") }
+  selftest_errors_eq check_team_chip(wrong_id[:timeline]), ["チームの source chip が現在ノードの表示モデルに未接続"], "負例: chip へ別 ID を渡す"
+
+  wrong_top = with_file(good, :topbar) { |src|
+    src.sub("router.selectedSession.flatMap { viewModel.sessionNode(id: $0) }", "viewModel.sessionNode(id: otherID)")
+  }
+  selftest_errors_eq check_topbar(wrong_top[:topbar]), ["トップバーが選択ノードに追随していない"], "負例: トップバーが選択 ID と違うノードを使う"
+
+  drag_id = with_file(good, :pane) { |src| src.sub("DraggedSession(id: session.id)", "DraggedSession(id: other.id)") }
+  selftest_errors_eq protected_ops_errors(drag_id, good), ["グリッドのドラッグ対象 ID が基準と一致しない"], "負例: ドラッグ対象 ID の改変"
+
+  no_console = with_file(good, :topbar) { |src| src.gsub("agentConsoleButton", "otherButton").gsub("openWindow", "openOther") }
+  selftest_errors_eq protected_ops_errors(no_console, good), [
+    "トップバーのエージェント管理操作が維持されていない",
+  ], "負例: エージェント管理操作の欠落"
+
+  close_comment = with_file(good, :pane) { |src|
+    src.sub("Button(action: onRemove)", "Button(action: {})").sub(".help(\"セッションを閉じる\")", "// onRemove\n          .help(\"セッションを閉じる\")")
+  }
+  selftest_errors_eq check_grid(close_comment[:pane]), ["閉じる操作が維持されていない"], "負例: コメント内の onRemove は閉じる操作に数えない"
+
+  typo_scale = with_file(good, :policy) { |src| src.gsub("scale: scale", "scale: 1") }
+  selftest_errors_eq check_typography(typo_scale, good), ["#{POLICY_PATH} の typography 引数が変更されている"], "負例: typography 引数 scale の改変"
+
+  typo_apply = with_file(good, :policy) { |src|
+    src.sub("font: .system(size: ChatTypography.bodyFontSize(scale: scale), pointSize: ChatTypography.bodyFontSize(scale: scale)", "font: .system(pointSize: ChatTypography.bodyFontSize(scale: scale), size: ChatTypography.bodyFontSize(scale: scale)")
+  }
+  selftest_errors_eq check_typography(typo_apply, good), ["#{POLICY_PATH} の typography 適用位置が変更されている"], "負例: typography 適用位置の改変"
+
+  no_item = with_file(good, :timeline) { |src| src.gsub("ChatItemView(", "EmptyView(") }
+  selftest_errors_eq check_typography(no_item, good), ["#{TIMELINE_PATH} の typography 委譲先 ChatItemView が削除されている"], "負例: ChatItemView 委譲の削除"
+
+  no_grid_col = with_file(good, :pane) { |src| src.gsub("GridChatColumn(", "OtherColumn(") }
+  selftest_errors_eq check_typography(no_grid_col, good), ["#{PANE_PATH} の typography 委譲先 GridChatColumn が削除されている"], "負例: GridChatColumn 委譲の削除"
+
+  impure = with_file(good, :presentation) { |src|
+    src.sub("self.primary = state.effectiveName(fallback: fallback)", "let _ = UserDefaults.standard\n        self.primary = state.effectiveName(fallback: fallback)")
+  }
+  selftest_errors_eq check_presentation_type(impure[:presentation]), ["表示モデルが許可されていない依存を持つ", "表示モデルが副作用を持つ"], "負例: 表示モデルの UserDefaults"
+
+  mutate_state = with_file(good, :sidebar) { |src|
+    src.sub("let presentation = SessionTitlePresentation", "let _ = session.titleState.receivingUserMessage(\"hi\")\n            let presentation = SessionTitlePresentation")
+  }
+  selftest_errors_eq check_no_derive_save(mutate_state), ["View から状態を更新している"], "負例: View から receivingUserMessage"
+
+  assign_name = with_file(good, :sidebar) { |src|
+    src.sub("let presentation = SessionTitlePresentation", "session.name = \"x\"\n            let presentation = SessionTitlePresentation")
+  }
+  selftest_errors_eq check_no_derive_save(assign_name), ["View から状態を更新している"], "負例: View から name 代入"
+
+  missing_view = check_frozen_baseline(head_full, artifacts_ok.merge(view_blobs: artifacts_ok[:view_blobs].merge(SIDEBAR_PATH => nil)))
+  selftest_errors_eq missing_view, ["基準時点の #{SIDEBAR_PATH} が無い"], "負例: View 基準 blob 欠落は省略しない"
+
+  missing_scope = scope_errors(good, good.merge(sidebar: nil))
+  selftest_errors_eq missing_scope, ["基準時点の #{SIDEBAR_PATH} が無い"], "負例: scope 比較元 blob 欠落"
+
+  if File.exist?(PANE_PATH)
+    disk = disk_product_files
+    tailed = disk.merge(pane: retarget_name_truncation(disk[:pane], "middle", "tail"))
+    selftest_errors_eq scope_errors(tailed, disk), [], "正例: 実物の名前 truncation を .tail にしても scope は空"
+    wired = disk.merge(pane: rewire_name_text_to_presentation(disk[:pane]))
+    selftest_errors_eq scope_errors(wired, disk), [], "正例: 実物の未配線コードへ契約準拠の名前配線"
+    broken = disk.merge(pane: disk[:pane].to_s.sub("StatusDot(status: session.displayStatus)", "EmptyView()"))
+    selftest_assert scope_errors(broken, disk).include?("許可ファイル内の名前領域以外が基準と一致しない: #{PANE_PATH}"), "負例: 名前以外の実物変更は scope で拒否"
+  end
 end
 
 if ARGV.include?("--selftest")
@@ -1753,6 +2279,7 @@ if baseline
     ng.concat(check_frozen_baseline(full))
     base_blobs = baseline_files(full)
     files = worktree_files(full)
+    ng.concat(protected_ops_errors(files, base_blobs))
     ng.concat(check_typography(files, base_blobs))
     if baseline && scope_check_requested?
       ng.concat(scope_errors(files, base_blobs))

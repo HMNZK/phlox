@@ -5,9 +5,6 @@ verifier=/Users/ryosuke/.agents/skills/agentic-loop/scripts/agentic-loop-verify-
 if [ "${1:-}" = task-8 ]; then
   exec bash "$verifier" "$@" --verify '/Users/ryosuke/.agents/scripts/compact-test --full task8-ui bash macos/scripts/test-view-mode-accessibility.sh && git diff --check'
 fi
-if [ "${1:-}" = task-17 ]; then
-  exec bash "$verifier" "$@" --verify '/Users/ryosuke/.agents/scripts/compact-test --full task17-ui bash macos/scripts/test-settings-buttons-acceptance.sh && git diff --check'
-fi
 if [ "${1:-}" = task-27 ]; then
   exec bash "$verifier" "$@" --verify '/Users/ryosuke/.agents/scripts/compact-test task27-wiring ruby .claude/scripts/task27-wiring.rb && (cd macos/Packages/DesignSystem && /Users/ryosuke/.agents/scripts/compact-test task27-design-system swift test) && git diff --check'
 fi

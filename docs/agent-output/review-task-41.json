@@ -1,0 +1,85 @@
+{
+  "reviewer": "codex-gpt-6-astra",
+  "dimensions_swept": [
+    {
+      "dimension": "契約適合",
+      "result": "finding",
+      "note": "公開APIと処理順序は契約どおり。結合文字を伴うU+3000の圧縮に契約違反あり（指摘1）。"
+    },
+    {
+      "dimension": "正しさ",
+      "result": "finding",
+      "note": "改行、フェンス対応、除外接頭辞、32／33 Character境界を確認。Unicode空白の判定に指摘1あり。省略はCharacter単位で、絵文字・結合文字・サロゲート対を分断しない。"
+    },
+    {
+      "dimension": "誠実性",
+      "result": "ok",
+      "note": "対象差分にテスト弱体化・禁止依存・完了偽装を検出せず。製品ファイルのblobは差分の47efa40と一致。"
+    },
+    {
+      "dimension": "根本原因",
+      "result": "finding",
+      "note": "幅変換を英数記号と半角カナに分離した設計は契約修正に対応。ただし空白というスカラーの規則をCharacter全体の等値比較で実装している（指摘1）。"
+    },
+    {
+      "dimension": "構造",
+      "result": "ok",
+      "note": "Foundationのみをimportし、規則は新規ファイル内に集約。基準との差分はAgentDomain製品ソース1ファイルの追加のみ。"
+    },
+    {
+      "dimension": "到達性",
+      "result": "ok",
+      "note": "public APIを非@testableのimport AgentDomainから受け入れテストが呼ぶ。製品側の接続・表示はtask-44／45の責務で、本タスクの目視ゲートは対象外。"
+    },
+    {
+      "dimension": "非機能",
+      "result": "ok",
+      "note": "前進走査と互いに重ならないカナ区間の変換で、入力サイズに対してO(n)、中間文字列・行配列のメモリもO(n)。入力変更、共有可変状態、出力、設定、時計、乱数、UserDefaults、ProcessInfoへの依存なし。"
+    },
+    {
+      "dimension": "テストの質",
+      "result": "finding",
+      "note": "固定期待値で実関数を検査し、主要分岐を保護している。結合文字の省略テストはあるが、結合文字を伴う空白の正規化は未被覆（指摘1）。"
+    },
+    {
+      "dimension": "Rubric：文字列契約",
+      "result": "finding",
+      "note": "全角英数記号→ASCII、半角カナ区間→全角、全角カナ維持、URL採用、大小文字を区別する除外を確認。U+3000の圧縮に指摘1あり。"
+    },
+    {
+      "dimension": "Rubric：純粋性",
+      "result": "ok",
+      "note": "入力は値として受け取り、結果だけを返す。Foundationの固定変換を使い、I/O・設定・追加AI呼び出しに依存しない。"
+    },
+    {
+      "dimension": "Rubric：責務境界",
+      "result": "ok",
+      "note": "名前状態・保存・View・呼び出し元を変更していない。title/fullTitleは非OptionalのStringで、結果型はEquatable・Sendable。"
+    },
+    {
+      "dimension": "Rubric：検証の独立性",
+      "result": "ok",
+      "note": "凍結SHA 962ddb2に対し受け入れテスト・Ruby検査・Package.swiftの差分なし。基準に製品ファイルなし。検査コードのblob比較、実装入り基準拒否、独立負例のselftestを静的確認。実走結果は呼び出し元の客観層による。"
+    },
+    {
+      "dimension": "Rubric：報告の正確さ",
+      "result": "not_applicable",
+      "note": "開示レポートは指示どおり未読。対象の製品差分にUX-01全体の完了主張はない。"
+    }
+  ],
+  "verdict": "needs_changes",
+  "tests_run": [],
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "file": "macos/Packages/AgentDomain/Sources/AgentDomain/SessionTitleDeriver.swift",
+      "line": 185,
+      "summary": "指摘1：結合文字を伴う全角空白が圧縮されず、幅正規化の契約に違反する。",
+      "evidence": "171行目は「for character in text」、186行目は「character == \" \" || character == \"\\t\" || character == \"\\u{3000}\"」。U+3000と後続U+0301は一つのCharacterになるため、この比較はfalseになる。入力「A\\u{3000}\\u{301}B」は前後trimと幅変換でも変わらず、全角空白を残したまま返る。契約末尾は内部U+3000を半角空白へ圧縮し、その他の文字は維持するよう要求している。これは実コードの静的追跡による確認であり、再現テストは未実走。",
+      "repro_test": "@Test func ideographicSpaceWithCombiningMarkNormalizes() {\n    let result = SessionTitleDeriver.derive(from: \"A\\u{3000}\\u{301}B\")\n    #expect(result?.title == \"A \\u{301}B\")\n    #expect(result?.fullTitle == \"A \\u{301}B\")\n}",
+      "confidence": "verified"
+    }
+  ],
+  "integrity_check": "握りつぶし・凍結テスト改変は検出せず。自身のテスト実走は未検証。実行を試した「/Users/ryosuke/.agents/scripts/compact-test task41-review-models bash macos/scripts/run-swift-tests.sh AgentDomain」は「mktemp: mkstemp failed on /tmp/tmp.uM3MhDRYmW: Operation not permitted」「/Users/ryosuke/.agents/scripts/compact-test: line 26: : No such file or directory」「cat: : No such file or directory」でexit 1。「/Users/ryosuke/.agents/scripts/compact-test task41-review-wiring env TASK41_BASELINE=962ddb2 ruby .claude/scripts/task41-wiring.rb」も/tmp/tmp.kUx2VngyuVで同じ失敗。ラッパーがログを作成できず、製品コード・テストランナー起動前に失敗しているためread-only環境起因。回避策は実施せず、ラッパーも迂回していない。呼び出し元から受け入れ43件を含むAgentDomain 462件GREEN、配線検査・selftest GREENの独立客観層が提供されている。自身ではgit diff --checkのexit 0を確認。判定理由は実走不能ではなく指摘1。",
+  "root_cause_assessment": "幅変換の分離、フェンス状態の保持、Character単位の省略は契約に対応している。静的変異検査では、半角カナ変換を削除するとhalfwidthKatakanaConvertsToFullwidth、終了フェンスの長さ条件を削除するとfourBacktickFenceIgnoresThreeBacktickCloser、4空白除外を削除するとfourSpaceIndentedPlainLineIsExcluded、31文字を32文字にするとthirtyThreeCharactersTruncateTitleの固定期待値と不一致になる。非Optional契約を崩すとString代入テストがコンパイル不能になる。一方、指摘1はスカラー単位の空白規則とCharacter単位の判定の不一致が原因。内部空白の正規化をUnicodeスカラー単位で行い、結合文字を保持すれば根本原因を解消できる。省略処理は引き続きCharacter単位とする必要がある。変異・再現テストは静的評価であり未実走。"
+}

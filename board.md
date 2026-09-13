@@ -18,7 +18,7 @@
 | task-31 | standard | done |
 | task-32 | standard | done |
 | task-33 | standard | done |
-| task-34 | standard | in_progress |
+| task-34 | standard | done_pending_review |
 | task-35 | standard | done |
 | task-36 | standard | done |
 | task-37 | standard | done |

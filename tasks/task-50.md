@@ -6,7 +6,7 @@ user_visible: true
 acceptance_tests:
   - macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptancePermissionWordingTests.swift
   - .claude/scripts/task50-wiring.rb
-baseline_commit: "e95ebf8"
+baseline_commit: "e3dd2fb"
 contract_tests: []
 allowed_paths:
   - macos/Packages/DesignSystem/Sources/DesignSystem/UIWording+Permissions.swift

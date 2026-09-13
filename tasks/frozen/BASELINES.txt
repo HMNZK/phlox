@@ -132,3 +132,10 @@ fc8519e	.claude/scripts/task49-wiring.rb
 91cdbe9	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/ComposerModeMenuAcceptanceTests.swift
 91cdbe9	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/AcceptanceContextPopoverBranchTests.swift
 91cdbe9	.claude/scripts/task48-wiring.rb
+e3dd2fb	macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceSessionTitlePresentationTests.swift
+e3dd2fb	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptMarkdownPresentationTests.swift
+e3dd2fb	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask47Tests.swift
+e3dd2fb	macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptancePermissionWordingTests.swift
+e3dd2fb	.claude/scripts/task45-wiring.rb
+e3dd2fb	.claude/scripts/task47-wiring.rb
+e3dd2fb	.claude/scripts/task50-wiring.rb

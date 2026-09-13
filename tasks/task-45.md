@@ -6,7 +6,7 @@ user_visible: true
 acceptance_tests:
   - macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceSessionTitlePresentationTests.swift
   - .claude/scripts/task45-wiring.rb
-baseline_commit: "PM が task-44 成立後、凍結時に完全 SHA を設定"
+baseline_commit: "e3dd2fb"
 contract_tests: []
 allowed_paths:
   - macos/Packages/AgentDomain/Sources/AgentDomain/SessionTitlePresentation.swift

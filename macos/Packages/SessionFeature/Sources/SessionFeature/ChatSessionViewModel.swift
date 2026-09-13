@@ -2586,7 +2586,10 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private func identifiableOriginalText(from item: ThreadItem) -> String? {
-        item.raw?["originalText"]?.stringValue
+        if case .bool(true) = item.raw?["isMeta"] {
+            return nil
+        }
+        return item.raw?["originalText"]?.stringValue
     }
 
     /// ライブ確定本文があればそれを使う。それ以外の由来不明項目は先頭行だけを候補にする。

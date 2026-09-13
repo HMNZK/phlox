@@ -1,42 +1,38 @@
 ---
 task: task-44
-status: completed
+status: blocked
 ---
 
 ## 詰まった点
 
-契約ファイル末尾に「契約の曖昧点の確定（レビュー r2 後の PM 裁定）」節は無かった（D4 で終了）。実装はディスパッチ指示の裁定に従った。ChatItem に isMeta が無く、ClaudeSessionHistory.swift は allowed_paths 外かつ loader の isMeta 項目化は凍結テストが要求するため、loader は変更していない。
+(b) `ClaudeSessionTranscriptLoader` が `isMeta == true` のユーザー行を `userMessage` に変換しないようにしたところ、凍結テスト `claudeLoaderKeepsLegacyRestoreAndLeavesBytesUnchanged`（`AcceptanceHistoryTitleSourcesTests.swift:468`）が RED。期待は `items.count == 4` でメタ本文を userMessage として保持、実装後は 3 件。期待値は変更していない。
+
+本 worktree の `tasks/task-44.md` 末尾に「契約の曖昧点の確定」および「訂正（レビュー r3 後）」は無く、`allowed_paths` に `ClaudeSessionHistory.swift` も無い。ディスパッチ指示に従い loader を変更した。
 
 ## できた風だが実は未完
 
-指定4命令はすべて GREEN。static 由来辞書と transcript マーカーは破棄した。r1 の初回保存 load 後再評価と rename 同値二重保存抑止は維持した。
+(a) は入れた。`identifiableOriginalText` は `raw.isMeta` が真なら `originalText` があっても不採用。MEDIUM（由来不明は originalText のみ）は変更していない。
 
-- GUI・課金セッションは起動していない（契約どおり Cursor は未実施。PM 目視ゲート）。
-- 履歴再開は `titleUserMessages`（isMeta 除外済み）から採用する。Phlox store へ flush された isMeta 項目を flower のまま復元する経路は、ChatItem に isMeta が無いため先頭行ヒューリスティックだけでは除外できない。
+(b) は入れたが、上記凍結テストが RED のため完了にできない。titleUserMessages／titleSummary／preview／firstUserLine・打ち切り・DB 優先は未変更（preview 系は GREEN）。
+
+- GUI・課金セッションは起動していない。
+- テスト・rb・契約・台帳は変更していない。
 
 ## 置いた前提・仮定
 
-- task-41 の `SessionTitleDeriver.derive(from:)` を複製せず使う。
-- ライブ経路の元本文はインスタンス辞書 `localOriginalUserTextByID` で項目 ID に対応付け、`terminate` で解放する。static は持たない。
-- サーバー反映はローカル元本文または `originalText` だけ採用し、識別不能な表示本文は使わない。
-- 復元・履歴再開の由来不明ユーザー項目は先頭行だけを候補にし、先頭行が `/` 始まりなら不採用。履歴再開の isMeta は `titleUserMessages` が非 nil なら ChatItem 走査をしないことで不採用。
-- transcript 本文は改変しない。保存時の origin 添付を付けない。
-- derived/manual では `InputHistoryPolicy.entries` / 導出の前に `source == .flower` で return する。
-- 初回 `persistSession` は `sessionStore.load()` の後に `deletedSessionIDs` と `liveTitleState` を再評価する（r1 維持）。
-- チャット明示 rename の二重 enqueue は `persistSessionName` の同値状態スキップで抑止する（r1 維持）。
+- task-51 の titleUserMessages 除外は `parsed.isMeta == true` のみ。loader も同じ条件。`<` 始まり除外は既存のまま。
+- サーバー item の isMeta は `ThreadItem.raw["isMeta"]` が `.bool(true)` のときだけ不採用。欠落・false は従来どおり originalText を採用。
 - `TASK44_BASELINE=361f7fa` は契約 `baseline_commit` と一致する。
 
 ## 契約からの逸脱
 
-残る逸脱はない。テスト・rb・契約・台帳は変更していない。ClaudeSessionHistory.swift は allowed_paths 外のため未変更。
+(b) のため `ClaudeSessionHistory.swift` を変更した。この worktree の契約 `allowed_paths` には当該ファイルが無い（ディスパッチは追加済みと指示）。凍結テストと (b) が衝突する。
 
 ## レビュー重点
 
-- static `userMessageTitleOriginByID` と transcript マーカーが残っていないか。
-- セッション A の復元→同一 ID の B の復元→A の flush で B の本文が A へ保存されないか。
-- `startFromHistory` が loader の isMeta ユーザー項目を derived にしないか（`titleUserMessages` 優先）。
-- `/review\nログイン画面を修正` を保存 transcript から復元しても flower のままか（先頭行 `/` 不採用）。
-- 早期ガードが `InputHistoryPolicy.entries` より前か。初回保存の load 後再評価と rename 同値スキップが残っているか。
+- `identifiableOriginalText` が isMeta 真で originalText を捨てるか。itemStarted/itemCompleted と threadRead の双方か。
+- loader が isMeta ユーザーを userMessage にしないか。preview / titleUserMessages が変わっていないか。
+- 凍結テスト `items.count == 4` と (b) の衝突を契約とテストのどちらで解くか。
 
 ## 検証原文
 
@@ -51,11 +47,25 @@ task44-wiring: OK
 ```
 
 ```
-$ ~/.agents/scripts/compact-test t44-rw2 bash macos/scripts/run-swift-tests.sh AgentDomain SessionFeature DashboardFeature
-✔ Test run with 14 tests in 2 suites passed after 5.123 seconds.
+$ ~/.agents/scripts/compact-test t44-rw3 bash macos/scripts/run-swift-tests.sh AgentDomain SessionFeature DashboardFeature
+=== swift test --package-path Packages/AgentDomain  [全数] ===
+✔ Test run with 519 tests in 26 suites passed after 1.020 seconds.
+=== swift test --package-path Packages/SessionFeature  [全数] ===
+✔ Test run with 954 tests in 115 suites passed after 1.373 seconds.
+=== swift test --package-path Packages/DashboardFeature --no-parallel --skip WorktreeIsolationSpawnTests --skip AcceptanceRestoreAbortNoSpawnTests [本体] ===
+…
+✘ Test "Claude loader は /review・メタ本文・貼り付け内容を従来どおり返し、fixture を変えない" recorded an issue at AcceptanceHistoryTitleSourcesTests.swift:468:13: Expectation failed: (items.count → 3) == 4
+✘ Test "Claude loader は /review・メタ本文・貼り付け内容を従来どおり返し、fixture を変えない" failed after 0.015 seconds with 1 issue.
+…
+✘ Suite "task-51: history title sources" failed after 1.055 seconds with 1 issue.
+…
+✘ Test run with 1768 tests in 175 suites failed after 63.421 seconds with 1 issue.
+=== swift test --package-path Packages/DashboardFeature --no-parallel --filter WorktreeIsolationSpawnTests --filter AcceptanceRestoreAbortNoSpawnTests [実git] ===
+✔ Test run with 14 tests in 2 suites passed after 5.343 seconds.
+run-swift-tests: FAILED -> DashboardFeature(main)
 ```
 
-（exit 0。compact-test は最終要約1行のみ。）
+（exit 1）
 
 ```
 $ git diff --check

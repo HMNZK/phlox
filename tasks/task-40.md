@@ -410,3 +410,7 @@ PMは `docs/agent-output/visual-task-40.md` に、コミット、App／fixture�
 - 10（設定隔離）: PM 目視ゲート A ではテーマ・倍率を起動引数（`-phlox.theme`、`NSArgumentDomain` 経由で `UserDefaults.standard` から読める）で与え、アプリ内の「文字を大きく／小さく」は操作しない（`ChatFontSettings.save` が standard へ書くため）。倍率別の確認はゲート B（fixture）で `ChatFontSettings` のテスト用 suite または直接倍率注入で行う。
 - 11（プレースホルダ到達条件）: ゲート A の sessions.json は `docs/agent-output/visual-task-27-35-composer.md` の手順を正本とする（`PHLOX_AGENTS_JSON` に PATH 不在 `binaryName` の custom kind `ui-chat-probe` を追加、descriptor は `kind: {type: custom, id: ui-chat-probe}`・`backend: appServer`・**`pid` キー無し**。`AgentLaunchPlanner` が `customBinaryNotFound` を throw → 実クライアント生成前に catch → プレースホルダ）。起動後 `pgrep -P <PID>` で子プロセス 0 件を記録する。
 - 12（fixture 忠実度）: ゲート B のホストは製品 `ChatSessionView.swift` の `mainColumn(width:)` と同じ `contentMaxWidth`・末尾余白を渡し、表・質問（回答済み／期限切れ）・タスク各状態・空出力グループを fixture に含める。
+
+## 適用範囲の注記（2026-09-13、task-44/45/46/47 敵対レビューの MUST を受けて）
+
+`task40-wiring.rb` の残余比較（allowed_paths 内製品ファイルの凍結 blob 比較）は **task-40 の着手時検査**であり、task-40 done 以降の後続タスク（44/45/46/47 等）には適用しない。後続タスクは自分の rb で「対象 View が `TranscriptTypography` を参照し直値へ戻していない」ことを検査する。task-40 の値・順序テスト（DesignSystem／SessionFeature の Swift Testing）は恒久回帰として統合 verify に残る。

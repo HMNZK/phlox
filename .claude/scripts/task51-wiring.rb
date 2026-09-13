@@ -931,6 +931,89 @@ def check_legacy_entry_args(label, current_src, baseline_src, struct_name, func_
   []
 end
 
+def strip_entry_constructors(src)
+  result = src.to_s.dup
+  loop do
+    m = result.match(/ClaudeSessionHistoryEntry\s*\(/)
+    break unless m
+    args = extract_balanced(result, m.end(0) - 1, "(", ")")
+    break if args.nil?
+    close = (m.end(0) - 1) + 1 + args.length + 1
+    result = result[0...m.begin(0)] + result[close..]
+  end
+  result
+end
+
+def struct_func_body(src, struct_name, func_name)
+  return nil if src.nil?
+  struct = extract_struct_body(strip_comments(src), struct_name)
+  return nil if struct.nil?
+  extract_func_body(struct, func_name)
+end
+
+def claude_entries_enumeration_blob(src)
+  body = struct_func_body(src, "ClaudeSessionHistoryDiscovery", "entries")
+  return nil if body.nil?
+  strip_entry_constructors(erase_if_false(body))
+end
+
+def listing_options_from(func_body, callee)
+  return nil if func_body.nil?
+  labeled_arg(extract_call_args(func_body, callee), "options")
+end
+
+def frozen_listing_errors(current, baseline)
+  ng = []
+  ng.concat(frozen_func_errors("rolloutFiles", current[:codex], baseline[:codex], "CodexSessionHistoryDiscovery", "rolloutFiles"))
+
+  cur_enum = claude_entries_enumeration_blob(current[:claude])
+  base_enum = claude_entries_enumeration_blob(baseline[:claude])
+  if baseline[:claude].nil?
+    ng << "Claude entries の列挙処理の基準を git show できない"
+  elsif current[:claude].nil?
+    ng << "ClaudeSessionHistory.swift が存在しない"
+  elsif base_enum.nil?
+    ng << "Claude entries の列挙処理の基準を解析できない"
+  elsif cur_enum.nil?
+    ng << "Claude entries の列挙処理を解析できない"
+  elsif !same_code?(cur_enum, base_enum)
+    ng << "Claude entries の列挙処理が TASK51_BASELINE から変化している"
+  end
+
+  cur_entries = struct_func_body(current[:claude], "ClaudeSessionHistoryDiscovery", "entries")
+  base_entries = struct_func_body(baseline[:claude], "ClaudeSessionHistoryDiscovery", "entries")
+  cur_opt = listing_options_from(cur_entries, "contentsOfDirectory")
+  base_opt = listing_options_from(base_entries, "contentsOfDirectory")
+  if baseline[:claude].nil?
+    # 基準欠落は列挙処理側で報告済み
+  elsif base_opt.nil?
+    ng << "Claude entries の隠しファイル除外の基準を解析できない"
+  elsif cur_opt.nil?
+    ng << "Claude entries の隠しファイル除外が削除されている"
+  elsif !same_code?(cur_opt, base_opt)
+    ng << "Claude entries の隠しファイル除外が TASK51_BASELINE から変化している"
+  end
+
+  cur_rollout = struct_func_body(current[:codex], "CodexSessionHistoryDiscovery", "rolloutFiles")
+  base_rollout = struct_func_body(baseline[:codex], "CodexSessionHistoryDiscovery", "rolloutFiles")
+  cur_rollout_opt = listing_options_from(cur_rollout, "enumerator")
+  base_rollout_opt = listing_options_from(base_rollout, "enumerator")
+  if baseline[:codex].nil?
+    # rolloutFiles の基準欠落は frozen_func_errors が報告
+  elsif base_rollout.nil?
+    # 同上
+  elsif base_rollout_opt.nil?
+    ng << "rolloutFiles の隠しファイル除外の基準を解析できない"
+  elsif cur_rollout.nil?
+    # 関数欠落は frozen_func_errors が報告
+  elsif cur_rollout_opt.nil?
+    ng << "rolloutFiles の隠しファイル除外が削除されている"
+  elsif !same_code?(cur_rollout_opt, base_rollout_opt)
+    ng << "rolloutFiles の隠しファイル除外が TASK51_BASELINE から変化している"
+  end
+  ng
+end
+
 def check_frozen_restore(current, baseline)
   ng = []
   return ng if baseline.nil?
@@ -982,6 +1065,7 @@ def check_frozen_restore(current, baseline)
     end
   end
   ng.concat(check_scan_limits(current[:claude], current[:codex], baseline))
+  ng.concat(frozen_listing_errors(current, baseline))
   ng.uniq
 end
 
@@ -1137,6 +1221,14 @@ def good_claude_src
       static let maxBytesPerFile = 256 * 1024
 
       func entries(forWorkingDirectory workingDirectory: String, limit: Int) -> [ClaudeSessionHistoryEntry] {
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+          at: projectDir,
+          includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
+          options: [.skipsHiddenFiles]
+        ) else {
+          return []
+        }
+        for fileURL in contents {
         let scan = Self.scanFile(at: fileURL)
         guard !scan.isSidechainFile else { continue }
         guard let firstUser = scan.firstUserLine else { continue }
@@ -1152,6 +1244,7 @@ def good_claude_src
             titleSummary: nil
           )
         )
+        }
         discovered.sort { $0.lastModified > $1.lastModified }
         return Array(discovered.prefix(limit))
       }
@@ -1301,6 +1394,27 @@ def good_codex_src
         return entries
       }
 
+      private func rolloutFiles() -> [RolloutFile] {
+        guard let enumerator = FileManager.default.enumerator(
+          at: sessionsRoot,
+          includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
+          options: [.skipsHiddenFiles]
+        ) else { return [] }
+        return enumerator.compactMap { item in
+          guard let url = item as? URL,
+                url.lastPathComponent.hasPrefix("rollout-"),
+                url.pathExtension == "jsonl",
+                let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey]),
+                values.isRegularFile == true else {
+            return nil
+          }
+          return RolloutFile(url: url, modified: values.contentModificationDate ?? .distantPast)
+        }.sorted {
+          if $0.modified != $1.modified { return $0.modified > $1.modified }
+          return $0.url.path < $1.url.path
+        }
+      }
+
       private func scan(_ fileURL: URL, matchingCWD: String, onScan: (@Sendable (URL) -> Void)?, onRead: (@Sendable (Int) -> Void)?) -> Scan? {
         var titleUserMessages: [String] = []
         guard let prefix = Self.read(fileURL, maxBytes: Self.maxSessionMetaBytes, onRead: onRead) else { return nil }
@@ -1349,6 +1463,14 @@ def baseline_claude_src
       static let maxBytesPerFile = 256 * 1024
 
       func entries(forWorkingDirectory workingDirectory: String, limit: Int) -> [ClaudeSessionHistoryEntry] {
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+          at: projectDir,
+          includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
+          options: [.skipsHiddenFiles]
+        ) else {
+          return []
+        }
+        for fileURL in contents {
         let scan = Self.scanFile(at: fileURL)
         guard !scan.isSidechainFile else { continue }
         guard let firstUser = scan.firstUserLine else { continue }
@@ -1362,6 +1484,7 @@ def baseline_claude_src
             fileURL: fileURL
           )
         )
+        }
         discovered.sort { $0.lastModified > $1.lastModified }
         return Array(discovered.prefix(limit))
       }
@@ -1492,6 +1615,27 @@ def baseline_codex_src
           )
         )
         return entries
+      }
+
+      private func rolloutFiles() -> [RolloutFile] {
+        guard let enumerator = FileManager.default.enumerator(
+          at: sessionsRoot,
+          includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
+          options: [.skipsHiddenFiles]
+        ) else { return [] }
+        return enumerator.compactMap { item in
+          guard let url = item as? URL,
+                url.lastPathComponent.hasPrefix("rollout-"),
+                url.pathExtension == "jsonl",
+                let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey]),
+                values.isRegularFile == true else {
+            return nil
+          }
+          return RolloutFile(url: url, modified: values.contentModificationDate ?? .distantPast)
+        }.sorted {
+          if $0.modified != $1.modified { return $0.modified > $1.modified }
+          return $0.url.path < $1.url.path
+        }
       }
 
       private func scan(_ fileURL: URL, matchingCWD: String, onScan: (@Sendable (URL) -> Void)?, onRead: (@Sendable (Int) -> Void)?) -> Scan? {
@@ -1865,6 +2009,48 @@ def run_selftest
     check_scan_limits(while_changed, good[:codex], base).grep(/走査ループ条件/),
     ["Claude の走査ループ条件が基準から変化している"],
     "負例 HIGH6: ループ条件変更"
+  )
+
+  enum_changed = with_replaced(good[:claude], "for fileURL in contents {", "for listed in contents {\n          let fileURL = projectDir.appendingPathComponent(listed.lastPathComponent)")
+  selftest_errors_eq(
+    check_frozen_restore({ entry: good[:entry], claude: enum_changed, codex: good[:codex] }, base).grep(/列挙処理/),
+    ["Claude entries の列挙処理が TASK51_BASELINE から変化している"],
+    "負例: Claude 列挙処理の改変"
+  )
+
+  hidden_deleted = with_replaced(good[:claude], "          options: [.skipsHiddenFiles]\n", "")
+  selftest_errors_eq(
+    check_frozen_restore({ entry: good[:entry], claude: hidden_deleted, codex: good[:codex] }, base).grep(/隠しファイル除外が削除/),
+    ["Claude entries の隠しファイル除外が削除されている"],
+    "負例: Claude 隠しファイル除外の削除"
+  )
+
+  hidden_changed = with_replaced(good[:claude], "options: [.skipsHiddenFiles]", "options: []")
+  selftest_errors_eq(
+    check_frozen_restore({ entry: good[:entry], claude: hidden_changed, codex: good[:codex] }, base).grep(/隠しファイル除外が TASK51_BASELINE/),
+    ["Claude entries の隠しファイル除外が TASK51_BASELINE から変化している"],
+    "負例: Claude 隠しファイル除外の改変"
+  )
+
+  rollout_deleted = with_replaced(good[:codex], "private func rolloutFiles()", "private func rolloutFilesGone()")
+  selftest_errors_eq(
+    check_frozen_restore({ entry: good[:entry], claude: good[:claude], codex: rollout_deleted }, base).grep(/rolloutFiles を解析できない/),
+    ["rolloutFiles を解析できない"],
+    "負例: rolloutFiles の削除"
+  )
+
+  rollout_changed = with_replaced(good[:codex], "return RolloutFile(url: url, modified:", "return RolloutFile(url: sessionsRoot.appendingPathComponent(url.lastPathComponent), modified:")
+  selftest_errors_eq(
+    check_frozen_restore({ entry: good[:entry], claude: good[:claude], codex: rollout_changed }, base).grep(/rolloutFiles が TASK51_BASELINE/),
+    ["rolloutFiles が TASK51_BASELINE から変化している"],
+    "負例: rolloutFiles の改変"
+  )
+
+  rollout_hidden_deleted = with_replaced(good[:codex], "          options: [.skipsHiddenFiles]\n", "")
+  selftest_errors_eq(
+    check_frozen_restore({ entry: good[:entry], claude: good[:claude], codex: rollout_hidden_deleted }, base).grep(/rolloutFiles の隠しファイル除外が削除/),
+    ["rolloutFiles の隠しファイル除外が削除されている"],
+    "負例: rolloutFiles 隠しファイル除外の削除"
   )
 
   prod = production_checks_source

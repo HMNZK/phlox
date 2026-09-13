@@ -96,7 +96,7 @@ struct AcceptanceHistoryTitleSourcesTests {
         #expect(entries.count == 1)
         #expect(entry.sessionID == id)
         #expect(entry.id == id)
-        #expect(entry.fileURL == file)
+        #expect(comparableFileURL(entry.fileURL) == comparableFileURL(file))
         #expect(entry.gitBranch == "dev")
         #expect(abs(entry.lastModified.timeIntervalSince(Self.claudeNewerMtime)) < 1.0)
         #expect(entry.preview == "/review ログイン画面を修正")
@@ -556,7 +556,7 @@ struct AcceptanceHistoryTitleSourcesTests {
         #expect(entries.count == 1)
         #expect(entry.sessionID == id)
         #expect(entry.id == id)
-        #expect(entry.fileURL == file)
+        #expect(comparableFileURL(entry.fileURL) == comparableFileURL(file))
         #expect(entry.gitBranch == nil)
         #expect(entry.preview == "response_item の本文")
         #expect(entry.titleUserMessages == [Self.responseUser])
@@ -1523,6 +1523,10 @@ private func assertUnchanged(_ before: [String: FileStamp], _ root: URL) throws 
         #expect(now?.bytes == stamp.bytes, Comment(rawValue: "bytes \(path)"))
         #expect(now?.modificationTime == stamp.modificationTime, Comment(rawValue: "mtime \(path)"))
     }
+}
+
+private func comparableFileURL(_ url: URL) -> URL {
+    url.standardizedFileURL.resolvingSymlinksInPath()
 }
 
 private func isoDate(_ string: String) -> Date? {

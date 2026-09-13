@@ -39,20 +39,19 @@ private func expectedUsagePercentLine(languageCode: String, usedPercent: Int, re
 
 @Test
 func popoverText_formatsCursorStyleLines() {
-    let lines = ComposerContextPopoverText.lines(usedTokens: 27_400, windowTokens: 353_000)
-    #expect(lines == expectedPopoverLines(languageCode: "en"))
-    #expect(expectedPopoverLines(languageCode: "ja") == [
-        "コンテキスト容量:",
-        "使用 8%（残り 92%）",
-        "27k / 353k トークン使用",
-    ])
+    let linesEN = ComposerContextPopoverText.lines(usedTokens: 27_400, windowTokens: 353_000, languageCode: "en")
+    #expect(linesEN == expectedPopoverLines(languageCode: "en"))
+    let linesJA = ComposerContextPopoverText.lines(usedTokens: 27_400, windowTokens: 353_000, languageCode: "ja")
+    #expect(linesJA == expectedPopoverLines(languageCode: "ja"))
 }
 
 @Test
 func popoverText_percentRoundsToNearest() {
     // 84.6% → 85% used (15% left)
-    let lines = ComposerContextPopoverText.lines(usedTokens: 84_600, windowTokens: 100_000)
-    #expect(lines[1] == expectedUsagePercentLine(languageCode: "en", usedPercent: 85, remainingPercent: 15))
+    let linesEN = ComposerContextPopoverText.lines(usedTokens: 84_600, windowTokens: 100_000, languageCode: "en")
+    #expect(linesEN[1] == expectedUsagePercentLine(languageCode: "en", usedPercent: 85, remainingPercent: 15))
+    let linesJA = ComposerContextPopoverText.lines(usedTokens: 84_600, windowTokens: 100_000, languageCode: "ja")
+    #expect(linesJA[1] == expectedUsagePercentLine(languageCode: "ja", usedPercent: 85, remainingPercent: 15))
 }
 
 @Test

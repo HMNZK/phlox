@@ -1154,14 +1154,21 @@ def check_operation_bodies(current, previous)
   ng
 end
 
+# 契約の数値テンプレート供給式（値の名前・順序）。基準 blob に UIWording が無くても直接比較する。
+EXPECTED_CONTEXT_TOKEN_USAGE_ARGS = "usedText: tokenText(usedTokens), windowText: tokenText(windowTokens), languageCode: languageCode"
+EXPECTED_TURN_COST_ARGS = "amountText: Self.format(costUSD), languageCode: languageCode"
+
+def args_match_expected?(got, expected)
+  return false if got.nil? || got.to_s.strip.empty?
+  normalize_code(got) == normalize_code(expected)
+end
+
 def check_supply_exprs(current, previous)
   ng = []
-  if current[:context] && previous[:context]
+  if current[:context]
     now_lines = extract_func_body(current[:context], "lines").to_s
-    prev_lines = extract_func_body(previous[:context], "lines").to_s
     now_tok = extract_call_args(now_lines, "UIWording.contextTokenUsage").to_s
-    prev_tok = extract_call_args(prev_lines, "UIWording.contextTokenUsage").to_s
-    if !prev_tok.empty? && normalize_code(now_tok) != normalize_code(prev_tok)
+    unless args_match_expected?(now_tok, EXPECTED_CONTEXT_TOKEN_USAGE_ARGS)
       ng << "ComposerContextPopoverText の使用量の引数が TASK48_BASELINE から変化している"
     end
     now_pct = extract_call_args(now_lines, "UIWording.contextUsagePercent").to_s
@@ -1169,10 +1176,9 @@ def check_supply_exprs(current, previous)
       ng << "ComposerContextPopoverText の使用率の引数が逆転している"
     end
   end
-  if current[:cells_basic] && previous[:cells_basic]
+  if current[:cells_basic]
     now_cost = extract_call_args(current[:cells_basic], "turnCostAccessibility").to_s
-    prev_cost = extract_call_args(previous[:cells_basic], "turnCostAccessibility").to_s
-    if !prev_cost.empty? && normalize_code(now_cost) != normalize_code(prev_cost)
+    unless args_match_expected?(now_cost, EXPECTED_TURN_COST_ARGS)
       ng << "TurnCostCell の金額供給式が TASK48_BASELINE から変化している"
     end
   end
@@ -1970,15 +1976,31 @@ def run_selftest
     "Plan の排他条件が TASK48_BASELINE から変化している",
   ], "負例 HIGH6: Plan 解除処理の削除"
 
+  prev_tok_absent = with_file(good, :context) { |src|
+    src.sub(
+      "UIWording.contextTokenUsage(usedText: tokenText(usedTokens), windowText: tokenText(windowTokens), languageCode: languageCode)",
+      "legacyUsage(tokenText(usedTokens), tokenText(windowTokens))"
+    )
+  }
+  selftest_errors_eq check_invariants(good, prev_tok_absent), [], "正例: 基準に UIWording.contextTokenUsage が無くても正しい供給式は合格"
+
   token_swap = with_file(good, :context) { |src|
     src.sub(
       "UIWording.contextTokenUsage(usedText: tokenText(usedTokens), windowText: tokenText(windowTokens), languageCode: languageCode)",
       "UIWording.contextTokenUsage(usedText: tokenText(windowTokens), windowText: tokenText(usedTokens), languageCode: languageCode)"
     )
   }
-  selftest_errors_eq check_invariants(token_swap, good), [
+  selftest_errors_eq check_invariants(token_swap, prev_tok_absent), [
     "ComposerContextPopoverText の使用量の引数が TASK48_BASELINE から変化している",
   ], "負例 HIGH7: トークン使用量の引数交換"
+
+  prev_cost_absent = with_file(good, :cells_basic) { |src|
+    src.sub(
+      "UIWording.turnCostAccessibility(amountText: Self.format(costUSD), languageCode: languageCode)",
+      "legacyCostLabel(Self.format(costUSD))"
+    )
+  }
+  selftest_errors_eq check_invariants(good, prev_cost_absent), [], "正例: 基準に UIWording.turnCostAccessibility が無くても正しい供給式は合格"
 
   cost_fixed = with_file(good, :cells_basic) { |src|
     src.sub(
@@ -1986,7 +2008,7 @@ def run_selftest
       'UIWording.turnCostAccessibility(amountText: "$0.01", languageCode: languageCode)'
     )
   }
-  selftest_errors_eq check_invariants(cost_fixed, good), [
+  selftest_errors_eq check_invariants(cost_fixed, prev_cost_absent), [
     "TurnCostCell の金額供給式が TASK48_BASELINE から変化している",
   ], "負例 HIGH7: 金額の固定値化"
 

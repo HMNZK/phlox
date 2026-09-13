@@ -50,3 +50,6 @@ bdbf1d9	.claude/scripts/task40-wiring.rb
 201e846	.claude/scripts/task41-wiring.rb
 962ddb2	macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceSessionTitleDeriverTests.swift
 962ddb2	.claude/scripts/task41-wiring.rb
+276018d	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/AcceptanceTeamComposerDestinationLabelTests.swift
+276018d	macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceComposerDestinationLabelTests.swift
+276018d	.claude/scripts/task43-wiring.rb

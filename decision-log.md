@@ -167,3 +167,7 @@
 - 2026-09-13 task-40 再凍結（Cursor 修正後、基準は verify スクリプト参照）。
 - 2026-09-13 task-44/45（MUST1/HIGH4/MED3）・task-46/47（MUST2/HIGH5/MED3）契約敵対レビュー: 共通 MUST「task-40 rb の全ファイル残余比較が後続変更を拒否」は task-40 rb を着手時検査と裁定（契約注記）。他は Codex に契約改訂を委譲（裁定: 新設ヘッダー禁止・PTY 面は custom cat・思考本文は Markdown＋secondary で task-47 に限定変更を許可・ADR 0147 の置換決定を列挙し後継 ADR はフェーズ 5・task-47 は分割しない）。
 - 2026-09-13 task-41 ハーネス修理（PM 承認・PM 実施）: r3 修正で漏れた「半角カナ保持」テスト 1 件を契約修正（全角化）に合わせて修理し再凍結（実装途中ファイルを一時削除→凍結→再適用）。AgentDomain 全数 GREEN を PM が確認し、実装役の blocked レポートを completed へ更新（本文不変・注記付与）。
+- 2026-09-13 開示レポート 3 件（task-40/41/tests-43）の先頭破損: 原因は run-headless.sh 第 2 引数に報告ファイルを渡していたこと（L-7）。PM が frontmatter と注記を付与して形式修理（本文は不変・欠損節は復元不能と明記）。以後は別ファイルを渡す。
+- 2026-09-13 task-41 レビュー MEDIUM（結合文字付き U+3000 が圧縮されない）は実装欠陥と裁定（契約は内部 U+3000 の圧縮を要求済み）→ Cursor が Unicode スカラー単位判定へ修正。PM が AgentDomain 全数と rb を再走してから再レビュー。
+- 2026-09-13 task-40 実装 partial（rb 残余 NG 5 件）の裁定: NG の実体は `import DesignSystem` 追加（3 ファイル）・`ChatCodeCard` ヘッダーへの新規 `.font()`・`padding(.vertical, 2)` の `DSSpacing.xxs` 化。いずれも契約が要求する「正本 TranscriptTypography への接続」の必然的な帰結で、契約 12 の「変更許可箇所は描画属性と分類接続」に含まれる。ハーネス欠陥（rb のマスクが狭い）と裁定し、rb マスク拡張（import DesignSystem 行・`.font(...)`/`.padding(...)` 修飾行・DSSpacing トークン化）を PM 承認で Cursor に委譲。同時に実装役が残余 NG を恐れて見送った契約項目（Markdown 段落下 8 / 箇条書き 4、外側余白の正本接続、履歴ボタンの @AppStorage）を完了させる。負例（操作クロージャ・ID・条件分岐の改変検知）は維持。
+- 2026-09-13 task-43 凍結: テスト 2 ファイル＋rb を凍結コミットし、コンパイル RED のため task-40 統合中は `tasks/frozen/staged/` へ退避（task-31〜34 と同じ運用）。

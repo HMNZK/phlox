@@ -7,7 +7,7 @@ acceptance_tests:
   - macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceComposerDestinationLabelTests.swift
   - macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/AcceptanceTeamComposerDestinationLabelTests.swift
   - .claude/scripts/task43-wiring.rb
-baseline_commit: "PM が凍結時に設定"
+baseline_commit: "276018d"
 contract_tests: []
 allowed_paths:
   - macos/Packages/SessionFeature/Sources/SessionFeature/ComposerDestinationLabel.swift

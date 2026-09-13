@@ -59,3 +59,13 @@
 - count: 1
 - status: open
 - scope: project
+
+### L-7 run-headless.sh の第 2 引数（stdout 先）に担当が書く開示レポートのパスを渡さない
+- when: Cursor/Codex ヘッドレスに「`docs/agent-output/X.md` を書け」と指示しつつ、run-headless.sh の出力ファイル引数にも同じパスを渡したとき
+- why: run-headless.sh は起動時に出力ファイルを truncate し、cursor-agent の stdout をそこへリダイレクトする。担当がツールで同じファイルへ本文を書いた後、終了時に最終メッセージが fd のオフセット 0 から書かれ、本文の先頭（frontmatter・冒頭節）が上書きされる。「frontmatter が無い」「先頭に最終メッセージがある」「途中に文字化け」はすべてこれ
+- fix: 第 2 引数は常に別ファイル（例 `/tmp/<job>.final.md`）にし、レポートは担当のツール書き込みだけに任せる。回収時は `head -1` が `---` かを見て、違えば本ファイルの原因を疑う
+- 意義: 開示レポートの冒頭（詰まった点・できた風）は復元不能な情報で、失うと PM の照準が消える
+- evidence: 2026-09-13 task-17/41（初回）、task-40/41/43（同日 3 件同時）で先頭破損
+- count: 5
+- status: promotion-ready
+- scope: project

@@ -107,3 +107,6 @@ eb04e86	.claude/scripts/task47-wiring.rb
 361f7fa	macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceSessionTitleLifecycleTests.swift
 361f7fa	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Acceptance/AcceptanceSessionTitlePersistenceTests.swift
 361f7fa	.claude/scripts/task44-wiring.rb
+77c2e21	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptItemPresentationTests.swift
+77c2e21	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask46Tests.swift
+77c2e21	.claude/scripts/task46-wiring.rb

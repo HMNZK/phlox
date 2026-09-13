@@ -222,3 +222,4 @@
 - 2026-09-13 task-44 レビュー r1 HIGH（保存 transcript 復元で本文由来が失われ補足本文が derived 化）は凍結テストが検出できていない＝契約側の被覆不足。PM 承認で凍結 Lifecycle テストへ復元経路の由来保持ケースを追加（Cursor、wt-44）してから再凍結し差し戻す。
 - 2026-09-13 task-44 再凍結 361f7fa（旧 8149005 無効。Lifecycle テストの待機条件修理 bc4caae と復元由来保持ケース 9542688（現行実装で RED）を含む）。
 - 2026-09-13 task-46 PM 目視ハーネスの修理を承認: (1) 窓表示モードで activationPolicy が prohibited のため AX ツリーが空（-25204）で操作不能→ .regular へ変更し自プロセスを activate。(2) 幅 360/720・倍率 0.8/1.0/2.0・テーマ明/暗を環境変数で切替可能にする（窓表示モードのみ。固定シナリオのアサーションは不変）。(3) UserDefaults.standard（xctest 自身のドメイン）への theme 書き込みは撤去し suite 注入に統一（task-47 HIGH10 と同じ方針）。修理後に再凍結。
+- 2026-09-13 task-46 再凍結 77c2e21（旧 0c6037f 無効。目視ハーネス修理 wt-46 d1cfd23 を取り込み）。ハーネスの UserDefaults.standard への theme 書き込みは撤去保留（DSColor／ChatMessageRenderCache が ThemeStore.active＝standard を読むため。書き込み先は xctest ヘルパー自身のドメインで com.phlox.Phlox ではない。終了時に復元）。

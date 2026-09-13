@@ -46,6 +46,16 @@ public struct HistoryEntryPresentation: Equatable, Sendable {
         lastUsedAt = entry.lastModified == .distantPast ? nil : entry.lastModified
     }
 
+    /// VoiceOver 用。プロジェクト名、パス（あれば）、最終利用文言。作業名全文と元 ID は行側で結合する。
+    public func accessibilityDetails(lastUsedText: String) -> String {
+        var parts = [projectName]
+        if let projectPath, !projectPath.isEmpty {
+            parts.append(projectPath)
+        }
+        parts.append(lastUsedText)
+        return parts.joined(separator: " ")
+    }
+
     private static func isBoilerplatePrefix(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.hasPrefix("<") || trimmed.hasPrefix("Base directory for this skill:")

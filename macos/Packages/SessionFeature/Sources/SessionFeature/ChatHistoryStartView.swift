@@ -8,6 +8,8 @@ struct ChatHistoryStartView: View {
     let workingDirectory: String?
     let onSelect: (ClaudeSessionHistoryEntry) -> Void
 
+    @State private var presentations: [String: HistoryEntryPresentation]
+
     private static let shortDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .short
@@ -17,8 +19,25 @@ struct ChatHistoryStartView: View {
         return formatter
     }()
 
+    init(
+        entries: [ClaudeSessionHistoryEntry],
+        maxCardHeight: CGFloat = ChatHistoryStartLayout.maxCardHeightCap,
+        workingDirectory: String?,
+        onSelect: @escaping (ClaudeSessionHistoryEntry) -> Void
+    ) {
+        self.entries = entries
+        self.maxCardHeight = maxCardHeight
+        self.workingDirectory = workingDirectory
+        self.onSelect = onSelect
+        _presentations = State(
+            initialValue: Self.makePresentations(
+                entries: entries,
+                workingDirectory: workingDirectory
+            )
+        )
+    }
+
     var body: some View {
-        let presentationsByID = presentationsBySessionID()
         VStack(spacing: DSSpacing.m) {
             header
             newSessionHint
@@ -32,7 +51,9 @@ struct ChatHistoryStartView: View {
                 ScrollView {
                     LazyVStack(spacing: DSSpacing.xs) {
                         ForEach(entries) { entry in
-                            row(for: entry, presentation: presentationsByID[entry.id]!)
+                            if let presentation = presentations[entry.id] {
+                                row(for: entry, presentation: presentation)
+                            }
                         }
                     }
                 }
@@ -49,9 +70,24 @@ struct ChatHistoryStartView: View {
         )
         .dsShadow(.cardHover)
         .accessibilityIdentifier("ChatHistoryStartView")
+        .task(id: HistoryPresentationInputs(entries: entries, workingDirectory: workingDirectory)) {
+            presentations = Self.makePresentations(
+                entries: entries,
+                workingDirectory: workingDirectory
+            )
+        }
+        .onChange(of: HistoryPresentationInputs(entries: entries, workingDirectory: workingDirectory)) { _, inputs in
+            presentations = Self.makePresentations(
+                entries: inputs.entries,
+                workingDirectory: inputs.workingDirectory
+            )
+        }
     }
 
-    private func presentationsBySessionID() -> [String: HistoryEntryPresentation] {
+    private static func makePresentations(
+        entries: [ClaudeSessionHistoryEntry],
+        workingDirectory: String?
+    ) -> [String: HistoryEntryPresentation] {
         Dictionary(
             entries.map { entry in
                 (entry.id, HistoryEntryPresentation(entry: entry, workingDirectory: workingDirectory))
@@ -131,7 +167,15 @@ struct ChatHistoryStartView: View {
         }
         .buttonStyle(.plain)
         .help(entry.sessionID)
-        .accessibilityLabel(presentation.fullTitle + " " + entry.sessionID)
+        .accessibilityLabel(
+            presentation.fullTitle
+                + " "
+                + presentation.accessibilityDetails(
+                    lastUsedText: formattedLastUsed(presentation.lastUsedAt)
+                )
+                + " "
+                + entry.sessionID
+        )
         .accessibilityIdentifier("ChatHistoryStartView.row")
     }
 
@@ -139,4 +183,9 @@ struct ChatHistoryStartView: View {
         guard let date else { return "最終利用日時不明" }
         return Self.shortDateFormatter.string(from: date)
     }
+}
+
+private struct HistoryPresentationInputs: Equatable {
+    var entries: [ClaudeSessionHistoryEntry]
+    var workingDirectory: String?
 }

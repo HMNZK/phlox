@@ -5,11 +5,13 @@ status: completed
 
 # task-49 開示レポート
 
-UX-11b。`HistoryEntryPresentation` で作業名／プロジェクト／最終利用を決め、`ChatHistoryStartView` の行・help・AX・案内へ接続した。task-41 の `SessionTitleDeriver.derive(from:)` を再利用し、task-51 の材料と元 entry は変更していない。レビュー r1 差し戻しで、高さ配線のコメント回避を撤去し、表示モデルを一覧単位で一度導出するようにした。
+UX-11b。`HistoryEntryPresentation` で作業名／プロジェクト／最終利用を決め、`ChatHistoryStartView` の行・help・AX・案内へ接続した。task-41 の `SessionTitleDeriver.derive(from:)` を再利用し、task-51 の材料と元 entry は変更していない。レビュー r2 差し戻しで、表示モデルの導出を `@State` に保持し、VoiceOver ラベルを help 相当（作業名全文・プロジェクト・最終利用・元 ID）へ作り直した。`ChatSessionView` の高さ配線（147 行の実測値代入）は未変更。
 
 ## 詰まった点
 
-配線検査は当初、`availableHeight:` 引数テキストに `overlayGeometry.size.height` が含まれることだけを見ていた。凍結基準の `ChatSessionView` は直前で `let availableHeight = overlayGeometry.size.height` とし、引数は別名だけなので、未変更でも NG になる食い違いがあった。初回実装は同一行コメントで検査を満たしていたが、実行に無関係なコメントによる greening であり、r1 で不誠実と判定された。
+r2 の再導出は、`body` 冒頭の `presentationsBySessionID()` が親の `composerHeight`／GeometryReader 再評価でも走ることが原因だった。前担当の一覧単位 `let` は破棄し、`@State` に `[sessionID: HistoryEntryPresentation]` を置き、初回は `init`、以降は `.task(id:)` と `.onChange(of:)` で `entries`（ID 集合と材料）または `workingDirectory` が変わったときだけ `makePresentations` で辞書を作り直す。body 内での状態更新はしていない。entries に無い ID は新しい辞書に入らない。
+
+AX は配線検査が modifier 引数に `presentation.fullTitle` と `sessionID` を要求する。相対日付の整形は契約どおり View 側のため、モデルに日付入りの単一ラベルは持たせず、`HistoryEntryPresentation.accessibilityDetails(lastUsedText:)` にプロジェクト名・パス・最終利用文言を置き、行で `fullTitle` と `entry.sessionID` と結合した。見た目の Text／help は変えていない。
 
 ## できた風だが実は未完
 
@@ -25,22 +27,24 @@ UX-11b。`HistoryEntryPresentation` で作業名／プロジェクト／最終�
 - cwd の「空白のみ」は `CharacterSet.whitespacesAndNewlines`（検査の半角空白・タブ・U+3000 を含む）。
 - `projectPath` は入力文字列を保持し、末尾 `/` 除去は名前抽出だけ。help のパス不明時は空文字で、架空パスは補わない。
 - `rawWorkspacePath` は非 Optional の生パス（空文字あり）。空は「プロジェクト不明」。
-- 日付整形は View 側の既存 `DateFormatter`（short / 相対日付 / 現在ロケール）。
+- 日付整形は View 側の既存 `DateFormatter`（short / 相対日付 / 現在ロケール）。AX の最終利用も同じ整形を使う。
 - 内部構造の単体テストは追加していない。導出器本体の境界は task-41 の凍結テストに委ねる。
-- r1 の高さ検査は PM 承認のハーネス修理（decision-log 2026-09-13「task-49 レビュー r1 裁定」）。引数からコメント・文字列を除き、`overlayGeometry.size.height` そのものか同一 GeometryReader スコープの `let` 別名代入だけを正例とする。製品のコメント回避は撤去し、147 行の実測値代入は維持した。
+- r1 の高さ検査は PM 承認のハーネス修理（decision-log 2026-09-13「task-49 レビュー r1 裁定」）。147 行の実測値代入は維持した。
+- 導出キーは `ClaudeSessionHistoryEntry` の Equatable（ID と材料を含む）と `workingDirectory`。`maxCardHeight` はキーに入れない。
+- 新しい entry が `@State` に載る前の 1 フレームは、その行を描かない（強制アンラップしない）。
 
 ## 契約からの逸脱
 
-なし。製品の高さ計算は凍結 blob と同じ `availableHeight` ローカル経由。検査 greening 用コメントは撤去済み。
+なし。公開 API の必須フィールドは維持し、AX 用 `accessibilityDetails` を追加しただけ。製品の高さ計算は凍結 blob と同じ `availableHeight` ローカル経由。
 
 ## レビュー重点
 
-- 識別性: 主表示が `presentation.title`、補助が projectName と最終利用、help/AX に fullTitle と sessionID。
+- 識別性: 主表示が `presentation.title`、補助が projectName と最終利用、help に fullTitle／projectPath／sessionID。AX は fullTitle・プロジェクト（名とパス）・最終利用・元 sessionID。
 - 導出の再利用: ユーザー材料 → 除外 → `SessionTitleDeriver.derive` → summary。nil／[] の分岐。
 - 操作の保護: `ForEach(entries)` → `row(for: entry)` → `onSelect(entry)` → `startFromHistory(entry)`。VM の表示条件・キャッシュ・復元は未変更。
-- 描画への接続: 未使用モデルではなく行の `Text(presentation.title)` と help/AX。表示モデルは `entries` と `workingDirectory` から一覧単位で一度導出し、行へ渡す（描画中の観測状態更新や無制限キャッシュは使っていない）。
-- 責務境界: task-51 の entry／取得器に未接触。表示条件を弱めていない。
-- 証拠: 下記 4 コマンド。selftest／Swift Testing／`git diff --check` は GREEN。本番 rb は rb 自身の基準不一致のみ（想定内）。App ビルドと PM 目視は未実施／未達。
+- 描画への接続: 未使用モデルではなく行の `Text(presentation.title)` と help／AX。導出は `@State` に保持し、entries／workingDirectory 変化時だけ再計算する。
+- 責務境界: task-51 の entry／取得器に未接触。表示条件を弱めていない。ChatSessionView の高さ配線は未変更。
+- 証拠: 下記 4 コマンドはすべて GREEN。App ビルドと PM 目視は未実施／未達。
 
 ## 検証原文
 
@@ -54,15 +58,15 @@ task49-wiring --selftest: OK
 exit 0。
 
 ```
-$ env TASK49_BASELINE=02072dd ruby .claude/scripts/task49-wiring.rb
-task49-wiring: NG 基準時点のrb 自身が現在と同一ではない
+$ env TASK49_BASELINE=fc8519e ruby .claude/scripts/task49-wiring.rb
+task49-wiring: OK
 ```
 
-exit 1。rb 自身の基準不一致のみ（想定内）。他の NG は無い。
+exit 0。
 
 ```
-$ (cd macos/Packages/SessionFeature && ~/.agents/scripts/compact-test t49-rw swift test --no-parallel)
-✔ Test run with 963 tests in 115 suites passed after 12.228 seconds.
+$ (cd macos/Packages/SessionFeature && ~/.agents/scripts/compact-test t49-rw2 swift test --no-parallel)
+✔ Test run with 983 tests in 118 suites passed after 12.704 seconds.
 ```
 
 exit 0。

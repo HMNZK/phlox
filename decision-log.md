@@ -247,3 +247,4 @@
 - 2026-09-13 task-44 統合検証 1 回目 fail は verify worktree の DesignSystem/MessageStore/ControlServer の .build が AgentDomain の新規ファイル（SessionTitleState.swift）を拾わない stale キャッシュ（AgentDomain・SessionFeature・DashboardFeature は GREEN）。.build を削除して再実行。
 - 2026-09-13 task-49 verify 枝を SessionFeature --no-parallel へ（task-46/44 と同じ並列フレーク回避。rb・selftest・diff --check は OK）。
 - 2026-09-13 task-49 レビュー r3（HIGH: State(initialValue:) の初期値計算が View 再生成ごとに全件導出）をユーザー承認（「PM 裁定で pass にして完了」）のもと PM が pass 裁定。独立証拠: 凍結受け入れテスト・rb・SessionFeature 全数 GREEN、PM 目視 pass（visual-task-49.md）、履歴一覧は最大 20 件で導出は文字列処理のみ（正しさへの影響なし、性能のみ）。残指摘は後続項目「履歴一覧の表示モデル初期化を View 再生成から切り離す（ChatHistoryStartView の State 初期値を空にし .task(id:) の一本へ）」としてフェーズ 5 で記録。review-task-49-r3.json に保存。
+- 2026-09-13 task-49 再凍結 5a5e647（旧 fc8519e 無効。task-44 が startFromHistory を変更したため rb 恒久保護が偽陽性。cherry-pick 4 件を revert → index 凍結 → revert を revert で再適用。途中の誤操作（zsh の単語分割なし変数で revert が失敗、961f62d を基準にした誤コミット）は reset --hard 961f62d で取り消し）。

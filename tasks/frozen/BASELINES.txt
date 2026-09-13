@@ -125,3 +125,5 @@ b92e1db	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Acceptance/A
 b92e1db	.claude/scripts/task44-wiring.rb
 fc8519e	macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceHistoryEntryPresentationTests.swift
 fc8519e	.claude/scripts/task49-wiring.rb
+5a5e647	macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceHistoryEntryPresentationTests.swift
+5a5e647	.claude/scripts/task49-wiring.rb

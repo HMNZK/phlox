@@ -7,6 +7,7 @@
 // 実装の `allCases` や Style 一覧から生成しない。
 
 import CoreGraphics
+import SwiftUI
 import Testing
 @testable import DesignSystem
 
@@ -136,6 +137,128 @@ struct AcceptanceTranscriptTypographyTests {
         #expect(inlineCode.weight == .regular, Comment(rawValue: "inlineCode weight"))
         #expect(inlineCode.design == .monospaced, Comment(rawValue: "inlineCode design"))
         #expect(inlineCode.ink == .accent, Comment(rawValue: "inlineCode ink"))
+    }
+
+    @Test("font(for:scale:) の weight/design が独立期待 Font と一致する")
+    func fontMatchesIndependentSystemFont() {
+        // Font は Equatable。期待値は Style 表から生成せず、契約 Role 表のリテラルで組み立てる。
+        #expect(
+            TranscriptTypography.font(for: .body, scale: 1.0)
+                == Font.system(size: 15, weight: .regular, design: .default),
+            Comment(rawValue: "body 1.0")
+        )
+        #expect(
+            TranscriptTypography.font(for: .body, scale: 0.8)
+                == Font.system(size: 15 * 0.8, weight: .regular, design: .default),
+            Comment(rawValue: "body 0.8")
+        )
+        #expect(
+            TranscriptTypography.font(for: .body, scale: 2.0)
+                == Font.system(size: 15 * 2.0, weight: .regular, design: .default),
+            Comment(rawValue: "body 2.0")
+        )
+        #expect(
+            TranscriptTypography.font(for: .bodyStrong, scale: 1.0)
+                == Font.system(size: 15, weight: .semibold, design: .default),
+            Comment(rawValue: "bodyStrong")
+        )
+        #expect(
+            TranscriptTypography.font(for: .heading1, scale: 1.0)
+                == Font.system(size: 26, weight: .bold, design: .default),
+            Comment(rawValue: "heading1")
+        )
+        #expect(
+            TranscriptTypography.font(for: .heading2, scale: 1.0)
+                == Font.system(size: 19, weight: .bold, design: .default),
+            Comment(rawValue: "heading2")
+        )
+        #expect(
+            TranscriptTypography.font(for: .heading3, scale: 1.0)
+                == Font.system(size: 16, weight: .semibold, design: .default),
+            Comment(rawValue: "heading3")
+        )
+        #expect(
+            TranscriptTypography.font(for: .heading4, scale: 1.0)
+                == Font.system(size: 15, weight: .semibold, design: .default),
+            Comment(rawValue: "heading4")
+        )
+        #expect(
+            TranscriptTypography.font(for: .heading5, scale: 1.0)
+                == Font.system(size: 15, weight: .semibold, design: .default),
+            Comment(rawValue: "heading5")
+        )
+        #expect(
+            TranscriptTypography.font(for: .heading6, scale: 1.0)
+                == Font.system(size: 15, weight: .semibold, design: .default),
+            Comment(rawValue: "heading6")
+        )
+        #expect(
+            TranscriptTypography.font(for: .processSummary, scale: 1.0)
+                == Font.system(size: 15, weight: .semibold, design: .default),
+            Comment(rawValue: "processSummary")
+        )
+        #expect(
+            TranscriptTypography.font(for: .metadata, scale: 1.0)
+                == Font.system(size: 10, weight: .regular, design: .default),
+            Comment(rawValue: "metadata")
+        )
+        #expect(
+            TranscriptTypography.font(for: .metadataStrong, scale: 1.0)
+                == Font.system(size: 10, weight: .medium, design: .default),
+            Comment(rawValue: "metadataStrong")
+        )
+        #expect(
+            TranscriptTypography.font(for: .code, scale: 1.0)
+                == Font.system(size: 13, weight: .regular, design: .monospaced),
+            Comment(rawValue: "code")
+        )
+        #expect(
+            TranscriptTypography.font(for: .codeMetadata, scale: 1.0)
+                == Font.system(size: 10, weight: .regular, design: .monospaced),
+            Comment(rawValue: "codeMetadata")
+        )
+        #expect(
+            TranscriptTypography.font(for: .inlineCode, scale: 1.0)
+                == Font.system(size: 13.5, weight: .regular, design: .monospaced),
+            Comment(rawValue: "inlineCode")
+        )
+        #expect(
+            TranscriptTypography.font(for: .body, scale: 1.0)
+                != TranscriptTypography.font(for: .bodyStrong, scale: 1.0),
+            Comment(rawValue: "body vs bodyStrong Font は weight で区別")
+        )
+        #expect(
+            TranscriptTypography.font(for: .code, scale: 1.0)
+                != TranscriptTypography.font(for: .body, scale: 1.0),
+            Comment(rawValue: "code vs body Font は design で区別")
+        )
+    }
+
+    @Test("color(for:) が各役割の DSColor と一致する")
+    func colorMatchesIndependentDSColor() {
+        // Color は Equatable。期待値は style(for:).ink から生成しない。
+        #expect(TranscriptTypography.color(for: .body) == DSColor.chatTextPrimary, Comment(rawValue: "body"))
+        #expect(TranscriptTypography.color(for: .bodyStrong) == DSColor.chatTextPrimary, Comment(rawValue: "bodyStrong"))
+        #expect(TranscriptTypography.color(for: .heading1) == DSColor.chatTextPrimary, Comment(rawValue: "heading1"))
+        #expect(TranscriptTypography.color(for: .heading2) == DSColor.chatTextPrimary, Comment(rawValue: "heading2"))
+        #expect(TranscriptTypography.color(for: .heading3) == DSColor.chatTextPrimary, Comment(rawValue: "heading3"))
+        #expect(TranscriptTypography.color(for: .heading4) == DSColor.chatTextPrimary, Comment(rawValue: "heading4"))
+        #expect(TranscriptTypography.color(for: .heading5) == DSColor.chatTextPrimary, Comment(rawValue: "heading5"))
+        #expect(TranscriptTypography.color(for: .heading6) == DSColor.chatTextPrimary, Comment(rawValue: "heading6"))
+        #expect(TranscriptTypography.color(for: .processSummary) == DSColor.chatToolCallText, Comment(rawValue: "processSummary"))
+        #expect(TranscriptTypography.color(for: .metadata) == DSColor.chatTextSecondary, Comment(rawValue: "metadata"))
+        #expect(TranscriptTypography.color(for: .metadataStrong) == DSColor.chatTextSecondary, Comment(rawValue: "metadataStrong"))
+        #expect(TranscriptTypography.color(for: .code) == DSColor.chatTextPrimary, Comment(rawValue: "code"))
+        #expect(TranscriptTypography.color(for: .codeMetadata) == DSColor.chatTextSecondary, Comment(rawValue: "codeMetadata"))
+        #expect(TranscriptTypography.color(for: .inlineCode) == DSColor.chatAccent, Comment(rawValue: "inlineCode"))
+        #expect(
+            TranscriptTypography.color(for: .processSummary) != DSColor.chatTextPrimary,
+            Comment(rawValue: "processSummary は primary 固定ではない")
+        )
+        #expect(
+            TranscriptTypography.color(for: .inlineCode) != DSColor.chatTextPrimary,
+            Comment(rawValue: "inlineCode は primary 固定ではない")
+        )
     }
 
     @Test("倍率 0.8 / 1.0 / 1.5 / 2.0 で pointSize は基準値×倍率")

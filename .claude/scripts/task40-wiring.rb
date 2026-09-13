@@ -127,6 +127,57 @@ def extract_var_body(src, name)
   extract_balanced(src, brace, "{", "}")
 end
 
+def extract_member_body(src, name)
+  extract_func_body(src, name) || extract_var_body(src, name)
+end
+
+def mentions_ident?(src, name)
+  src.to_s.match?(/\b#{Regexp.escape(name)}\b/)
+end
+
+def extract_modifier_closure(src, name)
+  return nil if src.nil?
+  m = src.match(/\.#{Regexp.escape(name)}\s*\{/)
+  return nil unless m
+  brace = src.index("{", m.begin(0))
+  return nil unless brace
+  extract_balanced(src, brace, "{", "}")
+end
+
+def replace_func_inner(src, name, placeholder)
+  m = src.match(/(?:^|\n)[ \t]*(?:@\w+(?:\([^)]*\))?[ \t]*)*(?:(?:private|public|fileprivate|internal|open|override|final|static|nonisolated)\s+)*func\s+#{Regexp.escape(name)}\s*\(/)
+  return src unless m
+  paren = src.index("(", m.begin(0))
+  return src unless paren
+  params = extract_balanced(src, paren, "(", ")")
+  return src if params.nil?
+  after = paren + 1 + params.length + 1
+  brace = src.index("{", after)
+  return src unless brace
+  body = extract_balanced(src, brace, "{", "}")
+  return src unless body
+  close = brace + 1 + body.length + 1
+  src[0...brace + 1] + placeholder + src[close - 1..]
+end
+
+def replace_modifier_closure(src, name, placeholder)
+  m = src.match(/\.#{Regexp.escape(name)}\s*\{/)
+  return src unless m
+  brace = src.index("{", m.begin(0))
+  return src unless brace
+  body = extract_balanced(src, brace, "{", "}")
+  return src unless body
+  close = brace + 1 + body.length + 1
+  src[0...brace + 1] + placeholder + src[close - 1..]
+end
+
+def replace_struct_body(src, name)
+  struct = extract_struct_body(src, name)
+  return src if struct.nil?
+  masked = yield(struct)
+  src.sub(struct, masked)
+end
+
 def strip_if_false_blocks(src)
   result = src.dup
   loop do
@@ -209,30 +260,143 @@ UNCHANGED_PATHS = [
   "macos/Packages/DesignSystem/Sources/DesignSystem/ChatFontSettings.swift",
   "macos/Packages/DesignSystem/Sources/DesignSystem/Tokens.swift",
   "macos/App/PhloxApp.swift",
+  "macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardViewModel.swift",
 ].freeze
 
+def package_swift_paths
+  Dir.glob("macos/Packages/*/Package.swift").sort
+end
+
+def unchanged_paths_all
+  (UNCHANGED_PATHS + package_swift_paths).uniq
+end
+
 VIEW_SPECS = [
-  { name: "UserMessageCell", key: :basic, any: ["ChatScaledFont.body(", "TranscriptTypography"] },
-  { name: "ErrorMessageCell", key: :basic, any: ["ChatScaledFont.body(", "TranscriptTypography"] },
-  { name: "AgentMessageBody", key: :basic, any: ["withinAnswer"] },
-  { name: "TurnCostCell", key: :basic, any: ["codeMetadata", "ChatScaledFont.monoCaption("] },
-  { name: "ChatTimestampText", key: :common, any: ["metadata", "ChatScaledFont.caption("] },
-  { name: "DisclosureCard", key: :common, any: ["processSummary"] },
-  { name: "ReasoningSummaryView", key: :structured, any: ["processSummary"] },
-  { name: "SubAgentMarkerCell", key: :structured, any: ["processSummary"] },
-  { name: "ThinkingIndicatorCell", key: :structured, any: ["ShimmerTextView"] },
-  { name: "RunningTurnStatusView", key: :structured, any: ["metadata", "ChatScaledFont.caption("] },
-  { name: "CommandExecutionCell", key: :structured, any: ["DisclosureCard"] },
-  { name: "FileChangeCell", key: :structured, any: ["DisclosureCard"] },
-  { name: "CommandGroupCell", key: :command_group, any: ["processSummary", "DisclosureCard"] },
-  { name: "CommandGroupExecutionRow", key: :command_group, any: ["processSummary", "ChatScaledFont.mono("] },
-  { name: "TaskListCell", key: :task_list, any: ["DisclosureCard", "ChatScaledFont.body("] },
-  { name: "UserQuestionCell", key: :user_question, any: ["ChatScaledFont.body(", "TranscriptTypography"] },
-  { name: "CompactingIndicatorCell", key: :compacting, any: ["ChatScaledFont.body(", "TranscriptTypography"] },
-  { name: "CodeBlockView", key: :code_block, any: ["ChatScaledFont.mono(", "TranscriptTypography"] },
-  { name: "ChatCodeCard", key: :code_card, any: ["ChatScaledFont", "TranscriptTypography"] },
-  { name: "ChatTranscriptView", key: :transcript, any: ["TranscriptTypography.gap"] },
-  { name: "RichMarkdownView", key: :markdown, any: ["ChatTypography.bodyFontSize", "TranscriptTypography"] },
+  {
+    name: "UserMessageCell", key: :basic, helpers: [],
+    elements: [{ label: "本文", any: ["ChatScaledFont.body(", "TranscriptTypography.font(for:.body"], require: ["textLineSpacing"] }],
+  },
+  {
+    name: "ErrorMessageCell", key: :basic, helpers: [],
+    elements: [{ label: "本文", any: ["ChatScaledFont.body(", "TranscriptTypography.font(for:.body"], require: ["textLineSpacing"] }],
+  },
+  {
+    name: "AgentMessageBody", key: :basic, helpers: [],
+    elements: [{ label: "回答内間隔", any: ["withinAnswer"] }],
+  },
+  {
+    name: "TurnCostCell", key: :basic, helpers: [],
+    elements: [{ label: "料金", any: ["codeMetadata", "ChatScaledFont.monoCaption("] }],
+  },
+  {
+    name: "ChatTimestampText", key: :common, helpers: [],
+    elements: [{ label: "時刻", any: ["ChatScaledFont.caption(", "font(for:.metadata"] }],
+  },
+  {
+    name: "DisclosureCard", key: :common, helpers: [],
+    elements: [
+      { label: "タイトル", any: ["processSummary"] },
+      { label: "補足", any: ["font(for:.metadata", "ChatScaledFont.caption("] },
+      { label: "間隔", any: ["metadataGap"] },
+    ],
+  },
+  {
+    name: "ReasoningSummaryView", key: :structured, helpers: [],
+    elements: [{ label: "要約", any: ["processSummary"] }],
+  },
+  {
+    name: "SubAgentMarkerCell", key: :structured, helpers: ["content", "statusIcon"],
+    elements: [
+      { label: "名前", any: ["processSummary"] },
+      { label: "説明", any: ["ChatScaledFont.caption(", "font(for:.metadata"] },
+      { label: "間隔", any: ["metadataGap"] },
+    ],
+  },
+  {
+    name: "ThinkingIndicatorCell", key: :structured, helpers: [],
+    elements: [{ label: "Shimmer", any: ["ShimmerTextView"] }],
+  },
+  {
+    name: "RunningTurnStatusView", key: :structured, helpers: [],
+    elements: [{ label: "経過", any: ["ChatScaledFont.caption(", "font(for:.metadata"] }],
+  },
+  {
+    name: "CommandExecutionCell", key: :structured, helpers: [],
+    elements: [
+      { label: "見出し", any: ["DisclosureCard"] },
+      { label: "出力", any: ["ChatScaledFont.monoCaption(", "font(for:.codeMetadata", "ChatScaledFont.mono("] },
+    ],
+  },
+  {
+    name: "FileChangeCell", key: :structured, helpers: ["diffLineView"],
+    elements: [
+      { label: "見出し", any: ["DisclosureCard"] },
+      { label: "差分行", any: ["ChatScaledFont.monoCaption(", "font(for:.code", "font(for:.codeMetadata"] },
+    ],
+  },
+  {
+    name: "CommandGroupCell", key: :command_group, helpers: [],
+    elements: [
+      { label: "見出し", any: ["DisclosureCard", "processSummary"] },
+      { label: "展開間隔", any: ["withinAnswer"] },
+    ],
+  },
+  {
+    name: "CommandGroupExecutionRow", key: :command_group, helpers: [],
+    elements: [
+      { label: "処理見出し", any: ["processSummary"] },
+      { label: "コマンド", any: ["ChatScaledFont.mono(", "font(for:.code"] },
+    ],
+  },
+  {
+    name: "TaskListCell", key: :task_list, helpers: ["titleFont"],
+    elements: [
+      { label: "見出し", any: ["DisclosureCard"] },
+      { label: "項目", any: ["ChatScaledFont.body(", "font(for:.body", "bodyStrong"] },
+    ],
+  },
+  {
+    name: "UserQuestionCell", key: :user_question,
+    helpers: %w[dismissButton questionBlock answeredLabels expiredQuestionBody pendingQuestionBody singleSelectOptions multiSelectOptions freeTextInput configuredFreeTextInput optionLabel],
+    elements: [
+      { label: "本文", any: ["ChatScaledFont.body(", "font(for:.body", "bodyStrong"] },
+      { label: "補助", any: ["ChatScaledFont.caption(", "captionStrong", "font(for:.metadata"] },
+      { label: "間隔", any: ["withinAnswer", "metadataGap"] },
+    ],
+  },
+  {
+    name: "CompactingIndicatorCell", key: :compacting,
+    helpers: %w[staticCompactingText shimmeringCompactingText],
+    elements: [{ label: "本文", any: ["ChatScaledFont.body(", "font(for:.body"] }],
+  },
+  {
+    name: "CodeBlockView", key: :code_block, helpers: [],
+    elements: [
+      { label: "コード", any: ["ChatScaledFont.mono(", "font(for:.code"] },
+      { label: "補助", any: ["ChatScaledFont.caption", "font(for:.codeMetadata", "font(for:.metadata"] },
+    ],
+  },
+  {
+    name: "ChatCodeCard", key: :code_card, helpers: [],
+    elements: [{ label: "カード", any: ["ChatScaledFont", "TranscriptTypography"] }],
+  },
+  {
+    name: "ChatTranscriptView", key: :transcript,
+    helpers: %w[transcriptContent transcriptStack loadEarlierButton transcriptBlock],
+    elements: [
+      { label: "gap", any: ["TranscriptTypography.gap"] },
+      { label: "履歴ボタン", any: ["ChatScaledFont.caption(", "font(for:.metadata"] },
+    ],
+  },
+  {
+    name: "RichMarkdownView", key: :markdown, helpers: ["theme"], file_funcs: ["chatMarkdownTheme"],
+    elements: [
+      { label: "本文", any: ["ChatTypography.bodyFontSize", "pointSize(for:.body"] },
+      { label: "heading1", any: ["heading1FontSize", "pointSize(for:.heading1", "font(for:.heading1"] },
+      { label: "heading2", any: ["heading2FontSize", "pointSize(for:.heading2", "font(for:.heading2"] },
+      { label: "heading3", any: ["heading3FontSize", "pointSize(for:.heading3", "font(for:.heading3"] },
+    ],
+  },
 ].freeze
 
 ROLE_CASES = %w[
@@ -363,6 +527,16 @@ def check_canonical(src)
   SPACING_CONSTANTS.each do |name|
     ng << "間隔定数 #{name} が無い" unless reachable.include?(name)
   end
+  font_body = extract_func_body(src, "font")
+  fc = compact(font_body.to_s)
+  unless fc.include?("weight") && (fc.include?("design") || fc.include?("monospaced"))
+    ng << "font(for:scale:) が weight/design を無視している"
+  end
+  color_body = extract_func_body(src, "color")
+  cc = compact(color_body.to_s)
+  %w[chatTextPrimary chatTextSecondary chatToolCallText chatAccent].each do |tok|
+    ng << "color(for:) が #{tok} に対応していない" unless cc.include?(tok)
+  end
   %w[UserDefaults FileManager Process URLSession].each do |tok|
     ng << "TranscriptTypography.swift に #{tok} がある" if reachable =~ /\b#{tok}\b/
   end
@@ -428,6 +602,37 @@ def check_delegation(chat_src, scaled_src)
   ng
 end
 
+def collect_view_reachable(file_src, spec)
+  struct = extract_struct_body(file_src, spec[:name])
+  return :no_struct if struct.nil?
+  body = extract_var_body(struct, "body")
+  return :no_body if body.nil?
+  scopes = [body]
+  pending = (spec[:helpers] || []).dup
+  loop do
+    added = false
+    pending.dup.each do |h|
+      next unless scopes.any? { |s| mentions_ident?(s, h) }
+      member = extract_member_body(struct, h)
+      next if member.nil?
+      scopes << member
+      pending.delete(h)
+      added = true
+    end
+    break unless added
+  end
+  (spec[:file_funcs] || []).each do |f|
+    next unless scopes.any? { |s| mentions_ident?(s, f) }
+    fb = extract_func_body(file_src, f)
+    scopes << fb if fb
+  end
+  scopes.map { |s| reachable_code(s) }.join("\n")
+end
+
+def compact_needles(text)
+  compact(text.to_s)
+end
+
 def check_view_connections(sources)
   ng = []
   VIEW_SPECS.each do |spec|
@@ -436,23 +641,62 @@ def check_view_connections(sources)
       ng << "#{spec[:name]} のファイルが存在しない"
       next
     end
-    body = extract_struct_body(src, spec[:name])
-    if body.nil?
+    reachable = collect_view_reachable(src, spec)
+    if reachable == :no_struct
       ng << "#{spec[:name]} の struct 本文を切り出せない"
       next
     end
-    reachable = reachable_code(body)
-    unless spec[:any].any? { |needle| reachable.include?(needle) }
-      ng << "#{spec[:name]} が正本または委譲窓口へ到達していない"
+    if reachable == :no_body
+      ng << "#{spec[:name]} の body を切り出せない"
+      next
+    end
+    hay = compact_needles(reachable)
+    (spec[:elements] || []).each do |el|
+      needles = el[:any] || []
+      unless needles.any? { |n| hay.include?(compact(n)) }
+        ng << "#{spec[:name]} の#{el[:label]}が正本または委譲窓口へ到達していない"
+      end
+      (el[:require] || []).each do |req|
+        unless hay.include?(compact(req))
+          ng << "#{spec[:name]} の#{el[:label]}に必須修飾 #{req} が無い"
+        end
+      end
     end
   end
-  md = sources[:markdown]
-  if md
-    reachable = reachable_code(md)
-    %w[heading1 heading2 heading3 heading4 heading5 heading6].each do |h|
-      unless reachable.include?(h)
-        ng << "RichMarkdownView が #{h} へ接続していない"
-      end
+  ng.concat(check_markdown_heading_fonts(sources[:markdown]))
+  ng
+end
+
+def check_markdown_heading_fonts(src)
+  ng = []
+  return ["RichMarkdownView.swift が存在しない"] if src.nil?
+  spec = VIEW_SPECS.find { |s| s[:name] == "RichMarkdownView" }
+  reachable = collect_view_reachable(src, spec)
+  if reachable.is_a?(Symbol)
+    ng << "RichMarkdownView の body 経路を切り出せない"
+    return ng
+  end
+  hay = compact_needles(reachable)
+  unless hay.include?("chatMarkdownTheme")
+    ng << "RichMarkdownView の body 経路が chatMarkdownTheme に到達していない"
+  end
+  theme_fn = extract_func_body(src, "chatMarkdownTheme")
+  if theme_fn.nil?
+    ng << "chatMarkdownTheme を切り出せない"
+    return ng
+  end
+  return ng unless hay.include?("chatMarkdownTheme")
+  %w[heading4 heading5 heading6].each do |h|
+    closure = extract_modifier_closure(theme_fn, h)
+    if closure.nil?
+      ng << "RichMarkdownView の #{h} クロージャが無い"
+      next
+    end
+    c = compact(reachable_code(closure))
+    has_font = c.include?("FontSize") || c.include?(".font(") || c.include?("FontWeight")
+    has_role = c.include?(h) || c.include?("TranscriptTypography") || c.include?("ChatTypography")
+    unless has_font && has_role
+      ng << "RichMarkdownView の #{h} に字体指定が無い"
     end
   end
   ng
@@ -486,6 +730,17 @@ def check_old_literals(sources)
     if disc.include?("captionStrong") && !disc.include?("processSummary")
       ng << "共通見出しが captionStrong のまま"
     end
+    if disc =~ /DSSpacing\.xxs/ || compact(disc) =~ /spacing:2\b/
+      ng << "共通見出しの説明間隔が DSSpacing.xxs / 2 のまま"
+    end
+  end
+  marker = sources[:structured] && extract_struct_body(sources[:structured], "SubAgentMarkerCell")
+  if marker
+    inner = extract_var_body(marker, "content") || marker
+    hit = reachable_code(inner)
+    if compact(hit) =~ /spacing:2\b/ || hit =~ /DSSpacing\.xxs/
+      ng << "SubAgentMarkerCell に説明間2 が残っている"
+    end
   end
   agent = sources[:basic] && extract_struct_body(sources[:basic], "AgentMessageBody")
   if agent
@@ -504,6 +759,32 @@ def check_old_literals(sources)
   ng
 end
 
+def strip_layout_scale_exceptions(src, path)
+  result = src.dup
+  if path.include?("ChatMessageCells+Structured.swift")
+    result = result.gsub(/CGFloat\(lineNumberWidth\)\s*\*\s*7\s*\*\s*scale/, "__LAYOUT_SCALE__")
+    result = result.gsub(/width:\s*8\s*\*\s*scale/, "width: __LAYOUT_SCALE__")
+  end
+  if path.include?("RichMarkdownView.swift")
+    result = result.gsub(/DSSpacing\.xs\s*\*\s*scale/, "__LAYOUT_SCALE__")
+    result = result.gsub(/DSSpacing\.s\s*\*\s*scale/, "__LAYOUT_SCALE__")
+  end
+  result
+end
+
+def numeric_times_scale?(src, path)
+  return false if path.include?("TranscriptTypography.swift")
+  stripped = strip_layout_scale_exceptions(reachable_code(src), path)
+  stripped =~ /\d+(?:\.\d+)?\s*\*\s*scale/ ? true : false
+end
+
+def numeric_padding_or_spacing?(src)
+  r = reachable_code(src)
+  return true if r =~ /\.padding\(\s*(?:\.[A-Za-z]+\s*,\s*)?\d/
+  return true if r =~ /spacing:\s*(?!0(?:\.0+)?\b)\d+/
+  false
+end
+
 def numeric_system_size?(src)
   reachable_code(src) =~ /\.system\s*\(\s*size:\s*\d/ ? true : false
 end
@@ -519,6 +800,8 @@ def check_new_literals(sources)
     next if src.nil?
     ng << "#{path} に新たな .system(size: 数値) がある" if numeric_system_size?(src)
     ng << "#{path} に新たな FontSize(数値) がある" if numeric_font_size?(src)
+    ng << "#{path} に数値×倍率がある" if numeric_times_scale?(src, path)
+    ng << "#{path} に対象箇所への直値 padding/spacing がある" if numeric_padding_or_spacing?(src)
   end
   ng
 end
@@ -544,10 +827,12 @@ end
 def check_shimmer(src)
   ng = []
   return ["ChatMessageCells+Structured.swift が存在しない"] if src.nil?
+  struct = extract_struct_body(src, "ThinkingIndicatorCell")
+  search = struct ? (extract_var_body(struct, "body") || struct) : src
   found = false
   pos = 0
-  while (m = src.match(/ShimmerTextView\s*\(/, pos))
-    args = extract_balanced(src, m.end(0) - 1, "(", ")")
+  while (m = search.match(/ShimmerTextView\s*\(/, pos))
+    args = extract_balanced(search, m.end(0) - 1, "(", ")")
     found = true
     reachable = reachable_code(args.to_s)
     c = compact(reachable)
@@ -597,6 +882,18 @@ def check_gap_application(transcript_src, typography_src)
   c = compact(reachable)
   ng << "transcriptStack が TranscriptTypography.gap を呼ばない" unless reachable.include?("TranscriptTypography.gap")
   ng << "transcriptStack が typographyRole を使わない" unless reachable.include?("typographyRole")
+  if c =~ /gap\(after:nil/ && c !~ /index==0/
+    ng << "直前ブロックを誤参照している（常に nil）"
+  end
+  unless c.include?("enumerated") && (c.include?("index-1") || c.include?("index - 1") || c =~ /index==0/)
+    ng << "直前ブロックを表示対象の列挙から取っていない"
+  end
+  unless c.include?("index==0?nil") || c.include?("index==0 ? nil")
+    ng << "先頭ブロックへ余白を持ち越している"
+  end
+  if c =~ /TranscriptTypography\.gap\([^)]*\)\*scale/ || c =~ /gap\([^)]*\)\*scale/
+    ng << "gap に倍率を再適用している"
+  end
   unless c =~ /VStack\([^)]*spacing:0/
     if reachable.include?("TranscriptTypography.gap") && (c =~ /VStack\([^)]*spacing:DSSpacing\.m/ || c =~ /VStack\([^)]*spacing:12/)
       ng << "gap と親Stack間隔を二重加算している"
@@ -632,19 +929,6 @@ def child_override?(sources)
   end
   ng
 end
-
-DRAW_CALL_PREFIXES = [
-  ".font(",
-  ".foregroundStyle(",
-  ".foregroundColor(",
-  ".lineSpacing(",
-  ".padding(",
-  ".markdownMargin(",
-  "FontSize(",
-  "FontWeight(",
-  "ForegroundColor(",
-  ".system(size:",
-].freeze
 
 def mask_prefix_calls(src, prefix)
   result = src.dup
@@ -694,19 +978,7 @@ def mask_var_named(src, name)
   result
 end
 
-def strip_allowed_surface(src)
-  return "" if src.nil?
-  result = src.dup
-  result = mask_var_named(result, "typographyRole")
-  DRAW_CALL_PREFIXES.each { |prefix| result = mask_prefix_calls(result, prefix) }
-  %w[TranscriptTypography ChatScaledFont ChatTypography].each do |ident|
-    result = mask_ident_calls(result, ident)
-  end
-  result = result.gsub(/spacing:\s*(?:DSSpacing\.\w+|TranscriptTypography\.\w+|\d+(?:\.\d+)?)/, "spacing:__DRAW__")
-  result
-end
-
-def check_residual(current, previous, label)
+def check_residual(current, previous, label, key)
   ng = []
   if current.nil?
     ng << "#{label} が存在しない"
@@ -716,7 +988,7 @@ def check_residual(current, previous, label)
     ng << "git show baseline:#{label} に失敗"
     return ng
   end
-  if normalize_code(strip_allowed_surface(current)) != normalize_code(strip_allowed_surface(previous))
+  if normalize_code(normalize_allowed_surface(current, key)) != normalize_code(normalize_allowed_surface(previous, key))
     ng << "#{label} の残余が TASK40_BASELINE から変化している"
   end
   ng
@@ -736,6 +1008,194 @@ def check_blob_identical(current, previous, label)
   ng
 end
 
+
+TYPOGRAPHY_DRAW_PREFIXES = [
+  ".font(",
+  ".lineSpacing(",
+  ".markdownMargin(",
+  "FontSize(",
+  "FontWeight(",
+].freeze
+
+def mask_typo_spacing(src)
+  result = src.gsub(/spacing:\s*2\b/, "spacing:__TYPO__")
+  result.gsub(/spacing:\s*(?:DSSpacing\.(?:xxs|xs|s|m|l|xl)|TranscriptTypography\.\w+)/, "spacing:__TYPO__")
+end
+
+def mask_typography_draw_in_struct(src, name)
+  replace_struct_body(src, name) do |body|
+    masked = body.dup
+    TYPOGRAPHY_DRAW_PREFIXES.each { |prefix| masked = mask_prefix_calls(masked, prefix) }
+    mask_typo_spacing(masked)
+  end
+end
+
+def normalize_typography_role(src)
+  if src =~ /\bvar\s+typographyRole\b/
+    mask_var_named(src, "typographyRole").gsub(/\n?__DRAW_VAR__\n?/, "\n")
+  else
+    src
+  end
+end
+
+def strip_disclosure_outer_vertical_padding(src)
+  replace_struct_body(src, "DisclosureCard") do |body|
+    body.gsub(/\.padding\(\s*\.vertical\s*,\s*DSSpacing\.xs\s*\)/, "")
+  end
+end
+
+def strip_permitted_gap_paddings(src)
+  result = +""
+  i = 0
+  while i < src.length
+    j = src.index(".padding(", i)
+    unless j
+      result << src[i..]
+      break
+    end
+    result << src[i...j]
+    paren = src.index("(", j)
+    if paren.nil?
+      result << src[j..]
+      break
+    end
+    args = extract_balanced(src, paren, "(", ")")
+    if args.nil?
+      result << src[j..]
+      break
+    end
+    close = paren + 1 + args.length + 1
+    ca = compact(args)
+    if ca.include?("TranscriptTypography.gap") ||
+       ca.include?("TranscriptTypography.betweenAnswers") ||
+       ca.include?("TranscriptTypography.withinAnswer")
+      i = close
+    else
+      result << src[j...close]
+      i = close
+    end
+  end
+  result
+end
+
+def normalize_transcript_gap_surface(src)
+  result = src.dup
+  result = strip_permitted_gap_paddings(result)
+  result = result.gsub(/ForEach\(\s*Array\(\s*visibleSlice\.blocks\.enumerated\(\)\s*\)[^)]*\)/, "ForEach(__VISIBLE_BLOCKS__)")
+  result = result.gsub(/ForEach\(\s*visibleSlice\.blocks\s*\)/, "ForEach(__VISIBLE_BLOCKS__)")
+  result = result.gsub(/\{\s*index\s*,\s*block\s+in/, "{ block in")
+  result = result.gsub(/let after:[^\n]+\n/, "")
+  stack = extract_func_body(result, "transcriptStack")
+  return result unless stack
+  masked = stack.gsub(/VStack\(\s*alignment:\s*\.leading\s*,\s*spacing:\s*[^)]+\)/, "VStack(alignment:.leading,spacing:__STACK__)")
+  result.sub(stack, masked)
+end
+
+def normalize_allowed_surface(src, key)
+  return "" if src.nil?
+  result = src.dup
+  case key
+  when :chat_typography
+    %w[bodyFontSize codeFontSize heading1FontSize heading2FontSize heading3FontSize].each do |n|
+      result = replace_func_inner(result, n, "__PERMITTED_DELEGATE__")
+    end
+  when :scaled
+    %w[body bodyPointSize caption captionStrong mono monoCaption].each do |n|
+      result = replace_func_inner(result, n, "__PERMITTED_DELEGATE__")
+    end
+  when :grouping
+    result = normalize_typography_role(result)
+  when :common
+    result = strip_disclosure_outer_vertical_padding(result)
+    result = mask_typography_draw_in_struct(result, "DisclosureCard")
+    result = mask_typography_draw_in_struct(result, "ChatTimestampText")
+  when :basic
+    %w[UserMessageCell ErrorMessageCell TurnCostCell AgentMessageBody].each do |n|
+      result = mask_typography_draw_in_struct(result, n)
+    end
+  when :structured
+    %w[SubAgentMarkerCell ThinkingIndicatorCell RunningTurnStatusView ReasoningSummaryView CommandExecutionCell FileChangeCell].each do |n|
+      result = mask_typography_draw_in_struct(result, n)
+    end
+  when :command_group
+    %w[CommandGroupCell CommandGroupExecutionRow].each do |n|
+      result = mask_typography_draw_in_struct(result, n)
+    end
+  when :task_list
+    result = mask_typography_draw_in_struct(result, "TaskListCell")
+  when :user_question
+    result = mask_typography_draw_in_struct(result, "UserQuestionCell")
+  when :compacting
+    result = mask_typography_draw_in_struct(result, "CompactingIndicatorCell")
+  when :code_block
+    result = mask_typography_draw_in_struct(result, "CodeBlockView")
+  when :code_card
+    result = mask_typography_draw_in_struct(result, "ChatCodeCard")
+  when :transcript
+    result = normalize_transcript_gap_surface(result)
+    result = mask_typography_draw_in_struct(result, "ChatTranscriptView")
+  when :markdown
+    %w[heading4 heading5 heading6].each do |h|
+      result = replace_modifier_closure(result, h, "__PERMITTED_HEADING__")
+    end
+    TYPOGRAPHY_DRAW_PREFIXES.each { |prefix| result = mask_prefix_calls(result, prefix) }
+  end
+  result
+end
+
+def filechange_code_row_spacing(struct_src)
+  return nil if struct_src.nil?
+  innermost = nil
+  pos = 0
+  while (m = struct_src.match(/VStack\s*\(\s*alignment:\s*\.leading\s*,\s*spacing:\s*([^)]+)\)\s*\{/, pos))
+    spacing = compact(m[1])
+    brace = struct_src.index("{", m.begin(0))
+    body = extract_balanced(struct_src, brace, "{", "}")
+    if body && (body.include?("diffLineView") || body.include?("codeView") || body.include?("codeLine"))
+      unless body =~ /VStack\s*\(\s*alignment:\s*\.leading\s*,\s*spacing:/
+        return spacing
+      end
+      innermost = spacing
+    end
+    pos = m.end(0)
+  end
+  innermost
+end
+
+def check_protected_frozen_attrs(sources, baseline_sources)
+  ng = []
+  cur_fc = sources[:structured] && extract_struct_body(sources[:structured], "FileChangeCell")
+  base_fc = baseline_sources[:structured] && extract_struct_body(baseline_sources[:structured], "FileChangeCell")
+  if cur_fc.nil?
+    ng << "FileChangeCell を切り出せない"
+  elsif base_fc
+    %w[DSColor.diffAdded DSColor.diffRemoved].each do |tok|
+      ng << "差分意味色 #{tok} が失われている" unless reachable_code(cur_fc).include?(tok)
+    end
+    cur_sp = filechange_code_row_spacing(cur_fc)
+    base_sp = filechange_code_row_spacing(base_fc)
+    if cur_sp != "0" || cur_sp != base_sp
+      ng << "差分行間 0 が凍結値から変化している"
+    end
+  end
+  cur_cost = sources[:basic] && extract_struct_body(sources[:basic], "TurnCostCell")
+  if cur_cost
+    unless compact(reachable_code(cur_cost)).include?("opacity(0.7)")
+      ng << "料金の opacity 0.7 が失われている"
+    end
+  end
+  cur_code = sources[:code_block] && extract_struct_body(sources[:code_block], "CodeBlockView")
+  base_code = baseline_sources[:code_block] && extract_struct_body(baseline_sources[:code_block], "CodeBlockView")
+  if cur_code && base_code
+    cur_pad = cur_code.scan(/\.padding\([^)]*\)/)
+    base_pad = base_code.scan(/\.padding\([^)]*\)/)
+    if normalize_code(cur_pad.join) != normalize_code(base_pad.join)
+      ng << "CodeBlockView の操作領域 padding が凍結値から変化している"
+    end
+  end
+  ng
+end
+
 def inspect_product(sources, baseline_sources = nil, unchanged_now = nil, unchanged_base = nil)
   ng = []
   ng.concat(check_canonical(sources[:typography]))
@@ -749,14 +1209,15 @@ def inspect_product(sources, baseline_sources = nil, unchanged_now = nil, unchan
   ng.concat(check_gap_application(sources[:transcript], sources[:typography]))
   ng.concat(child_override?(sources))
   if baseline_sources
+    ng.concat(check_protected_frozen_attrs(sources, baseline_sources))
     ALLOWED_PRODUCT_KEYS.each do |key|
       next if key == :typography
       path = PATHS[key]
-      ng.concat(check_residual(sources[key], baseline_sources[key], path))
+      ng.concat(check_residual(sources[key], baseline_sources[key], path, key))
     end
   end
   if unchanged_now && unchanged_base
-    UNCHANGED_PATHS.each do |path|
+    unchanged_paths_all.each do |path|
       ng.concat(check_blob_identical(unchanged_now[path], unchanged_base[path], path))
     end
   end
@@ -800,8 +1261,20 @@ def good_typography_src
       static let transcriptVerticalInset: CGFloat = DSSpacing.m
       static func style(for role: Role) -> Style { Style(baseSize: 15, weight: .regular, design: .system, ink: .primary) }
       static func pointSize(for role: Role, scale: CGFloat) -> CGFloat { 15 * scale }
-      static func font(for role: Role, scale: CGFloat) -> Font { .system(size: pointSize(for: role, scale: scale)) }
-      static func color(for role: Role) -> Color { DSColor.chatTextPrimary }
+      static func font(for role: Role, scale: CGFloat) -> Font {
+        let style = style(for: role)
+        let weight: Font.Weight = style.weight == .bold ? .bold : .regular
+        let design: Font.Design = style.design == .monospaced ? .monospaced : .default
+        return .system(size: pointSize(for: role, scale: scale), weight: weight, design: design)
+      }
+      static func color(for role: Role) -> Color {
+        switch role {
+        case .metadata, .metadataStrong, .codeMetadata: return DSColor.chatTextSecondary
+        case .processSummary: return DSColor.chatToolCallText
+        case .inlineCode: return DSColor.chatAccent
+        default: return DSColor.chatTextPrimary
+        }
+      }
       static func gap(after: BlockRole?, before: BlockRole) -> CGFloat {
         switch (after, before) {
         case (nil, _): return 0
@@ -913,6 +1386,9 @@ def good_transcript_src
             .padding(.top, TranscriptTypography.withinAnswer)
         }
       }
+      private func loadEarlierButton(hiddenCount: Int, anchorID: String?) -> some View {
+        Text("以前のメッセージを表示").font(ChatScaledFont.caption(scale: scale))
+      }
     }
   SWIFT
 end
@@ -930,6 +1406,7 @@ def good_basic_src
       var body: some View {
         Text(Self.format(costUSD))
           .font(ChatScaledFont.monoCaption(scale: scale))
+          .foregroundStyle(DSColor.chatTextSecondary.opacity(0.7))
       }
     }
     struct AgentMessageBody: View {
@@ -961,13 +1438,14 @@ def good_common_src
     }
     struct DisclosureCard<Content: View>: View {
       var body: some View {
-        titleContent
-          .font(TranscriptTypography.font(for: .processSummary, scale: scale))
-          .foregroundStyle(DisclosureCardPalette.title(isToolCall: isToolCall))
-        Text(subtitle)
-          .font(TranscriptTypography.font(for: .metadata, scale: scale))
-          .padding(.top, TranscriptTypography.metadataGap)
-        content
+        VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
+          titleContent
+            .font(TranscriptTypography.font(for: .processSummary, scale: scale))
+            .foregroundStyle(DisclosureCardPalette.title(isToolCall: isToolCall))
+          Text(subtitle)
+            .font(TranscriptTypography.font(for: .metadata, scale: scale))
+          content
+        }
       }
     }
   SWIFT
@@ -976,7 +1454,8 @@ end
 def good_structured_src
   <<~SWIFT
     struct SubAgentMarkerCell: View {
-      var body: some View {
+      var body: some View { content }
+      private var content: some View {
         VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
           Text(name).font(TranscriptTypography.font(for: .processSummary, scale: scale))
           Text(description).font(ChatScaledFont.caption(scale: scale))
@@ -1006,10 +1485,33 @@ def good_structured_src
       }
     }
     struct CommandExecutionCell: View {
-      var body: some View { DisclosureCard(isExpanded: $on, title: title, subtitle: nil) { EmptyView() } }
+      var body: some View {
+        DisclosureCard(isExpanded: $on, title: title, subtitle: nil) {
+          Text(output).font(ChatScaledFont.monoCaption(scale: scale))
+        }
+      }
     }
     struct FileChangeCell: View {
-      var body: some View { DisclosureCard(isExpanded: $on, title: title, subtitle: nil) { rows } }
+      var body: some View {
+        DisclosureCard(isExpanded: $on, title: title, subtitle: nil) {
+          VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
+            ChatCodeCard(copyText: section.copyText, copyAccessibilityIdentifier: "FileChange.copyDiff") {
+              VStack(alignment: .leading, spacing: 0) {
+                ForEach(section.codeView.lines) { codeLine in
+                  diffLineView(codeLine, scale: scale)
+                }
+              }
+            }
+          }
+        }
+      }
+      private func diffLineView(_ codeLine: DiffCodeLine, scale: CGFloat) -> some View {
+        HStack {
+          Text("+").foregroundStyle(DSColor.diffAdded)
+          Text("-").foregroundStyle(DSColor.diffRemoved)
+          Text(codeLine.body).font(ChatScaledFont.monoCaption(scale: scale))
+        }
+      }
     }
   SWIFT
 end
@@ -1037,8 +1539,11 @@ def good_task_list_src
     struct TaskListCell: View {
       var body: some View {
         DisclosureCard(isExpanded: $on, title: title, subtitle: nil) {
-          Text(item.title).font(ChatScaledFont.body(scale: scale))
+          Text(item.title).font(titleFont(for: task.status, scale: scale))
         }
+      }
+      private func titleFont(for status: AgentTaskStatus, scale: CGFloat) -> Font {
+        ChatScaledFont.body(scale: scale)
       }
     }
   SWIFT
@@ -1048,8 +1553,11 @@ def good_markdown_src
   <<~SWIFT
     public struct RichMarkdownView: View {
       var body: some View {
-        let _ = ChatTypography.bodyFontSize(scale: scale)
-        markdownBody
+        Markdown(markdown)
+          .markdownTheme(Self.theme(for: themeID, scale: scale))
+      }
+      static func theme(for themeID: String, scale: CGFloat) -> Theme {
+        chatMarkdownTheme(scale: scale)
       }
       static func themeCacheKey(themeID: String, scale: CGFloat) -> String {
         "\\(themeID):\\(scale)"
@@ -1072,7 +1580,9 @@ def good_code_block_src
   <<~SWIFT
     struct CodeBlockView: View {
       var body: some View {
+        Text(language).font(ChatScaledFont.caption(scale: scale))
         Text(code).font(ChatScaledFont.mono(scale: scale))
+          .padding(.horizontal, DSSpacing.m)
       }
     }
   SWIFT
@@ -1092,7 +1602,8 @@ end
 def good_compacting_src
   <<~SWIFT
     struct CompactingIndicatorCell: View {
-      var body: some View {
+      var body: some View { staticCompactingText(scale: scale) }
+      private func staticCompactingText(scale: CGFloat) -> some View {
         Text("圧縮中").font(ChatScaledFont.body(scale: scale))
       }
     }
@@ -1104,7 +1615,12 @@ def good_user_question_src
     struct UserQuestionCell: View {
       var body: some View {
         VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
-          Text(question).font(ChatScaledFont.body(scale: scale))
+          questionBlock(question, scale: scale)
+        }
+      }
+      private func questionBlock(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
+          Text(question.question).font(ChatScaledFont.body(scale: scale))
           Text(detail).font(ChatScaledFont.caption(scale: scale))
         }
       }
@@ -1132,10 +1648,298 @@ def good_sources
   }
 end
 
+def frozen_chat_typography_src
+  <<~SWIFT
+    import CoreGraphics
+    public enum ChatTypography {
+      public static func bodyFontSize(scale: CGFloat) -> CGFloat { 15 * scale }
+      public static func codeFontSize(scale: CGFloat) -> CGFloat { 13.5 * scale }
+      public static func heading1FontSize(scale: CGFloat) -> CGFloat { 26 * scale }
+      public static func heading2FontSize(scale: CGFloat) -> CGFloat { 19 * scale }
+      public static func heading3FontSize(scale: CGFloat) -> CGFloat { 16 * scale }
+    }
+  SWIFT
+end
+
+def frozen_scaled_src
+  <<~SWIFT
+    import SwiftUI
+    enum ChatScaledFont {
+      static func body(scale: CGFloat) -> Font { .system(size: 13 * scale) }
+      static func bodyPointSize(scale: CGFloat) -> CGFloat { 13 * scale }
+      static func caption(scale: CGFloat) -> Font { .system(size: 10 * scale) }
+      static func captionStrong(scale: CGFloat) -> Font { caption(scale: scale).weight(.medium) }
+      static func mono(scale: CGFloat) -> Font { .system(size: 13 * scale, design: .monospaced) }
+      static func monoCaption(scale: CGFloat) -> Font { .system(size: 10 * scale, design: .monospaced) }
+    }
+  SWIFT
+end
+
+def frozen_grouping_src
+  <<~SWIFT
+    enum ChatTranscriptBlock: Identifiable, Equatable {
+      case single(ChatItem)
+      case commandGroup(id: String, items: [ChatItem])
+      var id: String { "x" }
+    }
+    enum ChatTranscriptGrouping {
+      static func blocks(from items: [ChatItem]) -> [ChatTranscriptBlock] { [] }
+    }
+  SWIFT
+end
+
+def frozen_transcript_src
+  <<~SWIFT
+    struct ChatTranscriptView: View {
+      var body: some View { transcriptStack(items: [], transcriptSignal: sig) }
+      private func transcriptStack(items: [ChatItem], transcriptSignal: TranscriptFollowSignal) -> some View {
+        let visibleSlice = ChatTranscriptGrouping.visibleSlice(from: items, blockLimit: 8)
+        return VStack(alignment: .leading, spacing: DSSpacing.m) {
+          if visibleSlice.hiddenBlockCount > 0 {
+            loadEarlierButton(hiddenCount: visibleSlice.hiddenBlockCount, anchorID: visibleSlice.blocks.first?.id)
+          }
+          ForEach(visibleSlice.blocks) { block in
+            transcriptBlock(block.content, lastTranscriptID: transcriptSignal.lastID)
+          }
+          CompactingIndicatorCell(descriptor: agentDescriptor)
+          ThinkingIndicatorCell(descriptor: agentDescriptor)
+        }
+      }
+      private func loadEarlierButton(hiddenCount: Int, anchorID: String?) -> some View {
+        Text("以前のメッセージを表示").font(DSFont.caption)
+      }
+    }
+  SWIFT
+end
+
+def frozen_basic_src
+  <<~SWIFT
+    struct UserMessageCell: View {
+      var body: some View {
+        Text(text)
+          .font(ChatScaledFont.body(scale: scale))
+          .lineSpacing(3)
+      }
+    }
+    struct TurnCostCell: View {
+      var body: some View {
+        Text(Self.format(costUSD))
+          .font(.system(size: 9 * scale, weight: .regular, design: .monospaced))
+          .foregroundStyle(DSColor.chatTextSecondary.opacity(0.7))
+      }
+    }
+    struct AgentMessageBody: View {
+      var body: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.m) {
+          RichMarkdownView(markdown)
+          CodeBlockView(language: language, code: code)
+        }
+      }
+    }
+    struct ErrorMessageCell: View {
+      var body: some View {
+        Text(message)
+          .font(ChatScaledFont.body(scale: scale))
+          .foregroundStyle(DSColor.statusError)
+          .lineSpacing(3)
+      }
+    }
+  SWIFT
+end
+
+def frozen_common_src
+  <<~SWIFT
+    struct ChatTimestampText: View {
+      var body: some View {
+        Text(Self.formatter.string(from: timestamp))
+          .font(ChatScaledFont.caption(scale: scale))
+      }
+    }
+    struct DisclosureCard<Content: View>: View {
+      var body: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+          titleContent
+            .font(ChatScaledFont.captionStrong(scale: scale))
+            .foregroundStyle(DisclosureCardPalette.title(isToolCall: isToolCall))
+          Text(subtitle)
+            .font(ChatScaledFont.caption(scale: scale))
+          content
+        }
+        .padding(.vertical, DSSpacing.xs)
+      }
+    }
+  SWIFT
+end
+
+def frozen_structured_src
+  <<~SWIFT
+    struct SubAgentMarkerCell: View {
+      var body: some View { content }
+      private var content: some View {
+        VStack(alignment: .leading, spacing: 2) {
+          Text(name).font(ChatScaledFont.body(scale: scale))
+          Text(description).font(ChatScaledFont.caption(scale: scale))
+        }
+      }
+    }
+    struct ThinkingIndicatorCell: View {
+      var body: some View {
+        ShimmerTextView(
+          text: state.orbLabel,
+          font: ChatScaledFont.body(scale: scale),
+          pointSize: ChatScaledFont.bodyPointSize(scale: scale),
+          color: DSColor.chatTextPrimary,
+          isVisible: isTimelineVisible
+        )
+      }
+    }
+    private struct RunningTurnStatusView: View {
+      var body: some View {
+        Text(Self.elapsedText(assessment.elapsed))
+          .font(ChatScaledFont.caption(scale: scale))
+      }
+    }
+    struct ReasoningSummaryView: View {
+      var body: some View {
+        Text(text).font(ChatScaledFont.body(scale: scale))
+      }
+    }
+    struct CommandExecutionCell: View {
+      var body: some View {
+        DisclosureCard(isExpanded: $on, title: title, subtitle: nil) {
+          Text(output).font(ChatScaledFont.monoCaption(scale: scale))
+        }
+      }
+    }
+    struct FileChangeCell: View {
+      var body: some View {
+        DisclosureCard(isExpanded: $on, title: title, subtitle: nil) {
+          VStack(alignment: .leading, spacing: DSSpacing.m) {
+            ChatCodeCard(copyText: section.copyText, copyAccessibilityIdentifier: "FileChange.copyDiff") {
+              VStack(alignment: .leading, spacing: 0) {
+                ForEach(section.codeView.lines) { codeLine in
+                  diffLineView(codeLine, scale: scale)
+                }
+              }
+            }
+          }
+        }
+      }
+      private func diffLineView(_ codeLine: DiffCodeLine, scale: CGFloat) -> some View {
+        HStack {
+          Text("+").foregroundStyle(DSColor.diffAdded)
+          Text("-").foregroundStyle(DSColor.diffRemoved)
+          Text(codeLine.body).font(ChatScaledFont.monoCaption(scale: scale))
+        }
+      }
+    }
+  SWIFT
+end
+
+def frozen_command_group_src
+  <<~SWIFT
+    struct CommandGroupCell: View {
+      var body: some View {
+        DisclosureCard(isExpanded: $on, title: title, subtitle: nil) {
+          VStack(spacing: DSSpacing.s) { rows }
+        }
+      }
+    }
+    private struct CommandGroupExecutionRow: View {
+      var body: some View {
+        Text(label).font(ChatScaledFont.captionStrong(scale: scale))
+        Text(command).font(ChatScaledFont.mono(scale: scale))
+      }
+    }
+  SWIFT
+end
+
+def frozen_task_list_src
+  <<~SWIFT
+    struct TaskListCell: View {
+      var body: some View {
+        DisclosureCard(isExpanded: $on, title: title, subtitle: nil) {
+          Text(item.title).font(titleFont(for: task.status, scale: scale))
+        }
+      }
+      private func titleFont(for status: AgentTaskStatus, scale: CGFloat) -> Font {
+        ChatScaledFont.body(scale: scale)
+      }
+    }
+  SWIFT
+end
+
+def frozen_markdown_src
+  <<~SWIFT
+    public struct RichMarkdownView: View {
+      var body: some View {
+        Markdown(markdown)
+          .markdownTheme(Self.theme(for: themeID, scale: scale))
+      }
+      static func theme(for themeID: String, scale: CGFloat) -> Theme {
+        chatMarkdownTheme(scale: scale)
+      }
+      static func themeCacheKey(themeID: String, scale: CGFloat) -> String {
+        "\\(themeID):\\(scale)"
+      }
+    }
+    private func chatMarkdownTheme(scale: CGFloat) -> Theme {
+      Theme()
+        .text { FontSize(ChatTypography.bodyFontSize(scale: scale)) }
+        .heading1 { FontSize(ChatTypography.heading1FontSize(scale: scale)) }
+        .heading2 { FontSize(ChatTypography.heading2FontSize(scale: scale)) }
+        .heading3 { FontSize(ChatTypography.heading3FontSize(scale: scale)) }
+        .heading4 { configuration.label.fixedSize(horizontal: false, vertical: true) }
+        .heading5 { configuration.label.fixedSize(horizontal: false, vertical: true) }
+        .heading6 { configuration.label.fixedSize(horizontal: false, vertical: true) }
+    }
+  SWIFT
+end
+
+def frozen_code_block_src
+  <<~SWIFT
+    struct CodeBlockView: View {
+      var body: some View {
+        Text(language).font(ChatScaledFont.caption(scale: scale))
+        Text(code).font(ChatScaledFont.mono(scale: scale))
+          .padding(.horizontal, DSSpacing.m)
+      }
+    }
+  SWIFT
+end
+
+def frozen_sources
+  {
+    typography: good_typography_src,
+    chat_typography: frozen_chat_typography_src,
+    scaled: frozen_scaled_src,
+    grouping: frozen_grouping_src,
+    transcript: frozen_transcript_src,
+    basic: frozen_basic_src,
+    common: frozen_common_src,
+    structured: frozen_structured_src,
+    command_group: frozen_command_group_src,
+    task_list: frozen_task_list_src,
+    markdown: frozen_markdown_src,
+    code_block: frozen_code_block_src,
+    code_card: good_code_card_src,
+    compacting: good_compacting_src,
+    user_question: good_user_question_src,
+  }
+end
+
 def mutate(sources, key)
   copy = sources.dup
   copy[key] = yield(sources[key].dup)
   copy
+end
+
+def identical_unchanged
+  unchanged_paths_all.to_h { |path| [path, "unchanged-blob"] }
+end
+
+def inspect_like_prod(current, frozen = frozen_sources)
+  inspect_product(current, frozen, identical_unchanged, identical_unchanged)
 end
 
 def run_selftest
@@ -1145,40 +1949,41 @@ def run_selftest
   selftest_assert !stripped.include?("trailing"), "正例: 行コメントを除去する"
   selftest_assert !strip_comments("let a = 1 /* x */ let b = 2").include?("x"), "正例: /* */ を除去する"
 
+  frozen = frozen_sources
   good = good_sources
-  product_ng = inspect_product(good, good)
-  selftest_assert product_ng.empty?, "正例: 契約どおりの直接参照・委譲は空 NG (#{product_ng.inspect})"
+  product_ng = inspect_like_prod(good, frozen)
+  selftest_assert product_ng.empty?, "正例: 凍結製品→契約準拠製品 (#{product_ng.inspect})"
 
   comment_only = mutate(good, :basic) { |src| src.sub("struct UserMessageCell", "// keep\n    struct UserMessageCell") }
-  comment_ng = inspect_product(comment_only, good)
+  comment_ng = inspect_like_prod(comment_only, frozen)
   selftest_assert comment_ng.empty?, "正例: 意味を変えない空白・コメント変更 (#{comment_ng.inspect})"
 
   spaced = mutate(good, :basic) { |src| src.gsub("  ", "    ") }
-  spaced_ng = inspect_product(spaced, good)
+  spaced_ng = inspect_like_prod(spaced, frozen)
   selftest_assert spaced_ng.empty?, "正例: 空白だけの変更は合格 (#{spaced_ng.inspect})"
 
   drop = mutate(good, :common) { |src| src.sub("TranscriptTypography.font(for: .processSummary, scale: scale)", "ChatScaledFont.caption(scale: scale)") }
-  drop_ng = inspect_product(drop)
+  drop_ng = inspect_like_prod(drop, frozen)
   selftest_assert drop_ng.any? { |m| m.include?("DisclosureCard") }, "負例: 接続削除 (#{drop_ng.inspect})"
 
   wrong_role = mutate(good, :basic) { |src| src.sub("ChatScaledFont.monoCaption(scale: scale)", "ChatScaledFont.body(scale: scale)") }
-  wrong_ng = inspect_product(wrong_role)
+  wrong_ng = inspect_like_prod(wrong_role, frozen)
   selftest_assert wrong_ng.any? { |m| m.include?("TurnCostCell") }, "負例: 誤った役割 (#{wrong_ng.inspect})"
 
   override = mutate(good, :common) { |src|
     src.sub(
       ".font(TranscriptTypography.font(for: .processSummary, scale: scale))",
-      ".font(TranscriptTypography.font(for: .processSummary, scale: scale))\n          .font(ChatScaledFont.captionStrong(scale: scale))"
+      ".font(TranscriptTypography.font(for: .processSummary, scale: scale))\n            .font(ChatScaledFont.captionStrong(scale: scale))"
     )
   }
-  override_ng = inspect_product(override)
+  override_ng = inspect_like_prod(override, frozen)
   selftest_assert override_ng.any? { |m| m.include?("上書き") }, "負例: 子Viewの上書き (#{override_ng.inspect})"
 
   old_cost = mutate(good, :basic) { |src|
-    src.sub("struct TurnCostCell: View {", "struct TurnCostCell: View {\n      let revived = 9 * scale")
+    src.sub(".font(ChatScaledFont.monoCaption(scale: scale))", ".font(.system(size: 9 * scale, weight: .regular, design: .monospaced))")
   }
-  old_ng = inspect_product(old_cost)
-  selftest_assert old_ng.any? { |m| m.include?("9 * scale") }, "負例: 旧直値の復活 (#{old_ng.inspect})"
+  old_ng = inspect_like_prod(old_cost, frozen)
+  selftest_assert old_ng.any? { |m| m.include?("9 * scale") || m.include?("数値×倍率") }, "負例: 旧直値の復活 (#{old_ng.inspect})"
 
   double = mutate(good, :scaled) { |src|
     src.sub(
@@ -1186,18 +1991,39 @@ def run_selftest
       "TranscriptTypography.pointSize(for: .body, scale: scale) * scale"
     )
   }
-  double_ng = inspect_product(double)
+  double_ng = inspect_like_prod(double, frozen)
   selftest_assert double_ng.any? { |m| m.include?("二重適用") }, "負例: 倍率の二重適用 (#{double_ng.inspect})"
 
   stacked = mutate(good, :transcript) { |src| src.sub("spacing: 0", "spacing: DSSpacing.m") }
-  stacked_ng = inspect_product(stacked)
+  stacked_ng = inspect_like_prod(stacked, frozen)
   selftest_assert stacked_ng.any? { |m| m.include?("二重加算") || m.include?("spacing 0") }, "負例: gapの二重加算 (#{stacked_ng.inspect})"
+
+  always_nil = mutate(good, :transcript) { |src|
+    src.sub("index == 0 ? nil : visibleSlice.blocks[index - 1].content.typographyRole", "nil")
+  }
+  always_nil_ng = inspect_like_prod(always_nil, frozen)
+  selftest_assert always_nil_ng.any? { |m| m.include?("直前") || m.include?("持ち越し") }, "負例: 直前ブロック誤参照 (#{always_nil_ng.inspect})"
+
+  carry = mutate(good, :transcript) { |src|
+    src.sub("index == 0 ? nil", "visibleSlice.blocks[index - 1].content.typographyRole")
+  }
+  carry_ng = inspect_like_prod(carry, frozen)
+  selftest_assert carry_ng.any? { |m| m.include?("持ち越し") }, "負例: 先頭余白持ち越し (#{carry_ng.inspect})"
+
+  scale_gap = mutate(good, :transcript) { |src|
+    src.sub(
+      "TranscriptTypography.gap(after: after, before: block.content.typographyRole)",
+      "TranscriptTypography.gap(after: after, before: block.content.typographyRole) * scale"
+    )
+  }
+  scale_gap_ng = inspect_like_prod(scale_gap, frozen)
+  selftest_assert scale_gap_ng.any? { |m| m.include?("倍率") }, "負例: gapの倍率再適用 (#{scale_gap_ng.inspect})"
 
   major = mutate(good, :typography) { |src|
     src.sub("case (.answer, .answer), (.answer, .process), (.answer, .auxiliary): return withinAnswer",
             "case (.answer, .answer): return majorSection\n        case (.answer, .process), (.answer, .auxiliary): return withinAnswer")
   }
-  major_ng = inspect_product(major)
+  major_ng = inspect_like_prod(major, frozen)
   selftest_assert major_ng.any? { |m| m.include?("24pt") }, "負例: 同一回答への24pt (#{major_ng.inspect})"
 
   comment_ref = mutate(good, :common) { |src|
@@ -1206,16 +2032,19 @@ def run_selftest
       "// TranscriptTypography.font(for: .processSummary, scale: scale)"
     )
   }
-  comment_ref_ng = inspect_product(comment_ref)
+  comment_ref_ng = inspect_like_prod(comment_ref, frozen)
   selftest_assert comment_ref_ng.any? { |m| m.include?("DisclosureCard") }, "負例: コメントだけの参照 (#{comment_ref_ng.inspect})"
 
   unused = mutate(good, :common) { |src|
     src.sub(
       ".font(TranscriptTypography.font(for: .processSummary, scale: scale))",
       ".font(ChatScaledFont.caption(scale: scale))"
-    ) + "\n    func unusedHelper() { _ = TranscriptTypography.font(for: .processSummary, scale: 1) }\n"
+    ).sub(
+      "content\n        }\n      }\n    }",
+      "content\n        }\n        func unusedHelper() { _ = TranscriptTypography.font(for: .processSummary, scale: 1) }\n      }\n    }"
+    )
   }
-  unused_ng = inspect_product(unused)
+  unused_ng = inspect_like_prod(unused, frozen)
   selftest_assert unused_ng.any? { |m| m.include?("DisclosureCard") }, "負例: 未使用ヘルパー (#{unused_ng.inspect})"
 
   iff = mutate(good, :common) { |src|
@@ -1224,16 +2053,37 @@ def run_selftest
       "if false { .font(TranscriptTypography.font(for: .processSummary, scale: scale)) }"
     )
   }
-  iff_ng = inspect_product(iff)
+  iff_ng = inspect_like_prod(iff, frozen)
   selftest_assert iff_ng.any? { |m| m.include?("DisclosureCard") }, "負例: if false (#{iff_ng.inspect})"
 
   missing_case = mutate(good, :grouping) { |src| src.sub(".single(.turnCost)", ".single(.unknownCost)") }
-  missing_ng = inspect_product(missing_case)
+  missing_ng = inspect_like_prod(missing_case, frozen)
   selftest_assert missing_ng.any? { |m| m.include?("turnCost") }, "負例: 必須ケース欠落 (#{missing_ng.inspect})"
 
   copy_change = mutate(good, :basic) { |src| src.sub("RichMarkdownView(markdown)", "RichMarkdownView(\"gone\")") }
-  copy_ng = inspect_product(copy_change, good)
+  copy_ng = inspect_like_prod(copy_change, frozen)
   selftest_assert copy_ng.any? { |m| m.include?("残余") }, "負例: 許可面以外の残余改変 (#{copy_ng.inspect})"
+
+  font_ignore = mutate(good, :typography) { |src|
+    replace_func_inner(src, "font", " .system(size: pointSize(for: role, scale: scale)) ")
+  }
+  color_fixed = mutate(good, :typography) { |src|
+    replace_func_inner(src, "color", " DSColor.chatTextPrimary ")
+  }
+  color_ng = inspect_like_prod(color_fixed, frozen)
+  selftest_assert color_ng.any? { |m| m.include?("chatTextSecondary") || m.include?("color(for:)") }, "負例: color が primary 固定 (#{color_ng.inspect})"
+
+  diff_space = mutate(good, :structured) { |src| src.sub("spacing: 0", "spacing: 8") }
+  diff_space_ng = inspect_like_prod(diff_space, frozen)
+  selftest_assert diff_space_ng.any? { |m| m.include?("差分行間") || m.include?("直値") }, "負例: 差分行間0を変更 (#{diff_space_ng.inspect})"
+
+  diff_color = mutate(good, :structured) { |src| src.sub("DSColor.diffAdded", "DSColor.chatTextPrimary") }
+  diff_color_ng = inspect_like_prod(diff_color, frozen)
+  selftest_assert diff_color_ng.any? { |m| m.include?("diffAdded") || m.include?("意味色") }, "負例: 差分意味色を変更 (#{diff_color_ng.inspect})"
+
+  cost_opacity = mutate(good, :basic) { |src| src.sub(".opacity(0.7)", "") }
+  cost_op_ng = inspect_like_prod(cost_opacity, frozen)
+  selftest_assert cost_op_ng.any? { |m| m.include?("opacity") }, "負例: 料金 opacity 喪失 (#{cost_op_ng.inspect})"
 
   unset, unset_errs = baseline_env_errors(nil)
   selftest_assert unset.nil? && unset_errs.any? { |m| m.include?("未設定") }, "負例: SHA欠落"
@@ -1284,7 +2134,10 @@ def run_selftest
     full_sha: "abc1234",
     is_ancestor: true,
     typography_blob: nil,
-    test_pairs: ACCEPTANCE_TEST_PATHS.map { |path| [path, { now: "t", git: nil }] },
+    test_pairs: [
+      [ACCEPTANCE_TEST_PATHS[0], { now: "t", git: nil }],
+      [ACCEPTANCE_TEST_PATHS[1], { now: "t", git: "t" }],
+    ],
     rb_now: "rb",
     rb_blob: "rb"
   )
@@ -1294,7 +2147,10 @@ def run_selftest
     full_sha: "abc1234",
     is_ancestor: true,
     typography_blob: nil,
-    test_pairs: ACCEPTANCE_TEST_PATHS.map { |path| [path, { now: "now", git: "old" }] },
+    test_pairs: [
+      [ACCEPTANCE_TEST_PATHS[0], { now: "now", git: "old" }],
+      [ACCEPTANCE_TEST_PATHS[1], { now: "t", git: "t" }],
+    ],
     rb_now: "rb",
     rb_blob: "rb"
   )
@@ -1314,8 +2170,12 @@ def run_selftest
   selftest_assert parse_contract_baseline_text("---\nbaseline_commit: \"PM が凍結時に設定\"\n") == :placeholder, "負例: 契約 baseline_commit プレースホルダ"
   selftest_assert parse_contract_baseline_text("---\nbaseline_commit: \"not-a-sha\"\n") == :invalid, "負例: 契約 baseline_commit 不正"
   selftest_assert parse_contract_baseline_text("---\nbaseline_commit: \"abc1234\"\n") == "abc1234", "正例: 契約 baseline_commit が SHA"
-  mismatch_errs = contract_baseline_errors("---\nbaseline_commit: \"aaaaaaaa\"\n", "bbbbbbbb")
-  selftest_assert mismatch_errs.any? { |m| m.include?("一致しない") || m.include?("無効") }, "負例: 契約SHAとの不一致"
+
+  sha_a = git_full_sha("HEAD")
+  sha_b = git_full_sha("HEAD~1")
+  selftest_assert !sha_a.nil? && !sha_b.nil? && sha_a != sha_b, "正例: 解決可能な異なる SHA を用意できる"
+  mismatch_errs = contract_baseline_errors("---\nbaseline_commit: \"#{sha_a}\"\n", sha_b)
+  selftest_assert mismatch_errs.any? { |m| m.include?("一致しない") }, "負例: 契約SHAとの不一致"
 
   selftest_assert check_canonical(nil).any? { |m| m.include?("存在しない") }, "負例: 必要なファイルが無い"
   unchanged_ng = check_blob_identical("a", "b", "ChatSessionView.swift")
@@ -1323,6 +2183,18 @@ def run_selftest
   selftest_assert check_blob_identical("a", "a", "ChatSessionView.swift").empty?, "正例: 変更禁止対象の blob 同一"
   selftest_assert workdir_matches_git_blob?("a", "a"), "正例: git show と作業ツリーが同一"
   selftest_assert !workdir_matches_git_blob?("a", nil), "負例: git show 失敗は同一ではない"
+
+  dash_now = identical_unchanged.merge(
+    "macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardViewModel.swift" => "changed"
+  )
+  dash_ng = inspect_product(good, frozen, dash_now, identical_unchanged)
+  selftest_assert dash_ng.any? { |m| m.include?("DashboardViewModel") }, "負例: DashboardViewModel 改変 (#{dash_ng.inspect})"
+
+  pkg_path = package_swift_paths.find { |path| path.include?("DesignSystem") } || package_swift_paths.first
+  selftest_assert !pkg_path.nil?, "正例: Package.swift を列挙できる"
+  pkg_now = identical_unchanged.merge(pkg_path => "changed")
+  pkg_ng = inspect_product(good, frozen, pkg_now, identical_unchanged)
+  selftest_assert pkg_ng.any? { |m| m.include?("Package.swift") }, "負例: Package.swift 改変 (#{pkg_ng.inspect})"
 end
 
 if ARGV.include?("--selftest")
@@ -1359,8 +2231,6 @@ PATHS.each do |key, path|
   sources[key] = read_if_exist(path)
 end
 
-ng.concat(inspect_product(sources))
-
 if baseline
   previous = {}
   PATHS.each do |key, path|
@@ -1368,20 +2238,13 @@ if baseline
   end
   unchanged_now = {}
   unchanged_base = {}
-  UNCHANGED_PATHS.each do |path|
+  unchanged_paths_all.each do |path|
     unchanged_now[path] = read_if_exist(path)
     unchanged_base[path] = git_show(baseline, path)
   end
-  residual_ng = []
-  ALLOWED_PRODUCT_KEYS.each do |key|
-    next if key == :typography
-    path = PATHS[key]
-    residual_ng.concat(check_residual(sources[key], previous[key], path))
-  end
-  UNCHANGED_PATHS.each do |path|
-    residual_ng.concat(check_blob_identical(unchanged_now[path], unchanged_base[path], path))
-  end
-  ng.concat(residual_ng)
+  ng.concat(inspect_product(sources, previous, unchanged_now, unchanged_base))
+else
+  ng.concat(inspect_product(sources))
 end
 
 ng = ng.uniq

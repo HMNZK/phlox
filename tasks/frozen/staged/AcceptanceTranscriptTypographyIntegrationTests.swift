@@ -36,6 +36,8 @@ private func flattenTranscript(_ blocks: [ChatTranscriptBlock]) -> [ChatItem] {
     }
 }
 
+/// 正本 `gap` と `typographyRole` の合成。実 View の直前ブロック参照・先頭持ち越し・
+/// 二重適用・倍率再適用は `task40-wiring.rb` の `check_gap_application` が検査する。
 private func gaps(for blocks: [ChatTranscriptBlock]) -> [CGFloat] {
     var previous: TranscriptTypography.BlockRole?
     return blocks.map { block in

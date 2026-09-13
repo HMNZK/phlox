@@ -582,6 +582,7 @@ public final class ChatSessionViewModel: Identifiable {
             if case .starting = status {
                 status = .idle
             }
+            adoptTitleFromHistoryResume(entry, loadedItems: loaded)
         } catch {
             setTranscript([])
             status = .error(message: "chat restore failed: \(error)")
@@ -615,6 +616,7 @@ public final class ChatSessionViewModel: Identifiable {
     /// 送信成功した userMessage ID に対応する添付（プロセス内・セッション存続中のみ）。
     @ObservationIgnored private var sentRuntimeAttachmentsByUserMessageID: [String: [ComposerAttachment]] = [:]
     /// ローカル確定したユーザー本文。サーバー項目の補足付き text より優先する。
+    /// インスタンス内のみ。terminate で解放する（プロセス横断の static は持たない）。
     @ObservationIgnored private var localOriginalUserTextByID: [String: String] = [:]
     /// Codex native skill + 画像経路で materialize した一時ディレクトリ（terminate まで保持）。
     @ObservationIgnored private var nativeSkillInputDirectories: Set<URL> = []
@@ -1097,7 +1099,7 @@ public final class ChatSessionViewModel: Identifiable {
     /// store 内容を `items` で置換する。追記キューと同一チェーンに載せて FIFO を守り、
     /// 先行の upsert を必ず flush してから replace が走る（順序保証）。
     private func enqueueTranscriptReplace(_ items: [ChatItem]) {
-        transcriptPersistenceQueue?.enqueueReplace(items.map(Self.ensuringTitleOriginPersisted))
+        transcriptPersistenceQueue?.enqueueReplace(items)
     }
 
     public func respondToApproval(_ approvalID: UUID, decision: ApprovalDecision) async {
@@ -2031,7 +2033,7 @@ public final class ChatSessionViewModel: Identifiable {
             guard updatedThreadId == threadId else { return }
             flushPendingStreamDeltasBarrier()
             if let chatItem = chatItem(from: item) {
-                appendOrReplace(Self.strippingTitleOrigin(chatItem))
+                appendOrReplace(chatItem)
                 adoptTitleFromThreadItem(item, chatItem: chatItem)
                 if case .itemCompleted = event {
                     enqueueTranscriptUpsert([chatItem])
@@ -2418,8 +2420,7 @@ public final class ChatSessionViewModel: Identifiable {
     private func applyRestoredTranscript(_ persisted: [ChatItem]) {
         setTranscript([])
         for item in persisted {
-            Self.rememberUserMessageTitleOrigin(from: item)
-            appendOrReplace(Self.strippingTitleOrigin(item))
+            appendOrReplace(item)
         }
         touchOutput()
         adoptTitleFromLocalTranscript(persisted)
@@ -2457,7 +2458,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private func enqueueTranscriptUpsert(_ items: [ChatItem]) {
-        transcriptPersistenceQueue?.enqueueUpsert(items.map(Self.ensuringTitleOriginPersisted))
+        transcriptPersistenceQueue?.enqueueUpsert(items)
     }
 
     private func flushTranscriptAtTurnBoundary() {
@@ -2481,7 +2482,7 @@ public final class ChatSessionViewModel: Identifiable {
         let items = thread.turns?
             .flatMap { $0.items ?? [] }
             .compactMap { chatItem(from: $0) } ?? []
-        setTranscript(items.map(Self.strippingTitleOrigin))
+        setTranscript(items)
         completedTurnSeq = 0
         for turn in thread.turns ?? [] {
             if turn.status == "completed" || turn.status == "idle" || turn.status == nil {
@@ -2502,14 +2503,7 @@ public final class ChatSessionViewModel: Identifiable {
 
         if type.contains("user") {
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-            let original = identifiableOriginalText(from: item)
-            Self.recordUserMessageTitleOrigin(id: id, identifiableOriginal: original)
-            return .userMessage(
-                id: id,
-                text: text,
-                timestamp: Date(),
-                attachments: [Self.titleOriginAttachment(identifiableOriginal: original)]
-            )
+            return .userMessage(id: id, text: text, timestamp: Date())
         }
         if type.contains("reasoning") {
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
@@ -2542,6 +2536,22 @@ public final class ChatSessionViewModel: Identifiable {
         titleState = titleState.receivingUserMessage(text)
     }
 
+    private func adoptTitleFromHistoryResume(
+        _ entry: ClaudeSessionHistoryEntry,
+        loadedItems: [ChatItem]
+    ) {
+        guard titleState.source == .flower else { return }
+        if let messages = entry.titleUserMessages {
+            for text in messages {
+                guard titleState.source == .flower else { return }
+                guard let candidate = unknownOriginTitleCandidate(text) else { continue }
+                titleState = titleState.receivingUserMessage(candidate)
+            }
+            return
+        }
+        adoptTitleFromLocalTranscript(loadedItems)
+    }
+
     private func adoptTitleFromLocalTranscript(_ items: [ChatItem]) {
         guard titleState.source == .flower else { return }
         let entries = InputHistoryPolicy.entries(from: items)
@@ -2549,8 +2559,7 @@ public final class ChatSessionViewModel: Identifiable {
             guard titleState.source == .flower else { return }
             guard let original = originalUserTextForTitle(
                 entryID: entry.id,
-                displayedText: entry.text,
-                items: items
+                displayedText: entry.text
             ) else { continue }
             titleState = titleState.receivingUserMessage(original)
         }
@@ -2580,96 +2589,29 @@ public final class ChatSessionViewModel: Identifiable {
         item.raw?["originalText"]?.stringValue
     }
 
-    /// サーバー変換由来の元本文。`nil` は識別不能（表示本文をタイトルに使わない）。
-    private enum UserMessageTitleOrigin {
-        case identified(String)
-        case unidentified
+    /// ライブ確定本文があればそれを使う。それ以外の由来不明項目は先頭行だけを候補にする。
+    private func originalUserTextForTitle(entryID: String, displayedText: String) -> String? {
+        if let original = localOriginalUserTextByID[entryID] {
+            return original
+        }
+        return unknownOriginTitleCandidate(displayedText)
     }
 
-    private static let titleOriginMediaType = "application/x-phlox-session-title-origin"
-    /// 表示用に origin 添付を外した ChatItem でも、同一プロセスの保存→復元が ID で辿れるようにする。
-    private static var userMessageTitleOriginByID: [String: UserMessageTitleOrigin] = [:]
-
-    private static func recordUserMessageTitleOrigin(id: String, identifiableOriginal: String?) {
-        if let identifiableOriginal {
-            userMessageTitleOriginByID[id] = .identified(identifiableOriginal)
-        } else {
-            userMessageTitleOriginByID[id] = .unidentified
-        }
-    }
-
-    private static func rememberUserMessageTitleOrigin(from item: ChatItem) {
-        guard case .userMessage(let id, _, _, let attachments) = item else { return }
-        guard let origin = titleOrigin(from: attachments) else { return }
-        userMessageTitleOriginByID[id] = origin
-    }
-
-    private static func titleOrigin(from attachments: [ChatUserAttachment]) -> UserMessageTitleOrigin? {
-        guard let marker = attachments.first(where: { $0.mediaType == titleOriginMediaType }) else {
-            return nil
-        }
-        if let filename = marker.filename {
-            return .identified(filename)
-        }
-        return .unidentified
-    }
-
-    private static func titleOriginAttachment(identifiableOriginal: String?) -> ChatUserAttachment {
-        ChatUserAttachment(filename: identifiableOriginal, mediaType: titleOriginMediaType)
-    }
-
-    private static func strippingTitleOrigin(_ item: ChatItem) -> ChatItem {
-        guard case .userMessage(let id, let text, let timestamp, let attachments) = item else {
-            return item
-        }
-        let filtered = attachments.filter { $0.mediaType != titleOriginMediaType }
-        guard filtered.count != attachments.count else { return item }
-        return .userMessage(id: id, text: text, timestamp: timestamp, attachments: filtered)
-    }
-
-    private static func ensuringTitleOriginPersisted(_ item: ChatItem) -> ChatItem {
-        guard case .userMessage(let id, let text, let timestamp, let attachments) = item else {
-            return item
-        }
-        if attachments.contains(where: { $0.mediaType == titleOriginMediaType }) {
-            return item
-        }
-        guard let origin = userMessageTitleOriginByID[id] else { return item }
-        let marker: ChatUserAttachment
-        switch origin {
-        case .identified(let original):
-            marker = titleOriginAttachment(identifiableOriginal: original)
-        case .unidentified:
-            marker = titleOriginAttachment(identifiableOriginal: nil)
-        }
-        return .userMessage(id: id, text: text, timestamp: timestamp, attachments: attachments + [marker])
-    }
-
-    /// 由来が確認できる元本文だけを返す。識別不能なら `nil`（候補から飛ばす）。
-    private func originalUserTextForTitle(
-        entryID: String,
-        displayedText: String,
-        items: [ChatItem]
-    ) -> String? {
-        if let recorded = Self.userMessageTitleOriginByID[entryID] {
-            switch recorded {
-            case .unidentified:
-                return nil
-            case .identified(let original):
-                return original
-            }
-        }
-        if let item = items.first(where: { $0.id == entryID }),
-           case .userMessage(_, _, _, let attachments) = item,
-           let origin = Self.titleOrigin(from: attachments) {
-            switch origin {
-            case .unidentified:
-                return nil
-            case .identified(let original):
-                return original
-            }
-        }
-        return displayedText
+    /// 復元・履歴再開の由来不明ユーザー項目: 先頭行だけを候補。先頭行が `/` 始まりなら不採用。
+    /// ChatItem は isMeta を持たないため、履歴再開では `titleUserMessages`（isMeta 除外済み）を優先する。
+    private func unknownOriginTitleCandidate(_ text: String) -> String? {
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        let firstLine = normalized.split(
+            separator: "\n",
+            maxSplits: 1,
+            omittingEmptySubsequences: false
+        ).first.map(String.init) ?? normalized
+        let trimmed = firstLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard !trimmed.hasPrefix("/") else { return nil }
+        return firstLine
     }
 
     private func touchOutput() {
@@ -3241,6 +3183,7 @@ extension ChatSessionViewModel: ControllableSession {
         subAgentModel.failRunningSubAgents()
         await transcriptPersistenceQueue?.waitForPendingWrites()
         clearSentRuntimeAttachmentCache()
+        localOriginalUserTextByID.removeAll()
         releaseNativeSkillInputDirectories()
         await client.close()
         status = .completed(exitCode: 0)

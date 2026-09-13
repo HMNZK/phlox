@@ -1,0 +1,209 @@
+diff --git a/macos/Packages/AgentDomain/Sources/AgentDomain/SessionTitleDeriver.swift b/macos/Packages/AgentDomain/Sources/AgentDomain/SessionTitleDeriver.swift
+new file mode 100644
+index 0000000..47efa40
+--- /dev/null
++++ b/macos/Packages/AgentDomain/Sources/AgentDomain/SessionTitleDeriver.swift
+@@ -0,0 +1,203 @@
++import Foundation
++
++public struct DerivedSessionTitle: Equatable, Sendable {
++    public let title: String
++    public let fullTitle: String
++}
++
++/// 一つのユーザーメッセージから短い作業名を導く。
++///
++/// ponytail: コード除外は契約のフェンス・4空白/タブインデント・固定接頭辞だけ。
++/// 任意言語の識別は実例とテストが必要になった時点で足す。
++public enum SessionTitleDeriver {
++    private static let maxTitleCharacterCount = 32
++    private static let truncatedTitleCharacterCount = 31
++    private static let ellipsis = "…"
++    private static let excludedKeywordPrefixes = [
++        "import ",
++        "from ",
++        "func ",
++        "def ",
++        "class ",
++        "struct ",
++        "enum ",
++        "let ",
++        "var ",
++        "const ",
++        "function ",
++        "return ",
++        "#include ",
++        "#!/",
++        "$ ",
++    ]
++
++    public static func derive(from text: String) -> DerivedSessionTitle? {
++        var openFence: (marker: Character, length: Int)?
++        for line in lines(in: text) {
++            if let fence = openFence {
++                if isClosingFence(line, marker: fence.marker, minimumLength: fence.length) {
++                    openFence = nil
++                }
++                continue
++            }
++            if let fence = openingFence(in: line) {
++                openFence = fence
++                continue
++            }
++            if isPastedCodeLine(line) {
++                continue
++            }
++            if let candidate = eligibleTitleLine(line) {
++                return displayTitle(from: candidate)
++            }
++        }
++        return nil
++    }
++
++    private static func lines(in text: String) -> [String] {
++        text
++            .replacingOccurrences(of: "\r\n", with: "\n")
++            .replacingOccurrences(of: "\r", with: "\n")
++            .components(separatedBy: "\n")
++    }
++
++    private static func openingFence(in line: String) -> (marker: Character, length: Int)? {
++        let indexAfterIndent = indexAfterFenceIndent(in: line)
++        guard let indexAfterIndent, indexAfterIndent < line.endIndex else { return nil }
++        let marker = line[indexAfterIndent]
++        guard marker == "`" || marker == "~" else { return nil }
++        let length = runLength(of: marker, in: line, from: indexAfterIndent)
++        guard length >= 3 else { return nil }
++        return (marker, length)
++    }
++
++    private static func isClosingFence(
++        _ line: String,
++        marker: Character,
++        minimumLength: Int
++    ) -> Bool {
++        let indexAfterIndent = indexAfterFenceIndent(in: line)
++        guard let indexAfterIndent, indexAfterIndent < line.endIndex else { return false }
++        guard line[indexAfterIndent] == marker else { return false }
++        let length = runLength(of: marker, in: line, from: indexAfterIndent)
++        guard length >= minimumLength else { return false }
++        var index = line.index(indexAfterIndent, offsetBy: length)
++        while index < line.endIndex {
++            let character = line[index]
++            guard isCollapsibleWhitespace(character) else { return false }
++            index = line.index(after: index)
++        }
++        return true
++    }
++
++    private static func indexAfterFenceIndent(in line: String) -> String.Index? {
++        var index = line.startIndex
++        var spaces = 0
++        while index < line.endIndex, line[index] == " " {
++            spaces += 1
++            if spaces > 3 { return nil }
++            index = line.index(after: index)
++        }
++        return index
++    }
++
++    private static func runLength(
++        of marker: Character,
++        in line: String,
++        from start: String.Index
++    ) -> Int {
++        var length = 0
++        var index = start
++        while index < line.endIndex, line[index] == marker {
++            length += 1
++            index = line.index(after: index)
++        }
++        return length
++    }
++
++    private static func isPastedCodeLine(_ line: String) -> Bool {
++        line.first == "\t" || line.hasPrefix("    ")
++    }
++
++    private static func eligibleTitleLine(_ line: String) -> String? {
++        let trimmed = line.trimmingCharacters(in: .whitespaces)
++        let transformed = normalizeWidth(trimmed)
++        let collapsed = collapseInternalWhitespace(transformed)
++        guard !collapsed.isEmpty else { return nil }
++        guard !hasExcludedPrefix(collapsed) else { return nil }
++        return collapsed
++    }
++
++    /// 全角英数字・記号は半角 ASCII へ。半角カナ連続区間だけ全角カナへ。
++    /// カナは半角化しない。U+3000 はここでは触らず trim/圧縮側で扱う。
++    private static func normalizeWidth(_ text: String) -> String {
++        var result = String.UnicodeScalarView()
++        result.reserveCapacity(text.unicodeScalars.count)
++        let scalars = text.unicodeScalars
++        var index = scalars.startIndex
++        while index < scalars.endIndex {
++            let value = scalars[index].value
++            if (0xFF01...0xFF5E).contains(value) {
++                if let ascii = Unicode.Scalar(value - 0xFEE0) {
++                    result.append(ascii)
++                }
++                index = scalars.index(after: index)
++                continue
++            }
++            if (0xFF61...0xFF9F).contains(value) {
++                let runStart = index
++                var runEnd = scalars.index(after: index)
++                while runEnd < scalars.endIndex,
++                      (0xFF61...0xFF9F).contains(scalars[runEnd].value)
++                {
++                    runEnd = scalars.index(after: runEnd)
++                }
++                let run = String(text[runStart..<runEnd])
++                let converted = run.applyingTransform(.fullwidthToHalfwidth, reverse: true) ?? run
++                result.append(contentsOf: converted.unicodeScalars)
++                index = runEnd
++                continue
++            }
++            result.append(scalars[index])
++            index = scalars.index(after: index)
++        }
++        return String(result)
++    }
++
++    private static func collapseInternalWhitespace(_ text: String) -> String {
++        var result = ""
++        result.reserveCapacity(text.count)
++        var previousWasWhitespace = false
++        for character in text {
++            if isCollapsibleWhitespace(character) {
++                if !previousWasWhitespace {
++                    result.append(" ")
++                    previousWasWhitespace = true
++                }
++            } else {
++                result.append(character)
++                previousWasWhitespace = false
++            }
++        }
++        return result
++    }
++
++    private static func isCollapsibleWhitespace(_ character: Character) -> Bool {
++        character == " " || character == "\t" || character == "\u{3000}"
++    }
++
++    private static func hasExcludedPrefix(_ line: String) -> Bool {
++        if let first = line.first, first == "/" || first == "{" || first == "}" || first == "[" || first == "]" {
++            return true
++        }
++        return excludedKeywordPrefixes.contains { line.hasPrefix($0) }
++    }
++
++    private static func displayTitle(from fullTitle: String) -> DerivedSessionTitle {
++        if fullTitle.count <= maxTitleCharacterCount {
++            return DerivedSessionTitle(title: fullTitle, fullTitle: fullTitle)
++        }
++        let title = String(fullTitle.prefix(truncatedTitleCharacterCount)) + ellipsis
++        return DerivedSessionTitle(title: title, fullTitle: fullTitle)
++    }
++}

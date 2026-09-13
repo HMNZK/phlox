@@ -6,7 +6,7 @@ user_visible: false
 acceptance_tests:
   - macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceSessionTitleDeriverTests.swift
   - .claude/scripts/task41-wiring.rb
-baseline_commit: 201e846
+baseline_commit: 962ddb2
 contract_tests: []
 allowed_paths:
   - macos/Packages/AgentDomain/Sources/AgentDomain/SessionTitleDeriver.swift

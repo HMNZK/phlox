@@ -2,7 +2,12 @@
   "id": 49,
   "title": "UX-11b 履歴の表示モデルと UI",
   "difficulty": "standard",
-  "status": "in_progress",
-  "updated_at": "2026-09-13T22:32:38+0900",
-  "review_rejections": 1
+  "status": "testing",
+  "updated_at": "2026-09-13T23:32:48+0900",
+  "review_rejections": 2,
+  "last_repair": {
+    "reason": "レビュー r3 needs_changes をユーザー承認のもと PM が pass 裁定（decision-log 2026-09-13。独立証拠: 凍結テスト・rb・目視 pass、残指摘は性能のみで後続項目化）",
+    "to": "testing",
+    "at": "2026-09-13T23:32:48+0900"
+  }
 }

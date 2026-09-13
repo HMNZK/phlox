@@ -246,3 +246,4 @@
 - 2026-09-13 task-49 レビュー r2 裁定: MEDIUM×2 とも実装欠陥→差し戻し 2 回目（導出キャッシュを状態に保持し entries/作業ディレクトリ変更時のみ更新、AX ラベルに副行の情報を含める）。review-task-49-r2.json に保存。
 - 2026-09-13 task-44 統合検証 1 回目 fail は verify worktree の DesignSystem/MessageStore/ControlServer の .build が AgentDomain の新規ファイル（SessionTitleState.swift）を拾わない stale キャッシュ（AgentDomain・SessionFeature・DashboardFeature は GREEN）。.build を削除して再実行。
 - 2026-09-13 task-49 verify 枝を SessionFeature --no-parallel へ（task-46/44 と同じ並列フレーク回避。rb・selftest・diff --check は OK）。
+- 2026-09-13 task-49 レビュー r3（HIGH: State(initialValue:) の初期値計算が View 再生成ごとに全件導出）をユーザー承認（「PM 裁定で pass にして完了」）のもと PM が pass 裁定。独立証拠: 凍結受け入れテスト・rb・SessionFeature 全数 GREEN、PM 目視 pass（visual-task-49.md）、履歴一覧は最大 20 件で導出は文字列処理のみ（正しさへの影響なし、性能のみ）。残指摘は後続項目「履歴一覧の表示モデル初期化を View 再生成から切り離す（ChatHistoryStartView の State 初期値を空にし .task(id:) の一本へ）」としてフェーズ 5 で記録。review-task-49-r3.json に保存。

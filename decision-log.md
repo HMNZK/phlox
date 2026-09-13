@@ -157,3 +157,6 @@
 - 2026-09-13 task-34（UI-04）done: 案 B 実装 1 回で 4 条件同時合格（AX 24×24・端クリック・row1 36・見た目）、Codex レビュー pass 指摘 0、統合 verify exit 0。UI-07 は caret 連写で焦点を確認し [x]（焦点の手掛かりは caret のみ、枠強調は範囲外の改善候補）。
 - 2026-09-13 task-17 敵対レビュー MUST1/HIGH2/MED3: rb 欠陥（コメント内引用符・重複/位置・単一違反・基準 selftest）は Cursor へ修正委譲し再凍結。HIGH2 は task-35/38 の SettingsView 保護を task-17 凍結時点で適用終了と裁定（両契約に注記）。HIGH3（焦点ゲートの事前証拠）は残余リスク受容（不成立なら未達記録）。
 - 2026-09-13 task-40/41 凍結: テスト・rb を Cursor が作成、selftest OK・RED 確認、基準 4285918／7a31a0b。凍結テストは着手まで tasks/frozen/staged へ退避。UX-10 は Codex 草案の分割推奨に従い task-48（操作文言）/task-50（権限説明）へ分割、分割案 3（生成・保存される状態説明）は範囲外と裁定。
+- 2026-09-13T11:40:56+0900 task-17 resume: blocked の原因は開示レポートの frontmatter 欠落（形式のみ）。PM が frontmatter を付与して修理、本文・製品は不変
+- 2026-09-13 task-17 実装完了（Cursor、rb GREEN・App ビルド成功）。開示レポートの frontmatter 欠落で driver が blocked → PM が frontmatter と注記を付与（本文・製品不変）し --human-approved で再開、done_pending_review。Codex レビューと Cursor 観測（PM ゲート）を並行ディスパッチ。
+- 2026-09-13 task-40 敵対レビュー MUST1/HIGH11、task-41 MUST1/HIGH6/MED1: テスト・rb 側の指摘は Cursor に修正委譲（再凍結予定）。裁定: task-40 は分割しない（gap 適用は 1 View・同一正本）、凍結時点のコンパイル RED＋実装後変異検査の運用を継続、PM ゲートのテーマ/倍率は起動引数で与えアプリ内倍率操作はしない、プレースホルダ到達手順は visual-task-27-35-composer.md を正本（task-44/45 にも注記）。task-41 rb は回帰検査と変更範囲検査（TASK41_SCOPE_CHECK）に分離。

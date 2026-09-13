@@ -1,3 +1,8 @@
+---
+task: task-17
+status: completed
+---
+
 task-17（UI-05）の実装を完了しました。コミットはしていません。Release Phlox（PID 61465）には触れていません。
 
 **変更**（`macos/App/SettingsView.swift` のみ）

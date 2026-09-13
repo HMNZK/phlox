@@ -146,7 +146,7 @@ public struct ChatSessionView: View {
                         GeometryReader { overlayGeometry in
                             let availableHeight = overlayGeometry.size.height
                             let cardMaxHeight = ChatHistoryStartLayout.maxCardHeight(
-                                availableHeight: availableHeight /* overlayGeometry.size.height */,
+                                availableHeight: availableHeight,
                                 composerHeight: composerHeight
                             )
                             let bottomInset = ChatHistoryStartLayout.bottomInset(

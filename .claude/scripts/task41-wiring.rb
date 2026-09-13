@@ -1,7 +1,9 @@
 #!/usr/bin/env ruby
-# task-41 凍結検査: SessionTitleDeriver の公開面・許可 import・I/O 非依存を確認し、
-# 新規ファイル以外の AgentDomain ソースと Package.swift が TASK41_BASELINE blob と
-# 同一であること。文字列導出の正しさは Swift Testing に任せ、Ruby へ再実装しない。
+# task-41 凍結検査:
+# 1) 導出契約の回帰検査（SessionTitleDeriver.swift の公開面・純粋性）は常に実行する。
+# 2) 変更範囲検査（AgentDomain の他ファイル・Package.swift 不変）は
+#    TASK41_SCOPE_CHECK=1 のときだけ実行する（task-41 verify 分岐。task-44/45 の回帰では付与しない）。
+# 文字列導出の正しさは Swift Testing に任せ、Ruby へ再実装しない。
 
 def compact(s)
   s.gsub(/\s+/, "")
@@ -63,6 +65,100 @@ def mask_strings_and_comments(src)
   protected, _strings = protect_strings(src)
   protected = protected.gsub(%r{/\*.*?\*/}m, "")
   protected.gsub(%r{//[^\n]*}, "")
+end
+
+def skip_block_comment(src, i)
+  depth = 1
+  j = i + 2
+  while j < src.length
+    if src[j, 2] == "/*"
+      depth += 1
+      j += 2
+    elsif src[j, 2] == "*/"
+      depth -= 1
+      j += 2
+      return j if depth == 0
+    else
+      j += 1
+    end
+  end
+  src.length
+end
+
+def scan_string_for_purity(src, i, out)
+  triple = src[i, 3] == '"""'
+  j = triple ? i + 3 : i + 1
+  while j < src.length
+    if triple && src[j, 3] == '"""'
+      return j + 3
+    end
+    if !triple && src[j] == '"'
+      return j + 1
+    end
+    if src[j] == "\\"
+      if j + 1 < src.length && src[j + 1] == "("
+        j = scan_interpolation_for_purity(src, j + 1, out)
+        next
+      end
+      j += 2
+      next
+    end
+    j += 1
+  end
+  src.length
+end
+
+def scan_interpolation_for_purity(src, open_paren_idx, out)
+  depth = 0
+  i = open_paren_idx
+  while i < src.length
+    if src[i, 2] == "//"
+      i += 1 while i < src.length && src[i] != "\n"
+      if i < src.length && src[i] == "\n"
+        out << "\n"
+        i += 1
+      end
+    elsif src[i, 2] == "/*"
+      i = skip_block_comment(src, i)
+    elsif src[i, 3] == '"""' || src[i] == '"'
+      i = scan_string_for_purity(src, i, out)
+    else
+      if src[i] == "("
+        depth += 1
+        out << "(" if depth > 1
+      elsif src[i] == ")"
+        depth -= 1
+        return i + 1 if depth == 0
+        out << ")"
+      else
+        out << src[i]
+      end
+      i += 1
+    end
+  end
+  src.length
+end
+
+def code_for_purity(src)
+  out = +""
+  i = 0
+  while i < src.length
+    if src[i, 2] == "//"
+      i += 1 while i < src.length && src[i] != "\n"
+      if i < src.length && src[i] == "\n"
+        out << "\n"
+        i += 1
+      end
+    elsif src[i, 2] == "/*"
+      i = skip_block_comment(src, i)
+    elsif src[i, 3] == '"""' || src[i] == '"'
+      i = scan_string_for_purity(src, i, out)
+    else
+      out << src[i]
+      i += 1
+    end
+  end
+  out
 end
 
 def extract_balanced(src, open_idx, open_ch, close_ch)
@@ -137,6 +233,7 @@ WIRING_RB_PATH = ".claude/scripts/task41-wiring.rb"
 DERIVER_PATH = "macos/Packages/AgentDomain/Sources/AgentDomain/SessionTitleDeriver.swift"
 AGENT_DOMAIN_SRC = "macos/Packages/AgentDomain/Sources/AgentDomain"
 PACKAGE_PATH = "macos/Packages/AgentDomain/Package.swift"
+PRODUCTION_MARKER = "# === task41 production checks ==="
 
 CONTRACT_BASELINE_PLACEHOLDER_RE = /PM|凍結|設定|TBD|TODO|FIXME|placeholder|未設定/i
 CONTRACT_BASELINE_LINE_RE = /^baseline_commit:\s*(?:"([^"]*)"|'([^']*)'|(\S+))/
@@ -150,7 +247,12 @@ FORBIDDEN_TOKENS = %w[
   FileManager URLSession UserDefaults NotificationCenter
   Binding View Color NSView NSWindow SwiftUI AppKit Combine
   Timer Clock Process NSTask UUID NSWorkspace URLRequest
+  print ProcessInfo random
 ].freeze
+
+def scope_check_requested?(env = ENV)
+  env["TASK41_SCOPE_CHECK"] == "1"
+end
 
 def match_contract_baseline_line(text)
   return nil if text.nil?
@@ -252,6 +354,18 @@ def struct_header(src, name)
   m[0]
 end
 
+def has_public_let_nonoptional_string?(compacted, name)
+  needle = "publiclet#{name}:String"
+  start = 0
+  while (idx = compacted.index(needle, start))
+    after_idx = idx + needle.length
+    after = after_idx < compacted.length ? compacted[after_idx] : nil
+    return true if after != "?" && after != "!"
+    start = idx + 1
+  end
+  false
+end
+
 def check_public_api(src)
   ng = []
   if src.nil?
@@ -275,8 +389,8 @@ def check_public_api(src)
       ng << "DerivedSessionTitle を解析できない"
     else
       c = compact(body)
-      ng << "public let title: String が無い" unless c.include?("publiclettitle:String")
-      ng << "public let fullTitle: String が無い" unless c.include?("publicletfullTitle:String")
+      ng << "public let title: String が無い" unless has_public_let_nonoptional_string?(c, "title")
+      ng << "public let fullTitle: String が無い" unless has_public_let_nonoptional_string?(c, "fullTitle")
     end
   end
 
@@ -299,9 +413,9 @@ def check_public_api(src)
   ng
 end
 
-def imported_modules(masked)
+def imported_modules(code)
   mods = []
-  masked.scan(/^\s*import\s+(?:(?:struct|class|enum|func|var|let)\s+)?(\w+)/) do |m|
+  code.scan(/(?:^|\n)[ \t]*(?:@[^\s]+[ \t]+)*import[ \t]+(?:(?:struct|class|enum|func|var|let)[ \t]+)?(\w+)/) do |m|
     mods << m[0]
   end
   mods
@@ -310,21 +424,24 @@ end
 def check_imports_and_purity(src)
   return [] if src.nil?
   ng = []
-  masked = mask_strings_and_comments(src)
-  imported_modules(masked).each do |mod|
+  code = code_for_purity(src)
+  imported_modules(code).each do |mod|
     next if mod == "Foundation"
     ng << "許可していない import #{mod}"
   end
   FORBIDDEN_IMPORTS.each do |mod|
-    ng << "許可していない import #{mod}" if imported_modules(masked).include?(mod)
+    ng << "許可していない import #{mod}" if imported_modules(code).include?(mod)
   end
   FORBIDDEN_TOKENS.each do |tok|
-    ng << "SessionTitleDeriver.swift に #{tok} がある" if masked =~ /\b#{Regexp.escape(tok)}\b/
+    ng << "SessionTitleDeriver.swift に #{tok} がある" if code =~ /\b#{Regexp.escape(tok)}\b/
   end
-  ng << "SessionTitleDeriver.swift に Date( がある" if masked.include?("Date(")
-  ng << "SessionTitleDeriver.swift に UUID( がある" if masked.include?("UUID(")
-  ng = ng.uniq
-  ng
+  ng << "SessionTitleDeriver.swift に Date がある" if code =~ /\bDate\b/
+  ng << "SessionTitleDeriver.swift に .now がある" if code =~ /\.now\b/
+  ng.uniq
+end
+
+def derivation_contract_errors(deriver_src)
+  check_public_api(deriver_src) + check_imports_and_purity(deriver_src)
 end
 
 def other_sources_errors(current_files, baseline_files)
@@ -358,6 +475,22 @@ def package_errors(current, baseline)
   unless workdir_matches_git_blob?(current, baseline)
     ng << "AgentDomain の Package.swift が基準 blob と同一ではない（依存追加なし）"
   end
+  ng
+end
+
+def scope_source_errors(current_sources, previous_sources, baseline_label)
+  if previous_sources.empty?
+    ["baseline #{baseline_label} から AgentDomain ソースを読めない（黙示的成功にしない）"]
+  else
+    other_sources_errors(current_sources, previous_sources)
+  end
+end
+
+def collect_checks(deriver_src, current_sources, baseline_sources, current_pkg, baseline_pkg, scope_check)
+  ng = derivation_contract_errors(deriver_src)
+  return ng unless scope_check
+  ng.concat(scope_source_errors(current_sources, baseline_sources, "selftest"))
+  ng.concat(package_errors(current_pkg, baseline_pkg))
   ng
 end
 
@@ -395,10 +528,59 @@ def good_deriver_src
   SWIFT
 end
 
-def selftest_assert(cond, msg)
+def with_body_stmt(src, stmt)
+  src.sub(
+    "DerivedSessionTitle(title: text, fullTitle: text)",
+    "#{stmt}\n        DerivedSessionTitle(title: text, fullTitle: text)"
+  )
+end
+
+def production_checks_source(src = File.read(__FILE__))
+  i = src.index(PRODUCTION_MARKER)
+  return "" if i.nil?
+  src[i..]
+end
+
+def baseline_check_connected?(src)
+  strip_comments(src).include?("check_frozen_baseline")
+end
+
+def scope_check_gated?(src)
+  code = strip_comments(src)
+  code.include?("scope_check_requested?") &&
+    code.include?("scope_source_errors") &&
+    code.match?(/if baseline && scope_check_requested\?/)
+end
+
+def selftest_assert(cond, msg = "assertion")
   unless cond
     puts "task41-wiring --selftest: FAIL #{msg}"
     exit 1
+  end
+end
+
+def selftest_errors_eq(actual, expected, msg)
+  unless actual == expected
+    puts "task41-wiring --selftest: FAIL #{msg}"
+    puts "  expected: #{expected.inspect}"
+    puts "  actual:   #{actual.inspect}"
+    exit 1
+  end
+end
+
+def with_env(key, value)
+  previous = ENV[key]
+  if value.nil?
+    ENV.delete(key)
+  else
+    ENV[key] = value
+  end
+  yield
+ensure
+  if previous.nil?
+    ENV.delete(key)
+  else
+    ENV[key] = previous
   end
 end
 
@@ -409,67 +591,219 @@ def run_selftest
   selftest_assert !stripped.include?("trailing"), "正例: 行コメントを除去する"
   selftest_assert !strip_comments("let a = 1 /* x */ let b = 2").include?("x"), "正例: /* */ を除去する"
 
+  selftest_assert code_for_purity('let x = "\\(print(1))"').include?("print(1)"), "正例: 補間内コードを走査対象にする"
+  selftest_assert !code_for_purity('let x = "print(1)"').include?("print(1)"), "正例: 文字列リテラル内の print は走査しない"
+
   good = good_deriver_src
-  selftest_assert check_public_api(good).empty?, "正例: 公開面がある (#{check_public_api(good).inspect})"
-  selftest_assert check_imports_and_purity(good).empty?, "正例: Foundation のみ・I/O なし (#{check_imports_and_purity(good).inspect})"
+  selftest_errors_eq check_public_api(good), [], "正例: 公開面がある"
+  selftest_errors_eq check_imports_and_purity(good), [], "正例: Foundation のみ・I/O なし"
+  selftest_errors_eq derivation_contract_errors(good), [], "正例: 導出契約回帰（公開面+純粋性）"
 
-  selftest_assert check_public_api(nil).any? { |m| m.include?("存在しない") }, "負例: 対象不在"
+  selftest_errors_eq check_public_api(nil), ["SessionTitleDeriver.swift が存在しない"], "負例: 対象不在"
 
-  comment_only = <<~SWIFT
+  comment_struct = <<~SWIFT
+    import Foundation
     // public struct DerivedSessionTitle: Equatable, Sendable {
     //     public let title: String
     //     public let fullTitle: String
     // }
+    public enum SessionTitleDeriver {
+      public static func derive(from text: String) -> DerivedSessionTitle? {
+        nil
+      }
+    }
+  SWIFT
+  selftest_errors_eq check_public_api(comment_struct), ["public struct DerivedSessionTitle が無い"], "負例: コメントだけの struct 宣言偽装"
+
+  comment_enum = <<~SWIFT
+    import Foundation
+    public struct DerivedSessionTitle: Equatable, Sendable {
+      public let title: String
+      public let fullTitle: String
+    }
     // public enum SessionTitleDeriver {
     //     public static func derive(from text: String) -> DerivedSessionTitle?
     // }
     let decoy = "public enum SessionTitleDeriver"
   SWIFT
-  fake = check_public_api(comment_only)
-  selftest_assert fake.any? { |m| m.include?("DerivedSessionTitle") || m.include?("SessionTitleDeriver") }, "負例: コメントだけの宣言偽装"
+  selftest_errors_eq check_public_api(comment_enum), ["public enum SessionTitleDeriver が無い"], "負例: コメントだけの enum 宣言偽装"
 
-  unparsed = "public struct DerivedSessionTitle: Equatable, Sendable {\npublic let title: String\n"
-  selftest_assert check_public_api(unparsed).any? { |m| m.include?("解析できない") }, "負例: 解析不能"
+  unparsed_struct = <<~SWIFT
+    public enum SessionTitleDeriver {
+      public static func derive(from text: String) -> DerivedSessionTitle? { nil }
+    }
+    public struct DerivedSessionTitle: Equatable, Sendable {
+      public let title: String
+  SWIFT
+  selftest_errors_eq check_public_api(unparsed_struct), ["DerivedSessionTitle を解析できない"], "負例: struct 解析不能"
 
-  banned = good + "\nimport Combine\n"
-  selftest_assert check_imports_and_purity(banned).any? { |m| m.include?("Combine") }, "負例: 禁止依存"
+  unparsed_enum = <<~SWIFT
+    public struct DerivedSessionTitle: Equatable, Sendable {
+      public let title: String
+      public let fullTitle: String
+    }
+    public enum SessionTitleDeriver {
+      public static func derive(from text: String) -> DerivedSessionTitle?
+  SWIFT
+  selftest_errors_eq check_public_api(unparsed_enum), ["SessionTitleDeriver を解析できない"], "負例: enum 解析不能"
+
+  no_public_struct = good.sub("public struct DerivedSessionTitle", "struct DerivedSessionTitle")
+  selftest_errors_eq check_public_api(no_public_struct), ["DerivedSessionTitle が public ではない"], "負例: struct の public 欠落"
+
+  no_eq = good.sub(": Equatable, Sendable", ": Sendable")
+  selftest_errors_eq check_public_api(no_eq), ["DerivedSessionTitle が Equatable ではない"], "負例: Equatable 欠落"
+
+  no_sendable = good.sub(": Equatable, Sendable", ": Equatable")
+  selftest_errors_eq check_public_api(no_sendable), ["DerivedSessionTitle が Sendable ではない"], "負例: Sendable 欠落"
+
+  optional_title = good.sub("public let title: String\n", "public let title: String?\n")
+  selftest_errors_eq check_public_api(optional_title), ["public let title: String が無い"], "負例: title の Optional 変異"
+
+  optional_full = good.sub("public let fullTitle: String\n", "public let fullTitle: String?\n")
+  selftest_errors_eq check_public_api(optional_full), ["public let fullTitle: String が無い"], "負例: fullTitle の Optional 変異"
+
+  no_title_public = good.sub("public let title: String", "let title: String")
+  selftest_errors_eq check_public_api(no_title_public), ["public let title: String が無い"], "負例: title の public 欠落"
+
+  no_public_enum = good.sub("public enum SessionTitleDeriver", "enum SessionTitleDeriver")
+  selftest_errors_eq check_public_api(no_public_enum), ["SessionTitleDeriver が public ではない"], "負例: enum の public 欠落"
+
+  banned = good + "\nimport Observation\n"
+  selftest_errors_eq check_imports_and_purity(banned), ["許可していない import Observation"], "負例: 禁止依存 Observation"
 
   io = good.sub("DerivedSessionTitle(title: text, fullTitle: text)", "FileManager.default")
-  selftest_assert check_imports_and_purity(io).any? { |m| m.include?("FileManager") }, "負例: I/O 依存"
+  selftest_errors_eq check_imports_and_purity(io), ["SessionTitleDeriver.swift に FileManager がある"], "負例: I/O 依存 FileManager"
 
-  string_decoy = good + %(\nlet x = "import Combine FileManager View"\n)
-  selftest_assert check_imports_and_purity(string_decoy).empty?, "正例: 文字列内の禁止語は依存ではない"
-  comment_decoy = good + "\n// import Combine\n// FileManager.default\n"
-  selftest_assert check_imports_and_purity(comment_decoy).empty?, "正例: コメント内の禁止語は依存ではない"
+  selftest_errors_eq(
+    check_imports_and_purity(with_body_stmt(good, "print(text)")),
+    ["SessionTitleDeriver.swift に print がある"],
+    "負例: print"
+  )
+  selftest_errors_eq(
+    check_imports_and_purity(with_body_stmt(good, "let _ = ProcessInfo.processInfo")),
+    ["SessionTitleDeriver.swift に ProcessInfo がある"],
+    "負例: ProcessInfo"
+  )
+  selftest_errors_eq(
+    check_imports_and_purity(with_body_stmt(good, "let _ = Date()")),
+    ["SessionTitleDeriver.swift に Date がある"],
+    "負例: Date"
+  )
+  selftest_errors_eq(
+    check_imports_and_purity(with_body_stmt(good, "let _ = x.now")),
+    ["SessionTitleDeriver.swift に .now がある"],
+    "負例: .now"
+  )
+  selftest_errors_eq(
+    check_imports_and_purity(with_body_stmt(good, "let _ = Int.random(in: 0...1)")),
+    ["SessionTitleDeriver.swift に random がある"],
+    "負例: random"
+  )
+  selftest_errors_eq(
+    check_imports_and_purity(with_body_stmt(good, "let _ = UserDefaults.standard")),
+    ["SessionTitleDeriver.swift に UserDefaults がある"],
+    "負例: UserDefaults"
+  )
+  selftest_errors_eq(
+    check_imports_and_purity(with_body_stmt(good, 'let _ = "\\(print(text))"')),
+    ["SessionTitleDeriver.swift に print がある"],
+    "負例: 文字列補間内の print"
+  )
 
-  base_files = {
-    "#{AGENT_DOMAIN_SRC}/FlowerNameGenerator.swift" => "import Foundation\n",
-  }
-  selftest_assert other_sources_errors(base_files, base_files).empty?, "正例: 新規ファイル以外が基準 blob と同一"
-  changed = { "#{AGENT_DOMAIN_SRC}/FlowerNameGenerator.swift" => "changed\n" }
-  selftest_assert other_sources_errors(changed, base_files).any? { |m| m.include?("同一ではない") }, "負例: 既存ソース改変"
-  with_new = base_files.merge(DERIVER_PATH => good)
-  selftest_assert other_sources_errors(with_new, base_files).empty?, "正例: SessionTitleDeriver.swift 追加は既存比較から除外"
-  extra = base_files.merge("#{AGENT_DOMAIN_SRC}/Extra.swift" => "x\n")
-  selftest_assert other_sources_errors(extra, base_files).any? { |m| m.include?("新規製品ファイル") }, "負例: 許可外の新規ソース"
+  attr_darwin = "@preconcurrency import Darwin\n" + good
+  selftest_errors_eq check_imports_and_purity(attr_darwin), ["許可していない import Darwin"], "負例: 属性付き import Darwin"
 
-  selftest_assert package_errors("pkg\n", "pkg\n").empty?, "正例: Package.swift が基準と同一"
-  selftest_assert package_errors("pkg2\n", "pkg\n").any? { |m| m.include?("Package.swift") }, "負例: Package.swift 改変（依存追加）"
-  selftest_assert package_errors(nil, "pkg\n").any? { |m| m.include?("存在しない") }, "負例: Package.swift 不在"
-  selftest_assert package_errors("pkg\n", nil).any? { |m| m.include?("git show") }, "負例: Package.swift blob 欠落"
+  attr_foundation = good.sub("import Foundation", "@preconcurrency import Foundation")
+  selftest_errors_eq check_imports_and_purity(attr_foundation), [], "正例: 属性付き import Foundation は許可"
+
+  string_decoy = good + %(\nlet x = "import Combine FileManager View print ProcessInfo Date random UserDefaults"\n)
+  selftest_errors_eq check_imports_and_purity(string_decoy), [], "正例: 文字列内の禁止語は依存ではない"
+  comment_decoy = good + "\n// import Combine\n// FileManager.default\n// print(ProcessInfo.processInfo)\n"
+  selftest_errors_eq check_imports_and_purity(comment_decoy), [], "正例: コメント内の禁止語は依存ではない"
+
+  flower = "#{AGENT_DOMAIN_SRC}/FlowerNameGenerator.swift"
+  extra = "#{AGENT_DOMAIN_SRC}/SessionTitleState.swift"
+  base_files = { flower => "import Foundation\n" }
+  pkg = "pkg\n"
+  with_follow_on = base_files.merge(DERIVER_PATH => good, extra => "x\n")
+  with_only_deriver = base_files.merge(DERIVER_PATH => good)
+  changed_existing = { flower => "changed\n", DERIVER_PATH => good }
+
+  selftest_errors_eq other_sources_errors(base_files, base_files), [], "正例: 新規ファイル以外が基準 blob と同一"
+  selftest_errors_eq(
+    other_sources_errors({ flower => "changed\n" }, base_files),
+    ["#{flower} が基準 blob と同一ではない"],
+    "負例: 既存ソース改変"
+  )
+  selftest_errors_eq other_sources_errors(with_only_deriver, base_files), [], "正例: SessionTitleDeriver.swift 追加は既存比較から除外"
+  selftest_errors_eq(
+    other_sources_errors(base_files.merge(extra => "x\n"), base_files),
+    ["新規製品ファイル #{extra} がある（許可は SessionTitleDeriver.swift のみ）"],
+    "負例: 許可外の新規ソース"
+  )
+
+  selftest_errors_eq package_errors("pkg\n", "pkg\n"), [], "正例: Package.swift が基準と同一"
+  selftest_errors_eq(
+    package_errors("pkg2\n", "pkg\n"),
+    ["AgentDomain の Package.swift が基準 blob と同一ではない（依存追加なし）"],
+    "負例: Package.swift 改変（依存追加）"
+  )
+  selftest_errors_eq package_errors(nil, "pkg\n"), ["Package.swift が存在しない"], "負例: Package.swift 不在"
+  selftest_errors_eq package_errors("pkg\n", nil), ["基準時点の Package.swift を git show できない"], "負例: Package.swift blob 欠落"
+
+  selftest_errors_eq(
+    collect_checks(good, with_follow_on, base_files, pkg, pkg, false),
+    [],
+    "正例: 導出契約回帰（SCOPE オフ）は後続ファイル追加を通す"
+  )
+  selftest_errors_eq(
+    collect_checks(optional_title, with_follow_on, base_files, pkg, pkg, false),
+    ["public let title: String が無い"],
+    "負例: 導出契約回帰（SCOPE オフ）は Optional 変異を落とす"
+  )
+  selftest_errors_eq(
+    collect_checks(good, with_only_deriver, base_files, pkg, pkg, true),
+    [],
+    "正例: 変更範囲検査（SCOPE オン）は Deriver 追加と他ファイル不変を通す"
+  )
+  selftest_errors_eq(
+    collect_checks(good, with_follow_on, base_files, pkg, pkg, true),
+    ["新規製品ファイル #{extra} がある（許可は SessionTitleDeriver.swift のみ）"],
+    "負例: 変更範囲検査（SCOPE オン）は他ファイル追加を落とす"
+  )
+  selftest_errors_eq(
+    collect_checks(good, changed_existing, base_files, pkg, pkg, true),
+    ["#{flower} が基準 blob と同一ではない"],
+    "負例: 変更範囲検査（SCOPE オン）は既存ソース改変を落とす"
+  )
+  selftest_errors_eq(
+    collect_checks(good, with_only_deriver, base_files, "pkg2\n", pkg, true),
+    ["AgentDomain の Package.swift が基準 blob と同一ではない（依存追加なし）"],
+    "負例: 変更範囲検査（SCOPE オン）は Package.swift 改変を落とす"
+  )
+  selftest_errors_eq(
+    scope_source_errors({}, {}, "deadbeef"),
+    ["baseline deadbeef から AgentDomain ソースを読めない（黙示的成功にしない）"],
+    "負例: 変更範囲検査で baseline ソース欠落"
+  )
+
+  with_env("TASK41_SCOPE_CHECK", "1") { selftest_assert scope_check_requested?, "正例: SCOPE_CHECK=1 で変更範囲検査 ON" }
+  with_env("TASK41_SCOPE_CHECK", "0") { selftest_assert !scope_check_requested?, "負例: SCOPE_CHECK=0 では変更範囲検査 OFF" }
+  with_env("TASK41_SCOPE_CHECK", nil) { selftest_assert !scope_check_requested?, "正例: 未設定では導出契約回帰のみ" }
 
   unset, unset_errs = baseline_env_errors(nil)
-  selftest_assert unset.nil? && unset_errs.any? { |m| m.include?("未設定") }, "負例: SHA 未設定"
+  selftest_assert unset.nil?, "負例: SHA 未設定は baseline を返さない"
+  selftest_errors_eq unset_errs, ["TASK41_BASELINE が未設定（HEAD にフォールバックしない）"], "負例: SHA 未設定"
   _, head_errs = baseline_env_errors("HEAD")
-  selftest_assert head_errs.any? { |m| m.include?("HEAD") }, "負例: HEAD 指定"
+  selftest_errors_eq head_errs, ["TASK41_BASELINE に HEAD は使えない（短い SHA を渡す）"], "負例: HEAD 指定"
   _, head1_errs = baseline_env_errors("HEAD~1")
-  selftest_assert head1_errs.any? { |m| m.include?("HEAD") }, "負例: HEAD~1 指定"
+  selftest_errors_eq head1_errs, ["TASK41_BASELINE に HEAD は使えない（短い SHA を渡す）"], "負例: HEAD~1 指定"
   _, at_errs = baseline_env_errors("@")
-  selftest_assert at_errs.any? { |m| m.include?("HEAD") }, "負例: @ 指定"
+  selftest_errors_eq at_errs, ["TASK41_BASELINE に HEAD は使えない（短い SHA を渡す）"], "負例: @ 指定"
   _, branch_errs = baseline_env_errors("main")
-  selftest_assert branch_errs.any? { |m| m.include?("ブランチ") || m.include?("SHA") }, "負例: ブランチ名は不正"
+  selftest_errors_eq branch_errs, ["TASK41_BASELINE がコミット SHA ではない（ブランチ名は使えない）: main"], "負例: ブランチ名は不正"
   _, bad_errs = baseline_env_errors("not-a-sha")
-  selftest_assert bad_errs.any? { |m| m.include?("SHA") }, "負例: 不正 SHA"
+  selftest_errors_eq bad_errs, ["TASK41_BASELINE がコミット SHA ではない（ブランチ名は使えない）: not-a-sha"], "負例: 不正 SHA"
   sha, sha_errs = baseline_env_errors("abc1234")
   selftest_assert sha == "abc1234" && sha_errs.empty?, "正例: HEAD と一致し得る SHA 形式は拒否しない"
 
@@ -477,14 +811,18 @@ def run_selftest
   selftest_assert !workdir_matches_git_blob?("a", nil), "負例: git show 失敗は同一ではない"
   selftest_assert !workdir_matches_git_blob?("a", "b"), "負例: git show 内容の不一致"
 
-  selftest_assert frozen_artifact_errors("受け入れテスト", "blob", "blob").empty?, "正例: 凍結テストが作業ツリーと同一"
-  selftest_assert frozen_artifact_errors("受け入れテスト", nil, "blob").any? { |m| m.include?("git show") }, "負例: blob 欠落"
-  selftest_assert frozen_artifact_errors("受け入れテスト", "blob", "changed").any? { |m| m.include?("同一ではない") }, "負例: テスト改変"
-  selftest_assert frozen_artifact_errors("rb 自身", "rb", "rb").empty?, "正例: 凍結 rb が作業ツリーと同一"
-  selftest_assert frozen_artifact_errors("rb 自身", "rb", "changed").any? { |m| m.include?("同一ではない") }, "負例: 検査改変"
+  selftest_errors_eq frozen_artifact_errors("受け入れテスト", "blob", "blob"), [], "正例: 凍結テストが作業ツリーと同一"
+  selftest_errors_eq frozen_artifact_errors("受け入れテスト", nil, "blob"), ["基準時点の受け入れテストを git show できない"], "負例: blob 欠落"
+  selftest_errors_eq frozen_artifact_errors("受け入れテスト", "blob", "changed"), ["基準時点の受け入れテストが現在と同一ではない"], "負例: テスト改変"
+  selftest_errors_eq frozen_artifact_errors("rb 自身", "rb", "rb"), [], "正例: 凍結 rb が作業ツリーと同一"
+  selftest_errors_eq frozen_artifact_errors("rb 自身", "rb", "changed"), ["基準時点のrb 自身が現在と同一ではない"], "負例: 検査改変"
 
-  selftest_assert implementation_in_baseline_errors(nil).empty?, "正例: 基準に SessionTitleDeriver.swift 不在"
-  selftest_assert implementation_in_baseline_errors(good).any? { |m| m.include?("SessionTitleDeriver.swift") }, "負例: 実装入り基準"
+  selftest_errors_eq implementation_in_baseline_errors(nil), [], "正例: 基準に SessionTitleDeriver.swift 不在"
+  selftest_errors_eq(
+    implementation_in_baseline_errors(good),
+    ["基準時点に SessionTitleDeriver.swift がある（実装前の凍結ではない）"],
+    "負例: 実装入り基準"
+  )
 
   head_full = git_full_sha("HEAD")
   selftest_assert !head_full.nil?, "正例: HEAD を完全 SHA に解決できる"
@@ -498,21 +836,30 @@ def run_selftest
   selftest_assert parse_contract_baseline_text("---\nbaseline_commit: abc1234\n") == "abc1234", "正例: 契約 baseline_commit がクォート無し SHA"
   selftest_assert parse_contract_baseline_text("---\nbaseline_commit: 'abc1234'\n") == "abc1234", "正例: 契約 baseline_commit が単一クォート SHA"
   ph_errs = contract_baseline_errors("---\nbaseline_commit: \"PM が凍結時に設定\"\n", "abc1234")
-  selftest_assert ph_errs.any? { |m| m.include?("プレースホルダ") }, "負例: プレースホルダは NG"
+  selftest_errors_eq ph_errs, ["契約 baseline_commit がプレースホルダ（凍結時に実 SHA へ置換する）"], "負例: プレースホルダは NG"
 
   parent_full = git_full_sha("HEAD~1")
   if head_full && parent_full && head_full != parent_full
     mismatch_errs = contract_baseline_errors("---\nbaseline_commit: \"#{head_full}\"\n", parent_full)
-    selftest_assert mismatch_errs.any? { |m| m.include?("一致しない") }, "負例: TASK41_BASELINE と契約の不一致"
+    selftest_errors_eq mismatch_errs, ["TASK41_BASELINE が契約 baseline_commit と一致しない"], "負例: TASK41_BASELINE と契約の不一致"
     match_errs = contract_baseline_errors("---\nbaseline_commit: \"#{head_full}\"\n", head_full)
-    selftest_assert match_errs.empty?, "正例: TASK41_BASELINE が契約 baseline_commit と一致"
+    selftest_errors_eq match_errs, [], "正例: TASK41_BASELINE が契約 baseline_commit と一致"
     short = head_full[0, 7]
     short_errs = contract_baseline_errors("---\nbaseline_commit: #{head_full}\n", short)
-    selftest_assert short_errs.empty?, "正例: 短い SHA も完全 SHA に解決して一致"
+    selftest_errors_eq short_errs, [], "正例: 短い SHA も完全 SHA に解決して一致"
   else
     mismatch_errs = contract_baseline_errors("---\nbaseline_commit: \"aaaaaaaa\"\n", "bbbbbbbb")
     selftest_assert mismatch_errs.any? { |m| m.include?("一致しない") || m.include?("無効") }, "負例: TASK41_BASELINE と契約の不一致"
   end
+
+  prod = production_checks_source
+  selftest_assert !prod.empty?, "正例: 本番検査セクションが存在する"
+  selftest_assert baseline_check_connected?(prod), "正例: 基準検査が本番に接続されている"
+  disconnected = prod.gsub("check_frozen_baseline", "removed_fn")
+  selftest_assert !baseline_check_connected?(disconnected), "負例: 基準検査の本番接続を外す変異"
+  selftest_assert scope_check_gated?(prod), "正例: 変更範囲検査が TASK41_SCOPE_CHECK でゲートされている"
+  ungated = prod.gsub("if baseline && scope_check_requested?", "if baseline")
+  selftest_assert !scope_check_gated?(ungated), "負例: 変更範囲検査のゲートを外す変異"
 end
 
 if ARGV.include?("--selftest")
@@ -521,6 +868,7 @@ if ARGV.include?("--selftest")
   exit 0
 end
 
+# === task41 production checks ===
 ng = []
 
 raw = ENV["TASK41_BASELINE"]
@@ -546,17 +894,12 @@ if baseline
 end
 
 deriver = read_if_exist(DERIVER_PATH)
-ng.concat(check_public_api(deriver))
-ng.concat(check_imports_and_purity(deriver))
+ng.concat(derivation_contract_errors(deriver))
 
-if baseline
+if baseline && scope_check_requested?
   current_sources = worktree_agent_domain_sources
   previous_sources = baseline_agent_domain_sources(baseline)
-  if previous_sources.empty?
-    ng << "baseline #{baseline} から AgentDomain ソースを読めない（黙示的成功にしない）"
-  else
-    ng.concat(other_sources_errors(current_sources, previous_sources))
-  end
+  ng.concat(scope_source_errors(current_sources, previous_sources, baseline))
   ng.concat(package_errors(read_if_exist(PACKAGE_PATH), git_show(baseline, PACKAGE_PATH)))
 end
 

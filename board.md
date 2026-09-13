@@ -24,7 +24,7 @@
 | task-37 | standard | done |
 | task-38 | standard | done |
 | task-39 | deep | done |
-| task-40 | standard | done_pending_review |
+| task-40 | standard | done |
 | task-41 | standard | done |
 | task-43 | standard | pending |
 | task-44 | deep | pending |

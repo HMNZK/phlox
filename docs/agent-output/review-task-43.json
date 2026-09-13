@@ -1,0 +1,90 @@
+{
+  "reviewer": "codex-gpt-6-astra",
+  "dimensions_swept": [
+    {
+      "dimension": "契約適合",
+      "result": "ok",
+      "note": "契約全文・成功基準1/2・PM調整・敵対レビュー反映を照合。公開モデル、文言、既定引数、10ファイルの配線が適合。"
+    },
+    {
+      "dimension": "正しさ",
+      "result": "ok",
+      "note": "名前のnil・空・空白・改行、親の作業名欠損、送信不可理由の優先順位を確認。作業名の前後空白除去はPM採択済み期待値と一致。"
+    },
+    {
+      "dimension": "誠実性",
+      "result": "ok",
+      "note": "提供diffは026ed2d..HEADの製品差分とバイト一致。凍結テスト2本とrbは変更なし。実装役レポートは未読。"
+    },
+    {
+      "dimension": "根本原因",
+      "result": "ok",
+      "note": "送信するVM・既存の根resolver・既存actionから表示を導出し、宛先を推測する別規則を追加していない。"
+    },
+    {
+      "dimension": "構造",
+      "result": "ok",
+      "note": "共通モデルはFoundationのみ。Agora変換はDashboardFeature側に置かれ、ルーティングや親探索の複製なし。"
+    },
+    {
+      "dimension": "到達性",
+      "result": "ok",
+      "note": "3入力欄の製品経路から可視Textまで静的に追跡。宛先なしでも表示する。実画面確認は依頼どおり別途PMゲート。"
+    },
+    {
+      "dimension": "非機能",
+      "result": "ok",
+      "note": "指定フォント・色、1行省略、全文help・AXラベル・identifierを確認。保存・通信・タイマー・依存追加なし。"
+    },
+    {
+      "dimension": "テストの質",
+      "result": "ok",
+      "note": "リテラル期待値、Bool8組、phase12組、実resolver合成を確認。画面名付きモデルテストを実画面被覆とは数えず、配線はrbで補完。"
+    },
+    {
+      "dimension": "Rubric：宛先との一致",
+      "result": "ok",
+      "note": "PaneLayoutView:69はタイル自身のsession.projectIDを使用。作業名は各composerのviewModel.displayName、親送信はcomposerTargetNodeを使用。"
+    },
+    {
+      "dimension": "Rubric：既存分岐の利用",
+      "result": "ok",
+      "note": "TeamTimelineView:195と:476のaction呼び出しは同一のphase・開始可否。終了後・結論中も既存分岐を再利用。"
+    },
+    {
+      "dimension": "Rubric：送信条件の維持",
+      "result": "ok",
+      "note": "canSubmit・disabled・submit・送信先・編集可否・フォーカスは不変。添付はOR条件、readinessは既存値を使用し、討論開始可否による有効化なし。"
+    },
+    {
+      "dimension": "Rubric：構造",
+      "result": "ok",
+      "note": "SessionFeatureからDashboardFeatureへの逆依存なし。VMへの保存項目や命名用AI呼び出しの追加なし。"
+    },
+    {
+      "dimension": "Rubric：到達性",
+      "result": "ok",
+      "note": "Dashboardから実プロジェクト名を中間View経由で渡しており、既定nil・空辞書への取り落としなし。TeamComposerのTextは無条件。"
+    },
+    {
+      "dimension": "Rubric：切替追随",
+      "result": "ok",
+      "note": "表示値は現在の引数・観測状態から再計算。新しいState・キャッシュなし。既存readiness更新方式も不変。"
+    },
+    {
+      "dimension": "Rubric：レイアウト・アクセシビリティ",
+      "result": "ok",
+      "note": "ラベルは編集領域の直前。単一・グリッドの高さ計測内、チームはScrollView外の通常レイアウト内。ADR0046からの1行分増加は採択済み。狭幅の実画面確認はPM担当。"
+    },
+    {
+      "dimension": "Rubric：検証の誠実性",
+      "result": "ok",
+      "note": "固定基準と凍結成果物比較、自己比較拒否、変異selftestを静的確認。テスト実走・実画面・実送信の確認範囲を区別した。"
+    }
+  ],
+  "verdict": "pass",
+  "tests_run": [],
+  "findings": [],
+  "integrity_check": "握りつぶし・テスト弱体化は対象差分で検出せず。実走は未検証で、persona-reviewの環境例外3条件を適用した。① `/Users/ryosuke/.agents/scripts/compact-test task43-packages bash macos/scripts/run-swift-tests.sh SessionFeature DashboardFeature` を試行したが、原文 `mktemp: mkstemp failed on /tmp/tmp.ZeQ1c454Ux: Operation not permitted`、`/Users/ryosuke/.agents/scripts/compact-test: line 26: : No such file or directory`、`cat: : No such file or directory` でexit 1。TASK43_BASELINE=026ed2d付き配線検査とselftestもラッパーのmktempで同様に失敗した。②製品コードやランナーの起動前に、read-only環境で一時ログ作成が拒否された。回避策・ラッパー迂回は実施していない。③呼び出し元が独立確認済みのSessionFeature 930件・DashboardFeature 1716件GREEN、配線検査・selftest・diffチェックGREENを供給している。自身では製品範囲の `git diff --check 026ed2d HEAD -- macos/Packages/SessionFeature/Sources macos/Packages/DashboardFeature/Sources` のexit 0を確認したが、テスト実走には数えていない。PM実画面ゲートの完了は主張しない。",
+  "root_cause_assessment": "根本原因に到達している。入力欄の実送信先と既存の送信操作をその場で表示し、送信動作自体を変更していない。静的変異検査では、(1)送信不可理由の優先順位を逆転するとconversationSendabilityEightCases等のfalse組のリテラル期待値に不一致、(2)正規化を削除するとprojectNameMissingBecomesUnknown等に不一致、(3)startDiscussionを親送信へ変換するとphaseTableLiteralsの終了後・開始可能ケースに不一致となる。(4)タイル名をfocusedSessionへ差し替える、添付ORをANDへ変える、討論開始可否でボタンを有効化する変異は、rbの取得元検査・has_content_defects・凍結述語比較が拒否する。(5)Text削除・AX移動・高さ計測削除・submitやフォーカス変更も、対応する配線検査とselftestの負例で拒否される構造を確認した。これらはコード読解による変異評価であり、この環境での変異実走ではない。"
+}

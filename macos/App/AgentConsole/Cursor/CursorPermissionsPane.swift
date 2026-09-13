@@ -8,18 +8,25 @@ import DesignSystem
 /// 「設定」ペインの承認モードが決める。
 struct CursorPermissionsPane: View {
     @Bindable var model: CursorConsoleModel
+    @Environment(\.locale) private var locale
 
     @State private var draftRule = ""
     @State private var draftBucket: CursorPermissionBucket = .allow
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     private var rules: CursorPermissionRules {
         CursorPermissionRules.extract(from: model.settings)
     }
 
+    private var intro: UIWording.PermissionWording {
+        UIWording.permission(agent: .cursor, kind: .permissionsPaneIntro, value: nil, languageCode: languageCode)
+    }
+
     var body: some View {
         AgentConsolePane(
-            title: "権限",
-            subtitle: "~/.cursor/cli-config.json の permissions を編集します。拒否は許可より優先されます。",
+            title: intro.title,
+            subtitle: intro.explanation,
             controls: AnyView(editor)
         ) {
             VStack(alignment: .leading, spacing: DSSpacing.xl) {
@@ -35,7 +42,8 @@ struct CursorPermissionsPane: View {
         HStack(spacing: DSSpacing.s) {
             Picker("", selection: $draftBucket) {
                 ForEach(CursorPermissionBucket.allCases) { bucket in
-                    Label(bucket.displayName, systemImage: bucket.symbolName).tag(bucket)
+                    let w = UIWording.permission(agent: .cursor, kind: .cursorRuleBucket, value: bucket.rawValue, languageCode: languageCode)
+                    Label(w.title, systemImage: bucket.symbolName).tag(bucket)
                 }
             }
             .labelsHidden()
@@ -55,16 +63,18 @@ struct CursorPermissionsPane: View {
     @ViewBuilder
     private func bucketSection(_ bucket: CursorPermissionBucket) -> some View {
         let entries = rules[bucket]
+        let w = UIWording.permission(agent: .cursor, kind: .cursorRuleBucket, value: bucket.rawValue, languageCode: languageCode)
         VStack(alignment: .leading, spacing: DSSpacing.s) {
             AgentConsoleGroupHeader(
-                title: bucket.displayName,
+                title: w.title,
                 systemImage: bucket.symbolName,
                 tint: tint(for: bucket),
                 detail: "\(entries.count) 件"
             )
-            Text(bucket.explanation)
+            Text(w.explanation)
                 .font(DSFont.caption)
                 .foregroundStyle(DSColor.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
 
             if entries.isEmpty {
                 AgentConsoleEmptyState(symbolName: bucket.symbolName, message: "ルールはありません。")

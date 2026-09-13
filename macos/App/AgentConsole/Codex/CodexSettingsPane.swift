@@ -8,10 +8,13 @@ import DesignSystem
 /// 書き込み前の内容は `config.toml.phlox-backup` に残る。
 struct CodexSettingsPane: View {
     @Bindable var model: CodexConsoleModel
+    @Environment(\.locale) private var locale
 
     /// モデル名だけは自由入力なので、確定するまでの下書きを持つ。
     @State private var modelDraft = ""
     @State private var loadedModelValue: String?
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     var body: some View {
         AgentConsolePane(
@@ -43,13 +46,31 @@ struct CodexSettingsPane: View {
             VStack(alignment: .leading, spacing: DSSpacing.s) {
                 HStack(alignment: .firstTextBaseline, spacing: DSSpacing.m) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(key.displayName)
-                            .font(DSFont.body.weight(.medium))
-                            .foregroundStyle(DSColor.textPrimary)
-                        Text(key.explanation)
-                            .font(DSFont.caption)
-                            .foregroundStyle(DSColor.textTertiary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        if key == .approvalPolicy {
+                            Text(UIWording.permission(agent: .codex, kind: .settingKeyTitle, value: "approval_policy", languageCode: languageCode).title)
+                                .font(DSFont.body.weight(.medium))
+                                .foregroundStyle(DSColor.textPrimary)
+                            Text(UIWording.permission(agent: .codex, kind: .codexApprovalPolicy, value: current, languageCode: languageCode).explanation)
+                                .font(DSFont.caption)
+                                .foregroundStyle(DSColor.textTertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else if key == .sandboxMode {
+                            Text(UIWording.permission(agent: .codex, kind: .settingKeyTitle, value: "sandbox_mode", languageCode: languageCode).title)
+                                .font(DSFont.body.weight(.medium))
+                                .foregroundStyle(DSColor.textPrimary)
+                            Text(UIWording.permission(agent: .codex, kind: .codexSandboxMode, value: current, languageCode: languageCode).explanation)
+                                .font(DSFont.caption)
+                                .foregroundStyle(DSColor.textTertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            Text(key.displayName)
+                                .font(DSFont.body.weight(.medium))
+                                .foregroundStyle(DSColor.textPrimary)
+                            Text(key.explanation)
+                                .font(DSFont.caption)
+                                .foregroundStyle(DSColor.textTertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     Spacer(minLength: DSSpacing.m)
                     Text(key.rawValue)
@@ -58,7 +79,13 @@ struct CodexSettingsPane: View {
                 }
 
                 if key.isEnumerated {
-                    choiceControl(key, current: current)
+                    if key == .sandboxMode {
+                        choiceControl(key, current, kind: .codexSandboxMode)
+                    } else if key == .approvalPolicy {
+                        choiceControl(key, current, kind: .codexApprovalPolicy)
+                    } else {
+                        choiceControl(key, current, kind: .codexApprovalPolicy)
+                    }
                 } else {
                     modelControl(current: current)
                 }
@@ -69,7 +96,7 @@ struct CodexSettingsPane: View {
     }
 
     /// 選択肢のあるキー。「既定」を選ぶとキーごと消える。
-    private func choiceControl(_ key: CodexSettingKey, current: String?) -> some View {
+    private func choiceControl(_ key: CodexSettingKey, _ current: String?, kind: UIWording.PermissionKind) -> some View {
         Picker("", selection: Binding(
             get: { current ?? "" },
             set: { newValue in
@@ -82,9 +109,13 @@ struct CodexSettingsPane: View {
                 )
             }
         )) {
-            Text("既定（未設定）").tag("")
+            Text(UIWording.permission(agent: .codex, kind: kind, value: nil, languageCode: languageCode).title).tag("")
             ForEach(key.options(current: current), id: \.self) { option in
-                Text(option).tag(option)
+                if kind == .codexSandboxMode {
+                    Text(UIWording.permission(agent: .codex, kind: .codexSandboxMode, value: option, languageCode: languageCode).title).tag(option)
+                } else {
+                    Text(UIWording.permission(agent: .codex, kind: .codexApprovalPolicy, value: option, languageCode: languageCode).title).tag(option)
+                }
             }
         }
         .labelsHidden()

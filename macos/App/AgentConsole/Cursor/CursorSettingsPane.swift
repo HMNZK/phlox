@@ -8,6 +8,9 @@ import DesignSystem
 /// ここで扱わないキーはそのまま残る。
 struct CursorSettingsPane: View {
     @Bindable var model: CursorConsoleModel
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     var body: some View {
         AgentConsolePane(
@@ -36,17 +39,36 @@ struct CursorSettingsPane: View {
 
     @ViewBuilder
     private func settingRow(_ key: CursorSettingKey) -> some View {
+        let current = CursorGeneralSettings.string(key, in: model.settings)
         AgentConsoleCard {
             HStack(alignment: .firstTextBaseline, spacing: DSSpacing.m) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(key.displayName)
-                        .font(DSFont.body)
-                        .foregroundStyle(DSColor.textPrimary)
-                    if let explanation = key.explanation {
-                        Text(explanation)
+                    if key == .approvalMode {
+                        Text(UIWording.permission(agent: .cursor, kind: .settingKeyTitle, value: "approvalMode", languageCode: languageCode).title)
+                            .font(DSFont.body)
+                            .foregroundStyle(DSColor.textPrimary)
+                        Text(UIWording.permission(agent: .cursor, kind: .cursorApprovalMode, value: current, languageCode: languageCode).explanation)
                             .font(DSFont.caption)
                             .foregroundStyle(DSColor.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
+                    } else if key == .sandboxMode {
+                        Text(UIWording.permission(agent: .cursor, kind: .settingKeyTitle, value: "sandbox.mode", languageCode: languageCode).title)
+                            .font(DSFont.body)
+                            .foregroundStyle(DSColor.textPrimary)
+                        Text(UIWording.permission(agent: .cursor, kind: .cursorSandboxMode, value: current, languageCode: languageCode).explanation)
+                            .font(DSFont.caption)
+                            .foregroundStyle(DSColor.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text(key.displayName)
+                            .font(DSFont.body)
+                            .foregroundStyle(DSColor.textPrimary)
+                        if let explanation = key.explanation {
+                            Text(explanation)
+                                .font(DSFont.caption)
+                                .foregroundStyle(DSColor.textTertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
                 Spacer(minLength: DSSpacing.m)
@@ -84,10 +106,14 @@ struct CursorSettingsPane: View {
                 }
             )) {
                 if current == nil {
-                    Text("既定（未設定）").tag("")
+                    Text(UIWording.permission(agent: .cursor, kind: .cursorApprovalMode, value: nil, languageCode: languageCode).title).tag("")
                 }
                 ForEach(key.options(current: current), id: \.self) { option in
-                    Text(option).tag(option)
+                    if key == .approvalMode {
+                        Text(UIWording.permission(agent: .cursor, kind: .cursorApprovalMode, value: option, languageCode: languageCode).title).tag(option)
+                    } else {
+                        Text(UIWording.permission(agent: .cursor, kind: .cursorSandboxMode, value: option, languageCode: languageCode).title).tag(option)
+                    }
                 }
             }
             .labelsHidden()

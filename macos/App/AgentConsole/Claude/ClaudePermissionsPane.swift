@@ -5,18 +5,25 @@ import DesignSystem
 /// `/permissions` 相当。`~/.claude/settings.json` の `permissions` を直接編集する。
 struct ClaudePermissionsPane: View {
     @Bindable var model: ClaudeConsoleModel
+    @Environment(\.locale) private var locale
 
     @State private var draftRule = ""
     @State private var draftBucket: ClaudePermissionBucket = .allow
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     private var rules: ClaudePermissionRules {
         ClaudePermissionRules.extract(from: model.settings)
     }
 
+    private var intro: UIWording.PermissionWording {
+        UIWording.permission(agent: .claude, kind: .permissionsPaneIntro, value: nil, languageCode: languageCode)
+    }
+
     var body: some View {
         AgentConsolePane(
-            title: "権限",
-            subtitle: "対話 TUI の /permissions に相当します。~/.claude/settings.json の permissions を編集します。",
+            title: intro.title,
+            subtitle: intro.explanation,
             controls: AnyView(editor)
         ) {
             VStack(alignment: .leading, spacing: DSSpacing.xl) {
@@ -32,7 +39,8 @@ struct ClaudePermissionsPane: View {
         HStack(spacing: DSSpacing.s) {
             Picker("", selection: $draftBucket) {
                 ForEach(ClaudePermissionBucket.allCases) { bucket in
-                    Label(bucket.displayName, systemImage: bucket.symbolName).tag(bucket)
+                    let w = UIWording.permission(agent: .claude, kind: .claudeRuleBucket, value: bucket.rawValue, languageCode: languageCode)
+                    Label(w.title, systemImage: bucket.symbolName).tag(bucket)
                 }
             }
             .labelsHidden()
@@ -52,16 +60,18 @@ struct ClaudePermissionsPane: View {
     @ViewBuilder
     private func bucketSection(_ bucket: ClaudePermissionBucket) -> some View {
         let entries = rules[bucket]
+        let w = UIWording.permission(agent: .claude, kind: .claudeRuleBucket, value: bucket.rawValue, languageCode: languageCode)
         VStack(alignment: .leading, spacing: DSSpacing.s) {
             AgentConsoleGroupHeader(
-                title: bucket.displayName,
+                title: w.title,
                 systemImage: bucket.symbolName,
                 tint: tint(for: bucket),
                 detail: "\(entries.count) 件"
             )
-            Text(bucket.explanation)
+            Text(w.explanation)
                 .font(DSFont.caption)
                 .foregroundStyle(DSColor.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
 
             if entries.isEmpty {
                 AgentConsoleEmptyState(symbolName: bucket.symbolName, message: "ルールはありません。")

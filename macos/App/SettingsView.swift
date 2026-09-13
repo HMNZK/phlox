@@ -14,6 +14,9 @@ struct SettingsView: View {
     let mobileToken: MobileTokenViewModel?
 
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     @AppStorage(NotificationSettings.bannerKey) private var bannerNotificationEnabled = true
     @AppStorage(NotificationSettings.soundKey) private var completionSoundEnabled = true
@@ -238,7 +241,8 @@ struct SettingsView: View {
         } header: {
             Text("権限")
         } footer: {
-            Text("変更は次回セッション開始から反映されます。OFF は通常の安全モード（Claude Auto／Codex Auto／Cursor Auto-review）、ON は承認なしのフルアクセスです。信頼できるプロジェクトでのみ有効にしてください。")
+            Text(UIWording.settingsPermissionFooter(languageCode: languageCode))
+                .fixedSize(horizontal: false, vertical: true)
         }
 
         Section {
@@ -315,15 +319,38 @@ struct SettingsView: View {
     private struct BypassToggleRow: View {
         let descriptor: AgentDescriptor
         @AppStorage private var isEnabled: Bool
+        @Environment(\.locale) private var locale
+
+        private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
         init(descriptor: AgentDescriptor) {
             self.descriptor = descriptor
             _isEnabled = AppStorage(wrappedValue: true, descriptor.bypassKey)
         }
 
+        private var agentKind: UIWording.PermissionAgent {
+            switch descriptor.ref {
+            case .builtin(.claudeCode): .claude
+            case .builtin(.codex): .codex
+            case .builtin(.cursor): .cursor
+            default: .custom
+            }
+        }
+
         var body: some View {
+            let wording = UIWording.launchPermission(agent: agentKind, displayName: descriptor.displayName, languageCode: languageCode)
             Toggle(isOn: $isEnabled) {
-                Label("\(descriptor.displayName): フルアクセス（bypass）", systemImage: descriptor.symbolName)
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                    Label(wording.rowLabel, systemImage: descriptor.symbolName)
+                    Text(wording.offExplanation)
+                        .font(DSFont.caption)
+                        .foregroundStyle(DSColor.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(wording.onExplanation)
+                        .font(DSFont.caption)
+                        .foregroundStyle(DSColor.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }

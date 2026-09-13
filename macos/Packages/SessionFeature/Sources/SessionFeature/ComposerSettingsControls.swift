@@ -17,10 +17,9 @@ enum ComposerControlKind: Equatable, CaseIterable {
 struct ComposerModeOption: Hashable {
     let value: String?
     let title: String
+    let explanation: String
     let isPlan: Bool
 }
-
-private let dontAskModeCaption = "承認が要る操作は確認されずスキップされます"
 
 /// agentRef ごとに表示する設定コントロール集合（単一表示・グリッド表示の共通真実源）。
 func composerControls(for agentRef: AgentRef) -> [ComposerControlKind] {
@@ -40,25 +39,25 @@ func composerModeOptions(for agentRef: AgentRef, codexProfileIDs: [String], lang
     switch agentRef {
     case .builtin(.codex):
         codexProfileIDs.map {
-            ComposerModeOption(value: $0, title: composerPermissionTitle(for: $0, languageCode: languageCode), isPlan: false)
+            let w = UIWording.permission(agent: .codex, kind: .codexProfile, value: $0, languageCode: languageCode)
+            return ComposerModeOption(value: $0, title: w.title, explanation: w.explanation, isPlan: false)
         } + [
-            ComposerModeOption(value: "plan", title: UIWording.text(.planOption, languageCode: languageCode), isPlan: true),
+            ComposerModeOption(value: "plan", title: UIWording.text(.planOption, languageCode: languageCode), explanation: UIWording.permission(agent: .codex, kind: .codexProfile, value: "plan", languageCode: languageCode).explanation, isPlan: true),
         ]
     case .builtin(.claudeCode):
-        // Claude のモードごとの承認境界を表示し、Don't Ask の意味をキャプションで補足する。
         [
-            ComposerModeOption(value: "acceptEdits", title: "Accept Edits", isPlan: false),
-            ComposerModeOption(value: "auto", title: "Auto", isPlan: false),
-            ComposerModeOption(value: "bypassPermissions", title: "Bypass", isPlan: false),
-            ComposerModeOption(value: "manual", title: "Manual", isPlan: false),
-            ComposerModeOption(value: "dontAsk", title: "Don't Ask", isPlan: false),
-            ComposerModeOption(value: "plan", title: UIWording.text(.planOption, languageCode: languageCode), isPlan: true),
+            ComposerModeOption(value: "acceptEdits", title: UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: "acceptEdits", languageCode: languageCode).title, explanation: UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: "acceptEdits", languageCode: languageCode).explanation, isPlan: false),
+            ComposerModeOption(value: "auto", title: UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: "auto", languageCode: languageCode).title, explanation: UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: "auto", languageCode: languageCode).explanation, isPlan: false),
+            ComposerModeOption(value: "bypassPermissions", title: UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: "bypassPermissions", languageCode: languageCode).title, explanation: UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: "bypassPermissions", languageCode: languageCode).explanation, isPlan: false),
+            ComposerModeOption(value: "manual", title: UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: "manual", languageCode: languageCode).title, explanation: UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: "manual", languageCode: languageCode).explanation, isPlan: false),
+            ComposerModeOption(value: "dontAsk", title: UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: "dontAsk", languageCode: languageCode).title, explanation: UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: "dontAsk", languageCode: languageCode).explanation, isPlan: false),
+            ComposerModeOption(value: "plan", title: UIWording.text(.planOption, languageCode: languageCode), explanation: UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: "plan", languageCode: languageCode).explanation, isPlan: true),
         ]
     case .builtin(.cursor):
         [
-            ComposerModeOption(value: nil, title: "Agent", isPlan: false),
-            ComposerModeOption(value: "ask", title: "Ask", isPlan: false),
-            ComposerModeOption(value: "plan", title: UIWording.text(.planOption, languageCode: languageCode), isPlan: true),
+            ComposerModeOption(value: nil, title: UIWording.permission(agent: .cursor, kind: .cursorOperationMode, value: nil, languageCode: languageCode).title, explanation: UIWording.permission(agent: .cursor, kind: .cursorOperationMode, value: nil, languageCode: languageCode).explanation, isPlan: false),
+            ComposerModeOption(value: "ask", title: UIWording.permission(agent: .cursor, kind: .cursorOperationMode, value: "ask", languageCode: languageCode).title, explanation: UIWording.permission(agent: .cursor, kind: .cursorOperationMode, value: "ask", languageCode: languageCode).explanation, isPlan: false),
+            ComposerModeOption(value: "plan", title: UIWording.text(.planOption, languageCode: languageCode), explanation: UIWording.permission(agent: .cursor, kind: .cursorOperationMode, value: "plan", languageCode: languageCode).explanation, isPlan: true),
         ]
     default:
         []
@@ -66,13 +65,7 @@ func composerModeOptions(for agentRef: AgentRef, codexProfileIDs: [String], lang
 }
 
 func composerPermissionTitle(for id: String?, languageCode: String = "en") -> String {
-    switch id {
-    case ":read-only": "Read Only"
-    case ":workspace": "Auto"
-    case ":danger-full-access": "Full Access"
-    case .some(let value): value
-    case nil: UIWording.text(.approvalLabel, languageCode: languageCode)
-    }
+    UIWording.permission(agent: .codex, kind: .codexProfile, value: id, languageCode: languageCode).title
 }
 
 enum ComposerControlSide {
@@ -232,14 +225,14 @@ struct ComposerSettingsControlsView: View {
                         SettingsMenuRow(
                             title: option.title,
                             isSelected: modeOptionIsSelected(option, currentValue: selectedClaudePermission),
-                            detail: option.value == "dontAsk" ? dontAskModeCaption : nil
+                            explanation: option.explanation
                         )
                     }
                     .disabled(option.isPlan && !viewModel.isPlanModeAvailable)
                 }
             } label: {
                 ComposerControlChip(
-                    title: viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : Self.claudePermissionTitle(for: selectedClaudePermission),
+                    title: viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: selectedClaudePermission, languageCode: languageCode).title,
                     detail: nil,
                     emphasis: .pill,
                     layout: layout,
@@ -262,14 +255,15 @@ struct ComposerSettingsControlsView: View {
                     } label: {
                         SettingsMenuRow(
                             title: option.title,
-                            isSelected: modeOptionIsSelected(option, currentValue: viewModel.selectedPermissionProfile)
+                            isSelected: modeOptionIsSelected(option, currentValue: viewModel.selectedPermissionProfile),
+                            explanation: option.explanation
                         )
                     }
                     .disabled(option.isPlan && !viewModel.isPlanModeAvailable)
                 }
             } label: {
                 ComposerControlChip(
-                    title: viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : Self.cursorModeTitle(for: viewModel.selectedPermissionProfile),
+                    title: viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : UIWording.permission(agent: .cursor, kind: .cursorOperationMode, value: viewModel.selectedPermissionProfile, languageCode: languageCode).title,
                     detail: nil,
                     emphasis: .pill,
                     layout: layout,
@@ -303,7 +297,13 @@ struct ComposerSettingsControlsView: View {
     }
 
     private var selectedPermissionTitle: String {
-        viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : Self.permissionTitle(for: viewModel.selectedPermissionProfile, languageCode: languageCode)
+        if viewModel.isPlanMode {
+            UIWording.text(.planOption, languageCode: languageCode)
+        } else if viewModel.selectedPermissionProfile == nil {
+            UIWording.text(.approvalLabel, languageCode: languageCode)
+        } else {
+            UIWording.permission(agent: .codex, kind: .codexProfile, value: viewModel.selectedPermissionProfile, languageCode: languageCode).title
+        }
     }
 
     private var modelMenu: some View {
@@ -367,7 +367,8 @@ struct ComposerSettingsControlsView: View {
                     } label: {
                         SettingsMenuRow(
                             title: option.title,
-                            isSelected: modeOptionIsSelected(option, currentValue: viewModel.selectedPermissionProfile)
+                            isSelected: modeOptionIsSelected(option, currentValue: viewModel.selectedPermissionProfile),
+                            explanation: option.explanation
                         )
                     }
                     .disabled(option.isPlan && !viewModel.isPlanModeAvailable)
@@ -451,25 +452,6 @@ struct ComposerSettingsControlsView: View {
 
     private static let claudeDefaultPermission = "bypassPermissions"
 
-    private static func claudePermissionTitle(for value: String) -> String {
-        switch value {
-        case "acceptEdits": "Accept Edits"
-        case "auto": "Auto"
-        case "bypassPermissions": "Bypass"
-        case "manual": "Manual"
-        case "dontAsk": "Don't Ask"
-        default: value
-        }
-    }
-
-    private static func cursorModeTitle(for value: String?) -> String {
-        switch value {
-        case "ask": "Ask"
-        case .some(let raw): raw
-        case nil: "Agent"
-        }
-    }
-
     private static func spawnEffortTitle(for effort: String, languageCode: String) -> String {
         switch effort {
         case "low": UIWording.text(.effortLow, languageCode: languageCode)
@@ -489,10 +471,6 @@ struct ComposerSettingsControlsView: View {
         case "xhigh": UIWording.text(.effortXHigh, languageCode: languageCode)
         default: effort
         }
-    }
-
-    private static func permissionTitle(for id: String?, languageCode: String) -> String {
-        composerPermissionTitle(for: id, languageCode: languageCode)
     }
 }
 
@@ -785,7 +763,7 @@ struct ComposerSettingsOverflowMenu: View {
                 SettingsMenuRow(
                     title: option.title,
                     isSelected: modeOptionIsSelected(option, currentValue: selectedClaudePermission),
-                    detail: option.value == "dontAsk" ? dontAskModeCaption : nil
+                    explanation: option.explanation
                 )
             }
             .disabled(option.isPlan && !viewModel.isPlanModeAvailable)
@@ -801,7 +779,8 @@ struct ComposerSettingsOverflowMenu: View {
             } label: {
                 SettingsMenuRow(
                     title: option.title,
-                    isSelected: modeOptionIsSelected(option, currentValue: viewModel.selectedPermissionProfile)
+                    isSelected: modeOptionIsSelected(option, currentValue: viewModel.selectedPermissionProfile),
+                    explanation: option.explanation
                 )
             }
             .disabled(option.isPlan && !viewModel.isPlanModeAvailable)
@@ -856,7 +835,8 @@ struct ComposerSettingsOverflowMenu: View {
             } label: {
                 SettingsMenuRow(
                     title: option.title,
-                    isSelected: modeOptionIsSelected(option, currentValue: viewModel.selectedPermissionProfile)
+                    isSelected: modeOptionIsSelected(option, currentValue: viewModel.selectedPermissionProfile),
+                    explanation: option.explanation
                 )
             }
             .disabled(option.isPlan && !viewModel.isPlanModeAvailable)
@@ -1073,22 +1053,24 @@ struct SettingsMenuRow: View {
     let title: String
     let isSelected: Bool
     let detail: String?
+    let explanation: String?
 
-    init(title: String, isSelected: Bool, detail: String? = nil) {
+    init(title: String, isSelected: Bool, detail: String? = nil, explanation: String? = nil) {
         self.title = title
         self.isSelected = isSelected
         self.detail = detail
+        self.explanation = explanation
     }
 
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
-                if let detail {
-                    Text(detail)
+                if let text = explanation ?? detail {
+                    Text(text)
                         .font(DSFont.caption)
                         .foregroundStyle(DSColor.chatTextSecondary)
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             if isSelected {

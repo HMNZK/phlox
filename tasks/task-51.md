@@ -185,3 +185,13 @@ PM は凍結時に品質設定を再確認する。確認した範囲に独立�
 - **取得コスト**：既存走査内で完結し、DB 優先・読込制限を維持している。
 - **責務境界**：タイトル導出・UI・起動配線を変更せず、task-49 の許可パスと交差しない。
 - **検証の独立性**：実取得器の Swift Testing と、凍結 blob 比較・単一違反 selftest が成立している。
+
+## 受け入れ検査の敵対レビュー反映（2026-09-13、`docs/agent-output/task51-acceptance-adversarial.md` を PM 裁定）
+
+- MUST1（Codex fixture の既存 preview 期待値が実パーサと矛盾）: 採択。既存 preview の期待値は実 `scan` の挙動（role を見ない先頭 `event_msg.message`）に合わせ、`firstUserAt` も既存値を固定。新規材料は user のみ。
+- HIGH2・3（既存選定・共有パーサの凍結比較漏れ、`compact` が文字列内空白を消す）: 採択。新規材料の宣言・収集・引数追加だけを除外し残りは凍結 blob と比較。文字列リテラルは保護。
+- HIGH4（配線を識別子存在で判定）: 採択。entry 生成ごとに収集配列→append→条件→引数の接続を検査、条件反転・配列破棄・別変数経由・片経路未接続・文字列偽装を負例に。
+- HIGH5（SQL・DB 優先・読み取り専用）: 採択。実行 SQL・bind・DB 選択処理を凍結比較、接続フラグは `sqlite3_open_v2` の呼び出し引数で検査。
+- HIGH6（読込上限の境界）: 採択。Swift に Claude 200/201 行目、Codex index 201/202、不正行を挟む境界、512 KiB 内外を追加。rb はループ条件・打ち切り位置を比較。
+- HIGH7（selftest の本番マーカー自己参照）: 採択。独立マーカー行と本番呼び出し除去の負例。
+- HIGH8・MED9・MED10（被覆不足）: 採択。複数 user・複数 text block・文字列 content・assistant のみ（材料 `[]`・summary nil）・不正 JSON/UTF-8 境界・隠しファイルを追加。

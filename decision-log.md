@@ -187,3 +187,5 @@
 - 2026-09-13 task-41（UX-01a）done: Codex レビュー r4 pass（指摘 0、差し戻し 3 回はユーザー承認済み）、統合 verify.sh exit 0（検証用 worktree /tmp/ui-ux-verify-wt、HEAD 6fb3360）。
 - 2026-09-13 task-40 PM 目視ゲート B: pass（visual-task-40-b.md）。dracula の質問カード面が薄灰に見えた件は Cursor の切り分けで「ハーネスがカラースキームを与えず半透明 fill が明面に載る」と判明（単独プロセスでもバイト一致、製品の色キャッシュは実コードで否定）。追跡項目: PhloxApp の preferredColorScheme が ThemeStore を購読しない（allowed_paths 外）。
 - 2026-09-13 task-43 再凍結 026ed2d（強化版。旧 276018d は無効）。task-51 凍結 57bfa9e。両方ともコンパイル RED のため task-40 統合中は退避。task-43 強化版の 2 回目敵対レビューは省略（採択項目の反映確認は PM が tests-task-43-r2.md と rb selftest で行う）。
+- 2026-09-13 task-51 受け入れ検査の敵対レビュー（MUST1/HIGH7/MED2）: 全採択→Cursor に修正委譲（再凍結）。task-48 凍結 2b457e6（DesignSystem コンパイル RED は AcceptanceUIWordingTests の UIWording 未定義のみ、退避）。
+- 2026-09-13 task-40 レビュー r3（rb HIGH 3 件: ForEach id 正規化、H4〜H6 クロージャ全体マスク、字体削除マスクの要素別不足）: 製品指摘は 3 ラウンド連続で 0。PM が指摘の変異 3 種を実コードで照合: ForEach id は `\.element.id` のまま（identity 不変）、RichMarkdownView の `.fixedSize(horizontal: false, vertical: true)` は基準と同数 9、差分本文の `monoCaption` は 425 行に存在。差し戻し上限に達するためユーザーへ諮る。

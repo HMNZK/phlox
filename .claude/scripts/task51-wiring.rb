@@ -314,6 +314,71 @@ def code_has_ident?(src, name)
   mask_strings_and_comments(src.to_s).match?(/\b#{Regexp.escape(name)}\b/)
 end
 
+def compact_preserving_strings(src)
+  out = +""
+  each_lexeme(src.to_s) do |kind, a, b|
+    case kind
+    when :code then out << src[a...b].gsub(/\s+/, "")
+    when :string then out << src[a...b]
+    end
+  end
+  out
+end
+
+def same_code?(a, b)
+  compact_preserving_strings(erase_if_false(a.to_s)) == compact_preserving_strings(erase_if_false(b.to_s))
+end
+
+def positional_args(args)
+  return [] if args.nil?
+  parts = []
+  i = 0
+  start = 0
+  depth_p = 0
+  depth_b = 0
+  depth_a = 0
+  while i < args.length
+    n = comment_or_string_end(args, i)
+    if n
+      i = n
+      next
+    end
+    case args[i]
+    when "(" then depth_p += 1
+    when ")" then depth_p -= 1
+    when "{" then depth_b += 1
+    when "}" then depth_b -= 1
+    when "[" then depth_a += 1
+    when "]" then depth_a -= 1
+    when ","
+      if depth_p == 0 && depth_b == 0 && depth_a == 0
+        parts << args[start...i].strip
+        start = i + 1
+      end
+    end
+    i += 1
+  end
+  tail = args[start..].to_s.strip
+  parts << tail unless tail.empty?
+  parts
+end
+
+def extract_assigned_string(src, name)
+  body = src.to_s
+  m = body.match(/(?:let|var)\s+#{Regexp.escape(name)}\s*=\s*/)
+  return nil unless m
+  i = skip_ws(body, m.end(0))
+  return nil if i >= body.length || body[i] != '"'
+  n = index_after_string(body, i)
+  body[i...n]
+end
+
+def sqlite_open_flags(query)
+  args = extract_call_args(query.to_s, "sqlite3_open_v2")
+  return nil if args.nil?
+  positional_args(args)[2]
+end
+
 def git_show(rev, path)
   text = IO.popen(["git", "show", "#{rev}:#{path}"], err: [:child, :out], &:read)
   return text if $?.success?
@@ -518,6 +583,81 @@ def materials_transcribe_preview?(arg)
   compact(arg).include?("normalizedPreview")
 end
 
+def ident_assigned_from_preview?(src, ident)
+  return false if ident.nil? || ident.empty?
+  return false unless ident.match?(/\A[A-Za-z_][A-Za-z0-9_]*\z/)
+  compact(erase_if_false(src.to_s)).match?(/#{Regexp.escape(ident)}=Self\.normalizedPreview/) ||
+    src.to_s.match?(/(?:let|var)\s+#{Regexp.escape(ident)}\s*=\s*[^\n]*normalizedPreview/)
+end
+
+def arg_uses_preview_processing?(src, arg)
+  return false if arg.nil?
+  return true if materials_transcribe_preview?(arg)
+  mask_strings_and_comments(arg).scan(/\b([A-Za-z_][A-Za-z0-9_]*)\b/).flatten.any? do |id|
+    next false if %w[Self nil titleUserMessages titleSummary scan firstUser].include?(id)
+    ident_assigned_from_preview?(src, id)
+  end
+end
+
+def append_uses_normalized_preview?(src)
+  s = erase_if_false(strip_comments(src.to_s))
+  pos = 0
+  re = /titleUserMessages\.append\s*\(/
+  while (m = s.match(re, pos))
+    inner = extract_balanced(s, m.end(0) - 1, "(", ")")
+    return true if arg_uses_preview_processing?(s, inner)
+    pos = m.end(0)
+  end
+  false
+end
+
+def meta_excludes_from_append?(src)
+  c = compact_preserving_strings(erase_if_false(src.to_s))
+  return true if c.match?(/isMeta==true\{(?:(?!titleUserMessages\.append).)*\}else\{[^}]*titleUserMessages\.append/)
+  return true if c.match?(/isMeta!=true.{0,120}titleUserMessages\.append/)
+  return true if c.match?(/guard.{0,80}isMeta!=true.{0,160}titleUserMessages\.append/)
+  false
+end
+
+def collection_discarded?(reach)
+  has_append = compact(reach).include?("titleUserMessages.append")
+  return false unless has_append
+  entry_title_args(reach).any? { |c| compact(c[:messages].to_s) == "[]" }
+end
+
+def assigned_from_db_column?(src, ident, column)
+  return false if ident.nil?
+  compact(erase_if_false(src.to_s)).include?("#{ident}=Self.databaseString(statement,column:#{column})")
+end
+
+def summary_from_preview_column?(query)
+  return false if query.nil?
+  calls = entry_title_args(query)
+  return false if calls.empty? || calls.any? { |c| c[:summary].nil? }
+  calls.all? do |c|
+    arg = c[:summary].to_s.strip
+    next true if arg == "nil"
+    compact(arg).include?("databaseString(statement,column:2)") ||
+      (arg.match?(/\A[A-Za-z_][A-Za-z0-9_]*\z/) && assigned_from_db_column?(query, arg, 2))
+  end
+end
+
+def users_from_first_user_column?(query)
+  return false if query.nil?
+  calls = entry_title_args(query)
+  return false if calls.empty? || calls.any? { |c| c[:messages].nil? || compact(c[:messages]) == "nil" }
+  q = compact(erase_if_false(query.to_s))
+  calls.all? do |c|
+    arg = c[:messages].to_s.strip
+    compact(arg).include?("databaseString(statement,column:3)") ||
+      compact(arg).include?("first_user_message") ||
+      (arg.match?(/\A[A-Za-z_][A-Za-z0-9_]*\z/) && (
+        assigned_from_db_column?(query, arg, 3) ||
+        q.include?("rawFirst=Self.databaseString(statement,column:3)")
+      ))
+  end
+end
+
 def check_claude_materials(src)
   if src.nil?
     return ["ClaudeSessionHistory.swift が存在しない"]
@@ -550,24 +690,21 @@ def check_claude_materials(src)
     return ng
   end
   calls = entry_title_args(reach)
-  connected = calls.reject { |c| c[:messages].nil? }
-  if connected.empty?
+  if calls.empty? || calls.any? { |c| c[:messages].nil? }
     ng << "取得器が titleUserMessages を entry 生成へ渡していない"
     return ng
   end
-  if connected.any? { |c| compact(c[:messages]) == "nil" }
+  if calls.any? { |c| compact(c[:messages]) == "nil" }
     ng << "取得器が titleUserMessages に nil を渡している"
   end
-  if connected.any? { |c| materials_transcribe_preview?(c[:messages]) }
+  ng << "材料収集配列が破棄されている" if collection_discarded?(reach)
+  if calls.any? { |c| arg_uses_preview_processing?(reach, c[:messages]) } || append_uses_normalized_preview?(reach)
     ng << "titleUserMessages が加工済み preview を転記している"
   end
-  if connected.any? { |c| materials_transcribe_preview?(c[:summary]) }
+  if calls.any? { |c| arg_uses_preview_processing?(reach, c[:summary]) }
     ng << "titleSummary が加工済み preview を転記している"
   end
-  meta_ok = mask_strings_and_comments(reach).match?(/\bisMeta\b/) &&
-    compact(reach).match?(/isMeta\s*(==\s*true|!=\s*true|==\s*false)/) ||
-    compact(reach).include?("isMeta!=true") || compact(reach).include?("isMeta==true")
-  ng << "Claude の isMeta 除外が材料収集に接続されていない" unless meta_ok
+  ng << "Claude の isMeta 除外が材料収集に接続されていない" unless meta_excludes_from_append?(reach)
   ng
 end
 
@@ -586,18 +723,18 @@ def check_codex_materials(src)
     return ng
   end
   calls = entry_title_args(reach)
-  connected = calls.reject { |c| c[:messages].nil? }
-  if connected.empty?
+  if calls.empty? || calls.any? { |c| c[:messages].nil? }
     ng << "取得器が titleUserMessages を entry 生成へ渡していない"
     return ng
   end
-  if connected.any? { |c| compact(c[:messages]) == "nil" }
+  if calls.any? { |c| compact(c[:messages]) == "nil" }
     ng << "取得器が titleUserMessages に nil を渡している"
   end
-  if connected.any? { |c| materials_transcribe_preview?(c[:messages]) }
+  ng << "材料収集配列が破棄されている" if collection_discarded?(reach)
+  if calls.any? { |c| arg_uses_preview_processing?(reach, c[:messages]) } || append_uses_normalized_preview?(reach)
     ng << "titleUserMessages が加工済み preview を転記している"
   end
-  if connected.any? { |c| materials_transcribe_preview?(c[:summary]) }
+  if calls.any? { |c| arg_uses_preview_processing?(reach, c[:summary]) }
     ng << "titleSummary が加工済み preview を転記している"
   end
   scan_body = extract_func_body(strip_comments(src), "scan")
@@ -605,16 +742,19 @@ def check_codex_materials(src)
     ng << "Codex の role 判定が材料収集に接続されていない"
   else
     scan_reach = collect_reachable(strip_comments(src), erase_if_false(scan_body))
-    unless code_has_ident?(scan_reach, "messageRole") && code_has_ident?(scan_reach, "titleUserMessages")
+    sc = compact_preserving_strings(scan_reach)
+    unless code_has_ident?(scan_reach, "messageRole") && sc.include?('role=="user"') && sc.include?("titleUserMessages.append")
       ng << "Codex の role 判定が材料収集に接続されていない"
     end
   end
   query = extract_func_body(strip_comments(src), "queryDatabase")
   if query
-    qc = compact(erase_if_false(query))
-    unless qc.include?("titleUserMessages") && qc.include?("[]")
+    unless users_from_first_user_column?(query)
       ng << "取得器が titleUserMessages を entry 生成へ渡していない" unless ng.include?("取得器が titleUserMessages を entry 生成へ渡していない")
     end
+    unless summary_from_preview_column?(query)
+      ng << "titleSummary が DB preview 列に接続されていない"
+    end
   end
   ng
 end
@@ -643,7 +783,7 @@ def static_let_rhs(src, name)
   compact(m[1])
 end
 
-def check_scan_limits(claude_src, codex_src)
+def check_scan_limits(claude_src, codex_src, baseline = nil)
   ng = []
   if claude_src.nil?
     ng << "ClaudeSessionHistory.swift が存在しない"
@@ -652,6 +792,20 @@ def check_scan_limits(claude_src, codex_src)
     ng << "Claude の maxLinesPerFile が 200 から拡大されている" unless lines == "200"
     bytes = static_let_rhs(claude_src, "maxBytesPerFile")
     ng << "Claude の maxBytesPerFile が 256 * 1024 から拡大されている" unless bytes == "256*1024"
+    scan_file = extract_func_body(strip_comments(claude_src), "scanFile")
+    cc = compact_preserving_strings(erase_if_false(scan_file.to_s))
+    unless cc.include?("whilelineCount<maxLinesPerFile,reader.bytesConsumed<maxBytesPerFile")
+      ng << "Claude の走査ループ条件が基準から変化している"
+    end
+    if baseline && baseline[:claude]
+      base_scan = extract_func_body(strip_comments(baseline[:claude]), "scanFile")
+      bc = compact_preserving_strings(erase_if_false(base_scan.to_s))
+      cur_cond = cc[/whilelineCount<maxLinesPerFile,reader.bytesConsumed<maxBytesPerFile/]
+      base_cond = bc[/whilelineCount<maxLinesPerFile,reader.bytesConsumed<maxBytesPerFile/]
+      if base_cond && cur_cond != base_cond
+        ng << "Claude の走査ループ条件が基準から変化している"
+      end
+    end
   end
   if codex_src.nil?
     ng << "CodexSessionHistory.swift が存在しない"
@@ -661,61 +815,23 @@ def check_scan_limits(claude_src, codex_src)
     body = static_let_rhs(codex_src, "maxBytesPerFile")
     ng << "Codex の maxBytesPerFile が 512 * 1024 から拡大されている" unless body == "512*1024"
     scan = extract_func_body(strip_comments(codex_src), "scan")
-    if scan.nil? || !compact(erase_if_false(scan)).include?("index>200")
+    sc = compact_preserving_strings(erase_if_false(scan.to_s))
+    unless sc.include?("ifindex>200{break}")
       ng << "Codex の行数打ち切りが 200 から拡大されている"
     end
-  end
-  ng
-end
-
-
-def loader_uses_isMeta?(src)
-  return false if src.nil?
-  loader = extract_struct_body(strip_comments(src), "ClaudeSessionTranscriptLoader")
-  return false if loader.nil?
-  append = extract_func_body(loader, "appendChatItem") || loader
-  code_has_ident?(erase_if_false(append), "isMeta")
-end
-
-def check_loader_isolation(claude_src, _codex_src = nil)
-  ng = []
-  if claude_src.nil?
-    return ["ClaudeSessionHistory.swift が存在しない"]
-  end
-  ng << "loader に isMeta 除外を流用している" if loader_uses_isMeta?(claude_src)
-  ng
-end
-
-def static_let_rhs(src, name)
-  masked = mask_strings_and_comments(src.to_s)
-  m = masked.match(/(?:static\s+)?let\s+#{Regexp.escape(name)}\s*=\s*([^\n]+)/)
-  return nil unless m
-  compact(m[1])
-end
-
-def check_scan_limits(claude_src, codex_src)
-  ng = []
-  if claude_src.nil?
-    ng << "ClaudeSessionHistory.swift が存在しない"
-  else
-    lines = static_let_rhs(claude_src, "maxLinesPerFile")
-    ng << "Claude の maxLinesPerFile が 200 から拡大されている" unless lines == "200"
-    bytes = static_let_rhs(claude_src, "maxBytesPerFile")
-    ng << "Claude の maxBytesPerFile が 256 * 1024 から拡大されている" unless bytes == "256*1024"
-  end
-  if codex_src.nil?
-    ng << "CodexSessionHistory.swift が存在しない"
-  else
-    meta = static_let_rhs(codex_src, "maxSessionMetaBytes")
-    ng << "Codex の maxSessionMetaBytes が 16 * 1024 から拡大されている" unless meta == "16*1024"
-    body = static_let_rhs(codex_src, "maxBytesPerFile")
-    ng << "Codex の maxBytesPerFile が 512 * 1024 から拡大されている" unless body == "512*1024"
-    scan = extract_func_body(strip_comments(codex_src), "scan")
-    if scan.nil? || !compact(erase_if_false(scan)).include?("index>200")
-      ng << "Codex の行数打ち切りが 200 から拡大されている"
+    preview_at = sc.index("scan.firstUserText")
+    break_at = sc.index("ifindex>200{break}")
+    if preview_at.nil? || break_at.nil? || break_at < preview_at
+      ng << "Codex の行数打ち切り位置が基準から変化している"
+    end
+    unless sc.include?("maxBytes:Self.maxSessionMetaBytes")
+      ng << "Codex の読込上限呼び出しが基準から変化している"
+    end
+    unless sc.include?("maxBytes:Self.maxBytesPerFile")
+      ng << "Codex の読込上限呼び出しが基準から変化している"
     end
   end
-  ng
+  ng.uniq
 end
 
 def check_db_priority_and_readonly(src)
@@ -735,18 +851,21 @@ def check_db_priority_and_readonly(src)
     if c.match?(/ifletdatabaseEntries=databaseEntries[^\{]{0,400}isEmpty/)
       ng << "DB 利用時に rollout を追加走査している"
     end
-
+    db_branch = cleaned[/if let databaseEntries[\s\S]*?return databaseEntries/]
+    if db_branch && (db_branch.include?("scan(") || db_branch.include?("rolloutFiles") || db_branch.include?("read("))
+      ng << "DB 利用時に rollout を追加走査している"
+    end
   end
   query = extract_func_body(strip_comments(src), "queryDatabase")
   if query.nil?
     ng << "SQLite 接続が読み取り専用ではない"
   else
     q = erase_if_false(query)
-    qc = compact(q)
-    unless qc.include?("SQLITE_OPEN_READONLY")
+    flags = sqlite_open_flags(q).to_s.gsub(/\s+/, "")
+    unless flags == "SQLITE_OPEN_READONLY"
       ng << "SQLite 接続が読み取り専用ではない"
     end
-    if qc.include?("SQLITE_OPEN_READWRITE")
+    if compact(q).include?("SQLITE_OPEN_READWRITE")
       ng << "SQLite 接続が読み取り専用ではない"
     end
   end
@@ -769,13 +888,47 @@ def frozen_func_errors(label, current_src, baseline_src, struct_name, func_name)
   if cur.nil?
     return ["#{label} を解析できない"]
   end
-  compact(erase_if_false(cur)) == compact(erase_if_false(base)) ? [] : ["#{label} が TASK51_BASELINE から変化している"]
+  same_code?(cur, base) ? [] : ["#{label} が TASK51_BASELINE から変化している"]
 end
 
-def sql_compact(src)
-  body = extract_func_body(strip_comments(src.to_s), "queryDatabase")
-  return nil if body.nil?
-  compact(erase_if_false(body))
+def strip_is_meta_additions(src)
+  out = src.to_s.dup
+  out.gsub!(/\blet\s+isMeta\s*:\s*Bool\?\s*,?/, "")
+  out.gsub!(/,?\s*isMeta\s*:\s*json\[\s*"isMeta"\s*\]\s*as\?\s*Bool/, "")
+  out.gsub!(/,?\s*let\s+isMeta\s*:\s*Bool\?/, "")
+  out
+end
+
+def first_user_selection_blob(src, pattern)
+  body = src.to_s
+  m = body.match(pattern)
+  return nil unless m
+  brace = body.index("{", m.begin(0))
+  return nil unless brace
+  inner = extract_balanced(body, brace, "{", "}")
+  return nil if inner.nil?
+  body[m.begin(0)..(brace + inner.length)]
+end
+
+def check_legacy_entry_args(label, current_src, baseline_src, struct_name, func_name)
+  return ["#{label} の基準を git show できない"] if baseline_src.nil?
+  return ["#{label} が存在しない"] if current_src.nil?
+  cur_reach = reachable_in_struct(current_src, struct_name, func_name)
+  base_reach = reachable_in_struct(baseline_src, struct_name, func_name)
+  return ["#{label} を解析できない"] if cur_reach == :unparseable || base_reach == :unparseable
+  cur_calls = all_call_args(erase_if_false(cur_reach.to_s), "ClaudeSessionHistoryEntry")
+  base_calls = all_call_args(erase_if_false(base_reach.to_s), "ClaudeSessionHistoryEntry")
+  return ["#{label} の既存引数が TASK51_BASELINE から変化している"] if cur_calls.length != base_calls.length
+  %w[sessionID preview firstUserAt lastModified gitBranch fileURL].each do |field|
+    cur_calls.zip(base_calls).each do |cur_args, base_args|
+      cur = labeled_arg(cur_args, field).to_s
+      base = labeled_arg(base_args, field).to_s
+      unless same_code?(cur, base)
+        return ["#{label} の既存引数が TASK51_BASELINE から変化している"]
+      end
+    end
+  end
+  []
 end
 
 def check_frozen_restore(current, baseline)
@@ -784,34 +937,51 @@ def check_frozen_restore(current, baseline)
   ng.concat(frozen_func_errors("normalizedPreview", current[:claude], baseline[:claude], "ClaudeSessionHistoryDiscovery", "normalizedPreview"))
   ng.concat(frozen_func_errors("ClaudeSessionTranscriptLoader.load", current[:claude], baseline[:claude], "ClaudeSessionTranscriptLoader", "load"))
   ng.concat(frozen_func_errors("appendChatItem", current[:claude], baseline[:claude], "ClaudeSessionTranscriptLoader", "appendChatItem"))
+  ng.concat(frozen_func_errors("extractUserText", current[:claude], baseline[:claude], nil, "extractUserText"))
+  ng.concat(frozen_func_errors("extractAssistantText", current[:claude], baseline[:claude], nil, "extractAssistantText"))
+  ng.concat(frozen_func_errors("extractTextContent", current[:claude], baseline[:claude], nil, "extractTextContent"))
+  if current[:claude] && baseline[:claude]
+    cur_parse = strip_is_meta_additions(extract_func_body(strip_comments(current[:claude]), "parseLine").to_s)
+    base_parse = strip_is_meta_additions(extract_func_body(strip_comments(baseline[:claude]), "parseLine").to_s)
+    unless same_code?(cur_parse, base_parse)
+      ng << "parseLine が TASK51_BASELINE から変化している"
+    end
+    cur_first = first_user_selection_blob(extract_func_body(strip_comments(current[:claude]), "processScannedLine").to_s, /if firstUserLine == nil/)
+    base_first = first_user_selection_blob(extract_func_body(strip_comments(baseline[:claude]), "processScannedLine").to_s, /if firstUserLine == nil/)
+    if base_first.nil? || cur_first.nil? || !same_code?(cur_first, base_first)
+      ng << "Claude の firstUserLine 選定が TASK51_BASELINE から変化している"
+    end
+    ng.concat(check_legacy_entry_args("Claude entries", current[:claude], baseline[:claude], "ClaudeSessionHistoryDiscovery", "entries"))
+  end
   ng.concat(frozen_func_errors("Codex loadTranscript", current[:codex], baseline[:codex], "CodexSessionHistoryDiscovery", "loadTranscript"))
   ng.concat(frozen_func_errors("messageRole", current[:codex], baseline[:codex], "CodexSessionHistoryDiscovery", "messageRole"))
+  ng.concat(frozen_func_errors("messageText", current[:codex], baseline[:codex], "CodexSessionHistoryDiscovery", "messageText"))
+  ng.concat(frozen_func_errors("text", current[:codex], baseline[:codex], "CodexSessionHistoryDiscovery", "text"))
+  ng.concat(frozen_func_errors("read", current[:codex], baseline[:codex], "CodexSessionHistoryDiscovery", "read"))
   ng.concat(frozen_func_errors("Codex normalizedPreview", current[:codex], baseline[:codex], "CodexSessionHistoryDiscovery", "normalizedPreview"))
-  cur_sql = current[:codex] && sql_compact(current[:codex])
-  base_sql = baseline[:codex] && sql_compact(baseline[:codex])
-  if base_sql.nil?
-    ng << "SQL の採否・cwd 条件が基準から変化している" unless current[:codex].nil?
-  elsif cur_sql.nil?
-    ng << "SQL の採否・cwd 条件が基準から変化している"
-  else
-    needles = [
-      "archived=0",
-      "cwd=?",
-      "preview<>''ORfirst_user_message<>''",
-      "ORDERBYupdated_at_msDESC,idDESC"
-    ]
-    needles.each do |n|
-      unless cur_sql.include?(n)
-        ng << "SQL の採否・cwd 条件が基準から変化している"
-        break
-      end
+  ng.concat(frozen_func_errors("stateDatabaseURL", current[:codex], baseline[:codex], "CodexSessionHistoryDiscovery", "stateDatabaseURL"))
+  ng.concat(frozen_func_errors("databaseEntries", current[:codex], baseline[:codex], "CodexSessionHistoryDiscovery", "databaseEntries"))
+  if current[:codex] && baseline[:codex]
+    cur_preview = first_user_selection_blob(extract_func_body(strip_comments(current[:codex]), "scan").to_s, /if scan\.firstUserText == nil/)
+    base_preview = first_user_selection_blob(extract_func_body(strip_comments(baseline[:codex]), "scan").to_s, /if scan\.firstUserText == nil/)
+    if base_preview.nil? || cur_preview.nil? || !same_code?(cur_preview, base_preview)
+      ng << "Codex の既存 preview 選定が TASK51_BASELINE から変化している"
     end
-    needles.each do |n|
-      unless base_sql.include?(n)
-        next
-      end
+    ng.concat(check_legacy_entry_args("Codex entries", current[:codex], baseline[:codex], "CodexSessionHistoryDiscovery", "entries"))
+    cur_sql = extract_assigned_string(extract_func_body(strip_comments(current[:codex]), "queryDatabase").to_s, "sql")
+    base_sql = extract_assigned_string(extract_func_body(strip_comments(baseline[:codex]), "queryDatabase").to_s, "sql")
+    if base_sql.nil? || cur_sql.nil? || cur_sql != base_sql
+      ng << "SQL の採否・cwd 条件が基準から変化している"
+    end
+    cur_q = extract_func_body(strip_comments(current[:codex]), "queryDatabase").to_s
+    base_q = extract_func_body(strip_comments(baseline[:codex]), "queryDatabase").to_s
+    cur_bind = compact_preserving_strings(erase_if_false(cur_q)).scan(/sqlite3_bind_[A-Za-z0-9_]+\([^)]*\)/)
+    base_bind = compact_preserving_strings(erase_if_false(base_q)).scan(/sqlite3_bind_[A-Za-z0-9_]+\([^)]*\)/)
+    if cur_bind != base_bind
+      ng << "SQL の bind が基準から変化している"
     end
   end
+  ng.concat(check_scan_limits(current[:claude], current[:codex], baseline))
   ng.uniq
 end
 
@@ -830,7 +1000,7 @@ def check_product(files, baseline_files = nil)
   ng.concat(check_claude_materials(files[:claude])) unless files[:claude].nil? && ng.include?("ClaudeSessionHistory.swift が存在しない")
   ng.concat(check_codex_materials(files[:codex])) unless files[:codex].nil? && ng.include?("CodexSessionHistory.swift が存在しない")
   ng.concat(check_loader_isolation(files[:claude], files[:codex])) unless files[:claude].nil?
-  ng.concat(check_scan_limits(files[:claude], files[:codex]))
+  ng.concat(check_scan_limits(files[:claude], files[:codex], baseline_files))
   ng.concat(check_db_priority_and_readonly(files[:codex])) unless files[:codex].nil?
   ng.concat(check_frozen_restore(files, baseline_files)) if baseline_files
   ng.uniq
@@ -1051,6 +1221,8 @@ def good_claude_src
       }
 
       static func extractUserText(from line: ParsedLine) -> String? { nil }
+      static func extractAssistantText(from line: ParsedLine) -> String? { nil }
+      private static func extractTextContent(from content: ParsedContent?) -> String? { nil }
     }
   SWIFT
 end
@@ -1102,6 +1274,10 @@ def good_codex_src
         ORDER BY updated_at_ms DESC, id DESC
         LIMIT ?
         """
+        guard cwd.withCString({ sqlite3_bind_text(statement, 1, $0, -1, sqliteTransient) }) == SQLITE_OK,
+              sqlite3_bind_int(statement, 2, Int32(limit)) == SQLITE_OK else {
+          return nil
+        }
         let rawFirst = Self.databaseString(statement, column: 3)
         let titleUsers: [String]
         if let rawFirst, !rawFirst.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -1127,6 +1303,8 @@ def good_codex_src
 
       private func scan(_ fileURL: URL, matchingCWD: String, onScan: (@Sendable (URL) -> Void)?, onRead: (@Sendable (Int) -> Void)?) -> Scan? {
         var titleUserMessages: [String] = []
+        guard let prefix = Self.read(fileURL, maxBytes: Self.maxSessionMetaBytes, onRead: onRead) else { return nil }
+        guard let data = Self.read(fileURL, maxBytes: Self.maxBytesPerFile, onRead: onRead) else { return nil }
         for (index, line) in String(decoding: data, as: UTF8.self).split(whereSeparator: \\.isNewline).enumerated() {
           if let role = Self.messageRole(in: object), role == "user", let text = Self.messageText(in: object, role: role) {
             titleUserMessages.append(text)
@@ -1148,6 +1326,9 @@ def good_codex_src
       }
 
       private static func messageText(in object: [String: Any], role: String) -> String? { nil }
+      private static func text(from value: Any, role: String) -> String? { nil }
+      private static func read(_ fileURL: URL, maxBytes: Int, onRead: (@Sendable (Int) -> Void)? = nil) -> Data? { nil }
+      private func stateDatabaseURL() -> URL? { nil }
 
       private static func normalizedPreview(_ text: String) -> String {
         let collapsed = text.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
@@ -1244,6 +1425,8 @@ def baseline_claude_src
       }
 
       static func extractUserText(from line: ParsedLine) -> String? { nil }
+      static func extractAssistantText(from line: ParsedLine) -> String? { nil }
+      private static func extractTextContent(from content: ParsedContent?) -> String? { nil }
     }
   SWIFT
 end
@@ -1293,6 +1476,10 @@ def baseline_codex_src
         ORDER BY updated_at_ms DESC, id DESC
         LIMIT ?
         """
+        guard cwd.withCString({ sqlite3_bind_text(statement, 1, $0, -1, sqliteTransient) }) == SQLITE_OK,
+              sqlite3_bind_int(statement, 2, Int32(limit)) == SQLITE_OK else {
+          return nil
+        }
         let rawFirst = Self.databaseString(statement, column: 3)
         entries.append(
           ClaudeSessionHistoryEntry(
@@ -1308,6 +1495,8 @@ def baseline_codex_src
       }
 
       private func scan(_ fileURL: URL, matchingCWD: String, onScan: (@Sendable (URL) -> Void)?, onRead: (@Sendable (Int) -> Void)?) -> Scan? {
+        guard let prefix = Self.read(fileURL, maxBytes: Self.maxSessionMetaBytes, onRead: onRead) else { return nil }
+        guard let data = Self.read(fileURL, maxBytes: Self.maxBytesPerFile, onRead: onRead) else { return nil }
         for (index, line) in String(decoding: data, as: UTF8.self).split(whereSeparator: \.isNewline).enumerated() {
           if scan.firstUserText == nil, let text = Self.messageText(in: object, role: "user") {
             scan.firstUserText = text
@@ -1325,6 +1514,9 @@ def baseline_codex_src
       }
 
       private static func messageText(in object: [String: Any], role: String) -> String? { nil }
+      private static func text(from value: Any, role: String) -> String? { nil }
+      private static func read(_ fileURL: URL, maxBytes: Int, onRead: (@Sendable (Int) -> Void)? = nil) -> Data? { nil }
+      private func stateDatabaseURL() -> URL? { nil }
 
       private static func normalizedPreview(_ text: String) -> String {
         let collapsed = text.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
@@ -1347,9 +1539,12 @@ def with_replaced(src, old, new)
 end
 
 def production_checks_source(src = File.read(__FILE__))
-  i = src.index(PRODUCTION_MARKER)
-  return "" if i.nil?
-  src[i..]
+  offset = 0
+  src.each_line do |line|
+    return src[offset..] if line.chomp == PRODUCTION_MARKER
+    offset += line.length
+  end
+  ""
 end
 
 def baseline_check_connected?(src)
@@ -1581,11 +1776,102 @@ def run_selftest
   with_env("TASK51_SCOPE_CHECK", "0") { selftest_assert !scope_check_requested?, "負例: SCOPE_CHECK=0 では変更範囲検査 OFF" }
   with_env("TASK51_SCOPE_CHECK", nil) { selftest_assert !scope_check_requested?, "正例: 未設定では材料・復元検査のみ" }
 
+  selftest_assert compact('let x = " "') == 'letx=""', "旧 compact は文字列内空白を消す"
+  selftest_assert compact_preserving_strings('let x = " "') != compact_preserving_strings('let x = ""'), "HIGH3: 文字列リテラルの空白は保護する"
+
+  first_user_changed = with_replaced(good[:claude], "if firstUserLine == nil, !userText.hasPrefix(\"<\") {", "if firstUserLine == nil, parsed.isMeta != true, !userText.hasPrefix(\"<\") {")
+  selftest_errors_eq(
+    check_frozen_restore({ entry: good[:entry], claude: first_user_changed, codex: good[:codex] }, base).grep(/firstUserLine/),
+    ["Claude の firstUserLine 選定が TASK51_BASELINE から変化している"],
+    "負例 HIGH2: firstUserLine 選定変更"
+  )
+
+  extract_changed = with_replaced(good[:claude], "static func extractUserText(from line: ParsedLine) -> String? { nil }", "static func extractUserText(from line: ParsedLine) -> String? { \"changed\" }")
+  selftest_errors_eq(
+    check_frozen_restore({ entry: good[:entry], claude: extract_changed, codex: good[:codex] }, base).grep(/extractUserText/),
+    ["extractUserText が TASK51_BASELINE から変化している"],
+    "負例 HIGH3: 共有パーサー変更"
+  )
+  space_keep = with_replaced(good[:claude], "if collapsed.count <= 120 { return collapsed }", "if collapsed.count <= 120 { let keep = \" \"; return collapsed }")
+  space_empty = with_replaced(space_keep, "let keep = \" \"", "let keep = \"\"")
+  selftest_errors_eq(
+    frozen_func_errors("normalizedPreview", space_empty, space_keep, "ClaudeSessionHistoryDiscovery", "normalizedPreview"),
+    ["normalizedPreview が TASK51_BASELINE から変化している"],
+    "負例 HIGH3: 文字列内空白の削除"
+  )
+
+  meta_inverted = with_replaced(good[:claude], "if parsed.isMeta == true {\n          } else {\n            titleUserMessages.append(userText)\n          }", "if parsed.isMeta == true {\n            titleUserMessages.append(userText)\n          }")
+  selftest_errors_eq check_claude_materials(meta_inverted), ["Claude の isMeta 除外が材料収集に接続されていない"], "負例 HIGH4: 条件反転"
+
+  discarded = with_replaced(good[:claude], "titleUserMessages: scan.titleUserMessages,", "titleUserMessages: [],")
+  selftest_errors_eq check_claude_materials(discarded), ["材料収集配列が破棄されている"], "負例 HIGH4: 配列破棄"
+
+  via_var = with_replaced(good[:claude], "titleUserMessages.append(userText)", "let processed = Self.normalizedPreview(from: userText)\n            titleUserMessages.append(processed)")
+  selftest_errors_eq check_claude_materials(via_var), ["titleUserMessages が加工済み preview を転記している"], "負例 HIGH4: 別変数経由の加工"
+
+  one_path = with_replaced(good[:codex], "titleUserMessages: titleUsers,", "")
+  selftest_errors_eq check_codex_materials(one_path), ["取得器が titleUserMessages を entry 生成へ渡していない"], "負例 HIGH4: 片経路未接続"
+
+  comment_only_wiring = disconnected.sub("discovered.append(", "// titleUserMessages: scan.titleUserMessages, isMeta == true\n        discovered.append(")
+  selftest_errors_eq check_claude_materials(comment_only_wiring), ["取得器が titleUserMessages を entry 生成へ渡していない"], "負例 HIGH4/7: コメントによる配線偽装"
+
+  string_only_wiring = disconnected + %(\nlet decoy = "titleUserMessages isMeta == true normalizedPreview"\n)
+  selftest_errors_eq check_claude_materials(string_only_wiring), ["取得器が titleUserMessages を entry 生成へ渡していない"], "負例 HIGH4/7: 文字列による配線偽装"
+
+  unused_only = disconnected + <<~SWIFT
+
+    private func unusedTitleHelper() {
+      if parsed.isMeta == true { return }
+      let _ = ClaudeSessionHistoryEntry(sessionID: "", preview: "", firstUserAt: nil, lastModified: Date(), gitBranch: nil, fileURL: url, titleUserMessages: scan.titleUserMessages, titleSummary: nil)
+    }
+  SWIFT
+  selftest_errors_eq check_claude_materials(unused_only), ["取得器が titleUserMessages を entry 生成へ渡していない"], "負例 HIGH4/7: 未使用ヘルパーによる配線偽装"
+
+  if_false_only = disconnected.sub(
+    "discovered.append(",
+    "if false {\n          let _ = ClaudeSessionHistoryEntry(sessionID: \"\", preview: \"\", firstUserAt: nil, lastModified: Date(), gitBranch: nil, fileURL: url, titleUserMessages: scan.titleUserMessages, titleSummary: nil)\n        }\n        discovered.append("
+  )
+  selftest_errors_eq check_claude_materials(if_false_only), ["取得器が titleUserMessages を entry 生成へ渡していない"], "負例 HIGH4/7: if false による配線偽装"
+
+  extra_db_read = with_replaced(good[:codex], "return databaseEntries", "let _ = scan(fileURL, matchingCWD: normalizedCWD, onScan: nil, onRead: nil)\n          return databaseEntries")
+  selftest_errors_eq check_db_priority_and_readonly(extra_db_read), ["DB 利用時に rollout を追加走査している"], "負例 HIGH5: DB 分岐への追加読込"
+
+  no_limit = with_replaced(good[:codex], "LIMIT ?", "")
+  selftest_errors_eq(
+    check_frozen_restore({ entry: good[:entry], claude: good[:claude], codex: no_limit }, base).grep(/SQL/),
+    ["SQL の採否・cwd 条件が基準から変化している"],
+    "負例 HIGH5: LIMIT 削除"
+  )
+
+  col_order = with_replaced(good[:codex], "SELECT id, rollout_path, preview, first_user_message, updated_at_ms", "SELECT id, rollout_path, first_user_message, preview, updated_at_ms")
+  selftest_errors_eq(
+    check_frozen_restore({ entry: good[:entry], claude: good[:claude], codex: col_order }, base).grep(/SQL/),
+    ["SQL の採否・cwd 条件が基準から変化している"],
+    "負例 HIGH5: 列順変更"
+  )
+
+  flags_var = with_replaced(good[:codex], "sqlite3_open_v2(path, &database, SQLITE_OPEN_READONLY, nil)", "let flags = SQLITE_OPEN_READONLY\n        let result = sqlite3_open_v2(path, &database, flags, nil)")
+  selftest_errors_eq check_db_priority_and_readonly(flags_var), ["SQLite 接続が読み取り専用ではない"], "負例 HIGH5: 接続フラグの別変数化"
+
+  moved_break = with_replaced(good[:codex], "          if scan.firstUserText == nil, let text = Self.messageText(in: object, role: \"user\") {\n            scan.firstUserText = text\n          }\n          if index > 200 { break }", "          if index > 200 { break }\n          if scan.firstUserText == nil, let text = Self.messageText(in: object, role: \"user\") {\n            scan.firstUserText = text\n          }")
+  selftest_errors_eq(
+    check_scan_limits(good[:claude], moved_break, base).grep(/打ち切り位置/),
+    ["Codex の行数打ち切り位置が基準から変化している"],
+    "負例 HIGH6: 打ち切り位置を処理前へ移動"
+  )
+
+  while_changed = with_replaced(good[:claude], "while lineCount < maxLinesPerFile, reader.bytesConsumed < maxBytesPerFile", "while lineCount < maxLinesPerFile")
+  selftest_errors_eq(
+    check_scan_limits(while_changed, good[:codex], base).grep(/走査ループ条件/),
+    ["Claude の走査ループ条件が基準から変化している"],
+    "負例 HIGH6: ループ条件変更"
+  )
+
   prod = production_checks_source
   selftest_assert !prod.empty?, "正例: 本番検査セクションが存在する"
   selftest_assert baseline_check_connected?(prod), "正例: 基準検査が本番に接続されている"
-  disconnected_prod = prod.gsub("check_frozen_baseline", "removed_fn")
-  selftest_assert !baseline_check_connected?(disconnected_prod), "負例: 基準検査の本番接続を外す変異"
+  disconnected_prod = prod.sub("ng.concat(check_frozen_baseline(full))", "")
+  selftest_assert !baseline_check_connected?(disconnected_prod), "負例 HIGH7: 本番呼び出しだけを除去"
   selftest_assert scope_check_gated?(prod), "正例: 変更範囲検査が TASK51_SCOPE_CHECK でゲートされている"
   ungated = prod.gsub("if baseline && scope_check_requested?", "if baseline")
   selftest_assert !scope_check_gated?(ungated), "負例: 変更範囲検査のゲートを外す変異"

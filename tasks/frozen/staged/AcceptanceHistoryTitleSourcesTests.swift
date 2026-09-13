@@ -32,6 +32,21 @@ struct AcceptanceHistoryTitleSourcesTests {
     private static let xmlCommand = "<command-name>/clear</command-name>"
     private static let earlyUser = "early"
     private static let lateUser = "too late"
+    private static let boundUser = "on bound"
+    private static let afterBoundUser = "after bound"
+    private static let metaBranch = "meta-branch"
+    private static let userBranch = "user-branch"
+    private static let metaTimestamp = "2026-07-01T09:00:00.000Z"
+    private static let laterUserTimestamp = "2026-07-01T11:00:00.000Z"
+    private static let systemLikeOutput = "system 相当の出力"
+    private static let assistantOnlyPreview = "assistant だけの出力"
+    private static let firstCodexUser = "一件目の依頼"
+    private static let secondCodexUser = "二件目の依頼"
+    private static let blockA = "block-a"
+    private static let blockB = "block-b"
+    private static let stringContentUser = "  string content の本文  "
+    private static let eventContentUser = "  event_msg.content の本文  "
+    private static let longCodexUser = "改行付き\n" + String(repeating: "あ", count: 130)
 
     // MARK: - 新規公開契約
 
@@ -127,6 +142,36 @@ struct AcceptanceHistoryTitleSourcesTests {
         )
         let entry = try #require(env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 1).first)
         #expect(entry.preview == Self.metaBody)
+        #expect(entry.titleUserMessages == [Self.realRequest])
+        #expect(entry.titleSummary == nil)
+    }
+
+    @Test("先行メタ行と後続 user で日時・ブランチが違っても、既存 firstUserAt / gitBranch / preview はメタ行の従来値")
+    func claudeMetaThenUserKeepsLegacyTimestampAndBranch() throws {
+        let env = try ClaudeHarness()
+        defer { env.tearDown() }
+        try env.writeSession(
+            id: "aaaaaaaa-0000-4000-8000-000000000021",
+            lines: [
+                try claudeUserJSONL(
+                    content: Self.metaBody,
+                    uuid: "u-meta-ts",
+                    timestamp: Self.metaTimestamp,
+                    gitBranch: Self.metaBranch,
+                    isMeta: true
+                ),
+                try claudeUserJSONL(
+                    content: Self.realRequest,
+                    uuid: "u-real-ts",
+                    timestamp: Self.laterUserTimestamp,
+                    gitBranch: Self.userBranch
+                ),
+            ]
+        )
+        let entry = try #require(env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 1).first)
+        #expect(entry.preview == Self.metaBody)
+        #expect(entry.firstUserAt == isoDate(Self.metaTimestamp))
+        #expect(entry.gitBranch == Self.metaBranch)
         #expect(entry.titleUserMessages == [Self.realRequest])
         #expect(entry.titleSummary == nil)
     }
@@ -360,6 +405,21 @@ struct AcceptanceHistoryTitleSourcesTests {
         #expect(entry.titleUserMessages == [Self.earlyUser])
     }
 
+
+    @Test("Claude の 200 行目のユーザー本文は材料に入れ、201 行目は入れない")
+    func claudeLine200CollectedLine201Dropped() throws {
+        let env = try ClaudeHarness()
+        defer { env.tearDown() }
+        var lines = [try claudeUserJSONL(content: Self.earlyUser, uuid: "u-early-200")]
+        lines += (1...198).map { #"{"type":"mode","mode":"pad-\#($0)"}"# }
+        lines.append(try claudeUserJSONL(content: Self.boundUser, uuid: "u-line-200"))
+        lines.append(try claudeUserJSONL(content: Self.afterBoundUser, uuid: "u-line-201"))
+        try env.writeSession(id: "aaaaaaaa-0000-4000-8000-000000000022", lines: lines)
+        let entry = try #require(env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 1).first)
+        #expect(entry.preview == Self.earlyUser)
+        #expect(entry.titleUserMessages == [Self.earlyUser, Self.boundUser])
+    }
+
     @Test("256KiB を超えた後続ユーザー本文は材料に入れない。先行本文は切らない")
     func claudeByteBoundDoesNotCollectLateUser() throws {
         let env = try ClaudeHarness()
@@ -428,6 +488,50 @@ struct AcceptanceHistoryTitleSourcesTests {
         }
         _ = env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 1)
         try assertUnchanged(before, env.root)
+    }
+
+    @Test("正常本文の間の不正 JSON と不正 UTF-8 は飛ばし、前後の材料と既存 preview を保つ")
+    func claudeInvalidJSONAndUTF8KeepSurroundingMaterials() throws {
+        let env = try ClaudeHarness()
+        defer { env.tearDown() }
+        let beforeUser = try claudeUserJSONL(content: Self.earlyUser, uuid: "u-before-bad")
+        let afterUser = try claudeUserJSONL(content: Self.secondUser, uuid: "u-after-bad")
+        var data = Data()
+        data.append(contentsOf: beforeUser.utf8)
+        data.append(0x0A)
+        data.append(contentsOf: "{not json".utf8)
+        data.append(0x0A)
+        data.append(contentsOf: [0xFF, 0xFE, 0xFD])
+        data.append(0x0A)
+        data.append(contentsOf: afterUser.utf8)
+        data.append(0x0A)
+        try env.writeSession(id: "aaaaaaaa-0000-4000-8000-000000000023", data: data)
+        let entry = try #require(env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 1).first)
+        #expect(entry.preview == Self.earlyUser)
+        #expect(entry.titleUserMessages == [Self.earlyUser, Self.secondUser])
+        #expect(entry.titleSummary == nil)
+    }
+
+    @Test("マルチバイト文字が読込チャンク境界を跨いでも材料と preview を失わない")
+    func claudeMultibyteAcrossChunkBoundaryKept() throws {
+        let env = try ClaudeHarness()
+        defer { env.tearDown() }
+        let prefix = #"{"type":"mode","mode":""#
+        let suffix = #""}"#
+        let padCount = 16_384 - prefix.utf8.count - 1
+        let pad = String(repeating: "x", count: padCount)
+        let straddling = prefix + pad + "あ" + suffix
+        try env.writeSession(
+            id: "aaaaaaaa-0000-4000-8000-000000000024",
+            lines: [
+                try claudeUserJSONL(content: Self.earlyUser, uuid: "u-mb-early"),
+                straddling,
+                try claudeUserJSONL(content: Self.secondUser, uuid: "u-mb-after"),
+            ]
+        )
+        let entry = try #require(env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 1).first)
+        #expect(entry.preview == Self.earlyUser)
+        #expect(entry.titleUserMessages == [Self.earlyUser, Self.secondUser])
     }
 
     // MARK: - Codex rollout
@@ -504,7 +608,8 @@ struct AcceptanceHistoryTitleSourcesTests {
             env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 1).first
         )
         #expect(entry.titleUserMessages == [Self.responseUser])
-        #expect(entry.preview == "response_item の本文")
+        #expect(entry.preview == Self.systemLikeOutput)
+        #expect(entry.firstUserAt == isoDate("2026-08-24T10:02:00.000Z"))
         #expect(entry.titleSummary == nil)
     }
 
@@ -604,8 +709,273 @@ struct AcceptanceHistoryTitleSourcesTests {
             "User: \(Self.pasteBody)",
             "Agent: 回答です",
         ])
-        _ = env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 1)
+        let collected = env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 1)
+        #expect(collected.first?.titleUserMessages == [Self.reviewLogin, Self.pasteBody])
         try assertUnchanged(before, env.root)
+    }
+
+
+    @Test("Codex の index 201 のユーザーは材料に入れ、index 202 は入れない")
+    func codexIndex201CollectedIndex202Dropped() throws {
+        let env = try CodexHarness()
+        defer { env.tearDown() }
+        let id = "77777777-7777-4777-8777-777777777777"
+        var lines = [
+            try codexMeta(id: id, cwd: Self.matchingCWD),
+            try codexResponseItem(role: "user", text: Self.earlyUser, messageID: "u-early-idx"),
+        ]
+        lines += (0..<199).map { #"{"type":"event_msg","timestamp":"2026-08-24T10:01:00.000Z","payload":{"type":"agent_message","message":"pad-\#($0)"}}"# }
+        lines.append(try codexResponseItem(role: "user", text: Self.boundUser, messageID: "u-idx-201"))
+        lines.append(try codexResponseItem(role: "user", text: Self.afterBoundUser, messageID: "u-idx-202"))
+        try env.writeRollout(id: id, cwd: Self.matchingCWD, lines: lines)
+        let entry = try #require(
+            env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 1).first
+        )
+        #expect(entry.preview == Self.earlyUser)
+        #expect(entry.titleUserMessages == [Self.earlyUser, Self.boundUser])
+        #expect(entry.titleSummary == nil)
+    }
+
+    @Test("Codex は不正 JSON で continue すると打ち切り判定を飛ばし、index 202 の user も材料にする")
+    func codexInvalidJSONAtIndex201StillCollectsIndex202() throws {
+        let env = try CodexHarness()
+        defer { env.tearDown() }
+        let id = "88888888-8888-4888-8888-888888888888"
+        var lines = [
+            try codexMeta(id: id, cwd: Self.matchingCWD),
+            try codexResponseItem(role: "user", text: Self.earlyUser, messageID: "u-early-bad-idx"),
+        ]
+        lines += (0..<199).map { #"{"type":"event_msg","timestamp":"2026-08-24T10:01:00.000Z","payload":{"type":"agent_message","message":"pad-\#($0)"}}"# }
+        lines.append("{not-json")
+        lines.append(try codexResponseItem(role: "user", text: Self.afterBoundUser, messageID: "u-idx-202-kept"))
+        try env.writeRollout(id: id, cwd: Self.matchingCWD, lines: lines)
+        let entry = try #require(
+            env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 1).first
+        )
+        #expect(entry.preview == Self.earlyUser)
+        #expect(entry.titleUserMessages == [Self.earlyUser, Self.afterBoundUser])
+        #expect(entry.titleSummary == nil)
+    }
+
+    @Test("Codex は cwd 一致時に 512KiB 内のユーザーを材料にし、超過分は入れない。onRead はメタ 16KiB と本文 512KiB")
+    func codexByteBound512KiBAndOnReadCounts() throws {
+        let env = try CodexHarness()
+        defer { env.tearDown() }
+        let id = "66666666-6666-4666-8666-666666666666"
+        let meta = try codexMeta(id: id, cwd: Self.matchingCWD)
+        let early = try codexResponseItem(role: "user", text: Self.earlyUser, messageID: "u-early-512")
+        let late = try codexResponseItem(role: "user", text: Self.lateUser, messageID: "u-late-512")
+        var data = Data((meta + "\n" + early + "\n").utf8)
+        let padNeeded = (512 * 1024) - data.count
+        try #require(padNeeded > 0)
+        data.append(Data(repeating: 0x78, count: padNeeded))
+        data.append(contentsOf: ("\n" + late).utf8)
+        try env.writeRollout(id: id, cwd: Self.matchingCWD, data: data)
+        let reads = ScanCounter()
+        let byteTotal = ScanCounter()
+        let entries = env.discovery.entries(
+            forWorkingDirectory: Self.matchingCWD,
+            limit: 1,
+            onRead: { n in
+                reads.value += 1
+                byteTotal.value += n
+            }
+        )
+        let entry = try #require(entries.first)
+        #expect(entry.preview == Self.earlyUser)
+        #expect(entry.titleUserMessages == [Self.earlyUser])
+        #expect(entry.titleSummary == nil)
+        #expect(reads.value == 2)
+        #expect(byteTotal.value == 16 * 1024 + 512 * 1024)
+    }
+
+    @Test("Codex の複数 user は出現順のまま材料にする")
+    func codexMultipleUsersKeepOrder() throws {
+        let env = try CodexHarness()
+        defer { env.tearDown() }
+        let id = "99999999-9999-4999-8999-999999999991"
+        try env.writeRollout(
+            id: id,
+            cwd: Self.matchingCWD,
+            lines: [
+                try codexMeta(id: id, cwd: Self.matchingCWD),
+                try codexResponseItem(role: "user", text: Self.firstCodexUser, messageID: "u-1"),
+                try codexResponseItem(role: "user", text: Self.secondCodexUser, messageID: "u-2"),
+            ]
+        )
+        let entry = try #require(
+            env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 1).first
+        )
+        #expect(entry.titleUserMessages == [Self.firstCodexUser, Self.secondCodexUser])
+        #expect(entry.preview == Self.firstCodexUser)
+        #expect(entry.titleSummary == nil)
+    }
+
+    @Test("Codex の複数 text block は改行結合した1本文として加工せず保持する")
+    func codexMultipleTextBlocksJoinWithNewline() throws {
+        let env = try CodexHarness()
+        defer { env.tearDown() }
+        let id = "99999999-9999-4999-8999-999999999992"
+        try env.writeRollout(
+            id: id,
+            cwd: Self.matchingCWD,
+            lines: [
+                try codexMeta(id: id, cwd: Self.matchingCWD),
+                try jsonLine([
+                    "type": "response_item",
+                    "timestamp": "2026-08-24T10:01:00.000Z",
+                    "payload": [
+                        "type": "message",
+                        "id": "u-blocks",
+                        "role": "user",
+                        "content": [
+                            ["type": "input_text", "text": Self.blockA],
+                            ["type": "input_text", "text": Self.blockB],
+                        ],
+                    ],
+                ]),
+            ]
+        )
+        let entry = try #require(
+            env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 1).first
+        )
+        #expect(entry.titleUserMessages == ["\(Self.blockA)\n\(Self.blockB)"])
+        #expect(entry.preview == "\(Self.blockA) \(Self.blockB)")
+        #expect(entry.titleSummary == nil)
+    }
+
+    @Test("Codex の文字列 content と event_msg.content を加工せず保持する")
+    func codexStringContentAndEventMsgContentKeptRaw() throws {
+        let env = try CodexHarness()
+        defer { env.tearDown() }
+        let id = "99999999-9999-4999-8999-999999999993"
+        try env.writeRollout(
+            id: id,
+            cwd: Self.matchingCWD,
+            lines: [
+                try codexMeta(id: id, cwd: Self.matchingCWD),
+                try jsonLine([
+                    "type": "response_item",
+                    "timestamp": "2026-08-24T10:01:00.000Z",
+                    "payload": [
+                        "type": "message",
+                        "id": "u-string",
+                        "role": "user",
+                        "content": Self.stringContentUser,
+                    ],
+                ]),
+                try codexEventMsg(payloadType: "user_message", content: Self.eventContentUser),
+            ]
+        )
+        let entry = try #require(
+            env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 1).first
+        )
+        #expect(entry.titleUserMessages == [Self.stringContentUser, Self.eventContentUser])
+        #expect(entry.preview == "string content の本文")
+        #expect(entry.titleSummary == nil)
+    }
+
+    @Test("Codex の改行付き長文は材料では切らず、既存 preview は120文字")
+    func codexLongMultilineNotTruncatedInTitleMaterials() throws {
+        let env = try CodexHarness()
+        defer { env.tearDown() }
+        let id = "99999999-9999-4999-8999-999999999994"
+        try env.writeRollout(
+            id: id,
+            cwd: Self.matchingCWD,
+            lines: [
+                try codexMeta(id: id, cwd: Self.matchingCWD),
+                try codexResponseItem(role: "user", text: Self.longCodexUser, messageID: "u-long"),
+                try codexResponseItem(role: "user", text: Self.continuation, messageID: "u-cont"),
+            ]
+        )
+        let entry = try #require(
+            env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 1).first
+        )
+        let collapsed = Self.longCodexUser
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        #expect(entry.preview == String(collapsed.prefix(120)))
+        #expect(entry.preview.count == 120)
+        #expect(entry.titleUserMessages == [Self.longCodexUser, Self.continuation])
+        #expect(entry.titleSummary == nil)
+    }
+
+    @Test("Codex の system / tool 本文はユーザー材料に混入しない")
+    func codexSystemAndToolStayOutOfTitleMaterials() throws {
+        let env = try CodexHarness()
+        defer { env.tearDown() }
+        let id = "99999999-9999-4999-8999-999999999995"
+        try env.writeRollout(
+            id: id,
+            cwd: Self.matchingCWD,
+            lines: [
+                try codexMeta(id: id, cwd: Self.matchingCWD),
+                try jsonLine([
+                    "type": "event_msg",
+                    "timestamp": "2026-08-24T10:01:00.000Z",
+                    "payload": ["type": "system_message", "message": "system body"],
+                ]),
+                try jsonLine([
+                    "type": "response_item",
+                    "timestamp": "2026-08-24T10:01:00.000Z",
+                    "payload": [
+                        "type": "function_call",
+                        "id": "tool-1",
+                        "name": "shell",
+                        "arguments": "{}",
+                    ],
+                ]),
+                try codexResponseItem(role: "user", text: Self.realRequest, messageID: "u-real-codex"),
+            ]
+        )
+        let entry = try #require(
+            env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 1).first
+        )
+        #expect(entry.titleUserMessages == [Self.realRequest])
+        #expect(entry.preview == "system body")
+        #expect(entry.titleSummary == nil)
+    }
+
+    @Test("Codex の assistant event だけで既存 entry が立つとき、材料は空配列で summary は nil")
+    func codexAssistantOnlyYieldsEmptyTitleMaterials() throws {
+        let env = try CodexHarness()
+        defer { env.tearDown() }
+        let id = "99999999-9999-4999-8999-999999999996"
+        try env.writeRollout(
+            id: id,
+            cwd: Self.matchingCWD,
+            lines: [
+                try codexMeta(id: id, cwd: Self.matchingCWD),
+                try jsonLine([
+                    "type": "event_msg",
+                    "timestamp": "2026-08-24T10:03:00.000Z",
+                    "payload": ["type": "agent_message", "message": Self.assistantOnlyPreview],
+                ]),
+            ]
+        )
+        let entry = try #require(
+            env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 1).first
+        )
+        #expect(entry.preview == Self.assistantOnlyPreview)
+        #expect(entry.firstUserAt == isoDate("2026-08-24T10:03:00.000Z"))
+        #expect(entry.titleUserMessages == [])
+        #expect(entry.titleSummary == nil)
+    }
+
+    @Test("Codex の空ファイルとメタデータのみは entry にしない")
+    func codexEmptyFileAndMetadataOnlyYieldNoEntries() throws {
+        let env = try CodexHarness()
+        defer { env.tearDown() }
+        try env.writeRollout(id: "empty-file", cwd: Self.matchingCWD, data: Data())
+        try env.writeRollout(
+            id: "meta-only",
+            cwd: Self.matchingCWD,
+            lines: [try codexMeta(id: "meta-only", cwd: Self.matchingCWD)]
+        )
+        let entries = env.discovery.entries(forWorkingDirectory: Self.matchingCWD, limit: 10)
+        #expect(entries.isEmpty)
     }
 
     // MARK: - Codex DB
@@ -849,6 +1219,7 @@ private struct ClaudeHarness {
         discovery = ClaudeSessionHistoryDiscovery(projectsRoot: url)
         let dir = url.appendingPathComponent("-tmp-work", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try plantHiddenMarker(at: url)
     }
 
     var projectDir: URL {
@@ -857,8 +1228,13 @@ private struct ClaudeHarness {
 
     @discardableResult
     func writeSession(id: String, lines: [String], modifiedAt: Date? = nil) throws -> URL {
+        try writeSession(id: id, data: Data(lines.joined(separator: "\n").utf8), modifiedAt: modifiedAt)
+    }
+
+    @discardableResult
+    func writeSession(id: String, data: Data, modifiedAt: Date? = nil) throws -> URL {
         let file = projectDir.appendingPathComponent("\(id).jsonl")
-        try lines.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
+        try data.write(to: file, options: .atomic)
         if let modifiedAt {
             try FileManager.default.setAttributes([.modificationDate: modifiedAt], ofItemAtPath: file.path)
         }
@@ -880,6 +1256,7 @@ private struct CodexHarness {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         root = url
         discovery = CodexSessionHistoryDiscovery(codexHome: url)
+        try plantHiddenMarker(at: url)
     }
 
     func dayDir() throws -> URL {
@@ -890,9 +1267,14 @@ private struct CodexHarness {
 
     @discardableResult
     func writeRollout(id: String, cwd: String, lines: [String], modifiedAt: Date? = nil) throws -> URL {
+        try writeRollout(id: id, cwd: cwd, data: Data(lines.joined(separator: "\n").utf8), modifiedAt: modifiedAt)
+    }
+
+    @discardableResult
+    func writeRollout(id: String, cwd: String, data: Data, modifiedAt: Date? = nil) throws -> URL {
         _ = cwd
         let file = try dayDir().appendingPathComponent("rollout-\(id).jsonl")
-        try lines.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
+        try data.write(to: file, options: .atomic)
         if let modifiedAt {
             try FileManager.default.setAttributes([.modificationDate: modifiedAt], ofItemAtPath: file.path)
         }
@@ -1031,12 +1413,26 @@ private func codexResponseItem(
     ])
 }
 
-private func codexEventMsg(payloadType: String, message: String) throws -> String {
-    try jsonLine([
+private func codexEventMsg(payloadType: String, message: String? = nil, content: Any? = nil) throws -> String {
+    var payload: [String: Any] = ["type": payloadType]
+    if let message {
+        payload["message"] = message
+    }
+    if let content {
+        payload["content"] = content
+    }
+    return try jsonLine([
         "type": "event_msg",
         "timestamp": "2026-08-24T10:01:00.000Z",
-        "payload": ["type": payloadType, "message": message],
+        "payload": payload,
     ])
+}
+
+private func plantHiddenMarker(at root: URL) throws {
+    try Data("keep\n".utf8).write(to: root.appendingPathComponent(".task51-hidden"))
+    let hiddenDir = root.appendingPathComponent(".task51-hidden-dir", isDirectory: true)
+    try FileManager.default.createDirectory(at: hiddenDir, withIntermediateDirectories: true)
+    try Data("keep-dir\n".utf8).write(to: hiddenDir.appendingPathComponent("marker.txt"))
 }
 
 private func insertThread(
@@ -1097,18 +1493,24 @@ private func snapshotTree(_ root: URL) throws -> [String: FileStamp] {
     var stamps: [String: FileStamp] = [:]
     let enumerator = FileManager.default.enumerator(
         at: root,
-        includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
-        options: [.skipsHiddenFiles]
+        includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey, .contentModificationDateKey],
+        options: []
     )
     while let item = enumerator?.nextObject() {
         guard let url = item as? URL else { continue }
-        let values = try url.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey])
-        guard values.isRegularFile == true else { continue }
+        let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isDirectoryKey, .contentModificationDateKey])
         let relative = String(url.path.dropFirst(root.path.count).drop(while: { $0 == "/" }))
-        stamps[relative] = FileStamp(
-            bytes: try Data(contentsOf: url),
-            modificationTime: values.contentModificationDate?.timeIntervalSince1970 ?? 0
-        )
+        let mtime = values.contentModificationDate?.timeIntervalSince1970 ?? 0
+        if values.isDirectory == true {
+            let key = relative.hasSuffix("/") ? relative : relative + "/"
+            stamps[key] = FileStamp(bytes: Data(), modificationTime: mtime)
+        }
+        if values.isRegularFile == true {
+            stamps[relative] = FileStamp(
+                bytes: try Data(contentsOf: url),
+                modificationTime: mtime
+            )
+        }
     }
     return stamps
 }

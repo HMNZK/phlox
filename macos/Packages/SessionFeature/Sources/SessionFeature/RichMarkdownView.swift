@@ -69,6 +69,7 @@ private func chatMarkdownTheme(scale: CGFloat) -> Theme {
         .listItem { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+                .markdownMargin(bottom: TranscriptTypography.metadataGap)
         }
         // MarkdownUI の空テーマは段落・見出しの label に縦サイズ確保を付けない。そのまま
         // selectable な Text を幅制約下へ置くと、描画が折り返しても親が 1 行高のままになり、
@@ -77,6 +78,8 @@ private func chatMarkdownTheme(scale: CGFloat) -> Theme {
         .paragraph { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+                .lineSpacing(TranscriptTypography.textLineSpacing)
+                .markdownMargin(bottom: TranscriptTypography.withinAnswer)
         }
         .heading1 { configuration in
             configuration.label
@@ -168,15 +171,15 @@ private func chatMarkdownTheme(scale: CGFloat) -> Theme {
                     .buttonStyle(.plain)
                     .help("Copy code")
                 }
-                .padding(.horizontal, DSSpacing.m)
-                .padding(.vertical, DSSpacing.s)
+                .padding(.horizontal, TranscriptTypography.cardHorizontalInset)
+                .padding(.vertical, TranscriptTypography.cardVerticalInset)
 
                 Divider()
                     .overlay(DSColor.separator)
 
                 highlightedCode(configuration.content, language: configuration.language)
                     .font(ChatScaledFont.mono(scale: scale))
-                    .padding(DSSpacing.m)
+                    .padding(TranscriptTypography.codeContentInset)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .chatTextSelection()
             }

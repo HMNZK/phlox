@@ -51,9 +51,9 @@ struct UserMessageCell: View {
         let presentation = ChatUserMessagePresentation(text: text, attachments: attachments)
         HStack(alignment: .bottom) {
             Spacer(minLength: 72)
-            VStack(alignment: .trailing, spacing: DSSpacing.xs) {
-                VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            VStack(alignment: .trailing, spacing: TranscriptTypography.metadataGap) {
+                VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
+                    VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
                         if presentation.showsText {
                             Text(text)
                                 .font(ChatScaledFont.body(scale: scale))
@@ -65,8 +65,8 @@ struct UserMessageCell: View {
                             ChatAttachmentBadge(title: badge.title, scale: scale)
                         }
                     }
-                    .padding(.horizontal, DSSpacing.m)
-                    .padding(.vertical, DSSpacing.s)
+                    .padding(.horizontal, TranscriptTypography.cardHorizontalInset)
+                    .padding(.vertical, TranscriptTypography.cardVerticalInset)
                     .background(
                         RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous)
                             .fill(DSColor.userBubble)
@@ -126,7 +126,7 @@ struct AgentMessageCell: View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         AvatarMessageRow {
-            VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
                 AgentMessageBody(text: text)
                 HStack(spacing: DSSpacing.xs) {
                     MessageCopyButton(
@@ -209,7 +209,7 @@ struct ErrorMessageCell: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+        VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
             Label("Error", systemImage: "exclamationmark.triangle")
                 .font(ChatScaledFont.captionStrong(scale: scale))
                 .foregroundStyle(DSColor.statusError)
@@ -220,8 +220,8 @@ struct ErrorMessageCell: View {
                 .lineSpacing(TranscriptTypography.textLineSpacing)
             ChatTimestampText(timestamp: timestamp)
         }
-        .padding(.horizontal, DSSpacing.m)
-        .padding(.vertical, DSSpacing.s)
+        .padding(.horizontal, TranscriptTypography.cardHorizontalInset)
+        .padding(.vertical, TranscriptTypography.cardVerticalInset)
         .frame(maxWidth: 720, alignment: .leading)
         .background(DSColor.statusError.opacity(0.14), in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
         .overlay(

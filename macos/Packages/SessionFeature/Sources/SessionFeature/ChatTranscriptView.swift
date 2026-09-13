@@ -37,6 +37,7 @@ struct ChatTranscriptView: View {
     /// レイアウト変化時のみ preference から更新される（スクロールでは再計算されない・ADR 0030）。
     @State private var userMessageOffsets: [String: CGFloat] = [:]
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+    @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
     /// content 座標系の名前空間。ブロックの縦位置をスクロール不変に測るために使う。
     private static let contentSpaceName = "transcriptContent"
@@ -217,8 +218,8 @@ struct ChatTranscriptView: View {
                 .frame(height: max(1, bottomScrollContentMargin))
                 .id("chat-bottom")
         }
-        .padding(.horizontal, DSSpacing.l)
-        .padding(.vertical, DSSpacing.m)
+        .padding(.horizontal, TranscriptTypography.transcriptHorizontalInset)
+        .padding(.vertical, TranscriptTypography.transcriptVerticalInset)
         .coordinateSpace(.named(Self.contentSpaceName))
     }
 
@@ -302,9 +303,9 @@ struct ChatTranscriptView: View {
                 Image(systemName: "chevron.up")
                 Text("以前のメッセージを表示")
                 Text("残り \(hiddenCount) 件")
-                    .font(ChatScaledFont.caption(scale: ChatFontSettings.adjusted(from: ChatFontSettings.currentScale(), by: 0)))
+                    .font(ChatScaledFont.caption(scale: ChatFontSettings.adjusted(from: chatScale, by: 0)))
             }
-                .font(ChatScaledFont.captionStrong(scale: ChatFontSettings.adjusted(from: ChatFontSettings.currentScale(), by: 0)))
+                .font(ChatScaledFont.captionStrong(scale: ChatFontSettings.adjusted(from: chatScale, by: 0)))
                 .foregroundStyle(DSColor.chatTextSecondary)
                 .padding(.horizontal, DSSpacing.m)
                 .padding(.vertical, DSSpacing.s)

@@ -27,8 +27,8 @@ struct ChatCodeCard<Header: View, Content: View>: View {
                     isVisible: isHovering
                 )
             }
-            .padding(.horizontal, DSSpacing.m)
-            .padding(.vertical, DSSpacing.s)
+            .padding(.horizontal, TranscriptTypography.cardHorizontalInset)
+            .padding(.vertical, TranscriptTypography.cardVerticalInset)
 
             content
         }

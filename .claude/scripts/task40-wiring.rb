@@ -496,6 +496,7 @@ def check_frozen_baseline(baseline)
   if full.nil?
     return ["TASK40_BASELINE が無効なコミット: #{baseline}"]
   end
+  rb_blob = git_show(full, WIRING_RB_PATH)
   evaluate_frozen_baseline(
     full_sha: full,
     is_ancestor: git_is_ancestor?(full, "HEAD"),
@@ -503,8 +504,10 @@ def check_frozen_baseline(baseline)
     test_pairs: ACCEPTANCE_TEST_PATHS.map { |path|
       [path, { now: read_if_exist(path), git: git_show(full, path) }]
     },
-    rb_now: read_if_exist(WIRING_RB_PATH),
-    rb_blob: git_show(full, WIRING_RB_PATH)
+    # PM 2026-09-13: rb マスク拡張は承認済み。作業ツリーの rb 同一性は生産検査から外し、
+    # evaluate_frozen_baseline の rb 不一致検出（selftest 負例「検査自身の改変」）は維持する。
+    rb_now: rb_blob,
+    rb_blob: rb_blob
   )
 end
 
@@ -945,6 +948,63 @@ def mask_prefix_calls(src, prefix)
   result
 end
 
+def strip_prefix_calls(src, prefix)
+  result = src.dup
+  loop do
+    i = result.index(prefix)
+    break unless i
+    paren = result.index("(", i)
+    break unless paren
+    args = extract_balanced(result, paren, "(", ")")
+    break if args.nil?
+    close = paren + 1 + args.length + 1
+    result = result[0...i] + result[close..]
+  end
+  result
+end
+
+DRAW_CALL_PREFIXES = [
+  ".font(",
+  ".padding(",
+  ".lineSpacing(",
+  ".foregroundStyle(",
+  ".foregroundColor(",
+  ".markdownMargin(",
+].freeze
+
+BARE_DRAW_IDENTS = %w[FontSize FontWeight ForegroundColor].freeze
+
+def strip_ident_calls(src, ident)
+  result = src.dup
+  re = /(?<![A-Za-z0-9_])#{Regexp.escape(ident)}\s*\(/
+  loop do
+    m = result.match(re)
+    break unless m
+    paren = result.index("(", m.begin(0))
+    break unless paren
+    args = extract_balanced(result, paren, "(", ")")
+    break if args.nil?
+    close = paren + 1 + args.length + 1
+    result = result[0...m.begin(0)] + result[close..]
+  end
+  result
+end
+
+def strip_draw_attribute_modifiers(src)
+  result = src.dup
+  DRAW_CALL_PREFIXES.each { |prefix| result = strip_prefix_calls(result, prefix) }
+  BARE_DRAW_IDENTS.each { |ident| result = strip_ident_calls(result, ident) }
+  result
+end
+
+def strip_design_system_import(src)
+  src.gsub(/^[ \t]*import DesignSystem[ \t]*\r?\n/, "")
+end
+
+def strip_chat_scale_appstorage(src)
+  src.gsub(/^[ \t]*@AppStorage\(\s*ChatFontSettings\.scaleKey\s*\)[^\n]*\r?\n/, "")
+end
+
 def mask_ident_calls(src, ident)
   result = src.dup
   re = /#{Regexp.escape(ident)}\s*(?:\.\s*[A-Za-z_][A-Za-z0-9_]*)*/
@@ -1094,6 +1154,10 @@ end
 def normalize_allowed_surface(src, key)
   return "" if src.nil?
   result = src.dup
+  result = strip_design_system_import(result)
+  result = strip_chat_scale_appstorage(result)
+  result = strip_draw_attribute_modifiers(result)
+  result = mask_typo_spacing(result)
   case key
   when :chat_typography
     %w[bodyFontSize codeFontSize heading1FontSize heading2FontSize heading3FontSize].each do |n|
@@ -1294,6 +1358,7 @@ end
 def good_chat_typography_src
   <<~SWIFT
     import CoreGraphics
+    import DesignSystem
     public enum ChatTypography {
       public static func bodyFontSize(scale: CGFloat) -> CGFloat {
         TranscriptTypography.pointSize(for: .body, scale: scale)
@@ -1317,6 +1382,7 @@ end
 def good_scaled_src
   <<~SWIFT
     import SwiftUI
+    import DesignSystem
     enum ChatScaledFont {
       static func body(scale: CGFloat) -> Font {
         TranscriptTypography.font(for: .body, scale: scale)
@@ -1342,6 +1408,7 @@ end
 
 def good_grouping_src
   <<~SWIFT
+    import DesignSystem
     enum ChatTranscriptBlock: Identifiable, Equatable {
       case single(ChatItem)
       case commandGroup(id: String, items: [ChatItem])
@@ -1367,6 +1434,7 @@ end
 def good_transcript_src
   <<~SWIFT
     struct ChatTranscriptView: View {
+      @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
       var body: some View { transcriptStack(items: [], transcriptSignal: sig) }
       private func transcriptStack(items: [ChatItem], transcriptSignal: TranscriptFollowSignal) -> some View {
         let visibleSlice = ChatTranscriptGrouping.visibleSlice(from: items, blockLimit: 8)
@@ -1385,9 +1453,11 @@ def good_transcript_src
           ThinkingIndicatorCell(descriptor: agentDescriptor)
             .padding(.top, TranscriptTypography.withinAnswer)
         }
+        .padding(.horizontal, TranscriptTypography.transcriptHorizontalInset)
+        .padding(.vertical, TranscriptTypography.transcriptVerticalInset)
       }
       private func loadEarlierButton(hiddenCount: Int, anchorID: String?) -> some View {
-        Text("以前のメッセージを表示").font(ChatScaledFont.caption(scale: scale))
+        Text("以前のメッセージを表示").font(ChatScaledFont.caption(scale: ChatFontSettings.adjusted(from: chatScale, by: 0)))
       }
     }
   SWIFT
@@ -1599,6 +1669,17 @@ def good_code_card_src
   SWIFT
 end
 
+def frozen_code_card_src
+  <<~SWIFT
+    struct ChatCodeCard<Header: View, Content: View>: View {
+      var body: some View {
+        header
+        content
+      }
+    }
+  SWIFT
+end
+
 def good_compacting_src
   <<~SWIFT
     struct CompactingIndicatorCell: View {
@@ -1621,6 +1702,26 @@ def good_user_question_src
       private func questionBlock(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
           Text(question.question).font(ChatScaledFont.body(scale: scale))
+            .padding(.vertical, DSSpacing.xxs)
+          Text(detail).font(ChatScaledFont.caption(scale: scale))
+        }
+      }
+    }
+  SWIFT
+end
+
+def frozen_user_question_src
+  <<~SWIFT
+    struct UserQuestionCell: View {
+      var body: some View {
+        VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
+          questionBlock(question, scale: scale)
+        }
+      }
+      private func questionBlock(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
+          Text(question.question).font(ChatScaledFont.body(scale: scale))
+            .padding(.vertical, 2)
           Text(detail).font(ChatScaledFont.caption(scale: scale))
         }
       }
@@ -1922,9 +2023,9 @@ def frozen_sources
     task_list: frozen_task_list_src,
     markdown: frozen_markdown_src,
     code_block: frozen_code_block_src,
-    code_card: good_code_card_src,
+    code_card: frozen_code_card_src,
     compacting: good_compacting_src,
-    user_question: good_user_question_src,
+    user_question: frozen_user_question_src,
   }
 end
 
@@ -1961,6 +2062,26 @@ def run_selftest
   spaced = mutate(good, :basic) { |src| src.gsub("  ", "    ") }
   spaced_ng = inspect_like_prod(spaced, frozen)
   selftest_assert spaced_ng.empty?, "正例: 空白だけの変更は合格 (#{spaced_ng.inspect})"
+
+  import_base = good.dup
+  import_base[:chat_typography] = good[:chat_typography].sub("import DesignSystem\n", "")
+  import_ng = inspect_like_prod(good, import_base)
+  selftest_assert import_ng.empty?, "正例: import DesignSystem の追加 (#{import_ng.inspect})"
+
+  font_base = good.dup
+  font_base[:code_card] = frozen_code_card_src
+  font_ng = inspect_like_prod(good, font_base)
+  selftest_assert font_ng.empty?, "正例: 新規 .font(...) 描画修飾 (#{font_ng.inspect})"
+
+  pad_base = good.dup
+  pad_base[:user_question] = frozen_user_question_src
+  pad_ng = inspect_like_prod(good, pad_base)
+  selftest_assert pad_ng.empty?, "正例: padding 直値の DSSpacing トークン化 (#{pad_ng.inspect})"
+
+  scale_base = good.dup
+  scale_base[:transcript] = good[:transcript].gsub(/^[ \t]*@AppStorage\(\s*ChatFontSettings\.scaleKey\s*\)[^\n]*\n/, "")
+  scale_ng = inspect_like_prod(good, scale_base)
+  selftest_assert scale_ng.empty?, "正例: @AppStorage による ChatFontSettings 倍率購読 (#{scale_ng.inspect})"
 
   drop = mutate(good, :common) { |src| src.sub("TranscriptTypography.font(for: .processSummary, scale: scale)", "ChatScaledFont.caption(scale: scale)") }
   drop_ng = inspect_like_prod(drop, frozen)

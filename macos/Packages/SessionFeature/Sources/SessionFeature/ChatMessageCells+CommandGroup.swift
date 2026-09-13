@@ -219,7 +219,7 @@ struct CommandGroupCell: View, Equatable {
                             .id(row.id)
                         }
                     }
-                    .padding(.top, DSSpacing.s)
+                    .padding(.top, TranscriptTypography.withinAnswer)
                 }
             }
             .frame(maxWidth: 800, alignment: .leading)
@@ -269,7 +269,7 @@ private struct CommandGroupExecutionRow: View {
                         .font(ChatScaledFont.monoCaption(scale: scale))
                         .foregroundStyle(DSColor.chatTextSecondary)
                         .chatTextSelection()
-                        .padding(.top, DSSpacing.s)
+                        .padding(.top, TranscriptTypography.withinAnswer)
                     if outputDisplay.isTruncated {
                         Button {
                             isOutputExpanded = true
@@ -286,8 +286,8 @@ private struct CommandGroupExecutionRow: View {
                     }
                 }
             }
-            .padding(.horizontal, DSSpacing.m)
-            .padding(.bottom, DSSpacing.m)
+            .padding(.horizontal, TranscriptTypography.cardHorizontalInset)
+            .padding(.bottom, TranscriptTypography.codeContentInset)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

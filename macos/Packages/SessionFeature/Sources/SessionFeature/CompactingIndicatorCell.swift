@@ -48,14 +48,14 @@ struct CompactingIndicatorCell: View {
                     staticCompactingText(scale: scale)
                 } else {
                     TimelineView(ThinkingAnimationModel.timelineSchedule(isVisible: isTimelineVisible)) { context in
-                        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                        VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
                             shimmeringCompactingText(scale: scale, date: context.date)
                             CompactingDogSceneView(date: context.date, startDate: compactingStartedAt)
                         }
                     }
                 }
             }
-            .padding(.vertical, DSSpacing.xs)
+            .padding(.vertical, TranscriptTypography.metadataGap)
         }
         .onAppear {
             isInViewHierarchy = true

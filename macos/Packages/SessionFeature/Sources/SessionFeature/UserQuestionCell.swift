@@ -167,7 +167,7 @@ struct UserQuestionCell: View {
             for: selected,
             isSecret: question.isSecret
         )
-        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+        VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
             ForEach(selected.indices, id: \.self) { index in
                 let answer = selected[index]
                 optionLabel(
@@ -183,7 +183,7 @@ struct UserQuestionCell: View {
 
     @ViewBuilder
     private func expiredQuestionBody(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+        VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
             ForEach(question.options, id: \.label) { option in
                 optionLabel(
                     label: option.label,
@@ -198,7 +198,7 @@ struct UserQuestionCell: View {
 
     @ViewBuilder
     private func pendingQuestionBody(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: DSSpacing.s) {
+        VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
             if !question.options.isEmpty {
                 if question.multiSelect {
                     multiSelectOptions(question, scale: scale)
@@ -214,7 +214,7 @@ struct UserQuestionCell: View {
     @ViewBuilder
     private func singleSelectOptions(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
         let selected = form.selections[question.answerKey, default: []]
-        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+        VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
             ForEach(question.options, id: \.label) { option in
                 optionLabel(
                     label: option.label,
@@ -233,7 +233,7 @@ struct UserQuestionCell: View {
     @ViewBuilder
     private func multiSelectOptions(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
         let selections = form.selections[question.answerKey, default: []]
-        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+        VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
             ForEach(question.options, id: \.label) { option in
                 optionLabel(
                     label: option.label,
@@ -327,7 +327,7 @@ struct UserQuestionCell: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, DSSpacing.s)
-            .padding(.vertical, DSSpacing.xs)
+            .padding(.vertical, TranscriptTypography.metadataGap)
             .background(
                 RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
                     .fill(isSelected ? DSColor.chatSuccess.opacity(0.12) : DSColor.fillSubtle)

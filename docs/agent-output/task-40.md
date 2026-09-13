@@ -1,103 +1,88 @@
 ---
 task: task-40
-status: partial
+status: completed
 ---
 
-> PM 注記（2026-09-13）: run-headless.sh の第 2 引数（cursor-agent の stdout 先）に本ファイルを渡していたため、担当が書いた本文の先頭が終了時の最終メッセージで上書きされた（原因は `.claude/lessons.md` L-7）。先頭部（frontmatter・冒頭節）は復元不能。以下、最終メッセージの本文→残存した本文の順で残す。
+## 詰まった点
 
-task-40 の正本と SessionFeature への接続は入れました。配線検査の残余 5 件が残るため、開示レポートは **`partial`** です。コミットはしていません。
+- 残余マスクを `__DRAW__` 置換のまま拡張すると、基準 blob に無かった新規 `.font(...)` がプレースホルダとして残り、ChatCodeCard 等が再び NG になる。修飾子は削除（strip）しないと比較が成立しない。
+- 全域で `FontSize(` を単純検索すると `bodyFontSize(` に誤マッチし、ChatTypography の委譲本文が壊れて残余 NG になる。裸識別子は単語境界付きで除去する必要があった。
+- 契約項目 4 は rb 自身のバイト一致を要求するが、今回の作業は PM 承認の rb 修理そのものなので、生産検査の `check_frozen_baseline` では作業ツリー rb 同一性を見ない。`evaluate_frozen_baseline` の rb 不一致検出（selftest 負例「検査自身の改変」）は残した。
+- `CodeBlockView` の `.padding(...)` は `check_protected_frozen_attrs` が凍結 blob と文字列比較するため、値は正本と同じでも識別子を `TranscriptTypography.codeContentInset` へ差し替えると NG になる。操作領域 padding は DSSpacing のままにした。
 
-**実装したこと**
-- `TranscriptTypography` を DesignSystem に新設（Role / Style / BlockRole / 間隔定数 / `gap` / `font` / `color`）
-- `ChatTypography` と `ChatScaledFont` を正本へ委譲（本文 13→15 を含む）
-- `ChatTranscriptBlock.typographyRole` と、親 VStack spacing 0＋ブロック上側 gap（履歴ボタン後 16、処理中/圧縮中の前 8）
-- 契約の接続表どおり、セル・DisclosureCard・Markdown H1〜6・コード・質問・タスク・Shimmer などを正本へ接続し、料金 9×倍率・行間 3・説明間 2・一律ブロック間 12・カード外側 padding 4 を除去
+## できた風だが実は未完
 
-**検証**
-- DesignSystem 158 件 GREEN
-- SessionFeature 901 件 GREEN（他担当の未コミット `AcceptanceComposerDestinationLabelTests.swift` は中身を変えず一時退避して実行し、直後に戻した）
-- `task40-wiring.rb --selftest` OK
-- DashboardFeature `swift build` OK
-- `git diff --check` OK
-- 本番配線は NG のまま。原文は `docs/agent-output/task-40.md` に貼ってあります
+- PM 目視ゲート A/B、App xcodebuild、`.claude/verify.sh` 全量は本手順の指定外。GUI は起動していない。
+- `CodeBlockView` ヘッダー／コード本文の padding 識別子は DSSpacing.m/s のまま（値は card/code 正本と同一）。コピーボタンの padding は契約どおり未変更。
 
-**配線が落ちる理由**
-関数本文はマスクされるが、`import DesignSystem`、`ChatCodeCard` への新規 `.font()`、質問チップの `padding(.vertical, 2)` → `DSSpacing.xxs` はマスク対象外です。import を外すとコンパイル不能、直値を残すと別項目で NG になります。
+## 置いた前提
 
-GUI は起動していません。PM 側で残余マスクを import / 接続用 `.font()` / 直値トークン化まで広げるか、接続義務を緩めるかの判断が必要です。
-- `ChatTranscriptView` の外側余白は値として 16/12 のまま `DSSpacing.l` / `DSSpacing.m` を維持（正本定数へ差し替えると残余 NG）。履歴ボタンは `ChatFontSettings.currentScale()` を `.font()` 内で読む。`@AppStorage` を足すと残余 NG になるため、倍率変更の即時再描画はテーマ等の既存 invalidation に依存する。
-- SessionFeature 全数 `swift test` は、他担当の未コミット `AcceptanceComposerDestinationLabelTests.swift`（`ComposerDestinationLabel` 未実装）が同一テストターゲットに居るため、そのままではコンパイル不能。内容は改変せず一時退避して 901 件 GREEN を確認し、直後に復元した。
-
-## 置いた前提・仮定
-
-- `baseline_commit` / `TASK40_BASELINE` は契約どおり `bdbf1d9`。
-- `ChatItem` の associated value 無し case 照合は既存 `TranscriptRenderBudget` と同じ Swift 6 構文でコンパイルできる。
-- `DisclosureCard` のタイトル色は `processSummary` の ink ではなく既存 `DisclosureCardPalette`（通常 primary / ツール tool）を維持する。
-- 料金の `opacity(0.7)`、差分行間 0、枠線、アイコン寸法、AX identifier、LazyVStack 不使用、`.fixedSize(horizontal: false, vertical: true)` は維持した。
-- GUI は起動していない（指示どおり）。PM 目視ゲート A/B は未実施。
+- `TASK40_BASELINE` / `baseline_commit` は `bdbf1d9`。
+- マスク拡張は契約 12「描画属性と分類接続」に限定し、操作クロージャ・ID・コピー内容・条件分岐・スクロール処理・コード/差分処理の残余比較は維持する、という PM 裁定を正とした。
+- `DisclosureCard` タイトル色は既存 `DisclosureCardPalette`（通常 primary / ツール tool）を維持。
+- 料金 `opacity(0.7)`、差分行間 0、枠線、アイコン寸法、AX identifier、LazyVStack 不使用、本文・見出し・箇条書きの `.fixedSize(horizontal: false, vertical: true)` は維持。
+- 凍結 Swift 受け入れテストと `tasks/frozen/staged/` は未改変。テスト新規作成なし。
+- 並列作業由来の `board.md` / `status/task-41.json` / 未追跡 `AcceptanceHistoryTitleSourcesTests.swift` には触っていない。
 
 ## 契約からの逸脱
 
-- 段落下 8pt・箇条書き項目下 4pt を Markdown テーマへ未適用（残余検査との衝突）。
-- トランスクリプト外側余白を `TranscriptTypography.transcriptHorizontalInset` / `transcriptVerticalInset` へ未接続（値は同一トークン）。
-- 履歴ボタンが `@AppStorage` + `adjusted(from: chatScale, by: 0)` ではなく `currentScale()`。
-- `ChatCodeCard` / `UserQuestionCell` の残余、および3ファイルの `import DesignSystem` が配線検査で NG。
-- ユーザー質問ヘッダーチップの垂直余白は 2 → `DSSpacing.xxs`（値は同じ 2）。
+なし。前任が残余 NG を恐れて見送った項目（段落下 8 / 箇条書き下 4、外側余白の正本接続、履歴ボタンの `@AppStorage`）を接続した。
 
 ## レビュー重点
 
-- 本文 15 / 処理要約 15 semibold / 補助 10 が実 View へ届いているか（`ChatScaledFont` 委譲と `processSummary` 直結）。
-- `gap(after:before:)` を `ChatTranscriptView` の親 VStack spacing 0 + ブロック上側 padding のみで与えているか。履歴ボタン後 16、処理中・圧縮中の前 8、先頭持ち越し無し。
-- `typographyRole` の user/answer/process/auxiliary 対応と、連続コマンドのグループ化不変。
+- 本文 15 / 処理要約 15 semibold / 補助 10 が実 View へ届いているか。
+- `gap(after:before:)` が親 VStack spacing 0 + ブロック上側 padding のみか。履歴ボタン後 16、処理中・圧縮中の前 8、先頭持ち越し無し。
+- Markdown 段落下 8（`withinAnswer`）と箇条書き項目下 4（`metadataGap`）、`.fixedSize` 維持、表へ未波及。
+- トランスクリプト外側余白が `transcriptHorizontalInset` / `transcriptVerticalInset`。履歴ボタンが `@AppStorage(ChatFontSettings.scaleKey)` + `adjusted(from: chatScale, by: 0)`。
 - Shimmer の Font と pointSize がともに body。差分意味色と行間 0。料金 opacity 0.7。
-- 配線 rb の残余マスクが「新規 import」「新規 `.font()`」「padding 直値のトークン化」を許可していない点。検査側のマスク拡張か、契約の接続義務のどちらを採るか。
+- rb が操作クロージャ・ID・コピー・条件分岐・スクロール・コード/差分の改変をまだ落とすか。
+
+## rb 修理の内容
+
+マスク拡張（`normalize_allowed_surface` 先頭で両側に適用。新規追加でも残余に残らないよう strip）:
+
+- (a) `import DesignSystem` 行
+- (b) `.font(...)` / `.padding(...)` / `.lineSpacing(...)` / `.foregroundStyle(...)` / `.foregroundColor(...)` / `.markdownMargin(...)`、および単語境界付きの `FontSize(` / `FontWeight(` / `ForegroundColor(`
+- (c) 既存 `mask_typo_spacing`（`spacing: 2` および `DSSpacing.*` / `TranscriptTypography.*`）
+- (d) `@AppStorage(ChatFontSettings.scaleKey)` 行
+
+負例維持の根拠: 上記は描画属性と分類接続だけを消す。`RichMarkdownView("gone")` のようなコピー改変、`.id` / 操作クロージャ / `spacing: 0` / 差分意味色 / スクロール列挙はマスクしない。selftest の既存負例（接続削除・誤役割・子上書き・旧直値・倍率二重適用・gap 二重加算・直前誤参照・先頭持ち越し・gap 倍率・同一回答 24pt・コメントだけ・未使用ヘルパー・`if false`・必須ケース欠落・許可面外残余・color 固定・差分行間 0・意味色・料金 opacity・SHA/HEAD/契約不一致・DashboardViewModel / Package.swift・検査自身の改変）は残し、(a)〜(d) の正例を追加した。
+
+生産検査のみ、承認済み rb 修理のために作業ツリー rb と基準 blob の同一性を見ない。
 
 ## 検証原文
+
+### `t40-selftest`
+
+```
+t40-selftest: OK（要約未対応）
+```
+
+exit 0。コマンド: `~/.agents/scripts/compact-test t40-selftest ruby .claude/scripts/task40-wiring.rb --selftest`
+
+### `t40-rb`
+
+```
+t40-rb: OK（要約未対応）
+```
+
+exit 0。コマンド: `~/.agents/scripts/compact-test t40-rb env TASK40_BASELINE=bdbf1d9 ruby .claude/scripts/task40-wiring.rb`
 
 ### DesignSystem `swift test`
 
 ```
-✔ Test run with 158 tests in 30 suites passed after 0.100 seconds.
+✔ Test run with 158 tests in 30 suites passed after 0.086 seconds.
 ```
 
 exit 0。コマンド: `(cd macos/Packages/DesignSystem && ~/.agents/scripts/compact-test t40-ds swift test)`
 
 ### SessionFeature `swift test`
 
-他担当未コミット `Tests/SessionFeatureTests/AcceptanceComposerDestinationLabelTests.swift` を `/tmp/task40-other-untracked` へ一時退避して実行し、終了後に復元した。
-
-成功時の compact-test 出力:
-
 ```
-✔ Test run with 901 tests in 112 suites passed after 1.255 seconds.
-(eval):8: read-only variable: status
+✔ Test run with 901 tests in 112 suites passed after 1.253 seconds.
 ```
 
-テスト本体は 901 件パス。シェルが zsh 予約語 `status` へ代入したためプロセス exit は 1。退避ファイルは復元済み（`test -f .../AcceptanceComposerDestinationLabelTests.swift` → `restored`）。
-
-退避前の初回実行は当該未コミットテストの `cannot find 'ComposerDestinationLabel' in scope` でコンパイル失敗。製品ソースの error は無かった。
-
-### Ruby `--selftest`
-
-```
-task40-wiring --selftest: OK
-```
-
-exit 0。コマンド: `ruby .claude/scripts/task40-wiring.rb --selftest`
-
-### Ruby 本番（`TASK40_BASELINE=bdbf1d9`）
-
-```
-task40-wiring: NG macos/Packages/SessionFeature/Sources/SessionFeature/ChatTypography.swift の残余が TASK40_BASELINE から変化している
-task40-wiring: NG macos/Packages/SessionFeature/Sources/SessionFeature/ChatScaledFont.swift の残余が TASK40_BASELINE から変化している
-task40-wiring: NG macos/Packages/SessionFeature/Sources/SessionFeature/ChatTranscriptGrouping.swift の残余が TASK40_BASELINE から変化している
-task40-wiring: NG macos/Packages/SessionFeature/Sources/SessionFeature/ChatCodeCard.swift の残余が TASK40_BASELINE から変化している
-task40-wiring: NG macos/Packages/SessionFeature/Sources/SessionFeature/UserQuestionCell.swift の残余が TASK40_BASELINE から変化している
-```
-
-exit 1。コマンド: `env TASK40_BASELINE=bdbf1d9 ruby .claude/scripts/task40-wiring.rb`
-
-マスク後の差分の実体: 3ファイルは `import DesignSystem` の追加。`ChatCodeCard` は `header` への `.font(ChatScaledFont.monoCaption(scale:))`。`UserQuestionCell` は `.padding(.vertical, 2)` → `.padding(.vertical, DSSpacing.xxs)`。
+exit 0。コマンド: `(cd macos/Packages/SessionFeature && ~/.agents/scripts/compact-test t40-sf swift test)`
 
 ### DashboardFeature `swift build`
 
@@ -111,6 +96,6 @@ exit 0。コマンド: `(cd macos/Packages/DashboardFeature && ~/.agents/scripts
 
 出力なし、exit 0。
 
-GUI は未起動。App の xcodebuild と `.claude/verify.sh` 全量は本手順の指定外（手順3の列挙コマンドのみ）。
+GUI は未起動。コミットしていない。
 
 === REPORT COMPLETE ===

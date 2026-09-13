@@ -21,7 +21,7 @@ struct TaskListCell: View {
             title: "Tasks",
             subtitle: tasks.isEmpty ? "No tasks" : "\(tasks.count) tasks"
         ) {
-            VStack(alignment: .leading, spacing: DSSpacing.s) {
+            VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
                 ForEach(tasks) { task in
                     HStack(alignment: .firstTextBaseline, spacing: DSSpacing.s) {
                         Image(systemName: glyph(for: task.status))
@@ -39,7 +39,7 @@ struct TaskListCell: View {
                     .accessibilityLabel("\(accessibilityStatus(for: task.status)): \(task.title)")
                 }
             }
-            .padding(.top, DSSpacing.s)
+            .padding(.top, TranscriptTypography.withinAnswer)
         }
         .frame(maxWidth: 720, alignment: .leading)
         .accessibilityIdentifier("ChatMessage.taskList")

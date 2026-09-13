@@ -40,8 +40,8 @@ struct SubAgentMarkerCell: View {
                     .foregroundStyle(DSColor.chatTextSecondary)
             }
         }
-        .padding(.horizontal, DSSpacing.m)
-        .padding(.vertical, DSSpacing.s)
+        .padding(.horizontal, TranscriptTypography.cardHorizontalInset)
+        .padding(.vertical, TranscriptTypography.cardVerticalInset)
         .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous))
         .frame(maxWidth: 720, alignment: .leading)
     }
@@ -101,8 +101,8 @@ struct ThinkingIndicatorCell: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        AvatarMessageRow {
-            VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            AvatarMessageRow {
+            VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
                 HStack(spacing: DSSpacing.xs) {
                     ThinkingOrbView(state: state, size: .inline, isVisible: isTimelineVisible)
                     ShimmerTextView(
@@ -129,7 +129,7 @@ struct ThinkingIndicatorCell: View {
                     }
                 }
             }
-            .padding(.vertical, DSSpacing.xs)
+            .padding(.vertical, TranscriptTypography.metadataGap)
         }
         .onAppear {
             isInViewHierarchy = true
@@ -150,7 +150,7 @@ private struct RunningTurnStatusView: View {
 
     var body: some View {
         let _ = themeID
-        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+        VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
             Text(Self.elapsedText(assessment.elapsed))
                 .font(ChatScaledFont.caption(scale: scale))
                 .foregroundStyle(DSColor.chatTextSecondary)
@@ -213,7 +213,7 @@ struct ReasoningSummaryView: View {
                         .foregroundStyle(DSColor.chatTextSecondary)
                         .chatTextSelection()
                         .lineSpacing(TranscriptTypography.textLineSpacing)
-                        .padding(.top, DSSpacing.s)
+                        .padding(.top, TranscriptTypography.withinAnswer)
                 }
             } else {
                 Text(presentation.trimmedText)
@@ -273,11 +273,11 @@ struct CommandExecutionCell: View {
                         .font(ChatScaledFont.monoCaption(scale: scale))
                         .foregroundStyle(DSColor.chatTextPrimary)
                         .chatTextSelection()
-                        .padding(.leading, DSSpacing.m)
-                        .padding(.vertical, DSSpacing.s)
+                        .padding(.leading, TranscriptTypography.codeContentInset)
+                        .padding(.vertical, TranscriptTypography.cardVerticalInset)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.top, DSSpacing.s)
+                .padding(.top, TranscriptTypography.withinAnswer)
             }
         }
         .frame(maxWidth: 800, alignment: .leading)
@@ -399,11 +399,11 @@ struct FileChangeCell: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(DSColor.chatAccent)
-                    .padding(.top, DSSpacing.xs)
+                    .padding(.top, TranscriptTypography.metadataGap)
                     .accessibilityIdentifier("FileChange.showMoreButton")
                 }
             }
-            .padding(.top, DSSpacing.s)
+            .padding(.top, TranscriptTypography.withinAnswer)
         }
         .frame(maxWidth: 860, alignment: .leading)
     }

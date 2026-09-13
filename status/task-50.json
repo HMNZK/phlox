@@ -2,6 +2,7 @@
   "id": 50,
   "title": "UX-10b 権限説明の整合",
   "difficulty": "standard",
-  "status": "in_progress",
-  "updated_at": "2026-09-14T01:05:01+0900"
+  "status": "done_pending_review",
+  "updated_at": "2026-09-14T01:25:41+0900",
+  "review_rejections": 0
 }

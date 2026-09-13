@@ -6,7 +6,7 @@ user_visible: true
 acceptance_tests:
   - macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptanceUIWordingTests.swift
   - .claude/scripts/task48-wiring.rb
-baseline_commit: "PM が凍結時に設定"
+baseline_commit: "2b457e6"
 contract_tests: []
 allowed_paths:
   - macos/Packages/DesignSystem/Sources/DesignSystem/UIWording.swift

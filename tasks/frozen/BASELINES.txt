@@ -58,3 +58,5 @@ bdbf1d9	.claude/scripts/task40-wiring.rb
 026ed2d	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/AcceptanceTeamComposerDestinationLabelTests.swift
 026ed2d	macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceComposerDestinationLabelTests.swift
 026ed2d	.claude/scripts/task43-wiring.rb
+2b457e6	macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptanceUIWordingTests.swift
+2b457e6	.claude/scripts/task48-wiring.rb

@@ -9,6 +9,7 @@ struct ChatComposer: View {
     @Binding var text: String
     let isRunning: Bool
     let canSend: Bool
+    let projectName: String?
     let onSend: () -> Void
     let onInterrupt: () -> Void
     let controlsLayout: ComposerFooterLayout
@@ -21,6 +22,7 @@ struct ChatComposer: View {
         text: Binding<String>,
         isRunning: Bool,
         canSend: Bool,
+        projectName: String? = nil,
         controlsLayout: ComposerFooterLayout = .standard,
         onSend: @escaping () -> Void,
         onInterrupt: @escaping () -> Void
@@ -29,6 +31,7 @@ struct ChatComposer: View {
         _text = text
         self.isRunning = isRunning
         self.canSend = canSend
+        self.projectName = projectName
         self.controlsLayout = controlsLayout
         self.onSend = onSend
         self.onInterrupt = onInterrupt
@@ -40,7 +43,7 @@ struct ChatComposer: View {
     }
 
     var body: some View {
-        // パネル全体≈80px の要件（ADR 0046）: 間隔 xs・縦余白 s に圧縮（8+36+4+28+8=84）。
+        // ADR 0046 の約 80px に、宛先キャプション 1 行を足す。間隔 xs・縦余白 s は維持。
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             if suggestionController.isPresented {
                 ComposerSuggestionPopup(controller: suggestionController, onAccept: acceptSuggestionFromPopup)
@@ -65,6 +68,21 @@ struct ChatComposer: View {
                 layout: controlsLayout.settingsLayout,
                 onRemove: removeAttachment
             )
+            let destinationText = ComposerDestinationLabel.text(
+                for: .conversation(projectName: projectName, taskName: viewModel.displayName),
+                hasDestination: true,
+                isReadyForInput: canSend,
+                hasContent: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || !viewModel.attachmentStore.attachments.isEmpty
+            )
+            Text(destinationText)
+                .font(DSFont.caption)
+                .foregroundStyle(DSColor.chatTextSecondary)
+                .lineLimit(1)
+                .help(destinationText)
+                .accessibilityLabel(destinationText)
+                .accessibilityIdentifier("ChatComposer.destination")
+                .padding(.horizontal, DSSpacing.xs)
             ZStack(alignment: .topLeading) {
                 IMESafeTextView(
                     text: $text,

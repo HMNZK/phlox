@@ -6,6 +6,7 @@ import DesignSystem
 
 public struct ChatSessionView: View {
     @Bindable var viewModel: ChatSessionViewModel
+    let projectName: String?
     @State private var requestedTranscriptTarget: String?
     /// スクラバーのハイライトをトランスクリプトのスクロール位置に連動させるための現在位置。
     /// 値の更新はトランスクリプトの NSScrollView イベント側からのみ行う（ADR 0010）。
@@ -17,8 +18,9 @@ public struct ChatSessionView: View {
     @State private var subAgentPaneWidthAtDragStart: CGFloat = 0
     @State private var composerHeight: CGFloat = 0
 
-    public init(viewModel: ChatSessionViewModel) {
+    public init(viewModel: ChatSessionViewModel, projectName: String? = nil) {
         _viewModel = Bindable(wrappedValue: viewModel)
+        self.projectName = projectName
     }
 
     public var body: some View {
@@ -208,6 +210,7 @@ public struct ChatSessionView: View {
                         text: $viewModel.draft,
                         isRunning: viewModel.showsProcessingIndicator,
                         canSend: viewModel.isReadyForInput,
+                        projectName: projectName,
                         controlsLayout: proposedComposerWidth.map(ComposerLayout.controlsLayout(proposedWidth:)) ?? .standard,
                         onSend: sendDraft,
                         onInterrupt: interruptTurn

@@ -90,6 +90,7 @@ public struct TeamTimelineView: View {
             TeamComposer(
                 targetDisplayName: composerTargetDisplayName,
                 isReadyForInput: composerIsReadyForInput,
+                destination: teamComposerDestination,
                 onSend: sendTeamMessage
             )
         }
@@ -188,6 +189,21 @@ public struct TeamTimelineView: View {
             return "討論"
         }
         return composerTargetNode?.displayName
+    }
+
+    private var teamComposerDestination: ComposerDestinationLabel.Destination {
+        let action = AgoraComposerRouting.action(
+            phase: viewModel.agoraDiscussionCoordinator?.phase,
+            canStartDiscussion: TeamTimelineAgoraPolicy.canStartDiscussion(
+                canResolveProject: canResolveProjectForNewSession
+            ),
+            text: ""
+        )
+        return ComposerDestinationLabel.teamDestination(
+            action: action,
+            rootProjectName: viewModel.projects.first(where: { $0.id == composerTargetNode?.projectID })?.name,
+            rootTaskName: composerTargetNode?.displayName
+        )
     }
 
     private var composerIsReadyForInput: Bool {

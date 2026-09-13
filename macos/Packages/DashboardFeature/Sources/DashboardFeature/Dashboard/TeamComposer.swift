@@ -6,6 +6,7 @@ import SessionFeature
 struct TeamComposer: View {
     let targetDisplayName: String?
     let isReadyForInput: Bool
+    let destination: ComposerDestinationLabel.Destination
     let onSend: (String) async throws -> Void
 
     @State private var draft = ""
@@ -24,11 +25,19 @@ struct TeamComposer: View {
     var body: some View {
         HStack(alignment: .bottom, spacing: DSSpacing.s) {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                if let targetDisplayName {
-                    Text("宛先: \(targetDisplayName)")
-                        .font(DSFont.caption)
-                        .foregroundStyle(DSColor.textTertiary)
-                }
+                let destinationText = ComposerDestinationLabel.text(
+                    for: destination,
+                    hasDestination: targetDisplayName != nil,
+                    isReadyForInput: isReadyForInput,
+                    hasContent: !trimmedDraft.isEmpty
+                )
+                Text(destinationText)
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.textTertiary)
+                    .lineLimit(1)
+                    .help(destinationText)
+                    .accessibilityLabel(destinationText)
+                    .accessibilityIdentifier("TeamComposer.destination")
                 ZStack(alignment: .topLeading) {
                     TeamComposerTextInput(
                         text: $draft,

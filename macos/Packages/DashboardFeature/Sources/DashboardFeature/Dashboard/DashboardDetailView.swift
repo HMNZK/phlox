@@ -49,7 +49,8 @@ struct DashboardDetailView: View {
                         draftName = session.name
                     },
                     onChangeWorkspace: { session in pendingWorkspaceChange = session },
-                    onLayoutAction: { viewModel.handlePaneLayoutAction($0) }
+                    onLayoutAction: { viewModel.handlePaneLayoutAction($0) },
+                    projectNames: Dictionary(uniqueKeysWithValues: viewModel.projects.map { ($0.id, $0.name) })
                 )
             case .team:
                 TeamTimelineView(
@@ -70,7 +71,7 @@ struct DashboardDetailView: View {
             case .pty(let session):
                 SessionView(viewModel: session)
             case .appServer(let session):
-                ChatSessionView(viewModel: session)
+                ChatSessionView(viewModel: session, projectName: viewModel.projects.first(where: { $0.id == session.projectID })?.name)
                     .id(session.id)
             }
         } else {

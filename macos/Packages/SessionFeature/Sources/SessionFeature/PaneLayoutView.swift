@@ -29,6 +29,7 @@ public struct PaneLayoutView: View {
     let onRename: (SessionNode) -> Void
     let onChangeWorkspace: (SessionViewModel) -> Void
     let onLayoutAction: (PaneLayoutAction) -> Void
+    let projectNames: [ProjectID: String]
 
     /// ドロップ中に出すインジケータ（どのタイルの・どの操作か）。ドロップの判定そのものは
     /// `PaneDropZone` が持ち、ここはその結果を描くためだけに保持する。
@@ -41,7 +42,8 @@ public struct PaneLayoutView: View {
         onRemove: @escaping (SessionNode) -> Void,
         onRename: @escaping (SessionNode) -> Void,
         onChangeWorkspace: @escaping (SessionViewModel) -> Void,
-        onLayoutAction: @escaping (PaneLayoutAction) -> Void
+        onLayoutAction: @escaping (PaneLayoutAction) -> Void,
+        projectNames: [ProjectID: String] = [:]
     ) {
         self.sessions = sessions
         self.tree = tree
@@ -50,6 +52,7 @@ public struct PaneLayoutView: View {
         self.onRename = onRename
         self.onChangeWorkspace = onChangeWorkspace
         self.onLayoutAction = onLayoutAction
+        self.projectNames = projectNames
     }
 
     public var body: some View {
@@ -63,6 +66,7 @@ public struct PaneLayoutView: View {
                     if let session = sessions.first(where: { $0.id == tile.session }) {
                         PaneTileView(
                             session: session,
+                            projectName: session.projectID.flatMap { projectNames[$0] },
                             size: tile.rect.size,
                             isFocused: focusedID == session.id,
                             onSelect: { focusedID = session.id },
@@ -176,6 +180,7 @@ private struct PaneDropIndicator {
 /// 位置を受け取れる `DropDelegate` を使う（旧タイルの `dropDestination` は位置を渡さない）。
 private struct PaneTileView: View {
     let session: SessionNode
+    let projectName: String?
     /// タイルの矩形サイズ。ドロップ位置の判定に使う（`DropInfo.location` と同じ座標系）。
     let size: CGSize
     let isFocused: Bool
@@ -254,7 +259,7 @@ private struct PaneTileView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
         case .appServer(let session):
-            GridChatColumn(viewModel: session, onFocusGained: onSelect)
+            GridChatColumn(viewModel: session, projectName: projectName, onFocusGained: onSelect)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
         }

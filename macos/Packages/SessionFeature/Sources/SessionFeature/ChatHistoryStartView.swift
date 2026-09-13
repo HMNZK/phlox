@@ -18,7 +18,6 @@ struct ChatHistoryStartView: View {
     }()
 
     var body: some View {
-        let presentationsByID = presentationsBySessionID()
         VStack(spacing: DSSpacing.m) {
             header
             newSessionHint
@@ -32,7 +31,7 @@ struct ChatHistoryStartView: View {
                 ScrollView {
                     LazyVStack(spacing: DSSpacing.xs) {
                         ForEach(entries) { entry in
-                            row(for: entry, presentation: presentationsByID[entry.id]!)
+                            row(for: entry)
                         }
                     }
                 }
@@ -49,15 +48,6 @@ struct ChatHistoryStartView: View {
         )
         .dsShadow(.cardHover)
         .accessibilityIdentifier("ChatHistoryStartView")
-    }
-
-    private func presentationsBySessionID() -> [String: HistoryEntryPresentation] {
-        Dictionary(
-            entries.map { entry in
-                (entry.id, HistoryEntryPresentation(entry: entry, workingDirectory: workingDirectory))
-            },
-            uniquingKeysWith: { first, _ in first }
-        )
     }
 
     private var header: some View {
@@ -83,8 +73,9 @@ struct ChatHistoryStartView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func row(for entry: ClaudeSessionHistoryEntry, presentation: HistoryEntryPresentation) -> some View {
-        Button {
+    private func row(for entry: ClaudeSessionHistoryEntry) -> some View {
+        let presentation = HistoryEntryPresentation(entry: entry, workingDirectory: workingDirectory)
+        return Button {
             onSelect(entry)
         } label: {
             HStack(alignment: .top, spacing: DSSpacing.m) {

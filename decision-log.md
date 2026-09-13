@@ -208,3 +208,4 @@
 - 2026-09-13 task-47 凍結 eb04e86、task-49 凍結 4018caa（index のみ・退避維持）。task-51 は差し戻し 1 回目。
 - 2026-09-13 task-47（MUST2/HIGH8/MED5）・task-49（MUST1/HIGH5/MED3）受け入れ検査の敵対レビュー: 47 MUST1 は task-46 done 後の再凍結、HIGH10 はハーネスで standard を書かずテーマは目視ゲートの起動引数で確認と裁定。他は全採択→Cursor 2 ジョブに委譲。
 - 2026-09-13 task-51 再凍結 57a8092（旧 a2c5882 無効。実装を一時 revert → 修理版テスト/rb を index 凍結 → worktree task/51 HEAD の製品ファイルを再適用）。
+- 2026-09-13 task-44 再凍結 8149005（旧 d65fde1 無効。ハーネス修理 wt-44 28d84a1 を取り込み）。H5 裁定の帰結: 既存回帰 E2EPersistenceTests.partialRestore_preservesStoreEntryCountWhenDestructiveSaveRunsDuringRestore は ADR 0024 の「復元中削除は捨てる」を符号化しており H5（繰り越し）と衝突。PM 裁定: 契約 H5 が優先。同テストを「復元完了後に繰り越し削除が 1 回保存され件数が 1 減る」へ書き換える（Cursor へ委譲。弱体化ではなく契約の更新。ADR 0024 へ supersede 注記をフェーズ5で追加）。

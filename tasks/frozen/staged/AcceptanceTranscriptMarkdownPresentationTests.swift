@@ -29,6 +29,22 @@ private func utf8(_ value: String) -> [UInt8] {
     Array(value.utf8)
 }
 
+private func expectPrepared(_ source: String, _ want: String) {
+    #expect(utf8(prepare(source)) == utf8(want))
+}
+
+private func expectSummary(_ source: String, _ want: String?) {
+    let got = summary(source)
+    switch (got, want) {
+    case (nil, nil):
+        break
+    case let (got?, want?):
+        #expect(utf8(got) == utf8(want))
+    default:
+        Issue.record("summary の Optional が一致しない got=\(String(describing: got)) want=\(String(describing: want))")
+    }
+}
+
 private func expectBlocks(_ source: String, _ expected: [ChatMarkdownBlock]) {
     let blocks = ChatMarkdownFormatter.splitFencedCodeBlocks(source)
     #expect(blocks == expected)

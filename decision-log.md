@@ -199,3 +199,4 @@
 - 2026-09-13 task-44 再凍結 d65fde1（旧 a3822de 無効。index のみ・退避維持）。task-43 統合 verify exit 0、レビュー pass、目視は PM 判定中。
 - 2026-09-13 task-43（UX-03）done: レビュー pass（指摘 0）、PM 目視 pass、統合 verify.sh exit 0。Release defaults md5 の差異は Release 自身の書込（plist mtime 14:24）と判断、theme/fontScale 値は不変。
 - 2026-09-13 task-46 再凍結 11fbb08（旧 dde44dc 無効、index のみ）。verify に task-44/46/51 分岐を登録。
+- 2026-09-13 task-48 再凍結 b2b0d4a（旧 2b457e6 無効。既存テスト 3 本の改訂を含む）。task-44/46/51 は SessionFeature/DashboardFeature のテストターゲットを共有するため、並列実装は 1 タスク=1 worktree（/tmp/ui-ux-wt-NN、ブランチ task/NN）で行い、成果は cherry-pick で feature へ取り込む（parallel-worktrees 規定）。

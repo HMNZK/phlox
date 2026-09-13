@@ -80,3 +80,8 @@ d65fde1	.claude/scripts/task44-wiring.rb
 11fbb08	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptItemPresentationTests.swift
 11fbb08	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask46Tests.swift
 11fbb08	.claude/scripts/task46-wiring.rb
+b2b0d4a	macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptanceUIWordingTests.swift
+b2b0d4a	.claude/scripts/task48-wiring.rb
+b2b0d4a	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/AcceptanceContextPopoverBranchTests.swift
+b2b0d4a	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/ComposerModeMenuAcceptanceTests.swift
+b2b0d4a	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/GridComposerSettingsAcceptanceTests.swift

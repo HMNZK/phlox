@@ -84,7 +84,7 @@ struct CodexSettingsPane: View {
                     } else if key == .approvalPolicy {
                         choiceControl(key, current, kind: .codexApprovalPolicy)
                     } else {
-                        choiceControl(key, current, kind: .codexApprovalPolicy)
+                        choiceControl(key, current, kind: nil)
                     }
                 } else {
                     modelControl(current: current)
@@ -96,7 +96,8 @@ struct CodexSettingsPane: View {
     }
 
     /// 選択肢のあるキー。「既定」を選ぶとキーごと消える。
-    private func choiceControl(_ key: CodexSettingKey, _ current: String?, kind: UIWording.PermissionKind) -> some View {
+    /// 権限 2 キーだけ正本へ接続し、それ以外は原文の `Text(option)` を出す。
+    private func choiceControl(_ key: CodexSettingKey, _ current: String?, kind: UIWording.PermissionKind?) -> some View {
         Picker("", selection: Binding(
             get: { current ?? "" },
             set: { newValue in
@@ -109,12 +110,18 @@ struct CodexSettingsPane: View {
                 )
             }
         )) {
-            Text(UIWording.permission(agent: .codex, kind: kind, value: nil, languageCode: languageCode).title).tag("")
+            if let kind {
+                Text(UIWording.permission(agent: .codex, kind: kind, value: nil, languageCode: languageCode).title).tag("")
+            } else {
+                Text("既定（未設定）").tag("")
+            }
             ForEach(key.options(current: current), id: \.self) { option in
                 if kind == .codexSandboxMode {
                     Text(UIWording.permission(agent: .codex, kind: .codexSandboxMode, value: option, languageCode: languageCode).title).tag(option)
-                } else {
+                } else if kind == .codexApprovalPolicy {
                     Text(UIWording.permission(agent: .codex, kind: .codexApprovalPolicy, value: option, languageCode: languageCode).title).tag(option)
+                } else {
+                    Text(option).tag(option)
                 }
             }
         }

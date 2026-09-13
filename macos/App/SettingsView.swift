@@ -342,10 +342,16 @@ struct SettingsView: View {
             Toggle(isOn: $isEnabled) {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Label(wording.rowLabel, systemImage: descriptor.symbolName)
+                    Text("OFF:")
+                        .font(DSFont.caption.weight(.medium))
+                        .foregroundStyle(DSColor.textSecondary)
                     Text(wording.offExplanation)
                         .font(DSFont.caption)
                         .foregroundStyle(DSColor.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
+                    Text("ON:")
+                        .font(DSFont.caption.weight(.medium))
+                        .foregroundStyle(DSColor.textSecondary)
                     Text(wording.onExplanation)
                         .font(DSFont.caption)
                         .foregroundStyle(DSColor.textTertiary)

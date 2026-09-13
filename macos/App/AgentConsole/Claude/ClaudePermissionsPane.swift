@@ -20,13 +20,28 @@ struct ClaudePermissionsPane: View {
         UIWording.permission(agent: .claude, kind: .permissionsPaneIntro, value: nil, languageCode: languageCode)
     }
 
+    private var shortSubtitle: String {
+        let text = intro.explanation
+        if let idx = text.firstIndex(of: "。") {
+            return String(text[...idx])
+        }
+        if let range = text.range(of: ". ") {
+            return String(text[..<range.lowerBound]) + "."
+        }
+        return text
+    }
+
     var body: some View {
         AgentConsolePane(
             title: intro.title,
-            subtitle: intro.explanation,
+            subtitle: shortSubtitle,
             controls: AnyView(editor)
         ) {
             VStack(alignment: .leading, spacing: DSSpacing.xl) {
+                Text(intro.explanation)
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
                 ForEach(ClaudePermissionBucket.allCases) { bucket in
                     bucketSection(bucket)
                 }

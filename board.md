@@ -25,7 +25,7 @@
 | task-38 | standard | done |
 | task-39 | deep | done |
 | task-40 | standard | pending |
-| task-41 | standard | pending |
+| task-41 | standard | in_progress |
 | task-43 | standard | pending |
 | task-44 | deep | pending |
 | task-45 | standard | pending |

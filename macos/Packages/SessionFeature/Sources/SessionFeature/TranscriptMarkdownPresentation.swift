@@ -1,0 +1,944 @@
+import Foundation
+
+enum TranscriptMarkdownPresentation {
+    static func prepare(_ source: String) -> String {
+        let text = TranscriptMarkdownSyntax.normalizeNewlines(source)
+        let lines = TranscriptMarkdownSyntax.lines(in: text)
+        let protected = TranscriptMarkdownSyntax.protectedRanges(in: text, lines: lines)
+        var out: [String] = []
+        var para: [TranscriptMarkdownSyntax.Line] = []
+
+        func flushParagraph() {
+            guard !para.isEmpty else { return }
+            for (index, line) in para.enumerated() {
+                if index == para.count - 1 {
+                    out.append(TranscriptMarkdownSyntax.closeUnclosedEmphasis(on: line, in: text, protected: protected))
+                } else {
+                    out.append(String(line.content))
+                }
+            }
+            para.removeAll(keepingCapacity: true)
+        }
+
+        for line in lines {
+            if TranscriptMarkdownSyntax.isBlank(line.content) {
+                flushParagraph()
+                out.append(String(line.content))
+            } else {
+                para.append(line)
+            }
+        }
+        flushParagraph()
+        return out.joined(separator: "\n")
+    }
+
+    static func summary(_ source: String) -> String? {
+        let prepared = prepare(source)
+        let lines = TranscriptMarkdownSyntax.lines(in: prepared)
+        let blocks = TranscriptMarkdownSyntax.summaryBlocks(in: prepared, lines: lines)
+        for block in blocks.reversed() {
+            if case .heading(let raw) = block {
+                if let candidate = TranscriptMarkdownSyntax.limitedCandidate(TranscriptMarkdownSyntax.stripInline(raw)) {
+                    return candidate
+                }
+            }
+        }
+        for block in blocks.reversed() {
+            if case .paragraph(let raw) = block {
+                let display = TranscriptMarkdownSyntax.stripInline(raw)
+                let displayLines = display.split(separator: "\n", omittingEmptySubsequences: false)
+                for line in displayLines.reversed() {
+                    if let candidate = TranscriptMarkdownSyntax.limitedCandidate(String(line)) {
+                        return candidate
+                    }
+                }
+            }
+        }
+        return nil
+    }
+
+    static func splitFencedCodeBlocks(_ text: String) -> [ChatMarkdownBlock] {
+        let source = TranscriptMarkdownSyntax.normalizeNewlines(text)
+        let lines = TranscriptMarkdownSyntax.lines(in: source)
+        var blocks: [ChatMarkdownBlock] = []
+        var markdown: [String] = []
+        var index = 0
+
+        func flushMarkdown() {
+            let joined = markdown.joined(separator: "\n")
+            if !joined.isEmpty {
+                blocks.append(.markdown(joined))
+            }
+            markdown.removeAll(keepingCapacity: true)
+        }
+
+        while index < lines.count {
+            let line = lines[index]
+            if let opener = TranscriptMarkdownSyntax.codeFenceOpener(line.content) {
+                if let closer = TranscriptMarkdownSyntax.firstCloser(in: lines, from: index + 1, matching: opener) {
+                    flushMarkdown()
+                    let bodyLines = lines[(index + 1)..<closer].map { String($0.content) }
+                    blocks.append(.code(language: opener.language, text: bodyLines.joined(separator: "\n")))
+                    index = closer + 1
+                    continue
+                }
+                if index + 1 < lines.count {
+                    flushMarkdown()
+                    var rest = lines[index...].map { String($0.content) }
+                    if opener.indent == 0 && opener.count == 3 {
+                        rest[rest.startIndex] = "```" + (opener.language.map { " \($0)" } ?? "")
+                    }
+                    markdown.append(contentsOf: rest)
+                    flushMarkdown()
+                    break
+                }
+            }
+            if let opener = TranscriptMarkdownSyntax.protectionFenceOpener(line.content) {
+                if let closer = TranscriptMarkdownSyntax.firstCloser(in: lines, from: index + 1, matching: opener) {
+                    markdown.append(contentsOf: lines[index...closer].map { String($0.content) })
+                    index = closer + 1
+                    continue
+                }
+                markdown.append(contentsOf: lines[index...].map { String($0.content) })
+                break
+            }
+            markdown.append(String(line.content))
+            index += 1
+        }
+        flushMarkdown()
+        return blocks
+    }
+}
+
+enum TranscriptMarkdownSyntax {
+    struct Line {
+        var content: Substring
+        var start: String.Index
+        var end: String.Index
+    }
+
+    struct Fence {
+        var indent: Int
+        var mark: Character
+        var count: Int
+        var language: String?
+        var infoContainsBacktick: Bool
+    }
+
+    enum SummaryBlock {
+        case heading(String)
+        case paragraph(String)
+        case skip
+    }
+
+    static func normalizeNewlines(_ source: String) -> String {
+        var scalars: [Unicode.Scalar] = []
+        scalars.reserveCapacity(source.unicodeScalars.count)
+        var pendingCR = false
+        for scalar in source.unicodeScalars {
+            if pendingCR {
+                pendingCR = false
+                if scalar == "\n" {
+                    scalars.append("\n")
+                    continue
+                }
+                scalars.append("\n")
+            }
+            if scalar == "\r" {
+                pendingCR = true
+                continue
+            }
+            scalars.append(scalar)
+        }
+        if pendingCR {
+            scalars.append("\n")
+        }
+        return String(String.UnicodeScalarView(scalars))
+    }
+
+    static func lines(in text: String) -> [Line] {
+        var result: [Line] = []
+        var start = text.startIndex
+        var index = start
+        while index < text.endIndex {
+            if text[index] == "\n" {
+                result.append(Line(content: text[start..<index], start: start, end: index))
+                index = text.index(after: index)
+                start = index
+            } else {
+                index = text.index(after: index)
+            }
+        }
+        result.append(Line(content: text[start..<text.endIndex], start: start, end: text.endIndex))
+        return result
+    }
+
+    static func isBlank(_ line: Substring) -> Bool {
+        line.allSatisfy { $0 == " " || $0 == "\t" }
+    }
+
+    static func isIndentedCode(_ line: Substring) -> Bool {
+        if line.first == "\t" { return true }
+        var spaces = 0
+        for character in line {
+            if character == " " {
+                spaces += 1
+                if spaces >= 4 { return true }
+            } else {
+                break
+            }
+        }
+        return false
+    }
+
+    static func matchFence(_ line: Substring) -> (indent: Int, mark: Character, count: Int, info: Substring)? {
+        if line.first == "\t" { return nil }
+        var indent = 0
+        var index = line.startIndex
+        while index < line.endIndex, line[index] == " ", indent < 4 {
+            indent += 1
+            index = line.index(after: index)
+        }
+        guard indent < 4, index < line.endIndex else { return nil }
+        let mark = line[index]
+        guard mark == "`" || mark == "~" else { return nil }
+        var count = 0
+        while index < line.endIndex, line[index] == mark {
+            count += 1
+            index = line.index(after: index)
+        }
+        guard count >= 3 else { return nil }
+        return (indent, mark, count, line[index...])
+    }
+
+    static func remainderIsClosing(_ info: Substring) -> Bool {
+        info.allSatisfy { $0 == " " || $0 == "\t" }
+    }
+
+    static func fenceLanguage(_ info: Substring) -> String? {
+        let trimmed = info.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    static func protectionFenceOpener(_ line: Substring) -> Fence? {
+        guard let match = matchFence(line) else { return nil }
+        return Fence(
+            indent: match.indent,
+            mark: match.mark,
+            count: match.count,
+            language: fenceLanguage(match.info),
+            infoContainsBacktick: match.info.contains("`")
+        )
+    }
+
+    static func codeFenceOpener(_ line: Substring) -> Fence? {
+        guard let fence = protectionFenceOpener(line), fence.mark == "`" else { return nil }
+        if fence.infoContainsBacktick { return nil }
+        return fence
+    }
+
+    static func isCloser(_ line: Substring, matching fence: Fence) -> Bool {
+        guard let match = matchFence(line) else { return false }
+        return match.mark == fence.mark && match.count >= fence.count && remainderIsClosing(match.info)
+    }
+
+    static func firstCloser(in lines: [Line], from start: Int, matching fence: Fence) -> Int? {
+        var index = start
+        while index < lines.count {
+            if isCloser(lines[index].content, matching: fence) {
+                return index
+            }
+            index += 1
+        }
+        return nil
+    }
+
+    static func protectedRanges(in text: String, lines: [Line]) -> [Range<String.Index>] {
+        var ranges: [Range<String.Index>] = []
+        var index = 0
+        while index < lines.count {
+            let line = lines[index]
+            if let fence = protectionFenceOpener(line.content) {
+                let close = firstCloser(in: lines, from: index + 1, matching: fence) ?? (lines.count - 1)
+                let end = lines[close].end
+                ranges.append(line.start..<end)
+                index = close + 1
+                continue
+            }
+            if isIndentedCode(line.content) {
+                ranges.append(line.start..<line.end)
+            }
+            index += 1
+        }
+        for line in lines {
+            ranges.append(contentsOf: inlineCodeRanges(in: line, protected: ranges))
+        }
+        return ranges
+    }
+
+    static func contains(_ ranges: [Range<String.Index>], _ index: String.Index) -> Bool {
+        ranges.contains { $0.contains(index) }
+    }
+
+    static func inlineCodeRanges(in line: Line, protected: [Range<String.Index>]) -> [Range<String.Index>] {
+        var ranges: [Range<String.Index>] = []
+        var index = line.start
+        while index < line.end {
+            if contains(protected, index) {
+                index = line.content.base.index(after: index)
+                continue
+            }
+            if line.content.base[index] == "\\" {
+                let next = line.content.base.index(after: index)
+                index = next < line.end ? line.content.base.index(after: next) : next
+                continue
+            }
+            guard line.content.base[index] == "`" else {
+                index = line.content.base.index(after: index)
+                continue
+            }
+            var runEnd = index
+            var count = 0
+            while runEnd < line.end, line.content.base[runEnd] == "`" {
+                count += 1
+                runEnd = line.content.base.index(after: runEnd)
+            }
+            var search = runEnd
+            var found: String.Index?
+            while search < line.end {
+                if line.content.base[search] == "`" {
+                    var closeEnd = search
+                    var closeCount = 0
+                    while closeEnd < line.end, line.content.base[closeEnd] == "`" {
+                        closeCount += 1
+                        closeEnd = line.content.base.index(after: closeEnd)
+                    }
+                    if closeCount == count {
+                        found = closeEnd
+                        break
+                    }
+                    search = closeEnd
+                    continue
+                }
+                search = line.content.base.index(after: search)
+            }
+            ranges.append(index..<(found ?? line.end))
+            index = found ?? line.end
+        }
+        return ranges
+    }
+
+    static func closeUnclosedEmphasis(on line: Line, in text: String, protected: [Range<String.Index>]) -> String {
+        let content = line.content
+        if content.isEmpty { return String(content) }
+        if !content.isEmpty {
+            var allProtected = true
+            var cursor = line.start
+            while cursor < line.end {
+                if !contains(protected, cursor) {
+                    allProtected = false
+                    break
+                }
+                cursor = text.index(after: cursor)
+            }
+            if allProtected { return String(content) }
+        }
+
+        var trailingStart = content.endIndex
+        var scan = content.endIndex
+        while scan > content.startIndex {
+            let previous = content.index(before: scan)
+            let character = content[previous]
+            if character == " " || character == "\t" {
+                trailingStart = previous
+                scan = previous
+            } else {
+                break
+            }
+        }
+        let body = content[content.startIndex..<trailingStart]
+        let trailing = content[trailingStart...]
+        guard !body.isEmpty else { return String(content) }
+
+        struct Run {
+            var start: String.Index
+            var end: String.Index
+            var mark: Character
+            var count: Int
+            var canOpen: Bool
+            var canClose: Bool
+            var matched: Bool
+        }
+
+        var runs: [Run] = []
+        var index = body.startIndex
+        while index < body.endIndex {
+            let global = index
+            if contains(protected, global) {
+                index = body.index(after: index)
+                continue
+            }
+            if body[index] == "\\" {
+                index = body.index(after: index)
+                if index < body.endIndex {
+                    index = body.index(after: index)
+                }
+                continue
+            }
+            let character = body[index]
+            if character == "*" || character == "_" {
+                var end = index
+                var count = 0
+                while end < body.endIndex, body[end] == character, !contains(protected, end) {
+                    count += 1
+                    end = body.index(after: end)
+                }
+                if count >= 3 {
+                    index = end
+                    continue
+                }
+                if count == 1 || count == 2 {
+                    let before: Character? = index == body.startIndex ? nil : body[body.index(before: index)]
+                    let after: Character? = end < body.endIndex ? body[end] : nil
+                    let leftOK = index == body.startIndex || before == " " || before == "\t"
+                    let rightNonWS = after != nil && after != " " && after != "\t"
+                    let leftNonWS = before != nil && before != " " && before != "\t"
+                    let canOpen = leftOK && rightNonWS
+                    let canClose = leftNonWS
+                    if canOpen || canClose {
+                        runs.append(
+                            Run(
+                                start: index,
+                                end: end,
+                                mark: character,
+                                count: count,
+                                canOpen: canOpen,
+                                canClose: canClose,
+                                matched: false
+                            )
+                        )
+                    }
+                    index = end
+                    continue
+                }
+            }
+            index = body.index(after: index)
+        }
+
+        var stack: [Int] = []
+        for runIndex in runs.indices {
+            let run = runs[runIndex]
+            if run.canClose {
+                if let match = stack.lastIndex(where: { !runs[$0].matched && runs[$0].mark == run.mark && runs[$0].count == run.count }) {
+                    for nested in match...runIndex {
+                        if nested == match || nested == runIndex || (nested > match && nested < runIndex && runs[nested].canOpen) {
+                            runs[nested].matched = true
+                        }
+                    }
+                    runs[match].matched = true
+                    runs[runIndex].matched = true
+                    stack.removeSubrange(match...)
+                    continue
+                }
+            }
+            if run.canOpen {
+                stack.append(runIndex)
+            }
+        }
+
+        guard let openerIndex = stack.first else {
+            return String(content)
+        }
+        let opener = runs[openerIndex]
+        let closer: String
+        if opener.count == 2 {
+            if let last = runs.last,
+               last.mark == opener.mark,
+               last.count == 1,
+               last.canClose,
+               !last.matched
+            {
+                closer = String(repeating: String(opener.mark), count: 1)
+            } else {
+                closer = String(repeating: String(opener.mark), count: 2)
+            }
+        } else {
+            closer = String(repeating: String(opener.mark), count: 1)
+        }
+        return String(body) + closer + String(trailing)
+    }
+
+    static func summaryBlocks(in text: String, lines: [Line]) -> [SummaryBlock] {
+        var blocks: [SummaryBlock] = []
+        var paragraph: [Substring] = []
+        var index = 0
+
+        func flushParagraph() {
+            guard !paragraph.isEmpty else { return }
+            blocks.append(.paragraph(paragraph.map(String.init).joined(separator: "\n")))
+            paragraph.removeAll(keepingCapacity: true)
+        }
+
+        while index < lines.count {
+            let line = lines[index]
+            if isBlank(line.content) {
+                flushParagraph()
+                index += 1
+                continue
+            }
+            if let fence = protectionFenceOpener(line.content) {
+                flushParagraph()
+                if let closer = firstCloser(in: lines, from: index + 1, matching: fence) {
+                    index = closer + 1
+                } else {
+                    break
+                }
+                continue
+            }
+            if isIndentedCode(line.content) {
+                flushParagraph()
+                while index < lines.count, isIndentedCode(lines[index].content) || isBlank(lines[index].content) {
+                    if isBlank(lines[index].content) {
+                        let next = index + 1
+                        if next < lines.count, isIndentedCode(lines[next].content) {
+                            index += 1
+                            continue
+                        }
+                        break
+                    }
+                    index += 1
+                }
+                continue
+            }
+            if let heading = atxHeading(line.content) {
+                flushParagraph()
+                blocks.append(.heading(heading))
+                index += 1
+                continue
+            }
+            if index + 1 < lines.count, isSetextUnderline(lines[index + 1].content) != nil, !isList(line.content), !isQuote(line.content), !isTableRow(line.content), !isThematicBreak(line.content) {
+                flushParagraph()
+                index += 2
+                continue
+            }
+            if isThematicBreak(line.content) {
+                flushParagraph()
+                index += 1
+                continue
+            }
+            if isList(line.content) {
+                flushParagraph()
+                index += 1
+                while index < lines.count {
+                    if isBlank(lines[index].content) { break }
+                    if isList(lines[index].content) || isContinuation(lines[index].content) {
+                        index += 1
+                        continue
+                    }
+                    break
+                }
+                continue
+            }
+            if isQuote(line.content) {
+                flushParagraph()
+                index += 1
+                while index < lines.count {
+                    if isBlank(lines[index].content) { break }
+                    if isQuote(lines[index].content) || isContinuation(lines[index].content) {
+                        index += 1
+                        continue
+                    }
+                    break
+                }
+                continue
+            }
+            if isTableRow(line.content) {
+                flushParagraph()
+                while index < lines.count, isTableRow(lines[index].content) {
+                    index += 1
+                }
+                continue
+            }
+            paragraph.append(line.content)
+            index += 1
+        }
+        flushParagraph()
+        return blocks
+    }
+
+    static func atxHeading(_ line: Substring) -> String? {
+        if isIndentedCode(line) { return nil }
+        var index = line.startIndex
+        var indent = 0
+        while index < line.endIndex, line[index] == " ", indent < 4 {
+            indent += 1
+            index = line.index(after: index)
+        }
+        guard indent < 4, index < line.endIndex, line[index] == "#" else { return nil }
+        var hashes = 0
+        while index < line.endIndex, line[index] == "#", hashes < 7 {
+            hashes += 1
+            index = line.index(after: index)
+        }
+        guard hashes >= 1, hashes <= 6 else { return nil }
+        if index == line.endIndex {
+            return ""
+        }
+        let next = line[index]
+        guard next == " " || next == "\t" else { return nil }
+        var content = line[line.index(after: index)...]
+        while content.last == " " || content.last == "\t" {
+            content = content.dropLast()
+        }
+        var hashCount = 0
+        var cursor = content.endIndex
+        while cursor > content.startIndex {
+            let previous = content.index(before: cursor)
+            if content[previous] == "#" {
+                hashCount += 1
+                cursor = previous
+            } else {
+                break
+            }
+        }
+        if hashCount > 0 {
+            if cursor == content.startIndex {
+                return ""
+            }
+            let before = content[content.index(before: cursor)]
+            if before == " " || before == "\t" {
+                content = content[..<cursor]
+                while content.last == " " || content.last == "\t" {
+                    content = content.dropLast()
+                }
+            }
+        }
+        return String(content)
+    }
+
+    static func isSetextUnderline(_ line: Substring) -> Character? {
+        if isIndentedCode(line) { return nil }
+        var index = line.startIndex
+        var indent = 0
+        while index < line.endIndex, line[index] == " ", indent < 4 {
+            indent += 1
+            index = line.index(after: index)
+        }
+        guard indent < 4, index < line.endIndex else { return nil }
+        let mark = line[index]
+        guard mark == "=" || mark == "-" else { return nil }
+        while index < line.endIndex, line[index] == mark {
+            index = line.index(after: index)
+        }
+        while index < line.endIndex {
+            if line[index] == " " || line[index] == "\t" {
+                index = line.index(after: index)
+            } else {
+                return nil
+            }
+        }
+        return mark
+    }
+
+    static func isThematicBreak(_ line: Substring) -> Bool {
+        if isIndentedCode(line) { return false }
+        var index = line.startIndex
+        var indent = 0
+        while index < line.endIndex, line[index] == " ", indent < 4 {
+            indent += 1
+            index = line.index(after: index)
+        }
+        guard indent < 4 else { return false }
+        var mark: Character?
+        var count = 0
+        while index < line.endIndex {
+            let character = line[index]
+            if character == " " || character == "\t" {
+                index = line.index(after: index)
+                continue
+            }
+            if character == "-" || character == "*" || character == "_" {
+                if let mark, character != mark { return false }
+                mark = character
+                count += 1
+                index = line.index(after: index)
+                continue
+            }
+            return false
+        }
+        return count >= 3
+    }
+
+    static func isList(_ line: Substring) -> Bool {
+        if isIndentedCode(line) { return false }
+        var index = line.startIndex
+        var indent = 0
+        while index < line.endIndex, line[index] == " ", indent < 4 {
+            indent += 1
+            index = line.index(after: index)
+        }
+        guard indent < 4, index < line.endIndex else { return false }
+        let character = line[index]
+        if character == "-" || character == "+" || character == "*" {
+            let next = line.index(after: index)
+            return next < line.endIndex && (line[next] == " " || line[next] == "\t")
+        }
+        var digits = 0
+        var cursor = index
+        while cursor < line.endIndex, let ascii = line[cursor].asciiValue, ascii >= 48, ascii <= 57 {
+            digits += 1
+            cursor = line.index(after: cursor)
+        }
+        guard digits > 0, cursor < line.endIndex, line[cursor] == "." else { return false }
+        let next = line.index(after: cursor)
+        return next < line.endIndex && (line[next] == " " || line[next] == "\t")
+    }
+
+    static func isQuote(_ line: Substring) -> Bool {
+        if isIndentedCode(line) { return false }
+        var index = line.startIndex
+        var indent = 0
+        while index < line.endIndex, line[index] == " ", indent < 4 {
+            indent += 1
+            index = line.index(after: index)
+        }
+        return indent < 4 && index < line.endIndex && line[index] == ">"
+    }
+
+    static func isTableRow(_ line: Substring) -> Bool {
+        if isIndentedCode(line) { return false }
+        var index = line.startIndex
+        while index < line.endIndex, line[index] == " " {
+            index = line.index(after: index)
+        }
+        return index < line.endIndex && line[index] == "|"
+    }
+
+    static func isContinuation(_ line: Substring) -> Bool {
+        if isIndentedCode(line) { return true }
+        return line.first == " " || line.first == "\t"
+    }
+
+    static func limitedCandidate(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.count <= 60 {
+            return trimmed
+        }
+        return String(trimmed.prefix(60)) + "…"
+    }
+
+    static func stripInline(_ text: String) -> String {
+        var output = String.UnicodeScalarView()
+        var index = text.startIndex
+        while index < text.endIndex {
+            if text[index] == "\\" {
+                let next = text.index(after: index)
+                if next < text.endIndex {
+                    appendGrapheme(text[next], to: &output)
+                    index = text.index(after: next)
+                } else {
+                    appendGrapheme("\\", to: &output)
+                    index = next
+                }
+                continue
+            }
+            if text[index] == "`" {
+                if let taken = readInlineCode(in: text, from: index) {
+                    appendString(taken.inner, to: &output)
+                    index = taken.end
+                    continue
+                }
+            }
+            if text[index] == "[" {
+                if let taken = readLink(in: text, from: index) {
+                    appendString(stripInline(taken.label), to: &output)
+                    index = taken.end
+                    continue
+                }
+            }
+            if hasPrefix("~~", in: text, at: index) {
+                if let taken = readDelimited("~~", in: text, from: index) {
+                    appendString(stripInline(taken.inner), to: &output)
+                    index = taken.end
+                    continue
+                }
+            }
+            if hasPrefix("**", in: text, at: index) {
+                if canOpenEmphasis(in: text, at: index, count: 2, mark: "*"),
+                   let taken = readDelimited("**", in: text, from: index)
+                {
+                    appendString(stripInline(taken.inner), to: &output)
+                    index = taken.end
+                    continue
+                }
+            }
+            if hasPrefix("__", in: text, at: index) {
+                if canOpenEmphasis(in: text, at: index, count: 2, mark: "_"),
+                   let taken = readDelimited("__", in: text, from: index)
+                {
+                    appendString(stripInline(taken.inner), to: &output)
+                    index = taken.end
+                    continue
+                }
+            }
+            if text[index] == "*" {
+                if canOpenEmphasis(in: text, at: index, count: 1, mark: "*"),
+                   let taken = readDelimited("*", in: text, from: index)
+                {
+                    appendString(stripInline(taken.inner), to: &output)
+                    index = taken.end
+                    continue
+                }
+            }
+            if text[index] == "_" {
+                if canOpenEmphasis(in: text, at: index, count: 1, mark: "_"),
+                   let taken = readDelimited("_", in: text, from: index)
+                {
+                    appendString(stripInline(taken.inner), to: &output)
+                    index = taken.end
+                    continue
+                }
+            }
+            appendGrapheme(text[index], to: &output)
+            index = text.index(after: index)
+        }
+        return String(output)
+    }
+
+    private static func appendGrapheme(_ character: Character, to output: inout String.UnicodeScalarView) {
+        output.append(contentsOf: character.unicodeScalars)
+    }
+
+    private static func appendString(_ string: String, to output: inout String.UnicodeScalarView) {
+        output.append(contentsOf: string.unicodeScalars)
+    }
+
+    private static func hasPrefix(_ prefix: String, in text: String, at index: String.Index) -> Bool {
+        text[index...].hasPrefix(prefix)
+    }
+
+    private static func canOpenEmphasis(in text: String, at index: String.Index, count: Int, mark: Character) -> Bool {
+        var end = index
+        for _ in 0..<count {
+            guard end < text.endIndex, text[end] == mark else { return false }
+            end = text.index(after: end)
+        }
+        guard end < text.endIndex else { return false }
+        let after = text[end]
+        if after == " " || after == "\t" || after == "\n" { return false }
+        if index == text.startIndex { return true }
+        let before = text[text.index(before: index)]
+        if before == " " || before == "\t" || before == "\n" { return true }
+        if mark == "_" { return false }
+        if count == 1 || count == 2 {
+            return before == " " || before == "\t" || before == "\n"
+        }
+        return false
+    }
+
+    private static func readInlineCode(in text: String, from start: String.Index) -> (inner: String, end: String.Index)? {
+        var index = start
+        var count = 0
+        while index < text.endIndex, text[index] == "`" {
+            count += 1
+            index = text.index(after: index)
+        }
+        guard count > 0 else { return nil }
+        var search = index
+        while search < text.endIndex {
+            if text[search] == "`" {
+                var close = search
+                var closeCount = 0
+                while close < text.endIndex, text[close] == "`" {
+                    closeCount += 1
+                    close = text.index(after: close)
+                }
+                if closeCount == count {
+                    return (String(text[index..<search]), close)
+                }
+                search = close
+                continue
+            }
+            if text[search] == "\n" {
+                return (String(text[index..<search]), search)
+            }
+            search = text.index(after: search)
+        }
+        return (String(text[index..<text.endIndex]), text.endIndex)
+    }
+
+    private static func readLink(in text: String, from start: String.Index) -> (label: String, end: String.Index)? {
+        guard start < text.endIndex, text[start] == "[" else { return nil }
+        var index = text.index(after: start)
+        var escaped = false
+        while index < text.endIndex {
+            let character = text[index]
+            if escaped {
+                escaped = false
+                index = text.index(after: index)
+                continue
+            }
+            if character == "\\" {
+                escaped = true
+                index = text.index(after: index)
+                continue
+            }
+            if character == "]" {
+                let after = text.index(after: index)
+                guard after < text.endIndex, text[after] == "(" else { return nil }
+                var dest = text.index(after: after)
+                var depth = 1
+                while dest < text.endIndex {
+                    if text[dest] == "\\" {
+                        dest = text.index(after: dest)
+                        if dest < text.endIndex {
+                            dest = text.index(after: dest)
+                        }
+                        continue
+                    }
+                    if text[dest] == "(" {
+                        depth += 1
+                    } else if text[dest] == ")" {
+                        depth -= 1
+                        if depth == 0 {
+                            let label = String(text[text.index(after: start)..<index])
+                            return (label, text.index(after: dest))
+                        }
+                    }
+                    dest = text.index(after: dest)
+                }
+                return nil
+            }
+            index = text.index(after: index)
+        }
+        return nil
+    }
+
+    private static func readDelimited(_ delimiter: String, in text: String, from start: String.Index) -> (inner: String, end: String.Index)? {
+        guard hasPrefix(delimiter, in: text, at: start) else { return nil }
+        var index = text.index(start, offsetBy: delimiter.count)
+        while index < text.endIndex {
+            if text[index] == "\\" {
+                index = text.index(after: index)
+                if index < text.endIndex {
+                    index = text.index(after: index)
+                }
+                continue
+            }
+            if text[index] == "`" {
+                if let code = readInlineCode(in: text, from: index), code.end > index {
+                    index = code.end
+                    continue
+                }
+            }
+            if hasPrefix(delimiter, in: text, at: index) {
+                let innerEnd = index
+                let end = text.index(index, offsetBy: delimiter.count)
+                return (String(text[text.index(start, offsetBy: delimiter.count)..<innerEnd]), end)
+            }
+            index = text.index(after: index)
+        }
+        return nil
+    }
+}

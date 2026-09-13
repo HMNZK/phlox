@@ -186,13 +186,14 @@ struct TurnCostCell: View {
 
 struct AgentMessageBody: View {
     let text: String
+    var bodyColor: Color /* default primary */ = DSColor.chatTextPrimary
 
     var body: some View {
         VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
             ForEach(Array(ChatMessageRenderCache.markdownBlocks(text).enumerated()), id: \.offset) { _, block in
                 switch block {
                 case .markdown(let markdown):
-                    RichMarkdownView(markdown)
+                    RichMarkdownView(markdown, bodyColor: bodyColor)
                         .chatTextSelection()
                 case .code(let language, let code):
                     CodeBlockView(language: language, code: code)

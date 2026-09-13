@@ -204,7 +204,7 @@ struct ReasoningSummaryView: View {
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         let presentation = TranscriptItemPresentation.reasoning(
             text: text,
-            summary: ReasoningPresentation(text: text).headline
+            summary: TranscriptMarkdownPresentation.summary(text)
         )
         Group {
             if presentation.isVisible {
@@ -222,7 +222,7 @@ struct ReasoningSummaryView: View {
                     subtitle: presentation.subtitle,
                     isToolCall: presentation.semanticInk == .process
                 ) {
-                    Text(text)
+                    AgentMessageBody(text: text, bodyColor: DSColor.chatTextSecondary)
                         .font(ChatScaledFont.body(scale: scale))
                         .foregroundStyle(DSColor.chatTextSecondary)
                         .chatTextSelection()

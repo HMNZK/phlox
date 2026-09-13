@@ -10,16 +10,19 @@ public struct RichMarkdownView: View {
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
     private let markdown: String
+    private let bodyColor: Color
     @Environment(\.locale) private var locale
 
     private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
-    public init(_ markdown: String) {
-        self.markdown = markdown
+    public init(_ markdown: String, bodyColor: Color = DSColor.chatTextPrimary) {
+        self.markdown = TranscriptMarkdownPresentation.prepare(markdown)
+        self.bodyColor = bodyColor
     }
 
-    public init(streaming markdown: String) {
-        self.markdown = markdown
+    public init(streaming markdown: String, bodyColor: Color = DSColor.chatTextPrimary) {
+        self.markdown = TranscriptMarkdownPresentation.prepare(markdown)
+        self.bodyColor = bodyColor
     }
 
     @MainActor private static var themes: [String: Theme] = [:]
@@ -27,32 +30,33 @@ public struct RichMarkdownView: View {
     public var body: some View {
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         Markdown(markdown)
-            .markdownTheme(Self.theme(for: themeID, scale: scale, languageCode: languageCode))
+            .markdownTheme(Self.theme(for: themeID, scale: scale, languageCode: languageCode, bodyColor: bodyColor))
             .frame(maxWidth: .infinity, alignment: .leading)
             .environment(\.openURL, OpenURLAction(handler: openChatMarkdownLink))
     }
 
     @MainActor
-    static func theme(for themeID: String, scale: CGFloat, languageCode: String = "") -> Theme {
-        let cacheKey = themeCacheKey(themeID: themeID, scale: scale, languageCode: languageCode)
+    static func theme(for themeID: String, scale: CGFloat, languageCode: String = "", bodyColor: Color = DSColor.chatTextPrimary) -> Theme {
+        let cacheKey = themeCacheKey(themeID: themeID, scale: scale, bodyColor: bodyColor, languageCode: languageCode)
         if let theme = themes[cacheKey] {
             return theme
         }
-        let theme = chatMarkdownTheme(scale: scale, languageCode: languageCode)
+        let theme = chatMarkdownTheme(scale: scale, languageCode: languageCode, bodyColor: bodyColor)
         themes[cacheKey] = theme
         return theme
     }
 
-    static func themeCacheKey(themeID: String, scale: CGFloat, languageCode: String = "") -> String {
-        "\(themeID):\(scale):\(languageCode)"
+    static func themeCacheKey(themeID: String, scale: CGFloat, bodyColor: Color = DSColor.chatTextPrimary, languageCode: String = "") -> String {
+        let role = bodyColor == DSColor.chatTextSecondary ? "secondary" : "primary"
+        return "\(themeID):\(scale):\(languageCode):\(role)"
     }
 }
 
 @MainActor
-private func chatMarkdownTheme(scale: CGFloat, languageCode: String) -> Theme {
+private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: Color) -> Theme {
     Theme()
         .text {
-            ForegroundColor(DSColor.chatTextPrimary)
+            ForegroundColor(bodyColor)
             FontSize(ChatTypography.bodyFontSize(scale: scale))
         }
         .code {
@@ -91,7 +95,7 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String) -> Theme {
                 .markdownTextStyle {
                     FontWeight(.bold)
                     FontSize(ChatTypography.heading1FontSize(scale: scale))
-                    ForegroundColor(DSColor.chatTextPrimary)
+                    ForegroundColor(bodyColor)
                 }
         }
         .heading2 { configuration in
@@ -101,7 +105,7 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String) -> Theme {
                 .markdownTextStyle {
                     FontWeight(.bold)
                     FontSize(ChatTypography.heading2FontSize(scale: scale))
-                    ForegroundColor(DSColor.chatTextPrimary)
+                    ForegroundColor(bodyColor)
                 }
         }
         .heading3 { configuration in
@@ -111,7 +115,7 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String) -> Theme {
                 .markdownTextStyle {
                     FontWeight(.semibold)
                     FontSize(ChatTypography.heading3FontSize(scale: scale))
-                    ForegroundColor(DSColor.chatTextPrimary)
+                    ForegroundColor(bodyColor)
                 }
         }
         .heading4 { configuration in
@@ -121,7 +125,7 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String) -> Theme {
                 .markdownTextStyle {
                     FontWeight(.semibold)
                     FontSize(TranscriptTypography.pointSize(for: .heading4, scale: scale))
-                    ForegroundColor(DSColor.chatTextPrimary)
+                    ForegroundColor(bodyColor)
                 }
         }
         .heading5 { configuration in
@@ -131,7 +135,7 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String) -> Theme {
                 .markdownTextStyle {
                     FontWeight(.semibold)
                     FontSize(TranscriptTypography.pointSize(for: .heading5, scale: scale))
-                    ForegroundColor(DSColor.chatTextPrimary)
+                    ForegroundColor(bodyColor)
                 }
         }
         .heading6 { configuration in
@@ -141,7 +145,7 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String) -> Theme {
                 .markdownTextStyle {
                     FontWeight(.semibold)
                     FontSize(TranscriptTypography.pointSize(for: .heading6, scale: scale))
-                    ForegroundColor(DSColor.chatTextPrimary)
+                    ForegroundColor(bodyColor)
                 }
         }
         .blockquote { configuration in

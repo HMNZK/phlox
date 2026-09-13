@@ -344,14 +344,20 @@ struct AcceptanceSessionTitleDeriverTests {
         expectBoth("important fix", "important fix", "important fix")
     }
 
-    @Test("全角カタカナを半角カナへ幅変換する")
-    func fullwidthKatakanaConvertsToHalfwidth() {
-        expectBoth("カタカナ修正", "ｶﾀｶﾅ修正", "fw katakana")
+    @Test("半角カナを全角カナへ幅変換する")
+    func halfwidthKatakanaConvertsToFullwidth() {
+        expectBoth("ｶﾀｶﾅ修正", "カタカナ修正", "hw katakana")
+        expectBoth("ｶﾞ行を修正", "ガ行を修正", "hw dakuten")
     }
 
-    @Test("濁点付き全角カナを半角カナ+半角濁点へ幅変換する")
-    func fullwidthVoicedKatakanaConverts() {
-        expectBoth("ガ行を修正", "ｶﾞ行を修正", "fw dakuten")
+    @Test("全角英数を半角へ幅変換する")
+    func fullwidthLatinAndDigitsConvertToHalfwidth() {
+        expectBoth("ＡＢＣ１２３", "ABC123", "fw ABC123")
+    }
+
+    @Test("全角カナは変更しない")
+    func fullwidthKatakanaIsUnchanged() {
+        expectBoth("カタカナ修正", "カタカナ修正", "fw katakana kept")
     }
 
     @Test("半角カナと半角濁点は幅変換後も保持する")

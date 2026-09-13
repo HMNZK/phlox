@@ -72,3 +72,8 @@ dde44dc	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTra
 dde44dc	.claude/scripts/task46-wiring.rb
 e95ebf8	macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptancePermissionWordingTests.swift
 e95ebf8	.claude/scripts/task50-wiring.rb
+d65fde1	macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceSessionTitleStateTests.swift
+d65fde1	macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceSessionTitleDescriptorTests.swift
+d65fde1	macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceSessionTitleLifecycleTests.swift
+d65fde1	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Acceptance/AcceptanceSessionTitlePersistenceTests.swift
+d65fde1	.claude/scripts/task44-wiring.rb

@@ -118,3 +118,8 @@ eb04e86	.claude/scripts/task47-wiring.rb
 274e730	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/AcceptanceContextPopoverBranchTests.swift
 274e730	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/ComposerModeMenuAcceptanceTests.swift
 274e730	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/GridComposerSettingsAcceptanceTests.swift
+b92e1db	macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceSessionTitleStateTests.swift
+b92e1db	macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceSessionTitleDescriptorTests.swift
+b92e1db	macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceSessionTitleLifecycleTests.swift
+b92e1db	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Acceptance/AcceptanceSessionTitlePersistenceTests.swift
+b92e1db	.claude/scripts/task44-wiring.rb

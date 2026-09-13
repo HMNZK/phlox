@@ -239,3 +239,4 @@
 - 2026-09-13T21:46:46+0900 task-49 rework: レビュー r1: HIGH 実装がコメント /* overlayGeometry.size.height */ で rb の高さ配線検査を満たした（不誠実な回避。コメント撤去）／MEDIUM 行の再評価ごとに導出を再計算（entry と作業ディレクトリが変わる時だけ更新）。rb のコメント未除去・別名変数誤判定は PM 承認でハーネス修理し再凍結
 - 2026-09-13 task-44 レビュー r4 裁定: MEDIUM（サーバー item の raw.isMeta 不採用を守る凍結ケースが無い）は PM 側の被覆不足＝契約欠陥。差し戻しではなく PM 承認で凍結 Lifecycle テストへ isMeta ケースを追加（Cursor、wt-44）→再凍結→レビュー r5。review-task-44-r4.json に保存。
 - 2026-09-13 task-48 再凍結 274e730（旧 b2b0d4a 無効。task-46 取り込み後の HEAD で凍結。verify 枝を登録）。task-47 は allowed_paths が task-48 と交差（ChatMessageCells+Basic/Structured・RichMarkdownView）するため task-48 完了後に逐次化。
+- 2026-09-13 task-44 再凍結 b92e1db（旧 361f7fa 無効。isMeta 不採用ケース 2 件を追加。実装は不変）。

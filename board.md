@@ -27,11 +27,11 @@
 | task-40 | standard | done |
 | task-41 | standard | done |
 | task-43 | standard | done |
-| task-44 | deep | done_pending_review |
+| task-44 | deep | testing |
 | task-45 | standard | pending |
 | task-46 | standard | done |
 | task-47 | standard | pending |
-| task-48 | standard | pending |
+| task-48 | standard | in_progress |
 | task-49 | standard | in_progress |
 | task-50 | standard | pending |
 | task-51 | standard | done |

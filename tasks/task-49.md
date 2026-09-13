@@ -8,7 +8,7 @@ user_visible: true
 acceptance_tests:
   - macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceHistoryEntryPresentationTests.swift
   - .claude/scripts/task49-wiring.rb
-baseline_commit: "4018caa"
+baseline_commit: "02072dd"
 contract_tests: []
 allowed_paths:
   - macos/Packages/SessionFeature/Sources/SessionFeature/HistoryEntryPresentation.swift

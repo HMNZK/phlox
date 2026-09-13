@@ -245,7 +245,6 @@ struct ClaudeSessionTranscriptLoader: Sendable {
 
         switch parsed.type {
         case "user":
-            guard parsed.isMeta != true else { return }
             guard let text = ClaudeSessionHistoryDiscovery.extractUserText(from: parsed),
                   !text.hasPrefix("<") else {
                 return

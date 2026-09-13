@@ -5,7 +5,7 @@ depends_on: [task-25, task-38]
 user_visible: true
 acceptance_tests:
   - .claude/scripts/task17-wiring.rb
-baseline_commit: 3abd7d1
+baseline_commit: 7fff82b
 contract_tests: []
 allowed_paths:
   - macos/App/SettingsView.swift

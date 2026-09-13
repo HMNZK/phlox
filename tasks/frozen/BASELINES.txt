@@ -30,3 +30,8 @@ c8a2010	.claude/scripts/task39-wiring.rb
 521e838	macos/Packages/TerminalUI/Tests/TerminalUITests/AcceptanceTerminalMountOwnershipTests.swift
 521e838	.claude/scripts/task39-wiring.rb
 3abd7d1	.claude/scripts/task17-wiring.rb
+4285918	macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptanceTranscriptTypographyTests.swift
+4285918	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptTypographyIntegrationTests.swift
+4285918	.claude/scripts/task40-wiring.rb
+7a31a0b	macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceSessionTitleDeriverTests.swift
+7a31a0b	.claude/scripts/task41-wiring.rb

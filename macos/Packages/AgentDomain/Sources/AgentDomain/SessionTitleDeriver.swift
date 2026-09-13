@@ -81,13 +81,8 @@ public enum SessionTitleDeriver {
         guard line[indexAfterIndent] == marker else { return false }
         let length = runLength(of: marker, in: line, from: indexAfterIndent)
         guard length >= minimumLength else { return false }
-        var index = line.index(indexAfterIndent, offsetBy: length)
-        while index < line.endIndex {
-            let character = line[index]
-            guard isCollapsibleWhitespace(character) else { return false }
-            index = line.index(after: index)
-        }
-        return true
+        let remainderStart = line.index(indexAfterIndent, offsetBy: length)
+        return line[remainderStart...].unicodeScalars.allSatisfy(isCollapsibleWhitespace)
     }
 
     private static func indexAfterFenceIndent(in line: String) -> String.Index? {
@@ -120,7 +115,7 @@ public enum SessionTitleDeriver {
     }
 
     private static func eligibleTitleLine(_ line: String) -> String? {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        let trimmed = trimCollapsibleWhitespace(line)
         let transformed = normalizeWidth(trimmed)
         let collapsed = collapseInternalWhitespace(transformed)
         guard !collapsed.isEmpty else { return nil }
@@ -164,26 +159,45 @@ public enum SessionTitleDeriver {
         return String(result)
     }
 
+    /// 行頭・行末の半角空白・タブ・U+3000 を Unicode スカラー単位で除く。
+    /// Character 比較だと U+3000+結合文字が空白と判定されず残る。
+    private static func trimCollapsibleWhitespace(_ text: String) -> String {
+        let scalars = text.unicodeScalars
+        var start = scalars.startIndex
+        var end = scalars.endIndex
+        while start < end, isCollapsibleWhitespace(scalars[start]) {
+            start = scalars.index(after: start)
+        }
+        while start < end {
+            let last = scalars.index(before: end)
+            guard isCollapsibleWhitespace(scalars[last]) else { break }
+            end = last
+        }
+        return String(scalars[start..<end])
+    }
+
+    /// 連続する半角空白・タブ・U+3000 を半角空白 1 個にする。結合文字は維持する。
+    /// 例: `"A\u{3000}\u{301}B"` → `"A \u{301}B"`
     private static func collapseInternalWhitespace(_ text: String) -> String {
-        var result = ""
-        result.reserveCapacity(text.count)
+        var result = String.UnicodeScalarView()
+        result.reserveCapacity(text.unicodeScalars.count)
         var previousWasWhitespace = false
-        for character in text {
-            if isCollapsibleWhitespace(character) {
+        for scalar in text.unicodeScalars {
+            if isCollapsibleWhitespace(scalar) {
                 if !previousWasWhitespace {
                     result.append(" ")
                     previousWasWhitespace = true
                 }
             } else {
-                result.append(character)
+                result.append(scalar)
                 previousWasWhitespace = false
             }
         }
-        return result
+        return String(result)
     }
 
-    private static func isCollapsibleWhitespace(_ character: Character) -> Bool {
-        character == " " || character == "\t" || character == "\u{3000}"
+    private static func isCollapsibleWhitespace(_ scalar: Unicode.Scalar) -> Bool {
+        scalar == " " || scalar == "\t" || scalar == "\u{3000}"
     }
 
     private static func hasExcludedPrefix(_ line: String) -> Bool {

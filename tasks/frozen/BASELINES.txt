@@ -127,3 +127,8 @@ fc8519e	macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceHistor
 fc8519e	.claude/scripts/task49-wiring.rb
 5a5e647	macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceHistoryEntryPresentationTests.swift
 5a5e647	.claude/scripts/task49-wiring.rb
+91cdbe9	macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptanceUIWordingTests.swift
+91cdbe9	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/GridComposerSettingsAcceptanceTests.swift
+91cdbe9	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/ComposerModeMenuAcceptanceTests.swift
+91cdbe9	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/AcceptanceContextPopoverBranchTests.swift
+91cdbe9	.claude/scripts/task48-wiring.rb

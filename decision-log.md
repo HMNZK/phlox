@@ -178,3 +178,6 @@
 - 2026-09-13 task-40 変異検査（agentic-loop-mutation-check.sh、基準 bdbf1d9 で DesignSystem+SessionFeature swift test）: baseline RED（保護力あり、exit 0）。実装後の保護力確認として契約注 9 を満たす。
 - 2026-09-13 task-41 レビュー r3（HIGH: trim が除去ごとに String 再生成で O(n²)、MEDIUM: 終了フェンス末尾空白を 3 種に限定）: いずれも実装欠陥と裁定（契約は O(n) と「空白だけの行」を要求）。確定 6 に補足を追記し 3 回目の差し戻し（Cursor 新規セッション、契約から）。
 - 2026-09-13 task-40 レビュー r1（HIGH: rb マスクがファイル全体から描画修飾を除去し契約 12 に反する、HIGH: rb 自己比較が凍結 blob 同士で改変を検出できない）: ハーネス欠陥と裁定。修理を Cursor に委譲: マスクは接続表の case 範囲に限定し、エラー色維持と gap 修飾の個数検査を追加。rb 自己比較は PM が設定する `TASK40_RB_BASELINE`（承認済み修理コミット SHA、HEAD 拒否）との blob 比較にする。
+- 2026-09-13T13:47:16+0900 task-40 rework: レビュー r1: rb マスクの全体除去（契約 12 違反）と rb 自己比較の欠落 → ハーネス欠陥、rb 修理を委譲
+- 2026-09-13 task-41 差し戻し上限（2 回）到達 → ユーザー承認「3 回目の修正へ進む」（AskUserQuestion）。resume --human-approved で継続。
+- 2026-09-13T13:53:07+0900 task-41 resume: ユーザー承認: r3 指摘（trim O(n²)・フェンス末尾空白）の 3 回目修正へ進む

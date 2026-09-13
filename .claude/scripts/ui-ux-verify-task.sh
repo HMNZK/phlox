@@ -53,6 +53,9 @@ fi
 if [ "${1:-}" = task-37 ]; then
   exec bash "$verifier" "$@" --verify '/Users/ryosuke/.agents/scripts/compact-test task37-wiring env TASK37_BASELINE=094f86a ruby .claude/scripts/task37-wiring.rb && (cd macos/Packages/AgentConfigKit && /Users/ryosuke/.agents/scripts/compact-test task37-agent-config swift test) && git diff --check'
 fi
+if [ "${1:-}" = task-43 ]; then
+  exec bash "$verifier" "$@" --verify '/Users/ryosuke/.agents/scripts/compact-test task43-wiring-selftest ruby .claude/scripts/task43-wiring.rb --selftest && /Users/ryosuke/.agents/scripts/compact-test task43-wiring env TASK43_BASELINE=026ed2d ruby .claude/scripts/task43-wiring.rb && (cd macos/Packages/SessionFeature && /Users/ryosuke/.agents/scripts/compact-test task43-session swift test) && (cd macos/Packages/DashboardFeature && /Users/ryosuke/.agents/scripts/compact-test task43-dashboard swift test) && git diff --check'
+fi
 exec bash "$verifier" "$@"
 if [ "${1:-}" = task-38 ]; then
   exec bash "$verifier" "$@" --verify '/Users/ryosuke/.agents/scripts/compact-test task38-wiring-selftest ruby .claude/scripts/task38-wiring.rb --selftest && /Users/ryosuke/.agents/scripts/compact-test task38-wiring env TASK38_BASELINE=8e628e5 ruby .claude/scripts/task38-wiring.rb && /Users/ryosuke/.agents/scripts/compact-test task38-task35-regression env TASK35_BASELINE=094f86a ruby .claude/scripts/task35-wiring.rb && (cd macos/Packages/DesignSystem && /Users/ryosuke/.agents/scripts/compact-test task38-design-system swift test) && git diff --check'

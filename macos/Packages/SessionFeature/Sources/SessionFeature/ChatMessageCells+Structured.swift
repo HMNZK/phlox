@@ -305,17 +305,15 @@ struct CommandExecutionCell: View {
                 },
                 set: { userOverride = $0 }
             ),
-            title: command?.isEmpty == false ? command! : UIWording.text(.missingCommand, languageCode: languageCode),
+            title: presentation.heading ?? "",
             subtitle: isRunning ? "実行中" : (output.isEmpty ? nil : UIWording.text(.outputAvailable, languageCode: languageCode)),
             isToolCall: true && presentation.semanticInk == .process
         ) {
             VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
-                if let command, !command.isEmpty {
-                    Text(command)
-                        .font(ChatScaledFont.mono(scale: scale))
-                        .foregroundStyle(DSColor.chatTextPrimary)
-                        .chatTextSelection()
-                }
+                Text(command?.isEmpty == false ? command! : UIWording.text(.missingCommand, languageCode: languageCode))
+                    .font(ChatScaledFont.mono(scale: scale))
+                    .foregroundStyle(DSColor.chatTextPrimary)
+                    .chatTextSelection()
                 if !output.isEmpty {
                     ScrollView(.horizontal) {
                         Text(output)

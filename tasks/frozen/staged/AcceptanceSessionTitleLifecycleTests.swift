@@ -421,6 +421,16 @@ private func firstUserMessageID(_ vm: ChatSessionViewModel) -> String? {
 }
 
 @MainActor
+private func userMessageText(_ vm: ChatSessionViewModel, id: String) -> String? {
+    for item in vm.transcript {
+        if case .userMessage(id, let text, _, _) = item {
+            return text
+        }
+    }
+    return nil
+}
+
+@MainActor
 private func yieldUserItem(
     _ client: TitleCodexClient,
     threadId: String,
@@ -604,20 +614,57 @@ struct AcceptanceSessionTitleLifecycleTests {
         try await vm.sendText("/review", submit: true)
         let userID = try #require(firstUserMessageID(vm))
         let threadId = try #require(vm.threadId)
+        let revision = vm.transcriptRevision
         try await yieldUserItem(
             client,
             threadId: threadId,
             itemJSON: unidentifiedSupplementJSON(id: userID)
         )
         try await waitUntil {
-            vm.transcript.contains { item in
-                if case .userMessage(userID, let text, _, _) = item {
-                    return text.contains("ログイン画面を修正") || text == "/review"
-                }
-                return false
-            } || vm.titleState.source == .flower
+            vm.transcriptRevision > revision
+                && (userMessageText(vm, id: userID)?.contains("ログイン画面を修正") == true)
         }
         expectState(vm.titleState, "Rose", .flower, "Rose", nil, "/review plus supplement")
+    }
+
+    @Test @MainActor
+    func ローカル_review_のサーバー補足受信後に保存transcriptから復元してもflowerのまま() async throws {
+        let (vm, client) = makeCodexVM()
+        try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+        try await vm.sendText("/review", submit: true)
+        let userID = try #require(firstUserMessageID(vm))
+        let threadId = try #require(vm.threadId)
+        let revision = vm.transcriptRevision
+        try await yieldUserItem(
+            client,
+            threadId: threadId,
+            itemJSON: unidentifiedSupplementJSON(id: userID)
+        )
+        try await waitUntil {
+            vm.transcriptRevision > revision
+                && (userMessageText(vm, id: userID)?.contains("ログイン画面を修正") == true)
+        }
+        expectState(vm.titleState, "Rose", .flower, "Rose", nil, "live after supplement")
+
+        let restoreStore = TitleLifecycleTranscriptStore(vm.transcript)
+        let (restored, _) = makeChatVM(transcriptStore: restoreStore)
+        await restored.restore(
+            threadId: "thread-saved-review",
+            approvalPolicy: .named("on-request"),
+            sandbox: .named("workspace-write")
+        )
+        try await waitUntil {
+            restored.restoreState == .restored
+                && restored.transcript.contains { $0.id == userID }
+        }
+        expectState(
+            restored.titleState,
+            "Rose",
+            .flower,
+            "Rose",
+            nil,
+            "restore from saved ChatItems"
+        )
     }
 
     @Test @MainActor
@@ -635,12 +682,16 @@ struct AcceptanceSessionTitleLifecycleTests {
         )
         let userID = try #require(firstUserMessageID(vm))
         let threadId = try #require(vm.threadId)
+        let revision = vm.transcriptRevision
         try await yieldUserItem(
             client,
             threadId: threadId,
             itemJSON: unidentifiedSupplementJSON(id: userID)
         )
-        try await waitUntil { vm.transcript.contains { $0.id == userID } }
+        try await waitUntil {
+            vm.transcriptRevision > revision
+                && (userMessageText(vm, id: userID)?.contains("/review") == true)
+        }
         expectState(
             vm.titleState,
             "ログイン画面を修正",
@@ -669,12 +720,16 @@ struct AcceptanceSessionTitleLifecycleTests {
         let derived = vm.titleState
         let userID = try #require(firstUserMessageID(vm))
         let threadId = try #require(vm.threadId)
+        let replaceRevision = vm.transcriptRevision
         try await yieldUserItem(
             client,
             threadId: threadId,
             itemJSON: identifiedPlainJSON(id: userID, text: "通知を修正")
         )
-        try await waitUntil { vm.transcript.contains { $0.id == userID } }
+        try await waitUntil {
+            vm.transcriptRevision > replaceRevision
+                && (userMessageText(vm, id: userID)?.contains("通知を修正") == true)
+        }
         expectState(
             vm.titleState,
             derived.name,
@@ -688,12 +743,17 @@ struct AcceptanceSessionTitleLifecycleTests {
             for: vm.id,
             with: [.userMessage(id: "u-reload", text: "通知を修正", timestamp: Date())]
         )
+        let reloadRevision = vm.transcriptRevision
         await vm.restore(
             threadId: threadId,
             approvalPolicy: .named("on-request"),
             sandbox: .named("workspace-write")
         )
-        try await waitUntil { vm.restoreState == .restored }
+        try await waitUntil {
+            vm.transcriptRevision > reloadRevision
+                && vm.restoreState == .restored
+                && vm.transcript.contains { $0.id == "u-reload" }
+        }
         expectState(
             vm.titleState,
             derived.name,
@@ -703,7 +763,9 @@ struct AcceptanceSessionTitleLifecycleTests {
             "reload does not retitle"
         )
 
-        _ = await vm.revert(toUserMessageID: userID)
+        let reverted = await vm.revert(toUserMessageID: "u-reload")
+        #expect(reverted != nil, Comment(rawValue: "revert finds u-reload"))
+        #expect(reverted == "通知を修正", Comment(rawValue: "revert returns u-reload text"))
         expectState(
             vm.titleState,
             derived.name,
@@ -857,12 +919,17 @@ struct AcceptanceSessionTitleLifecycleTests {
         let client = TitleCodexClient()
         client.threadReadItemsJSON = "[\(unidentifiedSupplementJSON(id: "srv-1"))]"
         let (vm, _) = makeCodexVM(client: client)
+        let revision = vm.transcriptRevision
         await vm.restore(
             threadId: "thread-unidentified",
             approvalPolicy: .named("on-request"),
             sandbox: .named("workspace-write")
         )
-        try await waitUntil { vm.restoreState == .restored || vm.restoreState != .restoring }
+        try await waitUntil {
+            vm.transcriptRevision > revision
+                && vm.restoreState == .restored
+                && vm.transcript.contains { $0.id == "srv-1" }
+        }
         expectState(vm.titleState, "Rose", .flower, "Rose", nil, "unidentified server history")
     }
 
@@ -871,12 +938,17 @@ struct AcceptanceSessionTitleLifecycleTests {
         let client = TitleCodexClient()
         client.threadReadItemsJSON = "[\(identifiedOriginalJSON(id: "srv-2", originalText: "ログイン画面を修正"))]"
         let (vm, _) = makeCodexVM(client: client)
+        let revision = vm.transcriptRevision
         await vm.restore(
             threadId: "thread-identifiable",
             approvalPolicy: .named("on-request"),
             sandbox: .named("workspace-write")
         )
-        try await waitUntil { vm.restoreState == .restored }
+        try await waitUntil {
+            vm.transcriptRevision > revision
+                && vm.restoreState == .restored
+                && vm.transcript.contains { $0.id == "srv-2" }
+        }
         expectState(
             vm.titleState,
             "ログイン画面を修正",
@@ -896,12 +968,17 @@ struct AcceptanceSessionTitleLifecycleTests {
         \(identifiedPlainJSON(id: "good", text: "通知を修正"))]
         """
         let (vm, _) = makeCodexVM(client: client)
+        let revision = vm.transcriptRevision
         await vm.restore(
             threadId: "thread-skip",
             approvalPolicy: .named("on-request"),
             sandbox: .named("workspace-write")
         )
-        try await waitUntil { vm.restoreState == .restored }
+        try await waitUntil {
+            vm.transcriptRevision > revision
+                && vm.restoreState == .restored
+                && vm.transcript.contains { $0.id == "good" }
+        }
         expectState(
             vm.titleState,
             "通知を修正",
@@ -917,12 +994,17 @@ struct AcceptanceSessionTitleLifecycleTests {
         let client = TitleCodexClient()
         client.threadReadItemsJSON = "[\(identifiedOriginalJSON(id: "srv-review", originalText: "/review"))]"
         let (vm, _) = makeCodexVM(client: client)
+        let revision = vm.transcriptRevision
         await vm.restore(
             threadId: "thread-review-original",
             approvalPolicy: .named("on-request"),
             sandbox: .named("workspace-write")
         )
-        try await waitUntil { vm.restoreState == .restored || vm.restoreState != .restoring }
+        try await waitUntil {
+            vm.transcriptRevision > revision
+                && vm.restoreState == .restored
+                && vm.transcript.contains { $0.id == "srv-review" }
+        }
         expectState(vm.titleState, "Rose", .flower, "Rose", nil, "identifiable /review original")
     }
 

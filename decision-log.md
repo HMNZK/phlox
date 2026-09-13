@@ -229,3 +229,5 @@
 - 2026-09-13 task-46 再凍結 9b93efc（旧 77c2e21 無効。rb check_answer 修理 wt-46 HEAD を取り込み）。
 - 2026-09-13 注記: wt-46 の rebase で「凍結テストを実パスへ復帰」rename コミットが patch-id 一致で drop され、受け入れテスト 2 本が実パスに無い状態で SessionFeature 930 件 GREEN・verify fail になっていた。rename を再適用（wt-46）。以後 rebase 後は実パスの存在を確認する。
 - 2026-09-13 task-44 レビュー r3 裁定: MEDIUM（サーバー履歴の由来不明項目を先頭行採用しない）は PM の契約文（r2 後の確定）が 197 行・凍結テストと矛盾した契約欠陥→契約を訂正、実装は正。HIGH（isMeta 不採用がサーバー item と履歴再開の再保存で維持されない）は (a) サーバー item の raw.isMeta 未検査＝実装欠陥、(b) loader の isMeta→userMessage 変換＝allowed_paths 外の契約欠陥→ClaudeSessionHistory.swift を allowed_paths に追加。差し戻しは (a)+(b) の最小修正。review-task-44-r3.json に保存。
+- 2026-09-13T20:49:17+0900 task-44 resume: ユーザー承認（2026-09-13「承認して全部続行」）: 3 回目の差し戻し。r3 HIGH の isMeta 除外（サーバー item の raw.isMeta 検査＋履歴 loader の isMeta 除外）の最小修正
+- 2026-09-13 task-44 3 回目の差し戻しをユーザー承認（「承認して全部続行（推奨）」）。resume --human-approved 済み。

@@ -226,3 +226,4 @@
 - 2026-09-13 task-46 差し戻し実装中の ESCALATION を PM 裁定: 凍結 rb の check_answer（typography_errors で AgentMessageBody 内にフォント役割・倍率追随を要求）は契約 172 行「AgentMessageBody の宣言を変更しない」および SCOPE_CHECK と矛盾する rb 側の欠陥。回答の倍率追随は既存の AgentMessageBody → RichMarkdownView（ChatTypography.bodyFontSize → TranscriptTypography）委譲で満たされており、rb は「AgentMessageBody が RichMarkdownView へ委譲していること（基準と同一）」を検査する形へ修理する（Cursor、wt-46）。修理後に再凍結。実装（AgentMessageBody 撤回・展開先頭に既存要約）はコミット済み。
 - 2026-09-13T19:48:35+0900 task-44 rework: レビュー r2: HIGH 由来辞書が static で SessionID を含まず別セッションの復元で上書き・削除処理なし／HIGH 履歴再開で取り込んだ由来不明本文が無印で保存され次回復元で derived 化。さらに保存 transcript 本文へのマーカー埋め込みは契約 205 行「タイトル目的で transcript 自体の本文を改変しない」に違反。実装欠陥（2 回目→由来保持の設計を契約から作り直し）
 - 2026-09-13 task-44 レビュー r2 裁定: HIGH×2 は実装欠陥→差し戻し 2 回目（由来保持を static 辞書＋本文マーカーで実装した設計そのものが契約 205 行に違反。新規エージェントに契約から作り直させる。r1 の他 2 件（初回保存の load 後再評価・rename 二重保存抑止）は維持）。review-task-44-r2.json に保存。
+- 2026-09-13 task-46 再凍結 9b93efc（旧 77c2e21 無効。rb check_answer 修理 wt-46 HEAD を取り込み）。

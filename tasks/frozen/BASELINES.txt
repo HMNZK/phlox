@@ -110,3 +110,6 @@ eb04e86	.claude/scripts/task47-wiring.rb
 77c2e21	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptItemPresentationTests.swift
 77c2e21	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask46Tests.swift
 77c2e21	.claude/scripts/task46-wiring.rb
+9b93efc	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptItemPresentationTests.swift
+9b93efc	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask46Tests.swift
+9b93efc	.claude/scripts/task46-wiring.rb

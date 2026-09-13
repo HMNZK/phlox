@@ -7,7 +7,7 @@ acceptance_tests:
   - macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptItemPresentationTests.swift
   - macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask46Tests.swift
   - .claude/scripts/task46-wiring.rb
-baseline_commit: "77c2e21"
+baseline_commit: "9b93efc"
 contract_tests: []
 allowed_paths:
   - macos/Packages/SessionFeature/Sources/SessionFeature/TranscriptItemPresentation.swift

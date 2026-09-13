@@ -35,7 +35,6 @@ struct AcceptanceSessionTitleDescriptorTests {
         #expect(state.source == source, Comment(rawValue: "\(label) source"))
         #expect(state.flowerName == flowerName, Comment(rawValue: "\(label) flowerName"))
         #expect(state.fullDerivedTitle == fullDerivedTitle, Comment(rawValue: "\(label) fullDerivedTitle"))
-        #expect(state.name == name, Comment(rawValue: "\(label) descriptor.name matches titleState"))
     }
 
     private func expectDescriptorState(
@@ -44,10 +43,18 @@ struct AcceptanceSessionTitleDescriptorTests {
         _ source: SessionTitleSource,
         _ flowerName: String?,
         _ fullDerivedTitle: String?,
-        _ label: String
+        _ label: String,
+        storedTitleSource: SessionTitleSource? = nil
     ) {
+        let expectedStoredSource = storedTitleSource ?? source
         #expect(descriptor.name == name, Comment(rawValue: "\(label) stored name"))
+        #expect(descriptor.titleSource == expectedStoredSource, Comment(rawValue: "\(label) stored titleSource"))
+        #expect(descriptor.flowerName == flowerName, Comment(rawValue: "\(label) stored flowerName"))
+        #expect(descriptor.fullDerivedTitle == fullDerivedTitle, Comment(rawValue: "\(label) stored fullDerivedTitle"))
         expectState(descriptor.titleState, name, source, flowerName, fullDerivedTitle, label)
+        #expect(descriptor.name == descriptor.titleState.name, Comment(rawValue: "\(label) descriptor.name matches titleState"))
+        #expect(descriptor.flowerName == descriptor.titleState.flowerName, Comment(rawValue: "\(label) flowerName matches titleState"))
+        #expect(descriptor.fullDerivedTitle == descriptor.titleState.fullDerivedTitle, Comment(rawValue: "\(label) fullDerivedTitle matches titleState"))
     }
 
     private func makeDescriptor(
@@ -221,7 +228,33 @@ struct AcceptanceSessionTitleDescriptorTests {
             flowerName: "推測花",
             fullDerivedTitle: "旧候補"
         )
-        expectDescriptorState(descriptor, "Rose", .manual, nil, nil, "nil source legacy")
+        expectDescriptorState(
+            descriptor,
+            "Rose",
+            .manual,
+            nil,
+            nil,
+            "nil source legacy",
+            storedTitleSource: nil
+        )
+    }
+
+    @Test("33 Character の derived は descriptor 実フィールドでも name != fullDerivedTitle")
+    func initializerKeepsLongDerivedDistinctFields() {
+        let full = "abcdefghijklmnopqrstuvwx123456789"
+        let title = "abcdefghijklmnopqrstuvwx1234567…"
+        let descriptor = makeDescriptor(
+            name: title,
+            titleSource: .derived,
+            flowerName: "Rose",
+            fullDerivedTitle: full
+        )
+        expectDescriptorState(descriptor, title, .derived, "Rose", full, "kind 33 derived")
+        #expect(descriptor.name != descriptor.fullDerivedTitle)
+        let encodedName = try? encodeObject(descriptor)["name"] as? String
+        let encodedFull = try? encodeObject(descriptor)["fullDerivedTitle"] as? String
+        #expect(encodedName == title)
+        #expect(encodedFull == full)
     }
 
     // MARK: - JSON 往復
@@ -287,26 +320,78 @@ struct AcceptanceSessionTitleDescriptorTests {
     @Test("旧 JSON の Rose は source 不在の legacy 手動名")
     func oldJSONRoseIsLegacyManual() throws {
         let descriptor = try decodeJSON(legacyJSON(name: "Rose"))
-        expectDescriptorState(descriptor, "Rose", .manual, nil, nil, "old Rose")
+        expectDescriptorState(
+            descriptor,
+            "Rose",
+            .manual,
+            nil,
+            nil,
+            "old Rose",
+            storedTitleSource: nil
+        )
         #expect(descriptor.token == "token")
     }
 
     @Test("旧 JSON の通常名は legacy 手動名")
     func oldJSONNormalNameIsLegacyManual() throws {
         let descriptor = try decodeJSON(legacyJSON(name: "作業中"))
-        expectDescriptorState(descriptor, "作業中", .manual, nil, nil, "old normal")
+        expectDescriptorState(
+            descriptor,
+            "作業中",
+            .manual,
+            nil,
+            nil,
+            "old normal",
+            storedTitleSource: nil
+        )
     }
 
     @Test("旧 JSON の空名は空の手動名のまま。短縮 ID に置換しない")
     func oldJSONEmptyNameStaysEmptyManual() throws {
         let descriptor = try decodeJSON(legacyJSON(name: ""))
-        expectDescriptorState(descriptor, "", .manual, nil, nil, "old empty")
+        expectDescriptorState(
+            descriptor,
+            "",
+            .manual,
+            nil,
+            nil,
+            "old empty",
+            storedTitleSource: nil
+        )
     }
 
     @Test("titleSource 不在は legacy")
     func missingTitleSourceIsLegacy() throws {
         let descriptor = try decodeJSON(legacyJSON(name: "Rose"))
-        expectDescriptorState(descriptor, "Rose", .manual, nil, nil, "missing source")
+        expectDescriptorState(
+            descriptor,
+            "Rose",
+            .manual,
+            nil,
+            nil,
+            "missing source",
+            storedTitleSource: nil
+        )
+    }
+
+    @Test("titleSource 不在の JSON に孤立した花名・導出全文があっても legacy で捨てる")
+    func missingTitleSourceDropsOrphanedMeta() throws {
+        let descriptor = try decodeJSON(
+            legacyJSON(
+                name: "Rose",
+                flowerNameLine: ",\"flowerName\": \"Lily\"",
+                fullDerivedTitleLine: ",\"fullDerivedTitle\": \"旧候補\""
+            )
+        )
+        expectDescriptorState(
+            descriptor,
+            "Rose",
+            .manual,
+            nil,
+            nil,
+            "missing source orphan meta",
+            storedTitleSource: nil
+        )
     }
 
     @Test("titleSource null は legacy")
@@ -314,7 +399,36 @@ struct AcceptanceSessionTitleDescriptorTests {
         let descriptor = try decodeJSON(
             legacyJSON(name: "Rose", titleSourceLine: ",\"titleSource\": null")
         )
-        expectDescriptorState(descriptor, "Rose", .manual, nil, nil, "null source")
+        expectDescriptorState(
+            descriptor,
+            "Rose",
+            .manual,
+            nil,
+            nil,
+            "null source",
+            storedTitleSource: nil
+        )
+    }
+
+    @Test("titleSource null の JSON に孤立した花名・導出全文があっても legacy で捨てる")
+    func nullTitleSourceDropsOrphanedMeta() throws {
+        let descriptor = try decodeJSON(
+            legacyJSON(
+                name: "Rose",
+                titleSourceLine: ",\"titleSource\": null",
+                flowerNameLine: ",\"flowerName\": \"Lily\"",
+                fullDerivedTitleLine: ",\"fullDerivedTitle\": \"旧候補\""
+            )
+        )
+        expectDescriptorState(
+            descriptor,
+            "Rose",
+            .manual,
+            nil,
+            nil,
+            "null source orphan meta",
+            storedTitleSource: nil
+        )
     }
 
     @Test("未知 titleSource でも descriptor 全体を破棄せず手動名と正規化花名を残す")
@@ -431,6 +545,58 @@ struct AcceptanceSessionTitleDescriptorTests {
         expectDescriptorState(updated, "修正", .derived, "Rose", "修正", "updating native")
     }
 
+    @Test("updating(resumeID:) は名前四フィールドを保持する")
+    func updatingResumeIDKeepsTitleFields() {
+        let original = makeDescriptor(
+            name: "修正",
+            titleSource: .derived,
+            flowerName: "Rose",
+            fullDerivedTitle: "修正"
+        )
+        let updated = original.updating(resumeID: "resume-new")
+        #expect(updated.resumeID == "resume-new")
+        expectDescriptorState(updated, "修正", .derived, "Rose", "修正", "updating resumeID")
+    }
+
+    @Test("updating(parentSessionID:) は名前四フィールドを保持する")
+    func updatingParentSessionIDKeepsTitleFields() {
+        let original = makeDescriptor(
+            name: "Rose",
+            titleSource: .flower,
+            flowerName: "Rose"
+        )
+        let updated = original.updating(parentSessionID: parentID)
+        #expect(updated.parentSessionID == parentID)
+        expectDescriptorState(updated, "Rose", .flower, "Rose", nil, "updating parent")
+    }
+
+    @Test("updating(launchContext:) は名前四フィールドを保持する")
+    func updatingLaunchContextKeepsTitleFields() {
+        let original = makeDescriptor(
+            name: "Rose",
+            titleSource: .flower,
+            flowerName: "Rose"
+        )
+        let updated = original.updating(launchContext: .orchestration, parentSessionID: parentID)
+        #expect(updated.launchContext == .orchestration)
+        #expect(updated.parentSessionID == parentID)
+        expectDescriptorState(updated, "Rose", .flower, "Rose", nil, "updating launchContext")
+    }
+
+    @Test("updating(codexSettings:) は名前四フィールドを保持する")
+    func updatingCodexSettingsKeepsTitleFields() {
+        let original = makeDescriptor(
+            name: "修正",
+            titleSource: .derived,
+            flowerName: "Rose",
+            fullDerivedTitle: "修正"
+        )
+        let settings = CodexAppServerSessionSettings(selectedModel: "gpt-5", selectedEffort: "high")
+        let updated = original.updating(codexSettings: settings)
+        #expect(updated.codexSettings == settings)
+        expectDescriptorState(updated, "修正", .derived, "Rose", "修正", "updating codexSettings")
+    }
+
     // MARK: - 秘密情報・互換
 
     @Test("encode は token を出力しない")
@@ -467,6 +633,9 @@ struct AcceptanceSessionTitleDescriptorTests {
         #expect(encodedEnv.keys.sorted() == ["PATH", "TERM"])
         #expect(object["backend"] as? String == "appServer")
         #expect(object["chatNativeSessionId"] as? String == "native-keep")
+        #expect(object["titleSource"] as? String == "flower")
+        #expect(object["flowerName"] as? String == "Rose")
+        #expect(object["fullDerivedTitle"] == nil)
         let encoded = try JSONEncoder().encode(descriptor)
         let jsonString = try #require(String(data: encoded, encoding: .utf8))
         #expect(!jsonString.contains("secret-a"))

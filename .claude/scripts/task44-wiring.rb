@@ -132,6 +132,19 @@ def extract_func_body(src, name)
   extract_balanced(src, brace, "{", "}")
 end
 
+def extract_initializer_body(src)
+  m = src.to_s.match(/(?:^|\n)[ \t]*(?:(?:private|public|fileprivate|internal|open|required|convenience)\s+)*init\s*\(/)
+  return nil unless m
+  paren = src.index("(", m.begin(0))
+  return nil unless paren
+  params = extract_balanced(src, paren, "(", ")")
+  return nil if params.nil?
+  after = paren + 1 + params.length + 1
+  brace = src.index("{", after)
+  return nil unless brace
+  extract_balanced(src, brace, "{", "}")
+end
+
 def git_show(rev, path)
   text = IO.popen(["git", "show", "#{rev}:#{path}"], err: [:child, :out], &:read)
   return text if $?.success?
@@ -308,33 +321,87 @@ def check_frozen_baseline(baseline, artifacts = nil)
   ng
 end
 
-def has_early_guard_before?(compacted, index)
-  before = compacted[[index - 1200, 0].max...index]
-  has_derived = before.include?(".derived") || before.include?("SessionTitleSource.derived")
-  has_manual = before.include?(".manual") || before.include?("SessionTitleSource.manual")
-  has_return = before.include?("return")
-  has_derived && has_manual && has_return
+CONTROL_PATH = "macos/Packages/AppBootstrap/Sources/AppBootstrap/ControlActionHandler.swift"
+
+NAME_RELATED_FUNCS = {
+  TITLE_STATE_PATH => :all,
+  DESCRIPTOR_PATH => %w[init encode updating titleState],
+  CONTROLLABLE_PATH => %w[titleState],
+  CHAT_VM_PATH => %w[titleState displayName name sendText restore revert appendOrReplace applyRestoredTranscript rebuildTranscript chatItem],
+  PTY_VM_PATH => %w[titleState displayName name],
+  DASHBOARD_VM_PATH => %w[renameSession spawnNewSessionImpl],
+  SPAWN_PATH => %w[makeSessionViewModel makeChatSessionViewModel makeRestoreErrorSession makeRestoreErrorChatSession],
+  RESTORE_PATH => %w[restorePersistedSessions restoreSession restoreChatSession],
+  PERSIST_PATH => %w[persistSession persistSessionName persistSessionWorkspace removeSession saveSessionsIfAllowed],
+}.freeze
+
+EXTRACTION_NEEDLES = %w[InputHistoryPolicy.entries SessionTitleDeriver.derive].freeze
+
+def listed_func_names(src)
+  src.to_s.scan(/(?:^|\n)[ \t]*(?:(?:private|public|fileprivate|internal|open|override|final|static|nonisolated)\s+)*func\s+(\w+)\s*\(/).flatten.uniq
+end
+
+def function_bodies(src)
+  names = listed_func_names(src)
+  bodies = {}
+  names.each do |name|
+    body = extract_func_body(src, name)
+    bodies[name] = body unless body.nil?
+  end
+  bodies
+end
+
+def first_extraction_index(compacted)
+  EXTRACTION_NEEDLES.map { |n| compacted.index(n) }.compact.min
+end
+
+def dominating_flower_guard?(compacted_before)
+  before = compacted_before.to_s
+  return false if before.include?("iffalse")
+  return true if before.match?(/guard(?:titleState\.)?source==(?:SessionTitleSource\.)?\.flowerelse\{[^}]*return/)
+  return true if before.match?(/if(?:titleState\.)?source==(?:SessionTitleSource\.)?\.derived\|\|(?:titleState\.)?source==(?:SessionTitleSource\.)?\.manual\{[^}]*return/)
+  return true if before.match?(/if(?:titleState\.)?source!=(?:SessionTitleSource\.)?\.flower\{[^}]*return/)
+  return true if before.match?(/switch(?:titleState\.)?source\{case(?:SessionTitleSource\.)?\.flower/) && before.include?("return")
+  false
+end
+
+def referenced_funcs(body, known)
+  compact(body).scan(/\b([A-Za-z_]\w+)\s*\(/).flatten.select { |n| known.include?(n) }.uniq
+end
+
+def unguarded_extraction_from?(name, bodies, visiting = [])
+  return false if visiting.include?(name)
+  body = bodies[name]
+  return false if body.nil?
+  c = compact(body)
+  idx = first_extraction_index(c)
+  if idx
+    return true unless dominating_flower_guard?(c[0...idx])
+    return false
+  end
+  referenced_funcs(body, bodies.keys).any? do |callee|
+    next false if callee == name
+    unless dominating_flower_guard?(c)
+      unguarded_extraction_from?(callee, bodies, visiting + [name])
+    else
+      false
+    end
+  end
 end
 
 def extraction_guard_errors(src, label)
   return [] if src.nil?
   masked = mask_strings_and_comments(src)
+  bodies = function_bodies(masked)
   ng = []
-  names = masked.scan(/(?:^|\n)[ \t]*(?:(?:private|public|fileprivate|internal|open|override|final|static|nonisolated)\s+)*func\s+(\w+)\s*\(/).flatten
-  names.uniq.each do |name|
-    body = extract_func_body(masked, name)
-    next if body.nil?
-    c = compact(body)
-    %w[InputHistoryPolicy.entries SessionTitleDeriver.derive].each do |needle|
-      idx = c.index(needle)
-      next if idx.nil?
-      unless has_early_guard_before?(c, idx)
-        ng << "#{label} が derived/manual の早期ガードより前に履歴抽出している"
-      end
-    end
-    if c.include?("iffalse") && (c.include?("InputHistoryPolicy.entries") || c.include?("SessionTitleDeriver.derive"))
-      ng << "#{label} が derived/manual の早期ガードより前に履歴抽出している"
-    end
+  bodies.each_key do |name|
+    next unless unguarded_extraction_from?(name, bodies)
+    ng << "#{label} が derived/manual の早期ガードより前に履歴抽出している"
+    break
+  end
+  c = compact(masked)
+  if c.include?("iffalse") && EXTRACTION_NEEDLES.any? { |n| c.include?(n) }
+    ng << "#{label} が derived/manual の早期ガードより前に履歴抽出している"
   end
   ng.uniq
 end
@@ -363,15 +430,29 @@ def check_title_state_api(src)
     ng << "receivingUserMessage が無い" unless c.include?("funcreceivingUserMessage(")
     ng << "renamed(to:) が無い" unless c.include?("funcrenamed(toname:")
     ng << "effectiveName(fallback:) が無い" unless c.include?("funceffectiveName(fallback:")
+    init_body = extract_func_body(body, "init") || extract_initializer_body(body)
+    ic = compact(init_body.to_s)
+    return_at = ic.index("return")
+    derive_at = ic.index("SessionTitleDeriver.derive")
+    manual_at = ic.index("source=.manual") || ic.index("self.source=.manual") || ic.index("source:.manual")
+    unreachable = return_at && (derive_at.nil? || derive_at > return_at) && (manual_at.nil? || manual_at > return_at)
+    unless ic.include?(".manual") && (ic.include?("SessionTitleDeriver.derive") || ic.include?(".flower")) && !unreachable
+      ng << "SessionTitleState の initializer が不整合 derived／flower を正規化していない"
+    end
+    renamed = extract_func_body(body, "renamed")
+    rc = compact(renamed.to_s)
+    if renamed && (rc == "self" || rc == "returnself" || (!rc.include?(".manual") && !rc.include?("source:.manual")))
+      ng << "renamed(to:) が手動状態へ遷移していない"
+    end
   end
   recv = extract_func_body(masked, "receivingUserMessage")
   if recv
     rc = compact(recv)
     derive_at = rc.index("SessionTitleDeriver.derive")
-    if derive_at && !has_early_guard_before?(rc, derive_at)
+    if derive_at && !dominating_flower_guard?(rc[0...derive_at])
       ng << "receivingUserMessage が derived/manual の早期ガードより前に SessionTitleDeriver.derive を呼んでいる"
     elsif derive_at.nil?
-      ng << "receivingUserMessage が derived/manual の早期ガードより前に SessionTitleDeriver.derive を呼んでいる" unless rc.include?("returnself") && rc.include?(".derived") && rc.include?(".manual")
+      ng << "receivingUserMessage が derived/manual の早期ガードより前に SessionTitleDeriver.derive を呼んでいる" unless dominating_flower_guard?(rc)
     end
   elsif masked =~ /\bstruct\s+SessionTitleState\b/
     ng << "receivingUserMessage が無い" unless ng.include?("receivingUserMessage が無い")
@@ -391,10 +472,23 @@ def check_descriptor(src)
   ng << "fullDerivedTitle 引数が無い" unless c.include?("fullDerivedTitle:String?")
   ng << "titleState 窓口が無い" unless c.include?("vartitleState:SessionTitleState") || c.include?("lettitleState")
   ng << "updating(titleState:) が無い" unless c.include?("funcupdating(titleState:")
+  keys = extract_enum_body(masked, "CodingKeys")
+  keyc = compact(keys.to_s)
   %w[titleSource flowerName fullDerivedTitle].each do |key|
-    ng << "CodingKeys に #{key} が無い" unless c.include?(key)
+    ng << "CodingKeys に #{key} が無い" unless keys && keyc.include?(key)
   end
-  ng << "token を encode している" if c.include?("encode(token") || c.include?("encodeIfPresent(token")
+  encode_body = extract_func_body(masked, "encode")
+  ec = compact(encode_body.to_s)
+  ng << "token を encode している" if ec.include?("encode(token") || ec.include?("encodeIfPresent(token")
+  unless encode_body && (ec.include?("titleSource") && ec.include?("flowerName") && ec.include?("fullDerivedTitle"))
+    ng << "encode が名前四フィールドを書いていない"
+  end
+  unless encode_body && (ec.include?("scrubbingSecretEnvKeys") || ec.include?("isSecretEnvKey"))
+    ng << "encode が秘密 env を除去していない"
+  end
+  unless c.include?("Logger") || c.include?("logger.warning") || c.include?("logError")
+    ng << "未知 titleSource の decode が診断へ接続していない"
+  end
   ng
 end
 
@@ -469,12 +563,24 @@ def check_persist(src)
     unless c.include?("titleState") || c.include?("updating(titleState:")
       ng << "persistSessionName が四フィールド一体更新になっていない"
     end
+    unless c.include?("enqueue") || true
+      # enqueue is the caller wrapping; persistSessionName itself may be the enqueue target
+    end
+    unless c.include?("logError")
+      ng << "persistSessionName が logError へ失敗を渡していない"
+    end
   end
   persist_body = extract_func_body(masked, "persistSession")
   if persist_body
     c = compact(persist_body)
     unless c.include?("titleState")
       ng << "初回保存が最新 titleState を使っていない"
+    end
+    unless c.include?("logError")
+      ng << "初回保存が logError へ失敗を渡していない"
+    end
+    unless c.include?("enqueue")
+      ng << "初回保存が同じ保存キューへ入っていない"
     end
   end
   ws = extract_func_body(masked, "persistSessionWorkspace")
@@ -500,19 +606,58 @@ def check_pid(src)
     ng << "restorePersistedSessions を解析できない"
     return ng
   end
-  c = compact(masked)
-  if c.include?("persistSession(descriptor)")
+  c = compact(body)
+  if c.match?(/persistSession\(descriptor\)/) || c.include?("persistSession(descriptor.updating(pid:")
     ng << "PID 更新が古い descriptor 全体を保存している"
   end
-  unless c.include?("firstIndex") || (c.include?("contains") && c.include?("return"))
-    ng << "削除済み ID を PID 更新で再作成している"
+  persist_all = compact(masked)
+  pid_apply = persist_all
+  unless persist_all.include?("firstIndex") && persist_all.include?("updating(pid:")
+    ng << "削除済み ID を PID 更新で再作成している" unless persist_all.include?("persistPID") && persist_all.include?("firstIndex")
   end
   ng
 end
 
-def typography_refs(src)
+def check_flower_avoiding(src)
   return [] if src.nil?
-  mask_strings_and_comments(src).scan(/TranscriptTypography\.\w+/)
+  masked = mask_strings_and_comments(src)
+  c = compact(masked)
+  idx = c.index("FlowerNameGenerator.random(avoiding:")
+  return ["花名重複回避が flowerName を除外集合に入れていない"] if idx.nil?
+  window = c[[idx - 800, 0].max...(idx + 80)]
+  unless window.include?("flowerName")
+    return ["花名重複回避が flowerName を除外集合に入れていない"]
+  end
+  []
+end
+
+def check_auth(src)
+  return [] unless src
+  c = compact(mask_strings_and_comments(src))
+  unless c.include?("isAuthorizedToRemove") && c.include?("renameSession")
+    return ["CLI rename の認可または renameSession 接続が無い"]
+  end
+  []
+end
+
+def check_send_path(src)
+  return [] if src.nil?
+  body = extract_func_body(mask_strings_and_comments(src), "sendText")
+  return ["sendText が無い"] if body.nil?
+  c = compact(body)
+  ng = []
+  unless c.include?("isWithinTotalRawBytesLimit")
+    ng << "送信前拒否の経路が維持されていない"
+  end
+  unless c.include?("turnStart")
+    ng << "送信 turnStart の経路が維持されていない"
+  end
+  ng
+end
+
+def typography_ref_records(src)
+  return [] if src.nil?
+  mask_strings_and_comments(src).scan(/TranscriptTypography\.\w+(?:\([^;]{0,120})?/)
 end
 
 def unused_typography?(src)
@@ -525,17 +670,24 @@ def check_typography(current, baseline)
   ng = []
   ALLOWED_PRODUCT_PATHS.each do |path|
     next if path.end_with?(".md")
-    base_refs = typography_refs(baseline[path])
-    cur_refs = typography_refs(current[path])
-    missing = base_refs - cur_refs
-    missing.each do |ref|
-      ng << "#{path} の TranscriptTypography 参照 #{ref} が削除されている"
+    base_refs = typography_ref_records(baseline[path])
+    cur_refs = typography_ref_records(current[path])
+    if base_refs != cur_refs
+      missing = base_refs - cur_refs
+      missing.each do |ref|
+        ng << "#{path} の TranscriptTypography 参照 #{ref.split("(").first} が削除されている"
+      end
+      extra = cur_refs - base_refs
+      extra.each do |ref|
+        if base_refs.empty?
+          ng << "#{path} に TranscriptTypography のダミー参照を追加している"
+        else
+          ng << "#{path} の TranscriptTypography 参照 #{ref.split("(").first} が変更されている"
+        end
+      end
     end
     if unused_typography?(current[path])
       ng << "#{path} の TranscriptTypography 参照が未使用化されている"
-    end
-    if base_refs.empty? && !cur_refs.empty?
-      ng << "#{path} に TranscriptTypography のダミー参照を追加している"
     end
     if current[path] && compact(mask_strings_and_comments(current[path])).include?("Font.system") &&
        (base_refs - cur_refs).any?
@@ -549,8 +701,9 @@ def check_no_name_ai(files)
   ng = []
   files.each do |path, src|
     next if src.nil?
+    next unless ALLOWED_PRODUCT_PATHS.include?(path)
     c = compact(mask_strings_and_comments(src))
-    if c =~ /Process\(|NSTask|URLSession\.shared/ && path.include?("SessionTitle")
+    if c =~ /Process\(|NSTask|URLSession\.shared/
       ng << "#{path} に名前目的のプロセス起動がある"
     end
   end
@@ -591,27 +744,73 @@ def check_product(files)
   ng.concat(check_vm_title(files[CHAT_VM_PATH], "ChatSessionViewModel"))
   ng.concat(check_vm_title(files[PTY_VM_PATH], "SessionViewModel"))
   ng.concat(check_pty_no_derive(files[PTY_VM_PATH]))
+  ng.concat(check_send_path(files[CHAT_VM_PATH]))
   ng.concat(check_restore_error_fields(files[SPAWN_PATH]))
   ng.concat(check_generated_not_name_assign(files[DASHBOARD_VM_PATH], "DashboardViewModel"))
   ng.concat(check_rename(files[DASHBOARD_VM_PATH]))
+  ng.concat(check_flower_avoiding(files[DASHBOARD_VM_PATH]))
   ng.concat(check_persist(files[PERSIST_PATH]))
   ng.concat(check_pid(files[RESTORE_PATH]))
-  ng.concat(check_typography(files, files))
+  ng.concat(check_auth(files[CONTROL_PATH]))
   ng.concat(check_no_name_ai(files))
   ng.uniq
 end
 
-def scope_errors(current_files, baseline_files)
+def product_source?(path)
+  path.start_with?("macos/") && path.end_with?(".swift") && !path.include?("/Tests/")
+end
+
+def git_changed_product_paths(rev)
+  diff = IO.popen(["git", "diff", "--name-only", "--diff-filter=ACDMR", rev], err: [:child, :out], &:read)
+  untracked = IO.popen(["git", "ls-files", "--others", "--exclude-standard"], err: [:child, :out], &:read)
+  (diff.split("\n") + untracked.split("\n")).reject(&:empty?).uniq
+end
+
+def replace_named_bodies(src, names)
+  out = src.to_s.dup
+  names.each do |name|
+    8.times do
+      body = extract_func_body(out, name)
+      break if body.nil?
+      needle = "{#{body}}"
+      idx = out.index(needle)
+      break unless idx
+      out[idx, needle.length] = "{__NAME_OK_#{name}__}"
+    end
+    out.gsub!(/(?:var|let)\s+#{Regexp.escape(name)}\b[^\\n]{0,200}/, "__NAME_OK_PROP_#{name}__")
+  end
+  out
+end
+
+def strip_name_related(src, spec)
+  return "" if spec == :all
+  replace_named_bodies(src, spec || [])
+end
+
+def scope_errors(current_files, baseline_files, changed_paths = nil)
   ng = []
-  (current_files.keys | baseline_files.keys).each do |path|
+  paths = changed_paths
+  if paths.nil?
+    paths = (current_files.keys | baseline_files.keys).select { |path| current_files[path] != baseline_files[path] }
+  end
+  paths.each do |path|
+    next unless product_source?(path)
     next if ALLOWED_PRODUCT_PATHS.include?(path)
     next if ACCEPTANCE_PATHS.include?(path)
     next if path == WIRING_RB_PATH
     next if path == CONTRACT_PATH
+    ng << "許可パス外の製品変更: #{path}"
+  end
+  ALLOWED_PRODUCT_PATHS.each do |path|
+    next if path.end_with?(".md")
+    spec = NAME_RELATED_FUNCS[path]
+    next if spec == :all
+    next unless paths.include?(path)
     base = baseline_files[path]
     cur = current_files[path]
-    if base != cur
-      ng << "許可パス外の製品変更: #{path}"
+    next if base.nil? || cur.nil?
+    if strip_name_related(base, spec) != strip_name_related(cur, spec)
+      ng << "#{path} に名前関連以外の差分がある"
     end
   end
   if current_files[DERIVER_PATH] && baseline_files[DERIVER_PATH] &&
@@ -628,12 +827,13 @@ def worktree_files
   end
   files[DERIVER_PATH] = read_if_exist(DERIVER_PATH)
   files[FLOWER_PATH] = read_if_exist(FLOWER_PATH)
+  files[CONTROL_PATH] = read_if_exist(CONTROL_PATH)
   files
 end
 
 def baseline_files(rev)
   files = {}
-  (ALLOWED_PRODUCT_PATHS + [DERIVER_PATH, FLOWER_PATH]).each do |path|
+  (ALLOWED_PRODUCT_PATHS + [DERIVER_PATH, FLOWER_PATH, CONTROL_PATH]).each do |path|
     files[path] = git_show(rev, path)
   end
   files
@@ -650,19 +850,50 @@ def good_title_state
       public let flowerName: String?
       public let fullDerivedTitle: String?
       public init(name: String, source: SessionTitleSource, flowerName: String?, fullDerivedTitle: String?) {
-        self.name = name
-        self.source = source
-        self.flowerName = flowerName
-        self.fullDerivedTitle = fullDerivedTitle
+        let trimmed = flowerName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let flower = (trimmed?.isEmpty == false) ? trimmed : nil
+        switch source {
+        case .manual:
+          self.name = name
+          self.source = .manual
+          self.flowerName = flower
+          self.fullDerivedTitle = nil
+        case .flower:
+          if let flower, name == flower, fullDerivedTitle == nil {
+            self.name = name
+            self.source = .flower
+            self.flowerName = flower
+            self.fullDerivedTitle = nil
+          } else {
+            self.name = name
+            self.source = .manual
+            self.flowerName = flower
+            self.fullDerivedTitle = nil
+          }
+        case .derived:
+          if let fullDerivedTitle, let derived = SessionTitleDeriver.derive(from: fullDerivedTitle), derived.fullTitle == fullDerivedTitle, derived.title == name {
+            self.name = name
+            self.source = .derived
+            self.flowerName = flower
+            self.fullDerivedTitle = fullDerivedTitle
+          } else {
+            self.name = name
+            self.source = .manual
+            self.flowerName = flower
+            self.fullDerivedTitle = nil
+          }
+        }
       }
       public static func generated(flowerName: String) -> Self { Self(name: flowerName, source: .flower, flowerName: flowerName, fullDerivedTitle: nil) }
       public static func legacy(name: String) -> Self { Self(name: name, source: .manual, flowerName: nil, fullDerivedTitle: nil) }
       public func receivingUserMessage(_ text: String) -> Self {
-        if source == .derived || source == .manual { return self }
+        guard source == .flower else { return self }
         guard let derived = SessionTitleDeriver.derive(from: text) else { return self }
         return SessionTitleState(name: derived.title, source: .derived, flowerName: flowerName, fullDerivedTitle: derived.fullTitle)
       }
-      public func renamed(to name: String) -> Self { self }
+      public func renamed(to name: String) -> Self {
+        SessionTitleState(name: name.trimmingCharacters(in: .whitespacesAndNewlines), source: .manual, flowerName: flowerName, fullDerivedTitle: nil)
+      }
       public func effectiveName(fallback: String) -> String { name.isEmpty ? fallback : name }
     }
   SWIFT
@@ -670,17 +901,47 @@ end
 
 def good_descriptor
   <<~SWIFT
+    private static let logger = Logger(subsystem: "com.phlox.Phlox", category: "PersistedSessionDescriptor")
     public struct PersistedSessionDescriptor {
       public let name: String
-      public func init(id: SessionID, kind: AgentKind, workingDirectory: String, name: String, projectID: ProjectID?, startedAt: Date, command: String, args: [String], env: [String: String], titleSource: SessionTitleSource? = nil, flowerName: String? = nil, fullDerivedTitle: String? = nil) {}
-      public func init(id: SessionID, agentRef: AgentRef, workingDirectory: String, name: String, projectID: ProjectID?, startedAt: Date, command: String, args: [String], env: [String: String], titleSource: SessionTitleSource? = nil, flowerName: String? = nil, fullDerivedTitle: String? = nil) {}
-      public var titleState: SessionTitleState { SessionTitleState.legacy(name: name) }
+      public let titleSource: SessionTitleSource?
+      public let flowerName: String?
+      public let fullDerivedTitle: String?
+      public init(id: SessionID, kind: AgentKind, workingDirectory: String, name: String, projectID: ProjectID?, startedAt: Date, command: String, args: [String], env: [String: String], titleSource: SessionTitleSource? = nil, flowerName: String? = nil, fullDerivedTitle: String? = nil) {
+        let state = SessionTitleState(name: name, source: titleSource ?? .manual, flowerName: flowerName, fullDerivedTitle: fullDerivedTitle)
+        self.name = state.name
+        self.titleSource = state.source
+        self.flowerName = state.flowerName
+        self.fullDerivedTitle = state.fullDerivedTitle
+      }
+      public init(id: SessionID, agentRef: AgentRef, workingDirectory: String, name: String, projectID: ProjectID?, startedAt: Date, command: String, args: [String], env: [String: String], titleSource: SessionTitleSource? = nil, flowerName: String? = nil, fullDerivedTitle: String? = nil) {
+        let state = SessionTitleState(name: name, source: titleSource ?? .manual, flowerName: flowerName, fullDerivedTitle: fullDerivedTitle)
+        self.name = state.name
+        self.titleSource = state.source
+        self.flowerName = state.flowerName
+        self.fullDerivedTitle = state.fullDerivedTitle
+      }
+      public var titleState: SessionTitleState { SessionTitleState(name: name, source: titleSource ?? .manual, flowerName: flowerName, fullDerivedTitle: fullDerivedTitle) }
       public func updating(titleState: SessionTitleState) -> PersistedSessionDescriptor { self }
-      private enum CodingKeys: String, CodingKey { case titleSource, flowerName, fullDerivedTitle, name }
+      private enum CodingKeys: String, CodingKey { case titleSource, flowerName, fullDerivedTitle, name, env }
+      public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let rawSource = try c.decodeIfPresent(String.self, forKey: .titleSource)
+        if rawSource == "future-source" { logger.warning("unknown titleSource") }
+        self.name = try c.decode(String.self, forKey: .name)
+        self.titleSource = nil
+        self.flowerName = nil
+        self.fullDerivedTitle = nil
+      }
       public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(name, forKey: .name)
+        try c.encodeIfPresent(titleSource, forKey: .titleSource)
+        try c.encodeIfPresent(flowerName, forKey: .flowerName)
+        try c.encodeIfPresent(fullDerivedTitle, forKey: .fullDerivedTitle)
+        try c.encode(Self.scrubbingSecretEnvKeys(env), forKey: .env)
       }
+      private static func scrubbingSecretEnvKeys(_ env: [String: String]) -> [String: String] { env }
     }
   SWIFT
 end
@@ -710,8 +971,15 @@ def good_chat_vm
         get { titleState.name }
         set { titleState = titleState.renamed(to: newValue) }
       }
+      public func sendText(_ text: String, submit: Bool) async throws {
+        if submit {
+          if hasAttachments && !attachmentStore.isWithinTotalRawBytesLimit { return }
+          appendOrReplace(item)
+          try await client.turnStart(sendInputs)
+        }
+      }
       func adoptFromTranscript(_ items: [ChatItem]) {
-        if titleState.source == .derived || titleState.source == .manual { return }
+        guard titleState.source == .flower else { return }
         let entries = InputHistoryPolicy.entries(from: items)
         _ = entries
       }
@@ -733,6 +1001,7 @@ end
 def good_dashboard
   <<~SWIFT
     public func spawnNewSession() {
+      let used = Set(sessionNodes.flatMap { [$0.controllable.name, $0.titleState.flowerName].compactMap { $0 } })
       let generatedName = FlowerNameGenerator.random(avoiding: used)
       let vm = makeSessionViewModel(titleState: .generated(flowerName: generatedName))
     }
@@ -777,6 +1046,11 @@ def good_persist
         var current = await self.sessionStore.load()
         let latest = current.first(where: { $0.id == descriptor.id })?.titleState ?? descriptor.titleState
         current.append(descriptor.updating(titleState: latest))
+        do {
+          try await self.saveSessionsIfAllowed(loadedCount: current.count, updated: current)
+        } catch {
+          self.logError(error, "Failed to persist session")
+        }
       }
     }
     func persistSessionName(id: SessionID, name: String) {
@@ -784,6 +1058,11 @@ def good_persist
         var current = await self.sessionStore.load()
         guard let index = current.firstIndex(where: { $0.id == id }) else { return }
         current[index] = current[index].updating(titleState: current[index].titleState.renamed(to: name))
+        do {
+          try await self.saveSessionsIfAllowed(loadedCount: current.count, updated: current)
+        } catch {
+          self.logError(error, "Failed to persist session name for \\(id)")
+        }
       }
     }
     func persistSessionWorkspace(id: SessionID, workingDirectory: String, projectID: ProjectID?) {
@@ -794,6 +1073,18 @@ def good_persist
         _ = existing.flowerName
         _ = existing.fullDerivedTitle
       }
+    }
+  SWIFT
+end
+
+def good_control
+  <<~SWIFT
+    func handleRename(_ dashboard: any ControlActionDashboard, id: SessionID, name: String, requester: SessionID?) -> ControlResponse {
+      guard dashboard.isAuthorizedToRemove(id, requester: requester) else {
+        return .json(403, ErrorDTO(error: "forbidden"))
+      }
+      dashboard.renameSession(id, to: name)
+      return .json(200, OkDTO(ok: true))
     }
   SWIFT
 end
@@ -811,6 +1102,7 @@ def good_files
     PERSIST_PATH => good_persist,
     DERIVER_PATH => "public enum SessionTitleDeriver {}",
     FLOWER_PATH => "public enum FlowerNameGenerator {}",
+    CONTROL_PATH => good_control,
   }
 end
 
@@ -889,17 +1181,23 @@ def run_selftest
 
   selftest_errors_eq check_title_state_api(nil), ["SessionTitleState.swift が存在しない"], "負例: 対象不在"
 
+  no_norm = good_title_state.sub(
+    "switch source {",
+    "self.name = name; self.source = source; self.flowerName = flowerName; self.fullDerivedTitle = fullDerivedTitle; return; switch source {"
+  )
+  selftest_errors_eq check_title_state_api(no_norm).select { |m| m.include?("initializer") }, ["SessionTitleState の initializer が不整合 derived／flower を正規化していない"], "負例: initializer の不整合 derived／flower の正規化欠落"
+
   flower_mismatch = good_title_state.sub(
-    "if source == .derived || source == .manual { return self }",
+    "guard source == .flower else { return self }",
     "TEMP_GUARD"
   ).sub(
     "guard let derived = SessionTitleDeriver.derive(from: text) else { return self }",
-    "if source == .derived || source == .manual { return self }"
+    "guard source == .flower else { return self }"
   ).sub(
     "TEMP_GUARD",
     "guard let derived = SessionTitleDeriver.derive(from: text) else { return self }"
   )
-  selftest_errors_eq check_title_state_api(flower_mismatch), ["receivingUserMessage が derived/manual の早期ガードより前に SessionTitleDeriver.derive を呼んでいる"], "負例: initializer の不整合 derived／flower の正規化欠落（早期 derive）"
+  selftest_errors_eq check_title_state_api(flower_mismatch), ["receivingUserMessage が derived/manual の早期ガードより前に SessionTitleDeriver.derive を呼んでいる"], "負例: 早期 derive"
 
   name_assign = with_file(good, DASHBOARD_VM_PATH) { |src| src.sub("titleState: .generated(flowerName: generatedName)", "") + "\n sessionVM.name = generatedName\n" }
   selftest_errors_eq check_product(name_assign), ["DashboardViewModel が花名を通常の name 代入で設定している"], "負例: 生成花名の通常 name 代入"
@@ -911,7 +1209,23 @@ def run_selftest
   selftest_errors_eq check_persist(ws_drop[PERSIST_PATH]), ["workspace 転記が titleSource を落としている"], "負例: workspace 転記のフィールド欠落"
 
   client_input = with_file(good, CHAT_VM_PATH) { |src| src + "\n func adoptClientInput(_ clientInput: String) { let _ = SessionTitleDeriver.derive(from: clientInput) }\n" }
-  selftest_errors_eq check_vm_title(client_input[CHAT_VM_PATH], "ChatSessionViewModel"), ["ChatSessionViewModel が derived/manual の早期ガードより前に履歴抽出している"], "負例: サーバーの補足付き本文を無条件採用（早期抽出）"
+  selftest_errors_eq check_vm_title(client_input[CHAT_VM_PATH], "ChatSessionViewModel"), ["ChatSessionViewModel が derived/manual の早期ガードより前に履歴抽出している"], "負例: サーバーの補足付き本文を無条件採用"
+
+  unrelated_return = with_file(good, CHAT_VM_PATH) { |src|
+    src.sub(
+      "guard titleState.source == .flower else { return }",
+      "if otherFlag { return }\n        let _ = SessionTitleSource.derived\n        let _ = SessionTitleSource.manual"
+    )
+  }
+  selftest_errors_eq check_vm_title(unrelated_return[CHAT_VM_PATH], "ChatSessionViewModel"), ["ChatSessionViewModel が derived/manual の早期ガードより前に履歴抽出している"], "負例: 無関係な return では早期ガードと見なさない"
+
+  helper_scan = with_file(good, CHAT_VM_PATH) { |src|
+    src.sub("guard titleState.source == .flower else { return }", "").sub(
+      "func adoptFromTranscript(_ items: [ChatItem]) {",
+      "func adoptFromTranscript(_ items: [ChatItem]) { scanHistory(items) }\n      func scanHistory(_ items: [ChatItem]) {"
+    )
+  }
+  selftest_errors_eq check_vm_title(helper_scan[CHAT_VM_PATH], "ChatSessionViewModel"), ["ChatSessionViewModel が derived/manual の早期ガードより前に履歴抽出している"], "負例: ヘルパー経由の無ガード抽出"
 
   rename_drop = with_file(good, DASHBOARD_VM_PATH) { |src| src.sub("vm.name = name", "").sub("titleState: vm.titleState", "name: name") }
   selftest_errors_eq check_product(rename_drop), ["renameSession が手動状態の一体更新へ到達していない"], "負例: rename の手動化欠落、保存接続欠落"
@@ -922,14 +1236,32 @@ def run_selftest
   first_old = with_file(good, PERSIST_PATH) { |src| src.gsub("titleState", "storedName") }
   selftest_errors_eq check_persist(first_old[PERSIST_PATH]).select { |m| m.include?("初回保存") }, ["初回保存が最新 titleState を使っていない"], "負例: 初回保存で古い状態を使用"
 
+  persist_nolog = with_file(good, PERSIST_PATH) { |src| src.sub("self.logError(error, \"Failed to persist session\")", "") }
+  selftest_errors_eq check_persist(persist_nolog[PERSIST_PATH]).select { |m| m.include?("初回保存が logError") }, ["初回保存が logError へ失敗を渡していない"], "負例: 初回保存の logError 欠落"
+
   pid_old = with_file(good, RESTORE_PATH) { |src| src.sub("persistPID(id: update.id, pid: update.pid)", "persistSession(descriptor)") }
   selftest_errors_eq check_pid(pid_old[RESTORE_PATH]).select { |m| m.include?("古い descriptor") }, ["PID 更新が古い descriptor 全体を保存している"], "負例: PID 更新で古い descriptor 全体を保存"
 
-  pid_upsert = with_file(good, RESTORE_PATH) { |src| src.sub("firstIndex", "missingIndex") }
+  pid_upsert = with_file(good, RESTORE_PATH) { |src| src.sub("firstIndex", "missingIndex").sub("updating(pid: pid)", "append(descriptor)") }
   selftest_errors_eq check_pid(pid_upsert[RESTORE_PATH]), ["削除済み ID を PID 更新で再作成している"], "負例: 削除済み ID を復活"
 
-  guard_only = with_file(good, CHAT_VM_PATH) { |src| src.sub("if titleState.source == .derived || titleState.source == .manual { return }", "") }
+  guard_only = with_file(good, CHAT_VM_PATH) { |src| src.sub("guard titleState.source == .flower else { return }", "") }
   selftest_errors_eq check_vm_title(guard_only[CHAT_VM_PATH], "ChatSessionViewModel"), ["ChatSessionViewModel が derived/manual の早期ガードより前に履歴抽出している"], "負例: 確定状態の早期ガードだけを削除し履歴抽出を実行"
+
+  keys_arg_only = with_file(good, DESCRIPTOR_PATH) { |src| src.sub("case titleSource, flowerName, fullDerivedTitle, name, env", "case name, env") }
+  selftest_errors_eq check_descriptor(keys_arg_only[DESCRIPTOR_PATH]).select { |m| m.include?("CodingKeys") }, ["CodingKeys に titleSource が無い", "CodingKeys に flowerName が無い", "CodingKeys に fullDerivedTitle が無い"], "負例: CodingKeys 列挙に四フィールドが無い"
+
+  diag_drop = with_file(good, DESCRIPTOR_PATH) { |src| src.gsub("logger.warning", "let unused = 1").gsub("Logger", "OSLogFacility") }
+  selftest_errors_eq check_descriptor(diag_drop[DESCRIPTOR_PATH]).select { |m| m.include?("診断") }, ["未知 titleSource の decode が診断へ接続していない"], "負例: decode 診断接続の削除"
+
+  flower_drop = with_file(good, DASHBOARD_VM_PATH) { |src| src.sub("$0.titleState.flowerName", "$0.controllable.name") }
+  selftest_errors_eq check_flower_avoiding(flower_drop[DASHBOARD_VM_PATH]), ["花名重複回避が flowerName を除外集合に入れていない"], "負例: 除外集合から flowerName を外す"
+
+  auth_drop = with_file(good, CONTROL_PATH) { |src| src.sub("isAuthorizedToRemove", "alwaysTrue") }
+  selftest_errors_eq check_auth(auth_drop[CONTROL_PATH]), ["CLI rename の認可または renameSession 接続が無い"], "負例: 認可の改変"
+
+  send_drop = with_file(good, CHAT_VM_PATH) { |src| src.sub("isWithinTotalRawBytesLimit", "alwaysTrue") }
+  selftest_errors_eq check_send_path(send_drop[CHAT_VM_PATH]), ["送信前拒否の経路が維持されていない"], "負例: 送信前拒否の改変"
 
   typo_file = "Text(\"x\").font(TranscriptTypography.font(for: .bodyStrong, scale: 1))\n"
   typo_base = { CHAT_VM_PATH => typo_file }
@@ -945,7 +1277,7 @@ def run_selftest
   selftest_errors_eq check_pty_no_derive(pty_derive[PTY_VM_PATH]), ["PTY 入力から自動導出している"], "負例: PTY の改変"
 
   token_out = with_file(good, DESCRIPTOR_PATH) { |src| src.sub("try c.encode(name, forKey: .name)", "try c.encode(token, forKey: .token)") }
-  selftest_errors_eq check_descriptor(token_out[DESCRIPTOR_PATH]), ["token を encode している"], "負例: 秘密情報除去の改変"
+  selftest_assert check_descriptor(token_out[DESCRIPTOR_PATH]).include?("token を encode している"), "負例: 秘密情報除去の改変"
 
   if_false = with_file(good, CHAT_VM_PATH) { |src| src.sub("let entries = InputHistoryPolicy.entries(from: items)", "if false { let entries = InputHistoryPolicy.entries(from: items) }") }
   selftest_errors_eq check_vm_title(if_false[CHAT_VM_PATH], "ChatSessionViewModel"), ["ChatSessionViewModel が derived/manual の早期ガードより前に履歴抽出している"], "負例: if false による偽装"
@@ -1063,8 +1395,10 @@ if baseline
     baseline = nil
   else
     ng.concat(check_frozen_baseline(full))
+    base_files = baseline_files(full)
+    ng.concat(check_typography(files, base_files))
     if scope_check_requested?
-      ng.concat(scope_errors(files, baseline_files(full)))
+      ng.concat(scope_errors(files, base_files, git_changed_product_paths(full)))
     end
     baseline = full
   end

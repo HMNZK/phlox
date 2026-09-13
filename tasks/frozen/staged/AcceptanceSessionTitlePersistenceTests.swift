@@ -7,7 +7,10 @@
 // 契約: tasks/task-44.md 保存・復元・rename / 復元完了時の PID 書き戻し / 成功基準 2。
 // 期待値は契約リテラル。sleep の長さに依存せず、応答の解放と waitForPendingWrites() で順序を固定する。
 // 実装役はアサーションを変更禁止。
+// H5: 復元中の明示削除は復元終了後へ繰り越して反映する。要求時点では件数減少保存を抑止し、
+// 最終ストアから消えることを期待する。
 
+import Darwin
 import Foundation
 import Testing
 import AgentDomain
@@ -40,14 +43,44 @@ private actor TitlePersistenceFailingStore: SessionStoreProtocol {
     func attemptCount() async -> Int { saveAttempts }
 }
 
+private actor TitlePersistenceRecordingStore: SessionStoreProtocol {
+    private var stored: [PersistedSessionDescriptor]
+    private(set) var saveSnapshots: [[SessionID]] = []
+
+    init(_ sessions: [PersistedSessionDescriptor] = []) {
+        stored = sessions
+    }
+
+    func load() async -> [PersistedSessionDescriptor] {
+        stored
+    }
+
+    func save(_ sessions: [PersistedSessionDescriptor]) async throws {
+        saveSnapshots.append(sessions.map(\.id))
+        stored = sessions
+    }
+}
+
 @MainActor
 private final class RestorePIDGate {
     var holdIDs: Set<SessionID> = []
     var pids: [SessionID: pid_t] = [:]
     private var continuations: [SessionID: CheckedContinuation<pid_t?, Never>] = [:]
+    private var waitingIDs: Set<SessionID> = []
+    private var waitingWaiters: [SessionID: [CheckedContinuation<Void, Never>]] = [:]
+    private var pendingRelease: Set<SessionID> = []
+    private(set) var releasedIDs: Set<SessionID> = []
 
     func provide(_ id: SessionID) async -> pid_t? {
         if holdIDs.contains(id) {
+            if pendingRelease.contains(id) {
+                pendingRelease.remove(id)
+                releasedIDs.insert(id)
+                return pids[id]
+            }
+            waitingIDs.insert(id)
+            waitingWaiters[id]?.forEach { $0.resume() }
+            waitingWaiters[id] = nil
             return await withCheckedContinuation { continuation in
                 continuations[id] = continuation
             }
@@ -55,10 +88,58 @@ private final class RestorePIDGate {
         return pids[id]
     }
 
+    func waitUntilWaiting(_ id: SessionID) async {
+        if waitingIDs.contains(id) { return }
+        await withCheckedContinuation { continuation in
+            waitingWaiters[id, default: []].append(continuation)
+        }
+    }
+
+    var isWaiting: (SessionID) -> Bool {
+        { [waitingIDs] id in waitingIDs.contains(id) }
+    }
+
     func release(_ id: SessionID) {
-        let pid = pids[id]
-        continuations[id]?.resume(returning: pid)
-        continuations.removeValue(forKey: id)
+        releasedIDs.insert(id)
+        if let continuation = continuations.removeValue(forKey: id) {
+            continuation.resume(returning: pids[id])
+        } else {
+            pendingRelease.insert(id)
+        }
+    }
+}
+
+private actor TitleSpawnPIDGate {
+    private var observedSessionID: SessionID?
+    private var observationWaiters: [CheckedContinuation<SessionID, Never>] = []
+    private var resumeContinuation: CheckedContinuation<Void, Never>?
+
+    func providePID(for sessionID: SessionID) async -> pid_t? {
+        if let waiter = observationWaiters.first {
+            observationWaiters.removeFirst()
+            waiter.resume(returning: sessionID)
+        } else {
+            observedSessionID = sessionID
+        }
+        await withCheckedContinuation { continuation in
+            resumeContinuation = continuation
+        }
+        return 31
+    }
+
+    func nextObservedSessionID() async -> SessionID {
+        if let observedSessionID {
+            self.observedSessionID = nil
+            return observedSessionID
+        }
+        return await withCheckedContinuation { continuation in
+            observationWaiters.append(continuation)
+        }
+    }
+
+    func resume() {
+        resumeContinuation?.resume()
+        resumeContinuation = nil
     }
 }
 
@@ -85,7 +166,8 @@ private func titledDescriptor(
     workingDirectory: String,
     backend: SessionBackend = .pty,
     pid: pid_t? = 1001,
-    chatNativeSessionId: String? = nil
+    chatNativeSessionId: String? = nil,
+    role: String? = nil
 ) -> PersistedSessionDescriptor {
     PersistedSessionDescriptor(
         id: id,
@@ -101,10 +183,51 @@ private func titledDescriptor(
         chatNativeSessionId: chatNativeSessionId,
         token: "token-\(id.rawValue.uuidString)",
         pid: pid,
+        role: role,
         titleSource: titleSource,
         flowerName: flowerName,
         fullDerivedTitle: fullDerivedTitle
     )
+}
+
+@MainActor
+private func waitForTitleCondition(
+    timeoutNanoseconds: UInt64 = 5_000_000_000,
+    pollIntervalNanoseconds: UInt64 = 10_000_000,
+    _ condition: @escaping () async -> Bool
+) async -> Bool {
+    var elapsed: UInt64 = 0
+    while await !condition() {
+        guard elapsed < timeoutNanoseconds else {
+            Issue.record("Timed out waiting for title persistence condition")
+            return false
+        }
+        try? await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+        elapsed += pollIntervalNanoseconds
+    }
+    return true
+}
+
+private func capturingStandardError<R>(_ operation: () async throws -> R) async rethrows -> (R, String) {
+    let pipe = Pipe()
+    let original = dup(FileHandle.standardError.fileDescriptor)
+    dup2(pipe.fileHandleForWriting.fileDescriptor, FileHandle.standardError.fileDescriptor)
+    let result = try await operation()
+    fflush(nil)
+    pipe.fileHandleForWriting.closeFile()
+    dup2(original, FileHandle.standardError.fileDescriptor)
+    close(original)
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    return (result, String(data: data, encoding: .utf8) ?? "")
+}
+
+private func fourTitleStates() -> [(String, SessionTitleSource?, String?, String?, String)] {
+    [
+        ("Rose", .flower, "Rose", nil, "flower"),
+        ("ログイン画面を修正", .derived, "Rose", "ログイン画面を修正", "derived"),
+        ("通知を修正", .manual, "Rose", nil, "manual"),
+        ("", .manual, "Rose", nil, "empty"),
+    ]
 }
 
 @Suite("task-44: session title persistence")
@@ -124,6 +247,7 @@ struct AcceptanceSessionTitlePersistenceTests {
         try await dashboard.spawnNewClaudeCodeSession()
         await dashboard.waitForPendingPersistenceWritesForTesting()
         let node = try #require(dashboard.sessionNodes.first)
+        let flowerBefore = node.titleState.flowerName
         #expect(node.titleState.source == .flower)
         #expect(node.titleState.flowerName == node.titleState.name)
         let saved = try #require(await store.load().first)
@@ -131,31 +255,103 @@ struct AcceptanceSessionTitlePersistenceTests {
             saved.titleState,
             node.titleState.name,
             .flower,
-            node.titleState.flowerName,
+            flowerBefore,
             nil,
             "spawn flower persist"
         )
     }
 
     @Test @MainActor
-    func 初回保存前のrenameは最新四フィールドを保存する() async throws {
+    func 初回保存前のPTY_renameは未保存を確認してから最新四フィールドを保存する() async throws {
         let store = InMemorySessionStore()
+        let gate = TitleSpawnPIDGate()
         let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
         let dashboard = DashboardViewModel(
             environment: makeTestEnvironment(
                 pty: MockPTYManager(),
                 hookStream: hookStream,
                 sessions: store
-            )
+            ),
+            livePIDProvider: { id in await gate.providePID(for: id) }
         )
         await dashboard.start()
-        try await dashboard.spawnNewClaudeCodeSession()
-        let id = dashboard.sessions[0].id
+        let spawnTask = Task { @MainActor in
+            try await dashboard.spawnNewClaudeCodeSession()
+        }
+        let id = await gate.nextObservedSessionID()
+        #expect(await store.load().isEmpty, Comment(rawValue: "unsaved before first persist"))
+        let flowerBefore = dashboard.sessionNode(id: id)?.titleState.flowerName
         dashboard.renameSession(id, to: "通知を修正")
+        gate.resume()
+        _ = try await spawnTask.value
         await dashboard.waitForPendingPersistenceWritesForTesting()
         let saved = try #require(await store.load().first)
-        expectState(saved.titleState, "通知を修正", .manual, saved.titleState.flowerName, nil, "first save latest")
-        #expect(saved.titleState.flowerName != nil)
+        expectState(saved.titleState, "通知を修正", .manual, flowerBefore, nil, "first save latest pty")
+        #expect(saved.pid == 31)
+    }
+
+    @Test @MainActor
+    func 初回保存前のチャット導出は未保存を確認してから最新四フィールドを保存する() async throws {
+        let store = InMemorySessionStore()
+        let gate = TitleSpawnPIDGate()
+        let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+        let dashboard = DashboardViewModel(
+            environment: makeTestEnvironment(
+                pty: MockPTYManager(),
+                hookStream: hookStream,
+                sessions: store,
+                appServerClientFactory: { _, _, _, _, _ in EventYieldingStructuredClient() }
+            ),
+            livePIDProvider: { id in await gate.providePID(for: id) }
+        )
+        await dashboard.start()
+        let spawnTask = Task { @MainActor in
+            try await dashboard.spawnNewSession(kind: .claudeCode, backend: .appServer)
+        }
+        let id = await gate.nextObservedSessionID()
+        #expect(await store.load().isEmpty, Comment(rawValue: "unsaved before chat persist"))
+        let chat = try #require(dashboard.sessionNode(id: id)?.appServer)
+        let flowerBefore = chat.titleState.flowerName
+        try await chat.sendText("ログイン画面を修正", submit: true)
+        gate.resume()
+        _ = try await spawnTask.value
+        await dashboard.waitForPendingPersistenceWritesForTesting()
+        let saved = try #require(await store.load().first(where: { $0.id == id }))
+        expectState(
+            saved.titleState,
+            "ログイン画面を修正",
+            .derived,
+            flowerBefore,
+            "ログイン画面を修正",
+            "first save derived chat"
+        )
+    }
+
+    @Test @MainActor
+    func 初回保存前の削除はdescriptorを再作成しない() async throws {
+        let store = InMemorySessionStore()
+        let gate = TitleSpawnPIDGate()
+        let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+        let dashboard = DashboardViewModel(
+            environment: makeTestEnvironment(
+                pty: MockPTYManager(),
+                hookStream: hookStream,
+                sessions: store
+            ),
+            livePIDProvider: { id in await gate.providePID(for: id) }
+        )
+        await dashboard.start()
+        let spawnTask = Task { @MainActor in
+            try await dashboard.spawnNewClaudeCodeSession()
+        }
+        let id = await gate.nextObservedSessionID()
+        #expect(await store.load().isEmpty)
+        _ = await dashboard.removeSession(id)
+        gate.resume()
+        _ = try? await spawnTask.value
+        await dashboard.waitForPendingPersistenceWritesForTesting()
+        #expect(await store.load().contains(where: { $0.id == id }) == false)
+        #expect(dashboard.sessionNode(id: id) == nil)
     }
 
     @Test @MainActor
@@ -173,12 +369,13 @@ struct AcceptanceSessionTitlePersistenceTests {
         await dashboard.start()
         let id = try await dashboard.spawnNewSession(kind: .claudeCode, backend: .appServer)
         let chat = try #require(dashboard.sessionNodes.first(where: { $0.id == id })?.appServer)
+        let flowerBefore = chat.titleState.flowerName
         try await chat.sendText("ログイン画面を修正", submit: true)
         dashboard.renameSession(id, to: "通知を修正")
         await dashboard.waitForPendingPersistenceWritesForTesting()
         let saved = try #require(await store.load().first(where: { $0.id == id }))
-        expectState(saved.titleState, "通知を修正", .manual, saved.titleState.flowerName, nil, "derive then manual")
-        expectState(chat.titleState, "通知を修正", .manual, chat.titleState.flowerName, nil, "vm after save")
+        expectState(saved.titleState, "通知を修正", .manual, flowerBefore, nil, "derive then manual")
+        expectState(chat.titleState, "通知を修正", .manual, flowerBefore, nil, "vm after save")
     }
 
     @Test @MainActor
@@ -195,10 +392,11 @@ struct AcceptanceSessionTitlePersistenceTests {
         await dashboard.start()
         try await dashboard.spawnNewClaudeCodeSession()
         let id = dashboard.sessions[0].id
+        let flowerBefore = dashboard.sessionNodes[0].titleState.flowerName
         dashboard.renameSession(id, to: " 通知を修正 \n")
         await dashboard.waitForPendingPersistenceWritesForTesting()
         let saved = try #require(await store.load().first)
-        expectState(saved.titleState, "通知を修正", .manual, saved.titleState.flowerName, nil, "rename path")
+        expectState(saved.titleState, "通知を修正", .manual, flowerBefore, nil, "rename path")
     }
 
     @Test @MainActor
@@ -215,6 +413,7 @@ struct AcceptanceSessionTitlePersistenceTests {
         await dashboard.start()
         try await dashboard.spawnNewClaudeCodeSession()
         let id = dashboard.sessions[0].id
+        let flowerBefore = dashboard.sessionNodes[0].titleState.flowerName
         dashboard.renameSession(id, to: "   ")
         await dashboard.waitForPendingPersistenceWritesForTesting()
         #expect(await store.load().first?.name == "")
@@ -228,24 +427,24 @@ struct AcceptanceSessionTitlePersistenceTests {
         await restored.start()
         #expect(restored.sessions[0].name == "")
         #expect(restored.sessions[0].displayName == SessionViewModel.shortID(for: id))
-        expectState(restored.sessionNodes[0].titleState, "", .manual, restored.sessionNodes[0].titleState.flowerName, nil, "empty restore")
+        expectState(restored.sessionNodes[0].titleState, "", .manual, flowerBefore, nil, "empty restore")
     }
 
     @Test @MainActor
-    func 花名重複回避は改名済みセッションのflowerNameも除外する() async throws {
+    func 花名重複回避はカタログ全件を予約すると接尾辞になりRoseを拾わない() async throws {
         let workspace = try makeTemporaryWorkspaceRoot()
         defer { cleanupTemporaryWorkspaceRoot(workspace) }
-        let existingID = SessionID()
-        let store = InMemorySessionStore([
+        let reserved = FlowerNameGenerator.names.enumerated().map { index, flower in
             titledDescriptor(
-                id: existingID,
-                name: "通知を修正",
+                id: SessionID(),
+                name: "通知を修正-\(index)",
                 titleSource: .manual,
-                flowerName: "Rose",
+                flowerName: flower,
                 fullDerivedTitle: nil,
                 workingDirectory: workspace.path
             )
-        ])
+        }
+        let store = InMemorySessionStore(reserved)
         let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
         let dashboard = DashboardViewModel(
             environment: makeTestEnvironment(
@@ -258,7 +457,10 @@ struct AcceptanceSessionTitlePersistenceTests {
         await dashboard.start()
         try await dashboard.spawnNewClaudeCodeSession()
         await dashboard.waitForPendingPersistenceWritesForTesting()
-        let spawned = try #require(dashboard.sessionNodes.first(where: { $0.id != existingID }))
+        let reservedIDs = Set(reserved.map(\.id))
+        let spawned = try #require(dashboard.sessionNodes.first(where: { !reservedIDs.contains($0.id) }))
+        #expect(!FlowerNameGenerator.names.contains(spawned.titleState.name))
+        #expect(spawned.titleState.flowerName.map(FlowerNameGenerator.names.contains) != true)
         #expect(spawned.titleState.name != "Rose")
         #expect(spawned.titleState.flowerName != "Rose")
     }
@@ -298,7 +500,7 @@ struct AcceptanceSessionTitlePersistenceTests {
     }
 
     @Test @MainActor
-    func 保存失敗は初回保存を含め既存エラー記録へ到達する() async throws {
+    func 初回保存失敗はlogErrorへ到達する() async throws {
         let store = TitlePersistenceFailingStore()
         let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
         let dashboard = DashboardViewModel(
@@ -308,76 +510,29 @@ struct AcceptanceSessionTitlePersistenceTests {
                 sessions: store
             )
         )
-        await dashboard.start()
-        try await dashboard.spawnNewClaudeCodeSession()
-        dashboard.renameSession(dashboard.sessions[0].id, to: "通知を修正")
-        await dashboard.waitForPendingPersistenceWritesForTesting()
-        #expect(await store.attemptCount() > 0, Comment(rawValue: "save attempted"))
-        expectState(
-            dashboard.sessionNodes[0].titleState,
-            "通知を修正",
-            .manual,
-            dashboard.sessionNodes[0].titleState.flowerName,
-            nil,
-            "vm keeps title after save failure"
-        )
+        let (_, stderr) = try await capturingStandardError {
+            await dashboard.start()
+            try await dashboard.spawnNewClaudeCodeSession()
+            await dashboard.waitForPendingPersistenceWritesForTesting()
+        }
+        #expect(await store.attemptCount() > 0, Comment(rawValue: "first save attempted"))
+        #expect(stderr.contains("Failed to persist"), Comment(rawValue: "first persist logError"))
+        #expect(dashboard.sessionNodes[0].titleState.source == .flower)
     }
 
     @Test @MainActor
-    func PTY復元失敗プレースホルダは名前状態を保持する() async throws {
+    func 既存セッションの名前保存失敗はlogErrorへ到達する() async throws {
         let workspace = try makeTemporaryWorkspaceRoot()
         defer { cleanupTemporaryWorkspaceRoot(workspace) }
-        let descriptor = makeCustomAgentDescriptor()
-        let catalog = AgentCatalog(customDescriptors: [descriptor])
-        let sessionID = SessionID()
-        let store = InMemorySessionStore([
-            PersistedSessionDescriptor(
-                id: sessionID,
-                agentRef: descriptor.ref,
-                workingDirectory: workspace.path,
-                name: "Rose",
-                projectID: nil,
-                startedAt: Date(),
-                command: "/opt/homebrew/bin/aider",
-                args: ["--model", "sonnet"],
-                env: [:],
-                token: "token-\(sessionID.rawValue.uuidString)",
-                titleSource: .flower,
-                flowerName: "Rose",
-                fullDerivedTitle: nil
-            )
-        ])
-        let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
-        let dashboard = DashboardViewModel(
-            environment: makeTestEnvironment(
-                pty: MockPTYManager(),
-                hookStream: hookStream,
-                sessions: store,
-                workspaceDirectory: workspace,
-                customAgentBinaryPaths: [:],
-                agentCatalog: catalog
-            )
-        )
-        await dashboard.start()
-        let node = try #require(dashboard.sessionNode(id: sessionID))
-        expectState(node.titleState, "Rose", .flower, "Rose", nil, "pty restore error")
-    }
-
-    @Test @MainActor
-    func チャット復元失敗プレースホルダは名前状態を保持する() async throws {
-        let workspace = try makeTemporaryWorkspaceRoot()
-        defer { cleanupTemporaryWorkspaceRoot(workspace) }
-        let sessionID = SessionID()
-        let store = InMemorySessionStore([
+        let id = SessionID()
+        let store = TitlePersistenceFailingStore([
             titledDescriptor(
-                id: sessionID,
+                id: id,
                 name: "Rose",
                 titleSource: .flower,
                 flowerName: "Rose",
                 fullDerivedTitle: nil,
-                workingDirectory: workspace.path,
-                backend: .appServer,
-                chatNativeSessionId: "thread-missing"
+                workingDirectory: workspace.path
             )
         ])
         let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
@@ -386,15 +541,103 @@ struct AcceptanceSessionTitlePersistenceTests {
                 pty: MockPTYManager(),
                 hookStream: hookStream,
                 sessions: store,
-                workspaceDirectory: workspace,
-                appServerClientFactory: { _, _, _, _, _ in
-                    throw AgentSpawnError.unsupportedBackend
-                }
+                workspaceDirectory: workspace
             )
         )
         await dashboard.start()
-        let node = try #require(dashboard.sessionNode(id: sessionID))
-        expectState(node.titleState, "Rose", .flower, "Rose", nil, "chat restore error")
+        let flowerBefore = dashboard.sessionNode(id: id)?.titleState.flowerName
+        let (_, stderr) = await capturingStandardError {
+            dashboard.renameSession(id, to: "通知を修正")
+            await dashboard.waitForPendingPersistenceWritesForTesting()
+        }
+        #expect(await store.attemptCount() > 0, Comment(rawValue: "name save attempted"))
+        #expect(stderr.contains("Failed to persist session name"), Comment(rawValue: "name persist logError"))
+        expectState(
+            dashboard.sessionNodes[0].titleState,
+            "通知を修正",
+            .manual,
+            flowerBefore,
+            nil,
+            "vm keeps title after name save failure"
+        )
+    }
+
+    @Test @MainActor
+    func PTY復元失敗プレースホルダはdescriptor経由の4状態を保持する() async throws {
+        let workspace = try makeTemporaryWorkspaceRoot()
+        defer { cleanupTemporaryWorkspaceRoot(workspace) }
+        let descriptor = makeCustomAgentDescriptor()
+        let catalog = AgentCatalog(customDescriptors: [descriptor])
+        for (name, source, flower, full, label) in fourTitleStates() {
+            let sessionID = SessionID()
+            let store = InMemorySessionStore([
+                PersistedSessionDescriptor(
+                    id: sessionID,
+                    agentRef: descriptor.ref,
+                    workingDirectory: workspace.path,
+                    name: name,
+                    projectID: nil,
+                    startedAt: Date(),
+                    command: "/opt/homebrew/bin/aider",
+                    args: ["--model", "sonnet"],
+                    env: [:],
+                    token: "token-\(sessionID.rawValue.uuidString)",
+                    titleSource: source,
+                    flowerName: flower,
+                    fullDerivedTitle: full
+                )
+            ])
+            let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+            let dashboard = DashboardViewModel(
+                environment: makeTestEnvironment(
+                    pty: MockPTYManager(),
+                    hookStream: hookStream,
+                    sessions: store,
+                    workspaceDirectory: workspace,
+                    customAgentBinaryPaths: [:],
+                    agentCatalog: catalog
+                )
+            )
+            await dashboard.start()
+            let node = try #require(dashboard.sessionNode(id: sessionID))
+            expectState(node.titleState, name, source ?? .manual, flower, full, "pty restore error \(label)")
+        }
+    }
+
+    @Test @MainActor
+    func チャット復元失敗プレースホルダはdescriptor経由の4状態を保持する() async throws {
+        let workspace = try makeTemporaryWorkspaceRoot()
+        defer { cleanupTemporaryWorkspaceRoot(workspace) }
+        for (name, source, flower, full, label) in fourTitleStates() {
+            let sessionID = SessionID()
+            let store = InMemorySessionStore([
+                titledDescriptor(
+                    id: sessionID,
+                    name: name,
+                    titleSource: source,
+                    flowerName: flower,
+                    fullDerivedTitle: full,
+                    workingDirectory: workspace.path,
+                    backend: .appServer,
+                    chatNativeSessionId: "thread-missing"
+                )
+            ])
+            let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+            let dashboard = DashboardViewModel(
+                environment: makeTestEnvironment(
+                    pty: MockPTYManager(),
+                    hookStream: hookStream,
+                    sessions: store,
+                    workspaceDirectory: workspace,
+                    appServerClientFactory: { _, _, _, _, _ in
+                        throw AgentSpawnError.unsupportedBackend
+                    }
+                )
+            )
+            await dashboard.start()
+            let node = try #require(dashboard.sessionNode(id: sessionID))
+            expectState(node.titleState, name, source ?? .manual, flower, full, "chat restore error \(label)")
+        }
     }
 
     @Test @MainActor
@@ -489,7 +732,7 @@ private func runPIDWritebackCase(
     defer { cleanupTemporaryWorkspaceRoot(workspace) }
     let idA = SessionID()
     let idB = SessionID()
-    let store = InMemorySessionStore([
+    let initial = [
         titledDescriptor(
             id: idA,
             name: "Rose",
@@ -499,7 +742,8 @@ private func runPIDWritebackCase(
             workingDirectory: workspace.path,
             backend: backend,
             pid: 11,
-            chatNativeSessionId: backend == .appServer ? "thread-a" : nil
+            chatNativeSessionId: backend == .appServer ? "thread-a" : nil,
+            role: "批判者"
         ),
         titledDescriptor(
             id: idB,
@@ -512,7 +756,8 @@ private func runPIDWritebackCase(
             pid: 12,
             chatNativeSessionId: backend == .appServer ? "thread-b" : nil
         ),
-    ])
+    ]
+    let store = TitlePersistenceRecordingStore(initial)
     let gate = RestorePIDGate()
     gate.holdIDs = [idB]
     gate.pids = [idA: 21, idB: 22]
@@ -540,7 +785,20 @@ private func runPIDWritebackCase(
     let startTask = Task { @MainActor in
         await dashboard.start()
     }
-    try await waitUntil { dashboard.sessionNode(id: idA) != nil }
+    defer {
+        if !gate.releasedIDs.contains(idB) {
+            gate.release(idB)
+        }
+    }
+    let aVisible = await waitForTitleCondition { dashboard.sessionNode(id: idA) != nil }
+    #expect(aVisible, Comment(rawValue: "A published"))
+    let bWaiting = await waitForTitleCondition { gate.isWaiting(idB) }
+    #expect(bWaiting, Comment(rawValue: "B PID gate reached"))
+    #expect(gate.releasedIDs.contains(idB) == false, Comment(rawValue: "B not released yet"))
+
+    dashboard.persistSessionRole(id: idA, role: "ファシリテーター")
+    await dashboard.waitForPendingPersistenceWritesForTesting()
+
     if backend == .appServer, let chat = dashboard.sessionNode(id: idA)?.appServer {
         try await chat.sendText("ログイン画面を修正", submit: true)
         await dashboard.waitForPendingPersistenceWritesForTesting()
@@ -552,8 +810,13 @@ private func runPIDWritebackCase(
     if deleteAfterRename {
         _ = await dashboard.removeSession(idA)
         await dashboard.waitForPendingPersistenceWritesForTesting()
+        #expect(
+            await store.load().contains(where: { $0.id == idA }),
+            Comment(rawValue: "delete requested during restore is deferred")
+        )
     }
     gate.release(idB)
+    #expect(gate.releasedIDs.contains(idB))
     await startTask.value
     await dashboard.waitForPendingPersistenceWritesForTesting()
     if deleteAfterRename {
@@ -571,4 +834,5 @@ private func runPIDWritebackCase(
         "pid writeback \(backend)"
     )
     #expect(saved.pid == 21)
+    #expect(saved.role == "ファシリテーター")
 }

@@ -157,6 +157,21 @@ struct AcceptanceSessionTitleStateTests {
         #expect(reinit(state) == state, Comment(rawValue: "idempotent derived valid"))
     }
 
+    @Test("33 Character の derived は title と fullDerivedTitle が異なり flower を保持する")
+    func derivedLongTitleKeepsFullLineDistinctFromName() {
+        let full = "abcdefghijklmnopqrstuvwx123456789"
+        let title = "abcdefghijklmnopqrstuvwx1234567…"
+        let state = SessionTitleState(
+            name: title,
+            source: .derived,
+            flowerName: "Rose",
+            fullDerivedTitle: full
+        )
+        expectState(state, title, .derived, "Rose", full, "derived 33")
+        #expect(state.name != state.fullDerivedTitle, Comment(rawValue: "33 name != fullDerivedTitle"))
+        #expect(reinit(state) == state, Comment(rawValue: "idempotent derived 33"))
+    }
+
     @Test("manual は入力 name を破壊せず花名を正規化し導出全文を必ず nil にする")
     func manualKeepsRawNameAndClearsDerived() {
         let state = SessionTitleState(

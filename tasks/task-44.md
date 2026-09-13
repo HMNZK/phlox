@@ -9,7 +9,7 @@ acceptance_tests:
   - macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceSessionTitleLifecycleTests.swift
   - macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Acceptance/AcceptanceSessionTitlePersistenceTests.swift
   - .claude/scripts/task44-wiring.rb
-baseline_commit: "PM が task-41 の修正・再検証後、凍結時に完全 SHA を設定"
+baseline_commit: "a3822de"
 contract_tests: []
 allowed_paths:
   - macos/Packages/AgentDomain/Sources/AgentDomain/SessionTitleState.swift

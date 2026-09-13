@@ -191,3 +191,4 @@
 - 2026-09-13 task-40 レビュー r3（rb HIGH 3 件: ForEach id 正規化、H4〜H6 クロージャ全体マスク、字体削除マスクの要素別不足）: 製品指摘は 3 ラウンド連続で 0。PM が指摘の変異 3 種を実コードで照合: ForEach id は `\.element.id` のまま（identity 不変）、RichMarkdownView の `.fixedSize(horizontal: false, vertical: true)` は基準と同数 9、差分本文の `monoCaption` は 425 行に存在。差し戻し上限に達するためユーザーへ諮る。
 - 2026-09-13 task-40 レビュー r3 needs_changes を PM 裁定で pass 相当（ユーザー承認「PM 裁定で pass にして完了へ」）。独立証拠: 指摘 3 変異の実コード照合（不在）、製品指摘 0×3 ラウンド、変異検査 baseline RED、目視ゲート A/B pass。rb の既知の限界を契約に記録。台帳は --repair で testing へ。
 - 2026-09-13 task-40（UI-03）done: 統合 verify.sh exit 0（/tmp/ui-ux-verify-wt、HEAD 487d8d2）。目視 A/B pass、変異検査 RED、レビュー r3 は PM 裁定（ユーザー承認）。
+- 2026-09-13 task-44 凍結 a3822de（AgentDomain 2 本は実パス、SessionFeature/DashboardFeature 2 本はコンパイル RED のため退避）。

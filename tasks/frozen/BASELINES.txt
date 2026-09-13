@@ -60,3 +60,8 @@ bdbf1d9	.claude/scripts/task40-wiring.rb
 026ed2d	.claude/scripts/task43-wiring.rb
 2b457e6	macos/Packages/DesignSystem/Tests/DesignSystemTests/Acceptance/AcceptanceUIWordingTests.swift
 2b457e6	.claude/scripts/task48-wiring.rb
+a3822de	macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceSessionTitleStateTests.swift
+a3822de	macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceSessionTitleDescriptorTests.swift
+a3822de	macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceSessionTitleLifecycleTests.swift
+a3822de	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Acceptance/AcceptanceSessionTitlePersistenceTests.swift
+a3822de	.claude/scripts/task44-wiring.rb

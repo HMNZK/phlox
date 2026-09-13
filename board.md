@@ -31,8 +31,8 @@
 | task-45 | standard | pending |
 | task-46 | standard | done |
 | task-47 | standard | pending |
-| task-48 | standard | done_pending_review |
-| task-49 | standard | testing |
+| task-48 | standard | in_progress |
+| task-49 | standard | done |
 | task-50 | standard | pending |
 | task-51 | standard | done |
 <!-- AGENTIC-LOOP:END -->

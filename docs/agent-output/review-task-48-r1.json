@@ -1,0 +1,123 @@
+{
+  "reviewer": "codex-gpt-6-astra",
+  "dimensions_swept": [
+    {
+      "dimension": "契約適合",
+      "result": "finding",
+      "note": "文言正本と入力欄の接続は適合。単体コマンドの見出しがtask-46の仕様へ退行している（指摘1）。"
+    },
+    {
+      "dimension": "正しさ",
+      "result": "finding",
+      "note": "数値計算・操作処理は維持。カード見出しの供給元変更を確認（指摘1）。"
+    },
+    {
+      "dimension": "誠実性",
+      "result": "finding",
+      "note": "製品差分にコメントやダミーによる検査回避は検出せず。凍結済み既存テストには言語引数の破棄と期待値だけの検査がある（指摘2）。Cursorによる変更とは認定しない。"
+    },
+    {
+      "dimension": "根本原因",
+      "result": "finding",
+      "note": "文言混在は純粋APIとEnvironment localeで解消しているが、表示分類モデルを迂回した変更がある（指摘1）。"
+    },
+    {
+      "dimension": "構造",
+      "result": "finding",
+      "note": "DesignSystemへの依存方向は適切。単体コマンドの見出し・補足が分類モデルとは別に導出される（指摘1）。"
+    },
+    {
+      "dimension": "到達性",
+      "result": "ok",
+      "note": "3入力欄、メニュー、コピー操作から正本までの実経路を確認。画面上の切れ・重なりは並行するPM目視ゲートの担当として分離した。"
+    },
+    {
+      "dimension": "非機能",
+      "result": "ok",
+      "note": "locale伝播、Markdownテーマキャッシュの言語キー、AX文言を確認。既存の倍率・配色・クリック領域を変更していない。"
+    },
+    {
+      "dimension": "テストの質",
+      "result": "finding",
+      "note": "新規正本テストは独立リテラルを使用。既存3テストの言語検証と配線検査の実基準比較には欠落がある（指摘2・3）。"
+    },
+    {
+      "dimension": "Rubric：3入力欄の共通正本・表示言語",
+      "result": "ok",
+      "note": "ChatComposer、GridChatColumn→GridComposerBar、TeamComposerがcomposerPlaceholderを参照。PhloxAppのappLanguage.locale注入から追跡した。"
+    },
+    {
+      "dimension": "Rubric：メニュー・選択表示・help・AX",
+      "result": "ok",
+      "note": "通常・省略メニューの一般見出し、既存effort項目、Plan、コピー前後の表示・help・AXの接続を確認。"
+    },
+    {
+      "dimension": "Rubric：数値・動的値・操作・選択値の保持",
+      "result": "finding",
+      "note": "数値、本文、操作、内部値は維持。一方、コマンド原文をカード見出しへ戻して表示上の役割を変更している（指摘1）。"
+    },
+    {
+      "dimension": "Rubric：task-50との境界",
+      "result": "ok",
+      "note": "権限固有の値名・説明は変更せず、一般見出し・未選択ラベル・Planだけを接続している。"
+    },
+    {
+      "dimension": "Rubric：共有ファイルと後続回帰",
+      "result": "finding",
+      "note": "task-47のtypography経路は維持。task-46の単体コマンド見出しを崩している（指摘1）。"
+    },
+    {
+      "dimension": "Rubric：固定blob比較・selftest",
+      "result": "finding",
+      "note": "不正SHA・凍結改変・未使用参照等の負例を確認。ただし数値供給式の比較が実装前blobでは実行されない（指摘3）。"
+    },
+    {
+      "dimension": "Rubric：Cursorによるテスト変更",
+      "result": "ok",
+      "note": "274e730..実装HEADのDesignSystem・SessionFeature・DashboardFeatureテスト差分は空。"
+    },
+    {
+      "dimension": "Rubric：生成・保存される状態説明",
+      "result": "ok",
+      "note": "保存される状態説明やChatSubAgentModelは変更せず、表示時の空説明にだけ代替ラベルを適用している。"
+    },
+    {
+      "dimension": "Rubric：検証範囲の区別",
+      "result": "ok",
+      "note": "自分のテスト実走は環境制約で未検証。PM供給の自動検証結果と、並行中の目視・Appビルドを自分の実績に読み替えていない。"
+    }
+  ],
+  "verdict": "needs_changes",
+  "tests_run": [],
+  "findings": [
+    {
+      "severity": "HIGH",
+      "file": "macos/Packages/SessionFeature/Sources/SessionFeature/ChatMessageCells+Structured.swift",
+      "line": 308,
+      "summary": "単体コマンドの見出しを原文へ戻し、task-46で統一した「処理の詳細（1件）」を失っている。",
+      "evidence": "凍結blobでは `title: presentation.heading ?? \"\"`。実装では `title: command?.isEmpty == false ? command! : UIWording.text(.missingCommand, languageCode: languageCode)`。例えばcommand=\"echo ok\"、output=\"ok\"で見出しが「echo ok」になる。実ファイルのTranscriptItemPresentation.commandは引き続き `heading: \"処理の詳細（\\(itemCount)件）\"` を返し、task-46契約は単体・グループ双方への接続を要求する。欠損ラベルを要求するtask-48検査との整合はPM裁定が必要で、見出し仕様を暗黙に戻してはならない。",
+      "repro_test": "# PM側のリポジトリを作業ディレクトリとして、compact-test経由で実行する提案。\nchecker = File.read('.claude/scripts/task46-wiring.rb')\neval(checker.split(/^if ARGV.include\\?\\(\"--selftest\"\\)/, 2).first, TOPLEVEL_BINDING)\nroot = '/tmp/ui-ux-wt-48/'\nerrors = check_command_single(File.read(root + STRUCTURED_PATH), File.read(root + SCALED_FONT_PATH))\nraise errors.join(\"\\n\") unless errors.empty?",
+      "confidence": "verified"
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/GridComposerSettingsAcceptanceTests.swift",
+      "line": 64,
+      "summary": "凍結済み既存3テストの日本語検査が製品へ言語を渡しておらず、言語伝播の破損を検出できない。",
+      "evidence": "GridComposerSettingsAcceptanceTestsのヘルパーは `_ = languageCode` として引数を捨て、言語なしでcomposerModeOptionsを呼ぶ。ComposerModeMenuAcceptanceTests:37等は `#expect(expectedPlanTitle(languageCode: \"ja\") == \"計画\")`、AcceptanceContextPopoverBranchTests:44も期待値ヘルパーだけを検査する。製品側を英語固定にしても、この日本語検査は失敗しない。凍結前から存在するPM管理の検査欠陥であり、Cursorの改変ではない。",
+      "repro_test": "// GridComposerSettingsAcceptanceTests.swift内へPMが追加する提案。\n@Test func languageHelperActuallyPassesJapanese() {\n    let options = composerModeOptionsForLanguage(\n        .builtin(.claudeCode), codexProfileIDs: [], languageCode: \"ja\"\n    )\n    #expect(options.last?.title == \"計画\")\n}\n// 現在のヘルパーでは英語既定値の「Plan」が返り、この検査は失敗する。",
+      "confidence": "verified"
+    },
+    {
+      "severity": "MEDIUM",
+      "file": ".claude/scripts/task48-wiring.rb",
+      "line": 1164,
+      "summary": "配線検査の数値供給式比較が、新APIの存在しない実装前基準では無効になる。",
+      "evidence": "`if !prev_tok.empty? && ...`（1164行）と `if !prev_cost.empty? && ...`（1175行）で比較を条件化している。しかし274e730にはUIWording.contextTokenUsageもturnCostAccessibilityもなく、両比較は実行されない。selftestは新APIを含むgood_files同士を比較するため、この欠落を検出しない。現在の製品供給式自体は正しいが、契約が要求する値の逆転・固定値化の検出を保証できない。",
+      "repro_test": "# PM側からcompact-test経由で実行する提案。実ファイルは変更しない。\nchecker = File.read('.claude/scripts/task48-wiring.rb')\neval(checker.split(/^if ARGV.include\\?\\(\"--selftest\"\\)/, 2).first, TOPLEVEL_BINDING)\nDir.chdir('/tmp/ui-ux-wt-48') do\n  current = worktree_files\n  previous = baseline_files('274e730')\n  changed = current.transform_values { |v| v&.dup }\n  changed[:context].sub!(\n    'usedText: tokenText(usedTokens), windowText: tokenText(windowTokens)',\n    'usedText: tokenText(windowTokens), windowText: tokenText(usedTokens)'\n  )\n  errors = check_product(changed) + check_invariants(changed, previous)\n  raise '実基準で使用量と容量の逆転を見逃した' if errors.empty?\nend",
+      "confidence": "verified"
+    }
+  ],
+  "integrity_check": "実装役の開示レポートは未読。製品差分に握りつぶし・ダミー参照・テスト改変は検出せず。凍結検査の欠陥は指摘2・3として分離した。自分のテスト実走は未検証。/tmp/ui-ux-wt-48で `/Users/ryosuke/.agents/scripts/compact-test task48-review-designsystem bash macos/scripts/run-swift-tests.sh DesignSystem` を試行したが、`mktemp: mkstemp failed on /tmp/tmp.9ekC8KKbK7: Operation not permitted`、`/Users/ryosuke/.agents/scripts/compact-test: line 26: : No such file or directory` でランナー起動前に終了。read-only環境のログ作成拒否であり製品コード起因ではない。ラッパー迂回やTMPDIR変更は行っていない。Git読み取りでも `/tmp/xcrun_db-*` の作成拒否とFSEvents警告を観測した。呼び出し元から独立実走のSwiftテスト・配線検査・selftest・diff検査GREENが供給されている。PM目視未了は今回の差し戻し理由ではない。",
+  "root_cause_assessment": "一般文言の一元化とlocale伝播は根本原因へ到達している。静的変異では、入力欄を旧リテラルへ戻すと配線検査の正本参照・残存文字列検査に違反し、Markdownキャッシュから言語を除くと専用検査に違反する。正本文言やテンプレートの値を変更すると独立リテラルとのSwift比較が不一致になる。一方、単体コマンドの見出しは分類モデルを迂回しておりtask-46回帰を生む。既存テストの日本語経路は期待値だけの検査で、実基準の数値供給式検査も条件により無効化される。製品見出しの修正と、PM管理の契約・凍結検査の整合が必要。提示した再現コード・変異は静的検討であり、実走結果とは扱っていない。"
+}

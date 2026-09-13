@@ -2,8 +2,8 @@
   "id": 46,
   "title": "UX-05a 回答・処理詳細・状態・エラーの表示",
   "difficulty": "standard",
-  "status": "in_progress",
-  "updated_at": "2026-09-13T18:38:25+0900",
+  "status": "blocked",
+  "updated_at": "2026-09-13T19:37:19+0900",
   "last_repair": {
     "reason": "partial の原因（凍結テストのコンパイル不能）は PM 承認のハーネス修理と再凍結で解消し、実装役が再検証して開示レポートを completed に更新済み（wt-46）。blocked は escalate 時の自動遷移で人間判断は不要",
     "to": "in_progress",

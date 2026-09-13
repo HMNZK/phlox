@@ -1,8 +1,124 @@
 diff --git a/.claude/scripts/task40-wiring.rb b/.claude/scripts/task40-wiring.rb
-index 3d48c75..1fb20e1 100644
+index 3d48c75..ddd265e 100644
 --- a/.claude/scripts/task40-wiring.rb
 +++ b/.claude/scripts/task40-wiring.rb
-@@ -470,6 +470,20 @@ def baseline_env_errors(raw)
+@@ -52,6 +52,115 @@ def restore_strings(src, strings)
+   src.gsub(/__STR(\d+)__/) { strings[Regexp.last_match(1).to_i] }
+ end
+ 
++def protect_strings_and_comments(src)
++  protected, strings = protect_strings(src)
++  comments = []
++  protected = protected.gsub(%r{/\*.*?\*/}m) do
++    comments << Regexp.last_match(0)
++    "__CMT#{comments.length - 1}__"
++  end
++  protected = protected.gsub(%r{//[^\n]*}) do
++    comments << Regexp.last_match(0)
++    "__CMT#{comments.length - 1}__"
++  end
++  [protected, strings, comments]
++end
++
++def restore_strings_and_comments(src, strings, comments)
++  restored = src.gsub(/__CMT(\d+)__/) { comments[Regexp.last_match(1).to_i] }
++  restore_strings(restored, strings)
++end
++
++def index_after_comment(src, i)
++  if src[i, 2] == "//"
++    n = src.index("\n", i)
++    return n ? n : src.length
++  end
++  if src[i, 2] == "/*"
++    n = src.index("*/", i + 2)
++    return n ? n + 2 : src.length
++  end
++  i
++end
++
++def find_prefix_outside_literals(src, prefix, start = 0)
++  i = start
++  plen = prefix.length
++  while i < src.length
++    if src[i, 3] == '"""' || src[i] == '"'
++      i = index_after_string(src, i)
++      next
++    end
++    if src[i, 2] == "//" || src[i, 2] == "/*"
++      i = index_after_comment(src, i)
++      next
++    end
++    return i if src[i, plen] == prefix
++    i += 1
++  end
++  nil
++end
++
++def matching_open_pair(src, close_idx, open_ch, close_ch)
++  depth = 0
++  i = close_idx
++  while i >= 0
++    if src[i] == close_ch
++      depth += 1
++    elsif src[i] == open_ch
++      depth -= 1
++      return i if depth == 0
++    end
++    i -= 1
++  end
++  nil
++end
++
++def matching_open_paren(src, close_idx)
++  matching_open_pair(src, close_idx, "(", ")")
++end
++
++def skip_ws_back(src, i)
++  i -= 1 while i > 0 && src[i - 1] =~ /\s/
++  i
++end
++
++TYPOGRAPHY_ELEMENT_HEADS = %w[Text Label Markdown titleContent header TextField HStack VStack ZStack Button Group].freeze
++
++def element_chain_head?(src, mod_idx)
++  i = skip_ws_back(src, mod_idx)
++  loop do
++    i = skip_ws_back(src, i)
++    return false if i <= 0
++    if src[i - 1] == "}"
++      open = matching_open_pair(src, i - 1, "{", "}")
++      return false unless open
++      i = open
++      next
++    end
++    if src[i - 1] == ")"
++      open = matching_open_paren(src, i - 1)
++      return false unless open
++      ident_end = skip_ws_back(src, open)
++      ident_start = ident_end
++      ident_start -= 1 while ident_start > 0 && src[ident_start - 1] =~ /[A-Za-z0-9_]/
++      ident = src[ident_start...ident_end]
++      if ident_start > 0 && src[ident_start - 1] == "."
++        i = ident_start - 1
++        next
++      end
++      return TYPOGRAPHY_ELEMENT_HEADS.include?(ident)
++    end
++    if src[i - 1] =~ /[A-Za-z0-9_]/
++      ident_end = i
++      ident_start = ident_end
++      ident_start -= 1 while ident_start > 0 && src[ident_start - 1] =~ /[A-Za-z0-9_]/
++      return TYPOGRAPHY_ELEMENT_HEADS.include?(src[ident_start...ident_end])
++    end
++    return false
++  end
++end
++
+ def strip_comments(src)
+   protected, strings = protect_strings(src)
+   protected = protected.gsub(%r{/\*.*?\*/}m, "")
+@@ -470,6 +579,20 @@ def baseline_env_errors(raw)
    [value, []]
  end
  
@@ -23,7 +139,7 @@ index 3d48c75..1fb20e1 100644
  def evaluate_frozen_baseline(full_sha:, is_ancestor:, typography_blob:, test_pairs:, rb_now:, rb_blob:)
    ng = []
    ng << "TASK40_BASELINE が HEAD の祖先ではない" unless is_ancestor
-@@ -484,28 +498,40 @@ def evaluate_frozen_baseline(full_sha:, is_ancestor:, typography_blob:, test_pai
+@@ -484,28 +607,40 @@ def evaluate_frozen_baseline(full_sha:, is_ancestor:, typography_blob:, test_pai
      end
    end
    if rb_blob.nil?
@@ -70,7 +186,7 @@ index 3d48c75..1fb20e1 100644
  end
  
  def check_canonical(src)
-@@ -894,6 +920,15 @@ def check_gap_application(transcript_src, typography_src)
+@@ -894,6 +1029,21 @@ def check_gap_application(transcript_src, typography_src)
    if c =~ /TranscriptTypography\.gap\([^)]*\)\*scale/ || c =~ /gap\([^)]*\)\*scale/
      ng << "gap に倍率を再適用している"
    end
@@ -78,22 +194,78 @@ index 3d48c75..1fb20e1 100644
 +  if foreach_body.nil?
 +    ng << "transcriptStack のブロック ForEach を切り出せない"
 +  else
-+    gap_mod_count = compact(foreach_body).scan(/\.padding\(\.top,TranscriptTypography\.gap/).length
++    gap_mod_count = count_padding_args(foreach_body) { |ca|
++      ca.include?("TranscriptTypography.gap") || ca.match?(/(?<![A-Za-z0-9_.])gap\(/)
++    }
 +    unless gap_mod_count == 1
 +      ng << "ブロックあたり gap 修飾はちょうど 1 個ではない（#{gap_mod_count}）"
 +    end
 +  end
++  extra_typo_pads = extra_transcript_typo_paddings(stack)
++  unless extra_typo_pads.empty?
++    ng << "接続表以外に withinAnswer/metadataGap 等の直接 padding 追加がある（#{extra_typo_pads.join(', ')}）"
++  end
    unless c =~ /VStack\([^)]*spacing:0/
      if reachable.include?("TranscriptTypography.gap") && (c =~ /VStack\([^)]*spacing:DSSpacing\.m/ || c =~ /VStack\([^)]*spacing:12/)
        ng << "gap と親Stack間隔を二重加算している"
-@@ -945,6 +980,63 @@ def mask_prefix_calls(src, prefix)
+@@ -930,10 +1080,48 @@ def child_override?(sources)
+   ng
+ end
+ 
++def each_padding_call(src)
++  pos = 0
++  while (i = find_prefix_outside_literals(src, ".padding(", pos))
++    paren = src.index("(", i)
++    break unless paren
++    args = extract_balanced(src, paren, "(", ")")
++    break if args.nil?
++    close = paren + 1 + args.length + 1
++    yield i, args, close
++    pos = close
++  end
++end
++
++def count_padding_args(src)
++  n = 0
++  each_padding_call(src) do |_i, args, _close|
++    n += 1 if yield(compact(args))
++  end
++  n
++end
++
++def extra_transcript_typo_paddings(stack)
++  counts = Hash.new(0)
++  each_padding_call(stack) do |_i, args, _close|
++    ca = compact(args)
++    %w[gap withinAnswer metadataGap betweenAnswers majorSection].each do |tok|
++      counts[tok] += 1 if ca.include?("TranscriptTypography.#{tok}")
++    end
++  end
++  extras = []
++  extras << "gap=#{counts['gap']}" if counts["gap"] > 1
++  extras << "withinAnswer=#{counts['withinAnswer']}" if counts["withinAnswer"] > 2
++  extras << "betweenAnswers=#{counts['betweenAnswers']}" if counts["betweenAnswers"] > 1
++  extras << "metadataGap=#{counts['metadataGap']}" if counts["metadataGap"] > 0
++  extras << "majorSection=#{counts['majorSection']}" if counts["majorSection"] > 0
++  extras
++end
++
+ def mask_prefix_calls(src, prefix)
+   result = src.dup
+   loop do
+-    i = result.index(prefix)
++    i = find_prefix_outside_literals(result, prefix, 0)
+     break unless i
+     paren = result.index("(", i)
+     break unless paren
+@@ -945,6 +1133,147 @@ def mask_prefix_calls(src, prefix)
    result
  end
  
 +def strip_prefix_calls(src, prefix)
 +  result = src.dup
 +  loop do
-+    i = result.index(prefix)
++    i = find_prefix_outside_literals(result, prefix, 0)
 +    break unless i
 +    paren = result.index("(", i)
 +    break unless paren
@@ -105,38 +277,122 @@ index 3d48c75..1fb20e1 100644
 +  result
 +end
 +
-+DRAW_CALL_PREFIXES = [
++TYPOGRAPHY_CALL_PREFIXES = [
 +  ".font(",
-+  ".padding(",
 +  ".lineSpacing(",
-+  ".foregroundStyle(",
-+  ".foregroundColor(",
 +  ".markdownMargin(",
 +].freeze
 +
-+BARE_DRAW_IDENTS = %w[FontSize FontWeight ForegroundColor].freeze
++BARE_TYPO_IDENTS = %w[FontSize FontWeight].freeze
++
++def strip_prefix_calls_on_elements(src, prefix)
++  result = src.dup
++  pos = 0
++  loop do
++    i = find_prefix_outside_literals(result, prefix, pos)
++    break unless i
++    unless element_chain_head?(result, i)
++      pos = i + prefix.length
++      next
++    end
++    paren = result.index("(", i)
++    unless paren
++      pos = i + prefix.length
++      next
++    end
++    args = extract_balanced(result, paren, "(", ")")
++    unless args
++      pos = i + prefix.length
++      next
++    end
++    close = paren + 1 + args.length + 1
++    result = result[0...i] + result[close..]
++  end
++  result
++end
 +
 +def strip_ident_calls(src, ident)
 +  result = src.dup
 +  re = /(?<![A-Za-z0-9_])#{Regexp.escape(ident)}\s*\(/
++  pos = 0
 +  loop do
-+    m = result.match(re)
++    m = result.match(re, pos)
 +    break unless m
++    if find_prefix_outside_literals(result, ident + "(", m.begin(0)) != m.begin(0)
++      pos = m.end(0)
++      next
++    end
 +    paren = result.index("(", m.begin(0))
-+    break unless paren
++    unless paren
++      pos = m.end(0)
++      next
++    end
 +    args = extract_balanced(result, paren, "(", ")")
-+    break if args.nil?
++    unless args
++      pos = m.end(0)
++      next
++    end
 +    close = paren + 1 + args.length + 1
 +    result = result[0...m.begin(0)] + result[close..]
 +  end
 +  result
 +end
 +
-+def strip_draw_attribute_modifiers(src)
++def strip_element_typography_modifiers(src)
 +  result = src.dup
-+  DRAW_CALL_PREFIXES.each { |prefix| result = strip_prefix_calls(result, prefix) }
-+  BARE_DRAW_IDENTS.each { |ident| result = strip_ident_calls(result, ident) }
++  TYPOGRAPHY_CALL_PREFIXES.each { |prefix| result = strip_prefix_calls_on_elements(result, prefix) }
 +  result
++end
++
++def strip_theme_typography_modifiers(src)
++  result = src.dup
++  TYPOGRAPHY_CALL_PREFIXES.each { |prefix| result = strip_prefix_calls(result, prefix) }
++  BARE_TYPO_IDENTS.each { |ident| result = strip_ident_calls(result, ident) }
++  result
++end
++
++def padding_token_args?(ca)
++  return true if ca.match?(/DSSpacing\.\w+/)
++  return true if ca.match?(/TranscriptTypography\.\w+/)
++  return true if ca.match?(/\.vertical,2\b/)
++  false
++end
++
++def mask_padding_tokens(src)
++  result = +""
++  i = 0
++  while i < src.length
++    j = find_prefix_outside_literals(src, ".padding(", i)
++    unless j
++      result << src[i..]
++      break
++    end
++    result << src[i...j]
++    paren = src.index("(", j)
++    if paren.nil?
++      result << src[j..]
++      break
++    end
++    args = extract_balanced(src, paren, "(", ")")
++    if args.nil?
++      result << src[j..]
++      break
++    end
++    close = paren + 1 + args.length + 1
++    if padding_token_args?(compact(args))
++      result << ".padding(__TYPO_PAD__)"
++    else
++      result << src[j...close]
++    end
++    i = close
++  end
++  result
++end
++
++def strip_draw_attribute_modifiers(src)
++  protected, strings, comments = protect_strings_and_comments(src)
++  result = strip_element_typography_modifiers(protected)
++  restore_strings_and_comments(result, strings, comments)
 +end
 +
 +def strip_design_system_import(src)
@@ -150,17 +406,19 @@ index 3d48c75..1fb20e1 100644
  def mask_ident_calls(src, ident)
    result = src.dup
    re = /#{Regexp.escape(ident)}\s*(?:\.\s*[A-Za-z_][A-Za-z0-9_]*)*/
-@@ -1024,12 +1116,33 @@ end
+@@ -1024,10 +1353,33 @@ end
  
  def mask_typography_draw_in_struct(src, name)
    replace_struct_body(src, name) do |body|
 -    masked = body.dup
 -    TYPOGRAPHY_DRAW_PREFIXES.each { |prefix| masked = mask_prefix_calls(masked, prefix) }
 -    mask_typo_spacing(masked)
-+    mask_typo_spacing(strip_draw_attribute_modifiers(body))
-   end
- end
- 
++    result = strip_element_typography_modifiers(body)
++    result = mask_typo_spacing(result)
++    mask_padding_tokens(result)
++  end
++end
++
 +def map_func_inner(src, name)
 +  body = extract_func_body(src, name)
 +  return src if body.nil?
@@ -180,23 +438,112 @@ index 3d48c75..1fb20e1 100644
 +      return extract_balanced(stack, brace, "{", "}")
 +    end
 +    pos = m.end(0)
-+  end
+   end
 +  nil
+ end
+ 
+ def normalize_typography_role(src)
+@@ -1044,43 +1396,51 @@ def strip_disclosure_outer_vertical_padding(src)
+   end
+ end
+ 
+-def strip_permitted_gap_paddings(src)
+-  result = +""
+-  i = 0
+-  while i < src.length
+-    j = src.index(".padding(", i)
+-    unless j
+-      result << src[i..]
+-      break
+-    end
+-    result << src[i...j]
+-    paren = src.index("(", j)
+-    if paren.nil?
+-      result << src[j..]
+-      break
+-    end
+-    args = extract_balanced(src, paren, "(", ")")
+-    if args.nil?
+-      result << src[j..]
+-      break
+-    end
+-    close = paren + 1 + args.length + 1
+-    ca = compact(args)
+-    if ca.include?("TranscriptTypography.gap") ||
+-       ca.include?("TranscriptTypography.betweenAnswers") ||
+-       ca.include?("TranscriptTypography.withinAnswer")
+-      i = close
+-    else
+-      result << src[j...close]
+-      i = close
+-    end
+-  end
++def strip_following_padding(src, ident, arg_needle)
++  result = src.dup
++  m = result.match(/\b#{Regexp.escape(ident)}\s*\(/)
++  return result unless m
++  paren = result.index("(", m.begin(0))
++  return result unless paren
++  args = extract_balanced(result, paren, "(", ")")
++  return result unless args
++  close = paren + 1 + args.length + 1
++  rest = result[close..]
++  pad = rest.match(/\A\s*\.padding\s*\(/)
++  return result unless pad
++  pad_paren = close + pad.end(0) - 1
++  pad_args = extract_balanced(result, pad_paren, "(", ")")
++  return result unless pad_args
++  return result unless compact(pad_args).include?(compact(arg_needle))
++  pad_close = pad_paren + 1 + pad_args.length + 1
++  result[close...pad_close] = ""
++  result
 +end
 +
- def normalize_typography_role(src)
-   if src =~ /\bvar\s+typographyRole\b/
-     mask_var_named(src, "typographyRole").gsub(/\n?__DRAW_VAR__\n?/, "\n")
-@@ -1094,6 +1207,8 @@ end
++def strip_allowed_transcript_paddings(src)
++  result = src.dup
++  result = strip_following_padding(result, "loadEarlierButton", "TranscriptTypography.betweenAnswers")
++  result = strip_following_padding(result, "transcriptBlock", "TranscriptTypography.gap")
++  result = strip_following_padding(result, "CompactingIndicatorCell", "TranscriptTypography.withinAnswer")
++  result = strip_following_padding(result, "ThinkingIndicatorCell", "TranscriptTypography.withinAnswer")
++  result
++end
++
++def strip_transcript_outer_insets(src)
++  result = src.dup
++  [
++    /\.padding\(\s*\.horizontal\s*,\s*TranscriptTypography\.transcriptHorizontalInset\s*\)/,
++    /\.padding\(\s*\.vertical\s*,\s*TranscriptTypography\.transcriptVerticalInset\s*\)/,
++    /\.padding\(\s*\.horizontal\s*,\s*DSSpacing\.l\s*\)/,
++    /\.padding\(\s*\.vertical\s*,\s*DSSpacing\.m\s*\)/,
++  ].each { |re| result = result.gsub(re, "") }
+   result
+ end
+ 
+ def normalize_transcript_gap_surface(src)
+   result = src.dup
+-  result = strip_permitted_gap_paddings(result)
++  result = strip_allowed_transcript_paddings(result)
++  result = strip_transcript_outer_insets(result)
+   result = result.gsub(/ForEach\(\s*Array\(\s*visibleSlice\.blocks\.enumerated\(\)\s*\)[^)]*\)/, "ForEach(__VISIBLE_BLOCKS__)")
+   result = result.gsub(/ForEach\(\s*visibleSlice\.blocks\s*\)/, "ForEach(__VISIBLE_BLOCKS__)")
+   result = result.gsub(/\{\s*index\s*,\s*block\s+in/, "{ block in")
+@@ -1093,7 +1453,15 @@ end
+ 
  def normalize_allowed_surface(src, key)
    return "" if src.nil?
++  protected, strings, comments = protect_strings_and_comments(src)
++  result = apply_allowed_masks(protected, key)
++  restore_strings_and_comments(result, strings, comments)
++end
++
++def apply_allowed_masks(src, key)
    result = src.dup
 +  result = strip_design_system_import(result)
 +  result = strip_chat_scale_appstorage(result)
    case key
    when :chat_typography
      %w[bodyFontSize codeFontSize heading1FontSize heading2FontSize heading3FontSize].each do |n|
-@@ -1110,7 +1225,7 @@ def normalize_allowed_surface(src, key)
+@@ -1110,7 +1478,7 @@ def normalize_allowed_surface(src, key)
      result = mask_typography_draw_in_struct(result, "DisclosureCard")
      result = mask_typography_draw_in_struct(result, "ChatTimestampText")
    when :basic
@@ -205,34 +552,174 @@ index 3d48c75..1fb20e1 100644
        result = mask_typography_draw_in_struct(result, n)
      end
    when :structured
-@@ -1138,7 +1253,10 @@ def normalize_allowed_surface(src, key)
+@@ -1138,7 +1506,11 @@ def normalize_allowed_surface(src, key)
      %w[heading4 heading5 heading6].each do |h|
        result = replace_modifier_closure(result, h, "__PERMITTED_HEADING__")
      end
 -    TYPOGRAPHY_DRAW_PREFIXES.each { |prefix| result = mask_prefix_calls(result, prefix) }
 +    result = mask_typography_draw_in_struct(result, "RichMarkdownView")
 +    result = map_func_inner(result, "chatMarkdownTheme") { |body|
-+      mask_typo_spacing(strip_draw_attribute_modifiers(body))
++      mask_padding_tokens(mask_typo_spacing(strip_theme_typography_modifiers(body)))
 +    }
++    result = mask_padding_tokens(result)
    end
    result
  end
-@@ -1164,6 +1282,14 @@ end
+@@ -1162,16 +1534,150 @@ def filechange_code_row_spacing(struct_src)
+   innermost
+ end
  
++def error_cell_body(struct)
++  extract_var_body(struct, "body") || struct
++end
++
++def check_error_message_colors(struct)
++  ng = []
++  body = error_cell_body(struct)
++  c = compact(body)
++  unless c =~ /Label\(.{0,240}?\.foregroundStyle\(DSColor\.statusError/
++    ng << "ErrorMessageCell の見出し色（215・エラー色）が statusError ではない"
++  end
++  unless c =~ /background\([^)]*statusError/
++    ng << "ErrorMessageCell の背景色（226）が statusError ではない"
++  end
++  unless c =~ /strokeBorder\([^)]*statusError/ || c =~ /overlay\([^)]*statusError/
++    ng << "ErrorMessageCell の枠線色（229）が statusError ではない"
++  end
++  ng
++end
++
++def filechange_helper_src(struct)
++  %w[diffLineView markerForeground background lineNumberForeground].map { |n|
++    extract_func_body(struct, n) || extract_var_body(struct, n)
++  }.compact.join("\n")
++end
++
++def check_filechange_diff_colors(struct)
++  ng = []
++  body = extract_var_body(struct, "body") || struct
++  bc = compact(body)
++  unless bc =~ /additions.{0,80}foregroundStyle\(DSColor\.diffAdded/ || bc =~ /Text\("\+.{0,80}foregroundStyle\(DSColor\.diffAdded/
++    ng << "差分見出し（361）の diffAdded が失われている"
++  end
++  unless bc =~ /deletions.{0,80}foregroundStyle\(DSColor\.diffRemoved/ || bc =~ /Text\("-.{0,80}foregroundStyle\(DSColor\.diffRemoved/
++    ng << "差分見出し（361）の diffRemoved が失われている"
++  end
++  helpers = filechange_helper_src(struct)
++  hc = compact(reachable_code(helpers))
++  unless hc.include?("diffAdded")
++    ng << "差分ヘルパー内の diffAdded が失われている"
++  end
++  unless hc.include?("diffRemoved")
++    ng << "差分ヘルパー内の diffRemoved が失われている"
++  end
++  ng
++end
++
++def check_disclosure_outer_padding(src)
++  return ["ChatMessageCellsCommon.swift が存在しない"] if src.nil?
++  disc = extract_struct_body(src, "DisclosureCard")
++  return ["DisclosureCard を切り出せない"] if disc.nil?
++  body = extract_var_body(disc, "body") || disc
++  c = compact(reachable_code(body))
++  ng = []
++  if c.include?(".padding(4)") || c.include?(".padding(.all,4)")
++    ng << "DisclosureCard の外側 padding 4 が復活している"
++  end
++  if c.include?(".padding(.vertical,DSSpacing.xs)") || c.include?(".padding(.all,DSSpacing.xs)")
++    ng << "DisclosureCard の外側 padding（DSSpacing.xs）が復活している"
++  end
++  if c.include?(".padding(DSSpacing.xxs)") || c.include?(".padding(.all,DSSpacing.xxs)") || c.include?(".padding(.vertical,DSSpacing.xxs)")
++    ng << "DisclosureCard の外側 padding（DSSpacing.xxs）が復活している"
++  end
++  ng
++end
++
++def collect_modifier_args(src, method)
++  args = []
++  pos = 0
++  needle = ".#{method}("
++  while (i = find_prefix_outside_literals(src, needle, pos))
++    paren = src.index("(", i)
++    break unless paren
++    a = extract_balanced(src, paren, "(", ")")
++    break unless a
++    args << compact(a)
++    pos = paren + 1 + a.length + 1
++  end
++  args
++end
++
++def collect_labeled_strings(src, label)
++  args = []
++  pos = 0
++  while (i = find_prefix_outside_literals(src, label, pos))
++    rest_start = i + label.length
++    rest_start += 1 while rest_start < src.length && src[rest_start] =~ /\s/
++    if rest_start < src.length && (src[rest_start] == '"' || src[rest_start, 3] == '"""')
++      j = index_after_string(src, rest_start)
++      args << src[rest_start...j]
++      pos = j
++    else
++      pos = rest_start + 1
++    end
++  end
++  args
++end
++
++def extract_ui_strings(src)
++  code = strip_comments(src.to_s)
++  {
++    identifier: collect_modifier_args(code, "accessibilityIdentifier"),
++    help: collect_modifier_args(code, "help"),
++    copy: collect_labeled_strings(code, "copyAccessibilityIdentifier:") + collect_labeled_strings(code, "copyText:"),
++  }
++end
++
++def check_frozen_ui_strings(sources, baseline_sources)
++  ng = []
++  ALLOWED_PRODUCT_KEYS.each do |key|
++    next if key == :typography
++    path = PATHS[key]
++    cur_src = sources[key]
++    base_src = baseline_sources[key]
++    next if cur_src.nil? || base_src.nil?
++    cur = extract_ui_strings(cur_src)
++    base = extract_ui_strings(base_src)
++    if cur[:identifier] != base[:identifier]
++      ng << "#{path} の AX identifier が凍結 blob から変化している"
++    end
++    if cur[:help] != base[:help]
++      ng << "#{path} の help 文字列が凍結 blob から変化している"
++    end
++    if cur[:copy] != base[:copy]
++      ng << "#{path} のコピー内容が凍結 blob から変化している"
++    end
++  end
++  ng
++end
++
  def check_protected_frozen_attrs(sources, baseline_sources)
    ng = []
 +  cur_err = sources[:basic] && extract_struct_body(sources[:basic], "ErrorMessageCell")
 +  if cur_err.nil?
 +    ng << "ErrorMessageCell を切り出せない"
 +  else
-+    unless reachable_code(cur_err).include?("statusError")
-+      ng << "エラー色（error ink）が失われている"
-+    end
++    ng.concat(check_error_message_colors(cur_err))
 +  end
    cur_fc = sources[:structured] && extract_struct_body(sources[:structured], "FileChangeCell")
    base_fc = baseline_sources[:structured] && extract_struct_body(baseline_sources[:structured], "FileChangeCell")
    if cur_fc.nil?
-@@ -1179,7 +1305,9 @@ def check_protected_frozen_attrs(sources, baseline_sources)
+     ng << "FileChangeCell を切り出せない"
+   elsif base_fc
+-    %w[DSColor.diffAdded DSColor.diffRemoved].each do |tok|
+-      ng << "差分意味色 #{tok} が失われている" unless reachable_code(cur_fc).include?(tok)
+-    end
++    ng.concat(check_filechange_diff_colors(cur_fc))
+     cur_sp = filechange_code_row_spacing(cur_fc)
+     base_sp = filechange_code_row_spacing(base_fc)
+     if cur_sp != "0" || cur_sp != base_sp
+@@ -1179,7 +1685,9 @@ def check_protected_frozen_attrs(sources, baseline_sources)
      end
    end
    cur_cost = sources[:basic] && extract_struct_body(sources[:basic], "TurnCostCell")
@@ -243,7 +730,18 @@ index 3d48c75..1fb20e1 100644
      unless compact(reachable_code(cur_cost)).include?("opacity(0.7)")
        ng << "料金の opacity 0.7 が失われている"
      end
-@@ -1294,6 +1422,7 @@ end
+@@ -1208,8 +1716,10 @@ def inspect_product(sources, baseline_sources = nil, unchanged_now = nil, unchan
+   ng.concat(check_markdown_cache(sources[:markdown]))
+   ng.concat(check_gap_application(sources[:transcript], sources[:typography]))
+   ng.concat(child_override?(sources))
++  ng.concat(check_disclosure_outer_padding(sources[:common]))
+   if baseline_sources
+     ng.concat(check_protected_frozen_attrs(sources, baseline_sources))
++    ng.concat(check_frozen_ui_strings(sources, baseline_sources))
+     ALLOWED_PRODUCT_KEYS.each do |key|
+       next if key == :typography
+       path = PATHS[key]
+@@ -1294,6 +1804,7 @@ end
  def good_chat_typography_src
    <<~SWIFT
      import CoreGraphics
@@ -251,7 +749,7 @@ index 3d48c75..1fb20e1 100644
      public enum ChatTypography {
        public static func bodyFontSize(scale: CGFloat) -> CGFloat {
          TranscriptTypography.pointSize(for: .body, scale: scale)
-@@ -1317,6 +1446,7 @@ end
+@@ -1317,6 +1828,7 @@ end
  def good_scaled_src
    <<~SWIFT
      import SwiftUI
@@ -259,7 +757,7 @@ index 3d48c75..1fb20e1 100644
      enum ChatScaledFont {
        static func body(scale: CGFloat) -> Font {
          TranscriptTypography.font(for: .body, scale: scale)
-@@ -1342,6 +1472,7 @@ end
+@@ -1342,6 +1854,7 @@ end
  
  def good_grouping_src
    <<~SWIFT
@@ -267,7 +765,7 @@ index 3d48c75..1fb20e1 100644
      enum ChatTranscriptBlock: Identifiable, Equatable {
        case single(ChatItem)
        case commandGroup(id: String, items: [ChatItem])
-@@ -1367,6 +1498,7 @@ end
+@@ -1367,6 +1880,7 @@ end
  def good_transcript_src
    <<~SWIFT
      struct ChatTranscriptView: View {
@@ -275,7 +773,7 @@ index 3d48c75..1fb20e1 100644
        var body: some View { transcriptStack(items: [], transcriptSignal: sig) }
        private func transcriptStack(items: [ChatItem], transcriptSignal: TranscriptFollowSignal) -> some View {
          let visibleSlice = ChatTranscriptGrouping.visibleSlice(from: items, blockLimit: 8)
-@@ -1385,9 +1517,11 @@ def good_transcript_src
+@@ -1385,9 +1899,11 @@ def good_transcript_src
            ThinkingIndicatorCell(descriptor: agentDescriptor)
              .padding(.top, TranscriptTypography.withinAnswer)
          }
@@ -288,8 +786,36 @@ index 3d48c75..1fb20e1 100644
        }
      }
    SWIFT
-@@ -1425,6 +1559,9 @@ def good_basic_src
-           .lineSpacing(TranscriptTypography.textLineSpacing)
+@@ -1407,6 +1923,7 @@ def good_basic_src
+         Text(Self.format(costUSD))
+           .font(ChatScaledFont.monoCaption(scale: scale))
+           .foregroundStyle(DSColor.chatTextSecondary.opacity(0.7))
++          .accessibilityIdentifier("ChatMessage.turnCost")
+       }
+     }
+     struct AgentMessageBody: View {
+@@ -1419,12 +1936,25 @@ def good_basic_src
+     }
+     struct ErrorMessageCell: View {
+       var body: some View {
+-        Text(message)
+-          .font(ChatScaledFont.body(scale: scale))
+-          .foregroundStyle(DSColor.statusError)
+-          .lineSpacing(TranscriptTypography.textLineSpacing)
++        VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
++          Label("Error", systemImage: "exclamationmark.triangle")
++            .font(ChatScaledFont.captionStrong(scale: scale))
++            .foregroundStyle(DSColor.statusError)
++          Text(message)
++            .font(ChatScaledFont.body(scale: scale))
++            .foregroundStyle(DSColor.chatTextPrimary)
++            .lineSpacing(TranscriptTypography.textLineSpacing)
++        }
++        .background(DSColor.statusError.opacity(0.14), in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
++        .overlay(
++          RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
++            .strokeBorder(DSColor.statusError.opacity(0.35), lineWidth: 1)
++        )
        }
      }
 +    struct ChatAttachmentBadge: View {
@@ -298,7 +824,53 @@ index 3d48c75..1fb20e1 100644
    SWIFT
  end
  
-@@ -1599,6 +1736,17 @@ def good_code_card_src
+@@ -1495,6 +2025,12 @@ def good_structured_src
+       var body: some View {
+         DisclosureCard(isExpanded: $on, title: title, subtitle: nil) {
+           VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
++            HStack {
++              Text("+\(counts.additions)")
++                .foregroundStyle(DSColor.diffAdded)
++              Text("-\(counts.deletions)")
++                .foregroundStyle(DSColor.diffRemoved)
++            }
+             ChatCodeCard(copyText: section.copyText, copyAccessibilityIdentifier: "FileChange.copyDiff") {
+               VStack(alignment: .leading, spacing: 0) {
+                 ForEach(section.codeView.lines) { codeLine in
+@@ -1502,6 +2038,9 @@ def good_structured_src
+                 }
+               }
+             }
++            Button("more") { showAllLines = true }
++              .accessibilityIdentifier("FileChange.showMoreButton")
++              .help("show more lines")
+           }
+         }
+       }
+@@ -1512,6 +2051,13 @@ def good_structured_src
+           Text(codeLine.body).font(ChatScaledFont.monoCaption(scale: scale))
+         }
+       }
++      private func markerForeground(for kind: DiffLineKind) -> Color {
++        switch kind {
++        case .addition: DSColor.diffAdded
++        case .deletion: DSColor.diffRemoved
++        default: DSColor.chatTextPrimary
++        }
++      }
+     }
+   SWIFT
+ end
+@@ -1583,6 +2129,8 @@ def good_code_block_src
+         Text(language).font(ChatScaledFont.caption(scale: scale))
+         Text(code).font(ChatScaledFont.mono(scale: scale))
+           .padding(.horizontal, DSSpacing.m)
++          .help("Copy code")
++          .accessibilityIdentifier("CodeBlock.copyButton")
+       }
+     }
+   SWIFT
+@@ -1599,6 +2147,17 @@ def good_code_card_src
    SWIFT
  end
  
@@ -316,7 +888,7 @@ index 3d48c75..1fb20e1 100644
  def good_compacting_src
    <<~SWIFT
      struct CompactingIndicatorCell: View {
-@@ -1621,6 +1769,26 @@ def good_user_question_src
+@@ -1621,6 +2180,26 @@ def good_user_question_src
        private func questionBlock(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
          VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
            Text(question.question).font(ChatScaledFont.body(scale: scale))
@@ -343,8 +915,36 @@ index 3d48c75..1fb20e1 100644
            Text(detail).font(ChatScaledFont.caption(scale: scale))
          }
        }
-@@ -1744,6 +1912,9 @@ def frozen_basic_src
-           .lineSpacing(3)
+@@ -1726,6 +2305,7 @@ def frozen_basic_src
+         Text(Self.format(costUSD))
+           .font(.system(size: 9 * scale, weight: .regular, design: .monospaced))
+           .foregroundStyle(DSColor.chatTextSecondary.opacity(0.7))
++          .accessibilityIdentifier("ChatMessage.turnCost")
+       }
+     }
+     struct AgentMessageBody: View {
+@@ -1738,12 +2318,25 @@ def frozen_basic_src
+     }
+     struct ErrorMessageCell: View {
+       var body: some View {
+-        Text(message)
+-          .font(ChatScaledFont.body(scale: scale))
+-          .foregroundStyle(DSColor.statusError)
+-          .lineSpacing(3)
++        VStack(alignment: .leading, spacing: DSSpacing.xs) {
++          Label("Error", systemImage: "exclamationmark.triangle")
++            .font(ChatScaledFont.captionStrong(scale: scale))
++            .foregroundStyle(DSColor.statusError)
++          Text(message)
++            .font(ChatScaledFont.body(scale: scale))
++            .foregroundStyle(DSColor.chatTextPrimary)
++            .lineSpacing(3)
++        }
++        .background(DSColor.statusError.opacity(0.14), in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
++        .overlay(
++          RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
++            .strokeBorder(DSColor.statusError.opacity(0.35), lineWidth: 1)
++        )
        }
      }
 +    struct ChatAttachmentBadge: View {
@@ -353,7 +953,53 @@ index 3d48c75..1fb20e1 100644
    SWIFT
  end
  
-@@ -1922,9 +2093,9 @@ def frozen_sources
+@@ -1815,6 +2408,12 @@ def frozen_structured_src
+       var body: some View {
+         DisclosureCard(isExpanded: $on, title: title, subtitle: nil) {
+           VStack(alignment: .leading, spacing: DSSpacing.m) {
++            HStack {
++              Text("+\(counts.additions)")
++                .foregroundStyle(DSColor.diffAdded)
++              Text("-\(counts.deletions)")
++                .foregroundStyle(DSColor.diffRemoved)
++            }
+             ChatCodeCard(copyText: section.copyText, copyAccessibilityIdentifier: "FileChange.copyDiff") {
+               VStack(alignment: .leading, spacing: 0) {
+                 ForEach(section.codeView.lines) { codeLine in
+@@ -1822,6 +2421,9 @@ def frozen_structured_src
+                 }
+               }
+             }
++            Button("more") { showAllLines = true }
++              .accessibilityIdentifier("FileChange.showMoreButton")
++              .help("show more lines")
+           }
+         }
+       }
+@@ -1832,6 +2434,13 @@ def frozen_structured_src
+           Text(codeLine.body).font(ChatScaledFont.monoCaption(scale: scale))
+         }
+       }
++      private func markerForeground(for kind: DiffLineKind) -> Color {
++        switch kind {
++        case .addition: DSColor.diffAdded
++        case .deletion: DSColor.diffRemoved
++        default: DSColor.chatTextPrimary
++        }
++      }
+     }
+   SWIFT
+ end
+@@ -1903,6 +2512,8 @@ def frozen_code_block_src
+         Text(language).font(ChatScaledFont.caption(scale: scale))
+         Text(code).font(ChatScaledFont.mono(scale: scale))
+           .padding(.horizontal, DSSpacing.m)
++          .help("Copy code")
++          .accessibilityIdentifier("CodeBlock.copyButton")
+       }
+     }
+   SWIFT
+@@ -1922,9 +2533,9 @@ def frozen_sources
      task_list: frozen_task_list_src,
      markdown: frozen_markdown_src,
      code_block: frozen_code_block_src,
@@ -365,7 +1011,7 @@ index 3d48c75..1fb20e1 100644
    }
  end
  
-@@ -1962,6 +2133,26 @@ def run_selftest
+@@ -1962,6 +2573,26 @@ def run_selftest
    spaced_ng = inspect_like_prod(spaced, frozen)
    selftest_assert spaced_ng.empty?, "正例: 空白だけの変更は合格 (#{spaced_ng.inspect})"
  
@@ -392,7 +1038,7 @@ index 3d48c75..1fb20e1 100644
    drop = mutate(good, :common) { |src| src.sub("TranscriptTypography.font(for: .processSummary, scale: scale)", "ChatScaledFont.caption(scale: scale)") }
    drop_ng = inspect_like_prod(drop, frozen)
    selftest_assert drop_ng.any? { |m| m.include?("DisclosureCard") }, "負例: 接続削除 (#{drop_ng.inspect})"
-@@ -2085,6 +2276,25 @@ def run_selftest
+@@ -2085,6 +2716,70 @@ def run_selftest
    cost_op_ng = inspect_like_prod(cost_opacity, frozen)
    selftest_assert cost_op_ng.any? { |m| m.include?("opacity") }, "負例: 料金 opacity 喪失 (#{cost_op_ng.inspect})"
  
@@ -415,10 +1061,55 @@ index 3d48c75..1fb20e1 100644
 +  outside_font_ng = inspect_like_prod(outside_font, frozen)
 +  selftest_assert outside_font_ng.any? { |m| m.include?("残余") }, "負例: 範囲外での .font 変更 (#{outside_font_ng.inspect})"
 +
++  err_label_only = mutate(good, :basic) { |src| src.sub("DSColor.statusError", "DSColor.chatTextPrimary") }
++  err_label_ng = inspect_like_prod(err_label_only, frozen)
++  selftest_assert err_label_ng.any? { |m| m.include?("215") || m.include?("エラー色") }, "負例: 215 行だけ primary 化 (#{err_label_ng.inspect})"
++
++  heading_only = mutate(good, :structured) { |src| src.sub("DSColor.diffAdded", "DSColor.chatTextPrimary") }
++  heading_only_ng = inspect_like_prod(heading_only, frozen)
++  selftest_assert heading_only_ng.any? { |m| m.include?("361") || m.include?("見出し") }, "負例: 361 行だけ primary 化 (#{heading_only_ng.inspect})"
++
++  extra_wa = mutate(good, :transcript) { |src|
++    src.sub(
++      "ThinkingIndicatorCell(descriptor: agentDescriptor)\n        .padding(.top, TranscriptTypography.withinAnswer)",
++      "ThinkingIndicatorCell(descriptor: agentDescriptor)\n        .padding(.top, TranscriptTypography.withinAnswer)\n      Color.clear\n        .padding(.top, TranscriptTypography.withinAnswer)"
++    )
++  }
++  extra_wa_ng = inspect_like_prod(extra_wa, frozen)
++  selftest_assert extra_wa_ng.any? { |m| m.include?("withinAnswer") || m.include?("直接 padding") || m.include?("残余") }, "負例: withinAnswer padding を別ブロックに追加 (#{extra_wa_ng.inspect})"
++
++  disc_outer = mutate(good, :common) { |src|
++    src.sub(
++      "      content\n    }\n  }\n}",
++      "      content\n    }\n    .padding(4)\n  }\n}"
++    )
++  }
++  disc_outer_ng = inspect_like_prod(disc_outer, frozen)
++  selftest_assert disc_outer_ng.any? { |m| m.include?("外側 padding") || m.include?("残余") }, "負例: DisclosureCard 外側 padding 復活 (#{disc_outer_ng.inspect})"
++
++  ax_font = mutate(good, :structured) { |src|
++    src.sub('"FileChange.showMoreButton"', '"FileChange.showMoreButton.font(.body)"')
++  }
++  ax_font_ng = inspect_like_prod(ax_font, frozen)
++  selftest_assert ax_font_ng.any? { |m| m.include?("identifier") || m.include?("残余") }, "負例: identifier 文字列の改変 (#{ax_font_ng.inspect})"
++
++  help_change = mutate(good, :structured) { |src| src.sub('"show more lines"', '"show more lines.font(.body)"') }
++  help_ng = inspect_like_prod(help_change, frozen)
++  selftest_assert help_ng.any? { |m| m.include?("help") || m.include?("残余") }, "負例: help 文字列の改変 (#{help_ng.inspect})"
++
++  comment_fake = mutate(good, :structured) { |src|
++    src.sub(
++      '.accessibilityIdentifier("FileChange.showMoreButton")',
++      '// .accessibilityIdentifier("FileChange.showMoreButton")'
++    )
++  }
++  comment_fake_ng = inspect_like_prod(comment_fake, frozen)
++  selftest_assert comment_fake_ng.any? { |m| m.include?("identifier") || m.include?("残余") }, "負例: コメント内の偽装 (#{comment_fake_ng.inspect})"
++
    unset, unset_errs = baseline_env_errors(nil)
    selftest_assert unset.nil? && unset_errs.any? { |m| m.include?("未設定") }, "負例: SHA欠落"
    _, head_errs = baseline_env_errors("HEAD")
-@@ -2166,6 +2376,35 @@ def run_selftest
+@@ -2166,6 +2861,35 @@ def run_selftest
    )
    selftest_assert rb_changed.any? { |m| m.include?("rb 自身") }, "負例: 検査自身の改変"
  
@@ -454,7 +1145,7 @@ index 3d48c75..1fb20e1 100644
    selftest_assert parse_contract_baseline_text("---\nfoo: 1\n") == :missing, "負例: 契約 baseline_commit 欠落"
    selftest_assert parse_contract_baseline_text("---\nbaseline_commit: \"PM が凍結時に設定\"\n") == :placeholder, "負例: 契約 baseline_commit プレースホルダ"
    selftest_assert parse_contract_baseline_text("---\nbaseline_commit: \"not-a-sha\"\n") == :invalid, "負例: 契約 baseline_commit 不正"
-@@ -2208,6 +2447,10 @@ raw = ENV["TASK40_BASELINE"]
+@@ -2208,6 +2932,10 @@ raw = ENV["TASK40_BASELINE"]
  baseline, env_errs = baseline_env_errors(raw)
  ng.concat(env_errs)
  
@@ -465,7 +1156,7 @@ index 3d48c75..1fb20e1 100644
  contract_text = File.exist?(CONTRACT_PATH) ? File.read(CONTRACT_PATH) : nil
  if contract_text.nil?
    ng << "契約ファイル #{CONTRACT_PATH} が無い"
-@@ -2221,7 +2464,7 @@ if baseline
+@@ -2221,7 +2949,7 @@ if baseline
      ng << "TASK40_BASELINE が無効なコミット: #{baseline}"
      baseline = nil
    else

@@ -391,3 +391,7 @@ PM 目視ゲート：
 - **[指摘5]** `TASK38_BASELINE` は「HEAD と一致しないこと」ではなく、**凍結基準の内容**で検証する: ①HEAD の祖先である ②基準時点で `SettingsGroup.swift` が存在せず SettingsView に `TabView` が無い（＝実装前） ③基準時点の受け入れテストと本 rb が現在と同一。凍結 HEAD 上の未コミット実装を検査する通常運用を拒否しない。
 - **[指摘6]** `--selftest` の負例は「正例 fixture に違反を 1 つだけ加えたもの」とし、**本番と同じ検査関数**で NG になることを確認する（重複分岐・並べ替え・未使用コード偽装・`if false` 包みを含む）。task35-wiring.rb の selftest も本番関数を使う。
 - **[指摘7]** PM 目視ゲートの起動条件に `PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN=1` を加え、通常 Debug の Keychain（端末ストア）を隔離する。
+
+## 適用終了の注記（2026-09-13）
+
+`task38-wiring.rb` による `macos/App/SettingsView.swift` の不変保護は task-17（UI-05）の凍結時点（3abd7d1 以降）で適用終了。後継は `task17-wiring.rb`。UI-05 実装後に本検査を再実行すると対象 3 Button の差で失敗するのは既知で、欠陥ではない。

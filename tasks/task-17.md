@@ -212,3 +212,9 @@ SettingsView は App ターゲットのため、SwiftPM の成功だけではコ
 - 受け入れテスト・配線検査 `task17-wiring.rb` の作成は Cursor（テスト作成担当。実装担当とは別セッション）に委譲し、PM が凍結前に `--selftest` と未実装 RED を確認する。
 - 成功基準 3 の「先行契約との衝突」は次で解消する: task-35／task-38 の配線検査（`task35-wiring.rb`・`task38-wiring.rb`）は各タスクの受け入れ時点の固定 SHA と比較する歴史的検査であり、統合 `verify.sh` には含まれない。UI-05 実装後は SettingsView に対する両検査の再実行を要求せず、SettingsView の保護は本契約の `task17-wiring.rb`（固定 SHA との宣言単位比較）が引き継ぐ。decision-log に記録する。
 - PM 目視ゲートの実施（Debug ビルド・AX 操作・撮影）は Cursor 観測担当が手順どおり実行し、PM が PNG を確認して判定する。
+
+## 敵対レビュー反映（2026-09-13、`docs/agent-output/task17-acceptance-adversarial.md`）
+
+- MUST 1・MED 4・5・6 は rb 側の欠陥として Cursor に修正を委譲し、再凍結する（コメント/文字列の同時識別、対象ごとの `.bordered` 厳密 1 件＋旧スタイル位置での置換比較、単一違反の負例分離、有効 SHA 同士の不一致・HEAD 同値実装前 blob・実装後 blob の正負例）。
+- HIGH 2: 成功基準 3 は本節の裁定で上書きする。task-35／task-38 の配線検査の SettingsView 保護は **本契約の凍結時点で適用終了**とし、後継は `task17-wiring.rb`（対象 3 Button の許可差分以外の全宣言を固定 SHA と比較）。両契約ファイルに適用終了の注記を追記する。`ui-ux-verify-task.sh` の task-35/38 分岐は完了済みタスクの再検証用として残すが、UI-05 実装後に SettingsView の差で失敗することは既知とする。
+- HIGH 3: 対象 3 Button への AX `set focused` の成立は事前実測しない。実装後の目視ゲートで成立しなければ契約どおり「未達（未検証）」として記録し、pass 条件から外して残す（OS 設定の変更で回避しない）。この残余リスクは PM が受容する。

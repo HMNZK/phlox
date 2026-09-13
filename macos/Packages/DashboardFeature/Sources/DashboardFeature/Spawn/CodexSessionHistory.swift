@@ -55,9 +55,7 @@ struct CodexSessionHistoryDiscovery: Sendable {
                     firstUserAt: scan.firstUserAt,
                     lastModified: candidate.modified,
                     gitBranch: nil,
-                    fileURL: candidate.url,
-                    titleUserMessages: scan.titleUserMessages,
-                    titleSummary: nil
+                    fileURL: candidate.url
                 )
             )
             if result.count == limit { break }
@@ -164,14 +162,6 @@ struct CodexSessionHistoryDiscovery: Sendable {
             } else {
                 updatedAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 4)) / 1_000)
             }
-            let rawFirst = Self.databaseString(statement, column: 3)
-            let titleUsers: [String]
-            if let rawFirst, !rawFirst.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                titleUsers = [rawFirst]
-            } else {
-                titleUsers = []
-            }
-            let titleSummary = Self.databaseString(statement, column: 2)
             entries.append(
                 ClaudeSessionHistoryEntry(
                     sessionID: sessionID,
@@ -179,9 +169,7 @@ struct CodexSessionHistoryDiscovery: Sendable {
                     firstUserAt: nil,
                     lastModified: updatedAt,
                     gitBranch: nil,
-                    fileURL: URL(fileURLWithPath: rolloutPath),
-                    titleUserMessages: titleUsers,
-                    titleSummary: titleSummary
+                    fileURL: URL(fileURLWithPath: rolloutPath)
                 )
             )
         }
@@ -214,18 +202,7 @@ struct CodexSessionHistoryDiscovery: Sendable {
                   values.isRegularFile == true else {
                 return nil
             }
-            let rootPath = sessionsRoot.resolvingSymlinksInPath().path
-            let filePath = url.resolvingSymlinksInPath().path
-            let rebased: URL
-            if filePath.hasPrefix(rootPath) {
-                let rest = filePath.dropFirst(rootPath.count).drop(while: { $0 == "/" })
-                rebased = rest.split(separator: "/").reduce(sessionsRoot) {
-                    $0.appendingPathComponent(String($1))
-                }
-            } else {
-                rebased = url
-            }
-            return RolloutFile(url: rebased, modified: values.contentModificationDate ?? .distantPast)
+            return RolloutFile(url: url, modified: values.contentModificationDate ?? .distantPast)
         }.sorted {
             if $0.modified != $1.modified { return $0.modified > $1.modified }
             return $0.url.path < $1.url.path
@@ -237,7 +214,6 @@ struct CodexSessionHistoryDiscovery: Sendable {
         var cwd: String?
         var firstUserText: String?
         var firstUserAt: Date?
-        var titleUserMessages: [String] = []
     }
 
     private func scan(
@@ -269,10 +245,6 @@ struct CodexSessionHistoryDiscovery: Sendable {
                let payload = object["payload"] as? [String: Any] {
                 scan.sessionID = payload["id"] as? String ?? payload["session_id"] as? String
                 scan.cwd = payload["cwd"] as? String
-            }
-            if let role = Self.messageRole(in: object), role == "user",
-               let text = Self.messageText(in: object, role: role) {
-                scan.titleUserMessages.append(text)
             }
             if scan.firstUserText == nil,
                let text = Self.messageText(in: object, role: "user"),

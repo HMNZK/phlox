@@ -91,8 +91,7 @@ struct ClaudeSessionHistoryDiscovery: Sendable {
 
         var discovered: [ClaudeSessionHistoryEntry] = []
 
-        for listed in contents {
-            let fileURL = projectDir.appendingPathComponent(listed.lastPathComponent)
+        for fileURL in contents {
             guard fileURL.pathExtension == "jsonl" else { continue }
             guard (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else {
                 continue
@@ -113,9 +112,7 @@ struct ClaudeSessionHistoryDiscovery: Sendable {
                     firstUserAt: firstUser.timestamp,
                     lastModified: lastModified,
                     gitBranch: firstUser.gitBranch,
-                    fileURL: fileURL,
-                    titleUserMessages: scan.titleUserMessages,
-                    titleSummary: nil
+                    fileURL: fileURL
                 )
             )
         }
@@ -138,18 +135,16 @@ struct ClaudeSessionHistoryDiscovery: Sendable {
     private struct FileScanResult {
         let isSidechainFile: Bool
         let firstUserLine: UserLineInfo?
-        let titleUserMessages: [String]
     }
 
     private static func scanFile(at fileURL: URL) -> FileScanResult {
         guard let handle = try? FileHandle(forReadingFrom: fileURL) else {
-            return FileScanResult(isSidechainFile: false, firstUserLine: nil, titleUserMessages: [])
+            return FileScanResult(isSidechainFile: false, firstUserLine: nil)
         }
         defer { try? handle.close() }
 
         var isSidechainFile = false
         var firstUserLine: UserLineInfo?
-        var titleUserMessages: [String] = []
         var lineCount = 0
         var reader = JSONLByteLineReader(handle: handle)
 
@@ -159,37 +154,24 @@ struct ClaudeSessionHistoryDiscovery: Sendable {
                 line,
                 lineCount: &lineCount,
                 isSidechainFile: &isSidechainFile,
-                firstUserLine: &firstUserLine,
-                titleUserMessages: &titleUserMessages
+                firstUserLine: &firstUserLine
             )
         }
 
-        return FileScanResult(
-            isSidechainFile: isSidechainFile,
-            firstUserLine: firstUserLine,
-            titleUserMessages: titleUserMessages
-        )
+        return FileScanResult(isSidechainFile: isSidechainFile, firstUserLine: firstUserLine)
     }
 
     private static func processScannedLine(
         _ line: String,
         lineCount: inout Int,
         isSidechainFile: inout Bool,
-        firstUserLine: inout UserLineInfo?,
-        titleUserMessages: inout [String]
+        firstUserLine: inout UserLineInfo?
     ) {
         lineCount += 1
         guard let parsed = parseLine(line) else { return }
 
         if parsed.isSidechain == true {
             isSidechainFile = true
-        }
-
-        if parsed.type == "user", let userText = extractUserText(from: parsed) {
-            if parsed.isMeta == true {
-            } else {
-                titleUserMessages.append(userText)
-            }
         }
 
         if firstUserLine == nil,
@@ -278,7 +260,6 @@ extension ClaudeSessionHistoryDiscovery {
         let timestamp: String?
         let gitBranch: String?
         let isSidechain: Bool?
-        let isMeta: Bool?
     }
 
     struct ParsedMessage {
@@ -331,8 +312,7 @@ extension ClaudeSessionHistoryDiscovery {
             uuid: json["uuid"] as? String,
             timestamp: json["timestamp"] as? String,
             gitBranch: json["gitBranch"] as? String,
-            isSidechain: json["isSidechain"] as? Bool,
-            isMeta: json["isMeta"] as? Bool
+            isSidechain: json["isSidechain"] as? Bool
         )
     }
 

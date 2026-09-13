@@ -128,7 +128,8 @@ struct AcceptanceCodexProductionReachabilityTests {
                     }
                     #expect(elements.contains { $0.identifier?.hasPrefix("CodexBackgroundTerminal.") == true } == false)
                     let displayedText = Set(elements.flatMap { [$0.title, $0.value, $0.description].compactMap { $0 } })
-                    #expect(displayedText.contains { $0.contains("inspect") })
+                    // 既定閉の TaskListCell は見出しのみ。ステップ名 inspect は viewModel 照合（上）で維持。
+                    #expect(displayedText.contains { $0.contains("タスク（2件）") })
                     #expect(displayedText.contains { $0.contains("child-new") })
 
                 }

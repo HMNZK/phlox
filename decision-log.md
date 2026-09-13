@@ -198,3 +198,4 @@
 - 2026-09-13 task-46（MUST1/HIGH7/MED4）・task-50（MUST3/HIGH7/MED2）・task-48（MUST3/HIGH5/MED3）受け入れ検査の敵対レビュー: 旧 rb（task13/38）は着手時検査と裁定、既存 Swift テストの旧英語期待値は task-48 の検査修正で言語引数付きへ改訂（PM 承認）、task-50 は task-48 done 後に再凍結、ADR 0147 サブタイトルは現状維持。他は全採択→Cursor 3 ジョブに委譲（再凍結）。
 - 2026-09-13 task-44 再凍結 d65fde1（旧 a3822de 無効。index のみ・退避維持）。task-43 統合 verify exit 0、レビュー pass、目視は PM 判定中。
 - 2026-09-13 task-43（UX-03）done: レビュー pass（指摘 0）、PM 目視 pass、統合 verify.sh exit 0。Release defaults md5 の差異は Release 自身の書込（plist mtime 14:24）と判断、theme/fontScale 値は不変。
+- 2026-09-13 task-46 再凍結 11fbb08（旧 dde44dc 無効、index のみ）。verify に task-44/46/51 分岐を登録。

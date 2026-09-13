@@ -56,6 +56,15 @@ fi
 if [ "${1:-}" = task-43 ]; then
   exec bash "$verifier" "$@" --verify '/Users/ryosuke/.agents/scripts/compact-test task43-wiring-selftest ruby .claude/scripts/task43-wiring.rb --selftest && /Users/ryosuke/.agents/scripts/compact-test task43-wiring env TASK43_BASELINE=026ed2d ruby .claude/scripts/task43-wiring.rb && (cd macos/Packages/SessionFeature && /Users/ryosuke/.agents/scripts/compact-test task43-session swift test) && (cd macos/Packages/DashboardFeature && /Users/ryosuke/.agents/scripts/compact-test task43-dashboard swift test) && git diff --check'
 fi
+if [ "${1:-}" = task-44 ]; then
+  exec bash "$verifier" "$@" --verify '/Users/ryosuke/.agents/scripts/compact-test task44-wiring-selftest ruby .claude/scripts/task44-wiring.rb --selftest && /Users/ryosuke/.agents/scripts/compact-test task44-wiring env TASK44_BASELINE=d65fde1 ruby .claude/scripts/task44-wiring.rb && (cd macos/Packages/AgentDomain && /Users/ryosuke/.agents/scripts/compact-test task44-agentdomain swift test) && (cd macos/Packages/SessionFeature && /Users/ryosuke/.agents/scripts/compact-test task44-sessionfeature swift test) && (cd macos/Packages/DashboardFeature && /Users/ryosuke/.agents/scripts/compact-test task44-dashboardfeature swift test) && git diff --check'
+fi
+if [ "${1:-}" = task-46 ]; then
+  exec bash "$verifier" "$@" --verify '/Users/ryosuke/.agents/scripts/compact-test task46-wiring-selftest ruby .claude/scripts/task46-wiring.rb --selftest && /Users/ryosuke/.agents/scripts/compact-test task46-wiring env TASK46_BASELINE=11fbb08 ruby .claude/scripts/task46-wiring.rb && (cd macos/Packages/SessionFeature && /Users/ryosuke/.agents/scripts/compact-test task46-sessionfeature swift test) && git diff --check'
+fi
+if [ "${1:-}" = task-51 ]; then
+  exec bash "$verifier" "$@" --verify '/Users/ryosuke/.agents/scripts/compact-test task51-wiring-selftest ruby .claude/scripts/task51-wiring.rb --selftest && /Users/ryosuke/.agents/scripts/compact-test task51-wiring env TASK51_BASELINE=a2c5882 ruby .claude/scripts/task51-wiring.rb && (cd macos/Packages/DashboardFeature && /Users/ryosuke/.agents/scripts/compact-test task51-dashboardfeature swift test) && git diff --check'
+fi
 exec bash "$verifier" "$@"
 if [ "${1:-}" = task-38 ]; then
   exec bash "$verifier" "$@" --verify '/Users/ryosuke/.agents/scripts/compact-test task38-wiring-selftest ruby .claude/scripts/task38-wiring.rb --selftest && /Users/ryosuke/.agents/scripts/compact-test task38-wiring env TASK38_BASELINE=8e628e5 ruby .claude/scripts/task38-wiring.rb && /Users/ryosuke/.agents/scripts/compact-test task38-task35-regression env TASK35_BASELINE=094f86a ruby .claude/scripts/task35-wiring.rb && (cd macos/Packages/DesignSystem && /Users/ryosuke/.agents/scripts/compact-test task38-design-system swift test) && git diff --check'

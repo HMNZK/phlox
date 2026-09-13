@@ -77,3 +77,6 @@ d65fde1	macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceS
 d65fde1	macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceSessionTitleLifecycleTests.swift
 d65fde1	macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Acceptance/AcceptanceSessionTitlePersistenceTests.swift
 d65fde1	.claude/scripts/task44-wiring.rb
+11fbb08	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptItemPresentationTests.swift
+11fbb08	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask46Tests.swift
+11fbb08	.claude/scripts/task46-wiring.rb

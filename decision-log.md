@@ -231,3 +231,4 @@
 - 2026-09-13 task-44 レビュー r3 裁定: MEDIUM（サーバー履歴の由来不明項目を先頭行採用しない）は PM の契約文（r2 後の確定）が 197 行・凍結テストと矛盾した契約欠陥→契約を訂正、実装は正。HIGH（isMeta 不採用がサーバー item と履歴再開の再保存で維持されない）は (a) サーバー item の raw.isMeta 未検査＝実装欠陥、(b) loader の isMeta→userMessage 変換＝allowed_paths 外の契約欠陥→ClaudeSessionHistory.swift を allowed_paths に追加。差し戻しは (a)+(b) の最小修正。review-task-44-r3.json に保存。
 - 2026-09-13T20:49:17+0900 task-44 resume: ユーザー承認（2026-09-13「承認して全部続行」）: 3 回目の差し戻し。r3 HIGH の isMeta 除外（サーバー item の raw.isMeta 検査＋履歴 loader の isMeta 除外）の最小修正
 - 2026-09-13 task-44 3 回目の差し戻しをユーザー承認（「承認して全部続行（推奨）」）。resume --human-approved 済み。
+- 2026-09-13 task-44 3 回目差し戻し中の ESCALATION を裁定: (b) loader の isMeta 除外は task-51 凍結テスト（transcript 変換 4 件）と衝突→撤回。(a) のみ実装。既知の限界（meta のみで再開→後日復元で meta 採用の可能性）を契約に明記し後続項目へ。

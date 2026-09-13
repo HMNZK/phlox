@@ -1,0 +1,104 @@
+{
+  "reviewer": "codex-gpt-6-astra",
+  "dimensions_swept": [
+    {
+      "dimension": "契約適合",
+      "result": "finding",
+      "note": "契約全文と実装HEAD 10a0360を照合。表示分類表は適合するが、回答描画部の変更禁止と既存コマンド要約の到達性に違反。指摘2件を参照。Rubric相当は契約315行目「レビュー観点と完了条件」の7項目として以下に列挙した。"
+    },
+    {
+      "dimension": "正しさ",
+      "result": "ok",
+      "note": "単体／1件グループの空出力の差、最新／過去の実行状態、空白判定、件数、実行中補足の優先順位を固定表と照合。同一IDの内容更新・実行終了で状態を初期化する処理はない。"
+    },
+    {
+      "dimension": "誠実性",
+      "result": "finding",
+      "note": "未承認のAgentMessageBody変更を確認。AX期待の更新はPM裁定と一致し、inspect／verifyのVM照合も残る。握りつぶし・skip追加は検出せず。"
+    },
+    {
+      "dimension": "根本原因",
+      "result": "finding",
+      "note": "分類と初期開閉の是正は共有モデルとセル内状態で実現。ただし、見出しから外したコマンド要約を展開内容へ移す処理が欠落している。"
+    },
+    {
+      "dimension": "構造",
+      "result": "ok",
+      "note": "表示モデルはFoundationのみをimportする同期的な値型で、副作用・上位層依存なし。既存カード、描画窓、ファイル変更ポリシーを再利用している。"
+    },
+    {
+      "dimension": "到達性",
+      "result": "finding",
+      "note": "回答・処理中・エラーは常時表示経路を維持。詳細の開閉と追加表示へ配線されているが、出力なしの末尾コマンドに由来する既存要約が到達不能になる。"
+    },
+    {
+      "dimension": "非機能",
+      "result": "ok",
+      "note": "DisclosureGroup、全幅Button、シェブロン、AX値「展開中／折りたたみ中」を維持。文字倍率・テーマ・差分色・処理中の活動／AXラベルも維持。幅×倍率×テーマの実目視はPM担当として判定から分離。"
+    },
+    {
+      "dimension": "テストの質",
+      "result": "finding",
+      "note": "凍結3ファイルは基準から差分なし。固定表と20／50／500の境界期待は有効。ただし既存要約の表示欠落は検出されず、通常のRuby実行ではAgentMessageBodyを保護するscope検査も有効にならない。"
+    },
+    {
+      "dimension": "Rubric：表示分類・固定期待値の実View接続",
+      "result": "finding",
+      "note": "見出し・補足・意味色・既定閉は接続済み。既存グループ要約の展開内容への移設だけが欠落。"
+    },
+    {
+      "dimension": "Rubric：開閉保持と空白後の再表示",
+      "result": "ok",
+      "note": "各セルの@StateとuserOverride優先のBindingを確認。ChatItemViewが空白思考時にReasoningSummaryViewを除去するため再表示は初期閉。同一IDの非空更新は同じ子Viewの状態を保持する。"
+    },
+    {
+      "dimension": "Rubric：原文・操作・描画予算・文字体系",
+      "result": "finding",
+      "note": "50件・20行・500行からの追加表示、コピー全文、差分行番号・色、質問・承認・中断・移動操作は維持。既存要約の消失と、変更禁止の回答描画部への追加は指摘対象。"
+    },
+    {
+      "dimension": "Rubric：ADR 0147の限定置換と文書責務",
+      "result": "ok",
+      "note": "思考・コマンド・タスクの表示変更は置換対象内。コードカード等の既存経路を維持し、後継ADRはPMのフェーズ5責務として扱った。"
+    },
+    {
+      "dimension": "Rubric：scope検査と恒久回帰・task-47互換性",
+      "result": "finding",
+      "note": "Rubyにはscope分離とtask-47許可fixtureがある。ただしtask-46のdriver枝はTASK46_SCOPE_CHECK=1を指定しておらず、通常GREENでは今回のAgentMessageBody変更を検出できない。"
+    },
+    {
+      "dimension": "Rubric：凍結テストの不変性",
+      "result": "ok",
+      "note": "AcceptanceTranscriptItemPresentationTests、PMTranscriptVisualTask46Tests、task46-wiring.rbの基準0c6037fからの差分は空。別の既存AXテスト変更は明示されたPM裁定内。"
+    },
+    {
+      "dimension": "Rubric：品質ゲート・独立レビュー・PM目視の扱い",
+      "result": "ok",
+      "note": "自環境の実走不能を明示し、供給された独立客観層と静的検証を区別した。PM目視未了を差し戻し理由にせず、製品差分の具体的な契約違反で判定した。"
+    }
+  ],
+  "verdict": "needs_changes",
+  "tests_run": [],
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "file": "macos/Packages/SessionFeature/Sources/SessionFeature/ChatMessageCells+Basic.swift",
+      "line": 186,
+      "summary": "変更禁止のAgentMessageBodyに倍率状態とフォント指定を追加している。",
+      "evidence": "実ファイル186行に「@AppStorage(ChatFontSettings.scaleKey)」、189行にscale導出、195行に「.font(TranscriptTypography.font(for: .body, scale: scale))」を追加。契約172行は「AgentMessageBody の宣言・Markdown／コード分割経路を変更しない」と明記。既存のRichMarkdownViewは自身のAppStorageとChatTypography.bodyFontSize→TranscriptTypography経路で倍率を適用済み。decision-log.md:205はこの変更をレビュー判断に留保しており、承認ではない。Rubyのagent_message_body_errorsは構造差分を拒否するが、driverのtask-46枝はscope指定を省略している。",
+      "repro_test": "# /tmp/ui-ux-wt-46 で実行。既存の変更境界検査を有効にする。\n~/.agents/scripts/compact-test task46-scope env TASK46_BASELINE=0c6037f TASK46_SCOPE_CHECK=1 ruby .claude/scripts/task46-wiring.rb\n# 静的照合上の期待エラー: AgentMessageBody の宣言が基準から変化している",
+      "confidence": "verified"
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "macos/Packages/SessionFeature/Sources/SessionFeature/ChatMessageCells+CommandGroup.swift",
+      "line": 220,
+      "summary": "既存コマンド要約を展開内容へ移しておらず、出力なしの末尾コマンドが読めなくなる。",
+      "evidence": "旧「title: header.title」を「title: presentation.heading」に置換した一方、展開内容224〜247行はrowsSliceの行表示のみでheader.titleを参照しない。CommandGroupTitleは末尾の非空コマンドから要約を作るが、CommandGroupRowWindowは完了した空出力行を除外する。例えばa＝echo visible／出力ok、b＝echo hidden／空出力の完了グループでは、旧見出しecho hiddenが消え、展開してもaしか表示されない。契約155行の「既存要約を展開内容側から読めるようにする」に違反する。",
+      "repro_test": "// AcceptanceCodexProductionReachabilityTests.swift 内に追加する提案。\n// 同ファイル既存のAX・描画補助関数を利用する。\n@Test @MainActor\nfunc expandedGroupKeepsPreviousSummary() throws {\n    let app = NSApplication.shared\n    app.setActivationPolicy(.prohibited)\n    app.finishLaunching()\n    let items: [ChatItem] = [\n        .commandExecution(id: \"a\", command: \"echo visible\", output: \"ok\", timestamp: .distantPast),\n        .commandExecution(id: \"b\", command: \"echo hidden\", output: \"\", timestamp: .distantPast)\n    ]\n    let host = NSHostingView(rootView: CommandGroupCell(items: items, lastTranscriptID: \"b\", isTurnRunning: false))\n    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 600), styleMask: [.borderless], backing: .buffered, defer: false)\n    window.isReleasedWhenClosed = false\n    window.contentView = host\n    defer { window.close() }\n    window.orderBack(nil)\n    settleHeadlessView(host)\n    func descendants(_ element: AXUIElement) -> [AXUIElement] {\n        [element] + ((axValue(element, kAXChildrenAttribute) as? [AXUIElement]) ?? []).flatMap(descendants)\n    }\n    let root = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)\n    let windows = try #require(axValue(root, kAXWindowsAttribute) as? [AXUIElement])\n    let button = try #require(windows.flatMap(descendants).first {\n        axValue($0, kAXValueAttribute) as? String == \"折りたたみ中\"\n    })\n    #expect(AXUIElementPerformAction(button, kAXPressAction as CFString) == .success)\n    settleHeadlessView(host)\n    let text = axElements(in: app).flatMap { [$0.title, $0.value, $0.description].compactMap { $0 } }\n    #expect(text.contains { $0.contains(\"echo hidden\") })\n}",
+      "confidence": "verified"
+    }
+  ],
+  "integrity_check": "実装者の開示レポートは未読。新規の握りつぶし・skip・期待値の不正変更は検出せず。実走は未検証。compact-test経由でAcceptanceTranscriptItemPresentationTestsとTASK46_SCOPE_CHECK=1のRuby検査を試みたが、いずれもランナー起動前に停止した。原文:「mktemp: mkstemp failed on /tmp/tmp.5VcCEoM61r: Operation not permitted」「/Users/ryosuke/.agents/scripts/compact-test: line 26: : No such file or directory」「cat: : No such file or directory」。Ruby試行も同じ失敗。ラッパー26行のログリダイレクト以前の一時ファイル作成拒否であり、実装起因ではない。TMPDIR変更やラッパー迂回は行っていない。呼び出し元から凍結テスト・固定シナリオ・Ruby/selftest・SessionFeature 950件の独立GREENが供給されているため、環境例外条項を適用。git diff --checkはexit 0だったが、xcrunキャッシュ作成拒否、FSEvents開始失敗、DARWIN_USER_CACHE_DIR取得失敗の警告・エラーを伴った。PM目視は並行作業として分離した。",
+  "root_cause_assessment": "詳細を常にDisclosureCardへ接続し、セル内@StateをuserOverride優先で読む修正は根本原因に届いている。静的変異として、defaultExpandedをtrueへ変更すると思考・タスクの初期閉期待、単体／グループの区別を削るとpathIsNotInferredFromCount、20／50／500の上限を変えると各固定境界期待が破れることを確認した。ただしretainedUserOverrideの単体検査だけでは実Viewの状態保持を証明できないため、親の空白ガードと安定ID、セル内状態を別途追跡した。既存要約の欠落は現行凍結テストでは検出されず、展開内容への移設と実AX検査が必要。回答フォント追加については、既存のRichMarkdownView→ChatTypography→TranscriptTypography経路をRubyの回答検査が追えていない一方、scope検査は禁止変更として拒否する不整合がある。製品側の禁止変更を残して通常回帰だけをGREENにしても解消にならず、PMによる検査整合の裁定が必要。isToolCallの「true &&」は意味色の式と論理的に等価であり、独立した指摘にはしない。"
+}

@@ -1,0 +1,127 @@
+{
+  "reviewer": "codex-gpt-6-astra",
+  "dimensions_swept": [
+    {
+      "dimension": "契約適合",
+      "result": "finding",
+      "note": "状態の優先順位・正規化は成立。本文由来の保持と初回保存について指摘1・2。H5のE2E更新は契約に整合する。"
+    },
+    {
+      "dimension": "正しさ",
+      "result": "finding",
+      "note": "再読込による補足本文の採用、load待機中の変更・削除、改名の二重保存を確認（指摘1〜3）。"
+    },
+    {
+      "dimension": "誠実性",
+      "result": "ok",
+      "note": "凍結テスト・Rubyの基準からの改変は検出せず。既存E2E更新は復元中の保存抑止を維持し、繰り越し削除の検査を追加している。"
+    },
+    {
+      "dimension": "根本原因",
+      "result": "finding",
+      "note": "PIDの差分更新は古い全体保存の問題を解消する。一方、本文由来の消失とawaitをまたぐ初回保存の状態取得が残る（指摘1・2）。"
+    },
+    {
+      "dimension": "構造",
+      "result": "finding",
+      "note": "状態規則はAgentDomainに集約され、liveTitleStateはMainActor上で弱参照から取得する。ただし改名の保存責務が二重化している（指摘3）。"
+    },
+    {
+      "dimension": "到達性",
+      "result": "ok",
+      "note": "新規生成、通常復元、両失敗プレースホルダ、UI／CLI rename、SessionNodeの読み取り窓口を静的に追跡。目視ゲートは指定どおりtask-45担当。"
+    },
+    {
+      "dimension": "非機能",
+      "result": "finding",
+      "note": "名前生成にAI・外部プロセス・ネットワークの追加なし。既存PTY・認可・秘密情報保護は維持。改名でストア全体の保存が重複する（指摘3）。"
+    },
+    {
+      "dimension": "テストの質",
+      "result": "finding",
+      "note": "状態・descriptor・PID・H5の期待値には検出力がある。一部のイベント待機と巻き戻し検査は対象処理の成立を保証しない（指摘4）。"
+    },
+    {
+      "dimension": "Rubric: initializerの不整合排除と旧名・手動名・空名の保護",
+      "result": "ok",
+      "note": "不整合なflower／derivedは入力名を保持したmanualへ正規化。renameの前後除去、空名の固定、fallbackも契約に整合する。"
+    },
+    {
+      "dimension": "Rubric: 経路別の本文由来判定",
+      "result": "finding",
+      "note": "サーバー反映時の由来判定はあるが、その本文をローカル保存して再読込すると無条件に信頼する（指摘1）。"
+    },
+    {
+      "dimension": "Rubric: 確定状態での履歴抽出の早期終了",
+      "result": "ok",
+      "note": "タイトル用のローカル履歴抽出、サーバー履歴走査、イベント採用より前にflowerガードがある。"
+    },
+    {
+      "dimension": "Rubric: 初回保存・復元待ち・PID・削除の競合",
+      "result": "finding",
+      "note": "PIDはキュー上の現存descriptorへ部分更新し、H5の削除を先に処理する。ただし初回保存のload待機中に状態が古くなる（指摘2）。"
+    },
+    {
+      "dimension": "Rubric: descriptor互換・workspace・秘密情報・PTY・認可",
+      "result": "ok",
+      "note": "両initializer、旧JSON、不在／null／未知source、他フィールド更新、workspace転記を確認。token非encodeとenv除去を維持する。"
+    },
+    {
+      "dimension": "Rubric: scope検査と恒久検査の分離",
+      "result": "ok",
+      "note": "Rubyはscope_errorsをTASK44_SCOPE_CHECKで分離し、恒久・凍結検査を通常経路に残す。短SHAはD4の裁定に整合する。"
+    },
+    {
+      "dimension": "Rubric: task-45向けAPIと表示責務の境界",
+      "result": "ok",
+      "note": "ControllableSession、両VM、SessionNodeからtitleStateを読める。表示モデル・Viewの追加はない。"
+    },
+    {
+      "dimension": "Rubric: テスト・Ruby・ビルド・目視の証拠の区別",
+      "result": "ok",
+      "note": "自身のテスト実走は環境制約により未検証。PM供給の客観層と静的確認を区別した。Appビルド・目視・課金CLIは実行していない。"
+    }
+  ],
+  "verdict": "needs_changes",
+  "tests_run": [],
+  "findings": [
+    {
+      "severity": "HIGH",
+      "file": "macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionViewModel.swift",
+      "line": 2539,
+      "summary": "保存済みtranscriptを無条件に元本文扱いするため、サーバーの補足本文が再読込後にタイトルへ混入する。",
+      "evidence": "2539〜2541行は「InputHistoryPolicy.entries(from: items)」の本文をそのままreceivingUserMessageへ渡す。一方、2033〜2037行はサーバー由来のchatItemをappendOrReplaceし、itemCompletedでenqueueTranscriptUpsertする。2496〜2504行の変換ではoriginalTextの由来情報を保持しない。したがって、ローカル /review に対応する「/review\\nログイン画面を修正」を受信した直後はflowerでも、保存・restore後は補足からderivedになる。",
+      "repro_test": "// AcceptanceSessionTitleLifecycleTests.swiftの既存ヘルパーを使用する追加検査案（未実走）。\n@Test @MainActor\nfunc 補足付きイベントを保存して再読込しても花名を保つ() async throws {\n    let store = TitleLifecycleTranscriptStore()\n    let (vm, client) = makeCodexVM(transcriptStore: store)\n    try await vm.startNew(approvalPolicy: .named(\"on-request\"), sandbox: .named(\"workspace-write\"))\n    try await vm.sendText(\"/review\", submit: true)\n    let userID = try #require(firstUserMessageID(vm))\n    let threadID = try #require(vm.threadId)\n    try await yieldUserItem(client, threadId: threadID, itemJSON: unidentifiedSupplementJSON(id: userID))\n    try await waitUntil {\n        vm.transcript.contains {\n            if case .userMessage(let id, let text, _, _) = $0 {\n                return id == userID && text == \"/review\\nログイン画面を修正\"\n            }\n            return false\n        }\n    }\n    #expect(vm.titleState.source == .flower)\n    await vm.flushTranscriptNow()\n    await vm.restore(threadId: threadID, approvalPolicy: .named(\"on-request\"), sandbox: .named(\"workspace-write\"))\n    #expect(vm.titleState == .generated(flowerName: \"Rose\"))\n    await vm.terminate()\n}",
+      "confidence": "verified"
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/SessionPersistenceCoordinator.swift",
+      "line": 120,
+      "summary": "初回保存の生存確認と最新タイトル取得がawait loadより前にあるため、その待機中の変更・削除を初回書き込みへ反映できない。",
+      "evidence": "106行でdeletedSessionIDsを検査し、117〜118行でliveTitleStateを取得した後、120行でsessionStore.loadをawaitする。復帰後は再確認せず123行でdescriptorを追加する。待機中にrenameすると最初の保存は古い花名になり、削除すると削除要求後にdescriptorを一度作成してから後続の削除保存で消す。H3の「最新状態で初回保存」「削除後の初回保存で再作成しない」を満たさない。",
+      "repro_test": "// DashboardFeatureTests内の追加検査案（未実走）。load内のhookで競合順序を固定する。\n@MainActor private final class FirstLoadHookStore: SessionStoreProtocol {\n    var live = SessionTitleState.generated(flowerName: \"Rose\")\n    var stored: [PersistedSessionDescriptor] = []\n    var snapshots: [[PersistedSessionDescriptor]] = []\n    var onFirstLoad: (() -> Void)?\n    func load() async -> [PersistedSessionDescriptor] {\n        let hook = onFirstLoad\n        onFirstLoad = nil\n        hook?()\n        return stored\n    }\n    func save(_ sessions: [PersistedSessionDescriptor]) async throws {\n        snapshots.append(sessions)\n        stored = sessions\n    }\n}\n@Test(arguments: [false, true]) @MainActor\nfunc 初回load中の変更と削除を反映する(delete: Bool) async {\n    let store = FirstLoadHookStore()\n    let coordinator = SessionPersistenceCoordinator(sessionStore: store, projectStore: InMemoryProjectStore(), logError: { _, _ in })\n    let id = SessionID()\n    coordinator.liveTitleState = { _ in store.live }\n    store.onFirstLoad = {\n        if delete {\n            coordinator.removeSession(id)\n        } else {\n            store.live = store.live.renamed(to: \"通知を修正\")\n            coordinator.persistSessionName(id: id, name: \"通知を修正\")\n        }\n    }\n    coordinator.persistSession(PersistedSessionDescriptor(id: id, kind: .claudeCode, workingDirectory: \"/tmp/work\", name: \"Rose\", projectID: nil, startedAt: Date(), command: \"/bin/cat\", args: [], env: [:], titleSource: .flower, flowerName: \"Rose\"))\n    await coordinator.waitForPendingWrites()\n    if delete {\n        #expect(store.snapshots.allSatisfy { !$0.contains { $0.id == id } })\n    } else {\n        #expect(store.snapshots.first?.first?.name == \"通知を修正\")\n        #expect(store.snapshots.first?.first?.titleSource == .manual)\n    }\n}",
+      "confidence": "verified"
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardViewModel.swift",
+      "line": 838,
+      "summary": "チャットの明示renameが変更通知と直接呼び出しの両方から保存され、同じ操作で二重書き込みになる。",
+      "evidence": "837行のnode.name代入はChatSessionViewModelの43行でtitleStateを変更し、38行のtitleStateDidChangeからDashboardViewModelの320〜321行を通ってpersistSessionNameを呼ぶ。その後838行でも同じ保存を呼ぶ。SessionPersistenceCoordinatorの152〜164行には同値保存の抑止がなく、二度ともストア全体を保存する。",
+      "repro_test": "// AcceptanceSessionTitlePersistenceTests.swiftの既存ヘルパーを使用する追加検査案（未実走）。\n@Test @MainActor\nfunc チャットの明示改名は一度だけ保存する() async throws {\n    let store = TitlePersistenceRecordingStore()\n    let (stream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()\n    let dashboard = DashboardViewModel(environment: makeTestEnvironment(\n        pty: MockPTYManager(), hookStream: stream, sessions: store,\n        appServerClientFactory: { _, _, _, _, _ in EventYieldingStructuredClient() }\n    ))\n    await dashboard.start()\n    let id = try await dashboard.spawnNewSession(kind: .claudeCode, backend: .appServer)\n    await dashboard.waitForPendingPersistenceWritesForTesting()\n    let before = await store.saveSnapshots.count\n    dashboard.renameSession(id, to: \"通知を修正\")\n    await dashboard.waitForPendingPersistenceWritesForTesting()\n    #expect(await store.saveSnapshots.count == before + 1)\n}",
+      "confidence": "verified"
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceSessionTitleLifecycleTests.swift",
+      "line": 612,
+      "summary": "凍結テストの一部はイベント処理前に待機条件が成立し、巻き戻し成功も確認しないため、H1・H2の検証になっていない。",
+      "evidence": "615行の「text == \"/review\"」と618行の「vm.titleState.source == .flower」はイベント投入前から真。643行・677行も既存userIDの存在だけを待つ。さらに689行で履歴をu-reloadへ置換した後、706行では古いuserIDへのrevertの戻り値を捨てている。製品のrevertは対象ID不在なら1064行でnilを返す。これらはPM管理の凍結テストの不足であり、今回変更されたE2EPersistenceTestsの弱体化ではない。",
+      "repro_test": "// PM側の検査補強案（未実走）。ユーザーイベントの後に同じストリームへ処理確認用項目を流す。\nlet barrier = try TitleLifecycleJSON.threadItem(#\"{\"id\":\"after-user-event\",\"type\":\"agentMessage\",\"text\":\"処理確認\"}\"#)\nclient.yieldThread(.itemCompleted(threadId: threadId, turnId: \"turn-1\", item: barrier))\ntry await waitUntil { vm.transcript.contains { $0.id == \"after-user-event\" } }\n#expect(vm.titleState == .generated(flowerName: \"Rose\")))\n\n// 再読込後は実在するIDで巻き戻し、成功と実際の切り詰めを検査する。\nlet reverted = await vm.revert(toUserMessageID: \"u-reload\")\n#expect(reverted == \"通知を修正\")\n#expect(vm.transcript.isEmpty)\n#expect(vm.titleState == derived)",
+      "confidence": "verified"
+    }
+  ],
+  "integrity_check": "実走は未検証。/tmp/ui-ux-wt-44で「/Users/ryosuke/.agents/scripts/compact-test task44-models bash macos/scripts/run-swift-tests.sh AgentDomain SessionFeature DashboardFeature」と「/Users/ryosuke/.agents/scripts/compact-test task44-wiring-selftest ruby .claude/scripts/task44-wiring.rb --selftest」を試したが、いずれもランナー起動前にexit 1。原文は「mktemp: mkstemp failed on /tmp/tmp.alR1yxejfu: Operation not permitted」「mktemp: mkstemp failed on /tmp/tmp.8loI2J8azJ: Operation not permitted」、続いて「/Users/ryosuke/.agents/scripts/compact-test: line 26: : No such file or directory」。ラッパーのログ作成がread-only制約で拒否されており、実装起因ではない。ラッパー迂回・TMPDIR変更は行っていない。呼び出し元は凍結テスト4本、Ruby基準検査・selftest、3パッケージ検査、diffチェックの独立GREENを供給している。実HEADは9e4c8b7a1f2b0b7905138dc39ac2c44b1101dfda。対象diffの10ファイルは実ファイルのblobハッシュと一致し、凍結5ファイルの基準差分は空だった。Gitにはxcrunキャッシュ作成拒否とFSEvents警告が出た。統合用 .claude/verify.sh はworktreeに存在せず、Appビルド・目視は未実施。凍結テスト改変・E2E弱体化は検出せず。削除保存のtry?は既存処理から残存している。開示レポートは読んでいない。提示した再現コードは未実走。",
+  "root_cause_assessment": "部分的に到達。状態型への正規化集約と、復元PIDを現存descriptorへ部分更新する変更は原因を直接解消している。静的変異確認では、不整合flowerの退避を削除するとflowerNameMismatchBecomesManual、PIDを旧descriptor全体保存へ戻すと最新名・role保持検査、繰り越し削除を外すとE2EPersistenceTestsの復元完了後count=4／saveCount=1が不成立になる。履歴抽出前のflowerガード単独削除はRubyのextraction_guard_errorsが対象とする。一方、本文の由来判定は保存・再読込を通して維持されず、初回保存もawait後の再評価が欠けている。凍結検査のGREENだけではこれらを否定できず、指摘1〜4への対応が必要。変異・再現テストは実行していない。"
+}

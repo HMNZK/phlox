@@ -214,3 +214,7 @@
 - 2026-09-13 task-49 再凍結 02072dd（旧 4018caa 無効。敵対レビュー反映の修正版、task-51 実装を含み task-49 実装を含まない）。
 - 2026-09-13 task-46 verify 枝を SessionFeature `swift test --no-parallel` へ変更（PM 承認のハーネス修理）。理由: 並列実行で無関係の壁時計テスト MidTurnPersistenceWhiteboxTests「flush完了がtimeoutより先なら即戻る」が 0.587s > 0.5s で RED（task-46 の差分と無関係、rb・selftest・diff --check は OK）。run-swift-tests.sh の公式手順も DashboardFeature 等で --no-parallel。
 - 2026-09-13 task-44 verify 枝を公式 `macos/scripts/run-swift-tests.sh AgentDomain SessionFeature DashboardFeature` へ変更（PM 承認のハーネス修理）。理由: DashboardFeature を並列 `swift test` で全数実行すると 22 分以上ハング（実 git を使う WorktreeIsolationSpawnTests 等の分離と --no-parallel を公式スクリプトが担う）。検査対象パッケージは不変。
+- 2026-09-13T18:38:25+0900 task-44 rework: レビュー r1: HIGH 保存 transcript の本文由来が復元で失われ補足本文が derived 化（H1/H2、実装欠陥）／MEDIUM 初回保存の生存確認・最新タイトル取得が await load 前（H3、実装欠陥）／MEDIUM 明示 rename の二重保存（実装欠陥）。MEDIUM 凍結 Lifecycle テストの待機条件・revert 戻り値未確認は PM 側ハーネス欠陥→先に修理・再凍結
+- 2026-09-13T18:38:25+0900 task-46 rework: レビュー r1: MEDIUM AgentMessageBody の宣言変更（契約 172 行で禁止。RichMarkdownView が既に倍率適用済み→撤回）／MEDIUM コマンドグループの既存要約（末尾の空出力コマンド）が展開内容から読めない（契約 155 行違反）。いずれも実装欠陥
+- 2026-09-13 task-44 レビュー r1 裁定: HIGH/MEDIUM×2 は実装欠陥→差し戻し（通算 1）。MEDIUM「凍結 Lifecycle テストの待機条件が事前成立・revert 戻り値未確認」は PM 側ハーネス欠陥→PM 承認でハーネス修理（Cursor、wt-44）→再凍結→差し戻し実装。review-task-44-r1.json に保存。
+- 2026-09-13 task-46 レビュー r1 裁定: MEDIUM×2 とも実装欠陥→差し戻し（通算 1）。AgentMessageBody 変更は契約 172 行違反として撤回させる。verify 枝の rb が scope 指定を省略している指摘は rb の引数仕様を確認して対応。review-task-46-r1.json に保存。目視観測（t46-visual）完了後に wt-46 で差し戻し実装。

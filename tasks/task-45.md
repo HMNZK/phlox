@@ -6,7 +6,7 @@ user_visible: true
 acceptance_tests:
   - macos/Packages/AgentDomain/Tests/AgentDomainTests/Acceptance/AcceptanceSessionTitlePresentationTests.swift
   - .claude/scripts/task45-wiring.rb
-baseline_commit: "e3dd2fb"
+baseline_commit: "e3dd2fb45aeec5d305995826885e15663a9dd6be"
 contract_tests: []
 allowed_paths:
   - macos/Packages/AgentDomain/Sources/AgentDomain/SessionTitlePresentation.swift

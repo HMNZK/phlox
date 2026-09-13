@@ -2,6 +2,7 @@
   "id": 17,
   "title": "UI-05 設定の補助ボタンを標準borderedにそろえる",
   "difficulty": "standard",
-  "status": "in_progress",
-  "updated_at": "2026-09-13T11:40:56+0900"
+  "status": "done_pending_review",
+  "updated_at": "2026-09-13T11:42:37+0900",
+  "review_rejections": 0
 }

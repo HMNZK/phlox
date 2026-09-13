@@ -1,25 +1,8 @@
 diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatMessageCells+Basic.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/ChatMessageCells+Basic.swift
-index 4d49c0d..21c1fc0 100644
+index 4d49c0d..971c0d0 100644
 --- a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatMessageCells+Basic.swift
 +++ b/macos/Packages/SessionFeature/Sources/SessionFeature/ChatMessageCells+Basic.swift
-@@ -183,13 +183,16 @@ struct TurnCostCell: View {
- 
- struct AgentMessageBody: View {
-     let text: String
-+    @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
- 
-     var body: some View {
-+        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-         VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
-             ForEach(Array(ChatMessageRenderCache.markdownBlocks(text).enumerated()), id: \.offset) { _, block in
-                 switch block {
-                 case .markdown(let markdown):
-                     RichMarkdownView(markdown)
-+                        .font(TranscriptTypography.font(for: .body, scale: scale))
-                         .chatTextSelection()
-                 case .code(let language, let code):
-                     CodeBlockView(language: language, code: code)
-@@ -209,8 +212,9 @@ struct ErrorMessageCell: View {
+@@ -209,8 +209,9 @@ struct ErrorMessageCell: View {
      var body: some View {
          let _ = themeID
          let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
@@ -31,7 +14,7 @@ index 4d49c0d..21c1fc0 100644
                  .foregroundStyle(DSColor.statusError)
              Text(message)
 diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatMessageCells+CommandGroup.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/ChatMessageCells+CommandGroup.swift
-index 0a21e80..a61fd0e 100644
+index 0a21e80..cd1a6ea 100644
 --- a/macos/Packages/SessionFeature/Sources/SessionFeature/ChatMessageCells+CommandGroup.swift
 +++ b/macos/Packages/SessionFeature/Sources/SessionFeature/ChatMessageCells+CommandGroup.swift
 @@ -160,9 +160,10 @@ struct CommandGroupCell: View, Equatable {
@@ -46,7 +29,7 @@ index 0a21e80..a61fd0e 100644
  
      init(
          items: [ChatItem],
-@@ -185,20 +186,43 @@ struct CommandGroupCell: View, Equatable {
+@@ -185,30 +186,59 @@ struct CommandGroupCell: View, Equatable {
  
      var body: some View {
          let _ = themeID
@@ -96,7 +79,15 @@ index 0a21e80..a61fd0e 100644
                          items: items,
                          lastTranscriptID: lastTranscriptID,
                          isTurnRunning: isTurnRunning,
-@@ -209,6 +233,7 @@ struct CommandGroupCell: View, Equatable {
+                         limit: rowLimit
+                     )
+                     VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
++                        Text(header.title)
++                            .font(TranscriptTypography.font(for: .processSummary, scale: scale))
++                            .foregroundStyle(DSColor.chatTextSecondary)
++                            .chatTextSelection()
++                            .fixedSize(horizontal: false, vertical: true)
+                         if rowsSlice.hiddenRowCount > 0 {
                              Button("残り \(rowsSlice.hiddenRowCount) 件を表示") {
                                  rowLimit += CommandGroupRowWindow.expandStep
                              }

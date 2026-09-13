@@ -32,7 +32,7 @@
 | task-46 | standard | done_pending_review |
 | task-47 | standard | pending |
 | task-48 | standard | pending |
-| task-49 | standard | pending |
+| task-49 | standard | in_progress |
 | task-50 | standard | pending |
 | task-51 | standard | done |
 <!-- AGENTIC-LOOP:END -->

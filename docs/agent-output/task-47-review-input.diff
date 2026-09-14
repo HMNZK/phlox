@@ -98,7 +98,7 @@ index 60f42c9..e072f03 100644
  }
  
 diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/RichMarkdownView.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/RichMarkdownView.swift
-index f7759c9..344e04e 100644
+index f7759c9..61c86da 100644
 --- a/macos/Packages/SessionFeature/Sources/SessionFeature/RichMarkdownView.swift
 +++ b/macos/Packages/SessionFeature/Sources/SessionFeature/RichMarkdownView.swift
 @@ -10,16 +10,19 @@ public struct RichMarkdownView: View {
@@ -221,6 +221,15 @@ index f7759c9..344e04e 100644
                  }
          }
          .blockquote { configuration in
+@@ -220,7 +224,7 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String) -> Theme {
+                         FontWeight(.semibold)
+                     }
+                     FontSize(ChatTypography.bodyFontSize(scale: scale))
+-                    ForegroundColor(DSColor.chatTextPrimary)
++                    ForegroundColor(bodyColor)
+                     BackgroundColor(nil)
+                 }
+                 .padding(.vertical, DSSpacing.xs * scale)
 diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/TranscriptMarkdownPresentation.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/TranscriptMarkdownPresentation.swift
 new file mode 100644
 index 0000000..078dc91

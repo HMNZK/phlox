@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-03
+last-verified: 2026-09-14
 ---
 
 # ADR 0024: 復元中の破壊的永続化ゲートと Commands の disabled 条件規約
@@ -27,3 +27,11 @@ last-verified: 2026-07-03
 - 回帰テスト `partialRestore_preservesStoreEntryCountWhenDestructiveSaveRunsDuringRestore` が契約（部分復元中の destructive save 抑止・復元後は従来どおり）を符号化。
 - runtime 実測: 起動 0.5s/1s/2s 後の SIGTERM ×3 で sessions=13・projects=4 を保全。メニューは復元後 enabled=true・Cmd+Opt+↓/↑ で切替動作。
 - 副作用: セッション0件でもメニューは enabled（実行は no-op）。
+
+## 2026-09-13 の削除要求に関する部分置換
+
+復元中の**明示的な削除要求**は捨てない。要求時点では件数を減らす保存を抑止し、
+復元完了後に 1 回だけ繰り越して反映する。これにより縮退状態を永続化しないという本 ADR の主決定を
+保ちながら、ユーザーが要求した削除を失わない。`E2EPersistenceTests` の
+`partialRestore_preservesStoreEntryCountWhenDestructiveSaveRunsDuringRestore` は、この繰り越し後に件数が
+1 減ることを検査する。PID 書き戻しなど削除以外の復元中書き込み規則は不変である。

@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-06-10
+last-verified: 2026-09-14
 ---
 
 # Phlox ドキュメント管理ルール
@@ -54,3 +54,6 @@ last-verified: 2026-06-10
 - 物理移動より **status 書き換え** を優先（参照リンクの腐敗を防ぐ）。
 - `last-verified` が 3 ヶ月以上古いものは内容を再確認する。
 - ADR は **追記専用**。決定を覆す時は新 ADR を起こし、旧 ADR を `superseded` にしてリンクする。
+
+最新の決定記録は [ADR 0175](adr/0175-transcript-answer-and-process-separation.md)、この run の引き継ぎは
+[delivery 0036](delivery/0036-ui-ux-improvement-backlog-worklog.md) に置く。

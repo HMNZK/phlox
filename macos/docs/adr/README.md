@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-08-01
+last-verified: 2026-09-14
 ---
 
 # ADR（アーキテクチャ決定記録）索引
@@ -12,6 +12,7 @@ last-verified: 2026-08-01
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0175 | [回答本文と処理詳細を意味別に分けて表示する](0175-transcript-answer-and-process-separation.md) | accepted |
 | 0174 | [表示切替後のターミナル空白を、接続先の所有権管理で防ぐ](0174-terminal-mount-ownership-prevents-blank-after-view-mode-switch.md) | active |
 | 0173 | [Claude Code の stream フラグとサブエージェント部分メッセージ](0173-claude-code-stream-flags-and-subagent-partials.md) | accepted |
 | 0172 | [Claude のツール許可要求をユーザー承認へ中継する](0172-tool-permission-requests-forwarded-to-user-approval.md) | accepted |

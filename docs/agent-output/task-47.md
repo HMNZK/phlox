@@ -1,9 +1,9 @@
 ---
 task: task-47
-status: partial
+status: completed
 ---
 
-## 詰まった点
+## 詰まった点（PM のハーネス修理・裁定後に解消）
 
 - 凍結ハーネス `PMTranscriptVisualTask47Tests` は契約どおり環境変数なしでもアサーションを実行する（`PHLOX_PM_VISUAL_TASK=47` は前面表示の保持だけ）。`disclosureValues` が全 AX ノードへ `accessibilityTitle()` を無条件に送る。本環境（macOS 26 / Darwin 25）では `SwiftUI.AccessibilityNode` が当該セレクタを持たず、`swift test --no-parallel` が SIGABRT（signal 6）で終わる。
 - 許可パス内で title を補う ObjC ランタイムパッチを試すとクラッシュは止まるが、走査結果は `closedBefore → []` のまま（「折りたたみ中」が取れない）。`DisclosureCard` は許可パス外。思考カードへ a11y 修飾を足すと `TASK47_SCOPE_CHECK=1` の残余比較が RED になる。検査回避のパッチは残していない。
@@ -79,6 +79,54 @@ EXIT:0
 error: Exited with unexpected signal code 6
 libc++abi: terminating due to uncaught exception of type NSException
 EXIT:1
+```
+
+## PM による追記（2026-09-14）
+
+- 目視ハーネス `PMTranscriptVisualTask47Tests` の SIGABRT と開閉値未取得は PM 側のハーネス欠陥として PM が修理し、基準 62ad656 で再凍結した（開閉観測を AX 非依存へ。task-47・task-46 とも GREEN、期待値反転で RED を確認）。実装役の責任範囲ではない。
+- `task46-wiring.rb` の 3 件 NG は task-48 が task-46 の配線を壊していたことが原因で、PM が task-48-fix（feature の 25a40cb）で解消済み。残る「SubAgentMarkerCell が基準 blob と同一ではない」1 件は task-48 の正当な文言変更による構造差として PM が受容している。
+
+## 差し戻し対応（2026-09-14、独立レビュー r1 HIGH）
+
+- `RichMarkdownView.swift` 全体と、allowed_paths 内の関連製品ファイル（`TranscriptMarkdownPresentation.swift`、`ChatTranscriptFormatting.swift`、`ChatMessageCells+Basic.swift`、`ChatMessageCells+Structured.swift`）を、`bodyColor`／`ForegroundColor`／`foregroundStyle`／Markdown 本文接続で再走査した。
+- `.tableCell` の固定 `ForegroundColor(DSColor.chatTextPrimary)` を `ForegroundColor(bodyColor)` へ変更した。`bodyColor` を破る同種の固定本文色は他に確認されなかった。
+- `.code`／リンクの accent、引用の secondary、コードカード操作部の secondary、他セルの primary は契約上の専用色・別表示経路として変更していない。`TranscriptMarkdownPresentation.swift` と `ChatTranscriptFormatting.swift` には本文色指定は無かった。
+
+## 差し戻し後の検証原文（2026-09-14）
+
+```
+=== CMD: ruby .claude/scripts/task47-wiring.rb --selftest ===
+task47-wiring --selftest: OK
+EXIT:0
+```
+
+```
+=== CMD: env TASK47_BASELINE=62ad656 TASK47_SCOPE_CHECK=0 ruby .claude/scripts/task47-wiring.rb ===
+task47-wiring: OK
+EXIT:0
+```
+
+```
+=== CMD: (cd macos/Packages/SessionFeature && ~/.agents/scripts/compact-test t47rw swift test --no-parallel) ===
+✔ Test run with 1044 tests in 124 suites passed after 14.208 seconds.
+EXIT:0
+```
+
+```
+=== CMD: ruby .claude/scripts/task48-wiring.rb --selftest ===
+task48-wiring --selftest: OK
+EXIT:0
+```
+
+```
+=== CMD: env TASK48_BASELINE=91cdbe9 ruby .claude/scripts/task48-wiring.rb ===
+task48-wiring: OK
+EXIT:0
+```
+
+```
+=== CMD: git diff --check ===
+EXIT:0
 ```
 
 === REPORT COMPLETE ===

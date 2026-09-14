@@ -224,7 +224,7 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
                         FontWeight(.semibold)
                     }
                     FontSize(ChatTypography.bodyFontSize(scale: scale))
-                    ForegroundColor(DSColor.chatTextPrimary)
+                    ForegroundColor(bodyColor)
                     BackgroundColor(nil)
                 }
                 .padding(.vertical, DSSpacing.xs * scale)

@@ -445,6 +445,83 @@ def on_appear_saves?(src)
   end
 end
 
+def extract_brace_after(src, re)
+  m = src.to_s.match(re)
+  return nil unless m
+  brace = src.index("{", m.begin(0))
+  return nil unless brace
+  extract_balanced(src, brace, "{", "}")
+end
+
+def extract_if_bare_else(src, cond_re)
+  text = src.to_s
+  m = text.match(/if\s+#{cond_re.source}/) || text.match(cond_re)
+  return [nil, nil] unless m
+  brace = text.index("{", m.begin(0))
+  return [nil, nil] unless brace
+  if_body = extract_balanced(text, brace, "{", "}")
+  return [if_body, nil] unless if_body
+  after = brace + 1 + if_body.length + 1
+  i = skip_ws(text, after)
+  return [if_body, nil] unless text[i, 4] == "else"
+  i = skip_ws(text, i + 4)
+  return [if_body, nil] if text[i, 2] == "if"
+  return [if_body, nil] unless i < text.length && text[i] == "{"
+  [if_body, extract_balanced(text, i, "{", "}")]
+end
+
+def permission_choice_option_blobs(src)
+  row = named_body(src, "CodexSettingsPane", "settingRow").to_s
+  choice = named_body(src, "CodexSettingsPane", "choiceControl")
+  blobs = []
+  %w[approvalPolicy sandboxMode].each do |key|
+    b = extract_brace_after(row, /key\s*==\s*\.#{key}/)
+    blobs << b if b
+  end
+  if choice
+    sandbox_kind, rest_else = extract_if_bare_else(choice, /kind\s*==\s*\.codexSandboxMode/)
+    blobs << sandbox_kind if sandbox_kind
+    approval_kind = extract_brace_after(choice, /kind\s*==\s*\.codexApprovalPolicy/)
+    if approval_kind
+      blobs << approval_kind
+    elsif rest_else
+      blobs << rest_else
+    elsif compact(mask_strings_and_comments(choice)).include?("Text(option)")
+      blobs << choice
+    end
+  end
+  blobs.compact
+end
+
+def permission_row_uses_raw_option_text?(src)
+  permission_choice_option_blobs(src).any? { |b|
+    compact(mask_strings_and_comments(b)).include?("Text(option)")
+  }
+end
+
+SAVE_SETTER_CALLEES = [
+  "CodexGeneralSettings.setValue",
+  "CursorGeneralSettings.setString",
+  "CursorGeneralSettings.setBool",
+].freeze
+
+def save_setter_exprs(src)
+  text = src.to_s
+  exprs = []
+  SAVE_SETTER_CALLEES.each do |callee|
+    i = 0
+    while i < text.length
+      m = text.match(/#{Regexp.escape(callee)}\s*\(/, i)
+      break unless m
+      open = m.end(0) - 1
+      args = extract_balanced(text, open, "(", ")")
+      exprs << normalize_code(args.to_s) if args
+      i = open + 1
+    end
+  end
+  exprs.sort
+end
+
 def wording_displayed?(src)
   cleaned = erase_if_false(strip_comments(src.to_s))
   c = compact(cleaned)
@@ -1089,10 +1166,12 @@ def check_management(files)
     end
     choice = named_body(src, "CodexSettingsPane", "choiceControl")
     if choice
-      masked_choice = compact(mask_strings_and_comments(choice))
-      unless uses_permission_api?(choice) && !masked_choice.include?("Text(option)")
+      unless uses_permission_api?(choice)
         ng << "CodexSettingsPane の choiceControl が UIWording.permission に接続していない"
       end
+    end
+    if permission_row_uses_raw_option_text?(src)
+      ng << "CodexSettingsPane の choiceControl が UIWording.permission に接続していない" unless ng.include?("CodexSettingsPane の choiceControl が UIWording.permission に接続していない")
     end
   else
     ng << "#{PATHS[:codex_settings]} が存在しない"
@@ -1236,6 +1315,11 @@ def check_invariants(current, previous)
     next if src.nil?
     if on_appear_saves?(src)
       ng << "表示時に保存処理が追加されている"
+    end
+    prev = previous[key]
+    next if prev.nil?
+    unless save_setter_exprs(src) == save_setter_exprs(prev)
+      ng << "action が TASK50_BASELINE から変化している"
     end
   end
 
@@ -1692,6 +1776,9 @@ def good_codex_settings_src
         } else {
           Text(key.displayName)
           Text(key.explanation)
+          ForEach(key.options(current: current), id: \\.self) { option in
+            Text(option).tag(option)
+          }
         }
       }
       func choiceControl(_ key: CodexSettingKey, _ current: String?, kind: UIWording.PermissionKind) -> some View {
@@ -1867,7 +1954,8 @@ def run_selftest
   selftest_assert normalize_code(%(Text("hello world"))) != normalize_code(%(Text("helloworld"))), "負例: 文字列内空白の改変を検出する"
 
   good = good_files
-  selftest_errors_eq check_product(good), [], "正例: 契約どおりの配線は空 NG"
+  selftest_assert compact(mask_strings_and_comments(good[:codex_settings])).include?("Text(option)"), "正例 fixture: 権限以外の行で Text(option) を使う"
+  selftest_errors_eq check_product(good), [], "正例: 権限以外の行で Text(option) を使っても空 NG"
   selftest_errors_eq check_invariants(good, good), [], "正例: 説明の折り返しと raw value・未知値の保持"
 
   commented = with_file(good, :settings) { |src| src.sub("var body", "// keep https://phlox.cc/privacy \\(x)\n      var body") }
@@ -1995,6 +2083,16 @@ def run_selftest
   selftest_errors_eq check_invariants(appear_save, good), [
     "表示時に保存処理が追加されている",
   ], "負例: 表示時の保存処理追加"
+
+  setter_fixed = with_file(good, :codex_settings) { |src|
+    src.sub(
+      "CodexGeneralSettings.setValue(newValue, for: key, in: &$0)",
+      'CodexGeneralSettings.setValue("never", for: key, in: &$0)'
+    )
+  }
+  selftest_errors_eq check_invariants(setter_fixed, good), [
+    "action が TASK50_BASELINE から変化している",
+  ], "負例: Picker setter の固定化"
 
   plan48 = with_file(good, :settings) { |src|
     src.gsub("UIWording.text(.planOption, languageCode: languageCode)", '"Plan"')

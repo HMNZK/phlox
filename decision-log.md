@@ -287,3 +287,4 @@
 - 2026-09-14 task-47 ハーネス修理#5 完了。通常実行 GREEN（1 test passed）、窓表示 1 組で AX の `AXWindows count=1`／`AXDisclosureTriangle AXPress status=0 before=1 after=0`／`AXCloseButton AXPress status=0` を実測。plist md5 不変。再凍結ベースライン 1e202e1（旧 7139228）。
 - 2026-09-14 task-47 PM 目視ゲート = pass。r2（12 組の初期・展開・末尾）＋r3（コード境界11ケース・未閉じ強調・同長置換・思考展開・末尾スクロール・文字色実測）＋r4（最新コマンド状態の r-code / cmd-latest）で契約の確認項目を網羅。思考本文は secondary 実測 8.40:1（#494949）で回答 primary #1D1D1D（15.74:1）と別色。未検証は実イベント追記の画面表示（ハーネスがVM transcriptを描画しない構造制約）、実行中補足の差（turn 完了後の観測のため）、不可視文字の画像判別の 3 点。
 - 2026-09-14 task-47 の再凍結 7139228／1e202e1 は欠陥だった。index-only 凍結で目視ハーネス 1 ファイルしか含めなかったため、rb47 が要求するもう一方の受け入れテスト  が基準時点に存在せず、verify が  で fail した。両方を含む基準 b896538 を作り直し、cherry-pick はその上へ積み直す。
+- 2026-09-14 task-47 の再凍結 7139228／1e202e1 は欠陥だった。index-only 凍結で目視ハーネス 1 ファイルしか含めず、rb47 が要求するもう一方の受け入れテスト AcceptanceTranscriptMarkdownPresentationTests.swift が基準時点に存在しないため、verify が「基準時点の受け入れテスト1が無い」で fail した。両方を含む基準 b896538 を作り直し、cherry-pick をその上へ積み直した。

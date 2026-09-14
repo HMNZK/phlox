@@ -147,3 +147,4 @@ e3dd2fb	.claude/scripts/task50-wiring.rb
 62ad656	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptMarkdownPresentationTests.swift
 62ad656	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask47Tests.swift
 62ad656	.claude/scripts/task47-wiring.rb
+7139228	macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/PMTranscriptVisualTask47Tests.swift

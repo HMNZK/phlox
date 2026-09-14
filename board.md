@@ -33,7 +33,7 @@
 | task-47 | standard | blocked |
 | task-48 | standard | done |
 | task-49 | standard | done |
-| task-50 | standard | done_pending_review |
+| task-50 | standard | testing |
 | task-51 | standard | done |
 <!-- AGENTIC-LOOP:END -->
 

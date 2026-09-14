@@ -66,3 +66,7 @@ macos/build-debug/
 
 # Playwright MCP のブラウザ自動化成果物（ephemeral・追跡しない）
 .playwright-mcp/
+
+# 告知アニメーション（Remotion プロジェクト＋書き出し済み mp4）。
+# ローカル資産として手元に置くだけで、リポジトリには含めない
+/video/

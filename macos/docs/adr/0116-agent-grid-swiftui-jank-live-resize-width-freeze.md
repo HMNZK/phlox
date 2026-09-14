@@ -1,13 +1,16 @@
 ---
-status: active
-last-verified: 2026-07-24
+status: superseded
+last-verified: 2026-08-04
 ---
 
 # ADR-0116: エージェントグリッド（.appServer / SwiftUI）のカクつきは端末エンジンと別問題であり、live-resize 幅固定・窓縮小・行分離で対処する
 
+> **superseded by [ADR-0161](0161-appserver-grid-jank-root-cause-is-full-transcript-grouping.md)（2026-08-04）**
+> 対処1・2・4 の実装後に A/B で再計測したところ、**測定可能な改善は無かった**。本 ADR の「リサイズ毎フレームの CoreText 再 typeset が主因（85.6%）」という因果は再現せず（アイドル時のドラッグはハング 0 件）、主因は transcript 全件の再グルーピングだった。**以下の計測値はすべて 2026-07 の修正前ベースラインであり、現況ではない。**現況値と差し替えた対処方針は 0161 を参照。
+
 ## ステータス
 
-採択・一部実装済み。本番 Release ビルド・実 9 セッションでの Instruments 実測により原因を確定し、Codex（gpt-5.6-terra, effort=high, read-only）の設計助言を反映した対処方針。対処1・2・4 は agent-grid-jank run で実装済み（2026-07-24）。対処3・5 は未着手。**ADR 0115（端末エンジンを off-main）とはスコープを分離する**——0115 は `.pty` 端末セッション向けであり、本 ADR が扱う `.appServer` エージェントグリッドのカクつきは 0115 では直らない。
+採択・一部実装済み（**superseded**。上の注記を参照）。本番 Release ビルド・実 9 セッションでの Instruments 実測により原因を確定し、Codex（gpt-5.6-terra, effort=high, read-only）の設計助言を反映した対処方針。対処1・2・4 は agent-grid-jank run で実装済み（2026-07-24）。対処3・5 は未着手。**ADR 0115（端末エンジンを off-main）とはスコープを分離する**——0115 は `.pty` 端末セッション向けであり、本 ADR が扱う `.appServer` エージェントグリッドのカクつきは 0115 では直らない。
 
 ## コンテキスト
 

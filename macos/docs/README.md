@@ -20,6 +20,7 @@ last-verified: 2026-09-14
 | `guides/` | 開発手順・オンボーディング（環境構築・新機能の足し方） | 運用 Runbook（→ operations/） | Tutorial / How-to |
 | `operations/` | 運用 Runbook（デプロイ/マイグレーション/ロールバック/障害対応） | 開発オンボーディング（→ guides/） | How-to |
 | `delivery/` | フェーズ作業ログ・引き継ぎ・変更履歴（過去の経緯・状態スナップショット） | 恒久仕様（→ specs/・architecture/） | Status |
+| `research/` | 外部調査（競合製品・外部 CLI/サービスの調査スナップショット。調査日と未検証範囲を明記） | Phlox 側の要件・設計判断（→ specs/・adr/） | Reference |
 
 ## ファイル命名規則（統一）
 - **小文字 kebab-case・ASCII・拡張子 `.md`**（例: `data-model.md`）。スペース・大文字・日本語はファイル名に使わない（リンク/URL/OS 間で壊れにくくするため）。
@@ -42,6 +43,7 @@ last-verified: 2026-09-14
 - 「どう環境を作る/開発する？」→ `guides/`
 - 「どう運用/デプロイ/復旧する？」→ `operations/`
 - 「このフェーズで何をやった？」→ `delivery/`
+- 「競合/外部ツールはどうなっている？」→ `research/`
 
 ## 共通ルール（腐敗防止）
 - 全主要ドキュメントの冒頭に **frontmatter** を付ける：

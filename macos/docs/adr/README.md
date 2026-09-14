@@ -18,6 +18,7 @@ last-verified: 2026-09-14
 | 0172 | [Claude のツール許可要求をユーザー承認へ中継する](0172-tool-permission-requests-forwarded-to-user-approval.md) | accepted |
 | 0171 | [エディタパネルの Git 状態詳細は展開可能なスクロール領域で表示する](0171-editor-panel-workflow-status-disclosure.md) | accepted |
 | 0170 | [worktree 隔離に失敗したら起動を中止する（従来挙動へフォールバックしない）](0170-worktree-isolation-aborts-instead-of-falling-back.md) | accepted |
+| 0161 | [`.appServer` グリッドのカクつきの主因は transcript 全件の再グルーピングであり、ADR 0116 の対処1・2・4 では改善しない](0161-appserver-grid-jank-root-cause-is-full-transcript-grouping.md) | active |
 | 0160 | [Data Protection Keychain への移行と、端末別モバイルトークン](0160-data-protection-keychain-and-per-device-mobile-tokens.md) | active |
 | 0159 | [Thinking インジケータ可視性シグナルの固着解消と、非アクティブウィンドウでの継続](0159-thinking-indicator-viewport-signal-recovery.md) | accepted |
 | 0158 | [Debug ビルドも証明書で署名できるようにし、TCC の承認をリビルドを跨いで保持する](0158-debug-build-stable-code-signature.md) | accepted |
@@ -61,7 +62,7 @@ last-verified: 2026-09-14
 | 0119 | [完了通知判定を SessionCompletionNotificationPolicy へ一元化し、ADR 0064 の idle 無視ガードは復元推定ターンのみ例外とする](0119-session-completion-notification-policy.md) | active |
 | 0118 | [transcript の切り詰めを廃止し、Markdown の折返し高さを非表ブロックで確保する](0118-transcript-text-truncation-overlap.md) | active |
 | 0117 | [Thinking シマーを Core Animation 駆動へ移し、グリッドの毎フレーム AttributeGraph／アクセシビリティ木再構築を根絶する](0117-thinking-shimmer-core-animation-driver.md) | active |
-| 0116 | [エージェントグリッド（.appServer/SwiftUI）のカクつきは端末エンジンと別問題であり、live-resize 幅固定・窓縮小・行分離で対処する](0116-agent-grid-swiftui-jank-live-resize-width-freeze.md) | proposed |
+| 0116 | [エージェントグリッド（.appServer/SwiftUI）のカクつきは端末エンジンと別問題であり、live-resize 幅固定・窓縮小・行分離で対処する](0116-agent-grid-swiftui-jank-live-resize-width-freeze.md) | superseded（→ 0161） |
 | 0115 | [端末エンジンをメインスレッドから分離する（SwiftTerm fork による TerminalCore 切り出し）——`.pty` 端末向け・`.appServer` は 0116](0115-terminal-engine-off-main-thread.md) | proposed |
 | 0114 | [添付画像に番号を振り、本文へ `[Image #N]` をカーソル位置で埋め込む（表記は AgentDomain に単一化）](0114-inline-image-placeholder-and-numbering.md) | accepted |
 | 0113 | [ライブのサブエージェント transcript も「1 ツールコール = 1 セル」で組み、ソース選択を2通りに畳む（0106 を supersede）](0113-subagent-live-tool-merge-and-two-way-source-rule.md) | active |

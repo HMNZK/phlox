@@ -7,6 +7,13 @@ status: completed
 
 - `TASK45_BASELINE=e3dd2fb`（契約の短い SHA）は配線検査が完全 40 桁を要求するため拒否される。対応する完全 SHA `e3dd2fb45aeec5d305995826885e15663a9dd6be` を使った。`TASK44_BASELINE` も同様に `b92e1db4c4cb481f028b3c8529999cdf83d2b10a`。
 - `TASK45_SCOPE_CHECK=1` は製品配線（恒久検査）を満たすチーム／Thinking の `presentation` 受け渡しと、worktree 準備コミット `3079c95` が基準から消した task-47/50 テスト 3 件で NG になる。マスクは `SessionTitlePresentation(`・名前 Text・`titlePresentation`／`selectedNode` 宣言だけを除外し、`let presentation: SessionTitlePresentation` と `presentation:` 引数は残る。未使用デフォルトや `if false` で隠すのは契約が禁止するので入れていない。
+- 初回の r1 修正では `if !isCompact, let secondary = presentation.secondary` が配線検査の構文追跡から外れ、「グリッドの名前領域の secondary が未接続」になった。`if let` を外側に戻し、内側で幅条件を適用して解消した。
+
+## r1 差し戻し対応
+
+- `PaneTileView.header` は既存 `PaneLayoutView.minimumPaneWidth`（240pt）未満を compact とし、状態ラベル・補助花名・workspace 名だけを省略する。
+- compact でも状態ドット、エージェントアイコン、主名の1行・末尾省略・`layoutPriority`、主名の `.help`／AX value、閉じるボタンを維持する。高さ・余白・表示モデル・操作修飾子は変更していない。
+- 240pt 以上は既存の子要素をそのまま描画するため、通常幅の分岐は維持した。
 
 ## できた風だが実は未完
 
@@ -24,7 +31,7 @@ status: completed
 
 ## 契約からの逸脱
 
-- 恒久回帰・selftest・Swift Testing・task-44 回帰・`git diff --check` は GREEN。`TASK45_SCOPE_CHECK=1` だけ上記の受け渡しと worktree 由来 3 ファイルで NG。許可パス外の製品ソースは変更していない。
+- 今回指定された selftest・task45 回帰・task-44 回帰・Swift Testing・`git diff --check` は GREEN。`TASK45_SCOPE_CHECK=1` の既知の NG は上記のとおりで、今回の差し戻し修正では実行していない。許可パス外の製品ソースは変更していない。
 - 単体本文・グリッド本文にヘッダーは足していない。ADR 0042／0073 のトップバー集約・余白式・ドラッグ→選択の順序はそのまま。
 
 ## レビュー重点
@@ -60,9 +67,9 @@ task44-wiring: OK
 ```
 
 ```
-$ SWIFT_TEST_SERIAL_PACKAGES="DashboardFeature SessionFeature" ~/.agents/scripts/compact-test t45 bash macos/scripts/run-swift-tests.sh AgentDomain SessionFeature DashboardFeature
-✔ Test run with 14 tests in 2 suites passed after 5.171 seconds.
-（exit 0。compact-test は最後の要約行のみ。直前の AgentDomain 単独は ✔ Test run with 545 tests in 27 suites passed after 1.048 seconds.）
+$ SWIFT_TEST_SERIAL_PACKAGES="DashboardFeature SessionFeature" ~/.agents/scripts/compact-test t45rw bash macos/scripts/run-swift-tests.sh AgentDomain SessionFeature DashboardFeature
+✔ Test run with 14 tests in 2 suites passed after 5.053 seconds.
+（exit 0。compact-test は最後の要約行のみ。）
 ```
 
 ```

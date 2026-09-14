@@ -328,9 +328,12 @@ private struct PaneTileView: View {
 
     private var header: some View {
         HStack(spacing: DSSpacing.s) {
+            let isCompact = size.width < PaneLayoutView.minimumPaneWidth
             StatusDot(status: session.displayStatus)
-            StatusLabel(status: session.displayStatus)
-                .accessibilityHidden(true)
+            if !isCompact {
+                StatusLabel(status: session.displayStatus)
+                    .accessibilityHidden(true)
+            }
             AgentSessionIcon(descriptor: session.agentDescriptor, status: session.displayStatus, size: 24)
             let presentation = SessionTitlePresentation(
                 state: session.titleState,
@@ -346,14 +349,16 @@ private struct PaneTileView: View {
                 .help(presentation.helpText)
                 .accessibilityValue(presentation.accessibilityValue)
             if let secondary = presentation.secondary {
-                Text(secondary)
-                    .font(DSFont.caption)
-                    .foregroundStyle(DSColor.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .accessibilityHidden(true)
+                if !isCompact {
+                    Text(secondary)
+                        .font(DSFont.caption)
+                        .foregroundStyle(DSColor.textPrimary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .accessibilityHidden(true)
+                }
             }
-            if !session.workspaceName.isEmpty {
+            if !isCompact, !session.workspaceName.isEmpty {
                 Text(session.workspaceName)
                     .font(DSFont.caption)
                     .foregroundStyle(DSColor.textSecondary)

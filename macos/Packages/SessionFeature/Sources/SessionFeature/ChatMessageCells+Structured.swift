@@ -293,7 +293,9 @@ struct CommandExecutionCell: View {
             path: .single,
             itemCount: 1,
             isRunning: isRunning,
-            hasNonBlankOutput: !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            hasNonBlankOutput: !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            runningSubtitle: "実行中",
+            outputAvailableSubtitle: UIWording.text(.outputAvailable, languageCode: languageCode)
         )
         DisclosureCard(
             isExpanded: Binding(
@@ -306,7 +308,7 @@ struct CommandExecutionCell: View {
                 set: { userOverride = $0 }
             ),
             title: presentation.heading ?? "",
-            subtitle: isRunning ? "実行中" : (output.isEmpty ? nil : UIWording.text(.outputAvailable, languageCode: languageCode)),
+            subtitle: presentation.subtitle,
             isToolCall: true && presentation.semanticInk == .process
         ) {
             VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {

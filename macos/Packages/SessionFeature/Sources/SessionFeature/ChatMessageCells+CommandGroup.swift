@@ -164,6 +164,9 @@ struct CommandGroupCell: View, Equatable {
     @State private var rowLimit = CommandGroupRowWindow.defaultLimit
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     init(
         items: [ChatItem],
@@ -200,7 +203,9 @@ struct CommandGroupCell: View, Equatable {
             path: .group,
             itemCount: items.count,
             isRunning: header.isRunning,
-            hasNonBlankOutput: hasNonBlankOutput
+            hasNonBlankOutput: hasNonBlankOutput,
+            runningSubtitle: "実行中",
+            outputAvailableSubtitle: UIWording.text(.outputAvailable, languageCode: languageCode)
         )
         let expanded = TranscriptItemPresentation.isExpanded(
             userOverride: userOverride,

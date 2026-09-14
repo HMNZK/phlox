@@ -215,8 +215,12 @@ struct ErrorMessageCell: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
+        let presentation = TranscriptItemPresentation.error(
+            message: message,
+            heading: UIWording.text(.errorHeading, languageCode: languageCode)
+        )
         VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
-            Label(UIWording.text(.errorHeading, languageCode: languageCode), systemImage: "exclamationmark.triangle")
+            Label(presentation.heading ?? "", systemImage: "exclamationmark.triangle")
                 .font(ChatScaledFont.captionStrong(scale: scale))
                 .foregroundStyle(DSColor.statusError)
             Text(message)

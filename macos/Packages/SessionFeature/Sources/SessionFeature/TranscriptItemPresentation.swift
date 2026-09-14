@@ -68,7 +68,9 @@ struct TranscriptItemPresentation: Equatable, Sendable {
         path: CommandPath,
         itemCount: Int,
         isRunning: Bool,
-        hasNonBlankOutput: Bool
+        hasNonBlankOutput: Bool,
+        runningSubtitle: String = "実行中",
+        outputAvailableSubtitle: String = "出力あり"
     ) -> TranscriptItemPresentation {
         let visible: Bool
         switch path {
@@ -79,9 +81,9 @@ struct TranscriptItemPresentation: Equatable, Sendable {
         }
         let subtitle: String?
         if isRunning {
-            subtitle = "実行中"
+            subtitle = runningSubtitle
         } else if hasNonBlankOutput {
-            subtitle = "出力あり"
+            subtitle = outputAvailableSubtitle
         } else {
             subtitle = nil
         }
@@ -136,11 +138,11 @@ struct TranscriptItemPresentation: Equatable, Sendable {
         )
     }
 
-    static func error(message: String) -> TranscriptItemPresentation {
+    static func error(message: String, heading: String = "エラー") -> TranscriptItemPresentation {
         TranscriptItemPresentation(
             isVisible: true,
             classification: .error,
-            heading: "エラー",
+            heading: heading,
             subtitle: nil,
             isCollapsible: false,
             defaultExpanded: true,

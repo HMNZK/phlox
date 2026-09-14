@@ -2,8 +2,8 @@
   "id": 47,
   "title": "UX-05b Markdown 装飾の表示とコード保護",
   "difficulty": "standard",
-  "status": "done_pending_review",
-  "updated_at": "2026-09-14T10:45:01+0900",
+  "status": "in_progress",
+  "updated_at": "2026-09-14T11:31:22+0900",
   "last_repair": {
     "reason": "PM 側ハーネス欠陥（目視ハーネスの SIGABRT・開閉値未取得）と task-48 の task-46 回帰が blocked の原因。両方を PM が修理・再凍結済みのため、実装役の成果はそのまま検証工程へ戻す",
     "to": "in_progress",

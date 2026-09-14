@@ -39,6 +39,7 @@ struct PMTranscriptVisualTask47Tests {
         var hosting: NSHostingView<Task47VisualRoot>?
         var previousTheme: Any?
         var shouldRestoreTheme = false
+        var previousActivationPolicy: NSApplication.ActivationPolicy?
 
         do {
             if showWindow, let themeRaw = ProcessInfo.processInfo.environment["PHLOX_PM_VISUAL_THEME"] {
@@ -55,6 +56,14 @@ struct PMTranscriptVisualTask47Tests {
                         scenario.applyLightTheme()
                     }
                 }
+            }
+
+            if showWindow {
+                let app = NSApplication.shared
+                previousActivationPolicy = app.activationPolicy()
+                app.setActivationPolicy(.regular)
+                app.finishLaunching()
+                NSApp.activate(ignoringOtherApps: true)
             }
 
             await client.start()
@@ -89,6 +98,9 @@ struct PMTranscriptVisualTask47Tests {
             window = nsWindow
             hostView.layoutSubtreeIfNeeded()
             pumpMainRunLoop(seconds: 0.12)
+            if showWindow {
+                fitVisualWindow(scenario: scenario, hostView: hostView, nsWindow: nsWindow)
+            }
 
             client.yield(.turnStarted)
             try await waitUntil { viewModel.status.isRunning }
@@ -108,7 +120,11 @@ struct PMTranscriptVisualTask47Tests {
 
             if showWindow {
                 applyWindowLaunchEnvironment(to: scenario, hostView: hostView, nsWindow: nsWindow)
+                NSApplication.shared.setActivationPolicy(.regular)
+                NSApp.activate(ignoringOtherApps: true)
                 nsWindow.makeKeyAndOrderFront(nil)
+                nsWindow.orderFrontRegardless()
+                NSApp.activate(ignoringOtherApps: true)
                 let finished = Task47VisualFinishBox()
                 let closer = Task47VisualWindowCloser(finished: finished)
                 nsWindow.delegate = closer
@@ -127,7 +143,8 @@ struct PMTranscriptVisualTask47Tests {
                 suiteName: suiteName,
                 suite: suite,
                 previousTheme: previousTheme,
-                shouldRestoreTheme: shouldRestoreTheme
+                shouldRestoreTheme: shouldRestoreTheme,
+                previousActivationPolicy: previousActivationPolicy
             )
         } catch {
             await finishVisual(
@@ -138,7 +155,8 @@ struct PMTranscriptVisualTask47Tests {
                 suiteName: suiteName,
                 suite: suite,
                 previousTheme: previousTheme,
-                shouldRestoreTheme: shouldRestoreTheme
+                shouldRestoreTheme: shouldRestoreTheme,
+                previousActivationPolicy: previousActivationPolicy
             )
             throw error
         }
@@ -154,7 +172,8 @@ private func finishVisual(
     suiteName: String,
     suite: UserDefaults,
     previousTheme: Any?,
-    shouldRestoreTheme: Bool
+    shouldRestoreTheme: Bool,
+    previousActivationPolicy: NSApplication.ActivationPolicy?
 ) async {
     await viewModel.terminate()
     client.finish()
@@ -168,6 +187,9 @@ private func finishVisual(
         } else {
             UserDefaults.standard.removeObject(forKey: ThemeStore.themeKey)
         }
+    }
+    if let previousActivationPolicy {
+        NSApplication.shared.setActivationPolicy(previousActivationPolicy)
     }
 }
 
@@ -201,16 +223,27 @@ private func applyWindowLaunchEnvironment(
     }
 
     if needsLayout {
-        hostView.frame = NSRect(
-            x: hostView.frame.origin.x,
-            y: hostView.frame.origin.y,
-            width: scenario.columnWidth,
-            height: hostView.frame.height
-        )
-        nsWindow.setContentSize(NSSize(width: scenario.columnWidth, height: hostView.frame.height))
-        hostView.layoutSubtreeIfNeeded()
+        fitVisualWindow(scenario: scenario, hostView: hostView, nsWindow: nsWindow)
         pumpMainRunLoop(seconds: 0.12)
     }
+}
+
+@MainActor
+private func fitVisualWindow(
+    scenario: Task47VisualScenario,
+    hostView: NSView,
+    nsWindow: NSWindow
+) {
+    hostView.layoutSubtreeIfNeeded()
+    let height = max(hostView.fittingSize.height, 900)
+    hostView.frame = NSRect(
+        x: hostView.frame.origin.x,
+        y: hostView.frame.origin.y,
+        width: scenario.columnWidth,
+        height: height
+    )
+    nsWindow.setContentSize(NSSize(width: scenario.columnWidth, height: height))
+    hostView.layoutSubtreeIfNeeded()
 }
 
 private func visualAppearance(for colorScheme: ColorScheme) -> NSAppearance? {
@@ -507,81 +540,87 @@ private struct Task47VisualRoot: View {
     @State private var composerText = ""
 
     var body: some View {
-        ChatTranscriptView(
-            viewModel: viewModel,
-            transcript: scenario.items,
-            showsThinkingIndicator: true,
-            contentMaxWidth: scenario.contentMaxWidth,
-            bottomScrollContentMargin: scenario.bottomMargin
-        )
-        .frame(width: scenario.columnWidth, height: 900)
-        .background(DSColor.chatBackground)
-        .overlay(alignment: .bottom) {
-            composer
-                .background {
-                    DSColor.chatBackground
-                        .padding(.top, DSSpacing.m)
-                        .padding(.trailing, ComposerLayout.scrollerCorridorWidth)
-                }
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.height
-                } action: { height in
-                    scenario.bottomMargin = height
-                }
-        }
-        .overlay(alignment: .topLeading) {
+        VStack(spacing: 0) {
             controls
-        }
-        .background {
-            if scenario.reasoningText(id: "r-summary")?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
-                Task47VisualReasoningProbe(
-                    text: scenario.reasoningText(id: "r-summary") ?? "",
-                    expansionRequest: scenario.reasoningExpansionRequest
-                )
-                .id(scenario.reasoningMount)
-                .opacity(0.01)
+            ChatTranscriptView(
+                viewModel: viewModel,
+                transcript: scenario.items,
+                showsThinkingIndicator: true,
+                contentMaxWidth: scenario.contentMaxWidth,
+                bottomScrollContentMargin: scenario.bottomMargin
+            )
+            .frame(width: scenario.columnWidth, height: 900)
+            .background(DSColor.chatBackground)
+            .overlay(alignment: .bottom) {
+                composer
+                    .background {
+                        DSColor.chatBackground
+                            .padding(.top, DSSpacing.m)
+                            .padding(.trailing, ComposerLayout.scrollerCorridorWidth)
+                    }
+                    .onGeometryChange(for: CGFloat.self) { proxy in
+                        proxy.size.height
+                    } action: { height in
+                        scenario.bottomMargin = height
+                    }
+            }
+            .background {
+                if scenario.reasoningText(id: "r-summary")?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                    Task47VisualReasoningProbe(
+                        text: scenario.reasoningText(id: "r-summary") ?? "",
+                        expansionRequest: scenario.reasoningExpansionRequest
+                    )
+                    .id(scenario.reasoningMount)
+                    .opacity(0.01)
+                }
             }
         }
+        .frame(width: scenario.columnWidth)
+        .background(DSColor.chatBackground)
         .defaultAppStorage(scenario.suite)
         .preferredColorScheme(scenario.colorScheme)
         .environment(\.colorScheme, scenario.colorScheme)
     }
 
     private var controls: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Button("全文へ戻す") { scenario.restoreFullAnswer() }
-                Button("同長左") { scenario.applySameLengthLeft() }
-                Button("同長右") { scenario.applySameLengthRight() }
-                Button("**確") { scenario.replaceAnswerUnclosedPartial() }
-                Button("**確認") { scenario.growUnclosedAnswer() }
-                Button("**確認**") { scenario.closeUnclosedAnswer() }
-            }
-            HStack {
-                Button("思考同長") { scenario.replaceReasoningSameLength() }
-                Button("空白") { scenario.blankReasoning() }
-                Button("再表示") { scenario.restoreReasoning() }
-                Button("実イベント追記") { scenario.appendViaEvent() }
-            }
-            HStack {
-                Button("実行開始") { scenario.startTurn() }
-                Button("実行終了") { scenario.completeTurn() }
-                Button("幅360") { scenario.applyWidth(360) }
-                Button("幅720") { scenario.applyWidth(720) }
-                Button("0.8") { scenario.applyScale(0.8) }
-                Button("1.0") { scenario.applyScale(1.0) }
-                Button("2.0") { scenario.applyScale(2.0) }
-            }
-            HStack {
-                Button("最新コマンド") { scenario.showLatestCommand() }
-                Button("過去コマンド") { scenario.showPastCommand() }
-                ForEach(Task47VisualFixture.codeBoundaryCases, id: \.id) { fixture in
-                    Button(fixture.id) { scenario.showCodeBoundary(fixture) }
+        ScrollView(.horizontal) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Button("全文へ戻す") { scenario.restoreFullAnswer() }
+                    Button("同長左") { scenario.applySameLengthLeft() }
+                    Button("同長右") { scenario.applySameLengthRight() }
+                    Button("**確") { scenario.replaceAnswerUnclosedPartial() }
+                    Button("**確認") { scenario.growUnclosedAnswer() }
+                    Button("**確認**") { scenario.closeUnclosedAnswer() }
+                }
+                HStack {
+                    Button("思考同長") { scenario.replaceReasoningSameLength() }
+                    Button("空白") { scenario.blankReasoning() }
+                    Button("再表示") { scenario.restoreReasoning() }
+                    Button("実イベント追記") { scenario.appendViaEvent() }
+                }
+                HStack {
+                    Button("実行開始") { scenario.startTurn() }
+                    Button("実行終了") { scenario.completeTurn() }
+                    Button("幅360") { scenario.applyWidth(360) }
+                    Button("幅720") { scenario.applyWidth(720) }
+                    Button("0.8") { scenario.applyScale(0.8) }
+                    Button("1.0") { scenario.applyScale(1.0) }
+                    Button("2.0") { scenario.applyScale(2.0) }
+                }
+                HStack {
+                    Button("最新コマンド") { scenario.showLatestCommand() }
+                    Button("過去コマンド") { scenario.showPastCommand() }
+                    ForEach(Task47VisualFixture.codeBoundaryCases, id: \.id) { fixture in
+                        Button(fixture.id) { scenario.showCodeBoundary(fixture) }
+                    }
                 }
             }
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(8)
         }
-        .padding(8)
-        .background(DSColor.chatBackground.opacity(0.92))
+        .frame(width: scenario.columnWidth, alignment: .leading)
+        .background(DSColor.chatBackground)
     }
 
     private var composer: some View {

@@ -1,0 +1,95 @@
+{
+  "reviewer": "codex-gpt-6-astra",
+  "dimensions_swept": [
+    {
+      "dimension": "契約適合",
+      "result": "ok",
+      "note": "task/45 HEAD 2becb2bf4ddb89c58841482b4526ba3c298e33c2を確認。表示モデルと6製品ファイルの変更は、名前表示・必要な読み取り受け渡しに限定されている。"
+    },
+    {
+      "dimension": "正しさ",
+      "result": "ok",
+      "note": "空名、同名花名、長い手動名、derived全文、legacy、不整合入力の正規化後状態を確認。表示モデルはtask-44の不変条件に整合する。"
+    },
+    {
+      "dimension": "誠実性",
+      "result": "ok",
+      "note": "対象の凍結Swiftテストとtask45/task44 Rubyに差分なし。他タスクのテスト3ファイルの実パス削除はPMの凍結準備コミットに由来し、staged側に存在する。指定の実装レポートは未読。"
+    },
+    {
+      "dimension": "根本原因",
+      "result": "ok",
+      "note": "表示規則を共通値型へ集約し、チームの履歴名への依存を現在ノードのtitleState読み取りへ置き換えている。"
+    },
+    {
+      "dimension": "構造",
+      "result": "ok",
+      "note": "AgentDomainの純粋な値変換を各Viewが利用する依存方向。チームの追加引数・クロージャは表示値の受け渡しだけで、保存モデルへの状態複製はない。"
+    },
+    {
+      "dimension": "到達性",
+      "result": "ok",
+      "note": "4箇所とチーム3領域の実呼び出しを追跡。選択・展開・閉じる・ドラッグ・カードから単体への移動は維持。実画面での確認は指定どおりPMゲートに分離した。"
+    },
+    {
+      "dimension": "非機能",
+      "result": "ok",
+      "note": "主名の1行末尾省略、補助caption、装飾花名のAX非表示を確認。選択なしのトップバーTextは幅0・AX非表示だがHStackの8pt間隔は残る。既存28ptボタンの高さを増やさず、横幅計測にも含まれるため、静的に実害は検出しなかった。"
+    },
+    {
+      "dimension": "テストの質",
+      "result": "ok",
+      "note": "Swiftのリテラル期待値とRubyの単独変異・厳密なエラー集合比較を確認。表示モデルの値検査と配線検査は分離され、変更を戻す変異を検出する構造がある。"
+    },
+    {
+      "dimension": "Rubric：作業名の優先と補助花名",
+      "result": "ok",
+      "note": "主名を先、花名を後に配置し、主名のlayoutPriorityを優先。補助も1行末尾省略。固定サイズの既存操作領域は変更されていない。"
+    },
+    {
+      "dimension": "Rubric：4箇所・両backend・チーム各領域",
+      "result": "ok",
+      "note": "サイドバー・グリッドはsession.titleState、トップバーは選択IDから解決したノード、chip・発言カード・Thinkingは各対象IDから現在ノードを解決する。SessionNodeはPTY／appServer双方の実VMを中継する。"
+    },
+    {
+      "dimension": "Rubric：ADR 0042／0073",
+      "result": "ok",
+      "note": "名前は既存トップバー行に追加。本文ヘッダーの新設、2段化、固定余白増量はない。max(32, ceil(measuredOverlayHeight) + 8)と共有高さの経路を維持している。"
+    },
+    {
+      "dimension": "Rubric：全文help／AX",
+      "result": "ok",
+      "note": "各主名TextへhelpTextとaccessibilityValueを接続。derivedは保存全文、manualは有効名全文を渡す。サイドバー行のemphasis.accessibilityValueとカードの移動操作を維持。親helpとの実際の優先順位・AXツリーはPMゲートで確認する範囲。"
+    },
+    {
+      "dimension": "Rubric：明暗・選択／注意・深い階層・240pt・コントラスト",
+      "result": "not_applicable",
+      "note": "実測は依頼で分離されたPMゲートの担当であり、本判定では未了を欠陥扱いしない。静的にはテーマの実色生成と背景合成を確認。textTertiary→textPrimaryは空名の主表示とchip名に限定され、状態色や背景を変更していない。"
+    },
+    {
+      "dimension": "Rubric：rename後のチーム表示",
+      "result": "ok",
+      "note": "現在ノードが存在する場合はtitleState・workspacePathを利用し、旧履歴名への退避はノード不在時だけ。各子Viewへ最新の表示値を渡す。再起動実測はPM担当。"
+    },
+    {
+      "dimension": "Rubric：表示側の状態・導出・保存変更禁止",
+      "result": "ok",
+      "note": "追加した描画経路に名前代入、receivingUserMessage、導出、rename、保存呼び出しはない。既存の送信・討論・活動判定も変更されていない。"
+    },
+    {
+      "dimension": "Rubric：scopeと恒久回帰・先行保護",
+      "result": "ok",
+      "note": "scopeマスクを権威ゲートとして使わず差分を直接確認。チームの名前領域外変更は必要な引数・クロージャ配管のみ。履歴抽出前のflowerガード、typography委譲、draggable→simultaneousGestureの順序を維持する。"
+    },
+    {
+      "dimension": "Rubric：検証証拠の分離",
+      "result": "ok",
+      "note": "Swift／Rubyはローカル実走不可、driverからの独立green供給として扱う。Appビルドは本レビューでは未実走。課金なし目視・実測・再起動はPM担当であり、テスト成功や完了へ読み替えていない。"
+    }
+  ],
+  "verdict": "pass",
+  "tests_run": [],
+  "findings": [],
+  "integrity_check": "製品差分で握りつぶし・偽装・凍結テストの弱体化は検出せず。ローカルのテスト実走は未検証。/private/tmp/ui-ux-wt-45で次を試行したが、いずれもランナー起動前にexit 1となった：① /Users/ryosuke/.agents/scripts/compact-test task45-review-models bash macos/scripts/run-swift-tests.sh AgentDomain ② /Users/ryosuke/.agents/scripts/compact-test task45-review-wiring-selftest ruby .claude/scripts/task45-wiring.rb --selftest ③ /Users/ryosuke/.agents/scripts/compact-test task45-review-wiring env -u TASK45_SCOPE_CHECK TASK45_BASELINE=e3dd2fb45aeec5d305995826885e15663a9dd6be ruby .claude/scripts/task45-wiring.rb ④ /Users/ryosuke/.agents/scripts/compact-test task45-review-task44 env -u TASK44_SCOPE_CHECK TASK44_BASELINE=b92e1db4c4cb481f028b3c8529999cdf83d2b10a ruby .claude/scripts/task44-wiring.rb。失敗原文の代表：『mktemp: mkstemp failed on /tmp/tmp.Cm0QzI4XdJ: Operation not permitted』『/Users/ryosuke/.agents/scripts/compact-test: line 26: : No such file or directory』『cat: : No such file or directory』。ラッパーのmktempと出力リダイレクトで失敗しており、実装コードは未実行。Gitでもxcrunキャッシュ作成拒否、FSEvents・キャッシュディレクトリ取得の警告を観測した。全ファイルシステムがread-onlyのためTMPDIR変更は行わず、ラッパーも迂回していない。呼び出し元が凍結Acceptance、恒久配線、task-44回帰、3パッケージのSwift Testing、diff --checkの独立greenを供給しているため、persona-reviewの環境例外3条件を適用した。このpassは独立コードレビューの判定であり、PM目視ゲート完了の宣言ではない。",
+  "root_cause_assessment": "根本原因に到達している。名前の表示規則をSessionTitlePresentationへ集約し、チーム表示では履歴スナップショットより現在ノードを優先するため、現在の名前状態と表示の不一致を解消する。静的変異として、fullTitleをprimaryへ戻すと33文字derivedの全文・help・AXのリテラル期待値に反すること、同名花名の除外を消すとsecondary == nilに反することを確認した。また、各チーム子Viewを旧名Textへ戻す、node.titleStateをlegacyへ置換する、help／AXをprimaryへ接続する、ドラッグ順序やtypography引数を変える変異には、凍結Rubyの対応する拒否条件がある。変異はコード上で照合したもので、実走したとは扱っていない。実画面のhelp優先順位・AX・コントラスト・操作領域はPMの独立ゲートに残る。"
+}

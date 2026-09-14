@@ -875,12 +875,21 @@ index bd55dda..0000000
 -    }
 -}
 diff --git a/macos/Packages/SessionFeature/Sources/SessionFeature/PaneLayoutView.swift b/macos/Packages/SessionFeature/Sources/SessionFeature/PaneLayoutView.swift
-index ec5ed7c..718517d 100644
+index ec5ed7c..085cf0b 100644
 --- a/macos/Packages/SessionFeature/Sources/SessionFeature/PaneLayoutView.swift
 +++ b/macos/Packages/SessionFeature/Sources/SessionFeature/PaneLayoutView.swift
-@@ -332,12 +332,27 @@ private struct PaneTileView: View {
-             StatusLabel(status: session.displayStatus)
-                 .accessibilityHidden(true)
+@@ -328,17 +328,37 @@ private struct PaneTileView: View {
+ 
+     private var header: some View {
+         HStack(spacing: DSSpacing.s) {
++            let isCompact = size.width < PaneLayoutView.minimumPaneWidth
+             StatusDot(status: session.displayStatus)
+-            StatusLabel(status: session.displayStatus)
+-                .accessibilityHidden(true)
++            if !isCompact {
++                StatusLabel(status: session.displayStatus)
++                    .accessibilityHidden(true)
++            }
              AgentSessionIcon(descriptor: session.agentDescriptor, status: session.displayStatus, size: 24)
 -            Text(session.displayName)
 +            let presentation = SessionTitlePresentation(
@@ -895,19 +904,23 @@ index ec5ed7c..718517d 100644
 -                .truncationMode(.middle)
 +                .truncationMode(.tail)
                  .layoutPriority(1)
+-            if !session.workspaceName.isEmpty {
 +                .help(presentation.helpText)
 +                .accessibilityValue(presentation.accessibilityValue)
 +            if let secondary = presentation.secondary {
-+                Text(secondary)
-+                    .font(DSFont.caption)
-+                    .foregroundStyle(DSColor.textPrimary)
-+                    .lineLimit(1)
-+                    .truncationMode(.tail)
-+                    .accessibilityHidden(true)
++                if !isCompact {
++                    Text(secondary)
++                        .font(DSFont.caption)
++                        .foregroundStyle(DSColor.textPrimary)
++                        .lineLimit(1)
++                        .truncationMode(.tail)
++                        .accessibilityHidden(true)
++                }
 +            }
-             if !session.workspaceName.isEmpty {
++            if !isCompact, !session.workspaceName.isEmpty {
                  Text(session.workspaceName)
                      .font(DSFont.caption)
+                     .foregroundStyle(DSColor.textSecondary)
 diff --git a/macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptMarkdownPresentationTests.swift b/macos/Packages/SessionFeature/Tests/SessionFeatureTests/Acceptance/AcceptanceTranscriptMarkdownPresentationTests.swift
 deleted file mode 100644
 index 0f333ae..0000000

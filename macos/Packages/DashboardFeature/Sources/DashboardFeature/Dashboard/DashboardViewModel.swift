@@ -538,7 +538,7 @@ public final class DashboardViewModel {
     public func filteredGridSessionNodes(projectID: ProjectID?) -> [SessionNode] {
         let base: [SessionNode]
         if let projectID, projects.contains(where: { $0.id == projectID }) {
-            base = gridSessionNodes(in: projectID).filter { Self.isVisibleInGrid(launchContext: $0.launchContext) }
+            base = gridSessionNodes(in: projectID)
         } else {
             base = gridVisibleSessionNodes
         }
@@ -578,11 +578,13 @@ public final class DashboardViewModel {
         paneLayoutStore.save(updated)
     }
 
-    /// task-3: 永続ツリーを `gridVisibleSessionNodes`（絞り込み適用前の全表示可能セッション）に
-    /// 合わせて reconcile する。ワークスペース絞り込み・表示セッション選択の変更では呼ばない（D4）。
+    /// task-3: 永続ツリーを「いずれかのグリッドに出得る全セッション」に合わせて reconcile する。
+    /// ワークスペース絞り込み中は .orchestration サブセッションもタイルになるため、ここでは
+    /// launchContext で絞らない（絞り込みごとの分岐は D4 違反。実際の可視化は
+    /// `paneLayoutForDisplay()` の `pruned(visible:)` が担う）。
     private func reconcilePaneLayout(persist: Bool = true) {
         let reconciled = paneLayout.reconciled(
-            with: gridVisibleSessionNodes.map(\.id),
+            with: sessionNodes.map(\.id),
             bounds: PaneLayoutStore.reconcileBounds,
             spacing: 0
         )

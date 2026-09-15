@@ -1253,6 +1253,46 @@ public final class ChatSessionViewModel: Identifiable {
         notifyCodexSettingsChanged()
     }
 
+    // MARK: - Control API からのモデル変更（2系統の窓口をここへ集約する）
+
+    /// Control API が広告するモデル候補。spawn 型（Claude/Cursor）は CLI フラグのカタログ値、
+    /// codex は app-server の `listModels` ライブ値（＝アプリ UI と同じ出所）を返す。
+    public var controlModelChoices: [ControlModelChoice] {
+        if canApplySpawnAgentSettings {
+            return availableSpawnAgentModels.map {
+                ControlModelChoice(id: $0, displayName: spawnAgentModelDisplayName($0))
+            }
+        }
+        if codexClient != nil {
+            return availableModels.map { ControlModelChoice(id: $0.id, displayName: $0.displayName) }
+        }
+        return []
+    }
+
+    /// Control API からのモデル適用。throws を outcome へ写像し、失敗理由を握りつぶさない。
+    public func applyControlModel(_ model: String) async -> ControlModelApplyOutcome {
+        if canApplySpawnAgentSettings {
+            guard availableSpawnAgentModels.contains(model) else { return .unknownModel }
+            await setSpawnAgentModel(model)
+            return .applied
+        }
+        guard codexClient != nil else { return .unsupported }
+        // UI のモデル選択と同じ突き合わせ規則（id または model のどちらかに一致）。
+        guard let resolved = availableModels.first(where: { $0.id == model || $0.model == model })?.id else {
+            return availableModels.isEmpty ? .unsupported : .unknownModel
+        }
+        do {
+            try await setModel(model: resolved, effort: nil)
+            return .applied
+        } catch ChatSettingsUpdateError.threadNotStarted {
+            return .notReady
+        } catch ChatSettingsUpdateError.codexSettingsUnavailable {
+            return .unsupported
+        } catch {
+            return .failed
+        }
+    }
+
     public func setPermissionProfile(id: String) async throws {
         guard let threadId else { throw ChatSettingsUpdateError.threadNotStarted }
         guard let codexClient else { throw ChatSettingsUpdateError.codexSettingsUnavailable }

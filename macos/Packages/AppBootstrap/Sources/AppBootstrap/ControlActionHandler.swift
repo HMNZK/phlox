@@ -95,7 +95,7 @@ public protocol ControlActionDashboard: AnyObject {
     func sessionSubAgentMessages(for id: SessionID, subAgentID: String) -> [ChatItem]?
     func sessionUsage(for id: SessionID) -> ControlSessionUsage?
     func sessionModelSettings(for id: SessionID) -> ControlSessionModelSettings?
-    func setSessionModel(_ model: String, for id: SessionID) async -> Bool
+    func setSessionModel(_ model: String, for id: SessionID) async -> ControlSetModelOutcome
     var controlCLIUsages: [AgentKind: CLIUsage] { get }
 }
 
@@ -105,7 +105,7 @@ extension ControlActionDashboard {
     public func persistSessionRole(id: SessionID, role: String) {}
     public func agoraParticipantLanded(id: SessionID, role: String?, requester: SessionID?) {}
     public func sessionModelSettings(for id: SessionID) -> ControlSessionModelSettings? { nil }
-    public func setSessionModel(_ model: String, for id: SessionID) async -> Bool { false }
+    public func setSessionModel(_ model: String, for id: SessionID) async -> ControlSetModelOutcome { .notFound }
     public func respondToUserQuestion(
         id: SessionID,
         requestId: String,
@@ -256,7 +256,19 @@ public final class ControlActionHandler {
         id: SessionID,
         model: String
     ) async -> ControlResponse {
-        await dashboard.setSessionModel(model, for: id) ? .status(200) : .status(404)
+        switch await dashboard.setSessionModel(model, for: id) {
+        case .applied:
+            return .status(200)
+        case .unknownModel:
+            return .json(400, ErrorDTO(error: "unknown model: \(model)"))
+        case .notReady:
+            // codex は thread 開始前にモデルを変えられない。wait-ready 後に再送する。
+            return .json(425, ErrorDTO(error: "session not ready"))
+        case .unsupported, .notFound:
+            return .status(404)
+        case .failed:
+            return .status(500)
+        }
     }
 
     private func handleAgentModels(kind: AgentKind) -> ControlResponse {
@@ -341,8 +353,10 @@ public final class ControlActionHandler {
                 workingDirectory: workingDirectory,
                 projectID: projectID
             )
+            // spawn 直後の適用は1回だけ試す（リトライも待機もしない）。codex は thread 未開始で
+            // .notReady になるのが通常で、その場合は wait-ready 後の POST /sessions/{id}/model を使う。
             let modelApplied = await ControlSpawnModelApplier.apply(model, to: id) { model, sessionID in
-                await dashboard.setSessionModel(model, for: sessionID)
+                await dashboard.setSessionModel(model, for: sessionID) == .applied
             }
             if modelApplied == false {
                 Self.logger.warning(

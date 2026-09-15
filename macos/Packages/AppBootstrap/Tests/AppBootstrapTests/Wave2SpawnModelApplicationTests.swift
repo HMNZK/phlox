@@ -35,9 +35,9 @@ import SessionFeature
             return spawnedID
         }
 
-        func setSessionModel(_ model: String, for id: SessionID) async -> Bool {
+        func setSessionModel(_ model: String, for id: SessionID) async -> ControlSetModelOutcome {
             appliedModel = (id, model)
-            return true
+            return .applied
         }
 
         func sendMessage(

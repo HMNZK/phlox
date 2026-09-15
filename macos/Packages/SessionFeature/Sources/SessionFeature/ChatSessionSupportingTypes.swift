@@ -84,6 +84,29 @@ public enum ChatSettingsUpdateError: Error, Equatable, Sendable {
     case codexSettingsUnavailable
 }
 
+/// Control API が広告するモデル候補（id と表示名だけの最小形）。
+public struct ControlModelChoice: Equatable, Sendable {
+    public let id: String
+    public let displayName: String
+
+    public init(id: String, displayName: String) {
+        self.id = id
+        self.displayName = displayName
+    }
+}
+
+/// Control API からのモデル適用結果。呼び出し側（Control 層）が HTTP status へ写像する。
+public enum ControlModelApplyOutcome: Equatable, Sendable {
+    case applied
+    /// 候補一覧に無いモデル ID。
+    case unknownModel
+    /// codex の thread 未開始（wait-ready 前）。
+    case notReady
+    /// そもそもモデル変更経路を持たないセッション。
+    case unsupported
+    case failed
+}
+
 public protocol CodexSettingsProviding: Sendable {
     var threadEvents: AsyncStream<ThreadEvent> { get }
 

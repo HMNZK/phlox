@@ -54,7 +54,7 @@ private final class Task5ControllingSpawnClient: StructuredAgentClient, SpawnAge
     @MainActor
     private final class DashboardStub: ControlActionDashboard {
         var settingsByID: [SessionID: ControlSessionModelSettings] = [:]
-        var modelResults: [SessionID: Bool] = [:]
+        var modelResults: [SessionID: ControlSetModelOutcome] = [:]
         private(set) var appliedModels: [(SessionID, String)] = []
 
         var controlSessionSummaries: [ControlSessionSummary] = []
@@ -78,9 +78,9 @@ private final class Task5ControllingSpawnClient: StructuredAgentClient, SpawnAge
             settingsByID[id]
         }
 
-        func setSessionModel(_ model: String, for id: SessionID) async -> Bool {
+        func setSessionModel(_ model: String, for id: SessionID) async -> ControlSetModelOutcome {
             appliedModels.append((id, model))
-            return modelResults[id] ?? false
+            return modelResults[id] ?? .notFound
         }
     }
 
@@ -135,7 +135,7 @@ private final class Task5ControllingSpawnClient: StructuredAgentClient, SpawnAge
     @Test func modelApplicationForwardsToDashboard() async {
         let id = SessionID()
         let dashboard = DashboardStub()
-        dashboard.modelResults[id] = true
+        dashboard.modelResults[id] = .applied
 
         let response = await makeHandler(dashboard).handle(request(.setModel(id: id, model: "fable")))
 
@@ -197,6 +197,46 @@ private final class Task5ControllingSpawnClient: StructuredAgentClient, SpawnAge
             permissionOrMode: "bypassPermissions",
             effort: "high"
         ))
+    }
+
+    @Test func unknownModelReturns400() async {
+        let id = SessionID()
+        let dashboard = DashboardStub()
+        dashboard.modelResults[id] = .unknownModel
+
+        let response = await makeHandler(dashboard).handle(request(.setModel(id: id, model: "no-such-model")))
+
+        #expect(response.statusCode == 400)
+    }
+
+    @Test func threadNotStartedReturns425() async {
+        let id = SessionID()
+        let dashboard = DashboardStub()
+        dashboard.modelResults[id] = .notReady
+
+        let response = await makeHandler(dashboard).handle(request(.setModel(id: id, model: "gpt-5.5-codex")))
+
+        #expect(response.statusCode == 425)
+    }
+
+    @Test func applyFailureReturns500() async {
+        let id = SessionID()
+        let dashboard = DashboardStub()
+        dashboard.modelResults[id] = .failed
+
+        let response = await makeHandler(dashboard).handle(request(.setModel(id: id, model: "gpt-5.5-codex")))
+
+        #expect(response.statusCode == 500)
+    }
+
+    @Test func unsupportedSessionReturns404() async {
+        let id = SessionID()
+        let dashboard = DashboardStub()
+        dashboard.modelResults[id] = .unsupported
+
+        let response = await makeHandler(dashboard).handle(request(.setModel(id: id, model: "opus")))
+
+        #expect(response.statusCode == 404)
     }
 
     private func makeHandler(_ dashboard: DashboardStub) -> ControlActionHandler {

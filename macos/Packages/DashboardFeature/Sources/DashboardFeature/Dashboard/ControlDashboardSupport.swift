@@ -10,6 +10,21 @@ public enum ControlInterruptOutcome: Equatable, Sendable {
     case notFound
 }
 
+/// Control API のモデル適用結果（AppBootstrap 側で HTTP status へ写像する）。
+public enum ControlSetModelOutcome: Equatable, Sendable {
+    case applied
+    /// 候補一覧に無いモデル ID（→400）。
+    case unknownModel
+    /// codex の thread 未開始（→425。wait-ready 後に再送する）。
+    case notReady
+    /// モデル変更経路を持たないセッション（→404）。
+    case unsupported
+    /// セッション自体が存在しない（→404）。
+    case notFound
+    /// 適用は試みたが失敗（→500）。
+    case failed
+}
+
 /// Control API usage の写像結果（AppBootstrap.ControlActionDashboard witness 用）。
 public struct ControlSessionUsage: Equatable, Sendable {
     public let turn: TurnUsage?
@@ -87,32 +102,32 @@ extension DashboardViewModel {
         guard let appServer = sessionNodes.first(where: { $0.id == id })?.appServer else {
             return nil
         }
-        // GET/POST の能力ゲートを一致させる: 実際に適用できない（SpawnAgentSettingsControlling
-        // 欠如）セッションに選択肢を広告しない（広告するのに POST が 404 になる乖離の防止）。
-        guard appServer.canApplySpawnAgentSettings,
-              !appServer.availableSpawnAgentModels.isEmpty
-        else {
+        // GET/POST の能力ゲートを一致させる: 適用できないセッションに選択肢を広告しない
+        // （広告するのに POST が 404 になる乖離の防止）。候補の出所は spawn 型と codex で
+        // 別だが、判定は `controlModelChoices` の空/非空に一本化する。
+        let choices = appServer.controlModelChoices
+        guard !choices.isEmpty else {
             return DashboardControlModelSettings(selectedModel: nil, availableModels: [])
         }
         return DashboardControlModelSettings(
             selectedModel: appServer.selectedModel,
-            availableModels: appServer.availableSpawnAgentModels.map { model in
-                DashboardControlModelOption(
-                    id: model,
-                    displayName: appServer.spawnAgentModelDisplayName(model)
-                )
+            availableModels: choices.map {
+                DashboardControlModelOption(id: $0.id, displayName: $0.displayName)
             }
         )
     }
 
-    /// `setSpawnAgentModel` は model/permission/effort を揃えて controller に渡す安全経路。
-    public func controlSetModel(_ model: String, for id: SessionID) async -> Bool {
-        guard let appServer = sessionNodes.first(where: { $0.id == id })?.appServer,
-              appServer.canApplySpawnAgentSettings
-        else {
-            return false
+    /// spawn 型（Claude/Cursor）は CLI フラグ差し替え、codex は app-server の
+    /// updateThreadSettings。分岐は `ChatSessionViewModel.applyControlModel` に閉じている。
+    public func controlSetModel(_ model: String, for id: SessionID) async -> ControlSetModelOutcome {
+        guard let node = sessionNodes.first(where: { $0.id == id }) else { return .notFound }
+        guard let appServer = node.appServer else { return .unsupported }
+        switch await appServer.applyControlModel(model) {
+        case .applied: return .applied
+        case .unknownModel: return .unknownModel
+        case .notReady: return .notReady
+        case .unsupported: return .unsupported
+        case .failed: return .failed
         }
-        await appServer.setSpawnAgentModel(model)
-        return true
     }
 }

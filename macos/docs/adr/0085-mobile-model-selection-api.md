@@ -5,6 +5,9 @@ last-verified: 2026-07-14
 
 # 0085: モバイル向けモデル選択 API（GET settings / POST model）
 
+> 能力ゲートを `canApplySpawnAgentSettings` だけに置く部分は ADR 0176 で置き換えた
+> （codex も `updateThreadSettings` でモデル変更できるため）。エンドポイントとワイヤ形状は有効。
+
 ## 決定
 
 モバイルコンパニオンからセッションのモデルを参照・変更できるよう、Control API に

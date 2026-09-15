@@ -12,6 +12,7 @@ last-verified: 2026-09-14
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0176 | [Control API のモデル変更を codex にも通す（2系統の経路を outcome で束ねる）](0176-control-api-model-routing-covers-codex.md) | accepted |
 | 0175 | [回答本文と処理詳細を意味別に分けて表示する](0175-transcript-answer-and-process-separation.md) | accepted |
 | 0174 | [表示切替後のターミナル空白を、接続先の所有権管理で防ぐ](0174-terminal-mount-ownership-prevents-blank-after-view-mode-switch.md) | active |
 | 0173 | [Claude Code の stream フラグとサブエージェント部分メッセージ](0173-claude-code-stream-flags-and-subagent-partials.md) | accepted |
@@ -88,7 +89,7 @@ last-verified: 2026-09-14
 | 0088 | [接続確立を QR ペアリングに一本化し、手動の認証情報入力・供給 UI を撤去する](0088-qr-only-pairing-remove-manual-token-entry.md) | active |
 | 0087 | [モバイル wave-2 ワイヤ拡張（spawn 時モデル適用・プロジェクト付与・エージェント別モデル一覧・アカウント使用量）の設計判断](0087-mobile-wave2-wire-extensions.md) | active |
 | 0086 | [single モードのサイドバー・プロジェクト名選択で新規セッション開始画面を表示する](0086-single-mode-project-select-shows-start-screen.md) | active |
-| 0085 | [モバイル向けモデル選択 API（GET settings / POST model）](0085-mobile-model-selection-api.md) | active |
+| 0085 | [モバイル向けモデル選択 API（GET settings / POST model）](0085-mobile-model-selection-api.md) | 一部 superseded → 0176 |
 | 0084 | [グリッドビューの N×N 固定化・セッション自由配置・セル結合](0084-grid-view-fixed-nxn-free-placement-merge.md) | superseded (0136) |
 | 0083 | [非フォーカス時 esc の中止到達と、中断後 transport の turnStart 自己修復](0083-chat-esc-interrupt-unfocused-and-transport-respawn.md) | active |
 | 0082 | [空状態カード＋「＋」メニューで agent × mode を明示選択（Pattern A）](0082-agent-mode-launch-cards-and-menu.md) | active |

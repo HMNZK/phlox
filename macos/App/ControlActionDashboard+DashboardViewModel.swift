@@ -103,7 +103,7 @@ extension DashboardViewModel: @retroactive ControlActionDashboard {
         )
     }
 
-    public func setSessionModel(_ model: String, for id: SessionID) async -> Bool {
+    public func setSessionModel(_ model: String, for id: SessionID) async -> ControlSetModelOutcome {
         await controlSetModel(model, for: id)
     }
 

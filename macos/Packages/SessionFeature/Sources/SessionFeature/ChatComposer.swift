@@ -360,7 +360,7 @@ struct ComposerSuggestionPopup: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: controller.candidates.count > ComposerSuggestionPopupMetrics.maxVisibleRows) {
-            VStack(alignment: .leading, spacing: ComposerSuggestionPopupMetrics.rowSpacing) {
+            LazyVStack(alignment: .leading, spacing: ComposerSuggestionPopupMetrics.rowSpacing) {
                 ForEach(Array(controller.candidates.enumerated()), id: \.element.id) { index, candidate in
                     Button {
                         onAccept(index)

@@ -230,22 +230,8 @@ final class ComposerSuggestionController {
                     Self.filteredSlashCandidates(externalCandidates, searchTerm: query.searchTerm),
                     for: query
                 )
-                return
-            }
-            let availableCommands = availableSlashCommands
-            let seedCommands = seedSlashCommands
-            if asyncSlashProvider != nil {
-                if let cachedSlashProvider,
-                   let warm = cachedSlashProvider(query.searchTerm, availableCommands, seedCommands) {
-                    applySynchronousCandidates(warm, for: query)
-                } else {
-                    scheduleScan(query: query, availableCommands: availableCommands, seedCommands: seedCommands)
-                }
             } else {
-                applySynchronousCandidates(
-                    Self.filteredSlashCandidates(slashProvider(), searchTerm: query.searchTerm),
-                    for: query
-                )
+                resolveSlashCandidates(for: query)
             }
         case .fileReference:
             if asyncFileProvider != nil {
@@ -259,6 +245,27 @@ final class ComposerSuggestionController {
             } else {
                 applySynchronousCandidates(fileProvider(query.searchTerm), for: query)
             }
+        }
+    }
+
+    /// slash 候補の通常経路（外部候補が優先されないときの解決）。
+    /// update() の非外部パスと、外部候補解除（updateExternalCandidates(nil)）の両方から呼ぶ。
+    /// 外部候補解除時に候補を空にせず、現在のクエリを通常経路で再計算するための共通化。
+    private func resolveSlashCandidates(for query: SuggestionQuery) {
+        let availableCommands = availableSlashCommands
+        let seedCommands = seedSlashCommands
+        if asyncSlashProvider != nil {
+            if let cachedSlashProvider,
+               let warm = cachedSlashProvider(query.searchTerm, availableCommands, seedCommands) {
+                applySynchronousCandidates(warm, for: query)
+            } else {
+                scheduleScan(query: query, availableCommands: availableCommands, seedCommands: seedCommands)
+            }
+        } else {
+            applySynchronousCandidates(
+                Self.filteredSlashCandidates(slashProvider(), searchTerm: query.searchTerm),
+                for: query
+            )
         }
     }
 
@@ -400,13 +407,22 @@ final class ComposerSuggestionController {
     }
 
     /// 外部候補を設定する。非 nil の間、slash 候補は外部候補だけを表示する。
+    /// nil（解除）のときは通常経路（availableSlashCommands / seedSlashCommands / フォールバック）で
+    /// 現在のクエリの候補を再計算する（候補を空にしない）。
     func updateExternalCandidates(_ candidates: [SuggestionCandidate]?) {
+        let hadExternalCandidates = externalCandidates != nil
         externalCandidates = candidates
         guard let query = currentQuery, query.kind == .slashCommand else { return }
-        applySynchronousCandidates(
-            Self.filteredSlashCandidates(candidates ?? [], searchTerm: query.searchTerm),
-            for: query
-        )
+        if let candidates {
+            applySynchronousCandidates(
+                Self.filteredSlashCandidates(candidates, searchTerm: query.searchTerm),
+                for: query
+            )
+        } else if hadExternalCandidates {
+            // 解除された瞬間だけ再計算する。元から nil のとき（非 Codex の毎打鍵）は
+            // update() が直前に解決した候補をそのまま残す（二重走査を起こさない）。
+            resolveSlashCandidates(for: query)
+        }
     }
 
     func dismiss() {

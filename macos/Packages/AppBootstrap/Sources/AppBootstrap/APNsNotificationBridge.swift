@@ -370,7 +370,26 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
                     Self.logger.notice("APNs token \(tokenPrefix, privacy: .public)… unregistered (\(reason, privacy: .public)); removing")
                     try? deviceTokenStore.remove(deviceToken: registration.deviceToken)
                 case .failure(let statusCode, let reason):
-                    Self.logger.error("APNs send failed for token \(tokenPrefix, privacy: .public)…: HTTP \(statusCode) \(reason, privacy: .public)")
+                    if let retryResult = await retryWithOppositeEnvironmentIfBadDeviceToken(
+                        registration: registration,
+                        statusCode: statusCode,
+                        reason: reason,
+                        send: { flipped in
+                            try await sender.send(registration: flipped, collapseID: event.collapseID, payload: alertPayload)
+                        }
+                    ) {
+                        switch retryResult {
+                        case .success:
+                            break
+                        case .unregistered(let retryReason):
+                            Self.logger.notice("APNs token \(tokenPrefix, privacy: .public)… unregistered (\(retryReason, privacy: .public)); removing")
+                            try? deviceTokenStore.remove(deviceToken: registration.deviceToken)
+                        case .failure(let retryStatusCode, let retryReason):
+                            Self.logger.error("APNs send failed for token \(tokenPrefix, privacy: .public)… after environment retry: HTTP \(retryStatusCode) \(retryReason, privacy: .public)")
+                        }
+                    } else {
+                        Self.logger.error("APNs send failed for token \(tokenPrefix, privacy: .public)…: HTTP \(statusCode) \(reason, privacy: .public)")
+                    }
                 }
             } catch {
                 Self.logger.error("APNs send failed for token \(tokenPrefix, privacy: .public)…: \(String(describing: error), privacy: .public)")
@@ -413,6 +432,42 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
         }
     }
 
+    /// 400 BadDeviceToken は environment 不一致（sandbox/production 取り違え）の疑いがあるため、
+    /// 反対の environment で一度だけ再送する。再送が成功したら、正しい environment を永続化して以後の送信を直す。
+    /// 再送も失敗した場合は呼び出し元が通常のエラーログを出す（無限リトライはしない）。
+    private func retryWithOppositeEnvironmentIfBadDeviceToken(
+        registration: DeviceTokenRegistration,
+        statusCode: Int,
+        reason: String,
+        send: (DeviceTokenRegistration) async throws -> APNsSendResult
+    ) async -> APNsSendResult? {
+        guard statusCode == 400, reason == "BadDeviceToken" else { return nil }
+        let tokenPrefix = String(registration.deviceToken.prefix(8))
+        guard let flipped = DeviceTokenRegistration(
+            deviceToken: registration.deviceToken,
+            bundleId: registration.bundleId,
+            environment: registration.environment == .sandbox ? .production : .sandbox,
+            tokenType: registration.tokenType,
+            activityId: registration.activityId,
+            sessionId: registration.sessionId
+        ) else {
+            Self.logger.error("APNs environment retry skipped: failed to construct flipped registration for token \(tokenPrefix, privacy: .public)…")
+            return nil
+        }
+
+        do {
+            let result = try await send(flipped)
+            if case .success = result {
+                Self.logger.notice("APNs token \(tokenPrefix, privacy: .public)… environment corrected to \(flipped.environment.rawValue, privacy: .public) after BadDeviceToken retry")
+                try? deviceTokenStore.upsert(flipped)
+            }
+            return result
+        } catch {
+            Self.logger.error("APNs environment retry failed for token \(tokenPrefix, privacy: .public)…: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
     private func enqueue(_ event: NotificationEvent) {
         Task.detached(priority: .utility) {
             await notify(event)
@@ -446,9 +501,10 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
         let tokenPrefix = String(registration.deviceToken.prefix(8))
         do {
             let payload = try makeLiveActivityPayload(for: event, apnsEvent: apnsEvent)
+            let collapseID = "\(event.sessionId):liveactivity"
             let result = try await sender.send(
                 registration: registration,
-                collapseID: "\(event.sessionId):liveactivity",
+                collapseID: collapseID,
                 payload: payload,
                 pushType: .liveactivity
             )
@@ -460,6 +516,26 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
                 try? deviceTokenStore.remove(deviceToken: registration.deviceToken)
                 return false
             case .failure(let statusCode, let reason):
+                if let retryResult = await retryWithOppositeEnvironmentIfBadDeviceToken(
+                    registration: registration,
+                    statusCode: statusCode,
+                    reason: reason,
+                    send: { flipped in
+                        try await sender.send(registration: flipped, collapseID: collapseID, payload: payload, pushType: .liveactivity)
+                    }
+                ) {
+                    switch retryResult {
+                    case .success:
+                        return true
+                    case .unregistered(let retryReason):
+                        Self.logger.notice("APNs live activity token \(tokenPrefix, privacy: .public)… unregistered (\(retryReason, privacy: .public)); removing")
+                        try? deviceTokenStore.remove(deviceToken: registration.deviceToken)
+                        return false
+                    case .failure(let retryStatusCode, let retryReason):
+                        Self.logger.error("APNs live activity send failed for token \(tokenPrefix, privacy: .public)… after environment retry: HTTP \(retryStatusCode) \(retryReason, privacy: .public)")
+                        return false
+                    }
+                }
                 Self.logger.error("APNs live activity send failed for token \(tokenPrefix, privacy: .public)…: HTTP \(statusCode) \(reason, privacy: .public)")
                 return false
             }

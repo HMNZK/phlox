@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import PhloxCore
+@testable import PhloxCore
 
 // task-1 受け入れテスト（PM 著・凍結。実装役は編集禁止 — ハーネス欠陥は PM 承認の上ハーネス部分のみ修理可）。
 // 契約の正本: doc/apns-implementation-request.md（v1）
@@ -24,9 +24,24 @@ struct APNsModelsAcceptanceTests {
         #expect(APNsEnvironment.production.rawValue == "production")
     }
 
-    @Test func Debugビルドで走るテストのcurrentはsandbox() {
-        // swift test は Debug 構成でビルドされる（Debug=開発署名=sandbox の契約）
-        #expect(APNsEnvironment.current == .sandbox)
+    // 旧契約「Debug=開発署名=sandbox」は 2026-09-22 の調査（実ログ・Keychain 実データ）で誤りと確定したため、
+    // 実際の aps-environment entitlement を実行時に読む契約へ改訂（PM 裁定）。
+    @Test func development文字列はsandboxと判定する() {
+        #expect(APNsEnvironment.resolve(apsEnvironmentValue: "development") == .sandbox)
+    }
+
+    @Test func production文字列はproductionと判定する() {
+        #expect(APNsEnvironment.resolve(apsEnvironmentValue: "production") == .production)
+    }
+
+    @Test func 不正なプロファイルバイト列はnilを返す() {
+        let corrupted = Data("<?xml not valid plist content </plist>".utf8)
+        #expect(APNsEnvironment.resolve(embeddedProvisioningProfileData: corrupted) == nil)
+    }
+
+    @Test func macOSホストのswiftTestではプロファイル無しでproductionにフォールバックする() {
+        // swift test は macOS ホストで走り、embedded.mobileprovision も Simulator でもないため production。
+        #expect(APNsEnvironment.current == .production)
     }
 
     // MARK: - DeviceTokenRegistration（POST /device-tokens の body 契約）

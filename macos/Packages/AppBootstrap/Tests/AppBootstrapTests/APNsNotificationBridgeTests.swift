@@ -175,6 +175,54 @@ import AgentDomain
         #expect(Set(calls.map(\.registration.deviceToken)) == ["aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb"])
     }
 
+    @Test func badDeviceTokenRetriesWithOppositeEnvironmentAndCorrectsStore() async throws {
+        let store = InMemoryDeviceTokenStore()
+        let registration = DeviceTokenRegistration(
+            deviceToken: "abcdef0123456789",
+            bundleId: "com.phlox.mobile",
+            environment: .production
+        )!
+        try store.upsert(registration)
+        let sender = FakeAPNsNotificationSender(results: [
+            .failure(statusCode: 400, reason: "BadDeviceToken"), .success,
+        ])
+        let bridge = APNsNotificationBridge(deviceTokenStore: store, sender: sender)
+
+        await bridge.notify(.sessionCompleted(sessionId: "session-123", sessionName: "Bright Lily"))
+
+        let calls = await sender.calls
+        #expect(calls.count == 2)
+        #expect(calls[0].registration.environment == .production)
+        #expect(calls[1].registration.environment == .sandbox)
+        #expect(calls[1].registration.deviceToken == registration.deviceToken)
+        let stored = try store.loadAll()
+        #expect(stored.count == 1)
+        #expect(stored.first?.environment == .sandbox)
+    }
+
+    @Test func badDeviceTokenRetryFailureLeavesRegistrationUnchanged() async throws {
+        let store = InMemoryDeviceTokenStore()
+        let registration = DeviceTokenRegistration(
+            deviceToken: "abcdef0123456789",
+            bundleId: "com.phlox.mobile",
+            environment: .production
+        )!
+        try store.upsert(registration)
+        let sender = FakeAPNsNotificationSender(results: [
+            .failure(statusCode: 400, reason: "BadDeviceToken"),
+            .failure(statusCode: 400, reason: "BadDeviceToken"),
+        ])
+        let bridge = APNsNotificationBridge(deviceTokenStore: store, sender: sender)
+
+        await bridge.notify(.sessionCompleted(sessionId: "session-123", sessionName: "Bright Lily"))
+
+        let calls = await sender.calls
+        #expect(calls.count == 2)
+        let stored = try store.loadAll()
+        #expect(stored.count == 1)
+        #expect(stored.first?.environment == .production)
+    }
+
     private static func normalizedJSONString(_ data: Data) throws -> String {
         let object = try JSONSerialization.jsonObject(with: data)
         let normalized = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])

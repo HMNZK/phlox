@@ -1,54 +1,57 @@
 import Foundation
+import DesignSystem
 
-/// 3ペイン（左サイドバー・中央 detail・右インスペクター）の実効幅（task-1 契約面）。
-struct PaneWidths: Equatable {
+/// 3 ペイン（左サイドバー・中央・右インスペクタ）の配置。
+struct PaneLayout: Equatable {
     var sidebar: CGFloat
     var inspector: CGFloat
+    /// サイドバーを横に並べて出すか。ユーザーが開いていても、幅が足りなければ自動で隠す。
+    var showsSidebar: Bool
+    /// インスペクタを中央の上に重ねて出すか（横に並べる幅が無いとき）。
+    var inspectorIsOverlay: Bool
 }
 
-/// ペイン幅クランプの純関数ポリシー（task-1 契約面）。
-/// ウィンドウリサイズ・サイドバー開閉・ドラッグの各経路から DashboardView が呼ぶ、
-/// 幅決定の単一の正本。契約は tasks/task-1.md と
-/// AcceptancePaneWidthPolicyTests.swift（PM 著・不変）。
+/// ペイン幅と縮退の純関数ポリシー。ウィンドウリサイズ・開閉・ドラッグの各経路から DashboardView が呼ぶ。
+/// 中央が 480pt を割るときは、まずインスペクタを重ね表示にし、それでも足りなければサイドバーを自動で隠す（01 D）。
 enum PaneWidthPolicy {
-    static let sidebarMinWidth: CGFloat = 240
-    static let inspectorMinWidth: CGFloat = 240
-    static let detailMinWidth: CGFloat = 400
+    static let sidebarRange = DSLayout.sidebarWidth
+    static let inspectorRange = DSLayout.inspectorWidth
+    static let centerMinWidth: CGFloat = 480
+    /// 境界線 1 本の幅。
+    static let separatorWidth: CGFloat = 1
 
-    /// ウィンドウ幅と表示状態から左右ペインの実効幅を返す。
-    static func clamped(
+    static func resolve(
         windowWidth: CGFloat,
         sidebarVisible: Bool,
         inspectorVisible: Bool,
         sidebarWidth: CGFloat,
         inspectorWidth: CGFloat
-    ) -> PaneWidths {
-        if !sidebarVisible && !inspectorVisible {
-            return PaneWidths(sidebar: sidebarWidth, inspector: inspectorWidth)
-        }
+    ) -> PaneLayout {
+        let sidebar = sidebarRange.clamped(sidebarWidth)
+        let inspector = inspectorRange.clamped(inspectorWidth)
+        let sidebarSpan = sidebarVisible ? sidebar + separatorWidth : 0
+        let inspectorSpan = inspectorVisible ? inspector + separatorWidth : 0
 
-        let budget = windowWidth - detailMinWidth
+        let fitsDocked = windowWidth - sidebarSpan - inspectorSpan >= centerMinWidth
+        let inspectorIsOverlay = inspectorVisible && !fitsDocked
+        let showsSidebar = sidebarVisible && windowWidth - sidebarSpan >= centerMinWidth
+        return PaneLayout(
+            sidebar: sidebar,
+            inspector: inspector,
+            showsSidebar: showsSidebar,
+            inspectorIsOverlay: inspectorIsOverlay
+        )
+    }
 
-        if sidebarVisible && inspectorVisible {
-            var sidebar = sidebarWidth
-            var inspector = inspectorWidth
+    /// 境界ドラッグ中のサイドバー幅。範囲内に収め、中央 480pt を割り込まない。
+    static func draggedSidebarWidth(start: CGFloat, translation: CGFloat, windowWidth: CGFloat, inspectorSpan: CGFloat) -> CGFloat {
+        let limit = windowWidth - inspectorSpan - centerMinWidth - separatorWidth
+        return sidebarRange.clamped(min(start + translation, max(sidebarRange.min, limit)))
+    }
 
-            if sidebar + inspector > budget {
-                inspector = max(inspectorMinWidth, min(inspector, budget - sidebar))
-                if sidebar + inspector > budget {
-                    sidebar = max(sidebarMinWidth, min(sidebar, budget - inspector))
-                }
-            }
-
-            return PaneWidths(sidebar: sidebar, inspector: inspector)
-        }
-
-        if sidebarVisible {
-            let sidebar = max(sidebarMinWidth, min(sidebarWidth, budget))
-            return PaneWidths(sidebar: sidebar, inspector: inspectorWidth)
-        }
-
-        let inspector = max(inspectorMinWidth, min(inspectorWidth, budget))
-        return PaneWidths(sidebar: sidebarWidth, inspector: inspector)
+    /// 境界ドラッグ中のインスペクタ幅（右端から左へ引くと広がる）。
+    static func draggedInspectorWidth(start: CGFloat, translation: CGFloat, windowWidth: CGFloat, sidebarSpan: CGFloat) -> CGFloat {
+        let limit = windowWidth - sidebarSpan - centerMinWidth - separatorWidth
+        return inspectorRange.clamped(min(start - translation, max(inspectorRange.min, limit)))
     }
 }

@@ -276,39 +276,6 @@
         }
       }
     },
-    "インスペクターを表示": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show inspector"
-          }
-        }
-      }
-    },
-    "インスペクターを表示／隠す": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show/Hide Inspector"
-          }
-        }
-      }
-    },
-    "インスペクターを隠す": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hide inspector"
-          }
-        }
-      }
-    },
     "キャンセル": {
       "extractionState": "manual",
       "localizations": {
@@ -338,39 +305,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "This is the name shown in the sidebar. The folder name will not change."
-          }
-        }
-      }
-    },
-    "サイドバーを表示": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show sidebar"
-          }
-        }
-      }
-    },
-    "サイドバーを表示／隠す": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show/Hide Sidebar"
-          }
-        }
-      }
-    },
-    "サイドバーを隠す": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hide sidebar"
           }
         }
       }
@@ -1079,17 +1013,6 @@
         }
       }
     },
-    "表示モードを切り替え": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Toggle Display Mode"
-          }
-        }
-      }
-    },
     "表示言語": {
       "extractionState": "manual",
       "localizations": {
@@ -1269,6 +1192,457 @@
           "stringUnit": {
             "state": "translated",
             "value": "Failed to regenerate the token. Please try again later."
+          }
+        }
+      }
+    },
+    "%@ 残り%lld%%": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$lld%% left"
+          }
+        }
+      }
+    },
+    "%lld 件・待ち時間の長い順": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld · longest wait first"
+          }
+        }
+      }
+    },
+    "Git worktree 隔離": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git worktree isolation"
+          }
+        }
+      }
+    },
+    "worktree 隔離": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "worktree isolation"
+          }
+        }
+      }
+    },
+    "⌘J 次の対応待ちへ　↑↓ 移動　↩ 開く　⌥⌘↩ 許可": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘J next  ↑↓ move  ↩ open  ⌥⌘↩ allow"
+          }
+        }
+      }
+    },
+    "、": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", "
+          }
+        }
+      }
+    },
+    "インスペクタ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inspector"
+          }
+        }
+      }
+    },
+    "インスペクタ（⌃⌘I）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inspector (⌃⌘I)"
+          }
+        }
+      }
+    },
+    "エディタ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editor"
+          }
+        }
+      }
+    },
+    "エージェント管理（⇧⌘,）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent Console (⇧⌘,)"
+          }
+        }
+      }
+    },
+    "オフ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        }
+      }
+    },
+    "オン": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On"
+          }
+        }
+      }
+    },
+    "グリッド": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grid"
+          }
+        }
+      }
+    },
+    "サイドバー": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sidebar"
+          }
+        }
+      }
+    },
+    "サイドバーを表示（⌃⌘S）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Sidebar (⌃⌘S)"
+          }
+        }
+      }
+    },
+    "サイドバーを隠す（⌃⌘S）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide Sidebar (⌃⌘S)"
+          }
+        }
+      }
+    },
+    "セッションを Git worktree で隔離": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Isolate sessions with Git worktrees"
+          }
+        }
+      }
+    },
+    "ターミナル": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal"
+          }
+        }
+      }
+    },
+    "ツールバー": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toolbar"
+          }
+        }
+      }
+    },
+    "プロジェクトを追加…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Project…"
+          }
+        }
+      }
+    },
+    "使用量: %@。クリックで詳細": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usage: %@. Click for details"
+          }
+        }
+      }
+    },
+    "単体": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Single"
+          }
+        }
+      }
+    },
+    "回答する…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Answer…"
+          }
+        }
+      }
+    },
+    "完了・未読 %lld 件 — %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld unread done — %2$@"
+          }
+        }
+      }
+    },
+    "対応待ち": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs you"
+          }
+        }
+      }
+    },
+    "対応待ち %lld 件（⌥⌘J で一覧、⌘J で次へ）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld need you (⌥⌘J for list, ⌘J for next)"
+          }
+        }
+      }
+    },
+    "対応待ちの一覧": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs You List"
+          }
+        }
+      }
+    },
+    "拒否": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deny"
+          }
+        }
+      }
+    },
+    "次の対応待ちへ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next Needing You"
+          }
+        }
+      }
+    },
+    "次の表示モード": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next View Mode"
+          }
+        }
+      }
+    },
+    "表示するセッションを選択": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose sessions to show"
+          }
+        }
+      }
+    },
+    "表示するセッションを選択 %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose sessions to show %@"
+          }
+        }
+      }
+    },
+    "表示セッションを選択": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose sessions to show"
+          }
+        }
+      }
+    },
+    "表示モード": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View mode"
+          }
+        }
+      }
+    },
+    "表示範囲の外に対応待ち %lld 件": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld need you outside this view"
+          }
+        }
+      }
+    },
+    "設定（⌘,）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings (⌘,)"
+          }
+        }
+      }
+    },
+    "許可": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow"
+          }
+        }
+      }
+    },
+    "選択中プロジェクトのセッション隔離": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session isolation for the selected project"
+          }
+        }
+      }
+    },
+    "開く": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open"
+          }
+        }
+      }
+    },
+    "%@（%@）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ (%2$@)"
+          }
+        }
+      }
+    },
+    "%@、%@から": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, since %2$@"
           }
         }
       }

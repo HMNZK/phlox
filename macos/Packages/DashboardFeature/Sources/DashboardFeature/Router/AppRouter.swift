@@ -32,6 +32,14 @@ public final class AppRouter {
     public var terminalPanelVisible: Bool
     /// エディタパネルの表示状態。
     public var editorPanelVisible: Bool
+    /// サイドバーを横に並べる幅が無いか（開いていても自動で隠す）。DashboardView がウィンドウ幅から決める。
+    public var sidebarLacksRoom = false
+    /// 自動で隠れたサイドバーを中央の上に一時的に重ねて出しているか（⌃⌘S）。
+    public var sidebarPeeking = false
+    /// ツールバーの「対応待ち」一覧を開いているか（⌥⌘J）。
+    public var attentionListPresented = false
+    /// メニューの「プロジェクトを追加…」（⌘O）が押された。フォルダ選択を持つ DashboardView が受けて false に戻す。
+    public var addProjectRequested = false
 
     public init(
         selectedSession: SessionID? = nil,
@@ -53,9 +61,16 @@ public final class AppRouter {
         mainRoute = .sessions
     }
 
-    /// サイドバーの表示/非表示をトグルする（Cmd+B・トグルボタン共通）。
+    /// サイドバーの表示/非表示をトグルする（⌃⌘S・トグルボタン共通）。
+    /// 横に並べる幅が無いときは、一時表示（重ね表示）を切り替える。手動で隠していても 1 回で出す。
     public func toggleSidebar() {
-        sidebarVisible.toggle()
+        if sidebarLacksRoom {
+            sidebarVisible = true
+            sidebarPeeking.toggle()
+        } else {
+            sidebarVisible.toggle()
+            sidebarPeeking = false
+        }
     }
 
     /// 右側インスペクターの表示/非表示をトグルする。
@@ -73,7 +88,7 @@ public final class AppRouter {
         editorPanelVisible.toggle()
     }
 
-    /// 表示モード（単体／グリッド）を切り替える。
+    /// 表示モード（単体／グリッド）を巡回する（⌃⌘G）。直接選ぶのは ⌃⌘1 / ⌃⌘2 で `viewMode` に代入する。
     public func toggleViewMode() {
         viewMode = viewMode == .single ? .grid : .single
     }

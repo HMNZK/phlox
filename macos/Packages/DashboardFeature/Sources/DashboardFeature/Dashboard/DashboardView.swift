@@ -9,11 +9,12 @@ public struct DashboardView: View {
     @Bindable var router: AppRouter
     @Bindable var usageMonitor: UsageMonitor
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
 
-    @State private var sidebarWidth: CGFloat = 280
-    @State private var sidebarWidthAtDragStart: CGFloat = 280
-    @State private var inspectorWidth: CGFloat = 300
-    @State private var inspectorWidthAtDragStart: CGFloat = 300
+    @State private var sidebarWidth: CGFloat = DSLayout.sidebarWidth.ideal
+    @State private var sidebarWidthAtDragStart: CGFloat = DSLayout.sidebarWidth.ideal
+    @State private var inspectorWidth: CGFloat = DSLayout.inspectorWidth.ideal
+    @State private var inspectorWidthAtDragStart: CGFloat = DSLayout.inspectorWidth.ideal
     @State private var isCreating = false
 
     @State private var spawnError: SpawnError?
@@ -28,9 +29,6 @@ public struct DashboardView: View {
 
     @AppStorage(ThemeStore.themeKey, store: UserDefaults.phloxDefaults()) private var themeID = AppTheme.phlox.id
     @State private var gridSessionPickerPresented = false
-    @State private var measuredLeadingOverlayWidth: CGFloat = 0
-    @State private var hasMeasuredLeadingOverlayWidth = false
-    @State private var measuredTrailingOverlayHeight: CGFloat = 0
     @AppStorage(PanelDrawerLayout.defaultsKey, store: UserDefaults.phloxDefaults()) private var storedDrawerWidth = PanelDrawerLayout.preferredWidth
     @AppStorage(PanelDrawerLayout.migrationDefaultsKey, store: UserDefaults.phloxDefaults()) private var hasMigratedDrawerWidth = false
     @State private var drawerWidthAtDragStart = PanelDrawerLayout.preferredWidth
@@ -182,190 +180,138 @@ public struct DashboardView: View {
 
     private var navigationShell: some View {
         GeometryReader { geometry in
+            let windowWidth = geometry.size.width
+            let layout = paneLayout(windowWidth: windowWidth)
             HStack(spacing: 0) {
-                Group {
-                    if router.sidebarVisible {
-                        DashboardSidebarView(
-                            viewModel: viewModel,
-                            router: router,
-                            expandedProjectIDs: $expandedProjectIDs,
-                            draftName: $draftName,
-                            renamingProject: $renamingProject,
-                            pendingProjectDeletion: $pendingProjectDeletion,
-                            renamingSession: $renamingSession,
-                            pendingDeletion: $pendingDeletion,
-                            pendingWorkspaceChange: $pendingWorkspaceChange,
-                            sessionTreeViewModel: $sessionTreeViewModel,
-                            onChooseProjectDirectory: chooseProjectDirectory,
-                            onMoveSessionToProject: moveSessionToProject,
-                            newSessionMenuItems: { projectID in
-                                newSessionMenuItems(projectID: projectID)
-                            }
-                        )
-                            .frame(width: sidebarWidth, alignment: .leading)
-                            .background(DSColor.background)
-                            .transition(.move(edge: .leading))
-
-                        Rectangle()
-                            .fill(DSColor.separator)
-                            .frame(width: 1)
-                            .transition(.opacity)
-                    }
+                if layout.showsSidebar {
+                    sidebarColumn
+                        .frame(width: layout.sidebar)
+                        .transition(.move(edge: .leading))
+                    verticalSeparator
                 }
-                .animation(.easeInOut(duration: 0.18), value: router.sidebarVisible)
 
-                Group {
-                    if router.viewMode == .grid, !viewModel.projects.isEmpty, gridScopeSummary.isEmpty {
-                        gridScopeEmptyState
-                    } else {
-                        DashboardDetailView(
-                            viewModel: viewModel,
-                            router: router,
-                            pendingDeletion: $pendingDeletion,
-                            renamingSession: $renamingSession,
-                            pendingWorkspaceChange: $pendingWorkspaceChange,
-                            draftName: $draftName,
-                            onChooseProjectDirectory: chooseProjectDirectory,
-                            isCreating: isCreating,
-                            onSelectAgentKind: { kind, backend in
-                                Task { await createSessionFromKind(kind, backend: backend) }
-                            },
-                            measuredTrailingOverlayHeight: measuredTrailingOverlayHeight
-                        )
-                    }
-                }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(DSColor.background)
-                    .transaction { transaction in
-                        if transaction.animation != nil {
-                            transaction.animation = nil
-                        }
-                    }
-
-                Group {
-                    if router.inspectorVisible {
-                        Rectangle()
-                            .fill(DSColor.separator)
-                            .frame(width: 1)
-                        UsageSidebarView(monitor: usageMonitor, chatSession: selectedChatSession)
-                            .frame(width: inspectorWidth)
-                            .background(DSColor.background)
-                    }
-                }
-                .animation(.easeInOut(duration: 0.18), value: router.inspectorVisible)
-
-                // パネルは本文と同じレイアウトフローに置く。TerminalView の AppKit NSView を
-                // overlay に置くと既存 PTY タイルとの前後関係で隠れるためである。
-                // 開閉・幅確定時だけ本文幅を変え、ドラッグ中は下のゴースト境界だけを動かす。
-                if drawerIsVisible,
-                   drawerWidth(windowWidth: geometry.size.width) > 0 {
-                    Rectangle()
-                        .fill(DSColor.separator)
-                        .frame(width: 1)
-                    drawerContent
-                        .frame(width: drawerWidth(windowWidth: geometry.size.width))
-                        .background(DSColor.background)
-                }
-            }
-            // サイドバー開閉トグルを三色ボタンの右隣に固定表示。GeometryReader の内側に置くことで
-            // 下の .ignoresSafeArea(.top) と同じくウィンドウ最上部を基準に配置され、三色ボタンと
-            // 同じ高さに揃う（外側に置くとセーフエリア分だけ下にずれる）。
-            .overlay(alignment: .topLeading) {
-                HStack(spacing: DSSpacing.s) {
-                    DashboardLeadingTopBarControls(
+                VStack(spacing: 0) {
+                    DashboardToolbar(
                         viewModel: viewModel,
                         router: router,
-                        onOpenSettings: { openSettings() },
-                        agentConsoleWindowID: agentConsoleWindowID
+                        usageMonitor: usageMonitor,
+                        density: ToolbarDensity.forWindowWidth(windowWidth),
+                        showsSidebarToggle: !layout.showsSidebar
                     )
-                    projectIsolationMenu
-                }
-                    .padding(.leading, 78)
-                    // 三色ボタンの中心はウィンドウ上端から 16pt（実測: ボタン上端 8pt + 高さ 16pt の半分）。
-                    // トグルは 28pt 枠で中心が top + 14 になるため、top = 2 で三色ボタンと中心が揃う。
-                    .padding(.top, DSSpacing.xxs)
-                    .background {
-                        GeometryReader { geometry in
-                            Color.clear
-                                .onAppear {
-                                    updateMeasuredLeadingOverlayWidth(geometry.size.width)
+                    horizontalSeparator
+                    if router.viewMode == .grid, !viewModel.projects.isEmpty {
+                        GridModeBar(
+                            viewModel: viewModel,
+                            router: router,
+                            sessionPickerPresented: $gridSessionPickerPresented
+                        )
+                        horizontalSeparator
+                    }
+                    HStack(spacing: 0) {
+                        centerContent
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(DSColor.windowBackground)
+                            .transaction { transaction in
+                                if transaction.animation != nil {
+                                    transaction.animation = nil
                                 }
-                                .onChange(of: geometry.size.width) { _, newWidth in
-                                    updateMeasuredLeadingOverlayWidth(newWidth)
-                                }
+                            }
+
+                        if router.inspectorVisible, !layout.inspectorIsOverlay {
+                            verticalSeparator
+                            inspectorContent
+                                .frame(width: layout.inspector)
+                                .background(DSColor.panelBackground)
+                        }
+
+                        // パネルは本文と同じレイアウトフローに置く。TerminalView の AppKit NSView を
+                        // overlay に置くと既存 PTY タイルとの前後関係で隠れるためである。
+                        // 開閉・幅確定時だけ本文幅を変え、ドラッグ中は下のゴースト境界だけを動かす。
+                        if drawerIsVisible,
+                           drawerWidth(windowWidth: windowWidth, layout: layout) > 0 {
+                            verticalSeparator
+                            drawerContent
+                                .frame(width: drawerWidth(windowWidth: windowWidth, layout: layout))
+                                .background(DSColor.windowBackground)
                         }
                     }
-            }
-            // 右側操作系もオーバーレイにする。VStack フローに置くと、単体表示時にターミナルの
-            // AppKit ビュー(NSView)に前面を覆われて消えるため、左トグル同様オーバーレイで前面に出す。
-            .overlay(alignment: .topTrailing) {
-                DashboardTrailingTopBarControls(
-                    viewModel: viewModel,
-                    router: router,
-                    usageMonitor: usageMonitor,
-                    windowWidth: geometry.size.width,
-                    // occupiedSidebarWidth には左サイドバーに加え、左側トップバーオーバーレイ
-                    // （三色ボタン右のリーディングコントロール群）の占有幅も合算する。
-                    // usageAvailableWidth の凍結シグネチャは変更せず、この合算で左衝突を防ぐ。
-                    occupiedSidebarWidth: TrailingTopBarLayout.occupiedWidthForUsageLayout(
-                        sidebarWidth: sidebarWidth,
-                        sidebarVisible: router.sidebarVisible,
-                        leadingOverlayWidth: effectiveLeadingOverlayWidth
-                    ),
-                    gridSessionPickerPresented: $gridSessionPickerPresented
-                )
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.height
-                } action: { height in
-                    updateMeasuredTrailingOverlayHeight(height)
                 }
-                .padding(.trailing, DSSpacing.m)
+            }
+            .animation(.easeInOut(duration: 0.18), value: router.sidebarVisible)
+            .animation(.easeInOut(duration: 0.18), value: router.inspectorVisible)
+            // 幅が足りないときの重ね表示。SwiftUI の overlay は端末の NSView より前面に描ける。
+            .overlay(alignment: .topTrailing) {
+                if router.inspectorVisible, layout.inspectorIsOverlay {
+                    inspectorContent
+                        .frame(width: layout.inspector)
+                        .frame(maxHeight: .infinity)
+                        .background(DSColor.panelBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: DSRadius.attention))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: DSRadius.attention).strokeBorder(DSColor.separator)
+                        }
+                        .shadow(color: DSShadow.popover.color, radius: DSShadow.popover.radius, y: DSShadow.popover.y)
+                        .padding(.top, DSLayout.toolbarHeight + DSSpacing.xs)
+                        .padding(.bottom, DSSpacing.s)
+                        // 右端のドロワー（P3 で子タブへ移す）を覆わないよう、その左に重ねる。
+                        .padding(.trailing, DSSpacing.s + drawerSpan(windowWidth: windowWidth, layout: layout))
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+            }
+            .overlay(alignment: .topLeading) {
+                if !layout.showsSidebar, router.sidebarPeeking {
+                    HStack(spacing: 0) {
+                        sidebarColumn
+                            .frame(width: layout.sidebar)
+                        verticalSeparator
+                    }
+                    .shadow(color: DSShadow.popover.color, radius: DSShadow.popover.radius, y: DSShadow.popover.y)
+                    .transition(.move(edge: .leading))
+                }
             }
             // リサイズ用の掴みしろもオーバーレイにする。HStack 内の区切り線へ overlay で
             // 当たり判定を広げる方式だと、ターミナル(AppKit NSView)側に張り出した分が
-            // NSView に遮られてホバー・ドラッグを受け取れないため、ボタン群と同様に
-            // 最前面のオーバーレイとして区切り線の真上に重ねる。
+            // NSView に遮られてホバー・ドラッグを受け取れないため、最前面のオーバーレイとして
+            // 区切り線の真上に重ねる。
             .overlay(alignment: .topLeading) {
-                if router.sidebarVisible {
+                if layout.showsSidebar {
                     ResizeGripView(
                         onChanged: { value in
-                            let maxWidth = max(
-                                PaneWidthPolicy.sidebarMinWidth,
-                                geometry.size.width - PaneWidthPolicy.detailMinWidth
-                                    - terminalDrawerReservation
+                            sidebarWidth = PaneWidthPolicy.draggedSidebarWidth(
+                                start: sidebarWidthAtDragStart,
+                                translation: value.translation.width,
+                                windowWidth: windowWidth - terminalDrawerReservation,
+                                inspectorSpan: inspectorSpan(layout)
                             )
-                            let proposed = sidebarWidthAtDragStart + value.translation.width
-                            sidebarWidth = min(max(PaneWidthPolicy.sidebarMinWidth, proposed), maxWidth)
                         },
                         onEnded: { sidebarWidthAtDragStart = sidebarWidth }
                     )
-                    .offset(x: sidebarWidth + 0.5 - ResizeGripView.gripWidth / 2)
-                    .onAppear { sidebarWidthAtDragStart = sidebarWidth }
+                    .offset(x: layout.sidebar + 0.5 - ResizeGripView.gripWidth / 2)
+                    .onAppear { sidebarWidthAtDragStart = layout.sidebar }
                 }
             }
             .overlay(alignment: .topTrailing) {
-                if router.inspectorVisible {
+                if router.inspectorVisible, !layout.inspectorIsOverlay {
                     ResizeGripView(
                         onChanged: { value in
-                            let maxWidth = max(
-                                PaneWidthPolicy.inspectorMinWidth,
-                                geometry.size.width - PaneWidthPolicy.detailMinWidth
-                                    - (router.sidebarVisible ? sidebarWidth : 0)
-                                    - terminalDrawerReservation
+                            inspectorWidth = PaneWidthPolicy.draggedInspectorWidth(
+                                start: inspectorWidthAtDragStart,
+                                translation: value.translation.width,
+                                windowWidth: windowWidth - terminalDrawerReservation,
+                                sidebarSpan: layout.showsSidebar ? layout.sidebar + PaneWidthPolicy.separatorWidth : 0
                             )
-                            let proposed = inspectorWidthAtDragStart - value.translation.width
-                            inspectorWidth = min(max(PaneWidthPolicy.inspectorMinWidth, proposed), maxWidth)
                         },
                         onEnded: { inspectorWidthAtDragStart = inspectorWidth }
                     )
-                    .offset(x: -(inspectorWidth + 0.5 - ResizeGripView.gripWidth / 2))
-                    .onAppear { inspectorWidthAtDragStart = inspectorWidth }
+                    .offset(x: -(drawerSpan(windowWidth: windowWidth, layout: layout) + layout.inspector + 0.5
+                        - ResizeGripView.gripWidth / 2))
+                    .onAppear { inspectorWidthAtDragStart = layout.inspector }
                 }
             }
             // 分割線は AppKit の TerminalView より前面の最後の overlay に置く。ドラッグ中は
             // ゴースト線のみを移動し、onEnded でだけ HStack のドロワー幅を確定・永続化する。
             .overlay(alignment: .topTrailing) {
-                if drawerIsVisible, drawerWidth(windowWidth: geometry.size.width) > 0 {
+                if drawerIsVisible, drawerWidth(windowWidth: windowWidth, layout: layout) > 0 {
                     ResizeGripView(
                         onChanged: { value in
                             // 開始幅は「保存値」ではなく、掴んだ瞬間に実際に表示されている
@@ -375,18 +321,18 @@ public struct DashboardView: View {
                             // translation が吸収されるため）。
                             if !isDraggingDrawer {
                                 isDraggingDrawer = true
-                                drawerWidthAtDragStart = drawerWidth(windowWidth: geometry.size.width)
+                                drawerWidthAtDragStart = drawerWidth(windowWidth: windowWidth, layout: layout)
                             }
                             drawerDragTranslation = value.translation.width
                         },
                         onEnded: {
-                            storedDrawerWidth = proposedDrawerWidth(windowWidth: geometry.size.width)
+                            storedDrawerWidth = proposedDrawerWidth(windowWidth: windowWidth, layout: layout)
                             isDraggingDrawer = false
                             drawerDragTranslation = 0
                         }
                     )
                     .offset(
-                        x: -(drawerWidth(windowWidth: geometry.size.width) + 0.5
+                        x: -(drawerWidth(windowWidth: windowWidth, layout: layout) + 0.5
                             - ResizeGripView.gripWidth / 2)
                     )
                 }
@@ -397,35 +343,32 @@ public struct DashboardView: View {
                         .fill(DSColor.accent)
                         .frame(width: 2)
                         .frame(maxHeight: .infinity)
-                        .offset(x: -proposedDrawerWidth(windowWidth: geometry.size.width))
+                        .offset(x: -proposedDrawerWidth(windowWidth: windowWidth, layout: layout))
                         .allowsHitTesting(false)
                 }
             }
-            .onChange(of: geometry.size.width, initial: true) { _, _ in
-                applyPaneWidthClamp(windowWidth: geometry.size.width)
-            }
-            .onChange(of: router.sidebarVisible) { _, _ in
-                applyPaneWidthClamp(windowWidth: geometry.size.width)
-            }
-            .onChange(of: router.inspectorVisible) { _, _ in
-                applyPaneWidthClamp(windowWidth: geometry.size.width)
-            }
-            .onChange(of: router.terminalPanelVisible) { _, _ in
-                applyPaneWidthClamp(windowWidth: geometry.size.width)
-            }
-            .onChange(of: router.editorPanelVisible) { _, _ in
-                applyPaneWidthClamp(windowWidth: geometry.size.width)
+            .onChange(of: sidebarLacksRoom(windowWidth: windowWidth), initial: true) { _, lacksRoom in
+                router.sidebarLacksRoom = lacksRoom
+                if !lacksRoom {
+                    router.sidebarPeeking = false
+                }
             }
         }
         // hiddenTitleBar でも SwiftUI は上部にタイトルバー分のセーフエリアを確保するため、
-        // detail ヘッダーが押し下げられて不自然な隙間になる。上部セーフエリアを無視して
-        // コンテンツを最上部まで詰め、トラフィックライト回避はサイドバー側の上余白に一任する。
+        // 上部セーフエリアを無視してツールバーとサイドバーの上端をウィンドウ最上部に揃える。
         .ignoresSafeArea(.container, edges: .top)
+        .background(WindowChromeConfigurator())
         .onAppear {
             migrateLegacyDrawerWidthIfNeeded()
         }
         .onAppear {
             updateEditorPanel()
+        }
+        // 画面が無いあいだに押された ⌘O も、表示された時点で受ける。
+        .onChange(of: router.addProjectRequested, initial: true) { _, requested in
+            guard requested else { return }
+            router.addProjectRequested = false
+            chooseProjectDirectory()
         }
         .onChange(of: router.viewMode, initial: true) { _, newMode in
             if newMode != .grid {
@@ -503,10 +446,6 @@ public struct DashboardView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(
-            .top,
-            TopBarInsetPolicy.contentTopInset(measuredOverlayHeight: measuredTrailingOverlayHeight)
-        )
         .padding(DSSpacing.l)
     }
 
@@ -518,98 +457,162 @@ public struct DashboardView: View {
         return chatSession
     }
 
-    private var selectedProject: Project? {
-        guard let projectID = router.selectedProjectID else { return nil }
-        return viewModel.projects.first(where: { $0.id == projectID })
+    // MARK: - Columns
+
+    /// 左列。上端に信号の余白とサイドバーを隠すボタン、下端に設定とエージェント管理（01 A1）。
+    private var sidebarColumn: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                SidebarToggleButton(router: router)
+            }
+            .padding(.horizontal, DSSpacing.m)
+            .frame(height: DSLayout.toolbarHeight)
+            DashboardSidebarView(
+                viewModel: viewModel,
+                router: router,
+                expandedProjectIDs: $expandedProjectIDs,
+                draftName: $draftName,
+                renamingProject: $renamingProject,
+                pendingProjectDeletion: $pendingProjectDeletion,
+                renamingSession: $renamingSession,
+                pendingDeletion: $pendingDeletion,
+                pendingWorkspaceChange: $pendingWorkspaceChange,
+                sessionTreeViewModel: $sessionTreeViewModel,
+                onChooseProjectDirectory: chooseProjectDirectory,
+                onMoveSessionToProject: moveSessionToProject,
+                newSessionMenuItems: { projectID in
+                    newSessionMenuItems(projectID: projectID)
+                }
+            )
+            sidebarFooter
+        }
+        .background(DSColor.sidebarBackground)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("サイドバー"))
+    }
+
+    private var sidebarFooter: some View {
+        HStack(spacing: DSSpacing.xs) {
+            Spacer(minLength: 0)
+            if let agentConsoleWindowID {
+                footerIconButton(
+                    systemImage: "slider.horizontal.3",
+                    label: String(localized: "エージェント管理（⇧⌘,）")
+                ) {
+                    openWindow(id: agentConsoleWindowID)
+                }
+            }
+            footerIconButton(systemImage: "gearshape", label: String(localized: "設定（⌘,）")) {
+                openSettings()
+            }
+        }
+        .padding(.horizontal, DSSpacing.m)
+        .frame(height: 44)
+        .overlay(alignment: .top) { horizontalSeparator }
+    }
+
+    private func footerIconButton(systemImage: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: DSIconSize.l, weight: .medium))
+                .foregroundStyle(DSColor.textSecondary)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(HoverableIconButtonStyle())
+        .help(label)
+        .accessibilityLabel(Text(label))
     }
 
     @ViewBuilder
-    private var projectIsolationMenu: some View {
-        if let selectedProject {
-            Menu {
-                Toggle(isOn: worktreeIsolationBinding) {
-                    Label("セッションを Git worktree で隔離", systemImage: "arrow.triangle.branch")
+    private var centerContent: some View {
+        if router.viewMode == .grid, !viewModel.projects.isEmpty, gridScopeSummary.isEmpty {
+            gridScopeEmptyState
+        } else {
+            DashboardDetailView(
+                viewModel: viewModel,
+                router: router,
+                pendingDeletion: $pendingDeletion,
+                renamingSession: $renamingSession,
+                pendingWorkspaceChange: $pendingWorkspaceChange,
+                draftName: $draftName,
+                onChooseProjectDirectory: chooseProjectDirectory,
+                isCreating: isCreating,
+                onSelectAgentKind: { kind, backend in
+                    Task { await createSessionFromKind(kind, backend: backend) }
                 }
-            } label: {
-                Image(systemName: selectedProject.usesWorktreeIsolation
-                    ? "arrow.triangle.branch.circle.fill"
-                    : "arrow.triangle.branch.circle")
-                    .font(.system(size: DSIconSize.l, weight: .medium))
-                    .foregroundStyle(DSColor.textSecondary)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
-            }
-            .menuStyle(.borderlessButton)
-            .buttonStyle(HoverableIconButtonStyle())
-            .help("選択中プロジェクトのセッション隔離")
+            )
         }
     }
 
-    private var worktreeIsolationBinding: Binding<Bool> {
-        Binding(
-            get: { selectedProject?.usesWorktreeIsolation ?? false },
-            set: { enabled in
-                guard let projectID = router.selectedProjectID else { return }
-                viewModel.setWorktreeIsolationEnabled(enabled, for: projectID)
-            }
-        )
+    private var inspectorContent: some View {
+        UsageSidebarView(monitor: usageMonitor, chatSession: selectedChatSession)
     }
 
-    // MARK: - Header actions
-
-    private var effectiveLeadingOverlayWidth: CGFloat {
-        TrailingTopBarLayout.effectiveLeadingOverlayWidth(
-            measured: measuredLeadingOverlayWidth,
-            hasMeasured: hasMeasuredLeadingOverlayWidth
-        )
+    private var verticalSeparator: some View {
+        Rectangle()
+            .fill(DSColor.separator)
+            .frame(width: PaneWidthPolicy.separatorWidth)
     }
 
-    private func updateMeasuredLeadingOverlayWidth(_ newWidth: CGFloat) {
-        let updated = TrailingTopBarLayout.applyWidthMeasurement(
-            newWidth: newWidth,
-            currentMeasured: measuredLeadingOverlayWidth,
-            hasMeasured: hasMeasuredLeadingOverlayWidth
-        )
-        measuredLeadingOverlayWidth = updated.measured
-        hasMeasuredLeadingOverlayWidth = updated.hasMeasured
+    private var horizontalSeparator: some View {
+        Rectangle()
+            .fill(DSColor.separator)
+            .frame(height: 1)
     }
 
-    private func updateMeasuredTrailingOverlayHeight(_ newHeight: CGFloat) {
-        guard newHeight != measuredTrailingOverlayHeight else { return }
-        measuredTrailingOverlayHeight = newHeight
-    }
+    // MARK: - Widths
 
-    private func applyPaneWidthClamp(windowWidth: CGFloat) {
-        let clamped = PaneWidthPolicy.clamped(
+    /// ドロワー（P3 で子タブへ移す）が確定幅を取った残りで 3 ペインを決める。
+    private func paneLayout(windowWidth: CGFloat) -> PaneLayout {
+        PaneWidthPolicy.resolve(
             windowWidth: max(0, windowWidth - terminalDrawerReservation),
             sidebarVisible: router.sidebarVisible,
             inspectorVisible: router.inspectorVisible,
             sidebarWidth: sidebarWidth,
             inspectorWidth: inspectorWidth
         )
-        sidebarWidth = clamped.sidebar
-        inspectorWidth = clamped.inspector
-        sidebarWidthAtDragStart = clamped.sidebar
-        inspectorWidthAtDragStart = clamped.inspector
+    }
+
+    /// 開いているかに関係なく、サイドバーを横に並べる幅が無いか。
+    private func sidebarLacksRoom(windowWidth: CGFloat) -> Bool {
+        !PaneWidthPolicy.resolve(
+            windowWidth: max(0, windowWidth - terminalDrawerReservation),
+            sidebarVisible: true,
+            inspectorVisible: router.inspectorVisible,
+            sidebarWidth: sidebarWidth,
+            inspectorWidth: inspectorWidth
+        ).showsSidebar
+    }
+
+    private func inspectorSpan(_ layout: PaneLayout) -> CGFloat {
+        router.inspectorVisible && !layout.inspectorIsOverlay ? layout.inspector + PaneWidthPolicy.separatorWidth : 0
     }
 
     private var drawerIsVisible: Bool {
         router.terminalPanelVisible || router.editorPanelVisible
     }
 
-    /// ドロワー表示中も detail の最小幅を侵食しない。十分な幅がないときは、まず
-    /// sidebar / inspector を既存ポリシーで最小値まで縮め、残余だけをドロワーへ渡す。
-    private func drawerAvailableWidth(windowWidth: CGFloat) -> CGFloat {
-        let sidebar = router.sidebarVisible ? sidebarWidth + 1 : 0
-        let inspector = router.inspectorVisible ? inspectorWidth + 1 : 0
-        return max(0, windowWidth - PaneWidthPolicy.detailMinWidth - sidebar - inspector - 1)
+    /// ドロワー表示中も中央の最小幅を侵食しない。残余だけをドロワーへ渡す。
+    private func drawerAvailableWidth(windowWidth: CGFloat, layout: PaneLayout) -> CGFloat {
+        let sidebar = layout.showsSidebar ? layout.sidebar + PaneWidthPolicy.separatorWidth : 0
+        return max(
+            0,
+            windowWidth - PaneWidthPolicy.centerMinWidth - sidebar - inspectorSpan(layout) - PaneWidthPolicy.separatorWidth
+        )
     }
 
-    private func drawerWidth(windowWidth: CGFloat) -> CGFloat {
+    private func drawerSpan(windowWidth: CGFloat, layout: PaneLayout) -> CGFloat {
+        let width = drawerWidth(windowWidth: windowWidth, layout: layout)
+        return width > 0 ? width + PaneWidthPolicy.separatorWidth : 0
+    }
+
+    private func drawerWidth(windowWidth: CGFloat, layout: PaneLayout) -> CGFloat {
         guard drawerIsVisible else { return 0 }
         return PanelDrawerLayout.clamped(
             width: storedDrawerWidth,
-            availableWidth: drawerAvailableWidth(windowWidth: windowWidth)
+            availableWidth: drawerAvailableWidth(windowWidth: windowWidth, layout: layout)
         )
     }
 
@@ -625,11 +628,11 @@ public struct DashboardView: View {
         hasMigratedDrawerWidth = true
     }
 
-    private func proposedDrawerWidth(windowWidth: CGFloat) -> CGFloat {
+    private func proposedDrawerWidth(windowWidth: CGFloat, layout: PaneLayout) -> CGFloat {
         PanelDrawerLayout.proposedWidth(
             startWidth: drawerWidthAtDragStart,
             translation: drawerDragTranslation,
-            availableWidth: drawerAvailableWidth(windowWidth: windowWidth)
+            availableWidth: drawerAvailableWidth(windowWidth: windowWidth, layout: layout)
         )
     }
 
@@ -639,10 +642,8 @@ public struct DashboardView: View {
         drawerIsVisible ? max(0, storedDrawerWidth) + 1 : 0
     }
 
-    /// トップバーオーバーレイの回避インセット（28pt）は、ドロワー内で最上段に来る
-    /// 要素にだけ付ける。両パネル同時表示（VSplitView）では下段のエディタが最上段
-    /// ではなくなるため 0 を渡し、理由のない空白帯が入らないようにする。
-    private static let drawerTopInset: CGFloat = 28
+    /// ツールバーは上の行に並べたので、ドロワー内の上余白は要らない。
+    private static let drawerTopInset: CGFloat = 0
 
     @ViewBuilder
     private var drawerContent: some View {

@@ -17,6 +17,8 @@ public final class SessionViewModel: Identifiable {
     public let id: SessionID
     public let startedAt: Date
     public private(set) var status: SessionStatus
+    /// 今の状態の種類へ入った時刻（対応待ちの待ち時間の起点）。
+    public private(set) var statusEnteredAt: Date?
     public var isProcessing: Bool { status == .running }
     public let terminalCoordinator: TerminalCoordinator
     public var titleState: SessionTitleState = .legacy(name: "")
@@ -750,6 +752,9 @@ public final class SessionViewModel: Identifiable {
 
     private func transitionStatus(to newStatus: SessionStatus, at timestamp: Date) {
         guard status != newStatus else { return }
+        if !newStatus.hasSameKind(as: status) {
+            statusEnteredAt = timestamp
+        }
         status = newStatus
         eventSink?(id, newStatus, timestamp)
         // 承認待ち・完了・エラーへ入ったら「未確認の停止」をラッチする。

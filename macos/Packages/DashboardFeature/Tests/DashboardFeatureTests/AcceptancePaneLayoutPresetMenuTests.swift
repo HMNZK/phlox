@@ -80,7 +80,8 @@ struct AcceptancePaneLayoutPresetMenuTests {
 
     @Test func topBar_replacesTheGridColumnsSegmentWithThePresetMenu() throws {
         // 効かないコントロールを画面に残さない（レビュー指摘の恒久化）。
-        let source = try dashboardSource("DashboardTopBarControls.swift")
+        // グリッドの操作はツールバーから表示範囲バー（01 C1）へ移した。
+        let source = try dashboardSource("GridModeBar.swift")
         #expect(source.contains("PaneLayoutPresetMenu"), "プリセットメニューを置くこと")
         #expect(!source.contains("gridColumnsToggle"),
                 "旧 1/2/3/4/Auto セグメントをトップバーから外すこと")

@@ -11,7 +11,7 @@ final class ViewModeHelpObservationTests: XCTestCase {
                                   "-phlox.appLanguage", language]
         )
         let app = try isolated.application()
-        for mode in ["single", "grid", "team"] {
+        for mode in ["single", "grid"] {
             try isolated.assertExclusiveOwnership()
             let button = app.buttons["view-mode-\(mode)"]
             XCTAssertTrue(button.waitForExistence(timeout: 5))

@@ -16,12 +16,6 @@ struct HeaderUsageWhiteboxTests {
         #expect(UsageSettings.showInHeaderKey == "phlox.usage.showInHeader")
     }
 
-    // MARK: - showsTopBarUsage
-
-    @Test func 設定オフかつインスペクター表示中でもヘッダーに使用量を出さない() {
-        #expect(!UsageDisplay.showsTopBarUsage(showInHeader: false, inspectorVisible: true))
-    }
-
     // MARK: - topBarChips: staleNote（ADR 0099）
 
     @Test func Claudeの実データが新鮮なら注記を出さない() throws {

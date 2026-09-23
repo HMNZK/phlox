@@ -4,12 +4,12 @@ import XCTest
 final class ViewModeAccessibilityTests: XCTestCase {
     func testJapaneseModeNamesAndSelection() async throws {
         try await checkModes(language: "ja", heading: "プロジェクトを追加してください",
-                             names: ["単体表示", "グリッド表示", "チームビュー (Beta)"], selectedValue: "選択中")
+                             names: ["単体（⌃⌘1）", "グリッド（⌃⌘2）"], selectedValue: "選択中")
     }
 
     func testEnglishModeNamesAndSelection() async throws {
         try await checkModes(language: "en", heading: "Add a project",
-                             names: ["Single view", "Grid view", "チームビュー (Beta)"], selectedValue: "Selected")
+                             names: ["Single (⌃⌘1)", "Grid (⌃⌘2)"], selectedValue: "Selected")
     }
 
     private func checkModes(language: String, heading: String, names: [String], selectedValue: String) async throws {
@@ -19,7 +19,7 @@ final class ViewModeAccessibilityTests: XCTestCase {
         )
         let app = try isolated.application()
         XCTAssertTrue(app.staticTexts[heading].waitForExistence(timeout: 15), "所有アプリの実効言語が一致しない")
-        let ids = ["view-mode-single", "view-mode-grid", "view-mode-team"]
+        let ids = ["view-mode-single", "view-mode-grid"]
         var foundAll = true
         for (id, name) in zip(ids, names) {
             let matches = app.buttons.matching(identifier: id)
@@ -46,17 +46,23 @@ final class ViewModeAccessibilityTests: XCTestCase {
         }
 
         assertSelection(0)
-        for index in [1, 2, 0] {
+        for index in [1, 0] {
             try isolated.assertExclusiveOwnership()
             app.buttons[ids[index]].click()
             assertSelection(index)
             capture(app, name: "mode-\(language)-click-\(index)")
         }
-        for index in [1, 2, 0] {
+        for index in [1, 0] {
             try isolated.assertExclusiveOwnership()
             app.typeKey("g", modifierFlags: [.command, .control])
             assertSelection(index)
             capture(app, name: "mode-\(language)-shortcut-\(index)")
+        }
+        for (key, index) in [("2", 1), ("1", 0)] {
+            try isolated.assertExclusiveOwnership()
+            app.typeKey(key, modifierFlags: [.command, .control])
+            assertSelection(index)
+            capture(app, name: "mode-\(language)-direct-\(index)")
         }
     }
 

@@ -25,10 +25,18 @@ enum UsageDisplay {
         }
     }
 
-    /// トップバーに使用量チップ群を出してよいか。
-    /// 「ヘッダーに使用量を表示」設定がオン、かつインスペクター非表示のときだけ true。
-    static func showsTopBarUsage(showInHeader: Bool, inspectorVisible: Bool) -> Bool {
-        showInHeader && !inspectorVisible
+    /// ツールバーのチップで「残りわずか」として琥珀色と ▲ で示す残量の境目（%）。
+    static let lowRemainingThreshold: Double = 20
+
+    /// 残量がしきい値を下回るか。
+    static func isLowRemaining(usedPercent: Double) -> Bool {
+        100 - max(0, min(100, usedPercent)) < lowRemainingThreshold
+    }
+
+    /// 最も狭い幅で出す 1 つだけの残量（全チップの表示バケットのうち最小の残り %）。取得できていなければ nil。
+    static func minimumRemainingPercent(_ chips: [TopBarChip]) -> Int? {
+        let maxUsed = chips.flatMap(\.shownBuckets).map(\.usedPercent).max()
+        return maxUsed.map { Int(round(100 - max(0, min(100, $0)))) }
     }
 
     /// トップバーに出す1CLI分のチップ情報。

@@ -26,6 +26,8 @@ public protocol ControllableSession: AnyObject {
     var completedTurnSeq: Int { get }
     var lastOutputAt: Date? { get }
     var lastTurnCompletedAt: Date? { get }
+    /// 今の状態の種類へ入った時刻（対応待ちの待ち時間の起点）。記録しない適合型は nil。
+    var statusEnteredAt: Date? { get }
     var submitBaselineTurnSeq: Int? { get }
     var isReadyForInput: Bool { get }
     var parentSessionID: SessionID? { get set }
@@ -57,6 +59,8 @@ public extension ControllableSession {
     }
 
     var titleState: SessionTitleState { .legacy(name: name) }
+
+    var statusEnteredAt: Date? { nil }
 
     /// 既定は「端末を持たない」。PTY セッションだけが上書きする。
     func readAnsiScreen() -> AnsiScreen? { nil }
@@ -119,6 +123,9 @@ public enum SessionNode {
 
     /// 直近の PTY/Chat 出力時刻を委譲で公開する読み取り専用アクセサ（`status` と同型）。
     public var lastOutputAt: Date? { controllable.lastOutputAt }
+
+    /// 今の状態の種類へ入った時刻（対応待ちの待ち時間の起点）。
+    public var statusEnteredAt: Date? { controllable.statusEnteredAt }
 
     public var agentDescriptor: AgentDescriptor {
         switch self {

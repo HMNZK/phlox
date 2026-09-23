@@ -27,6 +27,19 @@ public extension SessionStatus {
             false
         }
     }
+
+    /// 付随値（承認待ちの prompt・エラー文・終了コード）を除いた状態の種類が同じか。
+    /// 待ち時間の起点を、同じ状態のまま付随値だけが変わったときに動かさないために使う。
+    func hasSameKind(as other: SessionStatus) -> Bool {
+        switch (self, other) {
+        case (.starting, .starting), (.idle, .idle), (.running, .running),
+             (.awaitingApproval, .awaitingApproval), (.awaitingUserQuestion, .awaitingUserQuestion),
+             (.completed, .completed), (.error, .error):
+            true
+        default:
+            false
+        }
+    }
 }
 
 /// セッションが「ユーザーの対応待ちで赤表示を維持すべきか」の導出（ask-question-ux task-2 契約。

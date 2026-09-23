@@ -26,10 +26,10 @@ struct AcceptancePanelIntegrationTests {
         FileManager.default.fileExists(atPath: repoRoot.appendingPathComponent(relativePath).path)
     }
 
-    @Test("⌘⌥E のホットキーが Commands に登録され、router のトグルへ配線されている")
+    @Test("⌃⌘E のホットキーが Commands に登録され、router のトグルへ配線されている")
     func editorHotkeyIsRegistered() throws {
         let app = try source("macos/App/PhloxApp.swift")
-        #expect(app.contains(#"keyboardShortcut("e", modifiers: [.command, .option])"#))
+        #expect(app.contains(#"keyboardShortcut("e", modifiers: [.command, .control])"#))
         #expect(app.contains("toggleEditorPanel()"))
     }
 

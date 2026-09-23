@@ -23,10 +23,10 @@ struct AcceptanceTerminalPanelWiringTests {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    @Test("⌘⌥T のホットキーが Commands に登録され、router のトグルへ配線されている")
+    @Test("⌃⌘T のホットキーが Commands に登録され、router のトグルへ配線されている")
     func hotkeyIsRegistered() throws {
         let app = try source("macos/App/PhloxApp.swift")
-        #expect(app.contains(#"keyboardShortcut("t", modifiers: [.command, .option])"#))
+        #expect(app.contains(#"keyboardShortcut("t", modifiers: [.command, .control])"#))
         #expect(app.contains("toggleTerminalPanel()"))
     }
 

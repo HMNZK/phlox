@@ -85,8 +85,6 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
                 }
             }
         }
-        // hiddenTitleBar ではトラフィックライト領域にサイドバーが食い込むため上余白を確保する。
-        .padding(.top, 28)
     }
 
     private var sidebarProjectTitleBar: some View {

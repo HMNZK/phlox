@@ -64,25 +64,6 @@ struct PanelIntegrationWhiteboxTests {
                 == 308
         )
     }
-
-    // レビュー MEDIUM-1 の回帰ガード: Usage 等トップバーへ渡す幅はウィンドウ全幅基準で、
-    // ドロワー幅を差し引いていないこと。将来 `windowWidth:` にドロワー幅由来の値を混入する
-    // 変更が入ったら検知する。
-    @Test("トップバーへ渡す windowWidth はドロワー幅から独立している（ソーススキャン）")
-    func topBarWindowWidthDoesNotSubtractDrawerWidth() throws {
-        var url = URL(fileURLWithPath: #filePath)
-        for _ in 0..<6 { url.deleteLastPathComponent() }
-        let source = try String(
-            contentsOf: url.appendingPathComponent(
-                "macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardView.swift"
-            ),
-            encoding: .utf8
-        )
-
-        #expect(source.contains("windowWidth: geometry.size.width,"))
-        #expect(!source.contains("windowWidth: drawerWidth"))
-        #expect(!source.contains("windowWidth: storedDrawerWidth"))
-    }
 }
 
 // レビュー MUST-1 の白箱テスト: エディタパネルの左右分割は内在最小幅

@@ -13,17 +13,11 @@ struct DashboardDetailView: View {
     let onChooseProjectDirectory: () -> Void
     let isCreating: Bool
     let onSelectAgentKind: (AgentKind, SessionBackend) -> Void
-    let measuredTrailingOverlayHeight: CGFloat
 
     var body: some View {
-        // 操作系はオーバーレイで前面に描くので、ここは本文のみ。トップバー実測高から上余白を
-        // 確保し、本文が操作系オーバーレイの下に潜らないようにする。
+        // ツールバーは上の行として別に並べるので、ここは本文だけ。
         detailMainContent
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(
-                .top,
-                TopBarInsetPolicy.contentTopInset(measuredOverlayHeight: measuredTrailingOverlayHeight)
-            )
     }
 
     private var filteredGridSessions: [SessionNode] {

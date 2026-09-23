@@ -32,18 +32,37 @@ struct HeaderUsageVisibilityAcceptanceTests {
         ]
     }
 
-    // MARK: - 設定によるヘッダー表示の ON/OFF
+    // MARK: - ツールバーのチップの縮退（01 D）。インスペクタの開閉では出し分けない（01 G2）
 
-    @Test func 設定オンかつインスペクター非表示ならヘッダーに使用量を出す() {
-        #expect(UsageDisplay.showsTopBarUsage(showInHeader: true, inspectorVisible: false))
+    @Test func 残り20パーセント未満だけを残りわずかとして扱う() {
+        #expect(UsageDisplay.isLowRemaining(usedPercent: 81))
+        #expect(!UsageDisplay.isLowRemaining(usedPercent: 80))
+        #expect(!UsageDisplay.isLowRemaining(usedPercent: 12))
     }
 
-    @Test func 設定オフならインスペクター非表示でもヘッダーに使用量を出さない() {
-        #expect(!UsageDisplay.showsTopBarUsage(showInHeader: false, inspectorVisible: false))
+    @Test func 最も狭い幅では全チップのうち最小の残量を1つだけ出す() {
+        let usages: [AgentKind: CLIUsage] = [
+            .claudeCode: CLIUsage(
+                kind: .claudeCode,
+                state: .ok([UsageBucket(id: "weekly", label: "週次", usedPercent: 62)]),
+                updatedAt: Self.now
+            ),
+            .codex: CLIUsage(
+                kind: .codex,
+                state: .ok([
+                    UsageBucket(id: "5h", label: "5時間", usedPercent: 82),
+                    UsageBucket(id: "weekly", label: "週次", usedPercent: 38),
+                ]),
+                updatedAt: Self.now
+            ),
+        ]
+        let chips = UsageDisplay.topBarChips(usages: usages, showUnavailable: false, now: Self.now)
+
+        #expect(UsageDisplay.minimumRemainingPercent(chips) == 18)
     }
 
-    @Test func インスペクター表示中は設定オンでもヘッダーに使用量を出さない() {
-        #expect(!UsageDisplay.showsTopBarUsage(showInHeader: true, inspectorVisible: true))
+    @Test func 使用量が取れていなければ最小の残量は出さない() {
+        #expect(UsageDisplay.minimumRemainingPercent([]) == nil)
     }
 
     @Test func ヘッダー表示設定の既定はオン() throws {

@@ -77,7 +77,7 @@ struct PhloxApp: App {
                     InitLoadingView()
                 }
             }
-            .frame(minWidth: 900, minHeight: 600)
+            .frame(minWidth: 720, minHeight: 520)
             .preferredColorScheme(ThemeStore.active.preferredColorScheme)
             .environment(\.locale, appLanguage.locale)
             .task {
@@ -102,7 +102,13 @@ struct PhloxApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
-            CommandGroup(replacing: .newItem) { }
+            CommandGroup(replacing: .newItem) {
+                Button("プロジェクトを追加…") {
+                    composition?.router.addProjectRequested = true
+                }
+                .keyboardShortcut("o", modifiers: .command)
+                .disabled(composition == nil)
+            }
             UpdateCommands(appUpdater: appDelegate.appUpdater)
             ViewCommands(router: composition?.router)
             FontSizeCommands(dashboard: composition?.dashboard)
@@ -451,10 +457,11 @@ private struct TerminalPanelCommands: Commands {
 
     var body: some Commands {
         CommandGroup(after: .sidebar) {
+            // ⌥⌘T は macOS 標準の「ツールバーを表示/隠す」と重なるため ⌃⌘T（13 Review）。
             Button("ターミナル") {
                 router?.toggleTerminalPanel()
             }
-            .keyboardShortcut("t", modifiers: [.command, .option])
+            .keyboardShortcut("t", modifiers: [.command, .control])
             .disabled(router == nil)
         }
     }
@@ -468,7 +475,7 @@ private struct EditorPanelCommands: Commands {
             Button("エディタ") {
                 router?.toggleEditorPanel()
             }
-            .keyboardShortcut("e", modifiers: [.command, .option])
+            .keyboardShortcut("e", modifiers: [.command, .control])
             .disabled(router == nil)
         }
     }
@@ -492,22 +499,37 @@ private struct ViewCommands: Commands {
 
     var body: some Commands {
         CommandGroup(after: .sidebar) {
-            Button("サイドバーを表示／隠す") {
-                router?.toggleSidebar()
+            Button("単体") {
+                router?.viewMode = .single
             }
-            .keyboardShortcut("b", modifiers: .command)
+            .keyboardShortcut("1", modifiers: [.command, .control])
             .disabled(router == nil)
 
-            Button("インスペクターを表示／隠す") {
-                router?.toggleInspector()
+            Button("グリッド") {
+                router?.viewMode = .grid
             }
-            .keyboardShortcut("b", modifiers: [.command, .option])
+            .keyboardShortcut("2", modifiers: [.command, .control])
             .disabled(router == nil)
 
-            Button("表示モードを切り替え") {
+            Button("次の表示モード") {
                 router?.toggleViewMode()
             }
             .keyboardShortcut("g", modifiers: [.command, .control])
+            .disabled(router == nil)
+
+            Divider()
+
+            // SwiftUI 標準のサイドバー・インスペクタのコマンドと同じ割り当て（13 Review）。
+            Button("サイドバー") {
+                router?.toggleSidebar()
+            }
+            .keyboardShortcut("s", modifiers: [.command, .control])
+            .disabled(router == nil)
+
+            Button("インスペクタ") {
+                router?.toggleInspector()
+            }
+            .keyboardShortcut("i", modifiers: [.command, .control])
             .disabled(router == nil)
         }
     }
@@ -556,6 +578,23 @@ private struct SessionCommands: Commands {
                 .keyboardShortcut(.upArrow, modifiers: [.command, .option])
                 .disabled(dashboard == nil)
 
+            // 表示モードは変えずに選ぶ（グリッドではそのタイルがフォーカスになる）。
+            Button("次の対応待ちへ") {
+                guard let dashboard, let router,
+                      let nextID = dashboard.nextAttentionSessionID(after: router.selectedSession) else { return }
+                // 入力欄がフォーカスを持ったままだと、グリッドではそのタイルが選択を取り返す。
+                NSApp.mainWindow?.makeFirstResponder(nil)
+                router.selectedSession = nextID
+            }
+            .keyboardShortcut("j", modifiers: .command)
+            .disabled(!(dashboard?.hasAttention ?? false))
+
+            Button("対応待ちの一覧") {
+                router?.attentionListPresented = true
+            }
+            .keyboardShortcut("j", modifiers: [.command, .option])
+            .disabled(!(dashboard?.hasAttention ?? false))
+
             Button {
                 closeSelectedSession()
             } label: {
@@ -582,6 +621,7 @@ private struct SessionCommands: Commands {
             } label: {
                 Label("会話を Markdown でコピー", systemImage: "doc.on.doc")
             }
+            .keyboardShortcut("c", modifiers: [.command, .option, .shift])
             .disabled(exportableChatSession == nil)
         }
     }

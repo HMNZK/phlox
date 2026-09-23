@@ -16,6 +16,9 @@ public final class ChatSessionViewModel: Identifiable {
     public private(set) var status: SessionStatus = .starting {
         didSet {
             guard oldValue != status else { return }
+            if !status.hasSameKind(as: oldValue) {
+                statusEnteredAt = Date()
+            }
             // 承認待ち・完了・エラーへ入ったら「未確認の停止」をラッチする（PTY 側 transitionStatus と同一）。
             // idle は完了通知経路（notifyCompletionIfNeeded）で扱い、turnInterrupted 等の
             // 非完了 idle を赤枠から除外する。
@@ -24,6 +27,8 @@ public final class ChatSessionViewModel: Identifiable {
             }
         }
     }
+    /// 今の状態の種類へ入った時刻（対応待ちの待ち時間の起点）。
+    public private(set) var statusEnteredAt: Date?
     /// 未確認の停止（＝ユーザーの対応待ち）。停止状態へ入るとラッチし、選択（閲覧）で解除する。
     public var hasUnseenCompletion: Bool = false {
         didSet {

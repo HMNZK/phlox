@@ -429,6 +429,40 @@ func moveSession_persistsProjectIDAndWorkingDirectory() async throws {
     #expect(saved.workingDirectory == folderB.path)
 }
 
+/// 03 F3: 未割当のセッションも既存のプロジェクトへ割り当てられる（そのフォルダで再起動する）。
+@Test @MainActor
+func moveSession_assignsUnassignedSessionToProject() async throws {
+    let ptyManager = MockPTYManager()
+    let workspaceURL = try makeTemporaryWorkspaceRoot()
+    defer { cleanupTemporaryWorkspaceRoot(workspaceURL) }
+
+    let folder = workspaceURL.appendingPathComponent("assign-target", isDirectory: true)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+
+    let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+    let environment = makeTestEnvironmentWithProjects(
+        pty: ptyManager,
+        hookStream: hookStream,
+        workspaceDirectory: workspaceURL
+    )
+
+    let dashboard = DashboardViewModel(environment: environment)
+    await dashboard.start()
+
+    let sessionID = try await dashboard.spawnNewSession(kind: .claudeCode)
+    let vm = dashboard.sessions[0]
+    try #require(vm.projectID == nil)
+    let project = try #require(dashboard.addProject(name: "Target", directoryPath: folder.path))
+    try await waitUntil { ptyManager.spawnCalls.count == 1 }
+
+    await dashboard.moveSession(sessionID, to: project)
+
+    try await waitUntil { ptyManager.spawnCalls.count == 2 }
+    #expect(ptyManager.spawnCalls.last?.workingDirectory == folder.path)
+    #expect(vm.projectID == project)
+    #expect(dashboard.unassignedSessionNodes.isEmpty)
+}
+
 @Test @MainActor
 func changeWorkspace_persistsNewWorkingDirectory() async throws {
     let ptyManager = MockPTYManager()

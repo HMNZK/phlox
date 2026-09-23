@@ -22,8 +22,13 @@ public struct DashboardView: View {
     @State private var renamingSession: SelectedSessionNode?
     @State private var pendingWorkspaceChange: SessionViewModel?
     @State private var pendingProjectDeletion: Project?
-    @State private var renamingProject: Project?
     @State private var draftName: String = ""
+    /// 移動・割り当ての再起動確認（03 F9）。
+    @State private var pendingMove: PendingSessionMove?
+    /// フォルダを選んだ後の再起動確認（03 F9。選んだ行き先を示してから再起動する）。
+    @State private var pendingFolderChange: PendingFolderChange?
+    /// メニューバーの「名前を変更…」をサイドバーの行の中の編集へ渡す。
+    @State private var sidebarRenameRequest: SessionID?
     @State private var expandedProjectIDs: Set<ProjectID> = []
     @State private var sessionTreeViewModel = SessionTreeViewModel()
 
@@ -154,18 +159,10 @@ public struct DashboardView: View {
             } message: { project in
                 Text(projectDeletionDialogMessage(for: project))
             }
-            .confirmationDialog(
-                "プロジェクトを変更しますか?",
-                isPresented: workspaceChangeDialogBinding,
-                presenting: pendingWorkspaceChange
-            ) { session in
-                Button("フォルダを選択…") {
-                    pendingWorkspaceChange = nil
-                    chooseWorkspace(for: session)
-                }
-                Button("キャンセル", role: .cancel) { pendingWorkspaceChange = nil }
-            } message: { _ in
-                Text("このセッションは再起動され、ターミナルの内容と進行中の作業は失われます。")
+            .onChange(of: pendingWorkspaceChange?.id) { _, id in
+                guard id != nil, let session = pendingWorkspaceChange else { return }
+                pendingWorkspaceChange = nil
+                chooseWorkspace(for: session)
             }
             .renameSessionAlert(
                 isPresented: renameAlertBinding,
@@ -176,16 +173,6 @@ public struct DashboardView: View {
                     renamingSession = nil
                 },
                 onCancel: { renamingSession = nil }
-            )
-            .renameProjectAlert(
-                isPresented: renameProjectAlertBinding,
-                project: renamingProject,
-                draftName: $draftName,
-                onCommit: { project, name in
-                    viewModel.renameProject(project.id, to: name)
-                    renamingProject = nil
-                },
-                onCancel: { renamingProject = nil }
             )
     }
 
@@ -206,6 +193,53 @@ public struct DashboardView: View {
             } message: { pending in
                 pending.message
             }
+            .confirmationDialog(
+                folderChangeDialogTitle,
+                isPresented: folderChangeDialogBinding,
+                presenting: pendingFolderChange
+            ) { change in
+                Button("再起動", role: .destructive) {
+                    pendingFolderChange = nil
+                    Task { await changeWorkspace(change.sessionID, to: change.directory) }
+                }
+                Button("キャンセル", role: .cancel) { pendingFolderChange = nil }
+                    .keyboardShortcut(.defaultAction)
+            } message: { _ in
+                Text("ターミナルの内容と進行中の作業は失われます。")
+            }
+            .confirmationDialog(
+                moveDialogTitle,
+                isPresented: moveDialogBinding,
+                presenting: pendingMove
+            ) { move in
+                Button("移動して再起動", role: .destructive) {
+                    pendingMove = nil
+                    Task { await moveSessionToProject(move.sessionID, projectID: move.project.id) }
+                }
+                Button("キャンセル", role: .cancel) { pendingMove = nil }
+                    .keyboardShortcut(.defaultAction)
+            } message: { move in
+                Text("セッションは \((move.project.directoryPath as NSString).abbreviatingWithTildeInPath) で再起動されます。ターミナルの内容と進行中の作業は失われます。")
+            }
+    }
+
+    private var moveDialogTitle: Text {
+        guard let pendingMove else { return Text(verbatim: "") }
+        return Text("「\(pendingMove.sessionTitle)」を \(pendingMove.project.name) へ移動しますか?")
+    }
+
+    private var folderChangeDialogTitle: Text {
+        guard let pendingFolderChange else { return Text(verbatim: "") }
+        let path = (pendingFolderChange.directory.path as NSString).abbreviatingWithTildeInPath
+        return Text("「\(pendingFolderChange.sessionTitle)」を \(path) で再起動しますか?")
+    }
+
+    private var folderChangeDialogBinding: Binding<Bool> {
+        Binding(get: { pendingFolderChange != nil }, set: { if !$0 { pendingFolderChange = nil } })
+    }
+
+    private var moveDialogBinding: Binding<Bool> {
+        Binding(get: { pendingMove != nil }, set: { if !$0 { pendingMove = nil } })
     }
 
     private var navigationShell: some View {
@@ -354,6 +388,11 @@ public struct DashboardView: View {
             router.tabRequest = nil
             handle(request)
         }
+        .onChange(of: router.sidebarRequest) { _, request in
+            guard let request else { return }
+            router.sidebarRequest = nil
+            handle(request)
+        }
         .onChange(of: viewModel.sessionNodes.map(\.id)) { old, new in
             forgetRemovedSessions(old: old, new: new)
         }
@@ -466,15 +505,13 @@ public struct DashboardView: View {
                 viewModel: viewModel,
                 router: router,
                 expandedProjectIDs: $expandedProjectIDs,
-                draftName: $draftName,
-                renamingProject: $renamingProject,
                 pendingProjectDeletion: $pendingProjectDeletion,
-                renamingSession: $renamingSession,
                 pendingDeletion: $pendingDeletion,
                 pendingWorkspaceChange: $pendingWorkspaceChange,
+                pendingMove: $pendingMove,
+                renameRequest: $sidebarRenameRequest,
                 sessionTreeViewModel: $sessionTreeViewModel,
                 onChooseProjectDirectory: chooseProjectDirectory,
-                onMoveSessionToProject: moveSessionToProject,
                 newSessionMenuItems: { projectID in
                     newSessionMenuItems(projectID: projectID)
                 }
@@ -486,27 +523,51 @@ public struct DashboardView: View {
         .accessibilityLabel(Text("サイドバー"))
     }
 
+    /// 下端の操作列（03）: 新規セッション・エージェント管理・設定。
     private var sidebarFooter: some View {
-        HStack(spacing: DSSpacing.xs) {
+        HStack(spacing: 2) {
+            Menu {
+                newSessionMenuItems(projectID: router.selectedProjectID)
+            } label: {
+                HStack(spacing: 6) {
+                    Text(verbatim: "＋")
+                        .font(.system(size: 13))
+                    Text("新規セッション")
+                        .font(DSFont.auxiliary.weight(.medium))
+                    Text(verbatim: "⌘N")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(DSColor.textTertiary)
+                }
+                .foregroundStyle(DSColor.textPrimary)
+                .padding(.horizontal, 10)
+                .frame(height: 26)
+                .background(DSColor.cardBackground, in: RoundedRectangle(cornerRadius: DSRadius.row))
+                .overlay(RoundedRectangle(cornerRadius: DSRadius.row).strokeBorder(DSColor.separator, lineWidth: 0.5))
+                .contentShape(Rectangle())
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .disabled(isCreating)
+            .help(Text("新規セッション（⌘N）"))
+            .accessibilityLabel(Text("新規セッション（⌘N）"))
             Spacer(minLength: 0)
             if let agentConsoleWindowID {
-                footerIconButton(
-                    systemImage: "slider.horizontal.3",
-                    label: String(localized: "エージェント管理（⇧⌘,）")
-                ) {
+                footerIconButton(systemImage: "slider.horizontal.3", label: "エージェント管理（⇧⌘,）") {
                     openWindow(id: agentConsoleWindowID)
                 }
             }
-            footerIconButton(systemImage: "gearshape", label: String(localized: "設定（⌘,）")) {
+            footerIconButton(systemImage: "gearshape", label: "設定（⌘,）") {
                 openSettings()
             }
         }
-        .padding(.horizontal, DSSpacing.m)
+        .padding(.horizontal, 10)
         .frame(height: 44)
         .overlay(alignment: .top) { horizontalSeparator }
     }
 
-    private func footerIconButton(systemImage: String, label: String, action: @escaping () -> Void) -> some View {
+    private func footerIconButton(systemImage: String, label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: DSIconSize.l, weight: .medium))
@@ -515,7 +576,7 @@ public struct DashboardView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(HoverableIconButtonStyle())
-        .help(label)
+        .help(Text(label))
         .accessibilityLabel(Text(label))
     }
 
@@ -807,26 +868,59 @@ public struct DashboardView: View {
     /// 呼ぶと、ダイアログの dismiss アニメーション完了前に NSOpenPanel を提示することになり、
     /// パネルが前面に出ない・キーウィンドウを奪えないケースがある。次の runloop に逃がして
     /// ダイアログ解除完了後に提示する。
+    /// 選んだ後に、行き先を示した再起動の確認（`pendingFolderChange`）を出す。
     private func chooseWorkspace(for session: SessionViewModel) {
         let id = session.id
+        let title = viewModel.sessionNode(id: id)?.displayName ?? SessionViewModel.shortID(for: id)
         Task { @MainActor in
             let panel = NSOpenPanel()
             panel.canChooseDirectories = true
             panel.canChooseFiles = false
             panel.allowsMultipleSelection = false
-            panel.prompt = String(localized: "このフォルダで再起動")
-            panel.message = String(localized: "選択するとこのセッションを再起動し、進行中の作業は失われます。")
+            panel.prompt = String(localized: "選択")
+            panel.message = String(localized: "セッションを再起動するフォルダを選択してください。")
             guard panel.runModal() == .OK, let url = panel.url else { return }
-            // 旧い作業場所のシェルとファイルの下書きは捨てる（確認文で「失われます」と伝えている）。
-            sessionTerminals?.close(id)
-            fileTabs.removeAll(for: id)
-            await viewModel.changeWorkspace(id, to: url)
+            pendingFolderChange = PendingFolderChange(sessionID: id, sessionTitle: title, directory: url)
+        }
+    }
+
+    /// 作業場所を変えて再起動する。変わったときだけ旧い場所のシェルとファイルの下書きを捨てる
+    /// （確認文で「失われます」と伝えている。再起動の準備に失敗したら元のまま残す）。
+    private func changeWorkspace(_ id: SessionID, to directory: URL) async {
+        let before = viewModel.sessionNode(id: id)?.rawWorkspacePath
+        await viewModel.changeWorkspace(id, to: directory)
+        guard viewModel.sessionNode(id: id)?.rawWorkspacePath != before else { return }
+        sessionTerminals?.close(id)
+        fileTabs.removeAll(for: id)
+    }
+
+    /// メニューバーの「セッション」メニューから来た、サイドバーの行の操作。
+    private func handle(_ request: SidebarRequest) {
+        switch request {
+        case .renameSession(let id):
+            guard let node = viewModel.sessionNode(id: id) else { return }
+            if router.sidebarVisible, !router.sidebarLacksRoom || router.sidebarPeeking {
+                sidebarRenameRequest = id
+            } else {
+                renamingSession = SelectedSessionNode(node)
+                draftName = node.name
+            }
+        case .moveSession(let id, let projectID):
+            guard let node = viewModel.sessionNode(id: id),
+                  let project = viewModel.projects.first(where: { $0.id == projectID }) else { return }
+            pendingMove = PendingSessionMove(sessionID: id, sessionTitle: node.displayName, project: project)
+        case .changeFolder(let id):
+            pendingWorkspaceChange = viewModel.sessionNode(id: id)?.pty
         }
     }
 
     /// 登録済みワークスペースへセッションを移動し、移動先をサイドバーで展開する。選択中セッションは維持する。
+    /// 移動できたときだけ旧い場所のシェルとファイルの下書きを捨てる（再起動の準備に失敗したら元のまま残す）。
     private func moveSessionToProject(_ sessionID: SessionID, projectID: ProjectID) async {
         await viewModel.moveSession(sessionID, to: projectID)
+        guard viewModel.sessionNode(id: sessionID)?.projectID == projectID else { return }
+        sessionTerminals?.close(sessionID)
+        fileTabs.removeAll(for: sessionID)
         expandedProjectIDs.insert(projectID)
     }
 
@@ -873,22 +967,12 @@ public struct DashboardView: View {
         Binding(get: { renamingSession != nil }, set: { if !$0 { renamingSession = nil } })
     }
 
-    private var workspaceChangeDialogBinding: Binding<Bool> {
-        Binding(
-            get: { pendingWorkspaceChange != nil },
-            set: { if !$0 { pendingWorkspaceChange = nil } }
-        )
-    }
 
     private var projectDeletionDialogBinding: Binding<Bool> {
         Binding(
             get: { pendingProjectDeletion != nil },
             set: { if !$0 { pendingProjectDeletion = nil } }
         )
-    }
-
-    private var renameProjectAlertBinding: Binding<Bool> {
-        Binding(get: { renamingProject != nil }, set: { if !$0 { renamingProject = nil } })
     }
 }
 
@@ -898,6 +982,13 @@ private struct PendingChildClose: Identifiable {
     let tab: ChildTab
     let title: Text
     let message: Text
+}
+
+private struct PendingFolderChange: Identifiable {
+    let id = UUID()
+    let sessionID: SessionID
+    let sessionTitle: String
+    let directory: URL
 }
 
 private struct SpawnError: Identifiable {
@@ -917,26 +1008,6 @@ struct SelectedSessionNode: Identifiable {
 }
 
 private extension View {
-    func renameProjectAlert(
-        isPresented: Binding<Bool>,
-        project: Project?,
-        draftName: Binding<String>,
-        onCommit: @escaping (Project, String) -> Void,
-        onCancel: @escaping () -> Void
-    ) -> some View {
-        alert("プロジェクト名を変更", isPresented: isPresented, presenting: project) { project in
-            TextField("プロジェクト名", text: draftName)
-            Button("変更") {
-                let trimmed = draftName.wrappedValue.trimmingCharacters(in: .whitespaces)
-                guard !trimmed.isEmpty else { return }
-                onCommit(project, trimmed)
-            }
-            Button("キャンセル", role: .cancel, action: onCancel)
-        } message: { _ in
-            Text("サイドバーに表示する名前です。フォルダ名は変わりません。")
-        }
-    }
-
     func renameSessionAlert(
         isPresented: Binding<Bool>,
         session: SelectedSessionNode?,

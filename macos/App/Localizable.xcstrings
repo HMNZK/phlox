@@ -177,17 +177,6 @@
         }
       }
     },
-    "このセッションは再起動され、ターミナルの内容と進行中の作業は失われます。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This session will be restarted, and the terminal contents and any work in progress will be lost."
-          }
-        }
-      }
-    },
     "このセッションを削除しますか?": {
       "extractionState": "manual",
       "localizations": {
@@ -195,28 +184,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Delete this session?"
-          }
-        }
-      }
-    },
-    "このフォルダで再起動": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Restart in this folder"
-          }
-        }
-      }
-    },
-    "このプロジェクトで新規セッションを開始": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Start a new session in this project"
           }
         }
       }
@@ -294,17 +261,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Grid view"
-          }
-        }
-      }
-    },
-    "サイドバーに表示する名前です。フォルダ名は変わりません。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This is the name shown in the sidebar. The folder name will not change."
           }
         }
       }
@@ -551,17 +507,6 @@
         }
       }
     },
-    "プロジェクトを変更しますか?": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Change project?"
-          }
-        }
-      }
-    },
     "プロジェクトを追加": {
       "extractionState": "manual",
       "localizations": {
@@ -580,28 +525,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Add a project"
-          }
-        }
-      }
-    },
-    "プロジェクト名": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Project name"
-          }
-        }
-      }
-    },
-    "プロジェクト名を変更": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rename Project"
           }
         }
       }
@@ -712,17 +635,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Initialization failed"
-          }
-        }
-      }
-    },
-    "別のプロジェクトへ移動": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Move to Another Project"
           }
         }
       }
@@ -1119,17 +1031,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Weekly"
-          }
-        }
-      }
-    },
-    "選択するとこのセッションを再起動し、進行中の作業は失われます。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selecting this will restart the session, and any work in progress will be lost."
           }
         }
       }
@@ -2320,6 +2221,406 @@
           "stringUnit": {
             "state": "translated",
             "value": "The terminal contents and any work in progress will be lost, including unsaved changes to %@."
+          }
+        }
+      }
+    },
+    "折りたたみ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "collapsed"
+          }
+        }
+      }
+    },
+    "このプロジェクトに新規セッション": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New session in this project"
+          }
+        }
+      }
+    },
+    "プロジェクトの操作": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Project actions"
+          }
+        }
+      }
+    },
+    "グリッドの表示範囲": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grid scope"
+          }
+        }
+      }
+    },
+    "↩ 確定 · Esc 取消 · 変わるのは表示名だけです（フォルダ名は変わりません）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↩ Save · Esc Cancel · Only the display name changes (not the folder)"
+          }
+        }
+      }
+    },
+    "↩ 確定 · Esc 取消 · 空欄で自動の名前に戻す": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↩ Save · Esc Cancel · Leave empty for the automatic name"
+          }
+        }
+      }
+    },
+    "プロジェクト %@、%@、%@、選択中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Project %1$@, %2$@, %3$@, selected"
+          }
+        }
+      }
+    },
+    "プロジェクト %@、%@、%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Project %1$@, %2$@, %3$@"
+          }
+        }
+      }
+    },
+    "セッションの操作": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session actions"
+          }
+        }
+      }
+    },
+    "未読": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "unread"
+          }
+        }
+      }
+    },
+    "子セッション %lld 件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld child sessions"
+          }
+        }
+      }
+    },
+    "未読 %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unread %lld"
+          }
+        }
+      }
+    },
+    "名前": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        }
+      }
+    },
+    "プロジェクトとセッション": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projects and sessions"
+          }
+        }
+      }
+    },
+    "待ち時間順": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Longest wait first"
+          }
+        }
+      }
+    },
+    "未読の完了 1 件 — %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 unread completion — %@"
+          }
+        }
+      }
+    },
+    "未読の完了 %lld 件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld unread completions"
+          }
+        }
+      }
+    },
+    "その他（プロジェクト未割当）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other (no project)"
+          }
+        }
+      }
+    },
+    "プロジェクトを追加（⌘O）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Project (⌘O)"
+          }
+        }
+      }
+    },
+    "作業フォルダを追加すると、そのフォルダでエージェントを起動できます。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a working folder to start agents in it."
+          }
+        }
+      }
+    },
+    "フォルダを追加…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Folder…"
+          }
+        }
+      }
+    },
+    "新規セッション": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Session"
+          }
+        }
+      }
+    },
+    "名前を変更…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename…"
+          }
+        }
+      }
+    },
+    "git worktree で隔離する": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Isolate with git worktree"
+          }
+        }
+      }
+    },
+    "プロジェクトを削除…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Project…"
+          }
+        }
+      }
+    },
+    "プロジェクトに割り当てる": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Assign to Project"
+          }
+        }
+      }
+    },
+    "プロジェクトを移動": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to Project"
+          }
+        }
+      }
+    },
+    "移動するとセッションは再起動します": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Moving restarts the session"
+          }
+        }
+      }
+    },
+    "セッションを削除…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Session…"
+          }
+        }
+      }
+    },
+    "%@から": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "since %@"
+          }
+        }
+      }
+    },
+    "移動して再起動": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move and Restart"
+          }
+        }
+      }
+    },
+    "セッションは %@ で再起動されます。ターミナルの内容と進行中の作業は失われます。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The session restarts in %@. Terminal contents and work in progress will be lost."
+          }
+        }
+      }
+    },
+    "「%@」を %@ へ移動しますか?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move “%1$@” to %2$@?"
+          }
+        }
+      }
+    },
+    "新規セッション（⌘N）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Session (⌘N)"
+          }
+        }
+      }
+    },
+    "現在の会話": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "current conversation"
+          }
+        }
+      }
+    },
+    "グリッドを絞り込み中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "filtering the grid"
+          }
+        }
+      }
+    },
+    "再起動": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart"
+          }
+        }
+      }
+    },
+    "「%@」を %@ で再起動しますか?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart “%1$@” in %2$@?"
+          }
+        }
+      }
+    },
+    "選択": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose"
+          }
+        }
+      }
+    },
+    "セッションを再起動するフォルダを選択してください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose the folder to restart the session in."
           }
         }
       }

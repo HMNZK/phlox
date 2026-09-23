@@ -18,6 +18,16 @@ public enum TabRequest: Equatable, Sendable {
     case openFile(SessionID)
 }
 
+/// メニューバーの「セッション」メニューから、サイドバーの行の操作を画面へ渡す要求（キーボードだけで届くように）。
+public enum SidebarRequest: Equatable, Sendable {
+    /// 名前を変更（サイドバーが見えていれば行の中で、見えなければアラートで）。
+    case renameSession(SessionID)
+    /// 別のプロジェクトへ移動・割り当て（再起動の確認を挟む）。
+    case moveSession(SessionID, ProjectID)
+    /// フォルダを選んで作業場所を変える（選んだ後に再起動の確認を挟む）。
+    case changeFolder(SessionID)
+}
+
 public enum MainRoute: String, Sendable {
     case sessions
 }
@@ -46,6 +56,8 @@ public final class AppRouter {
     public var newTabChooserPresented = false
     /// 画面側でしか処理できない要求（確認ダイアログ・ファイル選択・シェル終了）。DashboardView が受けて nil に戻す。
     public var tabRequest: TabRequest?
+    /// サイドバーの行の操作の要求。DashboardView が受けて nil に戻す。
+    public var sidebarRequest: SidebarRequest?
     /// サイドバーを横に並べる幅が無いか（開いていても自動で隠す）。DashboardView がウィンドウ幅から決める。
     public var sidebarLacksRoom = false
     /// 自動で隠れたサイドバーを中央の上に一時的に重ねて出しているか（⌃⌘S）。
@@ -160,18 +172,29 @@ public final class AppRouter {
         gridFilterProjectID = nil
     }
 
-    /// サイドバーでプロジェクト名を選択したときの遷移。表示モードで分岐する。
-    /// - .single: プロジェクトを選択しセッション選択を解除（viewMode は .single のまま）。
-    ///            → セッション未選択＋プロジェクト選択済みとなり、新規セッション開始画面が表示される。
-    /// - .grid: 従来どおりグリッド絞り込みをトグルし .grid にする。
+    /// サイドバーでプロジェクト行をクリックしたときの遷移（`showProject`）。
+    /// グリッドでは、すでに表示範囲にしているプロジェクトをもう一度押すと範囲を外す（従来のトグル）。
     public func selectProjectFromSidebar(_ projectID: ProjectID) {
-        selectProject(projectID)
-        switch viewMode {
-        case .single:
-            selectedSession = nil
-        case .grid:
-            toggleGridFilter(projectID: projectID)
-            viewMode = .grid
+        let wasScoped = gridFilterProjectID == projectID
+        showProject(projectID)
+        if viewMode == .grid, wasScoped {
+            gridFilterProjectID = nil
         }
+    }
+
+    /// サイドバーでプロジェクト行を選ぶ（↑↓・クリック）。選んだプロジェクトがグリッドの表示範囲になる（03 行の規則）。
+    /// 単体表示ではセッションの選択を外して起動カードを出す（ADR 0086）。
+    public func showProject(_ projectID: ProjectID) {
+        selectProject(projectID)
+        gridFilterProjectID = projectID
+        if viewMode == .single {
+            selectedSession = nil
+        }
+    }
+
+    /// ⌘クリック: 選択中のプロジェクトを外し、グリッドの範囲を「すべて」に戻す（03 キーボード）。
+    public func clearProjectScope() {
+        selectProject(nil)
+        gridFilterProjectID = nil
     }
 }

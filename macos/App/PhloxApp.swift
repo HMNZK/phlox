@@ -675,6 +675,26 @@ private struct SessionCommands: Commands {
             .keyboardShortcut("w", modifiers: .command)
             .disabled(!canCloseSession)
 
+            // サイドバーの行のメニューと同じ操作（03 F2・F3・F6）。キーボードだけでも届くように置く。
+            Button("名前を変更…") {
+                guard let id = router?.selectedSession else { return }
+                router?.sidebarRequest = .renameSession(id)
+            }
+            .disabled(selectedNode == nil)
+            if let node = selectedNode, node.pty != nil {
+                Menu(node.projectID == nil ? "プロジェクトに割り当てる" : "プロジェクトを移動") {
+                    ForEach(dashboard?.projects.filter { $0.id != node.projectID } ?? []) { project in
+                        Button(project.name) {
+                            router?.sidebarRequest = .moveSession(node.id, project.id)
+                        }
+                    }
+                    Divider()
+                    Button("フォルダを選択…") {
+                        router?.sidebarRequest = .changeFolder(node.id)
+                    }
+                }
+            }
+
             Divider()
 
             // 対話 TUI の /export 相当。チャットセッションのみ対象（PTY は transcript を持たない）。
@@ -707,6 +727,10 @@ private struct SessionCommands: Commands {
         .codex: KeyboardShortcut("n", modifiers: [.command, .shift]),
         .cursor: KeyboardShortcut("n", modifiers: [.command, .option]),
     ]
+
+    private var selectedNode: SessionNode? {
+        router?.selectedSession.flatMap { dashboard?.sessionNode(id: $0) }
+    }
 
     private var canCloseSession: Bool {
         router?.selectedSession != nil

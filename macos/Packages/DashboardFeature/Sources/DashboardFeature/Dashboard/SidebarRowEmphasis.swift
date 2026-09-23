@@ -1,15 +1,15 @@
 import SwiftUI
 import DesignSystem
 
+/// サイドバー行の強調（03「強調の使い分け」）。背景色は選択とホバーだけに使い、
+/// 未読の完了はタイトルの太字と点で示す（背景を取り合わない）。
 struct SidebarRowEmphasis: Equatable {
     enum Role: Equatable {
         case projectScope(isFiltering: Bool, isDefaultTarget: Bool, isHovering: Bool)
-        case session(isCurrent: Bool, isHovering: Bool, requiresAttention: Bool)
+        case session(isCurrent: Bool, isHovering: Bool, hasUnseenCompletion: Bool)
     }
 
     let fill: Color
-    let border: Color
-    let showsCurrentMarker: Bool
     let nameWeight: Font.Weight
     let scopeBadgeText: String?
     let accessibilityValue: String?
@@ -27,33 +27,22 @@ struct SidebarRowEmphasis: Equatable {
             }
             return SidebarRowEmphasis(
                 fill: fill,
-                border: Color.clear,
-                showsCurrentMarker: false,
-                nameWeight: .regular,
-                scopeBadgeText: isFiltering ? "絞り込み中" : nil,
+                nameWeight: .semibold,
+                scopeBadgeText: isFiltering ? "グリッドの表示範囲" : nil,
                 accessibilityValue: isFiltering ? "グリッドを絞り込み中" : nil
             )
-        case let .session(isCurrent, isHovering, requiresAttention):
+        case let .session(isCurrent, isHovering, hasUnseenCompletion):
             let fill: Color
-            let border: Color
             if isCurrent {
-                fill = DSColor.sessionRowSelected
-                border = DSColor.sessionRowSelectedBorder
+                fill = DSColor.selectionFill
             } else if isHovering {
-                fill = DSColor.sessionRowHover
-                border = DSColor.sessionRowHoverBorder
-            } else if requiresAttention {
-                fill = DSColor.idleHighlight
-                border = Color.clear
+                fill = DSColor.fillSubtle
             } else {
                 fill = Color.clear
-                border = Color.clear
             }
             return SidebarRowEmphasis(
                 fill: fill,
-                border: border,
-                showsCurrentMarker: isCurrent,
-                nameWeight: isCurrent ? .semibold : .regular,
+                nameWeight: hasUnseenCompletion ? .semibold : .regular,
                 scopeBadgeText: nil,
                 accessibilityValue: isCurrent ? "現在の会話" : nil
             )

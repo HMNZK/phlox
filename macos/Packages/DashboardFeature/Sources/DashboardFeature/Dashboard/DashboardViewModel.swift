@@ -1236,11 +1236,11 @@ public final class DashboardViewModel {
         await restartSession(vm, in: directory, errorContext: "Failed to reinstall hooks for \(id)")
     }
 
-    /// セッションを別ワークスペース（Project）へ移動する。対象を kill し移動先フォルダで再起動する。
+    /// セッションを別ワークスペース（Project）へ移動する。未割当のセッションの割り当て（03 F3）もこれで行う。
+    /// 対象を kill し移動先フォルダで再起動する。
     /// `changeWorkspace` と同様に hook を再設置し stream を差し替える。`session.projectID` を更新する。
     public func moveSession(_ id: SessionID, to projectID: ProjectID) async {
         guard let vm = sessions.first(where: { $0.id == id }) else { return }
-        guard vm.projectID != nil else { return }
         guard vm.projectID != projectID else { return }
         guard let targetProject = projects.first(where: { $0.id == projectID }) else { return }
 

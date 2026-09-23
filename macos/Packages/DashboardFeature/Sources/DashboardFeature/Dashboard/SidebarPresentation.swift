@@ -9,26 +9,46 @@ enum SidebarRelativeTime {
     /// 60秒未満 "今" / 60分未満 "N分" / 24時間未満 "N時間" / 30日未満 "N日"
     /// / 365日未満 "Nか月" / それ以上 "N年"（切り捨て・未来時刻は "今"）。
     static func label(from: Date, to: Date) -> String {
+        let (value, unit) = elapsed(from: from, to: to)
+        switch unit {
+        case .now: return "今"
+        case .minute: return "\(value)分"
+        case .hour: return "\(value)時間"
+        case .day: return "\(value)日"
+        case .month: return "\(value)か月"
+        case .year: return "\(value)年"
+        }
+    }
+
+    /// 表示言語に合わせた版。日本語以外は「now / 5m / 3h / 2d / 1mo / 1y」。
+    static func label(from: Date, to: Date, locale: Locale) -> String {
+        guard locale.language.languageCode?.identifier != "ja" else { return label(from: from, to: to) }
+        let (value, unit) = elapsed(from: from, to: to)
+        switch unit {
+        case .now: return "now"
+        case .minute: return "\(value)m"
+        case .hour: return "\(value)h"
+        case .day: return "\(value)d"
+        case .month: return "\(value)mo"
+        case .year: return "\(value)y"
+        }
+    }
+
+    private enum Unit { case now, minute, hour, day, month, year }
+
+    private static func elapsed(from: Date, to: Date) -> (Int, Unit) {
         let elapsedSeconds = max(0, Int(to.timeIntervalSince(from)))
-        if elapsedSeconds < 60 { return "今" }
+        if elapsedSeconds < 60 { return (0, .now) }
 
         let elapsedMinutes = elapsedSeconds / 60
-        if elapsedMinutes < 60 { return "\(elapsedMinutes)分" }
+        if elapsedMinutes < 60 { return (elapsedMinutes, .minute) }
 
         let elapsedHours = elapsedMinutes / 60
-        if elapsedHours < 24 { return "\(elapsedHours)時間" }
+        if elapsedHours < 24 { return (elapsedHours, .hour) }
 
         let elapsedDays = elapsedHours / 24
-        if elapsedDays < 30 { return "\(elapsedDays)日" }
-        if elapsedDays < 365 { return "\(elapsedDays / 30)か月" }
-        return "\(elapsedDays / 365)年"
-    }
-}
-
-/// プロジェクト行左のアイコン表示規則（Q: デフォルト非表示・完了後未読のみ薄表示）。
-enum ProjectIconPolicy {
-    /// false → nil（アイコンを描画しない）/ true → 0.45（薄く表示）。
-    static func opacity(hasUnseenCompletion: Bool) -> Double? {
-        hasUnseenCompletion ? 0.45 : nil
+        if elapsedDays < 30 { return (elapsedDays, .day) }
+        if elapsedDays < 365 { return (elapsedDays / 30, .month) }
+        return (elapsedDays / 365, .year)
     }
 }

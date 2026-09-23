@@ -172,3 +172,63 @@ README「未確定事項」に当たるものは、現行の挙動を既定に�
 - Codex（gpt-6-sol high）の独立レビュー: 高 2・中 4 の指摘。作業場所の変更・未保存のまま削除・並べ替え・閉じてすぐ開く・アプリ内の英語設定の 5 件は修正した。UI テストの追加は見送った（UI テストをこの環境で走らせていないため）。
 - Debug 版での目視（スクリーンショット）: ダークで上段・下段・隠れた対応待ち、⌃⌘T の worktree のターミナル、分割とフォーカス枠、⌃Tab、⌘¥ で解除、再起動後の配置の復元。ライト＋英語で C4、変更タブの差分、「ファイルタブで編集」、⌘W の段階（ファイル → 変更 → 会話 → 削除確認を Esc でキャンセル）。アプリ内の英語設定だけで、タブ・選択肢が英語になることを確認。
 - 目視していないもの: 子タブのドラッグによる分割、上段タブのドラッグ並べ替え、⌘P のファイル選択画面。XCUITest は実行していない。
+
+## P4 サイドバー（03 Sidebar）
+
+### 対応表
+
+| 機能一覧（03 の対応表） | 内容 | 実装箇所 |
+|---|---|---|
+| 対応待ちの節（新規） | 最上部に固定（スクロールしない）。「対応待ち n」＋「待ち時間順」、行は タイトル・状態の文言・「プロジェクト · エージェント」・待ち時間。未読の完了は「未読の完了 n 件」1 行にまとめ、押すと展開（1 件ならそのセッションを開く） | `DashboardSidebarView.attentionSection` / `SidebarAttentionRow`。並びと対象は P2 の `attentionEntries`・`unseenCompletionNodes` をそのまま使う |
+| プロジェクト一覧表示 | 「プロジェクト」節。スクロール中はプロジェクト行を上端に貼り付ける | `DashboardSidebarView.tree`（`LazyVStack(pinnedViews: .sectionHeaders)`） |
+| プロジェクト追加 | 節見出しの ＋（⌘O）・空状態の「フォルダを追加… ⌘O」 | `projectsHeading` / `emptyState` |
+| 展開 / 折りたたみ | シェブロン・←→。畳んだ行に中身の要約 | `SidebarProjectRow`、`SidebarCollapsedSummary`、`SidebarRowMeta.project` |
+| プロジェクト選択・グリッド絞り込み（統合） | 行クリックで選択し、そのプロジェクトがグリッドの表示範囲になる。グリッドでは行末に範囲の印。⌘クリックで解除 | `AppRouter.showProject` / `selectProjectFromSidebar` / `clearProjectScope` |
+| プロジェクト名変更 | ⋯ / 右クリック / ↩ → 行の中で編集（アラート廃止）。変わるのは表示名だけ | `SidebarRenameField`、`DashboardSidebarView.beginRename` / `commitRename` |
+| プロジェクト削除 | ⋯ / 右クリック / ⌘⌫（サイドバーにフォーカスがあるとき）→ 確認 | `projectMenu`、`handleKey`（確認は従来の `pendingProjectDeletion`） |
+| worktree 隔離（F4） | プロジェクトの ⋯ / 右クリックにも「git worktree で隔離する」 | `projectMenu`（`setWorktreeIsolationEnabled`） |
+| 新規セッションメニュー | プロジェクト行の ＋・下端「＋ 新規セッション ⌘N」 | `SidebarProjectRow` の ＋、`DashboardView.sidebarFooter`（中身は従来の `newSessionMenuItems`。表は P9） |
+| 未割当セッション | 「その他（プロジェクト未割当）」節。プロジェクトが無く未割当だけ残るときは「その他」だけを出す（従来は空状態で隠れていた） | `DashboardSidebarView.tree` |
+| セッション行表示 | タイトル・右端（頭文字と状態）。待機は経過時間（1 分ごと）、それ以外は状態の文言、対応待ちは状態色 | `SidebarSessionRow`、`SidebarRowMeta.session`、`SidebarRelativeTime.label(from:to:locale:)` |
+| セッションツリー | 1 段 16pt の字下げ・縦の案内線・左余白のシェブロン。畳むと「+n」と子孫の要約 | `SidebarSessionRow.guides` / `chevron`、`SidebarRowMetrics` |
+| セッション選択 | 行クリック・↑↓・対応待ちの行。選択は accent の淡い面（左マーカーと太字は廃止） | `SidebarRowEmphasis`、`SidebarNavigation.step` |
+| ホバー強調 | グレーの面＋⋯（右クリックと同じメニュー） | `SidebarRowEmphasis`、`SidebarRowIcon` |
+| 要注意（未読完了）表示 | 太字＋点・対応待ちの節の「未読の完了 n 件」・畳んだ行の「未読 n」 | `SidebarRowEmphasis.nameWeight`、`SidebarSummaryText` |
+| セッション名変更 | 右クリック / ↩ / メニューバー「セッション › 名前を変更…」→ 行の中で編集。空欄で自動の名前に戻す | `SidebarRenameField`、`AppRouter.SidebarRequest.renameSession` |
+| 割り当て・移動（F2・F3） | 「プロジェクトを移動 ▸」／未割当は「プロジェクトに割り当てる ▸」に、ほかのプロジェクトと「フォルダを選択…」。メニューバーの「セッション」メニューにも同じもの | `sessionMenu`、`PhloxApp.SessionCommands`、`DashboardViewModel.moveSession`（未割当の割り当てを許可） |
+| 再起動の確認（F9） | 移動は「「X」を P へ移動しますか?」、フォルダはパネルで選んだ後に「「X」を ~/path で再起動しますか?」。既定はキャンセル、実行側は破壊的 | `DashboardView.shellWithTabDialogs`（`pendingMove` / `pendingFolderChange`） |
+| セッション削除 | 右クリック / ⌘⌫（サイドバーにフォーカスがあるとき）/ 単体の ⌘W → 確認 | `sessionMenu`、`handleKey` |
+| 空状態 | S3 の文言とボタン | `emptyState` |
+| runningBreakdown / runningSessionCount（3.1） | プロジェクト行右端「n 実行中」 | `SidebarProjectRow.trailingMeta`（P1 の `RunningCountBadge`） |
+| キーボード | ↑↓ 移動・←→ 畳む/開く（← は親へ）・↩ 名前を変更・⌘⌫ 削除・文字入力で頭出し | `DashboardSidebarView.handleKey`、`SidebarNavigation` |
+
+### 決定・食い違い
+
+- **並べ替え（F10）は入れない**。03 で「候補・未配線」。`reorderSession` は入れ替え（swap）で 03 の挿入とも違うため、現行（呼び出し元なし）のまま。⌥⇧⌘↑↓ も未割り当て。
+- **内部セッション（G3）は現行どおり**。展開したときの子行と「n 実行中（内部 m）」は変更前のサイドバーと同じ描画元のまま。
+- **状態は記号でなく文字**（P1・P2 の決定）。畳んだ行の「◆1 ●1」は「承認待ち 1 · 未読 1」のように状態色の文字、実行中の回転する円は出さず「実行中」の文字にした。
+- **新規セッションの表（F5）と ⌘N は P9**。いまは従来のメニューをプロジェクト行の ＋ と下端のボタンから開く。
+- **グリッドで範囲中のプロジェクトをもう一度押すと範囲を外す**（従来のトグル）。凍結受け入れテスト `AcceptanceSingleModeProjectSelectTests` が要求するため残し、⌘クリックでの解除を足した。↑↓ で選んだときはトグルしない。単体表示でも行を選ぶとグリッドの範囲になる（03「行クリックで選択し、そのプロジェクトがグリッドの表示範囲になる」）。
+- **入力先**: 行の選択でターミナル・入力欄が自分で入力先を取る既存の動きは変えていない。キー（↑↓・←・頭出し）で選んだ直後 0.5 秒だけは一覧に戻し、続けて動けるようにした。クリックで選んだとき、ほかをクリックして名前を確定したときは戻さない。
+- **行の ⋯ はホバー中だけ**（モックどおり）。キーボードだけの操作は ↩（名前）・⌘⌫（削除）・メニューバーの「セッション」メニュー（名前・移動）で届く。VoiceOver は行の「メニューを表示」で全項目に届く。
+- **名前変更の案内は行の中に出す**。モックの吹き出し（行の下に重ねる）は、下の行の文字と重なったため。
+- **プロジェクト名の空欄確定は変えない**（従来どおり）。03 は「プロジェクトも同じ方式」とあるが、空欄時の自動の名前（フォルダ名に戻すか）は書いていないため。
+- **フォルダ選択の確認を選んだ後に移した**（F9 が行き先を示す確認のため）。従来の「プロジェクトを変更しますか?」の事前確認は削除。グリッドのタイルからの作業場所変更も同じ流れになる。同じフォルダを選び直して再起動したときは、子タブ（ターミナル・ファイル）はそのまま残す（作業場所が変わらず使い続けられるため）。
+- **移動・作業場所の変更は、成功を確かめてから子タブを片付ける**（再起動の準備に失敗したら元のまま残す）。
+- **移動できるのは従来どおりターミナル型のセッションだけ**（`node.pty != nil`）。
+- **弱い文字（fg3）は確定値に戻さない**。P1 では「P4 で旧注意面をやめたら戻す」としたが、実測するとデザインの #75757B はサイドバーの地 #F2F2F4 の上で 4.09:1、選択面の上で 3.4:1 前後で、旧注意面が無くても 4.5:1 に届かない。`AppTheme.designText` の補正（本文色へ寄せる）を残す。デザイン側の確認事項。
+- 選択中のセッションが属するプロジェクト行は塗らない（`selectedProjectID` はセッション選択では変えないため）。モックは両方を塗るが、選択の意味を変えるので現行どおり。
+- `SidebarRelativeTime` に英語表記（now / 5m / 3h / 2d / 1mo / 1y）を足した。日本語は従来どおり。
+
+### テストの更新
+
+- 置き換え: `AcceptanceSidebarRowEmphasisTests`（選択の左マーカーと太字・未読の塗りの契約 → 03 の「選択 = accent の面、未読 = 太字、背景は選択とホバーだけ」）。
+- 削除: `WorkspaceSidebarPolicyAcceptanceTests.workspaceSidebar_projectIconPolicy_hiddenByDefault_dimWhenUnseenCompletion`（`ProjectIconPolicy` を 03 G1 で畳んだ行の要約に置き換えたため）。代わりに要約と右端の表示規則を `SidebarNavigationTests.swift` で検査する。
+- 新設 `SidebarNavigationTests.swift`: ↑↓ の移動と端・頭出し、畳んだ行の要約、行の右端に出すもの、プロジェクト行の選択とグリッドの範囲（`showProject` はトグルしない・⌘クリックで解除）、経過時間の英語表記。`WorkspaceManagementTests.moveSession_assignsUnassignedSessionToProject`（未割当の割り当て）。
+
+### 検証
+
+- パッケージテスト（`--no-parallel`）: DesignSystem 188・AgentDomain 545・SessionFeature 1045・DashboardFeature 1598・AppBootstrap 161・TerminalUI 79 が合格。ControlServer は初回に `AcceptanceSpawnProjectIdTests` が HTTP のタイムアウトで 1 件落ち、再実行で 158 件合格（P2 から出ている既知の不安定テスト。P4 で ControlServer は未変更）。App の Debug ビルド成功、`git diff --check` 問題なし。AppBootstrap はビルドキャッシュのため `swift package clean` の後に実行。
+- Codex（gpt-6-sol high）の独立レビュー: 高 3・中 4。移動失敗時の子タブ破棄・フォーカスの奪い返し・キーボードからメニューに届かない・フォルダ選択後の確認なし・読み上げの言語・表示規則のテスト不足を修正。内部セッションは現行どおりと確認。再レビューで 7 件とも解消、新しい指摘 1 件（同じフォルダでの再起動）は上の決定のとおり。
+- Debug 版での目視（スクリーンショット）: ダークで対応待ちの節・畳んだ行の「エラー 2 · 8」・展開した行（頭文字と経過時間・状態の文言）・↑↓ と → での移動（画面が切り替わっても一覧に入力先が残る）・↩ の名前変更と Esc の取り消し・メニューバー「名前を変更…」で畳まれたプロジェクトが開いて編集に入る。ライトで行の中の名前変更と案内・右クリックのメニュー。英語で「Needs you / Longest wait first / Projects / 18d / error / New Session」と名前変更の案内。
+- 目視していないもの: 移動のサブメニューと F9 の確認（Debug 版のセッションがすべて会話型で、ターミナル型を新しく起動すると実エージェントが動くため起動しなかった）、長いリストでのプロジェクト行の貼り付け（最小の窓でもあふれなかった）、⌘クリックでの解除、VoiceOver の実操作。XCUITest は実行していない。

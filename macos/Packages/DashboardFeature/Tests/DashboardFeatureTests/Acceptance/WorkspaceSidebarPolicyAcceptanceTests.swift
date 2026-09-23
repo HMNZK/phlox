@@ -1,5 +1,6 @@
 // task-13 受け入れテスト（PM 著・実装役は編集禁止）
-// 契約: tasks/task-13.md — サイドバーの相対時刻ラベルとプロジェクトアイコン表示規則。
+// 契約: tasks/task-13.md — サイドバーの相対時刻ラベル。
+// プロジェクトアイコンの不透明度の規則は 03 Sidebar G1 で畳んだ行の要約に置き換えたため削除した（P4）。
 
 import Foundation
 import Testing
@@ -27,9 +28,4 @@ import Testing
 @Test func workspaceSidebar_relativeTime_futureTimestampClampsToNow() {
     let base = Date(timeIntervalSince1970: 1_700_000_000)
     #expect(SidebarRelativeTime.label(from: base.addingTimeInterval(120), to: base) == "今")
-}
-
-@Test func workspaceSidebar_projectIconPolicy_hiddenByDefault_dimWhenUnseenCompletion() {
-    #expect(ProjectIconPolicy.opacity(hasUnseenCompletion: false) == nil)
-    #expect(ProjectIconPolicy.opacity(hasUnseenCompletion: true) == 0.45)
 }

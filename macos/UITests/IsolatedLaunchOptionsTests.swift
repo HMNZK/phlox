@@ -68,7 +68,7 @@ final class IsolatedLaunchOptionsTests: XCTestCase {
         try isolated.assertExclusiveOwnership()
         capture(app.windows.firstMatch, name: "appearance-seeded-session")
         XCTAssertTrue(app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label == %@", "起動補助確認, 待機中"))
+            .matching(NSPredicate(format: "label == %@", "起動補助確認, 入力待ち"))
             .firstMatch.waitForExistence(timeout: 10), "会話名の表示だけではなく正常な待機状態が必要")
     }
 

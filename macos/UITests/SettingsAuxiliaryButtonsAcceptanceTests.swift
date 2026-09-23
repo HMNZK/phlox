@@ -32,28 +32,29 @@ final class SettingsAuxiliaryButtonsAcceptanceTests: XCTestCase {
         let expectedEnabled: [String: Bool] = [
             "通知テスト": true, "エージェント管理を開く": true, "今すぐ確認": false,
         ]
+        let generalLabels = ["通知テスト", "今すぐ確認"]
         var observed = Set<String>()
         for index in 0..<7 {
             try isolated.assertExclusiveOwnership()
             attach(settings.screenshot(), name: "settings-\(theme)-scroll-\(index)")
-            for (label, enabled) in expectedEnabled {
+            for label in generalLabels {
                 let button = settings.buttons[label]
                 guard button.exists, settings.frame.contains(button.frame), !button.frame.isEmpty else { continue }
                 print("SETTINGS BUTTON [\(theme)]: label=\(button.label) enabled=\(button.isEnabled) frame=\(button.frame)")
-                XCTAssertEqual(button.isEnabled, enabled, "[\(theme)] \(label) の enabled が期待と異なる")
+                XCTAssertEqual(button.isEnabled, expectedEnabled[label], "[\(theme)] \(label) の enabled が期待と異なる")
                 observed.insert(label)
             }
-            if observed.count == expectedEnabled.count { break }
+            if observed.count == generalLabels.count { break }
             if index < 6 {
                 scroll.scroll(byDeltaX: 0, deltaY: -500)
                 try await Task.sleep(for: .milliseconds(300))
             }
         }
-        XCTAssertEqual(observed, Set(expectedEnabled.keys), "[\(theme)] 対象3操作の画面内表示を観測できていない")
-        guard observed.count == expectedEnabled.count else { return }
+        XCTAssertEqual(observed, Set(generalLabels), "[\(theme)] 一般タブの補助操作が見つからない")
+        guard observed.count == generalLabels.count else { return }
 
         // 外観証拠: 通常 → hover → hover離脱（PM 目視用。assert しない）
-        for label in ["通知テスト", "エージェント管理を開く", "今すぐ確認"] {
+        for label in generalLabels {
             let button = settings.buttons[label]
             attach(settings.screenshot(), name: "settings-\(theme)-normal-\(label)")
             button.hover()
@@ -69,7 +70,7 @@ final class SettingsAuxiliaryButtonsAcceptanceTests: XCTestCase {
             try isolated.assertExclusiveOwnership()
             app.typeKey(.tab, modifierFlags: [])
             try await Task.sleep(for: .milliseconds(150))
-            for label in expectedEnabled.keys {
+            for label in generalLabels {
                 let button = settings.buttons[label]
                 if button.exists, (button.value(forKey: "hasKeyboardFocus") as? Bool) == true {
                     print("SETTINGS FOCUS [\(theme)]: step=\(step) label=\(label)")
@@ -77,6 +78,32 @@ final class SettingsAuxiliaryButtonsAcceptanceTests: XCTestCase {
                 }
             }
         }
+
+        settings.buttons["エージェント"].click()
+        let agentScroll = settings.scrollViews["settings-group-agents"]
+        XCTAssertTrue(agentScroll.waitForExistence(timeout: 10), "[\(theme)] エージェントタブが開かない")
+        for index in 0..<7 {
+            try isolated.assertExclusiveOwnership()
+            let button = settings.buttons["エージェント管理を開く"]
+            if button.exists, settings.frame.contains(button.frame), !button.frame.isEmpty {
+                XCTAssertTrue(button.isEnabled, "[\(theme)] エージェント管理を開けない")
+                observed.insert("エージェント管理を開く")
+                attach(settings.screenshot(), name: "settings-\(theme)-agent-normal")
+                button.hover()
+                attach(settings.screenshot(), name: "settings-\(theme)-agent-hover")
+                for step in 0..<12 {
+                    app.typeKey(.tab, modifierFlags: [])
+                    if (button.value(forKey: "hasKeyboardFocus") as? Bool) == true {
+                        print("SETTINGS FOCUS [\(theme)]: step=\(step) label=エージェント管理を開く")
+                        attach(settings.screenshot(), name: "settings-\(theme)-agent-focus")
+                        break
+                    }
+                }
+                break
+            }
+            if index < 6 { agentScroll.scroll(byDeltaX: 0, deltaY: -500) }
+        }
+        XCTAssertEqual(observed, Set(expectedEnabled.keys), "[\(theme)] 対象3操作の画面内表示を観測できていない")
         try isolated.assertExclusiveOwnership()
     }
 

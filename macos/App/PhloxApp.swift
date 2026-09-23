@@ -12,17 +12,13 @@ import TerminalUI
 import UserNotifications
 import SessionFeature
 
-/// 選択中セッションを閉じる。Cmd+W 横取り（AppDelegate）とメニュー（SessionCommands）の
-/// 共通処理。閉じられたら true を返す。
+/// ⌘W の横取り（AppDelegate）とメニュー（SessionCommands）の共通処理（13 Review で確定）：
+/// 子タブはそのタブを閉じ、会話・グリッドは確認してからセッションを削除する。
+/// 対象が無ければ false を返し、ウィンドウを閉じる標準動作に任せる。
 @MainActor
 @discardableResult
-private func performCloseSelectedSession(dashboard: DashboardViewModel?, router: AppRouter?) -> Bool {
-    guard let dashboard, let router, let id = router.selectedSession else { return false }
-    router.selectedSession = nil
-    Task { @MainActor in
-        _ = await dashboard.removeSession(id)
-    }
-    return true
+private func performCloseSelectedSession(router: AppRouter?) -> Bool {
+    router?.requestClose() ?? false
 }
 
 /// 初期化失敗の種別。case 名の文字列マッチではなく型で判定する
@@ -38,8 +34,10 @@ struct PhloxApp: App {
     @State private var composition: CompositionRoot?
     @State private var initFailure: InitFailure?
     @State private var initializing = false
-    /// ドロワーを閉じても実シェルを維持する唯一の所有者。
+    /// 上段右端の共通ターミナル（ホームで開く）の唯一の所有者。
     @State private var terminalPanelSession: TerminalPanelSession?
+    /// セッションごとのターミナルタブ（その worktree で開く）の唯一の所有者。
+    @State private var sessionTerminals: SessionTerminalStore?
 
     @AppStorage(LanguageSettings.languageKey) private var appLanguageRaw = AppLanguage.system.rawValue
 
@@ -69,7 +67,8 @@ struct PhloxApp: App {
                         router: composition.router,
                         usageMonitor: composition.usage,
                         agentConsoleWindowID: AgentConsoleCommands.windowID,
-                        terminalPanel: terminalPanelSession
+                        commonTerminal: terminalPanelSession,
+                        sessionTerminals: sessionTerminals
                     )
                 } else if let initFailure {
                     InitErrorView(failure: initFailure, retry: { Task { await initialize() } })
@@ -92,9 +91,17 @@ struct PhloxApp: App {
                     return
                 }
                 if terminalPanelSession == nil {
-                    terminalPanelSession = makeTerminalPanelSession(environment: composition.environment)
+                    let home = FileManager.default.homeDirectoryForCurrentUser.path
+                    terminalPanelSession = makeTerminalPanelSession(environment: composition.environment, workingDirectory: home)
+                }
+                if sessionTerminals == nil {
+                    let environment = composition.environment
+                    sessionTerminals = SessionTerminalStore { workingDirectory in
+                        makeTerminalPanelSession(environment: environment, workingDirectory: workingDirectory)
+                    }
                 }
                 appDelegate.userTerminalController = terminalPanelSession?.controller
+                appDelegate.sessionUserTerminals = sessionTerminals
                 appDelegate.ptyManager = composition.environment.pty as? PTYManager
                 appDelegate.dashboard = composition.dashboard
                 appDelegate.router = composition.router
@@ -118,6 +125,7 @@ struct PhloxApp: App {
             )
             AgentConsoleCommands()
             TerminalPanelCommands(router: composition?.router)
+            TabCommands(dashboard: composition?.dashboard, router: composition?.router)
             EditorPanelCommands(router: composition?.router)
         }
 
@@ -161,14 +169,15 @@ struct PhloxApp: App {
         return project.directoryURL
     }
 
+    /// 共通ターミナルはホーム、ターミナルタブはそのセッションの worktree で開く。
     @MainActor
-    private func makeTerminalPanelSession(environment: AppEnvironment) -> TerminalPanelSession {
+    private func makeTerminalPanelSession(environment: AppEnvironment, workingDirectory: String) -> TerminalPanelSession {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return TerminalPanelSession(
             controller: UserTerminalController(
                 pty: environment.pty,
                 shellPath: loginShellPath(),
-                workingDirectory: home,
+                workingDirectory: workingDirectory,
                 environment: [
                     "HOME": home,
                     "PATH": environment.pathEnvironment,
@@ -246,8 +255,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
     }
     var router: AppRouter?
-    /// ドロワーを閉じても保持されるユーザー用シェル。終了経路だけが明示的に停止する。
+    /// 共通ターミナルのシェル。終了経路だけが明示的に停止する。
     var userTerminalController: UserTerminalController?
+    /// セッションごとのターミナルタブのシェル。終了経路でまとめて停止する。
+    var sessionUserTerminals: SessionTerminalStore?
     private var closeSessionMonitor: Any?
 
     /// 子セッションの一括終了を「高々 1 回」だけ起動するためのガード。
@@ -282,6 +293,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // in the local SDK interface. Intercept Cmd+W before AppKit's standard Close command so
         // the shortcut deterministically closes the selected session instead of the window.
         closeSessionMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            // 日本語表示ではメニューの ⌘\ が ⌘¥ として登録され、英字配列の \ と一致しないため両方を横取りする。
+            if event.isCommandBackslash {
+                self?.router?.toggleSplit()
+                return nil
+            }
             guard event.isCommandW else { return event }
             guard let self, self.closeSelectedSession() else { return event }
             return nil
@@ -391,7 +407,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     private func closeSelectedSession() -> Bool {
-        performCloseSelectedSession(dashboard: dashboard, router: router)
+        performCloseSelectedSession(router: router)
     }
 
     private func updateDockBadge(count: Int) {
@@ -459,7 +475,7 @@ private struct TerminalPanelCommands: Commands {
         CommandGroup(after: .sidebar) {
             // ⌥⌘T は macOS 標準の「ツールバーを表示/隠す」と重なるため ⌃⌘T（13 Review）。
             Button("ターミナル") {
-                router?.toggleTerminalPanel()
+                router?.openChildTab(.terminal)
             }
             .keyboardShortcut("t", modifiers: [.command, .control])
             .disabled(router == nil)
@@ -472,12 +488,68 @@ private struct EditorPanelCommands: Commands {
 
     var body: some Commands {
         CommandGroup(after: .sidebar) {
-            Button("エディタ") {
-                router?.toggleEditorPanel()
+            Button(String(localized: "tab.changes", defaultValue: "変更")) {
+                router?.openChildTab(.changes)
             }
             .keyboardShortcut("e", modifiers: [.command, .control])
-            .disabled(router == nil)
+            .disabled(router?.selectedSession == nil)
         }
+    }
+}
+
+/// タブの操作（02 C のキー表）。
+private struct TabCommands: Commands {
+    var dashboard: DashboardViewModel?
+    var router: AppRouter?
+
+    var body: some Commands {
+        CommandMenu("タブ") {
+            Button("新しいタブ…") {
+                guard let router else { return }
+                router.viewMode = .single
+                router.commonTerminalSelected = false
+                router.newTabChooserPresented = true
+            }
+            .keyboardShortcut("t", modifiers: .command)
+            .disabled(router?.selectedSession == nil)
+
+            Button("ファイルを開く…") {
+                guard let router, let id = router.selectedSession else { return }
+                router.tabRequest = .openFile(id)
+            }
+            .keyboardShortcut("p", modifiers: .command)
+            .disabled(router?.selectedSession == nil)
+
+            Divider()
+
+            Button("次のタブ") { router?.cycleChildTab(by: 1) }
+                .keyboardShortcut(.tab, modifiers: .control)
+                .disabled(router?.selectedSession == nil)
+            Button("前のタブ") { router?.cycleChildTab(by: -1) }
+                .keyboardShortcut(.tab, modifiers: [.control, .shift])
+                .disabled(router?.selectedSession == nil)
+            Button("右に分割／分割を解除") { router?.toggleSplit() }
+                .keyboardShortcut("\\", modifiers: .command)
+                .disabled(router?.selectedSession == nil)
+
+            Divider()
+
+            // 単体では上段のセッションタブ、グリッドではタイルを左上から数えて選ぶ。
+            ForEach(1...9, id: \.self) { number in
+                Button("タブ \(number)") { selectTab(number) }
+                    .keyboardShortcut(KeyEquivalent(Character("\(number)")), modifiers: .command)
+                    .disabled(dashboard == nil)
+            }
+        }
+    }
+
+    private func selectTab(_ number: Int) {
+        guard let dashboard, let router else { return }
+        let ids = dashboard.numberedTabSessionIDs(router: router)
+        guard ids.indices.contains(number - 1) else { return }
+        NSApp.mainWindow?.makeFirstResponder(nil)
+        router.commonTerminalSelected = false
+        router.selectedSession = ids[number - 1]
     }
 }
 
@@ -598,7 +670,7 @@ private struct SessionCommands: Commands {
             Button {
                 closeSelectedSession()
             } label: {
-                Label("セッションを閉じる", systemImage: "xmark.circle")
+                Label("閉じる", systemImage: "xmark.circle")
             }
             .keyboardShortcut("w", modifiers: .command)
             .disabled(!canCloseSession)
@@ -659,7 +731,7 @@ private struct SessionCommands: Commands {
     }
 
     private func closeSelectedSession() {
-        performCloseSelectedSession(dashboard: dashboard, router: router)
+        performCloseSelectedSession(router: router)
     }
 
     private func selectAdjacentSession(forward: Bool) {
@@ -674,6 +746,11 @@ private extension NSEvent {
     var isCommandW: Bool {
         modifierFlags.intersection(.deviceIndependentFlagsMask) == .command
             && charactersIgnoringModifiers?.lowercased() == "w"
+    }
+
+    var isCommandBackslash: Bool {
+        modifierFlags.intersection(.deviceIndependentFlagsMask) == .command
+            && ["\\", "¥"].contains(charactersIgnoringModifiers ?? "")
     }
 }
 

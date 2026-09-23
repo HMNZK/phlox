@@ -3,9 +3,8 @@ import SessionFeature
 import SwiftUI
 
 /// エディタパネルの内部レイアウトモードを、確定容器幅から純粋に決定する規則。
-/// ドロワーの既定幅（`PanelDrawerLayout.preferredWidth`）では左右分割を表示し、
-/// 最小幅（`.minimumWidth`）など幅が足りないときは変更リストと詳細ペインを縦積みへ
-/// 切り替えて操作可能性を保つ。
+/// 変更タブが広ければ左右分割を表示し、左右分割の片側（最小 320pt）など幅が足りないときは
+/// 変更リストと詳細ペインを縦積みへ切り替えて操作可能性を保つ。
 public enum EditorPanelLayout: Equatable {
     case split
     case stacked
@@ -49,10 +48,9 @@ func editorChangeColor(for change: WorkingTreeChange) -> Color {
     }
 }
 
-/// 変更ファイルの確認と保存を行う、容器に依存しないエディタパネル。
+/// 変更の子タブ（02 C）。変更一覧・差分／内容・コミット。編集はファイルの子タブで行う。
 public struct EditorPanelView: View {
     @Bindable private var viewModel: EditorPanelViewModel
-    @State private var showsConflictAlert = false
     @State private var previewLineLimit = 500
     @ScaledMetric(relativeTo: .body) private var splitChangeListMaxWidth: CGFloat = 320
     @ScaledMetric(relativeTo: .body) private var splitChangeListIdealWidth: CGFloat = 240
@@ -62,52 +60,30 @@ public struct EditorPanelView: View {
     @ScaledMetric(relativeTo: .body) private var stackedChangeListMinHeight: CGFloat = 72
     @ScaledMetric(relativeTo: .body) private var stackedChangeListIdealHeight: CGFloat = 180
     @ScaledMetric(relativeTo: .body) private var minimumTapTarget: CGFloat = 28
-    /// ドロワー内での最上段要素にだけ 28pt（最前面オーバーレイのトップバーと非衝突分）を
-    /// 付ける。容器（DashboardView）側が積み位置に応じて渡す。
-    private let topInset: CGFloat
+    /// 選んだ変更ファイルをファイルの子タブで開く。
+    private let onEditFile: (String) -> Void
 
-    public init(viewModel: EditorPanelViewModel, topInset: CGFloat = 28) {
+    public init(viewModel: EditorPanelViewModel, onEditFile: @escaping (String) -> Void = { _ in }) {
         _viewModel = Bindable(wrappedValue: viewModel)
-        self.topInset = topInset
+        self.onEditFile = onEditFile
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: DSSpacing.s) {
-                Image(systemName: "doc.text")
-                    .foregroundStyle(DSColor.textSecondary)
-                Text("エディタ")
-                    .font(DSFont.bodyMedium)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, DSSpacing.l)
-            .padding(.vertical, DSSpacing.s)
-
-            Divider()
-
-            GeometryReader { geometry in
-                editorContent(for: EditorPanelLayout.mode(forWidth: geometry.size.width))
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        GeometryReader { geometry in
+            // 分割ビューが理想の高さで伸びてはみ出さないよう、タブの大きさに固定する。
+            editorContent(for: EditorPanelLayout.mode(forWidth: geometry.size.width))
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
         }
-        .padding(.top, topInset)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("エディタ")
+        .accessibilityLabel(Text("tab.changes"))
         .accessibilityIdentifier("editor-panel")
         .onChange(of: viewModel.selectedPath) { _, _ in
             previewLineLimit = 500
         }
-        .alert("ファイルがディスク上で変更されました", isPresented: $showsConflictAlert) {
-            Button("上書き", role: .destructive) {
-                Task { await overwrite() }
-            }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("読み込み後にファイルが変更されました。下書きで上書きしますか？")
-        }
     }
 
-    /// ドロワー幅に応じて左右分割・上下積みを切り替える。しきい値の判断は
+    /// タブ幅に応じて左右分割・上下積みを切り替える。しきい値の判断は
     /// `EditorPanelLayout`（純粋型・白箱テスト対象）へ切り出してある。
     @ViewBuilder
     private func editorContent(for mode: EditorPanelLayout) -> some View {
@@ -118,11 +94,13 @@ public struct EditorPanelView: View {
                     .frame(
                         minWidth: EditorPanelLayout.changeListMinWidth,
                         idealWidth: splitChangeListIdealWidth,
-                        maxWidth: splitChangeListMaxWidth
+                        maxWidth: splitChangeListMaxWidth,
+                        maxHeight: .infinity,
+                        alignment: .top
                     )
 
                 detailPane
-                    .frame(minWidth: EditorPanelLayout.detailPaneMinWidth)
+                    .frame(minWidth: EditorPanelLayout.detailPaneMinWidth, maxHeight: .infinity, alignment: .top)
             }
         case .stacked:
             VSplitView {
@@ -184,7 +162,7 @@ public struct EditorPanelView: View {
     @ViewBuilder
     private var changeFilesSectionHeader: some View {
         HStack {
-            Text("変更")
+            Text("tab.changes")
                 .font(DSFont.sectionHeader)
             Spacer()
             Button("更新") {
@@ -283,24 +261,12 @@ public struct EditorPanelView: View {
                     .foregroundStyle(DSColor.textSecondary)
             }
 
-            if viewModel.canEdit {
-                Divider()
-                Text("編集")
-                    .font(DSFont.sectionHeader)
-                TextEditor(text: $viewModel.draft)
-                    .font(DSFont.mono)
-                    .frame(minHeight: editorMinHeight)
-
+            if viewModel.canEdit, let path = viewModel.selectedPath {
                 HStack {
-                    if viewModel.isDirty {
-                        Text("未保存の変更")
-                            .foregroundStyle(DSColor.textSecondary)
-                    }
                     Spacer()
-                    Button("保存") {
-                        Task { await save() }
+                    Button("ファイルタブで編集") {
+                        onEditFile(path)
                     }
-                    .disabled(!viewModel.isDirty)
                 }
             }
         }
@@ -321,7 +287,7 @@ public struct EditorPanelView: View {
         }
     }
 
-    private func highlightedPreview(_ text: String, title: String) -> some View {
+    private func highlightedPreview(_ text: String, title: LocalizedStringKey) -> some View {
         let preview = preview(of: text)
         return VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Text(title)
@@ -351,23 +317,5 @@ public struct EditorPanelView: View {
             end = text.index(after: newline)
         }
         return (String(text[..<end]), end < text.endIndex)
-    }
-
-    private func save() async {
-        do {
-            if try await viewModel.save() == .conflictDetected {
-                showsConflictAlert = true
-            }
-        } catch {
-            // 選択対象が消えた場合は VM が公開状態を安全な空状態へ戻す。
-        }
-    }
-
-    private func overwrite() async {
-        do {
-            try await viewModel.overwrite()
-        } catch {
-            // 上書き対象が消えた場合も VM の公開状態は維持する。
-        }
     }
 }

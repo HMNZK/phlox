@@ -221,6 +221,16 @@ public enum SessionNode {
         }
     }
 
+    /// 作業ディレクトリの生パス（`~` に短縮しない）。シェルの起動・ファイルの読み書きに使う。
+    public var rawWorkspacePath: String {
+        switch self {
+        case .pty(let session):
+            session.rawWorkspacePath
+        case .appServer(let session):
+            session.rawWorkspacePath
+        }
+    }
+
     public var appServer: ChatSessionViewModel? {
         if case .appServer(let session) = self { session } else { nil }
     }

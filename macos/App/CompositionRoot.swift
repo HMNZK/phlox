@@ -455,7 +455,8 @@ public final class CompositionRoot {
         // として認可へ配線する。この requester は cascade delete を含む全 remove を無条件で
         // 許可される（脅威モデル「トークン漏洩 = Mac 全権」と整合。特権の範囲は remove のみ）。
         dashboard.setPrivilegedRequesters(mobilePrivilegedRequesterSessionIDs)
-        let router = AppRouter()
+        // タブの並び・子タブ・分割はプロジェクトごとに保存する（02 C）。
+        let router = AppRouter(tabs: SessionTabStore(defaults: UserDefaults.phloxDefaults()))
         return (env, dashboard, router, usage)
     }
 

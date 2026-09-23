@@ -12,16 +12,20 @@ public struct ResizeGripView: View {
     /// 掴みしろの幅(区切り線を中心に左右へ張り出す)。配置側の offset 計算と揃える。
     public static let gripWidth: CGFloat = 20
 
+    let hitWidth: CGFloat
     let onChanged: (DragGesture.Value) -> Void
     let onEnded: () -> Void
 
     @State private var isHovered = false
     @State private var isResizing = false
 
+    /// - Parameter hitWidth: 当たり判定の幅。分割表示の区切りは `DSLayout.dividerHitWidth`（8pt）。
     public init(
+        hitWidth: CGFloat = gripWidth,
         onChanged: @escaping (DragGesture.Value) -> Void,
         onEnded: @escaping () -> Void
     ) {
+        self.hitWidth = hitWidth
         self.onChanged = onChanged
         self.onEnded = onEnded
     }
@@ -30,7 +34,7 @@ public struct ResizeGripView: View {
         let highlighted = isHovered || isResizing
         Rectangle()
             .fill(Color.clear)
-            .frame(width: Self.gripWidth)
+            .frame(width: hitWidth)
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
             .overlay {

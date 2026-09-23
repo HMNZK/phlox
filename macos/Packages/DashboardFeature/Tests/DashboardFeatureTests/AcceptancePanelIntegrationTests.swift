@@ -26,11 +26,12 @@ struct AcceptancePanelIntegrationTests {
         FileManager.default.fileExists(atPath: repoRoot.appendingPathComponent(relativePath).path)
     }
 
-    @Test("⌃⌘E のホットキーが Commands に登録され、router のトグルへ配線されている")
+    // 02 C（UI 再設計・ユーザー承認）で ⌃⌘E は「変更タブを開く／前に出す」へ変わった。
+    @Test("⌃⌘E のホットキーが Commands に登録され、変更タブを開く配線になっている")
     func editorHotkeyIsRegistered() throws {
         let app = try source("macos/App/PhloxApp.swift")
         #expect(app.contains(#"keyboardShortcut("e", modifiers: [.command, .control])"#))
-        #expect(app.contains("toggleEditorPanel()"))
+        #expect(app.contains("openChildTab(.changes)"))
     }
 
     @Test("容器プロトタイプが撤去されている")

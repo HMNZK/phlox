@@ -4,7 +4,7 @@ import DesignSystem
 import TerminalUI
 
 /// ユーザー用シェルと SwiftTerm 表示器を結びつける、パネル容器から独立した寿命の所有者。
-/// ドロワーを閉じてもここは Dashboard / Window scene に保持されるため、PTY は終了しない。
+/// タブを切り替えてもここが保持されるため、PTY は終了しない。
 @MainActor
 public final class TerminalPanelSession {
     public let controller: UserTerminalController
@@ -68,50 +68,24 @@ public final class TerminalPanelSession {
     }
 }
 
-/// ドロワー・独立ウィンドウのどちらにも埋め込める、実シェルの SwiftTerm 表示。
+/// ターミナルの子タブ・共通ターミナルに埋め込む、実シェルの SwiftTerm 表示。見出しはタブが兼ねる。
 public struct TerminalPanelView: View {
     public let panel: TerminalPanelSession
-    /// ドロワー内での最上段要素にだけ 28pt（最前面オーバーレイのトップバーと非衝突分）を
-    /// 付ける。容器（DashboardView）側が積み位置に応じて渡す。
-    private let topInset: CGFloat
 
-    public init(panel: TerminalPanelSession, topInset: CGFloat = 28) {
+    public init(panel: TerminalPanelSession) {
         self.panel = panel
-        self.topInset = topInset
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: DSSpacing.s) {
-                Image(systemName: "terminal")
-                    .foregroundStyle(DSColor.textSecondary)
-                Text("ターミナル")
-                    .font(DSFont.body.weight(.medium))
-                    .foregroundStyle(DSColor.textPrimary)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, DSSpacing.m)
-            .padding(.vertical, DSSpacing.s)
+        TerminalView(coordinator: panel.terminalCoordinator)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
             .background(DSColor.background)
-
-            Rectangle()
-                .fill(DSColor.separator)
-                .frame(height: 1)
-
-            TerminalView(coordinator: panel.terminalCoordinator)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-        }
-        .background(DSColor.background)
-        // 最前面オーバーレイのトップバー（32pt）と競合しない、既存 trailing pane と
-        // 同じ上端インセット。TerminalView の AppKit NSView を操作系から離す。
-        // ドロワー内で最上段でない（他パネルの下に積まれている）場合は容器が 0 を渡す。
-        .padding(.top, topInset)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("ターミナル")
-        .accessibilityIdentifier("user-terminal-panel")
-        .task {
-            await panel.ensureStarted()
-        }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("ターミナル")
+            .accessibilityIdentifier("user-terminal-panel")
+            .task {
+                await panel.ensureStarted()
+            }
     }
 }

@@ -1,8 +1,10 @@
 import XCTest
 
+/// 02 C：ドロワーを廃止し、ターミナル・変更はタブで開く。
 @MainActor
 final class PanelUITests: XCTestCase {
-    func testTerminalPanelShortcutTogglesPanel() async throws {
+    /// セッション未選択の ⌃⌘T は上段右端の共通ターミナル（ホーム）を出す。もう一度押しても閉じない（前に出すだけ）。
+    func testTerminalShortcutShowsCommonTerminal() async throws {
         let isolated = try await IsolatedPhloxApplication.launch(in: self, initialWidth: 700, expectedWidth: 700)
         let app: XCUIApplication = try isolated.application()
 
@@ -12,14 +14,15 @@ final class PanelUITests: XCTestCase {
 
         try isolated.assertExclusiveOwnership()
         app.typeKey("t", modifierFlags: [.command, .control])
-        XCTAssertFalse(terminalPanel.waitForExistence(timeout: 2))
+        XCTAssertTrue(terminalPanel.waitForExistence(timeout: 2))
     }
 
-    func testEditorPanelShortcutShowsPanel() async throws {
+    /// 変更タブはセッションに属する。セッション未選択の ⌃⌘E では何も開かない。
+    func testChangesShortcutNeedsSession() async throws {
         let isolated = try await IsolatedPhloxApplication.launch(in: self)
         let app: XCUIApplication = try isolated.application()
 
         app.typeKey("e", modifierFlags: [.command, .control])
-        XCTAssertTrue(app.groups["editor-panel"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.groups["editor-panel"].waitForExistence(timeout: 2))
     }
 }

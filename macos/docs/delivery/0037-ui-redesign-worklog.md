@@ -124,3 +124,51 @@ README「未確定事項」に当たるものは、現行の挙動を既定に�
 - パッケージテスト（`--no-parallel`）: DesignSystem 188・AgentDomain 545・SessionFeature 1045・DashboardFeature・AppBootstrap 161・TerminalUI 79 が合格。ControlServer は 158 件中 1 件（`AcceptanceSpawnProjectIdTests` の HTTP 60 秒タイムアウト）が全体実行で落ち、単独再実行で合格（P2 で ControlServer は未変更。P1 から出ている既知の不安定テスト）。App の Debug ビルドは成功。
 - AppBootstrap は、削除したファイルを覚えたビルドキャッシュで「missing inputs」になったため `swift package clean` してから実行した。
 - Debug 版での目視（スクリーンショット）: ダーク 1206pt（単体・グリッド・インスペクタ横並び）、900pt の最小段階、ライト＋英語。ツールバー上のボタンのクリック、⌃⌘1 / ⌃⌘2、⌥⌘J → ↓ → ↩ を合成入力で確認。UI テスト（XCUITest）は実行していない。
+
+## P3 タブ（02 案 C）
+
+### 対応表
+
+| 機能一覧（02 案 C） | 内容 | 実装箇所 |
+|---|---|---|
+| C1 上段＝セッションのタブ | プロジェクトのセッションを並べる。エージェントの頭文字（Cl / Cx / Cu）・題名・対応待ちのときだけ状態の文言・✕（選択中とホバー時）。✕ はタブを閉じるだけでセッションは残る | `Tabs/SessionTabBar.swift`（`SessionTabBar` / `SessionTabButton`）、`AgentDescriptor.tabInitials` |
+| C1 並びと開閉をプロジェクトごとに保存 | 保存した並び → 新しいセッションを末尾、閉じたタブは出さない。選ぶと再び出る。ドラッグで並べ替え | `Tabs/SessionTabs.swift`（`SessionTabsSnapshot` / `SessionTabStore`、UserDefaults `phlox.sessionTabs.v1`）、`SessionTabBar.moveTab` |
+| C2 下段＝そのセッションの子タブ | 会話（閉じられない）・ターミナル・変更・ファイル。未保存のファイルは ✕ の代わりに点 | `Tabs/SessionTabsContainer.swift`（`ChildTabBar` / `ChildTabButton`）、`SessionTabLayout` |
+| C2 子タブの中身（07 の下半分を流用） | ターミナル＝セッションの worktree で起動。変更＝07 の一覧と差分。ファイル＝編集・保存（競合時は上書き確認） | `UserTerminal/SessionTerminalStore.swift`、`Editor/EditorPanelView.swift`（見出しを外して子タブに収めた）、`Tabs/FileTabDocument.swift` と `FileTabView` |
+| C3 分割 | ⌘\ で右に分割／解除、子タブを右半分へドラッグして分割。各 320pt 以上、境界ドラッグで比率を変えて保存。フォーカス側を枠で示す。⌃Tab / ⌃⇧Tab で子タブを巡回 | `ChildTabPanes`、`SessionTabLayout.splitRight` / `toggleSplit` / `cycle(by:)`、`PhloxApp` の `TabCommands` と ⌘¥ の監視 |
+| C4 新しいタブの選択肢 | 「このセッションに開く」: 会話・ターミナル ⌃⌘T・変更一覧・差分 ⌃⌘E・ファイルを開く… ⌘P・エージェント管理 ⇧⌘,。↑↓・↩ | `NewTabChooser`（上段の＋・下段の＋・⌘T で同じもの） |
+| C5 右端の固定タブ | 共通ターミナル（ホームで開く）・エージェント管理 | `SessionTabBar.pinnedTab`。共通ターミナルは旧ドロワーのシェルをそのまま使う |
+| C7 あふれたときの対応待ち | 見えない位置のタブに対応待ちがあれば「隠れたタブに ○○ n」。押すと最初のものへ移る | `HiddenAttentionSummary.make`、`SessionTabBar.hiddenAttentionBadge` |
+| 13 Review ⌘W | 子タブを閉じる（動いているシェル・未保存のファイルは確認）。会話タブではセッション削除の確認。確認はキャンセルが既定、破壊側は赤 | `AppRouter.requestClose()` / `TabRequest`、`SessionTabStore.closeTarget`、`DashboardView.shellWithTabDialogs` |
+| 13 Review ⌘1–9 | 単体＝上段のタブ、グリッド＝タイル | `DashboardViewModel.numberedTabSessionIDs(router:)`、`TabCommands` |
+| 旧ドロワー（07 のパネル） | 削除。中身は子タブへ移動 | `PanelDrawerLayout.swift` と `DashboardView` のドロワー配置・つまみ・予約幅を削除。`AppRouter.terminalPanelVisible` / `editorPanelVisible` を削除 |
+
+### 決定・食い違い
+
+- **エージェント管理と設定は別ウィンドウのまま**。上段右端の固定タブはウィンドウを開くボタンとして置いた（タブの中に埋め込むとウィンドウ側の機能と二重になるため）。
+- **共通ターミナルの名前と場所**: 旧ドロワーのホームのシェルを「共通ターミナル」として残した。プロジェクトが無くても開けるよう、単体表示は常にタブの枠で包む。
+- **⌘T・上段の＋・下段の＋は同じ C4 の選択肢**。モックのソースで ⌘T の見出しが「新しいタブ（⌘T）」で C の項目を出しているため。
+- **ターミナルを閉じる確認は、シェルが動いていれば必ず出す**。「中で何かが動いているか」を知る手段（子プロセスの取得）が無いため。
+- **ウィンドウが狭いと分割しない**（中央が 641pt 未満。320pt×2 を割るため）。900pt の窓ではサイドバーを出したままだと分割できない。
+- **グリッドのタイルのタブ（C3 のグリッド側）と、グリッドでの ⌘W＝タイルを外す**は P7。いまのグリッドの ⌘W は確認付きのセッション削除。
+- **編集は変更タブからファイルタブへ移した**。変更タブは一覧と差分だけにし、「ファイルタブで編集」で開く。
+- **Codex の頭文字は Cx**（組み込みの 3 種は固定の対応、カスタムは表示名の先頭 2 文字）。
+- **作業場所を変えたセッションは、ターミナルとファイルタブを作り直す**（旧い場所のシェルを止め、下書きを捨てる。作業場所の変更は「進行中の作業は失われます」の確認を経る）。
+- **セッション削除の確認に未保存のファイル名を出す**。
+- **子タブを切り替えたら入力欄のフォーカスを外す**（切り替え前の入力欄がキーを取り続けるため）。
+- **ポップオーバーには言語設定を渡し直す**。macOS の popover は画面の `locale` を引き継がず、アプリ内で英語にしても日本語で出ていた。
+- 既存のまま残した未翻訳: `EditorPanelViewModel` の状態文言、セッション削除の見出し（P10）、`String(localized:)` で OS の言語に従う P2 以前の文言（表示モード切替など）。
+- UI テストの `IsolatedPhloxApplication` は旧ドロワーの UserDefaults を保存・復元したまま（読まれないだけで害は無い）。
+
+### テストの更新
+
+- 削除（ドロワーの契約）: `AcceptancePanelRouterTests`（開閉フラグ）、`PanelIntegrationWhiteboxTests` のドロワー幅の検査。
+- 追従: `AcceptanceTerminalPanelWiringTests` / `AcceptancePanelIntegrationTests`（⌃⌘T / ⌃⌘E → `openChildTab`、配線先が `SessionTabsContainer.swift`）、`SessionScopedChangesTests`（`EditorPanelView(viewModel:)`）、`PhloxUITests/PanelUITests`（セッション未選択での ⌃⌘T＝共通ターミナル、⌃⌘E は無効。UI テストは未実行）。
+- 新設 `SessionTabsTests.swift`: 子タブの開閉・選択・巡回・分割、並びの保存と閉じたタブ、並べ替え、隠れた対応待ちのまとめ、⌘W の行き先、⌘1–9 の対象、セッションのターミナル（worktree で起動・同じ場所では使い回す・作業場所が変わったら作り直す・閉じると止まる）、⌘P の相対パス。
+
+### 検証
+
+- パッケージテスト（`--no-parallel`）: DesignSystem・AgentDomain・SessionFeature・DashboardFeature 1579・AppBootstrap 161・ControlServer 158・TerminalUI 79 が合格。App の Debug ビルドは成功。`git diff --check` は問題なし。
+- Codex（gpt-6-sol high）の独立レビュー: 高 2・中 4 の指摘。作業場所の変更・未保存のまま削除・並べ替え・閉じてすぐ開く・アプリ内の英語設定の 5 件は修正した。UI テストの追加は見送った（UI テストをこの環境で走らせていないため）。
+- Debug 版での目視（スクリーンショット）: ダークで上段・下段・隠れた対応待ち、⌃⌘T の worktree のターミナル、分割とフォーカス枠、⌃Tab、⌘¥ で解除、再起動後の配置の復元。ライト＋英語で C4、変更タブの差分、「ファイルタブで編集」、⌘W の段階（ファイル → 変更 → 会話 → 削除確認を Esc でキャンセル）。アプリ内の英語設定だけで、タブ・選択肢が英語になることを確認。
+- 目視していないもの: 子タブのドラッグによる分割、上段タブのドラッグ並べ替え、⌘P のファイル選択画面。XCUITest は実行していない。

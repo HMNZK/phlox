@@ -23,17 +23,20 @@ struct AcceptanceTerminalPanelWiringTests {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    @Test("⌃⌘T のホットキーが Commands に登録され、router のトグルへ配線されている")
+    // 02 C（UI 再設計・ユーザー承認）でドロワーを廃止し、⌃⌘T は「ターミナルタブを開く／前に出す」へ変わった。
+    // トグル呼び出しの検査は新しい配線（openChildTab）に置き換える。
+    @Test("⌃⌘T のホットキーが Commands に登録され、ターミナルタブを開く配線になっている")
     func hotkeyIsRegistered() throws {
         let app = try source("macos/App/PhloxApp.swift")
         #expect(app.contains(#"keyboardShortcut("t", modifiers: [.command, .control])"#))
-        #expect(app.contains("toggleTerminalPanel()"))
+        #expect(app.contains("openChildTab(.terminal)"))
     }
 
-    @Test("ドロワー方式: DashboardView がターミナルパネルをレイアウトフローで組み込む")
+    // ターミナルの置き場はドロワーからタブの入れ物（SessionTabsContainer）へ移った。検査対象のファイルだけを差し替える。
+    @Test("タブ方式: タブの入れ物がターミナルをレイアウトフローで組み込む")
     func drawerIsEmbeddedInDashboard() throws {
         let dashboard = try source(
-            "macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardView.swift")
+            "macos/Packages/DashboardFeature/Sources/DashboardFeature/Tabs/SessionTabsContainer.swift")
         #expect(dashboard.contains("TerminalPanelView"))
         // ADR 0136 §3: AppKit NSView は SwiftUI overlay より前面に出るため、
         // ターミナルパネルを .overlay で重ねる配置は禁止（レイアウトフロー内に置く）。

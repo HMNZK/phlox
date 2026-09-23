@@ -8,6 +8,16 @@ public enum ViewMode: String, CaseIterable, Sendable {
     case grid
 }
 
+/// メニューから画面へ渡す要求。
+public enum TabRequest: Equatable, Sendable {
+    /// 子タブを閉じる（ターミナルはシェル終了の確認、未保存ファイルは破棄の確認を挟む）。
+    case closeChild(SessionID, ChildTab)
+    /// セッション削除の確認を出す。
+    case confirmSessionDeletion(SessionID)
+    /// ⌘P：worktree のファイルを選んで開く。
+    case openFile(SessionID)
+}
+
 public enum MainRoute: String, Sendable {
     case sessions
 }
@@ -23,15 +33,19 @@ public final class AppRouter {
     /// サイドバーのプロジェクト行クリックで設定する。非永続。
     public var selectedProjectID: ProjectID?
     public var mainRoute: MainRoute
-    /// サイドバーの表示状態。メニュー(Cmd+B)とビュー内トグルの双方から操作するため
+    /// サイドバーの表示状態。メニュー（⌃⌘S）とビュー内トグルの双方から操作するため
     /// View の @State ではなく共有の Observable に置く。
     public var sidebarVisible: Bool
     /// 右側インスペクター（使用量サイドバー）の表示状態。
     public var inspectorVisible: Bool
-    /// ターミナルパネルの表示状態。
-    public var terminalPanelVisible: Bool
-    /// エディタパネルの表示状態。
-    public var editorPanelVisible: Bool
+    /// 上段タブ列と子タブ（02 C）。メニューの ⌘W・⌘1–9・⌃Tab からも触る。
+    public let tabs: SessionTabStore
+    /// 上段右端の「共通ターミナル」（worktree の外・ホームで開く）を前に出しているか。
+    public var commonTerminalSelected = false
+    /// 「新しいタブ」の選択肢（⌘T・＋）を開いているか。
+    public var newTabChooserPresented = false
+    /// 画面側でしか処理できない要求（確認ダイアログ・ファイル選択・シェル終了）。DashboardView が受けて nil に戻す。
+    public var tabRequest: TabRequest?
     /// サイドバーを横に並べる幅が無いか（開いていても自動で隠す）。DashboardView がウィンドウ幅から決める。
     public var sidebarLacksRoom = false
     /// 自動で隠れたサイドバーを中央の上に一時的に重ねて出しているか（⌃⌘S）。
@@ -46,15 +60,15 @@ public final class AppRouter {
         viewMode: ViewMode = .single,
         mainRoute: MainRoute = .sessions,
         sidebarVisible: Bool = true,
-        inspectorVisible: Bool = false
+        inspectorVisible: Bool = false,
+        tabs: SessionTabStore = SessionTabStore()
     ) {
         self.selectedSession = selectedSession
         self.viewMode = viewMode
         self.mainRoute = mainRoute
         self.sidebarVisible = sidebarVisible
         self.inspectorVisible = inspectorVisible
-        self.terminalPanelVisible = false
-        self.editorPanelVisible = false
+        self.tabs = tabs
     }
 
     public func showSessions() {
@@ -78,14 +92,43 @@ public final class AppRouter {
         inspectorVisible.toggle()
     }
 
-    /// ターミナルパネルの表示/非表示をトグルする。
-    public func toggleTerminalPanel() {
-        terminalPanelVisible.toggle()
+    /// ⌃⌘T / ⌃⌘E：選択中セッションのターミナル・変更タブを開く（あれば前に出す）。単体表示へ切り替える。
+    /// セッションを選んでいなければ、ターミナルは上段右端の共通ターミナルを出す。
+    public func openChildTab(_ tab: ChildTab) {
+        guard let selectedSession else {
+            if tab == .terminal { commonTerminalSelected = true }
+            return
+        }
+        viewMode = .single
+        commonTerminalSelected = false
+        tabs.updateLayout(for: selectedSession) { $0.open(tab) }
     }
 
-    /// エディタパネルの表示/非表示をトグルする。
-    public func toggleEditorPanel() {
-        editorPanelVisible.toggle()
+    /// ⌃Tab / ⌃⇧Tab。
+    public func cycleChildTab(by offset: Int) {
+        guard viewMode == .single, !commonTerminalSelected, let selectedSession else { return }
+        tabs.updateLayout(for: selectedSession) { $0.cycle(by: offset) }
+    }
+
+    /// ⌘\。
+    public func toggleSplit() {
+        guard viewMode == .single, !commonTerminalSelected, let selectedSession else { return }
+        tabs.updateLayout(for: selectedSession) { $0.toggleSplit() }
+    }
+
+    /// ⌘W。子タブは閉じ（確認は画面側）、会話・グリッドはセッション削除の確認を出す。
+    /// 何も対象が無ければ false（ウィンドウを閉じる標準動作に任せる）。
+    @discardableResult
+    public func requestClose() -> Bool {
+        if viewMode == .single, commonTerminalSelected { return false }
+        guard let target = tabs.closeTarget(selectedSession: selectedSession, viewMode: viewMode) else { return false }
+        switch target {
+        case .childTab(let tab):
+            if let selectedSession { tabRequest = .closeChild(selectedSession, tab) }
+        case .session(let id):
+            tabRequest = .confirmSessionDeletion(id)
+        }
+        return true
     }
 
     /// 表示モード（単体／グリッド）を巡回する（⌃⌘G）。直接選ぶのは ⌃⌘1 / ⌃⌘2 で `viewMode` に代入する。

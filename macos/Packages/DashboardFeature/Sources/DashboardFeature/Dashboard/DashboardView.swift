@@ -29,34 +29,32 @@ public struct DashboardView: View {
 
     @AppStorage(ThemeStore.themeKey, store: UserDefaults.phloxDefaults()) private var themeID = AppTheme.phlox.id
     @State private var gridSessionPickerPresented = false
-    @AppStorage(PanelDrawerLayout.defaultsKey, store: UserDefaults.phloxDefaults()) private var storedDrawerWidth = PanelDrawerLayout.preferredWidth
-    @AppStorage(PanelDrawerLayout.migrationDefaultsKey, store: UserDefaults.phloxDefaults()) private var hasMigratedDrawerWidth = false
-    @State private var drawerWidthAtDragStart = PanelDrawerLayout.preferredWidth
-    /// ゴースト境界だけを動かす一時値。本文 HStack の幅はドラッグ確定まで変えない。
-    @State private var drawerDragTranslation: CGFloat = 0
-    /// 今のジェスチャーで `drawerWidthAtDragStart` を既に採取したか。ドラッグ開始時の
-    /// 表示幅（`storedDrawerWidth` の保存値ではなく実際にクランプ済みの幅）を一度だけ
-    /// 採る起点として使う。
-    @State private var isDraggingDrawer = false
     @State private var editorPanel = EditorPanelCoordinator()
+    @State private var fileTabs = FileTabDocuments()
+    /// 閉じる前に確認が要る子タブ（動いているシェル・未保存のファイル）。
+    @State private var pendingChildClose: PendingChildClose?
 
     /// Claude Code 管理ウィンドウの識別子。App 側が Window シーンを持つときだけ渡す。
     private let agentConsoleWindowID: String?
-    /// App が寿命を持つユーザー用シェル。nil は初期化中だけで、既存の Dashboard 利用者は無変更。
-    private let terminalPanel: TerminalPanelSession?
+    /// 上段右端の共通ターミナル（ホームで開く）。App が寿命を持つ。nil は初期化中だけ。
+    private let commonTerminal: TerminalPanelSession?
+    /// セッションごとのターミナルタブ（その worktree で開く）。App が寿命を持つ。
+    private let sessionTerminals: SessionTerminalStore?
 
     public init(
         viewModel: DashboardViewModel,
         router: AppRouter,
         usageMonitor: UsageMonitor,
         agentConsoleWindowID: String? = nil,
-        terminalPanel: TerminalPanelSession? = nil
+        commonTerminal: TerminalPanelSession? = nil,
+        sessionTerminals: SessionTerminalStore? = nil
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
         _router = Bindable(wrappedValue: router)
         _usageMonitor = Bindable(wrappedValue: usageMonitor)
         self.agentConsoleWindowID = agentConsoleWindowID
-        self.terminalPanel = terminalPanel
+        self.commonTerminal = commonTerminal
+        self.sessionTerminals = sessionTerminals
     }
 
     private var deletionDialogTitle: String {
@@ -78,13 +76,24 @@ public struct DashboardView: View {
         return ProjectDeletionDialogText.title(descendantCount: count)
     }
 
+    private var childCloseDialogTitle: Text {
+        pendingChildClose?.title ?? Text(verbatim: "")
+    }
+
+    /// 削除するセッションに未保存のファイルタブがあれば、その名前も伝える。
+    private func deletionDialogMessage(for id: SessionID) -> Text {
+        let dirty = fileTabs.dirtyFileNames(for: id)
+        guard !dirty.isEmpty else { return Text("ターミナルの内容と進行中の作業は失われます。") }
+        return Text("ターミナルの内容と進行中の作業は失われます。保存していないファイル（\(dirty.joined(separator: "、"))）の変更も失われます。")
+    }
+
     private func projectDeletionDialogMessage(for project: Project) -> String {
         let count = viewModel.projectDeletionDescendantCount(of: project.id)
         return ProjectDeletionDialogText.message(descendantCount: count)
     }
 
     public var body: some View {
-        navigationShell
+        shellWithTabDialogs
             .onChange(of: themeID) { _, _ in
                 viewModel.reapplyTheme()
             }
@@ -121,8 +130,9 @@ public struct DashboardView: View {
                     Task { await viewModel.removeSession(id) }
                 }
                 Button("キャンセル", role: .cancel) { pendingDeletion = nil }
-            } message: { _ in
-                Text("ターミナルの内容と進行中の作業は失われます。")
+                    .keyboardShortcut(.defaultAction)
+            } message: { selection in
+                deletionDialogMessage(for: selection.id)
             }
             .confirmationDialog(
                 projectDeletionDialogTitle,
@@ -137,6 +147,7 @@ public struct DashboardView: View {
                        viewModel.sessionNodes(in: projectID).contains(where: { $0.id == selected }) {
                         router.selectedSession = nil
                     }
+                    router.tabs.forgetProject(projectID)
                     Task { await viewModel.removeProject(projectID) }
                 }
                 Button("キャンセル", role: .cancel) { pendingProjectDeletion = nil }
@@ -176,6 +187,25 @@ public struct DashboardView: View {
                 },
                 onCancel: { renamingProject = nil }
             )
+    }
+
+    /// 子タブを閉じる前の確認（動いているシェル・未保存のファイル）。本体の修飾子の連なりを短くするため分ける。
+    private var shellWithTabDialogs: some View {
+        navigationShell
+            .confirmationDialog(
+                childCloseDialogTitle,
+                isPresented: childCloseDialogBinding,
+                presenting: pendingChildClose
+            ) { pending in
+                Button("閉じる", role: .destructive) {
+                    pendingChildClose = nil
+                    closeChildTab(pending.tab, of: pending.sessionID)
+                }
+                Button("キャンセル", role: .cancel) { pendingChildClose = nil }
+                    .keyboardShortcut(.defaultAction)
+            } message: { pending in
+                pending.message
+            }
     }
 
     private var navigationShell: some View {
@@ -224,16 +254,6 @@ public struct DashboardView: View {
                                 .background(DSColor.panelBackground)
                         }
 
-                        // パネルは本文と同じレイアウトフローに置く。TerminalView の AppKit NSView を
-                        // overlay に置くと既存 PTY タイルとの前後関係で隠れるためである。
-                        // 開閉・幅確定時だけ本文幅を変え、ドラッグ中は下のゴースト境界だけを動かす。
-                        if drawerIsVisible,
-                           drawerWidth(windowWidth: windowWidth, layout: layout) > 0 {
-                            verticalSeparator
-                            drawerContent
-                                .frame(width: drawerWidth(windowWidth: windowWidth, layout: layout))
-                                .background(DSColor.windowBackground)
-                        }
                     }
                 }
             }
@@ -253,8 +273,7 @@ public struct DashboardView: View {
                         .shadow(color: DSShadow.popover.color, radius: DSShadow.popover.radius, y: DSShadow.popover.y)
                         .padding(.top, DSLayout.toolbarHeight + DSSpacing.xs)
                         .padding(.bottom, DSSpacing.s)
-                        // 右端のドロワー（P3 で子タブへ移す）を覆わないよう、その左に重ねる。
-                        .padding(.trailing, DSSpacing.s + drawerSpan(windowWidth: windowWidth, layout: layout))
+                        .padding(.trailing, DSSpacing.s)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
             }
@@ -280,7 +299,7 @@ public struct DashboardView: View {
                             sidebarWidth = PaneWidthPolicy.draggedSidebarWidth(
                                 start: sidebarWidthAtDragStart,
                                 translation: value.translation.width,
-                                windowWidth: windowWidth - terminalDrawerReservation,
+                                windowWidth: windowWidth,
                                 inspectorSpan: inspectorSpan(layout)
                             )
                         },
@@ -297,54 +316,14 @@ public struct DashboardView: View {
                             inspectorWidth = PaneWidthPolicy.draggedInspectorWidth(
                                 start: inspectorWidthAtDragStart,
                                 translation: value.translation.width,
-                                windowWidth: windowWidth - terminalDrawerReservation,
+                                windowWidth: windowWidth,
                                 sidebarSpan: layout.showsSidebar ? layout.sidebar + PaneWidthPolicy.separatorWidth : 0
                             )
                         },
                         onEnded: { inspectorWidthAtDragStart = inspectorWidth }
                     )
-                    .offset(x: -(drawerSpan(windowWidth: windowWidth, layout: layout) + layout.inspector + 0.5
-                        - ResizeGripView.gripWidth / 2))
+                    .offset(x: -(layout.inspector + 0.5 - ResizeGripView.gripWidth / 2))
                     .onAppear { inspectorWidthAtDragStart = layout.inspector }
-                }
-            }
-            // 分割線は AppKit の TerminalView より前面の最後の overlay に置く。ドラッグ中は
-            // ゴースト線のみを移動し、onEnded でだけ HStack のドロワー幅を確定・永続化する。
-            .overlay(alignment: .topTrailing) {
-                if drawerIsVisible, drawerWidth(windowWidth: windowWidth, layout: layout) > 0 {
-                    ResizeGripView(
-                        onChanged: { value in
-                            // 開始幅は「保存値」ではなく、掴んだ瞬間に実際に表示されている
-                            // （available でクランプ済みの）幅から採る。保存値のまま採ると、
-                            // ウィンドウ縮小等で表示幅が既にクランプされているケースで
-                            // ドラッグ開始直後は無反応になる（クランプ後の値へ戻すまで
-                            // translation が吸収されるため）。
-                            if !isDraggingDrawer {
-                                isDraggingDrawer = true
-                                drawerWidthAtDragStart = drawerWidth(windowWidth: windowWidth, layout: layout)
-                            }
-                            drawerDragTranslation = value.translation.width
-                        },
-                        onEnded: {
-                            storedDrawerWidth = proposedDrawerWidth(windowWidth: windowWidth, layout: layout)
-                            isDraggingDrawer = false
-                            drawerDragTranslation = 0
-                        }
-                    )
-                    .offset(
-                        x: -(drawerWidth(windowWidth: windowWidth, layout: layout) + 0.5
-                            - ResizeGripView.gripWidth / 2)
-                    )
-                }
-            }
-            .overlay(alignment: .topTrailing) {
-                if drawerIsVisible, drawerDragTranslation != 0 {
-                    Rectangle()
-                        .fill(DSColor.accent)
-                        .frame(width: 2)
-                        .frame(maxHeight: .infinity)
-                        .offset(x: -proposedDrawerWidth(windowWidth: windowWidth, layout: layout))
-                        .allowsHitTesting(false)
                 }
             }
             .onChange(of: sidebarLacksRoom(windowWidth: windowWidth), initial: true) { _, lacksRoom in
@@ -353,16 +332,30 @@ public struct DashboardView: View {
                     router.sidebarPeeking = false
                 }
             }
+            // 子タブ列の「変更 N」を出すため、変更タブを開いていなくても一覧を読む。
+            .task(id: editorPanel.target) {
+                await editorPanel.resolve(workspaces: editorPanelWorkspaces)
+            }
         }
         // hiddenTitleBar でも SwiftUI は上部にタイトルバー分のセーフエリアを確保するため、
         // 上部セーフエリアを無視してツールバーとサイドバーの上端をウィンドウ最上部に揃える。
         .ignoresSafeArea(.container, edges: .top)
         .background(WindowChromeConfigurator())
         .onAppear {
-            migrateLegacyDrawerWidthIfNeeded()
-        }
-        .onAppear {
             updateEditorPanel()
+            revealSelectedSessionTab()
+        }
+        // 子タブを切り替えたら、隠れた区画（端末など）にキー入力が残らないようにする。
+        .onChange(of: router.selectedSession.map { router.tabs.layout(for: $0).selected }) { _, _ in
+            NSApp.keyWindow?.makeFirstResponder(nil)
+        }
+        .onChange(of: router.tabRequest) { _, request in
+            guard let request else { return }
+            router.tabRequest = nil
+            handle(request)
+        }
+        .onChange(of: viewModel.sessionNodes.map(\.id)) { old, new in
+            forgetRemovedSessions(old: old, new: new)
         }
         // 画面が無いあいだに押された ⌘O も、表示された時点で受ける。
         .onChange(of: router.addProjectRequested, initial: true) { _, requested in
@@ -393,6 +386,7 @@ public struct DashboardView: View {
         .onChange(of: router.selectedSession) { _, selectedID in
             markCompletionSeen(for: selectedID)
             updateEditorPanel()
+            revealSelectedSessionTab()
             if let selectedID,
                let session = viewModel.sessionNode(id: selectedID),
                let projectID = session.projectID {
@@ -529,8 +523,26 @@ public struct DashboardView: View {
     private var centerContent: some View {
         if router.viewMode == .grid, !viewModel.projects.isEmpty, gridScopeSummary.isEmpty {
             gridScopeEmptyState
+        } else if router.viewMode == .single {
+            // プロジェクトが無くても上段右端の共通ターミナルは開ける。
+            SessionTabsContainer(
+                viewModel: viewModel,
+                router: router,
+                terminals: sessionTerminals,
+                commonTerminal: commonTerminal,
+                editorPanel: editorPanel,
+                files: fileTabs,
+                agentConsoleWindowID: agentConsoleWindowID
+            ) {
+                detailView
+            }
         } else {
-            DashboardDetailView(
+            detailView
+        }
+    }
+
+    private var detailView: some View {
+        DashboardDetailView(
                 viewModel: viewModel,
                 router: router,
                 pendingDeletion: $pendingDeletion,
@@ -543,7 +555,6 @@ public struct DashboardView: View {
                     Task { await createSessionFromKind(kind, backend: backend) }
                 }
             )
-        }
     }
 
     private var inspectorContent: some View {
@@ -564,10 +575,9 @@ public struct DashboardView: View {
 
     // MARK: - Widths
 
-    /// ドロワー（P3 で子タブへ移す）が確定幅を取った残りで 3 ペインを決める。
     private func paneLayout(windowWidth: CGFloat) -> PaneLayout {
         PaneWidthPolicy.resolve(
-            windowWidth: max(0, windowWidth - terminalDrawerReservation),
+            windowWidth: windowWidth,
             sidebarVisible: router.sidebarVisible,
             inspectorVisible: router.inspectorVisible,
             sidebarWidth: sidebarWidth,
@@ -578,7 +588,7 @@ public struct DashboardView: View {
     /// 開いているかに関係なく、サイドバーを横に並べる幅が無いか。
     private func sidebarLacksRoom(windowWidth: CGFloat) -> Bool {
         !PaneWidthPolicy.resolve(
-            windowWidth: max(0, windowWidth - terminalDrawerReservation),
+            windowWidth: windowWidth,
             sidebarVisible: true,
             inspectorVisible: router.inspectorVisible,
             sidebarWidth: sidebarWidth,
@@ -588,91 +598,6 @@ public struct DashboardView: View {
 
     private func inspectorSpan(_ layout: PaneLayout) -> CGFloat {
         router.inspectorVisible && !layout.inspectorIsOverlay ? layout.inspector + PaneWidthPolicy.separatorWidth : 0
-    }
-
-    private var drawerIsVisible: Bool {
-        router.terminalPanelVisible || router.editorPanelVisible
-    }
-
-    /// ドロワー表示中も中央の最小幅を侵食しない。残余だけをドロワーへ渡す。
-    private func drawerAvailableWidth(windowWidth: CGFloat, layout: PaneLayout) -> CGFloat {
-        let sidebar = layout.showsSidebar ? layout.sidebar + PaneWidthPolicy.separatorWidth : 0
-        return max(
-            0,
-            windowWidth - PaneWidthPolicy.centerMinWidth - sidebar - inspectorSpan(layout) - PaneWidthPolicy.separatorWidth
-        )
-    }
-
-    private func drawerSpan(windowWidth: CGFloat, layout: PaneLayout) -> CGFloat {
-        let width = drawerWidth(windowWidth: windowWidth, layout: layout)
-        return width > 0 ? width + PaneWidthPolicy.separatorWidth : 0
-    }
-
-    private func drawerWidth(windowWidth: CGFloat, layout: PaneLayout) -> CGFloat {
-        guard drawerIsVisible else { return 0 }
-        return PanelDrawerLayout.clamped(
-            width: storedDrawerWidth,
-            availableWidth: drawerAvailableWidth(windowWidth: windowWidth, layout: layout)
-        )
-    }
-
-    private func migrateLegacyDrawerWidthIfNeeded() {
-        let savedWidth = (UserDefaults.phloxDefaults().object(forKey: PanelDrawerLayout.defaultsKey) as? NSNumber)
-            .map { CGFloat($0.doubleValue) }
-        if let migratedWidth = PanelDrawerLayout.migratedWidth(
-            savedWidth: savedWidth,
-            hasMigrated: hasMigratedDrawerWidth
-        ) {
-            storedDrawerWidth = migratedWidth
-        }
-        hasMigratedDrawerWidth = true
-    }
-
-    private func proposedDrawerWidth(windowWidth: CGFloat, layout: PaneLayout) -> CGFloat {
-        PanelDrawerLayout.proposedWidth(
-            startWidth: drawerWidthAtDragStart,
-            translation: drawerDragTranslation,
-            availableWidth: drawerAvailableWidth(windowWidth: windowWidth, layout: layout)
-        )
-    }
-
-    /// ポリシーには最後に確定した幅だけを予約する。ドラッグ中のゴースト位置は
-    /// ここへ反映しないため、グリッドタイルの再レイアウトが毎フレーム起きない。
-    private var terminalDrawerReservation: CGFloat {
-        drawerIsVisible ? max(0, storedDrawerWidth) + 1 : 0
-    }
-
-    /// ツールバーは上の行に並べたので、ドロワー内の上余白は要らない。
-    private static let drawerTopInset: CGFloat = 0
-
-    @ViewBuilder
-    private var drawerContent: some View {
-        if router.terminalPanelVisible, router.editorPanelVisible {
-            VSplitView {
-                terminalDrawerContent(topInset: Self.drawerTopInset)
-                editorDrawerContent(topInset: 0)
-            }
-        } else if router.terminalPanelVisible {
-            terminalDrawerContent(topInset: Self.drawerTopInset)
-        } else {
-            editorDrawerContent(topInset: Self.drawerTopInset)
-        }
-    }
-
-    @ViewBuilder
-    private func terminalDrawerContent(topInset: CGFloat) -> some View {
-        if let terminalPanel {
-            TerminalPanelView(panel: terminalPanel, topInset: topInset)
-        } else {
-            ContentUnavailableView("ターミナルを準備しています", systemImage: "terminal")
-        }
-    }
-
-    private func editorDrawerContent(topInset: CGFloat) -> some View {
-        EditorPanelView(viewModel: editorPanel.viewModel, topInset: topInset)
-            .task(id: editorPanel.target) {
-                await editorPanel.resolve(workspaces: editorPanelWorkspaces)
-            }
     }
 
     private func updateEditorPanel() {
@@ -715,6 +640,108 @@ public struct DashboardView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Tabs
+
+    /// 選んだセッションを上段のタブ列に出す（サイドバー・⌘J・対応待ち一覧・復元のどこから選んでも）。
+    private func revealSelectedSessionTab() {
+        guard let id = router.selectedSession,
+              let projectID = viewModel.sessionNode(id: id)?.projectID else { return }
+        router.commonTerminalSelected = false
+        router.tabs.reveal(id, in: projectID, candidates: viewModel.sessionNodes(in: projectID).map(\.id))
+    }
+
+    /// 削除されたセッションのタブ記録・シェル・ファイルの下書きを捨てる。
+    private func forgetRemovedSessions(old: [SessionID], new: [SessionID]) {
+        let remaining = Set(new)
+        for id in old where !remaining.contains(id) {
+            router.tabs.forget(id)
+            fileTabs.removeAll(for: id)
+            sessionTerminals?.close(id)
+        }
+    }
+
+    private func handle(_ request: TabRequest) {
+        switch request {
+        case .confirmSessionDeletion(let id):
+            if let node = viewModel.sessionNode(id: id) {
+                pendingDeletion = SelectedSessionNode(node)
+            }
+        case .closeChild(let id, let tab):
+            requestChildClose(tab, of: id)
+        case .openFile(let id):
+            chooseFileToOpen(in: id)
+        }
+    }
+
+    /// 動いているシェル・未保存のファイルは確認してから閉じる。
+    private func requestChildClose(_ tab: ChildTab, of sessionID: SessionID) {
+        switch tab {
+        case .conversation:
+            return
+        case .terminal where sessionTerminals?.isRunning(sessionID) == true:
+            pendingChildClose = PendingChildClose(
+                sessionID: sessionID,
+                tab: tab,
+                title: Text("ターミナルを閉じますか?"),
+                message: Text("シェルを終了します。実行中のコマンドも止まります。")
+            )
+        case .file(let path) where fileTabs.existing(for: sessionID, path: path)?.isDirty == true:
+            pendingChildClose = PendingChildClose(
+                sessionID: sessionID,
+                tab: tab,
+                title: Text("保存していない変更を破棄しますか?"),
+                message: Text("\((path as NSString).lastPathComponent) の変更は失われます。")
+            )
+        default:
+            closeChildTab(tab, of: sessionID)
+        }
+    }
+
+    private func closeChildTab(_ tab: ChildTab, of sessionID: SessionID) {
+        router.tabs.updateLayout(for: sessionID) { $0.close(tab) }
+        switch tab {
+        case .terminal:
+            sessionTerminals?.close(sessionID)
+        case .file(let path):
+            fileTabs.remove(for: sessionID, path: path)
+        case .conversation, .changes:
+            break
+        }
+    }
+
+    /// ⌘P：worktree のファイルを選んでファイルの子タブで開く。worktree の外は開かない。
+    private func chooseFileToOpen(in sessionID: SessionID) {
+        guard let node = viewModel.sessionNode(id: sessionID) else { return }
+        let workingDirectory = node.rawWorkspacePath
+        Task { @MainActor in
+            let rootPath = await WorkingTreeService(
+                repositoryRoot: URL(fileURLWithPath: workingDirectory, isDirectory: true)
+            ).resolvedRepositoryRootPath() ?? workingDirectory
+            let panel = NSOpenPanel()
+            panel.canChooseFiles = true
+            panel.canChooseDirectories = false
+            panel.allowsMultipleSelection = false
+            panel.directoryURL = URL(fileURLWithPath: workingDirectory, isDirectory: true)
+            panel.prompt = String(localized: "開く")
+            guard panel.runModal() == .OK, let url = panel.url,
+                  let relative = Self.relativePath(of: url, under: rootPath) else { return }
+            router.viewMode = .single
+            router.tabs.updateLayout(for: sessionID) { $0.open(.file(relative)) }
+        }
+    }
+
+    nonisolated static func relativePath(of url: URL, under rootPath: String) -> String? {
+        let root = URL(fileURLWithPath: rootPath, isDirectory: true).resolvingSymlinksInPath().path
+        let file = url.resolvingSymlinksInPath().path
+        let prefix = root.hasSuffix("/") ? root : root + "/"
+        guard file.hasPrefix(prefix) else { return nil }
+        return String(file.dropFirst(prefix.count))
+    }
+
+    private var childCloseDialogBinding: Binding<Bool> {
+        Binding(get: { pendingChildClose != nil }, set: { if !$0 { pendingChildClose = nil } })
     }
 
     // MARK: - Helpers
@@ -790,6 +817,9 @@ public struct DashboardView: View {
             panel.prompt = String(localized: "このフォルダで再起動")
             panel.message = String(localized: "選択するとこのセッションを再起動し、進行中の作業は失われます。")
             guard panel.runModal() == .OK, let url = panel.url else { return }
+            // 旧い作業場所のシェルとファイルの下書きは捨てる（確認文で「失われます」と伝えている）。
+            sessionTerminals?.close(id)
+            fileTabs.removeAll(for: id)
             await viewModel.changeWorkspace(id, to: url)
         }
     }
@@ -860,6 +890,14 @@ public struct DashboardView: View {
     private var renameProjectAlertBinding: Binding<Bool> {
         Binding(get: { renamingProject != nil }, set: { if !$0 { renamingProject = nil } })
     }
+}
+
+private struct PendingChildClose: Identifiable {
+    let id = UUID()
+    let sessionID: SessionID
+    let tab: ChildTab
+    let title: Text
+    let message: Text
 }
 
 private struct SpawnError: Identifiable {

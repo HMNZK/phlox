@@ -29,7 +29,7 @@ struct SessionScopedChangesTests {
 
     @MainActor
     private func render(_ viewModel: EditorPanelViewModel) throws -> Data {
-        let view = EditorPanelView(viewModel: viewModel, topInset: 0)
+        let view = EditorPanelView(viewModel: viewModel)
             .frame(width: 260, height: 300)
         let hosting = NSHostingView(rootView: view)
         hosting.frame = NSRect(x: 0, y: 0, width: 260, height: 300)

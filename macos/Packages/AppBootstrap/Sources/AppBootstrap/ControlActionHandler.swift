@@ -59,10 +59,6 @@ public protocol ControlActionDashboard: AnyObject {
     func removeSession(_ id: SessionID) async -> Bool
     func renameSession(_ id: SessionID, to name: String)
     func persistSessionRole(id: SessionID, role: String)
-    /// spawn の着地通知。アゴラ討論が進行中で、role 付き spawn または討論参加者
-    /// （ファシリテーター等）からの spawn なら討論参加者として登録する
-    /// （witness は DashboardViewModel。討論外の spawn では何もしない）。
-    func agoraParticipantLanded(id: SessionID, role: String?, requester: SessionID?)
     func sessionOutput(for id: SessionID) -> String?
     /// 端末画面を SGR（色・装飾）付きで返す。端末を持たない構造化セッションと不在は nil。
     func sessionAnsiScreen(for id: SessionID) -> AnsiScreen?
@@ -103,7 +99,6 @@ extension ControlActionDashboard {
     /// 既定は「端末画面を持たない」。実体（DashboardViewModel）だけが上書きする。
     public func sessionAnsiScreen(for id: SessionID) -> AnsiScreen? { nil }
     public func persistSessionRole(id: SessionID, role: String) {}
-    public func agoraParticipantLanded(id: SessionID, role: String?, requester: SessionID?) {}
     public func sessionModelSettings(for id: SessionID) -> ControlSessionModelSettings? { nil }
     public func setSessionModel(_ model: String, for id: SessionID) async -> ControlSetModelOutcome { .notFound }
     public func respondToUserQuestion(
@@ -366,7 +361,6 @@ public final class ControlActionHandler {
             if let role = ControlSpawnContext.role {
                 dashboard.persistSessionRole(id: id, role: role)
             }
-            dashboard.agoraParticipantLanded(id: id, role: ControlSpawnContext.role, requester: requester)
             return .json(201, IDDTO(id: id.rawValue.uuidString))
         } catch {
             return mapSpawnError(error)

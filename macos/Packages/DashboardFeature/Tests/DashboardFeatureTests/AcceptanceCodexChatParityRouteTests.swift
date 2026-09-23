@@ -130,7 +130,7 @@ struct AcceptanceCodexChatParityRouteTests {
                 return
             }
 
-            let router = AppRouter(viewMode: .team)
+            let router = AppRouter(viewMode: .grid)
             router.openSingle(sessionID: sessionID)
             #expect(router.viewMode == .single)
             #expect(router.selectedSession == sessionID)

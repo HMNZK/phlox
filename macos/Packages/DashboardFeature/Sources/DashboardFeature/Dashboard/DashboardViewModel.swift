@@ -80,7 +80,6 @@ public final class DashboardViewModel {
 
     private static let readinessPollInterval: Duration = .milliseconds(20)
     private static let donePollInterval: Duration = .milliseconds(100)
-    private static let agoraDiscussionPollInterval: Duration = .milliseconds(350)
     /// API 経由 spawn の制限値（実体は SpawnPolicy、R2）。
     static let maxAPISpawnDepth = SpawnPolicy.maxAPISpawnDepth
     static let maxAPISpawnCountPerSecond = SpawnPolicy.maxAPISpawnCountPerSecond
@@ -106,8 +105,6 @@ public final class DashboardViewModel {
     /// エージェント間メッセージング（送信・レート制限・記録）。
     private let messaging: MessagingService
     /// アゴラ討論の実セッション配線。UI はここから phase/participants などを読む。
-    public private(set) var agoraDiscussionCoordinator: AgoraDiscussionCoordinator?
-    @ObservationIgnored private var agoraDiscussionPollTask: Task<Void, Never>?
     @ObservationIgnored private var spawnService: SessionSpawnService?
     @ObservationIgnored private var restoreCoordinator: SessionRestoreCoordinator?
     private let codexUserHooksEnabledProvider: @MainActor () -> Bool
@@ -845,19 +842,6 @@ public final class DashboardViewModel {
         persistence.persistSessionRole(id: id, role: role)
     }
 
-    /// spawn の着地 witness（ControlActionDashboard）。討論進行中で、role 付き spawn
-    /// または討論参加者（ファシリテーター等）からの spawn なら討論参加者として登録する
-    /// （--role 忘れでもリレーが成立するように要求者ベースでも拾う。登録可否の最終判断
-    /// ＝maxAgents 上限と参加プロンプト注入は coordinator/engine 側が担う）。
-    public func agoraParticipantLanded(id: SessionID, role: String?, requester: SessionID?) {
-        guard let coordinator = agoraDiscussionCoordinator, !coordinator.phase.isEnded else { return }
-        let requesterIsParticipant = requester.map { r in
-            coordinator.participants.contains { $0.id == r }
-        } ?? false
-        guard role != nil || requesterIsParticipant else { return }
-        Task { await self.addAgoraDiscussionParticipant(id: id, role: role) }
-    }
-
     /// Control API witness: 該当 appServer セッションへ AskUserQuestion 回答を転送する。
     public func respondToUserQuestion(
         id: SessionID,
@@ -1550,184 +1534,6 @@ public final class DashboardViewModel {
         )
     }
 
-    @discardableResult
-    public func startAgoraDiscussion(
-        agenda: String,
-        config: AgoraDiscussionConfig? = nil,
-        selectedSessionID: SessionID? = nil
-    ) async -> Bool {
-        stopAgoraDiscussionPolling()
-        let resolvedConfig = config ?? AgoraDiscussionSettings(defaults: .standard).config
-        let projectID = selectedSessionID.flatMap { sessionNode(id: $0)?.projectID }
-            ?? defaultProjectID(forSelectedSession: selectedSessionID)
-        let coordinator = AgoraDiscussionCoordinator(
-            config: resolvedConfig,
-            effects: makeAgoraDiscussionEffects(projectID: projectID)
-        )
-        agoraDiscussionCoordinator = coordinator
-        await coordinator.start(agenda: agenda, now: Date())
-
-        guard coordinator.phase == .discussing else {
-            agoraDiscussionCoordinator = nil
-            return false
-        }
-
-        if let facilitator = coordinator.participants.first(where: \.isFacilitator) {
-            renameAgoraParticipantIfRegistered(in: coordinator, id: facilitator.id, role: facilitator.role)
-        }
-
-        startAgoraDiscussionPolling()
-        return true
-    }
-
-    public func stopAgoraDiscussion() async {
-        guard let coordinator = agoraDiscussionCoordinator else { return }
-        await coordinator.stop(now: Date())
-        stopAgoraDiscussionPolling()
-    }
-
-    public func submitAgoraUserUtterance(_ text: String) async {
-        guard let coordinator = agoraDiscussionCoordinator else { return }
-        await coordinator.submitUserUtterance(text, now: Date())
-        startAgoraDiscussionPolling()
-    }
-
-    public func addAgoraDiscussionParticipant(id: SessionID, role: String?) async {
-        guard let coordinator = agoraDiscussionCoordinator else { return }
-        persistAgoraRoleIfNeeded(id: id, role: role)
-        await coordinator.addParticipant(id: id, role: role, now: Date())
-        renameAgoraParticipantIfRegistered(in: coordinator, id: id, role: role)
-        startAgoraDiscussionPolling()
-    }
-
-    private func makeAgoraDiscussionEffects(projectID: ProjectID?) -> AgoraDiscussionCoordinator.Effects {
-        AgoraDiscussionCoordinator.Effects(
-            send: { [weak self] from, to, text, submit in
-                guard let self else { return false }
-                let outcome = await self.messaging.send(
-                    to: .id(to),
-                    text: text,
-                    submit: submit,
-                    from: from,
-                    inReplyTo: nil,
-                    images: [],
-                    sessions: self.sessionNodes
-                )
-                // v1 は best-effort（リトライ・cursor ロールバック無し）。ただし送信失敗を無言にしない:
-                // engine は deliver 生成時点で cursor を前進済みのため .sent 以外は当該発言が再配送されない。
-                if outcome != .sent {
-                    self.logWarning("Agora relay to \(to) was not delivered (outcome: \(outcome))")
-                }
-                return outcome == .sent
-            },
-            injectPrompt: { [weak self] to, prompt, submit in
-                guard let session = self?.sessionNode(id: to)?.controllable else { return false }
-                do {
-                    try await session.sendText(prompt, submit: submit)
-                    return true
-                } catch {
-                    return false
-                }
-            },
-            summon: { [weak self] role in
-                guard let self else { return nil }
-                do {
-                    let id = try await self.spawnNewSession(
-                        ref: .builtin(.claudeCode),
-                        projectID: projectID,
-                        backend: .appServer,
-                        launchContext: .interactive
-                    )
-                    self.persistAgoraRoleIfNeeded(id: id, role: role)
-                    return id
-                } catch {
-                    self.logError(error, context: "Failed to summon agora participant")
-                    return nil
-                }
-            }
-        )
-    }
-
-    private func startAgoraDiscussionPolling() {
-        guard agoraDiscussionPollTask == nil else { return }
-        // 生成した Task を捕捉し、末尾では「自分自身がまだ現役の場合のみ」nil にする。
-        // 旧 Task の resume が新 Task の参照を無条件に潰すと、再開ガード `guard == nil` が破れて
-        // 二重ポーリングになる。比較対象は closure がキャプチャする Task 値（self 経由の再読みでは
-        // 新旧を区別できない）。Task は Equatable（同一 underlying task で ==）。
-        var mine: Task<Void, Never>?
-        mine = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                guard let self, let coordinator = self.agoraDiscussionCoordinator else { break }
-                if coordinator.phase.isEnded {
-                    break
-                }
-
-                await coordinator.tick(now: Date(), snapshots: self.agoraParticipantSnapshots(for: coordinator))
-
-                guard !coordinator.phase.isEnded else { break }
-                do {
-                    try await Task.sleep(for: Self.agoraDiscussionPollInterval)
-                } catch {
-                    break
-                }
-            }
-            if self?.agoraDiscussionPollTask == mine {
-                self?.agoraDiscussionPollTask = nil
-            }
-        }
-        agoraDiscussionPollTask = mine
-    }
-
-    private func stopAgoraDiscussionPolling() {
-        agoraDiscussionPollTask?.cancel()
-        agoraDiscussionPollTask = nil
-    }
-
-    private func agoraParticipantSnapshots(
-        for coordinator: AgoraDiscussionCoordinator
-    ) -> [AgoraDiscussionCoordinator.ParticipantSnapshot] {
-        coordinator.participants.compactMap { participant in
-            guard let node = sessionNode(id: participant.id) else { return nil }
-            return AgoraDiscussionCoordinator.ParticipantSnapshot(
-                id: participant.id,
-                isIdle: node.displayStatus == .idle,
-                completedTurnSeq: node.controllable.completedTurnSeq,
-                transcript: node.appServer?.transcript ?? []
-            )
-        }
-    }
-
-    private func persistAgoraRoleIfNeeded(id: SessionID, role: String?) {
-        guard let role = role?.trimmingCharacters(in: .whitespacesAndNewlines), !role.isEmpty else {
-            return
-        }
-        persistSessionRole(id: id, role: role)
-    }
-
-    private func existingSessionNamesForAgoraNaming(excluding sessionID: SessionID? = nil) -> Set<String> {
-        var names = Set<String>()
-        for session in sessions {
-            if session.id == sessionID { continue }
-            names.insert(session.name)
-            names.insert(session.displayName)
-        }
-        return names
-    }
-
-    private func renameAgoraParticipantIfRegistered(
-        in coordinator: AgoraDiscussionCoordinator,
-        id: SessionID,
-        role: String?
-    ) {
-        guard coordinator.participants.contains(where: { $0.id == id }) else { return }
-        guard let newName = AgoraParticipantNaming.name(
-            forRole: role,
-            existingNames: existingSessionNamesForAgoraNaming(excluding: id)
-        ) else { return }
-        guard sessions.first(where: { $0.id == id })?.name != newName else { return }
-        renameSession(id, to: newName)
-    }
-
     private func publishRestoredSessionPresentation() {
         guard let selected = sessions.max(by: { $0.startedAt < $1.startedAt }) else { return }
         restoredSessionPresentation = RestoredSessionPresentation(
@@ -1847,12 +1653,5 @@ public final class DashboardViewModel {
         if let data = line.data(using: .utf8) {
             FileHandle.standardError.write(data)
         }
-    }
-}
-
-private extension AgoraDiscussionPhase {
-    var isEnded: Bool {
-        if case .ended = self { return true }
-        return false
     }
 }

@@ -23,7 +23,8 @@ actor RoleSessionStore: SessionStoreProtocol {
 }
 
 @MainActor
-@Suite struct AgoraRoleWhiteboxTests {
+/// Control API の spawn role（外部契約）が descriptor に保存されることの検査。討論の削除後も role は残す。
+@Suite struct RolePersistenceWhiteboxTests {
     @Test func persistSessionRole_updatesDescriptorOnly() async throws {
         let id = SessionID()
         let descriptor = PersistedSessionDescriptor(

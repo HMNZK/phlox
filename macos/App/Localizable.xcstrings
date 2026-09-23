@@ -1123,17 +1123,6 @@
         }
       }
     },
-    "討論": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Discussion"
-          }
-        }
-      }
-    },
     "停止": {
       "extractionState": "manual",
       "localizations": {

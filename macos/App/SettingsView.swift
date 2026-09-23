@@ -35,18 +35,6 @@ struct SettingsView: View {
     @AppStorage(DefaultSessionBackendPreference.storageKey)
     private var defaultSessionBackendRaw = DefaultSessionBackendPreference.chat.rawValue
 
-    @AppStorage(AgoraDiscussionSettings.maxUtterancesKey)
-    private var agoraMaxUtterances = 30
-
-    @AppStorage(AgoraDiscussionSettings.maxAgentsKey)
-    private var agoraMaxAgents = 5
-
-    @AppStorage(AgoraDiscussionSettings.turnTimeoutSecondsKey)
-    private var agoraTurnTimeoutSeconds = 180
-
-    @AppStorage(AgoraDiscussionSettings.schedulerKey)
-    private var agoraSchedulerRaw = AgoraSchedulerKind.freeSpeech.rawValue
-
     @State private var selectedGroupID = "general"
 
     private var appLanguageBinding: Binding<AppLanguage> {
@@ -60,13 +48,6 @@ struct SettingsView: View {
         Binding(
             get: { DefaultSessionBackendPreference(rawValue: defaultSessionBackendRaw) ?? .chat },
             set: { defaultSessionBackendRaw = $0.rawValue }
-        )
-    }
-
-    private var agoraSchedulerBinding: Binding<AgoraSchedulerKind> {
-        Binding(
-            get: { AgoraSchedulerKind(rawValue: agoraSchedulerRaw) ?? .freeSpeech },
-            set: { agoraSchedulerRaw = $0.rawValue }
         )
     }
 
@@ -261,22 +242,6 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var advancedForm: some View {
-        Section {
-            TextField("最大発言数", value: $agoraMaxUtterances, format: .number)
-            TextField("最大エージェント数", value: $agoraMaxAgents, format: .number)
-            TextField("ターンタイムアウト（秒）", value: $agoraTurnTimeoutSeconds, format: .number)
-            Picker(selection: agoraSchedulerBinding) {
-                Text("自由発言").tag(AgoraSchedulerKind.freeSpeech)
-                Text("ラウンドロビン").tag(AgoraSchedulerKind.roundRobin)
-            } label: {
-                Label("スケジューラ", systemImage: "arrow.triangle.2.circlepath")
-            }
-        } header: {
-            Text("チームビュー討論")
-        } footer: {
-            Text("チームビュー討論の上限・タイムアウト・発言順の既定です。変更は次回の討論開始から反映されます。")
-        }
-
         Section {
             Toggle(isOn: $usageAutoRefresh) {
                 Label("使用量サイドバーを自動更新", systemImage: "arrow.clockwise")

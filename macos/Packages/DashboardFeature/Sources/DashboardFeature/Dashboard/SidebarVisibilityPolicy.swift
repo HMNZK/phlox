@@ -12,7 +12,7 @@ enum SidebarVisibilityPolicy {
         switch newMode {
         case .grid:
             currentVisible
-        case .single, .team:
+        case .single:
             true
         }
     }

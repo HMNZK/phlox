@@ -6,7 +6,6 @@ import Observation
 public enum ViewMode: String, CaseIterable, Sendable {
     case single
     case grid
-    case team
 }
 
 public enum MainRoute: String, Sendable {
@@ -74,16 +73,9 @@ public final class AppRouter {
         editorPanelVisible.toggle()
     }
 
-    /// 表示モード（シングル／グリッド／チーム）を順送りで切り替える。
+    /// 表示モード（単体／グリッド）を切り替える。
     public func toggleViewMode() {
-        switch viewMode {
-        case .single:
-            viewMode = .grid
-        case .grid:
-            viewMode = .team
-        case .team:
-            viewMode = .single
-        }
+        viewMode = viewMode == .single ? .grid : .single
     }
 
     /// プロジェクトを選択状態にする（nil で解除）。
@@ -113,13 +105,13 @@ public final class AppRouter {
     /// サイドバーでプロジェクト名を選択したときの遷移。表示モードで分岐する。
     /// - .single: プロジェクトを選択しセッション選択を解除（viewMode は .single のまま）。
     ///            → セッション未選択＋プロジェクト選択済みとなり、新規セッション開始画面が表示される。
-    /// - .grid / .team: 従来どおりグリッド絞り込みをトグルし .grid にする。
+    /// - .grid: 従来どおりグリッド絞り込みをトグルし .grid にする。
     public func selectProjectFromSidebar(_ projectID: ProjectID) {
         selectProject(projectID)
         switch viewMode {
         case .single:
             selectedSession = nil
-        case .grid, .team:
+        case .grid:
             toggleGridFilter(projectID: projectID)
             viewMode = .grid
         }

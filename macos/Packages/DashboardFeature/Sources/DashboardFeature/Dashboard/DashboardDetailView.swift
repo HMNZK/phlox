@@ -52,13 +52,6 @@ struct DashboardDetailView: View {
                     onLayoutAction: { viewModel.handlePaneLayoutAction($0) },
                     projectNames: Dictionary(uniqueKeysWithValues: viewModel.projects.map { ($0.id, $0.name) })
                 )
-            case .team:
-                TeamTimelineView(
-                    viewModel: viewModel,
-                    router: router,
-                    isCreating: isCreating,
-                    onSelectAgentKind: onSelectAgentKind
-                )
             }
         }
     }

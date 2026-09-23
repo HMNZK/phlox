@@ -11,6 +11,6 @@ public struct SettingsGroup: Identifiable, Equatable, Sendable {
         SettingsGroup(id: "appearance", title: "外観", systemImage: "paintpalette", sectionIDs: ["theme", "app-icon"]),
         SettingsGroup(id: "agents", title: "エージェント", systemImage: "wrench.and.screwdriver", sectionIDs: ["permissions", "agent-management"]),
         SettingsGroup(id: "connection", title: "接続", systemImage: "network", sectionIDs: ["mobile-connection", "paired-devices"]),
-        SettingsGroup(id: "advanced", title: "詳細", systemImage: "slider.horizontal.3", sectionIDs: ["discussion", "usage", "privacy", "about"]),
+        SettingsGroup(id: "advanced", title: "詳細", systemImage: "slider.horizontal.3", sectionIDs: ["usage", "privacy", "about"]),
     ]
 }

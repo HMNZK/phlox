@@ -5,7 +5,7 @@
 // （参照未解決でコンパイル不能＝red）。
 //
 // 契約: 既存設定を 5 グループへ再配置する分類の id / title / systemImage /
-// sectionIDs と 14 Section ID をリテラルで固定する。実装の all から期待値を生成しない。
+// sectionIDs と 13 Section ID（討論を削除） をリテラルで固定する。実装の all から期待値を生成しない。
 
 import DesignSystem
 import Testing
@@ -18,16 +18,15 @@ struct AcceptanceSettingsGroupingModelTests {
         ("appearance", "外観", "paintpalette", ["theme", "app-icon"]),
         ("agents", "エージェント", "wrench.and.screwdriver", ["permissions", "agent-management"]),
         ("connection", "接続", "network", ["mobile-connection", "paired-devices"]),
-        ("advanced", "詳細", "slider.horizontal.3", ["discussion", "usage", "privacy", "about"]),
+        ("advanced", "詳細", "slider.horizontal.3", ["usage", "privacy", "about"]),
     ]
 
-    /// 契約「現状の全 Section 見出し」の 14 Section ID。集合比較用のリテラル。
+    /// 契約「現状の全 Section 見出し」の 13 Section ID（討論を削除）。集合比較用のリテラル。
     private static let expectedSectionIDs: [String] = [
         "theme",
         "app-icon",
         "language",
         "sessions",
-        "discussion",
         "permissions",
         "mobile-connection",
         "paired-devices",
@@ -63,18 +62,18 @@ struct AcceptanceSettingsGroupingModelTests {
         }
     }
 
-    @Test("sectionIDs の連結は 14 件で重複なし、和集合がリテラル 14 ID と一致する")
+    @Test("sectionIDs の連結は 13 件で重複なし、和集合がリテラル 13 ID と一致する")
     func fourteenSectionIDsAreUniqueUnion() {
         let expectedConcatenated = Self.expectedGroups.flatMap(\.sectionIDs)
-        #expect(expectedConcatenated.count == 14)
-        #expect(Set(expectedConcatenated).count == 14)
+        #expect(expectedConcatenated.count == 13)
+        #expect(Set(expectedConcatenated).count == 13)
         #expect(Set(expectedConcatenated) == Set(Self.expectedSectionIDs))
-        #expect(Self.expectedSectionIDs.count == 14)
-        #expect(Set(Self.expectedSectionIDs).count == 14)
+        #expect(Self.expectedSectionIDs.count == 13)
+        #expect(Set(Self.expectedSectionIDs).count == 13)
 
         let got = SettingsGroup.all.flatMap(\.sectionIDs)
-        #expect(got.count == 14)
-        #expect(Set(got).count == 14)
+        #expect(got.count == 13)
+        #expect(Set(got).count == 13)
         #expect(got == expectedConcatenated)
         #expect(Set(got) == Set(Self.expectedSectionIDs))
     }

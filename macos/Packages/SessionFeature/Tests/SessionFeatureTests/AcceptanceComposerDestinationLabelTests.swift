@@ -160,7 +160,7 @@ struct AcceptanceComposerDestinationLabelTests {
 
     // MARK: - 成功基準 1.5 基本文言
 
-    @Test("4種類の Destination の基本文言を固定する")
+    @Test("2種類の Destination の基本文言を固定する")
     func fourDestinationBaseLiterals() {
         #expect(
             ComposerDestinationLabel.text(
@@ -169,22 +169,6 @@ struct AcceptanceComposerDestinationLabelTests {
                 isReadyForInput: true,
                 hasContent: true
             ) == "Phlox / 入力欄改善"
-        )
-        #expect(
-            ComposerDestinationLabel.text(
-                for: .startDiscussion,
-                hasDestination: true,
-                isReadyForInput: true,
-                hasContent: true
-            ) == "討論を開始"
-        )
-        #expect(
-            ComposerDestinationLabel.text(
-                for: .discussionUtterance,
-                hasDestination: true,
-                isReadyForInput: true,
-                hasContent: true
-            ) == "討論への発言"
         )
         #expect(
             ComposerDestinationLabel.text(
@@ -232,28 +216,6 @@ struct AcceptanceComposerDestinationLabelTests {
         )
     }
 
-    @Test("討論開始・発言に選択カードの作業名を付けない")
-    func discussionLabelsDoNotIncludeCardNames() {
-        let start = ComposerDestinationLabel.text(
-            for: .startDiscussion,
-            hasDestination: true,
-            isReadyForInput: true,
-            hasContent: true
-        )
-        #expect(start == "討論を開始")
-        #expect(!start.contains("入力欄改善"))
-        #expect(!start.contains("Garden"))
-        let utterance = ComposerDestinationLabel.text(
-            for: .discussionUtterance,
-            hasDestination: true,
-            isReadyForInput: true,
-            hasContent: true
-        )
-        #expect(utterance == "討論への発言")
-        #expect(!utterance.contains("子の調査"))
-        #expect(!utterance.contains("全体作業"))
-    }
-
     // MARK: - 成功基準 1.6 送信不可理由（各 Destination × 3 Bool の 8 組）
 
     @Test("conversation の送信不可理由 8 組と優先順位")
@@ -273,56 +235,6 @@ struct AcceptanceComposerDestinationLabelTests {
             #expect(
                 ComposerDestinationLabel.text(
                     for: .conversation(projectName: "Phlox", taskName: "入力欄改善"),
-                    hasDestination: item.hasDestination,
-                    isReadyForInput: item.isReadyForInput,
-                    hasContent: item.hasContent
-                ) == item.expected
-            )
-        }
-    }
-
-    @Test("startDiscussion の送信不可理由 8 組と優先順位")
-    func startDiscussionSendabilityEightCases() {
-        let cases: [SendabilityCase] = [
-            SendabilityCase(hasDestination: true, isReadyForInput: true, hasContent: true, expected: "討論を開始"),
-            SendabilityCase(hasDestination: true, isReadyForInput: true, hasContent: false, expected: "討論を開始 — 送信不可（メッセージを入力してください）"),
-            SendabilityCase(hasDestination: true, isReadyForInput: false, hasContent: true, expected: "討論を開始 — 送信不可（入力を受け付けられません）"),
-            SendabilityCase(hasDestination: true, isReadyForInput: false, hasContent: false, expected: "討論を開始 — 送信不可（入力を受け付けられません）"),
-            SendabilityCase(hasDestination: false, isReadyForInput: true, hasContent: true, expected: "討論を開始 — 送信不可（送信先がありません）"),
-            SendabilityCase(hasDestination: false, isReadyForInput: true, hasContent: false, expected: "討論を開始 — 送信不可（送信先がありません）"),
-            SendabilityCase(hasDestination: false, isReadyForInput: false, hasContent: true, expected: "討論を開始 — 送信不可（送信先がありません）"),
-            SendabilityCase(hasDestination: false, isReadyForInput: false, hasContent: false, expected: "討論を開始 — 送信不可（送信先がありません）"),
-        ]
-        #expect(cases.count == 8)
-        for item in cases {
-            #expect(
-                ComposerDestinationLabel.text(
-                    for: .startDiscussion,
-                    hasDestination: item.hasDestination,
-                    isReadyForInput: item.isReadyForInput,
-                    hasContent: item.hasContent
-                ) == item.expected
-            )
-        }
-    }
-
-    @Test("discussionUtterance の送信不可理由 8 組と優先順位")
-    func discussionUtteranceSendabilityEightCases() {
-        let cases: [SendabilityCase] = [
-            SendabilityCase(hasDestination: true, isReadyForInput: true, hasContent: true, expected: "討論への発言"),
-            SendabilityCase(hasDestination: true, isReadyForInput: true, hasContent: false, expected: "討論への発言 — 送信不可（メッセージを入力してください）"),
-            SendabilityCase(hasDestination: true, isReadyForInput: false, hasContent: true, expected: "討論への発言 — 送信不可（入力を受け付けられません）"),
-            SendabilityCase(hasDestination: true, isReadyForInput: false, hasContent: false, expected: "討論への発言 — 送信不可（入力を受け付けられません）"),
-            SendabilityCase(hasDestination: false, isReadyForInput: true, hasContent: true, expected: "討論への発言 — 送信不可（送信先がありません）"),
-            SendabilityCase(hasDestination: false, isReadyForInput: true, hasContent: false, expected: "討論への発言 — 送信不可（送信先がありません）"),
-            SendabilityCase(hasDestination: false, isReadyForInput: false, hasContent: true, expected: "討論への発言 — 送信不可（送信先がありません）"),
-            SendabilityCase(hasDestination: false, isReadyForInput: false, hasContent: false, expected: "討論への発言 — 送信不可（送信先がありません）"),
-        ]
-        #expect(cases.count == 8)
-        for item in cases {
-            #expect(
-                ComposerDestinationLabel.text(
-                    for: .discussionUtterance,
                     hasDestination: item.hasDestination,
                     isReadyForInput: item.isReadyForInput,
                     hasContent: item.hasContent
@@ -367,22 +279,6 @@ struct AcceptanceComposerDestinationLabelTests {
                 isReadyForInput: true,
                 hasContent: true
             ) == "Phlox / 入力欄改善"
-        )
-        #expect(
-            ComposerDestinationLabel.text(
-                for: .startDiscussion,
-                hasDestination: true,
-                isReadyForInput: true,
-                hasContent: true
-            ) == "討論を開始"
-        )
-        #expect(
-            ComposerDestinationLabel.text(
-                for: .discussionUtterance,
-                hasDestination: true,
-                isReadyForInput: true,
-                hasContent: true
-            ) == "討論への発言"
         )
         #expect(
             ComposerDestinationLabel.text(
@@ -431,7 +327,7 @@ struct AcceptanceComposerDestinationLabelTests {
         #expect(!text.contains("復元"))
     }
 
-    // MARK: - 単一・グリッド・チーム × 開始前 / 進行中 / 終了後 / 開始不可
+    // MARK: - 単一・グリッド × 開始前 / 進行中 / 終了後 / 開始不可
 
     @Test("単一・開始前: conversation は 討論状態に影響されない")
     func singleBeforeStartConversationLiteral() {
@@ -529,43 +425,7 @@ struct AcceptanceComposerDestinationLabelTests {
         )
     }
 
-    @Test("チーム・開始前: 討論を開始")
-    func teamBeforeStartLiteral() {
-        #expect(
-            ComposerDestinationLabel.text(
-                for: .startDiscussion,
-                hasDestination: true,
-                isReadyForInput: true,
-                hasContent: true
-            ) == "討論を開始"
-        )
-    }
-
-    @Test("チーム・進行中: 討論への発言")
-    func teamInProgressLiteral() {
-        #expect(
-            ComposerDestinationLabel.text(
-                for: .discussionUtterance,
-                hasDestination: true,
-                isReadyForInput: true,
-                hasContent: true
-            ) == "討論への発言"
-        )
-    }
-
-    @Test("チーム・終了後かつ開始可能: 討論を開始（親送信に固定しない）")
-    func teamAfterEndCanStartLiteral() {
-        #expect(
-            ComposerDestinationLabel.text(
-                for: .startDiscussion,
-                hasDestination: true,
-                isReadyForInput: true,
-                hasContent: true
-            ) == "討論を開始"
-        )
-    }
-
-    @Test("チーム・開始不可: 親セッションへの送信（送信不可理由は自動で付けない）")
+    @Test("親セッション: 送信不可理由は自動で付けない")
     func teamCannotStartParentLiteral() {
         #expect(
             ComposerDestinationLabel.text(

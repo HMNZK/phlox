@@ -26,7 +26,5 @@ struct ChatFixTask1SidebarGridAcceptanceTests {
     func singleAndTeamSwitchKeepForcedOpen() {
         #expect(SidebarVisibilityPolicy.visibility(afterSwitchingTo: .single, currentVisible: false, hasGridFilter: false) == true)
         #expect(SidebarVisibilityPolicy.visibility(afterSwitchingTo: .single, currentVisible: true, hasGridFilter: false) == true)
-        #expect(SidebarVisibilityPolicy.visibility(afterSwitchingTo: .team, currentVisible: false, hasGridFilter: false) == true)
-        #expect(SidebarVisibilityPolicy.visibility(afterSwitchingTo: .team, currentVisible: true, hasGridFilter: true) == true)
     }
 }

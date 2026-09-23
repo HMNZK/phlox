@@ -121,18 +121,12 @@ struct TrailingTopBarLayoutWhiteboxTests {
             hasMeasured: false,
             viewMode: .single
         )
-        let team = TrailingTopBarLayout.effectiveControlsWidth(
-            measured: 0,
-            hasMeasured: false,
-            viewMode: .team
-        )
         let grid = TrailingTopBarLayout.effectiveControlsWidth(
             measured: 0,
             hasMeasured: false,
             viewMode: .grid
         )
         #expect(single == 200)
-        #expect(team == 200)
         #expect(grid == 320)
         #expect(single > 0)
         #expect(grid > 0)
@@ -162,7 +156,7 @@ struct TrailingTopBarLayoutWhiteboxTests {
         let conservative = TrailingTopBarLayout.effectiveControlsWidth(
             measured: 140,
             hasMeasured: false,
-            viewMode: .team
+            viewMode: .single
         )
         #expect(conservative == 200)
 
@@ -177,7 +171,7 @@ struct TrailingTopBarLayoutWhiteboxTests {
         let confirmed = TrailingTopBarLayout.effectiveControlsWidth(
             measured: remeasured.measured,
             hasMeasured: remeasured.hasMeasured,
-            viewMode: .team
+            viewMode: .single
         )
         #expect(confirmed == 140)
     }

@@ -3,8 +3,6 @@ import Foundation
 public enum ComposerDestinationLabel {
     public enum Destination: Equatable, Sendable {
         case conversation(projectName: String?, taskName: String)
-        case startDiscussion
-        case discussionUtterance
         case parentSession(projectName: String?, taskName: String?)
     }
 
@@ -31,10 +29,6 @@ public enum ComposerDestinationLabel {
         switch destination {
         case .conversation(let projectName, let taskName):
             return "\(displayProjectName(projectName)) / \(displayTaskName(taskName))"
-        case .startDiscussion:
-            return "討論を開始"
-        case .discussionUtterance:
-            return "討論への発言"
         case .parentSession(let projectName, let taskName):
             guard let taskName = normalizedName(taskName) else {
                 return "親セッションへの送信"

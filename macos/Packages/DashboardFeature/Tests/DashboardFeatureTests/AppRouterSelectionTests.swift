@@ -18,7 +18,7 @@ import AgentDomain
 
 @MainActor
 @Test func appRouter_openSingle_switchesModeAndSelection() {
-    let router = AppRouter(viewMode: .team)
+    let router = AppRouter(viewMode: .grid)
     let sessionID = SessionID()
 
     router.openSingle(sessionID: sessionID)

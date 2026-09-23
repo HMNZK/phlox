@@ -15,6 +15,5 @@ struct SidebarVisibilityPolicyWhiteboxTests {
     @Test
     func singleAndTeamForceOpen() {
         #expect(SidebarVisibilityPolicy.visibility(afterSwitchingTo: .single, currentVisible: false, hasGridFilter: false) == true)
-        #expect(SidebarVisibilityPolicy.visibility(afterSwitchingTo: .team, currentVisible: false, hasGridFilter: true) == true)
     }
 }

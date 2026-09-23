@@ -49,21 +49,23 @@ struct DefaultModelRuleTests {
     func builtinModelsRemainCurrent() {
         #expect(AgentModelCatalog.builtinModels(for: .claudeCode).map(\.id) == ["default", "opus[1m]", "fable", "sonnet", "haiku"])
         #expect(AgentModelCatalog.builtinModels(for: .claudeCode).map(\.displayName) == [
-            "Default (Opus 5)", "Opus 5 (1M context)",
+            "Default", "Opus (1M context)",
             "Fable 5.1", "Sonnet 5", "Haiku 4.5",
         ])
         #expect(AgentModelCatalog.builtinModels(for: .codex).map(\.id) == [
-            "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
+            "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol",
+            "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5",
         ])
         let cursorModels = AgentModelCatalog.builtinModels(for: .cursor)
         #expect(cursorModels.map(\.id) == [
-            "auto", "grok-4.6", "composer-2.5", "claude-opus-5", "claude-opus-4-8",
-            "gpt-5.6-sol", "gpt-5.5", "claude-fable-5-1", "claude-fable-5",
+            "auto", "grok-4.7", "grok-4.6", "grok-4.5", "composer-2.5", "claude-opus-5-5",
+            "claude-opus-5", "claude-opus-4-8",
+            "gpt-5.6-sol", "gpt-5.5", "claude-fable-5-1", "claude-fable-5", "muse-spark-1.3",
             "gemini-3.8-flash", "gemini-3.7-flash", "gpt-5.6-terra", "claude-sonnet-5",
             "claude-sonnet-4-6", "gpt-5.3-codex", "claude-opus-4-7", "gpt-5.4",
             "claude-opus-4-6", "claude-opus-4-5", "gpt-5.2", "gpt-5.6-luna",
             "gemini-3.6-flash", "gemini-3.1-pro", "gpt-5.4-mini", "gpt-5.4-nano",
-            "claude-haiku-4-5", "claude-sonnet-4-5", "gpt-5.1", "gemini-3-flash",
+            "claude-sonnet-4-5", "gpt-5.1", "gemini-3-flash",
             "gemini-3.5-flash", "claude-sonnet-4", "gpt-5-mini", "kimi-k3",
             "kimi-k2.7-code", "glm-5.2",
         ])

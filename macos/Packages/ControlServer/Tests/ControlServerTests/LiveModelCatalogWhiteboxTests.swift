@@ -48,8 +48,8 @@ struct LiveModelCatalogWhiteboxTests {
                     )
                 }
                 let names = [
-                    "default": "Opus 5 (1M context)",
-                    "opus[1m]": "Opus 5 (1M context)",
+                    "default": "Opus 5.5 (1M context)",
+                    "opus[1m]": "Opus 5.5 (1M context)",
                     "fable": "Fable 5.1",
                     "sonnet": "Sonnet 5",
                     "haiku": "Haiku 4.5",
@@ -62,8 +62,8 @@ struct LiveModelCatalogWhiteboxTests {
         let models = try await provider.fetchModels(for: .claudeCode)
 
         #expect(models == [
-            ControlModelOption(id: "default", displayName: "Default (Opus 5)"),
-            ControlModelOption(id: "opus[1m]", displayName: "Opus 5 (1M context)"),
+            ControlModelOption(id: "default", displayName: "Default: Opus 5.5 (1M context)"),
+            ControlModelOption(id: "opus[1m]", displayName: "Opus 5.5 (1M context)"),
             ControlModelOption(id: "fable", displayName: "Fable 5.1"),
             ControlModelOption(id: "sonnet", displayName: "Sonnet 5"),
             ControlModelOption(id: "haiku", displayName: "Haiku 4.5"),
@@ -111,8 +111,8 @@ struct LiveModelCatalogWhiteboxTests {
 
         #expect(
             models == [
-                ControlModelOption(id: "default", displayName: "Default (Opus 5)"),
-                ControlModelOption(id: "opus[1m]", displayName: "Opus 5 (1M context)"),
+                ControlModelOption(id: "default", displayName: "Default"),
+                ControlModelOption(id: "opus[1m]", displayName: "Opus (1M context)"),
                 ControlModelOption(id: "fable", displayName: "Fable 5.1"),
                 ControlModelOption(id: "sonnet", displayName: "Sonnet 5"),
                 ControlModelOption(id: "haiku", displayName: "Haiku 4.5"),
@@ -144,7 +144,7 @@ struct LiveModelCatalogWhiteboxTests {
         #expect(CursorModelListParser.parse("").isEmpty)
     }
 
-    @Test("Cursor provider はCLIを確認し、対話型 /model と同じ35件を同じ順序で返す")
+    @Test("Cursor provider はCLIを確認し、対話型 /model と同じ一覧を同じ順序で返す")
     func cursorProviderReturnsInteractiveModelSnapshot() async throws {
         let calls = CommandCalls()
         let provider = LiveAgentModelProvider(
@@ -158,7 +158,7 @@ struct LiveModelCatalogWhiteboxTests {
         let models = try await provider.fetchModels(for: .cursor)
 
         #expect(models == AgentModelCatalog.builtinModels(for: .cursor))
-        #expect(models.count == 35)
+        #expect(models.count == 38)
         #expect(await calls.arguments == [["models"]])
     }
 

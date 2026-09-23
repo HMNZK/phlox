@@ -24,35 +24,40 @@ public protocol AgentModelListProviding: Sendable {
 /// both the HTTP server and UI consume the same catalog without either depending on the other.
 public enum AgentModelCatalog {
     private static let logger = Logger(subsystem: "com.phlox.Phlox", category: "AgentModelCatalog")
-    // Claude Code `/model` picker order (v2.1.261, observed 2026-09-05). The non-interactive
+    // Claude Code `/model` picker order (v2.1.278, observed 2026-09-23). The non-interactive
     // `/model` report also lists internal aliases, so it cannot be used as the picker itself.
     private static let claudeModels = [
-        ControlModelOption(id: "default", displayName: "Default (Opus 5)"),
-        ControlModelOption(id: "opus[1m]", displayName: "Opus 5 (1M context)"),
+        ControlModelOption(id: "default", displayName: "Default"),
+        ControlModelOption(id: "opus[1m]", displayName: "Opus (1M context)"),
         ControlModelOption(id: "fable", displayName: "Fable 5.1"),
         ControlModelOption(id: "sonnet", displayName: "Sonnet 5"),
         ControlModelOption(id: "haiku", displayName: "Haiku 4.5"),
     ]
-    // Current families from `codex app-server` model/list (2026-09-05). Keep the live order
+    // Current families from `codex app-server` model/list (v0.156.1, 2026-09-23). Keep the live order
     // so the first model remains Codex's current default when discovery is unavailable.
     private static let codexModels = [
-        "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
+        "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol",
+        "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5",
     ].map {
         ControlModelOption(id: $0, displayName: $0)
     }
-    // Cursor Agent `/model` picker order (v2026.09.02, observed 2026-09-05). The scriptable
-    // `models` command expands these 35 families into roughly 170 parameter combinations;
+    // Cursor Agent model families (`agent models`, v2026.09.10, observed 2026-09-23). The
+    // command expands these families into parameter combinations;
     // exposing those IDs would not match Cursor's own picker.
     private static let cursorModels = [
         ControlModelOption(id: "auto", displayName: "Auto"),
+        ControlModelOption(id: "grok-4.7", displayName: "Grok 4.7"),
         ControlModelOption(id: "grok-4.6", displayName: "Cursor Grok 4.6"),
+        ControlModelOption(id: "grok-4.5", displayName: "Cursor Grok 4.5"),
         ControlModelOption(id: "composer-2.5", displayName: "Composer 2.5"),
+        ControlModelOption(id: "claude-opus-5-5", displayName: "Claude Opus 5.5"),
         ControlModelOption(id: "claude-opus-5", displayName: "Claude Opus 5"),
         ControlModelOption(id: "claude-opus-4-8", displayName: "Claude Opus 4.8"),
         ControlModelOption(id: "gpt-5.6-sol", displayName: "GPT-5.6 Sol"),
         ControlModelOption(id: "gpt-5.5", displayName: "GPT-5.5"),
         ControlModelOption(id: "claude-fable-5-1", displayName: "Claude Fable 5.1"),
         ControlModelOption(id: "claude-fable-5", displayName: "Claude Fable 5"),
+        ControlModelOption(id: "muse-spark-1.3", displayName: "Muse Spark 1.3"),
         ControlModelOption(id: "gemini-3.8-flash", displayName: "Gemini 3.8 Flash"),
         ControlModelOption(id: "gemini-3.7-flash", displayName: "Gemini 3.7 Flash"),
         ControlModelOption(id: "gpt-5.6-terra", displayName: "GPT-5.6 Terra"),
@@ -69,7 +74,6 @@ public enum AgentModelCatalog {
         ControlModelOption(id: "gemini-3.1-pro", displayName: "Gemini 3.1 Pro"),
         ControlModelOption(id: "gpt-5.4-mini", displayName: "GPT-5.4 Mini"),
         ControlModelOption(id: "gpt-5.4-nano", displayName: "GPT-5.4 Nano"),
-        ControlModelOption(id: "claude-haiku-4-5", displayName: "Claude Haiku 4.5"),
         ControlModelOption(id: "claude-sonnet-4-5", displayName: "Claude Sonnet 4.5"),
         ControlModelOption(id: "gpt-5.1", displayName: "GPT-5.1"),
         ControlModelOption(id: "gemini-3-flash", displayName: "Gemini 3 Flash"),

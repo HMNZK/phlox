@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-09-05
+last-verified: 2026-09-23
 ---
 
 # エージェントモデルカタログ（spawn 前のモデル一覧・現行構造）
@@ -37,10 +37,10 @@ last-verified: 2026-09-05
 | kind | コマンド | パース |
 |---|---|---|
 | `claudeCode` | ① `claude --bare -p "/model" --output-format json` ② 表示対象ごとに `claude --bare --model <alias> -p "/model" --output-format json` | ① 応答中の `Available:` をCLI利用可否の確認に使い、対話型 `/model` と同じ `default` / `opus[1m]` / `fable` / `sonnet` / `haiku` だけを同じ順で残す。非対話応答には対話型にない内部 alias も含まれるため、そのまま一覧にはしない。② 5件の `Current model:` からバージョン付き表示名を取る |
-| `cursor` | `cursor-agent models` | CLI利用可否を確認後、対話型 `/model` で実測した35ファミリーを `auto` 先頭の同じ順序で返す。`models` コマンドの約170個のパラメータ展開IDは表示しない |
+| `cursor` | `cursor-agent models` | CLI利用可否を確認後、2026-09-23 の CLI 一覧から確認した38ファミリーを返す。パラメータ展開IDは表示しない |
 | `codex` | `codex` の app-server | ADR 0085 / 0087 で「空カタログ」としていたものを ADR 0122 で解禁 |
 
-Claude の表示名解決（②）は表示する5件だけを並列に問い合わせ、一覧順を保って組み直す。解決に失敗した項目は内蔵のバージョン付き表示名を使う。`default` と `opus[1m]` は現在同じモデルへ解決されるが、対話型でも意味の異なる2項目なので両方を残す。Claude の既定値は対話型と同じ `default`。
+Claude の表示名解決（②）は表示する5件だけを並列に問い合わせ、一覧順を保って組み直す。`default` も CLI が返した実モデル名で表示し、解決に失敗した項目はバージョンを含まない内蔵表示名を使う。`default` と `opus[1m]` は現在同じモデルへ解決されるが、対話型でも意味の異なる2項目なので両方を残す。Claude の既定値は対話型と同じ `default`。
 
 `LiveAgentModelProvider.childEnvironment(base:)` が子プロセスへ渡す環境を組む。GUI アプリからの起動では `PATH` が最小限になるため明示指定が要り、`cursor-agent` のラッパーは `set -u` のため `HOME` が無いと全損する。`USER` / `LANG` は通常の CLI と同じ identity / locale を保つために渡す。
 

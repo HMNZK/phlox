@@ -6,6 +6,18 @@ import SessionFeature
 /// 保存失敗時も throw せず、壊れたデータは nil を返して既定へフォールバックさせる。
 public struct PaneLayoutStore {
     public static let storageKey = "phlox.grid.paneLayout"
+    /// 最後に選んだプリセットと、そのあと手で崩したか（表示範囲バーの「レイアウト: 名前（調整済み）」）。
+    public static let presetStorageKey = "phlox.grid.paneLayoutPreset"
+
+    public struct PresetState: Codable, Equatable, Sendable {
+        public var preset: PaneLayoutPreset
+        public var isAdjusted: Bool
+
+        public init(preset: PaneLayoutPreset = .balanced, isAdjusted: Bool = false) {
+            self.preset = preset
+            self.isAdjusted = isAdjusted
+        }
+    }
 
     /// `insertingIntoLargestPane` が「面積が最大のペイン」を決めるための固定の基準サイズ。
     /// VM は実際のウィンドウサイズを知らないため、reconcile 時はこの固定値を使う。
@@ -30,5 +42,21 @@ public struct PaneLayoutStore {
     public func load() -> PaneTree? {
         guard let data = userDefaults.data(forKey: Self.storageKey) else { return nil }
         return try? JSONDecoder().decode(PaneTree.self, from: data)
+    }
+
+    public func savePresetState(_ state: PresetState) {
+        guard let data = try? JSONEncoder().encode(state) else { return }
+        userDefaults.set(data, forKey: Self.presetStorageKey)
+    }
+
+    /// 記録が無いのに配置だけ保存されている（プリセット名を記録する前の版で並べた）なら、
+    /// バランスの配置と同じかどうかで「調整済み」を決める。
+    public func loadPresetState() -> PresetState {
+        guard let data = userDefaults.data(forKey: Self.presetStorageKey),
+              let state = try? JSONDecoder().decode(PresetState.self, from: data) else {
+            guard let saved = load() else { return PresetState() }
+            return PresetState(isAdjusted: saved != PaneLayoutPreset.balanced.tree(for: saved.sessions))
+        }
+        return state
     }
 }

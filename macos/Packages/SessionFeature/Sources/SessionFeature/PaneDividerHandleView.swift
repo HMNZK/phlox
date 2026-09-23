@@ -93,7 +93,30 @@ struct PaneDividerHandleView: View {
                     y: (ghost.axis == .vertical ? ghost.position : crossCenter) - divider.rect.midY
                 )
                 .allowsHitTesting(false)
+            ghostLabel(ghost)
+                .fixedSize()
+                // 左上を線の脇に合わせる（ZStack の中心揃えのまま、はみ出させて置く）。
+                .frame(width: 0, height: 0, alignment: .topLeading)
+                .offset(
+                    x: (ghost.axis == .horizontal ? ghost.position + 10 : crossCenter) - divider.rect.midX,
+                    y: (ghost.axis == .vertical ? ghost.position + 10 : crossCenter) - divider.rect.midY
+                )
+                .allowsHitTesting(false)
         }
+    }
+
+    /// S9「⟷ 62% · 718pt ／ 最小 240 × 160pt ／ ダブルクリックで等分」。離すまでは確定しない。
+    private func ghostLabel(_ ghost: PaneDividerGhost) -> some View {
+        let gap = divider.axis == .horizontal ? divider.gapRect.width : divider.gapRect.height
+        let leading = max(0, ghost.position - gap / 2 - divider.segmentOrigin)
+        let percent = divider.segmentExtent > 0 ? Int((leading / divider.segmentExtent * 100).rounded()) : 0
+        let arrow = divider.axis == .horizontal ? "⟷" : "↕"
+        return Text("\(arrow) \(percent)% · \(Int(leading.rounded()))pt ／ 最小 \(Int(PaneLayoutView.minimumPaneWidth)) × \(Int(PaneLayoutView.minimumPaneHeight))pt ／ ダブルクリックで等分")
+            .font(.system(size: 11.5))
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(DSColor.accentFill, in: RoundedRectangle(cornerRadius: 6))
     }
 
     private var dragGesture: some Gesture {

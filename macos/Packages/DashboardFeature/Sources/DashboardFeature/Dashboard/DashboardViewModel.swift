@@ -93,6 +93,7 @@ public final class DashboardViewModel {
     /// 書き込み経路は `handlePaneLayoutAction` と、セッション増減に伴う `reconcilePaneLayout` の
     /// 2つだけ（絞り込みの変更では書き換えない）。
     public private(set) var paneLayout: PaneTree
+    public private(set) var paneLayoutPresetState: PaneLayoutStore.PresetState
     @ObservationIgnored private let paneLayoutStore: PaneLayoutStore
     private var hookMultiplexTask: Task<Void, Never>?
     private var sessionHookContinuations: [SessionID: AsyncStream<(SessionID, HookEvent)>.Continuation] = [:]
@@ -157,6 +158,7 @@ public final class DashboardViewModel {
         self.environment = environment
         self.paneLayoutStore = paneLayoutStore
         self.paneLayout = paneLayoutStore.load() ?? PaneLayoutPreset.balanced.tree(for: [])
+        self.paneLayoutPresetState = paneLayoutStore.loadPresetState()
         self.codexUserHooksEnabledProvider = codexUserHooksEnabledProvider
         self.codexDiscoveryNow = codexDiscoveryNow
         self.rateLimitNow = rateLimitNow
@@ -569,8 +571,12 @@ public final class DashboardViewModel {
             updated = paneLayout.equalizing(split)
         case .applyPreset(let preset):
             updated = preset.tree(for: paneLayout.sessions)
+            setPaneLayoutPresetState(.init(preset: preset))
         }
         guard updated != paneLayout else { return }
+        if case .applyPreset = action {} else {
+            setPaneLayoutPresetState(.init(preset: paneLayoutPresetState.preset, isAdjusted: true))
+        }
         paneLayout = updated
         paneLayoutStore.save(updated)
     }
@@ -592,9 +598,18 @@ public final class DashboardViewModel {
         }
     }
 
+    private func setPaneLayoutPresetState(_ state: PaneLayoutStore.PresetState) {
+        guard state != paneLayoutPresetState else { return }
+        paneLayoutPresetState = state
+        paneLayoutStore.savePresetState(state)
+    }
+
     /// 起動時、`PaneLayoutStore` から読み直してから reconcile する。
     private func reloadAndReconcilePaneLayout() {
         paneLayout = paneLayoutStore.load() ?? PaneLayoutPreset.balanced.tree(for: [])
+        paneLayoutPresetState = paneLayoutStore.loadPresetState()
+        // 記録の無い旧データから決めた状態を残し、以後の自動の並べ直しで判定し直さない。
+        paneLayoutStore.savePresetState(paneLayoutPresetState)
         reconcilePaneLayout()
     }
 
@@ -627,6 +642,23 @@ public final class DashboardViewModel {
 
     public func clearGridSessionSelection() {
         gridSessionSelection = nil
+    }
+
+    /// グリッドのタイルを左上から数えた並び（⌘1–9 とタイル見出しの番号）。行の上から、同じ行は左から。
+    public func gridTileOrder() -> [SessionID] {
+        paneLayoutForDisplay().readingOrder()
+    }
+
+    /// グリッドから外す（06: タイルの ✕・⌘W・右クリック）。表示するセッションの選択から除くだけで、
+    /// セッションは消さない。最後の 1 枚は外さない（選択が空になると全件表示へ戻るため）。
+    /// 外したら、次にフォーカスするタイルを返す。
+    @discardableResult
+    public func removeFromGrid(_ id: SessionID) -> SessionID? {
+        let order = gridTileOrder()
+        guard order.count > 1, let index = order.firstIndex(of: id) else { return nil }
+        toggleGridSessionSelection(id)
+        let remaining = order.filter { $0 != id }
+        return remaining[min(index, remaining.count - 1)]
     }
 
     private func normalizeGridSessionSelection() {

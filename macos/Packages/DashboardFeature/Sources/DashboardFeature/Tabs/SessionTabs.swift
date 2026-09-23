@@ -209,8 +209,10 @@ public struct HiddenAttentionSummary: Equatable, Sendable {
 public enum CloseCommandTarget: Equatable, Sendable {
     /// 会話以外の子タブを閉じる。
     case childTab(ChildTab)
-    /// 会話タブ・グリッドでは、確認してからセッションを削除する。
+    /// 会話タブでは、確認してからセッションを削除する。
     case session(SessionID)
+    /// グリッドでは、タイルをグリッドから外す（セッションは消さない。06）。
+    case gridTile(SessionID)
 }
 
 /// タブの状態の持ち主。App のメニュー（⌘W・⌘1–9・⌃Tab）と画面の両方から触るので Router に置く。
@@ -272,10 +274,9 @@ public final class SessionTabStore {
     /// ⌘W の対象。単体表示で会話以外の子タブを選んでいればそのタブ、それ以外はセッション。
     public func closeTarget(selectedSession: SessionID?, viewMode: ViewMode) -> CloseCommandTarget? {
         guard let selectedSession else { return nil }
-        if viewMode == .single {
-            let selected = layout(for: selectedSession).selected
-            if selected != .conversation { return .childTab(selected) }
-        }
+        if viewMode == .grid { return .gridTile(selectedSession) }
+        let selected = layout(for: selectedSession).selected
+        if selected != .conversation { return .childTab(selected) }
         return .session(selectedSession)
     }
 
@@ -295,7 +296,7 @@ extension DashboardViewModel {
     public func numberedTabSessionIDs(router: AppRouter) -> [SessionID] {
         switch router.viewMode {
         case .grid:
-            return filteredGridSessionNodes(projectID: router.gridFilterProjectID).map(\.id)
+            return gridTileOrder()
         case .single:
             let projectID = router.selectedSession.flatMap { sessionNode(id: $0)?.projectID } ?? router.selectedProjectID
             guard let projectID else { return [] }

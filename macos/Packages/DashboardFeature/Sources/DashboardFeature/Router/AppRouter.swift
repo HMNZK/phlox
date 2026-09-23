@@ -16,6 +16,8 @@ public enum TabRequest: Equatable, Sendable {
     case confirmSessionDeletion(SessionID)
     /// ⌘P：worktree のファイルを選んで開く。
     case openFile(SessionID)
+    /// グリッドのタイルを外す（⌘W・タイルの ✕）。
+    case removeFromGrid(SessionID)
 }
 
 /// メニューバーの「セッション」メニューから、サイドバーの行の操作を画面へ渡す要求（キーボードだけで届くように）。
@@ -128,7 +130,7 @@ public final class AppRouter {
         tabs.updateLayout(for: selectedSession) { $0.toggleSplit() }
     }
 
-    /// ⌘W。子タブは閉じ（確認は画面側）、会話・グリッドはセッション削除の確認を出す。
+    /// ⌘W。子タブは閉じ（確認は画面側）、会話はセッション削除の確認を出し、グリッドはタイルを外す。
     /// 何も対象が無ければ false（ウィンドウを閉じる標準動作に任せる）。
     @discardableResult
     public func requestClose() -> Bool {
@@ -139,6 +141,8 @@ public final class AppRouter {
             if let selectedSession { tabRequest = .closeChild(selectedSession, tab) }
         case .session(let id):
             tabRequest = .confirmSessionDeletion(id)
+        case .gridTile(let id):
+            tabRequest = .removeFromGrid(id)
         }
         return true
     }

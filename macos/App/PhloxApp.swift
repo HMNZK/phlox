@@ -117,7 +117,7 @@ struct PhloxApp: App {
                 .disabled(composition == nil)
             }
             UpdateCommands(appUpdater: appDelegate.appUpdater)
-            ViewCommands(router: composition?.router)
+            ViewCommands(dashboard: composition?.dashboard, router: composition?.router)
             FontSizeCommands(dashboard: composition?.dashboard, router: composition?.router)
             SessionCommands(
                 dashboard: composition?.dashboard,
@@ -567,6 +567,7 @@ private struct UpdateCommands: Commands {
 }
 
 private struct ViewCommands: Commands {
+    var dashboard: DashboardViewModel?
     var router: AppRouter?
 
     var body: some Commands {
@@ -588,6 +589,17 @@ private struct ViewCommands: Commands {
             }
             .keyboardShortcut("g", modifiers: [.command, .control])
             .disabled(router == nil)
+
+            // 表示範囲バーの「レイアウト ▾」と同じ 9 種（骨格 E2・06）。
+            Menu("グリッドのレイアウト") {
+                ForEach(PaneLayoutPreset.allCases, id: \.self) { preset in
+                    Button(LocalizedStringKey(preset.displayName)) {
+                        router?.viewMode = .grid
+                        dashboard?.handlePaneLayoutAction(.applyPreset(preset))
+                    }
+                }
+            }
+            .disabled(dashboard == nil)
 
             Divider()
 
@@ -687,7 +699,11 @@ private struct SessionCommands: Commands {
             Button {
                 closeSelectedSession()
             } label: {
-                Label("閉じる", systemImage: "xmark.circle")
+                if router?.viewMode == .grid {
+                    Label("グリッドから外す", systemImage: "xmark.circle")
+                } else {
+                    Label("閉じる", systemImage: "xmark.circle")
+                }
             }
             .keyboardShortcut("w", modifiers: .command)
             .disabled(!canCloseSession)

@@ -243,7 +243,7 @@ struct SidebarToggleButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(HoverableIconButtonStyle())
-        .help(isShowing ? String(localized: "サイドバーを隠す（⌃⌘S）") : String(localized: "サイドバーを表示（⌃⌘S）"))
+        .help(isShowing ? Text("サイドバーを隠す（⌃⌘S）") : Text("サイドバーを表示（⌃⌘S）"))
         .accessibilityLabel(isShowing ? Text("サイドバーを隠す（⌃⌘S）") : Text("サイドバーを表示（⌃⌘S）"))
     }
 }
@@ -268,11 +268,12 @@ struct CountBadge: View {
 struct ViewModeToggle: View {
     @Binding var mode: ViewMode
     let showsText: Bool
+    @Environment(\.locale) private var locale
 
     var body: some View {
         HStack(spacing: DSSpacing.xxs) {
-            segment(.single, symbol: "square", title: String(localized: "単体"), key: "⌃⌘1")
-            segment(.grid, symbol: "square.grid.2x2", title: String(localized: "グリッド"), key: "⌃⌘2")
+            segment(.single, symbol: "square", title: AppLocalizedString.string("単体", locale: locale), key: "⌃⌘1")
+            segment(.grid, symbol: "square.grid.2x2", title: AppLocalizedString.string("グリッド", locale: locale), key: "⌃⌘2")
         }
         .padding(DSSpacing.xxs)
         .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: DSRadius.s + 3))
@@ -285,7 +286,7 @@ struct ViewModeToggle: View {
             identifier: "view-mode-\(value.rawValue)",
             symbol: symbol,
             title: showsText ? title : nil,
-            help: String(localized: "\(title)（\(key)）"),
+            help: String(format: AppLocalizedString.string("%@（%@）", locale: locale), title, key),
             isOn: mode == value,
             action: { mode = value }
         )

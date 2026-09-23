@@ -97,6 +97,20 @@ extension ChatSessionViewModel {
     }
 
     /// 承認カードの質問（Claude のツール使用許可）は質問カードには出さない。
+    /// 一覧・タイル・ヘッダに出す状態。Claude のツール使用許可は wire 上は質問だが、返答エリアでは承認カードに出すので
+    /// 状態も「承認待ち」にそろえる（質問が同時に待っていれば質問待ちのまま）。
+    public var displayStatus: SessionStatus {
+        let base = SessionDisplayStatus.resolve(rawStatus: status, isProcessing: isProcessing)
+        guard base == .awaitingUserQuestion else { return base }
+        var permissionPrompt: String?
+        for item in transcript.reversed() {
+            guard case .userQuestion(_, _, let questions, _, .pending, _) = item else { continue }
+            guard Self.isToolPermissionQuestion(questions) else { return base }
+            permissionPrompt = permissionPrompt ?? questions.first?.question
+        }
+        return permissionPrompt.map { .awaitingApproval(prompt: $0) } ?? base
+    }
+
     static func isToolPermissionQuestion(_ questions: [ChatUserQuestion]) -> Bool {
         questions.count == 1 && questions.first?.permission != nil
     }
@@ -353,9 +367,12 @@ struct ApprovalCard: View {
         .foregroundStyle(DSColor.textSecondary)
     }
 
-    private var kindLabel: String {
+    private var kindLabel: String { Self.kindLabel(approval.kind, locale: locale) }
+
+    /// 「コマンドの実行」など（承認カードの見出し・グリッドのタイル）。
+    static func kindLabel(_ kind: ReplyApproval.Kind, locale: Locale) -> String {
         let key: String
-        switch approval.kind {
+        switch kind {
         case .command: key = "コマンドの実行"
         case .fileChange: key = "ファイルの変更"
         case .permissions: key = "権限の変更"
@@ -508,7 +525,7 @@ struct ApprovalCard: View {
     }
 }
 
-private struct ApprovalPrimaryButtonStyle: ButtonStyle {
+struct ApprovalPrimaryButtonStyle: ButtonStyle {
     let progress: CGFloat
     let isArmed: Bool
 
@@ -534,7 +551,7 @@ private struct ApprovalPrimaryButtonStyle: ButtonStyle {
     }
 }
 
-private struct ApprovalSecondaryButtonStyle: ButtonStyle {
+struct ApprovalSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(DSColor.textPrimary)

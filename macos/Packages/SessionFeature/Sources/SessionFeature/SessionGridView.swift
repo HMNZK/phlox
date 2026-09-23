@@ -25,6 +25,10 @@ public struct SessionGridView: View {
     let onChangeWorkspace: (SessionViewModel) -> Void
     let onLayoutAction: (PaneLayoutAction) -> Void
     let projectNames: [ProjectID: String]
+    let onRemoveFromGrid: (SessionNode) -> Void
+    let onOpenSingle: (SessionID) -> Void
+    let parentNames: [SessionID: String]
+    let tileTabs: GridTileTabs?
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
     public init(
@@ -35,7 +39,11 @@ public struct SessionGridView: View {
         onRename: @escaping (SessionNode) -> Void,
         onChangeWorkspace: @escaping (SessionViewModel) -> Void,
         onLayoutAction: @escaping (PaneLayoutAction) -> Void,
-        projectNames: [ProjectID: String] = [:]
+        projectNames: [ProjectID: String] = [:],
+        onRemoveFromGrid: @escaping (SessionNode) -> Void = { _ in },
+        onOpenSingle: @escaping (SessionID) -> Void = { _ in },
+        parentNames: [SessionID: String] = [:],
+        tileTabs: GridTileTabs? = nil
     ) {
         self.sessions = sessions
         self.paneLayout = paneLayout
@@ -45,6 +53,10 @@ public struct SessionGridView: View {
         self.onChangeWorkspace = onChangeWorkspace
         self.onLayoutAction = onLayoutAction
         self.projectNames = projectNames
+        self.onRemoveFromGrid = onRemoveFromGrid
+        self.onOpenSingle = onOpenSingle
+        self.parentNames = parentNames
+        self.tileTabs = tileTabs
     }
 
     public var body: some View {
@@ -56,7 +68,11 @@ public struct SessionGridView: View {
             onRename: onRename,
             onChangeWorkspace: onChangeWorkspace,
             onLayoutAction: onLayoutAction,
-            projectNames: projectNames
+            projectNames: projectNames,
+            onRemoveFromGrid: onRemoveFromGrid,
+            onOpenSingle: onOpenSingle,
+            parentNames: parentNames,
+            tileTabs: tileTabs
         )
         // 上余白だけ詰めてトップバーとの隙間を無くす（左右下は通常マージン）。
         .padding(.horizontal, DSSpacing.s)

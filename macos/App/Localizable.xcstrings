@@ -309,17 +309,6 @@
         }
       }
     },
-    "セッションを閉じる": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Close Session"
-          }
-        }
-      }
-    },
     "セッション作成の深度上限を超えました。": {
       "extractionState": "manual",
       "localizations": {
@@ -1405,17 +1394,6 @@
         }
       }
     },
-    "表示するセッションを選択 %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose sessions to show %@"
-          }
-        }
-      }
-    },
     "表示セッションを選択": {
       "extractionState": "manual",
       "localizations": {
@@ -1434,17 +1412,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "View mode"
-          }
-        }
-      }
-    },
-    "表示範囲の外に対応待ち %lld 件": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld need you outside this view"
           }
         }
       }
@@ -3699,6 +3666,578 @@
           "stringUnit": {
             "state": "translated",
             "value": "Couldn’t send (%@)."
+          }
+        }
+      }
+    },
+    "端末": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal"
+          }
+        }
+      }
+    },
+    "内部": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Internal"
+          }
+        }
+      }
+    },
+    "グリッドから外す（⌘W）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove from Grid (⌘W)"
+          }
+        }
+      }
+    },
+    "グリッドから外す": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove from Grid"
+          }
+        }
+      }
+    },
+    "↳ 親: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↳ Parent: %@"
+          }
+        }
+      }
+    },
+    "開いて回答": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open to Answer"
+          }
+        }
+      }
+    },
+    "フォーカス中": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "focused"
+          }
+        }
+      }
+    },
+    "入れ替え": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swap"
+          }
+        }
+      }
+    },
+    "左に分割して挿入": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split Left and Insert"
+          }
+        }
+      }
+    },
+    "右に分割して挿入": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split Right and Insert"
+          }
+        }
+      }
+    },
+    "上に分割して挿入": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split Above and Insert"
+          }
+        }
+      }
+    },
+    "下に分割して挿入": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split Below and Insert"
+          }
+        }
+      }
+    },
+    "ドロップ位置": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drop position"
+          }
+        }
+      }
+    },
+    "中央 = 入れ替え": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Center = swap"
+          }
+        }
+      }
+    },
+    "上下左右の端 = 50:50 で分割して挿入": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edges = split 50:50 and insert"
+          }
+        }
+      }
+    },
+    "Esc = 取り消し": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esc = cancel"
+          }
+        }
+      }
+    },
+    "%@ %lld%% · %lldpt ／ 最小 %lld × %lldpt ／ ダブルクリックで等分": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$lld%% · %3$lldpt / min %4$lld × %5$lldpt / double-click to equalize"
+          }
+        }
+      }
+    },
+    "表示範囲": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scope"
+          }
+        }
+      }
+    },
+    "プロジェクトの絞り込みを解除": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Project Filter"
+          }
+        }
+      }
+    },
+    "セッション選択を解除": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Session Selection"
+          }
+        }
+      }
+    },
+    "が範囲外": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "out of scope"
+          }
+        }
+      }
+    },
+    "対応待ちの一覧（⌥⌘J）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs Attention (⌥⌘J)"
+          }
+        }
+      }
+    },
+    "%lld / %lld 件を表示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Showing %1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "%lld / %lld 件（すべて）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld of %2$lld (all)"
+          }
+        }
+      }
+    },
+    "%lld 件": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld sessions"
+          }
+        }
+      }
+    },
+    "すべてのプロジェクト": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All Projects"
+          }
+        }
+      }
+    },
+    "名称未設定のプロジェクト": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Untitled Project"
+          }
+        }
+      }
+    },
+    "レイアウト: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Layout: %@"
+          }
+        }
+      }
+    },
+    "%@（調整済み）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (adjusted)"
+          }
+        }
+      }
+    },
+    "レイアウトを選択": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose Layout"
+          }
+        }
+      }
+    },
+    "バランス": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Balanced"
+          }
+        }
+      }
+    },
+    "1 枚": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Single"
+          }
+        }
+      }
+    },
+    "2 列": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2 Columns"
+          }
+        }
+      }
+    },
+    "3 列": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3 Columns"
+          }
+        }
+      }
+    },
+    "2 段": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2 Rows"
+          }
+        }
+      }
+    },
+    "3 段": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3 Rows"
+          }
+        }
+      }
+    },
+    "2 × 2": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2 × 2"
+          }
+        }
+      }
+    },
+    "左にメイン・右に積む": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Main Left, Stack Right"
+          }
+        }
+      }
+    },
+    "上にメイン・下に並べる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Main Top, Row Below"
+          }
+        }
+      }
+    },
+    "表示するセッションがありません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Sessions to Show"
+          }
+        }
+      }
+    },
+    "絞り込みを解除": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Filters"
+          }
+        }
+      }
+    },
+    "%@ で新規セッション": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Session in %@"
+          }
+        }
+      }
+    },
+    "選択中のセッションはこの範囲にありません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None of the selected sessions are in this scope."
+          }
+        }
+      }
+    },
+    "このプロジェクトに表示できるセッションがありません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This project has no sessions to show."
+          }
+        }
+      }
+    },
+    "表示できるセッションがありません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There are no sessions to show."
+          }
+        }
+      }
+    },
+    "タイルを選ぶと変更を表示します": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select the tile to show its changes."
+          }
+        }
+      }
+    },
+    "グリッドのレイアウト": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grid Layout"
+          }
+        }
+      }
+    },
+    "実行中": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running"
+          }
+        }
+      }
+    },
+    "プロジェクトを選択してください": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select a project"
+          }
+        }
+      }
+    },
+    "すべて表示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show All"
+          }
+        }
+      }
+    },
+    "分割線": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Divider"
+          }
+        }
+      }
+    },
+    "セッションの選択を解除": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Session Selection"
           }
         }
       }

@@ -13,6 +13,8 @@ struct DashboardDetailView: View {
     let onChooseProjectDirectory: () -> Void
     let isCreating: Bool
     let onSelectAgentKind: (AgentKind, SessionBackend) -> Void
+    /// グリッドのタイルの 会話 / 端末 / 変更（02 C3）。
+    var tileTabs: GridTileTabs? = nil
 
     var body: some View {
         // ツールバーは上の行として別に並べるので、ここは本文だけ。
@@ -22,6 +24,17 @@ struct DashboardDetailView: View {
 
     private var filteredGridSessions: [SessionNode] {
         viewModel.filteredGridSessionNodes(projectID: router.gridFilterProjectID)
+    }
+
+    /// 子セッションの親の名前（06 S7「↳ 親: …」）。
+    private var parentNames: [SessionID: String] {
+        var names: [SessionID: String] = [:]
+        for node in filteredGridSessions {
+            if let parent = node.controllable.parentSessionID, let parentNode = viewModel.sessionNode(id: parent) {
+                names[node.id] = parentNode.displayName
+            }
+        }
+        return names
     }
 
     @ViewBuilder
@@ -44,7 +57,15 @@ struct DashboardDetailView: View {
                     },
                     onChangeWorkspace: { session in pendingWorkspaceChange = session },
                     onLayoutAction: { viewModel.handlePaneLayoutAction($0) },
-                    projectNames: Dictionary(uniqueKeysWithValues: viewModel.projects.map { ($0.id, $0.name) })
+                    projectNames: Dictionary(uniqueKeysWithValues: viewModel.projects.map { ($0.id, $0.name) }),
+                    onRemoveFromGrid: { session in
+                        if let next = viewModel.removeFromGrid(session.id), router.selectedSession == session.id {
+                            router.selectedSession = next
+                        }
+                    },
+                    onOpenSingle: { router.openSingle(sessionID: $0) },
+                    parentNames: parentNames,
+                    tileTabs: tileTabs
                 )
             }
         }

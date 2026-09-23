@@ -454,32 +454,65 @@ public struct DashboardView: View {
     }
 
     @ViewBuilder
+    /// 表示するセッションが 0 件（06 S10）。見出し・理由・絞り込みの解除・新規セッション。
     private var gridScopeEmptyState: some View {
         let summary = gridScopeSummary
-        VStack(spacing: DSSpacing.l) {
+        let projectID = viewModel.gridSessionFilterProjectID
+        let projectName = viewModel.projects.first { $0.id == projectID }?.name
+        return VStack(spacing: 10) {
+            Text("表示するセッションがありません")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(DSColor.textPrimary)
             if let emptyMessage = summary.emptyMessage {
-                Text(emptyMessage)
-                    .font(DSFont.body)
+                Text(LocalizedStringKey(emptyMessage))
+                    .font(.system(size: 12.5))
                     .foregroundStyle(DSColor.textSecondary)
                     .multilineTextAlignment(.center)
+                    .frame(maxWidth: 380)
             }
-            ForEach(summary.clearActions, id: \.self) { action in
-                Button(action.label) {
-                    switch action {
-                    case .projectFilter:
+            HStack(spacing: 8) {
+                if !summary.clearActions.isEmpty {
+                    Button {
                         router.clearGridFilter()
-                    case .sessionSelection:
                         viewModel.clearGridSessionSelection()
+                    } label: {
+                        Text("絞り込みを解除")
+                            .font(.system(size: 12.5))
+                            .foregroundStyle(DSColor.textPrimary)
+                            .padding(.horizontal, 12)
+                            .frame(height: 28)
+                            .background(DSColor.surfaceElevated, in: RoundedRectangle(cornerRadius: 7))
+                            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(DSColor.border, lineWidth: 0.5))
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 }
-                .font(DSFont.body)
-                .padding(.horizontal, DSSpacing.m)
-                .padding(.vertical, DSSpacing.s)
-                .buttonStyle(HoverableSoftButtonStyle())
+                Menu {
+                    newSessionMenuItems(projectID: projectID)
+                } label: {
+                    HStack(spacing: 6) {
+                        if let projectName {
+                            Text("\(projectName) で新規セッション")
+                        } else {
+                            Text("新規セッション")
+                        }
+                        Text(verbatim: "⌘N").font(.system(size: 10.5)).opacity(0.85)
+                    }
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 12)
+                    .frame(height: 28)
+                    .background(DSColor.accentFill, in: RoundedRectangle(cornerRadius: 7))
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize()
             }
+            .padding(.top, 6)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(DSSpacing.l)
+        .padding(24)
     }
 
     /// 選択中の chat セッション（インスペクタの SessionInfoPanel 用）。
@@ -614,8 +647,62 @@ public struct DashboardView: View {
                 isCreating: isCreating,
                 onSelectAgentKind: { kind, backend in
                     Task { await createSessionFromKind(kind, backend: backend) }
-                }
+                },
+                tileTabs: gridTileTabs
             )
+    }
+
+    /// グリッドのタイルの子タブ。並びと選択は単体表示の子タブと同じ記録を使う（02 C3）。
+    private var gridTileTabs: GridTileTabs {
+        GridTileTabs(
+            selected: { id in
+                switch router.tabs.layout(for: id).selected {
+                case .terminal: .terminal
+                case .changes: .changes
+                case .conversation, .file: .conversation
+                }
+            },
+            select: { id, tab in
+                router.tabs.updateLayout(for: id) { layout in
+                    switch tab {
+                    case .conversation: layout.select(.conversation)
+                    case .terminal: layout.open(.terminal)
+                    case .changes: layout.open(.changes)
+                    }
+                }
+            },
+            content: { id, tab in AnyView(gridTileTabContent(id, tab)) }
+        )
+    }
+
+    @ViewBuilder
+    private func gridTileTabContent(_ id: SessionID, _ tab: GridTileTab) -> some View {
+        if let node = viewModel.sessionNode(id: id) {
+            switch tab {
+            case .conversation:
+                EmptyView()
+            case .terminal:
+                if let sessionTerminals {
+                    TerminalPanelView(panel: sessionTerminals.terminal(for: id, workingDirectory: node.rawWorkspacePath))
+                        .id(id)
+                } else {
+                    ContentUnavailableView("ターミナルを準備しています", systemImage: "terminal")
+                }
+            case .changes:
+                // 変更の一覧は選択中のセッションの worktree を読む。フォーカスしていないタイルでは中身を出さない。
+                if router.selectedSession == id {
+                    EditorPanelView(viewModel: editorPanel.viewModel) { path in
+                        router.tabs.updateLayout(for: id) { $0.open(.file(path)) }
+                        router.openSingle(sessionID: id)
+                    }
+                } else {
+                    Text("タイルを選ぶと変更を表示します")
+                        .font(DSFont.body)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+        }
     }
 
     private var inspectorContent: some View {
@@ -733,6 +820,8 @@ public struct DashboardView: View {
             requestChildClose(tab, of: id)
         case .openFile(let id):
             chooseFileToOpen(in: id)
+        case .removeFromGrid(let id):
+            if let next = viewModel.removeFromGrid(id) { router.selectedSession = next }
         }
     }
 

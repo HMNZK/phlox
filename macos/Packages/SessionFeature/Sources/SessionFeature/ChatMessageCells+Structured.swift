@@ -190,7 +190,7 @@ struct ThinkingIndicatorCell: View {
     }
 
     /// 「swift build を実行中 · 38 秒」。要約が無ければ経過だけ。無応答の間は経過を右に出すので要約だけ。
-    private static func detailText(recap: ChatRecap.Summary?, assessment: ChatHangAssessment?) -> Text? {
+    static func detailText(recap: ChatRecap.Summary?, assessment: ChatHangAssessment?) -> Text? {
         let recapText: Text? = recap.map { summary in
             switch summary {
             case .activity(.reading(let x)): Text("\(ThinkingRecap.clamp(x)) を読み込み中")

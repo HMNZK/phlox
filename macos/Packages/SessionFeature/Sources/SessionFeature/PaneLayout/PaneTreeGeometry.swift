@@ -61,6 +61,14 @@ extension PaneTree {
     /// 掴む領域の最低太さ（points）。spacing がこれより細くても分割線を掴めるようにする。
     public static let dividerHitThickness: CGFloat = 8
 
+    /// 左上から数えたタイルの並び（行の上から、同じ行は左から）。⌘1–9 と見出しの番号が読む。
+    /// ウィンドウの大きさに左右されないよう、固定の大きさ・余白 0 で数える。
+    public func readingOrder() -> [SessionID] {
+        frames(in: CGSize(width: 1600, height: 1000), spacing: 0).tiles
+            .sorted { ($0.rect.minY, $0.rect.minX) < ($1.rect.minY, $1.rect.minX) }
+            .map(\.session)
+    }
+
     /// タイル矩形と分割線矩形を同時に算出する。`tiles` の順序は `sessions` の走査順と一致する。
     public func frames(in bounds: CGSize, spacing: CGFloat) -> PaneLayoutFrames {
         guard let root else { return PaneLayoutFrames(tiles: [], dividers: []) }

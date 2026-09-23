@@ -17,17 +17,18 @@ public enum PaneLayoutPreset: String, Codable, Sendable, CaseIterable {
     /// 上1枚＋下を左右に並べる。
     case mainTopStackBottom
 
+    /// 06 の名前（キー）。画面では表示言語で引く。
     public var displayName: String {
         switch self {
-        case .balanced: return "自動整列"
-        case .single: return "1枚"
-        case .columns2: return "2列"
-        case .columns3: return "3列"
-        case .rows2: return "2段"
-        case .rows3: return "3段"
-        case .grid2x2: return "2×2"
-        case .mainLeftStackRight: return "左1枚＋右に2枚"
-        case .mainTopStackBottom: return "上1枚＋下に2枚"
+        case .balanced: return "バランス"
+        case .single: return "1 枚"
+        case .columns2: return "2 列"
+        case .columns3: return "3 列"
+        case .rows2: return "2 段"
+        case .rows3: return "3 段"
+        case .grid2x2: return "2 × 2"
+        case .mainLeftStackRight: return "左にメイン・右に積む"
+        case .mainTopStackBottom: return "上にメイン・下に並べる"
         }
     }
 

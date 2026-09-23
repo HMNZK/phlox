@@ -30,6 +30,13 @@ public struct PaneLayoutView: View {
     let onChangeWorkspace: (SessionViewModel) -> Void
     let onLayoutAction: (PaneLayoutAction) -> Void
     let projectNames: [ProjectID: String]
+    /// 06: タイルの ✕・右クリックの「グリッドから外す」。
+    let onRemoveFromGrid: (SessionNode) -> Void
+    /// 06: 小さいタイルの「開く」（単体表示へ）。
+    let onOpenSingle: (SessionID) -> Void
+    /// 子セッションの親の名前（「↳ 親: …」）。
+    let parentNames: [SessionID: String]
+    let tileTabs: GridTileTabs?
 
     /// ドロップ中に出すインジケータ（どのタイルの・どの操作か）。ドロップの判定そのものは
     /// `PaneDropZone` が持ち、ここはその結果を描くためだけに保持する。
@@ -43,7 +50,11 @@ public struct PaneLayoutView: View {
         onRename: @escaping (SessionNode) -> Void,
         onChangeWorkspace: @escaping (SessionViewModel) -> Void,
         onLayoutAction: @escaping (PaneLayoutAction) -> Void,
-        projectNames: [ProjectID: String] = [:]
+        projectNames: [ProjectID: String] = [:],
+        onRemoveFromGrid: @escaping (SessionNode) -> Void = { _ in },
+        onOpenSingle: @escaping (SessionID) -> Void = { _ in },
+        parentNames: [SessionID: String] = [:],
+        tileTabs: GridTileTabs? = nil
     ) {
         self.sessions = sessions
         self.tree = tree
@@ -53,12 +64,18 @@ public struct PaneLayoutView: View {
         self.onChangeWorkspace = onChangeWorkspace
         self.onLayoutAction = onLayoutAction
         self.projectNames = projectNames
+        self.onRemoveFromGrid = onRemoveFromGrid
+        self.onOpenSingle = onOpenSingle
+        self.parentNames = parentNames
+        self.tileTabs = tileTabs
     }
 
     public var body: some View {
         GeometryReader { geometry in
             let spacing = DSSpacing.s
             let frames = tree.frames(in: geometry.size, spacing: spacing)
+            // ⌘1–9 と見出しの番号（DashboardViewModel.gridTileOrder と同じ並び）。
+            let numbers = Dictionary(uniqueKeysWithValues: tree.readingOrder().enumerated().map { ($1, $0 + 1) })
 
             ZStack(alignment: .topLeading) {
                 // ①タイル。ツリーの入れ子ではなく「セッション ID → 矩形」の絶対配置。
@@ -69,8 +86,14 @@ public struct PaneLayoutView: View {
                             projectName: session.projectID.flatMap { projectNames[$0] },
                             size: tile.rect.size,
                             isFocused: focusedID == session.id,
+                            number: numbers[session.id],
+                            parentName: parentNames[session.id],
+                            canRemoveFromGrid: frames.tiles.count > 1,
+                            tileTabs: tileTabs,
                             onSelect: { focusedID = session.id },
                             onRemove: { onRemove(session) },
+                            onRemoveFromGrid: { onRemoveFromGrid(session) },
+                            onOpenSingle: { onOpenSingle(session.id) },
                             onRename: { onRename(session) },
                             onChangeWorkspace: {
                                 if let pty = session.pty {
@@ -95,11 +118,17 @@ public struct PaneLayoutView: View {
                 if let dropHighlight,
                    let rect = frames.tiles.first(where: { $0.session == dropHighlight.session })?.rect {
                     let indicator = PaneDropIndicator(target: dropHighlight.target, in: rect)
-                    RoundedRectangle(cornerRadius: DSRadius.m)
-                        .fill(DSColor.fillSelected.opacity(0.55))
+                    PaneDropIndicatorView(target: dropHighlight.target)
                         .frame(width: indicator.rect.width, height: indicator.rect.height)
                         .position(x: indicator.rect.midX, y: indicator.rect.midY)
                         .allowsHitTesting(false)
+                    if let line = indicator.splitLine {
+                        Rectangle()
+                            .fill(DSColor.accent)
+                            .frame(width: line.width, height: line.height)
+                            .position(x: line.midX, y: line.midY)
+                            .allowsHitTesting(false)
+                    }
                 }
 
                 // ③分割線ハンドル。最前面に置かないと `.pty` タイルの境界で掴めない。
@@ -115,6 +144,14 @@ public struct PaneLayoutView: View {
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
+            // S8: ドラッグ中はドロップ位置の説明を下端に出す。
+            .overlay(alignment: .bottom) {
+                if dropHighlight != nil {
+                    PaneDropLegend()
+                        .padding(.bottom, 14)
+                        .allowsHitTesting(false)
+                }
+            }
         }
     }
 
@@ -156,8 +193,20 @@ private struct PaneDropHighlight: Equatable {
 /// （`PaneTree.inserting` が既存ペインを 50:50 で分けるため、見た目と結果が一致する）。
 private struct PaneDropIndicator {
     let rect: CGRect
+    /// 分割して差し込むときの、新しい分割線の位置（S8「分割線の位置を線で先に見せる」）。
+    var splitLine: CGRect? {
+        guard rect.size != tileSize else { return nil }
+        if rect.width < tileSize.width {
+            return CGRect(x: tileOrigin.x + tileSize.width / 2 - 1, y: tileOrigin.y, width: 2, height: tileSize.height)
+        }
+        return CGRect(x: tileOrigin.x, y: tileOrigin.y + tileSize.height / 2 - 1, width: tileSize.width, height: 2)
+    }
+    private let tileOrigin: CGPoint
+    private let tileSize: CGSize
 
     init(target: PaneDropTarget, in tile: CGRect) {
+        tileOrigin = tile.origin
+        tileSize = tile.size
         switch target {
         case .swap:
             rect = tile
@@ -175,23 +224,30 @@ private struct PaneDropIndicator {
 
 // MARK: - タイル
 
-/// 分割ツリー用のタイル。旧グリッドの `SessionGridTile` と見た目は揃えつつ、
-/// ドロップだけが違う——位置で「入れ替え / 分割して差し込む」を切り替えるため、
-/// 位置を受け取れる `DropDelegate` を使う（旧タイルの `dropDestination` は位置を渡さない）。
+/// 分割ツリー用のタイル（06）。見出しに状態の文字、対応待ちの 4 状態だけ見出しと内側の縁を状態の色にし、
+/// フォーカスは accent の外輪で示す。本文は大きさで入れ替える（`GridTileSize`）。
+/// ドロップは位置で「入れ替え / 分割して差し込む」を切り替えるため、位置を受け取れる `DropDelegate` を使う。
 private struct PaneTileView: View {
     let session: SessionNode
     let projectName: String?
     /// タイルの矩形サイズ。ドロップ位置の判定に使う（`DropInfo.location` と同じ座標系）。
     let size: CGSize
     let isFocused: Bool
+    let number: Int?
+    let parentName: String?
+    let canRemoveFromGrid: Bool
+    let tileTabs: GridTileTabs?
     let onSelect: () -> Void
     let onRemove: () -> Void
+    let onRemoveFromGrid: () -> Void
+    let onOpenSingle: () -> Void
     let onRename: () -> Void
     let onChangeWorkspace: () -> Void
     let onDropHighlightChange: (PaneDropTarget?) -> Void
     let onDrop: (_ moved: SessionID, _ target: PaneDropTarget) -> Void
 
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+    @Environment(\.locale) private var locale
     @State private var clickObserver: PaneTileClickObserver?
     @State private var clickFrameSource = PaneTileWindowFrameSource()
 
@@ -207,12 +263,21 @@ private struct PaneTileView: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background {
-                RoundedRectangle(cornerRadius: DSRadius.m)
-                    .fill(tileBackground)
+                RoundedRectangle(cornerRadius: 9)
+                    .fill(DSColor.surfaceElevated)
             }
             .overlay { tileBorder }
-            .clipShape(RoundedRectangle(cornerRadius: DSRadius.m))
+            .clipShape(RoundedRectangle(cornerRadius: 9))
             .dsShadow(.gridTile)
+            // フォーカスは状態の縁とは別の、外側の accent の輪（06 論点 4）。
+            .overlay {
+                if borderAppearance.showsFocusHighlight {
+                    RoundedRectangle(cornerRadius: 11)
+                        .strokeBorder(DSColor.accent, lineWidth: 2)
+                        .padding(-2)
+                        .allowsHitTesting(false)
+                }
+            }
             .contentShape(Rectangle())
             .background {
                 PaneTileWindowFrameReader { view in
@@ -242,11 +307,16 @@ private struct PaneTileView: View {
             // AppKit のマウストラッキングへゼロ距離 DragGesture を渡さない。
             .simultaneousGesture(TapGesture().onEnded { onSelect() })
             .contextMenu { contextMenuContent }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(Text(verbatim: accessibilityText))
     }
 
     private var tileShell: some View {
         VStack(spacing: 0) {
             header
+            if let parentName {
+                GridTileParentRow(parentName: parentName)
+            }
             tileContent
         }
     }
@@ -258,16 +328,29 @@ private struct PaneTileView: View {
             TerminalView(coordinator: session.terminalCoordinator)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
-        case .appServer(let session):
-            GridChatColumn(viewModel: session, projectName: projectName, onFocusGained: onSelect)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
+        case .appServer(let chat):
+            let tab = tileTabs?.selected(session.id) ?? .conversation
+            if tab != .conversation, let tileTabs, GridTileSize.showsChildTabs(size) {
+                tileTabs.content(session.id, tab)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+            } else if GridTileSize.showsConversationColumn(size) {
+                GridChatColumn(viewModel: chat, projectName: projectName, onFocusGained: onSelect)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+            } else {
+                GridTileCompactBody(viewModel: chat, tileSize: size, onOpen: onOpenSingle)
+                    .clipped()
+            }
         }
     }
 
-    /// 「右に分割 / 下に分割」は置かない（分割は既存セッションの移動でだけ起きる）。
+    /// サイドバーの行と同じ操作に「グリッドから外す」を足す（06 対応表）。「右に分割 / 下に分割」は置かない。
     @ViewBuilder
     private var contextMenuContent: some View {
+        Button("グリッドから外す") { onRemoveFromGrid() }
+            .disabled(!canRemoveFromGrid)
+        Divider()
         Button("名前を変更") { onRename() }
         if session.pty != nil {
             Button("プロジェクトを変更") { onChangeWorkspace() }
@@ -275,50 +358,36 @@ private struct PaneTileView: View {
         Button("削除", role: .destructive) { onRemove() }
     }
 
-    private var requiresAttention: Bool {
-        SessionAttentionPolicy.requiresAttention(
-            status: session.status,
-            hasUnseenCompletion: session.hasUnseenCompletion
-        )
-    }
-
-    private var tileBackground: Color {
-        requiresAttention ? DSColor.stoppedHighlightGrid : DSColor.surfaceElevated
-    }
+    private var state: SessionDisplayState { session.gridDisplayState }
 
     private var borderAppearance: GridTileBorderAppearance {
         GridTileBorderPolicy.appearance(
             isFocused: isFocused,
-            requiresAttention: requiresAttention,
+            requiresAttention: state.attentionKind != nil,
             isDropTargeted: false
         )
     }
 
-    @ViewBuilder
+    /// 状態は内側の縁。対応待ちの 4 状態だけ状態の色、ほかは区切り線の色（太さで状態を分けない）。
     private var tileBorder: some View {
-        RoundedRectangle(cornerRadius: DSRadius.m)
-            .strokeBorder(tileBorderColor, lineWidth: tileBorderWidth)
-
-        // 注意喚起は太い赤の外枠で維持し、選択中だけ内側に独立したリングを重ねる。
-        if borderAppearance.showsAttention, borderAppearance.showsFocusHighlight {
-            RoundedRectangle(cornerRadius: DSRadius.m - 4)
-                .strokeBorder(DSColor.textSecondary, lineWidth: 2)
-                .padding(4)
-        }
+        RoundedRectangle(cornerRadius: 9)
+            .strokeBorder(
+                borderAppearance.showsAttention ? state.attentionKind.map { DSColor.attentionMark($0) } ?? DSColor.separator : DSColor.separator,
+                lineWidth: borderAppearance.showsAttention ? 1.5 : 1
+            )
     }
 
-    private var tileBorderColor: Color {
-        if borderAppearance.showsAttention {
-            return DSColor.stoppedHighlightGridBorder
+    private var accessibilityText: String {
+        let elapsed = session.statusEnteredAt.map {
+            SessionRelativeTime.label(from: $0, to: Date(), locale: locale)
         }
-        return borderAppearance.showsFocusHighlight
-            ? DSColor.textSecondary
-            : DSColor.textSecondary.opacity(0.4)
-    }
-
-    private var tileBorderWidth: CGFloat {
-        if borderAppearance.showsAttention { return 3 }
-        return borderAppearance.showsFocusHighlight ? 2 : 1
+        return GridTileText.accessibilityLabel(
+            title: session.displayName,
+            state: state.localizedLabel(locale: locale),
+            elapsed: elapsed,
+            isFocused: isFocused,
+            locale: locale
+        )
     }
 
     private func selectImmediately() {
@@ -327,54 +396,16 @@ private struct PaneTileView: View {
     }
 
     private var header: some View {
-        HStack(spacing: DSSpacing.s) {
-            let isCompact = size.width < PaneLayoutView.minimumPaneWidth
-            StatusLabel(status: session.displayStatus, hasUnseenCompletion: session.hasUnseenCompletion)
-            AgentSessionIcon(descriptor: session.agentDescriptor, status: session.displayStatus, size: 24)
-            let presentation = SessionTitlePresentation(
-                state: session.titleState,
-                fallback: SessionViewModel.shortID(for: session.id),
-                workspacePath: session.workspacePath
-            )
-            Text(presentation.primary)
-                .font(DSFont.heroTitle)
-                .foregroundStyle(DSColor.textPrimary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .layoutPriority(1)
-                .help(presentation.helpText)
-                .accessibilityValue(presentation.accessibilityValue)
-            if let secondary = presentation.secondary {
-                if !isCompact {
-                    Text(secondary)
-                        .font(DSFont.caption)
-                        .foregroundStyle(DSColor.textPrimary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .accessibilityHidden(true)
-                }
-            }
-            if !isCompact, !session.workspaceName.isEmpty {
-                Text(session.workspaceName)
-                    .font(DSFont.caption)
-                    .foregroundStyle(DSColor.textSecondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            Spacer(minLength: 0)
-            Button(action: onRemove) {
-                Image(systemName: "xmark")
-                    .imageScale(.small)
-                    .foregroundStyle(DSColor.textSecondary)
-                    .frame(width: DSHitTarget.icon, height: DSHitTarget.icon)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(HoverableIconButtonStyle())
-            .help("セッションを閉じる")
-        }
-        .padding(.horizontal, DSSpacing.s)
-        .padding(.vertical, DSSpacing.xs)
-        .background(Color.clear)
+        GridTileHeader(
+            session: session,
+            tileSize: size,
+            number: number,
+            isInternal: session.launchContext == .orchestration,
+            canRemoveFromGrid: canRemoveFromGrid,
+            tabs: tileTabs,
+            onRemoveFromGrid: onRemoveFromGrid,
+            onSelect: onSelect
+        )
         .contentShape(Rectangle())
         .help(session.workspacePath)
         .draggable(DraggedSession(id: session.id)) {
@@ -393,6 +424,52 @@ private struct PaneTileView: View {
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in selectImmediately() }
         )
+    }
+}
+
+/// ドロップ先の塗り（S8）。入れ替えはタイル全体を淡く、分割は差し込む側の半分を塗って説明を出す。
+private struct PaneDropIndicatorView: View {
+    let target: PaneDropTarget
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 7)
+            .fill(DSColor.accent.opacity(0.14))
+            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(DSColor.accent, lineWidth: 2))
+            .overlay {
+                Text(label)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(DSColor.accentInk)
+            }
+            .padding(4)
+    }
+
+    private var label: LocalizedStringKey {
+        switch target {
+        case .swap: "入れ替え"
+        case .split(.leading): "左に分割して挿入"
+        case .split(.trailing): "右に分割して挿入"
+        case .split(.top): "上に分割して挿入"
+        case .split(.bottom): "下に分割して挿入"
+        }
+    }
+}
+
+/// ドラッグ中の説明（S8）。
+private struct PaneDropLegend: View {
+    var body: some View {
+        HStack(spacing: 14) {
+            Text("ドロップ位置").fontWeight(.semibold).foregroundStyle(DSColor.textPrimary)
+            Text("中央 = 入れ替え")
+            Text("上下左右の端 = 50:50 で分割して挿入")
+            Text("Esc = 取り消し")
+        }
+        .font(.system(size: 11.5))
+        .foregroundStyle(DSColor.textSecondary)
+        .lineLimit(1)
+        .padding(.horizontal, 14)
+        .frame(height: 30)
+        .background(DSColor.surfaceElevated, in: Capsule())
+        .dsShadow(.popover)
     }
 }
 

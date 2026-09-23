@@ -18,28 +18,40 @@ struct PaneLayoutPresetMenu: View {
         .mainTopStackBottom
     ]
 
+    /// 今のレイアウトの名前（表示言語で引いたもの）と、そのあと手で崩したか（06「（調整済み）」）。
+    let currentName: String
+    let isAdjusted: Bool
     let onSelect: (PaneLayoutPreset) -> Void
+    @Environment(\.locale) private var locale
 
-    init(onSelect: @escaping (PaneLayoutPreset) -> Void) {
+    init(currentName: String = "", isAdjusted: Bool = false, onSelect: @escaping (PaneLayoutPreset) -> Void) {
+        self.currentName = currentName
+        self.isAdjusted = isAdjusted
         self.onSelect = onSelect
     }
 
     var body: some View {
         Menu {
             ForEach(Self.items, id: \.self) { preset in
-                Button(preset.displayName) {
+                Button(AppLocalizedString.string(preset.displayName, locale: locale)) {
                     onSelect(preset)
                 }
             }
         } label: {
-            Image(systemName: "rectangle.split.2x2")
-                .font(.system(size: DSIconSize.l, weight: .medium))
-                .foregroundStyle(DSColor.textSecondary)
-                .frame(width: 28, height: 28)
-                .contentShape(Rectangle())
+            HStack(spacing: 6) {
+                Text("レイアウト: \(isAdjusted ? String(format: AppLocalizedString.string("%@（調整済み）", locale: locale), currentName) : currentName)")
+                Text(verbatim: "▾").font(.system(size: 9)).opacity(0.7)
+            }
+            .font(.system(size: 12))
+            .foregroundStyle(DSColor.textPrimary)
+            .padding(.horizontal, 8)
+            .frame(height: 22)
+            .contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton)
-        .frame(width: 28, height: 28)
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
         .help("レイアウトを選択")
     }
 }

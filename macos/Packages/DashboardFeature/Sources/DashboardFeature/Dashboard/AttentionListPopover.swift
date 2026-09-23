@@ -11,6 +11,8 @@ struct AttentionButton: View {
     @Bindable var router: AppRouter
     let density: ToolbarDensity
 
+    @Environment(\.locale) private var locale
+
     var body: some View {
         let count = viewModel.attentionEntries.count
         Button {
@@ -37,10 +39,12 @@ struct AttentionButton: View {
         }
         .buttonStyle(.plain)
         .disabled(count == 0)
-        .help(String(localized: "対応待ち \(count) 件（⌥⌘J で一覧、⌘J で次へ）"))
+        .help(Text("対応待ち \(count) 件（⌥⌘J で一覧、⌘J で次へ）"))
         .accessibilityLabel(Text("対応待ち \(count) 件（⌥⌘J で一覧、⌘J で次へ）"))
         .popover(isPresented: listBinding(count: count), arrowEdge: .bottom) {
+            // ツールバーから開くポップオーバーはアプリ内の言語設定を受け継がないので渡し直す。
             AttentionListPopover(viewModel: viewModel, router: router)
+                .environment(\.locale, locale)
         }
     }
 
@@ -218,7 +222,7 @@ private struct AttentionRow: View {
     var body: some View {
         // 無応答の経過は 1 秒ごと、それ以外は待ち時間の分表示に合わせて 1 分ごと。
         TimelineView(.periodic(from: .now, by: state == .stalled ? 1 : 60)) { context in
-            let elapsed = entry.since.map { SidebarRelativeTime.label(from: $0, to: context.date) }
+            let elapsed = entry.since.map { SidebarRelativeTime.label(from: $0, to: context.date, locale: locale) }
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 HStack(spacing: DSSpacing.s) {
                     Text(node.displayName)
@@ -287,12 +291,12 @@ private struct AttentionRow: View {
     private func accessibilityText(now: Date) -> String {
         let parts = [state.localizedLabel(locale: locale), node.displayName, projectName ?? ""]
             .filter { !$0.isEmpty }
-            .joined(separator: String(localized: "、"))
+            .joined(separator: AppLocalizedString.string("、", locale: locale))
         guard let since = entry.since else { return parts }
         let relative = since.formatted(
             Date.RelativeFormatStyle(presentation: .numeric, unitsStyle: .wide, locale: locale)
         )
-        return String(localized: "\(parts)、\(relative)から")
+        return String(format: AppLocalizedString.string("%@、%@から", locale: locale), parts, relative)
     }
 }
 

@@ -248,7 +248,7 @@ struct SessionTabStoreTests {
         #expect(target == .childTab(.terminal))
     }
 
-    @Test("会話タブとグリッドでは ⌘W はセッション（確認つきの削除）")
+    @Test("会話タブでは ⌘W はセッション（確認つきの削除）、グリッドではタイルを外す")
     func closeTargetsSession() {
         let store = SessionTabStore()
         let session = SessionID()
@@ -258,7 +258,7 @@ struct SessionTabStoreTests {
         store.updateLayout(for: session) { $0.select(.conversation) }
         let inConversation = store.closeTarget(selectedSession: session, viewMode: .single)
 
-        #expect(inGrid == .session(session))
+        #expect(inGrid == .gridTile(session))
         #expect(inConversation == .session(session))
     }
 

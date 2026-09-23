@@ -13,7 +13,7 @@
 # 環境変数:
 #   SWIFT_TEST_PACKAGES         空白区切りのパッケージ名。引数が無いときの対象（既定は下記）
 #   SWIFT_TEST_SKIP             空白区切りで除外するテストスイート名（swift test --skip に渡す）
-#   SWIFT_TEST_SERIAL_PACKAGES  --no-parallel で走らせるパッケージ（既定 DashboardFeature）
+#   SWIFT_TEST_SERIAL_PACKAGES  --no-parallel で走らせるパッケージ（既定 SessionFeature DashboardFeature）
 #   SWIFT_TEST_GIT_SUITES       実 git を起動するスイート。DashboardFeature の別パスで走らせる
 #   SWIFT_TEST_OUTPUT           compact（成功時は要約）または full（全ログ）。既定 compact
 #
@@ -63,7 +63,9 @@ DEFAULT_PACKAGES="AgentDomain DesignSystem MessageStore SessionFeature Dashboard
 #     見えなくなっただけ**である。根治には `UserDefaults.phloxDefaults(environment:)` を
 #     製品コード側で依存性注入として通す必要があり、テストだけでは閉じない。
 #     独立レビュー（2026-08-05）が検出した。**別課題として起票済み。**
-SERIAL_PACKAGES="${SWIFT_TEST_SERIAL_PACKAGES-DashboardFeature}"
+# SessionFeature の @MainActor 時間上限テストも並列過負荷で 0.5 秒を超える。
+# 1051 件の直列実行では同じアサーションが全件成功したため、除外せず直列化する。
+SERIAL_PACKAGES="${SWIFT_TEST_SERIAL_PACKAGES-SessionFeature DashboardFeature}"
 
 # ── 実 git スイートの別パス ──────────────────────────────────────────────
 #

@@ -41,6 +41,40 @@ public enum ChatRecap {
         }
         return state
     }
+
+    /// 思考中インジケータの下段に出す「いま何をしているか」（04 A1・B1）。最後のユーザー入力以降の
+    /// コマンド・ファイル変更を優先し、無ければ推論の見出しを使う。規則は `ThinkingRecap.summary` と同じ
+    /// （開始 5 秒未満は出さない）。文言は表示言語で組むため、活動そのものを返す。
+    public static func summary(transcript: [ChatItem], elapsed: TimeInterval) -> Summary? {
+        guard elapsed >= ThinkingRecap.defaultThreshold else { return nil }
+        let start = transcript.lastIndex(where: {
+            if case .userMessage = $0 { return true }
+            return false
+        }).map { $0 + 1 } ?? 0
+        var activity: RecapActivity?
+        var reasoningText: String?
+        for item in transcript[start...] {
+            switch item {
+            case .commandExecution(_, let command, _, _):
+                activity = .fromCommand(command)
+            case .fileChange(_, let changes, _):
+                if let path = changes.last?.path {
+                    activity = .editing((path as NSString).lastPathComponent)
+                }
+            case .reasoning(_, let text, _):
+                reasoningText = text
+            default:
+                break
+            }
+        }
+        if let activity { return .activity(activity) }
+        return ThinkingRecap.headline(from: reasoningText).map(Summary.headline)
+    }
+
+    public enum Summary: Equatable {
+        case activity(RecapActivity)
+        case headline(String)
+    }
 }
 
 /// ツール実行グループのヘッダタイトルを導出する純粋関数。

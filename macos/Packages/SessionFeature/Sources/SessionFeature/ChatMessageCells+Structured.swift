@@ -72,9 +72,12 @@ struct ThinkingIndicatorCell: View {
     /// orb と状態語に出す活動状態。
     var state: AgentActivityState = .thinking
     var hangAssessment: ((Date) -> ChatHangAssessment?)? = nil
+    /// 下段の「いま何をしているか」（04 A1・B1）。
+    var recap: ((Date) -> ChatRecap.Summary?)? = nil
     var onInterrupt: (() async -> Void)? = nil
     @State private var isInViewport = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.locale) private var locale
     /// 表示ライフサイクルのイベントでのみ更新する。アニメーション状態には使わない。
     @State private var isInViewHierarchy = false
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
@@ -84,11 +87,13 @@ struct ThinkingIndicatorCell: View {
         descriptor: AgentDescriptor,
         state: AgentActivityState = .thinking,
         hangAssessment: ((Date) -> ChatHangAssessment?)? = nil,
+        recap: ((Date) -> ChatRecap.Summary?)? = nil,
         onInterrupt: (() async -> Void)? = nil
     ) {
         self.descriptor = descriptor
         self.state = state
         self.hangAssessment = hangAssessment
+        self.recap = recap
         self.onInterrupt = onInterrupt
     }
 
@@ -104,35 +109,14 @@ struct ThinkingIndicatorCell: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-            AvatarMessageRow {
-            VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
-                HStack(spacing: DSSpacing.xs) {
-                    ThinkingOrbView(state: state, size: .inline, isVisible: isTimelineVisible)
-                    ShimmerTextView(
-                        text: state.orbLabel,
-                        font: ChatScaledFont.body(scale: scale),
-                        pointSize: ChatScaledFont.bodyPointSize(scale: scale),
-                        // 帯の明度で不透明度を変調するため、基準色は本文色。下限（0.55）で
-                        // ちょうど secondary 相当の濃さになり、帯の頂点で本文色まで濃くなる。
-                        color: DSColor.chatTextPrimary,
-                        isVisible: isTimelineVisible
-                    )
+        AvatarMessageRow {
+            if let hangAssessment {
+                TimelineView(HangStatusTimelineSchedule(isVisible: isTimelineVisible)) { context in
+                    row(scale: scale, assessment: hangAssessment(context.date), recap: recap?(context.date))
                 }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(state.orbLabel)
-                if let hangAssessment {
-                    TimelineView(HangStatusTimelineSchedule(isVisible: isTimelineVisible)) { context in
-                        if let assessment = hangAssessment(context.date) {
-                            RunningTurnStatusView(
-                                assessment: assessment,
-                                scale: scale,
-                                onInterrupt: onInterrupt
-                            )
-                        }
-                    }
-                }
+            } else {
+                row(scale: scale, assessment: nil, recap: nil)
             }
-            .padding(.vertical, TranscriptTypography.metadataGap)
         }
         .onAppear {
             isInViewHierarchy = true
@@ -143,53 +127,92 @@ struct ThinkingIndicatorCell: View {
         .onViewportVisibilityChange { isInViewport = $0 }
     }
 
-}
-
-private struct RunningTurnStatusView: View {
-    let assessment: ChatHangAssessment
-    let scale: CGFloat
-    let onInterrupt: (() async -> Void)?
-    @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
-
-    var body: some View {
-        let _ = themeID
-        VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
-            Text(Self.elapsedText(assessment.elapsed))
-                .font(ChatScaledFont.caption(scale: scale))
-                .foregroundStyle(DSColor.chatTextSecondary)
-
-            if assessment.isStalled {
-                HStack(spacing: DSSpacing.s) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(DSColor.statusAwaitingApproval)
-                    Text("応答がありません（\(Self.secondsText(assessment.silence)) 無応答）")
-                        .font(ChatScaledFont.captionStrong(scale: scale))
-                        .foregroundStyle(DSColor.chatTextPrimary)
-                    if let onInterrupt {
-                        Button("中断") {
-                            Task { await onInterrupt() }
+    /// 無応答（04 B5）では行全体を紫の面と縁で囲み、経過と「中断」を右に出す。
+    private func row(scale: CGFloat, assessment: ChatHangAssessment?, recap: ChatRecap.Summary?) -> some View {
+        let isStalled = assessment?.isStalled ?? false
+        let detail = Self.detailText(recap: recap, assessment: assessment)
+        return HStack(spacing: DSSpacing.m) {
+            ThinkingOrbView(state: state, size: .inline, isVisible: isTimelineVisible)
+            VStack(alignment: .leading, spacing: 1) {
+                ShimmerTextView(
+                    text: state.orbLabel(locale: locale),
+                    font: ChatScaledFont.body(scale: scale),
+                    pointSize: ChatScaledFont.bodyPointSize(scale: scale),
+                    // 帯の明度で不透明度を変調するため、基準色は本文色。下限（0.55）で
+                    // ちょうど secondary 相当の濃さになり、帯の頂点で本文色まで濃くなる。
+                    color: DSColor.chatTextPrimary,
+                    isVisible: isTimelineVisible
+                )
+                if let detail {
+                    detail
+                        .font(ChatScaledFont.caption(scale: scale))
+                        .foregroundStyle(DSColor.chatTextSecondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .accessibilityIdentifier("ChatHang.status")
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(detail.map { Text("\(state.orbLabel(locale: locale))、\($0)") } ?? Text(verbatim: state.orbLabel(locale: locale)))
+            Spacer(minLength: 0)
+            if isStalled, let assessment {
+                Text("無応答 \(Self.clockText(assessment.silence))")
+                    .font(ChatScaledFont.captionStrong(scale: scale))
+                    .monospacedDigit()
+                    .foregroundStyle(DSColor.attentionInk(.stalled))
+                if let onInterrupt {
+                    Button {
+                        Task { await onInterrupt() }
+                    } label: {
+                        HStack(spacing: DSSpacing.xs) {
+                            Text("中断")
+                            Text(verbatim: "Esc")
+                                .foregroundStyle(DSColor.textTertiary)
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .accessibilityIdentifier("ChatHang.interruptButton")
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityLabel(Text("中断"))
+                    .accessibilityIdentifier("ChatHang.interruptButton")
                 }
             }
         }
-        .accessibilityIdentifier("ChatHang.status")
-    }
-
-    private static func elapsedText(_ interval: TimeInterval) -> String {
-        let seconds = max(0, Int(interval.rounded(.down)))
-        if seconds < 60 {
-            return "\(seconds)s"
+        .padding(.vertical, isStalled ? 9 : TranscriptTypography.metadataGap)
+        .padding(.horizontal, isStalled ? DSSpacing.m : 0)
+        .background {
+            if isStalled {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(DSColor.attentionTint(.stalled))
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(DSColor.attentionMark(.stalled), lineWidth: 1)
+            }
         }
-        return "\(seconds / 60)m \(String(format: "%02d", seconds % 60))s"
     }
 
-    private static func secondsText(_ interval: TimeInterval) -> String {
-        "\(max(0, Int(interval.rounded(.down))))s"
+    /// 「swift build を実行中 · 38 秒」。要約が無ければ経過だけ。無応答の間は経過を右に出すので要約だけ。
+    private static func detailText(recap: ChatRecap.Summary?, assessment: ChatHangAssessment?) -> Text? {
+        let recapText: Text? = recap.map { summary in
+            switch summary {
+            case .activity(.reading(let x)): Text("\(ThinkingRecap.clamp(x)) を読み込み中")
+            case .activity(.running(let x)): Text("\(ThinkingRecap.clamp(x)) を実行中")
+            case .activity(.editing(let x)): Text("\(ThinkingRecap.clamp(x)) を編集中")
+            case .headline(let x): Text(verbatim: x)
+            }
+        }
+        guard let assessment else { return recapText }
+        if assessment.isStalled { return recapText }
+        let elapsed = elapsedLabel(assessment.elapsed)
+        guard let recapText else { return elapsed }
+        return Text("\(recapText) · \(elapsed)")
     }
+
+    private static func elapsedLabel(_ interval: TimeInterval) -> Text {
+        let seconds = max(0, Int(interval.rounded(.down)))
+        if seconds < 60 { return Text("\(seconds) 秒") }
+        return Text(verbatim: clockText(interval))
+    }
+
+    static func clockText(_ interval: TimeInterval) -> String { StallClock.text(interval) }
 }
 
 struct ReasoningSummaryView: View {

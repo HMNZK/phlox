@@ -114,10 +114,15 @@ public struct ChatSessionView: View {
         return max(0, width)
     }
 
-    /// メインチャットのカラム（トランスクリプト／コンポーザ）。
-    /// セッション名はタイトルバー（設定ボタン右）に表示済みのため、カラム内ヘッダー行は置かない。
+    /// メインチャットのカラム（セッションヘッダ／トランスクリプト／コンポーザ）。
     private func mainColumn(width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
+            // 高さ固定の兄弟なので、中身の変化が会話のレイアウトへ戻らない（ADR 0010 の非収束は可変高の兄弟で起きた）。
+            ChatSessionHeader(
+                viewModel: viewModel,
+                agentDescriptor: agentDescriptor,
+                onToggleSubAgent: toggleSubAgentSelection
+            )
             ApprovalBanner(viewModel: viewModel)
             ChatTranscriptView(
                 viewModel: viewModel,
@@ -195,7 +200,8 @@ public struct ChatSessionView: View {
                     SessionActivityOverlayStrip(
                         backgroundTasks: viewModel.runningBackgroundTasks,
                         transcriptItemIDs: { viewModel.transcriptItemIDs },
-                        subAgents: viewModel.stripSubAgents,
+                        // サブエージェントの帯はヘッダ右へ移した（04 C3）。ここはバックグラウンドタスクだけ。
+                        subAgents: [],
                         selectedSubAgentId: viewModel.selectedSubAgentId,
                         onJump: { requestedTranscriptTarget = $0 },
                         onSelectSubAgent: toggleSubAgentSelection,

@@ -12,6 +12,8 @@ public struct ChatItemView: View, Equatable {
     /// 配線しない場所（サブエージェントのドロワー・チームのタイムライン等の閲覧専用表示）では
     /// 閉じるボタン自体が出ない。
     var onDismissUserQuestion: (() -> Void)? = nil
+    /// turnCost の行（金額の無い Codex はターン最後の応答の下）に添えるトークン内訳。
+    var turnUsage: TurnUsage? = nil
 
     public init(
         item: ChatItem,
@@ -19,7 +21,8 @@ public struct ChatItemView: View, Equatable {
         agentDescriptor: AgentDescriptor,
         onSelectSubAgent: ((String) -> Void)? = nil,
         onRespondToUserQuestion: ((String, [String: [String]]) async -> Bool)? = nil,
-        onDismissUserQuestion: (() -> Void)? = nil
+        onDismissUserQuestion: (() -> Void)? = nil,
+        turnUsage: TurnUsage? = nil
     ) {
         self.item = item
         self.isRunningCommand = isRunningCommand
@@ -27,6 +30,7 @@ public struct ChatItemView: View, Equatable {
         self.onSelectSubAgent = onSelectSubAgent
         self.onRespondToUserQuestion = onRespondToUserQuestion
         self.onDismissUserQuestion = onDismissUserQuestion
+        self.turnUsage = turnUsage
     }
 
     /// ADR 0116: 未変更行の body 再評価をスキップするための同値性（呼び出し側で `.equatable()`）。
@@ -40,6 +44,7 @@ public struct ChatItemView: View, Equatable {
         lhs.item == rhs.item
             && lhs.isRunningCommand == rhs.isRunningCommand
             && lhs.agentDescriptor == rhs.agentDescriptor
+            && lhs.turnUsage == rhs.turnUsage
     }
 
     public var body: some View {
@@ -48,6 +53,9 @@ public struct ChatItemView: View, Equatable {
             UserMessageCell(text: text, timestamp: timestamp, attachments: attachments)
         case .agentMessage(_, let text, let timestamp):
             AgentMessageCell(text: text, timestamp: timestamp, descriptor: agentDescriptor)
+            if let turnUsage {
+                TurnCostCell(costUSD: nil, timestamp: timestamp, usage: turnUsage)
+            }
         case .reasoning(_, let text, let timestamp):
             if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 EmptyView()
@@ -75,7 +83,7 @@ public struct ChatItemView: View, Equatable {
         case .taskList(_, let tasks, let timestamp):
             TaskListCell(tasks: tasks, timestamp: timestamp)
         case .turnCost(_, let costUSD, let timestamp):
-            TurnCostCell(costUSD: costUSD, timestamp: timestamp)
+            TurnCostCell(costUSD: costUSD, timestamp: timestamp, usage: turnUsage)
         case .userQuestion(let id, let requestId, let questions, let answers, let state, let timestamp):
             UserQuestionCell(
                 itemId: id,

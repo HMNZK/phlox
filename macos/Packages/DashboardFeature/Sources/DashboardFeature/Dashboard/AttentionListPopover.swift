@@ -81,7 +81,8 @@ struct AttentionListPopover: View {
                             projectName: projectName(for: row.node),
                             isFocused: focusedID == row.entry.id,
                             onOpen: { open(row.entry.id) },
-                            onDecide: { decide($0, for: row.node) }
+                            onDecide: { decide($0, for: row.node) },
+                            onInterrupt: { interrupt(row.node) }
                         )
                         .focusable()
                         .focused($focusedID, equals: row.entry.id)
@@ -176,6 +177,12 @@ struct AttentionListPopover: View {
         guard case .appServer(let chat) = node, let approval = chat.pendingApprovals.first else { return }
         Task { await chat.respondToApproval(approval.id, decision: decision) }
     }
+
+    /// 無応答のチャット型を一覧から中断する（01 E1）。
+    private func interrupt(_ node: SessionNode) {
+        guard case .appServer(let chat) = node else { return }
+        Task { await chat.turnInterrupt() }
+    }
 }
 
 private struct AttentionRow: View {
@@ -185,28 +192,32 @@ private struct AttentionRow: View {
     let isFocused: Bool
     let onOpen: () -> Void
     let onDecide: (ApprovalDecision) -> Void
+    let onInterrupt: () -> Void
 
     @Environment(\.locale) private var locale
 
-    private var state: SessionDisplayState {
-        SessionDisplayState.resolve(node.displayStatus, hasUnseenCompletion: node.hasUnseenCompletion)
-    }
+    private var state: SessionDisplayState { node.tabDisplayState }
 
     private var canDecide: Bool {
         if case .appServer(let chat) = node { return !chat.pendingApprovals.isEmpty }
         return false
     }
 
-    private var detail: String? {
+    private func detail(now: Date) -> String? {
+        // 01 E1: 無応答は「無応答 4:12」を中身の行に出す。
+        if state == .stalled, let silence = node.stalledSilence(now: now) {
+            return "\(state.localizedLabel(locale: locale)) \(StallClock.text(silence))"
+        }
         switch node.displayStatus {
-        case .awaitingApproval(let prompt): prompt.isEmpty ? nil : prompt
-        case .error(let message): message.isEmpty ? nil : message
-        default: nil
+        case .awaitingApproval(let prompt): return prompt.isEmpty ? nil : prompt
+        case .error(let message): return message.isEmpty ? nil : message
+        default: return nil
         }
     }
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 60)) { context in
+        // 無応答の経過は 1 秒ごと、それ以外は待ち時間の分表示に合わせて 1 分ごと。
+        TimelineView(.periodic(from: .now, by: state == .stalled ? 1 : 60)) { context in
             let elapsed = entry.since.map { SidebarRelativeTime.label(from: $0, to: context.date) }
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 HStack(spacing: DSSpacing.s) {
@@ -228,7 +239,7 @@ private struct AttentionRow: View {
                     .font(DSFont.meta)
                     .foregroundStyle(DSColor.textSecondary)
                     .lineLimit(1)
-                if let detail {
+                if let detail = detail(now: context.date) {
                     Text(detail)
                         .font(DSFont.monoCaption)
                         .foregroundStyle(DSColor.textPrimary)
@@ -263,6 +274,9 @@ private struct AttentionRow: View {
             } else if state == .question {
                 Button("回答する…", action: onOpen)
                     .buttonStyle(AttentionActionButtonStyle(isPrimary: true))
+            } else if state == .stalled {
+                Button("中断", action: onInterrupt)
+                    .buttonStyle(AttentionActionButtonStyle(isPrimary: false))
             }
             Button("開く", action: onOpen)
                 .buttonStyle(AttentionActionButtonStyle(isPrimary: false))

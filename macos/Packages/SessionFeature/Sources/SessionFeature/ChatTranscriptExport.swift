@@ -19,6 +19,23 @@ public struct ChatTranscriptExportOptions: Sendable, Equatable {
         self.includesCommandOutput = includesCommandOutput
         self.includesTimestamps = includesTimestamps
     }
+
+    /// 書き出しの設定はアプリ全体で記憶する（04 C6）。
+    public static let includesReasoningKey = "phlox.chatExport.includesReasoning"
+    public static let includesCommandOutputKey = "phlox.chatExport.includesCommandOutput"
+    public static let includesTimestampsKey = "phlox.chatExport.includesTimestamps"
+
+    public static func stored(defaults: UserDefaults = .standard) -> ChatTranscriptExportOptions {
+        let fallback = ChatTranscriptExportOptions()
+        func value(_ key: String, _ fallback: Bool) -> Bool {
+            defaults.object(forKey: key) == nil ? fallback : defaults.bool(forKey: key)
+        }
+        return ChatTranscriptExportOptions(
+            includesReasoning: value(includesReasoningKey, fallback.includesReasoning),
+            includesCommandOutput: value(includesCommandOutputKey, fallback.includesCommandOutput),
+            includesTimestamps: value(includesTimestampsKey, fallback.includesTimestamps)
+        )
+    }
 }
 
 /// エクスポートの見出しに載せるセッション情報。

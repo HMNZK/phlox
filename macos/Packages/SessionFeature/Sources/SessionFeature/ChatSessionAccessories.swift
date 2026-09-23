@@ -241,7 +241,7 @@ enum SubAgentDismissButtonPresentation {
     }
 }
 
-private struct SubAgentStripRow: View {
+struct SubAgentStripRow: View {
     let subAgent: SubAgentRef
     let isSelected: Bool
     let onSelect: () -> Void

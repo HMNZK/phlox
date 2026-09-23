@@ -185,7 +185,7 @@ struct SidebarSessionRow<Menu: View>: View {
             if isRenaming {
                 SidebarRenameField(
                     text: $renameDraft,
-                    hint: "↩ 確定 · Esc 取消 · 空欄で自動の名前に戻す",
+                    hint: "↩ 確定 · Esc 取消 · 空欄で短縮 ID 表示に戻す",
                     onCommit: onCommitRename,
                     onCancel: onCancelRename
                 )
@@ -267,12 +267,24 @@ struct SidebarSessionRow<Menu: View>: View {
                     .monospacedDigit()
                     .fixedSize()
             }
+        } else if state == .stalled {
+            // 「無応答 2:14」（13 Review）。1 秒ごとに更新する。
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                stateText(node.stalledSilence(now: context.date).map {
+                    "\(state.localizedLabel(locale: locale)) \(StallClock.text($0))"
+                } ?? state.localizedLabel(locale: locale))
+            }
         } else {
-            Text(verbatim: state.localizedLabel(locale: locale))
-                .font(DSFont.meta.weight(state.attentionKind != nil ? .semibold : state == .running ? .medium : .regular))
-                .foregroundStyle(state.color)
-                .fixedSize()
+            stateText(state.localizedLabel(locale: locale))
         }
+    }
+
+    private func stateText(_ text: String) -> some View {
+        Text(verbatim: text)
+            .font(DSFont.meta.weight(state.attentionKind != nil ? .semibold : state == .running ? .medium : .regular))
+            .monospacedDigit()
+            .foregroundStyle(state.color)
+            .fixedSize()
     }
 
     /// 縦の案内線（親の段ごと）。

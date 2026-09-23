@@ -19,6 +19,7 @@ public struct ThinkingOrbView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.locale) private var locale
 
     public init(state: AgentActivityState, size: OrbSizePreset = .inline, isVisible: Bool = true) {
         self.state = state
@@ -35,7 +36,7 @@ public struct ThinkingOrbView: View {
         )
         .frame(width: CGFloat(size.rawValue), height: CGFloat(size.rawValue))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(state.orbLabel)
+        .accessibilityLabel(state.orbLabel(locale: locale))
     }
 }
 

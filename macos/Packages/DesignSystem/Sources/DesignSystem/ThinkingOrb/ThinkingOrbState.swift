@@ -16,15 +16,18 @@ public extension AgentActivityState {
         }
     }
 
-    /// orb の右に出す状態語。
-    var orbLabel: String {
+    /// 表示言語での状態語（04 A1: 考え中・検索中・実行中・編集中・書き込み中・待機中）。
+    /// 文言は App/Localizable.xcstrings（キーは日本語）から、アプリ内の表示言語で引く。
+    func orbLabel(locale: Locale) -> String {
+        let key: String
         switch self {
-        case .thinking: return "Thinking..."
-        case .searching: return "Searching..."
-        case .running: return "Running..."
-        case .editing: return "Editing..."
-        case .writing: return "Writing..."
-        case .waiting: return "Waiting..."
+        case .thinking: key = "考え中…"
+        case .searching: key = "検索中…"
+        case .running: key = "実行中…"
+        case .editing: key = "編集中…"
+        case .writing: key = "書き込み中…"
+        case .waiting: key = "待機中…"
         }
+        return AppLocalizedString.string(key, locale: locale)
     }
 }

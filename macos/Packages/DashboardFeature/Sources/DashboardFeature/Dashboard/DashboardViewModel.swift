@@ -680,23 +680,57 @@ public final class DashboardViewModel {
         }
     }
 
-    /// 文字サイズを delta だけ増減し、全セッションへ即時適用して永続化する。
-    public func adjustTerminalFontSize(by delta: CGFloat) {
-        let newSize = TerminalFontSettings.adjusted(
-            from: TerminalFontSettings.currentSize(),
-            by: delta
-        )
-        TerminalFontSettings.save(newSize)
+    /// ⌘+ / ⌘− / ⌘0 の対象（13 Review: フォーカス中の領域）。
+    public enum FontSizeTarget: Equatable {
+        case terminal
+        case chat
+        /// セッションを選んでいない。両方を同じ段数だけ動かす（従来どおり）。
+        case both
+    }
 
-        let chatDelta = delta / TerminalFontSettings.step * ChatFontSettings.step
-        let newChatScale = ChatFontSettings.adjusted(
-            from: ChatFontSettings.currentScale(),
-            by: chatDelta
-        )
-        ChatFontSettings.save(newChatScale)
+    /// 前面の領域から、文字サイズを変える対象を決める。共通ターミナルを前面にしていれば端末。
+    /// ターミナル型は会話タブ自体が端末。チャット型は子タブの「ターミナル」を前に出しているときだけ端末。
+    public static func fontSizeTarget(
+        node: SessionNode?,
+        selectedChildTab: ChildTab?,
+        showsCommonTerminal: Bool = false
+    ) -> FontSizeTarget {
+        if showsCommonTerminal { return .terminal }
+        guard let node else { return .both }
+        if node.pty != nil { return .terminal }
+        return selectedChildTab == .terminal ? .terminal : .chat
+    }
 
+    /// 文字サイズを steps 段だけ増減し、全セッションへ即時適用して永続化する。
+    public func adjustFontSize(by steps: CGFloat, target: FontSizeTarget) {
+        if target != .chat {
+            applyTerminalFontSize(TerminalFontSettings.adjusted(
+                from: TerminalFontSettings.currentSize(),
+                by: steps * TerminalFontSettings.step
+            ))
+        }
+        if target != .terminal {
+            ChatFontSettings.save(ChatFontSettings.adjusted(
+                from: ChatFontSettings.currentScale(),
+                by: steps * ChatFontSettings.step
+            ))
+        }
+    }
+
+    /// ⌘0（実寸）。
+    public func resetFontSize(target: FontSizeTarget) {
+        if target != .chat {
+            applyTerminalFontSize(NSFont.systemFontSize)
+        }
+        if target != .terminal {
+            ChatFontSettings.save(ChatFontSettings.defaultScale)
+        }
+    }
+
+    private func applyTerminalFontSize(_ size: CGFloat) {
+        TerminalFontSettings.save(size)
         for session in sessions {
-            session.terminalCoordinator.applyFontSize(newSize)
+            session.terminalCoordinator.applyFontSize(size)
         }
     }
 

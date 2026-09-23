@@ -47,7 +47,7 @@ extension DashboardViewModel {
         AttentionQueue.ordered(desktopSessionNodes.map { node in
             (
                 id: node.id,
-                state: SessionDisplayState.resolve(node.displayStatus, hasUnseenCompletion: node.hasUnseenCompletion),
+                state: node.tabDisplayState,
                 since: node.statusEnteredAt
             )
         })
@@ -63,7 +63,7 @@ extension DashboardViewModel {
     /// 完了の未読（対応待ちとは別に数える）。
     var unseenCompletionNodes: [SessionNode] {
         desktopSessionNodes.filter {
-            SessionDisplayState.resolve($0.displayStatus, hasUnseenCompletion: $0.hasUnseenCompletion) == .doneUnread
+            $0.tabDisplayState == .doneUnread
         }
     }
 

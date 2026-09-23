@@ -118,7 +118,7 @@ struct PhloxApp: App {
             }
             UpdateCommands(appUpdater: appDelegate.appUpdater)
             ViewCommands(router: composition?.router)
-            FontSizeCommands(dashboard: composition?.dashboard)
+            FontSizeCommands(dashboard: composition?.dashboard, router: composition?.router)
             SessionCommands(
                 dashboard: composition?.dashboard,
                 router: composition?.router
@@ -609,21 +609,38 @@ private struct ViewCommands: Commands {
 
 private struct FontSizeCommands: Commands {
     var dashboard: DashboardViewModel?
+    var router: AppRouter?
 
     var body: some Commands {
         CommandGroup(after: .sidebar) {
-            Button("文字を大きく") {
-                dashboard?.adjustTerminalFontSize(by: TerminalFontSettings.step)
+            Button("拡大") {
+                dashboard?.adjustFontSize(by: 1, target: target)
             }
-            .keyboardShortcut("=", modifiers: .command)
+            .keyboardShortcut("+", modifiers: .command)
             .disabled(dashboard == nil)
 
-            Button("文字を小さく") {
-                dashboard?.adjustTerminalFontSize(by: -TerminalFontSettings.step)
+            Button("縮小") {
+                dashboard?.adjustFontSize(by: -1, target: target)
             }
             .keyboardShortcut("-", modifiers: .command)
             .disabled(dashboard == nil)
+
+            Button("実寸") {
+                dashboard?.resetFontSize(target: target)
+            }
+            .keyboardShortcut("0", modifiers: .command)
+            .disabled(dashboard == nil)
         }
+    }
+
+    /// フォーカス中の領域（会話かターミナル）。
+    private var target: DashboardViewModel.FontSizeTarget {
+        let id = router?.selectedSession
+        return DashboardViewModel.fontSizeTarget(
+            node: id.flatMap { dashboard?.sessionNode(id: $0) },
+            selectedChildTab: id.flatMap { router?.tabs.layout(for: $0).selected },
+            showsCommonTerminal: router?.commonTerminalSelected ?? false
+        )
     }
 }
 
@@ -695,6 +712,14 @@ private struct SessionCommands: Commands {
                 }
             }
 
+            // 会話の中断（13 Review: Esc と同じ。ただし Esc 2 回の巻き戻しには数えない）。
+            Button("中断") {
+                guard let chat = exportableChatSession else { return }
+                Task { await chat.turnInterrupt() }
+            }
+            .keyboardShortcut(".", modifiers: .command)
+            .disabled(!(exportableChatSession?.showsProcessingIndicator ?? false))
+
             Divider()
 
             // 対話 TUI の /export 相当。チャットセッションのみ対象（PTY は transcript を持たない）。
@@ -718,8 +743,15 @@ private struct SessionCommands: Commands {
         }
     }
 
+    /// 前面に出ている会話（appServer）の ViewModel。PTY セッションと、共通ターミナルを
+    /// 前面にしている間（会話は背後に隠れている）は対象外。
     private var exportableChatSession: ChatSessionViewModel? {
-        ChatTranscriptExportAction.selectedChatSession(dashboard: dashboard, router: router)
+        guard let dashboard,
+              router?.commonTerminalSelected != true,
+              let sessionID = router?.selectedSession,
+              case .appServer(let chat) = dashboard.sessionNode(id: sessionID)
+        else { return nil }
+        return chat
     }
 
     private static let shortcuts: [AgentKind: KeyboardShortcut] = [

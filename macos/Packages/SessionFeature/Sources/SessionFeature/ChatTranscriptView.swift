@@ -36,6 +36,10 @@ struct ChatTranscriptView: View {
     /// 各ユーザー入力ブロックの content 座標系での minY。スクロール不変なので、
     /// レイアウト変化時のみ preference から更新される（スクロールでは再計算されない・ADR 0030）。
     @State private var userMessageOffsets: [String: CGFloat] = [:]
+    /// 読み戻しで追従を外しているか（04 B7「↓ 最新へ」）。スクロールの通知からだけ書く。
+    @State private var isDetached = false
+    /// 追従を外してから増えた項目の数（「新着 n」）。
+    @State private var unseenSinceDetach = 0
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
@@ -77,14 +81,35 @@ struct ChatTranscriptView: View {
                     .background(
                         ChatAutoFollowScrollObserver(
                             controller: autoFollow,
-                            onViewportCenterChanged: { updateCurrentInputPosition(viewportCenterY: $0, items: items) }
+                            onViewportCenterChanged: { updateCurrentInputPosition(viewportCenterY: $0, items: items) },
+                            onDetachedChanged: setDetached
                         )
                     )
             }
             .onPreferenceChange(TranscriptBlockOffsetsKey.self) { offsets in
                 userMessageOffsets = offsets
             }
-            .onChange(of: transcriptSignal) { _, newSignal in
+            // 追従を外している間だけ、最新へ戻るボタンを会話の下端（入力欄の上）に浮かせる。
+            // レイアウトには参加させない（ADR 0030: スクロール位置を内容のレイアウトへ戻さない）。
+            .overlay(alignment: .bottom) {
+                if isDetached {
+                    JumpToLatestButton(unseenCount: unseenSinceDetach) {
+                        jumpToLatest(proxy)
+                    }
+                    .padding(.bottom, bottomScrollContentMargin + DSSpacing.m)
+                    .transition(.opacity)
+                }
+            }
+            .onKeyPress(.end) {
+                jumpToLatest(proxy)
+                return .handled
+            }
+            .onChange(of: transcriptSignal) { oldSignal, newSignal in
+                if isDetached {
+                    // 新着はメッセージ・質問・エラーだけ数える（コマンドや使用量の行は数えない）。
+                    let added = transcriptItems.suffix(max(0, newSignal.count - oldSignal.count))
+                    unseenSinceDetach += added.filter(Self.countsAsNewMessage).count
+                }
                 scrollToBottomIfNeeded(
                     proxy,
                     trigger: .transcript(newSignal)
@@ -122,6 +147,7 @@ struct ChatTranscriptView: View {
                 revealMinimumBlockCount = 0
                 // 別セッションを開いたので、前の読み戻し状態を持ち越さず最下部へ寄せる。
                 autoFollow.sessionDidChange()
+                setDetached(false)
                 // 直前セッションの pending 遅延 scrollTo を無効化した上で、次のレイアウト確定後に寄せる。
                 scheduleScrollToBottom(proxy)
             }
@@ -178,8 +204,15 @@ struct ChatTranscriptView: View {
             }
             ForEach(Array(visibleSlice.blocks.enumerated()), id: \.element.id) { index, block in
                 let after: TranscriptTypography.BlockRole? = index == 0 ? nil : visibleSlice.blocks[index - 1].content.typographyRole
+                let role = block.content.typographyRole
                 transcriptBlock(block.content, lastTranscriptID: transcriptSignal.lastID)
-                    .padding(.top, TranscriptTypography.gap(after: after, before: block.content.typographyRole))
+                    // 04: エージェント側はすべて同じ字下げ列、ユーザー発言だけ右寄せ。
+                    // ユーザー発言のあと最初のエージェント側の行にだけ、字下げ列へ種類の印を置く。
+                    .agentColumn(
+                        isAgentSide: role != .user,
+                        avatar: role != .user && (after == nil || after == .user) ? agentDescriptor : nil
+                    )
+                    .padding(.top, TranscriptTypography.gap(after: after, before: role))
                     .id(block.id)
                     .background(userMessagePositionProbe(id: block.id, isTracked: userMessageIDs.contains(block.id)))
             }
@@ -189,6 +222,7 @@ struct ChatTranscriptView: View {
                 CompactingIndicatorCell(
                     descriptor: agentDescriptor
                 )
+                .agentColumn(isAgentSide: true, avatar: nil)
                 .padding(.top, TranscriptTypography.withinAnswer)
                 .id("chat-compacting")
             }
@@ -203,8 +237,10 @@ struct ChatTranscriptView: View {
                     descriptor: agentDescriptor,
                     state: activityState,
                     hangAssessment: { viewModel.hangAssessment(now: $0) },
+                    recap: { viewModel.thinkingRecap(now: $0) },
                     onInterrupt: { await viewModel.turnInterrupt() }
                 )
+                    .agentColumn(isAgentSide: true, avatar: nil)
                     .padding(.top, TranscriptTypography.withinAnswer)
                     .id("chat-thinking")
             }
@@ -272,7 +308,8 @@ struct ChatTranscriptView: View {
                             await viewModel.turnInterrupt()
                         }
                     }
-                }
+                },
+                turnUsage: viewModel.turnUsageByItemID[item.id]
             )
             // ADR 0116: 変化していない行の body 再評価を飛ばす。transcript は配列全体が
             // @Observable の依存になっており、1行の更新でもこのビュー全体が無効化されるため、
@@ -408,8 +445,30 @@ struct ChatTranscriptView: View {
     /// 集約された command の個別 id は折りたたみ中のビュー階層に存在しないため、全 transcript 上で
     /// 安定した block id（group は先頭 item.id）へ解決してから scrollTo する。
     /// これはユーザー操作起点であり、スクロール量・可視領域の観測連動ではない（ADR 0030 非該当）。
+    static func countsAsNewMessage(_ item: ChatItem) -> Bool {
+        switch item {
+        case .agentMessage, .userMessage, .userQuestion, .error: true
+        default: false
+        }
+    }
+
+    /// 「↓ 最新へ」・End。最下部へ寄せて追従を戻す。
+    private func jumpToLatest(_ proxy: ScrollViewProxy) {
+        jumpGeneration += 1
+        proxy.scrollTo(ChatScrollTarget.bottom.rawValue, anchor: .bottom)
+        autoFollow.scrollPositionChanged(isAtBottom: true)
+        setDetached(false)
+    }
+
+    private func setDetached(_ detached: Bool) {
+        guard detached != isDetached else { return }
+        isDetached = detached
+        unseenSinceDetach = 0
+    }
+
     private func jumpToTarget(_ target: String, proxy: ScrollViewProxy) {
         autoFollow.userInitiatedJump()
+        setDetached(true)
         // 新しいジャンプは以前の pending 遅延 scrollTo を無効化する。
         jumpGeneration += 1
         let generation = jumpGeneration
@@ -510,5 +569,78 @@ private struct TranscriptBlockOffsetsKey: PreferenceKey {
     static let defaultValue: [String: CGFloat] = [:]
     static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
         value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
+/// 04 の字下げ列（30pt）とエージェントの印（20pt 角・Cl / Cx / Cu）。
+struct TranscriptAgentColumn: ViewModifier {
+    static let indent: CGFloat = 30
+
+    let isAgentSide: Bool
+    let avatar: AgentDescriptor?
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.leading, isAgentSide ? Self.indent : 0)
+            .overlay(alignment: .topLeading) {
+                if let avatar {
+                    TranscriptAgentAvatar(descriptor: avatar)
+                        .padding(.top, 2)
+                }
+            }
+    }
+}
+
+private struct TranscriptAgentAvatar: View {
+    let descriptor: AgentDescriptor
+
+    var body: some View {
+        Text(verbatim: descriptor.tabInitials)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(DSColor.textPrimary)
+            .frame(width: 20, height: 20)
+            .background(DSColor.agentInitialFill(for: descriptor), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
+extension View {
+    func agentColumn(isAgentSide: Bool, avatar: AgentDescriptor?) -> some View {
+        modifier(TranscriptAgentColumn(isAgentSide: isAgentSide, avatar: avatar))
+    }
+}
+
+/// 「↓ 最新へ · 新着 n  End」（04 B7）。
+struct JumpToLatestButton: View {
+    let unseenCount: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: DSSpacing.s) {
+                Text("↓ 最新へ")
+                    .font(.system(size: 12))
+                    .foregroundStyle(DSColor.textPrimary)
+                if unseenCount > 0 {
+                    Text("新着 \(unseenCount)")
+                        .font(.system(size: 10.5, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, 6)
+                        .frame(height: 16)
+                        .background(DSColor.accentFill, in: RoundedRectangle(cornerRadius: 8))
+                }
+                Text(verbatim: "End")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(DSColor.textTertiary)
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 28)
+            .background(DSColor.popoverBackground, in: Capsule())
+            .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("最新のメッセージへ移動"))
+        .accessibilityIdentifier("ChatTranscript.jumpToLatest")
     }
 }

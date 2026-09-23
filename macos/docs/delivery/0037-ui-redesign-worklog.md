@@ -232,3 +232,52 @@ README「未確定事項」に当たるものは、現行の挙動を既定に�
 - Codex（gpt-6-sol high）の独立レビュー: 高 3・中 4。移動失敗時の子タブ破棄・フォーカスの奪い返し・キーボードからメニューに届かない・フォルダ選択後の確認なし・読み上げの言語・表示規則のテスト不足を修正。内部セッションは現行どおりと確認。再レビューで 7 件とも解消、新しい指摘 1 件（同じフォルダでの再起動）は上の決定のとおり。
 - Debug 版での目視（スクリーンショット）: ダークで対応待ちの節・畳んだ行の「エラー 2 · 8」・展開した行（頭文字と経過時間・状態の文言）・↑↓ と → での移動（画面が切り替わっても一覧に入力先が残る）・↩ の名前変更と Esc の取り消し・メニューバー「名前を変更…」で畳まれたプロジェクトが開いて編集に入る。ライトで行の中の名前変更と案内・右クリックのメニュー。英語で「Needs you / Longest wait first / Projects / 18d / error / New Session」と名前変更の案内。
 - 目視していないもの: 移動のサブメニューと F9 の確認（Debug 版のセッションがすべて会話型で、ターミナル型を新しく起動すると実エージェントが動くため起動しなかった）、長いリストでのプロジェクト行の貼り付け（最小の窓でもあふれなかった）、⌘クリックでの解除、VoiceOver の実操作。XCUITest は実行していない。
+
+## P5 会話画面（04 Session Chat）
+
+### 対応表
+
+| 機能一覧（04 の対応表） | 区分 | 内容 | 実装箇所 |
+|---|---|---|---|
+| メッセージ・Markdown・コード（A1・C1） | 変更 | エージェント側の要素を 1 本の字下げ列（30pt）に揃え、ユーザー発言の後に 20pt の頭文字を置く。本文・コピーの動きは従来どおり | `ChatTranscriptView.agentColumn` / `TranscriptAgentAvatar`、`AgentDescriptor.tabInitials`（DesignSystem へ移動） |
+| 推論・コマンド・ファイル変更・タスクリスト（A1・C2） | 既存のまま | 既定の開き方は未確定（下記）のため従来どおり | — |
+| エラー・ユーザー質問・承認バナー（A1・B4） | 既存のまま / P6 へ | 承認バナーの入力欄直上への移動は P6 | — |
+| 思考中・直近アクション要約・接続待ち・圧縮中（A1・B1・B6） | 変更 | 思考中の行を「orb・状態語・『X を実行中 · 38 秒』」に。要約は最後のユーザー入力以降のコマンド / ファイル変更、無ければ推論の見出し、5 秒未満は出さない。状態語は xcstrings から表示言語で引く | `ThinkingIndicatorCell`、`ChatRecap.summary`、`ChatSessionViewModel.thinkingRecap`、`AgentActivityState.orbLabel(locale:)`、`AppLocalizedString` |
+| ハング検知・経過時間・中断（B5） | 変更 | 120 秒で「無応答」状態（紫）。思考中の行・ヘッダ・タブ・サイドバー・対応待ちの一覧に「無応答 m:ss」（1 秒更新）、行と一覧に「中断」。イベント受信・状態変化で即解除 | `ChatSessionViewModel.isStalled` / `stalledSince` / `updateStalled`、`SessionNode.isStalled` / `stalledSilence`、`StallClock`、`AttentionListPopover`、`SidebarRows` |
+| ターンのコスト（TurnUsage） | 変更 | 右寄せ 1 行にトークン内訳（入力 / 出力 / キャッシュ読込）とコンテキスト % を追加。金額の無い Codex はターン最後の応答の下に内訳だけ出す | `TurnCostCell`、`ChatSessionViewModel.turnUsageByItemID` |
+| サブエージェント（C3） | 変更 | 帯をセッションヘッダ右へ移動。マーカー・ドロワーは従来どおり | `ChatSessionHeader.subAgentChips`（`SubAgentStripRow` を再利用） |
+| Codex のプラン・子スレッド・停止（D1） | 既存のまま | 上端の重ね表示のまま（下記）。中身が空のときの 8pt の空カードは消した | `CodexSessionSurface.hasContent` |
+| 中断・Esc の優先順・巻き戻し・下書き（C4） | 変更（一部） | メニューバー「セッション › 中断」⌘. を追加（実行中だけ有効、共通ターミナル表示中は無効）。Esc の優先順と巻き戻しは従来どおり | `PhloxApp.SessionCommands` |
+| 履歴から再開（C5・B3） | 既存のまま | — | — |
+| 自動スクロール追従（B7） | 変更 | 読み戻して追従が外れたら「↓ 最新へ · 新着 n · End」。新着はメッセージ・質問・エラーだけ数える。End キーでも戻る。セッション切替でリセット | `ChatAutoFollowController.isDetached`、`JumpToLatestButton`、`ChatTranscriptView.jumpToLatest` |
+| 以前のメッセージを表示（B7） | 既存のまま | — | — |
+| テキスト選択の方針（C1） | 既存のまま | `ChatTextSelectionPolicy` は変更なし | — |
+| 書き出し / Markdown でコピー（C6） | 変更 | ヘッダのボタンから選択肢（推論・コマンド出力・タイムスタンプ、アプリ全体で記憶）・コピー ⌥⇧⌘C・書き出す…。⇧⌘E は従来どおり | `ChatExportPopover`、`ChatTranscriptExportOptions.stored`、`ChatTranscriptExportAction`（App から SessionFeature へ移動） |
+| セッションヘッダ（命名 3 段階・状態・種別・作業ディレクトリ・ブランチ） | 変更（新設） | 56pt。タイトル（ダブルクリックで名前変更）と命名タグ（花名 / 自動 / 手動は無し）、エージェント · モデル · 推論の強さ · 作業ディレクトリ · ブランチ（表示中 2 秒ごとに読み直す）、状態（対応待ち 4 状態だけ色の面） | `ChatSessionHeader` |
+| PTY 型の単体表示・信頼確認・対話質問の検知（D3） | 既存のまま | — | — |
+| 描画の性能 | 既存のまま | `.equatable()` の比較に使用量を追加しただけ | `ChatItemView.==` |
+| 文字サイズ（13 Review ⌘+ / ⌘− / ⌘0） | 変更 | フォーカス中の領域だけ変える（ターミナル子タブ・PTY・共通ターミナル → 端末、会話 → 会話の倍率、セッション無し → 両方）。⌘0 で実寸 | `DashboardViewModel.fontSizeTarget` / `adjustFontSize` / `resetFontSize`、`PhloxApp.FontSizeCommands` |
+
+### 決定・食い違い
+
+- **入力欄の最大幅は 800pt のまま**。04 は 760pt だが、凍結受け入れテストが 800pt を要求する（760 にすると 18 件落ちる）。デザイン側の確認事項。
+- **名前変更で空欄確定すると短縮 ID の表示になる**（凍結テスト `AcceptanceSessionTitleStateTests`）。花名に戻すことはしない。P4 の名前変更の案内もこの動きに合わせて「空欄で短縮 ID 表示に戻す」に直した。
+- **トークン内訳は保存しない**。復元した会話はコストだけ出る（`ChatItem.turnCost` の形を変えないため）。
+- **ツールバーのタイトルは 01 のまま**。04 はヘッダと同じ内容を 1 行に縮めるとするが、01（P2）の決定を優先した。
+- **Codex の面は上端の重ね表示のまま**。会話の中へ組み込む形は描画元の組み替えが大きく、見た目以外の差が無いため。
+- **承認バナーの移動は P6**。
+- 未確定（現行どおり・画面に出さない）: カードの既定の開き方（04「案」の行）、B3 の `completed(exitCode)` の意味、Codex の画像添付の可否。
+
+### テストの更新
+
+- 凍結テストは変更していない（一度入れた変更は戻した）。
+- 新設 `DashboardFeatureTests/ChatStallPropagationTests.swift`: 無応答の伝播（タブ・待ち時間の起点）、完了・イベント受信での即解除、質問待ちは無応答に数えない、金額の無い使用量が最後の応答に付く、文字サイズの対象（共通ターミナルを含む）。
+- 新設 `SessionFeatureTests/SessionChatRedesignTests.swift`: トークン数の短い表記・コンテキスト %・内訳の有無・要約の規則・追従が外れる条件。
+
+### 検証
+
+- `.claude/verify.sh`（DesignSystem・AgentDomain・SessionFeature・DashboardFeature・App の Debug ビルド）合格。AppBootstrap 161・ControlServer 158・TerminalUI 79 が合格（`--no-parallel`）。orb の読み上げ変更後に DesignSystem 188・SessionFeature 1051・DashboardFeature 1603 合格。`git diff --check` 問題なし。AppBootstrap はビルドキャッシュのため `swift package clean` の後に実行。
+- Codex（gpt-6-sol high）の独立レビュー: 高 1・中 4・低 2（共通ターミナル表示中の ⌘. と文字サイズ・金額の無い使用量・ブランチの更新・無応答の秒表示・状態語の文字列管理・新着の数え方）。再レビュー 2 回で全件解消。途中で出た低 1 件（無応答の解除が 1 秒周期待ち）も解消。
+- Debug 版での目視（スクリーンショット）: ダークでヘッダ（「Claude Code · Fable 5.1 · high · パス」・待機）・エラーの状態・頭文字と字下げ。ライト＋英語でヘッダのブランチ・エラーの状態・書き出しの選択肢。⌘+ / ⌘0 がターミナル子タブでは端末だけ（13→15→戻る）、会話タブでは会話の倍率だけ（1→1.1→戻る）を変える。
+- テスト内の描画（PNG、ダーク・ライト）: 無応答の行・実行中の要約行・使用量の行・「↓ 最新へ」。英語の文言はテストのバンドルに xcstrings が無いため確認できず、代わりにビルドした App の en.lproj に状態語 6 つの英訳があることを確認した。
+- 目視していないもの: 実際の 120 秒の無応答、金額の無い使用量の行（Codex）、英語の状態語、End キーと「↓ 最新へ」の実操作。いずれも実エージェントを動かす必要がある（課金）ため行っていない。VoiceOver の実操作と XCUITest も未実施。

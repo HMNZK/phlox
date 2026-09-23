@@ -1,6 +1,7 @@
 import SwiftUI
 import AgentDomain
 import DesignSystem
+import StructuredChatKit
 
 struct ChatUserMessagePresentation: Equatable {
     let showsText: Bool
@@ -146,8 +147,10 @@ struct AgentMessageCell: View {
 }
 
 struct TurnCostCell: View {
-    let costUSD: Double
+    let costUSD: Double?
     let timestamp: Date
+    /// トークン内訳とコンテキスト使用率（04）。無い値は出さない。
+    var usage: TurnUsage? = nil
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
     @Environment(\.locale) private var locale
@@ -157,15 +160,54 @@ struct TurnCostCell: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        HStack {
+        HStack(spacing: DSSpacing.m) {
             Spacer(minLength: 72)
-            Text(Self.format(costUSD))
-                .font(ChatScaledFont.monoCaption(scale: scale))
-                .foregroundStyle(DSColor.chatTextSecondary.opacity(0.7))
-                .accessibilityLabel(UIWording.turnCostAccessibility(amountText: Self.format(costUSD), languageCode: languageCode))
+            if let costUSD {
+                Text(Self.format(costUSD))
+                    .foregroundStyle(DSColor.chatTextSecondary)
+                    .accessibilityLabel(UIWording.turnCostAccessibility(amountText: Self.format(costUSD), languageCode: languageCode))
+            }
+            if let tokens = Self.tokenText(usage) {
+                tokens
+            }
+            if let percent = Self.contextPercent(usage) {
+                Text("コンテキスト \(percent)%")
+            }
         }
-        .frame(maxWidth: 720, alignment: .trailing)
+        .font(ChatScaledFont.caption(scale: scale))
+        .monospacedDigit()
+        .foregroundStyle(DSColor.textTertiary)
+        .lineLimit(1)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .accessibilityElement(children: .combine)
         .accessibilityIdentifier("ChatMessage.turnCost")
+    }
+
+    /// 「入力 18.2k · 出力 1.9k · キャッシュ読込 142k」。
+    static func tokenText(_ usage: TurnUsage?) -> Text? {
+        guard let usage else { return nil }
+        let parts: [Text] = [
+            usage.inputTokens.map { Text("入力 \(compact($0))") },
+            usage.outputTokens.map { Text("出力 \(compact($0))") },
+            usage.cacheReadTokens.map { Text("キャッシュ読込 \(compact($0))") },
+        ].compactMap { $0 }
+        guard let first = parts.first else { return nil }
+        return parts.dropFirst().reduce(first) { $0 + Text(verbatim: " · ") + $1 }
+    }
+
+    static func contextPercent(_ usage: TurnUsage?) -> Int? {
+        guard let used = usage?.contextUsedTokens, let window = usage?.contextWindowTokens, window > 0 else { return nil }
+        return Int((Double(used) / Double(window) * 100).rounded())
+    }
+
+    /// 1,900 → 1.9k、142,000 → 142k、1,200,000 → 1.2M。
+    static func compact(_ count: Int) -> String {
+        switch count {
+        case ..<1_000: return "\(count)"
+        case ..<100_000: return String(format: "%.1fk", Double(count) / 1_000)
+        case ..<1_000_000: return "\(count / 1_000)k"
+        default: return String(format: "%.1fM", Double(count) / 1_000_000)
+        }
     }
 
     private static let costFormatter: NumberFormatter = {

@@ -328,3 +328,16 @@ public enum DSColor {
         return RGB(descriptor.colorRGB).color
     }
 }
+
+public extension AgentDescriptor {
+    /// 種類を見分ける短い記号（Cl / Cx / Cu）。組み込み以外は表示名の先頭 2 文字。
+    /// タブ・会話の字下げ列の印で共通に使う。
+    var tabInitials: String {
+        switch ref.builtinKind {
+        case .claudeCode: "Cl"
+        case .codex: "Cx"
+        case .cursor: "Cu"
+        case nil: String(displayName.prefix(2))
+        }
+    }
+}

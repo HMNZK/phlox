@@ -34,3 +34,11 @@ enum ChatHangPolicy {
         )
     }
 }
+
+/// 「無応答 2:14」の経過表記（会話・ヘッダ・サイドバー・対応待ちの一覧で共通。13 Review）。
+public enum StallClock {
+    public static func text(_ interval: TimeInterval) -> String {
+        let seconds = max(0, Int(interval.rounded(.down)))
+        return "\(seconds / 60):\(String(format: "%02d", seconds % 60))"
+    }
+}

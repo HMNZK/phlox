@@ -28,6 +28,10 @@ public protocol ControllableSession: AnyObject {
     var lastTurnCompletedAt: Date? { get }
     /// 今の状態の種類へ入った時刻（対応待ちの待ち時間の起点）。記録しない適合型は nil。
     var statusEnteredAt: Date? { get }
+    /// 実行中のまま 120 秒反応がない（チャット型のみ。ターミナル型は常に false）。
+    var isStalled: Bool { get }
+    /// 無応答になった時刻。
+    var stalledSince: Date? { get }
     var submitBaselineTurnSeq: Int? { get }
     var isReadyForInput: Bool { get }
     var parentSessionID: SessionID? { get set }
@@ -61,6 +65,10 @@ public extension ControllableSession {
     var titleState: SessionTitleState { .legacy(name: name) }
 
     var statusEnteredAt: Date? { nil }
+
+    var isStalled: Bool { false }
+
+    var stalledSince: Date? { nil }
 
     /// 既定は「端末を持たない」。PTY セッションだけが上書きする。
     func readAnsiScreen() -> AnsiScreen? { nil }
@@ -124,8 +132,19 @@ public enum SessionNode {
     /// 直近の PTY/Chat 出力時刻を委譲で公開する読み取り専用アクセサ（`status` と同型）。
     public var lastOutputAt: Date? { controllable.lastOutputAt }
 
-    /// 今の状態の種類へ入った時刻（対応待ちの待ち時間の起点）。
-    public var statusEnteredAt: Date? { controllable.statusEnteredAt }
+    /// 今の状態の種類へ入った時刻（対応待ちの待ち時間の起点）。無応答なら無応答になった時刻。
+    public var statusEnteredAt: Date? {
+        controllable.isStalled ? controllable.stalledSince : controllable.statusEnteredAt
+    }
+
+    /// 実行中のまま 120 秒反応がない（チャット型のみ）。
+    public var isStalled: Bool { controllable.isStalled }
+
+    /// 無応答の間の、最後の反応からの秒数（「無応答 2:14」）。無応答でなければ nil。
+    public func stalledSilence(now: Date) -> TimeInterval? {
+        guard case .appServer(let chat) = self, chat.isStalled else { return nil }
+        return chat.hangAssessment(now: now)?.silence
+    }
 
     public var agentDescriptor: AgentDescriptor {
         switch self {

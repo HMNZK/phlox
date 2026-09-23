@@ -426,7 +426,7 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
         listFocused = true
     }
 
-    /// セッションは空欄で自動の名前に戻す。プロジェクトは空欄なら変えない（現行どおり）。
+    /// セッションは空欄で短縮 ID 表示に戻す（空名の手動名。AcceptanceSessionTitleStateTests が凍結）。プロジェクトは空欄なら変えない（現行どおり）。
     /// ↩ で確定したときだけ一覧に入力先を戻す（ほかをクリックして確定したときはそのまま）。
     private func commitRename(byReturn: Bool) {
         guard let item = renaming else { return }

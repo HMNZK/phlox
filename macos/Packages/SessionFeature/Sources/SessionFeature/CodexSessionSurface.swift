@@ -30,6 +30,12 @@ struct CodexSessionSurface: View {
         self.onStopChild = onStopChild
     }
 
+    private var hasContent: Bool {
+        !(viewModel.codexPlanTaskState?.tasks.isEmpty ?? true)
+            || !(viewModel.codexSubAgentState?.children.isEmpty ?? true)
+            || viewModel.codexSubAgentError != nil
+    }
+
     var body: some View {
         if viewModel.agentRef == .builtin(.codex) {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
@@ -78,8 +84,10 @@ struct CodexSessionSurface: View {
                     }
                 }
             }
-            .padding(DSSpacing.xs)
-            .background(DSColor.chatCard)
+            // 中身が無い間は面を描かない（空の面が会話の上端に小さな四角として残る）。
+            // 子スレッドの取得（.task）は中身の有無に関係なく走らせる。
+            .padding(hasContent ? DSSpacing.xs : 0)
+            .background(hasContent ? DSColor.chatCard : Color.clear)
             .task {
                 await viewModel.refreshCodexSubAgents()
             }

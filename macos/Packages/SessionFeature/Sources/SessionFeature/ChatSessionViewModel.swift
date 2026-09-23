@@ -25,10 +25,17 @@ public final class ChatSessionViewModel: Identifiable {
             if status.latchesUnseenAttentionOnEntry {
                 hasUnseenCompletion = true
             }
+            // 承認・質問待ちへ移ったら、その時点で無応答を解く（一覧で承認文より先に経過が出ないように）。
+            if isStalled { updateStalled(now: Date()) }
         }
     }
     /// 今の状態の種類へ入った時刻（対応待ちの待ち時間の起点）。
     public private(set) var statusEnteredAt: Date?
+    /// 実行中のまま 120 秒反応がない（04 B5）。一覧・タブの「無応答」に使う。1 秒ごとに見直す。
+    public private(set) var isStalled = false
+    /// 無応答になった時刻（対応待ちの待ち時間の起点）。
+    public private(set) var stalledSince: Date?
+    @ObservationIgnored private var stallWatchTask: Task<Void, Never>?
     /// 未確認の停止（＝ユーザーの対応待ち）。停止状態へ入るとラッチし、選択（閲覧）で解除する。
     public var hasUnseenCompletion: Bool = false {
         didSet {
@@ -77,6 +84,9 @@ public final class ChatSessionViewModel: Identifiable {
     public private(set) var lastTurnCompletedAt: Date?
     /// 直近ターンの API 使用量・コスト（task-2 契約。受け入れテスト TurnCostAccumulation が凍結）。
     public private(set) var lastTurnUsage: TurnUsage?
+    /// ターン末尾の使用量行に出すトークン内訳（04: コストに加えてトークンとコンテキスト）。
+    /// 項目の形は変えないため、turnCost（金額の無いターンは最後の応答）の項目 ID ごとに持つ。保存しないので、復元した会話はコストだけ。
+    public private(set) var turnUsageByItemID: [String: TurnUsage] = [:]
     public private(set) var lastTurnCostUSD: Double?
     public private(set) var sessionTotalCostUSD: Double = 0
     /// composer 下書きの単一の正本（task-4 契約。受け入れテスト ComposerDraftPersistence が凍結）。
@@ -185,6 +195,7 @@ public final class ChatSessionViewModel: Identifiable {
     private var activeInterruptID: UUID?
     private var lastEventAt: Date?
     private var pendingTurnCostUSD: Double?
+    private var pendingTurnUsage: TurnUsage?
     private var codexSurfaceRefreshTask: Task<Void, Never>?
     private var codexSubAgentRefreshPending = false
     private var codexSubAgentRefreshGeneration = 0
@@ -747,6 +758,12 @@ public final class ChatSessionViewModel: Identifiable {
             turnStartedAt: turnStartedAt,
             lastEventAt: lastEventAt
         )
+    }
+
+    /// 思考中インジケータの下段の要約（実行中ターンだけ）。
+    func thinkingRecap(now: Date) -> ChatRecap.Summary? {
+        guard let assessment = hangAssessment(now: now) else { return nil }
+        return ChatRecap.summary(transcript: transcript, elapsed: assessment.elapsed)
     }
 
     /// Thinking インジケータに出す活動状態。表示すべきものが無ければ nil。
@@ -1603,11 +1620,15 @@ public final class ChatSessionViewModel: Identifiable {
         turnIsRestoredInference = false
         lastEventAt = nil
         pendingTurnCostUSD = nil
+        pendingTurnUsage = nil
+        startStallWatch()
     }
 
     private func markRunningEventReceived(at date: Date) {
         guard turnStartedAt != nil else { return }
         lastEventAt = date
+        // 反応が届いたら次の 1 秒周期を待たずに無応答を解く。
+        if isStalled { updateStalled(now: date) }
     }
 
     private func clearRunningTurn() {
@@ -1615,6 +1636,30 @@ public final class ChatSessionViewModel: Identifiable {
         turnIsRestoredInference = false
         lastEventAt = nil
         pendingTurnCostUSD = nil
+        pendingTurnUsage = nil
+        stallWatchTask?.cancel()
+        stallWatchTask = nil
+        updateStalled(now: Date())
+    }
+
+    /// 実行中ターンの間だけ、無応答の判定を 1 秒ごとに見直す（変わったときだけ書く）。
+    private func startStallWatch() {
+        stallWatchTask?.cancel()
+        stallWatchTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, let self else { return }
+                self.updateStalled(now: Date())
+            }
+        }
+    }
+
+    func updateStalled(now: Date) {
+        // 承認・質問待ちの間は反応が無くて当然なので数えない（一覧ではそちらの状態が勝つ）。
+        let stalled = status == .running && (hangAssessment(now: now)?.isStalled ?? false)
+        guard stalled != isStalled else { return }
+        isStalled = stalled
+        stalledSince = stalled ? now : nil
     }
 
     /// 復元時にすでに実行中だったターンを、復元リプレイではなく実ターンとして追跡する。
@@ -1625,6 +1670,7 @@ public final class ChatSessionViewModel: Identifiable {
         turnStartedAt = Date()
         turnIsRestoredInference = true
         lastEventAt = nil
+        startStallWatch()
     }
 
     /// ターミナル型と同じポリシーで完了を通知する。待機状態は実行中ターンに限って完了対象にし、
@@ -1684,12 +1730,35 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private func appendPendingTurnCostIfNeeded(timestamp: Date) {
-        guard let pendingTurnCostUSD else { return }
+        guard let pendingTurnCostUSD else {
+            // 金額を持たない使用量（Codex）は、そのターン最後の応答の下に内訳だけ出す。
+            if let pendingTurnUsage,
+               TurnCostCell.tokenText(pendingTurnUsage) != nil || TurnCostCell.contextPercent(pendingTurnUsage) != nil,
+               let id = lastAgentMessageIDInCurrentTurn() {
+                turnUsageByItemID[id] = pendingTurnUsage
+            }
+            return
+        }
+        let id = "turn-cost-\(completedTurnSeq + 1)-\(UUID().uuidString)"
+        if let pendingTurnUsage {
+            turnUsageByItemID[id] = pendingTurnUsage
+        }
         appendOrReplace(.turnCost(
-            id: "turn-cost-\(completedTurnSeq + 1)-\(UUID().uuidString)",
+            id: id,
             costUSD: pendingTurnCostUSD,
             timestamp: timestamp
         ))
+    }
+
+    private func lastAgentMessageIDInCurrentTurn() -> String? {
+        for item in transcript.reversed() {
+            switch item {
+            case .agentMessage(let id, _, _): return id
+            case .userMessage: return nil
+            default: continue
+            }
+        }
+        return nil
     }
 
     private static func warningItemID(for message: String) -> String {
@@ -1779,6 +1848,7 @@ public final class ChatSessionViewModel: Identifiable {
             lastTurnUsage = usage
             lastTurnCostUSD = usage.costUSD
             pendingTurnCostUSD = usage.costUSD
+            pendingTurnUsage = usage
             sessionTotalCostUSD += usage.costUSD ?? 0
             persistTurnUsageSnapshot(usage)
         case .availableCommandsUpdated(let commands):

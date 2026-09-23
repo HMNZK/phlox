@@ -286,20 +286,8 @@ private struct SessionTabButton: View {
 }
 
 extension SessionNode {
-    /// タブ・一覧に出す状態（完了の未読を含む）。
+    /// タブ・一覧に出す状態（完了の未読・無応答を含む）。
     var tabDisplayState: SessionDisplayState {
-        SessionDisplayState.resolve(displayStatus, hasUnseenCompletion: hasUnseenCompletion)
-    }
-}
-
-extension AgentDescriptor {
-    /// タブで種類を見分ける短い記号（Cl / Cx / Cu）。組み込み以外は表示名の先頭 2 文字。
-    var tabInitials: String {
-        switch ref.builtinKind {
-        case .claudeCode: "Cl"
-        case .codex: "Cx"
-        case .cursor: "Cu"
-        case nil: String(displayName.prefix(2))
-        }
+        SessionDisplayState.resolve(displayStatus, hasUnseenCompletion: hasUnseenCompletion, isStalled: isStalled)
     }
 }

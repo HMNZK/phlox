@@ -2,24 +2,13 @@ import AppKit
 import Foundation
 import UniformTypeIdentifiers
 import AgentDomain
-import DashboardFeature
-import SessionFeature
 
 /// `/export` 相当。選択中のチャットセッションの会話を Markdown で書き出す。
 ///
 /// `/export` は Claude Code の対話 TUI 専用でヘッドレスのセッションへは送れないため、
 /// Phlox が自分で持っている transcript から同じものを作る。
 @MainActor
-enum ChatTranscriptExportAction {
-    /// 選択中セッションがチャット（appServer）ならその ViewModel を返す。PTY セッションは対象外。
-    static func selectedChatSession(dashboard: DashboardViewModel?, router: AppRouter?) -> ChatSessionViewModel? {
-        guard let dashboard,
-              let sessionID = router?.selectedSession,
-              case .appServer(let chat) = dashboard.sessionNode(id: sessionID)
-        else { return nil }
-        return chat
-    }
-
+public enum ChatTranscriptExportAction {
     static func markdown(for session: ChatSessionViewModel, exportedAt: Date = Date()) -> String {
         ChatTranscriptExporter.markdown(
             items: session.transcript,
@@ -28,7 +17,8 @@ enum ChatTranscriptExportAction {
                 agentName: agentName(for: session.agentRef),
                 workingDirectory: session.workspacePath.isEmpty ? nil : session.workspacePath,
                 exportedAt: exportedAt
-            )
+            ),
+            options: ChatTranscriptExportOptions.stored()
         )
     }
 
@@ -41,7 +31,7 @@ enum ChatTranscriptExportAction {
     }
 
     /// 保存ダイアログを出して Markdown を書き出す。
-    static func save(session: ChatSessionViewModel) {
+    public static func save(session: ChatSessionViewModel) {
         let exportedAt = Date()
         let panel = NSSavePanel()
         panel.title = "会話を書き出す"
@@ -63,7 +53,7 @@ enum ChatTranscriptExportAction {
     }
 
     /// クリップボードへ Markdown をコピーする。
-    static func copyToPasteboard(session: ChatSessionViewModel) {
+    public static func copyToPasteboard(session: ChatSessionViewModel) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(markdown(for: session), forType: .string)

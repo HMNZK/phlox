@@ -83,6 +83,8 @@ public struct AppTheme: Sendable, Identifiable {
     public let terminalBackground: RGB
     public let terminalForeground: RGB
     public let ansi: [RGB] // 16
+    /// 再設計で増えた面・文字・対応待ち 4 状態の色（12 Design System）。
+    public let palette: DesignPalette
 
     public var preferredColorScheme: ColorScheme? {
         background.relativeLuminance >= 0.5 ? .light : .dark
@@ -230,7 +232,53 @@ extension AppTheme {
             ],
             terminalBackground: bg,
             terminalForeground: fg,
-            ansi: ansi
+            ansi: ansi,
+            palette: .derived(background: background, textPrimary: textPrimary, ansi: ansi)
+        )
+    }
+
+    /// 既定の 2 テーマ用。デザインの確定値を使い、文字だけはサイドバー 4 面＋新しい面で
+    /// 4.56:1 を割る場合に最小限だけ本文色へ寄せる（Phlox Light の弱い文字 #75757B は
+    /// サイドバー #F2F2F4 上で 4.09:1 のため補正される）。
+    static func designText(_ text: RGB, primary: RGB, palette: DesignPalette, attention: RGB) -> RGB {
+        let faces = sidebarFaces(background: palette.window, hoverOverlay: primary, attention: attention)
+            + sidebarFaces(background: palette.sidebar, hoverOverlay: primary, attention: attention)
+            + [palette.panel, palette.card, palette.toolbar]
+        return DesignPalette.reaching(minimumAuxiliaryContrast, from: text, toward: primary, on: faces)
+    }
+
+    /// Phlox / Phlox Light を palette の確定値から組み立てる。状態色（旧トークン）は
+    /// 対応待ちの記号色に揃え、実行中・完了などの旧色は現行値を保つ（各画面の置換で順次使わなくなる）。
+    static func designTheme(
+        id: String, name: String, palette: DesignPalette,
+        primary: RGB, secondary: RGB, tertiary: RGB,
+        statusRunning: RGB, statusCompleted: RGB, statusStarting: RGB, statusIdle: RGB,
+        agentColors: [AgentKind: RGB],
+        terminalBackground: RGB, terminalForeground: RGB, ansi: [RGB]
+    ) -> AppTheme {
+        let attention = claudeCoral
+        return AppTheme(
+            id: id,
+            name: name,
+            background: palette.window,
+            surface: palette.panel,
+            surfaceElevated: palette.popover,
+            textPrimary: primary,
+            textSecondary: designText(secondary, primary: primary, palette: palette, attention: attention),
+            textTertiary: designText(tertiary, primary: primary, palette: palette, attention: attention),
+            accent: claudeCoral,
+            statusRunning: statusRunning,
+            statusAwaiting: palette.approval.mark,
+            statusError: palette.error.mark,
+            statusCompleted: statusCompleted,
+            statusStarting: statusStarting,
+            statusIdle: statusIdle,
+            attention: attention,
+            agentColors: agentColors,
+            terminalBackground: terminalBackground,
+            terminalForeground: terminalForeground,
+            ansi: ansi,
+            palette: palette
         )
     }
 }
@@ -241,43 +289,31 @@ extension AppTheme {
     /// 既定テーマ。UI chrome はニュートラルグレー、アクセントは Claude コーラルに統一する。
     /// textSecondary/textTertiary は固定 RGB 直書きをやめ、fromPalette と共有する導出関数の呼び出しへ
     /// 置き換える（主文字 0xE6 は最悪面でも十分読めるため、そのまま変えない）。
-    public static let phlox: AppTheme = {
-        let background = RGB(0x11, 0x11, 0x11)
-        let textPrimary = RGB(0xE6, 0xE6, 0xE6)
-        let attention = claudeCoral
-        let auxiliaryText = derivedAuxiliaryText(primary: textPrimary, background: background, attention: attention)
-        return AppTheme(
-            id: "phlox",
-            name: "Phlox",
-            background: background,
-            surface: RGB(0x18, 0x18, 0x18),
-            surfaceElevated: RGB(0x20, 0x20, 0x20),
-            textPrimary: textPrimary,
-            textSecondary: auxiliaryText.secondary,
-            textTertiary: auxiliaryText.tertiary,
-            accent: claudeCoral,
-            statusRunning: RGB(0x34, 0xD3, 0x99),
-            statusAwaiting: RGB(0xFB, 0xBF, 0x24),
-            statusError: RGB(0xEF, 0x44, 0x44),
-            statusCompleted: RGB(0x6E, 0xE7, 0xB7),
-            statusStarting: RGB(0xA3, 0xA3, 0xA3),
-            statusIdle: RGB(0x86, 0x86, 0x86),
-            attention: claudeCoral,
-            agentColors: [
-                .claudeCode: RGB(0xE0, 0xAF, 0x68),
-                .codex: RGB(0x7C, 0x8C, 0xFF),
-                .cursor: RGB(0xB8, 0xB8, 0xB8),
-            ],
-            terminalBackground: RGB(0x0E, 0x0E, 0x0E),
-            terminalForeground: RGB(0xD6, 0xD6, 0xD6),
-            ansi: [
-                RGB(0x0D, 0x0D, 0x0D), RGB(0xEF, 0x44, 0x44), RGB(0x34, 0xD3, 0x99), RGB(0xFB, 0xBF, 0x24),
-                RGB(0x60, 0xA5, 0xFA), RGB(0xD9, 0x77, 0x57), RGB(0x38, 0xBD, 0xF8), RGB(0xE5, 0xE5, 0xE5),
-                RGB(0x3F, 0x3F, 0x46), RGB(0xFB, 0x71, 0x71), RGB(0x6E, 0xE7, 0xB7), RGB(0xFD, 0xE6, 0x8A),
-                RGB(0x93, 0xC5, 0xFD), RGB(0xFB, 0xA8, 0x8A), RGB(0x7D, 0xD3, 0xFC), RGB(0xFF, 0xFF, 0xFF),
-            ]
-        )
-    }()
+    public static let phlox: AppTheme = designTheme(
+        id: "phlox",
+        name: "Phlox",
+        palette: .phloxDark,
+        primary: RGB(0xF2, 0xF2, 0xF4),
+        secondary: RGB(0xAB, 0xAB, 0xB1),
+        tertiary: RGB(0x8E, 0x8E, 0x94),
+        statusRunning: RGB(0x34, 0xD3, 0x99),
+        statusCompleted: RGB(0x6E, 0xE7, 0xB7),
+        statusStarting: RGB(0xA3, 0xA3, 0xA3),
+        statusIdle: RGB(0x86, 0x86, 0x86),
+        agentColors: [
+            .claudeCode: RGB(0xE0, 0xAF, 0x68),
+            .codex: RGB(0x7C, 0x8C, 0xFF),
+            .cursor: RGB(0xB8, 0xB8, 0xB8),
+        ],
+        terminalBackground: RGB(0x0E, 0x0E, 0x0E),
+        terminalForeground: RGB(0xD6, 0xD6, 0xD6),
+        ansi: [
+            RGB(0x0D, 0x0D, 0x0D), RGB(0xEF, 0x44, 0x44), RGB(0x34, 0xD3, 0x99), RGB(0xFB, 0xBF, 0x24),
+            RGB(0x60, 0xA5, 0xFA), RGB(0xD9, 0x77, 0x57), RGB(0x38, 0xBD, 0xF8), RGB(0xE5, 0xE5, 0xE5),
+            RGB(0x3F, 0x3F, 0x46), RGB(0xFB, 0x71, 0x71), RGB(0x6E, 0xE7, 0xB7), RGB(0xFD, 0xE6, 0x8A),
+            RGB(0x93, 0xC5, 0xFD), RGB(0xFB, 0xA8, 0x8A), RGB(0x7D, 0xD3, 0xFC), RGB(0xFF, 0xFF, 0xFF),
+        ]
+    )
 
     /// Tokyo Night（enkia）
     public static let tokyoNight = AppTheme.fromPalette(
@@ -399,20 +435,38 @@ extension AppTheme {
         accent: claudeCoral
     )
 
-    /// Phlox Light — iOS カンプのブランド紫・ピンクに調和する明色テーマ。task-5 がライト外観に割り当てる。
-    public static let phloxLight = AppTheme.fromPalette(
-        id: "phlox-light",
-        name: "Phlox Light",
-        bg: RGB(0xF7, 0xF7, 0xF9),
-        fg: RGB(0x1E, 0x1B, 0x2E),
-        ansi: [
+    /// Phlox Light — 再設計の明色の既定テーマ（12 Design System の確定値）。
+    /// ターミナルの配色は従来どおり（タブ化の段階で端末背景トークンへ移す）。
+    public static let phloxLight: AppTheme = {
+        let palette = DesignPalette.phloxLight
+        let primary = RGB(0x1D, 0x1D, 0x1F)
+        let ansi: [RGB] = [
             RGB(0x1E, 0x1B, 0x2E), RGB(0xDC, 0x26, 0x26), RGB(0x05, 0x96, 0x69), RGB(0xD9, 0x77, 0x06),
             RGB(0x7C, 0x3A, 0xED), RGB(0xDB, 0x27, 0x77), RGB(0x08, 0x91, 0xB2), RGB(0x6B, 0x72, 0x80),
             RGB(0x9C, 0xA3, 0xAF), RGB(0xEF, 0x44, 0x44), RGB(0x10, 0xB9, 0x81), RGB(0xF5, 0x9E, 0x0B),
             RGB(0x8B, 0x5C, 0xF6), RGB(0xEC, 0x48, 0x99), RGB(0x06, 0xB6, 0xD4), RGB(0x94, 0xA3, 0xB8),
-        ],
-        accent: claudeCoral
-    )
+        ]
+        return designTheme(
+            id: "phlox-light",
+            name: "Phlox Light",
+            palette: palette,
+            primary: primary,
+            secondary: RGB(0x5B, 0x5B, 0x60),
+            tertiary: RGB(0x75, 0x75, 0x7B),
+            statusRunning: ansi[2],
+            statusCompleted: ansi[10],
+            statusStarting: primary.mixed(palette.window, 0.38),
+            statusIdle: primary.mixed(palette.window, 0.52),
+            agentColors: [
+                .claudeCode: ansi[3],
+                .codex: ansi[4],
+                .cursor: primary.mixed(palette.window, 0.35),
+            ],
+            terminalBackground: RGB(0xF7, 0xF7, 0xF9),
+            terminalForeground: RGB(0x1E, 0x1B, 0x2E),
+            ansi: ansi
+        )
+    }()
 }
 
 /// 起動時にアクティブテーマを解決して保持するストア。

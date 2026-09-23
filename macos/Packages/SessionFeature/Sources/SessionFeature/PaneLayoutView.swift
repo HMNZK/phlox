@@ -329,11 +329,7 @@ private struct PaneTileView: View {
     private var header: some View {
         HStack(spacing: DSSpacing.s) {
             let isCompact = size.width < PaneLayoutView.minimumPaneWidth
-            StatusDot(status: session.displayStatus)
-            if !isCompact {
-                StatusLabel(status: session.displayStatus)
-                    .accessibilityHidden(true)
-            }
+            StatusLabel(status: session.displayStatus, hasUnseenCompletion: session.hasUnseenCompletion)
             AgentSessionIcon(descriptor: session.agentDescriptor, status: session.displayStatus, size: 24)
             let presentation = SessionTitlePresentation(
                 state: session.titleState,

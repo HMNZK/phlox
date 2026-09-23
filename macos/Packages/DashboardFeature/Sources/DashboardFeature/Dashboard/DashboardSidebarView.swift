@@ -458,9 +458,7 @@ private struct SessionSidebarRowView: View {
     private var sessionRow: some View {
         HStack(spacing: DSSpacing.xs) {
             expansionControl
-            StatusDot(status: session.displayStatus)
-            StatusLabel(status: session.displayStatus)
-                .accessibilityHidden(true)
+            StatusLabel(status: session.displayStatus, hasUnseenCompletion: session.hasUnseenCompletion)
             AgentSessionIcon(descriptor: session.agentDescriptor, status: session.displayStatus, size: 16)
             let presentation = SessionTitlePresentation(
                 state: session.titleState,

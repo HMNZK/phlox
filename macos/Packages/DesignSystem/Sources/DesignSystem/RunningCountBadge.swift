@@ -1,9 +1,11 @@
 import SwiftUI
 
+/// プロジェクト行右端の「n 実行中」。無彩色の文字だけ。
 public struct RunningCountBadge: View {
     public let count: Int
     public let nestedOrchestrationCount: Int
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+    @Environment(\.locale) private var locale
 
     public init(count: Int, nestedOrchestrationCount: Int = 0) {
         self.count = count
@@ -12,35 +14,22 @@ public struct RunningCountBadge: View {
 
     public var body: some View {
         if count > 0 {
-            HStack(spacing: DSSpacing.xs) {
-                Circle()
-                    .fill(DSColor.statusRunning)
-                    .frame(width: 6, height: 6)
-                Text(labelText)
-                    .font(DSFont.caption)
-                    .foregroundStyle(DSColor.statusRunning)
-            }
-            .fixedSize()
-            .accessibilityLabel(accessibilityText)
-            .help(nestedOrchestrationCount > 0 ? nestedHelpText : "")
+            Text(Self.label(count: count, nested: nestedOrchestrationCount, japanese: isJapanese))
+                .font(DSFont.meta.weight(.medium))
+                .foregroundStyle(DSColor.textSecondary)
+                .lineLimit(1)
+                .fixedSize()
         }
     }
 
-    private var labelText: String {
-        if nestedOrchestrationCount > 0 {
-            return "\(count) running (\(nestedOrchestrationCount) nested)"
-        }
-        return "\(count) running"
-    }
+    private var isJapanese: Bool { locale.language.languageCode?.identifier == "ja" }
 
-    private var accessibilityText: String {
-        if nestedOrchestrationCount > 0 {
-            return "\(count) running, \(nestedOrchestrationCount) nested orchestration"
+    static func label(count: Int, nested: Int, japanese: Bool) -> String {
+        switch (japanese, nested > 0) {
+        case (true, false): "\(count) 実行中"
+        case (true, true): "\(count) 実行中（内部 \(nested)）"
+        case (false, false): "\(count) running"
+        case (false, true): "\(count) running (\(nested) internal)"
         }
-        return "\(count) running"
-    }
-
-    private var nestedHelpText: String {
-        "\(nestedOrchestrationCount) nested orchestration session\(nestedOrchestrationCount == 1 ? "" : "s") running"
     }
 }

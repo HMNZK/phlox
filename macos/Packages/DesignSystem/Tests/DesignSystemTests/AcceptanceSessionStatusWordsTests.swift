@@ -18,11 +18,11 @@ struct AcceptanceSessionStatusWordsTests {
     func japaneseVocabulary() {
         #expect(StatusBadge.label(for: .starting) == "起動中")
         #expect(StatusBadge.label(for: .running) == "実行中")
-        #expect(StatusBadge.label(for: .idle) == "入力待ち")
-        #expect(StatusBadge.label(for: .awaitingUserQuestion) == "回答待ち")
+        #expect(StatusBadge.label(for: .idle) == "待機") // 再設計（12 Design System）で語彙変更
+        #expect(StatusBadge.label(for: .awaitingUserQuestion) == "質問待ち") // 再設計（12 Design System）で語彙変更
         #expect(StatusBadge.label(for: .awaitingApproval(prompt: "x")) == "承認待ち")
-        #expect(StatusBadge.label(for: .completed(exitCode: 0)) == "停止")
-        #expect(StatusBadge.label(for: .completed(exitCode: 137)) == "停止")
+        #expect(StatusBadge.label(for: .completed(exitCode: 0)) == "完了") // 再設計（12 Design System）で語彙変更
+        #expect(StatusBadge.label(for: .completed(exitCode: 137)) == "完了")
         #expect(StatusBadge.label(for: .error(message: "boom")) == "エラー")
     }
 
@@ -31,12 +31,12 @@ struct AcceptanceSessionStatusWordsTests {
         #expect(StatusBadge.englishLabel(for: .idle) == "idle")
         #expect(StatusBadge.englishLabel(for: .completed(exitCode: 0)) == "done")
         #expect(StatusBadge.englishLabel(for: .completed(exitCode: 1)) == "exited")
-        #expect(StatusBadge.englishLabel(for: .awaitingUserQuestion) == "input")
+        #expect(StatusBadge.englishLabel(for: .awaitingUserQuestion) == "question") // 再設計（12 Design System）で語彙変更
     }
 
     @Test("次に取れる操作は対応待ちの状態にだけある")
     func nextActionHints() {
-        #expect(StatusBadge.nextActionHint(for: .awaitingApproval(prompt: "x")) == "選択して承認内容を確認する")
+        #expect(StatusBadge.nextActionHint(for: .awaitingApproval(prompt: "x")) == "選択して許可するか決める") // 再設計（12 Design System）で語彙変更
         #expect(StatusBadge.nextActionHint(for: .awaitingUserQuestion) == "選択して質問に回答する")
         #expect(StatusBadge.nextActionHint(for: .error(message: "boom")) == "選択して原因を確認し、再開または削除する")
         #expect(StatusBadge.nextActionHint(for: .completed(exitCode: 130)) == "終了コード 130。再開または削除する")
@@ -49,9 +49,9 @@ struct AcceptanceSessionStatusWordsTests {
     @Test("ヘルプは語彙＋次の操作（＋エラー本文）で組み立てる")
     func helpTextComposition() {
         #expect(StatusBadge.helpText(for: .running) == "実行中")
-        #expect(StatusBadge.helpText(for: .idle) == "入力待ち")
-        #expect(StatusBadge.helpText(for: .awaitingApproval(prompt: "x")) == "承認待ち — 選択して承認内容を確認する")
-        #expect(StatusBadge.helpText(for: .completed(exitCode: 130)) == "停止 — 終了コード 130。再開または削除する")
+        #expect(StatusBadge.helpText(for: .idle) == "待機")
+        #expect(StatusBadge.helpText(for: .awaitingApproval(prompt: "x")) == "承認待ち — 選択して許可するか決める")
+        #expect(StatusBadge.helpText(for: .completed(exitCode: 130)) == "完了 — 終了コード 130。再開または削除する")
         #expect(StatusBadge.helpText(for: .error(message: "out of memory")) == "エラー — 選択して原因を確認し、再開または削除する\nout of memory")
     }
 
@@ -59,6 +59,6 @@ struct AcceptanceSessionStatusWordsTests {
     func displayStatusDoesNotUseElapsedTime() {
         // 語彙側の関数は SessionStatus 以外の入力を取らないことを型で保証する。
         let f: (SessionStatus) -> String = StatusBadge.label(for:)
-        #expect(f(.idle) == "入力待ち")
+        #expect(f(.idle) == "待機")
     }
 }

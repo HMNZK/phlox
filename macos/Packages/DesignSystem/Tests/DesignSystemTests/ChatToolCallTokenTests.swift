@@ -23,7 +23,7 @@ struct ChatToolCallTokenTests {
             #expect(color.alphaComponent < 1.0, "\(theme.name) では半透明であること")
             #expect(
                 max(color.redComponent, color.greenComponent, color.blueComponent)
-                    - min(color.redComponent, color.greenComponent, color.blueComponent) <= 1.0 / 255.0,
+                    - min(color.redComponent, color.greenComponent, color.blueComponent) <= 2.0 / 255.0, // 再設計の本文色 #F2F2F4 は青みが 2/255 入る
                 "\(theme.name) では無彩色であること"
             )
         }

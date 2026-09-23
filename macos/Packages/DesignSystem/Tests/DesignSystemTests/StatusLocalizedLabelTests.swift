@@ -20,7 +20,7 @@ import AgentDomain
     }
 
     @Test func completedZeroJapanese() {
-        #expect(StatusBadge.localizedLabel(for: .completed(exitCode: 0), locale: Locale(identifier: "ja")) == "停止") // task-30（UX-02）で語彙変更
+        #expect(StatusBadge.localizedLabel(for: .completed(exitCode: 0), locale: Locale(identifier: "ja")) == "完了") // 再設計（12 Design System）で語彙変更
     }
 
     @Test func errorJapanese() {

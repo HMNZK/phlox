@@ -4,19 +4,9 @@ import Testing
 @testable import DesignSystem
 
 @Suite struct DSShadowGridTileTests {
-    /// gridTile は設計の基準値（black 0.4 / r10 / x0 / y4）と完全一致する。
+    /// gridTile は再設計の値（`0 1px 2px rgba(0,0,0,.06)`）と一致する。
     @Test func gridTileEqualsSpecifiedValue() {
-        #expect(DSShadow.gridTile == DSShadow(color: Color.black.opacity(0.4), radius: 10, x: 0, y: 4))
-    }
-
-    @Test func gridTileColorIsBlack40() {
-        #expect(DSShadow.gridTile.color == Color.black.opacity(0.4))
-    }
-
-    @Test func gridTileScalarFields() {
-        #expect(DSShadow.gridTile.radius == 10)
-        #expect(DSShadow.gridTile.x == 0)
-        #expect(DSShadow.gridTile.y == 4)
+        #expect(DSShadow.gridTile == DSShadow(color: Color.black.opacity(0.06), radius: 2, x: 0, y: 1))
     }
 }
 
@@ -39,8 +29,13 @@ import Testing
     func accentAndChatAccentUseClaudeCoral() {
         withStandardTheme(AppTheme.phlox.id) {
             let coral = RGB(0xD9, 0x77, 0x57).color
-            #expect(DSColor.accent == coral)
+            // 再設計: UI の accent はダークで #E08865（12 Design System）。チャットの accent はブランドのコーラルのまま。
+            #expect(DSColor.accent == RGB(0xE0, 0x88, 0x65).color)
             #expect(DSColor.chatAccent == coral)
+        }
+        withStandardTheme(AppTheme.phloxLight.id) {
+            #expect(DSColor.accent == RGB(0xD9, 0x77, 0x57).color)
+            #expect(DSColor.diffAdded == RGB(0x1F, 0x7A, 0x3A).color)
         }
     }
 

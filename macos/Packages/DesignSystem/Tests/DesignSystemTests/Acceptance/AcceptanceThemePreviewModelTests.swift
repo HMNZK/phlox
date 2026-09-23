@@ -18,9 +18,10 @@ struct AcceptanceThemePreviewModelTests {
     func phloxLayerRGBAndOpacityAreFrozen() {
         let model = ThemePreviewModel.make(theme: .phlox)
 
-        #expect(model.background == RGB(17, 17, 17))
-        #expect(model.textPrimary == RGB(230, 230, 230))
-        #expect(model.selectedRow.rgb == RGB(230, 230, 230))
+        // 再設計（12 Design System）の確定値: 背景 #1E1E20・本文 #F2F2F4。
+        #expect(model.background == RGB(0x1E, 0x1E, 0x20))
+        #expect(model.textPrimary == RGB(0xF2, 0xF2, 0xF4))
+        #expect(model.selectedRow.rgb == RGB(0xF2, 0xF2, 0xF4))
         #expect(model.selectedRow.opacity == 0.10)
         #expect(model.inputFill.rgb == RGB(255, 255, 255))
         #expect(model.inputFill.opacity == 0.04)
@@ -130,8 +131,8 @@ struct AcceptanceThemePreviewModelTests {
         let third = ThemePreviewModel.make(theme: .phlox)
 
         #expect(first.themeID == "phlox")
-        #expect(first.background == RGB(17, 17, 17))
-        #expect(first.textPrimary == RGB(230, 230, 230))
+        #expect(first.background == RGB(0x1E, 0x1E, 0x20))
+        #expect(first.textPrimary == RGB(0xF2, 0xF2, 0xF4))
         #expect(first.inputBorder.opacity == 0.06)
         #expect(first.terminalSwatches[0] == RGB(14, 14, 14))
 
@@ -144,9 +145,9 @@ struct AcceptanceThemePreviewModelTests {
         #expect(second.themeID != first.themeID)
 
         #expect(third.themeID == "phlox")
-        #expect(third.background == RGB(17, 17, 17))
-        #expect(third.textPrimary == RGB(230, 230, 230))
-        #expect(third.selectedRow.rgb == RGB(230, 230, 230))
+        #expect(third.background == RGB(0x1E, 0x1E, 0x20))
+        #expect(third.textPrimary == RGB(0xF2, 0xF2, 0xF4))
+        #expect(third.selectedRow.rgb == RGB(0xF2, 0xF2, 0xF4))
         #expect(third.inputBorder.rgb == RGB(255, 255, 255))
         #expect(third.inputBorder.opacity == 0.06)
         #expect(third.terminalSwatches == first.terminalSwatches)

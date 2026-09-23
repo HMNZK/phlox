@@ -8,7 +8,7 @@ import AgentDomain
     }
 
     @Test func idleLabel() {
-        #expect(StatusBadge.label(for: .idle) == "入力待ち") // task-30（UX-02）で語彙変更
+        #expect(StatusBadge.label(for: .idle) == "待機") // 再設計（12 Design System）で語彙変更
     }
 
     @Test func runningLabel() {
@@ -21,8 +21,8 @@ import AgentDomain
 
     @Test(arguments: [0, 1, 137])
     func completedLabelIsStopAndExitCodeMovesToHint(code: Int32) {
-        // task-30（UX-02）: 一覧の語彙は「停止」。終了コードは nextActionHint / helpText で確認できる。
-        #expect(StatusBadge.label(for: .completed(exitCode: code)) == "停止")
+        // 再設計: 一覧の語彙は「完了」（「停止」は使わない）。終了コードは nextActionHint / helpText で確認できる。
+        #expect(StatusBadge.label(for: .completed(exitCode: code)) == "完了")
         #expect(StatusBadge.nextActionHint(for: .completed(exitCode: code))?.contains("終了コード \(code)") == true)
     }
 
@@ -31,29 +31,20 @@ import AgentDomain
     }
 }
 
+/// 再設計: 色が付くのは対応待ちの 4 状態だけ。実行中は補助文字、ほかは弱い文字（無彩色）。
 @Suite @MainActor struct StatusBadgeColorTests {
-    @Test func startingIsGray() {
-        #expect(StatusBadge.color(for: .starting) == DSColor.statusStarting)
+    @Test func nonAttentionStatesAreAchromatic() {
+        #expect(StatusBadge.color(for: .starting) == DSColor.textTertiary)
+        #expect(StatusBadge.color(for: .idle) == DSColor.textTertiary)
+        #expect(StatusBadge.color(for: .completed(exitCode: 0)) == DSColor.textTertiary)
+        #expect(StatusBadge.color(for: .running) == DSColor.textSecondary)
     }
 
-    @Test func idleIsGray() {
-        #expect(StatusBadge.color(for: .idle) == DSColor.statusIdle)
-    }
-
-    @Test func runningUsesStatusRunningColor() {
-        #expect(StatusBadge.color(for: .running) == DSColor.statusRunning)
-    }
-
-    @Test func awaitingApprovalIsOrange() {
-        #expect(StatusBadge.color(for: .awaitingApproval(prompt: "")) == DSColor.statusAwaitingApproval)
-    }
-
-    @Test func completedIsGreen() {
-        #expect(StatusBadge.color(for: .completed(exitCode: 0)) == DSColor.statusCompleted)
-    }
-
-    @Test func errorIsRed() {
-        #expect(StatusBadge.color(for: .error(message: "")) == DSColor.statusError)
+    @Test func attentionStatesUseTheirInk() {
+        #expect(StatusBadge.color(for: .awaitingApproval(prompt: "")) == DSColor.attentionInk(.approval))
+        #expect(StatusBadge.color(for: .awaitingUserQuestion) == DSColor.attentionInk(.question))
+        #expect(StatusBadge.color(for: .error(message: "")) == DSColor.attentionInk(.error))
+        #expect(SessionDisplayState.stalled.color == DSColor.attentionInk(.stalled))
     }
 }
 

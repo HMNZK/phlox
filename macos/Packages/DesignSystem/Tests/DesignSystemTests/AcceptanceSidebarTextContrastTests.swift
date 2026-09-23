@@ -219,7 +219,8 @@ struct AcceptanceSidebarTextContrastTests {
     /// background, surface, surfaceElevated, statusRunning, statusAwaiting, statusError, statusCompleted,
     /// statusStarting, statusIdle, attention, agentColors[.claudeCode], agentColors[.codex], agentColors[.cursor]
     private static let tokenFingerprints: [String: String] = [
-        "phlox": "e6e6e6,111111,181818,202020,34d399,fbbf24,ef4444,6ee7b7,a3a3a3,868686,d97757,e0af68,7c8cff,b8b8b8",
+        // Phlox / Phlox Light は再設計（12 Design System）の確定値へ置き換えた。
+        "phlox": "f2f2f4,1e1e20,242427,2f2f33,34d399,f0ae4a,ee5a5f,6ee7b7,a3a3a3,868686,d97757,e0af68,7c8cff,b8b8b8",
         "tokyo-night": "cbcbcb,1c1c1c,232323,2a2a2a,9ece6a,e0af68,f7768e,9ece6a,898989,707070,f7768e,e0af68,7aa2f7,8e8e8e",
         "dracula": "f8f8f8,2a2a2a,313131,383838,50fa7b,f1fa8c,ff5555,69ff94,aaaaaa,8d8d8d,ff6e6e,f1fa8c,bd93f9,b0b0b0",
         "catppuccin-mocha": "d6d6d6,1f1f1f,262626,2d2d2d,a6e3a1,f9e2af,f38ba8,a6e3a1,909090,777777,f38ba8,f9e2af,89b4fa,969696",
@@ -228,7 +229,7 @@ struct AcceptanceSidebarTextContrastTests {
         "catppuccin-latte": "505050,f1f1f1,eaeaea,e3e3e3,40a02b,df8e1d,d20f39,40a02b,8d8d8d,a4a4a4,d20f39,df8e1d,1e66f5,888888",
         "solarized-light": "f6f6f6,efefef,e8e8e8,859900,b58900,dc322f,586e75,a7a7a7,b9b9b9,cb4b16,b58900,268bd2,a3a3a3",
         "github-light": "282828,ffffff,f8f8f8,f1f1f1,116329,4d2d00,cf222e,1a7f37,7a7a7a,989898,a40e26,4d2d00,0969da,737373",
-        "phlox-light": "1d1d1d,f7f7f7,f0f0f0,e9e9e9,059669,d97706,dc2626,10b981,707070,8e8e8e,ef4444,d97706,7c3aed,696969",
+        "phlox-light": "1d1d1f,ffffff,f8f8f9,ffffff,059669,e39a2d,e0484e,10b981,737374,939393,d97757,d97706,7c3aed,6c6c6d",
     ]
 
     @Test("背景・面・状態色・attention・エージェント色（と Solarized Light 以外の主文字）は補正で変わらない")

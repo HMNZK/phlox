@@ -5,6 +5,8 @@ import AgentDomain
 public enum DSSpacing {
     public static let xxs: CGFloat = 2
     public static let xs: CGFloat = 4
+    /// チップの間（再設計で追加した 6pt）。
+    public static let chip: CGFloat = 6
     public static let s: CGFloat = 8
     public static let m: CGFloat = 12
     public static let l: CGFloat = 16
@@ -13,9 +15,11 @@ public enum DSSpacing {
 }
 
 public enum DSRadius {
-    public static let s: CGFloat = 4
-    public static let m: CGFloat = 8
-    public static let l: CGFloat = 12
+    public static let s: CGFloat = 4       // タグ・キー
+    public static let row: CGFloat = 6     // ボタン・行
+    public static let m: CGFloat = 8       // カード
+    public static let attention: CGFloat = 10 // 対応待ちカード・パネル
+    public static let l: CGFloat = 12      // 入力欄・シート
 }
 
 public enum DSFont {
@@ -31,6 +35,24 @@ public enum DSFont {
     /// バッジ等の極小アイコン用。生値 `.system(size: 9)` の直書きを排除する。
     public static let iconTiny = Font.system(size: 9, weight: .bold)
 
+    // 再設計の文字の段（12 Design System）。和文はシステムがヒラギノ角ゴシックへ落とす。
+    /// 24 / Bold — 空の画面の見出し
+    public static let emptyTitle = Font.system(size: 24, weight: .bold)
+    /// 17 / Bold — シート・アラートの見出し
+    public static let sheetTitle = Font.system(size: 17, weight: .bold)
+    /// 14 / Semibold — セッションヘッダのタイトル
+    public static let sessionTitle = Font.system(size: 14, weight: .semibold)
+    /// 13 / Regular — 本文・一覧の行・ボタン
+    public static let row = Font.system(size: 13)
+    /// 12.5 / Regular — 密な本文（タイル・カード）
+    public static let dense = Font.system(size: 12.5)
+    /// 12 / Regular — 補助の説明・表
+    public static let auxiliary = Font.system(size: 12)
+    /// 11.5 / Semibold — 状態の文言（サイドバー・タイル）
+    public static let stateLabel = Font.system(size: 11.5, weight: .semibold)
+    /// 11 / Regular — 時刻・メタ・キー
+    public static let meta = Font.system(size: 11)
+
     /// `body` の実寸。`Font` から実寸を取り出せないため、CATextLayer 等の
     /// Core Animation 経路（`ShimmerTextView`）に渡す値として明示する。
     #if os(macOS)
@@ -45,6 +67,25 @@ public enum DSFont {
 public enum DSLayout {
     /// 進捗バー高。Compact（旧 4）と本体（5）の値ドリフトを 5 に統一。
     public static let progressBarHeight: CGFloat = 5
+
+    // 再設計の高さ・幅（12 Design System / README「全体の決定事項」）。
+    public static let toolbarHeight: CGFloat = 52
+    public static let tabBarHeight: CGFloat = 32
+    public static let childTabBarHeight: CGFloat = 32
+    public static let listRowHeight: CGFloat = 28
+    public static let cardHeaderHeight: CGFloat = 32
+    /// 分割線の当たり（見た目は 1pt、ホバーで accent 3pt）。
+    public static let dividerHitWidth: CGFloat = 8
+    public static let sidebarWidth = WidthRange(ideal: 260, min: 220, max: 360)
+    public static let inspectorWidth = WidthRange(ideal: 280, min: 260, max: 340)
+
+    public struct WidthRange: Sendable, Equatable {
+        public let ideal: CGFloat
+        public let min: CGFloat
+        public let max: CGFloat
+
+        public func clamped(_ value: CGFloat) -> CGFloat { Swift.min(max, Swift.max(min, value)) }
+    }
 }
 
 /// SF Symbol などアイコングリフの固有サイズ。本文フォント(DSFont)とは別系統で、
@@ -81,8 +122,12 @@ public struct DSShadow: Equatable, Sendable {
     public static let card = DSShadow(color: Color.black.opacity(0.28), radius: 8, x: 0, y: 3)
     /// hover 時の持ち上げ。
     public static let cardHover = DSShadow(color: Color.black.opacity(0.40), radius: 12, x: 0, y: 6)
-    /// グリッドタイルの elevation（card より一段強い。設計の基準値）。
-    public static let gridTile = DSShadow(color: Color.black.opacity(0.4), radius: 10, x: 0, y: 4)
+    /// グリッドタイルの elevation（再設計: `0 1px 2px rgba(0,0,0,.06)`）。縁は別途 separator で描く。
+    public static let gridTile = DSShadow(color: Color.black.opacity(0.06), radius: 2, x: 0, y: 1)
+    /// ポップオーバー（`0 10px 30px rgba(0,0,0,.16)`）。
+    public static let popover = DSShadow(color: Color.black.opacity(0.16), radius: 30, x: 0, y: 10)
+    /// ウィンドウ（`0 22px 60px rgba(0,0,0,.18)`）。
+    public static let window = DSShadow(color: Color.black.opacity(0.18), radius: 60, x: 0, y: 22)
 }
 
 public extension View {
@@ -146,13 +191,9 @@ public enum DSColor {
         theme.preferredColorScheme == .light ? theme.textPrimary.color.opacity(0.86) : Color.white.opacity(0.06)
     }
 
-    /// ファイル差分の色。追加行=青・削除行=赤（全テーマ共通のセマンティック色。明度で微調整）。
-    public static var diffAdded: Color {
-        theme.preferredColorScheme == .light ? RGB(0x25, 0x63, 0xEB).color : RGB(0x60, 0xA5, 0xFA).color
-    }
-    public static var diffRemoved: Color {
-        theme.preferredColorScheme == .light ? RGB(0xDC, 0x26, 0x26).color : RGB(0xF8, 0x71, 0x71).color
-    }
+    /// ファイル差分の色（再設計: 追加=緑・削除=赤。各テーマで 4.5:1 以上に導出）。
+    public static var diffAdded: Color { theme.palette.diffAdded.color }
+    public static var diffRemoved: Color { theme.palette.diffRemoved.color }
 
     // セッション行のホバー（面＋枠）。前景色由来の低不透明値で明度に追随する。
     public static var sessionRowHover: Color {
@@ -168,7 +209,8 @@ public enum DSColor {
     public static var textSecondary: Color { theme.textSecondary.color }
     public static var textTertiary: Color { theme.textTertiary.color }
 
-    public static var accent: Color { theme.accent.color }
+    /// フォーカス輪・未読の点・選択の accent（再設計: ダークでは #E08865）。ブランドのコーラルは `AppTheme.accent`。
+    public static var accent: Color { theme.palette.accent.color }
 
     public static var statusStarting: Color { theme.statusStarting.color }
     public static var statusIdle: Color { theme.statusIdle.color }
@@ -218,6 +260,61 @@ public enum DSColor {
             startPoint: .leading,
             endPoint: .trailing
         )
+    }
+
+    // MARK: - 再設計の面・accent・対応待ち（12 Design System）
+
+    private static var palette: DesignPalette { theme.palette }
+
+    public static var windowBackground: Color { palette.window.color }
+    public static var sidebarBackground: Color { palette.sidebar.color }
+    public static var toolbarBackground: Color { palette.toolbar.color }
+    public static var panelBackground: Color { palette.panel.color }
+    public static var cardBackground: Color { palette.card.color }
+    public static var codeBackground: Color { palette.code.color }
+    public static var fieldBackground: Color { palette.field.color }
+    public static var popoverBackground: Color { palette.popover.color }
+    public static var tabBarBackground: Color { palette.tabBar.color }
+    public static var terminalBackground: Color { palette.terminal.color }
+
+    /// 白文字を載せる accent の面（主ボタン）。
+    public static var accentFill: Color { palette.accentFill.color }
+    /// accent の文字（リンク・選択中タブ）。
+    public static var accentInk: Color { palette.accentInk.color }
+    /// 選択中の行。
+    public static var selectionFill: Color { palette.accent.color.opacity(palette.selectionOpacity) }
+
+    public static var statusStalled: Color { palette.stalled.mark.color }
+
+    public static func attentionColors(_ kind: AttentionKind) -> AttentionColors {
+        switch kind {
+        case .approval: palette.approval
+        case .question: palette.question
+        case .error: palette.error
+        case .stalled: palette.stalled
+        }
+    }
+
+    /// 対応待ちの記号・縁。
+    public static func attentionMark(_ kind: AttentionKind) -> Color { attentionColors(kind).mark.color }
+    /// 対応待ちの文言。
+    public static func attentionInk(_ kind: AttentionKind) -> Color { attentionColors(kind).ink.color }
+    /// 対応待ちの淡い面。
+    public static func attentionTint(_ kind: AttentionKind) -> Color {
+        let c = attentionColors(kind)
+        return c.mark.color.opacity(c.tintOpacity)
+    }
+
+    /// エージェント頭文字の淡い面（不透明度 30%）。行とタイル見出しでは使わない。
+    public static func agentInitialFill(for descriptor: AgentDescriptor) -> Color {
+        let rgb: RGB
+        switch descriptor.ref.builtinKind {
+        case .claudeCode: rgb = RGB(0xD4, 0x93, 0x75)   // oklch(0.72 0.09 45)
+        case .codex: rgb = RGB(0x7A, 0xB3, 0x9A)        // oklch(0.72 0.07 165)
+        case .cursor: rgb = RGB(0x8B, 0xA6, 0xD1)       // oklch(0.72 0.07 260)
+        case nil: rgb = RGB(descriptor.colorRGB)         // agents.json の colorHex
+        }
+        return rgb.color.opacity(0.30)
     }
 
     public static func agentColor(for kind: AgentKind) -> Color {

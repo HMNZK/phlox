@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>body{margin:0;background:#E7E7EA;} a{color:#A94A28;} a:hover{color:#7E3517;}</style>
+</helmet>
+<div style="padding:80px;display:flex;flex-direction:column;gap:96px;width:max-content;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#1D1D1F;">
+
+<section data-screen-label="00 概要" style="display:flex;gap:56px;align-items:flex-start;">
+  <div style="width:520px;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:13px;color:#75757B;">Phlox macOS · 再設計 06 · 参照: 機能一覧 7章・8章</div>
+    <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;">右側の補助領域</div>
+    <div style="font-size:15px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">インスペクタ（ウィンドウ右端、既定 280pt）と、その内側のドロワー（ターミナル・エディタ、既定 440pt）。配置は <a href="01 Main Window.dc.html">骨格</a> で決めたとおり。</div>
+  </div>
+  <div id="P" style="width:900px;background:#fff;border-radius:12px;padding:26px 28px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:18px;font-weight:700;">論点: 使用量チップとインスペクタの役割分担</div>
+    <div style="display:grid;grid-template-columns:150px 1fr 1fr;font-size:12.5px;line-height:1.6;">
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.12);"></div><div style="padding:7px 8px;font-weight:600;border-bottom:1px solid rgba(0,0,0,0.12);">上部バーのチップ = 一目で見る</div><div style="padding:7px 8px;font-weight:600;border-bottom:1px solid rgba(0,0,0,0.12);">インスペクタの「使用量」= 詳しく見て操作する</div>
+      <div style="padding:7px 8px;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.06);">出す値</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">エージェントごとに一番少ないバケットの残量 1 つ</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">全バケット（5 時間・週間・月間）の残量とリセットまでの時間</div>
+      <div style="padding:7px 8px;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.06);">いつ見えるか</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">常時（設定「ヘッダーに使用量を表示」でオフにできる）。インスペクタの開閉とは無関係</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">インスペクタを開き「使用量」タブを選んだとき。チップのクリックでここへ来る</div>
+      <div style="padding:7px 8px;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.06);">異常の伝え方</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">残り 20% 未満は琥珀＋太字、取得失敗は「—」、読込中は淡色。理由は書かない</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">理由と時刻を書く（取得失敗の原因、何分前の値か、未インストール）</div>
+      <div style="padding:7px 8px;color:#5B5B60;">操作</div><div style="padding:7px 8px;">なし（クリックで移動するだけ）</div><div style="padding:7px 8px;">更新・再試行・インストール案内・設定への導線</div>
+    </div>
+    <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">同じ数字を 2 か所に出すのは、チップの残量 1 つだけにとどめる。チップは「見るだけ」、インスペクタは「理由を知って手を打つ」場所として重ならないようにする。現行の「インスペクタを閉じたときだけチップを出す」切り替えはやめる。</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+      <div style="font-size:12px;font-weight:600;color:#5B5B60;">チップの状態</div>
+      <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;">
+        <div style="display:flex;flex-direction:column;gap:4px;"><dc-import name="PhloxAux" panel="chip" usage="normal" width="340" height="40" hint-size="340px,40px"></dc-import><span style="font-size:11px;color:#5B5B60;">通常</span></div>
+        <div style="display:flex;flex-direction:column;gap:4px;"><dc-import name="PhloxAux" panel="chip" usage="near" width="340" height="40" hint-size="340px,40px"></dc-import><span style="font-size:11px;color:#5B5B60;">上限間近（Claude 残り 12%）</span></div>
+        <div style="display:flex;flex-direction:column;gap:4px;"><dc-import name="PhloxAux" panel="chip" usage="loading" width="340" height="40" hint-size="340px,40px"></dc-import><span style="font-size:11px;color:#5B5B60;">読込中（前回の値を淡く）</span></div>
+        <div style="display:flex;flex-direction:column;gap:4px;"><dc-import name="PhloxAux" panel="chip" usage="failed" width="340" height="40" hint-size="340px,40px"></dc-import><span style="font-size:11px;color:#5B5B60;">取得失敗</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="U インスペクタ" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">インスペクタ</div>
+  <div style="display:flex;gap:36px;align-items:flex-start;flex-wrap:wrap;width:2600px;row-gap:48px;">
+    <div id="I1" style="display:flex;flex-direction:column;gap:10px;width:280px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">I1</span><span style="font-size:14px;font-weight:600;">セッション · チャット型</span></div>
+      <dc-import name="PhloxAux" label="I1" panel="inspector" tab="session" width="280" height="800" hint-size="280px,800px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">経過時間は 1 秒ごと、ブランチは 30 秒ごとに更新する。</div></div>
+    <div id="I2" style="display:flex;flex-direction:column;gap:10px;width:280px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">I2</span><span style="font-size:14px;font-weight:600;">セッション · ターミナル型</span></div>
+      <dc-import name="PhloxAux" label="I2" panel="inspector" tab="session" session="pty" width="280" height="800" hint-size="280px,800px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">現行はチャット型のときしか出さない。ターミナル型でも取れる値は出し、取れない値は「—」とする。</div></div>
+    <div id="U1" style="display:flex;flex-direction:column;gap:10px;width:280px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">U1</span><span style="font-size:14px;font-weight:600;">使用量 · 通常</span></div>
+      <dc-import name="PhloxAux" label="U1" panel="inspector" usage="normal" width="280" height="800" hint-size="280px,800px"></dc-import></div>
+    <div id="U2" style="display:flex;flex-direction:column;gap:10px;width:280px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">U2</span><span style="font-size:14px;font-weight:600;">使用量 · 読込中</span></div>
+      <dc-import name="PhloxAux" label="U2" panel="inspector" usage="loading" width="280" height="800" hint-size="280px,800px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">初回だけ骨組みを出す。2 回目以降は前回の値を残し、更新ボタンに回転表示を出すだけにする（数字を消さない）。</div></div>
+    <div id="U3" style="display:flex;flex-direction:column;gap:10px;width:280px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">U3</span><span style="font-size:14px;font-weight:600;">使用量 · 上限間近</span></div>
+      <dc-import name="PhloxAux" label="U3" panel="inspector" usage="near" width="280" height="800" hint-size="280px,800px"></dc-import></div>
+    <div id="U4" style="display:flex;flex-direction:column;gap:10px;width:280px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">U4</span><span style="font-size:14px;font-weight:600;">使用量 · 取得失敗（ダーク）</span></div>
+      <dc-import name="PhloxAux" label="U4" panel="inspector" usage="failed" theme="dark" width="280" height="800" hint-size="280px,800px"></dc-import></div>
+    <div id="U5" style="display:flex;flex-direction:column;gap:10px;width:280px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">U5</span><span style="font-size:14px;font-weight:600;">Claude の値が古い</span></div>
+      <dc-import name="PhloxAux" label="U5" panel="inspector" usage="staleClaude" width="280" height="800" hint-size="280px,800px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">鮮度の注記は Claude のみ（現行どおり）。古くなったら注記を琥珀にする。何分で「古い」とするかは ClaudeUsageStaleness の本体が未読のため未確定。</div></div>
+    <div id="U6" style="display:flex;flex-direction:column;gap:10px;width:280px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">U6</span><span style="font-size:14px;font-weight:600;">Cursor 未インストール</span></div>
+      <dc-import name="PhloxAux" label="U6" panel="inspector" usage="unavailable" width="280" height="800" hint-size="280px,800px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">設定「未取得の CLI も表示」がオンのときだけ出す（既定はオフ）。</div></div>
+  </div>
+</section>
+
+<div style="width:1500px;background:#FFF7E8;border-radius:12px;padding:16px 20px;box-shadow:inset 0 0 0 1px rgba(227,154,45,0.5);font-size:13px;line-height:1.7;color:#3A3A3E;"><b>更新（タブ C 採用）</b>: 下のドロワーは廃止。中身はそのまま子タブ「ターミナル」「変更」「ファイル」に移す（<a href="02 Tabs.dc.html">Tabs</a>）。変更一覧・差分・コミット欄・衝突・文字サイズの描き分けは子タブでも同じ。</div>
+
+<section data-screen-label="D ドロワー" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">ドロワー（ターミナル・エディタ）</div>
+  <div style="display:flex;gap:36px;align-items:flex-start;flex-wrap:wrap;width:2600px;row-gap:48px;">
+    <div id="D1" style="display:flex;flex-direction:column;gap:10px;width:440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">D1</span><span style="font-size:14px;font-weight:600;">ターミナルのみ（⌃⌘T）</span></div>
+      <dc-import name="PhloxAux" label="D1" panel="drawer" drawer="terminal" theme="dark" width="440" height="800" hint-size="440px,800px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">閉じてもシェルは生きたまま（ウィンドウの寿命と同じ）。ヘッダに文字サイズ（A− / A+、⌘− / ⌘+）と再起動。</div></div>
+    <div id="D2" style="display:flex;flex-direction:column;gap:10px;width:440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">D2</span><span style="font-size:14px;font-weight:600;">エディタのみ · 440pt（上下に積む）</span></div>
+      <dc-import name="PhloxAux" label="D2" panel="drawer" drawer="editor" width="440" height="800" hint-size="440px,800px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">541pt 未満では一覧の下に差分を積み、それ以上で左右に分ける（<a href="#D2b">D2b</a>）。種別は M / A / R / D / U と「バイナリ」。</div></div>
+    <div id="D2b" style="display:flex;flex-direction:column;gap:10px;width:720px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">D2b</span><span style="font-size:14px;font-weight:600;">エディタのみ · 720pt（左右に分割）· PR 作成済み</span></div>
+      <dc-import name="PhloxAux" label="D2b" panel="drawer" drawer="editor" editor="prDone" width="720" height="800" hint-size="720px,800px"></dc-import></div>
+    <div id="D3" style="display:flex;flex-direction:column;gap:10px;width:440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">D3</span><span style="font-size:14px;font-weight:600;">両方（上 = エディタ、下 = ターミナル）</span></div>
+      <dc-import name="PhloxAux" label="D3" panel="drawer" drawer="both" width="440" height="800" hint-size="440px,800px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">初期配分は 58 : 42。境界をドラッグで配分を変え、ダブルクリックで初期配分に戻す。</div></div>
+    <div id="D4" style="display:flex;flex-direction:column;gap:10px;width:440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">D4</span><span style="font-size:14px;font-weight:600;">編集中 → 保存時に外部変更と衝突</span></div>
+      <dc-import name="PhloxAux" label="D4" panel="drawer" drawer="editor" editor="conflict" width="440" height="800" hint-size="440px,800px"></dc-import></div>
+    <div id="D5" style="display:flex;flex-direction:column;gap:10px;width:440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">D5</span><span style="font-size:14px;font-weight:600;">プッシュ失敗と詳細ログ（ダーク）</span></div>
+      <dc-import name="PhloxAux" label="D5" panel="drawer" drawer="editor" editor="pushError" theme="dark" width="440" height="800" hint-size="440px,800px"></dc-import></div>
+    <div id="D6" style="display:flex;flex-direction:column;gap:10px;width:440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">D6</span><span style="font-size:14px;font-weight:600;">共有スコープの注意・リサイズ</span></div>
+      <dc-import name="PhloxAux" label="D6" panel="drawer" drawer="both" editor="shared" overlay="resize" width="440" height="800" hint-size="440px,800px"></dc-import></div>
+    <div id="D7" style="display:flex;flex-direction:column;gap:10px;width:440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">D7</span><span style="font-size:14px;font-weight:600;">Git リポジトリではない</span></div>
+      <dc-import name="PhloxAux" label="D7" panel="drawer" drawer="both" editor="noRepo" overlay="restartError" width="440" height="800" hint-size="440px,800px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">下のターミナルには、サイズ変更に失敗したときのエラー行を出した（現行どおり端末の中に書く）。</div></div>
+    <div id="D8" style="display:flex;flex-direction:column;gap:10px;width:440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">D8</span><span style="font-size:14px;font-weight:600;">文字サイズの変更（⌘+）</span></div>
+      <dc-import name="PhloxAux" label="D8" panel="drawer" drawer="terminal" overlay="fontSize" theme="dark" width="440" height="560" hint-size="440px,560px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">押すたびに中央に大きさを 1 秒だけ出す。⌘+ / ⌘− はフォーカス中の領域（チャット本文かターミナル）に効く。</div></div>
+  </div>
+</section>
+
+<section data-screen-label="M 対応表" style="display:flex;gap:32px;align-items:flex-start;">
+  <div style="width:1180px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">機能対応表（7章・8章）</div>
+    <div style="display:grid;grid-template-columns:320px 1fr;font-size:12.5px;line-height:1.5;">
+      <div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">機能</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">置き場所</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">セッションのメタ情報（経過時間・総コスト・ブランチ・プロジェクト）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">インスペクタ「セッション」（<a href="#I1">I1</a>・<a href="#I2">I2</a>）。状態と作業ディレクトリを追加</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">CLI 使用量カード（バケット・ゲージ・残量・リセット・ok / unavailable・Claude の鮮度）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">インスペクタ「使用量」（<a href="#U1">U1</a>〜<a href="#U6">U6</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">Cursor 未インストール時の誘導</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#U6">U6</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">使用量の手動更新（更新中はスピナー・無効化）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">使用量タブの下端（<a href="#U2">U2</a>・<a href="#U4">U4</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">使用量チップ（上部バー）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">論点の表とチップの 4 状態</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">エディタ: レイアウト自動切替（541pt）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#D2">D2</a> / <a href="#D2b">D2b</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">変更ファイル一覧・種別・バイナリ・更新・一覧エラー・noProject / notARepository</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#D2">D2</a>・<a href="#D7">D7</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">差分 / 内容のプレビュー・500 行ごとの「さらに表示」</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">右（または下）のペイン上端のセグメント</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">コミット対象のチェック</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">一覧の行頭。コミットボタンに件数を出す</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ファイル編集・保存・未保存表示・保存競合（上書き / キャンセル）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#D4">D4</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">共有スコープ注意バナー</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#D6">D6</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">コミットメッセージ・コミット・プッシュ・PR 作成・不可の理由・PR URL</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">下端（<a href="#D2">D2</a>・<a href="#D2b">D2b</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">Git 処理状態・詳細ログ・閉じる</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#D5">D5</a>（ログは固定高 220pt → 本案は 84pt で折りたたみ、クリックで展開）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ターミナル: シェル表示・PTY 維持・起動 / 再起動・送信 / リサイズ失敗の行</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#D1">D1</a>・<a href="#D7">D7</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">文字サイズ（⌘+ / ⌘−）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ヘッダの A− / A+（新設）＋ <a href="#D8">D8</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ドロワーの開閉・両方表示の積み方・幅の変更（既定 440・最小 280）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ツールバーのトグル / ✕ / ⌃⌘T・⌃⌘E、<a href="#D3">D3</a>・<a href="#D6">D6</a></div>
+      <div style="padding:6px 8px;">TerminalUI の各機能（テーマ連動・IME 表示・スクロールバー・追従・再描画・所有権の付け替え）</div><div style="padding:6px 8px;">見た目は現行どおり。スクロールバーはスクロールできるときだけ出す</div>
+    </div>
+    <div style="font-size:12px;color:#5B5B60;">未配置の機能: なし。デバッグ用ターミナルダンプは通常の UI に出さない（現行どおり）。</div>
+  </div>
+  <div style="width:560px;display:flex;flex-direction:column;gap:24px;">
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">現行から大きく変えた点</div>
+      <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+        <div><b>チップとインスペクタの役割を分けた</b>（論点）。同じ数字が表示場所だけ変えて出ていたため。</div>
+        <div><b>取得失敗と古い値を区別して書く</b>。現行はスピナーと鮮度注記だけで、失敗したのか古いのかが分からない。</div>
+        <div><b>セッション情報をターミナル型でも出す</b>。</div>
+        <div><b>ターミナルのヘッダに文字サイズと再起動のボタンを置いた</b>。現行はメニューとキーだけで見つけにくい。</div>
+      </div>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;color:#7438BD;">分岐候補（推測・未確認）</div>
+      <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+        <div>Claude の鮮度の閾値（ClaudeUsageStaleness 未読）。</div>
+        <div>バケットの種類（5 時間・週間・月間）は例。実際のバケット名は各 UsageProvider が返すものに従う。</div>
+        <div>シェル再起動のボタンは、現行の「表示時に自動で起動」に手動の入口を足したもの。</div>
+        <div>保存競合の相手（どのセッションが変更したか）を出せるかは未確認。出せない場合は「外部で変更されています」だけにする。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+</x-dc>
+</body>
+</html>

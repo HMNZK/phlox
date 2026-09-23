@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>body{margin:0;background:#E7E7EA;} a{color:#A94A28;} a:hover{color:#7E3517;}</style>
+</helmet>
+<div style="padding:80px;display:flex;flex-direction:column;gap:96px;width:max-content;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#1D1D1F;">
+
+<section data-screen-label="00 概要" style="display:flex;gap:56px;align-items:flex-start;">
+  <div style="width:560px;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:13px;color:#75757B;">Phlox macOS · 再設計 04 · 参照: 機能一覧 4.2・4.3・16.2〜16.5</div>
+    <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;">返答エリア</div>
+    <div style="font-size:15px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">会話画面（<a href="04 Session Chat.dc.html">Session Chat</a>）の下端。上から 送信失敗の通知 → 承認カード → 質問カード → 入力欄 → キーの案内 の順に積む。承認と質問は入力欄の直上に出し、会話の中には流さない。</div>
+  </div>
+  <div id="P" style="width:820px;background:#fff;border-radius:12px;padding:26px 28px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:18px;font-weight:700;">論点: 承認を素早く、安全に捌く</div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.65;">
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">1</b><div><b>何を許可するかを先頭に大きく出す</b>。見出しの 1 行目は種類（コマンドの実行 / ファイルの変更 / 権限の変更）、2 行目が対象そのもの。コマンドは全文を等幅で、ファイルはパスと増減行数、権限はルール文字列と追加先を出す（<a href="#R6">R6</a>）。</div></div>
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">2</b><div><b>キーは 2 段にする</b>。入力欄にいるときは ⌥⌘↩ 許可 / ⌥⌘⌫ 拒否 の 2 つだけ（修飾キー 2 つで、文字入力中の誤打を防ぐ）。Tab か ⌘J でカードにフォーカスを移すと、Y 許可 / S このセッション中は許可 / N 拒否 / Esc キャンセル の 1 キーで返せる（<a href="#R6b">R6b</a>）。</div></div>
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">3</b><div><b>フォーカスを勝手に移さない</b>。承認カードが出ても入力中のフォーカスは入力欄に残す。入力欄の ↩ は常に「送信」で、承認には使わない。</div></div>
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">4</b><div><b>出た直後の 0.5 秒は押せない</b>。カードが出た瞬間のクリックやキーは無視し、許可ボタンの下端に進み具合を出す（<a href="#R6c">R6c</a>）。別の操作の続きで押してしまう誤承認を防ぐ。</div></div>
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">5</b><div><b>「このセッション中は許可」は範囲を言葉で示す</b>。フォーカス時に説明を 1 行出す。範囲がエージェントごとにどう違うかは未確認（<a href="#G">分岐候補</a>）。</div></div>
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">6</b><div><b>複数の要求は 1 枚ずつ</b>。「1 / 3」と前後の送りを出し、1 件返すと次が出る（<a href="#R6d">R6d</a>）。一括許可は置かない。</div></div>
+    </div>
+    <div style="font-size:12px;color:#5B5B60;line-height:1.6;">ボタンの文言は「許可 / このセッション中は許可 / 拒否 / キャンセル」に揃える（骨格・会話画面の「承認 / 却下」もこの回で置き換える）。ApprovalDecision は accept / acceptForSession / decline / cancel に対応する。</div>
+  </div>
+</section>
+
+<section data-screen-label="R 状態" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">R. 状態の描き分け（Claude Code）</div>
+  <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;width:2620px;row-gap:48px;">
+    <div id="R1" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R1</span><span style="font-size:14px;font-weight:600;">空</span></div>
+      <dc-import name="PhloxReply" label="R1 空" scenario="empty" width="820" height="220" hint-size="820px,220px"></dc-import>
+      <div style="width:820px;font-size:12px;line-height:1.6;color:#3A3A3E;">送信ボタンは無効（グレー）。高さは 1 行分で、入力に合わせて 160pt まで伸びる。</div></div>
+    <div id="R2" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R2</span><span style="font-size:14px;font-weight:600;">入力中（/ コマンド・@ ファイル・キーワードの強調、入力履歴）</span></div>
+      <dc-import name="PhloxReply" label="R2 入力中" scenario="typing" width="820" height="250" hint-size="820px,250px"></dc-import>
+      <div style="width:820px;font-size:12px;line-height:1.6;color:#3A3A3E;">キーワードの強調は Claude のみ。右上の刻みは直近 12 件の入力履歴で、ホバーで内容を見てクリックで呼び戻す。IME 変換中は ↩ で送信しない。</div></div>
+    <div id="R3" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R3</span><span style="font-size:14px;font-weight:600;">候補表示中 · スラッシュコマンド</span></div>
+      <dc-import name="PhloxReply" label="R3 スラッシュ" scenario="slash" width="820" height="400" hint-size="820px,400px"></dc-import>
+      <div style="width:820px;font-size:12px;line-height:1.6;color:#3A3A3E;">右端に出どころ（組込 / .claude/commands / .claude/skills / 実行時に受け取ったもの）。候補は 5 秒キャッシュ。</div></div>
+    <div id="R3b" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R3b</span><span style="font-size:14px;font-weight:600;">候補表示中 · @ ファイル（ダーク）</span></div>
+      <dc-import name="PhloxReply" label="R3b ファイル" scenario="mention" theme="dark" width="820" height="400" hint-size="820px,400px"></dc-import></div>
+    <div id="R4" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R4</span><span style="font-size:14px;font-weight:600;">送信中</span></div>
+      <dc-import name="PhloxReply" label="R4 送信中" scenario="sending" width="820" height="220" hint-size="820px,220px"></dc-import>
+      <div style="width:820px;font-size:12px;line-height:1.6;color:#3A3A3E;">送ったテキストを淡く残し、送信ボタンは「…」で無効にする。受け付けられたら入力欄を空にする。</div></div>
+    <div id="R5" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R5</span><span style="font-size:14px;font-weight:600;">実行中（中断できる）</span></div>
+      <dc-import name="PhloxReply" label="R5 実行中" scenario="running" width="820" height="220" hint-size="820px,220px"></dc-import>
+      <div style="width:820px;font-size:12px;line-height:1.6;color:#3A3A3E;">送信ボタンが ■（中断）に変わる。Esc・⌘. でも中断できる。</div></div>
+    <div id="R9" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R9</span><span style="font-size:14px;font-weight:600;">送信失敗 → 下書きを復元</span></div>
+      <dc-import name="PhloxReply" label="R9 送信失敗" scenario="failed" width="820" height="270" hint-size="820px,270px"></dc-import>
+      <div style="width:820px;font-size:12px;line-height:1.6;color:#3A3A3E;">失敗したら入力欄に本文を戻し、理由と「再送」を出す（現行は下書きを戻すだけで通知がない）。</div></div>
+  </div>
+</section>
+
+<section data-screen-label="R6 承認" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">承認待ち</div>
+  <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;width:2620px;row-gap:48px;">
+    <div id="R6" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R6</span><span style="font-size:14px;font-weight:600;">コマンドの実行 · 入力欄にフォーカス</span></div>
+      <dc-import name="PhloxReply" label="R6 承認" scenario="approval" width="820" height="400" hint-size="820px,400px"></dc-import></div>
+    <div id="R6b" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R6b</span><span style="font-size:14px;font-weight:600;">カードにフォーカス → 1 キーで返す</span></div>
+      <dc-import name="PhloxReply" label="R6b フォーカス" scenario="approvalFocus" width="820" height="420" hint-size="820px,420px"></dc-import></div>
+    <div id="R6c" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R6c</span><span style="font-size:14px;font-weight:600;">表示直後 0.5 秒（押せない）</span></div>
+      <dc-import name="PhloxReply" label="R6c 直後" scenario="approvalArming" width="820" height="400" hint-size="820px,400px"></dc-import></div>
+    <div id="R6d" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R6d</span><span style="font-size:14px;font-weight:600;">複数の要求（1 / 3）· ダーク</span></div>
+      <dc-import name="PhloxReply" label="R6d 複数" scenario="approvalMulti" theme="dark" width="820" height="400" hint-size="820px,400px"></dc-import></div>
+    <div id="R6e" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R6e</span><span style="font-size:14px;font-weight:600;">ファイルの変更</span></div>
+      <dc-import name="PhloxReply" label="R6e ファイル" scenario="approvalFile" width="820" height="460" hint-size="820px,460px"></dc-import></div>
+    <div id="R6f" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R6f</span><span style="font-size:14px;font-weight:600;">権限の変更</span></div>
+      <dc-import name="PhloxReply" label="R6f 権限" scenario="approvalPerm" width="820" height="420" hint-size="820px,420px"></dc-import></div>
+  </div>
+</section>
+
+<section data-screen-label="R7 質問" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">質問待ち</div>
+  <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;width:2620px;row-gap:48px;">
+    <div id="R7" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R7</span><span style="font-size:14px;font-weight:600;">1 つ選ぶ</span></div>
+      <dc-import name="PhloxReply" label="R7 質問" scenario="question" width="820" height="520" hint-size="820px,520px"></dc-import></div>
+    <div id="R7b" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R7b</span><span style="font-size:14px;font-weight:600;">複数選べる · ダーク</span></div>
+      <dc-import name="PhloxReply" label="R7b 複数選択" scenario="questionMulti" theme="dark" width="820" height="560" hint-size="820px,560px"></dc-import></div>
+    <div id="R7c" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R7c</span><span style="font-size:14px;font-weight:600;">秘密の入力</span></div>
+      <dc-import name="PhloxReply" label="R7c 秘密" scenario="questionSecret" width="820" height="380" hint-size="820px,380px"></dc-import></div>
+    <div id="R7d" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R7d</span><span style="font-size:14px;font-weight:600;">回答済み / 期限切れ（会話内に残る形）</span></div>
+      <dc-import name="PhloxReply" label="R7d 回答済み" scenario="answered" width="820" height="300" hint-size="820px,300px"></dc-import></div>
+  </div>
+</section>
+
+<section data-screen-label="R8 添付" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">添付と、添付できないエージェント（16.5 の分岐候補）</div>
+  <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;width:2620px;row-gap:48px;">
+    <div id="R8" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">R8</span><span style="font-size:14px;font-weight:600;">上限に達した（Claude）</span></div>
+      <dc-import name="PhloxReply" label="R8 上限" scenario="attachLimit" width="820" height="300" hint-size="820px,300px"></dc-import></div>
+    <div id="R8a" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#7438BD;color:#fff;border-radius:5px;padding:2px 7px;">案 A</span><span style="font-size:14px;font-weight:600;">UI で添付させない（Cursor）</span></div>
+      <dc-import name="PhloxReply" label="R8a 案A" scenario="noAttach" agent="cursor" width="820" height="300" hint-size="820px,300px"></dc-import>
+      <div style="width:820px;font-size:12px;line-height:1.6;color:#3A3A3E;">根拠: コンポーザの添付層「Claude / Codex のみ、Cursor は不可」。貼り付けた画像は @パス に置き換える。</div></div>
+    <div id="R8b" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#7438BD;color:#fff;border-radius:5px;padding:2px 7px;">案 B</span><span style="font-size:14px;font-weight:600;">モデルで可否が変わる（Codex）</span></div>
+      <dc-import name="PhloxReply" label="R8b 案B" scenario="attachB" agent="codex" width="820" height="300" hint-size="820px,300px"></dc-import>
+      <div style="width:820px;font-size:12px;line-height:1.6;color:#3A3A3E;">根拠: ViewModel の分岐「Codex は選択モデル次第」。どのモデルが対象かは未確定なので、例として gpt-5.5 を非対応にした。</div></div>
+    <div id="R8c" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#7438BD;color:#fff;border-radius:5px;padding:2px 7px;">案 C</span><span style="font-size:14px;font-weight:600;">添付はできるがテキストに置き換わる</span></div>
+      <dc-import name="PhloxReply" label="R8c 案C" scenario="attachC" agent="codex" width="820" height="300" hint-size="820px,300px"></dc-import>
+      <div style="width:820px;font-size:12px;line-height:1.6;color:#3A3A3E;">根拠: 送信の符号化層「Claude だけが画像を送り、他は警告付きでテキストに落とす」。3 つの層のどれが正しいかを確かめてから 1 つに決める。</div></div>
+  </div>
+</section>
+
+<section data-screen-label="O 選択" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">モデル・権限・ブランチ・コンテキスト</div>
+  <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;width:2620px;row-gap:48px;">
+    <div id="O1" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">O1</span><span style="font-size:14px;font-weight:600;">モデル · Claude（effort は別のメニュー）</span></div>
+      <dc-import name="PhloxReply" label="O1 モデル Claude" scenario="empty" overlay="model" agent="claude" width="820" height="400" hint-size="820px,400px"></dc-import></div>
+    <div id="O2" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">O2</span><span style="font-size:14px;font-weight:600;">モデル · Codex（推論の深さはサブメニュー）</span></div>
+      <dc-import name="PhloxReply" label="O2 モデル Codex" scenario="empty" overlay="model" agent="codex" width="820" height="440" hint-size="820px,440px"></dc-import></div>
+    <div id="O3" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">O3</span><span style="font-size:14px;font-weight:600;">モデル · Cursor（37 件・検索・CLI 取得失敗）</span></div>
+      <dc-import name="PhloxReply" label="O3 モデル Cursor" scenario="empty" overlay="model" agent="cursor" width="820" height="520" hint-size="820px,520px"></dc-import></div>
+    <div id="O4" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">O4</span><span style="font-size:14px;font-weight:600;">権限 · Claude（3 種）</span></div>
+      <dc-import name="PhloxReply" label="O4 権限 Claude" scenario="empty" overlay="permission" agent="claude" width="820" height="480" hint-size="820px,480px"></dc-import></div>
+    <div id="O5" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">O5</span><span style="font-size:14px;font-weight:600;">権限 · Codex（キーごとに選ぶ）</span></div>
+      <dc-import name="PhloxReply" label="O5 権限 Codex" scenario="empty" overlay="permission" agent="codex" width="820" height="440" hint-size="820px,440px"></dc-import></div>
+    <div id="O6" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">O6</span><span style="font-size:14px;font-weight:600;">権限 · Cursor（2 種）</span></div>
+      <dc-import name="PhloxReply" label="O6 権限 Cursor" scenario="empty" overlay="permission" agent="cursor" width="820" height="420" hint-size="820px,420px"></dc-import></div>
+    <div id="O7" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">O7</span><span style="font-size:14px;font-weight:600;">ブランチの切り替えと失敗</span></div>
+      <dc-import name="PhloxReply" label="O7 ブランチ" scenario="empty" overlay="branch" width="820" height="380" hint-size="820px,380px"></dc-import></div>
+    <div id="O8" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">O8</span><span style="font-size:14px;font-weight:600;">コンテキスト使用率 · 80% 超え</span></div>
+      <dc-import name="PhloxReply" label="O8 コンテキスト" scenario="empty" overlay="context" width="820" height="320" hint-size="820px,320px"></dc-import></div>
+  </div>
+</section>
+
+<section data-screen-label="M 対応表" style="display:flex;gap:32px;align-items:flex-start;">
+  <div style="width:1180px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">機能対応表（4.2・4.3・16.2〜16.5）</div>
+    <div style="display:grid;grid-template-columns:300px 1fr;font-size:12.5px;line-height:1.5;">
+      <div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">機能</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">置き場所</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">承認バナー（command / fileChange / permissions・4 択）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#R6">R6</a>〜<a href="#R6f">R6f</a>。全エージェント共通の受け皿</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ユーザー質問（見出し・選択肢・複数選択・自由入力・秘密・閉じる・回答済み / 期限切れ）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#R7">R7</a>〜<a href="#R7d">R7d</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">複数行入力・プレースホルダー・高さ自動調整（36〜160pt）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#R1">R1</a>・<a href="#R2">R2</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">構文ハイライト（/・@・キーワードは Claude のみ）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#R2">R2</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">IME 保護・Undo / Redo・送信（↩ / ⌘↩）・改行（⇧↩）・⌘V</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">入力欄の下のキー案内</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">入力履歴スクラババー（12 件）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">入力欄の右上（<a href="#R2">R2</a>）。↑ での呼び出しは未確認のため案</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">スラッシュコマンド候補・Codex スキル候補・@ ファイル候補・候補の移動 / 確定 / 却下</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#R3">R3</a>・<a href="#R3b">R3b</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">画像貼り付け・＋ で添付・添付チップ・@path 挿入・上限</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#R8">R8</a>・<a href="#R8a">案 A〜C</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">エージェント別コントロール・モデル・effort・権限モード・Plan モード</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">入力欄の下の列（<a href="#O1">O1</a>〜<a href="#O6">O6</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">モデル一覧の CLI 取得失敗（フォールバック）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#O3">O3</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">現在のブランチ表示・切り替え・失敗</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#O7">O7</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">コンテキスト使用率（80% 以上で警告色）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#O8">O8</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">送信 / 中断</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">右端の丸ボタン（<a href="#R4">R4</a>・<a href="#R5">R5</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">送信失敗時の下書き復元</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#R9">R9</a>（通知と再送を追加）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">幅による下の列の切り替え（600 / 490pt）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">600pt 未満でブランチを隠し、490pt 未満でモデル・権限を 1 つの「設定」メニューにまとめる</div>
+      <div style="padding:6px 8px;">送信滞留の診断ログ</div><div style="padding:6px 8px;">画面には出さない</div>
+    </div>
+    <div style="font-size:12px;color:#5B5B60;">未配置の機能: なし。</div>
+  </div>
+  <div id="G" style="width:560px;display:flex;flex-direction:column;gap:24px;">
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">現行から大きく変えた点</div>
+      <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+        <div><b>承認カードの先頭に対象そのものを出す</b>。現行はボタンが主で、何を許可するのかを読み取りにくい。</div>
+        <div><b>承認のキーを 2 段にする</b>（論点 2〜4）。1 キーで返せる速さと、入力中の誤承認の防止を両立する。</div>
+        <div><b>送信失敗を通知する</b>。下書きが黙って戻るだけだと、送れたと思い込むため。</div>
+        <div><b>Codex の権限をキーごとの選択にする</b>。承認方式とサンドボックスは別々の設定なので、1 つのリストにまとめない。</div>
+      </div>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;color:#7438BD;">分岐候補（推測・未確認）</div>
+      <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+        <div>「このセッション中は許可」の範囲（同じコマンドか、同じ種類か）はエージェントごとのクライアント実装に依存し未確認。</div>
+        <div>「キャンセル」が要求の取り下げだけか、ターンも止めるのか未確認。</div>
+        <div>画像添付の可否（案 A〜C）。</div>
+        <div>権限モードの正式な文言（UIWording+Permissions）は詳細を読んでいないため、選択肢の数だけを機能一覧に合わせた。</div>
+        <div>↑ キーでの入力履歴の呼び出しは実装が見つかっていない。</div>
+        <div>承認待ちの間に入力欄から送信できるかは未確認。本案では入力は可能で、送信は承認のあとにした。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+</x-dc>
+</body>
+</html>

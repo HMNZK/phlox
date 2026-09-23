@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>body{margin:0;background:#E7E7EA;} a{color:#A94A28;} a:hover{color:#7E3517;}</style>
+</helmet>
+<div style="padding:80px;display:flex;flex-direction:column;gap:100px;width:max-content;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#1D1D1F;">
+
+<section data-screen-label="00 概要" style="display:flex;gap:56px;align-items:flex-start;">
+  <div style="width:560px;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:13px;color:#75757B;">Phlox macOS · 再設計 02 · 参照: 機能一覧 3章・3.1節・17章</div>
+    <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;">サイドバー</div>
+    <div style="font-size:15px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">上から「対応待ち」→「プロジェクト」→「その他（未割当）」→ 下端の操作列の順に並べる。状態の記号と色は <a href="01 Main Window.dc.html">骨格</a> の語彙をそのまま使う。</div>
+  </div>
+  <div style="width:720px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:15px;font-weight:700;">行の規則</div>
+    <div style="display:grid;grid-template-columns:150px 1fr;font-size:12.5px;line-height:1.6;">
+      <div style="padding:6px 0;font-weight:600;border-bottom:1px solid rgba(0,0,0,0.07);">プロジェクト行</div><div style="padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.07);">シェブロン（展開）・フォルダ・名前・右端。行クリックで選択し、そのプロジェクトがグリッドの表示範囲になる。右端: 実行中件数（候補）。畳んだ行には中の対応待ちと未読の記号・件数を出す。ホバーで ＋（新規セッション）と ⋯</div>
+      <div style="padding:6px 0;font-weight:600;border-bottom:1px solid rgba(0,0,0,0.07);">セッション行</div><div style="padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.07);">タイトル・右端（エージェント頭文字と状態）。右端は通常は経過時間（1 分ごとに更新）。対応待ちの 4 状態では経過時間の代わりに状態の文言を出す。ホバーで ⋯ に置き換わる</div>
+      <div style="padding:6px 0;font-weight:600;border-bottom:1px solid rgba(0,0,0,0.07);">強調の使い分け</div><div style="padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.07);">選択 = accent の淡い面、ホバー = グレーの面、未読の完了 = タイトルを太字＋右の点。背景色は選択にだけ使い、未読と取り合わない</div>
+      <div style="padding:6px 0;font-weight:600;border-bottom:1px solid rgba(0,0,0,0.07);">親子ツリー</div><div style="padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.07);">1 段 16pt 字下げ＋縦の案内線。子を持つ行は左余白にシェブロン。畳むと「+n」と子孫の対応待ち記号を出す。深さの上限は 3（SpawnPolicy）なので最大 4 段</div>
+      <div style="padding:6px 0;font-weight:600;">キーボード</div><div style="padding:6px 0;">↑↓ 移動 · ←→ 畳む/開く · ↩ 名前を変更 · ⌘⌫ 削除（サイドバーにフォーカスがあるときだけ） · ⌘N 新規 · ⌘O プロジェクトを追加 · 文字入力で頭出し · ⌘クリックで選択中のプロジェクトを解除（グリッドの範囲を「すべて」に戻す）</div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="S 状態" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">S. 状態の描き分け</div>
+  <div style="display:flex;gap:40px;align-items:flex-start;">
+    <div id="S1" style="display:flex;flex-direction:column;gap:10px;width:260px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S1</span><span style="font-size:14px;font-weight:600;">数件 · ライト</span></div>
+      <dc-import name="PhloxSidebar" label="S1 数件" scenario="normal" width="260" height="820" hint-size="260px,820px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">phlox.cc は畳んだ状態。中に対応待ちが無いので右端は件数「2」だけ。</div>
+    </div>
+    <div id="S2" style="display:flex;flex-direction:column;gap:10px;width:260px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S2</span><span style="font-size:14px;font-weight:600;">数件 · ダーク</span></div>
+      <dc-import name="PhloxSidebar" label="S2 ダーク" scenario="normal" theme="dark" width="260" height="820" hint-size="260px,820px"></dc-import>
+    </div>
+    <div id="S3" style="display:flex;flex-direction:column;gap:10px;width:260px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S3</span><span style="font-size:14px;font-weight:600;">プロジェクト 0 件</span></div>
+      <dc-import name="PhloxSidebar" label="S3 空" scenario="empty" width="260" height="820" hint-size="260px,820px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">対応待ちの節は出さない。中央は 9 章の空状態（別の回）。未割当セッションだけが残る場合は「その他」だけを出す。</div>
+    </div>
+    <div id="S4" style="display:flex;flex-direction:column;gap:10px;width:260px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S4</span><span style="font-size:14px;font-weight:600;">26 セッションの長いリスト</span></div>
+      <dc-import name="PhloxSidebar" label="S4 長いリスト" scenario="long" width="260" height="820" hint-size="260px,820px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">対応待ちの節は固定し、スクロールするのはプロジェクト以下だけ。スクロール中はプロジェクト行を上端に貼り付ける。畳んだ agent-config-kit は「1 実行中」だけを出す。</div>
+    </div>
+    <div id="S5" style="display:flex;flex-direction:column;gap:10px;width:260px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S5</span><span style="font-size:14px;font-weight:600;">承認待ちと完了未読が混在 · グリッド時</span></div>
+      <dc-import name="PhloxSidebar" label="S5 混在" scenario="mixed" mode="grid" width="260" height="820" hint-size="260px,820px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">畳んだ mobile-proxy でも「◆1 ●1」で中身が分かる。選択中の phlox-core にはグリッドの範囲を示す記号が付く。未読 4 件は 1 行にまとめ、クリックで展開する。</div>
+    </div>
+    <div id="S6" style="display:flex;flex-direction:column;gap:10px;width:260px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S6</span><span style="font-size:14px;font-weight:600;">深い親子ツリー</span></div>
+      <dc-import name="PhloxSidebar" label="S6 深いツリー" scenario="deep" width="260" height="820" hint-size="260px,820px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">4 段目（深さ上限）まで展開した状態。畳んだ「ローカライズ確認」は「+2 ▲」で子孫のエラーを示す。破線の四角は内部セッションの折りたたみ行（<a href="#G3">分岐候補</a>）。</div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="F 操作の流れ" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">F. 操作の流れ</div>
+  <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;width:2700px;row-gap:56px;">
+    <div id="F1" style="display:flex;flex-direction:column;gap:10px;width:560px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F1</span><span style="font-size:14px;font-weight:600;">ホバー（プロジェクト行とセッション行）</span></div>
+      <dc-import name="PhloxSidebar" label="F1 ホバー" scenario="normal" overlay="hover" width="560" height="820" hint-size="560px,820px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">ホバー中だけ ＋ / ⋯ を出し、普段は右端を状態と時間に使う。⋯ は右クリックと同じメニューを開く。</div>
+    </div>
+    <div id="F2" style="display:flex;flex-direction:column;gap:10px;width:720px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F2</span><span style="font-size:14px;font-weight:600;">セッションの右クリック → プロジェクトを移動</span></div>
+      <dc-import name="PhloxSidebar" label="F2 右クリック" scenario="normal" overlay="sessionMenu" width="720" height="820" hint-size="720px,820px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">「別のプロジェクトへ移動」と「プロジェクトを変更（フォルダを選ぶ）」を 1 つのサブメニューにまとめた。どちらも内部では再起動を伴うので、選ぶと <a href="#F9">F9</a> の確認を出す。</div>
+    </div>
+    <div id="F3" style="display:flex;flex-direction:column;gap:10px;width:560px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F3</span><span style="font-size:14px;font-weight:600;">未割当セッションの右クリック</span></div>
+      <dc-import name="PhloxSidebar" label="F3 未割当" scenario="normal" overlay="otherMenu" width="560" height="820" hint-size="560px,820px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">項目名を「プロジェクトに割り当てる」に変え、既存のプロジェクトとフォルダ選択を並べる（現行はフォルダ選択のみ）。</div>
+    </div>
+    <div id="F4" style="display:flex;flex-direction:column;gap:10px;width:560px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F4</span><span style="font-size:14px;font-weight:600;">プロジェクトの ⋯ / 右クリック</span></div>
+      <dc-import name="PhloxSidebar" label="F4 プロジェクトメニュー" scenario="normal" overlay="projectMenu" width="560" height="820" hint-size="560px,820px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">worktree 隔離はツールバーに加えてここにも置く。プロジェクト単位の設定なので、プロジェクトの操作と一緒に見つかるようにする。</div>
+    </div>
+    <div id="F5" style="display:flex;flex-direction:column;gap:10px;width:640px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F5</span><span style="font-size:14px;font-weight:600;">新規セッション（プロジェクト行の ＋ / 下端のボタン / ⌘N）</span></div>
+      <dc-import name="PhloxSidebar" label="F5 新規セッション" scenario="normal" overlay="newSession" width="640" height="820" hint-size="640px,820px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">エージェント × 開き方を表にした。チャット（構造化チャット）に対応しない種別は「非対応」を表示し、行は隠さない。既定の開き方（設定）のボタンを強調する。起動中は表全体を無効にする（多重起動の防止）。プロジェクト未選択で開いた場合は、見出しにプロジェクトを選ぶポップアップを出す。</div>
+    </div>
+    <div id="F6" style="display:flex;flex-direction:column;gap:10px;width:560px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F6</span><span style="font-size:14px;font-weight:600;">名前を変更（その場で編集）</span></div>
+      <dc-import name="PhloxSidebar" label="F6 名前変更" scenario="normal" overlay="rename" width="560" height="820" hint-size="560px,820px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">アラートではなく、行の中で編集する（Finder と同じ）。空欄で確定すると自動の名前（花名＋短縮 ID）に戻る。プロジェクト名も同じ方式で、変わるのは表示名だけでフォルダ名は変わらない。</div>
+    </div>
+    <div id="F7" style="display:flex;flex-direction:column;gap:10px;width:560px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F7</span><span style="font-size:14px;font-weight:600;">セッション削除の確認（⌘⌫ / 単体表示の ⌘W / メニュー）</span></div>
+      <dc-import name="PhloxSidebar" label="F7 セッション削除" scenario="normal" overlay="deleteSession" width="560" height="820" hint-size="560px,820px"></dc-import>
+    </div>
+    <div id="F8" style="display:flex;flex-direction:column;gap:10px;width:560px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F8</span><span style="font-size:14px;font-weight:600;">プロジェクト削除の確認</span></div>
+      <dc-import name="PhloxSidebar" label="F8 プロジェクト削除" scenario="normal" overlay="deleteProject" width="560" height="820" hint-size="560px,820px"></dc-import>
+    </div>
+    <div id="F9" style="display:flex;flex-direction:column;gap:10px;width:560px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F9</span><span style="font-size:14px;font-weight:600;">移動・割り当ての再起動確認</span></div>
+      <dc-import name="PhloxSidebar" label="F9 移動確認" scenario="normal" overlay="moveConfirm" width="560" height="820" hint-size="560px,820px"></dc-import>
+    </div>
+    <div id="F10" style="display:flex;flex-direction:column;gap:10px;width:560px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#7438BD;color:#fff;border-radius:5px;padding:2px 7px;">F10</span><span style="font-size:14px;font-weight:600;">ドラッグで並べ替え（候補・未配線）</span></div>
+      <dc-import name="PhloxSidebar" label="F10 並べ替え" scenario="normal" overlay="drag" width="560" height="820" hint-size="560px,820px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">reorderSession を使う想定。同じ親の中だけで並べ替え、挿入位置を線で示す。元の行は薄く残す。キーボードでは ⌥⇧⌘↑↓ で 1 つずつ動かす（案。⌥⌘↑↓ は「次 / 前のセッション」なので使わない）。</div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="M 対応表" style="display:flex;gap:32px;align-items:flex-start;">
+  <div style="width:1180px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">機能対応表（3章・3.1節・17章）</div>
+    <div style="display:grid;grid-template-columns:260px 1fr 120px;font-size:12.5px;line-height:1.5;">
+      <div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">機能</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">置き場所</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">現行比</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">プロジェクト一覧表示</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">「プロジェクト」節（<a href="#S1">S1</a>）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">同等</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">プロジェクト追加</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">節見出しの ＋ / ⌘O / 空状態のボタン（<a href="#S3">S3</a>）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">キー追加</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">展開 / 折りたたみ</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">シェブロン / ←→。畳んだ行に状態の要約</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">要約を追加</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">プロジェクト選択（single 起点）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">行クリック。単体表示では中央に起動カード</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">統合</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">プロジェクトでグリッド絞り込み</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">同じ行クリック＝範囲。グリッド時は行末に範囲の記号（<a href="#S5">S5</a>）。解除は ⌘クリック / 表示範囲バーの ✕</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">統合</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">プロジェクト名変更</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⋯ / 右クリック → その場で編集（<a href="#F4">F4</a>・<a href="#F6">F6</a>）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">アラート廃止</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">プロジェクト削除</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⋯ / 右クリック → 確認シート（<a href="#F8">F8</a>）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">同等</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">新規セッションメニュー</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">プロジェクト行の ＋ / 下端「新規セッション」/ ⌘N → 種別 × 開き方の表（<a href="#F5">F5</a>）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">表に変更</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">未割当セッション（その他）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">「その他（プロジェクト未割当）」節</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">名称補足</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">セッション行表示</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">記号・頭文字・タイトル・経過時間（対応待ちは文言）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">右端の出し分け</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">セッションツリー展開 / 折りたたみ</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">左余白のシェブロン / ←→。畳むと「+n」と子孫の記号（<a href="#S6">S6</a>）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">要約を追加</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">セッション選択</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">行クリック / ↑↓ / 対応待ちの行。選択は accent の面（左マーカーと太字は廃止）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">表現変更</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ホバー強調</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">グレーの面＋⋯（<a href="#F1">F1</a>）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⋯ を追加</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">要注意（未読完了）表示</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">太字＋点 / 対応待ち節の「未読の完了 n 件」/ 畳んだ行の ● n</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">表現変更</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">セッション名変更</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">右クリック / ↩ → その場で編集（<a href="#F6">F6</a>）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">アラート廃止</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">プロジェクト変更（未割当 → 割当）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">右クリック「プロジェクトに割り当てる ▸」（<a href="#F3">F3</a>）→ 再起動確認（<a href="#F9">F9</a>）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">統合</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">別のプロジェクトへ移動</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">右クリック「プロジェクトを移動 ▸」（<a href="#F2">F2</a>）→ <a href="#F9">F9</a></div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">統合・確認追加</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">セッション削除</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">右クリック / ⌘⌫ / 単体表示の ⌘W → 確認シート（<a href="#F7">F7</a>）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">キー追加</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">空状態（プロジェクトなし）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#S3">S3</a></div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">同等</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">reorderSession（3.1）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ドラッグで並べ替え（<a href="#F10">F10</a>）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#7438BD;">候補</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">runningBreakdown / runningSessionCount（3.1）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">プロジェクト行右端「n 実行中」（<a href="#S1">S1</a>・<a href="#S4">S4</a>）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#7438BD;">候補</div>
+      <div style="padding:6px 8px;">17 章の状態（7 状態＋無応答・要注意）</div><div style="padding:6px 8px;">行頭の記号・右端の文言（全状態は <a href="#S1">S1</a> に出現）。点滅（0.6 秒）は廃止し、実行中は欠けた円の回転（視差を減らす設定では静止）</div><div style="padding:6px 8px;color:#A94A28;">表現変更</div>
+    </div>
+    <div style="font-size:12px;color:#5B5B60;">未配置の機能: なし。</div>
+  </div>
+  <div style="width:560px;display:flex;flex-direction:column;gap:24px;">
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">G1. 現行から大きく変えた点</div>
+      <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+        <div><b>未読の完了を背景色ではなく太字と点で示す</b>。背景色が選択・ホバー・未読で取り合い、どの行を選んでいるか分かりにくかったため。</div>
+        <div><b>プロジェクトアイコンの不透明度を、畳んだ行の状態要約に置き換える</b>。不透明度の変化では何件・何が待っているか読めないため。</div>
+        <div><b>名前変更をアラートからその場の編集にする</b>。1 行の文字列を直すのにモーダルは重いため。</div>
+        <div><b>新規セッションを「種別 × 開き方」の表にする</b>。カスタムエージェントを含め、どの組み合わせが使えるかを 1 画面で見せるため。</div>
+      </div>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">G2. 統合・削るもの</div>
+      <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+        <div><b>「プロジェクトを変更」と「別のプロジェクトへ移動」を 1 つのサブメニューに統合する</b>。どちらも再起動を伴う同じ処理で、違いは移動先の選び方だけのため。確認は現行では変更時だけだったが、両方に出す。</div>
+        <div><b>選択行の左マーカーと太字を削る</b>。太字は未読に割り当てたため。</div>
+        <div><b>実行中の点滅を削る</b>。長時間見る画面で、動くのを対応待ち以外に使わないため。</div>
+      </div>
+    </div>
+    <div id="G3" style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;color:#7438BD;">G3. 分岐候補</div>
+      <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+        <div><b>オーケストレーションの子セッション</b>。現行はサイドバーに出さない（プロジェクトで絞ったグリッドにだけ出る）。案 A: 現行どおり出さない。案 B: 親の下に「内部セッション n」として畳んで出す（<a href="#S6">S6</a>）。B なら、内部で承認待ちが出たときにも見つけられる。</div>
+        <div><b>並べ替えの範囲</b>。案: 同じ親の中だけ。プロジェクト行へのドロップを「移動」にする拡張は、再起動を伴うので確認を挟む前提で候補にとどめる。</div>
+        <div><b>移動時の再起動</b>。機能一覧では移動も restartSession を共有するとあるため、全件で確認を出す前提で描いた。待機中のセッションで確認を省けるかは未確認。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+</x-dc>
+</body>
+</html>

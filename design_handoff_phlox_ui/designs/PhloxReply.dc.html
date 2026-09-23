@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="{{ rootStyle }}" data-screen-label="{{ screenLabel }}">
+  <div style="font-size:12.5px;line-height:1.6;color:var(--fg3);padding:0 2px 0 30px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ context }}</div>
+
+  <sc-if value="{{ failed }}">
+    <div role="alert" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:9px;background:var(--errTint);box-shadow:inset 0 0 0 1px var(--err);font-size:12.5px;color:var(--fg);">
+      <span style="width:13px;height:12px;flex:none;background:var(--err);clip-path:polygon(50% 0,100% 100%,0 100%);color:#fff;font-size:8px;font-weight:800;display:flex;align-items:flex-end;justify-content:center;">!</span>
+      <span style="flex:1;">送信できませんでした（app-server との接続が切れました）。下書きを入力欄に戻しました。</span>
+      <div role="button" style="height:24px;padding:0 10px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);display:flex;align-items:center;gap:6px;font-size:12px;">再送<span style="font-size:10.5px;color:var(--fg3);">↩</span></div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ hasApproval }}">
+    <div role="group" aria-label="{{ ap.aria }}" style="{{ apStyle }}">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="width:11px;height:11px;background:var(--apv);transform:rotate(45deg);border-radius:2px;flex:none;margin:0 1px;"></span>
+        <span style="font-size:11.5px;font-weight:600;color:var(--apvInk);">承認待ち · {{ ap.kind }}</span>
+        <span style="flex:1;"></span>
+        <sc-if value="{{ multi }}">
+          <span style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--fg2);"><span role="button" aria-label="前の要求" style="width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;background:var(--hover);">‹</span><span style="font-variant-numeric:tabular-nums;">1 / 3</span><span role="button" aria-label="次の要求" style="width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;background:var(--hover);">›</span></span>
+        </sc-if>
+        <span style="font-size:11.5px;color:var(--fg2);font-variant-numeric:tabular-nums;">3分前から</span>
+      </div>
+      <div style="font-size:13.5px;font-weight:600;color:var(--fg);text-wrap:pretty;">{{ ap.title }}</div>
+      <sc-if value="{{ ap.isCmd }}">
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;color:var(--fg);background:var(--card);border-radius:7px;padding:9px 12px;box-shadow:inset 0 0 0 1px var(--sep);"><span style="color:var(--fg3);">$ </span>swift test --filter ApprovalBrokerTests</div>
+          <div style="font-size:11.5px;color:var(--fg2);">作業ディレクトリ <span style="font-family:ui-monospace,Menlo,monospace;">~/dev/phlox</span> · ツール Bash</div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ ap.isFile }}">
+        <div style="background:var(--card);border-radius:7px;box-shadow:inset 0 0 0 1px var(--sep);display:flex;flex-direction:column;">
+          <sc-for list="{{ apFiles }}" as="f"><div style="{{ f.row }}"><span style="width:14px;font-weight:700;font-size:11px;color:var(--fg2);font-family:ui-monospace,Menlo,monospace;">{{ f.k }}</span><span style="flex:1;min-width:0;font-family:ui-monospace,Menlo,monospace;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ f.p }}</span><span style="color:var(--add);font-family:ui-monospace,Menlo,monospace;">{{ f.a }}</span><span style="color:var(--del);font-family:ui-monospace,Menlo,monospace;">{{ f.d }}</span></div></sc-for>
+          <div role="button" style="display:flex;align-items:center;gap:6px;height:26px;padding:0 12px;border-top:1px solid var(--sep);font-size:11.5px;color:var(--accentInk);">› 差分を見る（3 ファイル）</div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ ap.isPerm }}">
+        <div style="background:var(--card);border-radius:7px;box-shadow:inset 0 0 0 1px var(--sep);padding:9px 12px;display:flex;flex-direction:column;gap:5px;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;"><span style="color:var(--fg2);width:64px;">追加する</span><span style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:var(--fg);">Bash(git push:*)</span></div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;"><span style="color:var(--fg2);width:64px;">追加先</span><span style="color:var(--fg);">許可リスト（このプロジェクトの .claude/settings.json）</span></div>
+        </div>
+      </sc-if>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <div role="button" aria-disabled="{{ arming }}" style="{{ btnAllow }}"><span>許可</span><span style="font-size:10.5px;font-weight:400;opacity:0.85;">{{ allowKey }}</span><sc-if value="{{ arming }}"><span style="position:absolute;left:0;bottom:0;height:2px;width:40%;background:rgba(255,255,255,0.9);"></span></sc-if></div>
+        <div role="button" style="{{ btnSess }}"><span>このセッション中は許可</span><sc-if value="{{ cardFocus }}"><span style="font-size:10.5px;color:var(--fg3);">S</span></sc-if></div>
+        <div role="button" style="{{ btnDeny }}"><span>拒否</span><span style="font-size:10.5px;color:var(--fg3);">{{ denyKey }}</span></div>
+        <div style="flex:1;"></div>
+        <div role="button" style="font-size:12px;color:var(--fg2);padding:0 4px;display:flex;gap:6px;align-items:center;">キャンセル<sc-if value="{{ cardFocus }}"><span style="font-size:10.5px;color:var(--fg3);">Esc</span></sc-if></div>
+      </div>
+      <sc-if value="{{ sessNote }}"><div style="font-size:11.5px;line-height:1.55;color:var(--fg2);text-wrap:pretty;">「このセッション中は許可」を選ぶと、このセッションが終わるまで同じ種類の要求を確認なしで通します。</div></sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ hasQuestion }}">
+    <div role="group" aria-label="エージェントからの質問" style="{{ qStyle }}">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="width:12px;height:12px;border-radius:3px;background:var(--qst);color:#fff;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;">?</span>
+        <span style="font-size:11.5px;font-weight:600;color:var(--qstInk);">質問待ち · {{ q.header }}</span>
+        <span style="flex:1;"></span>
+        <span style="font-size:11.5px;color:var(--fg2);">{{ q.mode }}</span>
+      </div>
+      <div style="font-size:13.5px;font-weight:600;color:var(--fg);text-wrap:pretty;">{{ q.text }}</div>
+      <sc-if value="{{ q.hasOptions }}">
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <sc-for list="{{ qOpts }}" as="o">
+            <div role="{{ o.role }}" aria-checked="{{ o.on }}" style="{{ o.row }}">
+              <span style="{{ o.box }}">{{ o.tick }}</span>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;"><span style="font-size:13px;color:var(--fg);">{{ o.label }}</span><span style="font-size:11.5px;color:var(--fg2);text-wrap:pretty;">{{ o.desc }}</span></div>
+              <span style="font-size:11px;color:var(--fg3);font-family:ui-monospace,Menlo,monospace;">{{ o.key }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{ q.secret }}">
+        <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:7px;background:var(--field);box-shadow:inset 0 0 0 2px var(--accent);font-family:ui-monospace,Menlo,monospace;font-size:14px;letter-spacing:2px;color:var(--fg);"><span style="flex:1;">••••••••••••••••</span><span role="button" style="font-family:-apple-system,sans-serif;letter-spacing:0;font-size:11.5px;color:var(--fg2);">表示</span></div>
+        <div style="font-size:11.5px;color:var(--fg2);">入力値は伏せ字で表示し、会話の履歴と書き出しには残しません。</div>
+      </sc-if>
+      <sc-if value="{{ q.hasOptions }}">
+        <div style="height:30px;border-radius:7px;background:var(--field);box-shadow:inset 0 0 0 1px var(--fieldBorder);display:flex;align-items:center;padding:0 10px;font-size:12.5px;color:var(--fg3);">その他（自由に入力）</div>
+      </sc-if>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span style="font-size:11px;color:var(--fg3);flex:1;">{{ q.hint }}</span>
+        <div role="button" style="height:26px;padding:0 8px;font-size:12px;color:var(--fg2);display:flex;align-items:center;">閉じる</div>
+        <div role="button" style="height:26px;padding:0 12px;border-radius:6px;background:var(--accentFill);color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;">回答を送信<span style="font-size:10.5px;font-weight:400;opacity:0.85;">⌘↩</span></div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ answered }}">
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:9px;background:var(--hover);font-size:12.5px;color:var(--fg2);"><span style="font-weight:600;color:var(--fg);">回答済み</span><span style="flex:1;">対象範囲: すべて移す</span><span style="font-size:11px;color:var(--fg3);">14:22</span></div>
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:9px;box-shadow:inset 0 0 0 1px dashed var(--sep);border:1px dashed var(--fieldBorder);font-size:12.5px;color:var(--fg3);"><span style="font-weight:600;">期限切れ</span><span style="flex:1;">「API キーを入力してください」— 回答は送られませんでした</span><span style="font-size:11px;">14:09</span></div>
+    </div>
+  </sc-if>
+
+  <div style="{{ composerStyle }}">
+    <sc-if value="{{ hasSuggest }}">
+      <div role="listbox" aria-label="{{ sugTitle }}" style="position:absolute;left:10px;bottom:calc(100% + 6px);width:460px;background:var(--popover);border-radius:10px;box-shadow:var(--shadow);padding:6px;z-index:30;display:flex;flex-direction:column;gap:1px;">
+        <div style="padding:4px 8px 6px;font-size:11px;font-weight:600;color:var(--fg3);">{{ sugTitle }}</div>
+        <sc-for list="{{ sug }}" as="s"><div role="option" aria-selected="{{ s.on }}" style="{{ s.row }}"><span style="{{ s.nameStyle }}">{{ s.name }}</span><span style="flex:1;min-width:0;font-size:12px;opacity:0.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ s.desc }}</span><span style="font-size:10.5px;opacity:0.75;flex:none;">{{ s.src }}</span></div></sc-for>
+        <div style="display:flex;gap:12px;padding:6px 8px 2px;font-size:10.5px;color:var(--fg3);border-top:1px solid var(--sep);margin-top:4px;"><span>↑↓ 移動</span><span>↩ / Tab 確定</span><span>Esc 閉じる</span></div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ hasTicks }}">
+      <div aria-label="入力履歴" style="position:absolute;right:12px;top:-9px;display:flex;gap:3px;align-items:flex-end;padding:3px 6px;border-radius:6px;background:var(--bg);">
+        <sc-for list="{{ ticks }}" as="tk"><span style="{{ tk }}"></span></sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{ hasAttach }}">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <sc-for list="{{ attach }}" as="a">
+          <div style="{{ a.style }}">
+            <sc-if value="{{ a.img }}"><span style="width:22px;height:22px;border-radius:4px;background:repeating-linear-gradient(45deg,var(--segBg) 0 3px,transparent 3px 6px);box-shadow:inset 0 0 0 1px var(--sep);flex:none;"></span></sc-if>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ a.t }}</span><span style="color:var(--fg3);font-size:10.5px;">{{ a.size }}</span>
+            <span role="button" aria-label="添付を外す" style="width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--fg2);background:var(--hover);flex:none;">✕</span>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{ notice }}">
+      <div style="{{ noticeStyle }}">{{ notice }}</div>
+    </sc-if>
+    <div style="{{ fieldStyle }}">
+      <sc-if value="{{ hasText }}"><sc-for list="{{ tokens }}" as="t"><span style="{{ t.s }}">{{ t.t }}</span></sc-for><sc-if value="{{ caret }}"><span style="display:inline-block;width:1.5px;height:15px;background:var(--fg);vertical-align:-2px;margin-left:1px;"></span></sc-if></sc-if>
+      <sc-if value="{{ noText }}"><span style="color:var(--fg3);">{{ placeholder }}</span></sc-if>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--fg2);min-width:0;">
+      <div style="position:relative;">
+        <span role="button" aria-label="{{ plusAria }}" style="{{ plusStyle }}">＋</span>
+        <sc-if value="{{ plusTip }}"><div style="position:absolute;left:0;bottom:calc(100% + 6px);width:260px;background:var(--popover);box-shadow:var(--shadow);border-radius:7px;padding:7px 10px;font-size:11.5px;line-height:1.5;color:var(--fg2);z-index:30;">{{ plusTip }}</div></sc-if>
+      </div>
+      <div style="position:relative;">
+        <span role="button" aria-haspopup="menu" style="{{ chipModel }}">{{ modelLabel }}<span style="font-size:9px;opacity:0.7;">▾</span></span>
+        <sc-if value="{{ showModel }}">
+          <div role="menu" style="position:absolute;left:0;bottom:calc(100% + 6px);width:260px;background:var(--popover);border-radius:9px;box-shadow:var(--shadow);padding:5px;z-index:30;display:flex;flex-direction:column;font-size:13px;color:var(--fg);">
+            <sc-if value="{{ modelSearch }}"><div style="height:26px;margin:2px 3px 5px;border-radius:6px;background:var(--segBg);display:flex;align-items:center;padding:0 8px;font-size:12px;color:var(--fg3);">モデルを検索（37）</div></sc-if>
+            <sc-for list="{{ models }}" as="m"><div role="menuitemradio" aria-checked="{{ m.on }}" style="{{ m.row }}"><span style="width:14px;">{{ m.tick }}</span><span style="flex:1;">{{ m.t }}</span><span style="font-size:11px;opacity:0.75;">{{ m.note }}</span></div></sc-for>
+            <sc-if value="{{ modelFallback }}"><div style="margin:5px 3px 2px;padding:7px 9px;border-radius:6px;background:var(--apvTint);font-size:11.5px;line-height:1.5;color:var(--fg);">CLI からモデル一覧を取得できませんでした。内蔵の一覧を表示しています。<span role="button" style="color:var(--accentInk);margin-left:4px;">再試行</span></div></sc-if>
+            <sc-if value="{{ effortSub }}">
+              <div role="menu" style="position:absolute;left:calc(100% - 4px);top:30px;width:150px;background:var(--popover);border-radius:9px;box-shadow:var(--shadow);padding:5px;display:flex;flex-direction:column;">
+                <div style="padding:3px 10px 4px;font-size:11px;font-weight:600;color:var(--fg3);">推論の深さ</div>
+                <sc-for list="{{ efforts }}" as="e"><div role="menuitemradio" style="{{ e.row }}"><span style="width:14px;">{{ e.tick }}</span>{{ e.t }}</div></sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+      </div>
+      <sc-if value="{{ hasEffort }}"><span role="button" aria-haspopup="menu" style="{{ chipBase }}">effort: high<span style="font-size:9px;opacity:0.7;">▾</span></span></sc-if>
+      <div style="position:relative;">
+        <span role="button" aria-haspopup="dialog" style="{{ chipPerm }}">{{ permLabel }}<span style="font-size:9px;opacity:0.7;">▾</span></span>
+        <sc-if value="{{ showPerm }}">
+          <div role="dialog" aria-label="{{ perm.title }}" style="position:absolute;left:0;bottom:calc(100% + 6px);width:340px;background:var(--popover);border-radius:10px;box-shadow:var(--shadow);padding:10px;z-index:30;display:flex;flex-direction:column;gap:8px;font-size:12.5px;color:var(--fg);">
+            <div style="display:flex;align-items:baseline;gap:8px;padding:0 4px;"><span style="font-size:13px;font-weight:600;">{{ perm.title }}</span><span style="font-size:11px;color:var(--fg3);">{{ perm.sub }}</span></div>
+            <sc-if value="{{ perm.radio }}">
+              <div style="display:flex;flex-direction:column;gap:3px;">
+                <sc-for list="{{ perm.opts }}" as="po"><div role="radio" aria-checked="{{ po.on }}" style="{{ po.row }}"><span style="{{ po.dot }}"></span><div style="display:flex;flex-direction:column;gap:1px;flex:1;"><span style="font-weight:500;">{{ po.t }}</span><span style="font-size:11.5px;color:var(--fg2);">{{ po.d }}</span></div></div></sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ perm.keys }}">
+              <sc-for list="{{ perm.rows }}" as="kr">
+                <div style="display:flex;flex-direction:column;gap:5px;padding:0 4px;">
+                  <span style="font-size:11.5px;color:var(--fg2);">{{ kr.t }} <span style="font-family:ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--fg3);">{{ kr.key }}</span></span>
+                  <div role="radiogroup" style="display:flex;padding:2px;border-radius:7px;background:var(--segBg);gap:2px;"><sc-for list="{{ kr.opts }}" as="ko"><span role="radio" aria-checked="{{ ko.on }}" style="{{ ko.s }}">{{ ko.t }}</span></sc-for></div>
+                </div>
+              </sc-for>
+            </sc-if>
+            <div style="height:1px;background:var(--sep);margin:0 4px;"></div>
+            <div role="switch" aria-checked="false" style="display:flex;align-items:center;gap:10px;padding:2px 4px;"><div style="flex:1;display:flex;flex-direction:column;gap:1px;"><span style="font-weight:500;">Plan モード</span><span style="font-size:11.5px;color:var(--fg2);">計画だけを立て、ファイルの変更やコマンドは実行しない</span></div><span style="width:30px;height:18px;border-radius:9px;background:var(--segBg);position:relative;flex:none;"><span style="position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:7px;background:#fff;box-shadow:0 0.5px 1.5px rgba(0,0,0,0.3);"></span></span></div>
+            <div style="padding:0 4px;font-size:11px;color:var(--fg3);">{{ perm.foot }}</div>
+          </div>
+        </sc-if>
+      </div>
+      <span style="flex:1;"></span>
+      <div style="position:relative;display:flex;">
+        <span role="button" aria-haspopup="dialog" aria-label="ブランチ feat/approval-expiry" style="{{ chipBranch }}">feat/approval-expiry</span>
+        <sc-if value="{{ showBranch }}">
+          <div role="dialog" aria-label="ブランチを切り替え" style="position:absolute;right:0;bottom:calc(100% + 6px);width:300px;background:var(--popover);border-radius:10px;box-shadow:var(--shadow);padding:6px;z-index:30;display:flex;flex-direction:column;gap:1px;font-size:12.5px;color:var(--fg);">
+            <div style="padding:4px 8px 6px;font-size:11px;font-weight:600;color:var(--fg3);">ブランチを切り替え · ~/dev/phlox</div>
+            <sc-for list="{{ branches }}" as="br"><div role="option" style="{{ br.row }}"><span style="width:14px;">{{ br.tick }}</span><span style="font-family:ui-monospace,Menlo,monospace;font-size:12px;">{{ br.t }}</span></div></sc-for>
+            <div role="alert" style="margin:5px 3px 2px;padding:7px 9px;border-radius:6px;background:var(--errTint);font-size:11.5px;line-height:1.5;color:var(--fg);">main に切り替えられません: 未コミットの変更（ChatApprovalBroker.swift ほか 2 件）があります。</div>
+          </div>
+        </sc-if>
+      </div>
+      <div style="position:relative;display:flex;align-items:center;gap:5px;">
+        <svg width="14" height="14" viewBox="0 0 14 14" style="flex:none;"><circle cx="7" cy="7" r="5.5" fill="none" stroke="var(--segBg)" stroke-width="2.2"></circle><circle cx="7" cy="7" r="5.5" fill="none" stroke="{{ ctxColor }}" stroke-width="2.2" stroke-dasharray="{{ ctxDash }}" transform="rotate(-90 7 7)"></circle></svg>
+        <span style="font-variant-numeric:tabular-nums;">{{ ctxPct }}</span>
+        <sc-if value="{{ showCtx }}">
+          <div role="tooltip" style="position:absolute;right:0;bottom:calc(100% + 8px);width:240px;background:var(--popover);border-radius:9px;box-shadow:var(--shadow);padding:10px 12px;z-index:30;display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--fg);">
+            <span style="font-weight:600;">コンテキスト 84%</span>
+            <span style="color:var(--fg2);font-variant-numeric:tabular-nums;">168k / 200k トークン</span>
+            <span style="font-size:11.5px;line-height:1.5;color:var(--apvInk);">80% を超えました。/compact で会話を圧縮できます。</span>
+          </div>
+        </sc-if>
+      </div>
+      <sc-if value="{{ showStop }}"><span role="button" aria-label="中断（Esc / ⌘.）" style="width:26px;height:26px;border-radius:13px;background:var(--fg);display:flex;align-items:center;justify-content:center;flex:none;"><span style="width:8px;height:8px;border-radius:1.5px;background:var(--bg);"></span></span></sc-if>
+      <sc-if value="{{ showSend }}"><span role="button" aria-label="送信（↩）" aria-disabled="{{ sendDisabled }}" style="{{ sendStyle }}">{{ sendGlyph }}</span></sc-if>
+    </div>
+  </div>
+  <div style="display:flex;gap:14px;padding:0 4px;font-size:10.5px;color:var(--fg3);flex-wrap:wrap;">
+    <sc-for list="{{ hints }}" as="h"><span>{{ h }}</span></sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:820,&quot;height&quot;:360},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;scenario&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;empty&quot;,&quot;typing&quot;,&quot;slash&quot;,&quot;mention&quot;,&quot;sending&quot;,&quot;running&quot;,&quot;failed&quot;,&quot;approval&quot;,&quot;approvalFocus&quot;,&quot;approvalArming&quot;,&quot;approvalMulti&quot;,&quot;approvalFile&quot;,&quot;approvalPerm&quot;,&quot;question&quot;,&quot;questionMulti&quot;,&quot;questionSecret&quot;,&quot;answered&quot;,&quot;noAttach&quot;,&quot;attachLimit&quot;,&quot;attachB&quot;,&quot;attachC&quot;],&quot;default&quot;:&quot;empty&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;overlay&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;model&quot;,&quot;permission&quot;,&quot;branch&quot;,&quot;context&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;agent&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;claude&quot;,&quot;codex&quot;,&quot;cursor&quot;],&quot;default&quot;:&quot;claude&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;width&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:820,&quot;tsType&quot;:&quot;number&quot;},&quot;height&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:360,&quot;tsType&quot;:&quot;number&quot;},&quot;label&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;reply&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  vars(dark) {
+    const L = {'--bg':'#FFFFFF','--sep':'rgba(0,0,0,0.10)','--fg':'#1D1D1F','--fg2':'#5B5B60','--fg3':'#75757B','--hover':'rgba(0,0,0,0.05)','--sel':'rgba(0,0,0,0.075)','--selText':'rgba(217,119,87,0.22)','--card':'#FFFFFF','--code':'#F3F3F5','--field':'#FFFFFF','--fieldBorder':'rgba(0,0,0,0.14)','--accent':'#D97757','--accentInk':'#A94A28','--accentFill':'#B4552F','--ctl':'#FFFFFF','--ctlBorder':'rgba(0,0,0,0.16)','--segBg':'rgba(0,0,0,0.065)','--shadow':'0 10px 30px rgba(0,0,0,0.16), 0 0 0 0.5px rgba(0,0,0,0.2)','--popover':'#FFFFFF','--apv':'#E39A2D','--apvInk':'#8A5300','--apvTint':'rgba(227,154,45,0.12)','--qst':'#3A7BDF','--qstInk':'#1E5BB8','--qstTint':'rgba(58,123,223,0.07)','--err':'#E0484E','--errInk':'#B4232A','--errTint':'rgba(224,72,78,0.07)','--stlInk':'#7438BD','--add':'#1F7A3A','--del':'#B4232A'};
+    const D = {'--bg':'#1E1E20','--sep':'rgba(255,255,255,0.10)','--fg':'#F2F2F4','--fg2':'#ABABB1','--fg3':'#8E8E94','--hover':'rgba(255,255,255,0.06)','--sel':'rgba(255,255,255,0.09)','--selText':'rgba(217,119,87,0.30)','--card':'#27272A','--code':'#2B2B2F','--field':'#1A1A1C','--fieldBorder':'rgba(255,255,255,0.14)','--accent':'#E08865','--accentInk':'#F0A383','--accentFill':'#B4552F','--ctl':'#3A3A3E','--ctlBorder':'rgba(255,255,255,0.10)','--segBg':'rgba(255,255,255,0.08)','--shadow':'0 12px 34px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.16)','--popover':'#2F2F33','--apv':'#F0AE4A','--apvInk':'#F4BD68','--apvTint':'rgba(240,174,74,0.14)','--qst':'#5D98F0','--qstInk':'#8DB6F7','--qstTint':'rgba(93,152,240,0.10)','--err':'#EE5A5F','--errInk':'#FF8A8D','--errTint':'rgba(238,90,95,0.10)','--stlInk':'#C4A2F4','--add':'#6FD08C','--del':'#FF8A8D'};
+    return dark ? D : L;
+  }
+  renderVals() {
+    const p = this.props;
+    const W = Number(p.width ?? 820), H = Number(p.height ?? 360);
+    const dark = (p.theme ?? 'light') === 'dark';
+    const sc = p.scenario ?? 'empty';
+    const ov = p.overlay ?? 'none';
+    const agent = p.agent ?? 'claude';
+    const isAp = sc.startsWith('approval');
+    const cardFocus = sc === 'approvalFocus';
+    const arming = sc === 'approvalArming';
+    const isQ = ['question','questionMulti','questionSecret'].includes(sc);
+    const chip = on => ({height:22,padding:'0 8px',borderRadius:6,background:on?'var(--sel)':'var(--segBg)',boxShadow:on?'inset 0 0 0 1px var(--fg3)':'none',display:'flex',alignItems:'center',gap:5,whiteSpace:'nowrap',color:'var(--fg)',fontSize:11.5});
+    const kHL = {cmd:{color:'var(--accentInk)',fontWeight:600},file:{color:'var(--qstInk)',fontFamily:'ui-monospace,Menlo,monospace',fontSize:12.5},kw:{color:'var(--stlInk)',fontWeight:600}};
+    const T = (arr) => arr.map(([t,k]) => ({t, s:{...(k?kHL[k]:{}), ...(sc==='sending'?{color:'var(--fg3)'}:{} )}}));
+    const TX = {
+      typing: T([['/review ','cmd'],['@Packages/SessionFeature/Sources/SessionFeature/ChatApprovalBroker.swift','file'],[' の失効処理を見て。'],[agent==='claude'?'ultrathink':'しっかり考えて', agent==='claude'?'kw':null],[' で userInputRequests 側に同じ漏れがないかも確認して。']]),
+      slash: T([['/re','cmd']]), mention: T([['テストは '],['@Chat','file']]),
+      sending: T([['DTO にも expiresAt を足して、iOS 側で残り時間を出せるようにして。']]),
+      failed: T([['DTO にも expiresAt を足して、iOS 側で残り時間を出せるようにして。']]),
+      noAttach: T([['この画面の崩れを直して → '],['@~/Desktop/Screenshot 2026-09-23 14.20.11.png','file']]),
+      attachLimit: T([['この 4 枚の崩れ方の違いを比べて。']]), attachB: T([['スクショの崩れを直して。']]), attachC: T([['スクショの崩れを直して。']]),
+    };
+    const tokens = TX[sc] || [];
+    const running = sc === 'running' || isAp || isQ;
+    const S_ = {
+      slash:[['/review','変更をレビューする','.claude/commands'],['/release-notes','リリースノートを下書きする','.claude/skills'],['/resume','過去の会話を再開する','組込'],['/rewind','会話を巻き戻す','組込']],
+      mention:[['ChatApprovalBroker.swift','Packages/SessionFeature/Sources/SessionFeature/',''],['ChatSessionViewModel.swift','Packages/SessionFeature/Sources/SessionFeature/',''],['ChatTranscriptView.swift','Packages/SessionFeature/Sources/SessionFeature/',''],['ChatHangPolicy.swift','Packages/SessionFeature/Sources/SessionFeature/','']],
+    }[sc];
+    if (sc === 'slash' && agent === 'codex') S_.splice(1, 1, ['$review-pr','PR の差分をレビュー（Codex スキル）','skill']);
+    const sug = (S_ || []).map(([name,desc,src],i) => ({name,desc,src,on:i===0,
+      row:{display:'flex',alignItems:'center',gap:10,height:30,padding:'0 8px',borderRadius:6,color:i===0?'#fff':'var(--fg)',background:i===0?'var(--accentFill)':'transparent'},
+      nameStyle:{fontSize:13,fontWeight:sc==='slash'?600:500,flex:'none',fontFamily:sc==='slash'?'inherit':'ui-monospace,Menlo,monospace'}}));
+    const MD = {
+      claude:[['Default',''],['Opus','1M context',true],['Fable 5.1',''],['Sonnet 5',''],['Haiku 4.5','']],
+      codex:[['gpt-6-astra',''],['gpt-6-sol','high ›',true],['gpt-6-luna',''],['gpt-5.6-sol',''],['gpt-5.6-terra',''],['gpt-5.6-luna',''],['gpt-5.5','']],
+      cursor:[['Auto',''],['composer-2.5','既定',true],['Claude Sonnet 5',''],['GPT-6 sol',''],['Gemini 3 Pro',''],['Grok 5',''],['ほか 31 件','']],
+    }[agent];
+    const models = MD.map(([t,note,on],i) => ({t,note,on:!!on,tick:on?'✓':'',row:{display:'flex',alignItems:'center',gap:4,height:24,padding:'0 10px',borderRadius:5,color:(agent==='codex'&&on)?'#fff':'var(--fg)',background:(agent==='codex'&&on)?'var(--accentFill)':'transparent'}}));
+    const efforts = ['low','medium','high','xhigh'].map(t => ({t,tick:t==='high'?'✓':'',row:{display:'flex',alignItems:'center',gap:4,height:24,padding:'0 10px',borderRadius:5,fontSize:13,color:'var(--fg)'}}));
+    const radio = on => ({width:14,height:14,borderRadius:7,boxSizing:'border-box',flex:'none',marginTop:2,border:on?'4px solid var(--accentFill)':'1.2px solid var(--fg3)'});
+    const PR = {
+      claude:{title:'権限モード',sub:'Claude Code · 3 種',radio:true,opts:[['標準','ファイルの変更とコマンドは毎回たずねる',true],['編集は自動で許可','ファイルの変更だけ確認なし。コマンドはたずねる',false],['すべて許可','確認なしで実行する（bypass）',false]],foot:'許可・確認・拒否のルールは エージェント管理 > パーミッション'},
+      codex:{title:'承認とサンドボックス',sub:'Codex · config.toml のキー',keys:true,rows:[['承認方式','approval_policy',['untrusted','on-request','never'],1],['サンドボックス','sandbox_mode',['read-only','workspace-write','full-access'],1]],foot:'このセッションだけに効く。既定は エージェント管理 > 設定'},
+      cursor:{title:'権限',sub:'Cursor · 2 種',radio:true,opts:[['自動レビュー','サンドボックスあり。危険な操作だけ確認する',true],['フルアクセス','サンドボックスなし・確認なし（--force）',false]],foot:'許可・拒否のルールは エージェント管理 > パーミッション'},
+    }[agent];
+    const perm = {...PR, opts:(PR.opts||[]).map(([t,d,on]) => ({t,d,on,dot:radio(on),row:{display:'flex',alignItems:'flex-start',gap:10,padding:'7px 8px',borderRadius:7,background:on?'var(--hover)':'transparent'}})),
+      rows:(PR.rows||[]).map(([t,key,opts,sel]) => ({t,key,opts:opts.map((o,i) => ({t:o,on:i===sel,s:{flex:1,textAlign:'center',height:22,lineHeight:'22px',borderRadius:5,fontSize:11.5,fontFamily:'ui-monospace,Menlo,monospace',color:i===sel?'var(--fg)':'var(--fg2)',background:i===sel?'var(--ctl)':'transparent',boxShadow:i===sel?'0 0.5px 1.5px rgba(0,0,0,0.2)':'none'}}))}))};
+    const Q = {
+      question:{header:'対象範囲',mode:'1 つ選ぶ',text:'SettingsView.swift の直書き Text（4 件）も xcstrings に移しますか?',hasOptions:true,multi:false,hint:'1–3 で選択 · ⌘↩ 送信 · Esc 閉じる',opts:[['すべて移す','「ラウンドロビン」「スケジューラ」など 4 件すべて',true],['討論まわりだけ','スケジューラ関連の 2 件',false],['移さない','今回は一覧化だけにする',false]]},
+      questionMulti:{header:'テスト対象',mode:'複数選べる',text:'どのテストを先に直しますか?',hasOptions:true,multi:true,hint:'1–4 で切り替え · ⌘↩ 送信',opts:[['PaneTreeTests','testEqualizeKeepsOrder が比率 0.5 で失敗',true],['ChatAutoFollowTests','閾値 80pt の境界で不安定',true],['SpawnPolicyTests','レート上限の時刻依存',false],['UsageMonitorTests','Claude 取得のタイムアウト',false]]},
+      questionSecret:{header:'認証',mode:'秘密の入力',text:'APNs の Auth Key ID を入力してください。',hasOptions:false,secret:true,hint:'⌘↩ 送信 · Esc 閉じる',opts:[]},
+    }[sc] || {opts:[]};
+    const qOpts = Q.opts.map(([label,desc,on],i) => ({label,desc,on,key:String(i+1),tick:on&&Q.multi?'✓':'',role:Q.multi?'checkbox':'radio',
+      box:Q.multi?{width:14,height:14,marginTop:2,borderRadius:3.5,boxSizing:'border-box',flex:'none',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,color:'#fff',background:on?'var(--qst)':'transparent',border:on?'none':'1.2px solid var(--fg3)'}:{...radio(on),border:on?'4px solid var(--qst)':'1.2px solid var(--fg3)'},
+      row:{display:'flex',alignItems:'flex-start',gap:10,padding:'7px 10px',borderRadius:7,background:'var(--bg)',boxShadow:on?'inset 0 0 0 1px var(--qst)':'inset 0 0 0 1px var(--sep)'}}));
+    const AP = {
+      approval:{kind:'コマンドの実行',title:'次のコマンドを実行しようとしています',isCmd:true},
+      approvalFocus:{kind:'コマンドの実行',title:'次のコマンドを実行しようとしています',isCmd:true},
+      approvalArming:{kind:'コマンドの実行',title:'次のコマンドを実行しようとしています',isCmd:true},
+      approvalMulti:{kind:'コマンドの実行',title:'次のコマンドを実行しようとしています',isCmd:true},
+      approvalFile:{kind:'ファイルの変更',title:'3 ファイルを変更しようとしています',isFile:true},
+      approvalPerm:{kind:'権限の変更',title:'許可ルールの追加を求めています',isPerm:true},
+    }[sc] || {};
+    AP.aria = `承認待ち、${AP.kind}`;
+    const btn = (primary, on) => ({position:'relative',overflow:'hidden',display:'flex',alignItems:'center',gap:6,height:28,padding:'0 12px',borderRadius:7,fontSize:12.5,fontWeight:primary?600:400,
+      color:primary?'#fff':'var(--fg)',background:primary?'var(--accentFill)':'var(--ctl)',boxShadow:primary?(on?'0 0 0 2px var(--bg), 0 0 0 4px var(--accent)':'none'):'0 0 0 0.5px var(--ctlBorder)',opacity:primary&&arming?0.55:1});
+    const attachSets = {
+      attachLimit:[['ui-grid.png','1.2MB'],['ui-single.png','0.9MB'],['ui-team.png','1.4MB'],['ui-narrow.png','2.1MB']],
+      attachB:[['screenshot.png','1.1MB']], attachC:[['screenshot.png','1.1MB']],
+    }[sc];
+    const attach = (attachSets||[]).map(([t,size]) => ({t,size,img:true,style:{display:'flex',alignItems:'center',gap:6,height:30,padding:'0 4px 0 4px',borderRadius:7,background:'var(--segBg)',fontSize:11.5,color:'var(--fg)',maxWidth:190,opacity:sc==='attachB'?0.55:1}}));
+    const NOTICE = {
+      attachLimit:['5 枚目は追加できません。画像は 1 枚 4MB・最大 4 枚・合計 8MB までです。','err'],
+      noAttach:['Cursor では画像を添付できません。画像はファイルの参照（@パス）として挿入しました。','neutral'],
+      attachB:['gpt-5.5 は画像入力に対応していないため、この画像は送られません。モデルを切り替えると送れます。','apv'],
+      attachC:['このエージェントには画像そのものは送れず、警告付きのテキストに置き換えて送ります。','apv'],
+    }[sc];
+    const nBg = {err:'var(--errTint)',apv:'var(--apvTint)',neutral:'var(--hover)'};
+    const ctxHigh = ov==='context';
+    const ctxV = ctxHigh ? 84 : 46;
+    const placeholder = sc==='running' ? '実行中です。中断は Esc か ■' : isAp ? '承認待ちの間も入力できます（送信は承認後）' : isQ ? '質問に答えるか、ここから別の指示を送れます' : 'メッセージを入力 — / でコマンド、@ でファイル';
+    const hints = isAp ? (cardFocus ? ['Y 許可','S このセッション中は許可','N 拒否','Esc キャンセル','Tab 入力欄へ戻る'] : ['⌥⌘↩ 許可','⌥⌘⌫ 拒否','Tab で承認カードへ移動すると 1 キーで返せる']) : isQ ? ['1–9 選択','⌘↩ 回答を送信','Esc 閉じる'] : ['↩ 送信','⇧↩ 改行','⌘Z 取り消し','⌘V 画像も貼り付け','↑ 入力履歴（候補がないとき）'];
+    const modelLabel = {claude:'Opus',codex:'gpt-6-sol · high',cursor:'composer-2.5'}[agent];
+    const permLabel = {claude:'権限: 標準',codex:'on-request · workspace-write',cursor:'権限: 自動レビュー'}[agent];
+    const noImg = agent==='cursor' || sc==='attachB';
+    const sendEnabled = tokens.length > 0 && sc !== 'sending';
+    return {
+      rootStyle:{...this.vars(dark),width:W,height:H,boxSizing:'border-box',padding:'18px 24px 16px',display:'flex',flexDirection:'column',justifyContent:'flex-end',gap:8,position:'relative',borderRadius:11,background:'var(--bg)',boxShadow:dark?'0 0 0 0.5px rgba(255,255,255,0.18), 0 18px 50px rgba(0,0,0,0.35)':'0 0 0 0.5px rgba(0,0,0,0.22), 0 18px 50px rgba(0,0,0,0.14)',fontFamily:'-apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif',color:'var(--fg)',WebkitFontSmoothing:'antialiased'},
+      screenLabel:p.label ?? 'reply',
+      context: isQ ? '…xcstrings のキーと突き合わせました。移す範囲を確認させてください。' : isAp ? '…テストを実行して、期限切れの要求が一覧から消えることを確認します。' : '…失効処理を追加しました。テストは 3 件とも成功しています。  $0.42 · コンテキスト 46%',
+      failed: sc==='failed',
+      hasApproval:isAp, ap:AP, multi:sc==='approvalMulti', cardFocus, arming, sessNote:cardFocus,
+      apStyle:{borderRadius:11,background:'var(--apvTint)',boxShadow:cardFocus?'inset 0 0 0 1px var(--apv), 0 0 0 3px var(--selText)':'inset 0 0 0 1px var(--apv)',padding:'11px 13px 12px',display:'flex',flexDirection:'column',gap:9},
+      apFiles:[['M','Packages/SessionFeature/Sources/SessionFeature/ChatApprovalBroker.swift','+42','−6'],['M','Packages/SessionFeature/Tests/SessionFeatureTests/ApprovalBrokerTests.swift','+61','−0'],['A','Packages/AgentDomain/Sources/AgentDomain/ApprovalExpiry.swift','+18','']].map(([k,p,a,d],i) => ({k,p,a,d,row:{display:'flex',alignItems:'center',gap:8,height:28,padding:'0 12px',fontSize:12,borderTop:i?'1px solid var(--sep)':'none'}})),
+      btnAllow:btn(true, cardFocus), btnSess:btn(false), btnDeny:btn(false),
+      allowKey: cardFocus ? 'Y' : '⌥⌘↩', denyKey: cardFocus ? 'N' : '⌥⌘⌫',
+      hasQuestion:isQ, q:Q, qOpts,
+      qStyle:{borderRadius:11,background:'var(--qstTint)',boxShadow:'inset 0 0 0 1px var(--qst)',padding:'11px 13px 12px',display:'flex',flexDirection:'column',gap:9},
+      answered: sc==='answered',
+      composerStyle:{position:'relative',borderRadius:12,background:'var(--field)',boxShadow:(['typing','slash','mention','failed','noAttach','attachLimit','attachB','attachC'].includes(sc))?'inset 0 0 0 1px var(--fieldBorder), 0 0 0 3px var(--selText)':'inset 0 0 0 1px var(--fieldBorder)',padding:'10px 12px 8px',display:'flex',flexDirection:'column',gap:10},
+      hasSuggest:!!S_, sug, sugTitle: sc==='slash' ? 'コマンド' : 'ファイル',
+      hasTicks: sc==='typing', ticks:Array.from({length:12},(_,i) => ({width:3,height:i===11?12:6+(i%3)*2,borderRadius:1.5,background:i===11?'var(--accent)':'var(--fg3)',opacity:i===11?1:0.45})),
+      hasAttach: attach.length>0, attach,
+      notice: NOTICE ? NOTICE[0] : '', noticeStyle:{fontSize:11.5,lineHeight:1.5,color:'var(--fg)',padding:'6px 9px',borderRadius:6,background:NOTICE?nBg[NOTICE[1]]:'transparent'},
+      fieldStyle:{fontSize:13.5,lineHeight:1.6,color:'var(--fg)',minHeight:22,maxHeight:160,overflow:'hidden',textWrap:'pretty',wordBreak:'break-all'},
+      hasText:tokens.length>0, noText:tokens.length===0, tokens, caret:sc!=='sending', placeholder,
+      plusAria: noImg ? 'ファイルを参照として挿入' : 'ファイルや画像を添付',
+      plusStyle:{width:24,height:24,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,color:'var(--fg2)',background:'transparent'},
+      plusTip: sc==='noAttach' ? '＋ はファイルの参照（@パス）を挿入します。Cursor は画像の添付に対応していません。' : '',
+      chipBase:chip(false), chipModel:chip(ov==='model'), chipPerm:chip(ov==='permission'), chipBranch:{...chip(ov==='branch'),fontFamily:'ui-monospace,Menlo,monospace',fontSize:11,background:ov==='branch'?'var(--sel)':'transparent'},
+      modelLabel, permLabel, hasEffort: agent==='claude',
+      showModel:ov==='model', models, modelSearch:agent==='cursor', modelFallback:agent==='cursor', effortSub:agent==='codex', efforts,
+      showPerm:ov==='permission', perm,
+      showBranch:ov==='branch', branches:[['feat/approval-expiry',true],['main',false],['fix/pane-normalize',false],['chore/l10n-audit',false]].map(([t,on],i) => ({t,tick:on?'✓':'',row:{display:'flex',alignItems:'center',gap:4,height:26,padding:'0 8px',borderRadius:6,color:i===1?'#fff':'var(--fg)',background:i===1?'var(--accentFill)':'transparent'}})),
+      showCtx:ctxHigh, ctxPct:ctxV+'%', ctxDash:`${(34.56*ctxV/100).toFixed(1)} 34.6`, ctxColor: ctxV>=80?'var(--apv)':'var(--fg2)',
+      showStop: running, showSend: !running,
+      sendDisabled:!sendEnabled, sendGlyph: sc==='sending' ? '…' : '↑',
+      sendStyle:{width:26,height:26,borderRadius:13,display:'flex',alignItems:'center',justifyContent:'center',flex:'none',fontSize:13,fontWeight:700,color:sendEnabled?'#fff':'var(--fg3)',background:sendEnabled?'var(--accentFill)':'var(--segBg)'},
+      hints,
+    };
+  }
+}
+</script>
+</body>
+</html>

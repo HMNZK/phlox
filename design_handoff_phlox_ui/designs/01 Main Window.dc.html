@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>body{margin:0;background:#E7E7EA;} a{color:#A94A28;} a:hover{color:#7E3517;}</style>
+</helmet>
+<div style="padding:80px;display:flex;flex-direction:column;gap:110px;width:max-content;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#1D1D1F;">
+
+<section data-screen-label="00 概要" style="display:flex;gap:64px;align-items:flex-start;">
+  <div style="width:560px;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:13px;color:#75757B;">Phlox macOS · 再設計 01</div>
+    <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;">メインウィンドウの骨格</div>
+    <div style="font-size:15px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">参照: 機能一覧 1章・2章・2.1節・14章・18章。サイドバー / 中央（単体・グリッド）/ ドロワー / インスペクタ / ツールバーの配置と、メニュー・キー割り当てを定める。サイドバー内部・セッション画面・グリッド操作の詳細は各章の回で描く。</div>
+    <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:1.6;color:#3A3A3E;margin-top:8px;">
+      <div><b>A</b> 全領域を開いた状態（ライト / ダーク）＋ 機能対応表</div>
+      <div><b>B</b> 論点: 対応待ちを見逃さない仕組み・2 モードの行き来</div>
+      <div><b>C</b> グリッド表示</div>
+      <div><b>D</b> 最小構成と狭い幅での縮退</div>
+      <div><b>E</b> 操作の流れ（ポップオーバー・メニュー・リサイズ）</div>
+      <div><b>F</b> メニューバーとショートカット</div>
+      <div><b>G</b> 変更点・削除/統合・候補・分岐候補</div>
+    </div>
+  </div>
+  <div style="width:620px;background:#fff;border-radius:12px;padding:24px 26px;display:flex;flex-direction:column;gap:16px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);">
+    <div style="font-size:15px;font-weight:700;">状態の語彙（全画面共通）</div>
+    <div style="font-size:12.5px;line-height:1.6;color:#5B5B60;text-wrap:pretty;">色・形・文言の 3 つで区別する。進行中の状態はグレーの輪郭だけで静かに、エージェントが先へ進めない 4 状態だけを塗りつぶしと色で目立たせる。この 4 状態を「対応待ち」と呼ぶ。</div>
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px 10px;">
+      <div style="display:flex;flex-direction:column;gap:6px;"><span style="width:14px;height:14px;border-radius:50%;border:1.5px dashed #6E6E73;box-sizing:border-box;"></span><span style="font-size:13px;font-weight:600;">起動中</span><span style="font-size:11.5px;color:#5B5B60;">破線の円</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;"><span style="width:14px;height:14px;border-radius:50%;border:1.5px solid #6E6E73;box-sizing:border-box;"></span><span style="font-size:13px;font-weight:600;">待機</span><span style="font-size:11.5px;color:#5B5B60;">輪郭の円</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;"><span style="width:14px;height:14px;border-radius:50%;border:2px solid #6E6E73;border-right-color:transparent;box-sizing:border-box;"></span><span style="font-size:13px;font-weight:600;">実行中</span><span style="font-size:11.5px;color:#5B5B60;">欠けた円（回転、視差を減らす設定では静止）</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;"><span style="width:14px;height:14px;border-radius:50%;background:#6E6E73;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;">✓</span><span style="font-size:13px;font-weight:600;">完了</span><span style="font-size:11.5px;color:#5B5B60;">塗りの円＋✓（未読は横に点）</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;"><span style="width:14px;height:14px;background:#E39A2D;transform:rotate(45deg) scale(0.76);border-radius:2px;"></span><span style="font-size:13px;font-weight:600;color:#8A5300;">承認待ち</span><span style="font-size:11.5px;color:#5B5B60;">ひし形・琥珀</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;"><span style="width:14px;height:14px;border-radius:3px;background:#3A7BDF;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;">?</span><span style="font-size:13px;font-weight:600;color:#1E5BB8;">質問待ち</span><span style="font-size:11.5px;color:#5B5B60;">角丸四角＋?・青</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;"><span style="width:14px;height:14px;background:#E0484E;clip-path:polygon(50% 0,100% 100%,0 100%);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:flex-end;justify-content:center;">!</span><span style="font-size:13px;font-weight:600;color:#B4232A;">エラー</span><span style="font-size:11.5px;color:#5B5B60;">三角＋!・赤</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;"><span style="width:14px;height:14px;background:#9457DB;clip-path:polygon(25% 4%,75% 4%,100% 50%,75% 96%,25% 96%,0 50%);"></span><span style="font-size:13px;font-weight:600;color:#7438BD;">無応答</span><span style="font-size:11.5px;color:#5B5B60;">六角形・紫（120 秒無応答）</span></div>
+    </div>
+    <div style="height:1px;background:rgba(0,0,0,0.08);"></div>
+    <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:#3A3A3E;">
+      <span style="font-weight:600;">エージェント</span>
+      <span style="display:flex;align-items:center;gap:6px;"><span style="width:16px;height:16px;border-radius:4px;background:oklch(0.72 0.09 45 / 0.30);font-size:8px;font-weight:600;display:flex;align-items:center;justify-content:center;">Cl</span>Claude Code</span>
+      <span style="display:flex;align-items:center;gap:6px;"><span style="width:16px;height:16px;border-radius:4px;background:oklch(0.72 0.07 165 / 0.30);font-size:8px;font-weight:600;display:flex;align-items:center;justify-content:center;">Cx</span>Codex</span>
+      <span style="display:flex;align-items:center;gap:6px;"><span style="width:16px;height:16px;border-radius:4px;background:oklch(0.72 0.07 260 / 0.30);font-size:8px;font-weight:600;display:flex;align-items:center;justify-content:center;">Cu</span>Cursor</span>
+      <span style="display:flex;align-items:center;gap:6px;"><span style="width:16px;height:16px;border-radius:4px;background:oklch(0.72 0.07 320 / 0.30);font-size:8px;font-weight:600;display:flex;align-items:center;justify-content:center;">ai</span>カスタム（agents.json の色）</span>
+    </div>
+    <div style="font-size:11.5px;line-height:1.6;color:#75757B;text-wrap:pretty;">モックでは頭文字のタイルで代用。実装では AgentBrandIcon を同じ 16pt の淡い面に載せ、色は面の薄い色味だけに抑える。VoiceOver ラベルは「タイトル、状態、エージェント名」の順に読む。</div>
+  </div>
+</section>
+
+<section data-screen-label="更新" style="width:1500px;background:#FFF7E8;border-radius:12px;padding:18px 22px;box-shadow:inset 0 0 0 1px rgba(227,154,45,0.5);font-size:13px;line-height:1.7;color:#3A3A3E;">
+  <b>更新（タブ C 採用）</b>: 右端のドロワーは廃止し、中央の上部に「セッションのタブ」と「そのセッションの子タブ（会話・ターミナル・変更・ファイル）」を置く（<a href="02 Tabs.dc.html#C1">Tabs C</a>）。ツールバーのターミナル / エディタのボタンは削除。表示モードは ⌃⌘1 / ⌃⌘2、⌘1–9 はセッションのタブ。以下の見本（A・D・E）はこの変更を反映済み。ドロワーの寸法・開閉に関する記述は読み替えること。
+</section>
+
+<section data-screen-label="A 全領域" style="display:flex;flex-direction:column;gap:28px;">
+  <div style="font-size:26px;font-weight:700;">A. 全領域を開いた状態</div>
+  <div style="display:flex;gap:48px;align-items:flex-start;">
+    <div id="A1" style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">A1</span><span style="font-size:15px;font-weight:600;">ライト · 単体表示 · 1680×1000</span></div>
+      <dc-import name="PhloxWindow" label="A1 全領域 ライト" theme="light" mode="single" inspector="session" drawer="none" width="1680" height="1000" hint-size="1680px,1000px"></dc-import>
+    </div>
+    <div id="A2" style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">A2</span><span style="font-size:15px;font-weight:600;">ダーク · 同じ状態</span></div>
+      <dc-import name="PhloxWindow" label="A2 全領域 ダーク" theme="dark" mode="single" inspector="session" drawer="none" width="1680" height="1000" hint-size="1680px,1000px"></dc-import>
+    </div>
+  </div>
+  <div style="display:flex;gap:48px;align-items:flex-start;">
+    <div style="width:1100px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:16px;font-weight:700;">機能対応表（1章・2章・2.1節）</div>
+      <div style="display:grid;grid-template-columns:260px 1fr 110px;font-size:12.5px;line-height:1.5;">
+        <div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">機能（機能一覧）</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">モック上の置き場所</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">現行比</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">左サイドバー・開閉・リサイズ</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">左列。サイドバー上端のボタン / ⌃⌘S。右端ドラッグ 220–360pt（既定 260）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">既定幅・キー変更</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">中央 detail（single / grid）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">中央。モード固有の操作は上端の「モードバー」1 本に集約（グリッド=表示範囲バー）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">変更</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">右インスペクタ・開閉・リサイズ</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">常にウィンドウ右端。「セッション」「使用量」タブ。⌃⌘I / ツールバー右端。260–340pt（既定 280）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">タブ化</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">右端ドロワー（ターミナル / エディタ・両方で縦積み）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">中央とインスペクタの間。両方なら上=エディタ・下=ターミナル（境界ドラッグで配分）。最小 280pt・既定 440</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">位置変更</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">サイドバー開閉ボタン</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">サイドバー上端（非表示時はツールバー左、信号の右）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">同等</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">設定を開く（歯車）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">サイドバー下端の歯車 ＋ Phlox メニュー ⌘,</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">移動</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">エージェント管理を開く（レンチ）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">サイドバー下端 ＋ Phlox メニュー ⇧⌘,。ウィンドウ ID が無い構成では非表示（現行どおり）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">移動</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">選択中セッション名</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ツールバー左のタイトル（表題）＋ サブタイトル（花名・短縮 ID・プロジェクト）。未選択時はプロジェクト名</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">同等</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">使用量チップ</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ツールバー右。インスペクタの開閉に関係なく表示。ゲージ → テキスト → 最小残量のみ。クリックでインスペクタ「使用量」</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">常時表示</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">表示モード切替（2 セグメント）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ツールバー中央。⌘1 / ⌘2</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">キー追加</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">グリッド絞り込みサマリ</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">グリッドの表示範囲バー左（トークン「phlox-core」）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">移動</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">絞り込み解除（プロジェクト / セッション選択）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">各トークンの ✕。ピッカー内「選択を解除してすべて表示」</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">移動</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">グリッド表示セッション選択（n/total）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">表示範囲バー「3 / 4 件を表示 ▾」→ ポップオーバー（<a href="#E3">E3</a>）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">移動</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">レイアウトプリセット 9 種</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">表示範囲バー右「レイアウト ▾」（<a href="#E2">E2</a>）＋ 表示メニュー</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">移動</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">インスペクタ開閉ボタン</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ツールバー右端</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">同等</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">Git worktree 隔離メニュー</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">タイトル右「worktree 隔離 ▾」（プロジェクト選択時のみ、<a href="#E4">E4</a>）＋ セッションメニュー</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">隣接のまま</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ターミナル / エディタ開閉</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ツールバー右のトグル 2 つ（狭い幅では » に格納）＋ ⌃⌘T / ⌃⌘E</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">ボタン新設</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">空状態 / 起動カード</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">中央（9 章の回で描く）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">—</div>
+        <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-weight:600;">対応待ち（新規）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ツールバー「対応待ち n」→ 一覧（<a href="#E1">E1</a>）、サイドバー最上部のセクション、⌘J / ⌥⌘J</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">新規</div>
+        <div style="padding:7px 8px;">プロジェクトの実行中数（runningBreakdown）</div><div style="padding:7px 8px;">プロジェクト行右端「1 実行中」</div><div style="padding:7px 8px;color:#7438BD;">候補（未配線）</div>
+      </div>
+      <div style="font-size:12px;color:#5B5B60;">未配置の機能: なし。サイドバー内の行操作（3 章）とインスペクタの状態差分（7 章）は各章の回で対応表を付ける。</div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="B 論点" style="display:flex;flex-direction:column;gap:28px;">
+  <div style="font-size:26px;font-weight:700;">B. 論点</div>
+  <div style="display:flex;gap:32px;align-items:flex-start;">
+    <div id="B1" style="width:640px;background:#fff;border-radius:12px;padding:26px 28px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">B1</span><span style="font-size:18px;font-weight:700;">対応待ちをどのモードでも見逃さない</span></div>
+      <div style="font-size:13px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">「対応待ち」を 承認待ち・質問待ち・エラー・無応答 の 4 状態と定義し、完了の未読とは別に数える。前者はエージェントが止まっている状態、後者は次の指示を待っているだけで作業は止まっていない。</div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.65;color:#1D1D1F;">
+        <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">1</b><div><b>ツールバーの「対応待ち n」</b>。どのモードでも同じ位置に置く。クリックで待ち時間の長い順の一覧が開き、承認・拒否・中断はその場で返せる（<a href="#E1">E1</a>）。⌘J で次の対応待ちへ移動し、⌥⌘J で一覧を開く。</div></div>
+        <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">2</b><div><b>サイドバー最上部のセクション</b>。プロジェクトの折りたたみに関係なく常に表示する。1 行目は状態の文言、2 行目はプロジェクトと待ち時間。</div></div>
+        <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">3</b><div><b>モードの中</b>。グリッドでは、表示範囲の外にある対応待ちを表示範囲バーに「範囲外に対応待ち 2」と出す（絞り込み中の見落としを防ぐ）。タイルは状態の色でヘッダを塗る。</div></div>
+        <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">4</b><div><b>OS 側</b>。Dock バッジは対応待ちの数にする（現行は未読完了数）。通知のタイトルは状態ごとに分け、「承認待ち」「質問待ち」「エラー」「無応答」「完了」とする（現行は完了でも「入力待ち」）。</div></div>
+      </div>
+      <div style="font-size:12px;line-height:1.6;color:#75757B;text-wrap:pretty;">サイドバーとツールバーで同じ一覧を二重に持つのは意図的。サイドバーを閉じた最小構成（<a href="#D2">D2</a>）でも入口が残る。</div>
+    </div>
+    <div id="B2" style="width:760px;background:#fff;border-radius:12px;padding:26px 28px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:16px;">
+      <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">B2</span><span style="font-size:18px;font-weight:700;">2 モードの行き来を自然にする</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;">
+        <div style="width:150px;height:92px;border-radius:10px;border:1.5px solid #1D1D1F;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;"><span style="font-size:16px;font-weight:700;">単体</span><span style="font-size:11.5px;color:#5B5B60;">⌃⌘1</span></div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;font-size:11.5px;color:#3A3A3E;text-align:center;line-height:1.4;">
+          <div>⌃⌘2 · 選択中のタイルにフォーカス →</div>
+          <div>← タイルをダブルクリック / ⌃⌘1</div>
+        </div>
+        <div style="width:150px;height:92px;border-radius:10px;border:1.5px solid #1D1D1F;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;"><span style="font-size:16px;font-weight:700;">グリッド</span><span style="font-size:11.5px;color:#5B5B60;">⌃⌘2</span></div>
+              </div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.65;">
+        <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">1</b><div><b>選択と範囲をモード間で共有する</b>。サイドバーで選んだセッションは、単体の表示対象、グリッドのフォーカスを兼ねる。選んだプロジェクトはグリッドの範囲になる。</div></div>
+        <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">2</b><div><b>ツールバーはモードで変えない</b>。変わるのは中央上端のモードバー 1 本だけにする。</div></div>
+        <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">3</b><div><b>戻り先を保つ</b>。単体からグリッドに戻ると、分割ツリーと表示範囲は離れる前の状態に戻る。コンポーザの下書きはセッション単位で保持し、モードを跨いでも消えない（案）。</div></div>
+        <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">4</b><div>グリッドのプリセット「1 枚」と単体表示は役割が違うので両方残す。「1 枚」は表示範囲を保ったまま 1 タイルにするもので、単体表示は範囲から外れる。</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="C 表示モード" style="display:flex;flex-direction:column;gap:28px;">
+  <div style="font-size:26px;font-weight:700;">C. グリッド表示</div>
+  <div style="display:flex;gap:48px;align-items:flex-start;">
+    <div id="C1" style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">C1</span><span style="font-size:15px;font-weight:600;">グリッド · ライト · 1440×900</span></div>
+      <dc-import name="PhloxWindow" label="C1 グリッド" theme="light" mode="grid" inspector="session" drawer="none" width="1440" height="900" hint-size="1440px,900px"></dc-import>
+      <div style="width:1440px;font-size:12.5px;line-height:1.6;color:#3A3A3E;">表示範囲バー: 範囲トークン → 表示セッション選択 → （右寄せ）範囲外の対応待ち → レイアウト。フォーカス中のタイルは accent の輪、状態はヘッダの色と記号で示し、枠線の太さだけで状態を表すのはやめる（現行は赤枠 3pt）。タイルの ✕ は「グリッドから外す」で、セッションは削除しない。</div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="D 縮退" style="display:flex;flex-direction:column;gap:28px;">
+  <div style="font-size:26px;font-weight:700;">D. 最小構成と狭い幅での縮退</div>
+  <div style="display:flex;gap:48px;align-items:flex-start;">
+    <div id="D1" style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">D1</span><span style="font-size:15px;font-weight:600;">サイドバーだけの最小構成 · 1180×760</span></div>
+      <dc-import name="PhloxWindow" label="D1 最小構成" theme="light" mode="single" inspector="none" drawer="none" width="1180" height="760" hint-size="1180px,760px"></dc-import>
+    </div>
+    <div id="D2" style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">D2</span><span style="font-size:15px;font-weight:600;">1024×720 · インスペクタはオーバーレイで開く</span></div>
+      <dc-import name="PhloxWindow" label="D2 1024" theme="light" mode="single" inspector="overlay" drawer="none" width="1024" height="720" hint-size="1024px,720px"></dc-import>
+    </div>
+    <div id="D3" style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">D3</span><span style="font-size:15px;font-weight:600;">760×640 · サイドバーを隠した状態 · ダーク</span></div>
+      <dc-import name="PhloxWindow" label="D3 760" theme="dark" mode="single" sidebar="false" inspector="none" drawer="none" width="760" height="640" hint-size="760px,640px"></dc-import>
+    </div>
+  </div>
+  <div style="display:flex;gap:32px;align-items:flex-start;">
+    <div style="width:760px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:16px;font-weight:700;">ツールバーの縮退段階</div>
+      <div style="display:grid;grid-template-columns:150px 1fr;gap:0;font-size:12.5px;line-height:1.55;">
+        <div style="padding:8px;border-bottom:1px solid rgba(0,0,0,0.08);font-weight:600;">1280pt 以上</div><div style="padding:8px;border-bottom:1px solid rgba(0,0,0,0.08);">全要素を表示。使用量はゲージ、対応待ちは状態記号＋文言＋件数</div>
+        <div style="padding:8px;border-bottom:1px solid rgba(0,0,0,0.08);font-weight:600;">960–1279pt</div><div style="padding:8px;border-bottom:1px solid rgba(0,0,0,0.08);">worktree はアイコンのみ。使用量はテキスト（Cl 38 · Cx 62 · Cu 88%）。対応待ちは文言＋件数</div>
+        <div style="padding:8px;border-bottom:1px solid rgba(0,0,0,0.08);font-weight:600;">960pt 未満</div><div style="padding:8px;border-bottom:1px solid rgba(0,0,0,0.08);">表示モードはアイコンのみ。使用量は最も少ない残量 1 つ。ドロワーのトグルは » に格納。対応待ちは件数のみ</div>
+        <div style="padding:8px;font-weight:600;">パネル</div><div style="padding:8px;">中央が 480pt を切る場合、インスペクタ → ドロワーの順にオーバーレイ表示へ切り替え、それでも足りなければサイドバーを自動で隠す（⌃⌘S で一時表示）。最小ウィンドウは 720×520</div>
+      </div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:6px;">
+        <div style="display:flex;align-items:center;gap:10px;height:26px;padding:0 9px;border-radius:7px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.16);font-size:11px;">
+          <span style="display:flex;align-items:center;gap:5px;"><span style="color:#5B5B60;">Claude</span><span style="width:28px;height:4px;border-radius:2px;background:rgba(0,0,0,0.07);display:flex;"><span style="width:18%;background:#E39A2D;border-radius:2px;"></span></span><span style="color:#8A5300;font-weight:600;">18%</span></span>
+          <span style="display:flex;align-items:center;gap:5px;"><span style="color:#5B5B60;">Codex</span><span style="width:28px;height:4px;border-radius:2px;background:rgba(0,0,0,0.07);display:flex;"><span style="width:62%;background:#5B5B60;border-radius:2px;"></span></span><span>62%</span></span>
+        </div>
+        <div style="height:26px;padding:0 9px;border-radius:7px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.16);font-size:11px;display:flex;align-items:center;">Cl <b style="color:#8A5300;margin:0 3px;">18</b> · Cx 62 · Cu 88%</div>
+        <div style="height:26px;padding:0 9px;border-radius:7px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.16);font-size:11px;display:flex;align-items:center;gap:5px;color:#8A5300;font-weight:600;">▲ 18%</div>
+        <span style="font-size:12px;color:#5B5B60;">残り 20% 未満は 3 段階とも琥珀＋▲。承認待ちと同じ色だが、形（ゲージ・▲）で区別する</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="E 操作の流れ" style="display:flex;flex-direction:column;gap:28px;">
+  <div style="font-size:26px;font-weight:700;">E. 操作の流れ</div>
+  <div style="display:flex;gap:48px;align-items:flex-start;flex-wrap:wrap;width:2700px;row-gap:56px;">
+    <div id="E1" style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">E1</span><span style="font-size:15px;font-weight:600;">「対応待ち」クリック → 一覧（1 行目にキーボードフォーカス）</span></div>
+      <dc-import name="PhloxWindow" label="E1 対応待ち一覧" theme="light" mode="single" inspector="none" drawer="none" overlay="queue" width="1280" height="780" hint-size="1280px,780px"></dc-import>
+      <div style="width:1280px;font-size:12.5px;line-height:1.6;color:#3A3A3E;">↑↓ で移動、↩ でそのセッションを開く、⌥⌘↩ で承認。「開く」は表示モードを変えない（グリッドならタイルへフォーカスし、範囲外なら範囲に一時追加する）。</div>
+    </div>
+    <div id="E2" style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">E2</span><span style="font-size:15px;font-weight:600;">グリッド: レイアウト ▾ → プリセット 9 種（「2 段」にホバー中）</span></div>
+      <dc-import name="PhloxWindow" label="E2 レイアウト" theme="light" mode="grid" inspector="none" drawer="none" overlay="layout" width="1280" height="780" hint-size="1280px,780px"></dc-import>
+    </div>
+    <div id="E3" style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">E3</span><span style="font-size:15px;font-weight:600;">グリッド: 表示するセッションを選ぶ（ダーク）</span></div>
+      <dc-import name="PhloxWindow" label="E3 セッション選択" theme="dark" mode="grid" inspector="none" drawer="none" overlay="picker" width="1280" height="780" hint-size="1280px,780px"></dc-import>
+    </div>
+    <div id="E4" style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">E4</span><span style="font-size:15px;font-weight:600;">worktree 隔離 ▾ → メニュー</span></div>
+      <dc-import name="PhloxWindow" label="E4 worktree" theme="light" mode="single" inspector="none" drawer="none" overlay="worktree" width="1280" height="780" hint-size="1280px,780px"></dc-import>
+      <div style="width:1280px;font-size:12.5px;line-height:1.6;color:#7438BD;">分岐候補: 切り替えが既存セッションに及ぶかは未確認。及ぶ場合は「実行中の N 件を再起動します」の確認シートを挟む。</div>
+    </div>
+    <div id="E5" style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">E5</span><span style="font-size:15px;font-weight:600;">使用量チップをクリック → インスペクタ「使用量」タブ</span></div>
+      <dc-import name="PhloxWindow" label="E5 使用量" theme="light" mode="single" inspector="usage" drawer="none" overlay="usage" width="1280" height="780" hint-size="1280px,780px"></dc-import>
+      <div style="width:1280px;font-size:12.5px;line-height:1.6;color:#3A3A3E;">ホバーではバケット別の残量とリセット時刻をヘルプタグで出す。インスペクタが開いている場合はタブの切り替えだけ行う。</div>
+    </div>
+    <div id="E6" style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">E6</span><span style="font-size:15px;font-weight:600;">リサイズ: 境界へホバー（3pt の発光バーとリサイズカーソル）</span></div>
+      <dc-import name="PhloxWindow" label="E6 リサイズ" theme="dark" mode="single" inspector="session" drawer="none" overlay="resize" width="1680" height="900" hint-size="1680px,900px"></dc-import>
+      <div style="width:1280px;font-size:12.5px;line-height:1.6;color:#3A3A3E;">境界の当たり判定は見た目 1pt・当たり 8pt。ダブルクリックで既定幅に戻す。パネルの幅と開閉はウィンドウごとに保存する。</div>
+    </div>
+  </div>
+</section>
+
+<section id="F" data-screen-label="F メニュー" style="display:flex;flex-direction:column;gap:28px;">
+  <div style="font-size:26px;font-weight:700;">F. メニューバーとショートカット</div>
+  <div style="display:flex;gap:14px;align-items:flex-start;">
+    <div style="width:230px;background:#fff;border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,0.12),0 0 0 0.5px rgba(0,0,0,0.15);font-size:13px;display:flex;flex-direction:column;">
+      <div style="padding:6px 10px;font-weight:700;">Phlox</div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>Phlox について</span></div>
+      <div style="height:1px;background:rgba(0,0,0,0.1);margin:4px 8px;"></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>設定…</span><span style="color:#75757B;">⌘,</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>エージェント管理…</span><span style="color:#75757B;">⇧⌘,</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>アップデートを確認…</span></div>
+      <div style="height:1px;background:rgba(0,0,0,0.1);margin:4px 8px;"></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;color:#75757B;"><span>（標準: 隠す・終了）</span></div>
+    </div>
+    <div style="width:270px;background:#fff;border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,0.12),0 0 0 0.5px rgba(0,0,0,0.15);font-size:13px;display:flex;flex-direction:column;">
+      <div style="padding:6px 10px;font-weight:700;">ファイル</div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>新規セッション…</span><span style="color:#75757B;">⌘N</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>新しいタブ…</span><span style="color:#75757B;">⌘T</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>ファイルを開く…</span><span style="color:#75757B;">⌘P</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>プロジェクトを追加…</span><span style="color:#75757B;">⌘O</span></div>
+      <div style="height:1px;background:rgba(0,0,0,0.1);margin:4px 8px;"></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>会話を書き出す…</span><span style="color:#75757B;">⇧⌘E</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>会話を Markdown でコピー</span><span style="color:#75757B;">⌥⇧⌘C</span></div>
+      <div style="height:1px;background:rgba(0,0,0,0.1);margin:4px 8px;"></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>閉じる（子タブ: 閉じる / 会話: 削除… / グリッド: 外す）</span><span style="color:#75757B;">⌘W</span></div>
+    </div>
+    <div style="width:290px;background:#fff;border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,0.12),0 0 0 0.5px rgba(0,0,0,0.15);font-size:13px;display:flex;flex-direction:column;">
+      <div style="padding:6px 10px;font-weight:700;">表示</div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>単体</span><span style="color:#75757B;">⌃⌘1</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>グリッド</span><span style="color:#75757B;">⌃⌘2</span></div>
+            <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>次の表示モード</span><span style="color:#75757B;">⌃⌘G</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>右に分割して開く</span><span style="color:#75757B;">⌘\</span></div>
+      <div style="height:1px;background:rgba(0,0,0,0.1);margin:4px 8px;"></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>サイドバー</span><span style="color:#75757B;">⌃⌘S</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>インスペクタ</span><span style="color:#75757B;">⌃⌘I</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>ターミナルのタブ</span><span style="color:#75757B;">⌃⌘T</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>変更のタブ</span><span style="color:#75757B;">⌃⌘E</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>グリッドのレイアウト</span><span style="color:#75757B;">▸</span></div>
+      <div style="height:1px;background:rgba(0,0,0,0.1);margin:4px 8px;"></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>文字を大きく</span><span style="color:#75757B;">⌘+</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>文字を小さく</span><span style="color:#75757B;">⌘−</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>実寸</span><span style="color:#75757B;">⌘0</span></div>
+      <div style="height:1px;background:rgba(0,0,0,0.1);margin:4px 8px;"></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;color:#75757B;"><span>（標準: ツールバー ⌥⌘T・フルスクリーン）</span></div>
+    </div>
+    <div style="width:300px;background:#fff;border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,0.12),0 0 0 0.5px rgba(0,0,0,0.15);font-size:13px;display:flex;flex-direction:column;">
+      <div style="padding:6px 10px;font-weight:700;">セッション</div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>セッションのタブ 1–9</span><span style="color:#75757B;">⌘1–9</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>次 / 前のタブ</span><span style="color:#75757B;">⌃Tab / ⌃⇧Tab</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>次の対応待ちへ</span><span style="color:#75757B;">⌘J</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>対応待ちの一覧</span><span style="color:#75757B;">⌥⌘J</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>次のセッション</span><span style="color:#75757B;">⌥⌘↓</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>前のセッション</span><span style="color:#75757B;">⌥⌘↑</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>タイル 1–9 にフォーカス</span><span style="color:#75757B;">⌥⌘1–9</span></div>
+      <div style="height:1px;background:rgba(0,0,0,0.1);margin:4px 8px;"></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>許可</span><span style="color:#75757B;">⌥⌘↩</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>拒否</span><span style="color:#75757B;">⌥⌘⌫</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>中断</span><span style="color:#75757B;">⌘.</span></div>
+      <div style="height:1px;background:rgba(0,0,0,0.1);margin:4px 8px;"></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>名前を変更…</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>別のプロジェクトへ移動</span><span style="color:#75757B;">▸</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;"><span>git worktree で隔離する</span></div>
+      <div style="height:1px;background:rgba(0,0,0,0.1);margin:4px 8px;"></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 10px;color:#B4232A;"><span>セッションを削除…</span><span>⌘W（単体）</span></div>
+    </div>
+  </div>
+  <div style="width:1300px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">現行（18 章）からの変更</div>
+    <div style="display:grid;grid-template-columns:230px 170px 230px 1fr;font-size:12.5px;line-height:1.5;">
+      <div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">コマンド</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">現行</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">提案</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">理由</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ターミナルパネル</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌥⌘T</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌃⌘T</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌥⌘T は macOS 標準の「ツールバーを表示/隠す」と衝突する</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">エディタパネル</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌥⌘E</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌃⌘E</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">パネル開閉を ⌃⌘＋頭文字（S / I / T / E）に揃えて覚えやすくする</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">サイドバー</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌘B</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌃⌘S</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">SwiftUI 標準のサイドバーコマンドと同じ割り当て</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">インスペクタ</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌥⌘B</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌃⌘I</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">標準のインスペクタコマンドと同じ割り当て</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">表示モード</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌃⌘G（巡回のみ）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌘1 / ⌘2、⌃⌘G は巡回として残す</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">2 つを直接選べる。Finder の表示切替と同じ流儀</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">新規セッション</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌘N Claude / ⇧⌘N Codex / ⌥⌘N Cursor</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌘N → 種別ポップオーバー（数字キー 1–9 で種別、↩ で先頭、⌥ を押しながらでターミナル）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">カスタムエージェントにも同じ入口を用意できる。種別が増えても割り当てが足りなくならない。代わりに Claude の起動は ⌘N → ↩ の 2 打鍵になる</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">文字サイズ</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌘= / ⌘−（ターミナルのみ）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌘+ / ⌘− / ⌘0、フォーカス中の領域に効く</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">チャット本文の文字倍率（0.8–2.0）にもキーを付けるため</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">セッションを閉じる</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌘W（削除確認へ）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">単体表示では削除（確認シートあり）。グリッドでは「グリッドから外す」。⌘⌫ はサイドバーにフォーカスがあるときだけ削除に使う（入力欄では行頭まで消去のまま）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">単体では現行どおり削除（決定済み）。グリッドでは複数タイルを見ているため、押し間違いで消えないよう「外す」だけにする</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">会話を Markdown でコピー</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">なし</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌥⇧⌘C</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">書き出し（⇧⌘E）と並べて使えるようにする</div>
+      <div style="padding:7px 8px;">追加</div><div style="padding:7px 8px;">—</div><div style="padding:7px 8px;">⌘J・⌥⌘J・⌥⌘1–9・⌘.・⌥⌘↩・⌥⌘⌫・⌘O</div><div style="padding:7px 8px;">主業務（待ちを拾う → 返す → 次へ）をキーボードだけで回すため。承認・拒否のキーは 4 章の回で確定する</div>
+    </div>
+    <div style="font-size:12px;color:#5B5B60;">変更しないもの: ⌘, · ⇧⌘, · ⌥⌘↑↓ · ⇧⌘E · ⌘R（初期化エラー画面の再試行）· ⌘S（Agent Console の保存）· コンポーザ内のキー（↩ 送信、⇧↩ 改行、Esc の優先順、Esc 2 連打で巻き戻し）。</div>
+  </div>
+</section>
+
+<section data-screen-label="G 変更点" style="display:flex;gap:32px;align-items:flex-start;">
+  <div style="width:660px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">G1. 現行から大きく変えた点と理由</div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.6;">
+      <div><b>対応待ちを常設の入口にした</b>（ツールバー・サイドバー最上部・Dock）。承認や質問が会話の中にしか出ず、セッションを横断して拾えなかったため。</div>
+      <div><b>グリッドの絞り込み・表示選択・レイアウトを表示範囲バーへ移した</b>。ツールバーの中身がモードで入れ替わると位置を覚えられない。範囲はタイルの直上で扱う方が対応関係が分かる。</div>
+      <div><b>設定・エージェント管理をサイドバー下端へ移した</b>（メニューとキーは維持）。開く頻度が低いのに、ツールバーの目立つ位置を占めていた。</div>
+      <div><b>ドロワーをインスペクタの内側へ移した</b>。インスペクタをウィンドウ右端に置く macOS の慣習に合わせ、ターミナル・エディタは作業領域の延長として中央に隣接させる。</div>
+      <div><b>インスペクタを「セッション / 使用量」のタブにし、使用量チップを常時表示にした</b>。使用量の表示場所がインスペクタの開閉で移っていたため。</div>
+      <div><b>既定幅を サイドバー 280→260・インスペクタ 300→280・ドロワー 560→440 にした</b>。全領域を開いても中央 700pt（1680 幅）を確保するため。</div>
+    </div>
+  </div>
+  <div style="width:640px;display:flex;flex-direction:column;gap:24px;">
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">G2. 削る・統合するもの</div>
+      <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+        <div><b>設定「ヘッダーに使用量を表示」の適用条件「インスペクタ非表示時のみ」を削除する</b>（設定自体は残す）。表示場所を固定するため。</div>
+        <div><b>使用量チップの「非表示」段階を「最小残量のみ」に置き換える</b>。狭い幅でも上限に近づいたことを見落とさないため。</div>
+        <div><b>プロジェクトの「選択」と「グリッド絞り込み」を 1 つの状態に統合する</b>（行クリック＝選択＝範囲）。1 行に 3 種類のクリックがある問題の解消。失うもの: 単体表示で別のプロジェクトを見たまま、グリッドだけ別のプロジェクトに絞る使い方。</div>
+        <div><b>⌥⌘T・⌥⌘E・⌘B・⌥⌘B・⇧⌘N・⌥⌘N の割り当てを廃止する</b>。機能は F の新しいキーへ移す。</div>
+      </div>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;color:#7438BD;">G3. 候補（実装済み・UI 未配線）と分岐候補（推測・未確認）</div>
+      <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+        <div><b>候補</b> runningBreakdown / runningSessionCount → プロジェクト行右端の「1 実行中」。未使用部品 RunningCountBadge を流用できる。</div>
+        <div><b>候補</b> reorderSession → サイドバーでのドラッグ並べ替え（3 章の回で描く）。</div>
+        <div><b>分岐</b> worktree 隔離の切り替えが既存セッションに及ぶか未確認 → <a href="#E4">E4</a> の注記どおり 2 通り用意する。</div>
+        <div><b>分岐</b> 無応答の検知は Chat 型のみ。PTY 型では「無応答」を出さない前提で描いた。PTY にも検知を足すかは要判断。</div>
+        <div><b>分岐</b> Dock バッジを対応待ち数に変える案。現行の未読完了数を残したい場合は設定で選べるようにする。</div>
+        <div><b>分岐</b> 通知文言「入力待ち」が完了にも使われている点は、状態別のタイトルに分ける前提で描いた（仕様かバグか未確認）。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+</x-dc>
+</body>
+</html>

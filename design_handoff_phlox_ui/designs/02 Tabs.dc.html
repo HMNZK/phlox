@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>body{margin:0;background:#E7E7EA;} a{color:#A94A28;} a:hover{color:#7E3517;}</style>
+</helmet>
+<div style="padding:80px;display:flex;flex-direction:column;gap:88px;width:max-content;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#1D1D1F;">
+
+<section data-screen-label="00 概要" style="display:flex;gap:56px;align-items:flex-start;">
+  <div style="width:560px;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:13px;color:#75757B;">Phlox macOS · 再設計 13 · 新要件</div>
+    <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;">タブ</div>
+    <div style="font-size:15px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">中央の上部にタブを並べ、セッション・ターミナル・ファイル・変更一覧・設定 / エージェント管理を開けるようにする。前提（回答より）: 右端のドロワーは廃止してタブに統合 · タブはプロジェクトごと · グリッドの各タイルもタブを持てる · 左右の分割表示あり。</div>
+  </div>
+  <div style="width:1100px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">3 案の違い</div>
+    <div style="display:grid;grid-template-columns:150px repeat(3,minmax(0,1fr));font-size:12.5px;line-height:1.55;">
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.12);"></div>
+      <div style="padding:7px 8px;font-weight:700;border-bottom:1px solid rgba(0,0,0,0.12);"><a href="#A1">A. エディタグループ</a></div>
+      <div style="padding:7px 8px;font-weight:700;border-bottom:1px solid rgba(0,0,0,0.12);"><a href="#B1">B. 上部タブ＋グリッドは別モード</a></div>
+      <div style="padding:7px 8px;font-weight:700;border-bottom:1px solid rgba(0,0,0,0.12);"><a href="#C1">C. セッションが親、道具は子タブ</a>（採用）</div>
+      <div style="padding:7px 8px;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.06);">考え方</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">画面を分割した「区画」ごとにタブ列を持つ。単体とグリッドの区別をなくし、区画の数だけが変わる</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">プロジェクトのタブを 1 列に並べる。タブを右へドラッグすると左右に分割。グリッドは今のまま別モード</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">上段 = セッションのタブ、下段 = そのセッションの道具（会話・ターミナル・変更・ファイル）。ターミナルとファイルはセッションの worktree で開く</div>
+      <div style="padding:7px 8px;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.06);">グリッドとの関係</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">グリッド＝区画を 4 つにした状態。各区画に全機能のタブ列</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">タイル見出しのメニューでタブを切り替える（「会話 · 3 タブ ▾」）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">タイル＝セッション。見出しの小さなセグメントで 会話 / 端末 / 変更 を切り替える</div>
+      <div style="padding:7px 8px;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.06);">分割</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">区画の分割そのもの（プリセットと同じ）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">1 列のタブのうち 2 枚を左右に。タブに「左」「右」の印</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">同じセッションの道具を左右に（会話 ｜ 変更 など）</div>
+      <div style="padding:7px 8px;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.06);">対応待ちの見え方</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">タブごとに状態の色。区画が多いとタブ列が細かくなり読みにくい</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">セッションのタブに状態の色。ファイルや端末のタブに埋もれやすい</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">上段はセッションだけなので、状態の色が道具のタブと混ざらない</div>
+      <div style="padding:7px 8px;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.06);">向いている使い方</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">エディタとして自由に並べたい人</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">既存の単体 / グリッドの操作を変えたくない人</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">worktree 隔離でセッションごとに作業場所が分かれている人</div>
+      <div style="padding:7px 8px;color:#5B5B60;">主な欠点</div><div style="padding:7px 8px;">モードの考え方が大きく変わる。タイルごとのタブ列で密度が落ちる</div><div style="padding:7px 8px;">どの端末がどのセッション用か分からなくなる（同じ列に並ぶ）</div><div style="padding:7px 8px;">プロジェクト共通の端末（worktree の外）の置き場所が要る → 上段の右端に置く</div>
+    </div>
+    <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;"><b>推奨は C。</b> Phlox の中心は「セッションに答えて次へ」で、ターミナルや差分は多くの場合そのセッションの作業場所（worktree）に対して開く。C はその関係をタブの構造で表すので、別のセッションの端末で誤ってコマンドを打つことが起きにくい。上段がセッションだけになり、対応待ちの色も読みやすい。</div>
+  </div>
+</section>
+
+<section data-screen-label="A" style="display:flex;flex-direction:column;gap:20px;">
+  <div style="font-size:26px;font-weight:700;">A. エディタグループ</div>
+  <div style="display:flex;gap:40px;align-items:flex-start;">
+    <div id="A1" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">A1</span><span style="font-size:14px;font-weight:600;">1 区画</span></div><dc-import name="PhloxTabs" label="A1" variant="A" state="single" width="1440" height="840" hint-size="1440px,840px"></dc-import></div>
+    <div id="A2" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">A2</span><span style="font-size:14px;font-weight:600;">左右に分割</span></div><dc-import name="PhloxTabs" label="A2" variant="A" state="split" width="1440" height="840" hint-size="1440px,840px"></dc-import></div>
+    <div id="A3" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">A3</span><span style="font-size:14px;font-weight:600;">2 × 2（旧グリッド）</span></div><dc-import name="PhloxTabs" label="A3" variant="A" state="grid" width="1440" height="840" hint-size="1440px,840px"></dc-import></div>
+  </div>
+</section>
+
+<section data-screen-label="B" style="display:flex;flex-direction:column;gap:20px;">
+  <div style="font-size:26px;font-weight:700;">B. 上部タブ＋グリッドは別モード</div>
+  <div style="display:flex;gap:40px;align-items:flex-start;">
+    <div id="B1" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">B1</span><span style="font-size:14px;font-weight:600;">単体</span></div><dc-import name="PhloxTabs" label="B1" variant="B" state="single" width="1440" height="840" hint-size="1440px,840px"></dc-import></div>
+    <div id="B2" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">B2</span><span style="font-size:14px;font-weight:600;">左右に分割（タブに「左」「右」）</span></div><dc-import name="PhloxTabs" label="B2" variant="B" state="split" width="1440" height="840" hint-size="1440px,840px"></dc-import></div>
+    <div id="B3" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">B3</span><span style="font-size:14px;font-weight:600;">グリッド（タイル見出しでタブを切替）</span></div><dc-import name="PhloxTabs" label="B3" variant="B" state="grid" width="1440" height="840" hint-size="1440px,840px"></dc-import></div>
+  </div>
+</section>
+
+<section data-screen-label="C" style="display:flex;flex-direction:column;gap:20px;">
+  <div style="font-size:26px;font-weight:700;">C. セッションが親、道具は子タブ（採用）</div>
+  <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;width:4400px;row-gap:48px;">
+    <div id="C1" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">C1</span><span style="font-size:14px;font-weight:600;">単体 · 会話</span></div><dc-import name="PhloxTabs" label="C1" variant="C" state="single" width="1440" height="840" hint-size="1440px,840px"></dc-import></div>
+    <div id="C2" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">C2</span><span style="font-size:14px;font-weight:600;">会話 ｜ 変更 を左右に</span></div><dc-import name="PhloxTabs" label="C2" variant="C" state="split" width="1440" height="840" hint-size="1440px,840px"></dc-import></div>
+    <div id="C3" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">C3</span><span style="font-size:14px;font-weight:600;">グリッド（タイル見出しに 会話 / 端末 / 変更）</span></div><dc-import name="PhloxTabs" label="C3" variant="C" state="grid" width="1440" height="840" hint-size="1440px,840px"></dc-import></div>
+    <div id="C4" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">C4</span><span style="font-size:14px;font-weight:600;">子タブの ＋ → 開くものを選ぶ</span></div><dc-import name="PhloxTabs" label="C4" variant="C" state="menu" width="1440" height="840" hint-size="1440px,840px"></dc-import></div>
+    <div id="C5" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">C5</span><span style="font-size:14px;font-weight:600;">ターミナル（worktree で開く）· ダーク</span></div><dc-import name="PhloxTabs" label="C5" variant="C" state="sub" theme="dark" width="1440" height="840" hint-size="1440px,840px"></dc-import></div>
+    <div id="C6" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">C6</span><span style="font-size:14px;font-weight:600;">子タブを右端へドラッグ → 分割</span></div><dc-import name="PhloxTabs" label="C6" variant="C" state="drag" width="1440" height="840" hint-size="1440px,840px"></dc-import></div>
+    <div id="C7" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">C7</span><span style="font-size:14px;font-weight:600;">タブがあふれた · 隠れたタブの対応待ち</span></div><dc-import name="PhloxTabs" label="C7" variant="C" state="overflow" width="1100" height="700" hint-size="1100px,700px"></dc-import></div>
+  </div>
+</section>
+
+<section data-screen-label="R 規則" style="display:flex;gap:32px;align-items:flex-start;">
+  <div style="width:760px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.65;">
+    <div style="font-size:16px;font-weight:700;">タブの規則（全案共通）</div>
+    <div><b>見分け方</b>: 先頭に種類の短い記号（エージェントの頭文字 / &gt;_ / {} / ± / ⚙）。セッションのタブだけ、対応待ちのとき状態の文言と淡い面を付ける。</div>
+    <div><b>未保存</b>: ファイルのタブは ✕ の代わりに点。閉じるときは <a href="09 Dialogs.dc.html">Dialogs</a> の A 型の確認。</div>
+    <div><b>閉じる</b>: セッションのタブを閉じても、セッションは止まらずサイドバーに残る（削除は別の操作）。ターミナルのタブを閉じるとシェルを終了する（実行中のプロセスがあれば確認）。</div>
+    <div><b>あふれ</b>: 横にスクロールし、隠れたタブに対応待ちがあれば右端に「隠れたタブに 質問待ち 1」を出す（<a href="#C7">C7</a>）。</div>
+    <div><b>プロジェクトを切り替えると</b>、そのプロジェクトのタブ列に入れ替わる。タブの並びと分割はプロジェクトごとに保存する。</div>
+    <div><b>設定 / エージェント管理</b>: ウィンドウ共通のタブとして右端に固定する。どのプロジェクトでも同じものが開く。</div>
+  </div>
+  <div style="width:760px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:16px;font-weight:700;">ドロワーの廃止に伴う移動（8 章）</div>
+    <div style="display:grid;grid-template-columns:240px 1fr;font-size:12.5px;line-height:1.55;">
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ターミナルパネル</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ターミナルのタブ。C ではセッションの worktree で開き、プロジェクト共通の端末は上段右端</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">変更一覧・差分・コミット / プッシュ / PR・共有スコープの注意</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">「変更」タブ（一覧＋差分＋下端のコミット欄）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ファイル編集・保存・外部変更との衝突</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ファイルのタブ（変更一覧からダブルクリック、または ⌘P）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">両方表示時の縦積み・幅の変更</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">左右の分割と分割線（既定 50:50、最小 320pt）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">541pt での一覧 / 差分の切り替え</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">変更タブの幅に対して同じ規則</div>
+      <div style="padding:6px 8px;">ツールバーのドロワー切替ボタン</div><div style="padding:6px 8px;">削除。キーは「そのタブを開く / 前に出す」に変える</div>
+    </div>
+  </div>
+  <div style="width:720px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:16px;font-weight:700;">キーの変更（要判断あり）</div>
+    <div style="display:grid;grid-template-columns:120px 1fr;font-size:12.5px;line-height:1.55;">
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-family:ui-monospace,Menlo,monospace;">⌘T</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">新しいタブ（開くものを選ぶ）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-family:ui-monospace,Menlo,monospace;">⌃Tab / ⌃⇧Tab</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">次 / 前のタブ（C では子タブ。上段は ⌥⌘↓↑ の次 / 前のセッションと同じ）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-family:ui-monospace,Menlo,monospace;">⌘\</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">今のタブを右に分割して開く</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-family:ui-monospace,Menlo,monospace;">⌘P</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ファイルを開く</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-family:ui-monospace,Menlo,monospace;">⌃⌘T / ⌃⌘E</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ターミナル / 変更 のタブを開く（あれば前に出す）。ドロワーの開閉から意味を変える</div>
+      <div style="padding:6px 8px;background:rgba(227,154,45,0.12);font-family:ui-monospace,Menlo,monospace;">⌘W</div><div style="padding:6px 8px;background:rgba(227,154,45,0.12);"><b>確定（要確認）</b>: 子タブ（ターミナル・変更・ファイル）では「そのタブを閉じる」。会話の子タブでは、これまでの決定どおりセッションを削除（確認あり）。グリッドでは「外す」</div>
+      <div style="padding:6px 8px;font-family:ui-monospace,Menlo,monospace;">⌘1–9</div><div style="padding:6px 8px;">エディタではタブの番号に使われるが、Phlox では単体 / グリッドに使っている。確定: 上段のセッションを ⌘1–9 にし、表示モードは ⌃⌘1 / ⌃⌘2 に移す</div>
+    </div>
+  </div>
+</section>
+
+</div>
+</x-dc>
+</body>
+</html>

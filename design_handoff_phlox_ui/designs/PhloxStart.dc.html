@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="{{ rootStyle }}" data-screen-label="{{ screenLabel }}">
+
+<sc-if value="{{ isOnboarding }}">
+  <div style="height:100%;display:flex;justify-content:center;overflow:hidden;">
+    <div style="width:100%;max-width:520px;padding:64px 24px 24px;display:flex;flex-direction:column;gap:26px;">
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="font-size:24px;font-weight:700;letter-spacing:-0.3px;color:var(--fg);">Phlox へようこそ</div>
+        <div style="font-size:13.5px;line-height:1.7;color:var(--fg2);text-wrap:pretty;">複数のコーディングエージェントを 1 つのウィンドウで動かし、承認と質問にまとめて答えます。始めるには作業フォルダを 1 つ追加してください。</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;"><span style="width:20px;height:20px;border-radius:10px;background:var(--accentFill);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;">1</span><span style="font-size:14px;font-weight:600;">プロジェクトを追加</span></div>
+        <div style="padding-left:30px;display:flex;flex-direction:column;gap:8px;">
+          <span style="font-size:12.5px;line-height:1.6;color:var(--fg2);">エージェントはこのフォルダの中で作業します。フォルダ自体を Phlox が移動・削除することはありません。</span>
+          <div style="display:flex;"><div role="button" style="height:30px;padding:0 14px;border-radius:7px;background:var(--accentFill);color:#fff;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;">フォルダを追加…<span style="font-weight:400;font-size:11px;opacity:0.85;">⌘O</span></div></div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;"><span style="width:20px;height:20px;border-radius:10px;background:var(--segBg);color:var(--fg);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;">2</span><span style="font-size:14px;font-weight:600;">使えるエージェント</span><span style="font-size:11.5px;color:var(--fg3);">PATH から自動で検出</span></div>
+        <div style="margin-left:30px;border-radius:9px;box-shadow:inset 0 0 0 1px var(--sep);display:flex;flex-direction:column;">
+          <sc-for list="{{ agents }}" as="a">
+            <div style="{{ a.row }}">
+              <span style="{{ a.mono }}">{{ a.m }}</span>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;"><span style="font-size:13px;font-weight:500;color:var(--fg);">{{ a.name }}</span><span style="font-size:11px;color:var(--fg2);font-family:ui-monospace,Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ a.path }}</span></div>
+              <span style="{{ a.stStyle }}">{{ a.st }}</span>
+              <sc-if value="{{ a.missing }}"><span role="button" style="font-size:12px;color:var(--accentInk);flex:none;">入手方法 ↗</span></sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <span style="margin-left:30px;font-size:11.5px;line-height:1.6;color:var(--fg3);">ほかの CLI は ~/.config/phlox/agents.json に書くと追加できます。</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;"><span style="width:20px;height:20px;border-radius:10px;background:var(--segBg);color:var(--fg);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;">3</span><span style="font-size:14px;font-weight:600;">通知（任意）</span></div>
+        <div style="padding-left:30px;display:flex;align-items:center;gap:10px;">
+          <span style="flex:1;font-size:12.5px;line-height:1.6;color:var(--fg2);">承認待ちや完了を、ほかのアプリを使っている間も知らせます。</span>
+          <div role="button" style="height:26px;padding:0 12px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);font-size:12.5px;display:flex;align-items:center;flex:none;">通知を許可…</div>
+        </div>
+      </div>
+      <div style="font-size:11.5px;color:var(--fg3);">この画面の内容は、あとから 設定（⌘,）でも変更できます。</div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ isNoSelection }}">
+  <div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:24px;">
+    <span style="font-size:15px;font-weight:600;color:var(--fg);">プロジェクトを選択してください</span>
+    <span style="font-size:12.5px;line-height:1.6;color:var(--fg2);max-width:360px;text-wrap:pretty;">左のサイドバーでプロジェクトかセッションを選ぶと、ここに表示します。対応待ちがあれば ⌘J で移動できます。</span>
+  </div>
+</sc-if>
+
+<sc-if value="{{ isCards }}">
+  <div style="height:100%;display:flex;justify-content:center;overflow:hidden;">
+    <div style="width:100%;max-width:860px;padding:48px 28px 24px;display:flex;flex-direction:column;gap:22px;">
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="font-size:22px;font-weight:700;letter-spacing:-0.3px;color:var(--fg);">phlox-core</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fg2);flex-wrap:wrap;">
+          <span style="font-family:ui-monospace,Menlo,monospace;">~/dev/phlox</span><span style="color:var(--fg3);">·</span>
+          <span style="font-family:ui-monospace,Menlo,monospace;">main</span><span style="color:var(--fg3);">·</span>
+          <span style="height:20px;padding:0 8px;border-radius:5px;background:var(--segBg);display:flex;align-items:center;">{{ wtChip }}</span>
+          <span style="color:var(--fg3);">·</span><span>実行中 2 件</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:10px;"><span style="font-size:13px;font-weight:600;color:var(--fg);">新しいセッションを始める</span><span style="font-size:11.5px;color:var(--fg3);">1–4 で選択 · ↩ チャット · ⌥↩ ターミナル</span></div>
+      <div style="{{ gridStyle }}">
+        <sc-for list="{{ cards }}" as="c" hint-placeholder-count="4">
+          <div role="group" aria-label="{{ c.aria }}" style="{{ c.style }}">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="{{ c.mono }}">{{ c.m }}</span>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;"><span style="font-size:14px;font-weight:600;color:var(--fg);">{{ c.name }}</span><span style="font-size:11px;color:var(--fg2);font-family:ui-monospace,Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ c.ver }}</span></div>
+              <span style="font-size:11px;color:var(--fg3);font-family:ui-monospace,Menlo,monospace;flex:none;">{{ c.key }}</span>
+            </div>
+            <sc-if value="{{ c.ok }}">
+              <div style="display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--fg2);">
+                <div style="display:flex;gap:6px;"><span style="width:44px;flex:none;color:var(--fg3);">モデル</span><span style="color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ c.model }}</span></div>
+                <div style="display:flex;gap:6px;"><span style="width:44px;flex:none;color:var(--fg3);">権限</span><span style="color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ c.perm }}</span></div>
+              </div>
+              <div style="flex:1;"></div>
+              <sc-if value="{{ c.creating }}">
+                <div role="status" style="height:28px;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--fg2);"><span style="width:12px;height:12px;border-radius:50%;border:1.8px solid var(--fg2);border-right-color:transparent;box-sizing:border-box;"></span>起動しています…</div>
+              </sc-if>
+              <sc-if value="{{ c.notCreating }}">
+                <div style="display:flex;gap:6px;">
+                  <sc-if value="{{ c.chat }}"><div role="button" style="{{ c.chatBtn }}">チャット</div></sc-if>
+                  <div role="button" style="{{ c.termBtn }}">ターミナル</div>
+                </div>
+              </sc-if>
+            </sc-if>
+            <sc-if value="{{ c.missing }}">
+              <div style="font-size:12px;line-height:1.55;color:var(--fg2);text-wrap:pretty;">cursor-agent が PATH に見つかりません。インストールすると、ここから起動できます。</div>
+              <div style="flex:1;"></div>
+              <div style="display:flex;gap:6px;"><div role="button" style="height:28px;padding:0 12px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);font-size:12.5px;display:flex;align-items:center;">入手方法 ↗</div><div role="button" style="height:28px;padding:0 10px;font-size:12.5px;color:var(--fg2);display:flex;align-items:center;">再検出</div></div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+      <div style="font-size:11.5px;line-height:1.6;color:var(--fg3);">モデルと権限は、この種別で最後に使った設定を引き継ぐ。起動後に入力欄の下で変えられる。既定の開き方（チャット / ターミナル）は 設定 &gt; 一般。</div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}">
+  <div role="status" style="position:absolute;left:50%;bottom:20px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;height:34px;padding:0 14px;border-radius:17px;background:var(--popover);box-shadow:var(--shadow);font-size:12.5px;color:var(--fg);white-space:nowrap;z-index:20;">
+    <span style="width:12px;height:12px;border-radius:50%;border:1.8px solid var(--fg2);border-right-color:transparent;box-sizing:border-box;"></span>
+    <span>worktree を作成しています</span><span style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--fg2);">../phlox.worktrees/tsubaki-a3f9</span>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasSheet }}">
+  <div role="alertdialog" aria-label="{{ sheet.title }}" style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:400px;background:var(--popover);border-radius:0 0 12px 12px;box-shadow:var(--shadow);padding:20px 22px 16px;z-index:40;display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:14px;font-weight:700;line-height:1.45;color:var(--fg);text-wrap:pretty;">{{ sheet.title }}</div>
+    <div style="font-size:12.5px;line-height:1.65;color:var(--fg);text-wrap:pretty;">{{ sheet.body }}</div>
+    <sc-if value="{{ sheet.hasList }}">
+      <div style="border-radius:8px;box-shadow:inset 0 0 0 1px var(--sep);display:flex;flex-direction:column;">
+        <sc-for list="{{ sheet.list }}" as="l"><div style="{{ l.row }}"><span style="{{ l.st }}">{{ l.state }}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ l.t }}</span><span style="font-size:10.5px;color:var(--fg3);font-weight:600;">{{ l.a }}</span></div></sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{ sheet.hasLog }}"><div style="font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:1.6;color:var(--fg2);background:var(--code);border-radius:6px;padding:7px 9px;">{{ sheet.log }}</div></sc-if>
+    <sc-if value="{{ sheet.hasRadio }}">
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <sc-for list="{{ sheet.opts }}" as="o"><div role="radio" aria-checked="{{ o.on }}" style="{{ o.row }}"><span style="{{ o.dot }}"></span><div style="display:flex;flex-direction:column;gap:1px;"><span style="font-size:12.5px;font-weight:500;color:var(--fg);">{{ o.t }}</span><span style="font-size:11.5px;color:var(--fg2);">{{ o.d }}</span></div></div></sc-for>
+      </div>
+    </sc-if>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+      <div role="button" style="{{ cancelBtn }}">キャンセル</div>
+      <sc-if value="{{ sheet.hasAlt }}"><div role="button" style="height:28px;padding:0 14px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);display:flex;align-items:center;font-size:13px;color:var(--fg);">{{ sheet.alt }}</div></sc-if>
+      <div role="button" style="{{ okBtn }}">{{ sheet.ok }}</div>
+    </div>
+  </div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1000,&quot;height&quot;:720},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;scenario&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;onboarding&quot;,&quot;noSelection&quot;,&quot;cards&quot;,&quot;cardsMissing&quot;,&quot;creating&quot;],&quot;default&quot;:&quot;cards&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;overlay&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;collision&quot;,&quot;wtFail&quot;,&quot;wtRecreate&quot;,&quot;spawnErr&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;width&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:1000,&quot;tsType&quot;:&quot;number&quot;},&quot;height&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:720,&quot;tsType&quot;:&quot;number&quot;},&quot;label&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;start&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  vars(dark) {
+    const L = {'--bg':'#FFFFFF','--sep':'rgba(0,0,0,0.10)','--fg':'#1D1D1F','--fg2':'#5B5B60','--fg3':'#75757B','--hover':'rgba(0,0,0,0.05)','--code':'#F3F3F5','--accent':'#D97757','--accentInk':'#A94A28','--accentFill':'#B4552F','--ctl':'#FFFFFF','--ctlBorder':'rgba(0,0,0,0.16)','--segBg':'rgba(0,0,0,0.065)','--shadow':'0 10px 30px rgba(0,0,0,0.16), 0 0 0 0.5px rgba(0,0,0,0.2)','--popover':'#FFFFFF','--apvInk':'#8A5300','--errInk':'#B4232A','--ok':'#1F7A3A'};
+    const D = {'--bg':'#1E1E20','--sep':'rgba(255,255,255,0.10)','--fg':'#F2F2F4','--fg2':'#ABABB1','--fg3':'#8E8E94','--hover':'rgba(255,255,255,0.06)','--code':'#2B2B2F','--accent':'#E08865','--accentInk':'#F0A383','--accentFill':'#B4552F','--ctl':'#3A3A3E','--ctlBorder':'rgba(255,255,255,0.10)','--segBg':'rgba(255,255,255,0.08)','--shadow':'0 12px 34px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.16)','--popover':'#2F2F33','--apvInk':'#F4BD68','--errInk':'#FF8A8D','--ok':'#6FD08C'};
+    return dark ? D : L;
+  }
+  renderVals() {
+    const p = this.props;
+    const W = Number(p.width ?? 1000), H = Number(p.height ?? 720);
+    const dark = (p.theme ?? 'light') === 'dark';
+    const sc = p.scenario ?? 'cards';
+    const ov = p.overlay ?? 'none';
+    const mono = (a, s = 28) => ({width:s,height:s,borderRadius:Math.round(s*0.27),flex:'none',background:{claude:'oklch(0.72 0.09 45 / 0.30)',codex:'oklch(0.72 0.07 165 / 0.30)',cursor:'oklch(0.72 0.07 260 / 0.30)',custom:'oklch(0.72 0.07 320 / 0.30)'}[a],color:'var(--fg)',fontSize:Math.round(s*0.42),fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center'});
+    const missing = sc === 'cardsMissing' || sc === 'onboarding';
+    const A = [
+      ['claude','Cl','Claude Code','claude 2.3.1 · /opt/homebrew/bin/claude','Opus · effort high','標準（毎回たずねる）',true,false],
+      ['codex','Cx','Codex','codex 0.46.0 · ~/.local/bin/codex','gpt-6-sol · 推論 high','on-request · workspace-write',true,false],
+      ['cursor','Cu','Cursor', missing ? 'cursor-agent · 見つかりません' : 'cursor-agent 2026.09 · ~/.local/bin/cursor-agent','composer-2.5','自動レビュー',true,missing],
+      ['custom','ai','aider（カスタム）','aider 0.86.1 · agents.json','（CLI の既定）','（CLI の既定）',false,false],
+    ];
+    const agents = A.map(([a,m,name,path,, ,chat,miss],i) => ({m,name,path,missing:miss,mono:mono(a,22),
+      st: miss ? '未検出' : '検出済み', stStyle:{fontSize:11.5,fontWeight:600,color:miss?'var(--apvInk)':'var(--ok)',flex:'none'},
+      row:{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderTop:i?'1px solid var(--sep)':'none'}}));
+    const creatingIdx = sc === 'creating' ? 0 : -1;
+    const cards = A.map(([a,m,name,ver,model,perm,chat,miss],i) => {
+      const dis = creatingIdx >= 0 && i !== creatingIdx;
+      return {m,name,ver,model,perm,chat,missing:miss,ok:!miss,key:String(i+1),mono:mono(a),
+        creating:i===creatingIdx, notCreating:i!==creatingIdx,
+        aria:`${name}${miss?'、未検出':''}`,
+        style:{borderRadius:12,background:'var(--bg)',boxShadow:i===0&&sc!=='creating'?'inset 0 0 0 2px var(--accent)':'inset 0 0 0 1px var(--sep)',padding:'14px 14px 12px',display:'flex',flexDirection:'column',gap:12,minHeight:168,opacity:dis?0.45:miss?0.85:1,background:miss?'var(--hover)':'var(--bg)'},
+        chatBtn:{height:28,padding:'0 14px',borderRadius:6,background:'var(--accentFill)',color:'#fff',fontSize:12.5,fontWeight:600,display:'flex',alignItems:'center'},
+        termBtn:{height:28,padding:'0 12px',borderRadius:6,background:chat?'var(--ctl)':'var(--accentFill)',color:chat?'var(--fg)':'#fff',fontWeight:chat?400:600,boxShadow:chat?'0 0 0 0.5px var(--ctlBorder)':'none',fontSize:12.5,display:'flex',alignItems:'center'}};
+    });
+    const cols = W >= 900 ? 4 : 2;
+    const radio = on => ({width:14,height:14,borderRadius:7,boxSizing:'border-box',flex:'none',marginTop:2,border:on?'4px solid var(--accentFill)':'1.2px solid var(--fg3)'});
+    const opt = (t,d,on) => ({t,d,on,dot:radio(on),row:{display:'flex',alignItems:'flex-start',gap:10,padding:'8px 10px',borderRadius:7,background:on?'var(--hover)':'transparent'}});
+    const lrow = (state,k,t,a) => ({state,t,a,row:{display:'flex',alignItems:'center',gap:10,height:30,padding:'0 10px',fontSize:12.5,color:'var(--fg)',borderTop:'1px solid var(--sep)'},st:{fontSize:11,fontWeight:k?700:500,color:k?'var(--apvInk)':'var(--fg2)',width:52,flex:'none'}});
+    const SH = {
+      collision:{title:'~/dev/phlox では、すでに 2 件のセッションが動いています',body:'同じ作業ディレクトリで複数のエージェントが同じファイルを書き換えると、変更がぶつかることがあります。',hasList:true,list:[lrow('実行中',0,'PaneTree 正規化の修正','Cx'),lrow('承認待ち',1,'承認 API に失効処理を追加','Cl')],hasRadio:true,opts:[opt('worktree で分けて起動（おすすめ）','../phlox.worktrees/ に新しい作業ツリーを作る',true),opt('同じディレクトリで起動','ファイルの競合は自分で管理する',false)],ok:'起動',hasAlt:false},
+      wtFail:{title:'worktree を作成できなかったため、起動を中止しました',body:'Claude Code の新しいセッションは起動していません。',hasLog:true,log:"fatal: 'phlox/tsubaki-a3f9' is already checked out at '/Users/kenta/dev/phlox.worktrees/tsubaki-a3f9'",hasAlt:true,alt:'worktree なしで起動',ok:'既存の worktree を使う'},
+      wtRecreate:{title:'前回の worktree が使えない状態です',body:'../phlox.worktrees/tsubaki-a3f9 のブランチ phlox/tsubaki-a3f9 は削除されています。作り直すと、この worktree の未コミットの変更は失われます。',hasAlt:false,ok:'作り直して起動'},
+      spawnErr:{title:'セッションを起動できませんでした',body:'子セッションの深さが上限（3）に達しています。親セッションから直接起動するか、既存の子セッションを終了してください。',hasAlt:false,ok:'OK'},
+    };
+    const sheet = SH[ov];
+    if (sheet) { sheet.hasList = !!sheet.hasList; sheet.hasRadio = !!sheet.hasRadio; sheet.hasLog = !!sheet.hasLog; sheet.list = sheet.list || []; sheet.opts = sheet.opts || []; }
+    return {
+      rootStyle:{...this.vars(dark),width:W,height:H,position:'relative',overflow:'hidden',borderRadius:11,background:'var(--bg)',boxShadow:dark?'0 0 0 0.5px rgba(255,255,255,0.18), 0 18px 50px rgba(0,0,0,0.35)':'0 0 0 0.5px rgba(0,0,0,0.22), 0 18px 50px rgba(0,0,0,0.14)',fontFamily:'-apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif',color:'var(--fg)',WebkitFontSmoothing:'antialiased'},
+      screenLabel:p.label ?? 'start',
+      isOnboarding:sc==='onboarding', isNoSelection:sc==='noSelection', isCards:['cards','cardsMissing','creating'].includes(sc),
+      agents, cards, wtChip: ov==='collision' ? 'worktree 隔離: オフ' : 'worktree 隔離: オン',
+      gridStyle:{display:'grid',gridTemplateColumns:`repeat(${cols},minmax(0,1fr))`,gap:12},
+      hasToast: sc==='creating',
+      cancelBtn:{height:28,padding:'0 14px',borderRadius:6,display:'flex',alignItems:'center',fontSize:13,fontWeight:ov==='wtRecreate'?600:400,color:ov==='wtRecreate'?'#fff':'var(--fg)',background:ov==='wtRecreate'?'var(--accentFill)':'var(--ctl)',boxShadow:ov==='wtRecreate'?'none':'0 0 0 0.5px var(--ctlBorder)'},
+      okBtn:{height:28,padding:'0 14px',borderRadius:6,display:'flex',alignItems:'center',fontSize:13,fontWeight:600,color:ov==='wtRecreate'?'var(--errInk)':'#fff',background:ov==='wtRecreate'?'var(--ctl)':'var(--accentFill)',boxShadow:ov==='wtRecreate'?'0 0 0 0.5px var(--ctlBorder)':'none'}, hasSheet:!!sheet, sheet: sheet || SH.spawnErr,
+    };
+  }
+}
+</script>
+</body>
+</html>

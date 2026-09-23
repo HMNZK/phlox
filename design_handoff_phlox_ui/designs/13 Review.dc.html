@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>body{margin:0;background:#E7E7EA;} a{color:#A94A28;} a:hover{color:#7E3517;}</style>
+</helmet>
+<div style="padding:80px;display:flex;flex-direction:column;gap:64px;width:1600px;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#1D1D1F;">
+
+<section data-screen-label="00 概要" style="display:flex;flex-direction:column;gap:14px;width:1100px;">
+  <div style="font-size:13px;color:#75757B;">Phlox macOS · 再設計 12 · 全画面のレビュー</div>
+  <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;">機能一覧との突き合わせ</div>
+  <div style="font-size:15px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">対象は 11 枚（<a href="01 Main Window.dc.html">骨格</a>・<a href="03 Sidebar.dc.html">サイドバー</a>・<a href="04 Session Chat.dc.html">会話</a>・<a href="05 Reply Area.dc.html">返答</a>・<a href="06 Grid.dc.html">グリッド</a>・<a href="07 Inspector and Tools.dc.html">補助領域</a>・<a href="08 Start and New Session.dc.html">空の画面と新規</a>・<a href="09 Dialogs.dc.html">ダイアログ</a>・<a href="10 Settings.dc.html">設定</a>・<a href="11 Notifications and Startup.dc.html">通知と起動</a>・<a href="12 Design System.dc.html">デザインシステム</a>）。6 章（チームビュー・討論）は削除した（下の「削除した機能」）。</div>
+  <div style="display:flex;gap:12px;margin-top:6px;">
+    <div style="flex:1;background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);"><div style="font-size:26px;font-weight:700;">1 章分</div><div style="font-size:12.5px;color:#3A3A3E;">置き場所が無い機能（13 章 エージェント管理ウィンドウ）</div></div>
+    <div style="flex:1;background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);"><div style="font-size:26px;font-weight:700;">12 件</div><div style="font-size:12.5px;color:#3A3A3E;">画面間の食い違い（すべて修正済み）</div></div>
+    <div style="flex:1;background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);"><div style="font-size:26px;font-weight:700;">4 件</div><div style="font-size:12.5px;color:#3A3A3E;">キーの衝突・未定義（すべて修正済み）</div></div>
+  </div>
+</section>
+
+<section data-screen-label="1 対応表" style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+  <div style="font-size:18px;font-weight:700;">1. 全機能の置き場所</div>
+  <div style="font-size:12px;color:#5B5B60;">章・節ごとにまとめた。行単位の詳細は各画面の機能対応表にある。</div>
+  <div style="display:grid;grid-template-columns:90px 320px 1fr 110px;font-size:12.5px;line-height:1.5;">
+    <div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">章</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">機能</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">画面 · 場所</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">判定</div>
+    <sc-for list="{{ rows }}" as="r">
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:#5B5B60;">{{ r.ch }}</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">{{ r.f }}</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">{{ r.where }}</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><span style="{{ r.s }}">{{ r.st }}</span></div>
+    </sc-for>
+  </div>
+</section>
+
+<section data-screen-label="1b 未配置" style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;width:1300px;">
+  <div style="font-size:18px;font-weight:700;color:#B4232A;">置き場所が無い機能</div>
+  <div style="font-size:13px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;">13 章「エージェント管理ウィンドウ」はどの回でも画面を作っていない。入口（ツールバーから外したボタン・サイドバー下端・⇧⌘,・設定の「開く…」）と、スキル削除の確認ダイアログ（<a href="09 Dialogs.dc.html">D8</a>）だけがある。未配置の機能は次のとおり。</div>
+  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;font-size:12px;line-height:1.6;">
+    <div style="background:#F4F4F6;border-radius:9px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;"><b>13.1 共通</b><span>エージェント切替 · セクション切替 · パンくず · メッセージバナー · 起動時ロード · CLI 未検出の案内 · 検索欄 · 追加フォーム · 件数タイル</span></div>
+    <div style="background:#F4F4F6;border-radius:9px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;"><b>13.2 Claude（8 セクション）</b><span>ステータス（4 タイル・CLI 詳細・設定情報・メモリ一覧）· プラグインとマーケットプレイス · スキル（SKILL.md 編集・⌘S）· パーミッション 3 バケット · メモリ編集 · フック · ステータスライン · 出力スタイル</span></div>
+    <div style="background:#F4F4F6;border-radius:9px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;"><b>13.3 Codex（6 セクション）</b><span>ステータス · 一般設定（config.toml の 6 キー、バックアップのパス）· プラグイン · MCP サーバー（stdio / http）· メモリ · 信頼済みディレクトリ</span></div>
+    <div style="background:#F4F4F6;border-radius:9px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;"><b>13.4 Cursor（5 セクション）</b><span>ステータス · 一般設定（cli-config.json の 15 キー）· パーミッション 2 バケット · モデル（既定にする）· MCP（有効 / 無効の反映が遅れる件）</span></div>
+  </div>
+  <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">これは「修正」の範囲を超えて新しいウィンドウ 1 枚分の設計になるため、この回では作っていない。次の回で設計する。</div>
+</section>
+
+<section data-screen-label="1c 削除" style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;width:1300px;">
+  <div style="font-size:18px;font-weight:700;">削除した機能（チームビュー）</div>
+  <div style="display:grid;grid-template-columns:260px 1fr;font-size:12.5px;line-height:1.6;">
+    <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-weight:600;">6 章の全機能</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">タイムライン・ドリルダウン・参加者チップ・討論（開始 / 参加者登録 / 発言上限 / 発言順 / タイムアウト / 連続発言制限 / 停滞打開 / ユーザー発言の合流 / 停止 / Claude 追加）・チームコンポーザ・起動失敗アラート</div>
+    <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-weight:600;">12.5 の討論設定</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">最大発言数・最大エージェント数・ターンタイムアウト・スケジューラ（phlox.agora.*）。設定の「チーム討論」タブごと外した</div>
+    <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-weight:600;">表示モードとキー</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ツールバーのセグメントは「単体 / グリッド」の 2 つ。メニュー「チーム ⌘3」を削除。⌃⌘G は 2 つの切り替えになる</div>
+    <div style="padding:6px 8px;font-weight:600;">新規セッションの入口</div><div style="padding:6px 8px;">「チームビューの ＋」を削除。残る入口は ⌘N・サイドバー・起動カード・Control API</div>
+  </div>
+  <div style="font-size:12px;line-height:1.6;color:#5B5B60;">理由: ユーザーの判断による削除。Localizable の「討論」キーと、AgoraDiscussion* の実装はアプリから外す前提。</div>
+</section>
+
+<section data-screen-label="2 食い違い" style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+  <div style="font-size:18px;font-weight:700;">2. 画面間の食い違い</div>
+  <div style="display:grid;grid-template-columns:40px 110px 1fr 1fr 90px;font-size:12.5px;line-height:1.55;">
+    <div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">#</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">概念</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">食い違い</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">揃えた形</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">状態</div>
+    <sc-for list="{{ issues }}" as="i">
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-weight:600;">{{ i.n }}</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-weight:600;">{{ i.c }}</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">{{ i.bad }}</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">{{ i.fix }}</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><span style="font-size:11.5px;font-weight:600;color:#1F7A3A;background:rgba(40,160,80,0.10);border-radius:5px;padding:2px 7px;">修正済み</span></div>
+    </sc-for>
+  </div>
+</section>
+
+<section data-screen-label="3 キー" style="display:flex;gap:32px;align-items:flex-start;">
+  <div style="width:1000px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:18px;font-weight:700;">3. キーボードショートカット（確定版）</div>
+    <div style="font-size:12px;color:#5B5B60;">18 章の全キーと、各回で足したキー。「効く場所」が重なるものは優先順を書いた。</div>
+    <div style="display:grid;grid-template-columns:120px 230px 1fr;font-size:12.5px;line-height:1.5;">
+      <div style="padding:6px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">キー</div><div style="padding:6px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">機能</div><div style="padding:6px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">効く場所 · 18 章との関係</div>
+      <sc-for list="{{ keys }}" as="k">
+        <div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-family:ui-monospace,Menlo,monospace;font-size:12px;">{{ k.k }}</div>
+        <div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">{{ k.f }}</div>
+        <div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#3A3A3E;">{{ k.w }}</div>
+      </sc-for>
+    </div>
+  </div>
+  <div style="width:560px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:18px;font-weight:700;">見つかった衝突と対処</div>
+    <sc-for list="{{ conflicts }}" as="c">
+      <div style="display:flex;flex-direction:column;gap:3px;padding:8px 0;border-top:1px solid rgba(0,0,0,0.06);font-size:12.5px;line-height:1.6;">
+        <b>{{ c.t }}</b><span style="color:#3A3A3E;">{{ c.d }}</span><span style="color:#1F7A3A;">→ {{ c.fix }}</span>
+      </div>
+    </sc-for>
+  </div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const OK = {fontSize:11.5,fontWeight:600,color:'#1F7A3A',background:'rgba(40,160,80,0.10)',borderRadius:5,padding:'2px 7px'};
+    const NG = {fontSize:11.5,fontWeight:600,color:'#B4232A',background:'rgba(224,72,78,0.10)',borderRadius:5,padding:'2px 7px'};
+    const PART = {fontSize:11.5,fontWeight:600,color:'#7438BD',background:'rgba(148,87,219,0.10)',borderRadius:5,padding:'2px 7px'};
+    const R = (ch,f,where,st='配置済み') => ({ch,f,where,st,s:st==='配置済み'?OK:st==='未配置'||st==='削除'?NG:PART});
+    const rows = [
+      R('1・2','ウィンドウ構成（サイドバー / 中央 3 モード / インスペクタ / ドロワー）','骨格 A1・A2・C1・C2'),
+      R('2.1','上部バーの全コントロール（開閉・設定・管理・名前・使用量・モード・絞り込み・ピッカー・プリセット・worktree）','骨格 A の対応表・E1〜E6'),
+      R('3','サイドバー（プロジェクト・新規メニュー・その他・行・ツリー・選択・ホバー・未読・右クリック・削除）','サイドバー S1〜S6・F1〜F9'),
+      R('3.1','reorderSession / runningBreakdown','サイドバー F10・プロジェクト行右端','候補（未配線）'),
+      R('4.1','メッセージ・ツールカード全種・コピー・書き出し・グルーピング・以前のメッセージ・描画方針','会話 A1・A2・C1・C2・C6'),
+      R('4.2','承認バナー・ユーザー質問（全エージェント共通）','返答 R6〜R7d'),
+      R('4.3','コンポーザ全機能（入力・候補・添付・モデル・effort・権限・Plan・ブランチ・コンテキスト・送信 / 中断・履歴）','返答 R1〜R9・O1〜O8'),
+      R('4.4','サブエージェントドロワー・Codex 子スレッド','会話 C3・D1'),
+      R('4.5','中断・Esc の優先順・巻き戻し・履歴再開・圧縮・自動追従・PTY の自動応答','会話 B6・B7・C4・C5・D3'),
+      R('5','グリッド（分割ツリー・プリセット・D&D・分割線・フォーカス・タイル内操作・子セッション・空）','グリッド S1〜S10'),
+      R('7','インスペクタ（セッション情報・使用量カード・未インストール誘導・更新）','補助 I1・I2・U1〜U6'),
+      R('8.1','エディタパネル（一覧・差分 / 内容・編集・競合・コミット・プッシュ・PR・ログ）','補助 D2〜D7'),
+      R('8.2','ターミナルパネル・TerminalUI','補助 D1・D3・D7・D8'),
+      R('9','空状態・起動カード','空の画面 S1〜S5'),
+      R('10','新規セッションの全入口・ガードレール・ライフサイクル','空の画面 F1〜F5・入口の表、サイドバー F5'),
+      R('11','アラート / 確認ダイアログ全件','ダイアログ D1〜D10'),
+      R('12','設定ウィンドウ 5 タブ全項目','設定 T1〜T6b・L1〜L6'),
+      R('13','エージェント管理ウィンドウ（13.1〜13.4）','—（入口とスキル削除の確認だけ）','未配置'),
+      R('14','メニューバーの全コマンド','骨格 F のメニュー'),
+      R('15','通知・Dock・初期化エラー','通知と起動 N1〜N8・Dock・I1〜I3'),
+      R('16','エージェント種別と能力差・起動オプション・モデル・概念・画像添付の不整合','会話 D・返答 O1〜O6 / R8・空の画面 S3・設定 T4'),
+      R('17','状態の描き分け','デザインシステムの状態表'),
+      R('18','キーボードショートカット','本ページ 3 と 骨格 F'),
+      R('19','設定項目（UserDefaults）','設定の新旧対応表'),
+      R('20','デザインシステムの部品・未使用部品','デザインシステム'),
+      R('21','UI 文言カテゴリ','デザインシステムの用語'),
+      R('6','チームビュー・Agora 討論（12.5 の討論設定 4 項目を含む）','削除。骨格の表示モード・メニュー・キー、設定のタブ、新規セッションの入口から外した','削除'),
+    ];
+    const issues = [
+      ['状態','骨格のサイドバーとグリッドのタイルが、名前の左に状態のアイコンを出していた。サイドバーの回でアイコンをやめ、グリッドも文字にした','骨格も文字だけに揃えた（記号は承認・質問・エラーのカードと「対応待ち」ボタンだけ）'],
+      ['状態','グリッドのタイル見出しは「承認待ち 3分」、ヘッダのカプセルは「承認待ち · 3分」','「承認待ち · 3分」に統一'],
+      ['状態','無応答が「応答なし 2:14」（会話・グリッド）と「無応答 2:14」（ヘッダ・サイドバー）で混在','画面内は「無応答 2:14」。通知の見出しだけ文にして「応答がありません」'],
+      ['エージェント','頭文字を淡い面に載せる形（骨格・会話・新規）と、面なしの文字（サイドバー・グリッド）が混在','小さい場所（行・タイル見出し）は面なし、大きい場所（アバター・カード・表）は面あり、と規則にした（デザインシステムに追記・骨格を修正）'],
+      ['承認','承認カードの見出しが「コマンドの実行を承認しますか」（骨格・会話）「コマンドの実行を許可しますか」（グリッド）「次のコマンドを実行しようとしています」（返答）の 3 通り','返答の形に統一: 「承認待ち · コマンドの実行」＋「次のコマンドを実行しようとしています」'],
+      ['承認','ボタンの文言が「承認 / 却下」と「許可 / 拒否」で混在','返答の回で「許可 / このセッション中は許可 / 拒否 / キャンセル」に統一（骨格・会話を置換済み）'],
+      ['承認','グリッドの範囲外表示が記号 2 つ＋「範囲外に対応待ち 2」（骨格）と文言（グリッド）で違う','「エラー 1 無応答 1 が範囲外」に統一'],
+      ['使用量','骨格のインスペクタでは「セッション」タブに状態と作業ディレクトリが無く、補助領域の回の設計と違う','骨格に作業ディレクトリを追加（状態は見出しのカードで表示）'],
+      ['使用量','チップの縮退: 骨格は最小残量のみ、補助領域の回は取得失敗「—」・読込中も定義','補助領域の 4 状態を正とし、骨格の縮退段階はその中の幅の規則として読む（食い違いなし、と注記）'],
+      ['用語','完了の通知が「入力待ち」（現行）','「作業が完了しました」。「待ち」は承認待ち・質問待ちだけ'],
+      ['削除','グリッドの説明が「削除は右クリックか ⌘⌫」、骨格のメニューが「セッションを削除… ⌘⌫」','⌘⌫ はサイドバーにフォーカスがあるときだけ。メニューの表示は「⌘W（単体）」'],
+      ['入口','新規セッションの表で、チームビューの入口を「6 章の回で描く」と書いていた','対象外（6 章）と明記'],
+    ].map(([c,bad,fix],i) => ({n:i+1,c,bad,fix}));
+    const keys = [
+      ['⌘,','設定','どこでも · 18 章どおり'],['⇧⌘,','エージェント管理','どこでも · 18 章どおり'],
+      ['⌘N','新規セッション（種別の表）','どこでも · 18 章の ⌘N / ⇧⌘N / ⌥⌘N を統合'],['⌘O','プロジェクトを追加','どこでも · 新設'],
+      ['⌃⌘1 / ⌃⌘2','単体 / グリッド','どこでも · タブ採用で ⌘1/⌘2 から移動（⌃⌘G は切り替え）'],['⌘1–9','セッションのタブ / グリッドのタイル','どこでも · タブ採用で新設（⌥⌘1–9 から統合）'],['⌘T · ⌘P · ⌘\\','新しいタブ · ファイルを開く · 右に分割','単体 · タブ採用で新設'],['⌃Tab / ⌃⇧Tab','次 / 前の子タブ','単体 · 新設'],
+      ['⌃⌘S / ⌃⌘I','サイドバー / インスペクタ','どこでも · 18 章の ⌘B / ⌥⌘B から変更'],
+      ['⌃⌘T / ⌃⌘E','ターミナル / 変更 の子タブを前に出す','どこでも · 18 章の ⌥⌘T / ⌥⌘E から変更。ドロワー廃止で意味を変更'],
+      ['⌘+ / ⌘− / ⌘0','文字の拡大・縮小・実寸','フォーカス中の領域（会話かターミナル）· 18 章は ⌘= / ⌘− をターミナルのみ'],
+      ['⌘J / ⌥⌘J','次の対応待ちへ / 一覧','どこでも · 新設'],
+      ['⌥⌘↓ / ⌥⌘↑','次 / 前のセッション','どこでも · 18 章どおり'],
+      ['⌥⌘↩ / ⌥⌘⌫','許可 / 拒否','承認待ちのセッション（単体・フォーカス中のタイル）· 新設'],
+      ['Y / S / N / Esc','許可 / このセッション中は許可 / 拒否 / キャンセル','承認カードにフォーカスがあるときだけ · 新設'],
+      ['1–9 · ⌘↩','質問の選択 · 回答を送信','質問カードにフォーカスがあるとき。入力欄にいるときの ⌘↩ は送信のまま'],
+      ['⌘.','中断','会話 · 新設（Esc と同じ）'],
+      ['⌘W','子タブ: 閉じる / 会話: セッションを削除（確認）/ グリッド: 外す','18 章は常に削除。ほかのウィンドウでは標準の「閉じる」'],
+      ['⌘⌫','セッション削除（確認）','サイドバーにフォーカスがあるときだけ'],
+      ['⇧⌘E / ⌥⇧⌘C','会話を書き出す / Markdown でコピー','会話 · 18 章に ⌥⇧⌘C を追加'],
+      ['⌘R','再試行','初期化エラー画面 · 18 章どおり'],
+      ['⌘S','保存','エージェント管理のメモリ / スキル · 18 章どおり。エディタパネルの保存にも使う'],
+      ['↩ / ⌘↩ / ⇧↩','送信 / 送信 / 改行','入力欄 · 18 章どおり（IME 変換中は ↩ で送らない）'],
+      ['↑↓ · ↩ / Tab · Esc','候補の移動 · 確定 · 閉じる','候補の表示中 · 18 章どおり'],
+      ['Esc / Esc Esc','中断（優先順あり）/ 巻き戻し','会話 · 18 章どおり'],
+      ['End','最新のメッセージへ','会話にフォーカスがあるとき · 新設'],
+      ['⌥⇧⌘ + 矢印','タイルの入れ替え / 行の並べ替え','グリッド / サイドバー · 案'],
+    ].map(([k,f,w]) => ({k,f,w}));
+    const conflicts = [
+      {t:'⌥⌘↑↓ の二重割り当て',d:'サイドバーの並べ替えの案（F10）に、18 章の「次 / 前のセッション」と同じキーを当てていた。',fix:'並べ替えは ⌥⇧⌘↑↓ に変更（グリッドの入れ替えと揃えた）'},
+      {t:'⌘⌫ が入力欄の編集と衝突',d:'メニューの「セッションを削除… ⌘⌫」は入力中の「行頭まで消去」を奪う。',fix:'⌘⌫ はサイドバーにフォーカスがあるときだけ。メニューは ⌘W（単体）を示す'},
+      {t:'⌘↓ が入力欄の移動と衝突',d:'会話の「↓ 最新へ」を ⌘↓ にしていたが、入力欄では「文末へ移動」になる。',fix:'会話にフォーカスがあるときの End に変更'},
+      {t:'⌘↩ の意味が 2 つ',d:'入力欄では送信、質問カードでは回答の送信。',fix:'フォーカスで決まることを表に明記。カードが出てもフォーカスは移さない規則（返答の回）と合わせて衝突しない'},
+    ];
+    return {rows, issues, keys, conflicts};
+  }
+}
+</script>
+</body>
+</html>

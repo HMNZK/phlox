@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="{{ rootStyle }}" data-screen-label="{{ screenLabel }}">
+<div style="display:flex;height:100%;">
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;position:relative;">
+
+  <div role="banner" aria-label="セッションヘッダ" style="height:56px;flex:none;display:flex;align-items:center;gap:12px;padding:0 16px 0 18px;border-bottom:1px solid var(--sep);background:var(--bg);">
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+      <div style="display:flex;align-items:center;gap:7px;min-width:0;">
+        <span style="{{ titleStyle }}">{{ title }}</span>
+        <sc-if value="{{ namingTag }}"><span style="height:16px;padding:0 6px;border-radius:4px;background:var(--segBg);font-size:10.5px;color:var(--fg2);display:flex;align-items:center;flex:none;">{{ namingTag }}</span></sc-if>
+      </div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--fg2);min-width:0;white-space:nowrap;overflow:hidden;">
+        <span style="flex:none;">{{ agentLine }}</span><span style="color:var(--fg3);">·</span>
+        <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;overflow:hidden;text-overflow:ellipsis;">{{ cwd }}</span><span style="color:var(--fg3);">·</span>
+        <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;flex:none;">{{ branch }}</span>
+      </div>
+    </div>
+    <sc-if value="{{ hasSubs }}">
+      <div role="group" aria-label="サブエージェント" style="display:flex;align-items:center;gap:4px;flex:none;">
+        <span style="font-size:11px;color:var(--fg3);margin-right:2px;">サブ</span>
+        <sc-for list="{{ subs }}" as="sb"><div role="button" aria-label="{{ sb.aria }}" style="{{ sb.style }}">{{ sb.t }}</div></sc-for>
+      </div>
+    </sc-if>
+    <span style="{{ stateStyle }}">{{ stateText }}</span>
+    <div style="position:relative;flex:none;">
+      <div role="button" aria-label="会話を書き出す（⇧⌘E）" style="{{ exportBtn }}">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4.5 5.5 H2.5 V12.5 H11.5 V5.5 H9.5"></path><line x1="7" y1="1.5" x2="7" y2="8.5"></line><polyline points="4.6,3.8 7,1.4 9.4,3.8"></polyline></svg>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ isHistory }}">
+    <div style="flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;padding:48px 24px;gap:18px;overflow:hidden;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+        <div style="font-size:17px;font-weight:700;color:var(--fg);">過去の会話から再開</div>
+        <div style="font-size:12.5px;color:var(--fg2);">phlox-core で Claude Code と行った会話です。選ぶと続きから再開します。</div>
+      </div>
+      <div style="width:100%;max-width:560px;display:flex;flex-direction:column;gap:6px;">
+        <sc-for list="{{ historyCards }}" as="hc" hint-placeholder-count="4">
+          <div role="button" style="{{ hc.style }}">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;">
+              <span style="font-size:13px;font-weight:600;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ hc.title }}</span>
+              <span style="font-size:11.5px;color:var(--fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ hc.last }}</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-size:11px;color:var(--fg3);flex:none;">
+              <span>{{ hc.when }}</span><span style="font-family:ui-monospace,Menlo,monospace;">{{ hc.meta }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <div role="button" style="display:flex;align-items:center;gap:6px;height:28px;padding:0 14px;border-radius:7px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);font-size:12.5px;color:var(--fg);">新しい会話を始める<span style="font-size:10.5px;color:var(--fg3);">⌘↩</span></div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isPty }}">
+    <div style="flex:1;min-height:0;background:var(--term);color:var(--termFg);font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;line-height:1.7;padding:12px 16px;overflow:hidden;">
+      <sc-for list="{{ ptyLines }}" as="pl"><div style="{{ pl.s }}">{{ pl.t }}</div></sc-for>
+      <div><span style="color:#7FB2F0;">&gt;</span> <span style="background:#E6E6E6;color:#141416;">&nbsp;</span></div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isChat }}">
+  <div style="flex:1;min-height:0;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;">
+    <div style="{{ streamStyle }}">
+      <sc-for list="{{ items }}" as="it" hint-placeholder-count="8">
+        <div style="{{ it.wrap }}">
+          <sc-if value="{{ it.cap }}"><div style="font-size:10.5px;font-weight:600;letter-spacing:0.2px;color:var(--capInk);font-family:ui-monospace,Menlo,monospace;margin-bottom:-2px;">{{ it.cap }}</div></sc-if>
+
+          <sc-if value="{{ it.isEarlier }}">
+            <div style="display:flex;justify-content:center;"><div role="button" style="height:26px;padding:0 12px;border-radius:13px;background:var(--hover);font-size:12px;color:var(--fg2);display:flex;align-items:center;">{{ it.text }}</div></div>
+          </sc-if>
+
+          <sc-if value="{{ it.isUser }}">
+            <div style="display:flex;justify-content:flex-end;align-items:flex-end;gap:8px;">
+              <sc-if value="{{ it.hover }}">
+                <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--fg3);padding-bottom:4px;">
+                  <span style="font-variant-numeric:tabular-nums;">{{ it.time }}</span>
+                  <span role="button" aria-label="メッセージをコピー" style="width:22px;height:22px;border-radius:5px;background:var(--hover);display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.5"></rect><path d="M8.5 3.5 V2 Q8.5 1 7.5 1 H2 Q1 1 1 2 V7.5 Q1 8.5 2 8.5 H3.5"></path></svg></span>
+                </div>
+              </sc-if>
+              <div style="max-width:78%;background:var(--code);border-radius:14px;padding:9px 13px;font-size:13px;line-height:1.6;color:var(--fg);display:flex;flex-direction:column;gap:6px;">
+                <sc-if value="{{ it.attach }}"><span style="align-self:flex-start;display:flex;align-items:center;gap:6px;height:22px;padding:0 8px 0 4px;border-radius:5px;background:var(--bg);font-size:11px;color:var(--fg2);"><span style="width:16px;height:14px;border-radius:3px;background:repeating-linear-gradient(45deg,var(--segBg) 0 3px,transparent 3px 6px);border:1px solid var(--sep);"></span>{{ it.attach }}</span></sc-if>
+                <span style="text-wrap:pretty;">{{ it.text }}</span>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ it.isAgent }}">
+            <div style="position:relative;display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:1.7;color:var(--fg);">
+              <sc-if value="{{ it.avatar }}"><div style="{{ av.style }}">{{ av.t }}</div></sc-if>
+              <sc-for list="{{ it.blocks }}" as="b">
+                <sc-if value="{{ b.isP }}"><div style="{{ b.pStyle }}">{{ b.t }}<sc-if value="{{ b.sel }}"><span style="background:var(--selText);">{{ b.sel }}</span>{{ b.after }}</sc-if></div></sc-if>
+                <sc-if value="{{ b.isLi }}"><div style="display:flex;gap:8px;"><span style="color:var(--fg3);">•</span><span style="text-wrap:pretty;">{{ b.t }}</span></div></sc-if>
+                <sc-if value="{{ b.isCode }}">
+                  <div style="border-radius:8px;background:var(--code);overflow:hidden;">
+                    <div style="display:flex;align-items:center;height:28px;padding:0 6px 0 12px;font-size:11px;color:var(--fg2);border-bottom:1px solid var(--sep);"><span style="flex:1;font-family:ui-monospace,Menlo,monospace;">{{ b.lang }}</span><span role="button" aria-label="コードをコピー" style="font-size:11px;padding:2px 8px;border-radius:4px;color:var(--fg2);">コピー</span></div>
+                    <div style="padding:8px 12px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;line-height:1.65;white-space:pre;overflow:hidden;">
+                      <sc-for list="{{ b.lines }}" as="ln"><div><sc-for list="{{ ln }}" as="tk"><span style="{{ tk.s }}">{{ tk.t }}</span></sc-for></div></sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ it.isCard }}">
+            <div style="{{ it.cardStyle }}">
+              <div role="button" aria-expanded="{{ it.open }}" aria-label="{{ it.aria }}" style="display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;font-size:12px;color:var(--fg2);min-width:0;">
+                <span style="{{ it.chev }}">›</span>
+                <span style="{{ it.labelStyle }}">{{ it.label }}</span>
+                <span style="flex:1;min-width:0;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ it.summary }}</span>
+                <sc-for list="{{ it.badges }}" as="bd"><span style="{{ bd.s }}">{{ bd.t }}</span></sc-for>
+              </div>
+              <sc-if value="{{ it.showPreview }}"><div style="padding:0 12px 9px 28px;font-size:12px;line-height:1.6;color:var(--fg2);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ it.preview }}</div></sc-if>
+              <sc-if value="{{ it.open }}">
+                <div style="border-top:1px solid var(--sep);">
+                  <sc-if value="{{ it.bodyText }}"><div style="padding:9px 12px 10px 28px;font-size:12.5px;line-height:1.7;color:var(--fg2);text-wrap:pretty;">{{ it.body }}</div></sc-if>
+                  <sc-if value="{{ it.bodyLines }}">
+                    <div style="{{ it.linesStyle }}">
+                      <sc-for list="{{ it.lines }}" as="ln"><div style="{{ ln.s }}"><sc-if value="{{ it.gutter }}"><span style="width:30px;flex:none;text-align:right;color:var(--fg3);">{{ ln.a }}</span><span style="width:30px;flex:none;text-align:right;color:var(--fg3);margin-right:10px;">{{ ln.b }}</span></sc-if><span style="white-space:pre;">{{ ln.t }}</span></div></sc-for>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ it.bodyRows }}">
+                    <div style="padding:4px 0 6px;">
+                      <sc-for list="{{ it.rows }}" as="rw"><div style="display:flex;align-items:center;gap:10px;height:24px;padding:0 12px 0 28px;font-size:12px;"><span style="width:44px;flex:none;color:var(--fg);font-weight:500;">{{ rw.tool }}</span><span style="flex:1;min-width:0;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ rw.arg }}</span><span style="{{ rw.stStyle }}">{{ rw.st }}</span></div></sc-for>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ it.bodyTasks }}">
+                    <div style="padding:4px 0 6px;">
+                      <sc-for list="{{ it.tasks }}" as="tk"><div style="display:flex;align-items:center;gap:9px;height:24px;padding:0 12px 0 28px;font-size:12.5px;"><span style="{{ tk.iconStyle }}">{{ tk.icon }}</span><span style="{{ tk.textStyle }}">{{ tk.t }}</span></div></sc-for>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ it.more }}"><div style="display:flex;align-items:center;gap:10px;padding:6px 12px 8px 28px;border-top:1px solid var(--sep);font-size:11.5px;"><span role="button" style="color:var(--accentInk);">{{ it.more }}</span><span style="flex:1;"></span><span role="button" style="color:var(--fg2);">{{ it.copyLabel }}</span></div></sc-if>
+                  <sc-if value="{{ it.selectNote }}"><div style="position:absolute;right:10px;top:-30px;background:var(--popover);box-shadow:var(--shadow);border-radius:6px;padding:5px 9px;font-size:11px;color:var(--fg2);white-space:nowrap;z-index:5;">差分の行は選択できません — 「セクションをコピー」を使う</div></sc-if>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ it.isError }}">
+            <div role="alert" style="display:flex;gap:10px;padding:10px 12px;border-radius:8px;background:var(--errTint);box-shadow:inset 0 0 0 1px var(--err);">
+              <span style="width:13px;height:12px;flex:none;margin-top:3px;background:var(--err);clip-path:polygon(50% 0,100% 100%,0 100%);color:#fff;font-size:8px;font-weight:800;display:flex;align-items:flex-end;justify-content:center;">!</span>
+              <div style="display:flex;flex-direction:column;gap:2px;min-width:0;"><span style="font-size:12.5px;font-weight:600;color:var(--errInk);">{{ it.title }}</span><span style="font-size:12.5px;line-height:1.6;color:var(--fg);font-family:ui-monospace,Menlo,monospace;">{{ it.text }}</span></div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ it.isSub }}">
+            <div role="button" aria-label="{{ it.aria }}" style="{{ it.subStyle }}">
+              <span style="font-size:14px;color:var(--fg3);flex:none;">↳</span>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;"><span style="font-size:13px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ it.desc }}</span><span style="font-size:11.5px;color:var(--fg2);font-family:ui-monospace,Menlo,monospace;">{{ it.meta }}</span></div>
+              <span style="{{ it.stStyle }}">{{ it.st }}</span><span style="color:var(--fg3);">›</span>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ it.isCost }}">
+            <div role="button" aria-label="このターンの使用量" style="display:flex;justify-content:flex-end;gap:12px;font-size:11px;color:var(--fg3);font-variant-numeric:tabular-nums;flex-wrap:wrap;">
+              <span style="color:var(--fg2);">{{ it.cost }}</span><span>{{ it.tokens }}</span><span>{{ it.ctx }}</span>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ it.isQuestion }}">
+            <div role="group" aria-label="エージェントからの質問" style="border-radius:10px;box-shadow:inset 0 0 0 1px var(--qst);background:var(--qstTint);padding:11px 12px;display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--fg);">
+              <div style="display:flex;align-items:center;gap:8px;"><span style="width:12px;height:12px;border-radius:3px;background:var(--qst);color:#fff;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;">?</span><span style="font-size:11px;font-weight:600;color:var(--qstInk);">質問待ち · {{ it.header }}</span></div>
+              <div style="font-weight:600;text-wrap:pretty;">{{ it.q }}</div>
+              <sc-for list="{{ it.options }}" as="op">
+                <div role="checkbox" aria-checked="{{ op.on }}" style="display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border-radius:6px;background:var(--bg);">
+                  <span style="{{ op.box }}">{{ op.tick }}</span>
+                  <div style="display:flex;flex-direction:column;gap:1px;"><span>{{ op.label }}</span><span style="font-size:11.5px;color:var(--fg2);">{{ op.desc }}</span></div>
+                </div>
+              </sc-for>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <div style="flex:1;height:26px;border-radius:6px;background:var(--field);box-shadow:inset 0 0 0 1px var(--fieldBorder);display:flex;align-items:center;padding:0 8px;font-size:12px;color:var(--fg3);">その他（自由入力）</div>
+                <div role="button" style="height:26px;padding:0 12px;border-radius:6px;background:var(--accentFill);color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;">回答を送信</div>
+                <div role="button" style="height:26px;padding:0 8px;font-size:12px;color:var(--fg2);display:flex;align-items:center;">閉じる</div>
+              </div>
+              <div style="font-size:11px;color:var(--fg2);">複数選択可 · 秘密の入力（API キーなど）は伏せ字で表示し、会話にも残さない</div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ it.isThinking }}">
+            <div role="status" style="{{ it.thinkStyle }}">
+              <span style="width:18px;height:18px;border-radius:50%;border:2px dotted var(--fg2);box-sizing:border-box;flex:none;"></span>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;">
+                <span style="font-size:13px;font-style:italic;color:var(--fg2);">{{ it.label }}</span>
+                <span style="font-size:11.5px;color:var(--fg3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ it.recap }}</span>
+              </div>
+              <sc-if value="{{ it.stalled }}">
+                <span style="font-size:12px;font-weight:600;color:var(--stlInk);font-variant-numeric:tabular-nums;flex:none;">無応答 {{ it.elapsed }}</span>
+                <div role="button" style="display:flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);font-size:12px;color:var(--fg);flex:none;">中断<span style="font-size:10.5px;color:var(--fg3);">Esc</span></div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ it.isCompacting }}">
+            <div role="status" aria-label="会話を圧縮中" style="border-radius:10px;box-shadow:inset 0 0 0 1px var(--sep);overflow:hidden;">
+              <div style="height:110px;background:repeating-linear-gradient(135deg,var(--segBg) 0 6px,transparent 6px 12px);display:flex;align-items:center;justify-content:center;font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--fg2);text-align:center;line-height:1.6;">CompactingDogAnimation<br>海 → 川 → 砂漠 → 火山 → 氷山 → 宇宙（1 ステージ 14.2 秒）</div>
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;"><span style="font-size:13px;font-style:italic;color:var(--fg2);flex:1;">会話を圧縮しています…</span><span style="font-size:11px;color:var(--fg3);">ステージ 3 / 6 · 砂漠</span></div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ it.isConnecting }}">
+            <div role="status" style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--fg2);"><span style="width:18px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--fg3), inset 0 0 0 5px var(--bg), inset 0 0 0 6.5px var(--fg3);flex:none;"></span><span style="font-style:italic;">エージェントに接続しています…</span></div>
+          </sc-if>
+
+          <sc-if value="{{ it.isCodex }}">
+            <div style="border-radius:10px;box-shadow:inset 0 0 0 1px var(--sep);background:var(--card);display:flex;flex-direction:column;">
+              <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;font-size:12px;color:var(--fg2);border-bottom:1px solid var(--sep);"><span style="color:var(--fg);font-weight:600;">プラン</span><span>3 / 5 完了</span></div>
+              <div style="padding:4px 0 6px;">
+                <sc-for list="{{ it.plan }}" as="tk"><div style="display:flex;align-items:center;gap:9px;height:24px;padding:0 12px;font-size:12.5px;"><span style="{{ tk.iconStyle }}">{{ tk.icon }}</span><span style="{{ tk.textStyle }}">{{ tk.t }}</span></div></sc-for>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;font-size:12px;color:var(--fg2);border-top:1px solid var(--sep);"><span style="color:var(--fg);font-weight:600;">子スレッド</span><span>2</span></div>
+              <sc-for list="{{ it.children }}" as="ch">
+                <div role="button" style="{{ ch.style }}">
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;"><span style="font-size:12.5px;color:var(--fg);">{{ ch.t }}</span><span style="font-size:11px;color:var(--fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ ch.sum }}</span></div>
+                  <span style="{{ ch.stStyle }}">{{ ch.st }}</span>
+                  <div role="button" aria-disabled="{{ ch.stopDisabled }}" style="{{ ch.stopStyle }}">停止</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+    <sc-if value="{{ isLong }}"><div style="position:absolute;right:4px;top:38%;width:6px;height:48px;border-radius:3px;background:var(--scroll);"></div></sc-if>
+    <sc-if value="{{ detached }}">
+      <div role="button" aria-label="最新のメッセージへ移動" style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;height:28px;padding:0 14px;border-radius:14px;background:var(--popover);box-shadow:var(--shadow);font-size:12px;color:var(--fg);z-index:6;">↓ 最新へ<span style="height:16px;padding:0 6px;border-radius:8px;background:var(--accentFill);color:#fff;font-size:10.5px;font-weight:700;display:flex;align-items:center;">新着 3</span><span style="font-size:10.5px;color:var(--fg3);">End</span></div>
+    </sc-if>
+  </div>
+
+  <div style="flex:none;display:flex;justify-content:center;padding:0 24px 16px;">
+    <div style="width:100%;max-width:760px;display:flex;flex-direction:column;gap:8px;">
+      <sc-if value="{{ showApproval }}">
+        <div role="group" aria-label="承認待ち: コマンドの実行" style="box-shadow:inset 0 0 0 1px var(--apv);background:var(--apvTint);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;align-items:center;gap:8px;"><span style="width:11px;height:11px;background:var(--apv);transform:rotate(45deg);border-radius:2px;flex:none;"></span><span style="font-size:13px;font-weight:600;color:var(--fg);flex:1;">次のコマンドを実行しようとしています</span><span style="font-size:11px;color:var(--apvInk);font-weight:600;">承認待ち · 3分</span></div>
+          <div style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:var(--fg);background:var(--card);border-radius:6px;padding:7px 10px;">$ swift test --filter ApprovalBrokerTests</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <div role="button" style="display:flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:6px;background:var(--accentFill);color:#fff;font-size:12px;font-weight:600;">許可<span style="font-size:10.5px;font-weight:400;color:rgba(255,255,255,0.85);">⌥⌘↩</span></div>
+            <div role="button" style="display:flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);color:var(--fg);font-size:12px;">このセッション中は許可</div>
+            <div role="button" style="display:flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);color:var(--fg);font-size:12px;">拒否<span style="font-size:10.5px;color:var(--fg3);">⌥⌘⌫</span></div>
+            <div style="flex:1;"></div>
+            <div role="button" style="font-size:12px;color:var(--fg2);padding:0 4px;">キャンセル</div>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ showEnded }}">
+        <div role="status" style="display:flex;align-items:center;gap:10px;height:40px;padding:0 14px;border-radius:10px;background:var(--hover);font-size:12.5px;color:var(--fg2);">
+          <span style="flex:1;">セッションは終了しました（exit 0）。会話は保存されています。</span>
+          <div role="button" style="height:24px;padding:0 10px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);color:var(--fg);font-size:12px;display:flex;align-items:center;">この会話から再開</div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ showComposer }}">
+        <div style="border-radius:12px;background:var(--field);box-shadow:inset 0 0 0 1px var(--fieldBorder);padding:10px 12px 8px;display:flex;flex-direction:column;gap:10px;">
+          <div style="font-size:13px;color:var(--fg3);">{{ placeholder }}</div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--fg2);min-width:0;">
+            <span style="width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;">＋</span>
+            <sc-for list="{{ chips }}" as="cp"><span style="height:20px;padding:0 7px;border-radius:5px;background:var(--segBg);display:flex;align-items:center;white-space:nowrap;">{{ cp }}</span></sc-for>
+            <span style="flex:1;"></span>
+            <span style="font-variant-numeric:tabular-nums;">コンテキスト {{ ctx }}</span>
+            <sc-if value="{{ running }}"><span role="button" aria-label="中断（Esc / ⌘.）" style="width:24px;height:24px;border-radius:12px;background:var(--fg);display:flex;align-items:center;justify-content:center;flex:none;"><span style="width:8px;height:8px;border-radius:1.5px;background:var(--bg);"></span></span></sc-if>
+            <sc-if value="{{ notRunning }}"><span role="button" aria-label="送信（↩）" style="width:24px;height:24px;border-radius:12px;background:var(--segBg);color:var(--fg3);display:flex;align-items:center;justify-content:center;flex:none;font-size:13px;font-weight:700;">↑</span></sc-if>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ showRevert }}">
+    <div style="position:absolute;inset:0;background:rgba(0,0,0,0.4);z-index:30;display:flex;align-items:flex-start;justify-content:center;padding-top:110px;">
+      <div role="dialog" aria-label="会話を巻き戻す" style="width:480px;background:var(--popover);border-radius:12px;box-shadow:var(--shadow);padding:8px;display:flex;flex-direction:column;gap:2px;">
+        <div style="padding:8px 10px 6px;display:flex;flex-direction:column;gap:2px;"><span style="font-size:13px;font-weight:600;color:var(--fg);">この発言の前まで巻き戻す</span><span style="font-size:11.5px;color:var(--fg2);">選んだ発言以降の会話を取り消し、その発言を入力欄に戻します</span></div>
+        <sc-for list="{{ revertRows }}" as="rv"><div role="option" aria-selected="{{ rv.on }}" style="{{ rv.style }}"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ rv.t }}</span><span style="font-size:11px;opacity:0.8;font-variant-numeric:tabular-nums;">{{ rv.time }}</span></div></sc-for>
+        <div style="display:flex;gap:14px;padding:8px 10px 4px;font-size:11px;color:var(--fg3);border-top:1px solid var(--sep);margin-top:4px;"><span>↑↓ 選択</span><span>↩ 巻き戻す</span><span>Esc 閉じる</span><span style="flex:1;"></span><span>実行中なら先に中断します</span></div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ showExport }}">
+    <div role="dialog" aria-label="会話を書き出す" style="position:absolute;top:56px;right:24px;width:320px;background:var(--popover);border-radius:0 0 12px 12px;box-shadow:var(--shadow);padding:16px 18px 14px;z-index:30;display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:13px;font-weight:700;color:var(--fg);">会話を Markdown で書き出す</div>
+      <div style="font-size:11.5px;color:var(--fg2);">承認 API に失効処理を追加 · メッセージ 18</div>
+      <sc-for list="{{ exportOpts }}" as="eo"><div role="checkbox" aria-checked="{{ eo.on }}" style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--fg);"><span style="{{ eo.box }}">{{ eo.tick }}</span>{{ eo.t }}</div></sc-for>
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <div role="button" style="flex:1;height:28px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);display:flex;align-items:center;justify-content:center;font-size:12.5px;color:var(--fg);">コピー<span style="font-size:10.5px;color:var(--fg3);margin-left:6px;">⌥⇧⌘C</span></div>
+        <div role="button" style="flex:1;height:28px;border-radius:6px;background:var(--accentFill);display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;color:#fff;">書き出す…</div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+
+<sc-if value="{{ showDrawer }}">
+  <div role="complementary" aria-label="サブエージェント" style="width:42%;flex:none;display:flex;flex-direction:column;border-left:1px solid var(--sep);background:var(--panel);position:relative;">
+    <div style="position:absolute;left:-2px;top:0;bottom:0;width:3px;"></div>
+    <div style="height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px 0 16px;border-bottom:1px solid var(--sep);">
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+        <span style="font-size:13px;font-weight:600;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">失効処理の差分をレビュー</span>
+        <span style="font-size:11.5px;color:var(--fg2);font-family:ui-monospace,Menlo,monospace;">code-reviewer · 実行中</span>
+      </div>
+      <div role="button" style="font-size:12px;color:var(--fg2);">メインへ戻る</div>
+      <div role="button" aria-label="閉じる（Esc）" style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--fg2);">✕</div>
+    </div>
+    <div style="flex:1;min-height:0;overflow:hidden;padding:16px;display:flex;flex-direction:column;gap:12px;justify-content:flex-end;font-size:12.5px;line-height:1.65;color:var(--fg);">
+      <div style="align-self:flex-end;max-width:85%;background:var(--code);border-radius:12px;padding:7px 11px;">ChatApprovalBroker.swift の差分をレビューし、期限切れの扱いで漏れがないか確認して。</div>
+      <div style="border-radius:8px;box-shadow:inset 0 0 0 1px var(--sep);display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:11.5px;color:var(--fg2);"><span style="color:var(--fg3);">›</span><span style="color:var(--fg);font-weight:500;">ツール実行 ×2</span><span style="font-family:ui-monospace,Menlo,monospace;">Read ChatApprovalBroker.swift · Read ControlApproval.swift</span></div>
+      <div style="text-wrap:pretty;">requests() では失効を反映していますが、userInputRequests 側に同じ処理がありません。質問カードも期限切れで残り続けます。</div>
+      <div style="border-left:2px solid var(--sep);padding:2px 0 2px 10px;font-size:12px;font-style:italic;color:var(--fg2);display:flex;flex-direction:column;gap:1px;">
+        <span>…userInputRequests も同じ配列構造なので、</span><span>expireOverdue を共通化できる。ControlApproval の</span><span>DTO 変換で expiresAt を渡す必要がある。</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fg2);"><span style="width:16px;height:16px;border-radius:50%;border:2px dotted var(--fg2);box-sizing:border-box;"></span><span style="font-style:italic;">考え中… · ControlApproval.swift を読み込み中</span></div>
+    </div>
+    <div style="padding:0 14px 14px;">
+      <div style="border-radius:10px;background:var(--field);box-shadow:inset 0 0 0 1px var(--fieldBorder);padding:9px 11px;font-size:12.5px;color:var(--fg3);display:flex;align-items:center;"><span style="flex:1;">サブエージェントに追加の指示</span><span style="font-size:10.5px;">↩ 送信</span></div>
+    </div>
+  </div>
+</sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:880,&quot;height&quot;:860},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;scenario&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;catalog&quot;,&quot;running&quot;,&quot;idle&quot;,&quot;done&quot;,&quot;error&quot;,&quot;stalled&quot;,&quot;compacting&quot;,&quot;long&quot;,&quot;codex&quot;,&quot;cursor&quot;,&quot;history&quot;,&quot;pty&quot;],&quot;default&quot;:&quot;idle&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;overlay&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;hover&quot;,&quot;expanded&quot;,&quot;subagent&quot;,&quot;revert&quot;,&quot;export&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;agent&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;claude&quot;,&quot;codex&quot;,&quot;cursor&quot;,&quot;custom&quot;],&quot;default&quot;:&quot;claude&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;naming&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;flower&quot;,&quot;derived&quot;,&quot;manual&quot;],&quot;default&quot;:&quot;derived&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;width&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:880,&quot;tsType&quot;:&quot;number&quot;},&quot;height&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:860,&quot;tsType&quot;:&quot;number&quot;},&quot;label&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;chat&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  vars(dark) {
+    const L = {'--bg':'#FFFFFF','--panel':'#F8F8F9','--sep':'rgba(0,0,0,0.10)','--fg':'#1D1D1F','--fg2':'#5B5B60','--fg3':'#75757B','--hover':'rgba(0,0,0,0.05)','--sel':'rgba(0,0,0,0.075)','--selText':'rgba(217,119,87,0.30)','--card':'#FFFFFF','--code':'#F3F3F5','--field':'#FFFFFF','--fieldBorder':'rgba(0,0,0,0.14)','--accent':'#D97757','--accentInk':'#A94A28','--accentFill':'#B4552F','--ctl':'#FFFFFF','--ctlBorder':'rgba(0,0,0,0.16)','--segBg':'rgba(0,0,0,0.065)','--shadow':'0 10px 30px rgba(0,0,0,0.16), 0 0 0 0.5px rgba(0,0,0,0.2)','--popover':'#FFFFFF','--apv':'#E39A2D','--apvInk':'#8A5300','--apvTint':'rgba(227,154,45,0.12)','--qst':'#3A7BDF','--qstInk':'#1E5BB8','--qstTint':'rgba(58,123,223,0.07)','--err':'#E0484E','--errInk':'#B4232A','--errTint':'rgba(224,72,78,0.07)','--stl':'#9457DB','--stlInk':'#7438BD','--stlTint':'rgba(148,87,219,0.08)','--add':'#1F7A3A','--del':'#B4232A','--addTint':'rgba(40,160,80,0.10)','--delTint':'rgba(224,72,78,0.09)','--kw':'#9B2393','--str':'#C41A16','--num':'#1C00CF','--com':'#5D6C79','--term':'#1B1B1D','--termFg':'#E6E6E6','--scroll':'rgba(0,0,0,0.25)','--capInk':'#A94A28'};
+    const D = {'--bg':'#1E1E20','--panel':'#232326','--sep':'rgba(255,255,255,0.10)','--fg':'#F2F2F4','--fg2':'#ABABB1','--fg3':'#8E8E94','--hover':'rgba(255,255,255,0.06)','--sel':'rgba(255,255,255,0.09)','--selText':'rgba(217,119,87,0.40)','--card':'#27272A','--code':'#2B2B2F','--field':'#1A1A1C','--fieldBorder':'rgba(255,255,255,0.14)','--accent':'#E08865','--accentInk':'#F0A383','--accentFill':'#B4552F','--ctl':'#3A3A3E','--ctlBorder':'rgba(255,255,255,0.10)','--segBg':'rgba(255,255,255,0.08)','--shadow':'0 12px 34px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.16)','--popover':'#2F2F33','--apv':'#F0AE4A','--apvInk':'#F4BD68','--apvTint':'rgba(240,174,74,0.14)','--qst':'#5D98F0','--qstInk':'#8DB6F7','--qstTint':'rgba(93,152,240,0.10)','--err':'#EE5A5F','--errInk':'#FF8A8D','--errTint':'rgba(238,90,95,0.10)','--stl':'#A876EB','--stlInk':'#C4A2F4','--stlTint':'rgba(168,118,235,0.12)','--add':'#6FD08C','--del':'#FF8A8D','--addTint':'rgba(111,208,140,0.12)','--delTint':'rgba(238,90,95,0.12)','--kw':'#FC5FA3','--str':'#FC6A5D','--num':'#D0BF69','--com':'#7F8C98','--term':'#141416','--termFg':'#E6E6E6','--scroll':'rgba(255,255,255,0.25)','--capInk':'#F0A383'};
+    return dark ? D : L;
+  }
+  mono(agent, size = 20) {
+    const t = {claude:'Cl',codex:'Cx',cursor:'Cu',custom:'ai'}[agent];
+    const bg = {claude:'oklch(0.72 0.09 45 / 0.30)',codex:'oklch(0.72 0.07 165 / 0.30)',cursor:'oklch(0.72 0.07 260 / 0.30)',custom:'oklch(0.72 0.07 320 / 0.30)'}[agent];
+    return {t, style:{position:'absolute',left:-30,top:2,width:size,height:size,borderRadius:6,background:bg,color:'var(--fg)',fontSize:10,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center'}};
+  }
+  tok(line) {
+    if (!line.length) return [{t:' ',s:{}}];
+    const out = []; const re = /(\/\/.*$|"[^"]*"|\b(?:func|for|in|where|let|var|return|if|guard|self|struct|extension|private)\b|\b\d+\b)/g;
+    let last = 0, m;
+    while ((m = re.exec(line))) {
+      if (m.index > last) out.push({t:line.slice(last, m.index), s:{}});
+      const v = m[0];
+      const c = v.startsWith('//') ? 'var(--com)' : v.startsWith('"') ? 'var(--str)' : /^\d/.test(v) ? 'var(--num)' : 'var(--kw)';
+      out.push({t:v, s:{color:c, fontWeight:c==='var(--kw)'?600:400}});
+      last = m.index + v.length;
+    }
+    if (last < line.length) out.push({t:line.slice(last), s:{}});
+    return out;
+  }
+  renderVals() {
+    const p = this.props;
+    const W = Number(p.width ?? 880), H = Number(p.height ?? 860);
+    const dark = (p.theme ?? 'light') === 'dark';
+    const sc = p.scenario ?? 'idle';
+    const ov = p.overlay ?? 'none';
+    const agent = p.agent ?? 'claude';
+    const naming = p.naming ?? 'derived';
+    const cat = sc === 'catalog';
+    const U = (text, o = {}) => ({isUser:true, text, time:'14:18', ...o});
+    const P = (t, o = {}) => ({isP:true, t, pStyle:{textWrap:'pretty'}, ...o});
+    const LI = t => ({isLi:true, t});
+    const CODE = (lang, src) => ({isCode:true, lang, lines:src.split('\n').map(l => this.tok(l))});
+    const A = (blocks, o = {}) => ({isAgent:true, blocks, avatar:true, ...o});
+    const C = (kind, o) => ({isCard:true, kind, ...o});
+    const reasoning = (open, o = {}) => C('reasoning', {label:'思考', summary:'', preview:'既存の ChatApprovalBroker は pending を配列で持ち、requests() でそのまま返している…', body:'既存の ChatApprovalBroker は pending を配列で持ち、requests() でそのまま返している。期限は要求ごとに持たせ、取得時に判定するのが一番影響が小さい。ControlApproval の DTO にも expiresAt を足さないと、iOS 側で残り時間を出せない。', open, ...o});
+    const group = (open, running) => C('group', {label:'ツール実行 ×4', summary:running?'Bash swift build':'Read ChatApprovalBroker.swift ほか 3 件', open, running,
+      rows:[['Read','Packages/SessionFeature/Sources/SessionFeature/ChatApprovalBroker.swift','120 行'],['Grep','"expiresAt" in Packages/','0 件'],['Read','Packages/SessionFeature/Tests/SessionFeatureTests/ApprovalBrokerTests.swift','84 行'],running?['Bash','swift build --target SessionFeature','実行中']:['Read','Packages/AppBootstrap/Sources/ControlActionHandler.swift','212 行']]});
+    const tasks = (allDone) => C('tasks', {label:allDone?'タスク 4/4':'タスク 1/4', summary:allDone?'すべて完了':'一覧取得時に失効を反映', open:true,
+      tasks:[['期限フィールド expiresAt を追加','done'],['一覧取得時に失効を反映',allDone?'done':'doing'],['ApprovalBrokerTests にテストを追加',allDone?'done':'todo'],['ControlApproval の DTO に expiresAt を追加',allDone?'done':'todo']]});
+    const diff = [['86','86','    private var pending: [ChatApprovalRequest] = []','ctx'],['87','87','','ctx'],['88','88','    func requests() -> [ChatApprovalRequest] {','ctx'],['89','','        pending','del'],['','89','        let now = clock.now','add'],['','90','        expireOverdue(at: now)','add'],['','91','        return pending.filter { $0.expiresAt > now }','add'],['90','92','    }','ctx']];
+    const file = (open) => C('file', {label:'編集済み', summary:'SessionFeature/ChatApprovalBroker.swift', add:42, del:6, open, lines:diff, more:open?'さらに表示（残り 40 行）':'', copyLabel:'セクションをコピー'});
+    const cmd = (open, o = {}) => C('cmd', {label:'コマンド', summary:'$ swift test --filter ApprovalBrokerTests', open, exit:0,
+      lines:['Building for debugging...','[4/4] Compiling SessionFeatureTests ApprovalBrokerTests.swift','Test Suite \'ApprovalBrokerTests\' started','✔ testExpiredRequestIsRemoved (0.003s)','✔ testRequestBeforeDeadlineStays (0.001s)','✔ testDTOCarriesExpiresAt (0.002s)','Executed 3 tests, with 0 failures in 0.006s'], ...o});
+    const finalMsg = (o = {}) => A([P('失効処理を追加しました。', o.selP ? {t:'', sel:'失効処理を追加しました。', after:''} : {}), LI('expiresAt を ChatApprovalRequest に追加（既定 10 分）'), LI('requests() で期限切れを .expired に移し、一覧から除外'), LI('ApprovalBrokerTests に 3 件追加（すべて成功）'),
+      CODE('swift', 'func expireOverdue(at now: Date) {\n    // 期限を過ぎた要求を失効させる\n    for i in pending.indices where pending[i].expiresAt <= now {\n        pending[i].state = .expired\n    }\n}')]);
+    const cost = () => ({isCost:true, cost:'$0.42', tokens:'入力 18.2k · 出力 1.9k · キャッシュ読込 142k', ctx:'コンテキスト 46%'});
+    const u1 = (o = {}) => U('ControlServer の承認一覧 API で、期限切れの承認要求を自動で失効させてください。ApprovalBrokerTests にテストも追加して。', o);
+    const a1 = () => A([P('承認要求に期限を持たせ、ChatApprovalBroker が一覧を返す前に期限切れを取り除く形にします。まず既存の実装とテストを確認します。')]);
+    const think = (o = {}) => ({isThinking:true, label:'考え中…', recap:'ChatApprovalBroker.swift を読み込み中', ...o});
+    const sub = (st) => ({isSub:true, desc:'失効処理の差分をレビュー', meta:'code-reviewer · Task', st, aria:`サブエージェント 失効処理の差分をレビュー、${st}。クリックでドロワーを開く`});
+    let items = [];
+    if (sc === 'catalog') items = [
+      {isEarlier:true, text:'以前のメッセージを表示（さらに 42 件）', cap:'「以前のメッセージを表示」'},
+      u1({attach:'screenshot-approvals.png', cap:'ユーザーメッセージ（画像添付・ホバーでコピーと時刻）', hover:true}),
+      {isConnecting:true, cap:'接続待ちインジケータ'},
+      reasoning(false, {cap:'推論（折りたたみ・既定は閉）'}),
+      A([P('承認要求に期限を持たせ、ChatApprovalBroker が一覧を返す前に期限切れを取り除く形にします。')], {cap:'アシスタントメッセージ（Markdown）'}),
+      group(false, false), cmd(false),
+      file(false),
+      tasks(false),
+      sub('実行中'),
+      finalMsg(),
+      cost(),
+      {isError:true, title:'エラー', text:'API Error: 529 overloaded_error — しばらくしてから再送してください', cap:'エラー'},
+      {isQuestion:true, header:'対象範囲', q:'SettingsView.swift の直書き Text（4 件）も xcstrings に移しますか?', cap:'ユーザー質問カード', options:[['すべて移す','「ラウンドロビン」などを含む 4 件',true],['討論まわりだけ','スケジューラ関連の 2 件',false]]},
+      think({cap:'思考中インジケータ＋直近アクション要約（ThinkingRecap）'}),
+      think({stalled:true, elapsed:'2:14', recap:'最後の動作: swift test を実行中', cap:'無応答（120 秒）'}),
+      {isCompacting:true, cap:'会話の圧縮中'},
+      {isCodex:true, cap:'Codex のプランと子スレッド（Codex のみ）'},
+    ];
+    const cardCaps = {group:'コマンドグループ（連続コマンドを 1 枚に）', cmd:'コマンド実行（単体）', file:'ファイル変更（差分・既定は閉）', tasks:'タスクリスト', sub:'サブエージェントマーカー', cost:'ターンの使用量（コスト・トークン・コンテキスト）'};
+    if (cat) items.forEach(x => { if (!x.cap) { if (x.isCard) x.cap = cardCaps[x.kind]; else if (x.isSub) x.cap = cardCaps.sub; else if (x.isCost) x.cap = cardCaps.cost; else if (x.isAgent) x.cap = 'アシスタントメッセージ（箇条書き・コードブロック・シンタックスハイライト）'; } });
+    if (sc === 'running') items = [u1(), reasoning(false, {showPrev:true}), a1(), group(true, true), tasks(false), sub('実行中'), think({label:'実行中…', recap:'swift build --target SessionFeature を実行中 · 38 秒'})];
+    if (sc === 'idle' || sc === 'done') items = [u1({hover:ov==='hover'}), reasoning(false), a1(), group(ov==='expanded', false), tasks(true), file(ov==='expanded' || ov==='hover'), cmd(ov==='expanded'), finalMsg({selP:ov==='hover'}), cost()];
+    if (sc === 'error') items = [u1(), a1(), group(false,false), file(false), cmd(true, {exit:1, lines:['[3/4] Compiling SessionFeature ChatApprovalBroker.swift',"ChatApprovalBroker.swift:91:39: error: value of type 'ChatApprovalRequest' has no member 'expiresAt'","        return pending.filter { $0.expiresAt > now }",'                                ~~ ^~~~~~~~~','error: fatalError']}), A([P('ChatApprovalRequest 側にプロパティを追加し忘れていました。追加して再ビルドします。')]), {isError:true, title:'エラー', text:'API Error: 529 overloaded_error — しばらくしてから再送してください'}];
+    if (sc === 'stalled') items = [u1(), a1(), group(false,false), file(false), C('cmd', {label:'コマンド', summary:'$ swift test --filter ApprovalBrokerTests', open:false, running:true, preview:'Test Suite \'ApprovalBrokerTests\' started', showPrev:true}), think({stalled:true, elapsed:'2:14', label:'考え中…', recap:'最後の動作: swift test を実行中'})];
+    if (sc === 'compacting') items = [u1(), a1(), group(false,false), finalMsg(), cost(), U('/compact', {time:'14:40'}), {isCompacting:true}];
+    if (sc === 'long') items = [{isEarlier:true, text:'以前のメッセージを表示（さらに 184 件）'}, A([P('ビルドは通りました。次に DashboardFeature 側で承認一覧の表示を更新します。')]), group(false,false), U('期限の残り時間も一覧に出して。'), reasoning(false), A([P('残り時間は ControlApproval に remaining を持たせ、表示側で「あと 3 分」の形に整えます。')]), group(false,false), file(false), cost()];
+    if (sc === 'codex') items = [U('PaneTree の normalize で空の分割が残る。直してテストも。'), reasoning(false), A([P('空の split ノードが残るケースを再現してから修正します。作業を 2 つの子スレッドに分けます。')]), {isCodex:true}, group(true, true), think({label:'実行中…', recap:'swift test --filter PaneTreeTests を実行中'})];
+    if (sc === 'cursor') items = [U('Localizable に未登録の UI 文言を抽出して一覧にして。'), A([P('App/ と Packages/ の Text("…") を走査し、xcstrings のキーと突き合わせました。未登録は 6 件です。')]), group(false,false), A([LI('SettingsView.swift: 「ラウンドロビン」「スケジューラ」「チームビュー討論」ほか 1 件'), LI('AgentConsoleWindowView.swift: 「再読込」'), LI('GitCommitPanel.swift: 「プッシュ不可」')]), cost()];
+    const openRe = /./;
+    const badge = (t, s) => ({t, s:{fontSize:11,fontWeight:600,flex:'none',fontVariantNumeric:'tabular-nums',...s}});
+    items = items.map((x, i) => {
+      const agentSide = x.isAgent || x.isCard || x.isError || x.isSub || x.isCost || x.isThinking || x.isCompacting || x.isConnecting || x.isCodex || x.isQuestion;
+      const y = {...x, wrap:{display:'flex',flexDirection:'column',gap:6,paddingLeft:agentSide?30:0,position:'relative'}};
+      if (x.isAgent) { const prev = items[i-1]; y.avatar = !prev || prev.isUser || prev.isEarlier || cat; }
+      if (x.isCard) {
+        y.chev = {width:10,fontSize:13,color:'var(--fg3)',textAlign:'center',flex:'none',transform:x.open?'rotate(90deg)':'none'};
+        y.labelStyle = {color:'var(--fg)',fontWeight:500,flex:'none'};
+        y.cardStyle = {borderRadius:8,background:'var(--card)',boxShadow:x.running?'inset 0 0 0 1px var(--fg3)':'inset 0 0 0 1px var(--sep)',position:'relative',overflow:'visible'};
+        y.aria = `${x.label}、${x.summary}、${x.open?'展開':'折りたたみ'}`;
+        y.badges = [];
+        if (x.running) y.badges.push(badge('実行中', {color:'var(--fg)',fontWeight:500}));
+        if (x.kind === 'file') { y.badges.push(badge(`+${x.add}`, {color:'var(--add)',fontFamily:'ui-monospace,Menlo,monospace'})); y.badges.push(badge(`−${x.del}`, {color:'var(--del)',fontFamily:'ui-monospace,Menlo,monospace'})); }
+        if (x.kind === 'cmd' && !x.running) y.badges.push(badge(`exit ${x.exit}`, {color:x.exit ? 'var(--errInk)' : 'var(--fg3)',fontWeight:x.exit?600:400}));
+        y.bodyText = x.kind === 'reasoning';
+        y.bodyLines = x.kind === 'cmd' || x.kind === 'file';
+        y.bodyRows = x.kind === 'group'; y.bodyTasks = x.kind === 'tasks';
+        y.gutter = x.kind === 'file';
+        y.showPreview = !x.open && !!x.showPrev && !!x.preview;
+        y.selectNote = x.kind === 'file' && ov === 'hover';
+        y.linesStyle = {padding:'6px 0',fontFamily:'ui-monospace,"SF Mono",Menlo,monospace',fontSize:11.5,lineHeight:1.7,userSelect:x.kind==='file'?'none':'text'};
+        if (y.bodyLines) y.lines = (x.lines || []).map(l => {
+          if (x.kind === 'file') { const [a,b,t,k] = l; return {a,b,t:(k==='add'?'+ ':k==='del'?'− ':'  ')+t, s:{display:'flex',padding:'0 12px 0 0',color:k==='add'?'var(--add)':k==='del'?'var(--del)':'var(--fg)',background:k==='add'?'var(--addTint)':k==='del'?'var(--delTint)':'transparent'}}; }
+          return {t:l, s:{display:'flex',padding:'0 12px 0 28px',color:/error/.test(l)?'var(--errInk)':'var(--fg)'}};
+        });
+        if (x.kind === 'cmd' && !y.more) { y.more = x.open ? '' : ''; y.copyLabel = ''; }
+        if (x.kind === 'group') { y.rows = x.rows.map(([tool,arg,st]) => ({tool,arg,st,stStyle:{fontSize:11,color:st==='実行中'?'var(--fg)':'var(--fg3)',fontWeight:st==='実行中'?600:400,flex:'none'}})); y.more = ''; }
+        if (x.kind === 'tasks') y.tasks = x.tasks.map(([t,s]) => ({t, icon:s==='done'?'✓':s==='doing'?'●':'○',
+          iconStyle:{width:12,textAlign:'center',fontSize:s==='doing'?8:11,color:s==='done'?'var(--fg3)':'var(--fg)',flex:'none'},
+          textStyle:{color:s==='done'?'var(--fg3)':'var(--fg)',textDecoration:s==='done'?'line-through':'none',fontWeight:s==='doing'?600:400}}));
+      }
+      if (x.isSub) { const run = x.st === '実行中'; y.subStyle = {display:'flex',alignItems:'center',gap:10,padding:'8px 12px',borderRadius:8,boxShadow:ov==='subagent'?'inset 0 0 0 2px var(--accent)':'inset 0 0 0 1px var(--sep)',background:ov==='subagent'?'var(--hover)':'transparent'}; y.stStyle = {fontSize:11,fontWeight:run?600:400,color:run?'var(--fg)':'var(--fg3)',flex:'none'}; }
+      if (x.isThinking) y.thinkStyle = x.stalled ? {display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:10,background:'var(--stlTint)',boxShadow:'inset 0 0 0 1px var(--stl)'} : {display:'flex',alignItems:'center',gap:10};
+      if (x.isQuestion) y.options = x.options.map(([label,desc,on]) => ({label,desc,on,tick:on?'✓':'',box:{width:14,height:14,marginTop:2,borderRadius:3.5,boxSizing:'border-box',flex:'none',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,color:'#fff',background:on?'var(--qst)':'transparent',border:on?'none':'1.2px solid var(--fg3)'}}));
+      if (x.isCodex) {
+        y.plan = [['空の split を再現するテストを追加','done'],['normalize() で子が 1 つの split を畳む','done'],['equalize 後の比率を検証','done'],['PaneTreeTests を実行','doing'],['PaneLayoutStore の保存形式を確認','todo']].map(([t,s]) => ({t, icon:s==='done'?'✓':s==='doing'?'●':'○',iconStyle:{width:12,textAlign:'center',fontSize:s==='doing'?8:11,color:s==='done'?'var(--fg3)':'var(--fg)',flex:'none'},textStyle:{color:s==='done'?'var(--fg3)':'var(--fg)',textDecoration:s==='done'?'line-through':'none',fontWeight:s==='doing'?600:400}}));
+        y.children = [['テスト失敗の原因を調査','PaneTreeTests.testEqualizeKeepsOrder が比率 0.5 で失敗','実行中',true],['型エラーの修正','PaneLayoutAction.swift の exhaustive switch を修正','完了',false]].map(([t,sum,st,avail]) => ({t,sum,st,stopDisabled:!avail,
+          style:{display:'flex',alignItems:'center',gap:10,padding:'7px 12px',borderTop:'1px solid var(--sep)'},
+          stStyle:{fontSize:11,fontWeight:avail?600:400,color:avail?'var(--fg)':'var(--fg3)',flex:'none'},
+          stopStyle:{height:22,padding:'0 9px',borderRadius:5,fontSize:11.5,display:'flex',alignItems:'center',flex:'none',color:avail?'var(--fg)':'var(--fg3)',background:avail?'var(--ctl)':'transparent',boxShadow:avail?'0 0 0 0.5px var(--ctlBorder)':'inset 0 0 0 1px var(--sep)'}}));
+      }
+      return y;
+    });
+    const ST = {running:['実行中',0],idle:['待機 · 2分前に応答',0],done:['完了 · exit 0',0],error:['エラー','err'],stalled:['無応答 2:14','stl'],compacting:['実行中 · 圧縮中',0],long:['待機',0],catalog:['承認待ち · 3分','apv'],codex:['実行中',0],cursor:['待機',0],history:['待機',0],pty:['実行中',0]};
+    const [stText, stK] = ST[sc] || ST.idle;
+    const stateStyle = stK ? {height:22,padding:'0 9px',borderRadius:6,fontSize:12,fontWeight:600,display:'flex',alignItems:'center',flex:'none',color:`var(--${stK}Ink)`,background:`var(--${stK}Tint)`} : {fontSize:12,color:'var(--fg2)',flex:'none',fontWeight:sc==='running'||sc==='codex'||sc==='compacting'?500:400};
+    const AG = {claude:['Claude Code · Opus · high','~/dev/phlox','feat/approval-expiry'],codex:['Codex · gpt-6-sol · 推論 high','~/dev/phlox','fix/pane-normalize'],cursor:['Cursor · composer-2.5','~/dev/phlox','chore/l10n-audit'],custom:['aider（カスタム）· ターミナル','~/dev/phlox.cc','main']}[agent];
+    const TT = {flower:['ツバキ','自動の名前（花名）',{fontStyle:'normal'}],derived:[sc==='codex'?'PaneTree 正規化の修正':sc==='cursor'?'未登録の UI 文言を抽出':sc==='pty'?'リンク切れ検査':'承認 API に失効処理を追加','自動',{}],manual:['承認の失効（v0.14）','',{}]}[naming];
+    const running = ['running','stalled','compacting','codex'].includes(sc);
+    const subs = (sc==='running'||cat||ov==='subagent') ? [{t:'レビュー',on:ov==='subagent',st:'実行中'},{t:'調査',on:false,st:'完了'}].map(s => ({t:s.t, aria:`サブエージェント ${s.t}、${s.st}`, style:{height:22,padding:'0 8px',borderRadius:11,fontSize:11.5,display:'flex',alignItems:'center',gap:5,color:'var(--fg)',background:s.on?'var(--selText)':'var(--hover)',boxShadow:s.on?'inset 0 0 0 1px var(--accent)':'none'}})) : [];
+    const box = on => ({width:14,height:14,borderRadius:3.5,boxSizing:'border-box',flex:'none',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,color:'#fff',background:on?'var(--accentFill)':'transparent',border:on?'none':'1.2px solid var(--fg3)'});
+    const avMono = this.mono(agent);
+    return {
+      rootStyle:{...this.vars(dark),width:W,height:H,position:'relative',overflow:'hidden',borderRadius:11,background:'var(--bg)',boxShadow:dark?'0 0 0 0.5px rgba(255,255,255,0.18), 0 18px 50px rgba(0,0,0,0.35)':'0 0 0 0.5px rgba(0,0,0,0.22), 0 18px 50px rgba(0,0,0,0.16)',fontFamily:'-apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif',color:'var(--fg)',WebkitFontSmoothing:'antialiased'},
+      screenLabel:p.label ?? 'chat',
+      title:TT[0], namingTag:TT[1], titleStyle:{fontSize:14,fontWeight:600,color:'var(--fg)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',...TT[2]},
+      agentLine:AG[0], cwd:AG[1], branch:AG[2],
+      stateText:stText, stateStyle, hasSubs:subs.length>0, subs,
+      exportBtn:{width:28,height:24,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',color:'var(--fg2)',background:ov==='export'?'var(--sel)':'transparent'},
+      isHistory:sc==='history', isPty:sc==='pty', isChat:sc!=='history'&&sc!=='pty',
+      items, av:avMono,
+      streamStyle:{width:'100%',maxWidth:760,boxSizing:'border-box',flex:1,minHeight:0,padding:'20px 24px 16px',display:'flex',flexDirection:'column',gap:14,justifyContent:cat?'flex-start':'flex-end'},
+      isLong:sc==='long', detached:sc==='long',
+      showApproval:cat, showEnded:sc==='done', showComposer:sc!=='done',
+      placeholder: sc==='compacting' ? '圧縮が終わると入力できます' : 'メッセージを入力 — / でコマンド、@ でファイル',
+      chips: agent==='codex' ? ['gpt-6-sol ▸ high','承認: on-request'] : agent==='cursor' ? ['composer-2.5','権限: 自動レビュー'] : ['Opus','high','権限: 標準'],
+      ctx: sc==='long' ? '81%' : '46%', running, notRunning:!running,
+      showRevert:ov==='revert', showExport:ov==='export', showDrawer:ov==='subagent',
+      revertRows:[['ControlServer の承認一覧 API で、期限切れの承認要求を…','14:18'],['期限は 10 分固定でいい。設定は後で。','14:26'],['ApprovalBrokerTests が落ちたら理由も書いて。','14:31'],['DTO にも expiresAt を足して。','14:35']].map(([t,time],i) => ({t,time,on:i===2,style:{display:'flex',alignItems:'center',gap:10,height:30,padding:'0 10px',borderRadius:6,fontSize:13,color:i===2?'#fff':'var(--fg)',background:i===2?'var(--accentFill)':'transparent'}})),
+      exportOpts:[['推論を含める',false],['コマンド出力を含める',true],['タイムスタンプを含める',true]].map(([t,on]) => ({t,on,tick:on?'✓':'',box:box(on)})),
+      historyCards:[['承認 API に失効処理を追加','最後: 失効処理を追加しました。テストは 3 件とも成功…','今日 14:40','18 件 · feat/approval-expiry'],['PaneTree 正規化の修正','最後: normalize() で子が 1 つの split を畳むよう…','昨日','42 件 · fix/pane-normalize'],['ControlServer の DTO 整理','最後: requestedAt を ISO 8601 で返すように…','9月 20日','27 件 · main'],['ThinkingOrb の CPU 使用率','最後: CADisplayLink を画面外で止めました','9月 18日','11 件 · perf/orb']].map(([title,last,when,meta],i) => ({title,last,when,meta,style:{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',borderRadius:9,background:i===0?'var(--hover)':'transparent',boxShadow:i===0?'inset 0 0 0 2px var(--accent)':'inset 0 0 0 1px var(--sep)'}})),
+      ptyLines:[['aider v0.86.1 — model: sonnet · repo: ~/dev/phlox.cc','#8E8E94'],['> /run npx linkinator ./dist --recurse',''],['🔗 Scanning 214 links...',''],['[404] https://phlox.cc/docs/control-api','#FF8A8D'],['[404] https://phlox.cc/blog/0.12','#FF8A8D'],['✓ 212 OK, 2 broken','#6FD08C'],['2 件のリンク切れを docs/index.md と blog/_redirects で修正しますか? (y/n)','']].map(([t,c]) => ({t,s:{color:c||'inherit'}})),
+    };
+  }
+}
+</script>
+</body>
+</html>

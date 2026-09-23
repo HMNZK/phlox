@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>body{margin:0;background:#E7E7EA;} a{color:#A94A28;} a:hover{color:#7E3517;}</style>
+</helmet>
+<div style="padding:80px;display:flex;flex-direction:column;gap:88px;width:max-content;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#1D1D1F;">
+
+<section data-screen-label="00 概要" style="display:flex;gap:56px;align-items:flex-start;">
+  <div style="width:520px;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:13px;color:#75757B;">Phlox macOS · 再設計 09 · 参照: 機能一覧 12章・19章</div>
+    <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;">設定ウィンドウ</div>
+    <div style="font-size:15px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">5 タブを 6 タブに組み替えた。「詳細」に集まっていた使用量の設定を独立させ（討論の設定はチームビューとともに削除）、「一般」から通知を分けた。どのタブも、項目名を読めば何に効くかが分かる並びにする。</div>
+  </div>
+  <div style="width:1000px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">新旧の対応表</div>
+    <div style="display:grid;grid-template-columns:230px 90px 150px 1fr;font-size:12.5px;line-height:1.5;">
+      <div style="padding:6px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">項目（キー）</div><div style="padding:6px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">旧タブ</div><div style="padding:6px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">新タブ</div><div style="padding:6px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">型・既定値・選択肢（19章のとおり）</div>
+      <div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">表示言語 phlox.appLanguage</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">一般</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">一般</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">enum · system · system / ja / en</div>
+      <div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">既定の開き方 phlox.defaultSessionBackend</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">一般</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">一般</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">enum · chat · chat / terminal</div>
+      <div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">自動アップデート確認・今すぐ確認</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">一般</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">一般</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">Bool（永続先は未確認）· 確認できないときはボタンを無効</div>
+      <div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">バージョン・プライバシーポリシー</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">詳細</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">一般</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">読み取り専用 · phlox.cc/privacy</div>
+      <div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">完了バナー phlox.notify.banner / サウンド phlox.notify.sound / 通知テスト</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">一般</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">通知（新設）</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">Bool · true / Bool · true</div>
+      <div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">テーマ phlox.theme / アプリアイコン phlox.appIcon</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">外観</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">外観</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">phlox（10 種）/ 既定アイコン（5 種）。アイコンは選んだ時点で Dock に反映</div>
+      <div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">チャット文字倍率 ChatFontSettings / ターミナル文字サイズ</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">（UI なし）</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">外観</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">Double · 1.0 · 0.8〜2.0 step 0.1 / ⌘+ ⌘− と同じ値</div>
+      <div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">権限バイパス phlox.bypass.&lt;agentID&gt;</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">エージェント</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">エージェント</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">Bool · true（エージェントごと 1 行）</div>
+      <div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">エージェント管理を開く</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">エージェント</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">エージェント</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ボタン · ⇧⌘,</div>
+      <div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">使用量 4 項目 phlox.usage.*</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">詳細</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#A94A28;">使用量（新設）</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">autoRefresh true · claudeScrape true · showUnavailable false · showInHeader true</div>
+      <div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">討論 4 項目 phlox.agora.*</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">詳細</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#B4232A;font-weight:600;">削除</div><div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">チームビュー（6 章）の削除に伴い、4 項目とも UI から外す。保存済みの値は読まれなくなる</div>
+      <div style="padding:5px 8px;">ペアリング（端末名・QR・警告・無効理由・エラー・端末一覧・失効）</div><div style="padding:5px 8px;">接続</div><div style="padding:5px 8px;color:#A94A28;">モバイル連携</div><div style="padding:5px 8px;">タブの表示条件は現行どおり（トークンがあり、案内の方針が表示を許すときだけ）</div>
+    </div>
+    <div style="font-size:12px;line-height:1.6;color:#5B5B60;">削る項目: 討論の 4 項目（phlox.agora.*）。理由はチームビューの削除。「詳細」タブは中身がすべて移るか削除されるので廃止する。</div>
+  </div>
+</section>
+
+<section data-screen-label="T タブ" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">各タブ</div>
+  <div style="display:flex;gap:36px;align-items:flex-start;flex-wrap:wrap;width:2920px;row-gap:48px;">
+    <div id="T1" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T1</span><span style="font-size:14px;font-weight:600;">一般</span></div>
+      <dc-import name="PhloxSettings" label="T1 一般" tab="general" width="700" height="620" hint-size="700px,620px"></dc-import></div>
+    <div id="T2" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T2</span><span style="font-size:14px;font-weight:600;">外観</span></div>
+      <dc-import name="PhloxSettings" label="T2 外観" tab="look" width="700" height="660" hint-size="700px,660px"></dc-import></div>
+    <div id="T3" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T3</span><span style="font-size:14px;font-weight:600;">通知</span></div>
+      <dc-import name="PhloxSettings" label="T3 通知" tab="notify" width="700" height="480" hint-size="700px,480px"></dc-import></div>
+    <div id="T4" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T4</span><span style="font-size:14px;font-weight:600;">エージェント（ダーク）</span></div>
+      <dc-import name="PhloxSettings" label="T4 エージェント" tab="agents" theme="dark" width="700" height="620" hint-size="700px,620px"></dc-import></div>
+    <div id="T5" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T5</span><span style="font-size:14px;font-weight:600;">使用量</span></div>
+      <dc-import name="PhloxSettings" label="T5 使用量" tab="usage" width="700" height="440" hint-size="700px,440px"></dc-import></div>
+    <div id="T6b" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T6b</span><span style="font-size:14px;font-weight:600;">設定値が不正（外観 · ダーク）</span></div>
+      <dc-import name="PhloxSettings" label="T6b 不正な値" tab="look" variant="invalid" theme="dark" width="700" height="700" hint-size="700px,700px"></dc-import>
+      <div style="width:700px;font-size:12px;line-height:1.6;color:#3A3A3E;">範囲外の値は保存せず、欄の下に理由と「現在の値」を出す。欄から離れても値は戻さない（直して確定するまで残す）。</div></div>
+  </div>
+</section>
+
+<section data-screen-label="L モバイル連携" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">モバイル連携</div>
+  <div style="display:flex;gap:36px;align-items:flex-start;flex-wrap:wrap;width:2920px;row-gap:48px;">
+    <div id="L1" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">L1</span><span style="font-size:14px;font-weight:600;">未ペアリング</span></div>
+      <dc-import name="PhloxSettings" label="L1 未ペアリング" tab="link" width="700" height="400" hint-size="700px,400px"></dc-import></div>
+    <div id="L2" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">L2</span><span style="font-size:14px;font-weight:600;">QR コードを表示中（60 秒）</span></div>
+      <dc-import name="PhloxSettings" label="L2 QR" tab="link" variant="qr" width="700" height="560" hint-size="700px,560px"></dc-import>
+      <div style="width:700px;font-size:12px;line-height:1.6;color:#3A3A3E;">端末で読み取ると、ペアリングが成立した時点で QR を閉じ、端末一覧に追加する（自動反映は現行どおり）。</div></div>
+    <div id="L3" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">L3</span><span style="font-size:14px;font-weight:600;">ペアリング済み</span></div>
+      <dc-import name="PhloxSettings" label="L3 ペアリング済み" tab="link" variant="paired" width="700" height="720" hint-size="700px,720px"></dc-import>
+      <div style="width:700px;font-size:12px;line-height:1.6;color:#3A3A3E;">「失効」は取り返しがつかない操作なので、押すと <a href="09 Dialogs.dc.html">Dialogs</a> の A 型の確認を出す。</div></div>
+    <div id="L4" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">L4</span><span style="font-size:14px;font-weight:600;">ペアリングできない（待ち受けがループバックのみ）</span></div>
+      <dc-import name="PhloxSettings" label="L4 無効" tab="link" variant="disabled" width="700" height="400" hint-size="700px,400px"></dc-import></div>
+    <div id="L5" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">L5</span><span style="font-size:14px;font-weight:600;">保存・処理の失敗（QR 作成エラー）</span></div>
+      <dc-import name="PhloxSettings" label="L5 エラー" tab="link" variant="error" width="700" height="460" hint-size="700px,460px"></dc-import></div>
+    <div id="L6" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">L6</span><span style="font-size:14px;font-weight:600;">トークンの再発行に失敗（ダーク）</span></div>
+      <dc-import name="PhloxSettings" label="L6 再発行失敗" tab="link" variant="reissueFail" theme="dark" width="700" height="780" hint-size="700px,780px"></dc-import></div>
+  </div>
+</section>
+
+<section data-screen-label="G 分岐" style="display:flex;gap:32px;align-items:flex-start;">
+  <div style="width:700px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:16px;font-weight:700;">現行から変えた点</div>
+    <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+      <div><b>「詳細」を解体した</b>。使用量と討論という別々の機能が 1 つのタブに混ざっていた。</div>
+      <div><b>通知を独立したタブにした</b>。対応待ちを知らせる仕組みはこのアプリの中心なので、「一般」の奥に置かない。</div>
+      <div><b>数値の設定に範囲を設けた</b>（例: ターミナル 8〜32pt）。</div>
+      <div><b>フルアクセスの行に、実際に付く起動オプションを書いた</b>。何を許すのかを言葉で分かるようにする。</div>
+    </div>
+  </div>
+  <div style="width:700px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:16px;font-weight:700;color:#7438BD;">分岐候補（推測・未確認）</div>
+    <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+      <div>「匿名の利用状況を送信」は Localizable にだけある文言。設定画面に置くかは実装の所在を確かめてから決める。</div>
+      <div>プッシュ通知の送信先（App ID）の警告と、トークンの伏せ字表示・再発行は Localizable の文言からの推測。</div>
+      <div>Dock バッジの数え方の設定は、骨格の回の提案（対応待ちの数）を採るなら新設する。</div>
+      <div>ターミナル文字サイズの範囲は案。自動アップデート確認の永続先（Sparkle 内部か UserDefaults か）は未確認。</div>
+    </div>
+  </div>
+</section>
+
+</div>
+</x-dc>
+</body>
+</html>

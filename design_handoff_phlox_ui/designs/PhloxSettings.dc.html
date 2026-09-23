@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="{{ rootStyle }}" data-screen-label="{{ screenLabel }}">
+  <div style="flex:none;background:var(--bar);border-bottom:1px solid var(--sep);">
+    <div style="height:28px;display:flex;align-items:center;padding:0 12px;position:relative;">
+      <div style="display:flex;gap:8px;">
+        <span style="width:12px;height:12px;border-radius:50%;background:#FF5F57;box-shadow:inset 0 0 0 0.5px rgba(0,0,0,0.2);"></span>
+        <span style="width:12px;height:12px;border-radius:50%;background:var(--segBg);"></span>
+        <span style="width:12px;height:12px;border-radius:50%;background:var(--segBg);"></span>
+      </div>
+      <span style="position:absolute;left:0;right:0;text-align:center;font-size:13px;font-weight:600;color:var(--fg);pointer-events:none;">{{ tabTitle }}</span>
+    </div>
+    <div role="tablist" aria-label="設定" style="display:flex;justify-content:center;gap:2px;padding:4px 8px 8px;">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="7">
+        <div role="tab" aria-selected="{{ t.on }}" style="{{ t.style }}">
+          <span style="display:flex;height:20px;align-items:center;justify-content:center;">
+            <sc-if value="{{ t.iGeneral }}"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor"><circle cx="8" cy="8" r="5.6" stroke-width="2.2" stroke-dasharray="2 1.52"></circle><circle cx="8" cy="8" r="2.1" stroke-width="1.3"></circle></svg></sc-if>
+            <sc-if value="{{ t.iLook }}"><svg width="20" height="20" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.3"></circle><path d="M8 1.8 A6.2 6.2 0 0 1 8 14.2 Z" fill="currentColor"></path></svg></sc-if>
+            <sc-if value="{{ t.iNotify }}"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.6" y="3" width="12.8" height="10" rx="2.4"></rect><circle cx="12.4" cy="3.6" r="2.2" fill="currentColor" stroke="none"></circle></svg></sc-if>
+            <sc-if value="{{ t.iAgents }}"><svg width="20" height="20" viewBox="0 0 16 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="3" x2="15" y2="3"></line><line x1="1" y1="7" x2="15" y2="7"></line><line x1="1" y1="11" x2="15" y2="11"></line><circle cx="5" cy="3" r="1.8" fill="var(--bar)"></circle><circle cx="11" cy="7" r="1.8" fill="var(--bar)"></circle><circle cx="7" cy="11" r="1.8" fill="var(--bar)"></circle></svg></sc-if>
+            <sc-if value="{{ t.iUsage }}"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 11.5 A6 6 0 0 1 14 11.5"></path><line x1="8" y1="11.5" x2="11" y2="6.5"></line><circle cx="8" cy="11.5" r="1.2" fill="currentColor"></circle></svg></sc-if>
+            <sc-if value="{{ t.iTeam }}"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.5" cy="8" r="2"></circle><circle cx="8" cy="8" r="2"></circle><circle cx="12.5" cy="8" r="2"></circle></svg></sc-if>
+            <sc-if value="{{ t.iLink }}"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="4.4" y="1.4" width="7.2" height="13.2" rx="1.8"></rect><line x1="7" y1="12.4" x2="9" y2="12.4"></line></svg></sc-if>
+          </span>
+          <span style="font-size:11px;white-space:nowrap;">{{ t.l }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="flex:1;min-height:0;overflow:hidden;padding:20px 28px 24px;display:flex;flex-direction:column;gap:18px;">
+    <sc-if value="{{ banner }}">
+      <div role="alert" style="display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border-radius:9px;background:var(--errTint);box-shadow:inset 0 0 0 1px var(--err);font-size:12px;line-height:1.55;color:var(--fg);">
+        <span style="width:13px;height:12px;flex:none;margin-top:2px;background:var(--err);clip-path:polygon(50% 0,100% 100%,0 100%);color:#fff;font-size:8px;font-weight:800;display:flex;align-items:flex-end;justify-content:center;">!</span>
+        <span style="flex:1;">{{ banner }}</span>
+      </div>
+    </sc-if>
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <sc-if value="{{ g.title }}"><div style="font-size:12px;font-weight:600;color:var(--fg);padding:0 4px;">{{ g.title }}</div></sc-if>
+        <div style="border-radius:10px;background:var(--group);box-shadow:inset 0 0 0 1px var(--sep);display:flex;flex-direction:column;">
+          <sc-for list="{{ g.rows }}" as="r">
+            <div style="{{ r.row }}">
+              <div style="{{ r.main }}">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+                  <span style="font-size:13px;color:var(--fg);">{{ r.label }}<sc-if value="{{ r.tag }}"><span style="{{ r.tagStyle }}">{{ r.tag }}</span></sc-if></span>
+                  <sc-if value="{{ r.desc }}"><span style="{{ r.descStyle }}">{{ r.desc }}</span></sc-if>
+                </div>
+                <sc-if value="{{ r.isToggle }}"><span role="switch" aria-checked="{{ r.on }}" style="{{ r.track }}"><span style="{{ r.knob }}"></span></span></sc-if>
+                <sc-if value="{{ r.isPopup }}"><span role="button" aria-haspopup="menu" style="height:22px;padding:0 6px 0 9px;border-radius:5px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder), 0 0.5px 1px rgba(0,0,0,0.1);font-size:12.5px;color:var(--fg);display:flex;align-items:center;gap:8px;flex:none;">{{ r.value }}<span style="font-size:8px;color:var(--fg2);line-height:0.9;text-align:center;">▲<br>▼</span></span></sc-if>
+                <sc-if value="{{ r.isSeg }}"><span role="radiogroup" style="display:flex;padding:2px;border-radius:6px;background:var(--segBg);gap:2px;flex:none;"><sc-for list="{{ r.opts }}" as="o"><span role="radio" aria-checked="{{ o.on }}" style="{{ o.s }}">{{ o.t }}</span></sc-for></span></sc-if>
+                <sc-if value="{{ r.isNumber }}"><span style="display:flex;align-items:center;gap:6px;flex:none;"><span style="{{ r.numStyle }}">{{ r.value }}</span><span style="display:flex;flex-direction:column;border-radius:4px;box-shadow:0 0 0 0.5px var(--ctlBorder);background:var(--ctl);font-size:7px;line-height:10px;color:var(--fg2);text-align:center;width:14px;">▲<br>▼</span><span style="font-size:12px;color:var(--fg2);min-width:14px;">{{ r.unit }}</span></span></sc-if>
+                <sc-if value="{{ r.isText }}"><span style="width:180px;height:22px;border-radius:5px;background:var(--field);box-shadow:inset 0 0 0 1px var(--fieldBorder);font-size:12.5px;color:var(--fg);display:flex;align-items:center;padding:0 7px;flex:none;box-sizing:border-box;">{{ r.value }}</span></sc-if>
+                <sc-if value="{{ r.isButton }}"><span role="button" style="{{ r.btn }}">{{ r.value }}</span></sc-if>
+                <sc-if value="{{ r.isInfo }}"><span style="font-size:12.5px;color:var(--fg2);flex:none;font-variant-numeric:tabular-nums;">{{ r.value }}</span></sc-if>
+                <sc-if value="{{ r.isLink }}"><span role="link" style="font-size:12.5px;color:var(--accentInk);flex:none;">{{ r.value }}</span></sc-if>
+                <sc-if value="{{ r.isSlider }}"><span style="display:flex;align-items:center;gap:10px;flex:none;"><span style="font-size:11px;color:var(--fg3);">80%</span><span style="position:relative;width:150px;height:4px;border-radius:2px;background:var(--segBg);"><span style="position:absolute;left:0;top:0;bottom:0;width:17%;border-radius:2px;background:var(--accentFill);"></span><span style="position:absolute;left:17%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:8px;background:#fff;box-shadow:0 0.5px 2px rgba(0,0,0,0.35);"></span></span><span style="font-size:11px;color:var(--fg3);">200%</span><span style="font-size:12.5px;color:var(--fg);width:40px;text-align:right;font-variant-numeric:tabular-nums;">{{ r.value }}</span></span></sc-if>
+                <sc-if value="{{ r.isRevoke }}"><span role="button" style="height:22px;padding:0 10px;border-radius:5px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);font-size:12px;color:var(--errInk);display:flex;align-items:center;flex:none;">失効</span></sc-if>
+              </div>
+              <sc-if value="{{ r.err }}"><div style="font-size:11.5px;line-height:1.5;color:var(--errInk);padding-top:6px;">{{ r.err }}</div></sc-if>
+              <sc-if value="{{ r.isThemes }}">
+                <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding-top:10px;">
+                  <sc-for list="{{ themes }}" as="th">
+                    <div role="radio" aria-checked="{{ th.on }}" style="display:flex;flex-direction:column;gap:5px;align-items:center;">
+                      <div style="{{ th.box }}"><span style="{{ th.side }}"></span><span style="flex:1;display:flex;flex-direction:column;gap:3px;padding:6px 5px;"><span style="{{ th.l1 }}"></span><span style="{{ th.l2 }}"></span><span style="{{ th.acc }}"></span></span></div>
+                      <span style="{{ th.name }}">{{ th.t }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ r.isIcons }}">
+                <div style="display:flex;gap:14px;padding-top:10px;">
+                  <sc-for list="{{ icons }}" as="ic"><div role="radio" aria-checked="{{ ic.on }}" style="display:flex;flex-direction:column;gap:5px;align-items:center;"><span style="{{ ic.box }}"></span><span style="{{ ic.name }}">{{ ic.t }}</span></div></sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ r.isQR }}">
+                <div style="display:flex;gap:16px;align-items:center;padding-top:10px;">
+                  <div style="width:132px;height:132px;flex:none;border-radius:8px;background:#fff;box-shadow:inset 0 0 0 1px var(--sep);display:flex;align-items:center;justify-content:center;"><div style="width:112px;height:112px;background:repeating-linear-gradient(0deg,#1D1D1F 0 4px,transparent 4px 8px),repeating-linear-gradient(90deg,#1D1D1F 0 4px,transparent 4px 8px);background-blend-mode:multiply;opacity:0.85;display:flex;align-items:center;justify-content:center;"><span style="background:#fff;font-family:ui-monospace,Menlo,monospace;font-size:9px;color:#5B5B60;padding:2px 4px;">QR</span></div></div>
+                  <div style="display:flex;flex-direction:column;gap:8px;">
+                    <span style="font-size:13px;font-weight:600;color:var(--fg);">iPhone の Phlox で読み取ってください</span>
+                    <span style="font-size:12px;color:var(--fg2);font-variant-numeric:tabular-nums;">あと 0:48 で非表示になります</span>
+                    <span role="button" style="align-self:flex-start;height:22px;padding:0 10px;border-radius:5px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);font-size:12px;color:var(--fg);display:flex;align-items:center;">今すぐ隠す</span>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ g.foot }}"><div style="font-size:11.5px;line-height:1.55;color:var(--fg2);padding:0 4px;text-wrap:pretty;">{{ g.foot }}</div></sc-if>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:700,&quot;height&quot;:640},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;tab&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;general&quot;,&quot;look&quot;,&quot;notify&quot;,&quot;agents&quot;,&quot;usage&quot;,&quot;link&quot;],&quot;default&quot;:&quot;general&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;variant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;invalid&quot;,&quot;qr&quot;,&quot;paired&quot;,&quot;disabled&quot;,&quot;error&quot;,&quot;reissueFail&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;width&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:700,&quot;tsType&quot;:&quot;number&quot;},&quot;height&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:640,&quot;tsType&quot;:&quot;number&quot;},&quot;label&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;settings&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  vars(dark) {
+    const L = {'--bg':'#ECECEE','--bar':'#F6F6F7','--group':'#FFFFFF','--sep':'rgba(0,0,0,0.09)','--fg':'#1D1D1F','--fg2':'#5B5B60','--fg3':'#75757B','--sel':'rgba(0,0,0,0.075)','--field':'#FFFFFF','--fieldBorder':'rgba(0,0,0,0.16)','--accent':'#D97757','--accentInk':'#A94A28','--accentFill':'#B4552F','--ctl':'#FFFFFF','--ctlBorder':'rgba(0,0,0,0.16)','--segBg':'rgba(0,0,0,0.07)','--apv':'#E39A2D','--apvInk':'#8A5300','--apvTint':'rgba(227,154,45,0.12)','--err':'#E0484E','--errInk':'#B4232A','--errTint':'rgba(224,72,78,0.07)','--ok':'#1F7A3A','--off':'rgba(0,0,0,0.13)'};
+    const D = {'--bg':'#1E1E20','--bar':'#2A2A2D','--group':'#27272A','--sep':'rgba(255,255,255,0.09)','--fg':'#F2F2F4','--fg2':'#ABABB1','--fg3':'#8E8E94','--sel':'rgba(255,255,255,0.10)','--field':'#1A1A1C','--fieldBorder':'rgba(255,255,255,0.16)','--accent':'#E08865','--accentInk':'#F0A383','--accentFill':'#B4552F','--ctl':'#4A4A4F','--ctlBorder':'rgba(255,255,255,0.10)','--segBg':'rgba(255,255,255,0.09)','--apv':'#F0AE4A','--apvInk':'#F4BD68','--apvTint':'rgba(240,174,74,0.14)','--err':'#EE5A5F','--errInk':'#FF8A8D','--errTint':'rgba(238,90,95,0.10)','--ok':'#6FD08C','--off':'rgba(255,255,255,0.16)'};
+    return dark ? D : L;
+  }
+  renderVals() {
+    const p = this.props;
+    const W = Number(p.width ?? 700), H = Number(p.height ?? 640);
+    const dark = (p.theme ?? 'light') === 'dark';
+    const tab = p.tab ?? 'general';
+    const v = p.variant ?? 'none';
+    const TABS = [['general','一般','iGeneral'],['look','外観','iLook'],['notify','通知','iNotify'],['agents','エージェント','iAgents'],['usage','使用量','iUsage'],['link','モバイル連携','iLink']];
+    const tabs = TABS.map(([k,l,ic]) => ({l,on:k===tab,[ic]:true,style:{display:'flex',flexDirection:'column',alignItems:'center',gap:2,minWidth:64,padding:'4px 8px 3px',borderRadius:7,color:k===tab?'var(--accentInk)':'var(--fg2)',background:k===tab?'var(--sel)':'transparent'}}));
+    const R = (label, ctl, o = {}) => {
+      const r = {label, ...o, ['is'+ctl]:true, desc:o.desc||'', err:o.err||'', tag:o.tag||'',
+        row:{padding:'10px 14px',borderTop:o.first?'none':'1px solid var(--sep)'},
+        main:{display:'flex',alignItems:o.desc&&ctl!=='Toggle'?'center':'center',gap:14},
+        descStyle:{fontSize:11.5,lineHeight:1.5,color:o.warnDesc?'var(--apvInk)':'var(--fg2)',textWrap:'pretty'},
+        tagStyle:{marginLeft:8,fontSize:10.5,fontWeight:600,color:'#7438BD',background:'rgba(148,87,219,0.10)',borderRadius:4,padding:'1px 5px'}};
+      if (ctl === 'Toggle') { const on = !!o.on; r.track = {width:34,height:20,borderRadius:10,background:on?'var(--accentFill)':'var(--off)',position:'relative',flex:'none'}; r.knob = {position:'absolute',top:2,left:on?16:2,width:16,height:16,borderRadius:8,background:'#fff',boxShadow:'0 0.5px 1.5px rgba(0,0,0,0.3)'}; }
+      if (ctl === 'Seg') r.opts = o.opts.map((t,i) => ({t,on:i===o.sel,s:{height:20,lineHeight:'20px',padding:'0 12px',borderRadius:4,fontSize:12,color:i===o.sel?'var(--fg)':'var(--fg2)',background:i===o.sel?'var(--ctl)':'transparent',boxShadow:i===o.sel?'0 0.5px 1.5px rgba(0,0,0,0.2)':'none'}}));
+      if (ctl === 'Number') r.numStyle = {width:56,height:22,borderRadius:5,background:'var(--field)',boxShadow:o.err?'inset 0 0 0 1px var(--err), 0 0 0 3px var(--errTint)':'inset 0 0 0 1px var(--fieldBorder)',fontSize:12.5,color:'var(--fg)',display:'flex',alignItems:'center',justifyContent:'flex-end',padding:'0 7px',boxSizing:'border-box',fontVariantNumeric:'tabular-nums'};
+      if (ctl === 'Button') r.btn = {height:22,padding:'0 11px',borderRadius:5,fontSize:12.5,display:'flex',alignItems:'center',flex:'none',whiteSpace:'nowrap',color:o.primary?'#fff':'var(--fg)',background:o.primary?'var(--accentFill)':'var(--ctl)',boxShadow:o.primary?'none':'0 0 0 0.5px var(--ctlBorder), 0 0.5px 1px rgba(0,0,0,0.1)',opacity:o.disabled?0.4:1};
+      return r;
+    };
+    const first = rows => { if (rows[0]) rows[0].row = {...rows[0].row, borderTop:'none'}; return rows; };
+    const G = (title, rows, foot) => ({title:title||'', rows:first(rows), foot:foot||''});
+    let groups = [], banner = '';
+    if (tab === 'general') groups = [
+      G('言語と起動', [R('表示言語','Popup',{value:'システムに合わせる'}), R('新規セッションの既定の開き方','Seg',{opts:['チャット','ターミナル'],sel:0,desc:'⌘N や起動カードで ↩ を押したときの開き方'})]),
+      G('アップデート', [R('起動時に自動でアップデートを確認','Toggle',{on:true}), R('アップデートを確認','Button',{value:'今すぐ確認…'})]),
+      G('このアプリについて', [R('バージョン','Info',{value:'Phlox 0.14.0（1482）'}), R('プライバシーポリシー','Link',{value:'phlox.cc/privacy ↗'}), R('匿名の利用状況を送信','Toggle',{on:false,tag:'未確認',desc:'文言は Localizable にあるが、設定画面での所在は未確認'})]),
+    ];
+    if (tab === 'look') groups = [
+      G('テーマ', [R('','Themes',{label:''})], 'アクセントの色（コーラル）はすべてのテーマで共通。文字と背景のコントラストはテーマごとに自動で確保する。'),
+      G('アプリアイコン', [R('','Icons',{label:''})]),
+      G('文字の大きさ', [R('チャット本文','Slider',{value:'100%',tag:'UI 新設',desc:'⌘+ / ⌘− でも変えられる（フォーカス中の領域に効く）'}), R('ターミナル','Number',{value:v==='invalid'?'40':'12',unit:'pt',desc:v==='invalid'?'':'ターミナルパネル・グリッドのターミナル・単体表示で共通',err:v==='invalid'?'8〜32 の整数を入力してください。保存していません（現在の値: 12）':''})]),
+    ];
+    if (tab === 'notify') groups = [
+      G('セッションが止まったとき', [R('バナーで知らせる','Toggle',{on:true,desc:'承認待ち・質問待ち・完了・エラーを macOS の通知で出す'}), R('完了サウンド（Glass）を鳴らす','Toggle',{on:true}), R('通知をテスト','Button',{value:'テスト通知を送る'})]),
+      G('Dock', [R('バッジに出す数','Popup',{value:'対応待ちの数',tag:'分岐候補',desc:'現行は未読の完了の数。骨格の回の提案で対応待ちの数を既定にした'})]),
+    ];
+    if (tab === 'agents') groups = [
+      G('フルアクセス（権限の確認を省く）', [
+        R('Claude Code','Toggle',{on:true,desc:'hooks で確認を省く'}),
+        R('Codex','Toggle',{on:true,desc:'--dangerously-bypass-approvals-and-sandbox'}),
+        R('Cursor','Toggle',{on:true,desc:'--force --sandbox disabled。オフにすると --auto-review --sandbox enabled'}),
+        R('aider（カスタム）','Toggle',{on:false,desc:'agents.json の定義に従う'}),
+      ], 'オンの間は、エージェントがファイルの変更やコマンドを確認なしで実行します。信頼できるプロジェクトでだけ使ってください。'),
+      G('詳しい設定', [R('エージェント管理','Button',{value:'開く…  ⇧⌘,',desc:'CLI ごとの設定ファイル（settings.json・config.toml・cli-config.json）を直接編集する'}), R('カスタムエージェントの定義','Info',{value:'~/.config/phlox/agents.json'})]),
+    ];
+    if (tab === 'usage') groups = [
+      G('使用量', [
+        R('自動で更新する','Toggle',{on:true}),
+        R('Claude の使用量を取得する','Toggle',{on:true,desc:'Claude はほかの CLI と取得方法が異なるため、個別にオフにできる'}),
+        R('取得できない CLI も表示する','Toggle',{on:false,desc:'未インストールの CLI をインスペクタに「未取得」として並べる'}),
+        R('上部バーに使用量を表示する','Toggle',{on:true,desc:'インスペクタの開閉とは関係なく表示する'}),
+      ]),
+    ];
+    if (tab === 'team') {
+      const bad = v === 'invalid';
+      groups = [
+        G('討論の上限', [
+          R('最大発言数','Number',{value:'30',unit:'回',desc:'PASS を除く。残り 5 回で参加者に警告を送る'}),
+          R('最大エージェント数','Number',{value:bad?'12':'5',unit:'体',err:bad?'2〜10 の整数を入力してください。保存していません（現在の値: 5）':''}),
+          R('ターンのタイムアウト','Number',{value:'180',unit:'秒',desc:'応答がない参加者を飛ばすまでの時間'}),
+        ], '範囲（発言数 1〜200・エージェント 2〜10・タイムアウト 30〜1800 秒）は新設の案。現行は範囲の確認がない。'),
+        G('発言の順番', [R('スケジューラ','Seg',{opts:['自由発言','ラウンドロビン'],sel:0,desc:'自由発言: 空いた参加者に配る。ラウンドロビン: 1 人ずつ順番に'})]),
+      ];
+    }
+    if (tab === 'link') {
+      const paired = v === 'paired' || v === 'reissueFail';
+      const qr = v === 'qr';
+      const disabled = v === 'disabled';
+      const rows = [R('端末の名前','Text',{value:'iPhone'}), R('QR コードでペアリング','Button',{value:qr?'表示中':'QR コードを表示',primary:!qr&&!disabled,disabled:disabled||qr,desc:disabled?'ループバックだけで待ち受けているため、ほかの端末から接続できません。':'',warnDesc:disabled})];
+      if (qr) rows.push(R('','QR',{label:''}));
+      groups = [G('新しい端末をつなぐ', rows, 'QRにはフルアクセス権限のトークンが含まれます。60秒後に自動的に非表示になります。')];
+      if (paired) {
+        groups.push(G('接続済みの端末', [
+          R('kenta の iPhone','Revoke',{desc:'9月 20日にペアリング · 接続中'}),
+          R('iPad','Revoke',{desc:'9月 12日にペアリング · 未接続'}),
+        ]));
+        groups.push(G('プッシュ通知', [
+          R('承認待ちを iPhone に送る','Toggle',{on:true,tag:'推測',desc:'送信先（App ID）が未設定のため、ONでも送信されません。',warnDesc:true}),
+          R('アクセストークン','Button',{value:'再発行…',tag:'推測',desc:'•••••••••••••••• 表示'}),
+        ], '「隠す / 表示」「トークンの再発行」は Localizable の文言から推測した UI。'));
+      }
+      if (v === 'reissueFail') banner = 'トークンの再発行に失敗しました。接続済みの端末は古いトークンのまま使えます。';
+      if (v === 'error') banner = 'QR コードを作成できませんでした: ControlServer が起動していません（ポート 47221）。';
+    }
+    const thList = [['Phlox','#FFFFFF','#F2F2F4',true],['Phlox Light','#FAF7F4','#EFEAE4'],['Tokyo Night','#1A1B26','#16161E'],['Dracula','#282A36','#21222C'],['Catppuccin Mocha','#1E1E2E','#181825'],['Gruvbox Dark','#282828','#1D2021'],['Nord','#2E3440','#3B4252'],['Catppuccin Latte','#EFF1F5','#E6E9EF'],['Solarized Light','#FDF6E3','#EEE8D5'],['GitHub Light','#FFFFFF','#F6F8FA']];
+    const themes = thList.map(([t,bg,side,on]) => { const darkT = parseInt(bg.slice(1,3),16) < 128; return {t,on:!!on,
+      box:{width:'100%',height:54,borderRadius:7,overflow:'hidden',display:'flex',background:bg,boxShadow:on?'0 0 0 2px var(--accent)':'inset 0 0 0 1px var(--sep)'},
+      side:{width:'28%',background:side},
+      l1:{height:4,width:'70%',borderRadius:2,background:darkT?'rgba(255,255,255,0.7)':'rgba(0,0,0,0.65)'},
+      l2:{height:4,width:'50%',borderRadius:2,background:darkT?'rgba(255,255,255,0.35)':'rgba(0,0,0,0.3)'},
+      acc:{height:6,width:'34%',borderRadius:2,background:'#D97757',marginTop:2},
+      name:{fontSize:11,color:on?'var(--fg)':'var(--fg2)',fontWeight:on?600:400,textAlign:'center'}}; });
+    const icons = [['white',true],['dark-grad'],['dark'],['gradient'],['light']].map(([t,on]) => ({t,on:!!on,
+      box:{width:48,height:48,borderRadius:11,background:'repeating-linear-gradient(45deg,var(--segBg) 0 4px,transparent 4px 8px)',boxShadow:on?'0 0 0 2px var(--accent)':'inset 0 0 0 1px var(--sep)'},
+      name:{fontSize:11,color:on?'var(--fg)':'var(--fg2)',fontWeight:on?600:400,fontFamily:'ui-monospace,Menlo,monospace'}}));
+    return {
+      rootStyle:{...this.vars(dark),width:W,height:H,display:'flex',flexDirection:'column',overflow:'hidden',borderRadius:11,background:'var(--bg)',boxShadow:dark?'0 0 0 0.5px rgba(255,255,255,0.18), 0 22px 60px rgba(0,0,0,0.4)':'0 0 0 0.5px rgba(0,0,0,0.22), 0 22px 60px rgba(0,0,0,0.18)',fontFamily:'-apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif',color:'var(--fg)',WebkitFontSmoothing:'antialiased'},
+      screenLabel:p.label ?? 'settings',
+      tabs, tabTitle:TABS.find(t => t[0]===tab)[1], groups, banner, themes, icons,
+    };
+  }
+}
+</script>
+</body>
+</html>

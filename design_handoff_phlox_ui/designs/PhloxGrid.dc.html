@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="{{ rootStyle }}" data-screen-label="{{ screenLabel }}">
+  <div style="height:36px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px 0 12px;border-bottom:1px solid var(--sep);font-size:12px;color:var(--fg2);background:var(--bg);white-space:nowrap;overflow:hidden;">
+    <span style="flex:none;">表示範囲</span>
+    <div style="{{ scopeStyle }}"><span>{{ scopeName }}</span><sc-if value="{{ filtered }}"><span role="button" aria-label="プロジェクトの絞り込みを解除" style="width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--fg2);">✕</span></sc-if></div>
+    <div role="button" aria-haspopup="dialog" style="{{ pickerStyle }}"><span>{{ pickerText }}</span><span style="font-size:9px;opacity:0.7;">▾</span><sc-if value="{{ picked }}"><span role="button" aria-label="セッション選択を解除" style="width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--fg2);">✕</span></sc-if></div>
+    <div style="flex:1;"></div>
+    <sc-if value="{{ offScope }}"><div role="button" style="display:flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:6px;background:var(--hover);color:var(--fg);flex:none;"><span style="font-weight:600;color:var(--errInk);">エラー 1</span><span style="font-weight:600;color:var(--stlInk);">無応答 1</span><span>が範囲外</span><span style="color:var(--fg3);">›</span></div></sc-if>
+    <div role="button" aria-haspopup="menu" style="display:flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:6px;color:var(--fg);flex:none;">レイアウト: {{ layoutName }}<span style="font-size:9px;opacity:0.7;">▾</span></div>
+  </div>
+  <div style="flex:1;min-height:0;position:relative;">
+    <sc-if value="{{ isEmpty }}">
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:24px;">
+        <div style="font-size:15px;font-weight:600;color:var(--fg);">表示するセッションがありません</div>
+        <div style="font-size:12.5px;line-height:1.6;color:var(--fg2);max-width:380px;text-wrap:pretty;">phlox.cc の中で、選んだセッションがすべて終了または削除されました。</div>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <div role="button" style="height:28px;padding:0 12px;border-radius:7px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);display:flex;align-items:center;font-size:12.5px;color:var(--fg);">絞り込みを解除</div>
+          <div role="button" style="height:28px;padding:0 12px;border-radius:7px;background:var(--accentFill);display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#fff;">phlox.cc で新規セッション<span style="font-weight:400;font-size:10.5px;opacity:0.85;">⌘N</span></div>
+        </div>
+      </div>
+    </sc-if>
+    <sc-for list="{{ tiles }}" as="t" hint-placeholder-count="4">
+      <div role="group" aria-label="{{ t.aria }}" style="{{ t.frame }}">
+        <div style="{{ t.headStyle }}">
+          <span style="{{ t.stStyle }}">{{ t.stLabel }}</span>
+          <sc-if value="{{ t.orch }}"><span style="height:15px;padding:0 5px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--fg3);font-size:10px;color:var(--fg2);display:flex;align-items:center;flex:none;">内部</span></sc-if>
+          <span style="{{ t.titleStyle }}">{{ t.title }}</span>
+          <sc-if value="{{ t.unread }}"><span aria-label="未読" style="width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none;"></span></sc-if>
+          <sc-if value="{{ t.showSeg }}"><span style="display:flex;padding:2px;border-radius:5px;background:var(--segBg);gap:1px;flex:none;"><span style="height:18px;padding:0 7px;border-radius:4px;font-size:10.5px;display:flex;align-items:center;background:var(--bg);box-shadow:0 0.5px 1.5px rgba(0,0,0,0.2);">会話</span><span style="height:18px;padding:0 7px;font-size:10.5px;display:flex;align-items:center;color:var(--fg2);">端末</span><span style="height:18px;padding:0 7px;font-size:10.5px;display:flex;align-items:center;color:var(--fg2);">変更</span></span></sc-if><sc-if value="{{ t.showMeta }}"><span style="font-size:10px;font-weight:600;color:var(--fg3);flex:none;">{{ t.agent }}</span><span style="font-size:10.5px;color:var(--fg3);flex:none;">{{ t.key }}</span></sc-if>
+          <span role="button" aria-label="グリッドから外す" style="width:18px;height:18px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--fg2);flex:none;">✕</span>
+        </div>
+        <sc-if value="{{ t.orch }}"><div style="padding:4px 10px;font-size:11px;color:var(--fg2);border-bottom:1px solid var(--sep);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">↳ 親: {{ t.parent }}</div></sc-if>
+        <sc-if value="{{ t.isPty }}">
+          <div style="flex:1;min-height:0;background:var(--term);color:#E6E6E6;font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:1.6;padding:8px 10px;overflow:hidden;">
+            <div style="color:#8E8E94;">aider v0.86.1 — repo: ~/dev/phlox.cc</div><div>Loading repo map…</div><div>&gt; <span style="background:#E6E6E6;color:#141416;">&nbsp;</span></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ t.isChat }}">
+          <div style="{{ t.bodyStyle }}">
+            <sc-if value="{{ t.showHistory }}">
+              <div style="align-self:flex-end;max-width:85%;background:var(--code);border-radius:11px;padding:6px 10px;font-size:12px;line-height:1.55;">{{ t.ask }}</div>
+            </sc-if>
+            <sc-if value="{{ t.showLast }}"><div style="{{ t.lastStyle }}">{{ t.last }}</div></sc-if>
+            <sc-if value="{{ t.isApproval }}">
+              <div style="border-radius:8px;background:var(--apvTint);box-shadow:inset 0 0 0 1px var(--apv);padding:7px 9px;display:flex;flex-direction:column;gap:6px;">
+                <sc-if value="{{ t.notSmall }}"><span style="font-size:11px;font-weight:600;color:var(--apvInk);">コマンドの実行</span><span style="display:none;"></span></sc-if>
+                <div style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ t.detail }}</div>
+                <div style="display:flex;gap:5px;">
+                  <div role="button" style="height:22px;padding:0 9px;border-radius:5px;background:var(--accentFill);color:#fff;font-size:11.5px;font-weight:600;display:flex;align-items:center;">許可</div>
+                  <sc-if value="{{ t.notSmall }}"><div role="button" style="height:22px;padding:0 9px;border-radius:5px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);font-size:11.5px;display:flex;align-items:center;">このセッション中は許可</div></sc-if>
+                  <div role="button" style="height:22px;padding:0 9px;border-radius:5px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);font-size:11.5px;display:flex;align-items:center;">{{ t.second }}</div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ t.isQuestion }}">
+              <div style="border-radius:8px;background:var(--qstTint);box-shadow:inset 0 0 0 1px var(--qst);padding:7px 9px;display:flex;flex-direction:column;gap:5px;font-size:12px;">
+                <span style="{{ t.qStyle }}">{{ t.detail }}</span>
+                <sc-if value="{{ t.notSmall }}">
+                  <div style="display:flex;align-items:center;gap:6px;"><span style="width:11px;height:11px;border-radius:6px;border:3.5px solid var(--qst);box-sizing:border-box;"></span>すべて移す</div>
+                  <div style="display:flex;align-items:center;gap:6px;"><span style="width:11px;height:11px;border-radius:6px;border:1.2px solid var(--fg3);box-sizing:border-box;"></span>設定画面の分だけ</div>
+                </sc-if>
+                <div style="display:flex;gap:5px;"><div role="button" style="height:22px;padding:0 9px;border-radius:5px;background:var(--accentFill);color:#fff;font-size:11.5px;font-weight:600;display:flex;align-items:center;">{{ t.qBtn }}</div></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ t.isError }}">
+              <div style="border-radius:8px;background:var(--errTint);box-shadow:inset 0 0 0 1px var(--err);padding:7px 9px;display:flex;flex-direction:column;gap:5px;">
+                <div style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--errInk);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ t.detail }}</div>
+                <div style="display:flex;gap:5px;"><div role="button" style="height:22px;padding:0 9px;border-radius:5px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);font-size:11.5px;display:flex;align-items:center;">開く</div></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ t.isStalled }}">
+              <div style="border-radius:8px;background:var(--stlTint);box-shadow:inset 0 0 0 1px var(--stl);padding:7px 9px;display:flex;align-items:center;gap:8px;">
+                <span style="flex:1;min-width:0;font-size:11.5px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ t.detail }}</span>
+                <div role="button" style="height:22px;padding:0 9px;border-radius:5px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);font-size:11.5px;display:flex;align-items:center;flex:none;">中断</div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ t.isActivity }}"><div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--fg2);min-width:0;"><span style="width:12px;height:12px;border-radius:50%;border:1.6px dotted var(--fg2);box-sizing:border-box;flex:none;"></span><span style="font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ t.detail }}</span></div></sc-if>
+          </div>
+          <sc-if value="{{ t.showComposer }}">
+            <div style="margin:0 8px 8px;border-radius:8px;box-shadow:inset 0 0 0 1px var(--fieldBorder);padding:6px 9px;font-size:12px;color:var(--fg3);display:flex;align-items:center;gap:8px;"><span style="flex:1;">メッセージを入力</span><span style="font-size:10.5px;">{{ t.ctx }}</span></div>
+          </sc-if>
+        </sc-if>
+        <sc-if value="{{ t.dragging }}"><div style="position:absolute;inset:0;background:var(--bg);opacity:0.6;border-radius:9px;"></div></sc-if>
+        <sc-if value="{{ t.dropSplit }}">
+          <div style="position:absolute;top:4px;bottom:4px;right:4px;width:calc(50% - 6px);border-radius:7px;background:var(--dropTint);box-shadow:inset 0 0 0 2px var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--accentInk);z-index:4;">右に分割して挿入</div>
+          <div style="position:absolute;top:0;bottom:0;left:50%;width:2px;margin-left:-1px;background:var(--accent);z-index:4;"></div>
+        </sc-if>
+      </div>
+    </sc-for>
+    <sc-if value="{{ isDrag }}">
+      <div style="{{ ghostStyle }}">
+        <span style="font-size:11px;font-weight:600;color:var(--fg2);">実行中</span><span style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">PaneTree 正規化の修正</span>
+      </div>
+      <div style="{{ zoneLegend }}">
+        <span style="font-weight:600;color:var(--fg);">ドロップ位置</span><span>中央 = 入れ替え</span><span>上下左右の端 = 50:50 で分割して挿入</span><span>Esc = 取り消し</span>
+      </div>
+    </sc-if>
+    <sc-if value="{{ isResize }}">
+      <div style="{{ divBar }}"></div>
+      <div style="{{ divGhost }}"></div>
+      <div style="{{ divLabel }}">⟷ 62% · 718pt ／ 最小 240 × 160pt ／ ダブルクリックで等分</div>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1180,&quot;height&quot;:760},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;scenario&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;two&quot;,&quot;four&quot;,&quot;nine&quot;,&quot;tiny&quot;,&quot;oneApproval&quot;,&quot;multiAttn&quot;,&quot;filtered&quot;,&quot;orch&quot;,&quot;drag&quot;,&quot;resize&quot;,&quot;empty&quot;],&quot;default&quot;:&quot;four&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;width&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:1180,&quot;tsType&quot;:&quot;number&quot;},&quot;height&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:760,&quot;tsType&quot;:&quot;number&quot;},&quot;label&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;grid&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  vars(dark) {
+    const L = {'--bg':'#FFFFFF','--area':'#F4F4F6','--sep':'rgba(0,0,0,0.10)','--fg':'#1D1D1F','--fg2':'#5B5B60','--fg3':'#75757B','--hover':'rgba(0,0,0,0.05)','--sel':'rgba(0,0,0,0.075)','--code':'#F3F3F5','--fieldBorder':'rgba(0,0,0,0.14)','--accent':'#D97757','--accentInk':'#A94A28','--accentFill':'#B4552F','--dropTint':'rgba(217,119,87,0.14)','--ctl':'#FFFFFF','--ctlBorder':'rgba(0,0,0,0.16)','--segBg':'rgba(0,0,0,0.065)','--shadow':'0 10px 30px rgba(0,0,0,0.16), 0 0 0 0.5px rgba(0,0,0,0.2)','--popover':'#FFFFFF','--apv':'#E39A2D','--apvInk':'#8A5300','--apvTint':'rgba(227,154,45,0.13)','--qst':'#3A7BDF','--qstInk':'#1E5BB8','--qstTint':'rgba(58,123,223,0.09)','--err':'#E0484E','--errInk':'#B4232A','--errTint':'rgba(224,72,78,0.09)','--stl':'#9457DB','--stlInk':'#7438BD','--stlTint':'rgba(148,87,219,0.10)','--term':'#1B1B1D'};
+    const D = {'--bg':'#1E1E20','--area':'#18181A','--sep':'rgba(255,255,255,0.10)','--fg':'#F2F2F4','--fg2':'#ABABB1','--fg3':'#8E8E94','--hover':'rgba(255,255,255,0.06)','--sel':'rgba(255,255,255,0.09)','--code':'#2B2B2F','--fieldBorder':'rgba(255,255,255,0.14)','--accent':'#E08865','--accentInk':'#F0A383','--accentFill':'#B4552F','--dropTint':'rgba(224,136,101,0.18)','--ctl':'#3A3A3E','--ctlBorder':'rgba(255,255,255,0.10)','--segBg':'rgba(255,255,255,0.08)','--shadow':'0 12px 34px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.16)','--popover':'#2F2F33','--apv':'#F0AE4A','--apvInk':'#F4BD68','--apvTint':'rgba(240,174,74,0.16)','--qst':'#5D98F0','--qstInk':'#8DB6F7','--qstTint':'rgba(93,152,240,0.13)','--err':'#EE5A5F','--errInk':'#FF8A8D','--errTint':'rgba(238,90,95,0.13)','--stl':'#A876EB','--stlInk':'#C4A2F4','--stlTint':'rgba(168,118,235,0.14)','--term':'#141416'};
+    return dark ? D : L;
+  }
+  renderVals() {
+    const p = this.props;
+    const W = Number(p.width ?? 1180), H = Number(p.height ?? 760);
+    const dark = (p.theme ?? 'light') === 'dark';
+    const sc = p.scenario ?? 'four';
+    const LBL = {starting:'起動中',idle:'待機',running:'実行中',approval:'承認待ち',question:'質問待ち',done:'完了',error:'エラー',stalled:'無応答'};
+    const K = {approval:'apv',question:'qst',error:'err',stalled:'stl'};
+    const S = {
+      s1:{title:'承認 API に失効処理を追加',agent:'Cl',proj:'phlox-core',state:'approval',time:'3分',detail:'$ swift test --filter ApprovalBrokerTests',ask:'期限切れの承認要求を自動で失効させて。',last:'expiresAt を追加しました。テストを実行します。'},
+      s2:{title:'PaneTree 正規化の修正',agent:'Cx',proj:'phlox-core',state:'running',time:'12分',detail:'swift test --filter PaneTreeTests を実行中 · 38 秒',ask:'normalize で空の分割が残る。直して。',last:'子が 1 つの split を畳むよう normalize() を直しました。'},
+      s3:{title:'未登録の UI 文言を抽出',agent:'Cu',proj:'phlox-core',state:'question',time:'1分',detail:'直書きの Text（4 件）も xcstrings に移しますか?',ask:'未登録の文言を一覧にして。',last:'未登録は 6 件でした。'},
+      s4:{title:'Tailscale bind の E2E テスト',agent:'Cx',proj:'mobile-proxy',state:'error',time:'8分',detail:'error: linker command failed with exit code 1',ask:'tailscale モードの E2E を追加して。',last:'MobileProxyE2ETests をビルドします。'},
+      s5:{title:'APNs トークン再発行フロー',agent:'Cl',proj:'mobile-proxy',state:'stalled',time:'4分',detail:'無応答 4:12 · Read APNsNotificationBridge.swift',ask:'トークン再発行の失敗時の文言を直して。',last:'APNsNotificationBridge を読み込みます。'},
+      s6:{title:'レビュー: 失効処理の差分',agent:'Cl',proj:'phlox-core',state:'done',unread:true,time:'5分',detail:'',ask:'',last:'レビューを終えました。指摘は 2 件です（userInputRequests 側の失効漏れ、DTO の単位）。'},
+      s7:{title:'プライバシーポリシー改訂',agent:'Cl',proj:'phlox.cc',state:'idle',time:'42分',detail:'',ask:'',last:'改訂案を docs/privacy.md に書きました。差分を確認してください。'},
+      s8:{title:'リンク切れ検査',agent:'ai',proj:'phlox.cc',state:'starting',time:'今',pty:true},
+      s9:{title:'ThinkingOrb の CPU 使用率',agent:'Cl',proj:'phlox-core',state:'running',time:'4分',detail:'Instruments のトレースを読み込み中',ask:'',last:'CADisplayLink が画面外でも回っています。'},
+      o1:{title:'リリース 0.14 の準備',agent:'Cl',proj:'phlox-core',state:'running',time:'34分',detail:'子セッション 2 件の完了を待機中',ask:'',last:'回帰テストを 2 つに分けて子セッションで回します。'},
+      o2:{title:'回帰テスト A: SessionFeature',agent:'Cx',proj:'phlox-core',state:'approval',time:'2分',detail:'$ swift test --package-path Packages/SessionFeature',orch:true,parent:'リリース 0.14 の準備',last:'SessionFeature のテストを実行します。'},
+      o3:{title:'回帰テスト B: DashboardFeature',agent:'Cx',proj:'phlox-core',state:'running',time:'2分',detail:'swift test を実行中 · 1:12',orch:true,parent:'リリース 0.14 の準備',last:'DashboardFeature のテストを実行します。'},
+    };
+    const g = 0.5;
+    const L = {
+      columns2:[[0,0,g,1],[g,0,g,1]],
+      grid2x2:[[0,0,g,g],[g,0,g,g],[0,g,g,g],[g,g,g,g]],
+      mainLeft:[[0,0,0.6,1],[0.6,0,0.4,g],[0.6,g,0.4,g]],
+      g3x2:[[0,0,1/3,g],[1/3,0,1/3,g],[2/3,0,1/3,g],[0,g,1/3,g],[1/3,g,1/3,g],[2/3,g,1/3,g]],
+      g3x3:Array.from({length:9},(_,i)=>[(i%3)/3,Math.floor(i/3)/3,1/3,1/3]),
+    };
+    const SC = {
+      two:{ids:['s2','s9'],lay:'columns2',name:'2 列',focus:0},
+      four:{ids:['s2','s9','s7','s6'],lay:'grid2x2',name:'2 × 2',focus:0},
+      nine:{ids:['s1','s2','s3','s4','s5','s6','s7','s8','s9'],lay:'g3x3',name:'バランス',focus:1},
+      tiny:{ids:['s1','s2','s3','s4','s5','s6','s7','s8','s9'],lay:'g3x3',name:'バランス',focus:1},
+      oneApproval:{ids:['s2','s1','s9'],lay:'mainLeft',name:'左にメイン・右に積む',focus:0},
+      resize:{ids:['s2','s1','s9'],lay:'mainLeft',name:'左にメイン・右に積む',focus:0},
+      multiAttn:{ids:['s1','s3','s4','s5','s2','s7'],lay:'g3x2',name:'バランス',focus:4},
+      filtered:{ids:['s1','s2','s3'],lay:'mainLeft',name:'左にメイン・右に積む',focus:0,filter:'phlox-core',picked:true,total:4,off:true},
+      orch:{ids:['o1','o2','o3','s2'],lay:'grid2x2',name:'2 × 2',focus:0,filter:'phlox-core',total:4},
+      drag:{ids:['s2','s9','s7','s6'],lay:'grid2x2',name:'2 × 2',focus:1,drag:true},
+      empty:{ids:[],lay:'grid2x2',name:'2 × 2',filter:'phlox.cc',picked:true,total:2},
+    }[sc];
+    const AW = W - 16, AH = H - 36 - 16;
+    const tiles = SC.ids.map((id, i) => {
+      const s = S[id]; const [x,y,w,h] = L[SC.lay][i];
+      const l = 8 + x*AW + (x>0?4:0), t = 8 + y*AH + (y>0?4:0);
+      const tw = w*AW - (x>0?4:0) - (x+w<0.999?4:0), th = h*AH - (y>0?4:0) - (y+h<0.999?4:0);
+      const size = (tw < 250 || th < 175) ? 'small' : (tw < 480 || th < 330) ? 'medium' : 'large';
+      const k = K[s.state]; const focus = i === SC.focus;
+      const small = size === 'small';
+      const calm = !k;
+      return {
+        aria:`${s.title}、${LBL[s.state]}、${s.time}${focus?'、フォーカス中':''}`,
+        frame:{position:'absolute',left:l,top:t,width:tw,height:th,borderRadius:9,background:'var(--bg)',display:'flex',flexDirection:'column',overflow:'hidden',
+          boxShadow:[focus?'0 0 0 2px var(--accent)':'', k?`inset 0 0 0 1.5px var(--${k})`:'inset 0 0 0 1px var(--sep)', '0 1px 2px rgba(0,0,0,0.06)'].filter(Boolean).join(', ')},
+        headStyle:{height:small?28:30,flex:'none',display:'flex',alignItems:'center',gap:7,padding:'0 6px 0 10px',background:k?`var(--${k}Tint)`:'transparent',borderBottom:'1px solid var(--sep)'},
+        stStyle:{fontSize:11.5,fontWeight:k||s.state==='running'?700:500,color:k?`var(--${k}Ink)`:s.state==='running'?'var(--fg)':'var(--fg3)',flex:'none'},
+        stLabel: k ? `${LBL[s.state]} · ${s.time}` : LBL[s.state],
+        titleStyle:{flex:1,minWidth:0,fontSize:12.5,fontWeight:600,color:'var(--fg)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',opacity:calm&&s.state!=='running'&&!s.unread?0.8:1},
+        title:s.title, unread:!!s.unread, showSeg:!small && tw >= 380 && !s.pty, agent:s.agent, key:`⌘${i+1}`, showMeta:!small,
+        orch:!!s.orch, parent:s.parent,
+        isPty:!!s.pty, isChat:!s.pty,
+        bodyStyle:{flex:1,minHeight:0,overflow:'hidden',padding:small?'7px 9px':'10px 12px',display:'flex',flexDirection:'column',gap:8,justifyContent:'flex-end',fontSize:12,lineHeight:1.55,color:'var(--fg)'},
+        showHistory: size==='large' && !!s.ask,
+        showLast: !small || calm,
+        ask:s.ask, last:s.last, lastStyle:{fontSize:small?11.5:12,color:calm?'var(--fg)':'var(--fg2)',textWrap:'pretty',overflow:'hidden',display:'-webkit-box',WebkitLineClamp:small?3:(size==='large'?6:3),WebkitBoxOrient:'vertical'},
+        isApproval:s.state==='approval', isQuestion:s.state==='question', isError:s.state==='error', isStalled:s.state==='stalled', isActivity:s.state==='running',
+        notSmall:!small, detail:s.detail, second: small ? '開く' : '拒否',
+        qClamp: small ? 'white-space:nowrap;' : '', qBtn: small ? '開いて回答' : '回答を送信',
+        showComposer: size==='large' || (size==='medium' && th >= 300),
+        ctx:'46%',
+        dragging: SC.drag && i===0, dropSplit: SC.drag && i===3,
+      };
+    });
+    tiles.forEach(t => { t.qStyle = {fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:t.notSmall?'normal':'nowrap'}; });
+    const filtered = !!SC.filter;
+    const scopeStyle = {display:'flex',alignItems:'center',gap:6,height:22,padding:filtered?'0 3px 0 9px':'0 9px',borderRadius:11,background:filtered?'var(--sel)':'transparent',boxShadow:filtered?'none':'inset 0 0 0 1px var(--sep)',color:'var(--fg)',flex:'none'};
+    const cnt = SC.ids.length;
+    const pickerText = SC.picked ? `${cnt} / ${SC.total} 件を表示` : filtered ? `${cnt} / ${SC.total} 件（すべて）` : `${cnt} 件`;
+    const d = L.mainLeft[0]; const divX = 8 + 0.6*AW;
+    return {
+      rootStyle:{...this.vars(dark),width:W,height:H,display:'flex',flexDirection:'column',position:'relative',overflow:'hidden',borderRadius:11,background:'var(--area)',boxShadow:dark?'0 0 0 0.5px rgba(255,255,255,0.18), 0 18px 50px rgba(0,0,0,0.35)':'0 0 0 0.5px rgba(0,0,0,0.22), 0 18px 50px rgba(0,0,0,0.14)',fontFamily:'-apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif',color:'var(--fg)',WebkitFontSmoothing:'antialiased'},
+      screenLabel:p.label ?? 'grid',
+      tiles, filtered, scopeStyle, scopeName: filtered ? SC.filter : 'すべてのプロジェクト',
+      picked:!!SC.picked, pickerText,
+      pickerStyle:{display:'flex',alignItems:'center',gap:6,height:22,padding:SC.picked?'0 3px 0 9px':'0 9px',borderRadius:11,color:'var(--fg)',background:SC.picked?'var(--sel)':'transparent',boxShadow:SC.picked?'none':'inset 0 0 0 1px var(--sep)',flex:'none'},
+      offScope:!!SC.off, layoutName:SC.name, isEmpty:cnt===0,
+      isDrag:!!SC.drag, ghostStyle:{position:'absolute',zIndex:20,left:Math.round(W*0.60),top:Math.round(AH*0.62),width:230,height:30,borderRadius:7,background:'var(--popover)',boxShadow:'var(--shadow)',display:'flex',alignItems:'center',gap:7,padding:'0 10px',transform:'rotate(-1.5deg)',fontSize:12,boxSizing:'border-box'},
+      zoneLegend:{position:'absolute',left:'50%',bottom:14,transform:'translateX(-50%)',zIndex:21,display:'flex',gap:14,alignItems:'center',height:30,padding:'0 14px',borderRadius:15,background:'var(--popover)',boxShadow:'var(--shadow)',fontSize:11.5,color:'var(--fg2)',whiteSpace:'nowrap'},
+      isResize:sc==='resize',
+      divBar:{position:'absolute',left:divX-1.5,top:8,bottom:8,width:3,borderRadius:2,background:'var(--accent)',zIndex:10},
+      divGhost:{position:'absolute',left:divX+0.02*AW,top:8,bottom:8,width:0,borderLeft:'2px dashed var(--accent)',zIndex:10},
+      divLabel:{position:'absolute',left:divX+0.02*AW+10,top:'42%',zIndex:11,background:'var(--accentFill)',color:'#fff',fontSize:11.5,padding:'5px 9px',borderRadius:6,whiteSpace:'nowrap'},
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>body{margin:0;background:#E7E7EA;} a{color:#A94A28;} a:hover{color:#7E3517;}</style>
+</helmet>
+<div style="padding:80px;display:flex;flex-direction:column;gap:88px;width:1900px;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#1D1D1F;">
+
+<section data-screen-label="00 概要" style="display:flex;gap:56px;align-items:flex-start;">
+  <div style="width:520px;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:13px;color:#75757B;">Phlox macOS · 再設計 10 · 参照: 機能一覧 15章・22章</div>
+    <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;">通知・Dock・起動失敗</div>
+    <div style="font-size:15px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">アプリの外で対応待ちに気づかせる仕組みと、アプリが立ち上がらないときの画面。通知の種類はアプリ内の状態の語彙（<a href="01 Main Window.dc.html">骨格</a>）と 1 対 1 に揃える。</div>
+  </div>
+  <div style="width:1200px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">通知の文言（種類ごと）</div>
+    <div style="display:grid;grid-template-columns:120px 250px 1fr 250px;font-size:12.5px;line-height:1.55;">
+      <div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">種類</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">タイトル / サブタイトル</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">本文</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">クリック後</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-weight:600;color:#8A5300;">承認待ち</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">承認待ち: {セッション名}<br><span style="color:#5B5B60;">{プロジェクト} · {エージェント}</span></div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">許可を求めている対象そのもの（コマンド全文 / 変更ファイル数 / 権限ルール）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">そのセッションを開き、承認カードにフォーカス</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-weight:600;color:#1E5BB8;">質問待ち</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">質問があります: {セッション名}</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">質問文（秘密の入力を求める質問は「入力を求めています」とだけ書く）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">質問カードにフォーカス</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-weight:600;color:#B4232A;">エラー</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">エラーで止まりました: {セッション名}</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">エラー文の 1 行目</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">エラーのセルまでスクロール</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-weight:600;color:#7438BD;">無応答</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">応答がありません: {セッション名}</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">2 分以上反応がありません。最後の動作: {直近アクション}</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">会話の末尾（中断ボタンが見える位置）</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-weight:600;">完了</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">作業が完了しました: {セッション名}</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">最後の返答の冒頭（次の指示を待っています）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">会話の末尾、入力欄にフォーカス</div>
+      <div style="padding:7px 8px;font-weight:600;">終了</div><div style="padding:7px 8px;">セッションが終了しました: {セッション名}</div><div style="padding:7px 8px;">終了コード（exit 1 など）。0 のときは通知しない</div><div style="padding:7px 8px;">会話の末尾</div>
+    </div>
+    <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">現行は完了の通知でも「入力待ち」と書いており、承認や質問（本当に止まっている）と区別できない。完了は「作業が完了しました」とし、「待ち」という言葉は承認待ち・質問待ちにだけ使う。Localizable の「作業完了」「%@ が待機中になりました」は、上の文言に置き換える。</div>
+  </div>
+</section>
+
+<section data-screen-label="N 通知" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">N. 通知バナー</div>
+  <div style="display:flex;gap:48px;align-items:flex-start;">
+    <div style="display:flex;flex-direction:column;gap:16px;width:420px;">
+      <div style="font-size:13px;font-weight:600;">ライト</div>
+      <sc-for list="{{ bannersLight }}" as="n" hint-placeholder-count="6">
+        <div id="{{ n.id }}" style="display:flex;flex-direction:column;gap:6px;">
+          <div style="font-size:11px;font-weight:600;color:#5B5B60;">{{ n.id }} · {{ n.kind }}</div>
+          <div role="alert" style="{{ n.box }}">
+            <div style="{{ n.iconStyle }}">icon</div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;">
+              <div style="display:flex;align-items:baseline;gap:8px;"><span style="{{ n.titleStyle }}">{{ n.title }}</span><span style="font-size:11px;opacity:0.6;flex:none;">{{ n.time }}</span></div>
+              <span style="font-size:12px;opacity:0.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ n.sub }}</span>
+              <span style="{{ n.bodyStyle }}">{{ n.body }}</span>
+            </div>
+            <sc-if value="{{ n.hasActions }}"><div style="display:flex;flex-direction:column;gap:4px;flex:none;"><sc-for list="{{ n.actions }}" as="a"><span style="{{ a.s }}">{{ a.t }}</span></sc-for></div></sc-if>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px;width:420px;padding:20px;border-radius:14px;background:#1E1E20;">
+      <div style="font-size:13px;font-weight:600;color:#F2F2F4;">ダーク</div>
+      <sc-for list="{{ bannersDark }}" as="n" hint-placeholder-count="3">
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="font-size:11px;font-weight:600;color:#ABABB1;">{{ n.id }} · {{ n.kind }}</div>
+          <div role="alert" style="{{ n.box }}">
+            <div style="{{ n.iconStyle }}">icon</div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;">
+              <div style="display:flex;align-items:baseline;gap:8px;"><span style="{{ n.titleStyle }}">{{ n.title }}</span><span style="font-size:11px;opacity:0.6;flex:none;">{{ n.time }}</span></div>
+              <span style="font-size:12px;opacity:0.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ n.sub }}</span>
+              <span style="{{ n.bodyStyle }}">{{ n.body }}</span>
+            </div>
+            <sc-if value="{{ n.hasActions }}"><div style="display:flex;flex-direction:column;gap:4px;flex:none;"><sc-for list="{{ n.actions }}" as="a"><span style="{{ a.s }}">{{ a.t }}</span></sc-for></div></sc-if>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="width:760px;display:flex;flex-direction:column;gap:20px;">
+      <div style="background:#fff;border-radius:12px;padding:22px 24px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.65;">
+        <div style="font-size:15px;font-weight:700;">出す条件・まとめ方</div>
+        <div><b>出さない場面</b>: Phlox が最前面で、そのセッションが画面に見えているとき（単体で表示中、またはグリッドのタイルとして見えている）。会話の復元時の再生や、ユーザーが中断した結果の待機も通知しない（現行の SessionNotificationPolicy どおり）。</div>
+        <div><b>まとめ方</b>: プロジェクトごとに 1 つのスレッドにまとめる。同じプロジェクトで 3 件以上たまったら「phlox-core で 3 件が対応待ち」の 1 枚に置き換える（<a href="#N7">N7</a>）。</div>
+        <div><b>音</b>: 設定「完了サウンド（Glass）」は完了だけに効かせ、対応待ちの 4 種は macOS の既定の通知音にする（案）。</div>
+        <div><b>取り消し</b>: アプリ内で対応したら、その通知は通知センターから消す。</div>
+        <div><b>クリック後</b>: Phlox を前面に出し、今の表示モードのままそのセッションに移る。グリッドで範囲の外にあるときは一時的に範囲に加える。</div>
+      </div>
+      <div style="background:#fff;border-radius:12px;padding:22px 24px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.65;">
+        <div style="font-size:15px;font-weight:700;color:#7438BD;">分岐候補: 通知から直接「許可」するか</div>
+        <div>案 A（<a href="#N1">N1</a>）: 承認待ちの通知に「開く」だけを置く。対象を画面で確かめてから返す。</div>
+        <div>案 B（<a href="#N1b">N1b</a>）: 「許可」「拒否」も置く。本文にコマンド全文を出せる場合に限り、設定でオンにしたときだけ有効にする。モバイルから承認できる現行の仕組み（Control API）と同じ考え方。</div>
+        <div>質問待ちには、どちらの案でも回答のボタンを置かない（選択肢を通知の中では読み切れないため）。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="B Dock" style="display:flex;gap:40px;align-items:flex-start;">
+  <div style="width:880px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:18px;">
+    <div style="font-size:16px;font-weight:700;">Dock のバッジ</div>
+    <div style="display:flex;gap:28px;align-items:flex-end;padding:18px 24px;border-radius:14px;background:rgba(0,0,0,0.06);">
+      <sc-for list="{{ docks }}" as="d" hint-placeholder-count="4">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+          <div style="position:relative;width:64px;height:64px;border-radius:15px;background:repeating-linear-gradient(45deg,rgba(0,0,0,0.07) 0 4px,transparent 4px 8px);box-shadow:inset 0 0 0 1px rgba(0,0,0,0.12);display:flex;align-items:center;justify-content:center;font-family:ui-monospace,Menlo,monospace;font-size:9px;color:#75757B;">Phlox<sc-if value="{{ d.badge }}"><span style="position:absolute;top:-6px;right:-8px;min-width:22px;height:22px;padding:0 6px;box-sizing:border-box;border-radius:11px;background:#E5484D;color:#fff;font-family:-apple-system,sans-serif;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,0.25);">{{ d.badge }}</span></sc-if></div>
+          <span style="width:5px;height:5px;border-radius:3px;background:#1D1D1F;opacity:0.7;"></span>
+          <span style="font-size:11.5px;color:#3A3A3E;text-align:center;width:160px;line-height:1.5;">{{ d.note }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">バッジの数 = 対応待ち（承認待ち・質問待ち・エラー・無応答）の件数。完了の未読は数えない。赤いバッジは macOS 標準のもので、色は変えられないため「急ぎ」の意味だけに使う。現行（未読の完了の数）に戻したい場合の設定は <a href="10 Settings.dc.html">Settings T3</a>。起動中にバッジを跳ねさせる（Dock のバウンス）ことはしない。</div>
+  </div>
+</section>
+
+<section data-screen-label="I 起動" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">I. 初期化中と初期化エラー</div>
+  <div style="display:flex;gap:40px;align-items:flex-start;">
+    <sc-for list="{{ inits }}" as="w" hint-placeholder-count="3">
+      <div id="{{ w.id }}" style="display:flex;flex-direction:column;gap:10px;width:560px;">
+        <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">{{ w.id }}</span><span style="font-size:14px;font-weight:600;">{{ w.name }}</span></div>
+        <div style="{{ w.win }}">
+          <div style="height:28px;display:flex;align-items:center;padding:0 12px;gap:8px;"><span style="width:12px;height:12px;border-radius:50%;background:#FF5F57;"></span><span style="width:12px;height:12px;border-radius:50%;background:#FEBC2E;"></span><span style="width:12px;height:12px;border-radius:50%;background:#28C840;"></span></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:0 48px 28px;text-align:center;">
+            <div style="{{ w.iconStyle }}">app icon<sc-if value="{{ w.isError }}"><span style="position:absolute;right:-4px;bottom:-3px;width:24px;height:21px;background:#E39A2D;clip-path:polygon(50% 0,100% 100%,0 100%);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:flex-end;justify-content:center;font-family:-apple-system,sans-serif;">!</span></sc-if></div>
+            <div style="{{ w.titleStyle }}">{{ w.title }}</div>
+            <div style="{{ w.bodyStyle }}">{{ w.body }}</div>
+            <sc-if value="{{ w.isLoading }}">
+              <div style="{{ w.trackStyle }}"><div style="width:62%;height:100%;border-radius:2px;background:#B4552F;"></div></div>
+            </sc-if>
+            <sc-if value="{{ w.isError }}">
+              <div style="{{ w.logStyle }}">{{ w.log }}</div>
+              <div style="display:flex;gap:8px;margin-top:4px;">
+                <span role="button" style="{{ w.btnS }}">ログを Finder で表示</span>
+                <span role="button" style="{{ w.btnS }}">終了 ⌘Q</span>
+                <span role="button" style="height:28px;padding:0 16px;border-radius:6px;background:#B4552F;color:#fff;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;">再試行<span style="font-size:10.5px;font-weight:400;opacity:0.85;">⌘R</span></span>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+        <div style="font-size:12px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">{{ w.memo }}</div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+
+<section data-screen-label="M 対応表" style="display:flex;gap:32px;align-items:flex-start;">
+  <div style="width:1100px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">機能対応表（15章）</div>
+    <div style="display:grid;grid-template-columns:320px 1fr;font-size:12.5px;line-height:1.5;">
+      <div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">機能</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">置き場所</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">システム通知（バナー・サウンド）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#N1">N1</a>〜<a href="#N7">N7</a>、文言表</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">APNs / Live Activity（リモート通知への委譲）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">同じ文言を iOS 側にも渡す。送信の設定は <a href="10 Settings.dc.html">Settings L3</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">Dock バッジ</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">Dock の節（数え方を変更）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">初期化中 / 初期化エラー画面・再試行 ⌘R</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#I1">I1</a>〜<a href="#I3">I3</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">通知の発火条件（stop・アイドル検知、PTY は単純化、チャット型は hasActiveTurn 必須）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">「出す条件・まとめ方」に記載。見えているセッションは通知しない条件を追加</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">プッシュ通知の宛先（App ID）未設定警告</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="10 Settings.dc.html">Settings L3</a></div>
+      <div style="padding:6px 8px;">メニューバーエクストラ</div><div style="padding:6px 8px;">現行に無い（15章）。本案でも追加しない</div>
+    </div>
+    <div style="font-size:12px;color:#5B5B60;">未配置の機能: なし。</div>
+  </div>
+  <div style="width:620px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:16px;font-weight:700;color:#7438BD;">分岐候補（推測・未確認）</div>
+    <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+      <div>初期化の段階（データの移行 → ControlServer の起動 → セッションの復元）は、InitLoadingView / InitializingView の中身が未読のための推測。</div>
+      <div>「終了」の通知を exit ≠ 0 のときだけ出す案。</div>
+      <div>通知から直接の許可（案 A / B）。</div>
+      <div>対応待ちの通知音を完了と分ける案。</div>
+    </div>
+  </div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const mk = (dark) => (o) => {
+      const ink = {apv:dark?'#F4BD68':'#8A5300',qst:dark?'#8DB6F7':'#1E5BB8',err:dark?'#FF8A8D':'#B4232A',stl:dark?'#C4A2F4':'#7438BD'}[o.k];
+      const actBase = {height:24,minWidth:64,padding:'0 10px',borderRadius:7,fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',background:dark?'rgba(255,255,255,0.12)':'rgba(0,0,0,0.06)',color:dark?'#F2F2F4':'#1D1D1F'};
+      return {...o, hasActions:!!(o.actions && o.actions.length), actions:(o.actions||[]).map(t => ({t, s:actBase})),
+        box:{display:'flex',alignItems:'center',gap:11,padding:'11px 13px',borderRadius:16,background:dark?'rgba(52,52,56,0.92)':'rgba(246,246,247,0.94)',boxShadow:dark?'0 8px 26px rgba(0,0,0,0.5), 0 0 0 0.5px rgba(255,255,255,0.14)':'0 8px 26px rgba(0,0,0,0.14), 0 0 0 0.5px rgba(0,0,0,0.14)',color:dark?'#F2F2F4':'#1D1D1F'},
+        iconStyle:{width:38,height:38,borderRadius:9,flex:'none',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'ui-monospace,Menlo,monospace',fontSize:8,color:'#8E8E94',background:dark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.07)'},
+        titleStyle:{flex:1,minWidth:0,fontSize:13,fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:ink||'inherit'},
+        bodyStyle:{fontSize:12,lineHeight:1.45,fontFamily:o.mono?'ui-monospace,Menlo,monospace':'inherit',overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}};
+    };
+    const L = [
+      {id:'N1',kind:'承認待ち（案 A）',k:'apv',title:'承認待ち: 承認 API に失効処理を追加',sub:'phlox-core · Claude Code',body:'$ swift test --filter ApprovalBrokerTests',mono:true,time:'今',actions:['開く']},
+      {id:'N1b',kind:'承認待ち（案 B · 分岐候補）',k:'apv',title:'承認待ち: 承認 API に失効処理を追加',sub:'phlox-core · Claude Code',body:'$ swift test --filter ApprovalBrokerTests',mono:true,time:'今',actions:['許可','拒否']},
+      {id:'N2',kind:'質問待ち',k:'qst',title:'質問があります: 未登録の UI 文言を抽出',sub:'phlox-core · Cursor',body:'SettingsView.swift の直書き Text（4 件）も xcstrings に移しますか?',time:'1分前'},
+      {id:'N3',kind:'エラー',k:'err',title:'エラーで止まりました: Tailscale bind の E2E テスト',sub:'mobile-proxy · Codex',body:'error: linker command failed with exit code 1',mono:true,time:'8分前'},
+      {id:'N4',kind:'無応答',k:'stl',title:'応答がありません: APNs トークン再発行フロー',sub:'mobile-proxy · Claude Code',body:'2 分以上反応がありません。最後の動作: Read APNsNotificationBridge.swift',time:'2分前'},
+      {id:'N5',kind:'完了',title:'作業が完了しました: レビュー: 失効処理の差分',sub:'phlox-core · Claude Code',body:'レビューを終えました。指摘は 2 件です（userInputRequests 側の失効漏れ、DTO の単位）。',time:'5分前'},
+      {id:'N6',kind:'終了（exit ≠ 0）',title:'セッションが終了しました: リンク切れ検査',sub:'phlox.cc · aider（カスタム）',body:'exit 1',mono:true,time:'今'},
+      {id:'N7',kind:'まとめ',k:'apv',title:'phlox-core で 3 件が対応待ち',sub:'承認待ち 2 · 質問待ち 1',body:'承認 API に失効処理を追加 ほか 2 件',time:'今',actions:['開く']},
+      {id:'N8',kind:'通知のテスト（設定から）',title:'Phlox の通知テスト',sub:'設定 > 通知',body:'このように通知されます。',time:'今'},
+    ];
+    const Dk = [L[0], L[2], L[4]].map(o => ({...o}));
+    const docks = [['','対応待ち 0 件 · バッジなし'],['1','承認待ち 1 件'],['4','承認 · 質問 · エラー · 無応答が各 1 件'],['99+','100 件以上']].map(([badge,note]) => ({badge,note}));
+    const win = (dark) => ({height:420,borderRadius:11,overflow:'hidden',display:'flex',flexDirection:'column',background:dark?'#1E1E20':'#FFFFFF',boxShadow:dark?'0 0 0 0.5px rgba(255,255,255,0.18), 0 18px 50px rgba(0,0,0,0.35)':'0 0 0 0.5px rgba(0,0,0,0.22), 0 18px 50px rgba(0,0,0,0.14)'});
+    const I = (id,name,dark,err,title,body,log,memo) => ({id,name,isError:err,isLoading:!err,title,body,log,memo,win:win(dark),
+      iconStyle:{position:'relative',width:64,height:64,borderRadius:15,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'ui-monospace,Menlo,monospace',fontSize:9,color:'#8E8E94',background:dark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)'}, trackStyle:{width:240,height:4,borderRadius:2,overflow:'hidden',background:dark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.08)'},
+      titleStyle:{fontSize:17,fontWeight:700,color:dark?'#F2F2F4':'#1D1D1F'},
+      bodyStyle:{fontSize:12.5,lineHeight:1.6,color:dark?'#ABABB1':'#5B5B60',textWrap:'pretty',maxWidth:400},
+      logStyle:{width:'100%',boxSizing:'border-box',textAlign:'left',fontFamily:'ui-monospace,Menlo,monospace',fontSize:11,lineHeight:1.6,color:dark?'#ABABB1':'#3A3A3E',background:dark?'#2B2B2F':'#F3F3F5',borderRadius:7,padding:'8px 10px',wordBreak:'break-all'},
+      btnS:{height:28,padding:'0 12px',borderRadius:6,background:dark?'#3A3A3E':'#FFFFFF',boxShadow:dark?'0 0 0 0.5px rgba(255,255,255,0.10)':'0 0 0 0.5px rgba(0,0,0,0.16), 0 0.5px 1px rgba(0,0,0,0.1)',color:dark?'#F2F2F4':'#1D1D1F',fontSize:13,display:'flex',alignItems:'center'}});
+    const inits = [
+      I('I1','初期化中',false,false,'Phlox を起動しています','セッションを復元しています（12 / 18）','','1 秒以内に終わるときは出さない。段階の文言は推測（下の分岐候補）。'),
+      I('I2','初期化エラー · ポートの競合',false,true,'Phlox を起動できませんでした','制御用のサーバーを開始できません。別の Phlox が起動しているか、同じポートを使うアプリがあります。','ControlServer: bind(127.0.0.1:47221) failed — Address already in use','⌘R で同じ手順をやり直す。原因の文はそのまま等幅で出し、ユーザーが調べられるようにする。'),
+      I('I3','初期化エラー · データの移行（ダーク）',true,true,'Phlox を起動できませんでした','以前のバージョンのデータを移行できませんでした。データは消えていません。','AppSupportMigrator: ~/Library/Application Support/Phlox/sessions.json — The data couldn’t be read because it isn’t in the correct format.','移行の失敗はデータを消さずに止めることを最初に伝える。'),
+    ];
+    return {bannersLight:L.map(mk(false)), bannersDark:Dk.map(mk(true)), docks, inits};
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>body{margin:0;background:#E7E7EA;} a{color:#A94A28;} a:hover{color:#7E3517;}</style>
+</helmet>
+<div style="padding:80px;display:flex;flex-direction:column;gap:96px;width:max-content;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#1D1D1F;">
+
+<section data-screen-label="00 概要" style="display:flex;gap:56px;align-items:flex-start;">
+  <div style="width:560px;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:13px;color:#75757B;">Phlox macOS · 再設計 05 · 参照: 機能一覧 5章・2.1節・17章</div>
+    <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;">グリッド</div>
+    <div style="font-size:15px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">中央領域のグリッド表示。上端の表示範囲バー（<a href="01 Main Window.dc.html">骨格</a>で決めたもの）と、分割ツリーで並べたタイルで構成する。タイルの中身は会話画面（<a href="04 Session Chat.dc.html">Session Chat</a>）と返答エリア（<a href="05 Reply Area.dc.html">Reply Area</a>）を縮めたもの。</div>
+  </div>
+  <div id="P" style="width:860px;background:#fff;border-radius:12px;padding:26px 28px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:18px;font-weight:700;">論点: タイルが小さくても、状態と「対応が必要か」が読める</div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.65;">
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">1</b><div><b>状態はヘッダの先頭に文字で出す</b>。どの大きさのタイルでも、ヘッダ左端の「承認待ち 3分」「実行中」「待機」が最初に目に入る。サイドバーと同じくアイコンは使わない。</div></div>
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">2</b><div><b>対応が必要なタイルだけ色を付ける</b>。対応待ちの 4 状態はヘッダを状態の色で塗り、タイルの縁も同じ色にする。実行中・待機・完了は無彩色のままで、9 枚並んでも色の付いた数が対応の必要な数になる（<a href="#S4">S4</a>・<a href="#S5">S5</a>）。</div></div>
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">3</b><div><b>大きさで中身を入れ替える</b>。大（480×330pt 以上）は会話の末尾＋操作＋入力欄。中は最後の発言と操作だけ。小（250×175pt 未満）は会話を出さず、要求の中身 1 行と最小限のボタン（許可 / 開く）だけにする（<a href="#S3b">S3b</a>）。縮小表示で文字を小さくすることはしない。</div></div>
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">4</b><div><b>フォーカスは色で、状態は縁で</b>。フォーカス中のタイルは accent の外輪、状態は内側の縁。枠線の太さ（現行の 3pt / 2pt / 1pt）で状態を区別するのはやめる。</div></div>
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">5</b><div><b>範囲の外も数える</b>。絞り込みで見えていない対応待ちは、表示範囲バーの右に状態の文言と件数で出す（<a href="#S6">S6</a>）。</div></div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="S 状態" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">S. 描き分け</div>
+  <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;width:2500px;row-gap:56px;">
+    <div id="S1" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S1</span><span style="font-size:14px;font-weight:600;">2 タイル · 2 列</span></div>
+      <dc-import name="PhloxGrid" label="S1 2タイル" scenario="two" width="1180" height="760" hint-size="1180px,760px"></dc-import></div>
+    <div id="S2" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S2</span><span style="font-size:14px;font-weight:600;">4 タイル · 2 × 2（ダーク）</span></div>
+      <dc-import name="PhloxGrid" label="S2 4タイル" scenario="four" theme="dark" width="1180" height="760" hint-size="1180px,760px"></dc-import></div>
+    <div id="S3" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S3</span><span style="font-size:14px;font-weight:600;">9 タイル · 中サイズ</span></div>
+      <dc-import name="PhloxGrid" label="S3 9タイル" scenario="nine" width="1180" height="760" hint-size="1180px,760px"></dc-import></div>
+    <div id="S3b" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S3b</span><span style="font-size:14px;font-weight:600;">9 タイル · 小サイズ（狭いウィンドウ）</span></div>
+      <dc-import name="PhloxGrid" label="S3b 9タイル小" scenario="tiny" width="740" height="540" hint-size="740px,540px"></dc-import>
+      <div style="width:740px;font-size:12px;line-height:1.6;color:#3A3A3E;">小タイルは会話を出さず、要求の中身だけにする。ヘッダからエージェント名とキーを外し、状態とタイトルを優先する。</div></div>
+    <div id="S4" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S4</span><span style="font-size:14px;font-weight:600;">1 つだけ承認待ち（フォーカスは別のタイル）</span></div>
+      <dc-import name="PhloxGrid" label="S4 1つ承認待ち" scenario="oneApproval" width="1180" height="760" hint-size="1180px,760px"></dc-import>
+      <div style="width:1180px;font-size:12px;line-height:1.6;color:#3A3A3E;">⌥⌘↩ はフォーカス中のタイルに効く。承認待ちのタイルへは ⌘J か ⌥⌘2 で移ってから返す。フォーカスしていないタイルのボタンはクリックでそのまま押せる。</div></div>
+    <div id="S5" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S5</span><span style="font-size:14px;font-weight:600;">複数が要注意（承認・質問・エラー・無応答）</span></div>
+      <dc-import name="PhloxGrid" label="S5 複数要注意" scenario="multiAttn" width="1180" height="760" hint-size="1180px,760px"></dc-import></div>
+    <div id="S6" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S6</span><span style="font-size:14px;font-weight:600;">絞り込み中（プロジェクト＋個別選択の 2 軸）</span></div>
+      <dc-import name="PhloxGrid" label="S6 絞り込み" scenario="filtered" width="1180" height="760" hint-size="1180px,760px"></dc-import>
+      <div style="width:1180px;font-size:12px;line-height:1.6;color:#3A3A3E;">1 軸目: プロジェクト（サイドバーでの選択と同じ状態。トークンの ✕ で「すべて」に戻す）。2 軸目: その中から表示するセッションを選ぶ（「3 / 4 件を表示」、✕ で選択を解除）。2 つの ✕ は別々に効く。範囲外の対応待ちは右に出す。</div></div>
+    <div id="S7" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S7</span><span style="font-size:14px;font-weight:600;">オーケストレーションの子セッション</span></div>
+      <dc-import name="PhloxGrid" label="S7 子セッション" scenario="orch" width="1180" height="760" hint-size="1180px,760px"></dc-import>
+      <div style="width:1180px;font-size:12px;line-height:1.6;color:#3A3A3E;">プロジェクトで絞ったときだけ子セッションもタイルになる（現行どおり）。「内部」タグと「↳ 親: …」の行で、ユーザーが起動したセッションと区別する。</div></div>
+    <div id="S8" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S8</span><span style="font-size:14px;font-weight:600;">ドラッグ中 · 右端にドロップして分割挿入</span></div>
+      <dc-import name="PhloxGrid" label="S8 ドラッグ" scenario="drag" width="1180" height="760" hint-size="1180px,760px"></dc-import>
+      <div style="width:1180px;font-size:12px;line-height:1.6;color:#3A3A3E;">ヘッダをつかんで動かす。元のタイルは薄く残す。ドロップ先の中央なら入れ替え（タイル全体を淡く塗る）、端なら挿入する側の半分を塗り、分割線の位置を線で先に見せる。キーボードでは ⌥⌘⇧＋矢印で隣と入れ替える（案）。</div></div>
+    <div id="S9" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S9</span><span style="font-size:14px;font-weight:600;">分割線のドラッグ（ゴーストで先に見せ、離すと確定）</span></div>
+      <dc-import name="PhloxGrid" label="S9 リサイズ" scenario="resize" width="1180" height="760" hint-size="1180px,760px"></dc-import></div>
+    <div id="S10" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S10</span><span style="font-size:14px;font-weight:600;">対象セッション 0 件</span></div>
+      <dc-import name="PhloxGrid" label="S10 空" scenario="empty" width="1180" height="520" hint-size="1180px,520px"></dc-import></div>
+  </div>
+</section>
+
+<section data-screen-label="L プリセット" style="display:flex;gap:32px;align-items:flex-start;">
+  <div style="width:900px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:16px;">
+    <div style="font-size:16px;font-weight:700;">レイアウトプリセット 9 種（表示範囲バー「レイアウト ▾」と 表示 &gt; グリッドのレイアウト）</div>
+    <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:18px 16px;">
+      <div style="display:flex;flex-direction:column;gap:6px;"><div style="position:relative;height:64px;border-radius:6px;background:#F4F4F6;"><span style="position:absolute;left:4%;top:6%;width:44%;height:40%;border-radius:3px;background:#D0D0D6;"></span><span style="position:absolute;left:52%;top:6%;width:44%;height:40%;border-radius:3px;background:#D0D0D6;"></span><span style="position:absolute;left:4%;top:54%;width:92%;height:40%;border-radius:3px;background:#D0D0D6;"></span></div><span style="font-size:12.5px;font-weight:600;">バランス</span><span style="font-size:11.5px;color:#5B5B60;">件数に合わせて自動</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;"><div style="position:relative;height:64px;border-radius:6px;background:#F4F4F6;"><span style="position:absolute;left:4%;top:6%;width:92%;height:88%;border-radius:3px;background:#D0D0D6;"></span></div><span style="font-size:12.5px;font-weight:600;">1 枚</span><span style="font-size:11.5px;color:#5B5B60;">範囲は保ったまま 1 枚</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;"><div style="position:relative;height:64px;border-radius:6px;background:#F4F4F6;"><span style="position:absolute;left:4%;top:6%;width:44%;height:88%;border-radius:3px;background:#D0D0D6;"></span><span style="position:absolute;left:52%;top:6%;width:44%;height:88%;border-radius:3px;background:#D0D0D6;"></span></div><span style="font-size:12.5px;font-weight:600;">2 列</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;"><div style="position:relative;height:64px;border-radius:6px;background:#F4F4F6;"><span style="position:absolute;left:4%;top:6%;width:28%;height:88%;border-radius:3px;background:#D0D0D6;"></span><span style="position:absolute;left:36%;top:6%;width:28%;height:88%;border-radius:3px;background:#D0D0D6;"></span><span style="position:absolute;left:68%;top:6%;width:28%;height:88%;border-radius:3px;background:#D0D0D6;"></span></div><span style="font-size:12.5px;font-weight:600;">3 列</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;"><div style="position:relative;height:64px;border-radius:6px;background:#F4F4F6;"><span style="position:absolute;left:4%;top:6%;width:92%;height:40%;border-radius:3px;background:#D0D0D6;"></span><span style="position:absolute;left:4%;top:54%;width:92%;height:40%;border-radius:3px;background:#D0D0D6;"></span></div><span style="font-size:12.5px;font-weight:600;">2 段</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;"><div style="position:relative;height:64px;border-radius:6px;background:#F4F4F6;"><span style="position:absolute;left:4%;top:6%;width:92%;height:26%;border-radius:3px;background:#D0D0D6;"></span><span style="position:absolute;left:4%;top:37%;width:92%;height:26%;border-radius:3px;background:#D0D0D6;"></span><span style="position:absolute;left:4%;top:68%;width:92%;height:26%;border-radius:3px;background:#D0D0D6;"></span></div><span style="font-size:12.5px;font-weight:600;">3 段</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;"><div style="position:relative;height:64px;border-radius:6px;background:#F4F4F6;"><span style="position:absolute;left:4%;top:6%;width:44%;height:40%;border-radius:3px;background:#D0D0D6;"></span><span style="position:absolute;left:52%;top:6%;width:44%;height:40%;border-radius:3px;background:#D0D0D6;"></span><span style="position:absolute;left:4%;top:54%;width:44%;height:40%;border-radius:3px;background:#D0D0D6;"></span><span style="position:absolute;left:52%;top:54%;width:44%;height:40%;border-radius:3px;background:#D0D0D6;"></span></div><span style="font-size:12.5px;font-weight:600;">2 × 2</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;"><div style="position:relative;height:64px;border-radius:6px;background:#F4F4F6;"><span style="position:absolute;left:4%;top:6%;width:56%;height:88%;border-radius:3px;background:#D0D0D6;"></span><span style="position:absolute;left:64%;top:6%;width:32%;height:40%;border-radius:3px;background:#D0D0D6;"></span><span style="position:absolute;left:64%;top:54%;width:32%;height:40%;border-radius:3px;background:#D0D0D6;"></span></div><span style="font-size:12.5px;font-weight:600;">左にメイン・右に積む</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;"><div style="position:relative;height:64px;border-radius:6px;background:#F4F4F6;"><span style="position:absolute;left:4%;top:6%;width:92%;height:52%;border-radius:3px;background:#D0D0D6;"></span><span style="position:absolute;left:4%;top:64%;width:44%;height:30%;border-radius:3px;background:#D0D0D6;"></span><span style="position:absolute;left:52%;top:64%;width:44%;height:30%;border-radius:3px;background:#D0D0D6;"></span></div><span style="font-size:12.5px;font-weight:600;">上にメイン・下に並べる</span></div>
+    </div>
+    <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">プリセットは分割ツリーの初期形を作るだけで、あとは分割線とドラッグで自由に崩せる。崩したあとは名前の横に「（調整済み）」を付ける。ツリーはウィンドウごとに保存する（現行どおり）。</div>
+  </div>
+  <div style="width:560px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;font-size:12.5px;line-height:1.6;">
+    <div style="font-size:16px;font-weight:700;">キーボード</div>
+    <div>⌘1–9 タイル（セッション）にフォーカス · ⌘J 次の対応待ちへ · ⌥⌘↩ / ⌥⌘⌫ フォーカス中のタイルの許可・拒否 · ⌘W グリッドから外す · ⌃⌘1 フォーカス中のタイルを単体表示 · タイル見出しの 会話 / 端末 / 変更 で子タブを切り替え（<a href="02 Tabs.dc.html#C3">Tabs C3</a>）</div>
+    <div style="color:#7438BD;">案: ⌥⌘⇧＋矢印で隣と入れ替え、⌃⌥＋矢印で分割線を 5% ずつ動かす（現行にキー操作はない）。</div>
+  </div>
+</section>
+
+<section data-screen-label="M 対応表" style="display:flex;gap:32px;align-items:flex-start;">
+  <div style="width:1180px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">機能対応表（5章・2.1節・17章）</div>
+    <div style="display:grid;grid-template-columns:320px 1fr;font-size:12.5px;line-height:1.5;">
+      <div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">機能</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">置き場所</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">分割ツリーによるタイル配置</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#S1">S1</a>〜<a href="#S3b">S3b</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">レイアウトプリセット 9 種</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">表示範囲バー右（見本は上の表、メニューは <a href="01 Main Window.dc.html">骨格 E2</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">タイルのドラッグ（入れ替え / 分割挿入）・ドロップ先のハイライト</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#S8">S8</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">分割線のドラッグ（ゴースト・最小 240×160・mouseUp で確定）・ダブルクリックで等分・ホバー表示・当たり 8pt</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#S9">S9</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">タイルクリックでフォーカス・ヘッダの mouseDown で即時選択</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">accent の外輪（全シナリオ）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">タイルの右クリック（名前を変更 / プロジェクトを変更（PTY のみ）/ 削除）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">サイドバーと同じメニュー（<a href="03 Sidebar.dc.html">Sidebar F2</a>）に「グリッドから外す」を足す</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">タイルを閉じる（×）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ヘッダ右の ✕ =「グリッドから外す」。削除は右クリック（またはサイドバーで ⌘⌫）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">幅 240pt 未満でのヘッダの縮退</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">小サイズの規則に統合（<a href="#S3b">S3b</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">要注意 / 停止のハイライト</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ヘッダの色と縁（<a href="#S5">S5</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">タイル本文（PTY はターミナル、チャットは承認・会話・入力・Codex 子スレッド）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#S3">S3</a>（リンク切れ検査が PTY）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">タイル内の送信 / 中断・スキル候補・キーワード強調・Esc・サブエージェント</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">大タイルでは返答エリアと同じ。中・小では入力欄を出さず、クリックで大きくして入力</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ライブリサイズ中のレイアウト凍結</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">見た目には出ない</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">オーケストレーションの子セッション</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#S7">S7</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">プロジェクト絞り込み・表示セッション選択・各解除・サマリ（n / total）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">表示範囲バー（<a href="#S6">S6</a>）</div>
+      <div style="padding:6px 8px;">グリッドの空スコープ</div><div style="padding:6px 8px;"><a href="#S10">S10</a></div>
+    </div>
+    <div style="font-size:12px;color:#5B5B60;">未配置の機能: なし。</div>
+  </div>
+  <div style="width:560px;display:flex;flex-direction:column;gap:24px;">
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">現行から大きく変えた点</div>
+      <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+        <div><b>タイルの大きさで中身を 3 段階に切り替える</b>。現行はヘッダだけを縮め、本文は同じものを押し込むため、小さいタイルで要求の中身が読めない。</div>
+        <div><b>状態を枠線の太さから、ヘッダの文字と色に移した</b>。太さの差（3 / 2 / 1pt）は並べないと判別できないため。</div>
+        <div><b>タイルの ✕ を「外す」にした</b>。現行は削除の確認へ直結していた（骨格の回で決定）。</div>
+        <div><b>範囲外の対応待ちを表示範囲バーに出す</b>。絞り込みで待ちを見落とさないため。</div>
+      </div>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;color:#7438BD;">分岐候補</div>
+      <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+        <div>ペイン切替のキー（⌥⌘1–9）は現行に見つかっておらず、新設として扱う。</div>
+        <div>中・小タイルで入力欄を出さない案。常に 1 行出す案もある（タイルの中から直接指示したい場合）。</div>
+        <div>子セッションを絞り込みなしのグリッドにも出すかは、サイドバーの内部セッションの扱い（Sidebar G3）と合わせて決める。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+</x-dc>
+</body>
+</html>

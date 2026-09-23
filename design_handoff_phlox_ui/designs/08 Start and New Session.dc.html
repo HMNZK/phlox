@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>body{margin:0;background:#E7E7EA;} a{color:#A94A28;} a:hover{color:#7E3517;}</style>
+</helmet>
+<div style="padding:80px;display:flex;flex-direction:column;gap:96px;width:max-content;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#1D1D1F;">
+
+<section data-screen-label="00 概要" style="display:flex;gap:56px;align-items:flex-start;">
+  <div style="width:520px;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:13px;color:#75757B;">Phlox macOS · 再設計 07 · 参照: 機能一覧 9章・10章・16.1〜16.3節</div>
+    <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;">空の画面と新規セッション</div>
+    <div style="font-size:15px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">中央に何も表示していないときの 3 つの状態（プロジェクト 0 件 / 未選択 / プロジェクトだけ選択）と、どの入口から始めても同じ手順で進む新規セッションの作成。</div>
+  </div>
+  <div style="width:900px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">作成の手順（全入口で共通）</div>
+    <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;font-size:12px;line-height:1.55;">
+      <div style="background:#F4F4F6;border-radius:9px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;"><b>① 種別と開き方</b><span style="color:#3A3A3E;">入口ごとの UI で選ぶ。起動中は全入口を無効にする（多重起動の防止）</span></div>
+      <div style="background:#F4F4F6;border-radius:9px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;"><b>② CLI の確認</b><span style="color:#3A3A3E;">見つからない種別は選べない状態で見せる（<a href="#S3">S3</a>）</span></div>
+      <div style="background:#F4F4F6;border-radius:9px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;"><b>③ 作業ディレクトリの衝突</b><span style="color:#3A3A3E;">同じディレクトリで動いているセッションがあれば確認する（<a href="#F1">F1</a>）</span></div>
+      <div style="background:#F4F4F6;border-radius:9px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;"><b>④ worktree</b><span style="color:#3A3A3E;">隔離がオンなら 作成 / 再利用 / 作り直し / 中止 のどれかになる（<a href="#F2">F2</a>〜<a href="#F4">F4</a>）</span></div>
+      <div style="background:#F4F4F6;border-radius:9px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;"><b>⑤ 起動</b><span style="color:#3A3A3E;">成功したらプロジェクトを開き、単体表示で選択する。失敗はアラート（<a href="#F5">F5</a>）</span></div>
+    </div>
+    <div style="font-size:12px;line-height:1.6;color:#5B5B60;">③と④は確認が必要なときだけ出す。再利用と「隔離オフ」のときは何も出さずに起動する。</div>
+  </div>
+</section>
+
+<section data-screen-label="S 空の画面" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">S. 何も選ばれていないとき</div>
+  <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;width:3160px;row-gap:56px;">
+    <div id="S1" style="display:flex;flex-direction:column;gap:10px;width:1000px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S1</span><span style="font-size:14px;font-weight:600;">初回起動（プロジェクト 0 件）</span></div>
+      <dc-import name="PhloxStart" label="S1 初回起動" scenario="onboarding" width="1000" height="820" hint-size="1000px,820px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">サイドバーは <a href="03 Sidebar.dc.html">Sidebar S3</a>（空）と組み合わせる。検出の結果を先に見せ、使えない種別があっても始められることを示す。2 回目以降でプロジェクトを全部消した場合は、手順 2・3 を省いた 1 だけを出す。</div></div>
+    <div id="S2" style="display:flex;flex-direction:column;gap:10px;width:1000px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S2</span><span style="font-size:14px;font-weight:600;">プロジェクトはあるが何も選んでいない（ダーク）</span></div>
+      <dc-import name="PhloxStart" label="S2 未選択" scenario="noSelection" theme="dark" width="1000" height="520" hint-size="1000px,520px"></dc-import></div>
+    <div id="S3" style="display:flex;flex-direction:column;gap:10px;width:1000px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S3</span><span style="font-size:14px;font-weight:600;">起動カード · CLI が未インストールの種別がある</span></div>
+      <dc-import name="PhloxStart" label="S3 起動カード 未検出" scenario="cardsMissing" width="1000" height="560" hint-size="1000px,560px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">カードは隠さず、淡くして理由と「入手方法」「再検出」を出す。構造化チャットに対応しないカスタム種別は「ターミナル」だけを出し、それを主ボタンにする。</div></div>
+    <div id="S4" style="display:flex;flex-direction:column;gap:10px;width:1000px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S4</span><span style="font-size:14px;font-weight:600;">起動カード · 全種別が使える（ダーク）</span></div>
+      <dc-import name="PhloxStart" label="S4 起動カード" scenario="cards" theme="dark" width="1000" height="560" hint-size="1000px,560px"></dc-import></div>
+    <div id="S5" style="display:flex;flex-direction:column;gap:10px;width:760px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">S5</span><span style="font-size:14px;font-weight:600;">狭い幅では 2 列に · 起動中（worktree を作成中）</span></div>
+      <dc-import name="PhloxStart" label="S5 起動中" scenario="creating" width="760" height="720" hint-size="760px,720px"></dc-import></div>
+  </div>
+</section>
+
+<section data-screen-label="F ガードレール" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">F. 確認とガードレール</div>
+  <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;width:3160px;row-gap:56px;">
+    <div id="F1" style="display:flex;flex-direction:column;gap:10px;width:1000px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F1</span><span style="font-size:14px;font-weight:600;">同じ作業ディレクトリを共有するセッションとの衝突</span></div>
+      <dc-import name="PhloxStart" label="F1 衝突" scenario="cards" overlay="collision" width="1000" height="560" hint-size="1000px,560px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">worktree 隔離がオフのプロジェクトでだけ出る（オンなら④に進むので衝突しない）。同じディレクトリで動いているセッションを状態付きで並べ、既定の選択は「worktree で分けて起動」にする。</div></div>
+    <div id="F2" style="display:flex;flex-direction:column;gap:10px;width:760px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F2</span><span style="font-size:14px;font-weight:600;">worktree の作成（確認なし・進行を表示）</span></div>
+      <dc-import name="PhloxStart" label="F2 作成" scenario="creating" width="760" height="720" hint-size="760px,720px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">作成・再利用は確認を出さない。下端に作業ツリーのパスを出し、終わったら消す。</div></div>
+    <div id="F3" style="display:flex;flex-direction:column;gap:10px;width:1000px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F3</span><span style="font-size:14px;font-weight:600;">worktree の作り直し</span></div>
+      <dc-import name="PhloxStart" label="F3 作り直し" scenario="cards" overlay="wtRecreate" width="1000" height="560" hint-size="1000px,560px"></dc-import></div>
+    <div id="F4" style="display:flex;flex-direction:column;gap:10px;width:1000px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F4</span><span style="font-size:14px;font-weight:600;">worktree の作成に失敗（中止）· ダーク</span></div>
+      <dc-import name="PhloxStart" label="F4 作成失敗" scenario="cards" overlay="wtFail" theme="dark" width="1000" height="560" hint-size="1000px,560px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">git の出力をそのまま見せ、次の手（既存の worktree を使う / 隔離なしで起動 / やめる）を並べる。</div></div>
+    <div id="F5" style="display:flex;flex-direction:column;gap:10px;width:1000px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F5</span><span style="font-size:14px;font-weight:600;">起動の失敗（例: 子セッションの深さ上限）</span></div>
+      <dc-import name="PhloxStart" label="F5 起動失敗" scenario="cards" overlay="spawnErr" width="1000" height="560" hint-size="1000px,560px"></dc-import>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">同じ形で出す失敗: CLI の実行ファイルが見つからない / カスタムのバイナリが見つからない / 深さ上限（3）/ 総数上限 / レート上限（1 秒に 5 回）/ hooks を設置できない（既存の設定ファイルと衝突）/ 後始末の失敗（警告）。文言は Localizable の既存キーを使う。</div></div>
+  </div>
+</section>
+
+<section data-screen-label="E 入口" style="display:flex;gap:32px;align-items:flex-start;">
+  <div style="width:1180px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">新規セッションの全入口（10章）</div>
+    <div style="display:grid;grid-template-columns:200px 1fr 1fr 230px;font-size:12.5px;line-height:1.55;">
+      <div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">入口</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">種別・開き方の選び方</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">プロジェクト</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">見本</div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">メニュー · ⌘N</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">種別 × 開き方の表（1–9 で種別、↩ チャット、⌥↩ ターミナル）。現行の ⌘N / ⇧⌘N / ⌥⌘N は骨格の回で統合済み</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">選択中のプロジェクト。未選択なら表の見出しでプロジェクトを選ぶ</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="03 Sidebar.dc.html">Sidebar F5</a></div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">サイドバー（プロジェクト行の ＋ / 下端）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">同上</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">その行のプロジェクト / 選択中のプロジェクト</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="03 Sidebar.dc.html">Sidebar F5</a></div>
+      <div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">起動カード</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">カードのボタン（1–4 / ↩ / ⌥↩）</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">選択中のプロジェクト</div><div style="padding:7px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#S3">S3</a>・<a href="#S4">S4</a></div>
+      <div style="padding:7px 8px;">Control API · CLI（UI 外）</div><div style="padding:7px 8px;">UI には確認を出さずに作成し、サイドバーに通常の行として現れる</div><div style="padding:7px 8px;">リクエストで指定</div><div style="padding:7px 8px;">—</div>
+    </div>
+    <div style="font-size:12px;line-height:1.6;color:#5B5B60;">親がチャット型で、子の種別が構造化チャットに対応していれば、子もチャット型で起動する（現行どおり）。</div>
+  </div>
+  <div style="width:560px;display:flex;flex-direction:column;gap:24px;">
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">機能対応表（9章・10章・16.1〜16.3）</div>
+      <div style="font-size:12.5px;line-height:1.6;display:flex;flex-direction:column;gap:6px;">
+        <div>プロジェクト未選択のプレースホルダ → <a href="#S2">S2</a></div>
+        <div>起動カード群・起動中の無効化・構造化チャット対応による出し分け → <a href="#S3">S3</a>〜<a href="#S5">S5</a></div>
+        <div>カード列の横並び ⇄ 折り返し → 900pt 以上で 4 列、未満で 2 列（<a href="#S5">S5</a>）</div>
+        <div>プロジェクト 0 件のフォルダ追加 → <a href="#S1">S1</a></div>
+        <div>深さ・レート制限、CLI 未検出のエラー → <a href="#F5">F5</a></div>
+        <div>WorkspaceCollisionPolicy → <a href="#F1">F1</a></div>
+        <div>WorktreeIsolationOutcome（disabled / create / reuse / recreate / abort）→ 起動 / <a href="#F2">F2</a> / 表示なし / <a href="#F3">F3</a> / <a href="#F4">F4</a></div>
+        <div>種別一覧（組込 3＋カスタム）・起動オプション・権限の種別差 → カードのモデル・権限の初期値</div>
+        <div>未配置: なし</div>
+      </div>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">現行から変えた点</div>
+      <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+        <div><b>初回起動に CLI の検出結果を出す</b>。現行はカードに出ない種別があっても理由が分からない。</div>
+        <div><b>カードにモデルと権限の初期値を出す</b>。起動前に「何で動くか」を確認できるようにする。</div>
+        <div><b>衝突と worktree の失敗を、次の手を選べる確認にする</b>。現行は衝突の検知結果が UI に出ているか未確認。</div>
+      </div>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;color:#7438BD;">分岐候補（推測・未確認）</div>
+      <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+        <div>初期値を「この種別で最後に使った設定」にする案（LastUsedChatSettingsStore が根拠だが未読）。</div>
+        <div>衝突の確認を出すかどうかの判定（WorkspaceCollisionPolicy の詳細）は未読。</div>
+        <div>worktree のパス規則（../phlox.worktrees/…）とブランチ名は例。</div>
+        <div>AgentKind の並び順は未確定。本案は Claude → Codex → Cursor → カスタムの順。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+</x-dc>
+</body>
+</html>

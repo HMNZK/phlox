@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>body{margin:0;background:#E7E7EA;} a{color:#A94A28;} a:hover{color:#7E3517;}</style>
+</helmet>
+<div style="padding:80px;display:flex;flex-direction:column;gap:100px;width:max-content;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#1D1D1F;">
+
+<section data-screen-label="00 概要" style="display:flex;gap:56px;align-items:flex-start;">
+  <div style="width:560px;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:13px;color:#75757B;">Phlox macOS · 再設計 03 · 参照: 機能一覧 4章（4.1・4.4・4.5）・16.4節・17章</div>
+    <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;">会話画面（単体表示）</div>
+    <div style="font-size:15px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">中央領域の中身。上からセッションヘッダ → 会話 → 承認・質問 → 入力欄。会話の本文は 760pt を上限に中央寄せし、エージェント側の要素はすべて同じ字下げ（30pt）で揃えて、ユーザー発言だけを右に寄せる。入力欄の詳細（4.3 節）は別の回で扱う。</div>
+  </div>
+  <div style="width:760px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:15px;font-weight:700;">カードの既定の開き方</div>
+    <div style="display:grid;grid-template-columns:150px 1fr 110px;font-size:12.5px;line-height:1.55;">
+      <div style="padding:6px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">種類</div><div style="padding:6px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">既定</div><div style="padding:6px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">根拠</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">推論</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">閉じる。生成中は 1 行だけプレビューを出す</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#7438BD;">案</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">コマンドグループ</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">閉じる。実行中のグループだけ開き、最後の行に「実行中」を出す。20 行を超えたら「さらに表示」</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">20 行は現行</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">コマンド単体</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">閉じる。失敗（exit ≠ 0）したものだけ開いておく</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#7438BD;">案</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ファイル変更</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">常に閉じる（ユーザーが開くまで）。開いたあと 500 行ごとに「さらに表示」</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">現行どおり</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">タスクリスト</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">いちばん新しいものだけ開く。古いものは閉じる</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#7438BD;">案</div>
+      <div style="padding:6px 8px;">エラー・質問・承認</div><div style="padding:6px 8px;">常に全体を表示する（折りたたまない）</div><div style="padding:6px 8px;">現行どおり</div>
+    </div>
+    <div style="font-size:11.5px;color:#75757B;line-height:1.6;">現行の既定の展開ロジック（TranscriptItemPresentation）は未読のため、「案」の行は分岐候補として扱う。</div>
+  </div>
+</section>
+
+<section data-screen-label="A 全種" style="display:flex;gap:48px;align-items:flex-start;">
+  <div id="A1" style="display:flex;flex-direction:column;gap:10px;">
+    <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">A1</span><span style="font-size:15px;font-weight:600;">4.1 節のメッセージとカード全種（見本・ライト）</span></div>
+    <dc-import name="PhloxChat" label="A1 全種" scenario="catalog" width="880" height="2620" hint-size="880px,2620px"></dc-import>
+  </div>
+  <div id="A2" style="display:flex;flex-direction:column;gap:10px;">
+    <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">A2</span><span style="font-size:15px;font-weight:600;">同・ダーク</span></div>
+    <dc-import name="PhloxChat" label="A2 全種 ダーク" scenario="catalog" theme="dark" width="880" height="2620" hint-size="880px,2620px"></dc-import>
+  </div>
+  <div style="width:520px;display:flex;flex-direction:column;gap:20px;">
+    <div style="background:#fff;border-radius:12px;padding:22px 24px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;font-size:12.5px;line-height:1.65;">
+      <div style="font-size:15px;font-weight:700;">見本の読み方</div>
+      <div>上の等幅の小見出しは見本用の注記で、実画面には出ない。</div>
+      <div><b>承認バナー</b>は会話の中ではなく入力欄の直上に固定する（最下部に 1 枚だけ）。種類ごとに見出しを変える: 「承認待ち · コマンドの実行」「承認待ち · ファイルの変更」「承認待ち · 権限の変更」（返答エリアの回に合わせて統一）。選択肢は 許可 / このセッション中は許可 / 拒否 / キャンセル の 4 つ。</div>
+      <div><b>思考中インジケータ</b>は、ThinkingOrb（6 モード）の代わりに点線の円で示した。文言は活動の状態（考え中・検索中・実行中・編集中・書き込み中・待機中）に合わせて変え、下の行に直近のアクションの要約を出す。</div>
+      <div><b>圧縮中の犬アニメーション</b>は既存の実装をそのまま使う前提で、図では縞模様の枠にした。視差を減らす設定では静止させる。</div>
+      <div><b>ターンの使用量</b>は、ターンの最後に右寄せで 1 行（コスト · トークンの内訳 · コンテキスト使用率）。現行はコストだけを表示している。</div>
+      <div><b>コードのハイライト</b>はキーワード・文字列・数値・コメントの 4 色だけにする（ChatCodeTokenizer の分類）。</div>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:22px 24px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:15px;font-weight:700;">セッションヘッダ · 命名の 3 段階</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="font-size:11.5px;color:#5B5B60;">① 花名（起動直後の自動の名前）</div>
+        <dc-import name="PhloxChat" label="H1" naming="flower" scenario="idle" width="472" height="56" hint-size="472px,56px"></dc-import>
+        <div style="font-size:11.5px;color:#5B5B60;">② 内容からの自動生成</div>
+        <dc-import name="PhloxChat" label="H2" naming="derived" scenario="idle" width="472" height="56" hint-size="472px,56px"></dc-import>
+        <div style="font-size:11.5px;color:#5B5B60;">③ 手動の名前（タグなし）</div>
+        <dc-import name="PhloxChat" label="H3" naming="manual" scenario="idle" width="472" height="56" hint-size="472px,56px"></dc-import>
+      </div>
+      <div style="font-size:12px;line-height:1.6;color:#3A3A3E;">ヘッダの並び: タイトル（＋命名タグ）/ エージェント · モデル · 作業ディレクトリ · ブランチ / サブエージェントの帯 / 状態 / 書き出し。タイトルをダブルクリックすると名前を編集でき、空欄で確定すると自動の名前に戻る。</div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="B 状態" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">B. 状態の描き分け</div>
+  <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;width:3760px;row-gap:56px;">
+    <div id="B1" style="display:flex;flex-direction:column;gap:10px;width:880px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">B1</span><span style="font-size:15px;font-weight:600;">実行中 · ツールが連続実行されている</span></div>
+      <dc-import name="PhloxChat" label="B1 実行中" scenario="running" width="880" height="860" hint-size="880px,860px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">実行中のグループだけが開き、枠線が 1 段濃くなる。推論は 1 行のプレビューだけ。入力欄の右端は中断ボタン（Esc / ⌘.）。</div>
+    </div>
+    <div id="B2" style="display:flex;flex-direction:column;gap:10px;width:880px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">B2</span><span style="font-size:15px;font-weight:600;">待機 · ターンが終わり次の指示待ち（ダーク）</span></div>
+      <dc-import name="PhloxChat" label="B2 待機" scenario="idle" theme="dark" width="880" height="860" hint-size="880px,860px"></dc-import>
+    </div>
+    <div id="B3" style="display:flex;flex-direction:column;gap:10px;width:880px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">B3</span><span style="font-size:15px;font-weight:600;">完了 · プロセスが終了した</span></div>
+      <dc-import name="PhloxChat" label="B3 完了" scenario="done" width="880" height="860" hint-size="880px,860px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#7438BD;">分岐候補: completed(exitCode) がチャット型でどの場面を指すかは未確認。プロセス終了と解釈し、入力欄の代わりに終了コードと「この会話から再開」（Claude / Codex の再開機能）を出した。</div>
+    </div>
+    <div id="B4" style="display:flex;flex-direction:column;gap:10px;width:880px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">B4</span><span style="font-size:15px;font-weight:600;">エラー · ビルド失敗と API エラー</span></div>
+      <dc-import name="PhloxChat" label="B4 エラー" scenario="error" width="880" height="860" hint-size="880px,860px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">失敗したコマンドは開いたままにし、エラー行を赤で示す。エラーのセルは赤の枠＋三角＋見出しの 3 つで示す。</div>
+    </div>
+    <div id="B5" style="display:flex;flex-direction:column;gap:10px;width:880px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">B5</span><span style="font-size:15px;font-weight:600;">無応答 · 120 秒反応なし（ダーク）</span></div>
+      <dc-import name="PhloxChat" label="B5 無応答" scenario="stalled" theme="dark" width="880" height="860" hint-size="880px,860px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">思考中インジケータが紫の枠に変わり、経過時間（1 秒ごとに更新）と「中断」を出す。ヘッダの状態も「無応答 2:14」。検知はチャット型だけで、ターミナル型には出ない。</div>
+    </div>
+    <div id="B6" style="display:flex;flex-direction:column;gap:10px;width:880px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">B6</span><span style="font-size:15px;font-weight:600;">圧縮中 · /compact</span></div>
+      <dc-import name="PhloxChat" label="B6 圧縮中" scenario="compacting" width="880" height="860" hint-size="880px,860px"></dc-import>
+    </div>
+    <div id="B7" style="display:flex;flex-direction:column;gap:10px;width:880px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">B7</span><span style="font-size:15px;font-weight:600;">非常に長い会話 · 過去を読んでいて追従が外れている</span></div>
+      <dc-import name="PhloxChat" label="B7 長い会話" scenario="long" width="880" height="860" hint-size="880px,860px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">最初は直近だけを描画し、先頭の「以前のメッセージを表示」で読み込む範囲を広げる。手動で最下部から 80pt 以上離れると追従を外し（新着でスクロールしない）、「↓ 最新へ · 新着 n」を出す。押すか、会話にフォーカスがあるときの End で最下部に戻り、追従を再開する。セッションを切り替えると追従状態は戻る。</div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="C 操作" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">C. 操作の流れ</div>
+  <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;width:3760px;row-gap:56px;">
+    <div id="C1" style="display:flex;flex-direction:column;gap:10px;width:880px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">C1</span><span style="font-size:15px;font-weight:600;">ホバー（コピーと時刻）とテキスト選択</span></div>
+      <dc-import name="PhloxChat" label="C1 ホバーと選択" scenario="idle" overlay="hover" width="880" height="860" hint-size="880px,860px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">本文・コード・コマンド出力は選択できる。差分の行は選択できないので（セッション切替が最大 1987ms 遅くなる原因だったため）、代わりに「セクションをコピー」を出す。</div>
+    </div>
+    <div id="C2" style="display:flex;flex-direction:column;gap:10px;width:880px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">C2</span><span style="font-size:15px;font-weight:600;">カードを展開（グループ・差分・コマンド）</span></div>
+      <dc-import name="PhloxChat" label="C2 展開" scenario="idle" overlay="expanded" width="880" height="1180" hint-size="880px,1180px"></dc-import>
+    </div>
+    <div id="C3" style="display:flex;flex-direction:column;gap:10px;width:1320px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">C3</span><span style="font-size:15px;font-weight:600;">サブエージェントのドロワー（帯かマーカーをクリック）</span></div>
+      <dc-import name="PhloxChat" label="C3 サブエージェント" scenario="running" overlay="subagent" width="1320" height="860" hint-size="1320px,860px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">右に 42%（最小 320pt・最大 60%、幅は保存）で開く。本文の上に推論の末尾 3 行を出し、下端から追加の指示を送れる。Esc・✕・「メインへ戻る」で閉じる。帯の同じチップをもう一度押しても閉じる。</div>
+    </div>
+    <div id="C4" style="display:flex;flex-direction:column;gap:10px;width:880px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">C4</span><span style="font-size:15px;font-weight:600;">Esc を 2 回（1.5 秒以内）→ 巻き戻し</span></div>
+      <dc-import name="PhloxChat" label="C4 巻き戻し" scenario="idle" overlay="revert" width="880" height="860" hint-size="880px,860px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">Esc 1 回の優先順: ① このピッカーを閉じる → ② サブエージェントのドロワーを閉じる → ③ 実行中なら中断。2 回でピッカー。確定すると、選んだ発言が入力欄に戻る。</div>
+    </div>
+    <div id="C5" style="display:flex;flex-direction:column;gap:10px;width:880px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">C5</span><span style="font-size:15px;font-weight:600;">過去の会話から再開（新規セッションの最初）</span></div>
+      <dc-import name="PhloxChat" label="C5 履歴" scenario="history" naming="flower" width="880" height="760" hint-size="880px,760px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">Claude Code と Codex だけ。選ぶと会話の中身をそっくり置き換える。Cursor では出さず、すぐに空の会話から始める。</div>
+    </div>
+    <div id="C6" style="display:flex;flex-direction:column;gap:10px;width:880px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">C6</span><span style="font-size:15px;font-weight:600;">会話を書き出す（ヘッダのボタン / ⇧⌘E）</span></div>
+      <dc-import name="PhloxChat" label="C6 書き出し" scenario="idle" overlay="export" width="880" height="760" hint-size="880px,760px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">推論・コマンド出力・タイムスタンプの有無を選ぶ。選択はアプリ全体で覚えておく。書き込みに失敗したらアラートを出す（現行どおり）。</div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="D 種別差" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">D. エージェント種別による差</div>
+  <div style="display:flex;gap:40px;align-items:flex-start;">
+    <div id="D1" style="display:flex;flex-direction:column;gap:10px;width:880px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">D1</span><span style="font-size:15px;font-weight:600;">Codex · プランと子スレッド（停止ボタン付き）</span></div>
+      <dc-import name="PhloxChat" label="D1 Codex" scenario="codex" agent="codex" width="880" height="860" hint-size="880px,860px"></dc-import>
+    </div>
+    <div id="D2" style="display:flex;flex-direction:column;gap:10px;width:880px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">D2</span><span style="font-size:15px;font-weight:600;">Cursor · 推論カードなし</span></div>
+      <dc-import name="PhloxChat" label="D2 Cursor" scenario="cursor" agent="cursor" width="880" height="860" hint-size="880px,860px"></dc-import>
+    </div>
+    <div id="D3" style="display:flex;flex-direction:column;gap:10px;width:880px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">D3</span><span style="font-size:15px;font-weight:600;">カスタム（構造化チャット非対応）· ターミナル表示</span></div>
+      <dc-import name="PhloxChat" label="D3 カスタム" scenario="pty" agent="custom" width="880" height="620" hint-size="880px,620px"></dc-import>
+    </div>
+  </div>
+  <div style="width:1480px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">会話表示に出る差（16章）</div>
+    <div style="display:grid;grid-template-columns:220px repeat(4,minmax(0,1fr));font-size:12.5px;line-height:1.55;">
+      <div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">項目</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">Claude Code</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">Codex</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">Cursor</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">カスタム / ターミナル型</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">推論カード</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">あり</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">あり</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">なし（<a href="#D2">D2</a>）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">—（端末出力）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ヘッダのモデル表記</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">モデル · effort</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">モデル · 推論の深さ</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">モデルのみ</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">「ターミナル」</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">プラン・子スレッド</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">サブエージェント（帯＋ドロワー）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">プランと子スレッドをインライン表示・停止（<a href="#D1">D1</a>）＋ドロワー</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">サブエージェント</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">なし</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">過去の会話から再開</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">あり（<a href="#C5">C5</a>）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">あり</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">なし</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">agents.json の resume 設定次第</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">巻き戻し（Esc 2 回）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">あり</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">あり（ID の再採用方法が異なる）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">あり</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">なし（Esc は端末へ送る）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">無応答の検知</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">あり</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">あり</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">あり</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">なし</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">画像添付の表示</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">添付チップ</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">添付チップ（モデル次第、<span style="color:#7438BD;">16.5 未解消</span>）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">なし</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">なし</div>
+      <div style="padding:6px 8px;">承認・質問の受け皿</div><div style="padding:6px 8px;" >共通（ChatApprovalBroker）</div><div style="padding:6px 8px;">共通。PTY 起動時は信頼の確認に自動で応答</div><div style="padding:6px 8px;">共通</div><div style="padding:6px 8px;">端末内で応答</div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="M 対応表" style="display:flex;gap:32px;align-items:flex-start;">
+  <div style="width:1180px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">機能対応表（4.1・4.4・4.5・16.4・17）</div>
+    <div style="display:grid;grid-template-columns:280px 1fr;font-size:12.5px;line-height:1.5;">
+      <div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">機能</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">置き場所</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ユーザー / アシスタントメッセージ・Markdown・コード</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#A1">A1</a>。コピーはホバー（<a href="#C1">C1</a>）、コードブロックは見出しの「コピー」</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">推論・コマンド単体・コマンドグループ・ファイル変更・タスクリスト</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">折りたたみカード（<a href="#A1">A1</a>・<a href="#C2">C2</a>）。既定は概要の表</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">エラー・ユーザー質問・承認バナー</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#A1">A1</a>（承認は入力欄の直上に固定）・<a href="#B4">B4</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">思考中・直近アクション要約・接続待ち・圧縮中</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#A1">A1</a>・<a href="#B1">B1</a>・<a href="#B6">B6</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ハング検知（120 秒）・経過時間・中断</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#B5">B5</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ターンのコスト（TurnUsage）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ターン末尾の右寄せ 1 行。トークン内訳とコンテキストを追加</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">サブエージェントマーカー・帯・ドロワー・追加指示・推論プレビュー・リサイズ</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">帯はヘッダ右、マーカーは会話内、ドロワーは右（<a href="#C3">C3</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">Codex のプラン・子スレッド・停止</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#D1">D1</a>。停止できない状態では停止ボタンを無効にする</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">中断・Esc の優先順・Esc 2 回の巻き戻し・下書きの復元</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#C4">C4</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">履歴から再開</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#C5">C5</a>・<a href="#B3">B3</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">自動スクロール追従・解除・復帰・切替時のリセット</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#B7">B7</a>（「↓ 最新へ」を新設）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">以前のメッセージを表示</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">会話の先頭（<a href="#B7">B7</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">テキスト選択の方針</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#C1">C1</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">会話の書き出し（Markdown・オプション）/ Markdown でコピー</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ヘッダのボタン → <a href="#C6">C6</a>、⇧⌘E / ⌥⇧⌘C</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">セッションヘッダ（命名 3 段階・状態・種別・作業ディレクトリ・ブランチ）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#A1">A1</a> 右の見本</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">PTY 型の単体表示・信頼確認の自動応答・対話質問の検知</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#D3">D3</a>（質問を検知したら状態は「承認待ち」になり、サイドバーの対応待ちに出る）</div>
+      <div style="padding:6px 8px;">描画の性能（メモ化キャッシュ・画面外セルの更新停止）</div><div style="padding:6px 8px;">見た目には出ない。画面外で動くのは圧縮中のアニメーションだけで、これも止める</div>
+    </div>
+    <div style="font-size:12px;color:#5B5B60;">未配置の機能: なし。</div>
+  </div>
+  <div style="width:560px;display:flex;flex-direction:column;gap:24px;">
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">現行から大きく変えた点</div>
+      <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+        <div><b>セッションヘッダを中央の上端に新設した</b>。作業ディレクトリ・ブランチ・命名の段階が散っていたため。ツールバーのタイトルはこれと同じ内容を 1 行に縮めたもの。</div>
+        <div><b>エージェント側の要素を 1 本の字下げ列に揃えた</b>。カード・エラー・マーカーの左端を揃え、ユーザー発言だけを右に寄せることで、長い会話でもターンの区切りが追える。</div>
+        <div><b>ターンの使用量をコストだけからトークン内訳まで広げた</b>。TurnUsage にある値のうち、コンテキストの減り方を判断に使えるものを出す。</div>
+        <div><b>追従を外したときに「↓ 最新へ」を出す</b>。現行は状態を内部で持つだけで、外れていることが画面から分からない。</div>
+      </div>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;color:#7438BD;">分岐候補（推測・未確認）</div>
+      <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
+        <div>カードの既定の開き方（「案」の行）。現行ロジックは未読。</div>
+        <div>completed(exitCode) の意味（<a href="#B3">B3</a>）。</div>
+        <div>Codex の画像添付の可否は「選択モデル次第」の中身が未確定のため、添付チップは出す前提で描いた。</div>
+        <div>通知の「入力待ち」が完了にも使われている件は、会話画面には影響しない。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+</x-dc>
+</body>
+</html>

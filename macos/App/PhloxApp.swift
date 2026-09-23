@@ -720,6 +720,20 @@ private struct SessionCommands: Commands {
             .keyboardShortcut(".", modifiers: .command)
             .disabled(!(exportableChatSession?.showsProcessingIndicator ?? false))
 
+            // 承認カードの許可 / 拒否（05 R6: 入力欄にいても修飾キー 2 つで返せる。出た直後 0.5 秒は効かない）。
+            Button("許可") {
+                guard let chat = exportableChatSession else { return }
+                Task { await chat.respondToCurrentApproval(.accept) }
+            }
+            .keyboardShortcut(.return, modifiers: [.command, .option])
+            .disabled(exportableChatSession?.currentReplyApproval == nil)
+            Button("拒否") {
+                guard let chat = exportableChatSession else { return }
+                Task { await chat.respondToCurrentApproval(.decline) }
+            }
+            .keyboardShortcut(.delete, modifiers: [.command, .option])
+            .disabled(exportableChatSession?.currentReplyApproval == nil)
+
             Divider()
 
             // 対話 TUI の /export 相当。チャットセッションのみ対象（PTY は transcript を持たない）。

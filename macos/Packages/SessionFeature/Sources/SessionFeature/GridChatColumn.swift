@@ -29,8 +29,6 @@ struct GridChatColumn: View {
             // 470〜643ms ハングする（Time Profiler 内訳の 85.6% が CoreText 再 measure）。
             let formattingWidth = (isLiveResizing && stableWidth > 0) ? stableWidth : geo.size.width
             VStack(spacing: 0) {
-                // 承認が無いときは非表示・場所を取らない（単体表示と同じ）。
-                ApprovalBanner(viewModel: viewModel)
                 ChatTranscriptView(
                     viewModel: viewModel,
                     transcript: selectedSubAgentTranscript,
@@ -56,16 +54,20 @@ struct GridChatColumn: View {
                     }
                     .overlay(alignment: .bottom) {
                         let proposedComposerWidth = ComposerLayout.proposedWidth(mainColumnWidth: formattingWidth)
-                        GridComposerBar(
-                            viewModel: viewModel,
-                            text: $viewModel.draft,
-                            controlsLayout: proposedComposerWidth.map(ComposerLayout.gridControlsLayout(proposedWidth:)) ?? .compact,
-                            projectName: projectName,
-                            onSend: sendDraft,
-                            onInterrupt: interruptTurn,
-                            onFocusGained: onFocusGained,
-                            placeholder: UIWording.text(.composerPlaceholder, languageCode: languageCode)
-                        )
+                        // 承認・質問のカードは単体表示と同じく入力欄の直上（05）。キーの案内はタイルでは出さない。
+                        ChatReplyArea(viewModel: viewModel, showsKeyHints: false, onRetrySend: sendDraft) {
+                            GridComposerBar(
+                                viewModel: viewModel,
+                                text: $viewModel.draft,
+                                controlsLayout: proposedComposerWidth.map(ComposerLayout.gridControlsLayout(proposedWidth:)) ?? .compact,
+                                projectName: projectName,
+                                onSend: sendDraft,
+                                onInterrupt: interruptTurn,
+                                onFocusGained: onFocusGained,
+                                placeholder: UIWording.text(.composerPlaceholder, languageCode: languageCode),
+                                showsBranch: formattingWidth >= 600
+                            )
+                        }
                         .frame(maxWidth: ComposerLayout.maxWidth(mainColumnWidth: formattingWidth))
                         .frame(maxWidth: .infinity)
                         // パネル上端から下の帯のマスク（ChatSessionView と同型。上余白帯は
@@ -168,6 +170,8 @@ struct GridComposerBar: View {
     let onInterrupt: () -> Void
     let onFocusGained: () -> Void
     let placeholder: String
+    /// 600pt 以上ならブランチを出す（グリッドの下の列は常に compact なので幅で決める）。
+    var showsBranch = false
     @State private var editorHeight: CGFloat = ComposerHeightBounds.grid.min
     @State private var isComposing = false
     @State private var suggestionController: ComposerSuggestionController
@@ -180,7 +184,8 @@ struct GridComposerBar: View {
         onSend: @escaping () -> Void,
         onInterrupt: @escaping () -> Void,
         onFocusGained: @escaping () -> Void = {},
-        placeholder: String = ""
+        placeholder: String = "",
+        showsBranch: Bool = false
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
         _text = text
@@ -190,6 +195,7 @@ struct GridComposerBar: View {
         self.onInterrupt = onInterrupt
         self.onFocusGained = onFocusGained
         self.placeholder = placeholder
+        self.showsBranch = showsBranch
         let controller = ComposerSuggestionController.production(workingDirectory: viewModel.workspacePath)
         controller.onAcceptSkill = { [weak viewModel] identity in
             viewModel?.codexSkillSelectionState?.select(name: identity.name, path: identity.path)
@@ -272,7 +278,9 @@ struct GridComposerBar: View {
                     onEscape: { performChatEscape(viewModel) },
                     onFocusGained: onFocusGained,
                     focusRequest: viewModel.composerFocusRequest,
-                    highlightsKeywords: viewModel.agentRef == .builtin(.claudeCode)
+                    highlightsKeywords: viewModel.agentRef == .builtin(.claudeCode),
+                    onTab: { viewModel.moveFocusToReplyCard() },
+                    isEditable: viewModel.inFlightText == nil
                 )
                 .frame(
                     minHeight: ComposerHeightBounds.grid.min,
@@ -299,7 +307,8 @@ struct GridComposerBar: View {
                 canSubmit: canSubmit,
                 onSend: onSend,
                 onInterrupt: onInterrupt,
-                accessibilityPrefix: "GridComposer"
+                accessibilityPrefix: "GridComposer",
+                showsBranchOverride: showsBranch
             )
         }
         .padding(DSSpacing.s)
@@ -368,7 +377,8 @@ struct GridComposerBar: View {
                     insertionText: "$\(skill.name)",
                     subtitle: skill.description,
                     kind: .slashCommand,
-                    skillIdentity: SkillIdentity(name: skill.name, path: skill.path)
+                    skillIdentity: SkillIdentity(name: skill.name, path: skill.path),
+                    origin: .skills
                 )
             }
         )

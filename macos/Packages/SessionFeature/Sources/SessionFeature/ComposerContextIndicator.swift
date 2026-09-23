@@ -110,6 +110,10 @@ struct ComposerContextIndicator: View {
     var layout: ComposerIndicatorLayout = .regular
     var branchNameOverride: String?
     var branchIsCheckingOutOverride = false
+    /// 600pt 未満（compact）ではブランチを隠す（05「幅による下の列の切り替え」）。
+    var showsBranch = true
+    /// 80% を超えたとき /compact を案内するか（/compact を持つエージェントだけ）。
+    var suggestsCompact = false
     @Environment(\.locale) private var locale
 
     private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
@@ -118,11 +122,18 @@ struct ComposerContextIndicator: View {
         HStack(spacing: DSSpacing.xs) {
             if let fraction = ComposerContextGauge.fraction(for: usage) {
                 contextDonut(fraction: fraction)
+                Text(verbatim: "\(Int((fraction * 100).rounded()))%")
+                    .font(DSFont.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(DSColor.chatTextSecondary)
+                    .fixedSize()
             }
-            branchLabel
-                // フッター幅不足時は送信・停止ボタンより先に圧縮させる（不変条件 i）。
-                .layoutPriority(-1)
-                .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity, alignment: .leading)
+            if showsBranch {
+                branchLabel
+                    // フッター幅不足時は送信・停止ボタンより先に圧縮させる（不変条件 i）。
+                    .layoutPriority(-1)
+                    .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity, alignment: .leading)
+            }
         }
         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
     }
@@ -162,7 +173,12 @@ struct ComposerContextIndicator: View {
                 .frame(width: diameter, height: diameter)
                 .overlay(alignment: .top) {
                     if isHovering {
-                        ComposerContextPopover(lines: popoverLines)
+                        ComposerContextPopover(
+                            lines: popoverLines,
+                            warning: suggestsCompact && ComposerContextGauge.isWarningLevel(fraction: fraction)
+                                ? AppLocalizedString.string("80% を超えました。/compact で会話を圧縮できます。", locale: locale)
+                                : nil
+                        )
                             .fixedSize()
                             .offset(y: -58)
                             .allowsHitTesting(false)
@@ -187,6 +203,7 @@ struct ComposerContextIndicator: View {
 
 private struct ComposerContextPopover: View {
     let lines: [String]
+    var warning: String? = nil
 
     var body: some View {
         VStack(spacing: 3) {
@@ -195,6 +212,14 @@ private struct ComposerContextPopover: View {
                     .font(DSFont.caption)
                     .foregroundStyle(DSColor.chatTextPrimary)
                     .multilineTextAlignment(.center)
+            }
+            if let warning {
+                Text(warning)
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.statusAwaitingApproval)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 220)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.horizontal, DSSpacing.m)

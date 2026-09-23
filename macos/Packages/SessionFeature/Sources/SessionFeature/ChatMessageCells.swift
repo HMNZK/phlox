@@ -84,6 +84,9 @@ public struct ChatItemView: View, Equatable {
             TaskListCell(tasks: tasks, timestamp: timestamp)
         case .turnCost(_, let costUSD, let timestamp):
             TurnCostCell(costUSD: costUSD, timestamp: timestamp, usage: turnUsage)
+        case .userQuestion(_, _, _, _, .pending, _) where onRespondToUserQuestion != nil:
+            // 未回答の質問・ツールの使用許可は返答エリア（入力欄の直上）に出す（05 R6・R7）。
+            EmptyView()
         case .userQuestion(let id, let requestId, let questions, let answers, let state, let timestamp):
             UserQuestionCell(
                 itemId: id,
@@ -93,7 +96,8 @@ public struct ChatItemView: View, Equatable {
                 state: state,
                 timestamp: timestamp,
                 onRespond: onRespondToUserQuestion,
-                onDismiss: onDismissUserQuestion
+                onDismiss: onDismissUserQuestion,
+                placement: .transcript
             )
         }
     }

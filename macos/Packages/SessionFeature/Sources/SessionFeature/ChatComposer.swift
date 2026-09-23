@@ -100,7 +100,9 @@ struct ChatComposer: View {
                     imagesForCopy: { viewModel.attachmentStore.imagesForCopy(numbers: $0) },
                     onEscape: { performChatEscape(viewModel) },
                     focusRequest: viewModel.composerFocusRequest,
-                    highlightsKeywords: viewModel.agentRef == .builtin(.claudeCode)
+                    highlightsKeywords: viewModel.agentRef == .builtin(.claudeCode),
+                    onTab: { viewModel.moveFocusToReplyCard() },
+                    isEditable: viewModel.inFlightText == nil
                 )
                 .frame(
                     minHeight: ComposerHeightBounds.single.min,
@@ -110,7 +112,8 @@ struct ChatComposer: View {
                 .accessibilityIdentifier("ChatComposer.input")
 
                 if ComposerPlaceholderVisibility.shouldShowPlaceholder(text: text, isComposing: isComposing) {
-                    Text(UIWording.text(.composerPlaceholder, languageCode: languageCode))
+                    // 送信中は送った本文を淡く残す（05 R4）。
+                    Text(viewModel.inFlightText ?? UIWording.text(.composerPlaceholder, languageCode: languageCode))
                         .font(ComposerPlaceholderMetrics.placeholderFont)
                         .foregroundStyle(DSColor.chatTextSecondary)
                         .padding(.horizontal, ComposerPlaceholderMetrics.textInsets.width)
@@ -206,7 +209,8 @@ struct ChatComposer: View {
                     insertionText: "$\(skill.name)",
                     subtitle: skill.description,
                     kind: .slashCommand,
-                    skillIdentity: SkillIdentity(name: skill.name, path: skill.path)
+                    skillIdentity: SkillIdentity(name: skill.name, path: skill.path),
+                    origin: .skills
                 )
             }
         )
@@ -243,6 +247,8 @@ struct ChatComposerFooter: View {
     var accessibilityPrefix: String = "ChatComposer"
     var branchNameOverride: String?
     var branchIsCheckingOutOverride = false
+    /// ブランチを出すか。既定は 600pt 以上（standard）だけ。グリッドは実際の幅で決める。
+    var showsBranchOverride: Bool? = nil
 
     var body: some View {
         switch layout {
@@ -267,7 +273,9 @@ struct ChatComposerFooter: View {
                 workspacePath: viewModel.workspacePath,
                 layout: settingsLayout == .compact ? .compact : .regular,
                 branchNameOverride: branchNameOverride,
-                branchIsCheckingOutOverride: branchIsCheckingOutOverride
+                branchIsCheckingOutOverride: branchIsCheckingOutOverride,
+                showsBranch: showsBranchOverride ?? (settingsLayout != .compact),
+                suggestsCompact: viewModel.agentRef != .builtin(.cursor)
             )
             .accessibilityIdentifier("\(accessibilityPrefix).contextIndicator")
             Spacer(minLength: DSSpacing.s)
@@ -277,12 +285,7 @@ struct ChatComposerFooter: View {
                 side: .trailing,
                 accessibilityPrefix: accessibilityPrefix
             )
-            stopButton(size: settingsLayout == .compact ? 28 : 32)
-            ComposerSendButton(
-                canSubmit: canSubmit,
-                action: onSend,
-                accessibilityIdentifier: "\(accessibilityPrefix).sendButton"
-            )
+            sendOrStopButton
         }
     }
 
@@ -299,64 +302,102 @@ struct ChatComposerFooter: View {
                 accessibilityIdentifier: "\(accessibilityPrefix).overflowMenu"
             )
             Spacer(minLength: DSSpacing.s)
-            stopButton(size: 28)
-            ComposerSendButton(
-                canSubmit: canSubmit,
-                action: onSend,
-                accessibilityIdentifier: "\(accessibilityPrefix).sendButton"
-            )
+            sendOrStopButton
         }
     }
 
+    /// 右端の丸ボタン（05 R1・R4・R5）。送信中は「…」、実行中で入力が空なら ■（中断）、それ以外は送信。
+    /// 実行中でも本文があれば送信にする（実行中の追加の指示を従来どおりボタンからも送れるように）。
     @ViewBuilder
-    private func stopButton(size: CGFloat) -> some View {
-        if isRunning {
-            Button(action: onInterrupt) {
-                Image(systemName: "stop.fill")
-                    .foregroundStyle(DSColor.statusError)
-                    .frame(width: size, height: size)
-            }
-            .buttonStyle(HoverableIconButtonStyle())
-            .accessibilityIdentifier("\(accessibilityPrefix).stopButton")
-            .help("停止")
+    private var sendOrStopButton: some View {
+        if viewModel.inFlightText != nil {
+            ComposerRoundButton(style: .sending, action: {})
+                .disabled(true)
+                .accessibilityLabel(Text("送信中"))
+                .accessibilityIdentifier("\(accessibilityPrefix).sendButton")
+        } else if isRunning && !canSubmit {
+            ComposerRoundButton(style: .stop, action: onInterrupt)
+                .help("中断（Esc）")
+                .accessibilityLabel(Text("中断"))
+                .accessibilityIdentifier("\(accessibilityPrefix).stopButton")
+        } else {
+            ComposerRoundButton(style: .send, action: onSend)
+                .disabled(!canSubmit)
+                .help("送信")
+                .accessibilityLabel(Text("送信"))
+                .accessibilityIdentifier("\(accessibilityPrefix).sendButton")
         }
     }
 }
 
-private struct ComposerSendButton: View {
-    let canSubmit: Bool
+private struct ComposerRoundButton: View {
+    enum Style {
+        case send
+        case sending
+        case stop
+    }
+
+    let style: Style
     let action: () -> Void
-    var accessibilityIdentifier: String = "ChatComposer.sendButton"
+    @Environment(\.isEnabled) private var isEnabled
     @State private var isHovering = false
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "paperplane.fill")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(canSubmit ? DSColor.chatBackground : DSColor.chatTextSecondary)
-                .frame(width: 28, height: 28)
-                .background {
-                    RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                        .fill(canSubmit ? DSColor.chatAccent : Color.clear)
-                    if isHovering && canSubmit {
-                        RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                            .fill(Color.white.opacity(0.14))
-                    }
+            ZStack {
+                Circle().fill(fill)
+                if isHovering && isEnabled {
+                    Circle().fill(Color.white.opacity(0.14))
                 }
+                symbol
+            }
+            .frame(width: 24, height: 24)
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovering = hovering
+        .onHover { isHovering = $0 }
+    }
+
+    private var fill: Color {
+        switch style {
+        case .send: isEnabled ? DSColor.accentFill : DSColor.fillSelected
+        case .sending: DSColor.fillSelected
+        case .stop: DSColor.textPrimary
         }
-        .disabled(!canSubmit)
-        .accessibilityIdentifier(accessibilityIdentifier)
-        .help("送信")
+    }
+
+    @ViewBuilder
+    private var symbol: some View {
+        switch style {
+        case .send:
+            Image(systemName: "arrow.up")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(isEnabled ? Color.white : DSColor.textTertiary)
+        case .sending:
+            Image(systemName: "ellipsis")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(DSColor.textSecondary)
+        case .stop:
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(DSColor.chatBackground)
+                .frame(width: 8, height: 8)
+        }
     }
 }
 
 struct ComposerSuggestionPopup: View {
     @Bindable var controller: ComposerSuggestionController
     let onAccept: (Int) -> Void
+
+    /// 05 R3: 組込 / .claude/commands / .claude/skills / 実行時に受け取ったもの。
+    static func originLabel(_ origin: SlashCommandOrigin) -> LocalizedStringKey {
+        switch origin {
+        case .builtin: "組込"
+        case .commands: ".claude/commands"
+        case .skills: ".claude/skills"
+        case .runtime: "実行時に受け取ったもの"
+        }
+    }
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: controller.candidates.count > ComposerSuggestionPopupMetrics.maxVisibleRows) {
@@ -384,6 +425,13 @@ struct ComposerSuggestionPopup: View {
                                 }
                             }
                             Spacer(minLength: DSSpacing.s)
+                            if let origin = candidate.origin {
+                                Text(Self.originLabel(origin))
+                                    .font(.system(size: 10.5))
+                                    .foregroundStyle(index == controller.selectedIndex ? DSColor.chatBackground.opacity(0.72) : DSColor.textTertiary)
+                                    .lineLimit(1)
+                                    .fixedSize()
+                            }
                         }
                         .padding(.horizontal, DSSpacing.s)
                         .frame(height: ComposerSuggestionPopupMetrics.rowHeight)
@@ -459,6 +507,10 @@ struct IMESafeTextView: NSViewRepresentable {
     var focusRequest: ComposerFocusRequest = .none
     /// 入力欄でキーワード（ultrathink 等）を強調するか。Claude セッションのみ true を渡す。
     var highlightsKeywords: Bool = false
+    /// 候補の無いときの Tab。true を返したら入力欄では処理しない（承認・質問カードへ移る。05 R6b）。
+    var onTab: (() -> Bool)? = nil
+    /// 送信を受け付けてもらうまでは書けない（05 R4。失敗時に戻す本文と、その間に書いた本文がぶつからないように）。
+    var isEditable = true
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -481,6 +533,8 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.attachedImageNumbers = attachedImageNumbers
         textView.imagesForCopy = imagesForCopy
         textView.onEscape = onEscape
+        textView.onTab = onTab
+        if textView.isEditable != isEditable { textView.isEditable = isEditable }
         textView.onFocusGained = onFocusGained
         textView.suggestionController = suggestionController
         textView.onComposingChanged = { [coordinator = context.coordinator] isComposing, currentText in
@@ -522,6 +576,8 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.attachedImageNumbers = attachedImageNumbers
         textView.imagesForCopy = imagesForCopy
         textView.onEscape = onEscape
+        textView.onTab = onTab
+        if textView.isEditable != isEditable { textView.isEditable = isEditable }
         textView.onFocusGained = onFocusGained
         textView.suggestionController = suggestionController
         textView.onComposingChanged = { [coordinator = context.coordinator] isComposing, currentText in
@@ -674,6 +730,7 @@ struct IMESafeTextView: NSViewRepresentable {
         var onPasteImageOutcome: ((Data, String) -> ComposerPasteImageOutcome)?
         var onComposingChanged: ((Bool, String) -> Void)?
         var onEscape: (() -> Void)?
+        var onTab: (() -> Bool)?
         var onFocusGained: (() -> Void)?
         var suggestionController: ComposerSuggestionController?
         /// 本文中のプレースホルダをトークン単位で扱うための、添付されている番号一覧。
@@ -809,6 +866,13 @@ struct IMESafeTextView: NSViewRepresentable {
         }
 
         override func keyDown(with event: NSEvent) {
+            if event.keyCode == 48,
+               event.modifierFlags.intersection([.command, .shift, .option, .control]).isEmpty,
+               !hasMarkedText(),
+               suggestionController?.isPresented != true,
+               onTab?() == true {
+                return
+            }
             switch ComposerKeyRouting.action(
                 keyCode: event.keyCode,
                 modifierFlags: event.modifierFlags,

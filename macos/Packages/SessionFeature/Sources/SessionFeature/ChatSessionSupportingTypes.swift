@@ -17,6 +17,12 @@ public struct ChatApprovalRequest: Identifiable, Equatable, Sendable {
     public let turnId: String
     public let itemId: String
     public let prompt: String
+    /// 承認カード（05 R6）に出す対象。無い要求は prompt だけを出す。
+    public var command: String? = nil
+    public var workingDirectory: String? = nil
+    /// 権限の変更で追加を求めているルール（受け取った JSON を短く整形したもの）。
+    public var permissionsText: String? = nil
+    public var requestedAt = Date()
 }
 
 /// Codex の `item/tool/requestUserInput`（モデル→ユーザーの質問）1件。

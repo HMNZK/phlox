@@ -123,7 +123,6 @@ public struct ChatSessionView: View {
                 agentDescriptor: agentDescriptor,
                 onToggleSubAgent: toggleSubAgentSelection
             )
-            ApprovalBanner(viewModel: viewModel)
             ChatTranscriptView(
                 viewModel: viewModel,
                 contentMaxWidth: ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: width),
@@ -212,16 +211,19 @@ public struct ChatSessionView: View {
                 // 実測高はスクロールコンテンツ余白にだけ使い、composer 自身のサイズ決定へ戻さない。
                 .overlay(alignment: .bottom) {
                     let proposedComposerWidth = ComposerLayout.proposedWidth(mainColumnWidth: width)
-                    ChatComposer(
-                        viewModel: viewModel,
-                        text: $viewModel.draft,
-                        isRunning: viewModel.showsProcessingIndicator,
-                        canSend: viewModel.isReadyForInput,
-                        projectName: projectName,
-                        controlsLayout: proposedComposerWidth.map(ComposerLayout.controlsLayout(proposedWidth:)) ?? .standard,
-                        onSend: sendDraft,
-                        onInterrupt: interruptTurn
-                    )
+                    // 承認・質問のカードと送信失敗の通知は入力欄の直上（05）。高さの実測は余白にだけ使う。
+                    ChatReplyArea(viewModel: viewModel, onRetrySend: sendDraft) {
+                        ChatComposer(
+                            viewModel: viewModel,
+                            text: $viewModel.draft,
+                            isRunning: viewModel.showsProcessingIndicator,
+                            canSend: viewModel.isReadyForInput,
+                            projectName: projectName,
+                            controlsLayout: proposedComposerWidth.map(ComposerLayout.controlsLayout(proposedWidth:)) ?? .standard,
+                            onSend: sendDraft,
+                            onInterrupt: interruptTurn
+                        )
+                    }
                     .frame(maxWidth: proposedComposerWidth)
                     .frame(maxWidth: .infinity)
                     // パネル上端から下の帯を背景色でマスクし、スクロール中のコンテンツ・

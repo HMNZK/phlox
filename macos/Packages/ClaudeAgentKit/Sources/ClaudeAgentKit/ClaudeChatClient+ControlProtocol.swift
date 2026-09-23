@@ -224,7 +224,8 @@ extension ClaudeChatClient {
                 ChatUserQuestionOption(label: "Allow"),
                 ChatUserQuestionOption(label: "Deny"),
             ],
-            multiSelect: false
+            multiSelect: false,
+            permission: ChatToolPermission(toolName: safeToolName, detail: summary)
         )
     }
 
@@ -263,7 +264,7 @@ extension ClaudeChatClient {
         switch toolName {
         case "Bash":
             preferredKey = "command"
-        case "Edit", "Write", "Read", "NotebookEdit":
+        case "Edit", "MultiEdit", "Write", "Read", "NotebookEdit":
             preferredKey = "file_path"
         case "WebFetch":
             preferredKey = "url"

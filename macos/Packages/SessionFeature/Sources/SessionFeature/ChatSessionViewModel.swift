@@ -79,6 +79,22 @@ public final class ChatSessionViewModel: Identifiable {
     public private(set) var transcriptRevision: Int = 0
     public private(set) var rawEventLog: [String] = []
     public private(set) var pendingApprovals: [ChatApprovalRequest] = []
+    /// 返答エリアの承認カードで表示中の要求（05 R6d「1 / 3」）。範囲外は `currentReplyApproval` で丸める。
+    public var approvalPageIndex = 0
+    /// 承認カード・質問カードへキーボードフォーカスを移す要求（入力欄の Tab）。値の変化だけを見る。
+    public private(set) var replyCardFocusRequest = 0
+    /// 承認カードが画面に出た時刻（05 R6c: 出た直後 0.5 秒は押せない）。
+    @ObservationIgnored var approvalPresentedAt: [String: Date] = [:]
+    /// 直近の送信の失敗（05 R9）。次の送信か「閉じる」で消える。
+    public private(set) var sendFailure: SendFailure?
+
+    public struct SendFailure: Equatable, Sendable {
+        public let reason: String
+        /// 送れなかった本文を入力欄に戻せたか。
+        public let restoredDraft: Bool
+    }
+    /// 送信を受け付けてもらうまでの本文（05 R4: 入力欄に淡く残し、送信ボタンを「…」にする）。
+    public private(set) var inFlightText: String?
     public private(set) var completedTurnSeq: Int = 0
     public private(set) var lastOutputAt: Date?
     public private(set) var lastTurnCompletedAt: Date?
@@ -612,6 +628,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// trim 後が空なら nil（draft 不変）。非空なら trim 済みを返し draft をクリアする（task-4 契約）。
     public func consumeDraftForSend() -> String? {
+        guard inFlightText == nil else { return nil }
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             guard !attachmentStore.attachments.isEmpty else { return nil }
@@ -1058,6 +1075,20 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// composer へのフォーカス復帰要求を 1 段だけ進める。token は狭義単調増加で、
     /// 同じ値を再発行しない（View は値の変化だけを見てフォーカスを動かす）。
+    public func dismissSendFailure() {
+        sendFailure = nil
+    }
+
+    /// 承認カードから入力欄へ戻る（カードで Tab）。
+    public func returnFocusToComposer() {
+        requestComposerFocus(movesCaretToEnd: false)
+    }
+
+    /// 入力欄から承認カード・質問カードへ移る（入力欄で Tab）。
+    public func requestReplyCardFocus() {
+        replyCardFocusRequest += 1
+    }
+
     private func requestComposerFocus(movesCaretToEnd: Bool) {
         composerFocusRequest = ComposerFocusRequest(
             token: composerFocusRequest.token + 1,
@@ -1433,6 +1464,18 @@ public final class ChatSessionViewModel: Identifiable {
         guard isSpawnAgent else { return }
         selectedEffort = effort
         await applySpawnAgentSettings()
+    }
+
+    /// Claude / Cursor のモデル一覧が CLI から取れず、内蔵の一覧になっているか（05 O3）。
+    public var isUsingBuiltinModelList: Bool {
+        guard spawnAgentModelsProvider == nil, let kind = agentRef.builtinKind, kind != .codex else { return false }
+        return AgentModelCatalog.kindsUsingFallback().contains(kind)
+    }
+
+    /// CLI からのモデル一覧の取得をやり直し、選択肢を差し替える。
+    public func retryModelListFetch() async {
+        await AgentModelCatalog.refresh()
+        availableSpawnAgentModels = await resolveSpawnAgentModels()
     }
 
     private func loadSpawnAgentSettings(persistedSettings: CodexAppServerSessionSettings?) async {
@@ -3012,7 +3055,11 @@ extension ChatSessionViewModel: ControllableSession {
 
     public func sendText(_ text: String, submit: Bool) async throws {
         if submit {
+            sendFailure = nil
             let input = pendingInput + text
+            // 入力欄は送信を受け付けてもらうまで書けない（画像の設定待ちも含む）。失敗時に戻す本文と新しい下書きがぶつからないように。
+            inFlightText = input
+            defer { inFlightText = nil }
             let clientInput: String
             if let preamble = pendingReplayContext {
                 clientInput = preamble + "\n\n---\n\n" + input
@@ -3105,7 +3152,10 @@ extension ChatSessionViewModel: ControllableSession {
                 // 変更せず残す（再送でプリアンブルをちょうど1回適用する既存セマンティクス）。
                 isAwaitingLocallyStartedTurnEvent = false
                 status = .idle
-                restoreDraftAfterRejectedSend(input)
+                sendFailure = SendFailure(
+                    reason: Self.sendFailureReason(error),
+                    restoredDraft: restoreDraftAfterRejectedSend(input)
+                )
                 if hasAttachments,
                    let codexError = error as? CodexStructuredClientError,
                    codexError == .imageInputUnsupported || codexError == .imageTurnInProgress {
@@ -3128,10 +3178,19 @@ extension ChatSessionViewModel: ControllableSession {
         }
     }
 
-    private func restoreDraftAfterRejectedSend(_ text: String) {
-        guard draftClearedForSend != nil else { return }
+    /// 通知に出す短い理由（1 行目だけ）。
+    static func sendFailureReason(_ error: Error) -> String {
+        let text = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+        let firstLine = text.split(separator: "\n").first.map(String.init) ?? text
+        return firstLine.count > 120 ? String(firstLine.prefix(119)) + "…" : firstLine
+    }
+
+    @discardableResult
+    private func restoreDraftAfterRejectedSend(_ text: String) -> Bool {
+        guard draftClearedForSend != nil else { return false }
         draft = text
         draftClearedForSend = text
+        return true
     }
 
     private struct MaterializedNativeSkillInputs {

@@ -22,20 +22,39 @@ struct SuggestionCandidate: Equatable, Identifiable {
     let subtitle: String?
     let kind: SuggestionKind
     let skillIdentity: SkillIdentity?
+    /// スラッシュコマンドの出どころ（05 R3 の右端）。分からないものは nil で何も出さない。
+    var origin: SlashCommandOrigin? = nil
 
     init(
         title: String,
         insertionText: String,
         subtitle: String? = nil,
         kind: SuggestionKind,
-        skillIdentity: SkillIdentity? = nil
+        skillIdentity: SkillIdentity? = nil,
+        origin: SlashCommandOrigin? = nil
     ) {
         self.title = title
         self.insertionText = insertionText
         self.subtitle = subtitle
         self.kind = kind
         self.skillIdentity = skillIdentity
+        self.origin = origin
     }
+
+    func withOrigin(_ origin: SlashCommandOrigin) -> SuggestionCandidate {
+        var copy = self
+        copy.origin = origin
+        return copy
+    }
+}
+
+/// スラッシュコマンドの出どころ。
+enum SlashCommandOrigin: Equatable {
+    case builtin
+    case commands
+    case skills
+    /// エージェントが実行時に知らせてきたもの（組込でもファイルでもない）。
+    case runtime
 }
 
 /// 外部サジェストを確定したときに渡す、表示名と実体パスの識別子。
@@ -616,7 +635,7 @@ enum ComposerSuggestionSources {
         homeDirectory: URL,
         workingDirectory: String
     ) -> [SuggestionCandidate] {
-        var candidates = builtinSlashCommands
+        var candidates = builtinSlashCommands.map { $0.withOrigin(.builtin) }
         if let seedCommands {
             // seed 由来も `__` 除外・subtitle 解決の優先順を一覧受領時と揃える。
             candidates.append(contentsOf: availableCommandCandidates(
@@ -636,10 +655,10 @@ enum ComposerSuggestionSources {
         ]
 
         for name in commandDirectories.flatMap(commandNames(in:)) {
-            candidates.append(SuggestionCandidate(title: "/\(name)", insertionText: "/\(name)", subtitle: "Custom command", kind: .slashCommand))
+            candidates.append(SuggestionCandidate(title: "/\(name)", insertionText: "/\(name)", subtitle: "Custom command", kind: .slashCommand, origin: .commands))
         }
         for skill in skillDirectories.flatMap(skillEntries(in:)) {
-            candidates.append(SuggestionCandidate(title: "/\(skill.name)", insertionText: "/\(skill.name)", subtitle: skill.subtitle, kind: .slashCommand))
+            candidates.append(SuggestionCandidate(title: "/\(skill.name)", insertionText: "/\(skill.name)", subtitle: skill.subtitle, kind: .slashCommand, origin: .skills))
         }
         return deduplicated(candidates)
     }
@@ -670,11 +689,16 @@ enum ComposerSuggestionSources {
             let subtitle = builtinSubtitles["/\(name)"]
                 ?? skillSubtitles[name]
                 ?? (customCommandNames.contains(name) ? "Custom command" : nil)
+            let origin: SlashCommandOrigin = builtinSubtitles["/\(name)"] != nil ? .builtin
+                : skillSubtitles[name] != nil ? .skills
+                : customCommandNames.contains(name) ? .commands
+                : .runtime
             return SuggestionCandidate(
                 title: "/\(name)",
                 insertionText: "/\(name)",
                 subtitle: subtitle,
-                kind: .slashCommand
+                kind: .slashCommand,
+                origin: origin
             )
         }
     }

@@ -104,13 +104,15 @@ public actor ChatApprovalBroker {
     private func handle(_ request: ServerRequest) async throws -> JSONValue {
         switch request {
         case .commandExecutionApproval(let value):
-            let approval = makeApproval(
+            var approval = makeApproval(
                 kind: .command,
                 threadId: value.threadId,
                 turnId: value.turnId,
                 itemId: value.itemId,
                 prompt: value.reason ?? value.command ?? "Command approval requested"
             )
+            approval.command = value.command
+            approval.workingDirectory = value.cwd
             return try await handleApproval(approval, permissions: nil)
         case .fileChangeApproval(let value):
             let approval = makeApproval(
@@ -122,13 +124,15 @@ public actor ChatApprovalBroker {
             )
             return try await handleApproval(approval, permissions: nil)
         case .permissionsApproval(let value):
-            let approval = makeApproval(
+            var approval = makeApproval(
                 kind: .permissions,
                 threadId: value.threadId,
                 turnId: value.turnId,
                 itemId: value.itemId,
                 prompt: value.reason ?? "Permission approval requested"
             )
+            approval.workingDirectory = value.cwd
+            approval.permissionsText = Self.compactJSON(value.permissions)
             return try await handleApproval(approval, permissions: value.permissions)
         case .userInputRequest(let value):
             return try await handleUserInput(value)
@@ -187,6 +191,13 @@ public actor ChatApprovalBroker {
             itemId: itemId,
             prompt: prompt
         )
+    }
+
+    private static func compactJSON(_ value: JSONValue) -> String? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard let data = try? encoder.encode(value) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     private func makeUserInputRequest(from request: ToolRequestUserInputRequest) -> ChatUserInputRequest {

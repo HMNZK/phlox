@@ -2998,6 +2998,710 @@
           }
         }
       }
+    },
+    "承認待ち · %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs approval · %@"
+          }
+        }
+      }
+    },
+    "前の要求": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous request"
+          }
+        }
+      }
+    },
+    "次の要求": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next request"
+          }
+        }
+      }
+    },
+    "コマンドの実行": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run command"
+          }
+        }
+      }
+    },
+    "ファイルの変更": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File changes"
+          }
+        }
+      }
+    },
+    "権限の変更": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permission change"
+          }
+        }
+      }
+    },
+    "ツールの使用": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tool use"
+          }
+        }
+      }
+    },
+    "次のコマンドを実行しようとしています": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wants to run this command"
+          }
+        }
+      }
+    },
+    "ファイルを変更しようとしています": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wants to change files"
+          }
+        }
+      }
+    },
+    "%lld ファイルを変更しようとしています": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wants to change %lld files"
+          }
+        }
+      }
+    },
+    "許可ルールの追加を求めています": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wants to add a permission rule"
+          }
+        }
+      }
+    },
+    "%@ を使おうとしています": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wants to use %@"
+          }
+        }
+      }
+    },
+    "たった今から": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Just now"
+          }
+        }
+      }
+    },
+    "%lld 分前から": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting %lld min"
+          }
+        }
+      }
+    },
+    "「このセッション中は許可」は、このセッションが終わるまで有効です。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“Allow for this session” lasts until this session ends."
+          }
+        }
+      }
+    },
+    "追加する": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add"
+          }
+        }
+      }
+    },
+    "作業ディレクトリ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Working directory"
+          }
+        }
+      }
+    },
+    "ツール": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tool"
+          }
+        }
+      }
+    },
+    "このセッション中は許可": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow for this session"
+          }
+        }
+      }
+    },
+    "質問待ち · %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Question · %@"
+          }
+        }
+      }
+    },
+    "秘密の入力": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Secret input"
+          }
+        }
+      }
+    },
+    "自由入力": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free text"
+          }
+        }
+      }
+    },
+    "複数選べる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose any"
+          }
+        }
+      }
+    },
+    "1 つ選ぶ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose one"
+          }
+        }
+      }
+    },
+    "回答を送信": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send answer"
+          }
+        }
+      }
+    },
+    "1–%lld で切り替え · ⌘↩ 送信 · Esc 閉じる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1–%lld to toggle · ⌘↩ send · Esc close"
+          }
+        }
+      }
+    },
+    "1–%lld で選択 · ⌘↩ 送信 · Esc 閉じる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1–%lld to choose · ⌘↩ send · Esc close"
+          }
+        }
+      }
+    },
+    "⌘↩ 送信 · Esc 閉じる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘↩ send · Esc close"
+          }
+        }
+      }
+    },
+    "回答済み": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Answered"
+          }
+        }
+      }
+    },
+    "期限切れ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expired"
+          }
+        }
+      }
+    },
+    "回答は送られませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no answer was sent"
+          }
+        }
+      }
+    },
+    "秘密の値": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Secret value"
+          }
+        }
+      }
+    },
+    "その他（自由入力）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other (free text)"
+          }
+        }
+      }
+    },
+    "回答せずに閉じる（ターンを中断する）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close without answering (stops the turn)"
+          }
+        }
+      }
+    },
+    "回答せずに閉じる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close without answering"
+          }
+        }
+      }
+    },
+    "送信できませんでした（%@）。下書きを入力欄に戻しました。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t send (%@). Your draft is back in the input."
+          }
+        }
+      }
+    },
+    "再送": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resend"
+          }
+        }
+      }
+    },
+    "通知を閉じる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dismiss"
+          }
+        }
+      }
+    },
+    "↩ 送信": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↩ Send"
+          }
+        }
+      }
+    },
+    "⇧↩ 改行": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⇧↩ New line"
+          }
+        }
+      }
+    },
+    "⌘Z 取り消し": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘Z Undo"
+          }
+        }
+      }
+    },
+    "⌘V 画像も貼り付け": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘V Paste images too"
+          }
+        }
+      }
+    },
+    "⌥⌘↩ 許可": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌥⌘↩ Allow"
+          }
+        }
+      }
+    },
+    "⌥⌘⌫ 拒否": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌥⌘⌫ Deny"
+          }
+        }
+      }
+    },
+    "Tab で承認カードへ移動すると 1 キーで返せる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tab to the approval card to answer with one key"
+          }
+        }
+      }
+    },
+    "Y 許可": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Y Allow"
+          }
+        }
+      }
+    },
+    "S このセッション中は許可": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "S Allow for this session"
+          }
+        }
+      }
+    },
+    "N 拒否": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "N Deny"
+          }
+        }
+      }
+    },
+    "Esc キャンセル": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esc Cancel"
+          }
+        }
+      }
+    },
+    "Tab 入力欄へ戻る": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tab Back to input"
+          }
+        }
+      }
+    },
+    "Tab で質問カードへ移動": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tab to the question card"
+          }
+        }
+      }
+    },
+    "1–9 選択": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1–9 Choose"
+          }
+        }
+      }
+    },
+    "⌘↩ 回答を送信": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘↩ Send answer"
+          }
+        }
+      }
+    },
+    "Esc 閉じる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esc Close"
+          }
+        }
+      }
+    },
+    "送信中": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sending"
+          }
+        }
+      }
+    },
+    "中断（Esc）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop (Esc)"
+          }
+        }
+      }
+    },
+    "送信": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send"
+          }
+        }
+      }
+    },
+    "CLI からモデル一覧を取得できませんでした。内蔵の一覧を表示しています。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t get the model list from the CLI. Showing the built-in list."
+          }
+        }
+      }
+    },
+    "80% を超えました。/compact で会話を圧縮できます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Over 80%. Use /compact to compress the conversation."
+          }
+        }
+      }
+    },
+    "組込": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Built-in"
+          }
+        }
+      }
+    },
+    ".claude/commands": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ".claude/commands"
+          }
+        }
+      }
+    },
+    ".claude/skills": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ".claude/skills"
+          }
+        }
+      }
+    },
+    "実行時に受け取ったもの": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From the agent"
+          }
+        }
+      }
+    },
+    "送信できませんでした（%@）。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t send (%@)."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

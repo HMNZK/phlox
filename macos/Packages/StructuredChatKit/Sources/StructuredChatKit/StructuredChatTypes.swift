@@ -71,6 +71,17 @@ public struct ChatUserQuestionOption: Codable, Equatable, Sendable {
 }
 
 /// AskUserQuestion の質問 1 件。CLI の can_use_tool 入力 `questions[]` と 1:1 対応（task-0 契約）。
+/// ツールの使用許可の中身（承認カードの表示用）。`detail` はコマンド・パス・URL などの全文。
+public struct ChatToolPermission: Codable, Equatable, Sendable {
+    public let toolName: String
+    public let detail: String
+
+    public init(toolName: String, detail: String) {
+        self.toolName = toolName
+        self.detail = detail
+    }
+}
+
 public struct ChatUserQuestion: Codable, Equatable, Sendable {
     public let question: String
     public let header: String
@@ -86,6 +97,9 @@ public struct ChatUserQuestion: Codable, Equatable, Sendable {
     /// codex の `questions[].isSecret` に対応する。既定 false で Claude 経路は挙動不変。
     /// 既存の永続データ（このキーが無い JSON）も従来どおり読めるよう、デコード時は既定 false。
     public let isSecret: Bool
+    /// ツールの使用許可を問う質問か（Claude の can_use_tool）。返答エリアでは承認カードとして出す。
+    /// 既存の永続データ（このキーが無い JSON）は nil として読む。
+    public let permission: ChatToolPermission?
 
     public init(
         question: String,
@@ -93,7 +107,8 @@ public struct ChatUserQuestion: Codable, Equatable, Sendable {
         options: [ChatUserQuestionOption],
         multiSelect: Bool,
         id: String? = nil,
-        isSecret: Bool = false
+        isSecret: Bool = false,
+        permission: ChatToolPermission? = nil
     ) {
         self.question = question
         self.header = header
@@ -101,6 +116,7 @@ public struct ChatUserQuestion: Codable, Equatable, Sendable {
         self.multiSelect = multiSelect
         self.id = id
         self.isSecret = isSecret
+        self.permission = permission
     }
 
     public init(from decoder: Decoder) throws {
@@ -111,6 +127,7 @@ public struct ChatUserQuestion: Codable, Equatable, Sendable {
         multiSelect = try container.decode(Bool.self, forKey: .multiSelect)
         id = try container.decodeIfPresent(String.self, forKey: .id)
         isSecret = try container.decodeIfPresent(Bool.self, forKey: .isSecret) ?? false
+        permission = try container.decodeIfPresent(ChatToolPermission.self, forKey: .permission)
     }
 
     /// 回答ディクショナリのキー。id があればそれ、無ければ質問文。

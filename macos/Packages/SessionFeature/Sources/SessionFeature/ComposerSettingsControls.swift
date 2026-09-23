@@ -169,6 +169,14 @@ struct ComposerSettingsControlsView: View {
                         )
                     }
                 }
+                // CLI から一覧を取れず内蔵の一覧を出しているとき（05 O3）。
+                if viewModel.isUsingBuiltinModelList {
+                    Divider()
+                    Text("CLI からモデル一覧を取得できませんでした。内蔵の一覧を表示しています。")
+                    Button("再試行") {
+                        Task { await viewModel.retryModelListFetch() }
+                    }
+                }
             } label: {
                 ComposerControlChip(
                     title: viewModel.selectedModel.map(viewModel.spawnAgentModelDisplayName) ?? UIWording.text(.modelLabel, languageCode: languageCode),
@@ -232,7 +240,7 @@ struct ComposerSettingsControlsView: View {
                 }
             } label: {
                 ComposerControlChip(
-                    title: viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: selectedClaudePermission, languageCode: languageCode).title,
+                    title: permissionChipTitle(viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: selectedClaudePermission, languageCode: languageCode).title),
                     detail: nil,
                     emphasis: .pill,
                     layout: layout,
@@ -263,7 +271,7 @@ struct ComposerSettingsControlsView: View {
                 }
             } label: {
                 ComposerControlChip(
-                    title: viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : UIWording.permission(agent: .cursor, kind: .cursorOperationMode, value: viewModel.selectedPermissionProfile, languageCode: languageCode).title,
+                    title: permissionChipTitle(viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : UIWording.permission(agent: .cursor, kind: .cursorOperationMode, value: viewModel.selectedPermissionProfile, languageCode: languageCode).title),
                     detail: nil,
                     emphasis: .pill,
                     layout: layout,
@@ -279,6 +287,11 @@ struct ComposerSettingsControlsView: View {
 
     private var selectedClaudePermission: String {
         viewModel.selectedPermissionProfile ?? Self.claudeDefaultPermission
+    }
+
+    /// 「権限: 標準」（05 O4〜O6）。
+    private func permissionChipTitle(_ value: String) -> String {
+        AppLocalizedString.string("権限", locale: locale) + ": " + value
     }
 
     // MARK: - Codex app-server menus
@@ -300,7 +313,7 @@ struct ComposerSettingsControlsView: View {
         if viewModel.isPlanMode {
             UIWording.text(.planOption, languageCode: languageCode)
         } else if viewModel.selectedPermissionProfile == nil {
-            UIWording.text(.approvalLabel, languageCode: languageCode)
+            AppLocalizedString.string("未設定", locale: locale)
         } else {
             UIWording.permission(agent: .codex, kind: .codexProfile, value: viewModel.selectedPermissionProfile, languageCode: languageCode).title
         }
@@ -375,7 +388,7 @@ struct ComposerSettingsControlsView: View {
                 }
             } label: {
                 ComposerControlChip(
-                    title: selectedPermissionTitle,
+                    title: permissionChipTitle(selectedPermissionTitle),
                     detail: nil,
                     emphasis: .pill,
                     layout: layout,
@@ -709,9 +722,9 @@ struct ComposerSettingsOverflowMenu: View {
         case .permission:
             switch viewModel.agentRef {
             case .builtin(.codex):
-                Menu(UIWording.text(.permissionLabel, languageCode: languageCode)) { codexPermissionItems }
+                Menu(AppLocalizedString.string("権限", locale: locale)) { codexPermissionItems }
             default:
-                Menu(UIWording.text(.permissionLabel, languageCode: languageCode)) { spawnPermissionItems }
+                Menu(AppLocalizedString.string("権限", locale: locale)) { spawnPermissionItems }
             }
         case .mode:
             Menu(UIWording.text(.modeLabel, languageCode: languageCode)) { cursorModeItems }

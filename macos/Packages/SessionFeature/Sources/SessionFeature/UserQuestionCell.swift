@@ -10,6 +10,16 @@ enum UserQuestionAnswerDisplay {
     static func labels(for answers: [String], isSecret: Bool) -> [String] {
         isSecret ? Array(repeating: secretMask, count: answers.count) : answers
     }
+
+    /// ツールの使用許可（Claude）の回答は「許可 / 拒否」で見せる（送信値は Allow / Deny のまま）。
+    static func permissionLabel(_ label: String, question: ChatUserQuestion, locale: Locale) -> String {
+        guard question.permission != nil else { return label }
+        switch label {
+        case "Allow": return AppLocalizedString.string("許可", locale: locale)
+        case "Deny": return AppLocalizedString.string("拒否", locale: locale)
+        default: return label
+        }
+    }
 }
 
 /// AskUserQuestion の質問カード（task-2）。
@@ -24,10 +34,23 @@ struct UserQuestionCell: View {
     /// 回答せずにカードを閉じる。中身はターンの中断（Esc と同じ）で、
     /// カードは `.turnInterrupted` 経由で「期限切れ」になる。
     var onDismiss: (() -> Void)?
+    /// 未回答のカードは返答エリア（入力欄の直上）に、回答済み・期限切れは会話の中に 1 行で残す（05 R7〜R7d）。
+    var placement: Placement = .replyArea
+
+    enum Placement {
+        case replyArea
+        case transcript
+    }
 
     @State private var form: UserQuestionFormModel
     @State private var isSubmitting = false
     @FocusState private var focusedFreeTextQuestion: String?
+    @FocusState private var isCardFocused: Bool
+    @Environment(\.locale) private var locale
+    /// 入力欄の Tab でカードへ移る要求（値の変化だけを見る）。
+    var focusRequest = 0
+    /// カードの Tab で入力欄へ戻る。
+    var onReturnToComposer: (() -> Void)?
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
@@ -39,7 +62,10 @@ struct UserQuestionCell: View {
         state: ChatUserQuestionState,
         timestamp: Date,
         onRespond: ((String, [String: [String]]) async -> Bool)? = nil,
-        onDismiss: (() -> Void)? = nil
+        onDismiss: (() -> Void)? = nil,
+        placement: Placement = .replyArea,
+        focusRequest: Int = 0,
+        onReturnToComposer: (() -> Void)? = nil
     ) {
         self.itemId = itemId
         self.requestId = requestId
@@ -49,6 +75,9 @@ struct UserQuestionCell: View {
         self.timestamp = timestamp
         self.onRespond = onRespond
         self.onDismiss = onDismiss
+        self.placement = placement
+        self.focusRequest = focusRequest
+        self.onReturnToComposer = onReturnToComposer
         _form = State(initialValue: UserQuestionFormModel(questions: questions))
     }
 
@@ -65,86 +94,197 @@ struct UserQuestionCell: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
-            if state == .expired || canDismiss {
-                HStack(spacing: DSSpacing.s) {
-                    if state == .expired {
-                        Label("期限切れ", systemImage: "clock.badge.exclamationmark")
-                            .font(ChatScaledFont.captionStrong(scale: scale))
-                            .foregroundStyle(DSColor.chatTextSecondary)
-                    }
-                    Spacer(minLength: 0)
-                    if canDismiss {
-                        dismissButton
-                    }
-                }
-            }
+        if placement == .transcript, state != .pending {
+            settledRow(scale: scale)
+        } else {
+            card(scale: scale)
+        }
+    }
 
+    // MARK: - 返答エリアのカード（R7〜R7c）
+
+    private func card(scale: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
             ForEach(questions, id: \.question) { question in
                 questionBlock(question, scale: scale)
             }
-
             if isInteractive {
-                Button("送信") {
-                    submitForm()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!form.canSubmit || isSubmitting)
-                .accessibilityIdentifier("UserQuestionCell.submit.\(itemId)")
+                footerRow(scale: scale)
             }
         }
-        .padding(DSSpacing.m)
+        .padding(12)
+        .background(DSColor.attentionTint(.question), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(DSColor.attentionMark(.question), lineWidth: isCardFocused ? 2 : 1)
+        )
+        .focusable(isInteractive)
+        .focusEffectDisabled()
+        .focused($isCardFocused)
+        // 1〜9 で選ぶ・⌘↩ で送る・Esc で閉じる（カードにフォーカスがあるときだけ。13 Review のキー表）。
+        .onKeyPress(characters: .decimalDigits, phases: .down) { press in
+            guard let digit = Int(press.characters), digit >= 1 else { return .ignored }
+            selectOption(number: digit)
+            return .handled
+        }
+        .onKeyPress(.return, phases: .down) { press in
+            guard press.modifiers.contains(.command) else { return .ignored }
+            submitForm()
+            return .handled
+        }
+        .onKeyPress(.escape) {
+            guard canDismiss else { return .ignored }
+            onDismiss?()
+            return .handled
+        }
+        .onKeyPress(.tab) {
+            onReturnToComposer?()
+            return .handled
+        }
+        .onChange(of: focusRequest) { _, _ in isCardFocused = true }
+        .accessibilityIdentifier("UserQuestionCell.\(itemId)")
+    }
+
+    private func footerRow(scale: CGFloat) -> some View {
+        HStack(spacing: DSSpacing.s) {
+            Text(keyHint)
+                .font(.system(size: 11))
+                .foregroundStyle(DSColor.textTertiary)
+            Spacer(minLength: DSSpacing.s)
+            if canDismiss {
+                dismissButton
+            }
+            Button {
+                submitForm()
+            } label: {
+                HStack(spacing: 5) {
+                    Text("回答を送信")
+                    Text(verbatim: "⌘↩").opacity(0.7).font(.system(size: 10.5))
+                }
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.white)
+                .padding(.horizontal, 10)
+                .frame(height: 24)
+                .background(DSColor.accentFill.opacity(form.canSubmit && !isSubmitting ? 1 : 0.5),
+                            in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(!form.canSubmit || isSubmitting)
+            .accessibilityIdentifier("UserQuestionCell.submit.\(itemId)")
+        }
+    }
+
+    private var keyHint: LocalizedStringKey {
+        let optionCount = questions.count == 1 ? min(questions[0].options.count, 9) : 0
+        let multi = questions.first?.multiSelect == true
+        if optionCount > 0 {
+            return multi
+                ? "1–\(optionCount) で切り替え · ⌘↩ 送信 · Esc 閉じる"
+                : "1–\(optionCount) で選択 · ⌘↩ 送信 · Esc 閉じる"
+        }
+        return "⌘↩ 送信 · Esc 閉じる"
+    }
+
+    /// 番号で選ぶ（質問が 1 つのときだけ）。複数選べるときは切り替え。
+    private func selectOption(number: Int) {
+        guard isInteractive, !isSubmitting, questions.count == 1 else { return }
+        let question = questions[0]
+        guard number <= question.options.count else { return }
+        let label = question.options[number - 1].label
+        if question.multiSelect {
+            form.toggleMulti(question: question.answerKey, label: label)
+        } else {
+            form.selectSingle(question: question.answerKey, label: label)
+        }
+    }
+
+    // MARK: - 会話に残る 1 行（R7d）
+
+    private func settledRow(scale: CGFloat) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: DSSpacing.s) {
+            Text(state == .answered ? "回答済み" : "期限切れ")
+                .font(ChatScaledFont.captionStrong(scale: scale))
+                .foregroundStyle(DSColor.chatTextPrimary)
+            Text(verbatim: settledSummary)
+                .font(ChatScaledFont.caption(scale: scale))
+                .foregroundStyle(DSColor.chatTextSecondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .help(settledSummary)
+            Spacer(minLength: DSSpacing.s)
+            Text(timestamp, format: .dateTime.hour().minute())
+                .font(ChatScaledFont.caption(scale: scale))
+                .foregroundStyle(DSColor.textTertiary)
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
         .background(
             RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                .fill(DSColor.fillSubtle)
+                .fill(state == .answered ? DSColor.fillSubtle : Color.clear)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                .strokeBorder(stateBorderColor, lineWidth: 1)
-        )
+        .overlay {
+            if state == .expired {
+                RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
+                    .strokeBorder(DSColor.border, style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+            }
+        }
         .frame(maxWidth: 720, alignment: .leading)
+        .accessibilityElement(children: .combine)
         .accessibilityIdentifier("UserQuestionCell.\(itemId)")
+    }
+
+    /// 回答済み「見出し: 回答」、期限切れ「「質問」— 回答は送られませんでした」。秘密の回答は伏せ字。
+    private var settledSummary: String {
+        if state == .answered {
+            return questions.map { question in
+                let selected = answers?[question.answerKey] ?? []
+                let labels = UserQuestionAnswerDisplay.labels(for: selected, isSecret: question.isSecret)
+                    .map { UserQuestionAnswerDisplay.permissionLabel($0, question: question, locale: locale) }
+                return "\(question.header): \(labels.joined(separator: ", "))"
+            }.joined(separator: " · ")
+        }
+        let first = questions.first?.question ?? ""
+        return "「\(first)」— " + AppLocalizedString.string("回答は送られませんでした", locale: locale)
     }
 
     /// 回答せずに別の指示を出したいときのための閉じるボタン。
     /// グリッドタイルのヘッダー（`PaneLayoutView`）と同じ手触りに揃える。
     private var dismissButton: some View {
         Button(action: { onDismiss?() }) {
-            Image(systemName: "xmark")
-                .imageScale(.small)
-                .foregroundStyle(DSColor.chatTextSecondary)
-                .frame(width: 20, height: 20)
+            Text("閉じる")
+                .font(.system(size: 12))
+                .foregroundStyle(DSColor.textSecondary)
+                .padding(.horizontal, 6)
+                .frame(height: 24)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(HoverableIconButtonStyle())
+        .buttonStyle(.plain)
         .help("回答せずに閉じる（ターンを中断する）")
         .accessibilityLabel("回答せずに閉じる")
         .accessibilityIdentifier("UserQuestionCell.dismiss.\(itemId)")
     }
 
-    private var stateBorderColor: Color {
-        switch state {
-        case .pending:
-            DSColor.chatTextSecondary.opacity(0.25)
-        case .answered:
-            DSColor.chatSuccess.opacity(0.45)
-        case .expired:
-            DSColor.statusError.opacity(0.35)
-        }
-    }
-
     @ViewBuilder
     private func questionBlock(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
-            Text(question.header)
-                .font(ChatScaledFont.captionStrong(scale: scale))
-                .foregroundStyle(DSColor.chatTextSecondary)
-                .padding(.horizontal, DSSpacing.s)
-                .padding(.vertical, DSSpacing.xxs)
-                .background(DSColor.fillSubtle, in: Capsule())
+            HStack(spacing: 6) {
+                Image(systemName: "questionmark.square.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DSColor.attentionMark(.question))
+                Text("質問待ち · \(question.header)")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(DSColor.attentionInk(.question))
+                Spacer(minLength: DSSpacing.s)
+                Text(question.isSecret ? "秘密の入力"
+                     : question.options.isEmpty ? "自由入力"
+                     : question.multiSelect ? "複数選べる" : "1 つ選ぶ")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DSColor.textTertiary)
+            }
 
             Text(question.question)
-                .font(TranscriptTypography.font(for: .bodyStrong, scale: scale))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(DSColor.chatTextPrimary)
 
             if state == .answered, let selected = answers?[question.answerKey], !selected.isEmpty {
@@ -215,13 +355,15 @@ struct UserQuestionCell: View {
     private func singleSelectOptions(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
         let selected = form.selections[question.answerKey, default: []]
         VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
-            ForEach(question.options, id: \.label) { option in
+            ForEach(Array(question.options.enumerated()), id: \.element.label) { offset, option in
                 optionLabel(
                     label: option.label,
                     description: option.description,
                     scale: scale,
                     isSelected: selected == [option.label],
-                    isEnabled: isInteractive && !isSubmitting
+                    isEnabled: isInteractive && !isSubmitting,
+                    number: questions.count == 1 && offset < 9 ? offset + 1 : nil,
+                    style: .radio
                 ) {
                     guard isInteractive, !isSubmitting else { return }
                     form.selectSingle(question: question.answerKey, label: option.label)
@@ -234,13 +376,15 @@ struct UserQuestionCell: View {
     private func multiSelectOptions(_ question: ChatUserQuestion, scale: CGFloat) -> some View {
         let selections = form.selections[question.answerKey, default: []]
         VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
-            ForEach(question.options, id: \.label) { option in
+            ForEach(Array(question.options.enumerated()), id: \.element.label) { offset, option in
                 optionLabel(
                     label: option.label,
                     description: option.description,
                     scale: scale,
                     isSelected: selections.contains(option.label),
-                    isEnabled: isInteractive && !isSubmitting
+                    isEnabled: isInteractive && !isSubmitting,
+                    number: questions.count == 1 && offset < 9 ? offset + 1 : nil,
+                    style: .checkbox
                 ) {
                     guard isInteractive, !isSubmitting else { return }
                     form.toggleMulti(question: question.answerKey, label: option.label)
@@ -254,13 +398,13 @@ struct UserQuestionCell: View {
         if isInteractive {
             if question.isSecret {
                 configuredFreeTextInput(
-                    SecureField("自由入力", text: binding(for: question.answerKey)),
+                    SecureField("秘密の値", text: binding(for: question.answerKey)),
                     question: question,
                     scale: scale
                 )
             } else {
                 configuredFreeTextInput(
-                    TextField("自由入力", text: binding(for: question.answerKey), axis: .vertical)
+                    TextField("その他（自由入力）", text: binding(for: question.answerKey), axis: .vertical)
                         .lineLimit(1...4),
                     question: question,
                     scale: scale
@@ -299,6 +443,12 @@ struct UserQuestionCell: View {
         )
     }
 
+    enum OptionStyle {
+        case plain
+        case radio
+        case checkbox
+    }
+
     @ViewBuilder
     private func optionLabel(
         label: String,
@@ -306,35 +456,57 @@ struct UserQuestionCell: View {
         scale: CGFloat,
         isSelected: Bool,
         isEnabled: Bool,
+        number: Int? = nil,
+        style: OptionStyle = .plain,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             HStack(alignment: .top, spacing: DSSpacing.s) {
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(DSColor.chatSuccess)
+                switch style {
+                case .radio:
+                    Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+                        .foregroundStyle(isSelected ? DSColor.attentionMark(.question) : DSColor.textTertiary)
+                case .checkbox:
+                    Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                        .foregroundStyle(isSelected ? DSColor.attentionMark(.question) : DSColor.textTertiary)
+                case .plain:
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(DSColor.chatSuccess)
+                    }
                 }
                 VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
                     Text(label)
-                        .font(ChatScaledFont.body(scale: scale))
+                        .font(.system(size: 12.5, weight: .medium))
                         .foregroundStyle(DSColor.chatTextPrimary)
                     if let description, !description.isEmpty {
                         Text(description)
-                            .font(ChatScaledFont.caption(scale: scale))
+                            .font(.system(size: 11.5))
                             .foregroundStyle(DSColor.chatTextSecondary)
                     }
                 }
                 Spacer(minLength: 0)
+                if let number {
+                    Text(verbatim: "\(number)")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(DSColor.textTertiary)
+                }
             }
-            .padding(.horizontal, DSSpacing.s)
-            .padding(.vertical, TranscriptTypography.metadataGap)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
             .background(
-                RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
-                    .fill(isSelected ? DSColor.chatSuccess.opacity(0.12) : DSColor.fillSubtle)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(DSColor.chatBackground)
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(isSelected ? DSColor.attentionMark(.question) : DSColor.separator, lineWidth: 1)
+            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func submitForm() {

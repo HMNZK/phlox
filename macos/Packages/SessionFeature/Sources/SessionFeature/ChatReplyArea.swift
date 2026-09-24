@@ -8,10 +8,13 @@ import StructuredChatKit
 struct ChatReplyArea<Composer: View>: View {
     @Bindable var viewModel: ChatSessionViewModel
     var showsKeyHints = true
+    /// 承認カードの「差分を見る」（会話の該当のファイルの変更へ移って開く）。
+    var onShowDiff: ((String) -> Void)? = nil
     let onRetrySend: () -> Void
     @ViewBuilder let composer: () -> Composer
 
     @State private var isCardFocused = false
+    @State private var isQuestionFocused = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -28,7 +31,8 @@ struct ChatReplyArea<Composer: View>: View {
                         approval: approval,
                         index: approvals.firstIndex { $0.id == approval.id } ?? 0,
                         count: approvals.count,
-                        onFocusChange: { isCardFocused = $0 }
+                        onFocusChange: { isCardFocused = $0 },
+                        onShowDiff: onShowDiff
                     )
                     .id(approval.id)
                 }
@@ -52,7 +56,7 @@ struct ChatReplyArea<Composer: View>: View {
 
     private var hintContext: ReplyKeyHints.Context {
         if !viewModel.replyApprovals.isEmpty { return isCardFocused ? .approvalCard : .approvalPending }
-        if pendingQuestion != nil { return .questionPending }
+        if pendingQuestion != nil { return isQuestionFocused ? .questionCard : .questionPending }
         return .composer
     }
 
@@ -61,6 +65,14 @@ struct ChatReplyArea<Composer: View>: View {
         let requestId: String
         let questions: [ChatUserQuestion]
         let timestamp: Date
+    }
+
+    /// 返答エリアに質問が出ているか（入力欄の案内と ■ に使う）。
+    static func hasPendingQuestion(in transcript: [ChatItem]) -> Bool {
+        transcript.contains { item in
+            guard case .userQuestion(_, _, let questions, _, .pending, _) = item else { return false }
+            return !ChatSessionViewModel.isToolPermissionQuestion(questions)
+        }
     }
 
     /// 返答エリアに出す質問（ツールの使用許可は承認カード側）。最初の 1 件だけ。
@@ -95,7 +107,8 @@ struct ChatReplyArea<Composer: View>: View {
             },
             placement: .replyArea,
             focusRequest: receivesFocus ? viewModel.replyCardFocusRequest : 0,
-            onReturnToComposer: { viewModel.returnFocusToComposer() }
+            onReturnToComposer: { viewModel.returnFocusToComposer() },
+            onFocusChange: { isQuestionFocused = $0 }
         )
         .id(question.itemId)
     }
@@ -107,10 +120,12 @@ private struct SendFailureNotice: View {
     let onRetry: () -> Void
     let onDismiss: () -> Void
 
+    /// 淡い赤の面に本文色の文字・右に再送（PhloxReply.dc.html の failed）。
+    /// ponytail: モックに無い × は、下書きを戻さなかった通知を消す手段が他に無いので残す。
     var body: some View {
-        HStack(spacing: DSSpacing.s) {
+        HStack(spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 11))
+                .font(.system(size: 12))
                 .foregroundStyle(DSColor.attentionMark(.error))
             Group {
                 if failure.restoredDraft {
@@ -119,27 +134,27 @@ private struct SendFailureNotice: View {
                     Text("送信できませんでした（\(failure.reason)）。")
                 }
             }
-                .font(.system(size: 12))
-                .foregroundStyle(DSColor.attentionInk(.error))
+                .font(.system(size: 12.5))
+                .foregroundStyle(DSColor.textPrimary)
                 .lineLimit(2)
-            Spacer(minLength: DSSpacing.s)
+                .frame(maxWidth: .infinity, alignment: .leading)
             if failure.restoredDraft {
-            Button(action: onRetry) {
-                HStack(spacing: 4) {
-                    Text("再送")
-                    Text(verbatim: "↩").opacity(0.7)
+                Button(action: onRetry) {
+                    HStack(spacing: 6) {
+                        Text("再送")
+                        Text(verbatim: "↩").font(.system(size: 10.5)).foregroundStyle(DSColor.textTertiary)
+                    }
+                    .font(.system(size: 12))
+                    .padding(.horizontal, 10)
+                    .frame(height: 24)
+                    .background(DSColor.controlBackground, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .strokeBorder(DSColor.controlBorder, lineWidth: 0.5)
+                    )
                 }
-                .font(.system(size: 11.5))
-                .padding(.horizontal, 8)
-                .frame(height: 22)
-                .background(DSColor.chatBackground, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .strokeBorder(DSColor.border, lineWidth: 1)
-                )
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(DSColor.textPrimary)
+                .buttonStyle(.plain)
+                .foregroundStyle(DSColor.textPrimary)
             }
             Button(action: onDismiss) {
                 Image(systemName: "xmark").font(.system(size: 9, weight: .semibold)).frame(width: 18, height: 18)
@@ -148,11 +163,11 @@ private struct SendFailureNotice: View {
             .foregroundStyle(DSColor.textSecondary)
             .accessibilityLabel(Text("通知を閉じる"))
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(DSColor.attentionTint(.error), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(DSColor.attentionTint(.error), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .strokeBorder(DSColor.attentionMark(.error), lineWidth: 1)
         )
         .accessibilityElement(children: .contain)
@@ -166,18 +181,19 @@ struct ReplyKeyHints: View {
         case approvalPending
         case approvalCard
         case questionPending
+        case questionCard
     }
 
     let context: Context
     let allowsImagePaste: Bool
 
     var body: some View {
-        HStack(spacing: DSSpacing.m) {
+        HStack(spacing: 14) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 item
             }
         }
-        .font(.system(size: 11))
+        .font(.system(size: 10.5))
         .foregroundStyle(DSColor.textTertiary)
         .lineLimit(1)
         .accessibilityElement(children: .combine)
@@ -195,6 +211,8 @@ struct ReplyKeyHints: View {
             return [Text("Y 許可"), Text("S このセッション中は許可"), Text("N 拒否"), Text("Esc キャンセル"), Text("Tab 入力欄へ戻る")]
         case .questionPending:
             return [Text("Tab で質問カードへ移動"), Text("1–9 選択"), Text("⌘↩ 回答を送信"), Text("Esc 閉じる")]
+        case .questionCard:
+            return [Text("1–9 選択"), Text("⌘↩ 回答を送信"), Text("Esc 閉じる")]
         }
     }
 }

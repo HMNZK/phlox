@@ -133,6 +133,7 @@ public actor ChatApprovalBroker {
             )
             approval.workingDirectory = value.cwd
             approval.permissionsText = Self.compactJSON(value.permissions)
+            approval.permissionRows = Self.permissionRows(value.permissions)
             return try await handleApproval(approval, permissions: value.permissions)
         case .userInputRequest(let value):
             return try await handleUserInput(value)
@@ -191,6 +192,62 @@ public actor ChatApprovalBroker {
             itemId: itemId,
             prompt: prompt
         )
+    }
+
+    /// Codex の RequestPermissionProfile（`network.enabled` / `fileSystem.read|write|entries`）を行にする。
+    /// 形は `codex app-server generate-json-schema`（0.156.1）の PermissionsRequestApprovalParams。
+    static func permissionRows(_ value: JSONValue) -> [ApprovalPermissionRow] {
+        guard case .object(let profile) = value else { return [] }
+        var rows: [ApprovalPermissionRow] = []
+        if case .object(let network)? = profile["network"], case .bool(true)? = network["enabled"] {
+            rows.append(ApprovalPermissionRow(label: "ネットワーク", value: "外部への接続", isPath: false))
+        }
+        guard case .object(let fileSystem)? = profile["fileSystem"] else { return rows }
+        var paths: [(access: String, path: String)] = []
+        for access in ["read", "write"] {
+            if case .array(let items)? = fileSystem[access] {
+                for case .string(let path) in items { paths.append((access, path)) }
+            }
+        }
+        if case .array(let entries)? = fileSystem["entries"] {
+            for case .object(let entry) in entries {
+                guard case .string(let access)? = entry["access"],
+                      case .object(let path)? = entry["path"],
+                      let text = Self.fileSystemPathText(path)
+                else { continue }
+                paths.append((access, text))
+            }
+        }
+        for (access, label) in [("read", "読み取り"), ("write", "書き込み"), ("deny", "拒否")] {
+            let values = paths.filter { $0.access == access }.map(\.path)
+            guard !values.isEmpty else { continue }
+            rows.append(ApprovalPermissionRow(label: label, value: values.joined(separator: "\n"), isPath: true))
+        }
+        return rows
+    }
+
+    private static func fileSystemPathText(_ path: [String: JSONValue]) -> String? {
+        switch path["type"] {
+        case .string("path")?:
+            if case .string(let value)? = path["path"] { return value }
+        case .string("glob_pattern")?:
+            if case .string(let value)? = path["pattern"] { return value }
+        case .string("special")?:
+            guard case .object(let special)? = path["value"], case .string(let kind)? = special["kind"] else { return nil }
+            var subpath = ""
+            if case .string(let value)? = special["subpath"] { subpath = "/" + value }
+            switch kind {
+            case "root": return "/"
+            case "slash_tmp": return "/tmp"
+            case "tmpdir": return "$TMPDIR"
+            case "project_roots": return "<project>" + subpath
+            case "unknown":
+                if case .string(let value)? = special["path"] { return value + subpath }
+            default: return kind + subpath
+            }
+        default: break
+        }
+        return nil
     }
 
     private static func compactJSON(_ value: JSONValue) -> String? {

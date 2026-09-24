@@ -9,6 +9,13 @@ extension EnvironmentValues {
     @Entry var selectedSubAgentID: String? = nil
     /// 右パネルで開けるサブエージェント（nil は制限なし）。アプリを再起動すると一覧が戻らず中身を開けないので、その行は押せなくする。
     @Entry var openableSubAgentIDs: Set<String>? = nil
+    /// 承認カードの「差分を見る」で開くファイルの変更（05 R6e）。token は同じ項目を何度でも開けるように。
+    @Entry var fileChangeRevealRequest: FileChangeRevealRequest? = nil
+}
+
+struct FileChangeRevealRequest: Equatable {
+    let itemID: String
+    let token: Int
 }
 
 struct SubAgentMarkerCell: View {
@@ -397,6 +404,8 @@ struct CommandExecutionCell: View {
 struct FileChangeCell: View {
     let changes: [FilePatchChange]
     let timestamp: Date
+    var itemID: String? = nil
+    @Environment(\.fileChangeRevealRequest) private var revealRequest
     /// ユーザーが明示トグルしたときだけ設定される override。nil の間は policy 由来の既定に追随する。
     @State private var userExpandedOverride: Bool?
     @State private var showAllLines = false
@@ -499,6 +508,9 @@ struct FileChangeCell: View {
                 )
             }
             .help(Text("差分の行は選択できません — 「セクションをコピー」を使う"))
+        }
+        .onChange(of: revealRequest) { _, request in
+            if let request, request.itemID == itemID { userExpandedOverride = true }
         }
     }
 

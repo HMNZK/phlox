@@ -24,12 +24,17 @@ extension ClaudeChatClient {
                 return true
             }
 
-            let question = Self.makeToolPermissionQuestion(toolName: toolName, input: input)
+            let sessionUpdates = Self.sessionPermissionUpdates(from: request["permission_suggestions"])
+            let question = Self.makeToolPermissionQuestion(
+                toolName: toolName,
+                input: input,
+                allowsSessionScope: !sessionUpdates.isEmpty
+            )
             pendingUserQuestions[requestId] = PendingUserQuestion(
                 input: input,
                 questions: [question],
                 generation: generation,
-                permission: PendingToolPermission(toolName: toolName)
+                permission: PendingToolPermission(toolName: toolName, sessionPermissionUpdates: sessionUpdates)
             )
             eventContinuation.yield(.userQuestionRequested(requestId: requestId, questions: [question]))
             return true
@@ -68,14 +73,18 @@ extension ClaudeChatClient {
         let line: Data
         do {
             let response: [String: Any]
-            if pending.permission != nil {
+            if let permission = pending.permission {
                 let answerKey = pending.questions.first?.answerKey
                 let selectedLabel = answerKey.flatMap { answers[$0]?.first }
-                if selectedLabel == "Allow" {
-                    response = [
+                if selectedLabel == "Allow" || selectedLabel == Self.allowForSessionLabel {
+                    var allow: [String: Any] = [
                         "behavior": "allow",
                         "updatedInput": pending.input,
                     ]
+                    if selectedLabel == Self.allowForSessionLabel, !permission.sessionPermissionUpdates.isEmpty {
+                        allow["updatedPermissions"] = permission.sessionPermissionUpdates
+                    }
+                    response = allow
                 } else {
                     response = [
                         "behavior": "deny",
@@ -208,7 +217,36 @@ extension ClaudeChatClient {
         return questions
     }
 
-    static func makeToolPermissionQuestion(toolName: String, input: [String: Any]) -> ChatUserQuestion {
+    /// ツールの使用許可の回答で「このセッション中は許可」を表すラベル（選択肢には出さない）。
+    public static let allowForSessionLabel = "AllowForSession"
+
+    /// CLI の提案（permission_suggestions）のうち、許可ルールの追加と作業ディレクトリの追加を
+    /// このセッション限りにして返す（作業ディレクトリの外に触るコマンドは、ルールだけでは通らない）。
+    /// モードの切り替え（setMode）は Phlox の表示とずれるので使わない。
+    /// 形は Claude Code 2.1.280 の can_use_tool / updatedPermissions で確かめた。
+    static func sessionPermissionUpdates(from suggestions: Any?) -> [[String: Any]] {
+        guard let suggestions = suggestions as? [[String: Any]] else { return [] }
+        return suggestions.compactMap { suggestion in
+            switch suggestion["type"] as? String {
+            case "addRules":
+                guard suggestion["behavior"] as? String == "allow",
+                      let rules = suggestion["rules"] as? [[String: Any]], !rules.isEmpty
+                else { return nil }
+                return ["type": "addRules", "rules": rules, "behavior": "allow", "destination": "session"]
+            case "addDirectories":
+                guard let directories = suggestion["directories"] as? [String], !directories.isEmpty else { return nil }
+                return ["type": "addDirectories", "directories": directories, "destination": "session"]
+            default:
+                return nil
+            }
+        }
+    }
+
+    static func makeToolPermissionQuestion(
+        toolName: String,
+        input: [String: Any],
+        allowsSessionScope: Bool = false
+    ) -> ChatUserQuestion {
         let safeToolName = Self.sanitizeToolPermissionText(toolName)
         let summary = Self.sanitizeToolPermissionText(
             Self.toolPermissionInputSummary(toolName: toolName, input: input)
@@ -225,7 +263,11 @@ extension ClaudeChatClient {
                 ChatUserQuestionOption(label: "Deny"),
             ],
             multiSelect: false,
-            permission: ChatToolPermission(toolName: safeToolName, detail: summary)
+            permission: ChatToolPermission(
+                toolName: safeToolName,
+                detail: summary,
+                allowsSessionScope: allowsSessionScope ? true : nil
+            )
         )
     }
 

@@ -2682,6 +2682,14 @@ public final class ChatSessionViewModel: Identifiable {
             return .commandExecution(id: id, command: command, output: text, timestamp: Date())
         }
         if type.contains("file") || type.contains("patch") {
+            let changes = item.fileChanges
+            if !changes.isEmpty {
+                return .fileChange(
+                    id: id,
+                    changes: changes.map { StructuredChatKit.FilePatchChange(path: $0.path, diff: $0.unifiedDiff, kind: $0.kindName) },
+                    timestamp: Date()
+                )
+            }
             if let diff = item.raw?.firstString(for: ["diff", "patch"]) {
                 let path = item.raw?.firstString(for: ["path"]) ?? "unknown"
                 return .fileChange(

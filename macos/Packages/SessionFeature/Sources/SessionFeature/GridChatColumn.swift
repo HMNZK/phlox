@@ -12,6 +12,7 @@ struct GridChatColumn: View {
     var projectName: String? = nil
     let onFocusGained: () -> Void
     @State private var requestedTranscriptTarget: String?
+    @State private var fileChangeRevealRequest: FileChangeRevealRequest?
     @State private var composerHeight: CGFloat = 0
     @Environment(\.locale) private var locale
 
@@ -40,6 +41,7 @@ struct GridChatColumn: View {
                     onSelectSubAgent: { viewModel.selectSubAgent($0) }
                 )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .environment(\.fileChangeRevealRequest, fileChangeRevealRequest)
                     // 単一表示と同じく safeAreaInset で置く（VStack 兄弟だと出現/行数変化で
                     // LazyVStack 再配置ループ＝ADR 0010 非収束を招く。safeAreaInset は一方向依存で安全）。
                     .safeAreaInset(edge: .top, spacing: 0) {
@@ -55,7 +57,7 @@ struct GridChatColumn: View {
                     .overlay(alignment: .bottom) {
                         let proposedComposerWidth = ComposerLayout.proposedWidth(mainColumnWidth: formattingWidth)
                         // 承認・質問のカードは単体表示と同じく入力欄の直上（05）。キーの案内はタイルでは出さない。
-                        ChatReplyArea(viewModel: viewModel, showsKeyHints: false, onRetrySend: sendDraft) {
+                        ChatReplyArea(viewModel: viewModel, showsKeyHints: false, onShowDiff: showDiff, onRetrySend: sendDraft) {
                             GridComposerBar(
                                 viewModel: viewModel,
                                 text: $viewModel.draft,
@@ -130,6 +132,12 @@ struct GridChatColumn: View {
     private var selectedSubAgentTranscript: [ChatItem]? {
         guard let selectedSubAgentId = viewModel.selectedSubAgentId else { return nil }
         return viewModel.subAgentTranscript(for: selectedSubAgentId)
+    }
+
+    /// 承認カードの「差分を見る」: 会話の該当のファイルの変更へ移り、開く（05 R6e）。
+    private func showDiff(_ itemID: String) {
+        requestedTranscriptTarget = itemID
+        fileChangeRevealRequest = FileChangeRevealRequest(itemID: itemID, token: (fileChangeRevealRequest?.token ?? 0) + 1)
     }
 
     private func sendDraft() {
@@ -226,7 +234,7 @@ struct GridComposerBar: View {
         // ADR 0046 の約 80px に、宛先キャプション 1 行を足す。間隔 xs は維持。
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             if suggestionController.isPresented {
-                ComposerSuggestionPopup(controller: suggestionController, onAccept: acceptSuggestionFromPopup)
+                ComposerSuggestionPopup(controller: suggestionController, maxVisibleRows: 5, onAccept: acceptSuggestionFromPopup)
                     .accessibilityIdentifier("GridComposer.suggestions")
             }
             if let error = viewModel.codexSkillSelectionState?.errorMessage {

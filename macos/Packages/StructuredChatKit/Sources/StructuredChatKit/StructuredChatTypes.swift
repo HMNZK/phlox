@@ -75,10 +75,14 @@ public struct ChatUserQuestionOption: Codable, Equatable, Sendable {
 public struct ChatToolPermission: Codable, Equatable, Sendable {
     public let toolName: String
     public let detail: String
+    /// 「このセッション中は許可」を返せるか（CLI が同じ種類を通すルールを提案してきたとき）。
+    /// 既存の永続データ（このキーが無い JSON）は nil として読む。
+    public let allowsSessionScope: Bool?
 
-    public init(toolName: String, detail: String) {
+    public init(toolName: String, detail: String, allowsSessionScope: Bool? = nil) {
         self.toolName = toolName
         self.detail = detail
+        self.allowsSessionScope = allowsSessionScope
     }
 }
 

@@ -1008,7 +1008,7 @@ extension CodexStructuredAgentClient {
             .commandExecution(itemId: itemId, command: nil, outputDelta: delta)
         case .filePatchUpdated(_, _, let itemId, let changes):
             .fileChange(itemId: itemId, changes.map {
-                StructuredChatKit.FilePatchChange(path: $0.path, diff: $0.diff, kind: $0.kind?.stringValue)
+                StructuredChatKit.FilePatchChange(path: $0.path, diff: $0.unifiedDiff, kind: $0.kindName)
             })
         case .turnStarted:
             .turnStarted

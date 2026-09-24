@@ -115,6 +115,11 @@ struct ChatTranscriptView: View {
                     trigger: .transcript(newSignal)
                 )
             }
+            // 返答エリア（承認カードの補足など）が伸びると下の余白だけ増えて末尾の行が隠れる。追従中なら寄せ直す。
+            .onChange(of: bottomScrollContentMargin) { old, new in
+                guard new > old, autoFollow.isFollowing else { return }
+                proxy.scrollTo(ChatScrollTarget.bottom.rawValue, anchor: .bottom)
+            }
             .onChange(of: viewModel.status) { _, newStatus in
                 scrollToBottomIfNeeded(
                     proxy,

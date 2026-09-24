@@ -185,11 +185,8 @@ public enum DSColor {
     public static var codeSyntaxNumber: Color {
         theme.preferredColorScheme == .light ? RGB(0x9D, 0x17, 0x4D).color : RGB(0xF0, 0xAB, 0xFC).color
     }
-    /// 入力欄のキーワード強調（ultrathink 等）。スラッシュ（紫）／@参照（緑）と判別できる第3色として
-    /// 琥珀系を割り当てる。コードブロックの数値色とは意味が別物なので専用トークンを持つ。
-    public static var composerKeyword: Color {
-        theme.preferredColorScheme == .light ? RGB(0xB4, 0x53, 0x09).color : RGB(0xFC, 0xD3, 0x4D).color
-    }
+    /// 入力欄のキーワード強調（ultrathink 等）。PhloxReply.dc.html の kw（--stlInk）。
+    public static var composerKeyword: Color { attentionInk(.stalled) }
     /// ユーザー発言バブルの面。AI 返信が無背景のため、右寄せ＋この面で話者を区別する。
     /// アクセント面ではなく、テーマ前景由来のニュートラルな薄い面で示す。
     public static var userBubble: Color { theme.textPrimary.color.opacity(0.08) }
@@ -278,6 +275,8 @@ public enum DSColor {
     public static var codeBackground: Color { palette.code.color }
     public static var fieldBackground: Color { palette.field.color }
     public static var popoverBackground: Color { palette.popover.color }
+    /// ポップオーバーの縁（`--shadow` の 0.5px: ライト 黒 20% / ダーク 白 16%）。
+    public static var popoverEdge: Color { isDark ? Color.white.opacity(0.16) : Color.black.opacity(0.20) }
     public static var tabBarBackground: Color { palette.tabBar.color }
     public static var terminalBackground: Color { palette.terminal.color }
 

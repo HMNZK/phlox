@@ -528,6 +528,15 @@ public struct ThreadItem: Codable, Equatable, Sendable {
     public func encode(to encoder: Encoder) throws {
         try raw?.encode(to: encoder)
     }
+
+    /// fileChange item の変更（0.156 のスキーマでは `changes: [{path, diff, kind}]`）。
+    public var fileChanges: [FilePatchChange] {
+        guard case .array(let values)? = raw?["changes"] else { return [] }
+        return values.compactMap { value in
+            guard let path = value["path"]?.stringValue, let diff = value["diff"]?.stringValue else { return nil }
+            return FilePatchChange(path: path, diff: diff, kind: value["kind"])
+        }
+    }
 }
 
 public enum ThreadStatus: Codable, Equatable, Sendable {
@@ -702,5 +711,25 @@ public struct FilePatchChange: Codable, Equatable, Sendable {
         self.path = path
         self.diff = diff
         self.kind = kind
+    }
+
+    /// kind は文字列か `{ "type": "add" }`（0.156 のスキーマ）で届く。
+    public var kindName: String? { kind?.stringValue ?? kind?["type"]?.stringValue }
+
+    /// add / delete の diff はファイルの中身そのもので届く。行に +/- を付け、通常の差分と同じに数え・描画できるようにする。
+    public var unifiedDiff: String {
+        let prefix: String
+        switch kindName {
+        case "add": prefix = "+"
+        case "delete": prefix = "-"
+        default: return diff
+        }
+        var lines = diff.components(separatedBy: "\n")
+        // すでに unified diff なら触らない。本文が "---"（Markdown の frontmatter など）で始まるだけでは差分とみなさない。
+        let isUnifiedDiff = lines[0].hasPrefix("@@ -")
+            || (lines.count > 1 && lines[0].hasPrefix("--- ") && lines[1].hasPrefix("+++ "))
+        guard !diff.isEmpty, !isUnifiedDiff else { return diff }
+        if lines.last == "" { lines.removeLast() }
+        return lines.map { prefix + $0 }.joined(separator: "\n")
     }
 }

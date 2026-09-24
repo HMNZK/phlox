@@ -2762,9 +2762,21 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wants to change %lld files"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Wants to change %lld file"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Wants to change %lld files"
+                }
+              }
+            }
           }
         }
       }
@@ -7044,6 +7056,403 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld files"
+          }
+        }
+      }
+    },
+    "%@ / %@ トークン": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ / %2$@ tokens"
+          }
+        }
+      }
+    },
+    "%@ · %lld 種": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$lld options"
+          }
+        }
+      }
+    },
+    "%@、%lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, %2$lld"
+          }
+        }
+      }
+    },
+    "Codex skill の取得に失敗しました: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load Codex skills: %@"
+          }
+        }
+      }
+    },
+    "Plan モード": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan mode"
+          }
+        }
+      }
+    },
+    "› 差分を見る（%lld ファイル）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "› View diff (%lld file)"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "› View diff (%lld files)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "↩ / Tab 確定": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↩ / Tab to accept"
+          }
+        }
+      }
+    },
+    "ファイル": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Files"
+          }
+        }
+      }
+    },
+    "「このセッション中は許可」を選ぶと、このセッションが終わるまで同じ種類の要求を確認なしで通します。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If you choose “Allow for this session”, requests of the same kind pass without asking until this session ends."
+          }
+        }
+      }
+    },
+    "このセッションだけに効く。既定は エージェント管理 > 設定": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Applies to this session only. Defaults are in Agent Management > Settings"
+          }
+        }
+      }
+    },
+    "ブランチを切り替え": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch branch"
+          }
+        }
+      }
+    },
+    "モデルを検索（%lld）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search models (%lld)"
+          }
+        }
+      }
+    },
+    "中断（Esc / ⌘.）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop (Esc / ⌘.)"
+          }
+        }
+      }
+    },
+    "入力値は伏せ字で表示し、会話の履歴と書き出しには残しません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The value is masked and is not kept in the conversation history or exports."
+          }
+        }
+      }
+    },
+    "承認とサンドボックス": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approval and sandbox"
+          }
+        }
+      }
+    },
+    "権限モード": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permission mode"
+          }
+        }
+      }
+    },
+    "添付": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attach"
+          }
+        }
+      }
+    },
+    "添付を外す": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove attachment"
+          }
+        }
+      }
+    },
+    "計画だけを立て、ファイルの変更やコマンドは実行しない": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only make a plan; don’t change files or run commands"
+          }
+        }
+      }
+    },
+    "許可・拒否のルールは エージェント管理 > パーミッション": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow and deny rules are in Agent Management > Permissions"
+          }
+        }
+      }
+    },
+    "許可・確認・拒否のルールは エージェント管理 > パーミッション": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow, ask and deny rules are in Agent Management > Permissions"
+          }
+        }
+      }
+    },
+    "その他（自由に入力）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other (type your own)"
+          }
+        }
+      }
+    },
+    "1–%lld で切り替え · ⌘↩ 送信": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1–%lld to toggle · ⌘↩ to send"
+          }
+        }
+      }
+    },
+    "%lld分前から": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "for %lld min"
+          }
+        }
+      }
+    },
+    "ネットワーク": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Network"
+          }
+        }
+      }
+    },
+    "外部への接続": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Outgoing connections"
+          }
+        }
+      }
+    },
+    "読み取り": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read"
+          }
+        }
+      }
+    },
+    "書き込み": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write"
+          }
+        }
+      }
+    },
+    "5 枚目は追加できません。画像は 1 枚 4MB・最大 4 枚・合計 8MB までです。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can’t add a 5th image. Images are limited to 4 MB each, 4 images, and 8 MB in total."
+          }
+        }
+      }
+    },
+    "承認待ちの間も入力できます（送信は承認後）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can type while approval is pending (sending waits for it)"
+          }
+        }
+      }
+    },
+    "質問に答えるか、ここから別の指示を送れます": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Answer the question, or send a different instruction here"
+          }
+        }
+      }
+    },
+    "実行中です。中断は Esc か ■": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running. Press Esc or ■ to stop"
+          }
+        }
+      }
+    },
+    "メッセージを入力 — / でコマンド、@ でファイル": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type a message — / for commands, @ for files"
+          }
+        }
+      }
+    },
+    "推論の深さ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reasoning depth"
+          }
+        }
+      }
+    },
+    "「このセッション中は許可」を選ぶと、このセッションが終わるまで同じファイルへの変更を確認なしで通します。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If you choose “Allow for this session”, later changes to the same files pass without asking until this session ends."
           }
         }
       }

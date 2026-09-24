@@ -87,8 +87,8 @@ enum ComposerIndicatorMetrics {
 
     static func donutStrokeWidth(for layout: ComposerIndicatorLayout) -> CGFloat {
         switch layout {
-        case .regular: 2
-        case .compact: 2
+        case .regular: 2.2
+        case .compact: 2.2
         }
     }
 
@@ -115,27 +115,29 @@ struct ComposerContextIndicator: View {
     /// 80% を超えたとき /compact を案内するか（/compact を持つエージェントだけ）。
     var suggestsCompact = false
     @Environment(\.locale) private var locale
+    @State private var isHoveringContext = false
 
-    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
-
+    /// PhloxReply.dc.html の下段の右: ブランチ（等幅 11）→ コンテキストの円＋%（11.5・fg2・等幅数字）。
     var body: some View {
-        HStack(spacing: DSSpacing.xs) {
-            if let fraction = ComposerContextGauge.fraction(for: usage) {
-                contextDonut(fraction: fraction)
-                Text(verbatim: "\(Int((fraction * 100).rounded()))%")
-                    .font(DSFont.caption)
-                    .monospacedDigit()
-                    .foregroundStyle(DSColor.chatTextSecondary)
-                    .fixedSize()
-            }
+        HStack(spacing: 6) {
             if showsBranch {
                 branchLabel
                     // フッター幅不足時は送信・停止ボタンより先に圧縮させる（不変条件 i）。
                     .layoutPriority(-1)
-                    .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity, alignment: .leading)
+                    .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity, alignment: .trailing)
+            }
+            if let fraction = ComposerContextGauge.fraction(for: usage) {
+                HStack(spacing: 5) {
+                    contextDonut(fraction: fraction)
+                    Text(verbatim: "\(Int((fraction * 100).rounded()))%")
+                        .font(.system(size: 11.5))
+                        .monospacedDigit()
+                        .foregroundStyle(DSColor.textSecondary)
+                        .fixedSize()
+                }
             }
         }
-        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing)
     }
 
     @ViewBuilder
@@ -154,82 +156,98 @@ struct ComposerContextIndicator: View {
 
     @ViewBuilder
     private func contextDonut(fraction: Double) -> some View {
+        // 通常は fg2、80% 以上は `--apv`。下地は `--segBg`、太さ 2.2・端は角。
         let strokeColor = ComposerContextGauge.isWarningLevel(fraction: fraction)
-            ? DSColor.statusAwaitingApproval
-            : DSColor.chatAccent
+            ? DSColor.attentionMark(.approval)
+            : DSColor.textSecondary
         let diameter = ComposerIndicatorMetrics.donutDiameter(for: layout)
         let strokeWidth = ComposerIndicatorMetrics.donutStrokeWidth(for: layout)
 
         if let popoverLines = contextPopoverLines {
-            HoverableComposerControl { isHovering in
+            let isHovering = isHoveringContext
                 ZStack {
                     Circle()
-                        .stroke(DSColor.chatTextSecondary.opacity(0.28), lineWidth: strokeWidth)
+                        .stroke(DSColor.segmentTrack, lineWidth: strokeWidth)
                     Circle()
                         .trim(from: 0, to: fraction)
-                        .stroke(strokeColor, style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round))
+                        .stroke(strokeColor, style: StrokeStyle(lineWidth: strokeWidth, lineCap: .butt))
                         .rotationEffect(.degrees(-90))
                 }
                 .frame(width: diameter, height: diameter)
-                .overlay(alignment: .top) {
+                .overlay(alignment: .topTrailing) {
                     if isHovering {
                         ComposerContextPopover(
-                            lines: popoverLines,
+                            summary: popoverLines,
                             warning: suggestsCompact && ComposerContextGauge.isWarningLevel(fraction: fraction)
                                 ? AppLocalizedString.string("80% を超えました。/compact で会話を圧縮できます。", locale: locale)
                                 : nil
                         )
                             .fixedSize()
-                            .offset(y: -58)
+                            .placedAbove(gap: 8)
                             .allowsHitTesting(false)
                             .zIndex(10)
                     }
                 }
-            }
+                .onHover { isHoveringContext = $0 }
+                .reportsComposerPopup(isHovering)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: popoverLines.title))
+                .accessibilityValue(Text(verbatim: popoverLines.tokens))
         } else {
             EmptyView()
         }
     }
 
-    private var contextPopoverLines: [String]? {
+    /// 吹き出しの 2 行（「コンテキスト 84%」「168k / 200k トークン」）。
+    private var contextPopoverLines: (title: String, tokens: String)? {
         guard let usage,
               let used = ComposerContextGauge.resolvedUsedTokens(from: usage),
               let window = usage.contextWindowTokens,
               window > 0
         else { return nil }
-        return ComposerContextPopoverText.lines(usedTokens: used, windowTokens: window, languageCode: languageCode)
+        let percent = Int((Double(used) / Double(window) * 100).rounded())
+        return (
+            String(format: AppLocalizedString.string("コンテキスト %lld%%", locale: locale), percent),
+            String(
+                format: AppLocalizedString.string("%@ / %@ トークン", locale: locale),
+                ComposerContextPopoverText.tokenText(used),
+                ComposerContextPopoverText.tokenText(window)
+            )
+        )
     }
 }
 
+/// PhloxReply.dc.html の O8: 右寄せ・幅 240・`--popover`・角丸 9・影。
 private struct ComposerContextPopover: View {
-    let lines: [String]
+    let summary: (title: String, tokens: String)
     var warning: String? = nil
 
     var body: some View {
-        VStack(spacing: 3) {
-            ForEach(lines, id: \.self) { line in
-                Text(line)
-                    .font(DSFont.caption)
-                    .foregroundStyle(DSColor.chatTextPrimary)
-                    .multilineTextAlignment(.center)
-            }
+        VStack(alignment: .leading, spacing: 5) {
+            Text(verbatim: summary.title)
+                .fontWeight(.semibold)
+                .foregroundStyle(DSColor.textPrimary)
+            Text(verbatim: summary.tokens)
+                .monospacedDigit()
+                .foregroundStyle(DSColor.textSecondary)
             if let warning {
-                Text(warning)
-                    .font(DSFont.caption)
-                    .foregroundStyle(DSColor.statusAwaitingApprovalForeground)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 220)
+                Text(verbatim: warning)
+                    .font(.system(size: 11.5))
+                    .lineSpacing(3)
+                    .foregroundStyle(DSColor.attentionInk(.approval))
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.horizontal, DSSpacing.m)
-        .padding(.vertical, DSSpacing.s)
-        .background(DSColor.chatElevated, in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
+        .font(.system(size: 12))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(width: 240, alignment: .leading)
+        .background(DSColor.popoverBackground, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                .stroke(DSColor.border)
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(DSColor.popoverEdge, lineWidth: 0.5)
         )
-        .shadow(color: Color.black.opacity(0.22), radius: 10, x: 0, y: 6)
+        .dsShadow(.popover)
     }
 }
 
@@ -264,61 +282,70 @@ private struct ComposerBranchControl: View {
     }
 
     private func branchButton(currentBranch: String) -> some View {
-        HoverableComposerControl(isEnabled: !isCheckingOut) { _ in
-            Button {
-                openPicker()
-            } label: {
-                ComposerBranchLabelContent(
-                    currentBranch: currentBranch,
-                    layout: layout,
-                    isCheckingOut: isCheckingOut
-                )
-            }
-            .buttonStyle(.plain)
-            .disabled(isCheckingOut)
-            .popover(isPresented: pickerIsPresented, arrowEdge: .top) {
+        Button {
+            if picker.isPresented { pickerIsPresented.wrappedValue = false } else { openPicker() }
+        } label: {
+            ComposerBranchLabelContent(
+                currentBranch: currentBranch,
+                layout: layout,
+                isCheckingOut: isCheckingOut,
+                isOpen: picker.isPresented
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isCheckingOut)
+        .accessibilityLabel(Text(verbatim: AppLocalizedString.string("ブランチ", locale: locale) + " " + currentBranch))
+        .composerPopup(isPresented: pickerIsPresented, alignment: .trailing) {
+            ComposerPopupSurface(width: 300, cornerRadius: 10, padding: 6) {
                 branchPicker
             }
-            .alert(UIWording.text(.branchCheckoutFailed, languageCode: languageCode), isPresented: checkoutErrorIsPresented) {
+        }
+        .alert(UIWording.text(.branchCheckoutFailed, languageCode: languageCode), isPresented: checkoutErrorIsPresented) {
                 Button("OK", role: .cancel) {
                     checkoutError = nil
                 }
             } message: {
                 Text(checkoutError ?? "")
             }
-        }
     }
 
+    /// PhloxReply.dc.html の O7: 見出し「ブランチを切り替え · ~/dev/phlox」、等幅 12 の行（高さ 26）。
+    /// ponytail: 切り替えの失敗は従来どおりアラート（受け入れテストが「選んだら閉じてから切り替える」を固定しているため、箱の中には出せない）。
     private var branchPicker: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let header = AppLocalizedString.string("ブランチを切り替え", locale: locale) + " · " + (workspacePath as NSString).abbreviatingWithTildeInPath
+        return Group {
             if picker.branches.isEmpty {
-                Text(UIWording.text(.noLocalBranches, languageCode: languageCode))
-                    .font(DSFont.caption)
-                    .foregroundStyle(DSColor.chatTextSecondary)
-                    .padding(.horizontal, DSSpacing.s)
-                    .padding(.vertical, DSSpacing.s)
-            } else {
-                ForEach(picker.branches, id: \.self) { branch in
-                    Button {
-                        checkout(branch)
-                    } label: {
-                        SettingsMenuRow(
-                            title: branch,
-                            isSelected: branch == currentBranch
-                        )
-                        .font(DSFont.caption)
-                        .foregroundStyle(DSColor.chatTextPrimary)
-                        .padding(.horizontal, DSSpacing.s)
-                        .padding(.vertical, DSSpacing.xs)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isCheckingOut || branch == currentBranch)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(verbatim: header)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DSColor.textTertiary)
+                        .padding(.horizontal, 8)
+                        .padding(.top, 4)
+                        .padding(.bottom, 6)
+                    Text(UIWording.text(.noLocalBranches, languageCode: languageCode))
+                        .font(.system(size: 12))
+                        .foregroundStyle(DSColor.textSecondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
                 }
+            } else {
+                ComposerMenuList(
+                    header: header,
+                    sections: [ComposerMenuSection(id: "branches", rows: picker.branches.map { branch in
+                        ComposerMenuRow(
+                            id: branch,
+                            title: branch,
+                            isSelected: branch == currentBranch,
+                            isEnabled: !isCheckingOut,
+                            action: { checkout(branch) }
+                        )
+                    })],
+                    rowHeight: 26,
+                    monospacedRows: true,
+                    onClose: {}
+                )
             }
         }
-        .frame(minWidth: 190, alignment: .leading)
-        .padding(.vertical, DSSpacing.xs)
     }
 
     private var checkoutErrorIsPresented: Binding<Bool> {
@@ -397,17 +424,15 @@ private struct ComposerStaticBranchControl: View {
     var isCheckingOut: Bool
 
     var body: some View {
-        HoverableComposerControl(isEnabled: !isCheckingOut) { _ in
-            Button {} label: {
-                ComposerBranchLabelContent(
-                    currentBranch: currentBranch,
-                    layout: layout,
-                    isCheckingOut: isCheckingOut
-                )
-            }
-            .buttonStyle(.plain)
-            .disabled(isCheckingOut)
+        Button {} label: {
+            ComposerBranchLabelContent(
+                currentBranch: currentBranch,
+                layout: layout,
+                isCheckingOut: isCheckingOut
+            )
         }
+        .buttonStyle(.plain)
+        .disabled(isCheckingOut)
     }
 }
 
@@ -416,13 +441,13 @@ struct ComposerBranchLabelContent: View {
     let currentBranch: String
     var layout: ComposerIndicatorLayout
     var isCheckingOut: Bool
+    var isOpen = false
 
+    /// PhloxReply.dc.html の chipBranch: 等幅 11・面なし（開いている間は `--sel`）・高さ 22・左右 8。
     var body: some View {
         HStack(spacing: 2) {
-            Image(systemName: "arrow.triangle.branch")
-                .font(.system(size: 10, weight: .medium))
-            Text(currentBranch)
-                .font(DSFont.caption)
+            Text(verbatim: currentBranch)
+                .font(.system(size: 11, design: .monospaced))
                 .lineLimit(1)
                 .truncationMode(ComposerIndicatorMetrics.branchTruncationMode(for: layout))
             if isCheckingOut {
@@ -432,7 +457,16 @@ struct ComposerBranchLabelContent: View {
                     .frame(width: 10, height: 10)
             }
         }
-        .foregroundStyle(DSColor.chatTextSecondary)
-        .contentShape(RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
+        .foregroundStyle(DSColor.textPrimary)
+        .padding(.horizontal, 8)
+        .frame(height: 22)
+        .background(isOpen ? DSColor.selectionFill : .clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay {
+            if isOpen {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(DSColor.textTertiary, lineWidth: 1)
+            }
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }

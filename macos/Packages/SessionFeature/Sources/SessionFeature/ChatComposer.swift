@@ -15,10 +15,9 @@ struct ChatComposer: View {
     let controlsLayout: ComposerFooterLayout
     @State private var editorHeight: CGFloat = ComposerHeightBounds.single.min
     @State private var isComposing = false
+    @State private var isEditorFocused = false
     @State private var suggestionController: ComposerSuggestionController
     @Environment(\.locale) private var locale
-
-    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     init(
         viewModel: ChatSessionViewModel,
@@ -46,12 +45,9 @@ struct ChatComposer: View {
     }
 
     var body: some View {
-        // ADR 0046 の約 80px に、宛先キャプション 1 行を足す。間隔 xs・縦余白 s は維持。
-        VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            if suggestionController.isPresented {
-                ComposerSuggestionPopup(controller: suggestionController, onAccept: acceptSuggestionFromPopup)
-                    .accessibilityIdentifier("ChatComposer.suggestions")
-            }
+        // PhloxReply.dc.html の入力欄: 上 10・左右 12・下 8、本文と下段の間 10（空のとき高さ 74）。
+        // 本文欄の内側余白 8（ComposerPlaceholderMetrics.textInsets）の分だけ外側を詰める。
+        VStack(alignment: .leading, spacing: 2) {
             if let error = viewModel.codexSkillSelectionState?.errorMessage {
                 Text("Codex skill の取得に失敗しました: \(error)")
                     .font(DSFont.caption)
@@ -71,21 +67,7 @@ struct ChatComposer: View {
                 layout: controlsLayout.settingsLayout,
                 onRemove: removeAttachment
             )
-            let destinationText = ComposerDestinationLabel.text(
-                for: .conversation(projectName: projectName, taskName: viewModel.displayName),
-                hasDestination: true,
-                isReadyForInput: canSend,
-                hasContent: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    || !viewModel.attachmentStore.attachments.isEmpty
-            )
-            Text(destinationText)
-                .font(DSFont.caption)
-                .foregroundStyle(DSColor.chatTextSecondary)
-                .lineLimit(1)
-                .help(destinationText)
-                .accessibilityLabel(destinationText)
-                .accessibilityIdentifier("ChatComposer.destination")
-                .padding(.horizontal, DSSpacing.xs)
+            .padding(.top, viewModel.attachmentStore.attachments.isEmpty && viewModel.attachmentStore.lastError == nil ? 0 : DSSpacing.s)
             ZStack(alignment: .topLeading) {
                 IMESafeTextView(
                     text: $text,
@@ -102,7 +84,8 @@ struct ChatComposer: View {
                     focusRequest: viewModel.composerFocusRequest,
                     highlightsKeywords: viewModel.agentRef == .builtin(.claudeCode),
                     onTab: { viewModel.moveFocusToReplyCard() },
-                    isEditable: viewModel.inFlightText == nil
+                    isEditable: viewModel.inFlightText == nil,
+                    onFocusChange: { isEditorFocused = $0 }
                 )
                 .frame(
                     minHeight: ComposerHeightBounds.single.min,
@@ -113,44 +96,59 @@ struct ChatComposer: View {
 
                 if ComposerPlaceholderVisibility.shouldShowPlaceholder(text: text, isComposing: isComposing) {
                     // 送信中は送った本文を淡く残す（05 R4）。
-                    Text(viewModel.inFlightText ?? UIWording.text(.composerPlaceholder, languageCode: languageCode))
+                    Text(viewModel.inFlightText ?? placeholderText)
                         .font(ComposerPlaceholderMetrics.placeholderFont)
-                        .foregroundStyle(DSColor.chatTextSecondary)
+                        .foregroundStyle(DSColor.textTertiary)
+                        .lineLimit(1)
                         .padding(.horizontal, ComposerPlaceholderMetrics.textInsets.width)
                         .padding(.vertical, ComposerPlaceholderMetrics.textInsets.height)
                         .allowsHitTesting(false)
                 }
             }
             .frame(height: editorHeight)
-            .padding(.horizontal, DSSpacing.xs)
+            .padding(.horizontal, -ComposerPlaceholderMetrics.textInsets.width)
 
             ChatComposerFooter(
                 viewModel: viewModel,
                 layout: controlsLayout,
-                isRunning: isRunning,
+                isRunning: isRunning || hasPendingReplyCard,
                 canSubmit: canSubmit,
+                sendUnavailableReason: sendUnavailableReason,
                 onSend: onSend,
                 onInterrupt: onInterrupt
             )
         }
-        .padding(.horizontal, DSSpacing.m)
-        .padding(.vertical, DSSpacing.s)
-        // フローティング配置（ADR 0065）で全幅の不透明下地が無くなったため、パネル本体は
-        // chatBackground で不透明にしてから white 4% ティントを重ねる（背後のメッセージが
-        // 透けない）。周囲余白帯は透明のまま＝スクロールバーは右下端まで視認できる。
+        .padding(.horizontal, 12)
+        .padding(.top, 10 - ComposerPlaceholderMetrics.textInsets.height)
+        .padding(.bottom, 8)
+        // 面は `--field`（ダークでは背景より暗い #1A1A1C）、縁は `--fieldBorder` 1pt、書いている間は `--selText` の 3pt の輪。
+        // 縁も背面に描く（前面だと、チップから上に開く箱の上に縁が引かれる）。
         .background {
-            RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous)
-                .fill(DSColor.chatBackground)
-            RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous)
-                .fill(Color.white.opacity(0.04))
+            let shape = RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous)
+            shape.fill(DSColor.fieldBackground)
+                .overlay(shape.strokeBorder(DSColor.fieldBorder, lineWidth: 1))
         }
-        .overlay(
-            // 入力欄パネルにごく薄いグレー味（white 4%）を足し、コンテンツ領域から少しだけ持ち上げて
-            // 強調する。ストリップ・コンテンツは chatBackground のままで、境界はごく薄い枠のみ。
-            RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous)
-                .strokeBorder(DSColor.composerBorder, lineWidth: 1)
-        )
-        .padding(DSSpacing.m)
+        .background {
+            if isEditorFocused {
+                RoundedRectangle(cornerRadius: DSRadius.l + 3, style: .continuous)
+                    .fill(DSColor.focusRing)
+                    .padding(-3)
+            }
+        }
+        // 上のカード・候補との間は 8（PhloxReply.dc.html の rootStyle gap）。
+        .overlay(alignment: .topLeading) {
+            if suggestionController.isPresented {
+                ComposerSuggestionPopup(controller: suggestionController, onAccept: acceptSuggestionFromPopup)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("ChatComposer.suggestions")
+                    .padding(.leading, 10)
+                    .placedAbove(gap: 6)
+            }
+        }
+        .reportsComposerPopup(suggestionController.isPresented)
+        .padding(.horizontal, DSSpacing.m)
+        .padding(.top, DSSpacing.s)
+        .padding(.bottom, DSSpacing.m)
         .onChange(of: text) { oldValue, newValue in
             viewModel.syncAttachmentsWithDraftEdit(oldText: oldValue, newText: newValue)
             updateCodexSkillSuggestions()
@@ -175,6 +173,38 @@ struct ChatComposer: View {
         .onChange(of: viewModel.seedSlashCommands) { _, commands in
             suggestionController.seedSlashCommands = commands
         }
+    }
+
+    /// 承認・質問を待っている間も実行中として扱う（■ を出す。PhloxReply.dc.html）。
+    private var hasPendingReplyCard: Bool {
+        !viewModel.replyApprovals.isEmpty || ChatReplyArea<EmptyView>.hasPendingQuestion(in: viewModel.transcript)
+    }
+
+    /// 状態ごとの案内（PhloxReply.dc.html の placeholder）。
+    private var placeholderText: String {
+        let key: String
+        if !viewModel.replyApprovals.isEmpty {
+            key = "承認待ちの間も入力できます（送信は承認後）"
+        } else if ChatReplyArea<EmptyView>.hasPendingQuestion(in: viewModel.transcript) {
+            key = "質問に答えるか、ここから別の指示を送れます"
+        } else if isRunning {
+            key = "実行中です。中断は Esc か ■"
+        } else {
+            key = "メッセージを入力 — / でコマンド、@ でファイル"
+        }
+        return AppLocalizedString.string(key, locale: locale)
+    }
+
+    /// 送れないときの理由（宛先の行をやめたので、送信ボタンの説明に出す）。
+    private var sendUnavailableReason: String? {
+        guard !canSubmit else { return nil }
+        return ComposerDestinationLabel.text(
+            for: .conversation(projectName: projectName, taskName: viewModel.displayName),
+            hasDestination: true,
+            isReadyForInput: canSend,
+            hasContent: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !viewModel.attachmentStore.attachments.isEmpty
+        )
     }
 
     private var canSubmit: Bool {
@@ -242,6 +272,8 @@ struct ChatComposerFooter: View {
     let layout: ComposerFooterLayout
     let isRunning: Bool
     let canSubmit: Bool
+    /// 送れない理由（送信ボタンの説明と読み上げに出す）。
+    var sendUnavailableReason: String? = nil
     let onSend: () -> Void
     let onInterrupt: () -> Void
     var accessibilityPrefix: String = "ChatComposer"
@@ -249,6 +281,7 @@ struct ChatComposerFooter: View {
     var branchIsCheckingOutOverride = false
     /// ブランチを出すか。既定は 600pt 以上（standard）だけ。グリッドは実際の幅で決める。
     var showsBranchOverride: Bool? = nil
+    @Environment(\.locale) private var locale
 
     var body: some View {
         switch layout {
@@ -261,13 +294,15 @@ struct ChatComposerFooter: View {
 
     private var regularFooter: some View {
         let settingsLayout = layout.settingsLayout
-        return HStack(spacing: DSSpacing.s) {
+        // PhloxReply.dc.html の下段: ＋ モデル effort 権限 …… ブランチ コンテキスト 送信。
+        return HStack(spacing: 6) {
             ComposerSettingsControlsView(
                 viewModel: viewModel,
                 layout: settingsLayout,
                 side: .leading,
                 accessibilityPrefix: accessibilityPrefix
             )
+            Spacer(minLength: DSSpacing.s)
             ComposerContextIndicator(
                 usage: viewModel.lastTurnUsage,
                 workspacePath: viewModel.workspacePath,
@@ -278,15 +313,9 @@ struct ChatComposerFooter: View {
                 suggestsCompact: viewModel.agentRef != .builtin(.cursor)
             )
             .accessibilityIdentifier("\(accessibilityPrefix).contextIndicator")
-            Spacer(minLength: DSSpacing.s)
-            ComposerSettingsControlsView(
-                viewModel: viewModel,
-                layout: settingsLayout,
-                side: .trailing,
-                accessibilityPrefix: accessibilityPrefix
-            )
             sendOrStopButton
         }
+        .frame(height: 26)
     }
 
     private var minimalFooter: some View {
@@ -306,8 +335,8 @@ struct ChatComposerFooter: View {
         }
     }
 
-    /// 右端の丸ボタン（05 R1・R4・R5）。送信中は「…」、実行中で入力が空なら ■（中断）、それ以外は送信。
-    /// 実行中でも本文があれば送信にする（実行中の追加の指示を従来どおりボタンからも送れるように）。
+    /// 右端の丸ボタン（05 R1・R4・R5）。送信中は「…」、実行中（承認・質問待ちを含む）は ■（中断）、それ以外は送信。
+    /// 実行中に書いた追加の指示は ↩ で送る（PhloxReply.dc.html: 実行中は常に ■）。
     @ViewBuilder
     private var sendOrStopButton: some View {
         if viewModel.inFlightText != nil {
@@ -315,16 +344,17 @@ struct ChatComposerFooter: View {
                 .disabled(true)
                 .accessibilityLabel(Text("送信中"))
                 .accessibilityIdentifier("\(accessibilityPrefix).sendButton")
-        } else if isRunning && !canSubmit {
+        } else if isRunning {
             ComposerRoundButton(style: .stop, action: onInterrupt)
-                .help("中断（Esc）")
+                .help("中断（Esc / ⌘.）")
                 .accessibilityLabel(Text("中断"))
                 .accessibilityIdentifier("\(accessibilityPrefix).stopButton")
         } else {
             ComposerRoundButton(style: .send, action: onSend)
                 .disabled(!canSubmit)
-                .help("送信")
+                .help(sendUnavailableReason ?? AppLocalizedString.string("送信", locale: locale))
                 .accessibilityLabel(Text("送信"))
+                .accessibilityHint(sendUnavailableReason.map { Text(verbatim: $0) } ?? Text(verbatim: ""))
                 .accessibilityIdentifier("\(accessibilityPrefix).sendButton")
         }
     }
@@ -346,12 +376,12 @@ private struct ComposerRoundButton: View {
         Button(action: action) {
             ZStack {
                 Circle().fill(fill)
-                if isHovering && isEnabled {
+                if isHovering && isEnabled && style == .send {
                     Circle().fill(Color.white.opacity(0.14))
                 }
                 symbol
             }
-            .frame(width: 24, height: 24)
+            .frame(width: 26, height: 26)
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -360,8 +390,8 @@ private struct ComposerRoundButton: View {
 
     private var fill: Color {
         switch style {
-        case .send: isEnabled ? DSColor.accentFill : DSColor.fillSelected
-        case .sending: DSColor.fillSelected
+        case .send: isEnabled ? DSColor.accentFill : DSColor.segmentTrack
+        case .sending: DSColor.segmentTrack
         case .stop: DSColor.textPrimary
         }
     }
@@ -370,16 +400,16 @@ private struct ComposerRoundButton: View {
     private var symbol: some View {
         switch style {
         case .send:
-            Image(systemName: "arrow.up")
-                .font(.system(size: 11, weight: .bold))
+            Text(verbatim: "↑")
+                .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(isEnabled ? Color.white : DSColor.textTertiary)
         case .sending:
-            Image(systemName: "ellipsis")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(DSColor.textSecondary)
+            Text(verbatim: "…")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(DSColor.textTertiary)
         case .stop:
             RoundedRectangle(cornerRadius: 1.5)
-                .fill(DSColor.chatBackground)
+                .fill(DSColor.fieldBackground)
                 .frame(width: 8, height: 8)
         }
     }
@@ -387,6 +417,8 @@ private struct ComposerRoundButton: View {
 
 struct ComposerSuggestionPopup: View {
     @Bindable var controller: ComposerSuggestionController
+    /// 一度に見せる行数。グリッドのタイルは高さが足りないので少なくする。
+    var maxVisibleRows = ComposerSuggestionPopupMetrics.maxVisibleRows
     let onAccept: (Int) -> Void
 
     /// 05 R3: 組込 / .claude/commands / .claude/skills / 実行時に受け取ったもの。
@@ -399,79 +431,108 @@ struct ComposerSuggestionPopup: View {
         }
     }
 
+    /// 05 R3: 見出し・候補行（30pt・選択はアクセント地に白）・下端のキー操作の案内（PhloxReply.dc.html の sug）。
     var body: some View {
-        ScrollView(.vertical, showsIndicators: controller.candidates.count > ComposerSuggestionPopupMetrics.maxVisibleRows) {
-            LazyVStack(alignment: .leading, spacing: ComposerSuggestionPopupMetrics.rowSpacing) {
-                ForEach(Array(controller.candidates.enumerated()), id: \.element.id) { index, candidate in
-                    Button {
-                        onAccept(index)
-                    } label: {
-                        HStack(spacing: DSSpacing.s) {
-                            Image(systemName: candidate.kind == .slashCommand ? "terminal" : "doc.text")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(index == controller.selectedIndex ? DSColor.chatBackground : DSColor.chatTextSecondary)
-                                .frame(width: 18)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(candidate.title)
-                                    .font(DSFont.caption.weight(.semibold))
-                                    .foregroundStyle(index == controller.selectedIndex ? DSColor.chatBackground : DSColor.chatTextPrimary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                if let subtitle = candidate.subtitle, !subtitle.isEmpty {
-                                    Text(subtitle)
-                                        .font(.caption2)
-                                        .foregroundStyle(index == controller.selectedIndex ? DSColor.chatBackground.opacity(0.72) : DSColor.chatTextSecondary)
-                                        .lineLimit(1)
+        let isSlash = controller.candidates.first?.kind == .slashCommand
+        VStack(alignment: .leading, spacing: 1) {
+            Text(isSlash ? "コマンド" : "ファイル")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(DSColor.textTertiary)
+                .padding(EdgeInsets(top: 4, leading: 8, bottom: 6, trailing: 8))
+                .accessibilityAddTraits(.isHeader)
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: controller.candidates.count > maxVisibleRows) {
+                    LazyVStack(alignment: .leading, spacing: ComposerSuggestionPopupMetrics.rowSpacing) {
+                        ForEach(Array(controller.candidates.enumerated()), id: \.element.id) { index, candidate in
+                            row(candidate, isSelected: index == controller.selectedIndex) { onAccept(index) }
+                                .onHover { hovering in
+                                    if hovering {
+                                        controller.select(index)
+                                    }
                                 }
-                            }
-                            Spacer(minLength: DSSpacing.s)
-                            if let origin = candidate.origin {
-                                Text(Self.originLabel(origin))
-                                    .font(.system(size: 10.5))
-                                    .foregroundStyle(index == controller.selectedIndex ? DSColor.chatBackground.opacity(0.72) : DSColor.textTertiary)
-                                    .lineLimit(1)
-                                    .fixedSize()
-                            }
-                        }
-                        .padding(.horizontal, DSSpacing.s)
-                        .frame(height: ComposerSuggestionPopupMetrics.rowHeight)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
-                                .fill(index == controller.selectedIndex ? DSColor.chatAccent : Color.clear)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .onHover { hovering in
-                        if hovering {
-                            controller.select(index)
                         }
                     }
                 }
+                // ↑↓ や絞り込みで選択行が見える範囲の外に出たら、その行まで送る。
+                .onChange(of: selectedCandidateID) { _, id in
+                    if let id { proxy.scrollTo(id) }
+                }
             }
+            .frame(maxHeight: ComposerSuggestionPopupMetrics.contentHeight(rows: maxVisibleRows))
+            .fixedSize(horizontal: false, vertical: true)
+            Rectangle()
+                .fill(DSColor.separator)
+                .frame(height: 1)
+                .padding(.top, 4)
+            HStack(spacing: 12) {
+                Text("↑↓ 移動")
+                Text("↩ / Tab 確定")
+                Text("Esc 閉じる")
+            }
+            .font(.system(size: 10.5))
+            .foregroundStyle(DSColor.textTertiary)
+            .padding(EdgeInsets(top: 6, leading: 8, bottom: 2, trailing: 8))
         }
-        .padding(5)
-        .frame(maxHeight: ComposerSuggestionPopupMetrics.maxContentHeight)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(DSColor.chatCard, in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
+        .padding(6)
+        .frame(maxWidth: 460, alignment: .leading)
+        .background(DSColor.popoverBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(DSColor.popoverEdge, lineWidth: 0.5)
         )
-        .shadow(color: Color.black.opacity(0.22), radius: 12, x: 0, y: 8)
+        .dsShadow(.popover)
+    }
+
+    private var selectedCandidateID: SuggestionCandidate.ID? {
+        controller.candidates.indices.contains(controller.selectedIndex) ? controller.candidates[controller.selectedIndex].id : nil
+    }
+
+    private func row(_ candidate: SuggestionCandidate, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        let isSlash = candidate.kind == .slashCommand
+        return Button(action: action) {
+            HStack(spacing: 10) {
+                Text(candidate.title)
+                    .font(.system(size: 13, weight: isSlash ? .semibold : .medium, design: isSlash ? .default : .monospaced))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    // 説明から先に縮め、それでも入らない長い名前は途中を省く（右の出どころを押し出さない）。
+                    .layoutPriority(1)
+                Text(candidate.subtitle ?? "")
+                    .font(.system(size: 12))
+                    .opacity(0.85)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let origin = candidate.origin {
+                    Text(Self.originLabel(origin))
+                        .font(.system(size: 10.5))
+                        .opacity(0.75)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+            }
+            .foregroundStyle(isSelected ? Color.white : DSColor.textPrimary)
+            .padding(.horizontal, 8)
+            .frame(height: ComposerSuggestionPopupMetrics.rowHeight)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isSelected ? DSColor.accentFill : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
-private enum ComposerSuggestionPopupMetrics {
+enum ComposerSuggestionPopupMetrics {
     static let maxVisibleRows = 8
-    static let rowHeight: CGFloat = 34
-    static let rowSpacing: CGFloat = 2
-    static let outerPadding: CGFloat = 10
+    static let rowHeight: CGFloat = 30
+    static let rowSpacing: CGFloat = 1
 
-    static var maxContentHeight: CGFloat {
-        outerPadding
-            + (rowHeight * CGFloat(maxVisibleRows))
-            + (rowSpacing * CGFloat(maxVisibleRows - 1))
+    static func contentHeight(rows: Int) -> CGFloat {
+        (rowHeight * CGFloat(rows)) + (rowSpacing * CGFloat(rows - 1))
     }
 }
 
@@ -511,6 +572,8 @@ struct IMESafeTextView: NSViewRepresentable {
     var onTab: (() -> Bool)? = nil
     /// 送信を受け付けてもらうまでは書けない（05 R4。失敗時に戻す本文と、その間に書いた本文がぶつからないように）。
     var isEditable = true
+    /// 入力欄のフォーカスが変わったとき（入力欄の輪を出す。05 R2）。
+    var onFocusChange: ((Bool) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -536,10 +599,12 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.onTab = onTab
         if textView.isEditable != isEditable { textView.isEditable = isEditable }
         textView.onFocusGained = onFocusGained
+        textView.onFocusChange = onFocusChange
         textView.suggestionController = suggestionController
         textView.onComposingChanged = { [coordinator = context.coordinator] isComposing, currentText in
             coordinator.setComposing(isComposing, currentText: currentText)
         }
+        textView.insertionPointColor = NSColor.labelColor
         textView.isRichText = false
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
@@ -579,6 +644,7 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.onTab = onTab
         if textView.isEditable != isEditable { textView.isEditable = isEditable }
         textView.onFocusGained = onFocusGained
+        textView.onFocusChange = onFocusChange
         textView.suggestionController = suggestionController
         textView.onComposingChanged = { [coordinator = context.coordinator] isComposing, currentText in
             coordinator.setComposing(isComposing, currentText: currentText)
@@ -732,6 +798,7 @@ struct IMESafeTextView: NSViewRepresentable {
         var onEscape: (() -> Void)?
         var onTab: (() -> Bool)?
         var onFocusGained: (() -> Void)?
+        var onFocusChange: ((Bool) -> Void)?
         var suggestionController: ComposerSuggestionController?
         /// 本文中のプレースホルダをトークン単位で扱うための、添付されている番号一覧。
         /// task-5 契約（受け入れテスト ComposerPlaceholderEditingAcceptanceTests が凍結）。
@@ -746,8 +813,15 @@ struct IMESafeTextView: NSViewRepresentable {
             let didBecomeFirstResponder = super.becomeFirstResponder()
             if didBecomeFirstResponder {
                 onFocusGained?()
+                onFocusChange?(true)
             }
             return didBecomeFirstResponder
+        }
+
+        override func resignFirstResponder() -> Bool {
+            let didResign = super.resignFirstResponder()
+            if didResign { onFocusChange?(false) }
+            return didResign
         }
 
         // MARK: - トークン単位削除（task-5）
@@ -951,6 +1025,7 @@ struct IMESafeTextView: NSViewRepresentable {
                     value: defaultForegroundColor,
                     range: fullRange
                 )
+                textStorage.addAttribute(.font, value: ComposerPlaceholderMetrics.textNSFont, range: fullRange)
             }
             // スラッシュコマンド・@参照・キーワードを別色にして種別を判別できるようにする。
             for span in ComposerHighlight.spans(in: string, includingKeywords: highlightsKeywords) {
@@ -958,13 +1033,22 @@ struct IMESafeTextView: NSViewRepresentable {
                 guard NSMaxRange(range) <= textStorage.length else { continue }
                 // 網羅 switch。case を足したら必ずここでコンパイルエラーになり、
                 // 新種別が既存色へ黙って落ちる事故を防ぐ（default / _ を書かないこと）。
+                // 色と書体は PhloxReply.dc.html の kHL（cmd / file / kw）。
                 let color: NSColor
+                let font: NSFont
                 switch span.kind {
-                case .slashCommand: color = NSColor(DSColor.codeSyntaxKeyword)
-                case .fileReference: color = NSColor(DSColor.codeSyntaxString)
-                case .keyword: color = NSColor(DSColor.composerKeyword)
+                case .slashCommand:
+                    color = NSColor(DSColor.accentInk)
+                    font = .systemFont(ofSize: 13.5, weight: .semibold)
+                case .fileReference:
+                    color = NSColor(DSColor.attentionInk(.question))
+                    font = .monospacedSystemFont(ofSize: 12.5, weight: .regular)
+                case .keyword:
+                    color = NSColor(DSColor.composerKeyword)
+                    font = .systemFont(ofSize: 13.5, weight: .semibold)
                 }
                 textStorage.addAttribute(.foregroundColor, value: color, range: range)
+                textStorage.addAttribute(.font, value: font, range: range)
             }
             textStorage.endEditing()
 
@@ -1095,7 +1179,7 @@ struct ComposerAttachmentStrip: View {
     let onRemove: (ComposerAttachment) -> Void
 
     private var chipHeight: CGFloat {
-        layout == .compact ? 24 : 28
+        layout == .compact ? 26 : 30
     }
 
     var body: some View {
@@ -1115,52 +1199,82 @@ struct ComposerAttachmentStrip: View {
                 }
                 .accessibilityIdentifier("ChatComposer.attachments")
             }
+            // 上限などの通知は淡い赤の面に本文色（PhloxReply.dc.html の notice）。
             if let lastError = store.lastError {
-                Text(lastError)
-                    .font(DSFont.caption)
-                    .foregroundStyle(DSColor.statusError)
+                Text(LocalizedStringKey(lastError))
+                    .font(.system(size: 11.5))
+                    .lineSpacing(2)
+                    .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(2)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
+                    .background(DSColor.attentionTint(.error), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                     .accessibilityIdentifier("ChatComposer.attachmentError")
             }
         }
     }
 }
 
+/// 添付の 1 枚（高さ 30・角丸 7・区切りの面、22pt の縮小画像・名前・大きさ・丸い ✕）。
+/// ponytail: 本文の `[Image #N]` と対応させる「#N」はモックに無いが、どの画像か分かる手掛かりなので残す。
 private struct ComposerAttachmentChip: View {
     let attachment: ComposerAttachment
     let chipHeight: CGFloat
     let onRemove: () -> Void
+    @State private var isHoveringRemove = false
 
     var body: some View {
-        HStack(spacing: DSSpacing.xs) {
-            Image(systemName: "photo")
-                .font(.system(size: 12, weight: .medium))
-            Text(ComposerAttachmentChipPresentation.badge(for: attachment))
-                .font(DSFont.caption.weight(.semibold))
+        HStack(spacing: 6) {
+            thumbnail
+            Text(verbatim: ComposerAttachmentChipPresentation.badge(for: attachment))
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(DSColor.textTertiary)
                 .accessibilityIdentifier("ChatComposer.attachmentBadge")
             Text(ComposerAttachmentChipPresentation.title(for: attachment))
-                .font(DSFont.caption.weight(.medium))
+                .font(.system(size: 11.5))
+                .foregroundStyle(DSColor.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.middle)
+            Text(verbatim: ByteCountFormatter.string(fromByteCount: Int64(attachment.data.count), countStyle: .file))
+                .font(.system(size: 10.5))
+                .foregroundStyle(DSColor.textTertiary)
+                .fixedSize()
             Button(action: onRemove) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
+                Text(verbatim: "✕")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DSColor.textSecondary)
                     .frame(width: 16, height: 16)
+                    .background(isHoveringRemove ? DSColor.fillSelected : DSColor.fillSubtle, in: Circle())
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
+            .onHover { isHoveringRemove = $0 }
             .help("削除")
+            .accessibilityLabel(Text("添付を外す"))
         }
-        .foregroundStyle(DSColor.chatTextPrimary)
-        .padding(.leading, DSSpacing.s)
-        .padding(.trailing, 4)
+        .padding(.horizontal, 4)
+        .frame(maxWidth: 190)
         .frame(height: chipHeight)
-        .background(
-            RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
-                .fill(DSColor.chatCard)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
-        )
+        .background(DSColor.segmentTrack, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var thumbnail: some View {
+        let shape = RoundedRectangle(cornerRadius: 4, style: .continuous)
+        if let image = NSImage(data: attachment.data) {
+            Image(nsImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 22, height: 22)
+                .clipShape(shape)
+                .overlay(shape.strokeBorder(DSColor.separator, lineWidth: 1))
+                .accessibilityHidden(true)
+        } else {
+            shape
+                .fill(DSColor.fillSubtle)
+                .frame(width: 22, height: 22)
+                .overlay(shape.strokeBorder(DSColor.separator, lineWidth: 1))
+                .accessibilityHidden(true)
+        }
     }
 }

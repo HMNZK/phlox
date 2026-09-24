@@ -8,6 +8,8 @@ public struct ChatSessionView: View {
     @Bindable var viewModel: ChatSessionViewModel
     let projectName: String?
     @State private var requestedTranscriptTarget: String?
+    @State private var fileChangeRevealRequest: FileChangeRevealRequest?
+    @State private var isComposerPopupOpen = false
     /// 「新しい会話を始める」で履歴の一覧を閉じた（このビューが生きている間だけ）。
     @State private var historyStartDismissed = false
     /// スクラバーのハイライトをトランスクリプトのスクロール位置に連動させるための現在位置。
@@ -134,19 +136,7 @@ public struct ChatSessionView: View {
                 onSelectSubAgent: { viewModel.selectSubAgent($0) }
             )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                // transcript のレイアウトには参加させず、左中央へ重ねる。
-                .overlay(alignment: .leading) {
-                    ChatInputHistoryScrubber(
-                        entries: viewModel.inputHistoryEntries,
-                        currentPositionID: currentInputPositionID,
-                        onJump: { target in
-                            // クリック時は即座に対象を強調（楽観的更新）し、実スクロールで確定させる。
-                            currentInputPositionID = target
-                            requestedTranscriptTarget = target
-                        }
-                    )
-                    .padding(.leading, DSSpacing.s)
-                }
+                .environment(\.fileChangeRevealRequest, fileChangeRevealRequest)
                 .overlay {
                     if viewModel.shouldOfferHistoryStart && !historyStartDismissed {
                         GeometryReader { overlayGeometry in
@@ -199,7 +189,7 @@ public struct ChatSessionView: View {
                 .overlay(alignment: .bottom) {
                     let proposedComposerWidth = ComposerLayout.proposedWidth(mainColumnWidth: width)
                     // 承認・質問のカードと送信失敗の通知は入力欄の直上（05）。高さの実測は余白にだけ使う。
-                    ChatReplyArea(viewModel: viewModel, onRetrySend: sendDraft) {
+                    ChatReplyArea(viewModel: viewModel, onShowDiff: showDiff, onRetrySend: sendDraft) {
                         ChatComposer(
                             viewModel: viewModel,
                             text: $viewModel.draft,
@@ -210,6 +200,25 @@ public struct ChatSessionView: View {
                             onSend: sendDraft,
                             onInterrupt: interruptTurn
                         )
+                        // 入力履歴の目盛りは入力欄の右上に重ねる（右 12・上へ 9 はみ出す。PhloxReply.dc.html）。
+                        // 入力欄の外側の余白（左右 m・上 s）ぶんを足して位置を合わせる。
+                        // 入力欄の上に箱・候補・ツールチップが開いている間は、重なるので隠す。
+                        .onPreferenceChange(ComposerPopupOpenKey.self) { isComposerPopupOpen = $0 }
+                        .overlay(alignment: .topTrailing) {
+                            if !isComposerPopupOpen {
+                                ChatInputHistoryScrubber(
+                                    entries: viewModel.inputHistoryEntries,
+                                    currentPositionID: currentInputPositionID,
+                                    onJump: { target in
+                                        // クリック時は即座に対象を強調（楽観的更新）し、実スクロールで確定させる。
+                                        currentInputPositionID = target
+                                        requestedTranscriptTarget = target
+                                    }
+                                )
+                                .padding(.trailing, DSSpacing.m + 12)
+                                .offset(y: DSSpacing.s - 9)
+                            }
+                        }
                     }
                     .frame(maxWidth: proposedComposerWidth)
                     .frame(maxWidth: .infinity)
@@ -263,6 +272,12 @@ public struct ChatSessionView: View {
 
     private func toggleSubAgentSelection(_ id: String) {
         viewModel.selectSubAgent(viewModel.selectedSubAgentId == id ? nil : id)
+    }
+
+    /// 承認カードの「差分を見る」: 会話の該当のファイルの変更へ移り、開く（05 R6e）。
+    private func showDiff(_ itemID: String) {
+        requestedTranscriptTarget = itemID
+        fileChangeRevealRequest = FileChangeRevealRequest(itemID: itemID, token: (fileChangeRevealRequest?.token ?? 0) + 1)
     }
 
     private func sendDraft() {

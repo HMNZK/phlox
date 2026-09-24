@@ -35,11 +35,13 @@ public struct ReplyApproval: Identifiable, Equatable, Sendable {
     public let workingDirectory: String?
     public let toolName: String?
     public let requestedAt: Date
-
-    /// 「このセッション中は許可」を返せるか。Claude のツール使用許可はターン単位の許可しか返せない。
-    public var supportsSessionScope: Bool {
-        if case .approval = source { true } else { false }
-    }
+    /// 「このセッション中は許可」を返せるか。Codex の承認は常に、Claude のツール使用許可は
+    /// CLI が同じ種類を通すルールを提案してきたときだけ。
+    public var supportsSessionScope = true
+    /// 権限の変更の行（05 R6f）。空なら subject（受け取った JSON）を出す。
+    public var permissionRows: [ApprovalPermissionRow] = []
+    /// 「差分を見る」で開く会話の項目（Codex のファイルの変更だけ。Claude の編集は差分が会話に無い）。
+    public var diffItemID: String? = nil
 
     /// 出た直後に押せない時間（05 R6c）。
     public static let armDelay: TimeInterval = 0.5
@@ -147,8 +149,10 @@ extension ChatSessionViewModel {
             await respondToApproval(id, decision: decision)
         case .toolPermission(let requestId, let answerKey):
             switch decision {
-            case .accept, .acceptForSession:
+            case .accept:
                 _ = await respondToUserQuestion(requestId: requestId, answers: [answerKey: ["Allow"]])
+            case .acceptForSession:
+                _ = await respondToUserQuestion(requestId: requestId, answers: [answerKey: [Self.allowForSessionAnswer]])
             case .decline:
                 _ = await respondToUserQuestion(requestId: requestId, answers: [answerKey: ["Deny"]])
             case .cancel:
@@ -158,6 +162,9 @@ extension ChatSessionViewModel {
         }
         return true
     }
+
+    /// ClaudeChatClient.allowForSessionLabel と同じ値（SessionFeature は ClaudeAgentKit に依存しない）。
+    static let allowForSessionAnswer = "AllowForSession"
 
     /// メニューの「許可 / 拒否」の対象。表示中のカードに限る。
     public func respondToCurrentApproval(_ decision: ApprovalDecision) async {
@@ -192,7 +199,8 @@ extension ChatSessionViewModel {
                 files: changes.map(ReplyApproval.fileLine),
                 workingDirectory: request.workingDirectory,
                 toolName: nil,
-                requestedAt: request.requestedAt
+                requestedAt: request.requestedAt,
+                diffItemID: changes.isEmpty ? nil : request.itemId
             )
         case .permissions:
             return ReplyApproval(
@@ -203,7 +211,8 @@ extension ChatSessionViewModel {
                 files: [],
                 workingDirectory: request.workingDirectory,
                 toolName: nil,
-                requestedAt: request.requestedAt
+                requestedAt: request.requestedAt,
+                permissionRows: request.permissionRows
             )
         }
     }
@@ -240,7 +249,8 @@ extension ChatSessionViewModel {
             files: files,
             workingDirectory: workingDirectory,
             toolName: permission.toolName,
-            requestedAt: requestedAt
+            requestedAt: requestedAt,
+            supportsSessionScope: permission.allowsSessionScope == true
         )
     }
 }
@@ -252,6 +262,7 @@ struct ApprovalCard: View {
     let index: Int
     let count: Int
     var onFocusChange: (Bool) -> Void = { _ in }
+    var onShowDiff: ((String) -> Void)? = nil
 
     @FocusState private var isFocused: Bool
     @State private var armProgress: CGFloat = 0
@@ -259,34 +270,41 @@ struct ApprovalCard: View {
     @Environment(\.locale) private var locale
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
+    /// 角丸 10・余白 11/13/12・間隔 9、フォーカス中は外に 3pt の輪（PhloxReply.dc.html の apStyle）。
     var body: some View {
         let _ = themeID
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 9) {
             headerRow
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 13.5, weight: .semibold))
                 .foregroundStyle(DSColor.textPrimary)
             subjectBox
-            if let meta = metaText {
-                Text(verbatim: meta)
-                    .font(.system(size: 11))
-                    .foregroundStyle(DSColor.textSecondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
             buttonRow
             if isFocused, approval.supportsSessionScope {
-                Text("「このセッション中は許可」は、このセッションが終わるまで有効です。")
-                    .font(.system(size: 11))
+                // Codex のファイル変更は「同じファイルへの以降の変更」だけを通す（acceptForSession の仕様）。
+                Text(approval.kind == .fileChange
+                    ? LocalizedStringKey("「このセッション中は許可」を選ぶと、このセッションが終わるまで同じファイルへの変更を確認なしで通します。")
+                    : "「このセッション中は許可」を選ぶと、このセッションが終わるまで同じ種類の要求を確認なしで通します。")
+                    .font(.system(size: 11.5))
+                    .lineSpacing(3)
                     .foregroundStyle(DSColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(12)
+        .padding(EdgeInsets(top: 11, leading: 13, bottom: 12, trailing: 13))
         .background(DSColor.attentionTint(.approval), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(DSColor.attentionMark(.approval), lineWidth: isFocused ? 2 : 1)
+                .strokeBorder(DSColor.attentionMark(.approval), lineWidth: 1)
         )
+        .background {
+            if isFocused {
+                // カードの面は半透明なので、塗りではなく外側の 3pt の輪だけにする。
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .strokeBorder(DSColor.focusRing, lineWidth: 3)
+                    .padding(-3)
+            }
+        }
         .focusable()
         .focusEffectDisabled()
         .focused($isFocused)
@@ -327,10 +345,13 @@ struct ApprovalCard: View {
     // MARK: - 見出し
 
     private var headerRow: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "diamond.fill")
-                .font(.system(size: 8))
-                .foregroundStyle(DSColor.attentionMark(.approval))
+        HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(DSColor.attentionMark(.approval))
+                .frame(width: 11, height: 11)
+                .rotationEffect(.degrees(45))
+                .padding(.horizontal, 1)
+                .accessibilityHidden(true)
             Text("承認待ち · \(kindLabel)")
                 .font(.system(size: 11.5, weight: .semibold))
                 .foregroundStyle(DSColor.attentionInk(.approval))
@@ -338,33 +359,37 @@ struct ApprovalCard: View {
             if count > 1 { pager }
             TimelineView(.periodic(from: .now, by: 30)) { context in
                 Text(Self.sinceText(approval.requestedAt, now: context.date))
-                    .font(.system(size: 11))
-                    .foregroundStyle(DSColor.textTertiary)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(DSColor.textSecondary)
                     .monospacedDigit()
             }
         }
     }
 
+    /// ‹ 1 / 3 ›（20pt・角丸 5・ホバーの面。05 R6d）。
     private var pager: some View {
-        HStack(spacing: 4) {
-            Button { viewModel.approvalPageIndex = index - 1 } label: {
-                Image(systemName: "chevron.left").frame(width: 16, height: 16)
-            }
-            .disabled(index == 0)
-            .accessibilityLabel(Text("前の要求"))
+        HStack(spacing: 6) {
+            pagerButton("‹", label: "前の要求", isEnabled: index > 0) { viewModel.approvalPageIndex = index - 1 }
             Text(verbatim: "\(index + 1) / \(count)")
-                .font(.system(size: 11))
+                .font(.system(size: 11.5))
                 .monospacedDigit()
                 .foregroundStyle(DSColor.textSecondary)
-            Button { viewModel.approvalPageIndex = index + 1 } label: {
-                Image(systemName: "chevron.right").frame(width: 16, height: 16)
-            }
-            .disabled(index >= count - 1)
-            .accessibilityLabel(Text("次の要求"))
+            pagerButton("›", label: "次の要求", isEnabled: index < count - 1) { viewModel.approvalPageIndex = index + 1 }
         }
-        .buttonStyle(HoverableIconButtonStyle())
-        .font(.system(size: 9, weight: .semibold))
-        .foregroundStyle(DSColor.textSecondary)
+    }
+
+    private func pagerButton(_ glyph: String, label: LocalizedStringKey, isEnabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(verbatim: glyph)
+                .font(.system(size: 12))
+                .foregroundStyle(isEnabled ? DSColor.textSecondary : DSColor.textTertiary)
+                .frame(width: 20, height: 20)
+                .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .accessibilityLabel(Text(label))
     }
 
     private var kindLabel: String { Self.kindLabel(approval.kind, locale: locale) }
@@ -395,90 +420,152 @@ struct ApprovalCard: View {
 
     static func sinceText(_ date: Date, now: Date) -> LocalizedStringKey {
         let minutes = Int(now.timeIntervalSince(date) / 60)
-        return minutes < 1 ? "たった今から" : "\(minutes) 分前から"
+        return minutes < 1 ? "たった今から" : "\(minutes)分前から"
     }
 
     // MARK: - 対象
 
+    /// 対象の枠（カード地・角丸 7・内側 1pt の区切り線）。コマンドは下に作業ディレクトリの行を付ける。
     @ViewBuilder
     private var subjectBox: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            switch approval.kind {
-            case .command:
-                Text(verbatim: "$ \(approval.subject ?? "")")
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(DSColor.textPrimary)
+        switch approval.kind {
+        case .command:
+            VStack(alignment: .leading, spacing: 4) {
+                (Text(verbatim: "$ ").foregroundStyle(DSColor.textTertiary)
+                    + Text(verbatim: approval.subject ?? "").foregroundStyle(DSColor.textPrimary))
+                    .font(.system(size: 13, design: .monospaced))
                     .fixedSize(horizontal: false, vertical: true)
                     .chatTextSelection()
-            case .fileChange:
-                if approval.files.isEmpty {
-                    Text(verbatim: approval.subject ?? "")
-                        .font(.system(size: 12))
-                        .foregroundStyle(DSColor.textPrimary)
-                } else {
-                    ForEach(Array(approval.files.enumerated()), id: \.offset) { _, file in
-                        fileRow(file)
-                    }
-                }
-            case .permissions:
-                HStack(alignment: .firstTextBaseline, spacing: DSSpacing.m) {
-                    Text("追加する")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .subjectSurface()
+                if let meta = commandMetaText {
+                    meta
                         .font(.system(size: 11.5))
                         .foregroundStyle(DSColor.textSecondary)
-                    Text(verbatim: approval.subject ?? "")
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(DSColor.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .chatTextSelection()
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                 }
-            case .tool:
-                Text(verbatim: approval.subject ?? "")
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(DSColor.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .chatTextSelection()
             }
+        case .fileChange:
+            if approval.files.isEmpty {
+                Text(verbatim: approval.subject ?? "")
+                    .font(.system(size: 12))
+                    .foregroundStyle(DSColor.textPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .subjectSurface()
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(approval.files.enumerated()), id: \.offset) { offset, file in
+                        if offset > 0 { separator }
+                        fileRow(file)
+                    }
+                    if let itemID = approval.diffItemID, let onShowDiff {
+                        separator
+                        Button { onShowDiff(itemID) } label: {
+                            Text("› 差分を見る（\(approval.files.count) ファイル）")
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(DSColor.accentInk)
+                                .padding(.horizontal, 12)
+                                .frame(maxWidth: .infinity, minHeight: 26, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("ApprovalCard.showDiff")
+                    }
+                }
+                .subjectSurface()
+            }
+        case .permissions:
+            VStack(alignment: .leading, spacing: 5) {
+                if approval.permissionRows.isEmpty {
+                    permissionRow(label: Text("追加する"), value: Text(verbatim: approval.subject ?? ""), monospaced: true)
+                } else {
+                    ForEach(Array(approval.permissionRows.enumerated()), id: \.offset) { _, row in
+                        permissionRow(
+                            label: Text(LocalizedStringKey(row.label)),
+                            value: row.isPath ? Text(verbatim: row.value) : Text(LocalizedStringKey(row.value)),
+                            monospaced: row.isPath
+                        )
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .subjectSurface()
+        case .tool:
+            Text(verbatim: approval.subject ?? "")
+                .font(.system(size: 13, design: .monospaced))
+                .foregroundStyle(DSColor.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .chatTextSelection()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .subjectSurface()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(DSColor.chatBackground, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .strokeBorder(DSColor.separator, lineWidth: 1)
-        )
     }
 
-    private func fileRow(_ file: ReplyApproval.FileLine) -> some View {
-        HStack(spacing: DSSpacing.m) {
-            Text(verbatim: file.mark)
+    private var separator: some View {
+        Rectangle().fill(DSColor.separator).frame(height: 1)
+    }
+
+    private func permissionRow(label: Text, value: Text, monospaced: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            label
+                .font(.system(size: 12))
                 .foregroundStyle(DSColor.textSecondary)
+                .frame(width: 64, alignment: .leading)
+            value
+                .font(monospaced ? .system(size: 12.5, design: .monospaced) : .system(size: 12))
+                .foregroundStyle(DSColor.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .chatTextSelection()
+        }
+    }
+
+    /// 1 行 28pt・M/A は等幅太字 11・増減は差分の色（05 R6e）。
+    private func fileRow(_ file: ReplyApproval.FileLine) -> some View {
+        HStack(spacing: 8) {
+            Text(verbatim: file.mark)
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundStyle(DSColor.textSecondary)
+                .frame(width: 14, alignment: .leading)
             Text(verbatim: file.path)
+                .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(DSColor.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.middle)
-            Spacer(minLength: DSSpacing.s)
+                .frame(maxWidth: .infinity, alignment: .leading)
             if let added = file.added, added > 0 || file.removed == 0 {
-                Text(verbatim: "+\(added)").foregroundStyle(DSColor.chatSuccess)
+                Text(verbatim: "+\(added)").foregroundStyle(DSColor.diffAdded)
             }
             if let removed = file.removed, removed > 0 {
-                Text(verbatim: "−\(removed)").foregroundStyle(DSColor.attentionInk(.error))
+                Text(verbatim: "−\(removed)").foregroundStyle(DSColor.diffRemoved)
             }
         }
-        .font(.system(size: 11.5, design: .monospaced))
+        .font(.system(size: 12, design: .monospaced))
         .monospacedDigit()
+        .padding(.horizontal, 12)
+        .frame(height: 28)
     }
 
-    private var metaText: String? {
-        var parts: [String] = []
+    /// 「作業ディレクトリ ~/dev/phlox · ツール Bash」（パスは等幅）。コマンドのときだけ出す。
+    private var commandMetaText: Text? {
+        var parts: [Text] = []
         if let directory = approval.workingDirectory, !directory.isEmpty {
             let path = (directory as NSString).abbreviatingWithTildeInPath
-            parts.append(AppLocalizedString.string("作業ディレクトリ", locale: locale) + " " + path)
+            parts.append(Text("作業ディレクトリ") + Text(verbatim: " ") + Text(verbatim: path).font(.system(size: 11.5, design: .monospaced)))
         }
         if let tool = approval.toolName {
-            parts.append(AppLocalizedString.string("ツール", locale: locale) + " " + tool)
+            parts.append(Text("ツール") + Text(verbatim: " \(tool)"))
         }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        guard let first = parts.first else { return nil }
+        return parts.dropFirst().reduce(first) { $0 + Text(verbatim: " · ") + $1 }
     }
 
     // MARK: - ボタン
@@ -486,9 +573,9 @@ struct ApprovalCard: View {
     private var buttonRow: some View {
         HStack(spacing: 6) {
             Button { respond(.accept) } label: {
-                buttonLabel("許可", key: isFocused ? "Y" : "⌥⌘↩")
+                buttonLabel("許可", key: isFocused ? "Y" : "⌥⌘↩", isPrimary: true)
             }
-            .buttonStyle(ApprovalPrimaryButtonStyle(progress: armProgress, isArmed: isArmed))
+            .buttonStyle(ApprovalPrimaryButtonStyle(progress: armProgress, isArmed: isArmed, showsFocusRing: isFocused))
             if approval.supportsSessionScope {
                 Button { respond(.acceptForSession) } label: {
                     buttonLabel("このセッション中は許可", key: isFocused ? "S" : nil)
@@ -502,6 +589,10 @@ struct ApprovalCard: View {
             Spacer(minLength: DSSpacing.s)
             Button { respond(.cancel) } label: {
                 buttonLabel("キャンセル", key: isFocused ? "Esc" : nil)
+                    .font(.system(size: 12))
+                    .padding(.horizontal, 4)
+                    .frame(height: 28)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(DSColor.textSecondary)
@@ -509,43 +600,60 @@ struct ApprovalCard: View {
         .disabled(!isArmed)
     }
 
-    private func buttonLabel(_ title: LocalizedStringKey, key: String?) -> some View {
-        HStack(spacing: 5) {
+    /// 許可のキーは白 85%、他は弱い文字色（PhloxReply.dc.html の btnAllow / btnSess / btnDeny）。
+    private func buttonLabel(_ title: LocalizedStringKey, key: String?, isPrimary: Bool = false) -> some View {
+        HStack(spacing: 6) {
             Text(title)
+                .font(.system(size: 12.5, weight: isPrimary ? .semibold : .regular))
             if let key {
-                Text(verbatim: key).opacity(0.7).font(.system(size: 10.5))
+                Text(verbatim: key)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(isPrimary ? Color.white.opacity(0.85) : DSColor.textTertiary)
             }
         }
-        .font(.system(size: 12, weight: .medium))
     }
 
     private func respond(_ decision: ApprovalDecision) {
         guard isArmed else { return }
-        Task { await viewModel.respond(to: approval, decision: decision) }
+        // カードから返したら入力欄へ戻す（カードが消えるとキーの行き先が無くなる）。
+        let returnsFocus = isFocused
+        Task {
+            await viewModel.respond(to: approval, decision: decision)
+            if returnsFocus { viewModel.returnFocusToComposer() }
+        }
     }
 }
 
 struct ApprovalPrimaryButtonStyle: ButtonStyle {
     let progress: CGFloat
     let isArmed: Bool
+    /// カードにフォーカスがあるとき、既定の操作として二重の輪（面の色 2pt → アクセント 2pt）を付ける。
+    var showsFocusRing = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(Color.white)
-            .padding(.horizontal, 10)
-            .frame(height: 24)
+            .padding(.horizontal, 12)
+            .frame(height: 28)
             .background(DSColor.accentFill.opacity(isArmed ? (configuration.isPressed ? 0.85 : 1) : 0.55),
-                        in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             // 押せるようになるまでの進み具合（05 R6c）。
             .overlay(alignment: .bottomLeading) {
                 if !isArmed {
                     GeometryReader { geo in
                         Rectangle()
-                            .fill(Color.white.opacity(0.8))
+                            .fill(Color.white.opacity(0.9))
                             .frame(width: geo.size.width * progress, height: 2)
                             .frame(maxHeight: .infinity, alignment: .bottom)
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                }
+            }
+            .background {
+                if showsFocusRing {
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .strokeBorder(DSColor.accent, lineWidth: 2)
+                        .padding(-4)
                 }
             }
     }
@@ -555,13 +663,24 @@ struct ApprovalSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(DSColor.textPrimary)
-            .padding(.horizontal, 10)
-            .frame(height: 24)
-            .background(DSColor.chatBackground.opacity(configuration.isPressed ? 0.7 : 1),
-                        in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .padding(.horizontal, 12)
+            .frame(height: 28)
+            .background(DSColor.controlBackground.opacity(configuration.isPressed ? 0.7 : 1),
+                        in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(DSColor.border, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .strokeBorder(DSColor.controlBorder, lineWidth: 0.5)
+            )
+    }
+}
+
+private extension View {
+    /// 承認カードの対象の枠（カード地・角丸 7・内側 1pt の区切り線）。
+    func subjectSurface() -> some View {
+        background(DSColor.cardBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .strokeBorder(DSColor.separator, lineWidth: 1)
             )
     }
 }

@@ -866,3 +866,60 @@ A・C 型は `.dialogSeverity(.critical)`（注意アイコン）、破壊的な
 - `.claude/verify.sh` 合格（DesignSystem 188・AgentDomain 546・SessionFeature 1058・DashboardFeature 1643・アプリのビルド）。ClaudeAgentKit 164・StructuredChatKit 26 も合格。
 - Debug 版で有料の Claude / Codex セッションを動かし、ダーク・ライト・英語で撮影して確認（`/tmp/phlox-audit/f4/`）: ツール実行の束と開いた行（「263 行」「exit 1」）、ファイル変更の差分、コードブロック、料金、ヘッダ「待機 · たった今応答」、ターミナル型の見出し（FakeRun）、巻き戻しピッカー、サブエージェントの行・札・右パネル（Esc で閉じる）、Codex のエラーカード。
 - 読み上げはアクセシビリティの操作で確認: カードの開閉（押下）、行の開閉、サブエージェントの札の「サブエージェントを閉じる」、巻き戻しの「閉じる」。VoiceOver 本体を使った読み上げの聞き取りはしていない。
+
+## F5 忠実度の修正: 返答エリア（05 Reply Area）
+
+監査 `docs/agent-output/ui-fidelity-audit/05-reply.md` の指摘を直した。フッターの並び（設定のチップをすべて左）はユーザー決定「モックに合わせる」で、凍結テスト `ComposerFooterLayoutAcceptanceTests` をその承認で更新した。Codex の権限は「今の 1 列のまま」（ユーザー決定）。
+
+### 対応表
+
+| 監査の指摘 | 内容 | 実装箇所 |
+|---|---|---|
+| R1〜R5 入力欄の面と縁 | 面 `fieldBackground`・縁 `fieldBorder` 1pt（縁は背面に描き、上に開く箱に線が乗らないように）・書いている間は外側 3pt の `focusRing` | `ChatComposer.swift` |
+| R1 入力欄の上の宛先行 | 出さない。送れない理由は送信ボタンの説明に移した | `ChatComposer.swift` |
+| R1・R5〜R7 プレースホルダ | 「メッセージを入力 — / でコマンド、@ でファイル」、実行中・承認待ち・質問待ちで文言を切り替え。色 fg3 | `ChatComposer.swift` |
+| R2 強調 | `/コマンド` は accentInk 13.5 semibold、`@ファイル` は qstInk の等幅 12.5、キーワードは stlInk（紫）13.5 semibold | `ChatComposer.swift`、`Tokens.swift`（`composerKeyword`） |
+| R2 入力履歴の刻み | 入力欄の右上に縦棒（幅 3・高さ 6/8/10、選択中 12 は accent）。ポップアップが開いている間は隠す。一覧は上に開く | `ChatInputHistoryScrubber.swift`、`ChatSessionView.swift` |
+| R1・R4・R5 送信・中断ボタン | 直径 26・「↑」13 bold・無効と送信中は segBg に fg3。承認・質問待ちの間も ■ | `ChatComposer.swift` |
+| R3 候補 | 入力欄の上に幅 460 で出す。見出し「コマンド / ファイル」・30pt の 1 行（名前・説明・出どころ）・選択は accentFill に白・下端にキーの案内。選択行へ自動で送る。長い名前は途中を省略（出どころを押し出さない）。グリッドのタイルでは 5 行 | `ChatComposer.swift`、`GridChatColumn.swift` |
+| R8 添付 | チップ（30 高・22pt のサムネイル・#N・名前・サイズ・丸い ✕「添付を外す」）。上限の通知「5 枚目は追加できません。画像は 1 枚 4MB・最大 4 枚・合計 8MB までです。」を赤い箱で | `ChatComposer.swift`、`ComposerAttachments.swift` |
+| R9 送信失敗 | 本文 12.5 textPrimary、「再送」24 高の枠付きボタン | `ChatReplyArea.swift` |
+| R6 承認カード | 余白 11/13/12・間 9・11pt の菱形・「n分前から」・‹ › 20pt・題 13.5。対象の枠（カード地・角丸 7）。ボタン 28 高・角丸 7・12.5、キー表記は白 85% / fg3 | `ChatReplyApproval.swift` |
+| R6b フォーカス | 縁の外に 3pt の輪（塗りでなく線。半透明のカードで色が濁っていた）。「許可」に 2pt の輪。補足「このセッション中は許可」の説明。答えたら入力欄へフォーカスを戻す | `ChatReplyApproval.swift` |
+| R6 コマンド | 「$ 」fg3 ＋ 等幅 13、下に作業フォルダ · ツールの行（コマンドのときだけ） | `ChatReplyApproval.swift` |
+| R6e ファイル | 28pt の行（A / M / D・パス・増減）と「› 差分を見る（n ファイル）」。押すと会話のファイル変更を開いてそこまで送る。英語は単数・複数を出し分け | `ChatReplyApproval.swift`、`ChatMessageCells+Structured.swift`、`ChatSessionView.swift`、`GridChatColumn.swift` |
+| R6e Codex のファイル一覧 | Codex 0.156 の fileChange は `changes[]` で届くのに最上位の `diff` だけを読んでいて、会話にも承認カードにもファイルが出ていなかった。新規・削除の中身を +/− 付きの差分にそろえた（「+0」になっていた） | `CodexAppServerKit/AppServerCommonTypes.swift`、`CodexAppServerClient.swift`、`ChatSessionViewModel.swift` |
+| R6f 権限の変更 | JSON をそのまま出さず「ネットワーク / 読み取り / 書き込み / 拒否」の行に分ける（Codex のスキーマ `RequestPermissionProfile`） | `ChatApprovalBroker.swift`、`ChatReplyApproval.swift` |
+| R6 Claude の「このセッション中は許可」 | CLI の `permission_suggestions` から許可ルールの追加と作業ディレクトリの追加を `destination: session` にして `updatedPermissions` で返す。提案が無いときはボタンを出さない。補足文はファイル変更のときだけ「同じファイルへの変更」 | `ClaudeAgentKit/ClaudeChatClient+ControlProtocol.swift`、`ChatReplyApproval.swift`、`StructuredChatTypes.swift` |
+| R7 質問カード | 余白 11/13/12・問い 13.5 semibold・選択肢 13・番号は等幅・自由入力は 30 高の自前の欄「その他（自由に入力）」・フォーカス中のキーの案内は「1–9 選択」「⌘↩ 回答を送信」「Esc 閉じる」 | `UserQuestionCell.swift`、`ChatReplyArea.swift` |
+| R7c 秘密の入力 | 等幅 14・字間 2・「表示 / 隠す」・説明文 | `UserQuestionCell.swift` |
+| R7d 回答済み・期限切れ | 12.5 の行。期限切れは全体を fg3 と点線の縁 | `UserQuestionCell.swift` |
+| O1〜O3 モデル・effort のメニュー | 標準の Menu をやめて入力欄の上に開く箱（↑↓・↩・Esc。入力欄にフォーカスがあってもキーが届く。変換中・修飾キー付きは入力欄に渡す）。ほかの箱が開いたら閉じる。検索で絞ったら指す行を先頭へ | `ComposerPopupMenu.swift`、`ComposerSettingsControls.swift` |
+| O4〜O6 権限 | 題と件数・ラジオの 2 行項目・Plan のスイッチ（読み上げ名つき）・脚注の箱。Plan のまま開いて解除したときは前のモードが分からないので manual（毎回確認）に戻す | `ComposerPopupMenu.swift`、`ComposerSettingsControls.swift` |
+| O7 ブランチ | 見出しつきの箱（幅 300） | `ComposerContextIndicator.swift` |
+| O8 コンテキスト | 右寄せ幅 240 の吹き出し「コンテキスト n%」「used / window トークン」。円は灰色の線 | `ComposerContextIndicator.swift` |
+| チップ | 22 高・角丸 6・segBg・11.5・末尾 ▾。読み上げ名を箱の行に継がせない | `ComposerPopupMenu.swift`、`ComposerSettingsControls.swift` |
+| 会話の末尾 | 返答エリアが伸びたとき（カードの補足など）、末尾に追従中なら最下部へ寄せ直す（末尾の行が隠れていた） | `ChatTranscriptView.swift` |
+
+### 直していないもの
+
+- O5 Codex の権限を「承認方式」「サンドボックス」の 2 段に分ける: ユーザー決定で今の 1 列のまま。
+- O7 ブランチ切り替えの失敗は `.alert` のまま（凍結テスト）。
+- R8 添付できないエージェントの扱い（モックの案 A〜C）と、モック側が「案」の項目。
+- ↑ で入力履歴を呼ぶ案内、入力欄の高さ（モックの 74pt に対し概算）。
+- Claude / Cursor の権限モードの件数はエージェントの実際の選択肢のまま。Codex の推論の深さはサブメニューでなく同じ箱の中の区分。
+- effort は「effort: high」「low / medium / high / xhigh」の生の表記（モックどおり。独立レビューの指摘は撤回された）。
+- 添付の #N の札、送信失敗の ✕ は残した。質問カードにフォーカスが無いときの Tab の案内も残した。
+- 「このセッション中は許可」で Claude の `setMode`（モードの切り替え）は送らない。Codex のファイル変更のセッション許可は同じファイルだけに効く（Codex の仕様。別のファイルは再び聞かれる）。
+- Codex の権限の変更は、スキーマに「追加するルール」「追加先」が無いので、ネットワーク / 読み取り / 書き込みの行で出す。
+- 会話のファイル変更カードは、承認前や拒否後でも「変更済み」と出る（04 の範囲の既存の表示）。
+- グリッドの入力欄は別の部品（標準のメニュー）で、チップの箱は無い。候補の箱はタイルの上端に接する。
+
+### 検証
+
+- 追加したテスト: `ToolPermissionSessionScopeTests`（4 件。Claude CLI 2.1.280 が実際に送った `can_use_tool` の形で、`updatedPermissions` の中身まで）、`ApprovalPermissionRowsTests`（2 件）、`FileChangeItemTests`（3 件。`changes[]` の読み取り・新規 / 削除の +/−・frontmatter や `/dev/null` 形式を差分と取り違えない）。凍結テスト `ComposerFooterLayoutAcceptanceTests` は承認に基づき更新、白箱テスト `ComposerKeywordRenderingWhiteboxTests` は期待色を更新。
+- 独立レビュー（Codex）3 回。1 回目の 6 件のうち 5 件（Plan 解除で強い権限に戻る・箱が ⇧↩ や変換中のキーを奪う・入力欄以外から開いたときにキーが届かない・検索後に ↩ が効かない・本文が「---」で始まる新規ファイルの差分）を直し、effort の表記は撤回された。2 回目で Plan の戻り先の読み込み前の穴を直した（入力欄以外の文字欄にキーを渡すのは他の欄のキーを奪わないための意図どおりとして残した）。3 回目の 1 件（絞り込み後に選択行へ送らない）を直した。
+- `.claude/verify.sh` 合格（DesignSystem 188・AgentDomain 546・SessionFeature 1060・DashboardFeature 1640・アプリのビルド）。CodexAppServerKit 99・ClaudeAgentKit 168・StructuredChatKit 26 も合格。
+- Debug 版で有料の Claude / Codex セッションを動かし、ダーク・ライト・英語で撮影して確認（`/tmp/phlox-audit/f5/`）: 候補（/ と @、選択行への追従、グリッド）、強調、履歴の刻みと一覧、フッターのチップと各箱（↓ 移動・排他・Esc・⇧↩ で改行・変換中の ↩ は変換の確定）、コンテキストの吹き出し、添付 4 枚と上限の通知、Claude の承認カード（フォーカス有無・S・補足・許可の輪）と「このセッション中は許可」が次の同じコマンドで聞かれないこと、質問カード（2 で選択・⌘↩・入力欄へ戻る）、Codex のファイル変更の承認カード（ファイル行・+3・「差分を見る」で開いてスクロール・同じファイルへの次の変更が聞かれないこと・N で拒否・英語の単数形）、Plan のオン→オフで元のモードに戻ること。
+- 読み上げはアクセシビリティの操作で確認: 箱の行の名前、Plan のスイッチの名前、「差分を見る」の押下。VoiceOver 本体の聞き取りはしていない。
+- 実画面で出せなかったもの: 送信失敗の通知、秘密の入力（Codex の質問が必要）、Codex の権限の変更の承認、Cursor のモデル検索、チップにキーボードフォーカスがある状態（入力欄にフォーカスが残るため作れない）。これらはテストとコードだけで確認。

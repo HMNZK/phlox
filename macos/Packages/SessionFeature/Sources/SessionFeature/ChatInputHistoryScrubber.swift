@@ -44,52 +44,54 @@ struct ChatInputHistoryScrubber: View {
 
     var body: some View {
         let _ = themeID
-        // 04 A1: モックに無い要素なので、戻る先が複数あるときだけ出す（1 件では左端の「—」が残るだけ）。
+        // 戻る先が複数あるときだけ出す。入力欄の右上に縦の目盛り 12 本（PhloxReply.dc.html の ticks）。
+        // 履歴のパネルは目盛りの上に開く。
         if entries.count > 1 {
-            HStack(alignment: .center, spacing: DSSpacing.s) {
-                scrubber
-                    .onHover(perform: setScrubberHover)
-
-                if isPanelPresented {
-                    historyPanel
-                        .onHover(perform: setPanelHover)
-                        .transition(.opacity)
+            scrubber
+                .overlay(alignment: .topTrailing) {
+                    if isPanelPresented {
+                        historyPanel
+                            .onHover(perform: setPanelHover)
+                            .placedAbove(gap: DSSpacing.xs)
+                            .transition(.opacity)
+                    }
                 }
-            }
-            .animation(.easeOut(duration: 0.12), value: isPanelPresented)
-            .onDisappear(perform: cancelPendingClose)
-            .accessibilityLabel("入力履歴")
-            .help("ポインタを置くと入力履歴を表示")
+                .onHover(perform: setScrubberHover)
+                .animation(.easeOut(duration: 0.12), value: isPanelPresented)
+                .onDisappear(perform: cancelPendingClose)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("入力履歴")
+                .help("ポインタを置くと入力履歴を表示")
         }
     }
 
-    /// 積み重ねた横線のスクラバー。選択中の線を長く・濃く強調する。
-    /// 各線は不可視のヒット領域を持ち、ホバーで選択、クリックでジャンプする。
+    /// 下揃えの縦の目盛り。今読んでいる入力をアクセントで高く、他は弱い文字色 45%（高さ 6/8/10 の繰り返し）。
+    /// 各目盛りは幅 6 のヒット領域を持ち、ホバーで選択、クリックでジャンプする。
     private var scrubber: some View {
         let ticks = InputHistoryPolicy.scrubberTicks(from: entries, cap: Self.tickCap)
         let selected = selectedID
-        return VStack(alignment: .leading, spacing: 0) {
-            ForEach(ticks) { tick in
+        return HStack(alignment: .bottom, spacing: 0) {
+            ForEach(Array(ticks.enumerated()), id: \.element.id) { offset, tick in
                 let isSelected = tick.id == selected
                 Button {
                     jump(to: tick.id)
                 } label: {
-                    // ポインタを置くまでは淡く（選択中も弱い文字色）。置いたら選択中を本文色で強調する。
-                    Capsule(style: .continuous)
-                        .fill(isSelected && hoveringScrubber ? DSColor.chatTextPrimary : DSColor.textTertiary)
-                        .frame(
-                            width: isSelected ? DSSpacing.l : DSSpacing.m,
-                            height: isSelected ? 2 : 1.5
-                        )
-                        .opacity(hoveringScrubber ? (isSelected ? 1 : 0.7) : (isSelected ? 0.6 : 0.3))
-                        .frame(width: Self.tickHitWidth, height: Self.tickHitHeight, alignment: .leading)
+                    RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                        .fill(isSelected ? DSColor.accent : DSColor.textTertiary)
+                        .frame(width: 3, height: isSelected ? 12 : 6 + CGFloat(offset % 3) * 2)
+                        .opacity(isSelected ? 1 : (hoveringScrubber ? 0.7 : 0.45))
+                        .frame(width: 6, height: 12, alignment: .bottom)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .onHover { if $0 { activeID = tick.id } }
+                .accessibilityLabel(Text(verbatim: tick.text))
                 .accessibilityIdentifier("ChatInputHistoryScrubber.tick")
             }
         }
+        .padding(.vertical, 3)
+        .padding(.horizontal, 4.5)
+        .background(DSColor.chatBackground, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
         .animation(.easeOut(duration: 0.15), value: selected)
         .animation(.easeOut(duration: 0.12), value: hoveringScrubber)
     }

@@ -42,6 +42,8 @@ public actor ClaudeChatClient: StructuredAgentClient {
 
     struct PendingToolPermission {
         let toolName: String
+        /// 「このセッション中は許可」で返す updatedPermissions（CLI の permission_suggestions 由来）。
+        var sessionPermissionUpdates: [[String: Any]] = []
     }
 
     public struct PreApprovalRequest: Equatable, Sendable {

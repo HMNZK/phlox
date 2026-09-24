@@ -77,7 +77,7 @@ final class ComposerAttachmentStore {
             return nil
         }
         if attachments.count >= Self.maxCount {
-            lastError = "画像は4枚まで添付できます"
+            lastError = "5 枚目は追加できません。画像は 1 枚 4MB・最大 4 枚・合計 8MB までです。"
             return nil
         }
         if totalRawBytes + data.count > Self.maxTotalRawBytes {

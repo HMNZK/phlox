@@ -68,8 +68,8 @@ public struct ChatItemView: View, Equatable {
             } else {
                 CommandExecutionCell(command: command, output: output, timestamp: timestamp, isRunning: isRunningCommand)
             }
-        case .fileChange(_, let changes, let timestamp):
-            FileChangeCell(changes: changes, timestamp: timestamp)
+        case .fileChange(let id, let changes, let timestamp):
+            FileChangeCell(changes: changes, timestamp: timestamp, itemID: id)
         case .error(_, let message, let timestamp):
             ErrorMessageCell(message: message, timestamp: timestamp)
         case .subAgentMarker(let id, let subagentType, let description, let status):

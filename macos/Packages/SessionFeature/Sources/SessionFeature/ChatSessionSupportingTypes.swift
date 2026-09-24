@@ -22,7 +22,16 @@ public struct ChatApprovalRequest: Identifiable, Equatable, Sendable {
     public var workingDirectory: String? = nil
     /// 権限の変更で追加を求めているルール（受け取った JSON を短く整形したもの）。
     public var permissionsText: String? = nil
+    /// 権限の変更の中身を「種類 → 対象」の行にしたもの（05 R6f）。読めない形なら空で、permissionsText を出す。
+    public var permissionRows: [ApprovalPermissionRow] = []
     public var requestedAt = Date()
+}
+
+/// 権限の変更の 1 行。`label` と `value`（パス以外）は表示時に翻訳する。
+public struct ApprovalPermissionRow: Equatable, Sendable {
+    public let label: String
+    public let value: String
+    public let isPath: Bool
 }
 
 /// Codex の `item/tool/requestUserInput`（モデル→ユーザーの質問）1件。

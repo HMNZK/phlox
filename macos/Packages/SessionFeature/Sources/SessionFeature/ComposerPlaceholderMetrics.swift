@@ -14,7 +14,7 @@ enum ComposerPlaceholderMetrics {
     static var textInsets: CGSize { CGSize(width: DSSpacing.s, height: DSSpacing.s) }
 
     /// NSTextView 本体のフォント。
-    static var textNSFont: NSFont { .preferredFont(forTextStyle: .body) }
+    static var textNSFont: NSFont { .systemFont(ofSize: 13.5) }  // PhloxReply.dc.html: 13.5
 
     /// プレースホルダ Text のフォント。textNSFont と同一メトリクスであること。
     static var placeholderFont: Font { Font(textNSFont as CTFont) }

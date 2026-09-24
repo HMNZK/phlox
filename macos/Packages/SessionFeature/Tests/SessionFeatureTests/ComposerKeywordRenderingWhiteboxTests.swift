@@ -6,7 +6,7 @@ import Testing
 
 // task-4 白箱テスト（実装役著）。受け入れテストが触れない実装側の契約を覆う:
 //   - 入力欄キーワードが専用トークン DSColor.composerKeyword で塗られること
-//   - そのトークンがライト／ダーク両テーマで既存2色（紫・緑）と判別できること
+//   - そのトークンがライト／ダーク両テーマでスラッシュ（accentInk）・@参照（質問の文字色）と判別できること
 //   - トークン種別（スラッシュ／@参照）と重なるキーワードは種別色が勝つこと
 //
 // テーマ切替は ThemeStore.active（UserDefaults.standard 固定依存）を一時的に書き換えるため、
@@ -41,7 +41,7 @@ private func color(_ storage: NSTextStorage, at offset: Int) -> NSColor? {
 @Suite("白箱: 入力欄キーワードの色トークン（task-4）", .serialized)
 struct ComposerKeywordColorTokenTests {
 
-    @Test("暗色テーマで、キーワード色はスラッシュ紫・@参照緑・コード数値のいずれとも違う")
+    @Test("暗色テーマで、キーワード色はスラッシュ・@参照・コード数値のいずれとも違う")
     func keywordTokenIsDistinctInDarkTheme() throws {
         let defaults = UserDefaults.standard
         let previous = defaults.object(forKey: ThemeStore.themeKey)
@@ -55,13 +55,13 @@ struct ComposerKeywordColorTokenTests {
         defaults.set(AppTheme.phlox.id, forKey: ThemeStore.themeKey)
 
         let keyword = try #require(srgbComponents(NSColor(DSColor.composerKeyword)))
-        #expect(keyword != srgbComponents(NSColor(DSColor.codeSyntaxKeyword)))
-        #expect(keyword != srgbComponents(NSColor(DSColor.codeSyntaxString)))
+        #expect(keyword != srgbComponents(NSColor(DSColor.accentInk)))
+        #expect(keyword != srgbComponents(NSColor(DSColor.attentionInk(.question))))
         #expect(keyword != srgbComponents(NSColor(DSColor.codeSyntaxNumber)),
                 "コードブロックの数値色を流用しないこと")
     }
 
-    @Test("明色テーマでも、キーワード色はスラッシュ紫・@参照緑のいずれとも違う")
+    @Test("明色テーマでも、キーワード色はスラッシュ・@参照のいずれとも違う")
     func keywordTokenIsDistinctInLightTheme() throws {
         let defaults = UserDefaults.standard
         let previous = defaults.object(forKey: ThemeStore.themeKey)
@@ -75,8 +75,8 @@ struct ComposerKeywordColorTokenTests {
         defaults.set(AppTheme.githubLight.id, forKey: ThemeStore.themeKey)
 
         let keyword = try #require(srgbComponents(NSColor(DSColor.composerKeyword)))
-        #expect(keyword != srgbComponents(NSColor(DSColor.codeSyntaxKeyword)))
-        #expect(keyword != srgbComponents(NSColor(DSColor.codeSyntaxString)))
+        #expect(keyword != srgbComponents(NSColor(DSColor.accentInk)))
+        #expect(keyword != srgbComponents(NSColor(DSColor.attentionInk(.question))))
         #expect(keyword != srgbComponents(NSColor(DSColor.codeSyntaxNumber)),
                 "コードブロックの数値色を流用しないこと")
     }
@@ -120,7 +120,7 @@ struct ComposerKeywordRenderingWhiteboxTests {
         let (storage, _) = try highlightedColors(text: "/ultrathink", highlightsKeywords: true)
 
         #expect(srgbComponents(try #require(color(storage, at: 1)))
-                == srgbComponents(NSColor(DSColor.codeSyntaxKeyword)))
+                == srgbComponents(NSColor(DSColor.accentInk)))
     }
 
     @MainActor
@@ -129,7 +129,7 @@ struct ComposerKeywordRenderingWhiteboxTests {
         let (storage, _) = try highlightedColors(text: "@ultrathink.md", highlightsKeywords: true)
 
         #expect(srgbComponents(try #require(color(storage, at: 1)))
-                == srgbComponents(NSColor(DSColor.codeSyntaxString)))
+                == srgbComponents(NSColor(DSColor.attentionInk(.question))))
     }
 
     @MainActor

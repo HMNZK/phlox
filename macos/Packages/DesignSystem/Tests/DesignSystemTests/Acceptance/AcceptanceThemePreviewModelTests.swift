@@ -22,11 +22,12 @@ struct AcceptanceThemePreviewModelTests {
         #expect(model.background == RGB(0x1E, 0x1E, 0x20))
         #expect(model.textPrimary == RGB(0xF2, 0xF2, 0xF4))
         #expect(model.selectedRow.rgb == RGB(0xF2, 0xF2, 0xF4))
-        #expect(model.selectedRow.opacity == 0.10)
+        // 2026-09-24: 実画面のトークン（--sel ダーク 0.09、入力枠 textPrimary 14%）に揃えた。
+        #expect(model.selectedRow.opacity == 0.09)
         #expect(model.inputFill.rgb == RGB(255, 255, 255))
         #expect(model.inputFill.opacity == 0.04)
-        #expect(model.inputBorder.rgb == RGB(255, 255, 255))
-        #expect(model.inputBorder.opacity == 0.06)
+        #expect(model.inputBorder.rgb == RGB(0xF2, 0xF2, 0xF4))
+        #expect(model.inputBorder.opacity == 0.14)
     }
 
     @Test("Phlox の色帯 8 色と順序を字面で固定する")
@@ -34,7 +35,7 @@ struct AcceptanceThemePreviewModelTests {
         let model = ThemePreviewModel.make(theme: .phlox)
 
         #expect(model.terminalSwatches == [
-            RGB(14, 14, 14),
+            RGB(0x14, 0x14, 0x16),
             RGB(239, 68, 68),
             RGB(52, 211, 153),
             RGB(251, 191, 36),
@@ -45,13 +46,13 @@ struct AcceptanceThemePreviewModelTests {
         ])
     }
 
-    @Test("GitHub Light の背景は白、inputBorder は opacity 0.86 で RGB は同テーマの textPrimary")
+    @Test("GitHub Light の背景は白、inputBorder は opacity 0.14 で RGB は同テーマの textPrimary")
     func githubLightBackgroundAndInputBorder() {
         let theme = AppTheme.githubLight
         let model = ThemePreviewModel.make(theme: theme)
 
         #expect(model.background == RGB(255, 255, 255))
-        #expect(model.inputBorder.opacity == 0.86)
+        #expect(model.inputBorder.opacity == 0.14)
         #expect(model.inputBorder.rgb == theme.textPrimary)
         #expect(model.themeID == "github-light")
         #expect(model.themeName == "GitHub Light")
@@ -67,7 +68,7 @@ struct AcceptanceThemePreviewModelTests {
         #expect(phlox.inputText == "メッセージを入力")
         #expect(phlox.themeID == "phlox")
         #expect(phlox.themeName == "Phlox")
-        #expect(phlox.currentMarker == RGB(217, 119, 87))
+        #expect(phlox.currentMarker == RGB(0xE0, 0x88, 0x65))
 
         let github = ThemePreviewModel.make(theme: .githubLight)
         #expect(github.appLabel == "アプリ外観")
@@ -100,7 +101,7 @@ struct AcceptanceThemePreviewModelTests {
             #expect(model.textPrimary == theme.textPrimary)
             #expect(model.currentMarker == theme.accent)
             #expect(model.selectedRow.rgb == theme.textPrimary)
-            #expect(model.selectedRow.opacity == 0.10)
+            #expect(model.selectedRow.opacity == (Self.lightThemeIDs.contains(theme.id) ? 0.075 : 0.09))
             #expect(model.inputFill.rgb == RGB(255, 255, 255))
             #expect(model.inputFill.opacity == 0.04)
             #expect(model.appLabel == "アプリ外観")
@@ -109,13 +110,9 @@ struct AcceptanceThemePreviewModelTests {
             #expect(model.selectedRowText == "現在の会話")
             #expect(model.inputText == "メッセージを入力")
 
-            if Self.lightThemeIDs.contains(theme.id) {
-                #expect(model.inputBorder.rgb == theme.textPrimary, "\(theme.id) 明色枠 RGB")
-                #expect(model.inputBorder.opacity == 0.86, "\(theme.id) 明色枠 opacity")
-            } else {
-                #expect(model.inputBorder.rgb == RGB(255, 255, 255), "\(theme.id) 暗色枠 RGB")
-                #expect(model.inputBorder.opacity == 0.06, "\(theme.id) 暗色枠 opacity")
-            }
+            // 入力枠は明暗とも textPrimary 14%（2026-09-24 ユーザー決定「モックの値に合わせる」）。
+            #expect(model.inputBorder.rgb == theme.textPrimary, "\(theme.id) 枠 RGB")
+            #expect(model.inputBorder.opacity == 0.14, "\(theme.id) 枠 opacity")
 
             #expect(model.terminalSwatches.count == 8, "\(theme.id) 色帯は 8 色")
             #expect(model.terminalSwatches[0] == theme.terminalBackground)
@@ -133,12 +130,12 @@ struct AcceptanceThemePreviewModelTests {
         #expect(first.themeID == "phlox")
         #expect(first.background == RGB(0x1E, 0x1E, 0x20))
         #expect(first.textPrimary == RGB(0xF2, 0xF2, 0xF4))
-        #expect(first.inputBorder.opacity == 0.06)
-        #expect(first.terminalSwatches[0] == RGB(14, 14, 14))
+        #expect(first.inputBorder.opacity == 0.14)
+        #expect(first.terminalSwatches[0] == RGB(0x14, 0x14, 0x16))
 
         #expect(second.themeID == "github-light")
         #expect(second.background == RGB(255, 255, 255))
-        #expect(second.inputBorder.opacity == 0.86)
+        #expect(second.inputBorder.opacity == 0.14)
         #expect(second.inputBorder.rgb == AppTheme.githubLight.textPrimary)
         #expect(second.terminalSwatches[0] == RGB(255, 255, 255))
         #expect(second.background != first.background)
@@ -148,8 +145,8 @@ struct AcceptanceThemePreviewModelTests {
         #expect(third.background == RGB(0x1E, 0x1E, 0x20))
         #expect(third.textPrimary == RGB(0xF2, 0xF2, 0xF4))
         #expect(third.selectedRow.rgb == RGB(0xF2, 0xF2, 0xF4))
-        #expect(third.inputBorder.rgb == RGB(255, 255, 255))
-        #expect(third.inputBorder.opacity == 0.06)
+        #expect(third.inputBorder.rgb == RGB(0xF2, 0xF2, 0xF4))
+        #expect(third.inputBorder.opacity == 0.14)
         #expect(third.terminalSwatches == first.terminalSwatches)
         #expect(third.themeID != second.themeID)
         #expect(third.background != second.background)

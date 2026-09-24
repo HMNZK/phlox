@@ -57,7 +57,7 @@ struct ChatHistoryRevertPicker: View {
     private var header: some View {
         HStack(spacing: DSSpacing.s) {
             Image(systemName: "arrow.uturn.backward.circle")
-                .foregroundStyle(DSColor.chatAccent)
+                .foregroundStyle(DSColor.accentInk)
             Text("会話を巻き戻す")
                 .font(DSFont.sectionHeader)
                 .foregroundStyle(DSColor.chatTextPrimary)

@@ -38,12 +38,11 @@ public struct ResizeGripView: View {
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
             .overlay {
-                // 区切り線位置の発光バー(中央 3pt)。ホバー/ドラッグ中のみ表示する。
-                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                // 区切り線位置の accent 3pt（角丸 2）。ホバー/ドラッグ中のみ表示する。
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
                     .fill(DSColor.accent)
                     .frame(width: 3)
                     .frame(maxHeight: .infinity)
-                    .shadow(color: DSColor.accent.opacity(0.9), radius: highlighted ? 5 : 0)
                     .opacity(highlighted ? 1 : 0)
                     .animation(.easeInOut(duration: 0.12), value: highlighted)
                     .allowsHitTesting(false)

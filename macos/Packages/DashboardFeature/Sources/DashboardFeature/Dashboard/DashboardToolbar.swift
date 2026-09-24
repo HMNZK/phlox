@@ -315,16 +315,18 @@ private struct ModeSegmentButton: View {
                 }
             }
             .padding(.horizontal, title == nil ? 0 : DSSpacing.s)
-            .frame(minWidth: DSHitTarget.modeSegmentWidth, minHeight: DSHitTarget.modeSegmentHeight)
+            // 見た目は 12 Design System のセグメント高 22、押せる範囲は DSHitTarget の 24。
+            .frame(minWidth: DSHitTarget.modeSegmentWidth, minHeight: 22)
+            .background(
+                isOn ? DSColor.controlBackground : (hovering ? DSColor.fillSubtle : Color.clear),
+                in: RoundedRectangle(cornerRadius: DSRadius.s)
+            )
+            .shadow(color: isOn ? .black.opacity(0.08) : .clear, radius: 1, y: 0.5)
+            .frame(minHeight: DSHitTarget.modeSegmentHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(isOn ? DSColor.textPrimary : DSColor.textSecondary)
-        .background(
-            isOn ? DSColor.cardBackground : (hovering ? DSColor.fillSubtle : Color.clear),
-            in: RoundedRectangle(cornerRadius: DSRadius.s)
-        )
-        .shadow(color: isOn ? .black.opacity(0.08) : .clear, radius: 1, y: 0.5)
         .onHover { hovering = $0 }
         .pointingHandCursor()
         .help(help)

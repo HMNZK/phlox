@@ -725,9 +725,8 @@ public final class DashboardViewModel {
     /// 現在のカラースキーマを既存ターミナルへ即時反映する（設定からのライブ切替用）。
     public func reapplyTheme() {
         TerminalCoordinator.activePalette = Self.makeTerminalPalette(from: ThemeStore.active)
-        for session in sessions {
-            session.terminalCoordinator.applyActivePalette()
-        }
+        // セッションの端末だけでなく、子タブ・共通ターミナルのユーザー用シェルにも当て直す。
+        TerminalCoordinator.applyActivePaletteToAll()
     }
 
     /// ⌘+ / ⌘− / ⌘0 の対象（13 Review: フォーカス中の領域）。

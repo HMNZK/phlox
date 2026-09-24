@@ -19,7 +19,7 @@ struct NeutralSegmentedControl<Value: Hashable>: View {
                     selection = option.value
                 } label: {
                     Text(option.title)
-                        .font(.system(size: fontSize, weight: .medium))
+                        .font(.system(size: fontSize))
                         .foregroundStyle(isOn ? DSColor.textPrimary : DSColor.textSecondary)
                         .lineLimit(1)
                         .padding(.horizontal, 10)
@@ -27,7 +27,7 @@ struct NeutralSegmentedControl<Value: Hashable>: View {
                         .background {
                             if isOn {
                                 RoundedRectangle(cornerRadius: 5)
-                                    .fill(DSColor.cardBackground)
+                                    .fill(DSColor.controlBackground)
                                     .shadow(color: .black.opacity(0.2), radius: 0.75, y: 0.5)
                             }
                         }
@@ -38,7 +38,7 @@ struct NeutralSegmentedControl<Value: Hashable>: View {
             }
         }
         .padding(2)
-        .background(DSColor.fillSelected, in: RoundedRectangle(cornerRadius: 7))
+        .background(DSColor.segmentTrack, in: RoundedRectangle(cornerRadius: 7))
         .accessibilityElement(children: .contain)
     }
 }

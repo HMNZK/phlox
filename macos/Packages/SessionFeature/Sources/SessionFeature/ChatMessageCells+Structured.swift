@@ -473,7 +473,7 @@ struct FileChangeCell: View {
                         .font(ChatScaledFont.captionStrong(scale: scale))
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(DSColor.chatAccent)
+                    .foregroundStyle(DSColor.accentInk)
                     .padding(.top, TranscriptTypography.metadataGap)
                     .accessibilityIdentifier("FileChange.showMoreButton")
                 }

@@ -5,9 +5,11 @@ import Testing
 @Suite struct AppThemePaletteTests {
     private let claudeCoral = RGB(0xD9, 0x77, 0x57)
 
-    @Test func allThemesUseClaudeCoralAccent() {
+    /// 既定ダーク（Phlox）だけは 12 Design System のダーク accent #E08865 を使う（2026-09-24 モック準拠）。
+    @Test func allThemesUseClaudeCoralAccentExceptPhloxDark() {
         for theme in ThemeStore.all {
-            #expect(theme.accent == claudeCoral, "\(theme.id) must use the shared Claude coral accent")
+            let expected = theme.id == "phlox" ? RGB(0xE0, 0x88, 0x65) : claudeCoral
+            #expect(theme.accent == expected, "\(theme.id) must use the shared Claude coral accent")
         }
     }
 

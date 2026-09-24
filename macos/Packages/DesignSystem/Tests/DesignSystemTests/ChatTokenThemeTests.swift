@@ -22,12 +22,12 @@ struct ChatTokenThemeTests {
         defaults.set(AppTheme.phlox.id, forKey: ThemeStore.themeKey)
         #expect(DSColor.chatBackground == AppTheme.phlox.background.color)
         #expect(DSColor.chatTextPrimary == AppTheme.phlox.textPrimary.color)
-        #expect(DSColor.chatAccent == AppTheme.phlox.accent.color)
+        #expect(DSColor.chatAccent == AppTheme.phlox.palette.accent.color)
 
         defaults.set(AppTheme.nord.id, forKey: ThemeStore.themeKey)
         #expect(DSColor.chatBackground == AppTheme.nord.background.color)
         #expect(DSColor.chatTextPrimary == AppTheme.nord.textPrimary.color)
-        #expect(DSColor.chatAccent == AppTheme.nord.accent.color)
+        #expect(DSColor.chatAccent == AppTheme.nord.palette.accent.color)
 
         // phlox と nord で色が実際に異なる（＝固定でなくテーマ追従している）ことを確認
         #expect(AppTheme.phlox.background.color != AppTheme.nord.background.color)

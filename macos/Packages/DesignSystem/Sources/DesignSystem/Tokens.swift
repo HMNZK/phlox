@@ -23,15 +23,16 @@ public enum DSRadius {
 }
 
 public enum DSFont {
-    public static let caption = Font.caption
-    public static let captionStrong = Font.caption.weight(.medium)
+    /// 旧来の小さい文字。再設計の段の最小（11）に揃える（macOS の `Font.caption` は 10pt で段の外）。
+    public static let caption = Font.system(size: 11)
+    public static let captionStrong = Font.system(size: 11, weight: .medium)
     public static let body = Font.body
     public static let bodyMedium = Font.body.weight(.medium)
     public static let sectionHeader = Font.subheadline.weight(.semibold)
     public static let title = Font.title3.weight(.semibold)
     public static let heroTitle = Font.title2.weight(.semibold)
     public static let mono = Font.system(.body, design: .monospaced)
-    public static let monoCaption = Font.system(.caption, design: .monospaced)
+    public static let monoCaption = Font.system(size: 11, design: .monospaced)
     /// バッジ等の極小アイコン用。生値 `.system(size: 9)` の直書きを排除する。
     public static let iconTiny = Font.system(size: 9, weight: .bold)
 
@@ -100,7 +101,7 @@ public enum DSIconSize {
 public enum DSHitTarget {
     public static let icon: CGFloat = 24            // サイドバー＋/…、タイル×
     public static let modeSegmentWidth: CGFloat = 30
-    public static let modeSegmentHeight: CGFloat = 24 // トラック padding 2pt×2 を足して 28pt。行 32pt に収まる
+    public static let modeSegmentHeight: CGFloat = 24 // 押せる範囲（task-34 で 24 以上）。見た目の 22 は ModeSegmentButton が内側に描く
 }
 
 /// elevation（面の持ち上げ）を表す影トークン。生値の `.shadow(...)` 直書きを排除し、
@@ -122,12 +123,17 @@ public struct DSShadow: Equatable, Sendable {
     public static let card = DSShadow(color: Color.black.opacity(0.28), radius: 8, x: 0, y: 3)
     /// hover 時の持ち上げ。
     public static let cardHover = DSShadow(color: Color.black.opacity(0.40), radius: 12, x: 0, y: 6)
-    /// グリッドタイルの elevation（再設計: `0 1px 2px rgba(0,0,0,.06)`）。縁は別途 separator で描く。
-    public static let gridTile = DSShadow(color: Color.black.opacity(0.06), radius: 2, x: 0, y: 1)
-    /// ポップオーバー（`0 10px 30px rgba(0,0,0,.16)`）。
-    public static let popover = DSShadow(color: Color.black.opacity(0.16), radius: 30, x: 0, y: 10)
+    // 再設計の影。SwiftUI の radius は CSS の blur のおよそ半分で同じ広がりになるので、blur / 2 を入れる。
+    /// グリッドタイルの elevation（`0 1px 2px rgba(0,0,0,.06)`）。縁は別途 separator で描く。
+    public static let gridTile = DSShadow(color: Color.black.opacity(0.06), radius: 1, x: 0, y: 1)
+    /// ポップオーバー（ライト `0 10px 30px rgba(0,0,0,.16)` / ダーク `0 12px 34px rgba(0,0,0,.55)`）。
+    public static var popover: DSShadow {
+        DSColor.isDark
+            ? DSShadow(color: Color.black.opacity(0.55), radius: 17, x: 0, y: 12)
+            : DSShadow(color: Color.black.opacity(0.16), radius: 15, x: 0, y: 10)
+    }
     /// ウィンドウ（`0 22px 60px rgba(0,0,0,.18)`）。
-    public static let window = DSShadow(color: Color.black.opacity(0.18), radius: 60, x: 0, y: 22)
+    public static let window = DSShadow(color: Color.black.opacity(0.18), radius: 30, x: 0, y: 22)
 }
 
 public extension View {
@@ -137,8 +143,8 @@ public extension View {
     }
 }
 
-/// アプリのセマンティックカラー。実体は `ThemeStore.active`（起動時に確定するカラースキーマ）から引く。
-/// テーマ変更は再起動で反映される。
+/// アプリのセマンティックカラー。実体は `ThemeStore.active` から引く。
+/// 読み出しが `ThemeChangeSignal` に登録されるので、テーマ変更はこの色を使う View へ即時に反映される。
 public enum DSColor {
     private static var theme: AppTheme { ThemeStore.active }
 
@@ -150,13 +156,17 @@ public enum DSColor {
     // 前景色由来の低不透明 hairline/fill。暗背景では白系、明背景では黒系として可視性を保つ。
     public static var border: Color { theme.textPrimary.color.opacity(0.14) }
     public static var separator: Color { theme.textPrimary.color.opacity(0.10) }
-    public static var fillSubtle: Color { theme.textPrimary.color.opacity(AppTheme.sidebarHoverOpacity) }   // ホバー
-    public static var fillSelected: Color { theme.textPrimary.color.opacity(AppTheme.sidebarSelectedOpacity) } // 選択・アクティブ
+    /// ホバー面（12 Design System `--hov`: ライト 0.05 / ダーク 0.06）。
+    public static var fillSubtle: Color { theme.textPrimary.color.opacity(AppTheme.sidebarHoverOpacity(isDark: isDark)) }
+    /// 無彩色の選択・アクティブ面（`--sel`: ライト 0.075 / ダーク 0.09）。
+    public static var fillSelected: Color { theme.textPrimary.color.opacity(AppTheme.sidebarSelectedOpacity(isDark: isDark)) }
     public static var chatBackground: Color { theme.background.color }
     public static var chatCard: Color { theme.surface.color }
     public static var chatElevated: Color { theme.surfaceElevated.color }
-    public static var chatAccent: Color { theme.accent.color }
-    public static var chatSuccess: Color { theme.statusCompleted.color }
+    /// 会話の accent（輪・点）。文字に使うときは `accentInk`。
+    public static var chatAccent: Color { accent }
+    /// 成功の印。実行中・完了は無彩色で出す（README 決定事項 4）ので補助の文字色。
+    public static var chatSuccess: Color { textSecondary }
     public static var chatTextPrimary: Color { theme.textPrimary.color }
     public static var chatTextSecondary: Color { theme.textSecondary.color }
     /// ツール呼び出しの本文色。テーマの前景色を無彩色のまま半透明化し、チャット本文より控えめにする。
@@ -184,12 +194,8 @@ public enum DSColor {
     /// アクセント面ではなく、テーマ前景由来のニュートラルな薄い面で示す。
     public static var userBubble: Color { theme.textPrimary.color.opacity(0.08) }
 
-    /// 入力欄（composer）パネルの枠線。ライトテーマでは背景がほぼ白系のため、固定 white 6% では
-    /// 視認できない（コントラスト比 1.0〜1.02:1、UI-07）。textPrimary 由来の半透明にして 3:1 以上を確保する。
-    /// ダークテーマは既存の見た目を変えない。
-    public static var composerBorder: Color {
-        theme.preferredColorScheme == .light ? theme.textPrimary.color.opacity(0.86) : Color.white.opacity(0.06)
-    }
+    /// 入力欄（composer）パネルの枠線（05 Reply Area: 本文色 14%。ライト・ダーク共通）。
+    public static var composerBorder: Color { border }
 
     /// ファイル差分の色（再設計: 追加=緑・削除=赤。各テーマで 4.5:1 以上に導出）。
     public static var diffAdded: Color { theme.palette.diffAdded.color }
@@ -228,28 +234,23 @@ public enum DSColor {
 
     // 未確認の「停止＝要対応」（完了/承認待ち/エラー等でユーザーの番になったセッション）。
     // 完了(attention=黄系)より強い注意喚起として、テーマの error 色（赤系）で描く。
-    /// グリッドビューで未確認停止カードの枠線（赤）。
-    public static var stoppedHighlightGridBorder: Color { statusError.opacity(0.95) }
-    /// グリッドビューで未確認停止カードの背景面（赤・淡）。
-    public static var stoppedHighlightGrid: Color { statusError.opacity(0.16) }
+    /// グリッドビューで未確認停止カードの枠線（エラーの記号色）。
+    public static var stoppedHighlightGridBorder: Color { attentionMark(.error) }
+    /// グリッドビューで未確認停止カードの背景面（エラーの淡い面）。
+    public static var stoppedHighlightGrid: Color { attentionTint(.error) }
 
     public static var statusRunning: Color { theme.statusRunning.color }
-    public static var statusAwaitingApproval: Color { theme.statusAwaiting.color }
-    /// 警告面は明色テーマでも白地から判別できる濃さにする。
-    public static var statusAwaitingApprovalFill: Color {
-        statusAwaitingApproval.opacity(theme.preferredColorScheme == .light ? 0.24 : 0.14)
-    }
-    public static var statusAwaitingApprovalBorder: Color {
-        statusAwaitingApproval.opacity(theme.preferredColorScheme == .light ? 0.65 : 0.5)
-    }
-    public static var statusAwaitingApprovalForeground: Color {
-        theme.preferredColorScheme == .light ? RGB(0x92, 0x40, 0x0E).color : statusAwaitingApproval
-    }
+    /// 承認待ちの記号・縁の色。文字には `statusAwaitingApprovalForeground` を使う。
+    public static var statusAwaitingApproval: Color { attentionMark(.approval) }
+    public static var statusAwaitingApprovalFill: Color { attentionTint(.approval) }
+    public static var statusAwaitingApprovalBorder: Color { attentionMark(.approval) }
+    public static var statusAwaitingApprovalForeground: Color { attentionInk(.approval) }
     public static var statusCompleted: Color { theme.statusCompleted.color }
-    /// 明色テーマでは caption でも AA を満たす濃い赤を使う。
-    public static var statusError: Color {
-        theme.preferredColorScheme == .light ? RGB(0xB9, 0x1C, 0x1C).color : theme.statusError.color
-    }
+    /// エラーの文字色（記号・縁は `attentionMark(.error)`、面は `attentionTint(.error)`）。
+    public static var statusError: Color { attentionInk(.error) }
+
+    /// 暗いテーマか。影・面の明暗の出し分けに使う。
+    public static var isDark: Bool { theme.preferredColorScheme == .dark }
 
     /// New session ボタンのブランドグラデ（紫→ピンク）。テーマ由来にすると、両端が同色になる
     /// テーマ（例: Tokyo Night は accent と ansi[5] がともに 0xBB9AF7）でフラット化するため、
@@ -281,8 +282,26 @@ public enum DSColor {
     public static var accentFill: Color { palette.accentFill.color }
     /// accent の文字（リンク・選択中タブ）。
     public static var accentInk: Color { palette.accentInk.color }
-    /// 選択中の行。
-    public static var selectionFill: Color { palette.accent.color.opacity(palette.selectionOpacity) }
+    /// 選択中の行（`rgba(217,119,87,.17)` / `.24`。ダークでも輪の色ではなくブランドのコーラルを基にする）。
+    public static var selectionFill: Color { RGB(0xD9, 0x77, 0x57).color.opacity(palette.selectionOpacity) }
+    /// 選択した文字・フォーカスの輪（`--selText`: ライト coral 0.25 / ダーク #E08865 0.30）。
+    public static var focusRing: Color { accent.opacity(isDark ? 0.30 : 0.25) }
+
+    // 操作部品の面（12 Design System P）。
+    /// 副ボタン・セグメントの選択中の面（`--ctl`: `#FFFFFF` / `#3A3A3E`）。
+    public static var controlBackground: Color {
+        guard isDark else { return palette.card.color }
+        // 既定ダークはモックの確定値。他のダークテーマは窓の面から同じ明るさだけ持ち上げる。
+        return theme.id == AppTheme.phlox.id ? RGB(0x3A, 0x3A, 0x3E).color : palette.window.lightened(0x1C).color
+    }
+    /// 副ボタンの 0.5pt の縁（`--ctlBorder`: 黒 0.16 / 白 0.10）。
+    public static var controlBorder: Color { theme.textPrimary.color.opacity(isDark ? 0.10 : 0.16) }
+    /// セグメントのトラック（`--segBg`: 黒 0.065 / 白 0.08）。
+    public static var segmentTrack: Color { theme.textPrimary.color.opacity(isDark ? 0.08 : 0.065) }
+    /// 入力欄の縁（`--fieldBorder`: 0.14）。
+    public static var fieldBorder: Color { border }
+    /// トグルのオフの面（`--off`: 黒 0.13 / 白 0.16）。
+    public static var toggleOff: Color { theme.textPrimary.color.opacity(isDark ? 0.16 : 0.13) }
 
     public static var statusStalled: Color { palette.stalled.mark.color }
 

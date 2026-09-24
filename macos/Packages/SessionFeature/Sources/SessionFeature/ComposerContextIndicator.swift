@@ -216,7 +216,7 @@ private struct ComposerContextPopover: View {
             if let warning {
                 Text(warning)
                     .font(DSFont.caption)
-                    .foregroundStyle(DSColor.statusAwaitingApproval)
+                    .foregroundStyle(DSColor.statusAwaitingApprovalForeground)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 220)
                     .fixedSize(horizontal: false, vertical: true)

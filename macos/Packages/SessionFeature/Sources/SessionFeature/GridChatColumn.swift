@@ -239,7 +239,7 @@ struct GridComposerBar: View {
             if let staleMessage = viewModel.codexSkillSelectionState?.invalidSelectionMessage {
                 Text(staleMessage)
                 .font(DSFont.caption)
-                .foregroundStyle(DSColor.statusAwaitingApproval)
+                .foregroundStyle(DSColor.statusAwaitingApprovalForeground)
                 .lineLimit(2)
                 .accessibilityIdentifier("GridComposer.codexSkillStale")
             }

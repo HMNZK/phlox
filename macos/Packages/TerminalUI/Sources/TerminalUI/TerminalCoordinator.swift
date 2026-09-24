@@ -116,6 +116,17 @@ public final class TerminalCoordinator: NSObject, TerminalViewDelegate {
         Self.applyHostBackground(palette, to: hostingView)
         super.init()
         self.terminalView.terminalDelegate = self
+        Self.liveCoordinators.add(self)
+    }
+
+    /// 生きている全ターミナル（セッションの端末・ユーザー用シェル）。テーマ切替で全部に配色を当て直す。
+    private static let liveCoordinators = NSHashTable<TerminalCoordinator>.weakObjects()
+
+    /// 生きている全ターミナルへ現在の activePalette を再適用する。
+    public static func applyActivePaletteToAll() {
+        for coordinator in liveCoordinators.allObjects {
+            coordinator.applyActivePalette()
+        }
     }
 
     /// 現在のカラースキーマのターミナルパレット。App 層が起動時に ThemeStore から差し替える。

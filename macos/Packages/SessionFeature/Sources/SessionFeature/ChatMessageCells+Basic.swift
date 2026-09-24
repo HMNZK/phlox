@@ -276,10 +276,10 @@ struct ErrorMessageCell: View {
         .padding(.horizontal, TranscriptTypography.cardHorizontalInset)
         .padding(.vertical, TranscriptTypography.cardVerticalInset)
         .frame(maxWidth: 720, alignment: .leading)
-        .background(DSColor.statusError.opacity(0.14), in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
+        .background(DSColor.attentionTint(.error), in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                .strokeBorder(DSColor.statusError.opacity(0.35), lineWidth: 1)
+                .strokeBorder(DSColor.attentionMark(.error), lineWidth: 1)
         )
     }
 }

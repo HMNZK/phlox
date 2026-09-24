@@ -1,8 +1,7 @@
 #if os(macOS)
 import SwiftUI
 
-/// ピル型スイッチ。ON=アクセント色トラック＋白ノブ右、OFF=灰トラック＋白ノブ左。
-/// ON 色はテーマの accent を使うためカラースキーマ／テーマ切替に追従する。
+/// ピル型スイッチ。ON=accent の面（`#B4552F`）＋白ノブ右、OFF=灰トラック＋白ノブ左（12 Design System P）。
 /// クリック／キーボード操作を保つため Button をラベルに使う。
 public struct AccentSwitchToggleStyle: ToggleStyle {
     private let trackWidth: CGFloat = 34
@@ -20,7 +19,7 @@ public struct AccentSwitchToggleStyle: ToggleStyle {
             } label: {
                 ZStack(alignment: configuration.isOn ? .trailing : .leading) {
                     Capsule()
-                        .fill(configuration.isOn ? DSColor.accent : DSColor.border)
+                        .fill(configuration.isOn ? DSColor.accentFill : DSColor.toggleOff)
                         .frame(width: trackWidth, height: trackHeight)
                     Circle()
                         .fill(.white)

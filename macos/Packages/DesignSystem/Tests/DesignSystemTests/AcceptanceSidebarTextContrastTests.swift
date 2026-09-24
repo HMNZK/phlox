@@ -22,6 +22,11 @@
 // 実装側の色補正処理はここにコピーしない。`ThemeStore.all` の実 RGB から都度計算するため、
 // テーマの追加・色変更にも追従する。
 
+// 2026-09-24 改訂（ユーザー決定）: 既定の 2 テーマ（Phlox / Phlox Light）は文字・hover・選択面を
+// デザインの確定値（12 Design System）そのままにし、4.5:1 の補正をしない。4.5:1 の要求は残り 8 テーマに適用し、
+// 既定の 2 テーマは確定値との字面一致で固定する。hover / 選択の不透明度も確定値（ライト 5% / 7.5%、ダーク 6% / 9%）へ。
+// 端末は既定の 2 テーマとも暗い面（Phlox #141416 / Phlox Light #1B1B1D）へ移した。
+
 import AgentDomain
 import AppKit
 import SwiftUI
@@ -33,7 +38,7 @@ struct AcceptanceSidebarTextContrastTests {
     // MARK: - 契約定数（製品の DSColor と一致することを overlayTokensMatchContract で別途検査する）
 
     private static let hoverAlpha = 0.05
-    private static let selectedAlpha = 0.10
+    private static let selectedAlpha = 0.075
     private static let attentionAlpha = 0.22
     private static let minimumRatio = 4.5
 
@@ -58,10 +63,11 @@ struct AcceptanceSidebarTextContrastTests {
     /// サイドバー行・見出しの背景 4 面。優先順（選択→hover→注意→基底）に従い 2 枚重ねは作らない。
     private func sidebarFaces(_ theme: AppTheme) -> [Face] {
         let bg = theme.background
+        let isDark = theme.preferredColorScheme == .dark
         return [
             Face(name: "base", rgb: (Double(bg.r), Double(bg.g), Double(bg.b))),
-            Face(name: "hover", rgb: over(bg, theme.textPrimary, alpha: Self.hoverAlpha)),
-            Face(name: "selected", rgb: over(bg, theme.textPrimary, alpha: Self.selectedAlpha)),
+            Face(name: "hover", rgb: over(bg, theme.textPrimary, alpha: isDark ? 0.06 : Self.hoverAlpha)),
+            Face(name: "selected", rgb: over(bg, theme.textPrimary, alpha: isDark ? 0.09 : Self.selectedAlpha)),
             Face(name: "attention", rgb: over(bg, theme.attention, alpha: Self.attentionAlpha)),
         ]
     }
@@ -115,11 +121,26 @@ struct AcceptanceSidebarTextContrastTests {
 
     // MARK: - 読みやすさ（本体）
 
-    @Test("全テーマ × 4 面で primary / secondary / tertiary の比が 4.5 以上（丸め前）")
+    /// 既定の 2 テーマはデザインの確定値を使う（2026-09-24 決定）。
+    private static let designValueThemeIDs: Set<String> = [AppTheme.phlox.id, AppTheme.phloxLight.id]
+
+    @Test("既定の 2 テーマは文字 3 段がデザインの確定値そのもの")
+    func defaultThemesUseDesignTextValues() {
+        #expect(AppTheme.phloxLight.textPrimary == RGB(0x1D, 0x1D, 0x1F))
+        #expect(AppTheme.phloxLight.textSecondary == RGB(0x5B, 0x5B, 0x60))
+        #expect(AppTheme.phloxLight.textTertiary == RGB(0x75, 0x75, 0x7B))
+        #expect(AppTheme.phlox.textPrimary == RGB(0xF2, 0xF2, 0xF4))
+        #expect(AppTheme.phlox.textSecondary == RGB(0xAB, 0xAB, 0xB1))
+        #expect(AppTheme.phlox.textTertiary == RGB(0x8E, 0x8E, 0x94))
+    }
+
+    @Test("全テーマ × 4 面で primary / secondary / tertiary の比が 4.5 以上（既定 2 テーマの tertiary は確定値のため除く）")
     func allTextRolesReadableOnEverySidebarFace() {
         for theme in ThemeStore.all {
+            let roles = [("primary", theme.textPrimary), ("secondary", theme.textSecondary)]
+                + (Self.designValueThemeIDs.contains(theme.id) ? [] : [("tertiary", theme.textTertiary)])
             for face in sidebarFaces(theme) {
-                for (role, rgb) in [("primary", theme.textPrimary), ("secondary", theme.textSecondary), ("tertiary", theme.textTertiary)] {
+                for (role, rgb) in roles {
                     let ratio = contrast(rgb, on: face)
                     #expect(ratio >= Self.minimumRatio, "\(theme.id) \(role) on \(face.name): \(ratio)")
                 }
@@ -179,10 +200,13 @@ struct AcceptanceSidebarTextContrastTests {
     @Test("DSColor の hover / 選択 / 注意面は契約の 5% / 10% / 22% と一致する（実効テーマで検査）")
     func overlayTokensMatchContract() throws {
         let theme = ThemeStore.active
-        #expect(matches(try sample(DSColor.fillSubtle), theme.textPrimary, alpha: Self.hoverAlpha))
-        #expect(matches(try sample(DSColor.sessionRowHover), theme.textPrimary, alpha: Self.hoverAlpha))
-        #expect(matches(try sample(DSColor.fillSelected), theme.textPrimary, alpha: Self.selectedAlpha))
-        #expect(matches(try sample(DSColor.sessionRowSelected), theme.textPrimary, alpha: Self.selectedAlpha))
+        let isDark = theme.preferredColorScheme == .dark
+        let hover = isDark ? 0.06 : 0.05
+        let selected = isDark ? 0.09 : 0.075
+        #expect(matches(try sample(DSColor.fillSubtle), theme.textPrimary, alpha: hover))
+        #expect(matches(try sample(DSColor.sessionRowHover), theme.textPrimary, alpha: hover))
+        #expect(matches(try sample(DSColor.fillSelected), theme.textPrimary, alpha: selected))
+        #expect(matches(try sample(DSColor.sessionRowSelected), theme.textPrimary, alpha: selected))
         #expect(matches(try sample(DSColor.idleHighlight), theme.attention, alpha: Self.attentionAlpha))
         #expect(matches(try sample(DSColor.background), theme.background, alpha: 1))
         #expect(ThemeStore.active.id == theme.id, "検査中に他スイートが UserDefaults のテーマを変更した（本テストの失敗ではない）")
@@ -191,7 +215,7 @@ struct AcceptanceSidebarTextContrastTests {
     // MARK: - 不変条件（端末色・ANSI16 は補正対象外）
 
     private static let terminalFingerprints: [String: String] = [
-        "phlox": "0e0e0e|d6d6d6|0d0d0d,ef4444,34d399,fbbf24,60a5fa,d97757,38bdf8,e5e5e5,3f3f46,fb7171,6ee7b7,fde68a,93c5fd,fba88a,7dd3fc,ffffff",
+        "phlox": "141416|d6d6d6|0d0d0d,ef4444,34d399,fbbf24,60a5fa,d97757,38bdf8,e5e5e5,3f3f46,fb7171,6ee7b7,fde68a,93c5fd,fba88a,7dd3fc,ffffff",
         "tokyo-night": "1a1b26|c0caf5|15161e,f7768e,9ece6a,e0af68,7aa2f7,bb9af7,7dcfff,a9b1d6,414868,f7768e,9ece6a,e0af68,7aa2f7,bb9af7,7dcfff,c0caf5",
         "dracula": "282a36|f8f8f2|21222c,ff5555,50fa7b,f1fa8c,bd93f9,ff79c6,8be9fd,f8f8f2,6272a4,ff6e6e,69ff94,ffffa5,d6acff,ff92df,a4ffff,ffffff",
         "catppuccin-mocha": "1e1e2e|cdd6f4|45475a,f38ba8,a6e3a1,f9e2af,89b4fa,f5c2e7,94e2d5,bac2de,585b70,f38ba8,a6e3a1,f9e2af,89b4fa,f5c2e7,94e2d5,a6adc8",
@@ -200,7 +224,7 @@ struct AcceptanceSidebarTextContrastTests {
         "catppuccin-latte": "eff1f5|4c4f69|5c5f77,d20f39,40a02b,df8e1d,1e66f5,ea76cb,179299,acb0be,6c6f85,d20f39,40a02b,df8e1d,1e66f5,ea76cb,179299,bcc0cc",
         "solarized-light": "fdf6e3|657b83|073642,dc322f,859900,b58900,268bd2,d33682,2aa198,eee8d5,002b36,cb4b16,586e75,657b83,839496,6c71c4,93a1a1,fdf6e3",
         "github-light": "ffffff|24292f|24292f,cf222e,116329,4d2d00,0969da,8250df,1b7c83,6e7781,57606a,a40e26,1a7f37,9a6700,2182e8,a475f9,318e95,8c959f",
-        "phlox-light": "f7f7f9|1e1b2e|1e1b2e,dc2626,059669,d97706,7c3aed,db2777,0891b2,6b7280,9ca3af,ef4444,10b981,f59e0b,8b5cf6,ec4899,06b6d4,94a3b8",
+        "phlox-light": "1b1b1d|d6d6d6|0d0d0d,ef4444,34d399,fbbf24,60a5fa,d97757,38bdf8,e5e5e5,3f3f46,fb7171,6ee7b7,fde68a,93c5fd,fba88a,7dd3fc,ffffff",
     ]
 
     private func hex(_ rgb: RGB) -> String { String(format: "%02x%02x%02x", rgb.r, rgb.g, rgb.b) }
@@ -251,8 +275,11 @@ struct AcceptanceSidebarTextContrastTests {
     @Test("アクセント・状態色・明暗判定は補正で変わらない")
     func accentAndSchemeUnchanged() {
         for theme in ThemeStore.all {
-            #expect(theme.accent == RGB(0xD9, 0x77, 0x57), "\(theme.id) accent")
-            #expect(theme.preferredColorScheme == (theme.terminalBackground.grayscale.relativeLuminance >= 0.5 ? .light : .dark), "\(theme.id) scheme")
+            // 既定の 2 テーマの accent は輪・点の確定値（ダーク #E08865）。ほかはブランドのコーラル。
+            let expectedAccent = Self.designValueThemeIDs.contains(theme.id) ? theme.palette.accent : RGB(0xD9, 0x77, 0x57)
+            #expect(theme.accent == expectedAccent, "\(theme.id) accent")
+            // 明暗はウィンドウの背景で決まる（Phlox Light の端末は暗いが、テーマはライト）。
+            #expect(theme.preferredColorScheme == (theme.background.grayscale.relativeLuminance >= 0.5 ? .light : .dark), "\(theme.id) scheme")
         }
     }
 }

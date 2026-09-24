@@ -316,7 +316,7 @@ private struct CommandGroupExecutionRow: View {
                             .font(ChatScaledFont.captionStrong(scale: scale))
                         }
                         .buttonStyle(.plain)
-                        .foregroundStyle(DSColor.chatAccent)
+                        .foregroundStyle(DSColor.accentInk)
                         .accessibilityIdentifier("CommandGroupExecutionRow.showMoreOutput")
                     }
                 }

@@ -58,8 +58,11 @@ import Testing
 
     @Test("全テーマ: 本文・補助・弱い文字は新しい面でも 4.5:1 以上")
     func textIsReadableOnNewFaces() {
+        // 既定 2 テーマの弱い文字はモックの確定値（#8E8E94 / #75757B）で、4.5:1 を満たさない（2026-09-24 ユーザー決定）。
         for theme in ThemeStore.all {
-            for text in [theme.textPrimary, theme.textSecondary, theme.textTertiary] {
+            let texts = [AppTheme.phlox.id, AppTheme.phloxLight.id].contains(theme.id)
+                ? [theme.textPrimary, theme.textSecondary] : [theme.textPrimary, theme.textSecondary, theme.textTertiary]
+            for text in texts {
                 for face in faces(theme.palette) {
                     #expect(contrast(text, face) >= 4.5, "\(theme.id): \(text) on \(face) = \(contrast(text, face))")
                 }

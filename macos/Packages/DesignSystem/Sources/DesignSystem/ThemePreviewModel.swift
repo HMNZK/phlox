@@ -27,12 +27,9 @@ public struct ThemePreviewModel: Equatable, Sendable {
     public let terminalSwatches: [RGB]
 
     public static func make(theme: AppTheme) -> ThemePreviewModel {
-        let inputBorder: Layer
-        if theme.background.relativeLuminance >= 0.5 {
-            inputBorder = Layer(rgb: theme.textPrimary, opacity: 0.86)
-        } else {
-            inputBorder = Layer(rgb: RGB(255, 255, 255), opacity: 0.06)
-        }
+        // 実画面と同じ値（DSColor.composerBorder = textPrimary 14%、fillSelected = --sel）。
+        let isDark = theme.background.relativeLuminance < 0.5
+        let inputBorder = Layer(rgb: theme.textPrimary, opacity: 0.14)
 
         return ThemePreviewModel(
             themeID: theme.id,
@@ -45,7 +42,7 @@ public struct ThemePreviewModel: Equatable, Sendable {
             background: theme.background,
             textPrimary: theme.textPrimary,
             currentMarker: theme.accent,
-            selectedRow: Layer(rgb: theme.textPrimary, opacity: AppTheme.sidebarSelectedOpacity),
+            selectedRow: Layer(rgb: theme.textPrimary, opacity: AppTheme.sidebarSelectedOpacity(isDark: isDark)),
             inputFill: Layer(rgb: RGB(255, 255, 255), opacity: 0.04),
             inputBorder: inputBorder,
             terminalSwatches: [theme.terminalBackground] + Array(theme.ansi[1...6]) + [theme.terminalForeground]

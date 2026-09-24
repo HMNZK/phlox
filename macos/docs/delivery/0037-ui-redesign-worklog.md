@@ -672,3 +672,46 @@ A・C 型は `.dialogSeverity(.critical)`（注意アイコン）、破壊的な
 ### 目視していないもの
 
 - D1・D2・D9・D10・E1、承認・質問・エラー・完了の実際の通知、初期化中の画面、ペアリング成立で QR が閉じるところ、VoiceOver の実操作。
+
+## F1 忠実度の修正: デザイン基盤（12 Design System）
+
+2026-09-24 の忠実度監査（`docs/agent-output/ui-fidelity-audit/11-12-tokens.md`）の指摘のうち、トークンと共通部品の分を直した。画面ごとの直書き（文字サイズ・半透明の白・影）は F2 以降の各画面で直す。
+
+### 決定（2026-09-24 ユーザー）
+
+- 既定 2 テーマの弱い文字はモックの確定値（#8E8E94 / #75757B）。4.5:1 に届かないが、確定値を優先する。
+- 入力欄の枠は全テーマで textPrimary の 14%（モックの `--line`）。ホバー・選択はダーク 0.06 / 0.09、ライト 0.05 / 0.075。
+- テーマは README が正（Phlox＝既定ダーク、Phlox Light＝既定ライト）。
+
+### 対応表
+
+| 監査の指摘 | 内容 | 実装箇所 |
+|---|---|---|
+| テーマ切替で色が前のテーマのまま残る | `ThemeStore.resolved` が変更通知を読むようにし、`DSColor` の静的な読み出しも SwiftUI が追跡する | `AppTheme.swift`（`ThemeChangeSignal`） |
+| ユーザー用ターミナルの配色が切替に追従しない | 生きている全ターミナルへ配色を当て直す | `TerminalCoordinator.swift`（`applyActivePaletteToAll`）、`DashboardViewModel.reapplyTheme()` |
+| 端末の背景 | Phlox #141416、Phlox Light #1B1B1D、ANSI はモックの 8 色 | `AppTheme.swift` |
+| 弱い文字がコントラスト補正で補助と同じになる | 既定 2 テーマは確定値をそのまま使う | `AppTheme.swift`（`designTheme`） |
+| ホバー・選択の不透明度 | 上の決定の値。定義は `AppTheme.sidebarHoverOpacity(isDark:)` / `sidebarSelectedOpacity(isDark:)` の 1 か所 | `AppTheme.swift`、`Tokens.swift`（`fillSubtle` / `fillSelected`） |
+| 入力欄の枠がライトでほぼ黒 | `composerBorder = border`（14%） | `Tokens.swift` |
+| 小さい文字が 10pt | `DSFont.caption` / `captionStrong` / `monoCaption` を 11pt | `Tokens.swift` |
+| 影 | グリッドのタイル・ポップオーバー（明暗で別）・ウィンドウをモックの値に | `Tokens.swift`（`DSShadow`） |
+| 会話の accent・状態色 | 会話の accent を UI の accent に、文字は `accentInk`。承認待ち・エラーの色を対応待ち 4 状態の色に | `Tokens.swift`、`TranscriptTypography.swift`、SessionFeature の各セル |
+| 操作部品の面 | `controlBackground`（Phlox は #3A3A3E）・`controlBorder`・`segmentTrack`・`fieldBorder`・`toggleOff`・`focusRing` を新設 | `Tokens.swift` |
+| ボタン 4 種 | 主・副・破壊的・地の 4 種のスタイルを新設。使う画面は F2 以降 | `DSButtonStyle.swift` |
+| トグル・セグメント・実行中の数・リサイズの取っ手 | モックの色と形に | `AccentSwitchToggleStyle.swift`、`NeutralSegmentedControl.swift`、`RunningCountBadge.swift`、`ResizeGripView.swift` |
+| モード切替の高さ | 見た目は 22、押せる範囲は 24 のまま（task-34 の下限） | `DashboardToolbar.swift`（`ModeSegmentButton`） |
+| 設定のテーマ見本が旧い値 | 入力枠 14%・選択面を実画面と同じ値に | `ThemePreviewModel.swift` |
+
+### テストの変更（上の決定に合わせたもの）
+
+- `AcceptanceSidebarTextContrastTests`: 既定 2 テーマの弱い文字だけを 4.5:1 の検査から外し、確定値そのものを検査する。本文・補助は全テーマで検査を続ける。
+- `AcceptanceComposerBorderContrastTests`: 契約を「全テーマで textPrimary の 14%」に置き換えた。
+- `DesignPaletteTests`・`AcceptanceThemePreviewModelTests`・`AcceptanceTranscriptTypographyTests`・`TokensTests`・`AppThemeTests`・`ChatTokenThemeTests`: 新しい値に更新。
+- 新設 `ThemeChangeSignalTests`: テーマを変えると通知し、関係ないキーでは通知しない。
+
+### 検証
+
+- `.claude/verify.sh` 合格: DesignSystem 188、AgentDomain 545、SessionFeature 1054、DashboardFeature 1640（いずれも `--no-parallel`）、アプリのビルド。TerminalUI 79 合格。
+- 並列実行（`--no-parallel` なし）では DashboardFeature が 10 分以上止まり、SessionFeature の `TerminationFlushRace` の 2 件が時間切れで落ちた。後者は単独の再実行で合格。どちらも verify.sh が直列で回す理由として書かれている既知の現象で、今回の変更との関係は調べていない。
+- Codex（gpt-6-sol）のレビュー: 指摘 4 件のうち 3 件（テーマ見本の旧い値、Phlox の操作面の色、テストの除外範囲が広すぎる）を直した。「11pt 固定で文字サイズ設定に追従しない」は採らなかった。macOS には Dynamic Type が無く、`Font.caption` も固定 10pt のため。
+- Debug 版をダーク・ライト・英語で撮影し、崩れが無いことを見た（`/tmp/phlox-audit/f1/`）。サイドバーの選択行がコーラル色なのは 03 の範囲で直す。

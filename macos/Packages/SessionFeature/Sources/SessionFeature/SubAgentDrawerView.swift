@@ -74,7 +74,7 @@ struct SubAgentDrawerView: View {
                     .foregroundStyle(DSColor.chatTextSecondary)
                 Button("メインへ戻る", action: onClose)
                     .buttonStyle(.plain)
-                    .foregroundStyle(DSColor.chatAccent)
+                    .foregroundStyle(DSColor.accentInk)
                     .help("メインチャットを表示")
             }
             .padding(DSSpacing.l)
@@ -91,7 +91,7 @@ struct SubAgentDrawerView: View {
                             .font(DSFont.captionStrong)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(DSColor.chatAccent)
+                    .foregroundStyle(DSColor.accentInk)
                     .help("メインチャットを表示")
 
                     ForEach(blocks) { block in

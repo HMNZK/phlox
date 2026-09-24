@@ -250,7 +250,7 @@ struct AcceptanceTranscriptTypographyTests {
         #expect(TranscriptTypography.color(for: .metadataStrong) == DSColor.chatTextSecondary, Comment(rawValue: "metadataStrong"))
         #expect(TranscriptTypography.color(for: .code) == DSColor.chatTextPrimary, Comment(rawValue: "code"))
         #expect(TranscriptTypography.color(for: .codeMetadata) == DSColor.chatTextSecondary, Comment(rawValue: "codeMetadata"))
-        #expect(TranscriptTypography.color(for: .inlineCode) == DSColor.chatAccent, Comment(rawValue: "inlineCode"))
+        #expect(TranscriptTypography.color(for: .inlineCode) == DSColor.accentInk, Comment(rawValue: "inlineCode"))
         #expect(
             TranscriptTypography.color(for: .processSummary) != DSColor.chatTextPrimary,
             Comment(rawValue: "processSummary は primary 固定ではない")

@@ -99,7 +99,7 @@ struct ChatHistoryStartView: View {
     private var header: some View {
         HStack(spacing: DSSpacing.s) {
             Image(systemName: "clock.arrow.circlepath")
-                .foregroundStyle(DSColor.chatAccent)
+                .foregroundStyle(DSColor.accentInk)
             Text("続きから再開")
                 .font(DSFont.sectionHeader)
                 .foregroundStyle(DSColor.chatTextPrimary)

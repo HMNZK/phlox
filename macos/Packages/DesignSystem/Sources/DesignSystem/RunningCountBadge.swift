@@ -15,8 +15,8 @@ public struct RunningCountBadge: View {
     public var body: some View {
         if count > 0 {
             Text(Self.label(count: count, nested: nestedOrchestrationCount, japanese: isJapanese))
-                .font(DSFont.meta.weight(.medium))
-                .foregroundStyle(DSColor.textSecondary)
+                .font(DSFont.meta)
+                .foregroundStyle(DSColor.textTertiary)
                 .lineLimit(1)
                 .fixedSize()
         }

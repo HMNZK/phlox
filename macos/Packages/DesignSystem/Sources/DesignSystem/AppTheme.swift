@@ -23,7 +23,7 @@ public struct RGB: Sendable, Equatable {
     }
 
     /// 各チャンネルを一律に持ち上げる（暗い面のレイヤー段差づくり用）。
-    func lightened(_ amount: Int) -> RGB {
+    public func lightened(_ amount: Int) -> RGB {
         RGB(min(255, r + amount), min(255, g + amount), min(255, b + amount))
     }
 
@@ -96,10 +96,10 @@ extension AppTheme {
 
     // MARK: - サイドバー4面の不透明度（Tokens.swift の fillSubtle/fillSelected/idleHighlight と共有する唯一の定義）
 
-    /// hover 面（`DSColor.fillSubtle`）。
-    static let sidebarHoverOpacity = 0.05
-    /// 選択面（`DSColor.fillSelected`）。
-    static let sidebarSelectedOpacity = 0.10
+    /// hover 面（`DSColor.fillSubtle`。12 Design System `--hov`: ダーク 0.06 / ライト 0.05）。
+    static func sidebarHoverOpacity(isDark: Bool) -> Double { isDark ? 0.06 : 0.05 }
+    /// 選択面（`DSColor.fillSelected`。`--sel`: ダーク 0.09 / ライト 0.075）。
+    static func sidebarSelectedOpacity(isDark: Bool) -> Double { isDark ? 0.09 : 0.075 }
     /// attention 面（`DSColor.idleHighlight`）。
     static let sidebarAttentionOpacity = 0.22
 
@@ -110,10 +110,11 @@ extension AppTheme {
 
     /// サイドバーで実際に重なる4面（基底／hover／選択／attention）。優先順の2枚重ねは作らない。
     private static func sidebarFaces(background: RGB, hoverOverlay: RGB, attention: RGB) -> [RGB] {
-        [
+        let isDark = background.relativeLuminance < 0.5
+        return [
             background,
-            background.mixed(hoverOverlay, sidebarHoverOpacity),
-            background.mixed(hoverOverlay, sidebarSelectedOpacity),
+            background.mixed(hoverOverlay, sidebarHoverOpacity(isDark: isDark)),
+            background.mixed(hoverOverlay, sidebarSelectedOpacity(isDark: isDark)),
             background.mixed(attention, sidebarAttentionOpacity),
         ]
     }
@@ -237,16 +238,6 @@ extension AppTheme {
         )
     }
 
-    /// 既定の 2 テーマ用。デザインの確定値を使い、文字だけはサイドバー 4 面＋新しい面で
-    /// 4.56:1 を割る場合に最小限だけ本文色へ寄せる（Phlox Light の弱い文字 #75757B は
-    /// サイドバー #F2F2F4 上で 4.09:1 のため補正される）。
-    static func designText(_ text: RGB, primary: RGB, palette: DesignPalette, attention: RGB) -> RGB {
-        let faces = sidebarFaces(background: palette.window, hoverOverlay: primary, attention: attention)
-            + sidebarFaces(background: palette.sidebar, hoverOverlay: primary, attention: attention)
-            + [palette.panel, palette.card, palette.toolbar]
-        return DesignPalette.reaching(minimumAuxiliaryContrast, from: text, toward: primary, on: faces)
-    }
-
     /// Phlox / Phlox Light を palette の確定値から組み立てる。状態色（旧トークン）は
     /// 対応待ちの記号色に揃え、実行中・完了などの旧色は現行値を保つ（各画面の置換で順次使わなくなる）。
     static func designTheme(
@@ -264,9 +255,10 @@ extension AppTheme {
             surface: palette.panel,
             surfaceElevated: palette.popover,
             textPrimary: primary,
-            textSecondary: designText(secondary, primary: primary, palette: palette, attention: attention),
-            textTertiary: designText(tertiary, primary: primary, palette: palette, attention: attention),
-            accent: claudeCoral,
+            // 既定の 2 テーマは文字もデザインの確定値をそのまま使う（コントラスト補正をしない。2026-09-24 決定）。
+            textSecondary: secondary,
+            textTertiary: tertiary,
+            accent: palette.accent,
             statusRunning: statusRunning,
             statusAwaiting: palette.approval.mark,
             statusError: palette.error.mark,
@@ -305,15 +297,18 @@ extension AppTheme {
             .codex: RGB(0x7C, 0x8C, 0xFF),
             .cursor: RGB(0xB8, 0xB8, 0xB8),
         ],
-        terminalBackground: RGB(0x0E, 0x0E, 0x0E),
+        terminalBackground: RGB(0x14, 0x14, 0x16),
         terminalForeground: RGB(0xD6, 0xD6, 0xD6),
-        ansi: [
+        ansi: phloxTerminalANSI
+    )
+
+    /// Phlox / Phlox Light の端末 16 色。端末はテーマの明暗によらず暗い面（12 Design System）。
+    static let phloxTerminalANSI: [RGB] = [
             RGB(0x0D, 0x0D, 0x0D), RGB(0xEF, 0x44, 0x44), RGB(0x34, 0xD3, 0x99), RGB(0xFB, 0xBF, 0x24),
             RGB(0x60, 0xA5, 0xFA), RGB(0xD9, 0x77, 0x57), RGB(0x38, 0xBD, 0xF8), RGB(0xE5, 0xE5, 0xE5),
             RGB(0x3F, 0x3F, 0x46), RGB(0xFB, 0x71, 0x71), RGB(0x6E, 0xE7, 0xB7), RGB(0xFD, 0xE6, 0x8A),
             RGB(0x93, 0xC5, 0xFD), RGB(0xFB, 0xA8, 0x8A), RGB(0x7D, 0xD3, 0xFC), RGB(0xFF, 0xFF, 0xFF),
-        ]
-    )
+    ]
 
     /// Tokyo Night（enkia）
     public static let tokyoNight = AppTheme.fromPalette(
@@ -436,7 +431,7 @@ extension AppTheme {
     )
 
     /// Phlox Light — 再設計の明色の既定テーマ（12 Design System の確定値）。
-    /// ターミナルの配色は従来どおり（タブ化の段階で端末背景トークンへ移す）。
+    /// 端末はライトでも暗い面 #1B1B1D（Phlox と同じ 16 色）。
     public static let phloxLight: AppTheme = {
         let palette = DesignPalette.phloxLight
         let primary = RGB(0x1D, 0x1D, 0x1F)
@@ -462,15 +457,14 @@ extension AppTheme {
                 .codex: ansi[4],
                 .cursor: primary.mixed(palette.window, 0.35),
             ],
-            terminalBackground: RGB(0xF7, 0xF7, 0xF9),
-            terminalForeground: RGB(0x1E, 0x1B, 0x2E),
-            ansi: ansi
+            terminalBackground: RGB(0x1B, 0x1B, 0x1D),
+            terminalForeground: RGB(0xD6, 0xD6, 0xD6),
+            ansi: phloxTerminalANSI
         )
     }()
 }
 
-/// 起動時にアクティブテーマを解決して保持するストア。
-/// 変更は再起動で反映する（DSColor / ターミナルが起動時にこの値を読む）。
+/// アクティブテーマを解決するストア。変更は `ThemeChangeSignal` 経由で描画中の View へ即時に反映する。
 public enum ThemeStore {
     public static let themeKey = "phlox.theme"
 
@@ -508,6 +502,9 @@ public enum ThemeStore {
     private static let cache = OSAllocatedUnfairLock<Resolved?>(initialState: nil)
 
     private static func resolved(in defaults: UserDefaults) -> Resolved {
+        // 描画中（メインスレッド）の読み出しを Observation の追跡対象にする。これで DSColor を
+        // 読んだ View はテーマ変更で必ず描き直される（View ごとの @AppStorage 購読に頼らない）。
+        if Thread.isMainThread { ThemeChangeSignal.shared.track() }
         let selectedID = defaults.string(forKey: themeKey)
         if let cached = cache.withLock({ $0 }), cached.selectedID == selectedID {
             return cached
@@ -519,5 +516,39 @@ public enum ThemeStore {
         )
         cache.withLock { $0 = resolved }
         return resolved
+    }
+}
+
+/// テーマの選択値が変わったことを SwiftUI へ知らせる信号。`ThemeStore` の読み出しが
+/// `revision` を読むので、色を使った View の body が Observation に登録される。
+@Observable
+final class ThemeChangeSignal: @unchecked Sendable {
+    static let shared = ThemeChangeSignal(defaults: .standard)
+
+    private(set) var revision = 0
+    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private var lastID: String?
+    @ObservationIgnored private var token: NSObjectProtocol?
+
+    init(defaults: UserDefaults) {
+        self.defaults = defaults
+        lastID = defaults.string(forKey: ThemeStore.themeKey)
+        token = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification, object: nil, queue: nil
+        ) { [weak self] _ in
+            // queue: .main だと投稿側のスレッドがメインでの実行完了まで待つ。書き込み元を止めないよう非同期で渡す。
+            DispatchQueue.main.async { self?.refresh() }
+        }
+    }
+
+    func track() {
+        _ = revision
+    }
+
+    private func refresh() {
+        let id = defaults.string(forKey: ThemeStore.themeKey)
+        guard id != lastID else { return }
+        lastID = id
+        revision += 1
     }
 }

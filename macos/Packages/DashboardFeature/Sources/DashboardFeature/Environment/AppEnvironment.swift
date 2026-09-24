@@ -58,9 +58,12 @@ public struct AppEnvironment: Sendable {
     public let workspaceDirectory: URL
 
     /// claudeCode 以外の CLI の解決済み絶対パス。起動時に best-effort で解決し、見つかったものだけ入る。
-    public let agentBinaryPaths: [AgentKind: String]
+    /// 起動画面の「再検出」で差し替えるので、値は `binaryPath(for:)` から読む。
+    public var agentBinaryPaths: [AgentKind: String] { binaryTable.snapshot().builtin }
     /// JSON 由来カスタム CLI の解決済み絶対パス。
-    public let customAgentBinaryPaths: [String: String]
+    public var customAgentBinaryPaths: [String: String] { binaryTable.snapshot().custom }
+    /// コピーした環境どうしで同じ表を見る（再検出の結果をセッションの起動にも使うため）。
+    private let binaryTable: AgentBinaryTable
     /// 組込 + JSON 由来カスタム CLI の実行時 catalog。
     public let agentCatalog: AgentCatalog
 
@@ -117,8 +120,7 @@ public struct AppEnvironment: Sendable {
         self.claudeUsageRateLimitsURL = claudeUsageRateLimitsURL
         self.codexHome = codexHome
         self.workspaceDirectory = workspaceDirectory
-        self.agentBinaryPaths = agentBinaryPaths
-        self.customAgentBinaryPaths = customAgentBinaryPaths
+        self.binaryTable = AgentBinaryTable(builtin: agentBinaryPaths, custom: customAgentBinaryPaths)
         self.agentCatalog = agentCatalog
         self.controlURL = controlURL
         self.tokenStore = tokenStore
@@ -139,7 +141,7 @@ public struct AppEnvironment: Sendable {
     /// 指定 CLI の実行ファイル絶対パス。claudeCode は既存の claudeBinaryPath を返す。
     public func binaryPath(for kind: AgentKind) -> String? {
         if kind == .claudeCode { return claudeBinaryPath }
-        return agentBinaryPaths[kind]
+        return binaryTable.snapshot().builtin[kind]
     }
 
     public func binaryPath(for ref: AgentRef) -> String? {
@@ -147,8 +149,30 @@ public struct AppEnvironment: Sendable {
         case .builtin(let kind):
             return binaryPath(for: kind)
         case .custom(let id):
-            return customAgentBinaryPaths[id]
+            return binaryTable.snapshot().custom[id]
         }
+    }
+
+    /// 起動時の PATH を走査し直して、Claude 以外の CLI の場所を差し替える（08 S3「再検出」）。
+    /// 新しく見つかった種別があれば true。
+    @discardableResult
+    public func redetectBinaries() -> Bool {
+        func locate(_ name: String) -> String? {
+            pathEnvironment.split(separator: ":").lazy
+                .map { "\($0)/\(name)" }
+                .first { FileManager.default.isExecutableFile(atPath: $0) }
+        }
+        var builtin: [AgentKind: String] = [:]
+        for kind in AgentRegistry.optionalBinaryKinds {
+            builtin[kind] = locate(kind.binaryName)
+        }
+        var custom: [String: String] = [:]
+        for descriptor in agentCatalog.optionalDescriptors {
+            if case .custom(let id) = descriptor.ref {
+                custom[id] = locate(descriptor.binaryName)
+            }
+        }
+        return binaryTable.replace(builtin: builtin, custom: custom)
     }
 
     /// 初回 spawn 用のセッション専用 workspace。
@@ -255,6 +279,32 @@ public struct AppEnvironment: Sendable {
     /// handler（ChatApprovalBroker 経由でバナーを出す経路）を呼ばないためバナーは表示されない。
     /// policy が非 nil であることにより、ClaudeChatClient は defaultAllowedTools を維持する。
     private static let claudeAutoApprovePolicy: ClaudeChatClient.PreApprovalPolicy = { _ in .approve }
+}
+
+/// CLI の場所の表。`AppEnvironment` は値型で各所にコピーされるので、再検出の結果を共有するために参照で持つ。
+final class AgentBinaryTable: @unchecked Sendable {
+    private let lock = NSLock()
+    private var builtin: [AgentKind: String]
+    private var custom: [String: String]
+
+    init(builtin: [AgentKind: String], custom: [String: String]) {
+        self.builtin = builtin
+        self.custom = custom
+    }
+
+    func snapshot() -> (builtin: [AgentKind: String], custom: [String: String]) {
+        lock.withLock { (builtin, custom) }
+    }
+
+    /// 差し替える。前より見つかった数が増えれば true。
+    func replace(builtin newBuiltin: [AgentKind: String], custom newCustom: [String: String]) -> Bool {
+        lock.withLock {
+            let gained = newBuiltin.keys.contains { builtin[$0] == nil } || newCustom.keys.contains { custom[$0] == nil }
+            builtin = newBuiltin
+            custom = newCustom
+            return gained
+        }
+    }
 }
 
 public enum AppEnvironmentError: Error, Equatable, Sendable {

@@ -14,31 +14,35 @@ struct StartOnboardingView: View {
     let onAddFolder: () -> Void
 
     @Environment(\.locale) private var locale
+    @Environment(\.openURL) private var openURL
     @State private var notificationStatus: UNAuthorizationStatus?
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 26) {
                 if showsAllSteps {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 8) {
                         Text("Phlox へようこそ")
-                            .font(.system(size: 22, weight: .semibold))
+                            .font(.system(size: 24, weight: .bold))
+                            .tracking(-0.3)
                             .foregroundStyle(DSColor.textPrimary)
                         Text("複数のコーディングエージェントを 1 つのウィンドウで動かし、承認と質問にまとめて答えます。始めるには作業フォルダを 1 つ追加してください。")
-                            .font(.system(size: 13))
+                            .font(.system(size: 13.5))
+                            .lineSpacing(6)
                             .foregroundStyle(DSColor.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                step(1, title: "プロジェクトを追加してください") {
+                step(1, title: "プロジェクトを追加") {
                     Text("エージェントはこのフォルダの中で作業します。フォルダ自体を Phlox が移動・削除することはありません。")
                         .font(.system(size: 12.5))
+                        .lineSpacing(4)
                         .foregroundStyle(DSColor.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Button(action: onAddFolder) {
                         HStack(spacing: 8) {
                             Text("フォルダを追加…")
-                            Text(verbatim: "⌘O").opacity(0.8)
+                            Text(verbatim: "⌘O").font(.system(size: 11)).opacity(0.85)
                         }
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Color.white)
@@ -59,25 +63,28 @@ struct StartOnboardingView: View {
                                     }
                             }
                         }
-                        .background(DSColor.cardBackground, in: RoundedRectangle(cornerRadius: 8))
-                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(DSColor.separator, lineWidth: 1))
+                        .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(DSColor.separator, lineWidth: 1))
                         Text("ほかの CLI は ~/.config/phlox/agents.json に書くと追加できます。")
                             .font(.system(size: 11.5))
                             .foregroundStyle(DSColor.textTertiary)
                     }
                     step(3, title: "通知（任意）") {
-                        Text("承認待ちや完了を、ほかのアプリを使っている間も知らせます。")
-                            .font(.system(size: 12.5))
-                            .foregroundStyle(DSColor.textSecondary)
-                        notificationControl
+                        HStack(spacing: 10) {
+                            Text("承認待ちや完了を、ほかのアプリを使っている間も知らせます。")
+                                .font(.system(size: 12.5))
+                                .lineSpacing(4)
+                                .foregroundStyle(DSColor.textSecondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            notificationControl
+                        }
                     }
                     Text("この画面の内容は、あとから 設定（⌘,）でも変更できます。")
                         .font(.system(size: 11.5))
                         .foregroundStyle(DSColor.textTertiary)
                 }
             }
-            .padding(32)
-            .frame(maxWidth: 560, alignment: .leading)
+            .padding(EdgeInsets(top: 64, leading: 24, bottom: 24, trailing: 24))
+            .frame(maxWidth: 520, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
         .task(id: showsAllSteps) {
@@ -92,32 +99,34 @@ struct StartOnboardingView: View {
         note: LocalizedStringKey? = nil,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(verbatim: "\(number)")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(DSColor.textSecondary)
-                .frame(width: 22, height: 22)
-                .background(DSColor.fillSelected, in: Circle())
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(title)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(DSColor.textPrimary)
-                    if let note {
-                        Text(note)
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(DSColor.textTertiary)
-                    }
+        // 08 S1: 番号の丸は 20pt（手順 1 だけ accent）。本文は丸の幅＋間隔の 30pt だけ字下げする。
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Text(verbatim: "\(number)")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(number == 1 ? Color.white : DSColor.textPrimary)
+                    .frame(width: 20, height: 20)
+                    .background(number == 1 ? DSColor.accentFill : DSColor.segmentTrack, in: Circle())
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(DSColor.textPrimary)
+                if let note {
+                    Text(note)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(DSColor.textTertiary)
                 }
+            }
+            VStack(alignment: .leading, spacing: 8) {
                 content()
             }
+            .padding(.leading, 30)
         }
     }
 
     private func detectionRow(_ entry: AgentStartEntry) -> some View {
         HStack(spacing: 10) {
-            AgentBrandIcon(descriptor: entry.descriptor, size: 22)
+            AgentInitialTile(descriptor: entry.descriptor, size: 22, fontScale: 0.42)
             VStack(alignment: .leading, spacing: 1) {
                 Text(verbatim: entry.descriptor.displayName)
                     .font(.system(size: 13, weight: .medium))
@@ -125,14 +134,20 @@ struct StartOnboardingView: View {
                 Text(verbatim: entry.binaryPath.map { ($0 as NSString).abbreviatingWithTildeInPath }
                     ?? String(format: AppLocalizedString.string("%@ · 見つかりません", locale: locale), entry.descriptor.binaryName))
                     .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(DSColor.textTertiary)
+                    .foregroundStyle(DSColor.textSecondary)
                     .lineLimit(1)
-                    .truncationMode(.middle)
+                    .truncationMode(.tail)
             }
             Spacer(minLength: 0)
             Text(entry.isDetected ? "検出済み" : "未検出")
                 .font(.system(size: 11.5, weight: .semibold))
-                .foregroundStyle(entry.isDetected ? DSColor.textSecondary : DSColor.textPrimary)
+                .foregroundStyle(entry.isDetected ? DSColor.diffAdded : DSColor.attentionInk(.approval))
+            if !entry.isDetected, let url = AgentInstallGuide.url(for: entry.descriptor.ref) {
+                Button("入手方法 ↗") { openURL(url) }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12))
+                    .foregroundStyle(DSColor.accentInk)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
@@ -168,7 +183,7 @@ struct StartOnboardingView: View {
                 .font(.system(size: 12.5))
                 .foregroundStyle(DSColor.textPrimary)
                 .padding(.horizontal, 12)
-                .frame(height: 28)
+                .frame(height: 26)
                 .background(DSColor.surfaceElevated, in: RoundedRectangle(cornerRadius: 6))
                 .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(DSColor.border, lineWidth: 0.5))
                 .contentShape(Rectangle())

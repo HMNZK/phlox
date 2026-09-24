@@ -23,19 +23,18 @@ public enum StartAreaPolicy {
 /// プロジェクト未選択時のプレースホルダ表示。
 struct SelectProjectPlaceholderView: View {
     var body: some View {
-        VStack(spacing: DSSpacing.m) {
-            Image(systemName: "folder")
-                .font(.system(size: 48, weight: .light))
-                .foregroundStyle(DSColor.textTertiary)
+        VStack(spacing: 8) {
             Text("プロジェクトを選択してください")
-                .font(DSFont.sectionHeader)
-                .foregroundStyle(DSColor.textSecondary)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(DSColor.textPrimary)
             Text("左のサイドバーでプロジェクトかセッションを選ぶと、ここに表示します。対応待ちがあれば ⌘J で移動できます。")
                 .font(.system(size: 12.5))
-                .foregroundStyle(DSColor.textTertiary)
+                .lineSpacing(4)
+                .foregroundStyle(DSColor.textSecondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 360)
         }
+        .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

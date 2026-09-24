@@ -82,15 +82,18 @@ private struct Hexagon: Shape {
 public struct AgentInitialTile: View {
     let descriptor: AgentDescriptor
     let size: CGFloat
+    /// 文字の大きさ（一辺に対する比）。起動画面の面は 0.42（PhloxStart）。
+    let fontScale: CGFloat
 
-    public init(descriptor: AgentDescriptor, size: CGFloat = 16) {
+    public init(descriptor: AgentDescriptor, size: CGFloat = 16, fontScale: CGFloat = 0.5) {
         self.descriptor = descriptor
         self.size = size
+        self.fontScale = fontScale
     }
 
     public var body: some View {
         Text(verbatim: descriptor.tabInitials)
-            .font(.system(size: max(8, (size * 0.5).rounded()), weight: .semibold))
+            .font(.system(size: max(8, (size * fontScale).rounded()), weight: .semibold))
             .tracking(-0.2)
             .foregroundStyle(DSColor.textPrimary)
             .frame(width: size, height: size)

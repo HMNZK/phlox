@@ -355,16 +355,50 @@ public final class DashboardViewModel {
         reloadAndReconcilePaneLayout()
     }
 
+    /// 起動画面の「再検出」で増やす。検出結果を読む計算プロパティがこれを読んで描き直される。
+    private(set) var agentDetectionRevision = 0
+    /// 組込 CLI の版（08 S3・S4 の 2 行目）。起動画面を開いたときに一度だけ `--version` で読む。
+    private(set) var agentVersions: [AgentKind: String] = [:]
+    @ObservationIgnored private var agentVersionsLoaded = false
+
+    /// PATH を走査し直して CLI を探し、版も読み直す（08 S3「再検出」）。
+    /// セッション用 worktree の置き場所（08 S5 の案内に出す）。
+    var sessionWorkspaceRoot: URL { environment.workspaceDirectory }
+
+    func redetectAgents() async {
+        environment.redetectBinaries()
+        agentDetectionRevision += 1
+        agentVersions = [:]
+        agentVersionsLoaded = false
+        await loadAgentVersionsIfNeeded()
+    }
+
+    func loadAgentVersionsIfNeeded() async {
+        guard !agentVersionsLoaded else { return }
+        agentVersionsLoaded = true
+        let revision = agentDetectionRevision
+        var versions: [AgentKind: String] = [:]
+        for kind in [AgentKind.claudeCode] + AgentRegistry.optionalBinaryKinds {
+            guard let path = environment.binaryPath(for: kind) else { continue }
+            versions[kind] = await CLIVersionProbe.version(executable: path, pathEnvironment: environment.pathEnvironment)
+        }
+        // 取得中に再検出されたら、古い場所で読んだ版は捨てる（新しい取得が上書きする）。
+        guard revision == agentDetectionRevision else { return }
+        agentVersions = versions
+    }
+
     /// 新規セッションで選択できる CLI。起動時に解決できたものだけを返す（Claude Code は常に先頭）。
     public var availableAgentKinds: [AgentKind] {
-        [.claudeCode] + AgentRegistry.optionalBinaryKinds.filter {
+        _ = agentDetectionRevision
+        return [.claudeCode] + AgentRegistry.optionalBinaryKinds.filter {
             environment.binaryPath(for: $0) != nil
         }
     }
 
     /// 新規セッションで選択できる CLI descriptor。組込互換 API とは別に custom も含める。
     public var availableAgentDescriptors: [AgentDescriptor] {
-        [AgentRegistry.descriptor(for: .claudeCode)]
+        _ = agentDetectionRevision
+        return [AgentRegistry.descriptor(for: .claudeCode)]
             + environment.agentCatalog.optionalDescriptors.filter {
                 environment.binaryPath(for: $0.ref) != nil
             }
@@ -372,10 +406,12 @@ public final class DashboardViewModel {
 
     /// 起動カード・初回起動の検出結果に出す種別（08 S1・S3・S4）。未検出も元の位置に残す。
     func agentStartEntries(languageCode: String) -> [AgentStartEntry] {
+        _ = agentDetectionRevision
         let descriptors = [AgentRegistry.descriptor(for: .claudeCode)] + environment.agentCatalog.optionalDescriptors
         return AgentStartEntries.make(descriptors: descriptors) { environment.binaryPath(for: $0) }.map { entry in
             var entry = entry
             let ref = entry.descriptor.ref
+            entry.version = ref.builtinKind.flatMap { agentVersions[$0] }
             if entry.descriptor.supportsStructuredChat {
                 entry.model = AgentStartEntries.model(lastUsedChatSettingsStore.lastUsed(agentID: ref.id))
             }

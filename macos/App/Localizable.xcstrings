@@ -7632,6 +7632,72 @@
           }
         }
       }
+    },
+    "%@ が PATH に見つかりません。インストールすると、ここから起動できます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ isn’t on your PATH. Install it to start it from here."
+          }
+        }
+      }
+    },
+    "worktree を作成しています": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creating worktree"
+          }
+        }
+      }
+    },
+    "モデルは、この種別で最後に使った設定を引き継ぐ。起動後に入力欄の下で変えられる。既定の開き方（チャット / ターミナル）は 設定 > 一般。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The model carries over from the last session of this type. Change it below the input after starting. The default way to open (Chat / Terminal) is in Settings > General."
+          }
+        }
+      }
+    },
+    "入手方法 ↗": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How to install ↗"
+          }
+        }
+      }
+    },
+    "再検出": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detect Again"
+          }
+        }
+      }
+    },
+    "プロジェクトを追加": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a Project"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

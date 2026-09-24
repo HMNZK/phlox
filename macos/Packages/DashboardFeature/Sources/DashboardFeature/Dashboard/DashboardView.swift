@@ -899,19 +899,23 @@ public struct DashboardView: View {
         )
     }
 
-    /// worktree を作っている間の案内（08 F2・S5）。作業ツリーのパスは起動の中で決まるので出さない。
+    /// worktree を作っている間の案内（08 F2・S5）。作業ツリーの名前は起動の中で決まるので、置き場所を出す。
     private var worktreeProgressToast: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             ProgressView().controlSize(.small)
-            Text("worktree を作成しています…")
+            Text("worktree を作成しています")
                 .font(.system(size: 12.5))
                 .foregroundStyle(DSColor.textPrimary)
+            Text(verbatim: (viewModel.sessionWorkspaceRoot.path as NSString).abbreviatingWithTildeInPath)
+                .font(.system(size: 11.5, design: .monospaced))
+                .foregroundStyle(DSColor.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
         }
         .padding(.horizontal, 14)
         .frame(height: 34)
-        .background(DSColor.surfaceElevated, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(DSColor.border, lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+        .background(DSColor.popoverBackground, in: Capsule())
+        .dsShadow(DSShadow.popover)
         .padding(.bottom, 20)
         .accessibilityElement(children: .combine)
     }

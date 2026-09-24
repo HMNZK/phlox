@@ -87,6 +87,7 @@ func makeTestEnvironment(
     customAgentBinaryPaths: [String: String] = [:],
     agentCatalog: AgentCatalog = .builtins,
     transcriptStore: any TranscriptStore = NoOpTranscriptStore(),
+    pathEnvironment: String = "/usr/local/bin:/usr/bin:/bin",
     fullAccessProvider: @escaping @Sendable (AgentRef) -> Bool = { _ in true },
     appServerClientFactory: AppEnvironment.AppServerClientFactory? = nil
 ) -> AppEnvironment {
@@ -97,7 +98,7 @@ func makeTestEnvironment(
         claudeSettingsURL: URL(fileURLWithPath: "/tmp/agent-dashboard-test-hooks.json"),
         hookDispatcherPath: "/tmp/agent-dashboard-test-dispatcher.sh",
         claudeBinaryPath: "/usr/local/bin/claude",
-        pathEnvironment: "/usr/local/bin:/usr/bin:/bin",
+        pathEnvironment: pathEnvironment,
         codexHome: codexHome,
         workspaceDirectory: workspaceDirectory,
         agentBinaryPaths: agentBinaryPaths,

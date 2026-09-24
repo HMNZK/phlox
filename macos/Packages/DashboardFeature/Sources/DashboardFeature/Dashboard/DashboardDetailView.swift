@@ -105,12 +105,7 @@ struct DashboardDetailView: View {
 
     private var startHeader: AgentStartProjectHeader? {
         guard let project = viewModel.projects.first(where: { $0.id == router.selectedProjectID }) else { return nil }
-        let running = viewModel.sessionNodes(in: project.id).filter {
-            switch $0.status {
-            case .completed, .error: false
-            default: true
-            }
-        }.count
+        let running = viewModel.runningSessionCount(in: project.id)
         return AgentStartProjectHeader(
             name: project.name,
             path: project.directoryPath,
@@ -138,8 +133,10 @@ struct DashboardDetailView: View {
                 onSelectRef: onSelectAgent,
                 creatingRef: creatingRef,
                 header: startHeader,
-                defaultBackend: DefaultSessionBackendPreference.stored()
+                defaultBackend: DefaultSessionBackendPreference.stored(),
+                onRedetect: { Task { await viewModel.redetectAgents() } }
             )
+            .task { await viewModel.loadAgentVersionsIfNeeded() }
         }
     }
 }

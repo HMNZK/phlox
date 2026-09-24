@@ -1077,3 +1077,41 @@ A・C 型は `.dialogSeverity(.critical)`（注意アイコン）、破壊的な
 - 独立レビュー（Codex）1 回。指摘 3 件のうち、書き込み失敗のパネルを閉じるときに解放するようにした。残り 2 件は上の「直していないもの」。
 - Debug 版で撮影して確認（`/tmp/phlox-audit/f8/`）: ダーク＋日本語で D3（見た目・Esc で閉じる・↩ でキャンセル・削除されていないこと）。ライト＋英語で D4 と E3（Esc で閉じて起動しないこと）。サイドバーを隠した状態でメニューの「名前を変更…」からサイドバーが出て行の中の編集になること（Esc で取り消し）。
 - 画面で確かめていないもの: D1（未検出の種別は起動できず、起動の直前に実行ファイルを消す手も絶対パスが使えず作れなかった）、D2・D10・E4・ブランチ切替の失敗（起こすには worktree の削除の失敗・書き込めない場所・git でないプロジェクト・実リポジトリのブランチ切替が要る）、D8・端末の失効（実物のスキル・端末に触れるため）、子タブを閉じる確認、VoiceOver の実操作（AX の並びは見出し→本文→ボタンを確認）。
+
+## F8 忠実度の修正（2）: 起動画面（08 Start）
+
+監査 `docs/agent-output/ui-fidelity-audit/08-09-start-dialogs.md` の「1. 08 — 起動画面」を、見本 `design_handoff_phlox_ui/designs/PhloxStart.dc.html` の数値に合わせた。
+
+### 対応表
+
+| 監査の指摘 | 内容 | 実装箇所 |
+|---|---|---|
+| S1 見出しと本文 | 見出し 24pt bold・字間 -0.3、本文 13.5pt・行間 1.7 相当・fg2。幅 520 まで・余白 64/24/24・段の間隔 26 | `StartScreenViews.swift`（`StartOnboardingView`） |
+| S1 手順の番号 | 20pt の丸・11pt bold。手順 1 だけ accentFill に白、ほかは segBg に本文色。見出しは丸の横、本文は 30pt 字下げ。手順 1 の見出しを「プロジェクトを追加」に。⌘O は 11pt・0.85 | 同上 |
+| S1 検出の一覧 | 枠だけ（角丸 9・塗りなし）。行の頭は 22pt の頭文字タイル。場所は fg2・末尾を省略。「検出済み」は緑、「未検出」は承認待ちの濃い色（見本の色の指定）。未検出の組込 CLI に「入手方法 ↗」（accentInk 12pt、各社の公式ページ＝ユーザー決定） | 同上、`AgentStartCards.swift`（`AgentInstallGuide`） |
+| S1 手順 3 | 説明と「通知を許可…」（高さ 26）を 1 行に | 同上 |
+| S2 未選択 | フォルダのアイコンをやめ、見出し 15pt semibold 本文色・本文 fg2・間隔 8 | `StartAreaPolicy.swift` |
+| S3/S4 見出し | 名前 22pt bold・字間 -0.3、間隔 6。補足の行は間隔 8・区切りの点は fg3。worktree の札は高さ 20・左右 8・角丸 5・segBg。実行中の件数はサイドバーと同じ数え方（`runningSessionCount(in:)`） | `AgentStartCards.swift`（`AgentStartProjectHeader`）、`DashboardDetailView.swift` |
+| S3 外周 | 上 48・左右 28・下 24、幅 860 まで、段の間隔 22。左右のうち 12 は幅を測る枠の外に置き、凍結の `AgentStartCardsLayoutPolicy`（左右 16 が前提）はそのまま | `AgentStartCards.swift`（`outerHorizontalInset`） |
+| S5 列数 | 起動画面の幅が 900 以上で 4 列、未満で 2 列。縦積みは格子の 1 行（その列数）が入らないときだけ | 同上（`columnCount`） |
+| S3 カード | 頭文字タイル 28pt（字 0.42）、名前 14pt semibold、2 行目「claude 2.1.280 · ~/.local/bin/claude」（版は `--version` で読む。読めなければ場所だけ）、番号は枠なしの 11pt 等幅 fg3、余白 14/12/12、最小の高さ 168、モデル・権限は 11.5pt・ラベル fg3（44 幅、英語で入らなければ広げて揃える）・値は本文色の 1 行、ボタンは 12.5pt | 同上（`AgentStartCardButton`）、`CLIVersionProbe.swift`、`StateGlyph.swift`（`AgentInitialTile` の `fontScale`） |
+| S3 選択の輪 | ↩ で起動するカード（既定は 1 枚目）に常に accent の輪。起動中は外す。画面に出たら 1–N・矢印・↩ をすぐ受ける（文字の入力中は奪わない） | 同上 |
+| S3 未検出のカード | 面は fillSubtle・0.85。「%@ が PATH に見つかりません。インストールすると、ここから起動できます。」と「入手方法 ↗」「再検出」。再検出は起動時の PATH を探し直し、見つかればその場で起動できるカードになる（アプリの開き直しが要らない） | 同上、`AppEnvironment.swift`（`AgentBinaryTable`・`redetectBinaries`）、`DashboardViewModel.swift`（`redetectAgents`） |
+| S3 下の説明 | 見本の文体に。ただし「権限」は書かない（権限は設定の値を使い、引き継がないため） | `AgentStartCards.swift` |
+| S5/F2 トースト | 丸い帯（高さ 34・popover の面と影）、「worktree を作成しています」と場所（11.5pt 等幅 fg2） | `DashboardView.swift` |
+| E4 の出力 | F8（1）の `DSDialogLog` で対応済み | — |
+
+### 直していないもの
+
+- トーストの場所: 見本は作る worktree そのもののパスを出すが、Phlox の worktree の名前は起動の中でセッションの ID から決まる。起動前に分かる置き場所（`workspaceDirectory`）を出している。
+- 再検出が探すのは起動時に読んだ PATH だけ。インストールで PATH に新しいフォルダが加わったときは、アプリを開き直すまで見つからない（Codex の指摘）。
+- 縦積みの判定にカードの総数ではなく列数を渡している。見本の 2 列 / 4 列の格子に合わせるための判断。凍結テストは変えず、すべて通る（Codex は「凍結ポリシーの意図と違う」と指摘）。
+- 見本のカスタムの種別には「入手方法」の行き先が無いので、カスタムの未検出カードは「再検出」だけ。
+
+### 検証
+
+- 追加したテスト: `AgentStartRedetectTests`。版の読み取り（3 形式と読めない出力）、終了信号を無視し孫プロセスが出力を握る CLI でも 5 秒で打ち切ること、4 列 / 2 列の境目（900）、起動後に置いた CLI を再検出が見つけ環境の写しからも見えること。テスト用の環境に PATH を渡せるようにした（`makeTestEnvironment(pathEnvironment:)`）。
+- `.claude/verify.sh` 合格（DesignSystem・AgentDomain・SessionFeature・DashboardFeature・アプリのビルド）。レビュー後の修正の後にも 1 回合格。版を消す 1 行（下）はその後の変更で、`swift build` と上のテストだけ通した。
+- 独立レビュー（Codex）2 回。1 回目の指摘 7 件のうち、版の読み取りが終わらない（高）・再検出と版の取得の競合・入力中のフォーカス取得・英訳の漏れを直した。残り 3 件は上の「直していないもの」。2 回目の新しい指摘（再検出の直後に古い版が一瞬残る）も直した。
+- Debug 版で撮影して確認（`/tmp/phlox-audit/f8/`）: ライト＋日本語で 4 列の格子と版の表示、未検出のカード（`agents.json` に存在しない CLI を足した）、CLI を置いて「再検出」を押すと起動できるカードになること。ダーク＋英語で文言・ラベルの揃い・数字キー 3 と右矢印で輪が動くこと。空のデータフォルダ（`PHLOX_DATA_DIR`）で初回の案内（S1）。AX で カードの読み上げの並び（名前→版と場所→モデル→権限）。
+- 画面で確かめていないもの: S2（プロジェクトもセッションも選ばない状態への戻し方が画面上に無い）、トースト（worktree 隔離で起動すると実リポジトリにブランチを作るため）、組込 CLI の「入手方法 ↗」（3 種とも入っている）、S1 の手順 3 の行（画面の下で、スクロールしていない）、VoiceOver の実操作。

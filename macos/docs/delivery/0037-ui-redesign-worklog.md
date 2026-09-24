@@ -524,7 +524,7 @@ A・C 型は `.dialogSeverity(.critical)`（注意アイコン）、破壊的な
 ### 検証
 
 - `.claude/verify.sh` 合格（DesignSystem・AgentDomain・SessionFeature・DashboardFeature・app build）。SessionFeature 全体 1051 件合格。`git diff --check` 問題なし。
-- 実機 UI テスト（PhloxUITests）は**未実行**。XCTest が UI 自動化を有効にするためのパスワード入力を求めて止まり、時間切れで起動前に失敗した（`Timed out while enabling automation mode`）。
+- 実機 UI テスト（PhloxUITests）: 初回は XCTest の UI 自動化の許可（パスワード入力）待ちで起動前に失敗。許可後の全件実行で `testEnglishLightArgumentsReachApplication` だけが「専用suiteにグリッド配置の記録が保存されない」で失敗した。この記録は起動時のセッション復元が終わってから保存されるため、全体実行の最初のテスト（コールドスタート、13 秒）ではウィンドウ表示から 10 秒の待ちに間に合わなかった（同じクラスを単独で 3 回実行するとすべて合格）。P9 で目印をこの記録に差し替えたとき待ち時間を見直していなかったのが原因なので、`IsolatedPhloxApplication.assertDefaultsIsolation` の待ちをウィンドウ待ちと同じ 30 秒にした（確かめる内容は同じ）。修正後、全 15 件が合格。
 - Codex（gpt-6-sol high）の独立レビュー: 高 2・中 3・低 1。D4 の件数と「元に戻せません」・子セッションの未保存ファイル・後始末の断定・書き込み失敗の OK の文言を修正。残りは上の決定のとおり。
 - Debug 版での目視（スクリーンショット）: ダーク＋英語で D3（見出し・本文・既定のキャンセル・⌘⌫ で削除・↩ でキャンセル）、D4、D5（移動）、E3（Esc で閉じる）、E4。ライト＋日本語で D3、D8（↩ が既定・Esc で閉じる）。
 - 目視していないもの: D1・D2・D9・D10・E1（起こすには課金のあるエージェント・書き込めない場所・外部でのファイル変更が要る。文言はテスト、ボタンはコードで確認）、子セッションのある D3 の一覧（テストで確認）、VoiceOver の実操作。

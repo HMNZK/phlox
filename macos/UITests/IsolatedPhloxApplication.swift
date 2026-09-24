@@ -207,7 +207,9 @@ final class IsolatedPhloxApplication {
     }
 
     private func assertDefaultsIsolation() async throws {
-        let deadline = Date().addingTimeInterval(10)
+        // グリッド配置の記録は起動時のセッション復元が終わってから保存される。
+        // 初回（コールドスタート）はウィンドウ表示から 10 秒を超えることがあるので、ウィンドウ待ちと同じ 30 秒待つ。
+        let deadline = Date().addingTimeInterval(30)
         var saved: NSDictionary = [:]
         repeat {
             try assertExclusiveOwnership()

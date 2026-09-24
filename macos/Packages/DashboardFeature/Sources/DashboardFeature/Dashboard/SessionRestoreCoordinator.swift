@@ -148,7 +148,9 @@ final class SessionRestoreCoordinator {
                 projectID: descriptor.projectID,
                 launchMode: descriptor.resumeID.map { .resume(resumeID: $0) } ?? .newSession(),
                 backend: .pty,
-                isolationIntent: .restore
+                isolationIntent: .restore,
+                // 08 F4「worktree なしで起動」を選んだセッションは、復元でも worktree を作らない。
+                isolationOverride: descriptor.worktreeIsolationOptOut == true ? false : nil
             )
             let vm = spawnService.makeSessionViewModel(
                 id: sessionID,
@@ -206,7 +208,9 @@ final class SessionRestoreCoordinator {
                 projectID: descriptor.projectID,
                 launchMode: .newSession(),
                 backend: .appServer,
-                isolationIntent: .restore
+                isolationIntent: .restore,
+                // 08 F4「worktree なしで起動」を選んだセッションは、復元でも worktree を作らない。
+                isolationOverride: descriptor.worktreeIsolationOptOut == true ? false : nil
             )
             let vm = try await spawnService.makeChatSessionViewModel(
                 id: descriptor.id,

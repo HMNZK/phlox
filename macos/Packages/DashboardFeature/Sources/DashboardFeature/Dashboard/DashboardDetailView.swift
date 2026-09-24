@@ -13,6 +13,12 @@ struct DashboardDetailView: View {
     let onChooseProjectDirectory: () -> Void
     let isCreating: Bool
     let onSelectAgentKind: (AgentKind, SessionBackend) -> Void
+    /// カスタム種別を含む起動（08 S3・S4）。
+    var onSelectAgent: ((AgentRef, SessionBackend) -> Void)? = nil
+    /// 起動中の種別（08 S5）。
+    var creatingRef: AgentRef? = nil
+    /// 初回起動の案内をすべて出すか（08 S1: 一度もプロジェクトを追加していない）。
+    var showsAllOnboardingSteps = true
     /// グリッドのタイルの 会話 / 端末 / 変更（02 C3）。
     var tileTabs: GridTileTabs? = nil
 
@@ -88,31 +94,34 @@ struct DashboardDetailView: View {
     }
 
     private var detailEmptyState: some View {
-        VStack(spacing: DSSpacing.l) {
-            Image(systemName: "folder.badge.plus")
-                .font(.system(size: 64, weight: .light))
-                .foregroundStyle(DSColor.textTertiary)
-            VStack(spacing: DSSpacing.xs) {
-                Text("プロジェクトを追加してください")
-                    .font(DSFont.heroTitle)
-                    .foregroundStyle(DSColor.textPrimary)
-                Text("左の Projects 見出しの「+」から作業フォルダを選び、配下でセッションを開始します。")
-                    .font(DSFont.body)
-                    .foregroundStyle(DSColor.textSecondary)
-                    .multilineTextAlignment(.center)
+        StartOnboardingView(
+            entries: viewModel.agentStartEntries(languageCode: languageCode),
+            showsAllSteps: showsAllOnboardingSteps,
+            onAddFolder: onChooseProjectDirectory
+        )
+    }
+
+    @Environment(\.locale) private var locale
+
+    private var languageCode: String {
+        locale.language.languageCode?.identifier ?? "ja"
+    }
+
+    private var startHeader: AgentStartProjectHeader? {
+        guard let project = viewModel.projects.first(where: { $0.id == router.selectedProjectID }) else { return nil }
+        let running = viewModel.sessionNodes(in: project.id).filter {
+            switch $0.status {
+            case .completed, .error: false
+            default: true
             }
-            Button {
-                onChooseProjectDirectory()
-            } label: {
-                Label("プロジェクトを追加", systemImage: "folder.badge.plus")
-                    .font(DSFont.body)
-                    .padding(.horizontal, DSSpacing.m)
-                    .padding(.vertical, DSSpacing.s)
-            }
-            .buttonStyle(HoverableSoftButtonStyle())
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(DSSpacing.l)
+        }.count
+        return AgentStartProjectHeader(
+            name: project.name,
+            path: project.directoryPath,
+            branch: GitBranchReader.currentBranch(at: project.directoryPath),
+            isolates: project.usesWorktreeIsolation,
+            runningCount: running
+        )
     }
 
     @ViewBuilder
@@ -128,7 +137,12 @@ struct DashboardDetailView: View {
             AgentStartCardsView(
                 cards: AgentStartCardsModel.cards(available: viewModel.availableAgentKinds),
                 isCreating: isCreating,
-                onSelect: onSelectAgentKind
+                onSelect: onSelectAgentKind,
+                entries: viewModel.agentStartEntries(languageCode: languageCode),
+                onSelectRef: onSelectAgent,
+                creatingRef: creatingRef,
+                header: startHeader,
+                defaultBackend: DefaultSessionBackendPreference.stored()
             )
         }
     }

@@ -75,6 +75,8 @@ public final class AppRouter {
     public var attentionListPresented = false
     /// メニューの「プロジェクトを追加…」（⌘O）が押された。フォルダ選択を持つ DashboardView が受けて false に戻す。
     public var addProjectRequested = false
+    /// 新規セッションの表（⌘N）を開いているか。選択中のプロジェクトへ作る。
+    public var newSessionTablePresented = false
 
     public init(
         selectedSession: SessionID? = nil,

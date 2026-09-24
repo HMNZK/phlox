@@ -239,7 +239,7 @@ final class SessionPersistenceCoordinator {
                 titleSource: existing.titleSource,
                 flowerName: existing.flowerName,
                 fullDerivedTitle: existing.fullDerivedTitle
-            )
+            ).updating(worktreeIsolationOptOut: existing.worktreeIsolationOptOut)
             do {
                 try await self.saveSessionsIfAllowed(loadedCount: current.count, updated: current)
             } catch {

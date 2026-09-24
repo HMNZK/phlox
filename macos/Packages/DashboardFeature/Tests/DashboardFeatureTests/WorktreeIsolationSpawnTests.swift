@@ -832,4 +832,147 @@ func worktreeIsolation_restoreRecreatesMissingWorktreeFromExistingBranch() async
     #expect(GitBranchReader.currentBranch(at: worktreePath.path) == branchName)
 }
 
+
+// 08 F1「worktree で分けて起動」: 隔離オフのプロジェクトでも、この起動だけ worktree を作る。
+// 保存済みのプロジェクト設定は変えない（復元は restoreTracksExistingWorktreeAfterIsolationIsDisabled が拾う）。
+@Test @MainActor
+func worktreeIsolation_overrideOnCreatesWorktreeWithoutChangingProjectSetting() async throws {
+    let ptyManager = MockPTYManager()
+    let repository = try WorktreeIsolationRepositoryFixture.repository()
+    let workspaceRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("phlox-worktree-override-on-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
+    defer {
+        do {
+            try FileManager.default.removeItem(at: workspaceRoot)
+        } catch {
+            Issue.record("テスト後の一時ディレクトリ削除に失敗: \(error)")
+        }
+    }
+
+    let project = Project(
+        name: "shared",
+        directoryPath: repository.path,
+        createdAt: Date(timeIntervalSince1970: 0),
+        isManagedDirectory: false,
+        worktreeIsolationEnabled: false
+    )
+    let projectStore = WorktreeIsolationProjectStore()
+    try await projectStore.save([project])
+    let environment = makeWorktreeIsolationEnvironment(
+        pty: ptyManager,
+        workspaceDirectory: workspaceRoot,
+        projectStore: projectStore
+    )
+    let dashboard = DashboardViewModel(environment: environment, codexUserHooksEnabledProvider: { true })
+    await dashboard.start()
+
+    let sessionID = try await dashboard.spawnNewSession(
+        ref: .builtin(.codex),
+        projectID: project.id,
+        isolationOverride: true
+    )
+    let worktreeURL = environment.sessionWorkspaceDirectory(for: sessionID)
+    let branch = WorktreeIsolationPlanner.branchName(for: sessionID)
+
+    #expect(ptyManager.spawnCalls.first?.workingDirectory == worktreeURL.path)
+    #expect(GitBranchReader.currentBranch(at: worktreeURL.path) == branch)
+    #expect(dashboard.projects.first?.usesWorktreeIsolation == false)
+
+    await dashboard.removeSession(sessionID)
+    #expect(!FileManager.default.fileExists(atPath: worktreeURL.path))
+}
+
+// 08 F4「worktree なしで起動」: 隔離オンでも、この起動だけ共有のフォルダで動かす。
+@Test @MainActor
+func worktreeIsolation_overrideOffLaunchesInProjectDirectoryEvenForNonGitProject() async throws {
+    let ptyManager = MockPTYManager()
+    let workspaceRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("phlox-worktree-override-off-\(UUID().uuidString)", isDirectory: true)
+    let projectDirectory = workspaceRoot.appendingPathComponent("project", isDirectory: true)
+    try FileManager.default.createDirectory(at: projectDirectory, withIntermediateDirectories: true)
+    defer {
+        do {
+            try FileManager.default.removeItem(at: workspaceRoot)
+        } catch {
+            Issue.record("テスト後の一時ディレクトリ削除に失敗: \(error)")
+        }
+    }
+
+    let project = Project(
+        name: "non-git",
+        directoryPath: projectDirectory.path,
+        createdAt: Date(timeIntervalSince1970: 0),
+        isManagedDirectory: false,
+        worktreeIsolationEnabled: true
+    )
+    let projectStore = WorktreeIsolationProjectStore()
+    try await projectStore.save([project])
+    let environment = makeWorktreeIsolationEnvironment(
+        pty: ptyManager,
+        workspaceDirectory: workspaceRoot,
+        projectStore: projectStore
+    )
+    let dashboard = DashboardViewModel(environment: environment, codexUserHooksEnabledProvider: { true })
+    await dashboard.start()
+
+    _ = try await dashboard.spawnNewSession(ref: .builtin(.codex), projectID: project.id, isolationOverride: false)
+
+    #expect(ptyManager.spawnCalls.first?.workingDirectory == projectDirectory.path)
+    #expect(dashboard.projects.first?.usesWorktreeIsolation == true)
+}
+
+
+// 08 F4 で「worktree なしで起動」したセッションは、隔離オンのプロジェクトでも復元で worktree を作らない。
+// （記録が無いセッションの復元は従来どおり隔離する: AcceptanceRestoreAbortNoSpawnTests）
+@Test @MainActor
+func worktreeIsolation_restoreKeepsSharedDirectoryForOptedOutSession() async throws {
+    let ptyManager = MockPTYManager()
+    let repository = try WorktreeIsolationRepositoryFixture.repository()
+    let workspaceRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("phlox-worktree-restore-optout-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
+    defer {
+        do {
+            try FileManager.default.removeItem(at: workspaceRoot)
+        } catch {
+            Issue.record("テスト後の一時ディレクトリ削除に失敗: \(error)")
+        }
+    }
+
+    let project = Project(
+        name: "restore-optout",
+        directoryPath: repository.path,
+        createdAt: Date(timeIntervalSince1970: 0),
+        isManagedDirectory: false,
+        worktreeIsolationEnabled: true
+    )
+    let projectStore = WorktreeIsolationProjectStore()
+    try await projectStore.save([project])
+    let sessionID = SessionID()
+    let descriptor = PersistedSessionDescriptor(
+        id: sessionID,
+        kind: .codex,
+        workingDirectory: repository.path,
+        name: "restored-optout",
+        projectID: project.id,
+        startedAt: Date(timeIntervalSince1970: 0),
+        command: "/usr/local/bin/codex",
+        args: [],
+        env: [:]
+    ).updating(worktreeIsolationOptOut: true)
+    let environment = makeWorktreeIsolationEnvironment(
+        pty: ptyManager,
+        workspaceDirectory: workspaceRoot,
+        projectStore: projectStore,
+        sessionStore: WorktreeIsolationSessionStore([descriptor])
+    )
+    let dashboard = DashboardViewModel(environment: environment, codexUserHooksEnabledProvider: { true })
+
+    await dashboard.start()
+    try await waitUntil { ptyManager.spawnCalls.count == 1 }
+    #expect(ptyManager.spawnCalls.first?.workingDirectory == repository.path)
+    #expect(!FileManager.default.fileExists(atPath: environment.sessionWorkspaceDirectory(for: sessionID).path))
+}
+
 }

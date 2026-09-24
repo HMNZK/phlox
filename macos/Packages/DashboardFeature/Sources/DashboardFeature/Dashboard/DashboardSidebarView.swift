@@ -26,6 +26,8 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
     @Binding var sessionTreeViewModel: SessionTreeViewModel
     let onChooseProjectDirectory: () -> Void
     let newSessionMenuItems: (ProjectID?) -> NewSessionMenuContent
+    /// プロジェクト行の ＋ で開く表（Sidebar F5）。右クリックのメニューは `newSessionMenuItems` のまま。
+    let newSessionTable: (ProjectID?) -> NewSessionTable
 
     @Environment(\.locale) private var locale
     @FocusState private var listFocused: Bool
@@ -51,7 +53,8 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
         renameRequest: Binding<SessionID?>,
         sessionTreeViewModel: Binding<SessionTreeViewModel>,
         onChooseProjectDirectory: @escaping () -> Void,
-        @ViewBuilder newSessionMenuItems: @escaping (ProjectID?) -> NewSessionMenuContent
+        @ViewBuilder newSessionMenuItems: @escaping (ProjectID?) -> NewSessionMenuContent,
+        newSessionTable: @escaping (ProjectID?) -> NewSessionTable
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
         _router = Bindable(wrappedValue: router)
@@ -64,6 +67,7 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
         _sessionTreeViewModel = sessionTreeViewModel
         self.onChooseProjectDirectory = onChooseProjectDirectory
         self.newSessionMenuItems = newSessionMenuItems
+        self.newSessionTable = newSessionTable
     }
 
     var body: some View {
@@ -326,7 +330,7 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
             onCommitRename: { commitRename(byReturn: $0) },
             onCancelRename: cancelRename,
             menu: { projectMenu(project) },
-            newSessionMenu: { newSessionMenuItems(project.id) }
+            newSessionMenu: { newSessionTable(project.id) }
         )
         .id(SidebarItem.project(project.id))
     }

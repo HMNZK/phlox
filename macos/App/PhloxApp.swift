@@ -662,13 +662,12 @@ private struct SessionCommands: Commands {
 
     var body: some Commands {
         CommandMenu("セッション") {
-            ForEach(AgentKind.allCases) { kind in
-                Button { spawnSession(kind: kind) } label: {
-                    Label(kind.displayName, systemImage: kind.symbolName)
-                }
-                .keyboardShortcut(Self.shortcuts[kind])
-                .disabled(!canSpawn(kind: kind))
+            // 種別 × 開き方の表を開く（08: ⌘N / ⇧⌘N / ⌥⌘N を 1 つにまとめた）。失敗は画面のアラートに出る。
+            Button("新規セッション…") {
+                router?.newSessionTablePresented = true
             }
+            .keyboardShortcut("n", modifiers: .command)
+            .disabled(dashboard?.projects.isEmpty ?? true)
 
             Divider()
 
@@ -784,36 +783,12 @@ private struct SessionCommands: Commands {
         return chat
     }
 
-    private static let shortcuts: [AgentKind: KeyboardShortcut] = [
-        .claudeCode: KeyboardShortcut("n", modifiers: .command),
-        .codex: KeyboardShortcut("n", modifiers: [.command, .shift]),
-        .cursor: KeyboardShortcut("n", modifiers: [.command, .option]),
-    ]
-
     private var selectedNode: SessionNode? {
         router?.selectedSession.flatMap { dashboard?.sessionNode(id: $0) }
     }
 
     private var canCloseSession: Bool {
         router?.selectedSession != nil
-    }
-
-    private func canSpawn(kind: AgentKind) -> Bool {
-        guard let dashboard else { return false }
-        guard !dashboard.projects.isEmpty else { return false }
-        return dashboard.availableAgentKinds.contains(kind)
-    }
-
-    private func spawnSession(kind: AgentKind) {
-        guard let dashboard, let router else { return }
-        Task { @MainActor in
-            if let newID = try? await dashboard.spawnNewSessionUsingDefaultProject(
-                kind: kind,
-                selectedSessionID: router.selectedSession
-            ) {
-                router.selectedSession = newID
-            }
-        }
     }
 
     private func closeSelectedSession() {

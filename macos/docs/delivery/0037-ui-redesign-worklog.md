@@ -432,3 +432,54 @@ README「未確定事項」に当たるものは、現行の挙動を既定に�
 - Codex（gpt-6-sol high）の独立レビュー: 高 3・中 4。失敗時のチップの「—」・全バケットの最小・全件失敗の判定・初回失敗の「再試行」・ログの開閉をキーで押せるボタンに、を修正。取得理由などの言語と 5 分で前回の値を捨てる点は上の決定のとおり。
 - Debug 版での目視（スクリーンショット）: ライト＋日本語でチップ・使用量タブ・セッションタブ・共通ターミナルの見出し・A+ で「ターミナル 14pt」が出て 1 秒で消える・変更タブ（種別の文字・差分）。ダーク＋英語でチップ・使用量タブ・変更タブ（差分の色・「Commit (1)」・内容・「Show More (276 lines left)」）。
 - 目視していないもの: 取得失敗のバナーと琥珀の注記（ネットワークを切る必要がある。テストで記録のみ確認）、初回の骨組み、ターミナル型セッションのセッションタブ、Git の失敗ログ。VoiceOver の実操作と XCUITest も未実施。
+
+## P9 空の画面と新規セッション（08 Start and New Session）
+
+### 対応表
+
+| 機能一覧（08 の対応表・9 章・10 章） | 区分 | 内容 | 実装箇所 |
+|---|---|---|---|
+| プロジェクト 0 件のフォルダ追加（S1） | 変更 | 「Phlox へようこそ」と手順 1 フォルダ（⌘O）・2 使えるエージェント（PATH の検出結果とパス、未検出も出す）・3 通知（許可の状態に応じて「通知を許可…」「許可済み」「システム設定を開く…」）。一度でもプロジェクトを持ったら手順 1 だけ | `StartOnboardingView`、`DashboardView.hasAddedProject` |
+| プロジェクト未選択のプレースホルダ（S2） | 変更 | 補足「左のサイドバーでプロジェクトかセッションを選ぶと…⌘J で移動できます」 | `SelectProjectPlaceholderView` |
+| 起動カード群・起動中の無効化・構造化チャット対応による出し分け（S3〜S5） | 変更 | 上にプロジェクトの見出し（名前・パス・ブランチ・worktree 隔離・実行中の件数）。カードに番号・実行ファイルのパス・モデル（この種別で最後に使ったもの）・権限の初期値。未検出の種別もカスタムも元の位置に淡く残し理由を出す。チャット非対応はターミナルを主ボタンに。起動中はそのカードに「起動しています…」、ほかは淡く | `AgentStartCardsView`（`entries` / `creatingRef` / `header`）、`AgentStartEntries`、`DashboardViewModel.agentStartEntries` |
+| カード列の横並び ⇄ 折り返し（S5） | 変更 | 縦積みへの切替は凍結済みの `AgentStartCardsLayoutPolicy` のまま。横並びのときは 1 枚 200pt を目安に最大 4 列で折り返す（同じ行の高さはそろえる） | `AgentStartCardsView.columnCount` |
+| カードのキー操作 | 変更（新設） | カード領域にフォーカスしたとき 1–N と矢印で選び、↩ で既定の開き方・⌥↩ でもう一方 | `AgentStartCardsView`、`NewSessionKeys` |
+| 新規セッションの入口（メニュー・サイドバーの ＋ / 下端・グリッドの空状態） | 変更 | ⌘N / ⇧⌘N / ⌥⌘N を「新規セッション…」⌘N 1 つにまとめ、種別 × 開き方の表を開く（サイドバーが出ていれば下端から）。表は `NewSessionMenuModel` から組み、見出しで作成先を変えられる（選択中のプロジェクトもセッションも無く、プロジェクトが 2 つ以上なら未選択で、選ぶまで押せない）。未検出の種別は「未検出」で選べない行にする。起動中はボタンを押せない。1–N / ↑↓ / ↩ / ⌥↩、下端に既定の開き方。右クリックの「新規セッション」は従来のメニューのまま | `NewSessionTable`、`NewSessionPopoverButton`、`AppRouter.newSessionTablePresented`、`SessionCommands` |
+| 作業ディレクトリの衝突（F1・WorkspaceCollisionPolicy） | 変更（新設） | 隔離オフのプロジェクトで、同じフォルダに動いているセッションがあれば起動前にたずねる。相手を状態付きで並べ、既定は「worktree で分けて起動」 | `NewSessionCollisionGate`、`SpawnGuardSheet`、`DashboardView.createSession` |
+| worktree の作成（F2） | 変更 | 作っている間、下端に「worktree を作成しています…」 | `DashboardView.worktreeProgressToast` |
+| worktree の作成失敗（F4） | 変更 | 起動を中止した旨と git の出力（無ければ理由の文）、「worktree なしで起動」 | `SpawnGuardSheet`、`NewSessionCollisionGate.worktreeFailureLog` |
+| この起動だけの隔離の有無 | 変更（新設） | F1・F4 の選択をプロジェクトの設定を変えずにこの起動だけに渡す。「worktree なしで起動」はセッションの保存情報に残し、復元でも worktree を作らない | `spawnNewSession(… isolationOverride:)` → `SessionSpawnService.prepareSessionLaunchAsync`、`PersistedSessionDescriptor.worktreeIsolationOptOut`、`SessionRestoreCoordinator` |
+| 起動の失敗（F5・深さ / レート上限・CLI 未検出など） | 変更（経路） | メニューからの作成も画面の作成処理を通すので、失敗が既存のアラートに出る（従来は `try?` で黙って消えていた） | `DashboardView.createSession` |
+| worktree の作り直し（F3） | 据え置き | 復元時は従来どおり確認なしで作り直す | — |
+| Control API・CLI からの作成 | 既存のまま | 確認を出さずに作る（衝突の確認は画面の作成処理だけ） | — |
+
+### 決定・食い違い
+
+- **手順 1 の見出しは「プロジェクトを追加してください」**（モックは「プロジェクトを追加」）。凍結 UI テストがこの文言（英語 "Add a project"）を探す。
+- **カードの列は凍結ポリシー優先**。08 の「900pt 以上で 4 列・未満で 2 列」ではなく、縦積みの判定は `AgentStartCardsLayoutPolicy`（700pt で 3 枚は横並び）を守り、横並びの中だけ折り返す。
+- **「再検出」「入手方法 ↗」は出さない**。CLI のパスは起動時に 1 回だけ解決していて再検出の仕組みが無く、入手先の URL も持っていない。未検出の理由の文は「インストールしてアプリを開き直すと、ここから起動できます」にした。
+- **バージョンは出さずパスだけ**（バージョンを取る仕組みが無い）。
+- **権限の初期値はアプリが起動時に決めているものだけ**: Codex は常に（承認方針 · サンドボックス）、Claude Code と Cursor はフルアクセスのときだけ。それ以外とカスタムは「（CLI の既定）」。モデルは最後に使ったもの（チャット対応の種別だけ）。
+- **↩ は既定の開き方**（モックは「↩ チャット」固定）。ADR 0071 の「GUI からの作成は既定の開き方に従う」を守った。案内の文言も設定に合わせて入れ替わる。
+- **F1 は画面の作成処理だけで出す**。VM の `spawnNewSession` には入れず、Control API と既存テスト（同じフォルダの複数セッションを許す）の「確認なしで作成」を保った。「worktree で分けて起動」を選ぶと、git でないフォルダでは F4 になる。
+- **F4 の「既存の worktree を使う」は出さない**。新規セッションの worktree はセッション ID ごとに新しく作るので、既存のものを使う経路が無い。
+- **F2 のパスは出さない**。worktree の場所は起動の中でセッション ID が決まってから分かる。
+- **「worktree なしで起動」は保存して復元に引き継ぐ**。復元は隔離オンのプロジェクトでは必ず worktree を使うか中止する（凍結受け入れテスト `AcceptanceRestoreAbortNoSpawnTests`）ため、記録なしでは再起動で新しい worktree へ移ってしまう。セッションの保存情報に任意の項目 `worktreeIsolationOptOut` を足し、記録があるときだけ復元でも隔離しない（旧データはキーが無いので従来どおり）。
+- **表を開いたときは表にキー入力を向ける**（Codex の低の指摘は取らない）。ユーザーが ⌘N や ＋ で開いた表で 1–N / ↩ を使うためで、作業中の入力欄から勝手に奪う動きではない。閉じると元に戻る。
+- **F3 は据え置き**。作り直しは復元のときだけ起き、確認を挟むには復元の流れに割り込みが要る。
+- 英語表示でも日本語のまま残るもの（従来から）: worktree の失敗理由の文（`WorktreeIsolationSpawnError` の文言）、メニューバーの項目。
+
+### テストの更新
+
+- 凍結テストは変更していない。`AgentStartCardsView` の既存 init・`AgentStartCard(kind:)`・`cards(available:)`・レイアウト定数を保ち、カードの外形の最小幅（148 + 左右 12）も合わせた。
+- 新設 `DashboardFeatureTests/StartScreenRedesignTests.swift`: 未検出も並びどおり残す・権限の初期値・モデルの文言・表の行・↩ / ⌥↩ と既定の開き方・衝突の相手（隔離オンなら無し、終了済み・別フォルダは除く）・worktree の失敗の出し方。
+- `WorktreeIsolationSpawnTests` に 2 件追加: 隔離オフのプロジェクトでもこの起動だけ worktree を作り設定は変えない、隔離オンの git でないフォルダでもこの起動だけ共有フォルダで動かす。override で作った worktree の復元は既存の `restoreTracksExistingWorktreeAfterIsolationIsDisabled` が扱う。
+
+### 検証
+
+- `.claude/verify.sh` 合格。MessageStore 40・ControlServer 158・AppBootstrap 161 が合格（`--no-parallel`）。`git diff --check` 問題なし。新設・関連の DashboardFeature テスト（StartScreenRedesign・WorktreeIsolationSpawn・AcceptanceRestoreAbort・永続化まわり 111 件）合格。
+- 実機 UI テスト（`IsolatedLaunchOptionsTests`・`ViewModeAccessibilityTests`）は 6 件中 5 件が起動前のチェックで失敗: 「専用 suite の期待値 420.0→560.0・移行済み true が保存されない」。起動補助 `IsolatedPhloxApplication` がパネル幅の移行（`phlox.panelDrawer.width.migratedTo560`）を確かめているが、その移行処理は P3 のタブ再設計（acc1abb）で `PanelDrawerLayout` ごと消えている。P9 の変更とは関係なく、P3 以降は同じ理由で失敗していると推定する（acc1abb の前の版で UI テストを走らせての確認はしていない）。起動補助の直し方は未決（最後の一覧に載せる）。凍結 UI テストが探す見出し「プロジェクトを追加してください」「Add a project」は画面上にあることをスクリーンショットで確認した。
+- Codex（gpt-6-sol high）の独立レビュー: 高 1・中 3・低 1。「worktree なしで起動」の復元・⌘N の表に未検出の種別を出す・起動中は表を押せない・未選択で先頭プロジェクトに作らない、を修正。フォーカスの指摘は上の決定のとおり。
+- Debug 版での目視（スクリーンショット。課金の無い /bin/cat のカスタム種別と、別のデータフォルダ・defaults で確認）: ライト＋日本語で S1（初回・2 回目以降）・起動カード（未検出とカスタムを含む 5 枚の折り返し）・F1（同じフォルダの確認）→「worktree で分けて起動」で worktree ができて起動・S5（起動中のカードと他の減光・「worktree を作成しています…」）・git でないフォルダで F4 →「worktree なしで起動」で共有フォルダに起動・⌘N の表（数字キーで行の選択、未選択時は押せない、未検出の行）。ダーク＋英語で S1・起動カード・F1・⌘N の表。ダーク＋日本語で S2 と表の未検出の行。ライトでサイドバーを隠したときの ⌘N（上端から開く）。
+- 目視していないもの: F5（深さ・レート上限の失敗。既存のアラートのまま、メニュー経由も同じ経路になったことはコードで確認）、通知の「通知を許可…」「システム設定を開く…」の状態（この Mac では許可済み）、サイドバーのプロジェクト行 ＋ とグリッドの空状態から開く表、VoiceOver の実操作。
+- プロジェクトが 0 件のときは、下端の「新規セッション」もメニューの ⌘N と同じく押せなくした（表が開いても作成先を選べないため）。

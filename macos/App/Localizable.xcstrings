@@ -485,17 +485,6 @@
         }
       }
     },
-    "プロジェクトを追加": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add Project"
-          }
-        }
-      }
-    },
     "プロジェクトを追加してください": {
       "extractionState": "manual",
       "localizations": {
@@ -4590,6 +4579,534 @@
           "stringUnit": {
             "state": "translated",
             "value": "Commit (%lld)"
+          }
+        }
+      }
+    },
+    "%@ · 見つかりません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · not found"
+          }
+        }
+      }
+    },
+    "%@ が PATH に見つかりません。インストールしてアプリを開き直すと、ここから起動できます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ was not found on PATH. Install it and reopen the app to start it from here."
+          }
+        }
+      }
+    },
+    "%@ では、すでに %lld 件のセッションが動いています": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessions already running in %1$@: %2$lld"
+          }
+        }
+      }
+    },
+    "%@ の新しいセッションは起動していません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No new %@ session was started."
+          }
+        }
+      }
+    },
+    "1–%lld で種別": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1–%lld: agent"
+          }
+        }
+      }
+    },
+    "1–%lld で選択": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1–%lld to choose"
+          }
+        }
+      }
+    },
+    "PATH から自動で検出": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detected from PATH"
+          }
+        }
+      }
+    },
+    "Phlox へようこそ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Welcome to Phlox"
+          }
+        }
+      }
+    },
+    "worktree で分けて起動（おすすめ）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start in a separate worktree (recommended)"
+          }
+        }
+      }
+    },
+    "worktree なしで起動": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start without a worktree"
+          }
+        }
+      }
+    },
+    "worktree を作成しています…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creating a worktree…"
+          }
+        }
+      }
+    },
+    "worktree を作成できなかったため、起動を中止しました": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not create a worktree, so the session was not started"
+          }
+        }
+      }
+    },
+    "worktree 隔離: オフ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worktree isolation: Off"
+          }
+        }
+      }
+    },
+    "worktree 隔離: オン": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worktree isolation: On"
+          }
+        }
+      }
+    },
+    "↩ ターミナル · ⌥↩ チャット": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↩ Terminal · ⌥↩ Chat"
+          }
+        }
+      }
+    },
+    "↩ チャット · ⌥↩ ターミナル": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↩ Chat · ⌥↩ Terminal"
+          }
+        }
+      }
+    },
+    "、未検出": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", not detected"
+          }
+        }
+      }
+    },
+    "この画面の内容は、あとから 設定（⌘,）でも変更できます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can change these later in Settings (⌘,)."
+          }
+        }
+      }
+    },
+    "ほかの CLI は ~/.config/phlox/agents.json に書くと追加できます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add other CLIs in ~/.config/phlox/agents.json."
+          }
+        }
+      }
+    },
+    "エージェントはこのフォルダの中で作業します。フォルダ自体を Phlox が移動・削除することはありません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agents work inside this folder. Phlox never moves or deletes the folder itself."
+          }
+        }
+      }
+    },
+    "システム設定を開く…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open System Settings…"
+          }
+        }
+      }
+    },
+    "チャット": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chat"
+          }
+        }
+      }
+    },
+    "ファイルの競合は自分で管理します": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You manage file conflicts yourself"
+          }
+        }
+      }
+    },
+    "プロジェクトを選択": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a project"
+          }
+        }
+      }
+    },
+    "モデル": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model"
+          }
+        }
+      }
+    },
+    "モデルはこの種別で最後に使った設定を引き継ぎます。起動後に入力欄の下で変えられます。既定の開き方（チャット / ターミナル）は 設定 > 一般 で変えられます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The model carries over from the last session of this agent and can be changed below the input field after starting. Change the default way to open (Chat / Terminal) in Settings > General."
+          }
+        }
+      }
+    },
+    "作成先のプロジェクト": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Project to create in"
+          }
+        }
+      }
+    },
+    "使えるエージェント": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Available agents"
+          }
+        }
+      }
+    },
+    "同じディレクトリで起動": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start in the same folder"
+          }
+        }
+      }
+    },
+    "同じ作業ディレクトリで複数のエージェントが同じファイルを書き換えると、変更がぶつかることがあります。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When several agents edit the same files in one working folder, their changes can collide."
+          }
+        }
+      }
+    },
+    "実行中 %lld 件": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld running"
+          }
+        }
+      }
+    },
+    "左のサイドバーでプロジェクトかセッションを選ぶと、ここに表示します。対応待ちがあれば ⌘J で移動できます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a project or session in the sidebar to show it here. Press ⌘J to jump to anything waiting for you."
+          }
+        }
+      }
+    },
+    "承認待ちや完了を、ほかのアプリを使っている間も知らせます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get notified about approvals and finished work while you use other apps."
+          }
+        }
+      }
+    },
+    "新しいセッションを始める": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start a new session"
+          }
+        }
+      }
+    },
+    "新しい作業ツリーを作って、その中で動かします": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creates a new working tree and runs the agent in it"
+          }
+        }
+      }
+    },
+    "新規セッション…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Session…"
+          }
+        }
+      }
+    },
+    "既定の開き方: ターミナル": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default: Terminal"
+          }
+        }
+      }
+    },
+    "既定の開き方: チャット": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default: Chat"
+          }
+        }
+      }
+    },
+    "未検出": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not detected"
+          }
+        }
+      }
+    },
+    "検出済み": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detected"
+          }
+        }
+      }
+    },
+    "複数のコーディングエージェントを 1 つのウィンドウで動かし、承認と質問にまとめて答えます。始めるには作業フォルダを 1 つ追加してください。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run several coding agents in one window and answer their approvals and questions in one place. To begin, add a working folder."
+          }
+        }
+      }
+    },
+    "許可済み": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allowed"
+          }
+        }
+      }
+    },
+    "起動": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start"
+          }
+        }
+      }
+    },
+    "起動しています…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starting…"
+          }
+        }
+      }
+    },
+    "通知を許可…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow Notifications…"
+          }
+        }
+      }
+    },
+    "通知（任意）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications (optional)"
+          }
+        }
+      }
+    },
+    "非対応": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No chat"
+          }
+        }
+      }
+    },
+    "（CLI の既定）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(CLI default)"
           }
         }
       }

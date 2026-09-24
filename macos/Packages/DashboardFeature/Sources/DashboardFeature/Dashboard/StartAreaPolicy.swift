@@ -30,6 +30,11 @@ struct SelectProjectPlaceholderView: View {
             Text("プロジェクトを選択してください")
                 .font(DSFont.sectionHeader)
                 .foregroundStyle(DSColor.textSecondary)
+            Text("左のサイドバーでプロジェクトかセッションを選ぶと、ここに表示します。対応待ちがあれば ⌘J で移動できます。")
+                .font(.system(size: 12.5))
+                .foregroundStyle(DSColor.textTertiary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 360)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

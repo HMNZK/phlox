@@ -77,6 +77,9 @@ public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Coda
     public private(set) var pid: pid_t?
     /// 起動経路。orchestration は $PHLOX_CLI 経由の非表示 spawn。旧 descriptor は interactive 扱い。
     public private(set) var launchContext: SessionLaunchContext
+    /// 隔離オンのプロジェクトで「worktree なしで起動」を選んだセッション（08 F4）。
+    /// 復元でも worktree を作らず、記録した作業ディレクトリで起動する。旧データ（キー無し）は nil。
+    public private(set) var worktreeIsolationOptOut: Bool?
 
     public var kind: AgentKind {
         guard let kind = agentRef.builtinKind else {
@@ -244,6 +247,10 @@ public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Coda
         }
     }
 
+    public func updating(worktreeIsolationOptOut: Bool?) -> PersistedSessionDescriptor {
+        copying { $0.worktreeIsolationOptOut = worktreeIsolationOptOut }
+    }
+
     public func updating(role: String?) -> PersistedSessionDescriptor {
         copying { $0.role = role }
     }
@@ -292,6 +299,7 @@ public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Coda
         case titleSource
         case flowerName
         case fullDerivedTitle
+        case worktreeIsolationOptOut
     }
 
     public init(from decoder: Decoder) throws {
@@ -317,6 +325,7 @@ public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Coda
         self.pid = try container.decodeIfPresent(pid_t.self, forKey: .pid)
         self.launchContext = try container.decodeIfPresent(SessionLaunchContext.self, forKey: .launchContext) ?? .interactive
         self.role = try container.decodeIfPresent(String.self, forKey: .role)
+        self.worktreeIsolationOptOut = try container.decodeIfPresent(Bool.self, forKey: .worktreeIsolationOptOut)
         let decodedName = self.name
         let decodedFlower = try container.decodeIfPresent(String.self, forKey: .flowerName)
         let decodedFull = try container.decodeIfPresent(String.self, forKey: .fullDerivedTitle)
@@ -388,6 +397,7 @@ public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Coda
         try container.encodeIfPresent(titleSource, forKey: .titleSource)
         try container.encodeIfPresent(flowerName, forKey: .flowerName)
         try container.encodeIfPresent(fullDerivedTitle, forKey: .fullDerivedTitle)
+        try container.encodeIfPresent(worktreeIsolationOptOut, forKey: .worktreeIsolationOptOut)
     }
 
     private static func normalizedTitleFields(

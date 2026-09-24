@@ -496,7 +496,8 @@ final class SessionSpawnService {
         launchMode: AgentLaunchMode = .newSession(),
         backend: SessionBackend = .pty,
         extraEnv: [String: String] = [:],
-        isolationIntent: WorktreeIsolationIntent = .newSession
+        isolationIntent: WorktreeIsolationIntent = .newSession,
+        isolationOverride: Bool? = nil
     ) async throws -> AgentLaunchPlan {
         let codexUserHooksEnabled = codexUserHooksEnabledProvider()
         let sanitizedPlan = try makeSanitizedLaunchPlan(
@@ -509,8 +510,13 @@ final class SessionSpawnService {
             extraEnv: extraEnv,
             codexUserHooksEnabled: codexUserHooksEnabled
         )
-        let isolationProject = projectID.flatMap { projectID in
+        var isolationProject = projectID.flatMap { projectID in
             projectsSnapshot().first(where: { $0.id == projectID })
+        }
+        // この起動だけ隔離の有無を変える（08 F1「worktree で分けて起動」・F4「worktree なしで起動」）。
+        // 保存済みのプロジェクト設定は変えない。
+        if let isolationOverride, isolationProject != nil {
+            isolationProject?.worktreeIsolationEnabled = isolationOverride
         }
         let worktree = try await prepareWorktreeIsolation(
             project: isolationProject,

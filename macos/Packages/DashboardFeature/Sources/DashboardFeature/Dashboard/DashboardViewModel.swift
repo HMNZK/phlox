@@ -370,6 +370,24 @@ public final class DashboardViewModel {
             }
     }
 
+    /// 起動カード・初回起動の検出結果に出す種別（08 S1・S3・S4）。未検出も元の位置に残す。
+    func agentStartEntries(languageCode: String) -> [AgentStartEntry] {
+        let descriptors = [AgentRegistry.descriptor(for: .claudeCode)] + environment.agentCatalog.optionalDescriptors
+        return AgentStartEntries.make(descriptors: descriptors) { environment.binaryPath(for: $0) }.map { entry in
+            var entry = entry
+            let ref = entry.descriptor.ref
+            if entry.descriptor.supportsStructuredChat {
+                entry.model = AgentStartEntries.model(lastUsedChatSettingsStore.lastUsed(agentID: ref.id))
+            }
+            entry.permission = AgentStartEntries.permission(
+                ref: ref,
+                fullAccess: BypassSettings.isEnabled(for: ref, catalog: environment.agentCatalog),
+                languageCode: languageCode
+            )
+            return entry
+        }
+    }
+
     /// 新規セッションの既定ワークスペース。選択中セッションの project、なければ先頭プロジェクト。
     public func defaultProjectID(forSelectedSession selectedSessionID: SessionID?) -> ProjectID? {
         if let selectedID = selectedSessionID,
@@ -984,7 +1002,8 @@ public final class DashboardViewModel {
         backend: SessionBackend = .pty,
         launchContext: SessionLaunchContext = .interactive,
         extraEnv: [String: String] = [:],
-        workingDirectoryOverride: String? = nil
+        workingDirectoryOverride: String? = nil,
+        isolationOverride: Bool? = nil
     ) async throws -> SessionID {
         try await spawnNewSessionImpl(
             ref: ref,
@@ -994,6 +1013,7 @@ public final class DashboardViewModel {
             launchContext: launchContext,
             extraEnv: extraEnv,
             workingDirectoryOverride: workingDirectoryOverride,
+            isolationOverride: isolationOverride,
             spawnLimitSource: .parent(from)
         )
     }
@@ -1006,6 +1026,7 @@ public final class DashboardViewModel {
         launchContext: SessionLaunchContext = .interactive,
         extraEnv: [String: String] = [:],
         workingDirectoryOverride: String? = nil,
+        isolationOverride: Bool? = nil,
         spawnLimitSource: APISpawnLimitSource
     ) async throws -> SessionID {
         let agentDescriptor = sessionSpawnService.descriptorForPresentation(ref: ref)
@@ -1059,7 +1080,8 @@ public final class DashboardViewModel {
                 projectID: resolvedProjectID,
                 launchMode: .newSession(resumeID: resumeID),
                 backend: resolvedBackend,
-                extraEnv: extraEnv
+                extraEnv: extraEnv,
+                isolationOverride: isolationOverride
             )
         } catch AgentLaunchPlannerError.binaryNotFound(let k) {
             await environment.tokenStore.remove(session: sessionID)
@@ -1208,7 +1230,7 @@ public final class DashboardViewModel {
             titleSource: latestTitle.source,
             flowerName: latestTitle.flowerName,
             fullDerivedTitle: latestTitle.fullDerivedTitle
-        )
+        ).updating(worktreeIsolationOptOut: isolationOverride == false ? true : nil)
         persistence.persistSession(descriptor)
 
         // 生成成功を App 層へ通知する（解析配線用、PII なし）。

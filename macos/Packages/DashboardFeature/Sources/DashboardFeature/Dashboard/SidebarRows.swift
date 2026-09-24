@@ -35,6 +35,7 @@ struct SidebarProjectRow<Menu: View, NewSession: View>: View {
     let onCommitRename: (_ byReturn: Bool) -> Void
     let onCancelRename: () -> Void
     @ViewBuilder let menu: () -> Menu
+    /// ＋ で開く新規セッションの表（Sidebar F5）。
     @ViewBuilder let newSessionMenu: () -> NewSession
 
     @State private var isHovering = false
@@ -78,12 +79,9 @@ struct SidebarProjectRow<Menu: View, NewSession: View>: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             if isHovering, !isRenaming {
-                SwiftUI.Menu(content: newSessionMenu) {
+                NewSessionPopoverButton(table: newSessionMenu) {
                     SidebarRowIcon(text: "＋", isPrimary: true)
                 }
-                .menuStyle(.button)
-                .buttonStyle(.plain)
-                .menuIndicator(.hidden)
                 .fixedSize()
                 .help(Text("このプロジェクトに新規セッション"))
                 .accessibilityLabel(Text("このプロジェクトに新規セッション"))

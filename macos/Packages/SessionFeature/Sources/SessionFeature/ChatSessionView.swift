@@ -8,6 +8,8 @@ public struct ChatSessionView: View {
     @Bindable var viewModel: ChatSessionViewModel
     let projectName: String?
     @State private var requestedTranscriptTarget: String?
+    /// 「新しい会話を始める」で履歴の一覧を閉じた（このビューが生きている間だけ）。
+    @State private var historyStartDismissed = false
     /// スクラバーのハイライトをトランスクリプトのスクロール位置に連動させるための現在位置。
     /// 値の更新はトランスクリプトの NSScrollView イベント側からのみ行う（ADR 0010）。
     @State private var currentInputPositionID: String?
@@ -146,7 +148,7 @@ public struct ChatSessionView: View {
                     .padding(.leading, DSSpacing.s)
                 }
                 .overlay {
-                    if viewModel.shouldOfferHistoryStart {
+                    if viewModel.shouldOfferHistoryStart && !historyStartDismissed {
                         GeometryReader { overlayGeometry in
                             let availableHeight = overlayGeometry.size.height
                             let cardMaxHeight = ChatHistoryStartLayout.maxCardHeight(
@@ -160,32 +162,17 @@ public struct ChatSessionView: View {
                                 entries: viewModel.historyEntries,
                                 maxCardHeight: cardMaxHeight,
                                 workingDirectory: viewModel.rawWorkspacePath,
+                                agentName: agentDescriptor.displayName,
                                 onSelect: { entry in
                                     Task { await viewModel.startFromHistory(entry) }
-                                }
+                                },
+                                onStartNew: { historyStartDismissed = true }
                             )
-                            .padding(DSSpacing.xl)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                             .padding(.bottom, bottomInset)
                         }
                         .transition(.opacity)
                     }
-                }
-                .overlay {
-                    if viewModel.shouldShowConnectingIndicator {
-                        ChatConnectingIndicator()
-                    }
-                }
-                .overlay(alignment: .top) {
-                    CodexSessionSurface(
-                        viewModel: viewModel,
-                        onSelectChild: { childID in
-                            Task { await viewModel.loadCodexSubAgentDetail(threadID: childID) }
-                        },
-                        onStopChild: { childID in
-                            Task { await viewModel.stopCodexSubAgent(threadID: childID) }
-                        }
-                    )
                 }
                 .animation(.easeOut(duration: 0.15), value: viewModel.shouldOfferHistoryStart)
                 // ストリップはトランスクリプトのレイアウト兄弟にせず safeAreaInset で上部に置く。

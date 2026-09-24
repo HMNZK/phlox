@@ -14,22 +14,54 @@ struct ChatHistoryRevertPicker: View {
     @State private var selection: String?
     @FocusState private var isFocused: Bool
 
+    /// PhloxChat.dc.html の showRevert: 幅 480・ポップオーバー地・角丸 12・内側 8。
+    /// 見出しと説明 → 行（高さ 30・13pt・右に時刻。選択行はアクセント塗り＋白文字）→ 区切り線の下にキーの案内。
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider().overlay(DSColor.separator)
+        VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("この発言の前まで巻き戻す")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(DSColor.textPrimary)
+                Text("選んだ発言以降の会話を取り消し、その発言を入力欄に戻します")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(DSColor.textSecondary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 8)
+            .padding(.bottom, 6)
             listBody
+            HStack(spacing: 14) {
+                Text("↑↓ 選択")
+                Text("↩ 巻き戻す")
+                // 見た目はキーの案内のまま、押して閉じられる（VoiceOver からも閉じられる）。
+                Button(action: onCancel) {
+                    Text("Esc 閉じる")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("閉じる"))
+                .accessibilityIdentifier("ChatHistoryRevertPicker.close")
+                Spacer(minLength: 0)
+                Text("実行中なら先に中断します")
+            }
+            .font(.system(size: 11))
+            .foregroundStyle(DSColor.textTertiary)
+            .padding(.horizontal, 10)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+            .overlay(alignment: .top) {
+                Rectangle().fill(DSColor.separator).frame(height: 1)
+            }
+            .padding(.top, 4)
         }
-        .frame(maxWidth: 560, maxHeight: 480)
-        .background(DSColor.chatElevated)
-        .clipShape(RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous)
-                .strokeBorder(DSColor.separator, lineWidth: 1)
-        )
+        .padding(8)
+        .frame(width: 480)
+        // 高さは中身に合わせる（maxHeight の柔軟な枠だと提示された高さいっぱいに広がり、中身が縦の中央に浮く）。
+        .fixedSize(horizontal: false, vertical: true)
+        .background(DSColor.popoverBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .dsShadow(.cardHover)
         .focusable()
         .focused($isFocused)
+        .focusEffectDisabled()
         .onAppear {
             if selection == nil { selection = candidates.first?.id }
             isFocused = true
@@ -51,48 +83,29 @@ struct ChatHistoryRevertPicker: View {
             moveSelection(by: 1)
             return .handled
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("会話を巻き戻す"))
         .accessibilityIdentifier("ChatHistoryRevertPicker")
-    }
-
-    private var header: some View {
-        HStack(spacing: DSSpacing.s) {
-            Image(systemName: "arrow.uturn.backward.circle")
-                .foregroundStyle(DSColor.accentInk)
-            Text("会話を巻き戻す")
-                .font(DSFont.sectionHeader)
-                .foregroundStyle(DSColor.chatTextPrimary)
-            Spacer(minLength: DSSpacing.s)
-            Button(action: onCancel) {
-                Image(systemName: "xmark")
-                    .font(.system(size: DSIconSize.m, weight: .semibold))
-                    .foregroundStyle(DSColor.chatTextSecondary)
-                    .frame(width: 24, height: 24)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("ChatHistoryRevertPicker.close")
-            .help("閉じる")
-        }
-        .padding(.horizontal, DSSpacing.l)
-        .padding(.vertical, DSSpacing.m)
     }
 
     @ViewBuilder
     private var listBody: some View {
         if candidates.isEmpty {
             Text("巻き戻せる履歴がありません")
-                .font(DSFont.body)
-                .foregroundStyle(DSColor.chatTextSecondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(DSSpacing.xl)
+                .font(.system(size: 13))
+                .foregroundStyle(DSColor.textSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 20)
         } else {
             ScrollView {
-                LazyVStack(spacing: DSSpacing.xs) {
+                LazyVStack(spacing: 2) {
                     ForEach(candidates) { item in
                         row(for: item)
                     }
                 }
-                .padding(DSSpacing.s)
             }
+            .frame(maxHeight: 360)
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -101,30 +114,41 @@ struct ChatHistoryRevertPicker: View {
         return Button {
             onConfirm(item.id)
         } label: {
-            Text(messageText(item))
-                .font(DSFont.body)
-                .foregroundStyle(DSColor.chatTextPrimary)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, DSSpacing.m)
-                .padding(.vertical, DSSpacing.s)
-                .background(
-                    RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                        .fill(isSelected ? DSColor.chatAccent.opacity(0.22) : DSColor.chatCard.opacity(0.6))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                        .strokeBorder(DSColor.chatAccent.opacity(isSelected ? 0.5 : 0), lineWidth: 1)
-                )
-                .contentShape(Rectangle())
+            HStack(spacing: 10) {
+                Text(messageText(item))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(verbatim: Self.timeFormatter.string(from: item.timestamp))
+                    .font(.system(size: 11))
+                    .monospacedDigit()
+                    .foregroundStyle(isSelected ? Color.white : DSColor.textSecondary)
+                    .opacity(0.8)
+            }
+            .font(.system(size: 13))
+            .foregroundStyle(isSelected ? Color.white : DSColor.textPrimary)
+            .padding(.horizontal, 10)
+            .frame(height: 30)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isSelected ? DSColor.accentFill : Color.clear)
+            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering in
             if hovering { selection = item.id }
         }
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityIdentifier("ChatHistoryRevertPicker.row")
     }
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter
+    }()
 
     private func messageText(_ item: ChatItem) -> String {
         if case .userMessage(_, let text, _, _) = item {

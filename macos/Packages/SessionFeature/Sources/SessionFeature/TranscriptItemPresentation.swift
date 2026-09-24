@@ -55,7 +55,7 @@ struct TranscriptItemPresentation: Equatable, Sendable {
         return TranscriptItemPresentation(
             isVisible: visible,
             classification: .detail,
-            heading: "思考の詳細",
+            heading: "思考",
             subtitle: summary,
             isCollapsible: true,
             defaultExpanded: false,
@@ -90,10 +90,12 @@ struct TranscriptItemPresentation: Equatable, Sendable {
         return TranscriptItemPresentation(
             isVisible: visible,
             classification: .detail,
-            heading: "処理の詳細（\(itemCount)件）",
+            // 04 A1: 1 件は「コマンド」の単独カード、2 件以上は「ツール実行 ×n」（ユーザー承認 2026-09-24）。
+            heading: itemCount == 1 ? "コマンド" : "ツール実行 ×\(itemCount)",
             subtitle: subtitle,
             isCollapsible: true,
-            defaultExpanded: false,
+            // 04 B1: 実行中の束だけ既定で開く（ユーザー承認 2026-09-24）。
+            defaultExpanded: isRunning,
             semanticInk: .process,
             expandedBody: nil
         )
@@ -112,11 +114,12 @@ struct TranscriptItemPresentation: Equatable, Sendable {
         )
     }
 
-    static func taskList(count: Int) -> TranscriptItemPresentation {
+    /// 見出しは「タスク 完了数/全数」（04 A1。ユーザー承認 2026-09-24）。
+    static func taskList(count: Int, completed: Int = 0) -> TranscriptItemPresentation {
         TranscriptItemPresentation(
             isVisible: true,
             classification: .detail,
-            heading: "タスク（\(count)件）",
+            heading: "タスク \(completed)/\(count)",
             subtitle: nil,
             isCollapsible: true,
             defaultExpanded: false,

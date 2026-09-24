@@ -810,3 +810,59 @@ A・C 型は `.dialogSeverity(.critical)`（注意アイコン）、破壊的な
 - 独立レビュー（Codex）2 回。指摘 4 件（チャット移動後の復元・削除確認の件数・輪の誤表示・吹き出しの見切れ）を直した。
 - `.claude/verify.sh` 合格（DesignSystem・AgentDomain・SessionFeature・DashboardFeature・アプリのビルド）。
 - Debug 版をダーク・ライト・英語で撮影して確認（`/tmp/phlox-audit/f3/`）: 畳んだ行の「▲1」、右クリック中の輪と閉じた後に消えること、名前変更の吹き出しが下の行より前に出ること、プロジェクト削除の確認（キャンセルが既定・削除が赤）。
+
+## F4 忠実度の修正: 会話画面（04 Session Chat）
+
+監査 `docs/agent-output/ui-fidelity-audit/04-chat.md` の指摘を直した。文字の大きさ（本文 13・補足 11・コード 12）と列の最大幅 760 はユーザー決定、凍結テストの更新は「全部モックに合わせる」の承認による。
+
+### 対応表
+
+| 監査の指摘 | 内容 | 実装箇所 |
+|---|---|---|
+| A1 列・入力欄の最大幅 | 760 | `ComposerLayout.swift` |
+| A1 本文の文字 | 本文 13・補足 11・コード 12・インラインコードは本文色＋淡い面 | `DesignSystem/TranscriptTypography.swift`、`RichMarkdownView.swift` |
+| A1 ホバーの行 | ユーザー発言は吹き出しの左に「時刻→22pt のコピー」を下揃えで重ね、場所を取らない。エージェント側も右下に重ねる | `ChatMessageCells+Basic.swift`、`ChatMessageCopyButton.swift` |
+| A1 吹き出し | `--code` 地・角丸 14・余白 9/13・列幅の 78%（`UserBubbleWidth`）・添付は本文の上（高さ 22・角丸 5・地の色） | `ChatMessageCells+Basic.swift` |
+| A1 アバター | 直前がユーザー発言のアシスタントメッセージにだけ付ける。テーマを読んで文字色を更新（白文字で読めない不具合） | `ChatTranscriptView.swift` |
+| A1 箇条書き・コードブロック | 「•」fg3・行の間 8。コードは `--code` 地・枠なし・見出し 28 と区切り線・言語は等幅の素の文字・文字だけの「コピー」・12pt | `RichMarkdownView.swift`、`ChatCodeBlock.swift` |
+| A1・C2・B1 ツール実行の束 | 枠付きカード（`TranscriptCard`: 角丸 8・1pt 枠・見出し 32 の「› ラベル 要約 … しるし」）。「ツール実行 ×n」＋「Read X ほか n 件」。開くと 1 ツール 1 行（24pt・ツール名 44 幅・引数・「n 行」/「exit N」/「実行中」）、行を押すとその出力。実行中は既定で開き枠を濃く。Read などはファイル名だけ。表にない CamelCase のツール（ToolSearch など）は `$` を付けない | `TranscriptCard.swift`、`ChatMessageCells+CommandGroup.swift`、`TranscriptItemPresentation.swift`、`ChatRenderKit/ChatToolPresentation.swift` |
+| A1 コマンド単体・exit | 1 件は「› コマンド $ …」の単独カード。出力先頭の「Exit code N」から「exit N」（0 は fg3、失敗は errInk 600）。出力は等幅 11.5・左 28・「error」を含む行は赤 | `TranscriptCard.swift`（`CommandExitCode`）、`ChatMessageCells+Structured.swift` |
+| A1・C2 推論 | 「› 思考」カード。中身は 12.5・fg2・余白 9/12/10/28 | `ChatMessageCells+Structured.swift` |
+| A1・C2 ファイル変更 | 「› 編集済み 相対パス +N −N」。差分は旧・新の行番号（hunk 見出しがある差分だけ。Claude の Write / Edit には無いので列ごと出さない）＋「+ 」「− 」、追加・削除の淡い面。下端に「さらに表示」「セクションをコピー」、差分は選択不可の注記。末尾の改行で出来る空行を出さない | `ChatMessageCells+Structured.swift`、`ChatMessageRenderCache.swift`、`Tokens.swift`（`diffAddedTint` / `diffRemovedTint`） |
+| A1 タスクリスト | 「› タスク c/n 進行中のタスク」（完了は「すべて完了」）、✓ / ● / ○ | `ChatMessageCells+TaskList.swift` |
+| A1 料金・エラー | 料金は「$0.42」（1¢ 未満は 4 桁）。エラーは塗りの三角・題 12.5 semibold・本文等幅・全幅 | `ChatMessageCells+Basic.swift` |
+| H ヘッダ | 注意状態でないときは 12pt の文字「待機 · n分前に応答」「実行中 · 圧縮中」 | `ChatSessionHeader.swift` |
+| B5 無応答・考え中 | 13 斜体のきらめき・経過 11.5 fg3・「無応答」・24pt の「中断 Esc」 | `ChatMessageCells+Structured.swift` |
+| B6 圧縮中 | カード（犬 110pt・「会話を圧縮しています…」・「ステージ n / 6 · 名前」）。視差を減らす設定では止めた絵 | `CompactingIndicatorCell.swift` |
+| 接続中 | 会話の中の行（二重の輪＋斜体） | `ChatTranscriptView.swift` |
+| B7 長い会話 | 「以前のメッセージを表示（さらに n 件）」26pt のカプセル | `ChatTranscriptView.swift` |
+| C3 サブエージェント | 行「↳ 説明 種類 … 状態 ›」、選択中は 2pt の accent。ヘッダの札（22・角丸 11）。右パネルの見出しは 56・「種類 · 状態」・「メインへ戻る」と ✕（Esc）。保存済みの記録でもライブと同じ 1 行（「Read /path」）にし、Claude Code が差し込む `<system-reminder>` を発言として出さない（整形は `StructuredChatKit.ClaudeToolCommand` に移して共有）。再起動後は一覧が戻らず中身を開けないので、その行は押せなくする | `ChatMessageCells+Structured.swift`、`ChatSessionAccessories.swift`、`SubAgentDrawerView.swift`、`SubAgentModel.swift`、`StructuredChatKit/ClaudeToolCommand.swift` |
+| C4 巻き戻し | 幅 480・上から 110・題と説明・30pt の行（時刻 HH:mm）・キーの案内。高さは中身に合わせる（柔軟な枠で縦いっぱいに広がっていた） | `ChatHistoryRevertPicker.swift`、`ChatEscapeHandling.swift` |
+| C5 履歴 | 「過去の会話から再開」17 bold・説明・角丸 9 のカード・「新しい会話を始める ⌘↩」 | `ChatHistoryStartView.swift`、`ChatSessionView.swift` |
+| D1 Codex | 会話の中のカード「プラン c / n 完了」・子スレッド・停止ボタン | `CodexSessionSurface.swift` |
+| D3 ターミナル型 | 56pt の見出し「名前 / エージェント（カスタム） · ターミナル · 作業フォルダ · ブランチ」と状態。端末は 12/16 の余白・端末と同じ地 | `SessionView.swift` |
+| A1 入力履歴スクラバー | 2 件以上のときだけ、ホバーしていないときは淡く | `ChatInputHistoryScrubber.swift` |
+| 読み上げ | カードの見出しは「ラベル、要約」＋「展開中 / 折りたたみ中」。VoiceOver で開閉できる（見出しのボタンに `children: .ignore` を付けて押下が効かなくなっていたのを外した）。サブエージェントの札は名前付き操作「サブエージェントを閉じる」、巻き戻しは「Esc 閉じる」を押せるボタンに、Codex のプランの行は「状態：タスク名」 | `TranscriptCard.swift`、`ChatSessionAccessories.swift`、`ChatHistoryRevertPicker.swift`、`CodexSessionSurface.swift` |
+| 文字サイズ | Codex のカードも会話の文字サイズ設定に合わせる | `CodexSessionSurface.swift` |
+
+### 直していないもの
+
+- A1 項目どうしの間隔（モックは一律 14）: 凍結テストが役割ごとの 8 / 16 / 24 を求めている。
+- Markdown の見出しの大きさ: モックに値が無い。
+- 終了コード: 構造化された値がどのエージェントの経路にも無く、Claude の出力先頭の「Exit code N」から拾える分だけ。Codex / Cursor は出ない。
+- 履歴の行の件数・最後の発言: データが無い。
+- 右パネル見出しの定数 `SubAgentSplitLayout.headerHeight` は凍結テストのため 32 のまま（実際の見出しは `ChatSessionHeader.height` の 56 を使う）。
+- モック側が「案」の項目（失敗したコマンドを自動で開く・最新のタスクを開く・推論の 1 行プレビュー・B3 完了の帯）。
+- ツールバーの題（01 の範囲）。
+- 再起動後、料金の行の入力・出力の内訳と「n分前に応答」が戻らない（使用量と最終応答時刻を保存していない。監査 7 と同じ既存の制約）。
+- 再起動後はサブエージェントの中身を開けない（出力ファイルの場所を保存していない）。行を押せなくするところまで。
+- タスクリスト（TodoWrite）と Codex のプランは、検証に使ったセッションにそのツールが無く、実画面では出せていない。テストとコードだけで確認。
+- サブエージェントの記録に出る `SubagentHandback` の呼び出しは、ほかのツールと同じカードのまま出す。
+
+### 検証
+
+- 追加したテスト: `commandExitCode_parsesClaudeBashFailureHeader`、`turnCostFormat_hasNoSpaceAndTwoDigits`、`commandToolLabel_treatsUnlistedToolWithJSONInputAsTool`、`diffCodeView_dropsTrailingEmptyLineAndHasNoNumbersWithoutHunk`、`subAgentTranscript_formatsToolLikeLiveAndHidesSystemReminder`（実データと同じ形の記録）。
+- 独立レビュー（Codex）1 回。指摘 4 件（札の ✕ に VoiceOver が届かない・プランの行に状態が無い・Codex のカードが文字サイズに追従しない・巻き戻しに閉じるボタンが無い）を直した。
+- `.claude/verify.sh` 合格（DesignSystem 188・AgentDomain 546・SessionFeature 1058・DashboardFeature 1643・アプリのビルド）。ClaudeAgentKit 164・StructuredChatKit 26 も合格。
+- Debug 版で有料の Claude / Codex セッションを動かし、ダーク・ライト・英語で撮影して確認（`/tmp/phlox-audit/f4/`）: ツール実行の束と開いた行（「263 行」「exit 1」）、ファイル変更の差分、コードブロック、料金、ヘッダ「待機 · たった今応答」、ターミナル型の見出し（FakeRun）、巻き戻しピッカー、サブエージェントの行・札・右パネル（Esc で閉じる）、Codex のエラーカード。
+- 読み上げはアクセシビリティの操作で確認: カードの開閉（押下）、行の開閉、サブエージェントの札の「サブエージェントを閉じる」、巻き戻しの「閉じる」。VoiceOver 本体を使った読み上げの聞き取りはしていない。

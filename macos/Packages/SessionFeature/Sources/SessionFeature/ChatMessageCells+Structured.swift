@@ -4,6 +4,13 @@ import ChatRenderKit
 import DesignSystem
 import StructuredChatKit
 
+extension EnvironmentValues {
+    /// 右パネルに開いているサブエージェント（会話の中のマーカーを選択表示にする）。
+    @Entry var selectedSubAgentID: String? = nil
+    /// 右パネルで開けるサブエージェント（nil は制限なし）。アプリを再起動すると一覧が戻らず中身を開けないので、その行は押せなくする。
+    @Entry var openableSubAgentIDs: Set<String>? = nil
+}
+
 struct SubAgentMarkerCell: View {
     let id: String
     let subagentType: String
@@ -13,56 +20,91 @@ struct SubAgentMarkerCell: View {
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
     @Environment(\.locale) private var locale
+    @Environment(\.selectedSubAgentID) private var selectedSubAgentID
+    @Environment(\.openableSubAgentIDs) private var openableSubAgentIDs
+    @State private var isHovering = false
+
+    private var selectAction: ((String) -> Void)? {
+        openableSubAgentIDs?.contains(id) == false ? nil : onSelect
+    }
 
     private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     var body: some View {
         let _ = themeID
         Button {
-            onSelect?(id)
+            selectAction?(id)
         } label: {
             content
         }
         .buttonStyle(.plain)
-        .disabled(onSelect == nil)
-        .help(onSelect == nil ? "" : "サブエージェントを表示")
+        .disabled(selectAction == nil)
+        .help(selectAction == nil ? "" : "サブエージェントを表示")
         .accessibilityIdentifier("SubAgentMarkerCell")
     }
 
+    /// PhloxChat.dc.html の子エージェント行: 「↳ 説明 種類 … 状態 ›」。角丸 8・1pt の枠。
     @ViewBuilder
     private var content: some View {
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        HStack(spacing: DSSpacing.s) {
-            statusIcon
-            VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
-                Text(description.isEmpty ? UIWording.text(.missingSubAgentDescription, languageCode: languageCode) : description)
-                    .font(TranscriptTypography.font(for: .processSummary, scale: scale))
-                    .foregroundStyle(DSColor.chatTextPrimary)
-                Text("\(subagentType) · \(status.rawValue)")
-                    .font(ChatScaledFont.caption(scale: scale))
-                    .foregroundStyle(DSColor.chatTextSecondary)
+        HStack(spacing: 10) {
+            Text(verbatim: "↳")
+                .font(.system(size: 14 * scale))
+                .foregroundStyle(DSColor.textTertiary)
+                .accessibilityHidden(true)
+            Text(description.isEmpty ? UIWording.text(.missingSubAgentDescription, languageCode: languageCode) : description)
+                .font(.system(size: 13 * scale))
+                .foregroundStyle(DSColor.chatTextPrimary)
+                .lineLimit(1)
+            Text(verbatim: subagentType)
+                .font(.system(size: 11.5 * scale, design: .monospaced))
+                .foregroundStyle(DSColor.chatTextSecondary)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            statusLabel
+                .font(.system(size: 11 * scale, weight: status == .running ? .semibold : .regular))
+                .foregroundStyle(statusColor)
+            if selectAction != nil {
+                Text(verbatim: "›")
+                    .font(.system(size: 13 * scale))
+                    .foregroundStyle(DSColor.textTertiary)
+                    .accessibilityHidden(true)
             }
         }
-        .padding(.horizontal, TranscriptTypography.cardHorizontalInset)
-        .padding(.vertical, TranscriptTypography.cardVerticalInset)
-        .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous))
-        .frame(maxWidth: 720, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .background {
+            // 選択中（右パネルに開いている）とホバーはホバー色の地。選択中は 2pt のアクセント枠。
+            if isSelected || (isHovering && selectAction != nil) {
+                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(DSColor.fillSubtle)
+            }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(isSelected ? DSColor.accent : DSColor.separator, lineWidth: isSelected ? 2 : 1)
+        }
+        .onHover { isHovering = $0 }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
-    private var statusIcon: some View {
-        Group {
-            switch status {
-            case .running:
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(width: 16, height: 16)
-            case .completed:
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(DSColor.chatSuccess)
-            case .failed:
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(DSColor.statusError)
-            }
+    private var isSelected: Bool { selectedSubAgentID == id }
+
+    private var statusLabel: Text {
+        switch status {
+        case .running: Text("実行中")
+        case .completed: Text("完了")
+        case .failed: Text("失敗")
+        }
+    }
+
+    /// 色は注意の状態（失敗＝エラー）だけ。
+    private var statusColor: Color {
+        switch status {
+        case .running: DSColor.chatTextPrimary
+        case .completed: DSColor.textTertiary
+        case .failed: DSColor.attentionInk(.error)
         }
     }
 }
@@ -134,10 +176,11 @@ struct ThinkingIndicatorCell: View {
         return HStack(spacing: DSSpacing.m) {
             ThinkingOrbView(state: state, size: .inline, isVisible: isTimelineVisible)
             VStack(alignment: .leading, spacing: 1) {
+                // PhloxChat.dc.html の isThinking: 13pt 斜体・要約 11.5pt 弱い文字色。
                 ShimmerTextView(
                     text: state.orbLabel(locale: locale),
-                    font: ChatScaledFont.body(scale: scale),
-                    pointSize: ChatScaledFont.bodyPointSize(scale: scale),
+                    font: .system(size: 13 * scale).italic(),
+                    pointSize: 13 * scale,
                     // 帯の明度で不透明度を変調するため、基準色は本文色。下限（0.55）で
                     // ちょうど secondary 相当の濃さになり、帯の頂点で本文色まで濃くなる。
                     color: DSColor.chatTextPrimary,
@@ -145,8 +188,8 @@ struct ThinkingIndicatorCell: View {
                 )
                 if let detail {
                     detail
-                        .font(ChatScaledFont.caption(scale: scale))
-                        .foregroundStyle(DSColor.chatTextSecondary)
+                        .font(.system(size: 11.5 * scale))
+                        .foregroundStyle(DSColor.textTertiary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .accessibilityIdentifier("ChatHang.status")
@@ -157,21 +200,31 @@ struct ThinkingIndicatorCell: View {
             Spacer(minLength: 0)
             if isStalled, let assessment {
                 Text("無応答 \(Self.clockText(assessment.silence))")
-                    .font(ChatScaledFont.captionStrong(scale: scale))
+                    .font(.system(size: 12 * scale, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(DSColor.attentionInk(.stalled))
                 if let onInterrupt {
                     Button {
                         Task { await onInterrupt() }
                     } label: {
-                        HStack(spacing: DSSpacing.xs) {
+                        HStack(spacing: 6) {
                             Text("中断")
+                                .font(.system(size: 12 * scale))
+                                .foregroundStyle(DSColor.textPrimary)
                             Text(verbatim: "Esc")
+                                .font(.system(size: 10.5 * scale))
                                 .foregroundStyle(DSColor.textTertiary)
                         }
+                        .padding(.horizontal, 10)
+                        .frame(height: 24)
+                        .background(DSColor.controlBackground, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(DSColor.controlBorder, lineWidth: 0.5)
+                        }
+                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    .buttonStyle(.plain)
                     .accessibilityLabel(Text("中断"))
                     .accessibilityIdentifier("ChatHang.interruptButton")
                 }
@@ -229,32 +282,32 @@ struct ReasoningSummaryView: View {
             text: text,
             summary: TranscriptMarkdownPresentation.summary(text)
         )
-        Group {
-            if presentation.isVisible {
-                DisclosureCard(
-                    isExpanded: Binding(
-                        get: {
-                            TranscriptItemPresentation.isExpanded(
-                                userOverride: userOverride,
-                                defaultExpanded: presentation.defaultExpanded
-                            )
-                        },
-                        set: { userOverride = $0 }
-                    ),
-                    title: presentation.heading ?? "",
-                    subtitle: presentation.subtitle,
-                    isToolCall: presentation.semanticInk == .process
-                ) {
-                    AgentMessageBody(text: text, bodyColor: DSColor.chatTextSecondary)
-                        .font(ChatScaledFont.body(scale: scale))
-                        .foregroundStyle(DSColor.chatTextSecondary)
-                        .chatTextSelection()
-                        .lineSpacing(TranscriptTypography.textLineSpacing)
-                        .padding(.top, TranscriptTypography.withinAnswer)
-                }
+        if presentation.isVisible {
+            TranscriptCard(
+                isExpanded: Binding(
+                    get: {
+                        TranscriptItemPresentation.isExpanded(
+                            userOverride: userOverride,
+                            defaultExpanded: presentation.defaultExpanded
+                        )
+                    },
+                    set: { userOverride = $0 }
+                ),
+                label: Text("思考"),
+                summary: presentation.subtitle
+            ) {
+                AgentMessageBody(text: text, bodyColor: DSColor.chatTextSecondary)
+                    .font(.system(size: 12.5 * scale))
+                    .foregroundStyle(DSColor.chatTextSecondary)
+                    .chatTextSelection()
+                    .lineSpacing(6 * scale)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 28)
+                    .padding(.trailing, 12)
+                    .padding(.top, 9)
+                    .padding(.bottom, 10)
             }
         }
-        .frame(maxWidth: 720, alignment: .leading)
     }
 }
 
@@ -297,6 +350,7 @@ enum FileChangePresentation {
     }
 }
 
+/// 単独のコマンド（04 A1 の「コマンド」カード）。見出しに「$ コマンド」、開くと出力の行。
 struct CommandExecutionCell: View {
     let command: String?
     let output: String
@@ -304,14 +358,12 @@ struct CommandExecutionCell: View {
     let isRunning: Bool
     @State private var userOverride: Bool?
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
-    @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
     @Environment(\.locale) private var locale
 
     private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     var body: some View {
         let _ = themeID
-        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         let presentation = TranscriptItemPresentation.command(
             path: .single,
             itemCount: 1,
@@ -320,7 +372,7 @@ struct CommandExecutionCell: View {
             runningSubtitle: "実行中",
             outputAvailableSubtitle: UIWording.text(.outputAvailable, languageCode: languageCode)
         )
-        DisclosureCard(
+        TranscriptCard(
             isExpanded: Binding(
                 get: {
                     TranscriptItemPresentation.isExpanded(
@@ -330,30 +382,15 @@ struct CommandExecutionCell: View {
                 },
                 set: { userOverride = $0 }
             ),
-            title: presentation.heading ?? "",
-            subtitle: presentation.subtitle,
-            isToolCall: true && presentation.semanticInk == .process
+            label: Text("コマンド"),
+            summary: command?.isEmpty == false ? "$ \(command!)" : UIWording.text(.missingCommand, languageCode: languageCode),
+            isRunning: isRunning,
+            badges: isRunning
+                ? [TranscriptCardBadge(id: "running", text: Text("実行中"), color: DSColor.chatTextPrimary, weight: .medium)]
+                : [CommandExitCode.badge(for: output)].compactMap { $0 }
         ) {
-            VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
-                Text(command?.isEmpty == false ? command! : UIWording.text(.missingCommand, languageCode: languageCode))
-                    .font(ChatScaledFont.mono(scale: scale))
-                    .foregroundStyle(DSColor.chatTextPrimary)
-                    .chatTextSelection()
-                if !output.isEmpty {
-                    ScrollView(.horizontal) {
-                        Text(output)
-                            .font(ChatScaledFont.monoCaption(scale: scale))
-                            .foregroundStyle(DSColor.chatTextPrimary)
-                            .chatTextSelection()
-                            .padding(.leading, TranscriptTypography.codeContentInset)
-                            .padding(.vertical, TranscriptTypography.cardVerticalInset)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-            }
-            .padding(.top, TranscriptTypography.withinAnswer)
+            CommandCardOutput(output: output)
         }
-        .frame(maxWidth: 800, alignment: .leading)
     }
 }
 
@@ -365,6 +402,7 @@ struct FileChangeCell: View {
     @State private var showAllLines = false
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
+    @Environment(\.locale) private var locale
 
     struct DiffSection: Identifiable {
         let id: Int
@@ -424,82 +462,74 @@ struct FileChangeCell: View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         let counts = FileChangePresentation.counts(for: changes)
-        let presentation = TranscriptItemPresentation.fileChange(title: FileChangePresentation.title(for: changes))
-        DisclosureCard(
+        let verb = AppLocalizedString.string(FileChangePresentation.verb(for: changes.first?.kind), locale: locale)
+        let summary = Self.summaryPath(for: changes, locale: locale)
+        TranscriptCard(
             isExpanded: expansionBinding,
-            subtitle: presentation.subtitle,
-            isToolCall: presentation.semanticInk == .process,
-            titleContent: {
-                HStack(spacing: DSSpacing.xxs) {
-                    Text(presentation.heading ?? "")
-                    Text("+\(counts.additions)")
-                        .foregroundStyle(DSColor.diffAdded)
-                    Text("-\(counts.deletions)")
-                        .foregroundStyle(DSColor.diffRemoved)
-                }
-            }
+            label: Text(verbatim: verb),
+            summary: summary,
+            badges: [
+                TranscriptCardBadge(id: "add", text: Text(verbatim: "+\(counts.additions)"), color: DSColor.diffAdded, monospaced: true),
+                TranscriptCardBadge(id: "del", text: Text(verbatim: "\u{2212}\(counts.deletions)"), color: DSColor.diffRemoved, monospaced: true),
+            ]
         ) {
-            VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
+            VStack(alignment: .leading, spacing: 0) {
                 ForEach(visibleSections) { section in
-                    ChatCodeCard(
-                        copyText: section.copyText,
-                        copyAccessibilityIdentifier: "FileChange.copyDiff.\(section.id)",
-                        header: {
-                            Text(section.path)
-                                .font(ChatScaledFont.caption(scale: scale))
-                                .foregroundStyle(DSColor.chatTextSecondary)
-                        }
-                    ) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            ForEach(section.codeView.lines) { codeLine in
-                                diffLineView(
-                                    codeLine,
-                                    hasLineNumbers: section.codeView.hasLineNumbers,
-                                    lineNumberWidth: section.codeView.lineNumberWidth,
-                                    scale: scale
-                                )
-                            }
+                    if changes.count > 1 {
+                        Text(verbatim: section.path)
+                            .font(.system(size: 11 * scale, design: .monospaced))
+                            .foregroundStyle(DSColor.textTertiary)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                            .padding(.horizontal, 12)
+                            .padding(.top, 6)
+                            .padding(.bottom, 2)
+                    }
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(section.codeView.lines) { codeLine in
+                            diffLineView(codeLine, showsLineNumbers: section.codeView.hasLineNumbers, scale: scale)
                         }
                     }
+                    .padding(.vertical, 4)
                 }
-                if isTruncated {
-                    Button {
-                        showAllLines = true
-                    } label: {
-                        Label(
-                            "さらに \(totalLineCount - FileChangeDisplayPolicy.visibleLineLimit) 行を表示",
-                            systemImage: "chevron.down"
-                        )
-                        .font(ChatScaledFont.captionStrong(scale: scale))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(DSColor.accentInk)
-                    .padding(.top, TranscriptTypography.metadataGap)
-                    .accessibilityIdentifier("FileChange.showMoreButton")
-                }
+                TranscriptCardFooter(
+                    hiddenLineCount: isTruncated ? totalLineCount - FileChangeDisplayPolicy.visibleLineLimit : 0,
+                    onShowMore: { showAllLines = true },
+                    copyText: changes.map(\.diff).joined(separator: "\n")
+                )
             }
-            .padding(.top, TranscriptTypography.withinAnswer)
+            .help(Text("差分の行は選択できません — 「セクションをコピー」を使う"))
         }
-        .frame(maxWidth: 860, alignment: .leading)
     }
 
-    private func diffLineView(_ codeLine: DiffCodeLine, hasLineNumbers: Bool, lineNumberWidth: Int, scale: CGFloat) -> some View {
-        let line = codeLine.line
-        return HStack(spacing: DSSpacing.s) {
-            if hasLineNumbers {
-                Text(line.displayLineNumber.map(String.init) ?? "")
-                    .font(ChatScaledFont.monoCaption(scale: scale))
-                    .foregroundStyle(lineNumberForeground(for: line.kind))
-                    .frame(width: CGFloat(lineNumberWidth) * 7 * scale, alignment: .trailing)
-            }
-            Text(marker(for: line.kind))
-                .font(ChatScaledFont.monoCaption(scale: scale))
-                .foregroundStyle(markerForeground(for: line.kind))
-                .frame(width: 8 * scale, alignment: .leading)
-            Text(codeLine.body)
-                .font(ChatScaledFont.monoCaption(scale: scale))
+    /// 見出しの等幅のパス: 1 件は末尾 2 階層、複数は件数。
+    static func summaryPath(for changes: [FilePatchChange], locale: Locale) -> String {
+        guard changes.count == 1, let path = changes.first?.path else {
+            return String(format: AppLocalizedString.string("%lld 件のファイル", locale: locale), changes.count)
         }
-        .padding(.horizontal, DSSpacing.s)
+        return path.split(separator: "/").suffix(2).joined(separator: "/")
+    }
+
+    /// 1 行: 旧・新の行番号（各 30pt）→「+ 」「− 」→ 本文。追加・削除は淡い面。
+    /// 行番号は hunk 見出しがある差分だけ（Claude の Write / Edit には無い）。無いときは番号の列ごと出さない。
+    private func diffLineView(_ codeLine: DiffCodeLine, showsLineNumbers: Bool, scale: CGFloat) -> some View {
+        let line = codeLine.line
+        return HStack(spacing: 0) {
+            if showsLineNumbers {
+                lineNumber(line.kind == .addition ? nil : line.oldLineNumber, scale: scale)
+                lineNumber(line.kind == .deletion ? nil : line.newLineNumber, scale: scale)
+                    .padding(.trailing, 10)
+            }
+            Text(verbatim: marker(for: line.kind))
+                .foregroundStyle(markerForeground(for: line.kind))
+            Text(codeLine.body)
+                .foregroundStyle(DSColor.chatTextPrimary)
+        }
+        .font(.system(size: 11.5 * scale, design: .monospaced))
+        .lineLimit(1)
+        .padding(.leading, showsLineNumbers ? 0 : 12)
+        .padding(.trailing, 12)
+        .frame(minHeight: 19 * scale)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             Rectangle().fill(background(for: line.kind))
@@ -507,44 +537,35 @@ struct FileChangeCell: View {
         .diffLineTextSelection()
     }
 
+    private func lineNumber(_ number: Int?, scale: CGFloat) -> some View {
+        Text(verbatim: number.map(String.init) ?? "")
+            .foregroundStyle(DSColor.textTertiary)
+            .frame(width: 30 * scale, alignment: .trailing)
+            .padding(.trailing, 4)
+    }
+
     private func marker(for kind: DiffLineKind) -> String {
         switch kind {
-        case .addition: "+"
-        case .deletion: "-"
-        case .context: " "
+        case .addition: "+ "
+        case .deletion: "\u{2212} "
+        case .context: "  "
         case .fileHeader, .hunk: ""
         }
     }
 
     private func markerForeground(for kind: DiffLineKind) -> Color {
         switch kind {
-        case .addition:
-            DSColor.diffAdded
-        case .deletion:
-            DSColor.diffRemoved
-        case .hunk:
-            DSColor.chatTextSecondary
-        case .fileHeader:
-            DSColor.chatTextSecondary
-        case .context:
-            DSColor.chatTextPrimary
+        case .addition: DSColor.diffAdded
+        case .deletion: DSColor.diffRemoved
+        case .hunk, .fileHeader, .context: DSColor.textTertiary
         }
-    }
-
-    private func lineNumberForeground(for kind: DiffLineKind) -> Color {
-        markerForeground(for: kind)
     }
 
     private func background(for kind: DiffLineKind) -> Color {
         switch kind {
-        case .addition:
-            DSColor.diffAdded.opacity(0.12)
-        case .deletion:
-            DSColor.diffRemoved.opacity(0.12)
-        case .hunk:
-            .clear
-        case .fileHeader, .context:
-            .clear
+        case .addition: DSColor.diffAddedTint
+        case .deletion: DSColor.diffRemovedTint
+        case .hunk, .fileHeader, .context: .clear
         }
     }
 }

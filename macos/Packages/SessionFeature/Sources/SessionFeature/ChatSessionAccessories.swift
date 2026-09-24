@@ -241,6 +241,8 @@ enum SubAgentDismissButtonPresentation {
     }
 }
 
+/// ヘッダの「サブ」の札（PhloxChat.dc.html の subs）: 高さ 22・角丸 11・11.5pt・ホバー色の地。
+/// 選択中は選択色の地＋1pt のアクセント枠。ポインタを置くと右端に ✕（閉じる）。
 struct SubAgentStripRow: View {
     let subAgent: SubAgentRef
     let isSelected: Bool
@@ -252,73 +254,55 @@ struct SubAgentStripRow: View {
     var body: some View {
         let _ = themeID
         let dismissPresentation = SubAgentDismissButtonPresentation.state(isHovering: isHovering)
-        ZStack(alignment: .trailing) {
+        HStack(spacing: 5) {
             Button(action: onSelect) {
-                rowContent
-                    .padding(.leading, DSSpacing.s)
-                    .padding(.trailing, DSSpacing.s + DSSpacing.xs + 16)
-                    .padding(.vertical, DSSpacing.xs)
+                Text(verbatim: subAgent.description.isEmpty ? subAgent.subagentType : subAgent.description)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(DSColor.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: 140, alignment: .leading)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(Text("サブエージェント \(subAgent.description)、\(statusLabel)"))
             .accessibilityIdentifier("SubAgentStrip.row")
+            // ✕ はポインタを置いた時だけ出るので、VoiceOver からは行の操作として閉じられるようにする。
+            .accessibilityAction(named: Text("サブエージェントを閉じる"), onDismiss)
 
-            Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(.system(size: DSIconSize.s, weight: .semibold))
-                    .foregroundStyle(isSelected ? DSColor.chatBackground.opacity(0.86) : DSColor.chatTextSecondary)
-                    .frame(width: 16, height: 16)
+            if dismissPresentation.isVisible {
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(DSColor.textSecondary)
+                        .frame(width: 12, height: 12)
+                }
+                .buttonStyle(.plain)
+                .help("サブエージェントを閉じる")
+                .accessibilityLabel("サブエージェントを閉じる")
+                .accessibilityIdentifier("SubAgentStrip.dismiss")
             }
-            .buttonStyle(.plain)
-            .help("サブエージェントを閉じる")
-            .accessibilityLabel("サブエージェントを閉じる")
-            .accessibilityIdentifier("SubAgentStrip.dismiss")
-            .opacity(dismissPresentation.isVisible ? 1 : 0)
-            .allowsHitTesting(dismissPresentation.allowsHitTesting)
-            .offset(x: -DSSpacing.s)
         }
+        .padding(.horizontal, 8)
+        .frame(height: 22)
         .background(
-            RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
-                .fill(isSelected ? DSColor.chatAccent : DSColor.chatCard.opacity(0.86))
+            Capsule(style: .continuous)
+                .fill(isSelected ? DSColor.selectionFill : DSColor.fillSubtle)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
-                .strokeBorder(DSColor.chatAccent.opacity(isSelected ? 0 : 0.24), lineWidth: 1)
+            Capsule(style: .continuous)
+                .strokeBorder(isSelected ? DSColor.accent : .clear, lineWidth: 1)
         )
         .onHover { isHovering = $0 }
         .animation(.easeInOut(duration: 0.12), value: isHovering)
         .help(isSelected ? "メインへ戻る" : "サブエージェントを表示")
     }
 
-    private var rowContent: some View {
-        HStack(spacing: DSSpacing.xs) {
-            statusIcon
-                .frame(width: 16, height: 16)
-            Text(subAgent.subagentType)
-                .font(DSFont.captionStrong)
-                .foregroundStyle(isSelected ? DSColor.chatBackground : DSColor.accentInk)
-                .lineLimit(1)
-            Text(subAgent.description)
-                .font(DSFont.caption)
-                .foregroundStyle(isSelected ? DSColor.chatBackground.opacity(0.86) : DSColor.chatTextPrimary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: 220, alignment: .leading)
-        }
-    }
-
-    @ViewBuilder
-    private var statusIcon: some View {
+    private var statusLabel: Text {
         switch subAgent.status {
-        case .running:
-            ProgressView()
-                .controlSize(.small)
-        case .completed:
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(isSelected ? DSColor.chatBackground : DSColor.chatSuccess)
-        case .failed:
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(isSelected ? DSColor.chatBackground : DSColor.statusError)
+        case .running: Text("実行中")
+        case .completed: Text("完了")
+        case .failed: Text("失敗")
         }
     }
 }

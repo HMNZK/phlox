@@ -44,7 +44,8 @@ struct ChatInputHistoryScrubber: View {
 
     var body: some View {
         let _ = themeID
-        if !entries.isEmpty {
+        // 04 A1: モックに無い要素なので、戻る先が複数あるときだけ出す（1 件では左端の「—」が残るだけ）。
+        if entries.count > 1 {
             HStack(alignment: .center, spacing: DSSpacing.s) {
                 scrubber
                     .onHover(perform: setScrubberHover)
@@ -73,13 +74,14 @@ struct ChatInputHistoryScrubber: View {
                 Button {
                     jump(to: tick.id)
                 } label: {
+                    // ポインタを置くまでは淡く（選択中も弱い文字色）。置いたら選択中を本文色で強調する。
                     Capsule(style: .continuous)
-                        .fill(isSelected ? DSColor.chatTextPrimary : DSColor.chatTextSecondary)
+                        .fill(isSelected && hoveringScrubber ? DSColor.chatTextPrimary : DSColor.textTertiary)
                         .frame(
                             width: isSelected ? DSSpacing.l : DSSpacing.m,
                             height: isSelected ? 2 : 1.5
                         )
-                        .opacity(isSelected ? 1 : (hoveringScrubber ? 0.7 : 0.4))
+                        .opacity(hoveringScrubber ? (isSelected ? 1 : 0.7) : (isSelected ? 0.6 : 0.3))
                         .frame(width: Self.tickHitWidth, height: Self.tickHitHeight, alignment: .leading)
                         .contentShape(Rectangle())
                 }

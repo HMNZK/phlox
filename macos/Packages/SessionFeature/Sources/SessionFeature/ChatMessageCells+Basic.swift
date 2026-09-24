@@ -46,50 +46,65 @@ struct UserMessageCell: View {
         self.attachments = attachments
     }
 
+    /// PhloxChat.dc.html: 右寄せの吹き出し（コード地・角丸 14・幅 78% まで）。ホバーで左に時刻とコピー。添付は本文の上。
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         let presentation = ChatUserMessagePresentation(text: text, attachments: attachments)
-        HStack(alignment: .bottom) {
-            Spacer(minLength: 72)
-            VStack(alignment: .trailing, spacing: TranscriptTypography.metadataGap) {
-                VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
-                    VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
-                        if presentation.showsText {
-                            Text(text)
-                                .font(ChatScaledFont.body(scale: scale))
-                                .foregroundStyle(DSColor.chatTextPrimary)
-                                .chatTextSelection()
-                                .lineSpacing(TranscriptTypography.textLineSpacing)
-                        }
-                        if let badge = presentation.badge {
-                            ChatAttachmentBadge(title: badge.title, scale: scale)
-                        }
-                    }
-                    .padding(.horizontal, TranscriptTypography.cardHorizontalInset)
-                    .padding(.vertical, TranscriptTypography.cardVerticalInset)
-                    .background(
-                        RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous)
-                            .fill(DSColor.userBubble)
+        HStack(alignment: .bottom, spacing: 8) {
+            Spacer(minLength: 0)
+            if presentation.showsText {
+                HStack(spacing: 6) {
+                    ChatTimestampText(timestamp: timestamp)
+                    MessageCopyButton(
+                        text: text,
+                        accessibilityIdentifier: "ChatMessage.copyButton.user",
+                        scale: scale,
+                        isVisible: isHovering
                     )
+                }
+                .opacity(isHovering ? 1 : 0)
+                .padding(.bottom, 4)
+            }
+            UserBubbleWidth {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let badge = presentation.badge {
+                        ChatAttachmentBadge(title: badge.title, scale: scale)
+                    }
                     if presentation.showsText {
-                        HStack(spacing: DSSpacing.xs) {
-                            MessageCopyButton(
-                                text: text,
-                                accessibilityIdentifier: "ChatMessage.copyButton.user",
-                                scale: scale,
-                                isVisible: isHovering
-                            )
-                            ChatTimestampText(timestamp: timestamp)
-                                .opacity(isHovering ? 1 : 0)
-                        }
+                        Text(text)
+                            .font(.system(size: 13 * scale))
+                            .foregroundStyle(DSColor.chatTextPrimary)
+                            .chatTextSelection()
+                            .lineSpacing(5 * scale)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .onHover { isHovering = $0 }
-                .animation(.easeInOut(duration: 0.12), value: isHovering)
+                .padding(.horizontal, 13)
+                .padding(.vertical, 9)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(DSColor.codeBackground)
+                )
             }
-            .frame(maxWidth: 560, alignment: .trailing)
         }
+        .contentShape(Rectangle())
+        .onHover { isHovering = $0 }
+        .animation(.easeInOut(duration: 0.12), value: isHovering)
+    }
+}
+
+/// 吹き出しを親の幅の 78% までに収める（短い発言は内容の幅のまま）。
+private struct UserBubbleWidth: Layout {
+    static let fraction: CGFloat = 0.78
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let child = subviews.first else { return .zero }
+        return child.sizeThatFits(ProposedViewSize(width: proposal.width.map { $0 * Self.fraction }, height: nil))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(width: bounds.width, height: nil))
     }
 }
 
@@ -98,20 +113,20 @@ private struct ChatAttachmentBadge: View {
     let scale: CGFloat
 
     var body: some View {
-        Label(title, systemImage: "photo")
-            .font(ChatScaledFont.captionStrong(scale: scale))
-            .foregroundStyle(DSColor.chatTextPrimary)
-            .padding(.horizontal, DSSpacing.s)
-            .padding(.vertical, DSSpacing.xs)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(DSColor.chatTextPrimary.opacity(0.12))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .strokeBorder(DSColor.chatTextPrimary.opacity(0.18), lineWidth: 1)
-            )
-            .accessibilityLabel("添付画像 \(title)")
+        HStack(spacing: 6) {
+            Image(systemName: "photo")
+                .font(.system(size: 10 * scale))
+                .foregroundStyle(DSColor.textTertiary)
+            Text(title)
+        }
+        .font(.system(size: 11 * scale))
+        .foregroundStyle(DSColor.chatTextSecondary)
+        .padding(.leading, 4)
+        .padding(.trailing, 8)
+        .frame(height: 22 * scale)
+        .background(DSColor.windowBackground, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("添付画像 \(title)")
     }
 }
 
@@ -126,22 +141,27 @@ struct AgentMessageCell: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
+        // 04 A1: ホバーの時刻とコピーは場所を取らず、本文の右下に重ねる（モックはホバー行を常設しない）。
         AvatarMessageRow {
-            VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
-                AgentMessageBody(text: text)
-                HStack(spacing: DSSpacing.xs) {
-                    MessageCopyButton(
-                        text: text,
-                        accessibilityIdentifier: "ChatMessage.copyButton.agent",
-                        scale: scale,
-                        isVisible: isHovering
-                    )
-                    ChatTimestampText(timestamp: timestamp)
-                        .opacity(isHovering ? 1 : 0)
+            AgentMessageBody(text: text)
+                .overlay(alignment: .bottomTrailing) {
+                    HStack(spacing: 6) {
+                        ChatTimestampText(timestamp: timestamp)
+                        MessageCopyButton(
+                            text: text,
+                            accessibilityIdentifier: "ChatMessage.copyButton.agent",
+                            scale: scale,
+                            isVisible: isHovering
+                        )
+                    }
+                    .padding(.leading, 6)
+                    .background(DSColor.windowBackground)
+                    .opacity(isHovering ? 1 : 0)
+                    .offset(y: 26 * scale)
                 }
-            }
-            .onHover { isHovering = $0 }
-            .animation(.easeInOut(duration: 0.12), value: isHovering)
+                .contentShape(Rectangle())
+                .onHover { isHovering = $0 }
+                .animation(.easeInOut(duration: 0.12), value: isHovering)
         }
     }
 }
@@ -160,7 +180,7 @@ struct TurnCostCell: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        HStack(spacing: DSSpacing.m) {
+        HStack(spacing: 12) {
             Spacer(minLength: 72)
             if let costUSD {
                 Text(Self.format(costUSD))
@@ -174,7 +194,7 @@ struct TurnCostCell: View {
                 Text("コンテキスト \(percent)%")
             }
         }
-        .font(ChatScaledFont.caption(scale: scale))
+        .font(.system(size: 11 * scale))
         .monospacedDigit()
         .foregroundStyle(DSColor.textTertiary)
         .lineLimit(1)
@@ -210,19 +230,9 @@ struct TurnCostCell: View {
         }
     }
 
-    private static let costFormatter: NumberFormatter = {
-        let formatter = NumberFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.numberStyle = .currency
-        formatter.currencyCode = "USD"
-        formatter.currencySymbol = "$"
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 4
-        return formatter
-    }()
-
-    private static func format(_ costUSD: Double) -> String {
-        costFormatter.string(from: NSNumber(value: costUSD)) ?? String(format: "$%.4f", costUSD)
+    /// 「$0.42」（記号と数字の間に空白を入れない）。1 セント未満だけ 4 桁まで出す（「$0.0012」）。
+    static func format(_ costUSD: Double) -> String {
+        String(format: costUSD >= 0.01 || costUSD == 0 ? "$%.2f" : "$%.4f", costUSD)
     }
 }
 
@@ -242,10 +252,11 @@ struct AgentMessageBody: View {
                 }
             }
         }
-        .frame(maxWidth: 720, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
+/// PhloxChat.dc.html の isError: 赤の淡い面と 1pt の枠、塗りの三角、見出し 12.5 と等幅の本文。時刻は出さない。
 struct ErrorMessageCell: View {
     let message: String
     let timestamp: Date
@@ -262,24 +273,33 @@ struct ErrorMessageCell: View {
             message: message,
             heading: UIWording.text(.errorHeading, languageCode: languageCode)
         )
-        VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
-            Label(presentation.heading ?? "", systemImage: "exclamationmark.triangle")
-                .font(ChatScaledFont.captionStrong(scale: scale))
-                .foregroundStyle(DSColor.statusError)
-            Text(message)
-                .font(ChatScaledFont.body(scale: scale))
-                .foregroundStyle(DSColor.chatTextPrimary)
-                .chatTextSelection()
-                .lineSpacing(TranscriptTypography.textLineSpacing)
-            ChatTimestampText(timestamp: timestamp)
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 12 * scale))
+                .foregroundStyle(DSColor.attentionMark(.error))
+                .padding(.top, 3)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(presentation.heading ?? "")
+                    .font(.system(size: 12.5 * scale, weight: .semibold))
+                    .foregroundStyle(DSColor.attentionInk(.error))
+                Text(message)
+                    .font(.system(size: 12.5 * scale, design: .monospaced))
+                    .foregroundStyle(DSColor.chatTextPrimary)
+                    .chatTextSelection()
+                    .lineSpacing(4 * scale)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, TranscriptTypography.cardHorizontalInset)
-        .padding(.vertical, TranscriptTypography.cardVerticalInset)
-        .frame(maxWidth: 720, alignment: .leading)
-        .background(DSColor.attentionTint(.error), in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DSColor.attentionTint(.error), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(DSColor.attentionMark(.error), lineWidth: 1)
         )
+        .accessibilityElement(children: .combine)
     }
 }

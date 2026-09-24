@@ -156,6 +156,8 @@ struct ChatTranscriptView: View {
             }
         }
         .background(DSColor.chatBackground)
+        .environment(\.selectedSubAgentID, viewModel.selectedSubAgentId)
+        .environment(\.openableSubAgentIDs, Set(viewModel.subAgents.map(\.id)))
     }
 
     @ViewBuilder
@@ -207,14 +209,33 @@ struct ChatTranscriptView: View {
                 let role = block.content.typographyRole
                 transcriptBlock(block.content, lastTranscriptID: transcriptSignal.lastID)
                     // 04: エージェント側はすべて同じ字下げ列、ユーザー発言だけ右寄せ。
-                    // ユーザー発言のあと最初のエージェント側の行にだけ、字下げ列へ種類の印を置く。
+                    // 種類の印はエージェントの発言にだけ、直前がユーザー発言（または先頭）のときに置く（PhloxChat.dc.html）。
                     .agentColumn(
                         isAgentSide: role != .user,
-                        avatar: role != .user && (after == nil || after == .user) ? agentDescriptor : nil
+                        avatar: Self.isAgentMessage(block.content) && (after == nil || after == .user) ? agentDescriptor : nil
                     )
                     .padding(.top, TranscriptTypography.gap(after: after, before: role))
                     .id(block.id)
                     .background(userMessagePositionProbe(id: block.id, isTracked: userMessageIDs.contains(block.id)))
+            }
+            // D1: Codex のプランと子スレッドは会話の中のカード（以前は会話の上に重ねていた）。
+            CodexSessionSurface(
+                viewModel: viewModel,
+                onSelectChild: { childID in
+                    Task { await viewModel.loadCodexSubAgentDetail(threadID: childID) }
+                },
+                onStopChild: { childID in
+                    Task { await viewModel.stopCodexSubAgent(threadID: childID) }
+                }
+            )
+            .agentColumn(isAgentSide: true, avatar: nil)
+            .padding(.top, TranscriptTypography.withinAnswer)
+            .id("chat-codex-surface")
+                        if viewModel.shouldShowConnectingIndicator {
+                ConnectingIndicatorRow()
+                    .agentColumn(isAgentSide: true, avatar: nil)
+                    .padding(.top, TranscriptTypography.withinAnswer)
+                    .id("chat-connecting")
             }
             if CompactingIndicatorPresentation.shouldShowCompactingIndicator(
                 isCompacting: viewModel.isCompacting
@@ -329,6 +350,11 @@ struct ChatTranscriptView: View {
     /// window の拡張契機は「このボタンの押下のみ」。スクロール位置・可視領域には一切連動しない
     /// （ADR 0030 再入禁止）。expand はボタン action での mutation なので body 中書込にならない。
     /// - Parameter anchorID: 押下時の先頭可視 block の id。展開後にこの位置へ留めるためのアンカー。
+    static func isAgentMessage(_ block: ChatTranscriptBlock) -> Bool {
+        if case .single(.agentMessage) = block { return true }
+        return false
+    }
+
     private func loadEarlierButton(hiddenCount: Int, anchorID: String?) -> some View {
         Button {
             // anchorID は描画時（＝展開前）の先頭可視 item。展開して上に古い行を追加し、
@@ -336,16 +362,12 @@ struct ChatTranscriptView: View {
             window.expand()
             pendingExpandAnchor = anchorID
         } label: {
-            HStack(spacing: DSSpacing.xs) {
-                Image(systemName: "chevron.up")
-                Text("以前のメッセージを表示")
-                Text("残り \(hiddenCount) 件")
-                    .font(ChatScaledFont.caption(scale: ChatFontSettings.adjusted(from: chatScale, by: 0)))
-            }
-                .font(ChatScaledFont.captionStrong(scale: ChatFontSettings.adjusted(from: chatScale, by: 0)))
+            // PhloxChat.dc.html: 高さ 26・角丸 13・ホバー色の地・12pt。
+            Text("以前のメッセージを表示（さらに \(hiddenCount) 件）")
+                .font(.system(size: 12 * ChatFontSettings.adjusted(from: chatScale, by: 0)))
                 .foregroundStyle(DSColor.chatTextSecondary)
-                .padding(.horizontal, DSSpacing.m)
-                .padding(.vertical, DSSpacing.s)
+                .padding(.horizontal, 12)
+                .frame(height: 26)
                 .background(DSColor.fillSubtle, in: Capsule())
                 .frame(maxWidth: .infinity, alignment: .center)
         }
@@ -572,6 +594,31 @@ private struct TranscriptBlockOffsetsKey: PreferenceKey {
     }
 }
 
+/// 復元中の接続待ち（PhloxChat.dc.html の isConnecting）: 18pt の二重丸と斜体の文言を会話の中に 1 行で。
+private struct ConnectingIndicatorRow: View {
+    @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
+    @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
+
+    var body: some View {
+        let _ = themeID
+        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
+        HStack(spacing: 10) {
+            ZStack {
+                Circle().strokeBorder(DSColor.textTertiary, lineWidth: 1.5)
+                Circle().strokeBorder(DSColor.textTertiary, lineWidth: 1.5).padding(5)
+            }
+            .frame(width: 18, height: 18)
+            .accessibilityHidden(true)
+            Text("エージェントに接続しています…")
+                .font(.system(size: 13 * scale).italic())
+                .foregroundStyle(DSColor.chatTextSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("ChatTranscript.connecting")
+    }
+}
+
 /// 04 の字下げ列（30pt）とエージェントの印（20pt 角・Cl / Cx / Cu）。
 struct TranscriptAgentColumn: ViewModifier {
     static let indent: CGFloat = 30
@@ -593,9 +640,12 @@ struct TranscriptAgentColumn: ViewModifier {
 
 private struct TranscriptAgentAvatar: View {
     let descriptor: AgentDescriptor
+    /// テーマを読まないと切替後も前のテーマの文字色（ダークの白）が残る。
+    @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
     var body: some View {
-        Text(verbatim: descriptor.tabInitials)
+        let _ = themeID
+        return Text(verbatim: descriptor.tabInitials)
             .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(DSColor.textPrimary)
             .frame(width: 20, height: 20)

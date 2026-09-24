@@ -70,11 +70,12 @@ struct ChatFontScaleAcceptanceTests {
     }
 
     // MARK: - ChatTypography（線形スケール・基準サイズ）
+    // 2026-09-24 ユーザー承認（「両方モックに合わせる」）: 本文 15→13、インラインコード 13.5→12。
 
     @Test
     func typographyBaseSizesAtUnityScale() {
-        #expect(ChatTypography.bodyFontSize(scale: 1.0) == 15)
-        #expect(ChatTypography.codeFontSize(scale: 1.0) == 13.5)
+        #expect(ChatTypography.bodyFontSize(scale: 1.0) == 13)
+        #expect(ChatTypography.codeFontSize(scale: 1.0) == 12)
         #expect(ChatTypography.heading1FontSize(scale: 1.0) == 26)
         #expect(ChatTypography.heading2FontSize(scale: 1.0) == 19)
         #expect(ChatTypography.heading3FontSize(scale: 1.0) == 16)
@@ -82,8 +83,8 @@ struct ChatFontScaleAcceptanceTests {
 
     @Test
     func typographyScalesLinearly() {
-        #expect(ChatTypography.bodyFontSize(scale: 2.0) == 30)
-        #expect(ChatTypography.codeFontSize(scale: 2.0) == 27)
+        #expect(ChatTypography.bodyFontSize(scale: 2.0) == 26)
+        #expect(ChatTypography.codeFontSize(scale: 2.0) == 24)
         #expect(ChatTypography.bodyFontSize(scale: 1.5) == ChatTypography.bodyFontSize(scale: 1.0) * 1.5)
         #expect(ChatTypography.heading1FontSize(scale: 1.5) == ChatTypography.heading1FontSize(scale: 1.0) * 1.5)
     }

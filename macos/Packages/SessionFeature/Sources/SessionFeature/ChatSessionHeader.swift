@@ -199,8 +199,39 @@ struct ChatSessionHeader: View {
         } else if let kind = displayState.attentionKind {
             stateChip(Text(verbatim: displayState.localizedLabel(locale: locale)), kind: kind)
         } else {
-            StatusLabel(state: displayState)
+            // PhloxChat.dc.html: 12pt の文字だけ（実行中は medium）。待機は「待機 · 2分前に応答」、圧縮中は「実行中 · 圧縮中」。
+            TimelineView(.periodic(from: .now, by: 30)) { context in
+                Self.plainStateText(
+                    displayState.localizedLabel(locale: locale),
+                    state: displayState,
+                    isCompacting: viewModel.isCompacting,
+                    lastRespondedAt: viewModel.lastTurnCompletedAt,
+                    now: context.date
+                )
+                .font(.system(size: 12, weight: displayState == .running ? .medium : .regular))
+                .foregroundStyle(DSColor.textSecondary)
+                .lineLimit(1)
+                .fixedSize()
+            }
         }
+    }
+
+    static func plainStateText(
+        _ label: String,
+        state: SessionDisplayState,
+        isCompacting: Bool,
+        lastRespondedAt: Date?,
+        now: Date
+    ) -> Text {
+        let base = Text(verbatim: label)
+        if state == .running, isCompacting {
+            return Text("\(base) · 圧縮中")
+        }
+        guard state == .idle, let lastRespondedAt else { return base }
+        let minutes = max(0, Int(now.timeIntervalSince(lastRespondedAt) / 60))
+        if minutes < 1 { return Text("\(base) · たった今応答") }
+        if minutes < 60 { return Text("\(base) · \(minutes)分前に応答") }
+        return Text("\(base) · \(minutes / 60)時間前に応答")
     }
 
     private var displayState: SessionDisplayState {

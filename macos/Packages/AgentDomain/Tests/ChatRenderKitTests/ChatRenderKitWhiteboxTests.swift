@@ -38,3 +38,10 @@ struct ChatRenderKitWhiteboxTests {
         #expect(ChatCommandGroupTitle.derive(commands: [nil, "  ", "swift test  "], itemCount: 3) == "swift test")
     }
 }
+
+@Test func commandToolLabel_treatsUnlistedToolWithJSONInputAsTool() {
+    #expect(ChatCommandToolLabel.derive(command: #"ToolSearch {"query":"todo"}"#) == ("ToolSearch", #"{"query":"todo"}"#))
+    #expect(ChatCommandToolLabel.derive(command: #"mcp__github__search {"q":"x"}"#).label == "mcp__github__search")
+    #expect(ChatCommandToolLabel.derive(command: "echo {a,b}").label == "Bash")
+    #expect(ChatCommandToolLabel.derive(command: "ToolSearch query").label == "Bash")
+}

@@ -1,4 +1,5 @@
 import Foundation
+import StructuredChatKit
 
 public enum SubAgentStatus: String, Equatable, Sendable, Codable {
     case running
@@ -166,13 +167,19 @@ public enum SubAgentTranscriptLoader {
 
     private static func messageText(from object: [String: Any]) -> String? {
         guard let message = object["message"] as? [String: Any] else { return nil }
+        // Claude Code が差し込む <system-reminder> は利用者の発言ではないので出さない。
+        func isReminder(_ text: String) -> Bool {
+            text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<system-reminder>")
+        }
         switch message["content"] {
         case let text as String:
-            return text
+            return isReminder(text) ? nil : text
         case let blocks as [[String: Any]]:
             return blocks.compactMap { block in
-                guard block["type"] as? String == "text" else { return nil }
-                return block["text"] as? String
+                guard block["type"] as? String == "text",
+                      let text = block["text"] as? String,
+                      !isReminder(text) else { return nil }
+                return text
             }
             .joined(separator: "\n")
         default:
@@ -184,9 +191,7 @@ public enum SubAgentTranscriptLoader {
         let name = object["name"] as? String ?? "Tool"
         let id = object["id"] as? String ?? "subagent-tool-\(index)"
         let input = object["input"] as? [String: Any] ?? [:]
-        let command = input.isEmpty
-            ? name
-            : "\(name) \((try? stableJSONString(input)) ?? String(describing: input))"
+        let command = ClaudeToolCommand.describe(toolName: name, input: input)
         return .commandExecution(id: id, command: command, output: "", timestamp: .distantPast)
     }
 

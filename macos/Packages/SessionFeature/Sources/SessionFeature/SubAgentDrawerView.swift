@@ -8,7 +8,7 @@ import DesignSystem
 /// Bug2/3/4 対応: 以前は `.overlay` で本文の上に浮かせていたが、現在は `ChatSessionView` の
 /// HStack 水平分割の右カラムとして配置され、幅は親が `.frame(width:)` で与える（本ビューは
 /// 与えられたフレームを満たすだけ）。左端の境界線・リサイズ掴みしろは親側が担う。
-/// ヘッダー高さは `SubAgentSplitLayout.headerHeight` に固定し、メイン側ヘッダーと罫線を揃える。
+/// ヘッダー高さは本体の `ChatSessionHeader.height` に揃え、メイン側ヘッダーと罫線を揃える。
 struct SubAgentDrawerView: View {
     let subAgent: SubAgentRef
     let transcript: [ChatItem]
@@ -29,40 +29,55 @@ struct SubAgentDrawerView: View {
             followUpComposer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DSColor.chatBackground)
+        .background(DSColor.panelBackground)
         .accessibilityIdentifier("SubAgentDrawerView")
     }
 
+    /// PhloxChat.dc.html: 高さ 56・説明 13/600 と等幅 11.5 の「種類 · 状態」、右に「メインへ戻る」と ✕。
     private var header: some View {
-        HStack(alignment: .center, spacing: DSSpacing.s) {
-            statusIcon
-                .frame(width: 18, height: 18)
+        HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(subAgent.description.isEmpty ? "Sub-agent" : subAgent.description)
-                    .font(DSFont.sectionHeader)
+                Text(subAgent.description.isEmpty ? subAgent.subagentType : subAgent.description)
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(DSColor.chatTextPrimary)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                Text("\(subAgent.subagentType) · \(subAgent.status.rawValue)")
-                    .font(DSFont.caption)
+                Text("\(subAgent.subagentType) · \(statusLabel)")
+                    .font(.system(size: 11.5, design: .monospaced))
                     .foregroundStyle(DSColor.chatTextSecondary)
                     .lineLimit(1)
             }
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button("メインへ戻る", action: onClose)
+                .buttonStyle(.plain)
+                .font(.system(size: 12))
+                .foregroundStyle(DSColor.textSecondary)
+                .help("メインチャットを表示")
+                .accessibilityIdentifier("SubAgentDrawer.backToMain")
             Button(action: onClose) {
                 Image(systemName: "xmark")
-                    .font(.system(size: DSIconSize.s, weight: .semibold))
-                    .frame(width: 28, height: 28)
+                    .font(.system(size: 10, weight: .semibold))
+                    .frame(width: 22, height: 22)
             }
             .buttonStyle(HoverableIconButtonStyle())
-            .help("閉じる")
+            .keyboardShortcut(.cancelAction)
+            .help("閉じる（Esc）")
+            .accessibilityLabel(Text("閉じる"))
             .accessibilityIdentifier("SubAgentDrawer.close")
         }
-        .padding(.horizontal, DSSpacing.m)
-        // メイン側ヘッダーと同一高さに固定して下の罫線を一直線にする（Bug4）。
-        .frame(height: SubAgentSplitLayout.headerHeight)
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
+        // 本体のセッションヘッダ（56pt）と同じ高さにして下の罫線を一直線にする（Bug4・04 C3）。
+        .frame(height: ChatSessionHeader.height)
         .frame(maxWidth: .infinity)
-        .background(DSColor.chatCard)
+    }
+
+    private var statusLabel: Text {
+        switch subAgent.status {
+        case .running: Text("実行中")
+        case .completed: Text("完了")
+        case .failed: Text("失敗")
+        }
     }
 
     @ViewBuilder
@@ -84,16 +99,6 @@ struct SubAgentDrawerView: View {
             let blocks = ChatTranscriptGrouping.blocks(from: transcript)
             ScrollView {
                 VStack(alignment: .leading, spacing: DSSpacing.m) {
-                    Button {
-                        onClose()
-                    } label: {
-                        Label("メインへ戻る", systemImage: "text.bubble")
-                            .font(DSFont.captionStrong)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(DSColor.accentInk)
-                    .help("メインチャットを表示")
-
                     ForEach(blocks) { block in
                         transcriptBlock(block, lastItemID: lastItemID)
                             .id(block.id)
@@ -136,7 +141,7 @@ struct SubAgentDrawerView: View {
                     .accessibilityIdentifier("SubAgentDrawer.input")
 
                     if ComposerPlaceholderVisibility.shouldShowPlaceholder(text: draft, isComposing: isComposing) {
-                        Text("フォローアップを入力...")
+                        Text("サブエージェントに追加の指示")
                             .font(ComposerPlaceholderMetrics.placeholderFont)
                             .foregroundStyle(DSColor.chatTextSecondary)
                             .padding(.horizontal, ComposerPlaceholderMetrics.textInsets.width)
@@ -183,21 +188,6 @@ struct SubAgentDrawerView: View {
                 lastTranscriptID: lastItemID,
                 isTurnRunning: subAgent.status == .running
             )
-        }
-    }
-
-    @ViewBuilder
-    private var statusIcon: some View {
-        switch subAgent.status {
-        case .running:
-            ProgressView()
-                .controlSize(.small)
-        case .completed:
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(DSColor.chatSuccess)
-        case .failed:
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(DSColor.statusError)
         }
     }
 }

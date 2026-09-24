@@ -62,7 +62,8 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
         .code {
             FontFamilyVariant(.monospaced)
             FontSize(ChatTypography.codeFontSize(scale: scale))
-            ForegroundColor(DSColor.accentInk)
+            // 04 A1: 色は注意の 4 状態だけ。インラインのコードは本文色＋淡い地で区別する。
+            ForegroundColor(bodyColor)
             BackgroundColor(DSColor.fillSubtle)
         }
         .link {
@@ -76,7 +77,13 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
         .listItem { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
-                .markdownMargin(bottom: TranscriptTypography.metadataGap)
+                .markdownMargin(bottom: TranscriptTypography.withinAnswer)
+        }
+        // PhloxChat.dc.html: 「•」は弱い文字色・本文との間 8。
+        .bulletedListMarker { _ in
+            Text(verbatim: "•")
+                .foregroundStyle(DSColor.textTertiary)
+                .relativeFrame(minWidth: .em(1), alignment: .leading)
         }
         // MarkdownUI の空テーマは段落・見出しの label に縦サイズ確保を付けない。そのまま
         // selectable な Text を幅制約下へ置くと、描画が折り返しても親が 1 行高のままになり、
@@ -85,7 +92,8 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
         .paragraph { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
-                .lineSpacing(TranscriptTypography.textLineSpacing)
+                // 13pt・行の高さ 1.7（PhloxChat.dc.html）。
+                .lineSpacing(6 * scale)
                 .markdownMargin(bottom: TranscriptTypography.withinAnswer)
         }
         .heading1 { configuration in

@@ -70,3 +70,42 @@ struct SessionChatRedesignTests {
         #expect(!controller.isDetached)
     }
 }
+
+@Test func commandExitCode_parsesClaudeBashFailureHeader() {
+    #expect(CommandExitCode.parse("Exit code 127\nzsh: command not found: foo") == 127)
+    #expect(CommandExitCode.parse("Exit code 0") == 0)
+    #expect(CommandExitCode.parse("ok\nall good") == nil)
+    #expect(CommandExitCode.parse("") == nil)
+}
+
+@Test func turnCostFormat_hasNoSpaceAndTwoDigits() {
+    #expect(TurnCostCell.format(0.4213) == "$0.42")
+    #expect(TurnCostCell.format(0.0012) == "$0.0012")
+    #expect(TurnCostCell.format(0) == "$0.00")
+}
+
+/// Claude の Write / Edit の差分は hunk 見出しが無く末尾が改行で終わる。末尾の空行は差分の行として出さない。
+@Test @MainActor func diffCodeView_dropsTrailingEmptyLineAndHasNoNumbersWithoutHunk() {
+    let view = DiffCodeViewData(diff: "+import Foundation\n+\n+struct Demo {}\n", path: "A.swift")
+    #expect(view.lines.count == 3)
+    #expect(view.hasLineNumbers == false)
+}
+
+/// 保存済みのサブエージェント記録も、ライブと同じ 1 行（「Read /path」）にし、<system-reminder> は発言として出さない。
+@Test func subAgentTranscript_formatsToolLikeLiveAndHidesSystemReminder() {
+    let jsonl = """
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"見出しを列挙"},{"type":"text","text":"<system-reminder>\\ninternal\\n</system-reminder>"}]}}
+    {"type":"user","message":{"role":"user","content":"<system-reminder>\\nreport via handback\\n</system-reminder>"}}
+    {"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"tu1","name":"Read","input":{"file_path":"/r/README.md"}}]}}
+    """
+    let items = SubAgentTranscriptLoader.parse(jsonl: jsonl)
+    let texts = items.compactMap { item -> String? in
+        if case .userMessage(_, let text, _, _) = item { return text }
+        return nil
+    }
+    #expect(texts == ["見出しを列挙"])
+    #expect(items.contains {
+        if case .commandExecution(_, let command, _, _) = $0 { return command == "Read /r/README.md" }
+        return false
+    })
+}

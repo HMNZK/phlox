@@ -42,7 +42,8 @@ private struct ChatEscapeHandling: ViewModifier {
             }
             .overlay {
                 if viewModel.isHistoryPickerPresented {
-                    ZStack {
+                    // PhloxChat.dc.html: 暗幕の上、上から 110pt の中央に置く。
+                    ZStack(alignment: .top) {
                         Rectangle()
                             .fill(Color.black.opacity(0.4))
                             .ignoresSafeArea()
@@ -55,7 +56,7 @@ private struct ChatEscapeHandling: ViewModifier {
                             },
                             onCancel: { viewModel.handleEscapeKey() }
                         )
-                        .padding(DSSpacing.xl)
+                        .padding(.top, 110)
                     }
                     .transition(.opacity)
                 }

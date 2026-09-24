@@ -121,7 +121,10 @@ struct DiffCodeViewData {
 
     init(diff: String, path: String) {
         let classified = DiffLineClassifier.classify(diff)
-        lines = classified.filter { $0.isDisplayable && $0.kind != .hunk }.map { line in
+        var displayable = classified.filter { $0.isDisplayable && $0.kind != .hunk }
+        // 末尾の改行で分割した最後の空行は差分の行ではない。
+        if let last = displayable.last, last.kind == .context, last.text.isEmpty { displayable.removeLast() }
+        lines = displayable.map { line in
             DiffCodeLine(
                 line: line,
                 body: ChatCodeHighlighter.computeDiffHighlight(line.diffBody, path: path)

@@ -15,45 +15,43 @@ struct CodeBlockView: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
+        // PhloxChat.dc.html: コード地・枠なし・角丸 8。28pt の見出し（言語は素の等幅 11・右に文字だけの「コピー」）＋区切り線。
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: DSSpacing.s) {
+            HStack(spacing: 0) {
                 Text(language?.isEmpty == false ? language! : UIWording.text(.missingCodeBlockLanguage, languageCode: languageCode))
-                    .font(ChatScaledFont.monoCaption(scale: scale))
+                    .font(.system(size: 11 * scale, design: .monospaced))
                     .foregroundStyle(DSColor.chatTextSecondary)
-                    .padding(.horizontal, DSSpacing.s)
-                    .padding(.vertical, DSSpacing.xs)
-                    .background(DSColor.chatElevated, in: Capsule())
                 Spacer(minLength: 0)
                 Button(action: copyCode) {
-                    Label(UIWording.text(.copyAction, languageCode: languageCode), systemImage: "doc.on.doc")
-                        .font(ChatScaledFont.captionStrong(scale: scale))
+                    Text(UIWording.text(.copyAction, languageCode: languageCode))
+                        .font(.system(size: 11 * scale))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(DSColor.chatTextSecondary)
-                .padding(.horizontal, DSSpacing.s)
-                .padding(.vertical, DSSpacing.xs)
-                .background(DSColor.fillSubtle, in: Capsule())
                 .help(UIWording.text(.copyCodeHelp, languageCode: languageCode))
                 .accessibilityIdentifier("CodeBlock.copyButton")
             }
-            .padding(.horizontal, DSSpacing.m)
-            .padding(.top, DSSpacing.m)
-            .padding(.bottom, DSSpacing.s)
+            .padding(.leading, 12)
+            .padding(.trailing, 6)
+            .frame(height: 28 * scale)
+            Rectangle()
+                .fill(DSColor.separator)
+                .frame(height: 1)
 
             ScrollView(.horizontal) {
                 Text(ChatCodeHighlighter.highlight(code.isEmpty ? " " : code))
-                    .font(ChatScaledFont.mono(scale: scale))
+                    .font(.system(size: 12 * scale, design: .monospaced))
+                    .lineSpacing(7 * scale)
                     .chatTextSelection()
-                    .padding(.horizontal, DSSpacing.m)
-                    .padding(.bottom, DSSpacing.m)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .background(DSColor.chatCard, in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                .strokeBorder(DSColor.border, lineWidth: 1)
-        )
+        .background(DSColor.codeBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func copyCode() {

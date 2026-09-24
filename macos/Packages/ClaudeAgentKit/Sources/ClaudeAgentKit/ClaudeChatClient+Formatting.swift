@@ -49,26 +49,7 @@ extension ClaudeChatClient {
     }
 
     func commandDescription(toolName: String, input: [String: Any]) -> String {
-        switch toolName {
-        case "Bash":
-            return input["command"] as? String ?? "Bash"
-        case "Read":
-            return ["Read", input["file_path"] as? String].compactMap { $0 }.joined(separator: " ")
-        case "Glob":
-            return ["Glob", input["pattern"] as? String].compactMap { $0 }.joined(separator: " ")
-        case "Grep":
-            let pattern = input["pattern"] as? String
-            let path = input["path"] as? String
-            return ["Grep", pattern, path].compactMap { $0 }.joined(separator: " ")
-        case "LS":
-            return ["LS", input["path"] as? String].compactMap { $0 }.joined(separator: " ")
-        default:
-            if input.isEmpty {
-                return toolName
-            }
-            let inputText = (try? stableJSONString(input)) ?? String(describing: input)
-            return "\(toolName) \(inputText)"
-        }
+        ClaudeToolCommand.describe(toolName: toolName, input: input)
     }
 
     func toolResultText(from content: Any?) -> String {

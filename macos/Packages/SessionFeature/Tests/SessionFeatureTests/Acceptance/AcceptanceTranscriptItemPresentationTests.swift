@@ -26,13 +26,13 @@ import Testing
 @testable import SessionFeature
 
 private enum FrozenHeading {
-    static let reasoning = "思考の詳細"
-    static let command1 = "処理の詳細（1件）"
-    static let command2 = "処理の詳細（2件）"
-    static let command51 = "処理の詳細（51件）"
-    static let task0 = "タスク（0件）"
-    static let task1 = "タスク（1件）"
-    static let task2 = "タスク（2件）"
+    static let reasoning = "思考"
+    static let command1 = "コマンド"
+    static let command2 = "ツール実行 ×2"
+    static let command51 = "ツール実行 ×51"
+    static let task0 = "タスク 0/0"
+    static let task1 = "タスク 0/1"
+    static let task2 = "タスク 0/2"
     static let emptyTasks = "タスクなし"
     static let error = "エラー"
     static let running = "実行中"
@@ -598,7 +598,8 @@ struct AcceptanceTranscriptItemPresentationCommandTableTests {
             }
             #expect(presentation.classification == .detail)
             #expect(presentation.isCollapsible)
-            #expect(!presentation.defaultExpanded)
+            // 04 B1: 実行中の束だけ既定で開く（ユーザー承認 2026-09-24）。
+            #expect(presentation.defaultExpanded == header.isRunning)
             #expect(presentation.semanticInk == .process)
         }
     }

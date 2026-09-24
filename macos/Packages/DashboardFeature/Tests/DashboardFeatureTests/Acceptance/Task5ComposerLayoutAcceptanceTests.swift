@@ -34,27 +34,27 @@ struct Task5ComposerLayoutAcceptanceTests {
     @Test
     func mediumColumnAlsoRespectsMaximumWidth() throws {
         let w = try #require(ComposerLayout.maxWidth(mainColumnWidth: 1000))
-        #expect(abs(w - 800) < 0.001)
+        #expect(abs(w - 760) < 0.001)
     }
 
     @Test
     func wideColumnCapsAt800() throws {
-        // 60% (1200) >= 800 → 上限 800。
+        // 上限 760（2026-09-24 ユーザー承認で 800 → 760）。
         let w = try #require(ComposerLayout.maxWidth(mainColumnWidth: 2000))
-        #expect(abs(w - 800) < 0.001)
+        #expect(abs(w - 760) < 0.001)
     }
 
     @Test
     func justBelowOldBoundaryCapsAt800() throws {
-        // 旧境界直下も800: 親を広げた際の急減を除去する。
+        // 旧境界直下も上限: 親を広げた際の急減を除去する。
         let w = try #require(ComposerLayout.maxWidth(mainColumnWidth: 1332))
-        #expect(abs(w - 800) < 0.001)
+        #expect(abs(w - 760) < 0.001)
     }
 
     @Test
     func justAboveBoundaryCapsAt800() throws {
-        // 境界直上: 60% of 1334 = 800.4 >= 800 → 800。
+        // 境界直上も上限 760。
         let w = try #require(ComposerLayout.maxWidth(mainColumnWidth: 1334))
-        #expect(abs(w - 800) < 0.001)
+        #expect(abs(w - 760) < 0.001)
     }
 }

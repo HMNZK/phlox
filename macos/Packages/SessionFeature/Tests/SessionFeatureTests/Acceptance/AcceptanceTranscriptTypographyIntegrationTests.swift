@@ -201,14 +201,15 @@ struct AcceptanceTranscriptTypographyIntegrationTests {
 
     @Test("ChatTypography の既存 API は従来の Markdown 基準値を返し、bodyPointSize は正本の body と一致する")
     func chatTypographyDelegatesAndBodyPointSizeMatchesCanonicalBody() {
-        #expect(ChatTypography.bodyFontSize(scale: 1.0) == 15)
-        #expect(ChatTypography.codeFontSize(scale: 1.0) == 13.5)
+        // 2026-09-24 ユーザー承認（「両方モックに合わせる」）: 本文 15→13、インラインコード 13.5→12。
+        #expect(ChatTypography.bodyFontSize(scale: 1.0) == 13)
+        #expect(ChatTypography.codeFontSize(scale: 1.0) == 12)
         #expect(ChatTypography.heading1FontSize(scale: 1.0) == 26)
         #expect(ChatTypography.heading2FontSize(scale: 1.0) == 19)
         #expect(ChatTypography.heading3FontSize(scale: 1.0) == 16)
 
-        #expect(ChatTypography.bodyFontSize(scale: 0.8) == 15 * 0.8)
-        #expect(ChatTypography.codeFontSize(scale: 2.0) == 13.5 * 2.0)
+        #expect(ChatTypography.bodyFontSize(scale: 0.8) == 13 * 0.8)
+        #expect(ChatTypography.codeFontSize(scale: 2.0) == 12 * 2.0)
         #expect(ChatTypography.heading1FontSize(scale: 1.5) == 26 * 1.5)
 
         #expect(
@@ -232,7 +233,7 @@ struct AcceptanceTranscriptTypographyIntegrationTests {
                 == TranscriptTypography.pointSize(for: .heading3, scale: 1.0)
         )
 
-        #expect(ChatScaledFont.bodyPointSize(scale: 1.0) == 15)
+        #expect(ChatScaledFont.bodyPointSize(scale: 1.0) == 13)
         #expect(
             ChatScaledFont.bodyPointSize(scale: 1.0)
                 == TranscriptTypography.pointSize(for: .body, scale: 1.0)
@@ -241,6 +242,6 @@ struct AcceptanceTranscriptTypographyIntegrationTests {
             ChatScaledFont.bodyPointSize(scale: 2.0)
                 == TranscriptTypography.pointSize(for: .body, scale: 2.0)
         )
-        #expect(ChatScaledFont.bodyPointSize(scale: 0.8) == 15 * 0.8)
+        #expect(ChatScaledFont.bodyPointSize(scale: 0.8) == 13 * 0.8)
     }
 }

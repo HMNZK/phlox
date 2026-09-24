@@ -200,6 +200,9 @@ public enum DSColor {
     /// ファイル差分の色（再設計: 追加=緑・削除=赤。各テーマで 4.5:1 以上に導出）。
     public static var diffAdded: Color { theme.palette.diffAdded.color }
     public static var diffRemoved: Color { theme.palette.diffRemoved.color }
+    /// 差分の追加・削除行の面（PhloxChat.dc.html の --addTint / --delTint。ライト 10%/9%、ダーク 12%）。
+    public static var diffAddedTint: Color { diffAdded.opacity(theme.palette.isLight ? 0.10 : 0.12) }
+    public static var diffRemovedTint: Color { diffRemoved.opacity(theme.palette.isLight ? 0.09 : 0.12) }
 
     // セッション行のホバー（面＋枠）。前景色由来の低不透明値で明度に追随する。
     public static var sessionRowHover: Color {

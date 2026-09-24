@@ -2,6 +2,8 @@ import SwiftUI
 
 /// トランスクリプト本文・処理見出し・補助情報の文字と間隔の正本。
 /// 設定保存・I/O・時計・ViewModel に依存せず、受け取った有効倍率を一度だけ掛ける。
+/// 04 A1（ユーザー承認 2026-09-24「両方モックに合わせる」）: 本文 13・見出し行 12・補助 11・コード 12（PhloxChat.dc.html）。
+/// Markdown の見出し（heading1〜6）はモックに値が無いので従来のまま。
 public enum TranscriptTypography {
     public enum Role: CaseIterable, Equatable, Hashable, Sendable {
         case body
@@ -67,9 +69,9 @@ public enum TranscriptTypography {
     public static func style(for role: Role) -> Style {
         switch role {
         case .body:
-            Style(baseSize: 15, weight: .regular, design: .system, ink: .primary)
+            Style(baseSize: 13, weight: .regular, design: .system, ink: .primary)
         case .bodyStrong:
-            Style(baseSize: 15, weight: .semibold, design: .system, ink: .primary)
+            Style(baseSize: 13, weight: .semibold, design: .system, ink: .primary)
         case .heading1:
             Style(baseSize: 26, weight: .bold, design: .system, ink: .primary)
         case .heading2:
@@ -83,17 +85,18 @@ public enum TranscriptTypography {
         case .heading6:
             Style(baseSize: 15, weight: .semibold, design: .system, ink: .primary)
         case .processSummary:
-            Style(baseSize: 15, weight: .semibold, design: .system, ink: .tool)
+            Style(baseSize: 12, weight: .medium, design: .system, ink: .tool)
         case .metadata:
-            Style(baseSize: 10, weight: .regular, design: .system, ink: .secondary)
+            Style(baseSize: 11, weight: .regular, design: .system, ink: .secondary)
         case .metadataStrong:
-            Style(baseSize: 10, weight: .medium, design: .system, ink: .secondary)
+            Style(baseSize: 11, weight: .medium, design: .system, ink: .secondary)
         case .code:
-            Style(baseSize: 13, weight: .regular, design: .monospaced, ink: .primary)
+            Style(baseSize: 12, weight: .regular, design: .monospaced, ink: .primary)
         case .codeMetadata:
-            Style(baseSize: 10, weight: .regular, design: .monospaced, ink: .secondary)
+            Style(baseSize: 11.5, weight: .regular, design: .monospaced, ink: .secondary)
         case .inlineCode:
-            Style(baseSize: 13.5, weight: .regular, design: .monospaced, ink: .accent)
+            // 色は注意の 4 状態だけに使うので、インラインのコードは本文色（04 A1）。
+            Style(baseSize: 12, weight: .regular, design: .monospaced, ink: .primary)
         }
     }
 

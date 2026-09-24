@@ -32,7 +32,7 @@ struct MessageCopyButton: View {
         Button(action: copyAndShowFeedback) {
             HStack(spacing: DSSpacing.xs) {
                 Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
-                    .font(ChatScaledFont.captionStrong(scale: scale))
+                    .font(.system(size: 11 * scale))
                 if didCopy {
                     Text(UIWording.text(.copiedFeedback, languageCode: languageCode))
                         .font(ChatScaledFont.captionStrong(scale: scale))
@@ -42,11 +42,12 @@ struct MessageCopyButton: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(DSColor.chatTextSecondary)
-        .padding(DSSpacing.xs)
+        .padding(.horizontal, didCopy ? 6 : 0)
+        .frame(minWidth: 22 * scale, minHeight: 22 * scale)
         .background {
-            if MessageCopyButtonPresentation.showsHoverBackground(isHovering: isHovering) {
-                Capsule().fill(DSColor.fillSubtle)
-            }
+            // PhloxChat.dc.html: 22pt 角・角丸 5・ホバー色の面（行のホバーで出ている間は常に）。
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(MessageCopyButtonPresentation.showsHoverBackground(isHovering: isHovering) ? DSColor.fillSelected : DSColor.fillSubtle)
         }
         .onHover { isHovering = $0 }
         .help(didCopy ? UIWording.text(.copiedFeedback, languageCode: languageCode) : UIWording.text(.copyMessageHelp, languageCode: languageCode))

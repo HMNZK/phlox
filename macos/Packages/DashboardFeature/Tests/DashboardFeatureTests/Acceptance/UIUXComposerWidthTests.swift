@@ -2,6 +2,7 @@ import CoreGraphics
 import Testing
 @testable import SessionFeature
 
+// 2026-09-24 ユーザー承認（「両方モックに合わせる」）で上限を 800 → 760（PhloxChat.dc.html）へ更新。
 @Suite("UI-02 continuous composer width")
 struct UIUXComposerWidthTests {
     @Test
@@ -18,13 +19,13 @@ struct UIUXComposerWidthTests {
         let largestWidth = try #require(widths.max())
         #expect(smallestChange >= 0)
         #expect(largestChange <= 1)
-        #expect(largestWidth <= 800)
+        #expect(largestWidth <= 760)
     }
 
-    @Test(arguments: [500.0, 800 / 0.9, 1000.0, 1333.0, 1334.0, 2000.0])
+    @Test(arguments: [500.0, 760 / 0.9, 1000.0, 1333.0, 1334.0, 2000.0])
     func marginsAndMaximumHaveOneContinuousRule(column: Double) throws {
         let width = try #require(ComposerLayout.maxWidth(mainColumnWidth: column))
-        #expect(abs(width - min(column * 0.9, 800)) < 0.001)
+        #expect(abs(width - min(column * 0.9, 760)) < 0.001)
     }
 
     @Test
@@ -35,9 +36,9 @@ struct UIUXComposerWidthTests {
             (545, 490.5, .compact, .compact),
             (666, 599.4, .compact, .compact),
             (667, 600.3, .standard, .compact),
-            (888.5, 799.65, .standard, .compact),
-            (889, 800, .standard, .compact),
-            (1000, 800, .standard, .compact)
+            (844, 759.6, .standard, .compact),
+            (845, 760, .standard, .compact),
+            (1000, 760, .standard, .compact)
         ]
         for (parent, expected, single, grid) in cases {
             let transcript = try #require(ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: parent))

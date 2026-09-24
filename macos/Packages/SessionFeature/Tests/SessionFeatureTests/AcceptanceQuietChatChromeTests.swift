@@ -95,12 +95,18 @@ struct AcceptanceQuietChatChromeTests {
         assertColor(DisclosureCardPalette.subtitle(isToolCall: false), equals: DSColor.chatTextSecondary)
     }
 
-    @Test("コマンドセルとコマンドグループはツールコール色を選ぶ")
-    func commandCellsUseToolCallPalette() throws {
+    // 04 A1（ユーザー承認 2026-09-24「全部モックに合わせる」）: コマンドはモックの枠付きカード（TranscriptCard）で出し、
+    // カードの見出しと枠はアクセント色を使わない（色は注意の 4 状態だけ）。
+    @Test("コマンドセルとコマンドグループは色を使わない枠付きカードで出す")
+    func commandCellsUseQuietTranscriptCard() throws {
         let commandCellSource = try sourceText("ChatMessageCells+Structured.swift")
         let commandGroupSource = try sourceText("ChatMessageCells+CommandGroup.swift")
-        #expect(commandCellSource.contains("isToolCall: true"))
-        #expect(commandGroupSource.contains("isToolCall: true"))
+        let cardSource = try sourceText("TranscriptCard.swift")
+        #expect(commandCellSource.contains("TranscriptCard("))
+        #expect(commandGroupSource.contains("TranscriptCard("))
+        // 見出しと枠（フッタの「さらに表示」リンクより前）にアクセント色が無いこと。
+        let cardHeader = cardSource.components(separatedBy: "struct TranscriptCardFooter").first ?? ""
+        #expect(!cardHeader.contains("accent"))
     }
 
     private func sourceText(_ relativePath: String) throws -> String {

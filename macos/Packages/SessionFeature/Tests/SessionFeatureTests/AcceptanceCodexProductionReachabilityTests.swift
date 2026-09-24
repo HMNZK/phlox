@@ -128,8 +128,9 @@ struct AcceptanceCodexProductionReachabilityTests {
                     }
                     #expect(elements.contains { $0.identifier?.hasPrefix("CodexBackgroundTerminal.") == true } == false)
                     let displayedText = Set(elements.flatMap { [$0.title, $0.value, $0.description].compactMap { $0 } })
-                    // 既定閉の TaskListCell は見出しのみ。ステップ名 inspect は viewModel 照合（上）で維持。
-                    #expect(displayedText.contains { $0.contains("タスク（2件）") })
+                    // 04 D1（ユーザー承認 2026-09-24「全部モックに合わせる」）: 会話の中のプランカードの見出し「プラン 0 / 2 完了」。
+                    // ステップ名 inspect は viewModel 照合（上）で維持。
+                    #expect(displayedText.contains { $0.contains("0 / 2 完了") })
                     #expect(displayedText.contains { $0.contains("child-new") })
 
                 }

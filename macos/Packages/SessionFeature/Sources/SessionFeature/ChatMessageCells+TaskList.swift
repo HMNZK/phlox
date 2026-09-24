@@ -13,12 +13,14 @@ struct TaskListCell: View {
     @State private var userOverride: Bool?
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
+    @Environment(\.locale) private var locale
 
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        let presentation = TranscriptItemPresentation.taskList(count: tasks.count)
-        DisclosureCard(
+        let completed = tasks.filter { $0.status == .completed }.count
+        let presentation = TranscriptItemPresentation.taskList(count: tasks.count, completed: completed)
+        TranscriptCard(
             isExpanded: Binding(
                 get: {
                     TranscriptItemPresentation.isExpanded(
@@ -28,64 +30,71 @@ struct TaskListCell: View {
                 },
                 set: { userOverride = $0 }
             ),
-            title: presentation.heading ?? "",
-            subtitle: nil,
-            isToolCall: presentation.semanticInk == .process
+            label: Text("タスク \(completed)/\(tasks.count)"),
+            summary: summary(completed: completed)
         ) {
-            VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
+            VStack(alignment: .leading, spacing: 0) {
                 if tasks.isEmpty {
                     Text(presentation.expandedBody ?? "")
-                        .font(ChatScaledFont.body(scale: scale))
+                        .font(.system(size: 12.5 * scale))
                         .foregroundStyle(DSColor.chatTextSecondary)
+                        .frame(minHeight: 24 * scale)
                 }
                 ForEach(tasks) { task in
-                    HStack(alignment: .firstTextBaseline, spacing: DSSpacing.s) {
-                        Image(systemName: glyph(for: task.status))
-                            .font(.system(size: DSIconSize.m, weight: .semibold))
-                            .foregroundStyle(color(for: task.status))
-                            .frame(width: 16)
-                            .accessibilityHidden(true)
+                    HStack(spacing: 10) {
+                        TaskStatusMark(status: task.status, scale: scale)
                         Text(task.title)
-                            .font(task.status == .inProgress ? TranscriptTypography.font(for: .bodyStrong, scale: scale) : titleFont(for: task.status, scale: scale))
-                            .foregroundStyle(task.status == .completed ? DSColor.chatTextSecondary : DSColor.chatTextPrimary)
-                            .strikethrough(task.status == .completed, color: DSColor.chatTextSecondary)
+                            .font(.system(size: 12.5 * scale, weight: task.status == .inProgress ? .semibold : .regular))
+                            .foregroundStyle(task.status == .completed ? DSColor.textTertiary : DSColor.chatTextPrimary)
+                            .strikethrough(task.status == .completed, color: DSColor.textTertiary)
+                            .lineLimit(1)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(accessibilityStatus(for: task.status)): \(task.title)")
+                    .frame(minHeight: 24 * scale)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text("\(Self.accessibilityStatus(for: task.status))：\(task.title)"))
                 }
             }
-            .padding(.top, TranscriptTypography.withinAnswer)
+            .padding(.leading, 28)
+            .padding(.trailing, 12)
+            .padding(.vertical, 6)
         }
-        .frame(maxWidth: 720, alignment: .leading)
         .accessibilityIdentifier("ChatMessage.taskList")
     }
 
-    private func glyph(for status: AgentTaskStatus) -> String {
-        switch status {
-        case .pending: "circle"
-        case .inProgress: "arrow.triangle.2.circlepath.circle.fill"
-        case .completed: "checkmark.circle.fill"
-        }
+    /// 見出しの要約: 進行中のタスク名。全部終わっていれば「すべて完了」。
+    private func summary(completed: Int) -> String? {
+        if let doing = tasks.first(where: { $0.status == .inProgress }) { return doing.title }
+        if !tasks.isEmpty, completed == tasks.count { return AppLocalizedString.string("すべて完了", locale: locale) }
+        return nil
     }
 
-    private func color(for status: AgentTaskStatus) -> Color {
+    static func accessibilityStatus(for status: AgentTaskStatus) -> Text {
         switch status {
-        case .pending: DSColor.chatTextSecondary
-        case .inProgress: DSColor.chatAccent
-        case .completed: DSColor.chatSuccess
+        case .pending: Text("未着手")
+        case .inProgress: Text("進行中")
+        case .completed: Text("完了")
         }
     }
+}
 
-    private func titleFont(for status: AgentTaskStatus, scale: CGFloat) -> Font {
-        status == .inProgress ? ChatScaledFont.body(scale: scale).weight(.semibold) : ChatScaledFont.body(scale: scale)
-    }
+/// 状態のしるし（✓ 完了・● 進行中 8pt・○ 未着手 11pt）。色は付けない（色は注意の 4 状態だけ）。
+private struct TaskStatusMark: View {
+    let status: AgentTaskStatus
+    let scale: CGFloat
 
-    private func accessibilityStatus(for status: AgentTaskStatus) -> String {
-        switch status {
-        case .pending: "Pending"
-        case .inProgress: "In progress"
-        case .completed: "Completed"
+    var body: some View {
+        Group {
+            switch status {
+            case .completed:
+                Text(verbatim: "✓").font(.system(size: 12 * scale)).foregroundStyle(DSColor.textTertiary)
+            case .inProgress:
+                Circle().fill(DSColor.chatTextPrimary).frame(width: 8 * scale, height: 8 * scale)
+            case .pending:
+                Circle().strokeBorder(DSColor.textTertiary, lineWidth: 1).frame(width: 11 * scale, height: 11 * scale)
+            }
         }
+        .frame(width: 12 * scale)
+        .accessibilityHidden(true)
     }
 }

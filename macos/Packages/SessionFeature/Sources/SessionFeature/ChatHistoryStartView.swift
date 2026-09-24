@@ -7,6 +7,10 @@ struct ChatHistoryStartView: View {
     var maxCardHeight: CGFloat = ChatHistoryStartLayout.maxCardHeightCap
     let workingDirectory: String?
     let onSelect: (ClaudeSessionHistoryEntry) -> Void
+    /// 「Claude Code」など。説明文に出す。
+    var agentName: String = ""
+    /// 「新しい会話を始める」（一覧を閉じて入力欄へ）。
+    var onStartNew: (() -> Void)?
 
     @State private var presentations: [String: HistoryEntryPresentation]
 
@@ -23,12 +27,16 @@ struct ChatHistoryStartView: View {
         entries: [ClaudeSessionHistoryEntry],
         maxCardHeight: CGFloat = ChatHistoryStartLayout.maxCardHeightCap,
         workingDirectory: String?,
-        onSelect: @escaping (ClaudeSessionHistoryEntry) -> Void
+        agentName: String = "",
+        onSelect: @escaping (ClaudeSessionHistoryEntry) -> Void,
+        onStartNew: (() -> Void)? = nil
     ) {
         self.entries = entries
         self.maxCardHeight = maxCardHeight
         self.workingDirectory = workingDirectory
+        self.agentName = agentName
         self.onSelect = onSelect
+        self.onStartNew = onStartNew
         _presentations = State(
             initialValue: Self.makePresentations(
                 entries: entries,
@@ -37,38 +45,70 @@ struct ChatHistoryStartView: View {
         )
     }
 
+    /// PhloxChat.dc.html の isHistory: 上寄せ・枠なし。見出し 17/700 と説明 → 幅 560 の行カード → 「新しい会話を始める ⌘↩」。
     var body: some View {
-        VStack(spacing: DSSpacing.m) {
-            header
-            newSessionHint
+        VStack(spacing: 18) {
+            VStack(spacing: 6) {
+                Text("過去の会話から再開")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(DSColor.textPrimary)
+                Text("\(projectName) で \(agentName) と行った会話です。選ぶと続きから再開します。")
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(DSColor.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
             if entries.isEmpty {
                 Text("履歴がありません")
-                    .font(DSFont.body)
-                    .foregroundStyle(DSColor.chatTextSecondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, DSSpacing.xl)
+                    .font(.system(size: 13))
+                    .foregroundStyle(DSColor.textSecondary)
+                    .padding(.vertical, 20)
             } else {
                 ScrollView {
-                    LazyVStack(spacing: DSSpacing.xs) {
+                    LazyVStack(spacing: 6) {
                         ForEach(entries) { entry in
                             if let presentation = presentations[entry.id] {
-                                row(for: entry, presentation: presentation)
+                                HistoryStartRow(
+                                    entry: entry,
+                                    presentation: presentation,
+                                    lastUsedText: formattedLastUsed(presentation.lastUsedAt),
+                                    onSelect: onSelect
+                                )
                             }
                         }
                     }
                 }
+                .frame(maxWidth: 560)
                 .frame(maxHeight: maxCardHeight)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            if let onStartNew {
+                Button(action: onStartNew) {
+                    HStack(spacing: 6) {
+                        Text("新しい会話を始める")
+                            .font(.system(size: 12.5))
+                            .foregroundStyle(DSColor.textPrimary)
+                        Text(verbatim: "⌘↩")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(DSColor.textTertiary)
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(height: 28)
+                    .background(DSColor.controlBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .strokeBorder(DSColor.controlBorder, lineWidth: 0.5)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.return, modifiers: .command)
+                .accessibilityIdentifier("ChatHistoryStartView.startNew")
             }
         }
-        .frame(maxWidth: 560)
-        .padding(DSSpacing.l)
-        .background(DSColor.chatElevated)
-        .clipShape(RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous)
-                .strokeBorder(DSColor.separator, lineWidth: 1)
-        )
-        .dsShadow(.cardHover)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 48)
+        .frame(maxWidth: .infinity, alignment: .top)
+        .background(DSColor.chatBackground)
         .accessibilityIdentifier("ChatHistoryStartView")
         .task(id: HistoryPresentationInputs(entries: entries, workingDirectory: workingDirectory)) {
             presentations = Self.makePresentations(
@@ -84,6 +124,11 @@ struct ChatHistoryStartView: View {
         }
     }
 
+    private var projectName: String {
+        guard let workingDirectory, !workingDirectory.isEmpty else { return "" }
+        return URL(fileURLWithPath: (workingDirectory as NSString).expandingTildeInPath).lastPathComponent
+    }
+
     private static func makePresentations(
         entries: [ClaudeSessionHistoryEntry],
         workingDirectory: String?
@@ -96,92 +141,74 @@ struct ChatHistoryStartView: View {
         )
     }
 
-    private var header: some View {
-        HStack(spacing: DSSpacing.s) {
-            Image(systemName: "clock.arrow.circlepath")
-                .foregroundStyle(DSColor.accentInk)
-            Text("続きから再開")
-                .font(DSFont.sectionHeader)
-                .foregroundStyle(DSColor.chatTextPrimary)
-            Spacer(minLength: 0)
-        }
+    private func formattedLastUsed(_ date: Date?) -> String {
+        guard let date else { return "最終利用日時不明" }
+        return Self.shortDateFormatter.string(from: date)
     }
+}
 
-    private var newSessionHint: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-            Text("新規作成")
-                .font(DSFont.caption)
-                .foregroundStyle(DSColor.chatTextSecondary)
-            Text("下の入力欄から新しい依頼を始めます")
-                .font(DSFont.caption)
-                .foregroundStyle(DSColor.chatTextSecondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
+/// 1 件の行カード: 左に題名 13/600 と 2 行目（プロジェクト）、右に日時と等幅のブランチ。
+/// ポインタを置いた行はホバー色の地＋2pt のアクセント枠、ほかは 1pt の区切り線の枠。
+private struct HistoryStartRow: View {
+    let entry: ClaudeSessionHistoryEntry
+    let presentation: HistoryEntryPresentation
+    let lastUsedText: String
+    let onSelect: (ClaudeSessionHistoryEntry) -> Void
+    @State private var isHovering = false
 
-    private func row(for entry: ClaudeSessionHistoryEntry, presentation: HistoryEntryPresentation) -> some View {
+    var body: some View {
         Button {
             onSelect(entry)
         } label: {
-            HStack(alignment: .top, spacing: DSSpacing.m) {
-                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(presentation.title)
-                        .font(DSFont.body)
-                        .foregroundStyle(DSColor.chatTextPrimary)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(DSColor.textPrimary)
                         .lineLimit(1)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
                         .help(presentation.fullTitle)
-                    HStack(spacing: DSSpacing.s) {
-                        Text(presentation.projectName)
-                            .font(DSFont.caption)
-                            .foregroundStyle(DSColor.chatTextSecondary)
+                    Text(presentation.projectName)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(DSColor.textSecondary)
+                        .lineLimit(1)
+                        .help(presentation.projectPath ?? "")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text(lastUsedText)
+                    if let branch = entry.gitBranch, !branch.isEmpty {
+                        Text(verbatim: branch)
+                            .font(.system(size: 11, design: .monospaced))
                             .lineLimit(1)
-                            .help(presentation.projectPath ?? "")
-                        Text("最終利用")
-                            .font(DSFont.caption)
-                            .foregroundStyle(DSColor.chatTextSecondary)
-                        Text(formattedLastUsed(presentation.lastUsedAt))
-                            .font(DSFont.caption)
-                            .foregroundStyle(DSColor.chatTextSecondary)
-                            .lineLimit(1)
-                        if let branch = entry.gitBranch, !branch.isEmpty {
-                            Text(branch)
-                                .font(DSFont.caption)
-                                .foregroundStyle(DSColor.chatTextSecondary)
-                                .lineLimit(1)
-                        }
                     }
                 }
-                Image(systemName: "chevron.right")
-                    .font(.system(size: DSIconSize.s, weight: .semibold))
-                    .foregroundStyle(DSColor.chatTextSecondary)
+                .font(.system(size: 11))
+                .foregroundStyle(DSColor.textTertiary)
             }
-            .padding(.horizontal, DSSpacing.m)
-            .padding(.vertical, DSSpacing.s)
-            .background(
-                RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                    .fill(DSColor.chatCard.opacity(0.6))
-            )
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background {
+                if isHovering {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous).fill(DSColor.fillSubtle)
+                }
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(isHovering ? DSColor.accent : DSColor.separator, lineWidth: isHovering ? 2 : 1)
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
         .help(entry.sessionID)
         .accessibilityLabel(
             presentation.fullTitle
                 + " "
-                + presentation.accessibilityDetails(
-                    lastUsedText: formattedLastUsed(presentation.lastUsedAt)
-                )
+                + presentation.accessibilityDetails(lastUsedText: lastUsedText)
                 + " "
                 + entry.sessionID
         )
         .accessibilityIdentifier("ChatHistoryStartView.row")
-    }
-
-    private func formattedLastUsed(_ date: Date?) -> String {
-        guard let date else { return "最終利用日時不明" }
-        return Self.shortDateFormatter.string(from: date)
     }
 }
 

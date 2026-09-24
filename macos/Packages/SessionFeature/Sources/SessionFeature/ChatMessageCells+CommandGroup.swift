@@ -163,7 +163,6 @@ struct CommandGroupCell: View, Equatable {
     @State private var userOverride: Bool?
     @State private var rowLimit = CommandGroupRowWindow.defaultLimit
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
-    @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
     @Environment(\.locale) private var locale
 
     private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
@@ -189,7 +188,6 @@ struct CommandGroupCell: View, Equatable {
 
     var body: some View {
         let _ = themeID
-        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         let header = CommandGroupHeader(
             items: items,
             lastTranscriptID: lastTranscriptID,
@@ -207,12 +205,8 @@ struct CommandGroupCell: View, Equatable {
             runningSubtitle: "実行中",
             outputAvailableSubtitle: UIWording.text(.outputAvailable, languageCode: languageCode)
         )
-        let expanded = TranscriptItemPresentation.isExpanded(
-            userOverride: userOverride,
-            defaultExpanded: presentation.defaultExpanded
-        )
         if header.shouldRender {
-            DisclosureCard(
+            TranscriptCard(
                 isExpanded: Binding(
                     get: {
                         TranscriptItemPresentation.isExpanded(
@@ -222,109 +216,167 @@ struct CommandGroupCell: View, Equatable {
                     },
                     set: { userOverride = $0 }
                 ),
-                title: presentation.heading ?? "",
-                subtitle: presentation.subtitle,
-                isToolCall: true && presentation.semanticInk == .process
+                label: label,
+                summary: summary(isRunning: header.isRunning),
+                isRunning: header.isRunning,
+                badges: header.isRunning
+                    ? [TranscriptCardBadge(id: "running", text: Text("実行中"), color: DSColor.chatTextPrimary, weight: .medium)]
+                    : singleExitBadge
             ) {
-                if expanded {
+                if items.count == 1, case .commandExecution(_, _, let output, _) = items[0] {
+                    // 04 A1: 1 件だけのときは「コマンド」の単独カード。中身は出力の行。
+                    CommandCardOutput(output: output)
+                } else {
                     let rowsSlice = CommandGroupDisplayedRows.make(
                         items: items,
                         lastTranscriptID: lastTranscriptID,
                         isTurnRunning: isTurnRunning,
                         limit: rowLimit
                     )
-                    VStack(alignment: .leading, spacing: TranscriptTypography.withinAnswer) {
-                        Text(header.title)
-                            .font(TranscriptTypography.font(for: .processSummary, scale: scale))
-                            .foregroundStyle(DSColor.chatTextSecondary)
-                            .chatTextSelection()
-                            .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 0) {
                         if rowsSlice.hiddenRowCount > 0 {
                             Button("残り \(rowsSlice.hiddenRowCount) 件を表示") {
                                 rowLimit += CommandGroupRowWindow.expandStep
                             }
-                            .font(TranscriptTypography.font(for: .processSummary, scale: scale))
+                            .buttonStyle(.plain)
+                            .foregroundStyle(DSColor.accentInk)
+                            .font(.system(size: 11.5))
+                            .padding(.leading, 28)
+                            .frame(height: 24)
                             .accessibilityIdentifier("CommandGroupCell.loadEarlierRows")
                         }
                         ForEach(rowsSlice.rows) { row in
-                            CommandGroupExecutionRow(
-                                command: row.command,
-                                output: row.output
-                            )
-                            .id(row.id)
+                            CommandGroupToolRow(row: row)
+                                .id(row.id)
                         }
                     }
-                    .padding(.top, TranscriptTypography.withinAnswer)
+                    .padding(.top, 4)
+                    .padding(.bottom, 6)
                 }
             }
-            .frame(maxWidth: 800, alignment: .leading)
             .accessibilityIdentifier("CommandGroupCell")
         }
     }
 
+    /// 1 件のカードだけ、出力から拾えた終了コードを右端に出す。
+    private var singleExitBadge: [TranscriptCardBadge] {
+        guard items.count == 1, case .commandExecution(_, _, let output, _) = items[0] else { return [] }
+        return [CommandExitCode.badge(for: output)].compactMap { $0 }
+    }
+
+    /// 04 A1: 1 件はシェルなら「コマンド」、ほかはツール名。2 件以上は「ツール実行 ×n」。
+    private var label: Text {
+        guard items.count == 1 else { return Text("ツール実行 ×\(items.count)") }
+        let tool = Self.tool(of: items[0])
+        return tool.label == "Bash" ? Text("コマンド") : Text(verbatim: tool.label)
+    }
+
+    /// 見出しの等幅の要約。1 件は「$ コマンド」、実行中の束は動いているツール、ほかは「先頭 ほか n 件」。
+    private func summary(isRunning: Bool) -> String {
+        if items.count == 1 {
+            let tool = Self.tool(of: items[0])
+            return tool.label == "Bash" ? "$ \(tool.body)" : tool.body
+        }
+        if isRunning, let last = items.last {
+            let tool = Self.tool(of: last)
+            return "\(tool.label) \(tool.body)"
+        }
+        guard let first = items.first else { return "" }
+        let tool = Self.tool(of: first)
+        let head = "\(tool.label) \(Self.shortArgument(tool))"
+        return String(format: AppLocalizedString.string("%@ ほか %lld 件", locale: locale), head, items.count - 1)
+    }
+
+    static func tool(of item: ChatItem) -> (label: String, body: String) {
+        guard case .commandExecution(_, let command, _, _) = item else { return ("Bash", "") }
+        return CommandToolLabel.derive(command: command)
+    }
+
+    /// 読み書き系のツールはファイル名だけにする（「Read ChatApprovalBroker.swift」）。
+    static func shortArgument(_ tool: (label: String, body: String)) -> String {
+        guard ["Read", "Write", "Edit", "NotebookEdit"].contains(tool.label) else { return tool.body }
+        return tool.body.split(separator: "/").last.map(String.init) ?? tool.body
+    }
 }
 
-private struct CommandGroupExecutionRow: View {
-    let command: String?
+/// 単独のコマンドカードの中身: 出力の行（20 行まで）と「さらに表示」。
+struct CommandCardOutput: View {
     let output: String
-    @State private var isOutputExpanded = false
+    @State private var showsAll = false
+
+    var body: some View {
+        let display = CommandGroupOutputDisplay(output: output, isExpanded: showsAll)
+        if !output.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                TranscriptCardOutputLines(output: display.displayedOutput)
+                if display.isTruncated {
+                    TranscriptCardFooter(hiddenLineCount: display.hiddenLineCount, onShowMore: { showsAll = true })
+                }
+            }
+        }
+    }
+}
+
+/// 束の中の 1 ツール 1 行（高さ 24）: ツール名 44 幅 → 等幅の引数 → 右に結果（「120 行」「実行中」）。
+/// 押すと、その行の出力を下に出す。
+private struct CommandGroupToolRow: View {
+    let row: CommandGroupRow
+    @State private var showsOutput = false
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        let display = ChatMessageRenderCache.commandExecution(command: command, output: output)
-        ChatCodeCard(
-            copyText: display.copyText,
-            copyAccessibilityIdentifier: "CommandGroupExecutionRow.copyOutput",
-            header: {
-                Text(display.label)
-                    .font(TranscriptTypography.font(for: .processSummary, scale: scale))
-                    .foregroundStyle(DSColor.chatTextSecondary)
-            }
-        ) {
-            VStack(alignment: .leading, spacing: 0) {
-                if display.commandBody.isEmpty {
-                    Text("(コマンドなし)")
-                        .font(ChatScaledFont.mono(scale: scale))
+        let tool = CommandToolLabel.derive(command: row.command)
+        let hasOutput = !row.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                showsOutput.toggle()
+            } label: {
+                HStack(spacing: 10) {
+                    Text(verbatim: tool.label)
+                        .font(.system(size: 12 * scale, weight: .medium))
+                        .foregroundStyle(DSColor.chatTextPrimary)
+                        .lineLimit(1)
+                        .frame(width: 44 * scale, alignment: .leading)
+                    Text(verbatim: CommandGroupCell.shortArgument(tool))
+                        .font(.system(size: 11.5 * scale, design: .monospaced))
                         .foregroundStyle(DSColor.chatTextSecondary)
-                } else {
-                    HStack(alignment: .firstTextBaseline, spacing: 0) {
-                        Text("$ ")
-                        Text(display.highlightedCommand)
-                    }
-                    .font(ChatScaledFont.mono(scale: scale))
-                    .foregroundStyle(DSColor.chatTextPrimary)
-                    .chatTextSelection()
-                }
-                if !output.isEmpty {
-                    let outputDisplay = display.outputDisplay(isExpanded: isOutputExpanded)
-                    Text(outputDisplay.displayedOutput)
-                        .font(ChatScaledFont.monoCaption(scale: scale))
-                        .foregroundStyle(DSColor.chatTextSecondary)
-                        .chatTextSelection()
-                        .padding(.top, TranscriptTypography.withinAnswer)
-                    if outputDisplay.isTruncated {
-                        Button {
-                            isOutputExpanded = true
-                        } label: {
-                            Label(
-                                "さらに \(outputDisplay.hiddenLineCount) 行を表示",
-                                systemImage: "chevron.down"
-                            )
-                            .font(ChatScaledFont.captionStrong(scale: scale))
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(DSColor.accentInk)
-                        .accessibilityIdentifier("CommandGroupExecutionRow.showMoreOutput")
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if row.isRunning {
+                        Text("実行中")
+                            .font(.system(size: 11 * scale, weight: .semibold))
+                            .foregroundStyle(DSColor.chatTextPrimary)
+                    } else if let code = CommandExitCode.parse(row.output), code != 0 {
+                        Text(verbatim: "exit \(code)")
+                            .font(.system(size: 11 * scale, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(DSColor.attentionInk(.error))
+                    } else if hasOutput {
+                        Text("\(Self.lineCount(row.output)) 行")
+                            .font(.system(size: 11 * scale))
+                            .monospacedDigit()
+                            .foregroundStyle(DSColor.textTertiary)
                     }
                 }
+                .padding(.leading, 28)
+                .padding(.trailing, 12)
+                .frame(minHeight: 24 * scale)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, TranscriptTypography.cardHorizontalInset)
-            .padding(.bottom, TranscriptTypography.codeContentInset)
+            .buttonStyle(.plain)
+            .disabled(!hasOutput)
+            .accessibilityValue(hasOutput ? (showsOutput ? Text("出力を表示中") : Text("出力を隠している")) : Text(verbatim: ""))
+            if showsOutput {
+                CommandCardOutput(output: row.output)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    static func lineCount(_ output: String) -> Int {
+        output.trimmingCharacters(in: .newlines).split(separator: "\n", omittingEmptySubsequences: false).count
+    }
 }

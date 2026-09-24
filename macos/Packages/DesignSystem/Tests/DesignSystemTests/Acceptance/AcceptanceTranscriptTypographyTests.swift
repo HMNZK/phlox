@@ -3,6 +3,9 @@
 // ベースラインでの red 理由: `TranscriptTypography` は本タスクが新設を要求する API で、
 // baseline_commit には存在しない（参照未解決でコンパイル不能＝red）。
 //
+// 2026-09-24 ユーザー承認（「両方モックに合わせる」）で本文 13・見出し行 12/medium・補助 11・コード 12・
+// インラインコード 12 本文色（色は注意の 4 状態だけ）へ更新。見出し 1〜6 は据え置き。
+//
 // 契約: 役割から文字指定と間隔を返す正本。期待値は下表の独立リテラルであり、
 // 実装の `allCases` や Style 一覧から生成しない。
 
@@ -21,20 +24,20 @@ struct AcceptanceTranscriptTypographyTests {
 
     /// 契約 Role 表の基準 pt。`style(for:).baseSize` からコピーしない。
     private static let expectedBaseSizes: [(TranscriptTypography.Role, CGFloat)] = [
-        (.body, 15),
-        (.bodyStrong, 15),
+        (.body, 13),
+        (.bodyStrong, 13),
         (.heading1, 26),
         (.heading2, 19),
         (.heading3, 16),
         (.heading4, 15),
         (.heading5, 15),
         (.heading6, 15),
-        (.processSummary, 15),
-        (.metadata, 10),
-        (.metadataStrong, 10),
-        (.code, 13),
-        (.codeMetadata, 10),
-        (.inlineCode, 13.5),
+        (.processSummary, 12),
+        (.metadata, 11),
+        (.metadataStrong, 11),
+        (.code, 12),
+        (.codeMetadata, 11.5),
+        (.inlineCode, 12),
     ]
 
     @Test("Role は CaseIterable・Equatable・Sendable で、集合が契約表 14 役割と一致する")
@@ -55,13 +58,13 @@ struct AcceptanceTranscriptTypographyTests {
     @Test("各 Style のサイズ・太さ・design・ink が契約表の独立リテラルと一致する")
     func styleFieldsMatchFrozenTable() {
         let body = TranscriptTypography.style(for: .body)
-        #expect(body.baseSize == 15, Comment(rawValue: "body size"))
+        #expect(body.baseSize == 13, Comment(rawValue: "body size"))
         #expect(body.weight == .regular, Comment(rawValue: "body weight"))
         #expect(body.design == .system, Comment(rawValue: "body design"))
         #expect(body.ink == .primary, Comment(rawValue: "body ink"))
 
         let bodyStrong = TranscriptTypography.style(for: .bodyStrong)
-        #expect(bodyStrong.baseSize == 15, Comment(rawValue: "bodyStrong size"))
+        #expect(bodyStrong.baseSize == 13, Comment(rawValue: "bodyStrong size"))
         #expect(bodyStrong.weight == .semibold, Comment(rawValue: "bodyStrong weight"))
         #expect(bodyStrong.design == .system, Comment(rawValue: "bodyStrong design"))
         #expect(bodyStrong.ink == .primary, Comment(rawValue: "bodyStrong ink"))
@@ -103,40 +106,40 @@ struct AcceptanceTranscriptTypographyTests {
         #expect(heading6.ink == .primary, Comment(rawValue: "heading6 ink"))
 
         let processSummary = TranscriptTypography.style(for: .processSummary)
-        #expect(processSummary.baseSize == 15, Comment(rawValue: "processSummary size"))
-        #expect(processSummary.weight == .semibold, Comment(rawValue: "processSummary weight"))
+        #expect(processSummary.baseSize == 12, Comment(rawValue: "processSummary size"))
+        #expect(processSummary.weight == .medium, Comment(rawValue: "processSummary weight"))
         #expect(processSummary.design == .system, Comment(rawValue: "processSummary design"))
         #expect(processSummary.ink == .tool, Comment(rawValue: "processSummary ink"))
 
         let metadata = TranscriptTypography.style(for: .metadata)
-        #expect(metadata.baseSize == 10, Comment(rawValue: "metadata size"))
+        #expect(metadata.baseSize == 11, Comment(rawValue: "metadata size"))
         #expect(metadata.weight == .regular, Comment(rawValue: "metadata weight"))
         #expect(metadata.design == .system, Comment(rawValue: "metadata design"))
         #expect(metadata.ink == .secondary, Comment(rawValue: "metadata ink"))
 
         let metadataStrong = TranscriptTypography.style(for: .metadataStrong)
-        #expect(metadataStrong.baseSize == 10, Comment(rawValue: "metadataStrong size"))
+        #expect(metadataStrong.baseSize == 11, Comment(rawValue: "metadataStrong size"))
         #expect(metadataStrong.weight == .medium, Comment(rawValue: "metadataStrong weight"))
         #expect(metadataStrong.design == .system, Comment(rawValue: "metadataStrong design"))
         #expect(metadataStrong.ink == .secondary, Comment(rawValue: "metadataStrong ink"))
 
         let code = TranscriptTypography.style(for: .code)
-        #expect(code.baseSize == 13, Comment(rawValue: "code size"))
+        #expect(code.baseSize == 12, Comment(rawValue: "code size"))
         #expect(code.weight == .regular, Comment(rawValue: "code weight"))
         #expect(code.design == .monospaced, Comment(rawValue: "code design"))
         #expect(code.ink == .primary, Comment(rawValue: "code ink"))
 
         let codeMetadata = TranscriptTypography.style(for: .codeMetadata)
-        #expect(codeMetadata.baseSize == 10, Comment(rawValue: "codeMetadata size"))
+        #expect(codeMetadata.baseSize == 11.5, Comment(rawValue: "codeMetadata size"))
         #expect(codeMetadata.weight == .regular, Comment(rawValue: "codeMetadata weight"))
         #expect(codeMetadata.design == .monospaced, Comment(rawValue: "codeMetadata design"))
         #expect(codeMetadata.ink == .secondary, Comment(rawValue: "codeMetadata ink"))
 
         let inlineCode = TranscriptTypography.style(for: .inlineCode)
-        #expect(inlineCode.baseSize == 13.5, Comment(rawValue: "inlineCode size"))
+        #expect(inlineCode.baseSize == 12, Comment(rawValue: "inlineCode size"))
         #expect(inlineCode.weight == .regular, Comment(rawValue: "inlineCode weight"))
         #expect(inlineCode.design == .monospaced, Comment(rawValue: "inlineCode design"))
-        #expect(inlineCode.ink == .accent, Comment(rawValue: "inlineCode ink"))
+        #expect(inlineCode.ink == .primary, Comment(rawValue: "inlineCode ink"))
     }
 
     @Test("font(for:scale:) の weight/design が独立期待 Font と一致する")
@@ -144,22 +147,22 @@ struct AcceptanceTranscriptTypographyTests {
         // Font は Equatable。期待値は Style 表から生成せず、契約 Role 表のリテラルで組み立てる。
         #expect(
             TranscriptTypography.font(for: .body, scale: 1.0)
-                == Font.system(size: 15, weight: .regular, design: .default),
+                == Font.system(size: 13, weight: .regular, design: .default),
             Comment(rawValue: "body 1.0")
         )
         #expect(
             TranscriptTypography.font(for: .body, scale: 0.8)
-                == Font.system(size: 15 * 0.8, weight: .regular, design: .default),
+                == Font.system(size: 13 * 0.8, weight: .regular, design: .default),
             Comment(rawValue: "body 0.8")
         )
         #expect(
             TranscriptTypography.font(for: .body, scale: 2.0)
-                == Font.system(size: 15 * 2.0, weight: .regular, design: .default),
+                == Font.system(size: 13 * 2.0, weight: .regular, design: .default),
             Comment(rawValue: "body 2.0")
         )
         #expect(
             TranscriptTypography.font(for: .bodyStrong, scale: 1.0)
-                == Font.system(size: 15, weight: .semibold, design: .default),
+                == Font.system(size: 13, weight: .semibold, design: .default),
             Comment(rawValue: "bodyStrong")
         )
         #expect(
@@ -194,32 +197,32 @@ struct AcceptanceTranscriptTypographyTests {
         )
         #expect(
             TranscriptTypography.font(for: .processSummary, scale: 1.0)
-                == Font.system(size: 15, weight: .semibold, design: .default),
+                == Font.system(size: 12, weight: .medium, design: .default),
             Comment(rawValue: "processSummary")
         )
         #expect(
             TranscriptTypography.font(for: .metadata, scale: 1.0)
-                == Font.system(size: 10, weight: .regular, design: .default),
+                == Font.system(size: 11, weight: .regular, design: .default),
             Comment(rawValue: "metadata")
         )
         #expect(
             TranscriptTypography.font(for: .metadataStrong, scale: 1.0)
-                == Font.system(size: 10, weight: .medium, design: .default),
+                == Font.system(size: 11, weight: .medium, design: .default),
             Comment(rawValue: "metadataStrong")
         )
         #expect(
             TranscriptTypography.font(for: .code, scale: 1.0)
-                == Font.system(size: 13, weight: .regular, design: .monospaced),
+                == Font.system(size: 12, weight: .regular, design: .monospaced),
             Comment(rawValue: "code")
         )
         #expect(
             TranscriptTypography.font(for: .codeMetadata, scale: 1.0)
-                == Font.system(size: 10, weight: .regular, design: .monospaced),
+                == Font.system(size: 11.5, weight: .regular, design: .monospaced),
             Comment(rawValue: "codeMetadata")
         )
         #expect(
             TranscriptTypography.font(for: .inlineCode, scale: 1.0)
-                == Font.system(size: 13.5, weight: .regular, design: .monospaced),
+                == Font.system(size: 12, weight: .regular, design: .monospaced),
             Comment(rawValue: "inlineCode")
         )
         #expect(
@@ -250,15 +253,12 @@ struct AcceptanceTranscriptTypographyTests {
         #expect(TranscriptTypography.color(for: .metadataStrong) == DSColor.chatTextSecondary, Comment(rawValue: "metadataStrong"))
         #expect(TranscriptTypography.color(for: .code) == DSColor.chatTextPrimary, Comment(rawValue: "code"))
         #expect(TranscriptTypography.color(for: .codeMetadata) == DSColor.chatTextSecondary, Comment(rawValue: "codeMetadata"))
-        #expect(TranscriptTypography.color(for: .inlineCode) == DSColor.accentInk, Comment(rawValue: "inlineCode"))
+        #expect(TranscriptTypography.color(for: .inlineCode) == DSColor.chatTextPrimary, Comment(rawValue: "inlineCode"))
         #expect(
             TranscriptTypography.color(for: .processSummary) != DSColor.chatTextPrimary,
             Comment(rawValue: "processSummary は primary 固定ではない")
         )
-        #expect(
-            TranscriptTypography.color(for: .inlineCode) != DSColor.chatTextPrimary,
-            Comment(rawValue: "inlineCode は primary 固定ではない")
-        )
+
     }
 
     @Test("倍率 0.8 / 1.0 / 1.5 / 2.0 で pointSize は基準値×倍率")
@@ -274,7 +274,7 @@ struct AcceptanceTranscriptTypographyTests {
         }
     }
 
-    @Test("同一倍率で H1 ≥ H2 ≥ H3 ≥ H4＝H5＝H6＝body＝processSummary > metadata")
+    @Test("同一倍率で H1 ≥ H2 ≥ H3 ≥ H4＝H5＝H6 > body > processSummary > metadata")
     func headingAndBodyOrdering() {
         let scales: [CGFloat] = [0.8, 1.0, 1.5, 2.0]
         for scale in scales {
@@ -292,8 +292,8 @@ struct AcceptanceTranscriptTypographyTests {
             #expect(h3 >= h4, Comment(rawValue: "h3>=h4 @ \(scale)"))
             #expect(h4 == h5, Comment(rawValue: "h4==h5 @ \(scale)"))
             #expect(h5 == h6, Comment(rawValue: "h5==h6 @ \(scale)"))
-            #expect(h4 == body, Comment(rawValue: "h4==body @ \(scale)"))
-            #expect(body == process, Comment(rawValue: "body==process @ \(scale)"))
+            #expect(h4 > body, Comment(rawValue: "h4>body @ \(scale)"))
+            #expect(body > process, Comment(rawValue: "body>process @ \(scale)"))
             #expect(process > metadata, Comment(rawValue: "process>metadata @ \(scale)"))
         }
     }
@@ -302,8 +302,8 @@ struct AcceptanceTranscriptTypographyTests {
     func bodyStrongDiffersOnlyInWeight() {
         let body = TranscriptTypography.style(for: .body)
         let strong = TranscriptTypography.style(for: .bodyStrong)
-        #expect(body.baseSize == 15)
-        #expect(strong.baseSize == 15)
+        #expect(body.baseSize == 13)
+        #expect(strong.baseSize == 13)
         #expect(body.baseSize == strong.baseSize)
         #expect(TranscriptTypography.pointSize(for: .body, scale: 1.5)
             == TranscriptTypography.pointSize(for: .bodyStrong, scale: 1.5))
@@ -314,20 +314,20 @@ struct AcceptanceTranscriptTypographyTests {
         #expect(body.ink == strong.ink)
     }
 
-    @Test("code＝13、inlineCode＝13.5、codeMetadata＝10 の基準値と等幅指定")
+    @Test("code＝12、inlineCode＝12、codeMetadata＝11.5 の基準値と等幅指定")
     func codeRolesAreMonospacedAtFrozenSizes() {
         let code = TranscriptTypography.style(for: .code)
         let inlineCode = TranscriptTypography.style(for: .inlineCode)
         let codeMetadata = TranscriptTypography.style(for: .codeMetadata)
-        #expect(code.baseSize == 13)
-        #expect(inlineCode.baseSize == 13.5)
-        #expect(codeMetadata.baseSize == 10)
+        #expect(code.baseSize == 12)
+        #expect(inlineCode.baseSize == 12)
+        #expect(codeMetadata.baseSize == 11.5)
         #expect(code.design == .monospaced)
         #expect(inlineCode.design == .monospaced)
         #expect(codeMetadata.design == .monospaced)
-        #expect(TranscriptTypography.pointSize(for: .code, scale: 1.0) == 13)
-        #expect(TranscriptTypography.pointSize(for: .inlineCode, scale: 1.0) == 13.5)
-        #expect(TranscriptTypography.pointSize(for: .codeMetadata, scale: 1.0) == 10)
+        #expect(TranscriptTypography.pointSize(for: .code, scale: 1.0) == 12)
+        #expect(TranscriptTypography.pointSize(for: .inlineCode, scale: 1.0) == 12)
+        #expect(TranscriptTypography.pointSize(for: .codeMetadata, scale: 1.0) == 11.5)
     }
 
     @Test("間隔の値と majorSection > betweenAnswers > withinAnswer > metadataGap")

@@ -39,23 +39,23 @@ struct CompactingIndicatorCell: View {
         )
     }
 
+    /// PhloxChat.dc.html の isCompacting: 角丸 10・1pt 枠のカード。上 110pt に犬のアニメ、下に文言とステージ。
+    /// 視差を減らす設定では犬を止めた絵のまま出す。
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         AvatarMessageRow {
             Group {
                 if reduceMotion {
-                    staticCompactingText(scale: scale)
+                    card(scale: scale, date: compactingStartedAt, animated: false)
                 } else {
                     TimelineView(ThinkingAnimationModel.timelineSchedule(isVisible: isTimelineVisible)) { context in
-                        VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
-                            shimmeringCompactingText(scale: scale, date: context.date)
-                            CompactingDogSceneView(date: context.date, startDate: compactingStartedAt)
-                        }
+                        card(scale: scale, date: context.date, animated: true)
                     }
                 }
             }
-            .padding(.vertical, TranscriptTypography.metadataGap)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("会話を圧縮中"))
         }
         .onAppear {
             isInViewHierarchy = true
@@ -66,9 +66,60 @@ struct CompactingIndicatorCell: View {
         .onViewportVisibilityChange { isInViewport = $0 }
     }
 
+    private func card(scale: CGFloat, date: Date, animated: Bool) -> some View {
+        VStack(spacing: 0) {
+            CompactingDogSceneView(date: date, startDate: compactingStartedAt)
+                .frame(maxWidth: .infinity)
+                .frame(height: 110)
+            HStack(spacing: 10) {
+                Group {
+                    if animated {
+                        shimmeringCompactingText(scale: scale, date: date)
+                    } else {
+                        staticCompactingText(scale: scale)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Self.stageText(elapsed: date.timeIntervalSince(compactingStartedAt))
+                    .font(.system(size: 11 * scale))
+                    .monospacedDigit()
+                    .foregroundStyle(DSColor.textTertiary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(DSColor.separator, lineWidth: 1)
+        }
+    }
+
+    /// 「ステージ 3 / 6 · 砂漠」。全面踏破後のお祝いの間は「ゴール」。
+    static func stageText(elapsed: TimeInterval) -> Text {
+        switch CompactingDogAnimation.segment(elapsed: elapsed) {
+        case .stage(let stage, _):
+            let total = CompactingDogAnimation.Stage.allCases.count
+            return Text("ステージ \(stage.rawValue + 1) / \(total) · \(stageName(stage))")
+        case .goal:
+            return Text("ゴール")
+        }
+    }
+
+    private static func stageName(_ stage: CompactingDogAnimation.Stage) -> Text {
+        switch stage {
+        case .sea: Text("海")
+        case .river: Text("川")
+        case .desert: Text("砂漠")
+        case .volcano: Text("火山")
+        case .ice: Text("氷山")
+        case .moon: Text("宇宙")
+        }
+    }
+
     private func staticCompactingText(scale: CGFloat) -> some View {
-        Text("会話履歴を圧縮中…")
-            .font(ChatScaledFont.body(scale: scale).italic())
+        Text("会話を圧縮しています…")
+            .font(.system(size: 13 * scale).italic())
             .foregroundStyle(DSColor.chatTextSecondary)
     }
 
@@ -87,8 +138,8 @@ struct CompactingIndicatorCell: View {
             )
         }
 
-        return Text("会話履歴を圧縮中…")
-            .font(ChatScaledFont.body(scale: scale).italic())
+        return Text("会話を圧縮しています…")
+            .font(.system(size: 13 * scale).italic())
             .foregroundStyle(
                 LinearGradient(
                     stops: stops,

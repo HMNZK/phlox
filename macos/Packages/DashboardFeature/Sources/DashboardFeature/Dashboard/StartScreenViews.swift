@@ -476,11 +476,17 @@ struct SpawnGuardSheet: View {
     /// 起動する。true = worktree で分ける、false = 分けない。
     let onLaunch: (Bool) -> Void
 
-    @State private var separates = true
     @Environment(\.locale) private var locale
+
+    /// 09 の型: 衝突は取り返せる（B）、worktree の失敗はお知らせ（C・注意バッジ付き）。
+    private var isNotice: Bool {
+        if case .worktreeFailed = spawnGuard { return true }
+        return false
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            appIcon
             Text(verbatim: title)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(DSColor.textPrimary)
@@ -493,10 +499,6 @@ struct SpawnGuardSheet: View {
             switch spawnGuard {
             case .collision(_, _, let peers):
                 peerList(peers)
-                VStack(spacing: 2) {
-                    option(separates: true, title: "worktree で分けて起動（おすすめ）", detail: "新しい作業ツリーを作って、その中で動かします")
-                    option(separates: false, title: "同じディレクトリで起動", detail: "ファイルの競合は自分で管理します")
-                }
             case .worktreeFailed(_, _, let log):
                 ScrollView {
                     Text(verbatim: log)
@@ -509,23 +511,46 @@ struct SpawnGuardSheet: View {
                 .frame(maxHeight: 120)
                 .background(DSColor.fillSelected, in: RoundedRectangle(cornerRadius: 6))
             }
-            HStack(spacing: 8) {
-                Spacer(minLength: 0)
-                Button("キャンセル", role: .cancel, action: onCancel)
-                    .keyboardShortcut(.cancelAction)
+            // ボタンが 3 つ以上になるときは縦に並べ、既定（↩）を一番上に置く。
+            VStack(spacing: 8) {
                 switch spawnGuard {
                 case .collision:
-                    Button("起動") { onLaunch(separates) }
+                    Button { onLaunch(true) } label: { Text("worktree で分けて起動").frame(maxWidth: .infinity) }
                         .keyboardShortcut(.defaultAction)
                         .buttonStyle(.borderedProminent)
                         .tint(DSColor.accentFill)
+                    Button { onLaunch(false) } label: { Text("同じディレクトリで起動").frame(maxWidth: .infinity) }
+                    Button(role: .cancel, action: onCancel) { Text("キャンセル").frame(maxWidth: .infinity) }
+                        .keyboardShortcut(.cancelAction)
                 case .worktreeFailed:
-                    Button("worktree なしで起動") { onLaunch(false) }
+                    Button(role: .cancel, action: onCancel) { Text("閉じる").frame(maxWidth: .infinity) }
+                        .keyboardShortcut(.defaultAction)
+                        .buttonStyle(.borderedProminent)
+                        .tint(DSColor.accentFill)
+                    Button { onLaunch(false) } label: { Text("隔離なしで起動").frame(maxWidth: .infinity) }
                 }
             }
+            .controlSize(.large)
         }
         .padding(20)
         .frame(width: 460)
+        .onExitCommand(perform: onCancel)
+    }
+
+    /// アプリアイコン。お知らせの型には注意の三角バッジを重ねる（09）。
+    private var appIcon: some View {
+        Image(nsImage: NSApp.applicationIconImage)
+            .resizable()
+            .frame(width: 48, height: 48)
+            .overlay(alignment: .bottomTrailing) {
+                if isNotice {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .symbolRenderingMode(.multicolor)
+                        .font(.system(size: 20))
+                        .offset(x: 4, y: 4)
+                }
+            }
+            .accessibilityHidden(true)
     }
 
     private var title: String {
@@ -575,34 +600,5 @@ struct SpawnGuardSheet: View {
         }
         .background(DSColor.cardBackground, in: RoundedRectangle(cornerRadius: 6))
         .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(DSColor.separator, lineWidth: 1))
-    }
-
-    private func option(separates value: Bool, title: LocalizedStringKey, detail: LocalizedStringKey) -> some View {
-        let isOn = separates == value
-        return Button {
-            separates = value
-        } label: {
-            HStack(alignment: .top, spacing: 10) {
-                Circle()
-                    .strokeBorder(isOn ? DSColor.accentFill : DSColor.textTertiary, lineWidth: isOn ? 4 : 1.2)
-                    .frame(width: 14, height: 14)
-                    .padding(.top, 2)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(DSColor.textPrimary)
-                    Text(detail)
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(DSColor.textSecondary)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(isOn ? DSColor.fillSelected : Color.clear, in: RoundedRectangle(cornerRadius: 7))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isOn ? [.isSelected] : [])
     }
 }

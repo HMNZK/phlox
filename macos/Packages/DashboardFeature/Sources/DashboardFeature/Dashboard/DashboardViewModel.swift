@@ -1396,6 +1396,11 @@ public final class DashboardViewModel {
         max(subtreeSessionIDsDeepestFirst(rootedAt: id).count - 1, 0)
     }
 
+    /// 削除で巻き込まれる子孫セッション（浅い順）。削除の確認に名前と状態を並べるために使う（09 D3）。
+    public func descendantNodes(of id: SessionID) -> [SessionNode] {
+        subtreeSessionIDsDeepestFirst(rootedAt: id).reversed().filter { $0 != id }.compactMap { sessionNode(id: $0) }
+    }
+
     /// ワークスペース削除時にカスケードで波及する、当該ワークスペース外の子孫セッション件数。
     /// 集計は `subtreeSessionIDsDeepestFirst`（`descendantCount` と同根）を各配下セッションに適用し、
     /// ワークスペース内セッション ID を除いた重複なし件数とする。

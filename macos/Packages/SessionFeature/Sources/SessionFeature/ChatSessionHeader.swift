@@ -253,6 +253,7 @@ private struct ChatExportPopover: View {
     let title: String
     let onDone: () -> Void
 
+    @Environment(\.locale) private var locale
     @AppStorage(ChatTranscriptExportOptions.includesReasoningKey)
     private var includesReasoning = ChatTranscriptExportOptions().includesReasoning
     @AppStorage(ChatTranscriptExportOptions.includesCommandOutputKey)
@@ -285,7 +286,7 @@ private struct ChatExportPopover: View {
                 }
                 Button {
                     onDone()
-                    ChatTranscriptExportAction.save(session: viewModel)
+                    ChatTranscriptExportAction.save(session: viewModel, locale: locale)
                 } label: {
                     Text("書き出す…").frame(maxWidth: .infinity)
                 }

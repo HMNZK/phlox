@@ -166,17 +166,6 @@
         }
       }
     },
-    "このセッションを削除しますか?": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete this session?"
-          }
-        }
-      }
-    },
     "このプロジェクトを削除しますか?": {
       "extractionState": "manual",
       "localizations": {
@@ -276,17 +265,6 @@
         }
       }
     },
-    "セッションの起動に失敗しました": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Failed to start session"
-          }
-        }
-      }
-    },
     "セッションを選択してください": {
       "extractionState": "manual",
       "localizations": {
@@ -349,17 +327,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "No session history"
-          }
-        }
-      }
-    },
-    "ターミナルの内容と進行中の作業は失われます。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The terminal contents and any work in progress will be lost."
           }
         }
       }
@@ -1735,17 +1702,6 @@
         }
       }
     },
-    "ファイルがディスク上で変更されました": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The file changed on disk"
-          }
-        }
-      }
-    },
     "上書き": {
       "extractionState": "manual",
       "localizations": {
@@ -1753,17 +1709,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Overwrite"
-          }
-        }
-      }
-    },
-    "読み込み後にファイルが変更されました。下書きで上書きしますか？": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The file changed after it was loaded. Overwrite it with your draft?"
           }
         }
       }
@@ -2115,17 +2060,6 @@
         }
       }
     },
-    "ターミナルの内容と進行中の作業は失われます。保存していないファイル（%@）の変更も失われます。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The terminal contents and any work in progress will be lost, including unsaved changes to %@."
-          }
-        }
-      }
-    },
     "折りたたみ": {
       "localizations": {
         "en": {
@@ -2432,16 +2366,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Move and Restart"
-          }
-        }
-      }
-    },
-    "セッションは %@ で再起動されます。ターミナルの内容と進行中の作業は失われます。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The session restarts in %@. Terminal contents and work in progress will be lost."
           }
         }
       }
@@ -4671,28 +4595,6 @@
         }
       }
     },
-    "worktree で分けて起動（おすすめ）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Start in a separate worktree (recommended)"
-          }
-        }
-      }
-    },
-    "worktree なしで起動": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Start without a worktree"
-          }
-        }
-      }
-    },
     "worktree を作成しています…": {
       "extractionState": "manual",
       "localizations": {
@@ -4825,17 +4727,6 @@
         }
       }
     },
-    "ファイルの競合は自分で管理します": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You manage file conflicts yourself"
-          }
-        }
-      }
-    },
     "プロジェクトを選択": {
       "extractionState": "manual",
       "localizations": {
@@ -4953,17 +4844,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Start a new session"
-          }
-        }
-      }
-    },
-    "新しい作業ツリーを作って、その中で動かします": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Creates a new working tree and runs the agent in it"
           }
         }
       }
@@ -5107,6 +4987,347 @@
           "stringUnit": {
             "state": "translated",
             "value": "(CLI default)"
+          }
+        }
+      }
+    },
+    "%@ は外部で変更されています": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ was changed outside Phlox"
+          }
+        }
+      }
+    },
+    "%@ をフォルダごとゴミ箱に移します。ゴミ箱から戻せます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ and everything in it will be moved to the Trash. You can restore it from the Trash."
+          }
+        }
+      }
+    },
+    "%@ を起動できませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't start %@"
+          }
+        }
+      }
+    },
+    "Finder で表示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show in Finder"
+          }
+        }
+      }
+    },
+    "OK": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      }
+    },
+    "worktree で分けて起動": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start in a separate worktree"
+          }
+        }
+      }
+    },
+    "worktree は削除しましたが、次のブランチを削除できませんでした。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The worktree was removed, but this branch couldn't be deleted:"
+          }
+        }
+      }
+    },
+    "「%@」と子セッション %lld 件を削除しますか?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete “%1$@” and %2$lld child sessions?"
+          }
+        }
+      }
+    },
+    "「%@」を削除しますか?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete “%@”?"
+          }
+        }
+      }
+    },
+    "このプロジェクトの削除で子孫%lld件も削除されますか?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete this project and %lld descendant sessions?"
+          }
+        }
+      }
+    },
+    "ほか %lld 件": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "and %lld more"
+          }
+        }
+      }
+    },
+    "エージェント管理を開く": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Agent Console"
+          }
+        }
+      }
+    },
+    "ゴミ箱に入れる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to Trash"
+          }
+        }
+      }
+    },
+    "スキル「%@」をゴミ箱に入れますか?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the skill “%@” to the Trash?"
+          }
+        }
+      }
+    },
+    "セッションは %@ で再起動されます。ターミナルの内容と進行中の作業は失われ、元に戻せません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The session will restart in %@. The terminal contents and any work in progress will be lost. This can't be undone."
+          }
+        }
+      }
+    },
+    "セッションは終了しています。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The session has ended. "
+          }
+        }
+      }
+    },
+    "セッション用 worktree を残しています": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The session's worktree was kept"
+          }
+        }
+      }
+    },
+    "セッション用ブランチを残しています": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The session's branch was kept"
+          }
+        }
+      }
+    },
+    "ターミナルの内容と進行中の作業は失われ、元に戻せません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The terminal contents and any work in progress will be lost. This can't be undone."
+          }
+        }
+      }
+    },
+    "プロジェクトのフォルダとファイルは削除されません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The project folder and its files won't be deleted."
+          }
+        }
+      }
+    },
+    "会話を書き出す": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export Conversation"
+          }
+        }
+      }
+    },
+    "会話を書き出せませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't export the conversation"
+          }
+        }
+      }
+    },
+    "保存していないファイル（%@）の変更も失われます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsaved changes to %@ will also be lost."
+          }
+        }
+      }
+    },
+    "別の場所に保存…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save Elsewhere…"
+          }
+        }
+      }
+    },
+    "実行中のエージェントは停止します。会話とターミナルの内容は元に戻せません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running agents will be stopped. The conversation and terminal contents can't be restored."
+          }
+        }
+      }
+    },
+    "選んだ場所に書き込めませんでした。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phlox couldn't write to the chosen location."
+          }
+        }
+      }
+    },
+    "配下のセッションはすべて停止されます。この一覧に表示されていない子孫セッション%lld件も併せて削除されます。フォルダ自体は削除されません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All sessions in this project will be stopped. %lld descendant sessions not shown in this list will also be deleted. The folder itself won't be deleted."
+          }
+        }
+      }
+    },
+    "開いてから別のプログラムが書き換えました。上書きすると、その変更は失われ、元に戻せません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another program changed it after you opened it. If you overwrite, those changes will be lost. This can't be undone."
+          }
+        }
+      }
+    },
+    "隔離なしで起動": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start without isolation"
+          }
+        }
+      }
+    },
+    "worktree を削除できなかったため、次の場所に残しています。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The worktree couldn't be removed, so it was kept here:"
+          }
+        }
+      }
+    },
+    "セッション %lld 件の会話とターミナルの内容は元に戻せません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The conversations and terminal contents of %lld sessions can't be restored."
           }
         }
       }

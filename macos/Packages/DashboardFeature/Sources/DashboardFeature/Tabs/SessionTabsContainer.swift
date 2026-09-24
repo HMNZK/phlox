@@ -543,15 +543,17 @@ private struct FileTabView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task { await document.loadIfNeeded() }
-        .alert("ファイルがディスク上で変更されました", isPresented: $showsConflictAlert) {
+        .alert(Text("\(document.fileName) は外部で変更されています"), isPresented: $showsConflictAlert) {
             Button("上書き", role: .destructive) {
                 Task { await overwrite() }
             }
+            .keyboardShortcut(.delete, modifiers: .command)
             Button("キャンセル", role: .cancel) {}
                 .keyboardShortcut(.defaultAction)
         } message: {
-            Text("読み込み後にファイルが変更されました。下書きで上書きしますか？")
+            Text("開いてから別のプログラムが書き換えました。上書きすると、その変更は失われ、元に戻せません。")
         }
+        .dialogSeverity(.critical)
     }
 
     private func save() async {

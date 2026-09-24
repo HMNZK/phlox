@@ -47,15 +47,16 @@ struct ClaudeSkillsPane: View {
                     }
             }
         }
+        // 09 D8: ゴミ箱に移すだけで取り返せるので、実行を既定（↩）にする。
         .confirmationDialog(
-            "スキルを削除しますか？",
+            Text("スキル「\(skillPendingDeletion?.name ?? "")」をゴミ箱に入れますか?"),
             isPresented: Binding(
                 get: { skillPendingDeletion != nil },
                 set: { if !$0 { skillPendingDeletion = nil } }
             ),
             titleVisibility: .visible
         ) {
-            Button("ゴミ箱へ移す", role: .destructive) {
+            Button("ゴミ箱に入れる") {
                 guard let skill = skillPendingDeletion else { return }
                 skillPendingDeletion = nil
                 model.deleteSkill(skill)
@@ -65,12 +66,13 @@ struct ClaudeSkillsPane: View {
                     loadedSkillID = nil
                 }
             }
+            .keyboardShortcut(.defaultAction)
             Button("キャンセル", role: .cancel) {
                 skillPendingDeletion = nil
             }
         } message: {
             if let skill = skillPendingDeletion {
-                Text("「\(skill.name)」をゴミ箱へ移します。完全には削除されず、必要なら Finder から復元できます。")
+                Text("\((skill.directoryURL.path as NSString).abbreviatingWithTildeInPath) をフォルダごとゴミ箱に移します。ゴミ箱から戻せます。")
             }
         }
     }

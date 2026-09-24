@@ -659,6 +659,7 @@ private struct FontSizeCommands: Commands {
 private struct SessionCommands: Commands {
     var dashboard: DashboardViewModel?
     var router: AppRouter?
+    @AppStorage(LanguageSettings.languageKey) private var appLanguageRaw = AppLanguage.system.rawValue
 
     var body: some Commands {
         CommandMenu("セッション") {
@@ -754,7 +755,7 @@ private struct SessionCommands: Commands {
             // 対話 TUI の /export 相当。チャットセッションのみ対象（PTY は transcript を持たない）。
             Button {
                 guard let chat = exportableChatSession else { return }
-                ChatTranscriptExportAction.save(session: chat)
+                ChatTranscriptExportAction.save(session: chat, locale: (AppLanguage(rawValue: appLanguageRaw) ?? .system).locale, showsOptions: true)
             } label: {
                 Label("会話を書き出す…", systemImage: "square.and.arrow.up")
             }

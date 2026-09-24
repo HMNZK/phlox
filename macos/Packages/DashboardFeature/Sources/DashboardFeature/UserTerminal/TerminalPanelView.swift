@@ -37,7 +37,9 @@ public final class TerminalPanelSession {
                 do {
                     try await controller.resize(cols: cols, rows: rows)
                 } catch {
-                    coordinator?.feed(Data("\r\n[ターミナルの表示サイズを更新できませんでした]\r\n".utf8))
+                    // 07 D7: 赤（#FF8A8D）の 1 行。端末は常に暗い面なので色は固定。
+                    let message = String(format: AppLocalizedString.string("[Phlox] シェルのサイズ変更に失敗しました（%@）。", locale: TerminalPanelSession.displayLocale), error.localizedDescription)
+                    coordinator?.feed(Data("\r\n\u{1B}[38;2;255;138;141m\(message)\u{1B}[0m\r\n".utf8))
                 }
             }
         }
@@ -53,6 +55,12 @@ public final class TerminalPanelSession {
                 coordinator.feed(data)
             }
         }
+    }
+
+    /// 端末に流す文言の表示言語（App の `LanguageSettings` と同じキー。未設定・"system" は OS に従う）。
+    static var displayLocale: Locale {
+        guard let code = UserDefaults.standard.string(forKey: "phlox.appLanguage"), code != "system" else { return .autoupdatingCurrent }
+        return Locale(identifier: code)
     }
 
     /// 初回表示と、自然終了したシェルを再び表示するときにだけ起動する。
@@ -80,14 +88,17 @@ public struct TerminalPanelView: View {
     public let panel: TerminalPanelSession
     /// グリッドのタイルではタイルの見出しがあるので出さない。
     let showsHeader: Bool
+    /// 文字サイズを変えたときの中央の表示（07 D8）。グリッドのタイルでは全タイルに一斉に出るので出さない。
+    let showsFontSizeHUD: Bool
 
     @AppStorage(TerminalFontSettings.fontSizeKey) private var fontSize = Double(NSFont.systemFontSize)
     @Environment(\.adjustTerminalFontSize) private var adjustFontSize
     @State private var hudVisibleUntil: Date?
 
-    public init(panel: TerminalPanelSession, showsHeader: Bool = true) {
+    public init(panel: TerminalPanelSession, showsHeader: Bool = true, showsFontSizeHUD: Bool = true) {
         self.panel = panel
         self.showsHeader = showsHeader
+        self.showsFontSizeHUD = showsFontSizeHUD
     }
 
     public var body: some View {
@@ -109,7 +120,7 @@ public struct TerminalPanelView: View {
         }
         .onChange(of: fontSize) { _, newValue in
             panel.terminalCoordinator.applyFontSize(CGFloat(newValue))
-            guard showsHeader else { return }
+            guard showsFontSizeHUD else { return }
             let until = Date().addingTimeInterval(1)
             hudVisibleUntil = until
             Task { @MainActor in

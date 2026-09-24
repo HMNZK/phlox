@@ -105,6 +105,11 @@ public final class ChatSessionViewModel: Identifiable {
     public private(set) var turnUsageByItemID: [String: TurnUsage] = [:]
     public private(set) var lastTurnCostUSD: Double?
     public private(set) var sessionTotalCostUSD: Double = 0
+    /// 保存した総コストを読み込んだか（読めたら転写からの推定で上書きしない）。
+    private var restoredSavedTotalCost = false
+    /// Claude が直前に送った累計（`total_cost_usd`）。再開した会話では再開前の分も含むので保存した値から始める。nil はわからないとき（履歴から再開した直後）。
+    private var claudeReportedTotalCostUSD: Double? = 0
+    private var totalCostSave: Task<Void, Never>?
     /// composer 下書きの単一の正本（task-4 契約。受け入れテスト ComposerDraftPersistence が凍結）。
     /// View ローカル @State に持つとシングル⇄グリッド切替のビュー再生成で消える（F バグの根本原因）。
     public var draft: String = ""
@@ -605,6 +610,9 @@ public final class ChatSessionViewModel: Identifiable {
         startEventTasks()
         let loaded = historyTranscriptLoader(entry)
         setTranscript(loaded)
+        // 履歴の JSONL にはコストが無く、再開前の累計がわからない。最初に届く累計を総コストにする。
+        sessionTotalCostUSD = 0
+        claudeReportedTotalCostUSD = nil
         touchOutput()
         // 履歴 JSONL 由来の表示のみ。起動時は Phlox transcriptStore へは書かない（二重永続化を避ける）。
         // 以降のターン境界 flush（`flushTranscriptAtTurnBoundary`）で loaded 履歴も store に載る（正規経路）。
@@ -1129,6 +1137,8 @@ public final class ChatSessionViewModel: Identifiable {
 
         // CLI 側会話をリセット（ちょうど 1 回）し、旧 native id を破棄する。
         await client.resetConversation()
+        // 新しい CLI の会話は累計を 0 から数える。
+        claudeReportedTotalCostUSD = 0
         // Codex は reset で新 thread が確定するので、それを採用して以後のイベント弁別に使う
         // （threadId が旧 thread のまま/nil のままだと、旧 thread の遅延イベント遮断や新 thread の
         // イベント採用が成立しない）。spawn 型（Codex 以外）は新 native id を CLI が後から通知するため
@@ -1893,11 +1903,13 @@ public final class ChatSessionViewModel: Identifiable {
         case .turnUsage(let usage):
             markRunningEventReceived(at: eventDate)
             lastTurnUsage = usage
-            lastTurnCostUSD = usage.costUSD
-            pendingTurnCostUSD = usage.costUSD
+            let cost = turnCost(from: usage.costUSD)
+            lastTurnCostUSD = cost.turn
+            pendingTurnCostUSD = cost.turn
             pendingTurnUsage = usage
-            sessionTotalCostUSD += usage.costUSD ?? 0
+            sessionTotalCostUSD += cost.addedToTotal
             persistTurnUsageSnapshot(usage)
+            if usage.costUSD != nil { persistSessionTotalCost() }
         case .availableCommandsUpdated(let commands):
             availableSlashCommands = commands
             // 次回セッションの init 到着前に補完へ渡す種として永続化する。
@@ -2590,8 +2602,34 @@ public final class ChatSessionViewModel: Identifiable {
         for item in persisted {
             appendOrReplace(item)
         }
+        if !restoredSavedTotalCost {
+            sessionTotalCostUSD = Self.legacyTotalCostUSD(of: persisted)
+            claudeReportedTotalCostUSD = sessionTotalCostUSD
+        }
         touchOutput()
         adoptTitleFromLocalTranscript(persisted)
+    }
+
+    /// 1 ターンのコストと総コストに足す額。Claude の `total_cost_usd` はセッションの累計（再開前の分も含む）なので
+    /// 直前の累計との差にする。累計が減ったとき（別の会話として始まった）は届いた値をそのまま 1 ターン分とみなす。
+    /// 直前の累計がわからないとき（履歴から再開した直後）は、ターンのコストを出さず累計をそのまま総コストに足す。
+    /// ほかのエージェントは届いた値のまま。
+    private func turnCost(from reported: Double?) -> (turn: Double?, addedToTotal: Double) {
+        guard let reported else { return (nil, 0) }
+        guard case .builtin(.claudeCode) = agentRef else { return (reported, reported) }
+        defer { claudeReportedTotalCostUSD = reported }
+        guard let previous = claudeReportedTotalCostUSD else { return (nil, reported) }
+        let turn = reported >= previous ? reported - previous : reported
+        return (turn, turn)
+    }
+
+    /// 総コストを保存する前の会話の総コスト。以前は Claude の累計（`total_cost_usd`）をそのままターンのコストに
+    /// 入れていたので、最後の項目が総額になる（コストを送るのは Claude だけ）。保存した総コストがあればそちらを使う。
+    static func legacyTotalCostUSD(of items: [ChatItem]) -> Double {
+        for item in items.reversed() {
+            if case .turnCost(_, let costUSD, _) = item { return costUSD }
+        }
+        return 0
     }
 
     private func restoreTranscriptFromStore() async -> Bool {
@@ -2608,6 +2646,33 @@ public final class ChatSessionViewModel: Identifiable {
             }
         } catch {
             logRestoreFailure(error)
+        }
+        do {
+            if let saved = try await transcriptStore.loadSessionTotalCost(for: id) {
+                sessionTotalCostUSD = saved.totalUSD
+                claudeReportedTotalCostUSD = saved.lastReportedUSD
+                restoredSavedTotalCost = true
+            }
+        } catch {
+            logRestoreFailure(error)
+        }
+    }
+
+    /// 総コストの保存は直列にする（連続したターンの保存が逆順に終わって古い額が残らないように）。
+    private func persistSessionTotalCost() {
+        guard let transcriptStore else { return }
+        let cost = SessionTotalCost(totalUSD: sessionTotalCostUSD, lastReportedUSD: claudeReportedTotalCostUSD ?? 0)
+        let sessionID = id
+        let previous = totalCostSave
+        totalCostSave = Task {
+            await previous?.value
+            do {
+                try await transcriptStore.saveSessionTotalCost(cost, for: sessionID)
+            } catch {
+                await MainActor.run {
+                    logRestoreFailure(error)
+                }
+            }
         }
     }
 
@@ -3347,6 +3412,7 @@ extension ChatSessionViewModel: ControllableSession {
         enqueueTranscriptUpsert(transcript.filter(shouldStoreInTranscript))
         midTurnPersistenceGate.noteExternalFlush()
         await transcriptPersistenceQueue?.waitForPendingWrites()
+        await totalCostSave?.value
     }
 
     public func readText(lines: Int) -> String {
@@ -3377,6 +3443,7 @@ extension ChatSessionViewModel: ControllableSession {
         clearRunningBackgroundTasks()
         subAgentModel.failRunningSubAgents()
         await transcriptPersistenceQueue?.waitForPendingWrites()
+        await totalCostSave?.value
         clearSentRuntimeAttachmentCache()
         localOriginalUserTextByID.removeAll()
         releaseNativeSkillInputDirectories()

@@ -478,7 +478,8 @@ struct EditorPanelGitCommitUIWhiteboxTests {
             measured >= withoutStatus + 40,
             "長い失敗出力でも状態表示ブロックが無い: without=\(withoutStatus) with=\(measured)"
         )
-        #expect(measured < withoutStatus + 120, "長い失敗表示が折りたたまれていない: \(measured)")
+        // 07 D5 の箱: 余白 7 + 要約の行 20 + 間 6 + 畳んだログ 84 + 余白 7 + 欄の間 7 ≈ 131。全文（26 行）なら 400 を超える。
+        #expect(measured < withoutStatus + 140, "長い失敗表示が折りたたまれていない: \(measured)")
         #expect(viewModel.workflowStatusMessage != nil)
 
         viewModel.dismissWorkflowStatus()

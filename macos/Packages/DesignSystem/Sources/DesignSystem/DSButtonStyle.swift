@@ -3,6 +3,7 @@ import SwiftUI
 /// 共通のボタン（12 Design System P「ボタン」）。高さ 28・角丸 6・13pt。
 /// 主 = accent の面に白文字 600、副 = 操作面＋0.5pt の縁、破壊的 = 副の形に赤い文字 600、
 /// 文字だけ = 面なしの補助色。無効は 45%。`keyHint` はボタン内の小さなキーの表示（10.5pt・0.85）。
+/// 小さい面（07 のコミット欄 24 高・12pt、使用量の「更新」22 高・11.5pt）は高さ・文字・左右の余白を渡す。
 public struct DSButtonStyle: ButtonStyle {
     public enum Kind: Sendable {
         case primary
@@ -14,12 +15,16 @@ public struct DSButtonStyle: ButtonStyle {
     let kind: Kind
     let keyHint: String?
     let height: CGFloat
+    let fontSize: CGFloat
+    let padding: CGFloat?
     @Environment(\.isEnabled) private var isEnabled
 
-    public init(_ kind: Kind, keyHint: String? = nil, height: CGFloat = 28) {
+    public init(_ kind: Kind, keyHint: String? = nil, height: CGFloat = 28, fontSize: CGFloat = 13, padding: CGFloat? = nil) {
         self.kind = kind
         self.keyHint = keyHint
         self.height = height
+        self.fontSize = fontSize
+        self.padding = padding
     }
 
     public func makeBody(configuration: Configuration) -> some View {
@@ -31,10 +36,10 @@ public struct DSButtonStyle: ButtonStyle {
                     .opacity(0.85)
             }
         }
-        .font(.system(size: 13, weight: kind == .primary || kind == .destructive ? .semibold : .regular))
+        .font(.system(size: fontSize, weight: kind == .primary || kind == .destructive ? .semibold : .regular))
         .foregroundStyle(foreground)
         .lineLimit(1)
-        .padding(.horizontal, horizontalPadding)
+        .padding(.horizontal, padding ?? horizontalPadding)
         .frame(height: height)
         .background {
             switch kind {
@@ -75,7 +80,7 @@ public struct DSButtonStyle: ButtonStyle {
 }
 
 public extension ButtonStyle where Self == DSButtonStyle {
-    static func ds(_ kind: DSButtonStyle.Kind, keyHint: String? = nil, height: CGFloat = 28) -> DSButtonStyle {
-        DSButtonStyle(kind, keyHint: keyHint, height: height)
+    static func ds(_ kind: DSButtonStyle.Kind, keyHint: String? = nil, height: CGFloat = 28, fontSize: CGFloat = 13, padding: CGFloat? = nil) -> DSButtonStyle {
+        DSButtonStyle(kind, keyHint: keyHint, height: height, fontSize: fontSize, padding: padding)
     }
 }

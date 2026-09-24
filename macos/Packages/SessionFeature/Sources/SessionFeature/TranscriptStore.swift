@@ -10,6 +10,20 @@ public protocol TranscriptStore: Sendable {
     func replaceTranscript(for sessionID: SessionID, with items: [ChatItem]) async throws
     func loadTurnUsageSnapshot(for sessionID: SessionID) async throws -> TurnUsage?
     func saveTurnUsageSnapshot(_ usage: TurnUsage, for sessionID: SessionID) async throws
+    /// セッションの総コスト（ターンのコストの合計）。インスペクタの「総コスト」を復元するために持つ。
+    func loadSessionTotalCost(for sessionID: SessionID) async throws -> SessionTotalCost?
+    func saveSessionTotalCost(_ cost: SessionTotalCost, for sessionID: SessionID) async throws
+}
+
+/// 総コストと、Claude が最後に送った累計（`total_cost_usd`）。累計は取り消しで 0 に戻るので総コストとは別に持つ。
+public struct SessionTotalCost: Codable, Equatable, Sendable {
+    public var totalUSD: Double
+    public var lastReportedUSD: Double
+
+    public init(totalUSD: Double, lastReportedUSD: Double) {
+        self.totalUSD = totalUSD
+        self.lastReportedUSD = lastReportedUSD
+    }
 }
 
 public extension TranscriptStore {
@@ -18,6 +32,12 @@ public extension TranscriptStore {
     }
 
     func saveTurnUsageSnapshot(_ usage: TurnUsage, for sessionID: SessionID) async throws {}
+
+    func loadSessionTotalCost(for sessionID: SessionID) async throws -> SessionTotalCost? {
+        nil
+    }
+
+    func saveSessionTotalCost(_ cost: SessionTotalCost, for sessionID: SessionID) async throws {}
 }
 
 public struct NoOpTranscriptStore: TranscriptStore {
@@ -100,11 +120,29 @@ public actor FileTranscriptStore: TranscriptStore {
         try data.write(to: usageFileURL(for: sessionID), options: [.atomic])
     }
 
+    public func loadSessionTotalCost(for sessionID: SessionID) async throws -> SessionTotalCost? {
+        let url = costFileURL(for: sessionID)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return try decoder.decode(SessionTotalCost.self, from: Data(contentsOf: url))
+    }
+
+    public func saveSessionTotalCost(_ cost: SessionTotalCost, for sessionID: SessionID) async throws {
+        try FileManager.default.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: true
+        )
+        try encoder.encode(cost).write(to: costFileURL(for: sessionID), options: [.atomic])
+    }
+
     private func fileURL(for sessionID: SessionID) -> URL {
         directoryURL.appending(path: "\(sessionID.rawValue.uuidString).json")
     }
 
     private func usageFileURL(for sessionID: SessionID) -> URL {
         directoryURL.appending(path: "\(sessionID.rawValue.uuidString).usage.json")
+    }
+
+    private func costFileURL(for sessionID: SessionID) -> URL {
+        directoryURL.appending(path: "\(sessionID.rawValue.uuidString).cost.json")
     }
 }

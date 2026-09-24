@@ -62,35 +62,73 @@ func editorChangeColor(for change: WorkingTreeChange) -> Color {
     }
 }
 
-/// 変更の子タブ（02 C）。変更一覧・差分／内容・コミット。編集はファイルの子タブで行う。
+/// 変更の子タブ（02 C・07 D2）。上から見出しの帯・共有の注意・変更一覧と差分／内容・下端に固定したコミット欄。
+/// 編集はファイルの子タブで行う。
 public struct EditorPanelView: View {
     @Bindable private var viewModel: EditorPanelViewModel
     @State private var previewLineLimit = 500
     @State private var showsContent = false
     @Environment(\.locale) private var locale
-    @ScaledMetric(relativeTo: .body) private var splitChangeListMaxWidth: CGFloat = 320
-    @ScaledMetric(relativeTo: .body) private var splitChangeListIdealWidth: CGFloat = 240
-    @ScaledMetric(relativeTo: .body) private var editorMinHeight: CGFloat = 160
-    @ScaledMetric(relativeTo: .body) private var stackedDetailMinHeight: CGFloat = 72
-    @ScaledMetric(relativeTo: .body) private var stackedDetailIdealHeight: CGFloat = 96
-    @ScaledMetric(relativeTo: .body) private var stackedChangeListMinHeight: CGFloat = 72
-    @ScaledMetric(relativeTo: .body) private var stackedChangeListIdealHeight: CGFloat = 180
-    @ScaledMetric(relativeTo: .body) private var minimumTapTarget: CGFloat = 28
+    private let projectName: String
+    private let workingDirectory: String
+    private let isDirty: (String) -> Bool
     /// 選んだ変更ファイルをファイルの子タブで開く。
     private let onEditFile: (String) -> Void
 
-    public init(viewModel: EditorPanelViewModel, onEditFile: @escaping (String) -> Void = { _ in }) {
+    /// 左右分割の一覧の幅（07 D2b）。
+    static let splitChangeListWidth: CGFloat = 220
+    /// 上下積みの一覧の高さの上限。
+    static let stackedChangeListMaxHeight: CGFloat = 190
+
+    public init(
+        viewModel: EditorPanelViewModel,
+        projectName: String = "",
+        workingDirectory: String = "",
+        isDirty: @escaping (String) -> Bool = { _ in false },
+        onEditFile: @escaping (String) -> Void = { _ in }
+    ) {
         _viewModel = Bindable(wrappedValue: viewModel)
+        self.projectName = projectName
+        self.workingDirectory = workingDirectory
+        self.isDirty = isDirty
         self.onEditFile = onEditFile
     }
 
     public var body: some View {
         GeometryReader { geometry in
-            // 分割ビューが理想の高さで伸びてはみ出さないよう、タブの大きさに固定する。
-            editorContent(for: EditorPanelLayout.mode(forWidth: geometry.size.width))
-                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+            VStack(spacing: 0) {
+                header
+                if case .shared = viewModel.changeScope {
+                    ChangeScopeNotice()
+                }
+                switch viewModel.listState {
+                case .noProject:
+                    centeredMessage(Text("プロジェクトが選択されていません"), detail: nil)
+                case .notARepository:
+                    centeredMessage(
+                        Text("Git リポジトリではありません"),
+                        detail: Text(verbatim: String(
+                            format: AppLocalizedString.string("%@ には .git がないため、変更の一覧とコミットは使えません。ファイルの編集はターミナルから行えます。", locale: locale),
+                            abbreviatedWorkingDirectory
+                        ))
+                    )
+                case .ready:
+                    if let listErrorMessage = viewModel.listErrorMessage {
+                        centeredMessage(Text("変更を読み込めません"), detail: Text(verbatim: listErrorMessage))
+                    } else {
+                        // 分割ビューが理想の高さで伸びてはみ出さないよう、残りの高さに収める。
+                        editorContent(for: EditorPanelLayout.mode(forWidth: geometry.size.width))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    }
+                }
+                if showsCommitPanel {
+                    GitCommitPanel(viewModel: viewModel)
+                }
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DSColor.background)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("tab.changes"))
         .accessibilityIdentifier("editor-panel")
@@ -100,45 +138,98 @@ public struct EditorPanelView: View {
         }
     }
 
+    private var abbreviatedWorkingDirectory: String {
+        (workingDirectory as NSString).abbreviatingWithTildeInPath
+    }
+
+    /// 高さ 34・panel 面の帯。「エディタ」「プロジェクト · 変更 n」（Git でなければ場所）と更新。
+    private var header: some View {
+        HStack(spacing: 8) {
+            Text("エディタ")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(DSColor.textPrimary)
+            Text(verbatim: headerSubtitle)
+                .font(.system(size: 11))
+                .foregroundStyle(DSColor.textTertiary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 0)
+            Button {
+                Task { await viewModel.refresh() }
+            } label: {
+                ZStack {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12))
+                        .foregroundStyle(DSColor.textSecondary)
+                        .opacity(viewModel.isRefreshing ? 0 : 1)
+                    if viewModel.isRefreshing {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .accessibilityLabel("変更を更新中")
+                    }
+                }
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(HoverableIconButtonStyle())
+            .disabled(viewModel.isRefreshing)
+            .help(Text("変更を更新"))
+            .accessibilityLabel(Text("変更を更新"))
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 8)
+        .frame(height: 34)
+        .background(DSColor.surface)
+        .overlay(alignment: .bottom) { separator(horizontal: true) }
+    }
+
+    private var headerSubtitle: String {
+        if case .notARepository = viewModel.listState { return abbreviatedWorkingDirectory }
+        return String(format: AppLocalizedString.string("%@ · 変更 %lld", locale: locale), projectName, viewModel.changes.count)
+    }
+
+    private func centeredMessage(_ title: Text, detail: Text?) -> some View {
+        VStack(spacing: 8) {
+            title
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(DSColor.textPrimary)
+            if let detail {
+                detail
+                    .font(.system(size: 12))
+                    .foregroundStyle(DSColor.textSecondary)
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .multilineTextAlignment(.center)
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func separator(horizontal: Bool) -> some View {
+        Rectangle()
+            .fill(DSColor.separator)
+            .frame(width: horizontal ? nil : 1, height: horizontal ? 1 : nil)
+    }
+
     /// タブ幅に応じて左右分割・上下積みを切り替える。しきい値の判断は
     /// `EditorPanelLayout`（純粋型・白箱テスト対象）へ切り出してある。
     @ViewBuilder
     private func editorContent(for mode: EditorPanelLayout) -> some View {
         switch mode {
         case .split:
-            HSplitView {
+            HStack(spacing: 0) {
                 changeList
-                    .frame(
-                        minWidth: EditorPanelLayout.changeListMinWidth,
-                        idealWidth: splitChangeListIdealWidth,
-                        maxWidth: splitChangeListMaxWidth,
-                        maxHeight: .infinity,
-                        alignment: .top
-                    )
-
+                    .frame(width: Self.splitChangeListWidth)
+                separator(horizontal: false)
                 detailPane
-                    .frame(minWidth: EditorPanelLayout.detailPaneMinWidth, maxHeight: .infinity, alignment: .top)
             }
         case .stacked:
-            VSplitView {
-                ScrollView {
-                    changeFilesSection
-                        .padding(DSSpacing.l)
-                }
-                .frame(
-                    minHeight: stackedChangeListMinHeight,
-                    idealHeight: stackedChangeListIdealHeight
-                )
-
-                if showsCommitPanel {
-                    ScrollView {
-                        GitCommitPanel(viewModel: viewModel)
-                            .padding(.horizontal, DSSpacing.l)
-                    }
-                }
-
+            VStack(spacing: 0) {
+                changeList
+                    .frame(maxHeight: Self.stackedChangeListMaxHeight)
+                separator(horizontal: true)
                 detailPane
-                    .frame(minHeight: stackedDetailMinHeight, idealHeight: stackedDetailIdealHeight)
             }
         }
     }
@@ -154,91 +245,31 @@ public struct EditorPanelView: View {
 
     private var changeList: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DSSpacing.s) {
-                changeFilesSection
-                if showsCommitPanel {
-                    Divider()
-                    GitCommitPanel(viewModel: viewModel)
+            LazyVStack(alignment: .leading, spacing: 1) {
+                ForEach(viewModel.changes, id: \.path) { change in
+                    changeFileRow(change)
                 }
             }
-            .padding(DSSpacing.l)
+            .padding(.vertical, 4)
+            .padding(.horizontal, 6)
         }
     }
 
-    @ViewBuilder
-    private var changeFilesSection: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.s) {
-            if case .shared = viewModel.changeScope, !showsCommitPanel {
-                ChangeScopeNotice()
-            }
-            changeFilesSectionHeader
-            changeFilesBody
-        }
-    }
-
-    @ViewBuilder
-    private var changeFilesSectionHeader: some View {
-        HStack {
-            Text("tab.changes")
-                .font(DSFont.sectionHeader)
-            Spacer()
-            Button("更新") {
-                Task { await viewModel.refresh() }
-            }
-            .disabled(viewModel.isRefreshing)
-            ProgressView()
-                .controlSize(.small)
-                .accessibilityLabel("変更を更新中")
-                .opacity(viewModel.isRefreshing ? 1 : 0)
-                .accessibilityHidden(!viewModel.isRefreshing)
-        }
-    }
-
-    @ViewBuilder
-    private var changeFilesBody: some View {
-        switch viewModel.listState {
-        case .noProject:
-            ContentUnavailableView("プロジェクトが選択されていません", systemImage: "folder")
-        case .notARepository:
-            ContentUnavailableView("Gitリポジトリではありません", systemImage: "exclamationmark.triangle")
-        case .ready:
-            if let listErrorMessage = viewModel.listErrorMessage {
-                ContentUnavailableView(
-                    "変更を読み込めません",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(listErrorMessage)
-                )
-            } else {
-                changeFileRows
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var changeFileRows: some View {
-        LazyVStack(alignment: .leading, spacing: DSSpacing.xxs) {
-            ForEach(viewModel.changes, id: \.path) { change in
-                changeFileRow(change)
-            }
-        }
-    }
-
+    /// 高さ 34 の行。チェック（13×13）・種別の文字・名前とフォルダ・未保存の点。選択中は `--sel`。
     private func changeFileRow(_ change: WorkingTreeChange) -> some View {
-        HStack(spacing: DSSpacing.xs) {
+        let checked = viewModel.pathsSelectedForCommit.contains(change.path)
+        return HStack(spacing: 4) {
             Button {
                 viewModel.toggleCommitSelection(for: change.path)
             } label: {
-                Image(
-                    systemName: viewModel.pathsSelectedForCommit.contains(change.path)
-                        ? "checkmark.square.fill"
-                        : "square"
-                )
-                .foregroundStyle(DSColor.textSecondary)
-                .frame(width: minimumTapTarget, height: minimumTapTarget)
-                .contentShape(Rectangle())
+                CommitCheckbox(isOn: checked)
+                    .padding(.horizontal, 4)
+                    .frame(maxHeight: .infinity)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(change.path) をコミット対象に選択")
+            .accessibilityAddTraits(checked ? .isSelected : [])
             .accessibilityIdentifier("git-commit-select-\(change.path)")
 
             Button {
@@ -262,21 +293,28 @@ public struct EditorPanelView: View {
                             .truncationMode(.head)
                     }
                     Spacer(minLength: 0)
+                    if isDirty(change.path) {
+                        Circle()
+                            .fill(DSColor.textPrimary)
+                            .frame(width: 6, height: 6)
+                            .accessibilityLabel(Text("未保存"))
+                    }
                 }
-                .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
-                .padding(.horizontal, DSSpacing.xs)
-                .background(
-                    viewModel.selectedPath == change.path
-                        ? DSColor.fillSelected
-                        : .clear,
-                    in: RoundedRectangle(cornerRadius: 6)
-                )
+                .padding(.trailing, 8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help(Text(verbatim: change.path))
             .accessibilityLabel(Text(verbatim: "\(editorChangeLetter(for: change)) \(change.path)"))
+            .accessibilityAddTraits(viewModel.selectedPath == change.path ? .isSelected : [])
         }
+        .padding(.leading, 4)
+        .frame(height: 34)
+        .background(
+            viewModel.selectedPath == change.path ? DSColor.fillSelected : .clear,
+            in: RoundedRectangle(cornerRadius: 6)
+        )
     }
 
     /// 行の 2 行目。フォルダ（バイナリは「（バイナリ）」を足す）。
@@ -287,118 +325,175 @@ public struct EditorPanelView: View {
     }
 
     private var detailPane: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.m) {
-            detailPreview
-
-            if let readOnlyMessage = viewModel.readOnlyMessage {
-                Label(readOnlyMessage, systemImage: "eye")
-                    .font(DSFont.caption)
-                    .foregroundStyle(DSColor.textSecondary)
+        VStack(spacing: 0) {
+            switch viewModel.detail {
+            case .none:
+                placeholder(Text("変更されたファイルを選択"))
+            case .binary:
+                detailHeader(canSwitch: false)
+                placeholder(Text("バイナリファイル"))
+            case .diff(let diff):
+                // 差分のとき、中身を読めていれば「差分 / 内容」を切り替えられる（07 の対応表）。
+                detailHeader(canSwitch: viewModel.canEdit)
+                if showsContent && viewModel.canEdit {
+                    codeLines(EditorCodeLines.content(viewModel.draft), isDiff: false)
+                } else {
+                    codeLines(EditorCodeLines.diff(diff), isDiff: true)
+                }
+            case .content(let content):
+                detailHeader(canSwitch: false)
+                codeLines(EditorCodeLines.content(content), isDiff: false)
             }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
 
+    private func placeholder(_ text: Text) -> some View {
+        text
+            .font(.system(size: 12))
+            .foregroundStyle(DSColor.textTertiary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// 高さ 30 の帯。「差分 / 内容」・ファイル名・（読むだけの理由）・ファイルタブで編集。
+    private func detailHeader(canSwitch: Bool) -> some View {
+        HStack(spacing: 8) {
+            if canSwitch {
+                NeutralSegmentedControl(
+                    selection: $showsContent,
+                    options: [(false, "差分"), (true, "内容")],
+                    fillsWidth: false,
+                    height: 20,
+                    fontSize: 11.5
+                )
+                .fixedSize()
+            }
+            if let path = viewModel.selectedPath {
+                Text(verbatim: (path as NSString).lastPathComponent)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(DSColor.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(Text(verbatim: path))
+            }
+            Spacer(minLength: 0)
+            if let readOnlyMessage = viewModel.readOnlyMessage {
+                Text(verbatim: readOnlyMessage)
+                    .font(.system(size: 11))
+                    .foregroundStyle(DSColor.textTertiary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .help(Text(verbatim: readOnlyMessage))
+            }
             if viewModel.canEdit, let path = viewModel.selectedPath {
-                HStack {
-                    Spacer()
-                    Button("ファイルタブで編集") {
-                        onEditFile(path)
+                Button("ファイルタブで編集") {
+                    onEditFile(path)
+                }
+                .buttonStyle(.ds(.secondary, height: 20, fontSize: 11, padding: 8))
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 30)
+        .overlay(alignment: .bottom) { separator(horizontal: true) }
+    }
+
+    /// 11.5pt の等幅・行の高さ 1.7。左に幅 28 の行番号、追加・削除は行全体を塗って「+ 」「− 」を付ける。
+    private func codeLines(_ lines: [EditorCodeLine], isDiff: Bool) -> some View {
+        let shown = Array(lines.prefix(previewLineLimit))
+        let rest = EditorCodeLines.remainder(of: lines, after: previewLineLimit)
+        return GeometryReader { viewport in
+            ScrollView([.horizontal, .vertical]) {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(shown.enumerated()), id: \.offset) { _, line in
+                        codeLine(line, isDiff: isDiff)
+                            .frame(minWidth: viewport.size.width, alignment: .leading)
+                            .background(lineTint(line.kind))
+                    }
+                    if rest.lines > 0 {
+                        Button(moreLabel(rest, isDiff: isDiff)) {
+                            previewLineLimit += 500
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(DSColor.accentInk)
+                        .padding(.leading, 50)
+                        .padding(.top, 4)
                     }
                 }
+                .padding(.vertical, 6)
             }
         }
-        .padding(DSSpacing.l)
     }
 
-    @ViewBuilder
-    private var detailPreview: some View {
-        switch viewModel.detail {
-        case .none:
-            ContentUnavailableView("変更されたファイルを選択", systemImage: "doc.text")
-        case .binary:
-            ContentUnavailableView("バイナリファイル", systemImage: "doc.badge.ellipsis")
-        case .diff(let diff):
-            // 差分のとき、中身を読めていれば「差分 / 内容」を切り替えられる（07 の対応表）。
-            if showsContent && viewModel.canEdit {
-                highlightedPreview(viewModel.draft, canSwitch: true)
+    private func moreLabel(_ rest: (hunks: Int, lines: Int), isDiff: Bool) -> String {
+        if isDiff {
+            return String(format: AppLocalizedString.string("さらに表示（残り %lld 塊 · %lld 行）", locale: locale), rest.hunks, rest.lines)
+        }
+        return String(format: AppLocalizedString.string("さらに表示（残り %lld 行）", locale: locale), rest.lines)
+    }
+
+    private func codeLine(_ line: EditorCodeLine, isDiff: Bool) -> some View {
+        HStack(spacing: 0) {
+            Text(verbatim: line.number.map(String.init) ?? "")
+                .foregroundStyle(DSColor.textTertiary)
+                .frame(width: 28, alignment: .trailing)
+                .padding(.trailing, 10)
+            Text(lineText(line, isDiff: isDiff))
+                .fixedSize()
+                .textSelection(.enabled)
+        }
+        // 読み上げは「行番号 記号 本文」を 1 つにまとめる（+ / − で追加・削除が分かる）。
+        .accessibilityElement(children: .combine)
+        .font(.system(size: 11.5, design: .monospaced))
+        .padding(.leading, 10)
+        .padding(.trailing, 12)
+        .frame(minHeight: 19.5)
+    }
+
+    private func lineText(_ line: EditorCodeLine, isDiff: Bool) -> AttributedString {
+        guard isDiff else { return ChatCodeHighlighter.highlight(line.text) }
+        var text: AttributedString
+        switch line.kind {
+        case .added:
+            text = AttributedString("+ " + line.text)
+            text.foregroundColor = DSColor.diffAdded
+        case .removed:
+            text = AttributedString("− " + line.text)
+            text.foregroundColor = DSColor.diffRemoved
+        case .context:
+            text = AttributedString("  " + line.text)
+            text.foregroundColor = DSColor.textPrimary
+        case .hunk:
+            text = AttributedString(line.text)
+            text.foregroundColor = DSColor.textTertiary
+        }
+        return text
+    }
+
+    private func lineTint(_ kind: EditorCodeLine.Kind) -> Color {
+        switch kind {
+        case .added: DSColor.diffAddedTint
+        case .removed: DSColor.diffRemovedTint
+        case .context, .hunk: .clear
+        }
+    }
+}
+
+/// コミット対象のチェック（07 D2）。13×13・角丸 3.5。オンは accentFill に白の ✓、オフは 1.2pt の fg3 の枠。
+struct CommitCheckbox: View {
+    let isOn: Bool
+
+    var body: some View {
+        ZStack {
+            if isOn {
+                RoundedRectangle(cornerRadius: 3.5).fill(DSColor.accentFill)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.white)
             } else {
-                highlightedPreview(diff, canSwitch: viewModel.canEdit, isDiff: true)
-            }
-        case .content(let content):
-            highlightedPreview(content, canSwitch: false)
-        }
-    }
-
-    private func highlightedPreview(_ text: String, canSwitch: Bool, isDiff: Bool = false) -> some View {
-        let preview = preview(of: text)
-        return VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            HStack(spacing: 8) {
-                if canSwitch {
-                    NeutralSegmentedControl(
-                        selection: $showsContent,
-                        options: [(false, "差分"), (true, "内容")],
-                        fillsWidth: false,
-                        height: 20,
-                        fontSize: 11.5
-                    )
-                    .fixedSize()
-                } else {
-                    Text("内容")
-                        .font(DSFont.sectionHeader)
-                }
-                if let path = viewModel.selectedPath {
-                    Text(verbatim: (path as NSString).lastPathComponent)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(DSColor.textSecondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-            }
-            ScrollView([.horizontal, .vertical]) {
-                Text(isDiff ? Self.diffHighlight(preview.text) : ChatCodeHighlighter.highlight(preview.text))
-                    .font(DSFont.mono)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
-            }
-            .frame(minHeight: editorMinHeight)
-            if preview.remainingLines > 0 {
-                Button(String(format: AppLocalizedString.string("さらに表示（残り %lld 行）", locale: locale), preview.remainingLines)) {
-                    previewLineLimit += 500
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 11.5))
-                .foregroundStyle(DSColor.accentInk)
+                RoundedRectangle(cornerRadius: 3.5).strokeBorder(DSColor.textTertiary, lineWidth: 1.2)
             }
         }
-    }
-
-    /// 差分の行を追加は緑・削除は赤で塗る（07 D2）。見出し（+++ / ---）は塗らない。
-    private static func diffHighlight(_ text: String) -> AttributedString {
-        var output = AttributedString()
-        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
-            var chunk = AttributedString(line + "\n")
-            if line.hasPrefix("+"), !line.hasPrefix("+++") {
-                chunk.foregroundColor = DSColor.diffAdded
-                chunk.backgroundColor = DSColor.diffAdded.opacity(0.1)
-            } else if line.hasPrefix("-"), !line.hasPrefix("---") {
-                chunk.foregroundColor = DSColor.diffRemoved
-                chunk.backgroundColor = DSColor.diffRemoved.opacity(0.09)
-            } else {
-                chunk.foregroundColor = DSColor.textPrimary
-            }
-            output += chunk
-        }
-        return output
-    }
-
-    private func preview(of text: String) -> (text: String, remainingLines: Int) {
-        var end = text.startIndex
-        for _ in 0..<previewLineLimit {
-            guard let newline = text[end...].firstIndex(of: "\n") else {
-                return (text, 0)
-            }
-            end = text.index(after: newline)
-        }
-        guard end < text.endIndex else { return (text, 0) }
-        let rest = text[end...]
-        return (String(text[..<end]), rest.reduce(into: 0) { if $1 == "\n" { $0 += 1 } } + (rest.last == "\n" ? 0 : 1))
+        .frame(width: 13, height: 13)
     }
 }

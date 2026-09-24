@@ -81,17 +81,24 @@ struct SessionInfoPanel: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// 「Claude Code · チャット型 · プロジェクト · a3f9」。
+    /// チャット型は「Claude Code · チャット型 · プロジェクト · a3f9」、ターミナル型は「aider（カスタム）· ターミナル型」。
     private var subtitle: String {
-        let kind = AppLocalizedString.string(session.pty == nil ? "チャット型" : "ターミナル型", locale: locale)
-        return [session.agentDescriptor.displayName, kind, session.workspaceName, SessionViewModel.shortID(for: session.id)]
+        var name = session.agentDescriptor.displayName
+        if case .custom = session.agentRef {
+            name = String(format: AppLocalizedString.string("%@（カスタム）", locale: locale), name)
+        }
+        guard session.pty == nil else {
+            return [name, AppLocalizedString.string("ターミナル型", locale: locale)].joined(separator: " · ")
+        }
+        let shortID = String(SessionViewModel.shortID(for: session.id).dropFirst())
+        return [name, AppLocalizedString.string("チャット型", locale: locale), session.workspaceName, shortID]
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
     }
 
     private var formattedCost: String {
         guard let cost = session.appServer?.sessionTotalCostUSD, cost > 0 else { return "—" }
-        return String(format: "$%.4f", cost)
+        return String(format: "$%.2f", cost)
     }
 
     private var resolvedBranch: String? {

@@ -793,7 +793,7 @@ public struct DashboardView: View {
                 EmptyView()
             case .terminal:
                 if let sessionTerminals {
-                    TerminalPanelView(panel: sessionTerminals.terminal(for: id, workingDirectory: node.rawWorkspacePath), showsHeader: false)
+                    TerminalPanelView(panel: sessionTerminals.terminal(for: id, workingDirectory: node.rawWorkspacePath), showsHeader: false, showsFontSizeHUD: false)
                         .id(id)
                 } else {
                     ContentUnavailableView("ターミナルを準備しています", systemImage: "terminal")
@@ -801,7 +801,12 @@ public struct DashboardView: View {
             case .changes:
                 // 変更の一覧は選択中のセッションの worktree を読む。フォーカスしていないタイルでは中身を出さない。
                 if router.selectedSession == id {
-                    EditorPanelView(viewModel: editorPanel.viewModel) { path in
+                    EditorPanelView(
+                        viewModel: editorPanel.viewModel,
+                        projectName: node.workspaceName,
+                        workingDirectory: node.rawWorkspacePath,
+                        isDirty: { fileTabs.existing(for: id, path: $0)?.isDirty ?? false }
+                    ) { path in
                         router.tabs.updateLayout(for: id) { $0.open(.file(path)) }
                         router.openSingle(sessionID: id)
                     }

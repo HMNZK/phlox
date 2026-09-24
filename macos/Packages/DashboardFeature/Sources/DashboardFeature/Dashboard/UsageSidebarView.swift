@@ -18,7 +18,7 @@ struct InspectorView: View {
                 options: [(InspectorTab.session, "セッション"), (InspectorTab.usage, "使用量")]
             )
             .padding(.horizontal, 12)
-            .padding(.top, 10)
+            .padding(.top, 12)
             .padding(.bottom, 8)
 
             switch router.inspectorTab {
@@ -161,7 +161,7 @@ public struct UsageSidebarView: View {
                     }
                     .font(.system(size: 11.5))
                 }
-                .controlSize(.small)
+                .buttonStyle(.ds(.secondary, height: 22, fontSize: 11.5, padding: 10))
                 .disabled(monitor.isRefreshing)
                 .help(Text("使用量を更新"))
             }
@@ -203,7 +203,12 @@ public struct UsageSidebarView: View {
 enum UsageText {
     /// 「2 時間前」。
     static func ago(_ date: Date, now: Date, locale: Locale) -> String {
-        date.formatted(Date.RelativeFormatStyle(presentation: .numeric, unitsStyle: .abbreviated, locale: locale))
+        // `now` を基準にする。差が 0 や取得時刻がわずかに先（時計の粒度）でも「0 秒後」とせず過去として書く。
+        let formatter = RelativeDateTimeFormatter()
+        formatter.dateTimeStyle = .numeric
+        formatter.unitsStyle = .abbreviated
+        formatter.locale = locale
+        return formatter.localizedString(fromTimeInterval: min(date.timeIntervalSince(now), -1))
     }
 
     /// 「1 時間 42 分後にリセット」。1 日以上は日だけ。
@@ -241,8 +246,10 @@ struct UsageCLICard: View {
         return ClaudeUsageStaleness.note(now: now, dataAsOf: usage.dataAsOf)
     }
 
-    /// 取得失敗か古い値。数字を淡くし、注記を琥珀にする。
-    private var isStale: Bool { failure != nil || staleNote != nil }
+    /// 取得に失敗した前回の値。数字とゲージを淡くする。Claude の値が古いだけのときは注記だけ琥珀にする（07 U5）。
+    private var isStale: Bool { failure != nil }
+
+    private var notesAttention: Bool { failure != nil || staleNote != nil }
 
     private var hasLowBucket: Bool {
         buckets.contains { UsageDisplay.isLowRemaining(usedPercent: $0.usedPercent) }
@@ -258,8 +265,8 @@ struct UsageCLICard: View {
                 Spacer(minLength: 4)
                 if let note {
                     Text(verbatim: note)
-                        .font(.system(size: 11, weight: isStale ? .semibold : .regular))
-                        .foregroundStyle(isStale ? DSColor.attentionInk(.approval) : DSColor.textTertiary)
+                        .font(.system(size: 11, weight: notesAttention ? .semibold : .regular))
+                        .foregroundStyle(notesAttention ? DSColor.attentionInk(.approval) : DSColor.textTertiary)
                         .lineLimit(1)
                 }
             }
@@ -276,9 +283,8 @@ struct UsageCLICard: View {
                         openURL(URL(string: "https://cursor.com/downloads")!)
                     } label: {
                         Text("Cursor をインストールしに行く ↗")
-                            .font(.system(size: 12))
                     }
-                    .controlSize(.small)
+                    .buttonStyle(.ds(.secondary, height: 24, fontSize: 12, padding: 10))
                 }
             } else {
                 ForEach(buckets) { bucket in
@@ -289,7 +295,7 @@ struct UsageCLICard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(DSColor.surfaceElevated, in: RoundedRectangle(cornerRadius: 9))
+        .background(DSColor.cardBackground, in: RoundedRectangle(cornerRadius: 9))
         .overlay(
             RoundedRectangle(cornerRadius: 9)
                 .strokeBorder(hasLowBucket ? DSColor.attentionMark(.approval) : DSColor.separator, lineWidth: 1)
@@ -312,12 +318,14 @@ struct UsageCLICard: View {
     }
 
     private var skeleton: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            RoundedRectangle(cornerRadius: 4).fill(DSColor.fillSelected).frame(width: 140, height: 10)
-            RoundedRectangle(cornerRadius: 3).fill(DSColor.fillSelected).frame(height: 5)
-            RoundedRectangle(cornerRadius: 4).fill(DSColor.fillSelected).frame(width: 90, height: 10)
+        GeometryReader { geometry in
+            VStack(alignment: .leading, spacing: 8) {
+                RoundedRectangle(cornerRadius: 4).fill(DSColor.segmentTrack).frame(width: geometry.size.width * 0.6, height: 10)
+                RoundedRectangle(cornerRadius: 3).fill(DSColor.segmentTrack).frame(height: 5)
+                RoundedRectangle(cornerRadius: 4).fill(DSColor.segmentTrack).frame(width: geometry.size.width * 0.4, height: 10)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 41)
         .accessibilityHidden(true)
     }
 }
@@ -347,7 +355,7 @@ private struct UsageBucketRow: View {
 
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3).fill(DSColor.fillSelected)
+                    RoundedRectangle(cornerRadius: 3).fill(DSColor.segmentTrack)
                     RoundedRectangle(cornerRadius: 3)
                         .fill(isLow ? DSColor.attentionMark(.approval) : DSColor.textSecondary)
                         .frame(width: geometry.size.width * CGFloat(remaining) / 100)

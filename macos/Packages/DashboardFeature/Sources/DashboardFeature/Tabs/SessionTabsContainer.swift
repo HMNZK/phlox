@@ -75,7 +75,12 @@ struct SessionTabsContainer<Conversation: View>: View {
                 ContentUnavailableView("ターミナルを準備しています", systemImage: "terminal")
             }
         case .changes:
-            EditorPanelView(viewModel: editorPanel.viewModel) { path in
+            EditorPanelView(
+                viewModel: editorPanel.viewModel,
+                projectName: node.workspaceName,
+                workingDirectory: node.rawWorkspacePath,
+                isDirty: { files.existing(for: node.id, path: $0)?.isDirty ?? false }
+            ) { path in
                 router.tabs.updateLayout(for: node.id) { $0.open(.file(path)) }
             }
         case .file(let path):
@@ -509,6 +514,36 @@ private struct FileTabView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // 07 D4: 高さ 30 の帯に、ファイル名・「未保存」・「保存 ⌘S」。
+            HStack(spacing: 8) {
+                Text(verbatim: document.path)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(DSColor.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let saveError {
+                    Text("保存できませんでした: \(saveError)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(DSColor.attentionInk(.error))
+                        .lineLimit(1)
+                } else if document.isDirty {
+                    Text("未保存")
+                        .font(.system(size: 11))
+                        .foregroundStyle(DSColor.textSecondary)
+                }
+                Button("保存") {
+                    Task { await save() }
+                }
+                .buttonStyle(.ds(.primary, keyHint: "⌘S", height: 20, fontSize: 11, padding: 8))
+                .keyboardShortcut("s", modifiers: .command)
+                .disabled(!document.isDirty)
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 30)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(DSColor.separator).frame(height: 1)
+            }
             if document.loadFailed {
                 ContentUnavailableView(
                     "ファイルを開けません",
@@ -517,38 +552,12 @@ private struct FileTabView: View {
                 )
             } else if document.isLoaded {
                 TextEditor(text: $document.draft)
-                    .font(DSFont.mono)
+                    .font(.system(size: 11.5, design: .monospaced))
                     .scrollContentBackground(.hidden)
-                    .background(DSColor.codeBackground)
+                    .background(DSColor.background)
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            Rectangle().fill(DSColor.separator).frame(height: 1)
-            HStack(spacing: DSSpacing.s) {
-                Text(verbatim: document.path)
-                    .font(DSFont.monoCaption)
-                    .foregroundStyle(DSColor.textTertiary)
-                    .lineLimit(1)
-                    .truncationMode(.head)
-                if let saveError {
-                    Text("保存できませんでした: \(saveError)")
-                        .font(DSFont.meta)
-                        .foregroundStyle(DSColor.attentionInk(.error))
-                        .lineLimit(1)
-                } else if document.isDirty {
-                    Text("未保存の変更")
-                        .font(DSFont.meta)
-                        .foregroundStyle(DSColor.textSecondary)
-                }
-                Spacer(minLength: 0)
-                Button("保存") {
-                    Task { await save() }
-                }
-                .keyboardShortcut("s", modifiers: .command)
-                .disabled(!document.isDirty)
-            }
-            .padding(.horizontal, DSSpacing.m)
-            .frame(height: 36)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task { await document.loadIfNeeded() }

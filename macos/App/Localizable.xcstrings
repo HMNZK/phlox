@@ -7456,6 +7456,116 @@
           }
         }
       }
+    },
+    "[Phlox] シェルのサイズ変更に失敗しました（%@）。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "[Phlox] Couldn’t resize the shell (%@)."
+          }
+        }
+      }
+    },
+    "このプロジェクトの全変更を表示しています。ほかのセッションの変更も含まれます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Showing all changes in this project, including changes from other sessions."
+          }
+        }
+      }
+    },
+    "PR を作成": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create PR"
+          }
+        }
+      }
+    },
+    "エディタ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editor"
+          }
+        }
+      }
+    },
+    "%@ · 変更 %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · changes: %2$lld"
+          }
+        }
+      }
+    },
+    "変更を更新": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh changes"
+          }
+        }
+      }
+    },
+    "Git リポジトリではありません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not a Git repository"
+          }
+        }
+      }
+    },
+    "%@ には .git がないため、変更の一覧とコミットは使えません。ファイルの編集はターミナルから行えます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ has no .git, so the change list and commits aren’t available. You can edit files from the terminal."
+          }
+        }
+      }
+    },
+    "さらに表示（残り %lld 塊 · %lld 行）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show more (hunks left: %1$lld · lines: %2$lld)"
+          }
+        }
+      }
+    },
+    "未保存": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsaved"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

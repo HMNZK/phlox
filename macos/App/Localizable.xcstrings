@@ -1,28 +1,6 @@
 {
   "sourceLanguage": "ja",
   "strings": {
-    "%@ が待機中になりました": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ is now idle"
-          }
-        }
-      }
-    },
-    "%@ が承認待ちです": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ is awaiting approval"
-          }
-        }
-      }
-    },
     "%@ の実行ファイルが見つかりませんでした。PATH と agents.json を確認してください。": {
       "extractionState": "manual",
       "localizations": {
@@ -408,17 +386,6 @@
         }
       }
     },
-    "作業完了": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Work complete"
-          }
-        }
-      }
-    },
     "使用量": {
       "extractionState": "manual",
       "localizations": {
@@ -441,17 +408,6 @@
         }
       }
     },
-    "入力待ち": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Awaiting input"
-          }
-        }
-      }
-    },
     "再試行": {
       "extractionState": "manual",
       "localizations": {
@@ -459,17 +415,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Retry"
-          }
-        }
-      }
-    },
-    "初期化に失敗しました": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Initialization failed"
           }
         }
       }
@@ -745,17 +690,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Stop"
-          }
-        }
-      }
-    },
-    "起動中…": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Starting…"
           }
         }
       }
@@ -5409,17 +5343,6 @@
         }
       }
     },
-    "完了と承認待ちを macOS の通知で知らせます。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Uses macOS notifications for completions and pending approvals."
-          }
-        }
-      }
-    },
     "通知テスト": {
       "extractionState": "manual",
       "localizations": {
@@ -5438,17 +5361,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Test notifications"
-          }
-        }
-      }
-    },
-    "テスト": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Test"
           }
         }
       }
@@ -5900,6 +5812,149 @@
           "stringUnit": {
             "state": "translated",
             "value": "Revoke “%@”"
+          }
+        }
+      }
+    },
+    "作業が完了しました: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Work finished: %@"
+          }
+        }
+      }
+    },
+    "承認待ち: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Awaiting approval: %@"
+          }
+        }
+      }
+    },
+    "質問があります: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Has a question: %@"
+          }
+        }
+      }
+    },
+    "エラーで止まりました: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopped with an error: %@"
+          }
+        }
+      }
+    },
+    "Phlox の通知テスト": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phlox notification test"
+          }
+        }
+      }
+    },
+    "設定 > 通知": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings > Notifications"
+          }
+        }
+      }
+    },
+    "次の指示を待っています。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready for your next instruction."
+          }
+        }
+      }
+    },
+    "このように通知されます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is how you'll be notified."
+          }
+        }
+      }
+    },
+    "承認待ち・質問待ち・完了・エラーを macOS の通知で知らせます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uses macOS notifications for pending approvals, questions, completions, and errors."
+          }
+        }
+      }
+    },
+    "Phlox を起動しています": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starting Phlox"
+          }
+        }
+      }
+    },
+    "Phlox を起動できませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phlox couldn't start"
+          }
+        }
+      }
+    },
+    "終了": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit"
+          }
+        }
+      }
+    },
+    "入力を求めています": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asking for input"
           }
         }
       }

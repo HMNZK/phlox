@@ -340,14 +340,14 @@ struct SettingsView: View {
     private var notificationsForm: some View {
         Section {
             Toggle(isOn: $bannerNotificationEnabled) {
-                SettingsRowLabel(title: "バナーで知らせる", detail: "完了と承認待ちを macOS の通知で知らせます。")
+                SettingsRowLabel(title: "バナーで知らせる", detail: "承認待ち・質問待ち・完了・エラーを macOS の通知で知らせます。")
             }
             Toggle(isOn: $completionSoundEnabled) {
                 Text("完了サウンド（Glass）を鳴らす")
             }
             LabeledContent {
                 Button("通知テスト") {
-                    SessionCompletionNotifier.notifyCompleted(sessionName: AppLocalizedString.string("テスト", locale: locale))
+                    SessionCompletionNotifier.notifyTest()
                 }
                 .buttonStyle(.bordered)
             } label: {

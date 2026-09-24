@@ -5,7 +5,7 @@ import CodexAppServerKit
 import StructuredChatKit
 private enum UserNotification {
     case completed
-    case awaitingInput
+    case awaitingInput(SessionNotificationText.Kind)
 }
 
 @MainActor
@@ -1631,7 +1631,10 @@ public final class ChatSessionViewModel: Identifiable {
             approvalTask = Task { @MainActor [weak self] in
                 for await approval in approvals {
                     self?.pendingApprovals.append(approval)
-                    self?.enterAwaitingApproval(prompt: approval.prompt)
+                    self?.enterAwaitingApproval(
+                        prompt: approval.prompt,
+                        notifying: .awaitingApproval(prompt: approval.command ?? approval.permissionsText ?? approval.prompt)
+                    )
                     self?.touchOutput()
                 }
             }
@@ -1730,19 +1733,20 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     /// 承認待ちへ遷移し、非承認待ちからの遷移時のみ通知する（連続する承認要求での多重通知を防ぐ）。
-    func enterAwaitingApproval(prompt: String) {
+    /// `notifying` は通知に出す種類と対象（既定は承認待ちで、対象は `prompt`）。
+    func enterAwaitingApproval(prompt: String, notifying kind: SessionNotificationText.Kind? = nil) {
         let previousStatus = status
         status = .awaitingApproval(prompt: prompt)
         if case .awaitingApproval = previousStatus { return }
-        notifyUser(.awaitingInput)
+        notifyUser(.awaitingInput(kind ?? .awaitingApproval(prompt: prompt)))
     }
 
     /// AskUserQuestion 到着時に入力待ちへ遷移し、非入力待ちからの遷移時のみ通知する。
-    private func enterAwaitingUserQuestion() {
+    private func enterAwaitingUserQuestion(notifying kind: SessionNotificationText.Kind) {
         let previousStatus = status
         status = .awaitingUserQuestion
         if case .awaitingUserQuestion = previousStatus { return }
-        notifyUser(.awaitingInput)
+        notifyUser(.awaitingInput(kind))
     }
 
     private func notifyUser(_ notification: UserNotification) {
@@ -1751,7 +1755,7 @@ public final class ChatSessionViewModel: Identifiable {
         switch notification {
         case .completed:
             if allowsLocalNotification {
-                SessionCompletionNotifier.notifyCompleted(sessionName: displayName)
+                SessionCompletionNotifier.notifyCompleted(sessionName: displayName, status: status)
             }
             if allowsRemoteNotification {
                 remoteSessionNotifier?.sessionCompleted(
@@ -1759,9 +1763,9 @@ public final class ChatSessionViewModel: Identifiable {
                     sessionName: displayName
                 )
             }
-        case .awaitingInput:
+        case .awaitingInput(let kind):
             if allowsLocalNotification {
-                SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
+                SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName, kind: kind)
             }
             if allowsRemoteNotification {
                 remoteSessionNotifier?.approvalPending(
@@ -2037,7 +2041,13 @@ public final class ChatSessionViewModel: Identifiable {
             state: .pending,
             timestamp: timestamp
         ))
-        enterAwaitingUserQuestion()
+        // ツールの使用許可は画面では承認カードなので、通知も承認待ちにする（11）。
+        let first = questions.first
+        if let permission = first?.permission {
+            enterAwaitingUserQuestion(notifying: .awaitingApproval(prompt: permission.detail.isEmpty ? first?.question : permission.detail))
+        } else {
+            enterAwaitingUserQuestion(notifying: .awaitingQuestion(question: first?.question, isSecret: first?.isSecret ?? false))
+        }
         touchOutput()
     }
 
@@ -2172,7 +2182,7 @@ public final class ChatSessionViewModel: Identifiable {
             // （threadSettingsUpdated と同じ threadId 一致 guard）。
             guard updatedThreadId == threadId else { return }
             if threadStatus.isWaitingOnApproval, pendingApprovals.isEmpty {
-                enterAwaitingApproval(prompt: "Approval requested")
+                enterAwaitingApproval(prompt: "Approval requested", notifying: .awaitingApproval(prompt: nil))
             } else if turnStartedAt != nil, !turnIsRestoredInference, threadStatus == .idle {
                 // ADR 0064: ライブターン進行中の非同期 idle 報告は無視する（完了は
                 // turnCompleted が正）。復元推定ターンだけは idle での終端＋通知を許す。

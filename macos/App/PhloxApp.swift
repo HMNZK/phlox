@@ -282,6 +282,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
         SessionCompletionNotifier.requestAuthorization()
+        // 通知の文言は、画面と同じアプリ内の表示言語で出す（@AppStorage と同じ保存先を読む）。
+        SessionCompletionNotifier.locale = {
+            (AppLanguage(rawValue: UserDefaults.standard.string(forKey: LanguageSettings.languageKey) ?? "") ?? .system).locale
+        }
 
         // 選択中アプリアイコンを Dock（実行中アプリのアイコン）へ再適用する。macOS には iOS の
         // setAlternateIconName が無いため、NSApp.applicationIconImage をランタイム適用する。
@@ -816,19 +820,22 @@ private extension NSEvent {
     }
 }
 
+/// 11 I1: 初期化中。段階ごとの文言（セッションの復元の件数など）は見本でも推測のため出さない。
 private struct InitLoadingView: View {
     var body: some View {
         VStack(spacing: DSSpacing.m) {
-            ProgressView()
-                .controlSize(.large)
-            Text("起動中…")
+            AppIconBadge(showsCaution: false, size: 64)
+            Text("Phlox を起動しています")
                 .font(DSFont.body)
                 .foregroundStyle(.secondary)
+            ProgressView()
+                .controlSize(.small)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
+/// 11 I2/I3: 初期化エラー。原因の文（エラーの内容）を等幅で出し、終了と再試行（既定）を置く。
 private struct InitErrorView: View {
     let failure: InitFailure
     let retry: () -> Void
@@ -845,11 +852,9 @@ private struct InitErrorView: View {
 
     var body: some View {
         VStack(spacing: DSSpacing.l) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 48, weight: .regular))
-                .foregroundStyle(DSColor.statusError)
+            AppIconBadge(showsCaution: true, size: 64)
 
-            Text("初期化に失敗しました")
+            Text("Phlox を起動できませんでした")
                 .font(DSFont.heroTitle)
 
             if isClaudeNotFound {
@@ -857,30 +862,36 @@ private struct InitErrorView: View {
                     Text("Claude Code CLI が見つかりませんでした。")
                     Text("次のコマンドでインストールしてください:")
                         .foregroundStyle(.secondary)
-                    Text("npm install -g @anthropic-ai/claude-code")
-                        .font(DSFont.monoCaption)
-                        .padding(.horizontal, DSSpacing.m)
-                        .padding(.vertical, DSSpacing.s)
-                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
-                        .textSelection(.enabled)
+                    logBox("npm install -g @anthropic-ai/claude-code")
                 }
                 .multilineTextAlignment(.center)
             } else {
-                Text(detailMessage)
-                    .font(DSFont.monoCaption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, DSSpacing.xl)
+                logBox(detailMessage)
             }
 
-            Button(action: retry) {
-                Label("再試行", systemImage: "arrow.clockwise")
+            HStack(spacing: DSSpacing.s) {
+                Button("終了") { NSApp.terminate(nil) }
+                Button(action: retry) {
+                    Label("再試行", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(DSColor.accentFill)
+                .keyboardShortcut("r", modifiers: .command)
             }
             .controlSize(.large)
-            .keyboardShortcut("r", modifiers: .command)
         }
         .padding(DSSpacing.xxl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func logBox(_ text: String) -> some View {
+        Text(verbatim: text)
+            .font(DSFont.monoCaption)
+            .foregroundStyle(.secondary)
+            .textSelection(.enabled)
+            .padding(.horizontal, DSSpacing.m)
+            .padding(.vertical, DSSpacing.s)
+            .frame(maxWidth: 520)
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
     }
 }

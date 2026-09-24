@@ -486,7 +486,7 @@ struct SpawnGuardSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            appIcon
+            AppIconBadge(showsCaution: isNotice)
             Text(verbatim: title)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(DSColor.textPrimary)
@@ -535,22 +535,6 @@ struct SpawnGuardSheet: View {
         .padding(20)
         .frame(width: 460)
         .onExitCommand(perform: onCancel)
-    }
-
-    /// アプリアイコン。お知らせの型には注意の三角バッジを重ねる（09）。
-    private var appIcon: some View {
-        Image(nsImage: NSApp.applicationIconImage)
-            .resizable()
-            .frame(width: 48, height: 48)
-            .overlay(alignment: .bottomTrailing) {
-                if isNotice {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .symbolRenderingMode(.multicolor)
-                        .font(.system(size: 20))
-                        .offset(x: 4, y: 4)
-                }
-            }
-            .accessibilityHidden(true)
     }
 
     private var title: String {

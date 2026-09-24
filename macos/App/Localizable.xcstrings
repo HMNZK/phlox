@@ -67,17 +67,6 @@
         }
       }
     },
-    "Codex・Cursor の使用量は自動で表示されます。Claude は Phlox 内で起動したセッションの使用量を表示します（直近に Phlox 内で Claude を起動していないと最新の値にならない場合があります）。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Codex and Cursor usage is shown automatically. Claude usage reflects sessions started inside Phlox (the value may not be up to date if you haven't recently launched Claude inside Phlox)."
-          }
-        }
-      }
-    },
     "Cursorの使用量を一時的に取得できません": {
       "extractionState": "manual",
       "localizations": {
@@ -349,17 +338,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Add a project"
-          }
-        }
-      }
-    },
-    "今すぐ確認": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Check Now"
           }
         }
       }
@@ -5355,17 +5333,6 @@
         }
       }
     },
-    "通知テスト": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Send Test Notification"
-          }
-        }
-      }
-    },
     "通知をテスト": {
       "extractionState": "manual",
       "localizations": {
@@ -5395,17 +5362,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Full Access (Skip Permission Checks)"
-          }
-        }
-      }
-    },
-    "CLI ごとの設定ファイル（settings.json・config.toml・cli-config.json）を直接編集します。対話 TUI のスラッシュコマンドや手編集でしか触れない項目が対象です。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit each CLI's settings file (settings.json, config.toml, cli-config.json) directly. Covers items otherwise reachable only via TUI slash commands or manual editing."
           }
         }
       }
@@ -5454,17 +5410,6 @@
         }
       }
     },
-    "Claude はほかの CLI と取得方法が異なるため、個別にオフにできます。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude is fetched differently from the other CLIs, so it can be turned off separately."
-          }
-        }
-      }
-    },
     "取得できない CLI も表示する": {
       "extractionState": "manual",
       "localizations": {
@@ -5476,17 +5421,6 @@
         }
       }
     },
-    "未インストールの CLI をインスペクタに「未取得」として並べます。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lists CLIs that aren't installed in the inspector as “Not fetched”."
-          }
-        }
-      }
-    },
     "上部バーに使用量を表示する": {
       "extractionState": "manual",
       "localizations": {
@@ -5494,17 +5428,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Show usage in the top bar"
-          }
-        }
-      }
-    },
-    "インスペクタの開閉とは関係なく表示します。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shown whether or not the inspector is open."
           }
         }
       }
@@ -7695,6 +7618,204 @@
           "stringUnit": {
             "state": "translated",
             "value": "Add a Project"
+          }
+        }
+      }
+    },
+    "--force --sandbox disabled。オフにすると --auto-review --sandbox enabled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "--force --sandbox disabled. When off: --auto-review --sandbox enabled"
+          }
+        }
+      }
+    },
+    "CLI ごとの設定ファイル（settings.json・config.toml・cli-config.json）を直接編集する": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit each CLI’s settings file (settings.json, config.toml, cli-config.json) directly"
+          }
+        }
+      }
+    },
+    "Claude はほかの CLI と取得方法が異なるため、個別にオフにできる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude is read differently from the other CLIs, so it can be turned off on its own"
+          }
+        }
+      }
+    },
+    "QR にはフルアクセス権限のトークンが含まれます。60 秒後に自動的に非表示になります。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The QR code contains a full-access token. It hides automatically after 60 seconds."
+          }
+        }
+      }
+    },
+    "agents.json の定義に従う": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follows the definition in agents.json"
+          }
+        }
+      }
+    },
+    "bypassPermissions を指定する。オフにすると auto": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uses bypassPermissions. When off: auto"
+          }
+        }
+      }
+    },
+    "⌘+ / ⌘− でも変えられる（フォーカス中の領域に効く）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘+ / ⌘− also change it (applies to the focused area)"
+          }
+        }
+      }
+    },
+    "⌘N や起動カードで ↩ を押したときの開き方": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How a session opens when you press ↩ with ⌘N or on a start card"
+          }
+        }
+      }
+    },
+    "アクセントの色（コーラル）はすべてのテーマで共通。テーマはターミナルの配色とアプリ全体に効き、すぐに反映される。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The accent color (coral) is shared by all themes. A theme applies to the terminal colors and the whole app, right away."
+          }
+        }
+      }
+    },
+    "インスペクタの開閉とは関係なく表示する": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shown whether or not the inspector is open"
+          }
+        }
+      }
+    },
+    "ターミナルパネル・グリッドのターミナル・単体表示で共通": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shared by the terminal panel, grid terminals and single view"
+          }
+        }
+      }
+    },
+    "テスト通知を送る": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send Test Notification"
+          }
+        }
+      }
+    },
+    "ペアリング用 QR コード": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pairing QR code"
+          }
+        }
+      }
+    },
+    "今すぐ確認…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check Now…"
+          }
+        }
+      }
+    },
+    "承認待ち・質問待ち・完了・エラーを macOS の通知で出す": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show approvals, questions, completions and errors as macOS notifications"
+          }
+        }
+      }
+    },
+    "未インストールの CLI をインスペクタに「未取得」として並べる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "List CLIs that aren’t installed in the inspector as “Not fetched”"
+          }
+        }
+      }
+    },
+    "開く…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open…"
+          }
+        }
+      }
+    },
+    "チャットは never・danger-full-access、ターミナルは解除の引数を付ける。オフにすると、チャットは on-request・workspace-write、ターミナルは Codex の設定に従う": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chat uses never and danger-full-access; the terminal adds the lift arguments. When off: chat uses on-request and workspace-write, and the terminal follows Codex’s settings"
           }
         }
       }

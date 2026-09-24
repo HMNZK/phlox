@@ -1115,3 +1115,53 @@ A・C 型は `.dialogSeverity(.critical)`（注意アイコン）、破壊的な
 - 独立レビュー（Codex）2 回。1 回目の指摘 7 件のうち、版の読み取りが終わらない（高）・再検出と版の取得の競合・入力中のフォーカス取得・英訳の漏れを直した。残り 3 件は上の「直していないもの」。2 回目の新しい指摘（再検出の直後に古い版が一瞬残る）も直した。
 - Debug 版で撮影して確認（`/tmp/phlox-audit/f8/`）: ライト＋日本語で 4 列の格子と版の表示、未検出のカード（`agents.json` に存在しない CLI を足した）、CLI を置いて「再検出」を押すと起動できるカードになること。ダーク＋英語で文言・ラベルの揃い・数字キー 3 と右矢印で輪が動くこと。空のデータフォルダ（`PHLOX_DATA_DIR`）で初回の案内（S1）。AX で カードの読み上げの並び（名前→版と場所→モデル→権限）。
 - 画面で確かめていないもの: S2（プロジェクトもセッションも選ばない状態への戻し方が画面上に無い）、トースト（worktree 隔離で起動すると実リポジトリにブランチを作るため）、組込 CLI の「入手方法 ↗」（3 種とも入っている）、S1 の手順 3 の行（画面の下で、スクロールしていない）、VoiceOver の実操作。
+
+## F9 忠実度の修正: 設定（10 Settings）
+
+監査 `docs/agent-output/ui-fidelity-audit/10-settings.md` を直した。標準の `Form`（grouped）と `TabView` では見本の余白・区切り・色・タブの形を再現できないので、同じ中身を自前の部品で描き直した（`App/SettingsView.swift`。部品も同じファイルの末尾。App のファイルは xcodegen の登録が要るため新しいファイルを足していない）。
+
+ユーザーの決定（2026-09-25）: テーマの色は今のまま（Phlox＝ダーク、Phlox Light＝白。並びと見本タイルだけ見本に合わせる）。ターミナルの文字の範囲は見本の案の 8〜32 に。凍結テストの変更は 4 件承認（ボタン名・窓の探し方・タブの絵・テーマの並び）。
+
+### 対応表
+
+| 監査の指摘 | 内容 | 実装箇所 |
+|---|---|---|
+| 全体 見出し | 「Phlox (Debug)」「設定」とアイコンの見出しをやめた。窓の題名はタブの名前 | `SettingsView.swift`（`navigationTitle`） |
+| 全体 窓の大きさ | 幅 700、高さはタブごと（一般・エージェント 620、外観 660、通知 480、使用量 440、モバイル 560。見本の窓全体の値からタイトルバーの 28 を引いた中身の高さ）。中身が長ければスクロール | `SettingsView.windowHeight` |
+| 全体 地・タブ列 | 地は `--bg`（ライト #ECECEF・ダーク #1E1E20）、タブ列は toolbar の面（#F6F6F7 / #2A2A2D）と下の 1pt の区切り。タイトルバーを透明にしてタブ列と 1 枚の面に（タブを切り替えると題名の変更で戻るので当て直す） | `SettingsTabBar`・`SettingsWindowChrome`、`Tokens.swift`（`settingsBackground`・`settingsTabSelected`） |
+| 全体 タブ | アイコン 20・名前 11pt・最小幅 64・角丸 7。選択中は accentInk の文字と黒 7.5% / 白 10% の面。絵を見本に（外観＝半分塗りの丸、通知＝app.badge、エージェント＝slider.horizontal.3、使用量＝gauge.with.needle） | `SettingsTabBar`、`SettingsGroup.swift` |
+| 全体 まとまり・行 | 見出し 12pt semibold、面は card（#FFFFFF / #27272A）・角丸 10・1pt の縁、行は余白 10/14・端から端までの区切り、名前 13pt、説明 11.5pt fg2、注記 11.5pt fg2 | `SettingsGroupBox`・`SettingsRow`・`SettingsLabel`・`SettingsDivider` |
+| 全体 部品 | スイッチは accentFill、分段は segBg のトラック・選択中は操作面と影（高さ 20・12pt、← → で動かせ、読み上げは標準の分段と同じ）、ボタンは高さ 22・12.5pt、表示言語は枠のあるポップアップ、リンクは accentInk。Form 全体に掛けていた accent の tint をやめた | 同上（`SettingsSegmented`）、`DSButtonStyle` |
+| T1 一般 | 説明を「⌘N や起動カードで ↩ を押したときの開き方」だけに、「今すぐ確認…」、版は 12.5pt・数字は等幅・fg2 | `generalForm` |
+| T2 テーマ | 5 列・間隔 10。見本タイル（高さ 54・角丸 7、左 28% がサイドバーの色、右に 2 本の文字と accent の帯）。選択中は外側 2pt の accent、ほかは 1pt の縁。並びを Phlox → Phlox Light → … に | `ThemeTile`、`AppTheme.swift`（`ThemeStore.all`） |
+| T2 アプリアイコン | 48pt・角丸 11、選択中は外側 2pt の accent、ほかは 1pt の縁、名前は id を等幅 11pt、注記なし | `AppIconTile` |
+| T2 文字の大きさ | 端の値 11pt fg3、スライダー幅 150（目盛りなし。刻み 10% は値の丸めと ← →・読み上げの増減で守る）、値 12.5pt・幅 40。ターミナルは欄 56×22・▲▼・単位 12pt、説明は常体 | `appearanceForm`、`ChatFontSettings.snapped` |
+| T6b 不正な値 | 欄に赤い縁と 3pt の淡い輪、下に 11.5pt の理由と現在の値。範囲を 8〜32 に | `terminalFontRow`・`settingsField`、`TerminalFontSettings.swift` |
+| T3 通知 | 説明を常体に、「テスト通知を送る」 | `notificationsForm` |
+| T4 エージェント | 各 CLI の説明を 1 行（例 Cursor「--force --sandbox disabled。オフにすると --auto-review --sandbox enabled」）。ボタンは「開く…」に ⇧⌘, を中に（読み上げは「エージェント管理を開く」）、定義の場所は 12.5pt fg2 | `agentsForm`・`BypassToggleRow` |
+| T5 使用量 | 説明を常体に、見本に無い長い注記を外した | `usageForm` |
+| L1 モバイル | 端末名の欄 180×22、QR のボタン高さ 22、注記を見本の 2 文に | `MobileTokenSection` |
+| L2 QR 表示中 | 「表示中」は副ボタンの形で無効。QR は白地 132・角丸 8・1pt の縁、符号 112。案内 13pt semibold、残り時間 12pt 等幅 | 同上 |
+| L3 接続済み | 日付だけ（時刻を外した）。失効は枠のある副ボタンの形に赤い文字 | `MobileDeviceRow` |
+| L4 押せない理由 | 琥珀の文字（承認待ちの濃い色） | `MobileTokenSection` |
+| L5 QR 作成の失敗 | 内容の先頭に帯（角丸 9・エラーの淡い面と縁・警告の絵・12pt） | `SettingsErrorBanner` |
+
+### 直していないもの
+
+- テーマの色（見本は Phlox が白・Phlox Light が暖色）: ユーザーの決定で今のまま。見本タイルの色も実際のテーマの色で描く。
+- エージェントの注記: 見本の「確認なしで実行します」は Claude（サンドボックスは外さない）とカスタム（定義次第）で正しくないので、既存の正確な注記（`UIWording.settingsPermissionFooter`）のまま（Codex の指摘）。Claude の 1 行説明も見本の「hooks で確認を省く」ではなく実際の指定（bypassPermissions / auto）を書いた。
+- L4 の文言: 見本の「ループバックだけで…」1 通りではなく、今の状態ごとの理由（Tailscale が無い など）を残した。
+- L3 の「接続中 / 未接続」: 端末がいまつながっているかを Phlox は持っていない（`PairedDevice` はペアリング日だけ）。
+- 見本で「未確認」「分岐候補」「推測」の項目（匿名の利用状況の送信、Dock のバッジ、プッシュ通知、トークンの再発行、L6）: 足していない。
+- タイトルの位置: macOS 26 の窓は題名を左に置く。見本は中央。
+- 操作面の色: ダークの副ボタンは 12 Design System の #3A3A3E（設定の見本は #4A4A4F）。ボタンの角丸は共通の 6（見本 5）。
+- `ThemePreviewModel`: 設定では使わなくなったが、凍結の受け入れテストがあるので残した。
+
+### 検証
+
+- 凍結テストの変更（ユーザー承認）: `AcceptanceSettingsGroupingModelTests`（タブの絵の名前）、`AcceptanceThemePreviewModelTests`（テーマの並び）、`SettingsAuxiliaryButtonsAcceptanceTests`・`SettingsButtonAppearanceObservationTests`（窓はタブ列の識別子 `settings-window` で探す、ボタン名「今すぐ確認…」「テスト通知を送る」。「エージェント管理を開く」は読み上げ名なのでそのまま）。
+- 追加したテスト: `ChatFontSnapTests`（10% 刻みへの丸め・範囲・近い位置で同じ値になること）。
+- `.claude/verify.sh` 合格（DesignSystem・AgentDomain・SessionFeature・DashboardFeature・アプリのビルド）。レビュー後の修正の後にも 1 回合格。スライダーの丸めの直し（最後の変更）は DesignSystem のテスト（189 件）とアプリのビルドだけ通した。
+- 独立レビュー（Codex）2 回。1 回目の指摘 5 件（注記の不正確さ〔高〕、Codex の説明、分段のキーボードと読み上げ、スライダーの小さな操作、使わない翻訳キー）を直した。2 回目で残りの翻訳キー 2 件とスライダーの値の往復（中）を指摘され、丸めを位置だけで決め、← →・読み上げの増減を 1 刻みにして直した。
+- Debug 版で撮影して確認（`/tmp/phlox-audit/f8/`）: ライト＋日本語で 6 タブすべて。ダーク＋英語で外観と、ターミナルに 40 を入れたときの赤い縁・輪・「Enter a whole number from 8 to 32. Not saved (current value: 13)」（保存値は 13 のまま）。AX: タブは名前付きのボタン、分段はラジオボタン 2 つ、表示言語のポップアップ、スライダーの増減（AXIncrement / AXDecrement で 10% ずつ）。分段の ← →（クリックで焦点を置いてから、既定の開き方がターミナル⇄チャットに変わる。元に戻した）。
+- 実行できなかったもの: 書き換えた UI テスト 2 本（XCUITest）。この Mac は自動化モードの有効化にユーザーの認証が要り（`automationmodetool`: 「This device requires user authentication to enable Automation Mode」）、テストの起動で止まった。スライダーの ← →（macOS の「キーボードで操作を移動」が無効で焦点が移らない）。モバイル連携の QR 表示中・押せない理由・作成の失敗・接続済みの一覧（QR を出すとトークンが発行されるため、また失敗の状態を作れないため）。VoiceOver の実操作。

@@ -15,12 +15,13 @@ import Testing
 @Suite("task-38: settings grouping model")
 struct AcceptanceSettingsGroupingModelTests {
     /// 契約「グループ順序と所属」の 6 行。実装の `all` から作らない。
+    // 2026-09-25 ユーザー承認: タブの絵を 10 Settings の見本に合わせた（外観・通知・エージェント・使用量）。
     private static let expectedGroups: [(id: String, title: String, systemImage: String, sectionIDs: [String])] = [
         ("general", "一般", "gearshape", ["language", "updates", "about"]),
-        ("appearance", "外観", "paintpalette", ["theme", "app-icon", "text-size"]),
-        ("notifications", "通知", "bell.badge", ["notifications"]),
-        ("agents", "エージェント", "wrench.and.screwdriver", ["permissions", "agent-management"]),
-        ("usage", "使用量", "gauge.with.dots.needle.33percent", ["usage"]),
+        ("appearance", "外観", "circle.lefthalf.filled", ["theme", "app-icon", "text-size"]),
+        ("notifications", "通知", "app.badge", ["notifications"]),
+        ("agents", "エージェント", "slider.horizontal.3", ["permissions", "agent-management"]),
+        ("usage", "使用量", "gauge.with.needle", ["usage"]),
         ("mobile", "モバイル連携", "iphone", ["mobile-connection", "paired-devices"]),
     ]
 
@@ -46,7 +47,7 @@ struct AcceptanceSettingsGroupingModelTests {
         #expect(SettingsGroup.all.map(\.id) == ["general", "appearance", "notifications", "agents", "usage", "mobile"])
         #expect(SettingsGroup.all.map(\.title) == ["一般", "外観", "通知", "エージェント", "使用量", "モバイル連携"])
         #expect(SettingsGroup.all.map(\.systemImage) == [
-            "gearshape", "paintpalette", "bell.badge", "wrench.and.screwdriver", "gauge.with.dots.needle.33percent", "iphone",
+            "gearshape", "circle.lefthalf.filled", "app.badge", "slider.horizontal.3", "gauge.with.needle", "iphone",
         ])
         #expect(SettingsGroup.all.map(\.id) == Self.expectedGroups.map(\.id))
         #expect(SettingsGroup.all.map(\.title) == Self.expectedGroups.map(\.title))

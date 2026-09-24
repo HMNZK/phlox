@@ -27,6 +27,12 @@ public enum ChatFontSettings {
         clamped(current + delta)
     }
 
+    /// 設定のスライダーの値を刻み（step）に丸める。目盛りを出さないため刻みはスライダーに渡さず、ここで守る。
+    /// キーボード・読み上げの 1 回の操作は、丸めで戻らないよう呼び出し側で `adjusted(from:by: ±step)` を使う。
+    public static func snapped(_ value: CGFloat) -> CGFloat {
+        clamped((value / step).rounded() * step)
+    }
+
     private static func clamped(_ scale: CGFloat) -> CGFloat {
         min(maxScale, max(minScale, scale))
     }

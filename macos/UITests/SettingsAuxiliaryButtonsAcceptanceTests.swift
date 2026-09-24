@@ -22,7 +22,8 @@ final class SettingsAuxiliaryButtonsAcceptanceTests: XCTestCase {
         let app = try isolated.application()
         try isolated.assertExclusiveOwnership()
         app.typeKey(",", modifierFlags: .command)
-        let settings = app.windows.containing(.staticText, identifier: "設定").firstMatch
+        // 2026-09-25 ユーザー承認: 設定の見出しを外したので、窓はタブ列の識別子で探す。
+        let settings = app.windows.containing(.any, identifier: "settings-window").firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 10), "[\(theme)] 日本語の設定画面が見つからない")
         guard settings.exists else { return }
         let scroll = settings.scrollViews.firstMatch
@@ -30,10 +31,10 @@ final class SettingsAuxiliaryButtonsAcceptanceTests: XCTestCase {
         guard scroll.exists else { return }
 
         let expectedEnabled: [String: Bool] = [
-            "通知テスト": true, "エージェント管理を開く": true, "今すぐ確認": false,
+            "テスト通知を送る": true, "エージェント管理を開く": true, "今すぐ確認…": false,
         ]
         // 10 Settings の 6 タブ化（2026-09 承認）で「通知テスト」は通知タブへ移った。一般タブは「今すぐ確認」。
-        let generalLabels = ["今すぐ確認"]
+        let generalLabels = ["今すぐ確認…"]
         var observed = Set<String>()
         for index in 0..<7 {
             try isolated.assertExclusiveOwnership()
@@ -62,7 +63,7 @@ final class SettingsAuxiliaryButtonsAcceptanceTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(250))
             attach(settings.screenshot(), name: "settings-\(theme)-hover-\(label)")
         }
-        settings.staticTexts["設定"].firstMatch.hover()
+        settings.descendants(matching: .any)["settings-window"].firstMatch.hover()
         try await Task.sleep(for: .milliseconds(250))
         attach(settings.screenshot(), name: "settings-\(theme)-hover-left")
 
@@ -85,21 +86,21 @@ final class SettingsAuxiliaryButtonsAcceptanceTests: XCTestCase {
         XCTAssertTrue(notificationScroll.waitForExistence(timeout: 10), "[\(theme)] 通知タブが開かない")
         for index in 0..<7 {
             try isolated.assertExclusiveOwnership()
-            let button = settings.buttons["通知テスト"]
+            let button = settings.buttons["テスト通知を送る"]
             if button.exists, settings.frame.contains(button.frame), !button.frame.isEmpty {
                 print("SETTINGS BUTTON [\(theme)]: label=\(button.label) enabled=\(button.isEnabled) frame=\(button.frame)")
-                XCTAssertEqual(button.isEnabled, expectedEnabled["通知テスト"], "[\(theme)] 通知テスト の enabled が期待と異なる")
-                observed.insert("通知テスト")
-                attach(settings.screenshot(), name: "settings-\(theme)-normal-通知テスト")
+                XCTAssertEqual(button.isEnabled, expectedEnabled["テスト通知を送る"], "[\(theme)] 通知テスト の enabled が期待と異なる")
+                observed.insert("テスト通知を送る")
+                attach(settings.screenshot(), name: "settings-\(theme)-normal-テスト通知を送る")
                 button.hover()
                 try await Task.sleep(for: .milliseconds(250))
-                attach(settings.screenshot(), name: "settings-\(theme)-hover-通知テスト")
+                attach(settings.screenshot(), name: "settings-\(theme)-hover-テスト通知を送る")
                 for step in 0..<12 {
                     app.typeKey(.tab, modifierFlags: [])
                     try await Task.sleep(for: .milliseconds(150))
                     if (button.value(forKey: "hasKeyboardFocus") as? Bool) == true {
-                        print("SETTINGS FOCUS [\(theme)]: step=\(step) label=通知テスト")
-                        attach(settings.screenshot(), name: "settings-\(theme)-focus-通知テスト")
+                        print("SETTINGS FOCUS [\(theme)]: step=\(step) label=テスト通知を送る")
+                        attach(settings.screenshot(), name: "settings-\(theme)-focus-テスト通知を送る")
                         break
                     }
                 }

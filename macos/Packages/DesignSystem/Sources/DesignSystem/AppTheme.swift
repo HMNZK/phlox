@@ -470,8 +470,8 @@ public enum ThemeStore {
 
     /// 選択肢として提示する全テーマ。先頭が既定の Phlox。
     public static let all: [AppTheme] = [
-        .phlox, .tokyoNight, .dracula, .catppuccinMocha, .gruvboxDark, .nord,
-        .catppuccinLatte, .solarizedLight, .githubLight, .phloxLight,
+        .phlox, .phloxLight, .tokyoNight, .dracula, .catppuccinMocha, .gruvboxDark, .nord,
+        .catppuccinLatte, .solarizedLight, .githubLight,
     ]
 
     /// 起動時 register(defaults:) 用。

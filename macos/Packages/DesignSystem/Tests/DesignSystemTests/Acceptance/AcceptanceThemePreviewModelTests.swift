@@ -81,13 +81,14 @@ struct AcceptanceThemePreviewModelTests {
 
     @Test("登録 10 テーマの ID・名前・順序を固定し、候補由来の背景・文字・選択行・枠・色帯へ写像する")
     func tenRegisteredThemesMapFromCandidate() {
+        // 2026-09-25 ユーザー承認: 並びを 10 Settings の見本（Phlox の次に Phlox Light）に合わせた。
         #expect(ThemeStore.all.map(\.id) == [
-            "phlox", "tokyo-night", "dracula", "catppuccin-mocha", "gruvbox-dark", "nord",
-            "catppuccin-latte", "solarized-light", "github-light", "phlox-light",
+            "phlox", "phlox-light", "tokyo-night", "dracula", "catppuccin-mocha", "gruvbox-dark", "nord",
+            "catppuccin-latte", "solarized-light", "github-light",
         ])
         #expect(ThemeStore.all.map(\.name) == [
-            "Phlox", "Tokyo Night", "Dracula", "Catppuccin Mocha", "Gruvbox Dark", "Nord",
-            "Catppuccin Latte", "Solarized Light", "GitHub Light", "Phlox Light",
+            "Phlox", "Phlox Light", "Tokyo Night", "Dracula", "Catppuccin Mocha", "Gruvbox Dark", "Nord",
+            "Catppuccin Latte", "Solarized Light", "GitHub Light",
         ])
         #expect(ThemeStore.all.count == 10)
 

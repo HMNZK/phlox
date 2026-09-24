@@ -5,8 +5,8 @@ import AppKit
 public enum TerminalFontSettings {
     public static let fontSizeKey = "phlox.terminal.fontSize"
 
-    public static let minSize: CGFloat = 9
-    public static let maxSize: CGFloat = 24
+    public static let minSize: CGFloat = 8
+    public static let maxSize: CGFloat = 32
     public static let step: CGFloat = 1
 
     /// 起動時に UserDefaults.register(defaults:) へ渡す既定値。

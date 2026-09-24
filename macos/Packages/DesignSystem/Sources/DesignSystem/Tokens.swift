@@ -318,6 +318,10 @@ public enum DSColor {
     public static var fieldBorder: Color { border }
     /// トグルのオフの面（`--off`: 黒 0.13 / 白 0.16）。
     public static var toggleOff: Color { theme.textPrimary.color.opacity(isDark ? 0.16 : 0.13) }
+    /// 設定の窓の地（10 Settings `--bg`: #ECECEE / #1E1E20）。行のまとまりは `cardBackground`。
+    public static var settingsBackground: Color { isDark ? palette.window.color : palette.tabBar.color }
+    /// 設定のタブの選択中の面（`--sel`: 黒 0.075 / 白 0.10）。
+    public static var settingsTabSelected: Color { theme.textPrimary.color.opacity(isDark ? 0.10 : 0.075) }
 
     public static var statusStalled: Color { palette.stalled.mark.color }
 

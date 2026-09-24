@@ -105,6 +105,11 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
             renameRequest = nil
             revealAndRename(id)
         }
+        .onChange(of: router.projectRenameRequest) { _, id in
+            guard let id else { return }
+            router.projectRenameRequest = nil
+            beginRename(.project(id))
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("プロジェクトとセッション"))
     }

@@ -18,7 +18,7 @@ struct InspectorView: View {
                 options: [(InspectorTab.session, "セッション"), (InspectorTab.usage, "使用量")]
             )
             .padding(.horizontal, 12)
-            .padding(.top, 12)
+            .padding(.top, 10)
             .padding(.bottom, 8)
 
             switch router.inspectorTab {
@@ -41,7 +41,6 @@ struct InspectorView: View {
                 UsageSidebarView(monitor: monitor)
             }
         }
-        .padding(.top, 28)
         .background(DSColor.surface)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("インスペクタ"))

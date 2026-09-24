@@ -5958,6 +5958,215 @@
           }
         }
       }
+    },
+    "オンにすると、このプロジェクトで以降に起動するセッションを個別の worktree で動かします。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When on, sessions you start in this project from now on run in their own worktree."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "プロジェクト名を変更…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename Project…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "⌘J 次の対応待ちへ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘J Next waiting"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "↑↓ 移動": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↑↓ Move"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "↩ 開く": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↩ Open"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "変更一覧 · 差分": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changes · Diff"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "共通 ⇧⌘,": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shared ⇧⌘,"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "ターミナルのタブ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal Tab"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "変更のタブ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changes Tab"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "文字を大きく": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bigger Text"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "文字を小さく": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smaller Text"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "セッションのタブ %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session Tab %lld"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "タイル %lld にフォーカス": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Focus Tile %lld"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "別のプロジェクトへ移動": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to Another Project"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "会話を書き出す…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export Conversation…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "会話を Markdown でコピー": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Conversation as Markdown"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "エージェント管理…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent Console…"
+          }
+        }
+      }
+    },
+    "次のセッション": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next Session"
+          }
+        }
+      }
+    },
+    "前のセッション": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous Session"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

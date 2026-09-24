@@ -9,12 +9,13 @@ import SwiftUI
 /// (view 単位の state を共有すると「片方をホバーすると両方光る」問題が起きるため切り出した)。
 /// navigationShell 等の最前面オーバーレイとして区切り線の真上に重ねる前提。
 public struct ResizeGripView: View {
-    /// 掴みしろの幅(区切り線を中心に左右へ張り出す)。配置側の offset 計算と揃える。
-    public static let gripWidth: CGFloat = 20
+    /// 掴みしろの幅(区切り線を中心に左右へ張り出す)。配置側の offset 計算と揃える。01 E6: 見た目 1pt・当たり 8pt。
+    public static let gripWidth: CGFloat = 8
 
     let hitWidth: CGFloat
     let onChanged: (DragGesture.Value) -> Void
     let onEnded: () -> Void
+    let onDoubleClick: (() -> Void)?
 
     @State private var isHovered = false
     @State private var isResizing = false
@@ -23,11 +24,13 @@ public struct ResizeGripView: View {
     public init(
         hitWidth: CGFloat = gripWidth,
         onChanged: @escaping (DragGesture.Value) -> Void,
-        onEnded: @escaping () -> Void
+        onEnded: @escaping () -> Void,
+        onDoubleClick: (() -> Void)? = nil
     ) {
         self.hitWidth = hitWidth
         self.onChanged = onChanged
         self.onEnded = onEnded
+        self.onDoubleClick = onDoubleClick
     }
 
     public var body: some View {
@@ -60,6 +63,8 @@ public struct ResizeGripView: View {
                         onEnded()
                     }
             )
+            // 01 E6: ダブルクリックで既定の幅に戻す。
+            .onTapGesture(count: 2) { onDoubleClick?() }
             .onHover { hovering in
                 isHovered = hovering
             }

@@ -286,6 +286,8 @@ public enum DSColor {
     public static var selectionFill: Color { RGB(0xD9, 0x77, 0x57).color.opacity(palette.selectionOpacity) }
     /// 選択した文字・フォーカスの輪（`--selText`: ライト coral 0.25 / ダーク #E08865 0.30）。
     public static var focusRing: Color { accent.opacity(isDark ? 0.30 : 0.25) }
+    /// 無彩色の状態記号（待機・実行中・完了の輪。`--neutralGlyph`: #6E6E73 / #A1A1A7）。
+    public static var neutralGlyph: Color { (isDark ? RGB(0xA1, 0xA1, 0xA7) : RGB(0x6E, 0x6E, 0x73)).color }
 
     // 操作部品の面（12 Design System P）。
     /// 副ボタン・セグメントの選択中の面（`--ctl`: `#FFFFFF` / `#3A3A3E`）。

@@ -29,7 +29,7 @@ struct SessionTabsContainer<Conversation: View>: View {
             separator
             if router.commonTerminalSelected, let commonTerminal {
                 // AppKit の端末はオーバーレイではなくレイアウトの中に置く（ADR 0136）。
-                TerminalPanelView(panel: commonTerminal)
+                TerminalPanelView(panel: commonTerminal, showsHeader: false)
             } else if let id = router.selectedSession, let node = viewModel.sessionNode(id: id) {
                 let layout = router.tabs.layout(for: id)
                 ChildTabBar(
@@ -69,7 +69,7 @@ struct SessionTabsContainer<Conversation: View>: View {
             conversation()
         case .terminal:
             if let terminals {
-                TerminalPanelView(panel: terminals.terminal(for: node.id, workingDirectory: node.rawWorkspacePath))
+                TerminalPanelView(panel: terminals.terminal(for: node.id, workingDirectory: node.rawWorkspacePath), showsHeader: false)
                     .id(node.id)
             } else {
                 ContentUnavailableView("ターミナルを準備しています", systemImage: "terminal")
@@ -118,26 +118,11 @@ struct ChildTabBar: View {
                             onClose: { router.tabRequest = .closeChild(node.id, tab) }
                         )
                     }
+                    // 02 C1: ＋は子タブの直後。
+                    addButton
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
-            Button {
-                router.newTabChooserPresented = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: DSIconSize.m, weight: .medium))
-                    .foregroundStyle(DSColor.textSecondary)
-                    .frame(width: 24, height: 24)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(HoverableIconButtonStyle())
-            .help(Text("このセッションにタブを追加"))
-            .accessibilityLabel(Text("このセッションにタブを追加"))
-            .popover(isPresented: $router.newTabChooserPresented, arrowEdge: .bottom) {
-                NewTabChooser(router: router, node: node, agentConsoleWindowID: agentConsoleWindowID)
-                    // popover は画面のロケールを引き継がないので渡し直す（アプリ内の言語設定）。
-                    .environment(\.locale, locale)
-            }
             Spacer(minLength: DSSpacing.m)
             Text(verbatim: abbreviatedPath)
                 .font(DSFont.monoCaption)
@@ -147,11 +132,31 @@ struct ChildTabBar: View {
                 .help(node.rawWorkspacePath)
                 .accessibilityLabel(Text("worktree: \(node.rawWorkspacePath)"))
         }
-        .padding(.horizontal, DSSpacing.s)
+        .padding(.horizontal, 10)
         .frame(height: DSLayout.childTabBarHeight)
         .background(DSColor.windowBackground)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("このセッションのタブ"))
+    }
+
+    private var addButton: some View {
+        Button {
+            router.newTabChooserPresented = true
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 14, weight: .regular))
+                .foregroundStyle(DSColor.textSecondary)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(HoverableIconButtonStyle())
+        .help(Text("このセッションにタブを追加"))
+        .accessibilityLabel(Text("このセッションにタブを追加"))
+        .popover(isPresented: $router.newTabChooserPresented, arrowEdge: .bottom) {
+            NewTabChooser(router: router, node: node, agentConsoleWindowID: agentConsoleWindowID)
+                // popover は画面のロケールを引き継がないので渡し直す（アプリ内の言語設定）。
+                .environment(\.locale, locale)
+        }
     }
 
     private var abbreviatedPath: String {
@@ -196,9 +201,10 @@ private struct ChildTabButton: View {
     @State private var isHovering = false
 
     var body: some View {
-        HStack(spacing: DSSpacing.xs) {
+        // PhloxTabs.dc.html:205: 高さ 24、padding 0 10、間 6、記号は 10/700 の等幅。
+        HStack(spacing: 6) {
             Text(verbatim: glyph)
-                .font(DSFont.monoCaption)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .foregroundStyle(DSColor.textTertiary)
             title
                 .font(DSFont.auxiliary.weight(isSelected ? .semibold : .regular))
@@ -208,7 +214,7 @@ private struct ChildTabButton: View {
                 closeAccessory
             }
         }
-        .padding(.horizontal, DSSpacing.s)
+        .padding(.horizontal, 10)
         .frame(height: 24)
         .background(isShown ? DSColor.fillSelected : Color.clear, in: RoundedRectangle(cornerRadius: DSRadius.row))
         .contentShape(Rectangle())
@@ -229,7 +235,7 @@ private struct ChildTabButton: View {
     private var closeAccessory: some View {
         if isDirty, !isHovering {
             Circle()
-                .fill(DSColor.textSecondary)
+                .fill(DSColor.textPrimary)
                 .frame(width: 6, height: 6)
                 .frame(width: 14, height: 14)
         } else {
@@ -280,6 +286,7 @@ private struct NewTabChooser: View {
     let agentConsoleWindowID: String?
 
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.locale) private var locale
     @FocusState private var focused: Item?
 
     enum Item: Hashable, CaseIterable {
@@ -293,7 +300,7 @@ private struct NewTabChooser: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("このセッションに開く")
-                .font(DSFont.meta)
+                .font(DSFont.meta.weight(.semibold))
                 .foregroundStyle(DSColor.textTertiary)
                 .padding(.horizontal, DSSpacing.s)
                 .padding(.vertical, DSSpacing.xs)
@@ -325,7 +332,7 @@ private struct NewTabChooser: View {
             Text(verbatim: glyph(item))
                 .font(DSFont.monoCaption)
                 .foregroundStyle(isFocused ? Color.white : DSColor.textTertiary)
-                .frame(width: 18, alignment: .leading)
+                .frame(width: 22, alignment: .leading)
             title(item)
                 .font(DSFont.row)
                 .foregroundStyle(isFocused ? Color.white : DSColor.textPrimary)
@@ -360,7 +367,7 @@ private struct NewTabChooser: View {
         switch item {
         case .conversation: Text("会話（このセッション）")
         case .terminal: Text("ターミナル（この worktree で）")
-        case .changes: Text("変更一覧・差分")
+        case .changes: Text("変更一覧 · 差分")
         case .file: Text("ファイルを開く…")
         case .agentConsole: Text("エージェント管理")
         }
@@ -369,9 +376,9 @@ private struct NewTabChooser: View {
     private func shortcut(_ item: Item) -> String {
         switch item {
         case .terminal: "⌃⌘T"
-        case .changes: "⌃⌘E"
+        case .changes: ""
         case .file: "⌘P"
-        case .agentConsole: "⇧⌘,"
+        case .agentConsole: AppLocalizedString.string("共通 ⇧⌘,", locale: locale)
         case .conversation: ""
         }
     }
@@ -433,7 +440,8 @@ private struct ChildTabPanes<Content: View>: View {
                             let committed = Self.leftWidth(fraction: dragFraction ?? layout.splitFraction, totalWidth: width) / width
                             router.tabs.updateLayout(for: node.id) { $0.splitFraction = committed }
                             dragFraction = nil
-                        }
+                        },
+                        onDoubleClick: { router.tabs.updateLayout(for: node.id) { $0.splitFraction = 0.5 } }
                     )
                     .offset(x: leftWidth + 0.5 - DSLayout.dividerHitWidth / 2)
                 }
@@ -451,14 +459,15 @@ private struct ChildTabPanes<Content: View>: View {
         .overlay(alignment: .trailing) {
             if isDropTargeted {
                 GeometryReader { geometry in
-                    RoundedRectangle(cornerRadius: DSRadius.s)
-                        .fill(DSColor.accent.opacity(0.12))
+                    // PhloxTabs.dc.html:114: 面 --selText、内側 2pt の accent、12/600 accentInk、角丸 8。
+                    RoundedRectangle(cornerRadius: DSRadius.m)
+                        .fill(DSColor.focusRing)
                         .overlay {
-                            RoundedRectangle(cornerRadius: DSRadius.s).strokeBorder(DSColor.accent.opacity(0.7))
+                            RoundedRectangle(cornerRadius: DSRadius.m).strokeBorder(DSColor.accent, lineWidth: 2)
                         }
                         .overlay {
                             Text("右に分割して開く")
-                                .font(DSFont.auxiliary)
+                                .font(DSFont.auxiliary.weight(.semibold))
                                 .foregroundStyle(DSColor.accentInk)
                         }
                         .frame(width: geometry.size.width / 2)

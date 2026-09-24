@@ -43,6 +43,8 @@ struct SessionTabBar: View {
                                 tabFrames[node.id] = frame
                             }
                         }
+                        // 02 C1: ＋はセッションのタブの直後（その右は空き）。
+                        newTabButton
                     }
                 }
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewportWidth = $0 }
@@ -75,25 +77,28 @@ struct SessionTabBar: View {
                     openWindow(id: agentConsoleWindowID)
                 }
             }
-            Button {
-                router.newTabChooserPresented = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: DSIconSize.m, weight: .medium))
-                    .foregroundStyle(DSColor.textSecondary)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(HoverableIconButtonStyle())
-            .disabled(router.selectedSession == nil || router.commonTerminalSelected)
-            .help(Text("新しいタブ（⌘T）"))
-            .accessibilityLabel(Text("新しいタブ（⌘T）"))
-            .padding(.horizontal, DSSpacing.xs)
         }
         .frame(height: DSLayout.tabBarHeight)
         .background(DSColor.tabBarBackground)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("タブ"))
+    }
+
+    private var newTabButton: some View {
+        Button {
+            router.newTabChooserPresented = true
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 15, weight: .regular))
+                .foregroundStyle(DSColor.textSecondary)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(HoverableIconButtonStyle())
+        .disabled(router.selectedSession == nil || router.commonTerminalSelected)
+        .help(Text("新しいタブ（⌘T）"))
+        .accessibilityLabel(Text("新しいタブ（⌘T）"))
+        .padding(.horizontal, DSSpacing.xxs)
     }
 
     // MARK: - Hidden attention (C7)
@@ -116,18 +121,18 @@ struct SessionTabBar: View {
             revealFirstHiddenAttention()
         } label: {
             text
-                .font(DSFont.meta.weight(.semibold))
+                .font(.system(size: 11.5, weight: .semibold))
                 .foregroundStyle(summary.kind.map(DSColor.attentionInk) ?? DSColor.textPrimary)
                 .padding(.horizontal, DSSpacing.s)
                 .frame(height: 22)
                 .background(
                     summary.kind.map(DSColor.attentionTint) ?? DSColor.fillSubtle,
-                    in: RoundedRectangle(cornerRadius: DSRadius.s)
+                    in: RoundedRectangle(cornerRadius: DSRadius.row)
                 )
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, DSSpacing.xs)
+        .padding(.trailing, DSSpacing.s)
         .help(text)
         .accessibilityLabel(text)
     }
@@ -226,38 +231,42 @@ private struct SessionTabButton: View {
     let onClose: () -> Void
 
     @Environment(\.locale) private var locale
-    @State private var isHovering = false
 
     private var state: SessionDisplayState { node.tabDisplayState }
 
     var body: some View {
-        HStack(spacing: DSSpacing.xs) {
+        // PhloxTabs.dc.html:148-154: 内容の幅（最大 220）、padding 0 10、間 6。✕ は選択中のタブだけ。
+        HStack(spacing: 6) {
             Text(verbatim: node.agentDescriptor.tabInitials)
-                .font(DSFont.monoCaption)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .foregroundStyle(DSColor.textTertiary)
             Text(node.displayName)
-                .font(DSFont.auxiliary.weight(isSelected ? .medium : .regular))
+                .font(DSFont.auxiliary.weight(isSelected ? .semibold : .regular))
                 .foregroundStyle(isSelected ? DSColor.textPrimary : DSColor.textSecondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
             if state.attentionKind != nil {
-                StatusLabel(state: state)
+                Text(verbatim: state.localizedLabel(locale: locale))
+                    .font(.system(size: 10.5, weight: .bold))
+                    .foregroundStyle(state.color)
+                    .lineLimit(1)
+                    .fixedSize()
             }
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(DSColor.textTertiary)
-                    .frame(width: 16, height: 16)
-                    .contentShape(Rectangle())
+            if isSelected {
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .regular))
+                        .foregroundStyle(DSColor.textTertiary)
+                        .frame(width: 14, height: 16)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(HoverableIconButtonStyle())
+                .help(Text("タブを閉じる（セッションは残ります）"))
+                .accessibilityLabel(Text("タブを閉じる"))
             }
-            .buttonStyle(HoverableIconButtonStyle())
-            .opacity(isSelected || isHovering ? 1 : 0)
-            .help(Text("タブを閉じる（セッションは残ります）"))
-            .accessibilityLabel(Text("タブを閉じる"))
         }
-        .padding(.leading, DSSpacing.m)
-        .padding(.trailing, DSSpacing.xs)
-        .frame(minWidth: 120, maxWidth: 240, maxHeight: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .frame(maxWidth: 220, maxHeight: .infinity, alignment: .leading)
         .background(background)
         .overlay(alignment: .top) {
             if isSelected { Rectangle().fill(DSColor.accent).frame(height: 2) }
@@ -265,7 +274,6 @@ private struct SessionTabButton: View {
         .overlay(alignment: .trailing) { Rectangle().fill(DSColor.separator).frame(width: 1) }
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
-        .onHover { isHovering = $0 }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)

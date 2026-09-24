@@ -31,13 +31,14 @@ struct DashboardToolbar: View {
     let showsSidebarToggle: Bool
 
     @AppStorage(UsageSettings.showInHeaderKey) private var showUsageInHeader = true
+    @AppStorage(UsageSettings.showUnavailableKey) private var showUnavailable = false
     @Environment(\.locale) private var locale
 
     /// 信号（閉じる・しまう・拡大）が占める幅。
     private static let trafficLightsWidth: CGFloat = 70
 
     var body: some View {
-        HStack(spacing: DSSpacing.m) {
+        HStack(spacing: DSSpacing.s) {
             if showsSidebarToggle {
                 Color.clear.frame(width: Self.trafficLightsWidth, height: 1)
                 SidebarToggleButton(router: router, attentionCount: viewModel.attentionEntries.count)
@@ -48,15 +49,18 @@ struct DashboardToolbar: View {
             ViewModeToggle(mode: $router.viewMode, showsText: density != .minimal)
             Spacer(minLength: DSSpacing.s)
             AttentionButton(viewModel: viewModel, router: router, density: density)
-            if showUsageInHeader {
+            if showUsageInHeader, !UsageDisplay.topBarChips(usages: usageMonitor.usages, showUnavailable: showUnavailable, now: Date()).isEmpty {
                 usageChip
             }
             Rectangle()
                 .fill(DSColor.separator)
-                .frame(width: 1, height: 20)
+                .frame(width: 1, height: 18)
+                .padding(.horizontal, DSSpacing.xxs)
             inspectorToggleButton
         }
-        .padding(.horizontal, DSSpacing.m)
+        // PhloxWindow.dc.html: padding 0 10 0 14、gap 8。
+        .padding(.leading, 14)
+        .padding(.trailing, 10)
         .frame(height: DSLayout.toolbarHeight)
         .frame(maxWidth: .infinity)
         .background(DSColor.toolbarBackground)
@@ -94,7 +98,7 @@ struct DashboardToolbar: View {
             }
             .lineLimit(1)
             .truncationMode(.tail)
-            .frame(maxWidth: 320, alignment: .leading)
+            .modifier(CappedWidth(cap: titleCap))
             .layoutPriority(1)
             .help(presentation.helpText)
         } else if let selectedProject {
@@ -103,14 +107,25 @@ struct DashboardToolbar: View {
                 .foregroundStyle(DSColor.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .frame(maxWidth: 320, alignment: .leading)
+                .modifier(CappedWidth(cap: titleCap))
+        }
+    }
+
+    /// タイトルは内容の幅。最大は幅の段階で 300 / 210 / 150（PhloxWindow.dc.html:707）。
+    private var titleCap: CGFloat {
+        switch density {
+        case .full: 300
+        case .compact: 210
+        case .minimal: 150
         }
     }
 
     /// 「花名 · 短縮 ID · プロジェクト」。
     private func subtitle(for node: SessionNode, flowerName: String?) -> String {
         let projectName = node.projectID.flatMap { id in viewModel.projects.first { $0.id == id }?.name }
-        return [flowerName, SessionViewModel.shortID(for: node.id), projectName]
+        // 短縮 ID は小文字 4 桁（「ツバキ · a3f9 · phlox-core」）。
+        let shortID = String(node.id.rawValue.uuidString.prefix(4)).lowercased()
+        return [flowerName, shortID, projectName]
             .compactMap { $0 }
             .joined(separator: " · ")
     }
@@ -120,34 +135,12 @@ struct DashboardToolbar: View {
     @ViewBuilder
     private var worktreeMenu: some View {
         if let selectedProject {
-            let isOn = selectedProject.usesWorktreeIsolation
-            Menu {
-                Toggle(isOn: worktreeIsolationBinding) {
-                    Label("セッションを Git worktree で隔離", systemImage: "arrow.triangle.branch")
-                }
-            } label: {
-                HStack(spacing: DSSpacing.xxs) {
-                    Image(systemName: "arrow.triangle.branch")
-                        .font(.system(size: DSIconSize.m, weight: .medium))
-                    if density == .full {
-                        Text("worktree 隔離")
-                            .font(DSFont.auxiliary)
-                    }
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 8, weight: .semibold))
-                }
-                .foregroundStyle(DSColor.textSecondary)
-                .frame(height: 28)
-                .padding(.horizontal, DSSpacing.xs)
-                .contentShape(Rectangle())
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .buttonStyle(HoverableIconButtonStyle())
-            .help("選択中プロジェクトのセッション隔離")
-            .accessibilityLabel(Text("Git worktree 隔離"))
-            .accessibilityValue(Text(isOn ? "オン" : "オフ"))
+            WorktreeMenuButton(
+                project: selectedProject,
+                showsText: density == .full,
+                isOn: worktreeIsolationBinding,
+                onRename: { router.projectRenameRequest = selectedProject.id }
+            )
         }
     }
 
@@ -170,10 +163,15 @@ struct DashboardToolbar: View {
                 router.showUsageInInspector()
             }
         } label: {
+            // 面は無く 0.5pt の輪郭だけ。インスペクタで使用量を開いている間は選択の面（PhloxWindow.dc.html:712）。
             UsageTopBarView(monitor: usageMonitor, density: density)
-                .padding(.horizontal, DSSpacing.s)
-                .frame(height: 28)
-                .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: DSRadius.row))
+                .padding(.horizontal, 9)
+                .frame(height: 26)
+                .background(
+                    router.inspectorVisible && router.inspectorTab == .usage ? DSColor.fillSelected : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 7)
+                )
+                .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(DSColor.controlBorder, lineWidth: 0.5) }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -201,7 +199,7 @@ struct DashboardToolbar: View {
             Image(systemName: "sidebar.right")
                 .font(.system(size: DSIconSize.l, weight: .medium))
                 .foregroundStyle(router.inspectorVisible ? DSColor.textPrimary : DSColor.textSecondary)
-                .frame(width: 28, height: 28)
+                .frame(width: 28, height: 24)
                 .background(
                     router.inspectorVisible ? DSColor.fillSelected : Color.clear,
                     in: RoundedRectangle(cornerRadius: DSRadius.row)
@@ -254,13 +252,14 @@ struct CountBadge: View {
     let count: Int
 
     var body: some View {
+        // PhloxWindow.dc.html:149: 最小 18×16、角丸 8、白 11/700。
         Text("\(count)")
-            .font(.system(size: 10.5, weight: .bold))
+            .font(.system(size: 11, weight: .bold))
             .monospacedDigit()
             .foregroundStyle(.white)
             .padding(.horizontal, 5)
-            .frame(minWidth: 17, minHeight: 17)
-            .background(DSColor.accentFill, in: Capsule())
+            .frame(minWidth: 18, minHeight: 16)
+            .background(DSColor.accentFill, in: RoundedRectangle(cornerRadius: 8))
             .accessibilityHidden(true)
     }
 }
@@ -277,7 +276,7 @@ struct ViewModeToggle: View {
             segment(.grid, symbol: "square.grid.2x2", title: AppLocalizedString.string("グリッド", locale: locale), key: "⌃⌘2")
         }
         .padding(DSSpacing.xxs)
-        .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: DSRadius.s + 3))
+        .background(DSColor.segmentTrack, in: RoundedRectangle(cornerRadius: 7))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("表示モード"))
     }
@@ -306,22 +305,22 @@ private struct ModeSegmentButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: DSSpacing.xs) {
+            HStack(spacing: 5) {
                 Image(systemName: symbol)
                     .font(.system(size: 12, weight: .medium))
                 if let title {
                     Text(title)
-                        .font(DSFont.auxiliary)
+                        .font(DSFont.auxiliary.weight(.medium))
                 }
             }
-            .padding(.horizontal, title == nil ? 0 : DSSpacing.s)
+            .padding(.horizontal, title == nil ? 0 : 10)
             // 見た目は 12 Design System のセグメント高 22、押せる範囲は DSHitTarget の 24。
             .frame(minWidth: DSHitTarget.modeSegmentWidth, minHeight: 22)
             .background(
                 isOn ? DSColor.controlBackground : (hovering ? DSColor.fillSubtle : Color.clear),
-                in: RoundedRectangle(cornerRadius: DSRadius.s)
+                in: RoundedRectangle(cornerRadius: 5)
             )
-            .shadow(color: isOn ? .black.opacity(0.08) : .clear, radius: 1, y: 0.5)
+            .shadow(color: isOn ? .black.opacity(0.2) : .clear, radius: 0.75, y: 0.5)
             .frame(minHeight: DSHitTarget.modeSegmentHeight)
             .contentShape(Rectangle())
         }
@@ -333,5 +332,116 @@ private struct ModeSegmentButton: View {
         .accessibilityIdentifier(identifier)
         .accessibilityLabel(Text(help))
         .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+}
+
+/// 内容の幅のまま、上限 `cap` を超えるときだけ切り詰める（`.frame(maxWidth:)` は上限まで広がってしまう）。
+private struct CappedWidth: ViewModifier {
+    let cap: CGFloat
+    func body(content: Content) -> some View {
+        CappedWidthLayout(cap: cap) { content }
+    }
+}
+
+private struct CappedWidthLayout: Layout {
+    let cap: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let child = subviews.first else { return .zero }
+        let width = min(proposal.width ?? cap, cap)
+        return child.sizeThatFits(ProposedViewSize(width: width, height: proposal.height))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
+    }
+}
+
+/// タイトル直後の worktree ボタンとそのメニュー（01 E4）。見出し・チェック項目・説明・名前の変更。
+private struct WorktreeMenuButton: View {
+    let project: Project
+    let showsText: Bool
+    @Binding var isOn: Bool
+    let onRename: () -> Void
+
+    @State private var presented = false
+    @State private var hovering = false
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        Button { presented.toggle() } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.system(size: 13, weight: .medium))
+                if showsText {
+                    Text("worktree 隔離")
+                        .font(DSFont.auxiliary)
+                }
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 7, weight: .bold))
+            }
+            .foregroundStyle(DSColor.textSecondary)
+            .padding(.horizontal, 7)
+            .frame(height: 24)
+            .background(presented ? DSColor.fillSelected : (hovering ? DSColor.fillSubtle : .clear), in: RoundedRectangle(cornerRadius: DSRadius.row))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .fixedSize()
+        .help("選択中プロジェクトのセッション隔離")
+        .accessibilityLabel(Text("Git worktree 隔離"))
+        .accessibilityValue(Text(isOn ? "オン" : "オフ"))
+        .popover(isPresented: $presented, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(verbatim: project.name)
+                    .font(DSFont.meta.weight(.semibold))
+                    .foregroundStyle(DSColor.textTertiary)
+                    .padding(.horizontal, 10)
+                    .padding(.top, 8)
+                    .padding(.bottom, 4)
+                Button { isOn.toggle() } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .semibold))
+                            .opacity(isOn ? 1 : 0)
+                            .frame(width: 12)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("git worktree で隔離する")
+                                .font(DSFont.row)
+                                .foregroundStyle(DSColor.textPrimary)
+                            Text("オンにすると、このプロジェクトで以降に起動するセッションを個別の worktree で動かします。")
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(DSColor.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isOn ? .isSelected : [])
+                Divider().padding(.vertical, 4)
+                Button {
+                    presented = false
+                    onRename()
+                } label: {
+                    Text("プロジェクト名を変更…")
+                        .font(DSFont.row)
+                        .foregroundStyle(DSColor.textPrimary)
+                        .padding(.leading, 30)
+                        .padding(.trailing, 10)
+                        .padding(.vertical, 5)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.bottom, 6)
+            }
+            .frame(width: 300)
+            .background(DSColor.popoverBackground)
+            .environment(\.locale, locale)
+        }
     }
 }

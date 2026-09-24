@@ -715,3 +715,45 @@ A・C 型は `.dialogSeverity(.critical)`（注意アイコン）、破壊的な
 - 並列実行（`--no-parallel` なし）では DashboardFeature が 10 分以上止まり、SessionFeature の `TerminationFlushRace` の 2 件が時間切れで落ちた。後者は単独の再実行で合格。どちらも verify.sh が直列で回す理由として書かれている既知の現象で、今回の変更との関係は調べていない。
 - Codex（gpt-6-sol）のレビュー: 指摘 4 件のうち 3 件（テーマ見本の旧い値、Phlox の操作面の色、テストの除外範囲が広すぎる）を直した。「11pt 固定で文字サイズ設定に追従しない」は採らなかった。macOS には Dynamic Type が無く、`Font.caption` も固定 10pt のため。
 - Debug 版をダーク・ライト・英語で撮影し、崩れが無いことを見た（`/tmp/phlox-audit/f1/`）。サイドバーの選択行がコーラル色なのは 03 の範囲で直す。
+
+## F2 忠実度の修正: ウィンドウとタブ（01 Main Window / 02 Tabs）
+
+監査 `docs/agent-output/ui-fidelity-audit/01-02-window-tabs.md` の指摘を直した。テーマ切替で子タブ列・対応待ちボタンが前のテーマの色で残る件（X1）は F1 の `ThemeChangeSignal` で直っている（切替後の撮影で確認）。
+
+### 対応表
+
+| 監査の指摘 | 内容 | 実装箇所 |
+|---|---|---|
+| A1 余白 | ツールバーの左 14・右 10・間 8、区切り線 1×18 | `DashboardToolbar.swift` |
+| A1 タイトル幅 | 内容の幅、上限 300 / 210 / 150（幅の段階）。短い題名でも worktree ボタンが直後に来る | `DashboardToolbar.swift`（`CappedWidthLayout`） |
+| A1 短縮 ID | 小文字 4 桁（「ed32」） | `DashboardToolbar.swift` |
+| A1 / E4 worktree | ▾ を出す。メニューは見出し（プロジェクト名）・「git worktree で隔離する」・説明・「プロジェクト名を変更…」 | `DashboardToolbar.swift`（`WorktreeMenuButton`）、`AppRouter.projectRenameRequest`、`DashboardSidebarView.swift` |
+| A1 表示モード | トラック `segmentTrack` 角丸 7、セグメント 22 高・左右 10・角丸 5・12/500、選択は `controlBackground`＋影 | `DashboardToolbar.swift` |
+| A1 / D 対応待ち | full で 4 状態の記号、`controlBackground`＋0.5pt の縁、高さ 26・角丸 7、開いている間は選択の面。0 件は件数の丸を出さず淡くする | `AttentionListPopover.swift`（`AttentionButton`）、新設 `StateGlyph.swift` |
+| 件数の丸 | 最小 18×16・角丸 8・白 11/700 | `DashboardToolbar.swift`（`CountBadge`） |
+| A1 使用量 | 面なし・0.5pt の縁・高さ 26・角丸 7、使用量タブを開いている間は選択の面。取得前（0 件）は枠ごと出さない（X2） | `DashboardToolbar.swift` |
+| D 使用量 compact / minimal | 「Cl 38 · Cx 62 · Cu 88%」、最小は 14pt の円グラフ＋数値（20% 未満は琥珀の ▲） | `UsageTopBarView.swift` |
+| E1 一覧の行 | 面・枠なし、フォーカス行だけホバーの面＋内側 2pt の accent、状態記号 12＋エージェントの頭文字 16、2 行目以降の字下げ 44、「プロジェクト · 花名 · エージェント」、中身 11.5 等幅・角丸 5、ボタン 22 高・角丸 5 | `AttentionListPopover.swift`、新設 `AgentInitialTile`（`StateGlyph.swift`） |
+| E1 未読完了 | 6pt の accent の点と経過時間 | `AttentionListPopover.swift` |
+| インスペクタ上余白 | 上 10（40 だった） | `UsageSidebarView.swift` |
+| D2 重ね表示 | 上端をツールバーの下 8 に | `DashboardView.swift` |
+| E6 境界 | 当たり 8pt、ダブルクリックで既定幅、幅と開閉をウィンドウごとに保存（`@SceneStorage`）。分割の区切りもダブルクリックで 50:50 | `ResizeGripView.swift`、`DashboardView.swift`、`SessionTabsContainer.swift` |
+| C1 上段タブ | 内容の幅（最大 220）、左右 10・間 6、選択は 600、頭文字 10/700 等幅、状態 10.5/700、✕ は選択中だけ、＋はタブの直後 | `SessionTabBar.swift` |
+| C7 隠れたタブ | 11.5/600・角丸 6 | `SessionTabBar.swift` |
+| C1 子タブ | 左右 10、子タブの左右 10・間 6、記号 10/700、＋は子タブの直後、未保存の点は本文色 | `SessionTabsContainer.swift` |
+| C4 ＋のメニュー | 見出し 600、記号の幅 22、「変更一覧 · 差分」（キー表記なし）、エージェント管理は「共通 ⇧⌘,」 | `SessionTabsContainer.swift` |
+| C5 ターミナルの子タブ | 旧ドロワーの見出し行を外し、端末を全面に | `SessionTabsContainer.swift` |
+| C6 右に分割 | 面 `--selText`・内側 2pt の accent・12/600・角丸 8 | `SessionTabsContainer.swift` |
+| F メニュー | Phlox / ファイル / 表示 / セッション の 4 つ（「タブ」メニューを廃止）。ファイル: 新規・新しいタブ・ファイル・プロジェクト ｜ 書き出し・コピー ｜ ⌘W（行き先で「閉じる / セッションを削除… / グリッドから外す」）。表示: 表示モード・右に分割 ｜ サイドバー・インスペクタ・ターミナルのタブ・変更のタブ・レイアウト ｜ 文字を大きく・小さく・実寸。セッション: タブ 1–9・次前のタブ・対応待ち・次前のセッション・タイル 1–9（⌥⌘1–9、新設）｜ 許可・拒否・中断 ｜ 名前・別のプロジェクトへ移動・git worktree で隔離する（新設）｜ セッションを削除…（赤）。OS のウィンドウタブ（「タブバーを表示」）を出さない | `App/PhloxApp.swift` |
+
+### 直していないもの
+
+- X4（会話画面の左端の短い横線）: 04 会話で直す。
+- エージェント管理を上段のタブの中身として開く（R:79）: README でエージェント管理は未設計のため、別ウィンドウのまま。
+- 「セッションを削除…」は ⌘W をファイルメニューに付けたため、セッションメニュー側にはキー表記が無い（同じキーを 2 つの項目に付けられない）。
+- 未確定のまま: 対応待ち 0 件の見た目（見本なし）、使用量の ▲ を文字段にも付けるか、ターミナル型の主タブ名、プロジェクト未選択時のタブ列。
+
+### 検証
+
+- `.claude/verify.sh` 合格（DesignSystem・AgentDomain・SessionFeature・DashboardFeature・アプリのビルド）。
+- Debug 版をダーク（1680 / 1100 / 900 幅）・ライト・英語で撮影して確認（`/tmp/phlox-audit/f2/`）。英語のメニュー項目をアクセシビリティ経由で列挙し、訳の抜け（「エージェント管理…」「次のセッション」「前のセッション」）を足した。

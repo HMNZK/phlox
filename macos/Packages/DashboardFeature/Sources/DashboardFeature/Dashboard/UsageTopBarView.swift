@@ -31,7 +31,7 @@ struct UsageTopBarView: View {
                         chipsRow(chips, showsGauge: true).fixedSize()
                     }
                     if density != .minimal {
-                        chipsRow(chips, showsGauge: false).fixedSize()
+                        compactRow(chips).fixedSize()
                     }
                     minimumRemaining(chips).fixedSize()
                 }
@@ -59,18 +59,53 @@ struct UsageTopBarView: View {
         }
     }
 
-    /// 最も狭い段階。残りが最小の 1 つだけを出す。
+    /// 文字だけの段階（01 D compact）。「Cl 38 · Cx 62 · Cu 88%」— 頭文字、区切り「·」、% は最後だけ。
+    private func compactRow(_ chips: [TopBarChip]) -> some View {
+        HStack(spacing: 4) {
+            ForEach(Array(chips.enumerated()), id: \.element.id) { index, chip in
+                if index > 0 {
+                    Text(verbatim: "·").font(.system(size: 11)).foregroundStyle(DSColor.textTertiary)
+                }
+                HStack(spacing: 3) {
+                    Text(verbatim: Self.initials(chip.kind))
+                        .font(.system(size: 11))
+                        .foregroundStyle(DSColor.textSecondary)
+                    let remaining = monitor.failures[chip.kind] == nil ? Self.remaining(chip) : nil
+                    valueText(remaining: remaining, isDimmed: chip.staleNote != nil, showsPercent: index == chips.count - 1)
+                }
+                .help(UsageDisplay.topBarHelpText(chip: chip, now: Date()))
+            }
+        }
+    }
+
+    /// 最も狭い段階（01 D minimal）。残りが最小の 1 つを 14pt の円グラフと数値で。20% 未満は琥珀の ▲ を添える。
     @ViewBuilder
     private func minimumRemaining(_ chips: [TopBarChip]) -> some View {
         let values = chips.filter { monitor.failures[$0.kind] == nil }.compactMap(Self.remaining)
-        valueText(remaining: values.min(), isDimmed: false)
+        let minimum = values.min()
+        let isLow = minimum.map { Double($0) < UsageDisplay.lowRemainingThreshold } ?? false
+        HStack(spacing: 5) {
+            ZStack {
+                Circle().fill(DSColor.segmentTrack)
+                Circle()
+                    .trim(from: 0, to: CGFloat(minimum ?? 0) / 100)
+                    .stroke(isLow ? DSColor.attentionMark(.approval) : DSColor.textSecondary, lineWidth: 7)
+                    .rotationEffect(.degrees(-90))
+                    .padding(3.5)
+            }
+            .frame(width: 14, height: 14)
+            if isLow {
+                Text(verbatim: "▲").font(.system(size: 9, weight: .bold)).foregroundStyle(DSColor.attentionInk(.approval))
+            }
+            valueText(remaining: minimum, isDimmed: false)
+        }
     }
 
     /// 取得失敗は「—」、読込中（更新中）は淡く、残り 20% 未満は琥珀＋太字。
-    private func valueText(remaining: Int?, isDimmed: Bool) -> some View {
+    private func valueText(remaining: Int?, isDimmed: Bool, showsPercent: Bool = true) -> some View {
         let isLow = remaining.map { Double($0) < UsageDisplay.lowRemainingThreshold } ?? false
         let isLoading = monitor.isRefreshing
-        return Text(verbatim: remaining.map { "\($0)%" } ?? "—")
+        return Text(verbatim: remaining.map { showsPercent ? "\($0)%" : "\($0)" } ?? "—")
             .font(.system(size: 11, weight: isLow ? .bold : .regular))
             .monospacedDigit()
             .foregroundStyle(
@@ -83,7 +118,7 @@ struct UsageTopBarView: View {
         let value = CGFloat(remaining ?? 0)
         let isLow = Double(value) < UsageDisplay.lowRemainingThreshold && remaining != nil
         return ZStack(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 2).fill(DSColor.fillSelected)
+            RoundedRectangle(cornerRadius: 2).fill(DSColor.segmentTrack)
             RoundedRectangle(cornerRadius: 2)
                 .fill(isLow ? DSColor.attentionMark(.approval) : DSColor.textSecondary)
                 .frame(width: Self.gaugeWidth * value / 100)
@@ -97,6 +132,14 @@ struct UsageTopBarView: View {
     private static func remaining(_ chip: TopBarChip) -> Int? {
         guard !chip.isUnavailable, let used = chip.allBuckets.map(\.usedPercent).max() else { return nil }
         return Int(round(100 - max(0, min(100, used))))
+    }
+
+    private static func initials(_ kind: AgentKind) -> String {
+        switch kind {
+        case .claudeCode: "Cl"
+        case .codex: "Cx"
+        case .cursor: "Cu"
+        }
     }
 
     private static func shortName(_ kind: AgentKind) -> String {

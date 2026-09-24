@@ -57,6 +57,8 @@ public final class AppRouter {
     public var inspectorVisible: Bool
     /// インスペクタの「セッション / 使用量」（07）。
     public var inspectorTab: InspectorTab = .usage
+    /// ツールバーの worktree メニュー「プロジェクト名を変更…」。サイドバーがその行を編集に入れる（01 E4）。
+    public var projectRenameRequest: ProjectID?
     /// 上段タブ列と子タブ（02 C）。メニューの ⌘W・⌘1–9・⌃Tab からも触る。
     public let tabs: SessionTabStore
     /// 上段右端の「共通ターミナル」（worktree の外・ホームで開く）を前に出しているか。

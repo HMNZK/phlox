@@ -109,24 +109,15 @@ struct PhloxApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
-            CommandGroup(replacing: .newItem) {
-                Button("プロジェクトを追加…") {
-                    composition?.router.addProjectRequested = true
-                }
-                .keyboardShortcut("o", modifiers: .command)
-                .disabled(composition == nil)
-            }
+            // 01 F: メニューは Phlox / ファイル / 表示 / セッション の 4 つ（「タブ」メニューは置かない）。
+            FileCommands(dashboard: composition?.dashboard, router: composition?.router)
             UpdateCommands(appUpdater: appDelegate.appUpdater)
             ViewCommands(dashboard: composition?.dashboard, router: composition?.router)
-            FontSizeCommands(dashboard: composition?.dashboard, router: composition?.router)
             SessionCommands(
                 dashboard: composition?.dashboard,
                 router: composition?.router
             )
             AgentConsoleCommands()
-            TerminalPanelCommands(router: composition?.router)
-            TabCommands(dashboard: composition?.dashboard, router: composition?.router)
-            EditorPanelCommands(router: composition?.router)
         }
 
         Settings {
@@ -278,6 +269,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     static let cleanupTimeout: Duration = .seconds(5)
     /// チャット transcript flush の上限。書き込み完了を待つが、終了不能ハングは作らない。
     static let transcriptFlushTimeout: Duration = .seconds(3)
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // 01 F: OS のウィンドウタブ（「タブバーを表示」）は Phlox のタブと紛らわしいので出さない。
+        NSWindow.allowsAutomaticWindowTabbing = false
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
@@ -472,42 +468,21 @@ struct AgentConsoleCommands: Commands {
     }
 }
 
-private struct TerminalPanelCommands: Commands {
-    var router: AppRouter?
-
-    var body: some Commands {
-        CommandGroup(after: .sidebar) {
-            // ⌥⌘T は macOS 標準の「ツールバーを表示/隠す」と重なるため ⌃⌘T（13 Review）。
-            Button("ターミナル") {
-                router?.openChildTab(.terminal)
-            }
-            .keyboardShortcut("t", modifiers: [.command, .control])
-            .disabled(router == nil)
-        }
-    }
-}
-
-private struct EditorPanelCommands: Commands {
-    var router: AppRouter?
-
-    var body: some Commands {
-        CommandGroup(after: .sidebar) {
-            Button(String(localized: "tab.changes", defaultValue: "変更")) {
-                router?.openChildTab(.changes)
-            }
-            .keyboardShortcut("e", modifiers: [.command, .control])
-            .disabled(router?.selectedSession == nil)
-        }
-    }
-}
-
-/// タブの操作（02 C のキー表）。
-private struct TabCommands: Commands {
+/// 01 F「ファイル」。新規・タブ・プロジェクト ｜ 書き出し ｜ 閉じる（子タブは閉じる / 会話は削除… / グリッドは外す）。
+private struct FileCommands: Commands {
     var dashboard: DashboardViewModel?
     var router: AppRouter?
+    @AppStorage(LanguageSettings.languageKey) private var appLanguageRaw = AppLanguage.system.rawValue
 
     var body: some Commands {
-        CommandMenu("タブ") {
+        CommandGroup(replacing: .newItem) {
+            // 種別 × 開き方の表を開く（08: ⌘N / ⇧⌘N / ⌥⌘N を 1 つにまとめた）。失敗は画面のアラートに出る。
+            Button("新規セッション…") {
+                router?.newSessionTablePresented = true
+            }
+            .keyboardShortcut("n", modifiers: .command)
+            .disabled(dashboard?.projects.isEmpty ?? true)
+
             Button("新しいタブ…") {
                 guard let router else { return }
                 router.viewMode = .single
@@ -524,37 +499,60 @@ private struct TabCommands: Commands {
             .keyboardShortcut("p", modifiers: .command)
             .disabled(router?.selectedSession == nil)
 
-            Divider()
-
-            Button("次のタブ") { router?.cycleChildTab(by: 1) }
-                .keyboardShortcut(.tab, modifiers: .control)
-                .disabled(router?.selectedSession == nil)
-            Button("前のタブ") { router?.cycleChildTab(by: -1) }
-                .keyboardShortcut(.tab, modifiers: [.control, .shift])
-                .disabled(router?.selectedSession == nil)
-            Button("右に分割／分割を解除") { router?.toggleSplit() }
-                .keyboardShortcut("\\", modifiers: .command)
-                .disabled(router?.selectedSession == nil)
-
-            Divider()
-
-            // 単体では上段のセッションタブ、グリッドではタイルを左上から数えて選ぶ。
-            ForEach(1...9, id: \.self) { number in
-                Button("タブ \(number)") { selectTab(number) }
-                    .keyboardShortcut(KeyEquivalent(Character("\(number)")), modifiers: .command)
-                    .disabled(dashboard == nil)
+            Button("プロジェクトを追加…") {
+                router?.addProjectRequested = true
             }
+            .keyboardShortcut("o", modifiers: .command)
+            .disabled(router == nil)
+
+            Divider()
+
+            // 対話 TUI の /export 相当。チャットセッションのみ対象（PTY は transcript を持たない）。
+            Button("会話を書き出す…") {
+                guard let chat = exportableChatSession(dashboard: dashboard, router: router) else { return }
+                ChatTranscriptExportAction.save(session: chat, locale: (AppLanguage(rawValue: appLanguageRaw) ?? .system).locale, showsOptions: true)
+            }
+            .keyboardShortcut("e", modifiers: [.command, .shift])
+            .disabled(exportableChatSession(dashboard: dashboard, router: router) == nil)
+
+            Button("会話を Markdown でコピー") {
+                guard let chat = exportableChatSession(dashboard: dashboard, router: router) else { return }
+                ChatTranscriptExportAction.copyToPasteboard(session: chat)
+            }
+            .keyboardShortcut("c", modifiers: [.command, .option, .shift])
+            .disabled(exportableChatSession(dashboard: dashboard, router: router) == nil)
+
+            Divider()
+
+            Button(closeTitle) {
+                _ = performCloseSelectedSession(router: router)
+            }
+            .keyboardShortcut("w", modifiers: .command)
+            .disabled(router?.selectedSession == nil)
         }
     }
 
-    private func selectTab(_ number: Int) {
-        guard let dashboard, let router else { return }
-        let ids = dashboard.numberedTabSessionIDs(router: router)
-        guard ids.indices.contains(number - 1) else { return }
-        NSApp.mainWindow?.makeFirstResponder(nil)
-        router.commonTerminalSelected = false
-        router.selectedSession = ids[number - 1]
+    /// ⌘W の行き先で文言を変える（02 R:100）。
+    private var closeTitle: LocalizedStringKey {
+        guard let router else { return "閉じる" }
+        switch router.tabs.closeTarget(selectedSession: router.selectedSession, viewMode: router.viewMode) {
+        case .gridTile: return "グリッドから外す"
+        case .session: return "セッションを削除…"
+        case .childTab, nil: return "閉じる"
+        }
     }
+}
+
+/// 前面に出ている会話（appServer）の ViewModel。PTY セッションと、共通ターミナルを
+/// 前面にしている間（会話は背後に隠れている）は対象外。
+@MainActor
+private func exportableChatSession(dashboard: DashboardViewModel?, router: AppRouter?) -> ChatSessionViewModel? {
+    guard let dashboard,
+          router?.commonTerminalSelected != true,
+          let sessionID = router?.selectedSession,
+          case .appServer(let chat) = dashboard.sessionNode(id: sessionID)
+    else { return nil }
+    return chat
 }
 
 private struct UpdateCommands: Commands {
@@ -570,6 +568,7 @@ private struct UpdateCommands: Commands {
     }
 }
 
+/// 01 F「表示」。表示モード・分割 ｜ 領域とタブ ｜ 文字の大きさ。
 private struct ViewCommands: Commands {
     var dashboard: DashboardViewModel?
     var router: AppRouter?
@@ -594,16 +593,9 @@ private struct ViewCommands: Commands {
             .keyboardShortcut("g", modifiers: [.command, .control])
             .disabled(router == nil)
 
-            // 表示範囲バーの「レイアウト ▾」と同じ 9 種（骨格 E2・06）。
-            Menu("グリッドのレイアウト") {
-                ForEach(PaneLayoutPreset.allCases, id: \.self) { preset in
-                    Button(LocalizedStringKey(preset.displayName)) {
-                        router?.viewMode = .grid
-                        dashboard?.handlePaneLayoutAction(.applyPreset(preset))
-                    }
-                }
-            }
-            .disabled(dashboard == nil)
+            Button("右に分割して開く") { router?.toggleSplit() }
+                .keyboardShortcut("\\", modifiers: .command)
+                .disabled(router?.selectedSession == nil)
 
             Divider()
 
@@ -619,38 +611,57 @@ private struct ViewCommands: Commands {
             }
             .keyboardShortcut("i", modifiers: [.command, .control])
             .disabled(router == nil)
-        }
-    }
-}
 
-private struct FontSizeCommands: Commands {
-    var dashboard: DashboardViewModel?
-    var router: AppRouter?
+            // ⌥⌘T は macOS 標準の「ツールバーを表示/隠す」と重なるため ⌃⌘T（13 Review）。
+            Button("ターミナルのタブ") {
+                router?.openChildTab(.terminal)
+            }
+            .keyboardShortcut("t", modifiers: [.command, .control])
+            .disabled(router == nil)
 
-    var body: some Commands {
-        CommandGroup(after: .sidebar) {
-            Button("拡大") {
-                dashboard?.adjustFontSize(by: 1, target: target)
+            Button("変更のタブ") {
+                router?.openChildTab(.changes)
+            }
+            .keyboardShortcut("e", modifiers: [.command, .control])
+            .disabled(router?.selectedSession == nil)
+
+            // 表示範囲バーの「レイアウト ▾」と同じ 9 種（骨格 E2・06）。
+            Menu("グリッドのレイアウト") {
+                ForEach(PaneLayoutPreset.allCases, id: \.self) { preset in
+                    Button(LocalizedStringKey(preset.displayName)) {
+                        router?.viewMode = .grid
+                        dashboard?.handlePaneLayoutAction(.applyPreset(preset))
+                    }
+                }
+            }
+            .disabled(dashboard == nil)
+
+            Divider()
+
+            Button("文字を大きく") {
+                dashboard?.adjustFontSize(by: 1, target: fontTarget)
             }
             .keyboardShortcut("+", modifiers: .command)
             .disabled(dashboard == nil)
 
-            Button("縮小") {
-                dashboard?.adjustFontSize(by: -1, target: target)
+            Button("文字を小さく") {
+                dashboard?.adjustFontSize(by: -1, target: fontTarget)
             }
             .keyboardShortcut("-", modifiers: .command)
             .disabled(dashboard == nil)
 
             Button("実寸") {
-                dashboard?.resetFontSize(target: target)
+                dashboard?.resetFontSize(target: fontTarget)
             }
             .keyboardShortcut("0", modifiers: .command)
             .disabled(dashboard == nil)
+
+            Divider()
         }
     }
 
     /// フォーカス中の領域（会話かターミナル）。
-    private var target: DashboardViewModel.FontSizeTarget {
+    private var fontTarget: DashboardViewModel.FontSizeTarget {
         let id = router?.selectedSession
         return DashboardViewModel.fontSizeTarget(
             node: id.flatMap { dashboard?.sessionNode(id: $0) },
@@ -660,28 +671,25 @@ private struct FontSizeCommands: Commands {
     }
 }
 
+/// 01 F「セッション」。移動 ｜ 対応待ちへの返答 ｜ セッションの操作 ｜ 削除。
 private struct SessionCommands: Commands {
     var dashboard: DashboardViewModel?
     var router: AppRouter?
-    @AppStorage(LanguageSettings.languageKey) private var appLanguageRaw = AppLanguage.system.rawValue
 
     var body: some Commands {
         CommandMenu("セッション") {
-            // 種別 × 開き方の表を開く（08: ⌘N / ⇧⌘N / ⌥⌘N を 1 つにまとめた）。失敗は画面のアラートに出る。
-            Button("新規セッション…") {
-                router?.newSessionTablePresented = true
+            // 単体では上段のセッションタブ、グリッドではタイルを左上から数えて選ぶ。
+            ForEach(1...9, id: \.self) { number in
+                Button("セッションのタブ \(number)") { selectTab(number) }
+                    .keyboardShortcut(KeyEquivalent(Character("\(number)")), modifiers: .command)
+                    .disabled(dashboard == nil)
             }
-            .keyboardShortcut("n", modifiers: .command)
-            .disabled(dashboard?.projects.isEmpty ?? true)
-
-            Divider()
-
-            Button("次のセッション") { selectAdjacentSession(forward: true) }
-                .keyboardShortcut(.downArrow, modifiers: [.command, .option])
-                .disabled(dashboard == nil)
-            Button("前のセッション") { selectAdjacentSession(forward: false) }
-                .keyboardShortcut(.upArrow, modifiers: [.command, .option])
-                .disabled(dashboard == nil)
+            Button("次のタブ") { router?.cycleChildTab(by: 1) }
+                .keyboardShortcut(.tab, modifiers: .control)
+                .disabled(router?.selectedSession == nil)
+            Button("前のタブ") { router?.cycleChildTab(by: -1) }
+                .keyboardShortcut(.tab, modifiers: [.control, .shift])
+                .disabled(router?.selectedSession == nil)
 
             // 表示モードは変えずに選ぶ（グリッドではそのタイルがフォーカスになる）。
             Button("次の対応待ちへ") {
@@ -700,17 +708,44 @@ private struct SessionCommands: Commands {
             .keyboardShortcut("j", modifiers: [.command, .option])
             .disabled(!(dashboard?.hasAttention ?? false))
 
-            Button {
-                closeSelectedSession()
-            } label: {
-                if router?.viewMode == .grid {
-                    Label("グリッドから外す", systemImage: "xmark.circle")
-                } else {
-                    Label("閉じる", systemImage: "xmark.circle")
-                }
+            Button("次のセッション") { selectAdjacentSession(forward: true) }
+                .keyboardShortcut(.downArrow, modifiers: [.command, .option])
+                .disabled(dashboard == nil)
+            Button("前のセッション") { selectAdjacentSession(forward: false) }
+                .keyboardShortcut(.upArrow, modifiers: [.command, .option])
+                .disabled(dashboard == nil)
+
+            // グリッドのタイルを左上から数えてフォーカスする（01 F）。
+            ForEach(1...9, id: \.self) { number in
+                Button("タイル \(number) にフォーカス") { focusTile(number) }
+                    .keyboardShortcut(KeyEquivalent(Character("\(number)")), modifiers: [.command, .option])
+                    .disabled(router?.viewMode != .grid)
             }
-            .keyboardShortcut("w", modifiers: .command)
-            .disabled(!canCloseSession)
+
+            Divider()
+
+            // 承認カードの許可 / 拒否（05 R6: 入力欄にいても修飾キー 2 つで返せる。出た直後 0.5 秒は効かない）。
+            Button("許可") {
+                guard let chat = exportableChatSession(dashboard: dashboard, router: router) else { return }
+                Task { await chat.respondToCurrentApproval(.accept) }
+            }
+            .keyboardShortcut(.return, modifiers: [.command, .option])
+            .disabled(exportableChatSession(dashboard: dashboard, router: router)?.currentReplyApproval == nil)
+            Button("拒否") {
+                guard let chat = exportableChatSession(dashboard: dashboard, router: router) else { return }
+                Task { await chat.respondToCurrentApproval(.decline) }
+            }
+            .keyboardShortcut(.delete, modifiers: [.command, .option])
+            .disabled(exportableChatSession(dashboard: dashboard, router: router)?.currentReplyApproval == nil)
+            // 会話の中断（13 Review: Esc と同じ。ただし Esc 2 回の巻き戻しには数えない）。
+            Button("中断") {
+                guard let chat = exportableChatSession(dashboard: dashboard, router: router) else { return }
+                Task { await chat.turnInterrupt() }
+            }
+            .keyboardShortcut(".", modifiers: .command)
+            .disabled(!(exportableChatSession(dashboard: dashboard, router: router)?.showsProcessingIndicator ?? false))
+
+            Divider()
 
             // サイドバーの行のメニューと同じ操作（03 F2・F3・F6）。キーボードだけでも届くように置く。
             Button("名前を変更…") {
@@ -718,86 +753,72 @@ private struct SessionCommands: Commands {
                 router?.sidebarRequest = .renameSession(id)
             }
             .disabled(selectedNode == nil)
-            if let node = selectedNode, node.pty != nil {
-                Menu(node.projectID == nil ? "プロジェクトに割り当てる" : "プロジェクトを移動") {
+            Menu("別のプロジェクトへ移動") {
+                if let node = selectedNode {
                     ForEach(dashboard?.projects.filter { $0.id != node.projectID } ?? []) { project in
                         Button(project.name) {
                             router?.sidebarRequest = .moveSession(node.id, project.id)
                         }
                     }
-                    Divider()
-                    Button("フォルダを選択…") {
-                        router?.sidebarRequest = .changeFolder(node.id)
+                    if node.pty != nil {
+                        Divider()
+                        Button("フォルダを選択…") {
+                            router?.sidebarRequest = .changeFolder(node.id)
+                        }
                     }
                 }
             }
-
-            // 会話の中断（13 Review: Esc と同じ。ただし Esc 2 回の巻き戻しには数えない）。
-            Button("中断") {
-                guard let chat = exportableChatSession else { return }
-                Task { await chat.turnInterrupt() }
-            }
-            .keyboardShortcut(".", modifiers: .command)
-            .disabled(!(exportableChatSession?.showsProcessingIndicator ?? false))
-
-            // 承認カードの許可 / 拒否（05 R6: 入力欄にいても修飾キー 2 つで返せる。出た直後 0.5 秒は効かない）。
-            Button("許可") {
-                guard let chat = exportableChatSession else { return }
-                Task { await chat.respondToCurrentApproval(.accept) }
-            }
-            .keyboardShortcut(.return, modifiers: [.command, .option])
-            .disabled(exportableChatSession?.currentReplyApproval == nil)
-            Button("拒否") {
-                guard let chat = exportableChatSession else { return }
-                Task { await chat.respondToCurrentApproval(.decline) }
-            }
-            .keyboardShortcut(.delete, modifiers: [.command, .option])
-            .disabled(exportableChatSession?.currentReplyApproval == nil)
+            .disabled(selectedNode == nil)
+            Toggle("git worktree で隔離する", isOn: worktreeIsolation)
+                .disabled(selectedProjectID == nil)
 
             Divider()
 
-            // 対話 TUI の /export 相当。チャットセッションのみ対象（PTY は transcript を持たない）。
-            Button {
-                guard let chat = exportableChatSession else { return }
-                ChatTranscriptExportAction.save(session: chat, locale: (AppLanguage(rawValue: appLanguageRaw) ?? .system).locale, showsOptions: true)
-            } label: {
-                Label("会話を書き出す…", systemImage: "square.and.arrow.up")
+            Button("セッションを削除…", role: .destructive) {
+                guard let id = router?.selectedSession else { return }
+                router?.tabRequest = .confirmSessionDeletion(id)
             }
-            .keyboardShortcut("e", modifiers: [.command, .shift])
-            .disabled(exportableChatSession == nil)
-
-            Button {
-                guard let chat = exportableChatSession else { return }
-                ChatTranscriptExportAction.copyToPasteboard(session: chat)
-            } label: {
-                Label("会話を Markdown でコピー", systemImage: "doc.on.doc")
-            }
-            .keyboardShortcut("c", modifiers: [.command, .option, .shift])
-            .disabled(exportableChatSession == nil)
+            .disabled(selectedNode == nil)
         }
     }
 
-    /// 前面に出ている会話（appServer）の ViewModel。PTY セッションと、共通ターミナルを
-    /// 前面にしている間（会話は背後に隠れている）は対象外。
-    private var exportableChatSession: ChatSessionViewModel? {
-        guard let dashboard,
-              router?.commonTerminalSelected != true,
-              let sessionID = router?.selectedSession,
-              case .appServer(let chat) = dashboard.sessionNode(id: sessionID)
-        else { return nil }
-        return chat
+    private var selectedProjectID: ProjectID? {
+        selectedNode?.projectID ?? router?.selectedProjectID
+    }
+
+    /// 選択中のセッション（無ければプロジェクト）が属するプロジェクトの隔離設定。以降に起動するセッションに効く。
+    private var worktreeIsolation: Binding<Bool> {
+        Binding(
+            get: {
+                guard let id = selectedProjectID else { return false }
+                return dashboard?.projects.first { $0.id == id }?.usesWorktreeIsolation ?? false
+            },
+            set: { enabled in
+                guard let id = selectedProjectID else { return }
+                dashboard?.setWorktreeIsolationEnabled(enabled, for: id)
+            }
+        )
+    }
+
+    private func selectTab(_ number: Int) {
+        guard let dashboard, let router else { return }
+        let ids = dashboard.numberedTabSessionIDs(router: router)
+        guard ids.indices.contains(number - 1) else { return }
+        NSApp.mainWindow?.makeFirstResponder(nil)
+        router.commonTerminalSelected = false
+        router.selectedSession = ids[number - 1]
+    }
+
+    private func focusTile(_ number: Int) {
+        guard let dashboard, let router, router.viewMode == .grid else { return }
+        let ids = dashboard.gridTileOrder()
+        guard ids.indices.contains(number - 1) else { return }
+        NSApp.mainWindow?.makeFirstResponder(nil)
+        router.selectedSession = ids[number - 1]
     }
 
     private var selectedNode: SessionNode? {
         router?.selectedSession.flatMap { dashboard?.sessionNode(id: $0) }
-    }
-
-    private var canCloseSession: Bool {
-        router?.selectedSession != nil
-    }
-
-    private func closeSelectedSession() {
-        performCloseSelectedSession(router: router)
     }
 
     private func selectAdjacentSession(forward: Bool) {

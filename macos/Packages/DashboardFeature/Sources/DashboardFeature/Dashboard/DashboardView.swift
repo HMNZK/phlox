@@ -15,6 +15,11 @@ public struct DashboardView: View {
     @State private var sidebarWidthAtDragStart: CGFloat = DSLayout.sidebarWidth.ideal
     @State private var inspectorWidth: CGFloat = DSLayout.inspectorWidth.ideal
     @State private var inspectorWidthAtDragStart: CGFloat = DSLayout.inspectorWidth.ideal
+    /// 01 E6: 幅と開閉はウィンドウごとに保存する。
+    @SceneStorage("pane.sidebarWidth") private var savedSidebarWidth = Double(DSLayout.sidebarWidth.ideal)
+    @SceneStorage("pane.inspectorWidth") private var savedInspectorWidth = Double(DSLayout.inspectorWidth.ideal)
+    @SceneStorage("pane.sidebarVisible") private var savedSidebarVisible = true
+    @SceneStorage("pane.inspectorVisible") private var savedInspectorVisible = false
     @State private var isCreating = false
     /// 起動中の種別（08 S5）と、worktree を作っているか（F2 の案内）。
     @State private var creatingRef: AgentRef?
@@ -386,7 +391,7 @@ public struct DashboardView: View {
                             RoundedRectangle(cornerRadius: DSRadius.attention).strokeBorder(DSColor.separator)
                         }
                         .shadow(color: DSShadow.popover.color, radius: DSShadow.popover.radius, y: DSShadow.popover.y)
-                        .padding(.top, DSLayout.toolbarHeight + DSSpacing.xs)
+                        .padding(.top, DSLayout.toolbarHeight + DSSpacing.s)
                         .padding(.bottom, DSSpacing.s)
                         .padding(.trailing, DSSpacing.s)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -418,7 +423,11 @@ public struct DashboardView: View {
                                 inspectorSpan: inspectorSpan(layout)
                             )
                         },
-                        onEnded: { sidebarWidthAtDragStart = sidebarWidth }
+                        onEnded: { sidebarWidthAtDragStart = sidebarWidth },
+                        onDoubleClick: {
+                            sidebarWidth = DSLayout.sidebarWidth.ideal
+                            sidebarWidthAtDragStart = sidebarWidth
+                        }
                     )
                     .offset(x: layout.sidebar + 0.5 - ResizeGripView.gripWidth / 2)
                     .onAppear { sidebarWidthAtDragStart = layout.sidebar }
@@ -435,12 +444,28 @@ public struct DashboardView: View {
                                 sidebarSpan: layout.showsSidebar ? layout.sidebar + PaneWidthPolicy.separatorWidth : 0
                             )
                         },
-                        onEnded: { inspectorWidthAtDragStart = inspectorWidth }
+                        onEnded: { inspectorWidthAtDragStart = inspectorWidth },
+                        onDoubleClick: {
+                            inspectorWidth = DSLayout.inspectorWidth.ideal
+                            inspectorWidthAtDragStart = inspectorWidth
+                        }
                     )
                     .offset(x: -(layout.inspector + 0.5 - ResizeGripView.gripWidth / 2))
                     .onAppear { inspectorWidthAtDragStart = layout.inspector }
                 }
             }
+            .onAppear {
+                sidebarWidth = CGFloat(savedSidebarWidth)
+                sidebarWidthAtDragStart = sidebarWidth
+                inspectorWidth = CGFloat(savedInspectorWidth)
+                inspectorWidthAtDragStart = inspectorWidth
+                router.sidebarVisible = savedSidebarVisible
+                router.inspectorVisible = savedInspectorVisible
+            }
+            .onChange(of: sidebarWidth) { _, width in savedSidebarWidth = Double(width) }
+            .onChange(of: inspectorWidth) { _, width in savedInspectorWidth = Double(width) }
+            .onChange(of: router.sidebarVisible) { _, visible in savedSidebarVisible = visible }
+            .onChange(of: router.inspectorVisible) { _, visible in savedInspectorVisible = visible }
             .onChange(of: sidebarLacksRoom(windowWidth: windowWidth), initial: true) { _, lacksRoom in
                 router.sidebarLacksRoom = lacksRoom
                 if !lacksRoom {

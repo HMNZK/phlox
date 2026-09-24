@@ -18,7 +18,17 @@ struct AttentionButton: View {
         Button {
             router.attentionListPresented.toggle()
         } label: {
-            HStack(spacing: DSSpacing.xs) {
+            // 01 D: full は記号＋文言＋件数、compact は文言＋件数、minimal は件数だけ。
+            // 0 件の見本は無い。件数の丸を出さず、文言（minimal は記号）を淡くして押せなくする。
+            HStack(spacing: 7) {
+                if density == .full || (density == .minimal && count == 0) {
+                    HStack(spacing: 3) {
+                        ForEach([SessionDisplayState.approval, .question, .error, .stalled], id: \.self) {
+                            StateGlyph(state: $0, size: 9)
+                        }
+                    }
+                    .opacity(count > 0 ? 1 : 0.45)
+                }
                 if density != .minimal {
                     Text("対応待ち")
                         .font(DSFont.auxiliary.weight(.medium))
@@ -26,15 +36,17 @@ struct AttentionButton: View {
                 }
                 if count > 0 {
                     CountBadge(count: count)
-                } else if density == .minimal {
-                    Text("0")
-                        .font(DSFont.auxiliary)
-                        .foregroundStyle(DSColor.textTertiary)
                 }
             }
-            .padding(.horizontal, DSSpacing.s)
-            .frame(height: 28)
-            .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: DSRadius.row))
+            .padding(.leading, 9)
+            .padding(.trailing, count > 0 ? 6 : 9)
+            .frame(height: 26)
+            .background(
+                router.attentionListPresented && count > 0 ? DSColor.fillSelected : DSColor.controlBackground,
+                in: RoundedRectangle(cornerRadius: 7)
+            )
+            .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(DSColor.controlBorder, lineWidth: 0.5) }
+            .shadow(color: .black.opacity(0.06), radius: 0.5, y: 0.5)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -77,7 +89,7 @@ struct AttentionListPopover: View {
         VStack(alignment: .leading, spacing: 0) {
             header(count: rows.count)
             ScrollView {
-                VStack(spacing: DSSpacing.xs) {
+                VStack(spacing: 2) {
                     ForEach(rows, id: \.entry.id) { row in
                         AttentionRow(
                             entry: row.entry,
@@ -93,11 +105,11 @@ struct AttentionListPopover: View {
                         .focusEffectDisabled()
                     }
                 }
-                .padding(DSSpacing.s)
             }
             .frame(maxHeight: 460)
             footer
         }
+        .padding(6)
         .frame(width: 400)
         .background(DSColor.popoverBackground)
         .accessibilityElement(children: .contain)
@@ -129,29 +141,46 @@ struct AttentionListPopover: View {
                 .font(DSFont.meta)
                 .foregroundStyle(DSColor.textTertiary)
         }
-        .padding(.horizontal, DSSpacing.m)
-        .padding(.top, DSSpacing.m)
-        .padding(.bottom, DSSpacing.xs)
+        .padding(.horizontal, 10)
+        .padding(.top, 8)
+        .padding(.bottom, 6)
     }
 
     @ViewBuilder
     private var footer: some View {
         let unseen = viewModel.unseenCompletionNodes
-        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+        VStack(alignment: .leading, spacing: 0) {
             if let first = unseen.first {
-                Divider()
-                Text("完了・未読 \(unseen.count) 件 — \(first.displayName)")
-                    .font(DSFont.auxiliary)
-                    .foregroundStyle(DSColor.textSecondary)
-                    .lineLimit(1)
-                    .padding(.horizontal, DSSpacing.m)
+                Rectangle().fill(DSColor.separator).frame(height: 1).padding(.horizontal, 8).padding(.vertical, 4)
+                HStack(spacing: 8) {
+                    Circle().fill(DSColor.accent).frame(width: 6, height: 6).padding(.horizontal, 3)
+                    Text("完了・未読 \(unseen.count) 件 — \(first.displayName)")
+                        .font(DSFont.auxiliary)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    if let at = first.statusEnteredAt {
+                        TimelineView(.periodic(from: .now, by: 60)) { context in
+                            Text(SidebarRelativeTime.label(from: at, to: context.date, locale: locale))
+                                .font(DSFont.auxiliary)
+                                .foregroundStyle(DSColor.textTertiary)
+                        }
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
             }
-            Divider()
-            Text("⌘J 次の対応待ちへ　↑↓ 移動　↩ 開く　⌥⌘↩ 許可")
-                .font(DSFont.meta)
-                .foregroundStyle(DSColor.textTertiary)
-                .padding(.horizontal, DSSpacing.m)
-                .padding(.bottom, DSSpacing.s)
+            Rectangle().fill(DSColor.separator).frame(height: 1)
+            HStack(spacing: 14) {
+                Text("⌘J 次の対応待ちへ")
+                Text("↑↓ 移動")
+                Text("↩ 開く")
+                Text("⌥⌘↩ 許可")
+            }
+            .font(DSFont.meta)
+            .foregroundStyle(DSColor.textTertiary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
         }
     }
 
@@ -202,6 +231,19 @@ private struct AttentionRow: View {
 
     private var state: SessionDisplayState { node.tabDisplayState }
 
+    /// 記号 12 ＋ 間 8 ＋ 頭文字 16 ＋ 間 8。2 行目以降を題名の頭に揃える。
+    private static let indent: CGFloat = 44
+
+    /// 「プロジェクト · 花名 · エージェント名」。
+    private var subline: String {
+        let flower = SessionTitlePresentation(
+            state: node.titleState,
+            fallback: SessionViewModel.shortID(for: node.id),
+            workspacePath: node.workspacePath
+        ).secondary
+        return [projectName, flower, node.agentDescriptor.displayName].compactMap { $0 }.joined(separator: " · ")
+    }
+
     private var canDecide: Bool {
         if case .appServer(let chat) = node { return !chat.pendingApprovals.isEmpty }
         return false
@@ -223,8 +265,10 @@ private struct AttentionRow: View {
         // 無応答の経過は 1 秒ごと、それ以外は待ち時間の分表示に合わせて 1 分ごと。
         TimelineView(.periodic(from: .now, by: state == .stalled ? 1 : 60)) { context in
             let elapsed = entry.since.map { SidebarRelativeTime.label(from: $0, to: context.date, locale: locale) }
-            VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                HStack(spacing: DSSpacing.s) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    StateGlyph(state: state)
+                    AgentInitialTile(descriptor: node.agentDescriptor)
                     Text(node.displayName)
                         .font(DSFont.row.weight(.medium))
                         .foregroundStyle(DSColor.textPrimary)
@@ -239,28 +283,34 @@ private struct AttentionRow: View {
                             .monospacedDigit()
                     }
                 }
-                Text([projectName, node.agentDescriptor.displayName].compactMap { $0 }.joined(separator: " · "))
-                    .font(DSFont.meta)
-                    .foregroundStyle(DSColor.textSecondary)
-                    .lineLimit(1)
-                if let detail = detail(now: context.date) {
-                    Text(detail)
-                        .font(DSFont.monoCaption)
-                        .foregroundStyle(DSColor.textPrimary)
+                Group {
+                    Text(subline)
+                        .font(DSFont.meta)
+                        .foregroundStyle(DSColor.textSecondary)
                         .lineLimit(1)
-                        .truncationMode(.tail)
-                        .padding(.horizontal, DSSpacing.s)
-                        .padding(.vertical, DSSpacing.xxs)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(DSColor.codeBackground, in: RoundedRectangle(cornerRadius: DSRadius.s))
+                    if let detail = detail(now: context.date) {
+                        Text(detail)
+                            .font(.system(size: 11.5, design: .monospaced))
+                            .foregroundStyle(DSColor.textPrimary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(DSColor.codeBackground, in: RoundedRectangle(cornerRadius: 5))
+                    }
+                    actions
                 }
-                actions
+                .padding(.leading, Self.indent)
             }
-            .padding(DSSpacing.s)
-            .background(DSColor.cardBackground, in: RoundedRectangle(cornerRadius: DSRadius.attention))
+            // 01 E1: 行は面も枠も無い。フォーカス中の 1 行だけホバーの面と内側 2pt の accent の輪。
+            .padding(.vertical, 9)
+            .padding(.horizontal, 10)
+            .background(isFocused ? DSColor.fillSubtle : .clear, in: RoundedRectangle(cornerRadius: 7))
             .overlay {
-                RoundedRectangle(cornerRadius: DSRadius.attention)
-                    .strokeBorder(isFocused ? DSColor.accent : DSColor.separator, lineWidth: isFocused ? 2 : 1)
+                if isFocused {
+                    RoundedRectangle(cornerRadius: 7).strokeBorder(DSColor.accent, lineWidth: 2)
+                }
             }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(Text(accessibilityText(now: context.date)))
@@ -269,7 +319,7 @@ private struct AttentionRow: View {
 
     @ViewBuilder
     private var actions: some View {
-        HStack(spacing: DSSpacing.xs) {
+        HStack(spacing: 6) {
             if state == .approval, canDecide {
                 Button("許可") { onDecide(.accept) }
                     .buttonStyle(AttentionActionButtonStyle(isPrimary: true))
@@ -306,17 +356,17 @@ private struct AttentionActionButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(DSFont.auxiliary.weight(isPrimary ? .semibold : .regular))
+            .font(.system(size: 11.5, weight: isPrimary ? .semibold : .regular))
             .foregroundStyle(isPrimary ? Color.white : DSColor.textPrimary)
-            .padding(.horizontal, DSSpacing.s)
-            .frame(height: 24)
+            .padding(.horizontal, 10)
+            .frame(height: 22)
             .background(
-                isPrimary ? DSColor.accentFill : DSColor.fieldBackground,
-                in: RoundedRectangle(cornerRadius: DSRadius.s)
+                isPrimary ? DSColor.accentFill : DSColor.controlBackground,
+                in: RoundedRectangle(cornerRadius: 5)
             )
             .overlay {
                 if !isPrimary {
-                    RoundedRectangle(cornerRadius: DSRadius.s).strokeBorder(DSColor.separator)
+                    RoundedRectangle(cornerRadius: 5).strokeBorder(DSColor.controlBorder, lineWidth: 0.5)
                 }
             }
             .opacity(configuration.isPressed ? 0.8 : 1)

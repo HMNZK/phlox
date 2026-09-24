@@ -28,7 +28,7 @@ public struct SessionView: View {
     }
 
     /// 端末に当てている配色の背景（余白を同じ色で塗って継ぎ目を出さない）。
-    private static var terminalBackground: Color {
+    static var terminalBackground: Color {
         let c = TerminalCoordinator.activePalette.background
         return Color(.sRGB, red: Double(c.r) / 255, green: Double(c.g) / 255, blue: Double(c.b) / 255)
     }

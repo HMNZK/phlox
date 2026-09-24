@@ -122,3 +122,15 @@ mount ごとに `TerminalMountCoordinator` を1個生成し、`current` に現�
 また、単体テストの端末差し替えは `mount.current` を直接更新し、製品側の代入は配線検査で補っている。実 SwiftUI の破棄順序を単体テストだけで観測したものではなく、弱参照台帳の長時間のメモリ推移も今回の検証記録には含まれない。
 
 この判断を含む UI・UX 改善 run の完了記録と残課題は、[delivery 0036](../delivery/0036-ui-ux-improvement-backlog-worklog.md) を参照する。
+
+## 追記（2026-09-24）: 解放されたら、画面上に残った mount が付け直す
+
+UI 再設計（[delivery 0037](../delivery/0037-ui-redesign-worklog.md) の F6）で、グリッドへ切り替えると端末タイルが空になる別の経路を観測した。グリッドのタイル A が接続した後、一時的な mount C が最後に接続し、すぐ破棄されて端末を解放する。A には `updateNSView` が来ないため、端末はどこにも付かないまま残る。
+
+**上の所有権規則は変更しない**。解放後に A が接続できる規則はそのままで、その接続を誰が要求するかを足した。
+
+- `TerminalMount` は、所有者の `detach` と、同じコンテナでの端末切替（X→Y）で X を解放したときに `TerminalMount.didRelease`（object は端末）を通知する。
+- 各 mount の `TerminalMountCoordinator` はこの通知を受けると、次の runloop で、自分のコンテナが画面にあり、端末がまだどこにも所有されていないときだけ接続する。待つ間に別の mount が接続していたら奪わない。
+- 通知の時点で画面外だったコンテナは、画面に載った時点（`TerminalMountContainer.viewDidMoveToWindow`）で同じ条件の接続を試みる。
+
+回帰テストは `TerminalMountReleaseTests`（画面上なら付け直す／画面外なら付けない／待つ間に付いた mount から奪わない／後で画面に載れば付け直す／同じコンテナでの切替後も付け直す）。

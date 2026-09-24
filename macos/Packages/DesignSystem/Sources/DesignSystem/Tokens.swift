@@ -300,6 +300,14 @@ public enum DSColor {
         // 既定ダークはモックの確定値。他のダークテーマは窓の面から同じ明るさだけ持ち上げる。
         return theme.id == AppTheme.phlox.id ? RGB(0x3A, 0x3A, 0x3E).color : palette.window.lightened(0x1C).color
     }
+    /// グリッドの領域（`--area`: #F4F4F6 / #18181A）。タイル（`--bg`）より一段沈める。導出テーマは窓の面から同じだけ沈める。
+    public static var gridAreaBackground: Color {
+        switch theme.id {
+        case AppTheme.phloxLight.id: RGB(0xF4, 0xF4, 0xF6).color
+        case AppTheme.phlox.id: RGB(0x18, 0x18, 0x1A).color
+        default: palette.window.darkened(isDark ? 0x06 : 0x0B).color
+        }
+    }
     /// 副ボタンの 0.5pt の縁（`--ctlBorder`: 黒 0.16 / 白 0.10）。
     public static var controlBorder: Color { theme.textPrimary.color.opacity(isDark ? 0.10 : 0.16) }
     /// セグメントのトラック（`--segBg`: 黒 0.065 / 白 0.08）。

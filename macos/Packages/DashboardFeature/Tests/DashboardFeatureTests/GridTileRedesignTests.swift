@@ -63,7 +63,7 @@ struct GridTileRedesignTests {
         let now = Date()
         let since = now.addingTimeInterval(-180)
         #expect(GridTileText.stateLabel(state: .approval, since: since, silence: nil, now: now, locale: ja) == "承認待ち · 3分")
-        #expect(GridTileText.stateLabel(state: .stalled, since: since, silence: 134, now: now, locale: ja) == "無応答 2:14")
+        #expect(GridTileText.stateLabel(state: .stalled, since: since, silence: 134, now: now, locale: ja) == "無応答 · 2分")
         #expect(GridTileText.stateLabel(state: .running, since: since, silence: nil, now: now, locale: ja) == "実行中")
         #expect(GridTileText.stateLabel(state: .question, since: nil, silence: nil, now: now, locale: ja) == "質問待ち")
     }

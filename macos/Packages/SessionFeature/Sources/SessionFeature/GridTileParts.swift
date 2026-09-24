@@ -1,6 +1,7 @@
 import SwiftUI
 import AgentDomain
 import DesignSystem
+import StructuredChatKit
 
 // 06 Grid のタイルの部品。見出し（状態の文字・内部・タイトル・未読・子タブ・エージェント・番号・✕）と、
 // 大きさで入れ替える本文（大・中の一部は会話の列、それ以外は最後の発言と要求の中身）。
@@ -84,10 +85,12 @@ public enum GridTileText {
         return parts.joined(separator: AppLocalizedString.string("、", locale: locale))
     }
 
-    /// 見出しの状態。対応待ちは「承認待ち · 3分」、無応答は「無応答 2:14」、ほかは状態の語だけ。
+    /// 見出しの状態。対応待ちは「承認待ち · 3分」、無応答も同じ形で黙っている時間（「無応答 · 2分」）、ほかは状態の語だけ。
     public static func stateLabel(state: SessionDisplayState, since: Date?, silence: TimeInterval?, now: Date, locale: Locale) -> String {
         let word = state.localizedLabel(locale: locale)
-        if state == .stalled, let silence { return "\(word) \(StallClock.text(silence))" }
+        if state == .stalled, let silence {
+            return "\(word) · \(SessionRelativeTime.label(from: now.addingTimeInterval(-silence), to: now, locale: locale))"
+        }
         guard state.attentionKind != nil, let since else { return word }
         return "\(word) · \(SessionRelativeTime.label(from: since, to: now, locale: locale))"
     }
@@ -228,7 +231,7 @@ struct GridTileHeader: View {
                         .background {
                             if tab == selected {
                                 RoundedRectangle(cornerRadius: 4)
-                                    .fill(DSColor.surfaceElevated)
+                                    .fill(DSColor.background)
                                     .shadow(color: .black.opacity(0.2), radius: 0.75, y: 0.5)
                             }
                         }
@@ -239,7 +242,7 @@ struct GridTileHeader: View {
             }
         }
         .padding(2)
-        .background(DSColor.fillSelected, in: RoundedRectangle(cornerRadius: 5))
+        .background(DSColor.segmentTrack, in: RoundedRectangle(cornerRadius: 5))
         .layoutPriority(1)
     }
 }
@@ -309,13 +312,20 @@ struct GridTileCompactBody: View {
         return nil
     }
 
-    private var pendingQuestion: String? {
+    private var pendingQuestion: (requestId: String, questions: [ChatUserQuestion])? {
         for item in viewModel.transcript {
-            guard case .userQuestion(_, _, let questions, _, .pending, _) = item,
+            guard case .userQuestion(_, let requestId, let questions, _, .pending, _) = item,
                   !ChatSessionViewModel.isToolPermissionQuestion(questions) else { continue }
-            return questions.first?.question
+            return (requestId, questions)
         }
         return nil
+    }
+
+    /// タイルの中で答えられる質問（1 問・単一選択・伏せ字でない）。それ以外は「開いて回答」。
+    static func answerableInTile(_ questions: [ChatUserQuestion]) -> ChatUserQuestion? {
+        guard questions.count == 1, let question = questions.first,
+              !question.multiSelect, !question.isSecret, !question.options.isEmpty else { return nil }
+        return question
     }
 
     @ViewBuilder
@@ -323,15 +333,20 @@ struct GridTileCompactBody: View {
         if let approval = viewModel.currentReplyApproval {
             GridTileApprovalCard(viewModel: viewModel, approval: approval, isSmall: isSmall, onOpen: onOpen)
                 .id(approval.id)
-        } else if let question = pendingQuestion {
+        } else if let pending = pendingQuestion {
             card(.question) {
-                Text(verbatim: question)
+                Text(verbatim: pending.questions.first?.question ?? "")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(isSmall ? 1 : 3)
-                Button { onOpen() } label: { Text("開いて回答") }
-                    .buttonStyle(ApprovalPrimaryButtonStyle(progress: 1, isArmed: true))
-                    .font(.system(size: 11.5, weight: .semibold))
+                if !isSmall, let question = Self.answerableInTile(pending.questions) {
+                    GridTileQuestionChoices(viewModel: viewModel, requestId: pending.requestId, question: question)
+                        .id(pending.requestId)
+                } else {
+                    Button { onOpen() } label: { Text("開いて回答") }
+                        .buttonStyle(ApprovalPrimaryButtonStyle(progress: 1, isArmed: true, compact: true))
+                        .font(.system(size: 11.5, weight: .semibold))
+                }
             }
         } else if case .error(let message) = viewModel.displayStatus {
             card(.error) {
@@ -341,7 +356,7 @@ struct GridTileCompactBody: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Button { onOpen() } label: { Text("開く") }
-                    .buttonStyle(ApprovalSecondaryButtonStyle())
+                    .buttonStyle(ApprovalSecondaryButtonStyle(compact: true))
                     .font(.system(size: 11.5))
             }
         } else if viewModel.isStalled {
@@ -353,7 +368,7 @@ struct GridTileCompactBody: View {
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Button { Task { await viewModel.turnInterrupt() } } label: { Text("中断") }
-                        .buttonStyle(ApprovalSecondaryButtonStyle())
+                        .buttonStyle(ApprovalSecondaryButtonStyle(compact: true))
                         .font(.system(size: 11.5))
                 }
                 .padding(.horizontal, 9)
@@ -397,6 +412,42 @@ struct GridTileCompactBody: View {
     }
 }
 
+/// 中タイルの質問の選択肢（06 S3・S5）: 11pt のラジオと「回答を送信」。選んでから送る。
+private struct GridTileQuestionChoices: View {
+    let viewModel: ChatSessionViewModel
+    let requestId: String
+    let question: ChatUserQuestion
+    @State private var selected: String?
+
+    var body: some View {
+        ForEach(Array(question.options.enumerated()), id: \.offset) { _, option in
+            let isOn = selected == option.label
+            Button { selected = option.label } label: {
+                HStack(spacing: 6) {
+                    Circle()
+                        .strokeBorder(isOn ? DSColor.attentionMark(.question) : DSColor.textTertiary, lineWidth: isOn ? 3.5 : 1.2)
+                        .frame(width: 11, height: 11)
+                    Text(verbatim: option.label)
+                        .font(.system(size: 12))
+                        .foregroundStyle(DSColor.textPrimary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(isOn ? [.isSelected] : [])
+        }
+        Button {
+            guard let selected else { return }
+            Task { _ = await viewModel.respondToUserQuestion(requestId: requestId, answers: [question.answerKey: [selected]]) }
+        } label: { Text("回答を送信") }
+            .buttonStyle(ApprovalPrimaryButtonStyle(progress: 1, isArmed: selected != nil, compact: true))
+            .font(.system(size: 11.5, weight: .semibold))
+            .disabled(selected == nil)
+    }
+}
+
 /// タイルの承認カード（06 S3・S3b・S4）。フォーカスしていないタイルでもそのまま押せる。
 /// 出てから 0.5 秒は押せない（返答エリアの承認カードと同じ）。
 private struct GridTileApprovalCard: View {
@@ -422,18 +473,18 @@ private struct GridTileApprovalCard: View {
                 .truncationMode(.tail)
             HStack(spacing: 5) {
                 Button { respond(.accept) } label: { Text("許可") }
-                    .buttonStyle(ApprovalPrimaryButtonStyle(progress: isArmed ? 1 : 0, isArmed: isArmed))
+                    .buttonStyle(ApprovalPrimaryButtonStyle(progress: isArmed ? 1 : 0, isArmed: isArmed, compact: true))
                     .font(.system(size: 11.5, weight: .semibold))
                 if isSmall {
                     Button { onOpen() } label: { Text("開く") }
-                        .buttonStyle(ApprovalSecondaryButtonStyle())
+                        .buttonStyle(ApprovalSecondaryButtonStyle(compact: true))
                 } else {
                     if approval.supportsSessionScope {
                         Button { respond(.acceptForSession) } label: { Text("このセッション中は許可") }
-                            .buttonStyle(ApprovalSecondaryButtonStyle())
+                            .buttonStyle(ApprovalSecondaryButtonStyle(compact: true))
                     }
                     Button { respond(.decline) } label: { Text("拒否") }
-                        .buttonStyle(ApprovalSecondaryButtonStyle())
+                        .buttonStyle(ApprovalSecondaryButtonStyle(compact: true))
                 }
             }
             .font(.system(size: 11.5))

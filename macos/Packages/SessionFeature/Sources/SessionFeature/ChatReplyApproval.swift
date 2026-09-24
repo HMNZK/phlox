@@ -629,14 +629,17 @@ struct ApprovalPrimaryButtonStyle: ButtonStyle {
     let isArmed: Bool
     /// カードにフォーカスがあるとき、既定の操作として二重の輪（面の色 2pt → アクセント 2pt）を付ける。
     var showsFocusRing = false
+    /// グリッドのタイルの大きさ（高さ 22・角丸 5・左右 9。PhloxGrid）。
+    var compact = false
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        let radius: CGFloat = compact ? 5 : 7
+        return configuration.label
             .foregroundStyle(Color.white)
-            .padding(.horizontal, 12)
-            .frame(height: 28)
+            .padding(.horizontal, compact ? 9 : 12)
+            .frame(height: compact ? 22 : 28)
             .background(DSColor.accentFill.opacity(isArmed ? (configuration.isPressed ? 0.85 : 1) : 0.55),
-                        in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        in: RoundedRectangle(cornerRadius: radius, style: .continuous))
             // 押せるようになるまでの進み具合（05 R6c）。
             .overlay(alignment: .bottomLeading) {
                 if !isArmed {
@@ -646,7 +649,7 @@ struct ApprovalPrimaryButtonStyle: ButtonStyle {
                             .frame(width: geo.size.width * progress, height: 2)
                             .frame(maxHeight: .infinity, alignment: .bottom)
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
                 }
             }
             .background {
@@ -660,17 +663,17 @@ struct ApprovalPrimaryButtonStyle: ButtonStyle {
 }
 
 struct ApprovalSecondaryButtonStyle: ButtonStyle {
+    /// グリッドのタイルの大きさ（高さ 22・角丸 5・左右 9。PhloxGrid）。
+    var compact = false
+
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        let shape = RoundedRectangle(cornerRadius: compact ? 5 : 7, style: .continuous)
+        return configuration.label
             .foregroundStyle(DSColor.textPrimary)
-            .padding(.horizontal, 12)
-            .frame(height: 28)
-            .background(DSColor.controlBackground.opacity(configuration.isPressed ? 0.7 : 1),
-                        in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .strokeBorder(DSColor.controlBorder, lineWidth: 0.5)
-            )
+            .padding(.horizontal, compact ? 9 : 12)
+            .frame(height: compact ? 22 : 28)
+            .background(DSColor.controlBackground.opacity(configuration.isPressed ? 0.7 : 1), in: shape)
+            .overlay(shape.strokeBorder(DSColor.controlBorder, lineWidth: 0.5))
     }
 }
 

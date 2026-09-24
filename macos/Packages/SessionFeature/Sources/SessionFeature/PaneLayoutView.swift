@@ -262,9 +262,10 @@ private struct PaneTileView: View {
                 )
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // タイルの面は `--bg`（会話の列と同じ）。領域（`--area`）より一段明るい。
             .background {
                 RoundedRectangle(cornerRadius: 9)
-                    .fill(DSColor.surfaceElevated)
+                    .fill(DSColor.background)
             }
             .overlay { tileBorder }
             .clipShape(RoundedRectangle(cornerRadius: 9))
@@ -325,9 +326,12 @@ private struct PaneTileView: View {
     private var tileContent: some View {
         switch session {
         case .pty(let session):
+            // 端末の面は上下 8・左右 10 の余白まで同じ色で塗る（PhloxGrid の isPty）。
             TerminalView(coordinator: session.terminalCoordinator)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
+                .padding(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
+                .background(SessionView.terminalBackground)
         case .appServer(let chat):
             let tab = tileTabs?.selected(session.id) ?? .conversation
             if tab != .conversation, let tileTabs, GridTileSize.showsChildTabs(size) {
@@ -408,13 +412,23 @@ private struct PaneTileView: View {
         )
         .contentShape(Rectangle())
         .help(session.workspacePath)
+        // つかんだもの（S8）: 230×30 のポップオーバーに状態とタイトル、少し傾ける。
         .draggable(DraggedSession(id: session.id)) {
-            Text(session.displayName)
-                .font(DSFont.heroTitle)
-                .foregroundStyle(DSColor.textPrimary)
-                .lineLimit(1)
-                .padding(.horizontal, DSSpacing.s)
-                .padding(.vertical, DSSpacing.xs)
+            HStack(spacing: 8) {
+                Text(verbatim: session.gridDisplayState.localizedLabel(locale: locale))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DSColor.textSecondary)
+                Text(verbatim: session.displayName)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(DSColor.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            .padding(.horizontal, 10)
+            .frame(width: 230, height: 30, alignment: .leading)
+            .background(DSColor.popoverBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .rotationEffect(.degrees(-1.5))
+            .padding(6)
         }
         // ヘッダーはテキスト選択・スクロールを持たないため、mouseDown 時点で選択する。
         // **`.draggable` より後に適用すること**。先に適用するとゼロ距離の DragGesture が
@@ -433,7 +447,8 @@ private struct PaneDropIndicatorView: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: 7)
-            .fill(DSColor.accent.opacity(0.14))
+            // `--dropTint`: accent 0.14 / ダーク 0.18。
+            .fill(DSColor.accent.opacity(DSColor.isDark ? 0.18 : 0.14))
             .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(DSColor.accent, lineWidth: 2))
             .overlay {
                 Text(label)

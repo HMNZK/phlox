@@ -352,23 +352,26 @@ public struct DashboardView: View {
                         showsSidebarToggle: !layout.showsSidebar
                     )
                     horizontalSeparator
-                    if router.viewMode == .grid, !viewModel.projects.isEmpty {
-                        GridModeBar(
-                            viewModel: viewModel,
-                            router: router,
-                            sessionPickerPresented: $gridSessionPickerPresented
-                        )
-                        horizontalSeparator
-                    }
                     HStack(spacing: 0) {
-                        centerContent
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(DSColor.windowBackground)
-                            .transaction { transaction in
-                                if transaction.animation != nil {
-                                    transaction.animation = nil
-                                }
+                        // 表示範囲バーは中央の列の上端だけに置き、インスペクタの上には掛けない（06 PhloxGrid）。
+                        VStack(spacing: 0) {
+                            if router.viewMode == .grid, !viewModel.projects.isEmpty {
+                                GridModeBar(
+                                    viewModel: viewModel,
+                                    router: router,
+                                    sessionPickerPresented: $gridSessionPickerPresented
+                                )
+                                horizontalSeparator
                             }
+                            centerContent
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .background(router.viewMode == .grid ? DSColor.gridAreaBackground : DSColor.windowBackground)
+                                .transaction { transaction in
+                                    if transaction.animation != nil {
+                                        transaction.animation = nil
+                                    }
+                                }
+                        }
 
                         if router.inspectorVisible, !layout.inspectorIsOverlay {
                             verticalSeparator
@@ -589,8 +592,8 @@ public struct DashboardView: View {
                             .foregroundStyle(DSColor.textPrimary)
                             .padding(.horizontal, 12)
                             .frame(height: 28)
-                            .background(DSColor.surfaceElevated, in: RoundedRectangle(cornerRadius: 7))
-                            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(DSColor.border, lineWidth: 0.5))
+                            .background(DSColor.controlBackground, in: RoundedRectangle(cornerRadius: 7))
+                            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(DSColor.controlBorder, lineWidth: 0.5))
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)

@@ -82,11 +82,12 @@ struct PaneDividerHandleView: View {
         if let ghost = interaction.ghost {
             // ゴーストは bounds 座標系の絶対位置を持つので、掴みしろの中心との差分へ直す。
             let crossCenter = ghost.crossOrigin + ghost.crossExtent / 2
-            RoundedRectangle(cornerRadius: Self.barThickness / 2, style: .continuous)
-                .fill(DSColor.accent.opacity(0.7))
+            // 動かし先は 2pt の破線（元の位置の 3pt の棒と見分ける。PhloxGrid の S9）。
+            PaneDividerGhostLine(isVertical: ghost.axis == .horizontal)
+                .stroke(DSColor.accent, style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
                 .frame(
-                    width: ghost.axis == .horizontal ? Self.barThickness : ghost.crossExtent,
-                    height: ghost.axis == .vertical ? Self.barThickness : ghost.crossExtent
+                    width: ghost.axis == .horizontal ? 2 : ghost.crossExtent,
+                    height: ghost.axis == .vertical ? 2 : ghost.crossExtent
                 )
                 .offset(
                     x: (ghost.axis == .horizontal ? ghost.position : crossCenter) - divider.rect.midX,
@@ -190,5 +191,22 @@ private struct PaneRowResizeCursorModifier: ViewModifier {
                     }
                 }
         }
+    }
+}
+
+/// ゴーストの破線。枠の中心を通る 1 本の線。
+private struct PaneDividerGhostLine: Shape {
+    let isVertical: Bool
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        if isVertical {
+            path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        } else {
+            path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        }
+        return path
     }
 }

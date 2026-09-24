@@ -7,9 +7,61 @@ import SwiftTerm
 public final class TerminalMountCoordinator {
     public var current: TerminalCoordinator
     public var hostingView: NSView { current.hostingView }
+    private weak var container: TerminalMountContainer?
+    private var releaseObserver: NSObjectProtocol?
 
     public init(current: TerminalCoordinator) {
         self.current = current
+    }
+
+    /// 所有していた mount が外れたら、まだ画面にある自分のコンテナへ付け直す。
+    /// グリッドへの切り替えでは一時的な mount が最後に付いてすぐ破棄され、残ったタイルには
+    /// updateNSView が来ないため、知らせないと端末がどこにも付かないまま空になる。
+    /// 合図の時点で画面外だったコンテナは、画面に載った時点で付け直す。
+    func observeRelease(for container: TerminalMountContainer) {
+        self.container = container
+        container.onMoveToWindow = { [weak self] in self?.scheduleReattach() }
+        guard releaseObserver == nil else { return }
+        releaseObserver = NotificationCenter.default.addObserver(
+            forName: TerminalMount.didRelease, object: nil, queue: nil
+        ) { [weak self] note in
+            let released = note.object as? NSView
+            MainActor.assumeIsolated {
+                guard let self, released === self.hostingView else { return }
+                self.scheduleReattach()
+            }
+        }
+    }
+
+    /// 次の runloop で、端末がまだどこにも付いていないときだけ付け直す。
+    /// 合図を待つ間に別の mount が付けていたら奪わない。
+    private func scheduleReattach() {
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, let container = self.container, container.window != nil,
+                      !TerminalMount.hasOwner(self.hostingView),
+                      TerminalMount.attach(self.hostingView, to: container) else { return }
+                self.current.scrollToBottom()
+            }
+        }
+    }
+
+    func stopObservingRelease() {
+        if let releaseObserver { NotificationCenter.default.removeObserver(releaseObserver) }
+        releaseObserver = nil
+        container?.onMoveToWindow = nil
+        container = nil
+    }
+}
+
+/// 画面に載ったことを mount へ知らせる軽量コンテナ。
+@MainActor
+final class TerminalMountContainer: NSView {
+    var onMoveToWindow: (() -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil { onMoveToWindow?() }
     }
 }
 
@@ -32,8 +84,9 @@ public struct TerminalView: NSViewRepresentable {
         // このコンテナへ reparent する。グリッドタイルと単体表示のように同じ
         // hostingView を複数のマウント先で共有しても、最後に有効な接続を要求した
         // コンテナだけが所有し、旧 mount の後着 update では奪い返されない。
-        let container = NSView()
+        let container = TerminalMountContainer()
         container.translatesAutoresizingMaskIntoConstraints = false
+        context.coordinator.observeRelease(for: container)
         return container
     }
 
@@ -51,6 +104,7 @@ public struct TerminalView: NSViewRepresentable {
     }
 
     public static func dismantleNSView(_ nsView: NSView, coordinator: TerminalMountCoordinator) {
+        coordinator.stopObservingRelease()
         _ = TerminalMount.detach(coordinator.hostingView, from: nsView)
     }
 }
@@ -61,6 +115,9 @@ public struct TerminalView: NSViewRepresentable {
 /// 「開いたときだけ最下部へ寄せる」判定を検証できる。
 @MainActor
 enum TerminalMount {
+    /// 所有していた container から外れた（object は terminal）。生きている mount が付け直す合図。
+    static let didRelease = Notification.Name("TerminalMount.didRelease")
+
     /// 端末ごとの所有権。キーは terminal（hostingView）の弱参照なので、
     /// 破棄済みビューをプロセス寿命で積み上げない。
     private static let records = NSMapTable<NSView, Record>.weakToStrongObjects()
@@ -79,6 +136,10 @@ enum TerminalMount {
         return created
     }
 
+    static func hasOwner(_ terminal: NSView) -> Bool {
+        records.object(forKey: terminal)?.owner != nil
+    }
+
     static func attach(_ terminal: NSView, to container: NSView) -> Bool {
         let rec = record(for: terminal)
         if rec.owner == nil {
@@ -95,11 +156,14 @@ enum TerminalMount {
 
         // 単体表示はコンテナを再利用したまま coordinator だけ差し替えるため、直前の terminal を解放する。
         for subview in container.subviews where subview !== terminal {
+            var released = false
             if let other = records.object(forKey: subview), other.owner === container {
                 other.owner = nil
                 other.formerOwners.removeAllObjects()
+                released = true
             }
             subview.removeFromSuperview()
+            if released { NotificationCenter.default.post(name: didRelease, object: subview) }
         }
 
         if let previous = rec.owner, previous !== container {
@@ -126,6 +190,7 @@ enum TerminalMount {
         terminal.removeFromSuperview()
         rec.owner = nil
         rec.formerOwners.removeAllObjects()
+        NotificationCenter.default.post(name: didRelease, object: terminal)
         return true
     }
 }

@@ -39,7 +39,7 @@ struct GridModeBar: View {
         .padding(.leading, 12)
         .padding(.trailing, 10)
         .frame(height: 36)
-        .background(DSColor.tabBarBackground)
+        .background(DSColor.background)
     }
 
     /// 1 軸目: プロジェクト。絞り込み中は ✕ で「すべて」に戻す（S6）。

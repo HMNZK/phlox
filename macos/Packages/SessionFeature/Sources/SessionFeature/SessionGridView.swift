@@ -79,6 +79,6 @@ public struct SessionGridView: View {
         .padding(.bottom, DSSpacing.s)
         .padding(.top, DSSpacing.xs)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DSColor.background)
+        .background(DSColor.gridAreaBackground)
     }
 }

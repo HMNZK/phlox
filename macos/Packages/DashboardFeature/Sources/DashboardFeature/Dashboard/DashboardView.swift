@@ -41,6 +41,8 @@ public struct DashboardView: View {
     @State private var sessionTreeViewModel = SessionTreeViewModel()
 
     @AppStorage(ThemeStore.themeKey, store: UserDefaults.phloxDefaults()) private var themeID = AppTheme.phlox.id
+    /// 設定画面で変えたターミナルの文字サイズを、開いているセッションの端末にも当てる。
+    @AppStorage(TerminalFontSettings.fontSizeKey) private var terminalFontSize = Double(NSFont.systemFontSize)
     @State private var gridSessionPickerPresented = false
     @State private var editorPanel = EditorPanelCoordinator()
     @State private var fileTabs = FileTabDocuments()
@@ -117,6 +119,9 @@ public struct DashboardView: View {
             }
             .onChange(of: themeID) { _, _ in
                 viewModel.reapplyTheme()
+            }
+            .onChange(of: terminalFontSize) { _, size in
+                viewModel.applyTerminalFontSize(TerminalFontSettings.adjusted(from: CGFloat(size), by: 0))
             }
             .sheet(item: $spawnGuard) { item in
                 SpawnGuardSheet(

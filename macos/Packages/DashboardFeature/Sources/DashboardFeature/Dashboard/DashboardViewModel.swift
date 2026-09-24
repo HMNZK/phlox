@@ -777,7 +777,8 @@ public final class DashboardViewModel {
         }
     }
 
-    private func applyTerminalFontSize(_ size: CGFloat) {
+    /// ターミナルの文字サイズを保存し、開いている全セッションの端末へ当てる。設定画面で変えたときも使う。
+    public func applyTerminalFontSize(_ size: CGFloat) {
         TerminalFontSettings.save(size)
         for session in sessions {
             session.terminalCoordinator.applyFontSize(size)

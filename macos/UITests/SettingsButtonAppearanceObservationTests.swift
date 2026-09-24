@@ -18,7 +18,8 @@ final class SettingsButtonAppearanceObservationTests: XCTestCase {
         let scroll = settings.scrollViews.firstMatch
         XCTAssertTrue(scroll.exists, "設定のスクロール領域が見つからない")
         guard scroll.exists else { return }
-        let labels = ["通知テスト", "今すぐ確認"]
+        // 10 Settings の 6 タブ化（2026-09 承認）で「通知テスト」は通知タブへ移った。一般タブは「今すぐ確認」。
+        let labels = ["今すぐ確認"]
         var observed = Set<String>()
         for index in 0..<7 {
             try isolated.assertExclusiveOwnership()
@@ -44,6 +45,24 @@ final class SettingsButtonAppearanceObservationTests: XCTestCase {
             }
         }
         XCTAssertEqual(observed, Set(labels), "一般タブの補助操作が見つからない")
+        settings.buttons["通知"].click()
+        let notificationScroll = settings.scrollViews["settings-group-notifications"]
+        XCTAssertTrue(notificationScroll.waitForExistence(timeout: 10), "通知タブが開かない")
+        for index in 0..<7 {
+            try isolated.assertExclusiveOwnership()
+            let screenshot = XCTAttachment(screenshot: settings.screenshot())
+            screenshot.name = "settings-notifications-\(index)"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+            let button = settings.buttons["通知テスト"]
+            if button.exists, settings.frame.contains(button.frame), !button.frame.isEmpty {
+                print("SETTINGS BUTTON: label=\(button.label) enabled=\(button.isEnabled) hittable=\(button.isHittable) frame=\(button.frame)")
+                observed.insert("通知テスト")
+                break
+            }
+            if index < 6 { notificationScroll.scroll(byDeltaX: 0, deltaY: -500) }
+        }
+        XCTAssertTrue(observed.contains("通知テスト"), "通知タブの補助操作が見つからない")
         settings.buttons["エージェント"].click()
         let agentScroll = settings.scrollViews["settings-group-agents"]
         XCTAssertTrue(agentScroll.waitForExistence(timeout: 10), "エージェントタブが開かない")
@@ -61,7 +80,7 @@ final class SettingsButtonAppearanceObservationTests: XCTestCase {
             }
             if index < 6 { agentScroll.scroll(byDeltaX: 0, deltaY: -500) }
         }
-        XCTAssertEqual(observed, Set(labels + ["エージェント管理を開く"]), "対象3操作の画面内表示を観測できていない")
+        XCTAssertEqual(observed, Set(labels + ["通知テスト", "エージェント管理を開く"]), "対象3操作の画面内表示を観測できていない")
     }
 
 }

@@ -32,7 +32,8 @@ final class SettingsAuxiliaryButtonsAcceptanceTests: XCTestCase {
         let expectedEnabled: [String: Bool] = [
             "通知テスト": true, "エージェント管理を開く": true, "今すぐ確認": false,
         ]
-        let generalLabels = ["通知テスト", "今すぐ確認"]
+        // 10 Settings の 6 タブ化（2026-09 承認）で「通知テスト」は通知タブへ移った。一般タブは「今すぐ確認」。
+        let generalLabels = ["今すぐ確認"]
         var observed = Set<String>()
         for index in 0..<7 {
             try isolated.assertExclusiveOwnership()
@@ -77,6 +78,34 @@ final class SettingsAuxiliaryButtonsAcceptanceTests: XCTestCase {
                     attach(settings.screenshot(), name: "settings-\(theme)-focus-\(label)")
                 }
             }
+        }
+
+        settings.buttons["通知"].click()
+        let notificationScroll = settings.scrollViews["settings-group-notifications"]
+        XCTAssertTrue(notificationScroll.waitForExistence(timeout: 10), "[\(theme)] 通知タブが開かない")
+        for index in 0..<7 {
+            try isolated.assertExclusiveOwnership()
+            let button = settings.buttons["通知テスト"]
+            if button.exists, settings.frame.contains(button.frame), !button.frame.isEmpty {
+                print("SETTINGS BUTTON [\(theme)]: label=\(button.label) enabled=\(button.isEnabled) frame=\(button.frame)")
+                XCTAssertEqual(button.isEnabled, expectedEnabled["通知テスト"], "[\(theme)] 通知テスト の enabled が期待と異なる")
+                observed.insert("通知テスト")
+                attach(settings.screenshot(), name: "settings-\(theme)-normal-通知テスト")
+                button.hover()
+                try await Task.sleep(for: .milliseconds(250))
+                attach(settings.screenshot(), name: "settings-\(theme)-hover-通知テスト")
+                for step in 0..<12 {
+                    app.typeKey(.tab, modifierFlags: [])
+                    try await Task.sleep(for: .milliseconds(150))
+                    if (button.value(forKey: "hasKeyboardFocus") as? Bool) == true {
+                        print("SETTINGS FOCUS [\(theme)]: step=\(step) label=通知テスト")
+                        attach(settings.screenshot(), name: "settings-\(theme)-focus-通知テスト")
+                        break
+                    }
+                }
+                break
+            }
+            if index < 6 { notificationScroll.scroll(byDeltaX: 0, deltaY: -500) }
         }
 
         settings.buttons["エージェント"].click()

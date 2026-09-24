@@ -18,6 +18,8 @@ public final class MobileTokenViewModel: ObservableObject {
 
   /// QR ペアリング表示中か。明示操作で開始し、60 秒後に自動非表示。
   @Published public private(set) var isPairingQRVisible = false
+  /// QR を自動で隠す時刻（設定画面の「あと 0:48 で非表示」に使う）。表示中だけ値を持つ。
+  @Published public private(set) var pairingQRHidesAt: Date?
 
   /// 直近に解決した露出範囲。回復・再解決で更新される。
   @Published public private(set) var bindMode: BindMode?
@@ -135,7 +137,7 @@ public final class MobileTokenViewModel: ObservableObject {
       isPairingQRVisible = true
       schedulePairingQRAutoHide()
     } catch {
-      lastError = String(localized: "端末の発行に失敗しました。しばらくしてから再度お試しください。")
+      lastError = "端末の発行に失敗しました。しばらくしてから再度お試しください。"
       Self.logger.error("Mobile device issue failed: \(String(describing: error), privacy: .public)")
     }
   }
@@ -145,6 +147,7 @@ public final class MobileTokenViewModel: ObservableObject {
     hidePairingQRTask?.cancel()
     hidePairingQRTask = nil
     isPairingQRVisible = false
+    pairingQRHidesAt = nil
   }
 
   /// 端末を 1 台失効させる。失効後は `SessionTokenStore` への登録も取り消し、一覧を更新する。
@@ -155,7 +158,7 @@ public final class MobileTokenViewModel: ObservableObject {
       try reloadDevicesAndPrivilegedRequesters()
       lastError = nil
     } catch {
-      lastError = String(localized: "端末の失効に失敗しました。しばらくしてから再度お試しください。")
+      lastError = "端末の失効に失敗しました。しばらくしてから再度お試しください。"
       Self.logger.error("Mobile device revoke failed: \(String(describing: error), privacy: .public)")
     }
   }
@@ -173,6 +176,10 @@ public final class MobileTokenViewModel: ObservableObject {
   public func handleAuthenticatedPairingRecorded() {
     do {
       try reloadDevicesAndPrivilegedRequesters()
+      // 表示中の QR の端末が成立したら、フルアクセスのトークンを画面に残さず閉じる（10 Settings）。
+      if isPairingQRVisible, devices.contains(where: { $0.token.value == pendingQRToken && $0.pairedAt != nil }) {
+        hidePairingQR()
+      }
     } catch {
       Self.logger.error("Mobile device list refresh after pairing failed: \(String(describing: error), privacy: .public)")
     }
@@ -194,10 +201,12 @@ public final class MobileTokenViewModel: ObservableObject {
 
   private func schedulePairingQRAutoHide() {
     hidePairingQRTask?.cancel()
+    pairingQRHidesAt = Date().addingTimeInterval(Self.pairingQRVisibleDuration)
     hidePairingQRTask = Task { @MainActor [weak self] in
       try? await Task.sleep(for: .seconds(Self.pairingQRVisibleDuration))
       guard !Task.isCancelled, let self else { return }
       self.isPairingQRVisible = false
+      self.pairingQRHidesAt = nil
       self.hidePairingQRTask = nil
     }
   }

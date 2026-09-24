@@ -30,6 +30,14 @@ public enum TerminalFontSettings {
         clamped(current + delta)
     }
 
+    /// 設定画面の入力欄（10 Settings T6b）。範囲内の整数だけを受け付け、それ以外は nil（保存しない）。
+    public static func parse(_ text: String) -> CGFloat? {
+        guard let value = Int(text.trimmingCharacters(in: .whitespaces)),
+              CGFloat(value) >= minSize, CGFloat(value) <= maxSize
+        else { return nil }
+        return CGFloat(value)
+    }
+
     private static func clamped(_ size: CGFloat) -> CGFloat {
         min(maxSize, max(minSize, size))
     }

@@ -35,7 +35,12 @@ struct SettingsView: View {
     @AppStorage(DefaultSessionBackendPreference.storageKey)
     private var defaultSessionBackendRaw = DefaultSessionBackendPreference.chat.rawValue
 
+    @AppStorage(ChatFontSettings.scaleKey) private var chatFontScale = Double(ChatFontSettings.defaultScale)
+    @AppStorage(TerminalFontSettings.fontSizeKey) private var terminalFontSize = Double(NSFont.systemFontSize)
+
     @State private var selectedGroupID = "general"
+    /// ターミナルの文字サイズの入力中の値。範囲外なら保存せず、欄から離れても戻さない（10 Settings T6b）。
+    @State private var terminalFontDraft: String?
 
     private var appLanguageBinding: Binding<AppLanguage> {
         Binding(
@@ -51,6 +56,12 @@ struct SettingsView: View {
         )
     }
 
+    /// モバイル連携のタブは、トークンがあり案内の方針が表示を許すときだけ出す（現行どおり）。
+    private var visibleGroups: [SettingsGroup] {
+        let showsMobile = mobileToken != nil && MobileConnectionGuidePolicy.showsSettingsConnectionSection
+        return SettingsGroup.all.filter { $0.id != "mobile" || showsMobile }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -59,17 +70,17 @@ struct SettingsView: View {
                 .padding(.bottom, DSSpacing.s)
 
             TabView(selection: $selectedGroupID) {
-                ForEach(SettingsGroup.all) { group in
+                ForEach(visibleGroups) { group in
                     groupForm(group)
                         .tabItem {
-                            Label(group.title, systemImage: group.systemImage)
+                            Label(AppLocalizedString.string(group.title, locale: locale), systemImage: group.systemImage)
                         }
                         .tag(group.id)
                         .accessibilityIdentifier("settings-group-\(group.id)")
                 }
             }
         }
-        .frame(width: 520, height: 640)
+        .frame(width: 640, height: 680)
         .background(DSColor.background)
         .preferredColorScheme(ThemeStore.active.preferredColorScheme)
     }
@@ -106,14 +117,16 @@ struct SettingsView: View {
                 generalForm
             case "appearance":
                 appearanceForm
+            case "notifications":
+                notificationsForm
             case "agents":
                 agentsForm
-            case "connection":
-                if let mobileToken, MobileConnectionGuidePolicy.showsSettingsConnectionSection {
+            case "usage":
+                usageForm
+            case "mobile":
+                if let mobileToken {
                     MobileTokenSection(viewModel: mobileToken)
                 }
-            case "advanced":
-                advancedForm
             default:
                 EmptyView()
             }
@@ -124,46 +137,27 @@ struct SettingsView: View {
         .toggleStyle(AccentSwitchToggleStyle())
     }
 
+    // MARK: - 一般
+
     @ViewBuilder
     private var generalForm: some View {
         Section {
             Picker(selection: appLanguageBinding) {
-                Text("システム").tag(AppLanguage.system)
-                Text("日本語").tag(AppLanguage.ja)
-                Text("English").tag(AppLanguage.en)
+                Text("システムに合わせる").tag(AppLanguage.system)
+                Text(verbatim: "日本語").tag(AppLanguage.ja)
+                Text(verbatim: "English").tag(AppLanguage.en)
             } label: {
-                Label("表示言語", systemImage: "globe")
+                Text("表示言語")
             }
-        } header: {
-            Text("言語")
-        }
-
-        Section {
             Picker(selection: defaultSessionBackendBinding) {
                 Text("チャット").tag(DefaultSessionBackendPreference.chat)
                 Text("ターミナル").tag(DefaultSessionBackendPreference.terminal)
             } label: {
-                Label("デフォルトの開き方", systemImage: "rectangle.on.rectangle")
+                SettingsRowLabel(title: "新規セッションの既定の開き方", detail: "⌘N や起動カードで ↩ を押したときの開き方。チャット非対応のエージェントはターミナルで開きます。")
             }
+            .pickerStyle(.segmented)
         } header: {
-            Text("セッション")
-        } footer: {
-            Text("新規セッションをチャット画面かターミナルで開くかの既定です。チャット非対応のエージェントはターミナルで開きます。")
-        }
-
-        Section {
-            Toggle(isOn: $bannerNotificationEnabled) {
-                Label("セッション完了をバナーで通知", systemImage: "bell")
-            }
-            Toggle(isOn: $completionSoundEnabled) {
-                Label("完了サウンド（Glass）を鳴らす", systemImage: "speaker.wave.2")
-            }
-            Button("通知テスト") {
-                SessionCompletionNotifier.notifyCompleted(sessionName: String(localized: "テスト"))
-            }
-            .buttonStyle(.bordered)
-        } header: {
-            Text("通知")
+            Text("言語と起動")
         }
 
         Section {
@@ -171,47 +165,200 @@ struct SettingsView: View {
                 get: { appUpdater.automaticallyChecksForUpdates },
                 set: { appUpdater.automaticallyChecksForUpdates = $0 }
             )) {
-                Label("起動時に自動でアップデートを確認", systemImage: "clock.arrow.circlepath")
+                Text("起動時に自動でアップデートを確認")
             }
-            Button("今すぐ確認") {
-                appUpdater.checkForUpdates()
+            LabeledContent {
+                Button("今すぐ確認") {
+                    appUpdater.checkForUpdates()
+                }
+                .buttonStyle(.bordered)
+                .disabled(!appUpdater.canCheckForUpdates)
+            } label: {
+                Text("アップデートを確認")
             }
-            .buttonStyle(.bordered)
-            .disabled(!appUpdater.canCheckForUpdates)
         } header: {
             Text("アップデート")
         }
+
+        Section {
+            LabeledContent {
+                Text(verbatim: "\(AppFlavor.current.displayName) \(appVersion)（\(buildNumber)）")
+                    .textSelection(.enabled)
+            } label: {
+                Text("バージョン")
+            }
+            LabeledContent {
+                Link(destination: URL(string: "https://phlox.cc/privacy")!) {
+                    Text(verbatim: "phlox.cc/privacy ↗")
+                }
+                .pointingHandCursor()
+            } label: {
+                Text("プライバシーポリシー")
+            }
+        } header: {
+            Text("このアプリについて")
+        }
     }
+
+    // MARK: - 外観
 
     @ViewBuilder
     private var appearanceForm: some View {
         Section {
-            ForEach(ThemeStore.all) { theme in
-                ThemeRowView(theme: theme, isSelected: theme.id == themeID) {
-                    themeID = theme.id
-                }
-            }
-        } header: {
-            Text("外観")
-        } footer: {
-            Text("テーマ（ターミナルの配色とアプリ全体）を切り替えます。変更は即座に反映されます。")
-        }
-
-        Section {
-            ForEach(AppIconStore.all) { option in
-                AppIconRowView(option: option, isSelected: option.id == appIconID) {
-                    appIconID = option.id
-                    if let image = NSImage(named: option.assetName) {
-                        NSApp.applicationIconImage = image
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: DSSpacing.m)], spacing: DSSpacing.m) {
+                ForEach(ThemeStore.all) { theme in
+                    ThemeTile(theme: theme, isSelected: theme.id == themeID) {
+                        themeID = theme.id
                     }
                 }
             }
+            .padding(.vertical, DSSpacing.xs)
+        } header: {
+            Text("テーマ")
+        } footer: {
+            Text("テーマはターミナルの配色とアプリ全体に効き、変更はすぐに反映されます。アクセントの色はすべてのテーマで共通です。")
+        }
+
+        Section {
+            HStack(spacing: DSSpacing.l) {
+                ForEach(AppIconStore.all) { option in
+                    AppIconTile(option: option, isSelected: option.id == appIconID) {
+                        appIconID = option.id
+                        if let image = NSImage(named: option.assetName) {
+                            NSApp.applicationIconImage = image
+                        }
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, DSSpacing.xs)
         } header: {
             Text("アプリアイコン")
         } footer: {
             Text("Dock とアプリのアイコンを切り替えます。変更は即座に反映されます。")
         }
+
+        Section {
+            LabeledContent {
+                HStack(spacing: DSSpacing.s) {
+                    Slider(
+                        value: $chatFontScale,
+                        in: Double(ChatFontSettings.minScale)...Double(ChatFontSettings.maxScale),
+                        step: Double(ChatFontSettings.step)
+                    ) {
+                        Text("チャット本文")
+                    } minimumValueLabel: {
+                        Text(verbatim: "\(percent(ChatFontSettings.minScale))%")
+                            .foregroundStyle(DSColor.textSecondary)
+                    } maximumValueLabel: {
+                        Text(verbatim: "\(percent(ChatFontSettings.maxScale))%")
+                            .foregroundStyle(DSColor.textSecondary)
+                    }
+                    .labelsHidden()
+                    .frame(width: 200)
+                    Text(verbatim: "\(percent(chatFontScale))%")
+                        .monospacedDigit()
+                        .frame(width: 44, alignment: .trailing)
+                }
+            } label: {
+                SettingsRowLabel(title: "チャット本文", detail: "⌘+ / ⌘− でも変えられます（フォーカス中の領域に効きます）。")
+            }
+            terminalFontRow
+        } header: {
+            Text("文字の大きさ")
+        }
     }
+
+    private func percent(_ scale: some BinaryFloatingPoint) -> Int {
+        Int((Double(scale) * 100).rounded())
+    }
+
+    /// ターミナルの文字サイズ。整数を直接入れるか ▲▼ で変える。範囲外は保存せず理由と現在の値を出す。
+    private var terminalFontRow: some View {
+        let current = Int(terminalFontSize.rounded())
+        let draft = terminalFontDraft ?? String(current)
+        let isInvalid = TerminalFontSettings.parse(draft) == nil
+        return VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            LabeledContent {
+                HStack(spacing: DSSpacing.xs) {
+                    TextField(text: Binding(
+                        get: { draft },
+                        set: { terminalFontDraft = $0 }
+                    )) {
+                        Text("ターミナル")
+                    }
+                    .labelsHidden()
+                    .multilineTextAlignment(.trailing)
+                    .monospacedDigit()
+                    .frame(width: 48)
+                    .onSubmit(commitTerminalFont)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 5)
+                            .strokeBorder(isInvalid ? DSColor.statusError : Color.clear, lineWidth: 1)
+                    )
+                    Stepper(
+                        value: Binding(
+                            get: { terminalFontSize },
+                            set: { terminalFontSize = $0; terminalFontDraft = nil }
+                        ),
+                        in: Double(TerminalFontSettings.minSize)...Double(TerminalFontSettings.maxSize),
+                        step: Double(TerminalFontSettings.step)
+                    ) {
+                        Text("ターミナル")
+                    }
+                    .labelsHidden()
+                    Text(verbatim: "pt")
+                        .foregroundStyle(DSColor.textSecondary)
+                }
+            } label: {
+                SettingsRowLabel(
+                    title: "ターミナル",
+                    detail: isInvalid ? nil : "ターミナルパネル・グリッドのターミナル・単体表示で共通です。"
+                )
+            }
+            if isInvalid {
+                Text(String(
+                    format: AppLocalizedString.string("%lld〜%lld の整数を入力してください。保存していません（現在の値: %lld）", locale: locale),
+                    Int(TerminalFontSettings.minSize), Int(TerminalFontSettings.maxSize), current
+                ))
+                .font(DSFont.caption)
+                .foregroundStyle(DSColor.statusError)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func commitTerminalFont() {
+        guard let draft = terminalFontDraft, let size = TerminalFontSettings.parse(draft) else { return }
+        terminalFontSize = Double(size)
+        terminalFontDraft = nil
+    }
+
+    // MARK: - 通知
+
+    @ViewBuilder
+    private var notificationsForm: some View {
+        Section {
+            Toggle(isOn: $bannerNotificationEnabled) {
+                SettingsRowLabel(title: "バナーで知らせる", detail: "完了と承認待ちを macOS の通知で知らせます。")
+            }
+            Toggle(isOn: $completionSoundEnabled) {
+                Text("完了サウンド（Glass）を鳴らす")
+            }
+            LabeledContent {
+                Button("通知テスト") {
+                    SessionCompletionNotifier.notifyCompleted(sessionName: AppLocalizedString.string("テスト", locale: locale))
+                }
+                .buttonStyle(.bordered)
+            } label: {
+                Text("通知をテスト")
+            }
+        } header: {
+            Text("セッションが止まったとき")
+        }
+    }
+
+    // MARK: - エージェント
 
     @ViewBuilder
     private var agentsForm: some View {
@@ -220,66 +367,86 @@ struct SettingsView: View {
                 BypassToggleRow(descriptor: descriptor)
             }
         } header: {
-            Text("権限")
+            Text("フルアクセス（権限の確認を省く）")
         } footer: {
             Text(UIWording.settingsPermissionFooter(languageCode: languageCode))
                 .fixedSize(horizontal: false, vertical: true)
         }
 
         Section {
-            Button {
-                openWindow(id: AgentConsoleCommands.windowID)
+            LabeledContent {
+                HStack(spacing: DSSpacing.s) {
+                    Text(verbatim: "⇧⌘,")
+                        .foregroundStyle(DSColor.textTertiary)
+                        .accessibilityHidden(true)
+                    Button {
+                        openWindow(id: AgentConsoleCommands.windowID)
+                    } label: {
+                        Text("エージェント管理を開く")
+                    }
+                    .buttonStyle(.bordered)
+                }
             } label: {
-                Label("エージェント管理を開く", systemImage: "wrench.and.screwdriver")
+                SettingsRowLabel(
+                    title: "エージェント管理",
+                    detail: "CLI ごとの設定ファイル（settings.json・config.toml・cli-config.json）を直接編集します。対話 TUI のスラッシュコマンドや手編集でしか触れない項目が対象です。"
+                )
             }
-            .buttonStyle(.bordered)
+            LabeledContent {
+                Text(verbatim: (CustomAgentRegistryLoader.defaultURL().path as NSString).abbreviatingWithTildeInPath)
+                    .font(.system(size: 12, design: .monospaced))
+                    .textSelection(.enabled)
+            } label: {
+                Text("カスタムエージェントの定義")
+            }
         } header: {
-            Text("エージェント")
-        } footer: {
-            Text("Claude Code・Codex・Cursor の設定をここから操作できます。対話 TUI のスラッシュコマンド（/plugin・/permissions 等）や、設定ファイルの手編集でしか触れない項目が対象です。")
+            Text("詳しい設定")
         }
     }
 
+    // MARK: - 使用量
+
     @ViewBuilder
-    private var advancedForm: some View {
+    private var usageForm: some View {
         Section {
             Toggle(isOn: $usageAutoRefresh) {
-                Label("使用量サイドバーを自動更新", systemImage: "arrow.clockwise")
+                Text("自動で更新する")
             }
             Toggle(isOn: $claudeScrape) {
-                Label("Claudeの使用量を取得", systemImage: "sparkles")
+                SettingsRowLabel(title: "Claude の使用量を取得する", detail: "Claude はほかの CLI と取得方法が異なるため、個別にオフにできます。")
             }
             Toggle(isOn: $showUnavailableUsage) {
-                Label("未取得のCLIも表示", systemImage: "eye.slash")
+                SettingsRowLabel(title: "取得できない CLI も表示する", detail: "未インストールの CLI をインスペクタに「未取得」として並べます。")
             }
             Toggle(isOn: $showUsageInHeader) {
-                Label("ヘッダーに使用量を表示", systemImage: "menubar.rectangle")
+                SettingsRowLabel(title: "上部バーに使用量を表示する", detail: "インスペクタの開閉とは関係なく表示します。")
             }
         } header: {
             Text("使用量")
         } footer: {
             Text("Codex・Cursor の使用量は自動で表示されます。Claude は Phlox 内で起動したセッションの使用量を表示します（直近に Phlox 内で Claude を起動していないと最新の値にならない場合があります）。")
         }
-
-        Section {
-            Link(destination: URL(string: "https://phlox.cc/privacy")!) {
-                Label("プライバシーポリシー", systemImage: "hand.raised")
-            }
-            .pointingHandCursor()
-        } header: {
-            Text("プライバシー")
-        }
-
-        Section {
-            LabeledContent("アプリ", value: AppFlavor.current.displayName)
-            LabeledContent("バージョン", value: appVersion)
-            LabeledContent("ビルド", value: buildNumber)
-        } header: {
-            Text("このアプリについて")
-        }
     }
 
-    // MARK: - テーマ選択行（ホバー対応）
+    // MARK: - 行の部品
+
+    /// 行の見出しと、その下の補足（10 Settings の行の形）。
+    private struct SettingsRowLabel: View {
+        let title: LocalizedStringKey
+        var detail: LocalizedStringKey?
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                if let detail {
+                    Text(detail)
+                        .font(DSFont.caption)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
 
     private struct BypassToggleRow: View {
         let descriptor: AgentDescriptor
@@ -305,24 +472,19 @@ struct SettingsView: View {
         var body: some View {
             let wording = UIWording.launchPermission(agent: agentKind, displayName: descriptor.displayName, languageCode: languageCode)
             Toggle(isOn: $isEnabled) {
-                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    Label(wording.rowLabel, systemImage: descriptor.symbolName)
-                    Text("OFF:")
-                        .font(DSFont.caption.weight(.medium))
-                        .foregroundStyle(DSColor.textSecondary)
-                    Text(wording.offExplanation)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(verbatim: descriptor.displayName)
+                    Text(verbatim: AppLocalizedString.string("オン", locale: locale) + ": " + wording.onExplanation)
                         .font(DSFont.caption)
-                        .foregroundStyle(DSColor.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("ON:")
-                        .font(DSFont.caption.weight(.medium))
                         .foregroundStyle(DSColor.textSecondary)
-                    Text(wording.onExplanation)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(verbatim: AppLocalizedString.string("オフ", locale: locale) + ": " + wording.offExplanation)
                         .font(DSFont.caption)
                         .foregroundStyle(DSColor.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .accessibilityLabel(Text(verbatim: wording.rowLabel))
         }
     }
 
@@ -330,51 +492,93 @@ struct SettingsView: View {
     /// `@ObservedObject` を非 optional で受けるため、optional な VM は親で `if let` してから渡す。
     private struct MobileTokenSection: View {
         @ObservedObject var viewModel: MobileTokenViewModel
-        @State private var newDeviceName = String(localized: "iPhone")
+        @State private var newDeviceName = "iPhone"
+        /// 失効の確認（09 A 型）。
+        @State private var pendingRevoke: PairedDevice?
+        @Environment(\.locale) private var locale
 
         var body: some View {
             Section {
-                TextField("端末名", text: $newDeviceName)
-                    .textFieldStyle(.roundedBorder)
-                if let disabledReason = viewModel.pairingQRDisabledReason {
-                    Text(disabledReason)
-                        .font(DSFont.caption)
-                        .foregroundStyle(DSColor.textSecondary)
+                TextField(text: $newDeviceName) {
+                    Text("端末の名前")
                 }
-                Button {
-                    Task {
-                        let name = newDeviceName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        await viewModel.showPairingQR(deviceName: name.isEmpty ? String(localized: "iPhone") : name)
+                LabeledContent {
+                    Button {
+                        Task {
+                            let name = newDeviceName.trimmingCharacters(in: .whitespacesAndNewlines)
+                            await viewModel.showPairingQR(deviceName: name.isEmpty ? "iPhone" : name)
+                        }
+                    } label: {
+                        viewModel.isPairingQRVisible ? Text("表示中") : Text("QR コードを表示")
                     }
+                    .buttonStyle(.borderedProminent)
+                    .tint(DSColor.accentFill)
+                    .disabled(!viewModel.isPairingQREnabled || viewModel.isPairingQRVisible)
                 } label: {
-                    Label("QR コードを表示", systemImage: "qrcode")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("QR コードでペアリング")
+                        if let disabledReason = viewModel.pairingQRDisabledReason {
+                            Text(verbatim: AppLocalizedString.string(disabledReason, locale: locale))
+                                .font(DSFont.caption)
+                                .foregroundStyle(DSColor.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
-                .disabled(!viewModel.isPairingQREnabled)
                 if viewModel.isPairingQRVisible,
                    case .success(let payload) = viewModel.makePairingPayload()
                 {
-                    PairingQRView(payloadString: payload.urlString)
+                    HStack(alignment: .center, spacing: DSSpacing.l) {
+                        PairingQRView(payloadString: payload.urlString, warningText: "", imageSize: 160)
+                            .fixedSize()
+                        VStack(alignment: .leading, spacing: DSSpacing.s) {
+                            Text("iPhone の Phlox で読み取ってください")
+                            if let hidesAt = viewModel.pairingQRHidesAt {
+                                Text("あと \(Text(timerInterval: Date()...max(Date(), hidesAt), countsDown: true)) で非表示になります")
+                                    .font(DSFont.caption)
+                                    .foregroundStyle(DSColor.textSecondary)
+                                    .monospacedDigit()
+                            }
+                            Button("今すぐ隠す") { viewModel.hidePairingQR() }
+                                .buttonStyle(.bordered)
+                        }
+                        Spacer(minLength: 0)
+                    }
                 }
                 if let lastError = viewModel.lastError {
-                    Text(lastError)
+                    Text(verbatim: AppLocalizedString.string(lastError, locale: locale))
                         .font(DSFont.caption)
                         .foregroundStyle(DSColor.statusError)
                 }
             } header: {
-                Text("モバイル接続")
+                Text("新しい端末をつなぐ")
             } footer: {
-                Text("iPhone アプリで QR コードを読み取ると、同一 Tailscale ネットワーク経由で接続できます。「QR コードを表示」を押すたびに新しい端末として発行されます。既存の端末は影響を受けません。")
+                Text("QR にはフルアクセス権限のトークンが含まれます。60 秒後に自動的に非表示になります。iPhone アプリで読み取ると、同一 Tailscale ネットワーク経由で接続できます。「QR コードを表示」を押すたびに新しい端末として発行され、既存の端末は影響を受けません。")
             }
             .task {
                 await viewModel.refreshReachability()
             }
+            .confirmationDialog(
+                Text("「\(pendingRevoke?.name ?? "")」を失効させますか?"),
+                isPresented: Binding(get: { pendingRevoke != nil }, set: { if !$0 { pendingRevoke = nil } }),
+                presenting: pendingRevoke
+            ) { device in
+                Button("失効", role: .destructive) {
+                    pendingRevoke = nil
+                    Task { await viewModel.revoke(id: device.id) }
+                }
+                .keyboardShortcut(.delete, modifiers: .command)
+                Button("キャンセル", role: .cancel) { pendingRevoke = nil }
+                    .keyboardShortcut(.defaultAction)
+            } message: { _ in
+                Text("この端末は Phlox に接続できなくなります。もう一度つなぐには QR コードでペアリングし直します。元に戻せません。")
+            }
+            .dialogSeverity(.critical)
 
             if !viewModel.devices.isEmpty {
                 Section {
                     ForEach(viewModel.devices) { device in
-                        MobileDeviceRow(device: device) {
-                            Task { await viewModel.revoke(id: device.id) }
-                        }
+                        MobileDeviceRow(device: device) { pendingRevoke = device }
                     }
                 } header: {
                     Text("接続済みの端末")
@@ -383,122 +587,113 @@ struct SettingsView: View {
         }
     }
 
-    /// ペアリング済み端末一覧の 1 行。名前・ペアリング日時（未ペアリングなら「未接続」）・失効ボタン。
+    /// ペアリング済み端末一覧の 1 行。名前・ペアリング日（未ペアリングなら「未接続」）・失効ボタン。
     private struct MobileDeviceRow: View {
         let device: PairedDevice
         let onRevoke: () -> Void
+        @Environment(\.locale) private var locale
 
         var body: some View {
-            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                HStack(spacing: DSSpacing.s) {
-                    Text(device.name)
-                        .foregroundStyle(DSColor.textPrimary)
+            LabeledContent {
+                Button("失効", role: .destructive, action: onRevoke)
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(DSColor.statusError)
+                    .accessibilityLabel(Text(verbatim: String(format: AppLocalizedString.string("「%@」を失効", locale: locale), device.name)))
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(verbatim: device.name)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                    Spacer(minLength: DSSpacing.s)
-                    Button("失効", role: .destructive, action: onRevoke)
-                        .buttonStyle(.borderless)
-                        .foregroundStyle(DSColor.statusError)
+                    Text(verbatim: pairedAtText)
+                        .font(DSFont.caption)
+                        .foregroundStyle(DSColor.textSecondary)
                 }
-                Text(pairedAtText)
-                    .font(DSFont.caption)
-                    .foregroundStyle(DSColor.textSecondary)
             }
-            .padding(.vertical, DSSpacing.xxs)
         }
 
         private var pairedAtText: String {
             guard let pairedAt = device.pairedAt else {
-                return String(localized: "未接続")
+                return AppLocalizedString.string("未接続", locale: locale)
             }
-            return pairedAt.formatted(date: .abbreviated, time: .shortened)
+            return String(
+                format: AppLocalizedString.string("%@にペアリング", locale: locale),
+                pairedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale))
+            )
         }
     }
 
-    /// テーマ選択行。ホバーで背景ハイライト＋手のカーソルを出し、クリック可能と分かるようにする。
-    /// 候補ごとの ThemePreviewModel でアプリ外観の見本とターミナル配色の色帯を描く。
-    private struct ThemeRowView: View {
+    /// テーマの見本タイル（10 Settings: 格子で並べ、名前は下）。選んでいるものはアクセントの枠。
+    private struct ThemeTile: View {
         let theme: AppTheme
         let isSelected: Bool
         let onSelect: () -> Void
-        @State private var isHovering = false
 
         var body: some View {
             let model = ThemePreviewModel.make(theme: theme)
             Button(action: onSelect) {
-                HStack(alignment: .center, spacing: DSSpacing.m) {
-                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                        Text(theme.name)
-                            .foregroundStyle(DSColor.textPrimary)
-                        HStack(alignment: .top, spacing: DSSpacing.m) {
-                            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                                Text(model.appLabel)
-                                    .font(DSFont.caption)
-                                    .foregroundStyle(DSColor.textTertiary)
-                                    .lineLimit(1)
-                                    .fixedSize(horizontal: true, vertical: false)
-                                ThemeAppPreview(model: model)
-                            }
-                            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                                Text(model.terminalLabel)
-                                    .font(DSFont.caption)
-                                    .foregroundStyle(DSColor.textTertiary)
-                                    .lineLimit(1)
-                                    .fixedSize(horizontal: true, vertical: false)
-                                ThemeSwatchStrip(model: model)
-                            }
-                        }
-                        .layoutPriority(1)
+                VStack(spacing: DSSpacing.xs) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ThemeAppPreview(model: model)
+                        ThemeSwatchStrip(model: model)
                     }
-                    Spacer(minLength: DSSpacing.s)
-                    if isSelected {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(DSColor.accent)
-                            .accessibilityHidden(true)
-                    }
+                    .frame(width: 148)
+                    .clipShape(RoundedRectangle(cornerRadius: DSRadius.m))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DSRadius.m)
+                            .strokeBorder(isSelected ? DSColor.accent : DSColor.separator, lineWidth: isSelected ? 2 : 1)
+                    )
+                    Text(verbatim: theme.name)
+                        .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                        .foregroundStyle(isSelected ? DSColor.textPrimary : DSColor.textSecondary)
                 }
-                .padding(.vertical, DSSpacing.xxs)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(theme.name)
+            .pointingHandCursor()
+            .accessibilityLabel(Text(verbatim: theme.name))
             .accessibilityAddTraits(isSelected ? .isSelected : [])
-            .listRowBackground(rowBackground)
-            .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.12)) {
-                    isHovering = hovering
-                }
-                if hovering {
-                    NSCursor.pointingHand.push()
-                } else {
-                    NSCursor.pop()
-                }
-            }
-            .onDisappear {
-                if isHovering { NSCursor.pop() }
-            }
         }
+    }
 
-        @ViewBuilder
-        private var rowBackground: some View {
-            if isSelected {
-                DSColor.accent.opacity(isHovering ? 0.18 : 0.13)
-            } else if isHovering {
-                DSColor.fillSubtle
-            } else {
-                Color.clear
+    /// アプリアイコンのタイル。選んだ時点で Dock に反映する。
+    private struct AppIconTile: View {
+        let option: AppIconOption
+        let isSelected: Bool
+        let onSelect: () -> Void
+        @Environment(\.locale) private var locale
+
+        var body: some View {
+            Button(action: onSelect) {
+                VStack(spacing: DSSpacing.xs) {
+                    Image(option.assetName)
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: 48, height: 48)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 11)
+                                .strokeBorder(isSelected ? DSColor.accent : Color.clear, lineWidth: 2)
+                        )
+                    Text(verbatim: AppLocalizedString.string(option.name, locale: locale))
+                        .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                        .foregroundStyle(isSelected ? DSColor.textPrimary : DSColor.textSecondary)
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .pointingHandCursor()
+            .accessibilityLabel(Text(verbatim: AppLocalizedString.string(option.name, locale: locale)))
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
         }
     }
 
     /// 候補テーマのアプリ外観見本。本文・現在の会話行・入力欄を model の RGB だけで描く。
     private struct ThemeAppPreview: View {
         let model: ThemePreviewModel
+        @Environment(\.locale) private var locale
 
         var body: some View {
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                Text(model.bodyText)
+                Text(verbatim: AppLocalizedString.string(model.bodyText, locale: locale))
                     .font(DSFont.caption)
                     .foregroundStyle(model.textPrimary.color)
                     .lineLimit(1)
@@ -512,7 +707,7 @@ struct SettingsView: View {
                         RoundedRectangle(cornerRadius: 1.5)
                             .fill(model.currentMarker.color)
                             .frame(width: 3, height: 10)
-                        Text(model.selectedRowText)
+                        Text(verbatim: AppLocalizedString.string(model.selectedRowText, locale: locale))
                             .font(DSFont.caption)
                             .fontWeight(.semibold)
                             .foregroundStyle(model.textPrimary.color)
@@ -530,7 +725,7 @@ struct SettingsView: View {
                         .fill(model.inputFill.rgb.color.opacity(model.inputFill.opacity))
                     RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
                         .strokeBorder(model.inputBorder.rgb.color.opacity(model.inputBorder.opacity), lineWidth: 1)
-                    Text(model.inputText)
+                    Text(verbatim: AppLocalizedString.string(model.inputText, locale: locale))
                         .font(DSFont.caption)
                         .foregroundStyle(model.textPrimary.color)
                         .lineLimit(1)
@@ -548,61 +743,6 @@ struct SettingsView: View {
         }
     }
 
-    /// アプリアイコン選択行。ThemeRowView と同じホバー挙動＋サムネイル＋チェックマーク。
-    private struct AppIconRowView: View {
-        let option: AppIconOption
-        let isSelected: Bool
-        let onSelect: () -> Void
-        @State private var isHovering = false
-
-        var body: some View {
-            Button(action: onSelect) {
-                HStack(spacing: DSSpacing.m) {
-                    Image(option.assetName)
-                        .resizable()
-                        .interpolation(.high)
-                        .frame(width: 40, height: 40)
-                    Text(option.name)
-                        .foregroundStyle(DSColor.textPrimary)
-                    Spacer(minLength: DSSpacing.s)
-                    if isSelected {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(DSColor.accent)
-                    }
-                }
-                .padding(.vertical, DSSpacing.xxs)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .listRowBackground(rowBackground)
-            .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.12)) {
-                    isHovering = hovering
-                }
-                if hovering {
-                    NSCursor.pointingHand.push()
-                } else {
-                    NSCursor.pop()
-                }
-            }
-            .onDisappear {
-                if isHovering { NSCursor.pop() }
-            }
-        }
-
-        @ViewBuilder
-        private var rowBackground: some View {
-            if isSelected {
-                DSColor.accent.opacity(isHovering ? 0.18 : 0.13)
-            } else if isHovering {
-                DSColor.fillSubtle
-            } else {
-                Color.clear
-            }
-        }
-    }
-
     /// ターミナル配色の色帯。model.terminalSwatches の順に描く。
     private struct ThemeSwatchStrip: View {
         let model: ThemePreviewModel
@@ -612,7 +752,8 @@ struct SettingsView: View {
                 ForEach(Array(model.terminalSwatches.enumerated()), id: \.offset) { _, rgb in
                     Rectangle()
                         .fill(rgb.color)
-                        .frame(width: 9, height: 22)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 14)
                         .accessibilityHidden(true)
                 }
             }

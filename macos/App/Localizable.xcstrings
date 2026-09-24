@@ -78,17 +78,6 @@
         }
       }
     },
-    "Claudeの使用量を取得": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fetch Claude usage"
-          }
-        }
-      }
-    },
     "Claude使用量は未取得です。Phlox内でClaudeを起動すると取得されます": {
       "extractionState": "manual",
       "localizations": {
@@ -210,17 +199,6 @@
         }
       }
     },
-    "アプリ": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App"
-          }
-        }
-      }
-    },
     "キャンセル": {
       "extractionState": "manual",
       "localizations": {
@@ -239,17 +217,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Grid view"
-          }
-        }
-      }
-    },
-    "システム": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "System"
           }
         }
       }
@@ -309,17 +276,6 @@
         }
       }
     },
-    "セッション完了をバナーで通知": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Notify with a banner when a session finishes"
-          }
-        }
-      }
-    },
     "セッション履歴なし": {
       "extractionState": "manual",
       "localizations": {
@@ -327,17 +283,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "No session history"
-          }
-        }
-      }
-    },
-    "テーマ（ターミナルの配色とアプリ全体）を切り替えます。変更は即座に反映されます。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Switch the theme (terminal colors and the whole app). Changes take effect immediately."
           }
         }
       }
@@ -353,17 +298,6 @@
         }
       }
     },
-    "ビルド": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Build"
-          }
-        }
-      }
-    },
     "フォルダを選択…": {
       "extractionState": "manual",
       "localizations": {
@@ -371,28 +305,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Choose Folder…"
-          }
-        }
-      }
-    },
-    "プライバシー": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Privacy"
-          }
-        }
-      }
-    },
-    "ヘッダーに使用量を表示": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show usage in the header"
           }
         }
       }
@@ -525,17 +437,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Refresh usage"
-          }
-        }
-      }
-    },
-    "使用量サイドバーを自動更新": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Auto-refresh the usage sidebar"
           }
         }
       }
@@ -749,17 +650,6 @@
         }
       }
     },
-    "未取得のCLIも表示": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show CLIs with no usage data"
-          }
-        }
-      }
-    },
     "未更新": {
       "extractionState": "manual",
       "localizations": {
@@ -833,17 +723,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Display Language"
-          }
-        }
-      }
-    },
-    "言語": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Language"
           }
         }
       }
@@ -5328,6 +5207,699 @@
           "stringUnit": {
             "state": "translated",
             "value": "The conversations and terminal contents of %lld sessions can't be restored."
+          }
+        }
+      }
+    },
+    "一般": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "General"
+          }
+        }
+      }
+    },
+    "エージェント": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agents"
+          }
+        }
+      }
+    },
+    "モバイル連携": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mobile"
+          }
+        }
+      }
+    },
+    "システムに合わせる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Match System"
+          }
+        }
+      }
+    },
+    "新規セッションの既定の開き方": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default way to open new sessions"
+          }
+        }
+      }
+    },
+    "⌘N や起動カードで ↩ を押したときの開き方。チャット非対応のエージェントはターミナルで開きます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How a session opens when you press ↩ in ⌘N or on a start card. Agents without chat support open in Terminal."
+          }
+        }
+      }
+    },
+    "言語と起動": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language and Startup"
+          }
+        }
+      }
+    },
+    "アップデートを確認": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check for updates"
+          }
+        }
+      }
+    },
+    "テーマ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Theme"
+          }
+        }
+      }
+    },
+    "テーマはターミナルの配色とアプリ全体に効き、変更はすぐに反映されます。アクセントの色はすべてのテーマで共通です。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The theme applies to the terminal colors and the whole app, and changes take effect immediately. The accent color is the same in every theme."
+          }
+        }
+      }
+    },
+    "アプリアイコン": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Icon"
+          }
+        }
+      }
+    },
+    "Dock とアプリのアイコンを切り替えます。変更は即座に反映されます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changes the Dock and app icon. Changes take effect immediately."
+          }
+        }
+      }
+    },
+    "チャット本文": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chat text"
+          }
+        }
+      }
+    },
+    "⌘+ / ⌘− でも変えられます（フォーカス中の領域に効きます）。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can also use ⌘+ / ⌘− (applies to the focused area)."
+          }
+        }
+      }
+    },
+    "文字の大きさ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text Size"
+          }
+        }
+      }
+    },
+    "ターミナルパネル・グリッドのターミナル・単体表示で共通です。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shared by the terminal panel, grid terminals, and single view."
+          }
+        }
+      }
+    },
+    "%lld〜%lld の整数を入力してください。保存していません（現在の値: %lld）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a whole number from %1$lld to %2$lld. Not saved (current value: %3$lld)"
+          }
+        }
+      }
+    },
+    "バナーで知らせる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show banners"
+          }
+        }
+      }
+    },
+    "完了と承認待ちを macOS の通知で知らせます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uses macOS notifications for completions and pending approvals."
+          }
+        }
+      }
+    },
+    "通知テスト": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send Test Notification"
+          }
+        }
+      }
+    },
+    "通知をテスト": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Test notifications"
+          }
+        }
+      }
+    },
+    "テスト": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Test"
+          }
+        }
+      }
+    },
+    "セッションが止まったとき": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When a Session Stops"
+          }
+        }
+      }
+    },
+    "フルアクセス（権限の確認を省く）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full Access (Skip Permission Checks)"
+          }
+        }
+      }
+    },
+    "CLI ごとの設定ファイル（settings.json・config.toml・cli-config.json）を直接編集します。対話 TUI のスラッシュコマンドや手編集でしか触れない項目が対象です。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit each CLI's settings file (settings.json, config.toml, cli-config.json) directly. Covers items otherwise reachable only via TUI slash commands or manual editing."
+          }
+        }
+      }
+    },
+    "カスタムエージェントの定義": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom agent definitions"
+          }
+        }
+      }
+    },
+    "詳しい設定": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Advanced"
+          }
+        }
+      }
+    },
+    "自動で更新する": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh automatically"
+          }
+        }
+      }
+    },
+    "Claude の使用量を取得する": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fetch Claude usage"
+          }
+        }
+      }
+    },
+    "Claude はほかの CLI と取得方法が異なるため、個別にオフにできます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude is fetched differently from the other CLIs, so it can be turned off separately."
+          }
+        }
+      }
+    },
+    "取得できない CLI も表示する": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show CLIs without data"
+          }
+        }
+      }
+    },
+    "未インストールの CLI をインスペクタに「未取得」として並べます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lists CLIs that aren't installed in the inspector as “Not fetched”."
+          }
+        }
+      }
+    },
+    "上部バーに使用量を表示する": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show usage in the top bar"
+          }
+        }
+      }
+    },
+    "インスペクタの開閉とは関係なく表示します。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shown whether or not the inspector is open."
+          }
+        }
+      }
+    },
+    "端末の名前": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Device name"
+          }
+        }
+      }
+    },
+    "表示中": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Showing"
+          }
+        }
+      }
+    },
+    "QR コードを表示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show QR Code"
+          }
+        }
+      }
+    },
+    "QR コードでペアリング": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pair with a QR code"
+          }
+        }
+      }
+    },
+    "iPhone の Phlox で読み取ってください": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan it with Phlox on your iPhone"
+          }
+        }
+      }
+    },
+    "あと %@ で非表示になります": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hides in %@"
+          }
+        }
+      }
+    },
+    "今すぐ隠す": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide Now"
+          }
+        }
+      }
+    },
+    "新しい端末をつなぐ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect a New Device"
+          }
+        }
+      }
+    },
+    "QR にはフルアクセス権限のトークンが含まれます。60 秒後に自動的に非表示になります。iPhone アプリで読み取ると、同一 Tailscale ネットワーク経由で接続できます。「QR コードを表示」を押すたびに新しい端末として発行され、既存の端末は影響を受けません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The QR code contains a token with full access. It hides automatically after 60 seconds. Scan it with the iPhone app to connect over the same Tailscale network. Each time you press “Show QR Code”, a new device is issued; existing devices aren't affected."
+          }
+        }
+      }
+    },
+    "「%@」を失効させますか?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revoke “%@”?"
+          }
+        }
+      }
+    },
+    "失効": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revoke"
+          }
+        }
+      }
+    },
+    "この端末は Phlox に接続できなくなります。もう一度つなぐには QR コードでペアリングし直します。元に戻せません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This device will no longer be able to connect to Phlox. To connect again, pair it with a QR code. This can't be undone."
+          }
+        }
+      }
+    },
+    "接続済みの端末": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paired Devices"
+          }
+        }
+      }
+    },
+    "未接続": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not connected"
+          }
+        }
+      }
+    },
+    "%@にペアリング": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paired %@"
+          }
+        }
+      }
+    },
+    "本文の見本": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sample text"
+          }
+        }
+      }
+    },
+    "メッセージを入力": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type a message"
+          }
+        }
+      }
+    },
+    "ホワイト": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "White"
+          }
+        }
+      }
+    },
+    "ダーク＋グラデ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dark + Gradient"
+          }
+        }
+      }
+    },
+    "ダーク": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dark"
+          }
+        }
+      }
+    },
+    "グラデーション": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gradient"
+          }
+        }
+      }
+    },
+    "ライト": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light"
+          }
+        }
+      }
+    },
+    "モバイル接続プロキシが起動していないため、QR コードを表示できません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The QR code can't be shown because the mobile connection proxy isn't running."
+          }
+        }
+      }
+    },
+    "モバイル接続ポートが不明なため、QR コードを表示できません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The QR code can't be shown because the mobile connection port is unknown."
+          }
+        }
+      }
+    },
+    "Tailscale が検出されていません。iPhone から接続するには Tailscale で同一ネットワークに参加している必要があります。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale wasn't detected. To connect from iPhone, both devices must join the same Tailscale network."
+          }
+        }
+      }
+    },
+    "現在の接続構成では QR ペアリングを利用できません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "QR pairing isn't available with the current connection setup."
+          }
+        }
+      }
+    },
+    "端末の発行に失敗しました。しばらくしてから再度お試しください。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't issue the device. Please try again later."
+          }
+        }
+      }
+    },
+    "端末の失効に失敗しました。しばらくしてから再度お試しください。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't revoke the device. Please try again later."
+          }
+        }
+      }
+    },
+    "「%@」を失効": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revoke “%@”"
           }
         }
       }

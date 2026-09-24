@@ -97,6 +97,7 @@ struct SettingsView: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.white)
             }
+            .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(AppFlavor.current.displayName)
                     .font(DSFont.title)
@@ -149,6 +150,8 @@ struct SettingsView: View {
             } label: {
                 Text("表示言語")
             }
+            // Form の中の Picker は見出しが読み上げ名にならないため、明示する。
+            .accessibilityLabel(Text("表示言語"))
             Picker(selection: defaultSessionBackendBinding) {
                 Text("チャット").tag(DefaultSessionBackendPreference.chat)
                 Text("ターミナル").tag(DefaultSessionBackendPreference.terminal)
@@ -156,6 +159,7 @@ struct SettingsView: View {
                 SettingsRowLabel(title: "新規セッションの既定の開き方", detail: "⌘N や起動カードで ↩ を押したときの開き方。チャット非対応のエージェントはターミナルで開きます。")
             }
             .pickerStyle(.segmented)
+            .accessibilityLabel(Text("新規セッションの既定の開き方"))
         } header: {
             Text("言語と起動")
         }
@@ -241,21 +245,24 @@ struct SettingsView: View {
         Section {
             LabeledContent {
                 HStack(spacing: DSSpacing.s) {
+                    // 端の値はスライダーの外の文字にする（minimumValueLabel はボタンになり、Tab の焦点が名前の無いまま止まる）。
+                    Text(verbatim: "\(percent(ChatFontSettings.minScale))%")
+                        .font(DSFont.caption)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .accessibilityHidden(true)
                     Slider(
                         value: $chatFontScale,
                         in: Double(ChatFontSettings.minScale)...Double(ChatFontSettings.maxScale),
                         step: Double(ChatFontSettings.step)
                     ) {
                         Text("チャット本文")
-                    } minimumValueLabel: {
-                        Text(verbatim: "\(percent(ChatFontSettings.minScale))%")
-                            .foregroundStyle(DSColor.textSecondary)
-                    } maximumValueLabel: {
-                        Text(verbatim: "\(percent(ChatFontSettings.maxScale))%")
-                            .foregroundStyle(DSColor.textSecondary)
                     }
                     .labelsHidden()
-                    .frame(width: 200)
+                    .frame(width: 160)
+                    Text(verbatim: "\(percent(ChatFontSettings.maxScale))%")
+                        .font(DSFont.caption)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .accessibilityHidden(true)
                     Text(verbatim: "\(percent(chatFontScale))%")
                         .monospacedDigit()
                         .frame(width: 44, alignment: .trailing)
@@ -502,6 +509,7 @@ struct SettingsView: View {
                 TextField(text: $newDeviceName) {
                     Text("端末の名前")
                 }
+                .accessibilityLabel(Text("端末の名前"))
                 LabeledContent {
                     Button {
                         Task {

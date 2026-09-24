@@ -7,6 +7,7 @@ import SwiftUI
 public struct DSThinkingIndicator: View {
     let state: AgentActivityState
     let reasoningPreview: String?
+    @Environment(\.locale) private var locale
 
     public init(state: AgentActivityState = .thinking, reasoningPreview: String? = nil) {
         self.state = state
@@ -18,7 +19,7 @@ public struct DSThinkingIndicator: View {
             HStack(spacing: DSSpacing.xs) {
                 ThinkingOrbView(state: state, size: .inline)
                 ShimmerTextView(
-                    text: state.orbLabel,
+                    text: state.orbLabel(locale: locale),
                     font: DSFont.body,
                     pointSize: DSFont.bodyPointSize,
                     // 帯の明度で不透明度を変調するため、基準色は本文色（下限で secondary 相当）。
@@ -26,7 +27,7 @@ public struct DSThinkingIndicator: View {
                 )
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(state.orbLabel)
+            .accessibilityLabel(state.orbLabel(locale: locale))
             if let reasoningPreview, !reasoningPreview.isEmpty {
                 Text(reasoningPreview)
                     .font(DSFont.caption)

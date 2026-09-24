@@ -1,5 +1,6 @@
 import AgentDomain
 import Foundation
+import DesignSystem
 import Testing
 @testable import DashboardFeature
 
@@ -25,7 +26,8 @@ struct DialogRedesignTests {
         #expect(CleanupWarningDialogText.detail(worktree) == "/tmp/w")
         #expect(CleanupWarningDialogText.revealPath(worktree) == "/tmp/w")
         let branch = WorkspaceCleanupWarning.branchRetained(branchName: "phlox/a3f9")
-        #expect(CleanupWarningDialogText.title(branch, locale: ja) == branch.title)
+        #expect(CleanupWarningDialogText.title(branch, locale: ja) == "ブランチを片付けられませんでした")
+        #expect(CleanupWarningDialogText.title(worktree, locale: ja) == "worktree を片付けられませんでした")
         #expect(CleanupWarningDialogText.detail(branch) == "phlox/a3f9")
         #expect(CleanupWarningDialogText.revealPath(branch) == nil)
     }
@@ -36,17 +38,20 @@ struct DialogRedesignTests {
     }
 
     @Test func sessionDeletion_listsChildren_keepsFolder_andEndsWithIrreversibility() {
-        let plain = SessionDeletionDialogText.message(children: [], dirtyFiles: [], locale: ja)
-        #expect(plain.contains("元に戻せません"))
-        #expect(plain.hasSuffix("プロジェクトのフォルダとファイルは削除されません。"))
+        #expect(SessionDeletionDialogText.message(locale: ja).hasSuffix("元に戻せません。"))
+        #expect(SessionDeletionDialogText.note(dirtyFiles: [], locale: ja) == "プロジェクトのフォルダとファイルは削除されません。")
 
-        let children = (1...8).map { "子\($0) · 実行中" }
-        let full = SessionDeletionDialogText.message(children: children, dirtyFiles: ["a.swift", "b.swift"], locale: ja)
-        #expect(full.contains("・子1 · 実行中"))
-        #expect(full.contains("・子\(SessionDeletionDialogText.listLimit) · 実行中"))
-        #expect(!full.contains("・子\(SessionDeletionDialogText.listLimit + 1) "))
-        #expect(full.contains("ほか \(children.count - SessionDeletionDialogText.listLimit) 件"))
-        #expect(full.contains("保存していないファイル（a.swift、b.swift）の変更も失われます。"))
+        let children = (1...8).map { (name: "子\($0)", meta: "Cx · 実行中") }
+        let rows = SessionDeletionDialogText.rows(children: children, locale: ja)
+        #expect(rows.count == SessionDeletionDialogText.listLimit + 1)
+        #expect(rows.first == DSDialogList.Row(id: 0, title: "子1", meta: "Cx · 実行中"))
+        #expect(rows[SessionDeletionDialogText.listLimit - 1].title == "子\(SessionDeletionDialogText.listLimit)")
+        #expect(rows.last?.title == "ほか \(children.count - SessionDeletionDialogText.listLimit) 件")
+        #expect(SessionDeletionDialogText.rows(children: [], locale: ja).isEmpty)
+
+        let note = SessionDeletionDialogText.note(dirtyFiles: ["a.swift", "b.swift"], locale: ja)
+        #expect(note.hasPrefix("保存していないファイル（a.swift、b.swift）の変更も失われます。"))
+        #expect(note.hasSuffix("プロジェクトのフォルダとファイルは削除されません。"))
     }
 
     /// 表示言語に合わせて引く版が、テストで固定された日本語と一字一句同じであること。

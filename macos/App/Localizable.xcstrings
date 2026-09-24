@@ -7566,6 +7566,72 @@
           }
         }
       }
+    },
+    "%@ の中で、選んだセッションがすべて終了または削除されました。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All selected sessions in %@ have ended or been deleted."
+          }
+        }
+      }
+    },
+    "選んだセッションがすべて終了または削除されました。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All selected sessions have ended or been deleted."
+          }
+        }
+      }
+    },
+    "worktree を片付けられませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t clean up the worktree"
+          }
+        }
+      }
+    },
+    "ブランチを片付けられませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t clean up the branch"
+          }
+        }
+      }
+    },
+    "同じファイルを書き換えると変更がぶつかることがあります。worktree で分けて起動できます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edits to the same files can conflict. You can launch in a separate worktree."
+          }
+        }
+      }
+    },
+    "開いてから別のセッションが書き換えました。上書きすると、その変更は失われ、元に戻せません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another session changed it after you opened it. Overwriting discards those changes and can’t be undone."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

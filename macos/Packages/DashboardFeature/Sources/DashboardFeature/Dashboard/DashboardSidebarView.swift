@@ -102,7 +102,8 @@ struct DashboardSidebarView: View {
             }
         }
         .onKeyPress(phases: .down, action: handleKey)
-        .onChange(of: renameRequest) { _, id in
+        // サイドバーを出した直後に届いた依頼も拾う（隠れていた間は onChange が動かないため）。
+        .onChange(of: renameRequest, initial: true) { _, id in
             guard let id else { return }
             renameRequest = nil
             revealAndRename(id)

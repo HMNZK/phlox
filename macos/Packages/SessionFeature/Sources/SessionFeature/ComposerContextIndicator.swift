@@ -300,13 +300,17 @@ private struct ComposerBranchControl: View {
                 branchPicker
             }
         }
-        .alert(UIWording.text(.branchCheckoutFailed, languageCode: languageCode), isPresented: checkoutErrorIsPresented) {
-                Button("OK", role: .cancel) {
-                    checkoutError = nil
-                }
-            } message: {
-                Text(checkoutError ?? "")
+        // 09 C 型: 起きたことを言い切り、git の出力はそのまま等幅で。
+        .dsDialog(isPresented: checkoutErrorIsPresented) {
+            DSDialog(
+                .notice,
+                title: UIWording.text(.branchCheckoutFailed, languageCode: languageCode),
+                buttons: [DSDialogButton("OK", role: .primary) { checkoutError = nil }],
+                onCancel: { checkoutError = nil }
+            ) {
+                DSDialogLog(checkoutError ?? "")
             }
+        }
     }
 
     /// PhloxReply.dc.html の O7: 見出し「ブランチを切り替え · ~/dev/phlox」、等幅 12 の行（高さ 26）。

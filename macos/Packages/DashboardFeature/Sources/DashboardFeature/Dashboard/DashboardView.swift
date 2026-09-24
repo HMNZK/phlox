@@ -30,10 +30,8 @@ public struct DashboardView: View {
 
     @State private var spawnError: SpawnError?
     @State private var pendingDeletion: SelectedSessionNode?
-    @State private var renamingSession: SelectedSessionNode?
     @State private var pendingWorkspaceChange: SessionViewModel?
     @State private var pendingProjectDeletion: Project?
-    @State private var draftName: String = ""
     /// 移動・割り当ての再起動確認（03 F9）。
     @State private var pendingMove: PendingSessionMove?
     /// フォルダを選んだ後の再起動確認（03 F9。選んだ行き先を示してから再起動する）。
@@ -75,49 +73,38 @@ public struct DashboardView: View {
         self.sessionTerminals = sessionTerminals
     }
 
-    private var deletionDialogTitle: String {
-        guard let selection = pendingDeletion else { return "" }
-        return SessionDeletionDialogText.title(
+    private func deletionDialogTitle(for selection: SelectedSessionNode) -> String {
+        SessionDeletionDialogText.title(
             sessionName: selection.node.displayName,
             childCount: viewModel.descendantCount(of: selection.id),
             locale: locale
         )
     }
 
-    private var projectDeletionDialogTitle: String {
-        guard let project = pendingProjectDeletion else { return "" }
-        return ProjectDeletionDialogText.title(projectName: project.name, locale: locale)
-    }
-
-    private var childCloseDialogTitle: Text {
-        pendingChildClose?.title ?? Text(verbatim: "")
-    }
-
-    /// 巻き込まれる子セッションと、未保存のファイルタブ（子の分も）の名前も伝える。
-    private func deletionDialogMessage(for id: SessionID) -> Text {
-        let descendants = viewModel.descendantNodes(of: id)
-        let children = descendants.map {
-            "\($0.displayName) · \($0.gridDisplayState.localizedLabel(locale: locale))"
-        }
-        let dirty = ([id] + descendants.map(\.id)).flatMap { fileTabs.dirtyFileNames(for: $0) }
-        return Text(verbatim: SessionDeletionDialogText.message(
-            children: children,
-            dirtyFiles: dirty,
+    /// 巻き込まれる子セッション（名前と「Cx · 実行中」）。
+    private func deletionDialogRows(for id: SessionID) -> [DSDialogList.Row] {
+        SessionDeletionDialogText.rows(
+            children: viewModel.descendantNodes(of: id).map {
+                (name: $0.displayName, meta: "\($0.agentDescriptor.tabInitials) · \($0.gridDisplayState.localizedLabel(locale: locale))")
+            },
             locale: locale
-        ))
+        )
+    }
+
+    /// 保存していないファイルタブ（子の分も）。
+    private func deletionDirtyFiles(for id: SessionID) -> [String] {
+        ([id] + viewModel.descendantNodes(of: id).map(\.id)).flatMap { fileTabs.dirtyFileNames(for: $0) }
     }
 
     private func projectDeletionDialogMessage(for project: Project) -> String {
         // 削除と同じ範囲（サイドバーに出ない内部セッションも含む）で数える。
         let nodes = viewModel.gridSessionNodes(in: project.id)
-        let path = (project.directoryPath as NSString).abbreviatingWithTildeInPath
         return ProjectDeletionDialogText.message(
             sessionCount: nodes.count,
             childCount: nodes.filter { $0.controllable.parentSessionID != nil }.count,
             otherProjectChildCount: viewModel.projectDeletionDescendantCount(of: project.id),
             locale: locale
         )
-            + "\n\n" + ProjectDeletionDialogText.note(folderPath: path, locale: locale)
     }
 
     public var body: some View {
@@ -131,7 +118,7 @@ public struct DashboardView: View {
             .onChange(of: terminalFontSize) { _, size in
                 viewModel.applyTerminalFontSize(TerminalFontSettings.adjusted(from: CGFloat(size), by: 0))
             }
-            .sheet(item: $spawnGuard) { item in
+            .dsDialog(item: $spawnGuard) { item in
                 SpawnGuardSheet(
                     spawnGuard: item,
                     sessionNode: { viewModel.sessionNode(id: $0) },
@@ -151,7 +138,6 @@ public struct DashboardView: View {
                         }
                     }
                 )
-                .environment(\.locale, locale)
             }
             // サイドバーが出ていれば下端の「新規セッション」から、隠れていれば上端から開く。
             .popover(isPresented: newSessionTableBinding(fromSidebar: false), attachmentAnchor: .point(.top), arrowEdge: .bottom) {
@@ -163,173 +149,170 @@ public struct DashboardView: View {
                     worktreeProgressToast
                 }
             }
-            .alert(
-                spawnError.map { SpawnFailureDialogText.title(agentName: $0.agentName, locale: locale) } ?? "",
-                isPresented: errorAlertBinding,
-                presenting: spawnError
-            ) { err in
-                if err.opensAgentConsole, let agentConsoleWindowID {
-                    Button("エージェント管理を開く") {
-                        spawnError = nil
-                        openWindow(id: agentConsoleWindowID)
+            .dsDialog(item: $spawnError) { err in
+                // 09 D1: 原因の文はそのまま等幅で。実行ファイルが無いときだけ次の手を 2 つ目のボタンに置く。
+                DSDialog(
+                    .notice,
+                    title: SpawnFailureDialogText.title(agentName: err.agentName, locale: locale),
+                    buttons: spawnErrorButtons(err),
+                    onCancel: { spawnError = nil }
+                ) {
+                    DSDialogLog(err.message)
+                }
+            }
+            .dsDialog(isPresented: workspaceCleanupWarningBinding) {
+                if let warning = viewModel.workspaceCleanupWarning {
+                    DSDialog(
+                        .notice,
+                        title: CleanupWarningDialogText.title(warning, locale: locale),
+                        message: CleanupWarningDialogText.message(warning, locale: locale),
+                        buttons: cleanupWarningButtons(warning),
+                        onCancel: { viewModel.clearWorkspaceCleanupWarning() }
+                    ) {
+                        DSDialogLog(CleanupWarningDialogText.detail(warning))
                     }
                 }
-                Button("OK", role: .cancel) { spawnError = nil }
-                    .keyboardShortcut(.defaultAction)
-            } message: { err in
-                Text(verbatim: err.message)
             }
-            .dialogSeverity(.critical)
-            .alert(
-                viewModel.workspaceCleanupWarning.map { CleanupWarningDialogText.title($0, locale: locale) } ?? "",
-                isPresented: workspaceCleanupWarningBinding,
-                presenting: viewModel.workspaceCleanupWarning
-            ) { warning in
-                if let path = CleanupWarningDialogText.revealPath(warning) {
-                    Button("Finder で表示") {
-                        viewModel.clearWorkspaceCleanupWarning()
-                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+            .dsDialog(item: $pendingDeletion) { selection in
+                let rows = deletionDialogRows(for: selection.id)
+                DSDialog(
+                    .irreversible,
+                    title: deletionDialogTitle(for: selection),
+                    message: SessionDeletionDialogText.message(locale: locale),
+                    note: SessionDeletionDialogText.note(dirtyFiles: deletionDirtyFiles(for: selection.id), locale: locale),
+                    buttons: [
+                        DSDialogButton("削除", role: .destructive) {
+                            let id = selection.id
+                            if router.selectedSession == id {
+                                router.selectedSession = nil
+                            }
+                            pendingDeletion = nil
+                            Task { await viewModel.removeSession(id) }
+                        },
+                        DSDialogButton("キャンセル", role: .primary) { pendingDeletion = nil },
+                    ],
+                    onCancel: { pendingDeletion = nil }
+                ) {
+                    if !rows.isEmpty {
+                        DSDialogList(rows: rows)
                     }
                 }
-                Button("OK", role: .cancel) {
-                    viewModel.clearWorkspaceCleanupWarning()
-                }
-                .keyboardShortcut(.defaultAction)
-            } message: { warning in
-                Text(verbatim: CleanupWarningDialogText.message(warning, locale: locale) + "\n\n" + CleanupWarningDialogText.detail(warning))
             }
-            .dialogSeverity(.critical)
-            .confirmationDialog(
-                deletionDialogTitle,
-                isPresented: deletionDialogBinding,
-                presenting: pendingDeletion
-            ) { selection in
-                Button("削除", role: .destructive) {
-                    let id = selection.id
-                    if router.selectedSession == id {
-                        router.selectedSession = nil
-                    }
-                    pendingDeletion = nil
-                    Task { await viewModel.removeSession(id) }
-                }
-                .keyboardShortcut(.delete, modifiers: .command)
-                Button("キャンセル", role: .cancel) { pendingDeletion = nil }
-                    .keyboardShortcut(.defaultAction)
-            } message: { selection in
-                deletionDialogMessage(for: selection.id)
+            .dsDialog(item: $pendingProjectDeletion) { project in
+                DSDialog(
+                    .irreversible,
+                    title: ProjectDeletionDialogText.title(projectName: project.name, locale: locale),
+                    message: projectDeletionDialogMessage(for: project),
+                    note: ProjectDeletionDialogText.note(folderPath: (project.directoryPath as NSString).abbreviatingWithTildeInPath, locale: locale),
+                    buttons: [
+                        DSDialogButton("削除", role: .destructive) {
+                            let projectID = project.id
+                            pendingProjectDeletion = nil
+                            expandedProjectIDs.remove(projectID)
+                            if let selected = router.selectedSession,
+                               viewModel.sessionNodes(in: projectID).contains(where: { $0.id == selected }) {
+                                router.selectedSession = nil
+                            }
+                            router.tabs.forgetProject(projectID)
+                            Task { await viewModel.removeProject(projectID) }
+                        },
+                        DSDialogButton("キャンセル", role: .primary) { pendingProjectDeletion = nil },
+                    ],
+                    onCancel: { pendingProjectDeletion = nil }
+                )
             }
-            .dialogSeverity(.critical)
-            .confirmationDialog(
-                projectDeletionDialogTitle,
-                isPresented: projectDeletionDialogBinding,
-                presenting: pendingProjectDeletion
-            ) { project in
-                Button("削除", role: .destructive) {
-                    let projectID = project.id
-                    pendingProjectDeletion = nil
-                    expandedProjectIDs.remove(projectID)
-                    if let selected = router.selectedSession,
-                       viewModel.sessionNodes(in: projectID).contains(where: { $0.id == selected }) {
-                        router.selectedSession = nil
-                    }
-                    router.tabs.forgetProject(projectID)
-                    Task { await viewModel.removeProject(projectID) }
-                }
-                .keyboardShortcut(.delete, modifiers: .command)
-                Button("キャンセル", role: .cancel) { pendingProjectDeletion = nil }
-                    .keyboardShortcut(.defaultAction)
-            } message: { project in
-                Text(verbatim: projectDeletionDialogMessage(for: project))
-            }
-            .dialogSeverity(.critical)
             .onChange(of: pendingWorkspaceChange?.id) { _, id in
                 guard id != nil, let session = pendingWorkspaceChange else { return }
                 pendingWorkspaceChange = nil
                 chooseWorkspace(for: session)
             }
-            .renameSessionAlert(
-                isPresented: renameAlertBinding,
-                session: renamingSession,
-                draftName: $draftName,
-                onCommit: { selection, name in
-                    viewModel.renameSession(selection.id, to: name)
-                    renamingSession = nil
-                },
-                onCancel: { renamingSession = nil }
-            )
+    }
+
+    private func spawnErrorButtons(_ err: SpawnError) -> [DSDialogButton] {
+        var buttons: [DSDialogButton] = []
+        if err.opensAgentConsole, let agentConsoleWindowID {
+            buttons.append(DSDialogButton("エージェント管理を開く") {
+                spawnError = nil
+                openWindow(id: agentConsoleWindowID)
+            })
+        }
+        buttons.append(DSDialogButton("OK", role: .primary) { spawnError = nil })
+        return buttons
+    }
+
+    private func cleanupWarningButtons(_ warning: WorkspaceCleanupWarning) -> [DSDialogButton] {
+        var buttons: [DSDialogButton] = []
+        if let path = CleanupWarningDialogText.revealPath(warning) {
+            buttons.append(DSDialogButton("Finder で表示") {
+                viewModel.clearWorkspaceCleanupWarning()
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+            })
+        }
+        buttons.append(DSDialogButton("OK", role: .primary) { viewModel.clearWorkspaceCleanupWarning() })
+        return buttons
+    }
+
+    /// 名前の変更はどの入口からもサイドバーの行の中で行う（09 D6）。サイドバーを隠していれば出してから。
+    private func beginSessionRename(_ id: SessionID) {
+        if !sidebarShown { router.toggleSidebar() }
+        sidebarRenameRequest = id
     }
 
     /// 子タブを閉じる前の確認（動いているシェル・未保存のファイル）。本体の修飾子の連なりを短くするため分ける。
     private var shellWithTabDialogs: some View {
         navigationShell
-            .confirmationDialog(
-                childCloseDialogTitle,
-                isPresented: childCloseDialogBinding,
-                presenting: pendingChildClose
-            ) { pending in
-                Button("閉じる", role: .destructive) {
-                    pendingChildClose = nil
-                    closeChildTab(pending.tab, of: pending.sessionID)
-                }
-                .keyboardShortcut(.delete, modifiers: .command)
-                Button("キャンセル", role: .cancel) { pendingChildClose = nil }
-                    .keyboardShortcut(.defaultAction)
-            } message: { pending in
-                pending.message
+            .dsDialog(item: $pendingChildClose) { pending in
+                DSDialog(
+                    .irreversible,
+                    title: pending.title,
+                    message: pending.message,
+                    buttons: [
+                        DSDialogButton("閉じる", role: .destructive) {
+                            pendingChildClose = nil
+                            closeChildTab(pending.tab, of: pending.sessionID)
+                        },
+                        DSDialogButton("キャンセル", role: .primary) { pendingChildClose = nil },
+                    ],
+                    onCancel: { pendingChildClose = nil }
+                )
             }
-            .dialogSeverity(.critical)
-            .confirmationDialog(
-                folderChangeDialogTitle,
-                isPresented: folderChangeDialogBinding,
-                presenting: pendingFolderChange
-            ) { change in
-                Button("再起動", role: .destructive) {
-                    pendingFolderChange = nil
-                    Task { await changeWorkspace(change.sessionID, to: change.directory) }
-                }
-                .keyboardShortcut(.delete, modifiers: .command)
-                Button("キャンセル", role: .cancel) { pendingFolderChange = nil }
-                    .keyboardShortcut(.defaultAction)
-            } message: { _ in
-                Text("ターミナルの内容と進行中の作業は失われ、元に戻せません。")
+            .dsDialog(item: $pendingFolderChange) { change in
+                DSDialog(
+                    .irreversible,
+                    title: String(
+                        format: AppLocalizedString.string("「%@」を %@ で再起動しますか?", locale: locale),
+                        change.sessionTitle, (change.directory.path as NSString).abbreviatingWithTildeInPath
+                    ),
+                    message: AppLocalizedString.string("ターミナルの内容と進行中の作業は失われ、元に戻せません。", locale: locale),
+                    buttons: [
+                        DSDialogButton("再起動", role: .destructive) {
+                            pendingFolderChange = nil
+                            Task { await changeWorkspace(change.sessionID, to: change.directory) }
+                        },
+                        DSDialogButton("キャンセル", role: .primary) { pendingFolderChange = nil },
+                    ],
+                    onCancel: { pendingFolderChange = nil }
+                )
             }
-            .dialogSeverity(.critical)
-            .confirmationDialog(
-                moveDialogTitle,
-                isPresented: moveDialogBinding,
-                presenting: pendingMove
-            ) { move in
-                Button("移動して再起動", role: .destructive) {
-                    pendingMove = nil
-                    Task { await moveSessionToProject(move.sessionID, projectID: move.project.id) }
-                }
-                .keyboardShortcut(.delete, modifiers: .command)
-                Button("キャンセル", role: .cancel) { pendingMove = nil }
-                    .keyboardShortcut(.defaultAction)
-            } message: { move in
-                Text("セッションは \((move.project.directoryPath as NSString).abbreviatingWithTildeInPath) で再起動されます。ターミナルの内容と進行中の作業は失われます。")
+            .dsDialog(item: $pendingMove) { move in
+                let path = (move.project.directoryPath as NSString).abbreviatingWithTildeInPath
+                DSDialog(
+                    .irreversible,
+                    title: String(format: AppLocalizedString.string("「%@」を %@ へ移動しますか?", locale: locale), move.sessionTitle, move.project.name),
+                    message: String(format: AppLocalizedString.string("セッションは %@ で再起動されます。ターミナルの内容と進行中の作業は失われます。", locale: locale), path),
+                    buttons: [
+                        DSDialogButton("移動して再起動", role: .destructive) {
+                            pendingMove = nil
+                            Task { await moveSessionToProject(move.sessionID, projectID: move.project.id) }
+                        },
+                        DSDialogButton("キャンセル", role: .primary) { pendingMove = nil },
+                    ],
+                    onCancel: { pendingMove = nil }
+                )
             }
-            .dialogSeverity(.critical)
     }
 
-    private var moveDialogTitle: Text {
-        guard let pendingMove else { return Text(verbatim: "") }
-        return Text("「\(pendingMove.sessionTitle)」を \(pendingMove.project.name) へ移動しますか?")
-    }
 
-    private var folderChangeDialogTitle: Text {
-        guard let pendingFolderChange else { return Text(verbatim: "") }
-        let path = (pendingFolderChange.directory.path as NSString).abbreviatingWithTildeInPath
-        return Text("「\(pendingFolderChange.sessionTitle)」を \(path) で再起動しますか?")
-    }
-
-    private var folderChangeDialogBinding: Binding<Bool> {
-        Binding(get: { pendingFolderChange != nil }, set: { if !$0 { pendingFolderChange = nil } })
-    }
-
-    private var moveDialogBinding: Binding<Bool> {
-        Binding(get: { pendingMove != nil }, set: { if !$0 { pendingMove = nil } })
-    }
 
     private var navigationShell: some View {
         GeometryReader { geometry in
@@ -560,7 +543,8 @@ public struct DashboardView: View {
             projects: viewModel.projects,
             filterProjectID: viewModel.gridSessionFilterProjectID,
             visibleCount: viewModel.filteredGridSessionNodes(projectID: viewModel.gridSessionFilterProjectID).count,
-            hasSessionSelection: viewModel.gridSessionSelection != nil
+            hasSessionSelection: viewModel.gridSessionSelection != nil,
+            locale: locale
         )
     }
 
@@ -575,7 +559,7 @@ public struct DashboardView: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(DSColor.textPrimary)
             if let emptyMessage = summary.emptyMessage {
-                Text(LocalizedStringKey(emptyMessage))
+                Text(verbatim: emptyMessage)
                     .font(.system(size: 12.5))
                     .foregroundStyle(DSColor.textSecondary)
                     .multilineTextAlignment(.center)
@@ -745,9 +729,8 @@ public struct DashboardView: View {
                 viewModel: viewModel,
                 router: router,
                 pendingDeletion: $pendingDeletion,
-                renamingSession: $renamingSession,
+                onRenameSession: beginSessionRename,
                 pendingWorkspaceChange: $pendingWorkspaceChange,
-                draftName: $draftName,
                 onChooseProjectDirectory: chooseProjectDirectory,
                 isCreating: isCreating,
                 onSelectAgentKind: { kind, backend in
@@ -977,15 +960,15 @@ public struct DashboardView: View {
             pendingChildClose = PendingChildClose(
                 sessionID: sessionID,
                 tab: tab,
-                title: Text("ターミナルを閉じますか?"),
-                message: Text("シェルを終了します。実行中のコマンドも止まります。")
+                title: AppLocalizedString.string("ターミナルを閉じますか?", locale: locale),
+                message: AppLocalizedString.string("シェルを終了します。実行中のコマンドも止まります。", locale: locale)
             )
         case .file(let path) where fileTabs.existing(for: sessionID, path: path)?.isDirty == true:
             pendingChildClose = PendingChildClose(
                 sessionID: sessionID,
                 tab: tab,
-                title: Text("保存していない変更を破棄しますか?"),
-                message: Text("\((path as NSString).lastPathComponent) の変更は失われます。")
+                title: AppLocalizedString.string("保存していない変更を破棄しますか?", locale: locale),
+                message: String(format: AppLocalizedString.string("%@ の変更は失われます。", locale: locale), (path as NSString).lastPathComponent)
             )
         default:
             closeChildTab(tab, of: sessionID)
@@ -1033,9 +1016,6 @@ public struct DashboardView: View {
         return String(file.dropFirst(prefix.count))
     }
 
-    private var childCloseDialogBinding: Binding<Bool> {
-        Binding(get: { pendingChildClose != nil }, set: { if !$0 { pendingChildClose = nil } })
-    }
 
     // MARK: - Helpers
 
@@ -1168,13 +1148,8 @@ public struct DashboardView: View {
     private func handle(_ request: SidebarRequest) {
         switch request {
         case .renameSession(let id):
-            guard let node = viewModel.sessionNode(id: id) else { return }
-            if sidebarShown {
-                sidebarRenameRequest = id
-            } else {
-                renamingSession = SelectedSessionNode(node)
-                draftName = node.name
-            }
+            guard viewModel.sessionNode(id: id) != nil else { return }
+            beginSessionRename(id)
         case .moveSession(let id, let projectID):
             guard let node = viewModel.sessionNode(id: id),
                   let project = viewModel.projects.first(where: { $0.id == projectID }) else { return }
@@ -1220,12 +1195,6 @@ public struct DashboardView: View {
         node.markCompletionSeen()
     }
 
-    private var errorAlertBinding: Binding<Bool> {
-        Binding(
-            get: { spawnError != nil },
-            set: { if !$0 { spawnError = nil } }
-        )
-    }
 
     private var workspaceCleanupWarningBinding: Binding<Bool> {
         Binding(
@@ -1234,32 +1203,17 @@ public struct DashboardView: View {
         )
     }
 
-    private var deletionDialogBinding: Binding<Bool> {
-        Binding(
-            get: { pendingDeletion != nil },
-            set: { if !$0 { pendingDeletion = nil } }
-        )
-    }
-
-    private var renameAlertBinding: Binding<Bool> {
-        Binding(get: { renamingSession != nil }, set: { if !$0 { renamingSession = nil } })
-    }
 
 
-    private var projectDeletionDialogBinding: Binding<Bool> {
-        Binding(
-            get: { pendingProjectDeletion != nil },
-            set: { if !$0 { pendingProjectDeletion = nil } }
-        )
-    }
+
 }
 
 private struct PendingChildClose: Identifiable {
     let id = UUID()
     let sessionID: SessionID
     let tab: ChildTab
-    let title: Text
-    let message: Text
+    let title: String
+    let message: String
 }
 
 private struct PendingFolderChange: Identifiable {
@@ -1284,26 +1238,5 @@ struct SelectedSessionNode: Identifiable {
     init(_ node: SessionNode) {
         self.id = node.id
         self.node = node
-    }
-}
-
-private extension View {
-    func renameSessionAlert(
-        isPresented: Binding<Bool>,
-        session: SelectedSessionNode?,
-        draftName: Binding<String>,
-        onCommit: @escaping (SelectedSessionNode, String) -> Void,
-        onCancel: @escaping () -> Void
-    ) -> some View {
-        alert("セッション名を変更", isPresented: isPresented, presenting: session) { selection in
-            TextField(selection.node.workspaceName.isEmpty ? "セッション名" : selection.node.workspaceName, text: draftName)
-            Button("変更") {
-                onCommit(selection, draftName.wrappedValue.trimmingCharacters(in: .whitespaces))
-            }
-            .keyboardShortcut(.defaultAction)
-            Button("キャンセル", role: .cancel, action: onCancel)
-        } message: { _ in
-            Text("空欄にすると短縮ID表示に戻ります。")
-        }
     }
 }

@@ -7,9 +7,8 @@ struct DashboardDetailView: View {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
     @Binding var pendingDeletion: SelectedSessionNode?
-    @Binding var renamingSession: SelectedSessionNode?
+    let onRenameSession: (SessionID) -> Void
     @Binding var pendingWorkspaceChange: SessionViewModel?
-    @Binding var draftName: String
     let onChooseProjectDirectory: () -> Void
     let isCreating: Bool
     let onSelectAgentKind: (AgentKind, SessionBackend) -> Void
@@ -57,10 +56,7 @@ struct DashboardDetailView: View {
                     paneLayout: viewModel.paneLayoutForDisplay(),
                     focusedID: $router.selectedSession,
                     onRemove: { session in pendingDeletion = SelectedSessionNode(session) },
-                    onRename: { session in
-                        renamingSession = SelectedSessionNode(session)
-                        draftName = session.name
-                    },
+                    onRename: { session in onRenameSession(session.id) },
                     onChangeWorkspace: { session in pendingWorkspaceChange = session },
                     onLayoutAction: { viewModel.handlePaneLayoutAction($0) },
                     projectNames: Dictionary(uniqueKeysWithValues: viewModel.projects.map { ($0.id, $0.name) }),

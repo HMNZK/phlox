@@ -17,10 +17,12 @@ public struct DSButtonStyle: ButtonStyle {
     let height: CGFloat
     let fontSize: CGFloat
     let padding: CGFloat?
+    let fillsWidth: Bool
     @Environment(\.isEnabled) private var isEnabled
 
-    public init(_ kind: Kind, keyHint: String? = nil, height: CGFloat = 28, fontSize: CGFloat = 13, padding: CGFloat? = nil) {
+    public init(_ kind: Kind, keyHint: String? = nil, height: CGFloat = 28, fontSize: CGFloat = 13, padding: CGFloat? = nil, fillsWidth: Bool = false) {
         self.kind = kind
+        self.fillsWidth = fillsWidth
         self.keyHint = keyHint
         self.height = height
         self.fontSize = fontSize
@@ -40,6 +42,7 @@ public struct DSButtonStyle: ButtonStyle {
         .foregroundStyle(foreground)
         .lineLimit(1)
         .padding(.horizontal, padding ?? horizontalPadding)
+        .frame(maxWidth: fillsWidth ? .infinity : nil)
         .frame(height: height)
         .background {
             switch kind {
@@ -80,7 +83,7 @@ public struct DSButtonStyle: ButtonStyle {
 }
 
 public extension ButtonStyle where Self == DSButtonStyle {
-    static func ds(_ kind: DSButtonStyle.Kind, keyHint: String? = nil, height: CGFloat = 28, fontSize: CGFloat = 13, padding: CGFloat? = nil) -> DSButtonStyle {
-        DSButtonStyle(kind, keyHint: keyHint, height: height, fontSize: fontSize, padding: padding)
+    static func ds(_ kind: DSButtonStyle.Kind, keyHint: String? = nil, height: CGFloat = 28, fontSize: CGFloat = 13, padding: CGFloat? = nil, fillsWidth: Bool = false) -> DSButtonStyle {
+        DSButtonStyle(kind, keyHint: keyHint, height: height, fontSize: fontSize, padding: padding, fillsWidth: fillsWidth)
     }
 }

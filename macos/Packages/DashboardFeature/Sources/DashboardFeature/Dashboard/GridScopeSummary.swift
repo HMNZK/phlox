@@ -1,5 +1,6 @@
 import Foundation
 import AgentDomain
+import DesignSystem
 
 /// グリッドの表示範囲と実表示件数の要約。文言の正本。
 struct GridScopeSummary: Equatable {
@@ -36,7 +37,8 @@ struct GridScopeSummary: Equatable {
         isProjectFiltered: Bool,
         projectName: String?,
         visibleCount: Int,
-        hasSessionSelection: Bool
+        hasSessionSelection: Bool,
+        locale: Locale = Locale(identifier: "ja")
     ) -> GridScopeSummary {
         let trimmed = projectName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let title: String
@@ -52,12 +54,15 @@ struct GridScopeSummary: Equatable {
         let isEmpty = visibleCount <= 0
         let emptyMessage: String?
         if isEmpty {
-            if hasSessionSelection {
-                emptyMessage = "選択中のセッションはこの範囲にありません"
+            // 06 S10: 選んだセッションが見えないときは「〈プロジェクト〉の中で、選んだセッションがすべて終了または削除されました。」。
+            if hasSessionSelection, isProjectFiltered {
+                emptyMessage = String(format: AppLocalizedString.string("%@ の中で、選んだセッションがすべて終了または削除されました。", locale: locale), title)
+            } else if hasSessionSelection {
+                emptyMessage = AppLocalizedString.string("選んだセッションがすべて終了または削除されました。", locale: locale)
             } else if isProjectFiltered {
-                emptyMessage = "このプロジェクトに表示できるセッションがありません"
+                emptyMessage = AppLocalizedString.string("このプロジェクトに表示できるセッションがありません", locale: locale)
             } else {
-                emptyMessage = "表示できるセッションがありません"
+                emptyMessage = AppLocalizedString.string("表示できるセッションがありません", locale: locale)
             }
         } else {
             emptyMessage = nil
@@ -84,7 +89,8 @@ struct GridScopeSummary: Equatable {
         projects: [Project],
         filterProjectID: ProjectID?,
         visibleCount: Int,
-        hasSessionSelection: Bool
+        hasSessionSelection: Bool,
+        locale: Locale = Locale(identifier: "ja")
     ) -> GridScopeSummary {
         let matched = filterProjectID.flatMap { id in
             projects.first(where: { $0.id == id })
@@ -93,7 +99,8 @@ struct GridScopeSummary: Equatable {
             isProjectFiltered: matched != nil,
             projectName: matched?.name,
             visibleCount: visibleCount,
-            hasSessionSelection: hasSessionSelection
+            hasSessionSelection: hasSessionSelection,
+            locale: locale
         )
     }
 }

@@ -566,22 +566,21 @@ struct SettingsView: View {
             .task {
                 await viewModel.refreshReachability()
             }
-            .confirmationDialog(
-                Text("「\(pendingRevoke?.name ?? "")」を失効させますか?"),
-                isPresented: Binding(get: { pendingRevoke != nil }, set: { if !$0 { pendingRevoke = nil } }),
-                presenting: pendingRevoke
-            ) { device in
-                Button("失効", role: .destructive) {
-                    pendingRevoke = nil
-                    Task { await viewModel.revoke(id: device.id) }
-                }
-                .keyboardShortcut(.delete, modifiers: .command)
-                Button("キャンセル", role: .cancel) { pendingRevoke = nil }
-                    .keyboardShortcut(.defaultAction)
-            } message: { _ in
-                Text("この端末は Phlox に接続できなくなります。もう一度つなぐには QR コードでペアリングし直します。元に戻せません。")
+            .dsDialog(item: $pendingRevoke) { device in
+                DSDialog(
+                    .irreversible,
+                    title: String(format: AppLocalizedString.string("「%@」を失効させますか?", locale: locale), device.name),
+                    message: AppLocalizedString.string("この端末は Phlox に接続できなくなります。もう一度つなぐには QR コードでペアリングし直します。元に戻せません。", locale: locale),
+                    buttons: [
+                        DSDialogButton("失効", role: .destructive) {
+                            pendingRevoke = nil
+                            Task { await viewModel.revoke(id: device.id) }
+                        },
+                        DSDialogButton("キャンセル", role: .primary) { pendingRevoke = nil },
+                    ],
+                    onCancel: { pendingRevoke = nil }
+                )
             }
-            .dialogSeverity(.critical)
 
             if !viewModel.devices.isEmpty {
                 Section {

@@ -94,11 +94,11 @@ struct AcceptanceGridScopeSummaryTests {
     func emptyMessageThreeBranchesAndNilWhenNotEmpty() {
         #expect(
             GridScopeSummary.make(isProjectFiltered: false, projectName: nil, visibleCount: 0, hasSessionSelection: true).emptyMessage
-                == "選択中のセッションはこの範囲にありません"
+                == "選んだセッションがすべて終了または削除されました。"
         )
         #expect(
             GridScopeSummary.make(isProjectFiltered: true, projectName: "UI検証A", visibleCount: 0, hasSessionSelection: true).emptyMessage
-                == "選択中のセッションはこの範囲にありません"
+                == "UI検証A の中で、選んだセッションがすべて終了または削除されました。"
         )
         #expect(
             GridScopeSummary.make(isProjectFiltered: true, projectName: "UI検証A", visibleCount: 0, hasSessionSelection: false).emptyMessage

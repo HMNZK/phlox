@@ -50,20 +50,16 @@ public enum ChatTranscriptExportAction {
         do {
             try Data(text.utf8).write(to: url, options: .atomic)
         } catch {
-            // 09 D10: 起きたことを言い切り、エラー文はそのまま等幅で出す。次の手は保存し直し。
-            let alert = NSAlert()
-            alert.alertStyle = .critical
-            alert.messageText = AppLocalizedString.string("会話を書き出せませんでした", locale: locale)
-            alert.informativeText = AppLocalizedString.string("選んだ場所に書き込めませんでした。", locale: locale)
-            let detail = NSTextField(wrappingLabelWithString: "\(url.path): \(error.localizedDescription)")
-            detail.font = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
-            detail.isSelectable = true
-            detail.preferredMaxLayoutWidth = 280
-            detail.frame.size = detail.fittingSize
-            alert.accessoryView = detail
-            alert.addButton(withTitle: AppLocalizedString.string("OK", locale: locale))
-            alert.addButton(withTitle: AppLocalizedString.string("別の場所に保存…", locale: locale))
-            if alert.runModal() == .alertSecondButtonReturn {
+            // 09 D10: 起きたことを言い切り、エラー文はそのまま等幅で出す。次の手は保存し直し（2 つ目のボタンの左に置く）。
+            let chosen = DSDialogModal.run(
+                .notice,
+                title: AppLocalizedString.string("会話を書き出せませんでした", locale: locale),
+                message: AppLocalizedString.string("選んだ場所に書き込めませんでした。", locale: locale),
+                log: "\(url.path): \(error.localizedDescription)",
+                buttons: [("別の場所に保存…", .normal), ("OK", .primary)],
+                locale: locale
+            )
+            if chosen == 0 {
                 save(session: session, locale: locale)
             }
         }

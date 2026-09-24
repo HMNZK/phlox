@@ -275,6 +275,8 @@ public enum DSColor {
     public static var codeBackground: Color { palette.code.color }
     public static var fieldBackground: Color { palette.field.color }
     public static var popoverBackground: Color { palette.popover.color }
+    /// 確認・お知らせのダイアログの面（09 `--box`: ライト #F6F6F7 / ダーク #2F2F33）。
+    public static var dialogBackground: Color { isDark ? palette.popover.color : palette.toolbar.color }
     /// ポップオーバーの縁（`--shadow` の 0.5px: ライト 黒 20% / ダーク 白 16%）。
     public static var popoverEdge: Color { isDark ? Color.white.opacity(0.16) : Color.black.opacity(0.20) }
     public static var tabBarBackground: Color { palette.tabBar.color }

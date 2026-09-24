@@ -478,63 +478,38 @@ struct SpawnGuardSheet: View {
 
     @Environment(\.locale) private var locale
 
-    /// 09 の型: 衝突は取り返せる（B）、worktree の失敗はお知らせ（C・注意バッジ付き）。
-    private var isNotice: Bool {
-        if case .worktreeFailed = spawnGuard { return true }
-        return false
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            AppIconBadge(showsCaution: isNotice)
-            Text(verbatim: title)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(DSColor.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-            Text(verbatim: message)
-                .font(.system(size: 12.5))
-                .foregroundStyle(DSColor.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            switch spawnGuard {
-            case .collision(_, _, let peers):
+        switch spawnGuard {
+        case .collision(_, _, let peers):
+            // 09 E3: 取り返せる型。ボタンは縦に並べ、既定（↩）の「worktree で分けて起動」を一番下に置く。
+            DSDialog(
+                .recoverable,
+                title: title,
+                message: message,
+                buttons: [
+                    DSDialogButton("キャンセル", action: onCancel),
+                    DSDialogButton("同じディレクトリで起動") { onLaunch(false) },
+                    DSDialogButton("worktree で分けて起動", role: .primary) { onLaunch(true) },
+                ],
+                onCancel: onCancel
+            ) {
                 peerList(peers)
-            case .worktreeFailed(_, _, let log):
-                ScrollView {
-                    Text(verbatim: log)
-                        .font(.system(size: 11.5, design: .monospaced))
-                        .foregroundStyle(DSColor.textPrimary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(10)
-                }
-                .frame(maxHeight: 120)
-                .background(DSColor.fillSelected, in: RoundedRectangle(cornerRadius: 6))
             }
-            // ボタンが 3 つ以上になるときは縦に並べ、既定（↩）を一番上に置く。
-            VStack(spacing: 8) {
-                switch spawnGuard {
-                case .collision:
-                    Button { onLaunch(true) } label: { Text("worktree で分けて起動").frame(maxWidth: .infinity) }
-                        .keyboardShortcut(.defaultAction)
-                        .buttonStyle(.borderedProminent)
-                        .tint(DSColor.accentFill)
-                    Button { onLaunch(false) } label: { Text("同じディレクトリで起動").frame(maxWidth: .infinity) }
-                    Button(role: .cancel, action: onCancel) { Text("キャンセル").frame(maxWidth: .infinity) }
-                        .keyboardShortcut(.cancelAction)
-                case .worktreeFailed:
-                    Button(role: .cancel, action: onCancel) { Text("閉じる").frame(maxWidth: .infinity) }
-                        .keyboardShortcut(.defaultAction)
-                        .buttonStyle(.borderedProminent)
-                        .tint(DSColor.accentFill)
-                    Button { onLaunch(false) } label: { Text("隔離なしで起動").frame(maxWidth: .infinity) }
-                }
+        case .worktreeFailed(_, _, let log):
+            // 09 E4: お知らせの型。「閉じる」が既定、次の手の「隔離なしで起動」を先に置く。
+            DSDialog(
+                .notice,
+                title: title,
+                message: message,
+                buttons: [
+                    DSDialogButton("隔離なしで起動") { onLaunch(false) },
+                    DSDialogButton("閉じる", role: .primary, action: onCancel),
+                ],
+                onCancel: onCancel
+            ) {
+                DSDialogLog(log)
             }
-            .controlSize(.large)
         }
-        .padding(20)
-        .frame(width: 460)
-        .onExitCommand(perform: onCancel)
     }
 
     private var title: String {
@@ -550,12 +525,13 @@ struct SpawnGuardSheet: View {
     private var message: String {
         switch spawnGuard {
         case .collision:
-            AppLocalizedString.string("同じ作業ディレクトリで複数のエージェントが同じファイルを書き換えると、変更がぶつかることがあります。", locale: locale)
+            AppLocalizedString.string("同じファイルを書き換えると変更がぶつかることがあります。worktree で分けて起動できます。", locale: locale)
         case .worktreeFailed(_, let agentName, _):
             String(format: AppLocalizedString.string("%@ の新しいセッションは起動していません。", locale: locale), agentName)
         }
     }
 
+    /// 08 F1: 衝突相手の一覧。行の高さ 30、状態（52 幅・11pt。対応待ちは太字でその状態の色）、名前、種別の記号。
     private func peerList(_ peers: [SessionID]) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(peers.enumerated()), id: \.element) { index, id in
@@ -564,14 +540,16 @@ struct SpawnGuardSheet: View {
                     HStack(spacing: 10) {
                         Text(verbatim: state.localizedLabel(locale: locale))
                             .font(.system(size: 11, weight: state.attentionKind != nil ? .bold : .medium))
-                            .foregroundStyle(DSColor.textSecondary)
-                            .frame(width: 64, alignment: .leading)
+                            .foregroundStyle(state.attentionKind.map { DSColor.attentionInk($0) } ?? DSColor.textSecondary)
+                            .frame(width: 52, alignment: .leading)
                         Text(verbatim: node.displayName)
                             .font(.system(size: 12.5))
                             .foregroundStyle(DSColor.textPrimary)
                             .lineLimit(1)
                         Spacer(minLength: 0)
-                        AgentBrandIcon(descriptor: node.agentDescriptor, size: 16)
+                        Text(verbatim: node.agentDescriptor.tabInitials)
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(DSColor.textTertiary)
                     }
                     .padding(.horizontal, 10)
                     .frame(height: 30)
@@ -582,7 +560,6 @@ struct SpawnGuardSheet: View {
                 }
             }
         }
-        .background(DSColor.cardBackground, in: RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(DSColor.separator, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(DSColor.separator, lineWidth: 1))
     }
 }

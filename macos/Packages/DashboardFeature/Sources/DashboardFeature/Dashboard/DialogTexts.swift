@@ -27,9 +27,13 @@ enum SpawnFailureDialogText {
 }
 
 /// D2: セッション終了時の後始末で残ったもの。`WorkspaceCleanupWarning.title/message` は既存テストが固定しているので触らない。
+/// 見出しは C 型の規則どおり起きたことを言い切る（09 D2「一時ファイルを片付けられませんでした」の形）。
 enum CleanupWarningDialogText {
     static func title(_ warning: WorkspaceCleanupWarning, locale: Locale) -> String {
-        AppLocalizedString.string(warning.title, locale: locale)
+        switch warning {
+        case .worktreeRetained: AppLocalizedString.string("worktree を片付けられませんでした", locale: locale)
+        case .branchRetained: AppLocalizedString.string("ブランチを片付けられませんでした", locale: locale)
+        }
     }
 
     static func message(_ warning: WorkspaceCleanupWarning, locale: Locale) -> String {
@@ -69,20 +73,31 @@ enum SessionDeletionDialogText {
         return String(format: AppLocalizedString.string("「%@」を削除しますか?", locale: locale), sessionName)
     }
 
-    /// children: 子セッションの「名前 · 状態」。dirtyFiles: 保存していないファイル名。
-    static func message(children: [String], dirtyFiles: [String], locale: Locale) -> String {
-        var lines = [AppLocalizedString.string("実行中のエージェントは停止します。会話とターミナルの内容は元に戻せません。", locale: locale)]
-        if !children.isEmpty {
-            lines.append(children.prefix(listLimit).map { "・" + $0 }.joined(separator: "\n"))
-            if children.count > listLimit {
-                lines.append(String(format: AppLocalizedString.string("ほか %lld 件", locale: locale), children.count - listLimit))
-            }
+    static func message(locale: Locale) -> String {
+        AppLocalizedString.string("実行中のエージェントは停止します。会話とターミナルの内容は元に戻せません。", locale: locale)
+    }
+
+    /// 巻き込まれる子セッションの表の行（名前と「Cx · 実行中」）。上限を超えた分は「ほか n 件」の 1 行にする。
+    static func rows(children: [(name: String, meta: String)], locale: Locale) -> [DSDialogList.Row] {
+        var rows = children.prefix(listLimit).enumerated().map { DSDialogList.Row(id: $0.offset, title: $0.element.name, meta: $0.element.meta) }
+        if children.count > listLimit {
+            rows.append(DSDialogList.Row(
+                id: listLimit,
+                title: String(format: AppLocalizedString.string("ほか %lld 件", locale: locale), children.count - listLimit),
+                meta: ""
+            ))
         }
+        return rows
+    }
+
+    /// 表の下の注記。保存していないファイルがあれば先に書き、最後は「フォルダとファイルは削除されません」。
+    static func note(dirtyFiles: [String], locale: Locale) -> String {
+        var lines: [String] = []
         if !dirtyFiles.isEmpty {
             lines.append(String(format: AppLocalizedString.string("保存していないファイル（%@）の変更も失われます。", locale: locale), dirtyFiles.joined(separator: "、")))
         }
         lines.append(AppLocalizedString.string("プロジェクトのフォルダとファイルは削除されません。", locale: locale))
-        return lines.joined(separator: "\n\n")
+        return lines.joined(separator: "\n")
     }
 }
 

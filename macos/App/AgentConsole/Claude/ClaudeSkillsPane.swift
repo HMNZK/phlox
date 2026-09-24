@@ -11,6 +11,7 @@ struct ClaudeSkillsPane: View {
     @State private var draft = ""
     @State private var loadedSkillID: String?
     @State private var skillPendingDeletion: ClaudeSkill?
+    @Environment(\.locale) private var locale
 
     private var selectedSkill: ClaudeSkill? {
         filteredSkills.first { $0.id == selectedSkillID } ?? filteredSkills.first
@@ -48,32 +49,28 @@ struct ClaudeSkillsPane: View {
             }
         }
         // 09 D8: ゴミ箱に移すだけで取り返せるので、実行を既定（↩）にする。
-        .confirmationDialog(
-            Text("スキル「\(skillPendingDeletion?.name ?? "")」をゴミ箱に入れますか?"),
-            isPresented: Binding(
-                get: { skillPendingDeletion != nil },
-                set: { if !$0 { skillPendingDeletion = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("ゴミ箱に入れる") {
-                guard let skill = skillPendingDeletion else { return }
-                skillPendingDeletion = nil
-                model.deleteSkill(skill)
-                if selectedSkillID == skill.id {
-                    selectedSkillID = nil
-                    draft = ""
-                    loadedSkillID = nil
-                }
-            }
-            .keyboardShortcut(.defaultAction)
-            Button("キャンセル", role: .cancel) {
-                skillPendingDeletion = nil
-            }
-        } message: {
-            if let skill = skillPendingDeletion {
-                Text("\((skill.directoryURL.path as NSString).abbreviatingWithTildeInPath) をフォルダごとゴミ箱に移します。ゴミ箱から戻せます。")
-            }
+        .dsDialog(item: $skillPendingDeletion) { skill in
+            DSDialog(
+                .recoverable,
+                title: String(format: AppLocalizedString.string("スキル「%@」をゴミ箱に入れますか?", locale: locale), skill.name),
+                message: String(
+                    format: AppLocalizedString.string("%@ をフォルダごとゴミ箱に移します。ゴミ箱から戻せます。", locale: locale),
+                    (skill.directoryURL.path as NSString).abbreviatingWithTildeInPath
+                ),
+                buttons: [
+                    DSDialogButton("キャンセル") { skillPendingDeletion = nil },
+                    DSDialogButton("ゴミ箱に入れる", role: .primary) {
+                        skillPendingDeletion = nil
+                        model.deleteSkill(skill)
+                        if selectedSkillID == skill.id {
+                            selectedSkillID = nil
+                            draft = ""
+                            loadedSkillID = nil
+                        }
+                    },
+                ],
+                onCancel: { skillPendingDeletion = nil }
+            )
         }
     }
 

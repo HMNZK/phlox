@@ -511,6 +511,7 @@ private struct FileTabView: View {
     @Bindable var document: FileTabDocument
     @State private var showsConflictAlert = false
     @State private var saveError: String?
+    @Environment(\.locale) private var locale
 
     var body: some View {
         VStack(spacing: 0) {
@@ -561,17 +562,22 @@ private struct FileTabView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task { await document.loadIfNeeded() }
-        .alert(Text("\(document.fileName) は外部で変更されています"), isPresented: $showsConflictAlert) {
-            Button("上書き", role: .destructive) {
-                Task { await overwrite() }
-            }
-            .keyboardShortcut(.delete, modifiers: .command)
-            Button("キャンセル", role: .cancel) {}
-                .keyboardShortcut(.defaultAction)
-        } message: {
-            Text("開いてから別のプログラムが書き換えました。上書きすると、その変更は失われ、元に戻せません。")
+        // 09 E1: 取り返しがつかない型。キャンセルが既定。
+        .dsDialog(isPresented: $showsConflictAlert) {
+            DSDialog(
+                .irreversible,
+                title: String(format: AppLocalizedString.string("%@ は外部で変更されています", locale: locale), document.fileName),
+                message: AppLocalizedString.string("開いてから別のセッションが書き換えました。上書きすると、その変更は失われ、元に戻せません。", locale: locale),
+                buttons: [
+                    DSDialogButton("上書き", role: .destructive) {
+                        showsConflictAlert = false
+                        Task { await overwrite() }
+                    },
+                    DSDialogButton("キャンセル", role: .primary) { showsConflictAlert = false },
+                ],
+                onCancel: { showsConflictAlert = false }
+            )
         }
-        .dialogSeverity(.critical)
     }
 
     private func save() async {

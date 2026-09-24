@@ -70,12 +70,12 @@ public struct GridTileTabs {
 
 extension SessionNode {
     /// タイル・一覧に出す状態（完了の未読・無応答を含む）。
-    var gridDisplayState: SessionDisplayState {
+    public var gridDisplayState: SessionDisplayState {
         SessionDisplayState.resolve(displayStatus, hasUnseenCompletion: hasUnseenCompletion, isStalled: isStalled)
     }
 }
 
-enum GridTileText {
+public enum GridTileText {
     /// タイルの読み上げ「タイトル、状態、経過時間、フォーカス中」（06 のモックの aria-label）。
     static func accessibilityLabel(title: String, state: String, elapsed: String?, isFocused: Bool, locale: Locale) -> String {
         var parts = [title, state]
@@ -85,7 +85,7 @@ enum GridTileText {
     }
 
     /// 見出しの状態。対応待ちは「承認待ち · 3分」、無応答は「無応答 2:14」、ほかは状態の語だけ。
-    static func stateLabel(state: SessionDisplayState, since: Date?, silence: TimeInterval?, now: Date, locale: Locale) -> String {
+    public static func stateLabel(state: SessionDisplayState, since: Date?, silence: TimeInterval?, now: Date, locale: Locale) -> String {
         let word = state.localizedLabel(locale: locale)
         if state == .stalled, let silence { return "\(word) \(StallClock.text(silence))" }
         guard state.attentionKind != nil, let since else { return word }

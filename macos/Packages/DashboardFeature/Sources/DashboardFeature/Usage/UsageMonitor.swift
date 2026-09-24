@@ -9,6 +9,8 @@ public final class UsageMonitor {
     public private(set) var usages: [AgentKind: CLIUsage]
     public private(set) var lastRefreshedAt: Date?
     public private(set) var isRefreshing: Bool
+    /// 取得に失敗し、前回の値を出し続けている CLI（07 U4）。成功するか前回の値を出さなくなったら消す。
+    public private(set) var failures: [AgentKind: UsageFailure] = [:]
 
     private static let defaultStalenessInterval: TimeInterval = 300
     private static let fastRefreshKinds = AgentRegistry.allDescriptors
@@ -60,6 +62,11 @@ public final class UsageMonitor {
         }
     }
 
+    /// いちばん新しい取得成功の時刻（「最終更新」）。
+    public var lastSucceededAt: Date? {
+        lastSuccessfulUsages.values.map(\.updatedAt).max()
+    }
+
     public func stop() {
         refreshTask?.cancel()
         refreshTask = nil
@@ -105,6 +112,11 @@ public final class UsageMonitor {
             now: now()
         )
         usages[usage.kind] = resolved
+        if case .unavailable(let reason) = usage.state, case .ok = resolved.state {
+            failures[usage.kind] = UsageFailure(reason: reason, at: now())
+        } else {
+            failures[usage.kind] = nil
+        }
         if case .ok = resolved.state {
             lastSuccessfulUsages[resolved.kind] = resolved
         }
@@ -220,4 +232,9 @@ private struct EmptyUsageProvider: UsageProvider {
     func fetch() async -> CLIUsage {
         CLIUsage(kind: kind, state: .unavailable(reason: String(localized: "未設定")), updatedAt: Date())
     }
+}
+
+public struct UsageFailure: Equatable, Sendable {
+    public let reason: String
+    public let at: Date
 }

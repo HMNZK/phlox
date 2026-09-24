@@ -163,11 +163,11 @@ struct DashboardToolbar: View {
 
     // MARK: - 使用量・インスペクタ
 
-    /// インスペクタの開閉に関係なく常に出す。押すとインスペクタを開く（「使用量」タブは 07 の段で分ける）。
+    /// インスペクタの開閉に関係なく常に出す。押すとインスペクタの「使用量」を開く（07）。
     private var usageChip: some View {
         Button {
             withAnimation(.easeInOut(duration: 0.18)) {
-                router.inspectorVisible = true
+                router.showUsageInInspector()
             }
         } label: {
             UsageTopBarView(monitor: usageMonitor, density: density)
@@ -186,9 +186,10 @@ struct DashboardToolbar: View {
         let parts = chips.compactMap { chip -> String? in
             guard let used = chip.shownBuckets.map(\.usedPercent).max() else { return nil }
             let remaining = Int(round(100 - max(0, min(100, used))))
-            return String(localized: "\(chip.kind.displayName) 残り\(remaining)%")
+            return String(format: AppLocalizedString.string("%@ 残り%lld%%", locale: locale), chip.kind.displayName, remaining)
         }
-        return String(localized: "使用量: \(parts.joined(separator: String(localized: "、")))。クリックで詳細")
+        let joined = parts.joined(separator: AppLocalizedString.string("、", locale: locale))
+        return String(format: AppLocalizedString.string("使用量: %@。クリックで詳細", locale: locale), joined)
     }
 
     private var inspectorToggleButton: some View {

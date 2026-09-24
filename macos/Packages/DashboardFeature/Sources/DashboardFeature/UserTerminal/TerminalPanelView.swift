@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 import DesignSystem
@@ -68,24 +69,126 @@ public final class TerminalPanelSession {
     }
 }
 
-/// ターミナルの子タブ・共通ターミナルに埋め込む、実シェルの SwiftTerm 表示。見出しはタブが兼ねる。
+/// ⌘+ / ⌘− と同じ経路で端末の文字サイズを変える（見出しの A− / A+）。DashboardView が入れる。
+extension EnvironmentValues {
+    @Entry var adjustTerminalFontSize: ((CGFloat) -> Void)? = nil
+}
+
+/// ターミナルの子タブ・共通ターミナルに埋め込む、実シェルの SwiftTerm 表示（07 D1・D8）。
+/// 見出しに「ターミナル · シェル · 場所」と文字サイズ（A− / A+）。文字サイズが変わると中央に 1 秒だけ大きさを出す。
 public struct TerminalPanelView: View {
     public let panel: TerminalPanelSession
+    /// グリッドのタイルではタイルの見出しがあるので出さない。
+    let showsHeader: Bool
 
-    public init(panel: TerminalPanelSession) {
+    @AppStorage(TerminalFontSettings.fontSizeKey) private var fontSize = Double(NSFont.systemFontSize)
+    @Environment(\.adjustTerminalFontSize) private var adjustFontSize
+    @State private var hudVisibleUntil: Date?
+
+    public init(panel: TerminalPanelSession, showsHeader: Bool = true) {
         self.panel = panel
+        self.showsHeader = showsHeader
     }
 
     public var body: some View {
-        TerminalView(coordinator: panel.terminalCoordinator)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .clipped()
-            .background(DSColor.background)
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("ターミナル")
-            .accessibilityIdentifier("user-terminal-panel")
-            .task {
-                await panel.ensureStarted()
+        VStack(spacing: 0) {
+            if showsHeader {
+                header
             }
+            TerminalView(coordinator: panel.terminalCoordinator)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+                .overlay { fontSizeHUD }
+        }
+        .background(DSColor.background)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("ターミナル")
+        .accessibilityIdentifier("user-terminal-panel")
+        .task {
+            await panel.ensureStarted()
+        }
+        .onChange(of: fontSize) { _, newValue in
+            panel.terminalCoordinator.applyFontSize(CGFloat(newValue))
+            guard showsHeader else { return }
+            let until = Date().addingTimeInterval(1)
+            hudVisibleUntil = until
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1))
+                if hudVisibleUntil == until { hudVisibleUntil = nil }
+            }
+        }
     }
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Text("ターミナル")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(DSColor.textPrimary)
+            Text(verbatim: subtitle)
+                .font(.system(size: 11))
+                .foregroundStyle(DSColor.textTertiary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 4)
+            fontButton("A−", delta: -1, label: "文字を小さく（⌘−）")
+                .disabled(CGFloat(fontSize) <= TerminalFontSettings.minSize)
+            Text(verbatim: "\(Int(fontSize))pt")
+                .font(.system(size: 10.5))
+                .foregroundStyle(DSColor.textTertiary)
+                .monospacedDigit()
+                .accessibilityHidden(true)
+            fontButton("A+", delta: 1, label: "文字を大きく（⌘+）")
+                .disabled(CGFloat(fontSize) >= TerminalFontSettings.maxSize)
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 8)
+        .frame(height: 32)
+        .background(DSColor.surface)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(DSColor.separator).frame(height: 1)
+        }
+    }
+
+    /// 「zsh · ~/dev/phlox」。
+    private var subtitle: String {
+        let shell = (panel.controller.shellPath as NSString).lastPathComponent
+        let place = (panel.controller.workingDirectory as NSString).abbreviatingWithTildeInPath
+        return "\(shell) · \(place)"
+    }
+
+    private func fontButton(_ title: String, delta: CGFloat, label: LocalizedStringKey) -> some View {
+        Button {
+            if let adjustFontSize {
+                adjustFontSize(delta)
+            } else {
+                TerminalFontSettings.save(TerminalFontSettings.adjusted(from: CGFloat(fontSize), by: delta))
+            }
+        } label: {
+            Text(verbatim: title)
+                .font(.system(size: delta > 0 ? 12 : 11))
+                .foregroundStyle(DSColor.textSecondary)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(HoverableIconButtonStyle())
+        .help(Text(label))
+        .accessibilityLabel(Text(label))
+    }
+
+    @ViewBuilder
+    private var fontSizeHUD: some View {
+        if hudVisibleUntil != nil {
+            Text(verbatim: String(format: AppLocalizedString.string("ターミナル %lldpt", locale: locale), Int(fontSize)))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color(white: 0.12, opacity: 0.88), in: RoundedRectangle(cornerRadius: 10))
+                .allowsHitTesting(false)
+                .transition(.opacity)
+                .accessibilityHidden(true)
+        }
+    }
+
+    @Environment(\.locale) private var locale
 }

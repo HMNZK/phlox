@@ -122,17 +122,6 @@
         }
       }
     },
-    "Cursorをインストールしに行く": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Go install Cursor"
-          }
-        }
-      }
-    },
     "Cursorアプリで再ログインが必要": {
       "extractionState": "manual",
       "localizations": {
@@ -789,17 +778,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Japanese"
-          }
-        }
-      }
-    },
-    "更新: %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Updated: %@"
           }
         }
       }
@@ -2017,17 +1995,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Binary file"
-          }
-        }
-      }
-    },
-    "さらに500行を表示": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show 500 more lines"
           }
         }
       }
@@ -4238,6 +4205,391 @@
           "stringUnit": {
             "state": "translated",
             "value": "Clear Session Selection"
+          }
+        }
+      }
+    },
+    "セッションが選択されていません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No session selected"
+          }
+        }
+      }
+    },
+    "状態": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status"
+          }
+        }
+      }
+    },
+    "経過時間": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elapsed"
+          }
+        }
+      }
+    },
+    "総コスト": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Total Cost"
+          }
+        }
+      }
+    },
+    "ブランチ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Branch"
+          }
+        }
+      }
+    },
+    "プロジェクト": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Project"
+          }
+        }
+      }
+    },
+    "ターミナル型のセッションはコストを取得できないため「—」と表示します。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal sessions cannot report cost, so it shows “—”."
+          }
+        }
+      }
+    },
+    "チャット型": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chat"
+          }
+        }
+      }
+    },
+    "ターミナル型": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal"
+          }
+        }
+      }
+    },
+    "表示できる使用量がありません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No usage to show"
+          }
+        }
+      }
+    },
+    "使用量を更新できませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t update usage"
+          }
+        }
+      }
+    },
+    "%@（%@）。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ (%2$@). "
+          }
+        }
+      }
+    },
+    "下の値は %@のものです。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The values below are from %@."
+          }
+        }
+      }
+    },
+    "自動更新・Claude の取得・未取得の CLI の表示は 設定 > 詳細": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto-refresh, Claude fetching, and showing unavailable CLIs are in Settings > Advanced"
+          }
+        }
+      }
+    },
+    "更新中": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refreshing"
+          }
+        }
+      }
+    },
+    "更新中…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refreshing…"
+          }
+        }
+      }
+    },
+    "最終更新 %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last updated %@"
+          }
+        }
+      }
+    },
+    "（失敗 %@）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " (failed %@)"
+          }
+        }
+      }
+    },
+    "自動更新 オン": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto-refresh on"
+          }
+        }
+      }
+    },
+    "自動更新 オフ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto-refresh off"
+          }
+        }
+      }
+    },
+    "%@後にリセット": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resets in %@"
+          }
+        }
+      }
+    },
+    "取得中…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading…"
+          }
+        }
+      }
+    },
+    "%@の値": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Value from %@"
+          }
+        }
+      }
+    },
+    "%@に取得": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fetched %@"
+          }
+        }
+      }
+    },
+    "Cursor をインストールしに行く ↗": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install Cursor ↗"
+          }
+        }
+      }
+    },
+    "残り %lld%%": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%% left"
+          }
+        }
+      }
+    },
+    " · 上限間近": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " · Near limit"
+          }
+        }
+      }
+    },
+    "文字を小さく（⌘−）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smaller Text (⌘−)"
+          }
+        }
+      }
+    },
+    "文字を大きく（⌘+）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Larger Text (⌘+)"
+          }
+        }
+      }
+    },
+    "ターミナル %lldpt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal %lldpt"
+          }
+        }
+      }
+    },
+    "（バイナリ）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " (binary)"
+          }
+        }
+      }
+    },
+    "さらに表示（残り %lld 行）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show More (%lld lines left)"
+          }
+        }
+      }
+    },
+    "ログを畳む": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapse Log"
+          }
+        }
+      }
+    },
+    "ログをすべて表示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Full Log"
+          }
+        }
+      }
+    },
+    "コミット（%lld）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Commit (%lld)"
           }
         }
       }

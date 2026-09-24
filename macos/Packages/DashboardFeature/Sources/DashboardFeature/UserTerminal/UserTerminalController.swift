@@ -13,8 +13,8 @@ public final class UserTerminalController {
     private static let outputBufferLimit = 2048
 
     private let pty: any PTYManagerProtocol
-    private let shellPath: String
-    private let workingDirectory: String
+    let shellPath: String
+    let workingDirectory: String
     private let environment: [String: String]
 
     private var outputTasks: [UInt64: Task<Void, Never>] = [:]

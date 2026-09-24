@@ -99,6 +99,9 @@ public struct DashboardView: View {
 
     public var body: some View {
         shellWithTabDialogs
+            .environment(\.adjustTerminalFontSize) { [viewModel] delta in
+                viewModel.adjustFontSize(by: delta, target: .terminal)
+            }
             .onChange(of: themeID) { _, _ in
                 viewModel.reapplyTheme()
             }
@@ -515,14 +518,6 @@ public struct DashboardView: View {
         .padding(24)
     }
 
-    /// 選択中の chat セッション（インスペクタの SessionInfoPanel 用）。
-    private var selectedChatSession: ChatSessionViewModel? {
-        guard let selectedID = router.selectedSession,
-              let session = viewModel.sessionNode(id: selectedID),
-              case .appServer(let chatSession) = session else { return nil }
-        return chatSession
-    }
-
     // MARK: - Columns
 
     /// 左列。上端に信号の余白とサイドバーを隠すボタン、下端に設定とエージェント管理（01 A1）。
@@ -683,7 +678,7 @@ public struct DashboardView: View {
                 EmptyView()
             case .terminal:
                 if let sessionTerminals {
-                    TerminalPanelView(panel: sessionTerminals.terminal(for: id, workingDirectory: node.rawWorkspacePath))
+                    TerminalPanelView(panel: sessionTerminals.terminal(for: id, workingDirectory: node.rawWorkspacePath), showsHeader: false)
                         .id(id)
                 } else {
                     ContentUnavailableView("ターミナルを準備しています", systemImage: "terminal")
@@ -706,7 +701,11 @@ public struct DashboardView: View {
     }
 
     private var inspectorContent: some View {
-        UsageSidebarView(monitor: usageMonitor, chatSession: selectedChatSession)
+        InspectorView(
+            router: router,
+            monitor: usageMonitor,
+            session: router.selectedSession.flatMap { viewModel.sessionNode(id: $0) }
+        )
     }
 
     private var verticalSeparator: some View {

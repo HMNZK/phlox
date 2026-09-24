@@ -9,6 +9,8 @@ import SwiftUI
 struct GitCommitPanel: View {
     @Bindable var viewModel: EditorPanelViewModel
     @ScaledMetric(relativeTo: .body) private var workflowStatusDetailsHeight: CGFloat = 220
+    @ScaledMetric(relativeTo: .body) private var collapsedLogHeight: CGFloat = 84
+    @State private var isLogExpanded = false
     @ScaledMetric(relativeTo: .body) private var minimumTapTarget: CGFloat = 28
 
     var body: some View {
@@ -47,29 +49,43 @@ struct GitCommitPanel: View {
             if let workflowStatusMessage = viewModel.workflowStatusMessage {
                 HStack(alignment: .top, spacing: DSSpacing.xs) {
                     VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                        Label {
-                            Text(workflowStatusMessage)
-                                .lineLimit(viewModel.workflowStatusIsError ? 2 : nil)
-                        } icon: {
-                            Image(systemName: viewModel.workflowStatusIsError
-                                ? "exclamationmark.triangle.fill"
-                                : "checkmark.circle.fill")
+                        HStack(spacing: DSSpacing.xs) {
+                            Label {
+                                Text(workflowStatusMessage)
+                                    .lineLimit(viewModel.workflowStatusIsError ? 1 : nil)
+                            } icon: {
+                                Image(systemName: viewModel.workflowStatusIsError
+                                    ? "exclamationmark.triangle.fill"
+                                    : "checkmark.circle.fill")
+                            }
+                            .foregroundStyle(viewModel.workflowStatusIsError ? DSColor.statusError : DSColor.textSecondary)
+                            if viewModel.workflowStatusIsError {
+                                Spacer(minLength: 0)
+                                Button(isLogExpanded ? "ログを畳む" : "ログをすべて表示") {
+                                    isLogExpanded.toggle()
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(DSColor.accentInk)
+                                .fixedSize()
+                            }
                         }
                         .font(DSFont.caption)
-                        .foregroundStyle(viewModel.workflowStatusIsError ? DSColor.statusError : DSColor.textSecondary)
 
                         if viewModel.workflowStatusIsError {
-                            DisclosureGroup("詳細") {
-                                ScrollView {
-                                    Text(workflowStatusMessage)
-                                        .font(DSFont.monoCaption)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .textSelection(.enabled)
-                                }
-                                .frame(height: workflowStatusDetailsHeight)
-                                .padding(.top, DSSpacing.xs)
+                            // 詳細ログは 84pt で畳み、押すと全体を出す（07 D5）。
+                            ScrollView {
+                                Text(workflowStatusMessage)
+                                    .font(DSFont.monoCaption)
+                                    .foregroundStyle(DSColor.textSecondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .textSelection(.enabled)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
                             }
-                            .font(DSFont.caption)
+                            .frame(height: isLogExpanded ? workflowStatusDetailsHeight : collapsedLogHeight)
+                            .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: 5))
+                            .contentShape(Rectangle())
+                            .onTapGesture { isLogExpanded.toggle() }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -130,7 +146,9 @@ struct GitCommitPanel: View {
     }
 
     private var commitButton: some View {
-        Button("コミット") {
+        // 選んだ件数をボタンに出す（07 の対応表「コミットボタンに件数を出す」）。
+        let count = viewModel.pathsSelectedForCommit.count
+        return Button(count > 0 ? "コミット（\(count)）" : "コミット") {
             Task { await viewModel.commitSelectedPaths() }
         }
         .disabled(!viewModel.canCommit || viewModel.isWorkflowBusy)

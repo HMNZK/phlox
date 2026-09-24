@@ -30,6 +30,11 @@ public enum SidebarRequest: Equatable, Sendable {
     case changeFolder(SessionID)
 }
 
+public enum InspectorTab: Hashable, CaseIterable, Sendable {
+    case session
+    case usage
+}
+
 public enum MainRoute: String, Sendable {
     case sessions
 }
@@ -50,6 +55,8 @@ public final class AppRouter {
     public var sidebarVisible: Bool
     /// 右側インスペクター（使用量サイドバー）の表示状態。
     public var inspectorVisible: Bool
+    /// インスペクタの「セッション / 使用量」（07）。
+    public var inspectorTab: InspectorTab = .usage
     /// 上段タブ列と子タブ（02 C）。メニューの ⌘W・⌘1–9・⌃Tab からも触る。
     public let tabs: SessionTabStore
     /// 上段右端の「共通ターミナル」（worktree の外・ホームで開く）を前に出しているか。
@@ -104,6 +111,12 @@ public final class AppRouter {
     /// 右側インスペクターの表示/非表示をトグルする。
     public func toggleInspector() {
         inspectorVisible.toggle()
+    }
+
+    /// 使用量チップのクリック（07）。インスペクタを開いて「使用量」を前に出す。
+    public func showUsageInInspector() {
+        inspectorTab = .usage
+        inspectorVisible = true
     }
 
     /// ⌃⌘T / ⌃⌘E：選択中セッションのターミナル・変更タブを開く（あれば前に出す）。単体表示へ切り替える。

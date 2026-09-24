@@ -5,7 +5,7 @@ import XCTest
 final class PanelUITests: XCTestCase {
     /// セッション未選択の ⌃⌘T は上段右端の共通ターミナル（ホーム）を出す。もう一度押しても閉じない（前に出すだけ）。
     func testTerminalShortcutShowsCommonTerminal() async throws {
-        let isolated = try await IsolatedPhloxApplication.launch(in: self, initialWidth: 700, expectedWidth: 700)
+        let isolated = try await IsolatedPhloxApplication.launch(in: self)
         let app: XCUIApplication = try isolated.application()
 
         app.typeKey("t", modifierFlags: [.command, .control])

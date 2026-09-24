@@ -6,9 +6,11 @@ import XCTest
 @MainActor
 final class IsolatedPhloxApplication {
     private static let bundleID = "com.phlox.Phlox.debug"
-    private static let widthKey = "phlox.panelDrawer.width"
-    private static let migrationKey = "phlox.panelDrawer.width.migratedTo560"
     private static let paneLayoutKey = "phlox.grid.paneLayout"
+    /// 起動時にアプリが必ず保存するグリッド配置の記録（PaneLayoutStore.presetStorageKey）。
+    /// 専用 suite にこれが書かれ、通常の保存先が変わらないことで、設定の隔離を確かめる。
+    /// （以前はパネル幅の移行を目印にしていたが、その処理は 02 案 C のタブ再設計でパネルごと無くなった）
+    private static let presetKey = "phlox.grid.paneLayoutPreset"
 
     private let appURL: URL
     private let executableURL: URL
@@ -36,8 +38,6 @@ final class IsolatedPhloxApplication {
 
     static func launch(
         in test: XCTestCase,
-        initialWidth: Double = 420,
-        expectedWidth: Double = 560,
         arguments: [String] = [],
         prepareData: ((URL) throws -> Void)? = nil
     ) async throws -> IsolatedPhloxApplication {
@@ -69,14 +69,10 @@ final class IsolatedPhloxApplication {
         // 所有権取得より前に登録し、起動・接続・窓待ちのどこで失敗しても処理する。
         test.addTeardownBlock { await isolated.tearDown() }
         try prepareData?(isolated.dataURL)
-        // 初期化・検査・削除はすべてcurrent user / any hostの同じ永続ドメインを使う。
-        CFPreferencesSetValue(
-            widthKey as CFString, NSNumber(value: initialWidth), isolated.suite as CFString,
-            kCFPreferencesCurrentUser, kCFPreferencesAnyHost
-        )
+        // 検査・削除はすべてcurrent user / any hostの同じ永続ドメインを使う。
         let seeded = try drawerDefaults(in: isolated.suite)
-        guard (seeded[widthKey] as? NSNumber)?.doubleValue == initialWidth, seeded[migrationKey] == nil else {
-            throw Failure.unsafe("専用suiteの移行前条件（\(initialWidth)・移行済みなし）が成立しない: \(seeded)")
+        guard seeded[presetKey] == nil else {
+            throw Failure.unsafe("専用suiteの起動前条件（グリッド配置の記録なし）が成立しない: \(seeded)")
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.arguments = arguments
@@ -131,7 +127,7 @@ final class IsolatedPhloxApplication {
             guard app.windows.firstMatch.exists else {
                 throw Failure.unsafe("所有Debugのウィンドウが30秒以内に表示されなかった")
             }
-            try await isolated.assertDefaultsIsolation(initialWidth: initialWidth, expectedWidth: expectedWidth)
+            try await isolated.assertDefaultsIsolation()
             return isolated
         } catch {
             isolated.abandoned = true
@@ -194,7 +190,7 @@ final class IsolatedPhloxApplication {
         var protected: [String: Any] = [:]
         for (rawKey, value) in values {
             guard let key = rawKey as? String else { continue }
-            if key == widthKey || key == migrationKey || key == paneLayoutKey || key.hasPrefix("SU")
+            if key == presetKey || key == paneLayoutKey || key.hasPrefix("SU")
                 || key == "phlox.theme" || key == "phlox.appLanguage"
                 || key == "AppleLanguages" || key == "AppleLocale" {
                 protected[key] = value
@@ -206,25 +202,26 @@ final class IsolatedPhloxApplication {
     private func assertStandardUnchanged() throws {
         let current = try Self.drawerDefaults(in: Self.bundleID)
         guard current.isEqual(originalDefaults) else {
-            throw Failure.unsafe("通常Debugの保護対象設定（幅・画面配置・更新確認）が変化")
+            throw Failure.unsafe("通常Debugの保護対象設定（グリッド配置・更新確認）が変化")
         }
     }
 
-    private func assertDefaultsIsolation(initialWidth: Double, expectedWidth: Double) async throws {
+    private func assertDefaultsIsolation() async throws {
         let deadline = Date().addingTimeInterval(10)
         var saved: NSDictionary = [:]
         repeat {
             try assertExclusiveOwnership()
             try assertStandardUnchanged()
             saved = try Self.drawerDefaults(in: suite)
-            if (saved[Self.widthKey] as? NSNumber)?.doubleValue == expectedWidth,
-               (saved[Self.migrationKey] as? NSNumber)?.boolValue == true {
-                print("Phlox UI defaults: suite=\(suite) width=\(initialWidth)→\(expectedWidth) migrated=true standard=unchanged")
+            if let data = saved[Self.presetKey] as? Data,
+               let record = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               record["preset"] is String {
+                print("Phlox UI defaults: suite=\(suite) paneLayoutPreset=saved standard=unchanged")
                 return
             }
             try await Task.sleep(for: .milliseconds(100))
         } while Date() < deadline
-        throw Failure.unsafe("専用suiteの期待値\(initialWidth)→\(expectedWidth)・移行済みtrueが保存されない: suite=\(suite) values=\(saved)")
+        throw Failure.unsafe("専用suiteにグリッド配置の記録が保存されない: suite=\(suite) values=\(saved)")
     }
 
     private func tearDown() async {

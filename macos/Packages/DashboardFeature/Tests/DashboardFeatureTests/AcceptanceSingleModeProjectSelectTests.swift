@@ -1,6 +1,7 @@
 // task-1（PM 著・凍結受け入れテスト・編集禁止）:
 // single モードでプロジェクトを選択したら「新規セッション開始画面」を表示する挙動。
-// grid モードでは従来のグリッド絞り込みトグルを維持する。
+// grid モードの 2 回目のクリックは、2026-09-24 のユーザー決定（03 M: 範囲を外すのは ⌘クリックだけ）で
+// 「範囲を外す」から「範囲のまま」に改めた（ユーザー承認済みの凍結テスト変更）。
 import Testing
 import AgentDomain
 @testable import DashboardFeature
@@ -27,7 +28,7 @@ import AgentDomain
 }
 
 @MainActor
-@Test func selectProjectFromSidebar_inGridMode_togglesFilterAndStaysGrid() {
+@Test func selectProjectFromSidebar_inGridMode_keepsFilterOnSecondClick() {
     let router = AppRouter(viewMode: .grid)
     let project = ProjectID()
 
@@ -37,8 +38,8 @@ import AgentDomain
     #expect(router.selectedProjectID == project)
     #expect(router.gridFilterProjectID == project)
 
-    // 2回目（同一プロジェクト）: 従来のトグル挙動で絞り込み解除。
+    // 2回目（同一プロジェクト）: 絞り込みは外れない。
     router.selectProjectFromSidebar(project)
-    #expect(router.gridFilterProjectID == nil)
+    #expect(router.gridFilterProjectID == project)
     #expect(router.viewMode == .grid)
 }

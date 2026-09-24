@@ -89,7 +89,7 @@ struct SidebarProjectScopeTests {
         #expect(router.selectedSession == nil)
     }
 
-    @Test("↑↓ で同じプロジェクトを選び直しても、グリッドの範囲は外れない（クリックの 2 回目だけが解除）")
+    @Test("↑↓ で同じプロジェクトを選び直しても、グリッドの範囲は外れない")
     func showProjectDoesNotToggleScope() {
         let router = AppRouter(viewMode: .grid)
         let project = ProjectID()

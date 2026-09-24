@@ -15,20 +15,39 @@ public struct RestoredSessionPresentation: Sendable, Equatable {
     }
 }
 
-/// ワークスペース削除確認ダイアログの文言。View 直テストが困難なため純関数として切り出す。
+/// プロジェクト削除確認ダイアログの文言（09 D4 / 03 F8）。View 直テストが困難なため純関数として切り出す。
+/// 件数には、この一覧に出ない別プロジェクトの子孫も含める（一緒に消えるため）。
 public enum ProjectDeletionDialogText {
-    public static func title(descendantCount: Int) -> String {
-        if descendantCount > 0 {
-            return "このプロジェクトの削除で子孫\(descendantCount)件も削除されますか?"
-        }
-        return "このプロジェクトを削除しますか?"
+    public static func title(projectName: String) -> String {
+        "プロジェクト「\(projectName)」を削除しますか?"
     }
 
-    public static func message(descendantCount: Int) -> String {
-        if descendantCount > 0 {
-            return "配下のセッションはすべて停止されます。この一覧に表示されていない子孫セッション\(descendantCount)件も併せて削除されます。フォルダ自体は削除されません。"
+    /// `sessionCount` と `childCount` はこのプロジェクトの分、`otherProjectChildCount` はほかのプロジェクトにある子孫（一緒に消える）。
+    public static func message(sessionCount: Int, childCount: Int, otherProjectChildCount: Int = 0) -> String {
+        let (format, args) = messageFormat(sessionCount: sessionCount, childCount: childCount, otherProjectChildCount: otherProjectChildCount)
+        return String(format: format, arguments: args)
+    }
+
+    static func messageFormat(sessionCount: Int, childCount: Int, otherProjectChildCount: Int) -> (String, [CVarArg]) {
+        switch (sessionCount > 0, childCount > 0, otherProjectChildCount > 0) {
+        case (false, _, _):
+            ("このプロジェクトを一覧から外します。", [])
+        case (true, true, true):
+            ("このプロジェクトのセッション %lld 件（子セッション %lld 件を含む）と、ほかのプロジェクトにある子セッション %lld 件を停止し、一覧から外します。会話は元に戻せません。",
+             [sessionCount, childCount, otherProjectChildCount])
+        case (true, false, true):
+            ("このプロジェクトのセッション %lld 件と、ほかのプロジェクトにある子セッション %lld 件を停止し、一覧から外します。会話は元に戻せません。",
+             [sessionCount, otherProjectChildCount])
+        case (true, true, false):
+            ("このプロジェクトのセッション %lld 件（子セッション %lld 件を含む）を停止し、一覧から外します。会話は元に戻せません。",
+             [sessionCount, childCount])
+        case (true, false, false):
+            ("このプロジェクトのセッション %lld 件を停止し、一覧から外します。会話は元に戻せません。", [sessionCount])
         }
-        return "配下のセッションはすべて停止されます。フォルダ自体は削除されません。"
+    }
+
+    public static func note(folderPath: String) -> String {
+        "フォルダ「\(folderPath)」とその中のファイルは削除されません。"
     }
 }
 

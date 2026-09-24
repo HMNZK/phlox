@@ -139,7 +139,12 @@ struct DashboardToolbar: View {
                 project: selectedProject,
                 showsText: density == .full,
                 isOn: worktreeIsolationBinding,
-                onRename: { router.projectRenameRequest = selectedProject.id }
+                onRename: {
+                    // サイドバーを隠していれば出してから、その行を編集に入れる。
+                    let showing = router.sidebarVisible && (!router.sidebarLacksRoom || router.sidebarPeeking)
+                    if !showing { router.toggleSidebar() }
+                    router.projectRenameRequest = selectedProject.id
+                }
             )
         }
     }
@@ -232,7 +237,7 @@ struct SidebarToggleButton: View {
             Image(systemName: "sidebar.leading")
                 .font(.system(size: DSIconSize.l, weight: .medium))
                 .foregroundStyle(DSColor.textSecondary)
-                .frame(width: 28, height: 28)
+                .frame(width: 28, height: 24)
                 .overlay(alignment: .topTrailing) {
                     if !isShowing, attentionCount > 0 {
                         CountBadge(count: attentionCount)

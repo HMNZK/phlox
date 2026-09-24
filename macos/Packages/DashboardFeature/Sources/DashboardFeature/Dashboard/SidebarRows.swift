@@ -49,8 +49,9 @@ struct SidebarProjectRow<Menu: View, NewSession: View>: View {
     var body: some View {
         HStack(spacing: 6) {
             Button(action: onToggleExpansion) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .semibold))
+                // PhloxSidebar.dc.html: 文字「›」13pt・幅 10、開くと 90°。
+                Text(verbatim: "›")
+                    .font(.system(size: 13))
                     .foregroundStyle(DSColor.textTertiary)
                     .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     .frame(width: 10, height: 20)
@@ -59,9 +60,9 @@ struct SidebarProjectRow<Menu: View, NewSession: View>: View {
             .buttonStyle(.plain)
             .help(isExpanded ? Text("折りたたむ") : Text("展開"))
             .accessibilityLabel(isExpanded ? Text("折りたたむ") : Text("展開"))
-            Image(systemName: "folder")
-                .font(.system(size: 12))
-                .foregroundStyle(DSColor.textSecondary)
+            FolderShape()
+                .stroke(DSColor.textSecondary, lineWidth: 1.2)
+                .frame(width: 16, height: 13)
                 .accessibilityHidden(true)
             if isRenaming {
                 SidebarRenameField(
@@ -106,7 +107,7 @@ struct SidebarProjectRow<Menu: View, NewSession: View>: View {
             onSelect(NSEvent.modifierFlags.contains(.command))
         }
         .onHover { isHovering = $0 }
-        .contextMenu(menuItems: menu)
+        .modifier(SidebarMenuOpenRing(menu: menu))
         .accessibilityElement(children: isRenaming ? .contain : .ignore)
         .accessibilityLabel(accessibilityText)
         .accessibilityValue(emphasis.accessibilityValue.map { Text(LocalizedStringKey($0)) } ?? Text(verbatim: ""))
@@ -131,16 +132,16 @@ struct SidebarProjectRow<Menu: View, NewSession: View>: View {
                 .monospacedDigit()
         }
         if showsScopeMark {
-            Image(systemName: "square.grid.2x2")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(DSColor.accentInk)
+            GridScopeShape()
+                .stroke(DSColor.accentInk, lineWidth: 1.4)
+                .frame(width: 12, height: 11)
                 .help(Text("グリッドの表示範囲"))
                 .accessibilityLabel(Text("グリッドの表示範囲"))
         }
     }
 
     private var accessibilityText: Text {
-        let state = isExpanded ? Text("展開") : Text("折りたたみ")
+        let state = isExpanded ? Text("展開中") : Text("折りたたみ")
         let path = (project.directoryPath as NSString).abbreviatingWithTildeInPath
         return isSelected
             ? Text("プロジェクト \(project.name)、\(path)、\(state)、選択中")
@@ -183,7 +184,7 @@ struct SidebarSessionRow<Menu: View>: View {
             if isRenaming {
                 SidebarRenameField(
                     text: $renameDraft,
-                    hint: "↩ 確定 · Esc 取消 · 空欄で短縮 ID 表示に戻す",
+                    hint: "↩ 確定 · Esc 取消 · 空欄で「\(SessionViewModel.shortID(for: node.id))」に戻す",
                     onCommit: onCommitRename,
                     onCancel: onCancelRename
                 )
@@ -201,15 +202,16 @@ struct SidebarSessionRow<Menu: View>: View {
                         .accessibilityHidden(true)
                 }
                 if hasChildren, !isExpanded {
+                    // 「+2 ▲」: 件数と、子の中の対応待ち・未読を記号だけで（PhloxSidebar.dc.html:133）。
                     HStack(spacing: 3) {
                         Text(verbatim: "+\(childCount)")
-                        SidebarSummaryText(summary: descendantSummary)
+                        SidebarSummaryText(summary: descendantSummary, showsCounts: false)
                     }
                     .font(.system(size: 10.5))
                     .foregroundStyle(DSColor.textSecondary)
                     .padding(.horizontal, 5)
                     .frame(height: 15)
-                    .background(DSColor.fillSelected, in: Capsule())
+                    .background(DSColor.segmentTrack, in: RoundedRectangle(cornerRadius: 8))
                 }
                 if isHovering {
                     SwiftUI.Menu(content: menu) {
@@ -239,7 +241,7 @@ struct SidebarSessionRow<Menu: View>: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
         .onHover { isHovering = $0 }
-        .contextMenu(menuItems: menu)
+        .modifier(SidebarMenuOpenRing(menu: menu))
         .help(Text(verbatim: helpText))
         // 名前の編集中は入力欄に届くよう子を残す。
         .accessibilityElement(children: isRenaming ? .contain : .ignore)
@@ -290,7 +292,7 @@ struct SidebarSessionRow<Menu: View>: View {
         ZStack(alignment: .leading) {
             ForEach(Array(1..<max(depth, 1)), id: \.self) { level in
                 Rectangle()
-                    .fill(DSColor.separator)
+                    .fill(DSColor.guide)
                     .frame(width: 1)
                     .offset(x: SidebarRowMetrics.leadingPadding(depth: level) + 5)
             }
@@ -303,8 +305,9 @@ struct SidebarSessionRow<Menu: View>: View {
     private var chevron: some View {
         if hasChildren {
             Button(action: onToggleExpansion) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .semibold))
+                // PhloxSidebar.dc.html: 文字「›」13pt・幅 10、開くと 90°。
+                Text(verbatim: "›")
+                    .font(.system(size: 13))
                     .foregroundStyle(DSColor.textTertiary)
                     .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     .frame(width: 10, height: 20)
@@ -337,27 +340,45 @@ struct SidebarSessionRow<Menu: View>: View {
 
 // MARK: - Parts
 
-/// 畳んだ行の要約。対応待ちは「承認待ち 1」のように状態色の文字、未読の完了は「未読 1」。
+/// 畳んだ行の要約。状態の記号 9pt ＋ 件数（「◆1 ●1」。11/600/fg2）。未読の完了は accent の点（2026-09-24 ユーザー決定: 記号で出す）。
 struct SidebarSummaryText: View {
     let summary: SidebarCollapsedSummary
+    var showsCounts = true
     @Environment(\.locale) private var locale
 
     var body: some View {
         if !summary.isEmpty {
-            HStack(spacing: 5) {
+            HStack(spacing: showsCounts ? 6 : 3) {
                 ForEach(summary.attention, id: \.kind) { entry in
-                    Text(verbatim: "\(Self.state(for: entry.kind).localizedLabel(locale: locale)) \(entry.count)")
-                        .foregroundStyle(DSColor.attentionInk(entry.kind))
+                    HStack(spacing: 3) {
+                        StateGlyph(state: Self.state(for: entry.kind), size: 9)
+                        if showsCounts { Text(verbatim: "\(entry.count)") }
+                    }
                 }
                 if summary.unread > 0 {
-                    Text("未読 \(summary.unread)")
-                        .foregroundStyle(DSColor.textSecondary)
+                    HStack(spacing: 3) {
+                        Circle().fill(DSColor.accent).frame(width: 6, height: 6).padding(.horizontal, 2)
+                        if showsCounts { Text(verbatim: "\(summary.unread)") }
+                    }
                 }
             }
-            .font(DSFont.meta.weight(.semibold))
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(DSColor.textSecondary)
+            .monospacedDigit()
             .lineLimit(1)
             .fixedSize()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(verbatim: accessibilityText))
         }
+    }
+
+    /// 記号は読み上げないので、「承認待ち 1、未読 1」の文で読む。
+    private var accessibilityText: String {
+        var parts = summary.attention.map { "\(Self.state(for: $0.kind).localizedLabel(locale: locale)) \($0.count)" }
+        if summary.unread > 0 {
+            parts.append(String(format: AppLocalizedString.string("未読 %lld", locale: locale), summary.unread))
+        }
+        return parts.joined(separator: AppLocalizedString.string("、", locale: locale))
     }
 
     static func state(for kind: AttentionKind) -> SessionDisplayState {
@@ -395,16 +416,9 @@ struct SidebarRenameField: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            field
-            // 案内は行の中に出す（重ね表示だと下の行の文字と重なる）。
-            Text(hint)
-                .font(DSFont.meta)
-                .foregroundStyle(DSColor.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityHidden(true)
-        }
-        .padding(.vertical, 4)
+        // 03 F6: 行の高さは変えず、案内は行の下に重なる吹き出しで出す（描くのはサイドバー側）。
+        field
+            .anchorPreference(key: SidebarRenameHintKey.self, value: .bounds) { SidebarRenameHint(anchor: $0, text: hint) }
     }
 
     private var field: some View {
@@ -414,7 +428,8 @@ struct SidebarRenameField: View {
             .padding(.horizontal, 5)
             .frame(height: 20)
             .background(DSColor.fieldBackground, in: RoundedRectangle(cornerRadius: 4))
-            .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(DSColor.accent, lineWidth: 2))
+            // 外側 2pt の accent の輪（box-shadow: 0 0 0 2px）。
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(DSColor.accent, lineWidth: 2).padding(-1))
             .focused($focused)
             .onAppear { focused = true }
             .onSubmit { onCommit(true) }
@@ -423,5 +438,79 @@ struct SidebarRenameField: View {
                 if !isFocused { onCommit(false) }
             }
             .help(Text(hint))
+    }
+}
+
+struct SidebarRenameHint {
+    let anchor: Anchor<CGRect>
+    let text: LocalizedStringKey
+}
+
+struct SidebarRenameHintKey: PreferenceKey {
+    static var defaultValue: SidebarRenameHint? { nil }
+    static func reduce(value: inout SidebarRenameHint?, nextValue: () -> SidebarRenameHint?) {
+        value = value ?? nextValue()
+    }
+}
+
+/// 名前変更の欄の 4pt 下に出す吹き出し（PhloxSidebar.dc.html）。幅が足りなければ折り返す。
+/// 一覧の末尾で下に収まらないときは欄の上に出す。
+struct SidebarRenameHintBubble: View {
+    let hint: SidebarRenameHint
+    @State private var height: CGFloat = 0
+
+    var body: some View {
+        GeometryReader { proxy in
+            let rect = proxy[hint.anchor]
+            let below = rect.maxY + 4 + height <= proxy.size.height
+            bubble(maxWidth: max(0, proxy.size.width - rect.minX - 10))
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+                .frame(height: below ? nil : max(0, rect.minY - 4), alignment: .bottomLeading)
+                .offset(x: rect.minX, y: below ? rect.maxY + 4 : 0)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func bubble(maxWidth: CGFloat) -> some View {
+        Text(hint.text)
+            .font(DSFont.meta)
+            .lineSpacing(2)
+            .foregroundStyle(DSColor.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(DSColor.popoverBackground, in: RoundedRectangle(cornerRadius: DSRadius.row))
+            .shadow(color: DSShadow.popover.color, radius: DSShadow.popover.radius, y: DSShadow.popover.y)
+            .frame(maxWidth: maxWidth, alignment: .leading)
+    }
+}
+
+/// 右クリックのメニューを開いている行に、ホバーの面と内側 2pt の accent の輪を付ける（03 F2・F4）。
+/// macOS ではメニュー内容の onAppear が呼ばれないため、ポインタが乗った行へのクリックでメニューの追跡が始まったら開いたとみなす。
+private struct SidebarMenuOpenRing<Menu: View>: ViewModifier {
+    @ViewBuilder let menu: () -> Menu
+    @State private var isHovering = false
+    @State private var isOpen = false
+
+    func body(content: Content) -> some View {
+        content
+            .background(isOpen ? DSColor.fillSubtle : .clear, in: RoundedRectangle(cornerRadius: DSRadius.row))
+            .overlay {
+                if isOpen {
+                    RoundedRectangle(cornerRadius: DSRadius.row).strokeBorder(DSColor.accent, lineWidth: 2)
+                        .allowsHitTesting(false)
+                }
+            }
+            .onHover { isHovering = $0 }
+            .onReceive(NotificationCenter.default.publisher(for: NSMenu.didBeginTrackingNotification)) { _ in
+                // この行へのクリック（右クリック・⋯）で開いたときだけ。キーボードで開いたメインメニューなどは除く。
+                let type = NSApp.currentEvent?.type
+                if isHovering, type == .rightMouseDown || type == .leftMouseDown { isOpen = true }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSMenu.didEndTrackingNotification)) { _ in
+                isOpen = false
+            }
+            .contextMenu { menu() }
     }
 }

@@ -99,6 +99,33 @@ func projectDeletionDescendantCount_includesNestedCrossProjectGrandchild() async
     #expect(dashboard.projectDeletionDescendantCount(of: projectA) == 1)
 }
 
+/// サイドバーに出ない内部セッション（orchestration）も削除されるので、同じプロジェクトの分として数え、「ほかのプロジェクト」に混ぜない。
+@Test @MainActor
+func projectDeletionDescendantCount_treatsHiddenChildInSameProjectAsOwn() async throws {
+    let ptyManager = MockPTYManager()
+    let workspaceURL = try makeTemporaryWorkspaceRoot()
+    defer { cleanupTemporaryWorkspaceRoot(workspaceURL) }
+    let folderA = workspaceURL.appendingPathComponent("hidden-a", isDirectory: true)
+    try FileManager.default.createDirectory(at: folderA, withIntermediateDirectories: true)
+
+    let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+    let environment = makeProjectDeletionTestEnvironment(
+        pty: ptyManager,
+        hookStream: hookStream,
+        workspaceDirectory: workspaceURL
+    )
+    let dashboard = DashboardViewModel(environment: environment)
+    await dashboard.start()
+
+    let projectA = try #require(dashboard.addProject(name: "A", directoryPath: folderA.path))
+    let rootID = try await dashboard.spawnNewSession(kind: .claudeCode, projectID: projectA)
+    _ = try await dashboard.spawnNewSession(kind: .claudeCode, projectID: projectA, from: rootID, launchContext: .orchestration)
+    try await waitUntil { ptyManager.spawnCalls.count == 2 }
+
+    #expect(dashboard.projectDeletionDescendantCount(of: projectA) == 0)
+    #expect(dashboard.gridSessionNodes(in: projectA).count == 2)
+}
+
 @Test @MainActor
 func projectDeletionDescendantCount_deduplicatesOverlappingSubtrees() async throws {
     let ptyManager = MockPTYManager()
@@ -131,33 +158,42 @@ func projectDeletionDescendantCount_deduplicatesOverlappingSubtrees() async thro
     #expect(dashboard.projectDeletionDescendantCount(of: projectA) == 2)
 }
 
-// MARK: - ProjectDeletionDialogText
+// MARK: - ProjectDeletionDialogText（09 D4 / 03 F8 の文言）
 
 @Test
-func projectDeletionDialogText_title_omitsCountWhenZero() {
-    #expect(ProjectDeletionDialogText.title(descendantCount: 0) == "このプロジェクトを削除しますか?")
+func projectDeletionDialogText_title_namesTheProject() {
+    #expect(ProjectDeletionDialogText.title(projectName: "phlox-core") == "プロジェクト「phlox-core」を削除しますか?")
 }
 
 @Test
-func projectDeletionDialogText_title_includesCountWhenPositive() {
-    #expect(ProjectDeletionDialogText.title(descendantCount: 1) == "このプロジェクトの削除で子孫1件も削除されますか?")
-    #expect(ProjectDeletionDialogText.title(descendantCount: 3) == "このプロジェクトの削除で子孫3件も削除されますか?")
-}
-
-@Test
-func projectDeletionDialogText_message_omitsCountWhenZero() {
+func projectDeletionDialogText_message_countsSessionsAndChildren() {
     #expect(
-        ProjectDeletionDialogText.message(descendantCount: 0)
-            == "配下のセッションはすべて停止されます。フォルダ自体は削除されません。"
+        ProjectDeletionDialogText.message(sessionCount: 6, childCount: 2)
+            == "このプロジェクトのセッション 6 件（子セッション 2 件を含む）を停止し、一覧から外します。会話は元に戻せません。"
+    )
+    #expect(
+        ProjectDeletionDialogText.message(sessionCount: 3, childCount: 0)
+            == "このプロジェクトのセッション 3 件を停止し、一覧から外します。会話は元に戻せません。"
+    )
+    #expect(ProjectDeletionDialogText.message(sessionCount: 0, childCount: 0) == "このプロジェクトを一覧から外します。")
+}
+
+/// ほかのプロジェクトにある子孫も一緒に消えるので、「このプロジェクトのセッション」に混ぜずに分けて書く。
+@Test
+func projectDeletionDialogText_message_namesChildrenInOtherProjects() {
+    #expect(
+        ProjectDeletionDialogText.message(sessionCount: 4, childCount: 1, otherProjectChildCount: 2)
+            == "このプロジェクトのセッション 4 件（子セッション 1 件を含む）と、ほかのプロジェクトにある子セッション 2 件を停止し、一覧から外します。会話は元に戻せません。"
+    )
+    #expect(
+        ProjectDeletionDialogText.message(sessionCount: 1, childCount: 0, otherProjectChildCount: 3)
+            == "このプロジェクトのセッション 1 件と、ほかのプロジェクトにある子セッション 3 件を停止し、一覧から外します。会話は元に戻せません。"
     )
 }
 
 @Test
-func projectDeletionDialogText_message_includesCountWhenPositive() {
-    let message = ProjectDeletionDialogText.message(descendantCount: 2)
-    #expect(message.contains("子孫セッション2件"))
-    #expect(message.contains("この一覧に表示されていない子孫セッション"))
-    #expect(message.contains("フォルダ自体は削除されません。"))
+func projectDeletionDialogText_note_keepsTheFolder() {
+    #expect(ProjectDeletionDialogText.note(folderPath: "~/dev/phlox") == "フォルダ「~/dev/phlox」とその中のファイルは削除されません。")
 }
 
 // MARK: - Helpers

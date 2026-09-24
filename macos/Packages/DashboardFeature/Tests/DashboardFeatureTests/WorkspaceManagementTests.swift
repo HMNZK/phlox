@@ -429,6 +429,51 @@ func moveSession_persistsProjectIDAndWorkingDirectory() async throws {
     #expect(saved.workingDirectory == folderB.path)
 }
 
+/// 03: チャット型も別プロジェクトへ移せる。所属だけを付け替え、再起動せず、作業フォルダと会話 ID は保存済みのまま残す。
+@Test @MainActor
+func moveSession_chatSession_changesProjectOnlyAndKeepsWorkingDirectory() async throws {
+    let workspaceURL = try makeTemporaryWorkspaceRoot()
+    defer { cleanupTemporaryWorkspaceRoot(workspaceURL) }
+    let folderA = workspaceURL.appendingPathComponent("chat-a", isDirectory: true)
+    let folderB = workspaceURL.appendingPathComponent("chat-b", isDirectory: true)
+    try FileManager.default.createDirectory(at: folderA, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: folderB, withIntermediateDirectories: true)
+
+    let sessionStore = InMemorySessionStore()
+    let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+    let environment = makeTestEnvironment(
+        pty: MockPTYManager(),
+        hookStream: hookStream,
+        projects: InMemoryProjectStore(),
+        sessions: sessionStore,
+        workspaceDirectory: workspaceURL,
+        agentBinaryPaths: [.codex: "/usr/local/bin/codex"],
+        appServerClientFactory: { _, _, _, _, _ in EventYieldingStructuredClient() }
+    )
+    let dashboard = DashboardViewModel(environment: environment)
+    await dashboard.start()
+
+    let projectA = try #require(dashboard.addProject(name: "A", directoryPath: folderA.path))
+    let projectB = try #require(dashboard.addProject(name: "B", directoryPath: folderB.path))
+    let sessionID = try await dashboard.spawnNewSession(kind: .codex, projectID: projectA, backend: .appServer)
+    let chat = try #require(dashboard.sessionNode(id: sessionID)?.appServer)
+    try await waitUntil { await sessionStore.load().first(where: { $0.id == sessionID })?.projectID == projectA }
+    let before = try #require(await sessionStore.load().first { $0.id == sessionID })
+
+    await dashboard.moveSession(sessionID, to: projectB)
+
+    #expect(chat.projectID == projectB)
+    #expect(dashboard.sessionNode(id: sessionID)?.appServer === chat)
+    try await waitUntil { await sessionStore.load().first(where: { $0.id == sessionID })?.projectID == projectB }
+    let saved = try #require(await sessionStore.load().first { $0.id == sessionID })
+    #expect(saved.workingDirectory == before.workingDirectory)
+    #expect(saved.workingDirectory != folderB.path)
+    #expect(saved.chatNativeSessionId == before.chatNativeSessionId)
+    #expect(saved.codexThreadId == before.codexThreadId)
+    // 復元で移動先の worktree 設定が作業フォルダを変えないよう、隔離しない印を残す。
+    #expect(saved.worktreeIsolationOptOut == true)
+}
+
 /// 03 F3: 未割当のセッションも既存のプロジェクトへ割り当てられる（そのフォルダで再起動する）。
 @Test @MainActor
 func moveSession_assignsUnassignedSessionToProject() async throws {

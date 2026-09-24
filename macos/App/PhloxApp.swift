@@ -524,11 +524,15 @@ private struct FileCommands: Commands {
 
             Divider()
 
+        }
+        // 標準の「閉じる」「すべてを閉じる」をこの 1 項目に置き換える。行き先が無ければウィンドウを閉じる。
+        CommandGroup(replacing: .saveItem) {
             Button(closeTitle) {
-                _ = performCloseSelectedSession(router: router)
+                if !performCloseSelectedSession(router: router) {
+                    NSApp.keyWindow?.performClose(nil)
+                }
             }
             .keyboardShortcut("w", modifiers: .command)
-            .disabled(router?.selectedSession == nil)
         }
     }
 
@@ -541,6 +545,13 @@ private struct FileCommands: Commands {
         case .childTab, nil: return "閉じる"
         }
     }
+}
+
+/// 子タブの操作（分割・次前のタブ）が効く状態。`AppRouter.toggleSplit` / `cycleChildTab` の条件と同じ。
+@MainActor
+private func canUseChildTabs(_ router: AppRouter?) -> Bool {
+    guard let router else { return false }
+    return router.viewMode == .single && !router.commonTerminalSelected && router.selectedSession != nil
 }
 
 /// 前面に出ている会話（appServer）の ViewModel。PTY セッションと、共通ターミナルを
@@ -595,7 +606,7 @@ private struct ViewCommands: Commands {
 
             Button("右に分割して開く") { router?.toggleSplit() }
                 .keyboardShortcut("\\", modifiers: .command)
-                .disabled(router?.selectedSession == nil)
+                .disabled(!canUseChildTabs(router))
 
             Divider()
 
@@ -686,10 +697,10 @@ private struct SessionCommands: Commands {
             }
             Button("次のタブ") { router?.cycleChildTab(by: 1) }
                 .keyboardShortcut(.tab, modifiers: .control)
-                .disabled(router?.selectedSession == nil)
+                .disabled(!canUseChildTabs(router))
             Button("前のタブ") { router?.cycleChildTab(by: -1) }
                 .keyboardShortcut(.tab, modifiers: [.control, .shift])
-                .disabled(router?.selectedSession == nil)
+                .disabled(!canUseChildTabs(router))
 
             // 表示モードは変えずに選ぶ（グリッドではそのタイルがフォーカスになる）。
             Button("次の対応待ちへ") {
@@ -759,6 +770,10 @@ private struct SessionCommands: Commands {
                         Button(project.name) {
                             router?.sidebarRequest = .moveSession(node.id, project.id)
                         }
+                        .disabled(dashboard?.canMoveSession(node.id) == false)
+                    }
+                    if dashboard?.canMoveSession(node.id) == false {
+                        Text("worktree で動いているチャットは移動できません")
                     }
                     if node.pty != nil {
                         Divider()

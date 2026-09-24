@@ -88,20 +88,16 @@ enum SessionDeletionDialogText {
 
 /// D4: 文言は `ProjectDeletionDialogText`（テストで固定）と同じ。表示言語が日本語以外なら訳を引く。
 extension ProjectDeletionDialogText {
-    static func title(descendantCount: Int, locale: Locale) -> String {
-        descendantCount > 0
-            ? String(format: AppLocalizedString.string("このプロジェクトの削除で子孫%lld件も削除されますか?", locale: locale), descendantCount)
-            : AppLocalizedString.string("このプロジェクトを削除しますか?", locale: locale)
+    static func title(projectName: String, locale: Locale) -> String {
+        String(format: AppLocalizedString.string("プロジェクト「%@」を削除しますか?", locale: locale), projectName)
     }
 
-    static func message(descendantCount: Int, locale: Locale) -> String {
-        descendantCount > 0
-            ? String(format: AppLocalizedString.string("配下のセッションはすべて停止されます。この一覧に表示されていない子孫セッション%lld件も併せて削除されます。フォルダ自体は削除されません。", locale: locale), descendantCount)
-            : AppLocalizedString.string("配下のセッションはすべて停止されます。フォルダ自体は削除されません。", locale: locale)
+    static func message(sessionCount: Int, childCount: Int, otherProjectChildCount: Int = 0, locale: Locale) -> String {
+        let (format, args) = messageFormat(sessionCount: sessionCount, childCount: childCount, otherProjectChildCount: otherProjectChildCount)
+        return String(format: AppLocalizedString.string(format, locale: locale), arguments: args)
     }
 
-    /// 固定の本文に続けて、消えるセッションの件数と取り返せないことを書く（09 D4）。
-    static func irreversibleNote(sessionCount: Int, locale: Locale) -> String {
-        String(format: AppLocalizedString.string("セッション %lld 件の会話とターミナルの内容は元に戻せません。", locale: locale), sessionCount)
+    static func note(folderPath: String, locale: Locale) -> String {
+        String(format: AppLocalizedString.string("フォルダ「%@」とその中のファイルは削除されません。", locale: locale), folderPath)
     }
 }

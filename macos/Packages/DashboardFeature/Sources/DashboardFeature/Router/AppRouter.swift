@@ -194,13 +194,9 @@ public final class AppRouter {
     }
 
     /// サイドバーでプロジェクト行をクリックしたときの遷移（`showProject`）。
-    /// グリッドでは、すでに表示範囲にしているプロジェクトをもう一度押すと範囲を外す（従来のトグル）。
+    /// もう一度押しても範囲は外さない。外すのは ⌘クリック（`clearProjectScope`）だけ（03 M。2026-09-24 ユーザー決定）。
     public func selectProjectFromSidebar(_ projectID: ProjectID) {
-        let wasScoped = gridFilterProjectID == projectID
         showProject(projectID)
-        if viewMode == .grid, wasScoped {
-            gridFilterProjectID = nil
-        }
     }
 
     /// サイドバーでプロジェクト行を選ぶ（↑↓・クリック）。選んだプロジェクトがグリッドの表示範囲になる（03 行の規則）。

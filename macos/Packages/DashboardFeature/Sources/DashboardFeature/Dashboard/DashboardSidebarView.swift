@@ -13,7 +13,7 @@ struct PendingSessionMove: Identifiable {
 
 /// サイドバー（03）。上から「対応待ち」→「プロジェクト」→「その他（未割当）」。
 /// 対応待ちの節は固定し、スクロールするのはプロジェクト以下だけ。スクロール中はプロジェクト行を上端に貼り付ける。
-struct DashboardSidebarView<NewSessionMenuContent: View>: View {
+struct DashboardSidebarView: View {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
     @Binding var expandedProjectIDs: Set<ProjectID>
@@ -25,8 +25,7 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
     @Binding var renameRequest: SessionID?
     @Binding var sessionTreeViewModel: SessionTreeViewModel
     let onChooseProjectDirectory: () -> Void
-    let newSessionMenuItems: (ProjectID?) -> NewSessionMenuContent
-    /// プロジェクト行の ＋ で開く表（Sidebar F5）。右クリックのメニューは `newSessionMenuItems` のまま。
+    /// プロジェクト行の ＋ と右クリックの「新規セッション…」で開く表（Sidebar F4・F5）。
     let newSessionTable: (ProjectID?) -> NewSessionTable
 
     @Environment(\.locale) private var locale
@@ -53,7 +52,6 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
         renameRequest: Binding<SessionID?>,
         sessionTreeViewModel: Binding<SessionTreeViewModel>,
         onChooseProjectDirectory: @escaping () -> Void,
-        @ViewBuilder newSessionMenuItems: @escaping (ProjectID?) -> NewSessionMenuContent,
         newSessionTable: @escaping (ProjectID?) -> NewSessionTable
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
@@ -66,7 +64,6 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
         _renameRequest = renameRequest
         _sessionTreeViewModel = sessionTreeViewModel
         self.onChooseProjectDirectory = onChooseProjectDirectory
-        self.newSessionMenuItems = newSessionMenuItems
         self.newSessionTable = newSessionTable
     }
 
@@ -84,6 +81,11 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
                     }
                     .padding(.horizontal, 10)
                     .padding(.bottom, 10)
+                }
+                // 名前変更の案内は行の外で描く（LazyVStack では zIndex が効かず、下の行に隠れるため）。
+                // 見えている範囲で測り、下に収まらなければ欄の上に出す。
+                .overlayPreferenceValue(SidebarRenameHintKey.self) { hint in
+                    if let hint { SidebarRenameHintBubble(hint: hint) }
                 }
                 .onChange(of: currentItem) { _, item in
                     guard let item, listFocused else { return }
@@ -105,7 +107,7 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
             renameRequest = nil
             revealAndRename(id)
         }
-        .onChange(of: router.projectRenameRequest) { _, id in
+        .onChange(of: router.projectRenameRequest, initial: true) { _, id in
             guard let id else { return }
             router.projectRenameRequest = nil
             beginRename(.project(id))
@@ -200,8 +202,8 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .semibold))
+                Text(verbatim: "›")
+                    .font(.system(size: 13))
                     .foregroundStyle(DSColor.textTertiary)
                     .rotationEffect(.degrees(unreadExpanded && unread.count > 1 ? 90 : 0))
             }
@@ -275,9 +277,9 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
 
     private var emptyState: some View {
         VStack(spacing: 10) {
-            Image(systemName: "folder")
-                .font(.system(size: 28, weight: .light))
-                .foregroundStyle(DSColor.textTertiary)
+            FolderShape()
+                .stroke(DSColor.textTertiary, lineWidth: 1.7)
+                .frame(width: 34, height: 28)
                 .accessibilityHidden(true)
             Text("プロジェクトがありません")
                 .font(DSFont.row.weight(.semibold))
@@ -286,7 +288,7 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
                 .font(DSFont.auxiliary)
                 .foregroundStyle(DSColor.textSecondary)
                 .multilineTextAlignment(.center)
-                .lineSpacing(3)
+                .lineSpacing(4.5)
             Button(action: onChooseProjectDirectory) {
                 HStack(spacing: 6) {
                     Text("フォルダを追加…")
@@ -381,8 +383,10 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
 
     @ViewBuilder
     private func projectMenu(_ project: Project) -> some View {
-        Menu("新規セッション") {
-            newSessionMenuItems(project.id)
+        // 03 F4: 押すと F5 の表（下端の「新規セッション」と同じ）をこのプロジェクトで開く。
+        Button("新規セッション…") {
+            router.selectProject(project.id)
+            router.newSessionTablePresented = true
         }
         Divider()
         Button("名前を変更…") { beginRename(.project(project.id)) }
@@ -399,14 +403,26 @@ struct DashboardSidebarView<NewSessionMenuContent: View>: View {
     @ViewBuilder
     private func sessionMenu(_ node: SessionNode) -> some View {
         Button("名前を変更…") { beginRename(.session(node.id)) }
-        if let pty = node.pty {
-            // 「別のプロジェクトへ移動」と「プロジェクトを変更（フォルダを選ぶ）」を 1 つにまとめる（03 F2・F3）。
-            Menu(node.projectID == nil ? "プロジェクトに割り当てる" : "プロジェクトを移動") {
-                ForEach(viewModel.projects.filter { $0.id != node.projectID }) { project in
-                    Button(project.name) {
+        // 「別のプロジェクトへ移動」と「プロジェクトを変更（フォルダを選ぶ）」を 1 つにまとめる（03 F2・F3）。
+        // チャット型は所属だけを移すので、フォルダ選択と再起動の注記は出さない。
+        Menu(node.projectID == nil ? "プロジェクトに割り当てる" : "プロジェクトを移動") {
+            let canMove = viewModel.canMoveSession(node.id)
+            ForEach(viewModel.projects.filter { $0.id != node.projectID }) { project in
+                Button {
+                    if node.pty == nil {
+                        router.sidebarRequest = .moveSession(node.id, project.id)
+                    } else {
                         pendingMove = PendingSessionMove(sessionID: node.id, sessionTitle: node.displayName, project: project)
                     }
+                } label: {
+                    Label(project.name, systemImage: "folder")
                 }
+                .disabled(!canMove)
+            }
+            if !canMove {
+                Text("worktree で動いているチャットは移動できません")
+            }
+            if let pty = node.pty {
                 Divider()
                 Button("フォルダを選択…") { pendingWorkspaceChange = pty }
                 Text("移動するとセッションは再起動します")

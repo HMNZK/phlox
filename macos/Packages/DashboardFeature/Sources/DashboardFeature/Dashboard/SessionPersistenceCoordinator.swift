@@ -208,8 +208,9 @@ final class SessionPersistenceCoordinator {
     }
 
     /// changeWorkspace/moveSession 後の workingDirectory / projectID を descriptor へ反映する（B10）。
+    /// `workingDirectory` が nil なら保存済みの値を残す（チャット型の移動）。`optOutIsolation` なら復元で worktree を作らない。
     /// PersistedSessionDescriptor に該当 updating ヘルパーが無いため全フィールドコピーで再構築する。
-    func persistSessionWorkspace(id: SessionID, workingDirectory: String, projectID: ProjectID?) {
+    func persistSessionWorkspace(id: SessionID, workingDirectory: String?, projectID: ProjectID?, optOutIsolation: Bool = false) {
         enqueue {
             var current = await self.sessionStore.load()
             guard let index = current.firstIndex(where: { $0.id == id }) else { return }
@@ -218,7 +219,7 @@ final class SessionPersistenceCoordinator {
             current[index] = PersistedSessionDescriptor(
                 id: existing.id,
                 agentRef: existing.agentRef,
-                workingDirectory: workingDirectory,
+                workingDirectory: workingDirectory ?? existing.workingDirectory,
                 name: existing.name,
                 projectID: projectID,
                 startedAt: existing.startedAt,
@@ -239,7 +240,7 @@ final class SessionPersistenceCoordinator {
                 titleSource: existing.titleSource,
                 flowerName: existing.flowerName,
                 fullDerivedTitle: existing.fullDerivedTitle
-            ).updating(worktreeIsolationOptOut: existing.worktreeIsolationOptOut)
+            ).updating(worktreeIsolationOptOut: optOutIsolation ? true : existing.worktreeIsolationOptOut)
             do {
                 try await self.saveSessionsIfAllowed(loadedCount: current.count, updated: current)
             } catch {

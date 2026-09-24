@@ -6167,6 +6167,127 @@
           }
         }
       }
+    },
+    "このプロジェクトを一覧から外します。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This removes the project from the list."
+          }
+        }
+      }
+    },
+    "このプロジェクトのセッション %lld 件を停止し、一覧から外します。会話は元に戻せません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This stops the project’s %lld sessions and removes them from the list. Conversations can’t be restored."
+          }
+        }
+      }
+    },
+    "このプロジェクトのセッション %lld 件（子セッション %lld 件を含む）を停止し、一覧から外します。会話は元に戻せません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This stops the project’s %1$lld sessions (including %2$lld child sessions) and removes them from the list. Conversations can’t be restored."
+          }
+        }
+      }
+    },
+    "フォルダ「%@」とその中のファイルは削除されません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The folder “%@” and its files won’t be deleted."
+          }
+        }
+      }
+    },
+    "プロジェクト「%@」を削除しますか?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete the project “%@”?"
+          }
+        }
+      }
+    },
+    "↩ 確定 · Esc 取消 · 空欄で「%@」に戻す": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↩ Confirm · Esc Cancel · Leave empty to revert to “%@”"
+          }
+        }
+      }
+    },
+    "セッションは %@ で再起動されます。ターミナルの内容と進行中の作業は失われます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The session will restart in %@. Terminal contents and work in progress will be lost."
+          }
+        }
+      }
+    },
+    "展開中": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "expanded"
+          }
+        }
+      }
+    },
+    "worktree で動いているチャットは移動できません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chats running in a worktree can’t be moved"
+          }
+        }
+      }
+    },
+    "このプロジェクトのセッション %lld 件（子セッション %lld 件を含む）と、ほかのプロジェクトにある子セッション %lld 件を停止し、一覧から外します。会話は元に戻せません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This stops the project’s %1$lld sessions (including %2$lld child sessions) and %3$lld child sessions in other projects, and removes them from the list. Conversations can’t be restored."
+          }
+        }
+      }
+    },
+    "このプロジェクトのセッション %lld 件と、ほかのプロジェクトにある子セッション %lld 件を停止し、一覧から外します。会話は元に戻せません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This stops the project’s %1$lld sessions and %2$lld child sessions in other projects, and removes them from the list. Conversations can’t be restored."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -123,7 +123,8 @@ private func makeWorktreeIsolationEnvironment(
     workspaceDirectory: URL,
     projectStore: WorktreeIsolationProjectStore,
     sessionStore: any SessionStoreProtocol = NoOpSessionStore(),
-    agentBinaryPaths: [AgentKind: String] = [.codex: "/usr/local/bin/codex"]
+    agentBinaryPaths: [AgentKind: String] = [.codex: "/usr/local/bin/codex"],
+    appServerClientFactory: AppEnvironment.AppServerClientFactory? = nil
 ) -> AppEnvironment {
     AppEnvironment(
         pty: pty,
@@ -140,8 +141,16 @@ private func makeWorktreeIsolationEnvironment(
         messages: MockMessageStore(),
         projects: projectStore,
         sessions: sessionStore,
-        cliPath: "/tmp/phlox-worktree-test-cli"
+        cliPath: "/tmp/phlox-worktree-test-cli",
+        appServerClientFactory: appServerClientFactory
     )
+}
+
+private final class RecordedWorkingDirectories: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [String?] = []
+    func append(_ value: String?) { lock.withLock { values.append(value) } }
+    var all: [String?] { lock.withLock { values } }
 }
 
 // 各テストが実 git を複数回起動するため、パッケージ全体の並列実行で
@@ -615,6 +624,72 @@ func restore_chatBinaryNotFound_placeholderMessageIdentifiesTheAgent() async thr
         message.contains("codex"),
         "チャット復元失敗メッセージからエージェント名が失われている: \(message)"
     )
+}
+
+/// 03: 別のプロジェクトへ移したチャット（隔離しない印つき）は、移動先で隔離が有効でも元の作業フォルダで復元し、worktree を作らない。
+@Test @MainActor
+func worktreeIsolation_movedChatRestoresInOriginalFolderWithoutWorktree() async throws {
+    let repository = try WorktreeIsolationRepositoryFixture.repository()
+    let workspaceRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("phlox-moved-chat-restore-\(UUID().uuidString)", isDirectory: true)
+    let originalFolder = workspaceRoot.appendingPathComponent("original", isDirectory: true)
+    try FileManager.default.createDirectory(at: originalFolder, withIntermediateDirectories: true)
+    let sessionID = SessionID()
+    let worktreePath = workspaceRoot.appendingPathComponent(sessionID.rawValue.uuidString, isDirectory: true)
+    defer {
+        cleanupWorktreeIsolationTestWorktree(
+            at: worktreePath,
+            branchName: WorktreeIsolationPlanner.branchName(for: sessionID),
+            in: repository
+        )
+        do {
+            try FileManager.default.removeItem(at: workspaceRoot)
+        } catch {
+            Issue.record("テスト後の一時ディレクトリ削除に失敗: \(error)")
+        }
+    }
+
+    let destination = Project(
+        name: "destination",
+        directoryPath: repository.path,
+        createdAt: Date(timeIntervalSince1970: 0),
+        isManagedDirectory: false,
+        worktreeIsolationEnabled: true
+    )
+    let projectStore = WorktreeIsolationProjectStore()
+    try await projectStore.save([destination])
+    let descriptor = PersistedSessionDescriptor(
+        id: sessionID,
+        kind: .codex,
+        workingDirectory: originalFolder.path,
+        name: "moved-chat",
+        projectID: destination.id,
+        startedAt: Date(timeIntervalSince1970: 0),
+        command: "/usr/local/bin/codex",
+        args: [],
+        env: [:],
+        backend: .appServer,
+        codexThreadId: "thread-moved-chat"
+    ).updating(worktreeIsolationOptOut: true)
+    let recorded = RecordedWorkingDirectories()
+    let environment = makeWorktreeIsolationEnvironment(
+        pty: MockPTYManager(),
+        workspaceDirectory: workspaceRoot,
+        projectStore: projectStore,
+        sessionStore: WorktreeIsolationSessionStore([descriptor]),
+        appServerClientFactory: { _, _, cwd, _, _ in
+            recorded.append(cwd)
+            return EventYieldingStructuredClient()
+        }
+    )
+    let dashboard = DashboardViewModel(environment: environment)
+
+    await dashboard.start()
+
+    let chat = try #require(dashboard.sessionNode(id: sessionID)?.appServer)
+    #expect(chat.projectID == destination.id)
+    #expect(recorded.all == [originalFolder.path])
+    #expect(!FileManager.default.fileExists(atPath: worktreePath.path))
 }
 
 @Test @MainActor

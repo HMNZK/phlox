@@ -15,11 +15,9 @@ public struct DashboardView: View {
     @State private var sidebarWidthAtDragStart: CGFloat = DSLayout.sidebarWidth.ideal
     @State private var inspectorWidth: CGFloat = DSLayout.inspectorWidth.ideal
     @State private var inspectorWidthAtDragStart: CGFloat = DSLayout.inspectorWidth.ideal
-    /// 01 E6: 幅と開閉はウィンドウごとに保存する。
+    /// 01 E6: 幅はウィンドウごとに保存する。開閉は全ウィンドウで共有の `AppRouter` が持つため、ここでは保存しない。
     @SceneStorage("pane.sidebarWidth") private var savedSidebarWidth = Double(DSLayout.sidebarWidth.ideal)
     @SceneStorage("pane.inspectorWidth") private var savedInspectorWidth = Double(DSLayout.inspectorWidth.ideal)
-    @SceneStorage("pane.sidebarVisible") private var savedSidebarVisible = true
-    @SceneStorage("pane.inspectorVisible") private var savedInspectorVisible = false
     @State private var isCreating = false
     /// 起動中の種別（08 S5）と、worktree を作っているか（F2 の案内）。
     @State private var creatingRef: AgentRef?
@@ -88,8 +86,7 @@ public struct DashboardView: View {
 
     private var projectDeletionDialogTitle: String {
         guard let project = pendingProjectDeletion else { return "" }
-        let count = viewModel.projectDeletionDescendantCount(of: project.id)
-        return ProjectDeletionDialogText.title(descendantCount: count, locale: locale)
+        return ProjectDeletionDialogText.title(projectName: project.name, locale: locale)
     }
 
     private var childCloseDialogTitle: Text {
@@ -111,10 +108,16 @@ public struct DashboardView: View {
     }
 
     private func projectDeletionDialogMessage(for project: Project) -> String {
-        let count = viewModel.projectDeletionDescendantCount(of: project.id)
-        let sessions = viewModel.sessionNodes(in: project.id).count + count
-        return ProjectDeletionDialogText.message(descendantCount: count, locale: locale)
-            + (sessions > 0 ? "\n\n" + ProjectDeletionDialogText.irreversibleNote(sessionCount: sessions, locale: locale) : "")
+        // 削除と同じ範囲（サイドバーに出ない内部セッションも含む）で数える。
+        let nodes = viewModel.gridSessionNodes(in: project.id)
+        let path = (project.directoryPath as NSString).abbreviatingWithTildeInPath
+        return ProjectDeletionDialogText.message(
+            sessionCount: nodes.count,
+            childCount: nodes.filter { $0.controllable.parentSessionID != nil }.count,
+            otherProjectChildCount: viewModel.projectDeletionDescendantCount(of: project.id),
+            locale: locale
+        )
+            + "\n\n" + ProjectDeletionDialogText.note(folderPath: path, locale: locale)
     }
 
     public var body: some View {
@@ -304,7 +307,7 @@ public struct DashboardView: View {
                 Button("キャンセル", role: .cancel) { pendingMove = nil }
                     .keyboardShortcut(.defaultAction)
             } message: { move in
-                Text("セッションは \((move.project.directoryPath as NSString).abbreviatingWithTildeInPath) で再起動されます。ターミナルの内容と進行中の作業は失われ、元に戻せません。")
+                Text("セッションは \((move.project.directoryPath as NSString).abbreviatingWithTildeInPath) で再起動されます。ターミナルの内容と進行中の作業は失われます。")
             }
             .dialogSeverity(.critical)
     }
@@ -459,13 +462,9 @@ public struct DashboardView: View {
                 sidebarWidthAtDragStart = sidebarWidth
                 inspectorWidth = CGFloat(savedInspectorWidth)
                 inspectorWidthAtDragStart = inspectorWidth
-                router.sidebarVisible = savedSidebarVisible
-                router.inspectorVisible = savedInspectorVisible
             }
             .onChange(of: sidebarWidth) { _, width in savedSidebarWidth = Double(width) }
             .onChange(of: inspectorWidth) { _, width in savedInspectorWidth = Double(width) }
-            .onChange(of: router.sidebarVisible) { _, visible in savedSidebarVisible = visible }
-            .onChange(of: router.inspectorVisible) { _, visible in savedInspectorVisible = visible }
             .onChange(of: sidebarLacksRoom(windowWidth: windowWidth), initial: true) { _, lacksRoom in
                 router.sidebarLacksRoom = lacksRoom
                 if !lacksRoom {
@@ -643,9 +642,6 @@ public struct DashboardView: View {
                 renameRequest: $sidebarRenameRequest,
                 sessionTreeViewModel: $sessionTreeViewModel,
                 onChooseProjectDirectory: chooseProjectDirectory,
-                newSessionMenuItems: { projectID in
-                    newSessionMenuItems(projectID: projectID)
-                },
                 newSessionTable: { projectID in
                     newSessionTable(projectID: projectID ?? newSessionTableProjectID)
                 }
@@ -675,8 +671,10 @@ public struct DashboardView: View {
                 .foregroundStyle(DSColor.textPrimary)
                 .padding(.horizontal, 10)
                 .frame(height: 26)
-                .background(DSColor.cardBackground, in: RoundedRectangle(cornerRadius: DSRadius.row))
-                .overlay(RoundedRectangle(cornerRadius: DSRadius.row).strokeBorder(DSColor.separator, lineWidth: 0.5))
+                // PhloxSidebar.dc.html:169: --ctl の面、0.5pt の --ctlBorder、影 0 0.5 1。
+                .background(DSColor.controlBackground, in: RoundedRectangle(cornerRadius: DSRadius.row))
+                .overlay(RoundedRectangle(cornerRadius: DSRadius.row).strokeBorder(DSColor.controlBorder, lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.08), radius: 0.5, y: 0.5)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -709,7 +707,7 @@ public struct DashboardView: View {
             Image(systemName: systemImage)
                 .font(.system(size: DSIconSize.l, weight: .medium))
                 .foregroundStyle(DSColor.textSecondary)
-                .frame(width: 28, height: 28)
+                .frame(width: 28, height: 26)
                 .contentShape(Rectangle())
         }
         .buttonStyle(HoverableIconButtonStyle())
@@ -870,37 +868,6 @@ public struct DashboardView: View {
 
     private var editorPanelWorkspaces: [SessionWorkspace] {
         viewModel.workspaceSessionWorkspaces
-    }
-
-    @ViewBuilder
-    private func newSessionMenuItems(projectID: ProjectID?) -> some View {
-        let model = NewSessionMenuModel.make(
-            projectName: viewModel.projects.first { $0.id == projectID }?.name,
-            descriptors: viewModel.availableAgentDescriptors
-        )
-        Text(model.destinationText)
-        if let primary = model.primary {
-            Button {
-                Task {
-                    await createSession(ref: primary.ref, projectID: projectID, backend: primary.backend)
-                }
-            } label: {
-                Label(primary.title, systemImage: primary.systemImage)
-            }
-        }
-        ForEach(model.sections, id: \.title) { section in
-            Section(section.title) {
-                ForEach(section.items) { item in
-                    Button {
-                        Task {
-                            await createSession(ref: item.ref, projectID: projectID, backend: item.backend)
-                        }
-                    } label: {
-                        Label(item.title, systemImage: item.systemImage)
-                    }
-                }
-            }
-        }
     }
 
     private var sidebarShown: Bool {
@@ -1203,6 +1170,14 @@ public struct DashboardView: View {
         case .moveSession(let id, let projectID):
             guard let node = viewModel.sessionNode(id: id),
                   let project = viewModel.projects.first(where: { $0.id == projectID }) else { return }
+            if case .appServer = node {
+                // チャット型は再起動しないので確認を挟まない（会話と作業フォルダはそのまま）。
+                Task {
+                    await viewModel.moveSession(id, to: projectID)
+                    expandedProjectIDs.insert(projectID)
+                }
+                return
+            }
             pendingMove = PendingSessionMove(sessionID: id, sessionTitle: node.displayName, project: project)
         case .changeFolder(let id):
             pendingWorkspaceChange = viewModel.sessionNode(id: id)?.pty

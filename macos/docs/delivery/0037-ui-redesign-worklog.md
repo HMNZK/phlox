@@ -737,7 +737,7 @@ A・C 型は `.dialogSeverity(.critical)`（注意アイコン）、破壊的な
 | E1 未読完了 | 6pt の accent の点と経過時間 | `AttentionListPopover.swift` |
 | インスペクタ上余白 | 上 10（40 だった） | `UsageSidebarView.swift` |
 | D2 重ね表示 | 上端をツールバーの下 8 に | `DashboardView.swift` |
-| E6 境界 | 当たり 8pt、ダブルクリックで既定幅、幅と開閉をウィンドウごとに保存（`@SceneStorage`）。分割の区切りもダブルクリックで 50:50 | `ResizeGripView.swift`、`DashboardView.swift`、`SessionTabsContainer.swift` |
+| E6 境界 | 当たり 8pt、ダブルクリックで既定幅、幅をウィンドウごとに保存（`@SceneStorage`。開閉は全ウィンドウ共有の `AppRouter` が持つため保存しない）。分割の区切りもダブルクリックで 50:50 | `ResizeGripView.swift`、`DashboardView.swift`、`SessionTabsContainer.swift` |
 | C1 上段タブ | 内容の幅（最大 220）、左右 10・間 6、選択は 600、頭文字 10/700 等幅、状態 10.5/700、✕ は選択中だけ、＋はタブの直後 | `SessionTabBar.swift` |
 | C7 隠れたタブ | 11.5/600・角丸 6 | `SessionTabBar.swift` |
 | C1 子タブ | 左右 10、子タブの左右 10・間 6、記号 10/700、＋は子タブの直後、未保存の点は本文色 | `SessionTabsContainer.swift` |
@@ -757,3 +757,56 @@ A・C 型は `.dialogSeverity(.critical)`（注意アイコン）、破壊的な
 
 - `.claude/verify.sh` 合格（DesignSystem・AgentDomain・SessionFeature・DashboardFeature・アプリのビルド）。
 - Debug 版をダーク（1680 / 1100 / 900 幅）・ライト・英語で撮影して確認（`/tmp/phlox-audit/f2/`）。英語のメニュー項目をアクセシビリティ経由で列挙し、訳の抜け（「エージェント管理…」「次のセッション」「前のセッション」）を足した。
+
+### F2 のレビュー後の修正（F3 と同じコミット）
+
+- ⌘W をファイルメニューの「閉じる」の位置（`CommandGroup(replacing: .saveItem)`）へ移し、標準の「閉じる / すべてを閉じる」を出さない。行き先が無ければウィンドウを閉じる。
+- 子タブの分割・次前のタブは、単体表示でセッションを選んでいて共通ターミナルでないときだけ押せる（`canUseChildTabs`）。
+- サイドバー・インスペクタの開閉の保存（`@SceneStorage`）を外した（開閉は全ウィンドウ共有のため、ウィンドウごとに保存すると食い違う）。
+- worktree メニューの「プロジェクト名を変更…」は、サイドバーが隠れていれば開いてから名前の変更に入る。
+
+## F3 忠実度の修正: サイドバー（03 Sidebar）
+
+監査 `docs/agent-output/ui-fidelity-audit/03-sidebar.md` の指摘を直した。
+
+### 対応表
+
+| 監査の指摘 | 内容 | 実装箇所 |
+|---|---|---|
+| F2・F3 移動（高） | チャット型にも「プロジェクトを移動 / プロジェクトに割り当てる」を出す。チャット型は所属だけを付け替え、再起動しない（作業フォルダ・会話 ID・会話の記録はそのまま）ので確認を挟まない。復元で移動先の worktree 設定が作業フォルダを変えないよう、隔離しない印（`worktreeIsolationOptOut`）も保存する。自分用の worktree で動くチャットは移せない（worktree が元のプロジェクトのリポジトリのもののため）ので、項目を押せなくして「worktree で動いているチャットは移動できません」と出す。フォルダ選択と「移動するとセッションは再起動します」はターミナル型だけ。メニューバーの「別のプロジェクトへ移動」も同じ経路 | `DashboardViewModel.moveSession` / `canMoveSession`、`SessionPersistenceCoordinator.persistSessionWorkspace`（作業フォルダ nil は保存済みを残す）、`DashboardView.handle`、`DashboardSidebarView.sessionMenu`、`App/PhloxApp.swift` |
+| F2 移動先の項目 | フォルダの印＋名前 | `DashboardSidebarView.swift` |
+| F2・F4 メニューを開いた行 | ホバーの面＋内側 2pt の accent の輪。macOS ではメニュー内容の onAppear が呼ばれないため、ポインタが乗った行へのクリック（右クリック・⋯）で `NSMenu.didBeginTrackingNotification` が来たら開いたとみなす（キーボードで開いたメインメニューでは付けない） | `SidebarRows.swift`（`SidebarMenuOpenRing`） |
+| F4 新規セッション… | サブメニューをやめ、押すと新規セッションの表を開く | `DashboardSidebarView.swift` |
+| F6 行の高さ・案内 | 行の高さは 26 のまま。案内は欄の 4pt 下の吹き出し（ポップオーバー面・影・角丸 6・6 9・11 fg2）。LazyVStack では zIndex が効かず下の行に隠れるため、`anchorPreference` で位置を渡してスクロール領域の上に描く。幅が足りなければ折り返し、見えている範囲の下に収まらなければ欄の上に出す | `SidebarRows.swift`（`SidebarRenameHintBubble`）、`DashboardSidebarView.swift` |
+| F6 案内の文言 | 戻り先を具体的に出す（「空欄で「#805AA9」に戻す」） | `SidebarRows.swift` |
+| F6 入力欄 | 外側 2pt の accent の輪 | `SidebarRows.swift` |
+| S1 シェブロン・フォルダ・範囲の印 | 文字「›」13、フォルダはモックの線画 16×13・線 1.2、範囲の印は 4 マス 12×11・線 1.4 | `SidebarRows.swift`、`StateGlyph.swift`（`FolderShape`・`GridScopeShape`） |
+| S5 畳んだ行の要約 | 記号＋件数（「▲1」）11/600 fg2（ユーザー決定）。読み上げは文で出す | `SidebarRows.swift`（`SidebarSummaryText`） |
+| S6 +n ピル | 面 `segmentTrack`・角丸 8、中身は記号 | `SidebarRows.swift` |
+| S6 案内線 | `--guide`（本文色 13% / 14%） | `SidebarRows.swift`、`Tokens.swift`（`DSColor.guide`） |
+| S3 空状態 | フォルダの線画 34×28、説明の行間 1.6 相当 | `DashboardSidebarView.swift` |
+| 下端のボタン | 面 `controlBackground`（ダーク #3A3A3E）、縁 0.5pt `controlBorder`、影。エージェント管理・設定は 28×26 | `DashboardView.swift` |
+| F8 プロジェクト削除 | 題「プロジェクト「X」を削除しますか?」、本文「このプロジェクトのセッション N 件（子セッション M 件を含む）を停止し、一覧から外します。会話は元に戻せません。」（0 件は「このプロジェクトを一覧から外します。」）、注記「フォルダ「~/…」とその中のファイルは削除されません。」。ほかのプロジェクトにある子孫も一緒に消えるので「…と、ほかのプロジェクトにある子セッション K 件を停止し…」と分けて書く。件数は削除と同じ範囲（サイドバーに出ない内部セッションも含む） | `DashboardViewModelSupportingTypes.swift`（`ProjectDeletionDialogText`）、`DialogTexts.swift`、`DashboardView.swift` |
+| F9 移動確認 | 「、元に戻せません」を外す | `DashboardView.swift` |
+| M 範囲中の行をもう一度押す | 範囲を外さない（ユーザー決定。凍結テスト `AcceptanceSingleModeProjectSelectTests` を承認のうえ更新） | `AppRouter.selectProjectFromSidebar` |
+| 読み上げ | プロジェクト行の開閉状態を「展開中 / 折りたたみ」（英語 expanded / collapsed）。「展開」は操作名と同じキーで、英語が「Expand」になっていた | `SidebarRows.swift` |
+
+### 直していないもの
+
+- F6 空欄で確定したときの戻り先: モックは自動の名前（花名＋短縮 ID）だが、凍結テスト `AcceptanceSessionTitleStateTests.renameToBlankStaysEmptyManual` が「空欄は空の手動名（表示は短縮 ID）」を求めている。案内は実際の戻り先（短縮 ID）を出す。変えるにはテストの変更の承認が要る。
+- F6 選択した文字の色（`--selText`）: SwiftUI の TextField では変えられない。
+- F2・F4 メニューのキー表記（↩・⌘⌫）: 右クリックメニューにキーを付けると、ほかの場所のキーと重なる恐れがあるため付けない。「プロジェクトを削除…」「セッションを削除…」は `role: .destructive` だが、macOS の右クリックメニューでは赤く描かれない。
+- S1 無応答の右端の時間（「無応答 2:14」）: 13 Review の決定を残す。
+- S1 対応待ち 0・未読 0 のときの節: モックに見本が無いので出さないまま。
+- S3 プロジェクト 0 件の「新規セッション」を押せなくする: 押しても始められないため残す。
+- F7 セッション削除の出し方（シート）: 09 で扱う。
+- 監査 5「実行中 2 件」との食い違い: 08 で扱う。
+- F8 本文にターミナルの内容が消えることは書かない（モックの文言どおり「会話は元に戻せません」）。
+- 名前変更の吹き出しを欄の上に出す場合: Debug のデータでは行が足りず（ウィンドウの最小の高さ 572）、実画面では再現できていない。コードだけで確認。
+
+### 検証
+
+- 追加したテスト: `moveSession_chatSession_changesProjectOnlyAndKeepsWorkingDirectory`（所属が移る・同じセッションのまま・保存済みの作業フォルダと会話 ID が変わらない・隔離しない印が付く）、`worktreeIsolation_movedChatRestoresInOriginalFolderWithoutWorktree`（隔離が有効な移動先でも元のフォルダで復元し worktree を作らない。印を外すと失敗することを確認）、`projectDeletionDialogText_message_namesChildrenInOtherProjects`、`projectDeletionDescendantCount_treatsHiddenChildInSameProjectAsOwn`。
+- 独立レビュー（Codex）2 回。指摘 4 件（チャット移動後の復元・削除確認の件数・輪の誤表示・吹き出しの見切れ）を直した。
+- `.claude/verify.sh` 合格（DesignSystem・AgentDomain・SessionFeature・DashboardFeature・アプリのビルド）。
+- Debug 版をダーク・ライト・英語で撮影して確認（`/tmp/phlox-audit/f3/`）: 畳んだ行の「▲1」、右クリック中の輪と閉じた後に消えること、名前変更の吹き出しが下の行より前に出ること、プロジェクト削除の確認（キャンセルが既定・削除が赤）。

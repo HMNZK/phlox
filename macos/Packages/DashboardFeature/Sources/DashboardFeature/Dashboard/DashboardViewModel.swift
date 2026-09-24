@@ -1328,9 +1328,18 @@ public final class DashboardViewModel {
     /// 対象を kill し移動先フォルダで再起動する。
     /// `changeWorkspace` と同様に hook を再設置し stream を差し替える。`session.projectID` を更新する。
     public func moveSession(_ id: SessionID, to projectID: ProjectID) async {
+        guard let targetProject = projects.first(where: { $0.id == projectID }) else { return }
+        // チャット型は所属だけを付け替える。作業フォルダと会話はそのまま（再起動すると再開条件が変わるため）。
+        // 復元で移動先の worktree 設定が作業フォルダを変えないよう、隔離しない印も保存する。
+        if case .appServer(let chat) = sessionNode(id: id) {
+            guard chat.projectID != projectID, canMoveSession(id) else { return }
+            chat.projectID = projectID
+            reconcilePaneLayout()
+            persistence.persistSessionWorkspace(id: id, workingDirectory: nil, projectID: projectID, optOutIsolation: true)
+            return
+        }
         guard let vm = sessions.first(where: { $0.id == id }) else { return }
         guard vm.projectID != projectID else { return }
-        guard let targetProject = projects.first(where: { $0.id == projectID }) else { return }
 
         let directory = URL(fileURLWithPath: targetProject.directoryPath, isDirectory: true)
         await restartSession(
@@ -1339,6 +1348,13 @@ public final class DashboardViewModel {
             movingTo: projectID,
             errorContext: "Failed to reinstall hooks for \(id) when moving to project \(projectID)"
         )
+    }
+
+    /// 別のプロジェクトへ移せるか。自分用の worktree で動くチャット型は移せない
+    /// （worktree は元のプロジェクトのリポジトリのもので、再起動せずに付け替えられないため）。
+    public func canMoveSession(_ id: SessionID) -> Bool {
+        guard case .appServer = sessionNode(id: id) else { return true }
+        return ownedWorkspaceDirectories[id]?.worktreeRepository == nil
     }
 
     /// changeWorkspace / moveSession 共通の再起動シーケンス（R2 で 1 本化）。
@@ -1404,8 +1420,9 @@ public final class DashboardViewModel {
     /// ワークスペース削除時にカスケードで波及する、当該ワークスペース外の子孫セッション件数。
     /// 集計は `subtreeSessionIDsDeepestFirst`（`descendantCount` と同根）を各配下セッションに適用し、
     /// ワークスペース内セッション ID を除いた重複なし件数とする。
+    /// 削除（`removeProject`）と同じく、サイドバーに出ない内部セッションも含めて数える。
     public func projectDeletionDescendantCount(of projectID: ProjectID) -> Int {
-        let projectSessionIDs = Set(sessionNodes(in: projectID).map(\.id))
+        let projectSessionIDs = Set(gridSessionNodes(in: projectID).map(\.id))
         var affected: Set<SessionID> = []
         for sessionID in projectSessionIDs {
             affected.formUnion(subtreeSessionIDsDeepestFirst(rootedAt: sessionID))

@@ -51,10 +51,13 @@ struct DialogRedesignTests {
 
     /// 表示言語に合わせて引く版が、テストで固定された日本語と一字一句同じであること。
     @Test func projectDeletion_localizedTextMatchesFrozenJapanese() {
-        for count in 0...3 {
-            #expect(ProjectDeletionDialogText.title(descendantCount: count, locale: ja) == ProjectDeletionDialogText.title(descendantCount: count))
-            #expect(ProjectDeletionDialogText.message(descendantCount: count, locale: ja) == ProjectDeletionDialogText.message(descendantCount: count))
+        #expect(ProjectDeletionDialogText.title(projectName: "phlox-core", locale: ja) == ProjectDeletionDialogText.title(projectName: "phlox-core"))
+        for (sessions, children, others) in [(0, 0, 0), (3, 0, 0), (6, 2, 0), (4, 1, 2), (1, 0, 3)] {
+            #expect(
+                ProjectDeletionDialogText.message(sessionCount: sessions, childCount: children, otherProjectChildCount: others, locale: ja)
+                    == ProjectDeletionDialogText.message(sessionCount: sessions, childCount: children, otherProjectChildCount: others)
+            )
         }
-        #expect(ProjectDeletionDialogText.irreversibleNote(sessionCount: 6, locale: ja) == "セッション 6 件の会話とターミナルの内容は元に戻せません。")
+        #expect(ProjectDeletionDialogText.note(folderPath: "~/dev/phlox", locale: ja) == ProjectDeletionDialogText.note(folderPath: "~/dev/phlox"))
     }
 }

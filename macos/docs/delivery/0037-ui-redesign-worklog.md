@@ -1165,3 +1165,38 @@ A・C 型は `.dialogSeverity(.critical)`（注意アイコン）、破壊的な
 - 独立レビュー（Codex）2 回。1 回目の指摘 5 件（注記の不正確さ〔高〕、Codex の説明、分段のキーボードと読み上げ、スライダーの小さな操作、使わない翻訳キー）を直した。2 回目で残りの翻訳キー 2 件とスライダーの値の往復（中）を指摘され、丸めを位置だけで決め、← →・読み上げの増減を 1 刻みにして直した。
 - Debug 版で撮影して確認（`/tmp/phlox-audit/f8/`）: ライト＋日本語で 6 タブすべて。ダーク＋英語で外観と、ターミナルに 40 を入れたときの赤い縁・輪・「Enter a whole number from 8 to 32. Not saved (current value: 13)」（保存値は 13 のまま）。AX: タブは名前付きのボタン、分段はラジオボタン 2 つ、表示言語のポップアップ、スライダーの増減（AXIncrement / AXDecrement で 10% ずつ）。分段の ← →（クリックで焦点を置いてから、既定の開き方がターミナル⇄チャットに変わる。元に戻した）。
 - 実行できなかったもの: 書き換えた UI テスト 2 本（XCUITest）。この Mac は自動化モードの有効化にユーザーの認証が要り（`automationmodetool`: 「This device requires user authentication to enable Automation Mode」）、テストの起動で止まった。スライダーの ← →（macOS の「キーボードで操作を移動」が無効で焦点が移らない）。モバイル連携の QR 表示中・押せない理由・作成の失敗・接続済みの一覧（QR を出すとトークンが発行されるため、また失敗の状態を作れないため）。VoiceOver の実操作。
+
+## F10 忠実度の修正（1）: 通知と Dock（11 Notifications and Startup）
+
+ユーザーの決定（2026-09-25）: 通知のボタンは「開く」だけ（許可・拒否は置かない）。通知の音は見本の案（完了だけ Glass、対応待ちは macOS の既定音）。
+
+### 対応表
+
+| 監査の指摘 | 内容 | 実装箇所 |
+|---|---|---|
+| N1〜N7 サブタイトル | 「{プロジェクト} · {エージェント}」。分からない部分は省く | `SessionNotificationText.subtitle(projectName:agentName:)`、`DashboardViewModel.notificationContext(for:)` |
+| N2 完了の本文 | 最後の返答の 1 行目（チャット型）。無ければ「次の指示を待っています。」 | `completedBody(lastReply:)`、`ChatSessionViewModel.lastAgentReply` |
+| N4 無応答 | 「応答がありません: {名前}」／「2 分以上反応がありません。最後の動作: {思考中の下段と同じ要約}」。チャット型で 120 秒反応が無くなったときに 1 回。復元時に実行中と推定しただけのターンでは出さない | `Kind.stalled`、`ChatSessionViewModel.updateStalled` |
+| N7 まとめ | 通知の `threadIdentifier` をプロジェクトに。同じプロジェクトの対応待ちが 3 件以上で 1 枚「{プロジェクト} で 3 件が対応待ち」「承認待ち 2 · 質問待ち 1」「{最新の名前} ほか 2 件」に置き換える。まとめるかどうかは配信済みの一覧（反映が遅れる）ではなくメモリ上の記録で決める | `AttentionNotificationBook`、`SessionCompletionNotifier.post` |
+| N1 ボタン・クリック | 「開く」（全種類共通）。クリックか「開く」で Phlox を前面に出し、今の表示モードのままそのセッションを選ぶ（⌘J と同じ選び方）。グリッドで範囲の外なら一時的にタイルに加える（範囲を変えると外れる）。まとめは、含むうちまだ対応待ちの最も新しいセッションへ | `AppDelegate.userNotificationCenter(_:didReceive:)`・`openSession`、`DashboardViewModel.revealInGrid` |
+| N1 見ているセッション | 前面の Phlox で見えているセッション（単体では選択中、グリッドでは表示中のタイル）のことは、音も含めて知らせない | `SessionCompletionNotifier.isShowing`、`AppDelegate.isShowing` |
+| N1 対応後 | 対応待ちが済んだら、完了は見たら、通知センターから消す。まとめは含むセッションがすべて済んだら消す。出した通知は識別子で待機中・配信済みの両方から消し、片付けは投稿と同じ列に並べる。前回の起動の分はセッションの復元が済んでから片付ける | `removeDelivered(attention:unseenCompletions:includesPreviousLaunch:)`、`DashboardViewModel.hasRestoredSessions` |
+| 通知音 | 完了（とテスト通知）は Glass、対応待ち 4 種は通知の既定音。バナーを切って音だけ残している場合、対応待ちはシステムの警告音 | `SessionCompletionNotifier.post` |
+| Dock | 数える対象を対応待ち（承認待ち・質問待ち・エラー・無応答）に。0 件は出さず、100 件以上は「99+」（`NSDockTile.badgeLabel`） | `AppDelegate.observeAttention`、`DockBadge.label(count:)` |
+| モバイルの通知 | 英語固定だった本文（「Session completed」「Approval pending」）を、デスクトップと同じくアプリの表示言語で書く | `APNsNotificationBridge.NotificationEvent.body` |
+
+### 直していないもの
+
+- N6「セッションが終了しました」（exit≠0 のときだけ出す案）と Dock の数え方を選ぶ設定（T3）: 見本で分岐候補。足していない。
+- 一部が済んだあとのまとめの件数: 次の対応待ちの通知が来るまで古い件数のまま。書き直すと通知が出し直され、バナーと音が鳴るので割り切った（コードに `ponytail:` の印）。
+- 無応答はチャット型だけ。ターミナル型は最後の反応の時刻を持っていない。モバイルには無応答の通知の種類が無いので送らない。
+- モバイルの通知で、質問は今も「承認待ち」の種類・本文で送る（種類を分けるには iOS 側の受信型の変更が要る）。
+- 監査の `11-12-tokens.md` は作業ツリーに無く、照合は見本の HTML で行った。
+
+### 検証
+
+- 追加したテスト: `NotificationRedesignTests`（無応答の文言、サブタイトル、完了の本文、まとめの文言、まとめの記録の数え方）、`DockBadgeLabelTests`（0 / 99 / 100）、`chatStall_notifiesTheDesktopOncePerStall`、`revealInGrid_addsAnOutOfRangeSessionUntilTheRangeChanges`、`hasRestoredSessions_turnsTrueOnlyAfterStart`。モバイルの通知の期待値（`APNsNotificationBridgeTests`・`LiveActivityBridgeTests`）を日本語の本文に更新（テストの実行環境には訳が無いのでキーの日本語になる）。
+- `.claude/verify.sh` 合格（DesignSystem・AgentDomain・SessionFeature・DashboardFeature・アプリのビルド）。AppBootstrap のテスト 161 件合格。
+- 独立レビュー（Codex）6 回。見ているセッションでも鳴る音・グリッドの判定〔高〕、3 件のまとめの競合〔高〕、個別とまとめの併存〔高〕、復元前の片付けで有効な通知まで消す〔高〕、グリッドの範囲外、まとめのクリック先、片付けと投稿の競合を直した。6 回目で新しい指摘なし（残りは上の割り切りだけ）。
+- Debug 版での確認（背面で起動し、アクセシビリティ経由と制御用 API だけで操作。通知の中身は通知センターのデータベースを読み取り専用で読んだ）: 完了の通知（「作業が完了しました: …」「CapWeave · Claude Code」、本文が最後の返答）、質問の通知と「開く」の分類、Dock が 1 → 0、回答後に通知センターから消えること、3 件の質問を同時に送って 1 枚「CapWeave で 3 件が対応待ち」「質問待ち 3」になり個別の通知が残らないこと、Dock が 3、全部に答えるとまとめが消え Dock も消えること、見ていない完了の通知だけが残ること。
+- 実行できなかったもの: 通知のクリックと「開く」での移動（押すにはあなたの画面を使うため）。前面で見ているときに知らせないこと（Phlox を前面に出す必要があるため）。無応答の通知の実物（2 分間反応の無いターンを作れなかった。単体テストのみ）。モバイルへの送信の実物。音の聞き分け。作り直した Debug 版からは、前のビルドが出した通知が見えない（署名が変わるため）ので、ビルドをまたいだ片付けは確かめていない。

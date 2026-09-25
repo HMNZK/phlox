@@ -7819,6 +7819,72 @@
           }
         }
       }
+    },
+    "応答がありません: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not responding: %@"
+          }
+        }
+      }
+    },
+    "2 分以上反応がありません。最後の動作: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No response for over 2 minutes. Last action: %@"
+          }
+        }
+      }
+    },
+    "2 分以上反応がありません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No response for over 2 minutes."
+          }
+        }
+      }
+    },
+    "%@ で %lld 件が対応待ち": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$lld sessions need you in %1$@"
+          }
+        }
+      }
+    },
+    "作業が完了しました": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Work finished"
+          }
+        }
+      }
+    },
+    "承認待ち": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Awaiting approval"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

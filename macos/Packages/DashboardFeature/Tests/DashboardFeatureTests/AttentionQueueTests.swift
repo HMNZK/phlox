@@ -66,3 +66,13 @@ struct ToolbarDensityTests {
         #expect(ToolbarDensity.forWindowWidth(959) == .minimal)
     }
 }
+
+@Suite("Dock badge label")
+struct DockBadgeLabelTests {
+    @Test func hidesAtZero_showsTheCount_andCapsAt99Plus() {
+        #expect(DockBadge.label(count: 0) == nil)
+        #expect(DockBadge.label(count: 1) == "1")
+        #expect(DockBadge.label(count: 99) == "99")
+        #expect(DockBadge.label(count: 100) == "99+")
+    }
+}

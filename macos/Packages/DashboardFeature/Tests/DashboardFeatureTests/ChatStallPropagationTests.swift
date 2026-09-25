@@ -75,6 +75,18 @@ func chatStall_eventAfterStall_clearsImmediately() async throws {
     try await waitUntil { !vm.transcript.isEmpty && !vm.isStalled }
 }
 
+// 11 N4: 無応答になったときに 1 回だけ知らせる（通知 1 回につき、配信先の可否を local・remote の順に 1 度ずつ問う）。
+@Test @MainActor
+func chatStall_notifiesTheDesktopOncePerStall() async throws {
+    let (vm, _) = try await makeRunningVM()
+    var channels: [UserNotificationChannel] = []
+    vm.userNotificationGate = { channels.append($0); return false }
+
+    vm.updateStalled(now: Date().addingTimeInterval(121))
+    vm.updateStalled(now: Date().addingTimeInterval(122))
+    #expect(channels == [.local, .remote])
+}
+
 @Test @MainActor
 func turnUsage_withoutCost_isShownUnderLastAgentMessage() async throws {
     let (vm, client) = try await makeRunningVM()

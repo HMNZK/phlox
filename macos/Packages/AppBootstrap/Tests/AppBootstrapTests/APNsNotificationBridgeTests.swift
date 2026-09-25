@@ -45,7 +45,7 @@ import AgentDomain
         #expect(calls[0].collapseID == "session-123:session_completed")
         let json = try Self.normalizedJSONString(calls[0].payload)
         #expect(json == """
-        {"aps":{"alert":{"body":"Session completed","title":"Bright Lily"},"sound":"default","thread-id":"session-123"},"phlox":{"sessionId":"session-123","sessionName":"Bright Lily","type":"session_completed","v":1}}
+        {"aps":{"alert":{"body":"作業が完了しました","title":"Bright Lily"},"sound":"default","thread-id":"session-123"},"phlox":{"sessionId":"session-123","sessionName":"Bright Lily","type":"session_completed","v":1}}
         """)
     }
 
@@ -66,7 +66,7 @@ import AgentDomain
         #expect(calls[0].collapseID == "session-456:approval_pending")
         let json = try Self.normalizedJSONString(calls[0].payload)
         #expect(json == """
-        {"aps":{"alert":{"body":"Approval pending","title":"Quiet Fern"},"sound":"default","thread-id":"session-456"},"phlox":{"sessionId":"session-456","sessionName":"Quiet Fern","type":"approval_pending","v":1}}
+        {"aps":{"alert":{"body":"承認待ち","title":"Quiet Fern"},"sound":"default","thread-id":"session-456"},"phlox":{"sessionId":"session-456","sessionName":"Quiet Fern","type":"approval_pending","v":1}}
         """)
     }
 

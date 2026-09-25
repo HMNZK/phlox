@@ -74,9 +74,15 @@ public final class DashboardViewModel {
     /// グリッドに表示するセッションの選択（nil = 全表示）。永続化しない。
     /// 絞り込みは描画時の刈り込み（`paneLayoutForDisplay()`）だけで表現し、
     /// 永続ツリーには触れない（隠したセッションの位置を失わないため）。
-    public var gridSessionSelection: Set<SessionID>?
+    public var gridSessionSelection: Set<SessionID>? {
+        didSet { if gridSessionSelection != oldValue { gridTemporarySessionID = nil } }
+    }
     /// グリッドのワークスペース絞り込み（`AppRouter.gridFilterProjectID` の写し。候補算出用）。
-    var gridSessionFilterProjectID: ProjectID?
+    var gridSessionFilterProjectID: ProjectID? {
+        didSet { if gridSessionFilterProjectID != oldValue { gridTemporarySessionID = nil } }
+    }
+    /// 通知から範囲外のセッションを開いたとき、一時的にグリッドへ加える 1 件（11）。範囲を変えると外れる。
+    public private(set) var gridTemporarySessionID: SessionID?
 
     private static let readinessPollInterval: Duration = .milliseconds(20)
     private static let donePollInterval: Duration = .milliseconds(100)
@@ -88,6 +94,8 @@ public final class DashboardViewModel {
     private let environment: AppEnvironment
     /// 起動時の復元中は永続化を抑止する（復元途中の中間状態を書き戻さない）。
     @ObservationIgnored private var layoutRestoreInProgress = true
+    /// 起動時のセッション復元が済んだか。前回の起動の通知を片付けるのは、これが済んでから（11）。
+    public private(set) var hasRestoredSessions = false
 
     /// task-3: 分割ツリーの永続ツリー（隠れているセッションの leaf も保持する。D4）。
     /// 書き込み経路は `handlePaneLayoutAction` と、セッション増減に伴う `reconcilePaneLayout` の
@@ -352,6 +360,7 @@ public final class DashboardViewModel {
 
         await sessionRestoreCoordinator.restorePersistedSessions()
         layoutRestoreInProgress = false
+        hasRestoredSessions = true
         reloadAndReconcilePaneLayout()
     }
 
@@ -596,7 +605,16 @@ public final class DashboardViewModel {
             base = gridVisibleSessionNodes
         }
         let wrapped = base.map { GridSessionSelectionItem(node: $0) }
-        return GridSessionSelectionFilter.apply(wrapped, selection: gridSessionSelection).map(\.node)
+        let filtered = GridSessionSelectionFilter.apply(wrapped, selection: gridSessionSelection).map(\.node)
+        guard let extraID = gridTemporarySessionID, !filtered.contains(where: { $0.id == extraID }),
+              let extra = sessionNodes.first(where: { $0.id == extraID }) else { return filtered }
+        return filtered + [extra]
+    }
+
+    /// 通知から開くセッションがグリッドの範囲外なら、範囲を変えずに一時的に加える。
+    public func revealInGrid(_ id: SessionID) {
+        guard !gridTileOrder().contains(id), sessionNodes.contains(where: { $0.id == id }) else { return }
+        gridTemporarySessionID = id
     }
 
     /// task-3: 描画用の実効ツリー。`paneLayout`（絞り込み前の永続ツリー）を、
@@ -710,7 +728,7 @@ public final class DashboardViewModel {
     public func removeFromGrid(_ id: SessionID) -> SessionID? {
         let order = gridTileOrder()
         guard order.count > 1, let index = order.firstIndex(of: id) else { return nil }
-        toggleGridSessionSelection(id)
+        if id == gridTemporarySessionID { gridTemporarySessionID = nil } else { toggleGridSessionSelection(id) }
         let remaining = order.filter { $0 != id }
         return remaining[min(index, remaining.count - 1)]
     }

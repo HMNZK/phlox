@@ -239,10 +239,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                     DashboardSessionSpawnHooks.clearHandlers(on: oldDashboard)
                 }
             }
-            dashboard?.unseenCompletionCountDidChange = { [weak self] count in
-                self?.updateDockBadge(count: count)
-            }
-            updateDockBadge(count: dashboard?.unseenCompletionCount ?? 0)
+            observeAttention()
         }
     }
     var router: AppRouter?
@@ -278,6 +275,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
         SessionCompletionNotifier.requestAuthorization()
+        SessionCompletionNotifier.context = { [weak self] id in self?.dashboard?.notificationContext(for: id) }
+        SessionCompletionNotifier.isShowing = { [weak self] id in self?.isShowing(id) ?? false }
+        // 見ている間に既読になった完了は対応待ちの変化を伴わないので、前面に戻ったときにも片付ける。
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let dashboard = self.dashboard else { return }
+                self.applyAttention(dashboard)
+            }
+        }
         // 通知の文言は、画面と同じアプリ内の表示言語で出す（@AppStorage と同じ保存先を読む）。
         SessionCompletionNotifier.locale = {
             (AppLanguage(rawValue: UserDefaults.standard.string(forKey: LanguageSettings.languageKey) ?? "") ?? .system).locale
@@ -403,18 +409,72 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
+        // 見ているセッションの通知は投稿前に止めている（SessionCompletionNotifier.isShowing）。
         [.banner, .list, .sound]
+    }
+
+    /// 通知のクリックと「開く」で、Phlox を前面に出してそのセッションを選ぶ（⌘J と同じ選び方）。
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        guard [UNNotificationDefaultActionIdentifier, SessionCompletionNotifier.openActionIdentifier].contains(response.actionIdentifier),
+              case let candidates = SessionCompletionNotifier.sessionIDs(from: response.notification.request.content.userInfo),
+              !candidates.isEmpty else { return }
+        await MainActor.run {
+            // まとめは、含むうちまだ対応待ちの最も新しいセッションへ（全部済んでいれば最も新しいもの）。
+            let pending = self.dashboard?.attentionSessionIDs ?? []
+            self.openSession(candidates.first(where: pending.contains) ?? candidates[0])
+        }
+    }
+
+    /// 前面の Phlox で見えているセッションか。単体では選択中のもの、グリッドでは表示中のタイル全部。
+    private func isShowing(_ id: SessionID) -> Bool {
+        guard let router, let dashboard, NSApp.isActive, !router.commonTerminalSelected,
+              let window = NSApp.mainWindow, window.isVisible, !window.isMiniaturized else { return false }
+        return router.viewMode == .grid ? dashboard.gridTileOrder().contains(id) : router.selectedSession == id
+    }
+
+    private func openSession(_ id: SessionID) {
+        NSApp.activate()
+        guard let router, dashboard?.notificationContext(for: id) != nil else { return }
+        (NSApp.mainWindow ?? NSApp.windows.first { $0.canBecomeMain })?.makeKeyAndOrderFront(nil)
+        // 入力欄がフォーカスを持ったままだと、グリッドではそのタイルが選択を取り返す。
+        NSApp.mainWindow?.makeFirstResponder(nil)
+        router.commonTerminalSelected = false
+        if router.viewMode == .grid { dashboard?.revealInGrid(id) }
+        router.selectedSession = id
+    }
+
+    /// Dock バッジ（対応待ちの件数）と通知センターの片付けを、対応待ちの変化に合わせて更新する。
+    private func observeAttention() {
+        guard let dashboard else {
+            NSApp.dockTile.badgeLabel = nil
+            return
+        }
+        withObservationTracking {
+            applyAttention(dashboard)
+        } onChange: { [weak self, weak dashboard] in
+            Task { @MainActor in
+                guard let self, let dashboard, self.dashboard === dashboard else { return }
+                self.observeAttention()
+            }
+        }
+    }
+
+    private func applyAttention(_ dashboard: DashboardViewModel) {
+        NSApp.dockTile.badgeLabel = DockBadge.label(count: dashboard.attentionCount)
+        SessionCompletionNotifier.removeDelivered(
+            attention: dashboard.attentionSessionIDs,
+            unseenCompletions: dashboard.unseenCompletionSessionIDs,
+            includesPreviousLaunch: dashboard.hasRestoredSessions
+        )
     }
 
     private func closeSelectedSession() -> Bool {
         performCloseSelectedSession(router: router)
     }
 
-    private func updateDockBadge(count: Int) {
-        Task {
-            try? await UNUserNotificationCenter.current().setBadgeCount(count)
-        }
-    }
 }
 
 @MainActor

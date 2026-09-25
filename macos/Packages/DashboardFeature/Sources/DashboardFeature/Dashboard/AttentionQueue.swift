@@ -41,6 +41,13 @@ enum AttentionQueue {
     }
 }
 
+/// Dock バッジの文字。0 件は出さず、100 件以上は「99+」。
+public enum DockBadge {
+    public static func label(count: Int) -> String? {
+        count <= 0 ? nil : count > 99 ? "99+" : String(count)
+    }
+}
+
 extension DashboardViewModel {
     /// デスクトップから見える全セッションの対応待ち。待ち時間の長い順。
     var attentionEntries: [AttentionEntry] {
@@ -59,6 +66,24 @@ extension DashboardViewModel {
     }
 
     public var hasAttention: Bool { !attentionEntries.isEmpty }
+
+    /// Dock バッジの件数（対応待ちだけ。完了の未読は数えない）。
+    public var attentionCount: Int { attentionEntries.count }
+
+    /// 通知センターの片付けに使う。対応待ちのセッションと、完了を未読のセッション。
+    public var attentionSessionIDs: Set<SessionID> { Set(attentionEntries.map(\.id)) }
+    public var unseenCompletionSessionIDs: Set<SessionID> { Set(unseenCompletionNodes.map(\.id)) }
+
+    /// 通知のサブタイトル「{プロジェクト} · {エージェント}」と、プロジェクトごとのまとめに使う所属。
+    public func notificationContext(for id: SessionID) -> SessionNotificationContext? {
+        guard let node = sessionNodes.first(where: { $0.id == id }) else { return nil }
+        let project = node.projectID.flatMap { projectID in projects.first { $0.id == projectID } }
+        return SessionNotificationContext(
+            projectID: project?.id.description,
+            projectName: project?.name,
+            agentName: node.agentDescriptor.displayName
+        )
+    }
 
     /// 完了の未読（対応待ちとは別に数える）。
     var unseenCompletionNodes: [SessionNode] {

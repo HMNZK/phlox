@@ -729,7 +729,7 @@ public final class SessionViewModel: Identifiable {
         switch notification {
         case .completed:
             if allowsLocalNotification {
-                SessionCompletionNotifier.notifyCompleted(sessionName: displayName, status: status)
+                SessionCompletionNotifier.notifyCompleted(sessionID: id, sessionName: displayName, status: status)
             }
             if allowsRemoteNotification {
                 remoteSessionNotifier?.sessionCompleted(
@@ -740,7 +740,7 @@ public final class SessionViewModel: Identifiable {
         case .awaitingInput:
             if allowsLocalNotification {
                 // PTY の Codex は質問と承認を見分けられないため、承認待ち（対象なし）の文言にする。
-                SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName)
+                SessionCompletionNotifier.notifyAwaitingInput(sessionID: id, sessionName: displayName)
             }
             if allowsRemoteNotification {
                 remoteSessionNotifier?.approvalPending(

@@ -12,6 +12,7 @@ let package = Package(
         .package(path: "../AgentDomain"),
         .package(path: "../ControlServer"),
         .package(path: "../DashboardFeature"),
+        .package(path: "../DesignSystem"),
         .package(path: "../SessionFeature"),
         .package(path: "../StructuredChatKit"),
     ],
@@ -23,6 +24,7 @@ let package = Package(
                 "AgentDomain",
                 "ControlServer",
                 "DashboardFeature",
+                "DesignSystem",
                 "SessionFeature",
                 "StructuredChatKit",
             ]

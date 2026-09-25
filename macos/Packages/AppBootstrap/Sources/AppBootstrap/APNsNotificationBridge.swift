@@ -3,6 +3,7 @@ import os
 import APNsClient
 import AgentDomain
 import DashboardFeature
+import DesignSystem
 import SessionFeature
 
 public protocol APNsNotificationSending: Sendable {
@@ -117,11 +118,13 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
             }
         }
 
+        /// デスクトップの通知と同じく、アプリ内の表示言語で書く。
         var body: String {
-            switch self {
-            case .sessionCompleted: "Session completed"
-            case .approvalPending: "Approval pending"
+            let key = switch self {
+            case .sessionCompleted: "作業が完了しました"
+            case .approvalPending: "承認待ち"
             }
+            return AppLocalizedString.string(key, locale: SessionCompletionNotifier.locale())
         }
 
         var sessionId: String {

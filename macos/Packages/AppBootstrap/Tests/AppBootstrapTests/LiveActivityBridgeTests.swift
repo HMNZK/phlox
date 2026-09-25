@@ -39,7 +39,7 @@ import AgentDomain
             "sessionId": "session-123",
             "sessionName": "Bright Lily",
             "status": "approval_pending",
-            "summary": "Approval pending",
+            "summary": "承認待ち",
         ])
     }
 

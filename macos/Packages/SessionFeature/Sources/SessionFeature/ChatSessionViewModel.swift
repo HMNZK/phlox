@@ -2,10 +2,13 @@ import Foundation
 import Observation
 import AgentDomain
 import CodexAppServerKit
+import DesignSystem
 import StructuredChatKit
 private enum UserNotification {
     case completed
     case awaitingInput(SessionNotificationText.Kind)
+    /// 無応答。モバイルへの通知の種類が無いので、デスクトップだけに出す。
+    case stalled(lastAction: String?)
 }
 
 @MainActor
@@ -1716,6 +1719,36 @@ public final class ChatSessionViewModel: Identifiable {
         guard stalled != isStalled else { return }
         isStalled = stalled
         stalledSince = stalled ? now : nil
+        // 復元時に実行中と推定しただけのターンは、本当に止まっているか分からないので知らせない。
+        if stalled, !turnIsRestoredInference {
+            notifyUser(.stalled(lastAction: thinkingRecap(now: now).map(Self.notificationText)))
+        }
+    }
+
+    /// 最後のユーザー入力以降の、最後の返答（完了の通知の本文に使う）。
+    private var lastAgentReply: String? {
+        for item in transcript.reversed() {
+            switch item {
+            case .agentMessage(_, let text, _): return text
+            case .userMessage: return nil
+            default: continue
+            }
+        }
+        return nil
+    }
+
+    /// 思考中インジケータの下段と同じ要約を、通知の表示言語で組む。
+    private static func notificationText(_ summary: ChatRecap.Summary) -> String {
+        let locale = SessionCompletionNotifier.locale()
+        func format(_ key: String, _ value: String) -> String {
+            String(format: AppLocalizedString.string(key, locale: locale), ThinkingRecap.clamp(value))
+        }
+        return switch summary {
+        case .activity(.reading(let x)): format("%@ を読み込み中", x)
+        case .activity(.running(let x)): format("%@ を実行中", x)
+        case .activity(.editing(let x)): format("%@ を編集中", x)
+        case .headline(let x): x
+        }
     }
 
     /// 復元時にすでに実行中だったターンを、復元リプレイではなく実ターンとして追跡する。
@@ -1765,7 +1798,7 @@ public final class ChatSessionViewModel: Identifiable {
         switch notification {
         case .completed:
             if allowsLocalNotification {
-                SessionCompletionNotifier.notifyCompleted(sessionName: displayName, status: status)
+                SessionCompletionNotifier.notifyCompleted(sessionID: id, sessionName: displayName, status: status, lastReply: lastAgentReply)
             }
             if allowsRemoteNotification {
                 remoteSessionNotifier?.sessionCompleted(
@@ -1775,13 +1808,17 @@ public final class ChatSessionViewModel: Identifiable {
             }
         case .awaitingInput(let kind):
             if allowsLocalNotification {
-                SessionCompletionNotifier.notifyAwaitingInput(sessionName: displayName, kind: kind)
+                SessionCompletionNotifier.notifyAwaitingInput(sessionID: id, sessionName: displayName, kind: kind)
             }
             if allowsRemoteNotification {
                 remoteSessionNotifier?.approvalPending(
                     sessionId: id.description,
                     sessionName: displayName
                 )
+            }
+        case .stalled(let lastAction):
+            if allowsLocalNotification {
+                SessionCompletionNotifier.notifyAwaitingInput(sessionID: id, sessionName: displayName, kind: .stalled(lastAction: lastAction))
             }
         }
     }

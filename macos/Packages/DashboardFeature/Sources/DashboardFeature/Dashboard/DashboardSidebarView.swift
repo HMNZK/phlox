@@ -137,10 +137,10 @@ struct DashboardSidebarView: View {
                 Text("対応待ち")
                 if !attention.isEmpty {
                     Text(verbatim: "\(attention.count)")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(Color.white)
                         .padding(.horizontal, 5)
-                        .frame(minWidth: 16, minHeight: 15)
+                        .frame(minWidth: 18, minHeight: 16)
                         .background(DSColor.accentFill, in: Capsule())
                 }
                 Spacer(minLength: 0)

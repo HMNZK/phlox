@@ -196,8 +196,16 @@ struct ChatSessionHeader: View {
                 let silence = viewModel.hangAssessment(now: context.date)?.silence ?? 0
                 stateChip(Text("無応答 \(ThinkingIndicatorCell.clockText(silence))"), kind: .stalled)
             }
-        } else if let kind = displayState.attentionKind {
-            stateChip(Text(verbatim: displayState.localizedLabel(locale: locale)), kind: kind)
+        } else if displayState.attentionKind != nil {
+            // 12 S: 「承認待ち · 3分」。対応待ちに入ってからの経過を 1 分ごとに更新する。
+            TimelineView(.periodic(from: viewModel.statusEnteredAt ?? .now, by: 60)) { context in
+                StatusCapsuleBadge(
+                    state: displayState,
+                    elapsed: viewModel.statusEnteredAt.map {
+                        SessionRelativeTime.label(from: $0, to: context.date, locale: locale)
+                    }
+                )
+            }
         } else {
             // PhloxChat.dc.html: 12pt の文字だけ（実行中は medium）。待機は「待機 · 2分前に応答」、圧縮中は「実行中 · 圧縮中」。
             TimelineView(.periodic(from: .now, by: 30)) { context in
@@ -242,7 +250,7 @@ struct ChatSessionHeader: View {
         )
     }
 
-    /// 対応待ちの 4 状態だけ色の面で示す（一覧の状態は文字）。
+    /// 無応答の「無応答 2:14」（秒で動くので数字を等幅にする）。
     private func stateChip(_ text: Text, kind: AttentionKind) -> some View {
         text
             .font(.system(size: 12, weight: .semibold))

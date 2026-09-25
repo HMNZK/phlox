@@ -7918,6 +7918,28 @@
           }
         }
       }
+    },
+    "%@前": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ago"
+          }
+        }
+      }
+    },
+    "%@前から": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "for %@"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

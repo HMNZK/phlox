@@ -168,6 +168,8 @@ struct SidebarSessionRow<Menu: View>: View {
     @ViewBuilder let menu: () -> Menu
 
     @State private var isHovering = false
+    /// 読み上げの経過を 1 分ごとに作り直すための時計。
+    @State private var labelClock = Date()
     @Environment(\.locale) private var locale
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
@@ -246,6 +248,15 @@ struct SidebarSessionRow<Menu: View>: View {
         // 名前の編集中は入力欄に届くよう子を残す。
         .accessibilityElement(children: isRenaming ? .contain : .ignore)
         .accessibilityLabel(accessibilityText)
+        .task(id: elapsedSince) {
+            guard elapsedSince != nil else { return }
+            while !Task.isCancelled {
+                // 経過の起点から数えて次の 1 分の境目まで待つ（表示した時刻に引きずられない）。
+                let offset = elapsedSince.map { Date().timeIntervalSince($0) } ?? 0
+                try? await Task.sleep(for: .seconds(60 - offset.truncatingRemainder(dividingBy: 60) + 0.05))
+                labelClock = Date()
+            }
+        }
         .accessibilityValue(emphasis.accessibilityValue.map { Text(LocalizedStringKey($0)) } ?? Text(verbatim: ""))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction(.default, onSelect)
@@ -327,10 +338,23 @@ struct SidebarSessionRow<Menu: View>: View {
         ).helpText
     }
 
-    /// 「タイトル、状態、未読、エージェント、子セッション n 件」（モックの aria-label と同じ並び）。
-    /// 語は画面の言語設定で引くため Text でつなぐ。
+    /// 読み上げの経過の起点（対応待ちは状態に入った時刻、待機は行の右端と同じ時刻）。
+    private var elapsedSince: Date? {
+        state.attentionKind != nil ? node.statusEnteredAt
+            : SidebarRowMeta.session(state) == .elapsed ? node.startedAt : nil
+    }
+
+    /// 「タイトル、状態、経過、未読、エージェント、子セッション n 件」（モックの aria-label と同じ並び）。
+    /// 経過は「待機、42分前」「承認待ち、3分前から」（1 分未満は付けない）。語は画面の言語設定で引くため Text でつなぐ。
     private var accessibilityText: Text {
         var parts = [Text(verbatim: node.displayName), Text(verbatim: state.localizedLabel(locale: locale))]
+        let since = elapsedSince
+        // labelClock を読むことで、1 分ごとに読み上げの経過を作り直す。
+        let now = max(labelClock, Date())
+        if let since, now.timeIntervalSince(since) >= 60 {
+            let elapsed = SidebarRelativeTime.label(from: since, to: now, locale: locale)
+            parts.append(state.attentionKind != nil ? Text("\(elapsed)前から") : Text("\(elapsed)前"))
+        }
         if isUnread { parts.append(Text("未読")) }
         parts.append(Text(verbatim: node.agentDescriptor.displayName))
         if hasChildren { parts.append(Text("子セッション \(childCount) 件")) }

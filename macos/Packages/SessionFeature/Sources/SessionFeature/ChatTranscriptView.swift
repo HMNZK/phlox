@@ -691,7 +691,8 @@ struct JumpToLatestButton: View {
             .padding(.horizontal, 14)
             .frame(height: 28)
             .background(DSColor.popoverBackground, in: Capsule())
-            .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
+            .overlay(Capsule().strokeBorder(DSColor.popoverEdge, lineWidth: 0.5))
+            .dsShadow(DSShadow.popover)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)

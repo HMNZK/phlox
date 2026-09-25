@@ -25,7 +25,38 @@ private func performCloseSelectedSession(router: AppRouter?) -> Bool {
 /// （リネームで案内 UI が静かに壊れるのを防ぐ）。
 enum InitFailure {
     case claudeNotFound
+    /// 11 I2: 制御用・フック用のサーバーを開始できなかった。
+    case serverFailed(message: String)
+    /// 11 I3: 以前のバージョンのデータを移行できなかった。
+    case migrationFailed(message: String)
+    /// 旧アプリ（AgentDashboard）が起動中で移行できなかった。終了してから再試行すれば移行できる。
+    case legacyAppRunning(message: String)
     case other(message: String)
+
+    /// 原因の文（そのまま等幅で出す）。
+    var log: String {
+        switch self {
+        case .claudeNotFound: "npm install -g @anthropic-ai/claude-code"
+        case .serverFailed(let message), .migrationFailed(let message), .legacyAppRunning(let message), .other(let message): message
+        }
+    }
+
+    /// 起動の失敗を書き残すファイル（「ログを Finder で表示」で示す）。
+    static let logURL = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Logs/Phlox/startup-error.log")
+
+    /// 失敗の内容を時刻つきで書き残し、書けたかを返す。書けなくても起動エラーの画面は出す。
+    @discardableResult
+    func writeLog() -> Bool {
+        let url = Self.logURL
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let line = "\(ISO8601DateFormatter().string(from: Date())) \(log)\n"
+        if let handle = try? FileHandle(forWritingTo: url) {
+            defer { try? handle.close() }
+            return (try? handle.seekToEnd()).flatMap { _ in try? handle.write(contentsOf: Data(line.utf8)) } != nil
+        }
+        return (try? Data(line.utf8).write(to: url)) != nil
+    }
 }
 
 @main
@@ -33,6 +64,8 @@ struct PhloxApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var composition: CompositionRoot?
     @State private var initFailure: InitFailure?
+    /// 今回の失敗をログへ書けたか（書けなければ「ログを Finder で表示」を無効にする）。
+    @State private var initFailureLogged = false
     @State private var initializing = false
     /// 上段右端の共通ターミナル（ホームで開く）の唯一の所有者。
     @State private var terminalPanelSession: TerminalPanelSession?
@@ -71,7 +104,7 @@ struct PhloxApp: App {
                         sessionTerminals: sessionTerminals
                     )
                 } else if let initFailure {
-                    InitErrorView(failure: initFailure, retry: { Task { await initialize() } })
+                    InitErrorView(failure: initFailure, logWritten: initFailureLogged, retry: { Task { await initialize() } })
                 } else {
                     InitLoadingView()
                 }
@@ -188,6 +221,8 @@ struct PhloxApp: App {
     }
 
     private func initialize() async {
+        // 再試行の連打で初期化（と移行のロック）が重ならないようにする。
+        guard !initializing else { return }
         initializing = true
         initFailure = nil
         do {
@@ -201,11 +236,17 @@ struct PhloxApp: App {
             appDelegate.dashboard = root.dashboard
             appDelegate.router = root.router
         } catch {
-            if case CompositionRoot.CompositionError.claudeNotFound = error {
-                initFailure = .claudeNotFound
-            } else {
-                initFailure = .other(message: String(describing: error))
+            let failure: InitFailure = switch error {
+            case CompositionRoot.CompositionError.claudeNotFound: .claudeNotFound
+            case CompositionRoot.CompositionError.migrationFailed(let reason)
+                where reason == AppSupportMigrator.legacyApplicationRunningReason:
+                .legacyAppRunning(message: "AppSupportMigrator: \(reason)")
+            case CompositionRoot.CompositionError.migrationFailed(let reason): .migrationFailed(message: "AppSupportMigrator: \(reason)")
+            case _ where CompositionRoot.isServerStartFailure(error): .serverFailed(message: String(describing: error))
+            default: .other(message: String(describing: error))
             }
+            initFailureLogged = failure.writeLog()
+            initFailure = failure
             appDelegate.ptyManager = nil
             appDelegate.dashboard = nil
             appDelegate.router = nil
@@ -918,76 +959,110 @@ private extension NSEvent {
 
 /// 11 I1: 初期化中。段階ごとの文言（セッションの復元の件数など）は見本でも推測のため出さない。
 private struct InitLoadingView: View {
+    /// 1 秒以内に終わる起動では何も出さない（11 I1）。
+    @State private var isShown = false
+
     var body: some View {
-        VStack(spacing: DSSpacing.m) {
+        VStack(spacing: 12) {
             AppIconBadge(showsCaution: false, size: 64)
             Text("Phlox を起動しています")
-                .font(DSFont.body)
-                .foregroundStyle(.secondary)
-            ProgressView()
-                .controlSize(.small)
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(DSColor.textPrimary)
+            StartupProgressBar()
+                .accessibilityRepresentation { ProgressView() }
         }
+        .opacity(isShown ? 1 : 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DSColor.windowBackground)
+        .task {
+            try? await Task.sleep(for: .seconds(1))
+            isShown = true
+        }
     }
 }
 
-/// 11 I2/I3: 初期化エラー。原因の文（エラーの内容）を等幅で出し、終了と再試行（既定）を置く。
+/// 11 I1: 幅 240・高さ 4 の進み具合の帯。段階の件数は取れないので、accent の帯が行き来する（動きを減らす設定では止める）。
+private struct StartupProgressBar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var atEnd = false
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 2)
+            .fill(DSColor.textPrimary.opacity(DSColor.isDark ? 0.10 : 0.08))
+            .overlay(alignment: atEnd ? .trailing : .leading) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(DSColor.accentFill)
+                    .frame(width: 96)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 2))
+            .frame(width: 240, height: 4)
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { atEnd = true }
+            }
+    }
+}
+
+/// 11 I2/I3: 初期化エラー。何が起きたかの説明と、原因の文（エラーの内容）を等幅で出し、
+/// ログの表示・終了・再試行（既定）を置く。
 private struct InitErrorView: View {
     let failure: InitFailure
+    let logWritten: Bool
     let retry: () -> Void
 
-    private var isClaudeNotFound: Bool {
-        if case .claudeNotFound = failure { return true }
-        return false
-    }
-
-    private var detailMessage: String {
-        if case .other(let message) = failure { return message }
-        return ""
+    private var description: LocalizedStringKey? {
+        switch failure {
+        case .claudeNotFound: "Claude Code CLI が見つかりませんでした。次のコマンドでインストールしてください。"
+        case .serverFailed: "制御用のサーバーを開始できません。"
+        case .migrationFailed: "以前のバージョンのデータを移行できませんでした。データは消えていません。"
+        case .legacyAppRunning: "以前のバージョンのアプリ（AgentDashboard）が起動しているため、データを移行できませんでした。データは消えていません。終了してから再試行してください。"
+        case .other: nil
+        }
     }
 
     var body: some View {
-        VStack(spacing: DSSpacing.l) {
+        VStack(spacing: 12) {
             AppIconBadge(showsCaution: true, size: 64)
-
             Text("Phlox を起動できませんでした")
-                .font(DSFont.heroTitle)
-
-            if isClaudeNotFound {
-                VStack(spacing: DSSpacing.s) {
-                    Text("Claude Code CLI が見つかりませんでした。")
-                    Text("次のコマンドでインストールしてください:")
-                        .foregroundStyle(.secondary)
-                    logBox("npm install -g @anthropic-ai/claude-code")
-                }
-                .multilineTextAlignment(.center)
-            } else {
-                logBox(detailMessage)
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(DSColor.textPrimary)
+            if let description {
+                Text(description)
+                    .font(.system(size: 12.5))
+                    .lineSpacing(3)
+                    .foregroundStyle(DSColor.textSecondary)
+                    .frame(maxWidth: 400)
             }
-
-            HStack(spacing: DSSpacing.s) {
+            Text(verbatim: failure.log)
+                .font(.system(size: 11, design: .monospaced))
+                .lineSpacing(3)
+                .foregroundStyle(DSColor.isDark ? DSColor.textSecondary : DSColor.textPrimary.opacity(0.85))
+                .textSelection(.enabled)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
+                .background(DSColor.codeBackground, in: RoundedRectangle(cornerRadius: 7))
+            HStack(spacing: 8) {
+                Button("ログを Finder で表示") {
+                    NSWorkspace.shared.activateFileViewerSelecting([InitFailure.logURL])
+                }
+                .buttonStyle(.ds(.secondary))
+                // 今回の失敗を書けなかったときは、古いログや無いファイルを示さない。
+                .disabled(!logWritten)
                 Button("終了") { NSApp.terminate(nil) }
-                Button(action: retry) {
-                    Label("再試行", systemImage: "arrow.clockwise")
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(DSColor.accentFill)
-                .keyboardShortcut("r", modifiers: .command)
+                    .buttonStyle(.ds(.secondary, keyHint: "⌘Q"))
+                    .keyboardShortcut("q", modifiers: .command)
+                Button("再試行", action: retry)
+                    .buttonStyle(.ds(.primary, keyHint: "⌘R"))
+                    .keyboardShortcut("r", modifiers: .command)
             }
-            .controlSize(.large)
+            .padding(.top, 4)
         }
-        .padding(DSSpacing.xxl)
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, 48)
+        .frame(maxWidth: 560)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func logBox(_ text: String) -> some View {
-        Text(verbatim: text)
-            .font(DSFont.monoCaption)
-            .foregroundStyle(.secondary)
-            .textSelection(.enabled)
-            .padding(.horizontal, DSSpacing.m)
-            .padding(.vertical, DSSpacing.s)
-            .frame(maxWidth: 520)
-            .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+        .background(DSColor.windowBackground)
     }
 }

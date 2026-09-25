@@ -45,17 +45,6 @@
         }
       }
     },
-    "Claude Code CLI が見つかりませんでした。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code CLI was not found."
-          }
-        }
-      }
-    },
     "Claude使用量は未取得です。Phlox内でClaudeを起動すると取得されます": {
       "extractionState": "manual",
       "localizations": {
@@ -602,17 +591,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Permissions"
-          }
-        }
-      }
-    },
-    "次のコマンドでインストールしてください:": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Install it with the following command:"
           }
         }
       }
@@ -7882,6 +7860,61 @@
           "stringUnit": {
             "state": "translated",
             "value": "Awaiting approval"
+          }
+        }
+      }
+    },
+    "Claude Code CLI が見つかりませんでした。次のコマンドでインストールしてください。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code CLI wasn’t found. Install it with this command."
+          }
+        }
+      }
+    },
+    "制御用のサーバーを開始できません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t start the control server."
+          }
+        }
+      }
+    },
+    "ログを Finder で表示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Log in Finder"
+          }
+        }
+      }
+    },
+    "以前のバージョンのデータを移行できませんでした。データは消えていません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t move data from the previous version. Your data hasn’t been deleted."
+          }
+        }
+      }
+    },
+    "以前のバージョンのアプリ（AgentDashboard）が起動しているため、データを移行できませんでした。データは消えていません。終了してから再試行してください。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t move your data because the previous version of the app (AgentDashboard) is running. Your data hasn’t been deleted. Quit it, then try again."
           }
         }
       }

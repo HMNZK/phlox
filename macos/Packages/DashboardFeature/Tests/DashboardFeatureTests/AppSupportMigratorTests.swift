@@ -231,6 +231,16 @@ struct AppSupportMigratorTests {
 
         assertFailed(outcome)
         #expect(!FileManager.default.fileExists(atPath: newURL.path))
+        // 11 I3: 失敗は起動を止める理由になり、移行先を作らないので再試行でやり直せる。
+        #expect(outcome.startupFailureReason != nil)
+    }
+
+    @Test func onlyFailedMigrationStopsStartup() {
+        #expect(MigrationOutcome.failed(reason: "x").startupFailureReason == "x")
+        #expect(MigrationOutcome.migrated.startupFailureReason == nil)
+        #expect(MigrationOutcome.freshInstall.startupFailureReason == nil)
+        #expect(MigrationOutcome.skippedExistingData(reason: "y").startupFailureReason == nil)
+        #expect(MigrationOutcome.skippedExistingData(reason: "legacy migration disabled for debug flavor").startupFailureReason == nil)
     }
 
     @Test func workspaceSymlinkIsPreservedWithoutFollowingExternalTarget() throws {
@@ -288,6 +298,8 @@ struct AppSupportMigratorTests {
 
         assertSkippedExistingData(outcome)
         #expect(!FileManager.default.fileExists(atPath: newURL.path))
+        // 11 I3: 新しい置き場を作って旧データを見えなくしないよう、起動を止める。
+        #expect(outcome.startupFailureReason != nil)
     }
 }
 

@@ -40,6 +40,9 @@ public final class CompositionRoot {
         onDashboardReady: (@MainActor (DashboardViewModel, PTYManager) -> Void)? = nil
     ) async throws {
         let appSupportMigrationOutcome = Self.migrateAndCleanupAppSupport()
+        if let reason = appSupportMigrationOutcome.startupFailureReason {
+            throw CompositionError.migrationFailed(reason: reason)
+        }
         let hookInfra = try await Self.startHookInfrastructure()
         let claudeSettings = try Self.prepareClaudeSettings()
         let agents = try await Self.resolveAgentBinariesAndCatalog()
@@ -723,8 +726,15 @@ public final class CompositionRoot {
         }
     }
 
+    /// 制御用・フック用のサーバーを開始できなかった失敗か（起動エラーの画面の説明を選ぶのに使う）。
+    static func isServerStartFailure(_ error: Error) -> Bool {
+        error is ControlServerError || error is HookServerError
+    }
+
     public enum CompositionError: Error {
         case invalidHookURL
         case claudeNotFound
+        /// 以前のバージョンのデータを移行できなかった（データは元の場所に残っている）。
+        case migrationFailed(reason: String)
     }
 }

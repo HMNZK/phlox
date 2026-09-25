@@ -10,6 +10,20 @@ public enum MigrationOutcome: Equatable, Sendable {
     case failed(reason: String)
 }
 
+extension MigrationOutcome {
+    /// 起動を止める理由（11 I3）。移行に失敗したまま起動すると新しい空のデータの置き場ができ、
+    /// 以後は「既にある」として移行されず、前のデータが見えなくなるので止める。失敗時は移行先を作らないので、
+    /// 再試行で同じ移行をやり直せる。
+    /// 旧アプリの起動中で移行を見送ったときも同じ理由で止める（旧アプリを終了して再試行すれば移行できる）。
+    public var startupFailureReason: String? {
+        switch self {
+        case .failed(let reason): reason
+        case .skippedExistingData(let reason) where reason == AppSupportMigrator.legacyApplicationRunningReason: reason
+        default: nil
+        }
+    }
+}
+
 public struct AppSupportMigrationOptions: Sendable {
     public var legacyBundleIdentifiers: Set<String>
     public var isLegacyApplicationRunning: @Sendable (Set<String>) -> Bool
@@ -39,6 +53,9 @@ public struct AppSupportMigrationOptions: Sendable {
 }
 
 public enum AppSupportMigrator {
+    /// 旧アプリの起動中で移行を見送った理由（起動を止める判定と共有する）。
+    public static let legacyApplicationRunningReason = "legacy AgentDashboard application is running"
+
     public static let completionMarkerName = ".migration-complete.json"
     public static let defaultLegacyBundleIdentifiers: Set<String> = [
         "com.agentdashboard",
@@ -114,7 +131,7 @@ public enum AppSupportMigrator {
         }
 
         if options.isLegacyApplicationRunning(options.legacyBundleIdentifiers) {
-            return .skippedExistingData(reason: "legacy AgentDashboard application is running")
+            return .skippedExistingData(reason: AppSupportMigrator.legacyApplicationRunningReason)
         }
 
         let stagingURL = parentURL.appendingPathComponent(

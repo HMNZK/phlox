@@ -43,6 +43,127 @@ struct AppSupportMigratorTests {
         #expect(try stagingDirectories(in: root).isEmpty)
     }
 
+    // C-64 / 11 I3: 読めない JSON は移さず、旧データを残したまま起動を止める。
+    @Test func unreadableJSONFailsWithoutCreatingTheDestination() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let oldURL = root.appendingPathComponent("AgentDashboard", isDirectory: true)
+        let newURL = root.appendingPathComponent("Phlox", isDirectory: true)
+        try seedOldAppSupport(at: oldURL)
+        try #"{"sessions":["#.write(to: oldURL.appendingPathComponent("sessions.json"), atomically: true, encoding: .utf8)
+
+        let outcome = AppSupportMigrator.migrateAppSupportIfNeeded(
+            from: oldURL,
+            to: newURL,
+            options: testOptions(now: Date(timeIntervalSince1970: 1_700_000_000))
+        )
+
+        guard case .failed(let reason) = outcome else {
+            Issue.record("失敗として止まっていない: \(outcome)")
+            return
+        }
+        // 前置きの「AppSupportMigrator: 」は起動画面が付けるので、理由には入れない。
+        #expect(!reason.hasPrefix("AppSupportMigrator: "))
+        #expect(reason.contains("sessions.json — "))
+        #expect(!FileManager.default.fileExists(atPath: newURL.path))
+        #expect(try String(contentsOf: oldURL.appendingPathComponent("sessions.json"), encoding: .utf8) == #"{"sessions":["#)
+        #expect(try stagingDirectories(in: root).isEmpty)
+    }
+
+    // C-64: 構文が正しくても一覧が読めない形なら、止める。リンクは先の中身を見る。
+    @Test(arguments: [
+        ("sessions.json", #"{"sessions":42}"#),
+        ("sessions.json", #"[1,2]"#),
+        ("sessions.json", #"{"projects":{}}"#),
+        ("sessions.json", #"{"schemaVersion":"bad","sessions":[]}"#),
+        ("projects.json", #"{"schemaVersion":1,"projects":[{"name":1}]}"#),
+    ])
+    func jsonTheAppCannotReadFails(fileName: String, json: String) throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let oldURL = root.appendingPathComponent("AgentDashboard", isDirectory: true)
+        let newURL = root.appendingPathComponent("Phlox", isDirectory: true)
+        try seedOldAppSupport(at: oldURL)
+        try json.write(to: oldURL.appendingPathComponent(fileName), atomically: true, encoding: .utf8)
+
+        let outcome = AppSupportMigrator.migrateAppSupportIfNeeded(from: oldURL, to: newURL, options: testOptions())
+
+        guard case .failed = outcome else {
+            Issue.record("失敗として止まっていない: \(outcome)")
+            return
+        }
+        #expect(!FileManager.default.fileExists(atPath: newURL.path))
+    }
+
+    @Test func symlinkToABrokenJSONFails() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let oldURL = root.appendingPathComponent("AgentDashboard", isDirectory: true)
+        let newURL = root.appendingPathComponent("Phlox", isDirectory: true)
+        try seedOldAppSupport(at: oldURL)
+        let target = root.appendingPathComponent("elsewhere-sessions.json")
+        try #"{"sessions":["#.write(to: target, atomically: true, encoding: .utf8)
+        try FileManager.default.removeItem(at: oldURL.appendingPathComponent("sessions.json"))
+        try FileManager.default.createSymbolicLink(at: oldURL.appendingPathComponent("sessions.json"), withDestinationURL: target)
+
+        let outcome = AppSupportMigrator.migrateAppSupportIfNeeded(from: oldURL, to: newURL, options: testOptions())
+
+        guard case .failed = outcome else {
+            Issue.record("失敗として止まっていない: \(outcome)")
+            return
+        }
+        #expect(!FileManager.default.fileExists(atPath: newURL.path))
+    }
+
+    // 相対リンクの先が移らない場所にあると、移したあとは読めないので止める。移る先（workspace の中）なら通す。
+    @Test(arguments: [("extra.json", false), ("workspace/sessions-real.json", true)])
+    func relativeSymlinkIsCheckedFromTheNewPlace(target: String, migrates: Bool) throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let oldURL = root.appendingPathComponent("AgentDashboard", isDirectory: true)
+        let newURL = root.appendingPathComponent("Phlox", isDirectory: true)
+        try seedOldAppSupport(at: oldURL)
+        try #"{"schemaVersion":1,"sessions":[]}"#.write(to: oldURL.appendingPathComponent(target), atomically: true, encoding: .utf8)
+        try FileManager.default.removeItem(at: oldURL.appendingPathComponent("sessions.json"))
+        try FileManager.default.createSymbolicLink(atPath: oldURL.appendingPathComponent("sessions.json").path, withDestinationPath: target)
+
+        let outcome = AppSupportMigrator.migrateAppSupportIfNeeded(from: oldURL, to: newURL, options: testOptions())
+
+        if migrates {
+            #expect(outcome == .migrated)
+        } else {
+            guard case .failed = outcome else {
+                Issue.record("失敗として止まっていない: \(outcome)")
+                return
+            }
+            #expect(!FileManager.default.fileExists(atPath: newURL.path))
+        }
+    }
+
+    // 検査のあとコピーの前に旧ファイルが壊れても、移したものを確かめるので止まる。
+    @Test func jsonBrokenJustBeforeCopyingFails() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let oldURL = root.appendingPathComponent("AgentDashboard", isDirectory: true)
+        let newURL = root.appendingPathComponent("Phlox", isDirectory: true)
+        try seedOldAppSupport(at: oldURL)
+        var options = testOptions()
+        options.beforeCopyingItem = { url in
+            if url.lastPathComponent == "sessions.json" {
+                try #"{"sessions":["#.write(to: url, atomically: true, encoding: .utf8)
+            }
+        }
+
+        let outcome = AppSupportMigrator.migrateAppSupportIfNeeded(from: oldURL, to: newURL, options: options)
+
+        guard case .failed(let reason) = outcome else {
+            Issue.record("失敗として止まっていない: \(outcome)")
+            return
+        }
+        #expect(reason.contains("AgentDashboard/sessions.json — "), "理由には旧データの場所を出す")
+        #expect(!FileManager.default.fileExists(atPath: newURL.path))
+    }
+
     @Test func existingNewDirectoryWithCompletionMarkerSkipsAsAlreadyMigrated() throws {
         let root = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

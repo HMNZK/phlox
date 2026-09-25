@@ -76,3 +76,21 @@ struct DockBadgeLabelTests {
         #expect(DockBadge.label(count: 100) == "99+")
     }
 }
+
+// C-61: 設定の「バッジに出す数」で、対応待ちの数か未読の完了の数を出す。既定は対応待ちの数。
+struct DockBadgeCountSettingTests {
+    @Test func followsTheChosenCount() {
+        #expect(DockBadge.label(.attention, attentionCount: 3, unseenCompletionCount: 5) == "3")
+        #expect(DockBadge.label(.unseenCompletions, attentionCount: 3, unseenCompletionCount: 5) == "5")
+        #expect(DockBadge.label(.unseenCompletions, attentionCount: 3, unseenCompletionCount: 0) == nil)
+    }
+
+    @Test func defaultsToTheAttentionCountAndKeepsTheChoice() throws {
+        let suite = "phlox.test.dockBadge.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        #expect(NotificationSettings.dockBadgeCount(defaults: defaults) == .attention)
+        defaults.set(NotificationSettings.DockBadgeCount.unseenCompletions.rawValue, forKey: NotificationSettings.dockBadgeKey)
+        #expect(NotificationSettings.dockBadgeCount(defaults: defaults) == .unseenCompletions)
+    }
+}

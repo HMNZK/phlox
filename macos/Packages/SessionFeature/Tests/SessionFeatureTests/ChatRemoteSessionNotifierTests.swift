@@ -156,3 +156,22 @@ func chatRemoteNotifier_completionAfterApprovalResumed_firesSessionCompleted() a
 
     #expect(notifier.sessionCompletedCalls.count == 1)
 }
+
+// B5: チャットの質問は、承認待ちと分けて「質問」としてスマホへ送る。
+@Test @MainActor
+func chatRemoteNotifier_questionIsSentAsAQuestion() async throws {
+    let notifier = KindRecordingRemoteSessionNotifier()
+    let (vm, client) = makeChatSessionViewModel(remoteSessionNotifier: notifier)
+    client.yield(.turnStarted)
+    try await waitUntil { vm.status == .running }
+
+    client.yield(.userQuestionRequested(requestId: "q-1", questions: [ChatUserQuestion(
+        question: "どの方式にしますか？",
+        header: "方式",
+        options: [ChatUserQuestionOption(label: "A案"), ChatUserQuestionOption(label: "B案")],
+        multiSelect: false
+    )]))
+    try await waitUntil { vm.status == .awaitingUserQuestion }
+
+    #expect(notifier.kinds == [.question])
+}

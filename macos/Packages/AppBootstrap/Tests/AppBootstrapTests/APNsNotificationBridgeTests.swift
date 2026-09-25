@@ -297,3 +297,29 @@ private final class CountingDeviceTokenStore: DeviceTokenStore, @unchecked Senda
 
     func remove(deviceToken: String) throws {}
 }
+
+// C-55 / 10 Settings L3: 設定の「プッシュ通知」がオフなら、通知も Live Activity も送らない。
+extension APNsNotificationBridgeTests {
+    @Test func turnedOffInSettingsSendsNothing() async throws {
+        let store = InMemoryDeviceTokenStore()
+        try store.upsert(DeviceTokenRegistration(
+            deviceToken: "abcdef0123456789",
+            bundleId: "com.phlox.mobile",
+            environment: .sandbox
+        )!)
+        try store.upsert(DeviceTokenRegistration(
+            deviceToken: "fedcba9876543210",
+            bundleId: "com.phlox.mobile",
+            environment: .sandbox,
+            tokenType: .liveActivityPushToStart
+        )!)
+        let sender = FakeAPNsNotificationSender(results: [.success, .success])
+        let bridge = APNsNotificationBridge(deviceTokenStore: store, sender: sender, isPushEnabled: { false })
+
+        await bridge.notify(.approvalPending(sessionId: "session-789", sessionName: "Still Pond"))
+
+        #expect(await sender.calls.isEmpty)
+        #expect(bridge.isSendingConfigured)
+        #expect(!APNsNotificationBridge(deviceTokenStore: store, sender: nil).isSendingConfigured)
+    }
+}

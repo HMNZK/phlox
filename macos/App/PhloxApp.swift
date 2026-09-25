@@ -330,6 +330,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 self.applyAttention(dashboard)
             }
         }
+        // 設定で「バッジに出す数」を変えたら、すぐに Dock に反映する。
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let dashboard = self.dashboard else { return }
+                self.applyDockBadge(dashboard)
+            }
+        }
         // 通知の文言は、画面と同じアプリ内の表示言語で出す（@AppStorage と同じ保存先を読む）。
         SessionCompletionNotifier.locale = {
             (AppLanguage(rawValue: UserDefaults.standard.string(forKey: LanguageSettings.languageKey) ?? "") ?? .system).locale
@@ -509,11 +516,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     private func applyAttention(_ dashboard: DashboardViewModel) {
-        NSApp.dockTile.badgeLabel = DockBadge.label(count: dashboard.attentionCount)
+        applyDockBadge(dashboard)
         SessionCompletionNotifier.removeDelivered(
             attention: dashboard.attentionSessionIDs,
             unseenCompletions: dashboard.unseenCompletionSessionIDs,
             includesPreviousLaunch: dashboard.hasRestoredSessions
+        )
+    }
+
+    /// Dock バッジ。設定の「バッジに出す数」に従う（C-61）。
+    private func applyDockBadge(_ dashboard: DashboardViewModel) {
+        NSApp.dockTile.badgeLabel = DockBadge.label(
+            NotificationSettings.dockBadgeCount(),
+            attentionCount: dashboard.attentionCount,
+            unseenCompletionCount: dashboard.unseenCompletionSessionIDs.count
         )
     }
 

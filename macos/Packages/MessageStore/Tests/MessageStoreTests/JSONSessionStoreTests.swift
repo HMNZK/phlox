@@ -233,3 +233,20 @@ struct JSONSessionStoreTests {
         #expect(loaded == sessions)
     }
 }
+
+// C-64: 版番号の無いファイルは 1 とみなして読み、壊れた扱いで退避しない。
+@Test func sessionsFileWithoutSchemaVersionIsReadAsVersionOne() async throws {
+    let url = temporarySessionsFileURL()
+    defer {
+        try? FileManager.default.removeItem(at: url)
+        for file in quarantinedSessionFiles(for: url) { try? FileManager.default.removeItem(at: file) }
+    }
+    try #"{"sessions":[]}"#.write(to: url, atomically: true, encoding: .utf8)
+
+    let loaded = await JSONSessionStore(fileURL: url).load()
+
+    #expect(loaded.isEmpty)
+    #expect(quarantinedSessionFiles(for: url).isEmpty)
+    #expect(JSONSessionStore.canRead(Data(#"{"sessions":[]}"#.utf8)))
+    #expect(!JSONSessionStore.canRead(Data(#"{"schemaVersion":"bad","sessions":[]}"#.utf8)))
+}

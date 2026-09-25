@@ -1397,3 +1397,35 @@ F1〜F11 で見送った項目を、ユーザーの判断（`0037-ui-redesign-de
 - 検証ゲート `bash .claude/verify.sh` が通った（DesignSystem・AgentDomain・SessionFeature・DashboardFeature のテストとアプリのビルド）。
 - 追加したテスト: `CleanupFailureReasonTests`（git の出力の 1 行目・理由の付け方・書き込めないフォルダを含む作業フォルダを消したときにファイル名と「Permission denied」が出る）、`WorktreeIsolationSpawnTests` に 7 本（既存の worktree はこのリポジトリの作業ツリーだけ見つけ、`.git` ファイルだけの別フォルダ・登録を残して別のリポジトリに置き換わった場所では出さない・作成中だけパスが出て終わると消える・API からの起動のパスは出さない・復元で作り直す前にたずねる 4 通り・登録だけ残ってブランチが消えたとき「ブランチが無い」ほうを出し作り直しでブランチも作る・隔離オフで作ったセッションではたずねない・別のリポジトリに置き換わった場所を復元で使わない）。後ろの 4 つは、修正を外すと失敗することを確かめた。
 - 画面での確認はしていない: D9・E2（2 通り）・作業フォルダの片付け警告のダイアログ、worktree の案内。Debug 版のモーダルはユーザーが使っている画面の前に出るおそれがあるので出していない。文言は英語訳を `Localizable.xcstrings` に入れた。
+
+## F12 見送り分の再対応（6）: 通知と起動（11 Notifications and Startup・10 Settings）
+
+### 対応表
+
+| 見本の指示 | 内容 | 実装箇所 |
+|---|---|---|
+| C-64（11 I3 移行の失敗で止める） | 旧データを移すとき、`projects.json`・`sessions.json` が起動後の読み込みと同じ復号で読めなければ、移行先を作らず旧データを残したまま起動を止める。確かめるのは移し終えた一時フォルダの中身（コピーの途中で旧ファイルが変わっても、相対リンクの先が移らなくても、起動後に読むものを見る）。あわせて、起動後の読み込みは版番号の無いファイルを 1 とみなして読む（これまでは壊れた扱いで退避して空にしていた）。理由の文は起動画面の「AppSupportMigrator: 」の後ろに続く形 | `AppSupportMigrator.validateJSON`・`JSONSessionStore`／`JSONProjectStore`（`canRead`・版番号の既定） |
+| C-61（10 Settings「バッジに出す数」） | 通知の設定に「Dock」を足し、対応待ちの数（既定）か未読の完了の数を選べる。変えるとすぐ Dock に反映 | `NotificationSettings.dockBadgeCount`・`DockBadge.label(_:attentionCount:unseenCompletionCount:)`・`AppDelegate.applyDockBadge`・`SettingsView` |
+| C-55（10 Settings L3「プッシュ通知」） | モバイルの設定で、つないだ端末があるとき「iPhone に通知を送る」を出す。オフなら通知も Live Activity も送らない（送信の入口で止める）。送る鍵（APNs）が無いときは「オンでも送信されません」と琥珀の文字で添える | `APNsNotificationBridge.notify`・`isSendingConfigured`・`MobileTokenViewModel.isPushSendingConfigured`・`SettingsView.MobileTokenSection` |
+| C-62・B5（11「同じ文言を iOS 側にも渡す」・質問を承認と分ける） | スマホへ、完了・承認待ち・質問・エラー・無応答・終了をそれぞれの種類で送る（これまでは完了と承認待ちの 2 つだけで、質問も承認待ちとして送っていた）。本文は種類の言葉（「質問があります」「セッションが終了しました · exit 1」など）。iOS は種類を名前つきで読み、Live Activity の記号を種類ごとに出す（短い状態は Done／End／Error／Wait の 4 通り） | `RemoteSessionNotification`・`RemoteSessionNotifier.notify`・`APNsNotificationBridge.NotificationEvent`・`PhloxPushPayload.EventType`・`SessionLiveActivity` |
+| C-60（11「終了」） | ターミナル型のプロセスが 0 以外の終了コードで終わったら「セッションが終了しました: {名前}」、本文「exit 1」を出す（実行中でなくても）。スマホにも送る | `SessionViewModel.startExitTask`・`SessionNotificationText.Kind.exited`・`SessionCompletionNotifier.notifyExited` |
+
+### 直していないもの
+
+- スマホへの通知に、承認の対象・質問文・エラー文・直近の動作は入れない（ユーザーの判断。通知は Apple のサーバーを経由し、リモート通知に本文の中身を含めない既存の決まりを守る）。
+- 匿名の利用状況の送信とトークンの再発行は置かない（ユーザーの判断。見本でも推測で、裏付けの機能が無い）。
+- スイッチの名前は見本の「承認待ちを iPhone に送る」ではなく「iPhone に通知を送る」。承認待ち以外も送るようになったため。
+- 実行中に終了コード 0 で終わったときは、これまでどおり完了として知らせる。見本の「0 のときは通知しない」は「終了」の通知の話と読み、既存のテスト（`notificationGap_ptyProcessExit_firesSessionCompleted`）が固定している意図的な挙動を残した。
+- チャット型は終了コードを受け取れない（プロセスの終わりを扱う層が終了コードを捨てている）ので「終了」の通知の対象外。C-17（終了コードと再開ボタン）で経路を作るときに合わせる。
+- 移行の検査は起動後の読み込みと同じ復号で行う。セッションは 1 件ずつ読めないものを起動後の読み込みが捨てて退避するので、それだけでは止めない。
+- 更新用のトークンが無いときの完了・終了は、完了済みの Live Activity を新しく出す（60 秒後に古い扱いにするだけで、消える時刻は OS が決める）。最初からの意図的な設計（`completionWithoutExistingActivityStartsAlreadyCompletedLiveActivity` が固定）で、終了も同じ扱いにした（レビューは中で「終わった知らせで始めない」よう指摘）。
+- 設定の保存先: 新しく足した「バッジに出す数」「iPhone に通知を送る」は、読む側と同じ保存先（`PHLOX_DEFAULTS_SUITE` を指定した隔離起動ではその保存先）に書く。既存の「バナーで知らせる」「完了サウンド」は標準の保存先に書いたまま（前からの挙動）。
+- まとめ通知の件数を、表示済みの通知で音やバナーを出し直さずに書き換えることはできない（上の（5）に記載）。
+
+### 検証
+
+- 追加したテスト: `AppSupportMigratorTests`（壊れた JSON・一覧が読めない 3 通り・版番号が読めない・プロジェクトの 1 件が読めない・壊れた JSON を指すリンク・移らない先を指す相対リンクで止まり移行先を作らない、移る先を指す相対リンクは通す）、`JSONSessionStoreTests`・`JSONProjectStoreTests`（版番号の無いファイルを読み、退避しない）、`DockBadgeCountSettingTests`（選んだ数を出す・既定は対応待ち）、`APNsNotificationBridgeTests.turnedOffInSettingsSendsNothing`、`LiveActivityBridgeTests.eachKindIsSentWithItsOwnTypeAndWords`（4 種類の type・本文・Live Activity の終わり方と残す時間）、`remoteNotifier_defaultRoutesKindsToTheTwoLegacyCalls`、`chatRemoteNotifier_questionIsSentAsAQuestion`、`notificationGap_ptyNonZeroExit_sendsTheExitCodeEvenWhenIdle`、iOS の `decodesEveryDesktopNotificationKind`。
+- 通ったもの: 検証ゲート `bash .claude/verify.sh`、AppBootstrap 163 件、MessageStore 42 件、iOS PhloxKit（Swift Testing 698 件と XCTest。終了コード 0）、アプリのビルド。
+- 見つけて直した前からの失敗: iOS の `TokensTests.testReExportsStatusVocabulary` が、前のまとまり（4a58aa9、12 Design System の語彙）で「完了 (0)」→「完了」に変えたのに古い期待値のままで落ちていた。iOS のテストはゲートに入っておらず、XCTest 側の失敗が Swift Testing の要約に隠れていた。期待値を見本の語彙に合わせた。
+- Debug 版での確認（背面・撮影だけ）: ダーク・英語で通知の設定に「Dock / Badge shows / Sessions that need you」が出ること。
+- 確認できなかったもの: iOS のウィジェット（`SessionLiveActivity`）のビルド（プロジェクトの生成に使う xcodegen が入っておらず、ツールは入れない約束のため）。モバイルの設定の「プッシュ通知」の表示（つないだ端末が要り、実機が無い）。Dock のバッジの見た目（画面全体を撮ることになるので撮っていない）。

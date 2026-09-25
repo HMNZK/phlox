@@ -124,3 +124,23 @@ private func makeProject(
     #expect(envelope.schemaVersion == 1)
     #expect(envelope.projects == projects)
 }
+
+// C-64: 版番号の無いファイルは 1 とみなして読み、壊れた扱いで退避しない。
+@Test func projectsFileWithoutSchemaVersionIsReadAsVersionOne() async throws {
+    let url = temporaryProjectsFileURL()
+    defer {
+        removeProjectsFile(at: url)
+        removeQuarantinedFiles(for: url)
+    }
+    let project = Project(name: "legacy", directoryPath: "/tmp/legacy", createdAt: Date(timeIntervalSince1970: 0), isManagedDirectory: false)
+    let encoded = try JSONEncoder().encode(project)
+    let projectJSON = try #require(String(data: encoded, encoding: .utf8))
+    try #"{"projects":[\#(projectJSON)]}"#.write(to: url, atomically: true, encoding: .utf8)
+
+    let loaded = await JSONProjectStore(fileURL: url).load()
+
+    #expect(loaded.map(\.name) == ["legacy"])
+    #expect(quarantinedFiles(for: url).isEmpty)
+    #expect(JSONProjectStore.canRead(Data(#"{"projects":[]}"#.utf8)))
+    #expect(!JSONProjectStore.canRead(Data(#"{"schemaVersion":"bad","projects":[]}"#.utf8)))
+}

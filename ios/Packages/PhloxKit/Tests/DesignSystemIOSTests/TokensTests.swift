@@ -43,7 +43,8 @@ final class TokensTests: XCTestCase {
         // 状態語彙（SSOT）も DesignSystemIOS から使える。
         XCTAssertEqual(StatusBadge.englishLabel(for: .running), "running")
         XCTAssertEqual(StatusBadge.englishLabel(for: .awaitingApproval(prompt: "")), "awaiting")
-        XCTAssertEqual(StatusBadge.label(for: .completed(exitCode: 0)), "完了 (0)")
+        // 12 Design System の語彙（完了に終了コードを付けない。4a58aa9 で変更）。
+        XCTAssertEqual(StatusBadge.label(for: .completed(exitCode: 0)), "完了")
     }
 
     func testAddedDynamicTypeFontsAreAccessible() {

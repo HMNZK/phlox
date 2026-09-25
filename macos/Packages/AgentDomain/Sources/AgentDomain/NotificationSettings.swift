@@ -6,12 +6,24 @@ import Foundation
 public enum NotificationSettings {
     public static let bannerKey = "phlox.notify.banner"
     public static let soundKey = "phlox.notify.sound"
+    /// Dock バッジに出す数（10 Settings「バッジに出す数」、C-61）。
+    public static let dockBadgeKey = "phlox.notify.dockBadge"
+    /// スマホ（APNs・Live Activity）へ送るか（10 Settings L3「プッシュ通知」、C-55）。
+    public static let pushKey = "phlox.notify.push"
+
+    /// Dock バッジに出す数。既定は対応待ち（承認待ち・質問待ち・エラー・無応答）の数。
+    public enum DockBadgeCount: String, CaseIterable, Sendable {
+        case attention
+        case unseenCompletions
+    }
 
     /// 起動時に UserDefaults.register(defaults:) へ渡す既定値。
     public static var defaultsDictionary: [String: Any] {
         [
             bannerKey: true,
             soundKey: true,
+            dockBadgeKey: DockBadgeCount.attention.rawValue,
+            pushKey: true,
         ]
     }
 
@@ -21,6 +33,14 @@ public enum NotificationSettings {
 
     public static func isSoundEnabled(defaults: UserDefaults = .phloxDefaults()) -> Bool {
         enabled(forKey: soundKey, defaults: defaults)
+    }
+
+    public static func dockBadgeCount(defaults: UserDefaults = .phloxDefaults()) -> DockBadgeCount {
+        DockBadgeCount(rawValue: defaults.string(forKey: dockBadgeKey) ?? "") ?? .attention
+    }
+
+    public static func isPushEnabled(defaults: UserDefaults = .phloxDefaults()) -> Bool {
+        enabled(forKey: pushKey, defaults: defaults)
     }
 
     private static func enabled(forKey key: String, defaults: UserDefaults) -> Bool {

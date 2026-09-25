@@ -46,6 +46,15 @@ public enum DockBadge {
     public static func label(count: Int) -> String? {
         count <= 0 ? nil : count > 99 ? "99+" : String(count)
     }
+
+    /// 設定の「バッジに出す数」に従った文字（C-61）。
+    public static func label(
+        _ mode: NotificationSettings.DockBadgeCount,
+        attentionCount: Int,
+        unseenCompletionCount: Int
+    ) -> String? {
+        label(count: mode == .attention ? attentionCount : unseenCompletionCount)
+    }
 }
 
 extension DashboardViewModel {

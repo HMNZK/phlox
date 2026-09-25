@@ -8424,6 +8424,160 @@
           }
         }
       }
+    },
+    "Dock": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dock"
+          }
+        }
+      }
+    },
+    "バッジに出す数": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Badge shows"
+          }
+        }
+      }
+    },
+    "対応待ちは承認待ち・質問待ち・エラー・無応答": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs you means approvals, questions, errors and no response"
+          }
+        }
+      }
+    },
+    "対応待ちの数": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessions that need you"
+          }
+        }
+      }
+    },
+    "未読の完了の数": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unread completions"
+          }
+        }
+      }
+    },
+    "プッシュ通知": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Push Notifications"
+          }
+        }
+      }
+    },
+    "iPhone に通知を送る": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send notifications to iPhone"
+          }
+        }
+      }
+    },
+    "承認待ち・質問待ち・完了・エラーを iPhone の通知で知らせる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show approvals, questions, completions and errors as iPhone notifications"
+          }
+        }
+      }
+    },
+    "送信の鍵（APNs）が未設定のため、オンでも送信されません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The APNs sending key isn’t set up, so nothing is sent even when this is on."
+          }
+        }
+      }
+    },
+    "セッションが終了しました: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session ended: %@"
+          }
+        }
+      }
+    },
+    "質問があります": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Has a question"
+          }
+        }
+      }
+    },
+    "エラーで止まりました": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopped with an error"
+          }
+        }
+      }
+    },
+    "応答がありません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not responding"
+          }
+        }
+      }
+    },
+    "セッションが終了しました": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session ended"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

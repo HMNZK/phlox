@@ -5,6 +5,13 @@ public struct PhloxPushPayload: Equatable, Sendable {
     public enum EventType: Equatable, Sendable {
         case sessionCompleted
         case approvalPending
+        /// 質問への回答待ち（承認とは別の種類）。
+        case questionPending
+        case sessionError
+        /// 実行中のまま反応がない。
+        case sessionStalled
+        /// ターミナル型のプロセスが 0 以外の終了コードで終わった。
+        case sessionExited
         case unknown(String)
     }
 
@@ -38,6 +45,14 @@ public struct PhloxPushPayload: Equatable, Sendable {
             .sessionCompleted
         case "approval_pending":
             .approvalPending
+        case "question_pending":
+            .questionPending
+        case "session_error":
+            .sessionError
+        case "session_stalled":
+            .sessionStalled
+        case "session_exited":
+            .sessionExited
         default:
             .unknown(typeString)
         }

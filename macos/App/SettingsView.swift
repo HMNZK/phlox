@@ -20,6 +20,8 @@ struct SettingsView: View {
 
     @AppStorage(NotificationSettings.bannerKey) private var bannerNotificationEnabled = true
     @AppStorage(NotificationSettings.soundKey) private var completionSoundEnabled = true
+    // 読む側（NotificationSettings）と同じ保存先に書く。
+    @AppStorage(NotificationSettings.dockBadgeKey, store: .phloxDefaults()) private var dockBadgeCount = NotificationSettings.DockBadgeCount.attention
 
     @AppStorage(UsageSettings.autoRefreshKey) private var usageAutoRefresh = true
     @AppStorage(UsageSettings.claudeScrapeKey) private var claudeScrape = true
@@ -384,6 +386,21 @@ struct SettingsView: View {
                 .buttonStyle(.ds(.secondary, height: 22, fontSize: 12.5, padding: 11, fill: DSColor.settingsControlBackground, cornerRadius: 5))
             }
         }
+
+        SettingsGroupBox("Dock") {
+            SettingsRow {
+                SettingsLabel(title: Text("バッジに出す数"), detail: Text("対応待ちは承認待ち・質問待ち・エラー・無応答"))
+                Picker(selection: $dockBadgeCount) {
+                    Text("対応待ちの数").tag(NotificationSettings.DockBadgeCount.attention)
+                    Text("未読の完了の数").tag(NotificationSettings.DockBadgeCount.unseenCompletions)
+                } label: {
+                    Text("バッジに出す数")
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .fixedSize()
+            }
+        }
     }
 
     // MARK: - エージェント
@@ -512,6 +529,7 @@ struct SettingsView: View {
     /// `@ObservedObject` を非 optional で受けるため、optional な VM は親で `if let` してから渡す。
     private struct MobileTokenSection: View {
         @ObservedObject var viewModel: MobileTokenViewModel
+        @AppStorage(NotificationSettings.pushKey, store: .phloxDefaults()) private var pushNotificationEnabled = true
         @State private var newDeviceName = "iPhone"
         /// 失効の確認（09 A 型）。
         @State private var pendingRevoke: PairedDevice?
@@ -609,6 +627,25 @@ struct SettingsView: View {
                     ForEach(Array(viewModel.devices.enumerated()), id: \.element.id) { index, device in
                         if index > 0 { SettingsDivider() }
                         MobileDeviceRow(device: device, lastSeenAt: viewModel.lastSeenAt[device.id]) { pendingRevoke = device }
+                    }
+                }
+            }
+
+            // 10 Settings L3: つないだ端末があるときだけ、スマホへ送るかを選べるようにする。
+            if !viewModel.devices.isEmpty {
+                SettingsGroupBox("プッシュ通知") {
+                    SettingsRow {
+                        Toggle(isOn: $pushNotificationEnabled) {
+                            if viewModel.isPushSendingConfigured {
+                                SettingsLabel(title: Text("iPhone に通知を送る"), detail: Text("承認待ち・質問待ち・完了・エラーを iPhone の通知で知らせる"))
+                            } else {
+                                SettingsLabel(
+                                    title: Text("iPhone に通知を送る"),
+                                    detail: Text("送信の鍵（APNs）が未設定のため、オンでも送信されません。"),
+                                    detailColor: DSColor.attentionInk(.approval)
+                                )
+                            }
+                        }
                     }
                 }
             }

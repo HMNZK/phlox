@@ -19,7 +19,8 @@ private struct SessionsFile: Codable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        // 版番号の無いファイルは 1 とみなす（版番号しか違わないファイルを壊れた扱いで退避しない）。
+        schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
         let decodedSessions = try container.decode(
             [DiscardableSession].self,
             forKey: .sessions
@@ -79,6 +80,11 @@ public actor JSONSessionStore: SessionStoreProtocol {
     public init(fileURL: URL) {
         self.fileURL = fileURL
         store = JSONFileStore(fileURL: fileURL, category: "JSONSessionStore")
+    }
+
+    /// `load()` と同じ復号で読めるか。移行の前に確かめる（C-64）。
+    public static func canRead(_ data: Data) -> Bool {
+        (try? JSONDecoder().decode(SessionsFile.self, from: data)) != nil
     }
 
     public func load() async -> [PersistedSessionDescriptor] {

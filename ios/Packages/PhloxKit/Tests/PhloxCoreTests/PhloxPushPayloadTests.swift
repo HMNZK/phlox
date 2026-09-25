@@ -28,3 +28,18 @@ struct PhloxPushPayloadTests {
         ])
     }
 }
+
+// C-62・B5: パソコンから届く種類をすべて名前つきで読む（質問は承認と別）。
+@Test("パソコンの通知の種類をすべて読む", arguments: [
+    ("session_completed", PhloxPushPayload.EventType.sessionCompleted),
+    ("approval_pending", .approvalPending),
+    ("question_pending", .questionPending),
+    ("session_error", .sessionError),
+    ("session_stalled", .sessionStalled),
+    ("session_exited", .sessionExited),
+    ("future_kind", .unknown("future_kind")),
+])
+func decodesEveryDesktopNotificationKind(type: String, expected: PhloxPushPayload.EventType) throws {
+    let payload = try #require(PhloxPushPayload(userInfo: ["phlox": ["v": 1, "type": type, "sessionId": "session-1"]]))
+    #expect(payload.type == expected)
+}

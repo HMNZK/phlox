@@ -123,6 +123,7 @@ public final class CompositionRoot {
                 dashboard?.setPrivilegedRequesters(requesters)
             }
         )
+        mobileTokenViewModel.isPushSendingConfigured = remoteSessionNotifier.isSendingConfigured
         // ControlServer の onAuthenticatedToken（別スレッド由来）から、markPaired の永続化成功時に
         // ここへ到達する。設定画面の一覧が「未接続」のまま更新されない不具合の修正（task-4
         // レビュー3巡目 HIGH）。MainActor へのホップはここで明示し、ControlServer・MobileBootstrap
@@ -393,7 +394,7 @@ public final class CompositionRoot {
     /// フェーズ 9: APNs 通知ブリッジ配線
     private static func wireAPNsNotifications(
         deviceTokenStore: any DeviceTokenStore
-    ) -> any RemoteSessionNotifier {
+    ) -> APNsNotificationBridge {
         APNsNotificationBridge.configuredFromEnvironment(deviceTokenStore: deviceTokenStore)
     }
 

@@ -7,7 +7,7 @@ import StructuredChatKit
 private enum UserNotification {
     case completed
     case awaitingInput(SessionNotificationText.Kind)
-    /// 無応答。モバイルへの通知の種類が無いので、デスクトップだけに出す。
+    /// 無応答。スマホには直近の動作を渡さず、種類だけを送る。
     case stalled(lastAction: String?)
 }
 
@@ -1801,24 +1801,24 @@ public final class ChatSessionViewModel: Identifiable {
                 SessionCompletionNotifier.notifyCompleted(sessionID: id, sessionName: displayName, status: status, lastReply: lastAgentReply)
             }
             if allowsRemoteNotification {
-                remoteSessionNotifier?.sessionCompleted(
-                    sessionId: id.description,
-                    sessionName: displayName
-                )
+                let kind: RemoteSessionNotification = if case .error = status { .error } else { .completed }
+                remoteSessionNotifier?.notify(kind, sessionId: id.description, sessionName: displayName)
             }
         case .awaitingInput(let kind):
             if allowsLocalNotification {
                 SessionCompletionNotifier.notifyAwaitingInput(sessionID: id, sessionName: displayName, kind: kind)
             }
             if allowsRemoteNotification {
-                remoteSessionNotifier?.approvalPending(
-                    sessionId: id.description,
-                    sessionName: displayName
-                )
+                // B5: 質問は承認と分けて送る。
+                let remote: RemoteSessionNotification = if case .awaitingQuestion = kind { .question } else { .approval }
+                remoteSessionNotifier?.notify(remote, sessionId: id.description, sessionName: displayName)
             }
         case .stalled(let lastAction):
             if allowsLocalNotification {
                 SessionCompletionNotifier.notifyAwaitingInput(sessionID: id, sessionName: displayName, kind: .stalled(lastAction: lastAction))
+            }
+            if allowsRemoteNotification {
+                remoteSessionNotifier?.notify(.stalled, sessionId: id.description, sessionName: displayName)
             }
         }
     }

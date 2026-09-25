@@ -429,7 +429,16 @@ public final class SessionViewModel: Identifiable {
                 } else {
                     self.transitionStatus(to: .error(message: "exit code \(code)"), at: timestamp)
                 }
-                self.notifyCompletionIfNeeded(from: previousStatus, to: self.status)
+                if code == 0 {
+                    // 実行中に 0 で終わったら、これまでどおり完了として知らせる（「終了」の通知は出さない）。
+                    self.notifyCompletionIfNeeded(from: previousStatus, to: self.status)
+                } else {
+                    // 11 通知「終了」: 0 以外の終了コードで終わったら、実行中でなくても終了コードを添えて知らせる。
+                    if SessionCompletionNotificationPolicy.shouldNotifyCompletion(previous: previousStatus, next: self.status) {
+                        self.hasUnseenCompletion = true
+                    }
+                    self.notifyUser(.exited(code: code))
+                }
             }
         }
     }
@@ -732,10 +741,8 @@ public final class SessionViewModel: Identifiable {
                 SessionCompletionNotifier.notifyCompleted(sessionID: id, sessionName: displayName, status: status)
             }
             if allowsRemoteNotification {
-                remoteSessionNotifier?.sessionCompleted(
-                    sessionId: id.description,
-                    sessionName: displayName
-                )
+                let kind: RemoteSessionNotification = if case .error = status { .error } else { .completed }
+                remoteSessionNotifier?.notify(kind, sessionId: id.description, sessionName: displayName)
             }
         case .awaitingInput:
             if allowsLocalNotification {
@@ -743,10 +750,14 @@ public final class SessionViewModel: Identifiable {
                 SessionCompletionNotifier.notifyAwaitingInput(sessionID: id, sessionName: displayName)
             }
             if allowsRemoteNotification {
-                remoteSessionNotifier?.approvalPending(
-                    sessionId: id.description,
-                    sessionName: displayName
-                )
+                remoteSessionNotifier?.notify(.approval, sessionId: id.description, sessionName: displayName)
+            }
+        case .exited(let code):
+            if allowsLocalNotification {
+                SessionCompletionNotifier.notifyExited(sessionID: id, sessionName: displayName, code: code)
+            }
+            if allowsRemoteNotification {
+                remoteSessionNotifier?.notify(.exited(code: code), sessionId: id.description, sessionName: displayName)
             }
         }
     }
@@ -770,6 +781,8 @@ public final class SessionViewModel: Identifiable {
 private enum UserNotification {
     case completed
     case awaitingInput
+    /// プロセスが 0 以外の終了コードで終わった（C-60）。
+    case exited(code: Int32)
 }
 
 private extension Data {

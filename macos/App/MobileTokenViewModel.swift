@@ -28,6 +28,8 @@ public final class MobileTokenViewModel: ObservableObject {
 
   /// 直近に解決したモバイルプロキシの待ち受けポート。回復・再解決で更新される。
   @Published public private(set) var mobileProxyPort: Int?
+  /// スマホへの通知を送る鍵がそろっているか（設定「プッシュ通知」の注記、C-55）。
+  public var isPushSendingConfigured = true
 
   private let provisioner: MobileDeviceProvisioner
   private let tokenStore: SessionTokenStore

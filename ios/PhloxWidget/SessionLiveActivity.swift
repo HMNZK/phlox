@@ -31,15 +31,29 @@ struct SessionLiveActivity: Widget {
     }
 
     private func symbol(for status: String) -> String {
-        switch status {
-        case "session_completed": "checkmark.circle.fill"
-        case "approval_pending": "exclamationmark.circle.fill"
-        default: "circle.dotted.circle.fill"
-        }
+        sessionActivitySymbol(for: status)
     }
 
     private func shortStatus(_ status: String) -> String {
-        status == "session_completed" ? "Done" : "Wait"
+        switch status {
+        case "session_completed": "Done"
+        case "session_exited": "End"
+        case "session_error": "Error"
+        default: "Wait"
+        }
+    }
+}
+
+/// 状態ごとの記号。パソコンの通知の種類と 1 対 1。
+private func sessionActivitySymbol(for status: String) -> String {
+    switch status {
+    case "session_completed": "checkmark.circle.fill"
+    case "approval_pending": "exclamationmark.circle.fill"
+    case "question_pending": "questionmark.circle.fill"
+    case "session_error": "xmark.octagon.fill"
+    case "session_stalled": "hourglass.circle.fill"
+    case "session_exited": "stop.circle.fill"
+    default: "circle.dotted.circle.fill"
     }
 }
 
@@ -48,7 +62,7 @@ private struct SessionLiveActivityView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: state.status == "session_completed" ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+            Image(systemName: sessionActivitySymbol(for: state.status))
                 .font(.title2)
             VStack(alignment: .leading, spacing: 3) {
                 Text(state.sessionName).font(.headline).lineLimit(1)

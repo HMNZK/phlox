@@ -107,37 +107,59 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
     /// 運用時の切り分け用ログ。デバイストークンは先頭 8 桁のみ・鍵素材は一切出さない。
     private static let logger = Logger(subsystem: "com.phlox.Phlox", category: "APNs")
 
-    enum NotificationEvent: Sendable {
-        case sessionCompleted(sessionId: String, sessionName: String)
-        case approvalPending(sessionId: String, sessionName: String)
+    struct NotificationEvent: Sendable {
+        let kind: RemoteSessionNotification
+        let sessionId: String
+        let sessionName: String
+
+        static func sessionCompleted(sessionId: String, sessionName: String) -> Self {
+            Self(kind: .completed, sessionId: sessionId, sessionName: sessionName)
+        }
+
+        static func approvalPending(sessionId: String, sessionName: String) -> Self {
+            Self(kind: .approval, sessionId: sessionId, sessionName: sessionName)
+        }
 
         var type: String {
-            switch self {
-            case .sessionCompleted: "session_completed"
-            case .approvalPending: "approval_pending"
+            switch kind {
+            case .completed: "session_completed"
+            case .approval: "approval_pending"
+            case .question: "question_pending"
+            case .error: "session_error"
+            case .stalled: "session_stalled"
+            case .exited: "session_exited"
             }
         }
 
-        /// デスクトップの通知と同じく、アプリ内の表示言語で書く。
+        /// デスクトップの通知と同じ種類の言葉を、アプリ内の表示言語で書く。中身（コマンド・質問文・エラー文）は入れない。
         var body: String {
-            let key = switch self {
-            case .sessionCompleted: "作業が完了しました"
-            case .approvalPending: "承認待ち"
+            let locale = SessionCompletionNotifier.locale()
+            let key = switch kind {
+            case .completed: "作業が完了しました"
+            case .approval: "承認待ち"
+            case .question: "質問があります"
+            case .error: "エラーで止まりました"
+            case .stalled: "応答がありません"
+            case .exited: "セッションが終了しました"
             }
-            return AppLocalizedString.string(key, locale: SessionCompletionNotifier.locale())
+            let text = AppLocalizedString.string(key, locale: locale)
+            if case .exited(let code) = kind { return "\(text) · exit \(code)" }
+            return text
         }
 
-        var sessionId: String {
-            switch self {
-            case .sessionCompleted(let sessionId, _), .approvalPending(let sessionId, _):
-                sessionId
+        /// 終わった（Live Activity を閉じる）種類か。
+        var endsActivity: Bool {
+            switch kind {
+            case .completed, .exited: true
+            case .approval, .question, .error, .stalled: false
             }
         }
 
-        var sessionName: String {
-            switch self {
-            case .sessionCompleted(_, let sessionName), .approvalPending(_, let sessionName):
-                sessionName
+        /// 手を待っている種類。Live Activity を長く残す。
+        var needsAttention: Bool {
+            switch kind {
+            case .approval, .question, .error, .stalled: true
+            case .completed, .exited: false
             }
         }
 
@@ -150,16 +172,22 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
     private let sender: (any APNsNotificationSending)?
     private let clock: @Sendable () -> Date
     private let liveActivityStarts: LiveActivityStartRegistry
+    private let isPushEnabled: @Sendable () -> Bool
+
+    /// 送る鍵がそろっているか。false ならスマホへの通知はオンでも送られない（設定の注記に使う）。
+    public var isSendingConfigured: Bool { sender != nil }
 
     public init(
         deviceTokenStore: any DeviceTokenStore,
         sender: (any APNsNotificationSending)?,
-        clock: @escaping @Sendable () -> Date = { Date() }
+        clock: @escaping @Sendable () -> Date = { Date() },
+        isPushEnabled: @escaping @Sendable () -> Bool = { NotificationSettings.isPushEnabled() }
     ) {
         self.deviceTokenStore = deviceTokenStore
         self.sender = sender
         self.clock = clock
         self.liveActivityStarts = LiveActivityStartRegistry()
+        self.isPushEnabled = isPushEnabled
     }
 
     public static func configuredFromEnvironment(
@@ -332,7 +360,16 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
         enqueue(.approvalPending(sessionId: sessionId, sessionName: sessionName))
     }
 
+    public func notify(_ notification: RemoteSessionNotification, sessionId: String, sessionName: String) {
+        enqueue(NotificationEvent(kind: notification, sessionId: sessionId, sessionName: sessionName))
+    }
+
     func notify(_ event: NotificationEvent) async {
+        // 設定の「プッシュ通知」がオフなら、通知も Live Activity も送らない（C-55）。
+        guard isPushEnabled() else {
+            Self.logger.notice("APNs notify skipped: event=\(event.type, privacy: .public) sessionId=\(event.sessionId, privacy: .public) reason=turned off in settings")
+            return
+        }
         guard let sender else {
             Self.logger.notice("APNs notify skipped: event=\(event.type, privacy: .public) sessionId=\(event.sessionId, privacy: .public) reason=sender unavailable（鍵未設定）")
             return
@@ -423,7 +460,7 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
                 }
             }
         } else {
-            let apnsEvent = event.type == "session_completed" ? "end" : "update"
+            let apnsEvent = event.endsActivity ? "end" : "update"
             for registration in matchingUpdates {
                 _ = await sendLiveActivity(
                     event,
@@ -561,7 +598,7 @@ public struct APNsNotificationBridge: RemoteSessionNotifier, Sendable {
             timestamp: timestamp,
             event: apnsEvent,
             contentState: contentState,
-            staleDate: timestamp + (event.type == "approval_pending" ? 900 : 60),
+            staleDate: timestamp + (event.needsAttention ? 900 : 60),
             dismissalDate: apnsEvent == "end" ? timestamp : nil,
             attributesType: isStart ? "SessionActivityAttributes" : nil,
             attributes: isStart ? LiveActivityAttributes(

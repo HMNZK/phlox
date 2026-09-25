@@ -15,6 +15,8 @@ public enum SessionNotificationText {
         case error(message: String)
         /// 実行中のまま 2 分以上反応がない（チャット型のみ）。直近の動作が分からないときは nil。
         case stalled(lastAction: String?)
+        /// ターミナル型のプロセスが 0 以外の終了コードで終わった（C-60）。0 のときは通知しない。
+        case exited(code: Int32)
         /// 設定の「通知テスト」。
         case test
 
@@ -23,7 +25,7 @@ public enum SessionNotificationText {
             switch self {
             case .awaitingApproval: .approval
             case .awaitingQuestion: .question
-            case .error: .error
+            case .error, .exited: .error
             case .stalled: .stalled
             case .completed, .test: nil
             }
@@ -38,6 +40,7 @@ public enum SessionNotificationText {
         case .awaitingQuestion: key = "質問があります: %@"
         case .error: key = "エラーで止まりました: %@"
         case .stalled: key = "応答がありません: %@"
+        case .exited: key = "セッションが終了しました: %@"
         case .test: return AppLocalizedString.string("Phlox の通知テスト", locale: locale)
         }
         return String(format: AppLocalizedString.string(key, locale: locale), sessionName)
@@ -94,6 +97,7 @@ public enum SessionNotificationText {
             } else {
                 AppLocalizedString.string("2 分以上反応がありません。", locale: locale)
             }
+        case .exited(let code): "exit \(code)"
         case .test: AppLocalizedString.string("このように通知されます。", locale: locale)
         }
     }
@@ -165,6 +169,12 @@ public enum SessionCompletionNotifier {
     @MainActor
     public static func notifyAwaitingInput(sessionID: SessionID, sessionName: String, kind: SessionNotificationText.Kind = .awaitingApproval(prompt: nil)) {
         post(kind, sessionID: sessionID, sessionName: sessionName, identifierPrefix: "Phlox.sessionAwaiting")
+    }
+
+    /// ターミナル型のプロセスが 0 以外の終了コードで終わったときの通知（C-60）。
+    @MainActor
+    public static func notifyExited(sessionID: SessionID, sessionName: String, code: Int32) {
+        post(.exited(code: code), sessionID: sessionID, sessionName: sessionName, identifierPrefix: "Phlox.sessionCompletion")
     }
 
     /// 設定の「通知テスト」。完了と同じ音・バナーの設定に従う。

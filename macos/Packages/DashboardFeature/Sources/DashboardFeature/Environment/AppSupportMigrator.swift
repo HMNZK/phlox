@@ -1,6 +1,7 @@
 import AppKit
 import Darwin
 import Foundation
+import MessageStore
 import SQLite3
 
 public enum MigrationOutcome: Equatable, Sendable {
@@ -181,6 +182,20 @@ public enum AppSupportMigrator {
                 )
             }
 
+            // 11 I3: 読めない JSON を黙って移すと、起動後に壊れた扱いで退避され空になる。データを残したまま止める（C-64）。
+            // 移し終えた一時フォルダ（移し替え後と同じ見え方）の中身を確かめる。コピーの途中で旧ファイルが変わっても、
+            // 相対リンクの先が移らなくても、起動後に読むものを見ている。先が元から無いリンクは止めない。
+            for fileName in knownFileNames {
+                let source = oldURL.appendingPathComponent(fileName)
+                let staged = stagingURL.appendingPathComponent(fileName)
+                guard let type = try entryType(at: staged) else { continue }
+                if type == .symbolicLink, !fileManager.fileExists(atPath: staged.path) {
+                    guard fileManager.fileExists(atPath: source.path) else { continue }
+                    throw MigrationError.unreadableJSON(path: source.path, message: CocoaError(.fileReadNoSuchFile).localizedDescription)
+                }
+                try validateJSON(at: staged, fileName: fileName, reportedPath: source.path)
+            }
+
             try writeCompletionMarker(
                 in: stagingURL,
                 sourcePath: oldURL.path,
@@ -238,6 +253,15 @@ public enum AppSupportMigrator {
     private static func pathExists(_ url: URL) -> Bool {
         var info = stat()
         return lstat(url.path, &info) == 0
+    }
+
+    /// 起動後の読み込みと同じ復号で読めるか。
+    /// `reportedPath` は理由の文に出す場所（一時フォルダではなく旧データの場所）。
+    private static func validateJSON(at url: URL, fileName: String, reportedPath: String) throws {
+        guard let data = try? Data(contentsOf: url),
+              fileName == "projects.json" ? JSONProjectStore.canRead(data) : JSONSessionStore.canRead(data) else {
+            throw MigrationError.unreadableJSON(path: reportedPath, message: CocoaError(.coderReadCorrupt).localizedDescription)
+        }
     }
 
     private static func entryType(at url: URL) throws -> FileSystemEntryType? {
@@ -465,6 +489,7 @@ private enum MigrationError: Error, CustomStringConvertible {
     case crossVolume
     case destinationAppeared
     case sqlite(String)
+    case unreadableJSON(path: String, message: String)
 
     var description: String {
         switch self {
@@ -474,6 +499,9 @@ private enum MigrationError: Error, CustomStringConvertible {
             return "destination appeared before rename"
         case .sqlite(let message):
             return "SQLite migration failed: \(message)"
+        case .unreadableJSON(let path, let message):
+            // 起動画面が「AppSupportMigrator: 」を前に付けるので、ここでは付けない（11 I3 のログ）。
+            return "\((path as NSString).abbreviatingWithTildeInPath) — \(message)"
         }
     }
 }

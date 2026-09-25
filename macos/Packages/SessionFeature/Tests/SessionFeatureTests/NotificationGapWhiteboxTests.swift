@@ -308,3 +308,34 @@ func notificationGap_ptyProcessExit_firesSessionCompleted() async throws {
 
     #expect(notifier.sessionCompletedCalls.count == 1)
 }
+
+// C-60: ターミナル型のプロセスが 0 以外で終わったら、実行中でなくても終了コードを添えて知らせる。
+@Test @MainActor
+func notificationGap_ptyNonZeroExit_sendsTheExitCodeEvenWhenIdle() async throws {
+    let sessionID = SessionID()
+    let ptyManager = NotificationGapPTYManager()
+    let notifier = KindRecordingRemoteSessionNotifier()
+    let (hooks, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+    let vm = SessionViewModel(
+        id: sessionID,
+        ptyManager: ptyManager,
+        hookEvents: hooks,
+        terminalCoordinator: TerminalCoordinator(),
+        spawnRequest: .init(
+            command: "/usr/local/bin/claude",
+            args: [],
+            env: [:],
+            workingDirectory: "/tmp/phlox-notification-gap"
+        )
+    )
+    vm.remoteSessionNotifier = notifier
+
+    await vm.start()
+    vm.terminalCoordinator.onResize(80, 24)
+    try await waitForNotificationGap { ptyManager.didSpawn }
+
+    ptyManager.emitExit(2, for: sessionID)
+    try await waitForNotificationGap { vm.status == .error(message: "exit code 2") }
+
+    #expect(notifier.kinds == [.exited(code: 2)])
+}

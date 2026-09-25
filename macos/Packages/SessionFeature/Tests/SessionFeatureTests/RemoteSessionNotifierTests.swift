@@ -289,3 +289,28 @@ func remoteSessionNotifier_nilNotifier_runningToIdleStillMarksCompletion() async
     #expect(vm.status == .idle)
     #expect(vm.hasUnseenCompletion)
 }
+
+/// 種類つきの受け口（C-62・B5）を記録する偽物。
+final class KindRecordingRemoteSessionNotifier: RemoteSessionNotifier, Sendable {
+    private let state = OSAllocatedUnfairLock(initialState: [RemoteSessionNotification]())
+    var kinds: [RemoteSessionNotification] { state.withLock { $0 } }
+    func sessionCompleted(sessionId: String, sessionName: String) {}
+    func approvalPending(sessionId: String, sessionName: String) {}
+    func notify(_ notification: RemoteSessionNotification, sessionId: String, sessionName: String) {
+        state.withLock { $0.append(notification) }
+    }
+}
+
+// C-62: 種類を区別しない送り先には、従来どおり完了・承認待ちの 2 つへ振り分け、無応答は送らない。
+@Test
+func remoteNotifier_defaultRoutesKindsToTheTwoLegacyCalls() {
+    let notifier = MockRemoteSessionNotifier()
+    for kind: RemoteSessionNotification in [.completed, .error, .exited(code: 1)] {
+        notifier.notify(kind, sessionId: "s", sessionName: "n")
+    }
+    for kind: RemoteSessionNotification in [.approval, .question, .stalled] {
+        notifier.notify(kind, sessionId: "s", sessionName: "n")
+    }
+    #expect(notifier.sessionCompletedCalls.count == 3)
+    #expect(notifier.approvalPendingCalls.count == 2)
+}

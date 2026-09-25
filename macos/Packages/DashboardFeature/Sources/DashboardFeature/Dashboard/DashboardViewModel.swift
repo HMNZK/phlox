@@ -16,9 +16,13 @@ import SessionFeature
 public enum WorkspaceCleanupWarning: Equatable, Sendable {
     case worktreeRetained(path: String)
     case branchRetained(branchName: String)
+    /// worktree でない作業フォルダを消せなかった。`path` は消せなかったファイル（分からなければフォルダ）。
+    case workspaceRetained(path: String)
 
     public var title: String {
         switch self {
+        case .workspaceRetained:
+            return "作業フォルダを片付けられませんでした"
         case .worktreeRetained:
             return "セッション用 worktree を残しています"
         case .branchRetained:
@@ -32,6 +36,8 @@ public enum WorkspaceCleanupWarning: Equatable, Sendable {
             return "セッション用 worktree を削除できませんでした。未コミット変更がある場合は worktree を残しています: \(path)"
         case .branchRetained(let branchName):
             return "worktree は削除しましたが、セッション用ブランチを削除できませんでした。ブランチを確認してください: \(branchName)"
+        case .workspaceRetained(let path):
+            return "作業フォルダを削除できなかったため、次の場所に残しています: \(path)"
         }
     }
 }
@@ -69,6 +75,8 @@ public final class DashboardViewModel {
     public private(set) var projects: [Project] = []
     /// worktree の削除を安全に拒否したとき、ユーザーへ残置を伝えるための警告。
     public private(set) var workspaceCleanupWarning: WorkspaceCleanupWarning?
+    /// 後始末に失敗した理由（git の出力の 1 行目。09 D2 の「（Permission denied）」）。
+    public private(set) var workspaceCleanupFailureReason: String?
     public private(set) var restoredSessionPresentation: RestoredSessionPresentation?
 
     /// グリッドに表示するセッションの選択（nil = 全表示）。永続化しない。
@@ -115,6 +123,16 @@ public final class DashboardViewModel {
     private let messaging: MessagingService
     /// アゴラ討論の実セッション配線。UI はここから phase/participants などを読む。
     @ObservationIgnored private var spawnService: SessionSpawnService?
+    /// 画面からの起動だけを 08 F2 の案内の対象にする。API・スマホからの起動のパスは出さない。
+    @TaskLocal static var reportsWorktreeCreation = false
+    /// 画面からの起動がいま作っている worktree のパス（作り始めた順）。
+    private var worktreeCreationPaths: [String] = []
+    /// 08 F2 の案内に出す worktree のパス。作っていなければ nil。
+    /// ponytail: 画面からの起動が重なったら先に作り始めたものを出す。起動ごとに出し分けるなら起動の識別子を案内まで渡す。
+    public var worktreeCreationPath: String? { worktreeCreationPaths.first }
+    /// 復元で前回の worktree を作り直す前にたずねる（09 E2）。引数はパス・ブランチ・ブランチが残っているか。
+    /// アプリは `start()` の前に置く。nil なら確認しない。
+    @ObservationIgnored public var worktreeRecreationConfirmer: (@MainActor (_ path: String, _ branchName: String, _ branchExists: Bool) -> Bool)?
     @ObservationIgnored private var restoreCoordinator: SessionRestoreCoordinator?
     private let codexUserHooksEnabledProvider: @MainActor () -> Bool
     private let codexDiscoveryNow: @Sendable () -> Date
@@ -231,6 +249,17 @@ public final class DashboardViewModel {
                 }
             }
         )
+        spawnService?.onWorktreeCreation = { [weak self] path, isStarting in
+            guard let self, Self.reportsWorktreeCreation else { return }
+            if isStarting {
+                worktreeCreationPaths.append(path)
+            } else if let index = worktreeCreationPaths.firstIndex(of: path) {
+                worktreeCreationPaths.remove(at: index)
+            }
+        }
+        spawnService?.confirmWorktreeRecreation = { [weak self] path, branch, branchExists in
+            self?.worktreeRecreationConfirmer?(path, branch, branchExists) ?? true
+        }
         self.codexDiscovery = CodexNativeSessionDiscoveryController(
             environment: environment,
             persistence: persistence,
@@ -1006,6 +1035,24 @@ public final class DashboardViewModel {
 
     public func clearWorkspaceCleanupWarning() {
         workspaceCleanupWarning = nil
+        workspaceCleanupFailureReason = nil
+    }
+
+    /// git の失敗はその出力の 1 行目、それ以外はエラーの説明の 1 行目。
+    static func cleanupFailureReason(_ error: Error) -> String? {
+        let text: String
+        if case WorktreeIsolationGitError.commandFailed(_, let output) = error {
+            text = output
+        } else if let posix = (error as NSError).userInfo[NSUnderlyingErrorKey] as? NSError,
+                  posix.domain == NSPOSIXErrorDomain {
+            // ファイルの削除失敗は、OS の短い理由（Permission denied など）を出す。
+            text = String(cString: strerror(Int32(posix.code)))
+        } else {
+            text = error.localizedDescription
+        }
+        return text.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { !$0.isEmpty }
     }
 
     /// セッション名を変更する。空白のみの名前はトリムして空にする。
@@ -1817,6 +1864,7 @@ public final class DashboardViewModel {
                 )
             } catch {
                 workspaceCleanupWarning = .worktreeRetained(path: normalizedDirectory.path)
+                workspaceCleanupFailureReason = Self.cleanupFailureReason(error)
                 logError(error, context: "Failed to cleanup worktree for \(sessionID)")
                 return
             }
@@ -1831,6 +1879,7 @@ public final class DashboardViewModel {
                 workspaceCleanupWarning = .branchRetained(
                     branchName: WorktreeIsolationPlanner.branchName(for: sessionID)
                 )
+                workspaceCleanupFailureReason = Self.cleanupFailureReason(error)
                 logError(error, context: "Failed to cleanup worktree branch for \(sessionID)")
             }
             ownedWorkspaceDirectories.removeValue(forKey: sessionID)
@@ -1841,6 +1890,15 @@ public final class DashboardViewModel {
             try fm.removeItem(at: normalizedDirectory)
             ownedWorkspaceDirectories.removeValue(forKey: sessionID)
         } catch {
+            // 09 D2: 消せなかったファイルとその理由（Permission denied など）を出す。エラーはフォルダしか指さないので、
+            // 消し残ったファイルを探す（消せたものは消えている）。
+            // ponytail: 最初に見つかった 1 つだけ出す。全部出すなら一覧にしてダイアログの等幅欄に並べる。
+            let leftover = fm.enumerator(at: normalizedDirectory, includingPropertiesForKeys: [.isDirectoryKey])?
+                .lazy
+                .compactMap { $0 as? URL }
+                .first { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) != true }
+            workspaceCleanupWarning = .workspaceRetained(path: leftover?.path ?? normalizedDirectory.path)
+            workspaceCleanupFailureReason = Self.cleanupFailureReason(error)
             logError(error, context: "Failed to cleanup workspace for \(sessionID)")
         }
     }

@@ -454,7 +454,8 @@ enum SpawnGuard: Identifiable {
     /// 隔離オフのプロジェクトで、同じ作業ディレクトリにセッションが動いている。
     case collision(NewSessionRequest, directory: String, peers: [SessionID])
     /// worktree を作れず起動を中止した。
-    case worktreeFailed(NewSessionRequest, agentName: String, log: String)
+    /// `existingWorktree` は 09 E4「既存の worktree を使う」で使える、このリポジトリの worktree の場所（無ければ nil）。
+    case worktreeFailed(NewSessionRequest, agentName: String, log: String, existingWorktree: String?)
 
     var id: String {
         switch self {
@@ -482,6 +483,20 @@ enum NewSessionCollisionGate {
         }
         return error.localizedDescription
     }
+
+    /// git の出力が「そのブランチは既存の worktree で使われている」と言っていれば、その worktree の場所（09 E4「既存の worktree を使う」）。
+    /// 出力から場所を確かめられないとき・その場所がいまこのリポジトリの作業ツリーとして働いていないときは nil（ボタンを出さない）。
+    static func existingWorktree(in log: String, repository: URL) async -> String? {
+        let pattern = #"(?:already checked out at|already used by worktree at) '([^']+)'"#
+        guard let match = log.range(of: pattern, options: .regularExpression) else { return nil }
+        let quoted = log[match].split(separator: "'", omittingEmptySubsequences: false)
+        guard quoted.count >= 2 else { return nil }
+        let path = (String(quoted[quoted.count - 2]) as NSString).expandingTildeInPath
+        guard await WorktreeIsolationGit.isWorkingTree(URL(fileURLWithPath: path, isDirectory: true), of: repository) else {
+            return nil
+        }
+        return path
+    }
 }
 
 struct SpawnGuardSheet: View {
@@ -490,6 +505,8 @@ struct SpawnGuardSheet: View {
     let onCancel: () -> Void
     /// 起動する。true = worktree で分ける、false = 分けない。
     let onLaunch: (Bool) -> Void
+    /// 既存の worktree（パス）で起動する。
+    let onUseWorktree: (String) -> Void
 
     @Environment(\.locale) private var locale
 
@@ -510,16 +527,17 @@ struct SpawnGuardSheet: View {
             ) {
                 peerList(peers)
             }
-        case .worktreeFailed(_, _, let log):
+        case .worktreeFailed(_, _, let log, let existingWorktree):
             // 09 E4: お知らせの型。「閉じる」が既定、次の手の「隔離なしで起動」を先に置く。
             DSDialog(
                 .notice,
                 title: title,
                 message: message,
-                buttons: [
-                    DSDialogButton("隔離なしで起動") { onLaunch(false) },
-                    DSDialogButton("閉じる", role: .primary, action: onCancel),
-                ],
+                buttons: [DSDialogButton("隔離なしで起動") { onLaunch(false) }]
+                    + (existingWorktree.map { path in
+                        [DSDialogButton("既存の worktree を使う") { onUseWorktree(path) }]
+                    } ?? [])
+                    + [DSDialogButton("閉じる", role: .primary, action: onCancel)],
                 onCancel: onCancel
             ) {
                 DSDialogLog(log)
@@ -541,7 +559,7 @@ struct SpawnGuardSheet: View {
         switch spawnGuard {
         case .collision:
             AppLocalizedString.string("同じファイルを書き換えると変更がぶつかることがあります。worktree で分けて起動できます。", locale: locale)
-        case .worktreeFailed(_, let agentName, _):
+        case .worktreeFailed(_, let agentName, _, _):
             String(format: AppLocalizedString.string("%@ の新しいセッションは起動していません。", locale: locale), agentName)
         }
     }

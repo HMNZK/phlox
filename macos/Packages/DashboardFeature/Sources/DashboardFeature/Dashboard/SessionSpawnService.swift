@@ -54,6 +54,23 @@ enum WorktreeIsolationGit {
         }
     }
 
+    /// `path` がいま `repository` の作業ツリーの最上位として働いているか。その場所で git が答える最上位と共通の .git が、
+    /// `path` と `repository` のものに一致するかで見る（登録だけ残って別のフォルダに置き換わった場所は false）。
+    static func isWorkingTree(_ path: URL, of repository: URL) async -> Bool {
+        (try? await runOffMainActor {
+            guard isDirectory(path) else { return false }
+            let arguments = ["rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"]
+            let here = try run(arguments: arguments, in: path)
+            let origin = try run(arguments: arguments, in: repository)
+            guard here.terminationStatus == 0, origin.terminationStatus == 0 else { return false }
+            let hereLines = here.output.split(whereSeparator: \.isNewline).map(String.init)
+            let originLines = origin.output.split(whereSeparator: \.isNewline).map(String.init)
+            guard hereLines.count == 2, originLines.count == 2 else { return false }
+            return normalizedPath(URL(fileURLWithPath: hereLines[0])) == normalizedPath(path)
+                && normalizedPath(URL(fileURLWithPath: hereLines[1])) == normalizedPath(URL(fileURLWithPath: originLines[1]))
+        }) ?? false
+    }
+
     static func addWorktree(
         at path: URL,
         branchName: String,
@@ -415,6 +432,8 @@ enum WorktreeIsolationGit {
 enum WorktreeIsolationSpawnError: Error, LocalizedError {
     case aborted(WorktreeIsolationFailure)
     case worktreeCreationFailed(path: String, branchName: String, detail: String)
+    /// 復元で worktree の作り直しをたずね、やめた（C-50・09 E2）。
+    case recreationDeclined(path: String)
 
     var errorDescription: String? {
         switch self {
@@ -430,6 +449,8 @@ enum WorktreeIsolationSpawnError: Error, LocalizedError {
         case .worktreeCreationFailed(let path, let branchName, let detail):
             return "セッション用 worktree を作成できなかったため、起動を中止しました。パス: "
                 + path + "、ブランチ: " + branchName + "。" + detail
+        case .recreationDeclined(let path):
+            return "worktree を作り直さなかったため、このセッションを復元していません: " + path
         }
     }
 }
@@ -456,6 +477,10 @@ final class SessionSpawnService {
     private let lastUsedChatSettings: @MainActor (String) -> LastUsedChatSettings?
     private let recordLastUsedChatSettings: @MainActor (String, String?, String?) -> Void
     private let logError: @MainActor (Error, String) -> Void
+    /// worktree を作り始めた（true）・終えた（false）ことを、そのパスとともに知らせる。
+    var onWorktreeCreation: (@MainActor (String, Bool) -> Void)?
+    /// 復元で作り直す前にたずねる（パス, ブランチ, ブランチが残っているか）→ 作り直すなら true。nil なら確認しない。
+    var confirmWorktreeRecreation: (@MainActor (String, String, Bool) -> Bool)?
 
     init(
         environment: AppEnvironment,
@@ -960,7 +985,8 @@ final class SessionSpawnService {
                 )
                 guard state.isGitRepository,
                       state.worktreePathExists,
-                      state.isRegisteredWorktree else {
+                      state.isRegisteredWorktree,
+                      await WorktreeIsolationGit.isWorkingTree(worktreePath, of: project.directoryURL) else {
                     return nil
                 }
                 return (project.directoryURL, worktreePath)
@@ -984,9 +1010,16 @@ final class SessionSpawnService {
             state: state,
             intent: intent
         )
+        // 前回 worktree で動いていたセッションだけ、作り直す前にたずねる。隔離オフで作ったセッションを
+        // 隔離オンのプロジェクトで復元するときは「前回の worktree」が無いので、たずねずに作る（従来どおり）。
+        let wasInWorktree = workingDirectoryOverride.map {
+            standardizedDirectoryPath($0) == standardizedDirectoryPath(worktreePath.path)
+        } ?? false
         return try await applyWorktreeIsolationOutcome(
             outcome,
-            project: project
+            project: project,
+            asksBeforeRecreating: intent == .restore && wasInWorktree,
+            existingBranchNames: state.localBranchNames
         )
     }
 
@@ -1011,7 +1044,9 @@ final class SessionSpawnService {
 
     private func applyWorktreeIsolationOutcome(
         _ outcome: WorktreeIsolationOutcome,
-        project: Project
+        project: Project,
+        asksBeforeRecreating: Bool,
+        existingBranchNames: Set<String>
     ) async throws -> (repository: URL, path: URL)? {
         switch outcome {
         case .disabled:
@@ -1019,20 +1054,31 @@ final class SessionSpawnService {
         case .abort(let failure):
             throw WorktreeIsolationSpawnError.aborted(failure)
         case .reuse(let path, _):
-            return (project.directoryURL, URL(fileURLWithPath: path, isDirectory: true))
-        case .create(let path, let branchName), .recreate(let path, let branchName):
             let pathURL = URL(fileURLWithPath: path, isDirectory: true)
-            let branchWasPreexisting: Bool
-            let createsBranch: Bool
+            // 登録だけ残って別のフォルダ・別のリポジトリに置き換わっていたら使わない（そこで起動も後始末もしない）。
+            guard await WorktreeIsolationGit.isWorkingTree(pathURL, of: project.directoryURL) else {
+                throw WorktreeIsolationSpawnError.aborted(.worktreePathOccupied(path))
+            }
+            return (project.directoryURL, pathURL)
+        case .create(let path, let branchName), .recreate(let path, let branchName):
+            // 復元で前回の worktree が使えないとき（フォルダが無い・ブランチも無い）は、作り直す前にたずねる（C-50）。
+            if asksBeforeRecreating, let confirm = confirmWorktreeRecreation {
+                // 分岐（.recreate）からは推定しない。登録だけ残ってブランチが消えた場合も .recreate になるため。
+                guard confirm(path, branchName, existingBranchNames.contains(branchName)) else {
+                    throw WorktreeIsolationSpawnError.recreationDeclined(path: path)
+                }
+            }
+            onWorktreeCreation?(path, true)
+            defer { onWorktreeCreation?(path, false) }
+            let pathURL = URL(fileURLWithPath: path, isDirectory: true)
+            // 登録だけ残ってブランチが消えた worktree（.recreate）は、ブランチも作り直す。
+            let branchWasPreexisting = existingBranchNames.contains(branchName)
+            let createsBranch = !branchWasPreexisting
+            let isRecreation: Bool
             switch outcome {
-            case .create:
-                branchWasPreexisting = false
-                createsBranch = true
-            case .recreate:
-                branchWasPreexisting = true
-                createsBranch = false
-            default:
-                preconditionFailure("worktree creation case was already narrowed")
+            case .create: isRecreation = false
+            case .recreate: isRecreation = true
+            default: preconditionFailure("worktree creation case was already narrowed")
             }
             do {
                 try await WorktreeIsolationGit.addWorktree(
@@ -1040,7 +1086,7 @@ final class SessionSpawnService {
                     branchName: branchName,
                     in: project.directoryURL,
                     createsBranch: createsBranch,
-                    pruneStaleWorktrees: branchWasPreexisting
+                    pruneStaleWorktrees: isRecreation
                 )
             } catch {
                 let rollbackDetail: String?

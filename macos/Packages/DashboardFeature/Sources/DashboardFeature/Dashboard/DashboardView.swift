@@ -21,7 +21,6 @@ public struct DashboardView: View {
     @State private var isCreating = false
     /// 起動中の種別（08 S5）と、worktree を作っているか（F2 の案内）。
     @State private var creatingRef: AgentRef?
-    @State private var creatingWorktree = false
     /// 起動前・起動失敗時の確認（08 F1・F4）。
     @State private var spawnGuard: SpawnGuard?
     /// 一度でもプロジェクトを追加したか（08 S1: 2 回目以降は案内を手順 1 だけにする）。
@@ -129,7 +128,7 @@ public struct DashboardView: View {
                     onLaunch: { separates in
                         spawnGuard = nil
                         let request = switch item {
-                        case .collision(let request, _, _), .worktreeFailed(let request, _, _): request
+                        case .collision(let request, _, _), .worktreeFailed(let request, _, _, _): request
                         }
                         Task {
                             await createSession(
@@ -137,6 +136,19 @@ public struct DashboardView: View {
                                 projectID: request.projectID,
                                 backend: request.backend,
                                 isolationOverride: separates
+                            )
+                        }
+                    },
+                    onUseWorktree: { path in
+                        spawnGuard = nil
+                        guard case .worktreeFailed(let request, _, _, _) = item else { return }
+                        Task {
+                            await createSession(
+                                ref: request.ref,
+                                projectID: request.projectID,
+                                backend: request.backend,
+                                isolationOverride: false,
+                                workingDirectoryOverride: path
                             )
                         }
                     }
@@ -148,8 +160,8 @@ public struct DashboardView: View {
                     .environment(\.locale, locale)
             }
             .overlay(alignment: .bottom) {
-                if isCreating && creatingWorktree {
-                    worktreeProgressToast
+                if let path = viewModel.worktreeCreationPath {
+                    worktreeProgressToast(path: path)
                 }
             }
             .dsDialog(item: $spawnError) { err in
@@ -172,7 +184,7 @@ public struct DashboardView: View {
                         buttons: cleanupWarningButtons(warning),
                         onCancel: { viewModel.clearWorkspaceCleanupWarning() }
                     ) {
-                        DSDialogLog(CleanupWarningDialogText.detail(warning))
+                        DSDialogLog(CleanupWarningDialogText.detail(warning, reason: viewModel.workspaceCleanupFailureReason))
                     }
                 }
             }
@@ -902,14 +914,14 @@ public struct DashboardView: View {
         )
     }
 
-    /// worktree を作っている間の案内（08 F2・S5）。作業ツリーの名前は起動の中で決まるので、置き場所を出す。
-    private var worktreeProgressToast: some View {
+    /// worktree を作っている間の案内（08 F2・S5）。画面から起動した作業ツリー自体のパスを出す。
+    private func worktreeProgressToast(path: String) -> some View {
         HStack(spacing: 10) {
             ProgressView().controlSize(.small)
             Text("worktree を作成しています")
                 .font(.system(size: 12.5))
                 .foregroundStyle(DSColor.textPrimary)
-            Text(verbatim: (viewModel.sessionWorkspaceRoot.path as NSString).abbreviatingWithTildeInPath)
+            Text(verbatim: (path as NSString).abbreviatingWithTildeInPath)
                 .font(.system(size: 11.5, design: .monospaced))
                 .foregroundStyle(DSColor.textSecondary)
                 .lineLimit(1)
@@ -1055,7 +1067,8 @@ public struct DashboardView: View {
         ref: AgentRef,
         projectID: ProjectID? = nil,
         backend: SessionBackend = .pty,
-        isolationOverride: Bool? = nil
+        isolationOverride: Bool? = nil,
+        workingDirectoryOverride: String? = nil
     ) async {
         guard !isCreating else { return }
         let resolvedProjectID = projectID ?? defaultProjectIDForNewSession()
@@ -1075,26 +1088,32 @@ public struct DashboardView: View {
         }
         isCreating = true
         creatingRef = ref
-        creatingWorktree = isolationOverride ?? project?.usesWorktreeIsolation ?? false
         defer {
             isCreating = false
             creatingRef = nil
-            creatingWorktree = false
         }
         do {
-            let newID = try await viewModel.spawnNewSession(
-                ref: ref,
-                projectID: resolvedProjectID,
-                backend: backend,
-                isolationOverride: isolationOverride
-            )
+            let newID = try await DashboardViewModel.$reportsWorktreeCreation.withValue(true) {
+                try await viewModel.spawnNewSession(
+                    ref: ref,
+                    projectID: resolvedProjectID,
+                    backend: backend,
+                    workingDirectoryOverride: workingDirectoryOverride,
+                    isolationOverride: isolationOverride
+                )
+            }
             expandedProjectIDs.insert(resolvedProjectID)
             router.selectedSession = newID
         } catch {
             // F4: worktree を作れなかったときは、git の出力と次の手を出す。
             if let log = NewSessionCollisionGate.worktreeFailureLog(error) {
                 let name = viewModel.availableAgentDescriptors.first { $0.ref == ref }?.displayName ?? ref.id
-                spawnGuard = .worktreeFailed(request, agentName: name, log: log)
+                let existing = if let project {
+                    await NewSessionCollisionGate.existingWorktree(in: log, repository: project.directoryURL)
+                } else {
+                    String?.none
+                }
+                spawnGuard = .worktreeFailed(request, agentName: name, log: log, existingWorktree: existing)
                 return
             }
             let raw = error.localizedDescription

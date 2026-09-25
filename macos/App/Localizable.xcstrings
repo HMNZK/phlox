@@ -8336,6 +8336,94 @@
           }
         }
       }
+    },
+    "推論・コマンド出力・タイムスタンプを含めるかを選び、次の画面で保存先を選びます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose whether to include reasoning, command output, and timestamps. You’ll pick where to save next."
+          }
+        }
+      }
+    },
+    "既存の worktree を使う": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use existing worktree"
+          }
+        }
+      }
+    },
+    "worktree「%@」を作り直しますか?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Re-create the worktree “%@”?"
+          }
+        }
+      }
+    },
+    "前回の worktree のフォルダが見つかりません。ブランチ %@ から作り直して起動します。フォルダにあった未コミットの変更は戻りません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The folder of the previous worktree is missing. Phlox will re-create it from the branch %@ and start the session. Uncommitted changes that were in the folder can’t be recovered."
+          }
+        }
+      }
+    },
+    "作り直して起動": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Re-create and start"
+          }
+        }
+      }
+    },
+    "前回の worktree のフォルダとブランチ %@ が見つかりません。新しく作り直して起動します。前回の未コミットの変更は戻りません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The folder and the branch %@ of the previous worktree are missing. Phlox will create them again and start the session. Previous uncommitted changes can’t be recovered."
+          }
+        }
+      }
+    },
+    "作業フォルダを片付けられませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t clean up the workspace folder"
+          }
+        }
+      }
+    },
+    "作業フォルダの一部を削除できなかったため、次の場所に残しています。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Part of the workspace folder couldn’t be deleted, so it’s left at this location."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

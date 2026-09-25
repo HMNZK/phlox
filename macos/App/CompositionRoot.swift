@@ -150,6 +150,10 @@ public final class CompositionRoot {
         self.mobileProxy = mobileProxyResult.proxy
         self.actionHandler = control.actionHandler
         control.actionHandler.dashboard = started.dashboard
+        // 09 E2: 復元で壊れた worktree を作り直す前にたずねる（画面が出る前なので独立したパネルで）。
+        started.dashboard.worktreeRecreationConfirmer = { path, branchName, branchExists in
+            WorktreeRecreationDialog.confirm(path: path, branchName: branchName, branchExists: branchExists)
+        }
         await started.dashboard.start()
         Self.applyRemoteSessionNotifier(remoteSessionNotifier, to: started.dashboard)
         started.usage.start()

@@ -33,6 +33,7 @@ enum CleanupWarningDialogText {
         switch warning {
         case .worktreeRetained: AppLocalizedString.string("worktree を片付けられませんでした", locale: locale)
         case .branchRetained: AppLocalizedString.string("ブランチを片付けられませんでした", locale: locale)
+        case .workspaceRetained: AppLocalizedString.string("作業フォルダを片付けられませんでした", locale: locale)
         }
     }
 
@@ -43,21 +44,56 @@ enum CleanupWarningDialogText {
             return ended + AppLocalizedString.string("worktree を削除できなかったため、次の場所に残しています。", locale: locale)
         case .branchRetained:
             return ended + AppLocalizedString.string("worktree は削除しましたが、次のブランチを削除できませんでした。", locale: locale)
+        case .workspaceRetained:
+            return ended + AppLocalizedString.string("作業フォルダの一部を削除できなかったため、次の場所に残しています。", locale: locale)
         }
     }
 
-    /// 本文の下に等幅で出す、残ったものの場所。
-    static func detail(_ warning: WorkspaceCleanupWarning) -> String {
+    /// 本文の下に等幅で出す、残ったものの場所と、分かれば失敗の理由（09 D2「…/hooks.json（Permission denied）」）。
+    static func detail(_ warning: WorkspaceCleanupWarning, reason: String? = nil) -> String {
+        let place: String
         switch warning {
-        case .worktreeRetained(let path): (path as NSString).abbreviatingWithTildeInPath
-        case .branchRetained(let branchName): branchName
+        case .worktreeRetained(let path), .workspaceRetained(let path): place = (path as NSString).abbreviatingWithTildeInPath
+        case .branchRetained(let branchName): place = branchName
         }
+        return reason.map { "\(place)（\($0)）" } ?? place
     }
 
     /// 「Finder で表示」で開く場所。ブランチは Finder で見られないので出さない。
     static func revealPath(_ warning: WorkspaceCleanupWarning) -> String? {
-        if case .worktreeRetained(let path) = warning { return path }
-        return nil
+        switch warning {
+        case .worktreeRetained(let path), .workspaceRetained(let path): path
+        case .branchRetained: nil
+        }
+    }
+}
+
+/// E2: 復元で worktree を作り直す前の確認。取り返しがつかない型で、既定はキャンセル。
+/// 見本の本文（ブランチが削除されている）は今の作り直しの条件と違うので、実際に起きていること（フォルダが無い）を書く。
+@MainActor
+public enum WorktreeRecreationDialog {
+    static func title(path: String, locale: Locale) -> String {
+        String(format: AppLocalizedString.string("worktree「%@」を作り直しますか?", locale: locale), (path as NSString).lastPathComponent)
+    }
+
+    static func message(branchName: String, branchExists: Bool, locale: Locale) -> String {
+        let key = branchExists
+            ? "前回の worktree のフォルダが見つかりません。ブランチ %@ から作り直して起動します。フォルダにあった未コミットの変更は戻りません。"
+            : "前回の worktree のフォルダとブランチ %@ が見つかりません。新しく作り直して起動します。前回の未コミットの変更は戻りません。"
+        return String(format: AppLocalizedString.string(key, locale: locale), branchName)
+    }
+
+    /// 作り直すなら true。キャンセル（既定）ならこのセッションは復元しない。
+    public static func confirm(path: String, branchName: String, branchExists: Bool) -> Bool {
+        let locale = TerminalPanelSession.displayLocale
+        return DSDialogModal.run(
+            .irreversible,
+            title: title(path: path, locale: locale),
+            message: message(branchName: branchName, branchExists: branchExists, locale: locale),
+            log: (path as NSString).abbreviatingWithTildeInPath,
+            buttons: [("作り直して起動", .destructive), ("キャンセル", .primary)],
+            locale: locale
+        ) == 0
     }
 }
 

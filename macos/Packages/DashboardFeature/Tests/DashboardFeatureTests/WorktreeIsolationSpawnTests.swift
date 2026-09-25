@@ -1051,3 +1051,362 @@ func worktreeIsolation_restoreKeepsSharedDirectoryForOptedOutSession() async thr
 }
 
 }
+
+// 08 F2: worktree を作っている間、案内には作業ツリー自体のパスを出す。
+@Test @MainActor
+func worktreeCreationPath_isTheNewWorktreeWhileCreatingAndClearedAfter() async throws {
+    let repository = try WorktreeIsolationRepositoryFixture.repository()
+    let workspaceRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("phlox-worktree-progress-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: workspaceRoot) }
+
+    let project = Project(
+        name: "isolated",
+        directoryPath: repository.path,
+        createdAt: Date(timeIntervalSince1970: 0),
+        isManagedDirectory: false,
+        worktreeIsolationEnabled: true
+    )
+    let projectStore = WorktreeIsolationProjectStore()
+    try await projectStore.save([project])
+    let environment = makeWorktreeIsolationEnvironment(
+        pty: MockPTYManager(),
+        workspaceDirectory: workspaceRoot,
+        projectStore: projectStore
+    )
+    let dashboard = DashboardViewModel(environment: environment, codexUserHooksEnabledProvider: { true })
+    await dashboard.start()
+
+    var seen: [String] = []
+    let spawn = Task {
+        try await DashboardViewModel.$reportsWorktreeCreation.withValue(true) {
+            try await dashboard.spawnNewSession(kind: .codex, projectID: project.id)
+        }
+    }
+    var finished = false
+    let waiter = Task { _ = try? await spawn.value; finished = true }
+    while !finished {
+        if let path = dashboard.worktreeCreationPath, seen.last != path { seen.append(path) }
+        await Task.yield()
+    }
+    _ = await waiter.value
+    let sessionID = try await spawn.value
+
+    #expect(seen == [environment.sessionWorkspaceDirectory(for: sessionID).path])
+    #expect(dashboard.worktreeCreationPath == nil)
+    await dashboard.removeSession(sessionID)
+}
+
+// C-50 / 09 E2: 復元で壊れた worktree を作り直す前にたずねる。やめたら作らず、そのセッションは復元しない。
+@Test(arguments: [(true, false), (false, false), (true, true), (false, true)]) @MainActor
+func worktreeIsolation_restoreAsksBeforeRecreating(accepts: Bool, deletesBranch: Bool) async throws {
+    let ptyManager = MockPTYManager()
+    let repository = try WorktreeIsolationRepositoryFixture.repository()
+    let workspaceRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("phlox-worktree-recreate-ask-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
+    let sessionID = SessionID()
+    let branchName = WorktreeIsolationPlanner.branchName(for: sessionID)
+    let worktreePath = workspaceRoot.appendingPathComponent(sessionID.rawValue.uuidString, isDirectory: true)
+    defer {
+        cleanupWorktreeIsolationTestWorktree(at: worktreePath, branchName: branchName, in: repository)
+        try? FileManager.default.removeItem(at: workspaceRoot)
+    }
+    _ = try runWorktreeIsolationGit(["worktree", "add", "-b", branchName, worktreePath.path], in: repository)
+    try FileManager.default.removeItem(at: worktreePath)
+    if deletesBranch {
+        // 見本 E2 の場面: フォルダもブランチも無い（planner は .create を返す）。
+        _ = try runWorktreeIsolationGit(["worktree", "prune"], in: repository)
+        _ = try runWorktreeIsolationGit(["branch", "-D", branchName], in: repository)
+    }
+    let project = Project(
+        name: "recreate",
+        directoryPath: repository.path,
+        createdAt: Date(timeIntervalSince1970: 0),
+        isManagedDirectory: false,
+        worktreeIsolationEnabled: true
+    )
+    let projectStore = WorktreeIsolationProjectStore()
+    try await projectStore.save([project])
+    let descriptor = PersistedSessionDescriptor(
+        id: sessionID, kind: .codex, workingDirectory: worktreePath.path, name: "recreated",
+        projectID: project.id, startedAt: Date(timeIntervalSince1970: 0),
+        command: "/usr/local/bin/codex", args: [], env: [:]
+    )
+    let environment = makeWorktreeIsolationEnvironment(
+        pty: ptyManager,
+        workspaceDirectory: workspaceRoot,
+        projectStore: projectStore,
+        sessionStore: WorktreeIsolationSessionStore([descriptor])
+    )
+    let dashboard = DashboardViewModel(environment: environment, codexUserHooksEnabledProvider: { true })
+    var asked: [(String, String, Bool)] = []
+    dashboard.worktreeRecreationConfirmer = { path, branch, branchExists in
+        asked.append((path, branch, branchExists))
+        return accepts
+    }
+
+    await dashboard.start()
+
+    #expect(asked.count == 1)
+    #expect(asked.first?.0 == worktreePath.path)
+    #expect(asked.first?.1 == branchName)
+    #expect(asked.first?.2 == !deletesBranch)
+    if accepts {
+        try await waitUntil { ptyManager.spawnCalls.count == 1 }
+        #expect(FileManager.default.fileExists(atPath: worktreePath.path))
+    } else {
+        #expect(!FileManager.default.fileExists(atPath: worktreePath.path))
+        #expect(ptyManager.spawnCalls.isEmpty, "作り直さなかったセッションは起動しない")
+        #expect(dashboard.sessionNode(id: sessionID) != nil, "一覧には失敗として残る")
+    }
+}
+
+// 08 F2: API・スマホからの起動のパスは案内に出さない。画面からの起動と重なっても、画面側のパスだけを出す。
+@Test @MainActor
+func worktreeCreationPath_showsOnlyTheScreenLaunch() async throws {
+    let repository = try WorktreeIsolationRepositoryFixture.repository()
+    let workspaceRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("phlox-worktree-progress-overlap-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: workspaceRoot) }
+    let project = Project(
+        name: "isolated", directoryPath: repository.path, createdAt: Date(timeIntervalSince1970: 0),
+        isManagedDirectory: false, worktreeIsolationEnabled: true
+    )
+    let projectStore = WorktreeIsolationProjectStore()
+    try await projectStore.save([project])
+    let environment = makeWorktreeIsolationEnvironment(
+        pty: MockPTYManager(), workspaceDirectory: workspaceRoot, projectStore: projectStore
+    )
+    let dashboard = DashboardViewModel(environment: environment, codexUserHooksEnabledProvider: { true })
+    await dashboard.start()
+
+    let api = Task { try await dashboard.spawnNewSession(kind: .codex, projectID: project.id) }
+    let screen = Task {
+        try await DashboardViewModel.$reportsWorktreeCreation.withValue(true) {
+            try await dashboard.spawnNewSession(kind: .codex, projectID: project.id)
+        }
+    }
+    var seen = Set<String>()
+    var finishedCount = 0
+    let waiter = Task {
+        _ = try? await api.value
+        finishedCount += 1
+        _ = try? await screen.value
+        finishedCount += 1
+    }
+    while finishedCount < 2 {
+        if let path = dashboard.worktreeCreationPath { seen.insert(path) }
+        await Task.yield()
+    }
+    _ = await waiter.value
+    let ids = [try await api.value, try await screen.value]
+
+    #expect(seen == [environment.sessionWorkspaceDirectory(for: ids[1]).path])
+    #expect(dashboard.worktreeCreationPath == nil)
+    for id in ids { await dashboard.removeSession(id) }
+}
+
+// C-50: 登録だけ残ってフォルダもブランチも消えたとき、確認文はブランチが無いほうを出し、作り直すならブランチも作る。
+@Test(arguments: [false, true]) @MainActor
+func worktreeIsolation_restoreReportsTheMissingBranchWhenOnlyTheRegistrationRemains(accepts: Bool) async throws {
+    let ptyManager = MockPTYManager()
+    let repository = try WorktreeIsolationRepositoryFixture.repository()
+    // git は実体パス（/private/var/…）で登録する。消えたフォルダは実体パスに直せないので、最初から実体パスで置く。
+    // （Foundation の resolvingSymlinksInPath は /private を取り除くので realpath を使う。）
+    let workspaceRoot = URL(
+        fileURLWithPath: String(cString: realpath(FileManager.default.temporaryDirectory.path, nil)), isDirectory: true
+    ).appendingPathComponent("phlox-worktree-recreate-registered-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
+    let sessionID = SessionID()
+    let branchName = WorktreeIsolationPlanner.branchName(for: sessionID)
+    let worktreePath = workspaceRoot.appendingPathComponent(sessionID.rawValue.uuidString, isDirectory: true)
+    defer {
+        cleanupWorktreeIsolationTestWorktree(at: worktreePath, branchName: branchName, in: repository)
+        try? FileManager.default.removeItem(at: workspaceRoot)
+    }
+    _ = try runWorktreeIsolationGit(["worktree", "add", "-b", branchName, worktreePath.path], in: repository)
+    try FileManager.default.removeItem(at: worktreePath)
+    // worktree の登録は残したまま、ブランチの参照だけを消す。
+    _ = try runWorktreeIsolationGit(["update-ref", "-d", "refs/heads/\(branchName)"], in: repository)
+    let project = Project(
+        name: "recreate", directoryPath: repository.path, createdAt: Date(timeIntervalSince1970: 0),
+        isManagedDirectory: false, worktreeIsolationEnabled: true
+    )
+    let projectStore = WorktreeIsolationProjectStore()
+    try await projectStore.save([project])
+    let descriptor = PersistedSessionDescriptor(
+        id: sessionID, kind: .codex, workingDirectory: worktreePath.path, name: "recreated",
+        projectID: project.id, startedAt: Date(timeIntervalSince1970: 0),
+        command: "/usr/local/bin/codex", args: [], env: [:]
+    )
+    let environment = makeWorktreeIsolationEnvironment(
+        pty: ptyManager, workspaceDirectory: workspaceRoot, projectStore: projectStore,
+        sessionStore: WorktreeIsolationSessionStore([descriptor])
+    )
+    let dashboard = DashboardViewModel(environment: environment, codexUserHooksEnabledProvider: { true })
+    var asked: [Bool] = []
+    dashboard.worktreeRecreationConfirmer = { _, _, branchExists in
+        asked.append(branchExists)
+        return accepts
+    }
+
+    await dashboard.start()
+
+    #expect(asked == [false])
+    if accepts {
+        try await waitUntil { ptyManager.spawnCalls.count == 1 }
+        #expect(FileManager.default.fileExists(atPath: worktreePath.path))
+        let branches = try runWorktreeIsolationGit(["branch", "--list", branchName], in: repository)
+        #expect(branches.contains(branchName))
+    } else {
+        #expect(ptyManager.spawnCalls.isEmpty)
+    }
+}
+
+// C-50: 隔離オフで作ったセッションを、あとで隔離オンにしたプロジェクトで復元するときは「前回の worktree」が無いのでたずねない。
+@Test @MainActor
+func worktreeIsolation_restoreOfASessionThatNeverHadAWorktreeDoesNotAsk() async throws {
+    let ptyManager = MockPTYManager()
+    let repository = try WorktreeIsolationRepositoryFixture.repository()
+    let workspaceRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("phlox-worktree-never-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
+    let sessionID = SessionID()
+    let branchName = WorktreeIsolationPlanner.branchName(for: sessionID)
+    let worktreePath = workspaceRoot.appendingPathComponent(sessionID.rawValue.uuidString, isDirectory: true)
+    defer {
+        cleanupWorktreeIsolationTestWorktree(at: worktreePath, branchName: branchName, in: repository)
+        try? FileManager.default.removeItem(at: workspaceRoot)
+    }
+    let project = Project(
+        name: "later-isolated", directoryPath: repository.path, createdAt: Date(timeIntervalSince1970: 0),
+        isManagedDirectory: false, worktreeIsolationEnabled: true
+    )
+    let projectStore = WorktreeIsolationProjectStore()
+    try await projectStore.save([project])
+    let descriptor = PersistedSessionDescriptor(
+        id: sessionID, kind: .codex, workingDirectory: repository.path, name: "shared",
+        projectID: project.id, startedAt: Date(timeIntervalSince1970: 0),
+        command: "/usr/local/bin/codex", args: [], env: [:]
+    )
+    let environment = makeWorktreeIsolationEnvironment(
+        pty: ptyManager, workspaceDirectory: workspaceRoot, projectStore: projectStore,
+        sessionStore: WorktreeIsolationSessionStore([descriptor])
+    )
+    let dashboard = DashboardViewModel(environment: environment, codexUserHooksEnabledProvider: { true })
+    var askedCount = 0
+    dashboard.worktreeRecreationConfirmer = { _, _, _ in
+        askedCount += 1
+        return false
+    }
+
+    await dashboard.start()
+
+    try await waitUntil { ptyManager.spawnCalls.count == 1 }
+    #expect(askedCount == 0)
+}
+
+// C-12 / 09 E4: git の出力が名指しした場所が、いまこのリポジトリの作業ツリーとして働いているときだけ「既存の worktree を使う」を出す。
+@Test
+func existingWorktree_isOfferedOnlyForARegisteredWorktreeOfThisRepository() async throws {
+    let repository = try WorktreeIsolationRepositoryFixture.repository()
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("phlox-existing-worktree-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let branchName = "phlox/existing-\(UUID().uuidString.prefix(8))"
+    let registered = root.appendingPathComponent("registered", isDirectory: true)
+    defer {
+        cleanupWorktreeIsolationTestWorktree(at: registered, branchName: branchName, in: repository)
+        try? FileManager.default.removeItem(at: root)
+    }
+    _ = try runWorktreeIsolationGit(["worktree", "add", "-b", branchName, registered.path], in: repository)
+    // 作業ツリーに見える（.git ファイルがある）が、このリポジトリには登録されていないフォルダ。
+    let impostor = root.appendingPathComponent("impostor", isDirectory: true)
+    try FileManager.default.createDirectory(at: impostor, withIntermediateDirectories: true)
+    try Data("gitdir: /nonexistent/.git/worktrees/x\n".utf8).write(to: impostor.appendingPathComponent(".git"))
+
+    let found = await NewSessionCollisionGate.existingWorktree(
+        in: "fatal: '\(branchName)' is already checked out at '\(registered.path)'", repository: repository
+    )
+    #expect(found == registered.path)
+    let foundByNewerGit = await NewSessionCollisionGate.existingWorktree(
+        in: "fatal: '\(branchName)' is already used by worktree at '\(registered.path)'", repository: repository
+    )
+    #expect(foundByNewerGit == registered.path)
+    let impostorFound = await NewSessionCollisionGate.existingWorktree(
+        in: "fatal: 'x' is already checked out at '\(impostor.path)'", repository: repository
+    )
+    #expect(impostorFound == nil)
+    let unknown = await NewSessionCollisionGate.existingWorktree(in: "fatal: invalid reference: main", repository: repository)
+    #expect(unknown == nil)
+    // 登録は残したまま、同じ場所を別のリポジトリに置き換える。
+    let replaced = root.appendingPathComponent("replaced", isDirectory: true)
+    let replacedBranch = "phlox/replaced-\(UUID().uuidString.prefix(8))"
+    _ = try runWorktreeIsolationGit(["worktree", "add", "-b", replacedBranch, replaced.path], in: repository)
+    defer {
+        // 置き換えたフォルダは worktree ではないので、消してから登録を掃除し、ブランチを消す。
+        try? FileManager.default.removeItem(at: replaced)
+        _ = try? runWorktreeIsolationGit(["worktree", "prune"], in: repository)
+        cleanupWorktreeIsolationTestWorktree(at: replaced, branchName: replacedBranch, in: repository)
+    }
+    try FileManager.default.removeItem(at: replaced)
+    try FileManager.default.createDirectory(at: replaced, withIntermediateDirectories: true)
+    _ = try runWorktreeIsolationGit(["init", "-q"], in: replaced)
+    let replacedFound = await NewSessionCollisionGate.existingWorktree(
+        in: "fatal: '\(replacedBranch)' is already checked out at '\(replaced.path)'", repository: repository
+    )
+    #expect(replacedFound == nil)
+    let gone = await NewSessionCollisionGate.existingWorktree(
+        in: "fatal: 'x' is already checked out at '/nonexistent/\(UUID().uuidString)'", repository: repository
+    )
+    #expect(gone == nil)
+}
+
+// 登録だけ残って同じ場所が別のリポジトリに置き換わっていたら、復元でそこを使わない（起動しない）。
+@Test @MainActor
+func worktreeIsolation_restoreDoesNotReuseAPlaceReplacedByAnotherRepository() async throws {
+    let ptyManager = MockPTYManager()
+    let repository = try WorktreeIsolationRepositoryFixture.repository()
+    let workspaceRoot = URL(
+        fileURLWithPath: String(cString: realpath(FileManager.default.temporaryDirectory.path, nil)), isDirectory: true
+    ).appendingPathComponent("phlox-worktree-replaced-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
+    let sessionID = SessionID()
+    let branchName = WorktreeIsolationPlanner.branchName(for: sessionID)
+    let worktreePath = workspaceRoot.appendingPathComponent(sessionID.rawValue.uuidString, isDirectory: true)
+    defer {
+        try? FileManager.default.removeItem(at: worktreePath)
+        _ = try? runWorktreeIsolationGit(["worktree", "prune"], in: repository)
+        cleanupWorktreeIsolationTestWorktree(at: worktreePath, branchName: branchName, in: repository)
+        try? FileManager.default.removeItem(at: workspaceRoot)
+    }
+    _ = try runWorktreeIsolationGit(["worktree", "add", "-b", branchName, worktreePath.path], in: repository)
+    try FileManager.default.removeItem(at: worktreePath)
+    try FileManager.default.createDirectory(at: worktreePath, withIntermediateDirectories: true)
+    _ = try runWorktreeIsolationGit(["init", "-q"], in: worktreePath)
+    let project = Project(
+        name: "replaced", directoryPath: repository.path, createdAt: Date(timeIntervalSince1970: 0),
+        isManagedDirectory: false, worktreeIsolationEnabled: true
+    )
+    let projectStore = WorktreeIsolationProjectStore()
+    try await projectStore.save([project])
+    let descriptor = PersistedSessionDescriptor(
+        id: sessionID, kind: .codex, workingDirectory: worktreePath.path, name: "replaced",
+        projectID: project.id, startedAt: Date(timeIntervalSince1970: 0),
+        command: "/usr/local/bin/codex", args: [], env: [:]
+    )
+    let environment = makeWorktreeIsolationEnvironment(
+        pty: ptyManager, workspaceDirectory: workspaceRoot, projectStore: projectStore,
+        sessionStore: WorktreeIsolationSessionStore([descriptor])
+    )
+    let dashboard = DashboardViewModel(environment: environment, codexUserHooksEnabledProvider: { true })
+
+    await dashboard.start()
+
+    #expect(ptyManager.spawnCalls.isEmpty, "別のリポジトリになった場所では起動しない")
+    #expect(dashboard.sessionNode(id: sessionID) != nil, "一覧には失敗として残る")
+    #expect(FileManager.default.fileExists(atPath: worktreePath.appendingPathComponent(".git").path), "置き換わったリポジトリには触らない")
+}

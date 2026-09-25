@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Foundation
 import UniformTypeIdentifiers
 import AgentDomain
@@ -32,8 +33,21 @@ public enum ChatTranscriptExportAction {
     }
 
     /// 保存ダイアログを出して Markdown を書き出す。
-    /// - Parameter showsOptions: 前段で書き出しの設定を選んでいない入口（メニューの ⇧⌘E）では、保存パネルに設定を出す（09 D9）。
+    /// - Parameter showsOptions: 前段で書き出しの設定を選んでいない入口（メニューの ⇧⌘E）では、先に設定を選ぶ画面を出す（09 D9）。
     public static func save(session: ChatSessionViewModel, locale: Locale, showsOptions: Bool = false) {
+        if showsOptions {
+            let choice = ExportOptionsChoice()
+            let chosen = DSDialogModal.run(
+                .recoverable,
+                title: AppLocalizedString.string("会話を Markdown で書き出す", locale: locale),
+                message: AppLocalizedString.string("推論・コマンド出力・タイムスタンプを含めるかを選び、次の画面で保存先を選びます。", locale: locale),
+                content: AnyView(ExportOptionsForm(choice: choice)),
+                buttons: [("キャンセル", .normal), ("書き出す…", .primary)],
+                locale: locale
+            )
+            guard chosen == 1 else { return }
+            choice.store()
+        }
         let exportedAt = Date()
         let panel = NSSavePanel()
         panel.title = AppLocalizedString.string("会話を書き出す", locale: locale)
@@ -42,10 +56,7 @@ public enum ChatTranscriptExportAction {
             sessionTitle: session.displayName,
             exportedAt: exportedAt
         )
-        let options = showsOptions ? ExportOptionsAccessory(locale: locale) : nil
-        panel.accessoryView = options?.view
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        options?.store()
         let text = markdown(for: session, exportedAt: exportedAt)
         do {
             try Data(text.utf8).write(to: url, options: .atomic)
@@ -73,35 +84,37 @@ public enum ChatTranscriptExportAction {
     }
 }
 
-/// 保存パネルに添える書き出しの設定。会話ヘッダの書き出し（04 C6）と同じ値をアプリ全体で記憶する。
+/// 書き出しの前段（09 D9）で選ぶ設定。会話ヘッダの書き出し（04 C6）と同じ値をアプリ全体で記憶し、「書き出す…」を押したときだけ保存する。
 @MainActor
-private final class ExportOptionsAccessory {
-    let view: NSView
-    private let boxes: [(key: String, button: NSButton)]
-
-    init(locale: Locale) {
-        let stored = ChatTranscriptExportOptions.stored()
-        let items: [(String, String, Bool)] = [
-            (ChatTranscriptExportOptions.includesReasoningKey, "推論を含める", stored.includesReasoning),
-            (ChatTranscriptExportOptions.includesCommandOutputKey, "コマンド出力を含める", stored.includesCommandOutput),
-            (ChatTranscriptExportOptions.includesTimestampsKey, "タイムスタンプを含める", stored.includesTimestamps),
-        ]
-        boxes = items.map { key, title, isOn in
-            let button = NSButton(checkboxWithTitle: AppLocalizedString.string(title, locale: locale), target: nil, action: nil)
-            button.state = isOn ? .on : .off
-            return (key, button)
-        }
-        let stack = NSStackView(views: boxes.map(\.button))
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.edgeInsets = NSEdgeInsets(top: 10, left: 20, bottom: 10, right: 20)
-        stack.frame.size = stack.fittingSize
-        view = stack
-    }
+private final class ExportOptionsChoice {
+    var options = ChatTranscriptExportOptions.stored()
 
     func store() {
-        for box in boxes {
-            UserDefaults.standard.set(box.button.state == .on, forKey: box.key)
+        let defaults = UserDefaults.standard
+        defaults.set(options.includesReasoning, forKey: ChatTranscriptExportOptions.includesReasoningKey)
+        defaults.set(options.includesCommandOutput, forKey: ChatTranscriptExportOptions.includesCommandOutputKey)
+        defaults.set(options.includesTimestamps, forKey: ChatTranscriptExportOptions.includesTimestampsKey)
+    }
+}
+
+private struct ExportOptionsForm: View {
+    let choice: ExportOptionsChoice
+    @State private var options: ChatTranscriptExportOptions
+
+    init(choice: ExportOptionsChoice) {
+        self.choice = choice
+        _options = State(initialValue: choice.options)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle("推論を含める", isOn: $options.includesReasoning)
+            Toggle("コマンド出力を含める", isOn: $options.includesCommandOutput)
+            Toggle("タイムスタンプを含める", isOn: $options.includesTimestamps)
         }
+        .toggleStyle(.checkbox)
+        .font(.system(size: 12))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onChange(of: options) { _, newValue in choice.options = newValue }
     }
 }

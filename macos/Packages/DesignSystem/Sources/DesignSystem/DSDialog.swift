@@ -267,6 +267,7 @@ public enum DSDialogModal {
         title: String,
         message: String? = nil,
         log: String? = nil,
+        content: AnyView? = nil,
         buttons: [(title: String, role: DSDialogButton.Role)],
         locale: Locale
     ) -> Int? {
@@ -284,7 +285,7 @@ public enum DSDialogModal {
             },
             onCancel: { finish(nil) }
         ) {
-            AnyView(log.map { DSDialogLog($0) })
+            content ?? AnyView(log.map { DSDialogLog($0) })
         }
         .environment(\.locale, locale)
 

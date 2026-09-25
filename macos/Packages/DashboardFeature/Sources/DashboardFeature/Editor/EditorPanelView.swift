@@ -146,10 +146,10 @@ public struct EditorPanelView: View {
     private var header: some View {
         HStack(spacing: 8) {
             Text("エディタ")
-                .font(.system(size: 12, weight: .semibold))
+                .font(DSFont.auxiliary.weight(.semibold))
                 .foregroundStyle(DSColor.textPrimary)
             Text(verbatim: headerSubtitle)
-                .font(.system(size: 11))
+                .font(DSFont.meta)
                 .foregroundStyle(DSColor.textTertiary)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -159,7 +159,7 @@ public struct EditorPanelView: View {
             } label: {
                 ZStack {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 12))
+                        .font(DSFont.auxiliary)
                         .foregroundStyle(DSColor.textSecondary)
                         .opacity(viewModel.isRefreshing ? 0 : 1)
                     if viewModel.isRefreshing {
@@ -191,11 +191,11 @@ public struct EditorPanelView: View {
     private func centeredMessage(_ title: Text, detail: Text?) -> some View {
         VStack(spacing: 8) {
             title
-                .font(.system(size: 13, weight: .semibold))
+                .font(DSFont.row.weight(.semibold))
                 .foregroundStyle(DSColor.textPrimary)
             if let detail {
                 detail
-                    .font(.system(size: 12))
+                    .font(DSFont.auxiliary)
                     .foregroundStyle(DSColor.textSecondary)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
@@ -277,12 +277,12 @@ public struct EditorPanelView: View {
             } label: {
                 HStack(spacing: 8) {
                     Text(verbatim: editorChangeLetter(for: change))
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .font(DSFont.monoCaption.weight(.bold))
                         .foregroundStyle(editorChangeColor(for: change))
                         .frame(width: 14)
                     VStack(alignment: .leading, spacing: 0) {
                         Text(verbatim: (change.path as NSString).lastPathComponent)
-                            .font(.system(size: 12))
+                            .font(DSFont.auxiliary)
                             .foregroundStyle(DSColor.textPrimary)
                             .lineLimit(1)
                             .truncationMode(.middle)
@@ -350,7 +350,7 @@ public struct EditorPanelView: View {
 
     private func placeholder(_ text: Text) -> some View {
         text
-            .font(.system(size: 12))
+            .font(DSFont.auxiliary)
             .foregroundStyle(DSColor.textTertiary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -370,7 +370,7 @@ public struct EditorPanelView: View {
             }
             if let path = viewModel.selectedPath {
                 Text(verbatim: (path as NSString).lastPathComponent)
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(DSFont.monoCaption)
                     .foregroundStyle(DSColor.textSecondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -379,7 +379,7 @@ public struct EditorPanelView: View {
             Spacer(minLength: 0)
             if let readOnlyMessage = viewModel.readOnlyMessage {
                 Text(verbatim: readOnlyMessage)
-                    .font(.system(size: 11))
+                    .font(DSFont.meta)
                     .foregroundStyle(DSColor.textTertiary)
                     .lineLimit(1)
                     .truncationMode(.tail)

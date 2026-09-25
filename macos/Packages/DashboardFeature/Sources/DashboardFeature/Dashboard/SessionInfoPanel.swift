@@ -34,7 +34,7 @@ struct SessionInfoPanel: View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(verbatim: session.displayName)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(DSFont.row.weight(.semibold))
                     .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(2)
                 Text(verbatim: subtitle)
@@ -115,7 +115,7 @@ struct SessionInfoPanel: View {
             Spacer(minLength: 0)
             value()
         }
-        .font(.system(size: 12))
+        .font(DSFont.auxiliary)
         .padding(.vertical, 7)
         .padding(.horizontal, 2)
         .overlay(alignment: .bottom) {
@@ -126,7 +126,7 @@ struct SessionInfoPanel: View {
 
     private func value(_ text: String, mono: Bool = false) -> some View {
         Text(verbatim: text)
-            .font(mono ? .system(size: 11.5, design: .monospaced) : .system(size: 12))
+            .font(mono ? .system(size: 11.5, design: .monospaced) : DSFont.auxiliary)
             .foregroundStyle(text == "—" ? DSColor.textTertiary : DSColor.textPrimary)
             .monospacedDigit()
             .lineLimit(1)

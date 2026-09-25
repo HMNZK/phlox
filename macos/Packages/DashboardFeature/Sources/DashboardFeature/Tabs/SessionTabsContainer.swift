@@ -523,19 +523,19 @@ private struct FileTabView: View {
             // 07 D4: 高さ 30 の帯に、ファイル名・「未保存」・「保存 ⌘S」。
             HStack(spacing: 8) {
                 Text(verbatim: document.path)
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(DSFont.monoCaption)
                     .foregroundStyle(DSColor.textSecondary)
                     .lineLimit(1)
                     .truncationMode(.head)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if let saveError {
                     Text("保存できませんでした: \(saveError)")
-                        .font(.system(size: 11))
+                        .font(DSFont.meta)
                         .foregroundStyle(DSColor.attentionInk(.error))
                         .lineLimit(1)
                 } else if document.isDirty {
                     Text("未保存")
-                        .font(.system(size: 11))
+                        .font(DSFont.meta)
                         .foregroundStyle(DSColor.textSecondary)
                 }
                 Button("保存") {

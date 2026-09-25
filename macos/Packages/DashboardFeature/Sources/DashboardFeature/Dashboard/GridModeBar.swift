@@ -35,7 +35,7 @@ struct GridModeBar: View {
                 viewModel.handlePaneLayoutAction(.applyPreset(preset))
             }
         }
-        .font(.system(size: 12))
+        .font(DSFont.auxiliary)
         .padding(.leading, 12)
         .padding(.trailing, 10)
         .frame(height: 36)

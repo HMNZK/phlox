@@ -133,7 +133,7 @@ struct GridTileHeader: View {
                 workspacePath: session.workspacePath
             )
             Text(verbatim: presentation.primary)
-                .font(.system(size: 12.5, weight: .semibold))
+                .font(DSFont.dense.weight(.semibold))
                 .foregroundStyle(DSColor.textPrimary)
                 .opacity(isCalm ? 0.8 : 1)
                 .lineLimit(1)
@@ -253,7 +253,7 @@ struct GridTileParentRow: View {
 
     var body: some View {
         Text("↳ 親: \(parentName)")
-            .font(.system(size: 11))
+            .font(DSFont.meta)
             .foregroundStyle(DSColor.textSecondary)
             .lineLimit(1)
             .truncationMode(.tail)
@@ -336,7 +336,7 @@ struct GridTileCompactBody: View {
         } else if let pending = pendingQuestion {
             card(.question) {
                 Text(verbatim: pending.questions.first?.question ?? "")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(DSFont.auxiliary.weight(.semibold))
                     .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(isSmall ? 1 : 3)
                 if !isSmall, let question = Self.answerableInTile(pending.questions) {
@@ -345,7 +345,7 @@ struct GridTileCompactBody: View {
                 } else {
                     Button { onOpen() } label: { Text("開いて回答") }
                         .buttonStyle(ApprovalPrimaryButtonStyle(progress: 1, isArmed: true, compact: true))
-                        .font(.system(size: 11.5, weight: .semibold))
+                        .font(DSFont.stateLabel)
                 }
             }
         } else if case .error(let message) = viewModel.displayStatus {
@@ -428,7 +428,7 @@ private struct GridTileQuestionChoices: View {
                         .strokeBorder(isOn ? DSColor.attentionMark(.question) : DSColor.textTertiary, lineWidth: isOn ? 3.5 : 1.2)
                         .frame(width: 11, height: 11)
                     Text(verbatim: option.label)
-                        .font(.system(size: 12))
+                        .font(DSFont.auxiliary)
                         .foregroundStyle(DSColor.textPrimary)
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -443,7 +443,7 @@ private struct GridTileQuestionChoices: View {
             Task { _ = await viewModel.respondToUserQuestion(requestId: requestId, answers: [question.answerKey: [selected]]) }
         } label: { Text("回答を送信") }
             .buttonStyle(ApprovalPrimaryButtonStyle(progress: 1, isArmed: selected != nil, compact: true))
-            .font(.system(size: 11.5, weight: .semibold))
+            .font(DSFont.stateLabel)
             .disabled(selected == nil)
     }
 }
@@ -463,7 +463,7 @@ private struct GridTileApprovalCard: View {
         VStack(alignment: .leading, spacing: 6) {
             if !isSmall {
                 Text(verbatim: ApprovalCard.kindLabel(approval.kind, locale: locale))
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(DSFont.meta.weight(.semibold))
                     .foregroundStyle(DSColor.attentionInk(.approval))
             }
             Text(verbatim: detail)
@@ -474,7 +474,7 @@ private struct GridTileApprovalCard: View {
             HStack(spacing: 5) {
                 Button { respond(.accept) } label: { Text("許可") }
                     .buttonStyle(ApprovalPrimaryButtonStyle(progress: isArmed ? 1 : 0, isArmed: isArmed, compact: true))
-                    .font(.system(size: 11.5, weight: .semibold))
+                    .font(DSFont.stateLabel)
                 if isSmall {
                     Button { onOpen() } label: { Text("開く") }
                         .buttonStyle(ApprovalSecondaryButtonStyle(compact: true))

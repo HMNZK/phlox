@@ -72,7 +72,7 @@ struct ChatSessionHeader: View {
                 Text("セッション名")
             }
             .textFieldStyle(.plain)
-            .font(.system(size: 14, weight: .semibold))
+            .font(DSFont.sessionTitle)
             .focused($isRenameFocused)
             .onSubmit(commitRename)
             .onExitCommand { isRenaming = false }
@@ -82,7 +82,7 @@ struct ChatSessionHeader: View {
         } else {
             HStack(spacing: 7) {
                 Text(verbatim: presentation.primary)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(DSFont.sessionTitle)
                     .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -131,12 +131,12 @@ struct ChatSessionHeader: View {
                 .fixedSize()
             separatorDot
             Text(verbatim: viewModel.workspacePath)
-                .font(.system(size: 11, design: .monospaced))
+                .font(DSFont.monoCaption)
                 .truncationMode(.middle)
             if let branch {
                 separatorDot
                 Text(verbatim: branch)
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(DSFont.monoCaption)
                     .fixedSize()
             }
         }
@@ -165,7 +165,7 @@ struct ChatSessionHeader: View {
     private var subAgentChips: some View {
         HStack(spacing: DSSpacing.xs) {
             Text("サブ")
-                .font(.system(size: 11))
+                .font(DSFont.meta)
                 .foregroundStyle(DSColor.textTertiary)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: DSSpacing.xs) {
@@ -217,7 +217,7 @@ struct ChatSessionHeader: View {
                     now: context.date,
                     exitCode: viewModel.processExit?.exitCode
                 )
-                .font(.system(size: 12, weight: displayState == .running ? .medium : .regular))
+                .font(DSFont.auxiliary.weight(displayState == .running ? .medium : .regular))
                 .foregroundStyle(DSColor.textSecondary)
                 .lineLimit(1)
                 .fixedSize()
@@ -259,7 +259,7 @@ struct ChatSessionHeader: View {
     /// 無応答の「無応答 2:14」（秒で動くので数字を等幅にする）。
     private func stateChip(_ text: Text, kind: AttentionKind) -> some View {
         text
-            .font(.system(size: 12, weight: .semibold))
+            .font(DSFont.auxiliary.weight(.semibold))
             .monospacedDigit()
             .foregroundStyle(DSColor.attentionInk(kind))
             .padding(.horizontal, 9)
@@ -275,7 +275,7 @@ struct ChatSessionHeader: View {
             showsExport.toggle()
         } label: {
             Image(systemName: "square.and.arrow.up")
-                .font(.system(size: 13, weight: .regular))
+                .font(DSFont.row)
                 .foregroundStyle(DSColor.textSecondary)
                 .frame(width: 28, height: 24)
                 .contentShape(Rectangle())
@@ -309,7 +309,7 @@ private struct ChatExportPopover: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("会話を Markdown で書き出す")
-                .font(.system(size: 13, weight: .bold))
+                .font(DSFont.row.weight(.bold))
                 .foregroundStyle(DSColor.textPrimary)
             Text("\(title) · メッセージ \(messageCount)")
                 .font(.system(size: 11.5))
@@ -343,7 +343,7 @@ private struct ChatExportPopover: View {
         }
         .toggleStyle(.checkbox)
         .tint(DSColor.accentFill)
-        .font(.system(size: 12.5))
+        .font(DSFont.dense)
         .padding(.horizontal, 18)
         .padding(.top, DSSpacing.l)
         .padding(.bottom, 14)

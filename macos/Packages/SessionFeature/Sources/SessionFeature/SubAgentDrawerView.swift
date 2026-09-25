@@ -38,7 +38,7 @@ struct SubAgentDrawerView: View {
         HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(subAgent.description.isEmpty ? subAgent.subagentType : subAgent.description)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(DSFont.row.weight(.semibold))
                     .foregroundStyle(DSColor.chatTextPrimary)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -50,7 +50,7 @@ struct SubAgentDrawerView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             Button("メインへ戻る", action: onClose)
                 .buttonStyle(.plain)
-                .font(.system(size: 12))
+                .font(DSFont.auxiliary)
                 .foregroundStyle(DSColor.textSecondary)
                 .help("メインチャットを表示")
                 .accessibilityIdentifier("SubAgentDrawer.backToMain")
@@ -200,7 +200,7 @@ private struct SubAgentDrawerSendButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "paperplane.fill")
-                .font(.system(size: 13, weight: .semibold))
+                .font(DSFont.row.weight(.semibold))
                 .foregroundStyle(canSubmit ? DSColor.chatBackground : DSColor.chatTextSecondary)
                 .frame(width: 28, height: 28)
                 .background {

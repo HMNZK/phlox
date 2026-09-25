@@ -121,7 +121,7 @@ struct SessionTabBar: View {
             revealFirstHiddenAttention()
         } label: {
             text
-                .font(.system(size: 11.5, weight: .semibold))
+                .font(DSFont.stateLabel)
                 .foregroundStyle(summary.kind.map(DSColor.attentionInk) ?? DSColor.textPrimary)
                 .padding(.horizontal, DSSpacing.s)
                 .frame(height: 22)

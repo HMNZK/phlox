@@ -238,7 +238,7 @@ private struct ComposerContextPopover: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .font(.system(size: 12))
+        .font(DSFont.auxiliary)
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .frame(width: 240, alignment: .leading)
@@ -322,13 +322,13 @@ private struct ComposerBranchControl: View {
             if picker.branches.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(verbatim: header)
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(DSFont.meta.weight(.semibold))
                         .foregroundStyle(DSColor.textTertiary)
                         .padding(.horizontal, 8)
                         .padding(.top, 4)
                         .padding(.bottom, 6)
                     Text(UIWording.text(.noLocalBranches, languageCode: languageCode))
-                        .font(.system(size: 12))
+                        .font(DSFont.auxiliary)
                         .foregroundStyle(DSColor.textSecondary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 6)
@@ -477,7 +477,7 @@ struct ComposerBranchLabelContent: View {
     var body: some View {
         HStack(spacing: 2) {
             Text(verbatim: currentBranch)
-                .font(.system(size: 11, design: .monospaced))
+                .font(DSFont.monoCaption)
                 .lineLimit(1)
                 .truncationMode(ComposerIndicatorMetrics.branchTruncationMode(for: layout))
             if isCheckingOut {

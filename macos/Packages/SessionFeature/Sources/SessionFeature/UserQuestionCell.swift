@@ -168,7 +168,7 @@ struct UserQuestionCell: View {
     private func footerRow(scale: CGFloat) -> some View {
         HStack(spacing: 8) {
             Text(keyHint)
-                .font(.system(size: 11))
+                .font(DSFont.meta)
                 .foregroundStyle(DSColor.textTertiary)
             Spacer(minLength: 8)
             if canDismiss {
@@ -181,7 +181,7 @@ struct UserQuestionCell: View {
                     Text("回答を送信")
                     Text(verbatim: "⌘↩").opacity(0.85).font(.system(size: 10.5))
                 }
-                .font(.system(size: 12, weight: .semibold))
+                .font(DSFont.auxiliary.weight(.semibold))
                 .foregroundStyle(Color.white)
                 .padding(.horizontal, 12)
                 .frame(height: 26)
@@ -275,7 +275,7 @@ struct UserQuestionCell: View {
     private var dismissButton: some View {
         Button(action: { onDismiss?() }) {
             Text("閉じる")
-                .font(.system(size: 12))
+                .font(DSFont.auxiliary)
                 .foregroundStyle(DSColor.textSecondary)
                 .padding(.horizontal, 8)
                 .frame(height: 26)
@@ -292,10 +292,10 @@ struct UserQuestionCell: View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 8) {
                 Image(systemName: "questionmark.square.fill")
-                    .font(.system(size: 11))
+                    .font(DSFont.meta)
                     .foregroundStyle(DSColor.attentionMark(.question))
                 Text("質問待ち · \(question.header)")
-                    .font(.system(size: 11.5, weight: .semibold))
+                    .font(DSFont.stateLabel)
                     .foregroundStyle(DSColor.attentionInk(.question))
                 Spacer(minLength: DSSpacing.s)
                 Text(question.isSecret ? "秘密の入力"
@@ -529,7 +529,7 @@ struct UserQuestionCell: View {
                 }
                 VStack(alignment: .leading, spacing: TranscriptTypography.metadataGap) {
                     Text(label)
-                        .font(.system(size: 13))
+                        .font(DSFont.row)
                         .foregroundStyle(DSColor.chatTextPrimary)
                     if let description, !description.isEmpty {
                         Text(description)
@@ -540,7 +540,7 @@ struct UserQuestionCell: View {
                 Spacer(minLength: 0)
                 if let number {
                     Text(verbatim: "\(number)")
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(DSFont.monoCaption)
                         .foregroundStyle(DSColor.textTertiary)
                 }
             }

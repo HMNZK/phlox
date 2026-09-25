@@ -396,11 +396,11 @@ private struct ComposerRoundButton: View {
         switch style {
         case .send:
             Text(verbatim: "↑")
-                .font(.system(size: 13, weight: .bold))
+                .font(DSFont.row.weight(.bold))
                 .foregroundStyle(isEnabled ? Color.white : DSColor.textTertiary)
         case .sending:
             Text(verbatim: "…")
-                .font(.system(size: 13, weight: .bold))
+                .font(DSFont.row.weight(.bold))
                 .foregroundStyle(DSColor.textTertiary)
         case .stop:
             RoundedRectangle(cornerRadius: 1.5)
@@ -431,7 +431,7 @@ struct ComposerSuggestionPopup: View {
         let isSlash = controller.candidates.first?.kind == .slashCommand
         VStack(alignment: .leading, spacing: 1) {
             Text(isSlash ? "コマンド" : "ファイル")
-                .font(.system(size: 11, weight: .semibold))
+                .font(DSFont.meta.weight(.semibold))
                 .foregroundStyle(DSColor.textTertiary)
                 .padding(EdgeInsets(top: 4, leading: 8, bottom: 6, trailing: 8))
                 .accessibilityAddTraits(.isHeader)
@@ -493,7 +493,7 @@ struct ComposerSuggestionPopup: View {
                     // 説明から先に縮め、それでも入らない長い名前は途中を省く（右の出どころを押し出さない）。
                     .layoutPriority(1)
                 Text(candidate.subtitle ?? "")
-                    .font(.system(size: 12))
+                    .font(DSFont.auxiliary)
                     .opacity(0.85)
                     .lineLimit(1)
                     .truncationMode(.tail)

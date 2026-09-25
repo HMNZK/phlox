@@ -52,7 +52,7 @@ struct SidebarProjectRow<Menu: View, NewSession: View>: View {
             Button(action: onToggleExpansion) {
                 // PhloxSidebar.dc.html: 文字「›」13pt・幅 10、開くと 90°。
                 Text(verbatim: "›")
-                    .font(.system(size: 13))
+                    .font(DSFont.row)
                     .foregroundStyle(DSColor.textTertiary)
                     .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     .frame(width: 10, height: 20)
@@ -306,7 +306,7 @@ struct SidebarSessionRow<Menu: View>: View {
             Button(action: onToggleExpansion) {
                 // PhloxSidebar.dc.html: 文字「›」13pt・幅 10、開くと 90°。
                 Text(verbatim: "›")
-                    .font(.system(size: 13))
+                    .font(DSFont.row)
                     .foregroundStyle(DSColor.textTertiary)
                     .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     .frame(width: 10, height: 20)
@@ -368,7 +368,7 @@ struct SidebarInternalSessionsRow: View {
                 .frame(width: 12, height: 12)
                 .accessibilityHidden(true)
             Text("内部セッション（オーケストレーション）")
-                .font(.system(size: 12))
+                .font(DSFont.auxiliary)
                 .foregroundStyle(DSColor.textSecondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -384,7 +384,7 @@ struct SidebarInternalSessionsRow: View {
         .background(alignment: .leading) { SidebarGuides(depth: depth) }
         .overlay(alignment: .leading) {
             Text(verbatim: "›")
-                .font(.system(size: 13))
+                .font(DSFont.row)
                 .foregroundStyle(DSColor.textTertiary)
                 .rotationEffect(.degrees(isExpanded ? 90 : 0))
                 .frame(width: 10, height: 20)
@@ -513,7 +513,7 @@ struct SidebarSummaryText: View {
                     }
                 }
             }
-            .font(.system(size: 11, weight: .semibold))
+            .font(DSFont.meta.weight(.semibold))
             .foregroundStyle(DSColor.textSecondary)
             .monospacedDigit()
             .lineLimit(1)
@@ -549,7 +549,7 @@ struct SidebarRowIcon: View {
 
     var body: some View {
         Text(verbatim: text)
-            .font(.system(size: 13))
+            .font(DSFont.row)
             .foregroundStyle(isPrimary ? DSColor.textPrimary : DSColor.textSecondary)
             .frame(width: 20, height: 18)
             .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: 4))

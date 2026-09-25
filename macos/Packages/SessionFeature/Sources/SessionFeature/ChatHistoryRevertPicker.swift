@@ -20,7 +20,7 @@ struct ChatHistoryRevertPicker: View {
         VStack(alignment: .leading, spacing: 2) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("この発言の前まで巻き戻す")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(DSFont.row.weight(.semibold))
                     .foregroundStyle(DSColor.textPrimary)
                 Text("選んだ発言以降の会話を取り消し、その発言を入力欄に戻します")
                     .font(.system(size: 11.5))
@@ -43,7 +43,7 @@ struct ChatHistoryRevertPicker: View {
                 Spacer(minLength: 0)
                 Text("実行中なら先に中断します")
             }
-            .font(.system(size: 11))
+            .font(DSFont.meta)
             .foregroundStyle(DSColor.textTertiary)
             .padding(.horizontal, 10)
             .padding(.top, 8)
@@ -92,7 +92,7 @@ struct ChatHistoryRevertPicker: View {
     private var listBody: some View {
         if candidates.isEmpty {
             Text("巻き戻せる履歴がありません")
-                .font(.system(size: 13))
+                .font(DSFont.row)
                 .foregroundStyle(DSColor.textSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 20)
@@ -120,12 +120,12 @@ struct ChatHistoryRevertPicker: View {
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text(verbatim: Self.timeFormatter.string(from: item.timestamp))
-                    .font(.system(size: 11))
+                    .font(DSFont.meta)
                     .monospacedDigit()
                     .foregroundStyle(isSelected ? Color.white : DSColor.textSecondary)
                     .opacity(0.8)
             }
-            .font(.system(size: 13))
+            .font(DSFont.row)
             .foregroundStyle(isSelected ? Color.white : DSColor.textPrimary)
             .padding(.horizontal, 10)
             .frame(height: 30)

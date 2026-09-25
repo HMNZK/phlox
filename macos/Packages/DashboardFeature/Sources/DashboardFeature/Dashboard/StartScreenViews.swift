@@ -23,7 +23,7 @@ struct StartOnboardingView: View {
                 if showsAllSteps {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Phlox へようこそ")
-                            .font(.system(size: 24, weight: .bold))
+                            .font(DSFont.emptyTitle)
                             .tracking(-0.3)
                             .foregroundStyle(DSColor.textPrimary)
                         Text("複数のコーディングエージェントを 1 つのウィンドウで動かし、承認と質問にまとめて答えます。始めるには作業フォルダを 1 つ追加してください。")
@@ -35,16 +35,16 @@ struct StartOnboardingView: View {
                 }
                 step(1, title: "プロジェクトを追加") {
                     Text("エージェントはこのフォルダの中で作業します。フォルダ自体を Phlox が移動・削除することはありません。")
-                        .font(.system(size: 12.5))
+                        .font(DSFont.dense)
                         .lineSpacing(4)
                         .foregroundStyle(DSColor.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Button(action: onAddFolder) {
                         HStack(spacing: 8) {
                             Text("フォルダを追加…")
-                            Text(verbatim: "⌘O").font(.system(size: 11)).opacity(0.85)
+                            Text(verbatim: "⌘O").font(DSFont.meta).opacity(0.85)
                         }
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(DSFont.row.weight(.semibold))
                         .foregroundStyle(Color.white)
                         .padding(.horizontal, 14)
                         .frame(height: 30)
@@ -71,7 +71,7 @@ struct StartOnboardingView: View {
                     step(3, title: "通知（任意）") {
                         HStack(spacing: 10) {
                             Text("承認待ちや完了を、ほかのアプリを使っている間も知らせます。")
-                                .font(.system(size: 12.5))
+                                .font(DSFont.dense)
                                 .lineSpacing(4)
                                 .foregroundStyle(DSColor.textSecondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -103,13 +103,13 @@ struct StartOnboardingView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 Text(verbatim: "\(number)")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(DSFont.meta.weight(.bold))
                     .foregroundStyle(number == 1 ? Color.white : DSColor.textPrimary)
                     .frame(width: 20, height: 20)
                     .background(number == 1 ? DSColor.accentFill : DSColor.segmentTrack, in: Circle())
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(DSFont.sessionTitle)
                     .foregroundStyle(DSColor.textPrimary)
                 if let note {
                     Text(note)
@@ -129,23 +129,23 @@ struct StartOnboardingView: View {
             AgentInitialTile(descriptor: entry.descriptor, size: 22, fontScale: 0.42)
             VStack(alignment: .leading, spacing: 1) {
                 Text(verbatim: entry.descriptor.displayName)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(DSFont.row.weight(.medium))
                     .foregroundStyle(DSColor.textPrimary)
                 Text(verbatim: entry.binaryPath.map { ($0 as NSString).abbreviatingWithTildeInPath }
                     ?? String(format: AppLocalizedString.string("%@ · 見つかりません", locale: locale), entry.descriptor.binaryName))
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(DSFont.monoCaption)
                     .foregroundStyle(DSColor.textSecondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
             Spacer(minLength: 0)
             Text(entry.isDetected ? "検出済み" : "未検出")
-                .font(.system(size: 11.5, weight: .semibold))
+                .font(DSFont.stateLabel)
                 .foregroundStyle(entry.isDetected ? DSColor.diffAdded : DSColor.attentionInk(.approval))
             if !entry.isDetected, let url = AgentInstallGuide.url(for: entry.descriptor.ref) {
                 Button("入手方法 ↗") { openURL(url) }
                     .buttonStyle(.plain)
-                    .font(.system(size: 12))
+                    .font(DSFont.auxiliary)
                     .foregroundStyle(DSColor.accentInk)
             }
         }
@@ -159,7 +159,7 @@ struct StartOnboardingView: View {
         switch notificationStatus {
         case .authorized, .provisional, .ephemeral:
             Text("許可済み")
-                .font(.system(size: 12.5, weight: .medium))
+                .font(DSFont.dense.weight(.medium))
                 .foregroundStyle(DSColor.textSecondary)
         case .denied:
             softButton("システム設定を開く…") {
@@ -180,7 +180,7 @@ struct StartOnboardingView: View {
     private func softButton(_ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 12.5))
+                .font(DSFont.dense)
                 .foregroundStyle(DSColor.textPrimary)
                 .padding(.horizontal, 12)
                 .frame(height: 26)
@@ -278,7 +278,7 @@ struct NewSessionTable: View {
     private var header: some View {
         HStack(spacing: 8) {
             Text("新規セッション")
-                .font(.system(size: 13, weight: .semibold))
+                .font(DSFont.row.weight(.semibold))
                 .foregroundStyle(DSColor.textPrimary)
             Spacer(minLength: 0)
             Menu {
@@ -292,7 +292,7 @@ struct NewSessionTable: View {
                     Text("プロジェクトを選択")
                 }
             }
-            .font(.system(size: 12))
+            .font(DSFont.auxiliary)
             .menuStyle(.borderlessButton)
             .fixedSize()
             .accessibilityLabel(Text("作成先のプロジェクト"))
@@ -305,12 +305,12 @@ struct NewSessionTable: View {
         let isSelected = index == selectedIndex
         return HStack(spacing: 0) {
             Text(verbatim: "\(index + 1)")
-                .font(.system(size: 11, design: .monospaced))
+                .font(DSFont.monoCaption)
                 .foregroundStyle(DSColor.textTertiary)
                 .frame(width: 20, alignment: .leading)
                 .accessibilityHidden(true)
             Text(verbatim: row.title)
-                .font(.system(size: 13))
+                .font(DSFont.row)
                 .foregroundStyle(DSColor.textPrimary)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -354,7 +354,7 @@ struct NewSessionTable: View {
     private func cellButton(_ title: LocalizedStringKey, primary: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 12, weight: primary ? .semibold : .regular))
+                .font(DSFont.auxiliary.weight(primary ? .semibold : .regular))
                 .foregroundStyle(primary ? Color.white : DSColor.textPrimary)
                 .padding(.horizontal, 10)
                 .frame(height: 24)
@@ -572,11 +572,11 @@ struct SpawnGuardSheet: View {
                     let state = node.gridDisplayState
                     HStack(spacing: 10) {
                         Text(verbatim: state.localizedLabel(locale: locale))
-                            .font(.system(size: 11, weight: state.attentionKind != nil ? .bold : .medium))
+                            .font(DSFont.meta.weight(state.attentionKind != nil ? .bold : .medium))
                             .foregroundStyle(state.attentionKind.map { DSColor.attentionInk($0) } ?? DSColor.textSecondary)
                             .frame(width: 52, alignment: .leading)
                         Text(verbatim: node.displayName)
-                            .font(.system(size: 12.5))
+                            .font(DSFont.dense)
                             .foregroundStyle(DSColor.textPrimary)
                             .lineLimit(1)
                         Spacer(minLength: 0)

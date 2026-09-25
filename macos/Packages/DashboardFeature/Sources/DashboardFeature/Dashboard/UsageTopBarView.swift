@@ -45,7 +45,7 @@ struct UsageTopBarView: View {
             ForEach(chips) { chip in
                 HStack(spacing: 5) {
                     Text(verbatim: Self.shortName(chip.kind))
-                        .font(.system(size: 11))
+                        .font(DSFont.meta)
                         .foregroundStyle(DSColor.textSecondary)
                     // 取得に失敗して前回の値を出しているときは「—」（07 のチップ）。
                     let remaining = monitor.failures[chip.kind] == nil ? Self.remaining(chip) : nil
@@ -64,11 +64,11 @@ struct UsageTopBarView: View {
         HStack(spacing: 4) {
             ForEach(Array(chips.enumerated()), id: \.element.id) { index, chip in
                 if index > 0 {
-                    Text(verbatim: "·").font(.system(size: 11)).foregroundStyle(DSColor.textTertiary)
+                    Text(verbatim: "·").font(DSFont.meta).foregroundStyle(DSColor.textTertiary)
                 }
                 HStack(spacing: 3) {
                     Text(verbatim: Self.initials(chip.kind))
-                        .font(.system(size: 11))
+                        .font(DSFont.meta)
                         .foregroundStyle(DSColor.textSecondary)
                     let remaining = monitor.failures[chip.kind] == nil ? Self.remaining(chip) : nil
                     // 01「残り 20% 未満は 3 段階とも琥珀＋▲」。
@@ -110,7 +110,7 @@ struct UsageTopBarView: View {
         let isLow = remaining.map { Double($0) < UsageDisplay.lowRemainingThreshold } ?? false
         let isLoading = monitor.isRefreshing
         return Text(verbatim: remaining.map { showsPercent ? "\($0)%" : "\($0)" } ?? "—")
-            .font(.system(size: 11, weight: isLow ? .bold : .regular))
+            .font(DSFont.meta.weight(isLow ? .bold : .regular))
             .monospacedDigit()
             .foregroundStyle(
                 isLow ? DSColor.attentionInk(.approval)

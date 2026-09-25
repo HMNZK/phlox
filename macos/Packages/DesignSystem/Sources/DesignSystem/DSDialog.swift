@@ -47,7 +47,7 @@ public struct DSDialog<Detail: View>: View {
         VStack(spacing: 10) {
             AppIconBadge(showsCaution: kind != .recoverable, size: 56)
             Text(verbatim: title)
-                .font(.system(size: 13, weight: .bold))
+                .font(DSFont.row.weight(.bold))
                 .lineSpacing(3)
                 .foregroundStyle(DSColor.textPrimary)
                 .accessibilityAddTraits(.isHeader)
@@ -60,7 +60,7 @@ public struct DSDialog<Detail: View>: View {
             detail
             if let note {
                 Text(verbatim: note)
-                    .font(.system(size: 11))
+                    .font(DSFont.meta)
                     .lineSpacing(3)
                     .foregroundStyle(DSColor.textSecondary)
             }

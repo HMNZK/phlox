@@ -28,7 +28,7 @@ struct SelectProjectPlaceholderView: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(DSColor.textPrimary)
             Text("左のサイドバーでプロジェクトかセッションを選ぶと、ここに表示します。対応待ちがあれば ⌘J で移動できます。")
-                .font(.system(size: 12.5))
+                .font(DSFont.dense)
                 .lineSpacing(4)
                 .foregroundStyle(DSColor.textSecondary)
                 .multilineTextAlignment(.center)

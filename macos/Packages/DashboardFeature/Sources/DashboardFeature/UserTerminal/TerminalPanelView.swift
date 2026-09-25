@@ -151,10 +151,10 @@ public struct TerminalPanelView: View {
     private var header: some View {
         HStack(spacing: 8) {
             Text("ターミナル")
-                .font(.system(size: 12, weight: .semibold))
+                .font(DSFont.auxiliary.weight(.semibold))
                 .foregroundStyle(DSColor.textPrimary)
             Text(verbatim: subtitle)
-                .font(.system(size: 11))
+                .font(DSFont.meta)
                 .foregroundStyle(DSColor.textTertiary)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -208,7 +208,7 @@ public struct TerminalPanelView: View {
     private var fontSizeHUD: some View {
         if hudVisibleUntil != nil {
             Text(verbatim: String(format: AppLocalizedString.string("ターミナル %lldpt", locale: locale), Int(fontSize)))
-                .font(.system(size: 13, weight: .semibold))
+                .font(DSFont.row.weight(.semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)

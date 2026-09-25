@@ -438,10 +438,10 @@ private struct PaneTileView: View {
         .draggable(DraggedSession(id: session.id)) {
             HStack(spacing: 8) {
                 Text(verbatim: session.gridDisplayState.localizedLabel(locale: locale))
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(DSFont.meta.weight(.semibold))
                     .foregroundStyle(DSColor.textSecondary)
                 Text(verbatim: session.displayName)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(DSFont.auxiliary.weight(.semibold))
                     .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -476,7 +476,7 @@ private struct PaneDropIndicatorView: View {
             .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(DSColor.accent, lineWidth: 2))
             .overlay {
                 Text(label)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(DSFont.auxiliary.weight(.semibold))
                     .foregroundStyle(DSColor.accentInk)
             }
             .padding(4)

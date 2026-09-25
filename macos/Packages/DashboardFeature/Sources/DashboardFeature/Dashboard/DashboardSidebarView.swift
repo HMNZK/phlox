@@ -142,7 +142,7 @@ struct DashboardSidebarView: View {
                 Text("対応待ち")
                 if !attention.isEmpty {
                     Text(verbatim: "\(attention.count)")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(DSFont.meta.weight(.bold))
                         .foregroundStyle(Color.white)
                         .padding(.horizontal, 5)
                         .frame(minWidth: 18, minHeight: 16)
@@ -209,7 +209,7 @@ struct DashboardSidebarView: View {
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text(verbatim: "›")
-                    .font(.system(size: 13))
+                    .font(DSFont.row)
                     .foregroundStyle(DSColor.textTertiary)
                     .rotationEffect(.degrees(unreadExpanded && unread.count > 1 ? 90 : 0))
             }

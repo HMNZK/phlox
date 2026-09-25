@@ -31,7 +31,7 @@ struct InspectorView: View {
                             .padding(.bottom, 14)
                     } else {
                         Text("セッションが選択されていません")
-                            .font(.system(size: 12))
+                            .font(DSFont.auxiliary)
                             .foregroundStyle(DSColor.textTertiary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, DSSpacing.l)
@@ -89,7 +89,7 @@ public struct UsageSidebarView: View {
                         }
                         if shownKinds.isEmpty {
                             Text("表示できる使用量がありません")
-                                .font(.system(size: 12))
+                                .font(DSFont.auxiliary)
                                 .foregroundStyle(DSColor.textTertiary)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, DSSpacing.l)
@@ -123,7 +123,7 @@ public struct UsageSidebarView: View {
                 .foregroundStyle(DSColor.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .font(.system(size: 12))
+        .font(DSFont.auxiliary)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 11)
         .padding(.vertical, 9)
@@ -146,7 +146,7 @@ public struct UsageSidebarView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Text(verbatim: footerText)
-                    .font(.system(size: 11))
+                    .font(DSFont.meta)
                     .foregroundStyle(DSColor.textTertiary)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -166,7 +166,7 @@ public struct UsageSidebarView: View {
                 .help(Text("使用量を更新"))
             }
             Text("自動更新・Claude の取得・未取得の CLI の表示は 設定 > 詳細")
-                .font(.system(size: 11))
+                .font(DSFont.meta)
                 .foregroundStyle(DSColor.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -260,12 +260,12 @@ struct UsageCLICard: View {
             HStack(spacing: 7) {
                 AgentBrandIcon(kind: kind, size: 14)
                 Text(verbatim: kind.displayName)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(DSFont.row.weight(.semibold))
                     .foregroundStyle(DSColor.textPrimary)
                 Spacer(minLength: 4)
                 if let note {
                     Text(verbatim: note)
-                        .font(.system(size: 11, weight: notesAttention ? .semibold : .regular))
+                        .font(DSFont.meta.weight(notesAttention ? .semibold : .regular))
                         .foregroundStyle(notesAttention ? DSColor.attentionInk(.approval) : DSColor.textTertiary)
                         .lineLimit(1)
                 }
@@ -275,7 +275,7 @@ struct UsageCLICard: View {
                 skeleton
             } else if case .unavailable(let reason) = usage?.state {
                 Text(verbatim: reason)
-                    .font(.system(size: 12))
+                    .font(DSFont.auxiliary)
                     .foregroundStyle(DSColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if usage?.action == .installCursor {
@@ -351,7 +351,7 @@ private struct UsageBucketRow: View {
                     .monospacedDigit()
                     .opacity(isStale ? 0.6 : 1)
             }
-            .font(.system(size: 12))
+            .font(DSFont.auxiliary)
 
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
@@ -368,7 +368,7 @@ private struct UsageBucketRow: View {
             if let resetsAt = bucket.resetsAt {
                 let reset = UsageText.resetsIn(resetsAt, now: now, locale: locale)
                 Text(verbatim: isLow ? reset + AppLocalizedString.string(" · 上限間近", locale: locale) : reset)
-                    .font(.system(size: 11, weight: isLow ? .semibold : .regular))
+                    .font(DSFont.meta.weight(isLow ? .semibold : .regular))
                     .foregroundStyle(isLow ? DSColor.attentionInk(.approval) : DSColor.textTertiary)
             }
         }

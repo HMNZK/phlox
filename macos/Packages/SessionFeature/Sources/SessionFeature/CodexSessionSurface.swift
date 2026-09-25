@@ -237,7 +237,7 @@ private struct CodexPlanMark: View {
         Group {
             switch status {
             case .completed:
-                Text(verbatim: "✓").font(.system(size: 11)).foregroundStyle(DSColor.textTertiary)
+                Text(verbatim: "✓").font(DSFont.meta).foregroundStyle(DSColor.textTertiary)
             case .inProgress:
                 Circle().fill(DSColor.textPrimary).frame(width: 8, height: 8)
             case .pending:

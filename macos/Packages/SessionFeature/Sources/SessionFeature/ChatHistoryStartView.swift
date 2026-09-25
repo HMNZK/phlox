@@ -54,16 +54,16 @@ struct ChatHistoryStartView: View {
         VStack(spacing: 18) {
             VStack(spacing: 6) {
                 Text("過去の会話から再開")
-                    .font(.system(size: 17, weight: .bold))
+                    .font(DSFont.sheetTitle)
                     .foregroundStyle(DSColor.textPrimary)
                 Text("\(projectName) で \(agentName) と行った会話です。選ぶと続きから再開します。")
-                    .font(.system(size: 12.5))
+                    .font(DSFont.dense)
                     .foregroundStyle(DSColor.textSecondary)
                     .multilineTextAlignment(.center)
             }
             if entries.isEmpty {
                 Text("履歴がありません")
-                    .font(.system(size: 13))
+                    .font(DSFont.row)
                     .foregroundStyle(DSColor.textSecondary)
                     .padding(.vertical, 20)
             } else {
@@ -90,7 +90,7 @@ struct ChatHistoryStartView: View {
                 Button(action: onStartNew) {
                     HStack(spacing: 6) {
                         Text("新しい会話を始める")
-                            .font(.system(size: 12.5))
+                            .font(DSFont.dense)
                             .foregroundStyle(DSColor.textPrimary)
                         Text(verbatim: "⌘↩")
                             .font(.system(size: 10.5))
@@ -169,7 +169,7 @@ private struct HistoryStartRow: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(presentation.title)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(DSFont.row.weight(.semibold))
                         .foregroundStyle(DSColor.textPrimary)
                         .lineLimit(1)
                         .help(presentation.fullTitle)
@@ -190,11 +190,11 @@ private struct HistoryStartRow: View {
                     Text(lastUsedText)
                     if let meta = Self.meta(summary: summary, branch: entry.gitBranch) {
                         meta
-                            .font(.system(size: 11, design: .monospaced))
+                            .font(DSFont.monoCaption)
                             .lineLimit(1)
                     }
                 }
-                .font(.system(size: 11))
+                .font(DSFont.meta)
                 .foregroundStyle(DSColor.textTertiary)
             }
             .padding(.horizontal, 14)

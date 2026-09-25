@@ -125,7 +125,7 @@ private struct SendFailureNotice: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 12))
+                .font(DSFont.auxiliary)
                 .foregroundStyle(DSColor.attentionMark(.error))
             Group {
                 if failure.restoredDraft {
@@ -134,7 +134,7 @@ private struct SendFailureNotice: View {
                     Text("送信できませんでした（\(failure.reason)）。")
                 }
             }
-                .font(.system(size: 12.5))
+                .font(DSFont.dense)
                 .foregroundStyle(DSColor.textPrimary)
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -144,7 +144,7 @@ private struct SendFailureNotice: View {
                         Text("再送")
                         Text(verbatim: "↩").font(.system(size: 10.5)).foregroundStyle(DSColor.textTertiary)
                     }
-                    .font(.system(size: 12))
+                    .font(DSFont.auxiliary)
                     .padding(.horizontal, 10)
                     .frame(height: 24)
                     .background(DSColor.controlBackground, in: RoundedRectangle(cornerRadius: 6, style: .continuous))

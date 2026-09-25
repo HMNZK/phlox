@@ -171,7 +171,7 @@ struct AgentStartCardsView: View {
             }
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text("新しいセッションを始める")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(DSFont.row.weight(.semibold))
                     .foregroundStyle(DSColor.textPrimary)
                 Text(String(format: AppLocalizedString.string("1–%lld で選択", locale: locale), displayed.count)
                     + " · " + NewSessionKeys.hint(default: defaultBackend, locale: locale))
@@ -335,7 +335,7 @@ struct AgentStartProjectHeader: View {
                     Text(String(format: AppLocalizedString.string("実行中 %lld 件", locale: locale), runningCount))
                 }
             }
-            .font(.system(size: 12))
+            .font(DSFont.auxiliary)
             .foregroundStyle(DSColor.textSecondary)
             .lineLimit(1)
         }
@@ -393,17 +393,17 @@ private struct AgentStartCardButton: View {
                 AgentInitialTile(descriptor: descriptor, size: 28, fontScale: 0.42)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(verbatim: descriptor.displayName)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(DSFont.sessionTitle)
                         .foregroundStyle(DSColor.textPrimary)
                     Text(verbatim: detailLine)
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(DSFont.monoCaption)
                         .foregroundStyle(DSColor.textSecondary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
                 Spacer(minLength: 0)
                 Text(verbatim: "\(number)")
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(DSFont.monoCaption)
                     .foregroundStyle(DSColor.textTertiary)
                     .accessibilityHidden(true)
             }
@@ -419,7 +419,7 @@ private struct AgentStartCardButton: View {
                     HStack(spacing: 8) {
                         ProgressView().controlSize(.small)
                         Text("起動しています…")
-                            .font(.system(size: 12.5))
+                            .font(DSFont.dense)
                             .foregroundStyle(DSColor.textSecondary)
                     }
                     .frame(height: 28)
@@ -432,7 +432,7 @@ private struct AgentStartCardButton: View {
                 }
             } else {
                 Text(String(format: AppLocalizedString.string("%@ が PATH に見つかりません。インストールすると、ここから起動できます。", locale: locale), descriptor.binaryName))
-                    .font(.system(size: 12))
+                    .font(DSFont.auxiliary)
                     .lineSpacing(3)
                     .foregroundStyle(DSColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)

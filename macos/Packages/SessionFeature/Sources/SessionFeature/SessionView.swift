@@ -51,7 +51,7 @@ private struct TerminalSessionHeader: View {
         HStack(spacing: DSSpacing.m) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: presentation.primary)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(DSFont.sessionTitle)
                     .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -64,13 +64,13 @@ private struct TerminalSessionHeader: View {
                     if !viewModel.workspacePath.isEmpty {
                         dot
                         Text(verbatim: viewModel.workspacePath)
-                            .font(.system(size: 11, design: .monospaced))
+                            .font(DSFont.monoCaption)
                             .truncationMode(.middle)
                     }
                     if let branch {
                         dot
                         Text(verbatim: branch)
-                            .font(.system(size: 11, design: .monospaced))
+                            .font(DSFont.monoCaption)
                             .fixedSize()
                     }
                 }
@@ -81,7 +81,7 @@ private struct TerminalSessionHeader: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             if let kind = displayState.attentionKind {
                 Text(verbatim: displayState.localizedLabel(locale: locale))
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(DSFont.auxiliary.weight(.semibold))
                     .foregroundStyle(DSColor.attentionInk(kind))
                     .padding(.horizontal, 9)
                     .frame(height: 22)
@@ -89,7 +89,7 @@ private struct TerminalSessionHeader: View {
                     .fixedSize()
             } else {
                 Text(verbatim: displayState.localizedLabel(locale: locale))
-                    .font(.system(size: 12, weight: displayState == .running ? .medium : .regular))
+                    .font(DSFont.auxiliary.weight(displayState == .running ? .medium : .regular))
                     .foregroundStyle(DSColor.textSecondary)
                     .fixedSize()
             }

@@ -674,7 +674,7 @@ struct JumpToLatestButton: View {
         Button(action: action) {
             HStack(spacing: DSSpacing.s) {
                 Text("↓ 最新へ")
-                    .font(.system(size: 12))
+                    .font(DSFont.auxiliary)
                     .foregroundStyle(DSColor.textPrimary)
                 if unseenCount > 0 {
                     Text("新着 \(unseenCount)")

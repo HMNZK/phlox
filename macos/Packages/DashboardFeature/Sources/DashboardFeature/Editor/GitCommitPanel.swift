@@ -23,7 +23,7 @@ struct GitCommitPanel: View {
 
             TextField("コミットメッセージ", text: $viewModel.commitMessage, axis: .vertical)
                 .textFieldStyle(.plain)
-                .font(.system(size: 12))
+                .font(DSFont.auxiliary)
                 .foregroundStyle(DSColor.textPrimary)
                 .lineLimit(1...3)
                 .padding(.vertical, 6)
@@ -86,14 +86,14 @@ struct GitCommitPanel: View {
     private func runningStatus(_ operation: GitOperation) -> some View {
         HStack(spacing: 8) {
             Text(verbatim: "…")
-                .font(.system(size: 11, weight: .bold))
+                .font(DSFont.meta.weight(.bold))
                 .foregroundStyle(DSColor.textSecondary)
                 .accessibilityHidden(true)
             Text(Self.runningText(operation))
                 .foregroundStyle(DSColor.textPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .font(.system(size: 12))
+        .font(DSFont.auxiliary)
         .padding(.vertical, 7)
         .padding(.horizontal, 9)
         .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: 7))
@@ -113,7 +113,7 @@ struct GitCommitPanel: View {
     private var reasonText: some View {
         if let unavailableReason {
             Text(verbatim: unavailableReason)
-                .font(.system(size: 11))
+                .font(DSFont.meta)
                 .foregroundStyle(DSColor.textTertiary)
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -129,7 +129,7 @@ struct GitCommitPanel: View {
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Text(verbatim: isError ? "!" : "✓")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(DSFont.meta.weight(.bold))
                     .foregroundStyle(isError ? DSColor.attentionInk(.error) : DSColor.diffAdded)
                     .accessibilityHidden(true)
                 Text(verbatim: summary)
@@ -141,7 +141,7 @@ struct GitCommitPanel: View {
                         isLogExpanded.toggle()
                     }
                     .buttonStyle(.plain)
-                    .font(.system(size: 11))
+                    .font(DSFont.meta)
                     .foregroundStyle(DSColor.accentInk)
                     .fixedSize()
                 }
@@ -180,7 +180,7 @@ struct GitCommitPanel: View {
                 pullRequestURL(lastPullRequestURL)
             }
         }
-        .font(.system(size: 12))
+        .font(DSFont.auxiliary)
         .padding(.vertical, 7)
         .padding(.horizontal, 9)
         .background(isError ? DSColor.attentionTint(.error) : DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: 7))
@@ -190,7 +190,7 @@ struct GitCommitPanel: View {
 
     private func pullRequestURL(_ url: String) -> some View {
         Text(verbatim: url)
-            .font(.system(size: 11, design: .monospaced))
+            .font(DSFont.monoCaption)
             .foregroundStyle(DSColor.accentInk)
             .textSelection(.enabled)
             .accessibilityIdentifier("git-pr-url")

@@ -353,7 +353,7 @@ struct ApprovalCard: View {
                 .padding(.horizontal, 1)
                 .accessibilityHidden(true)
             Text("承認待ち · \(kindLabel)")
-                .font(.system(size: 11.5, weight: .semibold))
+                .font(DSFont.stateLabel)
                 .foregroundStyle(DSColor.attentionInk(.approval))
             Spacer(minLength: DSSpacing.s)
             if count > 1 { pager }
@@ -381,7 +381,7 @@ struct ApprovalCard: View {
     private func pagerButton(_ glyph: String, label: LocalizedStringKey, isEnabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(verbatim: glyph)
-                .font(.system(size: 12))
+                .font(DSFont.auxiliary)
                 .foregroundStyle(isEnabled ? DSColor.textSecondary : DSColor.textTertiary)
                 .frame(width: 20, height: 20)
                 .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
@@ -451,7 +451,7 @@ struct ApprovalCard: View {
         case .fileChange:
             if approval.files.isEmpty {
                 Text(verbatim: approval.subject ?? "")
-                    .font(.system(size: 12))
+                    .font(DSFont.auxiliary)
                     .foregroundStyle(DSColor.textPrimary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 12)
@@ -517,11 +517,11 @@ struct ApprovalCard: View {
     private func permissionRow(label: Text, value: Text, monospaced: Bool) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             label
-                .font(.system(size: 12))
+                .font(DSFont.auxiliary)
                 .foregroundStyle(DSColor.textSecondary)
                 .frame(width: 64, alignment: .leading)
             value
-                .font(monospaced ? .system(size: 12.5, design: .monospaced) : .system(size: 12))
+                .font(monospaced ? .system(size: 12.5, design: .monospaced) : DSFont.auxiliary)
                 .foregroundStyle(DSColor.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
                 .chatTextSelection()
@@ -532,7 +532,7 @@ struct ApprovalCard: View {
     private func fileRow(_ file: ReplyApproval.FileLine) -> some View {
         HStack(spacing: 8) {
             Text(verbatim: file.mark)
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .font(DSFont.monoCaption.weight(.bold))
                 .foregroundStyle(DSColor.textSecondary)
                 .frame(width: 14, alignment: .leading)
             Text(verbatim: file.path)
@@ -589,7 +589,7 @@ struct ApprovalCard: View {
             Spacer(minLength: DSSpacing.s)
             Button { respond(.cancel) } label: {
                 buttonLabel("キャンセル", key: isFocused ? "Esc" : nil)
-                    .font(.system(size: 12))
+                    .font(DSFont.auxiliary)
                     .padding(.horizontal, 4)
                     .frame(height: 28)
                     .contentShape(Rectangle())
@@ -604,7 +604,7 @@ struct ApprovalCard: View {
     private func buttonLabel(_ title: LocalizedStringKey, key: String?, isPrimary: Bool = false) -> some View {
         HStack(spacing: 6) {
             Text(title)
-                .font(.system(size: 12.5, weight: isPrimary ? .semibold : .regular))
+                .font(DSFont.dense.weight(isPrimary ? .semibold : .regular))
             if let key {
                 Text(verbatim: key)
                     .font(.system(size: 10.5))

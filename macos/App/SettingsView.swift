@@ -90,7 +90,7 @@ struct SettingsView: View {
         .overlay(alignment: .top) {
             GeometryReader { proxy in
                 Text(verbatim: AppLocalizedString.string(group.title, locale: locale))
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(DSFont.row.weight(.semibold))
                     .foregroundStyle(DSColor.textPrimary)
                     .frame(maxWidth: .infinity)
                     .frame(height: proxy.safeAreaInsets.top)
@@ -189,7 +189,7 @@ struct SettingsView: View {
             SettingsRow {
                 SettingsLabel(title: Text("バージョン"))
                 Text(verbatim: "\(AppFlavor.current.displayName) \(appVersion)（\(buildNumber)）")
-                    .font(.system(size: 12.5))
+                    .font(DSFont.dense)
                     .monospacedDigit()
                     .foregroundStyle(DSColor.textSecondary)
                     .textSelection(.enabled)
@@ -199,7 +199,7 @@ struct SettingsView: View {
                 SettingsLabel(title: Text("プライバシーポリシー"))
                 Link(destination: URL(string: "https://phlox.cc/privacy")!) {
                     Text(verbatim: "phlox.cc/privacy ↗")
-                        .font(.system(size: 12.5))
+                        .font(DSFont.dense)
                         .foregroundStyle(DSColor.accentInk)
                 }
                 .pointingHandCursor()
@@ -256,7 +256,7 @@ struct SettingsView: View {
                 HStack(spacing: 10) {
                     // 端の値はスライダーの外の文字にする（minimumValueLabel はボタンになり、Tab の焦点が名前の無いまま止まる）。
                     Text(verbatim: "\(percent(ChatFontSettings.minScale))%")
-                        .font(.system(size: 11))
+                        .font(DSFont.meta)
                         .foregroundStyle(DSColor.textTertiary)
                         .accessibilityHidden(true)
                     // step を渡すと目盛りが出る（見本に無い）。刻みは値を丸めて守る。
@@ -286,11 +286,11 @@ struct SettingsView: View {
                         }
                     }
                     Text(verbatim: "\(percent(ChatFontSettings.maxScale))%")
-                        .font(.system(size: 11))
+                        .font(DSFont.meta)
                         .foregroundStyle(DSColor.textTertiary)
                         .accessibilityHidden(true)
                     Text(verbatim: "\(percent(chatFontScale))%")
-                        .font(.system(size: 12.5))
+                        .font(DSFont.dense)
                         .monospacedDigit()
                         .foregroundStyle(DSColor.textPrimary)
                         .frame(width: 40, alignment: .trailing)
@@ -348,7 +348,7 @@ struct SettingsView: View {
                 .labelsHidden()
                 .controlSize(.small)
                 Text(verbatim: "pt")
-                    .font(.system(size: 12))
+                    .font(DSFont.auxiliary)
                     .foregroundStyle(DSColor.textSecondary)
                     .frame(minWidth: 14, alignment: .leading)
             }
@@ -443,7 +443,7 @@ struct SettingsView: View {
             SettingsRow {
                 SettingsLabel(title: Text("カスタムエージェントの定義"))
                 Text(verbatim: (CustomAgentRegistryLoader.defaultURL().path as NSString).abbreviatingWithTildeInPath)
-                    .font(.system(size: 12.5))
+                    .font(DSFont.dense)
                     .foregroundStyle(DSColor.textSecondary)
                     .textSelection(.enabled)
             }
@@ -587,11 +587,11 @@ struct SettingsView: View {
                             }
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("iPhone の Phlox で読み取ってください")
-                                    .font(.system(size: 13, weight: .semibold))
+                                    .font(DSFont.row.weight(.semibold))
                                     .foregroundStyle(DSColor.textPrimary)
                                 if let hidesAt = viewModel.pairingQRHidesAt {
                                     Text("あと \(Text(timerInterval: Date()...max(Date(), hidesAt), countsDown: true)) で非表示になります")
-                                        .font(.system(size: 12))
+                                        .font(DSFont.auxiliary)
                                         .monospacedDigit()
                                         .foregroundStyle(DSColor.textSecondary)
                                 }
@@ -767,7 +767,7 @@ struct SettingsView: View {
                         }
                     }
                     Text(verbatim: theme.name)
-                        .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                        .font(DSFont.meta.weight(isSelected ? .semibold : .regular))
                         .foregroundStyle(isSelected ? DSColor.textPrimary : DSColor.textSecondary)
                         .lineLimit(1)
                 }
@@ -806,7 +806,7 @@ struct SettingsView: View {
                             }
                         }
                     Text(verbatim: option.id)
-                        .font(.system(size: 11, weight: isSelected ? .semibold : .regular, design: .monospaced))
+                        .font(DSFont.monoCaption.weight(isSelected ? .semibold : .regular))
                         .foregroundStyle(isSelected ? DSColor.textPrimary : DSColor.textSecondary)
                 }
                 .contentShape(Rectangle())
@@ -848,7 +848,7 @@ struct SettingsTabBar: View {
                             .font(.system(size: 16))
                             .frame(height: 20)
                         Text(verbatim: title)
-                            .font(.system(size: 11))
+                            .font(DSFont.meta)
                             .lineLimit(1)
                     }
                     .foregroundStyle(isSelected ? DSColor.accentInk : DSColor.textSecondary)
@@ -928,7 +928,7 @@ struct SettingsGroupBox<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .font(DSFont.auxiliary.weight(.semibold))
                 .foregroundStyle(DSColor.textPrimary)
                 .padding(.horizontal, 4)
                 .accessibilityAddTraits(.isHeader)
@@ -988,7 +988,7 @@ struct SettingsLabel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             title
-                .font(.system(size: 13))
+                .font(DSFont.row)
                 .foregroundStyle(DSColor.textPrimary)
             if let detail {
                 detail
@@ -1022,7 +1022,7 @@ struct SettingsSegmented<Value: Hashable>: View {
                     selection = option.0
                 } label: {
                     Text(option.1)
-                        .font(.system(size: 12))
+                        .font(DSFont.auxiliary)
                         .foregroundStyle(isSelected ? DSColor.textPrimary : DSColor.textSecondary)
                         .padding(.horizontal, 12)
                         .frame(height: 20)
@@ -1072,11 +1072,11 @@ struct SettingsErrorBanner: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 11))
+                .font(DSFont.meta)
                 .foregroundStyle(DSColor.attentionMark(.error))
                 .accessibilityHidden(true)
             Text(verbatim: text)
-                .font(.system(size: 12))
+                .font(DSFont.auxiliary)
                 .lineSpacing(3)
                 .foregroundStyle(DSColor.textPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1094,7 +1094,7 @@ extension View {
     /// 設定の入力欄（高さ 22・角丸 5・入力面と 1pt の縁、12.5pt）。不正な値は赤い縁と 3pt の淡い輪（T6b）。
     func settingsField(width: CGFloat, isInvalid: Bool) -> some View {
         textFieldStyle(.plain)
-            .font(.system(size: 12.5))
+            .font(DSFont.dense)
             .padding(.horizontal, 7)
             .frame(width: width, height: 22)
             .background(DSColor.fieldBackground, in: RoundedRectangle(cornerRadius: 5, style: .continuous))

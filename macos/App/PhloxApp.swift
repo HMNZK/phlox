@@ -1047,7 +1047,7 @@ private struct InitLoadingView: View {
         VStack(spacing: 12) {
             AppIconBadge(showsCaution: false, size: 64)
             Text("Phlox を起動しています")
-                .font(.system(size: 17, weight: .bold))
+                .font(DSFont.sheetTitle)
                 .foregroundStyle(DSColor.textPrimary)
             StartupProgressBar()
                 .accessibilityRepresentation { ProgressView() }
@@ -1105,17 +1105,17 @@ private struct InitErrorView: View {
         VStack(spacing: 12) {
             AppIconBadge(showsCaution: true, size: 64)
             Text("Phlox を起動できませんでした")
-                .font(.system(size: 17, weight: .bold))
+                .font(DSFont.sheetTitle)
                 .foregroundStyle(DSColor.textPrimary)
             if let description {
                 Text(description)
-                    .font(.system(size: 12.5))
+                    .font(DSFont.dense)
                     .lineSpacing(3)
                     .foregroundStyle(DSColor.textSecondary)
                     .frame(maxWidth: 400)
             }
             Text(verbatim: failure.log)
-                .font(.system(size: 11, design: .monospaced))
+                .font(DSFont.monoCaption)
                 .lineSpacing(3)
                 .foregroundStyle(DSColor.isDark ? DSColor.textSecondary : DSColor.textPrimary.opacity(0.85))
                 .textSelection(.enabled)

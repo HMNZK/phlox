@@ -575,7 +575,7 @@ public struct DashboardView: View {
                 .foregroundStyle(DSColor.textPrimary)
             if let emptyMessage = summary.emptyMessage {
                 Text(verbatim: emptyMessage)
-                    .font(.system(size: 12.5))
+                    .font(DSFont.dense)
                     .foregroundStyle(DSColor.textSecondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 380)
@@ -587,7 +587,7 @@ public struct DashboardView: View {
                         viewModel.clearGridSessionSelection()
                     } label: {
                         Text("絞り込みを解除")
-                            .font(.system(size: 12.5))
+                            .font(DSFont.dense)
                             .foregroundStyle(DSColor.textPrimary)
                             .padding(.horizontal, 12)
                             .frame(height: 28)
@@ -606,7 +606,7 @@ public struct DashboardView: View {
                         }
                         Text(verbatim: "⌘N").font(.system(size: 10.5)).opacity(0.85)
                     }
-                    .font(.system(size: 12.5, weight: .semibold))
+                    .font(DSFont.dense.weight(.semibold))
                     .foregroundStyle(Color.white)
                     .padding(.horizontal, 12)
                     .frame(height: 28)
@@ -663,7 +663,7 @@ public struct DashboardView: View {
             } label: {
                 HStack(spacing: 6) {
                     Text(verbatim: "＋")
-                        .font(.system(size: 13))
+                        .font(DSFont.row)
                     Text("新規セッション")
                         .font(DSFont.auxiliary.weight(.medium))
                     Text(verbatim: "⌘N")
@@ -919,7 +919,7 @@ public struct DashboardView: View {
         HStack(spacing: 10) {
             ProgressView().controlSize(.small)
             Text("worktree を作成しています")
-                .font(.system(size: 12.5))
+                .font(DSFont.dense)
                 .foregroundStyle(DSColor.textPrimary)
             Text(verbatim: (path as NSString).abbreviatingWithTildeInPath)
                 .font(.system(size: 11.5, design: .monospaced))

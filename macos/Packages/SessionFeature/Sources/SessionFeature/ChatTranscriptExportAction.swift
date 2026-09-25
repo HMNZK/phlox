@@ -113,7 +113,7 @@ private struct ExportOptionsForm: View {
             Toggle("タイムスタンプを含める", isOn: $options.includesTimestamps)
         }
         .toggleStyle(.checkbox)
-        .font(.system(size: 12))
+        .font(DSFont.auxiliary)
         .frame(maxWidth: .infinity, alignment: .leading)
         .onChange(of: options) { _, newValue in choice.options = newValue }
     }

@@ -278,7 +278,7 @@ struct ComposerMenuList<Footer: View>: View {
         VStack(alignment: .leading, spacing: 0) {
             if let header {
                 Text(verbatim: header)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(DSFont.meta.weight(.semibold))
                     .foregroundStyle(DSColor.textTertiary)
                     .padding(.horizontal, 8)
                     .padding(.top, 4)
@@ -287,7 +287,7 @@ struct ComposerMenuList<Footer: View>: View {
             if let search {
                 TextField(text: search) { Text(verbatim: searchPlaceholder) }
                     .textFieldStyle(.plain)
-                    .font(.system(size: 12))
+                    .font(DSFont.auxiliary)
                     .padding(.horizontal, 8)
                     .frame(height: 26)
                     .background(DSColor.segmentTrack, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
@@ -303,7 +303,7 @@ struct ComposerMenuList<Footer: View>: View {
             ForEach(sections) { section in
                 if let title = section.title {
                     Text(verbatim: title)
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(DSFont.meta.weight(.semibold))
                         .foregroundStyle(DSColor.textTertiary)
                         .padding(.horizontal, 10)
                         .padding(.top, 6)
@@ -362,11 +362,11 @@ struct ComposerMenuList<Footer: View>: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if let note = row.note {
                     Text(verbatim: note)
-                        .font(.system(size: 11))
+                        .font(DSFont.meta)
                         .opacity(0.75)
                 }
             }
-            .font(.system(size: 13))
+            .font(DSFont.row)
             .foregroundStyle(isHighlighted ? Color.white : (row.isEnabled ? DSColor.textPrimary : DSColor.textTertiary))
             .padding(.horizontal, 10)
             .frame(height: rowHeight)
@@ -509,9 +509,9 @@ struct ComposerPermissionPanel: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(verbatim: title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(DSFont.row.weight(.semibold))
                 Text(verbatim: subtitle)
-                    .font(.system(size: 11))
+                    .font(DSFont.meta)
                     .foregroundStyle(DSColor.textTertiary)
             }
             .padding(.horizontal, 4)
@@ -527,7 +527,7 @@ struct ComposerPermissionPanel: View {
             Toggle(isOn: Binding(get: { isPlanOn }, set: { onPlanChange($0) })) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Plan モード")
-                        .font(.system(size: 12.5, weight: .medium))
+                        .font(DSFont.dense.weight(.medium))
                     Text("計画だけを立て、ファイルの変更やコマンドは実行しない")
                         .font(.system(size: 11.5))
                         .foregroundStyle(DSColor.textSecondary)
@@ -543,7 +543,7 @@ struct ComposerPermissionPanel: View {
             .padding(.horizontal, 4)
             .padding(.vertical, 2)
             Text(verbatim: footnote)
-                .font(.system(size: 11))
+                .font(DSFont.meta)
                 .foregroundStyle(DSColor.textTertiary)
                 .padding(.horizontal, 4)
         }
@@ -588,7 +588,7 @@ struct ComposerPermissionPanel: View {
                     .padding(.top, 2)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(verbatim: option.title)
-                        .font(.system(size: 12.5, weight: .medium))
+                        .font(DSFont.dense.weight(.medium))
                     Text(verbatim: option.explanation)
                         .font(.system(size: 11.5))
                         .foregroundStyle(DSColor.textSecondary)

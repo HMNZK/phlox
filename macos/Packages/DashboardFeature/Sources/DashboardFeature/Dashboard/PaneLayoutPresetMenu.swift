@@ -42,7 +42,7 @@ struct PaneLayoutPresetMenu: View {
                 Text("レイアウト: \(isAdjusted ? String(format: AppLocalizedString.string("%@（調整済み）", locale: locale), currentName) : currentName)")
                 Text(verbatim: "▾").font(.system(size: 9)).opacity(0.7)
             }
-            .font(.system(size: 12))
+            .font(DSFont.auxiliary)
             .foregroundStyle(DSColor.textPrimary)
             .padding(.horizontal, 8)
             .frame(height: 22)

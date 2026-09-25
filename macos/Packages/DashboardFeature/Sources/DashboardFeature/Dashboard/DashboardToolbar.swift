@@ -259,7 +259,7 @@ struct CountBadge: View {
     var body: some View {
         // PhloxWindow.dc.html:149: 最小 18×16、角丸 8、白 11/700。
         Text("\(count)")
-            .font(.system(size: 11, weight: .bold))
+            .font(DSFont.meta.weight(.bold))
             .monospacedDigit()
             .foregroundStyle(.white)
             .padding(.horizontal, 5)
@@ -312,7 +312,7 @@ private struct ModeSegmentButton: View {
         Button(action: action) {
             HStack(spacing: 5) {
                 Image(systemName: symbol)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(DSFont.auxiliary.weight(.medium))
                 if let title {
                     Text(title)
                         .font(DSFont.auxiliary.weight(.medium))
@@ -377,7 +377,7 @@ private struct WorktreeMenuButton: View {
         Button { presented.toggle() } label: {
             HStack(spacing: 5) {
                 Image(systemName: "arrow.triangle.branch")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(DSFont.row.weight(.medium))
                 if showsText {
                     Text("worktree 隔離")
                         .font(DSFont.auxiliary)
@@ -408,7 +408,7 @@ private struct WorktreeMenuButton: View {
                 Button { isOn.toggle() } label: {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(DSFont.meta.weight(.semibold))
                             .opacity(isOn ? 1 : 0)
                             .frame(width: 12)
                         VStack(alignment: .leading, spacing: 3) {

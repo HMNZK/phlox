@@ -12,7 +12,7 @@ struct ChatProcessEndedStrip: View {
         let _ = themeID
         HStack(spacing: 10) {
             Text(Self.message(exitCode: exit.exitCode))
-                .font(.system(size: 12.5))
+                .font(DSFont.dense)
                 .foregroundStyle(DSColor.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if let onResume {

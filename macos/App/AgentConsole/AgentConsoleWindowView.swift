@@ -129,7 +129,7 @@ struct AgentConsoleWindowView: View {
                     .fill(DSColor.newSessionGradient)
                     .frame(width: 30, height: 30)
                 Image(systemName: "wrench.and.screwdriver")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(DSFont.row.weight(.semibold))
                     .foregroundStyle(.white)
             }
             VStack(alignment: .leading, spacing: 0) {

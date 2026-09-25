@@ -243,7 +243,7 @@ struct UsageCLICard: View {
     /// Claude の鮮度（ClaudeUsageStaleness の閾値）。
     private var staleNote: String? {
         guard kind == .claudeCode, let usage, usage.dataAsOf != nil, case .ok = usage.state else { return nil }
-        return ClaudeUsageStaleness.note(now: now, dataAsOf: usage.dataAsOf)
+        return ClaudeUsageStaleness.note(now: now, dataAsOf: usage.dataAsOf, locale: locale)
     }
 
     /// 取得に失敗した前回の値。数字とゲージを淡くする。Claude の値が古いだけのときは注記だけ琥珀にする（07 U5）。

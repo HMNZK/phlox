@@ -108,7 +108,7 @@ extension DashboardViewModel: @retroactive ControlActionDashboard {
     }
 
     public var controlCLIUsages: [AgentKind: CLIUsage] {
-        ControlDashboardSupport.usageMonitor?.usages ?? [:]
+        ControlDashboardSupport.usageMonitor?.syncedUsages ?? [:]
     }
 
     // sendMessage の要件は DashboardViewModel 本体（DashboardFeature）の

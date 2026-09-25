@@ -71,6 +71,10 @@ struct UsageTopBarView: View {
                         .font(.system(size: 11))
                         .foregroundStyle(DSColor.textSecondary)
                     let remaining = monitor.failures[chip.kind] == nil ? Self.remaining(chip) : nil
+                    // 01「残り 20% 未満は 3 段階とも琥珀＋▲」。
+                    if let remaining, Double(remaining) < UsageDisplay.lowRemainingThreshold {
+                        Text(verbatim: "▲").font(.system(size: 9, weight: .bold)).foregroundStyle(DSColor.attentionInk(.approval))
+                    }
                     valueText(remaining: remaining, isDimmed: chip.staleNote != nil, showsPercent: index == chips.count - 1)
                 }
                 .help(UsageDisplay.topBarHelpText(chip: chip, now: Date()))

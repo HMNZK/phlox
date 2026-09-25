@@ -12,7 +12,8 @@ public final class UsageMonitor {
     /// 取得に失敗し、前回の値を出し続けている CLI（07 U4）。成功するか前回の値を出さなくなったら消す。
     public private(set) var failures: [AgentKind: UsageFailure] = [:]
 
-    private static let defaultStalenessInterval: TimeInterval = 300
+    /// 取得に失敗しても前回の値は出し続ける（07 U4・見本「下の値は 2 時間前のものです」）。古さは注記と帯で示す。
+    nonisolated static let defaultStalenessInterval: TimeInterval = .infinity
     private static let fastRefreshKinds = AgentRegistry.allDescriptors
         .filter { [.codex, .cursor].contains($0.usageProviderKind) }
         .map(\.kind)
@@ -101,24 +102,31 @@ public final class UsageMonitor {
         }
     }
 
+    /// スマホへ送る値。前回の値を出し続けている CLI は、古さを伝えられないので取得できない扱いにする。
+    public var syncedUsages: [AgentKind: CLIUsage] {
+        usages.mapValues { usage in
+            guard let failure = failures[usage.kind] else { return usage }
+            return CLIUsage(kind: usage.kind, state: .unavailable(reason: failure.reason), updatedAt: failure.at)
+        }
+    }
+
     private func apply(_ usage: CLIUsage) {
-        let resolved = Self.expiringPassedResets(
-            in: Self.resolvedUsage(
-                incoming: usage,
-                previousOK: lastSuccessfulUsages[usage.kind],
-                now: now(),
-                stalenessInterval: stalenessInterval
-            ),
-            now: now()
+        let kept = Self.resolvedUsage(
+            incoming: usage,
+            previousOK: lastSuccessfulUsages[usage.kind],
+            now: now(),
+            stalenessInterval: stalenessInterval
         )
+        let resolved = Self.expiringPassedResets(in: kept, now: now())
         usages[usage.kind] = resolved
         if case .unavailable(let reason) = usage.state, case .ok = resolved.state {
             failures[usage.kind] = UsageFailure(reason: reason, at: now())
         } else {
             failures[usage.kind] = nil
         }
-        if case .ok = resolved.state {
-            lastSuccessfulUsages[resolved.kind] = resolved
+        // 0% に直す前の値を覚える。直した値を覚えると、次に失敗したときリセット済みと分からず「残り 100%」を出し続ける。
+        if case .ok = kept.state {
+            lastSuccessfulUsages[kept.kind] = kept
         }
     }
 
@@ -149,9 +157,11 @@ public final class UsageMonitor {
         case .ok:
             incoming
         case .unavailable:
+            // リセット時刻を過ぎたら前回の値は意味を失う（残り 100% と決めつけない）ので、取得の失敗をそのまま出す。
             if let previousOK,
-               case .ok = previousOK.state,
-               now.timeIntervalSince(previousOK.updatedAt) <= stalenessInterval {
+               case .ok(let buckets) = previousOK.state,
+               now.timeIntervalSince(previousOK.updatedAt) <= stalenessInterval,
+               !buckets.contains(where: { ($0.resetsAt ?? .distantFuture) <= now }) {
                 previousOK
             } else {
                 incoming

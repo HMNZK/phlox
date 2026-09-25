@@ -8028,6 +8028,50 @@
           }
         }
       }
+    },
+    "未取得（ターミナルの Claude セッション実行時に更新されます）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not fetched (updates when a Claude session runs in the terminal)"
+          }
+        }
+      }
+    },
+    "%lld 分前に取得 · 古い可能性": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fetched %lldm ago · may be outdated"
+          }
+        }
+      }
+    },
+    "%lld 時間前に取得 · 古い可能性": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fetched %lldh ago · may be outdated"
+          }
+        }
+      }
+    },
+    "%lld 日前に取得 · 古い可能性": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fetched %lldd ago · may be outdated"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

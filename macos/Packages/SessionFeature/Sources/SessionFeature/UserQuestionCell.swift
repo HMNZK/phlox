@@ -577,4 +577,3 @@ struct UserQuestionCell: View {
         }
     }
 }
-

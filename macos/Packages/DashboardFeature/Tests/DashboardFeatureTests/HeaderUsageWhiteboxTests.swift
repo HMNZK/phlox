@@ -47,7 +47,7 @@ struct HeaderUsageWhiteboxTests {
         let chips = UsageDisplay.topBarChips(usages: usages, showUnavailable: false, now: Self.now)
 
         let claude = try #require(chips.first { $0.kind == .claudeCode })
-        #expect(claude.staleNote == "1時間前の値")
+        #expect(claude.staleNote == "1 時間前に取得 · 古い可能性")
     }
 
     @Test func ClaudeのdataAsOfが無いと実データでも注記を出さない() throws {

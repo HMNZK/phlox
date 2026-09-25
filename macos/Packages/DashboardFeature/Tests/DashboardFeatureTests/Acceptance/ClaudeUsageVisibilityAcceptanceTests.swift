@@ -36,12 +36,12 @@ import Testing
     func note(minutesAgo: Double) -> String? {
         ClaudeUsageStaleness.note(now: now, dataAsOf: now.addingTimeInterval(-minutesAgo * 60))
     }
-    #expect(note(minutesAgo: 30) == "30分前の値")
-    #expect(note(minutesAgo: 59) == "59分前の値")
-    #expect(note(minutesAgo: 60) == "1時間前の値")
-    #expect(note(minutesAgo: 23 * 60) == "23時間前の値")
-    #expect(note(minutesAgo: 24 * 60) == "1日前の値")
-    #expect(note(minutesAgo: 72 * 60) == "3日前の値")
+    #expect(note(minutesAgo: 30) == "30 分前に取得 · 古い可能性")
+    #expect(note(minutesAgo: 59) == "59 分前に取得 · 古い可能性")
+    #expect(note(minutesAgo: 60) == "1 時間前に取得 · 古い可能性")
+    #expect(note(minutesAgo: 23 * 60) == "23 時間前に取得 · 古い可能性")
+    #expect(note(minutesAgo: 24 * 60) == "1 日前に取得 · 古い可能性")
+    #expect(note(minutesAgo: 72 * 60) == "3 日前に取得 · 古い可能性")
 }
 
 @Test func claudeUsage_provider_carriesDataTimestampFromCache() async throws {

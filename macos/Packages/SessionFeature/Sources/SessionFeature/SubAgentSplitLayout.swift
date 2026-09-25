@@ -14,7 +14,8 @@ enum SubAgentSplitLayout {
     /// 右ペインの上限（利用可能幅に対する比率）。メイン側が消滅しないための上限。
     static let maxPaneFraction: CGFloat = 0.6
     /// メイン／サブのヘッダー共有高さ。両ヘッダーをこの高さに固定して罫線を一直線に揃える（Bug4）。
-    static let headerHeight: CGFloat = 32
+    /// 見本（PhloxChat の見出しとサブエージェント欄の見出しはどちらも 56px）とユーザー決定（B6）で 56。
+    static let headerHeight: CGFloat = 56
 
     /// 右ペイン幅を [下限, 上限] でクランプして返す。
     /// - 上限 = `availableWidth * maxPaneFraction`

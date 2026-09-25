@@ -150,6 +150,7 @@ public struct ChatSessionView: View {
                             )
                             ChatHistoryStartView(
                                 entries: viewModel.historyEntries,
+                                summaries: viewModel.historySummaries,
                                 maxCardHeight: cardMaxHeight,
                                 workingDirectory: viewModel.rawWorkspacePath,
                                 agentName: agentDescriptor.displayName,
@@ -189,34 +190,39 @@ public struct ChatSessionView: View {
                 .overlay(alignment: .bottom) {
                     let proposedComposerWidth = ComposerLayout.proposedWidth(mainColumnWidth: width)
                     // 承認・質問のカードと送信失敗の通知は入力欄の直上（05）。高さの実測は余白にだけ使う。
-                    ChatReplyArea(viewModel: viewModel, onShowDiff: showDiff, onRetrySend: sendDraft) {
-                        ChatComposer(
-                            viewModel: viewModel,
-                            text: $viewModel.draft,
-                            isRunning: viewModel.showsProcessingIndicator,
-                            canSend: viewModel.isReadyForInput,
-                            projectName: projectName,
-                            controlsLayout: proposedComposerWidth.map(ComposerLayout.controlsLayout(proposedWidth:)) ?? .standard,
-                            onSend: sendDraft,
-                            onInterrupt: interruptTurn
-                        )
-                        // 入力履歴の目盛りは入力欄の右上に重ねる（右 12・上へ 9 はみ出す。PhloxReply.dc.html）。
-                        // 入力欄の外側の余白（左右 m・上 s）ぶんを足して位置を合わせる。
-                        // 入力欄の上に箱・候補・ツールチップが開いている間は、重なるので隠す。
-                        .onPreferenceChange(ComposerPopupOpenKey.self) { isComposerPopupOpen = $0 }
-                        .overlay(alignment: .topTrailing) {
-                            if !isComposerPopupOpen {
-                                ChatInputHistoryScrubber(
-                                    entries: viewModel.inputHistoryEntries,
-                                    currentPositionID: currentInputPositionID,
-                                    onJump: { target in
-                                        // クリック時は即座に対象を強調（楽観的更新）し、実スクロールで確定させる。
-                                        currentInputPositionID = target
-                                        requestedTranscriptTarget = target
-                                    }
-                                )
-                                .padding(.trailing, DSSpacing.m + 12)
-                                .offset(y: DSSpacing.s - 9)
+                    ChatReplyArea(viewModel: viewModel, showsKeyHints: viewModel.processExit == nil, onShowDiff: showDiff, onRetrySend: sendDraft) {
+                        // 04 B3: プロセスが終わったら入力欄の代わりに終了コードと再開を出す。
+                        if let processExit = viewModel.processExit {
+                            ChatProcessEndedStrip(exit: processExit, onResume: viewModel.resumeConversationHandler)
+                        } else {
+                            ChatComposer(
+                                viewModel: viewModel,
+                                text: $viewModel.draft,
+                                isRunning: viewModel.showsProcessingIndicator,
+                                canSend: viewModel.isReadyForInput,
+                                projectName: projectName,
+                                controlsLayout: proposedComposerWidth.map(ComposerLayout.controlsLayout(proposedWidth:)) ?? .standard,
+                                onSend: sendDraft,
+                                onInterrupt: interruptTurn
+                            )
+                            // 入力履歴の目盛りは入力欄の右上に重ねる（右 12・上へ 9 はみ出す。PhloxReply.dc.html）。
+                            // 入力欄の外側の余白（左右 m・上 s）ぶんを足して位置を合わせる。
+                            // 入力欄の上に箱・候補・ツールチップが開いている間は、重なるので隠す。
+                            .onPreferenceChange(ComposerPopupOpenKey.self) { isComposerPopupOpen = $0 }
+                            .overlay(alignment: .topTrailing) {
+                                if !isComposerPopupOpen {
+                                    ChatInputHistoryScrubber(
+                                        entries: viewModel.inputHistoryEntries,
+                                        currentPositionID: currentInputPositionID,
+                                        onJump: { target in
+                                            // クリック時は即座に対象を強調（楽観的更新）し、実スクロールで確定させる。
+                                            currentInputPositionID = target
+                                            requestedTranscriptTarget = target
+                                        }
+                                    )
+                                    .padding(.trailing, DSSpacing.m + 12)
+                                    .offset(y: DSSpacing.s - 9)
+                                }
                             }
                         }
                     }

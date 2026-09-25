@@ -4,6 +4,10 @@ import SessionFeature
 
 // 隠している秘密: 復元ゲート中に永続 descriptor を再 plan・reap・再 spawn し、遅延 pid 書き戻しを行う詳細。
 
+enum SessionRestoreCoordinatorError: Error {
+    case descriptorMissing(SessionID)
+}
+
 @MainActor
 final class SessionRestoreCoordinator {
     private let environment: AppEnvironment
@@ -198,7 +202,38 @@ final class SessionRestoreCoordinator {
         }
     }
 
-    private func restoreChatSession(_ descriptor: PersistedSessionDescriptor, token: String) async {
+    /// プロセスが終わったチャットを、保存済みの descriptor から新しいプロセスで開き直す（04 B3）。
+    /// 会話を読み込み終えた VM（失敗時はエラー表示のプレースホルダ）を返す。差し込むのは呼び出し側。
+    func resumeChatSession(id: SessionID) async -> ChatSessionViewModel? {
+        guard let descriptor = await environment.sessions.load().first(where: { $0.id == id }),
+              descriptor.backend == .appServer else {
+            logError(SessionRestoreCoordinatorError.descriptorMissing(id), "Failed to resume chat session \(id)")
+            return nil
+        }
+        final class Installed { var vm: ChatSessionViewModel? }
+        let installed = Installed()
+        let token: String
+        if let saved = descriptor.token {
+            token = saved
+        } else {
+            token = SessionSpawnService.makeToken()
+            await environment.tokenStore.register(token, for: id)
+        }
+        await restoreChatSession(descriptor, token: token, install: { installed.vm = $0 })
+        // 起動時の走査と違い後から書き戻す機会が無いので、新しいプロセスの pid をここで保存する。
+        for update in pendingRestorePIDUpdates where update.id == id {
+            persistPID(id: update.id, pid: update.pid)
+        }
+        pendingRestorePIDUpdates.removeAll { $0.id == id }
+        return installed.vm
+    }
+
+    private func restoreChatSession(
+        _ descriptor: PersistedSessionDescriptor,
+        token: String,
+        install: (@MainActor (ChatSessionViewModel) -> Void)? = nil
+    ) async {
+        let install = install ?? appendAppServerSession
         do {
             let plan = try await spawnService.prepareSessionLaunchAsync(
                 ref: descriptor.agentRef,
@@ -222,7 +257,7 @@ final class SessionRestoreCoordinator {
                 launchContext: descriptor.launchContext,
                 titleState: descriptor.titleState
             )
-            appendAppServerSession(vm)
+            install(vm)
             guard let threadId = descriptor.chatNativeSessionId ?? descriptor.codexThreadId ?? descriptor.resumeID else {
                 vm.markRestoreFailed("chat restore failed: missing thread id")
                 refreshUnseenCompletionCount()
@@ -248,7 +283,7 @@ final class SessionRestoreCoordinator {
                 descriptor,
                 message: "chat restore failed: \(Self.restoreFailureDetail(error))"
             )
-            appendAppServerSession(placeholder)
+            install(placeholder)
             refreshUnseenCompletionCount()
             logError(error, "Failed to restore chat session \(descriptor.id)")
         }

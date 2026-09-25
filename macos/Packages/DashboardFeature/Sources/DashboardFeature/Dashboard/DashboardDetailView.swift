@@ -90,7 +90,8 @@ struct DashboardDetailView: View {
                 SessionView(viewModel: session)
             case .appServer(let session):
                 ChatSessionView(viewModel: session, projectName: viewModel.projects.first(where: { $0.id == session.projectID })?.name)
-                    .id(session.id)
+                    // 「この会話から再開」で同じ ID の VM が差し替わったら、ビューも作り直して末尾へ寄せ直す（04 B3）。
+                    .id(ObjectIdentifier(session))
             }
         } else {
             singleSelectEmptyState

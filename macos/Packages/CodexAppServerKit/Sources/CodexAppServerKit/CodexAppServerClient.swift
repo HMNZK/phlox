@@ -53,6 +53,8 @@ public actor CodexAppServerClient {
     private var turnStates: [String: TurnState] = [:]
     private var nextTurnStartGeneration: UInt64 = 0
     private var closeRequested = false
+    /// close() を呼ばずに app-server の出力が途切れた（プロセスが自分で終了した）。
+    public private(set) var exitedUnexpectedly = false
     private let eventContinuation: AsyncStream<ThreadEvent>.Continuation
     public nonisolated let events: AsyncStream<ThreadEvent>
 
@@ -73,6 +75,10 @@ public actor CodexAppServerClient {
     deinit {
         notificationTask?.cancel()
         eventContinuation.finish()
+    }
+
+    public func transportTerminationStatus() async -> Int32? {
+        await rpc.transportTerminationStatus()
     }
 
     public func start() async {
@@ -191,6 +197,7 @@ public actor CodexAppServerClient {
             return
         }
 
+        exitedUnexpectedly = true
         for (threadId, state) in turnStates where
             state.activeTurnId != nil || state.pendingStartGeneration != nil {
             eventContinuation.yield(.error(
@@ -436,8 +443,18 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
             for await event in source {
                 await self?.yield(event)
             }
-            await self?.finish()
+            await self?.bridgeDidFinish()
         }
+    }
+
+    /// app-server が自分で終了したら、終了コードを最後のイベントとして流してから閉じる（04 B3）。
+    private func bridgeDidFinish() async {
+        if await client.exitedUnexpectedly {
+            let exited = NormalizedChatEvent.processExited(exitCode: await client.transportTerminationStatus())
+            orderedEventContinuation.yield(.normalized(exited))
+            eventContinuation.yield(exited)
+        }
+        finish()
     }
 
     public func turnStart(_ input: [ChatInput]) async throws {

@@ -36,4 +36,29 @@ public struct ClaudeSessionHistoryEntry: Equatable, Sendable, Identifiable {
         self.titleUserMessages = titleUserMessages
         self.titleSummary = titleSummary
     }
+
+    /// 再開時に会話へ読み込む発言の上限（新しい方から）。履歴カードの件数もこの上限で頭打ちになる。
+    public static let transcriptItemLimit = 500
+}
+
+/// 履歴カードの件数と最後の発言（PhloxChat の履歴カード「18 件 · ブランチ」「最後: …」。C-21）。
+public struct ChatHistorySummary: Equatable, Sendable {
+    public let messageCount: Int
+    /// 読み込み上限に届いた（実際はもっと多い）。
+    public let reachesLimit: Bool
+    public let lastMessage: String?
+
+    init(items: [ChatItem], limit: Int = ClaudeSessionHistoryEntry.transcriptItemLimit) {
+        let texts = items.compactMap { item -> String? in
+            switch item {
+            case .userMessage(_, let text, _, _), .agentMessage(_, let text, _): text
+            default: nil
+            }
+        }
+        messageCount = texts.count
+        reachesLimit = items.count >= limit
+        lastMessage = texts.last.map {
+            $0.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        }.flatMap { $0.isEmpty ? nil : $0 }
+    }
 }

@@ -9,6 +9,13 @@ private enum UserNotification {
     case awaitingInput(SessionNotificationText.Kind)
     /// 無応答。スマホには直近の動作を渡さず、種類だけを送る。
     case stalled(lastAction: String?)
+    /// プロセスが 0 以外の終了コードで終わった（11 通知「終了」）。
+    case exited(code: Int32)
+}
+
+/// エージェントのプロセスが自分で終了したこと（04 B3）。終了コードが取れない transport では nil。
+public struct ChatProcessExit: Equatable, Sendable {
+    public let exitCode: Int32?
 }
 
 @MainActor
@@ -16,6 +23,13 @@ private enum UserNotification {
 public final class ChatSessionViewModel: Identifiable {
     public let id: SessionID
     public let startedAt: Date
+    /// プロセスが自分で終了したら入る。入力欄の代わりに終了コードと「この会話から再開」を出す（04 B3）。
+    public private(set) var processExit: ChatProcessExit?
+    /// 直近のエラーを通知したか（プロセス終了で「終了」を重ねるかの判断に使う）。
+    @ObservationIgnored private var lastErrorWasNotified = false
+    /// 「この会話から再開」。新しいプロセスで同じ会話を開き直す。VM は自分の client を作り直せないので
+    /// Dashboard が注入する（nil のあいだはボタンを出さない）。
+    public var resumeConversationHandler: (@MainActor () -> Void)?
     public private(set) var status: SessionStatus = .starting {
         didSet {
             guard oldValue != status else { return }
@@ -415,6 +429,7 @@ public final class ChatSessionViewModel: Identifiable {
     private var cachedHistoryEntries: [ClaudeSessionHistoryEntry] = []
     @ObservationIgnored private var historyCacheLoaded = false
     @ObservationIgnored private var historyCacheLoadTask: Task<Void, Never>?
+    @ObservationIgnored private var historySummaryTask: Task<Void, Never>?
 
     /// 新規 Claude/Codex チャットの中央に「履歴から再開」を出すか。
     public var shouldOfferHistoryStart: Bool {
@@ -423,6 +438,9 @@ public final class ChatSessionViewModel: Identifiable {
         guard transcript.isEmpty, submitBaselineTurnSeq == nil else { return false }
         return !cachedHistoryEntries.isEmpty
     }
+
+    /// 履歴カードの件数と最後の発言（履歴 ID ごと。読み終えたものから入る）。
+    public private(set) var historySummaries: [String: ChatHistorySummary] = [:]
 
     /// 履歴一覧（最大 20 件・task-9 契約）。
     public var historyEntries: [ClaudeSessionHistoryEntry] {
@@ -595,7 +613,7 @@ public final class ChatSessionViewModel: Identifiable {
     private func scheduleHistoryCacheLoadIfNeeded() {
         guard let historyProvider, !historyCacheLoaded else { return }
         guard historyCacheLoadTask == nil else { return }
-        historyCacheLoadTask = Task { [historyProvider] in
+        historyCacheLoadTask = Task { [weak self, historyProvider] in
             let entries = await Task.detached {
                 Array(historyProvider().prefix(20))
             }.value
@@ -603,7 +621,19 @@ public final class ChatSessionViewModel: Identifiable {
                 guard let self, !self.historyCacheLoaded else { return }
                 self.cachedHistoryEntries = entries
                 self.historyCacheLoaded = true
+                // 要約は一覧と別のタスク（新規チャットの開始が本文の読み込みを待たないように）。
+                self.historySummaryTask = Task { [weak self] in await self?.loadHistorySummaries(entries) }
             }
+        }
+    }
+
+    /// 履歴カードの件数と最後の発言を、一覧を出したあとで 1 件ずつ埋める（会話ファイルを全部読むので一覧より遅い）。
+    private func loadHistorySummaries(_ entries: [ClaudeSessionHistoryEntry]) async {
+        guard let historyTranscriptLoader else { return }
+        for entry in entries {
+            let summary = await Task.detached { ChatHistorySummary(items: historyTranscriptLoader(entry)) }.value
+            guard !Task.isCancelled, shouldOfferHistoryStart else { return }
+            historySummaries[entry.id] = summary
         }
     }
 
@@ -1643,6 +1673,8 @@ public final class ChatSessionViewModel: Identifiable {
             let approvals = approvalBroker.requests
             approvalTask = Task { @MainActor [weak self] in
                 for await approval in approvals {
+                    // プロセスが終わった後に届いた分は答えられない（broker 側は否認で決着済み）。
+                    guard self?.processExit == nil else { continue }
                     self?.pendingApprovals.append(approval)
                     self?.enterAwaitingApproval(
                         prompt: approval.prompt,
@@ -1657,6 +1689,7 @@ public final class ChatSessionViewModel: Identifiable {
             userInputTask = Task { @MainActor [weak self] in
                 for await request in userInputRequests {
                     guard let self else { return }
+                    guard self.processExit == nil else { continue }
                     let requestId = request.id.uuidString
                     self.codexUserInputRequestIDs[requestId] = request.id
                     self.receiveUserQuestion(
@@ -1764,15 +1797,17 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// ターミナル型と同じポリシーで完了を通知する。待機状態は実行中ターンに限って完了対象にし、
     /// 復元リプレイ・interrupt 由来の idle 遷移では呼ばない。
-    private func notifyCompletionIfNeeded(from previousStatus: SessionStatus, hadActiveTurn: Bool) {
+    @discardableResult
+    private func notifyCompletionIfNeeded(from previousStatus: SessionStatus, hadActiveTurn: Bool) -> Bool {
         guard SessionCompletionNotificationPolicy.shouldNotifyCompletion(
             previous: previousStatus,
             next: status,
             hasActiveTurn: hadActiveTurn
-        ) else { return }
+        ) else { return false }
         // 本物のターン完了を未確認の停止としてラッチする（turnInterrupted はこの経路を通らない）。
         hasUnseenCompletion = true
         notifyUser(.completed)
+        return true
     }
 
     /// 承認待ちへ遷移し、非承認待ちからの遷移時のみ通知する（連続する承認要求での多重通知を防ぐ）。
@@ -1819,6 +1854,13 @@ public final class ChatSessionViewModel: Identifiable {
             }
             if allowsRemoteNotification {
                 remoteSessionNotifier?.notify(.stalled, sessionId: id.description, sessionName: displayName)
+            }
+        case .exited(let code):
+            if allowsLocalNotification {
+                SessionCompletionNotifier.notifyExited(sessionID: id, sessionName: displayName, code: code)
+            }
+            if allowsRemoteNotification {
+                remoteSessionNotifier?.notify(.exited(code: code), sessionId: id.description, sessionName: displayName)
             }
         }
     }
@@ -2003,7 +2045,45 @@ public final class ChatSessionViewModel: Identifiable {
             clearRunningBackgroundTasks()
             subAgentModel.failRunningSubAgents()
             status = .error(message: message)
-            notifyCompletionIfNeeded(from: previousStatus, hadActiveTurn: hadActiveTurn)
+            lastErrorWasNotified = notifyCompletionIfNeeded(from: previousStatus, hadActiveTurn: hadActiveTurn)
+            touchOutput()
+            flushTranscriptAtTurnBoundary()
+            midTurnPersistenceGate.noteExternalFlush()
+        case .processExited(let exitCode):
+            guard processExit == nil else { break }
+            // 先に立てる（下の await の間に届いた承認・質問を積まないように）。
+            processExit = ChatProcessExit(exitCode: exitCode)
+            // 承認を待っていたプロセスはもう無いので、答えられないカードを残さない（下の await の間も出さない）。
+            pendingApprovals.removeAll()
+            await expireAllPendingUserQuestions()
+            await approvalBroker.cancelAll()
+            isCompacting = false
+            let previousStatus = status
+            let hadActiveTurn = turnStartedAt != nil
+            clearRunningTurn()
+            clearRunningBackgroundTasks()
+            subAgentModel.failRunningSubAgents()
+            let isAfterError: Bool = if case .error = previousStatus { true } else { false }
+            if let exitCode, exitCode != 0 {
+                // PTY と同じく 0 以外はエラー。実行中でなくても終了コードを添えて知らせる。
+                // 死因のエラー（Claude の途中終了など）が先に届いていれば、その表示を残し、
+                // エラーとして通知済みなら同じ出来事で 2 回鳴らさない。
+                if !isAfterError {
+                    status = .error(message: "exit code \(exitCode)")
+                }
+                if !(isAfterError && lastErrorWasNotified) {
+                    notifyUser(.exited(code: exitCode))
+                }
+            } else if exitCode == nil {
+                // 終了コードが取れないときは成功とは言えないので、完了にはしない。
+                if !isAfterError {
+                    status = .error(message: "process exited")
+                    notifyCompletionIfNeeded(from: previousStatus, hadActiveTurn: hadActiveTurn)
+                }
+            } else if !isAfterError {
+                status = .completed(exitCode: 0)
+                notifyCompletionIfNeeded(from: previousStatus, hadActiveTurn: hadActiveTurn)
+            }
             touchOutput()
             flushTranscriptAtTurnBoundary()
             midTurnPersistenceGate.noteExternalFlush()
@@ -2693,6 +2773,24 @@ public final class ChatSessionViewModel: Identifiable {
         } catch {
             logRestoreFailure(error)
         }
+        do {
+            if let saved = try await transcriptStore.loadDisplayState(for: id) {
+                turnUsageByItemID.merge(saved.turnUsageByItemID) { current, _ in current }
+                lastTurnCompletedAt = lastTurnCompletedAt ?? saved.lastTurnCompletedAt
+                subAgentModel.restore(saved.subAgents)
+            }
+        } catch {
+            logRestoreFailure(error)
+        }
+    }
+
+    /// 表示の状態をターンの境目で、本文の保存と同じ列に続けて保存する。
+    private func persistDisplayState() {
+        transcriptPersistenceQueue?.enqueueDisplayState(ChatDisplayState(
+            turnUsageByItemID: turnUsageByItemID,
+            lastTurnCompletedAt: lastTurnCompletedAt,
+            subAgents: subAgentModel.subAgents
+        ))
     }
 
     /// 総コストの保存は直列にする（連続したターンの保存が逆順に終わって古い額が残らないように）。
@@ -2733,6 +2831,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     private func flushTranscriptAtTurnBoundary() {
         enqueueTranscriptUpsert(transcript.filter(shouldStoreInTranscript))
+        persistDisplayState()
     }
 
     private func shouldStoreInTranscript(_ item: ChatItem) -> Bool {
@@ -2781,7 +2880,18 @@ public final class ChatSessionViewModel: Identifiable {
         }
         if type.contains("command") {
             let command = item.raw?.firstString(for: ["command", "cmd"])
-            return .commandExecution(id: id, command: command, output: text, timestamp: Date())
+            // Codex の commandExecution は出力を aggregatedOutput、終了コードを exitCode に持つ（app-server v2 のスキーマ）。
+            var output = item.raw?["aggregatedOutput"]?.stringValue ?? text
+            // C-22: 失敗したコマンドを開いておけるよう、Claude と同じ「Exit code N」行を先頭に置く。
+            // 出力に別の値の「Exit code」行があれば、構造化された値の行を先に置いて食い違いを消す（成功も含む）。
+            if case .number(let value)? = item.raw?["exitCode"] {
+                let code = Int(value)
+                let written = CommandExitCode.parse(output)
+                if written != code, code != 0 || written != nil {
+                    output = "Exit code \(code)\n" + output
+                }
+            }
+            return .commandExecution(id: id, command: command, output: output, timestamp: Date())
         }
         if type.contains("file") || type.contains("patch") {
             let changes = item.fileChanges
@@ -3447,6 +3557,7 @@ extension ChatSessionViewModel: ControllableSession {
         midTurnPersistenceGate.cancelPending()
         flushPendingStreamDeltasBarrier()
         enqueueTranscriptUpsert(transcript.filter(shouldStoreInTranscript))
+        persistDisplayState()
         midTurnPersistenceGate.noteExternalFlush()
         await transcriptPersistenceQueue?.waitForPendingWrites()
         await totalCostSave?.value

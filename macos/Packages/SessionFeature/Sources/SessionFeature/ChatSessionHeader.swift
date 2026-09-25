@@ -18,7 +18,7 @@ struct ChatSessionHeader: View {
     @Environment(\.locale) private var locale
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
-    static let height: CGFloat = 56
+    static let height: CGFloat = SubAgentSplitLayout.headerHeight
 
     var body: some View {
         let _ = themeID
@@ -214,7 +214,8 @@ struct ChatSessionHeader: View {
                     state: displayState,
                     isCompacting: viewModel.isCompacting,
                     lastRespondedAt: viewModel.lastTurnCompletedAt,
-                    now: context.date
+                    now: context.date,
+                    exitCode: viewModel.processExit?.exitCode
                 )
                 .font(.system(size: 12, weight: displayState == .running ? .medium : .regular))
                 .foregroundStyle(DSColor.textSecondary)
@@ -229,11 +230,16 @@ struct ChatSessionHeader: View {
         state: SessionDisplayState,
         isCompacting: Bool,
         lastRespondedAt: Date?,
-        now: Date
+        now: Date,
+        exitCode: Int32? = nil
     ) -> Text {
         let base = Text(verbatim: label)
         if state == .running, isCompacting {
             return Text("\(base) · 圧縮中")
+        }
+        // 04 B3: プロセスが 0 で終わったら「完了 · exit 0」（0 以外はエラーの表示のまま）。
+        if state == .done || state == .doneUnread, let exitCode {
+            return Text("\(base) · exit \(Int(exitCode))")
         }
         guard state == .idle, let lastRespondedAt else { return base }
         let minutes = max(0, Int(now.timeIntervalSince(lastRespondedAt) / 60))

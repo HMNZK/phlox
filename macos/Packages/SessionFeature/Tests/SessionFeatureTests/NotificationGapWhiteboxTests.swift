@@ -339,3 +339,176 @@ func notificationGap_ptyNonZeroExit_sendsTheExitCodeEvenWhenIdle() async throws 
 
     #expect(notifier.kinds == [.exited(code: 2)])
 }
+
+// 04 B3: チャットのプロセスが自分で終わったら、入力欄の代わりに出す終了コードを持ち、0 以外は「終了」を知らせる。
+@Test @MainActor
+func notificationGap_chatProcessNonZeroExit_marksEndedAndSendsTheExitCode() async throws {
+    let client = NotificationGapCodexClient()
+    let notifier = KindRecordingRemoteSessionNotifier()
+    let vm = ChatSessionViewModel(
+        id: SessionID(),
+        agentRef: .builtin(.codex),
+        client: client,
+        approvalBroker: ChatApprovalBroker(),
+        workingDirectory: "/tmp/phlox-notification-gap"
+    )
+    vm.remoteSessionNotifier = notifier
+
+    try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+    #expect(vm.processExit == nil)
+    client.yield(.processExited(exitCode: 3))
+    try await waitForNotificationGap { vm.processExit != nil }
+
+    #expect(vm.processExit == ChatProcessExit(exitCode: 3))
+    #expect(vm.status == .error(message: "exit code 3"))
+    #expect(notifier.kinds == [.exited(code: 3)])
+}
+
+@Test @MainActor
+func notificationGap_chatProcessZeroExit_isCompletedWithoutAnExitNotification() async throws {
+    let client = NotificationGapCodexClient()
+    let notifier = KindRecordingRemoteSessionNotifier()
+    let vm = ChatSessionViewModel(
+        id: SessionID(),
+        agentRef: .builtin(.codex),
+        client: client,
+        approvalBroker: ChatApprovalBroker(),
+        workingDirectory: "/tmp/phlox-notification-gap"
+    )
+    vm.remoteSessionNotifier = notifier
+
+    try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+    client.yield(.processExited(exitCode: 0))
+    try await waitForNotificationGap { vm.processExit != nil }
+
+    #expect(vm.status == .completed(exitCode: 0))
+    #expect(!notifier.kinds.contains(.exited(code: 0)))
+}
+
+// 死因のエラーが先に届いた（Claude の途中終了）なら、そのエラー表示を残し、「終了」を重ねて送らない。
+@Test @MainActor
+func notificationGap_chatProcessExitAfterError_keepsTheErrorAndDoesNotNotifyTwice() async throws {
+    let client = NotificationGapCodexClient()
+    let notifier = KindRecordingRemoteSessionNotifier()
+    let vm = ChatSessionViewModel(
+        id: SessionID(),
+        agentRef: .builtin(.codex),
+        client: client,
+        approvalBroker: ChatApprovalBroker(),
+        workingDirectory: "/tmp/phlox-notification-gap"
+    )
+    vm.remoteSessionNotifier = notifier
+
+    try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+    client.yield(.turnStarted)
+    try await waitForNotificationGap { vm.status == .running }
+    client.yield(.error(message: "process ended"))
+    client.yield(.processExited(exitCode: 1))
+    try await waitForNotificationGap { vm.processExit != nil }
+
+    #expect(vm.status == .error(message: "process ended"))
+    #expect(!notifier.kinds.contains(.exited(code: 1)))
+}
+
+// 実行中でないときのエラーは通知されないので、その後の 0 以外の終了は終了コードつきで知らせる。
+@Test @MainActor
+func notificationGap_chatProcessExitAfterAnUnnotifiedError_sendsTheExitCode() async throws {
+    let client = NotificationGapCodexClient()
+    let notifier = KindRecordingRemoteSessionNotifier()
+    let vm = ChatSessionViewModel(
+        id: SessionID(),
+        agentRef: .builtin(.codex),
+        client: client,
+        approvalBroker: ChatApprovalBroker(),
+        workingDirectory: "/tmp/phlox-notification-gap"
+    )
+    vm.remoteSessionNotifier = notifier
+
+    try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+    client.yield(.error(message: "idle failure"))
+    client.yield(.processExited(exitCode: 2))
+    try await waitForNotificationGap { vm.processExit != nil }
+
+    #expect(vm.status == .error(message: "idle failure"))
+    #expect(notifier.kinds == [.exited(code: 2)])
+}
+
+// 終了コードが取れないときは、成功（完了）とは表示しない。
+@Test @MainActor
+func notificationGap_chatProcessExitWithoutACode_isNotShownAsCompleted() async throws {
+    let client = NotificationGapCodexClient()
+    let vm = ChatSessionViewModel(
+        id: SessionID(),
+        agentRef: .builtin(.codex),
+        client: client,
+        approvalBroker: ChatApprovalBroker(),
+        workingDirectory: "/tmp/phlox-notification-gap"
+    )
+
+    try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+    client.yield(.processExited(exitCode: nil))
+    try await waitForNotificationGap { vm.processExit != nil }
+
+    #expect(vm.status == .error(message: "process exited"))
+}
+
+// 承認を待っている間にプロセスが終わったら、答えられない承認カードを残さない。
+@Test @MainActor
+func notificationGap_chatProcessExitWhileAwaitingApproval_dropsTheApprovalCard() async throws {
+    let client = NotificationGapCodexClient()
+    let broker = ChatApprovalBroker()
+    let vm = ChatSessionViewModel(
+        id: SessionID(),
+        agentRef: .builtin(.codex),
+        client: client,
+        approvalBroker: broker,
+        workingDirectory: "/tmp/phlox-notification-gap"
+    )
+    try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+    let json = """
+    {"threadId":"t","turnId":"u","itemId":"i","startedAtMs":1,"command":"pwd","cwd":"/tmp"}
+    """
+    let request = try JSONDecoder().decode(CommandExecutionApprovalRequest.self, from: Data(json.utf8))
+    let handler = broker.serverRequestHandler
+    let wire = Task { try? await handler(.commandExecutionApproval(request)) }
+    try await waitForNotificationGap { !vm.replyApprovals.isEmpty }
+
+    client.yield(.processExited(exitCode: 1))
+    try await waitForNotificationGap { vm.processExit != nil }
+
+    let dropped = vm.replyApprovals.isEmpty
+    #expect(dropped)
+    // 残っていたら、下の待ちで止まらないようにテスト側で決着させる。
+    if !dropped { await broker.respond(to: vm.pendingApprovals[0].id, decision: .accept) }
+    // 待っていた承認は否認で決着する（ぶら下がったままにしない）。
+    #expect(await wire.value?["decision"]?.stringValue == "decline")
+}
+
+// 承認のカードが出る前に終了が届いても、あとから承認のカードを出さない。
+@Test @MainActor
+func notificationGap_approvalQueuedBeforeTheExitIsNotShownAfterIt() async throws {
+    let client = NotificationGapCodexClient()
+    let broker = ChatApprovalBroker()
+    let vm = ChatSessionViewModel(
+        id: SessionID(),
+        agentRef: .builtin(.codex),
+        client: client,
+        approvalBroker: broker,
+        workingDirectory: "/tmp/phlox-notification-gap"
+    )
+    try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+    let json = """
+    {"threadId":"t","turnId":"u","itemId":"i","startedAtMs":1,"command":"pwd","cwd":"/tmp"}
+    """
+    let request = try JSONDecoder().decode(CommandExecutionApprovalRequest.self, from: Data(json.utf8))
+    let handler = broker.serverRequestHandler
+    // 承認は受け取りの列に積まれたが、画面の処理より先に終了が届く順にする。
+    client.yield(.processExited(exitCode: 1))
+    let wire = Task { try? await handler(.commandExecutionApproval(request)) }
+    try await waitForNotificationGap { vm.processExit != nil }
+    let decision = await wire.value?["decision"]?.stringValue
+    for _ in 0..<20 { await Task.yield() }
+
+    #expect(decision == "decline")
+    #expect(vm.replyApprovals.isEmpty)
+}

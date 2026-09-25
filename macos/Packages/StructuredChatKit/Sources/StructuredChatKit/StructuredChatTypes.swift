@@ -180,6 +180,8 @@ public enum NormalizedChatEvent: Equatable, Sendable {
     case subAgentCompleted(toolUseId: String, status: String, summary: String, outputFile: String?)
     case error(message: String)
     case warning(message: String)
+    /// エージェントのプロセスが自分で終了した（04 B3）。終了コードが取れない transport では nil。
+    case processExited(exitCode: Int32?)
     /// 会話履歴の圧縮（compaction）境界。Claude Code stream-json の
     /// `system/compact_boundary` に対応する（phlox-ux-5fixes task-2 契約。
     /// 受け入れテスト AcceptanceCompactBoundaryTests / AcceptanceCompactingIndicatorTests が凍結）。

@@ -5,6 +5,14 @@ public protocol AppServerTransport: Sendable {
     var receivedLines: AsyncStream<Data> { get }
     func send(_ data: Data) async throws
     func close() async
+    /// プロセスが自分で終了したときの終了コード（シグナル終了は 128 + シグナル番号）。動作中・未起動は nil。
+    func terminationStatus() async -> Int32?
+}
+
+public extension AppServerTransport {
+    func terminationStatus() async -> Int32? {
+        nil
+    }
 }
 
 public enum ProcessTransportError: Error, Equatable, Sendable {
@@ -27,6 +35,7 @@ public final class ProcessTransport: AppServerTransport, @unchecked Sendable {
     private var pendingOutput = Data()
     private var continuation: AsyncStream<Data>.Continuation?
     private var isFinished = false
+    private var exitStatus: Int32?
     private var stdoutReaderQueue: DispatchQueue?
     private var stderrReaderQueue: DispatchQueue?
     private var readGroup: DispatchGroup?
@@ -80,7 +89,8 @@ public final class ProcessTransport: AppServerTransport, @unchecked Sendable {
 
             // 両 reader が EOF に達してから finish する。terminationHandler で即 finish すると、
             // 終了直前に書かれた stdout 応答を読み切る前にストリームが閉じ取りこぼす（I9）。
-            process.terminationHandler = { [weak self] _ in
+            process.terminationHandler = { [weak self] process in
+                self?.recordExitStatus(of: process)
                 self?.finishWhenReaderIsDone()
             }
 
@@ -153,6 +163,17 @@ public final class ProcessTransport: AppServerTransport, @unchecked Sendable {
             }
         }
         finishWhenReaderIsDone()
+    }
+
+    public func terminationStatus() async -> Int32? {
+        lock.withLock { exitStatus }
+    }
+
+    private func recordExitStatus(of process: Process) {
+        let status = process.terminationReason == .uncaughtSignal
+            ? 128 + process.terminationStatus
+            : process.terminationStatus
+        lock.withLock { exitStatus = status }
     }
 
     private func finishWhenReaderIsDone() {

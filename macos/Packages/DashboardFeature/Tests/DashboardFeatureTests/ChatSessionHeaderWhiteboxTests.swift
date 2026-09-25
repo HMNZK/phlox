@@ -11,8 +11,9 @@ import Testing
 struct ChatSessionHeaderWhiteboxTests {
 
     @Test
-    func headerHeightMatchesGridTileHeaderTarget() {
-        #expect(SubAgentSplitLayout.headerHeight == 32)
+    func headerHeightMatchesMockHeader() {
+        #expect(SubAgentSplitLayout.headerHeight == 56)
+        #expect(ChatSessionHeader.height == SubAgentSplitLayout.headerHeight)
     }
 
     @Test @MainActor

@@ -345,3 +345,73 @@ func codex_itemCompletedDoesNotDuplicatePendingDelta() async throws {
     try await Task.sleep(nanoseconds: 100_000_000)
     #expect(agentMessageText(vm, id: "a1") == "Hello")
 }
+
+// C-22: Codex の失敗したコマンドは、完了時の exitCode を「Exit code N」行として出力の先頭に置く（既定で開く判定に使う）。
+@Test @MainActor
+func codex_failedCommandCompletionCarriesTheExitCodeAndAggregatedOutput() async throws {
+    let client = DualStreamCodexFake()
+    let vm = makeViewModel(client: client, agentRef: .builtin(.codex))
+    try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+
+    let item = try JSONDecoder().decode(
+        ThreadItem.self,
+        from: Data(#"{"id":"c1","type":"commandExecution","command":"swift build","aggregatedOutput":"error: boom","exitCode":1}"#.utf8)
+    )
+    client.yieldThread(.itemCompleted(threadId: "t1", turnId: "turn1", item: item))
+
+    var output: String?
+    for _ in 0..<1000 where output == nil {
+        await Task.yield()
+        output = vm.transcript.lazy.compactMap { item -> String? in
+            if case .commandExecution("c1", _, let output, _) = item { output } else { nil }
+        }.first
+    }
+    #expect(output == "Exit code 1\nerror: boom")
+    #expect(CommandExitCode.parse(output ?? "") == 1)
+}
+
+// 出力の先頭に別の「Exit code」行があっても、構造化された exitCode を優先する。
+@Test @MainActor
+func codex_structuredExitCodeWinsOverAnExitCodeLineInTheOutput() async throws {
+    let client = DualStreamCodexFake()
+    let vm = makeViewModel(client: client, agentRef: .builtin(.codex))
+    try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+
+    let item = try JSONDecoder().decode(
+        ThreadItem.self,
+        from: Data(#"{"id":"c2","type":"commandExecution","command":"./check","aggregatedOutput":"Exit code 0\nstill failing","exitCode":1}"#.utf8)
+    )
+    client.yieldThread(.itemCompleted(threadId: "t1", turnId: "turn1", item: item))
+
+    var output: String?
+    for _ in 0..<1000 where output == nil {
+        await Task.yield()
+        output = vm.transcript.lazy.compactMap { item -> String? in
+            if case .commandExecution("c2", _, let output, _) = item { output } else { nil }
+        }.first
+    }
+    #expect(CommandExitCode.parse(output ?? "") == 1)
+}
+
+// 構造化された exitCode が 0 なら、出力に「Exit code 1」と書かれていても成功として扱う。
+@Test @MainActor
+func codex_structuredZeroExitCodeWinsOverAFailureLineInTheOutput() async throws {
+    let client = DualStreamCodexFake()
+    let vm = makeViewModel(client: client, agentRef: .builtin(.codex))
+    try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+
+    let item = try JSONDecoder().decode(
+        ThreadItem.self,
+        from: Data(#"{"id":"c3","type":"commandExecution","command":"cat log","aggregatedOutput":"Exit code 1\nold log","exitCode":0}"#.utf8)
+    )
+    client.yieldThread(.itemCompleted(threadId: "t1", turnId: "turn1", item: item))
+
+    var output: String?
+    for _ in 0..<1000 where output == nil {
+        await Task.yield()
+        output = vm.transcript.lazy.compactMap { item -> String? in
+            if case .commandExecution("c3", _, let output, _) = item { output } else { nil }
+        }.first
+    }
+    #expect(CommandExitCode.parse(output ?? "") == 0)
+}

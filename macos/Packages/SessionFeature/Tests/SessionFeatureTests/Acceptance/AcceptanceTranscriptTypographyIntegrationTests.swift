@@ -149,7 +149,7 @@ struct AcceptanceTranscriptTypographyIntegrationTests {
         #expect(blocks[0].typographyRole == .process)
     }
 
-    @Test("ユーザー→回答→回答→処理グループ→回答→料金→ユーザーの gap は [0, 16, 8, 8, 16, 8, 24]")
+    @Test("ユーザー→回答→回答→処理グループ→回答→料金→ユーザーの gap は先頭 0・以降すべて 14")
     func mixedConversationGapSeries() {
         let items: [ChatItem] = [
             typographyUser("u1"),
@@ -166,7 +166,8 @@ struct AcceptanceTranscriptTypographyIntegrationTests {
         #expect(blocks.map(\.typographyRole) == [
             .user, .answer, .answer, .process, .answer, .auxiliary, .user,
         ])
-        #expect(gaps(for: blocks) == [0, 16, 8, 8, 16, 8, 24])
+        // 2026-09 UI 再設計でユーザー承認（B2）: 種類別の [0, 16, 8, 8, 16, 8, 24] から一律 14 へ。
+        #expect(gaps(for: blocks) == [0, 14, 14, 14, 14, 14, 14])
         #expect(flattenTranscript(blocks) == items)
     }
 
@@ -183,7 +184,8 @@ struct AcceptanceTranscriptTypographyIntegrationTests {
             typographyUser("u2"),
         ]
         let allBlocks = ChatTranscriptGrouping.blocks(from: items)
-        #expect(TranscriptTypography.gap(after: .auxiliary, before: .user) == 24)
+        // B2（ユーザー承認の凍結テスト変更）: 種類によらず一律 14。
+        #expect(TranscriptTypography.gap(after: .auxiliary, before: .user) == 14)
 
         let slice = ChatTranscriptGrouping.visibleSlice(from: items, blockLimit: 1)
         #expect(slice.blocks.count == 1)
@@ -196,7 +198,7 @@ struct AcceptanceTranscriptTypographyIntegrationTests {
 
         let two = ChatTranscriptGrouping.visibleSlice(fromBlocks: allBlocks, blockLimit: 2)
         #expect(two.blocks.map(\.id) == ["cost1", "u2"])
-        #expect(gaps(for: two.blocks.map(\.content)) == [0, 24])
+        #expect(gaps(for: two.blocks.map(\.content)) == [0, 14])
     }
 
     @Test("ChatTypography の既存 API は従来の Markdown 基準値を返し、bodyPointSize は正本の body と一致する")

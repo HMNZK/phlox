@@ -291,9 +291,11 @@ struct CodexSessionHistoryDiscovery: Sendable {
         )
     }
 
+    /// 出現順を保った末尾 maxItems 件（Claude の履歴と同じく新しい方を残す）。
+    /// ponytail: 読むのはファイル末尾の 4MB まで。それより長い会話の件数は末尾分だけになる。
     static func loadTranscript(fileURL: URL, maxItems: Int) -> [ChatItem] {
         guard maxItems > 0,
-              let data = read(fileURL, maxBytes: 4 * 1024 * 1024) else { return [] }
+              let data = readTail(fileURL, maxBytes: 4 * 1024 * 1024) else { return [] }
         var items: [ChatItem] = []
         for (index, line) in String(decoding: data, as: UTF8.self).split(whereSeparator: \.isNewline).enumerated() {
             guard let object = object(from: String(line)),
@@ -307,9 +309,17 @@ struct CodexSessionHistoryDiscovery: Sendable {
             case "assistant": items.append(.agentMessage(id: id, text: text, timestamp: timestamp))
             default: continue
             }
-            if items.count >= maxItems { break }
         }
-        return items
+        return items.count <= maxItems ? items : Array(items.suffix(maxItems))
+    }
+
+    /// 末尾から maxBytes。途中で切れた先頭行は JSON として読めないので捨てられる。
+    private static func readTail(_ fileURL: URL, maxBytes: Int) -> Data? {
+        guard let handle = try? FileHandle(forReadingFrom: fileURL) else { return nil }
+        defer { try? handle.close() }
+        guard let size = try? handle.seekToEnd() else { return nil }
+        try? handle.seek(toOffset: size > UInt64(maxBytes) ? size - UInt64(maxBytes) : 0)
+        return try? handle.readToEnd()
     }
 
     private static func messageRole(in object: [String: Any]) -> String? {

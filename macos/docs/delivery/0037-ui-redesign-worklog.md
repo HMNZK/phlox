@@ -1416,7 +1416,7 @@ F1〜F11 で見送った項目を、ユーザーの判断（`0037-ui-redesign-de
 - 匿名の利用状況の送信とトークンの再発行は置かない（ユーザーの判断。見本でも推測で、裏付けの機能が無い）。
 - スイッチの名前は見本の「承認待ちを iPhone に送る」ではなく「iPhone に通知を送る」。承認待ち以外も送るようになったため。
 - 実行中に終了コード 0 で終わったときは、これまでどおり完了として知らせる。見本の「0 のときは通知しない」は「終了」の通知の話と読み、既存のテスト（`notificationGap_ptyProcessExit_firesSessionCompleted`）が固定している意図的な挙動を残した。
-- チャット型は終了コードを受け取れない（プロセスの終わりを扱う層が終了コードを捨てている）ので「終了」の通知の対象外。C-17（終了コードと再開ボタン）で経路を作るときに合わせる。
+- チャット型は終了コードを受け取れない（プロセスの終わりを扱う層が終了コードを捨てている）ので「終了」の通知の対象外。C-17（終了コードと再開ボタン）で経路を作るときに合わせる。→（7）で経路を作り、チャット型も 0 以外の終了で「終了」を通知するようにした。
 - 移行の検査は起動後の読み込みと同じ復号で行う。セッションは 1 件ずつ読めないものを起動後の読み込みが捨てて退避するので、それだけでは止めない。
 - 更新用のトークンが無いときの完了・終了は、完了済みの Live Activity を新しく出す（60 秒後に古い扱いにするだけで、消える時刻は OS が決める）。最初からの意図的な設計（`completionWithoutExistingActivityStartsAlreadyCompletedLiveActivity` が固定）で、終了も同じ扱いにした（レビューは中で「終わった知らせで始めない」よう指摘）。
 - 設定の保存先: 新しく足した「バッジに出す数」「iPhone に通知を送る」は、読む側と同じ保存先（`PHLOX_DEFAULTS_SUITE` を指定した隔離起動ではその保存先）に書く。既存の「バナーで知らせる」「完了サウンド」は標準の保存先に書いたまま（前からの挙動）。
@@ -1429,3 +1429,37 @@ F1〜F11 で見送った項目を、ユーザーの判断（`0037-ui-redesign-de
 - 見つけて直した前からの失敗: iOS の `TokensTests.testReExportsStatusVocabulary` が、前のまとまり（4a58aa9、12 Design System の語彙）で「完了 (0)」→「完了」に変えたのに古い期待値のままで落ちていた。iOS のテストはゲートに入っておらず、XCTest 側の失敗が Swift Testing の要約に隠れていた。期待値を見本の語彙に合わせた。
 - Debug 版での確認（背面・撮影だけ）: ダーク・英語で通知の設定に「Dock / Badge shows / Sessions that need you」が出ること。
 - 確認できなかったもの: iOS のウィジェット（`SessionLiveActivity`）のビルド（プロジェクトの生成に使う xcodegen が入っておらず、ツールは入れない約束のため）。モバイルの設定の「プッシュ通知」の表示（つないだ端末が要り、実機が無い）。Dock のバッジの見た目（画面全体を撮ることになるので撮っていない）。
+
+## F12 見送り分の再対応（7）: 会話（04 Session Chat・PhloxChat）
+
+### 対応表
+
+| 見本の指示 | 内容 | 実装箇所 |
+|---|---|---|
+| B2（会話の項目の間隔） | 会話の項目どうしの間隔を種類によらず 14pt にする（先頭は 0）。接続中・圧縮中・思考中の行、Codex のプランのカード、「さらに読み込む」との間も同じ（ユーザー決定。凍結テストの変更は承認済み） | `TranscriptTypography.itemGap`・`gap(after:before:)`・`ChatTranscriptView` |
+| B6（見出しの高さ） | 会話の見出しとサブエージェント欄の見出しの共有の高さを 56pt に（見本はどちらも 56px。承認済み）。会話の見出しはこの定数を使う | `SubAgentSplitLayout.headerHeight`・`ChatSessionHeader.height` |
+| C-16（04「カードの既定の開き方」: タスクリスト） | いちばん新しいタスクリストだけ既定で開く。会話に置かれるタスクリストは常に 1 枚（差し替え）なので、いつも開く | `TranscriptItemPresentation.taskList(isLatest:)`・`TaskListCell` |
+| C-22（同: コマンド単体・04 B4） | 失敗（exit ≠ 0）したコマンド単体だけ既定で開く。コマンドグループは実行中だけ開くまま。Codex は完了時の `exitCode`（出力は `aggregatedOutput`）を Claude と同じ「Exit code N」行にして先頭に置き、出力に別の値の行があれば構造化された値を優先する | `TranscriptItemPresentation.command(hasFailed:)`・`CommandExecutionCell`・`ChatSessionViewModel.chatItem(from:)` |
+| C-17（04 B3・PhloxChat の showEnded） | エージェントのプロセスが自分で終わったら、入力欄の代わりに「セッションは終了しました（exit N）。会話は保存されています。」と「この会話から再開」を出す（単体表示・グリッドとも）。見出しは 0 なら「完了 · exit 0」。0 以外は PTY と同じくエラーにして「終了」を通知する。終わったときに待っていた質問・承認は答えられないので片付ける（承認はプロセス側へ否認で決着させ、終わった後に届いた承認・質問は出さない）。再開は起動時の復元と同じ経路で新しいプロセスの VM を作り、会話を読み込み終えてから同じ位置のノードを差し替える（続けて押しても 2 つ目は作らない。開き直せなければ差し替えず、終わった会話に理由を出して再開ボタンを残す。開き直している間に閉じられたら、新しいプロセスは止める）。終了コードは Claude（`LineDelimitedProcessTransport`）と Codex（`ProcessTransport`）の終了時に記録し、`NormalizedChatEvent.processExited` で渡す | `ChatProcessEndedStrip`・`ChatSessionViewModel.processExit`／`resumeConversationHandler`・`DashboardViewModel.resumeEndedChatSession`・`SessionRestoreCoordinator.resumeChatSession`・`ClaudeChatClient.yieldProcessExited`・`CodexStructuredAgentClient.bridgeDidFinish` |
+| C-21（PhloxChat の historyCards） | 履歴カードの 2 行目を「最後: {最後の発言}」、右下を「{件数} 件 · {ブランチ}」にする。一覧を出したあと、裏で 1 件ずつ会話を読んで埋める（読み終えるまではこれまでどおりプロジェクト名とブランチ）。読み上げにも足す | `ChatHistorySummary`・`ChatSessionViewModel.historySummaries`・`ChatHistoryStartView` |
+| 見送り分（復元後の表示） | 再起動して復元しても、返信の下のトークン内訳、「N分前に応答」、サブエージェントの記録（出力ファイルの場所）を同じに出す。本文と同じ保存の列で、本文の後に別ファイル（`<id>.display.json`）へ書く。本文の書き込みに失敗したあとは書かない。動いていたサブエージェントは失敗として戻す | `ChatDisplayState`・`TranscriptStore.loadDisplayState`／`saveDisplayState`・`TranscriptPersistenceQueue.enqueueDisplayState`・`ChatSubAgentModel.restore` |
+
+### 直していないもの
+
+- Claude は中断で CLI を止め、次の送信で `--resume` して起動し直す設計なので、中断した世代の終了では「終了」を出さない。`close()` で受信を打ち切ったときと、自己修復で新しいプロセスが起動できたとき（ターンの再送だけ失敗しても）と、終了コードを待つ間に次の送信で新しいプロセスが起動したときも出さない。
+- 終了の前にエラーが届き、それを通知済みなら（実行中に止まった場合）、「終了」を重ねて通知しない（同じ出来事で 2 回鳴らさない）。終了コードは入力欄の代わりの帯に出る。エラーが通知されていなければ終了コードつきで通知する。
+- 終了コードが取れないときは完了にせずエラー（「process exited」）とする。
+- Cursor はコマンドごとの終了コードを持たないので、失敗したコマンドを開けない（Cursor は 1 回ごとに起動する作りで、プロセスの終了は「終了」の対象外）。
+- 履歴カードの件数は、再開時に読み込む上限（新しい方から 500 件）までを数え、届いたら「500 件以上」。Codex の履歴はファイル末尾の 4MB だけを読むので、それより長い会話の件数は末尾の分になる（上限は `ponytail:` 注記に明記）。
+- あわせて直した前からの不具合: Codex の履歴はファイルの先頭 4MB・先頭 500 件を読んでいたため、長い会話では再開時の表示も最後の発言も古かった。Claude と同じく新しい方を残す。
+- 画面で見つけた前からの挙動: Codex のチャットは、復元後に待機中でもプロセスが終わると「Codex app-server process exited before the turn completed」のエラーが出る（復元した会話に終わっていないターンが残っている扱い）。今回は触っていない。
+- 履歴カードの日時（「今日 16:52」）と題の既定値（「作業名なし」）は英語表示でも日本語のまま（前からの挙動）。
+
+### 検証
+
+- 追加したテスト: `CardDefaultExpansionTests`（失敗したコマンド単体だけ開く・グループは開かない・最新のタスクリストだけ開く）、`notificationGap_chatProcess*`（0 以外の終了・0 の終了・通知済みのエラーの後・未通知のエラーの後・終了コード不明・承認待ちの間の終了・終了より後に届いた承認）、`processTransportRecordsTheExitCodeBeforeTheLinesFinish`（StructuredChatKit・CodexAppServerKit）と `processTransportReportsASignalExitAs128PlusTheSignal`、`idleProcessExitYieldsTheExitCode`・`interruptEndingTheTransportDoesNotYieldProcessExited`・`failedSelfHealYieldsTheOriginalExitCode`・`selfHealWhoseReplayFailsDoesNotYieldProcessExited`・`exitOfTheOldProcessIsNotReportedAfterTheNextTurnRespawns`（ClaudeAgentKit）、`resumeEndedChatSession_replacesTheNodeInPlaceAndResumesTheSameConversation`・`resumeEndedChatSession_ignoresASecondPressWhileResuming`・`resumeEndedChatSession_keepsTheEndedSessionWhenResumingFails`・`resumeEndedChatSession_stopsTheNewProcessWhenTheSessionIsClosedMeanwhile`、`ChatHistorySummaryTests`、`codexSessionHistory_loadTranscriptKeepsTheNewestItems`、`codex_failedCommandCompletionCarriesTheExitCodeAndAggregatedOutput`・`codex_structuredExitCodeWinsOverAnExitCodeLineInTheOutput`・`codex_structuredZeroExitCodeWinsOverAFailureLineInTheOutput`、`chatDisplayState_survivesRestore`・`chatDisplayState_runningSubAgentIsRestoredAsFailed`、`displayStateIsSkippedAfterAFailedTranscriptWriteAndResumesAfterASuccess`。主なものは、直した箇所を外すと落ちることを確かめた。
+- 変えた凍結テスト（承認済み）: `AcceptanceTranscriptTypographyTests`・`AcceptanceTranscriptTypographyIntegrationTests`（間隔を一律 14）、`AcceptanceSingleHeaderLayoutTests`・`ChatSessionHeaderWhiteboxTests`（見出し 56）。
+- 通ったもの: 検証ゲート `bash .claude/verify.sh`、ゲートに入っていない StructuredChatKit 28 件・ClaudeAgentKit 173 件・CodexAppServerKit 100 件、アプリのビルド。
+- Debug 版での確認（背面・撮影だけ。ダーク・英語）: 会話の間隔と見出しの高さ。Codex のチャットでプロセス（Debug 版の子）を止めると入力欄の代わりに終了の帯と「Resume this conversation」が出て、押すと新しいプロセスで同じ会話に戻り末尾に寄ること（最初は先頭のまま表示されたので、読み込み後に差し替えるよう直した）。新しい Claude のチャットの履歴カードに「Last: …」と「4 messages · feature/…」が出ること。
+- 独立レビュー（読み取りのみ）: 11 回繰り返し、最後は高・中なし。残した低は 4MB を超える Codex 履歴の件数（上記）。
+- 確認できなかったもの: 「完了 · exit 0」の見出し（止めた Codex は先にエラーが出るため、画面では 0 の完了にならなかった。テストでは確認）。ライト表示での終了の帯。

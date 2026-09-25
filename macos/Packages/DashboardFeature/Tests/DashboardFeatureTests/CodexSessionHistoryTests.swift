@@ -285,3 +285,16 @@ private func insertThread(
         throw NSError(domain: "CodexSessionHistoryTests", code: 8)
     }
 }
+
+// C-21: 長い会話では新しい方を残す（再開時の表示と履歴カードの「最後の発言」が最新になる）。
+@Test func codexSessionHistory_loadTranscriptKeepsTheNewestItems() throws {
+    let file = FileManager.default.temporaryDirectory.appendingPathComponent("rollout-\(UUID().uuidString).jsonl")
+    defer { try? FileManager.default.removeItem(at: file) }
+    try (1...5).map { index in
+        #"{"type":"response_item","timestamp":"2026-08-24T10:0\#(index):00.000Z","payload":{"type":"message","id":"a\#(index)","role":"assistant","content":[{"type":"output_text","text":"回答\#(index)"}]}}"#
+    }.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
+
+    let transcript = CodexSessionHistoryDiscovery.loadTranscript(fileURL: file, maxItems: 2)
+
+    #expect(transcript.map(\.plainText) == ["Agent: 回答4", "Agent: 回答5"])
+}

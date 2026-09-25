@@ -19,7 +19,12 @@ struct TaskListCell: View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         let completed = tasks.filter { $0.status == .completed }.count
-        let presentation = TranscriptItemPresentation.taskList(count: tasks.count, completed: completed)
+        let presentation = TranscriptItemPresentation.taskList(
+            count: tasks.count,
+            completed: completed,
+            // 会話に置かれるタスクリストは常に 1 枚（id "task-list" を差し替え）なので、これが最新。
+            isLatest: true
+        )
         TranscriptCard(
             isExpanded: Binding(
                 get: {

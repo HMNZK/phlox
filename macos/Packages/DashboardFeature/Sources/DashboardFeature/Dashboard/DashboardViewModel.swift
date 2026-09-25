@@ -134,6 +134,9 @@ public final class DashboardViewModel {
     /// アプリは `start()` の前に置く。nil なら確認しない。
     @ObservationIgnored public var worktreeRecreationConfirmer: (@MainActor (_ path: String, _ branchName: String, _ branchExists: Bool) -> Bool)?
     @ObservationIgnored private var restoreCoordinator: SessionRestoreCoordinator?
+    /// 「この会話から再開」の処理中のセッション（続けて押しても 2 つ目のプロセスを作らない）。
+    @ObservationIgnored private var resumingChatSessionIDs: Set<SessionID> = []
+    @ObservationIgnored private var removingSessionIDs: Set<SessionID> = []
     private let codexUserHooksEnabledProvider: @MainActor () -> Bool
     private let codexDiscoveryNow: @Sendable () -> Date
     /// send/spawn のレート制限に使う現在時刻シーム。既定は実時計。テストは固定時刻を
@@ -356,7 +359,39 @@ public final class DashboardViewModel {
             chat.titleStateDidChange = { [weak self] state in
                 self?.persistence.persistSessionName(id: sessionID, name: state.name)
             }
+            chat.resumeConversationHandler = { [weak self] in
+                Task { await self?.resumeEndedChatSession(sessionID) }
+            }
         }
+    }
+
+    /// 04 B3「この会話から再開」: プロセスが終わったチャットを、保存済みの会話 ID から新しいプロセスで開き直す。
+    /// 起動時の復元と同じ経路で VM を作り直し、会話を読み込み終えてから同じ位置のノードを差し替える
+    /// （先に差し替えると、空の会話で開いたビューが末尾へ寄らない）。
+    func resumeEndedChatSession(_ id: SessionID) async {
+        guard case .appServer(let ended) = sessionNode(id: id), ended.processExit != nil,
+              resumingChatSessionIDs.insert(id).inserted else { return }
+        defer { resumingChatSessionIDs.remove(id) }
+        await ended.terminate()
+        guard let resumed = await sessionRestoreCoordinator.resumeChatSession(id: id) else {
+            ended.markRestoreFailed("chat restore failed: missing session record")
+            return
+        }
+        // 開き直せなかったら差し替えない。終わった会話に理由を出し、再開ボタンを残してやり直せるようにする。
+        if case .failed(let message) = resumed.restoreState {
+            await resumed.terminate()
+            ended.markRestoreFailed(message)
+            return
+        }
+        // 開き直している間に閉じられたら、新しいプロセスを画面に出さずに止める（残すと誰も止めない）。
+        guard !removingSessionIDs.contains(id), case .appServer(let current) = sessionNode(id: id), current === ended else {
+            await resumed.terminate()
+            await environment.tokenStore.remove(session: id)
+            return
+        }
+        observeUnseenCompletion(for: resumed)
+        replaceSessionNode(.appServer(resumed))
+        refreshUnseenCompletionCount()
     }
 
     private func refreshUnseenCompletionCount() {
@@ -568,6 +603,13 @@ public final class DashboardViewModel {
         sessionNodes.append(node)
         sessionNodeIndex[node.id] = node
         reconcilePaneLayout(persist: !layoutRestoreInProgress)
+    }
+
+    /// 同じ ID のノードを同じ位置で差し替える（並び・レイアウトを保つ）。
+    private func replaceSessionNode(_ node: SessionNode) {
+        guard let index = sessionNodes.firstIndex(where: { $0.id == node.id }) else { return }
+        sessionNodes[index] = node
+        sessionNodeIndex[node.id] = node
     }
 
     /// `sessionNodes` からの単一 ID 除去は必ずこのヘルパー経由で行い、`sessionNodeIndex` の同期漏れを防ぐ。
@@ -1594,6 +1636,8 @@ public final class DashboardViewModel {
     private func removeSingleSession(_ id: SessionID) async {
         guard let node = sessionNodes.first(where: { $0.id == id }) else { return }
         let session = node.controllable
+        removingSessionIDs.insert(id)
+        defer { removingSessionIDs.remove(id) }
 
         sessionHooks.cleanup(for: id)
         await session.terminate()

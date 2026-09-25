@@ -139,6 +139,8 @@ public actor ClaudeChatClient: StructuredAgentClient {
     var pendingUserQuestions: [String: PendingUserQuestion] = [:]
     var expiringUserQuestionIDs: Set<String> = []
     var interruptingControlGeneration: Int?
+    /// 中断で CLI を止めた世代。この世代の終了は次の送信で再開する前提なので「終了」として知らせない（04 B3）。
+    var interruptEndedGeneration: Int?
     /// get_usage 応答待ちの内部タイムアウト（契約: 15 秒以下・テスト注入可能）。
     /// 実 CLI はターン処理中でも control_response を即応するが（2026-07-10 実測）、
     /// 重負荷時の余裕を見て既定 10 秒にする。
@@ -428,6 +430,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
                 }
             }
         }
+        interruptEndedGeneration = generation
         await transport.interrupt()
         if interruptingControlGeneration == generation {
             interruptingControlGeneration = nil

@@ -198,7 +198,7 @@ public struct AppEnvironment: Sendable {
         let discovery = ClaudeSessionHistoryDiscovery(projectsRoot: Self.claudeProjectsRoot)
         let loader = ClaudeSessionTranscriptLoader()
         let listLimit = 20
-        let transcriptItemLimit = 500
+        let transcriptItemLimit = ClaudeSessionHistoryEntry.transcriptItemLimit
         return (
             historyProvider: {
                 discovery.entries(forWorkingDirectory: workingDirectory, limit: listLimit)
@@ -220,7 +220,7 @@ public struct AppEnvironment: Sendable {
         let discovery = CodexSessionHistoryDiscovery(codexHome: codexHome)
         let loader = CodexSessionTranscriptLoader()
         let listLimit = 20
-        let transcriptItemLimit = 500
+        let transcriptItemLimit = ClaudeSessionHistoryEntry.transcriptItemLimit
         return (
             historyProvider: {
                 discovery.entries(forWorkingDirectory: workingDirectory, limit: listLimit)

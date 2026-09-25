@@ -321,6 +321,9 @@ final class CountingResumeStructuredClient: StructuredAgentClient, @unchecked Se
     private let lock = NSLock()
     private var startCount = 0
     private var resumeRefs: [String] = []
+    private var closeCount = 0
+    /// 設定すると、resume を記録したあとこれが返るまで待つ（競合の順序をテストで固定する）。
+    var onResume: (@Sendable () async -> Void)?
 
     let events: AsyncStream<NormalizedChatEvent>
     private let continuation: AsyncStream<NormalizedChatEvent>.Continuation
@@ -341,6 +344,10 @@ final class CountingResumeStructuredClient: StructuredAgentClient, @unchecked Se
         lock.withLock { resumeRefs }
     }
 
+    var closes: Int {
+        lock.withLock { closeCount }
+    }
+
     func yield(_ event: NormalizedChatEvent) {
         continuation.yield(event)
     }
@@ -357,11 +364,15 @@ final class CountingResumeStructuredClient: StructuredAgentClient, @unchecked Se
         lock.withLock {
             resumeRefs.append(sessionRef)
         }
+        await onResume?()
     }
 
     func interrupt() async throws {}
 
     func close() async {
+        lock.withLock {
+            closeCount += 1
+        }
         continuation.finish()
     }
 }

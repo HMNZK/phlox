@@ -60,3 +60,19 @@ private struct MockLineDelimitedTransport: LineDelimitedTransport {
     #expect(!tail.contains("OLD_MARKER"))
     #expect(tail.utf8.count <= 64 * 1024)
 }
+
+// 04 B3: プロセスが自分で終わったら、行の流れが閉じる前に終了コードを記録している。
+@Test func processTransportRecordsTheExitCodeBeforeTheLinesFinish() async throws {
+    let transport = LineDelimitedProcessTransport(command: "/bin/sh", arguments: ["-c", "printf 'x\\n'; exit 3"])
+    #expect(await transport.terminationStatus() == nil)
+    try transport.start()
+    for await _ in transport.receivedLines {}
+    #expect(await transport.terminationStatus() == 3)
+}
+
+@Test func processTransportReportsASignalExitAs128PlusTheSignal() async throws {
+    let transport = LineDelimitedProcessTransport(command: "/bin/sh", arguments: ["-c", "kill -TERM $$"])
+    try transport.start()
+    for await _ in transport.receivedLines {}
+    #expect(await transport.terminationStatus() == 128 + SIGTERM)
+}

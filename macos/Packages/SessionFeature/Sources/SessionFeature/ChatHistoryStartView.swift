@@ -4,6 +4,8 @@ import DesignSystem
 /// 新規 Claude/Codex チャットのトランスクリプト中央に出す「続きから再開」一覧。
 struct ChatHistoryStartView: View {
     let entries: [ClaudeSessionHistoryEntry]
+    /// 件数と最後の発言（読み終えたものだけ）。
+    var summaries: [String: ChatHistorySummary] = [:]
     var maxCardHeight: CGFloat = ChatHistoryStartLayout.maxCardHeightCap
     let workingDirectory: String?
     let onSelect: (ClaudeSessionHistoryEntry) -> Void
@@ -25,6 +27,7 @@ struct ChatHistoryStartView: View {
 
     init(
         entries: [ClaudeSessionHistoryEntry],
+        summaries: [String: ChatHistorySummary] = [:],
         maxCardHeight: CGFloat = ChatHistoryStartLayout.maxCardHeightCap,
         workingDirectory: String?,
         agentName: String = "",
@@ -32,6 +35,7 @@ struct ChatHistoryStartView: View {
         onStartNew: (() -> Void)? = nil
     ) {
         self.entries = entries
+        self.summaries = summaries
         self.maxCardHeight = maxCardHeight
         self.workingDirectory = workingDirectory
         self.agentName = agentName
@@ -70,6 +74,7 @@ struct ChatHistoryStartView: View {
                                 HistoryStartRow(
                                     entry: entry,
                                     presentation: presentation,
+                                    summary: summaries[entry.id],
                                     lastUsedText: formattedLastUsed(presentation.lastUsedAt),
                                     onSelect: onSelect
                                 )
@@ -147,11 +152,12 @@ struct ChatHistoryStartView: View {
     }
 }
 
-/// 1 件の行カード: 左に題名 13/600 と 2 行目（プロジェクト）、右に日時と等幅のブランチ。
+/// 1 件の行カード: 左に題名 13/600 と 2 行目（最後の発言。読み終える前はプロジェクト）、右に日時と等幅の「件数 · ブランチ」。
 /// ポインタを置いた行はホバー色の地＋2pt のアクセント枠、ほかは 1pt の区切り線の枠。
 private struct HistoryStartRow: View {
     let entry: ClaudeSessionHistoryEntry
     let presentation: HistoryEntryPresentation
+    let summary: ChatHistorySummary?
     let lastUsedText: String
     let onSelect: (ClaudeSessionHistoryEntry) -> Void
     @State private var isHovering = false
@@ -167,17 +173,23 @@ private struct HistoryStartRow: View {
                         .foregroundStyle(DSColor.textPrimary)
                         .lineLimit(1)
                         .help(presentation.fullTitle)
-                    Text(presentation.projectName)
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(DSColor.textSecondary)
-                        .lineLimit(1)
-                        .help(presentation.projectPath ?? "")
+                    Group {
+                        if let lastMessage = summary?.lastMessage {
+                            Text("最後: \(lastMessage)")
+                        } else {
+                            Text(presentation.projectName)
+                        }
+                    }
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(DSColor.textSecondary)
+                    .lineLimit(1)
+                    .help(presentation.projectPath ?? "")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 VStack(alignment: .trailing, spacing: 3) {
                     Text(lastUsedText)
-                    if let branch = entry.gitBranch, !branch.isEmpty {
-                        Text(verbatim: branch)
+                    if let meta = Self.meta(summary: summary, branch: entry.gitBranch) {
+                        meta
                             .font(.system(size: 11, design: .monospaced))
                             .lineLimit(1)
                     }
@@ -201,14 +213,38 @@ private struct HistoryStartRow: View {
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
         .help(entry.sessionID)
-        .accessibilityLabel(
-            presentation.fullTitle
-                + " "
-                + presentation.accessibilityDetails(lastUsedText: lastUsedText)
-                + " "
-                + entry.sessionID
-        )
+        .accessibilityLabel(accessibilityText)
         .accessibilityIdentifier("ChatHistoryStartView.row")
+    }
+
+    private var accessibilityText: String {
+        let details = presentation.accessibilityDetails(lastUsedText: lastUsedText)
+        return presentation.fullTitle + " " + details + Self.accessibilitySummary(summary) + " " + entry.sessionID
+    }
+
+    /// 読み上げに件数と最後の発言を足す（画面の 2 行目と右下に出している分）。
+    static func accessibilitySummary(_ summary: ChatHistorySummary?) -> String {
+        guard let summary else { return "" }
+        let count = summary.reachesLimit
+            ? String(localized: "\(summary.messageCount) 件以上")
+            : String(localized: "history.messageCount \(summary.messageCount)")
+        guard let lastMessage = summary.lastMessage else { return " " + count }
+        return " " + count + " " + String(localized: "最後: \(lastMessage)")
+    }
+
+    /// 「18 件 · feat/approval-expiry」。件数は読み終えてから、ブランチは分かるときだけ。
+    static func meta(summary: ChatHistorySummary?, branch: String?) -> Text? {
+        let branch = branch.flatMap { $0.isEmpty ? nil : $0 }
+        let count: Text? = summary.map { summary in
+            // 「%lld 件」の既存キーは英語が sessions なので、発言の件数は日本語訳つきの別キーにする。
+            summary.reachesLimit ? Text("\(summary.messageCount) 件以上") : Text("history.messageCount \(summary.messageCount)")
+        }
+        switch (count, branch) {
+        case let (count?, branch?): return Text("\(count) · \(Text(verbatim: branch))")
+        case let (count?, nil): return count
+        case let (nil, branch?): return Text(verbatim: branch)
+        case (nil, nil): return nil
+        }
     }
 }
 

@@ -187,3 +187,26 @@ private func waitUntilInterruptRespawn(
     }
     #expect(await condition(), "waitUntilInterruptRespawn timed out")
 }
+
+// 04 B3: 中断で CLI を止めたときの終了は、次の送信で再開する前提なので processExited を流さない。
+@Test func interruptEndingTheTransportDoesNotYieldProcessExited() async throws {
+    let recorder = InterruptRespawnRecorder()
+    let client = ClaudeChatClient(
+        environment: ["PHLOX_SESSION_ID": "c3c3c3c3-3333-4333-8333-333333333333"],
+        transportFactory: recorder.makeTransport
+    )
+    await client.start()
+    var events = client.events.makeAsyncIterator()
+
+    try await client.turnStart([.text("interrupted turn")])
+    #expect(await events.next() == .turnStarted)
+    try await client.interrupt()
+    #expect(await events.next() == .turnInterrupted(nativeSessionId: "c3c3c3c3-3333-4333-8333-333333333333"))
+    try await waitUntilInterruptRespawn {
+        await client.transport == nil
+    }
+
+    try await client.turnStart([.text("turn after interrupt")])
+    #expect(await events.next() == .turnStarted)
+    await client.close()
+}

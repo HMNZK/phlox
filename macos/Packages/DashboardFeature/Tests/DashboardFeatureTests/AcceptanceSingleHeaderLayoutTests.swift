@@ -11,10 +11,11 @@ import CoreGraphics
 
 @Suite("Single view header layout acceptance (task-1)")
 struct AcceptanceSingleHeaderLayoutTests {
-    @Test func ヘッダ行の高さはグリッド相当の32ptに詰める() {
+    @Test func ヘッダ行の高さは見本の56ptに揃える() {
         // 旧: 64pt 固定（アイコンのみで余白過多）。グリッドのタイルヘッダ（アイコン24＋
         // padding(.vertical, 4)≈32pt）に合わせる。メイン/サブ両ペインが共有する定数なので
         // 罫線整列（Bug4）は保たれる。
-        #expect(SubAgentSplitLayout.headerHeight == 32)
+        // 2026-09 UI 再設計でユーザー承認（B6）: 見本の見出し 56px に合わせて 32 → 56。
+        #expect(SubAgentSplitLayout.headerHeight == 56)
     }
 }

@@ -359,6 +359,7 @@ struct AcceptanceTranscriptTypographyTests {
         #expect(TranscriptTypography.withinAnswer > TranscriptTypography.metadataGap)
     }
 
+    // B2（ユーザー承認の凍結テスト変更）: 項目どうしの間隔は種類によらず一律 14、先頭だけ 0。
     @Test("gap の 20 条件が契約表どおりで、文字倍率を変えても間隔値は変わらない")
     func gapTwentyCellsAreFrozenAndScaleInvariant() {
         let expected: [(TranscriptTypography.BlockRole?, TranscriptTypography.BlockRole, CGFloat)] = [
@@ -366,22 +367,22 @@ struct AcceptanceTranscriptTypographyTests {
             (nil, .answer, 0),
             (nil, .process, 0),
             (nil, .auxiliary, 0),
-            (.user, .user, 24),
-            (.user, .answer, 16),
-            (.user, .process, 16),
-            (.user, .auxiliary, 16),
-            (.answer, .user, 24),
-            (.answer, .answer, 8),
-            (.answer, .process, 8),
-            (.answer, .auxiliary, 8),
-            (.process, .user, 24),
-            (.process, .answer, 16),
-            (.process, .process, 8),
-            (.process, .auxiliary, 8),
-            (.auxiliary, .user, 24),
-            (.auxiliary, .answer, 16),
-            (.auxiliary, .process, 8),
-            (.auxiliary, .auxiliary, 8),
+            (.user, .user, 14),
+            (.user, .answer, 14),
+            (.user, .process, 14),
+            (.user, .auxiliary, 14),
+            (.answer, .user, 14),
+            (.answer, .answer, 14),
+            (.answer, .process, 14),
+            (.answer, .auxiliary, 14),
+            (.process, .user, 14),
+            (.process, .answer, 14),
+            (.process, .process, 14),
+            (.process, .auxiliary, 14),
+            (.auxiliary, .user, 14),
+            (.auxiliary, .answer, 14),
+            (.auxiliary, .process, 14),
+            (.auxiliary, .auxiliary, 14),
         ]
         #expect(expected.count == 20)
         for (after, before, value) in expected {
@@ -390,13 +391,7 @@ struct AcceptanceTranscriptTypographyTests {
                 Comment(rawValue: "\(String(describing: after))->\(before)")
             )
         }
-        #expect(TranscriptTypography.gap(after: .user, before: .answer) == TranscriptTypography.betweenAnswers)
-        #expect(TranscriptTypography.gap(after: .answer, before: .answer) == TranscriptTypography.withinAnswer)
-        #expect(TranscriptTypography.gap(after: .answer, before: .user) == TranscriptTypography.majorSection)
-        #expect(TranscriptTypography.gap(after: nil, before: .user) == 0)
-        #expect(TranscriptTypography.gap(after: .user, before: .answer) == 16)
-        #expect(TranscriptTypography.gap(after: .answer, before: .answer) == 8)
-        #expect(TranscriptTypography.gap(after: .auxiliary, before: .user) == 24)
+        #expect(TranscriptTypography.itemGap == 14)
     }
 }
 

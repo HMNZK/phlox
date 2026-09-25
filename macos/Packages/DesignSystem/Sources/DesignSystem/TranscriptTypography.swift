@@ -58,6 +58,8 @@ public enum TranscriptTypography {
     public static let withinAnswer: CGFloat = DSSpacing.s
     public static let betweenAnswers: CGFloat = DSSpacing.l
     public static let majorSection: CGFloat = DSSpacing.xl
+    /// 会話の項目どうしの間隔。見本（PhloxChat の流れ gap:14）とユーザー決定（B2）で種類によらず一律。
+    public static let itemGap: CGFloat = 14
     public static let metadataGap: CGFloat = DSSpacing.xs
     public static let textLineSpacing: CGFloat = DSSpacing.xs
     public static let cardHorizontalInset: CGFloat = DSSpacing.m
@@ -141,19 +143,6 @@ public enum TranscriptTypography {
     }
 
     public static func gap(after: BlockRole?, before: BlockRole) -> CGFloat {
-        switch (after, before) {
-        case (nil, _):
-            0
-        case (_, .user):
-            majorSection
-        case (.user, _):
-            betweenAnswers
-        case (.answer, .answer), (.answer, .process), (.answer, .auxiliary):
-            withinAnswer
-        case (.process, .answer), (.auxiliary, .answer):
-            betweenAnswers
-        case (.process, .process), (.process, .auxiliary), (.auxiliary, .process), (.auxiliary, .auxiliary):
-            withinAnswer
-        }
+        after == nil ? 0 : itemGap
     }
 }

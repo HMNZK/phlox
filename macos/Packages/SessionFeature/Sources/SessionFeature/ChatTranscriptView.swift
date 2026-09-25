@@ -207,7 +207,7 @@ struct ChatTranscriptView: View {
                     hiddenCount: visibleSlice.hiddenBlockCount,
                     anchorID: visibleSlice.blocks.first?.id
                 )
-                .padding(.bottom, TranscriptTypography.betweenAnswers)
+                .padding(.bottom, TranscriptTypography.itemGap)
             }
             ForEach(Array(visibleSlice.blocks.enumerated()), id: \.element.id) { index, block in
                 let after: TranscriptTypography.BlockRole? = index == 0 ? nil : visibleSlice.blocks[index - 1].content.typographyRole
@@ -234,12 +234,12 @@ struct ChatTranscriptView: View {
                 }
             )
             .agentColumn(isAgentSide: true, avatar: nil)
-            .padding(.top, TranscriptTypography.withinAnswer)
+            .padding(.top, TranscriptTypography.itemGap)
             .id("chat-codex-surface")
                         if viewModel.shouldShowConnectingIndicator {
                 ConnectingIndicatorRow()
                     .agentColumn(isAgentSide: true, avatar: nil)
-                    .padding(.top, TranscriptTypography.withinAnswer)
+                    .padding(.top, TranscriptTypography.itemGap)
                     .id("chat-connecting")
             }
             if CompactingIndicatorPresentation.shouldShowCompactingIndicator(
@@ -249,7 +249,7 @@ struct ChatTranscriptView: View {
                     descriptor: agentDescriptor
                 )
                 .agentColumn(isAgentSide: true, avatar: nil)
-                .padding(.top, TranscriptTypography.withinAnswer)
+                .padding(.top, TranscriptTypography.itemGap)
                 .id("chat-compacting")
             }
             if let activityState = viewModel.activityState,
@@ -267,7 +267,7 @@ struct ChatTranscriptView: View {
                     onInterrupt: { await viewModel.turnInterrupt() }
                 )
                     .agentColumn(isAgentSide: true, avatar: nil)
-                    .padding(.top, TranscriptTypography.withinAnswer)
+                    .padding(.top, TranscriptTypography.itemGap)
                     .id("chat-thinking")
             }
             // 浮遊 composer の逃し余白はスクロールコンテンツ内部のスペーサーで確保する。

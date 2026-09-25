@@ -376,6 +376,7 @@ struct CommandExecutionCell: View {
             itemCount: 1,
             isRunning: isRunning,
             hasNonBlankOutput: !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            hasFailed: (CommandExitCode.parse(output) ?? 0) != 0,
             runningSubtitle: "実行中",
             outputAvailableSubtitle: UIWording.text(.outputAvailable, languageCode: languageCode)
         )

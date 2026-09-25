@@ -57,16 +57,21 @@ struct GridChatColumn: View {
                         let proposedComposerWidth = ComposerLayout.proposedWidth(mainColumnWidth: formattingWidth)
                         // 承認・質問のカードは単体表示と同じく入力欄の直上（05）。キーの案内はタイルでは出さない。
                         ChatReplyArea(viewModel: viewModel, showsKeyHints: false, onShowDiff: showDiff, onRetrySend: sendDraft) {
-                            GridComposerBar(
-                                viewModel: viewModel,
-                                text: $viewModel.draft,
-                                controlsLayout: proposedComposerWidth.map(ComposerLayout.gridControlsLayout(proposedWidth:)) ?? .compact,
-                                onSend: sendDraft,
-                                onInterrupt: interruptTurn,
-                                onFocusGained: onFocusGained,
-                                placeholder: UIWording.text(.composerPlaceholder, languageCode: languageCode),
-                                showsBranch: formattingWidth >= 600
-                            )
+                            // 04 B3: プロセスが終わったら入力欄の代わりに終了コードと再開を出す（単体表示と同じ）。
+                            if let processExit = viewModel.processExit {
+                                ChatProcessEndedStrip(exit: processExit, onResume: viewModel.resumeConversationHandler)
+                            } else {
+                                GridComposerBar(
+                                    viewModel: viewModel,
+                                    text: $viewModel.draft,
+                                    controlsLayout: proposedComposerWidth.map(ComposerLayout.gridControlsLayout(proposedWidth:)) ?? .compact,
+                                    onSend: sendDraft,
+                                    onInterrupt: interruptTurn,
+                                    onFocusGained: onFocusGained,
+                                    placeholder: UIWording.text(.composerPlaceholder, languageCode: languageCode),
+                                    showsBranch: formattingWidth >= 600
+                                )
+                            }
                         }
                         .frame(maxWidth: ComposerLayout.maxWidth(mainColumnWidth: formattingWidth))
                         .frame(maxWidth: .infinity)

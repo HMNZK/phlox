@@ -1,4 +1,5 @@
 import Foundation
+import StructuredChatKit
 
 // 隠している秘密: モデル/権限変更や resume 失敗をいつ・どの引数（`--session-id`/`--resume`）で respawn するか、および ping-pong を1回に抑える上限ロジック
 extension ClaudeChatClient {
@@ -89,6 +90,11 @@ extension ClaudeChatClient {
                     currentTurnOpen = false
                     currentTurnLine = nil
                     eventContinuation.yield(.error(message: "Failed to self-heal Claude session: \(error)"))
+                    // 修復用のプロセスも起動できなかったときだけ、元のプロセスの終了として知らせる
+                    // （起動できて再送だけ失敗したなら、新しいプロセスが動いている）。
+                    if transport == nil {
+                        await yieldProcessExited(endedTransport, generation: generation)
+                    }
                 }
                 if !shouldReplayTurn {
                     currentTurnOpen = false
@@ -103,6 +109,7 @@ extension ClaudeChatClient {
             currentTurnOpen = false
             currentTurnLine = nil
             eventContinuation.yield(.error(message: pendingResultError.message))
+            await yieldProcessExited(endedTransport, generation: generation)
             return
         }
 
@@ -124,6 +131,11 @@ extension ClaudeChatClient {
                     currentTurnOpen = false
                     currentTurnLine = nil
                     eventContinuation.yield(.error(message: "Failed to self-heal Claude session: \(error)"))
+                    // 修復用のプロセスも起動できなかったときだけ、元のプロセスの終了として知らせる
+                    // （起動できて再送だけ失敗したなら、新しいプロセスが動いている）。
+                    if transport == nil {
+                        await yieldProcessExited(endedTransport, generation: generation)
+                    }
                 }
                 return
             }
@@ -132,11 +144,23 @@ extension ClaudeChatClient {
             currentTurnOpen = false
             currentTurnLine = nil
             eventContinuation.yield(.error(message: processEndedMessage(stderrTail: stderrTail)))
+            await yieldProcessExited(endedTransport, generation: generation)
             return
         }
 
         transport = nil
         receiveTask = nil
+        await yieldProcessExited(endedTransport, generation: generation)
+    }
+
+    /// プロセスが自分で終わったことを終了コードつきで知らせる（04 B3）。
+    /// close() が受信を打ち切った（タスクがキャンセル済み）ときと、中断で止めたときは知らせない。
+    /// 終了コードを待つ間に次の送信が新しいプロセスを起動していたら、古いプロセスの終了は知らせない。
+    private func yieldProcessExited(_ endedTransport: (any LineDelimitedTransport)?, generation: Int) async {
+        guard !Task.isCancelled, interruptEndedGeneration != generation else { return }
+        let exitCode = await endedTransport?.terminationStatus()
+        guard !Task.isCancelled, interruptEndedGeneration != generation, spawnGeneration == generation else { return }
+        eventContinuation.yield(.processExited(exitCode: exitCode))
     }
 
     func buildArguments(sessionArgument: SpawnSessionArgument) -> [String] {

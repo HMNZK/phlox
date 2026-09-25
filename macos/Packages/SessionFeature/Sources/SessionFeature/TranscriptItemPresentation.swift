@@ -69,6 +69,7 @@ struct TranscriptItemPresentation: Equatable, Sendable {
         itemCount: Int,
         isRunning: Bool,
         hasNonBlankOutput: Bool,
+        hasFailed: Bool = false,
         runningSubtitle: String = "実行中",
         outputAvailableSubtitle: String = "出力あり"
     ) -> TranscriptItemPresentation {
@@ -95,7 +96,8 @@ struct TranscriptItemPresentation: Equatable, Sendable {
             subtitle: subtitle,
             isCollapsible: true,
             // 04 B1: 実行中の束だけ既定で開く（ユーザー承認 2026-09-24）。
-            defaultExpanded: isRunning,
+            // 04「カードの既定の開き方」: コマンド単体は失敗（exit ≠ 0）したものも開いておく（C-22）。
+            defaultExpanded: isRunning || (path == .single && hasFailed),
             semanticInk: .process,
             expandedBody: nil
         )
@@ -115,14 +117,15 @@ struct TranscriptItemPresentation: Equatable, Sendable {
     }
 
     /// 見出しは「タスク 完了数/全数」（04 A1。ユーザー承認 2026-09-24）。
-    static func taskList(count: Int, completed: Int = 0) -> TranscriptItemPresentation {
+    /// 04「カードの既定の開き方」: いちばん新しいタスクリストだけ開き、古いものは閉じる（C-16）。
+    static func taskList(count: Int, completed: Int = 0, isLatest: Bool = false) -> TranscriptItemPresentation {
         TranscriptItemPresentation(
             isVisible: true,
             classification: .detail,
             heading: "タスク \(completed)/\(count)",
             subtitle: nil,
             isCollapsible: true,
-            defaultExpanded: false,
+            defaultExpanded: isLatest,
             semanticInk: .process,
             expandedBody: count == 0 ? "タスクなし" : nil
         )

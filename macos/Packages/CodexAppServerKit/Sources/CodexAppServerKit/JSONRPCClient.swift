@@ -151,6 +151,10 @@ public actor JSONRPCClient {
         }
     }
 
+    public func transportTerminationStatus() async -> Int32? {
+        await transport.terminationStatus()
+    }
+
     public func close() async {
         receiveTask?.cancel()
         await transport.close()

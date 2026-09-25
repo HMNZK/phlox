@@ -299,3 +299,11 @@ private extension JSONValue {
         return value
     }
 }
+
+// 04 B3: app-server が自分で終わったら、行の流れが閉じる前に終了コードを記録している。
+@Test func processTransportRecordsTheExitCodeBeforeTheLinesFinish() async throws {
+    let transport = ProcessTransport(command: "/bin/sh", arguments: ["-c", "printf '{\"id\":1}\\n'; exit 4"])
+    try transport.start()
+    for await _ in transport.receivedLines {}
+    #expect(await transport.terminationStatus() == 4)
+}

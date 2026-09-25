@@ -8578,6 +8578,89 @@
           }
         }
       }
+    },
+    "この会話から再開": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume this conversation"
+          }
+        }
+      }
+    },
+    "セッションは終了しました（exit %lld）。会話は保存されています。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The session has ended (exit %lld). The conversation is saved."
+          }
+        }
+      }
+    },
+    "セッションは終了しました。会話は保存されています。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The session has ended. The conversation is saved."
+          }
+        }
+      }
+    },
+    "%@ · exit %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · exit %lld"
+          }
+        }
+      }
+    },
+    "最後: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last: %@"
+          }
+        }
+      }
+    },
+    "%lld 件以上": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld+ messages"
+          }
+        }
+      }
+    },
+    "history.messageCount %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld messages"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

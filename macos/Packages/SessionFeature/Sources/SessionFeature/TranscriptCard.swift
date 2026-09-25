@@ -155,9 +155,9 @@ struct TranscriptCardOutputLines: View {
     }
 }
 
-/// 出力に書かれた終了コード（Claude Code の Bash は失敗時に先頭へ「Exit code N」を付ける）。
-/// ponytail: 構造化された終了コードはどのエージェントの経路にも無いので、出力の文字列から拾える分だけ。
-/// Codex / Cursor の終了コードを出すには StructuredChatKit の commandExecution へ値を通す必要がある。
+/// 出力に書かれた終了コード（Claude Code の Bash は失敗時に先頭へ「Exit code N」を付ける。
+/// Codex は完了時の exitCode を VM が同じ形の行にして先頭に置く）。
+/// ponytail: Cursor のコマンドは終了コードを持たないので出ない。出すには StructuredChatKit の commandExecution へ値を通す。
 enum CommandExitCode {
     static func parse(_ output: String) -> Int? {
         for line in output.split(separator: "\n", maxSplits: 3, omittingEmptySubsequences: true).prefix(3) {

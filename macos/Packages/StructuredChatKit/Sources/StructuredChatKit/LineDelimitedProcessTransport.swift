@@ -9,10 +9,16 @@ public protocol LineDelimitedTransport: Sendable {
     func interrupt() async
     func close() async
     func stderrTail() async -> String?
+    /// プロセスが自分で終了したときの終了コード（シグナル終了は 128 + シグナル番号）。動作中・未起動は nil。
+    func terminationStatus() async -> Int32?
 }
 
 public extension LineDelimitedTransport {
     func stderrTail() async -> String? {
+        nil
+    }
+
+    func terminationStatus() async -> Int32? {
         nil
     }
 }
@@ -36,6 +42,7 @@ public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unche
     private var stderrPipe: Pipe?
     private var pendingOutput = Data()
     private var capturedStderr = Data()
+    private var exitStatus: Int32?
     private var continuation: AsyncStream<Data>.Continuation?
     private var isFinished = false
     private var stdoutReaderQueue: DispatchQueue?
@@ -88,7 +95,8 @@ public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unche
             readGroup.enter()
             readGroup.enter()
 
-            process.terminationHandler = { [weak self] _ in
+            process.terminationHandler = { [weak self] process in
+                self?.recordExitStatus(of: process)
                 self?.finishWhenReaderIsDone()
             }
 
@@ -172,6 +180,17 @@ public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unche
             guard !capturedStderr.isEmpty else { return nil }
             return String(decoding: capturedStderr, as: UTF8.self)
         }
+    }
+
+    public func terminationStatus() async -> Int32? {
+        lock.withLock { exitStatus }
+    }
+
+    private func recordExitStatus(of process: Process) {
+        let status = process.terminationReason == .uncaughtSignal
+            ? 128 + process.terminationStatus
+            : process.terminationStatus
+        lock.withLock { exitStatus = status }
     }
 
     private func finishWhenReaderIsDone() {

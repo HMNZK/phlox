@@ -13,6 +13,22 @@ public protocol TranscriptStore: Sendable {
     /// セッションの総コスト（ターンのコストの合計）。インスペクタの「総コスト」を復元するために持つ。
     func loadSessionTotalCost(for sessionID: SessionID) async throws -> SessionTotalCost?
     func saveSessionTotalCost(_ cost: SessionTotalCost, for sessionID: SessionID) async throws
+    /// 転写に載らない表示の状態。再起動後も返信の下の内訳・「N分前に応答」・サブエージェントを同じに出すために持つ。
+    func loadDisplayState(for sessionID: SessionID) async throws -> ChatDisplayState?
+    func saveDisplayState(_ state: ChatDisplayState, for sessionID: SessionID) async throws
+}
+
+/// 返信ごとの使用量、最後に応答した時刻、サブエージェントの記録（出力ファイルの場所を含む）。
+public struct ChatDisplayState: Codable, Equatable, Sendable {
+    public var turnUsageByItemID: [String: TurnUsage]
+    public var lastTurnCompletedAt: Date?
+    public var subAgents: [SubAgentRef]
+
+    public init(turnUsageByItemID: [String: TurnUsage], lastTurnCompletedAt: Date?, subAgents: [SubAgentRef]) {
+        self.turnUsageByItemID = turnUsageByItemID
+        self.lastTurnCompletedAt = lastTurnCompletedAt
+        self.subAgents = subAgents
+    }
 }
 
 /// 総コストと、Claude が最後に送った累計（`total_cost_usd`）。累計は取り消しで 0 に戻るので総コストとは別に持つ。
@@ -38,6 +54,12 @@ public extension TranscriptStore {
     }
 
     func saveSessionTotalCost(_ cost: SessionTotalCost, for sessionID: SessionID) async throws {}
+
+    func loadDisplayState(for sessionID: SessionID) async throws -> ChatDisplayState? {
+        nil
+    }
+
+    func saveDisplayState(_ state: ChatDisplayState, for sessionID: SessionID) async throws {}
 }
 
 public struct NoOpTranscriptStore: TranscriptStore {
@@ -134,6 +156,20 @@ public actor FileTranscriptStore: TranscriptStore {
         try encoder.encode(cost).write(to: costFileURL(for: sessionID), options: [.atomic])
     }
 
+    public func loadDisplayState(for sessionID: SessionID) async throws -> ChatDisplayState? {
+        let url = displayStateFileURL(for: sessionID)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return try decoder.decode(ChatDisplayState.self, from: Data(contentsOf: url))
+    }
+
+    public func saveDisplayState(_ state: ChatDisplayState, for sessionID: SessionID) async throws {
+        try FileManager.default.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: true
+        )
+        try encoder.encode(state).write(to: displayStateFileURL(for: sessionID), options: [.atomic])
+    }
+
     private func fileURL(for sessionID: SessionID) -> URL {
         directoryURL.appending(path: "\(sessionID.rawValue.uuidString).json")
     }
@@ -144,5 +180,9 @@ public actor FileTranscriptStore: TranscriptStore {
 
     private func costFileURL(for sessionID: SessionID) -> URL {
         directoryURL.appending(path: "\(sessionID.rawValue.uuidString).cost.json")
+    }
+
+    private func displayStateFileURL(for sessionID: SessionID) -> URL {
+        directoryURL.appending(path: "\(sessionID.rawValue.uuidString).display.json")
     }
 }

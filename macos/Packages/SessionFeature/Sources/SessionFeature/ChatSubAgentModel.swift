@@ -153,6 +153,13 @@ final class ChatSubAgentModel {
         clearDedupTextCache(for: toolUseId)
     }
 
+    /// 再起動後の復元。保存された記録を戻し、動いていたものは（もう動いていないので）失敗にする。
+    func restore(_ saved: [SubAgentRef]) {
+        guard subAgents.isEmpty, !saved.isEmpty else { return }
+        subAgents = saved
+        failRunningSubAgents()
+    }
+
     func failRunningSubAgents() {
         var didChange = false
         for index in subAgents.indices where subAgents[index].status == .running {

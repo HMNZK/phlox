@@ -7,8 +7,19 @@ import AgentDomain
 final class TranscriptPersistenceQueue {
     private final class ChainToken {}
 
+    /// 直近の本文の書き込みが失敗したか。失敗したあとは、本文より新しい表示状態だけを残さないよう書かない。
+    private final class WriteFailure: @unchecked Sendable {
+        private let lock = NSLock()
+        private var failed = false
+        var value: Bool {
+            get { lock.withLock { failed } }
+            set { lock.withLock { failed = newValue } }
+        }
+    }
+
     private let sessionID: SessionID
     private let store: any TranscriptStore
+    private let transcriptWriteFailure = WriteFailure()
     private var task: Task<Void, Never>?
     /// Identity token for the latest enqueued chain link (Task is a struct; cannot compare by ===).
     private var latestToken: ChainToken?
@@ -22,10 +33,13 @@ final class TranscriptPersistenceQueue {
         guard !items.isEmpty else { return }
         let sessionID = sessionID
         let store = store
+        let failure = transcriptWriteFailure
         enqueue {
             do {
                 try await store.upsertTranscriptItems(items, for: sessionID)
+                failure.value = false
             } catch {
+                failure.value = true
                 let message = "Phlox: transcript persistence failed for \(sessionID): \(error)\n"
                 if let data = message.data(using: .utf8) {
                     FileHandle.standardError.write(data)
@@ -37,11 +51,32 @@ final class TranscriptPersistenceQueue {
     func enqueueReplace(_ items: [ChatItem]) {
         let sessionID = sessionID
         let store = store
+        let failure = transcriptWriteFailure
         enqueue {
             do {
                 try await store.replaceTranscript(for: sessionID, with: items)
+                failure.value = false
             } catch {
+                failure.value = true
                 let message = "Phlox: transcript replace failed for \(sessionID): \(error)\n"
+                if let data = message.data(using: .utf8) {
+                    FileHandle.standardError.write(data)
+                }
+            }
+        }
+    }
+
+    /// 表示の状態も本文と同じ列で書く（本文より新しい状態だけが残ることがないように）。
+    func enqueueDisplayState(_ state: ChatDisplayState) {
+        let sessionID = sessionID
+        let store = store
+        let failure = transcriptWriteFailure
+        enqueue {
+            guard !failure.value else { return }
+            do {
+                try await store.saveDisplayState(state, for: sessionID)
+            } catch {
+                let message = "Phlox: display state persistence failed for \(sessionID): \(error)\n"
                 if let data = message.data(using: .utf8) {
                     FileHandle.standardError.write(data)
                 }

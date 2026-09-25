@@ -235,8 +235,20 @@ extension PaneTree {
     /// クランプは「2枚の合計は不変」を固定したうえで、その内側の比に対して掛ける。
     /// 全体の再正規化は行わない（他の兄弟の取り分が動いてしまうため）。
     public func settingDivider(_ divider: PaneDividerID, leadingFraction: Double) -> PaneTree {
-        guard let root, leadingFraction.isFinite else { return self }
-        guard let updated = PaneTree.setDivider(root, divider, leadingFraction: leadingFraction) else {
+        guard leadingFraction.isFinite else { return self }
+        return resolvingDivider(divider) { _ in leadingFraction }
+    }
+
+    /// 06 キーボード: 分割線を、保存ツリーでの今の取り分から `delta` だけ動かす。
+    /// 表示用ツリーの取り分をそのまま書くと、絞り込みで入れ子が平坦化されたとき別の大きさの領域に効くため、
+    /// 境界の解決は `settingDivider` と同じで、取り分だけ保存ツリーの今の値を起点にする。
+    public func nudgingDivider(_ divider: PaneDividerID, by delta: Double) -> PaneTree {
+        guard delta.isFinite else { return self }
+        return resolvingDivider(divider) { $0 + delta }
+    }
+
+    private func resolvingDivider(_ divider: PaneDividerID, fraction: (Double) -> Double) -> PaneTree {
+        guard let root, let updated = PaneTree.setDivider(root, divider, fraction: fraction) else {
             return self
         }
         return PaneTree.make(updated, fallback: self)
@@ -245,7 +257,7 @@ extension PaneTree {
     private static func setDivider(
         _ node: PaneNode,
         _ divider: PaneDividerID,
-        leadingFraction: Double
+        fraction: (Double) -> Double
     ) -> PaneNode? {
         guard case .split(let split) = node else { return nil }
 
@@ -254,12 +266,12 @@ extension PaneTree {
                 split,
                 leading: divider.leading,
                 trailing: divider.trailing,
-                leadingFraction: leadingFraction
+                fraction: fraction
             )
         }
 
         for (index, child) in split.children.enumerated() {
-            guard let updated = setDivider(child, divider, leadingFraction: leadingFraction) else {
+            guard let updated = setDivider(child, divider, fraction: fraction) else {
                 continue
             }
             var children = split.children
@@ -284,7 +296,7 @@ extension PaneTree {
         _ split: PaneSplit,
         leading: PaneID,
         trailing: PaneID,
-        leadingFraction: Double
+        fraction: (Double) -> Double
     ) -> PaneNode? {
         guard
             let leadingIndex = split.children.firstIndex(where: { $0.contains(leading) }),
@@ -298,7 +310,7 @@ extension PaneTree {
                     inner,
                     leading: leading,
                     trailing: trailing,
-                    leadingFraction: leadingFraction
+                    fraction: fraction
                 )
             else { return nil }
             var children = split.children
@@ -311,8 +323,9 @@ extension PaneTree {
         guard leadingIndex < trailingIndex else { return nil }
 
         let combined = split.weights[leadingIndex] + split.weights[trailingIndex]
+        let current = combined > 0 ? split.weights[leadingIndex] / combined : 0.5
         let fraction = min(
-            max(leadingFraction, PaneTree.minimumDividerFraction),
+            max(fraction(current), PaneTree.minimumDividerFraction),
             1 - PaneTree.minimumDividerFraction
         )
         var weights = split.weights

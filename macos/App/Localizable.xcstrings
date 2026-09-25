@@ -7940,6 +7940,94 @@
           }
         }
       }
+    },
+    "タイルを左と入れ替え": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swap Tile with Left"
+          }
+        }
+      }
+    },
+    "タイルを右と入れ替え": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swap Tile with Right"
+          }
+        }
+      }
+    },
+    "タイルを上と入れ替え": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swap Tile with Above"
+          }
+        }
+      }
+    },
+    "タイルを下と入れ替え": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swap Tile with Below"
+          }
+        }
+      }
+    },
+    "分割線を左へ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move Divider Left"
+          }
+        }
+      }
+    },
+    "分割線を右へ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move Divider Right"
+          }
+        }
+      }
+    },
+    "分割線を上へ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move Divider Up"
+          }
+        }
+      }
+    },
+    "分割線を下へ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move Divider Down"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

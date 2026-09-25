@@ -118,6 +118,9 @@ public struct DashboardView: View {
             .onChange(of: terminalFontSize) { _, size in
                 viewModel.applyTerminalFontSize(TerminalFontSettings.adjusted(from: CGFloat(size), by: 0))
             }
+            .onChange(of: router.viewMode, initial: true) { _, mode in
+                viewModel.setTerminalGridLayout(mode == .grid)
+            }
             .dsDialog(item: $spawnGuard) { item in
                 SpawnGuardSheet(
                     spawnGuard: item,
@@ -776,7 +779,7 @@ public struct DashboardView: View {
                 EmptyView()
             case .terminal:
                 if let sessionTerminals {
-                    TerminalPanelView(panel: sessionTerminals.terminal(for: id, workingDirectory: node.rawWorkspacePath), showsHeader: false, showsFontSizeHUD: false)
+                    TerminalPanelView(panel: sessionTerminals.terminal(for: id, workingDirectory: node.rawWorkspacePath), showsHeader: false, showsFontSizeHUD: false, isInGridTile: true)
                         .id(id)
                 } else {
                     ContentUnavailableView("ターミナルを準備しています", systemImage: "terminal")

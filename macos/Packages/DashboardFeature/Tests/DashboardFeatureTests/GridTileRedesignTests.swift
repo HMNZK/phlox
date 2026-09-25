@@ -95,6 +95,34 @@ struct GridTileRedesignTests {
         #expect(dashboard.gridTileOrder() == [order[2], order[1], order[0]])
     }
 
+    @Test @MainActor func keyboard_swapsWithTheNeighborAndNudgesTheDividerWithinTheMinimum() async throws {
+        let ws = try makeTemporaryWorkspaceRoot()
+        defer { cleanupTemporaryWorkspaceRoot(ws) }
+        let (dashboard, _) = try await makeDashboard(ws, count: 2, defaults: try suite("keyboard"))
+        dashboard.handlePaneLayoutAction(.applyPreset(.mainLeftStackRight))
+        let order = dashboard.gridTileOrder()
+        // ⌥⌘⇧→: 左のタイルを右と入れ替える。
+        dashboard.swapGridTile(order[0], toward: .right)
+        #expect(dashboard.gridTileOrder() == [order[1], order[0]])
+        let left = order[1]
+        // 大きさが分からないうちは動かさない。
+        dashboard.nudgeGridDivider(of: left, toward: .right)
+        let width: (CGSize) -> CGFloat = { size in
+            dashboard.paneLayoutForDisplay().frames(in: size, spacing: 0).tiles.first { $0.session == left }!.rect.width
+        }
+        let size = CGSize(width: 1000, height: 600)
+        let start = width(size)
+        dashboard.gridCanvasSize = size
+        // ⌃⌥→: 5% 広げる。
+        dashboard.nudgeGridDivider(of: left, toward: .right)
+        #expect(abs(width(size) - (start + 50)) < 1)
+        // 狭い領域では右のタイルが 240pt を下回る手前で止まる。
+        dashboard.gridCanvasSize = CGSize(width: 600, height: 600)
+        for _ in 0..<10 { dashboard.nudgeGridDivider(of: left, toward: .right) }
+        let right = dashboard.paneLayoutForDisplay().frames(in: CGSize(width: 600, height: 600), spacing: 8).tiles.first { $0.session != left }!
+        #expect(right.rect.width >= 240)
+    }
+
     @Test @MainActor func removeFromGrid_hidesTheTileButKeepsTheSession() async throws {
         let ws = try makeTemporaryWorkspaceRoot()
         defer { cleanupTemporaryWorkspaceRoot(ws) }

@@ -90,15 +90,23 @@ public struct TerminalPanelView: View {
     let showsHeader: Bool
     /// 文字サイズを変えたときの中央の表示（07 D8）。グリッドのタイルでは全タイルに一斉に出るので出さない。
     let showsFontSizeHUD: Bool
+    /// グリッドのタイルの子タブ。端末の文字をグリッドの大きさ（06: 単体の 11/11.5）で描く。
+    let isInGridTile: Bool
 
     @AppStorage(TerminalFontSettings.fontSizeKey) private var fontSize = Double(NSFont.systemFontSize)
     @Environment(\.adjustTerminalFontSize) private var adjustFontSize
     @State private var hudVisibleUntil: Date?
 
-    public init(panel: TerminalPanelSession, showsHeader: Bool = true, showsFontSizeHUD: Bool = true) {
+    public init(panel: TerminalPanelSession, showsHeader: Bool = true, showsFontSizeHUD: Bool = true, isInGridTile: Bool = false) {
         self.panel = panel
         self.showsHeader = showsHeader
         self.showsFontSizeHUD = showsFontSizeHUD
+        self.isInGridTile = isInGridTile
+    }
+
+    /// 同じ端末が単体とグリッドの両方に出るので、出るたびにその場の大きさへ当て直す。
+    private func applyFontSize(_ size: CGFloat) {
+        panel.terminalCoordinator.applyFontSize(isInGridTile ? TerminalFontSettings.gridSize(size) : size)
     }
 
     public var body: some View {
@@ -118,8 +126,9 @@ public struct TerminalPanelView: View {
         .task {
             await panel.ensureStarted()
         }
+        .onAppear { applyFontSize(CGFloat(fontSize)) }
         .onChange(of: fontSize) { _, newValue in
-            panel.terminalCoordinator.applyFontSize(CGFloat(newValue))
+            applyFontSize(CGFloat(newValue))
             guard showsFontSizeHUD else { return }
             let until = Date().addingTimeInterval(1)
             hudVisibleUntil = until

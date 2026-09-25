@@ -9,7 +9,6 @@ import DesignSystem
 /// 各タイルから直接返信できる composer を足す（single へ切り替えずグリッドのまま返信・承認可能にする）。
 struct GridChatColumn: View {
     @Bindable var viewModel: ChatSessionViewModel
-    var projectName: String? = nil
     let onFocusGained: () -> Void
     @State private var requestedTranscriptTarget: String?
     @State private var fileChangeRevealRequest: FileChangeRevealRequest?
@@ -62,7 +61,6 @@ struct GridChatColumn: View {
                                 viewModel: viewModel,
                                 text: $viewModel.draft,
                                 controlsLayout: proposedComposerWidth.map(ComposerLayout.gridControlsLayout(proposedWidth:)) ?? .compact,
-                                projectName: projectName,
                                 onSend: sendDraft,
                                 onInterrupt: interruptTurn,
                                 onFocusGained: onFocusGained,
@@ -173,7 +171,6 @@ struct GridComposerBar: View {
     @Bindable var viewModel: ChatSessionViewModel
     @Binding var text: String
     var controlsLayout: ComposerFooterLayout?
-    let projectName: String?
     let onSend: () -> Void
     let onInterrupt: () -> Void
     let onFocusGained: () -> Void
@@ -188,7 +185,6 @@ struct GridComposerBar: View {
         viewModel: ChatSessionViewModel,
         text: Binding<String>,
         controlsLayout: ComposerFooterLayout? = nil,
-        projectName: String? = nil,
         onSend: @escaping () -> Void,
         onInterrupt: @escaping () -> Void,
         onFocusGained: @escaping () -> Void = {},
@@ -198,7 +194,6 @@ struct GridComposerBar: View {
         _viewModel = Bindable(wrappedValue: viewModel)
         _text = text
         self.controlsLayout = controlsLayout
-        self.projectName = projectName
         self.onSend = onSend
         self.onInterrupt = onInterrupt
         self.onFocusGained = onFocusGained
@@ -256,21 +251,6 @@ struct GridComposerBar: View {
                 layout: controlsLayout.settingsLayout,
                 onRemove: removeAttachment
             )
-            let destinationText = ComposerDestinationLabel.text(
-                for: .conversation(projectName: projectName, taskName: viewModel.displayName),
-                hasDestination: true,
-                isReadyForInput: viewModel.isReadyForInput,
-                hasContent: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    || !viewModel.attachmentStore.attachments.isEmpty
-            )
-            Text(destinationText)
-                .font(DSFont.caption)
-                .foregroundStyle(DSColor.chatTextSecondary)
-                .lineLimit(1)
-                .help(destinationText)
-                .accessibilityLabel(destinationText)
-                .accessibilityIdentifier("GridComposer.destination")
-                .padding(.horizontal, DSSpacing.xs)
             ZStack(alignment: .topLeading) {
                 IMESafeTextView(
                     text: $text,

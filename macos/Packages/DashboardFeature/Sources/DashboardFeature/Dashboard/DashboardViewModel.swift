@@ -721,6 +721,39 @@ public final class DashboardViewModel {
         paneLayoutForDisplay().readingOrder()
     }
 
+    /// 06 キーボード（⌥⌘⇧＋矢印）: タイルをその向きの隣と入れ替える。隣が無ければ何もしない。
+    public func swapGridTile(_ id: SessionID, toward direction: PaneDirection) {
+        guard let other = paneLayoutForDisplay().neighbor(of: id, toward: direction) else { return }
+        handlePaneLayoutAction(.swap(id, other))
+    }
+
+    /// タイルを並べる領域の大きさ（⌃⌥＋矢印の下限の判定用。描画には使わない）。
+    @ObservationIgnored public var gridCanvasSize: CGSize = .zero
+
+    /// 06 キーボード（⌃⌥＋矢印）: タイルの辺の分割線を 5% 動かす。
+    /// 動かした結果を実際の大きさ・隙間で並べ、縮むタイルがドラッグと同じ最小の大きさを下回るなら動かさない。
+    public func nudgeGridDivider(of id: SessionID, toward direction: PaneDirection) {
+        let shown = paneLayoutForDisplay()
+        guard gridCanvasSize.width > 0, gridCanvasSize.height > 0,
+              let nudged = shown.nudgedDivider(of: id, toward: direction)
+        else { return }
+        let updated = paneLayout.nudgingDivider(nudged.id, by: nudged.delta)
+        guard updated != paneLayout else { return }
+        let visible = Set(filteredGridSessionNodes(projectID: gridSessionFilterProjectID).map(\.id))
+        let before = Dictionary(uniqueKeysWithValues: shown.frames(in: gridCanvasSize, spacing: DSSpacing.s).tiles.map { ($0.session, $0.rect.size) })
+        let isHorizontal = direction == .left || direction == .right
+        let minimum = isHorizontal ? PaneLayoutView.minimumPaneWidth : PaneLayoutView.minimumPaneHeight
+        let tooSmall = updated.pruned(visible: visible).frames(in: gridCanvasSize, spacing: DSSpacing.s).tiles.contains { tile in
+            guard let old = before[tile.session] else { return false }
+            let (was, now) = isHorizontal ? (old.width, tile.rect.width) : (old.height, tile.rect.height)
+            return now < was && now < minimum
+        }
+        guard !tooSmall else { return }
+        setPaneLayoutPresetState(.init(preset: paneLayoutPresetState.preset, isAdjusted: true))
+        paneLayout = updated
+        paneLayoutStore.save(updated)
+    }
+
     /// グリッドから外す（06: タイルの ✕・⌘W・右クリック）。表示するセッションの選択から除くだけで、
     /// セッションは消さない。最後の 1 枚は外さない（選択が空になると全件表示へ戻るため）。
     /// 外したら、次にフォーカスするタイルを返す。
@@ -834,8 +867,15 @@ public final class DashboardViewModel {
     public func applyTerminalFontSize(_ size: CGFloat) {
         TerminalFontSettings.save(size)
         for session in sessions {
-            session.terminalCoordinator.applyFontSize(size)
+            session.terminalCoordinator.applyFontSize(TerminalFontSettings.displaySize(size))
         }
+    }
+
+    /// 06: グリッドと単体を切り替えたとき、端末の文字をその表示の大きさへ当て直す。
+    public func setTerminalGridLayout(_ isGrid: Bool) {
+        guard TerminalFontSettings.isGridLayout != isGrid else { return }
+        TerminalFontSettings.isGridLayout = isGrid
+        applyTerminalFontSize(TerminalFontSettings.currentSize())
     }
 
     public func runningBreakdown(in projectID: ProjectID) -> RunningSessionBreakdown {

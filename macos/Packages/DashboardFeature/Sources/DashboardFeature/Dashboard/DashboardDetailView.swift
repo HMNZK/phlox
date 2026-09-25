@@ -69,6 +69,14 @@ struct DashboardDetailView: View {
                     parentNames: parentNames,
                     tileTabs: tileTabs
                 )
+                // ⌃⌥＋矢印で分割線を動かすときの下限の判定に、グリッドの実際の大きさを使う。
+                // SessionGridView の余白（左右 s・下 s・上 xs）を除いた、タイルを並べる領域。
+                .onGeometryChange(for: CGSize.self, of: \.size) { size in
+                    viewModel.gridCanvasSize = CGSize(
+                        width: size.width - DSSpacing.s * 2,
+                        height: size.height - DSSpacing.s - DSSpacing.xs
+                    )
+                }
             }
         }
     }

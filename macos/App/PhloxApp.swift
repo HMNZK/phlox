@@ -834,6 +834,14 @@ private struct SessionCommands: Commands {
                     .disabled(router?.viewMode != .grid)
             }
 
+            // 06 キーボード: フォーカス中のタイルを隣と入れ替える（⌥⌘⇧＋矢印）・辺の分割線を 5% 動かす（⌃⌥＋矢印）。
+            ForEach(GridKeyboardMove.all.indices, id: \.self) { index in
+                let move = GridKeyboardMove.all[index]
+                Button(move.title) { gridKeyboardMove(move) }
+                    .keyboardShortcut(move.key, modifiers: move.modifiers)
+                    .disabled(router?.viewMode != .grid || router?.selectedSession == nil)
+            }
+
             Divider()
 
             // 承認カードの許可 / 拒否（05 R6: 入力欄にいても修飾キー 2 つで返せる。出た直後 0.5 秒は効かない）。
@@ -933,6 +941,15 @@ private struct SessionCommands: Commands {
         router.selectedSession = ids[number - 1]
     }
 
+    private func gridKeyboardMove(_ move: GridKeyboardMove) {
+        guard let dashboard, let router, router.viewMode == .grid, let id = router.selectedSession else { return }
+        if move.swaps {
+            dashboard.swapGridTile(id, toward: move.direction)
+        } else {
+            dashboard.nudgeGridDivider(of: id, toward: move.direction)
+        }
+    }
+
     private var selectedNode: SessionNode? {
         router?.selectedSession.flatMap { dashboard?.sessionNode(id: $0) }
     }
@@ -943,6 +960,27 @@ private struct SessionCommands: Commands {
             router.selectedSession = nextID
         }
     }
+}
+
+/// 06 キーボードのメニュー項目（入れ替え 4 向き・分割線 4 向き）。
+@MainActor
+private struct GridKeyboardMove {
+    let title: LocalizedStringKey
+    let key: KeyEquivalent
+    let modifiers: EventModifiers
+    let direction: PaneDirection
+    let swaps: Bool
+
+    static let all: [GridKeyboardMove] = [
+        .init(title: "タイルを左と入れ替え", key: .leftArrow, modifiers: [.command, .option, .shift], direction: .left, swaps: true),
+        .init(title: "タイルを右と入れ替え", key: .rightArrow, modifiers: [.command, .option, .shift], direction: .right, swaps: true),
+        .init(title: "タイルを上と入れ替え", key: .upArrow, modifiers: [.command, .option, .shift], direction: .up, swaps: true),
+        .init(title: "タイルを下と入れ替え", key: .downArrow, modifiers: [.command, .option, .shift], direction: .down, swaps: true),
+        .init(title: "分割線を左へ", key: .leftArrow, modifiers: [.control, .option], direction: .left, swaps: false),
+        .init(title: "分割線を右へ", key: .rightArrow, modifiers: [.control, .option], direction: .right, swaps: false),
+        .init(title: "分割線を上へ", key: .upArrow, modifiers: [.control, .option], direction: .up, swaps: false),
+        .init(title: "分割線を下へ", key: .downArrow, modifiers: [.control, .option], direction: .down, swaps: false),
+    ]
 }
 
 private extension NSEvent {

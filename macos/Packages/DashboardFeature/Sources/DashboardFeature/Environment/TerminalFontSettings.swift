@@ -21,6 +21,20 @@ public enum TerminalFontSettings {
         return clamped(raw)
     }
 
+    /// グリッドのタイルでは単体表示より一段小さく描く（06: 単体 11.5 に対してタイル 11）。
+    /// 表示モードは DashboardViewModel が切り替える。0.5pt 刻みに丸める。
+    @MainActor public static var isGridLayout = false
+
+    /// 端末へ実際に当てる大きさ（グリッドなら 11 / 11.5 倍）。
+    @MainActor public static func displaySize(_ size: CGFloat) -> CGFloat {
+        isGridLayout ? gridSize(size) : size
+    }
+
+    /// グリッドのタイルでの大きさ。
+    public static func gridSize(_ size: CGFloat) -> CGFloat {
+        max(minSize, (size * 11 / 11.5 * 2).rounded() / 2)
+    }
+
     public static func save(_ size: CGFloat, defaults: UserDefaults = .standard) {
         defaults.set(Double(size), forKey: fontSizeKey)
     }

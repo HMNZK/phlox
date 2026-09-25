@@ -618,7 +618,7 @@ final class SessionSpawnService {
         titleState: SessionTitleState? = nil
     ) -> SessionViewModel {
         let terminalCoordinator = TerminalCoordinator()
-        terminalCoordinator.applyFontSize(TerminalFontSettings.currentSize())
+        terminalCoordinator.applyFontSize(TerminalFontSettings.displaySize(TerminalFontSettings.currentSize()))
         let (hookStream, hookContinuation) = AsyncStream<(SessionID, HookEvent)>.makeStream()
         setHookContinuation(sessionID, hookContinuation)
 
@@ -733,7 +733,7 @@ final class SessionSpawnService {
         suppressSpawn: Bool = false
     ) -> SessionViewModel {
         let terminalCoordinator = TerminalCoordinator()
-        terminalCoordinator.applyFontSize(TerminalFontSettings.currentSize())
+        terminalCoordinator.applyFontSize(TerminalFontSettings.displaySize(TerminalFontSettings.currentSize()))
         let (hookStream, hookContinuation) = AsyncStream<(SessionID, HookEvent)>.makeStream()
         setHookContinuation(descriptor.id, hookContinuation)
         let agentDescriptor = descriptorForPresentation(ref: descriptor.agentRef)

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 import AgentDomain
@@ -19,8 +20,8 @@ import TerminalUI
 public struct PaneLayoutView: View {
     /// D12: 分割線ドラッグのクランプに使う最小ペイン長。ヘッダー・transcript・composer が
     /// 最低限収まる目安（実機確認で調整しうる暫定値）。
-    static let minimumPaneWidth: CGFloat = 240
-    static let minimumPaneHeight: CGFloat = 160
+    public static let minimumPaneWidth: CGFloat = 240
+    public static let minimumPaneHeight: CGFloat = 160
 
     let sessions: [SessionNode]
     let tree: PaneTree
@@ -41,6 +42,8 @@ public struct PaneLayoutView: View {
     /// ドロップ中に出すインジケータ（どのタイルの・どの操作か）。ドロップの判定そのものは
     /// `PaneDropZone` が持ち、ここはその結果を描くためだけに保持する。
     @State private var dropHighlight: PaneDropHighlight?
+    /// S8: つかんでいるタイル。ドラッグ中は元のタイルを 40% で残す。
+    @State private var draggingSession: SessionID?
 
     public init(
         sessions: [SessionNode],
@@ -86,6 +89,7 @@ public struct PaneLayoutView: View {
                             projectName: session.projectID.flatMap { projectNames[$0] },
                             size: tile.rect.size,
                             isFocused: focusedID == session.id,
+                            isDragSource: draggingSession == session.id,
                             number: numbers[session.id],
                             parentName: parentNames[session.id],
                             canRemoveFromGrid: frames.tiles.count > 1,
@@ -100,11 +104,13 @@ public struct PaneLayoutView: View {
                                     onChangeWorkspace(pty)
                                 }
                             },
+                            onDragStart: { beginDrag(session.id) },
                             onDropHighlightChange: { target in
                                 updateDropHighlight(target, on: tile.session)
                             },
                             onDrop: { moved, target in
                                 dropHighlight = nil
+                                draggingSession = nil
                                 perform(target, moved: moved, onto: tile.session)
                             }
                         )
@@ -152,6 +158,18 @@ public struct PaneLayoutView: View {
                         .allowsHitTesting(false)
                 }
             }
+        }
+    }
+
+    /// つかんだタイルを覚え、マウスボタンが離れたら（ドロップ・取り消しのどちらでも）忘れる。
+    /// `.onDrag` には終わりの通知が無いので、押されているボタンを見て終わりを知る。
+    private func beginDrag(_ session: SessionID) {
+        draggingSession = session
+        Task { @MainActor in
+            while NSEvent.pressedMouseButtons != 0 {
+                try? await Task.sleep(for: .milliseconds(150))
+            }
+            if draggingSession == session { draggingSession = nil }
         }
     }
 
@@ -233,6 +251,7 @@ private struct PaneTileView: View {
     /// タイルの矩形サイズ。ドロップ位置の判定に使う（`DropInfo.location` と同じ座標系）。
     let size: CGSize
     let isFocused: Bool
+    let isDragSource: Bool
     let number: Int?
     let parentName: String?
     let canRemoveFromGrid: Bool
@@ -243,6 +262,7 @@ private struct PaneTileView: View {
     let onOpenSingle: () -> Void
     let onRename: () -> Void
     let onChangeWorkspace: () -> Void
+    let onDragStart: () -> Void
     let onDropHighlightChange: (PaneDropTarget?) -> Void
     let onDrop: (_ moved: SessionID, _ target: PaneDropTarget) -> Void
 
@@ -279,6 +299,8 @@ private struct PaneTileView: View {
                         .allowsHitTesting(false)
                 }
             }
+            // S8: ドラッグ中の元のタイルは 40% で残す（12 Design System）。
+            .opacity(isDragSource ? 0.4 : 1)
             .contentShape(Rectangle())
             .background {
                 PaneTileWindowFrameReader { view in
@@ -339,7 +361,7 @@ private struct PaneTileView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipped()
             } else if GridTileSize.showsConversationColumn(size) {
-                GridChatColumn(viewModel: chat, projectName: projectName, onFocusGained: onSelect)
+                GridChatColumn(viewModel: chat, onFocusGained: onSelect)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipped()
             } else {
@@ -429,6 +451,8 @@ private struct PaneTileView: View {
             .background(DSColor.popoverBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             .rotationEffect(.degrees(-1.5))
             .padding(6)
+            // `.draggable` には始まりの通知が無いので、つかんだものが出た時をドラッグの始まりとする（S8 の減光）。
+            .onAppear(perform: onDragStart)
         }
         // ヘッダーはテキスト選択・スクロールを持たないため、mouseDown 時点で選択する。
         // **`.draggable` より後に適用すること**。先に適用するとゼロ距離の DragGesture が

@@ -23,8 +23,11 @@ public final class UserTerminalController {
     private var exitTask: Task<Void, Never>?
     private var startInProgress = false
     private var startWaiters: [CheckedContinuation<StartOutcome, Error>] = []
+    /// 起動の終わりを待っている数（テストで競合の順序を作るため）。
+    var pendingStartWaiterCount: Int { startWaiters.count }
     private var shutdownWaiters: [CheckedContinuation<Void, Never>] = []
-    private var shutdownRequested = false
+    private(set) var shutdownRequested = false
+    private var shutdownCount = 0
     private var spawnGeneration: UInt64 = 0
     /// 表示器から最後に要求されたサイズ。PTY の fd がまだ使えない起動前・起動中も
     /// 保持し、spawn の初期サイズまたは spawn 完了直後の resize に使う。
@@ -132,7 +135,33 @@ public final class UserTerminalController {
         return stream
     }
 
+    /// シェルの中でコマンドが動いているか（閉じる前の確認に使う。02「実行中のプロセスがあれば確認」）。
+    public func hasRunningCommand() async -> Bool {
+        guard isRunning, let sessionID else { return false }
+        return await pty.hasChildProcesses(sessionID)
+    }
+
+    /// シェルを終了して起動し直す（07 D1「再起動」）。`shutdown` と違い購読者は残し、同じ表示器に新しいシェルを出す。
+    public func restart() async throws {
+        // 起動中なら起動を待ってから止める（押した操作を捨てない）。
+        let shutdowns = shutdownCount
+        if startInProgress { try await ensureStarted() }
+        guard shutdownCount == shutdowns else { return }
+        if isRunning, let id = sessionID {
+            exitTask?.cancel()
+            exitTask = nil
+            // 旧シェルの残りの出力は捨てる（次の起動がその配り終わりを待たないように）。
+            for task in outputTasks.values { task.cancel() }
+            markCurrentSessionExited()
+            await pty.hangUp(id)
+        }
+        // 待っている間に閉じられたら起こし直さない。
+        guard shutdownCount == shutdowns else { return }
+        try await ensureStarted()
+    }
+
     public func shutdown() async {
+        shutdownCount += 1
         if startInProgress {
             shutdownRequested = true
             await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
@@ -177,7 +206,7 @@ public final class UserTerminalController {
                 appliedSize = latestSize
             }
         } catch {
-            await pty.kill(id)
+            await pty.hangUp(id)
             throw error
         }
 
@@ -283,7 +312,7 @@ public final class UserTerminalController {
         sessionID = nil
 
         if shouldKill, let id {
-            await pty.kill(id)
+            await pty.hangUp(id)
         }
         finishOutputSubscribers()
     }

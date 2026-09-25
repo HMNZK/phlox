@@ -150,6 +150,12 @@ public enum Posix {
         }
     }
 
+    /// プロセスグループへ SIGHUP を送る（端末を閉じたときの合図。対話シェルも終わる）。
+    public static func hangUpGroup(pid: pid_t) {
+        if killpg(pid, SIGHUP) == 0 { return }
+        if errno != ESRCH { _ = kill(pid, SIGHUP) }
+    }
+
     /// プロセスグループへ SIGKILL を送る。
     public static func killGroup(pid: pid_t) {
         if killpg(pid, SIGKILL) == 0 { return }
@@ -159,6 +165,21 @@ public enum Posix {
         default:
             _ = kill(pid, SIGKILL)
         }
+    }
+
+    /// 子プロセスがあるか。前景のプロセスグループは使えない（スレーブ PTY を制御端末にしていない）ので、子の有無で見る。
+    /// ponytail: シェルが常駐の子（プロンプトの補助など）を持つと常に true になる。その場合は従来どおり毎回確認する。
+    public static func hasChildProcesses(pid: pid_t) -> Bool {
+        var children = [pid_t](repeating: 0, count: 16)
+        let count = proc_listchildpids(pid, &children, Int32(children.count * MemoryLayout<pid_t>.size))
+        return count > 0
+    }
+
+    /// プロセスの実行ファイルのパス。取れなければ nil。
+    public static func executablePath(pid: pid_t) -> String? {
+        var buffer = [CChar](repeating: 0, count: Int(4 * MAXPATHLEN))
+        let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
+        return length > 0 ? String(cString: buffer) : nil
     }
 
     /// プロセスがまだプロセス表に存在するか (`kill(pid, 0)`)。reap 前のゾンビも true になり得る。

@@ -117,6 +117,11 @@ public actor WorkingTreeService {
         return .untrackedContent(try String(contentsOf: fileURL, encoding: .utf8))
     }
 
+    /// 保存・読み込みと同じ基準（Git のルート）で解決した絶対パス。
+    public func absolutePath(_ path: String) -> String? {
+        try? fileURL(for: path).path
+    }
+
     public func fileContents(_ path: String) throws -> String {
         try String(contentsOf: try fileURL(for: path), encoding: .utf8)
     }

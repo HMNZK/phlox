@@ -145,7 +145,12 @@ struct PhloxApp: App {
             // 01 F: メニューは Phlox / ファイル / 表示 / セッション の 4 つ（「タブ」メニューは置かない）。
             FileCommands(dashboard: composition?.dashboard, router: composition?.router)
             UpdateCommands(appUpdater: appDelegate.appUpdater)
-            ViewCommands(dashboard: composition?.dashboard, router: composition?.router)
+            ViewCommands(
+                dashboard: composition?.dashboard,
+                router: composition?.router,
+                commonTerminal: terminalPanelSession,
+                sessionTerminals: sessionTerminals
+            )
             SessionCommands(
                 dashboard: composition?.dashboard,
                 router: composition?.router
@@ -684,6 +689,8 @@ private struct UpdateCommands: Commands {
 private struct ViewCommands: Commands {
     var dashboard: DashboardViewModel?
     var router: AppRouter?
+    var commonTerminal: TerminalPanelSession?
+    var sessionTerminals: SessionTerminalStore?
 
     var body: some Commands {
         CommandGroup(after: .sidebar) {
@@ -768,8 +775,28 @@ private struct ViewCommands: Commands {
             .keyboardShortcut("0", modifiers: .command)
             .disabled(dashboard == nil)
 
+            // 07「ターミナルの見出しに再起動」。子タブは見出しを持たない（02 C5）のでメニューに置く。
+            Button("シェルを再起動") {
+                Task { await frontTerminal()?.restart() }
+            }
+            .disabled(!showsTerminalInFront)
+
             Divider()
         }
+    }
+
+    /// 前面が共通ターミナルか、選択中セッションのターミナルの子タブ。
+    private var showsTerminalInFront: Bool {
+        guard let router else { return false }
+        if router.commonTerminalSelected { return true }
+        return router.selectedSession.map { router.tabs.layout(for: $0).selected == .terminal } ?? false
+    }
+
+    /// 端末はタブの表示時に作られるので、有効判定ではなく押したときに引く。
+    private func frontTerminal() -> TerminalPanelSession? {
+        guard showsTerminalInFront, let router else { return nil }
+        if router.commonTerminalSelected { return commonTerminal }
+        return router.selectedSession.flatMap { sessionTerminals?.existing($0) }
     }
 
     /// フォーカス中の領域（会話かターミナル）。

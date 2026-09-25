@@ -28,9 +28,19 @@ public final class SessionTerminalStore {
         return created
     }
 
+    /// 開いていれば、そのセッションのターミナル（作らない）。
+    public func existing(_ sessionID: SessionID) -> TerminalPanelSession? {
+        terminals[sessionID]?.session
+    }
+
     /// シェルが動いているか（閉じる前の確認に使う）。
     public func isRunning(_ sessionID: SessionID) -> Bool {
         terminals[sessionID]?.session.controller.isRunning ?? false
+    }
+
+    /// シェルの中でコマンドが動いているか。
+    public func hasRunningCommand(_ sessionID: SessionID) async -> Bool {
+        await terminals[sessionID]?.session.controller.hasRunningCommand() ?? false
     }
 
     /// タブを閉じた・セッションを削除したときにシェルを止める。置き場からはすぐ外すので、

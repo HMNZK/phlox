@@ -44,6 +44,12 @@ public protocol PTYManagerProtocol: Sendable {
     /// protocol body に宣言しないと `any PTYManagerProtocol` 経由で extension default が
     /// static dispatch されて実装が呼ばれないため、ここで requirement として明示する。
     func getWinsize(_ id: SessionID) async -> (cols: UInt16, rows: UInt16)?
+
+    /// セッションのプロセス（シェル）に子プロセスがあるか（＝コマンドが動いているか）。default は false。
+    func hasChildProcesses(_ id: SessionID) async -> Bool
+
+    /// 端末を閉じたときと同じく SIGHUP で終わらせる。対話シェルは SIGTERM を無視するため。default は `kill`。
+    func hangUp(_ id: SessionID) async
 }
 
 public extension PTYManagerProtocol {
@@ -72,5 +78,13 @@ public extension PTYManagerProtocol {
     /// PTY master fd の winsize を返す。default は nil (mock や未実装の場合)。
     func getWinsize(_ id: SessionID) async -> (cols: UInt16, rows: UInt16)? {
         nil
+    }
+
+    func hasChildProcesses(_ id: SessionID) async -> Bool {
+        false
+    }
+
+    func hangUp(_ id: SessionID) async {
+        await kill(id)
     }
 }

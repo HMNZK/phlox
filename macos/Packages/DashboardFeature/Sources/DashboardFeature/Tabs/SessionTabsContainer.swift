@@ -84,7 +84,10 @@ struct SessionTabsContainer<Conversation: View>: View {
                 router.tabs.updateLayout(for: node.id) { $0.open(.file(path)) }
             }
         case .file(let path):
-            FileTabView(document: files.document(for: node.id, path: path, workingDirectory: node.rawWorkspacePath))
+            FileTabView(
+                document: files.document(for: node.id, path: path, workingDirectory: node.rawWorkspacePath),
+                lastWriter: { [viewModel] document in document.lastWriter(among: viewModel.sessionNodes, excluding: node.id) }
+            )
                 .id("\(node.id)-\(path)")
         }
     }
@@ -509,7 +512,9 @@ private struct ChildTabPanes<Content: View>: View {
 /// ファイルの子タブ。編集・保存・外部変更との競合（上書き／キャンセル）。
 private struct FileTabView: View {
     @Bindable var document: FileTabDocument
+    let lastWriter: (FileTabDocument) -> String?
     @State private var showsConflictAlert = false
+    @State private var conflictWriter: String?
     @State private var saveError: String?
     @Environment(\.locale) private var locale
 
@@ -552,10 +557,7 @@ private struct FileTabView: View {
                     description: Text("このファイルは利用できないか、有効なUTF-8ではありません。")
                 )
             } else if document.isLoaded {
-                TextEditor(text: $document.draft)
-                    .font(.system(size: 11.5, design: .monospaced))
-                    .scrollContentBackground(.hidden)
-                    .background(DSColor.background)
+                CodeTextEditor(text: $document.draft)
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -567,7 +569,9 @@ private struct FileTabView: View {
             DSDialog(
                 .irreversible,
                 title: String(format: AppLocalizedString.string("%@ は外部で変更されています", locale: locale), document.fileName),
-                message: AppLocalizedString.string("開いてから別のセッションが書き換えました。上書きすると、その変更は失われ、元に戻せません。", locale: locale),
+                message: conflictWriter.map {
+                    String(format: AppLocalizedString.string("開いてから別のセッション（%@）が書き換えました。上書きすると、その変更は失われ、元に戻せません。", locale: locale), $0)
+                } ?? AppLocalizedString.string("開いてから別のセッションが書き換えました。上書きすると、その変更は失われ、元に戻せません。", locale: locale),
                 buttons: [
                     DSDialogButton("上書き", role: .destructive) {
                         showsConflictAlert = false
@@ -584,6 +588,7 @@ private struct FileTabView: View {
         do {
             saveError = nil
             if try await document.save() == .conflictDetected {
+                conflictWriter = lastWriter(document)
                 showsConflictAlert = true
             }
         } catch {

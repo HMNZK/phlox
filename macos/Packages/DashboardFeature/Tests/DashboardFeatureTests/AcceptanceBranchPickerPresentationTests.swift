@@ -42,13 +42,30 @@ private struct StubError: Error {}
         #expect(model.isPresented == true)
     }
 
-    /// ブランチ選択は即座に閉じる（checkout・再読込は閉じた後にモデル外で行う）。
-    @Test func selectionDismissesBeforeCheckout() {
+    /// ブランチを選んでも切り替えが済むまで閉じない。済んだら閉じる（B3・2026-09-25 ユーザー承認で変更。
+    /// 箱は NSPopover ではなく SwiftUI の重ね表示になったので、提示中のリサイズによる落ちは起きない）。
+    @Test func selectionClosesAfterTheCheckoutSucceeds() {
         var model = ComposerBranchPickerModel()
         model.beginOpen()
         model.finishLoading(.success(["dev", "main"]))
         model.select(branch: "main")
+        #expect(model.isPresented == true)
+        model.finishCheckout(.success(()), branch: "main")
         #expect(model.isPresented == false)
+    }
+
+    /// 切り替えに失敗したら開いたまま、一覧の中に理由を出す（PhloxReply O7）。
+    @Test func checkoutFailureStaysOpenWithTheReason() {
+        var model = ComposerBranchPickerModel()
+        model.beginOpen()
+        model.finishLoading(.success(["dev", "main"]))
+        model.select(branch: "main")
+        model.finishCheckout(.failure(StubError()), branch: "main")
+        #expect(model.isPresented == true)
+        #expect(model.branches == ["dev", "main"])
+        #expect(model.checkoutErrorMessage != nil)
+        model.dismiss()
+        #expect(model.checkoutErrorMessage == nil)
     }
 
     /// 読み込み失敗は提示せず、エラーメッセージを保持する。

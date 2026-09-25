@@ -958,18 +958,24 @@ public struct DashboardView: View {
         }
     }
 
-    /// 動いているシェル・未保存のファイルは確認してから閉じる。
+    /// コマンドが動いているシェル・未保存のファイルは確認してから閉じる（02「実行中のプロセスがあれば確認」）。
     private func requestChildClose(_ tab: ChildTab, of sessionID: SessionID) {
         switch tab {
         case .conversation:
             return
         case .terminal where sessionTerminals?.isRunning(sessionID) == true:
-            pendingChildClose = PendingChildClose(
-                sessionID: sessionID,
-                tab: tab,
-                title: AppLocalizedString.string("ターミナルを閉じますか?", locale: locale),
-                message: AppLocalizedString.string("シェルを終了します。実行中のコマンドも止まります。", locale: locale)
-            )
+            Task {
+                guard await sessionTerminals?.hasRunningCommand(sessionID) == true else {
+                    closeChildTab(tab, of: sessionID)
+                    return
+                }
+                pendingChildClose = PendingChildClose(
+                    sessionID: sessionID,
+                    tab: tab,
+                    title: AppLocalizedString.string("ターミナルを閉じますか?", locale: locale),
+                    message: AppLocalizedString.string("シェルを終了します。実行中のコマンドも止まります。", locale: locale)
+                )
+            }
         case .file(let path) where fileTabs.existing(for: sessionID, path: path)?.isDirty == true:
             pendingChildClose = PendingChildClose(
                 sessionID: sessionID,

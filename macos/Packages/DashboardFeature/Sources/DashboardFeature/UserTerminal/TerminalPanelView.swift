@@ -72,6 +72,15 @@ public final class TerminalPanelSession {
         }
     }
 
+    /// 見出しの「再起動」。
+    public func restart() async {
+        do {
+            try await controller.restart()
+        } catch {
+            terminalCoordinator.feed(Data("\r\n[シェルを開始できませんでした]\r\n".utf8))
+        }
+    }
+
     deinit {
         outputTask?.cancel()
     }

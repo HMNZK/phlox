@@ -262,6 +262,7 @@ private struct ComposerBranchControl: View {
     @State private var picker = ComposerBranchPickerModel()
     @State private var isCheckingOut = false
     @State private var checkoutError: String?
+    @State private var failedBranch: String?
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { timeline in
@@ -314,10 +315,10 @@ private struct ComposerBranchControl: View {
     }
 
     /// PhloxReply.dc.html の O7: 見出し「ブランチを切り替え · ~/dev/phlox」、等幅 12 の行（高さ 26）。
-    /// ponytail: 切り替えの失敗は従来どおりアラート（受け入れテストが「選んだら閉じてから切り替える」を固定しているため、箱の中には出せない）。
+    /// 切り替えに失敗したら、一覧の下に errTint の面で理由を出す（開いたまま）。
     private var branchPicker: some View {
         let header = AppLocalizedString.string("ブランチを切り替え", locale: locale) + " · " + (workspacePath as NSString).abbreviatingWithTildeInPath
-        return Group {
+        return VStack(alignment: .leading, spacing: 0) {
             if picker.branches.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(verbatim: header)
@@ -348,6 +349,19 @@ private struct ComposerBranchControl: View {
                     monospacedRows: true,
                     onClose: {}
                 )
+            }
+            if let reason = picker.checkoutErrorMessage, let branch = failedBranch {
+                Text(verbatim: String(format: AppLocalizedString.string("%@ に切り替えられません: %@", locale: locale), branch, Self.firstLine(reason)))
+                    .font(.system(size: 11.5))
+                    .lineSpacing(2)
+                    .foregroundStyle(DSColor.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.vertical, 7)
+                    .padding(.horizontal, 9)
+                    .frame(width: 288, alignment: .leading)
+                    .background(DSColor.attentionTint(.error), in: RoundedRectangle(cornerRadius: 6))
+                    .padding(EdgeInsets(top: 5, leading: 0, bottom: 2, trailing: 0))
+                    .accessibilityAddTraits(.isStaticText)
             }
         }
     }
@@ -399,6 +413,7 @@ private struct ComposerBranchControl: View {
     private func checkout(_ branch: String) {
         guard branch != currentBranch, !isCheckingOut else { return }
         picker.select(branch: branch)
+        failedBranch = branch
         isCheckingOut = true
         Task {
             do {
@@ -407,12 +422,23 @@ private struct ComposerBranchControl: View {
                     try GitBranchSwitcher.checkout(branch: branch, at: path)
                 }.value
                 currentBranch = branch
+                picker.finishCheckout(.success(()), branch: branch)
             } catch {
-                checkoutError = shortErrorMessage(from: error)
+                picker.finishCheckout(.failure(error), branch: branch)
+                if !picker.isPresented { checkoutError = shortErrorMessage(from: error) }
                 refreshCurrentBranch()
             }
             isCheckingOut = false
         }
+    }
+
+    private static func firstLine(_ message: String) -> String {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lines = trimmed.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
+        guard let first = lines.first else { return trimmed }
+        // git の「…would be overwritten by checkout:」は次の行が対象のファイルなので添える。
+        if first.hasSuffix(":"), lines.count > 1 { return "\(first) \(lines[1])" }
+        return first
     }
 
     private func shortErrorMessage(from error: Error) -> String {

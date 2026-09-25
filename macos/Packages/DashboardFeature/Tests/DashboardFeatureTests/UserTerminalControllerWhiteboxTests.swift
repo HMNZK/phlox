@@ -440,6 +440,68 @@ struct UserTerminalControllerWhiteboxTests {
         #expect(!controller.isRunning)
     }
 
+    @Test("restart は今のシェルだけを kill して新しいシェルを起動し、購読者に新しい出力を届ける")
+    func restartKillsTheShellAndKeepsSubscribers() async throws {
+        let pty = MockPTYManager()
+        let controller = makeController(pty: pty)
+        try await controller.ensureStarted()
+        let first = try #require(controller.sessionID)
+        let collector = OutputCollector()
+        let stream = controller.makeOutputStream()
+        let reader = Task { for await data in stream { await collector.append(data) } }
+
+        let second = SessionID()
+        pty.setSpawnSessionID(second)
+        try await controller.restart()
+
+        #expect(pty.killedIDs == [first])
+        #expect(controller.sessionID == second)
+        #expect(controller.isRunning)
+        pty.emitOutput(for: second, data: Data("new".utf8))
+        try await waitUntilAsync { await collector.text().contains("new") }
+        reader.cancel()
+        await controller.shutdown()
+    }
+
+    @Test
+    func closingWhileRestartingDoesNotStartANewShell() async throws {
+        let pty = GatedKillPTY()
+        let controller = makeController(pty: pty)
+        try await controller.ensureStarted()
+
+        let restart = Task { try await controller.restart() }
+        try await waitUntilAsync { pty.killIsWaiting }
+        await controller.shutdown()
+        pty.releaseKill()
+        try await restart.value
+
+        #expect(!controller.isRunning)
+        #expect(pty.base.spawnCalls.count == 1, "閉じた後にシェルを起こし直さない")
+    }
+
+    @Test
+    func closingWhileTheFirstStartIsPendingDoesNotRestart() async throws {
+        let pty = GatedKillPTY()
+        pty.gatesSpawn = true
+        pty.gatesKill = false
+        let controller = makeController(pty: pty)
+
+        let start = Task { try await controller.ensureStarted() }
+        try await waitUntilAsync { pty.spawnIsWaiting }
+        let restart = Task { try await controller.restart() }
+        try await waitUntilAsync { controller.pendingStartWaiterCount == 1 }
+        let close = Task { await controller.shutdown() }
+        try await waitUntilAsync { controller.shutdownRequested }
+        pty.gatesSpawn = false
+        pty.releaseSpawn()
+        try await start.value
+        try await restart.value
+        await close.value
+
+        #expect(!controller.isRunning)
+        #expect(pty.base.spawnCalls.count == 1, "閉じた後に起こし直さない")
+    }
+
     private func makeController(pty: any PTYManagerProtocol) -> UserTerminalController {
         UserTerminalController(
             pty: pty,
@@ -693,4 +755,55 @@ private actor SpawnGatePTYManager: PTYManagerProtocol {
     func getWinsize(_ id: SessionID) async -> (cols: UInt16, rows: UInt16)? {
         await base.getWinsize(id)
     }
+}
+
+/// kill を外から放すまで止める。再起動の途中で閉じる競合を作る。
+private final class GatedKillPTY: PTYManagerProtocol, @unchecked Sendable {
+    let base = MockPTYManager()
+    private let lock = NSLock()
+    private var gate: CheckedContinuation<Void, Never>?
+    private var spawnGate: CheckedContinuation<Void, Never>?
+    var gatesSpawn = false
+    var gatesKill = true
+
+    var killIsWaiting: Bool { lock.withLock { gate != nil } }
+    var spawnIsWaiting: Bool { lock.withLock { spawnGate != nil } }
+
+    func releaseSpawn() {
+        lock.withLock { spawnGate }?.resume()
+        lock.withLock { spawnGate = nil }
+    }
+
+    func releaseKill() {
+        lock.withLock { gate }?.resume()
+        lock.withLock { gate = nil }
+    }
+
+    func spawn(
+        command: String,
+        args: [String],
+        env: [String: String],
+        id: SessionID?,
+        initialSize: PTYInitialSize?,
+        workingDirectory: String?
+    ) async throws -> SessionID {
+        if gatesSpawn {
+            await withCheckedContinuation { continuation in lock.withLock { spawnGate = continuation } }
+        }
+        return try await base.spawn(command: command, args: args, env: env, id: id, initialSize: initialSize, workingDirectory: workingDirectory)
+    }
+
+    func write(_ data: Data, to id: SessionID) async throws { try await base.write(data, to: id) }
+
+    func kill(_ id: SessionID) async {
+        if gatesKill {
+            await withCheckedContinuation { continuation in lock.withLock { gate = continuation } }
+        }
+        await base.kill(id)
+    }
+
+    func resize(_ id: SessionID, cols: UInt16, rows: UInt16) async throws { try await base.resize(id, cols: cols, rows: rows) }
+    nonisolated func outputStream(for id: SessionID) -> AsyncStream<Data> { base.outputStream(for: id) }
+    nonisolated func exitStream(for id: SessionID) -> AsyncStream<Int32> { base.exitStream(for: id) }
+    func getWinsize(_ id: SessionID) async -> (cols: UInt16, rows: UInt16)? { nil }
 }

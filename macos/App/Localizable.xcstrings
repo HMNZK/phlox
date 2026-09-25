@@ -8094,6 +8094,248 @@
           }
         }
       }
+    },
+    "シェルを再起動": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart Shell"
+          }
+        }
+      }
+    },
+    "コミットしています…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Committing…"
+          }
+        }
+      }
+    },
+    "プッシュしています…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pushing…"
+          }
+        }
+      }
+    },
+    "PR を作成しています…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creating PR…"
+          }
+        }
+      }
+    },
+    "コミット中…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Committing…"
+          }
+        }
+      }
+    },
+    "プッシュ中…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pushing…"
+          }
+        }
+      }
+    },
+    "PR を作成中…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creating PR…"
+          }
+        }
+      }
+    },
+    "%@ をコミットしました。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Committed %@."
+          }
+        }
+      }
+    },
+    "リモートへプッシュしました。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pushed to the remote."
+          }
+        }
+      }
+    },
+    "プルリクエストを作成しました。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Created the pull request."
+          }
+        }
+      }
+    },
+    "Git リポジトリではありません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not a Git repository."
+          }
+        }
+      }
+    },
+    "コミットするファイルを選択してください。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select the files to commit."
+          }
+        }
+      }
+    },
+    "コミットメッセージを入力してください。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a commit message."
+          }
+        }
+      }
+    },
+    "リモートが設定されていません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No remote is set."
+          }
+        }
+      }
+    },
+    "GitHub CLI（gh）が利用できません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub CLI (gh) isn't available."
+          }
+        }
+      }
+    },
+    "GitHub CLI（gh）が利用できません。PR 作成は不可です。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub CLI (gh) isn't available, so PRs can't be created."
+          }
+        }
+      }
+    },
+    "git %@ が失敗しました。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "git %@ failed."
+          }
+        }
+      }
+    },
+    "git %@ が失敗しました:": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "git %@ failed:"
+          }
+        }
+      }
+    },
+    "Git リポジトリを開けません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't open the Git repository."
+          }
+        }
+      }
+    },
+    "%@ に切り替えられません: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't switch to %1$@: %2$@"
+          }
+        }
+      }
+    },
+    "開いてから別のセッション（%@）が書き換えました。上書きすると、その変更は失われ、元に戻せません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another session (%@) changed it after you opened it. Overwriting discards those changes and can’t be undone."
+          }
+        }
+      }
+    },
+    "リモートが設定されていません。プッシュするにはリモートを追加してください。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No remote is set. Add a remote to push."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

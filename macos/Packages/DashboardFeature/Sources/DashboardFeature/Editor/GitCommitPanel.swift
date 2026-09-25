@@ -13,7 +13,9 @@ struct GitCommitPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            if let workflowStatusMessage = viewModel.workflowStatusMessage {
+            if let runningOperation = viewModel.runningOperation {
+                runningStatus(runningOperation)
+            } else if let workflowStatusMessage = viewModel.workflowStatusMessage {
                 workflowStatus(workflowStatusMessage)
             } else if let lastPullRequestURL = viewModel.lastPullRequestURL {
                 pullRequestURL(lastPullRequestURL)
@@ -78,10 +80,32 @@ struct GitCommitPanel: View {
         commitButton
         pushButton
         createPullRequestButton
-        if viewModel.isWorkflowBusy {
-            ProgressView()
-                .controlSize(.mini)
-                .accessibilityLabel("Git処理中")
+    }
+
+    /// 実行中の状態（07「コミットしています…」）。記号は「…」、面は淡い灰色。
+    private func runningStatus(_ operation: GitOperation) -> some View {
+        HStack(spacing: 8) {
+            Text(verbatim: "…")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(DSColor.textSecondary)
+                .accessibilityHidden(true)
+            Text(Self.runningText(operation))
+                .foregroundStyle(DSColor.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .font(.system(size: 12))
+        .padding(.vertical, 7)
+        .padding(.horizontal, 9)
+        .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: 7))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("git-workflow-status")
+    }
+
+    static func runningText(_ operation: GitOperation) -> LocalizedStringKey {
+        switch operation {
+        case .commit: "コミットしています…"
+        case .push: "プッシュしています…"
+        case .pullRequest: "PR を作成しています…"
         }
     }
 
@@ -184,7 +208,8 @@ struct GitCommitPanel: View {
     private var commitButton: some View {
         // 選んだ件数をボタンに出す（07 の対応表「コミットボタンに件数を出す」）。
         let count = viewModel.pathsSelectedForCommit.count
-        return Button(count > 0 ? "コミット（\(count)）" : "コミット") {
+        let title: LocalizedStringKey = viewModel.runningOperation == .commit ? "コミット中…" : count > 0 ? "コミット（\(count)）" : "コミット"
+        return Button(title) {
             Task { await viewModel.commitSelectedPaths() }
         }
         .buttonStyle(.ds(.primary, height: 24, fontSize: 12, padding: 11))
@@ -193,7 +218,7 @@ struct GitCommitPanel: View {
     }
 
     private var pushButton: some View {
-        Button("プッシュ") {
+        Button(viewModel.runningOperation == .push ? "プッシュ中…" : "プッシュ") {
             Task { await viewModel.pushCommittedChanges() }
         }
         .buttonStyle(.ds(.secondary, height: 24, fontSize: 12, padding: 11))
@@ -202,7 +227,7 @@ struct GitCommitPanel: View {
     }
 
     private var createPullRequestButton: some View {
-        Button("PR を作成") {
+        Button(viewModel.runningOperation == .pullRequest ? "PR を作成中…" : "PR を作成") {
             Task { await viewModel.createPullRequest() }
         }
         .buttonStyle(.ds(.secondary, height: 24, fontSize: 12, padding: 11))

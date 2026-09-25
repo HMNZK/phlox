@@ -1,3 +1,4 @@
+import DesignSystem
 import Foundation
 import Observation
 import AgentDomain
@@ -45,12 +46,14 @@ public final class EditorPanelViewModel {
     public private(set) var pathsSelectedForCommit: Set<String> = []
     public var commitMessage = ""
     public private(set) var isWorkflowBusy = false
+    /// 実行中の Git 操作（07「コミットしています…」とボタンの「コミット中…」）。
+    public private(set) var runningOperation: GitOperation?
     public private(set) var workflowStatusMessage: String?
     public private(set) var workflowStatusIsError = false
     /// `nil` なら push 可能。非 `nil` なら理由を UI に出す。
-    public private(set) var pushAvailabilityReason: String? = "リモートが設定されていません。"
+    public private(set) var pushAvailabilityReason: String? = EditorPanelViewModel.localized("リモートが設定されていません。")
     /// `nil` なら PR 作成可能。非 `nil` なら理由を UI に出す。
-    public private(set) var pullRequestAvailabilityReason: String? = "GitHub CLI（gh）が利用できません。"
+    public private(set) var pullRequestAvailabilityReason: String? = EditorPanelViewModel.localized("GitHub CLI（gh）が利用できません。")
     public private(set) var lastPullRequestURL: String?
     /// テスト注入用。`nil` ならリポジトリルートから都度生成する。
     private let injectedWorkflowService: GitWorkflowService?
@@ -141,8 +144,8 @@ public final class EditorPanelViewModel {
 
     public func refreshWorkflowCapabilities() async {
         guard listState == .ready, let workflow = await resolveWorkflowService() else {
-            pushAvailabilityReason = "Git リポジトリを開けません。"
-            pullRequestAvailabilityReason = "GitHub CLI（gh）が利用できません。"
+            pushAvailabilityReason = Self.localized("Git リポジトリを開けません。")
+            pullRequestAvailabilityReason = Self.localized("GitHub CLI（gh）が利用できません。")
             return
         }
 
@@ -151,7 +154,7 @@ public final class EditorPanelViewModel {
             if let remoteFailure = await workflow.remoteLookupFailureReason() {
                 pushAvailabilityReason = remoteFailure
             } else {
-                pushAvailabilityReason = "リモートが設定されていません。プッシュするにはリモートを追加してください。"
+                pushAvailabilityReason = Self.localized("リモートが設定されていません。プッシュするにはリモートを追加してください。")
             }
         } else {
             pushAvailabilityReason = nil
@@ -160,18 +163,19 @@ public final class EditorPanelViewModel {
         if await workflow.isGitHubCLIAvailable() {
             pullRequestAvailabilityReason = nil
         } else {
-            pullRequestAvailabilityReason = "GitHub CLI（gh）が利用できません。PR 作成は不可です。"
+            pullRequestAvailabilityReason = Self.localized("GitHub CLI（gh）が利用できません。PR 作成は不可です。")
         }
     }
 
     public func commitSelectedPaths() async {
         guard canCommit, !isWorkflowBusy else { return }
         guard let workflow = await resolveWorkflowService() else {
-            presentWorkflowError("Git リポジトリを開けません。")
+            presentWorkflowError(Self.localized("Git リポジトリを開けません。"))
             return
         }
 
         isWorkflowBusy = true
+        runningOperation = .commit
         workflowStatusMessage = nil
         workflowStatusIsError = false
         let paths = pathsSelectedForCommit.sorted()
@@ -179,7 +183,7 @@ public final class EditorPanelViewModel {
         do {
             // actor 上の Process 待ちは MainActor を解放する（UI 固着を避ける）。
             let sha = try await workflow.commit(paths: paths, message: message)
-            workflowStatusMessage = "\(String(sha.prefix(7))) をコミットしました。"
+            workflowStatusMessage = String(format: Self.localized("%@ をコミットしました。"), String(sha.prefix(7)))
             workflowStatusIsError = false
             commitMessage = ""
             pathsSelectedForCommit = []
@@ -189,21 +193,23 @@ public final class EditorPanelViewModel {
             presentWorkflowError(describeWorkflowError(error))
         }
         isWorkflowBusy = false
+        runningOperation = nil
     }
 
     public func pushCommittedChanges() async {
         guard canPush, !isWorkflowBusy else { return }
         guard let workflow = await resolveWorkflowService() else {
-            presentWorkflowError("Git リポジトリを開けません。")
+            presentWorkflowError(Self.localized("Git リポジトリを開けません。"))
             return
         }
 
         isWorkflowBusy = true
+        runningOperation = .push
         workflowStatusMessage = nil
         workflowStatusIsError = false
         do {
             try await workflow.push()
-            workflowStatusMessage = "リモートへプッシュしました。"
+            workflowStatusMessage = Self.localized("リモートへプッシュしました。")
             workflowStatusIsError = false
             await refreshWorkflowCapabilities()
         } catch {
@@ -211,16 +217,18 @@ public final class EditorPanelViewModel {
             await refreshWorkflowCapabilities()
         }
         isWorkflowBusy = false
+        runningOperation = nil
     }
 
     public func createPullRequest() async {
         guard canCreatePullRequest, !isWorkflowBusy else { return }
         guard let workflow = await resolveWorkflowService() else {
-            presentWorkflowError("Git リポジトリを開けません。")
+            presentWorkflowError(Self.localized("Git リポジトリを開けません。"))
             return
         }
 
         isWorkflowBusy = true
+        runningOperation = .pullRequest
         workflowStatusMessage = nil
         workflowStatusIsError = false
         let typedTitle = commitMessage.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -239,13 +247,14 @@ public final class EditorPanelViewModel {
         do {
             let url = try await workflow.createPullRequest(title: title, body: "")
             lastPullRequestURL = url
-            workflowStatusMessage = "プルリクエストを作成しました。"
+            workflowStatusMessage = Self.localized("プルリクエストを作成しました。")
             workflowStatusIsError = false
         } catch {
             presentWorkflowError(describeWorkflowError(error))
             await refreshWorkflowCapabilities()
         }
         isWorkflowBusy = false
+        runningOperation = nil
     }
 
     public func select(_ path: String) async {
@@ -361,8 +370,8 @@ public final class EditorPanelViewModel {
 
     private func clearWorkflowStateForMissingRepository() {
         pathsSelectedForCommit = []
-        pushAvailabilityReason = "Git リポジトリではありません。"
-        pullRequestAvailabilityReason = "GitHub CLI（gh）が利用できません。"
+        pushAvailabilityReason = Self.localized("Git リポジトリではありません。")
+        pullRequestAvailabilityReason = Self.localized("GitHub CLI（gh）が利用できません。")
         lastPullRequestURL = nil
     }
 
@@ -401,24 +410,37 @@ public final class EditorPanelViewModel {
         }
         switch error {
         case .notARepository:
-            return "Git リポジトリではありません。"
+            return Self.localized("Git リポジトリではありません。")
         case .noPathsSelected:
-            return "コミットするファイルを選択してください。"
+            return Self.localized("コミットするファイルを選択してください。")
         case .emptyCommitMessage:
-            return "コミットメッセージを入力してください。"
+            return Self.localized("コミットメッセージを入力してください。")
         case .noRemoteConfigured:
-            return "リモートが設定されていません。"
+            return Self.localized("リモートが設定されていません。")
         case .gitHubCLIUnavailable:
-            return "GitHub CLI（gh）が利用できません。"
+            return Self.localized("GitHub CLI（gh）が利用できません。")
         case let .commandFailed(arguments, output):
             let command = arguments.joined(separator: " ")
             let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty {
-                return "git \(command) が失敗しました。"
+                return String(format: Self.localized("git %@ が失敗しました。"), command)
             }
-            return "git \(command) が失敗しました:\n\(trimmed)"
+            // git の出力は訳さない（C-45）。
+            return String(format: Self.localized("git %@ が失敗しました:"), command) + "\n" + trimmed
         }
     }
+
+    /// 状態の文言はアプリの表示言語で作る（C-45）。
+    private static func localized(_ key: String) -> String {
+        AppLocalizedString.string(key, locale: TerminalPanelSession.displayLocale)
+    }
+}
+
+/// コミット欄の Git 操作。
+public enum GitOperation: Sendable {
+    case commit
+    case push
+    case pullRequest
 }
 
 private enum EditorPanelError: Error {

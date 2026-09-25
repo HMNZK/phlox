@@ -6,6 +6,8 @@ import os
 
 public actor PTYManager: PTYManagerProtocol {
     private var sessions: [SessionID: ChildProcess] = [:]
+    /// 起動直後の実行ファイル。`exec` で置き換わったら「コマンドが動いている」とみなす。
+    private var spawnedImages: [SessionID: String] = [:]
     private let streamCache = StreamCache()
     // セッションごとの stdin 書き込み用シリアルキュー。ブロッキング write(2) を actor 外へ
     // オフロードしつつ、同一セッションへの書き込み順序（バイト順）を直列に保証する。
@@ -109,6 +111,7 @@ public actor PTYManager: PTYManagerProtocol {
         // 新セッションには必ず新しいキューを割り当てる。
         writeQueues[sessionID] = DispatchQueue(label: "PTYKit.write.\(sessionID.rawValue.uuidString)")
         sessions[sessionID] = child
+        spawnedImages[sessionID] = Posix.executablePath(pid: child.pid)
         return sessionID
     }
 
@@ -117,6 +120,7 @@ public actor PTYManager: PTYManagerProtocol {
     private func finishSession(id: SessionID, pid: pid_t) {
         guard let child = sessions[id], child.pid == pid else { return }
         sessions.removeValue(forKey: id)
+        spawnedImages.removeValue(forKey: id)
         streamCache.remove(id: id)
         writeQueues.removeValue(forKey: id)
     }
@@ -299,9 +303,22 @@ public actor PTYManager: PTYManagerProtocol {
         Posix.terminateGroup(pid: session.pid)
     }
 
+    public func hangUp(_ id: SessionID) async {
+        guard let session = sessions[id] else { return }
+        Posix.hangUpGroup(pid: session.pid)
+    }
+
     public func getWinsize(_ id: SessionID) async -> (cols: UInt16, rows: UInt16)? {
         guard let session = sessions[id] else { return nil }
         return Posix.getWinsize(fd: session.masterFD)
+    }
+
+    public func hasChildProcesses(_ id: SessionID) async -> Bool {
+        guard let session = sessions[id] else { return false }
+        if Posix.hasChildProcesses(pid: session.pid) { return true }
+        // `exec sleep 30` のようにシェル自身がコマンドに置き換わった場合。
+        let image = Posix.executablePath(pid: session.pid)
+        return image != nil && image != spawnedImages[id]
     }
 
     public func resize(_ id: SessionID, cols: UInt16, rows: UInt16) async throws {

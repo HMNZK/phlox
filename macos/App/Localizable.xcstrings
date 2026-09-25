@@ -7342,7 +7342,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reasoning depth"
+            "value": "Reasoning Effort"
           }
         }
       }
@@ -8790,6 +8790,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Move Down"
+          }
+        }
+      }
+    },
+    "⇧Tab 推論の深さ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⇧Tab Reasoning Effort"
+          }
+        }
+      }
+    },
+    "推論の深さを変えられませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t change the reasoning effort"
           }
         }
       }

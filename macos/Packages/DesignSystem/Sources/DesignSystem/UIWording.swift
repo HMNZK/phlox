@@ -68,7 +68,7 @@ public enum UIWording {
         case .modelLabel:
             english ? "Model" : "モデル"
         case .reasoningEffortLabel:
-            english ? "Reasoning Effort" : "思考の深さ"
+            english ? "Reasoning Effort" : "推論の深さ"
         case .permissionLabel:
             english ? "Permission" : "承認設定"
         case .approvalLabel:

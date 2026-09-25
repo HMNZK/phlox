@@ -276,6 +276,7 @@ struct GridComposerBar: View {
                     highlightsKeywords: viewModel.agentRef == .builtin(.claudeCode),
                     onTab: { viewModel.moveFocusToReplyCard() },
                     onRecallHistory: { viewModel.recallInputHistory($0) },
+                    onCycleEffort: { ComposerEffortCycle.perform(viewModel, locale: locale) },
                     isEditable: viewModel.inFlightText == nil
                 )
                 .frame(

@@ -1361,6 +1361,14 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
+    /// 送った Codex の設定変更の通し番号と、画面に反映した最後の番号。応答が前後しても、
+    /// 後から送った変更の結果より古いものは画面に戻さない（⇧Tab とメニューを続けて使ったときなど）。
+    private var codexSettingsRequestCount = 0
+    private var codexSettingsAppliedRequest = 0
+    /// 応答を待っている設定変更の数。待っている間に届いた設定の通知では、モデルと深さを変えない
+    /// （通知はどの変更の結果か分からない。待っている変更の応答が画面に反映する）。
+    private var codexSettingsRequestsInFlight = 0
+
     public func setModel(model: String, effort: String?) async throws {
         guard let threadId else { throw ChatSettingsUpdateError.threadNotStarted }
         guard let codexClient else { throw ChatSettingsUpdateError.codexSettingsUnavailable }
@@ -1374,9 +1382,14 @@ public final class ChatSessionViewModel: Identifiable {
             effort: resolvedEffort,
             collaborationMode: collaborationMode
         )
+        codexSettingsRequestCount += 1
+        let request = codexSettingsRequestCount
+        codexSettingsRequestsInFlight += 1
+        defer { codexSettingsRequestsInFlight -= 1 }
         do {
             _ = try await codexClient.updateThreadSettings(params)
-        } catch where collaborationMode != nil {
+        } catch where collaborationMode != nil && !isTerminating && request == codexSettingsRequestCount {
+            // プラン モードを外して送り直すのは、後から別の変更を送っていないときだけ（新しい設定を古い値で上書きしない）。
             isPlanMode = false
             isPlanModeAvailable = false
             _ = try await codexClient.updateThreadSettings(ThreadSettingsUpdateParams(
@@ -1385,6 +1398,8 @@ public final class ChatSessionViewModel: Identifiable {
                 effort: resolvedEffort
             ))
         }
+        guard request > codexSettingsAppliedRequest else { return }
+        codexSettingsAppliedRequest = request
         selectedModel = model
         selectedEffort = resolvedEffort
         notifyCodexSettingsChanged()
@@ -1453,21 +1468,30 @@ public final class ChatSessionViewModel: Identifiable {
         guard let threadId else { throw ChatSettingsUpdateError.threadNotStarted }
         guard let codexClient else { throw ChatSettingsUpdateError.codexSettingsUnavailable }
         let collaborationMode = try makeCollaborationMode(on: on)
+        codexSettingsRequestCount += 1
+        let request = codexSettingsRequestCount
+        codexSettingsRequestsInFlight += 1
+        defer { codexSettingsRequestsInFlight -= 1 }
         do {
             _ = try await codexClient.updateThreadSettings(ThreadSettingsUpdateParams(
                 threadId: threadId,
                 collaborationMode: collaborationMode
             ))
         } catch {
-            if on {
+            // 後から送った変更がもう画面に出ていれば、その結果を残す。
+            if on, request > codexSettingsAppliedRequest {
                 isPlanMode = false
                 isPlanModeAvailable = false
                 notifyCodexSettingsChanged()
             }
             throw error
         }
+        guard request > codexSettingsAppliedRequest else { return }
+        codexSettingsAppliedRequest = request
         isPlanMode = on
         if on {
+            // 前の切り替えの失敗で選べない扱いになっていても、通ったので選べる。
+            isPlanModeAvailable = true
             selectedModel = collaborationMode.settings.model
             selectedEffort = collaborationMode.settings.reasoningEffort
         }
@@ -1541,6 +1565,56 @@ public final class ChatSessionViewModel: Identifiable {
         isPlanMode = false
         selectedPermissionProfile = permissionOrMode
         await applySpawnAgentSettings()
+    }
+
+    /// 入力欄の ⇧Tab で回す推論の深さの段（いまのエージェントとモデルで選べるもの。メニューと同じ並び）。
+    public var cyclableEfforts: [String] {
+        guard agentRef == .builtin(.codex) else { return claudeEffortLevels }
+        guard let selectedCodexModel else { return [] }
+        return selectedCodexModel.supportedReasoningEfforts.map(\.reasoningEffort)
+    }
+
+    private var selectedCodexModel: AppServerModel? {
+        guard let selectedModel else { return nil }
+        return availableModels.first { $0.id == selectedModel || $0.model == selectedModel }
+    }
+
+    /// 次の段。最後の次は最初へ戻り、いまの値が段に無ければ最初。回す段が 2 つ未満なら nil。
+    static func nextEffort(after current: String?, in levels: [String]) -> String? {
+        guard levels.count > 1 else { return nil }
+        guard let current, let index = levels.firstIndex(of: current) else { return levels[0] }
+        return levels[(index + 1) % levels.count]
+    }
+
+    /// 前の ⇧Tab の反映。続けて押したときは前の反映を待ってから次の段を数える（2 回とも同じ段にならないように）。
+    private var effortCycleTail: Task<Void, Never>?
+    /// 終了し始めたら ⇧Tab の変更を送らない。
+    public private(set) var isTerminating = false
+
+    /// ⇧Tab: 推論の深さを次の段へ回す。変えた段を返す（変えられなかったら nil）。
+    @discardableResult
+    public func cycleEffort() async -> String? {
+        let previous = effortCycleTail
+        let cycle = Task { @MainActor () -> String? in
+            await previous?.value
+            guard !self.isTerminating else { return nil }
+            return await self.applyNextEffort()
+        }
+        effortCycleTail = Task { _ = await cycle.value }
+        let result = await cycle.value
+        return isTerminating ? nil : result
+    }
+
+    private func applyNextEffort() async -> String? {
+        guard let next = Self.nextEffort(after: selectedEffort, in: cyclableEfforts) else { return nil }
+        if agentRef == .builtin(.codex) {
+            guard let model = selectedCodexModel else { return nil }
+            // 送れたら成功（応答待ちの間にメニューで選び直していれば、画面にはそちらが残る）。
+            do { try await setModel(model: model.id, effort: next) } catch { return nil }
+            return next
+        }
+        await setSpawnAgentEffort(next)
+        return selectedEffort == next ? next : nil
     }
 
     /// task-22: Claude spawn セッションの effort 変更ハンドラ。
@@ -2345,7 +2419,12 @@ public final class ChatSessionViewModel: Identifiable {
             scheduleCodexSurfaceRefresh()
         case .threadSettingsUpdated(let updatedThreadId, let settings):
             guard updatedThreadId == threadId else { return }
+            let pending = codexSettingsRequestsInFlight > 0 ? (selectedModel, selectedEffort, isPlanMode) : nil
             syncSettings(from: settings)
+            if let pending {
+                (selectedModel, selectedEffort, isPlanMode) = pending
+                refreshPlanModeAvailability()
+            }
             notifyCodexSettingsChanged()
         case .threadStatusChanged(let updatedThreadId, let threadStatus):
             // reset 後に生き残る旧 thread の遅延イベントで status を汚染しない
@@ -2504,25 +2583,38 @@ public final class ChatSessionViewModel: Identifiable {
             permissions: settings.selectedPermissionProfile,
             collaborationMode: collaborationMode
         )
+        codexSettingsRequestCount += 1
+        let request = codexSettingsRequestCount
+        codexSettingsRequestsInFlight += 1
+        defer { codexSettingsRequestsInFlight -= 1 }
+        var sent = true
         do {
             _ = try await codexClient.updateThreadSettings(params)
         } catch {
+            sent = false
             if collaborationMode != nil {
                 isPlanMode = false
                 isPlanModeAvailable = false
-                _ = try? await codexClient.updateThreadSettings(ThreadSettingsUpdateParams(
+            }
+            if collaborationMode != nil, !isTerminating, request == codexSettingsRequestCount {
+                sent = (try? await codexClient.updateThreadSettings(ThreadSettingsUpdateParams(
                     threadId: threadId,
                     model: model,
                     effort: effort,
                     permissions: settings.selectedPermissionProfile
-                ))
+                ))) != nil
             }
         }
 
-        selectedModel = model ?? selectedModel
-        selectedEffort = effort ?? selectedEffort
+        // 再適用の間に ⇧Tab やメニューで変えたモデル・深さ・プラン モードは、その結果を残す。
+        // 再適用が通らなかったときは、画面をいまのまま（先に通った変更の結果）にする。
+        if sent, request > codexSettingsAppliedRequest {
+            codexSettingsAppliedRequest = request
+            selectedModel = model ?? selectedModel
+            selectedEffort = effort ?? selectedEffort
+            isPlanMode = collaborationMode?.mode == .plan
+        }
         selectedPermissionProfile = settings.selectedPermissionProfile ?? selectedPermissionProfile
-        isPlanMode = collaborationMode?.mode == .plan
         refreshPlanModeAvailability()
         notifyCodexSettingsChanged()
     }
@@ -3617,6 +3709,7 @@ extension ChatSessionViewModel: ControllableSession {
     }
 
     public func terminate() async {
+        isTerminating = true
         flushPendingStreamDeltasBarrier()
         eventTask?.cancel()
         codexSettingsEventTask?.cancel()

@@ -300,7 +300,7 @@ extension DashboardViewModel {
         case .single:
             let projectID = router.selectedSession.flatMap { sessionNode(id: $0)?.projectID } ?? router.selectedProjectID
             guard let projectID else { return [] }
-            return router.tabs.sessionTabs(in: projectID, candidates: sessionNodes(in: projectID).map(\.id))
+            return router.tabs.sessionTabs(in: projectID, candidates: tabSessionNodes(in: projectID).map(\.id))
         }
     }
 }

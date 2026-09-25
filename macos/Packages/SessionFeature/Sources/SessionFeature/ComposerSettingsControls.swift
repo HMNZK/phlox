@@ -1116,3 +1116,24 @@ struct SettingsMenuRow: View {
         }
     }
 }
+
+/// 入力欄の ⇧Tab: 推論の深さを次の段へ回し、変えた段を読み上げる。回せないときは false（入力欄の既定の動きに任せる）。
+@MainActor
+enum ComposerEffortCycle {
+    static func perform(_ viewModel: ChatSessionViewModel, locale: Locale) -> Bool {
+        guard viewModel.cyclableEfforts.count > 1 else { return false }
+        let languageCode = locale.language.languageCode?.identifier ?? locale.identifier
+        Task {
+            guard let effort = await viewModel.cycleEffort() else {
+                guard !viewModel.isTerminating else { return }
+                // キーは受けたので、変えられなかったことを伝える（Codex の設定の更新に失敗したときなど）。
+                NSSound.beep()
+                AccessibilityNotification.Announcement(AppLocalizedString.string("推論の深さを変えられませんでした", locale: locale)).post()
+                return
+            }
+            // チップと同じく段の名前（high など）で、画面にいま出ている段を読む（待つ間にメニューで選び直していればそちら）。
+            AccessibilityNotification.Announcement("\(UIWording.text(.reasoningEffortLabel, languageCode: languageCode)) \(viewModel.selectedEffort ?? effort)").post()
+        }
+        return true
+    }
+}

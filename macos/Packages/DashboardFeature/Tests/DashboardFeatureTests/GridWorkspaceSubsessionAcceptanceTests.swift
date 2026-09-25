@@ -65,7 +65,7 @@ func gridSessionNodesInWorkspace_includesOrchestrationSubsessionSpawnedFromParen
 }
 
 @Test @MainActor
-func gridSessionNodesInWorkspace_doesNotChangeUnfilteredGridOrSidebar() async throws {
+func gridSessionNodesInWorkspace_showsSubsessionInUnfilteredGridButNotSidebar() async throws {
     let (dashboard, projectID) = try await makeDashboardWithWorkspace()
 
     let parentID = try await dashboard.spawnNewSession(
@@ -79,9 +79,10 @@ func gridSessionNodesInWorkspace_doesNotChangeUnfilteredGridOrSidebar() async th
         launchContext: .orchestration
     )
 
-    // 非退行: 未選択（トップレベル）グリッドはサブセッションを除外し続ける。
+    // 03 G3・06 Grid のユーザー決定（2026-09-25）: 親の下の内部セッションは絞り込みなしのグリッドと上段タブにも出す。
     #expect(dashboard.gridVisibleSessionNodes.map(\.id).contains(parentID))
-    #expect(!dashboard.gridVisibleSessionNodes.map(\.id).contains(subID))
+    #expect(dashboard.gridVisibleSessionNodes.map(\.id).contains(subID))
+    #expect(dashboard.tabSessionNodes(in: projectID).map(\.id).contains(subID))
 
     // 非退行: サイドバー・削除・ナビ用の sessionNodes(in:) はサブセッションを除外し続ける。
     #expect(dashboard.sessionNodes(in: projectID).map(\.id).contains(parentID))

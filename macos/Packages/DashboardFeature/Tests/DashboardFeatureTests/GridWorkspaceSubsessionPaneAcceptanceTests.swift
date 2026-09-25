@@ -69,7 +69,7 @@ struct GridWorkspaceSubsessionPaneAcceptanceTests {
     }
 
     @Test @MainActor
-    func unfilteredGrid_stillHidesOrchestrationSubsession() async throws {
+    func unfilteredGrid_showsOrchestrationSubsessionUnderAParent() async throws {
         let (dashboard, projectID, workspace, suiteName) = try await makeDashboard()
         defer {
             cleanupTemporaryWorkspaceRoot(workspace)
@@ -89,11 +89,12 @@ struct GridWorkspaceSubsessionPaneAcceptanceTests {
 
         dashboard.gridSessionFilterProjectID = nil
         let filtered = dashboard.filteredGridSessionNodes(projectID: nil).map(\.id)
+        // 03 G3・06 Grid のユーザー決定（2026-09-25）: 親の下の内部セッションは絞り込みなしでも出す。
         #expect(filtered.contains(parentID))
-        #expect(!filtered.contains(subID))
+        #expect(filtered.contains(subID))
 
         let panes = dashboard.paneLayoutForDisplay().sessions
         #expect(panes.contains(parentID))
-        #expect(!panes.contains(subID))
+        #expect(panes.contains(subID))
     }
 }

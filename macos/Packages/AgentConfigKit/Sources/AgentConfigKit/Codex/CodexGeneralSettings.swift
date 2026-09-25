@@ -18,7 +18,7 @@ public enum CodexSettingKey: String, Sendable, CaseIterable, Identifiable {
     public var displayName: String {
         switch self {
         case .model: return "モデル"
-        case .modelReasoningEffort: return "思考の深さ"
+        case .modelReasoningEffort: return "推論の深さ"
         case .personality: return "応答の人格"
         case .approvalPolicy: return "承認の求め方"
         case .sandboxMode: return "サンドボックス"

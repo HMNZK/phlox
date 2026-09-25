@@ -59,7 +59,7 @@ struct ClaudeStatusPane: View {
                         note: model.status.settingsFileExists ? nil : "未作成"
                     )
                     AgentConsoleStatusRow(label: "モデル", value: model.status.model ?? "既定")
-                    AgentConsoleStatusRow(label: "思考の深さ", value: model.status.effortLevel ?? "既定")
+                    AgentConsoleStatusRow(label: "推論の深さ", value: model.status.effortLevel ?? "既定")
                     AgentConsoleStatusRow(label: "出力スタイル", value: model.status.outputStyle ?? "既定")
                 }
                 AgentConsoleStatusSection(title: "メモリ", systemImage: "brain") {

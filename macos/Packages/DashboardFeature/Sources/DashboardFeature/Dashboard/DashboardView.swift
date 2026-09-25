@@ -225,7 +225,7 @@ public struct DashboardView: View {
                             pendingProjectDeletion = nil
                             expandedProjectIDs.remove(projectID)
                             if let selected = router.selectedSession,
-                               viewModel.sessionNodes(in: projectID).contains(where: { $0.id == selected }) {
+                               viewModel.gridSessionNodes(in: projectID).contains(where: { $0.id == selected }) {
                                 router.selectedSession = nil
                             }
                             router.tabs.forgetProject(projectID)
@@ -942,7 +942,7 @@ public struct DashboardView: View {
         guard let id = router.selectedSession,
               let projectID = viewModel.sessionNode(id: id)?.projectID else { return }
         router.commonTerminalSelected = false
-        router.tabs.reveal(id, in: projectID, candidates: viewModel.sessionNodes(in: projectID).map(\.id))
+        router.tabs.reveal(id, in: projectID, candidates: viewModel.tabSessionNodes(in: projectID).map(\.id))
     }
 
     /// 削除されたセッションのタブ記録・シェル・ファイルの下書きを捨てる。

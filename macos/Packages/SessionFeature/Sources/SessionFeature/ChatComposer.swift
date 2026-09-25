@@ -86,6 +86,7 @@ struct ChatComposer: View {
                     highlightsKeywords: viewModel.agentRef == .builtin(.claudeCode),
                     onTab: { viewModel.moveFocusToReplyCard() },
                     onRecallHistory: { viewModel.recallInputHistory($0) },
+                    onCycleEffort: { ComposerEffortCycle.perform(viewModel, locale: locale) },
                     isEditable: viewModel.inFlightText == nil,
                     onFocusChange: { isEditorFocused = $0 }
                 )
@@ -567,6 +568,8 @@ struct IMESafeTextView: NSViewRepresentable {
     var onTab: (() -> Bool)? = nil
     /// 候補の無いとき、先頭にいる ↑↓。true を返したら入力欄では処理しない（過去の入力を呼び戻した。05 R2）。
     var onRecallHistory: ((InputHistoryCursor.Direction) -> Bool)? = nil
+    /// 候補の無いときの ⇧Tab。true を返したら入力欄では処理しない（推論の深さを次の段へ回した）。
+    var onCycleEffort: (() -> Bool)? = nil
     /// 送信を受け付けてもらうまでは書けない（05 R4。失敗時に戻す本文と、その間に書いた本文がぶつからないように）。
     var isEditable = true
     /// 入力欄のフォーカスが変わったとき（入力欄の輪を出す。05 R2）。
@@ -595,6 +598,7 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.onEscape = onEscape
         textView.onTab = onTab
         textView.onRecallHistory = onRecallHistory
+        textView.onCycleEffort = onCycleEffort
         if textView.isEditable != isEditable { textView.isEditable = isEditable }
         textView.onFocusGained = onFocusGained
         textView.onFocusChange = onFocusChange
@@ -641,6 +645,7 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.onEscape = onEscape
         textView.onTab = onTab
         textView.onRecallHistory = onRecallHistory
+        textView.onCycleEffort = onCycleEffort
         if textView.isEditable != isEditable { textView.isEditable = isEditable }
         textView.onFocusGained = onFocusGained
         textView.onFocusChange = onFocusChange
@@ -797,6 +802,7 @@ struct IMESafeTextView: NSViewRepresentable {
         var onEscape: (() -> Void)?
         var onTab: (() -> Bool)?
         var onRecallHistory: ((InputHistoryCursor.Direction) -> Bool)?
+        var onCycleEffort: (() -> Bool)?
         var onFocusGained: (() -> Void)?
         var onFocusChange: ((Bool) -> Void)?
         var suggestionController: ComposerSuggestionController?
@@ -945,6 +951,13 @@ struct IMESafeTextView: NSViewRepresentable {
                !hasMarkedText(),
                suggestionController?.isPresented != true,
                onTab?() == true {
+                return
+            }
+            if event.keyCode == 48,
+               event.modifierFlags.intersection([.command, .shift, .option, .control]) == .shift,
+               !hasMarkedText(),
+               suggestionController?.isPresented != true,
+               onCycleEffort?() == true {
                 return
             }
             if event.keyCode == 126 || event.keyCode == 125,

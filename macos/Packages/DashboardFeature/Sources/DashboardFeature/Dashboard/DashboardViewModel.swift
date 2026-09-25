@@ -552,6 +552,11 @@ public final class DashboardViewModel {
         sessionNodes.filter { $0.projectID == projectID && Self.isVisibleInSidebar($0) }
     }
 
+    /// 上段のセッションタブの候補。サイドバーの行に加え、親の下にいる内部セッション（`.orchestration`）も入れる（03 G3・06 Grid の決定）。
+    public func tabSessionNodes(in projectID: ProjectID) -> [SessionNode] {
+        sessionNodes.filter { $0.projectID == projectID && isShownOnSessionSurfaces($0) }
+    }
+
     /// ワークスペース絞り込みグリッド用。サイドバー用の sessionNodes(in:) と違い .orchestration サブセッションも含む。
     public func gridSessionNodes(in projectID: ProjectID) -> [SessionNode] {
         sessionNodes.filter { $0.projectID == projectID }
@@ -641,6 +646,8 @@ public final class DashboardViewModel {
         from client: SessionSurfaceClient
     ) -> Bool {
         guard let node = sessionNode(id: sessionID) else { return true }
+        // 親の下の内部セッションは、プロジェクトが無くても絞り込みなしのグリッドに出る。
+        if client == .desktop, isShownOnSessionSurfaces(node) { return true }
         return SessionReachability.isReachable(
             from: client,
             launchContext: node.launchContext,
@@ -653,9 +660,22 @@ public final class DashboardViewModel {
         isReachableFromUI(sessionID, from: .desktop)
     }
 
-    /// プロジェクト絞り込み無しグリッドに表示するセッション（内部 orchestration を除外）。
+    /// プロジェクト絞り込み無しグリッドに表示するセッション。内部セッションは親の下にいるものだけ出す
+    /// （親が消えた・親の無い `.orchestration` は出さない。ADR 0027 の孤児の除外は維持）。
     public var gridVisibleSessionNodes: [SessionNode] {
-        sessionNodes.filter { Self.isVisibleInGrid(launchContext: $0.launchContext) }
+        sessionNodes.filter(isShownOnSessionSurfaces)
+    }
+
+    /// 通常のセッションか、祖先をたどると通常のセッションに着く内部セッションか。
+    func isShownOnSessionSurfaces(_ node: SessionNode) -> Bool {
+        var current = node
+        var seen: Set<SessionID> = []
+        while !Self.isVisibleInGrid(launchContext: current.launchContext) {
+            guard let parentID = current.controllable.parentSessionID, seen.insert(current.id).inserted,
+                  let parent = sessionNode(id: parentID) else { return false }
+            current = parent
+        }
+        return true
     }
 
     /// グリッド表示の選択 UI 用。ワークスペース絞り込み文脈内の全セッション（selection 適用前）。
@@ -849,8 +869,10 @@ public final class DashboardViewModel {
         normalizeGridSessionSelection()
     }
 
+    /// 選んで絞ったグリッドに、新しいセッションを足す。内部セッションは足さない（オーケストレーションが
+    /// 子を次々に立てても、選んだタイルが押し流されないように）。
     private func gridSessionSelectionDidSpawn(_ id: SessionID) {
-        guard gridSessionSelection != nil else { return }
+        guard gridSessionSelection != nil, sessionNode(id: id)?.launchContext != .orchestration else { return }
         let candidates = Set(gridSessionPickerCandidates().map(\.id))
         guard candidates.contains(id) else { return }
         gridSessionSelection!.insert(id)

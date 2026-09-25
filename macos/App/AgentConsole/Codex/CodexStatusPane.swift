@@ -59,7 +59,7 @@ struct CodexStatusPane: View {
                         note: model.status.configFileExists ? nil : "未作成"
                     )
                     AgentConsoleStatusRow(label: "モデル", value: model.status.model ?? "既定")
-                    AgentConsoleStatusRow(label: "思考の深さ", value: model.status.reasoningEffort ?? "既定")
+                    AgentConsoleStatusRow(label: "推論の深さ", value: model.status.reasoningEffort ?? "既定")
                     AgentConsoleStatusRow(label: "応答の人格", value: model.status.personality ?? "既定")
                     AgentConsoleStatusRow(label: "承認の求め方", value: model.status.approvalPolicy ?? "既定")
                     AgentConsoleStatusRow(label: "サンドボックス", value: model.status.sandboxMode ?? "既定")

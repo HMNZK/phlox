@@ -53,7 +53,7 @@ struct AcceptanceUIWordingTests {
         WordingRow(key: .declineAction, japanese: "拒否", english: "Decline", name: "declineAction"),
         WordingRow(key: .cancelAction, japanese: "キャンセル", english: "Cancel", name: "cancelAction"),
         WordingRow(key: .modelLabel, japanese: "モデル", english: "Model", name: "modelLabel"),
-        WordingRow(key: .reasoningEffortLabel, japanese: "思考の深さ", english: "Reasoning Effort", name: "reasoningEffortLabel"),
+        WordingRow(key: .reasoningEffortLabel, japanese: "推論の深さ", english: "Reasoning Effort", name: "reasoningEffortLabel"),
         WordingRow(key: .permissionLabel, japanese: "承認設定", english: "Permission", name: "permissionLabel"),
         WordingRow(key: .approvalLabel, japanese: "承認設定", english: "Approval", name: "approvalLabel"),
         WordingRow(key: .modeLabel, japanese: "動作モード", english: "Mode", name: "modeLabel"),
@@ -140,7 +140,7 @@ struct AcceptanceUIWordingTests {
         #expect(UIWording.text(.declineAction, languageCode: "ja") == "拒否")
         #expect(UIWording.text(.cancelAction, languageCode: "ja") == "キャンセル")
         #expect(UIWording.text(.modelLabel, languageCode: "ja") == "モデル")
-        #expect(UIWording.text(.reasoningEffortLabel, languageCode: "ja") == "思考の深さ")
+        #expect(UIWording.text(.reasoningEffortLabel, languageCode: "ja") == "推論の深さ")
         #expect(UIWording.text(.permissionLabel, languageCode: "ja") == "承認設定")
         #expect(UIWording.text(.approvalLabel, languageCode: "ja") == "承認設定")
         #expect(UIWording.text(.modeLabel, languageCode: "ja") == "動作モード")

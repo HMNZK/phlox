@@ -170,7 +170,7 @@ struct SessionTabBar: View {
             SessionID(rawValue: uuid),
             onto: target,
             in: projectID,
-            candidates: viewModel.sessionNodes(in: projectID).map(\.id)
+            candidates: viewModel.tabSessionNodes(in: projectID).map(\.id)
         )
         return true
     }
@@ -183,7 +183,7 @@ struct SessionTabBar: View {
     /// タブだけを閉じる。セッションは止めずサイドバーに残る。
     private func close(_ id: SessionID) {
         guard let projectID else { return }
-        let next = router.tabs.closeSessionTab(id, in: projectID, candidates: viewModel.sessionNodes(in: projectID).map(\.id))
+        let next = router.tabs.closeSessionTab(id, in: projectID, candidates: viewModel.tabSessionNodes(in: projectID).map(\.id))
         if router.selectedSession == id {
             router.selectedSession = next
             if next == nil { router.selectProject(projectID) }

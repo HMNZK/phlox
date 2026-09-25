@@ -132,8 +132,8 @@ struct AcceptanceSessionOriginTests {
     }
 
     /// 非退行: 実在する要求元からの Control API spawn は従来どおり
-    /// 内部サブセッション（`.orchestration` かつ親リンクあり）として着地し、
-    /// トップレベルグリッドには出ない（ADR 0027 の除外規則を維持）。
+    /// 内部サブセッション（`.orchestration` かつ親リンクあり）として着地する。親の下にいるので、
+    /// 絞り込みなしのグリッドにも出る（03 G3・06 Grid のユーザー決定 2026-09-25。親の無いものは引き続き出さない）。
     @Test @MainActor
     func controlAPISpawn_fromExistingRequester_staysOrchestrationChild() async throws {
         let ptyManager = MockPTYManager()
@@ -152,7 +152,9 @@ struct AcceptanceSessionOriginTests {
         let child = try #require(dashboard.sessionNode(id: childID))
         #expect(child.launchContext == .orchestration)
         #expect(child.controllable.parentSessionID == parentID)
-        #expect(!dashboard.gridVisibleSessionNodes.contains { $0.id == childID })
+        #expect(dashboard.gridVisibleSessionNodes.contains { $0.id == childID })
+        // プロジェクトが無くてもグリッドに出るので、完了の知らせも届く。
+        #expect(dashboard.isReachableFromUI(childID))
     }
 
     /// **回帰ガード（最重要）**: 親リンクを張らなくなっても、

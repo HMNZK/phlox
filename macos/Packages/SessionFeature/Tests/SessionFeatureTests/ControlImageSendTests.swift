@@ -224,6 +224,42 @@ struct ControlImageSendTests {
             ]])
         }
     }
+
+    // 05 R8: 送れないモデルで送ろうとしたエラーは、送れるモデルに替えたら消える。
+    @Test
+    func sendText_imageErrorClearsAfterSwitchingToAnImageModel() async throws {
+        let textModel = try JSONDecoder().decode(
+            AppServerModel.self,
+            from: Data(#"{"id":"text-model","model":"text-model","displayName":"Text","description":"","hidden":false,"supportedReasoningEfforts":["medium"],"defaultReasoningEffort":"medium","isDefault":true,"inputModalities":["text"]}"#.utf8)
+        )
+        let imageModel = try JSONDecoder().decode(
+            AppServerModel.self,
+            from: Data(#"{"id":"image-model","model":"image-model","displayName":"Image","description":"","hidden":false,"supportedReasoningEfforts":["medium"],"defaultReasoningEffort":"medium","isDefault":false,"inputModalities":["text","image"]}"#.utf8)
+        )
+        let client = RacingCodexImageClient(models: [textModel, imageModel])
+        let vm = ChatSessionViewModel(
+            id: SessionID(),
+            agentRef: .builtin(.codex),
+            client: client,
+            approvalBroker: ChatApprovalBroker(),
+            workingDirectory: "/tmp/work"
+        )
+        try await withTerminatedViewModel(vm) {
+            try await vm.startNew(
+                approvalPolicy: .named("on-request"),
+                sandbox: .named("workspace-write")
+            )
+            await client.setConfigurationBlocked(false)
+            try await vm.setModel(model: "text-model", effort: "medium")
+            vm.attachmentStore.addImage(data: tinyPNG, mediaType: "image/png")
+            try await vm.sendText("", submit: true)
+            #expect(vm.attachmentStore.lastError == ChatSessionViewModel.ControlImageSendError.imagesUnsupported.localizedDescription)
+
+            try await vm.setModel(model: "image-model", effort: "medium")
+            #expect(vm.imageAttachmentSupport == .supported)
+            #expect(vm.attachmentStore.lastError == nil)
+        }
+    }
 }
 
 private actor RacingCodexImageClient: StructuredAgentClient, CodexSettingsProviding, CodexImageInputConfiguring {

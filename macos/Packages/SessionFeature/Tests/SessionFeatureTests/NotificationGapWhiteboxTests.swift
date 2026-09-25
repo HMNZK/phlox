@@ -512,3 +512,33 @@ func notificationGap_approvalQueuedBeforeTheExitIsNotShownAfterIt() async throws
     #expect(decision == "decline")
     #expect(vm.replyApprovals.isEmpty)
 }
+
+// 05 R6: 承認を待っている間は入力できるが送らない。承認に答えたら送れる。
+@Test @MainActor
+func replyArea_sendIsHeldWhileAnApprovalIsPending() async throws {
+    let client = NotificationGapCodexClient()
+    let broker = ChatApprovalBroker()
+    let vm = ChatSessionViewModel(
+        id: SessionID(),
+        agentRef: .builtin(.codex),
+        client: client,
+        approvalBroker: broker,
+        workingDirectory: "/tmp/phlox-notification-gap"
+    )
+    try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+    let json = """
+    {"threadId":"t","turnId":"u","itemId":"i","startedAtMs":1,"command":"pwd","cwd":"/tmp"}
+    """
+    let request = try JSONDecoder().decode(CommandExecutionApprovalRequest.self, from: Data(json.utf8))
+    let handler = broker.serverRequestHandler
+    let wire = Task { try? await handler(.commandExecutionApproval(request)) }
+    try await waitForNotificationGap { !vm.replyApprovals.isEmpty }
+
+    vm.draft = "次はテストも"
+    #expect(vm.consumeDraftForSend() == nil)
+    #expect(vm.draft == "次はテストも")
+
+    await vm.respondToApproval(vm.pendingApprovals[0].id, decision: .accept)
+    #expect(vm.consumeDraftForSend() == "次はテストも")
+    _ = await wire.value
+}

@@ -65,6 +65,7 @@ struct ChatComposer: View {
             ComposerAttachmentStrip(
                 store: viewModel.attachmentStore,
                 layout: controlsLayout.settingsLayout,
+                imageNotice: ComposerAttachmentCapability.imageNotice(viewModel, locale: locale),
                 onRemove: removeAttachment
             )
             .padding(.top, viewModel.attachmentStore.attachments.isEmpty && viewModel.attachmentStore.lastError == nil ? 0 : DSSpacing.s)
@@ -84,6 +85,7 @@ struct ChatComposer: View {
                     focusRequest: viewModel.composerFocusRequest,
                     highlightsKeywords: viewModel.agentRef == .builtin(.claudeCode),
                     onTab: { viewModel.moveFocusToReplyCard() },
+                    onRecallHistory: { viewModel.recallInputHistory($0) },
                     isEditable: viewModel.inFlightText == nil,
                     onFocusChange: { isEditorFocused = $0 }
                 )
@@ -251,14 +253,7 @@ struct ChatComposer: View {
     }
 
     private func addPastedImage(data: Data, mediaType: String) -> ComposerPasteImageOutcome {
-        guard ComposerAttachmentCapability.supportsImageAttachments(agentRef: viewModel.agentRef) else {
-            viewModel.attachmentStore.setError(ComposerAttachmentCapability.unsupportedImageMessage)
-            return .unsupported
-        }
-        guard let attachment = viewModel.attachmentStore.addImage(data: data, mediaType: mediaType) else {
-            return .rejected
-        }
-        return .attached(number: attachment.number)
+        ComposerAttachmentCapability.addPastedImage(to: viewModel, data: data, mediaType: mediaType, locale: locale)
     }
 
     private func removeAttachment(_ attachment: ComposerAttachment) {
@@ -570,6 +565,8 @@ struct IMESafeTextView: NSViewRepresentable {
     var highlightsKeywords: Bool = false
     /// 候補の無いときの Tab。true を返したら入力欄では処理しない（承認・質問カードへ移る。05 R6b）。
     var onTab: (() -> Bool)? = nil
+    /// 候補の無いとき、先頭にいる ↑↓。true を返したら入力欄では処理しない（過去の入力を呼び戻した。05 R2）。
+    var onRecallHistory: ((InputHistoryCursor.Direction) -> Bool)? = nil
     /// 送信を受け付けてもらうまでは書けない（05 R4。失敗時に戻す本文と、その間に書いた本文がぶつからないように）。
     var isEditable = true
     /// 入力欄のフォーカスが変わったとき（入力欄の輪を出す。05 R2）。
@@ -597,6 +594,7 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.imagesForCopy = imagesForCopy
         textView.onEscape = onEscape
         textView.onTab = onTab
+        textView.onRecallHistory = onRecallHistory
         if textView.isEditable != isEditable { textView.isEditable = isEditable }
         textView.onFocusGained = onFocusGained
         textView.onFocusChange = onFocusChange
@@ -642,6 +640,7 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.imagesForCopy = imagesForCopy
         textView.onEscape = onEscape
         textView.onTab = onTab
+        textView.onRecallHistory = onRecallHistory
         if textView.isEditable != isEditable { textView.isEditable = isEditable }
         textView.onFocusGained = onFocusGained
         textView.onFocusChange = onFocusChange
@@ -797,6 +796,7 @@ struct IMESafeTextView: NSViewRepresentable {
         var onComposingChanged: ((Bool, String) -> Void)?
         var onEscape: (() -> Void)?
         var onTab: (() -> Bool)?
+        var onRecallHistory: ((InputHistoryCursor.Direction) -> Bool)?
         var onFocusGained: (() -> Void)?
         var onFocusChange: ((Bool) -> Void)?
         var suggestionController: ComposerSuggestionController?
@@ -945,6 +945,14 @@ struct IMESafeTextView: NSViewRepresentable {
                !hasMarkedText(),
                suggestionController?.isPresented != true,
                onTab?() == true {
+                return
+            }
+            if event.keyCode == 126 || event.keyCode == 125,
+               event.modifierFlags.intersection([.command, .shift, .option, .control]).isEmpty,
+               !hasMarkedText(),
+               suggestionController?.isPresented != true,
+               selectedRange() == NSRange(location: 0, length: 0),
+               onRecallHistory?(event.keyCode == 126 ? .older : .newer) == true {
                 return
             }
             switch ComposerKeyRouting.action(
@@ -1176,6 +1184,8 @@ struct IMESafeTextView: NSViewRepresentable {
 struct ComposerAttachmentStrip: View {
     @Bindable var store: ComposerAttachmentStore
     let layout: ComposerSettingsLayout
+    /// いまのモデルには送られない画像の知らせ。あれば画像を薄く出し、承認待ちの色の面で知らせる（05 R8 案 B）。
+    var imageNotice: String? = nil
     let onRemove: (ComposerAttachment) -> Void
 
     private var chipHeight: CGFloat {
@@ -1193,24 +1203,40 @@ struct ComposerAttachmentStrip: View {
                                 chipHeight: chipHeight,
                                 onRemove: { onRemove(attachment) }
                             )
+                            .opacity(imageNotice == nil ? 1 : 0.55)
                         }
                     }
                     .padding(.horizontal, 1)
                 }
                 .accessibilityIdentifier("ChatComposer.attachments")
             }
-            // 上限などの通知は淡い赤の面に本文色（PhloxReply.dc.html の notice）。
+            // 知らせは本文色。面は上限などが淡い赤、送られない画像が承認待ちの色、置き換えは中立（PhloxReply.dc.html の notice）。
             if let lastError = store.lastError {
-                Text(LocalizedStringKey(lastError))
-                    .font(.system(size: 11.5))
-                    .lineSpacing(2)
-                    .foregroundStyle(DSColor.textPrimary)
-                    .lineLimit(2)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 6)
-                    .background(DSColor.attentionTint(.error), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    .accessibilityIdentifier("ChatComposer.attachmentError")
+                notice(Text(LocalizedStringKey(lastError)), background: noticeBackground)
+            } else if let imageNotice {
+                notice(Text(verbatim: imageNotice), background: DSColor.attentionTint(.approval))
             }
+        }
+    }
+
+    private func notice(_ text: Text, background: Color) -> some View {
+        text
+            .font(.system(size: 11.5))
+            .lineSpacing(2)
+            .foregroundStyle(DSColor.textPrimary)
+            .lineLimit(2)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(background, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .accessibilityIdentifier("ChatComposer.attachmentError")
+    }
+}
+
+extension ComposerAttachmentStrip {
+    private var noticeBackground: Color {
+        switch store.lastErrorTone {
+        case .error: DSColor.attentionTint(.error)
+        case .neutral: DSColor.fillSubtle
         }
     }
 }

@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import AgentDomain
+import DesignSystem
 
 // task-8 契約の PM スタブ。API 表面は受け入れテスト
 // ComposerAttachmentAcceptanceTests が凍結している（シグネチャ変更禁止）。
@@ -53,8 +54,13 @@ final class ComposerAttachmentStore {
     static let maxTotalRawBytes = 8 * 1024 * 1024
     static let maxCount = 4
 
+    /// 知らせの面の色（PhloxReply.dc.html の notice: 上限などは淡い赤、置き換えは中立）。
+    /// 送られない画像の知らせは保存せず、いまのモデルから決める（`ComposerAttachmentCapability.imageNotice`）。
+    enum NoticeTone { case error, neutral }
+
     private(set) var attachments: [ComposerAttachment] = []
-    private(set) var lastError: String?
+    private(set) var lastError: String? { didSet { lastErrorTone = .error } }
+    private(set) var lastErrorTone = NoticeTone.error
 
     init(attachments: [ComposerAttachment] = []) {
         self.attachments = attachments
@@ -138,8 +144,13 @@ final class ComposerAttachmentStore {
         lastError = nil
     }
 
-    func setError(_ message: String) {
+    func clearError() {
+        lastError = nil
+    }
+
+    func setError(_ message: String, tone: NoticeTone = .error) {
         lastError = message
+        lastErrorTone = tone
     }
 }
 
@@ -157,9 +168,47 @@ enum ComposerPastePolicy {
 }
 
 enum ComposerAttachmentCapability {
-    static let unsupportedImageMessage = "画像添付は Claude と Codex に対応しています"
+    /// 添付している画像がいまのモデルには送られないときの知らせ（05 R8 案 B。Codex の画像非対応モデル）。
+    /// モデルを替えたら消えるように、保存せずに毎回決める。
+    @MainActor
+    static func imageNotice(_ viewModel: ChatSessionViewModel, locale: Locale) -> String? {
+        guard viewModel.imageAttachmentSupport == .modelUnsupported, !viewModel.attachmentStore.attachments.isEmpty else { return nil }
+        return modelUnsupportedNotice(viewModel, locale: locale)
+    }
 
-    static func supportsImageAttachments(agentRef: AgentRef) -> Bool {
-        agentRef == .builtin(.claudeCode) || agentRef == .builtin(.codex)
+    @MainActor
+    private static func modelUnsupportedNotice(_ viewModel: ChatSessionViewModel, locale: Locale) -> String {
+        let model = viewModel.availableModels.first { $0.id == viewModel.selectedModel }?.displayName
+            ?? viewModel.selectedModel
+            ?? AppLocalizedString.string("このモデル", locale: locale)
+        return String(format: AppLocalizedString.string("%@ は画像入力に対応していないため、この画像は送られません。モデルを切り替えると送れます。", locale: locale), model)
+    }
+
+    /// 画像を送れないエージェントで、＋から選んだ画像をファイルの参照にしたとき（05 R8 の Cursor）。
+    static func fileReferenceNotice(agentRef: AgentRef, locale: Locale) -> String {
+        String(format: AppLocalizedString.string("%@ では画像を添付できません。画像はファイルの参照（@パス）として挿入しました。", locale: locale), agentName(agentRef, locale: locale))
+    }
+
+    /// 画像を送れないエージェントで貼り付けたとき（貼り付けた画像にはパスが無いので参照にできない）。
+    static func pasteUnsupportedNotice(agentRef: AgentRef, locale: Locale) -> String {
+        String(format: AppLocalizedString.string("%@ では画像を貼り付けられません。画像ファイルは ＋ からファイルの参照（@パス）として挿入できます。", locale: locale), agentName(agentRef, locale: locale))
+    }
+
+    /// 貼り付けた画像（単体表示・グリッド共通）。送れないモデルでも添付し（知らせは `imageNotice`）、送れないエージェントでは断る。
+    @MainActor
+    static func addPastedImage(to viewModel: ChatSessionViewModel, data: Data, mediaType: String, locale: Locale) -> ComposerPasteImageOutcome {
+        let support = viewModel.imageAttachmentSupport
+        guard support != .agentUnsupported else {
+            viewModel.attachmentStore.setError(pasteUnsupportedNotice(agentRef: viewModel.agentRef, locale: locale), tone: .neutral)
+            return .unsupported
+        }
+        guard let attachment = viewModel.attachmentStore.addImage(data: data, mediaType: mediaType) else {
+            return .rejected
+        }
+        return .attached(number: attachment.number)
+    }
+
+    private static func agentName(_ agentRef: AgentRef, locale: Locale) -> String {
+        agentRef.builtinKind?.displayName ?? AppLocalizedString.string("このエージェント", locale: locale)
     }
 }

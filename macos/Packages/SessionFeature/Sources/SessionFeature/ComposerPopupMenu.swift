@@ -65,7 +65,7 @@ struct ComposerPopupSurface<Content: View>: View {
 
 /// 開いている箱へ渡すキー（入力欄にフォーカスを残したまま ↑↓↩ で選べるように）。
 struct ComposerPopupKeyEvent: Equatable {
-    enum Key { case up, down, confirm }
+    enum Key { case up, down, left, right, confirm }
     let key: Key
     let token: Int
 }
@@ -98,9 +98,13 @@ struct ComposerPopupPresenter<Popup: View>: ViewModifier {
     @Binding var isPresented: Bool
     var alignment: HorizontalAlignment = .leading
     var gap: CGFloat = 6
+    /// ←→ も箱へ渡す（2 列の箱で列を移る）。ほかの箱では入力欄のカーソル移動に残す。
+    var relaysHorizontalKeys = false
     @ViewBuilder let popup: () -> Popup
     @State private var anchorFrame: CGRect = .zero
     @State private var popupFrame: CGRect = .zero
+    /// 箱の外へはみ出して描く部分（2 列の子の箱）。外のクリックの判定に含める。
+    @State private var overhangFrame: CGRect = .zero
     @State private var monitor: Any?
     @State private var openObserver: NSObjectProtocol?
     @State private var keyEvent: ComposerPopupKeyEvent?
@@ -115,6 +119,7 @@ struct ComposerPopupPresenter<Popup: View>: ViewModifier {
                         .environment(\.composerPopupKey, keyEvent)
                         .fixedSize()
                         .background(FrameReader(frame: $popupFrame))
+                        .onPreferenceChange(ComposerPopupOverhangKey.self) { overhangFrame = $0 }
                         .placedAbove(gap: gap)
                         .onKeyPress(.escape) {
                             isPresented = false
@@ -146,7 +151,7 @@ struct ComposerPopupPresenter<Popup: View>: ViewModifier {
             let location = event.locationInWindow
             let point = CGPoint(x: location.x, y: contentView.bounds.height - location.y)
             // チップの上は Button が開閉するので、ここでは閉じない（閉じてすぐ開き直さないように）。
-            if !popupFrame.contains(point) && !anchorFrame.contains(point) {
+            if !popupFrame.contains(point) && !overhangFrame.contains(point) && !anchorFrame.contains(point) {
                 isPresented = false
             }
             return event
@@ -164,6 +169,8 @@ struct ComposerPopupPresenter<Popup: View>: ViewModifier {
             return nil
         case 126: key = .up
         case 125: key = .down
+        case 123 where relaysHorizontalKeys: key = .left
+        case 124 where relaysHorizontalKeys: key = .right
         case 36, 76: key = .confirm
         default: return event
         }
@@ -181,6 +188,12 @@ struct ComposerPopupPresenter<Popup: View>: ViewModifier {
         if let openObserver { NotificationCenter.default.removeObserver(openObserver) }
         openObserver = nil
     }
+}
+
+/// 箱の外へはみ出して描く部分の位置（global）。
+struct ComposerPopupOverhangKey: PreferenceKey {
+    static let defaultValue = CGRect.zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = value.union(nextValue()) }
 }
 
 private struct FrameReader: View {
@@ -208,9 +221,16 @@ extension View {
         isPresented: Binding<Bool>,
         alignment: HorizontalAlignment = .leading,
         gap: CGFloat = 6,
+        relaysHorizontalKeys: Bool = false,
         @ViewBuilder popup: @escaping () -> Popup
     ) -> some View {
-        modifier(ComposerPopupPresenter(isPresented: isPresented, alignment: alignment, gap: gap, popup: popup))
+        modifier(ComposerPopupPresenter(
+            isPresented: isPresented,
+            alignment: alignment,
+            gap: gap,
+            relaysHorizontalKeys: relaysHorizontalKeys,
+            popup: popup
+        ))
     }
 }
 
@@ -239,6 +259,10 @@ struct ComposerMenuList<Footer: View>: View {
     let sections: [ComposerMenuSection]
     var rowHeight: CGFloat = 24
     var monospacedRows = false
+    /// 2 列の箱で、いま ↑↓↩ を受ける列か。受けない列は指している行を出さない。
+    var handlesKeys = true
+    /// ポインタが行に乗ったとき（2 列の箱で、その列へ移る）。
+    var onHoverRow: (() -> Void)? = nil
     let onClose: () -> Void
     @ViewBuilder var footer: () -> Footer
     @State private var highlightedID: String?
@@ -298,11 +322,12 @@ struct ComposerMenuList<Footer: View>: View {
         .onKeyPress(.downArrow) { move(1) }
         .onKeyPress(.return) { activateHighlighted() }
         .onChange(of: popupKey) { _, event in
+            guard handlesKeys else { return }
             switch event?.key {
             case .up?: _ = move(-1)
             case .down?: _ = move(1)
             case .confirm?: _ = activateHighlighted()
-            case nil: break
+            case .left?, .right?, nil: break
             }
         }
         .onAppear {
@@ -322,7 +347,7 @@ struct ComposerMenuList<Footer: View>: View {
     }
 
     private func rowView(_ row: ComposerMenuRow) -> some View {
-        let isHighlighted = row.isEnabled && highlightedID == row.id
+        let isHighlighted = handlesKeys && row.isEnabled && highlightedID == row.id
         return Button {
             row.action()
             onClose()
@@ -350,7 +375,11 @@ struct ComposerMenuList<Footer: View>: View {
         }
         .buttonStyle(.plain)
         .disabled(!row.isEnabled)
-        .onHover { if $0 && row.isEnabled { highlightedID = row.id } }
+        .onHover {
+            guard $0 && row.isEnabled else { return }
+            highlightedID = row.id
+            onHoverRow?()
+        }
         .accessibilityLabel(Text(verbatim: row.note.map { "\(row.title)、\($0)" } ?? row.title))
         .accessibilityAddTraits(row.isSelected ? .isSelected : [])
     }
@@ -379,6 +408,8 @@ extension ComposerMenuList where Footer == EmptyView {
         sections: [ComposerMenuSection],
         rowHeight: CGFloat = 24,
         monospacedRows: Bool = false,
+        handlesKeys: Bool = true,
+        onHoverRow: (() -> Void)? = nil,
         onClose: @escaping () -> Void
     ) {
         self.init(
@@ -388,9 +419,73 @@ extension ComposerMenuList where Footer == EmptyView {
             sections: sections,
             rowHeight: rowHeight,
             monospacedRows: monospacedRows,
+            handlesKeys: handlesKeys,
+            onHoverRow: onHoverRow,
             onClose: onClose,
             footer: { EmptyView() }
         )
+    }
+}
+
+/// 横に子の箱を出す 2 列の選択（PhloxReply.dc.html の effortSub: 親 260・子 150、子は親の右端から 4 内側・上から 30）。
+/// 子の箱は親の箱に重ねて描き、親の位置（チップの真上）を動かさない。
+/// ←→ で列を移り（移った列の名前を読み上げる）、↑↓↩ はいまの列が受ける。ポインタを乗せた列へも移る。
+struct ComposerMenuWithSideList: View {
+    let title: String
+    let sections: [ComposerMenuSection]
+    let sideTitle: String
+    let sideSection: ComposerMenuSection?
+    let onClose: () -> Void
+    @State private var isSideActive = false
+    @Environment(\.composerPopupKey) private var popupKey
+
+    private static let width: CGFloat = 260
+
+    var body: some View {
+        ComposerPopupSurface(width: Self.width) {
+            ComposerMenuList(
+                sections: sections,
+                handlesKeys: !isSideActive,
+                onHoverRow: { isSideActive = false },
+                onClose: onClose
+            )
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text(verbatim: title))
+        .overlay(alignment: .topLeading) {
+            if let sideSection {
+                ComposerPopupSurface(width: 150) {
+                    ComposerMenuList(
+                        header: sideTitle,
+                        sections: [sideSection],
+                        handlesKeys: isSideActive,
+                        onHoverRow: { isSideActive = true },
+                        onClose: onClose
+                    )
+                }
+                .fixedSize()
+                .background(GeometryReader { proxy in
+                    Color.clear.preference(key: ComposerPopupOverhangKey.self, value: proxy.frame(in: .global))
+                })
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel(Text(verbatim: sideTitle))
+                .padding(.leading, Self.width - 4)
+                .padding(.top, 30)
+            }
+        }
+        .onChange(of: popupKey) { _, event in
+            switch event?.key {
+            case .left?: setSideActive(false)
+            case .right?: setSideActive(sideSection != nil)
+            default: break
+            }
+        }
+    }
+
+    private func setSideActive(_ active: Bool) {
+        guard active != isSideActive else { return }
+        isSideActive = active
+        AccessibilityNotification.Announcement(active ? sideTitle : title).post()
     }
 }
 
@@ -472,7 +567,7 @@ struct ComposerPermissionPanel: View {
                 guard options.indices.contains(highlightedIndex) else { return }
                 onSelect(options[highlightedIndex])
                 onClose()
-            case nil: break
+            case .left?, .right?, nil: break
             }
         }
         .onAppear {

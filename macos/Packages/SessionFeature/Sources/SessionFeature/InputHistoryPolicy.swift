@@ -24,3 +24,45 @@ public enum InputHistoryPolicy {
         return Array(entries.suffix(cap))
     }
 }
+
+/// 入力欄の ↑↓ で過去の入力を呼び戻す位置（05 R2「↑ 入力履歴（候補がないとき）」）。
+/// ↑ で古い方へ、↓ で新しい方へ。最新より先へ進むと呼び戻す前の下書きに戻る。呼び戻した文を書き換えたら最初から。
+public struct InputHistoryCursor: Equatable, Sendable {
+    public enum Direction: Sendable { case older, newer }
+
+    private var index: Int?
+    private var savedDraft = ""
+    private var recalledText: String?
+
+    public init() {}
+
+    /// 呼び戻す文。動けない（履歴が無い・端にいる・呼び戻していない）ときは nil。
+    public mutating func recall(_ direction: Direction, entries: [String], currentText: String) -> String? {
+        if let recalledText, recalledText != currentText { self = InputHistoryCursor() }
+        switch direction {
+        case .older:
+            let next: Int
+            if let index {
+                guard index > 0 else { return nil }
+                next = index - 1
+            } else {
+                guard !entries.isEmpty else { return nil }
+                savedDraft = currentText
+                next = entries.count - 1
+            }
+            index = next
+            recalledText = entries[next]
+            return entries[next]
+        case .newer:
+            guard let index else { return nil }
+            guard index + 1 < entries.count else {
+                let draft = savedDraft
+                self = InputHistoryCursor()
+                return draft
+            }
+            self.index = index + 1
+            recalledText = entries[index + 1]
+            return entries[index + 1]
+        }
+    }
+}

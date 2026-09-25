@@ -170,12 +170,12 @@ public final class ChatSessionViewModel: Identifiable {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed == "/compact" || trimmed.hasPrefix("/compact ")
     }
-    public private(set) var availableModels: [AppServerModel] = []
+    public private(set) var availableModels: [AppServerModel] = [] { didSet { clearStaleImageErrorIfSendable() } }
     public private(set) var availableSlashCommands: [String]?
     /// init 未受領時に補完へ渡す種一覧（永続ストア由来）。生成時に1回だけ読む。
     public private(set) var seedSlashCommands: [String]?
     public private(set) var permissionProfiles: [PermissionProfileSummary] = []
-    public private(set) var selectedModel: String?
+    public private(set) var selectedModel: String? { didSet { clearStaleImageErrorIfSendable() } }
     public private(set) var selectedEffort: String?
     public private(set) var selectedPermissionProfile: String?
     public private(set) var isPlanMode = false
@@ -668,8 +668,28 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     /// trim 後が空なら nil（draft 不変）。非空なら trim 済みを返し draft をクリアする（task-4 契約）。
+    @ObservationIgnored private var inputHistoryCursor = InputHistoryCursor()
+
+    /// ↑↓ で過去の入力を下書きへ呼び戻す。呼び戻したら true。
+    /// 画像を添付している間は呼ばない（本文の [Image #N] が消えると添付も外れ、戻しても画像は戻らない）。
+    /// 画像つきで送った入力も呼び戻さない（会話には画像の本体が残らず、本文だけ戻すと画像なしで送ってしまう）。
+    /// Codex の会話を読み直した入力は添付の記録を持たないので、本文の [Image #N] でも見分ける。
+    func recallInputHistory(_ direction: InputHistoryCursor.Direction) -> Bool {
+        guard attachmentStore.attachments.isEmpty else { return false }
+        let entries = transcript.compactMap { item -> String? in
+            guard case let .userMessage(_, text, _, attachments) = item, attachments.isEmpty,
+                  text.range(of: #"\[Image #\d+\]"#, options: .regularExpression) == nil
+            else { return nil }
+            return text
+        }
+        guard let text = inputHistoryCursor.recall(direction, entries: entries, currentText: draft) else { return false }
+        draft = text
+        return true
+    }
+
     public func consumeDraftForSend() -> String? {
-        guard inFlightText == nil else { return nil }
+        // 承認を待っている間は書けるが送らない（05 R6「送信は承認後」）。質問のカードは別の指示を送ってよい。
+        guard inFlightText == nil, replyApprovals.isEmpty else { return nil }
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             guard !attachmentStore.attachments.isEmpty else { return nil }
@@ -744,6 +764,27 @@ public final class ChatSessionViewModel: Identifiable {
         default:
             false
         }
+    }
+
+    /// 画像を添付したときの扱い（05 R8）。貼り付け・＋・添付の見た目がこの 1 つの判定に従う。
+    enum ImageAttachmentSupport: Equatable {
+        case supported
+        /// 添付はできるが、いまのモデルには送れない（Codex の画像非対応モデル）。
+        case modelUnsupported
+        /// 画像を送れないエージェント。＋ からはファイルの参照にする。
+        case agentUnsupported
+    }
+
+    /// 送れないモデルで送ろうとしたときのエラーは、送れるモデルに替えたら消す（残すといまの可否と食い違う）。
+    private func clearStaleImageErrorIfSendable() {
+        guard attachmentStore.lastError == ControlImageSendError.imagesUnsupported.localizedDescription,
+              imageAttachmentSupport == .supported else { return }
+        attachmentStore.clearError()
+    }
+
+    var imageAttachmentSupport: ImageAttachmentSupport {
+        if acceptsImageAttachments { return .supported }
+        return agentRef == .builtin(.codex) ? .modelUnsupported : .agentUnsupported
     }
 
     /// Control API 経路の画像非対応判定用。

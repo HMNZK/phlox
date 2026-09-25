@@ -1463,3 +1463,32 @@ F1〜F11 で見送った項目を、ユーザーの判断（`0037-ui-redesign-de
 - Debug 版での確認（背面・撮影だけ。ダーク・英語）: 会話の間隔と見出しの高さ。Codex のチャットでプロセス（Debug 版の子）を止めると入力欄の代わりに終了の帯と「Resume this conversation」が出て、押すと新しいプロセスで同じ会話に戻り末尾に寄ること（最初は先頭のまま表示されたので、読み込み後に差し替えるよう直した）。新しい Claude のチャットの履歴カードに「Last: …」と「4 messages · feature/…」が出ること。
 - 独立レビュー（読み取りのみ）: 11 回繰り返し、最後は高・中なし。残した低は 4MB を超える Codex 履歴の件数（上記）。
 - 確認できなかったもの: 「完了 · exit 0」の見出し（止めた Codex は先にエラーが出るため、画面では 0 の完了にならなかった。テストでは確認）。ライト表示での終了の帯。
+
+## F12 見送り分の再対応（8）: 入力欄（05 Reply Area・PhloxReply）
+
+### 対応表
+
+| 見本の指示 | 内容 | 実装箇所 |
+|---|---|---|
+| 05 O2（PhloxReply の effortSub） | Codex のモデルの箱の右に、推論の深さの子の箱（幅 150・親の右端から 4 内側・上から 30、見出し「推論の深さ」）を出す。子の箱は親に重ねて描き、親の位置は動かさない。←→ で列を移り（移った列の名前を読み上げる）、↑↓↩ はいまの列が受ける。ポインタを乗せた列へも移る | `ComposerMenuWithSideList`・`ComposerPopupPresenter.relaysHorizontalKeys`・`ComposerMenuList.handlesKeys` |
+| C-31（05 R6「送信は承認後」） | 承認を待っている間は入力はできるが、↩ でも送らない（下書きは残る）。質問のカードは従来どおり別の指示を送れる | `ChatSessionViewModel.consumeDraftForSend` |
+| C-28（05 R2「↑ 入力履歴（候補がないとき）」） | 候補が出ておらず、カーソルが先頭にあるときの ↑ で過去の入力を新しい順に呼び戻す。↓ で戻り、最新より先で呼び戻す前の下書きに戻る。呼び戻した文を書き換えたら最初から。画像を添付している間は呼ばず、画像つきで送った入力も呼び戻さない（会話に画像の本体が残らず、本文だけ戻すと画像なしで送ってしまうため。Codex の会話を読み直した入力は添付の記録が無いので、本文の [Image #N] でも見分ける）。キーの案内にも足す | `InputHistoryCursor`・`ChatSessionViewModel.recallInputHistory`・`SubmitAwareTextView.keyDown`・`ReplyKeyHints` |
+| C-29（05 R8・PhloxReply の noAttach / attachB） | 画像の扱いを 1 つの判定（送れる／いまのモデルには送れない／エージェントが送れない）にまとめ、貼り付け・＋・添付の見た目がそれに従う。Codex の画像非対応モデルは添付して薄く出し、承認待ちの色の面で「○○ は画像入力に対応していないため、この画像は送られません。モデルを切り替えると送れます。」（いまのモデルからその場で決めるので、対応モデルへ替えれば消える。送ろうとして出たエラーも、対応モデルへ替えたら消す）。Cursor は ＋ で選んだ画像をファイルの参照にして中立の面で知らせ、貼り付けは断って ＋ を案内する。＋ の読み上げも「ファイルや画像を添付」／「ファイルを参照として挿入」（画像を送れないエージェント）に分ける | `ChatSessionViewModel.imageAttachmentSupport`・`ComposerAttachmentCapability`・`ComposerAttachmentStore.lastErrorTone`・`ComposerAttachmentStrip.imageNotice` |
+
+### 直していないもの
+
+- Cursor のモデル検索と C-18（Codex の画像を対応モデルだけ許可）は、調べたところ実装済みだった。
+- C-25（「このセッション中は許可」の説明）: 見本の文（同じ種類の要求を確認なしで通す）はすでにそのまま出している。Codex のファイル変更だけは、実際に通るのが同じファイルへの変更なので、その範囲を書いた文のままにした。見本も範囲は「未確認」としており、1 つの文にそろえると実際より広く許可すると読めてしまうため。
+- Codex の画像非対応モデルで送ったときは、これまでどおり送信を止めて下書きと添付を残す（文言も Control API と共通のまま）。見本の「この画像は送られません」は添付した時点で出すようにした。
+- 見本の attachC（画像を警告付きのテキストに置き換えて送る）は、どのエージェントの挙動か見本にも書かれておらず、該当する経路が無い。
+- 貼り付けた画像はファイルの場所を持たないので、Cursor ではファイルの参照にできない（断って ＋ を案内する）。
+- ＋ の読み上げは、見本では Codex の画像非対応モデルでも「ファイルを参照として挿入」だが、実際は画像として添付する（送るときに止める）ので「ファイルや画像を添付」のままにした（読み上げと操作を食い違わせないため）。
+- 子の箱の見出しは見本の「推論の深さ」ではなく、アプリ全体で使っている「思考の深さ」のまま（設定画面・機能一覧と同じ語で、凍結テスト `AcceptanceUIWordingTests` が固定しているため。変えるなら承認が要る）。
+
+### 検証
+
+- 追加したテスト: `InputHistoryCursorTests`（↑↓ の移動と下書きへの戻り・書き換えたらやり直し・履歴なし）、`replyArea_sendIsHeldWhileAnApprovalIsPending`、`composerAttachment_supportIsDecidedOncePerAgentAndModel`・`composerAttachment_pastedImageFollowsTheSupport`・`composerAttachment_limitErrorsStayRed`・`composerAttachment_historyIsNotRecalledWhileAnImageIsAttached`・`composerAttachment_historySkipsInputsSentWithImages`・`composerAttachment_historySkipsInputsWithAnImagePlaceholder`、`sendText_imageErrorClearsAfterSwitchingToAnImageModel`。主なものは、直した箇所を外すと落ちることを確かめた。
+- 通ったもの: 検証ゲート `bash .claude/verify.sh`（アプリのビルドを含む）。
+- Debug 版での確認（背面・撮影と pid 宛てのキー送信だけ。ダーク・英語とライト・日本語）: Codex のモデルの箱の右に子の箱が出て、→ で子の箱へ移り ↓ で指す行が動くこと、親の箱がチップの真上に留まること。入力欄で ↑ を押すと直前の入力が戻り、↓ で空の下書きに戻ること。キーの案内に「↑ 入力履歴（候補がないとき）」が出ること。
+- 独立レビュー（読み取りのみ）: 5 回繰り返し、最後は高・中なし。
+- 確認できなかったもの: 子の箱のマウスでのクリック（ポインタを動かすと操作を奪うため。外のクリックの判定に子の箱の範囲を入れたことはコードで確認）、承認待ちでの ↩（承認を出すには実際のエージェントの要求が要る。テストで確認）、画像の知らせの見た目（添付に NSOpenPanel か貼り付けが要る。テストで確認）、読み上げ（VoiceOver は使っていない）。

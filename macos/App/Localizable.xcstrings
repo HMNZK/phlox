@@ -8661,6 +8661,94 @@
           }
         }
       }
+    },
+    "↑ 入力履歴（候補がないとき）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↑ Input history (when no suggestions)"
+          }
+        }
+      }
+    },
+    "このモデル": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This model"
+          }
+        }
+      }
+    },
+    "このエージェント": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This agent"
+          }
+        }
+      }
+    },
+    "%@ は画像入力に対応していないため、この画像は送られません。モデルを切り替えると送れます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ doesn’t accept image input, so this image won’t be sent. Switch models to send it."
+          }
+        }
+      }
+    },
+    "%@ では画像を添付できません。画像はファイルの参照（@パス）として挿入しました。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ can’t take image attachments. The image was inserted as a file reference (@path)."
+          }
+        }
+      }
+    },
+    "%@ では画像を貼り付けられません。画像ファイルは ＋ からファイルの参照（@パス）として挿入できます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can’t paste images into %@. Use ＋ to insert an image file as a file reference (@path)."
+          }
+        }
+      }
+    },
+    "ファイルや画像を添付": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attach files or images"
+          }
+        }
+      }
+    },
+    "ファイルを参照として挿入": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insert a file as a reference"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -185,6 +185,7 @@ struct GridComposerBar: View {
     @State private var editorHeight: CGFloat = ComposerHeightBounds.grid.min
     @State private var isComposing = false
     @State private var suggestionController: ComposerSuggestionController
+    @Environment(\.locale) private var locale
 
     init(
         viewModel: ChatSessionViewModel,
@@ -254,6 +255,7 @@ struct GridComposerBar: View {
             ComposerAttachmentStrip(
                 store: viewModel.attachmentStore,
                 layout: controlsLayout.settingsLayout,
+                imageNotice: ComposerAttachmentCapability.imageNotice(viewModel, locale: locale),
                 onRemove: removeAttachment
             )
             ZStack(alignment: .topLeading) {
@@ -273,6 +275,7 @@ struct GridComposerBar: View {
                     focusRequest: viewModel.composerFocusRequest,
                     highlightsKeywords: viewModel.agentRef == .builtin(.claudeCode),
                     onTab: { viewModel.moveFocusToReplyCard() },
+                    onRecallHistory: { viewModel.recallInputHistory($0) },
                     isEditable: viewModel.inFlightText == nil
                 )
                 .frame(
@@ -378,14 +381,7 @@ struct GridComposerBar: View {
     }
 
     private func addPastedImage(data: Data, mediaType: String) -> ComposerPasteImageOutcome {
-        guard ComposerAttachmentCapability.supportsImageAttachments(agentRef: viewModel.agentRef) else {
-            viewModel.attachmentStore.setError(ComposerAttachmentCapability.unsupportedImageMessage)
-            return .unsupported
-        }
-        guard let attachment = viewModel.attachmentStore.addImage(data: data, mediaType: mediaType) else {
-            return .rejected
-        }
-        return .attached(number: attachment.number)
+        ComposerAttachmentCapability.addPastedImage(to: viewModel, data: data, mediaType: mediaType, locale: locale)
     }
 
     private func removeAttachment(_ attachment: ComposerAttachment) {

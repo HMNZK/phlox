@@ -204,6 +204,7 @@ struct ReplyKeyHints: View {
         case .composer:
             var items = [Text("↩ 送信"), Text("⇧↩ 改行"), Text("⌘Z 取り消し")]
             if allowsImagePaste { items.append(Text("⌘V 画像も貼り付け")) }
+            items.append(Text("↑ 入力履歴（候補がないとき）"))
             return items
         case .approvalPending:
             return [Text("⌥⌘↩ 許可"), Text("⌥⌘⌫ 拒否"), Text("Tab で承認カードへ移動すると 1 キーで返せる")]

@@ -356,7 +356,7 @@ struct ComposerSettingsControlsView: View {
         }
     }
 
-    /// Codex のモデル（「gpt-6-sol · high」）。推論の深さは同じ箱の下の段で選ぶ（モックの横に出る子メニューの代わり）。
+    /// Codex のモデル（「gpt-6-sol · high」）。推論の深さは横に出る子の箱で選ぶ（05 O2）。
     private var modelMenu: some View {
         let title = [modelTitle, viewModel.selectedEffort].compactMap { $0 }.joined(separator: " · ")
         return Button { toggle(.model) } label: {
@@ -366,37 +366,41 @@ struct ComposerSettingsControlsView: View {
         .accessibilityLabel(Text(verbatim: AppLocalizedString.string("モデル", locale: locale) + ": " + title))
         .accessibilityIdentifier("\(accessibilityPrefix).modelMenu")
         .disabled(viewModel.availableModels.isEmpty)
-        .composerPopup(isPresented: binding(for: .model)) {
-            ComposerPopupSurface(width: 260) {
-                ComposerMenuList(sections: codexModelSections, onClose: closeMenu)
-            }
+        .composerPopup(isPresented: binding(for: .model), relaysHorizontalKeys: codexEffortSection != nil) {
+            ComposerMenuWithSideList(
+                title: AppLocalizedString.string("モデル", locale: locale),
+                sections: [codexModelSection],
+                sideTitle: UIWording.text(.reasoningEffortLabel, languageCode: languageCode),
+                sideSection: codexEffortSection,
+                onClose: closeMenu
+            )
         }
     }
 
-    private var codexModelSections: [ComposerMenuSection] {
-        var sections = [ComposerMenuSection(id: "models", rows: viewModel.availableModels.map { model in
+    private var codexModelSection: ComposerMenuSection {
+        ComposerMenuSection(id: "models", rows: viewModel.availableModels.map { model in
             ComposerMenuRow(
                 id: model.id,
                 title: model.displayName,
                 isSelected: model.id == viewModel.selectedModel,
                 action: { setModel(model.id, effort: nil) }
             )
-        })]
-        if let selectedModel, !selectedModel.supportedReasoningEfforts.isEmpty {
-            sections.append(ComposerMenuSection(
-                id: "efforts",
-                title: UIWording.text(.reasoningEffortLabel, languageCode: languageCode),
-                rows: selectedModel.supportedReasoningEfforts.map { option in
-                    ComposerMenuRow(
-                        id: "effort-\(option.reasoningEffort)",
-                        title: option.reasoningEffort,
-                        isSelected: option.reasoningEffort == viewModel.selectedEffort,
-                        action: { setModel(selectedModel.id, effort: option.reasoningEffort) }
-                    )
-                }
-            ))
-        }
-        return sections
+        })
+    }
+
+    private var codexEffortSection: ComposerMenuSection? {
+        guard let selectedModel, !selectedModel.supportedReasoningEfforts.isEmpty else { return nil }
+        return ComposerMenuSection(
+            id: "efforts",
+            rows: selectedModel.supportedReasoningEfforts.map { option in
+                ComposerMenuRow(
+                    id: "effort-\(option.reasoningEffort)",
+                    title: option.reasoningEffort,
+                    isSelected: option.reasoningEffort == viewModel.selectedEffort,
+                    action: { setModel(selectedModel.id, effort: option.reasoningEffort) }
+                )
+            }
+        )
     }
 
     private var permissionMenu: some View {
@@ -584,6 +588,7 @@ struct ComposerAttachPlaceholder: View {
     let layout: ComposerSettingsLayout
     let accessibilityIdentifier: String
     @State private var isHovering = false
+    @Environment(\.locale) private var locale
 
     var body: some View {
         // PhloxReply.dc.html の plus: 24×24・角丸 6・「＋」15・fg2・面なし（ポインタを置くとホバーの面）。
@@ -602,9 +607,9 @@ struct ComposerAttachPlaceholder: View {
         .onHover { hovering in
             isHovering = hovering
         }
-        .accessibilityLabel(Text("添付"))
+        .accessibilityLabel(Text(attachLabel))
         .accessibilityIdentifier(accessibilityIdentifier)
-        .help("添付")
+        .help(Text(attachLabel))
     }
 
     private func openAttachmentPanel() {
@@ -624,9 +629,19 @@ struct ComposerAttachPlaceholder: View {
         }
     }
 
+    /// 画像を送れないエージェントでは「参照として挿入」（PhloxReply.dc.html の plusAria）。
+    /// Codex の画像非対応モデルは画像も添付する（送るときに止める）ので「添付」のまま。
+    private var attachLabel: LocalizedStringKey {
+        viewModel.imageAttachmentSupport == .agentUnsupported ? "ファイルを参照として挿入" : "ファイルや画像を添付"
+    }
+
     private func addImage(_ url: URL) {
-        guard ComposerAttachmentCapability.supportsImageAttachments(agentRef: viewModel.agentRef) else {
+        guard viewModel.imageAttachmentSupport != .agentUnsupported else {
             insertFileReference(url.path)
+            viewModel.attachmentStore.setError(
+                ComposerAttachmentCapability.fileReferenceNotice(agentRef: viewModel.agentRef, locale: locale),
+                tone: .neutral
+            )
             return
         }
         do {

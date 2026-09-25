@@ -290,6 +290,9 @@ public enum DSColor {
     public static var selectionFill: Color { RGB(0xD9, 0x77, 0x57).color.opacity(palette.selectionOpacity) }
     /// 選択した文字・フォーカスの輪（`--selText`: ライト coral 0.25 / ダーク #E08865 0.30）。
     public static var focusRing: Color { accent.opacity(isDark ? 0.30 : 0.25) }
+    /// 行の中の名前変更で選んだ文字の面（PhloxSidebar の `--selText`: rgba(217,119,87,.30) / .40）。
+    public static var textSelection: Color { textSelection(isDark: isDark) }
+    static func textSelection(isDark: Bool) -> Color { RGB(0xD9, 0x77, 0x57).color.opacity(isDark ? 0.40 : 0.30) }
     /// ツリーの縦の案内線（`--guide`: 黒 0.13 / 白 0.14）。
     public static var guide: Color { theme.textPrimary.color.opacity(isDark ? 0.14 : 0.13) }
     /// 無彩色の状態記号（待機・実行中・完了の輪。`--neutralGlyph`: #6E6E73 / #A1A1A7）。

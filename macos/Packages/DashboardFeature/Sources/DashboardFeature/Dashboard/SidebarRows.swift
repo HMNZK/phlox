@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import AgentDomain
 import DesignSystem
 import SessionFeature
@@ -237,7 +238,7 @@ struct SidebarSessionRow<Menu: View>: View {
         .padding(.leading, padding)
         .padding(.trailing, 8)
         .frame(minHeight: 26)
-        .background(alignment: .leading) { guides }
+        .background(alignment: .leading) { SidebarGuides(depth: depth) }
         .overlay(alignment: .leading) { chevron }
         .background(emphasis.fill, in: RoundedRectangle(cornerRadius: DSRadius.row))
         .contentShape(Rectangle())
@@ -298,19 +299,6 @@ struct SidebarSessionRow<Menu: View>: View {
             .fixedSize()
     }
 
-    /// 縦の案内線（親の段ごと）。
-    private var guides: some View {
-        ZStack(alignment: .leading) {
-            ForEach(Array(1..<max(depth, 1)), id: \.self) { level in
-                Rectangle()
-                    .fill(DSColor.guide)
-                    .frame(width: 1)
-                    .offset(x: SidebarRowMetrics.leadingPadding(depth: level) + 5)
-            }
-        }
-        .frame(maxHeight: .infinity, alignment: .leading)
-    }
-
     /// 子を持つ行の左余白のシェブロン。
     @ViewBuilder
     private var chevron: some View {
@@ -362,7 +350,146 @@ struct SidebarSessionRow<Menu: View>: View {
     }
 }
 
+// MARK: - Internal sessions row
+
+/// オーケストレーションの内部セッションを親ごとにまとめた行（PhloxSidebar の isInternal。高さ 24・破線の四角）。
+struct SidebarInternalSessionsRow: View {
+    let depth: Int
+    let count: Int
+    let isExpanded: Bool
+    let onToggle: () -> Void
+
+    private var padding: CGFloat { SidebarRowMetrics.leadingPadding(depth: depth) }
+
+    var body: some View {
+        HStack(spacing: 7) {
+            RoundedRectangle(cornerRadius: 3)
+                .strokeBorder(DSColor.textTertiary, style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
+                .frame(width: 12, height: 12)
+                .accessibilityHidden(true)
+            Text("内部セッション（オーケストレーション）")
+                .font(.system(size: 12))
+                .foregroundStyle(DSColor.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(verbatim: "\(count)")
+                .font(DSFont.meta)
+                .foregroundStyle(DSColor.textTertiary)
+                .monospacedDigit()
+        }
+        .padding(.leading, padding)
+        .padding(.trailing, 8)
+        .frame(height: 24)
+        .background(alignment: .leading) { SidebarGuides(depth: depth) }
+        .overlay(alignment: .leading) {
+            Text(verbatim: "›")
+                .font(.system(size: 13))
+                .foregroundStyle(DSColor.textTertiary)
+                .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                .frame(width: 10, height: 20)
+                .offset(x: padding - 13)
+                .accessibilityHidden(true)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onToggle)
+        .help(isExpanded ? Text("折りたたむ") : Text("展開"))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("内部セッション \(count) 件、\(isExpanded ? Text("展開中") : Text("折りたたみ"))"))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(.default, onToggle)
+    }
+}
+
+// MARK: - Reorder
+
+/// 並べ替えの挿入位置の線（PhloxSidebar の drag: 左 18・右 6・2pt の accent、左端に 6pt の丸）。
+struct SidebarInsertionLine: View {
+    var body: some View {
+        ZStack(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 1)
+                .fill(DSColor.accent)
+                .frame(height: 2)
+                .padding(.leading, 18)
+                .padding(.trailing, 6)
+            Circle()
+                .fill(DSColor.sidebarBackground)
+                .overlay(Circle().strokeBorder(DSColor.accent, lineWidth: 2))
+                .frame(width: 6, height: 6)
+                .padding(.leading, 14)
+        }
+        .frame(height: 6)
+        .offset(y: -2)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// 並べ替えで運ぶ中身の型。アプリの外にも宣言にも出ない型なので、外から持ち込んだ文字などは受け付けない。
+enum SidebarReorderPayload {
+    static let type = UTType(tag: "phlox-sidebar-session", tagClass: .filenameExtension, conformingTo: .data)!
+
+    static func provider(for id: SessionID) -> NSItemProvider {
+        let provider = NSItemProvider()
+        let data = Data(id.rawValue.uuidString.utf8)
+        provider.registerDataRepresentation(forTypeIdentifier: type.identifier, visibility: .ownProcess) { completion in
+            completion(data, nil)
+            return nil
+        }
+        return provider
+    }
+}
+
+/// 行へのドロップ。上半分なら行の前、下半分なら後ろへ入れる。兄弟でない行には落とせない。
+struct SidebarReorderDropDelegate: DropDelegate {
+    let target: SessionID
+    @Binding var dragging: SessionID?
+    let siblings: () -> [SessionID]
+    @Binding var dropTarget: SidebarDropTarget?
+    let onMove: (SessionID, Int) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        guard info.hasItemsConforming(to: [SidebarReorderPayload.type]), let dragging, dragging != target else { return false }
+        let siblings = siblings()
+        return siblings.contains(dragging) && siblings.contains(target)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        dropTarget = SidebarDropTarget(sessionID: target, before: info.location.y < 13)
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        if dropTarget?.sessionID == target { dropTarget = nil }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        defer { dropTarget = nil; dragging = nil }
+        guard validateDrop(info: info), let dragging, let dropTarget, dropTarget.sessionID == target,
+              let index = siblings().firstIndex(of: target) else { return false }
+        onMove(dragging, dropTarget.before ? index : index + 1)
+        return true
+    }
+}
+
 // MARK: - Parts
+
+/// 縦の案内線（親の段ごと）。
+struct SidebarGuides: View {
+    let depth: Int
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            ForEach(Array(1..<max(depth, 1)), id: \.self) { level in
+                Rectangle()
+                    .fill(DSColor.guide)
+                    .frame(width: 1)
+                    .offset(x: SidebarRowMetrics.leadingPadding(depth: level) + 5)
+            }
+        }
+        .frame(maxHeight: .infinity, alignment: .leading)
+    }
+}
 
 /// 畳んだ行の要約。状態の記号 9pt ＋ 件数（「◆1 ●1」。11/600/fg2）。未読の完了は accent の点（2026-09-24 ユーザー決定: 記号で出す）。
 struct SidebarSummaryText: View {
@@ -437,7 +564,7 @@ struct SidebarRenameField: View {
     let onCommit: (_ byReturn: Bool) -> Void
     let onCancel: () -> Void
 
-    @FocusState private var focused: Bool
+    @Environment(\.locale) private var locale
 
     var body: some View {
         // 03 F6: 行の高さは変えず、案内は行の下に重なる吹き出しで出す（描くのはサイドバー側）。
@@ -445,23 +572,21 @@ struct SidebarRenameField: View {
             .anchorPreference(key: SidebarRenameHintKey.self, value: .bounds) { SidebarRenameHint(anchor: $0, text: hint) }
     }
 
+    /// 選んだ文字は `--selText` の面（PhloxSidebar の renaming。AppKit の入力欄でないと色を変えられない）。
     private var field: some View {
-        TextField(text: $text) { Text("名前") }
-            .textFieldStyle(.plain)
-            .font(DSFont.row)
-            .padding(.horizontal, 5)
-            .frame(height: 20)
-            .background(DSColor.fieldBackground, in: RoundedRectangle(cornerRadius: 4))
-            // 外側 2pt の accent の輪（box-shadow: 0 0 0 2px）。
-            .overlay(RoundedRectangle(cornerRadius: 4).stroke(DSColor.accent, lineWidth: 2).padding(-1))
-            .focused($focused)
-            .onAppear { focused = true }
-            .onSubmit { onCommit(true) }
-            .onExitCommand(perform: onCancel)
-            .onChange(of: focused) { _, isFocused in
-                if !isFocused { onCommit(false) }
-            }
-            .help(Text(hint))
+        DSInlineTextField(
+            text: $text,
+            placeholder: AppLocalizedString.string("名前", locale: locale),
+            onSubmit: { onCommit(true) },
+            onCancel: onCancel,
+            onEndEditing: { onCommit(false) }
+        )
+        .padding(.horizontal, 5)
+        .frame(height: 20)
+        .background(DSColor.fieldBackground, in: RoundedRectangle(cornerRadius: 4))
+        // 外側 2pt の accent の輪（box-shadow: 0 0 0 2px）。
+        .overlay(RoundedRectangle(cornerRadius: 4).stroke(DSColor.accent, lineWidth: 2).padding(-1))
+        .help(Text(hint))
     }
 }
 

@@ -1,6 +1,7 @@
 import Foundation
 import AgentDomain
 import DesignSystem
+import SessionFeature
 
 /// サイドバーでキー操作の対象になる行（03「キーボード」）。
 enum SidebarItem: Hashable {
@@ -85,4 +86,61 @@ enum SidebarRowMeta {
     static func session(_ state: SessionDisplayState) -> SessionTrailing {
         state == .idle ? .elapsed : .state
     }
+}
+
+/// サイドバーのセッション一覧の 1 行。オーケストレーションの内部セッションは親ごとに 1 行へまとめる
+/// （PhloxSidebar の「内部セッション（オーケストレーション）」・03 G3 案 B）。
+enum SidebarTreeLine: Identifiable, Equatable {
+    /// `depthOffset` はまとめ行を開いたときに中の行を 1 段下げる分。
+    case session(SessionTreeViewModel.Row, depthOffset: Int)
+    case internalSessions(parent: SessionID, depth: Int, count: Int, isExpanded: Bool)
+
+    var id: String {
+        switch self {
+        case .session(let row, _): "session-\(row.id.rawValue)"
+        case .internalSessions(let parent, _, _, _): "internal-\(parent.rawValue)"
+        }
+    }
+
+    /// 見本どおり、内部セッションのまとめ行は親の子の末尾に置く。
+    /// `isExpanded` は子を開いたセッション、`expandedParents` はまとめ行を開いた親。
+    static func make(
+        _ forest: [SessionTreeNode],
+        isExpanded: (SessionID) -> Bool,
+        expandedParents: Set<SessionID>,
+        depthOffset: Int = 0
+    ) -> [SidebarTreeLine] {
+        forest.flatMap { node -> [SidebarTreeLine] in
+            let expanded = isExpanded(node.id)
+            var lines: [SidebarTreeLine] = [.session(SessionTreeViewModel.Row(node: node, isExpanded: expanded), depthOffset: depthOffset)]
+            guard expanded else { return lines }
+            let internalChildren = node.children.filter { $0.launchContext == .orchestration }
+            lines += make(node.children.filter { $0.launchContext != .orchestration }, isExpanded: isExpanded, expandedParents: expandedParents, depthOffset: depthOffset)
+            guard !internalChildren.isEmpty else { return lines }
+            let groupExpanded = expandedParents.contains(node.id)
+            lines.append(.internalSessions(parent: node.id, depth: node.depth + 1 + depthOffset, count: internalChildren.count, isExpanded: groupExpanded))
+            if groupExpanded {
+                lines += make(internalChildren, isExpanded: isExpanded, expandedParents: expandedParents, depthOffset: depthOffset + 1)
+            }
+            return lines
+        }
+    }
+}
+
+/// 同じ親の中での並べ替え（03 F10）。`reorderSession`（2 つの入れ替え）を隣どうしで繰り返して動かす。
+enum SidebarReorder {
+    /// `moving` を兄弟の並び `siblings` の `destination` 番目（元の並びでの挿入位置 0...count）へ動かすとき、
+    /// 順に入れ替える相手。動かない・兄弟でないときは空。
+    static func swapPartners(moving: SessionID, to destination: Int, in siblings: [SessionID]) -> [SessionID] {
+        guard let from = siblings.firstIndex(of: moving), (0...siblings.count).contains(destination) else { return [] }
+        if destination > from + 1 { return Array(siblings[(from + 1)..<destination]) }
+        if destination < from { return Array(siblings[destination..<from].reversed()) }
+        return []
+    }
+}
+
+/// ドラッグ中の挿入位置。`before` なら行の上、そうでなければ下に線を出す。
+struct SidebarDropTarget: Equatable {
+    let sessionID: SessionID
+    let before: Bool
 }

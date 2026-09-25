@@ -8749,6 +8749,50 @@
           }
         }
       }
+    },
+    "内部セッション（オーケストレーション）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Internal sessions (orchestration)"
+          }
+        }
+      }
+    },
+    "内部セッション %lld 件、%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld internal sessions, %@"
+          }
+        }
+      }
+    },
+    "上へ移動": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move Up"
+          }
+        }
+      }
+    },
+    "下へ移動": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move Down"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

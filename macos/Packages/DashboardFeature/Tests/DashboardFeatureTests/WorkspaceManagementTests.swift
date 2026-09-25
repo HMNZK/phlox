@@ -627,6 +627,31 @@ func renameProject_updatesNameAndPersists() async throws {
     #expect(dashboard.projects.first?.name == "After")
 }
 
+// 03 F6・C-10: プロジェクト名を空欄（空白だけ）で確定したら、フォルダ名に戻す。
+@Test @MainActor
+func renameProject_blankRestoresTheFolderName() async throws {
+    let workspaceURL = try makeTemporaryWorkspaceRoot()
+    defer { cleanupTemporaryWorkspaceRoot(workspaceURL) }
+    let folder = workspaceURL.appendingPathComponent("capweave", isDirectory: true)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    let projectStore = InMemoryProjectStore()
+    let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+    let dashboard = DashboardViewModel(environment: makeTestEnvironmentWithProjects(
+        pty: MockPTYManager(),
+        hookStream: hookStream,
+        workspaceDirectory: workspaceURL,
+        projectStore: projectStore
+    ))
+    await dashboard.start()
+    let projectID = try #require(dashboard.addProject(name: "CapWeave", directoryPath: folder.path + "/"))
+
+    dashboard.renameProject(projectID, to: "別名")
+    dashboard.renameProject(projectID, to: "   ")
+
+    #expect(dashboard.projects.first?.name == "capweave")
+    try await waitUntil { await projectStore.load().first?.name == "capweave" }
+}
+
 @Test @MainActor
 func start_loadsPersistedProjects() async throws {
     let ptyManager = MockPTYManager()

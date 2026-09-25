@@ -33,6 +33,11 @@ struct DashboardSidebarView: View {
     @State private var renaming: SidebarItem?
     @State private var renameDraft = ""
     @State private var unreadExpanded = false
+    /// ドラッグで並べ替え中のセッションと、挿入位置（03 F10）。
+    @State private var draggingSession: SessionID?
+    @State private var dropTarget: SidebarDropTarget?
+    /// 「内部セッション」のまとめ行を開いた親。
+    @State private var expandedInternalParents: Set<SessionID> = []
     @State private var typeSelectBuffer = ""
     @State private var typeSelectAt = Date.distantPast
     /// キーで選んだ直後は、開いたターミナル・入力欄が入力先を取っても一覧に戻す（↑↓ で続けて動けるように）。
@@ -346,11 +351,47 @@ struct DashboardSidebarView: View {
     @ViewBuilder
     private func projectSessionRows(_ project: Project) -> some View {
         let forest = viewModel.sessionForest(in: project.id)
-        ForEach(sessionTreeViewModel.rows(from: forest)) { row in
-            if let node = viewModel.sessionNode(id: row.id) {
-                sessionRow(node, depth: row.depth + 1, treeRow: row, forest: forest)
+        ForEach(treeLines(forest)) { line in
+            switch line {
+            case .session(let row, let offset):
+                if let node = viewModel.sessionNode(id: row.id) {
+                    sessionRow(node, depth: row.depth + 1 + offset, treeRow: row, forest: forest)
+                }
+            case .internalSessions(let parent, let depth, let count, let isExpanded):
+                SidebarInternalSessionsRow(depth: depth + 1, count: count, isExpanded: isExpanded) {
+                    if isExpanded { closeInternalSessions(of: parent) } else {
+                        withAnimation(.easeInOut(duration: 0.12)) { _ = expandedInternalParents.insert(parent) }
+                    }
+                }
             }
         }
+    }
+
+    /// まとめ行を閉じる。中の行を選んでいたら親へ選択を移す（隠れた行を選んだままにしない）。
+    private func closeInternalSessions(of parent: SessionID) {
+        if let selected = router.selectedSession, isInsideInternalSessions(selected, of: parent) {
+            selectSession(parent, holdFocus: true)
+        }
+        withAnimation(.easeInOut(duration: 0.12)) { _ = expandedInternalParents.remove(parent) }
+    }
+
+    /// `id` が `parent` の内部セッション（またはその子孫）か。
+    private func isInsideInternalSessions(_ id: SessionID, of parent: SessionID) -> Bool {
+        var current = id
+        while let node = viewModel.sessionNode(id: current), let up = node.controllable.parentSessionID {
+            if up == parent { return launchContext(of: current) == .orchestration }
+            current = up
+        }
+        return false
+    }
+
+    private func launchContext(of id: SessionID) -> SessionLaunchContext? {
+        guard let projectID = viewModel.sessionNode(id: id)?.projectID else { return nil }
+        return Self.findNode(id, in: viewModel.sessionForest(in: projectID))?.launchContext
+    }
+
+    private func treeLines(_ forest: [SessionTreeNode]) -> [SidebarTreeLine] {
+        SidebarTreeLine.make(forest, isExpanded: sessionTreeViewModel.isExpanded, expandedParents: expandedInternalParents)
     }
 
     private func sessionRow(
@@ -360,13 +401,15 @@ struct DashboardSidebarView: View {
         forest: [SessionTreeNode]
     ) -> some View {
         let children = treeRow?.hasChildren == true ? Self.findNode(node.id, in: forest)?.children ?? [] : []
-        let descendantStates = children.flatMap(Self.flatten).compactMap { viewModel.sessionNode(id: $0.id)?.tabDisplayState }
+        let descendantStates = children.filter { $0.launchContext != .orchestration }.flatMap(Self.flatten).compactMap { viewModel.sessionNode(id: $0.id)?.tabDisplayState }
         return SidebarSessionRow(
             node: node,
             depth: depth,
             hasChildren: treeRow?.hasChildren ?? false,
             isExpanded: treeRow?.isExpanded ?? false,
-            childCount: children.count,
+            // 内部セッションはまとめ行 1 つと数える（見本の「+n」）。
+            childCount: children.filter { $0.launchContext != .orchestration }.count
+                + (children.contains { $0.launchContext == .orchestration } ? 1 : 0),
             descendantSummary: .make(descendantStates),
             isSelected: router.selectedSession == node.id,
             isRenaming: renaming == .session(node.id),
@@ -377,7 +420,55 @@ struct DashboardSidebarView: View {
             onCancelRename: cancelRename,
             menu: { sessionMenu(node) }
         )
+        // 03 F10: 元の行は薄く残し、挿入位置を線で示す。同じ親の中だけで動かす。
+        .opacity(draggingSession == node.id && dropTarget != nil ? 0.35 : 1)
+        .overlay {
+            if let dropTarget, dropTarget.sessionID == node.id {
+                SidebarInsertionLine()
+                    .frame(maxHeight: .infinity, alignment: dropTarget.before ? .top : .bottom)
+            }
+        }
+        .onDrag {
+            draggingSession = node.id
+            return SidebarReorderPayload.provider(for: node.id)
+        }
+        .onDrop(of: [SidebarReorderPayload.type], delegate: SidebarReorderDropDelegate(
+            target: node.id,
+            dragging: $draggingSession,
+            siblings: { siblingIDs(of: node) },
+            dropTarget: $dropTarget,
+            onMove: moveSession
+        ))
+        .accessibilityAction(named: Text("上へ移動")) { moveSessionByOne(node.id, down: false) }
+        .accessibilityAction(named: Text("下へ移動")) { moveSessionByOne(node.id, down: true) }
         .id(SidebarItem.session(node.id))
+    }
+
+    /// 並べ替えの相手になる兄弟（同じ親の子。内部セッションは内部セッションどうし）。
+    private func siblingIDs(of node: SessionNode) -> [SessionID] {
+        guard let projectID = node.projectID else { return viewModel.unassignedSessionNodes.map(\.id) }
+        let forest = viewModel.sessionForest(in: projectID)
+        // 親が別のプロジェクトにいる子は、このプロジェクトでは最上位に並ぶ。
+        guard let parent = node.controllable.parentSessionID, let parentNode = Self.findNode(parent, in: forest) else {
+            return forest.map(\.id)
+        }
+        let isInternal = Self.findNode(node.id, in: forest)?.launchContext == .orchestration
+        return parentNode.children
+            .filter { ($0.launchContext == .orchestration) == isInternal }
+            .map(\.id)
+    }
+
+    private func moveSession(_ id: SessionID, to destination: Int) {
+        guard let node = viewModel.sessionNode(id: id) else { return }
+        for partner in SidebarReorder.swapPartners(moving: id, to: destination, in: siblingIDs(of: node)) {
+            viewModel.reorderSession(id, with: partner)
+        }
+    }
+
+    /// ⌃⌘↑↓・読み上げの操作: 兄弟の中で 1 つ動かす。
+    private func moveSessionByOne(_ id: SessionID, down: Bool) {
+        guard let node = viewModel.sessionNode(id: id), let index = siblingIDs(of: node).firstIndex(of: id) else { return }
+        moveSession(id, to: down ? index + 2 : index - 1)
     }
 
     // MARK: - メニュー（⋯ と右クリックで同じもの）
@@ -452,7 +543,7 @@ struct DashboardSidebarView: View {
         listFocused = true
     }
 
-    /// セッションは空欄で短縮 ID 表示に戻す（空名の手動名。AcceptanceSessionTitleStateTests が凍結）。プロジェクトは空欄なら変えない（現行どおり）。
+    /// セッションは空欄で短縮 ID 表示に戻す（空名の手動名。AcceptanceSessionTitleStateTests が凍結）。プロジェクトは空欄ならフォルダ名に戻す。
     /// ↩ で確定したときだけ一覧に入力先を戻す（ほかをクリックして確定したときはそのまま）。
     private func commitRename(byReturn: Bool) {
         guard let item = renaming else { return }
@@ -462,7 +553,6 @@ struct DashboardSidebarView: View {
         case .session(let id):
             viewModel.renameSession(id, to: name)
         case .project(let id):
-            guard !name.isEmpty else { return }
             viewModel.renameProject(id, to: name)
         }
         if byReturn { listFocused = true }
@@ -473,12 +563,14 @@ struct DashboardSidebarView: View {
         guard let node = viewModel.sessionNode(id: id) else { return }
         if let projectID = node.projectID {
             expandedProjectIDs.insert(projectID)
-            var parent = node.controllable.parentSessionID
-            while let ancestor = parent {
+            var child = id
+            while let ancestor = viewModel.sessionNode(id: child)?.controllable.parentSessionID {
                 if !sessionTreeViewModel.isExpanded(ancestor) {
                     sessionTreeViewModel.toggleExpansion(for: ancestor, in: viewModel.sessionForest(in: projectID))
                 }
-                parent = viewModel.sessionNode(id: ancestor)?.controllable.parentSessionID
+                // 内部セッションなら、親の下のまとめ行も開く。
+                if launchContext(of: child) == .orchestration { expandedInternalParents.insert(ancestor) }
+                child = ancestor
             }
         }
         beginRename(.session(id))
@@ -492,7 +584,7 @@ struct DashboardSidebarView: View {
         for project in viewModel.projects {
             items.append((.project(project.id), project.name))
             guard isProjectExpanded(project.id) else { continue }
-            for row in sessionTreeViewModel.rows(from: viewModel.sessionForest(in: project.id)) {
+            for case .session(let row, _) in treeLines(viewModel.sessionForest(in: project.id)) {
                 if let node = viewModel.sessionNode(id: row.id) {
                     items.append((.session(row.id), node.displayName))
                 }
@@ -517,6 +609,10 @@ struct DashboardSidebarView: View {
             select(SidebarNavigation.step(from: currentItem, by: -1, in: visibleItems.map(\.item)))
         case (.downArrow, []):
             select(SidebarNavigation.step(from: currentItem, by: 1, in: visibleItems.map(\.item)))
+        case (.upArrow, [.control, .command]), (.downArrow, [.control, .command]):
+            // 03 F10 の案の ⌥⇧⌘↑↓ はグリッドの「タイルを上/下と入れ替え」と重なるので ⌃⌘↑↓。
+            guard case .session(let id) = currentItem else { return .ignored }
+            moveSessionByOne(id, down: press.key == .downArrow)
         case (.leftArrow, []):
             collapseOrSelectParent()
         case (.rightArrow, []):
@@ -594,7 +690,12 @@ struct DashboardSidebarView: View {
             guard let node = viewModel.sessionNode(id: id) else { return }
             if let projectID = node.projectID, sessionTreeViewModel.isExpanded(id),
                Self.findNode(id, in: viewModel.sessionForest(in: projectID))?.children.isEmpty == false {
-                toggleSessionExpansion(id, projectID: projectID)
+                // → と逆順: 開いたまとめ行があれば先にそれを閉じる。
+                if expandedInternalParents.contains(id) {
+                    closeInternalSessions(of: id)
+                } else {
+                    toggleSessionExpansion(id, projectID: projectID)
+                }
             } else if let parent = node.controllable.parentSessionID, viewModel.sessionNode(id: parent) != nil {
                 selectSession(parent, holdFocus: true)
             } else if let projectID = node.projectID {
@@ -610,8 +711,13 @@ struct DashboardSidebarView: View {
         case .project(let id):
             if !isProjectExpanded(id) { toggleProjectExpansion(id) }
         case .session(let id):
-            guard let projectID = viewModel.sessionNode(id: id)?.projectID, !sessionTreeViewModel.isExpanded(id) else { return }
-            toggleSessionExpansion(id, projectID: projectID)
+            guard let projectID = viewModel.sessionNode(id: id)?.projectID else { return }
+            if !sessionTreeViewModel.isExpanded(id) {
+                toggleSessionExpansion(id, projectID: projectID)
+            } else if Self.findNode(id, in: viewModel.sessionForest(in: projectID))?.children.contains(where: { $0.launchContext == .orchestration }) == true {
+                // 開いた親でもう一度 → を押すと、内部セッションのまとめ行も開く（まとめ行はキーで選べないため）。
+                withAnimation(.easeInOut(duration: 0.12)) { _ = expandedInternalParents.insert(id) }
+            }
         case nil:
             break
         }
@@ -651,8 +757,9 @@ struct DashboardSidebarView: View {
         return viewModel.projects.first { $0.id == projectID }?.name
     }
 
+    /// 件数と畳んだ行の要約に使う。内部セッション（とその子）は見本どおり数えない。
     private static func flatten(_ node: SessionTreeNode) -> [SessionTreeNode] {
-        [node] + node.children.flatMap(flatten)
+        [node] + node.children.filter { $0.launchContext != .orchestration }.flatMap(flatten)
     }
 
     private static func findNode(_ id: SessionID, in nodes: [SessionTreeNode]) -> SessionTreeNode? {

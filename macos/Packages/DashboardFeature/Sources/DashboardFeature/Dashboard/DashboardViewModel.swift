@@ -1061,9 +1061,11 @@ public final class DashboardViewModel {
         return project.id
     }
 
+    /// 空欄（空白だけ）で確定したら、追加したときと同じフォルダ名に戻す（03 F6・C-10。フォルダ名そのものは変えない）。
     public func renameProject(_ projectID: ProjectID, to name: String) {
         guard let index = projects.firstIndex(where: { $0.id == projectID }) else { return }
-        projects[index].name = name
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        projects[index].name = trimmed.isEmpty ? projects[index].directoryURL.lastPathComponent : name
         persistProjects()
     }
 

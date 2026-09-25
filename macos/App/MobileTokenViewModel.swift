@@ -12,6 +12,8 @@ import os
 public final class MobileTokenViewModel: ObservableObject {
   /// ペアリング済み・発行済みの端末一覧。行の表示規則（名前・ペアリング日時）はここが唯一の正本。
   @Published public private(set) var devices: [PairedDevice] = []
+  /// 端末ごとの最後の要求の時刻（接続中の判定用。保存しない）。3 秒ごとの要求で画面を描き直さないよう、10 秒に 1 回だけ進める。
+  @Published public private(set) var lastSeenAt: [UUID: Date] = [:]
 
   /// 直近の発行・失効失敗を表すユーザー向けメッセージ。成功時・初期状態は nil。
   @Published public private(set) var lastError: String?
@@ -183,6 +185,13 @@ public final class MobileTokenViewModel: ObservableObject {
     } catch {
       Self.logger.error("Mobile device list refresh after pairing failed: \(String(describing: error), privacy: .public)")
     }
+  }
+
+  /// 認証が通った要求のトークンから端末を引き、最後の要求の時刻を進める（C-54）。
+  public func noteSeen(token: String, at date: Date = Date()) {
+    guard let device = devices.first(where: { $0.token.value == token }) else { return }
+    if let last = lastSeenAt[device.id], date.timeIntervalSince(last) < 10 { return }
+    lastSeenAt[device.id] = date
   }
 
   deinit {

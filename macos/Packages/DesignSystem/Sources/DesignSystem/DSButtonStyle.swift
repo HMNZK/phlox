@@ -18,10 +18,14 @@ public struct DSButtonStyle: ButtonStyle {
     let fontSize: CGFloat
     let padding: CGFloat?
     let fillsWidth: Bool
+    let fill: Color?
+    let cornerRadius: CGFloat
     @Environment(\.isEnabled) private var isEnabled
 
-    public init(_ kind: Kind, keyHint: String? = nil, height: CGFloat = 28, fontSize: CGFloat = 13, padding: CGFloat? = nil, fillsWidth: Bool = false) {
+    public init(_ kind: Kind, keyHint: String? = nil, height: CGFloat = 28, fontSize: CGFloat = 13, padding: CGFloat? = nil, fillsWidth: Bool = false, fill: Color? = nil, cornerRadius: CGFloat = DSRadius.row) {
         self.kind = kind
+        self.fill = fill
+        self.cornerRadius = cornerRadius
         self.fillsWidth = fillsWidth
         self.keyHint = keyHint
         self.height = height
@@ -47,12 +51,12 @@ public struct DSButtonStyle: ButtonStyle {
         .background {
             switch kind {
             case .primary:
-                RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous).fill(DSColor.accentFill)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(DSColor.accentFill)
             case .secondary, .destructive:
-                RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous)
-                    .fill(DSColor.controlBackground)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(fill ?? DSColor.controlBackground)
                     .overlay {
-                        RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous)
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .strokeBorder(DSColor.controlBorder, lineWidth: 0.5)
                     }
                     .shadow(color: .black.opacity(0.1), radius: 0.5, y: 0.5)
@@ -60,7 +64,7 @@ public struct DSButtonStyle: ButtonStyle {
                 EmptyView()
             }
         }
-        .contentShape(RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .opacity(isEnabled ? (configuration.isPressed ? 0.8 : 1) : 0.45)
     }
 
@@ -83,7 +87,7 @@ public struct DSButtonStyle: ButtonStyle {
 }
 
 public extension ButtonStyle where Self == DSButtonStyle {
-    static func ds(_ kind: DSButtonStyle.Kind, keyHint: String? = nil, height: CGFloat = 28, fontSize: CGFloat = 13, padding: CGFloat? = nil, fillsWidth: Bool = false) -> DSButtonStyle {
-        DSButtonStyle(kind, keyHint: keyHint, height: height, fontSize: fontSize, padding: padding, fillsWidth: fillsWidth)
+    static func ds(_ kind: DSButtonStyle.Kind, keyHint: String? = nil, height: CGFloat = 28, fontSize: CGFloat = 13, padding: CGFloat? = nil, fillsWidth: Bool = false, fill: Color? = nil, cornerRadius: CGFloat = DSRadius.row) -> DSButtonStyle {
+        DSButtonStyle(kind, keyHint: keyHint, height: height, fontSize: fontSize, padding: padding, fillsWidth: fillsWidth, fill: fill, cornerRadius: cornerRadius)
     }
 }

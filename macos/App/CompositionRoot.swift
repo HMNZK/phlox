@@ -132,6 +132,11 @@ public final class CompositionRoot {
                 mobileTokenViewModel?.handleAuthenticatedPairingRecorded()
             }
         }
+        await pairingRelay.setSeenHandler { [weak mobileTokenViewModel] token in
+            Task { @MainActor in
+                mobileTokenViewModel?.noteSeen(token: token)
+            }
+        }
         mobileTokenViewModel.startAutoRecovery()
         self.environment = started.environment
         self.dashboard = started.dashboard

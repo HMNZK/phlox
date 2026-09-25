@@ -8072,6 +8072,28 @@
           }
         }
       }
+    },
+    "オンの間は、エージェントがファイルの変更やコマンドを確認なしで実行します。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "While on, agents change files and run commands without asking."
+          }
+        }
+      }
+    },
+    "接続中": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connected"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -320,6 +320,11 @@ public enum DSColor {
     public static var toggleOff: Color { theme.textPrimary.color.opacity(isDark ? 0.16 : 0.13) }
     /// 設定の窓の地（10 Settings `--bg`: #ECECEE / #1E1E20）。行のまとまりは `cardBackground`。
     public static var settingsBackground: Color { isDark ? palette.window.color : palette.tabBar.color }
+    /// 設定の副ボタンの面（10 Settings `--ctl`: #FFFFFF / #4A4A4F）。設定の地が暗いぶん、共通の副ボタンより一段明るい。
+    public static var settingsControlBackground: Color {
+        guard isDark else { return palette.card.color }
+        return theme.id == AppTheme.phlox.id ? RGB(0x4A, 0x4A, 0x4F).color : palette.window.lightened(0x2C).color
+    }
     /// 設定のタブの選択中の面（`--sel`: 黒 0.075 / 白 0.10）。
     public static var settingsTabSelected: Color { theme.textPrimary.color.opacity(isDark ? 0.10 : 0.075) }
 

@@ -84,6 +84,19 @@ struct SettingsView: View {
         .frame(width: 700, height: Self.windowHeight(for: group.id) - 28)
         .background(DSColor.settingsBackground)
         .toggleStyle(AccentSwitchToggleStyle())
+        // 題名はタイトルバーの中央（見本 10 の窓）。窓の題名は読み上げと「ウインドウ」メニューのために残し、表示だけ隠す。
+        .overlay(alignment: .top) {
+            GeometryReader { proxy in
+                Text(verbatim: AppLocalizedString.string(group.title, locale: locale))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(DSColor.textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: proxy.safeAreaInsets.top)
+                    .offset(y: -proxy.safeAreaInsets.top)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
         .navigationTitle(Text(AppLocalizedString.string(group.title, locale: locale)))
         .background(SettingsWindowChrome(groupID: group.id))
         .preferredColorScheme(ThemeStore.active.preferredColorScheme)
@@ -165,7 +178,7 @@ struct SettingsView: View {
                 Button("今すぐ確認…") {
                     appUpdater.checkForUpdates()
                 }
-                .buttonStyle(.ds(.secondary, height: 22, fontSize: 12.5, padding: 11))
+                .buttonStyle(.ds(.secondary, height: 22, fontSize: 12.5, padding: 11, fill: DSColor.settingsControlBackground, cornerRadius: 5))
                 .disabled(!appUpdater.canCheckForUpdates)
             }
         }
@@ -205,6 +218,12 @@ struct SettingsView: View {
                         }
                     }
                 }
+                .modifier(TileRadioGroup(
+                    label: Text("テーマ"),
+                    options: ThemeStore.all.map { ($0.id, $0.name) },
+                    columns: 5,
+                    selection: themeID
+                ) { themeID = $0 })
             }
         }
 
@@ -213,14 +232,19 @@ struct SettingsView: View {
                 HStack(spacing: 14) {
                     ForEach(AppIconStore.all) { option in
                         AppIconTile(option: option, isSelected: option.id == appIconID) {
-                            appIconID = option.id
-                            if let image = NSImage(named: option.assetName) {
-                                NSApp.applicationIconImage = image
-                            }
+                            selectAppIcon(option)
                         }
                     }
-                    Spacer(minLength: 0)
                 }
+                .modifier(TileRadioGroup(
+                    label: Text("アプリアイコン"),
+                    options: AppIconStore.all.map { ($0.id, AppLocalizedString.string($0.name, locale: locale)) },
+                    columns: AppIconStore.all.count,
+                    selection: appIconID
+                ) { id in
+                    if let option = AppIconStore.all.first(where: { $0.id == id }) { selectAppIcon(option) }
+                })
+                Spacer(minLength: 0)
             }
         }
 
@@ -357,19 +381,25 @@ struct SettingsView: View {
                 Button("テスト通知を送る") {
                     SessionCompletionNotifier.notifyTest()
                 }
-                .buttonStyle(.ds(.secondary, height: 22, fontSize: 12.5, padding: 11))
+                .buttonStyle(.ds(.secondary, height: 22, fontSize: 12.5, padding: 11, fill: DSColor.settingsControlBackground, cornerRadius: 5))
             }
         }
     }
 
     // MARK: - エージェント
 
+    private var permissionFooter: String {
+        let lead = AppLocalizedString.string("オンの間は、エージェントがファイルの変更やコマンドを確認なしで実行します。", locale: locale)
+        // 日本語の文は空白を挟まずに続ける。
+        return lead + (lead.hasSuffix("。") ? "" : " ") + UIWording.settingsPermissionFooter(languageCode: languageCode)
+    }
+
     @ViewBuilder
     private var agentsForm: some View {
         SettingsGroupBox(
             "フルアクセス（権限の確認を省く）",
-            // 見本の注記「確認なしで実行」はエージェントごとに正しくない（Claude はサンドボックスを外さない、カスタムは定義次第）ので、既存の正確な文を使う。
-            footer: Text(verbatim: UIWording.settingsPermissionFooter(languageCode: languageCode))
+            // 見本の注記（確認なしで実行する）に、エージェントごとに違う点の注記（既存の文）を続ける（C-53）。
+            footer: Text(verbatim: permissionFooter)
         ) {
             ForEach(Array(agentCatalog.allDescriptors.enumerated()), id: \.element.ref) { index, descriptor in
                 if index > 0 { SettingsDivider() }
@@ -388,7 +418,7 @@ struct SettingsView: View {
                 } label: {
                     Text("開く…")
                 }
-                .buttonStyle(.ds(.secondary, keyHint: "⇧⌘,", height: 22, fontSize: 12.5, padding: 11))
+                .buttonStyle(.ds(.secondary, keyHint: "⇧⌘,", height: 22, fontSize: 12.5, padding: 11, fill: DSColor.settingsControlBackground, cornerRadius: 5))
                 // 読み上げでは何を開くかが分かる名前にする。
                 .accessibilityLabel(Text("エージェント管理を開く"))
             }
@@ -519,7 +549,7 @@ struct SettingsView: View {
                     } label: {
                         viewModel.isPairingQRVisible ? Text("表示中") : Text("QR コードを表示")
                     }
-                    .buttonStyle(.ds(isPrimary ? .primary : .secondary, height: 22, fontSize: 12.5, padding: 11))
+                    .buttonStyle(.ds(isPrimary ? .primary : .secondary, height: 22, fontSize: 12.5, padding: 11, fill: DSColor.settingsControlBackground, cornerRadius: 5))
                     .disabled(!isPrimary)
                 }
                 if viewModel.isPairingQRVisible,
@@ -548,7 +578,7 @@ struct SettingsView: View {
                                         .foregroundStyle(DSColor.textSecondary)
                                 }
                                 Button("今すぐ隠す") { viewModel.hidePairingQR() }
-                                    .buttonStyle(.ds(.secondary, height: 22, fontSize: 12, padding: 10))
+                                    .buttonStyle(.ds(.secondary, height: 22, fontSize: 12, padding: 10, fill: DSColor.settingsControlBackground, cornerRadius: 5))
                             }
                             Spacer(minLength: 0)
                         }
@@ -578,36 +608,83 @@ struct SettingsView: View {
                 SettingsGroupBox("接続済みの端末") {
                     ForEach(Array(viewModel.devices.enumerated()), id: \.element.id) { index, device in
                         if index > 0 { SettingsDivider() }
-                        MobileDeviceRow(device: device) { pendingRevoke = device }
+                        MobileDeviceRow(device: device, lastSeenAt: viewModel.lastSeenAt[device.id]) { pendingRevoke = device }
                     }
                 }
             }
         }
     }
 
-    /// ペアリング済み端末一覧の 1 行。名前・ペアリング日（未ペアリングなら「未接続」）・失効ボタン。
+    /// ペアリング済み端末一覧の 1 行。名前・「ペアリング日 · 接続中／未接続」（未ペアリングなら「未接続」）・失効ボタン。
     private struct MobileDeviceRow: View {
         let device: PairedDevice
+        let lastSeenAt: Date?
         let onRevoke: () -> Void
         @Environment(\.locale) private var locale
 
         var body: some View {
             SettingsRow {
-                SettingsLabel(title: Text(verbatim: device.name), detail: Text(verbatim: pairedAtText))
+                TimelineView(.periodic(from: .now, by: 10)) { context in
+                    SettingsLabel(title: Text(verbatim: device.name), detail: Text(verbatim: detailText(now: context.date)))
+                }
                 Button("失効", action: onRevoke)
-                    .buttonStyle(.ds(.destructive, height: 22, fontSize: 12, padding: 10))
+                    .buttonStyle(.ds(.destructive, height: 22, fontSize: 12, padding: 10, fill: DSColor.settingsControlBackground, cornerRadius: 5))
                     .accessibilityLabel(Text(verbatim: String(format: AppLocalizedString.string("「%@」を失効", locale: locale), device.name)))
             }
         }
 
-        private var pairedAtText: String {
+        private func detailText(now: Date) -> String {
             guard let pairedAt = device.pairedAt else {
                 return AppLocalizedString.string("未接続", locale: locale)
             }
-            return String(
+            let paired = String(
                 format: AppLocalizedString.string("%@にペアリング", locale: locale),
                 pairedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted).locale(locale))
             )
+            let presence = MobileDevicePresence.isConnected(lastSeenAt: lastSeenAt, now: now) ? "接続中" : "未接続"
+            return paired + " · " + AppLocalizedString.string(presence, locale: locale)
+        }
+    }
+
+    private func selectAppIcon(_ option: AppIconOption) {
+        appIconID = option.id
+        if let image = NSImage(named: option.assetName) {
+            NSApp.applicationIconImage = image
+        }
+    }
+
+    /// タイルの並びを 1 つのラジオグループとして読ませ、矢印キーで選択を動かす（C-56、見本の role="radio"）。
+    private struct TileRadioGroup: ViewModifier {
+        let label: Text
+        let options: [(id: String, name: String)]
+        let columns: Int
+        let selection: String
+        let select: (String) -> Void
+
+        func body(content: Content) -> some View {
+            content
+                .focusable()
+                .onKeyPress(.leftArrow) { move(by: -1) }
+                .onKeyPress(.rightArrow) { move(by: 1) }
+                .onKeyPress(.upArrow) { move(by: -columns) }
+                .onKeyPress(.downArrow) { move(by: columns) }
+                .accessibilityRepresentation {
+                    Picker(selection: Binding(get: { selection }, set: { select($0) })) {
+                        ForEach(options, id: \.id) { Text(verbatim: $0.name).tag($0.id) }
+                    } label: {
+                        label
+                    }
+                    .pickerStyle(.radioGroup)
+                    .accessibilityLabel(label)
+                }
+        }
+
+        private func move(by offset: Int) -> KeyPress.Result {
+            guard let index = options.firstIndex(where: { $0.id == selection }) else { return .ignored }
+            let next = index + offset
+            guard options.indices.contains(next) else { return .handled }
+            select(options[next].id)
+            return .handled
         }
     }
 
@@ -773,18 +850,27 @@ struct SettingsWindowChrome: NSViewRepresentable {
     }
 
     fileprivate final class ChromeView: NSView {
+        private var observations: [NSKeyValueObservation] = []
+
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             apply()
-            // 窓を出す処理が後から設定を戻すので、次の回でもう一度当てる。
+            // 窓を出す処理（SwiftUI）が後から題名と形を戻すので、戻されたら当て直す。
+            observations = [
+                window?.observe(\.title) { [weak self] _, _ in DispatchQueue.main.async { self?.apply() } },
+                window?.observe(\.styleMask) { [weak self] _, _ in DispatchQueue.main.async { self?.apply() } },
+            ].compactMap { $0 }
             DispatchQueue.main.async { [weak self] in self?.apply() }
         }
 
         func apply() {
             guard let window else { return }
-            window.styleMask.insert(.fullSizeContentView)
+            if !window.styleMask.contains(.fullSizeContentView) {
+                window.styleMask.insert(.fullSizeContentView)
+            }
             window.titlebarAppearsTransparent = true
             window.titlebarSeparatorStyle = .none
+            window.titleVisibility = .hidden
             window.backgroundColor = NSColor(DSColor.toolbarBackground)
         }
     }

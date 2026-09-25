@@ -70,6 +70,7 @@ public enum MobileBootstrap {
         onRecordFailure: @escaping @Sendable (Error) -> Void
     ) -> @Sendable (String) -> Void {
         { token in
+            Task { await relay.notifySeen(token: token) }
             switch recordAuthenticatedPairing(token: token, provisioner: provisioner) {
             case .failure(let error):
                 onRecordFailure(error)
@@ -123,5 +124,28 @@ public actor MobileDevicePairingRelay {
             return
         }
         handler()
+    }
+
+    private var seenHandler: (@Sendable (String) -> Void)?
+
+    /// 認証が通った要求のトークンを受け取るハンドラ（設定の「接続中」の判定用。C-54）。
+    public func setSeenHandler(_ handler: @escaping @Sendable (String) -> Void) {
+        seenHandler = handler
+    }
+
+    /// UI 層がまだ無ければ捨てる（iPhone は開いている間 3 秒ごとに問い合わせるので、次の要求ですぐ届く）。
+    public func notifySeen(token: String) {
+        seenHandler?(token)
+    }
+}
+
+/// ペアリング済み端末が「接続中」か（10 Settings「9月 20日にペアリング · 接続中」）。
+/// iPhone は開いている間 3 秒ごとに問い合わせるので、最後の要求から 30 秒以内を接続中とみなす。
+public enum MobileDevicePresence {
+    public static let window: TimeInterval = 30
+
+    public static func isConnected(lastSeenAt: Date?, now: Date) -> Bool {
+        guard let lastSeenAt else { return false }
+        return now.timeIntervalSince(lastSeenAt) <= window
     }
 }

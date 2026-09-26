@@ -18,9 +18,12 @@ extension ClaudeChatClient {
         await expirePendingUserQuestions()
         if let transport {
             failAllPendingUsageRequests(ClaudeChatClientError.transportClosed)
-            await transport.close()
+            // 閉じる前に古い受信を止める（close() と同じ順）。close() は古いプロセスの終了を待つ間
+            // 戻らないので、その間に古いプロセスが SIGTERM で終わると、起動し直しのための終了（143）が
+            // セッションの終了として知らされてしまう。
             receiveTask?.cancel()
             receiveTask = nil
+            await transport.close()
             self.transport = nil
             // reentrant actor: 上の await close() の suspension 窓で fetchRateLimits が
             // 旧 transport・旧世代のまま pending を新規登録できる。transport を nil に
@@ -59,7 +62,8 @@ extension ClaudeChatClient {
         // A respawn (settings apply / resume) closes the previous transport,
         // whose receive loop then ends. Ignore that stale signal so it cannot
         // clobber the freshly spawned transport.
-        guard generation == spawnGeneration else { return }
+        // 起動し直しや close() が受信を止めたとき（タスクがキャンセル済み）も、終了として扱わない。
+        guard !Task.isCancelled, generation == spawnGeneration else { return }
         // CLI プロセス終了後は stdin へ deny を送っても届かず、死因エラーにノイズを足すだけなので送信しない。
         await expirePendingUserQuestions(generation: generation, sendDeny: false)
         failAllPendingUsageRequests(ClaudeChatClientError.transportClosed)

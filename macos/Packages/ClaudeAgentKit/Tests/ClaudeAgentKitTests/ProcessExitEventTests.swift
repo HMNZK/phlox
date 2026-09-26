@@ -206,3 +206,48 @@ private final class SpawnCounter: @unchecked Sendable {
     func increment() { lock.withLock { value += 1 } }
     var count: Int { lock.withLock { value } }
 }
+
+/// 実物と同じく、閉じると（SIGTERM で）すぐ終わり、終了を待つ間だけ close() から戻らない。
+private final class SlowCloseTransport: LineDelimitedTransport, @unchecked Sendable {
+    private var continuation: AsyncStream<Data>.Continuation?
+    let receivedLines: AsyncStream<Data>
+
+    init() {
+        var captured: AsyncStream<Data>.Continuation?
+        receivedLines = AsyncStream { captured = $0 }
+        continuation = captured
+    }
+
+    func start() throws {}
+    func send(_ data: Data) async throws {}
+    func interrupt() async {}
+    func close() async {
+        continuation?.finish()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+    }
+    func terminationStatus() async -> Int32? { 143 }
+}
+
+// 設定の変更を反映するために古いプロセスを閉じて起動し直しても、その終了（143）をセッションの終了として知らせない。
+@Test func respawnForNewSettingsDoesNotReportTheClosedProcessAsExited() async throws {
+    let transports: [any LineDelimitedTransport] = [SlowCloseTransport(), ExitingTransport(exitCode: 0)]
+    let index = OSAllocatedUnfairLockBox()
+    let spawns = SpawnCounter()
+    let client = ClaudeChatClient(
+        environment: ["PHLOX_SESSION_ID": "a7a7a7a7-7777-4777-8777-777777777777"],
+        transportFactory: { _, _, _, _ in spawns.increment(); return transports[index.next()] }
+    )
+    let events = Events()
+    let stream = client.events
+    let task = Task { for await event in stream { events.append(event) } }
+    await client.start()
+
+    await client.updateSettings(model: "sonnet", permissionMode: nil, effort: "high")
+    try await client.turnStart([.text("next")])
+    #expect(spawns.count == 2)
+    try await Task.sleep(nanoseconds: 100_000_000)
+
+    #expect(!events.all.contains { if case .processExited = $0 { true } else { false } })
+    await client.close()
+    task.cancel()
+}

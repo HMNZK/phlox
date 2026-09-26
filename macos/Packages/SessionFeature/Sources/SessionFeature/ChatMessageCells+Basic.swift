@@ -142,6 +142,7 @@ struct AgentMessageCell: View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         // 04 A1: ホバーの時刻とコピーは場所を取らず、本文の右下に重ねる（モックはホバー行を常設しない）。
+        // 本文の枠の内側に置く。下へはみ出すと、直後の行（右寄せのターンのコストなど）と重なる。
         AvatarMessageRow {
             AgentMessageBody(text: text)
                 .overlay(alignment: .bottomTrailing) {
@@ -157,7 +158,6 @@ struct AgentMessageCell: View {
                     .padding(.leading, 6)
                     .background(DSColor.windowBackground)
                     .opacity(isHovering ? 1 : 0)
-                    .offset(y: 26 * scale)
                 }
                 .contentShape(Rectangle())
                 .onHover { isHovering = $0 }

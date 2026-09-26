@@ -15,6 +15,28 @@ struct ChatCodeLanguageTests {
         #expect(k["# 説明"] == .comment)
     }
 
+    @Test("Python の \"\"\" で囲んだ複数行の文字列は、途中の行まで文字列")
+    func pythonTripleQuotedStringSpansLines() {
+        let lines = ChatCodeTokenizer.lineTokens(for: ["x = \"\"\"a", "say \"hi\" def", "\"\"\" # c"], path: "s.py")
+        #expect(lines[1] == [ChatCodeToken(text: "say \"hi\" def", kind: .string)])
+        #expect(lines[2].last == ChatCodeToken(text: "# c", kind: .comment))
+    }
+
+    @Test("Python の三重引用符は、エスケープされた引用符では閉じない")
+    func pythonTripleQuoteIgnoresEscapedQuote() {
+        let tokens = ChatCodeTokenizer.tokens(for: "\"\"\"a\\\"\"\"b\"\"\" def", language: "python")
+        #expect(tokens.first == ChatCodeToken(text: "\"\"\"a\\\"\"\"b\"\"\"", kind: .string))
+        #expect(tokens.last == ChatCodeToken(text: "def", kind: .keyword))
+    }
+
+    @Test("行に単独の CR や U+2028 があっても、行と色の対応がずれない")
+    func lineTokensKeepLinesWithEmbeddedLineBreaks() {
+        let lines = ["a\rb", "x\u{2028}y", "c\r", "def"]
+        let result = ChatCodeTokenizer.lineTokens(for: lines, path: "s.py")
+        #expect(result.map { $0.map(\.text).joined() } == lines)
+        #expect(result[3] == [ChatCodeToken(text: "def", kind: .keyword)])
+    }
+
     @Test("TypeScript は単一引用符とバッククォートも文字列")
     func typeScriptQuotes() {
         let k = kinds("const a = 'x' + `y`", "ts")

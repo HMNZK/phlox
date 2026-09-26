@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import DashboardFeature
 
@@ -62,4 +63,35 @@ index 1111111..2222222 100644
         EditorCodeLine(number: nil, text: "old mode 100644", kind: .context),
         EditorCodeLine(number: nil, text: "new mode 100755", kind: .context),
     ])
+}
+
+// 2026-09-26 ユーザー報告（変更タブの色分けが効かない）: 本文は塊ごと・変更前と変更後で別々に分類する。
+@Test func highlightedBodiesClassifyRemovedAndAddedSidesSeparatelyPerHunk() {
+    let lines = EditorCodeLines.diff(twoHunkDiff)
+    var calls: [[String]] = []
+    let bodies = EditorCodeLines.highlightedBodies(lines) { texts in
+        calls.append(texts)
+        return texts.map { AttributedString("\(calls.count - 1):\($0)") }
+    }
+
+    #expect(calls == [
+        ["    func requests() {", "        pending", "    }"],
+        ["    func requests() {", "        let now = clock.now", "        expireOverdue(at: now)", "    }"],
+        ["    let old = 1", "    done()"],
+        ["    let new = 2", "    done()"],
+    ])
+    // 削除行は変更前の側、追加行と文脈は変更後の側の色。見出しは分類しない。
+    #expect(String(bodies[0].characters) == "@@ -88,3 +88,4 @@ struct Broker {")
+    #expect(String(bodies[1].characters) == "1:    func requests() {")
+    #expect(String(bodies[2].characters) == "0:        pending")
+    #expect(String(bodies[3].characters) == "1:        let now = clock.now")
+}
+
+@Test func highlightedBodiesClassifyFileContentOnce() {
+    var calls: [[String]] = []
+    _ = EditorCodeLines.highlightedBodies(EditorCodeLines.content("a\nb\n")) { texts in
+        calls.append(texts)
+        return texts.map { AttributedString($0) }
+    }
+    #expect(calls == [["a", "b"]])
 }

@@ -400,12 +400,14 @@ public struct EditorPanelView: View {
     /// 11.5pt の等幅・行の高さ 1.7。左に幅 28 の行番号、追加・削除は行全体を塗って「+ 」「− 」を付ける。
     private func codeLines(_ lines: [EditorCodeLine], isDiff: Bool) -> some View {
         let shown = Array(lines.prefix(previewLineLimit))
+        let path = viewModel.selectedPath ?? ""
+        let bodies = EditorCodeLines.highlightedBodies(shown) { ChatCodeHighlighter.highlightLines($0, path: path) }
         let rest = EditorCodeLines.remainder(of: lines, after: previewLineLimit)
         return GeometryReader { viewport in
             ScrollView([.horizontal, .vertical]) {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(shown.enumerated()), id: \.offset) { _, line in
-                        codeLine(line, isDiff: isDiff)
+                    ForEach(Array(shown.enumerated()), id: \.offset) { index, line in
+                        codeLine(line, body: bodies[index], isDiff: isDiff)
                             .frame(minWidth: viewport.size.width, alignment: .leading)
                             .background(lineTint(line.kind))
                     }
@@ -432,13 +434,14 @@ public struct EditorPanelView: View {
         return String(format: AppLocalizedString.string("さらに表示（残り %lld 行）", locale: locale), rest.lines)
     }
 
-    private func codeLine(_ line: EditorCodeLine, isDiff: Bool) -> some View {
+    private func codeLine(_ line: EditorCodeLine, body: AttributedString, isDiff: Bool) -> some View {
         HStack(spacing: 0) {
             Text(verbatim: line.number.map(String.init) ?? "")
                 .foregroundStyle(DSColor.textTertiary)
                 .frame(width: 28, alignment: .trailing)
                 .padding(.trailing, 10)
-            Text(lineText(line, isDiff: isDiff))
+            Text(lineText(line, body: body, isDiff: isDiff))
+                .foregroundStyle(DSColor.textPrimary)
                 .fixedSize()
                 .textSelection(.enabled)
         }
@@ -450,24 +453,25 @@ public struct EditorPanelView: View {
         .frame(minHeight: 19.5)
     }
 
-    private func lineText(_ line: EditorCodeLine, isDiff: Bool) -> AttributedString {
-        guard isDiff else { return ChatCodeHighlighter.highlight(line.text) }
-        var text: AttributedString
+    /// 本文は拡張子に合わせて色分けし、差分は先頭に色つきの「+ 」「− 」を付ける。
+    private func lineText(_ line: EditorCodeLine, body: AttributedString, isDiff: Bool) -> AttributedString {
+        guard isDiff else { return body }
+        var marker: AttributedString
         switch line.kind {
         case .added:
-            text = AttributedString("+ " + line.text)
-            text.foregroundColor = DSColor.diffAdded
+            marker = AttributedString("+ ")
+            marker.foregroundColor = DSColor.diffAdded
         case .removed:
-            text = AttributedString("− " + line.text)
-            text.foregroundColor = DSColor.diffRemoved
+            marker = AttributedString("− ")
+            marker.foregroundColor = DSColor.diffRemoved
         case .context:
-            text = AttributedString("  " + line.text)
-            text.foregroundColor = DSColor.textPrimary
+            marker = AttributedString("  ")
         case .hunk:
-            text = AttributedString(line.text)
+            var text = AttributedString(line.text)
             text.foregroundColor = DSColor.textTertiary
+            return text
         }
-        return text
+        return marker + body
     }
 
     private func lineTint(_ kind: EditorCodeLine.Kind) -> Color {

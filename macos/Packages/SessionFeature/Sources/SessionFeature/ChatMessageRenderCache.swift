@@ -60,6 +60,7 @@ enum ChatMessageRenderCache {
     static let highlightCache = ContentMemoCache<AttributedString>()
     static let diffCodeCache = ContentMemoCache<DiffCodeViewData>()
     static let shellHighlightCache = ContentMemoCache<AttributedString>()
+    static let lineHighlightCache = ContentMemoCache<[AttributedString]>()
     static let commandExecutionCache = ContentMemoCache<CommandGroupExecutionDisplayData>()
 
     /// fenced code block の分割（`ChatMarkdownFormatter.splitFencedCodeBlocks` をメモ化）。
@@ -86,6 +87,17 @@ enum ChatMessageRenderCache {
         }
         let key = "\(ThemeStore.active.id)\u{0}lang:\(language)\u{0}\(code)"
         return highlightCache.value(for: key) { _ in ChatCodeHighlighter.computeHighlight(code, language: language) }
+    }
+
+    /// 行ごとの表示の色（`ChatCodeHighlighter.highlightLines` をメモ化）。拡張子とテーマもキーに含める。
+    static func highlightedLines(_ lines: [String], path: String) -> [AttributedString] {
+        let ext = (path as NSString).pathExtension.lowercased()
+        // 各行に長さを前置きして、行の区切りが違う入力が同じキーにならないようにする。
+        let body = lines.map { "\($0.utf8.count):\($0)" }.joined()
+        let key = "\(ThemeStore.active.id)\u{0}\(ext)\u{0}\(body)"
+        return lineHighlightCache.value(for: key) { _ in
+            ChatCodeTokenizer.lineTokens(for: lines, path: path).map { ChatCodeHighlighter.highlight(tokens: $0) }
+        }
     }
 
     static func highlightCacheKey(code: String, themeID: String) -> String {

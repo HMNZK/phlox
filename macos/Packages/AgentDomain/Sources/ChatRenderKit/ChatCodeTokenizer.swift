@@ -42,24 +42,30 @@ public enum ChatCodeTokenizer {
 
     /// 差分のように行ごとに描くときの窓口。行をつないでまとめて分けてから行へ戻すので、
     /// 複数行にまたがるブロックコメントや文字列の途中の行も正しく分類される。
+    /// 戻すときは各行の長さ（Unicode scalar 数）で区切る。改行らしい文字（行内の CR・U+2028 や、
+    /// CR で終わる行と区切りの LF が 1 文字にまとまる CRLF）で区切ると、行との対応がずれるため。
     public static func lineTokens(for lines: [String], path: String) -> [[ChatCodeToken]] {
-        var result: [[ChatCodeToken]] = [[]]
+        var result: [[ChatCodeToken]] = Array(repeating: [], count: lines.count)
+        guard !lines.isEmpty else { return result }
+        var line = 0
+        var remaining = lines[0].unicodeScalars.count
         for token in tokens(for: lines.joined(separator: "\n"), path: path) {
-            var piece = ""
-            for character in token.text {
-                if character.isNewline {
-                    if !piece.isEmpty { result[result.count - 1].append(ChatCodeToken(text: piece, kind: token.kind)) }
-                    piece = ""
-                    result.append([])
-                } else {
-                    piece.append(character)
+            var piece = String.UnicodeScalarView()
+            for scalar in token.text.unicodeScalars {
+                guard remaining == 0 else {
+                    piece.append(scalar)
+                    remaining -= 1
+                    continue
                 }
+                // 行の終わりに来た。この scalar は行をつないだ区切りの LF。
+                if !piece.isEmpty { result[line].append(ChatCodeToken(text: String(piece), kind: token.kind)) }
+                piece = String.UnicodeScalarView()
+                line += 1
+                remaining = lines[line].unicodeScalars.count
             }
-            if !piece.isEmpty { result[result.count - 1].append(ChatCodeToken(text: piece, kind: token.kind)) }
+            if !piece.isEmpty { result[line].append(ChatCodeToken(text: String(piece), kind: token.kind)) }
         }
-        // 末尾の空行ぶんを行数に合わせる（空の入力でも行数は保つ）。
-        while result.count < lines.count { result.append([]) }
-        return Array(result.prefix(lines.count))
+        return result
     }
 
     /// コードブロックの言語名（```python の python）で分類を切り替える。
@@ -80,6 +86,8 @@ public enum ChatCodeTokenizer {
         var quotes: Set<Character> = ["\"", "'"]
         /// SQL のように大文字・小文字を区別しない言語。
         var caseInsensitive = false
+        /// Python の `"""` / `'''` のように、引用符 3 つで囲む複数行の文字列。
+        var tripleQuotes = false
     }
 
     enum Language {
@@ -97,7 +105,7 @@ public enum ChatCodeTokenizer {
                     "else", "except", "False", "finally", "for", "from", "global", "if", "import", "in", "is",
                     "lambda", "None", "nonlocal", "not", "or", "pass", "raise", "return", "self", "True", "try",
                     "while", "with", "yield",
-                ], lineComments: ["#"]))
+                ], lineComments: ["#"], tripleQuotes: true))
             case "javascript", "js", "jsx", "mjs", "cjs", "typescript", "ts", "tsx":
                 self = .rules(Rules(keywords: [
                     "async", "await", "break", "case", "catch", "class", "const", "continue", "default", "delete",
@@ -180,6 +188,21 @@ public enum ChatCodeTokenizer {
                 append(String(code[index..<end]), .comment)
                 index = end
                 continue
+            }
+            if rules.tripleQuotes, let quote = rest.first, rules.quotes.contains(quote) {
+                let fence = String(repeating: quote, count: 3)
+                if rest.hasPrefix(fence) {
+                    // 閉じは、バックスラッシュでエスケープされていない最初の三重引用符。
+                    var end = code.index(index, offsetBy: 3)
+                    while end < code.endIndex, !code[end...].hasPrefix(fence) {
+                        let next = code.index(after: end)
+                        end = code[end] == "\\" && next < code.endIndex ? code.index(after: next) : next
+                    }
+                    end = end < code.endIndex ? code.index(end, offsetBy: 3) : code.endIndex
+                    append(String(code[index..<end]), .string)
+                    index = end
+                    continue
+                }
             }
             let character = code[index]
             if rules.quotes.contains(character) {

@@ -77,6 +77,11 @@ public enum ChatCodeHighlighter {
         ChatCodeTokenizer.tokens(for: code, path: path)
     }
 
+    /// 行ごとに描く表示の窓口。行をまとめて分類してから行へ戻す（拡張子で規則を選ぶ）。内容でメモ化する。
+    public static func highlightLines(_ lines: [String], path: String) -> [AttributedString] {
+        ChatMessageRenderCache.highlightedLines(lines, path: path)
+    }
+
     static func highlight(tokens: [ChatCodeToken]) -> AttributedString {
         var output = AttributedString()
         for token in tokens {

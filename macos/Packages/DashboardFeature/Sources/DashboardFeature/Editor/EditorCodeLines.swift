@@ -65,6 +65,36 @@ enum EditorCodeLines {
         return lines.enumerated().map { EditorCodeLine(number: $0.offset + 1, text: $0.element, kind: .context) }
     }
 
+    /// 各行の本文の色（`lines` と同じ数）。変更前（文脈＋削除行）と変更後（文脈＋追加行）を
+    /// 塊ごとに分けて分類する（削除行で始まったコメントが追加行へ及ばないように）。文脈は変更後の色。
+    /// 見出しと番号の無い行（「\ No newline at end of file」など）は分類に混ぜず、そのまま出す。
+    static func highlightedBodies(
+        _ lines: [EditorCodeLine],
+        highlight: ([String]) -> [AttributedString]
+    ) -> [AttributedString] {
+        var bodies = lines.map { AttributedString($0.text) }
+        var segment: [Int] = []
+        func flush() {
+            guard !segment.isEmpty else { return }
+            // 削除行の無い塊（ファイル内容の表示など）は変更後の側だけで足りる。
+            let hasRemoved = segment.contains { lines[$0].kind == .removed }
+            for (side, other) in [(EditorCodeLine.Kind.removed, EditorCodeLine.Kind.added), (.added, .removed)]
+            where side == .added || hasRemoved {
+                let indices = segment.filter { lines[$0].kind != other }
+                for (index, body) in zip(indices, highlight(indices.map { lines[$0].text }))
+                where lines[index].kind == side || (lines[index].kind == .context && side == .added) {
+                    bodies[index] = body
+                }
+            }
+            segment = []
+        }
+        for (index, line) in lines.enumerated() {
+            if line.kind == .hunk || line.number == nil { flush() } else { segment.append(index) }
+        }
+        flush()
+        return bodies
+    }
+
     /// 先頭 `limit` 行より後ろに残る、塊の数と（見出しを除いた）行の数。
     static func remainder(of lines: [EditorCodeLine], after limit: Int) -> (hunks: Int, lines: Int) {
         guard lines.count > limit else { return (0, 0) }

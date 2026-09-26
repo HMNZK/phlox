@@ -61,6 +61,7 @@ enum ChatMessageRenderCache {
     static let diffCodeCache = ContentMemoCache<DiffCodeViewData>()
     static let shellHighlightCache = ContentMemoCache<AttributedString>()
     static let lineHighlightCache = ContentMemoCache<[AttributedString]>()
+    static let proseCache = ContentMemoCache<AttributedString>()
     static let commandExecutionCache = ContentMemoCache<CommandGroupExecutionDisplayData>()
 
     /// fenced code block の分割（`ChatMarkdownFormatter.splitFencedCodeBlocks` をメモ化）。

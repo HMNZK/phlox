@@ -82,10 +82,12 @@ public enum ChatCodeHighlighter {
         ChatMessageRenderCache.highlightedLines(lines, path: path)
     }
 
-    static func highlight(tokens: [ChatCodeToken]) -> AttributedString {
+    /// `boldKeywords`: コードブロックは見本（Chat Screen.dc.html の tok）どおりキーワードを太字にする。
+    /// 差分・変更タブは従来の見た目のまま（太字にしない）。
+    static func highlight(tokens: [ChatCodeToken], boldKeywords: Bool = false) -> AttributedString {
         var output = AttributedString()
         for token in tokens {
-            append(token.text, color: color(for: token.kind), to: &output)
+            append(token.text, color: color(for: token.kind), bold: boldKeywords && token.kind == .keyword, to: &output)
         }
         return output
     }
@@ -110,16 +112,14 @@ public enum ChatCodeHighlighter {
     }
 
     static func computeHighlight(_ code: String, language: String) -> AttributedString {
-        var output = AttributedString()
-        for token in ChatCodeTokenizer.tokens(for: code, language: language) {
-            append(token.text, color: color(for: token.kind), to: &output)
-        }
-        return output
+        highlight(tokens: ChatCodeTokenizer.tokens(for: code, language: language),
+                  boldKeywords: ChatCodeTokenizer.refinesIdentifiers(language: language))
     }
 
-    private static func append(_ string: String, color: Color, to output: inout AttributedString) {
+    private static func append(_ string: String, color: Color, bold: Bool = false, to output: inout AttributedString) {
         var chunk = AttributedString(string)
         chunk.foregroundColor = color
+        if bold { chunk.inlinePresentationIntent = .stronglyEmphasized }
         output += chunk
     }
 
@@ -138,6 +138,9 @@ public enum ChatCodeHighlighter {
         case .variable: DSColor.codeSyntaxString
         case .operator: DSColor.codeSyntaxKeyword
         case .option: DSColor.codeSyntaxNumber
+        case .type: DSColor.attentionInk(.question)
+        case .member: DSColor.codeSyntaxNumber
+        case .call: DSColor.accentInk
         }
     }
 }

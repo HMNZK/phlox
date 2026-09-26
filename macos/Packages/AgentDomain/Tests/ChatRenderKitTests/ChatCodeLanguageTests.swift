@@ -37,6 +37,28 @@ struct ChatCodeLanguageTests {
         #expect(result[3] == [ChatCodeToken(text: "def", kind: .keyword)])
     }
 
+    @Test("swift は型・. で始まる名前・呼び出しを分ける（見本の tok）")
+    func swiftSplitsTypesMembersAndCalls() {
+        let k = kinds("func expireOverdue(at now: Date) { pending[i].state = .expired }", "swift")
+        #expect(k["func"] == .keyword)
+        #expect(k["expireOverdue"] == .call)
+        #expect(k["Date"] == .type)
+        #expect(k[".state"] == .member)
+        #expect(k[".expired"] == .member)
+    }
+
+    @Test("言語名なしと JSON は、名前を分けない")
+    func noLanguageAndJSONKeepNamesPlain() {
+        #expect(ChatCodeTokenizer.tokens(for: "let d = Date()", language: nil).contains { $0.kind == .type } == false)
+        #expect(ChatCodeTokenizer.tokens(for: "{\"a\": Foo}", language: "json").contains { $0.kind == .type } == false)
+    }
+
+    @Test("R は呼び出しを分け、Dockerfile は大文字の命令を型にしない")
+    func rRefinesButDockerfileDoesNot() {
+        #expect(kinds("x <- calculate(1)", "r")["calculate"] == .call)
+        #expect(ChatCodeTokenizer.tokens(for: "FROM swift", language: "dockerfile").contains { $0.kind == .type } == false)
+    }
+
     @Test("TypeScript は単一引用符とバッククォートも文字列")
     func typeScriptQuotes() {
         let k = kinds("const a = 'x' + `y`", "ts")

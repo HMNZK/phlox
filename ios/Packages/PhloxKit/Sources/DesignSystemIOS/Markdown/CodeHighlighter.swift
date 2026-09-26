@@ -167,7 +167,8 @@ public extension CodeHighlighter {
             DSColor.codeSyntaxNumber
         case .comment:
             DSColor.codeSyntaxComment
-        case .plain:
+        // macOS の会話だけが型・メンバー・呼び出しを色分けする。iOS は従来どおり本文色。
+        case .plain, .type, .member, .call:
             DSColor.chatTextPrimary
         }
     }

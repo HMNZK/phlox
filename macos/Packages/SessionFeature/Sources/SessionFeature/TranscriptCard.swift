@@ -119,7 +119,7 @@ struct TranscriptCardFooter: View {
     }
 }
 
-/// コマンドの出力の行（等幅 11.5・行の高さ 1.7・左 28）。「error」を含む行は赤い文字（PhloxChat.dc.html の cmd）。
+/// コマンドの出力の行（等幅 11.5・行の高さ 1.7・左 28）。行の中身で色を変える（Chat Screen.dc.html の cmd）。
 struct TranscriptCardOutputLines: View {
     let output: String
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
@@ -145,8 +145,18 @@ struct TranscriptCardOutputLines: View {
         let lines = output.split(separator: "\n", omittingEmptySubsequences: false)
         for (index, line) in lines.enumerated() {
             var part = AttributedString(String(line))
+            // 「10 failures」を拾わないよう、0 の前が数字でないことを見る。
+            let passed = line.range(of: #"(?<!\d)0 failures"#, options: .regularExpression) != nil
+            // Chat Screen.dc.html の cmd: エラーは赤の太字、✔ と「0 failures」は緑（0 failures は太字）、
+            // ビルドの経過（[n/m]・Building・started）は弱い文字色。
             if line.contains("error") {
                 part.foregroundColor = DSColor.attentionInk(.error)
+                part.inlinePresentationIntent = .stronglyEmphasized
+            } else if line.hasPrefix("✔") || passed {
+                part.foregroundColor = DSColor.diffAdded
+                if passed { part.inlinePresentationIntent = .stronglyEmphasized }
+            } else if line.range(of: #"^\[\d|^Building|started'?$"#, options: .regularExpression) != nil {
+                part.foregroundColor = DSColor.chatTextSecondary
             }
             result += part
             if index < lines.count - 1 { result += AttributedString("\n") }

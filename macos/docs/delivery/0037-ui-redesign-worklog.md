@@ -1694,3 +1694,30 @@ F1〜F11 で見送った項目を、ユーザーの判断（`0037-ui-redesign-de
 - 追加したテスト: `ChatCodeLanguageTests`（三重引用符の複数行、エスケープされた三重引用符、行内の CR・U+2028）、`EditorCodeLinesTests`（塊ごと・変更前と変更後で別々に分類、ファイル内容は 1 回だけ分類）、`DiffHighlightSideTests`（行の区切りが違う入力をキャッシュで取り違えない、Python の規則）。三重引用符・行の対応・キャッシュキーのテストは、修正を外すと落ちることを確かめた。
 - `macos/scripts/run-swift-tests.sh`（終了コード 0）、App の Debug ビルド（終了コード 0）。gpt-6-sol（high）の読み取り専用レビューを 3 回回し、最後の回で高・中なし（低 1 件は対応済み）。
 - Debug 版を実際に操作して撮影: 変更タブで、Swift の差分（`case` が紫、「+ 」が緑）、Python のファイル（`"""` の複数行文字列が赤、`from`・`import`・`def`・`return` が紫、数値が青、`#` のコメントが灰）を確認。チャットのツール実行の束で、Bash のコマンド行に色が付くことも確認。
+
+## 1.8.0 の後の修正（17）: 会話の本文・コード・コマンド出力の強調を Chat Screen.dc.html に合わせる（2026-09-26）
+
+ユーザーが用意した見本 `docs/specs/Chat Screen.dc.html`（gitignore 下。中の `tok()` と `rich()` が仕様）に合わせた。見本では差分カードと Bash の束の行が単色だが、ユーザー判断で今の言語別の色分けを残した。
+
+### 対応表
+
+| 項目 | 直したこと | 主な場所 |
+|---|---|---|
+| 本文の強調（`rich()`） | 段落は MarkdownUI では語ごとに色を付けられないので、段落の Markdown を自前で `AttributedString` にして描く。文中のコードは紫・小さめの等幅。書式の無い camelCase・PascalCase の名前は紫、ファイル名は青、`.member` は数値色（どれも等幅・淡い地）。「成功」「+3」は緑の太字、「失敗」「−2」は赤の太字、「3 件」などの数量は太字。リンク（テーマのリンク色）と太字の中は自動で強調しない。画像を含む段落は従来の表示のまま。結果はテーマ・倍率・内容でメモ化 | `ChatProseHighlighter.swift`（ChatRenderKit）、`ChatProseText.swift`、`RichMarkdownView.swift`、`ChatMessageRenderCache.swift` |
+| 箇条書き・見出し | 「•」をアクセント色の太字に。見出しの下に行幅いっぱいの区切り線 | `RichMarkdownView.swift` |
+| コードブロック（`tok()`） | 言語名が swift と表の言語のとき、型は青、`.member` は数値色、呼び出しはアクセント色、キーワードは太字。json・yaml・toml・ini・sql・Dockerfile・Makefile・CMake は細かく分けない（大文字の名前が型ではないため）。言語名が無い・知らないときは従来どおり | `ChatCodeTokenizer.swift`（`refiningIdentifiers`・`refinesIdentifiers`）、`ChatCodeBlock.swift` |
+| コマンド出力の行 | `error` を含む行は赤の太字、`✔` で始まる行と `0 failures`（`10 failures` は除く）は緑、`Building`・`[1/3]` などの経過は弱い色 | `TranscriptCard.swift` |
+| 差分・変更タブ | 従来の分類・太字なしのまま（凍結テスト `AcceptanceChatCodeCardTests` の前提を守る） | `ChatCodeTokenizer.tokens(for:path:)` |
+| iOS | 新しいトークン種別は本文色で描く（見た目は変えない） | `ios/.../CodeHighlighter.swift` |
+
+### 直していないもの
+
+- Swift の `Foo.self` の `self` はキーワード色（見本の `tok()` も同じ）。
+- 段落の文字列に `![` があるときは、画像でなくても従来の表示に戻る（強調しない）。MarkdownUI 2.x の公開 API では段落内の画像を判定できないため。
+- 見出し・箇条書き・コマンド出力の行は、Debug 版の既存の会話に該当する内容が無く、実画面ではなく同じ View を画像に描いて確認した。
+
+### 検証
+
+- 追加したテスト: `ChatProseHighlighterTests`、`ChatScreenHighlightTests`（本文の色・等幅・成功と失敗・数量・複合絵文字の後の位置・リンク・json の太字なし・型と呼び出し・コマンド出力の行）、`ChatCodeLanguageTests`（Swift の型・メンバー・呼び出し、言語名なしと json は分けない、R は分けて Dockerfile は分けない）。本文の強調と json の太字のテストは、実装を外すと落ちることを確かめた。
+- `macos/scripts/run-swift-tests.sh`（終了コード 0）、iOS の `PhloxKit` の `swift test`（終了コード 0、698 件）、App の Debug ビルド（終了コード 0）。gpt-6-sol（high）の読み取り専用レビューを 5 回回し、最後の回で高・中なし。
+- Debug 版を実際に操作して撮影: 本文の文中コードが紫・ファイル名が青、Swift と Java のコードブロックでキーワードが太字・呼び出しがアクセント色、言語名なしのブロックは太字なし、json・sql は太字なし。見出しの区切り線・「•」の色・コマンド出力の行の色は、`RichMarkdownView` と `TranscriptCardOutputLines` を一時テストで画像に描いて確認（一時テストは削除済み）。

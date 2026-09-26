@@ -79,26 +79,44 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
                 .fixedSize(horizontal: false, vertical: true)
                 .markdownMargin(bottom: TranscriptTypography.withinAnswer)
         }
-        // PhloxChat.dc.html: 「•」は弱い文字色・本文との間 8。
+        // Chat Screen.dc.html: 「•」はアクセント色の太字・本文との間 8。
         .bulletedListMarker { _ in
             Text(verbatim: "•")
-                .foregroundStyle(DSColor.textTertiary)
+                .fontWeight(.bold)
+                .foregroundStyle(DSColor.chatAccent)
                 .relativeFrame(minWidth: .em(1), alignment: .leading)
         }
         // MarkdownUI の空テーマは段落・見出しの label に縦サイズ確保を付けない。そのまま
         // selectable な Text を幅制約下へ置くと、描画が折り返しても親が 1 行高のままになり、
         // 次のブロックへ重なり得る。非表ブロックだけに固定し、折り返した全行の高さを親へ返す。
         // 表へは波及させない（ADR 0045）。
+        // Chat Screen.dc.html の rich(): 段落の文字は自前で強調する（MarkdownUI は語ごとの色を持てない）。
+        // 段落の間隔・箇条書きの並びは MarkdownUI のまま。
+        // 画像を含む段落は Text で描けないので MarkdownUI のまま（強調はしない）。
         .paragraph { configuration in
-            configuration.label
-                .fixedSize(horizontal: false, vertical: true)
-                // 13pt・行の高さ 1.7（PhloxChat.dc.html）。
-                .lineSpacing(6 * scale)
-                .markdownMargin(bottom: TranscriptTypography.withinAnswer)
+            let markdown = configuration.content.renderMarkdown()
+            Group {
+                if markdown.contains("![") {
+                    configuration.label
+                } else {
+                    Text(ChatProseText.attributed(markdown: markdown, scale: scale))
+                        .font(.system(size: ChatTypography.bodyFontSize(scale: scale)))
+                        .foregroundStyle(bodyColor)
+                        .tint(DSColor.accentInk)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            // 13pt・行の高さ 1.7（PhloxChat.dc.html）。
+            .lineSpacing(6 * scale)
+            .markdownMargin(bottom: TranscriptTypography.withinAnswer)
         }
         .heading1 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+                // Chat Screen.dc.html: 見出しの下に区切り線。
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 3)
+                .overlay(alignment: .bottom) { Rectangle().fill(DSColor.separator).frame(height: 1) }
                 .markdownMargin(top: 0, bottom: TranscriptTypography.withinAnswer)
                 .markdownTextStyle {
                     FontWeight(.bold)
@@ -109,6 +127,10 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
         .heading2 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+                // Chat Screen.dc.html: 見出しの下に区切り線。
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 3)
+                .overlay(alignment: .bottom) { Rectangle().fill(DSColor.separator).frame(height: 1) }
                 .markdownMargin(top: TranscriptTypography.betweenAnswers, bottom: TranscriptTypography.withinAnswer)
                 .markdownTextStyle {
                     FontWeight(.bold)
@@ -119,6 +141,10 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
         .heading3 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+                // Chat Screen.dc.html: 見出しの下に区切り線。
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 3)
+                .overlay(alignment: .bottom) { Rectangle().fill(DSColor.separator).frame(height: 1) }
                 .markdownMargin(top: TranscriptTypography.withinAnswer, bottom: TranscriptTypography.withinAnswer)
                 .markdownTextStyle {
                     FontWeight(.semibold)
@@ -129,6 +155,10 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
         .heading4 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+                // Chat Screen.dc.html: 見出しの下に区切り線。
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 3)
+                .overlay(alignment: .bottom) { Rectangle().fill(DSColor.separator).frame(height: 1) }
                 .markdownMargin(top: TranscriptTypography.withinAnswer, bottom: TranscriptTypography.withinAnswer)
                 .markdownTextStyle {
                     FontWeight(.semibold)
@@ -139,6 +169,10 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
         .heading5 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+                // Chat Screen.dc.html: 見出しの下に区切り線。
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 3)
+                .overlay(alignment: .bottom) { Rectangle().fill(DSColor.separator).frame(height: 1) }
                 .markdownMargin(top: TranscriptTypography.withinAnswer, bottom: TranscriptTypography.withinAnswer)
                 .markdownTextStyle {
                     FontWeight(.semibold)
@@ -149,6 +183,10 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
         .heading6 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+                // Chat Screen.dc.html: 見出しの下に区切り線。
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 3)
+                .overlay(alignment: .bottom) { Rectangle().fill(DSColor.separator).frame(height: 1) }
                 .markdownMargin(top: TranscriptTypography.withinAnswer, bottom: TranscriptTypography.withinAnswer)
                 .markdownTextStyle {
                     FontWeight(.semibold)

@@ -11,6 +11,12 @@ public enum ChatCodeTokenKind: Equatable, Sendable {
     case variable
     case `operator`
     case option
+    /// 大文字で始まる名前（型）。
+    case type
+    /// `.expired` のような `.` で始まる名前。
+    case member
+    /// 直後が `(` の名前（関数の呼び出し）。
+    case call
 }
 
 public struct ChatCodeToken: Equatable, Sendable {
@@ -37,7 +43,8 @@ public enum ChatCodeTokenizer {
         guard ext == "swift" || Language(name: ext) != nil else {
             return code.isEmpty ? [] : [ChatCodeToken(text: code, kind: .plain)]
         }
-        return tokens(for: code, language: ext)
+        // 差分・変更タブは従来の分類のまま（型・メンバー・呼び出しは分けない。2026-09-26 ユーザー判断）。
+        return baseTokens(for: code, language: ext)
     }
 
     /// 差分のように行ごとに描くときの窓口。行をつないでまとめて分けてから行へ戻すので、
@@ -68,14 +75,77 @@ public enum ChatCodeTokenizer {
         return result
     }
 
-    /// コードブロックの言語名（```python の python）で分類を切り替える。
-    /// 言語名が無い・知らない・Swift のときは従来どおり Swift の規則で分ける。
+    /// コードブロックの窓口。言語名が swift のときと表にある言語は、残りの名前を型・メンバー・呼び出しに
+    /// 分ける（Chat Screen.dc.html の見本）。言語名が無い・知らないときは従来どおり（`swift(_:)` のまま）。
     public static func tokens(for code: String, language: String?) -> [ChatCodeToken] {
-        switch Language(name: language?.lowercased() ?? "") {
+        let name = language?.lowercased() ?? ""
+        let tokens = baseTokens(for: code, language: name)
+        return refinesIdentifiers(language: name) ? refiningIdentifiers(tokens) : tokens
+    }
+
+    /// 見本どおりの細かい色分け（型・メンバー・呼び出し・太字のキーワード）をする言語か。
+    public static func refinesIdentifiers(language: String?) -> Bool {
+        let name = language?.lowercased() ?? ""
+        switch Language(name: name) {
+        case .rules(let rules): return rules.identifiers
+        case .shell: return false
+        case nil: return name == "swift"
+        }
+    }
+
+    /// 言語ごとの基本の分類（キーワード・文字列・数値・コメント）。
+    static func baseTokens(for code: String, language name: String) -> [ChatCodeToken] {
+        switch Language(name: name) {
         case .shell: shell(code)
         case .rules(let rules): generic(code, rules: rules)
         case nil: swift(code)
         }
+    }
+
+    /// 本文色の部分から、型（大文字で始まる名前）・`.` で始まる名前・呼び出し（直後が `(`）を切り出す。
+    static func refiningIdentifiers(_ tokens: [ChatCodeToken]) -> [ChatCodeToken] {
+        var output: [ChatCodeToken] = []
+        func append(_ text: String, _ kind: ChatCodeTokenKind) {
+            guard !text.isEmpty else { return }
+            if output.last?.kind == kind {
+                output[output.count - 1].text += text
+            } else {
+                output.append(ChatCodeToken(text: text, kind: kind))
+            }
+        }
+        func isNameCharacter(_ character: Character) -> Bool {
+            character.isASCII && (character.isLetter || character.isNumber || character == "_")
+        }
+        for token in tokens {
+            guard token.kind == .plain else {
+                append(token.text, token.kind)
+                continue
+            }
+            let text = token.text
+            var index = text.startIndex
+            while index < text.endIndex {
+                let character = text[index]
+                let next = text.index(after: index)
+                if character == ".", next < text.endIndex, text[next].isASCII, text[next].isLowercase {
+                    let end = text[next...].firstIndex { !isNameCharacter($0) } ?? text.endIndex
+                    append(String(text[index..<end]), .member)
+                    index = end
+                    continue
+                }
+                let startsName = character.isASCII && (character.isLetter || character == "_")
+                if startsName, index == text.startIndex || !isNameCharacter(text[text.index(before: index)]) {
+                    let end = text[index...].firstIndex { !isNameCharacter($0) } ?? text.endIndex
+                    let kind: ChatCodeTokenKind = character.isUppercase ? .type
+                        : end < text.endIndex && text[end] == "(" ? .call : .plain
+                    append(String(text[index..<end]), kind)
+                    index = end
+                    continue
+                }
+                append(String(character), .plain)
+                index = next
+            }
+        }
+        return output
     }
 
     /// 言語ごとの分類規則。色は 4 種類（キーワード・文字列・数値・コメント）のまま。
@@ -88,6 +158,8 @@ public enum ChatCodeTokenizer {
         var caseInsensitive = false
         /// Python の `"""` / `'''` のように、引用符 3 つで囲む複数行の文字列。
         var tripleQuotes = false
+        /// 型・メンバー・呼び出しを分けるか（JSON・YAML・SQL のような名前の区別が無い言語では分けない）。
+        var identifiers = true
     }
 
     enum Language {
@@ -144,8 +216,11 @@ public enum ChatCodeTokenizer {
                     "val", "var", "void", "when", "while",
                 ], lineComments: ["//"], blockComment: true))
             case "json", "jsonc", "json5":
-                self = .rules(Rules(keywords: ["true", "false", "null"], lineComments: ["//"], quotes: ["\""]))
-            case "yaml", "yml", "toml", "ini", "dockerfile", "makefile", "make", "cmake", "r", "perl", "pl":
+                self = .rules(Rules(keywords: ["true", "false", "null"], lineComments: ["//"], quotes: ["\""], identifiers: false))
+            // 設定・ビルド記述は大文字の名前が型ではない（FROM・CC など）ので細かく分けない。
+            case "yaml", "yml", "toml", "ini", "dockerfile", "makefile", "make", "cmake":
+                self = .rules(Rules(keywords: ["true", "false", "null", "yes", "no", "on", "off"], lineComments: ["#"], identifiers: false))
+            case "r", "perl", "pl":
                 self = .rules(Rules(keywords: ["true", "false", "null", "yes", "no", "on", "off"], lineComments: ["#"]))
             case "sql", "sqlite", "postgresql", "mysql":
                 self = .rules(Rules(keywords: [
@@ -154,7 +229,7 @@ public enum ChatCodeTokenizer {
                     "by", "order", "limit", "values", "set", "as", "distinct", "having", "union", "index",
                     "primary", "key", "references", "default", "is", "in", "like", "case", "when", "then", "else",
                     "end", "true", "false",
-                ], lineComments: ["--"], blockComment: true, quotes: ["'", "\""], caseInsensitive: true))
+                ], lineComments: ["--"], blockComment: true, quotes: ["'", "\""], caseInsensitive: true, identifiers: false))
             default:
                 return nil
             }

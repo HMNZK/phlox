@@ -42,7 +42,7 @@ struct CodeBlockView: View {
                 .frame(height: 1)
 
             ScrollView(.horizontal) {
-                Text(ChatCodeHighlighter.highlight(code.isEmpty ? " " : code))
+                Text(ChatCodeHighlighter.highlight(code.isEmpty ? " " : code, language: language))
                     .font(.system(size: 12 * scale, design: .monospaced))
                     .lineSpacing(7 * scale)
                     .chatTextSelection()
@@ -67,14 +67,19 @@ public enum ChatCodeHighlighter {
         ChatMessageRenderCache.highlightedCode(code)
     }
 
+    /// コードブロックの言語名で分類を切り替える窓口。言語名が無い・知らないときは `highlight(_:)` と同じ。
+    public static func highlight(_ code: String, language: String?) -> AttributedString {
+        ChatMessageRenderCache.highlightedCode(code, language: language)
+    }
+
     /// diff 本文用のトークン分類。分類規則は ChatRenderKit に委譲する。
     public static func tokens(for code: String, path: String) -> [ChatCodeToken] {
         ChatCodeTokenizer.tokens(for: code, path: path)
     }
 
-    static func computeDiffHighlight(_ code: String, path: String) -> AttributedString {
+    static func highlight(tokens: [ChatCodeToken]) -> AttributedString {
         var output = AttributedString()
-        for token in ChatCodeTokenizer.tokens(for: code, path: path) {
+        for token in tokens {
             append(token.text, color: color(for: token.kind), to: &output)
         }
         return output
@@ -94,6 +99,14 @@ public enum ChatCodeHighlighter {
     static func computeHighlight(_ code: String) -> AttributedString {
         var output = AttributedString()
         for token in ChatCodeTokenizer.swift(code) {
+            append(token.text, color: color(for: token.kind), to: &output)
+        }
+        return output
+    }
+
+    static func computeHighlight(_ code: String, language: String) -> AttributedString {
+        var output = AttributedString()
+        for token in ChatCodeTokenizer.tokens(for: code, language: language) {
             append(token.text, color: color(for: token.kind), to: &output)
         }
         return output

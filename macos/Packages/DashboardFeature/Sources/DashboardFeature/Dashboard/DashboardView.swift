@@ -419,10 +419,10 @@ public struct DashboardView: View {
             .overlay(alignment: .topLeading) {
                 if layout.showsSidebar {
                     ResizeGripView(
-                        onChanged: { value in
+                        onChanged: { translation in
                             sidebarWidth = PaneWidthPolicy.draggedSidebarWidth(
                                 start: sidebarWidthAtDragStart,
-                                translation: value.translation.width,
+                                translation: translation,
                                 windowWidth: windowWidth,
                                 inspectorSpan: inspectorSpan(layout)
                             )
@@ -440,10 +440,10 @@ public struct DashboardView: View {
             .overlay(alignment: .topTrailing) {
                 if router.inspectorVisible, !layout.inspectorIsOverlay {
                     ResizeGripView(
-                        onChanged: { value in
+                        onChanged: { translation in
                             inspectorWidth = PaneWidthPolicy.draggedInspectorWidth(
                                 start: inspectorWidthAtDragStart,
-                                translation: value.translation.width,
+                                translation: translation,
                                 windowWidth: windowWidth,
                                 sidebarSpan: layout.showsSidebar ? layout.sidebar + PaneWidthPolicy.separatorWidth : 0
                             )

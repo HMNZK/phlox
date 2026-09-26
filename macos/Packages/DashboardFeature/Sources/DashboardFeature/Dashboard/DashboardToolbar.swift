@@ -247,8 +247,21 @@ struct SidebarToggleButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(HoverableIconButtonStyle())
+        .modifier(FirstClickActivates())
         .help(isShowing ? Text("サイドバーを隠す（⌃⌘S）") : Text("サイドバーを表示（⌃⌘S）"))
         .accessibilityLabel(isShowing ? Text("サイドバーを隠す（⌃⌘S）") : Text("サイドバーを表示（⌃⌘S）"))
+    }
+}
+
+/// 窓が前面でないときの最初のクリックでも押せるようにする（macOS 15 以降）。
+/// タイトルバーの帯のボタンは、既定では最初のクリックが窓を前に出すだけで終わり「押せない」ように見える。
+private struct FirstClickActivates: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 15.0, *) {
+            content.allowsWindowActivationEvents(true)
+        } else {
+            content
+        }
     }
 }
 

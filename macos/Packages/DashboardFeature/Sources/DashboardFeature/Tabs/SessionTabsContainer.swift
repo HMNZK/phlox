@@ -440,9 +440,9 @@ private struct ChildTabPanes<Content: View>: View {
                 .overlay(alignment: .topLeading) {
                     ResizeGripView(
                         hitWidth: DSLayout.dividerHitWidth,
-                        onChanged: { value in
+                        onChanged: { translation in
                             if dragFraction == nil { fractionAtDragStart = leftWidth / width }
-                            dragFraction = fractionAtDragStart + value.translation.width / width
+                            dragFraction = fractionAtDragStart + translation / width
                         },
                         onEnded: {
                             let committed = Self.leftWidth(fraction: dragFraction ?? layout.splitFraction, totalWidth: width) / width

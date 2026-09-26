@@ -31,12 +31,188 @@ public enum ChatCodeTokenizer {
         "throw", "throws", "true", "try", "var", "while",
     ]
 
-    /// 拡張子で言語を決める。Swift 以外は plain にフォールバックする。
+    /// 拡張子で言語を決める。知らない拡張子は plain にフォールバックする。
     public static func tokens(for code: String, path: String) -> [ChatCodeToken] {
-        guard path.lowercased().hasSuffix(".swift") else {
+        let ext = (path as NSString).pathExtension.lowercased()
+        guard ext == "swift" || Language(name: ext) != nil else {
             return code.isEmpty ? [] : [ChatCodeToken(text: code, kind: .plain)]
         }
-        return swift(code)
+        return tokens(for: code, language: ext)
+    }
+
+    /// 差分のように行ごとに描くときの窓口。行をつないでまとめて分けてから行へ戻すので、
+    /// 複数行にまたがるブロックコメントや文字列の途中の行も正しく分類される。
+    public static func lineTokens(for lines: [String], path: String) -> [[ChatCodeToken]] {
+        var result: [[ChatCodeToken]] = [[]]
+        for token in tokens(for: lines.joined(separator: "\n"), path: path) {
+            var piece = ""
+            for character in token.text {
+                if character.isNewline {
+                    if !piece.isEmpty { result[result.count - 1].append(ChatCodeToken(text: piece, kind: token.kind)) }
+                    piece = ""
+                    result.append([])
+                } else {
+                    piece.append(character)
+                }
+            }
+            if !piece.isEmpty { result[result.count - 1].append(ChatCodeToken(text: piece, kind: token.kind)) }
+        }
+        // 末尾の空行ぶんを行数に合わせる（空の入力でも行数は保つ）。
+        while result.count < lines.count { result.append([]) }
+        return Array(result.prefix(lines.count))
+    }
+
+    /// コードブロックの言語名（```python の python）で分類を切り替える。
+    /// 言語名が無い・知らない・Swift のときは従来どおり Swift の規則で分ける。
+    public static func tokens(for code: String, language: String?) -> [ChatCodeToken] {
+        switch Language(name: language?.lowercased() ?? "") {
+        case .shell: shell(code)
+        case .rules(let rules): generic(code, rules: rules)
+        case nil: swift(code)
+        }
+    }
+
+    /// 言語ごとの分類規則。色は 4 種類（キーワード・文字列・数値・コメント）のまま。
+    struct Rules {
+        var keywords: Set<String>
+        var lineComments: [String]
+        var blockComment = false
+        var quotes: Set<Character> = ["\"", "'"]
+        /// SQL のように大文字・小文字を区別しない言語。
+        var caseInsensitive = false
+    }
+
+    enum Language {
+        case shell
+        case rules(Rules)
+
+        // ponytail: 主要な言語だけの小さな表。足りない言語は Swift の規則で色分けされる。
+        init?(name: String) {
+            switch name {
+            case "sh", "bash", "zsh", "shell", "console", "fish", "shellscript", "terminal":
+                self = .shell
+            case "python", "py":
+                self = .rules(Rules(keywords: [
+                    "and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif",
+                    "else", "except", "False", "finally", "for", "from", "global", "if", "import", "in", "is",
+                    "lambda", "None", "nonlocal", "not", "or", "pass", "raise", "return", "self", "True", "try",
+                    "while", "with", "yield",
+                ], lineComments: ["#"]))
+            case "javascript", "js", "jsx", "mjs", "cjs", "typescript", "ts", "tsx":
+                self = .rules(Rules(keywords: [
+                    "async", "await", "break", "case", "catch", "class", "const", "continue", "default", "delete",
+                    "do", "else", "export", "extends", "false", "finally", "for", "from", "function", "if",
+                    "import", "in", "instanceof", "interface", "let", "new", "null", "of", "return", "static",
+                    "super", "switch", "this", "throw", "true", "try", "type", "typeof", "undefined", "var",
+                    "void", "while", "yield",
+                ], lineComments: ["//"], blockComment: true, quotes: ["\"", "'", "`"]))
+            case "go", "golang":
+                self = .rules(Rules(keywords: [
+                    "break", "case", "chan", "const", "continue", "default", "defer", "else", "fallthrough",
+                    "false", "for", "func", "go", "goto", "if", "import", "interface", "map", "nil", "package",
+                    "range", "return", "select", "struct", "switch", "true", "type", "var",
+                ], lineComments: ["//"], blockComment: true, quotes: ["\"", "'", "`"]))
+            case "rust", "rs":
+                self = .rules(Rules(keywords: [
+                    "as", "async", "await", "break", "const", "continue", "crate", "else", "enum", "false", "fn",
+                    "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref",
+                    "return", "self", "Self", "static", "struct", "super", "trait", "true", "type", "unsafe",
+                    "use", "where", "while",
+                ], lineComments: ["//"], blockComment: true, quotes: ["\""]))
+            case "ruby", "rb":
+                self = .rules(Rules(keywords: [
+                    "begin", "class", "def", "do", "else", "elsif", "end", "ensure", "false", "for", "if", "in",
+                    "module", "next", "nil", "not", "or", "and", "rescue", "return", "require", "self", "super",
+                    "then", "true", "unless", "until", "when", "while", "yield",
+                ], lineComments: ["#"]))
+            case "c", "h", "cpp", "c++", "cc", "hpp", "objc", "objective-c", "m", "java", "kotlin", "kt",
+                 "kts", "cs", "csharp", "c#", "dart", "scala":
+                self = .rules(Rules(keywords: [
+                    "abstract", "auto", "bool", "break", "case", "catch", "char", "class", "const", "continue",
+                    "default", "do", "double", "else", "enum", "extends", "false", "final", "float", "for", "fun",
+                    "if", "implements", "import", "int", "interface", "long", "namespace", "new", "null",
+                    "nullptr", "object", "override", "package", "private", "protected", "public", "return",
+                    "short", "static", "struct", "super", "switch", "this", "throw", "true", "try", "typedef",
+                    "val", "var", "void", "when", "while",
+                ], lineComments: ["//"], blockComment: true))
+            case "json", "jsonc", "json5":
+                self = .rules(Rules(keywords: ["true", "false", "null"], lineComments: ["//"], quotes: ["\""]))
+            case "yaml", "yml", "toml", "ini", "dockerfile", "makefile", "make", "cmake", "r", "perl", "pl":
+                self = .rules(Rules(keywords: ["true", "false", "null", "yes", "no", "on", "off"], lineComments: ["#"]))
+            case "sql", "sqlite", "postgresql", "mysql":
+                self = .rules(Rules(keywords: [
+                    "select", "from", "where", "insert", "into", "update", "delete", "create", "table", "drop",
+                    "alter", "and", "or", "not", "null", "join", "left", "right", "inner", "outer", "on", "group",
+                    "by", "order", "limit", "values", "set", "as", "distinct", "having", "union", "index",
+                    "primary", "key", "references", "default", "is", "in", "like", "case", "when", "then", "else",
+                    "end", "true", "false",
+                ], lineComments: ["--"], blockComment: true, quotes: ["'", "\""], caseInsensitive: true))
+            default:
+                return nil
+            }
+        }
+    }
+
+    static func generic(_ code: String, rules: Rules) -> [ChatCodeToken] {
+        var tokens: [ChatCodeToken] = []
+        var index = code.startIndex
+
+        func append(_ text: String, _ kind: ChatCodeTokenKind) {
+            guard !text.isEmpty else { return }
+            if tokens.last?.kind == kind {
+                tokens[tokens.count - 1].text += text
+            } else {
+                tokens.append(ChatCodeToken(text: text, kind: kind))
+            }
+        }
+
+        while index < code.endIndex {
+            let rest = code[index...]
+            if rules.blockComment, rest.hasPrefix("/*") {
+                let end = rest.range(of: "*/").map(\.upperBound) ?? code.endIndex
+                append(String(code[index..<end]), .comment)
+                index = end
+                continue
+            }
+            if rules.lineComments.contains(where: { rest.hasPrefix($0) }) {
+                // CRLF は 1 つの Character（"\r\n"）なので、"\n" との一致ではなく改行かどうかで探す。
+                let end = rest.firstIndex(where: \.isNewline) ?? code.endIndex
+                append(String(code[index..<end]), .comment)
+                index = end
+                continue
+            }
+            let character = code[index]
+            if rules.quotes.contains(character) {
+                var end = code.index(after: index)
+                var escaped = false
+                while end < code.endIndex {
+                    let current = code[end]
+                    end = code.index(after: end)
+                    if current == character && !escaped { break }
+                    escaped = current == "\\" && !escaped
+                }
+                append(String(code[index..<end]), .string)
+                index = end
+                continue
+            }
+            if character.isNumber {
+                let end = rest.firstIndex { !$0.isNumber && $0 != "." } ?? code.endIndex
+                append(String(code[index..<end]), .number)
+                index = end
+                continue
+            }
+            if character.isLetter || character == "_" {
+                let end = rest.firstIndex { !$0.isLetter && !$0.isNumber && $0 != "_" } ?? code.endIndex
+                let word = String(code[index..<end])
+                let isKeyword = rules.keywords.contains(rules.caseInsensitive ? word.lowercased() : word)
+                append(word, isKeyword ? .keyword : .plain)
+                index = end
+                continue
+            }
+            append(String(character), .plain)
+            index = code.index(after: index)
+        }
+        return tokens
     }
 
     public static func swift(_ code: String) -> [ChatCodeToken] {

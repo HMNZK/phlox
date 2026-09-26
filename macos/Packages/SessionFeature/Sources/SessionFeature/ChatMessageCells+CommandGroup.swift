@@ -340,7 +340,10 @@ private struct CommandGroupToolRow: View {
                         .foregroundStyle(DSColor.chatTextPrimary)
                         .lineLimit(1)
                         .frame(width: 44 * scale, alignment: .leading)
-                    Text(verbatim: CommandGroupCell.shortArgument(tool))
+                    // シェルのコマンドは色分けする（ほかのツールの引数はパスなので素の文字）。
+                    (tool.label == "Bash"
+                        ? Text(ChatMessageRenderCache.highlightedShell(tool.body))
+                        : Text(verbatim: CommandGroupCell.shortArgument(tool)))
                         .font(.system(size: 11.5 * scale, design: .monospaced))
                         .foregroundStyle(DSColor.chatTextSecondary)
                         .lineLimit(1)

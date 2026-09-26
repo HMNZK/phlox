@@ -243,9 +243,9 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
 // トランスクリプト行内に「非同期に自身のサイズを変える View」を置かない（駆動源#2・2026-07-05 実機確定）。
 // CodeText 等はハイライト完了で行高が変わり LazyVStack の anchor translation → 行の破棄/再実体化が自励発振する。
 @ViewBuilder
-private func highlightedCode(_ content: String, language _: String?) -> some View {
+private func highlightedCode(_ content: String, language: String?) -> some View {
     let code = content.isEmpty ? " " : content
-    Text(ChatCodeHighlighter.highlight(code))
+    Text(ChatCodeHighlighter.highlight(code, language: language))
 }
 
 #if canImport(AppKit)

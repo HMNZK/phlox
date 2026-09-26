@@ -87,6 +87,11 @@ struct DashboardSidebarView: View {
                     .padding(.horizontal, 10)
                     .padding(.bottom, 10)
                 }
+                // 一覧の上端を窓の上の帯（52pt）の下端から 1pt 離す。接していると SwiftUI が一覧のスクロール領域を
+                // 帯の下まで伸ばし、macOS 26 がそこへ置くスクロール端の部品（NSScrollPocket）が、帯にある
+                // サイドバーの開閉ボタンと境界の掴みしろへのホバー・クリックを横取りした（lldb の hitTest で確認）。
+                // 対応待ちの欄があると一覧が下にずれるので起きず、「押せないときがある」ように見えていた。
+                .padding(.top, 1)
                 // 名前変更の案内は行の外で描く（LazyVStack では zIndex が効かず、下の行に隠れるため）。
                 // 見えている範囲で測り、下に収まらなければ欄の上に出す。
                 .overlayPreferenceValue(SidebarRenameHintKey.self) { hint in

@@ -74,12 +74,12 @@ public struct ChatSessionView: View {
             .overlay(alignment: .topTrailing) {
                 if selectedSubAgent != nil {
                     ResizeGripView(
-                        onChanged: { value in
+                        onChanged: { translation in
                             let available = geometry.size.width
                             if subAgentPaneLiveWidth == nil {
                                 subAgentPaneWidthAtDragStart = subAgentPaneWidth(for: available)
                             }
-                            let proposed = subAgentPaneWidthAtDragStart - value.translation.width
+                            let proposed = subAgentPaneWidthAtDragStart - translation
                             let fraction = available > 0 ? Double(proposed / available) : SubAgentSplitLayout.defaultFraction
                             subAgentPaneLiveWidth = SubAgentSplitLayout.paneWidth(fraction: fraction, availableWidth: available)
                         },

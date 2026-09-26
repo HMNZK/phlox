@@ -79,6 +79,15 @@ enum ChatMessageRenderCache {
         return highlightCache.value(for: key) { _ in ChatCodeHighlighter.computeHighlight(code) }
     }
 
+    /// 言語名つき。言語名が無いときは言語なしの窓口と同じキャッシュを使う（出力も同じ）。
+    static func highlightedCode(_ code: String, language: String?) -> AttributedString {
+        guard let language = language?.trimmingCharacters(in: .whitespaces).lowercased(), !language.isEmpty else {
+            return highlightedCode(code)
+        }
+        let key = "\(ThemeStore.active.id)\u{0}lang:\(language)\u{0}\(code)"
+        return highlightCache.value(for: key) { _ in ChatCodeHighlighter.computeHighlight(code, language: language) }
+    }
+
     static func highlightCacheKey(code: String, themeID: String) -> String {
         "\(themeID)\u{0}\(code)"
     }
@@ -124,16 +133,41 @@ struct DiffCodeViewData {
         var displayable = classified.filter { $0.isDisplayable && $0.kind != .hunk }
         // 末尾の改行で分割した最後の空行は差分の行ではない。
         if let last = displayable.last, last.kind == .context, last.text.isEmpty { displayable.removeLast() }
+        let bodies = Self.highlightedBodies(classified, path: path)
         lines = displayable.map { line in
-            DiffCodeLine(
-                line: line,
-                body: ChatCodeHighlighter.computeDiffHighlight(line.diffBody, path: path)
-            )
+            DiffCodeLine(line: line, body: bodies[line.id] ?? AttributedString(line.diffBody))
         }
         let numbers = lines.compactMap { $0.line.displayLineNumber }
         hasLineNumbers = !numbers.isEmpty
         lineNumberWidth = numbers.map { String($0).count }.max() ?? 0
         sourceLineCount = lines.count
+    }
+
+    /// 行をまとめて分類してから行へ戻す（複数行のコメント・文字列の途中の行も色が合う）。
+    /// 変更前（文脈＋削除行）と変更後（文脈＋追加行）を別々に、hunk ごとに区切って分類する。
+    /// つなぐと、削除行で始まったコメントが追加行や次の hunk まで続いてしまう。
+    static func highlightedBodies(_ classified: [ClassifiedDiffLine], path: String) -> [Int: AttributedString] {
+        var bodies: [Int: AttributedString] = [:]
+        var segment: [ClassifiedDiffLine] = []
+        func flush() {
+            for (side, other) in [(ChatDiffLineKind.deletion, ChatDiffLineKind.addition), (.addition, .deletion)] {
+                let sideLines = segment.filter { $0.kind != other }
+                let tokenLines = ChatCodeTokenizer.lineTokens(for: sideLines.map(\.diffBody), path: path)
+                // 文脈の行は変更後の側の色を使う。
+                for (line, tokens) in zip(sideLines, tokenLines) where line.kind == side || (line.kind == .context && side == .addition) {
+                    bodies[line.id] = ChatCodeHighlighter.highlight(tokens: tokens)
+                }
+            }
+            segment = []
+        }
+        for line in classified {
+            switch line.kind {
+            case .addition, .deletion, .context: segment.append(line)
+            case .hunk, .fileHeader: flush()
+            }
+        }
+        flush()
+        return bodies
     }
 
     func prefix(sourceLineCount: Int) -> DiffCodeViewData {

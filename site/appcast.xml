@@ -3,6 +3,51 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.8.1</title>
+            <pubDate>Sat, 26 Sep 2026 19:43:25 +0900</pubDate>
+            <description xml:lang="en"><![CDATA[
+<h3>New</h3>
+<ul>
+  <li>Chat is easier to scan. Code names, file names, successes, and failures in answers are highlighted, and code blocks are colored by language (Python, TypeScript, Go, Rust, shell, JSON, SQL, and more).</li>
+  <li>The Changes tab colors file contents and diffs by file type.</li>
+  <li>Model, effort, and permission chips in the message field now show their full names, and the chat and message field use 80% of the column width.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+  <li>Fixed the chat sometimes showing "Session ended (exit 143)" right after sending a message when the model or other settings had changed.</li>
+  <li>Fixed the "no response" warning appearing during long-running commands. It now appears only after 30 minutes without a response.</li>
+  <li>Fixed the sidebar toggle button sometimes not responding to clicks.</li>
+  <li>Fixed the whole window moving when dragging the sidebar edge near the top of the window.</li>
+  <li>Fixed the new-session popup from the sidebar "+" button closing when the mouse moved toward it.</li>
+  <li>Fixed the subagent drawer being cut off at the right edge, and long approval cards growing past the top of the window.</li>
+  <li>Fixed the time and copy button of a message overlapping the next turn's cost on hover.</li>
+</ul>
+]]></description>
+            <description xml:lang="ja"><![CDATA[
+<h3>新機能</h3>
+<ul>
+  <li>会話が読みやすくなりました。回答の中のコード上の名前・ファイル名・成功と失敗を強調し、コードブロックを言語ごと（Python・TypeScript・Go・Rust・シェル・JSON・SQL など）に色分けします。</li>
+  <li>変更タブで、ファイルの内容と差分をファイルの種類ごとに色分けするようになりました。</li>
+  <li>入力欄のモデル・推論の深さ・権限の表示を省略せず全文で表示し、会話と入力欄の幅を列の 80% にしました。</li>
+</ul>
+<h3>修正</h3>
+<ul>
+  <li>モデルなどの設定を変えた後に送信すると、「セッションは終了しました (exit 143)」と表示されることがある不具合を修正しました。</li>
+  <li>長いコマンドの実行中にも「無応答」と表示される不具合を修正しました。反応が 30 分ないときだけ表示します。</li>
+  <li>サイドバーの開閉ボタンが押せないことがある不具合を修正しました。</li>
+  <li>窓の上端付近でサイドバーの境界をドラッグすると、窓全体が動いてしまう不具合を修正しました。</li>
+  <li>サイドバーの「＋」で開く新規セッションの画面が、マウスを動かすと閉じてしまう不具合を修正しました。</li>
+  <li>サブエージェントの画面の右端が見切れる不具合と、長い承認カードが窓の上端を越えて伸びる不具合を修正しました。</li>
+  <li>発言にマウスを乗せたとき、時刻とコピーのボタンが次のコスト表示と重なる不具合を修正しました。</li>
+</ul>
+]]></description>
+            <sparkle:version>27</sparkle:version>
+            <sparkle:shortVersionString>1.8.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.8.1.zip" length="22136674" type="application/octet-stream" sparkle:edSignature="4JOsIWLgiiqUZU63M/lqrm1+azXuw7JImR2HoScndDkFLKm9V9K1YOPTrnzJKfAOqrF+++HgBhvWvzXENBiNAQ=="/>
+        </item>
+        <item>
             <title>1.8.0</title>
             <pubDate>Fri, 25 Sep 2026 22:44:00 +0900</pubDate>
             <description xml:lang="en"><![CDATA[

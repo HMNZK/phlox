@@ -171,6 +171,35 @@ struct ComposerOverflowLayoutTests {
         return vm
     }
 
+    /// 1 段にチップが入らない幅では、チップを隠さず 2 段に分けて出す（「…」メニューにはしない）。
+    @Test @MainActor
+    func footerWrapsChipsIntoTwoRowsBeforeHidingThem() async throws {
+        let vm = try await makeWorstCaseClaudeViewModel()
+        let footer = ChatComposerFooter(
+            viewModel: vm,
+            layout: .compact,
+            isRunning: true,
+            canSubmit: true,
+            onSend: {},
+            onInterrupt: {}
+        )
+        let oneRowWidth = try intrinsicWidth(footer)
+        let size = try renderSize(footer, proposedWidth: oneRowWidth - 20)
+
+        #expect(size.width <= oneRowWidth - 20 + epsilon)
+        #expect(size.height > 40)
+    }
+
+    /// モデル名や effort のチップは、狭い幅を渡されても省略せず全文の幅で描く。
+    @Test @MainActor
+    func chipLabelKeepsTheFullTitle() throws {
+        let label = ComposerChipLabel(title: "Opus 4.7 (1M context)")
+        let fullWidth = try intrinsicWidth(label)
+        let squeezed = try renderSize(label, proposedWidth: 60)
+        #expect(fullWidth > 60)
+        #expect(abs(squeezed.width - fullWidth) <= epsilon)
+    }
+
     @MainActor
     private func renderSize<Content: View>(_ content: Content, proposedWidth: CGFloat) throws -> CGSize {
         let renderer = ImageRenderer(content: content)

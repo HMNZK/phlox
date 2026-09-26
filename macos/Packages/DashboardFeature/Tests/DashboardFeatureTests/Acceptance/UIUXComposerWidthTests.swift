@@ -3,6 +3,7 @@ import Testing
 @testable import SessionFeature
 
 // 2026-09-24 ユーザー承認（「両方モックに合わせる」）で上限を 800 → 760（PhloxChat.dc.html）へ更新。
+// 2026-09-26 ユーザー決定で「上限なしで 80%」へ更新。
 @Suite("UI-02 continuous composer width")
 struct UIUXComposerWidthTests {
     @Test
@@ -19,26 +20,26 @@ struct UIUXComposerWidthTests {
         let largestWidth = try #require(widths.max())
         #expect(smallestChange >= 0)
         #expect(largestChange <= 1)
-        #expect(largestWidth <= 760)
+        #expect(largestWidth <= 2000 * 0.8)
     }
 
     @Test(arguments: [500.0, 760 / 0.9, 1000.0, 1333.0, 1334.0, 2000.0])
     func marginsAndMaximumHaveOneContinuousRule(column: Double) throws {
         let width = try #require(ComposerLayout.maxWidth(mainColumnWidth: column))
-        #expect(abs(width - min(column * 0.9, 760)) < 0.001)
+        #expect(abs(width - column * 0.8) < 0.001)
     }
 
     @Test
     func actualComposerInputsFollowTheWidthContract() throws {
         let cases: [(CGFloat, CGFloat, ComposerFooterLayout, ComposerFooterLayout)] = [
-            (500.5, 450.45, .minimal, .minimal),
-            (544, 489.6, .minimal, .minimal),
-            (545, 490.5, .compact, .compact),
-            (666, 599.4, .compact, .compact),
-            (667, 600.3, .standard, .compact),
-            (844, 759.6, .standard, .compact),
-            (845, 760, .standard, .compact),
-            (1000, 760, .standard, .compact)
+            (500.5, 400.4, .minimal, .minimal),
+            (612, 489.6, .minimal, .minimal),
+            (613, 490.4, .compact, .compact),
+            (749, 599.2, .compact, .compact),
+            (750, 600, .standard, .compact),
+            (950, 760, .standard, .compact),
+            (1000, 800, .standard, .compact),
+            (1500, 1200, .standard, .compact)
         ]
         for (parent, expected, single, grid) in cases {
             let transcript = try #require(ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: parent))

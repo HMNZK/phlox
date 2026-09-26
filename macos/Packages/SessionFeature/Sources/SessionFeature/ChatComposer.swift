@@ -284,7 +284,12 @@ struct ChatComposerFooter: View {
         case .minimal:
             minimalFooter
         case .standard, .compact:
-            regularFooter
+            // チップは全文を出す。1 段に入らなければチップと送信を 2 段に分け、それでも入らなければ「…」メニューの形にする。
+            ViewThatFits(in: .horizontal) {
+                regularFooter
+                twoRowFooter
+                minimalFooter
+            }
         }
     }
 
@@ -312,6 +317,35 @@ struct ChatComposerFooter: View {
             sendOrStopButton
         }
         .frame(height: 26)
+    }
+
+    /// 1 段目に ＋ とチップ、2 段目にコンテキストと送信。
+    private var twoRowFooter: some View {
+        let settingsLayout = layout.settingsLayout
+        return VStack(alignment: .leading, spacing: 6) {
+            ComposerSettingsControlsView(
+                viewModel: viewModel,
+                layout: settingsLayout,
+                side: .leading,
+                accessibilityPrefix: accessibilityPrefix
+            )
+            .frame(height: 26)
+            HStack(spacing: 6) {
+                Spacer(minLength: DSSpacing.s)
+                ComposerContextIndicator(
+                    usage: viewModel.lastTurnUsage,
+                    workspacePath: viewModel.workspacePath,
+                    layout: .compact,
+                    branchNameOverride: branchNameOverride,
+                    branchIsCheckingOutOverride: branchIsCheckingOutOverride,
+                    showsBranch: false,
+                    suggestsCompact: viewModel.agentRef != .builtin(.cursor)
+                )
+                .accessibilityIdentifier("\(accessibilityPrefix).contextIndicator")
+                sendOrStopButton
+            }
+            .frame(height: 26)
+        }
     }
 
     private var minimalFooter: some View {

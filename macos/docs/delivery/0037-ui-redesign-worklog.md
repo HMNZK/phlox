@@ -1592,3 +1592,23 @@ F1〜F11 で見送った項目を、ユーザーの判断（`0037-ui-redesign-de
 - 追加したテスト: `respawnForNewSettingsDoesNotReportTheClosedProcessAsExited`（閉じると同時に終わり、終了を待つ間だけ戻らない偽の接続で、設定の変更→送信の起動し直しのあと終了の知らせが来ない）。修正前に落ちることを確かめた。
 - `macos/scripts/run-swift-tests.sh`（既定の 6 グループすべて終了コード 0）、ClaudeAgentKit の `swift test`（174 件、終了コード 0）、App の Debug ビルド（終了コード 0）。
 - ホバーの見た目は画面では確かめていない（マウスを動かさないと出せないため）。
+
+## 1.8.0 の後の修正（13）: 入力欄のチップの全文表示と本文の幅 80%（2026-09-26）
+
+### 対応表
+
+| 項目 | 直したこと | 主な場所 |
+|---|---|---|
+| 入力欄のモデル名・effort・権限が「Opus…ontext)」のように省略される（ユーザー依頼） | チップは省略せず全文の幅で描く。1 段に入らない幅では、1 段目に ＋ とチップ、2 段目にコンテキストと送信の 2 段に分ける。それでも入らない幅だけ、従来の「…」メニューにまとめる | `ComposerPopupMenu.swift`（`ComposerChipLabel`）、`ChatComposer.swift`（`ChatComposerFooter` の `twoRowFooter`） |
+| 本文と入力欄の幅（ユーザー決定） | メイン列の 80%・上限なし（以前は 90%・上限 760）。本文と入力欄は引き続き同じ幅 | `ComposerLayout.maxWidth` |
+
+### 直していないもの
+
+- 入力欄の幅が変わって 1 段と 2 段が切り替わる瞬間に、開いていたチップのメニューは閉じる（別の表示に切り替わるため）。
+- 変更した凍結・受け入れテスト（ユーザー決定の幅に合わせた）: `UIUXComposerWidthTests`、`Task5ComposerLayoutAcceptanceTests`、`ComposerLayoutTests`。
+
+### 検証
+
+- 追加したテスト: `chipLabelKeepsTheFullTitle`（狭い幅でもチップが全文の幅）、`footerWrapsChipsIntoTwoRowsBeforeHidingThem`（1 段に入らない幅で 2 段になる）。どちらも外すと落ちることを確かめた。
+- `macos/scripts/run-swift-tests.sh`（6 グループすべて終了コード 0）、ClaudeAgentKit の `swift test`（174 件、終了コード 0）、App の Debug ビルド（終了コード 0）。
+- Debug 版での確認（背面・AX だけ。ライト・日本語）: Claude のセッションでモデルを「Default: Opus 5.5 (1M context)」にすると、チップが 2 段目に分かれて全文が出ること（確認後に Sonnet 5 に戻した）。Codex のセッションで「GPT-5.6-Terra · medium」「権限: 承認なし・実行制限なし」が全文で 1 段に出ること。ダーク・英語は見ていない（色と文言は変えていない）。

@@ -12,6 +12,8 @@ struct ComposerChipLabel: View {
 
     var body: some View {
         HStack(spacing: 5) {
+            // モデル名や effort は省略せず全文を出す（入らない幅では下段ごと「…」メニューにまとめる）。
+            // ブランチ名だけは長くなりうるので中央を省略する。
             Text(verbatim: title)
                 .font(.system(size: isBranch ? 11 : 11.5, design: isBranch ? .monospaced : .default))
                 .lineLimit(1)
@@ -24,6 +26,7 @@ struct ComposerChipLabel: View {
                     .accessibilityHidden(true)
             }
         }
+        .fixedSize(horizontal: !isBranch, vertical: false)
         .foregroundStyle(DSColor.textPrimary)
         .padding(.horizontal, 8)
         .frame(height: 22)

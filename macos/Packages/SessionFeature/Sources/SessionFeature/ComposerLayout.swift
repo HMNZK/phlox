@@ -18,11 +18,11 @@ enum ComposerLayout {
     // ImageRenderer measured compact footer at 479pt; +10pt keeps the minimum layout below overflow.
     static let minimalControlsWidthThreshold: CGFloat = 490
 
-    /// 入力欄の最大幅。メインカラム幅の 90%（上限 760＝PhloxChat.dc.html。ユーザー承認 2026-09-24）。
+    /// 入力欄の最大幅。メインカラム幅の 80%（上限なし。ユーザー決定 2026-09-26。以前は 90%・上限 760）。
     /// 0 以下または NaN（未確定）は nil = 制約なし。
     static func maxWidth(mainColumnWidth: CGFloat) -> CGFloat? {
         guard mainColumnWidth > 0 else { return nil }
-        return min(mainColumnWidth * 0.9, 760)
+        return mainColumnWidth * 0.8
     }
 
     /// 出力メッセージ列（トランスクリプト）の内容最大幅。要件3: 入力欄幅と常に一致させる。

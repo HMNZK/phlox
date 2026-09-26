@@ -172,18 +172,18 @@ public enum DSColor {
     /// ツール呼び出しの本文色。テーマの前景色を無彩色のまま半透明化し、チャット本文より控えめにする。
     public static var chatToolCallText: Color { theme.textPrimary.color.opacity(0.68) }
     // コードのシンタックスハイライト色（ChatMessageCells の自前ハイライタが使用）。
-    // ライトテーマでは白地でも沈まない濃色へ切り替える。
+    // PhloxChat.dc.html の --kw / --str / --num / --com（ライト・ダーク）。
     public static var codeSyntaxKeyword: Color {
-        theme.preferredColorScheme == .light ? RGB(0x5B, 0x21, 0xB6).color : RGB(0xC4, 0xB5, 0xFD).color
+        theme.preferredColorScheme == .light ? RGB(0x9B, 0x23, 0x93).color : RGB(0xFC, 0x5F, 0xA3).color
     }
     public static var codeSyntaxString: Color {
-        theme.preferredColorScheme == .light ? RGB(0x16, 0x65, 0x34).color : RGB(0x86, 0xEF, 0xAC).color
+        theme.preferredColorScheme == .light ? RGB(0xC4, 0x1A, 0x16).color : RGB(0xFC, 0x6A, 0x5D).color
     }
     public static var codeSyntaxComment: Color {
-        theme.preferredColorScheme == .light ? RGB(0x6B, 0x72, 0x80).color : RGB(0x8A, 0x81, 0x9E).color
+        theme.preferredColorScheme == .light ? RGB(0x5D, 0x6C, 0x79).color : RGB(0x7F, 0x8C, 0x98).color
     }
     public static var codeSyntaxNumber: Color {
-        theme.preferredColorScheme == .light ? RGB(0x9D, 0x17, 0x4D).color : RGB(0xF0, 0xAB, 0xFC).color
+        theme.preferredColorScheme == .light ? RGB(0x1C, 0x00, 0xCF).color : RGB(0xD0, 0xBF, 0x69).color
     }
     /// 入力欄のキーワード強調（ultrathink 等）。PhloxReply.dc.html の kw（--stlInk）。
     public static var composerKeyword: Color { attentionInk(.stalled) }

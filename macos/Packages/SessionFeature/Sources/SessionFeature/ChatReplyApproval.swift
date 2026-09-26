@@ -270,6 +270,14 @@ struct ApprovalCard: View {
     @Environment(\.locale) private var locale
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
+    /// 対象の枠の高さ上限。越える分は枠の中でスクロールし、ボタン行は常に見える。
+    @Environment(\.replySubjectMaxHeight) private var subjectMaxHeight
+
+    /// 会話欄の高さの 25%（60〜360pt）。窓が低くても、カードと入力欄が見出しの下に収まるようにする。
+    static func subjectMaxHeight(availableHeight: CGFloat) -> CGFloat {
+        min(360, max(60, availableHeight * 0.25))
+    }
+
     /// 角丸 10・余白 11/13/12・間隔 9、フォーカス中は外に 3pt の輪（PhloxReply.dc.html の apStyle）。
     var body: some View {
         let _ = themeID
@@ -278,7 +286,10 @@ struct ApprovalCard: View {
             Text(title)
                 .font(.system(size: 13.5, weight: .semibold))
                 .foregroundStyle(DSColor.textPrimary)
-            subjectBox
+            // 長い入力（ExitPlanMode の計画など）でカードが上へ伸びて窓の上端を越えないよう、対象だけ中でスクロールする。
+            ScrollView { subjectBox }
+                .frame(maxHeight: subjectMaxHeight)
+                .fixedSize(horizontal: false, vertical: true)
             buttonRow
             if isFocused, approval.supportsSessionScope {
                 // Codex のファイル変更は「同じファイルへの以降の変更」だけを通す（acceptForSession の仕様）。
@@ -686,4 +697,9 @@ private extension View {
                     .strokeBorder(DSColor.separator, lineWidth: 1)
             )
     }
+}
+
+extension EnvironmentValues {
+    /// 承認カードの対象欄の高さ上限。会話欄の高さを知る親が `ApprovalCard.subjectMaxHeight(availableHeight:)` で決める。
+    @Entry var replySubjectMaxHeight: CGFloat = 240
 }

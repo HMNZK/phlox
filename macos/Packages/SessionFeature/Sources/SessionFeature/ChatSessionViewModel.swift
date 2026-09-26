@@ -48,7 +48,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
     /// 今の状態の種類へ入った時刻（対応待ちの待ち時間の起点）。
     public private(set) var statusEnteredAt: Date?
-    /// 実行中のまま 120 秒反応がない（04 B5）。一覧・タブの「無応答」に使う。1 秒ごとに見直す。
+    /// 実行中のまま 30 分反応がない（04 B5。`ChatHangPolicy.defaultWarnAfter`）。一覧・タブの「無応答」に使う。1 秒ごとに見直す。
     public private(set) var isStalled = false
     /// 無応答になった時刻（対応待ちの待ち時間の起点）。
     public private(set) var stalledSince: Date?

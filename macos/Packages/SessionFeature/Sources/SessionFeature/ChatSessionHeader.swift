@@ -9,6 +9,8 @@ struct ChatSessionHeader: View {
     @Bindable var viewModel: ChatSessionViewModel
     let agentDescriptor: AgentDescriptor
     let onToggleSubAgent: (String) -> Void
+    /// サブエージェントの帯の最大幅。越える分は帯の中で横スクロールする。
+    var subAgentChipsMaxWidth: CGFloat = 320
 
     @State private var isRenaming = false
     @State private var renameText = ""
@@ -127,8 +129,9 @@ struct ChatSessionHeader: View {
 
     private var metaRow: some View {
         HStack(spacing: 7) {
+            // 狭いとき（サブエージェントのドロワーを開いたときなど）は作業ディレクトリ → ブランチ → エージェントの順に省略する。
             Text(verbatim: agentLine)
-                .fixedSize()
+                .layoutPriority(2)
             separatorDot
             Text(verbatim: viewModel.workspacePath)
                 .font(DSFont.monoCaption)
@@ -137,7 +140,8 @@ struct ChatSessionHeader: View {
                 separatorDot
                 Text(verbatim: branch)
                     .font(DSFont.monoCaption)
-                    .fixedSize()
+                    .truncationMode(.middle)
+                    .layoutPriority(1)
             }
         }
         .font(.system(size: 11.5))
@@ -179,9 +183,10 @@ struct ChatSessionHeader: View {
                     }
                 }
             }
-            .frame(maxWidth: 320)
-            .fixedSize(horizontal: true, vertical: false)
         }
+        // 「サブ」のラベルを含む帯全体に上限を掛ける（越える分はチップの列が横スクロールする）。
+        .frame(maxWidth: subAgentChipsMaxWidth)
+        .fixedSize(horizontal: true, vertical: false)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("サブエージェント"))
     }

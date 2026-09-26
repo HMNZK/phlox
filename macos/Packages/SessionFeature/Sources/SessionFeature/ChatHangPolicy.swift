@@ -16,7 +16,8 @@ struct ChatHangAssessment: Equatable {
 
 /// ハング判定の純関数（時刻は必ず引数で受け、内部で Date() を呼ばない）。
 enum ChatHangPolicy {
-    static let defaultWarnAfter: TimeInterval = 120
+    /// 30 分（ユーザー決定 2026-09-26。以前は 120 秒で、長いコマンドの実行中にも出ていた）。
+    static let defaultWarnAfter: TimeInterval = 30 * 60
 
     static func assess(
         now: Date,

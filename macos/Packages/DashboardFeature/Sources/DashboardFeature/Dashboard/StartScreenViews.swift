@@ -411,16 +411,30 @@ struct NewSessionTableRow: Equatable {
 
 /// 押すと新規セッションの表を出すボタン（サイドバーの ＋・下端・グリッドの空状態）。
 struct NewSessionPopoverButton<Table: View, Label: View>: View {
-    @ViewBuilder let table: () -> Table
-    @ViewBuilder let label: () -> Label
+    let table: () -> Table
+    let label: () -> Label
+    /// 開閉状態を親が持つとき（ホバー中だけ出るボタンは、ボタンが消えるとポップアップも閉じるため）。
+    let externalPresented: Binding<Bool>?
 
-    @State private var presented = false
+    @State private var ownPresented = false
     @Environment(\.locale) private var locale
 
+    init(
+        isPresented: Binding<Bool>? = nil,
+        @ViewBuilder table: @escaping () -> Table,
+        @ViewBuilder label: @escaping () -> Label
+    ) {
+        externalPresented = isPresented
+        self.table = table
+        self.label = label
+    }
+
+    private var presented: Binding<Bool> { externalPresented ?? $ownPresented }
+
     var body: some View {
-        Button { presented.toggle() } label: { label() }
+        Button { presented.wrappedValue.toggle() } label: { label() }
             .buttonStyle(.plain)
-            .popover(isPresented: $presented, arrowEdge: .bottom) {
+            .popover(isPresented: presented, arrowEdge: .bottom) {
                 table().environment(\.locale, locale)
             }
     }

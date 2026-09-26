@@ -21,8 +21,18 @@ import Testing
 @Test func chatHang_assess_noEventsUsesTurnStartAsSilenceBase() {
     let start = Date(timeIntervalSince1970: 1_000)
     let now = Date(timeIntervalSince1970: 1_120)
-    let assessment = ChatHangPolicy.assess(now: now, turnStartedAt: start, lastEventAt: nil)
+    // 2026-09-26 ユーザー決定で既定の閾値が 30 分になったため、閾値は明示して渡す。
+    let assessment = ChatHangPolicy.assess(now: now, turnStartedAt: start, lastEventAt: nil, warnAfter: 120)
     #expect(assessment == ChatHangAssessment(elapsed: 120, silence: 120, isStalled: true))
+}
+
+@Test func chatHang_defaultWarnAfterIsThirtyMinutes() {
+    let start = Date(timeIntervalSince1970: 1_000)
+    func stalled(_ seconds: TimeInterval) -> Bool {
+        ChatHangPolicy.assess(now: start.addingTimeInterval(seconds), turnStartedAt: start, lastEventAt: start).isStalled
+    }
+    #expect(stalled(30 * 60 - 1) == false)
+    #expect(stalled(30 * 60) == true)
 }
 
 @Test func chatHang_assess_stallBoundaryIsWarnAfter() {

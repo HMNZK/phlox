@@ -106,6 +106,8 @@ struct GridChatColumn: View {
             .frame(width: isLiveResizing ? formattingWidth : nil, alignment: .leading)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .clipped()
+            // 返答エリアは内側の overlay にあるので、それを包む外側で渡す。
+            .environment(\.replySubjectMaxHeight, ApprovalCard.subjectMaxHeight(availableHeight: geo.size.height))
             // 幅の確定値の追跡。ADR 0030 の一線を守り、これは window 件数や可視領域には一切連動しない
             // （整形幅の凍結だけに使う）。非 resize 時は formattingWidth == 実測幅なので書いても
             // レイアウトは変わらず、自走ループにならない。

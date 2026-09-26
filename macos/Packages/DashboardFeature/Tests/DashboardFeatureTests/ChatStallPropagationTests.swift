@@ -6,7 +6,7 @@ import Testing
 @testable import DashboardFeature
 @testable import SessionFeature
 
-// 04 B5・01 E1: 120 秒反応がないチャット型は、タブ・サイドバー・対応待ちの一覧で「無応答」になる。
+// 04 B5・01 E1: 30 分反応がないチャット型は、タブ・サイドバー・対応待ちの一覧で「無応答」になる。
 
 private final class StallFakeClient: StructuredAgentClient, @unchecked Sendable {
     let events: AsyncStream<NormalizedChatEvent>
@@ -49,10 +49,11 @@ func chatStall_runningTurnWithoutEvents_showsAsStalledAndClearsOnCompletion() as
     let (vm, client) = try await makeRunningVM()
     let node = SessionNode.appServer(vm)
 
-    vm.updateStalled(now: Date().addingTimeInterval(60))
+    // 基準はターン開始（この Date() より前）なので、準備にかかる時間ぶんの余裕を取る。
+    vm.updateStalled(now: Date().addingTimeInterval(29 * 60))
     #expect(node.tabDisplayState == .running)
 
-    let stalledAt = Date().addingTimeInterval(121)
+    let stalledAt = Date().addingTimeInterval(30 * 60 + 1)
     vm.updateStalled(now: stalledAt)
     #expect(node.tabDisplayState == .stalled)
     // 対応待ちの待ち時間は無応答になった時刻から数える。
@@ -67,7 +68,7 @@ func chatStall_runningTurnWithoutEvents_showsAsStalledAndClearsOnCompletion() as
 @Test @MainActor
 func chatStall_eventAfterStall_clearsImmediately() async throws {
     let (vm, client) = try await makeRunningVM()
-    vm.updateStalled(now: Date().addingTimeInterval(121))
+    vm.updateStalled(now: Date().addingTimeInterval(30 * 60 + 1))
     #expect(vm.isStalled)
 
     // 1 秒周期を待たず、反応が届いた時点で解ける。
@@ -82,8 +83,8 @@ func chatStall_notifiesTheDesktopOncePerStall() async throws {
     var channels: [UserNotificationChannel] = []
     vm.userNotificationGate = { channels.append($0); return false }
 
-    vm.updateStalled(now: Date().addingTimeInterval(121))
-    vm.updateStalled(now: Date().addingTimeInterval(122))
+    vm.updateStalled(now: Date().addingTimeInterval(30 * 60 + 1))
+    vm.updateStalled(now: Date().addingTimeInterval(30 * 60 + 2))
     #expect(channels == [.local, .remote])
 }
 
@@ -110,7 +111,7 @@ func chatStall_awaitingUserQuestion_isNotCountedAsStalled() async throws {
     client.yield(.userQuestionRequested(requestId: "q1", questions: [question]))
     try await waitUntil { vm.status != .running }
 
-    vm.updateStalled(now: Date().addingTimeInterval(600))
+    vm.updateStalled(now: Date().addingTimeInterval(60 * 60))
     #expect(vm.isStalled == false)
     #expect(SessionNode.appServer(vm).tabDisplayState == .question)
 }

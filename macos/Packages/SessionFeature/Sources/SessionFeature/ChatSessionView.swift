@@ -35,8 +35,11 @@ public struct ChatSessionView: View {
             HStack(spacing: 0) {
                 // 幅は親から演繹する。自身のレイアウト結果を GeometryReader で計測して
                 // @State に書き、それをレイアウト入力へ戻さない（駆動源#1・ADR 0010 クラス）。
-                mainColumn(width: mainColumnWidth(for: geometry.size.width))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // 幅を固定する。中身の最小幅が割り当てを越えても HStack があふれず、右のドロワーが窓の外へ押し出されない。
+                let columnWidth = mainColumnWidth(for: geometry.size.width)
+                mainColumn(width: columnWidth)
+                    .frame(width: columnWidth, alignment: .leading)
+                    .frame(maxHeight: .infinity)
                 if let selectedSubAgent {
                     // メイン｜サブの境界線（他の境界線と同一の 1pt separator）。
                     Rectangle()
@@ -63,6 +66,7 @@ public struct ChatSessionView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .environment(\.replySubjectMaxHeight, ApprovalCard.subjectMaxHeight(availableHeight: geometry.size.height))
             // Bug3: 境界のリサイズ掴みしろ。DashboardView のインスペクタと同型で、区切り線の
             // 真上に最前面オーバーレイとして重ねる（右ペイン左端 = 幅ぶん左へ offset）。
             // 表示条件はドロワー本体（`selectedSubAgent`）と同一述語に揃える。id が非nilでも
@@ -125,7 +129,9 @@ public struct ChatSessionView: View {
             ChatSessionHeader(
                 viewModel: viewModel,
                 agentDescriptor: agentDescriptor,
-                onToggleSubAgent: toggleSubAgentSelection
+                onToggleSubAgent: toggleSubAgentSelection,
+                // 列の 3 割まで（ドロワーを開いて列が狭いとき、帯が状態と書き出しを押し出さないように）。
+                subAgentChipsMaxWidth: min(320, width * 0.3)
             )
             ChatTranscriptView(
                 viewModel: viewModel,

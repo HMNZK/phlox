@@ -68,14 +68,15 @@ import Testing
         }
     }
 
+    // 2026-09-26 ユーザー依頼で PhloxChat.dc.html の --str（ダーク #FC6A5D・ライト #C41A16）へ。
     @Test @MainActor
     func codeSyntaxColorsBranchForLightThemes() {
         withStandardTheme(AppTheme.phlox.id) {
-            #expect(DSColor.codeSyntaxString == RGB(0x86, 0xEF, 0xAC).color)
+            #expect(DSColor.codeSyntaxString == RGB(0xFC, 0x6A, 0x5D).color)
         }
 
         withStandardTheme(AppTheme.githubLight.id) {
-            #expect(DSColor.codeSyntaxString == RGB(0x16, 0x65, 0x34).color)
+            #expect(DSColor.codeSyntaxString == RGB(0xC4, 0x1A, 0x16).color)
         }
     }
 

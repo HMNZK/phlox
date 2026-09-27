@@ -99,10 +99,12 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
                 if markdown.contains("![") {
                     configuration.label
                 } else {
-                    Text(ChatProseText.attributed(markdown: markdown, scale: scale))
+                    let prose = ChatProseText.attributed(markdown: markdown, scale: scale)
+                    Text(prose)
                         .font(.system(size: ChatTypography.bodyFontSize(scale: scale)))
                         .foregroundStyle(bodyColor)
                         .tint(DSColor.accentInk)
+                        .modifier(ChatLinkCursorModifier(text: prose, scale: scale))
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -113,6 +115,8 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
         .heading1 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+                .modifier(chatLinkCursor(for: configuration.content, scale: scale, headingLevel: 1,
+                                         fontSize: ChatTypography.heading1FontSize(scale: scale), weight: .bold))
                 // Chat Screen.dc.html: 見出しの下に区切り線。
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.bottom, 3)
@@ -127,6 +131,8 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
         .heading2 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+                .modifier(chatLinkCursor(for: configuration.content, scale: scale, headingLevel: 2,
+                                         fontSize: ChatTypography.heading2FontSize(scale: scale), weight: .bold))
                 // Chat Screen.dc.html: 見出しの下に区切り線。
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.bottom, 3)
@@ -141,6 +147,8 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
         .heading3 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+                .modifier(chatLinkCursor(for: configuration.content, scale: scale, headingLevel: 3,
+                                         fontSize: ChatTypography.heading3FontSize(scale: scale), weight: .semibold))
                 // Chat Screen.dc.html: 見出しの下に区切り線。
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.bottom, 3)
@@ -155,6 +163,8 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
         .heading4 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+                .modifier(chatLinkCursor(for: configuration.content, scale: scale, headingLevel: 4,
+                                         fontSize: TranscriptTypography.pointSize(for: .heading4, scale: scale), weight: .semibold))
                 // Chat Screen.dc.html: 見出しの下に区切り線。
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.bottom, 3)
@@ -169,6 +179,8 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
         .heading5 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+                .modifier(chatLinkCursor(for: configuration.content, scale: scale, headingLevel: 5,
+                                         fontSize: TranscriptTypography.pointSize(for: .heading5, scale: scale), weight: .semibold))
                 // Chat Screen.dc.html: 見出しの下に区切り線。
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.bottom, 3)
@@ -183,6 +195,8 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
         .heading6 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+                .modifier(chatLinkCursor(for: configuration.content, scale: scale, headingLevel: 6,
+                                         fontSize: TranscriptTypography.pointSize(for: .heading6, scale: scale), weight: .semibold))
                 // Chat Screen.dc.html: 見出しの下に区切り線。
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.bottom, 3)
@@ -265,6 +279,9 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
         }
         .tableCell { configuration in
             configuration.label
+                .modifier(chatLinkCursor(for: configuration.content, scale: scale,
+                                         fontSize: ChatTypography.bodyFontSize(scale: scale),
+                                         weight: configuration.row == 0 ? .semibold : .regular))
                 .markdownTextStyle {
                     if configuration.row == 0 {
                         FontWeight(.semibold)
@@ -276,6 +293,21 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
                 .padding(.vertical, DSSpacing.xs * scale)
                 .padding(.horizontal, DSSpacing.s * scale)
         }
+}
+
+@MainActor private func chatLinkCursor(for content: MarkdownContent, scale: CGFloat, headingLevel: Int = 0,
+                            fontSize: CGFloat, weight: NSFont.Weight) -> ChatLinkCursorModifier {
+    let markdown = content.renderMarkdown()
+    let headingPrefix = String(repeating: "#", count: headingLevel) + " "
+    let inlineMarkdown = headingLevel > 0 && markdown.hasPrefix(headingPrefix)
+        ? String(markdown.dropFirst(headingPrefix.count)) : markdown
+    return ChatLinkCursorModifier(
+        text: ChatProseText.attributed(markdown: inlineMarkdown, scale: scale),
+        scale: scale,
+        fontSize: fontSize,
+        fontWeight: weight,
+        lineSpacing: 0
+    )
 }
 
 // トランスクリプト行内に「非同期に自身のサイズを変える View」を置かない（駆動源#2・2026-07-05 実機確定）。

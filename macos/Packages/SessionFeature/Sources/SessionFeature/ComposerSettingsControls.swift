@@ -25,7 +25,7 @@ struct ComposerModeOption: Hashable {
 func composerControls(for agentRef: AgentRef) -> [ComposerControlKind] {
     switch agentRef {
     case .builtin(.codex):
-        [.model, .permission]
+        [.model, .effort, .permission]
     case .builtin(.claudeCode):
         [.model, .effort, .permission]
     case .builtin(.cursor):
@@ -106,6 +106,16 @@ struct ComposerSettingsControlsView: View {
         composerControls(for: viewModel.agentRef, side: side)
     }
 
+    private func selectionChip(kind: ComposerSelectionChip.Kind, value: String, identifier: String) -> some View {
+        ComposerSelectionChip(
+            kind: kind,
+            value: value,
+            isOpen: openMenu == (kind == .model ? .model : .effort),
+            identifier: "\(accessibilityPrefix).\(identifier)",
+            onTap: { toggle(kind == .model ? .model : .effort) }
+        )
+    }
+
     private var showsAttachPlaceholder: Bool {
         side == .leading
     }
@@ -140,8 +150,8 @@ struct ComposerSettingsControlsView: View {
                 spawnModelMenu
             }
         case .effort:
-            if !viewModel.claudeEffortLevels.isEmpty {
-                claudeEffortMenu
+            if !viewModel.cyclableEfforts.isEmpty {
+                effortMenu
             }
         case .permission:
             switch viewModel.agentRef {
@@ -162,12 +172,7 @@ struct ComposerSettingsControlsView: View {
     private var spawnModelMenu: some View {
         let isCursor = viewModel.agentRef == .builtin(.cursor)
         let title = viewModel.selectedModel.map(viewModel.spawnAgentModelDisplayName) ?? UIWording.text(.modelLabel, languageCode: languageCode)
-        return Button { toggle(.model) } label: {
-            ComposerChipLabel(title: title, isOpen: openMenu == .model)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(verbatim: AppLocalizedString.string("モデル", locale: locale) + ": " + title))
-        .accessibilityIdentifier("\(accessibilityPrefix).spawnModelMenu")
+        return selectionChip(kind: .model, value: title, identifier: "spawnModelMenu")
         .disabled(viewModel.availableSpawnAgentModels.isEmpty)
         .composerPopup(isPresented: binding(for: .model)) {
             ComposerPopupSurface(width: 260) {
@@ -220,23 +225,18 @@ struct ComposerSettingsControlsView: View {
         }
     }
 
-    private var claudeEffortMenu: some View {
-        let title = "effort: " + (viewModel.selectedEffort ?? UIWording.text(.reasoningEffortLabel, languageCode: languageCode))
-        return Button { toggle(.effort) } label: {
-            ComposerChipLabel(title: title, isOpen: openMenu == .effort)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(verbatim: title))
-        .accessibilityIdentifier("\(accessibilityPrefix).claudeEffortMenu")
+    private var effortMenu: some View {
+        let title = viewModel.selectedEffort ?? UIWording.text(.reasoningEffortLabel, languageCode: languageCode)
+        return selectionChip(kind: .effort, value: title, identifier: viewModel.agentRef == .builtin(.codex) ? "codexEffortMenu" : "claudeEffortMenu")
         .composerPopup(isPresented: binding(for: .effort)) {
             ComposerPopupSurface(width: 150) {
                 ComposerMenuList(
-                    sections: [ComposerMenuSection(id: "efforts", rows: viewModel.claudeEffortLevels.map { effort in
+                    sections: [ComposerMenuSection(id: "efforts", rows: viewModel.cyclableEfforts.map { effort in
                         ComposerMenuRow(
                             id: effort,
                             title: effort,
                             isSelected: effort == viewModel.selectedEffort,
-                            action: { setSpawnEffort(effort) }
+                            action: { setEffort(effort) }
                         )
                     })],
                     onClose: closeMenu
@@ -356,24 +356,14 @@ struct ComposerSettingsControlsView: View {
         }
     }
 
-    /// Codex のモデル（「gpt-6-sol · high」）。推論の深さは横に出る子の箱で選ぶ（05 O2）。
+    /// Codex のモデル選択。推論の深さは独立したチップから選ぶ。
     private var modelMenu: some View {
-        let title = [modelTitle, viewModel.selectedEffort].compactMap { $0 }.joined(separator: " · ")
-        return Button { toggle(.model) } label: {
-            ComposerChipLabel(title: title, isOpen: openMenu == .model)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(verbatim: AppLocalizedString.string("モデル", locale: locale) + ": " + title))
-        .accessibilityIdentifier("\(accessibilityPrefix).modelMenu")
+        selectionChip(kind: .model, value: modelTitle, identifier: "modelMenu")
         .disabled(viewModel.availableModels.isEmpty)
-        .composerPopup(isPresented: binding(for: .model), relaysHorizontalKeys: codexEffortSection != nil) {
-            ComposerMenuWithSideList(
-                title: AppLocalizedString.string("モデル", locale: locale),
-                sections: [codexModelSection],
-                sideTitle: UIWording.text(.reasoningEffortLabel, languageCode: languageCode),
-                sideSection: codexEffortSection,
-                onClose: closeMenu
-            )
+        .composerPopup(isPresented: binding(for: .model)) {
+            ComposerPopupSurface(width: 260) {
+                ComposerMenuList(sections: [codexModelSection], onClose: closeMenu)
+            }
         }
     }
 
@@ -386,21 +376,6 @@ struct ComposerSettingsControlsView: View {
                 action: { setModel(model.id, effort: nil) }
             )
         })
-    }
-
-    private var codexEffortSection: ComposerMenuSection? {
-        guard let selectedModel, !selectedModel.supportedReasoningEfforts.isEmpty else { return nil }
-        return ComposerMenuSection(
-            id: "efforts",
-            rows: selectedModel.supportedReasoningEfforts.map { option in
-                ComposerMenuRow(
-                    id: "effort-\(option.reasoningEffort)",
-                    title: option.reasoningEffort,
-                    isSelected: option.reasoningEffort == viewModel.selectedEffort,
-                    action: { setModel(selectedModel.id, effort: option.reasoningEffort) }
-                )
-            }
-        )
     }
 
     private var permissionMenu: some View {
@@ -451,9 +426,11 @@ struct ComposerSettingsControlsView: View {
         }
     }
 
-    private func setSpawnEffort(_ effort: String) {
-        Task {
-            await viewModel.setSpawnAgentEffort(effort)
+    private func setEffort(_ effort: String) {
+        if viewModel.agentRef == .builtin(.codex), let selectedModel {
+            setModel(selectedModel.id, effort: effort)
+        } else {
+            Task { await viewModel.setSpawnAgentEffort(effort) }
         }
     }
 
@@ -499,6 +476,31 @@ struct ComposerSettingsControlsView: View {
     // MARK: - Labels
 
     private static let claudeDefaultPermission = "bypassPermissions"
+}
+
+/// モデルと effort の表示をエージェントに依存させない入力欄チップ。
+private struct ComposerSelectionChip: View {
+    enum Kind { case model, effort }
+
+    let kind: Kind
+    let value: String
+    let isOpen: Bool
+    let identifier: String
+    let onTap: () -> Void
+    @Environment(\.locale) private var locale
+
+    private var title: String {
+        kind == .effort ? "effort: " + value : value
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            ComposerChipLabel(title: title, isOpen: isOpen)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(verbatim: kind == .model ? AppLocalizedString.string("モデル", locale: locale) + ": " + value : title))
+        .accessibilityIdentifier(identifier)
+    }
 }
 
 private enum ComposerControlFill {
@@ -739,8 +741,14 @@ struct ComposerSettingsOverflowMenu: View {
                     .disabled(viewModel.availableSpawnAgentModels.isEmpty)
             }
         case .effort:
-            if !viewModel.claudeEffortLevels.isEmpty {
-                Menu(UIWording.text(.reasoningEffortLabel, languageCode: languageCode)) { claudeEffortItems }
+            if !viewModel.cyclableEfforts.isEmpty {
+                Menu(UIWording.text(.reasoningEffortLabel, languageCode: languageCode)) {
+                    if viewModel.agentRef == .builtin(.codex) {
+                        codexEffortItems
+                    } else {
+                        claudeEffortItems
+                    }
+                }
             }
         case .permission:
             switch viewModel.agentRef {
@@ -835,24 +843,18 @@ struct ComposerSettingsOverflowMenu: View {
                 )
             }
         }
-        if let selectedCodexModel, !selectedCodexModel.supportedReasoningEfforts.isEmpty {
-            Divider()
-            Menu(UIWording.text(.reasoningEffortLabel, languageCode: languageCode)) {
-                ForEach(selectedCodexModel.supportedReasoningEfforts, id: \.reasoningEffort) { option in
-                    Button {
-                        Task {
-                            try? await viewModel.setModel(
-                                model: selectedCodexModel.id,
-                                effort: option.reasoningEffort
-                            )
-                        }
-                    } label: {
-                        SettingsMenuRow(
-                            title: Self.reasoningEffortTitle(option.reasoningEffort, languageCode: languageCode),
-                            isSelected: option.reasoningEffort == viewModel.selectedEffort
-                        )
-                    }
-                }
+    }
+
+    private var codexEffortItems: some View {
+        ForEach(viewModel.cyclableEfforts, id: \.self) { effort in
+            Button {
+                guard let selectedCodexModel else { return }
+                Task { try? await viewModel.setModel(model: selectedCodexModel.id, effort: effort) }
+            } label: {
+                SettingsMenuRow(
+                    title: Self.reasoningEffortTitle(effort, languageCode: languageCode),
+                    isSelected: effort == viewModel.selectedEffort
+                )
             }
         }
     }

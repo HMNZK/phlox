@@ -11,7 +11,7 @@ import AgentDomain
 /// 「グリッドで model/effort/PLAN を選べない」を構造的に解消する（実際の描画は runtime 検証）。
 ///
 /// 期待マッピング（task-2 で `.plan` は権限/モードメニューへ統合され本集合から除去）:
-///   - .builtin(.codex)      → [.model, .permission]
+///   - .builtin(.codex)      → [.model, .effort, .permission]
 ///   - .builtin(.claudeCode) → [.model, .effort, .permission]
 ///   - .builtin(.cursor)     → [.model, .mode]
 ///   - その他                → []
@@ -19,8 +19,8 @@ import AgentDomain
 struct GridComposerSettingsAcceptanceTests {
 
     @Test
-    func codexExposesModelPermission() {
-        #expect(composerControls(for: .builtin(.codex)) == [.model, .permission])
+    func codexExposesModelEffortPermission() {
+        #expect(composerControls(for: .builtin(.codex)) == [.model, .effort, .permission])
     }
 
     @Test
@@ -33,10 +33,10 @@ struct GridComposerSettingsAcceptanceTests {
         #expect(composerControls(for: .builtin(.cursor)) == [.model, .mode])
     }
 
-    /// codex は effort/mode を出さない（claude 専用の effort、cursor 専用の mode を混入させない）。
+    /// Codex と Claude は effort を表示し、Cursor は表示しない。
     @Test
     func controlSetsAreAgentSpecific() {
-        #expect(!composerControls(for: .builtin(.codex)).contains(.effort))
+        #expect(composerControls(for: .builtin(.codex)).contains(.effort))
         #expect(!composerControls(for: .builtin(.codex)).contains(.mode))
         #expect(!composerControls(for: .builtin(.claudeCode)).contains(.mode))
         #expect(!composerControls(for: .builtin(.cursor)).contains(.effort))

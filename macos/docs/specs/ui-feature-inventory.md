@@ -171,9 +171,9 @@ Phlox のセッション画面には大きく2系統の ViewModel/表示モデ�
 | Codex skill候補混入 | `/`入力 | `SkillMetadata`→候補 | `filteredSkills` | Codex限定 | `ChatComposer.swift:189-213`, `CodexSkillSelectionState.swift` |
 | `@`ファイル参照候補 | `@`入力 | ワークスペース走査(除外.git等) | TTL5秒キャッシュ、非同期coalescing | 共通 | `ComposerSuggestions.swift:57-79,682-745` |
 | サジェスト選択移動/確定/却下 | ↑↓/Enter・Tab/クリック/Esc | `SuggestionReplacement` | — | 共通 | `ComposerKeyRouting.swift:35-49`, `ComposerSuggestions.swift:390-407` |
-| エージェント別コントロール集合 | — | `[.model,.permission]`等 | `composerControls(for:)` | Codex/Claude/Cursorで表示項目が異なる | `ComposerSettingsControls.swift:25-36` |
+| エージェント別コントロール集合 | — | `[.model,.effort,.permission]`等 | `composerControls(for:)` | Codex/Claudeは同じ項目、Cursorはeffortなし | `ComposerSettingsControls.swift:25-36` |
 | モデル選択 | メニュークリック | `availableModels` | — | Codexは`modelMenu`、他は`spawnModelMenu` | `ComposerSettingsControls.swift:130-352` |
-| Reasoning effort選択 | メニュークリック | low/medium/high/xhigh/max | — | Claude専用メニュー、Codexはモデルメニュー内サブメニュー、Cursorはなし | `ComposerSettingsControls.swift:139-216,322-336` |
+| Reasoning effort選択 | 独立チップのメニュークリック | Claudeは固定候補、Codexは選択モデルの対応候補 | — | Claude/Codexで同じ表示チップ、Cursorはなし | `ComposerSettingsControls.swift` |
 | 権限モード選択 | メニュークリック | プロファイル/permission mode/operation mode | — | 3エージェントで選択肢が異なる | `ComposerSettingsControls.swift:38-65,143-278` |
 | Planモード切替 | メニュー選択 | `isPlanMode` | — | 全3エージェント共通で"plan"オプションあり | `ComposerSettingsControls.swift:424-436` |
 | 現在Gitブランチ表示(30秒ポーリング) | — | `GitBranchReader.currentBranch` | — | 共通 | `ComposerContextIndicator.swift:223-239` |

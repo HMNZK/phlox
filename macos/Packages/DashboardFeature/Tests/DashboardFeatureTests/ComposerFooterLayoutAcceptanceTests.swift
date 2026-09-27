@@ -10,7 +10,7 @@ import AgentDomain
 /// trailing ＝ 空。分割は引き続き単一の真実源 `composerControls(for:side:)` から得て、単一表示と
 /// グリッド表示の両コンポーザーが同じ関数を参照する。
 /// 期待:
-///   - .builtin(.codex)      leading [.model, .permission]          / trailing []
+///   - .builtin(.codex)      leading [.model, .effort, .permission] / trailing []
 ///   - .builtin(.claudeCode) leading [.model, .effort, .permission] / trailing []
 ///   - .builtin(.cursor)     leading [.model, .mode]                / trailing []
 @Suite("ComposerFooterLayout acceptance")
@@ -24,7 +24,7 @@ struct ComposerFooterLayoutAcceptanceTests {
 
     @Test
     func codexLeadingIsAllControlsInOrder() {
-        #expect(composerControls(for: .builtin(.codex), side: .leading) == [.model, .permission])
+        #expect(composerControls(for: .builtin(.codex), side: .leading) == [.model, .effort, .permission])
         #expect(composerControls(for: .builtin(.codex), side: .trailing).isEmpty)
     }
 

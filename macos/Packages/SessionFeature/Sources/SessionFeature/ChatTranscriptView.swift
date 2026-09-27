@@ -77,7 +77,7 @@ struct ChatTranscriptView: View {
             let transcriptSignal = transcriptFollowSignal
             let items = transcriptItems
             ScrollView {
-                transcriptContent(items: items, transcriptSignal: transcriptSignal)
+                transcriptContent(items: items, transcriptSignal: transcriptSignal, scrollProxy: proxy)
                     .background(
                         ChatAutoFollowScrollObserver(
                             controller: autoFollow,
@@ -168,22 +168,24 @@ struct ChatTranscriptView: View {
     @ViewBuilder
     private func transcriptContent(
         items: [ChatItem],
-        transcriptSignal: TranscriptFollowSignal
+        transcriptSignal: TranscriptFollowSignal,
+        scrollProxy: ScrollViewProxy
     ) -> some View {
         if let contentMaxWidth {
             VStack(spacing: 0) {
-                transcriptStack(items: items, transcriptSignal: transcriptSignal)
+                transcriptStack(items: items, transcriptSignal: transcriptSignal, scrollProxy: scrollProxy)
             }
             .frame(maxWidth: contentMaxWidth)
             .frame(maxWidth: .infinity)
         } else {
-            transcriptStack(items: items, transcriptSignal: transcriptSignal)
+            transcriptStack(items: items, transcriptSignal: transcriptSignal, scrollProxy: scrollProxy)
         }
     }
 
     private func transcriptStack(
         items: [ChatItem],
-        transcriptSignal: TranscriptFollowSignal
+        transcriptSignal: TranscriptFollowSignal,
+        scrollProxy: ScrollViewProxy
     ) -> some View {
         // IMPORTANT(CPU 暴走の根治・task-8): ここは意図的に Lazy でない VStack。
         // LazyVStack だと「実行中タイルの更新と同時のスクロール」で行の実体化/破棄と
@@ -269,6 +271,12 @@ struct ChatTranscriptView: View {
                     .agentColumn(isAgentSide: true, avatar: nil)
                     .padding(.top, TranscriptTypography.itemGap)
                     .id("chat-thinking")
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { _ in
+                        Task { @MainActor in
+                            guard autoFollow.isFollowing else { return }
+                            scrollProxy.scrollTo(ChatScrollTarget.bottom.rawValue, anchor: .bottom)
+                        }
+                    }
             }
             // 浮遊 composer の逃し余白はスクロールコンテンツ内部のスペーサーで確保する。
             // .contentMargins(for: .scrollContent) は macOS ではオーバーレイスクローラも

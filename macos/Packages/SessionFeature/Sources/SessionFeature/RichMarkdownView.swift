@@ -288,8 +288,30 @@ private func highlightedCode(_ content: String, language: String?) -> some View 
 
 #if canImport(AppKit)
 private func openChatMarkdownLink(_ url: URL) -> OpenURLAction.Result {
-    NSWorkspace.shared.open(url)
-    return .handled
+    let destination: URL
+    if url.scheme == nil || url.isFileURL {
+        guard let fileURL = localMarkdownFileURL(url) else { return .discarded }
+        destination = fileURL
+    } else {
+        destination = url
+    }
+    return NSWorkspace.shared.open(destination) ? .handled : .discarded
+}
+
+func localMarkdownFileURL(_ url: URL) -> URL? {
+    guard url.scheme == nil || url.isFileURL else { return nil }
+    let path = url.path
+    guard path.hasPrefix("/") else { return nil }
+
+    let fileManager = FileManager.default
+    if fileManager.fileExists(atPath: path) {
+        return URL(fileURLWithPath: path)
+    }
+    guard let separator = path.lastIndex(of: ":"),
+          let line = Int(path[path.index(after: separator)...]), line > 0 else { return nil }
+    let filePath = String(path[..<separator])
+    guard fileManager.fileExists(atPath: filePath) else { return nil }
+    return URL(fileURLWithPath: filePath)
 }
 #else
 private func openChatMarkdownLink(_: URL) -> OpenURLAction.Result {

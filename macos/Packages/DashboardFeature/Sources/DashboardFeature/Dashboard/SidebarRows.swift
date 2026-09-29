@@ -297,11 +297,16 @@ struct SidebarSessionRow<Menu: View>: View {
     private func titleGradientStops(at date: Date) -> [Gradient.Stop] {
         let center = ShimmerBandModel.bandCenter(phase: SidebarTitleShimmer.phase(at: date))
         let range = 1 - ShimmerBandModel.minBrightness
+        let textColor = ThemeStore.active.textPrimary
+        let peak = DSColor.isDark ? 255.0 : 0.0
         return (0...20).map { index in
             let position = Double(index) / 20
             let brightness = ShimmerBandModel.brightness(position: position, phase: center)
-            let opacity = 0.8 + 0.2 * (brightness - ShimmerBandModel.minBrightness) / range
-            return Gradient.Stop(color: DSColor.textPrimary.opacity(opacity), location: CGFloat(position))
+            let intensity = (brightness - ShimmerBandModel.minBrightness) / range
+            func channel(_ value: Int) -> Double { (Double(value) * (1 - intensity) + peak * intensity) / 255 }
+            let color = Color(red: channel(textColor.r), green: channel(textColor.g), blue: channel(textColor.b))
+                .opacity(0.8 + 0.2 * intensity)
+            return Gradient.Stop(color: color, location: CGFloat(position))
         }
     }
 

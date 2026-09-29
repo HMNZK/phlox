@@ -157,10 +157,25 @@ enum SidebarTitleShimmer {
     }
 }
 
+struct SidebarHoverCardSelection {
+    private(set) var sessionID: SessionID?
+    mutating func show(_ id: SessionID) { sessionID = id }
+    mutating func hide(_ id: SessionID) {
+        if sessionID == id { sessionID = nil }
+    }
+    mutating func clear() { sessionID = nil }
+}
+
+struct SidebarHoverCardAnchorKey: PreferenceKey {
+    static let defaultValue: [SessionID: Anchor<CGRect>] = [:]
+
+    static func reduce(value: inout [SessionID: Anchor<CGRect>], nextValue: () -> [SessionID: Anchor<CGRect>]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
 struct SidebarSessionRow<Menu: View>: View {
     let node: SessionNode
-    let projectName: String
-    let projectSessionCount: Int
     let depth: Int
     let hasChildren: Bool
     let isExpanded: Bool
@@ -169,6 +184,7 @@ struct SidebarSessionRow<Menu: View>: View {
     let isSelected: Bool
     let isRenaming: Bool
     @Binding var renameDraft: String
+    let onHoverCard: (Bool) -> Void
     let onSelect: () -> Void
     let onToggleExpansion: () -> Void
     let onCommitRename: (_ byReturn: Bool) -> Void
@@ -176,8 +192,6 @@ struct SidebarSessionRow<Menu: View>: View {
     @ViewBuilder let menu: () -> Menu
 
     @State private var isHovering = false
-    @State private var isCardPresented = false
-    @State private var cardDismissTask: Task<Void, Never>?
     /// 読み上げの経過を 1 分ごとに作り直すための時計。
     @State private var labelClock = Date()
     @Environment(\.locale) private var locale
@@ -239,7 +253,14 @@ struct SidebarSessionRow<Menu: View>: View {
         .background(emphasis.fill, in: RoundedRectangle(cornerRadius: DSRadius.row))
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
-        .onHover { isHovering = $0 }
+        .onHover {
+            isHovering = $0
+            if !isRenaming || !$0 { onHoverCard($0) }
+        }
+        .onChange(of: isRenaming) { _, renaming in
+            if renaming { onHoverCard(false) }
+        }
+        .anchorPreference(key: SidebarHoverCardAnchorKey.self, value: .bounds) { [node.id: $0] }
         .modifier(SidebarMenuOpenRing(menu: menu))
         // 名前の編集中は入力欄に届くよう子を残す。
         .accessibilityElement(children: isRenaming ? .contain : .ignore)
@@ -282,11 +303,6 @@ struct SidebarSessionRow<Menu: View>: View {
             }
         }
         .contentShape(Rectangle())
-        .onHover(perform: hoverCard)
-        .popover(isPresented: $isCardPresented, arrowEdge: .trailing) {
-            hoverCardContent
-                .onHover(perform: hoverCard)
-        }
     }
 
     private var titleText: some View {
@@ -307,50 +323,6 @@ struct SidebarSessionRow<Menu: View>: View {
             let color = Color(red: channel(textColor.r), green: channel(textColor.g), blue: channel(textColor.b))
                 .opacity(0.7 + 0.3 * intensity)
             return Gradient.Stop(color: color, location: CGFloat(position))
-        }
-    }
-
-    private var hoverCardContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "bubble.left")
-                Text(verbatim: node.displayName)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .font(DSFont.row.weight(.semibold))
-            HStack(spacing: 8) {
-                Label(node.agentDescriptor.displayName, systemImage: "person.crop.circle")
-                Spacer(minLength: 12)
-                Text(verbatim: state.localizedLabel(locale: locale))
-                    .foregroundStyle(state.color)
-            }
-            Divider()
-            Label("\(projectName) · \(projectSessionCount)件のセッション", systemImage: "folder")
-            Label((node.workspacePath as NSString).abbreviatingWithTildeInPath, systemImage: "folder.badge.gearshape")
-                .textSelection(.enabled)
-            TimelineView(.periodic(from: node.startedAt, by: 60)) { context in
-                Text(verbatim: SidebarRelativeTime.label(from: node.startedAt, to: context.date, locale: locale))
-                    .font(DSFont.meta)
-                    .foregroundStyle(DSColor.textSecondary)
-            }
-        }
-        .font(DSFont.row)
-        .lineLimit(nil)
-        .foregroundStyle(DSColor.textPrimary)
-        .padding(16)
-        .frame(minWidth: 280, maxWidth: 420, alignment: .leading)
-    }
-
-    private func hoverCard(_ hovering: Bool) {
-        cardDismissTask?.cancel()
-        if hovering {
-            isCardPresented = true
-        } else {
-            cardDismissTask = Task {
-                try? await Task.sleep(for: .milliseconds(250))
-                guard !Task.isCancelled else { return }
-                isCardPresented = false
-            }
         }
     }
 
@@ -393,6 +365,45 @@ struct SidebarSessionRow<Menu: View>: View {
         parts.append(Text(verbatim: node.agentDescriptor.displayName))
         if hasChildren { parts.append(Text("子セッション \(childCount) 件")) }
         return parts.dropFirst().reduce(parts[0]) { $0 + Text("、") + $1 }
+    }
+}
+
+struct SidebarHoverCardContent: View {
+    let node: SessionNode
+    let projectName: String
+    let projectSessionCount: Int
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        let state = node.tabDisplayState
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "bubble.left")
+                Text(verbatim: node.displayName)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(DSFont.row.weight(.semibold))
+            HStack(spacing: 8) {
+                Label(node.agentDescriptor.displayName, systemImage: "person.crop.circle")
+                Spacer(minLength: 12)
+                Text(verbatim: state.localizedLabel(locale: locale))
+                    .foregroundStyle(state.color)
+            }
+            Divider()
+            Label("\(projectName) · \(projectSessionCount)件のセッション", systemImage: "folder")
+            Label((node.workspacePath as NSString).abbreviatingWithTildeInPath, systemImage: "folder.badge.gearshape")
+                .textSelection(.enabled)
+            TimelineView(.periodic(from: node.startedAt, by: 60)) { context in
+                Text(verbatim: SidebarRelativeTime.label(from: node.startedAt, to: context.date, locale: locale))
+                    .font(DSFont.meta)
+                    .foregroundStyle(DSColor.textSecondary)
+            }
+        }
+        .font(DSFont.row)
+        .lineLimit(nil)
+        .foregroundStyle(DSColor.textPrimary)
+        .padding(16)
+        .frame(minWidth: 280, maxWidth: 420, alignment: .leading)
     }
 }
 

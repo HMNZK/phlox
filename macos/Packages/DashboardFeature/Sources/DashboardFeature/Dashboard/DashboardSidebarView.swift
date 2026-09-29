@@ -33,6 +33,8 @@ struct DashboardSidebarView: View {
     @State private var renaming: SidebarItem?
     @State private var renameDraft = ""
     @State private var unreadExpanded = false
+    @State private var hoverCardSelection = SidebarHoverCardSelection()
+    @State private var hoverCardDismissTask: Task<Void, Never>?
     /// ドラッグで並べ替え中のセッションと、挿入位置（03 F10）。
     @State private var draggingSession: SessionID?
     @State private var dropTarget: SidebarDropTarget?
@@ -101,6 +103,33 @@ struct DashboardSidebarView: View {
                     guard let item, listFocused else { return }
                     withAnimation(.easeInOut(duration: 0.12)) { proxy.scrollTo(item) }
                 }
+            }
+        }
+        .backgroundPreferenceValue(SidebarHoverCardAnchorKey.self) { anchors in
+            GeometryReader { geometry in
+                let anchor = hoverCardSelection.sessionID.flatMap { anchors[$0] }
+                let frame = anchor.map { geometry[$0] } ?? .zero
+                let attachmentPoint = UnitPoint(
+                    x: min(max(frame.maxX / max(geometry.size.width, 1), 0), 1),
+                    y: min(max(frame.midY / max(geometry.size.height, 1), 0), 1)
+                )
+                Color.clear
+                    .popover(isPresented: Binding(
+                        get: {
+                            guard let id = hoverCardSelection.sessionID else { return false }
+                            return anchors[id] != nil
+                        },
+                        set: { if !$0 { hoverCardSelection.clear() } }
+                    ), attachmentAnchor: .point(attachmentPoint), arrowEdge: .trailing) {
+                        if let id = hoverCardSelection.sessionID, let node = viewModel.sessionNode(id: id) {
+                            SidebarHoverCardContent(
+                                node: node,
+                                projectName: projectName(for: node) ?? "その他",
+                                projectSessionCount: hoverCardSessionCount(for: node)
+                            )
+                            .onHover { hoverCard(id, $0) }
+                        }
+                    }
             }
         }
         .focusable()
@@ -259,7 +288,7 @@ struct DashboardSidebarView: View {
                 .padding(.top, 14)
                 .padding(.bottom, 3)
             ForEach(unassigned, id: \.id) { node in
-                sessionRow(node, depth: 1, treeRow: nil, forest: [], projectSessionCount: unassigned.count)
+                sessionRow(node, depth: 1, treeRow: nil, forest: [])
             }
         }
     }
@@ -354,12 +383,11 @@ struct DashboardSidebarView: View {
     @ViewBuilder
     private func projectSessionRows(_ project: Project) -> some View {
         let forest = viewModel.sessionForest(in: project.id)
-        let sessionCount = forest.flatMap(Self.flatten).count
         ForEach(treeLines(forest)) { line in
             switch line {
             case .session(let row, let offset):
                 if let node = viewModel.sessionNode(id: row.id) {
-                    sessionRow(node, depth: row.depth + 1 + offset, treeRow: row, forest: forest, projectSessionCount: sessionCount)
+                    sessionRow(node, depth: row.depth + 1 + offset, treeRow: row, forest: forest)
                 }
             case .internalSessions(let parent, let depth, let count, let isExpanded):
                 SidebarInternalSessionsRow(depth: depth + 1, count: count, isExpanded: isExpanded) {
@@ -402,15 +430,12 @@ struct DashboardSidebarView: View {
         _ node: SessionNode,
         depth: Int,
         treeRow: SessionTreeViewModel.Row?,
-        forest: [SessionTreeNode],
-        projectSessionCount: Int
+        forest: [SessionTreeNode]
     ) -> some View {
         let children = treeRow?.hasChildren == true ? Self.findNode(node.id, in: forest)?.children ?? [] : []
         let descendantStates = children.filter { $0.launchContext != .orchestration }.flatMap(Self.flatten).compactMap { viewModel.sessionNode(id: $0.id)?.tabDisplayState }
         return SidebarSessionRow(
             node: node,
-            projectName: projectName(for: node) ?? "その他",
-            projectSessionCount: projectSessionCount,
             depth: depth,
             hasChildren: treeRow?.hasChildren ?? false,
             isExpanded: treeRow?.isExpanded ?? false,
@@ -421,6 +446,7 @@ struct DashboardSidebarView: View {
             isSelected: router.selectedSession == node.id,
             isRenaming: renaming == .session(node.id),
             renameDraft: $renameDraft,
+            onHoverCard: { hoverCard(node.id, $0) },
             onSelect: { selectSession(node.id, holdFocus: false) },
             onToggleExpansion: { toggleSessionExpansion(node.id, projectID: treeRow?.projectID ?? node.projectID) },
             onCommitRename: { commitRename(byReturn: $0) },
@@ -762,6 +788,24 @@ struct DashboardSidebarView: View {
     private func projectName(for node: SessionNode) -> String? {
         guard let projectID = node.projectID else { return nil }
         return viewModel.projects.first { $0.id == projectID }?.name
+    }
+
+    private func hoverCardSessionCount(for node: SessionNode) -> Int {
+        guard let projectID = node.projectID else { return viewModel.unassignedSessionNodes.count }
+        return viewModel.sessionForest(in: projectID).flatMap(Self.flatten).count
+    }
+
+    private func hoverCard(_ id: SessionID, _ hovering: Bool) {
+        hoverCardDismissTask?.cancel()
+        if hovering {
+            hoverCardSelection.show(id)
+        } else {
+            hoverCardDismissTask = Task {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled else { return }
+                hoverCardSelection.hide(id)
+            }
+        }
     }
 
     /// 件数と畳んだ行の要約に使う。内部セッション（とその子）は見本どおり数えない。

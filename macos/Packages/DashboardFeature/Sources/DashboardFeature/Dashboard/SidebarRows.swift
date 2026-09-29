@@ -276,17 +276,6 @@ struct SidebarSessionRow<Menu: View>: View {
                             endPoint: .trailing
                         )
                     )
-                    .background {
-                        titleText.foregroundStyle(
-                            LinearGradient(
-                                stops: titleGlowStops(at: context.date),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .blur(radius: 4)
-                        .accessibilityHidden(true)
-                    }
                 }
             } else {
                 titleText.foregroundStyle(DSColor.textPrimary)
@@ -316,21 +305,8 @@ struct SidebarSessionRow<Menu: View>: View {
             let intensity = (brightness - ShimmerBandModel.minBrightness) / range
             func channel(_ value: Int) -> Double { (Double(value) * (1 - intensity) + peak * intensity) / 255 }
             let color = Color(red: channel(textColor.r), green: channel(textColor.g), blue: channel(textColor.b))
-                .opacity(0.8 + 0.2 * intensity)
+                .opacity(0.7 + 0.3 * intensity)
             return Gradient.Stop(color: color, location: CGFloat(position))
-        }
-    }
-
-    private func titleGlowStops(at date: Date) -> [Gradient.Stop] {
-        let center = ShimmerBandModel.bandCenter(phase: SidebarTitleShimmer.phase(at: date))
-        let range = 1 - ShimmerBandModel.minBrightness
-        let glowColor = DSColor.isDark ? Color.white : Color.black
-        let glowOpacity = DSColor.isDark ? 0.75 : 0.30
-        return (0...20).map { index in
-            let position = Double(index) / 20
-            let brightness = ShimmerBandModel.brightness(position: position, phase: center)
-            let intensity = (brightness - ShimmerBandModel.minBrightness) / range
-            return Gradient.Stop(color: glowColor.opacity(glowOpacity * intensity), location: CGFloat(position))
         }
     }
 

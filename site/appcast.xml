@@ -3,6 +3,37 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.8.3</title>
+            <pubDate>Tue, 29 Sep 2026 16:28:30 +0900</pubDate>
+            <description xml:lang="en"><![CDATA[
+<h3>New</h3>
+<ul>
+  <li>Active sessions now have a gentle light that moves across their names in the sidebar. Running subagents show a loading indicator, and completed subagents close automatically.</li>
+  <li>Codex subagents now show their task as the name, so you can see what each one is doing.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+  <li>Session information popovers now appear beside the session you hover over, including when you move quickly between sessions.</li>
+</ul>
+]]></description>
+            <description xml:lang="ja"><![CDATA[
+<h3>新機能</h3>
+<ul>
+  <li>実行中のセッション名に、左から右へ流れる穏やかな明暗のアニメーションを追加しました。サブエージェントは実行中に読み込み表示が出て、完了すると自動的に閉じます。</li>
+  <li>Codex のサブエージェント名に作業内容を表示し、何をしているか分かるようにしました。</li>
+</ul>
+<h3>修正</h3>
+<ul>
+  <li>セッション情報のポップオーバーが、素早く別のセッションに移動した場合も対象の行の横に表示されるようにしました。</li>
+</ul>
+]]></description>
+            <sparkle:version>29</sparkle:version>
+            <sparkle:shortVersionString>1.8.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.8.3.zip" length="22173099" type="application/octet-stream" sparkle:edSignature="Yz4xfCJDp+OArc1SUhxXwi18INHq9ZiRbyIqJcNoS53UsB5aZSHWnURCfnrsRCFGQASwf78Ic9QL1SsTuvquCg=="/>
+        </item>
+        <item>
             <title>1.8.2</title>
             <pubDate>Tue, 29 Sep 2026 11:48:44 +0900</pubDate>
             <description xml:lang="en"><![CDATA[

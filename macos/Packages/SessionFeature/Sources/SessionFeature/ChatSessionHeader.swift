@@ -174,11 +174,15 @@ struct ChatSessionHeader: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: DSSpacing.xs) {
                     ForEach(viewModel.stripSubAgents) { subAgent in
+                        let stopState = viewModel.codexSubAgentStopState(forDisplayID: subAgent.id)
                         SubAgentStripRow(
                             subAgent: subAgent,
                             isSelected: viewModel.selectedSubAgentId == subAgent.id,
                             onSelect: { onToggleSubAgent(subAgent.id) },
-                            onDismiss: { viewModel.dismissSubAgent(subAgent.id) }
+                            onDismiss: { viewModel.dismissSubAgent(subAgent.id) },
+                            stopTitle: stopTitle(for: stopState),
+                            onStop: stopAction(forDisplayID: subAgent.id),
+                            isStopEnabled: stopState == .available
                         )
                     }
                 }
@@ -189,6 +193,19 @@ struct ChatSessionHeader: View {
         .fixedSize(horizontal: true, vertical: false)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("サブエージェント"))
+    }
+
+    private func stopTitle(for state: CodexSubAgentStopState?) -> String? {
+        switch state {
+        case .some(.available): "停止"
+        case .some(.stopping): "停止中"
+        default: nil
+        }
+    }
+
+    private func stopAction(forDisplayID id: String) -> (() -> Void)? {
+        guard let threadID = viewModel.codexSubAgentThreadID(forDisplayID: id) else { return nil }
+        return { Task { await viewModel.stopCodexSubAgent(threadID: threadID) } }
     }
 
     // MARK: - 状態

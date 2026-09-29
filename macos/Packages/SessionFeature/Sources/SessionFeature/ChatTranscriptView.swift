@@ -161,8 +161,12 @@ struct ChatTranscriptView: View {
             }
         }
         .background(DSColor.chatBackground)
+        .task(id: viewModel.threadId) {
+            guard viewModel.agentRef == .builtin(.codex) else { return }
+            await viewModel.refreshCodexSubAgents()
+        }
         .environment(\.selectedSubAgentID, viewModel.selectedSubAgentId)
-        .environment(\.openableSubAgentIDs, Set(viewModel.subAgents.map(\.id)))
+        .environment(\.openableSubAgentIDs, Set(viewModel.displaySubAgents.map(\.id)))
     }
 
     @ViewBuilder
@@ -225,19 +229,12 @@ struct ChatTranscriptView: View {
                     .id(block.id)
                     .background(userMessagePositionProbe(id: block.id, isTracked: userMessageIDs.contains(block.id)))
             }
-            // D1: Codex のプランと子スレッドは会話の中のカード（以前は会話の上に重ねていた）。
-            CodexSessionSurface(
-                viewModel: viewModel,
-                onSelectChild: { childID in
-                    Task { await viewModel.loadCodexSubAgentDetail(threadID: childID) }
-                },
-                onStopChild: { childID in
-                    Task { await viewModel.stopCodexSubAgent(threadID: childID) }
-                }
-            )
-            .agentColumn(isAgentSide: true, avatar: nil)
-            .padding(.top, TranscriptTypography.itemGap)
-            .id("chat-codex-surface")
+            if transcript == nil {
+                CodexSessionSurface(viewModel: viewModel)
+                    .agentColumn(isAgentSide: true, avatar: nil)
+                    .padding(.top, TranscriptTypography.itemGap)
+                    .id("chat-codex-surface")
+            }
                         if viewModel.shouldShowConnectingIndicator {
                 ConnectingIndicatorRow()
                     .agentColumn(isAgentSide: true, avatar: nil)

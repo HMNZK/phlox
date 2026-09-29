@@ -16,6 +16,7 @@ struct SubAgentDrawerView: View {
     let canSendFollowUp: Bool
     let onSendFollowUp: (String) -> Void
     let onClose: () -> Void
+    var showsFollowUpComposer = true
 
     @State private var draft = ""
     @State private var editorHeight: CGFloat = ComposerHeightBounds.single.min
@@ -26,7 +27,9 @@ struct SubAgentDrawerView: View {
             header
             Divider().overlay(DSColor.separator)
             transcriptBody
-            followUpComposer
+            if showsFollowUpComposer {
+                followUpComposer
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DSColor.panelBackground)

@@ -46,6 +46,19 @@ struct CodexSubAgentStateDirectTests {
         #expect(state.children.map(\.id) == ["child-1"])
     }
 
+    @Test("完了後は共有stripから外し、会話マーカー用のchild状態は保持する")
+    func completedChildLeavesStripButRemainsAvailableForMarker() throws {
+        var state = CodexSubAgentState(parentThreadId: "parent-1")
+        state.apply(.available(children: [child()]))
+        state.apply(.turnCompleted(threadId: "child-1", turnId: "turn-1", status: "completed"))
+
+        let ref = CodexSubAgentPresentation.ref(for: try #require(state.children.first))
+        #expect(ref.status == .completed)
+        #expect(!CodexSubAgentPresentation.isVisibleInStrip(ref, isDismissed: false))
+        #expect(CodexSubAgentPresentation.threadID(from: ref.id) == "child-1")
+        #expect(state.children.map(\.id) == ["child-1"])
+    }
+
     @Test("停止要求はpending中に一度だけ生成する")
     func stopRequestIsSingleFlight() {
         var state = CodexSubAgentState(parentThreadId: "parent-1")

@@ -66,6 +66,10 @@ final class ChatSubAgentModel {
         }
     }
 
+    func isDismissed(_ id: String) -> Bool {
+        dismissedSubAgentIDs.contains(id)
+    }
+
     /// 表示する transcript を選ぶ。規則は2通り＋例外1つ（ADR 0113）:
     /// 1. 永続ファイル（parsed）が読めれば parsed（＝権威）。
     /// 2. 読めなければライブ。

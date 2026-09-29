@@ -50,7 +50,13 @@ struct GridChatColumn: View {
                             includesMainButton: true,
                             onSelectMain: { viewModel.selectSubAgent(nil) },
                             onSelectSubAgent: { viewModel.selectSubAgent($0) },
-                            onDismiss: { viewModel.dismissSubAgent($0) }
+                            onDismiss: { viewModel.dismissSubAgent($0) },
+                            onStop: { displayID in
+                                guard let threadID = viewModel.codexSubAgentThreadID(forDisplayID: displayID) else { return }
+                                Task { await viewModel.stopCodexSubAgent(threadID: threadID) }
+                            },
+                            canStop: { viewModel.codexSubAgentStopState(forDisplayID: $0) == .available },
+                            isStopping: { viewModel.codexSubAgentStopState(forDisplayID: $0) == .stopping }
                         )
                     }
                     .overlay(alignment: .bottom) {
@@ -87,17 +93,6 @@ struct GridChatColumn: View {
                         } action: { height in
                             composerHeight = height
                         }
-                    }
-                    .overlay(alignment: .top) {
-                        CodexSessionSurface(
-                            viewModel: viewModel,
-                            onSelectChild: { childID in
-                                Task { await viewModel.loadCodexSubAgentDetail(threadID: childID) }
-                            },
-                            onStopChild: { childID in
-                                Task { await viewModel.stopCodexSubAgent(threadID: childID) }
-                            }
-                        )
                     }
             }
             // 凍結中は「実際に提案される幅」も固定する。maxWidth を止めるだけでは、タイルが縮んだ

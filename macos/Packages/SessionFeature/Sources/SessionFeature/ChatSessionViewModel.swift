@@ -135,17 +135,25 @@ public final class ChatSessionViewModel: Identifiable {
     public var showsProcessingIndicator: Bool {
         status == .running ||
             !runningBackgroundTasks.isEmpty ||
-            subAgents.contains { $0.status == .running }
+            displaySubAgents.contains { $0.status == .running }
     }
     public var isProcessing: Bool { showsProcessingIndicator }
     public var subAgents: [SubAgentRef] {
         subAgentModel.subAgents
     }
-    /// ストリップ表示用のサブエージェント一覧。処理が完了したものはストリップから外す。
-    /// 完了後も本文のインラインマーカー（subAgents に残る）から閲覧できるよう、subAgents 本体
-    /// からは消さない。実行中・失敗は残す（失敗は気付けるように残す）。
+    /// Claude と Codex の子エージェントを同じ表示部品へ渡す。
+    public var displaySubAgents: [SubAgentRef] {
+        subAgents + (codexSubAgentState?.children ?? []).map(CodexSubAgentPresentation.ref(for:))
+    }
+    /// 共通ストリップ用。完了したものは外し、失敗は気付けるように残す。
     public var stripSubAgents: [SubAgentRef] {
-        subAgentModel.stripSubAgents
+        subAgentModel.stripSubAgents + displaySubAgents.filter {
+            CodexSubAgentPresentation.threadID(from: $0.id) != nil
+                && CodexSubAgentPresentation.isVisibleInStrip(
+                    $0,
+                    isDismissed: subAgentModel.isDismissed($0.id)
+                )
+        }
     }
     public var selectedSubAgentId: String? {
         subAgentModel.selectedSubAgentId
@@ -536,6 +544,7 @@ public final class ChatSessionViewModel: Identifiable {
                 codexSubAgentState?.apply(.validated(child: child))
             }
             codexSubAgentError = readFailures.first.map { "サブエージェント \($0.key): \($0.value)" }
+            syncCodexSubAgentMarkers()
         } catch {
             guard isCurrentCodexSubAgentRefresh(generation, parentThreadId: parentThreadId) else { return }
             let message = String(describing: error)
@@ -566,12 +575,14 @@ public final class ChatSessionViewModel: Identifiable {
                 )
                 codexSubAgentState?.apply(.stale(threadId: threadID, reason: message))
                 codexSubAgentError = message
+                syncCodexSubAgentMarkers()
                 return
             }
             let transcript = response.thread.turns?.flatMap { $0.items ?? [] }.compactMap(\.text) ?? []
             codexSubAgentState?.apply(.validated(child: Self.codexChild(response.thread)))
             codexSubAgentState?.apply(.detail(threadId: threadID, transcript: transcript))
             codexSubAgentError = nil
+            syncCodexSubAgentMarkers()
         } catch {
             guard threadId == parentThreadId,
                   codexSubAgentState?.parentThreadId == parentThreadId,
@@ -579,6 +590,7 @@ public final class ChatSessionViewModel: Identifiable {
             let message = String(describing: error)
             codexSubAgentState?.apply(.stale(threadId: threadID, reason: message))
             codexSubAgentError = "サブエージェント \(threadID): \(message)"
+            syncCodexSubAgentMarkers()
         }
     }
 
@@ -1317,6 +1329,10 @@ public final class ChatSessionViewModel: Identifiable {
 
     public func selectSubAgent(_ id: String?) {
         subAgentModel.selectSubAgent(id)
+        guard let id,
+              let threadID = CodexSubAgentPresentation.threadID(from: id),
+              codexSubAgentState?.detail(for: threadID) == nil else { return }
+        Task { await loadCodexSubAgentDetail(threadID: threadID) }
     }
 
     public func dismissSubAgent(_ id: String) {
@@ -1324,7 +1340,20 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public func subAgentTranscript(for id: String) -> [ChatItem] {
-        subAgentModel.transcript(for: id)
+        if let threadID = CodexSubAgentPresentation.threadID(from: id) {
+            let lines = codexSubAgentState?.detail(for: threadID)?.transcript ?? []
+            return CodexSubAgentPresentation.transcript(lines, displayID: id)
+        }
+        return subAgentModel.transcript(for: id)
+    }
+
+    public func codexSubAgentThreadID(forDisplayID id: String) -> String? {
+        CodexSubAgentPresentation.threadID(from: id)
+    }
+
+    public func codexSubAgentStopState(forDisplayID id: String) -> CodexSubAgentStopState? {
+        guard let threadID = CodexSubAgentPresentation.threadID(from: id) else { return nil }
+        return codexSubAgentState?.stopState(for: threadID)
     }
 
     var subAgentDedupScanMetricsForTesting: ChatSubAgentModel.DedupScanMetrics {
@@ -2407,6 +2436,7 @@ public final class ChatSessionViewModel: Identifiable {
                 turnId: turn.id ?? "",
                 status: turn.status ?? ""
             ))
+            syncCodexSubAgentMarkers()
             guard updatedThreadId == threadId else { return }
             scheduleCodexSurfaceRefresh()
         case .turnInterrupted(let updatedThreadId, let turnId):
@@ -2415,6 +2445,7 @@ public final class ChatSessionViewModel: Identifiable {
                 turnId: turnId ?? "",
                 status: "interrupted"
             ))
+            syncCodexSubAgentMarkers()
             guard updatedThreadId == threadId else { return }
             scheduleCodexSurfaceRefresh()
         case .threadSettingsUpdated(let updatedThreadId, let settings):
@@ -3390,6 +3421,28 @@ public final class ChatSessionViewModel: Identifiable {
         generation == codexSubAgentRefreshGeneration
             && threadId == parentThreadId
             && codexSubAgentState?.parentThreadId == parentThreadId
+    }
+
+    private func syncCodexSubAgentMarkers() {
+        var changedMarkers: [ChatItem] = []
+        for child in codexSubAgentState?.children ?? [] {
+            let ref = CodexSubAgentPresentation.ref(for: child)
+            let marker = ChatItem.subAgentMarker(
+                id: ref.id,
+                subagentType: ref.subagentType,
+                description: ref.description,
+                status: ref.status
+            )
+            guard let index = transcriptIndexByID[marker.id], transcript[index] == marker else {
+                appendOrReplace(marker)
+                changedMarkers.append(marker)
+                continue
+            }
+        }
+        if !changedMarkers.isEmpty {
+            enqueueTranscriptUpsert(changedMarkers)
+            touchOutput()
+        }
     }
 
     /// 子 thread は親 turn の item event・完了 event を契機に一覧を再取得する。

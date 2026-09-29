@@ -49,7 +49,8 @@ public struct ChatSessionView: View {
                         subAgent: selectedSubAgent,
                         transcript: viewModel.subAgentTranscript(for: selectedSubAgent.id),
                         agentDescriptor: agentDescriptor,
-                        canSendFollowUp: viewModel.isReadyForInput,
+                        canSendFollowUp: viewModel.isReadyForInput
+                            && viewModel.codexSubAgentThreadID(forDisplayID: selectedSubAgent.id) == nil,
                         onSendFollowUp: { text in
                             Task {
                                 do {
@@ -59,7 +60,8 @@ public struct ChatSessionView: View {
                                 }
                             }
                         },
-                        onClose: { viewModel.selectSubAgent(nil) }
+                        onClose: { viewModel.selectSubAgent(nil) },
+                        showsFollowUpComposer: viewModel.codexSubAgentThreadID(forDisplayID: selectedSubAgent.id) == nil
                     )
                     .frame(width: subAgentPaneWidth(for: geometry.size.width))
                     .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -279,7 +281,7 @@ public struct ChatSessionView: View {
 
     private var selectedSubAgent: SubAgentRef? {
         guard let id = viewModel.selectedSubAgentId else { return nil }
-        return viewModel.subAgents.first { $0.id == id }
+        return viewModel.displaySubAgents.first { $0.id == id }
     }
 
     private func toggleSubAgentSelection(_ id: String) {

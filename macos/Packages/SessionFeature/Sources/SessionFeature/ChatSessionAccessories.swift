@@ -164,11 +164,14 @@ struct SubAgentStrip: View {
     let onSelectMain: () -> Void
     let onSelectSubAgent: (String) -> Void
     let onDismiss: (String) -> Void
+    var onStop: ((String) -> Void)? = nil
+    var canStop: (String) -> Bool = { _ in false }
+    var isStopping: (String) -> Bool = { _ in false }
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
     var body: some View {
         let _ = themeID
-        if !subAgents.isEmpty {
+        if !subAgents.isEmpty || (includesMainButton && selectedSubAgentId != nil) {
             VStack(alignment: .leading, spacing: 0) {
                 Rectangle()
                     .fill(DSColor.chatAccent.opacity(0.68))
@@ -182,11 +185,16 @@ struct SubAgentStrip: View {
                             )
                         }
                         ForEach(subAgents) { subAgent in
+                            let stopEnabled = canStop(subAgent.id)
+                            let stopping = isStopping(subAgent.id)
                             SubAgentStripRow(
                                 subAgent: subAgent,
                                 isSelected: selectedSubAgentId == subAgent.id,
                                 onSelect: { onSelectSubAgent(subAgent.id) },
-                                onDismiss: { onDismiss(subAgent.id) }
+                                onDismiss: { onDismiss(subAgent.id) },
+                                stopTitle: stopping ? "停止中" : (stopEnabled ? "停止" : nil),
+                                onStop: (stopEnabled || stopping) ? { onStop?(subAgent.id) } : nil,
+                                isStopEnabled: stopEnabled
                             )
                         }
                     }
@@ -248,6 +256,9 @@ struct SubAgentStripRow: View {
     let isSelected: Bool
     let onSelect: () -> Void
     let onDismiss: () -> Void
+    var stopTitle: String? = nil
+    var onStop: (() -> Void)? = nil
+    var isStopEnabled = false
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @State private var isHovering = false
 
@@ -269,6 +280,20 @@ struct SubAgentStripRow: View {
             .accessibilityIdentifier("SubAgentStrip.row")
             // ✕ はポインタを置いた時だけ出るので、VoiceOver からは行の操作として閉じられるようにする。
             .accessibilityAction(named: Text("サブエージェントを閉じる"), onDismiss)
+
+            if let stopTitle, let onStop {
+                Button(action: onStop) {
+                    Text(stopTitle)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(isStopEnabled ? DSColor.textPrimary : DSColor.textTertiary)
+                        .padding(.horizontal, 5)
+                        .frame(height: 16)
+                }
+                .buttonStyle(.plain)
+                .disabled(!isStopEnabled)
+                .help(isStopEnabled ? "サブエージェントを停止" : "サブエージェントの停止を処理中")
+                .accessibilityIdentifier("SubAgentStrip.stop")
+            }
 
             if dismissPresentation.isVisible {
                 Button(action: onDismiss) {

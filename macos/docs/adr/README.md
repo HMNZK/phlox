@@ -12,6 +12,7 @@ last-verified: 2026-09-14
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0177 | [Claude / Codex / Cursor のサブエージェント表示を共通化する](0177-shared-subagent-presentation-across-agents.md) | accepted |
 | 0176 | [Control API のモデル変更を codex にも通す（2系統の経路を outcome で束ねる）](0176-control-api-model-routing-covers-codex.md) | accepted |
 | 0175 | [回答本文と処理詳細を意味別に分けて表示する](0175-transcript-answer-and-process-separation.md) | accepted |
 | 0174 | [表示切替後のターミナル空白を、接続先の所有権管理で防ぐ](0174-terminal-mount-ownership-prevents-blank-after-view-mode-switch.md) | active |

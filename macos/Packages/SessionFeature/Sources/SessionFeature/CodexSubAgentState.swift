@@ -1,5 +1,47 @@
 import Foundation
 
+enum CodexSubAgentPresentation {
+    private static let displayIDPrefix = "codex-subagent:"
+
+    static func displayID(for threadID: String) -> String {
+        displayIDPrefix + threadID
+    }
+
+    static func threadID(from displayID: String) -> String? {
+        guard displayID.hasPrefix(displayIDPrefix) else { return nil }
+        return String(displayID.dropFirst(displayIDPrefix.count))
+    }
+
+    static func ref(for child: CodexChildThread) -> SubAgentRef {
+        let summary = child.summary?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return SubAgentRef(
+            id: displayID(for: child.id),
+            subagentType: "Codex",
+            description: summary.isEmpty || summary.contains(child.id) ? "Codex サブエージェント" : summary,
+            status: status(for: child.status),
+            startedAt: .distantPast
+        )
+    }
+
+    static func status(for status: String) -> SubAgentStatus {
+        switch status.lowercased() {
+        case "active", "running", "inprogress", "in_progress": .running
+        case "idle", "completed", "interrupted", "cancelled", "canceled": .completed
+        default: .failed
+        }
+    }
+
+    static func isVisibleInStrip(_ ref: SubAgentRef, isDismissed: Bool) -> Bool {
+        ref.status != .completed && !isDismissed
+    }
+
+    static func transcript(_ lines: [String], displayID: String) -> [ChatItem] {
+        lines.enumerated().map { index, text in
+            .agentMessage(id: "\(displayID)-message-\(index)", text: text, timestamp: .distantPast)
+        }
+    }
+}
+
 public struct CodexChildThread: Identifiable, Equatable, Sendable {
     public let id: String
     public let parentThreadId: String

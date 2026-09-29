@@ -357,7 +357,7 @@ func notificationGap_chatProcessNonZeroExit_marksEndedAndSendsTheExitCode() asyn
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
     #expect(vm.processExit == nil)
     client.yield(.processExited(exitCode: 3))
-    try await waitForNotificationGap { vm.processExit != nil }
+    try await waitForNotificationGap { notifier.kinds.contains(.exited(code: 3)) }
 
     #expect(vm.processExit == ChatProcessExit(exitCode: 3))
     #expect(vm.status == .error(message: "exit code 3"))
@@ -379,7 +379,7 @@ func notificationGap_chatProcessZeroExit_isCompletedWithoutAnExitNotification() 
 
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
     client.yield(.processExited(exitCode: 0))
-    try await waitForNotificationGap { vm.processExit != nil }
+    try await waitForNotificationGap { vm.status == .completed(exitCode: 0) }
 
     #expect(vm.status == .completed(exitCode: 0))
     #expect(!notifier.kinds.contains(.exited(code: 0)))
@@ -427,7 +427,7 @@ func notificationGap_chatProcessExitAfterAnUnnotifiedError_sendsTheExitCode() as
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
     client.yield(.error(message: "idle failure"))
     client.yield(.processExited(exitCode: 2))
-    try await waitForNotificationGap { vm.processExit != nil }
+    try await waitForNotificationGap { notifier.kinds.contains(.exited(code: 2)) }
 
     #expect(vm.status == .error(message: "idle failure"))
     #expect(notifier.kinds == [.exited(code: 2)])
@@ -447,7 +447,7 @@ func notificationGap_chatProcessExitWithoutACode_isNotShownAsCompleted() async t
 
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
     client.yield(.processExited(exitCode: nil))
-    try await waitForNotificationGap { vm.processExit != nil }
+    try await waitForNotificationGap { vm.status == .error(message: "process exited") }
 
     #expect(vm.status == .error(message: "process exited"))
 }

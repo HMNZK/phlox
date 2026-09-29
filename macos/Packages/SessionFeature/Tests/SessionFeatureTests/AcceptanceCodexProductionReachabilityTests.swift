@@ -68,8 +68,10 @@ struct AcceptanceCodexProductionReachabilityTests {
         }
     }
 
-    @Test("CodexSessionSurface は実状態の plan/subagent を識別できる")
-    func codexSessionSurfaceExposesProductionStateAndActions() async throws {
+    @Test("Codex子完了後もグリッドでメインへ戻れる")
+    func gridCanReturnToMainAfterCodexSubAgentCompletes() async throws {
+        var regressionWindow: NSWindow?
+        defer { regressionWindow?.close() }
         try await withStack(subAgentOutOfOrder: true) { viewModel, _, transport in
             let threadID = try #require(viewModel.threadId)
             transport.receive(planNotification(threadID: threadID))
@@ -86,15 +88,63 @@ struct AcceptanceCodexProductionReachabilityTests {
                     await secondRefresh.value
                     let child = try #require(viewModel.codexSubAgentState?.children.first)
                     #expect(child.id == "child-new")
-                    await viewModel.loadCodexSubAgentDetail(threadID: child.id)
-                    let childDetail = try #require(viewModel.codexSubAgentState?.detail(for: child.id))
-
                     #expect(viewModel.codexPlanTaskState?.tasks.map(\.title) == ["inspect", "verify"])
                     #expect(child.summary == "child-new")
-                    #expect(childDetail.threadId == child.id)
+                    let displayRef = try #require(viewModel.displaySubAgents.first {
+                        $0.id == CodexSubAgentPresentation.displayID(for: child.id)
+                    })
+                    #expect(displayRef.description == "Codex サブエージェント")
+                    #expect(displayRef.subagentType == "Codex")
+                    #expect(viewModel.stripSubAgents.map(\.id) == [displayRef.id])
 
-                    let surface = CodexSessionSurface(viewModel: viewModel)
-                        .accessibilityElement(children: .contain)
+                    await viewModel.refreshCodexSubAgents()
+                    let markerCount = viewModel.transcript.filter { item in
+                        if case .subAgentMarker(let id, _, _, _) = item { return id == displayRef.id }
+                        return false
+                    }.count
+                    #expect(markerCount == 1)
+
+                    viewModel.selectSubAgent(displayRef.id)
+                    try await waitFor("shared selection loads Codex thread/read") {
+                        viewModel.codexSubAgentState?.detail(for: child.id) != nil
+                    }
+                    let childDetail = try #require(viewModel.codexSubAgentState?.detail(for: child.id))
+                    #expect(childDetail.threadId == child.id)
+                    #expect((await transport.methods()).filter { $0 == "thread/read" }.count >= 3)
+                    #expect(viewModel.subAgentTranscript(for: displayRef.id).contains {
+                        if case .agentMessage(_, let text, _) = $0 { return text == "child-new detail" }
+                        return false
+                    })
+
+                    let sharedStrip = SubAgentStrip(
+                        subAgents: viewModel.stripSubAgents,
+                        selectedSubAgentId: viewModel.selectedSubAgentId,
+                        includesMainButton: true,
+                        onSelectMain: { viewModel.selectSubAgent(nil) },
+                        onSelectSubAgent: { viewModel.selectSubAgent($0) },
+                        onDismiss: { viewModel.dismissSubAgent($0) },
+                        onStop: { displayID in
+                            guard let id = viewModel.codexSubAgentThreadID(forDisplayID: displayID) else { return }
+                            Task { await viewModel.stopCodexSubAgent(threadID: id) }
+                        },
+                        canStop: { viewModel.codexSubAgentStopState(forDisplayID: $0) == .available },
+                        isStopping: { viewModel.codexSubAgentStopState(forDisplayID: $0) == .stopping }
+                    )
+                    let sharedDrawer = SubAgentDrawerView(
+                        subAgent: displayRef,
+                        transcript: viewModel.subAgentTranscript(for: displayRef.id),
+                        agentDescriptor: AgentRegistry.descriptor(for: .codex),
+                        canSendFollowUp: false,
+                        onSendFollowUp: { _ in },
+                        onClose: { viewModel.selectSubAgent(nil) },
+                        showsFollowUpComposer: false
+                    )
+                    let surface = VStack(spacing: 0) {
+                        sharedStrip
+                        sharedDrawer
+                        CodexSessionSurface(viewModel: viewModel)
+                    }
+                    .accessibilityElement(children: .contain)
                     let app = NSApplication.shared
                     app.setActivationPolicy(.prohibited)
                     app.finishLaunching()
@@ -110,7 +160,7 @@ struct AcceptanceCodexProductionReachabilityTests {
                     window.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
                     window.alphaValue = 0
                     window.contentView = hosting
-                    defer { window.close() }
+                    regressionWindow = window
                     window.orderBack(nil)
                     settleHeadlessView(hosting)
 
@@ -118,7 +168,10 @@ struct AcceptanceCodexProductionReachabilityTests {
                     let expectedIdentifiers = [
                         "CodexSessionSurface",
                         "CodexPlanTaskList",
-                        "CodexSubAgent.\(child.id)",
+                        "SubAgentStrip",
+                        "SubAgentStrip.row",
+                        "SubAgentStrip.stop",
+                        "SubAgentDrawerView",
                     ]
                     for identifier in expectedIdentifiers {
                         #expect(
@@ -126,12 +179,45 @@ struct AcceptanceCodexProductionReachabilityTests {
                             "実ランタイムAXツリーに identifier がない: \(identifier)"
                         )
                     }
+                    #expect(elements.contains { $0.identifier == "CodexSubAgent.\(child.id)" } == false)
+                    #expect(elements.contains { $0.identifier == "SubAgentDrawer.input" } == false)
                     #expect(elements.contains { $0.identifier?.hasPrefix("CodexBackgroundTerminal.") == true } == false)
                     let displayedText = Set(elements.flatMap { [$0.title, $0.value, $0.description].compactMap { $0 } })
-                    // 04 D1（ユーザー承認 2026-09-24「全部モックに合わせる」）: 会話の中のプランカードの見出し「プラン 0 / 2 完了」。
-                    // ステップ名 inspect は viewModel 照合（上）で維持。
                     #expect(displayedText.contains { $0.contains("0 / 2 完了") })
-                    #expect(displayedText.contains { $0.contains("child-new") })
+                    #expect(displayedText.contains { $0.contains("Codex サブエージェント") })
+                    #expect(displayedText.contains { $0.contains("child-new detail") })
+                    #expect(!displayedText.contains(child.id))
+
+                    await transport.completeSubAgent()
+                    await viewModel.refreshCodexSubAgents()
+                    try await waitFor("完了した子がstripから外れても選択状態を保つ") {
+                        viewModel.stripSubAgents.isEmpty
+                            && viewModel.displaySubAgents.first?.status == .completed
+                    }
+                    #expect(viewModel.selectedSubAgentId == displayRef.id)
+                    #expect(viewModel.subAgentTranscript(for: displayRef.id).contains {
+                        if case .agentMessage(_, let text, _) = $0 { return text == "child-new detail" }
+                        return false
+                    })
+
+                    let gridWindowTitle = "CodexSubAgentGridRegression"
+                    let gridHosting = NSHostingView(rootView: GridChatColumn(
+                        viewModel: viewModel,
+                        onFocusGained: {}
+                    ))
+                    gridHosting.frame = NSRect(x: 0, y: 0, width: 960, height: 720)
+                    window.title = gridWindowTitle
+                    window.contentView = gridHosting
+                    settleHeadlessView(gridHosting)
+
+                    let gridAXWindow = try #require(axWindowElement(withTitle: gridWindowTitle))
+                    let completedGridElements = axElements(in: gridAXWindow)
+                    #expect(completedGridElements.contains { $0.identifier == "SubAgentStrip" })
+                    #expect(completedGridElements.contains { $0.identifier == "SubAgentStrip.main" })
+                    #expect(!completedGridElements.contains { $0.identifier == "SubAgentStrip.row" })
+                    #expect(viewModel.selectedSubAgentId == displayRef.id)
+                    viewModel.selectSubAgent(nil)
+                    #expect(viewModel.selectedSubAgentId == nil)
 
                 }
             }
@@ -282,6 +368,13 @@ private func axElements(in app: NSApplication) -> [AXTestElement] {
     return windows.flatMap(axElements(in:))
 }
 
+@MainActor
+private func axWindowElement(withTitle title: String) -> AXUIElement? {
+    let appElement = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
+    let windows = axValue(appElement, kAXWindowsAttribute) as? [AXUIElement] ?? []
+    return windows.first { axValue($0, kAXTitleAttribute) as? String == title }
+}
+
 private func axElements(in element: AXUIElement) -> [AXTestElement] {
     let result = AXTestElement(
         identifier: axValue(element, kAXIdentifierAttribute) as? String,
@@ -370,6 +463,7 @@ final class CodexProductionTransport: AppServerTransport, @unchecked Sendable {
     private actor State {
         private var requests: [JSONValue] = []
         private var subAgentListCalls = 0
+        private var subAgentStatus = "active"
         private var skillListResponses: [JSONValue]
         private var skillListCalls = 0
 
@@ -388,6 +482,14 @@ final class CodexProductionTransport: AppServerTransport, @unchecked Sendable {
         func nextSubAgentListCall() -> Int {
             subAgentListCalls += 1
             return subAgentListCalls
+        }
+
+        func completeSubAgent() {
+            subAgentStatus = "idle"
+        }
+
+        func currentSubAgentStatus() -> String {
+            subAgentStatus
         }
 
         func nextSkillListResponse() -> JSONValue? {
@@ -456,8 +558,9 @@ final class CodexProductionTransport: AppServerTransport, @unchecked Sendable {
                request["params"]?["parentThreadId"]?.stringValue == "live-thread" {
                 let call = await state.nextSubAgentListCall()
                 let childID = call == 1 ? "child-old" : "child-new"
+                let status = await state.currentSubAgentStatus()
                 result = .object([
-                    "data": .array([childJSON(id: childID, parent: "live-thread", includeTurns: false)]),
+                    "data": .array([childJSON(id: childID, parent: "live-thread", includeTurns: false, status: status)]),
                     "nextCursor": .null,
                 ])
             } else {
@@ -521,6 +624,10 @@ final class CodexProductionTransport: AppServerTransport, @unchecked Sendable {
 
     func methods() async -> [String] {
         await state.methods()
+    }
+
+    func completeSubAgent() async {
+        await state.completeSubAgent()
     }
 
     func waitForMethod(
@@ -598,7 +705,7 @@ final class CodexProductionTransport: AppServerTransport, @unchecked Sendable {
         return .object(object)
     }
 
-    private func childJSON(id: String, parent: String, includeTurns: Bool) -> JSONValue {
+    private func childJSON(id: String, parent: String, includeTurns: Bool, status: String = "active") -> JSONValue {
         var object: [String: JSONValue] = [
             "id": .string(id),
             "cliVersion": .string("0.147.0"),
@@ -609,7 +716,7 @@ final class CodexProductionTransport: AppServerTransport, @unchecked Sendable {
             "preview": .string(id),
             "sessionId": .string("session-(id)"),
             "source": .object(["subAgent": .object(["parentThreadId": .string(parent)])]),
-            "status": .object(["type": .string("active"), "activeFlags": .array([])]),
+            "status": .object(["type": .string(status), "activeFlags": .array([])]),
             "turns": .array([]),
             "updatedAt": .number(2),
             "parentThreadId": .string(parent),

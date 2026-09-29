@@ -325,7 +325,7 @@ struct SidebarSessionRow<Menu: View>: View {
         let center = ShimmerBandModel.bandCenter(phase: SidebarTitleShimmer.phase(at: date))
         let range = 1 - ShimmerBandModel.minBrightness
         let glowColor = DSColor.isDark ? Color.white : Color.black
-        let glowOpacity = DSColor.isDark ? 0.9 : 0.35
+        let glowOpacity = DSColor.isDark ? 0.75 : 0.30
         return (0...20).map { index in
             let position = Double(index) / 20
             let brightness = ShimmerBandModel.brightness(position: position, phase: center)

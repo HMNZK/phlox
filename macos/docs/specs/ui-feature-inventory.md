@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-09-23
+last-verified: 2026-09-29
 ---
 
 # Phlox macOS UI 機能インベントリ
@@ -67,7 +67,7 @@ last-verified: 2026-09-23
 
 | 機能 | ユーザー操作 | 表示データ | 状態 | 関連設定 | 根拠 file:line |
 |---|---|---|---|---|---|
-| プロジェクト一覧表示 | — | プロジェクト名・展開状態 | 展開/折りたたみ | — | `DashboardSidebarView.swift:63-70` |
+| プロジェクト一覧表示 | — | プロジェクト名・展開状態。右端にセッション数・実行中件数は出さない | 展開/折りたたみ | — | `DashboardSidebarView.swift`, `SidebarRows.swift` |
 | プロジェクト追加 | 見出し右「+」クリック | NSOpenPanel でフォルダ選択 | — | — | `DashboardSidebarView.swift:92-109`, `DashboardView.swift:758-772` |
 | プロジェクト展開/折りたたみ | シェブロンクリック | `expandedProjectIDs` | 展開/折りたたみ（アニメーション0.12s） | — | `DashboardSidebarView.swift:111-126, 232-242` |
 | プロジェクト選択（single起点） | フォルダアイコンクリック | `router.selectedProjectID` | 選択中/未選択 | — | `:127-129, 331-335` |
@@ -76,11 +76,11 @@ last-verified: 2026-09-23
 | プロジェクト削除 | 「…」メニュー→削除／右クリック | 確認ダイアログ（子孫件数を含む文言、フォルダ自体は削除されない旨） | 破壊的操作 | — | `DashboardSidebarView.swift:137-139, 356-357`, `DashboardView.swift:129-147`, `DashboardViewModelSupportingTypes.swift:19-33` |
 | 新規セッションメニュー | 「+」メニュー | `NewSessionMenuModel`: プライマリ（新規チャット）＋チャット/ターミナル セクション | 無効化条件は上位から | エージェント種別ごと chat/terminal 対応 | `DashboardSidebarView.swift:140-143, 373-387`, `NewSessionMenuModel.swift`, `DashboardView.swift:689-717` |
 | 未割当セッション表示 | — | 「その他」セクション | — | — | `DashboardSidebarView.swift:71-81` |
-| セッション行表示 | — | ステータスドット・ラベル・エージェントアイコン・タイトル（省略表記）・相対経過時間（1分毎更新） | running/starting/awaitingApproval/idle/その他（`StatusDot`/`StatusLabel`, SessionFeature側実装） | — | `DashboardSidebarView.swift:458-493`, `SessionSidebarRowIconLayout.swift` |
+| セッション行表示 | — | セッション名。右端のエージェント略称・経過時間・「実行中」は出さない | 実行中は名前全体が点滅（動きを減らす設定では静止） | — | `SidebarRows.swift` |
 | セッションツリー展開/折りたたみ | 子持ち行のシェブロン | `SessionTreeViewModel.Row` | 展開/折りたたみ | — | `DashboardSidebarView.swift:146-153, 176-189, 525-542` |
-| セッション選択 | 行クリック | `router.selectedSession` | 選択中（アクセントの左マーカー・太字） | — | `:155-163, 458-521`, `SidebarRowEmphasis.swift:36-59` |
-| ホバー強調 | マウスホバー | 背景色変化 | ホバー中 | — | `DashboardSidebarView.swift:396-400, 516-520` |
-| 要注意（未読完了）表示 | — | プロジェクトアイコンの不透明度変化・行背景 `idleHighlight` | requiresAttention | — | `:115, 121, 409-419`, `SidebarRowEmphasis.swift:45-47` |
+| セッション選択 | 行クリック | `router.selectedSession` | 選択中はグレーの面 | — | `DashboardSidebarView.swift`, `SidebarRowEmphasis.swift` |
+| セッション名ホバー | 名前にマウスホバー | 名前・エージェント・状態・経過時間・プロジェクト名とセッション数・作業ディレクトリをカード表示 | ポインタをカードへ移しても表示を維持 | — | `SidebarRows.swift` |
+| 要注意（未読完了・質問待ち）表示 | — | セッション行をオレンジの面で強調 | 選択中でも状態の色を優先 | — | `SidebarRowEmphasis.swift`, `DashboardSidebarView.swift` |
 | セッション名変更 | 右クリック→名前を変更 | alert + TextField（空欄で短縮ID表示に戻る） | — | — | `DashboardSidebarView.swift:205-208`, `DashboardView.swift:901-917` |
 | セッションのプロジェクト変更（未割当→割当） | 右クリック→プロジェクトを変更 | NSOpenPanel でフォルダ選択→再起動 | 破壊的（ターミナル内容喪失を警告） | — | `DashboardSidebarView.swift:209-212`, `DashboardView.swift:148-160, 774-794` |
 | セッションを別プロジェクトへ移動 | 右クリック→別のプロジェクトへ移動（サブメニュー） | 移動先候補（現在以外の全プロジェクト） | — | — | `DashboardSidebarView.swift:213-225`, `DashboardViewModel.swift:1257-1270` |

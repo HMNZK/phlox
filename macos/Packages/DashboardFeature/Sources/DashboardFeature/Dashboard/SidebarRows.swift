@@ -26,8 +26,6 @@ struct SidebarProjectRow<Menu: View, NewSession: View>: View {
     let isScoped: Bool
     let showsScopeMark: Bool
     let collapsedSummary: SidebarCollapsedSummary
-    let running: RunningSessionBreakdown
-    let sessionCount: Int
     let isRenaming: Bool
     @Binding var renameDraft: String
     let onSelect: (_ commandPressed: Bool) -> Void
@@ -121,20 +119,11 @@ struct SidebarProjectRow<Menu: View, NewSession: View>: View {
         .accessibilityAction(named: Text("このプロジェクトに新規セッション")) { isNewSessionOpen = true }
     }
 
-    /// 右端: 畳んだ行の要約・「n 実行中」（無ければ畳んだ行の件数）・グリッドの表示範囲の印。
+    /// 右端: 畳んだ行の対応待ち要約・グリッドの表示範囲の印。
     @ViewBuilder
     private var trailingMeta: some View {
-        let trailing = SidebarRowMeta.project(isExpanded: isExpanded, summary: collapsedSummary, runningCount: running.total)
-        if trailing.showsSummary {
+        if !isExpanded, !collapsedSummary.isEmpty {
             SidebarSummaryText(summary: collapsedSummary)
-        }
-        if trailing.showsRunning {
-            RunningCountBadge(count: running.total, nestedOrchestrationCount: running.nestedOrchestration)
-        } else if trailing.showsCount {
-            Text(verbatim: "\(sessionCount)")
-                .font(DSFont.meta)
-                .foregroundStyle(DSColor.textTertiary)
-                .monospacedDigit()
         }
         if showsScopeMark {
             GridScopeShape()
@@ -158,6 +147,8 @@ struct SidebarProjectRow<Menu: View, NewSession: View>: View {
 
 struct SidebarSessionRow<Menu: View>: View {
     let node: SessionNode
+    let projectName: String
+    let projectSessionCount: Int
     let depth: Int
     let hasChildren: Bool
     let isExpanded: Bool
@@ -173,9 +164,12 @@ struct SidebarSessionRow<Menu: View>: View {
     @ViewBuilder let menu: () -> Menu
 
     @State private var isHovering = false
+    @State private var isCardPresented = false
+    @State private var cardDismissTask: Task<Void, Never>?
     /// 読み上げの経過を 1 分ごとに作り直すための時計。
     @State private var labelClock = Date()
     @Environment(\.locale) private var locale
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
     private var state: SessionDisplayState { node.tabDisplayState }
@@ -183,7 +177,7 @@ struct SidebarSessionRow<Menu: View>: View {
     private var padding: CGFloat { SidebarRowMetrics.leadingPadding(depth: depth) }
 
     private var emphasis: SidebarRowEmphasis {
-        .resolve(.session(isCurrent: isSelected, isHovering: isHovering, hasUnseenCompletion: isUnread))
+        .resolve(.session(isCurrent: isSelected, isHovering: isHovering, state: state))
     }
 
     var body: some View {
@@ -196,18 +190,10 @@ struct SidebarSessionRow<Menu: View>: View {
                     onCancel: onCancelRename
                 )
             } else {
-                Text(verbatim: node.displayName)
-                    .font(DSFont.row.weight(emphasis.nameWeight))
-                    .foregroundStyle(DSColor.textPrimary)
+                sessionTitle
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                if isUnread {
-                    Circle()
-                        .fill(DSColor.accent)
-                        .frame(width: 6, height: 6)
-                        .accessibilityHidden(true)
-                }
                 if hasChildren, !isExpanded {
                     // 「+2 ▲」: 件数と、子の中の対応待ち・未読を記号だけで（PhloxSidebar.dc.html:133）。
                     HStack(spacing: 3) {
@@ -230,12 +216,6 @@ struct SidebarSessionRow<Menu: View>: View {
                     .fixedSize()
                     .help(Text("セッションの操作"))
                     .accessibilityLabel(Text("セッションの操作"))
-                } else {
-                    Text(verbatim: node.agentDescriptor.tabInitials)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(DSColor.textTertiary)
-                        .frame(minWidth: 13)
-                    meta
                 }
             }
         }
@@ -249,7 +229,6 @@ struct SidebarSessionRow<Menu: View>: View {
         .onTapGesture(perform: onSelect)
         .onHover { isHovering = $0 }
         .modifier(SidebarMenuOpenRing(menu: menu))
-        .help(Text(verbatim: helpText))
         // 名前の編集中は入力欄に届くよう子を残す。
         .accessibilityElement(children: isRenaming ? .contain : .ignore)
         .accessibilityLabel(accessibilityText)
@@ -272,35 +251,74 @@ struct SidebarSessionRow<Menu: View>: View {
         }
     }
 
-    /// 右端: 待機は経過時間（1 分ごと）、それ以外は状態の文言（対応待ちは状態色）。
+    /// 実行中だけ名前全体を点滅させる。動きを減らす設定では静止する。
     @ViewBuilder
-    private var meta: some View {
-        if SidebarRowMeta.session(state) == .elapsed {
-            TimelineView(.periodic(from: node.startedAt, by: 60)) { context in
-                Text(verbatim: SidebarRelativeTime.label(from: node.startedAt, to: context.date, locale: locale))
-                    .font(DSFont.meta)
-                    .foregroundStyle(DSColor.textTertiary)
-                    .monospacedDigit()
-                    .fixedSize()
+    private var sessionTitle: some View {
+        Group {
+            if state == .running, !reduceMotion {
+                TimelineView(.periodic(from: .now, by: 0.7)) { context in
+                    titleText.opacity(Int(context.date.timeIntervalSinceReferenceDate / 0.7) % 2 == 0 ? 1 : 0.3)
+                }
+            } else {
+                titleText
             }
-        } else if state == .stalled {
-            // 「無応答 2:14」（13 Review）。1 秒ごとに更新する。
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                stateText(node.stalledSilence(now: context.date).map {
-                    "\(state.localizedLabel(locale: locale)) \(StallClock.text($0))"
-                } ?? state.localizedLabel(locale: locale))
-            }
-        } else {
-            stateText(state.localizedLabel(locale: locale))
+        }
+        .contentShape(Rectangle())
+        .onHover(perform: hoverCard)
+        .popover(isPresented: $isCardPresented, arrowEdge: .trailing) {
+            hoverCardContent
+                .onHover(perform: hoverCard)
         }
     }
 
-    private func stateText(_ text: String) -> some View {
-        Text(verbatim: text)
-            .font(DSFont.meta.weight(state.attentionKind != nil ? .semibold : state == .running ? .medium : .regular))
-            .monospacedDigit()
-            .foregroundStyle(state.color)
-            .fixedSize()
+    private var titleText: some View {
+        Text(verbatim: node.displayName)
+            .font(DSFont.row.weight(emphasis.nameWeight))
+            .foregroundStyle(DSColor.textPrimary)
+    }
+
+    private var hoverCardContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "bubble.left")
+                Text(verbatim: node.displayName)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(DSFont.row.weight(.semibold))
+            HStack(spacing: 8) {
+                Label(node.agentDescriptor.displayName, systemImage: "person.crop.circle")
+                Spacer(minLength: 12)
+                Text(verbatim: state.localizedLabel(locale: locale))
+                    .foregroundStyle(state.color)
+            }
+            Divider()
+            Label("\(projectName) · \(projectSessionCount)件のセッション", systemImage: "folder")
+            Label((node.workspacePath as NSString).abbreviatingWithTildeInPath, systemImage: "folder.badge.gearshape")
+                .textSelection(.enabled)
+            TimelineView(.periodic(from: node.startedAt, by: 60)) { context in
+                Text(verbatim: SidebarRelativeTime.label(from: node.startedAt, to: context.date, locale: locale))
+                    .font(DSFont.meta)
+                    .foregroundStyle(DSColor.textSecondary)
+            }
+        }
+        .font(DSFont.row)
+        .lineLimit(nil)
+        .foregroundStyle(DSColor.textPrimary)
+        .padding(16)
+        .frame(minWidth: 280, maxWidth: 420, alignment: .leading)
+    }
+
+    private func hoverCard(_ hovering: Bool) {
+        cardDismissTask?.cancel()
+        if hovering {
+            isCardPresented = true
+        } else {
+            cardDismissTask = Task {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled else { return }
+                isCardPresented = false
+            }
+        }
     }
 
     /// 子を持つ行の左余白のシェブロン。
@@ -322,18 +340,9 @@ struct SidebarSessionRow<Menu: View>: View {
         }
     }
 
-    private var helpText: String {
-        SessionTitlePresentation(
-            state: node.titleState,
-            fallback: SessionViewModel.shortID(for: node.id),
-            workspacePath: node.workspacePath
-        ).helpText
-    }
-
     /// 読み上げの経過の起点（対応待ちは状態に入った時刻、待機は行の右端と同じ時刻）。
     private var elapsedSince: Date? {
-        state.attentionKind != nil ? node.statusEnteredAt
-            : SidebarRowMeta.session(state) == .elapsed ? node.startedAt : nil
+        state.attentionKind != nil ? node.statusEnteredAt : state == .idle ? node.startedAt : nil
     }
 
     /// 「タイトル、状態、経過、未読、エージェント、子セッション n 件」（モックの aria-label と同じ並び）。

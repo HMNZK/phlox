@@ -259,7 +259,7 @@ struct DashboardSidebarView: View {
                 .padding(.top, 14)
                 .padding(.bottom, 3)
             ForEach(unassigned, id: \.id) { node in
-                sessionRow(node, depth: 1, treeRow: nil, forest: [])
+                sessionRow(node, depth: 1, treeRow: nil, forest: [], projectSessionCount: unassigned.count)
             }
         }
     }
@@ -332,8 +332,6 @@ struct DashboardSidebarView: View {
             isScoped: router.gridFilterProjectID == project.id,
             showsScopeMark: router.viewMode == .grid && router.gridFilterProjectID == project.id,
             collapsedSummary: .make(states),
-            running: viewModel.runningBreakdown(in: project.id),
-            sessionCount: states.count,
             isRenaming: renaming == .project(project.id),
             renameDraft: $renameDraft,
             onSelect: { commandPressed in
@@ -356,11 +354,12 @@ struct DashboardSidebarView: View {
     @ViewBuilder
     private func projectSessionRows(_ project: Project) -> some View {
         let forest = viewModel.sessionForest(in: project.id)
+        let sessionCount = forest.flatMap(Self.flatten).count
         ForEach(treeLines(forest)) { line in
             switch line {
             case .session(let row, let offset):
                 if let node = viewModel.sessionNode(id: row.id) {
-                    sessionRow(node, depth: row.depth + 1 + offset, treeRow: row, forest: forest)
+                    sessionRow(node, depth: row.depth + 1 + offset, treeRow: row, forest: forest, projectSessionCount: sessionCount)
                 }
             case .internalSessions(let parent, let depth, let count, let isExpanded):
                 SidebarInternalSessionsRow(depth: depth + 1, count: count, isExpanded: isExpanded) {
@@ -403,12 +402,15 @@ struct DashboardSidebarView: View {
         _ node: SessionNode,
         depth: Int,
         treeRow: SessionTreeViewModel.Row?,
-        forest: [SessionTreeNode]
+        forest: [SessionTreeNode],
+        projectSessionCount: Int
     ) -> some View {
         let children = treeRow?.hasChildren == true ? Self.findNode(node.id, in: forest)?.children ?? [] : []
         let descendantStates = children.filter { $0.launchContext != .orchestration }.flatMap(Self.flatten).compactMap { viewModel.sessionNode(id: $0.id)?.tabDisplayState }
         return SidebarSessionRow(
             node: node,
+            projectName: projectName(for: node) ?? "その他",
+            projectSessionCount: projectSessionCount,
             depth: depth,
             hasChildren: treeRow?.hasChildren ?? false,
             isExpanded: treeRow?.isExpanded ?? false,
@@ -823,7 +825,8 @@ private struct SidebarAttentionRow: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(
-                isSelected ? DSColor.selectionFill : isHovering ? DSColor.fillSubtle : Color.clear,
+                state == .question || state == .doneUnread ? DSColor.selectionFill
+                    : isSelected ? DSColor.fillSelected : isHovering ? DSColor.fillSubtle : Color.clear,
                 in: RoundedRectangle(cornerRadius: DSRadius.row)
             )
             .contentShape(Rectangle())

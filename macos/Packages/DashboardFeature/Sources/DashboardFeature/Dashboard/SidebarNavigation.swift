@@ -56,38 +56,6 @@ struct SidebarCollapsedSummary: Equatable {
     }
 }
 
-/// 行の右端に何を出すか（03 行の規則・S1・S4・S5）。
-enum SidebarRowMeta {
-    struct ProjectTrailing: Equatable {
-        /// 畳んだ行の中身の要約（対応待ち・未読）。
-        let showsSummary: Bool
-        /// 「n 実行中」。
-        let showsRunning: Bool
-        /// 実行中が無い畳んだ行の件数。
-        let showsCount: Bool
-    }
-
-    static func project(isExpanded: Bool, summary: SidebarCollapsedSummary, runningCount: Int) -> ProjectTrailing {
-        ProjectTrailing(
-            showsSummary: !isExpanded && !summary.isEmpty,
-            showsRunning: runningCount > 0,
-            showsCount: !isExpanded && runningCount == 0
-        )
-    }
-
-    enum SessionTrailing: Equatable {
-        /// 経過時間（1 分ごとに更新）。
-        case elapsed
-        /// 状態の文言（対応待ちは状態色）。
-        case state
-    }
-
-    /// 待機は経過時間、それ以外（実行中・完了・対応待ちなど）は状態の文言。
-    static func session(_ state: SessionDisplayState) -> SessionTrailing {
-        state == .idle ? .elapsed : .state
-    }
-}
-
 /// サイドバーのセッション一覧の 1 行。オーケストレーションの内部セッションは親ごとに 1 行へまとめる
 /// （PhloxSidebar の「内部セッション（オーケストレーション）」・03 G3 案 B）。
 enum SidebarTreeLine: Identifiable, Equatable {

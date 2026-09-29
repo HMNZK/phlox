@@ -145,6 +145,18 @@ struct SidebarProjectRow<Menu: View, NewSession: View>: View {
 
 // MARK: - Session row
 
+enum SidebarTitleShimmer {
+    static let sweepDuration: TimeInterval = 1.4
+    static let pauseDuration: TimeInterval = 1.0
+
+    static func phase(at date: Date) -> Double {
+        let cycle = sweepDuration + pauseDuration
+        let remainder = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycle)
+        let elapsed = remainder >= 0 ? remainder : remainder + cycle
+        return min(elapsed / sweepDuration, 1)
+    }
+}
+
 struct SidebarSessionRow<Menu: View>: View {
     let node: SessionNode
     let projectName: String
@@ -283,13 +295,12 @@ struct SidebarSessionRow<Menu: View>: View {
     }
 
     private func titleGradientStops(at date: Date) -> [Gradient.Stop] {
-        let phase = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 0.9) / 0.9
-        let center = ShimmerBandModel.bandCenter(phase: phase)
+        let center = ShimmerBandModel.bandCenter(phase: SidebarTitleShimmer.phase(at: date))
+        let range = 1 - ShimmerBandModel.minBrightness
         return (0...20).map { index in
             let position = Double(index) / 20
             let brightness = ShimmerBandModel.brightness(position: position, phase: center)
-            let range = 1 - ShimmerBandModel.minBrightness
-            let opacity = 0.7 + 0.3 * (brightness - ShimmerBandModel.minBrightness) / range
+            let opacity = 0.8 + 0.2 * (brightness - ShimmerBandModel.minBrightness) / range
             return Gradient.Stop(color: DSColor.textPrimary.opacity(opacity), location: CGFloat(position))
         }
     }

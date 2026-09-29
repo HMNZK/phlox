@@ -251,16 +251,22 @@ struct SidebarSessionRow<Menu: View>: View {
         }
     }
 
-    /// 実行中だけ名前全体を点滅させる。動きを減らす設定では静止する。
+    /// 実行中だけ明るい帯を名前の左から右へ流す。動きを減らす設定では静止する。
     @ViewBuilder
     private var sessionTitle: some View {
         Group {
             if state == .running, !reduceMotion {
-                TimelineView(.periodic(from: .now, by: 0.7)) { context in
-                    titleText.opacity(Int(context.date.timeIntervalSinceReferenceDate / 0.7) % 2 == 0 ? 1 : 0.3)
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                    titleText.foregroundStyle(
+                        LinearGradient(
+                            stops: titleGradientStops(at: context.date),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
                 }
             } else {
-                titleText
+                titleText.foregroundStyle(DSColor.textPrimary)
             }
         }
         .contentShape(Rectangle())
@@ -274,7 +280,18 @@ struct SidebarSessionRow<Menu: View>: View {
     private var titleText: some View {
         Text(verbatim: node.displayName)
             .font(DSFont.row.weight(emphasis.nameWeight))
-            .foregroundStyle(DSColor.textPrimary)
+    }
+
+    private func titleGradientStops(at date: Date) -> [Gradient.Stop] {
+        let phase = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 0.9) / 0.9
+        let center = ShimmerBandModel.bandCenter(phase: phase)
+        return (0...20).map { index in
+            let position = Double(index) / 20
+            let brightness = ShimmerBandModel.brightness(position: position, phase: center)
+            let range = 1 - ShimmerBandModel.minBrightness
+            let opacity = 0.7 + 0.3 * (brightness - ShimmerBandModel.minBrightness) / range
+            return Gradient.Stop(color: DSColor.textPrimary.opacity(opacity), location: CGFloat(position))
+        }
     }
 
     private var hoverCardContent: some View {

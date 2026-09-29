@@ -281,6 +281,12 @@ struct SubAgentStripRow: View {
             // ✕ はポインタを置いた時だけ出るので、VoiceOver からは行の操作として閉じられるようにする。
             .accessibilityAction(named: Text("サブエージェントを閉じる"), onDismiss)
 
+            if subAgent.status == .running {
+                ProgressView()
+                    .controlSize(.mini)
+                    .accessibilityHidden(true)
+            }
+
             if let stopTitle, let onStop {
                 Button(action: onStop) {
                     Text(stopTitle)

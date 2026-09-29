@@ -98,6 +98,9 @@ final class ChatSubAgentModel {
     ) {
         if let index = subAgents.firstIndex(where: { $0.id == toolUseId }) {
             let existing = subAgents[index]
+            if status == .completed, existing.status != .completed, selectedSubAgentId == toolUseId {
+                selectedSubAgentId = nil
+            }
             subAgents[index] = SubAgentRef(
                 id: existing.id,
                 subagentType: subagentType.isEmpty ? existing.subagentType : subagentType,

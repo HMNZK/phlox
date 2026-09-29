@@ -89,15 +89,16 @@ struct AcceptanceCodexProductionReachabilityTests {
                     let child = try #require(viewModel.codexSubAgentState?.children.first)
                     #expect(child.id == "child-new")
                     #expect(viewModel.codexPlanTaskState?.tasks.map(\.title) == ["inspect", "verify"])
-                    #expect(child.summary == "child-new")
+                    #expect(child.summary == "test failure investigation")
                     let displayRef = try #require(viewModel.displaySubAgents.first {
                         $0.id == CodexSubAgentPresentation.displayID(for: child.id)
                     })
-                    #expect(displayRef.description == "Codex サブエージェント")
+                    #expect(displayRef.description == "test failure investigation")
                     #expect(displayRef.subagentType == "Codex")
                     #expect(viewModel.stripSubAgents.map(\.id) == [displayRef.id])
 
                     await viewModel.refreshCodexSubAgents()
+                    #expect(viewModel.displaySubAgents.first?.description == "test failure investigation")
                     let markerCount = viewModel.transcript.filter { item in
                         if case .subAgentMarker(let id, _, _, _) = item { return id == displayRef.id }
                         return false
@@ -184,17 +185,17 @@ struct AcceptanceCodexProductionReachabilityTests {
                     #expect(elements.contains { $0.identifier?.hasPrefix("CodexBackgroundTerminal.") == true } == false)
                     let displayedText = Set(elements.flatMap { [$0.title, $0.value, $0.description].compactMap { $0 } })
                     #expect(displayedText.contains { $0.contains("0 / 2 完了") })
-                    #expect(displayedText.contains { $0.contains("Codex サブエージェント") })
+                    #expect(displayedText.contains { $0.contains("test failure investigation") })
                     #expect(displayedText.contains { $0.contains("child-new detail") })
                     #expect(!displayedText.contains(child.id))
 
                     await transport.completeSubAgent()
                     await viewModel.refreshCodexSubAgents()
-                    try await waitFor("完了した子がstripから外れても選択状態を保つ") {
+                    try await waitFor("完了した子がstripと選択状態から外れる") {
                         viewModel.stripSubAgents.isEmpty
                             && viewModel.displaySubAgents.first?.status == .completed
                     }
-                    #expect(viewModel.selectedSubAgentId == displayRef.id)
+                    #expect(viewModel.selectedSubAgentId == nil)
                     #expect(viewModel.subAgentTranscript(for: displayRef.id).contains {
                         if case .agentMessage(_, let text, _) = $0 { return text == "child-new detail" }
                         return false
@@ -212,12 +213,12 @@ struct AcceptanceCodexProductionReachabilityTests {
 
                     let gridAXWindow = try #require(axWindowElement(withTitle: gridWindowTitle))
                     let completedGridElements = axElements(in: gridAXWindow)
-                    #expect(completedGridElements.contains { $0.identifier == "SubAgentStrip" })
-                    #expect(completedGridElements.contains { $0.identifier == "SubAgentStrip.main" })
+                    #expect(!completedGridElements.contains { $0.identifier == "SubAgentStrip" })
+                    #expect(!completedGridElements.contains { $0.identifier == "SubAgentStrip.main" })
                     #expect(!completedGridElements.contains { $0.identifier == "SubAgentStrip.row" })
-                    #expect(viewModel.selectedSubAgentId == displayRef.id)
-                    viewModel.selectSubAgent(nil)
                     #expect(viewModel.selectedSubAgentId == nil)
+                    viewModel.selectSubAgent(displayRef.id)
+                    #expect(viewModel.selectedSubAgentId == displayRef.id)
 
                 }
             }
@@ -713,9 +714,12 @@ final class CodexProductionTransport: AppServerTransport, @unchecked Sendable {
             "cwd": .string(cwd),
             "ephemeral": .bool(false),
             "modelProvider": .string("openai"),
-            "preview": .string(id),
+            "preview": .string("subAgent:thread_spawn \(id)"),
             "sessionId": .string("session-(id)"),
-            "source": .object(["subAgent": .object(["parentThreadId": .string(parent)])]),
+            "source": .object(["subAgent": .object(["thread_spawn": .object([
+                "parent_thread_id": .string(parent),
+                "agent_path": .string("/root/test_failure_investigation"),
+            ])])]),
             "status": .object(["type": .string(status), "activeFlags": .array([])]),
             "turns": .array([]),
             "updatedAt": .number(2),
@@ -726,11 +730,13 @@ final class CodexProductionTransport: AppServerTransport, @unchecked Sendable {
             object["turns"] = .array([.object([
                 "id": .string("\(id)-turn"),
                 "status": .string("inProgress"),
-                "items": .array([.object([
-                    "id": .string("\(id)-item"),
-                    "type": .string("agentMessage"),
-                    "text": .string("\(id) detail"),
-                ])]),
+                "items": .array([
+                    .object([
+                        "id": .string("\(id)-item"),
+                        "type": .string("agentMessage"),
+                        "text": .string("\(id) detail"),
+                    ]),
+                ]),
             ])])
         }
         return .object(object)

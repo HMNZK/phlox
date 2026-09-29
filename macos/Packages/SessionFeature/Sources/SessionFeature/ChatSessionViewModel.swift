@@ -500,10 +500,15 @@ public final class ChatSessionViewModel: Identifiable {
                 latestByID[thread.id] = thread
             }
             var children = childOrder.compactMap { latestByID[$0].map(Self.codexChild) }
+            for index in children.indices where children[index].summary == nil {
+                let childID = children[index].id
+                children[index].summary = codexSubAgentState?.children.first { $0.id == childID }?.summary
+            }
             var readFailures: [String: String] = [:]
             var validatedReadIDs: Set<String> = []
             for index in children.indices
                 where Self.needsCodexSubAgentRead(children[index])
+                    || children[index].summary == nil
                     || codexSubAgentState?.controlState(for: children[index].id) == .stale {
                 let child = children[index]
                 do {
@@ -3281,7 +3286,7 @@ public final class ChatSessionViewModel: Identifiable {
             sourceIdentity: codexSubAgentSourceIdentity(thread.source),
             activeTurnId: activeTurn?.id,
             status: status,
-            summary: thread.preview,
+            summary: CodexSubAgentPresentation.purpose(for: thread),
             canAcceptDirectInput: thread.canAcceptDirectInput
         )
     }
@@ -3433,6 +3438,12 @@ public final class ChatSessionViewModel: Identifiable {
                 description: ref.description,
                 status: ref.status
             )
+            if ref.status == .completed, selectedSubAgentId == ref.id,
+               let index = transcriptIndexByID[marker.id],
+               case .subAgentMarker(_, _, _, let previousStatus) = transcript[index],
+               previousStatus != .completed {
+                selectSubAgent(nil)
+            }
             guard let index = transcriptIndexByID[marker.id], transcript[index] == marker else {
                 appendOrReplace(marker)
                 changedMarkers.append(marker)

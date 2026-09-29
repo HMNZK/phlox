@@ -1,4 +1,5 @@
 import Foundation
+import CodexAppServerKit
 
 enum CodexSubAgentPresentation {
     private static let displayIDPrefix = "codex-subagent:"
@@ -17,10 +18,37 @@ enum CodexSubAgentPresentation {
         return SubAgentRef(
             id: displayID(for: child.id),
             subagentType: "Codex",
-            description: summary.isEmpty || summary.contains(child.id) ? "Codex サブエージェント" : summary,
+            description: summary.isEmpty || summary == child.id ? "Codex サブエージェント" : summary,
             status: status(for: child.status),
             startedAt: .distantPast
         )
+    }
+
+    static func purpose(for thread: ThreadSummary) -> String? {
+        for turn in thread.turns ?? [] {
+            for item in turn.items ?? [] where item.type?.lowercased() == "usermessage" {
+                let text = item.text ?? item.raw?["content"]?.firstString(for: ["text"])
+                if let title = usableTitle(text, threadID: thread.id) { return title }
+            }
+        }
+        return usableTitle(thread.name, threadID: thread.id)
+            ?? (thread.preview.contains(thread.id) ? nil : usableTitle(thread.preview, threadID: thread.id))
+            ?? taskName(for: thread.source)
+    }
+
+    private static func taskName(for source: ThreadSessionSource) -> String? {
+        guard case .subAgent(let value) = source,
+              let path = value["thread_spawn"]?["agent_path"]?.stringValue,
+              let name = path.split(separator: "/").last,
+              name != "root" else { return nil }
+        return String(name).replacingOccurrences(of: "_", with: " ")
+    }
+
+    private static func usableTitle(_ text: String?, threadID: String) -> String? {
+        guard let text else { return nil }
+        let firstLine = text.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""
+        let title = firstLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        return title.isEmpty || title == threadID || title.hasPrefix("subAgent:") ? nil : title
     }
 
     static func status(for status: String) -> SubAgentStatus {
@@ -168,9 +196,11 @@ public struct CodexSubAgentState: Equatable, Sendable {
         case .validated(let child):
             guard child.parentThreadId == parentThreadId,
                   let index = children.firstIndex(where: { $0.id == child.id }) else { return }
-            children[index] = child
+            var validated = child
+            if validated.summary == nil { validated.summary = children[index].summary }
+            children[index] = validated
             staleIDs.remove(child.id)
-            updateControlState(for: child)
+            updateControlState(for: validated)
         case .detail(let threadId, let transcript):
             guard children.contains(where: { $0.id == threadId }), !staleIDs.contains(threadId) else { return }
             details[threadId] = CodexSubAgentDetail(threadId: threadId, transcript: transcript)

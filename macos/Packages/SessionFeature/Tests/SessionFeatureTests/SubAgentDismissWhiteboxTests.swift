@@ -6,6 +6,27 @@ import Testing
 @MainActor
 struct SubAgentDismissWhiteboxTests {
     @Test
+    func completionClosesSelectedDetailButKeepsHistoryReopenable() {
+        let model = ChatSubAgentModel()
+        model.upsertSubAgent(
+            toolUseId: "toolu_complete",
+            subagentType: "Explore",
+            description: "complete",
+            status: .running,
+            summary: nil,
+            outputFile: nil
+        )
+        model.selectSubAgent("toolu_complete")
+
+        model.completeSubAgent(toolUseId: "toolu_complete", status: "completed", summary: "done", outputFile: nil)
+
+        #expect(model.selectedSubAgentId == nil)
+        #expect(model.subAgents.first?.status == .completed)
+        model.selectSubAgent("toolu_complete")
+        #expect(model.selectedSubAgentId == "toolu_complete")
+    }
+
+    @Test
     func dismissKeepsSubAgentButRemovesItFromStripAndClearsSelection() {
         let model = ChatSubAgentModel()
         model.upsertSubAgent(

@@ -71,6 +71,11 @@ struct SubAgentMarkerCell: View {
             statusLabel
                 .font(.system(size: 11 * scale, weight: status == .running ? .semibold : .regular))
                 .foregroundStyle(statusColor)
+            if status == .running {
+                ProgressView()
+                    .controlSize(.mini)
+                    .accessibilityHidden(true)
+            }
             if selectAction != nil {
                 Text(verbatim: "›")
                     .font(.system(size: 13 * scale))

@@ -199,6 +199,7 @@ public enum ChatTranscriptExporter {
         case .running: return "実行中"
         case .completed: return "完了"
         case .failed: return "失敗"
+        case .stopped: return "停止"
         }
     }
 

@@ -3,7 +3,7 @@ import AgentDomain
 import DesignSystem
 import StructuredChatKit
 
-/// Codex のプラン表示。子エージェントは共通の strip / marker / drawer で表示する。
+/// Codex のプラン表示。子エージェントは共通の strip / marker で表示する。
 enum CodexSessionSurfaceAccessibilityID {
     static let root = "CodexSessionSurface"
     static let plan = "CodexPlanTaskList"

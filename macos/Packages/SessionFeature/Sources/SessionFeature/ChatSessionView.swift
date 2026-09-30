@@ -16,10 +16,6 @@ public struct ChatSessionView: View {
     /// 値の更新はトランスクリプトの NSScrollView イベント側からのみ行う（ADR 0010）。
     @State private var currentInputPositionID: String?
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
-    // サブエージェント横並び分割（Bug2/3/4）: 右ペイン比率を永続化。ドラッグ中のみ liveWidth を使う。
-    @AppStorage("phlox.chat.subAgentPaneFraction") private var subAgentPaneFraction: Double = SubAgentSplitLayout.defaultFraction
-    @State private var subAgentPaneLiveWidth: CGFloat?
-    @State private var subAgentPaneWidthAtDragStart: CGFloat = 0
     @State private var composerHeight: CGFloat = 0
 
     public init(viewModel: ChatSessionViewModel, projectName: String? = nil) {
@@ -30,81 +26,18 @@ public struct ChatSessionView: View {
     public var body: some View {
         let _ = themeID
         GeometryReader { geometry in
-            // Bug2: overlay で本文の上に浮かせず、HStack 水平分割の左右カラムとして並べる
-            // （右ペイン出現時はメインが縮んで両方可視。裏に隠れない）。
-            HStack(spacing: 0) {
-                // 幅は親から演繹する。自身のレイアウト結果を GeometryReader で計測して
-                // @State に書き、それをレイアウト入力へ戻さない（駆動源#1・ADR 0010 クラス）。
-                // 幅を固定する。中身の最小幅が割り当てを越えても HStack があふれず、右のドロワーが窓の外へ押し出されない。
-                let columnWidth = mainColumnWidth(for: geometry.size.width)
-                mainColumn(width: columnWidth)
-                    .frame(width: columnWidth, alignment: .leading)
-                    .frame(maxHeight: .infinity)
-                if let selectedSubAgent {
-                    // メイン｜サブの境界線（他の境界線と同一の 1pt separator）。
-                    Rectangle()
-                        .fill(DSColor.separator)
-                        .frame(width: 1)
-                    SubAgentDrawerView(
-                        subAgent: selectedSubAgent,
-                        transcript: viewModel.subAgentTranscript(for: selectedSubAgent.id),
-                        agentDescriptor: agentDescriptor,
-                        canSendFollowUp: viewModel.isReadyForInput
-                            && viewModel.codexSubAgentThreadID(forDisplayID: selectedSubAgent.id) == nil,
-                        onSendFollowUp: { text in
-                            Task {
-                                do {
-                                    try await viewModel.sendSubAgentFollowUp(subAgent: selectedSubAgent, text: text)
-                                } catch {
-                                    viewModel.reportError("サブエージェントへの送信に失敗しました: \(error)")
-                                }
-                            }
-                        },
-                        onClose: { viewModel.selectSubAgent(nil) },
-                        showsFollowUpComposer: viewModel.codexSubAgentThreadID(forDisplayID: selectedSubAgent.id) == nil
-                    )
-                    .frame(width: subAgentPaneWidth(for: geometry.size.width))
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .environment(\.replySubjectMaxHeight, ApprovalCard.subjectMaxHeight(availableHeight: geometry.size.height))
-            // Bug3: 境界のリサイズ掴みしろ。DashboardView のインスペクタと同型で、区切り線の
-            // 真上に最前面オーバーレイとして重ねる（右ペイン左端 = 幅ぶん左へ offset）。
-            // 表示条件はドロワー本体（`selectedSubAgent`）と同一述語に揃える。id が非nilでも
-            // subAgents に不在ならドロワーは出ないため、グリップだけ宙に浮くのを構造的に防ぐ。
-            .overlay(alignment: .topTrailing) {
-                if selectedSubAgent != nil {
-                    ResizeGripView(
-                        onChanged: { translation in
-                            let available = geometry.size.width
-                            if subAgentPaneLiveWidth == nil {
-                                subAgentPaneWidthAtDragStart = subAgentPaneWidth(for: available)
-                            }
-                            let proposed = subAgentPaneWidthAtDragStart - translation
-                            let fraction = available > 0 ? Double(proposed / available) : SubAgentSplitLayout.defaultFraction
-                            subAgentPaneLiveWidth = SubAgentSplitLayout.paneWidth(fraction: fraction, availableWidth: available)
-                        },
-                        onEnded: {
-                            let available = geometry.size.width
-                            if let width = subAgentPaneLiveWidth, available > 0 {
-                                subAgentPaneFraction = min(max(Double(width / available), 0.0), 1.0)
-                            }
-                            subAgentPaneLiveWidth = nil
-                        }
-                    )
-                    .offset(x: -(subAgentPaneWidth(for: geometry.size.width) + 0.5 - ResizeGripView.gripWidth / 2))
-                }
-            }
+            // 幅は親から演繹して固定する。中身の最小幅が割り当てを越えても窓の外へあふれない。
+            mainColumn(width: geometry.size.width)
+                .frame(width: geometry.size.width, alignment: .leading)
+                .frame(maxHeight: .infinity)
+                .environment(\.replySubjectMaxHeight, ApprovalCard.subjectMaxHeight(availableHeight: geometry.size.height))
         }
         .background(DSColor.chatBackground)
-        .animation(.easeOut(duration: 0.18), value: viewModel.selectedSubAgentId)
         // esc 状態機械（非フォーカス時の経路）＋履歴ピッカー overlay＋下書き復元を一括で付ける（task-9）。
         .chatEscapeHandling(viewModel: viewModel)
         // cancelOperation フォールバック（フォーカス無し等で .onKeyPress が発火しない経路）。
         // 3経路（keyDown / onKeyPress / onExitCommand）を統一ハンドラ performChatEscape へ収束させ、
-        // フォーカス非依存で「ドロワー閉じ→中止」を等価にする（Bug1: 非フォーカス時に ESC が中止に
-        // 届かず drawer 閉じだけになっていた欠陥の修正）。
+        // フォーカス非依存で ESC を等価にする。
         // 排他の前提: .onKeyPress(.escape) は .handled を返すため同一 ESC は cancelOperation へ
         // 伝搬せず onExitCommand と二重発火しない（onKeyPress 発火＝SwiftUI フォーカス有り／
         // onExitCommand 発火＝フォーカス無し、で相互排他）。破れると単発 ESC が「中止＋履歴ピッカー
@@ -115,33 +48,15 @@ public struct ChatSessionView: View {
         }
     }
 
-    /// メインカラム幅を body 最上位の GeometryReader から演繹する（右ペイン・境界線ぶんを差し引く）。
-    private func mainColumnWidth(for availableWidth: CGFloat) -> CGFloat {
-        var width = availableWidth
-        if selectedSubAgent != nil {
-            width -= subAgentPaneWidth(for: availableWidth) + 1
-        }
-        return max(0, width)
-    }
-
-    /// メインチャットのカラム（セッションヘッダ／トランスクリプト／コンポーザ）。
+    /// メインチャットのカラム（サブエージェントの札／トランスクリプト／コンポーザ）。
     private func mainColumn(width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // 高さ固定の兄弟なので、中身の変化が会話のレイアウトへ戻らない（ADR 0010 の非収束は可変高の兄弟で起きた）。
-            ChatSessionHeader(
-                viewModel: viewModel,
-                agentDescriptor: agentDescriptor,
-                onToggleSubAgent: toggleSubAgentSelection,
-                // 列の 3 割まで（ドロワーを開いて列が狭いとき、帯が状態と書き出しを押し出さないように）。
-                subAgentChipsMaxWidth: min(320, width * 0.3)
-            )
             ChatTranscriptView(
                 viewModel: viewModel,
                 contentMaxWidth: ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: width),
                 bottomScrollContentMargin: composerHeight,
                 requestedScrollTarget: $requestedTranscriptTarget,
-                currentInputPositionID: $currentInputPositionID,
-                onSelectSubAgent: { viewModel.selectSubAgent($0) }
+                currentInputPositionID: $currentInputPositionID
             )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .environment(\.fileChangeRevealRequest, fileChangeRevealRequest)
@@ -182,15 +97,10 @@ public struct ChatSessionView: View {
                 // ストリップ高さ→コンテンツ位置の一方向依存にとどまり、overlay と違い本文を
                 // 覆い隠さない（ユーザーの最初のメッセージが隠れる問題を解消）。
                 .safeAreaInset(edge: .top, spacing: 0) {
+                    // バックグラウンドタスクとサブエージェントの札（グリッドと共通。子がいなければ出ない）。
                     SessionActivityOverlayStrip(
-                        backgroundTasks: viewModel.runningBackgroundTasks,
-                        transcriptItemIDs: { viewModel.transcriptItemIDs },
-                        // サブエージェントの帯はヘッダ右へ移した（04 C3）。ここはバックグラウンドタスクだけ。
-                        subAgents: [],
-                        selectedSubAgentId: viewModel.selectedSubAgentId,
-                        onJump: { requestedTranscriptTarget = $0 },
-                        onSelectSubAgent: toggleSubAgentSelection,
-                        onDismissSubAgent: { viewModel.dismissSubAgent($0) }
+                        viewModel: viewModel,
+                        onJump: { requestedTranscriptTarget = $0 }
                     )
                 }
                 // composer は ScrollView の上に浮かせ、ScrollView 自体は画面下端まで広げる。
@@ -257,13 +167,6 @@ public struct ChatSessionView: View {
         .background(DSColor.chatBackground)
     }
 
-    /// 右ペイン幅。ドラッグ中は liveWidth、それ以外は永続比率からクランプして算出。
-    private func subAgentPaneWidth(for availableWidth: CGFloat) -> CGFloat {
-        if let subAgentPaneLiveWidth { return subAgentPaneLiveWidth }
-        return SubAgentSplitLayout.paneWidth(fraction: subAgentPaneFraction, availableWidth: availableWidth)
-    }
-
-
     private var agentDescriptor: AgentDescriptor {
         if let kind = viewModel.agentRef.builtinKind {
             return AgentRegistry.descriptor(for: kind)
@@ -277,15 +180,6 @@ public struct ChatSessionView: View {
             bypassKey: "phlox.bypass.\(viewModel.agentRef.id)",
             launchSpec: AgentLaunchSpec(statusBootstrap: .idleOnSpawnComplete)
         )
-    }
-
-    private var selectedSubAgent: SubAgentRef? {
-        guard let id = viewModel.selectedSubAgentId else { return nil }
-        return viewModel.displaySubAgents.first { $0.id == id }
-    }
-
-    private func toggleSubAgentSelection(_ id: String) {
-        viewModel.selectSubAgent(viewModel.selectedSubAgentId == id ? nil : id)
     }
 
     /// 承認カードの「差分を見る」: 会話の該当のファイルの変更へ移り、開く（05 R6e）。

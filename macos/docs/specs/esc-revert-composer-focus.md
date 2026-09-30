@@ -39,7 +39,7 @@ macOS のチャット画面のみ。iOS（`ios/Packages/PhloxKit`）に esc / do
 | NFR2 | IME 変換中にキャレットを動かさない（変換途中の確定位置を壊さない） |
 | NFR3 | 復元以外の binding 同期（外部からの `draft` 書き換え全般）でキャレットが末尾へ飛ぶ副作用を出さない |
 | NFR4 | `updateNSView`（描画パス）で副作用を同期実行しない（[ADR 0010](../adr/0010-loopflow-kanban-hang-observable-mutation-during-render.md)）。フォーカス移動は `Task { @MainActor }` で次の runloop へ回す |
-| NFR5 | `IMESafeTextView` は `SubAgentDrawerView` からも使われるため、フォーカス要求パラメータは既定値付きで追加し既存呼び出しを壊さない |
+| NFR5 | `IMESafeTextView` は複数の入力欄から使われるため、フォーカス要求パラメータは既定値付きで追加し既存呼び出しを壊さない（策定当時は `SubAgentDrawerView` の入力欄も対象。同ビューは 2026-09 に廃止） |
 
 ## 受け入れ基準（検証点）
 
@@ -62,6 +62,6 @@ macOS のチャット画面のみ。iOS（`ios/Packages/PhloxKit`）に esc / do
 - iOS 側（該当機能が存在しない）
 - 履歴ピッカーの UI 改善（並び順・検索・件数上限）
 - `revert` / 文脈リプレイのロジックそのもの
-- `SubAgentDrawerView` の入力欄のフォーカス挙動
+- サブエージェント右パネル（`SubAgentDrawerView`、2026-09 に廃止）の入力欄のフォーカス挙動
 - esc 単発（interrupt）の挙動変更
 - ターミナル側のフォーカス制御（`TerminalHostingView`）

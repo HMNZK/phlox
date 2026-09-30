@@ -19,15 +19,15 @@ struct CodexSubAgentStateDirectTests {
         )
     }
 
-    @Test("stale後の完了通知は同じchildとturnでも状態を変えない")
-    func staleCompletionDoesNotReactivate() {
+    @Test("stale（read 失敗）のあとに届いた完了通知は、通常どおり完了として反映する")
+    func completionAfterStaleIsApplied() {
         var state = CodexSubAgentState(parentThreadId: "parent-1")
         state.apply(.available(children: [child()]))
         state.apply(.stale(threadId: "child-1", reason: "gone"))
-        state.apply(.turnCompleted(threadId: "child-1", turnId: "turn-1", status: "interrupted"))
-        #expect(state.stopState(for: "child-1") == .stale)
-        #expect(state.controlState(for: "child-1") == .stale)
-        #expect(state.children.first?.activeTurnId == "turn-1")
+        state.apply(.turnCompleted(threadId: "child-1", turnId: "turn-1", status: "completed"))
+        #expect(CodexSubAgentPresentation.status(for: state.children.first?.status ?? "") == .completed)
+        #expect(state.children.first?.activeTurnId == nil)
+        #expect(state.stopState(for: "child-1") == .unavailable)
     }
 
     @Test("異なるturnの完了通知は状態を変えない")

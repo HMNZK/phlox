@@ -170,12 +170,7 @@ extension ClaudeChatClient {
             let subagentType = input["subagent_type"] as? String ?? name
             let prompt = input["prompt"] as? String
             let runsInBackground = input["run_in_background"] as? Bool == true
-            let description: String
-            if let explicitDescription = input["description"] as? String {
-                description = explicitDescription
-            } else {
-                description = commandDescription(toolName: name, input: input)
-            }
+            let description = input["description"] as? String ?? ""
 
             markSubAgentToolUse(toolUseId)
             // 抑制フラグは常に「現在の tool_use の run_in_background」に束縛する。false 時に
@@ -189,7 +184,8 @@ extension ClaudeChatClient {
             yieldSubAgentStartedIfNeeded(
                 toolUseId: toolUseId,
                 subagentType: subagentType,
-                description: description
+                description: description,
+                source: .toolInput
             )
             if let prompt, !prompt.isEmpty {
                 eventContinuation.yield(.subAgentActivity(toolUseId: toolUseId, kind: .prompt, itemId: nil, text: prompt))
@@ -261,6 +257,9 @@ extension ClaudeChatClient {
                 continue
             }
             if subAgentToolUseIds.contains(toolUseId) {
+                // 停止が確定した子には、親の tool_result（「ユーザーが続行を望まない」）が必ず届く。
+                // 完了・失敗として再通知すると「停止」を上書きし、失敗なら札が復活するので捨てる。
+                if stoppedSubAgentToolUseIds.contains(toolUseId) { continue }
                 let text = toolResultText(from: item["content"])
                 // 起動確認メタデータ（非同期 Agent 起動の ack）は出力ではないので表示しない。
                 // 非同期 Agent ツールは run_in_background フラグを持たない（実データで確認）ため、
@@ -322,16 +321,11 @@ extension ClaudeChatClient {
 
         let input = item["input"] as? [String: Any] ?? [:]
         markSubAgentToolUse(toolUseId)
-        let description: String
-        if let explicitDescription = input["description"] as? String {
-            description = explicitDescription
-        } else {
-            description = commandDescription(toolName: name, input: input)
-        }
         yieldSubAgentStartedIfNeeded(
             toolUseId: toolUseId,
             subagentType: input["subagent_type"] as? String ?? name,
-            description: description
+            description: input["description"] as? String ?? "",
+            source: .toolInput
         )
         if let prompt = input["prompt"] as? String, !prompt.isEmpty {
             eventContinuation.yield(.subAgentActivity(
@@ -367,17 +361,34 @@ extension ClaudeChatClient {
         return generatedItemId(prefix: "assistant", index: index)
     }
 
+    /// サブエージェントの開始を流す。名前（description）は、親が Task/Agent ツール入力に付けたものを
+    /// 到着順によらず採る: 先に届いた task_started の description や空の開始のあとでも、
+    /// より信頼できる出所（`DescriptionSource` が大きい）の description が来たら開始を流し直して名前を更新する。
+    /// 完了通知のあとに流し直しても、受け側（`ChatSubAgentModel.markStarted`）が状態を巻き戻さず名前だけ更新する。
     func yieldSubAgentStartedIfNeeded(
         toolUseId: String,
         subagentType: String,
-        description: String
+        description: String,
+        source: DescriptionSource
     ) {
-        guard !emittedSubAgentStarts.contains(toolUseId) else { return }
-        emittedSubAgentStarts.insert(toolUseId)
+        let rank = description.isEmpty ? DescriptionSource.none : source
+        if let emitted = emittedSubAgentStarts[toolUseId] {
+            guard rank > emitted else { return }
+        }
+        emittedSubAgentStarts[toolUseId] = rank
         eventContinuation.yield(.subAgentStarted(
             toolUseId: toolUseId,
             subagentType: subagentType,
             description: description
         ))
+    }
+
+    /// 開始イベントの description の出所。大きいほど優先（親が付けたツール入力が最優先）。
+    enum DescriptionSource: Int, Comparable {
+        case none = 0
+        case taskStarted = 1
+        case toolInput = 2
+
+        static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
     }
 }

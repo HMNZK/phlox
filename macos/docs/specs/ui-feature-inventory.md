@@ -105,7 +105,7 @@ Phlox のセッション画面には大きく2系統の ViewModel/表示モデ�
 - **Chat型（app-server / structured）**: `ChatSessionViewModel`（`ChatSessionViewModel.swift`, 約3235行）。Codex app-server、および Claude/Cursor の構造化イベント経路を扱う。`NormalizedChatEvent`/`ThreadEvent` ストリームで駆動される。
 - **PTY型（ターミナル）**: `SessionViewModel`（`SessionViewModel.swift`, 約863行）。Claude Code は hook イベントで、Codex/Cursor の PTY 実行時は hook なしの出力監視フォールバックで状態を追う。
 
-両者は `ControllableSession` プロトコル（`ControllableSession.swift:85-224`）に適合し、`SessionNode`（`.pty` / `.appServer`）で束ねられる。単独表示時は `ChatSessionView.swift` がメインカラム＋サブエージェントドロワー（`SubAgentDrawerView.swift`）の横並びレイアウトを構成する。PTY型の単体表示は `SessionView.swift`（ターミナル、`viewModel.terminalCoordinator`出力、`SessionView.swift:6,17-39`。エージェント種別差は汎用`AgentSessionIcon`のアイコンのみ）。
+両者は `ControllableSession` プロトコル（`ControllableSession.swift:85-224`）に適合し、`SessionNode`（`.pty` / `.appServer`）で束ねられる。単独表示時は `ChatSessionView.swift` がメインカラムを構成する（サブエージェントの右パネルは 2026-09 に廃止。子は上部の札の帯に名前と状態だけを出す）。PTY型の単体表示は `SessionView.swift`（ターミナル、`viewModel.terminalCoordinator`出力、`SessionView.swift:6,17-39`。エージェント種別差は汎用`AgentSessionIcon`のアイコンのみ）。
 
 ### 4.1 メッセージ/ツールカードの種類
 
@@ -185,28 +185,25 @@ Phlox のセッション画面には大きく2系統の ViewModel/表示モデ�
 
 **不明点**: 入力履歴の矢印キー(↑↓)呼び出しは調査対象ファイル内に実装が見当たらず（↑↓はサジェスト候補移動にのみ使用）。矢印キー履歴機能自体が存在しない可能性、または`ChatSessionViewModel.swift`側の未確認箇所にある可能性がある。`CodexImageInputState`/`CodexQuestionDetector`の実際の呼び出し元は担当外ファイルの可能性。
 
-### 4.4 サブエージェントドロワー
+### 4.4 サブエージェントの札の帯（右パネルは 2026-09 に廃止）
 
-| 機能 | ユーザー操作 | 表示データ | 状態 | 根拠 file:line |
+札は名前＋状態アイコンだけで、押しても何も開かない。詳細は `architecture/chat-subagent-display.md`。
+
+| 機能 | ユーザー操作 | 表示データ | 状態 | 根拠 |
 |---|---|---|---|---|
-| サブエージェント横並び分割表示 | ストリップアイコンクリック | `SubAgentDrawerView`をHStackで表示、幅は`@AppStorage`永続化(既定0.42) | — | `ChatSessionView.swift:16,26-59,264-267`, `SubAgentSplitLayout.swift:9-28` |
-| サブエージェントペイン選択トグル | アイコンクリック | `toggleSubAgentSelection`（同ID→nil） | — | `ChatSessionView.swift:201,269-271` |
-| サブエージェントペインのリサイズ | 境界グリップをドラッグ | `subAgentPaneFraction`永続化、min320〜max60% | — | `ChatSessionView.swift:66-88,242-246`, `SubAgentSplitLayout.swift:11-28` |
-| メインカラム幅の圧縮 | サブエージェント選択/解除 | `mainColumnWidth`再計算 | — | `ChatSessionView.swift:108-115` |
-| サブエージェントステータスアイコン | なし | running=スピナー/completed=チェック/failed=警告 | `SubAgentStatus` | `SubAgentDrawerView.swift:189-202` |
-| サブエージェントへのフォローアップ送信 | ドロワー下部composerでEnter/送信 | `onSendFollowUp`→`viewModel.sendSubAgentFollowUp` | — | `SubAgentDrawerView.swift:118-165` |
-| サブエージェントドロワーを閉じる | ×または「メインへ戻る」 | `viewModel.selectSubAgent(nil)` | — | `SubAgentDrawerView.swift:52-96` |
-| サブエージェントThinkingインジケータ表示条件 | なし | `showsThinkingIndicator = (status==.running)` | — | `SubAgentDrawerPresentation.swift:10-12` |
-| サブエージェント推論プレビュー抽出（末尾3行） | なし | `ReasoningPreview.tail` | — | `SubAgentDrawerPresentation.swift:31-44` |
+| 札の帯（単一・グリッド共通） | なし | `stripSubAgents`。実行中と失敗だけ出る（完了・停止確認済みは消え、失敗は✕まで残る）。「メイン」の札は見た目のみ | `SubAgentStatus` | `ChatSessionAccessories.swift` の `SubAgentStrip` / `SubAgentStripRow` |
+| 札の状態アイコン | なし | 実行中=ローディング／失敗=失敗マーク／それ以外=なし | `SubAgentChipPresentation.statusIcon(for:)` | `ChatSessionAccessories.swift` |
+| 札のホバー操作 | 札にポインタを置く | 実行中で止められる（Codex・宛先が分かったClaude）=停止ボタン(■)／実行中で止められない=何も出さない／失敗=✕で帯から消す | `SubAgentChipPresentation.control` | `ChatSessionAccessories.swift` |
+| 札の名前 | なし | 親が付けた名前。Codex=`agent_path` 末尾、Claude=Task の `description` | — | `CodexSubAgentState.swift`（`purpose(for:)`）, `ClaudeChatClient+SubAgentContent.swift` |
 | Codex子thread一覧更新 | 自動 | `codexSubAgentState.children` | debounce（Codexのみ） | `ChatSessionViewModel.swift:415-487` |
-| Codex子thread中断 | 停止ボタン | `.stopping→.stopped`（Codexのみ） | — | `ChatSessionViewModel.swift:528-552` |
+| サブエージェント個別停止 | 停止ボタン | Codex=`turn/interrupt`、Claude=`stop_task`。確認まで「停止中」、確認で札が消え会話マーカーは「停止」。失敗・15秒タイムアウトで実行中へ戻る | — | `ChatSessionViewModel.stopSubAgent(displayID:)`, `ClaudeChatClient+StopTask.swift` |
 
 ### 4.5 Esc・巻き戻し・履歴再開・自動スクロール
 
 | 機能 | ユーザー操作 | 表示データ/状態 | 状態遷移条件 | エージェント種別差 | 根拠 file:line |
 |---|---|---|---|---|---|
 | ターン中断 | 中断ボタン/Esc単発 | `.running/.awaitingApproval`→`.idle` | Esc押下 or ボタン | Chat型は`client.interrupt()`、PTY型はEscバイト送出 | `ChatSessionViewModel.swift:930-970`, `SessionViewModel.swift:459-470` |
-| Escキーの優先順位付き一元処理（`performChatEscape`） | Escキー（composerフォーカス時はNSTextView.keyDown、非フォーカス時は`.onKeyPress`） | 優先順: (1)履歴ピッカー表示中は閉じる→(2)サブエージェントドロワー開いていれば閉じる→(3)`handleEscapeKey`の状態機械へ | — | なし | `ChatEscapeHandling.swift:12-23,28-36` |
+| Escキーの優先順位付き一元処理（`performChatEscape`） | Escキー（composerフォーカス時はNSTextView.keyDown、非フォーカス時は`.onKeyPress`） | 優先順: (1)履歴ピッカー表示中は閉じる→(2)`handleEscapeKey`の状態機械へ（サブエージェントドロワーを閉じる段は廃止） | — | なし | `ChatEscapeHandling.swift:12-23,28-36` |
 | Escダブルタップでリバートピッカー | Esc2連打(1.5秒以内) | `isHistoryPickerPresented=true` | `EscapeRevertPolicy.isDoubleEscape` | Chat型のみ | `ChatSessionViewModel.swift:989-1011` |
 | 会話巻き戻しピッカー表示 | Esc2連打起動 | `ChatHistoryRevertPicker`をoverlay表示（背景40%黒＋タップで閉じる、0.15秒フェード）、上下矢印選択、Enter確定 | `isHistoryPickerPresented` | Chat型のみ | `ChatHistoryRevertPicker.swift:9-143`, `ChatEscapeHandling.swift:43-63` |
 | リバート確定 | ピッカーで過去メッセージ選択 | transcript切り詰め、`client.resetConversation()` | running中は先にinterrupt | Codex/spawn型でID再採用方法が異なる | `ChatSessionViewModel.swift:1013-1095` |
@@ -746,7 +743,7 @@ DashboardFeature内には`keyboardShortcut`/`onKeyPress`/`commands(`の定義は
 | `phlox.usage.showUnavailable` | Bool | false | — | 未取得CLIの表示 | `App/SettingsView.swift:26,287-289` |
 | `phlox.usage.showInHeader` | Bool | true | — | ヘッダー使用量表示 | `App/SettingsView.swift:27,290-292` |
 | `appUpdater.automaticallyChecksForUpdates`（永続先未確認） | Bool | — | — | 起動時自動アップデート確認 | `App/SettingsView.swift:188-194`（Sparkle内部かUserDefaultsか未確認） |
-| `subAgentPaneFraction`相当（サブエージェントドロワー幅） | Double(推定) | 0.42 | min320〜max60%の範囲 | サブエージェントドロワーの幅 | `ChatSessionView.swift:16,66-88,242-246` |
+| `phlox.chat.subAgentPaneFraction`（廃止） | — | — | — | サブエージェント右パネルの幅（パネル廃止に伴い未使用。既存の保存値は無視される） | — |
 | ChatFontSettings（チャット本文文字倍率） | Double | 1.0 | 0.8〜2.0, step0.1 | チャット本文フォントサイズ | `Packages/DesignSystem/Sources/DesignSystem/ChatFontSettings.swift:7-33` |
 | TerminalFontSettings.step（ターミナル文字サイズ） | — | — | `Cmd+=`/`Cmd+-`で増減 | ターミナルパネル/グリッドpty/single表示のフォントサイズ | `TerminalFontSettings.swift:6`, `App/PhloxApp.swift:522,528` |
 | PaneLayoutStore（レイアウトプリセット/分割ツリー永続化） | JSON(Codable, schemaVersion=1) | — | 正規化・検証を必ず経由 | グリッドの分割ツリー状態 | `PaneTree.swift:126-127,324-346` |
@@ -953,8 +950,6 @@ Packages/DesignSystem/Sources/DesignSystem 配下 全28ファイルを確認。
 - `PaneLayout/PaneDropZone.swift`
 - `SessionGridView.swift`
 - `GridChatColumn.swift`
-- `SubAgentSplitLayout.swift`
-- `SubAgentDrawerView.swift`
 - `PaneTileClickSelection.swift`（NSViewRepresentable/監視系）
 - `ChatTranscriptView.swift`
 - `ChatMessageCells.swift`

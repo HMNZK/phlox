@@ -24,22 +24,22 @@ struct TranscriptCellEquatableWhiteboxTests {
         item: ChatItem,
         isRunningCommand: Bool = false,
         descriptor: AgentDescriptor,
-        onSelectSubAgent: ((String) -> Void)? = nil
+        onDismissUserQuestion: (() -> Void)? = nil
     ) -> ChatItemView {
         ChatItemView(
             item: item,
             isRunningCommand: isRunningCommand,
             agentDescriptor: descriptor,
-            onSelectSubAgent: onSelectSubAgent,
-            onRespondToUserQuestion: { _, _ in true }
+            onRespondToUserQuestion: { _, _ in true },
+            onDismissUserQuestion: onDismissUserQuestion
         )
     }
 
     @Test("表示値が同じなら、毎回生成される別クロージャを渡しても equal になる")
     func chatItemView_sameDisplayValues_differentClosures_areEqual() {
         let item = message(id: "item-1", text: "こんにちは")
-        let a = view(item: item, descriptor: descriptor, onSelectSubAgent: { _ in })
-        let b = view(item: item, descriptor: descriptor, onSelectSubAgent: { _ in })
+        let a = view(item: item, descriptor: descriptor, onDismissUserQuestion: {})
+        let b = view(item: item, descriptor: descriptor, onDismissUserQuestion: {})
 
         #expect(a == b)
     }

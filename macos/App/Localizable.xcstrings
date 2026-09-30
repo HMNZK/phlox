@@ -6345,13 +6345,13 @@
         }
       }
     },
-    "まだ表示できる出力がありません": {
+    "読み込み中…": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No output to show yet"
+            "value": "Loading…"
           }
         }
       }
@@ -6411,13 +6411,13 @@
         }
       }
     },
-    "サブエージェントに追加の指示": {
+    "サブエージェントを停止": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "More instructions for the sub-agent"
+            "value": "Stop sub-agent"
           }
         }
       }
@@ -6506,28 +6506,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Main"
-          }
-        }
-      }
-    },
-    "メインへ戻る": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Back to main"
-          }
-        }
-      }
-    },
-    "メインチャットを表示": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show main chat"
           }
         }
       }
@@ -6880,17 +6858,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Removes the conversation after the chosen message and puts that message back in the input"
-          }
-        }
-      }
-    },
-    "閉じる（Esc）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Close (Esc)"
           }
         }
       }
@@ -8812,6 +8779,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Couldn’t change the reasoning effort"
+          }
+        }
+      }
+    },
+    "subagent.status.stopped": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopped"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止"
           }
         }
       }

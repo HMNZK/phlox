@@ -5,31 +5,19 @@ import CodexAppServerKit
 import DesignSystem
 
 struct SessionActivityOverlayStrip: View {
-    let backgroundTasks: [RunningBackgroundTask]
-    let transcriptItemIDs: () -> Set<String>
-    let subAgents: [SubAgentRef]
-    let selectedSubAgentId: String?
+    let viewModel: ChatSessionViewModel
     let onJump: (String) -> Void
-    let onSelectSubAgent: (String) -> Void
-    let onDismissSubAgent: (String) -> Void
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
     var body: some View {
         let _ = themeID
         VStack(spacing: 0) {
             BackgroundTaskStrip(
-                tasks: backgroundTasks,
-                transcriptItemIDs: transcriptItemIDs,
+                tasks: viewModel.runningBackgroundTasks,
+                transcriptItemIDs: { viewModel.transcriptItemIDs },
                 onJump: onJump
             )
-            SubAgentStrip(
-                subAgents: subAgents,
-                selectedSubAgentId: selectedSubAgentId,
-                includesMainButton: false,
-                onSelectMain: {},
-                onSelectSubAgent: onSelectSubAgent,
-                onDismiss: onDismissSubAgent
-            )
+            SubAgentStrip(viewModel: viewModel)
         }
     }
 }
@@ -159,42 +147,28 @@ private struct BackgroundTaskRow: View {
 
 struct SubAgentStrip: View {
     let subAgents: [SubAgentRef]
-    let selectedSubAgentId: String?
-    let includesMainButton: Bool
-    let onSelectMain: () -> Void
-    let onSelectSubAgent: (String) -> Void
     let onDismiss: (String) -> Void
     var onStop: ((String) -> Void)? = nil
-    var canStop: (String) -> Bool = { _ in false }
-    var isStopping: (String) -> Bool = { _ in false }
+    /// 表示 ID ごとの停止状態。nil は停止 API の無い子（Claude など）。
+    var stopState: (String) -> CodexSubAgentStopState? = { _ in nil }
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
     var body: some View {
         let _ = themeID
-        if !subAgents.isEmpty || (includesMainButton && selectedSubAgentId != nil) {
+        if !subAgents.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 Rectangle()
                     .fill(DSColor.chatAccent.opacity(0.68))
                     .frame(height: 1)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: DSSpacing.xs) {
-                        if includesMainButton {
-                            SubAgentMainSwitchButton(
-                                isSelected: selectedSubAgentId == nil,
-                                onSelect: onSelectMain
-                            )
-                        }
+                        SubAgentMainLabel()
                         ForEach(subAgents) { subAgent in
-                            let stopEnabled = canStop(subAgent.id)
-                            let stopping = isStopping(subAgent.id)
                             SubAgentStripRow(
                                 subAgent: subAgent,
-                                isSelected: selectedSubAgentId == subAgent.id,
-                                onSelect: { onSelectSubAgent(subAgent.id) },
                                 onDismiss: { onDismiss(subAgent.id) },
-                                stopTitle: stopping ? "停止中" : (stopEnabled ? "停止" : nil),
-                                onStop: (stopEnabled || stopping) ? { onStop?(subAgent.id) } : nil,
-                                isStopEnabled: stopEnabled
+                                stopState: stopState(subAgent.id),
+                                onStop: { onStop?(subAgent.id) }
                             )
                         }
                     }
@@ -211,97 +185,142 @@ struct SubAgentStrip: View {
     }
 }
 
-private struct SubAgentMainSwitchButton: View {
-    let isSelected: Bool
-    let onSelect: () -> Void
+extension SubAgentStrip {
+    /// 単一表示とグリッドタイルで共通の配線（停止・✕）。
+    /// 停止の配線をここに一本化して、両表示で食い違わないようにする。
+    init(viewModel: ChatSessionViewModel) {
+        self.init(
+            subAgents: viewModel.stripSubAgents,
+            onDismiss: { viewModel.dismissSubAgent($0) },
+            onStop: { viewModel.stopSubAgent(displayID: $0) },
+            stopState: { viewModel.subAgentStopState(forDisplayID: $0) }
+        )
+    }
+}
+
+/// 「メイン」の札。サブエージェントの中身を見せなくなったので切り替えの役はなく、押せない（見た目は選択中のまま）。
+private struct SubAgentMainLabel: View {
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
     var body: some View {
         let _ = themeID
-        Button(action: onSelect) {
-            HStack(spacing: DSSpacing.xs) {
-                Image(systemName: "text.bubble")
-                    .font(.system(size: DSIconSize.s, weight: .semibold))
-                Text("メイン")
-                    .font(DSFont.captionStrong)
-            }
-            .foregroundStyle(isSelected ? DSColor.chatBackground : DSColor.chatTextPrimary)
-            .padding(.horizontal, DSSpacing.s)
-            .padding(.vertical, DSSpacing.xs)
-            .background(
-                RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
-                    .fill(isSelected ? DSColor.chatAccent : DSColor.chatCard.opacity(0.86))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
-                    .strokeBorder(DSColor.chatAccent.opacity(isSelected ? 0 : 0.24), lineWidth: 1)
-            )
+        HStack(spacing: DSSpacing.xs) {
+            Image(systemName: "text.bubble")
+                .font(.system(size: DSIconSize.s, weight: .semibold))
+            Text("メイン")
+                .font(DSFont.captionStrong)
         }
-        .buttonStyle(.plain)
+        .foregroundStyle(DSColor.chatBackground)
+        .padding(.horizontal, DSSpacing.s)
+        .padding(.vertical, DSSpacing.xs)
+        .background(
+            RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
+                .fill(DSColor.chatAccent)
+        )
         .accessibilityIdentifier("SubAgentStrip.main")
-        .help("メインチャットを表示")
     }
 }
 
-enum SubAgentDismissButtonPresentation {
-    static func state(isHovering: Bool) -> (isVisible: Bool, allowsHitTesting: Bool) {
-        (isVisible: isHovering, allowsHitTesting: isHovering)
+/// 札の右端に、ポインタを置いた時だけ出す操作。
+enum SubAgentChipControl: Equatable {
+    case none
+    /// 実行中で止められる子の停止ボタン。
+    case stop
+    /// 札を閉じる ✕。
+    case dismiss
+}
+
+/// 札の名前の横に出す状態アイコン。出すのは「実行中」と「失敗」だけ。
+enum SubAgentChipStatusIcon: Equatable {
+    /// 実行中のローディングアニメーション。
+    case loading
+    /// 失敗のマーク。
+    case failure
+}
+
+enum SubAgentChipPresentation {
+    /// 実行中＝ローディング、失敗＝失敗マーク。完了（ユーザーが止めた札を含む）は名前だけでアイコンを出さない。
+    static func statusIcon(for status: SubAgentStatus) -> SubAgentChipStatusIcon? {
+        switch status {
+        case .running: .loading
+        case .failed: .failure
+        case .completed, .stopped: nil
+        }
+    }
+
+    /// 実行中の札は、止められる間だけ停止ボタン。止められない実行中（停止 API の無い Claude の子・turn 不明）と
+    /// 停止中（interrupt 待ち）は何も出さない（✕ で閉じると、走り続ける子の札だけが消える）。
+    /// 実行中でない札（完了・失敗・ユーザーが止めた札）は ✕。
+    static func control(
+        isHovering: Bool,
+        status: SubAgentStatus,
+        stopState: CodexSubAgentStopState?
+    ) -> SubAgentChipControl {
+        guard isHovering, stopState != .stopping else { return .none }
+        if status == .running { return stopState == .available ? .stop : .none }
+        return .dismiss
     }
 }
 
-/// ヘッダの「サブ」の札（PhloxChat.dc.html の subs）: 高さ 22・角丸 11・11.5pt・ホバー色の地。
-/// 選択中は選択色の地＋1pt のアクセント枠。ポインタを置くと右端に ✕（閉じる）。
+/// サブエージェントの札（PhloxChat.dc.html の subs）: 高さ 22・角丸 11・11.5pt・ホバー色の地。
+/// 中身は見せないので押しても何も開かない。ポインタを置くと右端に停止ボタンまたは ✕（閉じる）。
 struct SubAgentStripRow: View {
     let subAgent: SubAgentRef
-    let isSelected: Bool
-    let onSelect: () -> Void
     let onDismiss: () -> Void
-    var stopTitle: String? = nil
-    var onStop: (() -> Void)? = nil
-    var isStopEnabled = false
+    var stopState: CodexSubAgentStopState? = nil
+    var onStop: () -> Void = {}
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @State private var isHovering = false
 
     var body: some View {
         let _ = themeID
-        let dismissPresentation = SubAgentDismissButtonPresentation.state(isHovering: isHovering)
+        let control = SubAgentChipPresentation.control(isHovering: isHovering, status: subAgent.status, stopState: stopState)
         HStack(spacing: 5) {
-            Button(action: onSelect) {
-                Text(verbatim: subAgent.description.isEmpty ? subAgent.subagentType : subAgent.description)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(DSColor.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: 140, alignment: .leading)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text("サブエージェント \(subAgent.description)、\(statusLabel)"))
-            .accessibilityIdentifier("SubAgentStrip.row")
-            // ✕ はポインタを置いた時だけ出るので、VoiceOver からは行の操作として閉じられるようにする。
-            .accessibilityAction(named: Text("サブエージェントを閉じる"), onDismiss)
+            Text(verbatim: subAgent.description.isEmpty ? subAgent.subagentType : subAgent.description)
+                .font(.system(size: 11.5))
+                .foregroundStyle(DSColor.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: 140, alignment: .leading)
+                .accessibilityLabel(Text("サブエージェント \(subAgent.description)、\(statusLabel)"))
+                .accessibilityIdentifier("SubAgentStrip.row")
+                // 停止・✕ はポインタを置いた時だけ出るので、VoiceOver からは行の操作として実行できるようにする。
+                // 出す操作はホバー時の見た目と同じ関数で決める（実行中で止められる子に「閉じる」は出さない）。
+                .accessibilityActions {
+                    switch accessibilityControl {
+                    case .stop: Button("サブエージェントを停止", action: onStop)
+                    case .dismiss: Button("サブエージェントを閉じる", action: onDismiss)
+                    case .none: EmptyView()
+                    }
+                }
 
-            if subAgent.status == .running {
+            switch SubAgentChipPresentation.statusIcon(for: subAgent.status) {
+            case .loading:
                 ProgressView()
                     .controlSize(.mini)
                     .accessibilityHidden(true)
+            case .failure:
+                Image(systemName: "exclamationmark.circle.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DSColor.attentionInk(.error))
+                    .accessibilityHidden(true)
+            case nil:
+                EmptyView()
             }
 
-            if let stopTitle, let onStop {
+            switch control {
+            case .stop:
                 Button(action: onStop) {
-                    Text(stopTitle)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(isStopEnabled ? DSColor.textPrimary : DSColor.textTertiary)
-                        .padding(.horizontal, 5)
-                        .frame(height: 16)
+                    Image(systemName: "stop.fill")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(DSColor.textSecondary)
+                        .frame(width: 12, height: 12)
                 }
                 .buttonStyle(.plain)
-                .disabled(!isStopEnabled)
-                .help(isStopEnabled ? "サブエージェントを停止" : "サブエージェントの停止を処理中")
+                .help("サブエージェントを停止")
+                .accessibilityLabel("サブエージェントを停止")
                 .accessibilityIdentifier("SubAgentStrip.stop")
-            }
-
-            if dismissPresentation.isVisible {
+            case .dismiss:
                 Button(action: onDismiss) {
                     Image(systemName: "xmark")
                         .font(.system(size: 8, weight: .semibold))
@@ -312,21 +331,23 @@ struct SubAgentStripRow: View {
                 .help("サブエージェントを閉じる")
                 .accessibilityLabel("サブエージェントを閉じる")
                 .accessibilityIdentifier("SubAgentStrip.dismiss")
+            case .none:
+                EmptyView()
             }
         }
         .padding(.horizontal, 8)
         .frame(height: 22)
         .background(
             Capsule(style: .continuous)
-                .fill(isSelected ? DSColor.selectionFill : DSColor.fillSubtle)
-        )
-        .overlay(
-            Capsule(style: .continuous)
-                .strokeBorder(isSelected ? DSColor.accent : .clear, lineWidth: 1)
+                .fill(DSColor.fillSubtle)
         )
         .onHover { isHovering = $0 }
         .animation(.easeInOut(duration: 0.12), value: isHovering)
-        .help(isSelected ? "メインへ戻る" : "サブエージェントを表示")
+    }
+
+    /// ホバー中と同じ判定（VoiceOver ではホバーできないので、ホバーしている前提で出す操作を決める）。
+    private var accessibilityControl: SubAgentChipControl {
+        SubAgentChipPresentation.control(isHovering: true, status: subAgent.status, stopState: stopState)
     }
 
     private var statusLabel: Text {
@@ -334,6 +355,7 @@ struct SubAgentStripRow: View {
         case .running: Text("実行中")
         case .completed: Text("完了")
         case .failed: Text("失敗")
+        case .stopped: Text("subagent.status.stopped")
         }
     }
 }

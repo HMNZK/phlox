@@ -78,7 +78,6 @@ func performChatEscapeDuringRunningTurnFiresInterrupt() async throws {
     let (vm, client) = makeEscapeHandlingVM()
     client.yield(.turnStarted)
     try await waitUntil { vm.status == .running }
-    #expect(vm.selectedSubAgentId == nil)
     #expect(vm.isHistoryPickerPresented == false)
 
     performChatEscape(vm)
@@ -88,16 +87,15 @@ func performChatEscapeDuringRunningTurnFiresInterrupt() async throws {
 }
 
 @Test @MainActor
-func performChatEscapeClosesDrawerWithoutInterrupt() async throws {
+func performChatEscapeWithSubAgentStillInterrupts() async throws {
     let (vm, client) = makeEscapeHandlingVM()
     client.yield(.turnStarted)
     client.yield(.subAgentStarted(toolUseId: "tu1", subagentType: "general-purpose", description: "bg work"))
     try await waitUntil { vm.subAgents.count == 1 }
-    vm.selectSubAgent(vm.subAgents[0].id)
 
     performChatEscape(vm)
 
-    #expect(vm.selectedSubAgentId == nil)
-    try await Task.sleep(nanoseconds: 150_000_000)
-    #expect(client.interruptCount == 0)
+    // サブエージェントの右パネルは無いので、esc は常に中止へ届く。
+    try await waitUntil { client.interruptCount == 1 }
+    #expect(client.interruptCount == 1)
 }

@@ -21,10 +21,43 @@ final class ChatSubAgentModel {
     public private(set) var subAgents: [SubAgentRef] = []
     public var stripSubAgents: [SubAgentRef] {
         subAgents.filter {
-            $0.status != .completed && !dismissedSubAgentIDs.contains($0.id)
+            ($0.status == .running || $0.status == .failed) && !dismissedSubAgentIDs.contains($0.id)
         }
     }
-    public private(set) var selectedSubAgentId: String?
+
+    /// 個別に止められる（stop_task の宛先が分かった）子と、停止要求を送って確認待ちの子。
+    private var stoppableIDs: Set<String> = []
+    private var stopPendingIDs: Set<String> = []
+    /// 子ごとの停止要求の試行番号。タイムアウト後の再試行のあとに、古い試行への遅れた失敗応答で今の停止待ちを解除しないために使う。
+    private var stopAttempts: [String: Int] = [:]
+
+    func markStoppable(_ id: String) {
+        stoppableIDs.insert(id)
+    }
+
+    /// 停止要求を出せるなら確認待ちにして、その試行番号を返す（実行中で止められ、確認待ちでないとき）。二重押しは nil。
+    func beginStop(_ id: String) -> Int? {
+        guard stoppableIDs.contains(id), !stopPendingIDs.contains(id),
+              subAgents.first(where: { $0.id == id })?.status == .running else { return nil }
+        stopPendingIDs.insert(id)
+        let attempt = (stopAttempts[id] ?? 0) + 1
+        stopAttempts[id] = attempt
+        return attempt
+    }
+
+    /// 停止要求の失敗・拒否・確認待ちのタイムアウト。確認待ちを解除して、実行中のまま再び押せる状態に戻す。
+    /// 今の試行のものだけ反映する（古い試行への遅れた応答は無視）。反映したら true。
+    @discardableResult
+    func stopFailed(_ id: String, attempt: Int) -> Bool {
+        guard stopAttempts[id] == attempt, stopPendingIDs.remove(id) != nil else { return false }
+        return true
+    }
+
+    /// 停止操作の状態。止められる実行中の子だけ非 nil（nil＝停止手段が無い・まだ分からない）。
+    func stopState(for id: String) -> CodexSubAgentStopState? {
+        guard stoppableIDs.contains(id), subAgents.first(where: { $0.id == id })?.status == .running else { return nil }
+        return stopPendingIDs.contains(id) ? .stopping : .available
+    }
 
     private var dismissedSubAgentIDs: Set<String> = []
     private var subAgentTranscripts: [String: [ChatItem]] = [:]
@@ -55,15 +88,8 @@ final class ChatSubAgentModel {
         dedupScanMetricsForTesting = DedupScanMetrics(callCount: 0, characterCount: 0)
     }
 
-    func selectSubAgent(_ id: String?) {
-        selectedSubAgentId = id
-    }
-
     func dismissSubAgent(_ id: String) {
         dismissedSubAgentIDs.insert(id)
-        if selectedSubAgentId == id {
-            selectedSubAgentId = nil
-        }
     }
 
     func isDismissed(_ id: String) -> Bool {
@@ -88,6 +114,19 @@ final class ChatSubAgentModel {
         return parsed
     }
 
+    /// 開始通知。同じ子の開始が（名前の更新のために）完了・失敗のあとに届いても、状態は巻き戻さず名前だけ更新する。
+    func markStarted(toolUseId: String, subagentType: String, description: String) {
+        let status = subAgents.first { $0.id == toolUseId }?.status ?? .running
+        upsertSubAgent(
+            toolUseId: toolUseId,
+            subagentType: subagentType,
+            description: description,
+            status: status,
+            summary: nil,
+            outputFile: nil
+        )
+    }
+
     func upsertSubAgent(
         toolUseId: String,
         subagentType: String,
@@ -98,9 +137,6 @@ final class ChatSubAgentModel {
     ) {
         if let index = subAgents.firstIndex(where: { $0.id == toolUseId }) {
             let existing = subAgents[index]
-            if status == .completed, existing.status != .completed, selectedSubAgentId == toolUseId {
-                selectedSubAgentId = nil
-            }
             subAgents[index] = SubAgentRef(
                 id: existing.id,
                 subagentType: subagentType.isEmpty ? existing.subagentType : subagentType,
@@ -131,6 +167,8 @@ final class ChatSubAgentModel {
         summary: String,
         outputFile: String?
     ) {
+        // 停止が確定した子は終端。あとから届く完了・失敗（親の tool_result 由来）で状態を変えない。
+        if subAgents.first(where: { $0.id == toolUseId })?.status == .stopped { return }
         let mappedStatus = subAgentStatus(from: status)
         if subAgents.contains(where: { $0.id == toolUseId }) {
             upsertSubAgent(
@@ -511,6 +549,8 @@ final class ChatSubAgentModel {
         switch status.lowercased() {
         case "completed", "success", "succeeded":
             return .completed
+        case "stopped":
+            return .stopped
         case "failed", "error", "cancelled", "canceled":
             return .failed
         default:

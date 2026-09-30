@@ -15,6 +15,7 @@ extension ClaudeChatClient {
         partialItemIds.removeAll()
         partialContentKeys.removeAll()
         completedSubAgentToolUseIds.removeAll()
+        releaseStopTasks()
         await expirePendingUserQuestions()
         if let transport {
             failAllPendingUsageRequests(ClaudeChatClientError.transportClosed)
@@ -25,6 +26,7 @@ extension ClaudeChatClient {
             receiveTask = nil
             await transport.close()
             self.transport = nil
+            releaseStopTasks()
             // reentrant actor: 上の await close() の suspension 窓で fetchRateLimits が
             // 旧 transport・旧世代のまま pending を新規登録できる。transport を nil に
             // した後にもう一度 fail して取りこぼしを防ぐ（stage2 レビュー MUST）。
@@ -67,6 +69,7 @@ extension ClaudeChatClient {
         // CLI プロセス終了後は stdin へ deny を送っても届かず、死因エラーにノイズを足すだけなので送信しない。
         await expirePendingUserQuestions(generation: generation, sendDeny: false)
         failAllPendingUsageRequests(ClaudeChatClientError.transportClosed)
+        releaseStopTasks()
         let endedTransport = transport
 
         if let pendingResultError {

@@ -93,7 +93,7 @@ PTY read（actor＋専用キュー）・transcript 保存（actor）・Hook/Cont
 
 オフセットは UTF16 単位。`.slashCommand` / `.fileReference` span と重なる `.keyword` は落とす（1文字1色のため）。
 
-描画は `IMESafeTextView.SubmitAwareTextView.highlightsKeywords`（既定 `false`）が ON/OFF を持ち、`ChatComposer` / `GridChatColumn` が `agentRef == .builtin(.claudeCode)` を渡す（`SubAgentDrawerView` は既定のまま）。色は `DSColor.composerKeyword`（light `#B45309` / dark `#FCD34D`）。
+描画は `IMESafeTextView.SubmitAwareTextView.highlightsKeywords`（既定 `false`）が ON/OFF を持ち、`ChatComposer` / `GridChatColumn` が `agentRef == .builtin(.claudeCode)` を渡す。色は `DSColor.composerKeyword`（light `#B45309` / dark `#FCD34D`）。
 
 ## init 到着前のスラッシュ補完（composer-ultra-keywords, 2026-07-29・ADR 0138）
 

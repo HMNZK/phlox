@@ -145,18 +145,12 @@ public final class ChatSessionViewModel: Identifiable {
     public var displaySubAgents: [SubAgentRef] {
         subAgents + (codexSubAgentState?.children ?? []).map(CodexSubAgentPresentation.ref(for:))
     }
-    /// 共通ストリップ用。完了したものは外し、失敗は気付けるように残す。
+    /// 共通ストリップ用。実行中と失敗だけ。完了と、停止が確認できたものは外す。
     public var stripSubAgents: [SubAgentRef] {
         subAgentModel.stripSubAgents + displaySubAgents.filter {
             CodexSubAgentPresentation.threadID(from: $0.id) != nil
-                && CodexSubAgentPresentation.isVisibleInStrip(
-                    $0,
-                    isDismissed: subAgentModel.isDismissed($0.id)
-                )
+                && CodexSubAgentPresentation.isVisibleInStrip($0, isDismissed: subAgentModel.isDismissed($0.id))
         }
-    }
-    public var selectedSubAgentId: String? {
-        subAgentModel.selectedSubAgentId
     }
     public private(set) var restoreState: ChatRestoreState = .notRestored
     public var shouldShowConnectingIndicator: Bool {
@@ -243,6 +237,8 @@ public final class ChatSessionViewModel: Identifiable {
     private var pendingTurnCostUSD: Double?
     private var pendingTurnUsage: TurnUsage?
     private var codexSurfaceRefreshTask: Task<Void, Never>?
+    private var codexStopTimeoutTasks: [String: Task<Void, Never>] = [:]
+    private var subAgentStopTimeoutTasks: [String: Task<Void, Never>] = [:]
     private var codexSubAgentRefreshPending = false
     private var codexSubAgentRefreshGeneration = 0
     private var codexRestoreGeneration = 0
@@ -530,7 +526,10 @@ public final class ChatSessionViewModel: Identifiable {
                         )
                         continue
                     }
-                    children[index] = Self.codexChild(read.thread)
+                    children[index] = CodexSubAgentPresentation.keepingTaskName(
+                        Self.codexChild(read.thread),
+                        from: children[index]
+                    )
                     validatedReadIDs.insert(child.id)
                 } catch {
                     guard isCurrentCodexSubAgentRefresh(generation, parentThreadId: parentThreadId) else {
@@ -558,47 +557,6 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
-    /// child の詳細を `thread/read(includeTurns: true)` から読み込む。
-    public func loadCodexSubAgentDetail(threadID: String) async {
-        guard let child = codexSubAgentState?.children.first(where: { $0.id == threadID }) else { return }
-        guard let client = client as? any CodexSubAgentProviding else { return }
-        guard let parentThreadId = threadId else { return }
-        let generation = codexSubAgentRefreshGeneration
-        do {
-            let response = try await client.threadRead(ThreadReadParams(threadId: threadID, includeTurns: true))
-            guard threadId == parentThreadId,
-                  codexSubAgentState?.parentThreadId == parentThreadId,
-                  generation == codexSubAgentRefreshGeneration else { return }
-            guard Self.isMatchingCodexChildRead(
-                response.thread,
-                child: child,
-                parentThreadId: parentThreadId
-            ) else {
-                let message = Self.codexSubAgentReadMismatchMessage(
-                    requestedThreadID: threadID,
-                    receivedThreadID: response.thread.id
-                )
-                codexSubAgentState?.apply(.stale(threadId: threadID, reason: message))
-                codexSubAgentError = message
-                syncCodexSubAgentMarkers()
-                return
-            }
-            let transcript = response.thread.turns?.flatMap { $0.items ?? [] }.compactMap(\.text) ?? []
-            codexSubAgentState?.apply(.validated(child: Self.codexChild(response.thread)))
-            codexSubAgentState?.apply(.detail(threadId: threadID, transcript: transcript))
-            codexSubAgentError = nil
-            syncCodexSubAgentMarkers()
-        } catch {
-            guard threadId == parentThreadId,
-                  codexSubAgentState?.parentThreadId == parentThreadId,
-                  generation == codexSubAgentRefreshGeneration else { return }
-            let message = String(describing: error)
-            codexSubAgentState?.apply(.stale(threadId: threadID, reason: message))
-            codexSubAgentError = "サブエージェント \(threadID): \(message)"
-            syncCodexSubAgentMarkers()
-        }
-    }
-
     /// child の active turn にだけ `turn/interrupt` を送り、完了は event で確定する。
     public func stopCodexSubAgent(threadID: String) async {
         guard var state = codexSubAgentState,
@@ -607,6 +565,14 @@ public final class ChatSessionViewModel: Identifiable {
         let generation = codexSubAgentRefreshGeneration
         let parentThreadId = request.parentThreadId
         codexSubAgentState = state
+        // 停止の確認（interrupted 完了）が来ないまま一定時間たったら、停止中を解除して実行中表示に戻す。
+        codexStopTimeoutTasks[threadID]?.cancel()
+        codexStopTimeoutTasks[threadID] = Task { [weak self] in
+            try? await Task.sleep(for: self?.subAgentStopTimeout ?? .seconds(15))
+            guard !Task.isCancelled, let self,
+                  self.codexSubAgentState?.stopState(for: threadID) == .stopping else { return }
+            self.codexSubAgentState?.rejectStop(for: threadID)
+        }
         do {
             _ = try await client.turnInterrupt(
                 TurnInterruptParams(threadId: request.threadId, turnId: request.turnId)
@@ -1332,34 +1298,54 @@ public final class ChatSessionViewModel: Identifiable {
         return settings.hasAnyValue ? settings : nil
     }
 
-    public func selectSubAgent(_ id: String?) {
-        subAgentModel.selectSubAgent(id)
-        guard let id,
-              let threadID = CodexSubAgentPresentation.threadID(from: id),
-              codexSubAgentState?.detail(for: threadID) == nil else { return }
-        Task { await loadCodexSubAgentDetail(threadID: threadID) }
-    }
-
     public func dismissSubAgent(_ id: String) {
         subAgentModel.dismissSubAgent(id)
     }
 
     public func subAgentTranscript(for id: String) -> [ChatItem] {
+        subAgentModel.transcript(for: id)
+    }
+
+    /// 表示 ID から Codex 子スレッドの停止を要求する。threadID を持たない子（Claude）は何もしない。
+    /// 札の停止ボタン。Codex は `turn/interrupt`、Claude は `stop_task` を送る。確認が来るまで札は実行中のまま
+    /// （停止中はボタンを出さない）。確認できたら帯から消え、失敗・拒否・タイムアウトなら実行中に戻る。
+    public func stopSubAgent(displayID id: String) {
         if let threadID = CodexSubAgentPresentation.threadID(from: id) {
-            let lines = codexSubAgentState?.detail(for: threadID)?.transcript ?? []
-            return CodexSubAgentPresentation.transcript(lines, displayID: id)
+            Task { await stopCodexSubAgent(threadID: threadID) }
+            return
         }
-        return subAgentModel.transcript(for: id)
+        guard let stopper = client as? any SubAgentStopping, let attempt = subAgentModel.beginStop(id) else { return }
+        subAgentStopTimeoutTasks[id]?.cancel()
+        subAgentStopTimeoutTasks[id] = Task { [weak self] in
+            try? await Task.sleep(for: self?.subAgentStopTimeout ?? .seconds(15))
+            guard !Task.isCancelled else { return }
+            self?.subAgentModel.stopFailed(id, attempt: attempt)
+        }
+        Task { [weak self] in
+            do {
+                try await stopper.stopSubAgent(toolUseId: id, attempt: attempt)
+            } catch {
+                self?.releaseStop(id, attempt: attempt)
+            }
+        }
     }
 
-    public func codexSubAgentThreadID(forDisplayID id: String) -> String? {
-        CodexSubAgentPresentation.threadID(from: id)
+    /// 停止要求の失敗を、今の試行に対するものだけ反映する（停止中の解除とタイムアウトの取り消し）。
+    private func releaseStop(_ id: String, attempt: Int) {
+        guard subAgentModel.stopFailed(id, attempt: attempt) else { return }
+        subAgentStopTimeoutTasks.removeValue(forKey: id)?.cancel()
     }
 
-    public func codexSubAgentStopState(forDisplayID id: String) -> CodexSubAgentStopState? {
-        guard let threadID = CodexSubAgentPresentation.threadID(from: id) else { return nil }
-        return codexSubAgentState?.stopState(for: threadID)
+    /// 札ごとの停止操作の状態（nil＝止められない・まだ分からない。Codex・Claude 共通）。
+    public func subAgentStopState(forDisplayID id: String) -> CodexSubAgentStopState? {
+        if let threadID = CodexSubAgentPresentation.threadID(from: id) {
+            return codexSubAgentState?.stopState(for: threadID)
+        }
+        return subAgentModel.stopState(for: id)
     }
+
+    /// 停止の確認を待つ時間の上限（超えたら実行中表示に戻す）。
+    var subAgentStopTimeout: Duration = .seconds(15)
 
     var subAgentDedupScanMetricsForTesting: ChatSubAgentModel.DedupScanMetrics {
         subAgentModel.dedupScanMetricsForTesting
@@ -2253,14 +2239,11 @@ public final class ChatSessionViewModel: Identifiable {
             removeRunningBackgroundTask(taskId: taskId)
         case .subAgentStarted(let toolUseId, let subagentType, let description):
             markRunningEventReceived(at: eventDate)
-            subAgentModel.upsertSubAgent(
-                toolUseId: toolUseId,
-                subagentType: subagentType,
-                description: description,
-                status: .running,
-                summary: nil,
-                outputFile: nil
-            )
+            subAgentModel.markStarted(toolUseId: toolUseId, subagentType: subagentType, description: description)
+        case .subAgentStopAvailable(let toolUseId):
+            subAgentModel.markStoppable(toolUseId)
+        case .subAgentStopFailed(let toolUseId, let attempt):
+            releaseStop(toolUseId, attempt: attempt)
         case .subAgentActivity(let toolUseId, let kind, let itemId, let text):
             markRunningEventReceived(at: eventDate)
             subAgentModel.appendSubAgentActivity(toolUseId: toolUseId, kind: kind, itemId: itemId, text: text)
@@ -3265,7 +3248,7 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
-    private static func codexChild(_ thread: ThreadSummary) -> CodexChildThread {
+    static func codexChild(_ thread: ThreadSummary) -> CodexChildThread {
         let activeTurn = thread.turns?.last { turn in
             guard let status = turn.status?.lowercased() else { return false }
             return ["inprogress", "in_progress", "running", "active"].contains(status)
@@ -3275,7 +3258,7 @@ public final class ChatSessionViewModel: Identifiable {
         case .active: status = "active"
         case .idle: status = "idle"
         case .systemError: status = "error"
-        case .notLoaded: status = "unknown"
+        case .notLoaded: status = "notLoaded"
         case .unknown(let value): status = value.stringValue ?? "unknown"
         case nil: status = "unknown"
         }
@@ -3287,7 +3270,8 @@ public final class ChatSessionViewModel: Identifiable {
             activeTurnId: activeTurn?.id,
             status: status,
             summary: CodexSubAgentPresentation.purpose(for: thread),
-            canAcceptDirectInput: thread.canAcceptDirectInput
+            canAcceptDirectInput: thread.canAcceptDirectInput,
+            taskName: CodexSubAgentPresentation.taskName(for: thread.source)
         )
     }
 
@@ -3337,22 +3321,6 @@ public final class ChatSessionViewModel: Identifiable {
               codexSubAgentAncestorThreadID(read.source)
                 == codexSubAgentAncestorThreadID(expected.source),
               isCodexChild(read, parentThreadId: parentThreadId) else { return false }
-        return true
-    }
-
-    private static func isMatchingCodexChildRead(
-        _ read: ThreadSummary,
-        child: CodexChildThread,
-        parentThreadId: String
-    ) -> Bool {
-        guard read.id == child.id,
-              read.parentThreadId == child.parentThreadId,
-              read.parentThreadId == parentThreadId,
-              codexSubAgentAncestorThreadID(read.source) == child.ancestorThreadId,
-              isCodexChild(read, parentThreadId: parentThreadId) else { return false }
-        if let sourceIdentity = child.sourceIdentity {
-            guard codexSubAgentSourceIdentity(read.source) == sourceIdentity else { return false }
-        }
         return true
     }
 
@@ -3438,12 +3406,6 @@ public final class ChatSessionViewModel: Identifiable {
                 description: ref.description,
                 status: ref.status
             )
-            if ref.status == .completed, selectedSubAgentId == ref.id,
-               let index = transcriptIndexByID[marker.id],
-               case .subAgentMarker(_, _, _, let previousStatus) = transcript[index],
-               previousStatus != .completed {
-                selectSubAgent(nil)
-            }
             guard let index = transcriptIndexByID[marker.id], transcript[index] == marker else {
                 appendOrReplace(marker)
                 changedMarkers.append(marker)
@@ -3691,63 +3653,6 @@ extension ChatSessionViewModel: ControllableSession {
         nativeSkillInputDirectories.removeAll()
     }
 
-    /// サブエージェントタブからのフォローアップ送信（task-3 契約。
-    /// AcceptanceSubAgentFollowUpTests が凍結）。
-    public func sendSubAgentFollowUp(subAgent: SubAgentRef, text: String) async throws {
-        let input = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !input.isEmpty else { return }
-
-        submitBaselineTurnSeq = completedTurnSeq
-        clearRunningTurn()
-
-        let item = ChatItem.userMessage(
-            id: "user-\(UUID().uuidString)",
-            text: input,
-            timestamp: Date(),
-            attachments: []
-        )
-        appendOrReplace(item)
-        localOriginalUserTextByID[item.id] = input
-        adoptTitleFromOriginalUserText(input)
-        enqueueTranscriptUpsert([item])
-        turnGeneration += 1
-        isAwaitingLocallyStartedTurnEvent = true
-        status = .running
-
-        let composedPrompt = Self.composeSubAgentFollowUpPrompt(subAgent: subAgent, userText: input)
-        let clientInput: String
-        if let preamble = pendingReplayContext {
-            clientInput = preamble + "\n\n---\n\n" + composedPrompt
-        } else {
-            clientInput = composedPrompt
-        }
-        do {
-            try await client.turnStart([.text(clientInput)])
-        } catch {
-            // sendText の A3 と同型: turnStart 失敗時は .running 固着を防ぐ。
-            isAwaitingLocallyStartedTurnEvent = false
-            status = .idle
-            reportError("サブエージェントへの送信に失敗しました: \(error)")
-            throw error
-        }
-        pendingReplayContext = nil
-    }
-
-    /// メインの Claude が対象サブエージェントを特定して SendMessage 相当の継続ができるよう、
-    /// id・description・ユーザー本文を明示したプロンプトを合成する（task-3）。
-    static func composeSubAgentFollowUpPrompt(subAgent: SubAgentRef, userText: String) -> String {
-        let description = subAgent.description.isEmpty ? "(no description)" : subAgent.description
-        return """
-        以下はサブエージェントへのフォローアップです。対象サブエージェントを特定し、ユーザーの意図に沿って SendMessage 相当で継続・回答してください。
-
-        - sub-agent id: \(subAgent.id)
-        - description: \(description)
-
-        ユーザーからのメッセージ:
-        \(userText)
-        """
-    }
-
     /// 現在の transcript を即時に永続化キューへ書き出し、書き込み完了まで待つ
     /// （アプリ終了経路から呼ぶ。保留中ストリーム delta はバリア flush してから upsert する）。
     public func flushTranscriptNow() async {
@@ -3779,6 +3684,8 @@ extension ChatSessionViewModel: ControllableSession {
         codexSettingsEventTask?.cancel()
         approvalTask?.cancel()
         userInputTask?.cancel()
+        codexStopTimeoutTasks.values.forEach { $0.cancel() }
+        subAgentStopTimeoutTasks.values.forEach { $0.cancel() }
         eventTask = nil
         codexSettingsEventTask = nil
         approvalTask = nil

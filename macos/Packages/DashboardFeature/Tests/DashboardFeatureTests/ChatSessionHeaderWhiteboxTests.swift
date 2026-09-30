@@ -5,16 +5,12 @@ import Testing
 @testable import SessionFeature
 
 // task-1 白箱テスト（実装役著述）。
-// 契約: シングルビュー・ヘッダ行の共有定数と表示名のフォールバックを純関数経路で捕まえる。
+// 契約: 表示名のフォールバックを純関数経路で捕まえる。
+// （シングルビューのヘッダ行は廃止し、サブエージェントの札の帯に置き換えた。ヘッダ高さの定数は
+// AcceptanceSingleHeaderLayoutTests が固定する。）
 
 @Suite("ChatSession header whitebox")
 struct ChatSessionHeaderWhiteboxTests {
-
-    @Test
-    func headerHeightMatchesMockHeader() {
-        #expect(SubAgentSplitLayout.headerHeight == 56)
-        #expect(ChatSessionHeader.height == SubAgentSplitLayout.headerHeight)
-    }
 
     @Test @MainActor
     func displayNameFallsBackToShortIDWhenNameIsBlank() {

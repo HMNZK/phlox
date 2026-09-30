@@ -31,33 +31,17 @@ struct GridChatColumn: View {
             VStack(spacing: 0) {
                 ChatTranscriptView(
                     viewModel: viewModel,
-                    transcript: selectedSubAgentTranscript,
-                    showsThinkingIndicator: viewModel.selectedSubAgentId == nil,
                     contentMaxWidth: ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: formattingWidth),
                     bottomScrollContentMargin: composerHeight,
                     requestedScrollTarget: $requestedTranscriptTarget,
-                    presentationContext: .gridTile,
-                    onSelectSubAgent: { viewModel.selectSubAgent($0) }
+                    presentationContext: .gridTile
                 )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .environment(\.fileChangeRevealRequest, fileChangeRevealRequest)
                     // 単一表示と同じく safeAreaInset で置く（VStack 兄弟だと出現/行数変化で
                     // LazyVStack 再配置ループ＝ADR 0010 非収束を招く。safeAreaInset は一方向依存で安全）。
                     .safeAreaInset(edge: .top, spacing: 0) {
-                        SubAgentStrip(
-                            subAgents: viewModel.stripSubAgents,
-                            selectedSubAgentId: viewModel.selectedSubAgentId,
-                            includesMainButton: true,
-                            onSelectMain: { viewModel.selectSubAgent(nil) },
-                            onSelectSubAgent: { viewModel.selectSubAgent($0) },
-                            onDismiss: { viewModel.dismissSubAgent($0) },
-                            onStop: { displayID in
-                                guard let threadID = viewModel.codexSubAgentThreadID(forDisplayID: displayID) else { return }
-                                Task { await viewModel.stopCodexSubAgent(threadID: threadID) }
-                            },
-                            canStop: { viewModel.codexSubAgentStopState(forDisplayID: $0) == .available },
-                            isStopping: { viewModel.codexSubAgentStopState(forDisplayID: $0) == .stopping }
-                        )
+                        SubAgentStrip(viewModel: viewModel)
                     }
                     .overlay(alignment: .bottom) {
                         let proposedComposerWidth = ComposerLayout.proposedWidth(mainColumnWidth: formattingWidth)
@@ -127,11 +111,6 @@ struct GridChatColumn: View {
         .onExitCommand {
             performChatEscape(viewModel)
         }
-    }
-
-    private var selectedSubAgentTranscript: [ChatItem]? {
-        guard let selectedSubAgentId = viewModel.selectedSubAgentId else { return nil }
-        return viewModel.subAgentTranscript(for: selectedSubAgentId)
     }
 
     /// 承認カードの「差分を見る」: 会話の該当のファイルの変更へ移り、開く（05 R6e）。

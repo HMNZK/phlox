@@ -97,7 +97,6 @@ func characterization_init_exposesStartingSessionDefaults() {
     #expect(vm.completedTurnSeq == 0)
     #expect(vm.draft == "")
     #expect(vm.pendingApprovals.isEmpty)
-    #expect(vm.selectedSubAgentId == nil)
 }
 
 @Test @MainActor

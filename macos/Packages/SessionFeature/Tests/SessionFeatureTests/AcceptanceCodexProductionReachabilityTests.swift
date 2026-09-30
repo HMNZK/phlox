@@ -68,8 +68,8 @@ struct AcceptanceCodexProductionReachabilityTests {
         }
     }
 
-    @Test("Codex子完了後もグリッドでメインへ戻れる")
-    func gridCanReturnToMainAfterCodexSubAgentCompletes() async throws {
+    @Test("Codex子完了で札が帯から外れる（単体・グリッド共通）")
+    func codexSubAgentStripClearsAfterCompletionInSingleAndGrid() async throws {
         var regressionWindow: NSWindow?
         defer { regressionWindow?.close() }
         try await withStack(subAgentOutOfOrder: true) { viewModel, _, transport in
@@ -105,44 +105,9 @@ struct AcceptanceCodexProductionReachabilityTests {
                     }.count
                     #expect(markerCount == 1)
 
-                    viewModel.selectSubAgent(displayRef.id)
-                    try await waitFor("shared selection loads Codex thread/read") {
-                        viewModel.codexSubAgentState?.detail(for: child.id) != nil
-                    }
-                    let childDetail = try #require(viewModel.codexSubAgentState?.detail(for: child.id))
-                    #expect(childDetail.threadId == child.id)
-                    #expect((await transport.methods()).filter { $0 == "thread/read" }.count >= 3)
-                    #expect(viewModel.subAgentTranscript(for: displayRef.id).contains {
-                        if case .agentMessage(_, let text, _) = $0 { return text == "child-new detail" }
-                        return false
-                    })
-
-                    let sharedStrip = SubAgentStrip(
-                        subAgents: viewModel.stripSubAgents,
-                        selectedSubAgentId: viewModel.selectedSubAgentId,
-                        includesMainButton: true,
-                        onSelectMain: { viewModel.selectSubAgent(nil) },
-                        onSelectSubAgent: { viewModel.selectSubAgent($0) },
-                        onDismiss: { viewModel.dismissSubAgent($0) },
-                        onStop: { displayID in
-                            guard let id = viewModel.codexSubAgentThreadID(forDisplayID: displayID) else { return }
-                            Task { await viewModel.stopCodexSubAgent(threadID: id) }
-                        },
-                        canStop: { viewModel.codexSubAgentStopState(forDisplayID: $0) == .available },
-                        isStopping: { viewModel.codexSubAgentStopState(forDisplayID: $0) == .stopping }
-                    )
-                    let sharedDrawer = SubAgentDrawerView(
-                        subAgent: displayRef,
-                        transcript: viewModel.subAgentTranscript(for: displayRef.id),
-                        agentDescriptor: AgentRegistry.descriptor(for: .codex),
-                        canSendFollowUp: false,
-                        onSendFollowUp: { _ in },
-                        onClose: { viewModel.selectSubAgent(nil) },
-                        showsFollowUpComposer: false
-                    )
+                    let sharedStrip = SubAgentStrip(viewModel: viewModel)
                     let surface = VStack(spacing: 0) {
                         sharedStrip
-                        sharedDrawer
                         CodexSessionSurface(viewModel: viewModel)
                     }
                     .accessibilityElement(children: .contain)
@@ -171,8 +136,6 @@ struct AcceptanceCodexProductionReachabilityTests {
                         "CodexPlanTaskList",
                         "SubAgentStrip",
                         "SubAgentStrip.row",
-                        "SubAgentStrip.stop",
-                        "SubAgentDrawerView",
                     ]
                     for identifier in expectedIdentifiers {
                         #expect(
@@ -180,26 +143,24 @@ struct AcceptanceCodexProductionReachabilityTests {
                             "実ランタイムAXツリーに identifier がない: \(identifier)"
                         )
                     }
+                    // 停止・✕ はポインタを置いた時だけ出る（常時は出さない）。停止は行の AX アクション側。
+                    #expect(elements.contains { $0.identifier == "SubAgentStrip.stop" } == false)
+                    #expect(elements.contains { $0.identifier == "SubAgentStrip.dismiss" } == false)
                     #expect(elements.contains { $0.identifier == "CodexSubAgent.\(child.id)" } == false)
-                    #expect(elements.contains { $0.identifier == "SubAgentDrawer.input" } == false)
                     #expect(elements.contains { $0.identifier?.hasPrefix("CodexBackgroundTerminal.") == true } == false)
                     let displayedText = Set(elements.flatMap { [$0.title, $0.value, $0.description].compactMap { $0 } })
                     #expect(displayedText.contains { $0.contains("0 / 2 完了") })
                     #expect(displayedText.contains { $0.contains("test failure investigation") })
-                    #expect(displayedText.contains { $0.contains("child-new detail") })
+                    // 子の中身は見せない（右パネルは無い）。
+                    #expect(!displayedText.contains { $0.contains("child-new detail") })
                     #expect(!displayedText.contains(child.id))
 
                     await transport.completeSubAgent()
                     await viewModel.refreshCodexSubAgents()
-                    try await waitFor("完了した子がstripと選択状態から外れる") {
+                    try await waitFor("完了した子がstripから外れる") {
                         viewModel.stripSubAgents.isEmpty
                             && viewModel.displaySubAgents.first?.status == .completed
                     }
-                    #expect(viewModel.selectedSubAgentId == nil)
-                    #expect(viewModel.subAgentTranscript(for: displayRef.id).contains {
-                        if case .agentMessage(_, let text, _) = $0 { return text == "child-new detail" }
-                        return false
-                    })
 
                     let gridWindowTitle = "CodexSubAgentGridRegression"
                     let gridHosting = NSHostingView(rootView: GridChatColumn(
@@ -216,10 +177,6 @@ struct AcceptanceCodexProductionReachabilityTests {
                     #expect(!completedGridElements.contains { $0.identifier == "SubAgentStrip" })
                     #expect(!completedGridElements.contains { $0.identifier == "SubAgentStrip.main" })
                     #expect(!completedGridElements.contains { $0.identifier == "SubAgentStrip.row" })
-                    #expect(viewModel.selectedSubAgentId == nil)
-                    viewModel.selectSubAgent(displayRef.id)
-                    #expect(viewModel.selectedSubAgentId == displayRef.id)
-
                 }
             }
         }

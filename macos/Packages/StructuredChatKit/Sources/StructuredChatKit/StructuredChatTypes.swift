@@ -178,6 +178,12 @@ public enum NormalizedChatEvent: Equatable, Sendable {
     case subAgentActivity(toolUseId: String, kind: SubAgentActivityKind, itemId: String?, text: String)
     case subAgentOutput(toolUseId: String, text: String)
     case subAgentCompleted(toolUseId: String, status: String, summary: String, outputFile: String?)
+    /// この子を個別に止められるようになった（停止対象の task_id が分かった）。止める操作は `SubAgentStopping`。
+    case subAgentStopAvailable(toolUseId: String)
+    /// 個別の停止要求が失敗した（応答の error・拒否）。UI は停止中を解除して実行中に戻す。
+    /// 停止の確認は `subAgentCompleted(status: "stopped")` で届く。
+    /// attempt は `SubAgentStopping.stopSubAgent` に渡した試行番号。古い試行への遅れた応答を区別するために運ぶ。
+    case subAgentStopFailed(toolUseId: String, attempt: Int)
     case error(message: String)
     case warning(message: String)
     /// エージェントのプロセスが自分で終了した（04 B3）。終了コードが取れない transport では nil。
@@ -199,6 +205,13 @@ public enum NormalizedChatEvent: Equatable, Sendable {
     /// Claude Code stream-json の system/init の slash_commands に対応する利用可能コマンド名の
     /// 全量スナップショット。名前は先頭の `/` を含まない素の名前で、受け取った順序のまま運ぶ。
     case availableCommandsUpdated(commands: [String])
+}
+
+/// サブエージェントを 1 つだけ止められるクライアント（Claude の stop_task）。
+/// 停止の確認は `subAgentCompleted(status: "stopped")` で届く。送れなかったときは throw する。
+/// attempt は呼び出し側が振る試行番号で、失敗イベント（`subAgentStopFailed`）にそのまま載って返る。
+public protocol SubAgentStopping: Sendable {
+    func stopSubAgent(toolUseId: String, attempt: Int) async throws
 }
 
 public protocol StructuredAgentClient: Sendable {

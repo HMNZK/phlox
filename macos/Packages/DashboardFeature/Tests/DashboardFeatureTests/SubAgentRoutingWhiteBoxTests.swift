@@ -45,21 +45,4 @@ struct SubAgentRoutingWhiteBoxTests {
         #expect(transcript.contains { $0.plainText.contains("from-file-output") })
         #expect(!transcript.contains { $0.plainText.contains("fallback-output") })
     }
-
-    @Test
-    func selectSubAgentStoresSelectedId() {
-        let client = EventYieldingStructuredClient()
-        let vm = ChatSessionViewModel(
-            id: SessionID(),
-            agentRef: .builtin(.claudeCode),
-            client: client,
-            approvalBroker: ChatApprovalBroker(),
-            workingDirectory: "/tmp/work"
-        )
-
-        vm.selectSubAgent("toolu_selected")
-        #expect(vm.selectedSubAgentId == "toolu_selected")
-        vm.selectSubAgent(nil)
-        #expect(vm.selectedSubAgentId == nil)
-    }
 }

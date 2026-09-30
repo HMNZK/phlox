@@ -952,7 +952,7 @@ private struct SubAgentDTO: Encodable {
     private static func wireStatus(_ status: SubAgentStatus) -> String {
         switch status {
         case .running: "running"
-        case .completed: "completed"
+        case .completed, .stopped: "completed"
         case .failed: "unknown"
         }
     }

@@ -383,16 +383,6 @@ private func expectState(
     #expect(state.fullDerivedTitle == fullDerivedTitle, Comment(rawValue: "\(label) fullDerivedTitle"))
 }
 
-private func subAgent() -> SubAgentRef {
-    SubAgentRef(
-        id: "toolu_01TITLE",
-        subagentType: "general-purpose",
-        description: "調査",
-        status: .completed,
-        startedAt: Date(timeIntervalSince1970: 1_700_000_000)
-    )
-}
-
 private func unidentifiedSupplementJSON(id: String, isMeta: Bool? = nil) -> String {
     appendIsMeta("{\"id\":\"\(id)\",\"type\":\"user\",\"text\":\"/review\\nログイン画面を修正\"}", isMeta)
 }
@@ -542,26 +532,6 @@ struct AcceptanceSessionTitleLifecycleTests {
             "ログイン画面を修正",
             "turnStart failure keeps derived"
         )
-    }
-
-    @Test @MainActor
-    func follow_upはメインtranscriptの元本文だけを使う() async throws {
-        let (vm, client) = makeChatVM()
-        try await vm.sendSubAgentFollowUp(subAgent: subAgent(), text: "ログイン画面を修正")
-        expectState(
-            vm.titleState,
-            "ログイン画面を修正",
-            .derived,
-            "Rose",
-            "ログイン画面を修正",
-            "follow-up original"
-        )
-        let sent = client.recordedTurnStarts().flatMap { $0 }.compactMap { input -> String? in
-            if case .text(let text) = input { return text }
-            return nil
-        }.joined()
-        #expect(sent.contains("ログイン画面を修正"))
-        #expect(sent.contains("toolu_01TITLE"))
     }
 
     @Test @MainActor

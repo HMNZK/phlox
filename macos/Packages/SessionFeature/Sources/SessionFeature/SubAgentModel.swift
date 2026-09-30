@@ -5,6 +5,8 @@ public enum SubAgentStatus: String, Equatable, Sendable, Codable {
     case running
     case completed
     case failed
+    /// ユーザーが止めた（停止の確認が取れた）。完了と同じく札の帯からは消える。
+    case stopped
 }
 
 public struct SubAgentControlSummary: Equatable, Sendable {

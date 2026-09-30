@@ -5,10 +5,6 @@ import DesignSystem
 import StructuredChatKit
 
 extension EnvironmentValues {
-    /// 右パネルに開いているサブエージェント（会話の中のマーカーを選択表示にする）。
-    @Entry var selectedSubAgentID: String? = nil
-    /// 右パネルで開けるサブエージェント（nil は制限なし）。アプリを再起動すると一覧が戻らず中身を開けないので、その行は押せなくする。
-    @Entry var openableSubAgentIDs: Set<String>? = nil
     /// 承認カードの「差分を見る」で開くファイルの変更（05 R6e）。token は同じ項目を何度でも開けるように。
     @Entry var fileChangeRevealRequest: FileChangeRevealRequest? = nil
 }
@@ -23,34 +19,20 @@ struct SubAgentMarkerCell: View {
     let subagentType: String
     let description: String
     let status: SubAgentStatus
-    let onSelect: ((String) -> Void)?
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
     @Environment(\.locale) private var locale
-    @Environment(\.selectedSubAgentID) private var selectedSubAgentID
-    @Environment(\.openableSubAgentIDs) private var openableSubAgentIDs
-    @State private var isHovering = false
-
-    private var selectAction: ((String) -> Void)? {
-        openableSubAgentIDs?.contains(id) == false ? nil : onSelect
-    }
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     var body: some View {
         let _ = themeID
-        Button {
-            selectAction?(id)
-        } label: {
-            content
-        }
-        .buttonStyle(.plain)
-        .disabled(selectAction == nil)
-        .help(selectAction == nil ? "" : "サブエージェントを表示")
-        .accessibilityIdentifier("SubAgentMarkerCell")
+        content
+            .accessibilityIdentifier("SubAgentMarkerCell")
     }
 
-    /// PhloxChat.dc.html の子エージェント行: 「↳ 説明 種類 … 状態 ›」。角丸 8・1pt の枠。
+    /// PhloxChat.dc.html の子エージェント行: 「↳ 説明 種類 … 状態」。角丸 8・1pt の枠。中身は見せないので押せない。
     @ViewBuilder
     private var content: some View {
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
@@ -68,46 +50,40 @@ struct SubAgentMarkerCell: View {
                 .foregroundStyle(DSColor.chatTextSecondary)
                 .lineLimit(1)
             Spacer(minLength: 8)
-            statusLabel
-                .font(.system(size: 11 * scale, weight: status == .running ? .semibold : .regular))
-                .foregroundStyle(statusColor)
+            if SubAgentMarkerPresentation.showsStatusLabel(for: status) {
+                statusLabel
+                    .font(.system(size: 11 * scale))
+                    .foregroundStyle(statusColor)
+            }
             if status == .running {
                 ProgressView()
                     .controlSize(.mini)
                     .accessibilityHidden(true)
             }
-            if selectAction != nil {
-                Text(verbatim: "›")
-                    .font(.system(size: 13 * scale))
-                    .foregroundStyle(DSColor.textTertiary)
-                    .accessibilityHidden(true)
-            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .contentShape(Rectangle())
-        .background {
-            // 選択中（右パネルに開いている）とホバーはホバー色の地。選択中は 2pt のアクセント枠。
-            if isSelected || (isHovering && selectAction != nil) {
-                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(DSColor.fillSubtle)
-            }
-        }
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(isSelected ? DSColor.accent : DSColor.separator, lineWidth: isSelected ? 2 : 1)
+                .strokeBorder(DSColor.separator, lineWidth: 1)
         }
-        .onHover { isHovering = $0 }
+        .overlay {
+            SubAgentMarkerGlow(
+                glow: SubAgentMarkerPresentation.glow(for: status, reduceMotion: reduceMotion),
+                cornerRadius: 8
+            )
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(status == .running ? statusLabel : Text(verbatim: ""))
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
-
-    private var isSelected: Bool { selectedSubAgentID == id }
 
     private var statusLabel: Text {
         switch status {
         case .running: Text("実行中")
         case .completed: Text("完了")
         case .failed: Text("失敗")
+        case .stopped: Text("subagent.status.stopped")
         }
     }
 
@@ -115,7 +91,7 @@ struct SubAgentMarkerCell: View {
     private var statusColor: Color {
         switch status {
         case .running: DSColor.chatTextPrimary
-        case .completed: DSColor.textTertiary
+        case .completed, .stopped: DSColor.textTertiary
         case .failed: DSColor.attentionInk(.error)
         }
     }

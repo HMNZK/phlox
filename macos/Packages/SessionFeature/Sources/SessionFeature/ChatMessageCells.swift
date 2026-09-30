@@ -6,10 +6,9 @@ public struct ChatItemView: View, Equatable {
     let item: ChatItem
     let isRunningCommand: Bool
     let agentDescriptor: AgentDescriptor
-    var onSelectSubAgent: ((String) -> Void)? = nil
     var onRespondToUserQuestion: ((String, [String: [String]]) async -> Bool)? = nil
     /// 未回答の質問カードを回答せずに閉じる（＝ターンを中断する）。
-    /// 配線しない場所（サブエージェントのドロワー・チームのタイムライン等の閲覧専用表示）では
+    /// 配線しない場所（チームのタイムライン等の閲覧専用表示）では
     /// 閉じるボタン自体が出ない。
     var onDismissUserQuestion: (() -> Void)? = nil
     /// turnCost の行（金額の無い Codex はターン最後の応答の下）に添えるトークン内訳。
@@ -19,7 +18,6 @@ public struct ChatItemView: View, Equatable {
         item: ChatItem,
         isRunningCommand: Bool,
         agentDescriptor: AgentDescriptor,
-        onSelectSubAgent: ((String) -> Void)? = nil,
         onRespondToUserQuestion: ((String, [String: [String]]) async -> Bool)? = nil,
         onDismissUserQuestion: (() -> Void)? = nil,
         turnUsage: TurnUsage? = nil
@@ -27,7 +25,6 @@ public struct ChatItemView: View, Equatable {
         self.item = item
         self.isRunningCommand = isRunningCommand
         self.agentDescriptor = agentDescriptor
-        self.onSelectSubAgent = onSelectSubAgent
         self.onRespondToUserQuestion = onRespondToUserQuestion
         self.onDismissUserQuestion = onDismissUserQuestion
         self.turnUsage = turnUsage
@@ -77,8 +74,7 @@ public struct ChatItemView: View, Equatable {
                 id: id,
                 subagentType: subagentType,
                 description: description,
-                status: status,
-                onSelect: onSelectSubAgent
+                status: status
             )
         case .taskList(_, let tasks, let timestamp):
             TaskListCell(tasks: tasks, timestamp: timestamp)

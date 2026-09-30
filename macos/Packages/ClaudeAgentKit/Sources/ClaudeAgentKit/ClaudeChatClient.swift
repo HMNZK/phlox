@@ -7,6 +7,8 @@ public enum ClaudeChatClientError: Error, Equatable, Sendable {
     case usageRequestTimedOut
     case malformedUsageResponse
     case usageRequestFailed(String)
+    /// stop_task の対象（task_id）がまだ分からない。
+    case subAgentTaskUnknown
 }
 
 public actor ClaudeChatClient: StructuredAgentClient {
@@ -108,7 +110,14 @@ public actor ClaudeChatClient: StructuredAgentClient {
     var pendingCreatedTaskTitles: [String: String] = [:]
     var subAgentToolUseIds: Set<String> = []
     var backgroundSubAgentToolUseIds: Set<String> = []
-    var emittedSubAgentStarts: Set<String> = []
+    var emittedSubAgentStarts: [String: DescriptionSource] = [:]
+    /// 子（tool_use_id）→ system/task_started の task_id。stop_task の宛先。
+    var subAgentTaskIDs: [String: String] = [:]
+    /// 送信済みの stop_task（request_id → 対象と試行番号）。応答の error で停止中を解除するために持つ。
+    var pendingStopTaskRequests: [String: (toolUseId: String, attempt: Int)] = [:]
+    /// task_notification(stopped) を受けた子。あとから届く親の tool_result（「ユーザーが続行を望まない」）で完了・失敗にしない。
+    var stoppedSubAgentToolUseIds: Set<String> = []
+    var nextStopTaskRequestID = 1
     var completedSubAgentToolUseIds: Set<String> = []
     var partialMessageIdsByParent: [String: String] = [:]
     var partialItemIdsByKey: [String: String] = [:]
@@ -444,6 +453,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
     public func close() async {
         receiveTask?.cancel()
         receiveTask = nil
+        releaseStopTasks()
         failAllPendingUsageRequests(ClaudeChatClientError.transportClosed)
         await expirePendingUserQuestions()
         yieldPendingResultErrorIfNeeded()
@@ -453,6 +463,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
         transport = nil
         // await close() の suspension 窓で登録された pending の取りこぼし防止
         // （spawn() と同じ理由。stage2 レビュー MUST）。
+        releaseStopTasks()
         failAllPendingUsageRequests(ClaudeChatClientError.transportClosed)
         await expirePendingUserQuestions()
         eventContinuation.finish()

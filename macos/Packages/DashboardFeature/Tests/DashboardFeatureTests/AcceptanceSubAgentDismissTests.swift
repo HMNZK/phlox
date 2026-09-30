@@ -42,36 +42,7 @@ struct SubAgentDismissAcceptanceTests {
         #expect(!stripIds.contains("toolu_drop"), "dismissed sub-agent must leave the strip")
         #expect(stripIds.contains("toolu_keep"), "other sub-agents must stay in the strip")
         #expect(vm.subAgents.contains { $0.id == "toolu_drop" },
-                "dismissed sub-agent must remain in subAgents for marker/drawer access")
-    }
-
-    @Test
-    func dismissingSelectedSubAgentReturnsSelectionToMain() async throws {
-        let (vm, client) = try await startedViewModel()
-        client.yield(.subAgentStarted(toolUseId: "toolu_sel", subagentType: "Explore", description: "selected"))
-        try await waitUntil(timeoutNanoseconds: 5_000_000_000) {
-            vm.stripSubAgents.contains { $0.id == "toolu_sel" }
-        }
-        vm.selectSubAgent("toolu_sel")
-
-        vm.dismissSubAgent("toolu_sel")
-
-        #expect(vm.selectedSubAgentId == nil, "dismissing the selected sub-agent must return to the main chat")
-    }
-
-    @Test
-    func dismissingUnselectedSubAgentKeepsCurrentSelection() async throws {
-        let (vm, client) = try await startedViewModel()
-        client.yield(.subAgentStarted(toolUseId: "toolu_sel", subagentType: "Explore", description: "selected"))
-        client.yield(.subAgentStarted(toolUseId: "toolu_other", subagentType: "Explore", description: "other"))
-        try await waitUntil(timeoutNanoseconds: 5_000_000_000) {
-            vm.stripSubAgents.count == 2
-        }
-        vm.selectSubAgent("toolu_sel")
-
-        vm.dismissSubAgent("toolu_other")
-
-        #expect(vm.selectedSubAgentId == "toolu_sel", "dismissing another sub-agent must not change the selection")
+                "dismissed sub-agent must remain in subAgents for marker access")
     }
 
     @Test

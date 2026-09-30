@@ -18,7 +18,6 @@ struct ChatTranscriptView: View {
     private let contentMaxWidth: CGFloat?
     private let bottomScrollContentMargin: CGFloat
     private let defaultWindowLimit: Int
-    private let onSelectSubAgent: (String) -> Void
     @State private var autoFollow = ChatAutoFollowController()
     // 表示件数制限（末尾 N 件のみ描画。ADR 0030:22）。view-local な @State に住み、
     // body 評価中には書かない（visibleRange は読み取りのみ）。expand はボタン action、
@@ -56,8 +55,7 @@ struct ChatTranscriptView: View {
         bottomScrollContentMargin: CGFloat = 0,
         requestedScrollTarget: Binding<String?> = .constant(nil),
         currentInputPositionID: Binding<String?> = .constant(nil),
-        presentationContext: TranscriptPresentationContext = .single,
-        onSelectSubAgent: @escaping (String) -> Void = { _ in }
+        presentationContext: TranscriptPresentationContext = .single
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
         _requestedScrollTarget = requestedScrollTarget
@@ -68,7 +66,6 @@ struct ChatTranscriptView: View {
         self.bottomScrollContentMargin = bottomScrollContentMargin
         _window = State(initialValue: TranscriptWindow(context: presentationContext))
         defaultWindowLimit = TranscriptWindow.defaultLimit(for: presentationContext)
-        self.onSelectSubAgent = onSelectSubAgent
     }
 
     var body: some View {
@@ -165,8 +162,6 @@ struct ChatTranscriptView: View {
             guard viewModel.agentRef == .builtin(.codex) else { return }
             await viewModel.refreshCodexSubAgents()
         }
-        .environment(\.selectedSubAgentID, viewModel.selectedSubAgentId)
-        .environment(\.openableSubAgentIDs, Set(viewModel.displaySubAgents.map(\.id)))
     }
 
     @ViewBuilder
@@ -321,7 +316,6 @@ struct ChatTranscriptView: View {
                 item: item,
                 isRunningCommand: isRunningCommand(item, lastTranscriptID: lastTranscriptID),
                 agentDescriptor: agentDescriptor,
-                onSelectSubAgent: onSelectSubAgent,
                 onRespondToUserQuestion: { requestId, answers in
                     await viewModel.respondToUserQuestion(requestId: requestId, answers: answers)
                 },

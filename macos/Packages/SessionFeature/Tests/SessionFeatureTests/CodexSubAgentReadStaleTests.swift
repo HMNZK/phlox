@@ -15,7 +15,8 @@ struct CodexSubAgentReadStaleTests {
             await viewModel.refreshCodexSubAgents()
             let failed = try #require(viewModel.codexSubAgentState?.children.first)
             #expect(failed.id == "child")
-            #expect(failed.status == "stale")
+            // 読めなかっただけ。実行中だった子を失敗にはしない（最後に分かっていた状態を保つ）。
+            #expect(CodexSubAgentPresentation.status(for: failed.status) == .running)
             #expect(viewModel.codexSubAgentState?.stopState(for: "child") == .stale)
             #expect(viewModel.codexSubAgentError != nil)
 
@@ -34,18 +35,16 @@ struct CodexSubAgentReadStaleTests {
         }
     }
 
-    @Test("detail の identity 不一致は既存 detail と停止操作を失効し、成功 read で復元する")
-    func detailMismatchRejectsStopThenRecovers() async throws {
+    @Test("refresh の identity 不一致は停止操作を失効し、成功 read で復元する")
+    func refreshMismatchRejectsStopThenRecovers() async throws {
         let client = ChildReadClient(parentID: "parent")
         try await withViewModel(client: client) { viewModel in
             await client.setMode(.success)
             await viewModel.refreshCodexSubAgents()
-            await viewModel.loadCodexSubAgentDetail(threadID: "child")
-            #expect(viewModel.codexSubAgentState?.detail(for: "child")?.transcript == ["detail"])
+            #expect(viewModel.codexSubAgentState?.stopState(for: "child") == .available)
 
             await client.setMode(.mismatchSource)
-            await viewModel.loadCodexSubAgentDetail(threadID: "child")
-            #expect(viewModel.codexSubAgentState?.detail(for: "child") == nil)
+            await viewModel.refreshCodexSubAgents()
             #expect(viewModel.codexSubAgentState?.stopState(for: "child") == .stale)
             #expect(viewModel.codexSubAgentError?.contains("identity") == true)
 
@@ -53,10 +52,23 @@ struct CodexSubAgentReadStaleTests {
             #expect(await client.interruptCount == 0)
 
             await client.setMode(.success)
-            await viewModel.loadCodexSubAgentDetail(threadID: "child")
-            #expect(viewModel.codexSubAgentState?.detail(for: "child")?.transcript == ["detail"])
+            await viewModel.refreshCodexSubAgents()
             #expect(viewModel.codexSubAgentState?.stopState(for: "child") == .available)
             #expect(viewModel.codexSubAgentError == nil)
+        }
+    }
+
+    @Test("一覧に agent_path があれば、thread/read が省略しても親の付けた名前を保つ（以後の refresh でも）")
+    func taskNameSurvivesReadThatOmitsAgentPath() async throws {
+        let client = ChildReadClient(parentID: "parent")
+        try await withViewModel(client: client) { viewModel in
+            await client.setMode(.readOmitsAgentPath)
+            await viewModel.refreshCodexSubAgents()
+            #expect(viewModel.codexSubAgentState?.children.first?.summary == "fix login")
+            #expect(viewModel.displaySubAgents.first?.description == "fix login")
+
+            await viewModel.refreshCodexSubAgents()
+            #expect(viewModel.displaySubAgents.first?.description == "fix login")
         }
     }
 
@@ -96,6 +108,8 @@ private enum ChildReadMode: Sendable {
     case mismatchID
     case mismatchSource
     case success
+    /// 一覧の応答には agent_path があるが、thread/read の応答では省略される。
+    case readOmitsAgentPath
 }
 
 private struct ChildReadFailure: Error, Sendable {}
@@ -127,7 +141,10 @@ private final class ChildReadClient: StructuredAgentClient, CodexSubAgentProvidi
     func close() async {}
 
     func threadList(_ params: ThreadListParams) async throws -> ThreadListResponse {
-        ThreadListResponse(data: [thread(id: "child", source: childSource(), turns: [])])
+        let source = await state.mode == .readOmitsAgentPath
+            ? spawnSource(agentPath: "root/fix_login")
+            : childSource()
+        return ThreadListResponse(data: [thread(id: "child", source: source, turns: [])])
     }
 
     func threadRead(_ params: ThreadReadParams) async throws -> ThreadReadResponse {
@@ -142,12 +159,20 @@ private final class ChildReadClient: StructuredAgentClient, CodexSubAgentProvidi
             )
         case .success:
             return response(thread: thread(id: "child", source: childSource(), turns: Self.turns))
+        case .readOmitsAgentPath:
+            return response(thread: thread(id: "child", source: spawnSource(agentPath: nil), turns: Self.userTurns))
         }
     }
 
     func turnInterrupt(_ params: TurnInterruptParams) async throws -> TurnInterruptResponse {
         await state.recordInterrupt()
         return try! JSONDecoder().decode(TurnInterruptResponse.self, from: Data("{}".utf8))
+    }
+
+    private func spawnSource(agentPath: String?) -> ThreadSessionSource {
+        var spawn: [String: JSONValue] = ["parent_thread_id": .string(parentID)]
+        if let agentPath { spawn["agent_path"] = .string(agentPath) }
+        return .subAgent(.object(["thread_spawn": .object(spawn)]))
     }
 
     private func childSource() -> ThreadSessionSource {
@@ -189,6 +214,11 @@ private final class ChildReadClient: StructuredAgentClient, CodexSubAgentProvidi
 
     private static let turns: [TurnSummary] = {
         let data = Data(#"[{"id":"child-turn","status":"inProgress","items":[{"id":"item","type":"agentMessage","text":"detail"}]}]"#.utf8)
+        return try! JSONDecoder().decode([TurnSummary].self, from: data)
+    }()
+
+    private static let userTurns: [TurnSummary] = {
+        let data = Data(#"[{"id":"child-turn","status":"inProgress","items":[{"id":"u","type":"userMessage","text":"親の依頼文"}]}]"#.utf8)
         return try! JSONDecoder().decode([TurnSummary].self, from: data)
     }()
 

@@ -460,8 +460,8 @@ struct AcceptanceCodexChatParityIntegrationTests {
         }
     }
 
-    @Test("Codex 子 thread の詳細読込と停止は実 app-server RPC を通る")
-    func codexSubAgentDetailAndStopUseNativeRPC() async throws {
+    @Test("Codex 子 thread の一覧取得と停止は実 app-server RPC を通る")
+    func codexSubAgentListAndStopUseNativeRPC() async throws {
         let transport = JSONRPCTransport()
         let appServer = CodexAppServerClient(transport: transport)
         let adapter = CodexStructuredAgentClient(client: appServer)
@@ -487,11 +487,6 @@ struct AcceptanceCodexChatParityIntegrationTests {
             #expect(children.first?.activeTurnId == nil,
                     "同一 ID の child は最新 turn を採用すること")
             #expect(children.last?.activeTurnId == "codex-child-2-turn-1")
-            await viewModel.loadCodexSubAgentDetail(threadID: "codex-child-1")
-
-            let state = try #require(viewModel.codexSubAgentState)
-            #expect(state.detail(for: "codex-child-1")?.transcript == ["child question", "child answer"])
-            #expect(state.transcript(for: "codex-child-1") == ["child question", "child answer"])
 
             await viewModel.stopCodexSubAgent(threadID: "codex-child-2")
             let interrupt = try #require((await transport.messages()).last { message in

@@ -69,8 +69,12 @@ extension ClaudeChatClient {
                 yieldSubAgentStartedIfNeeded(
                     toolUseId: toolUseId,
                     subagentType: event["subagent_type"] as? String ?? "local_agent",
-                    description: event["description"] as? String ?? ""
+                    description: event["description"] as? String ?? "",
+                    source: .taskStarted
                 )
+                // task_id が分かって初めて個別に止められる（stop_task の宛先）。
+                subAgentTaskIDs[toolUseId] = taskId
+                eventContinuation.yield(.subAgentStopAvailable(toolUseId: toolUseId))
             } else {
                 eventContinuation.yield(.backgroundTaskStarted(
                     taskId: taskId,
@@ -85,6 +89,7 @@ extension ClaudeChatClient {
                subAgentToolUseIds.contains(toolUseId) {
                 // 実サブエージェントは完了もサブエージェント側のみ（二重表現回避）。
                 observeSubAgentCompletion(toolUseId)
+                if event["status"] as? String == "stopped" { stoppedSubAgentToolUseIds.insert(toolUseId) }
                 eventContinuation.yield(.subAgentCompleted(
                     toolUseId: toolUseId,
                     status: event["status"] as? String ?? "",

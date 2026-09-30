@@ -6,17 +6,12 @@ import DesignSystem
 
 /// esc の View レベル分岐（task-9）。composer フォーカス時（NSTextView.keyDown）と
 /// 非フォーカス時（.onKeyPress(.escape)）の双方から同一経路で呼ばれ、優先順を一元化する:
-/// (1) ピッカー表示中は閉じる → (2) サブエージェントドロワーが開いていれば閉じる（既存挙動）
-/// → (3) esc 状態機械（単発=interrupt / 2連打=ピッカー）。
+/// (1) ピッカー表示中は閉じる → (2) esc 状態機械（単発=interrupt / 2連打=ピッカー）。
 /// 状態機械そのもの（2連打判定・時刻記録）は ViewModel.handleEscapeKey に委ねる。
 @MainActor
 func performChatEscape(_ viewModel: ChatSessionViewModel) {
     if viewModel.isHistoryPickerPresented {
         viewModel.handleEscapeKey()
-        return
-    }
-    if viewModel.selectedSubAgentId != nil {
-        viewModel.selectSubAgent(nil)
         return
     }
     viewModel.handleEscapeKey()

@@ -44,9 +44,9 @@ private final class ControlModelCodexClient: StructuredAgentClient, CodexSetting
     var updatedSettings: [ThreadSettingsUpdateParams] { lock.withLock { recorded } }
 
     /// app-server からの設定の通知（どの変更の結果かは載らない）。
-    func emitSettings(model: String, effort: String, mode: String = "default", profile: String? = nil) throws {
+    func emitSettings(model: String, effort: String, mode: String = "default", profile: String? = nil, sandbox: String = "workspaceWrite") throws {
         let settings: ThreadSettings = try ControlModelJSON.decode("""
-        {"cwd":"/tmp","model":"\(model)","modelProvider":"openai","effort":"\(effort)","approvalPolicy":"never","approvalsReviewer":"user","sandboxPolicy":{"type":"workspaceWrite"},"activePermissionProfile":\(profile.map { #"{"id":"\#($0)","extends":null}"# } ?? "null"),"serviceTier":null,"collaborationMode":{"mode":"\(mode)","settings":{"model":"\(model)","reasoning_effort":"\(effort)","developer_instructions":null}}}
+        {"cwd":"/tmp","model":"\(model)","modelProvider":"openai","effort":"\(effort)","approvalPolicy":"never","approvalsReviewer":"user","sandboxPolicy":{"type":"\(sandbox)"},"activePermissionProfile":\(profile.map { #"{"id":"\#($0)","extends":null}"# } ?? "null"),"serviceTier":null,"collaborationMode":{"mode":"\(mode)","settings":{"model":"\(model)","reasoning_effort":"\(effort)","developer_instructions":null}}}
         """)
         threadContinuation.yield(.threadSettingsUpdated(threadId: "thread-1", threadSettings: settings))
     }
@@ -374,6 +374,18 @@ private final class ControlModelSpawnClient: StructuredAgentClient, SpawnAgentSe
         for _ in 0..<200 where vm.selectedEffort != "high" { try await Task.sleep(nanoseconds: 5_000_000) }
         #expect(vm.selectedModel == "gpt-5.5-codex")
         #expect(vm.selectedEffort == "high")
+    }
+
+    /// 旧形式で始めた thread の設定通知は権限プロファイルが null。実際の sandbox から権限を表示する。
+    @Test func settingsNotificationWithoutProfileShowsPermissionFromSandbox() async throws {
+        let client = ControlModelCodexClient()
+        let vm = try await makeCodexViewModel(client)
+        defer { Task { await vm.terminate() } }
+
+        try client.emitSettings(model: "gpt-5.5-codex", effort: "low", profile: nil, sandbox: "dangerFullAccess")
+        await waitUntil { vm.selectedEffort == "low" }
+
+        #expect(vm.selectedPermissionProfile == ":danger-full-access")
     }
 
     /// プラン モードの切り替えの応答より先に、後から選んだモデルの応答が返っても、選んだモデルが残る。

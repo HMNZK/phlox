@@ -2558,10 +2558,26 @@ public final class ChatSessionViewModel: Identifiable {
         if let effort = response.reasoningEffort {
             selectedEffort = effort
         }
-        if let profile = response.activePermissionProfile?.id {
+        if let profile = response.activePermissionProfile?.id ?? Self.permissionProfileID(for: response.sandbox) {
             selectedPermissionProfile = profile
         }
         refreshPlanModeAvailability()
+    }
+
+    /// 旧形式（approvalPolicy + sandbox）で始めた thread では activePermissionProfile が null のまま
+    /// 届くので、実際の sandbox から組み込みプロファイルへ写して表示する（「未設定」にしない）。
+    private static func permissionProfileID(for sandbox: SandboxPolicy?) -> String? {
+        let type: String? = switch sandbox {
+        case .named(let value): value
+        case .object(let value): value["type"]?.stringValue
+        case nil: nil
+        }
+        return switch type {
+        case "dangerFullAccess", "danger-full-access": ":danger-full-access"
+        case "workspaceWrite", "workspace-write": ":workspace"
+        case "readOnly", "read-only": ":read-only"
+        default: nil
+        }
     }
 
     private func syncSettings(from settings: ThreadSettings) {
@@ -2575,6 +2591,7 @@ public final class ChatSessionViewModel: Identifiable {
             selectedEffort = settings.effort
         }
         selectedPermissionProfile = settings.activePermissionProfile?.id
+            ?? Self.permissionProfileID(for: settings.sandboxPolicy)
         refreshPlanModeAvailability()
     }
 

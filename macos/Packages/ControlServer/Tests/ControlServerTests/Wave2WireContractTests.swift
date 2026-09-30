@@ -53,7 +53,7 @@ struct DefaultModelRuleTests {
             "Fable 5.1", "Sonnet 5", "Haiku 4.5",
         ])
         #expect(AgentModelCatalog.builtinModels(for: .codex).map(\.id) == [
-            "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol",
+            "gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol",
             "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5",
         ])
         let cursorModels = AgentModelCatalog.builtinModels(for: .cursor)

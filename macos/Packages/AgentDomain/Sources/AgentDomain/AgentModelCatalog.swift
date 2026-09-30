@@ -33,10 +33,10 @@ public enum AgentModelCatalog {
         ControlModelOption(id: "sonnet", displayName: "Sonnet 5"),
         ControlModelOption(id: "haiku", displayName: "Haiku 4.5"),
     ]
-    // Current families from `codex app-server` model/list (v0.156.1, 2026-09-23). Keep the live order
+    // Current families from `codex app-server` model/list (v0.159.2, 2026-09-30). Keep the live order
     // so the first model remains Codex's current default when discovery is unavailable.
     private static let codexModels = [
-        "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol",
+        "gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol",
         "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5",
     ].map {
         ControlModelOption(id: $0, displayName: $0)

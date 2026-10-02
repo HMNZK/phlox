@@ -32,6 +32,7 @@ public enum SidebarRequest: Equatable, Sendable {
 
 public enum InspectorTab: Hashable, CaseIterable, Sendable {
     case session
+    case files
     case usage
 }
 
@@ -120,6 +121,12 @@ public final class AppRouter {
     /// 使用量チップのクリック（07）。インスペクタを開いて「使用量」を前に出す。
     public func showUsageInInspector() {
         inspectorTab = .usage
+        inspectorVisible = true
+    }
+
+    /// ⌃⌘B：インスペクタを開いてファイルツリーを表示する。
+    public func showFilesInInspector() {
+        inspectorTab = .files
         inspectorVisible = true
     }
 

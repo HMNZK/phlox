@@ -164,6 +164,8 @@ public final class FileTabDocument {
             case .saved:
                 self.loadedDiskBytes = saving
                 self.baselineAt = Date()
+                NotificationCenter.default.post(name: .fileTreeFileSaved, object: nil,
+                                                userInfo: ["root": self.root, "path": self.path])
                 return SaveResult.saved
             case .conflict:
                 return SaveResult.conflictDetected

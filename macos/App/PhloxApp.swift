@@ -747,6 +747,12 @@ private struct ViewCommands: Commands {
             .keyboardShortcut("i", modifiers: [.command, .control])
             .disabled(router == nil)
 
+            Button("ファイルツリー") {
+                router?.showFilesInInspector()
+            }
+            .keyboardShortcut("b", modifiers: [.command, .control])
+            .disabled(router == nil)
+
             // ⌥⌘T は macOS 標準の「ツールバーを表示/隠す」と重なるため ⌃⌘T（13 Review）。
             Button("ターミナルのタブ") {
                 router?.openChildTab(.terminal)

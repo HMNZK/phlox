@@ -27,6 +27,7 @@ final class ScriptedAppServerTransport: AppServerTransport, @unchecked Sendable 
     var threadResponseModel: String? = "gpt-5-codex"
     var threadResponseReasoningEffort: String? = "medium"
     var threadResponsePermissionProfile: String? = ":workspace"
+    var threadResponseSandbox: [String: Any]? = ["type": "workspaceWrite"]
     var modelListData: [[String: Any]] = [[
         "id": "gpt-5-codex",
         "model": "gpt-5-codex",
@@ -145,8 +146,10 @@ final class ScriptedAppServerTransport: AppServerTransport, @unchecked Sendable 
             ],
             "approvalPolicy": "never",
             "approvalsReviewer": "user",
-            "sandbox": ["type": "workspaceWrite"],
         ]
+        if let threadResponseSandbox {
+            response["sandbox"] = threadResponseSandbox
+        }
         if let threadResponseModel {
             response["model"] = threadResponseModel
         }
@@ -1512,6 +1515,7 @@ func chatSessionViewModel_spawnAgentCursorHasEmptyEffortLevels() async throws {
 func chatSessionViewModel_codexDefaultsToFullAccessWhenNoPersistedOrServerProfile() async throws {
     let transport = ScriptedAppServerTransport()
     transport.threadResponsePermissionProfile = nil
+    transport.threadResponseSandbox = nil
     let broker = ChatApprovalBroker()
     let client = CodexAppServerClient(transport: transport, serverRequestHandler: broker.serverRequestHandler)
     let vm = ChatSessionViewModel(

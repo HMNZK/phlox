@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 import ChatRenderKit
 import DesignSystem
@@ -15,24 +14,14 @@ struct CodeBlockView: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        // PhloxChat.dc.html: コード地・枠なし・角丸 8。28pt の見出し（言語は素の等幅 11・右に文字だけの「コピー」）＋区切り線。
+        // PhloxChat.dc.html: コード地・枠なし・角丸 8。28pt の見出し（言語は素の等幅 11・右にコピーアイコン）＋区切り線。
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0) {
                 Text(language?.isEmpty == false ? language! : UIWording.text(.missingCodeBlockLanguage, languageCode: languageCode))
                     .font(.system(size: 11 * scale, design: .monospaced))
                     .foregroundStyle(DSColor.chatTextSecondary)
                 Spacer(minLength: 0)
-                Button(action: copyCode) {
-                    Text(UIWording.text(.copyAction, languageCode: languageCode))
-                        .font(.system(size: 11 * scale))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(DSColor.chatTextSecondary)
-                .help(UIWording.text(.copyCodeHelp, languageCode: languageCode))
-                .accessibilityIdentifier("CodeBlock.copyButton")
+                MessageCopyButton(text: code, accessibilityIdentifier: "CodeBlock.copyButton", scale: scale, helpKey: .copyCodeHelp)
             }
             .padding(.leading, 12)
             .padding(.trailing, 6)
@@ -52,11 +41,6 @@ struct CodeBlockView: View {
             }
         }
         .background(DSColor.codeBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-
-    private func copyCode() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(code, forType: .string)
     }
 }
 

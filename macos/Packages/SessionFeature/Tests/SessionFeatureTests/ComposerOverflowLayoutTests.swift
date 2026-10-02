@@ -15,6 +15,101 @@ struct ComposerOverflowLayoutTests {
     private let epsilon: CGFloat = 1
 
     @Test @MainActor
+    func denseOneRowKeepsRequiredControlsAndHidesOnlyPermissionAndBranch() async throws {
+        let vm = try await makeWorstCaseClaudeViewModel()
+        let footer = makeFooter(vm, layout: .standard)
+        let width = try intrinsicWidth(footer) - 20
+        let size = try renderSize(footer, proposedWidth: width)
+        #expect(size.width <= width + epsilon)
+        #expect(size.height == 26)
+        let snapshot = accessibilitySnapshot(footer, width: width, height: size.height)
+        expectDenseControls(snapshot)
+    }
+
+    @Test @MainActor
+    func narrowOneRowKeepsContextAndSendButton() async throws {
+        let vm = try await makeWorstCaseClaudeViewModel()
+        let footer = makeFooter(vm, layout: .compact)
+        let size = try renderSize(footer, proposedWidth: worstCaseWidth)
+        #expect(size.width <= worstCaseWidth + epsilon)
+        #expect(size.height == 26)
+        let snapshot = accessibilitySnapshot(footer, width: worstCaseWidth, height: size.height)
+        expectNarrowControls(snapshot)
+        let overflow = try #require(snapshot.frames["ChatComposer.overflowMenu"])
+        let send = try #require(snapshot.frames["ChatComposer.sendButton"])
+        #expect(abs(overflow.midY - send.midY) <= epsilon)
+    }
+
+    @Test @MainActor
+    func minimalLayoutKeepsRequiredControls() async throws {
+        let vm = try await makeWorstCaseClaudeViewModel()
+        let footer = makeFooter(vm, layout: .minimal)
+        let size = try renderSize(footer, proposedWidth: worstCaseWidth)
+        #expect(size.width <= worstCaseWidth + epsilon)
+        #expect(size.height == 26)
+        expectNarrowControls(accessibilitySnapshot(footer, width: worstCaseWidth, height: size.height))
+    }
+
+    @MainActor
+    private func makeFooter(_ vm: ChatSessionViewModel, layout: ComposerFooterLayout) -> ChatComposerFooter {
+        ChatComposerFooter(
+            viewModel: vm, layout: layout, isRunning: false, canSubmit: true,
+            onSend: {}, onInterrupt: {}, branchNameOverride: "feature/composer-overflow"
+        )
+    }
+
+    @MainActor
+    private func expectDenseControls(_ snapshot: FooterAccessibilitySnapshot, actionIdentifier: String = "sendButton") {
+        for identifier in ["attachPlaceholder", "spawnModelMenu", "claudeEffortMenu", "overflowMenu", "contextIndicator", actionIdentifier] {
+            #expect(snapshot.frames["ChatComposer.\(identifier)"] != nil, "Missing \(identifier)")
+        }
+        #expect(snapshot.frames["ChatComposer.claudePermissionMenu"] == nil)
+        #expect(!snapshot.text.contains("feature/composer-overflow"))
+        #expect(snapshot.text.contains("25%"))
+        #expect(snapshot.text.contains("コンテキスト 25%"))
+    }
+
+    @MainActor
+    private func expectNarrowControls(_ snapshot: FooterAccessibilitySnapshot, actionIdentifier: String = "sendButton") {
+        for identifier in ["attachPlaceholder", "overflowMenu", "contextIndicator", actionIdentifier] {
+            #expect(snapshot.frames["ChatComposer.\(identifier)"] != nil, "Missing \(identifier)")
+        }
+        for identifier in ["spawnModelMenu", "claudeEffortMenu", "claudePermissionMenu"] {
+            #expect(snapshot.frames["ChatComposer.\(identifier)"] == nil, "Unexpected \(identifier)")
+        }
+        #expect(!snapshot.text.contains("feature/composer-overflow"))
+        #expect(snapshot.text.contains("25%"))
+        #expect(snapshot.text.contains("コンテキスト 25%"))
+    }
+
+    @MainActor
+    private func accessibilitySnapshot<Content: View>(_ content: Content, width: CGFloat, height: CGFloat) -> FooterAccessibilitySnapshot {
+        let hosting = NSHostingView(rootView: content.environment(\.locale, Locale(identifier: "ja_JP")))
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: width, height: height), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = hosting
+        hosting.frame = CGRect(x: 0, y: 0, width: width, height: height)
+        hosting.layoutSubtreeIfNeeded()
+        defer { window.close() }
+        var snapshot = FooterAccessibilitySnapshot()
+        var seen = Set<ObjectIdentifier>()
+        func visit(_ element: Any) {
+            let object = element as AnyObject
+            guard seen.insert(ObjectIdentifier(object)).inserted else { return }
+            if let identifier = object.accessibilityIdentifier() {
+                snapshot.frames[identifier] = object.accessibilityFrame()
+            }
+            for value in [object.accessibilityLabel(), object.accessibilityValue()] {
+                if let text = value { snapshot.text.insert(text) }
+            }
+            if let children = object.accessibilityChildren() { children.forEach(visit) }
+            if let view = element as? NSView { view.subviews.forEach(visit) }
+        }
+        visit(hosting)
+        return snapshot
+    }
+
+    @Test @MainActor
     func controlsLayoutSwitchesAcrossStandardCompactAndMinimalThresholds() {
         #expect(ComposerLayout.controlsLayout(proposedWidth: ComposerLayout.minimalControlsWidthThreshold - 1) == .minimal)
         #expect(ComposerLayout.controlsLayout(proposedWidth: ComposerLayout.minimalControlsWidthThreshold) == .compact)
@@ -47,12 +142,12 @@ struct ComposerOverflowLayoutTests {
     }
 
     @Test @MainActor
-    func minimalComposerFooterRendersWithinReproductionWidth() async throws {
+    func minimalComposerFooterKeepsControlsWithinReproductionWidth() async throws {
         try await expectMinimalFooterFits(width: reproductionWidth)
     }
 
     @Test @MainActor
-    func minimalComposerFooterRendersWithinWorstCaseWidth() async throws {
+    func minimalComposerFooterKeepsControlsWithinWorstCaseWidth() async throws {
         try await expectMinimalFooterFits(width: worstCaseWidth)
     }
 
@@ -80,7 +175,7 @@ struct ComposerOverflowLayoutTests {
     }
 
     @Test @MainActor
-    func measuredFooterIntrinsicWidthsDocumentThresholdAndCompactFloor() async throws {
+    func measuredFooterIntrinsicWidthsKeepFullControlsInMinimalLayout() async throws {
         let vm = try await makeWorstCaseClaudeViewModel()
         let standardWidth = try intrinsicWidth(
             ChatComposerFooter(
@@ -120,8 +215,9 @@ struct ComposerOverflowLayoutTests {
         )
 
         #expect(standardWidth.rounded(.up) <= ComposerLayout.compactControlsWidthThreshold - 40)
-        #expect(compactWidth.rounded(.up) <= ComposerLayout.minimalControlsWidthThreshold - 10)
-        #expect(minimalWidth < 200)
+        #expect(abs(minimalWidth - compactWidth) <= epsilon)
+        let controlsWidth = try intrinsicWidth(ComposerSettingsControlsView(viewModel: vm, layout: .compact, side: .leading))
+        #expect(minimalWidth > controlsWidth)
     }
 
     @Test @MainActor
@@ -145,6 +241,11 @@ struct ComposerOverflowLayoutTests {
             viewModel: minimalVM,
             width: reproductionWidth,
             url: URL(fileURLWithPath: "/tmp/composer-minimal.png")
+        )
+        try writeComposerPNG(
+            viewModel: minimalVM,
+            width: worstCaseWidth,
+            url: URL(fileURLWithPath: "/tmp/composer-narrowest.png")
         )
     }
 
@@ -171,9 +272,28 @@ struct ComposerOverflowLayoutTests {
         return vm
     }
 
-    /// 1 段にチップが入らない幅では、チップを隠さず 2 段に分けて出す（「…」メニューにはしない）。
+    /// 詰めた 1 段にも入らない幅では、モデル・effort を隠し、コンテキストと中断を 1 段に残す。
     @Test @MainActor
-    func footerWrapsChipsIntoTwoRowsBeforeHidingThem() async throws {
+    func narrowFooterKeepsContextAndStopButtonInOneRow() async throws {
+        let vm = try await makeWorstCaseClaudeViewModel()
+        let footer = ChatComposerFooter(
+            viewModel: vm,
+            layout: .compact,
+            isRunning: true,
+            canSubmit: true,
+            onSend: {},
+            onInterrupt: {}
+        )
+        let size = try renderSize(footer, proposedWidth: worstCaseWidth)
+
+        #expect(size.width <= worstCaseWidth + epsilon)
+        #expect(size.height == 26)
+        expectNarrowControls(accessibilitySnapshot(footer, width: worstCaseWidth, height: size.height), actionIdentifier: "stopButton")
+    }
+
+    /// 権限とブランチを「…」へ移すと入る幅なら、% の数字を残して 1 段に収める。
+    @Test @MainActor
+    func denseFooterKeepsChipsInOneRow() async throws {
         let vm = try await makeWorstCaseClaudeViewModel()
         let footer = ChatComposerFooter(
             viewModel: vm,
@@ -187,7 +307,8 @@ struct ComposerOverflowLayoutTests {
         let size = try renderSize(footer, proposedWidth: oneRowWidth - 20)
 
         #expect(size.width <= oneRowWidth - 20 + epsilon)
-        #expect(size.height > 40)
+        #expect(size.height == 26)
+        expectDenseControls(accessibilitySnapshot(footer, width: oneRowWidth - 20, height: size.height), actionIdentifier: "stopButton")
     }
 
     /// モデル名や effort のチップは、狭い幅を渡されても省略せず全文の幅で描く。
@@ -223,21 +344,26 @@ struct ComposerOverflowLayoutTests {
         let layout = ComposerLayout.controlsLayout(proposedWidth: width)
         #expect(layout == .minimal)
 
-        let renderedSize = try renderSize(
-            ChatComposerFooter(
-                viewModel: vm,
-                layout: layout,
-                isRunning: true,
-                canSubmit: true,
-                onSend: {},
-                onInterrupt: {},
-                branchNameOverride: "feature/composer-overflow",
-                branchIsCheckingOutOverride: true
-            ),
-            proposedWidth: width
+        let footer = ChatComposerFooter(
+            viewModel: vm,
+            layout: layout,
+            isRunning: true,
+            canSubmit: true,
+            onSend: {},
+            onInterrupt: {},
+            branchNameOverride: "feature/composer-overflow",
+            branchIsCheckingOutOverride: true
         )
+        let renderedSize = try renderSize(footer, proposedWidth: width)
 
         #expect(renderedSize.width <= width + epsilon)
+        #expect(renderedSize.height == 26)
+        let snapshot = accessibilitySnapshot(footer, width: width, height: renderedSize.height)
+        if width == worstCaseWidth {
+            expectNarrowControls(snapshot, actionIdentifier: "stopButton")
+        } else {
+            expectDenseControls(snapshot, actionIdentifier: "stopButton")
+        }
     }
 
     @MainActor
@@ -247,8 +373,9 @@ struct ComposerOverflowLayoutTests {
         url: URL
     ) throws {
         let layout = ComposerLayout.controlsLayout(proposedWidth: width)
-        let renderer = ImageRenderer(
-            content: ChatComposer(
+        // 「…」は AppKit の Menu なので、ImageRenderer ではなく実際の NSHostingView を撮る。
+        let hosting = NSHostingView(
+            rootView: ChatComposer(
                 viewModel: viewModel,
                 text: .constant("Hello"),
                 isRunning: true,
@@ -258,12 +385,17 @@ struct ComposerOverflowLayoutTests {
                 onInterrupt: {}
             )
             .frame(width: width)
+            .fixedSize(horizontal: false, vertical: true)
         )
-        renderer.proposedSize = ProposedViewSize(width: width, height: nil)
-        renderer.scale = 2
-        let image = try #require(renderer.nsImage)
-        let tiff = try #require(image.tiffRepresentation)
-        let bitmap = try #require(NSBitmapImageRep(data: tiff))
+        let size = hosting.fittingSize
+        let window = NSWindow(contentRect: CGRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = hosting
+        hosting.frame = CGRect(origin: .zero, size: size)
+        hosting.layoutSubtreeIfNeeded()
+        defer { window.close() }
+        let bitmap = try #require(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
+        hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
         let png = try #require(bitmap.representation(using: .png, properties: [:]))
         try png.write(to: url, options: .atomic)
     }
@@ -284,6 +416,11 @@ struct ComposerOverflowLayoutTests {
             elapsed += pollIntervalNanoseconds
         }
     }
+}
+
+private struct FooterAccessibilitySnapshot {
+    var frames: [String: CGRect] = [:]
+    var text: Set<String> = []
 }
 
 private final class RenderingStructuredClient: StructuredAgentClient, @unchecked Sendable {

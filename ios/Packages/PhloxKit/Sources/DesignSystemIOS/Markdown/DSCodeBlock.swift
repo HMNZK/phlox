@@ -11,6 +11,8 @@ import AppKit
 public struct DSCodeBlock: View {
     private let language: String?
     private let code: String
+    @State private var didCopy = false
+    @State private var resetTask: Task<Void, Never>?
 
     public init(language: String?, code: String) {
         self.language = language
@@ -27,11 +29,12 @@ public struct DSCodeBlock: View {
                 Spacer(minLength: .zero)
 
                 Button(action: copyCode) {
-                    Label("Copy", systemImage: "doc.on.doc")
+                    Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
                         .font(DSFont.captionStrong)
                         .foregroundStyle(DSColor.chatTextSecondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(didCopy ? "Copied" : "Copy")
                 .accessibilityIdentifier("DSCodeBlock.copyButton")
             }
             .padding(.horizontal, DSSpacing.m)
@@ -80,5 +83,13 @@ public struct DSCodeBlock: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(code, forType: .string)
         #endif
+        resetTask?.cancel()
+        didCopy = true
+        resetTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_400_000_000)
+            guard !Task.isCancelled else { return }
+            didCopy = false
+            resetTask = nil
+        }
     }
 }

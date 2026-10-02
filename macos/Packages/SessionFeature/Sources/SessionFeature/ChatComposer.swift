@@ -280,29 +280,27 @@ struct ChatComposerFooter: View {
     @Environment(\.locale) private var locale
 
     var body: some View {
-        switch layout {
-        case .minimal:
-            minimalFooter
-        case .standard, .compact:
-            // チップは全文を出す。1 段に入らなければチップと送信を 2 段に分け、それでも入らなければ「…」メニューの形にする。
-            ViewThatFits(in: .horizontal) {
-                regularFooter
-                twoRowFooter
-                minimalFooter
-            }
+        // 幅に合わせて権限・ブランチ、次にモデル・effort を「…」へ移し、常に 1 段にする。
+        ViewThatFits(in: .horizontal) {
+            regularFooter
+            denseFooter
+            narrowFooter
         }
     }
 
     private var regularFooter: some View {
+        oneRowFooter(showsBranch: showsBranchOverride ?? (layout.settingsLayout != .compact))
+    }
+
+    private var denseFooter: some View {
+        oneRowFooter(showsBranch: false, hidesPermission: true)
+    }
+
+    private func oneRowFooter(showsBranch: Bool, hidesPermission: Bool = false) -> some View {
         let settingsLayout = layout.settingsLayout
         // PhloxReply.dc.html の下段: ＋ モデル effort 権限 …… ブランチ コンテキスト 送信。
         return HStack(spacing: 6) {
-            ComposerSettingsControlsView(
-                viewModel: viewModel,
-                layout: settingsLayout,
-                side: .leading,
-                accessibilityPrefix: accessibilityPrefix
-            )
+            settingsControls(hidesPermission: hidesPermission)
             Spacer(minLength: DSSpacing.s)
             ComposerContextIndicator(
                 usage: viewModel.lastTurnUsage,
@@ -310,7 +308,7 @@ struct ChatComposerFooter: View {
                 layout: settingsLayout == .compact ? .compact : .regular,
                 branchNameOverride: branchNameOverride,
                 branchIsCheckingOutOverride: branchIsCheckingOutOverride,
-                showsBranch: showsBranchOverride ?? (settingsLayout != .compact),
+                showsBranch: showsBranch,
                 suggestsCompact: viewModel.agentRef != .builtin(.cursor)
             )
             .accessibilityIdentifier("\(accessibilityPrefix).contextIndicator")
@@ -319,40 +317,12 @@ struct ChatComposerFooter: View {
         .frame(height: 26)
     }
 
-    /// 1 段目に ＋ とチップ、2 段目にコンテキストと送信。
-    private var twoRowFooter: some View {
-        let settingsLayout = layout.settingsLayout
-        return VStack(alignment: .leading, spacing: 6) {
-            ComposerSettingsControlsView(
-                viewModel: viewModel,
-                layout: settingsLayout,
-                side: .leading,
-                accessibilityPrefix: accessibilityPrefix
-            )
-            .frame(height: 26)
-            HStack(spacing: 6) {
-                Spacer(minLength: DSSpacing.s)
-                ComposerContextIndicator(
-                    usage: viewModel.lastTurnUsage,
-                    workspacePath: viewModel.workspacePath,
-                    layout: .compact,
-                    branchNameOverride: branchNameOverride,
-                    branchIsCheckingOutOverride: branchIsCheckingOutOverride,
-                    showsBranch: false,
-                    suggestsCompact: viewModel.agentRef != .builtin(.cursor)
-                )
-                .accessibilityIdentifier("\(accessibilityPrefix).contextIndicator")
-                sendOrStopButton
-            }
-            .frame(height: 26)
-        }
-    }
-
-    private var minimalFooter: some View {
-        HStack(spacing: DSSpacing.s) {
+    /// 最狭幅でもコンテキストの円＋% と送信・中断は残す。
+    private var narrowFooter: some View {
+        HStack(spacing: 6) {
             ComposerAttachPlaceholder(
                 viewModel: viewModel,
-                layout: .compact,
+                layout: layout.settingsLayout,
                 accessibilityIdentifier: "\(accessibilityPrefix).attachPlaceholder"
             )
             ComposerSettingsOverflowMenu(
@@ -361,7 +331,35 @@ struct ChatComposerFooter: View {
                 accessibilityIdentifier: "\(accessibilityPrefix).overflowMenu"
             )
             Spacer(minLength: DSSpacing.s)
+            ComposerContextIndicator(
+                usage: viewModel.lastTurnUsage,
+                workspacePath: viewModel.workspacePath,
+                layout: .compact,
+                showsBranch: false,
+                suggestsCompact: viewModel.agentRef != .builtin(.cursor)
+            )
+            .accessibilityIdentifier("\(accessibilityPrefix).contextIndicator")
             sendOrStopButton
+        }
+        .frame(height: 26)
+    }
+
+    private func settingsControls(hidesPermission: Bool) -> some View {
+        HStack(spacing: 6) {
+            ComposerSettingsControlsView(
+                viewModel: viewModel,
+                layout: layout.settingsLayout,
+                side: .leading,
+                accessibilityPrefix: accessibilityPrefix,
+                hidesPermission: hidesPermission
+            )
+            if hidesPermission {
+                ComposerSettingsOverflowMenu(
+                    viewModel: viewModel,
+                    workspacePath: viewModel.workspacePath,
+                    accessibilityIdentifier: "\(accessibilityPrefix).overflowMenu"
+                )
+            }
         }
     }
 

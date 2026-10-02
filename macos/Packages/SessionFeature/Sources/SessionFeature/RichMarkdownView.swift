@@ -228,15 +228,7 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
                         .font(ChatScaledFont.monoCaption(scale: scale))
                         .foregroundStyle(DSColor.chatTextSecondary)
                     Spacer(minLength: 0)
-                    Button {
-                        copyToPasteboard(configuration.content)
-                    } label: {
-                        Label(UIWording.text(.copyAction, languageCode: languageCode), systemImage: "doc.on.doc")
-                            .font(ChatScaledFont.captionStrong(scale: scale))
-                            .foregroundStyle(DSColor.chatTextSecondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help(UIWording.text(.copyCodeHelp, languageCode: languageCode))
+                    MessageCopyButton(text: configuration.content, accessibilityIdentifier: "CodeBlock.copyButton", scale: scale, helpKey: .copyCodeHelp)
                 }
                 .padding(.horizontal, TranscriptTypography.cardHorizontalInset)
                 .padding(.vertical, TranscriptTypography.cardVerticalInset)
@@ -349,13 +341,4 @@ func localMarkdownFileURL(_ url: URL) -> URL? {
 private func openChatMarkdownLink(_: URL) -> OpenURLAction.Result {
     .systemAction
 }
-#endif
-
-#if canImport(AppKit)
-private func copyToPasteboard(_ content: String) {
-    NSPasteboard.general.clearContents()
-    NSPasteboard.general.setString(content, forType: .string)
-}
-#else
-private func copyToPasteboard(_: String) {}
 #endif

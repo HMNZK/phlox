@@ -95,6 +95,7 @@ struct ComposerSettingsControlsView: View {
     var layout: ComposerSettingsLayout = .standard
     var side: ComposerControlSide
     var accessibilityPrefix: String = "ChatComposer"
+    var hidesPermission = false
     @Environment(\.locale) private var locale
     @State private var openMenu: OpenMenu?
     @State private var modelSearch = ""
@@ -103,7 +104,7 @@ struct ComposerSettingsControlsView: View {
     private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
     private var controls: [ComposerControlKind] {
-        composerControls(for: viewModel.agentRef, side: side)
+        composerControls(for: viewModel.agentRef, side: side).filter { !hidesPermission || $0 != .permission }
     }
 
     private func selectionChip(kind: ComposerSelectionChip.Kind, value: String, identifier: String) -> some View {
@@ -490,7 +491,7 @@ private struct ComposerSelectionChip: View {
     @Environment(\.locale) private var locale
 
     private var title: String {
-        kind == .effort ? "effort: " + value : value
+        value
     }
 
     var body: some View {
@@ -498,7 +499,7 @@ private struct ComposerSelectionChip: View {
             ComposerChipLabel(title: title, isOpen: isOpen)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(Text(verbatim: kind == .model ? AppLocalizedString.string("モデル", locale: locale) + ": " + value : title))
+        .accessibilityLabel(Text(verbatim: kind == .model ? AppLocalizedString.string("モデル", locale: locale) + ": " + value : "effort: " + value))
         .accessibilityIdentifier(identifier)
     }
 }

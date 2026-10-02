@@ -1599,17 +1599,19 @@ F1〜F11 で見送った項目を、ユーザーの判断（`0037-ui-redesign-de
 
 | 項目 | 直したこと | 主な場所 |
 |---|---|---|
-| 入力欄のモデル名・effort・権限が「Opus…ontext)」のように省略される（ユーザー依頼） | チップは省略せず全文の幅で描く。1 段に入らない幅では、1 段目に ＋ とチップ、2 段目にコンテキストと送信の 2 段に分ける。それでも入らない幅だけ、従来の「…」メニューにまとめる | `ComposerPopupMenu.swift`（`ComposerChipLabel`）、`ChatComposer.swift`（`ChatComposerFooter` の `twoRowFooter`） |
+| 入力欄のモデル名・effort・権限が「Opus…ontext)」のように省略される（ユーザー依頼） | チップは省略せず全文の幅で描く。入らない幅では「…」メニューへ移す | `ComposerPopupMenu.swift`（`ComposerChipLabel`） |
+| 入力欄が少し狭いだけで 2 段になる（2026-10-02・ユーザー追加指示） | effort は値だけ表示し、読み上げには effort を残す。広い幅では全部 1 段、少し狭い幅では権限とブランチを隠して「…」へ、さらに狭い幅ではモデル・effort も「…」へ移す。コンテキスト量（円＋% の数字）と送信・中断は必ず残し、2 段にはしない。`regularFooter` → `denseFooter` → `narrowFooter` の順に試し、minimal でも同じ候補を使う | `ComposerSettingsControls.swift`（`hidesPermission`・`ComposerSettingsOverflowMenu`）、`ChatComposer.swift`（`denseFooter`・`narrowFooter`）、`ComposerContextIndicator.swift` |
 | 本文と入力欄の幅（ユーザー決定） | メイン列の 80%・上限なし（以前は 90%・上限 760）。本文と入力欄は引き続き同じ幅 | `ComposerLayout.maxWidth` |
 
 ### 直していないもの
 
-- 入力欄の幅が変わって 1 段と 2 段が切り替わる瞬間に、開いていたチップのメニューは閉じる（別の表示に切り替わるため）。
+- 入力欄の幅が変わってフッターの候補が切り替わる瞬間に、開いていたチップのメニューは閉じる（別の表示に切り替わるため）。
 - 変更した凍結・受け入れテスト（ユーザー決定の幅に合わせた）: `UIUXComposerWidthTests`、`Task5ComposerLayoutAcceptanceTests`、`ComposerLayoutTests`。
 
 ### 検証
 
-- 追加したテスト: `chipLabelKeepsTheFullTitle`（狭い幅でもチップが全文の幅）、`footerWrapsChipsIntoTwoRowsBeforeHidingThem`（1 段に入らない幅で 2 段になる）。どちらも外すと落ちることを確かめた。
+- 入力欄のテスト: `chipLabelKeepsTheFullTitle`（チップの全文幅）は維持。2026-10-02 に `denseOneRowKeepsRequiredControlsAndHidesOnlyPermissionAndBranch`・`narrowOneRowKeepsContextAndSendButton`・`minimalLayoutKeepsRequiredControls` などで、少し狭い幅では権限とブランチだけ非表示、さらに狭い幅ではモデル・effort も「…」へ移し、円＋%・送信は残して 1 段の高さを保つことを確認。2 段を前提にしていた従来のテストは 1 段を確かめる内容へ書き換えた（削除・スキップなし）。書き換えたうち 4 件は変更前の実装で失敗することを確認した。
+- 2026-10-02: `compact-test macos-quality bash macos/scripts/run-swift-tests.sh SessionFeature DesignSystem` は終了コード 0（SessionFeature 1209 件、DesignSystem 193 件）。`NSHostingView` の画像で 250pt でも 1 段に収まることを確認（AppKit の「…」メニューを描ける方式へ画像テストを変更）。
 - `macos/scripts/run-swift-tests.sh`（6 グループすべて終了コード 0）、ClaudeAgentKit の `swift test`（174 件、終了コード 0）、App の Debug ビルド（終了コード 0）。
 - Debug 版での確認（背面・AX だけ。ライト・日本語）: Claude のセッションでモデルを「Default: Opus 5.5 (1M context)」にすると、チップが 2 段目に分かれて全文が出ること（確認後に Sonnet 5 に戻した）。Codex のセッションで「GPT-5.6-Terra · medium」「権限: 承認なし・実行制限なし」が全文で 1 段に出ること。ダーク・英語は見ていない（色と文言は変えていない）。
 

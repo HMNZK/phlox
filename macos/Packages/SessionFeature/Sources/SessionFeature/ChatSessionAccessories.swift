@@ -301,7 +301,7 @@ struct SubAgentStripRow: View {
                     .accessibilityHidden(true)
             case .failure:
                 Image(systemName: "exclamationmark.circle.fill")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(DSFont.caption.weight(.semibold))
                     .foregroundStyle(DSColor.attentionInk(.error))
                     .accessibilityHidden(true)
             case nil:

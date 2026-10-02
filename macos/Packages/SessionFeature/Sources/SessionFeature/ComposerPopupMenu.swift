@@ -12,7 +12,7 @@ struct ComposerChipLabel: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            // モデル名や effort は省略せず全文を出す（入らない幅では下段ごと「…」メニューにまとめる）。
+            // モデル名や effort は省略せず全文を出す（入らない幅では「…」へ移す）。
             // ブランチ名だけは長くなりうるので中央を省略する。
             Text(verbatim: title)
                 .font(.system(size: isBranch ? 11 : 11.5, design: isBranch ? .monospaced : .default))

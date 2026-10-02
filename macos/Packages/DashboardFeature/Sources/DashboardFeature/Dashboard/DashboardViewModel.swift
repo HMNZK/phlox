@@ -1567,7 +1567,7 @@ public final class DashboardViewModel {
     /// changeWorkspace / moveSession 共通の再起動シーケンス（R2 で 1 本化）。
     /// hook 再設置 → hook stream 差し替え → 再起動 → descriptor 永続化（B10）の順で行う。
     /// hook stream は AsyncStream の単一コンシューマ前提を守るため finish→新規生成→差し替えする。
-    /// `newProjectID` 指定時（moveSession）は再起動前に `vm.projectID` を更新する。
+    /// `newProjectID` 指定時（moveSession）は再起動完了後に `vm.projectID` を更新する。
     /// hook 再設置に失敗した場合は何も変更せず中断する。
     private func restartSession(
         _ vm: SessionViewModel,
@@ -1576,6 +1576,11 @@ public final class DashboardViewModel {
         errorContext: String
     ) async {
         let id = vm.id
+        guard FileTabDocumentRegistry.shared.beginWorkspaceChange(id) else { return }
+        defer { FileTabDocumentRegistry.shared.endWorkspaceChange(id) }
+        // フック設定もファイルを書き換えるため、準備前に保存の完了を待つ。
+        // 準備に失敗した場合は、既存の規則どおり下書きを維持する。
+        await FileTabDocumentRegistry.shared.waitForPendingSaves(for: [id])
 
         do {
             try sessionHooks.reinstall(
@@ -1588,17 +1593,21 @@ public final class DashboardViewModel {
             return
         }
 
+        if vm.rawWorkspacePath != directory.path || newProjectID != nil {
+            await FileTabDocumentRegistry.shared.invalidateAndWait(for: [id])
+        }
+
         // 旧 stream を終端し、新 stream を生成して差し替える。
         // hookMultiplexTask は毎回 dictionary を lookup するため再生成は不要。
         sessionHookContinuations[id]?.finish()
         let (newStream, newContinuation) = AsyncStream<(SessionID, HookEvent)>.makeStream()
         sessionHookContinuations[id] = newContinuation
 
+        await vm.restart(workingDirectory: directory.path, hookEvents: newStream)
         if let newProjectID {
             vm.projectID = newProjectID
             reconcilePaneLayout()
         }
-        await vm.restart(workingDirectory: directory.path, hookEvents: newStream)
 
         // 再起動後の復元が新しい CWD / project で行われるよう descriptor を更新する（B10）。
         persistence.persistSessionWorkspace(id: id, workingDirectory: directory.path, projectID: vm.projectID)
@@ -1609,7 +1618,11 @@ public final class DashboardViewModel {
     public func removeSession(_ id: SessionID) async -> Bool {
         guard sessionNodes.contains(where: { $0.id == id }) else { return false }
 
-        for sessionID in subtreeSessionIDsDeepestFirst(rootedAt: id) {
+        let affected = subtreeSessionIDsDeepestFirst(rootedAt: id)
+        FileTabDocumentRegistry.shared.beginSessionChanges(for: Set(affected))
+        defer { FileTabDocumentRegistry.shared.endSessionChanges(for: Set(affected)) }
+        await FileTabDocumentRegistry.shared.invalidateAndWait(for: Set(affected))
+        for sessionID in affected {
             await removeSingleSession(sessionID)
         }
         return true
@@ -1658,7 +1671,8 @@ public final class DashboardViewModel {
     }
 
     private func removeSingleSession(_ id: SessionID) async {
-        guard let node = sessionNodes.first(where: { $0.id == id }) else { return }
+        guard !removingSessionIDs.contains(id),
+              let node = sessionNodes.first(where: { $0.id == id }) else { return }
         let session = node.controllable
         removingSessionIDs.insert(id)
         defer { removingSessionIDs.remove(id) }

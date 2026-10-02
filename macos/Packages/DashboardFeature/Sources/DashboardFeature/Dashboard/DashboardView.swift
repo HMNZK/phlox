@@ -92,7 +92,17 @@ public struct DashboardView: View {
 
     /// 保存していないファイルタブ（子の分も）。
     private func deletionDirtyFiles(for id: SessionID) -> [String] {
-        ([id] + viewModel.descendantNodes(of: id).map(\.id)).flatMap { fileTabs.dirtyFileNames(for: $0) }
+        FileTabDocumentRegistry.shared.dirtyFileNames(for: affectedSessionIDs(for: id))
+    }
+
+    private func affectedSessionIDs(for id: SessionID) -> Set<SessionID> {
+        Set([id] + viewModel.descendantNodes(of: id).map(\.id))
+    }
+
+    private func projectDirtySummary(for projectID: ProjectID) -> String {
+        let affected = viewModel.gridSessionNodes(in: projectID)
+            .reduce(into: Set<SessionID>()) { $0.formUnion(affectedSessionIDs(for: $1.id)) }
+        return FileTabDocumentRegistry.shared.dirtySummary(for: affected)
     }
 
     private func projectDeletionDialogMessage(for project: Project) -> String {
@@ -218,7 +228,8 @@ public struct DashboardView: View {
                     .irreversible,
                     title: ProjectDeletionDialogText.title(projectName: project.name, locale: locale),
                     message: projectDeletionDialogMessage(for: project),
-                    note: ProjectDeletionDialogText.note(folderPath: (project.directoryPath as NSString).abbreviatingWithTildeInPath, locale: locale),
+                    note: [ProjectDeletionDialogText.note(folderPath: (project.directoryPath as NSString).abbreviatingWithTildeInPath, locale: locale), projectDirtySummary(for: project.id)]
+                        .filter { !$0.isEmpty }.joined(separator: "\n"),
                     buttons: [
                         DSDialogButton("削除", role: .destructive) {
                             let projectID = project.id
@@ -299,6 +310,7 @@ public struct DashboardView: View {
                         change.sessionTitle, (change.directory.path as NSString).abbreviatingWithTildeInPath
                     ),
                     message: AppLocalizedString.string("ターミナルの内容と進行中の作業は失われ、元に戻せません。", locale: locale),
+                    note: FileTabDocumentRegistry.shared.dirtySummary(for: [change.sessionID]),
                     buttons: [
                         DSDialogButton("再起動", role: .destructive) {
                             pendingFolderChange = nil
@@ -315,6 +327,7 @@ public struct DashboardView: View {
                     .irreversible,
                     title: String(format: AppLocalizedString.string("「%@」を %@ へ移動しますか?", locale: locale), move.sessionTitle, move.project.name),
                     message: String(format: AppLocalizedString.string("セッションは %@ で再起動されます。ターミナルの内容と進行中の作業は失われます。", locale: locale), path),
+                    note: FileTabDocumentRegistry.shared.dirtySummary(for: [move.sessionID]),
                     buttons: [
                         DSDialogButton("移動して再起動", role: .destructive) {
                             pendingMove = nil
@@ -480,7 +493,7 @@ public struct DashboardView: View {
         // hiddenTitleBar でも SwiftUI は上部にタイトルバー分のセーフエリアを確保するため、
         // 上部セーフエリアを無視してツールバーとサイドバーの上端をウィンドウ最上部に揃える。
         .ignoresSafeArea(.container, edges: .top)
-        .background(WindowChromeConfigurator())
+        .background(WindowChromeConfigurator(files: fileTabs))
         .onAppear {
             updateEditorPanel()
             revealSelectedSessionTab()
@@ -490,12 +503,14 @@ public struct DashboardView: View {
             NSApp.keyWindow?.makeFirstResponder(nil)
         }
         .onChange(of: router.tabRequest) { _, request in
-            guard let request else { return }
+            guard let request, router.tabRequest == request,
+                  FileTabDocumentRegistry.shared.ownsKeyWindow(fileTabs) else { return }
             router.tabRequest = nil
             handle(request)
         }
         .onChange(of: router.sidebarRequest) { _, request in
-            guard let request else { return }
+            guard let request, router.sidebarRequest == request,
+                  FileTabDocumentRegistry.shared.ownsKeyWindow(fileTabs) else { return }
             router.sidebarRequest = nil
             handle(request)
         }
@@ -803,10 +818,17 @@ public struct DashboardView: View {
                         viewModel: editorPanel.viewModel,
                         projectName: node.workspaceName,
                         workingDirectory: node.rawWorkspacePath,
-                        isDirty: { fileTabs.existing(for: id, path: $0)?.isDirty ?? false }
+                        isDirty: { fileTabs.existing(for: id, path: $0)?.hasUnsavedChanges ?? false }
                     ) { path in
-                        router.tabs.updateLayout(for: id) { $0.open(.file(path)) }
-                        router.openSingle(sessionID: id)
+                        let requestedDirectory = node.rawWorkspacePath
+                        Task {
+                            let root = await FileTabOpening.root(for: requestedDirectory)
+                            fileTabs.openFileTab(
+                                sessionID: id, root: root, relativePath: path, router: router,
+                                requestedWorkingDirectory: requestedDirectory,
+                                currentWorkingDirectory: viewModel.sessionNode(id: id)?.rawWorkspacePath
+                            )
+                        }
                     }
                 } else {
                     Text("タイルを選ぶと変更を表示します")
@@ -950,7 +972,7 @@ public struct DashboardView: View {
         let remaining = Set(new)
         for id in old where !remaining.contains(id) {
             router.tabs.forget(id)
-            fileTabs.removeAll(for: id)
+            // 文書の失効と保存待ちは、削除を行うモデル側で完了している。
             sessionTerminals?.close(id)
         }
     }
@@ -988,12 +1010,13 @@ public struct DashboardView: View {
                     message: AppLocalizedString.string("シェルを終了します。実行中のコマンドも止まります。", locale: locale)
                 )
             }
-        case .file(let path) where fileTabs.existing(for: sessionID, path: path)?.isDirty == true:
+        case .file(let path) where FileTabDocumentRegistry.shared.hasUnsavedChanges(for: sessionID, path: path):
             pendingChildClose = PendingChildClose(
                 sessionID: sessionID,
                 tab: tab,
                 title: AppLocalizedString.string("保存していない変更を破棄しますか?", locale: locale),
                 message: String(format: AppLocalizedString.string("%@ の変更は失われます。", locale: locale), (path as NSString).lastPathComponent)
+                    + "\n" + FileTabDocumentRegistry.shared.dirtySummary(for: sessionID, path: path)
             )
         default:
             closeChildTab(tab, of: sessionID)
@@ -1001,14 +1024,14 @@ public struct DashboardView: View {
     }
 
     private func closeChildTab(_ tab: ChildTab, of sessionID: SessionID) {
-        router.tabs.updateLayout(for: sessionID) { $0.close(tab) }
-        switch tab {
-        case .terminal:
-            sessionTerminals?.close(sessionID)
-        case .file(let path):
-            fileTabs.remove(for: sessionID, path: path)
-        case .conversation, .changes:
-            break
+        Task { @MainActor in
+            if case .file(let path) = tab {
+                await FileTabDocumentRegistry.shared.remove(for: sessionID, path: path)
+            }
+            router.tabs.updateLayout(for: sessionID) { $0.close(tab) }
+            if case .terminal = tab {
+                sessionTerminals?.close(sessionID)
+            }
         }
     }
 
@@ -1017,9 +1040,8 @@ public struct DashboardView: View {
         guard let node = viewModel.sessionNode(id: sessionID) else { return }
         let workingDirectory = node.rawWorkspacePath
         Task { @MainActor in
-            let rootPath = await WorkingTreeService(
-                repositoryRoot: URL(fileURLWithPath: workingDirectory, isDirectory: true)
-            ).resolvedRepositoryRootPath() ?? workingDirectory
+            let rootPath = await FileTabOpening.root(for: workingDirectory)
+            guard viewModel.sessionNode(id: sessionID)?.rawWorkspacePath == workingDirectory else { return }
             let panel = NSOpenPanel()
             panel.canChooseFiles = true
             panel.canChooseDirectories = false
@@ -1028,17 +1050,16 @@ public struct DashboardView: View {
             panel.prompt = String(localized: "開く")
             guard panel.runModal() == .OK, let url = panel.url,
                   let relative = Self.relativePath(of: url, under: rootPath) else { return }
-            router.viewMode = .single
-            router.tabs.updateLayout(for: sessionID) { $0.open(.file(relative)) }
+            fileTabs.openFileTab(
+                sessionID: sessionID, root: rootPath, relativePath: relative, router: router,
+                requestedWorkingDirectory: workingDirectory,
+                currentWorkingDirectory: viewModel.sessionNode(id: sessionID)?.rawWorkspacePath
+            )
         }
     }
 
     nonisolated static func relativePath(of url: URL, under rootPath: String) -> String? {
-        let root = URL(fileURLWithPath: rootPath, isDirectory: true).resolvingSymlinksInPath().path
-        let file = url.resolvingSymlinksInPath().path
-        let prefix = root.hasSuffix("/") ? root : root + "/"
-        guard file.hasPrefix(prefix) else { return nil }
-        return String(file.dropFirst(prefix.count))
+        FileTabOpening.relativePath(of: url, under: rootPath)
     }
 
 
@@ -1173,7 +1194,6 @@ public struct DashboardView: View {
         await viewModel.changeWorkspace(id, to: directory)
         guard viewModel.sessionNode(id: id)?.rawWorkspacePath != before else { return }
         sessionTerminals?.close(id)
-        fileTabs.removeAll(for: id)
     }
 
     /// メニューバーの「セッション」メニューから来た、サイドバーの行の操作。
@@ -1205,7 +1225,6 @@ public struct DashboardView: View {
         await viewModel.moveSession(sessionID, to: projectID)
         guard viewModel.sessionNode(id: sessionID)?.projectID == projectID else { return }
         sessionTerminals?.close(sessionID)
-        fileTabs.removeAll(for: sessionID)
         expandedProjectIDs.insert(projectID)
     }
 

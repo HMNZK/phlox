@@ -13,13 +13,30 @@ public final class FileTabDocument {
         case conflictDetected
     }
 
+    public enum LoadState: Equatable, Sendable {
+        case unloaded, loading, loaded, tooLarge, binary, loadFailed
+        case outsideRoot(String)
+    }
+
+    public enum DocumentError: Error, Equatable { case invalidated }
+
     /// worktree 直下からの相対パス。
     public let path: String
-    public var draft = ""
-    /// 読めなかった（非 UTF-8・削除済み・worktree の外）。
-    public private(set) var loadFailed = false
-    private var loadedDiskContent: String? {
-        didSet { baselineAt = loadedDiskContent == nil ? nil : Date() }
+    private var draftContent = ""
+    public var draft: String {
+        get { draftContent }
+        set { if !invalidationRequested { draftContent = newValue } }
+    }
+    public private(set) var loadState: LoadState = .unloaded
+    public private(set) var loadedDiskBytes = Data()
+    public private(set) var bom = Data()
+    public private(set) var invalidated = false
+    private var invalidationRequested = false
+    public var loadFailed: Bool {
+        switch loadState {
+        case .tooLarge, .binary, .outsideRoot, .loadFailed: true
+        default: false
+        }
     }
     /// ディスクの内容を最後に読んだ／書いた時刻。これより後の他セッションの書き換えを競合相手とみなす。
     public private(set) var baselineAt: Date?
@@ -28,16 +45,34 @@ public final class FileTabDocument {
 
     /// 開いたときの作業ディレクトリ。セッションの作業場所が変わったら作り直す。
     public let workingDirectory: String
-    @ObservationIgnored private let service: WorkingTreeService
+    public private(set) var root: String
+    @ObservationIgnored private var service: WorkingTreeService
+    @ObservationIgnored private var needsRootResolution: Bool
+    @ObservationIgnored private var pendingSave: Task<SaveResult, Error>?
+    @ObservationIgnored private var pendingSaveCount = 0
 
     public init(path: String, workingDirectory: String) {
         self.path = path
         self.workingDirectory = workingDirectory
+        self.root = workingDirectory
+        self.needsRootResolution = true
         self.service = WorkingTreeService(repositoryRoot: URL(fileURLWithPath: workingDirectory, isDirectory: true))
     }
 
-    public var isLoaded: Bool { loadedDiskContent != nil }
-    public var isDirty: Bool { loadedDiskContent.map { $0 != draft } ?? false }
+    public init(path: String, root: String) {
+        self.path = path
+        let resolvedRoot = URL(fileURLWithPath: root, isDirectory: true).standardizedFileURL.resolvingSymlinksInPath().path
+        self.workingDirectory = resolvedRoot
+        self.root = resolvedRoot
+        self.needsRootResolution = false
+        self.service = WorkingTreeService(repositoryRoot: URL(fileURLWithPath: resolvedRoot, isDirectory: true), fixedRoot: true)
+    }
+
+    public var isLoaded: Bool { loadState == .loaded }
+    public var isDirty: Bool { isLoaded && savingBytes != loadedDiskBytes }
+    public var hasUnsavedChanges: Bool { isDirty }
+    private var savingBytes: Data { bom + Data(draft.utf8) }
+    var hasPendingSaves: Bool { pendingSaveCount > 0 }
     public var fileName: String { (path as NSString).lastPathComponent }
 
     /// 開いてからこのファイルを書き換えた別セッションの表示名（07「アザミ · Codex」）。
@@ -71,68 +106,143 @@ public final class FileTabDocument {
 
     /// 未読込のときだけ読む（タブの切り替えで下書きを失わない）。
     public func loadIfNeeded() async {
-        guard loadedDiskContent == nil else { return }
+        guard loadState == .unloaded, !invalidated else { return }
+        loadState = .loading
         do {
+            if needsRootResolution {
+                root = await service.resolvedRepositoryRootPath() ?? workingDirectory
+                service = WorkingTreeService(repositoryRoot: URL(fileURLWithPath: root, isDirectory: true), fixedRoot: true)
+                needsRootResolution = false
+            }
             absolutePath = await service.absolutePath(path)
             // 読み始める前の時刻を基準にする（読んでいる間の他セッションの書き換えも相手とみなす）。
             let startedAt = Date()
-            let contents = try await service.fileContents(path)
-            loadedDiskContent = contents
+            let bytes = try await service.fileData(path)
+            let decoded = try WorkingTreeText.decode(bytes)
+            guard !invalidated else { return }
+            loadedDiskBytes = bytes
+            bom = decoded.bom
             baselineAt = startedAt
-            draft = contents
-            loadFailed = false
+            draft = decoded.text
+            loadState = .loaded
+        } catch WorkingTreeTextError.tooLarge {
+            loadState = .tooLarge
+        } catch WorkingTreeTextError.binary {
+            loadState = .binary
+        } catch WorkingTreeServiceError.outsideRoot(let path) {
+            loadState = .outsideRoot(path)
         } catch {
-            loadFailed = true
+            loadState = .loadFailed
         }
     }
 
     public func save() async throws -> SaveResult {
-        guard let expected = loadedDiskContent else { return .conflictDetected }
-        let saving = draft
-        switch try await service.save(path: path, content: saving, expectedDiskContent: expected) {
-        case .saved:
-            loadedDiskContent = saving
-            return .saved
-        case .conflict:
-            return .conflictDetected
-        }
+        try await enqueueSave(overwrite: false).value
     }
 
     public func overwrite() async throws {
-        let saving = draft
-        _ = try await service.save(path: path, content: saving, expectedDiskContent: nil)
-        loadedDiskContent = saving
+        _ = try await enqueueSave(overwrite: true).value
+    }
+
+    func enqueueSave(overwrite: Bool) throws -> Task<SaveResult, Error> {
+        guard !invalidationRequested else { throw DocumentError.invalidated }
+        guard isLoaded else { return Task { .conflictDetected } }
+        let saving = savingBytes
+        let previous = pendingSave
+        pendingSaveCount += 1
+        let task = Task { @MainActor in
+            defer {
+                self.pendingSaveCount -= 1
+                if self.pendingSaveCount == 0 {
+                    self.pendingSave = nil
+                    if self.invalidationRequested { self.invalidated = true }
+                }
+            }
+            if let previous { _ = await previous.result }
+            let expected = overwrite ? nil : self.loadedDiskBytes
+            switch try await self.service.save(path: self.path, data: saving, expectedDiskBytes: expected) {
+            case .saved:
+                self.loadedDiskBytes = saving
+                self.baselineAt = Date()
+                return SaveResult.saved
+            case .conflict:
+                return SaveResult.conflictDetected
+            }
+        }
+        pendingSave = task
+        return task
+    }
+
+    public func invalidate() {
+        invalidationRequested = true
+        if pendingSaveCount == 0 { invalidated = true }
+    }
+
+    public func waitForPendingSaves() async {
+        if let pendingSave { _ = await pendingSave.result }
     }
 }
 
 /// セッション × パスごとのファイルタブ。表示の途中で作ってよいよう観測対象にはしない。
 @MainActor
-final class FileTabDocuments {
-    private var documents: [SessionID: [String: FileTabDocument]] = [:]
+public final class FileTabDocuments {
+    private var storedDocuments: [SessionID: [String: FileTabDocument]] = [:]
+
+    public init() {}
 
     /// セッションの作業場所が変わっていたら、旧い場所の下書きは捨てて開き直す
     /// （作業場所の変更は「進行中の作業は失われます」と確認してから行われる）。
-    func document(for sessionID: SessionID, path: String, workingDirectory: String) -> FileTabDocument {
-        if let existing = documents[sessionID]?[path], existing.workingDirectory == workingDirectory { return existing }
+    public func document(for sessionID: SessionID, path: String, workingDirectory: String) -> FileTabDocument {
+        if let existing = storedDocuments[sessionID]?[path],
+           existing.workingDirectory == workingDirectory || existing.isDirty || existing.hasPendingSaves { return existing }
+        storedDocuments[sessionID]?[path]?.invalidate()
         let created = FileTabDocument(path: path, workingDirectory: workingDirectory)
-        documents[sessionID, default: [:]][path] = created
+        storedDocuments[sessionID, default: [:]][path] = created
         return created
     }
 
-    func existing(for sessionID: SessionID, path: String) -> FileTabDocument? {
-        documents[sessionID]?[path]
+    public func document(for sessionID: SessionID, path: String, root: String) -> FileTabDocument {
+        let root = URL(fileURLWithPath: root, isDirectory: true).standardizedFileURL.resolvingSymlinksInPath().path
+        if let existing = storedDocuments[sessionID]?[path],
+           existing.root == root || existing.isDirty || existing.hasPendingSaves { return existing }
+        storedDocuments[sessionID]?[path]?.invalidate()
+        let created = FileTabDocument(path: path, root: root)
+        storedDocuments[sessionID, default: [:]][path] = created
+        return created
     }
 
-    func remove(for sessionID: SessionID, path: String) {
-        documents[sessionID]?[path] = nil
+    public func existing(for sessionID: SessionID, path: String) -> FileTabDocument? {
+        storedDocuments[sessionID]?[path]
     }
 
-    func removeAll(for sessionID: SessionID) {
-        documents[sessionID] = nil
+    public func remove(for sessionID: SessionID, path: String) async {
+        guard let document = storedDocuments[sessionID]?[path] else { return }
+        document.invalidate()
+        await document.waitForPendingSaves()
+        if storedDocuments[sessionID]?[path] === document { storedDocuments[sessionID]?[path] = nil }
+    }
+
+    public func removeAll(for sessionID: SessionID) async {
+        await invalidateAndWait(for: [sessionID])
+    }
+
+    public func documents(for sessionIDs: Set<SessionID>? = nil) -> [FileTabDocument] {
+        storedDocuments.filter { sessionIDs?.contains($0.key) ?? true }.values.flatMap { $0.values }
+    }
+
+    public func invalidateAndWait(for sessionIDs: Set<SessionID>? = nil) async {
+        let affected = documents(for: sessionIDs)
+        for document in affected { document.invalidate() }
+        for document in affected { await document.waitForPendingSaves() }
+        for (sessionID, entries) in storedDocuments {
+            for (path, document) in entries where affected.contains(where: { $0 === document }) {
+                storedDocuments[sessionID]?[path] = nil
+            }
+        }
     }
 
     /// 未保存のファイル名（セッション削除の確認に出す）。
-    func dirtyFileNames(for sessionID: SessionID) -> [String] {
-        (documents[sessionID] ?? [:]).values.filter(\.isDirty).map(\.fileName).sorted()
+    public func dirtyFileNames(for sessionID: SessionID) -> [String] {
+        (storedDocuments[sessionID] ?? [:]).values.filter(\.isDirty).map(\.fileName).sorted()
     }
 }

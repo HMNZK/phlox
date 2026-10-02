@@ -79,13 +79,22 @@ struct SessionTabsContainer<Conversation: View>: View {
                 viewModel: editorPanel.viewModel,
                 projectName: node.workspaceName,
                 workingDirectory: node.rawWorkspacePath,
-                isDirty: { files.existing(for: node.id, path: $0)?.isDirty ?? false }
+                isDirty: { files.existing(for: node.id, path: $0)?.hasUnsavedChanges ?? false }
             ) { path in
-                router.tabs.updateLayout(for: node.id) { $0.open(.file(path)) }
+                let requestedDirectory = node.rawWorkspacePath
+                Task {
+                    let root = await FileTabOpening.root(for: requestedDirectory)
+                    files.openFileTab(
+                        sessionID: node.id, root: root, relativePath: path, router: router,
+                        requestedWorkingDirectory: requestedDirectory,
+                        currentWorkingDirectory: viewModel.sessionNode(id: node.id)?.rawWorkspacePath
+                    )
+                }
             }
         case .file(let path):
-            FileTabView(
-                document: files.document(for: node.id, path: path, workingDirectory: node.rawWorkspacePath),
+            RestoredFileTabView(
+                files: files, sessionID: node.id, path: path, workingDirectory: node.rawWorkspacePath,
+                currentWorkingDirectory: { viewModel.sessionNode(id: node.id)?.rawWorkspacePath },
                 lastWriter: { [viewModel] document in document.lastWriter(among: viewModel.sessionNodes, excluding: node.id) }
             )
                 .id("\(node.id)-\(path)")
@@ -192,7 +201,7 @@ struct ChildTabBar: View {
 
     private func isDirty(_ tab: ChildTab) -> Bool {
         guard case .file(let path) = tab else { return false }
-        return files.existing(for: node.id, path: path)?.isDirty ?? false
+        return files.existing(for: node.id, path: path)?.hasUnsavedChanges ?? false
     }
 }
 
@@ -509,6 +518,39 @@ private struct ChildTabPanes<Content: View>: View {
 
 // MARK: - File tab
 
+/// 復元タブもルートの解決を待ち、既に開いた文書の固定ルートを優先する。
+private struct RestoredFileTabView: View {
+    let files: FileTabDocuments
+    let sessionID: SessionID
+    let path: String
+    let workingDirectory: String
+    let currentWorkingDirectory: () -> String?
+    let lastWriter: (FileTabDocument) -> String?
+    @State private var restoredDocument: FileTabDocument?
+
+    private var changingWorkspace: Bool { FileTabDocumentRegistry.shared.isChangingSession(sessionID) }
+
+    var body: some View {
+        Group {
+            if !changingWorkspace,
+               let document = files.existing(for: sessionID, path: path) ?? restoredDocument, !document.invalidated {
+                FileTabView(document: document, lastWriter: lastWriter)
+            } else {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .task(id: "\(workingDirectory)-\(changingWorkspace)") {
+            guard !changingWorkspace else { return }
+            guard files.existing(for: sessionID, path: path) == nil else { return }
+            restoredDocument = nil
+            let root = await FileTabOpening.root(for: workingDirectory)
+            guard !Task.isCancelled, !changingWorkspace,
+                  currentWorkingDirectory() == workingDirectory else { return }
+            restoredDocument = files.document(for: sessionID, path: path, root: root)
+        }
+    }
+}
+
 /// ファイルの子タブ。編集・保存・外部変更との競合（上書き／キャンセル）。
 private struct FileTabView: View {
     @Bindable var document: FileTabDocument
@@ -543,22 +585,44 @@ private struct FileTabView: View {
                 }
                 .buttonStyle(.ds(.primary, keyHint: "⌘S", height: 20, fontSize: 11, padding: 8))
                 .keyboardShortcut("s", modifiers: .command)
-                .disabled(!document.isDirty)
+                .disabled(document.invalidated || !document.isDirty)
             }
             .padding(.horizontal, 10)
             .frame(height: 30)
             .overlay(alignment: .bottom) {
                 Rectangle().fill(DSColor.separator).frame(height: 1)
             }
-            if document.loadFailed {
+            switch document.loadState {
+            case .loadFailed:
                 ContentUnavailableView(
                     "ファイルを開けません",
                     systemImage: "exclamationmark.triangle",
                     description: Text("このファイルは利用できないか、有効なUTF-8ではありません。")
                 )
-            } else if document.isLoaded {
+            case .outsideRoot(let resolvedPath):
+                ContentUnavailableView {
+                    Label("ファイルを開けません", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text("このファイルは作業ツリーの外を指しています（\(resolvedPath)）")
+                } actions: {
+                    Button("Finder で表示") {
+                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: resolvedPath)])
+                    }
+                }
+            case .tooLarge, .binary:
+                ContentUnavailableView {
+                    Label("ファイルを開けません", systemImage: "doc")
+                } description: {
+                    Text(document.loadState == .tooLarge ? "1 MB を超えるファイルは編集できません。" : "バイナリファイルは編集できません。")
+                } actions: {
+                    Button("既定のアプリで開く") {
+                        NSWorkspace.shared.open(URL(fileURLWithPath: document.root, isDirectory: true).appendingPathComponent(document.path))
+                    }
+                }
+            case .loaded:
                 CodeTextEditor(text: $document.draft)
-            } else {
+                    .disabled(document.invalidated)
+            case .unloaded, .loading:
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }

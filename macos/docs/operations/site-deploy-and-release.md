@@ -95,7 +95,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -L \
   "$(curl -s https://phlox.cc/appcast.xml | grep -oE 'https://[^\"]+\.zip' | head -1)"  # 200
 ```
 
-バージョン整合: `macos/project.yml` の `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` と appcast の `sparkle:shortVersionString` / `sparkle:version`、Release タグを一致させる。
+バージョン整合: `macos/project.yml` の共通設定 `settings.base` にある `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` を更新し、appcast の `sparkle:shortVersionString` / `sparkle:version`、Release タグを一致させる。本体と XPC サービスはこの共通設定を使う。
 
 ## ロールバック
 

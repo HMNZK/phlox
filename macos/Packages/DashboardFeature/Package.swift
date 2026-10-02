@@ -8,6 +8,7 @@ let package = Package(
         .library(name: "DashboardFeature", targets: ["DashboardFeature"]),
     ],
     dependencies: [
+        .package(path: "../SimulatorBridgeKit"),
         .package(path: "../AgentDomain"),
         .package(path: "../SessionFeature"),
         .package(path: "../HookServer"),
@@ -27,6 +28,7 @@ let package = Package(
         .target(
             name: "DashboardFeature",
             dependencies: [
+                "SimulatorBridgeKit",
                 "AgentDomain",
                 "SessionFeature",
                 "HookServer",

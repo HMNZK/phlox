@@ -8,6 +8,8 @@ options:
   generateEmptyDirectories: true
 
 packages:
+  SimulatorBridgeKit:
+    path: Packages/SimulatorBridgeKit
   AgentConfigKit:
     path: Packages/AgentConfigKit
   AgentDomain:
@@ -37,6 +39,11 @@ packages:
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: "2.6.0"
+
+settings:
+  base:
+    MARKETING_VERSION: "1.8.3"
+    CURRENT_PROJECT_VERSION: "29"
 
 targets:
   Phlox:
@@ -85,8 +92,6 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phlox.Phlox
         PHLOX_APP_DISPLAY_NAME: Phlox
-        MARKETING_VERSION: "1.8.3"
-        CURRENT_PROJECT_VERSION: "29"
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_ENTITLEMENTS: "$(PHLOX_CODE_SIGN_ENTITLEMENTS)"
         CODE_SIGN_INJECT_BASE_ENTITLEMENTS: YES
@@ -108,6 +113,8 @@ targets:
           # 各自の Apple Developer Team ID を設定すること（Signing.example.xcconfig / README 参照）。
           DEVELOPMENT_TEAM: "$(PHLOX_DEVELOPMENT_TEAM)"
     dependencies:
+      - target: SimulatorBridgeService
+        embed: true
       - package: AgentConfigKit
       - package: AppBootstrap
       - package: DashboardFeature
@@ -118,6 +125,41 @@ targets:
       - package: PTYKit
       - package: Sparkle
         product: Sparkle
+
+  SimulatorBridgeService:
+    type: xpc-service
+    platform: macOS
+    sources: [SimulatorBridgeService]
+    configFiles:
+      Debug: Config/Signing.xcconfig
+      Release: Config/Signing.xcconfig
+    info:
+      path: SimulatorBridgeService/Info.plist
+      properties:
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        XPCService:
+          ServiceType: Application
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phlox.Phlox.SimulatorBridge
+        SWIFT_VERSION: "6.0"
+        SWIFT_OBJC_BRIDGING_HEADER: SimulatorBridgeService/PrivateSimulatorAPI.h
+        CLANG_ENABLE_OBJC_ARC: YES
+        ENABLE_HARDENED_RUNTIME: YES
+        OTHER_CODE_SIGN_FLAGS: --options runtime
+        CODE_SIGN_ENTITLEMENTS: SimulatorBridgeService/SimulatorBridgeService.entitlements
+        DEVELOPMENT_TEAM: "$(PHLOX_DEVELOPMENT_TEAM)"
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.phlox.Phlox.debug.SimulatorBridge
+          CODE_SIGN_STYLE: "$(PHLOX_DEBUG_CODE_SIGN_STYLE)"
+          CODE_SIGN_IDENTITY: "$(PHLOX_DEBUG_CODE_SIGN_IDENTITY)"
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Developer ID Application"
+    dependencies:
+      - package: SimulatorBridgeKit
 
   PhloxUITests:
     type: bundle.ui-testing

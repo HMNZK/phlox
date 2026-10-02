@@ -1,0 +1,257 @@
+$ xcrun simctl list devices -j
+{
+  "devices" : {
+    "com.apple.CoreSimulator.SimRuntime.iOS-26-2" : [
+      {
+        "lastBootedAt" : "2026-10-02T10:31:26Z",
+        "dataPath" : "\/Users\/ryosuke\/Library\/Developer\/CoreSimulator\/Devices\/1BDE7133-58B4-4D8E-BC69-C653794FACD6\/data",
+        "dataPathSize" : 11869011968,
+        "logPath" : "\/Users\/ryosuke\/Library\/Logs\/CoreSimulator\/1BDE7133-58B4-4D8E-BC69-C653794FACD6",
+        "udid" : "1BDE7133-58B4-4D8E-BC69-C653794FACD6",
+        "isAvailable" : true,
+        "logPathSize" : 2400256,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state" : "Shutdown",
+        "name" : "iPhone 17"
+      },
+      {
+        "lastBootedAt" : "2026-10-02T10:32:52Z",
+        "dataPath" : "\/Users\/ryosuke\/Library\/Developer\/CoreSimulator\/Devices\/FC2B9DA4-B42A-456C-892F-E425F9F90690\/data",
+        "dataPathSize" : 2549391360,
+        "logPath" : "\/Users\/ryosuke\/Library\/Logs\/CoreSimulator\/FC2B9DA4-B42A-456C-892F-E425F9F90690",
+        "udid" : "FC2B9DA4-B42A-456C-892F-E425F9F90690",
+        "isAvailable" : true,
+        "logPathSize" : 430080,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state" : "Shutdown",
+        "name" : "iPhone 17 (SB uitest 1)"
+      },
+      {
+        "lastBootedAt" : "2026-10-02T10:33:01Z",
+        "dataPath" : "\/Users\/ryosuke\/Library\/Developer\/CoreSimulator\/Devices\/8537EA42-18F4-4BD2-8A0B-CEDF97814B77\/data",
+        "dataPathSize" : 2019790848,
+        "logPath" : "\/Users\/ryosuke\/Library\/Logs\/CoreSimulator\/8537EA42-18F4-4BD2-8A0B-CEDF97814B77",
+        "udid" : "8537EA42-18F4-4BD2-8A0B-CEDF97814B77",
+        "isAvailable" : true,
+        "logPathSize" : 581632,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state" : "Shutdown",
+        "name" : "iPhone 17 (SB uitest 2)"
+      },
+      {
+        "lastBootedAt" : "2026-10-02T10:33:10Z",
+        "dataPath" : "\/Users\/ryosuke\/Library\/Developer\/CoreSimulator\/Devices\/92087D78-8BE3-4B5A-A401-375A89B900D8\/data",
+        "dataPathSize" : 1824026624,
+        "logPath" : "\/Users\/ryosuke\/Library\/Logs\/CoreSimulator\/92087D78-8BE3-4B5A-A401-375A89B900D8",
+        "udid" : "92087D78-8BE3-4B5A-A401-375A89B900D8",
+        "isAvailable" : true,
+        "logPathSize" : 479232,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state" : "Shutdown",
+        "name" : "iPhone 17 (SB uitest 3)"
+      },
+      {
+        "lastBootedAt" : "2026-10-02T10:33:20Z",
+        "dataPath" : "\/Users\/ryosuke\/Library\/Developer\/CoreSimulator\/Devices\/70BFAAC2-3301-466C-ADA0-2BC8201D820A\/data",
+        "dataPathSize" : 1815846912,
+        "logPath" : "\/Users\/ryosuke\/Library\/Logs\/CoreSimulator\/70BFAAC2-3301-466C-ADA0-2BC8201D820A",
+        "udid" : "70BFAAC2-3301-466C-ADA0-2BC8201D820A",
+        "isAvailable" : true,
+        "logPathSize" : 479232,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state" : "Shutdown",
+        "name" : "iPhone 17 (SB uitest 4)"
+      }
+    ]
+  }
+}
+終了コード: 0
+$ xcrun simctl create Phlox-SimulatorGate-20261002-195300 com.apple.CoreSimulator.SimDeviceType.iPhone-17 com.apple.CoreSimulator.SimRuntime.iOS-26-2
+7373B5A5-F02E-4C9F-AC2B-498B6691317E
+終了コード: 0
+$ xcrun simctl boot 7373B5A5-F02E-4C9F-AC2B-498B6691317E
+終了コード: 0
+$ xcrun simctl bootstatus 7373B5A5-F02E-4C9F-AC2B-498B6691317E -b
+Monitoring boot status for Phlox-SimulatorGate-20261002-195300 (7373B5A5-F02E-4C9F-AC2B-498B6691317E).
+[2026-10-02 10:53:02 +0000] Status=1, isTerminal=NO, Elapsed=00:01.
+	Waiting on BackBoard
+
+[2026-10-02 10:53:18 +0000] Status=2, isTerminal=NO, Elapsed=00:17.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+		Migration Elapsed:00:00 seconds
+
+[2026-10-02 10:53:19 +0000] Status=2, isTerminal=NO, Elapsed=00:17.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+		Migration Elapsed:00:00 seconds
+
+[2026-10-02 10:53:19 +0000] Status=2, isTerminal=NO, Elapsed=00:18.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+		Migration Elapsed:00:01 seconds
+
+[2026-10-02 10:53:20 +0000] Status=2, isTerminal=NO, Elapsed=00:19.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+		Migration Elapsed:00:02 seconds
+
+[2026-10-02 10:53:21 +0000] Status=2, isTerminal=NO, Elapsed=00:20.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.keyboards.migrator (KeyboardMigrator.migrator)
+		Migration Elapsed:00:03 seconds
+
+[2026-10-02 10:53:22 +0000] Status=4, isTerminal=NO, Elapsed=00:21.
+	Waiting on System App
+
+[2026-10-02 10:53:23 +0000] Status=4, isTerminal=NO, Elapsed=00:22.
+	Waiting on System App
+
+[2026-10-02 10:53:25 +0000] Status=4, isTerminal=NO, Elapsed=00:23.
+	Waiting on System App
+
+[2026-10-02 10:53:25 +0000] Status=4294967295, isTerminal=YES, Elapsed=00:24.
+	Finished
+
+終了コード: 0
+$ xcrun simctl install 7373B5A5-F02E-4C9F-AC2B-498B6691317E /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/.build/TestDerivedData/Build/Products/Release-iphonesimulator/GateTest.app
+終了コード: 0
+$ xcrun simctl launch 7373B5A5-F02E-4C9F-AC2B-498B6691317E com.phlox.prototype.GateTest
+com.phlox.prototype.GateTest: 37363
+終了コード: 0
+$ xcode-select -p
+/Applications/Xcode.app/Contents/Developer
+終了コード: 0
+$ screencapture -x -o -l37144 /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/host-02.png
+終了コード: 0
+$ xcrun simctl io 7373B5A5-F02E-4C9F-AC2B-498B6691317E screenshot /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/device-02.png
+Detected file type 'PNG' from extension
+Wrote screenshot to: /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/device-02.png
+終了コード: 0
+$ screencapture -x -o -l37144 /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/host-03.png
+終了コード: 0
+$ xcrun simctl io 7373B5A5-F02E-4C9F-AC2B-498B6691317E screenshot /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/device-03.png
+Detected file type 'PNG' from extension
+Wrote screenshot to: /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/device-03.png
+終了コード: 0
+$ screencapture -x -o -l37144 /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/host-06.png
+終了コード: 0
+$ xcrun simctl io 7373B5A5-F02E-4C9F-AC2B-498B6691317E screenshot /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/device-06.png
+Detected file type 'PNG' from extension
+Wrote screenshot to: /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/device-06.png
+終了コード: 0
+$ screencapture -x -o -l37144 /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/host-07.png
+終了コード: 0
+$ xcrun simctl io 7373B5A5-F02E-4C9F-AC2B-498B6691317E screenshot /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/device-07.png
+Detected file type 'PNG' from extension
+Wrote screenshot to: /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/device-07.png
+終了コード: 0
+$ screencapture -x -o -l37144 /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/host-10.png
+終了コード: 0
+$ xcrun simctl io 7373B5A5-F02E-4C9F-AC2B-498B6691317E screenshot /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/device-10.png
+Detected file type 'PNG' from extension
+Wrote screenshot to: /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/device-10.png
+終了コード: 0
+$ screencapture -x -o -l37144 /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/host-11.png
+終了コード: 0
+$ xcrun simctl io 7373B5A5-F02E-4C9F-AC2B-498B6691317E screenshot /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/device-11.png
+Detected file type 'PNG' from extension
+Wrote screenshot to: /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/device-11.png
+終了コード: 0
+$ screencapture -x -o -l37144 /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/host-23.png
+終了コード: 0
+$ xcrun simctl io 7373B5A5-F02E-4C9F-AC2B-498B6691317E screenshot /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/device-23.png
+Detected file type 'PNG' from extension
+Wrote screenshot to: /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/device-23.png
+終了コード: 0
+$ screencapture -x -o -l37144 /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/host-27.png
+終了コード: 0
+$ xcrun simctl io 7373B5A5-F02E-4C9F-AC2B-498B6691317E screenshot /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/device-27.png
+Detected file type 'PNG' from extension
+Wrote screenshot to: /Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/Records/device-27.png
+終了コード: 0
+$ xcrun simctl get_app_container 7373B5A5-F02E-4C9F-AC2B-498B6691317E com.phlox.prototype.GateTest data
+/Users/ryosuke/Library/Developer/CoreSimulator/Devices/7373B5A5-F02E-4C9F-AC2B-498B6691317E/data/Containers/Data/Application/8EDFD539-994C-41FB-90F4-8787906F9A17
+終了コード: 0
+$ xcrun simctl shutdown 7373B5A5-F02E-4C9F-AC2B-498B6691317E
+終了コード: 0
+$ xcrun simctl list devices -j
+{
+  "devices" : {
+    "com.apple.CoreSimulator.SimRuntime.iOS-26-2" : [
+      {
+        "lastBootedAt" : "2026-10-02T10:31:26Z",
+        "dataPath" : "\/Users\/ryosuke\/Library\/Developer\/CoreSimulator\/Devices\/1BDE7133-58B4-4D8E-BC69-C653794FACD6\/data",
+        "dataPathSize" : 11869011968,
+        "logPath" : "\/Users\/ryosuke\/Library\/Logs\/CoreSimulator\/1BDE7133-58B4-4D8E-BC69-C653794FACD6",
+        "udid" : "1BDE7133-58B4-4D8E-BC69-C653794FACD6",
+        "isAvailable" : true,
+        "logPathSize" : 2400256,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state" : "Shutdown",
+        "name" : "iPhone 17"
+      },
+      {
+        "lastBootedAt" : "2026-10-02T10:32:52Z",
+        "dataPath" : "\/Users\/ryosuke\/Library\/Developer\/CoreSimulator\/Devices\/FC2B9DA4-B42A-456C-892F-E425F9F90690\/data",
+        "dataPathSize" : 2549391360,
+        "logPath" : "\/Users\/ryosuke\/Library\/Logs\/CoreSimulator\/FC2B9DA4-B42A-456C-892F-E425F9F90690",
+        "udid" : "FC2B9DA4-B42A-456C-892F-E425F9F90690",
+        "isAvailable" : true,
+        "logPathSize" : 430080,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state" : "Shutdown",
+        "name" : "iPhone 17 (SB uitest 1)"
+      },
+      {
+        "lastBootedAt" : "2026-10-02T10:33:01Z",
+        "dataPath" : "\/Users\/ryosuke\/Library\/Developer\/CoreSimulator\/Devices\/8537EA42-18F4-4BD2-8A0B-CEDF97814B77\/data",
+        "dataPathSize" : 2019110912,
+        "logPath" : "\/Users\/ryosuke\/Library\/Logs\/CoreSimulator\/8537EA42-18F4-4BD2-8A0B-CEDF97814B77",
+        "udid" : "8537EA42-18F4-4BD2-8A0B-CEDF97814B77",
+        "isAvailable" : true,
+        "logPathSize" : 581632,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state" : "Shutdown",
+        "name" : "iPhone 17 (SB uitest 2)"
+      },
+      {
+        "lastBootedAt" : "2026-10-02T10:33:10Z",
+        "dataPath" : "\/Users\/ryosuke\/Library\/Developer\/CoreSimulator\/Devices\/92087D78-8BE3-4B5A-A401-375A89B900D8\/data",
+        "dataPathSize" : 1823997952,
+        "logPath" : "\/Users\/ryosuke\/Library\/Logs\/CoreSimulator\/92087D78-8BE3-4B5A-A401-375A89B900D8",
+        "udid" : "92087D78-8BE3-4B5A-A401-375A89B900D8",
+        "isAvailable" : true,
+        "logPathSize" : 479232,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state" : "Shutdown",
+        "name" : "iPhone 17 (SB uitest 3)"
+      },
+      {
+        "lastBootedAt" : "2026-10-02T10:33:20Z",
+        "dataPath" : "\/Users\/ryosuke\/Library\/Developer\/CoreSimulator\/Devices\/70BFAAC2-3301-466C-ADA0-2BC8201D820A\/data",
+        "dataPathSize" : 1815846912,
+        "logPath" : "\/Users\/ryosuke\/Library\/Logs\/CoreSimulator\/70BFAAC2-3301-466C-ADA0-2BC8201D820A",
+        "udid" : "70BFAAC2-3301-466C-ADA0-2BC8201D820A",
+        "isAvailable" : true,
+        "logPathSize" : 479232,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state" : "Shutdown",
+        "name" : "iPhone 17 (SB uitest 4)"
+      },
+      {
+        "lastBootedAt" : "2026-10-02T10:53:01Z",
+        "dataPath" : "\/Users\/ryosuke\/Library\/Developer\/CoreSimulator\/Devices\/7373B5A5-F02E-4C9F-AC2B-498B6691317E\/data",
+        "dataPathSize" : 1058873344,
+        "logPath" : "\/Users\/ryosuke\/Library\/Logs\/CoreSimulator\/7373B5A5-F02E-4C9F-AC2B-498B6691317E",
+        "udid" : "7373B5A5-F02E-4C9F-AC2B-498B6691317E",
+        "isAvailable" : true,
+        "logPathSize" : 176128,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state" : "Shutdown",
+        "name" : "Phlox-SimulatorGate-20261002-195300"
+      }
+    ]
+  }
+}
+終了コード: 0

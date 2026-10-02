@@ -1,0 +1,116 @@
+/Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/.build/DerivedData/Build/Products/Release/SimulatorGate.app/Contents/XPCServices/SimulatorGateService.xpc: valid on disk
+/Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/.build/DerivedData/Build/Products/Release/SimulatorGate.app/Contents/XPCServices/SimulatorGateService.xpc: satisfies its Designated Requirement
+
+Executable=/Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/.build/DerivedData/Build/Products/Release/SimulatorGate.app/Contents/XPCServices/SimulatorGateService.xpc/Contents/MacOS/SimulatorGateService
+Identifier=com.phlox.prototype.SimulatorGate.Service
+Format=bundle with Mach-O universal (x86_64 arm64)
+CodeDirectory v=20500 size=437 flags=0x10000(runtime) hashes=6+3 location=embedded
+VersionPlatform=1
+VersionMin=917504
+VersionSDK=1704448
+Hash type=sha256 size=32
+CandidateCDHash sha256=8b96eabf1270ed46d8967f0d9c40bc42ed7c7df6
+CandidateCDHashFull sha256=8b96eabf1270ed46d8967f0d9c40bc42ed7c7df6d251243ead6bd9631465b05b
+Hash choices=sha256
+CMSDigest=8b96eabf1270ed46d8967f0d9c40bc42ed7c7df6d251243ead6bd9631465b05b
+CMSDigestType=2
+Executable Segment base=0
+Executable Segment limit=32768
+Executable Segment flags=0x1
+Page size=16384
+CDHash=8b96eabf1270ed46d8967f0d9c40bc42ed7c7df6
+Signature size=4672
+Authority=Developer ID Application: Ryosuke Sakurai (9JGGMW6UW6)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+Signed Time=Oct 2, 2026 at 20:02:27
+Info.plist entries=20
+TeamIdentifier=9JGGMW6UW6
+Runtime Version=26.2.0
+Sealed Resources version=2 rules=13 files=0
+Internal requirements count=1 size=204
+
+--prepared:/Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/.build/DerivedData/Build/Products/Release/SimulatorGate.app/Contents/XPCServices/SimulatorGateService.xpc
+--validated:/Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/.build/DerivedData/Build/Products/Release/SimulatorGate.app/Contents/XPCServices/SimulatorGateService.xpc
+/Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/.build/DerivedData/Build/Products/Release/SimulatorGate.app: valid on disk
+/Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/.build/DerivedData/Build/Products/Release/SimulatorGate.app: satisfies its Designated Requirement
+
+Executable=/Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/.build/DerivedData/Build/Products/Release/SimulatorGate.app/Contents/MacOS/SimulatorGate
+Identifier=com.phlox.prototype.SimulatorGate
+Format=app bundle with Mach-O universal (x86_64 arm64)
+CodeDirectory v=20500 size=461 flags=0x10000(runtime) hashes=7+3 location=embedded
+VersionPlatform=1
+VersionMin=917504
+VersionSDK=1704448
+Hash type=sha256 size=32
+CandidateCDHash sha256=50d94e8049492c0c9636647dd955b3f23481bb00
+CandidateCDHashFull sha256=50d94e8049492c0c9636647dd955b3f23481bb00bfe4cce54524df01f9007f34
+Hash choices=sha256
+CMSDigest=50d94e8049492c0c9636647dd955b3f23481bb00bfe4cce54524df01f9007f34
+CMSDigestType=2
+Executable Segment base=0
+Executable Segment limit=32768
+Executable Segment flags=0x1
+Page size=16384
+CDHash=50d94e8049492c0c9636647dd955b3f23481bb00
+Signature size=4672
+Authority=Developer ID Application: Ryosuke Sakurai (9JGGMW6UW6)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+Signed Time=Oct 2, 2026 at 20:02:27
+Info.plist entries=20
+TeamIdentifier=9JGGMW6UW6
+Runtime Version=26.2.0
+Sealed Resources version=2 rules=13 files=1
+Internal requirements count=1 size=196
+
+/Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/.build/DerivedData/Build/Products/Release/SimulatorGate.app/Contents/MacOS/SimulatorGate (architecture x86_64):
+	/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation (compatibility version 300.0.0, current version 4201.0.0)
+	/usr/lib/libobjc.A.dylib (compatibility version 1.0.0, current version 228.0.0)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)
+	/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit (compatibility version 45.0.0, current version 2685.30.107)
+	/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 4201.0.0)
+	/System/Library/Frameworks/IOSurface.framework/Versions/A/IOSurface (compatibility version 1.0.0, current version 1.0.0)
+	/System/Library/Frameworks/QuartzCore.framework/Versions/A/QuartzCore (compatibility version 1.2.0, current version 1193.49.3)
+	/System/Library/Frameworks/SwiftUI.framework/Versions/A/SwiftUI (compatibility version 1.0.0, current version 7.2.5)
+	/usr/lib/swift/libswiftCore.dylib (compatibility version 0.0.0, current version 0.0.0)
+	/usr/lib/swift/libswiftCoreFoundation.dylib (compatibility version 1.0.0, current version 120.100.0, weak)
+	/usr/lib/swift/libswiftCoreImage.dylib (compatibility version 1.0.0, current version 2.2.0, weak)
+	/usr/lib/swift/libswiftDarwin.dylib (compatibility version 1.0.0, current version 347.40.2, weak)
+	/usr/lib/swift/libswiftDispatch.dylib (compatibility version 1.0.0, current version 56.0.0, weak)
+	/usr/lib/swift/libswiftIOKit.dylib (compatibility version 1.0.0, current version 1.0.0, weak)
+	/usr/lib/swift/libswiftMetal.dylib (compatibility version 1.0.0, current version 370.64.2, weak)
+	/usr/lib/swift/libswiftOSLog.dylib (compatibility version 1.0.0, current version 10.0.0, weak)
+	/usr/lib/swift/libswiftObjectiveC.dylib (compatibility version 1.0.0, current version 951.1.0, weak)
+	/usr/lib/swift/libswiftQuartzCore.dylib (compatibility version 1.0.0, current version 5.0.0, weak)
+	/usr/lib/swift/libswiftSpatial.dylib (compatibility version 1.0.0, current version 1.0.0, weak)
+	/usr/lib/swift/libswiftUniformTypeIdentifiers.dylib (compatibility version 1.0.0, current version 877.2.4, weak)
+	/usr/lib/swift/libswiftXPC.dylib (compatibility version 1.0.0, current version 105.0.14, weak)
+	/usr/lib/swift/libswift_Concurrency.dylib (compatibility version 1.0.0, current version 0.0.0)
+	/usr/lib/swift/libswiftos.dylib (compatibility version 1.0.0, current version 1076.40.2, weak)
+	/usr/lib/swift/libswiftsimd.dylib (compatibility version 1.0.0, current version 23.0.0, weak)
+/Users/ryosuke/Projects/Phlox-oss-worktrees/simulator-gate/macos/Prototypes/SimulatorGate/.build/DerivedData/Build/Products/Release/SimulatorGate.app/Contents/MacOS/SimulatorGate (architecture arm64):
+	/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation (compatibility version 300.0.0, current version 4201.0.0)
+	/usr/lib/libobjc.A.dylib (compatibility version 1.0.0, current version 228.0.0)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)
+	/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit (compatibility version 45.0.0, current version 2685.30.107)
+	/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 4201.0.0)
+	/System/Library/Frameworks/IOSurface.framework/Versions/A/IOSurface (compatibility version 1.0.0, current version 1.0.0)
+	/System/Library/Frameworks/QuartzCore.framework/Versions/A/QuartzCore (compatibility version 1.2.0, current version 1193.49.3)
+	/System/Library/Frameworks/SwiftUI.framework/Versions/A/SwiftUI (compatibility version 1.0.0, current version 7.2.5)
+	/usr/lib/swift/libswiftCore.dylib (compatibility version 0.0.0, current version 0.0.0)
+	/usr/lib/swift/libswiftCoreFoundation.dylib (compatibility version 1.0.0, current version 120.100.0, weak)
+	/usr/lib/swift/libswiftCoreImage.dylib (compatibility version 1.0.0, current version 2.2.0, weak)
+	/usr/lib/swift/libswiftDarwin.dylib (compatibility version 1.0.0, current version 347.40.2, weak)
+	/usr/lib/swift/libswiftDispatch.dylib (compatibility version 1.0.0, current version 56.0.0, weak)
+	/usr/lib/swift/libswiftIOKit.dylib (compatibility version 1.0.0, current version 1.0.0, weak)
+	/usr/lib/swift/libswiftMetal.dylib (compatibility version 1.0.0, current version 370.64.2, weak)
+	/usr/lib/swift/libswiftOSLog.dylib (compatibility version 1.0.0, current version 10.0.0, weak)
+	/usr/lib/swift/libswiftObjectiveC.dylib (compatibility version 1.0.0, current version 951.1.0, weak)
+	/usr/lib/swift/libswiftQuartzCore.dylib (compatibility version 1.0.0, current version 5.0.0, weak)
+	/usr/lib/swift/libswiftSpatial.dylib (compatibility version 1.0.0, current version 1.0.0, weak)
+	/usr/lib/swift/libswiftUniformTypeIdentifiers.dylib (compatibility version 1.0.0, current version 877.2.4, weak)
+	/usr/lib/swift/libswiftXPC.dylib (compatibility version 1.0.0, current version 105.0.14, weak)
+	/usr/lib/swift/libswift_Concurrency.dylib (compatibility version 1.0.0, current version 0.0.0)
+	/usr/lib/swift/libswiftos.dylib (compatibility version 1.0.0, current version 1076.40.2, weak)
+	/usr/lib/swift/libswiftsimd.dylib (compatibility version 1.0.0, current version 23.0.0, weak)

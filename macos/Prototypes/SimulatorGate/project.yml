@@ -1,0 +1,67 @@
+name: SimulatorGate
+options:
+  developmentLanguage: ja
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CODE_SIGNING_ALLOWED: NO
+    ENABLE_HARDENED_RUNTIME: YES
+    CLANG_ENABLE_OBJC_ARC: YES
+targets:
+  SimulatorGate:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources: [Host, Shared]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phlox.prototype.SimulatorGate
+        SWIFT_OBJC_BRIDGING_HEADER: Shared/Bridge.h
+    info:
+      path: .build/Host-Info.plist
+      properties:
+        CFBundleVersion: "1"
+        CFBundleShortVersionString: "0.1"
+        NSPrincipalClass: NSApplication
+    dependencies:
+      - target: SimulatorGateService
+        embed: true
+  SimulatorGateService:
+    type: xpc-service
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources: [Service, Shared]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phlox.prototype.SimulatorGate.Service
+    info:
+      path: .build/Service-Info.plist
+      properties:
+        CFBundleVersion: "1"
+        CFBundleShortVersionString: "0.1"
+        XPCService:
+          ServiceType: Application
+  GateTest:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources: [TestApp]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phlox.prototype.GateTest
+        TARGETED_DEVICE_FAMILY: "1"
+    info:
+      path: .build/Test-Info.plist
+      properties:
+        CFBundleVersion: "1"
+        CFBundleShortVersionString: "0.1"
+        UILaunchScreen: {}
+schemes:
+  SimulatorGate:
+    build:
+      targets:
+        SimulatorGate: all
+  GateTest:
+    build:
+      targets:
+        GateTest: all

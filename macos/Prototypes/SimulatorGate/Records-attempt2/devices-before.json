@@ -1,0 +1,78 @@
+{
+  "devices": {
+    "com.apple.CoreSimulator.SimRuntime.iOS-26-2": [
+      {
+        "lastBootedAt": "2026-10-02T10:31:26Z",
+        "dataPath": "/Users/ryosuke/Library/Developer/CoreSimulator/Devices/1BDE7133-58B4-4D8E-BC69-C653794FACD6/data",
+        "dataPathSize": 11869011968,
+        "logPath": "/Users/ryosuke/Library/Logs/CoreSimulator/1BDE7133-58B4-4D8E-BC69-C653794FACD6",
+        "udid": "1BDE7133-58B4-4D8E-BC69-C653794FACD6",
+        "isAvailable": true,
+        "logPathSize": 2400256,
+        "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state": "Shutdown",
+        "name": "iPhone 17"
+      },
+      {
+        "lastBootedAt": "2026-10-02T10:32:52Z",
+        "dataPath": "/Users/ryosuke/Library/Developer/CoreSimulator/Devices/FC2B9DA4-B42A-456C-892F-E425F9F90690/data",
+        "dataPathSize": 2549391360,
+        "logPath": "/Users/ryosuke/Library/Logs/CoreSimulator/FC2B9DA4-B42A-456C-892F-E425F9F90690",
+        "udid": "FC2B9DA4-B42A-456C-892F-E425F9F90690",
+        "isAvailable": true,
+        "logPathSize": 430080,
+        "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state": "Shutdown",
+        "name": "iPhone 17 (SB uitest 1)"
+      },
+      {
+        "lastBootedAt": "2026-10-02T10:33:01Z",
+        "dataPath": "/Users/ryosuke/Library/Developer/CoreSimulator/Devices/8537EA42-18F4-4BD2-8A0B-CEDF97814B77/data",
+        "dataPathSize": 2019110912,
+        "logPath": "/Users/ryosuke/Library/Logs/CoreSimulator/8537EA42-18F4-4BD2-8A0B-CEDF97814B77",
+        "udid": "8537EA42-18F4-4BD2-8A0B-CEDF97814B77",
+        "isAvailable": true,
+        "logPathSize": 581632,
+        "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state": "Shutdown",
+        "name": "iPhone 17 (SB uitest 2)"
+      },
+      {
+        "lastBootedAt": "2026-10-02T10:33:10Z",
+        "dataPath": "/Users/ryosuke/Library/Developer/CoreSimulator/Devices/92087D78-8BE3-4B5A-A401-375A89B900D8/data",
+        "dataPathSize": 1823997952,
+        "logPath": "/Users/ryosuke/Library/Logs/CoreSimulator/92087D78-8BE3-4B5A-A401-375A89B900D8",
+        "udid": "92087D78-8BE3-4B5A-A401-375A89B900D8",
+        "isAvailable": true,
+        "logPathSize": 479232,
+        "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state": "Shutdown",
+        "name": "iPhone 17 (SB uitest 3)"
+      },
+      {
+        "lastBootedAt": "2026-10-02T10:33:20Z",
+        "dataPath": "/Users/ryosuke/Library/Developer/CoreSimulator/Devices/70BFAAC2-3301-466C-ADA0-2BC8201D820A/data",
+        "dataPathSize": 1815846912,
+        "logPath": "/Users/ryosuke/Library/Logs/CoreSimulator/70BFAAC2-3301-466C-ADA0-2BC8201D820A",
+        "udid": "70BFAAC2-3301-466C-ADA0-2BC8201D820A",
+        "isAvailable": true,
+        "logPathSize": 479232,
+        "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state": "Shutdown",
+        "name": "iPhone 17 (SB uitest 4)"
+      },
+      {
+        "lastBootedAt": "2026-10-02T10:53:01Z",
+        "dataPath": "/Users/ryosuke/Library/Developer/CoreSimulator/Devices/7373B5A5-F02E-4C9F-AC2B-498B6691317E/data",
+        "dataPathSize": 1053896704,
+        "logPath": "/Users/ryosuke/Library/Logs/CoreSimulator/7373B5A5-F02E-4C9F-AC2B-498B6691317E",
+        "udid": "7373B5A5-F02E-4C9F-AC2B-498B6691317E",
+        "isAvailable": true,
+        "logPathSize": 155648,
+        "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state": "Shutdown",
+        "name": "Phlox-SimulatorGate-20261002-195300"
+      }
+    ]
+  }
+}

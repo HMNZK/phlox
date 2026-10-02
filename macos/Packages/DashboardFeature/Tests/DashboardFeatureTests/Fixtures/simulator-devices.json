@@ -1,0 +1,20 @@
+{
+  "devices": {
+    "com.apple.CoreSimulator.SimRuntime.iOS-26-2": [
+      {"udid":"1BDE7133-58B4-4D8E-BC69-C653794FACD6","name":"iPhone 17","state":"Shutdown","isAvailable":true,"deviceTypeIdentifier":"com.apple.CoreSimulator.SimDeviceType.iPhone-17"},
+      {"udid":"FC2B9DA4-B42A-456C-892F-E425F9F90690","name":"iPhone 17 (SB uitest 1)","state":"Booted","isAvailable":true},
+      {"udid":"8537EA42-18F4-4BD2-8A0B-CEDF97814B77","name":"iPad Pro","state":"Booted","isAvailable":true},
+      {"udid":"92087D78-8BE3-4B5A-A401-375A89B900D8","name":"削除済みランタイムの端末","state":"Shutdown","isAvailable":false,"availabilityError":"ランタイムがありません"}
+    ],
+    "com.apple.CoreSimulator.SimRuntime.iOS-18-5": [
+      {"udid":"70BFAAC2-3301-466C-ADA0-2BC8201D820A","name":"iPhone 17","state":"Shutdown","isAvailable":true},
+      {"udid":"7373B5A5-F02E-4C9F-AC2B-498B6691317E","name":"iPhone 16","state":"Booting","isAvailable":true}
+    ],
+    "com.apple.CoreSimulator.SimRuntime.tvOS-26-2": [
+      {"udid":"552457B7-9585-4645-A0FC-F1C5705B276C","name":"Apple TV","state":"Booted","isAvailable":true}
+    ],
+    "com.apple.CoreSimulator.SimRuntime.watchOS-26-2": [
+      {"udid":"AAB34682-B2C5-4F1C-984F-D3ABE22149BD","name":"Apple Watch","state":"Booted","isAvailable":true}
+    ]
+  }
+}

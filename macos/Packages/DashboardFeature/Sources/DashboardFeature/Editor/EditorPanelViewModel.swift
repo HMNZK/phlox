@@ -59,7 +59,6 @@ public final class EditorPanelViewModel {
     private let injectedWorkflowService: GitWorkflowService?
 
     private let service: WorkingTreeService?
-    private static let maximumEditableFileSize = 1_000_000
     /// 選択時に読んだ内容。競合検出の基準であり、draft そのものではない。
     private var loadedDiskContent: String?
     private var selectionGeneration = 0
@@ -338,7 +337,7 @@ public final class EditorPanelViewModel {
     }
 
     private func loadDraft(_ contents: String) {
-        guard contents.utf8.count <= Self.maximumEditableFileSize else {
+        guard contents.utf8.count <= WorkingTreeText.maximumEditableFileSize else {
             clearDraft()
             readOnlyMessage = "このファイルは大きすぎるため、ここでは編集できません。"
             return

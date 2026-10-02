@@ -11,6 +11,9 @@ extension AppDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if FileTabDocumentRegistry.shared.terminationConfirmationInProgress { return .terminateCancel }
+        if FileTabDocumentRegistry.shared.terminationInProgress { return .terminateLater }
+        guard FileTabDocumentRegistry.shared.confirmTermination() else { return .terminateCancel }
         // シグナル経路と同じガードで「高々 1 回」を担保する。シグナル側が先行済みなら、
         // ここでは子終了を再実行せず終了する。
         guard cleanupGuard.beginCleanup() else { return .terminateNow }
@@ -18,6 +21,7 @@ extension AppDelegate {
         let ptyManager = self.ptyManager
         let dashboard = self.dashboard
         Task { @MainActor in
+            await FileTabDocumentRegistry.shared.invalidateAndWait()
             // ユーザーターミナルの明示 shutdown と既存 PTY 終了、transcript flush を待つ。
             let ptyTask = Task {
                 await self.shutdownUserTerminal()

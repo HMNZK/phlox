@@ -1,9 +1,35 @@
 import Foundation
 
-private enum WorkingTreeServiceError: Error {
+public enum WorkingTreeServiceError: Error, Sendable {
     case notRepository
     case invalidRelativePath(String)
     case gitCommandFailed(arguments: [String], output: String)
+    case outsideRoot(String)
+    case notRegularFile(String)
+    case missingRoot(String)
+}
+
+public enum WorkingTreeTextError: Error, Sendable {
+    case tooLarge
+    case binary
+    case invalidUTF8
+}
+
+public enum WorkingTreeText {
+    public static let maximumEditableFileSize = 1_000_000
+
+    public static func decode(_ data: Data) throws -> (text: String, bom: Data) {
+        guard data.count <= maximumEditableFileSize else { throw WorkingTreeTextError.tooLarge }
+        guard !data.prefix(8_192).contains(0) else { throw WorkingTreeTextError.binary }
+        let bom = data.starts(with: [0xEF, 0xBB, 0xBF]) ? Data([0xEF, 0xBB, 0xBF]) : Data()
+        return (try decodeUTF8(Data(data.dropFirst(bom.count))), bom)
+    }
+
+    static func decodeUTF8(_ data: Data) throws -> String {
+        let text = String(decoding: data, as: UTF8.self)
+        guard text.utf8.elementsEqual(data) else { throw WorkingTreeTextError.invalidUTF8 }
+        return text
+    }
 }
 
 private struct GitCommandResult {
@@ -37,9 +63,11 @@ private final class GitDataCapture: @unchecked Sendable {
 /// リポジトリのワーキングツリーを読み書きする、git CLI の薄いラッパー。
 public actor WorkingTreeService {
     private let repositoryRoot: URL
+    private let fixedRoot: Bool
 
-    public init(repositoryRoot: URL) {
-        self.repositoryRoot = repositoryRoot
+    public init(repositoryRoot: URL, fixedRoot: Bool = false) {
+        self.repositoryRoot = fixedRoot ? repositoryRoot.standardizedFileURL.resolvingSymlinksInPath() : repositoryRoot
+        self.fixedRoot = fixedRoot
     }
 
     public func isGitRepository() -> Bool {
@@ -111,19 +139,28 @@ public actor WorkingTreeService {
             return .diff(String(decoding: diff.output, as: UTF8.self))
         }
 
-        if isBinaryFile(at: fileURL) {
+        let readableFileURL = try accessibleFileURL(for: path)
+        if isBinaryFile(at: readableFileURL) {
             return .binary
         }
-        return .untrackedContent(try String(contentsOf: fileURL, encoding: .utf8))
+        return .untrackedContent(try fileContents(path))
     }
 
     /// 保存・読み込みと同じ基準（Git のルート）で解決した絶対パス。
     public func absolutePath(_ path: String) -> String? {
-        try? fileURL(for: path).path
+        try? accessibleFileURL(for: path).path
     }
 
     public func fileContents(_ path: String) throws -> String {
-        try String(contentsOf: try fileURL(for: path), encoding: .utf8)
+        let data = try Data(contentsOf: accessibleFileURL(for: path))
+        return try WorkingTreeText.decodeUTF8(data)
+    }
+
+    public func fileData(_ path: String) throws -> Data {
+        let url = try accessibleFileURL(for: path)
+        let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        guard size <= WorkingTreeText.maximumEditableFileSize else { throw WorkingTreeTextError.tooLarge }
+        return try Data(contentsOf: url)
     }
 
     public func save(
@@ -131,24 +168,29 @@ public actor WorkingTreeService {
         content: String,
         expectedDiskContent: String?
     ) throws -> WorkingTreeSaveOutcome {
-        let destination = try fileURL(for: path)
+        try save(path: path, data: Data(content.utf8), expectedDiskBytes: expectedDiskContent.map { Data($0.utf8) })
+    }
 
-        if let expectedDiskContent {
-            let currentDiskContent: String
+    public func save(path: String, data: Data, expectedDiskBytes: Data?) throws -> WorkingTreeSaveOutcome {
+        let destination: URL
+        do {
+            destination = try accessibleFileURL(for: path, allowMissing: true)
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile && expectedDiskBytes != nil {
+            return .conflict
+        }
+        if let expectedDiskBytes {
+            let currentDiskBytes: Data
             do {
-                currentDiskContent = try String(contentsOf: destination, encoding: .utf8)
+                currentDiskBytes = try Data(contentsOf: destination)
             } catch {
                 return .conflict
             }
-            guard currentDiskContent == expectedDiskContent else {
+            guard currentDiskBytes == expectedDiskBytes else {
                 return .conflict
             }
         }
 
-        try Data(content.utf8).write(
-            to: destination.resolvingSymlinksInPath(),
-            options: .atomic
-        )
+        try data.write(to: destination, options: .atomic)
         return .saved
     }
 
@@ -314,7 +356,41 @@ public actor WorkingTreeService {
         return data?.contains(0) == true
     }
 
-    private func fileURL(for path: String) throws -> URL {
+    private func accessibleFileURL(for path: String, allowMissing: Bool = false) throws -> URL {
+        let root = try fileRoot().resolvingSymlinksInPath().standardizedFileURL
+        guard !fixedRoot || root.path.utf8.elementsEqual(repositoryRoot.path.utf8) else {
+            throw WorkingTreeServiceError.outsideRoot(root.path)
+        }
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            throw WorkingTreeServiceError.missingRoot(root.path)
+        }
+        let requested = try fileURL(for: path, relativeTo: root)
+        // 末尾が削除済みでも、親のリンクを先に解決して保存先を検査する。
+        let url = requested.deletingLastPathComponent().resolvingSymlinksInPath()
+            .appendingPathComponent(requested.lastPathComponent).resolvingSymlinksInPath().standardizedFileURL
+        let rootComponents = root.pathComponents
+        guard url.pathComponents.count > rootComponents.count,
+              url.pathComponents.starts(with: rootComponents) else {
+            throw WorkingTreeServiceError.outsideRoot(url.path)
+        }
+        let values: URLResourceValues
+        do {
+            values = try url.resourceValues(forKeys: [.isRegularFileKey])
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile && allowMissing {
+            // 包含確認済みの親が存在する場合だけ、削除されたファイルを作り直す。
+            let parent = try url.deletingLastPathComponent().resourceValues(forKeys: [.isDirectoryKey])
+            guard parent.isDirectory == true else { throw error }
+            return url
+        }
+        guard values.isRegularFile == true else {
+            throw WorkingTreeServiceError.notRegularFile(url.path)
+        }
+        return url
+    }
+
+    private func fileRoot() throws -> URL {
+        if fixedRoot { return repositoryRoot }
         let result = try runGit(["rev-parse", "--show-toplevel"])
         let baseURL: URL
         if result.terminationStatus == 0 {
@@ -324,12 +400,12 @@ public actor WorkingTreeService {
         } else {
             baseURL = repositoryRoot
         }
-        return try fileURL(for: path, relativeTo: baseURL)
+        return baseURL
     }
 
     private func fileURL(for path: String, relativeTo repositoryURL: URL) throws -> URL {
         let components = path.split(separator: "/", omittingEmptySubsequences: false)
-        guard !path.hasPrefix("/"), !components.isEmpty,
+        guard !path.hasPrefix("/"), !path.utf8.contains(0), !components.isEmpty,
               components.allSatisfy({ $0 != "." && $0 != ".." && !$0.isEmpty }) else {
             throw WorkingTreeServiceError.invalidRelativePath(path)
         }

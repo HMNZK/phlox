@@ -44,7 +44,7 @@ struct CodeTextEditor: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? CurrentLineTextView else { return }
-        if textView.string != text { textView.string = text }
+        Self.synchronizeText(text, with: textView)
         let background = NSColor(DSColor.background)
         scrollView.backgroundColor = background
         textView.backgroundColor = background
@@ -57,6 +57,10 @@ struct CodeTextEditor: NSViewRepresentable {
             ruler.backgroundColor = background
             ruler.needsDisplay = true
         }
+    }
+
+    static func synchronizeText(_ text: String, with textView: NSTextView) {
+        if !textView.string.utf8.elementsEqual(text.utf8) { textView.string = text }
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {

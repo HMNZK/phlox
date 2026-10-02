@@ -25,7 +25,7 @@ set -uo pipefail
 MACOS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPACT_COMMAND="$MACOS_DIR/scripts/compact-command.sh"
 
-DEFAULT_PACKAGES="AgentDomain DesignSystem MessageStore SessionFeature DashboardFeature"
+DEFAULT_PACKAGES="AgentDomain DesignSystem MessageStore SessionFeature DashboardFeature SimulatorBridgeKit"
 
 # ── 直列実行するパッケージ ────────────────────────────────────────────────
 #

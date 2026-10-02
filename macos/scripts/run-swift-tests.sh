@@ -72,7 +72,7 @@ SERIAL_PACKAGES="${SWIFT_TEST_SERIAL_PACKAGES-SessionFeature DashboardFeature}"
 # 実 git サブプロセスを起動するスイートは DashboardFeature の**別パス**で実行する。
 # 実 git を起動するテストを同じプールで走らせると CPU を奪い合って失敗率が跳ね上がる
 # （5 アーム計 48 回で実測）。**どちらのパスも green を要求するので、除外して隠しているのではない。**
-GIT_SUITES="${SWIFT_TEST_GIT_SUITES-WorktreeIsolationSpawnTests AcceptanceRestoreAbortNoSpawnTests}"
+GIT_SUITES="${SWIFT_TEST_GIT_SUITES-WorktreeIsolationSpawnTests AcceptanceRestoreAbortNoSpawnTests FileTreeGitTests}"
 GIT_PASS_PACKAGE="DashboardFeature"
 PACKAGES="${*:-${SWIFT_TEST_PACKAGES:-$DEFAULT_PACKAGES}}"
 

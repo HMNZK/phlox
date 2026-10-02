@@ -3,11 +3,13 @@ import AgentDomain
 import DesignSystem
 import SessionFeature
 
-/// 右端のインスペクタ（07）。上の切り替えで「セッション」と「使用量」を出し分ける。
+/// 右端のインスペクタ（07）。上の切り替えで「セッション」「ファイル」「使用量」を出し分ける。
 struct InspectorView: View {
     @Bindable var router: AppRouter
     let monitor: UsageMonitor
     let session: SessionNode?
+    @Binding var fileTreeModels: [String: FileTreeModel]
+    let files: FileTabDocuments
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
     var body: some View {
@@ -15,7 +17,7 @@ struct InspectorView: View {
         VStack(spacing: 0) {
             NeutralSegmentedControl(
                 selection: $router.inspectorTab,
-                options: [(InspectorTab.session, "セッション"), (InspectorTab.usage, "使用量")]
+                options: [(InspectorTab.session, "セッション"), (InspectorTab.files, "ファイル"), (InspectorTab.usage, "使用量")]
             )
             .padding(.horizontal, 12)
             .padding(.top, 12)
@@ -37,6 +39,8 @@ struct InspectorView: View {
                             .padding(.vertical, DSSpacing.l)
                     }
                 }
+            case .files:
+                FileTreeInspectorView(router: router, session: session, models: $fileTreeModels, files: files)
             case .usage:
                 UsageSidebarView(monitor: monitor)
             }

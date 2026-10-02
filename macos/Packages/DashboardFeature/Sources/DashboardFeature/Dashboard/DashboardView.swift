@@ -46,6 +46,7 @@ public struct DashboardView: View {
     @State private var gridSessionPickerPresented = false
     @State private var editorPanel = EditorPanelCoordinator()
     @State private var fileTabs = FileTabDocuments()
+    @State private var fileTreeModels: [String: FileTreeModel] = [:]
     /// 閉じる前に確認が要る子タブ（動いているシェル・未保存のファイル）。
     @State private var pendingChildClose: PendingChildClose?
 
@@ -494,6 +495,12 @@ public struct DashboardView: View {
         // 上部セーフエリアを無視してツールバーとサイドバーの上端をウィンドウ最上部に揃える。
         .ignoresSafeArea(.container, edges: .top)
         .background(WindowChromeConfigurator(files: fileTabs))
+        .onReceive(NotificationCenter.default.publisher(for: .fileTreeFileSaved)) { notification in
+            guard let root = notification.userInfo?["root"] as? String,
+                  let path = notification.userInfo?["path"] as? String,
+                  let model = fileTreeModels[root] else { return }
+            Task { await model.fileSaved(root: root, relativePath: path) }
+        }
         .onAppear {
             updateEditorPanel()
             revealSelectedSessionTab()
@@ -844,7 +851,9 @@ public struct DashboardView: View {
         InspectorView(
             router: router,
             monitor: usageMonitor,
-            session: router.selectedSession.flatMap { viewModel.sessionNode(id: $0) }
+            session: router.selectedSession.flatMap { viewModel.sessionNode(id: $0) },
+            fileTreeModels: $fileTreeModels,
+            files: fileTabs
         )
     }
 

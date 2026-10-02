@@ -84,6 +84,21 @@ public actor WorkingTreeService {
         return repositoryURL.path
     }
 
+    /// Git 管理外と取得失敗を分け、detached HEAD は短縮名を表示する。
+    func branchLabel() -> String {
+        guard FileManager.default.fileExists(atPath: repositoryRoot.path) else { return "" }
+        guard let probe = try? runGit(["rev-parse", "--is-inside-work-tree"]) else { return "" }
+        guard probe.terminationStatus == 0 else {
+            let reason = String(decoding: probe.errorOutput, as: UTF8.self)
+            return reason.contains("not a git repository") ? "Git 管理外" : ""
+        }
+        if let branch = try? runGit(["symbolic-ref", "--short", "HEAD"]), branch.terminationStatus == 0 {
+            return String(decoding: branch.output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard let head = try? runGit(["rev-parse", "--short", "HEAD"]), head.terminationStatus == 0 else { return "" }
+        return "detached HEAD " + String(decoding: head.output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     public func changes() throws -> [WorkingTreeChange] {
         let repositoryURL = try requireRepository()
 
@@ -100,7 +115,7 @@ public actor WorkingTreeService {
                 || entry.kind == .renamed
             var isBinary = binaryDiffPaths.contains(entry.path)
             if !isBinary, needsFileInspection {
-                isBinary = isBinaryFile(at: try fileURL(for: entry.path, relativeTo: repositoryURL))
+                isBinary = isBinaryFile(at: try Self.relativeURL(for: entry.path, relativeTo: repositoryURL))
             }
             return WorkingTreeChange(path: entry.path, kind: entry.kind, isBinary: isBinary)
         }
@@ -109,7 +124,7 @@ public actor WorkingTreeService {
 
     public func detail(for path: String) throws -> WorkingTreeDetail {
         let repositoryURL = try requireRepository()
-        let fileURL = try fileURL(for: path, relativeTo: repositoryURL)
+        let fileURL = try Self.relativeURL(for: path, relativeTo: repositoryURL)
 
         if try isTracked(path, workingTreeFileURL: fileURL, in: repositoryURL) {
             let repositoryHasHEAD = hasHEAD(in: repositoryURL)
@@ -365,15 +380,8 @@ public actor WorkingTreeService {
         guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDirectory), isDirectory.boolValue else {
             throw WorkingTreeServiceError.missingRoot(root.path)
         }
-        let requested = try fileURL(for: path, relativeTo: root)
-        // 末尾が削除済みでも、親のリンクを先に解決して保存先を検査する。
-        let url = requested.deletingLastPathComponent().resolvingSymlinksInPath()
-            .appendingPathComponent(requested.lastPathComponent).resolvingSymlinksInPath().standardizedFileURL
-        let rootComponents = root.pathComponents
-        guard url.pathComponents.count > rootComponents.count,
-              url.pathComponents.starts(with: rootComponents) else {
-            throw WorkingTreeServiceError.outsideRoot(url.path)
-        }
+        let requested = try Self.relativeURL(for: path, relativeTo: root)
+        let url = try Self.containedURL(requested, under: root)
         let values: URLResourceValues
         do {
             values = try url.resourceValues(forKeys: [.isRegularFileKey])
@@ -385,6 +393,18 @@ public actor WorkingTreeService {
         }
         guard values.isRegularFile == true else {
             throw WorkingTreeServiceError.notRegularFile(url.path)
+        }
+        return url
+    }
+
+    nonisolated static func containedURL(_ requested: URL, under root: URL, allowRoot: Bool = false) throws -> URL {
+        // 末尾が削除済みでも、親のリンクを先に解決して保存先を検査する。
+        let url = requested.deletingLastPathComponent().resolvingSymlinksInPath()
+            .appendingPathComponent(requested.lastPathComponent).resolvingSymlinksInPath().standardizedFileURL
+        let rootComponents = root.pathComponents
+        guard (allowRoot || url.pathComponents.count > rootComponents.count),
+              url.pathComponents.starts(with: rootComponents) else {
+            throw WorkingTreeServiceError.outsideRoot(url.path)
         }
         return url
     }
@@ -403,7 +423,8 @@ public actor WorkingTreeService {
         return baseURL
     }
 
-    private func fileURL(for path: String, relativeTo repositoryURL: URL) throws -> URL {
+    nonisolated static func relativeURL(for path: String, relativeTo repositoryURL: URL, allowRoot: Bool = false) throws -> URL {
+        if path.isEmpty, allowRoot { return repositoryURL }
         let components = path.split(separator: "/", omittingEmptySubsequences: false)
         guard !path.hasPrefix("/"), !path.utf8.contains(0), !components.isEmpty,
               components.allSatisfy({ $0 != "." && $0 != ".." && !$0.isEmpty }) else {

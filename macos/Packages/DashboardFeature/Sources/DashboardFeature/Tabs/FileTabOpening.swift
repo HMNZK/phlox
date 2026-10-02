@@ -40,7 +40,10 @@ extension FileTabDocuments {
         router.viewMode = .single
         router.commonTerminalSelected = false
         router.tabs.updateLayout(for: sessionID) {
-            if split { $0.splitRight(.file(relativePath)) }
+            if split {
+                if !$0.tabs.contains(.file(relativePath)) { $0.tabs.append(.file(relativePath)) }
+                $0.splitRight(.file(relativePath))
+            }
             else { $0.open(.file(relativePath)) }
         }
         return true

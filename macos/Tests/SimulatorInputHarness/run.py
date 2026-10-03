@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parent
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime", required=True)
+    parser.add_argument("--compatibility-check", action="store_true", help="許可リストへの追加前に未確認の組として検査する")
     parser.add_argument("--device-type", default="com.apple.CoreSimulator.SimDeviceType.iPhone-17")
     args = parser.parse_args()
     records = ROOT / ".build" / ("Records-" + time.strftime("%Y%m%d-%H%M%S"))
@@ -60,10 +61,13 @@ def main():
         metadata.update(幅=startup["幅"], 高さ=startup["高さ"], 倍率=startup["倍率"])
         (records / "device.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2))
         environment = os.environ.copy()
-        environment.update(INPUT_UDID=udid, INPUT_WIDTH=str(startup["幅"]), INPUT_HEIGHT=str(startup["高さ"]))
+        environment.update(INPUT_UDID=udid, INPUT_RUNTIME=args.runtime, INPUT_WIDTH=str(startup["幅"]), INPUT_HEIGHT=str(startup["高さ"]))
         binary = ROOT / ".build/DerivedData/Build/Products/Debug/SimulatorInputHarness.app/Contents/MacOS/SimulatorInputHarness"
         with (records / "host.log").open("w") as output:
-            host = subprocess.Popen([str(binary)], env=environment, stdout=output, stderr=output)
+            command = [str(binary)]
+            if args.compatibility_check:
+                command.append("--compatibility-check")
+            host = subprocess.Popen(command, env=environment, stdout=output, stderr=output)
             host.wait(timeout=60)
         rows = json.loads(events_path.read_text())
         (records / "events.json").write_text(json.dumps(rows, ensure_ascii=False, indent=2))
@@ -105,7 +109,8 @@ def main():
             else:
                 checks[name + "でタップしない"] = not any("タップ" in row for row in during)
         (records / "measurements.json").write_text(json.dumps(measurements, ensure_ascii=False, indent=2))
-        (records / "results.json").write_text(json.dumps(checks, ensure_ascii=False, indent=2))
+        results = {"実行モード": "互換性検査（未確認）" if args.compatibility_check else "許可リスト", **checks}
+        (records / "results.json").write_text(json.dumps(results, ensure_ascii=False, indent=2))
         print(json.dumps(checks, ensure_ascii=False, indent=2))
         if host.returncode != 0:
             raise RuntimeError(f"確認ホストの終了コード: {host.returncode}（host.log 参照）")

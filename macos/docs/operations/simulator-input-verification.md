@@ -126,4 +126,4 @@ commit・push・mergeは実行せず、既存変更と今回の変更を未コ�
 `commands.log`、`host.log`、端末一覧の前後記録に残した。生成記録は Git 管理対象外。
 
 §3.7 の日本語変換、四方向、Simulator.app との同時操作、実端末接続での補助プロセス異常・期限切れ・再接続、
-Debug/Release 同時起動は未検証。公証は実施していないため、許可リストの追加や ADR の accepted 化は行っていない。
+Debug/Release 同時起動は未検証。公証は実施していない。Xcode build `17C52` × iOS 26.2 の表示・入力対応は、PM 裁定により [正式な互換性実行記録](simulator-compatibility-verification.md#xcode-17c52--ios-262-の正式な実行記録) を根拠として許可リストに登録する。未検証項目の合格や ADR の accepted 化は行っていない。

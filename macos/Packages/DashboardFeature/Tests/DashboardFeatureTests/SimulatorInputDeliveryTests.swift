@@ -189,6 +189,98 @@ struct SimulatorInputDeliveryTests {
         #expect(fake.inputs.isEmpty)
     }
 
+    @Test func 同じ接続の別表示を閉じても操作中のキーを解放しない() throws {
+        let (view, window, connection, fake) = try setup()
+        defer { view.stop(); window.close(); connection.disconnect() }
+        view.keyDown(with: key(0))
+        let other = SimulatorScreenNSView()
+        other.connection = connection
+        other.update(connection.displayInfo)
+        let releases = fake.releases
+        other.stop()
+        #expect(fake.releases == releases)
+        #expect(connection.sentKeyCodes == [0])
+        view.keyUp(with: key(0, type: .keyUp))
+        #expect(fake.inputs.last == .key(0, 0, false))
+    }
+
+    @Test func 操作を別ウィンドウへ移した後に旧表示を最小化しても入力を解放しない() throws {
+        let (view, window, connection, fake) = try setup()
+        let otherWindow = InputWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 400),
+                                      styleMask: [.titled], backing: .buffered, defer: false)
+        otherWindow.isReleasedWhenClosed = false
+        let other = SimulatorScreenNSView()
+        otherWindow.contentView = other
+        other.connection = connection
+        other.update(connection.displayInfo)
+        defer { other.stop(); otherWindow.close(); view.stop(); window.close(); connection.disconnect() }
+        view.keyDown(with: key(0))
+        (window as? InputWindow)?.hasFocus = false
+        NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: window)
+        otherWindow.makeFirstResponder(other)
+        other.keyDown(with: key(1))
+        let releases = fake.releases
+        NotificationCenter.default.post(name: NSWindow.didMiniaturizeNotification, object: window)
+        view.stop()
+        #expect(fake.releases == releases)
+        #expect(connection.sentKeyCodes == [1])
+        other.keyUp(with: key(1, type: .keyUp))
+        #expect(fake.inputs.last == .key(1, 0, false))
+    }
+
+    @Test func 分割区画の画面クリックで得たフォーカスを保ち開き直しでは帯へ戻す() throws {
+        let (view, window, connection, fake) = try setup()
+        defer { view.stop(); window.close(); connection.disconnect() }
+        let menu = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 120, height: 24), pullsDown: false)
+        menu.addItem(withTitle: "端末")
+        view.addSubview(menu)
+        SimulatorDeviceMenu.Coordinator.focus(menu, preservingScreenFocus: true)
+        #expect(window.firstResponder === view)
+        view.keyDown(with: key(0))
+        #expect(fake.inputs.last == .key(0, 0, true))
+        SimulatorDeviceMenu.Coordinator.focus(menu, preservingScreenFocus: false)
+        #expect(window.firstResponder === menu)
+        #expect(connection.sentKeyCodes.isEmpty)
+        let count = fake.inputs.count
+        view.keyDown(with: key(1))
+        #expect(fake.inputs.count == count)
+    }
+
+    @Test func 一覧の再確認でメニュー項目と選択を保持し選択変更だけを反映する() {
+        let menu = NSPopUpButton(frame: .zero, pullsDown: false)
+        let coordinator = SimulatorDeviceMenu.Coordinator(select: { _ in }, failed: { _ in })
+        let devices = [
+            SimulatorDevice(udid: "1", name: "端末1", runtimeIdentifier: "iOS", state: "Booted"),
+            SimulatorDevice(udid: "2", name: "端末2", runtimeIdentifier: "iOS", state: "Shutdown"),
+        ]
+        coordinator.configure(menu, devices: devices, selected: "2")
+        let items = menu.itemArray
+        coordinator.configure(menu, devices: devices, selected: "2")
+        #expect(menu.itemArray.count == items.count)
+        #expect(zip(menu.itemArray, items).allSatisfy { pair in pair.0 === pair.1 })
+        #expect(menu.selectedItem?.representedObject as? String == "2")
+        coordinator.configure(menu, devices: devices, selected: "1")
+        #expect(zip(menu.itemArray, items).allSatisfy { pair in pair.0 === pair.1 })
+        #expect(menu.selectedItem?.representedObject as? String == "1")
+        menu.selectItem(at: menu.numberOfItems - 1)
+        coordinator.restoreSelection(menu)
+        #expect(menu.selectedItem?.representedObject as? String == "1")
+    }
+
+    @Test func 画面はキー入力を受け取る単一の読み上げ要素でフォーカスを通知する() throws {
+        let (view, window, connection, _) = try setup()
+        defer { view.stop(); window.close(); connection.disconnect() }
+        var focuses: [Bool] = []
+        view.inputFocusChanged = { focuses.append($0) }
+        view.setAccessibilityLabel("iPad の画面。端末内の UI は VoiceOver で操作できません")
+        #expect(view.accessibilityRole()?.rawValue == "AXApplication")
+        #expect(view.accessibilityLabel() == "iPad の画面。端末内の UI は VoiceOver で操作できません")
+        window.makeFirstResponder(nil)
+        #expect(focuses.last == false)
+        window.makeFirstResponder(view)
+        #expect(focuses.last == true)
+    }
+
     @Test func トラックパッドの位相と差分ゼロの終了を配送する() throws {
         let (view, window, connection, fake) = try setup()
         defer { view.stop(); window.close(); connection.disconnect() }
@@ -240,6 +332,8 @@ struct SimulatorInputDeliveryTests {
         _ = NSApplication.shared
         let fake = InputTransport()
         let connection = SimulatorDisplayConnection { fake }
+        connection.policy = SimulatorPolicy(entries: [.init(xcodeBuild: "検証", runtimeIdentifier: "検証ランタイム", supportsInput: true)])
+        connection.configure(runtimeIdentifier: "検証ランタイム", triesUnverified: false)
         connection.attach(udid: "端末")
         fake.probeReply?(SimulatorBridgeCapability(protocolVersion: SimulatorBridgeInterfaces.protocolVersion,
                                                    helperBuild: "検証", xcodeBuild: "検証",

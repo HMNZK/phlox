@@ -56,6 +56,7 @@ public struct DashboardView: View {
     private let commonTerminal: TerminalPanelSession?
     /// セッションごとのターミナルタブ（その worktree で開く）。App が寿命を持つ。
     private let sessionTerminals: SessionTerminalStore?
+    private let simulatorHub: SimulatorHub?
 
     public init(
         viewModel: DashboardViewModel,
@@ -63,7 +64,8 @@ public struct DashboardView: View {
         usageMonitor: UsageMonitor,
         agentConsoleWindowID: String? = nil,
         commonTerminal: TerminalPanelSession? = nil,
-        sessionTerminals: SessionTerminalStore? = nil
+        sessionTerminals: SessionTerminalStore? = nil,
+        simulatorHub: SimulatorHub? = nil
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
         _router = Bindable(wrappedValue: router)
@@ -71,6 +73,7 @@ public struct DashboardView: View {
         self.agentConsoleWindowID = agentConsoleWindowID
         self.commonTerminal = commonTerminal
         self.sessionTerminals = sessionTerminals
+        self.simulatorHub = simulatorHub
     }
 
     private func deletionDialogTitle(for selection: SelectedSessionNode) -> String {
@@ -750,6 +753,7 @@ public struct DashboardView: View {
                 router: router,
                 terminals: sessionTerminals,
                 commonTerminal: commonTerminal,
+                simulatorHub: simulatorHub,
                 editorPanel: editorPanel,
                 files: fileTabs,
                 agentConsoleWindowID: agentConsoleWindowID
@@ -789,7 +793,7 @@ public struct DashboardView: View {
                 switch router.tabs.layout(for: id).selected {
                 case .terminal: .terminal
                 case .changes: .changes
-                case .conversation, .file: .conversation
+                case .conversation, .file, .simulator: .conversation
                 }
             },
             select: { id, tab in
@@ -983,6 +987,7 @@ public struct DashboardView: View {
             router.tabs.forget(id)
             // 文書の失効と保存待ちは、削除を行うモデル側で完了している。
             sessionTerminals?.close(id)
+            simulatorHub?.removeSession(id)
         }
     }
 
@@ -1038,6 +1043,9 @@ public struct DashboardView: View {
                 await FileTabDocumentRegistry.shared.remove(for: sessionID, path: path)
             }
             router.tabs.updateLayout(for: sessionID) { $0.close(tab) }
+            if case .simulator = tab {
+                simulatorHub?.removeSession(sessionID)
+            }
             if case .terminal = tab {
                 sessionTerminals?.close(sessionID)
             }

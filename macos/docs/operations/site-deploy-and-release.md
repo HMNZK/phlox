@@ -55,6 +55,32 @@ XCODEGEN=1 APP_NAME=Phlox SCHEME=Phlox PROJECT=Phlox.xcodeproj \
 - styled DMG の背景・レイアウト資産は `macos/release-assets/dmg/`（`dmg-background.png` と `DS_Store` テンプレート）。`.DS_Store` はボリューム名 `Phlox`・背景ファイル名・アイコン名（`Phlox.app` / `Applications`）に紐づくため、これらを変える場合はテンプレートを作り直す（詳細は同ディレクトリ `README.md`）。
 - Sparkle 用 zip の EdDSA 署名は `sign_update`（初回は keychain のアクセス許可ダイアログで「常に許可」が必要）。
 
+### シミュレーターの許可リストと XPC 署名を確認する
+
+現行の正式版 Xcode を選択し、`xcodebuild -version` の build が `SimulatorPolicy.verified` の許可リストにあるか照合する。リポジトリのルートで次を実行し、照合失敗なら公開を止める。スクリプトは選択中の Xcode を検査するため、それが現行の正式版であることは別途確認する。
+
+```sh
+python3 macos/scripts/verify-simulator-allowlist.py
+```
+
+配布前に [互換性・実行記録の手順](simulator-compatibility-verification.md) を実施する。
+Xcode build × iOS runtime の組を実行記録に残し、合格した組だけを `SimulatorPolicy.verified` に追加する。
+表示だけ合格した組は `supportsInput: false` にし、入力を有効にしない。未確認の組を範囲指定で許可しない。
+現行は Xcode 26.2（17C52）× iOS 26.2 の1組。日本語入力・四方向・実接続異常など既存記録で未検証の項目は配布前に確認し、合格を記録する。
+
+生成した配布用アプリにも次を実行する（公証・staple の後、DMG／Sparkle 公開の前）。
+
+```sh
+~/.agents/scripts/compact-test --full simulator-release-signing \
+  bash macos/scripts/tests/test_simulator_bridge_signing.sh /絶対パス/Phlox.app
+```
+
+本体と XPC の bundle ID・build・版・Team ID、hardened runtime、専用エンタイトルメント、本体への非公開部品混入を検査する。
+本体と XPC は `project.yml` の共通 build・版を使う。通信版が違う旧補助プロセスを一括停止せず、本体の再起動案内に従う。
+凍結済み `test_signing_entitlements_variants.sh` は変更しない。署名検査、実端末記録、未検証の項目をリリース記録に添付する。
+
+### 検査後に公開する
+
 リリース時は **3 箇所**を更新する（[ADR 0089](../adr/0089-phlox-cc-served-from-monorepo-site.md) の移設により配信先が変わった点に注意）:
 
 1. **初回ダウンロード用 DMG を `HMNZK/phlox` の Release に公開する**（これをしないと `phlox/releases/latest` が旧版に固定される）。`--notes` には下記「リリースノートを書く」で用意した本文を入れる:

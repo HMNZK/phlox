@@ -47,6 +47,11 @@ struct SimulatorCatalog: Sendable {
         do {
             return Self.parse(try await execute(["list", "-j", "devices"]).output)
         } catch {
+            if case let CommandError.failed(_, message) = error,
+               message.contains("unable to find utility \"simctl\"") || message.contains("requires Xcode") ||
+                message.contains("invalid active developer path") {
+                return Listing(devices: [], reason: "Xcode が見つかりません。Xcode を導入・選択して再確認してください: \(error.localizedDescription)")
+            }
             return Listing(devices: [], reason: "端末一覧を取得できません: \(error.localizedDescription)")
         }
     }

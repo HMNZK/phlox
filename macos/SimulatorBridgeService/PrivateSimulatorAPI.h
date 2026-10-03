@@ -12,5 +12,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)attach:(NSString *)udid queue:(dispatch_queue_t)queue
        changed:(void (^)(IOSurface *))changed error:(NSError **)error;
 - (void)detach;
+- (void)sendTouch:(NSInteger)phase x:(double)x y:(double)y;
+- (void)sendScroll:(double)dx dy:(double)dy x:(double)x y:(double)y phase:(NSInteger)phase;
+- (void)sendKey:(uint16_t)keyCode modifiers:(NSUInteger)modifiers down:(BOOL)down;
+- (void)sendButton:(NSInteger)button;
+- (void)releaseAll;
 @end
 NS_ASSUME_NONNULL_END

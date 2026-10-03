@@ -189,7 +189,7 @@ private final class ContractService: NSObject, SimulatorBridgeProtocol {
         self.connection = connection
     }
     func probe(reply: @escaping (SimulatorBridgeCapability) -> Void) {
-        reply(SimulatorBridgeCapability(protocolVersion: 1, helperBuild: "1", xcodeBuild: "17C52",
+        reply(SimulatorBridgeCapability(protocolVersion: SimulatorBridgeInterfaces.protocolVersion, helperBuild: "1", xcodeBuild: "17C52",
                                         coreSimulatorLoaded: true, simulatorKitLoaded: true))
     }
     func attach(udid: String, generation: Int, reply: @escaping (SimulatorDisplayInfo?, NSError?) -> Void) {
@@ -203,7 +203,7 @@ private final class ContractService: NSObject, SimulatorBridgeProtocol {
     }
     func detach(udid: String) {}
     func sendTouch(udid: String, phase: Int, x: Double, y: Double) {}
-    func sendScroll(udid: String, dx: Double, dy: Double, x: Double, y: Double) {}
+    func sendScroll(udid: String, dx: Double, dy: Double, x: Double, y: Double, phase: Int) {}
     func sendKey(udid: String, keyCode: UInt16, modifiers: UInt, down: Bool) {}
     func sendButton(udid: String, button: Int) {}
     func releaseAll(udid: String) {}

@@ -5,7 +5,8 @@ import Foundation
     func attach(udid: String, generation: Int, reply: @escaping (SimulatorDisplayInfo?, NSError?) -> Void)
     func detach(udid: String)
     func sendTouch(udid: String, phase: Int, x: Double, y: Double)
-    func sendScroll(udid: String, dx: Double, dy: Double, x: Double, y: Double)
+    // 位相: 0=ホイール、1=開始、2=継続、3=終了、4=取消。
+    func sendScroll(udid: String, dx: Double, dy: Double, x: Double, y: Double, phase: Int)
     func sendKey(udid: String, keyCode: UInt16, modifiers: UInt, down: Bool)
     func sendButton(udid: String, button: Int)
     func releaseAll(udid: String)
@@ -16,7 +17,7 @@ import Foundation
 }
 
 public enum SimulatorBridgeInterfaces {
-    public static let protocolVersion = 1
+    public static let protocolVersion = 2
     public static let replyTimeout: TimeInterval = 5
 
     public static func service() -> NSXPCInterface {

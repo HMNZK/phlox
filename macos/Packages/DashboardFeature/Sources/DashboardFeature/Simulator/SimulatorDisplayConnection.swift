@@ -10,6 +10,11 @@ protocol SimulatorDisplayTransport: AnyObject {
     func attach(udid: String, generation: Int,
                 reply: @escaping @MainActor (SimulatorDisplayInfo?, NSError?) -> Void)
     func detach(udid: String)
+    func sendTouch(udid: String, phase: Int, x: Double, y: Double)
+    func sendScroll(udid: String, dx: Double, dy: Double, x: Double, y: Double, phase: Int)
+    func sendKey(udid: String, keyCode: UInt16, modifiers: UInt, down: Bool)
+    func sendButton(udid: String, button: Int)
+    func releaseAll(udid: String)
     func invalidate()
 }
 
@@ -19,6 +24,8 @@ public final class SimulatorDisplayConnection {
     public private(set) var displayInfo: SimulatorDisplayInfo?
     public private(set) var reason: String?
     public private(set) var generation = SimulatorConnectionGeneration()
+    public private(set) var inputRevision = 0
+    private(set) var sentKeyCodes: Set<UInt16> = []
     @ObservationIgnored private let makeTransport: () -> any SimulatorDisplayTransport
     @ObservationIgnored private let timeout: TimeInterval
     @ObservationIgnored private var transport: (any SimulatorDisplayTransport)?
@@ -38,6 +45,7 @@ public final class SimulatorDisplayConnection {
 
     isolated deinit {
         deadline?.cancel()
+        if let udid { transport?.releaseAll(udid: udid) }
         transport?.invalidate()
     }
 
@@ -74,6 +82,7 @@ public final class SimulatorDisplayConnection {
     }
 
     public func disconnect() {
+        releaseAll()
         generation.advance()
         request += 1
         deadline?.cancel()
@@ -83,6 +92,34 @@ public final class SimulatorDisplayConnection {
         transport = nil
         udid = nil
         displayInfo = nil
+    }
+
+    func sendTouch(phase: Int, point: CGPoint) {
+        guard let info = displayInfo else { return }
+        transport?.sendTouch(udid: info.udid, phase: phase, x: point.x, y: point.y)
+    }
+
+    func sendScroll(dx: Double, dy: Double, point: CGPoint, phase: Int = 0) {
+        guard let info = displayInfo else { return }
+        transport?.sendScroll(udid: info.udid, dx: dx, dy: dy, x: point.x, y: point.y, phase: phase)
+    }
+
+    func sendKey(keyCode: UInt16, modifiers: UInt, down: Bool) {
+        guard let info = displayInfo else { return }
+        transport?.sendKey(udid: info.udid, keyCode: keyCode, modifiers: modifiers, down: down)
+        if down { sentKeyCodes.insert(keyCode) }
+        else { sentKeyCodes.remove(keyCode) }
+    }
+
+    public func sendHome() {
+        guard let info = displayInfo else { return }
+        transport?.sendButton(udid: info.udid, button: 0)
+    }
+
+    public func releaseAll() {
+        inputRevision += 1
+        sentKeyCodes.removeAll()
+        if let udid { transport?.releaseAll(udid: udid) }
     }
 
     @discardableResult private func receive(_ info: SimulatorDisplayInfo) -> Bool {
@@ -171,6 +208,17 @@ private final class SimulatorXPCTransport: NSObject, SimulatorDisplayTransport, 
     }
 
     func detach(udid: String) { service?.detach(udid: udid) }
+    func sendTouch(udid: String, phase: Int, x: Double, y: Double) {
+        service?.sendTouch(udid: udid, phase: phase, x: x, y: y)
+    }
+    func sendScroll(udid: String, dx: Double, dy: Double, x: Double, y: Double, phase: Int) {
+        service?.sendScroll(udid: udid, dx: dx, dy: dy, x: x, y: y, phase: phase)
+    }
+    func sendKey(udid: String, keyCode: UInt16, modifiers: UInt, down: Bool) {
+        service?.sendKey(udid: udid, keyCode: keyCode, modifiers: modifiers, down: down)
+    }
+    func sendButton(udid: String, button: Int) { service?.sendButton(udid: udid, button: button) }
+    func releaseAll(udid: String) { service?.releaseAll(udid: udid) }
 
     func invalidate() {
         changed = nil

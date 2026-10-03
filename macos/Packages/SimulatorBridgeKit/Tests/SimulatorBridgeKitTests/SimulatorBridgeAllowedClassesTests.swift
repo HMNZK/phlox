@@ -86,7 +86,7 @@ private final class DisguiseHarness: NSObject, NSXPCListenerDelegate, SimulatorB
     }
     func detach(udid: String) {}
     func sendTouch(udid: String, phase: Int, x: Double, y: Double) {}
-    func sendScroll(udid: String, dx: Double, dy: Double, x: Double, y: Double) {}
+    func sendScroll(udid: String, dx: Double, dy: Double, x: Double, y: Double, phase: Int) {}
     func sendKey(udid: String, keyCode: UInt16, modifiers: UInt, down: Bool) {}
     func sendButton(udid: String, button: Int) {}
     func releaseAll(udid: String) {}

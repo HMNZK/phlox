@@ -204,5 +204,10 @@ struct SimulatorDisplayConnectionTests {
         attachReply = reply
     }
     func detach(udid: String) { detached.append(udid) }
+    func sendTouch(udid: String, phase: Int, x: Double, y: Double) {}
+    func sendScroll(udid: String, dx: Double, dy: Double, x: Double, y: Double, phase: Int) {}
+    func sendKey(udid: String, keyCode: UInt16, modifiers: UInt, down: Bool) {}
+    func sendButton(udid: String, button: Int) {}
+    func releaseAll(udid: String) {}
     func invalidate() { invalidations += 1 }
 }

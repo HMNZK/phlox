@@ -1,0 +1,3 @@
+.build/
+SimulatorInputHarness.xcodeproj/
+__pycache__/

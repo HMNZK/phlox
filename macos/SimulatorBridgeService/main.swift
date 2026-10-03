@@ -82,14 +82,19 @@ final class SimulatorBridgeService: NSObject, SimulatorBridgeProtocol, @unchecke
         NSError(domain: "Phlox.SimulatorBridge", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
     }
 
-    // §7-4 は表示のみ。契約は共通部品のまま維持し、入力 API は送信しない。
-    func sendTouch(udid: String, phase: Int, x: Double, y: Double) { rejectInput() }
-    func sendScroll(udid: String, dx: Double, dy: Double, x: Double, y: Double) { rejectInput() }
-    func sendKey(udid: String, keyCode: UInt16, modifiers: UInt, down: Bool) { rejectInput() }
-    func sendButton(udid: String, button: Int) { rejectInput() }
-    func releaseAll(udid: String) {}
-
-    private func rejectInput() { NSLog("表示専用の補助プロセスは入力を受け付けません") }
+    func sendTouch(udid: String, phase: Int, x: Double, y: Double) {
+        queue.async { self.captures[udid]?.sendTouch(phase, x: x, y: y) }
+    }
+    func sendScroll(udid: String, dx: Double, dy: Double, x: Double, y: Double, phase: Int) {
+        queue.async { self.captures[udid]?.sendScroll(dx, dy: dy, x: x, y: y, phase: phase) }
+    }
+    func sendKey(udid: String, keyCode: UInt16, modifiers: UInt, down: Bool) {
+        queue.async { self.captures[udid]?.sendKey(keyCode, modifiers: modifiers, down: down) }
+    }
+    func sendButton(udid: String, button: Int) {
+        queue.async { self.captures[udid]?.sendButton(button) }
+    }
+    func releaseAll(udid: String) { queue.async { self.captures[udid]?.releaseAll() } }
 }
 
 // 応答クロージャーはキューへ一度だけ渡し、そのキューだけで呼ぶ。

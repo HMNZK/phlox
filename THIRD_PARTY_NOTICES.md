@@ -60,9 +60,9 @@ Likewise, **Tailscale** is a trademark of Tailscale Inc. Phlox is an
 independent project and is not affiliated with, endorsed by, or sponsored by
 any of these companies. Their marks are used solely to indicate compatibility.
 
-# SimulatorGate の試作
+# シミュレーターの試作と補助プロセス
 
-`macos/Prototypes/SimulatorGate/Service/PrivateSimulatorAPI.m` の非公開 API の宣言と入力・表示の呼び出し手順は、次の一次資料を参照して記述した。
+`macos/Prototypes/SimulatorGate/Service/PrivateSimulatorAPI.m` および `macos/SimulatorBridgeService/PrivateSimulatorAPI.m` の非公開 API の宣言と入力・表示の呼び出し手順は、次の一次資料を参照して記述した。
 
 - Meta idb（MIT、Copyright (c) Meta Platforms, Inc. and affiliates.）：`de8ab367691b826004af3d9cf9c0efc0e449e652` の `SimulatorIndigoHIDClient.swift`、`SimulatorIndigoHID.swift`、`PrivateHeaders`。
 - Expo serve-sim（Apache-2.0、原著作権者 Evan Bacon）：`c91e75b3c81dfa9eea6faea0f99e1273383dd90e` の `FrameCapture.swift`、`HIDInjector.swift`。試作では変更通知で保持した surface の seed を観測し、接触の移動を押下として送る。

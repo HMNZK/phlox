@@ -1,0 +1,78 @@
+name: SimulatorInputHarness
+options:
+  developmentLanguage: ja
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    ENABLE_HARDENED_RUNTIME: YES
+packages:
+  DashboardFeature:
+    path: ../../Packages/DashboardFeature
+  SimulatorBridgeKit:
+    path: ../../Packages/SimulatorBridgeKit
+targets:
+  SimulatorInputHarness:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources: [Host]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phlox.tests.SimulatorInputHarness
+    info:
+      path: .build/Host-Info.plist
+      properties:
+        CFBundleVersion: "1"
+        CFBundleShortVersionString: "1.0"
+        NSPrincipalClass: NSApplication
+    dependencies:
+      - package: DashboardFeature
+      - target: SimulatorBridgeService
+        embed: true
+  SimulatorBridgeService:
+    type: xpc-service
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources: [../../SimulatorBridgeService]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phlox.tests.SimulatorInputHarness.SimulatorBridge
+        SWIFT_OBJC_BRIDGING_HEADER: ../../SimulatorBridgeService/PrivateSimulatorAPI.h
+        CLANG_ENABLE_OBJC_ARC: YES
+        CODE_SIGN_ENTITLEMENTS: ../../SimulatorBridgeService/SimulatorBridgeService.entitlements
+    info:
+      path: .build/Service-Info.plist
+      properties:
+        CFBundleVersion: "1"
+        CFBundleShortVersionString: "1.0"
+        XPCService:
+          ServiceType: Application
+    dependencies:
+      - package: SimulatorBridgeKit
+  InputObserver:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources: [Observer]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phlox.tests.InputObserver
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGNING_ALLOWED: NO
+    info:
+      path: .build/Observer-Info.plist
+      properties:
+        CFBundleVersion: "1"
+        CFBundleShortVersionString: "1.0"
+        UILaunchScreen: {}
+schemes:
+  SimulatorInputHarness:
+    build:
+      targets:
+        SimulatorInputHarness: all
+  InputObserver:
+    build:
+      targets:
+        InputObserver: all

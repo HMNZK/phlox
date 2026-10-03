@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+body{margin:0;background:#E6E6E9;}
+a{color:#A94A28;text-decoration:none;}
+a:hover{color:#7E3518;text-decoration:underline;}
+</style>
+</helmet>
+<section data-screen-label="7 シミュレーターの子タブ" style="padding:64px;display:flex;flex-direction:column;gap:40px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:980px;">
+    <div style="font-size:12px;font-weight:600;color:#5B5B60;">7 · 子タブ「シミュレーター」</div>
+    <div style="font-size:26px;font-weight:700;">iOS シミュレーターの表示と操作</div>
+    <div style="font-size:14px;line-height:1.6;color:#5B5B60;text-wrap:pretty;">帯（30pt）に端末の選択・状態・ホーム・スクリーンショット・停止を置き、その下に端末の画面を縦横比を保って中央に出す。端末の外枠（ベゼル）は描かない（論点 3）。基準の幅は分割の 1 区画（520pt）。</div>
+  </div>
+
+  <sc-for list="{{ groups }}" as="g" hint-placeholder-count="4">
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div style="font-size:16px;font-weight:700;">{{ g.title }}</div>
+      <sc-if value="{{ g.lead }}"><div style="font-size:13px;line-height:1.6;color:#3A3A3E;max-width:980px;text-wrap:pretty;">{{ g.lead }}</div></sc-if>
+      <div style="display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start;">
+        <sc-for list="{{ g.panels }}" as="p" hint-placeholder-count="3">
+          <div id="{{ p.id }}" style="display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;align-items:baseline;gap:8px;">
+              <span style="font-size:12px;font-weight:700;color:#fff;background:#1D1D1F;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;">{{ p.id }}</span>
+              <span style="font-size:14px;font-weight:600;">{{ p.title }}</span>
+              <sc-if value="{{ p.rec }}"><span style="font-size:11px;font-weight:700;color:#A94A28;">推奨</span></sc-if>
+              <span style="font-size:12px;color:#5B5B60;font-family:ui-monospace,'SF Mono',Menlo,monospace;">{{ p.wLabel }}</span>
+            </div>
+            <div style="{{ p.stage }}">
+              <div role="tablist" aria-label="このセッションのタブ" style="height:32px;flex:none;display:flex;align-items:center;gap:2px;padding:0 10px;border-bottom:1px solid rgba(255,255,255,0.10);overflow:hidden;">
+                <sc-if value="{{ p.wideTabs }}"><span style="height:24px;padding:0 10px;border-radius:6px;font-size:12px;color:#ABABB1;display:flex;align-items:center;flex:none;">会話</span><span style="height:24px;padding:0 10px;border-radius:6px;font-size:12px;color:#ABABB1;display:flex;align-items:center;flex:none;">file-tree.md</span></sc-if>
+                <span role="tab" aria-selected="true" style="height:24px;padding:0 10px;border-radius:6px;font-size:12px;font-weight:600;background:rgba(255,255,255,0.09);display:flex;align-items:center;gap:6px;flex:none;"><span style="width:7px;height:11px;border-radius:2px;box-shadow:inset 0 0 0 1.2px currentColor;"></span>シミュレーター</span>
+              </div>
+
+              <div role="toolbar" aria-label="シミュレーター" style="height:30px;flex:none;display:flex;align-items:center;gap:6px;padding:0 6px 0 8px;background:#242427;border-bottom:1px solid rgba(255,255,255,0.10);position:relative;z-index:8;">
+                <span style="position:relative;display:flex;min-width:0;">
+                  <span role="button" aria-haspopup="menu" aria-label="{{ p.devAria }}" style="{{ p.devBtn }}">
+                    <span style="{{ p.mark }}"></span>
+                    <span style="overflow:hidden;text-overflow:ellipsis;">{{ p.dev }}</span>
+                    <sc-if value="{{ p.showOs }}"><span style="color:#ABABB1;flex:none;">{{ p.os }}</span></sc-if>
+                    <span style="font-size:9px;opacity:0.7;flex:none;">▾</span>
+                  </span>
+                  <sc-if value="{{ p.menu }}">
+                    <div role="menu" aria-label="端末" style="position:absolute;top:26px;left:0;width:290px;background:#2F2F33;border-radius:8px;box-shadow:0 12px 34px rgba(0,0,0,0.55),0 0 0 0.5px rgba(255,255,255,0.16);padding:5px;display:flex;flex-direction:column;font-size:13px;z-index:20;">
+                      <sc-for list="{{ devices }}" as="m" hint-placeholder-count="6">
+                        <sc-if value="{{ m.head }}"><div style="padding:5px 10px 3px;font-size:11px;font-weight:600;color:#8E8E94;">{{ m.t }}</div></sc-if>
+                        <sc-if value="{{ m.sep }}"><div style="height:1px;background:rgba(255,255,255,0.10);margin:4px 6px;"></div></sc-if>
+                        <sc-if value="{{ m.item }}"><div role="menuitemradio" aria-checked="{{ m.on }}" style="{{ m.s }}"><span style="width:12px;font-size:11px;">{{ m.tick }}</span><span style="{{ m.mk }}"></span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ m.t }}</span><span style="font-size:11.5px;opacity:0.7;white-space:nowrap;">{{ m.os }}</span></div></sc-if>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </span>
+                <sc-if value="{{ p.statusText }}"><span style="font-size:11px;color:#8E8E94;white-space:nowrap;flex:none;">{{ p.statusText }}</span></sc-if>
+                <sc-if value="{{ p.keyChip }}"><span role="status" style="display:flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:5px;font-size:11px;white-space:nowrap;color:#F2F2F4;box-shadow:inset 0 0 0 1px rgba(224,136,101,0.7);flex:none;"><span style="width:12px;height:8px;border-radius:2px;box-shadow:inset 0 0 0 1.1px currentColor;flex:none;"></span>{{ p.keyChip }}</span></sc-if>
+                <sc-if value="{{ p.viewOnly }}"><span role="status" title="入力の動作をまだ確認していない組み合わせです。画面の表示だけ有効にしています。" style="display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap;color:#F2F2F4;flex:none;min-width:0;overflow:hidden;"><span style="width:13px;height:13px;border-radius:50%;box-shadow:inset 0 0 0 1.2px #ABABB1;font-size:9px;font-weight:700;color:#ABABB1;display:flex;align-items:center;justify-content:center;flex:none;font-family:Georgia,serif;font-style:italic;">i</span>{{ p.viewOnly }}</span></sc-if>
+                <sc-if value="{{ p.trial }}"><span role="status" style="display:flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:5px;font-size:11px;white-space:nowrap;color:#F2F2F4;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.22);flex:none;min-width:0;overflow:hidden;">{{ p.trial }}</span></sc-if>
+                <sc-if value="{{ p.diag }}"><span role="note" style="display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap;color:#8E8E94;flex:none;position:relative;"><span style="width:6px;height:6px;border-radius:50%;box-shadow:inset 0 0 0 1.1px currentColor;flex:none;"></span>{{ p.diag }}<span role="button" tabindex="0" aria-label="診断の説明" aria-haspopup="dialog" aria-expanded="{{ p.diagOpen }}" style="{{ p.diagBtn }}">i</span><sc-if value="{{ p.diagTip }}"><span role="dialog" aria-label="診断の説明" style="position:absolute;top:24px;left:-20px;width:260px;white-space:normal;background:#2F2F33;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,0.5),0 0 0 0.5px rgba(255,255,255,0.16);padding:7px 10px;font-size:11.5px;line-height:1.55;color:#F2F2F4;z-index:20;">しばらく画面の更新を観測していません。画面が止まっているときは正常です。入力が届いているかの判断には使えません。</span></sc-if></span></sc-if>
+                <span style="flex:1;"></span>
+                <sc-for list="{{ p.btns }}" as="b" hint-placeholder-count="3">
+                  <span role="button" aria-label="{{ b.aria }}" aria-disabled="{{ b.disabled }}" title="{{ b.aria }}" style="{{ b.s }}">
+                    <sc-if value="{{ b.home }}"><span style="width:11px;height:11px;border-radius:3px;box-shadow:inset 0 0 0 1.3px currentColor;"></span></sc-if>
+                    <sc-if value="{{ b.shot }}"><span style="width:13px;height:10px;border-radius:2.5px;box-shadow:inset 0 0 0 1.3px currentColor;display:flex;align-items:center;justify-content:center;"><span style="width:4px;height:4px;border-radius:50%;box-shadow:inset 0 0 0 1.2px currentColor;"></span></span></sc-if>
+                    <sc-if value="{{ b.stop }}"><span style="width:9px;height:9px;border-radius:1.5px;background:currentColor;"></span></sc-if>
+                    <sc-if value="{{ b.tip }}"><span role="tooltip" style="position:absolute;top:24px;right:0;white-space:nowrap;background:#2F2F33;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,0.5),0 0 0 0.5px rgba(255,255,255,0.16);padding:4px 8px;font-size:11.5px;color:#F2F2F4;z-index:20;">{{ b.tip }}</span></sc-if>
+                  </span>
+                </sc-for>
+              </div>
+
+              <div style="flex:1;min-height:0;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
+                <sc-if value="{{ p.isPhone }}">
+                  <div role="application" tabindex="0" aria-label="{{ p.screenAria }}" style="{{ p.phoneOuter }}">
+                    <div style="{{ p.phoneBox }}">
+                      <div style="{{ p.phoneInner }}">
+                        <div style="height:54px;display:flex;align-items:center;padding:0 34px 0 46px;font-size:17px;font-weight:600;"><span style="flex:1;">9:41</span><span style="display:flex;gap:6px;align-items:center;"><span style="font-size:14px;">5G</span><span style="width:25px;height:12px;border-radius:4px;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.4);padding:2px;box-sizing:border-box;display:flex;"><span style="width:80%;background:#000;border-radius:2px;"></span></span></span></div>
+                        <div style="padding:14px 20px 8px;font-size:34px;font-weight:700;letter-spacing:-0.5px;">セッション</div>
+                        <div style="margin:0 16px 18px;height:36px;border-radius:10px;background:rgba(118,118,128,0.12);display:flex;align-items:center;padding:0 10px;font-size:17px;color:rgba(60,60,67,0.6);">{{ p.searchText }}<sc-if value="{{ p.typing }}"><span style="display:inline-block;width:2px;height:20px;background:#D9653B;margin-left:1px;"></span></sc-if></div>
+                        <div style="padding:0 32px 6px;font-size:13px;color:rgba(60,60,67,0.6);">phlox-oss</div>
+                        <div style="margin:0 16px;border-radius:12px;background:#fff;display:flex;flex-direction:column;">
+                          <sc-for list="{{ iosRows }}" as="r" hint-placeholder-count="3">
+                            <div style="{{ r.s }}"><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;"><span style="font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.t }}</span><span style="font-size:14px;color:rgba(60,60,67,0.6);">{{ r.sub }}</span></div><span style="{{ r.ls }}">{{ r.l }}</span><span style="font-size:17px;color:rgba(60,60,67,0.3);">›</span></div>
+                          </sc-for>
+                        </div>
+                        <div style="padding:22px 32px 6px;font-size:13px;color:rgba(60,60,67,0.6);">phlox.cc</div>
+                        <div style="margin:0 16px;border-radius:12px;background:#fff;display:flex;align-items:center;gap:12px;padding:11px 16px;"><div style="flex:1;display:flex;flex-direction:column;gap:2px;"><span style="font-size:17px;">プライバシーポリシー改訂</span><span style="font-size:14px;color:rgba(60,60,67,0.6);">ヒナギク · Claude Code</span></div><span style="font-size:15px;color:rgba(60,60,67,0.6);">完了</span><span style="font-size:17px;color:rgba(60,60,67,0.3);">›</span></div>
+                        <div style="position:absolute;left:0;right:0;bottom:0;height:83px;background:rgba(249,249,249,0.94);box-shadow:0 -0.5px 0 rgba(0,0,0,0.2);display:flex;justify-content:space-around;padding-top:10px;box-sizing:border-box;font-size:10px;font-weight:500;">
+                          <span style="color:#D9653B;display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="width:24px;height:20px;border-radius:5px;background:#D9653B;"></span>セッション</span>
+                          <span style="color:#999;display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="width:24px;height:20px;border-radius:5px;background:#BDBDC2;"></span>承認</span>
+                          <span style="color:#999;display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="width:24px;height:20px;border-radius:10px;background:#BDBDC2;"></span>設定</span>
+                        </div>
+                        <div style="position:absolute;left:134px;bottom:8px;width:134px;height:5px;border-radius:3px;background:#000;"></div>
+                        <sc-if value="{{ p.touch }}"><div style="position:absolute;left:150px;top:300px;width:56px;height:56px;border-radius:50%;background:rgba(120,120,128,0.35);box-shadow:0 0 0 2px rgba(255,255,255,0.8);"></div></sc-if>
+                        <sc-if value="{{ p.scroll }}"><div style="position:absolute;right:4px;top:250px;width:5px;height:150px;border-radius:3px;background:rgba(0,0,0,0.38);"></div><div style="position:absolute;left:180px;top:360px;width:30px;height:30px;border-radius:50%;box-shadow:0 0 0 2px rgba(60,60,67,0.55);"></div></sc-if>
+                      </div>
+                    </div>
+                  </div>
+                  <sc-if value="{{ p.hint }}"><div style="{{ p.hintStyle }}">{{ p.hint }}</div></sc-if>
+                </sc-if>
+
+                <sc-if value="{{ p.isMsg }}">
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:0 28px 30px;text-align:center;max-width:400px;">
+                    <sc-if value="{{ p.m.outline }}"><span style="width:44px;height:90px;border-radius:10px;box-shadow:inset 0 0 0 1.5px #8E8E94;margin-bottom:6px;"></span></sc-if>
+                    <sc-if value="{{ p.m.spin }}"><span style="width:20px;height:20px;border-radius:50%;border:2px solid #ABABB1;border-right-color:transparent;margin-bottom:4px;"></span></sc-if>
+                    <sc-if value="{{ p.m.bang }}"><span style="width:26px;height:26px;border-radius:50%;box-shadow:inset 0 0 0 1.5px #ABABB1;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;">!</span></sc-if>
+                    <div style="font-size:14px;font-weight:600;text-wrap:pretty;">{{ p.m.title }}</div>
+                    <div style="font-size:12px;line-height:1.65;color:#ABABB1;text-wrap:pretty;">{{ p.m.body }}</div>
+                    <sc-if value="{{ p.m.mono }}"><div style="font-size:11px;font-family:ui-monospace,'SF Mono',Menlo,monospace;background:#2B2B2F;border-radius:6px;padding:7px 10px;color:#F2F2F4;text-align:left;line-height:1.6;white-space:pre-wrap;">{{ p.m.mono }}</div></sc-if>
+                    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:6px;">
+                      <sc-for list="{{ p.m.actions }}" as="a"><span role="button" style="{{ a.s }}">{{ a.t }}</span></sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+
+              <sc-if value="{{ p.dialog }}">
+                <div style="position:absolute;inset:0;background:rgba(0,0,0,0.4);display:flex;justify-content:center;align-items:flex-start;padding-top:70px;z-index:30;">
+                  <div role="alertdialog" aria-label="iPhone 17 Pro を停止しますか？" style="width:300px;box-sizing:border-box;background:#2F2F33;border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,0.55),0 0 0 0.5px rgba(255,255,255,0.14);padding:20px 16px 16px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;">
+                    <div aria-hidden="true" style="width:56px;height:56px;border-radius:13px;flex:none;position:relative;background:linear-gradient(160deg,#EC9776,#C55E3A);box-shadow:inset 0 0 0 0.5px rgba(255,255,255,0.28),0 1px 3px rgba(0,0,0,0.35);"><span style="position:absolute;left:22px;top:9px;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,0.95);"></span><span style="position:absolute;left:30px;top:15px;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,0.95);"></span><span style="position:absolute;left:27px;top:24px;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,0.95);"></span><span style="position:absolute;left:17px;top:24px;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,0.95);"></span><span style="position:absolute;left:14px;top:15px;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,0.95);"></span><span style="position:absolute;left:24.5px;top:20px;width:7px;height:7px;border-radius:50%;background:#C55E3A;"></span></div>
+                    <div style="font-size:13px;font-weight:700;line-height:1.45;text-wrap:balance;word-break:keep-all;">iPhone 17 Pro を停止しますか？</div>
+                    <div style="font-size:11.5px;line-height:1.6;text-wrap:pretty;">この端末を表示中の他のタブ・Phlox の別の版・Simulator.app にも影響します。端末の中で動いているアプリは終了します。</div>
+                    <div style="width:100%;box-sizing:border-box;text-align:left;background:#1E1E20;border-radius:6px;box-shadow:0 0 0 0.5px rgba(255,255,255,0.10);padding:6px 10px;display:flex;flex-direction:column;gap:3px;font-size:11px;color:#ABABB1;">
+                      <span>Phlox で表示中のタブ: このウィンドウの 2 タブ</span>
+                    </div>
+                    <div style="font-size:11px;line-height:1.55;color:#ABABB1;text-wrap:pretty;">停止したあとは、帯の「起動」で起動し直せます。</div>
+                    <div style="display:flex;gap:8px;width:100%;margin-top:4px;">
+                      <div role="button" style="flex:1;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#FF8A8D;background:#3A3A3E;box-shadow:0 0 0 0.5px rgba(255,255,255,0.12);">停止<span style="font-size:11px;font-weight:400;margin-left:6px;">⌘⌫</span></div>
+                      <div role="button" style="flex:1;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#fff;background:#B4552F;">キャンセル<span style="font-size:11px;font-weight:400;margin-left:6px;">↩</span></div>
+                    </div>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+            <div style="{{ p.capStyle }}">{{ p.caption }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-for>
+
+  <div style="display:flex;flex-direction:column;gap:16px;max-width:1100px;">
+    <div style="font-size:20px;font-weight:700;">論点</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,500px),1fr));gap:16px;">
+      <sc-for list="{{ points }}" as="pt" hint-placeholder-count="3">
+        <div style="background:#fff;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,0.08);padding:16px 18px;display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;gap:10px;align-items:baseline;"><span style="font-size:12px;font-weight:700;color:#A94A28;font-family:ui-monospace,'SF Mono',Menlo,monospace;">{{ pt.n }}</span><span style="font-size:15px;font-weight:600;">{{ pt.t }}</span></div>
+          <div style="font-size:13px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;">{{ pt.body }}</div>
+          <sc-for list="{{ pt.opts }}" as="o"><div style="display:grid;grid-template-columns:28px 1fr;gap:6px;font-size:12.5px;line-height:1.6;"><span style="font-weight:700;color:#5B5B60;">{{ o.k }}</span><span style="text-wrap:pretty;">{{ o.v }}</span></div></sc-for>
+          <div style="font-size:12.5px;line-height:1.6;padding-top:4px;border-top:1px solid rgba(0,0,0,0.08);"><span style="font-weight:700;">提案: </span>{{ pt.rec }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:24px;max-width:1500px;">
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:16px;font-weight:700;">キーボードと VoiceOver</div>
+      <div style="background:#fff;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,0.08);display:flex;flex-direction:column;font-size:12.5px;line-height:1.5;">
+        <sc-for list="{{ keys }}" as="k" hint-placeholder-count="7">
+          <div style="display:grid;grid-template-columns:110px 1fr;gap:10px;padding:7px 14px;border-top:1px solid rgba(0,0,0,0.06);"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;font-weight:600;">{{ k.k }}</span><span style="text-wrap:pretty;">{{ k.v }}</span></div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:16px;font-weight:700;">要件対応表</div>
+      <div style="background:#fff;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,0.08);display:flex;flex-direction:column;font-size:12.5px;line-height:1.5;">
+        <sc-for list="{{ reqs }}" as="q" hint-placeholder-count="12">
+          <div style="display:grid;grid-template-columns:72px 1fr;gap:10px;padding:7px 14px;border-top:1px solid rgba(0,0,0,0.06);"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;font-weight:600;">{{ q.id }}</span><span style="{{ q.ts }}">{{ q.t }}</span></div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const font = '-apple-system,BlinkMacSystemFont,"SF Pro Text","Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif';
+    const markSt = (state) => ({width:7,height:7,borderRadius:'50%',flex:'none',boxSizing:'border-box',
+      background:state==='booted'?'#F2F2F4':'transparent',
+      border:state==='booted'?'none':state==='booting'?'1.2px dashed #ABABB1':'1.2px solid #8E8E94'});
+    const STATE = {booted:'起動済み',stopped:'停止中',booting:'起動中'};
+    const btnS = (on, disabled, tip) => ({position:'relative',width:26,height:22,borderRadius:5,display:'flex',alignItems:'center',justifyContent:'center',flex:'none',
+      color:disabled?'#5E5E64':'#ABABB1',background:on?'rgba(255,255,255,0.09)':'transparent'});
+    const act = (t, primary) => ({t, s:{height:24,padding:'0 12px',borderRadius:6,fontSize:12,display:'flex',alignItems:'center',whiteSpace:'nowrap',fontWeight:primary?600:400,
+      color:primary?'#fff':'#F2F2F4',background:primary?'#B4552F':'#3A3A3E',boxShadow:primary?'none':'0 0 0 0.5px rgba(255,255,255,0.10)'}});
+    const P = (o) => {
+      const W = o.W ?? 520, H = o.H ?? 760;
+      const narrow = W <= 340;
+      const state = o.state ?? 'booted';
+      const live = state === 'booted' && !o.msg;
+      const areaH = H - 62;
+      const hintSpace = o.hint ? 40 : 0;
+      const ph = Math.floor(Math.min(areaH - 40 - hintSpace, (W - 40) * 874 / 402));
+      const pw = Math.floor(ph * 402 / 874), s = pw / 402;
+      const ring = !!o.focus;
+      const booted = state === 'booted' && !o.noDevice;
+      const btns = [
+        {home:true,aria:'ホーム（⇧⌘H）',disabled:!live || !!o.viewOnly,tip:o.tipHome?'ホーム ⇧⌘H':''},
+        {shot:true,aria:'スクリーンショット',disabled:!booted},
+        {stop:true,aria:'端末を停止…',disabled:!booted,on:!!o.dialog},
+      ].map(b => ({...b,s:btnS(b.on,b.disabled)}));
+      const m = o.msg ? {...o.msg, actions:(o.msg.actions||[]).map(([t,pr]) => act(t,pr))} : null;
+      return {...o, wLabel:`幅 ${W}pt`, wideTabs:W>=600,
+        dev:o.dev ?? 'iPhone 17 Pro', os:o.os ?? 'iOS 26.2', showOs:!narrow && !o.noDevice, devAria:o.noDevice?'端末なし':`端末: ${o.dev ?? 'iPhone 17 Pro'}、${o.os ?? 'iOS 26.2'}、${STATE[state]}`,
+        devBtn:{height:22,padding:'0 8px',borderRadius:6,boxShadow:o.menuFocus?'0 0 0 2px rgba(224,136,101,0.85)':'none',background:o.menu?'rgba(255,255,255,0.16)':'rgba(255,255,255,0.08)',fontSize:11.5,display:'flex',alignItems:'center',gap:6,minWidth:narrow?118:0,flex:narrow?'none':'0 1 auto',whiteSpace:'nowrap',overflow:'hidden'},
+        mark:markSt(state), statusText:(narrow || o.diag || o.trial)?'':(o.statusText ?? STATE[state]),
+        trial:o.trial?'未確認の組み合わせで実行中（このタブのみ）':'',
+        diagOpen:o.diagTip?'true':'false',
+        diagBtn:{width:14,height:14,borderRadius:'50%',boxShadow:o.diagTip?'inset 0 0 0 1.2px #ABABB1, 0 0 0 2px rgba(224,136,101,0.85)':'inset 0 0 0 1.2px #ABABB1',fontSize:9,fontWeight:700,color:'#ABABB1',display:'flex',alignItems:'center',justifyContent:'center',flex:'none',fontFamily:'Georgia,serif',fontStyle:'italic',cursor:'pointer'},
+        keyChip:o.focus?(narrow?'→ 端末':'キー入力を端末に送信中'):'',
+        viewOnly:o.viewOnly?(narrow?'表示のみ':'表示のみ（入力は未確認）'):'',
+        diag:o.diag?(narrow?'画面の更新なし':'しばらく画面の更新を観測していません'):'',
+        btns, isPhone:live, isMsg:!!m, m,
+        screenAria:`${o.dev ?? 'iPhone 17 Pro'} の画面${o.viewOnly?'（表示のみ）':''}。端末内の UI は VoiceOver で操作できません`,
+        searchText:o.typing?'phlox':'検索',
+        phoneOuter:{padding:3,borderRadius:Math.round(pw*0.135)+4,boxShadow:ring?'0 0 0 2px rgba(224,136,101,0.85)':'none',flex:'none'},
+        phoneBox:{width:pw,height:ph,borderRadius:Math.round(pw*0.135),overflow:'hidden',position:'relative',background:'#F2F2F7',
+          boxShadow:o.bezel?'0 0 0 9px #0B0B0C, 0 0 0 10px rgba(255,255,255,0.18), 0 8px 24px rgba(0,0,0,0.35)':'0 0 0 1px rgba(255,255,255,0.14), 0 8px 24px rgba(0,0,0,0.35)',
+          margin:o.bezel?10:0,cursor:o.viewOnly?'not-allowed':'default'},
+        phoneInner:{width:402,height:874,transform:`scale(${s})`,transformOrigin:'top left',position:'relative',color:'#000',fontFamily:'-apple-system,"SF Pro Text","Hiragino Sans",sans-serif'},
+        hintStyle:{fontSize:11,color:o.focus?'#ABABB1':'#8E8E94',textAlign:'center',lineHeight:1.5,maxWidth:W-40,textWrap:'pretty'},
+        stage:{position:'relative',width:W,height:H,display:'flex',flexDirection:'column',borderRadius:8,overflow:'hidden',background:'#1E1E20',color:'#F2F2F4',fontFamily:font,WebkitFontSmoothing:'antialiased',boxShadow:'0 0 0 0.5px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.18)'},
+        capStyle:{maxWidth:Math.max(W,320),fontSize:12.5,lineHeight:1.6,color:'#3A3A3E',textWrap:'pretty'},
+      };
+    };
+    const groups = [
+      {title:'通常と操作の途中', panels:[
+        P({id:'7r',title:'⌃⌘Y で開いた直後',menuFocus:true,hint:'キー入力はまだ送っていません · 画面をクリックすると送ります',caption:'開いた直後は帯の端末メニューにフォーカスを置き、輪を出す。キー入力は端末に送らない。画面には Tab かクリックで移る。'}),
+        P({id:'7a',title:'通常',hint:'キー入力はまだ送っていません · 画面をクリックすると送ります',caption:'端末の画面を区画の中央に、縦横比を保って出す。画面の外側（余白）のクリックは端末に送らない。画面の下に「キー入力はまだ送っていません」の 1 行を置き、7b の送信中と区別する。'}),
+        P({id:'7b',title:'キー入力を端末に送信中',focus:true,typing:true,hint:'⌘ 付きのキーは Phlox が受けます · ⌘Esc で解除',caption:'画面をクリックしてフォーカスが移った状態。画面の周りに accent の輪、帯に「キー入力を端末に送信中」を出す。iPad を選んでいても同じ文言で、端末名は左の端末メニューで分かる。検索欄に「phlox」と打っている。Mac 側の日本語変換は通らない。'}),
+        P({id:'7c',title:'クリック中（タップ）',touch:true,focus:true,hint:'⌘ 付きのキーは Phlox が受けます · ⌘Esc で解除',caption:'押している間だけ、指の位置に半透明の円を出す。ドラッグ中は円が付いて動く。'}),
+        P({id:'7c2',title:'スクロール中',scroll:true,hint:'キー入力はまだ送っていません · 画面をクリックすると送ります',caption:'トラックパッドの 2 本指・マウスのホイールは、ポインタの位置でのスクロールとして送る。押していないので指の円は出さず、ポインタの位置に輪だけを出す。iOS 側のスクロールバーで動いていることが分かる。'}),
+        P({id:'7d',title:'端末の選択メニュー',menu:true,hint:'キー入力はまだ送っていません · 画面をクリックすると送ります',caption:'起動中の端末を先頭にまとめ、状態は印（塗り＝起動済み、点線＝起動中、輪郭＝停止中）と見出しで区別する。最後に「Simulator.app で開く」。'}),
+        P({id:'7e',title:'停止の確認',dialog:true,hint:'キー入力はまだ送っていません · 画面をクリックすると送ります',caption:'取り返しがつかない型。既定はキャンセル。Phlox の中で分かる範囲（表示中のタブ）だけを一覧で出す。Phlox の別の版や Simulator.app で開いているかは分からないので、本文で触れるだけにする。'}),
+      ]},
+      {title:'端末の状態', panels:[
+        P({id:'7f',title:'停止中',state:'stopped',dev:'iPhone 17',msg:{outline:true,title:'iPhone 17 は停止しています',body:'起動すると、ここに画面を表示します。Simulator.app は開きません。',actions:[['起動',true]]},caption:'停止中の端末を勝手に起動しない。起動はこのボタンからだけ。'}),
+        P({id:'7g',title:'起動中',state:'booting',dev:'iPhone 17',msg:{spin:true,title:'iPhone 17 を起動しています',body:'初回の起動は 1 分ほどかかることがあります。'},caption:'帯の印は点線、状態は「起動中」。'}),
+        P({id:'7h',title:'表示はできるが入力は未確認',viewOnly:true,hint:'この組み合わせでは画面の表示だけ有効です',caption:'帯に「表示のみ（入力は未確認）」。画面のクリックとキーは送らず、ポインタは禁止の形になる。ホームも押せない。'}),
+        P({id:'7i',title:'診断: しばらく画面の更新を観測していません',diag:true,diagTip:true,hint:'キー入力はまだ送っていません · 画面をクリックすると送ります',caption:'エラーではないので、色を付けず補助の文字で出す。説明は横の ⓘ ボタンで開く（クリックでも、Tab で選んで Space でも開ける）。図は ⓘ を押して説明を開いた状態。時間の長さは出さない。'}),
+      ]},
+      {title:'使えないとき', panels:[
+        P({id:'7j',title:'未確認の組み合わせ',os:'iOS 26.3',msg:{bang:true,title:'この組み合わせはまだ動作を確認していません',body:'表示や操作が正しく動かないことがあります。試す場合は、このタブだけで有効になります。',mono:'Xcode 26.3（17D21）\niOS 26.3（23D5）',actions:[['未確認でも試す',false],['Simulator.app で開く',false]]},caption:'どちらも通常のボタン。「未確認でも試す」はこのタブだけに効き、保存しない。停止とスクリーンショットは公開ツール（simctl）で行うので、この状態でも押せる。'}),
+        P({id:'7j2',title:'「未確認でも試す」を押した後',os:'iOS 26.3',trial:true,hint:'キー入力はまだ送っていません · 画面をクリックすると送ります',caption:'帯に「未確認の組み合わせで実行中（このタブのみ）」を出し、画面の表示と操作を有効にする。タブを閉じると元に戻る（保存しない）。'}),
+        P({id:'7k',title:'Xcode が見つからない',state:'stopped',noDevice:true,dev:'端末なし',msg:{bang:true,title:'Xcode が見つかりません',body:'シミュレーターを表示するには Xcode が必要です。Xcode を入れたあと、もう一度確認してください。',mono:'xcode-select -p',actions:[['再確認',false]]},caption:'ほかの機能には影響しない。'}),
+        P({id:'7l',title:'補助プロセスに接続できない',msg:{bang:true,title:'シミュレーターの補助プロセスに接続できません',body:'自動で 1 回つなぎ直しましたが、応答がありませんでした。作業中のセッションには影響していません。端末は動いたままです。',actions:[['再接続',false],['Simulator.app で開く',false]]},caption:'自動の再接続は 1 回だけ（NFR-2）。それ以降は手動。停止とスクリーンショットは補助プロセスを使わないので押せる。'}),
+        P({id:'7m',title:'アプリの再起動が必要',msg:{bang:true,title:'Phlox を再起動してください',body:'アプリの更新のあと、古い版の補助プロセスにつながっています。再起動すると新しい版でつながります。',mono:'通信仕様 3（補助）· 4（本体）',actions:[['Simulator.app で開く',false]]},caption:'自動で再接続しない。再起動のボタンは置かず（未保存の確認が絡むため）、Phlox > 終了から行う。'}),
+      ]},
+      {title:'幅', panels:[
+        P({id:'7n',title:'狭い（分割の最小幅）',W:320,H:700,focus:true,hint:'⌘ キーは Phlox · ⌘Esc で解除',caption:'端末名から iOS の版と状態の文字を外し、印だけにする。帯の送信中の印は「→ 端末」に縮める。端末名は省略しない。画面は幅で決まる。'}),
+        P({id:'7o',title:'広い',W:700,H:760,hint:'キー入力はまだ送っていません · 画面をクリックすると送ります',caption:'画面は高さで決まり、左右に余白が出る。余白はクリックしても何も起きない。'}),
+      ]},
+      {title:'論点 3 · 外枠（ベゼル）', lead:'同じ 520pt の区画で比べる。', panels:[
+        P({id:'7p',title:'描かない',rec:true,H:640,caption:'画面の角を丸め、細い輪郭と影だけ付ける。同じ区画で画面がいちばん大きくなる。'}),
+        P({id:'7q',title:'簡単な外枠',bezel:true,H:640,caption:'黒い縁を 9pt 付けた。「端末だ」とすぐ分かるが、画面は約 5% 小さくなり、縁の描き分けが端末ごとに要る。'}),
+      ]},
+    ];
+    const devices = [
+      {head:true,t:'起動中'},
+      {item:true,t:'iPhone 17 Pro',os:'iOS 26.2',on:true,tick:'✓',mk:markSt('booted')},
+      {item:true,t:'iPad Air 13 インチ（M3）',os:'iOS 26.2',mk:markSt('booted')},
+      {head:true,t:'停止中'},
+      {item:true,t:'iPhone 17',os:'iOS 26.2',mk:markSt('stopped'),hl:true},
+      {item:true,t:'iPhone 16e',os:'iOS 18.6',mk:markSt('stopped')},
+      {item:true,t:'iPhone SE（第 3 世代）',os:'iOS 18.6',mk:markSt('stopped')},
+      {sep:true},
+      {item:true,t:'Simulator.app で開く',os:'',mk:{display:'none'}},
+    ].map(d => d.item ? {...d,tick:d.tick||'',s:{display:'flex',alignItems:'center',gap:7,height:26,padding:'0 10px',borderRadius:5,color:d.hl?'#fff':'#F2F2F4',background:d.hl?'#B4552F':'transparent'}} : d);
+    const iosRows = [['ファイルツリーをインスペクタに追加','ツバキ · Claude Code','実行中','rgba(60,60,67,0.6)'],['Markdown 往復テストを追加','アザミ · Codex','承認待ち','#C26A00'],['シミュレーター関門の検証','ボタン · Claude Code','待機','rgba(60,60,67,0.6)']].map(([t,sub,l,c],i) => ({t,sub,l,
+      s:{display:'flex',alignItems:'center',gap:12,padding:'11px 16px',boxShadow:i?'inset 0 0.5px 0 rgba(60,60,67,0.29)':'none'},
+      ls:{fontSize:15,color:c,fontWeight:l==='承認待ち'?600:400,flex:'none'}}));
+    const points = [
+      {n:'1',t:'画面の中は端末、⌘ 付きは Phlox',
+        body:'迷うのは「今打ったキーがどちらに行くか」。フォーカスが画面にあるときだけキーを送るので、その状態を 3 か所で同時に示す: 画面の周りの輪、帯の「キー入力を端末に送信中」、画面の下の 1 行（⌘ 付きのキーは Phlox が受けます）。',
+        opts:[{k:'A',v:'フォーカスを外す専用のキー ⌘Esc を足す。Esc と Tab は端末に送るので、キーボードだけで抜ける方法が要る。⌘ 付きなので端末には送らない。'},{k:'B',v:'⌘V だけは例外（貼り付けを端末へ）。画面の下の 1 行には書かず、ヘルプとツールチップで説明する。'},{k:'C',v:'送信中の表示を accent にするのは輪と帯の印だけ。注意の色（琥珀・青・赤・紫）は使わない。'}],
+        rec:'A〜C をすべて採る。⌘Esc はメニュー「シミュレーター > キー入力を解除」にも置き、ショートカットの一覧に載せる。'},
+      {n:'2',t:'端末内の UI は VoiceOver で操作できない',
+        body:'画面は画像なので、iOS のボタンや文字を読み上げられない。帯（端末の選択・ホーム・スクリーンショット・停止）は通常どおり操作できる。',
+        opts:[{k:'A',v:'画面をキー入力を受け取る 1 つの要素（role="application"）にし、読み上げ名を「iPhone 17 Pro の画面。端末内の UI は VoiceOver で操作できません」にする。画面には何も書き足さない。'},{k:'B',v:'VoiceOver が有効なときだけ、画面の下の 1 行を「端末内を読み上げるには Simulator.app で開き、iOS の VoiceOver を使います」に替える。'},{k:'C',v:'端末の選択メニューの「Simulator.app で開く」を、画面の要素の操作（VO-⇧-M）にも置く。'}],
+        rec:'A〜C をすべて採る。目で見ている利用者には何も増えず、VoiceOver の利用者だけに代わりの道を示す。'},
+      {n:'3',t:'外枠（ベゼル）を描くか',
+        body:'7p と 7q を比べた。Phlox の他の画面は飾りを足さない方針で、分割の 1 区画は狭い。',
+        opts:[{k:'7p',v:'描かない。角丸と細い輪郭だけ。画面が最大になり、端末ごとの縁の素材も要らない。'},{k:'7q',v:'簡単な縁を描く。iPhone だとすぐ分かるが、画面が小さくなる。'}],
+        rec:'7p。端末の種類は帯の端末名で分かる。'},
+    ];
+    const keys = [
+      {k:'⌃⌘Y',v:'シミュレーターのタブを開き、帯の端末メニューにフォーカスを置く（7r）'},
+      {k:'クリック',v:'画面にフォーカスを移し、タップとして送る'},
+      {k:'キー（⌘ なし）',v:'フォーカスがあるときだけ、物理キーとして端末へ。Esc・Tab も送る'},
+      {k:'⌘ 付きのキー',v:'Phlox のショートカット。例外は ⌘V（端末に貼り付け）'},
+      {k:'⇧⌘H',v:'ホーム（タブにフォーカスがあるとき）'},
+      {k:'⌘Esc',v:'キー入力を解除し、帯の端末メニューへフォーカスを移す（提案）'},
+      {k:'VoiceOver',v:'帯の部品は通常どおり。画面はキー入力を受け取る 1 つの要素（role="application"）で、読み上げ名は「iPhone 17 Pro の画面。端末内の UI は VoiceOver で操作できません」（論点 2）'},
+    ];
+    const ok = {fontSize:12.5,color:'#1D1D1F'}, warn = {fontSize:12.5,color:'#75757B'};
+    const reqs = [
+      {id:'FR-1',t:'子タブと端末の選択: 7a・7d（起動中を先頭）。⌃⌘Y で開いた直後: 7r',ts:ok},
+      {id:'FR-2',t:'停止中の「起動」: 7f。起動中: 7g',ts:ok},
+      {id:'FR-3',t:'縦横比を保って中央に表示: 7a・7n・7o',ts:ok},
+      {id:'FR-4',t:'タップ・スワイプ: 7a の説明・7c。スクロール: 7c2',ts:ok},
+      {id:'FR-5',t:'物理キーの送信: 7b・7n。貼り付けは論点 1 の B',ts:ok},
+      {id:'FR-6',t:'ホーム・スクリーンショット・停止: 帯。停止の確認: 7e',ts:ok},
+      {id:'FR-7',t:'取得を 1 本にまとめるのは画面に出ない',ts:warn},
+      {id:'FR-8',t:'非対応・失敗の表示: 7j〜7m',ts:ok},
+      {id:'FR-9',t:'Simulator.app との共存: 7d・7e の本文',ts:ok},
+      {id:'NFR-2',t:'1 回だけの自動再接続と「再接続」: 7l',ts:ok},
+      {id:'NFR-4',t:'診断の表示: 7i',ts:ok},
+      {id:'§3.3',t:'未確認の組み合わせ: 7j。「未確認でも試す」の後: 7j2。表示のみ: 7h',ts:ok},
+      {id:'§3.4',t:'VoiceOver の制限: 論点 2',ts:ok},
+      {id:'描かない',t:'端末の回転・マルチタッチ・音量ボタン・ビルドと実行（スコープ外）',ts:warn},
+    ];
+    return {groups, devices, iosRows, points, keys, reqs};
+  }
+}
+</script>
+</body>
+</html>

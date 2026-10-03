@@ -5,6 +5,8 @@ last-verified: 2026-08-01
 
 # terminal-editor-panels（要件仕様）
 
+> **注意（2026-10-03）**: 本書の「trailing ドロワー」「⌘⌥T / ⌘⌥E」前提の要件は、子タブ方式（ターミナル＝⌃⌘T、変更＝⌃⌘E）へ移行済みで、現行コードと食い違う。現行の構成は [architecture/terminal-editor-panels.md](../architecture/terminal-editor-panels.md) の冒頭注記と、ファイルを開く・編集する部分は [architecture/file-explorer-and-markdown-editing.md](../architecture/file-explorer-and-markdown-editing.md) を参照。以下は当時の要件の記録として残す。
+
 **役割（ここにしか書かない）**: ターミナルパネル・エディタパネルが満たすべき要件（FR/NFR）・
 受け入れ基準・仮定・スコープ外。
 

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+body{margin:0;background:#E6E6E9;}
+a{color:#A94A28;text-decoration:none;}
+a:hover{color:#7E3518;text-decoration:underline;}
+</style>
+</helmet>
+<section data-screen-label="6 未保存の確認" style="padding:64px;display:flex;flex-direction:column;gap:40px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:980px;">
+    <div style="font-size:12px;font-weight:600;color:#5B5B60;">6 · ダイアログ</div>
+    <div style="font-size:26px;font-weight:700;">未保存のファイルがあるときの確認</div>
+    <div style="font-size:14px;line-height:1.6;color:#5B5B60;text-wrap:pretty;">既存の「A 取り返しがつかない」の型に合わせた。既定ボタン（↩）はキャンセルで、Esc もキャンセル。破棄するボタンは赤い文字で、⌘⌫ で押せる。一括保存は無いので、保存したい人には「キャンセルしてタブで ⌘S」と案内する。</div>
+  </div>
+
+  <sc-for list="{{ groups }}" as="g" hint-placeholder-count="2">
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div style="font-size:16px;font-weight:700;">{{ g.title }}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start;">
+        <sc-for list="{{ g.items }}" as="d" hint-placeholder-count="3">
+          <div id="{{ d.id }}" style="display:flex;flex-direction:column;gap:10px;width:440px;">
+            <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+              <span style="font-size:12px;font-weight:700;color:#fff;background:#1D1D1F;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;">{{ d.id }}</span>
+              <span style="font-size:14px;font-weight:600;">{{ d.name }}</span>
+              <span style="font-size:11px;font-weight:600;color:#B4232A;background:rgba(224,72,78,0.10);border-radius:5px;padding:2px 7px;">A 取り返しがつかない</span>
+            </div>
+            <div style="font-size:11.5px;line-height:1.55;color:#5B5B60;">契機: {{ d.trigger }}</div>
+            <div style="{{ d.stage }}">
+              <sc-if value="{{ d.sheet }}">
+                <div style="position:absolute;left:0;right:0;top:0;height:52px;background:#2A2A2D;border-bottom:1px solid rgba(255,255,255,0.10);display:flex;align-items:center;gap:8px;padding:0 14px;">
+                  <span style="width:12px;height:12px;border-radius:50%;background:#FF5F57;"></span><span style="width:12px;height:12px;border-radius:50%;background:#FEBC2E;"></span><span style="width:12px;height:12px;border-radius:50%;background:#28C840;"></span>
+                  <span style="font-size:12px;font-weight:600;color:#ABABB1;margin-left:10px;">ファイルツリーをインスペクタに追加</span>
+                </div>
+                <div style="position:absolute;left:0;right:0;top:52px;bottom:0;background:rgba(0,0,0,0.32);"></div>
+              </sc-if>
+              <div role="alertdialog" aria-label="{{ d.title }}" style="{{ d.box }}">
+                <div aria-hidden="true" style="width:56px;height:56px;border-radius:13px;flex:none;position:relative;background:linear-gradient(160deg,#EC9776,#C55E3A);box-shadow:inset 0 0 0 0.5px rgba(255,255,255,0.28),0 1px 3px rgba(0,0,0,0.35);"><span style="position:absolute;left:22px;top:9px;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,0.95);"></span><span style="position:absolute;left:30px;top:15px;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,0.95);"></span><span style="position:absolute;left:27px;top:24px;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,0.95);"></span><span style="position:absolute;left:17px;top:24px;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,0.95);"></span><span style="position:absolute;left:14px;top:15px;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,0.95);"></span><span style="position:absolute;left:24.5px;top:20px;width:7px;height:7px;border-radius:50%;background:#C55E3A;"></span></div>
+                <div style="font-size:13px;font-weight:700;line-height:1.45;text-wrap:balance;word-break:keep-all;overflow-wrap:anywhere;">{{ d.title }}</div>
+                <div style="font-size:11.5px;line-height:1.6;text-wrap:pretty;">{{ d.body }}</div>
+                <div role="list" aria-label="{{ d.listAria }}" style="width:100%;box-sizing:border-box;text-align:left;background:#1E1E20;border-radius:6px;box-shadow:0 0 0 0.5px rgba(255,255,255,0.10);display:flex;flex-direction:column;padding:3px 0;">
+                  <sc-for list="{{ d.rows }}" as="r" hint-placeholder-count="3">
+                    <sc-if value="{{ r.isHead }}"><div style="{{ r.s }}">{{ r.t }}</div></sc-if>
+                    <sc-if value="{{ r.isFile }}">
+                      <div role="listitem" aria-label="{{ r.aria }}" style="{{ r.s }}">
+                        <span style="width:9px;height:11px;border-radius:2px;box-shadow:inset 0 0 0 1.1px #8E8E94;flex:none;"></span>
+                        <span style="flex:1;min-width:0;display:flex;flex-direction:column;">
+                          <span style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.t }}</span>
+                          <span style="font-size:10.5px;color:#8E8E94;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.m }}</span>
+                        </span>
+                        <sc-if value="{{ r.pending }}"><span style="font-size:10.5px;color:#F2F2F4;border-radius:4px;padding:1px 5px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.22);flex:none;white-space:nowrap;">編集中のブロック</span></sc-if>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ r.isMore }}"><div style="{{ r.s }}">{{ r.t }}</div></sc-if>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ d.note }}"><div style="font-size:11px;line-height:1.55;color:#ABABB1;text-wrap:pretty;">{{ d.note }}</div></sc-if>
+                <div style="display:flex;gap:8px;width:100%;margin-top:4px;flex-direction:column;">
+                  <div role="button" style="height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#fff;background:#B4552F;">キャンセル<span style="font-size:11px;font-weight:400;margin-left:6px;">↩</span></div>
+                  <div role="button" style="height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#FF8A8D;background:#3A3A3E;box-shadow:0 0 0 0.5px rgba(255,255,255,0.12),0 0.5px 1px rgba(0,0,0,0.1);">{{ d.danger }}<span style="font-size:11px;font-weight:400;margin-left:6px;">⌘⌫</span></div>
+                </div>
+              </div>
+            </div>
+            <div style="font-size:12px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">{{ d.memo }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-for>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:24px;max-width:1500px;">
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:16px;font-weight:700;">ふるまい</div>
+      <div style="background:#fff;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,0.08);display:flex;flex-direction:column;font-size:12.5px;line-height:1.5;">
+        <sc-for list="{{ rules }}" as="k" hint-placeholder-count="7">
+          <div style="display:grid;grid-template-columns:120px 1fr;gap:10px;padding:7px 14px;border-top:1px solid rgba(0,0,0,0.06);"><span style="font-weight:600;">{{ k.k }}</span><span style="text-wrap:pretty;">{{ k.v }}</span></div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:16px;font-weight:700;">要件対応表</div>
+      <div style="background:#fff;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,0.08);display:flex;flex-direction:column;font-size:12.5px;line-height:1.5;">
+        <sc-for list="{{ reqs }}" as="q" hint-placeholder-count="6">
+          <div style="display:grid;grid-template-columns:72px 1fr;gap:10px;padding:7px 14px;border-top:1px solid rgba(0,0,0,0.06);"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;font-weight:600;">{{ q.id }}</span><span style="{{ q.ts }}">{{ q.t }}</span></div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:16px;font-weight:700;">決めておきたいこと</div>
+      <div style="background:#fff;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,0.08);padding:14px 16px;display:flex;flex-direction:column;gap:12px;font-size:12.5px;line-height:1.65;">
+        <sc-for list="{{ notes }}" as="n" hint-placeholder-count="3">
+          <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-weight:700;">{{ n.t }}</span><span style="color:#3A3A3E;text-wrap:pretty;">{{ n.v }}</span></div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const font = '-apple-system,BlinkMacSystemFont,"SF Pro Text","Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif';
+    const MAX = 5;
+    const fileRow = (t, m, pending, first) => ({isFile:true,t,m,pending:!!pending,aria:`${t}、${m}${pending?'、編集中のブロックあり':''}`,
+      s:{display:'flex',alignItems:'center',gap:8,minHeight:34,padding:'3px 10px',boxSizing:'border-box',borderTop:first?'none':'1px solid rgba(255,255,255,0.08)',color:'#F2F2F4'}});
+    const head = (t, first) => ({isHead:true,t,s:{padding:first?'5px 10px 3px':'9px 10px 3px',fontSize:10.5,fontWeight:600,color:'#8E8E94'}});
+    const more = (t) => ({isMore:true,t,s:{padding:'6px 10px 5px',fontSize:11,color:'#ABABB1',borderTop:'1px solid rgba(255,255,255,0.08)'}});
+    const flat = (files) => {
+      const shown = files.slice(0, MAX).map(([t,m,p],i) => fileRow(t,m,p,i===0));
+      if (files.length > MAX) shown.push(more(`ほか ${files.length - MAX} 件`));
+      return shown;
+    };
+    const grouped = (wins, limit) => {
+      const rows = []; let n = 0, hidden = 0, hiddenWins = new Set();
+      wins.forEach(([w, files], wi) => {
+        let headed = false;
+        files.forEach(([t,m,p]) => {
+          if (n < limit) { if (!headed) { rows.push(head(w, wi===0)); headed = true; } rows.push(fileRow(t,m,p,false)); n++; }
+          else { hidden++; hiddenWins.add(w); }
+        });
+      });
+      if (hidden) rows.push(more(`ほか ${hidden} 件（${hiddenWins.size} ウィンドウ）`));
+      rows.forEach((r,i) => { if (r.isFile && rows[i-1] && rows[i-1].isHead) r.s = {...r.s,borderTop:'none'}; });
+      return rows;
+    };
+    const stage = (sheet) => ({position:'relative',borderRadius:12,background:sheet?'#1E1E20':'#141416',padding:sheet?'60px 18px 28px':'32px 18px',display:'flex',justifyContent:'center',overflow:'hidden',fontFamily:font,WebkitFontSmoothing:'antialiased',color:'#F2F2F4',boxShadow:'0 0 0 0.5px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.18)'});
+    const box = (sheet) => ({position:'relative',width:320,boxSizing:'border-box',background:'#2F2F33',borderRadius:12,boxShadow:'0 14px 40px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.14)',padding:'20px 16px 16px',display:'flex',flexDirection:'column',alignItems:'center',gap:10,textAlign:'center',marginTop:sheet?0:0});
+    const D = (o) => ({...o, stage:stage(o.sheet), box:box(o.sheet), listAria:`未保存のファイル ${o.count} 件`, note:o.note ?? '保存するには、キャンセルしてそれぞれのタブで ⌘S を押します。'});
+    const winFiles = [['README.md','phlox-oss · ツバキ'],['FileTreeRows.swift','phlox-oss · ツバキ · Files/']];
+    const manyFiles = [['README.md','phlox-oss · ツバキ'],['FileTreeRows.swift','phlox-oss · ツバキ · Files/'],['FileTreeLoader.swift','phlox-oss · ツバキ · Files/'],['file-tree.md','phlox-oss · ツバキ · docs/guides/'],['Package.swift','phlox-oss · アザミ · DashboardFeature/'],['index.html','phlox-oss · アザミ · docs/site/'],['CHANGELOG.md','phlox-oss · アザミ · docs/changelog/'],['project.yml','phlox-oss · ボタン · macos/'],['site.css','phlox-oss · アザミ · docs/site/assets/']];
+    const groups = [
+      {title:'ウィンドウを閉じるとき（シート）', items:[
+        D({id:'6a',name:'未保存 2 件',sheet:true,count:2,trigger:'⌘W（最後のタブ）・閉じるボタン・ファイル > ウィンドウを閉じる',title:'未保存のファイル 2 件を保存せずにウィンドウを閉じますか？',body:'保存していない変更は失われ、元に戻せません。',rows:flat(winFiles),danger:'保存せず閉じる',memo:'ウィンドウに付くシートで出す（ほかのウィンドウは操作できる）。各行は「ファイル名」と「プロジェクト · セッション · フォルダ」。同じ名前のファイルはフォルダで見分ける。'}),
+        D({id:'6b',name:'多いとき',sheet:true,count:9,trigger:'同上',title:'未保存のファイル 9 件を保存せずにウィンドウを閉じますか？',body:'保存していない変更は失われ、元に戻せません。',rows:flat(manyFiles),danger:'保存せず閉じる',memo:'一覧は 5 件まで出し、残りは「ほか N 件」の 1 行にまとめる。ダイアログの高さが画面からはみ出さないようにするため、一覧はスクロールさせない。'}),
+        D({id:'6c',name:'編集中のブロックを含む',sheet:true,count:2,trigger:'同上',title:'未保存のファイル 2 件を保存せずにウィンドウを閉じますか？',body:'保存していない変更は、編集中（未確定）のブロックも含めて失われます。元に戻せません。',rows:flat([['README.md','phlox-oss · ツバキ',true],['FileTreeRows.swift','phlox-oss · ツバキ · Files/']]),danger:'保存せず閉じる',memo:'未確定の編集がある行に「編集中のブロック」と文字で付ける。本文にも 1 文足す。ブロックを確定しただけ（保存前）のファイルには付けない。'}),
+      ]},
+      {title:'アプリを終了するとき（アラート）', items:[
+        D({id:'6d',name:'複数ウィンドウ',count:3,trigger:'⌘Q・Phlox > Phlox を終了・Dock の終了',title:'未保存のファイル 3 件を保存せずに Phlox を終了しますか？',body:'2 つのウィンドウに保存していない変更があります。変更は失われ、元に戻せません。',rows:grouped([['ウィンドウ 1 · phlox-oss',[['README.md','ツバキ',true],['FileTreeRows.swift','ツバキ · Files/']]],['ウィンドウ 2 · phlox.cc',[['privacy.md','ヒナギク · content/legal/']]]],MAX),danger:'保存せず終了',memo:'アプリ全体のアラート。ウィンドウごとに見出しを付け、ウィンドウは前面の順に並べる。見出しはウィンドウの番号と、その中で選択中のプロジェクト。'}),
+        D({id:'6e',name:'多いとき',count:11,trigger:'同上',title:'未保存のファイル 11 件を保存せずに Phlox を終了しますか？',body:'3 つのウィンドウに保存していない変更があります。変更は失われ、元に戻せません。',rows:grouped([['ウィンドウ 1 · phlox-oss',manyFiles.slice(0,4).map(([t,m]) => [t,m.replace('phlox-oss · ','')])],['ウィンドウ 2 · phlox-oss',manyFiles.slice(4,9).map(([t,m]) => [t,m.replace('phlox-oss · ','')])],['ウィンドウ 3 · phlox.cc',[['privacy.md','ヒナギク · content/legal/'],['terms.md','ヒナギク · content/legal/']]]],MAX),danger:'保存せず終了',memo:'合計 5 件まで出し、残りの件数と、隠れたファイルのあるウィンドウの数を書く。見出しだけ残して中身が空になるウィンドウは作らない。'}),
+      ]},
+    ];
+    const rules = [
+      {k:'ボタンの並び',v:'縦に並べ、既定のキャンセルを一番上、破棄を下に置く（macOS のアラートの並び）'},
+      {k:'キー',v:'↩・Esc はキャンセル。⌘⌫ は「保存せず閉じる / 終了」'},
+      {k:'初期フォーカス',v:'キャンセル。Tab で破棄のボタンへ移れる'},
+      {k:'キャンセル後',v:'何も変えない。編集中のブロックはそのまま編集中に戻る（§3.6）'},
+      {k:'承認後',v:'文書を失効させ、進行中の保存が終わるのを待ってから閉じる / 終了処理に進む'},
+      {k:'重ねて要求',v:'確認中に ⌘Q や閉じる操作を繰り返しても、ダイアログは 1 つだけ。ウィンドウのシートが出ている間の ⌘Q は、そのシートを閉じてから終了のアラートに切り替える'},
+      {k:'出さないとき',v:'未保存が 0 件なら何も出さずに閉じる / 終了する'},
+      {k:'VoiceOver',v:'一覧は「未保存のファイル 2 件」のリストとして読み、各行は「README.md、phlox-oss · ツバキ、編集中のブロックあり」'},
+    ];
+    const ok = {fontSize:12.5,color:'#1D1D1F'}, warn = {fontSize:12.5,color:'#75757B'};
+    const reqs = [
+      {id:'FR-16',t:'ウィンドウを閉じる: 6a〜6c。アプリ終了: 6d・6e',ts:ok},
+      {id:'§3.4',t:'未確定の編集も未保存として扱う: 6c・6d の「編集中のブロック」',ts:ok},
+      {id:'§3.6',t:'既定はキャンセル・一括保存なし・確認は 1 つにまとめる: 「ふるまい」の表',ts:ok},
+      {id:'§3.6',t:'文書の失効と保存の完了待ちは画面に出ない（承認後の処理）',ts:warn},
+      {id:'描かない',t:'一括保存・「保存して閉じる」（第 1 版では作らない）',ts:warn},
+    ];
+    const notes = [
+      {t:'行をクリックしたら開くか',v:'一覧の行を押すと、キャンセルしてそのファイルタブを前に出す案がある。保存したい人の近道になるが、アラートの中にボタン以外の操作を置くことになる。第 1 版では置かず、文言で案内した。'},
+      {t:'ウィンドウの呼び方',v:'macOS のウィンドウには固有の名前が無いので「ウィンドウ 1 · phlox-oss」と番号を振った。Window メニューの並びと番号を揃える必要がある。'},
+      {t:'本文の「元に戻せません」',v:'既存の A 型の終わり方に合わせた。未確定のブロックがあるときだけ本文が 1 文長くなる。'},
+    ];
+    return {groups, rules, reqs, notes};
+  }
+}
+</script>
+</body>
+</html>

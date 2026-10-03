@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+body{margin:0;background:#E6E6E9;}
+a{color:#A94A28;text-decoration:none;}
+a:hover{color:#7E3518;text-decoration:underline;}
+</style>
+</helmet>
+<section data-screen-label="1 新機能の置き場所" style="padding:64px;display:flex;flex-direction:column;gap:40px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:900px;">
+    <div style="font-size:12px;font-weight:600;color:#5B5B60;">1 · メインウィンドウ全体</div>
+    <div style="font-size:26px;font-weight:700;">新機能の置き場所</div>
+    <div style="font-size:14px;line-height:1.6;color:#5B5B60;text-wrap:pretty;">右サイドバーに「ファイル」タブ、子タブに「シミュレーター」を足した状態。既定のダークテーマ。中央は ⌘\ で左右に分割し、左に Markdown のファイルタブ、右にシミュレーターを開いている。</div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:56px;align-items:flex-start;">
+  <sc-for list="{{ frames }}" as="f" hint-placeholder-count="4">
+    <div id="{{ f.id }}" style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;align-items:baseline;gap:10px;">
+        <span style="font-size:12px;font-weight:700;color:#fff;background:#1D1D1F;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;">{{ f.id }}</span>
+        <span style="font-size:15px;font-weight:600;">{{ f.title }}</span>
+        <span style="font-size:12px;color:#5B5B60;font-family:ui-monospace,'SF Mono',Menlo,monospace;">{{ f.math }}</span>
+      </div>
+
+      <div style="{{ f.win }}">
+        <div style="display:flex;height:100%;">
+          <sc-if value="{{ f.sidebar }}" hint-placeholder-val="{{ true }}">
+          <aside aria-label="サイドバー" style="width:260px;flex:none;display:flex;flex-direction:column;background:#262629;border-right:1px solid rgba(255,255,255,0.10);">
+            <div style="height:52px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px 0 18px;">
+              <span style="width:12px;height:12px;border-radius:50%;background:#FF5F57;"></span><span style="width:12px;height:12px;border-radius:50%;background:#FEBC2E;"></span><span style="width:12px;height:12px;border-radius:50%;background:#28C840;"></span>
+              <span style="flex:1;"></span>
+              <span role="button" aria-label="サイドバーを隠す（⌃⌘S）" style="width:28px;height:24px;display:flex;align-items:center;justify-content:center;color:#ABABB1;"><svg width="18" height="14" viewBox="0 0 18 14" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.65" y="0.65" width="16.7" height="12.7" rx="2.6"></rect><line x1="6.2" y1="1" x2="6.2" y2="13"></line></svg></span>
+            </div>
+            <div style="flex:1;min-height:0;overflow:hidden;padding:2px 10px;display:flex;flex-direction:column;gap:1px;">
+              <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;font-size:11px;font-weight:600;color:#8E8E94;"><span>対応待ち</span><span style="min-width:16px;height:15px;padding:0 5px;box-sizing:border-box;border-radius:8px;background:#B4552F;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;">1</span></div>
+              <div style="display:flex;flex-direction:column;gap:1px;padding:6px 8px;border-radius:6px;">
+                <div style="display:flex;gap:6px;align-items:baseline;"><span style="flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Markdown 往復テストを追加</span><span style="font-size:11px;font-weight:600;color:#F4BD68;">承認待ち</span></div>
+                <div style="display:flex;gap:6px;font-size:11px;color:#ABABB1;"><span style="flex:1;">phlox-oss · アザミ · Codex</span><span style="color:#8E8E94;">2分</span></div>
+              </div>
+              <div style="display:flex;align-items:center;padding:14px 8px 2px;font-size:11px;font-weight:600;color:#8E8E94;"><span style="flex:1;">プロジェクト</span><span style="font-size:14px;font-weight:400;color:#ABABB1;">＋</span></div>
+              <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-radius:6px;margin-top:4px;background:rgba(255,255,255,0.09);color:#ABABB1;">
+                <span style="width:10px;font-size:13px;color:#8E8E94;transform:rotate(90deg);text-align:center;">›</span>
+                <svg width="16" height="13" viewBox="0 0 16 13" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1 2.4 V11.2 Q1 12 1.8 12 H14.2 Q15 12 15 11.2 V4.3 Q15 3.5 14.2 3.5 H7.4 L6 1.6 H1.8 Q1 1.6 1 2.4 Z"></path></svg>
+                <span style="flex:1;font-size:13px;font-weight:600;color:#F2F2F4;">phlox-oss</span><span style="font-size:11px;color:#8E8E94;">1 実行中</span>
+              </div>
+              <sc-for list="{{ sessions }}" as="s" hint-placeholder-count="3">
+                <div style="{{ s.row }}"><span style="flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ s.t }}</span><span style="font-size:10px;font-weight:600;color:#8E8E94;">{{ s.a }}</span><span style="{{ s.ms }}">{{ s.m }}</span></div>
+              </sc-for>
+              <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-radius:6px;margin-top:4px;color:#ABABB1;">
+                <span style="width:10px;font-size:13px;color:#8E8E94;text-align:center;">›</span>
+                <svg width="16" height="13" viewBox="0 0 16 13" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1 2.4 V11.2 Q1 12 1.8 12 H14.2 Q15 12 15 11.2 V4.3 Q15 3.5 14.2 3.5 H7.4 L6 1.6 H1.8 Q1 1.6 1 2.4 Z"></path></svg>
+                <span style="flex:1;font-size:13px;font-weight:600;color:#F2F2F4;">phlox.cc</span><span style="font-size:11px;color:#8E8E94;">2</span>
+              </div>
+            </div>
+            <div style="height:44px;flex:none;display:flex;align-items:center;padding:0 10px;border-top:1px solid rgba(255,255,255,0.10);">
+              <div role="button" style="display:flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:6px;font-size:12px;font-weight:500;background:#3A3A3E;box-shadow:0 0 0 0.5px rgba(255,255,255,0.10);"><span>＋</span><span>新規セッション</span><span style="font-size:10.5px;color:#8E8E94;">⌘N</span></div>
+            </div>
+          </aside>
+          </sc-if>
+
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#1E1E20;">
+            <div role="toolbar" aria-label="ツールバー" style="height:52px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px 0 14px;background:#2A2A2D;border-bottom:1px solid rgba(255,255,255,0.10);">
+              <sc-if value="{{ f.noSidebar }}">
+                <div style="display:flex;align-items:center;gap:8px;padding-right:6px;">
+                  <span style="width:12px;height:12px;border-radius:50%;background:#FF5F57;"></span><span style="width:12px;height:12px;border-radius:50%;background:#FEBC2E;"></span><span style="width:12px;height:12px;border-radius:50%;background:#28C840;"></span>
+                  <span role="button" aria-label="サイドバーを表示（⌃⌘S）" style="width:28px;height:24px;margin-left:10px;display:flex;align-items:center;justify-content:center;color:#ABABB1;"><svg width="18" height="14" viewBox="0 0 18 14" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.65" y="0.65" width="16.7" height="12.7" rx="2.6"></rect><line x1="6.2" y1="1" x2="6.2" y2="13"></line></svg></span>
+                </div>
+              </sc-if>
+              <div style="display:flex;flex-direction:column;min-width:0;max-width:300px;">
+                <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">ファイルツリーをインスペクタに追加</div>
+                <div style="font-size:11px;color:#ABABB1;">ツバキ · 7c2e · phlox-oss</div>
+              </div>
+              <div style="flex:1;"></div>
+              <div role="radiogroup" aria-label="表示モード" style="display:flex;padding:2px;border-radius:7px;background:rgba(255,255,255,0.08);gap:2px;">
+                <span role="radio" aria-checked="true" style="height:22px;padding:0 10px;border-radius:5px;font-size:12px;font-weight:500;display:flex;align-items:center;background:#3A3A3E;box-shadow:0 0.5px 1.5px rgba(0,0,0,0.2);">単体</span>
+                <span role="radio" aria-checked="false" style="height:22px;padding:0 10px;border-radius:5px;font-size:12px;font-weight:500;display:flex;align-items:center;color:#ABABB1;">グリッド</span>
+              </div>
+              <div style="flex:1;"></div>
+              <div role="button" aria-label="対応待ち 1 件" style="display:flex;align-items:center;gap:7px;height:26px;padding:0 6px 0 9px;border-radius:7px;font-size:12px;font-weight:500;background:#3A3A3E;box-shadow:0 0 0 0.5px rgba(255,255,255,0.10);white-space:nowrap;"><span style="width:9px;height:9px;background:#F0AE4A;transform:rotate(45deg) scale(0.76);border-radius:2px;"></span>対応待ち<span style="min-width:18px;height:16px;padding:0 5px;box-sizing:border-box;border-radius:8px;background:#B4552F;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;">1</span></div>
+              <div role="button" aria-label="使用量" style="display:flex;align-items:center;height:26px;padding:0 9px;border-radius:7px;box-shadow:0 0 0 0.5px rgba(255,255,255,0.10);font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;">{{ f.usage }}</div>
+              <div style="width:1px;height:18px;background:rgba(255,255,255,0.10);margin:0 2px;"></div>
+              <div role="button" aria-pressed="true" aria-label="インスペクタ（⌃⌘I）" style="width:28px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.09);"><svg width="18" height="14" viewBox="0 0 18 14" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.65" y="0.65" width="16.7" height="12.7" rx="2.6"></rect><line x1="11.8" y1="1" x2="11.8" y2="13"></line></svg></div>
+            </div>
+
+            <div style="flex:1;min-height:0;display:flex;position:relative;">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+                <div role="tablist" aria-label="セッションのタブ" style="height:32px;flex:none;display:flex;align-items:stretch;background:#232326;border-bottom:1px solid rgba(255,255,255,0.10);overflow:hidden;">
+                  <div style="display:flex;align-items:center;gap:6px;padding:0 12px;background:#1E1E20;border-right:1px solid rgba(255,255,255,0.10);box-shadow:inset 0 2px 0 #E08865;font-size:12px;font-weight:600;white-space:nowrap;"><span style="font-size:10px;color:#8E8E94;font-family:ui-monospace,Menlo,monospace;">Cl</span>ファイルツリーをインスペクタに追加<span style="font-size:10px;color:#8E8E94;">✕</span></div>
+                  <div style="display:flex;align-items:center;gap:6px;padding:0 12px;border-right:1px solid rgba(255,255,255,0.10);font-size:12px;color:#ABABB1;background:rgba(240,174,74,0.14);white-space:nowrap;"><span style="font-size:10px;color:#8E8E94;font-family:ui-monospace,Menlo,monospace;">Cx</span>Markdown 往復テストを追加<span style="font-size:10.5px;font-weight:700;color:#F4BD68;">承認待ち</span></div>
+                  <div style="display:flex;align-items:center;gap:6px;padding:0 12px;border-right:1px solid rgba(255,255,255,0.10);font-size:12px;color:#ABABB1;white-space:nowrap;"><span style="font-size:10px;color:#8E8E94;font-family:ui-monospace,Menlo,monospace;">Cl</span>シミュレーター関門の検証</div>
+                  <span style="width:28px;flex:none;display:flex;align-items:center;justify-content:center;font-size:15px;color:#ABABB1;">＋</span>
+                </div>
+
+                <div role="tablist" aria-label="このセッションのタブ" style="height:32px;flex:none;display:flex;align-items:center;gap:2px;padding:0 10px;border-bottom:1px solid rgba(255,255,255,0.10);position:relative;z-index:12;">
+                  <sc-for list="{{ f.childTabs }}" as="c" hint-placeholder-count="5">
+                    <span role="tab" aria-selected="{{ c.on }}" aria-label="{{ c.aria }}" style="{{ c.s }}"><sc-if value="{{ c.isSim }}"><span style="width:7px;height:11px;border-radius:2px;box-shadow:inset 0 0 0 1.2px currentColor;flex:none;"></span></sc-if>{{ c.t }}</span>
+                  </sc-for>
+                  <span style="position:relative;flex:none;">
+                    <span role="button" aria-haspopup="menu" aria-label="タブを追加" style="{{ f.plusStyle }}">＋</span>
+                    <sc-if value="{{ f.menu }}">
+                      <div role="menu" aria-label="このセッションに開く" style="position:absolute;top:30px;left:-4px;width:300px;background:#2F2F33;border-radius:8px;box-shadow:0 12px 34px rgba(0,0,0,0.55),0 0 0 0.5px rgba(255,255,255,0.16);padding:5px;display:flex;flex-direction:column;font-size:13px;">
+                        <div style="padding:4px 10px 5px;font-size:11px;font-weight:600;color:#8E8E94;">このセッションに開く</div>
+                        <sc-for list="{{ menuItems }}" as="m" hint-placeholder-count="5">
+                          <sc-if value="{{ m.sep }}"><div style="height:1px;background:rgba(255,255,255,0.10);margin:4px 6px;"></div></sc-if>
+                          <div role="menuitem" style="{{ m.s }}"><span style="width:22px;display:flex;align-items:center;font-size:10px;font-weight:700;font-family:ui-monospace,Menlo,monospace;opacity:0.75;">{{ m.g }}<sc-if value="{{ m.isSim }}"><span style="width:8px;height:12px;border-radius:2px;box-shadow:inset 0 0 0 1.3px currentColor;margin-left:3px;"></span></sc-if></span><span style="flex:1;">{{ m.t }}</span><span style="font-size:11.5px;opacity:0.75;">{{ m.k }}</span></div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                  </span>
+                  <span style="flex:1;"></span>
+                  <sc-if value="{{ f.showPath }}"><span style="font-size:11px;color:#8E8E94;font-family:ui-monospace,Menlo,monospace;white-space:nowrap;">~/dev/phlox-oss.worktrees/tsubaki-7c2e</span></sc-if>
+                </div>
+
+                <div style="flex:1;min-height:0;display:flex;">
+                  <div aria-label="左の区画: file-tree.md" style="flex:1;min-width:0;display:flex;flex-direction:column;">
+                    <div style="height:30px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;background:#242427;border-bottom:1px solid rgba(255,255,255,0.10);">
+                      <span style="flex:1;min-width:0;font-size:11px;color:#ABABB1;font-family:ui-monospace,'SF Mono',Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="docs/guides/file-tree.md" aria-label="docs/guides/file-tree.md">{{ f.pathShown }}</span>
+                      <div role="radiogroup" aria-label="表示" aria-description="⌃⌘M で切り替え" style="display:flex;padding:2px;border-radius:6px;background:rgba(255,255,255,0.08);gap:1px;flex:none;">
+                        <span role="radio" aria-checked="true" style="height:18px;padding:0 8px;border-radius:4px;font-size:11px;display:flex;align-items:center;background:#3A3A3E;box-shadow:0 0.5px 1.5px rgba(0,0,0,0.2);">レンダリング</span>
+                        <span role="radio" aria-checked="false" style="height:18px;padding:0 8px;border-radius:4px;font-size:11px;display:flex;align-items:center;color:#ABABB1;">ソース</span>
+                      </div>
+                      <span role="button" aria-disabled="true" aria-label="保存" aria-description="⌘S" style="height:20px;padding:0 8px;border-radius:5px;font-size:11px;display:flex;align-items:center;gap:5px;color:#8E8E94;box-shadow:0 0 0 0.5px rgba(255,255,255,0.10);flex:none;">保存<span style="font-size:10px;">⌘S</span></span>
+                    </div>
+                    <div style="flex:1;min-height:0;overflow:hidden;padding:20px 28px;">
+                      <div style="max-width:680px;display:flex;flex-direction:column;gap:12px;font-size:13px;line-height:1.7;">
+                        <div style="font-size:22px;font-weight:700;line-height:1.3;">ファイルツリー</div>
+                        <div style="text-wrap:pretty;">右サイドバーの「ファイル」タブに、選択中セッションの作業ツリーを表示します。ファイルをクリックすると、中央の操作中の区画にファイルタブとして開きます。</div>
+                        <div style="font-size:15px;font-weight:600;padding-top:6px;">操作</div>
+                        <div style="display:flex;flex-direction:column;gap:2px;padding-left:4px;">
+                          <div style="display:flex;gap:8px;"><span style="color:#8E8E94;">•</span><span>クリックで開く。開いているタブがあれば前に出す</span></div>
+                          <div style="display:flex;gap:8px;"><span style="color:#8E8E94;">•</span><span>右クリックで「右に分割して開く」「Finder で表示」「パスをコピー」</span></div>
+                          <div style="display:flex;gap:8px;"><span style="color:#8E8E94;">•</span><span><code style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;background:#2B2B2F;padding:1px 4px;border-radius:4px;">⌃⌘B</code> でツリーを表示</span></div>
+                        </div>
+                        <div style="font-size:15px;font-weight:600;padding-top:6px;">表示モード</div>
+                        <div style="border-radius:6px;box-shadow:0 0 0 1px rgba(255,255,255,0.14);overflow:hidden;font-size:12px;">
+                          <div style="display:grid;grid-template-columns:1.1fr 1.2fr 1fr;background:#27272A;font-weight:600;"><span style="padding:6px 10px;">拡張子</span><span style="padding:6px 10px;">既定の表示</span><span style="padding:6px 10px;">編集</span></div>
+                          <div style="display:grid;grid-template-columns:1.1fr 1.2fr 1fr;border-top:1px solid rgba(255,255,255,0.10);"><span style="padding:6px 10px;font-family:ui-monospace,Menlo,monospace;font-size:11px;">.md .markdown</span><span style="padding:6px 10px;">レンダリング</span><span style="padding:6px 10px;">ブロック単位</span></div>
+                          <div style="display:grid;grid-template-columns:1.1fr 1.2fr 1fr;border-top:1px solid rgba(255,255,255,0.10);"><span style="padding:6px 10px;font-family:ui-monospace,Menlo,monospace;font-size:11px;">.html .htm</span><span style="padding:6px 10px;">レンダリング（閲覧のみ）</span><span style="padding:6px 10px;">ソース表示で</span></div>
+                        </div>
+                        <div style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;line-height:1.6;background:#2B2B2F;border-radius:6px;padding:8px 12px;white-space:pre;overflow:hidden;">swift test --package-path macos/Packages/DashboardFeature</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <sc-if value="{{ f.split }}" hint-placeholder-val="{{ true }}">
+                  <div style="width:1px;flex:none;background:rgba(255,255,255,0.10);"></div>
+                  <div aria-label="右の区画: シミュレーター" style="flex:1;min-width:0;display:flex;flex-direction:column;">
+                    <div style="height:30px;flex:none;display:flex;align-items:center;gap:6px;padding:0 6px 0 8px;background:#242427;border-bottom:1px solid rgba(255,255,255,0.10);">
+                      <span role="button" aria-haspopup="menu" aria-label="端末: iPhone 17 Pro、iOS 26.2、起動済み" style="height:22px;padding:0 8px;border-radius:6px;background:rgba(255,255,255,0.08);font-size:11.5px;display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap;overflow:hidden;">iPhone 17 Pro<span style="color:#ABABB1;">iOS 26.2</span><span style="font-size:9px;opacity:0.7;">▾</span></span>
+                      <span style="font-size:11px;color:#8E8E94;white-space:nowrap;">起動済み</span>
+                      <span style="flex:1;"></span>
+                      <span role="button" aria-label="ホーム（⇧⌘H）" title="ホーム ⇧⌘H" style="width:26px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#ABABB1;"><span style="width:11px;height:11px;border-radius:3px;box-shadow:inset 0 0 0 1.3px currentColor;"></span></span>
+                      <span role="button" aria-label="スクリーンショット" title="スクリーンショット" style="width:26px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#ABABB1;"><span style="width:13px;height:10px;border-radius:2.5px;box-shadow:inset 0 0 0 1.3px currentColor;display:flex;align-items:center;justify-content:center;"><span style="width:4px;height:4px;border-radius:50%;box-shadow:inset 0 0 0 1.2px currentColor;"></span></span></span>
+                      <span role="button" aria-label="端末を停止…" title="停止…" style="width:26px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#ABABB1;"><span style="width:9px;height:9px;border-radius:1.5px;background:currentColor;"></span></span>
+                    </div>
+                    <div style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;">
+                      <div role="img" aria-label="iPhone 17 Pro の画面" style="{{ f.phoneBox }}">
+                        <div style="{{ f.phoneInner }}">
+                          <div style="height:54px;display:flex;align-items:center;padding:0 34px 0 46px;font-size:17px;font-weight:600;"><span style="flex:1;">9:41</span><span style="display:flex;gap:6px;align-items:center;"><span style="font-size:14px;">5G</span><span style="width:25px;height:12px;border-radius:4px;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.4);padding:2px;box-sizing:border-box;display:flex;"><span style="width:80%;background:#000;border-radius:2px;"></span></span></span></div>
+                          <div style="padding:14px 20px 8px;font-size:34px;font-weight:700;letter-spacing:-0.5px;">セッション</div>
+                          <div style="margin:0 16px 18px;height:36px;border-radius:10px;background:rgba(118,118,128,0.12);display:flex;align-items:center;padding:0 10px;font-size:17px;color:rgba(60,60,67,0.6);">検索</div>
+                          <div style="padding:0 32px 6px;font-size:13px;color:rgba(60,60,67,0.6);">phlox-oss</div>
+                          <div style="margin:0 16px;border-radius:12px;background:#fff;display:flex;flex-direction:column;">
+                            <sc-for list="{{ iosRows }}" as="r" hint-placeholder-count="3">
+                              <div style="{{ r.s }}"><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;"><span style="font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.t }}</span><span style="font-size:14px;color:rgba(60,60,67,0.6);">{{ r.sub }}</span></div><span style="{{ r.ls }}">{{ r.l }}</span><span style="font-size:17px;color:rgba(60,60,67,0.3);">›</span></div>
+                            </sc-for>
+                          </div>
+                          <div style="padding:22px 32px 6px;font-size:13px;color:rgba(60,60,67,0.6);">phlox.cc</div>
+                          <div style="margin:0 16px;border-radius:12px;background:#fff;display:flex;align-items:center;gap:12px;padding:11px 16px;"><div style="flex:1;display:flex;flex-direction:column;gap:2px;"><span style="font-size:17px;">プライバシーポリシー改訂</span><span style="font-size:14px;color:rgba(60,60,67,0.6);">ヒナギク · Claude Code</span></div><span style="font-size:15px;color:rgba(60,60,67,0.6);">完了</span><span style="font-size:17px;color:rgba(60,60,67,0.3);">›</span></div>
+                          <div style="position:absolute;left:0;right:0;bottom:0;height:83px;background:rgba(249,249,249,0.94);box-shadow:0 -0.5px 0 rgba(0,0,0,0.2);display:flex;justify-content:space-around;padding-top:10px;box-sizing:border-box;font-size:10px;font-weight:500;">
+                            <span style="color:#D9653B;display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="width:24px;height:20px;border-radius:5px;background:#D9653B;"></span>セッション</span>
+                            <span style="color:#999;display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="width:24px;height:20px;border-radius:5px;background:#BDBDC2;"></span>承認</span>
+                            <span style="color:#999;display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="width:24px;height:20px;border-radius:10px;background:#BDBDC2;"></span>設定</span>
+                          </div>
+                          <div style="position:absolute;left:134px;bottom:8px;width:134px;height:5px;border-radius:3px;background:#000;"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  </sc-if>
+                </div>
+              </div>
+
+              <div role="complementary" aria-label="インスペクタ: ファイル" style="{{ f.insp }}">
+                <div style="padding:10px 12px 8px;flex:none;">
+                  <div role="tablist" aria-label="インスペクタの表示" style="display:flex;padding:2px;border-radius:7px;background:rgba(255,255,255,0.08);gap:2px;">
+                    <span role="tab" aria-selected="false" style="flex:1;text-align:center;height:22px;line-height:22px;border-radius:5px;font-size:12px;font-weight:500;color:#ABABB1;">セッション</span>
+                    <span role="tab" aria-selected="true" aria-label="ファイル（⌃⌘B）" style="flex:1;text-align:center;height:22px;line-height:22px;border-radius:5px;font-size:12px;font-weight:500;background:#3A3A3E;box-shadow:0 0.5px 1.5px rgba(0,0,0,0.2);">ファイル</span>
+                    <span role="tab" aria-selected="false" style="flex:1;text-align:center;height:22px;line-height:22px;border-radius:5px;font-size:12px;font-weight:500;color:#ABABB1;">使用量</span>
+                  </div>
+                </div>
+                <div style="flex:none;display:flex;align-items:center;gap:8px;padding:2px 10px 8px 14px;border-bottom:1px solid rgba(255,255,255,0.10);">
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;">
+                    <span style="font-size:11px;color:#ABABB1;font-family:ui-monospace,'SF Mono',Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left;"><span style="direction:ltr;unicode-bidi:embed;">~/dev/phlox-oss.worktrees/tsubaki-7c2e</span></span>
+                    <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:#F2F2F4;font-family:ui-monospace,'SF Mono',Menlo,monospace;"><svg width="10" height="11" viewBox="0 0 14 14" fill="none" stroke="#ABABB1" stroke-width="1.4"><circle cx="4" cy="3" r="1.6"></circle><circle cx="4" cy="11" r="1.6"></circle><circle cx="10.5" cy="4.5" r="1.6"></circle><line x1="4" y1="4.6" x2="4" y2="9.4"></line><path d="M10.5 6.1 C10.5 8.5 4 7.5 4 9.4"></path></svg>feature/file-tree</span>
+                  </div>
+                  <span role="button" aria-label="更新" title="更新" style="width:24px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#ABABB1;flex:none;"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M11 4.2 A4.8 4.8 0 1 0 11.4 7.5"></path><polyline points="11.2,1.5 11.2,4.4 8.3,4.4"></polyline></svg></span>
+                </div>
+                <div role="tree" aria-label="ファイル" style="flex:1;min-height:0;overflow:hidden;padding:4px 8px;display:flex;flex-direction:column;">
+                  <sc-for list="{{ tree }}" as="r" hint-placeholder-count="20">
+                    <div role="treeitem" aria-label="{{ r.aria }}" style="{{ r.s }}">
+                      <span style="{{ r.chev }}">{{ r.chevCh }}</span>
+                      <sc-if value="{{ r.dir }}"><svg width="15" height="12" viewBox="0 0 16 13" fill="none" stroke="#ABABB1" stroke-width="1.2" style="flex:none;"><path d="M1 2.4 V11.2 Q1 12 1.8 12 H14.2 Q15 12 15 11.2 V4.3 Q15 3.5 14.2 3.5 H7.4 L6 1.6 H1.8 Q1 1.6 1 2.4 Z"></path></svg></sc-if>
+                      <sc-if value="{{ r.file }}"><span style="width:15px;display:flex;justify-content:center;flex:none;"><span style="width:10px;height:12px;border-radius:2px;box-shadow:inset 0 0 0 1.2px #8E8E94;"></span></span></sc-if>
+                      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.name }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="{{ f.capStyle }}">{{ f.caption }}</div>
+    </div>
+    <sc-if value="{{ f.after }}">
+      <div style="width:440px;display:flex;flex-direction:column;gap:14px;">
+        <div style="font-size:15px;font-weight:600;">要件対応表（この画面で置いたもの）</div>
+        <div style="background:#fff;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,0.08);display:flex;flex-direction:column;font-size:12.5px;line-height:1.5;">
+          <sc-for list="{{ reqs }}" as="q" hint-placeholder-count="10">
+            <sc-if value="{{ q.head }}"><div style="padding:10px 14px 4px;font-size:11px;font-weight:700;color:#75757B;">{{ q.t }}</div></sc-if>
+            <sc-if value="{{ q.row }}"><div style="display:grid;grid-template-columns:64px 1fr;gap:10px;padding:7px 14px;border-top:1px solid rgba(0,0,0,0.06);"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;font-weight:600;">{{ q.id }}</span><span style="{{ q.ts }}">{{ q.t }}</span></div></sc-if>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+  </sc-for>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px;max-width:1100px;">
+    <div style="font-size:20px;font-weight:700;">論点: 右サイドバーの幅でツリーと iPhone 画面が窮屈にならないか</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,500px),1fr));gap:16px;">
+      <sc-for list="{{ points }}" as="pt" hint-placeholder-count="4">
+        <div style="background:#fff;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,0.08);padding:16px 18px;display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;gap:10px;align-items:baseline;"><span style="font-size:12px;font-weight:700;color:#A94A28;font-family:ui-monospace,'SF Mono',Menlo,monospace;">{{ pt.n }}</span><span style="font-size:15px;font-weight:600;">{{ pt.t }}</span></div>
+          <div style="font-size:13px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;overflow-wrap:anywhere;">{{ pt.body }}</div>
+          <sc-for list="{{ pt.opts }}" as="o"><div style="display:grid;grid-template-columns:28px 1fr;gap:6px;font-size:12.5px;line-height:1.6;"><span style="font-weight:700;color:#5B5B60;">{{ o.k }}</span><span style="color:#1D1D1F;text-wrap:pretty;">{{ o.v }}</span></div></sc-for>
+          <sc-if value="{{ pt.rec }}"><div style="font-size:12.5px;line-height:1.6;padding-top:4px;border-top:1px solid rgba(0,0,0,0.08);"><span style="font-weight:700;">提案: </span>{{ pt.rec }}</div></sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const SB = 260, INSP = 300, OV = 280;
+    const mk = (o) => {
+      const sb = o.sidebar ? SB : 0;
+      const center = o.W - sb - (o.overlay ? 0 : INSP);
+      const paneW = o.split ? (center - 1) / 2 : center;
+      const ph = o.H - 52 - 32 - 32 - 30;
+      const h = Math.floor(Math.min(ph - 40, (paneW - 40) * 874 / 402));
+      const w = Math.floor(h * 402 / 874), s = w / 402;
+      const full = o.W >= 1280;
+      const tabs = [['会話'],['ターミナル'],['変更 4'],['file-tree.md','L'],['シミュレーター','R']].filter(([,p]) => o.split || p !== 'R');
+      const childTabs = tabs.map(([t,p]) => {
+        const on = !!p; const focus = p === 'L';
+        return {t, on, isSim:t==='シミュレーター', pane: '', aria: t + (p==='L'?'（左の区画・操作中）':p==='R'?'（右の区画）':''),
+          s:{height:24,padding:'0 10px',borderRadius:6,display:'flex',alignItems:'center',gap:6,fontSize:12,whiteSpace:'nowrap',flex:'none',
+            color:on?'#F2F2F4':'#ABABB1',fontWeight:focus?600:400,background:focus?'rgba(255,255,255,0.09)':on?'rgba(255,255,255,0.05)':'transparent'}};
+      });
+      return {
+        ...o, pathShown: paneW <= 400 ? '…/guides/file-tree.md' : 'docs/guides/file-tree.md', noSidebar:!o.sidebar, showPath: center >= 900, usage: full ? 'Cl 38 · Cx 62 · Cu 88%' : '38%', childTabs,
+        math: `${o.W}×${o.H}pt`,
+        capStyle:{maxWidth:Math.min(o.W, 760),fontSize:13,lineHeight:1.6,color:'#3A3A3E',textWrap:'pretty'},
+        win:{width:o.W,height:o.H,position:'relative',overflow:'hidden',borderRadius:11,background:'#1E1E20',color:'#F2F2F4',boxShadow:'0 0 0 0.5px rgba(255,255,255,0.18), 0 22px 60px rgba(0,0,0,0.30)',fontFamily:'-apple-system,BlinkMacSystemFont,"SF Pro Text","Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif',WebkitFontSmoothing:'antialiased'},
+        plusStyle:{width:24,height:24,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,color:o.menu?'#F2F2F4':'#ABABB1',background:o.menu?'rgba(255,255,255,0.09)':'transparent'},
+        phoneBox:{width:w,height:h,borderRadius:Math.round(w*0.135),overflow:'hidden',position:'relative',flex:'none',background:'#F2F2F7',boxShadow:'0 0 0 1px rgba(255,255,255,0.14), 0 8px 24px rgba(0,0,0,0.35)'},
+        phoneInner:{width:402,height:874,transform:`scale(${s})`,transformOrigin:'top left',position:'relative',color:'#000',fontFamily:'-apple-system,"SF Pro Text","Hiragino Sans",sans-serif'},
+        insp: o.overlay
+          ? {position:'absolute',top:8,right:8,bottom:8,width:OV,borderRadius:10,background:'#2F2F33',boxShadow:'0 12px 34px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.16)',zIndex:20,display:'flex',flexDirection:'column',overflow:'hidden'}
+          : {width:INSP,flex:'none',borderLeft:'1px solid rgba(255,255,255,0.10)',background:'#242427',display:'flex',flexDirection:'column'},
+        _pane: Math.round(paneW), _scale: s.toFixed(2),
+      };
+    };
+    const raw = [
+      {id:'1a',title:'1600pt · 全部並ぶ',W:1600,H:1000,sidebar:true,overlay:false,split:true,after:true},
+      {id:'1b',title:'1000pt · 右サイドバーが重ね表示',W:1000,H:700,sidebar:true,overlay:true,split:true},
+      {id:'1e',title:'1200pt · 並んで表示（分割の区画が 320pt を割る）',W:1200,H:800,sidebar:true,overlay:false,split:true},
+      {id:'1c',title:'1200pt · 左サイドバーを隠す',W:1200,H:800,sidebar:false,overlay:false,split:true},
+      {id:'1d',title:'子タブの「＋」メニューを開いたところ',W:1200,H:620,sidebar:true,overlay:false,split:false,menu:true},
+    ];
+    const frames = raw.map(mk).map(f => {
+      const cap = {
+        '1a':`サイドバー 260 ＋ 中央 1040（各区画 ${f._pane}）＋ インスペクタ 300。iPhone は区画の高さで決まり、等倍の ${f._scale} 倍。ツリーの選択行（file-tree.md）は左の区画で操作中のファイルタブと対応する。`,
+        '1b':`インスペクタ 300 を並べると中央は 440pt で、480pt を下回る。そのためインスペクタは浮いたカード（幅 280）になり、中央は 740（各区画 ${f._pane}）。カードは右の区画のシミュレーターに重なる（未決の論点 3）。iPhone は ${f._scale} 倍。`,
+        '1e':`サイドバー 260 ＋ 中央 640（各区画 ${f._pane}）＋ インスペクタ 300。中央は 480pt 以上あるので重ね表示にならない。分割した各区画は、分割の最小幅 320pt を下回る（未決の論点 2）。iPhone は ${f._scale} 倍。`,
+        '1c':`中央 900（各区画 ${f._pane}）＋ インスペクタ 300。信号機ボタンとサイドバーの表示ボタンがツールバーへ移る。iPhone は ${f._scale} 倍。`,
+        '1d':'分割前。メニューの最下段に「シミュレーター ⌃⌘Y」が増える（ホバー中）。既存の 4 項目と区切り線で分け、選ぶと操作中の区画にタブが開く。右に開くときは開いた後に ⌘\ で分割する。',
+      }[f.id];
+      return {...f, caption:cap};
+    });
+    const sess = [['ファイルツリーをインスペクタに追加','Cl','実行中',true],['Markdown 往復テストを追加','Cx','承認待ち'],['シミュレーター関門の検証','Cl','18分']];
+    const sessions = sess.map(([t,a,m,sel]) => ({t,a,m,
+      row:{display:'flex',alignItems:'center',gap:7,height:26,padding:'0 8px 0 26px',borderRadius:6,background:sel?'rgba(224,136,101,0.24)':'transparent'},
+      ms:{fontSize:11,flex:'none',fontWeight:m==='承認待ち'?600:400,color:m==='承認待ち'?'#F4BD68':'#8E8E94'}}));
+    const T = [
+      ['.github',0,'d'],['docs',0,'o'],['adr',1,'d'],['guides',1,'o'],['file-tree.md',2,'f',1],['ios-simulator.md',2,'f'],['markdown-editing.md',2,'f'],['README.md',1,'f'],
+      ['macos',0,'o'],['App',1,'d'],['Packages',1,'o'],['DashboardFeature',2,'o'],['Sources',3,'o'],['DashboardFeature',4,'o'],['Files',5,'o'],
+      ['FileTreeLoader.swift',6,'f'],['FileTreeModel.swift',6,'f'],['FileTreeRows.swift',6,'f'],['FileTreeView.swift',6,'f'],['Tabs',5,'d'],['Tests',3,'d'],['Package.swift',3,'f'],
+      ['DesignSystem',2,'d'],['SessionFeature',2,'d'],['SimulatorBridgeKit',2,'d'],['project.yml',1,'f'],['scripts',0,'d'],['.gitignore',0,'f'],['LICENSE',0,'f'],['README.md',0,'f'],
+    ];
+    const tree = T.map(([name,depth,k,sel]) => ({name, dir:k!=='f', file:k==='f', chevCh:k==='f'?'':'›',
+      aria:`${name}、${k==='f'?'ファイル':'フォルダ'}、レベル ${depth+1}${k==='o'?'、展開':k==='d'?'、折りたたみ':''}${sel?'、選択中':''}`,
+      chev:{width:12,flex:'none',textAlign:'center',fontSize:13,color:'#8E8E94',transform:k==='o'?'rotate(90deg)':'none'},
+      s:{display:'flex',alignItems:'center',gap:5,height:28,flex:'none',padding:`0 6px 0 ${4+depth*14}px`,borderRadius:6,fontSize:13,color:k==='f'?'#F2F2F4':'#F2F2F4',background:sel?'rgba(255,255,255,0.09)':'transparent'}}));
+    const menuItems = [['Cl','会話（このセッション）',''],['>_','ターミナル（この worktree で）','⌃⌘T'],['±','変更一覧 · 差分','⌃⌘E'],['{}','ファイルを開く…','⌘P'],['','シミュレーター','⌃⌘Y',true]].map(([g,t,k,sim]) => ({g,t,k,isSim:!!sim,sep:!!sim,
+      s:{display:'flex',alignItems:'center',gap:6,height:26,padding:'0 10px',borderRadius:5,color:sim?'#fff':'#F2F2F4',background:sim?'#B4552F':'transparent'}}));
+    const iosRows = [['ファイルツリーをインスペクタに追加','ツバキ · Claude Code','実行中','rgba(60,60,67,0.6)'],['Markdown 往復テストを追加','アザミ · Codex','承認待ち','#C26A00'],['シミュレーター関門の検証','ボタン · Claude Code','待機','rgba(60,60,67,0.6)']].map(([t,sub,l,c],i) => ({t,sub,l,
+      s:{display:'flex',alignItems:'center',gap:12,padding:'11px 16px',boxShadow:i?'inset 0 0.5px 0 rgba(60,60,67,0.29)':'none'},
+      ls:{fontSize:15,color:c,fontWeight:l==='承認待ち'?600:400,flex:'none'}}));
+    const done = {fontSize:12.5,color:'#1D1D1F'}, later = {fontSize:12.5,color:'#75757B'};
+    const R = (id,t,ok=true) => ({row:true,id,t,ts:ok?done:later});
+    const reqs = [
+      {head:true,t:'ファイルツリー・Markdown・HTML'},
+      R('FR-1','インスペクタ上部の切り替えの 2 番目「ファイル」。その下にルートのパス（先頭を省略）とブランチ名'),
+      R('FR-2','ツリーの行の開閉矢印。フォルダ先・自然順で並べた'),
+      R('FR-3','クリックで開いた先 = 左の区画の file-tree.md（操作中の区画）'),
+      R('FR-5','ツリーの file-tree.md 行の選択の塗り'),
+      R('FR-7','ルート見出しの右の更新ボタン'),
+      R('FR-8','ファイル帯の「レンダリング / ソース」'),
+      R('他','FR-4・6・9〜16 は後続の画面で描く（右クリック、空状態、ブロック編集、HTML、終了確認）',false),
+      {head:true,t:'iOS シミュレーター'},
+      R('FR-1','子タブ「シミュレーター」と ＋ メニュー（1d）、帯の端末メニュー'),
+      R('FR-3','右の区画の画面。縦横比を保って区画の高さに合わせる'),
+      R('FR-6','帯のホーム・スクリーンショット・停止…'),
+      R('他','FR-2・4・5・7〜9 は後続の画面で描く（起動、入力、非対応、共存）',false),
+    ];
+    const points = [
+      {n:'1',t:'ツリーは 300pt で窮屈にならない',
+        body:'このリポジトリで深い …/DashboardFeature/Files/FileTreeView.swift はレベル 7。1 段 14pt の字下げで 84pt、矢印とアイコンで 32pt を使っても、幅 300 なら名前に約 150pt（英数字で約 20 字）残る。260pt まで縮めると約 110pt になり、FileTreeLoader.swift が省略され始める。',
+        opts:[{k:'A',v:'字下げを 14pt に固定し、長い名前は中央を省略する（FileTree…Loader.swift）。全名はツールチップと VoiceOver で出す。'},{k:'B',v:'「ファイル」タブを選んでいる間だけ幅の既定を 340pt にする。幅の記憶（pane.inspectorWidth）がタブごとになるため、既存の挙動が変わる。'}],
+        rec:'A。B は NFR-6（幅決定を変えない）に触れる。'},
+      {n:'2',t:'未決: 1200pt で左右に分割すると各区画が 320pt を下回る',
+        body:'サイドバー 260・インスペクタ 300 のとき、幅 1200pt では中央が 640pt になる。中央は 480pt 以上なので幅の規則（PaneWidthPolicy）では重ね表示にならず、並んで表示される（1e）。このとき左右に分割した各区画は 319.5pt で、分割の最小幅 320pt を下回る。この場合の扱いは設計書に書かれていない。',
+        opts:[], rec:''},
+      {n:'3',t:'未決: 重ね表示のカードが右の区画を覆う',
+        body:'中央が 480pt を下回ると（1b、1000pt）、インスペクタは浮いたカードになり、右の区画（シミュレーター）の大部分を覆う。カードと、WKWebView・端末画面の NSView との前後関係は未検証（ファイル側 §3.5）。',
+        opts:[], rec:''},
+    ];
+    return {frames, sessions, tree, menuItems, iosRows, reqs, points};
+  }
+}
+</script>
+</body>
+</html>

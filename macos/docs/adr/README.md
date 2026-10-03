@@ -12,6 +12,8 @@ last-verified: 2026-09-14
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0179 | [iOS シミュレーターの画面内表示は、非公開部品を XPC サービスに隔離して使う](0179-embedded-ios-simulator-via-xpc-and-private-frameworks.md) | accepted |
+| 0178 | [ファイルツリーはインスペクタのタブに置き、マークダウンと HTML は既存のファイルタブで表示・編集する](0178-file-explorer-markdown-and-html-in-file-tabs.md) | accepted |
 | 0177 | [Claude / Codex / Cursor のサブエージェント表示を共通化する](0177-shared-subagent-presentation-across-agents.md) | accepted |
 | 0176 | [Control API のモデル変更を codex にも通す（2系統の経路を outcome で束ねる）](0176-control-api-model-routing-covers-codex.md) | accepted |
 | 0175 | [回答本文と処理詳細を意味別に分けて表示する](0175-transcript-answer-and-process-separation.md) | accepted |

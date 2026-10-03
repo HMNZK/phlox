@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+body{margin:0;background:#E6E6E9;}
+a{color:#A94A28;text-decoration:none;}
+a:hover{color:#7E3518;text-decoration:underline;}
+</style>
+</helmet>
+<section data-screen-label="4 Markdown のブロック編集" style="padding:64px;display:flex;flex-direction:column;gap:40px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:980px;">
+    <div style="font-size:12px;font-weight:600;color:#5B5B60;">4 · ファイルの子タブ（レンダリング表示）</div>
+    <div style="font-size:26px;font-weight:700;">Markdown のブロック編集</div>
+    <div style="font-size:14px;line-height:1.6;color:#5B5B60;text-wrap:pretty;">見出し・段落・リスト・表・コードを 1 ブロックずつ描き、クリックしたブロックだけをその場で原文の入力欄に変える。書式ツールバーは無い。保存される Markdown は、触ったブロック以外 1 バイトも変わらない。</div>
+  </div>
+
+  <sc-for list="{{ groups }}" as="g" hint-placeholder-count="4">
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div style="font-size:16px;font-weight:700;">{{ g.title }}</div>
+      <sc-if value="{{ g.lead }}"><div style="font-size:13px;line-height:1.6;color:#3A3A3E;max-width:980px;text-wrap:pretty;">{{ g.lead }}</div></sc-if>
+      <div style="display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start;">
+        <sc-for list="{{ g.panels }}" as="p" hint-placeholder-count="3">
+          <div id="{{ p.id }}" style="display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;align-items:baseline;gap:8px;">
+              <span style="font-size:12px;font-weight:700;color:#fff;background:#1D1D1F;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;">{{ p.id }}</span>
+              <span style="font-size:14px;font-weight:600;">{{ p.title }}</span>
+              <sc-if value="{{ p.rec }}"><span style="font-size:11px;font-weight:700;color:#A94A28;">推奨</span></sc-if>
+            </div>
+            <div style="{{ p.stage }}">
+              <sc-if value="{{ p.chrome }}">
+                <div role="tablist" aria-label="このセッションのタブ" style="height:32px;flex:none;display:flex;align-items:center;gap:2px;padding:0 10px;border-bottom:1px solid rgba(255,255,255,0.10);">
+                  <span style="height:24px;padding:0 10px;border-radius:6px;font-size:12px;color:#ABABB1;display:flex;align-items:center;">会話</span>
+                  <span style="height:24px;padding:0 10px;border-radius:6px;font-size:12px;color:#ABABB1;display:flex;align-items:center;">ターミナル</span>
+                  <span style="height:24px;padding:0 10px;border-radius:6px;font-size:12px;color:#ABABB1;display:flex;align-items:center;">変更 4</span>
+                  <span role="tab" aria-selected="true" style="height:24px;padding:0 10px;border-radius:6px;font-size:12px;font-weight:600;background:rgba(255,255,255,0.09);display:flex;align-items:center;gap:6px;">{{ p.file }}<sc-if value="{{ p.dirty }}"><span aria-label="未保存" style="width:6px;height:6px;border-radius:3px;background:#F2F2F4;"></span></sc-if></span>
+                </div>
+                <div role="toolbar" aria-label="{{ p.path }}" style="height:30px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;background:#242427;border-bottom:1px solid rgba(255,255,255,0.10);">
+                  <span title="{{ p.path }}" aria-label="{{ p.path }}" style="flex:1;min-width:40px;font-size:11px;color:#ABABB1;font-family:ui-monospace,'SF Mono',Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.pathShown }}</span>
+                  <sc-if value="{{ p.reason }}"><span role="status" style="display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap;min-width:0;overflow:hidden;"><span style="width:13px;height:13px;border-radius:50%;box-shadow:inset 0 0 0 1.2px #ABABB1;font-size:9px;font-weight:700;color:#ABABB1;display:flex;align-items:center;justify-content:center;flex:none;font-family:Georgia,serif;font-style:italic;">i</span><span style="overflow:hidden;text-overflow:ellipsis;">{{ p.reason }}</span></span></sc-if>
+                  <div role="radiogroup" aria-label="表示" aria-description="⌃⌘M で切り替え" style="display:flex;padding:2px;border-radius:6px;background:rgba(255,255,255,0.08);gap:1px;flex:none;">
+                    <span role="radio" aria-checked="true" style="height:18px;padding:0 8px;border-radius:4px;font-size:11px;display:flex;align-items:center;background:#3A3A3E;box-shadow:0 0.5px 1.5px rgba(0,0,0,0.2);">レンダリング</span>
+                    <span role="radio" aria-checked="false" aria-disabled="{{ p.blockedAttr }}" style="{{ p.srcStyle }}">ソース</span>
+                  </div>
+                  <sc-if value="{{ p.dirty }}"><span style="display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap;flex:none;"><span style="width:6px;height:6px;border-radius:3px;background:#F2F2F4;"></span>未保存</span></sc-if>
+                  <span role="button" aria-disabled="{{ p.saveDisabledAttr }}" aria-label="保存" aria-description="⌘S" style="{{ p.saveStyle }}">保存<span style="font-size:10px;opacity:0.75;">⌘S</span></span>
+                </div>
+              </sc-if>
+
+              <div role="document" aria-label="{{ p.file }}" style="{{ p.docStyle }}">
+                <sc-if value="{{ p.status }}"><div role="status" style="position:absolute;left:8px;bottom:8px;max-width:calc(100% - 16px);display:flex;align-items:center;gap:7px;height:24px;padding:0 9px;border-radius:6px;background:#2F2F33;color:#F2F2F4;box-shadow:0 4px 14px rgba(0,0,0,0.35),0 0 0 0.5px rgba(255,255,255,0.16);font-size:11px;white-space:nowrap;overflow:hidden;z-index:4;"><sc-if value="{{ p.status.tab }}"><span style="width:9px;height:11px;border-radius:2px;box-shadow:inset 0 0 0 1.2px #ABABB1;flex:none;"></span></sc-if><sc-if value="{{ p.status.verb }}"><span style="font-weight:600;flex:none;">{{ p.status.verb }}</span></sc-if><sc-if value="{{ p.status.url }}"><span style="color:#ABABB1;font-family:ui-monospace,'SF Mono',Menlo,monospace;overflow:hidden;text-overflow:ellipsis;">{{ p.status.url }}</span></sc-if><sc-if value="{{ p.status.text }}"><span>{{ p.status.text }}</span></sc-if></div></sc-if>
+                <div style="max-width:660px;display:flex;flex-direction:column;gap:6px;">
+                  <sc-for list="{{ p.blocks }}" as="b" hint-placeholder-count="10">
+                    <sc-if value="{{ b.editing }}">
+                      <div style="display:flex;flex-direction:column;gap:4px;margin:2px -10px;">
+                        <div role="textbox" aria-multiline="true" aria-label="{{ b.editAria }}" aria-description="{{ b.editDesc }}" style="{{ b.edStyle }}">
+                          <sc-for list="{{ b.raw }}" as="l"><div style="{{ l.s }}">{{ l.t }}<sc-if value="{{ l.caret }}"><span style="display:inline-block;width:1.5px;height:14px;background:#F2F2F4;vertical-align:-2px;margin-left:1px;"></span></sc-if></div></sc-for>
+                          <sc-if value="{{ b.scroll }}"><span style="position:absolute;right:3px;top:6px;width:4px;height:80%;border-radius:2px;background:rgba(255,255,255,0.28);"></span></sc-if>
+                        </div>
+                        <sc-if value="{{ b.hint }}"><div style="display:flex;justify-content:flex-end;gap:10px;font-size:11px;color:#8E8E94;padding-right:2px;">{{ b.hint }}</div></sc-if>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ b.shown }}">
+                      <div role="{{ b.role }}" aria-label="{{ b.label }}" aria-description="{{ b.gdesc }}" style="{{ b.ws }}">
+                        <sc-if value="{{ b.isFm }}"><div style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;line-height:1.7;color:#ABABB1;white-space:pre-wrap;background:#2B2B2F;border-radius:6px;padding:7px 10px;position:relative;"><span style="position:absolute;top:6px;right:9px;font-family:-apple-system,'Hiragino Sans',sans-serif;font-size:10px;color:#8E8E94;">front matter</span><sc-for list="{{ b.lines }}" as="l"><div>{{ l }}</div></sc-for></div></sc-if>
+                        <sc-if value="{{ b.isRaw }}"><div style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;line-height:1.7;color:#8E8E94;white-space:pre-wrap;border-radius:6px;padding:7px 10px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);position:relative;"><span style="position:absolute;top:6px;right:9px;font-family:-apple-system,'Hiragino Sans',sans-serif;font-size:10px;color:#8E8E94;">原文</span><sc-for list="{{ b.lines }}" as="l"><div>{{ l }}</div></sc-for></div></sc-if>
+                        <sc-if value="{{ b.isH1 }}"><div role="heading" aria-level="1" aria-description="{{ b.desc }}" style="font-size:24px;font-weight:700;line-height:1.3;padding:2px 0;">{{ b.text }}</div></sc-if>
+                        <sc-if value="{{ b.isH2 }}"><div role="heading" aria-level="2" aria-description="{{ b.desc }}" style="font-size:16px;font-weight:600;line-height:1.4;padding-top:8px;">{{ b.text }}</div></sc-if>
+                        <sc-if value="{{ b.isP }}"><div style="font-size:13px;line-height:1.7;text-wrap:pretty;"><sc-for list="{{ b.parts }}" as="r"><sc-if value="{{ r.link }}"><span role="link" tabindex="0" aria-description="{{ r.desc }}" style="{{ r.s }}">{{ r.t }}</span></sc-if><sc-if value="{{ r.plain }}"><span style="{{ r.s }}">{{ r.t }}</span></sc-if></sc-for></div></sc-if>
+                        <sc-if value="{{ b.isUl }}"><div style="display:flex;flex-direction:column;gap:2px;font-size:13px;line-height:1.7;"><sc-for list="{{ b.items }}" as="it"><div style="display:flex;gap:8px;"><span style="color:#8E8E94;">•</span><span><sc-for list="{{ it }}" as="r"><sc-if value="{{ r.link }}"><span role="link" tabindex="0" aria-description="{{ r.desc }}" style="{{ r.s }}">{{ r.t }}</span></sc-if><sc-if value="{{ r.plain }}"><span style="{{ r.s }}">{{ r.t }}</span></sc-if></sc-for></span></div></sc-for></div></sc-if>
+                        <sc-if value="{{ b.isCode }}"><div style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;line-height:1.7;background:#2B2B2F;border-radius:6px;padding:8px 12px;white-space:pre;overflow:hidden;"><sc-for list="{{ b.lines }}" as="l"><div>{{ l }}</div></sc-for></div></sc-if>
+                        <sc-if value="{{ b.isTable }}"><div style="border-radius:6px;box-shadow:0 0 0 1px rgba(255,255,255,0.14);overflow:hidden;font-size:12px;"><sc-for list="{{ b.rows }}" as="tr"><div style="{{ tr.s }}"><span style="padding:6px 10px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;">{{ tr.a }}</span><span style="padding:6px 10px;">{{ tr.b }}</span></div></sc-for></div></sc-if>
+                        <sc-if value="{{ b.isEmpty }}"><div style="font-size:13px;line-height:1.7;color:#8E8E94;">クリックして書き始める</div></sc-if>
+                        <sc-if value="{{ b.badge }}"><span style="position:absolute;top:-24px;right:0px;font-size:10.5px;color:#F2F2F4;background:#3A3A3E;border-radius:4px;padding:1px 6px;box-shadow:0 0 0 0.5px rgba(255,255,255,0.14);">{{ b.badge }}</span></sc-if>
+                      </div>
+                    </sc-if>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+            <div style="{{ p.capStyle }}">{{ p.caption }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-for>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:24px;max-width:1500px;">
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:16px;font-weight:700;">キーボードと VoiceOver</div>
+      <div style="background:#fff;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,0.08);display:flex;flex-direction:column;font-size:12.5px;line-height:1.5;">
+        <sc-for list="{{ keys }}" as="k" hint-placeholder-count="7">
+          <div style="display:grid;grid-template-columns:104px 1fr;gap:10px;padding:7px 14px;border-top:1px solid rgba(0,0,0,0.06);"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;font-weight:600;">{{ k.k }}</span><span style="text-wrap:pretty;">{{ k.v }}</span></div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:16px;font-weight:700;">要件対応表</div>
+      <div style="background:#fff;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,0.08);display:flex;flex-direction:column;font-size:12.5px;line-height:1.5;">
+        <sc-for list="{{ reqs }}" as="q" hint-placeholder-count="8">
+          <div style="display:grid;grid-template-columns:72px 1fr;gap:10px;padding:7px 14px;border-top:1px solid rgba(0,0,0,0.06);"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;font-weight:600;">{{ q.id }}</span><span style="{{ q.ts }}">{{ q.t }}</span></div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px;max-width:1100px;">
+    <div style="font-size:20px;font-weight:700;">論点</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,500px),1fr));gap:16px;">
+      <sc-for list="{{ points }}" as="pt" hint-placeholder-count="2">
+        <div style="background:#fff;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,0.08);padding:16px 18px;display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;gap:10px;align-items:baseline;"><span style="font-size:12px;font-weight:700;color:#A94A28;font-family:ui-monospace,'SF Mono',Menlo,monospace;">{{ pt.n }}</span><span style="font-size:15px;font-weight:600;">{{ pt.t }}</span></div>
+          <div style="font-size:13px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;">{{ pt.body }}</div>
+          <sc-for list="{{ pt.opts }}" as="o"><div style="display:grid;grid-template-columns:28px 1fr;gap:6px;font-size:12.5px;line-height:1.6;"><span style="font-weight:700;color:#5B5B60;">{{ o.k }}</span><span style="text-wrap:pretty;">{{ o.v }}</span></div></sc-for>
+          <div style="font-size:12.5px;line-height:1.6;padding-top:4px;border-top:1px solid rgba(0,0,0,0.08);"><span style="font-weight:700;">提案: </span>{{ pt.rec }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const font = '-apple-system,BlinkMacSystemFont,"SF Pro Text","Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif';
+    const tipStyle = {position:'absolute',left:0,top:'calc(100% + 6px)',whiteSpace:'nowrap',background:'#2F2F33',borderRadius:6,boxShadow:'0 6px 18px rgba(0,0,0,0.5), 0 0 0 0.5px rgba(255,255,255,0.16)',padding:'5px 9px',fontSize:11.5,lineHeight:1.5,color:'#F2F2F4',zIndex:5,textDecoration:'none',fontWeight:400};
+    const txt = (t, o={}) => ({t, tip:o.tip||'', link:!!o.link, plain:!o.link, desc:o.href?(/^https?:/.test(o.href)?`${o.href}、ブラウザで開く`:`${o.href}、ファイルタブで開く`):'', tipStyle:o.tipWide?{...tipStyle,whiteSpace:'normal',width:280,left:'auto',right:0}:tipStyle,
+      s:{position:o.tip?'relative':'static',
+        color:o.link?'#F0A383':'inherit',textDecoration:o.link&&o.hover?'underline':'none',
+        background:o.sel?'rgba(224,136,101,0.30)':'transparent',cursor:o.link?'pointer':'text'}});
+    const RAW = {
+      fm:['---','title: phlox-oss','description: 複数の AI コーディングエージェントを 1 つの窓で動かす','---'],
+      p1:['Claude Code・Codex・Cursor のセッションを並べて走らせ、承認待ちと','質問だけを前に出す macOS アプリです。詳しくは[設計書][design]を参照してください。','','[design]: docs/architecture/overview.md'],
+      table:['| パッケージ | 役割 |','|---|---|','| DashboardFeature | メインウィンドウ・タブ・インスペクタ |','| SessionFeature | 会話の描画と承認 |','| DesignSystem | 色・文字・部品 |','','[ci]: .github/workflows/ci.yml','[contributing]: CONTRIBUTING.md','[license]: LICENSE','[security]: SECURITY.md','[releases]: https://github.com/phlox-oss/phlox/releases','[discussions]: https://github.com/phlox-oss/phlox/discussions'],
+    };
+    const blocks0 = (st={}) => [
+      {k:'fm',key:'fm',lines:RAW.fm,aria:'front matter'},
+      {k:'h1',key:'h1',text:'Phlox',aria:'見出し 1、Phlox'},
+      {k:'p',key:'p1',aria:'段落',parts:[txt('Claude Code・Codex・Cursor のセッションを並べて走らせ、承認待ちと質問だけを前に出す macOS アプリです。詳しくは',{sel:false}),txt('設計書',{link:true,href:'docs/architecture/overview.md',hover:st.link}),txt('を参照してください。')]},
+      {k:'h2',key:'h2a',text:'必要なもの',aria:'見出し 2、必要なもの'},
+      {k:'ul',key:'ul',aria:'リスト、3 項目',items:[[txt('macOS 15 以降')],[txt('Xcode 26.2 以降（iOS シミュレーター機能を使う場合）')],[txt('Claude Code',{link:true,href:'https://docs.claude.com/claude-code'}),txt(' などのエージェント CLI')]]},
+      {k:'h2',key:'h2b',text:'ビルド',aria:'見出し 2、ビルド'},
+      {k:'code',key:'code',lines:['cd macos','xcodebuild -scheme Phlox -configuration Debug build'],aria:'コード、sh'},
+      {k:'h2',key:'h2c',text:'パッケージ',aria:'見出し 2、パッケージ'},
+      {k:'table',key:'table',aria:'表、2 列 4 行',rows:[['パッケージ','役割',1],['DashboardFeature','メインウィンドウ・タブ・インスペクタ'],['SessionFeature','会話の描画と承認'],['DesignSystem','色・文字・部品']]},
+    ];
+    const edStyleFor = (variant, long) => {
+      const base = {position:'relative',fontFamily:'ui-monospace,"SF Mono",Menlo,monospace',fontSize:11,lineHeight:1.7,padding:'8px 12px',borderRadius:8,maxHeight:long?203:'none',overflow:'hidden',color:'#F2F2F4'};
+      if (variant === 'fill') return {...base,background:'#1A1A1C'};
+      if (variant === 'ring') return {...base,background:'transparent',boxShadow:'0 0 0 1px rgba(255,255,255,0.22)'};
+      return {...base,background:'#1A1A1C',boxShadow:'0 0 0 1px rgba(224,136,101,0.75), 0 0 0 4px rgba(224,136,101,0.22)'};
+    };
+    const build = (list, st={}) => list.map(b => {
+      const state = (st.states||{})[b.key] || '';
+      const editing = state === 'edit';
+      const ws = {position:'relative',padding:'3px 10px',margin:'0 -10px',borderRadius:6,
+        background:state==='hover'||state==='focus'?'rgba(255,255,255,0.045)':'transparent',
+        boxShadow:state==='focus'?'inset 0 0 0 2px rgba(224,136,101,0.65)':'none',
+        opacity:st.dimOthers&&!editing?0.45:1};
+      const rawSrc = (st.raw||{})[b.key] || RAW[b.key] || [];
+      const raw = rawSrc.map((t,i) => ({t:t||' ',caret:st.caretKey===b.key && i===st.caretLine,s:{whiteSpace:'pre-wrap',color:/^\[.+\]:/.test(t)?'#ABABB1':'#F2F2F4'}}));
+      const rows = (b.rows||[]).map(([a,c,h],i) => ({a,b:c,s:{display:'grid',gridTemplateColumns:'1fr 1.6fr',background:h?'#27272A':'transparent',fontWeight:h?600:400,borderTop:i?'1px solid rgba(255,255,255,0.10)':'none'}}));
+      return {...b, editing, shown:!editing, ws, raw, rows, scroll:editing && !!st.long, hint:editing?(st.hint ?? '⌘Return・Esc・ブロックの外をクリックで確定'):'',
+        edStyle:edStyleFor(st.variant, st.long), editAria:`${b.aria} の原文`, editDesc:'確定するには ⌘Return、Esc、またはブロックの外をクリック', desc:b.desc ?? '編集するには VO-Space',
+        role:(b.k==='h1'||b.k==='h2')?'presentation':'group', label:(b.k==='h1'||b.k==='h2')?'':b.aria, gdesc:(b.k==='h1'||b.k==='h2')?'':(b.desc ?? '編集するには VO-Space'),
+        badge:state==='focus'?'Return で編集':'',
+        isFm:b.k==='fm',isRaw:b.k==='raw',isH1:b.k==='h1',isH2:b.k==='h2',isP:b.k==='p',isUl:b.k==='ul',isCode:b.k==='code',isTable:b.k==='table',isEmpty:b.k==='empty'};
+    });
+    const P = (o) => {
+      const W = o.W ?? 760, H = o.H ?? 720;
+      const chrome = o.chrome !== false;
+      const saveDisabled = !o.dirty || !!o.blocked;
+      return {...o, chrome, file:o.file ?? 'README.md', path:o.path ?? 'README.md', pathShown:o.pathShown ?? o.path ?? 'README.md', saveDisabled, saveDisabledAttr:saveDisabled?'true':'false', blockedAttr:o.blocked?'true':'false', status:o.status ?? null,
+        stage:{width:W,height:H,display:'flex',flexDirection:'column',borderRadius:8,overflow:'hidden',background:'#1E1E20',color:'#F2F2F4',fontFamily:font,WebkitFontSmoothing:'antialiased',boxShadow:'0 0 0 0.5px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.18)'},
+        docStyle:{position:'relative',flex:1,minHeight:0,overflow:'hidden',padding:chrome?'20px 32px':'18px 28px'},
+        srcStyle:{height:18,padding:'0 8px',borderRadius:4,fontSize:11,display:'flex',alignItems:'center',color:o.blocked?'#6A6A70':'#ABABB1'},
+        saveStyle:{height:20,padding:'0 8px',borderRadius:5,fontSize:11,display:'flex',alignItems:'center',gap:5,flex:'none',whiteSpace:'nowrap',color:saveDisabled?'#8E8E94':'#F2F2F4',background:saveDisabled?'transparent':'#3A3A3E',boxShadow:'0 0 0 0.5px rgba(255,255,255,0.12)'},
+        capStyle:{maxWidth:W,fontSize:12.5,lineHeight:1.6,color:'#3A3A3E',textWrap:'pretty'},
+      };
+    };
+    const editedP1 = ['Claude Code・Codex・Cursor のセッションを並べて走らせ、承認待ちと','質問だけを前に出す macOS アプリです。詳しくは[設計書][design]を参照してください。','英語版は [README.en.md](README.en.md) にあります。','','[design]: docs/architecture/overview.md'];
+    const midBlocks = (st) => build(blocks0().slice(1,4), st);
+    const selBlocks = () => {
+      const b = blocks0();
+      b[2] = {...b[2], parts:[txt('Claude Code・Codex・Cursor のセッションを並べて走らせ、'),txt('承認待ちと質問だけを前に出す macOS アプリです。詳しくは設計書を参照してください。',{sel:true})]};
+      return build(b.slice(1,5));
+    };
+    const groups = [
+      {title:'通常と編集中', panels:[
+        P({id:'4a',title:'通常（リストにホバー）',blocks:build(blocks0(),{states:{ul:'hover'}}),caption:'ブロックにホバーすると、文字の外側まで広げた薄い面が出る。面はブロックの左右に 10pt はみ出すので、本文の左端は動かない。front matter は先頭の等幅のブロックとして出す。'}),
+        P({id:'4b',title:'段落を編集中',dirty:true,blocks:build(blocks0(),{states:{p1:'edit'},raw:{p1:editedP1},caretKey:'p1',caretLine:2}),caption:'クリックした段落だけが原文の入力欄になる。入力欄はブロックの外側に広げた面と accent の輪で示し、前後はレンダリングのまま。参照定義 [design] と空行は、この区間に含まれるので編集中にだけ見える。未確定の編集があるので帯は「未保存」になる（FR-10）。'}),
+        P({id:'4c',title:'front matter を編集中',blocks:build(blocks0(),{states:{fm:'edit'},caretKey:'fm',caretLine:2}),caption:'front matter は原文編集だけ（FR-12）。表示中と編集中で同じ等幅の文字なので、面と輪だけが変わる。まだ原文を変えていないので、帯は「未保存」にならない。'}),
+        P({id:'4d',title:'長いブロック（最大高さ）',blocks:build(blocks0().slice(5),{states:{table:'edit'},long:true,hint:'中をスクロール · ⌘Return・Esc・ブロックの外をクリックで確定'}),caption:'入力欄は最大 10 行（約 200pt）で止め、中をスクロールする。表の区間には、末尾の参照定義 6 行も含まれる（描画では見えない）ので、12 行あってスクロールしている。文書側のスクロールとは別。開いただけで変更していないので「未保存」は出ない。'}),
+      ]},
+      {title:'特別なブロックと帯', panels:[
+        P({id:'4e',title:'「原文」ブロック',file:'links.md',path:'docs/links.md',H:340,blocks:build([{k:'raw',key:'raw',aria:'原文',desc:'描画できる要素がありません。編集するには VO-Space',lines:['[design]: docs/architecture/overview.md','[adr-0090]: docs/adr/0090-inspector.md','[simulator]: docs/specs/embedded-ios-simulator.md']}]),caption:'参照定義だけの文書など、描画できる要素が無い区間。薄い原文で出し、右上に「原文」と書く。クリックで原文編集。'}),
+        P({id:'4f',title:'空の文書',file:'NOTES.md',path:'docs/NOTES.md',H:340,blocks:build([{k:'empty',key:'empty',aria:'空の文書',desc:'書き始めるには Return'}],{states:{empty:'hover'}}),caption:'空のブロックを 1 つだけ出す（ホバー中）。クリックか Return で入力欄になる。'}),
+        P({id:'4g',title:'確定できない',dirty:true,blocked:true,reason:'文書が先に変わったため確定できません',H:420,blocks:build(blocks0().slice(1,5),{states:{p1:'edit'},raw:{p1:editedP1},caretKey:'p1',caretLine:2,hint:'編集内容は残っています'}),caption:'帯に理由を出し、保存（⌘S）とソースへの切り替えを止める。入力欄は閉じず、書いた内容を残す。案内の文言も「確定」から「編集内容は残っています」に変える。'}),
+      ]},
+      {title:'描き分け', panels:[
+        P({id:'4h',title:'キーボード操作中',blocks:build(blocks0(),{states:{table:'focus'}}),caption:'↑↓ でブロックを移る。選んだブロックには、ホバーと同じ面に accent の輪を重ね、右上に「Return で編集」を出す。編集を確定すると、この状態に戻る。'}),
+        P({id:'4i',title:'リンクにホバー',status:{tab:true,verb:'ファイルタブで開く',url:'docs/architecture/overview.md'},blocks:build(blocks0(),{link:true}).map((b,i) => b.key==='p1'?{...b,parts:blocks0({link:true})[2].parts.map(x=>x)}:b),caption:'リンクの上ではブロックの面を出さず、下線を出す。行き先は文書の左下に出す（HTML の 5c と同じ）。クリックはリンクを開く（FR-11: 作業ツリー内の .md はファイルタブ、http(s) はブラウザ）。リンクの外をクリックすると編集を始める。'}),
+      ]},
+      {title:'論点 1 · 編集中のブロックの境目', lead:'同じ状態（段落を編集中）を 3 通りの見せ方で比べる。', panels:[
+        P({id:'4j',title:'面＋accent の輪',rec:true,chrome:false,W:560,H:300,blocks:midBlocks({states:{p1:'edit'},raw:{p1:editedP1},caretKey:'p1',caretLine:2}),caption:'4b と同じ。macOS の入力欄のフォーカスと同じ見え方。'}),
+        P({id:'4k',title:'面だけ',chrome:false,W:560,H:300,blocks:midBlocks({states:{p1:'edit'},raw:{p1:editedP1},caretKey:'p1',caretLine:2,variant:'fill'}),caption:'静かだが、コードブロックや front matter の面と見分けにくい。'}),
+        P({id:'4l',title:'前後を薄くする',chrome:false,W:560,H:300,blocks:midBlocks({states:{p1:'edit'},raw:{p1:editedP1},caretKey:'p1',caretLine:2,variant:'ring',dimOthers:true}),caption:'境目ははっきりするが、前後の文脈が読みにくくなる。'}),
+      ]},
+      {title:'論点 2 · ブロックをまたぐ選択', lead:'ドラッグがブロックの端を越えたときに限り、その場で案内を出す。', panels:[
+        P({id:'4m',title:'選択が端で止まったとき',status:{text:'ブロックをまたいで選ぶには、ソース表示に切り替えます（⌃⌘M）'},chrome:false,W:560,H:300,blocks:selBlocks(),caption:'選択はブロックの末尾で止まる。ポインタが次のブロックに入った時点で、文書の左下に 1 行の案内を出し、ドラッグをやめると消える。'}),
+      ]},
+    ];
+    const keys = [
+      {k:'↑ ↓',v:'ブロックを移る（4h）'},
+      {k:'Return',v:'選んだブロックの編集を始める。入力欄の先頭にカーソルを置く'},
+      {k:'⌘Return / Esc',v:'確定してブロックの選択に戻る'},
+      {k:'⌘Z',v:'編集中はブロック内の入力を取り消す。編集していないときは、確定済みの置き換えを 1 件ずつ取り消す'},
+      {k:'⌃⌘M',v:'ソース表示へ。編集中のブロックがあれば先に確定する'},
+      {k:'VoiceOver',v:'各ブロックに「編集」の操作。読み上げ名は種類だけ（例: 「段落」）、操作の説明は補足説明に分ける（「編集するには VO-Space」）。見出しは見出し、リンクはリンクとして読む'},
+      {k:'フォーカス',v:'編集を始めたら入力欄へ、確定したら元のブロックへ戻す'},
+    ];
+    const ok = {fontSize:12.5,color:'#1D1D1F'}, warn = {fontSize:12.5,color:'#75757B'};
+    const reqs = [
+      {id:'FR-8',t:'レンダリング表示が既定・帯の切り替え: 4a',ts:ok},
+      {id:'FR-9',t:'クリックで編集開始・その場の入力欄: 4b。キーボード: 4h。Esc・外クリック・⌘Return の手がかり: 4b の入力欄の下',ts:ok},
+      {id:'FR-10',t:'未確定の編集を未保存として扱う: 4b・4g の帯。編集を始めただけで原文が同じなら未保存にしない: 4c・4d',ts:ok},
+      {id:'FR-11',t:'リンクのクリックを優先: 4i',ts:ok},
+      {id:'FR-12',t:'front matter の表示と原文編集: 4a・4c',ts:ok},
+      {id:'§3.4',t:'「原文」ブロック: 4e。空の文書: 4f。確定できない: 4g。最大高さと内部スクロール: 4d',ts:ok},
+      {id:'§3.4',t:'ブロックをまたぐ選択の制限: 4m',ts:ok},
+      {id:'描かない',t:'書式ツールバー、ブロックの追加・並べ替え、タスクリストのクリック切り替え（スコープ外）',ts:warn},
+    ];
+    const points = [
+      {n:'1',t:'編集中のブロックの境目',
+        body:'入力欄は、表示中のブロックと同じ位置・同じ左端に出す。背景を左右に 10pt 広げ、本文の位置は動かさない。比べたのは、色の面だけ（4k）、前後を薄くする（4l）、面と輪の組み合わせ（4j）の 3 通り。',
+        opts:[{k:'4j',v:'入力欄の色（#1A1A1C）に、accent の輪（1pt＋外側 3pt の淡い輪）を足す。macOS の入力欄と同じ見え方なので、説明が無くても入力できる場所だと分かる。'},{k:'4k',v:'色の面だけ。コードブロックや front matter の面と区別しにくい。'},{k:'4l',v:'前後を半分の濃さにする。境目ははっきりするが、書いている文の前後が読みにくい。'}],
+        rec:'4j。accent を使うのは編集中のブロック 1 つだけなので、うるさくならない。手がかりは入力欄の下に 1 行（⌘Return・Esc・ブロックの外をクリックで確定）だけにする。'},
+      {n:'2',t:'ブロックをまたぐ選択の制限',
+        body:'最初から説明を出すと、ほとんどの人には要らない情報になる。制限に実際にぶつかったときだけ伝える。',
+        opts:[{k:'A',v:'ドラッグがブロックの端を越えたら、文書の左下に案内を 1 行出す（4m）。ドラッグをやめると消える。'},{k:'B',v:'⌘A で全体を選ぼうとしたときも同じ案内を出す。⌘A はブロック内の全選択として扱う。'},{k:'C',v:'帯の切り替えのツールチップに「ブロックをまたぐ選択・コピーはソース表示で」を常に書いておく。'}],
+        rec:'A と B を両方行い、C を補助にする。案内にボタンは置かず、⌃⌘M を書くだけにする。ボタンを置くと、ドラッグ中にクリックしにくい場所へ注意を向けさせてしまう。'},
+    ];
+    return {groups, keys, reqs, points};
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+body{margin:0;background:#E6E6E9;}
+a{color:#A94A28;text-decoration:none;}
+a:hover{color:#7E3518;text-decoration:underline;}
+</style>
+</helmet>
+<section data-screen-label="8 横断点検" style="padding:64px;display:flex;flex-direction:column;gap:48px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;max-width:1320px;">
+  <div style="display:flex;flex-direction:column;gap:6px;">
+    <div style="font-size:12px;font-weight:600;color:#5B5B60;">8 · 点検</div>
+    <div style="font-size:26px;font-weight:700;">モックの横断点検</div>
+    <div style="font-size:14px;line-height:1.6;color:#5B5B60;text-wrap:pretty;">対象は画面 1〜7（<a href="1%20Feature%20Placement.dc.html">置き場所</a>・<a href="2%20File%20Tree.dc.html">ファイルタブ</a>・<a href="3%20File%20Tab%20Band.dc.html">帯</a>・<a href="4%20Markdown%20Block%20Editing.dc.html">ブロック編集</a>・<a href="5%20HTML%20Preview.dc.html">HTML</a>・<a href="6%20Unsaved%20Changes%20Dialog.dc.html">未保存の確認</a>・<a href="7%20Simulator%20Tab.dc.html">シミュレーター</a>）。番号は各ページの見本の ID。</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:20px;font-weight:700;">1 · FR の置き場所</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,600px),1fr));gap:24px;align-items:start;">
+      <sc-for list="{{ frTables }}" as="tb" hint-placeholder-count="2">
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="font-size:14px;font-weight:600;">{{ tb.title }}</div>
+          <div style="background:#fff;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,0.08);display:flex;flex-direction:column;font-size:12.5px;line-height:1.5;">
+            <div style="display:grid;grid-template-columns:58px 1fr 1.25fr;gap:10px;padding:8px 14px;font-size:11px;font-weight:700;color:#75757B;"><span>FR</span><span>要件（要約）</span><span>置き場所</span></div>
+            <sc-for list="{{ tb.rows }}" as="r" hint-placeholder-count="9">
+              <div style="{{ r.s }}"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;font-weight:600;">{{ r.id }}</span><span style="text-wrap:pretty;">{{ r.req }}</span><span style="text-wrap:pretty;">{{ r.where }}<sc-if value="{{ r.gap }}"><span style="display:block;color:#8A5300;margin-top:2px;">{{ r.gap }}</span></sc-if></span></div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;max-width:980px;text-wrap:pretty;">茶色の文字は、置けなかった部分とその理由。画面に現れない動作（展開状態の保持・取得の 1 本化など）は「画面に出ない」と書いた。</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:20px;font-weight:700;">2 · 今の Phlox の値から外れている箇所</div>
+    <div style="background:#fff;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,0.08);display:flex;flex-direction:column;font-size:12.5px;line-height:1.55;">
+      <div style="display:grid;grid-template-columns:80px 1.3fr 1fr 1.3fr;gap:12px;padding:8px 14px;font-size:11px;font-weight:700;color:#75757B;"><span>種類</span><span>モックの値と場所</span><span>基準の値</span><span>直し方</span></div>
+      <sc-for list="{{ devs }}" as="d" hint-placeholder-count="12">
+        <div style="display:grid;grid-template-columns:80px 1.3fr 1fr 1.3fr;gap:12px;padding:8px 14px;border-top:1px solid rgba(0,0,0,0.06);"><span style="font-weight:600;">{{ d.k }}</span><span style="text-wrap:pretty;">{{ d.mock }}</span><span style="text-wrap:pretty;color:#5B5B60;">{{ d.base }}</span><span style="text-wrap:pretty;">{{ d.fix }}</span></div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:20px;font-weight:700;">3 · ライトテーマでの確認</div>
+    <div style="font-size:13px;line-height:1.6;color:#3A3A3E;max-width:980px;text-wrap:pretty;">ダークの見本を、ライトの値（ウィンドウ #FFFFFF・パネル #F8F8F9・文字 #1D1D1F / #5B5B60 / #75757B・accent #D97757）に置き換えて描いた。見つけた問題は各見本の下に書き、見本には直した後の値を使っている。</div>
+    <div style="display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start;">
+
+      <div id="L1" style="display:flex;flex-direction:column;gap:10px;width:300px;">
+        <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;color:#fff;background:#1D1D1F;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;">L1</span><span style="font-size:14px;font-weight:600;">ファイルツリー</span></div>
+        <div style="width:300px;height:560px;background:#F8F8F9;border-radius:8px;overflow:hidden;box-shadow:0 0 0 0.5px rgba(0,0,0,0.25),0 10px 30px rgba(0,0,0,0.12);display:flex;flex-direction:column;color:#1D1D1F;">
+          <div style="padding:10px 12px 8px;"><div style="display:flex;padding:2px;border-radius:7px;background:rgba(0,0,0,0.065);gap:2px;"><span style="flex:1;text-align:center;height:22px;line-height:22px;font-size:12px;color:#5B5B60;">セッション</span><span style="flex:1;text-align:center;height:22px;line-height:22px;font-size:12px;font-weight:500;border-radius:5px;background:#FFFFFF;box-shadow:0 0.5px 1.5px rgba(0,0,0,0.2);">ファイル</span><span style="flex:1;text-align:center;height:22px;line-height:22px;font-size:12px;color:#5B5B60;">使用量</span></div></div>
+          <div style="height:48px;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:0 10px 8px 14px;border-bottom:1px solid rgba(0,0,0,0.10);"><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;"><span style="font-size:11px;color:#5B5B60;font-family:ui-monospace,'SF Mono',Menlo,monospace;">~/Projects/phlox-oss</span><span style="font-size:11px;font-family:ui-monospace,'SF Mono',Menlo,monospace;">feature/file-tree</span></div><span style="width:24px;height:22px;display:flex;align-items:center;justify-content:center;color:#5B5B60;"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M11 4.2 A4.8 4.8 0 1 0 11.4 7.5"></path><polyline points="11.2,1.5 11.2,4.4 8.3,4.4"></polyline></svg></span></div>
+          <div style="flex:1;overflow:hidden;padding:4px 8px;margin:2px 3px;border-radius:8px;box-shadow:inset 0 0 0 2px #D97757;display:flex;flex-direction:column;">
+            <sc-for list="{{ lightTree }}" as="r" hint-placeholder-count="14">
+              <div style="{{ r.s }}"><span style="{{ r.chev }}">{{ r.c }}</span><sc-if value="{{ r.dir }}"><svg width="15" height="12" viewBox="0 0 16 13" fill="none" stroke="#5B5B60" stroke-width="1.2" style="flex:none;"><path d="M1 2.4 V11.2 Q1 12 1.8 12 H14.2 Q15 12 15 11.2 V4.3 Q15 3.5 14.2 3.5 H7.4 L6 1.6 H1.8 Q1 1.6 1 2.4 Z"></path></svg></sc-if><sc-if value="{{ r.file }}"><span style="width:15px;display:flex;justify-content:center;flex:none;"><span style="width:10px;height:12px;border-radius:2px;box-shadow:inset 0 0 0 1.2px #75757B;"></span></span></sc-if><span style="{{ r.ns }}">{{ r.name }}</span><sc-if value="{{ r.meta }}"><span style="font-size:11px;color:#6E6E73;flex:none;">{{ r.meta }}</span></sc-if></div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">成り立つ。問題が 2 つあった。①ルート外のリンクを補助の文字色 #75757B で描くと、パネル #F8F8F9 との対比が 4.3:1 で基準の 4.5:1 を割る。ライトだけ #6E6E73（4.9:1）にする。②フォーカスの輪を accent の 60% にすると白の上で 2:1 になる。ライトは不透明の #D97757（3.0:1）にする。</div>
+      </div>
+
+      <div id="L2" style="display:flex;flex-direction:column;gap:10px;width:560px;">
+        <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;color:#fff;background:#1D1D1F;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;">L2</span><span style="font-size:14px;font-weight:600;">Markdown のブロック編集</span></div>
+        <div style="width:560px;height:420px;background:#FFFFFF;border-radius:8px;overflow:hidden;box-shadow:0 0 0 0.5px rgba(0,0,0,0.25),0 10px 30px rgba(0,0,0,0.12);display:flex;flex-direction:column;color:#1D1D1F;">
+          <div style="height:30px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;background:#F8F8F9;border-bottom:1px solid rgba(0,0,0,0.10);">
+            <span style="flex:1;font-size:11px;color:#5B5B60;font-family:ui-monospace,'SF Mono',Menlo,monospace;">README.md</span>
+            <div style="display:flex;padding:2px;border-radius:6px;background:rgba(0,0,0,0.065);gap:1px;"><span style="height:18px;padding:0 8px;border-radius:4px;font-size:11px;display:flex;align-items:center;background:#FFFFFF;box-shadow:0 0.5px 1.5px rgba(0,0,0,0.2);">レンダリング</span><span style="height:18px;padding:0 8px;font-size:11px;display:flex;align-items:center;color:#5B5B60;">ソース</span></div>
+            <span style="display:flex;align-items:center;gap:5px;font-size:11px;"><span style="width:6px;height:6px;border-radius:3px;background:#1D1D1F;"></span>未保存</span>
+            <span style="height:20px;padding:0 8px;border-radius:5px;font-size:11px;display:flex;align-items:center;gap:5px;background:#FFFFFF;box-shadow:0 0 0 0.5px rgba(0,0,0,0.16),0 0.5px 1px rgba(0,0,0,0.08);">保存<span style="font-size:10px;opacity:0.75;">⌘S</span></span>
+          </div>
+          <div style="padding:18px 32px;display:flex;flex-direction:column;gap:6px;max-width:500px;">
+            <div style="font-size:24px;font-weight:700;line-height:1.3;padding:2px 0;">Phlox</div>
+            <div style="display:flex;flex-direction:column;gap:4px;margin:2px -10px;">
+              <div style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;line-height:1.7;padding:8px 12px;border-radius:8px;background:#F8F8F9;box-shadow:0 0 0 1px #D97757,0 0 0 4px rgba(217,119,87,0.22);white-space:pre-wrap;">Claude Code・Codex・Cursor のセッションを並べて走らせ、承認待ちと
+質問だけを前に出す macOS アプリです。詳しくは[設計書][design]を参照してください。
+
+<span style="color:#5B5B60;">[design]: docs/architecture/overview.md</span></div>
+              <div style="display:flex;justify-content:flex-end;font-size:11px;color:#75757B;">⌘Return・Esc で確定</div>
+            </div>
+            <div style="font-size:16px;font-weight:600;padding-top:8px;">必要なもの</div>
+            <div style="padding:3px 10px;margin:0 -10px;border-radius:6px;background:rgba(0,0,0,0.04);font-size:13px;line-height:1.7;display:flex;flex-direction:column;"><span>• macOS 15 以降</span><span>• Xcode 26.2 以降（iOS シミュレーター機能を使う場合）</span></div>
+            <div style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;line-height:1.7;background:#F3F3F5;border-radius:6px;padding:8px 12px;">cd macos</div>
+          </div>
+        </div>
+        <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">成り立つ。ただし、入力欄の色（ライトは #FFFFFF）が本文の白と同じになり、面での区別が消える。入力欄だけパネルの色 #F8F8F9 にして、輪は不透明の #D97757 にした。コードブロックの #F3F3F5 とも区別できる。ホバーの面は rgba(0,0,0,0.04) で見える。</div>
+      </div>
+
+      <div id="L3" style="display:flex;flex-direction:column;gap:10px;width:520px;">
+        <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;color:#fff;background:#1D1D1F;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;">L3</span><span style="font-size:14px;font-weight:600;">シミュレーターの帯</span></div>
+        <div style="width:520px;height:520px;background:#FFFFFF;border-radius:8px;overflow:hidden;box-shadow:0 0 0 0.5px rgba(0,0,0,0.25),0 10px 30px rgba(0,0,0,0.12);display:flex;flex-direction:column;color:#1D1D1F;">
+          <div style="height:30px;flex:none;display:flex;align-items:center;gap:6px;padding:0 6px 0 8px;background:#F8F8F9;border-bottom:1px solid rgba(0,0,0,0.10);">
+            <span style="height:22px;padding:0 8px;border-radius:6px;background:rgba(0,0,0,0.065);font-size:11.5px;display:flex;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:50%;background:#1D1D1F;"></span>iPhone 17 Pro<span style="color:#5B5B60;">iOS 26.2</span><span style="font-size:9px;opacity:0.7;">▾</span></span>
+            <span style="font-size:11px;color:#5B5B60;">起動済み</span>
+            <span style="display:flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:5px;font-size:11px;box-shadow:inset 0 0 0 1px #D97757;"><span style="width:12px;height:8px;border-radius:2px;box-shadow:inset 0 0 0 1.1px currentColor;"></span>キー入力を端末に送信中</span>
+            <span style="flex:1;"></span>
+            <span style="width:26px;height:22px;display:flex;align-items:center;justify-content:center;color:#5B5B60;"><span style="width:11px;height:11px;border-radius:3px;box-shadow:inset 0 0 0 1.3px currentColor;"></span></span>
+            <span style="width:26px;height:22px;display:flex;align-items:center;justify-content:center;color:#5B5B60;"><span style="width:13px;height:10px;border-radius:2.5px;box-shadow:inset 0 0 0 1.3px currentColor;"></span></span>
+            <span style="width:26px;height:22px;display:flex;align-items:center;justify-content:center;color:#5B5B60;"><span style="width:9px;height:9px;border-radius:1.5px;background:currentColor;"></span></span>
+          </div>
+          <div style="flex:1;display:flex;justify-content:center;padding-top:22px;overflow:hidden;background:#F8F8F9;">
+            <div style="padding:3px;border-radius:40px;box-shadow:0 0 0 2px #D97757;height:420px;">
+              <div style="width:196px;height:420px;border-radius:30px;background:#F2F2F7;box-shadow:0 0 0 1px rgba(0,0,0,0.18),0 6px 18px rgba(0,0,0,0.14);overflow:hidden;padding:18px 14px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;color:#000;">
+                <span style="font-size:9px;font-weight:600;">9:41</span>
+                <span style="font-size:17px;font-weight:700;">セッション</span>
+                <span style="height:18px;border-radius:5px;background:rgba(118,118,128,0.12);font-size:9px;color:rgba(60,60,67,0.6);display:flex;align-items:center;padding:0 6px;">phlox</span>
+                <span style="height:60px;border-radius:7px;background:#fff;"></span><span style="height:60px;border-radius:7px;background:#fff;"></span><span style="flex:1;"></span><span style="height:40px;margin:0 -14px -18px;background:rgba(249,249,249,0.94);box-shadow:0 -0.5px 0 rgba(0,0,0,0.2);display:flex;justify-content:space-around;align-items:center;font-size:8px;color:#999;padding-bottom:6px;box-sizing:border-box;"><span style="color:#D9653B;">セッション</span><span>承認</span><span>設定</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">成り立つ。ただし、iOS の画面が明るいため、白いウィンドウの上では画面の縁が消える。ライトでは画面の周り（余白）をパネルの色 #F8F8F9 にし、画面の輪郭を rgba(0,0,0,0.18) に濃くした。送信中の印と輪は不透明の #D97757 にする。帯の停止ボタンは、ほかのボタンと同じ灰色のままで区別できる。</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:20px;font-weight:700;">4 · キーボードだけの操作経路</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,600px),1fr));gap:24px;align-items:start;">
+      <sc-for list="{{ paths }}" as="pa" hint-placeholder-count="2">
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="font-size:14px;font-weight:600;">{{ pa.title }}</div>
+          <div style="background:#fff;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,0.08);display:flex;flex-direction:column;font-size:12.5px;line-height:1.55;">
+            <sc-for list="{{ pa.steps }}" as="s" hint-placeholder-count="6">
+              <div style="display:grid;grid-template-columns:24px 120px 1fr;gap:10px;padding:8px 14px;border-top:1px solid rgba(0,0,0,0.06);">
+                <span style="font-weight:700;color:#75757B;">{{ s.n }}</span>
+                <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;font-weight:600;">{{ s.k }}</span>
+                <span style="text-wrap:pretty;">{{ s.v }}<sc-if value="{{ s.issue }}"><span style="display:block;margin-top:3px;color:#B4232A;font-weight:600;">{{ s.issue }}</span></sc-if><sc-if value="{{ s.fix }}"><span style="display:block;margin-top:2px;color:#1D1D1F;">直し方: {{ s.fix }}</span></sc-if></span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="background:#fff;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,0.08);padding:14px 16px;font-size:12.5px;line-height:1.65;max-width:980px;text-wrap:pretty;"><span style="font-weight:700;">全体に共通する抜け: </span>帯のボタン（保存・再読込・ホーム・停止など）と端末メニューの、キーボードのフォーカスの輪を描いていない。macOS の「キーボードナビゲーション」を有効にした利用者には標準の輪が出る前提だが、帯の部品は独自の見た目なので、輪（accent 2pt・角丸 6）を共通部品で付ける必要がある。</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:20px;font-weight:700;">5 · スコープ外の確認</div>
+    <div style="background:#fff;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,0.08);display:flex;flex-direction:column;font-size:12.5px;line-height:1.55;">
+      <sc-for list="{{ scope }}" as="s" hint-placeholder-count="14">
+        <div style="display:grid;grid-template-columns:100px 1fr 1.4fr;gap:12px;padding:8px 14px;border-top:1px solid rgba(0,0,0,0.06);"><span style="{{ s.vs }}">{{ s.v }}</span><span style="font-weight:600;text-wrap:pretty;">{{ s.k }}</span><span style="text-wrap:pretty;color:#3A3A3E;">{{ s.note }}</span></div>
+      </sc-for>
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const row = ([id, req, where, gap], i) => ({id, req, where, gap:gap||'', s:{display:'grid',gridTemplateColumns:'58px 1fr 1.25fr',gap:10,padding:'8px 14px',borderTop:'1px solid rgba(0,0,0,0.06)',background:gap?'rgba(227,154,45,0.06)':'transparent'}});
+    const fileFR = [
+      ['FR-1','ルートとブランチの表示','置き場所 1a、ファイルタブ 2e1〜2e4・2i'],
+      ['FR-2','展開と折りたたみ・自然順','ファイルタブ 2a'],
+      ['FR-3','クリックで操作中の区画に開く','置き場所 1a、ファイルタブ 2a','単体表示への切り替えと共通ターミナルの解除は画面に出ない'],
+      ['FR-4','右クリックメニュー 3 項目','ファイルタブ 2c'],
+      ['FR-5','開いているファイルの行を選択','ファイルタブ 2a・2b'],
+      ['FR-6','セッションに追従・空状態','ファイルタブ 2i','同じルートで展開状態を保つ動作は画面に出ない'],
+      ['FR-7','更新ボタン・展開時と保存時の読み直し','ファイルタブの見出し・2g','保存時の読み直しは画面に出ない'],
+      ['FR-8','.md の既定はレンダリング・切り替え','帯 3a〜3c、ブロック編集 4a'],
+      ['FR-9','クリックしたブロックだけを原文で編集','ブロック編集 4b・4h・4j'],
+      ['FR-10','未保存・⌘S・競合ダイアログ','帯 3b、ブロック編集 4b・4g（4c・4d は原文が同じなので未保存にしない）','競合ダイアログは既存のもの（Dialogs E1）を使うので描いていない'],
+      ['FR-11','リンク: .md はタブ、http(s) はブラウザ、他は無視','ブロック編集 4i（.md。行き先は文書の左下）','Markdown の http(s) と「無視」は描いていない。4i と同じ左下の表示で、文言だけ「ブラウザで開く」「開きません」に替える'],
+      ['FR-12','front matter','ブロック編集 4a・4c'],
+      ['FR-13','.html は閲覧専用、編集はソース','帯 3d、HTML 5a・5g'],
+      ['FR-14','下書きを表示・再読込','HTML 5e・帯の再読込'],
+      ['FR-15','作業ツリー内のリソース・リンク','HTML 5a・5c・5d','iframe の表示は描いていない（CSS と同じ扱いで、見た目の差が無い）'],
+      ['FR-16','終了・ウィンドウを閉じるときの確認','未保存の確認 6a〜6e'],
+    ].map(row);
+    const simFR = [
+      ['FR-1','子タブ（＋メニュー・⌃⌘Y）と端末の選択','置き場所 1d、シミュレーター 7a・7d。⌃⌘Y で開いた直後: 7r'],
+      ['FR-2','停止中の端末の「起動」','シミュレーター 7f・7g'],
+      ['FR-3','縦横比を保って表示','置き場所 1a、シミュレーター 7a・7n・7o'],
+      ['FR-4','タップ・スワイプ・スクロール','シミュレーター 7a・7c・7c2'],
+      ['FR-5','物理キーの送信・⌘V で貼り付け','シミュレーター 7b・7n','貼り付けの失敗（pbcopy の失敗）を描いていない。帯に短い理由を出す想定'],
+      ['FR-6','ホーム・スクリーンショット・停止','シミュレーターの帯・7e','スクリーンショットの後の「Finder で表示」の通知を描いていない'],
+      ['FR-7','同じ端末の取得は 1 本','—','画面に出ない'],
+      ['FR-8','非対応・失敗の理由と「Simulator.app で開く」','シミュレーター 7j〜7m。「未確認でも試す」の後: 7j2','部品の読み込み失敗（シンボルの欠落）は 7j と同じ形で文言だけ替える。別の見本は作っていない'],
+      ['FR-9','Simulator.app との共存','シミュレーター 7d・7e'],
+    ].map(row);
+    const frTables = [{title:'ファイルツリー・Markdown・HTML（FR-1〜16）',rows:fileFR},{title:'iOS シミュレーター（FR-1〜9）',rows:simFR}];
+    const devs = [
+      {k:'間隔',mock:'ツリーの字下げ 14pt（置き場所・ファイルタブ）',base:'8pt グリッド（12 / 16）',fix:'12pt にする。深さ 7 で名前の幅が 14pt 増える'},
+      {k:'間隔',mock:'行や帯の中の gap 5・6・7pt、余白 10・14・18・28pt（全ページ）',base:'2 / 4 / 8 / 12 / 16 / 24 / 32',fix:'gap は 4 か 8、余白は 8・12・16・24 に丸める。既存の handoff も 6・10 を使っているので、DesignSystem の実値で揃える'},
+      {k:'文字',mock:'11.5pt（端末メニュー・ツールチップ・ダイアログ本文）、10.5・10pt（キーの表記・バッジ）',base:'13 / 12 / 11 / 等幅 11 / 14',fix:'11.5 → 12、10.5 と 10 → 11。⌘S などのキー表記だけは 11 の補助色にする'},
+      {k:'文字',mock:'Markdown の見出し 24 / 16pt、HTML 見本の本文（ブロック編集・HTML）',base:'規定なし',fix:'既存の RichMarkdownView のテーマに合わせる。モックの値は仮'},
+      {k:'角丸',mock:'ブロック編集の入力欄 8pt',base:'入力欄 12',fix:'12 にすると前後のブロック（6）と角の形がずれる。ブロック編集だけ 8 を例外として DesignSystem に足すか、12 に揃えるかを決める'},
+      {k:'角丸',mock:'小さいボタン・メニュー項目・ツールチップ 5pt',base:'ボタン・行 6',fix:'6 にする'},
+      {k:'高さ',mock:'帯の保存ボタン 20pt、メニュー項目 24〜26pt',base:'一覧の行 28、既存のボタン 22〜28',fix:'帯のボタンは 22 にする（帯 30 の中で上下 4）。メニューは macOS 標準の高さなので対象外'},
+      {k:'色',mock:'押せない文字 #6A6A70・#5E5E64（帯の切り替え・シミュレーターのボタン）',base:'パレットに無い',fix:'補助色 #8E8E94 の 50% 透明にする'},
+      {k:'色',mock:'ボタンの面 #3A3A3E',base:'共通プロンプトに無い（既存の handoff の --ctl）',fix:'既存の値なのでそのまま。確認ダイアログの破棄ボタンも #4A4A4F から #3A3A3E に変え、赤い文字との対比を 4.3:1 から 4.9:1 にした（6・7e で直し済み）'},
+      {k:'色',mock:'accent の塗り #B4552F（メニューのハイライト・既定ボタン・「起動」）',base:'accent #E08865 のみ',fix:'白い文字を載せる面として既存の handoff が定めた値。そのまま'},
+      {k:'対比',mock:'ポップオーバー #2F2F33 の上の補助色 #8E8E94（重ね表示のツリーの右端の文字・メニューの見出し）',base:'4.5:1 以上',fix:'4.2:1 なので、ポップオーバーの上だけ #ABABB1 にする'},
+      {k:'色',mock:'端末画面の中の色（#D9653B など）、HTML 見本のページの色',base:'—',fix:'端末やページの中身なので対象外'},
+    ];
+    const lt = [['docs',0,'o'],['guides',1,'o'],['file-tree.md',2,'f','',0],['step-2-tree.md',2,'f'],['step-10-release.md',2,'f','',1],['latest',1,'ld','→ guides'],['shared-assets',1,'lx','ルート外'],['macos',0,'o'],['App',1,'d'],['Packages',1,'d'],['scripts',0,'d'],['CLAUDE.md',0,'ls','→ AGENTS.md'],['LICENSE',0,'f'],['README.md',0,'f']];
+    const lightTree = lt.map(([name,depth,k,meta,st]) => ({name,meta:meta||'',dir:['d','o','ld','lx'].includes(k),file:['f','ls'].includes(k),c:(k==='d'||k==='o')?'›':'',
+      chev:{width:12,flex:'none',textAlign:'center',fontSize:13,color:'#75757B',transform:k==='o'?'rotate(90deg)':'none'},
+      ns:{flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:k==='lx'?'#6E6E73':'#1D1D1F',fontWeight:st===0?600:400},
+      s:{display:'flex',alignItems:'center',gap:5,height:28,flex:'none',padding:`0 6px 0 ${4+depth*14}px`,borderRadius:6,fontSize:13,background:st===1?'rgba(0,0,0,0.12)':st===0?'rgba(0,0,0,0.045)':'transparent'}}));
+    const paths = [
+      {title:'経路 A · ツリー → Markdown の編集 → 保存',steps:[
+        {n:'1',k:'⌃⌘B',v:'インスペクタが開き「ファイル」が選ばれ、ツリーに輪が出る（2b）。重ね表示ではカードが出る（2k）。'},
+        {n:'2',k:'↑↓ → ←',v:'行を移る。開いているファイルは薄い塗りと太字で残る（2b）。'},
+        {n:'3',k:'Return',v:'file-tree.md が操作中の区画に開く。',issue:'開いた後のフォーカスの行き先と見た目が決まっていない。文書に移るなら、どのブロックも選ばれていない状態の見本が無い。',fix:'Return で文書へフォーカスを移し、先頭のブロックを選んだ状態（4h の輪）にする。ツリーに残る場合は ⌃⌘B では戻れない（すでに表示中）ので、Tab で文書へ移れるようにする。'},
+        {n:'3′',k:'Return（ルート外）',v:'shared-assets では何も開かない。',issue:'理由はホバーのツールチップ（2d）だけで、キーボードの利用者には届かない。行き止まりになる。',fix:'Return を押したら、行の下に理由を 1 行出し、VoiceOver でも読み上げる（2d の決めておきたいことの案を採る）。'},
+        {n:'3″',k:'右クリックメニュー',v:'VoiceOver では VO-⇧-M で開ける。',issue:'VoiceOver を使わない人には、メニューの 3 項目（右に分割・Finder・パスをコピー）をキーで呼ぶ方法が無い。',fix:'⌥Return を「右に分割して開く」、メニューバーの「ファイル」に 3 項目を置き、⌥⌘C を「パスをコピー」にする（割り当ては要確認）。'},
+        {n:'4',k:'⌃⌘M',v:'フォーカスの位置に関係なく、操作中の区画のファイルタブがソース表示に切り替わる。もう一度押すとレンダリングに戻る。'},
+        {n:'5',k:'↑↓ → Return',v:'ブロックを選び（4h）、Return で編集を始める（4b）。'},
+        {n:'6',k:'⌘Return / Esc',v:'確定してブロックの選択に戻る。編集中の Tab は文字の入力なので、抜けるのはこの 2 つだけ。行き止まりにはならない。'},
+        {n:'7',k:'⌘S',v:'保存。編集中なら確定してから保存する。帯の「未保存」が消える。',issue:'確定できないとき（4g）、⌘S を押しても何も起きないように見える。',fix:'⌘S で帯の理由を一瞬強調し、VoiceOver で理由を読み上げる。'},
+      ]},
+      {title:'経路 B · シミュレーター',steps:[
+        {n:'1',k:'⌃⌘Y',v:'操作中の区画にシミュレーターのタブが開き、帯の端末メニューにフォーカスの輪が出る（7r）。キー入力はまだ端末に送らない。'},
+        {n:'2',k:'Space',v:'端末メニューを開き、↑↓ と Return で端末を選ぶ（7d）。停止中なら「起動」にフォーカスを移す（7f）。'},
+        {n:'3',k:'Tab',v:'ホーム → スクリーンショット → 停止 → 画面 の順に移る。',issue:'帯のボタンのフォーカスの輪を描いていない（全体に共通する抜け）。',fix:'共通部品で輪を付ける。'},
+        {n:'4',k:'（画面にフォーカス）',v:'輪と「キー入力を端末に送信中」が出る（7b）。Esc と Tab も端末に送る。',issue:'⌘Esc（提案）が無いと、キーボードだけでは画面から出られない。行き止まりになる。',fix:'⌘Esc を採用する（7 の論点 1）。⌘ 付きのキーは端末に送らないので、⌃Tab で子タブを移る操作も ⌘ 付きの代わりを用意するか、⌘Esc で抜けてから行う。'},
+        {n:'5',k:'⇧⌘H',v:'ホーム。'},
+        {n:'6',k:'停止 → Return',v:'確認ダイアログ（7e）が出て、既定のキャンセルが選ばれる。停止するには Tab で「停止」へ移って Space、または ⌘⌫。'},
+      ]},
+    ];
+    const ok = {fontWeight:700,color:'#1F7A3A',whiteSpace:'nowrap'}, ng = {fontWeight:700,color:'#B4232A',whiteSpace:'nowrap'}, mid = {fontWeight:700,color:'#8A5300',whiteSpace:'nowrap'};
+    const S = (v, k, note) => ({v:{ok:'描いていない',ng:'描いた',mid:'要確認'}[v], vs:{ok,ng,mid}[v], k, note});
+    const scope = [
+      S('ok','ファイル・フォルダの作成・名前変更・削除・移動','ツリーの右クリックは 3 項目だけ（2c）'),
+      S('ok','ファイル監視による自動更新','更新ボタンだけ'),
+      S('ok','Git 状態の色付け・.gitignore の薄表示','ツリーの行は無彩色。薄いのはルート外のリンクだけ'),
+      S('ok','書式ツールバー・完全な WYSIWYG','ブロック編集は原文の入力欄だけ'),
+      S('ok','ブロックをまたぐ選択','描いたのは「できない」ことの案内だけ（4m）'),
+      S('ok','Markdown 内の相対パス画像・タスクリストのクリック切替','サンプル文書に含めていない'),
+      S('ok','HTML のスクリプト実行・外部リソースの読み込み・レンダリングのままの編集','5b に許可のボタンは無い'),
+      S('ok','終了時の一括保存','6a〜6e は「保存せず閉じる / 終了」とキャンセルだけ'),
+      S('ok','端末の回転・マルチタッチ・音量 / サイドボタン','帯はホーム・スクリーンショット・停止だけ。7c の指の円は 1 本'),
+      S('ok','ビルド＆実行・アプリの自動インストール・エージェントからの操作','描いていない'),
+      S('ok','Mac 側の日本語変換を通した文字入力','7b は物理キーの送信だけ'),
+      S('mid','端末画面の中身が Phlox の iOS 版に見える','見本の中身（セッション一覧）が「iOS 版 Phlox からの表示」（スコープ外）と誤解されうる。中身を別のアプリ（例: 設定アプリ）に替える'),
+      S('mid','⌘Esc・⌥Return','設計書に無い追加の提案。採用するなら設計書へ足す（「区画を端末の幅に合わせる」は取り下げた）'),
+      S('mid','Xcode が見つからないときの「再確認」（7k）','設計書は理由の表示だけで、ボタンは書いていない。軽い追加'),
+    ];
+    return {frTables, devs, lightTree, paths, scope};
+  }
+}
+</script>
+</body>
+</html>

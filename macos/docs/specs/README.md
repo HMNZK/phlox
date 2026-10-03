@@ -18,6 +18,8 @@ last-verified: 2026-08-01
 | ファイル | status | 内容 |
 |---|---|---|
 | [ui-feature-inventory.md](ui-feature-inventory.md) | active | macOS アプリの UI 機能の画面別一覧（View を含む 97 ファイルを網羅）（UI 再構築・モック作成の入力。根拠は現行コードの file:line） |
+| [embedded-ios-simulator.md](embedded-ios-simulator.md) | completed | iOS シミュレーターをウィンドウ内の子タブに表示・操作する設計書（実装済み。現行構成は architecture/embedded-ios-simulator.md。方式調査・非公開部品の隔離・許可リスト・テスト計画） |
+| [file-explorer-and-markdown-editing.md](file-explorer-and-markdown-editing.md) | completed | 右サイドバーのファイルツリー・マークダウンのブロック編集・HTML 表示の設計書（実装済み。現行構成は architecture/file-explorer-and-markdown-editing.md。FR/NFR・設計・互換性・テスト計画） |
 | [ui-ux-improvement-backlog.md](ui-ux-improvement-backlog.md) | active | 実画面の観察に基づく UI・UX 改善チェックリスト（優先度・完了条件・未検証範囲） |
 | `agent-registry-refactor.md` | completed | 設定駆動レジストリ化（`AgentDescriptor`/`AgentRegistry`）の設計ゴール。歴史的ロードマップ（当時7 CLI 前提・現行3種） |
 | `amazon-q-integration.md` | superseded | Amazon Q Developer CLI 統合仕様。ベンダー撤退により撤去済み（2026-06-11） |

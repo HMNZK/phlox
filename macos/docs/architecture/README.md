@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-08-01
+last-verified: 2026-10-03
 ---
 
 # architecture/
@@ -37,3 +37,5 @@ last-verified: 2026-08-01
 | `session-grid-layout.md` | **superseded** → session-pane-layout.md（旧 固定 N×N・セル結合） |
 | `terminal-editor-panels.md` | ターミナルパネル・エディタパネルの現行構成（`UserTerminalController`・`WorkingTreeService`・`EditorPanelViewModel`・ドロワー統合・終了時の後始末） |
 | `codex-app-server-server-requests.md` | codex app-server の server request 処理（承認／質問／未対応の 3 経路・質問カードへの橋渡し・フルアクセス設定の適用） |
+| `file-explorer-and-markdown-editing.md` | 右サイドバーのファイルツリー・ファイルタブ（`FileTabDocument`）・マークダウンのブロック編集・HTML のレンダリング表示・未保存の確認（終了／ウィンドウを閉じる） |
+| `embedded-ios-simulator.md` | ウィンドウ内 iOS シミュレーター（子タブ・`SimulatorHub`・XPC 補助プロセス `SimulatorBridgeService`・許可リスト・入力と画面取得の流れ） |

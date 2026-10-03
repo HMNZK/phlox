@@ -5,6 +5,17 @@ last-verified: 2026-08-01
 
 # ターミナル／エディタパネルの現行構成
 
+> **注意（2026-10-03）: 本書の一部は現行コードと食い違う。** ドロワーは廃止され（`PhloxUITests/PanelUITests.swift` の「02 C：ドロワーを廃止し、ターミナル・変更はタブで開く」）、
+> ターミナル・変更・ファイルは子タブ（`ChildTab`、`Tabs/SessionTabsContainer.swift`）で表示する。次の記述は旧構成のもの、または現行と異なる（最初の項目の型・関数名は現行コードを検索して存在しないことを確認した）。
+> - 表のうち「ルーティング」（`AppRouter.terminalPanelVisible` / `editorPanelVisible` / `toggle*Panel()`）・「ドロワー幅決定」（`PanelDrawerLayout`）・「ドロワー統合」（`DashboardView` のドロワー配置・`updateEditorPanelProject()`）・「トップバー」（`DashboardTopBarControls` / `TrailingTopBarLayout`）・「ホットキー配線」（⌘⌥T / ⌘⌥E の `TerminalPanelCommands` / `EditorPanelCommands`）。現行のショートカットは ⌃⌘T（ターミナルのタブ）・⌃⌘E（変更のタブ）で、`PhloxApp.swift` のメニュー項目から `router.openChildTab(...)` を呼ぶ。
+> - 「データフロー（ターミナル）」4 のドロワー開閉の説明と、「データフロー（エディタ）」1・2（ドロワー幅による `EditorPanelLayout` の切り替え。`EditorPanelViewModel` の生成は `EditorPanelCoordinator` へ移っている）。
+> - 表の「終了処理」: `applicationShouldTerminate` は先に未保存ファイルの確認（`FileTabDocumentRegistry.confirmTermination()`）を行い、終了処理の冒頭で全ファイル文書の保存完了を待つようになった。
+> - 表の「git 読み書き」: `WorkingTreeService` は `fixedRoot`・symlink 包含確認・`fileData`・バイト単位の `save(path:data:expectedDiskBytes:)` を持つ。
+> - 「テスト」表のドロワー・⌘⌥T/⌘⌥E に関する行も旧構成を前提にしている。
+>
+> ファイルタブ・ファイルツリー・保存まわりの現行構成は [file-explorer-and-markdown-editing.md](file-explorer-and-markdown-editing.md)。
+> 上記以外の行（`UserTerminalController`・`TerminalPanelSession`・`TerminalPanelView`・`Posix.spawn` など）は今回の変更で確かめ直していない。
+
 > **このファイルの役割**: ターミナルパネル・エディタパネルを構成するコンポーネントと、
 > ドロワー・ホットキーへの配線、アプリ終了時の後始末の**現行構造**。
 > **書かないもの**: なぜこの容器・この仕様にしたか（→ [ADR 0148](../adr/0148-terminal-editor-panel-container-drawer.md)〜

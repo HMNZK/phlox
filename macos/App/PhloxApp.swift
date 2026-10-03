@@ -71,6 +71,8 @@ struct PhloxApp: App {
     @State private var terminalPanelSession: TerminalPanelSession?
     /// セッションごとのターミナルタブ（その worktree で開く）の唯一の所有者。
     @State private var sessionTerminals: SessionTerminalStore?
+    /// 全ウィンドウで端末ごとの画面取得を共有する。
+    @State private var simulatorHub: SimulatorHub
 
     @AppStorage(LanguageSettings.languageKey) private var appLanguageRaw = AppLanguage.system.rawValue
 
@@ -79,6 +81,11 @@ struct PhloxApp: App {
     }
 
     init() {
+        let hub = SimulatorHub()
+        _simulatorHub = State(initialValue: hub)
+        #if DEBUG
+        appDelegate.simulatorVerificationHub = hub
+        #endif
         UserDefaults.standard.register(defaults: BypassSettings.defaultsDictionary)
         UserDefaults.standard.register(defaults: NotificationSettings.defaultsDictionary)
         UserDefaults.standard.register(defaults: UsageSettings.defaultsDictionary)
@@ -101,7 +108,8 @@ struct PhloxApp: App {
                         usageMonitor: composition.usage,
                         agentConsoleWindowID: AgentConsoleCommands.windowID,
                         commonTerminal: terminalPanelSession,
-                        sessionTerminals: sessionTerminals
+                        sessionTerminals: sessionTerminals,
+                        simulatorHub: simulatorHub
                     )
                 } else if let initFailure {
                     InitErrorView(failure: initFailure, logWritten: initFailureLogged, retry: { Task { await initialize() } })
@@ -112,6 +120,9 @@ struct PhloxApp: App {
             .frame(minWidth: 720, minHeight: 520)
             .preferredColorScheme(ThemeStore.active.preferredColorScheme)
             .environment(\.locale, appLanguage.locale)
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+                simulatorHub.disconnectAll()
+            }
             .task {
                 guard composition == nil, !initializing else { return }
                 await initialize()
@@ -149,7 +160,8 @@ struct PhloxApp: App {
                 dashboard: composition?.dashboard,
                 router: composition?.router,
                 commonTerminal: terminalPanelSession,
-                sessionTerminals: sessionTerminals
+                sessionTerminals: sessionTerminals,
+                simulatorHub: simulatorHub
             )
             SessionCommands(
                 dashboard: composition?.dashboard,
@@ -231,11 +243,15 @@ struct PhloxApp: App {
         initializing = true
         initFailure = nil
         do {
+            #if DEBUG
+            let root = try await appDelegate.simulatorVerificationComposition()
+            #else
             let root = try await CompositionRoot { dashboard, pty in
                 // 復元完了前の SIGTERM でも子終了経路が使えるよう、start() より前に配線する。
                 appDelegate.ptyManager = pty
                 appDelegate.dashboard = dashboard
             }
+            #endif
             composition = root
             appDelegate.ptyManager = root.environment.pty as? PTYManager
             appDelegate.dashboard = root.dashboard
@@ -294,6 +310,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// セッションごとのターミナルタブのシェル。終了経路でまとめて停止する。
     var sessionUserTerminals: SessionTerminalStore?
     private var closeSessionMonitor: Any?
+    #if DEBUG
+    var simulatorVerificationHub: SimulatorHub?
+    private var simulatorVerificationRoot: CompositionRoot?
+    private var simulatorVerificationWindow: NSWindow?
+    private var simulatorVerificationInitialization: Task<CompositionRoot, Error>?
+    private var simulatorVerificationInitializationID: UUID?
+
+    /// 通常ウィンドウと背面の検証ウィンドウで、初期化中も同じ本体を待つ。
+    func simulatorVerificationComposition() async throws -> CompositionRoot {
+        if let task = simulatorVerificationInitialization { return try await task.value }
+        let id = UUID()
+        let task = Task { @MainActor in
+            try await CompositionRoot { dashboard, pty in
+                self.ptyManager = pty
+                self.dashboard = dashboard
+            }
+        }
+        simulatorVerificationInitializationID = id
+        simulatorVerificationInitialization = task
+        do { return try await task.value }
+        catch {
+            if simulatorVerificationInitializationID == id {
+                simulatorVerificationInitialization = nil
+                simulatorVerificationInitializationID = nil
+            }
+            throw error
+        }
+    }
+    #endif
 
     /// 子セッションの一括終了を「高々 1 回」だけ起動するためのガード。
     /// シグナル終了経路（SIGTERM/SIGINT）と GUI 正常終了経路（applicationShouldTerminate）が
@@ -319,6 +364,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        let environment = ProcessInfo.processInfo.environment
+        let arguments = ProcessInfo.processInfo.arguments
+        if environment["PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN"] == "1",
+           environment["PHLOX_DATA_DIR"] != nil, environment["PHLOX_DEFAULTS_SUITE"] != nil,
+           let index = arguments.firstIndex(of: "--simulator-test-udid"),
+           arguments.indices.contains(index + 1), let hub = simulatorVerificationHub, !NSApp.isActive {
+            // open -g は SwiftUI の初期ウィンドウを作らないため、同じ Dashboard を背面でホストする。
+            Task { @MainActor in
+                do {
+                    let root = try await self.simulatorVerificationComposition()
+                    guard let session = root.dashboard.sessions.first else { return }
+                    await hub.refreshForTesting(udid: arguments[index + 1], sessionID: session.id)
+                    root.router.selectedSession = session.id
+                    root.router.openChildTab(.simulator)
+                    hub.requestMenuFocus(for: session.id)
+                    simulatorVerificationRoot = root
+                    ptyManager = root.environment.pty as? PTYManager
+                    dashboard = root.dashboard
+                    router = root.router
+                    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 960, height: 700),
+                                          styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+                    window.title = "Phlox（専用端末のバックグラウンド検証）"
+                    window.isReleasedWhenClosed = false
+                    window.contentView = NSHostingView(rootView: DashboardView(
+                        viewModel: root.dashboard, router: root.router, usageMonitor: root.usage, simulatorHub: hub
+                    ).preferredColorScheme(ThemeStore.active.preferredColorScheme)
+                        .environment(\.locale, Locale(identifier: "ja")))
+                    simulatorVerificationWindow = window
+                    window.orderBack(nil)
+                } catch {
+                    let message = "バックグラウンド検証の起動に失敗しました: \(error.localizedDescription)\n"
+                    if let path = environment["PHLOX_DATA_DIR"] {
+                        do {
+                            try Data(message.utf8).write(to: URL(fileURLWithPath: path)
+                                .appendingPathComponent("simulator-startup-error.log"))
+                        } catch {
+                            FileHandle.standardError.write(Data("\(message)ログの保存にも失敗しました: \(error)\n".utf8))
+                        }
+                    }
+                }
+            }
+        }
+        #endif
         UNUserNotificationCenter.current().delegate = self
         SessionCompletionNotifier.requestAuthorization()
         SessionCompletionNotifier.context = { [weak self] id in self?.dashboard?.notificationContext(for: id) }
@@ -452,6 +541,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        #if DEBUG
+        simulatorVerificationHub?.disconnectAll()
+        #endif
         if let closeSessionMonitor {
             NSEvent.removeMonitor(closeSessionMonitor)
         }
@@ -707,6 +799,7 @@ private struct ViewCommands: Commands {
     var router: AppRouter?
     var commonTerminal: TerminalPanelSession?
     var sessionTerminals: SessionTerminalStore?
+    var simulatorHub: SimulatorHub?
 
     var body: some Commands {
         CommandGroup(after: .sidebar) {
@@ -764,6 +857,13 @@ private struct ViewCommands: Commands {
                 router?.openChildTab(.changes)
             }
             .keyboardShortcut("e", modifiers: [.command, .control])
+            .disabled(router?.selectedSession == nil)
+
+            Button("シミュレーターのタブ") {
+                router?.openChildTab(.simulator)
+                simulatorHub?.requestMenuFocus(for: router?.selectedSession)
+            }
+            .keyboardShortcut("y", modifiers: [.command, .control])
             .disabled(router?.selectedSession == nil)
 
             // 表示範囲バーの「レイアウト ▾」と同じ 9 種（骨格 E2・06）。

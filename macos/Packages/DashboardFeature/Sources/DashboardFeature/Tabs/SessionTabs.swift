@@ -8,6 +8,7 @@ public enum ChildTab: Hashable, Codable, Sendable {
     case conversation
     case terminal
     case changes
+    case simulator
     /// worktree 直下からの相対パス。
     case file(String)
 }
@@ -102,6 +103,19 @@ public struct SessionTabLayout: Codable, Equatable, Sendable {
         } else {
             splitRight(left)
         }
+    }
+
+    /// 旧版でも読める保存用コピー。実行中の配置には触れない。
+    fileprivate var persistenceCopy: SessionTabLayout {
+        var copy = self
+        copy.tabs.removeAll { $0 == .simulator }
+        if copy.right == .simulator { copy.right = nil }
+        if copy.left == .simulator {
+            copy.left = copy.right ?? .conversation
+            copy.right = nil
+        }
+        if copy.right == nil { copy.focusesRight = false }
+        return copy
     }
 }
 
@@ -285,8 +299,12 @@ public final class SessionTabStore {
         change(&next)
         guard next != snapshot else { return }
         snapshot = next
-        if let defaults, let data = try? JSONEncoder().encode(next) {
-            defaults.set(data, forKey: Self.defaultsKey)
+        if let defaults {
+            var saved = next
+            saved.sessions = saved.sessions.mapValues(\.persistenceCopy)
+            if let data = try? JSONEncoder().encode(saved) {
+                defaults.set(data, forKey: Self.defaultsKey)
+            }
         }
     }
 }

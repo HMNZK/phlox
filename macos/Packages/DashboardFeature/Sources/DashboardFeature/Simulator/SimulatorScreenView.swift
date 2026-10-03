@@ -9,19 +9,26 @@ public struct SimulatorScreenView: NSViewRepresentable {
     public var connection: SimulatorDisplayConnection?
     public var isVisible: Bool
     public var releaseFocus: (() -> Void)?
+    public var deviceName: String
+    public var inputFocusChanged: ((Bool) -> Void)?
 
     public init(displayInfo: SimulatorDisplayInfo?, connection: SimulatorDisplayConnection? = nil,
-                isVisible: Bool = true, releaseFocus: (() -> Void)? = nil) {
+                isVisible: Bool = true, releaseFocus: (() -> Void)? = nil,
+                deviceName: String = "端末", inputFocusChanged: ((Bool) -> Void)? = nil) {
         self.displayInfo = displayInfo
         self.connection = connection
         self.isVisible = isVisible
         self.releaseFocus = releaseFocus
+        self.deviceName = deviceName
+        self.inputFocusChanged = inputFocusChanged
     }
 
     public func makeNSView(context: Context) -> SimulatorScreenNSView { SimulatorScreenNSView() }
     public func updateNSView(_ view: SimulatorScreenNSView, context: Context) {
         view.connection = connection
         view.releaseFocus = releaseFocus
+        view.inputFocusChanged = inputFocusChanged
+        view.setAccessibilityLabel("\(deviceName) の画面。端末内の UI は VoiceOver で操作できません")
         view.isHidden = !isVisible
         view.update(displayInfo)
     }
@@ -34,9 +41,16 @@ public final class SimulatorScreenNSView: NSView {
     private var lastSeed: UInt32 = 0
     private var displayLink: CADisplayLink?
     public var connection: SimulatorDisplayConnection? {
-        willSet { if connection !== newValue { releaseInput() } }
+        willSet {
+            if connection !== newValue {
+                releaseInput()
+                update(nil)
+            }
+        }
     }
     public var releaseFocus: (() -> Void)?
+    public var inputFocusChanged: ((Bool) -> Void)?
+    private var hasInputFocus = false
     public private(set) var inputReason: String?
     private var touching = false
     private var touchRevision = 0
@@ -60,8 +74,9 @@ public final class SimulatorScreenNSView: NSView {
         screen.contentsGravity = .resizeAspect
         layer?.addSublayer(screen)
         setAccessibilityElement(true)
-        setAccessibilityRole(.group)
-        setAccessibilityLabel("iOS シミュレーターの画面。端末内の UI は VoiceOver で操作できません")
+        setAccessibilityRole(NSAccessibility.Role(rawValue: "AXApplication"))
+        setAccessibilityIdentifier("simulator-screen")
+        setAccessibilityLabel("端末 の画面。端末内の UI は VoiceOver で操作できません")
     }
 
     required init?(coder: NSCoder) { nil }
@@ -84,6 +99,9 @@ public final class SimulatorScreenNSView: NSView {
             for name in [NSWindow.didResignKeyNotification, NSWindow.didMiniaturizeNotification] {
                 NotificationCenter.default.addObserver(self, selector: #selector(releaseInput), name: name, object: window)
             }
+            for name in [NSWindow.didBecomeKeyNotification, NSWindow.didDeminiaturizeNotification] {
+                NotificationCenter.default.addObserver(self, selector: #selector(restoreInputFocus), name: name, object: window)
+            }
             let link = displayLink(target: self, selector: #selector(refresh))
             link.add(to: .main, forMode: .common)
             displayLink = link
@@ -105,7 +123,7 @@ public final class SimulatorScreenNSView: NSView {
     }
 
     @objc private func refresh() {
-        guard let info else { return }
+        guard !isHiddenOrHasHiddenAncestor, window?.isMiniaturized == false, let info else { return }
         let seed = IOSurfaceGetSeed(info.surface)
         guard seed != lastSeed else { return }
         lastSeed = seed
@@ -129,8 +147,17 @@ public final class SimulatorScreenNSView: NSView {
         update(nil)
     }
 
+    public override func becomeFirstResponder() -> Bool {
+        guard acceptsFirstResponder, super.becomeFirstResponder() else { return false }
+        hasInputFocus = true
+        inputFocusChanged?(true)
+        return true
+    }
+
     public override func resignFirstResponder() -> Bool {
         releaseInput()
+        hasInputFocus = false
+        inputFocusChanged?(false)
         return super.resignFirstResponder()
     }
 
@@ -139,11 +166,30 @@ public final class SimulatorScreenNSView: NSView {
         releaseInput()
     }
 
+    public override func viewDidUnhide() {
+        super.viewDidUnhide()
+        restoreInputFocus()
+    }
+
+    @objc private func restoreInputFocus() {
+        hasInputFocus = acceptsInput
+        inputFocusChanged?(hasInputFocus)
+    }
+
+    private func acquireInputFocus() {
+        guard !hasInputFocus else { return }
+        hasInputFocus = true
+        inputFocusChanged?(true)
+    }
+
     @objc private func releaseInput() {
+        let ownedInput = hasInputFocus || touching || pasteTask != nil
+        hasInputFocus = false
         touching = false
         pasteTask?.cancel()
         pasteTask = nil
-        connection?.releaseAll()
+        if ownedInput { connection?.releaseAll() }
+        inputFocusChanged?(false)
     }
 
     private func point(for event: NSEvent, continuingTouch: Bool = false) -> CGPoint? {
@@ -160,6 +206,7 @@ public final class SimulatorScreenNSView: NSView {
         guard point(for: event) != nil else { return }
         window?.makeFirstResponder(self)
         guard acceptsInput, let point = point(for: event), let connection else { return }
+        acquireInputFocus()
         touching = true
         touchRevision = connection.inputRevision
         connection.sendTouch(phase: 0, point: point)
@@ -182,6 +229,7 @@ public final class SimulatorScreenNSView: NSView {
 
     public override func scrollWheel(with event: NSEvent) {
         guard event.momentumPhase == [], acceptsInput, !touching else { return }
+        acquireInputFocus()
         let continuing = !event.phase.intersection([.changed, .stationary, .ended, .cancelled]).isEmpty
         guard let point = point(for: event, continuingTouch: continuing) else {
             if event.phase != [] { releaseInput() }
@@ -229,6 +277,7 @@ public final class SimulatorScreenNSView: NSView {
 
     @discardableResult private func routeKey(_ event: NSEvent, down: Bool) -> Bool {
         guard acceptsInput, let connection else { return false }
+        acquireInputFocus()
         // 送信済みの物理キーのリピートは、新しいショートカットにしない。
         if down, event.type == .keyDown, event.isARepeat, connection.sentKeyCodes.contains(event.keyCode) { return true }
         switch SimulatorKeyRouting.route(keyCode: event.keyCode, modifiers: event.modifierFlags,

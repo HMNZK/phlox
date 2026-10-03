@@ -13,7 +13,7 @@ final class InputHarness: NSObject, NSApplicationDelegate {
         let app = NSApplication.shared
         let delegate = InputHarness()
         app.delegate = delegate
-        app.setActivationPolicy(.regular)
+        app.setActivationPolicy(ProcessInfo.processInfo.arguments.contains("--background-tap") ? .prohibited : .regular)
         app.run()
         withExtendedLifetime(delegate) {}
     }
@@ -23,14 +23,19 @@ final class InputHarness: NSObject, NSApplicationDelegate {
         guard let udid = environment["INPUT_UDID"],
               let width = Double(environment["INPUT_WIDTH"] ?? ""),
               let height = Double(environment["INPUT_HEIGHT"] ?? "") else { finish("端末の指定がありません", status: 1); return }
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: height),
-                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        let background = ProcessInfo.processInfo.arguments.contains("--background-tap")
+        let rect = NSRect(x: 0, y: 0, width: width, height: height)
+        let window = background
+            ? BackgroundInputWindow(contentRect: rect, styleMask: [.titled], backing: .buffered, defer: false)
+            : NSWindow(contentRect: rect, styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "入力確認（本番 view・本番 XPC）"
         window.contentView = screen
         self.window = window
         screen.connection = connection
-        window.makeKeyAndOrderFront(nil)
-        NSApplication.shared.activate(ignoringOtherApps: true)
+        if !background {
+            window.makeKeyAndOrderFront(nil)
+            NSApplication.shared.activate(ignoringOtherApps: true)
+        }
         window.makeFirstResponder(screen)
         connection.attach(udid: udid)
         Task { await exercise() }
@@ -46,6 +51,12 @@ final class InputHarness: NSObject, NSApplicationDelegate {
             guard connection.displayInfo != nil else { finish("表示接続の期限切れ", status: 1); return }
             try await Task.sleep(for: .seconds(1))
             try await tap(x: 150, y: 160)
+            if ProcessInfo.processInfo.arguments.contains("--background-tap") {
+                try await Task.sleep(for: .seconds(1))
+                connection.disconnect()
+                finish("バックグラウンドのタップを配送しました。到達は観測アプリの記録で確認します", status: 0)
+                return
+            }
             try await drag(x: 60, y: 250, toX: 220, toY: 250)
             // スクロールは通常のホイールイベントを本番 view に渡す。
             try await measuredScroll(name: "ホイール100pt", delta: -100)
@@ -190,4 +201,9 @@ final class InputHarness: NSObject, NSApplicationDelegate {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.writeObjects(items)
     }
+}
+
+/// OS のフォーカスを取得せず、本番ビューへ直接渡すイベントだけを検査する。
+@MainActor private final class BackgroundInputWindow: NSWindow {
+    override var isKeyWindow: Bool { true }
 }

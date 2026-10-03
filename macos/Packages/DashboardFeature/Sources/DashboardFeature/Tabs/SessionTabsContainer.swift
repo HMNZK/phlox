@@ -11,6 +11,7 @@ struct SessionTabsContainer<Conversation: View>: View {
     @Bindable var router: AppRouter
     let terminals: SessionTerminalStore?
     let commonTerminal: TerminalPanelSession?
+    let simulatorHub: SimulatorHub?
     let editorPanel: EditorPanelCoordinator
     let files: FileTabDocuments
     let agentConsoleWindowID: String?
@@ -38,7 +39,8 @@ struct SessionTabsContainer<Conversation: View>: View {
                     layout: layout,
                     changeCount: editorPanel.viewModel.changes.count,
                     files: files,
-                    agentConsoleWindowID: agentConsoleWindowID
+                    agentConsoleWindowID: agentConsoleWindowID,
+                    simulatorHub: simulatorHub
                 )
                 separator
                 ChildTabPanes(
@@ -91,6 +93,12 @@ struct SessionTabsContainer<Conversation: View>: View {
                     )
                 }
             }
+        case .simulator:
+            if let simulatorHub {
+                SimulatorTabView(hub: simulatorHub, sessionID: node.id,
+                                 isFocused: router.tabs.layout(for: node.id).selected == .simulator)
+                    .id(node.id)
+            }
         case .file(let path):
             RestoredFileTabView(
                 files: files, sessionID: node.id, path: path, workingDirectory: node.rawWorkspacePath,
@@ -116,6 +124,7 @@ struct ChildTabBar: View {
     let changeCount: Int
     let files: FileTabDocuments
     let agentConsoleWindowID: String?
+    var simulatorHub: SimulatorHub? = nil
 
     @Environment(\.locale) private var locale
 
@@ -170,7 +179,8 @@ struct ChildTabBar: View {
         .help(Text("このセッションにタブを追加"))
         .accessibilityLabel(Text("このセッションにタブを追加"))
         .popover(isPresented: $router.newTabChooserPresented, arrowEdge: .bottom) {
-            NewTabChooser(router: router, node: node, agentConsoleWindowID: agentConsoleWindowID)
+            NewTabChooser(router: router, node: node, agentConsoleWindowID: agentConsoleWindowID,
+                          simulatorHub: simulatorHub)
                 // popover は画面のロケールを引き継がないので渡し直す（アプリ内の言語設定）。
                 .environment(\.locale, locale)
         }
@@ -185,6 +195,7 @@ struct ChildTabBar: View {
         case .conversation: node.agentDescriptor.tabInitials
         case .terminal: ">_"
         case .changes: "±"
+        case .simulator: "▯"
         case .file: "{}"
         }
     }
@@ -194,6 +205,7 @@ struct ChildTabBar: View {
         switch tab {
         case .conversation: Text("会話")
         case .terminal: Text("ターミナル")
+        case .simulator: Text("シミュレーター")
         case .changes: changeCount > 0 ? Text("変更 \(changeCount)") : Text("tab.changes")
         case .file(let path): Text(verbatim: (path as NSString).lastPathComponent)
         }
@@ -277,6 +289,7 @@ extension ChildTab {
         case .conversation: "phlox-tab:conversation"
         case .terminal: "phlox-tab:terminal"
         case .changes: "phlox-tab:changes"
+        case .simulator: "phlox-tab:simulator"
         case .file(let path): "phlox-tab:file:\(path)"
         }
     }
@@ -286,6 +299,7 @@ extension ChildTab {
         case "phlox-tab:conversation": self = .conversation
         case "phlox-tab:terminal": self = .terminal
         case "phlox-tab:changes": self = .changes
+        case "phlox-tab:simulator": self = .simulator
         default:
             let prefix = "phlox-tab:file:"
             guard dragPayload.hasPrefix(prefix) else { return nil }
@@ -301,13 +315,14 @@ private struct NewTabChooser: View {
     @Bindable var router: AppRouter
     let node: SessionNode
     let agentConsoleWindowID: String?
+    let simulatorHub: SimulatorHub?
 
     @Environment(\.openWindow) private var openWindow
     @Environment(\.locale) private var locale
     @FocusState private var focused: Item?
 
     enum Item: Hashable, CaseIterable {
-        case conversation, terminal, changes, file, agentConsole
+        case conversation, terminal, changes, simulator, file, agentConsole
     }
 
     private var items: [Item] {
@@ -375,6 +390,7 @@ private struct NewTabChooser: View {
         case .conversation: node.agentDescriptor.tabInitials
         case .terminal: ">_"
         case .changes: "±"
+        case .simulator: "▯"
         case .file: "{}"
         case .agentConsole: "⚙"
         }
@@ -385,6 +401,7 @@ private struct NewTabChooser: View {
         case .conversation: Text("会話（このセッション）")
         case .terminal: Text("ターミナル（この worktree で）")
         case .changes: Text("変更一覧 · 差分")
+        case .simulator: Text("シミュレーター")
         case .file: Text("ファイルを開く…")
         case .agentConsole: Text("エージェント管理")
         }
@@ -394,6 +411,7 @@ private struct NewTabChooser: View {
         switch item {
         case .terminal: "⌃⌘T"
         case .changes: ""
+        case .simulator: "⌃⌘Y"
         case .file: "⌘P"
         case .agentConsole: AppLocalizedString.string("共通 ⇧⌘,", locale: locale)
         case .conversation: ""
@@ -412,6 +430,9 @@ private struct NewTabChooser: View {
         case .conversation: router.openChildTab(.conversation)
         case .terminal: router.openChildTab(.terminal)
         case .changes: router.openChildTab(.changes)
+        case .simulator:
+            router.openChildTab(.simulator)
+            simulatorHub?.requestMenuFocus(for: node.id)
         case .file: router.tabRequest = .openFile(node.id)
         case .agentConsole:
             if let agentConsoleWindowID { openWindow(id: agentConsoleWindowID) }

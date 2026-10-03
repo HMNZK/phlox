@@ -28,3 +28,18 @@ bash macos/Tests/SimulatorInputHarness/build.sh
 修正前の初回実装ではタップ1→2、文字 `a`→`aB`→`aB貼付`、スクロール最大652ポイントを観測した。フォーカス喪失時の接触解放は (120,250)、キー解放は C（HIDコード6）の押下・解放を直接確認した。`device.json` に本体・補助プロセス・観測アプリの実行ファイルと dylib の SHA256、Xcode/macOS/runtime、寸法・倍率を保存し、`events.json` に UIKit の実際の入力結果を保存した。記録は手元に保持しているが Git の対象外。
 
 実行コマンドは `bash macos/Tests/SimulatorInputHarness/build.sh` と `~/.agents/scripts/compact-test --full simulator-input-final python3 macos/Tests/SimulatorInputHarness/run.py --runtime com.apple.CoreSimulator.SimRuntime.iOS-26-2`。host と観測アプリのビルド、署名検査は成功。AppIntents.framework への依存がないため metadata extraction skipped の警告が出た。
+
+## 画面を操作せずタップを確かめる
+
+共有の Mac で検査する場合、ホストの `--background-tap` を使う。ウィンドウを表示せず、OS のマウス・キー入力を生成せずに、本番ビューへタップのイベントを直接渡す。通常経路の `run.py` はウィンドウを前面化するため、この用途では実行しない。
+
+作成した専用端末に観測アプリをインストール・起動し、`Documents/events.json` の最初の記録から端末の幅と高さを読む。その値を `INPUT_WIDTH`・`INPUT_HEIGHT` に指定する。
+
+```sh
+INPUT_UDID="<今回作成した専用端末のUDID>" INPUT_WIDTH=402 INPUT_HEIGHT=874 \
+  ~/.agents/scripts/compact-test --full バックグラウンドのタップ \
+  macos/Tests/SimulatorInputHarness/.build/DerivedData/Build/Products/Debug/SimulatorInputHarness.app/Contents/MacOS/SimulatorInputHarness \
+  --background-tap
+```
+
+終了コードだけでは到達を判断せず、観測アプリの `events.json` に「タップ」が増えたことを確認する。使用後は専用端末を shutdown し、削除しない。§7-6 の実アプリ確認は `macos/docs/operations/simulator-tab-verification.md` を参照。

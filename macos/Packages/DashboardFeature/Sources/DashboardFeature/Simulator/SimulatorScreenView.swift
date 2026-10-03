@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import QuartzCore
 import IOSurface
+import CoreImage
 import SimulatorBridgeKit
 
 public struct SimulatorScreenView: NSViewRepresentable {
@@ -41,6 +42,10 @@ public struct SimulatorScreenView: NSViewRepresentable {
 
 public final class SimulatorScreenNSView: NSView {
     private let screen = CALayer()
+    private let pointer = CAShapeLayer()
+    private var pointerTask: Task<Void, Never>?
+    private(set) var pointerLocation: CGPoint?
+    private(set) var pointerIsTouch = false
     private var info: SimulatorDisplayInfo?
     private var lastSeed: UInt32 = 0
     private var displayLink: CADisplayLink?
@@ -56,6 +61,7 @@ public final class SimulatorScreenNSView: NSView {
     public var inputFocusChanged: ((Bool) -> Void)?
     public var inputEnabled = true {
         willSet { if inputEnabled && !newValue { releaseInput() } }
+        didSet { if oldValue != inputEnabled { window?.invalidateCursorRects(for: self) } }
     }
     private var hasInputFocus = false
     public private(set) var inputReason: String?
@@ -80,6 +86,7 @@ public final class SimulatorScreenNSView: NSView {
         wantsLayer = true
         screen.contentsGravity = .resizeAspect
         layer?.addSublayer(screen)
+        layer?.addSublayer(pointer)
         setAccessibilityElement(true)
         setAccessibilityRole(NSAccessibility.Role(rawValue: "AXApplication"))
         setAccessibilityIdentifier("simulator-screen")
@@ -93,7 +100,60 @@ public final class SimulatorScreenNSView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         screen.frame = bounds
+        updatePointerLayer()
         CATransaction.commit()
+    }
+
+    public override func resetCursorRects() {
+        super.resetCursorRects()
+        if !inputEnabled { addCursorRect(bounds, cursor: .operationNotAllowed) }
+    }
+
+    /// 画面に出さない cacheDisplay にも IOSurface の内容を含める。
+    public override func draw(_ dirtyRect: NSRect) {
+        guard NSGraphicsContext.current?.isDrawingToScreen == false, let info,
+              let image = CIContext().createCGImage(CIImage(ioSurface: info.surface),
+                                                   from: CGRect(x: 0, y: 0, width: info.pixelWidth, height: info.pixelHeight)) else { return }
+        NSImage(cgImage: image, size: bounds.size).draw(in: bounds)
+        if let path = pointer.path {
+            let outline = NSBezierPath(cgPath: path)
+            if pointerIsTouch { NSColor(cgColor: pointer.fillColor ?? NSColor.clear.cgColor)?.setFill(); outline.fill() }
+            NSColor(cgColor: pointer.strokeColor ?? NSColor.clear.cgColor)?.setStroke()
+            outline.lineWidth = 2
+            outline.stroke()
+        }
+    }
+
+    func showPointer(at location: CGPoint, touching: Bool) {
+        pointerTask?.cancel()
+        pointerLocation = location
+        pointerIsTouch = touching
+        updatePointerLayer()
+        needsDisplay = true
+        if !touching {
+            pointerTask = Task { [weak self] in
+                do { try await Task.sleep(for: .milliseconds(180)) } catch { return }
+                self?.clearPointer()
+            }
+        }
+    }
+
+    func clearPointer() {
+        pointerTask?.cancel()
+        pointerTask = nil
+        pointerLocation = nil
+        pointer.path = nil
+        needsDisplay = true
+    }
+
+    private func updatePointerLayer() {
+        guard let location = pointerLocation else { return }
+        let diameter = (pointerIsTouch ? 56.0 : 30.0) * bounds.width / 402
+        pointer.path = CGPath(ellipseIn: CGRect(x: location.x - diameter / 2, y: location.y - diameter / 2,
+                                                width: diameter, height: diameter), transform: nil)
+        pointer.fillColor = pointerIsTouch ? NSColor.gray.withAlphaComponent(0.35).cgColor : NSColor.clear.cgColor
+        pointer.strokeColor = pointerIsTouch ? NSColor.white.withAlphaComponent(0.8).cgColor : NSColor.darkGray.withAlphaComponent(0.55).cgColor
+        pointer.lineWidth = 2
     }
 
     public override func viewDidMoveToWindow() {
@@ -191,6 +251,7 @@ public final class SimulatorScreenNSView: NSView {
     }
 
     @objc private func releaseInput() {
+        clearPointer()
         let ownedInput = hasInputFocus || touching || pasteTask != nil
         hasInputFocus = false
         touching = false
@@ -216,6 +277,7 @@ public final class SimulatorScreenNSView: NSView {
         guard acceptsInput, let point = point(for: event), let connection else { return }
         acquireInputFocus()
         touching = true
+        showPointer(at: convert(event.locationInWindow, from: nil), touching: true)
         touchRevision = connection.inputRevision
         connection.sendTouch(phase: 0, point: point)
     }
@@ -225,14 +287,15 @@ public final class SimulatorScreenNSView: NSView {
 
     private func continueTouch(_ event: NSEvent, phase: Int) {
         guard touching else { return }
-        guard touchRevision == connection?.inputRevision else { touching = false; return }
+        guard touchRevision == connection?.inputRevision else { touching = false; clearPointer(); return }
         guard acceptsInput,
               let point = point(for: event, continuingTouch: true) else {
             if touching { releaseInput() }
             return
         }
         connection?.sendTouch(phase: phase, point: point)
-        if phase == 2 { touching = false }
+        if phase == 2 { touching = false; clearPointer() }
+        else { showPointer(at: convert(event.locationInWindow, from: nil), touching: true) }
     }
 
     public override func scrollWheel(with event: NSEvent) {
@@ -250,6 +313,8 @@ public final class SimulatorScreenNSView: NSView {
         else if event.phase.contains(.changed) || event.phase.contains(.stationary) { phase = 2 }
         else { phase = 0 }
         if event.phase.contains(.mayBegin) { return }
+        if phase == 3 || phase == 4 { clearPointer() }
+        else { showPointer(at: convert(event.locationInWindow, from: nil), touching: false) }
         // マウスの行単位とトラックパッドのポイント単位を揃える。
         let scale = event.hasPreciseScrollingDeltas ? 1.0 : 10.0
         connection?.sendScroll(dx: event.scrollingDeltaX * scale, dy: event.scrollingDeltaY * scale, point: point, phase: phase)

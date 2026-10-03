@@ -329,6 +329,29 @@ actor HubCatalogFixture {
     }
 }
 
+@Suite @MainActor struct SimulatorDisplayCountTests {
+    @Test func 同じ端末を表示する登録だけを数える() async {
+        let hub = SimulatorHub(catalog: HubCatalogFixture(states: ["端末A": "Shutdown", "端末B": "Shutdown"]).catalog())
+        defer { hub.disconnectAll() }
+        await hub.refresh()
+        let first = SessionID(), second = SessionID()
+        let firstDisplay = UUID(), secondDisplay = UUID()
+        hub.select(udid: "端末A", for: first)
+        hub.select(udid: "端末A", for: second)
+        hub.setVisible(true, displayID: firstDisplay, sessionID: first)
+        hub.setVisible(true, displayID: secondDisplay, sessionID: second)
+        #expect(hub.displayCount(udid: "端末A") == 2)
+        #expect(hub.displayCount(udid: "端末B") == 0)
+        hub.select(udid: "端末B", for: second)
+        #expect(hub.displayCount(udid: "端末A") == 1)
+        #expect(hub.displayCount(udid: "端末B") == 1)
+        hub.removeDisplay(firstDisplay)
+        #expect(hub.displayCount(udid: "端末A") == 0)
+        hub.setVisible(false, displayID: secondDisplay, sessionID: second)
+        #expect(hub.displayCount(udid: "端末B") == 0)
+    }
+}
+
 @MainActor final class HubTransport: SimulatorDisplayTransport {
     var failed: (@MainActor (String) -> Void)?
     var probeReply: (@MainActor (SimulatorBridgeCapability) -> Void)?

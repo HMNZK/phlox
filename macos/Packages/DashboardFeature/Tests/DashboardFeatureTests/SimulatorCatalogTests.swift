@@ -4,16 +4,36 @@ import Testing
 
 struct SimulatorCatalogTests {
     @Test(arguments: ["xcrun: error: unable to find utility \"simctl\", not a developer tool or in PATH",
-                      "tool 'simctl' requires Xcode", "invalid active developer path"])
-    func Xcodeが見つからない理由を明示する(message: String) async {
-        let catalog = SimulatorCatalog { _, _ in
+                      "tool 'simctl' requires Xcode", "invalid active developer path", "開発ツールがありません"])
+    func Xcodeが見つからない理由をエラー文に依存せず明示する(message: String) async {
+        let catalog = SimulatorCatalog(isXcodeAvailable: { false }) { _, _ in
             .init(status: 72, output: Data(), errorOutput: Data(message.utf8))
         }
         let listing = await catalog.list()
         #expect(listing.devices.isEmpty)
         #expect(listing.reason?.hasPrefix("Xcode が見つかりません") == true)
-        #expect(listing.reason?.contains(message) == true)
-        #expect(listing.reason?.contains("72") == true)
+        #expect(listing.reason?.contains(message) == false)
+        #expect(listing.diagnosticReason?.contains(message) == true)
+        #expect(listing.diagnosticReason?.contains("72") == true)
+    }
+
+    @Test func Xcodeが使えるときはエラー文にXcodeを含んでも不在にしない() async {
+        let catalog = SimulatorCatalog(isXcodeAvailable: { true }) { _, _ in
+            .init(status: 72, output: Data(), errorOutput: Data("requires Xcode".utf8))
+        }
+        let listing = await catalog.list()
+        #expect(listing.reason?.hasPrefix("端末一覧を取得できません:") == true)
+        #expect(listing.diagnosticReason?.contains("requires Xcode") == true)
+    }
+
+    @Test func Xcode確認の失敗も一覧取得の原文とともに保持する() async {
+        let catalog = SimulatorCatalog(isXcodeAvailable: { throw CocoaError(.fileReadNoPermission) }) { _, _ in
+            .init(status: 72, output: Data(), errorOutput: Data("一覧取得の失敗".utf8))
+        }
+        let listing = await catalog.list()
+        #expect(listing.reason?.contains("一覧取得の失敗") == true)
+        #expect(listing.diagnosticReason?.contains("Xcode の確認に失敗しました") == true)
+        #expect(listing.diagnosticReason?.contains(CocoaError(.fileReadNoPermission).localizedDescription) == true)
     }
 
     @Test func 存在しない端末への大きな貼り付けは終了コードと標準エラーを返す() async {
@@ -68,7 +88,7 @@ struct SimulatorCatalogTests {
     }
 
     @Test func コマンド失敗は空一覧と終了コードと理由を返す() async {
-        let catalog = SimulatorCatalog { _, _ in
+        let catalog = SimulatorCatalog(isXcodeAvailable: { true }) { _, _ in
             .init(status: 72, output: Data(), errorOutput: Data("Xcodeがありません".utf8))
         }
         let listing = await catalog.list()
@@ -78,7 +98,7 @@ struct SimulatorCatalogTests {
     }
 
     @Test func 起動失敗の理由を返す() async {
-        let catalog = SimulatorCatalog { _, _ in
+        let catalog = SimulatorCatalog(isXcodeAvailable: { true }) { _, _ in
             throw CocoaError(.executableNotLoadable)
         }
         let listing = await catalog.list()

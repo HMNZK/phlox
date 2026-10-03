@@ -14,8 +14,12 @@ struct SimulatorInputDeliveryTests {
         view.mouseDragged(with: mouse(.leftMouseDragged, x: 200, y: 200))
         #expect(fake.inputs.isEmpty)
         view.mouseDown(with: mouse(.leftMouseDown, x: 200, y: 200))
+        #expect(view.pointerLocation == CGPoint(x: 200, y: 200))
+        #expect(view.pointerIsTouch)
         view.mouseDragged(with: mouse(.leftMouseDragged, x: 500, y: -100))
+        #expect(view.pointerLocation == CGPoint(x: 500, y: -100))
         view.mouseUp(with: mouse(.leftMouseUp, x: 500, y: -100))
+        #expect(view.pointerLocation == nil)
         #expect(fake.inputs == [.touch(0, 0.5, 0.5), .touch(1, 1, 1), .touch(2, 1, 1)])
         let scroll = try #require(CGEvent(scrollWheelEvent2Source: nil, units: .pixel,
                                          wheelCount: 2, wheel1: 20, wheel2: 10, wheel3: 0))
@@ -24,9 +28,28 @@ struct SimulatorInputDeliveryTests {
         scroll.location = NSPoint(x: 200, y: NSScreen.screens[0].frame.maxY - 200)
         let positioned = try #require(NSEvent(cgEvent: scroll))
         view.scrollWheel(with: positioned)
+        #expect(view.pointerLocation == CGPoint(x: 200, y: 200))
+        #expect(!view.pointerIsTouch)
         #expect(fake.inputs.last == .scroll(event.scrollingDeltaX, event.scrollingDeltaY, 0.5, 0.5))
         connection.sendHome()
         #expect(fake.inputs.last == .home)
+    }
+
+    @Test func ホイールの印は操作後に消え解放時にも残さない() async throws {
+        let (view, window, connection, fake) = try setup()
+        defer { view.stop(); window.close(); connection.disconnect() }
+        view.scrollWheel(with: try scroll(delta: 20))
+        #expect(view.pointerLocation != nil)
+        let deadline = ContinuousClock.now + .seconds(1)
+        while view.pointerLocation != nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(view.pointerLocation == nil)
+        view.mouseDown(with: mouse(.leftMouseDown, x: 200, y: 200))
+        #expect(view.pointerIsTouch)
+        window.makeFirstResponder(nil)
+        #expect(view.pointerLocation == nil)
+        #expect(fake.releases > 0)
     }
 
     @Test func キー解放を修飾変更後も送りショートカットを除外する() throws {

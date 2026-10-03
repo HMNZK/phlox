@@ -9,12 +9,17 @@ struct SimulatorDevice: Equatable, Sendable, Identifiable {
 
     var id: String { udid }
     var isBooted: Bool { state == "Booted" }
+    var runtimeLabel: String {
+        "iOS " + (runtimeIdentifier.components(separatedBy: "iOS-").last?.replacingOccurrences(of: "-", with: ".") ?? runtimeIdentifier)
+    }
+    var stateLabel: String { isBooted ? "起動済み" : state == "Booting" ? "起動中" : "停止中" }
 }
 
 struct SimulatorCatalog: Sendable {
     struct Listing: Equatable, Sendable {
         let devices: [SimulatorDevice]
         let reason: String?
+        var diagnosticReason: String? = nil
     }
 
     struct CommandResult: Sendable {
@@ -34,25 +39,44 @@ struct SimulatorCatalog: Sendable {
     }
 
     private let run: @Sendable ([String], Data?) async throws -> CommandResult
+    private let isXcodeAvailable: @Sendable () async throws -> Bool
 
     init(run: @escaping @Sendable ([String], Data?) async throws -> CommandResult = { arguments, input in
         try await Task.detached {
-            try Self.runSimctl(arguments, input: input)
+            try Self.runCommand("/usr/bin/xcrun", arguments: ["simctl"] + arguments, input: input)
         }.value
     }) {
+        self.init(isXcodeAvailable: Self.xcodeAvailable, run: run)
+    }
+
+    init(isXcodeAvailable: @escaping @Sendable () async throws -> Bool,
+         run: @escaping @Sendable ([String], Data?) async throws -> CommandResult) {
         self.run = run
+        self.isXcodeAvailable = isXcodeAvailable
+    }
+
+    private static func xcodeAvailable() async throws -> Bool {
+        try await Task.detached {
+            let result = try Self.runCommand("/usr/bin/xcrun", arguments: ["--find", "simctl"], input: nil)
+            let path = String(decoding: result.output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            return result.status == 0 && FileManager.default.isExecutableFile(atPath: path)
+        }.value
     }
 
     func list() async -> Listing {
         do {
             return Self.parse(try await execute(["list", "-j", "devices"]).output)
         } catch {
-            if case let CommandError.failed(_, message) = error,
-               message.contains("unable to find utility \"simctl\"") || message.contains("requires Xcode") ||
-                message.contains("invalid active developer path") {
-                return Listing(devices: [], reason: "Xcode が見つかりません。Xcode を導入・選択して再確認してください: \(error.localizedDescription)")
+            let diagnostic = error.localizedDescription
+            do {
+                if try await !isXcodeAvailable() {
+                    return Listing(devices: [], reason: "Xcode が見つかりません", diagnosticReason: diagnostic)
+                }
+            } catch {
+                return Listing(devices: [], reason: "端末一覧を取得できません: \(diagnostic)",
+                               diagnosticReason: "\(diagnostic)\nXcode の確認に失敗しました: \(error.localizedDescription)")
             }
-            return Listing(devices: [], reason: "端末一覧を取得できません: \(error.localizedDescription)")
+            return Listing(devices: [], reason: "端末一覧を取得できません: \(diagnostic)", diagnosticReason: diagnostic)
         }
     }
 
@@ -117,10 +141,10 @@ struct SimulatorCatalog: Sendable {
     }
 
     // WorkingTreeService.runGitと同様、両方の出力を並行して読み、パイプの詰まりを防ぐ。
-    private static func runSimctl(_ arguments: [String], input: Data?) throws -> CommandResult {
+    private static func runCommand(_ executable: String, arguments: [String], input: Data?) throws -> CommandResult {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        process.arguments = ["simctl"] + arguments
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
         let output = Pipe()
         let errorOutput = Pipe()
         let standardInput = input == nil ? nil : Pipe()

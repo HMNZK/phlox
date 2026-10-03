@@ -28,141 +28,24 @@ public struct SimulatorTabView: View {
     private var device: SimulatorDevice? { hub.selectedDevice(for: sessionID) }
     private var connection: SimulatorDisplayConnection? { hub.connection(for: sessionID) }
     private var support: SimulatorPolicy.Support { hub.support(for: sessionID, displayID: displayID) }
-    private var policyReason: String? {
-        connection?.capability != nil && !support.allowsDisplay ? support.message : nil
-    }
     private var allowsInput: Bool { support.allowsInput && connection?.inputEnabled == true }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            GeometryReader { geometry in
-                HStack(spacing: 8) {
-                    SimulatorDeviceMenu(devices: hub.devices, selected: device?.udid,
-                                        compact: geometry.size.width < 450,
-                                        focusRequest: menuFocusRequest,
-                                        preservesScreenFocus: preservesScreenFocus,
-                                        failed: { screenshotReason = $0 }) { udid in
-                        sendsKeys = false
-                        hub.select(udid: udid, for: sessionID)
-                    }
-                    .accessibilityIdentifier("simulator-device-menu")
-                    .fixedSize()
-                    .layoutPriority(2)
-                    if let device, device.state == "Shutdown" {
-                        Button("起動") { Task { await hub.boot(for: sessionID) } }
-                            .accessibilityIdentifier("simulator-boot")
-                    }
-                    if sendsKeys {
-                        Text(geometry.size.width < 450 ? "→ 端末" : "キー入力を端末に送信中（⌘Esc で解除）")
-                            .font(DSFont.meta)
-                            .foregroundStyle(DSColor.textSecondary)
-                            .lineLimit(1)
-                            .accessibilityLabel("キー入力を端末に送信中（⌘Esc で解除）")
-                    }
-                    if support == .displayOnly || support == .unverified {
-                        Text(geometry.size.width < 700
-                             ? support == .unverified ? "未確認（このタブのみ）" : "表示のみ対応"
-                             : support.message ?? "").font(DSFont.meta)
-                            .foregroundStyle(DSColor.textSecondary).lineLimit(1)
-                            .accessibilityLabel(support.message ?? "")
-                            .accessibilityIdentifier("simulator-support-band")
-                            .help(support.message ?? "")
-                    }
-                    if policyReason != nil, connection?.blocksRetry != true {
-                        Button("未確認でも試す") { hub.tryUnverified(displayID: displayID) }
-                            .accessibilityIdentifier("simulator-try-unverified")
-                    }
-                    Spacer(minLength: 0)
-                    Button { if allowsInput { connection?.sendHome() } } label: { Image(systemName: "house") }
-                        .help("ホーム（⇧⌘H）")
-                        .accessibilityLabel("ホーム")
-                        .accessibilityIdentifier("simulator-home")
-                        .disabled(!allowsInput)
-                    Button { Task { await takeScreenshot() } } label: { Image(systemName: "camera") }
-                        .help("スクリーンショットを Finder で表示")
-                        .accessibilityLabel("スクリーンショット")
-                        .disabled(device?.isBooted != true)
-                    Button { showsDiagnostics.toggle() } label: { Image(systemName: "info.circle") }
-                        .accessibilityLabel("シミュレーターの診断")
-                        .accessibilityIdentifier("simulator-diagnostics")
-                        .popover(isPresented: $showsDiagnostics) { diagnostics }
-                    Button {
-                        shutdownUDID = device?.udid
-                        confirmsShutdown = true
-                    } label: { Image(systemName: "stop") }
-                        .help("端末を停止")
-                        .accessibilityLabel("端末を停止")
-                        .accessibilityIdentifier("simulator-shutdown")
-                        .disabled(device?.isBooted != true)
-                }
-                .buttonStyle(.borderless)
-                .padding(.horizontal, 8)
-                .frame(height: 30)
-            }
-            .frame(height: 30)
-            Divider()
-            if let reason = screenshotReason ?? hub.operationReason ?? hub.listingReason ?? connection?.reason ?? policyReason {
-                Text(verbatim: reason).font(DSFont.auxiliary)
-                    .foregroundStyle(DSColor.textSecondary).padding(8)
-                HStack {
-                    Button("Simulator.app で開く") { openSimulator() }
-                        .accessibilityIdentifier("simulator-open-external")
-                    if connection?.canReconnect == true {
-                        Button("再接続") { connection?.reconnect() }
-                            .accessibilityIdentifier("simulator-reconnect")
-                    }
-                    if hub.listingReason != nil {
-                        Button("再確認") { Task { await hub.refresh() } }
-                    }
-                }.padding(.bottom, 8)
-            }
-            if support.allowsDisplay, let info = connection?.displayInfo {
-                SimulatorScreenView(displayInfo: info, connection: connection,
-                                    isVisible: windowVisible,
-                                    releaseFocus: { requestMenuFocus() },
-                                    deviceName: device?.name ?? "端末",
-                                    inputFocusChanged: { focused in
-                                        Task { @MainActor in sendsKeys = focused }
-                                    }, inputEnabled: allowsInput)
-                    .overlay {
-                        if sendsKeys {
-                            GeometryReader { geometry in
-                                if let rect = SimulatorInputMapper.displayRect(
-                                    in: CGRect(origin: .zero, size: geometry.size),
-                                    pixelSize: CGSize(width: info.pixelWidth, height: info.pixelHeight)
-                                ) {
-                                    Rectangle().stroke(DSColor.focusRing, lineWidth: 2)
-                                        .frame(width: rect.width, height: rect.height)
-                                        .position(x: rect.midX, y: rect.midY)
-                                }
-                            }
-                            .allowsHitTesting(false)
-                        }
-                    }
-                    .padding(12)
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    if connection?.hasStaleFrame(at: context.date) == true {
-                        Text("しばらく画面の更新を観測していません")
-                            .font(DSFont.meta).foregroundStyle(DSColor.textSecondary)
-                    }
-                }
-            } else {
-                VStack(spacing: 8) {
-                    Image(systemName: "iphone").font(.system(size: 32))
-                    Text(device == nil ? "端末がありません" : connection?.reason != nil || policyReason != nil ? "画面を取得できません" : device?.isBooted == true ? "画面を取得しています" : device?.state == "Booting" ? "端末を起動しています" : "端末を起動すると画面が表示されます")
-                        .font(DSFont.auxiliary)
-                }
-                .foregroundStyle(DSColor.textSecondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            Text(NSWorkspace.shared.isVoiceOverEnabled
-                 ? "端末内を読み上げるには Simulator.app で開き、iOS の VoiceOver を使います"
-                 : support == .displayOnly ? "表示のみ対応しています。入力は送信できません"
-                 : !allowsInput ? "キー入力はまだ送っていません"
-                 : sendsKeys ? "⌘ 付きのキーは Phlox が受けます · ⌘Esc で解除"
-                 : "キー入力はまだ送っていません · 画面をクリックすると送ります")
-                .font(DSFont.meta).foregroundStyle(DSColor.textSecondary).padding(8)
-        }
+        SimulatorTabContent(hub: hub, sessionID: sessionID, displayID: displayID,
+                            windowVisible: windowVisible, menuFocusRequest: menuFocusRequest,
+                            preservesScreenFocus: preservesScreenFocus,
+                            confirmsShutdown: confirmsShutdown,
+                            sendsKeys: $sendsKeys, showsDiagnostics: $showsDiagnostics,
+                            operationReason: screenshotReason,
+                            select: { udid in
+                                sendsKeys = false
+                                hub.select(udid: udid, for: sessionID)
+                            }, releaseFocus: { requestMenuFocus() },
+                            screenshot: { Task { await takeScreenshot() } },
+                            shutdown: {
+                                shutdownUDID = device?.udid
+                                confirmsShutdown = true
+                            }, openSimulator: openSimulator)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("simulator-tab")
         .background(SimulatorWindowVisibility { visible in
@@ -195,23 +78,13 @@ public struct SimulatorTabView: View {
             hub.removeDisplay(displayID)
         }
         .dsDialog(isPresented: $confirmsShutdown) {
-            DSDialog(.recoverable, title: "端末を停止しますか？",
-                     message: "この端末を表示中の他のタブ・Phlox の別の版・Simulator.app にも影響します",
-                     buttons: [
-                        DSDialogButton("停止") {
-                            let udid = shutdownUDID
-                            confirmsShutdown = false
-                            shutdownUDID = nil
-                            if let udid { Task { await hub.shutdown(udid: udid) } }
-                        },
-                        DSDialogButton("キャンセル", role: .primary) {
-                            confirmsShutdown = false
-                            shutdownUDID = nil
-                        },
-                     ], onCancel: {
-                        confirmsShutdown = false
-                        shutdownUDID = nil
-                     }) { EmptyView() }
+            SimulatorShutdownDialog(deviceName: hub.devices.first { $0.udid == shutdownUDID }?.name ?? "端末",
+                                    displayCount: shutdownUDID.map { hub.displayCount(udid: $0) } ?? 0,
+                                    shutdown: {
+                                        let udid = shutdownUDID
+                                        cancelShutdown()
+                                        if let udid { Task { await hub.shutdown(udid: udid) } }
+                                    }, cancel: cancelShutdown)
         }
     }
 
@@ -220,18 +93,9 @@ public struct SimulatorTabView: View {
         menuFocusRequest += 1
     }
 
-    private var diagnostics: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("シミュレーターの診断").font(DSFont.auxiliary)
-            Text("Xcode build: \(connection?.capability?.xcodeBuild ?? "未取得")")
-            Text("iOS runtime: \(device?.runtimeIdentifier ?? "未選択")")
-            Text("本体 build: \(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "不明")")
-            Text("補助 build: \(connection?.capability?.helperBuild ?? "未取得")")
-            Text("通信仕様: 本体 \(SimulatorBridgeInterfaces.protocolVersion) / 補助 \(connection?.capability.map { String($0.protocolVersion) } ?? "未取得")")
-            Text("接続世代: \(connection?.generation.current ?? 0)")
-            Text("5秒間、画面の更新番号が変わらないと診断を表示します。静止画面でも表示されます。入力が効いたかどうかを示すものではありません。")
-        }
-        .font(DSFont.meta).textSelection(.enabled).padding(16).frame(width: 380)
+    private func cancelShutdown() {
+        confirmsShutdown = false
+        shutdownUDID = nil
     }
 
     private func openSimulator() {
@@ -240,6 +104,7 @@ public struct SimulatorTabView: View {
             return
         }
         let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
         if let device { configuration.arguments = ["-CurrentDeviceUDID", device.udid] }
         NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, error in
             if let error {
@@ -275,8 +140,14 @@ struct SimulatorDeviceMenu: NSViewRepresentable {
     let select: (String?) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(select: select, failed: failed) }
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSPopUpButton, context: Context) -> CGSize? {
+        let size = nsView.intrinsicContentSize
+        return CGSize(width: min(proposal.width ?? size.width, size.width), height: size.height)
+    }
     func makeNSView(context: Context) -> NSPopUpButton {
-        let button = NSPopUpButton(frame: .zero, pullsDown: false)
+        let button = SimulatorDevicePopUpButton(frame: .zero, pullsDown: false)
+        button.isBordered = false
+        button.focusRingType = .none
         button.cell?.lineBreakMode = .byClipping
         button.target = context.coordinator
         button.action = #selector(Coordinator.changed(_:))
@@ -315,11 +186,33 @@ struct SimulatorDeviceMenu: NSViewRepresentable {
             guard rebuildsMenu || self.selected != selected else { return }
             if rebuildsMenu {
                 button.removeAllItems()
-                for device in devices {
-                    let runtime = device.runtimeIdentifier.components(separatedBy: "iOS-").last?.replacingOccurrences(of: "-", with: ".") ?? ""
-                    let state = device.isBooted ? "起動済み" : device.state == "Booting" ? "起動中" : "停止中"
-                    button.addItem(withTitle: compact ? device.name : "\(device.name) · iOS \(runtime) · \(state)")
-                    button.lastItem?.representedObject = device.udid
+                for (heading, group) in [
+                    ("起動中", devices.filter { $0.isBooted || $0.state == "Booting" }),
+                    ("停止中", devices.filter { !$0.isBooted && $0.state != "Booting" }),
+                ] where !group.isEmpty {
+                    let header = NSMenuItem(title: heading, action: nil, keyEquivalent: "")
+                    header.isEnabled = false
+                    header.attributedTitle = NSAttributedString(string: heading, attributes: [
+                        .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+                        .foregroundColor: NSColor(DSColor.textTertiary),
+                    ])
+                    button.menu?.addItem(header)
+                    for device in group {
+                        let item = NSMenuItem(title: device.name, action: nil, keyEquivalent: "")
+                        item.representedObject = device.udid
+                        let paragraph = NSMutableParagraphStyle()
+                        paragraph.tabStops = [NSTextTab(textAlignment: .right, location: 250)]
+                        let title = NSMutableAttributedString(string: device.name + "\t" + device.runtimeLabel,
+                            attributes: [.font: NSFont.systemFont(ofSize: 13), .paragraphStyle: paragraph,
+                                         .foregroundColor: NSColor(DSColor.textPrimary)])
+                        title.addAttributes([.font: NSFont.systemFont(ofSize: 11.5),
+                                             .foregroundColor: NSColor(DSColor.textSecondary)],
+                                            range: NSRange(location: device.name.utf16.count + 1,
+                                                           length: device.runtimeLabel.utf16.count))
+                        item.attributedTitle = title
+                        item.image = SimulatorDevicePopUpButton.stateImage(device)
+                        button.menu?.addItem(item)
+                    }
                 }
                 if devices.isEmpty {
                     button.addItem(withTitle: "端末なし")
@@ -332,33 +225,52 @@ struct SimulatorDeviceMenu: NSViewRepresentable {
                 self.compact = compact
             }
             self.selected = selected
+            if let custom = button as? SimulatorDevicePopUpButton {
+                custom.device = devices.first { $0.udid == selected }
+                custom.compact = compact
+                custom.invalidateIntrinsicContentSize()
+                custom.needsDisplay = true
+            }
             restoreSelection(button)
+            for item in button.itemArray {
+                item.state = item.representedObject as? String == selected && selected != nil ? .on : .off
+            }
             if let device = devices.first(where: { $0.udid == selected }) {
                 let state = device.isBooted ? "起動済み" : device.state == "Booting" ? "起動中" : "停止中"
                 button.setAccessibilityLabel("端末の選択: \(device.name)、\(state)")
+                button.toolTip = "\(device.name) · \(device.runtimeLabel) · \(state)"
             } else {
                 button.setAccessibilityLabel("端末の選択: 端末なし")
+                button.toolTip = "端末なし"
             }
         }
 
         func restoreSelection(_ button: NSPopUpButton) {
-            if let index = devices?.firstIndex(where: { $0.udid == selected }) {
-                button.selectItem(at: index)
+            if let item = button.itemArray.first(where: { $0.representedObject as? String == selected && selected != nil }) {
+                button.select(item)
             } else {
-                button.selectItem(at: 0)
+                button.select(button.itemArray.first { $0.representedObject is String && $0.representedObject as? String != "Simulator.app" }
+                              ?? button.itemArray.first)
             }
         }
+
         static func focus(_ button: NSPopUpButton, preservingScreenFocus: Bool) {
             guard !(preservingScreenFocus && button.window?.firstResponder is SimulatorScreenNSView) else { return }
             button.window?.makeFirstResponder(button)
         }
+        private static func backgroundConfiguration() -> NSWorkspace.OpenConfiguration {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = false
+            return configuration
+        }
+
         @objc func changed(_ button: NSPopUpButton) {
             button.window?.makeFirstResponder(button)
             let value = button.selectedItem?.representedObject as? String
             if value == "Simulator.app" {
                 restoreSelection(button)
                 if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iphonesimulator") {
-                    NSWorkspace.shared.openApplication(at: url, configuration: .init()) { [weak self] _, error in
+                    NSWorkspace.shared.openApplication(at: url, configuration: Self.backgroundConfiguration()) { [weak self] _, error in
                         if let error {
                             Task { @MainActor in self?.failed("Simulator.app を開けません: \(error.localizedDescription)") }
                         }

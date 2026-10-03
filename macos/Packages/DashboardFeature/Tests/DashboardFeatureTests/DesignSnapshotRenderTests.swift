@@ -1,6 +1,7 @@
 import AppKit
 import AgentDomain
 import DesignSystem
+import IOSurface
 import SimulatorBridgeKit
 import SessionFeature
 import SwiftUI
@@ -98,9 +99,15 @@ struct DesignSnapshotRenderTests {
         .init(id: "7l", name: "接続失敗", width: 520, height: 760),
         .init(id: "7m", name: "再起動必要", width: 520, height: 760),
         .init(id: "7n", name: "狭幅の帯", width: 320, height: 700),
+        .init(id: "7nStopped", name: "停止中幅320", width: 320, height: 700),
+        .init(id: "7TrialInput520", name: "未確認入力中幅520", width: 520, height: 760),
+        .init(id: "7StaleInput520", name: "更新なし入力中幅520", width: 520, height: 760),
+        .init(id: "7LongStopped320", name: "長い端末名停止中幅320", width: 320, height: 700),
+        .init(id: "7LongInput320", name: "長い端末名入力中幅320", width: 320, height: 700),
+        .init(id: "7LongTrialStale320", name: "長い端末名未確認更新なし入力中幅320", width: 320, height: 700),
+        .init(id: "7ListingError", name: "端末一覧取得失敗", width: 520, height: 760),
         .init(id: "7o", name: "広幅の帯", width: 700, height: 760),
         .init(id: "7p", name: "ベゼルなし", width: 520, height: 640),
-        .init(id: "7q", name: "ベゼルあり", width: 520, height: 640),
         .init(id: "8L1", name: "ライトツリー", width: 300, height: 560, light: true),
         .init(id: "8L2", name: "ライトMarkdown", width: 560, height: 420, light: true),
         .init(id: "8L3", name: "ライト入力送信", width: 520, height: 520, light: true),
@@ -124,7 +131,8 @@ struct DesignSnapshotRenderTests {
         var rows = ["| 状態 id | 結果 | 補足 |", "|---|---|---|"]
         var written = 0
         var failures: [String] = []
-        for frame in frames {
+        for frame in frames where ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] != "simulator"
+            || frame.id.hasPrefix("7") || frame.id == "8L3" {
             do {
                 let existing = destination(frame, output)
                 if FileManager.default.fileExists(atPath: existing.path) { try FileManager.default.removeItem(at: existing) }
@@ -144,6 +152,9 @@ struct DesignSnapshotRenderTests {
         print(report)
         #expect(failures.isEmpty, "予期しない描画失敗: \(failures.joined(separator: "; "))")
         #expect(written > 0)
+        if ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] == "simulator" {
+            #expect(written == frames.filter { $0.id.hasPrefix("7") || $0.id == "8L3" }.count)
+        }
     }
 
     private func render(_ frame: Frame, fixtures: URL, output: URL) async throws -> String {
@@ -183,24 +194,12 @@ struct DesignSnapshotRenderTests {
             "5d": "リンクのホバーは FileTabView 内の非公開モデル状態",
             "5f": "Web プロセス終了状態は FileTabView 内の非公開モデル。実プロセスは終了させない",
             "5g": "遮断ルール準備失敗を FileTabView に注入する入口がない",
-            "7r": "開いた直後の画面は実端末映像が必要",
-            "7a": "表示中の画面は実端末映像が必要",
-            "7b": "入力送信中の画面は実端末映像と非公開フォーカス状態が必要",
-            "7c": "タップ中の画面は実端末映像が必要",
-            "7c2": "スクロール中の画面は実端末映像が必要",
-            "7d": "端末メニューの展開は画面外の cacheDisplay に含まれない",
-            "7h": "表示のみの画面は実端末映像が必要",
-            "7i": "更新停止の診断図は端末映像と診断ポップオーバーが必要",
-            "7j2": "試行中の画面は実端末映像が必要",
-            "7p": "ベゼルなしの比較図は実端末映像が必要",
-            "7q": "未採用のベゼル案で切替実装がない",
-            "8L3": "ライトの入力送信中は実端末映像と非公開フォーカス状態が必要",
         ]
         if let reason = reasons[id] { throw Unavailable(reason: reason) }
         if id.hasPrefix("2") || id == "8L1" {
             return try await renderTree(frame, fixtures: fixtures, output: output)
         }
-        if id.hasPrefix("7") {
+        if id.hasPrefix("7") || id == "8L3" {
             return try await renderSimulator(frame, output: output)
         }
         let sessionID = SessionID()
@@ -450,56 +449,147 @@ struct DesignSnapshotRenderTests {
     }
 
     private func renderSimulator(_ frame: Frame, output: URL) async throws -> String {
-        if frame.id == "7e" {
-            let dialog = DSDialog(.recoverable, title: "端末を停止しますか？",
-                message: "この端末を表示中の他のタブ・Phlox の別の版・Simulator.app にも影響します",
-                buttons: [DSDialogButton("停止") {}, DSDialogButton("キャンセル", role: .primary) {}], onCancel: {}) { EmptyView() }
-            try await capture(dialog, frame: frame, output: output)
-            return "SimulatorTabView と同じ本物の DSDialog と文言。シートの背景は対象外"
-        }
-        let fixture = HubCatalogFixture(states: ["iPhone 17": frame.id == "7g" ? "Booting" : "Shutdown"])
-        let fake = HubTransport()
-        let catalog: SimulatorCatalog
-        if frame.id == "7k" {
-            catalog = SimulatorCatalog { _, _ in
-                throw SimulatorCatalog.CommandError.failed(status: 1, message: "xcrun: unable to find utility \"simctl\"")
-            }
-        } else { catalog = fixture.catalog() }
-        let hub = SimulatorHub(catalog: catalog, refreshInterval: 60) { SimulatorDisplayConnection { fake } }
+        let id = frame.id
+        let displayID = UUID()
         let session = SessionID()
+        let icon = NSApp.applicationIconImage
+        if id == "7e" {
+            let macos = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent().deletingLastPathComponent()
+            let applicationIcon = try #require(NSImage(contentsOf: macos
+                .appendingPathComponent("App/Assets.xcassets/AppIcon.appiconset/512.png")))
+            NSApp.applicationIconImage = applicationIcon
+        }
+        defer { if id == "7e" { NSApp.applicationIconImage = icon } }
+        var states = [
+            "iPhone 17 Pro": ["7f", "7g", "7nStopped"].contains(id) ? "Shutdown" : "Booted",
+            "iPhone 17": "Shutdown", "iPhone 16e": "Shutdown",
+            "iPad Air 13 インチ（M3）": "Booted",
+        ]
+        if id.hasPrefix("7Long") { states["iPad Pro 13-inch (M4)"] = id == "7LongStopped320" ? "Shutdown" : "Booted" }
+        let fixture = HubCatalogFixture(states: states)
+        if id == "7g" { await fixture.setState("Booting", udid: "iPhone 17") }
+        let fake = HubTransport()
+        let catalog = ["7k", "7ListingError"].contains(id) ? SimulatorCatalog(isXcodeAvailable: { id != "7k" }) { _, _ in
+            .init(status: 72, output: Data(), errorOutput: Data((id == "7k"
+                ? "xcrun: unable to find utility \"simctl\"" : "CoreSimulator のサービスに接続できません").utf8))
+        } : fixture.catalog()
+        let hub = SimulatorHub(catalog: catalog, refreshInterval: 60) {
+            let connection = SimulatorDisplayConnection { fake }
+            if id == "7h" {
+                connection.policy = SimulatorPolicy(entries: [.init(xcodeBuild: "17C52",
+                    runtimeIdentifier: "com.apple.CoreSimulator.SimRuntime.iOS-26-2", supportsInput: false)])
+            }
+            return connection
+        }
         await hub.refresh()
-        if frame.id == "7k" { try #require(hub.listingReason?.contains("Xcode が見つかりません") == true) }
+        hub.select(udid: ["7k", "7ListingError"].contains(id) ? nil : id.hasPrefix("7Long")
+            ? "iPad Pro 13-inch (M4)" : ["7f", "7g"].contains(id) ? "iPhone 17" : "iPhone 17 Pro", for: session)
+        hub.setVisible(true, displayID: displayID, sessionID: session)
         defer { hub.disconnectAll() }
-        if ["7j", "7l", "7m"].contains(frame.id) {
-            await fixture.setState("Booted", udid: "iPhone 17")
-            await hub.refresh()
-            hub.setVisible(true, displayID: UUID(), sessionID: session)
-            let connection = try #require(hub.connection(for: session))
-            if frame.id == "7m" {
-                fake.probeReply?(SimulatorBridgeCapability(protocolVersion: -1, helperBuild: "旧版", xcodeBuild: "17C52", coreSimulatorLoaded: true, simulatorKitLoaded: true))
-            } else if frame.id == "7j" {
-                fake.probeReply?(SimulatorBridgeCapability(protocolVersion: SimulatorBridgeInterfaces.protocolVersion, helperBuild: "検証", xcodeBuild: "未確認", coreSimulatorLoaded: true, simulatorKitLoaded: true))
-            } else {
+        if id == "7e" {
+            let otherSession = SessionID()
+            hub.select(udid: "iPhone 17 Pro", for: otherSession)
+            hub.setVisible(true, displayID: UUID(), sessionID: otherSession)
+        }
+        if let connection = hub.connection(for: session) {
+            try await waitUntil { fake.probeReply != nil }
+            if id == "7l" {
                 fake.failed?("シミュレーターの補助プロセスに接続できません")
                 fake.failed?("自動の再接続後も応答がありません")
+                try #require(connection.canReconnect)
+            } else {
+                let unverified = ["7j", "7j2", "7TrialInput520", "7LongTrialStale320"].contains(id)
+                let capability = SimulatorBridgeCapability(
+                    protocolVersion: id == "7m" ? SimulatorBridgeInterfaces.protocolVersion - 1 : SimulatorBridgeInterfaces.protocolVersion,
+                    helperBuild: "検証", xcodeBuild: unverified ? "17D21" : "17C52",
+                    coreSimulatorLoaded: true, simulatorKitLoaded: true)
+                fake.probeReply?(capability)
+                if unverified && id != "7j" {
+                    hub.tryUnverified(displayID: displayID)
+                    fake.probeReply?(capability)
+                }
+                if id != "7j" && id != "7m" {
+                    let width = 402, height = 874
+                    let surface = try #require(IOSurface(properties: [.width: width, .height: height,
+                        .bytesPerElement: 4, .bytesPerRow: width * 4, .allocSize: width * height * 4,
+                        .pixelFormat: 0x42475241]))
+                    try #require(IOSurfaceLock(surface, [], nil) == 0)
+                    let pixels = IOSurfaceGetBaseAddress(surface).assumingMemoryBound(to: UInt32.self)
+                    for index in 0..<(width * height) { pixels[index] = 0xfff7f2f2 }
+                    try #require(IOSurfaceUnlock(surface, [], nil) == 0)
+                    fake.attachReply?(SimulatorDisplayInfo(udid: hub.selectedDevice(for: session)?.udid ?? "iPhone 17 Pro",
+                        connectionGeneration: connection.generation.current, displayGeneration: 1,
+                        surface: surface, pixelWidth: width, pixelHeight: height,
+                        orientation: .portrait, surfaceIsRotated: false, pixelFormat: 0x42475241), nil)
+                    try #require(connection.displayInfo != nil)
+                    if ["7i", "7StaleInput520", "7LongTrialStale320"].contains(id), let info = connection.displayInfo {
+                        try #require(IOSurfaceLock(surface, [], nil) == 0)
+                        try #require(IOSurfaceUnlock(surface, [], nil) == 0)
+                        connection.observeFrame(info, seed: IOSurfaceGetSeed(surface),
+                                                at: Date().addingTimeInterval(-6))
+                    }
+                }
             }
-            try await waitUntil { connection.reason != nil || connection.capability != nil }
-            if frame.id == "7j" { try #require(connection.reason?.contains("未確認") == true) }
-            if frame.id == "7l" { try #require(connection.canReconnect) }
-            if frame.id == "7m" { try #require(connection.blocksRetry) }
         }
-        try await capture(SimulatorTabView(hub: hub, sessionID: session, isFocused: false), frame: frame, output: output)
+        let focused = ["7b", "7c", "7n", "8L3", "7TrialInput520", "7StaleInput520", "7LongInput320", "7LongTrialStale320"].contains(id)
+        let content = SimulatorTabContent(hub: hub, sessionID: session, displayID: displayID,
+            confirmsShutdown: id == "7e",
+            sendsKeys: .constant(focused), showsDiagnostics: .constant(false),
+            select: { _ in }, releaseFocus: {}, screenshot: {}, shutdown: {}, openSimulator: {})
+            .overlay(alignment: .topLeading) {
+                if id == "7i" {
+                    SimulatorDiagnostics().background(DSColor.popoverBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: DSRadius.row))
+                        .offset(x: 160, y: 34)
+                }
+            }
+            .overlay(alignment: .top) {
+                if id == "7e" {
+                    ZStack(alignment: .top) {
+                        Color.black.opacity(0.4)
+                        SimulatorShutdownDialog(deviceName: "iPhone 17 Pro", displayCount: hub.displayCount(udid: "iPhone 17 Pro"),
+                                                shutdown: {}, cancel: {})
+                            .clipShape(RoundedRectangle(cornerRadius: DSRadius.l)).padding(.top, 70)
+                    }
+                }
+            }
+        try await capture(content, frame: frame, output: output, prepare: { host, window in
+            let views = descendants(host)
+            if id == "7r", let menu = views.first(where: { $0 is NSPopUpButton }) {
+                window.makeFirstResponder(menu)
+            }
+            if let screen = views.compactMap({ $0 as? SimulatorScreenNSView }).first {
+                if id == "7c" || id == "7c2" {
+                    screen.showPointer(at: CGPoint(x: screen.bounds.width * 0.45, y: screen.bounds.height * 0.5),
+                                       touching: id == "7c")
+                }
+            }
+            if id == "7d", let menu = views.compactMap({ $0 as? NSPopUpButton }).first?.menu {
+                let list = SimulatorMenuSnapshot(menu: menu)
+                list.frame = NSRect(x: 8, y: 30, width: 310, height: CGFloat(menu.items.count * 26 + 10))
+                host.addSubview(list)
+            }
+
+        })
         #expect(fake.inputs == 0)
         #expect(await fixture.mutations().isEmpty)
-        return ["7n", "7o"].contains(frame.id) ? "実物の帯を指定幅で描画。実端末映像と入力送信中の印は対象外（停止状態）"
-            : "既存の偽カタログ・偽接続を利用。実端末操作なし"
+        let copy = Process()
+        copy.executableURL = URL(fileURLWithPath: "/bin/cp")
+        try FileManager.default.createDirectory(atPath: "/tmp/snap-sim", withIntermediateDirectories: true)
+        copy.arguments = ["-R", destination(frame, output).path, "/tmp/snap-sim/"]
+        try copy.run()
+        copy.waitUntilExit()
+        try #require(copy.terminationStatus == 0)
+        return "偽の接続・単色 IOSurface と実物の表示部品。実端末操作なし。撮影直後に /tmp/snap-sim/ へコピー"
     }
 
     private func destination(_ frame: Frame, _ output: URL) -> URL {
         output.appendingPathComponent("\(frame.id)-\(frame.name).png")
     }
 
-    private func capture<V: View>(_ content: V, frame: Frame, output: URL) async throws {
+    private func capture<V: View>(_ content: V, frame: Frame, output: URL, prepare: ((NSView, NSWindow) -> Void)? = nil) async throws {
         let host = NSHostingView(rootView: content
             .frame(width: frame.width, height: frame.height)
             .background(DSColor.background)
@@ -514,6 +604,8 @@ struct DesignSnapshotRenderTests {
         defer { window.contentView = nil; window.close() }
         try await Task.sleep(for: .milliseconds(100))
         if frame.id.hasPrefix("1") { try await Task.sleep(for: .milliseconds(500)) }
+        host.layoutSubtreeIfNeeded()
+        prepare?(host, window)
         host.layoutSubtreeIfNeeded()
         // WebKit はホストの cacheDisplay に入らないので、完了した画像を合成する。
         let deadline = ContinuousClock.now + .seconds(10)
@@ -572,5 +664,39 @@ struct DesignSnapshotRenderTests {
     private func waitUntil(deadline: ContinuousClock.Instant = .now + .seconds(3), _ condition: () -> Bool) async throws {
         while !condition(), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(20)) }
         guard condition() else { throw Unavailable(reason: "画面外描画の準備が時間内に完了しなかった") }
+    }
+}
+
+
+/// OS のメニューを開かず、本物の項目の文字・印を描く。
+@MainActor private final class SimulatorMenuSnapshot: NSView {
+    let sourceMenu: NSMenu
+    init(menu: NSMenu) {
+        self.sourceMenu = menu
+        super.init(frame: .zero)
+    }
+    required init?(coder: NSCoder) { nil }
+    override var isFlipped: Bool { true }
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor(DSColor.popoverBackground).setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: 8, yRadius: 8).fill()
+        for (index, item) in sourceMenu.items.enumerated() {
+            let y = CGFloat(index * 26 + 5)
+            if item.isSeparatorItem {
+                NSColor(DSColor.separator).setFill()
+                NSRect(x: 10, y: y + 12, width: bounds.width - 20, height: 1).fill()
+            } else {
+                if item.state == .on {
+                    ("✓" as NSString).draw(at: NSPoint(x: 8, y: y + 5), withAttributes: [
+                        .font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor(DSColor.textPrimary),
+                    ])
+                }
+                item.image?.draw(in: NSRect(x: 22, y: y + 7, width: 10, height: 12))
+                let title = item.attributedTitle ?? NSAttributedString(string: item.title,
+                    attributes: [.font: NSFont.systemFont(ofSize: 13),
+                                 .foregroundColor: NSColor(DSColor.textPrimary)])
+                title.draw(at: NSPoint(x: item.representedObject == nil ? 12 : 40, y: y + 5))
+            }
+        }
     }
 }

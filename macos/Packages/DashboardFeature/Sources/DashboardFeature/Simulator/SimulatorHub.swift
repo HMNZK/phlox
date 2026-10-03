@@ -71,6 +71,12 @@ public final class SimulatorHub {
         return connections[device.udid]
     }
 
+    func displayCount(udid: String) -> Int {
+        visibleDisplays.values.filter { selectedDevice(for: $0)?.udid == udid }.count
+    }
+
+    func reportOperationReason(_ reason: String) { operationReason = reason }
+
     func support(for sessionID: SessionID, displayID: UUID) -> SimulatorPolicy.Support {
         guard connection(for: sessionID)?.blocksRetry != true else { return .unsupported }
         guard let device = selectedDevice(for: sessionID), let connection = connection(for: sessionID),

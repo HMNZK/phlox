@@ -3,6 +3,22 @@ import Testing
 
 @Suite("ファイルツリーの行とキーボード操作")
 struct FileTreeRowsTests {
+    @Test("子の上限表示はその子が終わる位置にだけ置く")
+    func directoryEnds() {
+        let rows = FileTreeRows.visibleRows(childrenByDir: [
+            "": [.init(relativePath: "dir", name: "dir", kind: .directory), .init(relativePath: "z", name: "z", kind: .file)],
+            "dir": [.init(relativePath: "dir/nested", name: "nested", kind: .directory), .init(relativePath: "dir/b", name: "b", kind: .file)],
+            "dir/nested": [.init(relativePath: "dir/nested/a", name: "a", kind: .file)]
+        ], expanded: ["dir", "dir/nested"])
+        #expect(FileTreeRows.finishedDirectories(after: 0, rows: rows).isEmpty)
+        #expect(FileTreeRows.finishedDirectories(after: 1, rows: rows).isEmpty)
+        #expect(FileTreeRows.finishedDirectories(after: 2, rows: rows) == ["dir/nested"])
+        #expect(FileTreeRows.finishedDirectories(after: 3, rows: rows) == ["dir"])
+        #expect(FileTreeRows.finishedDirectories(after: 4, rows: rows).isEmpty)
+        #expect(FileTreeRows.action(for: "dir/b", key: .up, rows: rows, expanded: []) == .select("dir/nested/a"))
+        #expect(FileTreeRows.action(for: "dir/b", key: .down, rows: rows, expanded: []) == .select("z"))
+    }
+
     @Test("開いている行は単体表示の操作中のファイルだけ")
     func activeFile() {
         var layout = SessionTabLayout()
@@ -39,6 +55,10 @@ struct FileTreeRowsTests {
                                   resolvedPath: "/usr")
         #expect(entry.help == "作業ツリーの外を指しているため開けません。→ /usr")
         #expect(entry.finderURL(root: "/workspace").path == "/usr")
+        let rows = [FileTreeRows.Row(entry: entry, depth: 0)]
+        #expect(FileTreeRows.action(for: "outside", key: .activate, rows: rows, expanded: []) == .explainBlocked("outside"))
+        #expect(FileTreeRows.action(for: "outside", key: .right, rows: rows, expanded: []) == nil)
+        #expect(!entry.canOpen)
         let file = FileTreeEntry(relativePath: "a.txt", name: "a.txt", kind: .file)
         #expect(file.finderURL(root: "/workspace").path == "/workspace/a.txt")
     }

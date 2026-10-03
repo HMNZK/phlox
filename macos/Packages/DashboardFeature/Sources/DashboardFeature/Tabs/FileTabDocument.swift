@@ -306,6 +306,8 @@ public final class FileTabDocument {
         }
     }
     public private(set) var loadState: LoadState = .unloaded
+    public private(set) var fileSize: Int?
+    public private(set) var readFailureReason: String?
     public private(set) var loadedDiskBytes = Data()
     public private(set) var bom = Data()
     public private(set) var invalidated = false
@@ -409,12 +411,17 @@ public final class FileTabDocument {
             draft = decoded.text
             loadState = .loaded
         } catch WorkingTreeTextError.tooLarge {
+            fileSize = try? await service.fileSize(path)
             loadState = .tooLarge
         } catch WorkingTreeTextError.binary {
             loadState = .binary
         } catch WorkingTreeServiceError.outsideRoot(let path) {
             loadState = .outsideRoot(path)
+        } catch WorkingTreeTextError.invalidUTF8 {
+            readFailureReason = "UTF-8 として読み込めませんでした。Shift_JIS など、別の文字コードで保存されている可能性があります。"
+            loadState = .loadFailed
         } catch {
+            readFailureReason = error.localizedDescription
             loadState = .loadFailed
         }
     }
@@ -522,6 +529,10 @@ public final class FileTabDocuments {
 
     public func documents(for sessionIDs: Set<SessionID>? = nil) -> [FileTabDocument] {
         storedDocuments.filter { sessionIDs?.contains($0.key) ?? true }.values.flatMap { $0.values }
+    }
+
+    func documentEntries() -> [(SessionID, FileTabDocument)] {
+        storedDocuments.flatMap { id, documents in documents.values.map { (id, $0) } }
     }
 
     public func invalidateAndWait(for sessionIDs: Set<SessionID>? = nil) async {

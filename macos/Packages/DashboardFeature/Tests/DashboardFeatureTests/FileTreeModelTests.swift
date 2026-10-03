@@ -6,6 +6,21 @@ import AgentDomain
 @Suite("ファイルツリーの表示状態")
 @MainActor
 struct FileTreeModelTests {
+    @Test("遅いフォルダ読込を待たずにブランチ行を更新する")
+    func branchWhileReading() async throws {
+        let root = try fileTreeFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let gate = FileTreeReadGate()
+        let model = FileTreeModel(root: root.path, loader: FileTreeLoader(root: root.path, read: { _, _ in try await gate.read() }))
+        let refresh = Task { await model.refresh() }
+        await gate.started(1)
+        for _ in 0..<100 where model.branch.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(model.branch == "Git 管理外")
+        #expect(model.loading.contains(""))
+        await gate.finish(1, name: "a.txt")
+        await refresh.value
+    }
+
     @Test("未オープンのファイルを右に分割して開く")
     func splitUnopened() {
         let files = FileTabDocuments()

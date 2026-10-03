@@ -133,13 +133,27 @@ struct ChildTabBar: View {
     let files: FileTabDocuments
     let agentConsoleWindowID: String?
     var simulatorHub: SimulatorHub? = nil
+    var localizationBundle: Bundle = .main
 
     @Environment(\.locale) private var locale
 
     var body: some View {
+        ViewThatFits(in: .horizontal) {
+            tabBar(showsPath: true)
+            tabBar(showsPath: false)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: DSLayout.childTabBarHeight)
+        .background(DSColor.windowBackground)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("このセッションのタブ"))
+    }
+
+    private func tabBar(showsPath: Bool) -> some View {
         HStack(spacing: DSSpacing.xxs) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: DSSpacing.xxs) {
+            ScrollViewReader { scroll in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: DSSpacing.xxs) {
                     ForEach(layout.tabs, id: \.self) { tab in
                         ChildTabButton(
                             tab: tab,
@@ -151,26 +165,22 @@ struct ChildTabBar: View {
                             onSelect: { router.tabs.updateLayout(for: node.id) { $0.select(tab) } },
                             onClose: { router.tabRequest = .closeChild(node.id, tab) }
                         )
+                        .id(tab)
                     }
-                    // 02 C1: ＋は子タブの直後。
-                    addButton
+                    }
                 }
+                .onAppear { scroll.scrollTo(layout.selected, anchor: .trailing) }
+                .onChange(of: layout.selected) { _, selected in scroll.scrollTo(selected, anchor: .trailing) }
             }
             .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: DSSpacing.m)
-            Text(verbatim: abbreviatedPath)
-                .font(DSFont.monoCaption)
-                .foregroundStyle(DSColor.textTertiary)
-                .lineLimit(1)
-                .truncationMode(.head)
-                .help(node.rawWorkspacePath)
-                .accessibilityLabel(Text("worktree: \(node.rawWorkspacePath)"))
+            .frame(minWidth: 160, idealWidth: 160, maxWidth: .infinity)
+            addButton
+                .fixedSize()
+            if showsPath {
+                FilePathLabel(path: abbreviatedPath)
+                    .frame(width: 180)
+            }
         }
-        .padding(.horizontal, 10)
-        .frame(height: DSLayout.childTabBarHeight)
-        .background(DSColor.windowBackground)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(Text("このセッションのタブ"))
     }
 
     private var addButton: some View {
@@ -211,8 +221,8 @@ struct ChildTabBar: View {
     /// 文言は画面のロケール（アプリ内の言語設定）で引くため Text で返す。
     private func title(for tab: ChildTab) -> Text {
         switch tab {
-        case .conversation: Text("会話")
-        case .terminal: Text("ターミナル")
+        case .conversation: Text("会話", bundle: localizationBundle)
+        case .terminal: Text("ターミナル", bundle: localizationBundle)
         case .simulator: Text("シミュレーター")
         case .changes: changeCount > 0 ? Text("変更 \(changeCount)") : Text("tab.changes")
         case .file(let path): Text(verbatim: (path as NSString).lastPathComponent)
@@ -319,7 +329,7 @@ extension ChildTab {
 // MARK: - New tab chooser (C4)
 
 /// 「＋」と ⌘T で開く選択肢。↑↓ で移動、↩ で開く。
-private struct NewTabChooser: View {
+struct NewTabChooser: View {
     @Bindable var router: AppRouter
     let node: SessionNode
     let agentConsoleWindowID: String?
@@ -330,7 +340,7 @@ private struct NewTabChooser: View {
     @FocusState private var focused: Item?
 
     enum Item: Hashable, CaseIterable {
-        case conversation, terminal, changes, simulator, file, agentConsole
+        case conversation, terminal, changes, file, agentConsole, simulator
     }
 
     private var items: [Item] {
@@ -345,6 +355,9 @@ private struct NewTabChooser: View {
                 .padding(.horizontal, DSSpacing.s)
                 .padding(.vertical, DSSpacing.xs)
             ForEach(items, id: \.self) { item in
+                if item == .simulator {
+                    Rectangle().fill(DSColor.separator).frame(height: 1).padding(.vertical, DSSpacing.xs)
+                }
                 row(item)
                     .focusable()
                     .focused($focused, equals: item)
@@ -418,7 +431,7 @@ private struct NewTabChooser: View {
     private func shortcut(_ item: Item) -> String {
         switch item {
         case .terminal: "⌃⌘T"
-        case .changes: ""
+        case .changes: "⌃⌘E"
         case .simulator: "⌃⌘Y"
         case .file: "⌘P"
         case .agentConsole: AppLocalizedString.string("共通 ⇧⌘,", locale: locale)
@@ -595,114 +608,45 @@ struct FileTabView: View {
     @State private var showsConflictAlert = false
     @State private var conflictWriter: String?
     @State private var saveError: String?
+    @State private var emphasizesMarkdownReason = false
     @Environment(\.locale) private var locale
 
     init(document: FileTabDocument, lastWriter: @escaping (FileTabDocument) -> String?,
-         isFocused: Bool, openFile: @escaping (String, String) -> Void) {
+         isFocused: Bool, openFile: @escaping (String, String) -> Void,
+         htmlPreview: HTMLPreviewModel? = nil,
+         localizationBundle: Bundle = .main, markdownEditor: MarkdownBlockEditor? = nil,
+         showsIsolationExplanation: Bool = false, emphasizesMarkdownReason: Bool = false) {
         self.document = document
         self.lastWriter = lastWriter
         self.isFocused = isFocused
         self.openFile = openFile
-        _htmlPreview = State(initialValue: HTMLPreviewModel(document: document))
+        self.localizationBundle = localizationBundle
+        self.markdownEditor = markdownEditor
+        _htmlPreview = State(initialValue: htmlPreview ?? HTMLPreviewModel(document: document))
+        _showsIsolationExplanation = State(initialValue: showsIsolationExplanation)
+        _emphasizesMarkdownReason = State(initialValue: emphasizesMarkdownReason)
     }
+
+    private let localizationBundle: Bundle
+    private let markdownEditor: MarkdownBlockEditor?
 
     var body: some View {
         VStack(spacing: 0) {
-            // 07 D4: 高さ 30 の帯に、ファイル名・「未保存」・「保存 ⌘S」。
-            HStack(spacing: DSSpacing.s) {
-                Text(verbatim: document.path)
-                    .font(DSFont.monoCaption)
-                    .foregroundStyle(DSColor.textSecondary)
-                    .lineLimit(1)
-                    .truncationMode(.head)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                if document.isHTML {
-                    if let error = htmlPreview.preparationError {
-                        Text(htmlPreview.preparationFailureReason)
-                            .font(DSFont.meta)
-                            .foregroundStyle(DSColor.attentionInk(.error))
-                            .lineLimit(1)
-                            .help(error)
-                    } else if document.presentation == .rendered {
-                        isolationButton
-                        ViewThatFits(in: .horizontal) {
-                            Text("閲覧のみ").font(DSFont.meta).foregroundStyle(DSColor.textSecondary)
-                            Color.clear.frame(width: 0, height: 0)
-                        }
-                        Button { htmlPreview.reload() } label: { Image(systemName: "arrow.clockwise") }
-                            .buttonStyle(.plain)
-                            .disabled(htmlPreview.ruleList == nil || !document.isLoaded || document.invalidated)
-                            .help("再読込")
-                            .accessibilityLabel("再読込")
-                    }
-                    presentationControl
-                }
-                if document.isMarkdown {
-                    if let reason = document.blockEditFailure ?? document.markdownAnalysisFailure ?? (document.markdownPresentationLocked ? "大きなマークダウンはソース表示で編集してください" : nil) {
-                        Text(reason)
-                            .font(DSFont.meta)
-                            .foregroundStyle(DSColor.textSecondary)
-                            .lineLimit(1)
-                            .help(reason)
-                    }
-                    presentationControl
-                }
-                if let saveError {
-                    Text("保存できませんでした: \(saveError)")
-                        .font(DSFont.meta)
-                        .foregroundStyle(DSColor.attentionInk(.error))
-                        .lineLimit(1)
-                } else if document.hasUnsavedChanges {
-                    Text("未保存")
-                        .font(DSFont.meta)
-                        .foregroundStyle(DSColor.textSecondary)
-                }
-                Button("保存") {
-                    Task { await save() }
-                }
-                .buttonStyle(.ds(.primary, keyHint: "⌘S", height: 20, fontSize: 11, padding: 8))
-                .keyboardShortcut("s", modifiers: .command)
-                .accessibilityLabel("保存")
-                .accessibilityHint("⌘S")
-                .disabled(document.invalidated || !document.hasUnsavedChanges)
-            }
-            .padding(.horizontal, 10)
+            toolbar
             .frame(height: 30)
+            .background(DSColor.panelBackground)
             .overlay(alignment: .bottom) {
                 Rectangle().fill(DSColor.separator).frame(height: 1)
             }
             switch document.loadState {
-            case .loadFailed:
-                ContentUnavailableView(
-                    "ファイルを開けません",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text("このファイルは利用できないか、有効なUTF-8ではありません。")
-                )
-            case .outsideRoot(let resolvedPath):
-                ContentUnavailableView {
-                    Label("ファイルを開けません", systemImage: "exclamationmark.triangle")
-                } description: {
-                    Text("このファイルは作業ツリーの外を指しています（\(resolvedPath)）")
-                } actions: {
-                    Button("Finder で表示") {
-                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: resolvedPath)])
-                    }
-                }
-            case .tooLarge, .binary:
-                ContentUnavailableView {
-                    Label("ファイルを開けません", systemImage: "doc")
-                } description: {
-                    Text(document.loadState == .tooLarge ? "1 MB を超えるファイルは編集できません。" : "バイナリファイルは編集できません。")
-                } actions: {
-                    Button("既定のアプリで開く") {
-                        NSWorkspace.shared.open(URL(fileURLWithPath: document.root, isDirectory: true).appendingPathComponent(document.path))
-                    }
-                }
+            case .loadFailed, .outsideRoot, .tooLarge, .binary:
+                unavailableContent
             case .loaded:
                 if document.isHTML, document.presentation == .rendered {
                     htmlContent
                 } else if document.isMarkdown, document.presentation == .rendered {
-                    MarkdownBlockEditor(document: document, openURL: openMarkdownURL, linkDestination: markdownLinkDestination)
+                    markdownEditor ?? MarkdownBlockEditor(document: document, openURL: openMarkdownURL, linkDestination: markdownLinkDestination,
+                                                         localizationBundle: localizationBundle)
                 } else {
                     CodeTextEditor(text: $document.draft)
                         .disabled(document.invalidated)
@@ -723,6 +667,12 @@ struct FileTabView: View {
                 .hidden()
                 .frame(width: 0, height: 0)
                 .accessibilityHidden(true)
+            Button("保存") { requestSave() }
+            .keyboardShortcut("s", modifiers: .command)
+            .disabled(!isFocused)
+            .hidden()
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
         }
         // 09 E1: 取り返しがつかない型。キャンセルが既定。
         .dsDialog(isPresented: $showsConflictAlert) {
@@ -750,20 +700,186 @@ struct FileTabView: View {
                 || (document.isHTML && htmlPreview.ruleList != nil && htmlPreview.preparationError == nil))
     }
 
+    /// 先にパスを縮め、次に補助の文言、最後に表示切替のアイコンを縮める。
+    private var toolbar: some View {
+        let pathWidth = FilePathDisplay.minimumReadableWidth(document.path)
+        return ViewThatFits(in: .horizontal) {
+            toolbarContents(compact: false, icons: false, minimumPathWidth: pathWidth)
+            toolbarContents(compact: true, icons: false, minimumPathWidth: pathWidth)
+            toolbarContents(compact: true, icons: true, minimumPathWidth: pathWidth)
+            // 長いファイル名でも最小区画からはみ出さないよう、最後にパスの最小幅を外す。
+            toolbarContents(compact: true, icons: true, minimumPathWidth: 0)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 30)
+    }
+
+    private func toolbarContents(compact: Bool, icons: Bool, minimumPathWidth: CGFloat) -> some View {
+        HStack(spacing: DSSpacing.s) {
+            FilePathLabel(path: document.path)
+                .frame(minWidth: minimumPathWidth, idealWidth: minimumPathWidth, maxWidth: .infinity)
+            HStack(spacing: DSSpacing.s) {
+            if !document.loadFailed {
+                if document.isHTML {
+                    if htmlPreview.preparationError != nil {
+                        Label {
+                            if !compact { localized(htmlPreview.preparationFailureReason) }
+                        } icon: { Image(systemName: "info.circle") }
+                            .font(DSFont.meta)
+                            .foregroundStyle(DSColor.textPrimary)
+                            .lineLimit(1)
+                            .help(htmlPreparationHelp)
+                    } else if document.presentation == .rendered {
+                        if !htmlPreview.processTerminated { isolationButton }
+                        if !compact { localized("閲覧のみ").font(DSFont.meta).foregroundStyle(DSColor.textSecondary) }
+                        Button { htmlPreview.reload() } label: { Image(systemName: "arrow.clockwise") }
+                            .buttonStyle(.plain)
+                            .disabled(htmlPreview.ruleList == nil || !document.isLoaded || document.invalidated)
+                            .help(localized("再読込"))
+                            .accessibilityLabel(localized("再読込"))
+                    }
+                    presentationButtons(compact: icons)
+                }
+                if document.isMarkdown {
+                    if let reason = markdownReason {
+                        Label { if !compact { localized(reason) } } icon: { Image(systemName: "info.circle") }
+                            .font(DSFont.meta)
+                            .foregroundStyle(emphasizesMarkdownReason ? DSColor.attentionInk(.error) : DSColor.textPrimary)
+                            .lineLimit(1)
+                            .help(markdownReasonDetail(locale: locale))
+                    }
+                    presentationButtons(compact: icons)
+                }
+                if let saveError {
+                    Text("保存できませんでした: \(saveError)")
+                        .font(DSFont.meta).foregroundStyle(DSColor.attentionInk(.error)).lineLimit(1)
+                } else if document.hasUnsavedChanges {
+                    HStack(spacing: 5) {
+                        Circle().fill(DSColor.textPrimary).frame(width: 6, height: 6)
+                        if !compact { localized("未保存").font(DSFont.meta) }
+                    }
+                    .foregroundStyle(DSColor.textPrimary)
+                    .accessibilityLabel(localized("未保存"))
+                }
+                Button { Task { await save() } } label: { localized("保存") }
+                    .buttonStyle(.ds(.secondary, keyHint: compact ? nil : "⌘S", height: 20, fontSize: 11, padding: 8,
+                                     fill: canSave ? nil : .clear))
+                    .accessibilityLabel(localized("保存"))
+                    .accessibilityHint("⌘S")
+                    .disabled(!canSave)
+            }
+            }
+            .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+
+    private var canSave: Bool {
+        document.isLoaded && !document.invalidated && document.hasUnsavedChanges && document.blockEditFailure == nil
+    }
+
+    private var markdownReason: String? {
+        document.blockEditFailure ?? document.markdownAnalysisFailure
+            ?? (document.markdownPresentationLocked ? "大きすぎるためソース表示に固定" : nil)
+    }
+
+    func markdownReasonDetail(locale: Locale) -> String {
+        func localizedString(_ key: String) -> String {
+            AppLocalizedString.string(key, locale: locale, bundle: localizationBundle)
+        }
+        if let failure = document.blockEditFailure {
+            return String(format: localizedString("%@。編集内容は残っています。"), localizedString(failure))
+        }
+        if let failure = document.markdownAnalysisFailure { return localizedString(failure) }
+        if document.draft.utf8.count > 500_000 {
+            return String(format: localizedString("このファイルは大きすぎるためソース表示に固定しています（%lld KB。上限 500 KB）"), Int64(document.draft.utf8.count / 1_000))
+        }
+        return String(format: localizedString("このファイルは大きすぎるためソース表示に固定しています（%lld ブロック。上限 2,000）"), Int64(document.markdownBlocks.count))
+    }
+
+    private func localized(_ key: String) -> Text {
+        Text(LocalizedStringKey(key), bundle: localizationBundle)
+    }
+
+    private func localizedString(_ key: String) -> String {
+        AppLocalizedString.string(key, locale: locale, bundle: localizationBundle)
+    }
+
+    private var unavailableContent: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "doc")
+                .font(.system(size: 36)).foregroundStyle(DSColor.textTertiary)
+                .frame(width: 40, height: 44)
+                .overlay(alignment: .bottom) {
+                    Text(verbatim: unavailableBadge).font(DSFont.iconTiny).foregroundStyle(DSColor.textSecondary)
+                        .padding(.horizontal, 2)
+                        .background(DSColor.windowBackground)
+                        .padding(.bottom, 5)
+                }
+            localized(unavailableTitle).font(DSFont.row.weight(.semibold))
+            Text(verbatim: unavailableMessage).font(DSFont.auxiliary).foregroundStyle(DSColor.textSecondary)
+                .multilineTextAlignment(.center).frame(maxWidth: 400)
+            if case .outsideRoot(let target) = document.loadState {
+                VStack(alignment: .leading, spacing: 3) {
+                    localized("解決先").font(DSFont.meta).foregroundStyle(DSColor.textTertiary)
+                    Text(verbatim: FilePathDisplay.homeRelative(target))
+                        .font(DSFont.monoCaption).textSelection(.enabled)
+                        .padding(DSSpacing.s).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: DSRadius.row))
+                }
+                .frame(maxWidth: 460)
+            }
+            Button {
+                if case .outsideRoot(let target) = document.loadState {
+                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: target)])
+                } else {
+                    NSWorkspace.shared.open(URL(fileURLWithPath: document.root).appendingPathComponent(document.path))
+                }
+            } label: { localized(unavailableBadge == "↗" ? "Finder で表示" : "既定のアプリで開く") }
+                .buttonStyle(.ds(.secondary, height: 24, fontSize: 12))
+                .padding(.top, 4)
+        }
+        .padding(.horizontal, 32)
+        .padding(.bottom, 30)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DSColor.windowBackground)
+    }
+
+    private var unavailableBadge: String {
+        switch document.loadState {
+        case .tooLarge: "1MB+"
+        case .binary: "BIN"
+        case .outsideRoot: "↗"
+        default: "?"
+        }
+    }
+
+    private var unavailableTitle: String {
+        switch document.loadState {
+        case .tooLarge: "ファイルが大きすぎるため開けません"
+        case .binary: "テキストではないため開けません"
+        case .outsideRoot: "このファイルは作業ツリーの外を指しています"
+        default: "ファイルを開けません"
+        }
+    }
+
+    private var unavailableMessage: String {
+        switch document.loadState {
+        case .tooLarge:
+            if let size = document.fileSize {
+                let value = (Double(size) / 1_000_000).formatted(.number.locale(locale).precision(.fractionLength(1)))
+                return String(format: localizedString("%@ MB あります。Phlox で編集できるのは 1 MB までです。"), value)
+            }
+            return localizedString("Phlox で編集できるのは 1 MB までです。")
+        case .binary: return localizedString("ファイルの先頭にテキストには含まれない文字（NUL）があります。")
+        case .outsideRoot:
+            return String(format: localizedString("リンクの先が %@ の外にあるため、Phlox では読み書きしません。"), FilePathDisplay.homeRelative(document.root))
+        default: return localizedString(document.readFailureReason ?? "ファイルを読み込めませんでした。")
+        }
+    }
+
     private func togglePresentation() {
         guard canTogglePresentation else { return }
         _ = document.setPresentation(document.presentation == .rendered ? .source : .rendered)
-    }
-
-    private var presentationControl: some View {
-        ViewThatFits(in: .horizontal) {
-            presentationButtons(compact: false)
-            presentationButtons(compact: true)
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("表示")
-        .accessibilityHint(document.isHTML ? "⌃⌘M で切り替え。レンダリング表示は閲覧のみ" : "⌃⌘M で切り替え")
-        .accessibilityIdentifier("file-tab-presentation")
     }
 
     private func presentationButtons(compact: Bool) -> some View {
@@ -773,66 +889,99 @@ struct FileTabView: View {
         }
         .padding(DSSpacing.xxs)
         .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: DSRadius.row))
+        .fixedSize()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(localized("ファイルの表示"))
+        .accessibilityHint(localized("⌃⌘M で切り替え"))
+        .accessibilityIdentifier("file-tab-presentation")
     }
 
     private func presentationButton(_ presentation: FileTabDocument.Presentation, title: String, label: String) -> some View {
         Button { _ = document.setPresentation(presentation) } label: {
-            Text(verbatim: title)
+            localized(title)
                 .font(DSFont.meta)
+                .foregroundStyle(DSColor.textPrimary)
                 .padding(.horizontal, DSSpacing.chip)
                 .padding(.vertical, DSSpacing.xxs)
                 .background(document.presentation == presentation ? DSColor.fillSubtle : .clear,
                             in: RoundedRectangle(cornerRadius: DSRadius.s))
         }
         .buttonStyle(.plain)
-        .disabled(!document.isLoaded || document.invalidated || document.blockEditFailure != nil || (presentation == .rendered && !canTogglePresentation))
-        .accessibilityLabel(Text(verbatim: label))
+        .disabled(!document.isLoaded || document.invalidated
+                  || (presentation == .source && document.blockEditFailure != nil)
+                  || (presentation == .rendered && document.blockEditFailure == nil && !canTogglePresentation))
+        .accessibilityLabel(localized(label))
+        .help(presentationHelp(presentation))
         .accessibilityAddTraits(document.presentation == presentation ? .isSelected : [])
     }
 
+    func presentationHelp(_ presentation: FileTabDocument.Presentation) -> Text {
+        localized(document.isHTML && presentation == .rendered
+                  ? "⌃⌘M で切り替え。レンダリング表示は閲覧のみ" : "⌃⌘M で切り替え")
+    }
+
+    var htmlPreparationHelp: Text {
+        localized("安全に表示する準備ができないため、ソースを表示しています。ファイルの内容は編集できます。")
+    }
+
     private var isolationButton: some View {
-        Button("外部の読み込みを止めています") { showsIsolationExplanation.toggle() }
+        Button { showsIsolationExplanation.toggle() } label: {
+            HStack(spacing: 5) {
+                Circle().strokeBorder(DSColor.textTertiary, lineWidth: 1.2).frame(width: 7, height: 7)
+                localized("外部の読み込みを止めています")
+            }
+            .padding(.horizontal, DSSpacing.xxs)
+            .padding(.vertical, 2)
+            .background(showsIsolationExplanation ? DSColor.fillSubtle : .clear,
+                        in: RoundedRectangle(cornerRadius: DSRadius.s))
+        }
             .buttonStyle(.plain)
             .font(DSFont.meta)
             .foregroundStyle(DSColor.textSecondary)
             .fixedSize()
-            .accessibilityHint("説明を表示")
+            .accessibilityLabel(localized("外部の読み込みを止めています"))
+            .help(localized("外部の読み込みを止めています"))
+            .accessibilityHint(localized("説明を表示"))
             .popover(isPresented: $showsIsolationExplanation) {
-                Text("このページが出す外部への要求と、ページのスクリプトは止めています")
-                    .font(DSFont.body)
-                    .padding(DSSpacing.l)
-                    .frame(maxWidth: DSLayout.inspectorWidth.max)
+                isolationExplanation
+                    .environment(\.locale, locale)
             }
+    }
+
+    var isolationExplanation: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            localized("外部の読み込みを止めています").font(DSFont.row.weight(.semibold))
+            localized("このページが外部に出す要求（画像・CSS・フォントなど）と、ページのスクリプトは常に止めています。作業ツリー内のファイルは読み込みます。安全のための仕様で、切り替えはできません。")
+                .font(DSFont.auxiliary).foregroundStyle(DSColor.textSecondary).lineSpacing(4)
+        }
+        .padding(DSSpacing.m)
+        .frame(width: 340, alignment: .leading)
+        .background(DSColor.popoverBackground)
     }
 
     @ViewBuilder
     private var htmlContent: some View {
         if htmlPreview.processTerminated {
-            ContentUnavailableView {
-                Label("表示が停止しました", systemImage: "exclamationmark.triangle")
-            } description: {
-                Text("ページを描く処理が終了しました。未保存の下書きは残っています。")
-            } actions: {
-                Button("再読込") { htmlPreview.reload() }
+            VStack(spacing: 10) {
+                Image(systemName: "exclamationmark.circle").font(.system(size: 28)).foregroundStyle(DSColor.textTertiary)
+                localized("表示が停止しました").font(DSFont.row.weight(.semibold))
+                localized("ページを描く処理が終了しました。未保存の下書きは残っています。")
+                    .font(DSFont.auxiliary).foregroundStyle(DSColor.textSecondary)
+                Button("再読込") { htmlPreview.reload() }.buttonStyle(.ds(.secondary, height: 24, fontSize: 12))
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if htmlPreview.ruleList == nil {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             HTMLPreviewView(model: htmlPreview) { path in openFile(document.root, path) }
                 .overlay(alignment: .bottomLeading) {
                     if let url = htmlPreview.hoveredURL {
-                        HTMLLinkDestinationLabel(text: "\(hoverAction)  \(url.absoluteString)", color: NSColor(DSColor.textPrimary))
-                            .padding(DSSpacing.chip)
-                            .background(DSColor.surface, in: RoundedRectangle(cornerRadius: DSRadius.row))
+                        FileLinkDestinationView(destination: FileLinkDestination(url: url, decision: htmlPreview.hoveredDestination))
                             .padding(DSSpacing.s)
                             .allowsHitTesting(false)
                     }
                 }
         }
-    }
-
-    private var hoverAction: String {
-        htmlPreview.hoveredDestination.destinationLabel
     }
 
     private func openMarkdownURL(_ url: URL) -> OpenURLAction.Result {
@@ -848,10 +997,10 @@ struct FileTabView: View {
         return .handled
     }
 
-    private func markdownLinkDestination(_ url: URL) async -> String? {
+    private func markdownLinkDestination(_ url: URL) async -> FileLinkDestination? {
         let resolved = MarkdownLinkRouting.resolvedURL(url, documentPath: document.path, root: document.root)
         let destination = await MarkdownLinkRouting.checkedDestination(url, documentPath: document.path, root: document.root)
-        return "\(destination.destinationLabel)  \(resolved?.absoluteString ?? url.absoluteString)"
+        return FileLinkDestination(url: resolved ?? url, decision: destination)
     }
 
     private func save() async {
@@ -864,6 +1013,16 @@ struct FileTabView: View {
         } catch {
             saveError = error.localizedDescription
         }
+    }
+
+    @discardableResult
+    func requestSave() -> Task<Void, Never>? {
+        if canSave {
+            return Task { await save() }
+        } else if markdownReason != nil {
+            emphasizesMarkdownReason = true
+        }
+        return nil
     }
 
     private func overwrite() async {

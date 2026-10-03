@@ -34,6 +34,6 @@ struct FileTreeGitTests {
         let shortHead = try git("rev-parse", "--short", "HEAD")
         _ = try git("checkout", "-q", "--detach")
         await model.refresh()
-        #expect(model.branch == "detached HEAD \(shortHead)")
+        #expect(model.branch == "\(shortHead) detached HEAD")
     }
 }

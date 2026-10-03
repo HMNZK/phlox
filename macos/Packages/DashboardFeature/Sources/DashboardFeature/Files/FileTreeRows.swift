@@ -19,9 +19,9 @@ enum FileTreeRows {
         func isOpen(_ path: String?) -> Bool { entry.canOpen && id == path }
     }
 
-    enum Key { case right, left, activate }
+    enum Key { case up, down, right, left, activate }
     enum Action: Equatable {
-        case select(String), expand(String), collapse(String), open(String)
+        case select(String), expand(String), collapse(String), open(String), explainBlocked(String)
     }
 
     static func visibleRows(childrenByDir: [String: [FileTreeEntry]], expanded: Set<String>) -> [Row] {
@@ -41,7 +41,12 @@ enum FileTreeRows {
     static func action(for path: String?, key: Key, rows: [Row], expanded: Set<String>) -> Action? {
         guard let row = rows.first(where: { $0.id == path }) else { return nil }
         switch key {
+        case .up, .down:
+            guard let index = rows.firstIndex(where: { $0.id == path }) else { return nil }
+            let next = key == .up ? index - 1 : index + 1
+            return rows.indices.contains(next) ? .select(rows[next].id) : nil
         case .activate:
+            if row.entry.kind == .symlinkOutsideRoot { return .explainBlocked(row.id) }
             if row.entry.canExpand {
                 return expanded.contains(row.id) ? .collapse(row.id) : .expand(row.id)
             }
@@ -56,6 +61,20 @@ enum FileTreeRows {
             let parent = parent(of: row.id)
             return parent.isEmpty ? nil : .select(parent)
         }
+    }
+
+    static func finishedDirectories(after index: Int, rows: [Row]) -> [String] {
+        guard rows.indices.contains(index) else { return [] }
+        let nextDepth = rows.indices.contains(index + 1) ? rows[index + 1].depth : 0
+        var path = parent(of: rows[index].id)
+        var depth = rows[index].depth
+        var result: [String] = []
+        while depth > nextDepth, !path.isEmpty {
+            result.append(path)
+            path = parent(of: path)
+            depth -= 1
+        }
+        return result
     }
 
     static func parent(of path: String) -> String {

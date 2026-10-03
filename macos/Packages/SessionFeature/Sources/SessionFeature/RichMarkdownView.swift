@@ -12,10 +12,8 @@ public struct RichMarkdownView: View {
     private let markdown: String
     private let bodyColor: Color
     private var fileOpenURL: ((URL) -> OpenURLAction.Result)?
-    private var blockClick: (() -> Void)?
     private var onLinkHover: ((URL?) -> Void)?
     @State private var hoveredLink: URL?
-    @State private var linkActivated = false
     @Environment(\.locale) private var locale
 
     private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
@@ -32,12 +30,13 @@ public struct RichMarkdownView: View {
 
     /// ファイルの原文にはチャット用の補完を加えない。
     public init(source: String, openURL: @escaping (URL) -> OpenURLAction.Result,
-                blockClick: (() -> Void)? = nil, onLinkHover: ((URL?) -> Void)? = nil) {
+                onLinkHover: ((URL?) -> Void)? = nil,
+                hoveredLink: URL? = nil) {
         self.markdown = source
         self.bodyColor = DSColor.chatTextPrimary
         self.fileOpenURL = openURL
-        self.blockClick = blockClick
         self.onLinkHover = onLinkHover
+        _hoveredLink = State(initialValue: hoveredLink)
     }
 
     @MainActor private static var themes: [String: Theme] = [:]
@@ -45,27 +44,20 @@ public struct RichMarkdownView: View {
     public var body: some View {
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
         let content = Markdown(markdown)
-            .markdownTheme(Self.theme(for: themeID, scale: scale, languageCode: languageCode, bodyColor: bodyColor))
+            .markdownTheme(fileOpenURL == nil
+                ? Self.theme(for: themeID, scale: scale, languageCode: languageCode, bodyColor: bodyColor)
+                : fileMarkdownTheme(hoveredLink: hoveredLink))
             .frame(maxWidth: .infinity, alignment: .leading)
         if let fileOpenURL {
             content
+            .textSelection(.enabled)
+            .markdownTableBorderStyle(TableBorderStyle(color: .clear, width: 0))
             // 読み上げ要素と同じ行幅で、文字のない部分のクリックも受け取る。
             .contentShape(Rectangle())
-            .environment(\.openURL, OpenURLAction { url in
-                linkActivated = true
-                DispatchQueue.main.async { linkActivated = false }
-                return fileOpenURL(url)
-            })
+            .environment(\.openURL, OpenURLAction(handler: fileOpenURL))
             .environment(\.fileMarkdownLinkHover, { url in
                 hoveredLink = url
                 onLinkHover?(url)
-            })
-            .simultaneousGesture(TapGesture().onEnded {
-                // 子要素のリンク操作を先に完了させる。ホバー通知が無いクリックも編集にしない。
-                let openedLink = linkActivated
-                DispatchQueue.main.async {
-                    if hoveredLink == nil, !openedLink, !linkActivated { blockClick?() }
-                }
             })
         } else {
             content.environment(\.openURL, OpenURLAction(handler: openChatMarkdownLink))

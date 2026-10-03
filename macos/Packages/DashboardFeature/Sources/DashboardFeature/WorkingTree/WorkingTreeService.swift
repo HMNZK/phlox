@@ -98,7 +98,7 @@ public actor WorkingTreeService {
             return String(decoding: branch.output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
         }
         guard let head = try? runGit(["rev-parse", "--short", "HEAD"]), head.terminationStatus == 0 else { return "" }
-        return "detached HEAD " + String(decoding: head.output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        return String(decoding: head.output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines) + " detached HEAD"
     }
 
     public func changes() throws -> [WorkingTreeChange] {
@@ -178,6 +178,10 @@ public actor WorkingTreeService {
         let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
         guard size <= WorkingTreeText.maximumEditableFileSize else { throw WorkingTreeTextError.tooLarge }
         return try Data(contentsOf: url)
+    }
+
+    public func fileSize(_ path: String) throws -> Int {
+        try accessibleFileURL(for: path).resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
     }
 
     /// HTML の画像・フォント等は配信上限と包含確認を通して読む。

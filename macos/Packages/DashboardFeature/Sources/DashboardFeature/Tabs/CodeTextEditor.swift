@@ -33,18 +33,27 @@ struct CodeTextEditor: NSViewRepresentable {
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticTextReplacementEnabled = false
         textView.isAutomaticSpellingCorrectionEnabled = false
-        textView.textContainerInset = NSSize(width: 0, height: 6)
+        textView.textContainerInset = NSSize(width: blockEditID == nil ? 0 : 12, height: blockEditID == nil ? 6 : 8)
         textView.textContainer?.lineFragmentPadding = 0
-        textView.font = .monospacedSystemFont(ofSize: 11.5, weight: .regular)
+        textView.font = .monospacedSystemFont(ofSize: blockEditID == nil ? 11.5 : 11, weight: .regular)
         textView.string = text
         textView.delegate = context.coordinator
         scrollView.documentView = textView
         scrollView.drawsBackground = true
 
-        let ruler = LineNumberRuler(textView: textView)
-        scrollView.verticalRulerView = ruler
-        scrollView.hasVerticalRuler = true
-        scrollView.rulersVisible = true
+        if blockEditID == nil {
+            scrollView.verticalRulerView = LineNumberRuler(textView: textView)
+            scrollView.hasVerticalRuler = true
+            scrollView.rulersVisible = true
+        } else {
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.minimumLineHeight = 18
+            paragraph.maximumLineHeight = 18
+            textView.defaultParagraphStyle = paragraph
+            textView.typingAttributes[.paragraphStyle] = paragraph
+            textView.textStorage?.addAttribute(.paragraphStyle, value: paragraph,
+                                              range: NSRange(location: 0, length: textView.string.utf16.count))
+        }
         // 組み立て後に登録する。登録時に撤去されても、取り付け済みの入力欄・行番号ごと外れる。
         configureBlockEdit(textView)
         return scrollView
@@ -55,12 +64,13 @@ struct CodeTextEditor: NSViewRepresentable {
         context.coordinator.text = $text
         configureBlockEdit(textView)
         Self.synchronizeText(text, with: textView)
-        let background = NSColor(DSColor.background)
+        let background = NSColor(blockEditID == nil ? DSColor.background
+            : DSColor.isDark ? DSColor.fieldBackground : DSColor.panelBackground)
         scrollView.backgroundColor = background
         textView.backgroundColor = background
         textView.textColor = NSColor(DSColor.textPrimary)
         textView.insertionPointColor = NSColor(DSColor.textPrimary)
-        textView.currentLineColor = NSColor(DSColor.fillSelected)
+        textView.currentLineColor = blockEditID == nil ? NSColor(DSColor.fillSelected) : .clear
         textView.needsDisplay = true
         if let ruler = scrollView.verticalRulerView as? LineNumberRuler {
             ruler.numberColor = NSColor(DSColor.textTertiary)

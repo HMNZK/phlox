@@ -6,6 +6,62 @@ import Testing
 @Suite("画面に出さないマークダウンのクリック", .serialized)
 @MainActor
 struct MarkdownBlockClickTests {
+    @Test
+    func paragraphTextCanBeSelectedWithoutBeginningAnEdit() async throws {
+        let document = FileTabDocument(path: "selection.md", root: "/")
+        document.draft = "段落の文字を選択してコピーできます\n\n次の段落\n"
+        let (window, view) = makeWindow(document: document, usesUndoScope: true)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(50))
+        view.layoutSubtreeIfNeeded()
+        func textFields(in view: NSView) -> [NSTextField] {
+            (view as? NSTextField).map { [$0] } ?? view.subviews.flatMap { textFields(in: $0) }
+        }
+        let field = try #require(textFields(in: view).first { $0.stringValue == "段落の文字を選択してコピーできます" })
+        #expect(field.isSelectable)
+        #expect(!field.isEditable)
+        // NSTextView.mouseDown は実イベントの tracking loop を起動するため使わない。
+        // 描画された段落の選択用エディタへ直接、ブロック内の選択範囲を渡す。
+        field.selectText(nil)
+        let selection = try #require(field.currentEditor() as? NSTextView)
+        selection.setSelectedRange(NSRange(location: 0, length: 6))
+        #expect(selection.selectedRange() == NSRange(location: 0, length: 6))
+        #expect(selection.string == "段落の文字を選択してコピーできます")
+        #expect(selection.textStorage?.attributedSubstring(from: selection.selectedRange()).string == "段落の文字を")
+        #expect(document.activeBlockEdit == nil)
+        #expect(!selectedText(in: view).isEmpty)
+        #expect(!selectedText(in: view).contains("次の段落"))
+    }
+
+    @Test
+    func paragraphDragDoesNotTriggerBlockClickRecognizer() async throws {
+        let document = FileTabDocument(path: "selection.md", root: "/")
+        document.draft = "段落の文字を選択してコピーできます\n\n次の段落\n"
+        let (window, view) = makeWindow(document: document, usesUndoScope: true)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(50))
+        view.layoutSubtreeIfNeeded()
+        let frame = try #require(accessibilityFrame(in: view, text: "段落の文字を選択してコピーできます"))
+        let start = NSPoint(x: frame.minX + 2, y: frame.midY)
+        let end = NSPoint(x: start.x + 80, y: start.y)
+        let timestamp = ProcessInfo.processInfo.systemUptime
+        let events = try [NSEvent.EventType.leftMouseDown, .leftMouseDragged, .leftMouseUp].enumerated().map { index, type in
+            try #require(NSEvent.mouseEvent(with: type,
+                location: window.convertPoint(fromScreen: index == 0 ? start : end), modifierFlags: [],
+                timestamp: timestamp + Double(index) * 0.1, windowNumber: window.windowNumber,
+                context: nil, eventNumber: index + 1, clickCount: 1, pressure: index == 2 ? 0 : 1))
+        }
+        try sendMarkdownMouseEvents(events, in: window)
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(document.activeBlockEdit == nil)
+        #expect(!selectedText(in: view).isEmpty)
+        #expect(!selectedText(in: view).contains("次の段落"))
+        // 同じ文字のクリックでは編集を始める。ドラッグと編集が両立することを確認する。
+        try await click(start, in: window)
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(document.activeBlockEdit?.original == "段落の文字を選択してコピーできます\n\n")
+    }
+
     @Test(arguments: [false, true], [false, true])
     func loadedParagraphClickCreatesTextEditor(usesUndoScope: Bool, clicksText: Bool) async throws {
         let root = try makeFileTabTestRoot()
@@ -25,7 +81,7 @@ struct MarkdownBlockClickTests {
         let frame = try #require(accessibilityFrame(in: view, text: "編集前の本文"))
         // XCUITest と同じ読み上げ要素の中央と、文字のある位置を比較する。
         let point = NSPoint(x: clicksText ? frame.minX + 12 : frame.midX, y: frame.midY)
-        try click(point, in: window)
+        try await click(point, in: window)
         try await Task.sleep(for: .milliseconds(100))
         view.layoutSubtreeIfNeeded()
         #expect(document.activeBlockEdit?.range == paragraph.range)
@@ -46,13 +102,13 @@ struct MarkdownBlockClickTests {
         try await Task.sleep(for: .milliseconds(50))
         view.layoutSubtreeIfNeeded()
         let frame = try #require(accessibilityFrame(in: view, text: "案内", role: .link))
-        try click(NSPoint(x: frame.midX, y: frame.midY), in: window)
+        try await click(NSPoint(x: frame.midX, y: frame.midY), in: window)
         try await Task.sleep(for: .milliseconds(100))
         #expect(openedURLs == [URL(string: "linked.md")!])
         #expect(document.activeBlockEdit == nil)
         #expect(editors(in: view).isEmpty)
         let paragraphFrame = try #require(accessibilityFrame(in: view, text: "編集前の本文"))
-        try click(NSPoint(x: paragraphFrame.midX, y: paragraphFrame.midY), in: window)
+        try await click(NSPoint(x: paragraphFrame.midX, y: paragraphFrame.midY), in: window)
         try await Task.sleep(for: .milliseconds(100))
         view.layoutSubtreeIfNeeded()
         #expect(document.activeBlockEdit?.original == "編集前の本文\n\n")
@@ -83,7 +139,7 @@ struct MarkdownBlockClickTests {
         try await Task.sleep(for: .milliseconds(100))
         view.layoutSubtreeIfNeeded()
         let originalFrame = try #require(accessibilityFrame(in: view, text: "編集前の本文"))
-        try click(NSPoint(x: originalFrame.midX, y: originalFrame.midY), in: window)
+        try await click(NSPoint(x: originalFrame.midX, y: originalFrame.midY), in: window)
         try await Task.sleep(for: .milliseconds(100))
         let editor = try #require(editors(in: view).first)
         #expect(window.firstResponder === editor)
@@ -111,7 +167,7 @@ struct MarkdownBlockClickTests {
         #expect(document.presentation == .rendered)
         #expect(editors(in: view).isEmpty)
         let frame = try #require(accessibilityFrame(in: view, text: "編集した本文"))
-        try click(NSPoint(x: frame.midX, y: frame.midY), in: window)
+        try await click(NSPoint(x: frame.midX, y: frame.midY), in: window)
         try await Task.sleep(for: .milliseconds(100))
         view.layoutSubtreeIfNeeded()
         let reopened = try #require(editors(in: view).first as? CurrentLineTextView)
@@ -182,19 +238,37 @@ struct MarkdownBlockClickTests {
         return (window, view)
     }
 
-    private func click(_ screenPoint: NSPoint, in window: NSWindow) throws {
+    private func click(_ screenPoint: NSPoint, in window: NSWindow) async throws {
         let timestamp = ProcessInfo.processInfo.systemUptime
-        for (index, type) in [NSEvent.EventType.leftMouseDown, .leftMouseUp].enumerated() {
-            let event = try #require(NSEvent.mouseEvent(with: type,
+        let events = try [NSEvent.EventType.leftMouseDown, .leftMouseUp].enumerated().map { index, type in
+            try #require(NSEvent.mouseEvent(with: type,
                 location: window.convertPoint(fromScreen: screenPoint), modifierFlags: [],
                 timestamp: timestamp + Double(index) * 0.02, windowNumber: window.windowNumber,
                 context: nil, eventNumber: index + 1, clickCount: 1, pressure: index == 0 ? 1 : 0))
-            window.sendEvent(event)
         }
+        try sendMarkdownMouseEvents(events, in: window)
     }
 
     private func editors(in view: NSView) -> [NSTextView] {
-        (view as? NSTextView).map { [$0] } ?? view.subviews.flatMap { editors(in: $0) }
+        (view as? CurrentLineTextView).map { [$0] } ?? view.subviews.flatMap { editors(in: $0) }
+    }
+
+    private func selectedText(in view: NSView) -> String {
+        var seen = Set<ObjectIdentifier>()
+        func visit(_ object: NSObject) -> String {
+            guard seen.insert(ObjectIdentifier(object)).inserted else { return "" }
+            let selector = NSSelectorFromString("accessibilitySelectedText")
+            if object.responds(to: selector),
+               let text = object.perform(selector)?.takeUnretainedValue() as? String, !text.isEmpty {
+                return text
+            }
+            let childrenSelector = NSSelectorFromString("accessibilityChildren")
+            let children = object.responds(to: childrenSelector)
+                ? object.perform(childrenSelector)?.takeUnretainedValue() as? [NSObject] ?? [] : []
+            let descendants = children + ((object as? NSView)?.subviews ?? [])
+            return descendants.map(visit).joined()
+        }
+        return visit(view)
     }
 
     private func accessibilityTextAreas(in view: NSView) -> [NSObject] {

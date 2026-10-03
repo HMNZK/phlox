@@ -1334,7 +1334,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conversation"
+            "value": "Chat"
           }
         }
       }
@@ -1433,7 +1433,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Can’t open the file"
+            "value": "Cannot open file"
           }
         }
       }
@@ -4888,7 +4888,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "and %lld more"
+            "value": "%lld more files"
           }
         }
       }
@@ -8796,6 +8796,566 @@
           "stringUnit": {
             "state": "translated",
             "value": "停止"
+          }
+        }
+      }
+    },
+    "%@ MB あります。Phlox で編集できるのは 1 MB までです。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file is %@ MB. Phlox can edit files up to 1 MB."
+          }
+        }
+      }
+    },
+    "%@。編集内容は残っています。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. Your edits have been kept."
+          }
+        }
+      }
+    },
+    "%lld つのウィンドウに保存していない変更があります。変更は失われ、元に戻せません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There are unsaved changes in %lld windows. These changes will be lost and cannot be restored."
+          }
+        }
+      }
+    },
+    "Phlox で編集できるのは 1 MB までです。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phlox can edit files up to 1 MB."
+          }
+        }
+      }
+    },
+    "UTF-8 として読み込めませんでした。Shift_JIS など、別の文字コードで保存されている可能性があります。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read this file as UTF-8. It may use another encoding, such as Shift_JIS."
+          }
+        }
+      }
+    },
+    "⌃⌘M で切り替え": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch with ⌃⌘M"
+          }
+        }
+      }
+    },
+    "⌃⌘M で切り替え。レンダリング表示は閲覧のみ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch with ⌃⌘M. Rendered HTML is read-only."
+          }
+        }
+      }
+    },
+    "このファイルは作業ツリーの外を指しています": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file points outside the working tree"
+          }
+        }
+      }
+    },
+    "このファイルは大きすぎるためソース表示に固定しています（%lld KB。上限 500 KB）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file is locked to source view because it is too large (%lld KB; limit: 500 KB)."
+          }
+        }
+      }
+    },
+    "このファイルは大きすぎるためソース表示に固定しています（%lld ブロック。上限 2,000）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file is locked to source view because it has too many blocks (%lld blocks; limit: 2,000)."
+          }
+        }
+      }
+    },
+    "このページが外部に出す要求（画像・CSS・フォントなど）と、ページのスクリプトは常に止めています。作業ツリー内のファイルは読み込みます。安全のための仕様で、切り替えはできません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "External requests from this page (images, CSS, fonts, and more) and page scripts are always blocked. Files within the working tree are loaded. This safety behavior cannot be disabled."
+          }
+        }
+      }
+    },
+    "ほか %lld 件（%lld ウィンドウ）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld more files (%lld windows)"
+          }
+        }
+      }
+    },
+    "ウィンドウ %lld · %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Window %lld · %@"
+          }
+        }
+      }
+    },
+    "ソース": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source"
+          }
+        }
+      }
+    },
+    "テキストではないため開けません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cannot open a non-text file"
+          }
+        }
+      }
+    },
+    "ファイルが大きすぎるため開けません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File is too large to open"
+          }
+        }
+      }
+    },
+    "ファイルの先頭にテキストには含まれない文字（NUL）があります。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The beginning of this file contains a non-text character (NUL)."
+          }
+        }
+      }
+    },
+    "ファイルの表示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File view"
+          }
+        }
+      }
+    },
+    "リンクの先が %@ の外にあるため、Phlox では読み書きしません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The link points outside %@, so Phlox will not read or write this file."
+          }
+        }
+      }
+    },
+    "レンダリング": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rendered"
+          }
+        }
+      }
+    },
+    "保存していない変更は、編集中（未確定）のブロックも含めて失われます。元に戻せません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsaved changes, including blocks being edited, will be lost and cannot be restored."
+          }
+        }
+      }
+    },
+    "保存していない変更は失われ、元に戻せません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsaved changes will be lost and cannot be restored."
+          }
+        }
+      }
+    },
+    "保存するには、キャンセルしてそれぞれのタブで ⌘S を押します。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To save, cancel and press ⌘S in each tab."
+          }
+        }
+      }
+    },
+    "保存せず終了": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit Without Saving"
+          }
+        }
+      }
+    },
+    "保存せず閉じる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close Without Saving"
+          }
+        }
+      }
+    },
+    "再読込": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reload"
+          }
+        }
+      }
+    },
+    "外部の読み込みを止めています": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "External requests are blocked"
+          }
+        }
+      }
+    },
+    "大きすぎるためソース表示に固定": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too large; source view only"
+          }
+        }
+      }
+    },
+    "安全に表示する準備ができないため、ソースを表示しています。ファイルの内容は編集できます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source is shown because a safe preview could not be prepared. You can edit the file contents."
+          }
+        }
+      }
+    },
+    "文書が先に変わったため確定できません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cannot commit because the document has changed"
+          }
+        }
+      }
+    },
+    "既定のアプリで開く": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in Default App"
+          }
+        }
+      }
+    },
+    "未保存のファイル %lld 件": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld unsaved files"
+          }
+        }
+      }
+    },
+    "未保存のファイル %lld 件を保存せずに Phlox を終了しますか？": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit Phlox without saving %lld unsaved files?"
+          }
+        }
+      }
+    },
+    "未保存のファイル %lld 件を保存せずにウィンドウを閉じますか？": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close the window without saving %lld unsaved files?"
+          }
+        }
+      }
+    },
+    "編集中のブロック": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Block being edited"
+          }
+        }
+      }
+    },
+    "編集中のブロックあり": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contains a block being edited"
+          }
+        }
+      }
+    },
+    "編集中（未確定）のブロックも含まれます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This includes blocks being edited that have not been committed."
+          }
+        }
+      }
+    },
+    "編集内容は残っています": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your edits have been kept"
+          }
+        }
+      }
+    },
+    "表示が停止しました": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display has stopped"
+          }
+        }
+      }
+    },
+    "解決先": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resolved target"
+          }
+        }
+      }
+    },
+    "説明を表示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show explanation"
+          }
+        }
+      }
+    },
+    "閲覧のみ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read-only"
+          }
+        }
+      }
+    },
+    "プレビューを出せません（安全の準備に失敗）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview unavailable (safe rendering could not be prepared)"
+          }
+        }
+      }
+    },
+    "このファイル名は表示できません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file name cannot be displayed"
+          }
+        }
+      }
+    },
+    "ページを描く処理が終了しました。未保存の下書きは残っています。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The page rendering process stopped. Your unsaved draft has been kept."
+          }
+        }
+      }
+    },
+    "⌘Return・Esc・ブロックの外をクリックで確定": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Commit with ⌘Return, Esc, or a click outside the block"
+          }
+        }
+      }
+    },
+    "中をスクロール · ⌘Return・Esc・ブロックの外をクリックで確定": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scroll inside · Commit with ⌘Return, Esc, or a click outside the block"
+          }
+        }
+      }
+    },
+    "Return で編集": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit with Return"
+          }
+        }
+      }
+    },
+    "Return で編集。上下の矢印キーでブロックを移動": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit with Return. Move between blocks with the up and down arrows."
+          }
+        }
+      }
+    },
+    "マークダウンのブロック編集": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markdown block editing"
+          }
+        }
+      }
+    },
+    "ブロックをまたいで選ぶには、ソース表示に切り替えます（⌃⌘M）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To select across blocks, switch to Source (⌃⌘M)."
           }
         }
       }

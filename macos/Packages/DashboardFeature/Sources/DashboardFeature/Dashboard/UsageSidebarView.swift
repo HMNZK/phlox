@@ -10,6 +10,7 @@ struct InspectorView: View {
     let session: SessionNode?
     @Binding var fileTreeModels: [String: FileTreeModel]
     let files: FileTabDocuments
+    var isOverlay = false
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
     var body: some View {
@@ -40,12 +41,12 @@ struct InspectorView: View {
                     }
                 }
             case .files:
-                FileTreeInspectorView(router: router, session: session, models: $fileTreeModels, files: files)
+                FileTreeInspectorView(router: router, session: session, models: $fileTreeModels, files: files, isOverlay: isOverlay)
             case .usage:
                 UsageSidebarView(monitor: monitor)
             }
         }
-        .background(DSColor.surface)
+        .background(isOverlay ? DSColor.popoverBackground : DSColor.surface)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("インスペクタ"))
     }

@@ -31,8 +31,13 @@ struct HTMLPreviewRefreshTests {
         let harness = try await HTMLRuntimeHarness(html: "<p>再読込前</p>")
         defer { harness.stop() }
         try await harness.waitForText("再読込前")
+        await harness.model.hover(URL(string: "https://example.invalid/"))
+        harness.model.didTerminate()
         harness.document.draft = "<p>再読込後の下書き</p>"
         harness.model.reload()
+        #expect(!harness.model.processTerminated)
+        #expect(harness.model.hoveredURL == nil)
+        #expect(harness.model.hoveredDestination == .cancel)
         harness.coordinator.update(harness.webView)
         try await harness.waitForText("再読込後の下書き")
         #expect(harness.document.isDirty)
@@ -80,6 +85,23 @@ struct HTMLPreviewRefreshTests {
         #expect(try await harness.string("document.documentElement.outerHTML") == before)
         _ = try await harness.string("document.querySelector('span').dispatchEvent(new MouseEvent('mouseout', { bubbles: true })); '送信済み'")
         try await harness.waitForURL(nil)
+        #expect(try await harness.string("document.documentElement.outerHTML") == before)
+    }
+
+    @Test("リンクの下線は DOM を変更せずフォーカス時だけ付ける")
+    func focusUnderlinesLinkWithoutChangingDOM() async throws {
+        let harness = try await HTMLRuntimeHarness(html: "<style>a { text-decoration-line: none; }</style><a href='https://example.invalid/' style='color: red'>リンク</a>")
+        defer { harness.stop() }
+        try await harness.waitForText("リンク")
+        let before = try await harness.string("document.documentElement.outerHTML")
+        _ = try await harness.string("document.querySelector('a').focus(); '選択済み'")
+        try await harness.waitForDestination(.openBrowser(URL(string: "https://example.invalid/")!))
+        #expect(try await harness.string("getComputedStyle(document.querySelector('a')).textDecorationLine") == "underline")
+        #expect(try await harness.string("document.documentElement.outerHTML") == before)
+        _ = try await harness.string("document.querySelector('a').blur(); '解除済み'")
+        try await harness.waitForURL(nil)
+        #expect(try await harness.string("getComputedStyle(document.querySelector('a')).textDecorationLine") == "none")
+        #expect(try await harness.string("document.documentElement.outerHTML") == before)
     }
 
     @Test

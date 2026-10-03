@@ -1,6 +1,122 @@
 import AppKit
 import AgentDomain
 import Observation
+import SwiftUI
+import DesignSystem
+
+public struct UnsavedFileContext {
+    let project: String
+    let session: String
+
+    public init(project: String = "", session: String = "") {
+        self.project = project
+        self.session = session
+    }
+
+    func description(folder: String, includeProject: Bool) -> String {
+        [includeProject ? project : "", session, folder.isEmpty ? "" : folder + "/"]
+            .filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+}
+
+struct UnsavedFile: Equatable {
+    let name: String
+    let context: String
+    let editingBlock: Bool
+}
+
+struct UnsavedWindow: Equatable {
+    let name: String
+    let files: [UnsavedFile]
+}
+
+struct UnsavedChangesContent: View {
+    let windows: [UnsavedWindow]
+    var locale = Locale(identifier: "ja")
+    var localizationBundle = Bundle.main
+
+    private func localized(_ key: String) -> String {
+        AppLocalizedString.string(key, locale: locale, bundle: localizationBundle)
+    }
+
+    var count: Int { windows.reduce(0) { $0 + $1.files.count } }
+    var hasBlockEdit: Bool { windows.contains { $0.files.contains { $0.editingBlock } } }
+    var visibleWindows: [UnsavedWindow] {
+        var remaining = 5
+        return windows.compactMap { window in
+            let files = Array(window.files.prefix(remaining))
+            remaining -= files.count
+            return files.isEmpty ? nil : UnsavedWindow(name: window.name, files: files)
+        }
+    }
+    var omitted: String? {
+        guard count > 5 else { return nil }
+        var remaining = 5
+        var hiddenWindows = 0
+        for window in windows {
+            let shown = min(remaining, window.files.count)
+            remaining -= shown
+            if shown < window.files.count { hiddenWindows += 1 }
+        }
+        return windows.count > 1
+            ? String(format: localized("ほか %lld 件（%lld ウィンドウ）"), count - 5, hiddenWindows)
+            : String(format: localized("ほか %lld 件"), count - 5)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.m) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(visibleWindows.enumerated()), id: \.offset) { index, window in
+                    if windows.count > 1 {
+                        Text(verbatim: String(format: localized("ウィンドウ %lld · %@"), index + 1, window.name))
+                            .font(DSFont.meta.weight(.semibold))
+                            .foregroundStyle(DSColor.textSecondary)
+                            .padding(.horizontal, DSSpacing.m).padding(.vertical, DSSpacing.chip)
+                    }
+                    ForEach(Array(window.files.enumerated()), id: \.offset) { fileIndex, file in
+                        if fileIndex > 0 { Divider().overlay(DSColor.separator) }
+                        HStack(alignment: .top, spacing: DSSpacing.s) {
+                            Image(systemName: "doc").foregroundStyle(DSColor.textTertiary)
+                            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                                HStack(spacing: DSSpacing.s) {
+                                    Text(verbatim: file.name).font(DSFont.auxiliary).lineLimit(1)
+                                    Spacer(minLength: DSSpacing.xs)
+                                    if file.editingBlock {
+                                        Text(verbatim: localized("編集中のブロック"))
+                                            .font(DSFont.meta)
+                                            .padding(.horizontal, DSSpacing.xs)
+                                            .frame(height: DSSpacing.l)
+                                            .overlay(RoundedRectangle(cornerRadius: DSRadius.s).stroke(DSColor.border))
+                                            .fixedSize()
+                                    }
+                                }
+                                Text(verbatim: file.context).font(DSFont.meta).foregroundStyle(DSColor.textTertiary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .padding(.horizontal, DSSpacing.m).padding(.vertical, DSSpacing.chip)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel([file.name, file.context, file.editingBlock ? localized("編集中のブロックあり") : ""].filter { !$0.isEmpty }.joined(separator: ", "))
+                    }
+                }
+                if let omitted {
+                    Divider().overlay(DSColor.separator)
+                    Text(omitted).font(DSFont.meta).foregroundStyle(DSColor.textSecondary)
+                        .padding(.horizontal, DSSpacing.m).padding(.vertical, DSSpacing.chip)
+                }
+            }
+            .padding(.vertical, DSSpacing.xs)
+            .background(DSColor.surface, in: RoundedRectangle(cornerRadius: DSRadius.row))
+            .overlay(RoundedRectangle(cornerRadius: DSRadius.row).stroke(DSColor.border, lineWidth: 0.5))
+            .accessibilityLabel(String(format: localized("未保存のファイル %lld 件"), count))
+            Text(verbatim: localized("保存するには、キャンセルしてそれぞれのタブで ⌘S を押します。"))
+                .font(DSFont.meta).foregroundStyle(DSColor.textSecondary)
+        }
+        .foregroundStyle(DSColor.textPrimary)
+        .frame(width: 380)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
 
 /// 下書きは各ウィンドウが所有し、破棄の確認だけを全ウィンドウで集約する。
 @MainActor
@@ -12,11 +128,17 @@ public final class FileTabDocumentRegistry {
         weak var files: FileTabDocuments?
         weak var window: NSWindow?
         let delegate: WindowDelegate
+        var context: (SessionID) -> UnsavedFileContext
+        var name: () -> String
+        var locale: Locale
 
-        init(files: FileTabDocuments, window: NSWindow, delegate: WindowDelegate) {
+        init(files: FileTabDocuments, window: NSWindow, delegate: WindowDelegate, context: @escaping (SessionID) -> UnsavedFileContext, name: @escaping () -> String, locale: Locale) {
             self.files = files
             self.window = window
             self.delegate = delegate
+            self.context = context
+            self.name = name
+            self.locale = locale
         }
     }
 
@@ -54,10 +176,13 @@ public final class FileTabDocumentRegistry {
 
     public var terminationConfirmationInProgress: Bool { confirmation == .termination }
 
-    public func register(files: FileTabDocuments, window: NSWindow) {
+    public func register(files: FileTabDocuments, window: NSWindow, context: @escaping (SessionID) -> UnsavedFileContext = { _ in UnsavedFileContext() }, name: @escaping () -> String = { "" }, locale: Locale = Locale(identifier: "ja")) {
         entries.removeAll { $0.window == nil }
         if let existing = entries.first(where: { $0.window === window }) {
             existing.files = files
+            existing.context = context
+            existing.name = name
+            existing.locale = locale
             existing.delegate.files = files
             if window.delegate !== existing.delegate {
                 existing.delegate.original = window.delegate
@@ -66,7 +191,7 @@ public final class FileTabDocumentRegistry {
             return
         }
         let delegate = WindowDelegate(registry: self, files: files, original: window.delegate)
-        entries.append(Entry(files: files, window: window, delegate: delegate))
+        entries.append(Entry(files: files, window: window, delegate: delegate, context: context, name: name, locale: locale))
         window.delegate = delegate
     }
 
@@ -150,9 +275,31 @@ public final class FileTabDocumentRegistry {
 
     /// キャンセルでは終了ガードも文書も変えない。
     public func confirmTermination() -> Bool {
-        requestTermination { summary in
-            Self.alert(summary: summary, terminating: true).runModal() == .alertSecondButtonReturn
+        requestTermination { _ in
+            Self.alert(windows: unsavedWindows(), terminating: true, locale: entries.first { $0.window?.isKeyWindow == true }?.locale ?? entries.first?.locale ?? Locale(identifier: "ja")).runModal() == .alertSecondButtonReturn
         }
+    }
+
+    func unsavedWindows(for window: NSWindow? = nil) -> [UnsavedWindow] {
+        let ordered = NSApp.orderedWindows
+        let relevant = entries.filter { (window == nil || $0.window === window) && $0.files?.documents(for: nil).contains(where: \.hasUnsavedChanges) == true }
+        return relevant
+            .sorted { first, second in
+                (ordered.firstIndex { $0 === first.window } ?? Int.max) < (ordered.firstIndex { $0 === second.window } ?? Int.max)
+            }.compactMap { entry in
+                guard let files = entry.files, let window = entry.window else { return nil }
+                let dirty = files.documentEntries().filter { $0.1.hasUnsavedChanges }
+                    .sorted { $0.1.path < $1.1.path }.map { id, document in
+                        let folder = (document.path as NSString).deletingLastPathComponent
+                        let context = entry.context(id)
+                        let fileContext = UnsavedFileContext(project: context.project.isEmpty ? URL(fileURLWithPath: document.root).lastPathComponent : context.project, session: context.session)
+                        return UnsavedFile(name: document.fileName,
+                            context: fileContext.description(folder: folder, includeProject: relevant.count == 1),
+                            editingBlock: document.activeBlockEdit != nil)
+                    }
+                let name = entry.name()
+                return dirty.isEmpty ? nil : UnsavedWindow(name: name.isEmpty ? (window.title.isEmpty ? "Phlox" : window.title) : name, files: dirty)
+            }
     }
 
     func requestTermination(confirm: (String) -> Bool) -> Bool {
@@ -167,14 +314,31 @@ public final class FileTabDocumentRegistry {
         return true
     }
 
-    static func alert(summary: String, terminating: Bool) -> NSAlert {
+    static func alert(windows: [UnsavedWindow], terminating: Bool, locale: Locale = Locale(identifier: "ja"), bundle: Bundle = .main) -> NSAlert {
+        func localized(_ key: String) -> String { AppLocalizedString.string(key, locale: locale, bundle: bundle) }
+        let content = UnsavedChangesContent(windows: windows, locale: locale, localizationBundle: bundle)
         let alert = NSAlert()
-        alert.messageText = terminating ? "未保存のファイルがあります。終了しますか？" : "未保存のファイルがあります。閉じますか？"
-        alert.informativeText = summary
+        alert.messageText = String(format: localized(terminating
+            ? "未保存のファイル %lld 件を保存せずに Phlox を終了しますか？"
+            : "未保存のファイル %lld 件を保存せずにウィンドウを閉じますか？"), content.count)
+        if terminating, windows.count > 1 {
+            alert.informativeText = String(format: localized("%lld つのウィンドウに保存していない変更があります。変更は失われ、元に戻せません。"), windows.count)
+            if content.hasBlockEdit { alert.informativeText += " " + localized("編集中（未確定）のブロックも含まれます。") }
+        } else {
+            alert.informativeText = content.hasBlockEdit
+                ? localized("保存していない変更は、編集中（未確定）のブロックも含めて失われます。元に戻せません。")
+                : localized("保存していない変更は失われ、元に戻せません。")
+        }
+        let accessory = NSHostingView(rootView: content)
+        accessory.setFrameSize(accessory.fittingSize)
+        alert.accessoryView = accessory
         alert.icon = NSApp.applicationIconImage
-        let cancel = alert.addButton(withTitle: "キャンセル")
+        let cancel = alert.addButton(withTitle: localized("キャンセル"))
         cancel.keyEquivalent = "\r"
-        alert.addButton(withTitle: terminating ? "保存せず終了" : "保存せず閉じる").hasDestructiveAction = true
+        let discard = alert.addButton(withTitle: localized(terminating ? "保存せず終了" : "保存せず閉じる"))
+        discard.hasDestructiveAction = true
+        discard.keyEquivalent = "\u{7f}"
+        discard.keyEquivalentModifierMask = .command
         // Esc を直接割り当てるとキャンセルが最下段に移るため、同じボタンへ転送する。
         let escape = NSButton(frame: .zero)
         escape.keyEquivalent = "\u{1b}"
@@ -199,7 +363,7 @@ public final class FileTabDocumentRegistry {
         if names.isEmpty {
             finishClosing(window, files: files, delegate: delegate)
         } else {
-            let alert = Self.alert(summary: Self.summary([(window.title.isEmpty ? "Phlox" : window.title, names)]), terminating: false)
+            let alert = Self.alert(windows: unsavedWindows(for: window), terminating: false, locale: entries.first { $0.window === window }?.locale ?? Locale(identifier: "ja"))
             alert.beginSheetModal(for: window) { [weak self, weak window, weak delegate] response in
                 guard let self else { return }
                 guard response == .alertSecondButtonReturn, let window, let delegate else {

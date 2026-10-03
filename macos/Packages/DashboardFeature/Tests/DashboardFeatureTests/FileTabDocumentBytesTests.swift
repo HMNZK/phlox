@@ -65,6 +65,8 @@ struct FileTabDocumentBytesTests {
             let document = FileTabDocument(path: "a.txt", root: root.path)
             await document.loadIfNeeded()
             #expect(document.loadState == expected)
+            if expected == .tooLarge { #expect(document.fileSize == bytes.count) }
+            if expected == .loadFailed { #expect(document.readFailureReason?.contains("Shift_JIS") == true) }
             #expect(!document.isLoaded)
             #expect(document.loadedDiskBytes.isEmpty)
             #expect(try await document.save() == .conflictDetected)

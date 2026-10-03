@@ -403,10 +403,10 @@ public struct DashboardView: View {
             // 幅が足りないときの重ね表示。SwiftUI の overlay は端末の NSView より前面に描ける。
             .overlay(alignment: .topTrailing) {
                 if router.inspectorVisible, layout.inspectorIsOverlay {
-                    inspectorContent
+                    inspectorContent(isOverlay: true)
                         .frame(width: layout.inspector)
                         .frame(maxHeight: .infinity)
-                        .background(DSColor.panelBackground)
+                        .background(DSColor.popoverBackground)
                         .clipShape(RoundedRectangle(cornerRadius: DSRadius.attention))
                         .overlay {
                             RoundedRectangle(cornerRadius: DSRadius.attention).strokeBorder(DSColor.separator)
@@ -497,7 +497,16 @@ public struct DashboardView: View {
         // hiddenTitleBar でも SwiftUI は上部にタイトルバー分のセーフエリアを確保するため、
         // 上部セーフエリアを無視してツールバーとサイドバーの上端をウィンドウ最上部に揃える。
         .ignoresSafeArea(.container, edges: .top)
-        .background(WindowChromeConfigurator(files: fileTabs))
+        .background(WindowChromeConfigurator(files: fileTabs, fileContext: { [weak viewModel] id in
+            guard let viewModel, let session = viewModel.sessionNode(id: id) else {
+                return UnsavedFileContext(project: "", session: "")
+            }
+            let project = viewModel.projects.first { $0.id == session.projectID }?.name
+            return UnsavedFileContext(project: project ?? "", session: session.displayName)
+        }, projectName: { [weak viewModel, weak router] in
+            guard let viewModel, let router else { return "" }
+            return viewModel.projects.first { $0.id == router.selectedProjectID }?.name ?? ""
+        }))
         .onReceive(NotificationCenter.default.publisher(for: .fileTreeFileSaved)) { notification in
             guard let root = notification.userInfo?["root"] as? String,
                   let path = notification.userInfo?["path"] as? String,
@@ -852,12 +861,17 @@ public struct DashboardView: View {
     }
 
     private var inspectorContent: some View {
+        inspectorContent(isOverlay: false)
+    }
+
+    private func inspectorContent(isOverlay: Bool) -> some View {
         InspectorView(
             router: router,
             monitor: usageMonitor,
             session: router.selectedSession.flatMap { viewModel.sessionNode(id: $0) },
             fileTreeModels: $fileTreeModels,
-            files: fileTabs
+            files: fileTabs,
+            isOverlay: isOverlay
         )
     }
 

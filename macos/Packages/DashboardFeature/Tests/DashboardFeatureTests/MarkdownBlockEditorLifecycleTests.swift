@@ -24,7 +24,6 @@ struct MarkdownBlockEditorLifecycleTests {
         let container = BlockEditorFocusTarget(frame: view.frame)
         window.contentView = container
         window.orderBack(nil)
-        window.makeKey()
         #expect(window.makeFirstResponder(container))
         container.addSubview(view)
         defer { window.close() }
@@ -256,13 +255,13 @@ struct MarkdownBlockEditorLifecycleTests {
 
     private func click(_ point: NSPoint, view: NSView, window: NSWindow) async throws {
         let timestamp = ProcessInfo.processInfo.systemUptime
-        for (index, type) in [NSEvent.EventType.leftMouseDown, .leftMouseUp].enumerated() {
-            let event = try #require(NSEvent.mouseEvent(with: type,
+        let events = try [NSEvent.EventType.leftMouseDown, .leftMouseUp].enumerated().map { index, type in
+            try #require(NSEvent.mouseEvent(with: type,
                 location: window.convertPoint(fromScreen: point), modifierFlags: [],
                 timestamp: timestamp + Double(index) * 0.02, windowNumber: window.windowNumber,
                 context: nil, eventNumber: index + 1, clickCount: 1, pressure: index == 0 ? 1 : 0))
-            window.sendEvent(event)
         }
+        try sendMarkdownMouseEvents(events, in: window)
         try await Task.sleep(for: .milliseconds(150))
         view.layoutSubtreeIfNeeded()
     }
@@ -271,10 +270,25 @@ struct MarkdownBlockEditorLifecycleTests {
         ((view as? NSScrollView).map { [$0] } ?? []) + view.subviews.flatMap { scrollViews(in: $0) }
     }
 
-    private func chain(_ r: NSResponder?) -> String {
-        var out: [String] = []; var c = r
-        while let x = c { out.append(String(describing: type(of: x))); c = x.nextResponder }
-        return out.joined(separator: " > ")
+    @Test func escapedBlockMovesWithArrowAndReopensWithReturn() async throws {
+        let (root, _, document, window, view) = try await setUp()
+        defer { window.close(); try? FileManager.default.removeItem(at: root) }
+        try await clickText("本文A", view: view, window: window)
+        try await escape(window: window, view: view)
+        #expect(window.firstResponder is MarkdownBlockSelectionObserver.SelectionView)
+        for (key, characters) in [(UInt16(125), "\u{F701}"), (UInt16(36), "\r")] {
+            let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                context: nil, characters: characters, charactersIgnoringModifiers: characters,
+                isARepeat: false, keyCode: key))
+            window.sendEvent(event)
+            try await Task.sleep(for: .milliseconds(100))
+            view.layoutSubtreeIfNeeded()
+        }
+        let editor = try #require(editors(in: view).first)
+        #expect(editor.string == "本文B\n")
+        #expect(window.firstResponder === editor)
+        #expect(document.activeBlockEdit?.range.lowerBound == Self.source.utf8.count - "本文B\n".utf8.count)
     }
 
     // MARK: - helpers
@@ -305,24 +319,13 @@ struct MarkdownBlockEditorLifecycleTests {
         window.orderBack(nil)
         try await Task.sleep(for: .milliseconds(100))
         view.layoutSubtreeIfNeeded()
-        if keyWindow { window.makeKey() }
         return (root, file, document, window, view)
     }
 
     private func clickText(_ text: String, view: NSView, window: NSWindow) async throws {
         view.layoutSubtreeIfNeeded()
         let frame = try #require(accessibilityFrame(in: view, text: text))
-        let point = NSPoint(x: frame.midX, y: frame.midY)
-        let timestamp = ProcessInfo.processInfo.systemUptime
-        for (index, type) in [NSEvent.EventType.leftMouseDown, .leftMouseUp].enumerated() {
-            let event = try #require(NSEvent.mouseEvent(with: type,
-                location: window.convertPoint(fromScreen: point), modifierFlags: [],
-                timestamp: timestamp + Double(index) * 0.02, windowNumber: window.windowNumber,
-                context: nil, eventNumber: index + 1, clickCount: 1, pressure: index == 0 ? 1 : 0))
-            window.sendEvent(event)
-        }
-        try await Task.sleep(for: .milliseconds(150))
-        view.layoutSubtreeIfNeeded()
+        try await click(NSPoint(x: frame.midX, y: frame.midY), view: view, window: window)
     }
 
     private func escape(window: NSWindow, view: NSView) async throws {
@@ -336,7 +339,7 @@ struct MarkdownBlockEditorLifecycleTests {
     }
 
     private func editors(in view: NSView) -> [NSTextView] {
-        (view as? NSTextView).map { [$0] } ?? view.subviews.flatMap { editors(in: $0) }
+        (view as? CurrentLineTextView).map { [$0] } ?? view.subviews.flatMap { editors(in: $0) }
     }
 
     private func accessibilityFrame(in view: NSView, text: String) -> NSRect? {
@@ -367,7 +370,9 @@ struct MarkdownBlockEditorLifecycleTests {
 }
 
 private final class BlockEditorKeyWindow: NSPanel {
-    override var canBecomeKey: Bool { true }
+    override var canBecomeKey: Bool { false }
+    // 製品のキーウィンドウ条件を検査し、OS の入力先は変えない。
+    override var isKeyWindow: Bool { true }
 }
 
 private final class BlockEditorFocusTarget: NSView {

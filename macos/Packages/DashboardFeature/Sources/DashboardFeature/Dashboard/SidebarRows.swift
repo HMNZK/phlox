@@ -694,7 +694,7 @@ struct SidebarRenameHintBubble: View {
 
 /// 右クリックのメニューを開いている行に、ホバーの面と内側 2pt の accent の輪を付ける（03 F2・F4）。
 /// macOS ではメニュー内容の onAppear が呼ばれないため、ポインタが乗った行へのクリックでメニューの追跡が始まったら開いたとみなす。
-private struct SidebarMenuOpenRing<Menu: View>: ViewModifier {
+struct SidebarMenuOpenRing<Menu: View>: ViewModifier {
     @ViewBuilder let menu: () -> Menu
     @State private var isHovering = false
     @State private var isOpen = false

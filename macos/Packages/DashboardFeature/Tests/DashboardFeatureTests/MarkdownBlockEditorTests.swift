@@ -12,6 +12,23 @@ struct MarkdownBlockEditorTests {
         #expect(MarkdownBlockEditor.editorHeight(Array(repeating: "長い本文", count: 100).joined(separator: "\n")) == 200)
     }
 
+    @Test
+    func blockSeparatingNewlinesDoNotAddBlankEditorRows() {
+        let text = "第1行\n第2行\n第3行"
+        #expect(MarkdownBlockEditor.editorHeight(text) == 70)
+        #expect(MarkdownBlockEditor.editorHeight(text + "\n\n") == 70)
+        #expect(MarkdownBlockEditor.editorHeight(text + "\r\n\r\n") == 70)
+        #expect(MarkdownBlockEditor.editorHeight("\n\n") == 54)
+    }
+
+    @Test
+    func commitHintDistinguishesScrollableAndFailedEdits() {
+        let long = Array(repeating: "原文", count: 20).joined(separator: "\n")
+        #expect(MarkdownBlockEditor.commitHint(text: long, hasFailure: false).hasPrefix("中をスクロール · "))
+        #expect(!MarkdownBlockEditor.commitHint(text: "短い原文", hasFailure: false).hasPrefix("中をスクロール"))
+        #expect(MarkdownBlockEditor.commitHint(text: long, hasFailure: true) == "編集内容は残っています")
+    }
+
     @Test(arguments: [320.0, 640.0])
     func renderedAndEditingBlocksHaveDifferentOffscreenImages(width: Double) throws {
         let document = FileTabDocument(path: "offscreen.md", root: "/")
@@ -23,6 +40,8 @@ struct MarkdownBlockEditorTests {
 
         #expect(rendered.png != editing.png)
         #expect(editing.editorCount == 1)
+        #expect(editing.editorsWithLineNumbers == 0)
+        #expect(editing.editorsWithCurrentLineFill == 0)
         #expect(rendered.editorCount == 0)
         #expect(editing.editorFrames.allSatisfy { $0.width <= width && $0.height <= 200 })
         #expect(document.activeBlockEdit != nil)
@@ -58,9 +77,9 @@ struct MarkdownBlockEditorTests {
 
         let image = try snapshot(document, width: 480)
         #expect(image.editorCount == 1)
-        #expect(image.labels.contains("文書が先に変わったため確定できません"))
-        #expect(image.labels.contains("編集を破棄"))
-        #expect(image.labels.contains("ソースで開く"))
+        #expect(image.labels.contains("編集内容は残っています"))
+        #expect(!image.labels.contains("編集を破棄"))
+        #expect(!image.labels.contains("ソースで開く"))
         #expect(image.editorStrings == ["失わせない入力"])
         #expect(document.activeBlockEdit?.id == id)
         #expect(document.activeBlockEdit?.current == "失わせない入力")
@@ -73,6 +92,8 @@ struct MarkdownBlockEditorTests {
         var editorCount = 0
         var editorFrames: [CGRect] = []
         var editorStrings: [String] = []
+        var editorsWithLineNumbers = 0
+        var editorsWithCurrentLineFill = 0
         var blockIDs = Set<String>()
         var blocksWithChildren = 0
         var labels: [String] = []
@@ -128,7 +149,11 @@ struct MarkdownBlockEditorTests {
             if let textView = element as? CurrentLineTextView {
                 result.editorCount += 1
                 result.editorStrings.append(textView.string)
-                if let scrollView = textView.enclosingScrollView { result.editorFrames.append(scrollView.frame) }
+                if textView.currentLineColor != .clear { result.editorsWithCurrentLineFill += 1 }
+                if let scrollView = textView.enclosingScrollView {
+                    result.editorFrames.append(scrollView.frame)
+                    if scrollView.rulersVisible { result.editorsWithLineNumbers += 1 }
+                }
             }
             if let view = element as? NSView { view.subviews.forEach(visit) }
         }

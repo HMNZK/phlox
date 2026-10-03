@@ -16,12 +16,16 @@ final class FileTreeModel {
     private(set) var loading: Set<String> = []
     private(set) var branch = ""
     private let loader: FileTreeLoader
+    private let readBranch: @Sendable () async -> String
     private var generations: [String: UUID] = [:]
     private var branchGeneration = UUID()
 
-    init(root: String, loader: FileTreeLoader? = nil) {
+    init(root: String, loader: FileTreeLoader? = nil, readBranch: (@Sendable () async -> String)? = nil) {
         self.root = root
         self.loader = loader ?? FileTreeLoader(root: root)
+        self.readBranch = readBranch ?? {
+            await WorkingTreeService(repositoryRoot: URL(fileURLWithPath: root), fixedRoot: true).branchLabel()
+        }
     }
 
     var rows: [FileTreeRows.Row] {
@@ -39,14 +43,19 @@ final class FileTreeModel {
     func refresh() async {
         let generation = UUID()
         branchGeneration = generation
-        async let label = WorkingTreeService(repositoryRoot: URL(fileURLWithPath: root), fixedRoot: true).branchLabel()
+        async let label = readBranch()
+        async let directories: Void = refreshDirectories()
+        let value = await label
+        if branchGeneration == generation { branch = value }
+        await directories
+    }
+
+    private func refreshDirectories() async {
         await withTaskGroup(of: Void.self) { group in
             for path in expanded.union([""]) {
                 group.addTask { await self.load(path) }
             }
         }
-        let value = await label
-        if branchGeneration == generation { branch = value }
     }
 
     func fileSaved(root: String, relativePath: String) async {

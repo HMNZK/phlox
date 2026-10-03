@@ -18,6 +18,9 @@ struct DesignSnapshotRenderTests {
         let width: CGFloat
         let height: CGFloat
         var light = false
+        var state: String? = nil
+        var stateID: String { state ?? id }
+        var english: Bool { id == "3k" || id.hasSuffix("-en") }
     }
 
     private let frames: [Frame] = [
@@ -30,6 +33,7 @@ struct DesignSnapshotRenderTests {
         .init(id: "2b", name: "キーボード移動", width: 300, height: 860),
         .init(id: "2c", name: "右クリック", width: 300, height: 860),
         .init(id: "2d", name: "ルート外ホバー", width: 300, height: 860),
+        .init(id: "2d-click", name: "ルート外クリック", width: 300, height: 860, state: "2d"),
         .init(id: "2e1", name: "ブランチ", width: 300, height: 100),
         .init(id: "2e2", name: "detachedHEAD", width: 300, height: 100),
         .init(id: "2e3", name: "Git管理外", width: 300, height: 100),
@@ -39,7 +43,7 @@ struct DesignSnapshotRenderTests {
         .init(id: "2h", name: "フォルダ読込エラー", width: 300, height: 620),
         .init(id: "2i", name: "セッション未選択", width: 300, height: 620),
         .init(id: "2j", name: "ルート読込エラー", width: 300, height: 620),
-        .init(id: "2k", name: "重ね表示", width: 760, height: 720),
+        .init(id: "2k", name: "重ね表示", width: 280, height: 620),
         .init(id: "3a", name: "Markdown保存済み", width: 720, height: 300),
         .init(id: "3b", name: "Markdown未保存", width: 720, height: 300),
         .init(id: "3c", name: "Markdownソース", width: 720, height: 300),
@@ -51,10 +55,20 @@ struct DesignSnapshotRenderTests {
         .init(id: "3i", name: "幅480", width: 480, height: 420),
         .init(id: "3j", name: "幅320", width: 320, height: 420),
         .init(id: "3k", name: "幅320英語", width: 320, height: 420),
+        .init(id: "3i400", name: "Markdown幅400", width: 400, height: 420, state: "3i"),
+        .init(id: "3i560", name: "Markdown幅560", width: 560, height: 420, state: "3i"),
+        .init(id: "3f-en", name: "ブロック上限英語", width: 720, height: 300, state: "3f"),
+        .init(id: "3g-en", name: "サイズ上限英語", width: 720, height: 300, state: "3g"),
+        .init(id: "3f-help-en", name: "ブロック上限全文英語", width: 720, height: 300, state: "3f"),
+        .init(id: "3g-help-en", name: "サイズ上限全文英語", width: 720, height: 300, state: "3g"),
+        .init(id: "3h-en", name: "確定失敗英語", width: 720, height: 300, state: "3h"),
+        .init(id: "3h-help-en", name: "確定失敗全文英語", width: 720, height: 300, state: "3h"),
         .init(id: "3l", name: "1MB超", width: 720, height: 380),
         .init(id: "3m", name: "バイナリ", width: 720, height: 380),
         .init(id: "3n", name: "ルート外", width: 720, height: 380),
         .init(id: "3o", name: "UTF8以外", width: 720, height: 380),
+        .init(id: "3l-en", name: "大容量英語", width: 720, height: 380, state: "3l"),
+        .init(id: "3n-en", name: "ルート外英語", width: 720, height: 380, state: "3n"),
         .init(id: "4a", name: "表示とホバー", width: 760, height: 720),
         .init(id: "4b", name: "段落編集中", width: 760, height: 720),
         .init(id: "4c", name: "frontmatter編集中", width: 760, height: 720),
@@ -62,6 +76,7 @@ struct DesignSnapshotRenderTests {
         .init(id: "4e", name: "原文", width: 760, height: 340),
         .init(id: "4f", name: "空文書", width: 760, height: 340),
         .init(id: "4g", name: "確定失敗", width: 760, height: 420),
+        .init(id: "4g-save", name: "確定失敗保存時", width: 760, height: 420, state: "4g"),
         .init(id: "4h", name: "キーボード選択", width: 760, height: 720),
         .init(id: "4i", name: "リンクホバー", width: 760, height: 720),
         .init(id: "4j", name: "面と輪", width: 560, height: 300),
@@ -76,11 +91,20 @@ struct DesignSnapshotRenderTests {
         .init(id: "5f", name: "表示プロセス終了", width: 760, height: 540),
         .init(id: "5g", name: "遮断準備失敗", width: 760, height: 540),
         .init(id: "5h", name: "HTML幅480", width: 480, height: 540),
-        .init(id: "6a", name: "未保存2件", width: 300, height: 340),
-        .init(id: "6b", name: "未保存9件", width: 300, height: 440),
-        .init(id: "6c", name: "未確定ブロック", width: 300, height: 400),
-        .init(id: "6d", name: "2ウィンドウ", width: 300, height: 420),
-        .init(id: "6e", name: "3ウィンドウ11件", width: 300, height: 460),
+        .init(id: "5h400", name: "HTML幅400", width: 400, height: 540, state: "5h"),
+        .init(id: "5h560", name: "HTML幅560", width: 560, height: 540, state: "5h"),
+        .init(id: "5b-en", name: "説明英語", width: 760, height: 540, state: "5b"),
+        .init(id: "5g-en", name: "遮断準備失敗英語", width: 760, height: 540, state: "5g"),
+        .init(id: "5g-help-en", name: "遮断準備失敗全文英語", width: 760, height: 540, state: "5g"),
+        .init(id: "5h-en", name: "閲覧のみ英語", width: 480, height: 540, state: "5h"),
+        .init(id: "5h-help-en", name: "閲覧のみ全文英語", width: 480, height: 540, state: "5h"),
+        .init(id: "6a", name: "未保存2件", width: 400, height: 340),
+        .init(id: "6b", name: "未保存9件", width: 400, height: 440),
+        .init(id: "6c", name: "未確定ブロック", width: 400, height: 400),
+        .init(id: "6d", name: "2ウィンドウ", width: 400, height: 420),
+        .init(id: "6e", name: "3ウィンドウ11件", width: 400, height: 460),
+        .init(id: "6c-en", name: "未確定一覧英語", width: 400, height: 400, state: "6c"),
+        .init(id: "6d-en", name: "ウィンドウ一覧英語", width: 400, height: 420, state: "6d"),
         .init(id: "7r", name: "ショートカット直後", width: 520, height: 760),
         .init(id: "7a", name: "表示中", width: 520, height: 760),
         .init(id: "7b", name: "入力送信中", width: 520, height: 760),
@@ -111,6 +135,7 @@ struct DesignSnapshotRenderTests {
     @Test func 比較用画像を書き出す() async throws {
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
         _ = NSApplication.shared
+        NSApp.setActivationPolicy(.prohibited)
         let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
         let fixtures = package.appendingPathComponent(".build/design-snapshot-fixtures-\(UUID().uuidString)")
@@ -129,6 +154,16 @@ struct DesignSnapshotRenderTests {
                 let existing = destination(frame, output)
                 if FileManager.default.fileExists(atPath: existing.path) { try FileManager.default.removeItem(at: existing) }
                 let note = try await render(frame, fixtures: fixtures, output: output)
+                if !frame.id.hasPrefix("7"), frame.id != "8L3" {
+                    let personal = URL(fileURLWithPath: "/tmp/snap-files", isDirectory: true)
+                    try FileManager.default.createDirectory(at: personal, withIntermediateDirectories: true)
+                    let copy = Process()
+                    copy.executableURL = URL(fileURLWithPath: "/bin/cp")
+                    copy.arguments = ["-R", existing.path, personal.path]
+                    try copy.run()
+                    copy.waitUntilExit()
+                    try #require(copy.terminationStatus == 0, "撮影直後の写真コピーに失敗")
+                }
                 written += 1
                 rows.append("| \(frame.id) | 書き出した | \(note) |")
             } catch let error as Unavailable {
@@ -159,30 +194,15 @@ struct DesignSnapshotRenderTests {
             defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
             NSApp.appearance = appearance
         }
-        let id = frame.id
-        if id == "1d" { throw Unavailable(reason: "タブ追加メニューは非公開状態で、画面外の部品描画に含まれない") }
+        let id = frame.stateID
+        if id == "1d" { return try await renderTabChooser(frame, fixtures: fixtures, output: output) }
         if id.hasPrefix("1") { return try await renderDashboard(frame, fixtures: fixtures, output: output) }
         if id.hasPrefix("6") {
-            throw Unavailable(reason: "本物の NSAlert を非表示で cacheDisplay すると文字・キャンセルボタン・背景が欠ける。シートを画面に出す方法は今回の制約外")
+            return try await renderUnsaved(frame, fixtures: fixtures, output: output)
         }
         let reasons = [
-            "2b": "移動中の選択とフォーカスは非公開のビュー状態",
-            "2c": "ネイティブの右クリックメニューは画面外の部品描画に含まれない",
-            "2d": "ホバーの説明は非公開のポインタ状態",
-            "2e2": "ブランチは実 Git から取得し、detached HEAD の注入口がない。撮影用コミットは作らない",
-            "2k": "重ね表示のカードはダッシュボードのインスペクタ配置が必要",
-            "3h": "文書の版ずれは private(set) で、確定失敗を注入する入口がない",
-            "4g": "文書の版ずれを注入する入口がない",
-            "4h": "選択ブロックとキーボードフォーカスは非公開のビュー状態",
-            "4i": "リンクのホバーは非公開のポインタ状態",
             "4k": "未採用の比較案で切替実装がない",
             "4l": "未採用の比較案で切替実装がない",
-            "4m": "選択境界の案内はドラッグ中の非公開状態",
-            "5b": "遮断説明ポップオーバーは非公開のビュー状態",
-            "5c": "リンクのホバーは FileTabView 内の非公開モデル状態",
-            "5d": "リンクのホバーは FileTabView 内の非公開モデル状態",
-            "5f": "Web プロセス終了状態は FileTabView 内の非公開モデル。実プロセスは終了させない",
-            "5g": "遮断ルール準備失敗を FileTabView に注入する入口がない",
             "7r": "開いた直後の画面は実端末映像が必要",
             "7a": "表示中の画面は実端末映像が必要",
             "7b": "入力送信中の画面は実端末映像と非公開フォーカス状態が必要",
@@ -216,22 +236,63 @@ struct DesignSnapshotRenderTests {
         var layout = SessionTabLayout()
         layout.open(.terminal)
         layout.open(.file(document.path))
-        let body = FileTabView(document: document, lastWriter: { _ in nil }, isFocused: false, openFile: { _, _ in })
-            .environment(\.locale, Locale(identifier: id == "3k" ? "en" : "ja"))
-        if id == "4j" {
-            try await capture(MarkdownBlockEditor(document: document, openURL: { _ in .discarded }), frame: frame, output: output)
+        let preview = HTMLPreviewModel(document: document)
+        if document.isHTML {
+            if id == "5g" { preview.stopWithPreparationError("遮断ルールを準備できませんでした") }
+            else { await preview.prepare() }
+            if id == "5f" { preview.didTerminate() }
+            if id == "5c" { await preview.hover(WorktreeURL.url(for: "docs/guides/file-tree.md")) }
+            if id == "5d" { await preview.hover(URL(string: "https://github.com/phlox-oss/phlox")) }
+        }
+        let strings = try localizationBundle(fixtures: fixtures)
+        let fileView = FileTabView(document: document, lastWriter: { _ in nil }, isFocused: false, openFile: { _, _ in },
+                               htmlPreview: preview, localizationBundle: strings,
+                               showsIsolationExplanation: id == "5b", emphasizesMarkdownReason: frame.id == "4g-save")
+        let body = fileView
+            .environment(\.locale, Locale(identifier: frame.english ? "en" : "ja"))
+        if frame.id.contains("-help-") {
+            let help = id == "5h" ? fileView.presentationHelp(.rendered) : id == "5g" ? fileView.htmlPreparationHelp
+                : Text(verbatim: fileView.markdownReasonDetail(locale: Locale(identifier: "en")))
+            try await capture(body, frame: frame, output: output,
+                              foreground: AnyView(help.font(DSFont.meta).padding(10).frame(width: min(380, frame.width - 20))
+                                .background(DSColor.popoverBackground)
+                                .environment(\.locale, Locale(identifier: "en"))),
+                              foregroundOrigin: CGPoint(x: 10, y: frame.height - 140))
+        } else if id.hasPrefix("4"), ["4a", "4f", "4h", "4i", "4m", "4j"].contains(id) {
+            let blocks = document.markdownBlocks
+            let hovered = blocks.first { $0.original.hasPrefix("- ") }?.id
+            let selected = blocks.first { $0.original.hasPrefix("|") }?.id
+            let linked = WorktreeURL.url(for: "docs/architecture/overview.md")!
+            let destination = FileLinkDestination(url: linked, decision: .openFile("docs/architecture/overview.md"))
+            try await capture(VStack(spacing: 0) {
+                if id != "4j" { ChildTabBar(router: AppRouter(), node: node, layout: layout, changeCount: 0, files: files, agentConsoleWindowID: nil, localizationBundle: strings) }
+                FileTabView(document: document, lastWriter: { _ in nil }, isFocused: false, openFile: { _, _ in }, localizationBundle: strings, markdownEditor:
+                    MarkdownBlockEditor(document: document, openURL: { _ in .discarded }, linkDestination: { _ in destination },
+                                    hoveredBlock: id == "4a" ? hovered : id == "4f" ? blocks.first?.id : nil, focusedBlock: id == "4h" ? selected : nil,
+                                    hoveredLink: id == "4i" ? URL(string: "docs/architecture/overview.md") : nil, hoveredDestination: id == "4i" ? destination : nil,
+                                    selectionCrossesBlock: id == "4m"))
+            }, frame: frame, output: output, selectsParagraph: id == "4m")
+        } else if id == "5b" {
+            let explanation = FileTabView(document: document, lastWriter: { _ in nil }, isFocused: false, openFile: { _, _ in }, localizationBundle: strings).isolationExplanation
+            try await capture(body, frame: frame, output: output,
+                              foreground: AnyView(explanation.environment(\.locale, Locale(identifier: frame.english ? "en" : "ja"))), foregroundOrigin: CGPoint(x: frame.width - 440, y: frame.height - 210))
+        } else if id == "5c" || id == "5d" {
+            let url = id == "5c" ? WorktreeURL.url(for: "docs/guides/file-tree.md")! : URL(string: "https://github.com/phlox-oss/phlox")!
+            let decision: HTMLNavigationPolicy.Decision = id == "5c" ? .openFile("docs/guides/file-tree.md") : .openBrowser(url)
+            try await capture(body, frame: frame, output: output,
+                              foreground: AnyView(FileLinkDestinationView(destination: .init(url: url, decision: decision)).padding(4)),
+                              foregroundOrigin: CGPoint(x: 4, y: 4))
         } else {
             try await capture(VStack(spacing: 0) {
                 if id != "8L2" {
                     ChildTabBar(router: AppRouter(), node: node, layout: layout, changeCount: 0,
-                                files: files, agentConsoleWindowID: nil)
+                                files: files, agentConsoleWindowID: nil, localizationBundle: strings)
                 }
                 body
             }, frame: frame, output: output)
         }
-        return id == "3k" ? "英語 locale を指定。現在の実装には日本語文言が残る"
-            : ["4a", "4f"].contains(id) ? "本物の本文。見本のホバーの面は対象外（非公開状態）"
-            : "実物の子タブ列・ファイル帯・本文。文言・配色は現在の実装値"
+        return frame.id.contains("-help-") ? "実際のhelp本文を描画。標準ツールチップの外枠とホバー操作は対象外"
+            : "実物の部品。ホバー・選択・障害状態は既存モデルとビューの初期状態で再現"
     }
 
     private let markdown = """
@@ -262,6 +323,74 @@ struct DesignSnapshotRenderTests {
 
     [design]: docs/architecture/overview.md
     """
+
+    private func localizationBundle(fixtures: URL) throws -> Bundle {
+        let url = fixtures.appendingPathComponent("FileLocalization.bundle")
+        if !FileManager.default.fileExists(atPath: url.path) {
+            let resources = url.appendingPathComponent("en.lproj")
+            try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+            let macos = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            let catalog = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: macos.appendingPathComponent("App/Localizable.xcstrings"))) as? [String: Any])
+            let strings = try #require(catalog["strings"] as? [String: [String: Any]])
+            var english: [String: String] = [:]
+            for (key, entry) in strings {
+                if let locales = entry["localizations"] as? [String: [String: Any]],
+                   let unit = locales["en"]?["stringUnit"] as? [String: String], let value = unit["value"] {
+                    english[key] = value
+                }
+            }
+            let data = try PropertyListSerialization.data(fromPropertyList: english, format: .xml, options: 0)
+            try data.write(to: resources.appendingPathComponent("Localizable.strings"))
+            let japanese = url.appendingPathComponent("ja.lproj")
+            try FileManager.default.createDirectory(at: japanese, withIntermediateDirectories: true)
+            let japaneseStrings = Dictionary(uniqueKeysWithValues: strings.map { key, entry in
+                let locales = entry["localizations"] as? [String: [String: Any]]
+                let value = (locales?["ja"]?["stringUnit"] as? [String: String])?["value"]
+                return (key, value ?? key)
+            })
+            try PropertyListSerialization.data(fromPropertyList: japaneseStrings, format: .xml, options: 0)
+                .write(to: japanese.appendingPathComponent("Localizable.strings"))
+            try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "cc.phlox.file-design-localization", "CFBundleDevelopmentRegion": "ja"], format: .xml, options: 0)
+                .write(to: url.appendingPathComponent("Info.plist"))
+        }
+        return try #require(Bundle(url: url))
+    }
+
+    private func renderTabChooser(_ frame: Frame, fixtures: URL, output: URL) async throws -> String {
+        let (events, continuation) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+        defer { continuation.finish() }
+        let node = SessionNode.pty(SessionViewModel(id: SessionID(), ptyManager: MockPTYManager(), hookEvents: events,
+            terminalCoordinator: TerminalCoordinator(), spawnRequest: .init(command: "/bin/sh", args: [], env: [:],
+                workingDirectory: fixtures.path, kind: .claudeCode, statusBootstrap: .viaHook)))
+        try await capture(NewTabChooser(router: AppRouter(), node: node, agentConsoleWindowID: "agent-console", simulatorHub: nil),
+                          frame: .init(id: frame.id, name: frame.name, width: 320, height: 240), output: output)
+        return "実物のタブ追加メニュー。ポップオーバーの外枠は対象外"
+    }
+
+    private func renderUnsaved(_ frame: Frame, fixtures: URL, output: URL) async throws -> String {
+        let id = frame.stateID
+        let count = id == "6b" ? 9 : id == "6e" ? 11 : id == "6d" ? 3 : 2
+        let files = (0..<count).map { index in
+            UnsavedFile(name: index < 2 ? "README.md" : "file-\(index).md",
+                        context: UnsavedFileContext(project: "phlox-oss", session: "アザミ")
+                            .description(folder: index == 0 ? "docs/guides" : "examples", includeProject: id != "6d" && id != "6e"),
+                        editingBlock: ["6c", "6d"].contains(id) && index == 0)
+        }
+        let windows: [UnsavedWindow]
+        if id == "6d" {
+            windows = [.init(name: "phlox-oss", files: Array(files.prefix(2))), .init(name: "notes", files: Array(files.dropFirst(2)))]
+        } else if id == "6e" {
+            windows = [.init(name: "phlox-oss", files: Array(files.prefix(4))), .init(name: "notes", files: Array(files.dropFirst(4).prefix(4))),
+                       .init(name: "tools", files: Array(files.dropFirst(8)))]
+        } else { windows = [.init(name: "phlox-oss", files: files)] }
+        let locale = Locale(identifier: frame.english ? "en" : "ja")
+        let strings = try localizationBundle(fixtures: fixtures)
+        let alert = FileTabDocumentRegistry.alert(windows: windows, terminating: id == "6d" || id == "6e", locale: locale, bundle: strings)
+        #expect(alert.buttons.first?.keyEquivalent == "\r")
+        try await capture(UnsavedChangesContent(windows: windows, locale: locale, localizationBundle: strings).padding(10), frame: frame, output: output)
+        return "実物の一覧と保存案内。NSAlert全体の非表示描画は欠けるため、題・警告・キー・標準破棄設定はテストで確認"
+    }
 
     private func renderDashboard(_ frame: Frame, fixtures: URL, output: URL) async throws -> String {
         let root = fixtures.appendingPathComponent(frame.id)
@@ -307,7 +436,8 @@ struct DesignSnapshotRenderTests {
         defer { hub.disconnectAll() }
         do {
             try await capture(DashboardView(viewModel: dashboard, router: router,
-                usageMonitor: UsageMonitor(providers: [:]), simulatorHub: hub), frame: frame, output: output)
+                usageMonitor: UsageMonitor(providers: [:]), simulatorHub: hub), frame: frame, output: output,
+                afterMount: { if frame.id == "1c" { router.sidebarVisible = false } })
         } catch {
             for session in dashboard.sessions { await session.kill() }
             throw error
@@ -329,19 +459,19 @@ struct DesignSnapshotRenderTests {
     """
 
     private func makeDocument(_ frame: Frame, fixtures: URL, files: FileTabDocuments, sessionID: SessionID) async throws -> FileTabDocument {
-        let id = frame.id
+        let id = frame.stateID
         var path = "docs/guides/file-tree.md"
         var bytes = Data(markdown.utf8)
         if id.hasPrefix("3"), !["3d", "3e", "3f", "3g", "3l", "3m", "3n", "3o"].contains(id) {
             bytes = Data("# ファイルツリー\n\n右サイドバーの「ファイル」タブに、選択中セッションの作業ツリーを表示します。\n\n## 操作\n\n- クリックで開く。開いているタブがあれば前に出す\n- 右クリックで「右に分割して開く」「Finder で表示」「パスをコピー」\n- `⌃⌘B` でツリーを表示\n".utf8)
         }
         if ["3i", "3j", "3k"].contains(id) { path = "macos/Packages/DashboardFeature/docs/guides/file-tree.md" }
-        if ["4j", "8L2"].contains(id) {
+        if ["4j", "4m", "8L2"].contains(id) {
             bytes = Data(markdown.replacingOccurrences(of: "---\ntitle: Phlox\nstatus: draft\n---\n\n", with: "").utf8)
             path = "README.md"
         }
         switch id {
-        case "3d", "5a", "5e", "5h": path = "docs/site/index.html"; bytes = Data(html.utf8)
+        case "3d", "5a", "5b", "5c", "5d", "5e", "5f", "5g", "5h": path = "docs/site/index.html"; bytes = Data(html.utf8)
         case "3e":
             path = "macos/Packages/DashboardFeature/Sources/DashboardFeature/Files/FileTreeRows.swift"
             bytes = Data("import Foundation\n\nenum FileTreeRows {\n    static func visibleRows() {}\n}\n".utf8)
@@ -358,7 +488,7 @@ struct DesignSnapshotRenderTests {
             bytes = Data(("| 機能 | 説明 |\n| --- | --- |\n" + (1...20).map { "| 機能\($0) | 長い表の説明 |\n" }.joined()).utf8)
         default: break
         }
-        let root = fixtures.appendingPathComponent(id)
+        let root = fixtures.appendingPathComponent(frame.id)
         let file = root.appendingPathComponent(path)
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         if id == "3n" {
@@ -366,6 +496,11 @@ struct DesignSnapshotRenderTests {
             try bytes.write(to: outside)
             try FileManager.default.createSymbolicLink(at: file, withDestinationURL: outside)
         } else { try bytes.write(to: file) }
+        if id.hasPrefix("5") {
+            let linked = root.appendingPathComponent("docs/guides/file-tree.md")
+            try FileManager.default.createDirectory(at: linked.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(markdown.utf8).write(to: linked)
+        }
         let document = files.document(for: sessionID, path: path, root: root.path)
         await document.loadIfNeeded()
         switch id {
@@ -383,20 +518,27 @@ struct DesignSnapshotRenderTests {
             document.draft = html.replacingOccurrences(of: "並べて走らせ、判断だけを前に。", with: "未保存の下書きを表示しています。")
             document.reloadHTMLPreview()
         }
-        if ["4b", "4c", "4d", "4j", "8L2"].contains(id) {
+        if ["3h", "4b", "4c", "4d", "4g", "4j", "8L2"].contains(id) {
             let blocks = document.markdownBlocks
-            let block = try #require(id == "4c" || id == "4d" ? blocks.first : blocks.first { $0.original.contains("Phlox は") })
+            let block = try #require(id == "4c" || id == "4d" || id == "3h" ? blocks.first : blocks.first { $0.original.contains("Phlox は") })
             #expect(document.beginBlockEdit(range: block.range))
             if ["4b", "4j", "8L2"].contains(id) {
                 let edit = try #require(document.activeBlockEdit)
                 document.updateActiveBlockEdit(id: edit.id, current: edit.current + "\n編集中の内容です。")
+            }
+            if id == "3h" || id == "4g" {
+                let edit = try #require(document.activeBlockEdit)
+                document.updateActiveBlockEdit(id: edit.id, current: edit.current + "\n編集内容は保持します。")
+                document.draft += "\n文書側の変更。\n"
+                #expect(!document.commitActiveBlockEdit())
+                #expect(document.blockEditFailure != nil)
             }
         }
         return document
     }
 
     private func renderTree(_ frame: Frame, fixtures: URL, output: URL) async throws -> String {
-        let id = frame.id
+        let id = frame.stateID
         let previousCeiling = ProcessInfo.processInfo.environment["GIT_CEILING_DIRECTORIES"]
         if id == "2e3" { setenv("GIT_CEILING_DIRECTORIES", fixtures.path, 1) }
         defer {
@@ -415,11 +557,11 @@ struct DesignSnapshotRenderTests {
                 return .init(entries: [
                     .init(relativePath: "docs", name: "docs", kind: .directory),
                     .init(relativePath: "macos", name: "macos", kind: .directory),
-                    .init(relativePath: "README.md", name: "README.md", kind: .file),
-                    .init(relativePath: "CLAUDE.md", name: "CLAUDE.md", kind: .symlinkToFile, resolvedPath: root + "/README.md"),
                     .init(relativePath: "latest", name: "latest", kind: .symlinkToDirectory, resolvedPath: root + "/docs"),
                     .init(relativePath: "shared-assets", name: "shared-assets", kind: .symlinkOutsideRoot,
-                          resolvedPath: "/Users/ryosuke/Projects/phlox-shared/assets"),
+                          resolvedPath: "/Users/ryosuke/Projects/phlox-shared/assets", outsideTargetIsDirectory: true),
+                    .init(relativePath: "README.md", name: "README.md", kind: .file),
+                    .init(relativePath: "CLAUDE.md", name: "CLAUDE.md", kind: .symlinkToFile, resolvedPath: root + "/README.md"),
                 ], omittedCount: 0)
             }
             return .init(entries: [
@@ -428,7 +570,9 @@ struct DesignSnapshotRenderTests {
                 .init(relativePath: "docs/step-10-release.md", name: "step-10-release.md", kind: .file),
             ], omittedCount: id == "2f" ? 7412 : 0)
         }
-        let model = FileTreeModel(root: root, loader: loader)
+        let branches = ["2e1": "main", "2e2": "9f3c2e1 detached HEAD", "2e3": "Git 管理外", "2e4": ""]
+        let branch = branches[id] ?? "feature/file-tree"
+        let model = FileTreeModel(root: root, loader: loader, readBranch: { branch })
         await model.refresh()
         if id == "2e3" { try #require(model.branch == "Git 管理外") }
         if id == "2e4" { try #require(model.branch.isEmpty) }
@@ -441,11 +585,17 @@ struct DesignSnapshotRenderTests {
                 try await waitUntil { model.loading.contains("docs") }
             } else { await expansion.value }
             defer { expansion.cancel() }
-            try await capture(FileTreeView(model: model, openPath: "docs/file-tree.md", open: { _, _ in }), frame: frame, output: output)
+            let tree = FileTreeView(model: model, openPath: "docs/file-tree.md", open: { _, _ in },
+                                    keyboardPath: id == "2b" || id == "8L1" ? "docs/step-2.md" : nil,
+                                    hoverPath: id == "2a" ? "README.md" : id == "2d" ? "shared-assets" : nil,
+                                    contextPath: id == "2c" ? "docs/file-tree.md" : nil,
+                                    showsFocus: id == "2b" || id == "8L1", isOverlay: id == "2k",
+                                    blockedPath: frame.id == "2d-click" ? "shared-assets" : nil)
+            try await capture(tree, frame: frame, output: output)
         }
         return id == "2f" ? "件数上限の表示を偽ローダーで再現。5000行の末尾へのスクロールは対象外"
-            : id == "2e1" ? "ブランチ名は作業中の実ブランチ。見本の main と異なる"
-            : id == "8L1" ? "ライトのツリー。キーボードフォーカス輪は対象外"
+            : id == "2c" ? "右クリック対象の輪を描画。標準メニューの展開は画面外では確認できず"
+            : id == "2d" ? "ルート外の行をホバー状態で描画。標準helpの浮いた表示は画面外では確認できず"
             : "実物のツリー。ルートのパスは worktree 内の撮影用データ"
     }
 
@@ -499,11 +649,13 @@ struct DesignSnapshotRenderTests {
         output.appendingPathComponent("\(frame.id)-\(frame.name).png")
     }
 
-    private func capture<V: View>(_ content: V, frame: Frame, output: URL) async throws {
+    private func capture<V: View>(_ content: V, frame: Frame, output: URL,
+                                 foreground: AnyView? = nil, foregroundOrigin: CGPoint = .zero,
+                                 afterMount: (() -> Void)? = nil, selectsParagraph: Bool = false) async throws {
         let host = NSHostingView(rootView: content
             .frame(width: frame.width, height: frame.height)
             .background(DSColor.background)
-            .environment(\.locale, Locale(identifier: frame.id == "3k" ? "en" : "ja"))
+            .environment(\.locale, Locale(identifier: frame.english ? "en" : "ja"))
             .environment(\.colorScheme, frame.light ? .light : .dark))
         host.frame = NSRect(x: 0, y: 0, width: frame.width, height: frame.height)
         let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: frame.width, height: frame.height),
@@ -513,8 +665,18 @@ struct DesignSnapshotRenderTests {
         window.contentView = host
         defer { window.contentView = nil; window.close() }
         try await Task.sleep(for: .milliseconds(100))
+        afterMount?()
         if frame.id.hasPrefix("1") { try await Task.sleep(for: .milliseconds(500)) }
         host.layoutSubtreeIfNeeded()
+        if selectsParagraph {
+            let field = try #require(descendants(host).compactMap { $0 as? NSTextField }
+                .first { $0.stringValue.hasPrefix("Phlox は") })
+            #expect(field.isSelectable)
+            field.selectText(nil)
+            let editor = try #require(field.currentEditor() as? NSTextView)
+            editor.setSelectedRange(NSRange(location: 0, length: 6))
+            #expect(editor.selectedRange().length == 6)
+        }
         // WebKit はホストの cacheDisplay に入らないので、完了した画像を合成する。
         let deadline = ContinuousClock.now + .seconds(10)
         if ["3d", "5a", "5e", "5h"].contains(frame.id) {
@@ -538,11 +700,28 @@ struct DesignSnapshotRenderTests {
             snapshots.append((image, rect))
         }
         host.layoutSubtreeIfNeeded()
-        try saveBitmap(host, bounds: host.bounds, to: destination(frame, output), snapshots: snapshots)
+        var foregrounds: [(NSImage, NSRect)] = []
+        if let foreground {
+            let overlay = NSHostingView(rootView: foreground.environment(\.colorScheme, frame.light ? .light : .dark))
+            overlay.appearance = window.appearance
+            let size = overlay.fittingSize
+            overlay.frame = NSRect(origin: .zero, size: size)
+            overlay.layoutSubtreeIfNeeded()
+            let bitmap = try #require(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width * 2),
+                pixelsHigh: Int(size.height * 2), bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+                isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+            bitmap.size = size
+            overlay.cacheDisplay(in: overlay.bounds, to: bitmap)
+            let image = NSImage(size: size)
+            image.addRepresentation(bitmap)
+            foregrounds.append((image, NSRect(origin: foregroundOrigin, size: size)))
+        }
+        try saveBitmap(host, bounds: host.bounds, to: destination(frame, output), snapshots: snapshots, foregrounds: foregrounds)
         #expect(!window.isVisible)
     }
 
-    private func saveBitmap(_ view: NSView, bounds: NSRect, to url: URL, snapshots: [(NSImage, NSRect)] = []) throws {
+    private func saveBitmap(_ view: NSView, bounds: NSRect, to url: URL, snapshots: [(NSImage, NSRect)] = [],
+                            foregrounds: [(NSImage, NSRect)] = []) throws {
         let bitmap = try #require(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(bounds.width * 2),
             pixelsHigh: Int(bounds.height * 2), bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
             isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
@@ -551,11 +730,12 @@ struct DesignSnapshotRenderTests {
         view.effectiveAppearance.performAsCurrentDrawingAppearance {
             view.cacheDisplay(in: bounds, to: bitmap)
         }
-        if !snapshots.isEmpty {
+        if !snapshots.isEmpty || !foregrounds.isEmpty {
             let context = try #require(NSGraphicsContext(bitmapImageRep: bitmap))
             NSGraphicsContext.saveGraphicsState()
             NSGraphicsContext.current = context
             for (image, rect) in snapshots { image.draw(in: rect, from: .zero, operation: .copy, fraction: 1) }
+            for (image, rect) in foregrounds { image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1) }
             NSGraphicsContext.restoreGraphicsState()
         }
         let data = try #require(bitmap.representation(using: .png, properties: [:]))

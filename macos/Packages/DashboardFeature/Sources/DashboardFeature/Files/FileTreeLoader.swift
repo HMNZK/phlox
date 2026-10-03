@@ -10,10 +10,16 @@ struct FileTreeEntry: Identifiable, Equatable, Sendable {
     let kind: Kind
     var resolvedPath: String? = nil
     var unavailableReason: String? = nil
+    var outsideTargetIsDirectory = false
     var id: String { relativePath }
     var canExpand: Bool { kind == .directory }
     var canOpen: Bool { kind == .file || kind == .symlinkToFile }
-    var isFolder: Bool { kind == .directory || kind == .symlinkToDirectory }
+    var isFolder: Bool { kind == .directory || kind == .symlinkToDirectory || outsideTargetIsDirectory }
+
+    var linkDestination: String? {
+        guard let resolvedPath else { return nil }
+        return "→ " + (resolvedPath as NSString).lastPathComponent
+    }
 
     var help: String {
         let destination = resolvedPath.map { ($0 as NSString).abbreviatingWithTildeInPath }
@@ -103,8 +109,10 @@ actor FileTreeLoader {
                 do {
                     target = try WorkingTreeService.containedURL(url, under: root, allowRoot: true)
                 } catch WorkingTreeServiceError.outsideRoot(let resolvedPath) {
+                    let target = URL(fileURLWithPath: resolvedPath)
                     return FileTreeEntry(relativePath: entry.relativePath, name: entry.name,
-                                         kind: .symlinkOutsideRoot, resolvedPath: resolvedPath)
+                                         kind: .symlinkOutsideRoot, resolvedPath: resolvedPath,
+                                         outsideTargetIsDirectory: (try? target.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true)
                 }
                 let isLink = values.isSymbolicLink == true
                 if isLink { entry.resolvedPath = target.path }

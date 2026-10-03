@@ -60,6 +60,7 @@ final class HTMLPreviewModel {
     func reload() {
         processTerminated = false
         hoveredURL = nil
+        hoveredDestination = .cancel
         document.reloadHTMLPreview()
     }
 
@@ -91,18 +92,29 @@ final class HTMLPreviewModel {
     }
 }
 
-/// ページとは別の実行領域で、リンクの行き先だけを読み取る。
+/// ページとは別の実行領域で、リンクの行き先とホバーの下線を扱う。
 @MainActor
 enum HTMLLinkHover {
     static let world = WKContentWorld.world(name: "phlox-html-link-hover")
     static let messageName = "phloxLinkHover"
     static let source = """
     (() => {
+        const sheet = new CSSStyleSheet();
+        document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
         let hovered = null;
         let focused = null;
         let lastURL = null;
         let lastTarget = null;
         const link = target => target instanceof Element ? target.closest('a[href]') : null;
+        const selector = element => {
+            const path = [];
+            while (element.parentElement) {
+                const index = Array.from(element.parentElement.children).indexOf(element) + 1;
+                path.unshift(':nth-child(' + index + ')');
+                element = element.parentElement;
+            }
+            return [':root', ...path].join(' > ');
+        };
         const namedFrame = (frame, name) => {
             if (frame.name === name) return frame;
             for (let index = 0; index < frame.frames.length; index++) {
@@ -113,6 +125,8 @@ enum HTMLLinkHover {
         };
         const report = () => {
             const anchor = hovered || focused;
+            sheet.replaceSync(anchor && anchor.isConnected
+                ? selector(anchor) + ' { text-decoration-line: underline !important; }' : '');
             const url = anchor ? anchor.href : null;
             const target = anchor ? (anchor.target || document.querySelector('base[target]')?.target || '') : '';
             if (url === lastURL && target === lastTarget) return;

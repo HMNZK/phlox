@@ -20,6 +20,20 @@ public final class FileTabDocument {
 
     public enum DocumentError: Error, Equatable { case invalidated }
 
+    public enum Presentation: Sendable { case rendered, source }
+    public var presentation: Presentation = .source {
+        didSet {
+            if presentation == .rendered, oldValue != presentation { reloadHTMLPreview() }
+        }
+    }
+    public private(set) var htmlPreviewRevision = 0
+    public var isHTML: Bool { ["html", "htm"].contains((path as NSString).pathExtension.lowercased()) }
+
+    public func reloadHTMLPreview() {
+        guard isHTML, !invalidated else { return }
+        htmlPreviewRevision += 1
+    }
+
     /// worktree 直下からの相対パス。
     public let path: String
     private var draftContent = ""
@@ -57,6 +71,7 @@ public final class FileTabDocument {
         self.root = workingDirectory
         self.needsRootResolution = true
         self.service = WorkingTreeService(repositoryRoot: URL(fileURLWithPath: workingDirectory, isDirectory: true))
+        self.presentation = isHTML ? .rendered : .source
     }
 
     public init(path: String, root: String) {
@@ -66,6 +81,7 @@ public final class FileTabDocument {
         self.root = resolvedRoot
         self.needsRootResolution = false
         self.service = WorkingTreeService(repositoryRoot: URL(fileURLWithPath: resolvedRoot, isDirectory: true), fixedRoot: true)
+        self.presentation = isHTML ? .rendered : .source
     }
 
     public var isLoaded: Bool { loadState == .loaded }
@@ -164,6 +180,7 @@ public final class FileTabDocument {
             case .saved:
                 self.loadedDiskBytes = saving
                 self.baselineAt = Date()
+                self.reloadHTMLPreview()
                 NotificationCenter.default.post(name: .fileTreeFileSaved, object: nil,
                                                 userInfo: ["root": self.root, "path": self.path])
                 return SaveResult.saved

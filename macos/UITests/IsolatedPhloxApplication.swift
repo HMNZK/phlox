@@ -14,8 +14,7 @@ final class IsolatedPhloxApplication {
 
     private let appURL: URL
     private let executableURL: URL
-    private let dataURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("phlox-uitest-" + UUID().uuidString, isDirectory: true)
+    private let dataURL: URL
     private let suite = "phlox.uitest." + UUID().uuidString
     private let originalDefaults: NSDictionary
     private var owned: NSRunningApplication?
@@ -30,15 +29,17 @@ final class IsolatedPhloxApplication {
         case unsafe(String)
     }
 
-    private init(appURL: URL, executableURL: URL) throws {
+    private init(appURL: URL, executableURL: URL, dataParent: URL) throws {
         self.appURL = appURL
         self.executableURL = executableURL
+        dataURL = dataParent.appendingPathComponent("phlox-uitest-" + UUID().uuidString, isDirectory: true)
         originalDefaults = try Self.drawerDefaults(in: Self.bundleID)
     }
 
     static func launch(
         in test: XCTestCase,
         arguments: [String] = [],
+        dataParent: URL = FileManager.default.temporaryDirectory,
         prepareData: ((URL) throws -> Void)? = nil
     ) async throws -> IsolatedPhloxApplication {
         // 設定文字列ではなく実行中Runnerの署名を検査。保存先の読み書きより先に拒否する。
@@ -64,7 +65,7 @@ final class IsolatedPhloxApplication {
             throw Failure.unsafe("既存Debugと競合。起動・接続・終了を拒否: \(describe(existing))")
         }
 
-        let isolated = try Self(appURL: appURL, executableURL: executable)
+        let isolated = try Self(appURL: appURL, executableURL: executable, dataParent: dataParent)
         try FileManager.default.createDirectory(at: isolated.dataURL, withIntermediateDirectories: false)
         // 所有権取得より前に登録し、起動・接続・窓待ちのどこで失敗しても処理する。
         test.addTeardownBlock { await isolated.tearDown() }

@@ -544,7 +544,9 @@ private struct RestoredFileTabView: View {
         Group {
             if !changingWorkspace,
                let document = files.existing(for: sessionID, path: path) ?? restoredDocument, !document.invalidated {
-                FileTabView(document: document, lastWriter: lastWriter, isFocused: isFocused, openFile: openFile)
+                FileTabUndoScope(document: document, isFocused: isFocused) {
+                    FileTabView(document: document, lastWriter: lastWriter, isFocused: isFocused, openFile: openFile)
+                }
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -614,12 +616,22 @@ private struct FileTabView: View {
                     }
                     presentationControl
                 }
+                if document.isMarkdown {
+                    if let reason = document.blockEditFailure ?? document.markdownAnalysisFailure ?? (document.markdownPresentationLocked ? "大きなマークダウンはソース表示で編集してください" : nil) {
+                        Text(reason)
+                            .font(DSFont.meta)
+                            .foregroundStyle(DSColor.textSecondary)
+                            .lineLimit(1)
+                            .help(reason)
+                    }
+                    presentationControl
+                }
                 if let saveError {
                     Text("保存できませんでした: \(saveError)")
                         .font(DSFont.meta)
                         .foregroundStyle(DSColor.attentionInk(.error))
                         .lineLimit(1)
-                } else if document.isDirty {
+                } else if document.hasUnsavedChanges {
                     Text("未保存")
                         .font(DSFont.meta)
                         .foregroundStyle(DSColor.textSecondary)
@@ -631,7 +643,7 @@ private struct FileTabView: View {
                 .keyboardShortcut("s", modifiers: .command)
                 .accessibilityLabel("保存")
                 .accessibilityHint("⌘S")
-                .disabled(document.invalidated || !document.isDirty)
+                .disabled(document.invalidated || !document.hasUnsavedChanges)
             }
             .padding(.horizontal, 10)
             .frame(height: 30)
@@ -668,6 +680,8 @@ private struct FileTabView: View {
             case .loaded:
                 if document.isHTML, document.presentation == .rendered {
                     htmlContent
+                } else if document.isMarkdown, document.presentation == .rendered {
+                    MarkdownBlockEditor(document: document, openURL: openMarkdownURL, linkDestination: markdownLinkDestination)
                 } else {
                     CodeTextEditor(text: $document.draft)
                         .disabled(document.invalidated)
@@ -710,13 +724,14 @@ private struct FileTabView: View {
     }
 
     private var canTogglePresentation: Bool {
-        document.isHTML && document.isLoaded && !document.invalidated
-            && htmlPreview.ruleList != nil && htmlPreview.preparationError == nil
+        document.isLoaded && !document.invalidated && document.blockEditFailure == nil
+            && ((document.isMarkdown && !document.markdownPresentationLocked)
+                || (document.isHTML && htmlPreview.ruleList != nil && htmlPreview.preparationError == nil))
     }
 
     private func togglePresentation() {
         guard canTogglePresentation else { return }
-        document.presentation = document.presentation == .rendered ? .source : .rendered
+        _ = document.setPresentation(document.presentation == .rendered ? .source : .rendered)
     }
 
     private var presentationControl: some View {
@@ -726,7 +741,7 @@ private struct FileTabView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("表示")
-        .accessibilityHint("⌃⌘M で切り替え。レンダリング表示は閲覧のみ")
+        .accessibilityHint(document.isHTML ? "⌃⌘M で切り替え。レンダリング表示は閲覧のみ" : "⌃⌘M で切り替え")
         .accessibilityIdentifier("file-tab-presentation")
     }
 
@@ -740,7 +755,7 @@ private struct FileTabView: View {
     }
 
     private func presentationButton(_ presentation: FileTabDocument.Presentation, title: String, label: String) -> some View {
-        Button { document.presentation = presentation } label: {
+        Button { _ = document.setPresentation(presentation) } label: {
             Text(verbatim: title)
                 .font(DSFont.meta)
                 .padding(.horizontal, DSSpacing.chip)
@@ -749,7 +764,7 @@ private struct FileTabView: View {
                             in: RoundedRectangle(cornerRadius: DSRadius.s))
         }
         .buttonStyle(.plain)
-        .disabled(!document.isLoaded || document.invalidated || (presentation == .rendered && !canTogglePresentation))
+        .disabled(!document.isLoaded || document.invalidated || document.blockEditFailure != nil || (presentation == .rendered && !canTogglePresentation))
         .accessibilityLabel(Text(verbatim: label))
         .accessibilityAddTraits(document.presentation == presentation ? .isSelected : [])
     }
@@ -796,12 +811,26 @@ private struct FileTabView: View {
     }
 
     private var hoverAction: String {
-        switch htmlPreview.hoveredDestination {
-        case .openFile: "ファイルタブで開く"
-        case .openBrowser: "ブラウザで開く"
-        case .allow: "ページ内で開く"
-        default: "開きません"
+        htmlPreview.hoveredDestination.destinationLabel
+    }
+
+    private func openMarkdownURL(_ url: URL) -> OpenURLAction.Result {
+        Task {
+            let destination = await MarkdownLinkRouting.checkedDestination(url, documentPath: document.path, root: document.root)
+            guard !document.invalidated else { return }
+            switch destination {
+            case .openFile(let path): openFile(document.root, path)
+            case .openBrowser(let url): NSWorkspace.shared.open(url)
+            default: break
+            }
         }
+        return .handled
+    }
+
+    private func markdownLinkDestination(_ url: URL) async -> String? {
+        let resolved = MarkdownLinkRouting.resolvedURL(url, documentPath: document.path, root: document.root)
+        let destination = await MarkdownLinkRouting.checkedDestination(url, documentPath: document.path, root: document.root)
+        return "\(destination.destinationLabel)  \(resolved?.absoluteString ?? url.absoluteString)"
     }
 
     private func save() async {

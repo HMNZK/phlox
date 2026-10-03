@@ -23,6 +23,7 @@ let package = Package(
         .package(path: "../ClaudeAgentKit"),
         .package(path: "../CursorAgentKit"),
         .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.0.0"),
+        .package(url: "https://github.com/swiftlang/swift-cmark", exact: "0.8.0"),
     ],
     targets: [
         .target(
@@ -42,6 +43,8 @@ let package = Package(
                 "ClaudeAgentKit",
                 "CursorAgentKit",
                 .product(name: "MarkdownUI", package: "swift-markdown-ui"),
+                .product(name: "cmark-gfm", package: "swift-cmark"),
+                .product(name: "cmark-gfm-extensions", package: "swift-cmark"),
             ],
             linkerSettings: [.linkedLibrary("sqlite3")]
         ),

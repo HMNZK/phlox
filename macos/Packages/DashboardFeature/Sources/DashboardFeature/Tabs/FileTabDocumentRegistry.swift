@@ -72,7 +72,7 @@ public final class FileTabDocumentRegistry {
 
     public func dirtyFileNames(for sessionIDs: Set<SessionID>? = nil) -> [String] {
         entries.flatMap { $0.files?.documents(for: sessionIDs) ?? [] }
-            .filter(\.hasUnsavedChanges).map(\.fileName).sorted()
+            .filter(\.hasUnsavedChanges).map(\.unsavedDisplayName).sorted()
     }
 
     func ownsKeyWindow(_ files: FileTabDocuments) -> Bool {
@@ -88,7 +88,8 @@ public final class FileTabDocumentRegistry {
         Self.summary(entries.compactMap { entry in
             guard let window = entry.window,
                   entry.files?.existing(for: sessionID, path: path)?.hasUnsavedChanges == true else { return nil }
-            return (window.title.isEmpty ? "Phlox" : window.title, [path])
+            return (window.title.isEmpty ? "Phlox" : window.title,
+                    [entry.files?.existing(for: sessionID, path: path)?.unsavedDisplayName ?? path])
         })
     }
 
@@ -103,7 +104,7 @@ public final class FileTabDocumentRegistry {
     public func dirtySummary(for sessionIDs: Set<SessionID>? = nil) -> String {
         let groups = entries.compactMap { entry -> (String, [String])? in
             guard let files = entry.files, let window = entry.window else { return nil }
-            let names = files.documents(for: sessionIDs).filter(\.hasUnsavedChanges).map(\.path).sorted()
+            let names = files.documents(for: sessionIDs).filter(\.hasUnsavedChanges).map(\.unsavedDisplayName).sorted()
             guard !names.isEmpty else { return nil }
             return (window.title.isEmpty ? "Phlox" : window.title, names)
         }
@@ -128,6 +129,9 @@ public final class FileTabDocumentRegistry {
             }
         }
         if omitted > 0 { lines.append("ほか \(omitted) 件（\(omittedWindows) ウィンドウ）") }
+        if groups.contains(where: { $0.1.contains(where: { $0.hasSuffix("（編集中）") }) }) {
+            lines.append("編集中のブロックの内容も保存されていません。")
+        }
         return lines.joined(separator: "\n")
     }
 
@@ -191,7 +195,7 @@ public final class FileTabDocumentRegistry {
         guard delegate.original?.windowShouldClose?(window) ?? true else { return false }
         guard let files = delegate.files else { return true }
         confirmation = .window
-        let names = files.documents(for: nil).filter(\.hasUnsavedChanges).map(\.path).sorted()
+        let names = files.documents(for: nil).filter(\.hasUnsavedChanges).map(\.unsavedDisplayName).sorted()
         if names.isEmpty {
             finishClosing(window, files: files, delegate: delegate)
         } else {
@@ -217,7 +221,7 @@ public final class FileTabDocumentRegistry {
         }
     }
 
-    private final class WindowDelegate: NSObject, NSWindowDelegate {
+    private final class WindowDelegate: NSObject, FileTabWindowDelegateChain {
         weak var registry: FileTabDocumentRegistry?
         weak var files: FileTabDocuments?
         weak var original: (any NSWindowDelegate)?

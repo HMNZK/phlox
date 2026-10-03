@@ -11,6 +11,11 @@ public struct RichMarkdownView: View {
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
     private let markdown: String
     private let bodyColor: Color
+    private var fileOpenURL: ((URL) -> OpenURLAction.Result)?
+    private var blockClick: (() -> Void)?
+    private var onLinkHover: ((URL?) -> Void)?
+    @State private var hoveredLink: URL?
+    @State private var activatedLinkEvent: NSEvent?
     @Environment(\.locale) private var locale
 
     private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
@@ -25,14 +30,44 @@ public struct RichMarkdownView: View {
         self.bodyColor = bodyColor
     }
 
+    /// ファイルの原文にはチャット用の補完を加えない。
+    public init(source: String, openURL: @escaping (URL) -> OpenURLAction.Result,
+                blockClick: (() -> Void)? = nil, onLinkHover: ((URL?) -> Void)? = nil) {
+        self.markdown = source
+        self.bodyColor = DSColor.chatTextPrimary
+        self.fileOpenURL = openURL
+        self.blockClick = blockClick
+        self.onLinkHover = onLinkHover
+    }
+
     @MainActor private static var themes: [String: Theme] = [:]
 
     public var body: some View {
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        Markdown(markdown)
+        let content = Markdown(markdown)
             .markdownTheme(Self.theme(for: themeID, scale: scale, languageCode: languageCode, bodyColor: bodyColor))
             .frame(maxWidth: .infinity, alignment: .leading)
-            .environment(\.openURL, OpenURLAction(handler: openChatMarkdownLink))
+        if let fileOpenURL {
+            content
+            .environment(\.openURL, OpenURLAction { url in
+                activatedLinkEvent = NSApp.currentEvent
+                return fileOpenURL(url)
+            })
+            .environment(\.fileMarkdownLinkHover, { url in
+                hoveredLink = url
+                onLinkHover?(url)
+            })
+            .simultaneousGesture(TapGesture().onEnded {
+                // 子要素のリンク操作を先に完了させる。ホバー通知が無いクリックも編集にしない。
+                let clickEvent = NSApp.currentEvent
+                DispatchQueue.main.async {
+                    let openedLink = clickEvent != nil && activatedLinkEvent === clickEvent
+                    if hoveredLink == nil, !openedLink { blockClick?() }
+                }
+            })
+        } else {
+            content.environment(\.openURL, OpenURLAction(handler: openChatMarkdownLink))
+        }
     }
 
     @MainActor

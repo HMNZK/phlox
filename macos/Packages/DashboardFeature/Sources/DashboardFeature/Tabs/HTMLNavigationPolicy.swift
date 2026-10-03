@@ -34,6 +34,15 @@ enum HTMLNavigationPolicy {
         case cancel
         case openFile(String)
         case openBrowser(URL)
+
+        var destinationLabel: String {
+            switch self {
+            case .openFile: "ファイルタブで開く"
+            case .openBrowser: "ブラウザで開く"
+            case .allow: "ページ内で開く"
+            case .cancel: "開きません"
+            }
+        }
     }
 
     static func decide(url: URL, mainDocumentURL: URL, navigationType: WKNavigationType, isMainFrame: Bool, hasTargetFrame: Bool, isInitialLoad: Bool) -> Decision {

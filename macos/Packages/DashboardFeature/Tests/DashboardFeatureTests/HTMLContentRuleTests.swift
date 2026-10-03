@@ -23,13 +23,20 @@ struct HTMLContentRuleTests {
     }
 
     @Test @MainActor
-    func onlyHTMLDefaultsToRendered() {
+    func supportedMarkupDefaultsToRendered() {
         for path in ["a.html", "a.htm", "a.HTML"] {
             let document = FileTabDocument(path: path, root: "/")
             #expect(document.isHTML)
             #expect(document.presentation == .rendered)
         }
-        for path in ["a.md", "a.markdown", "a.txt"] {
+        // 出荷単位 4 の FR-8: マークダウンも描画表示で開く。
+        for path in ["a.md", "a.markdown", "a.MD"] {
+            let document = FileTabDocument(path: path, root: "/")
+            #expect(!document.isHTML)
+            #expect(document.isMarkdown)
+            #expect(document.presentation == .rendered)
+        }
+        for path in ["a.txt", "a.swift"] {
             let document = FileTabDocument(path: path, root: "/")
             #expect(!document.isHTML)
             #expect(document.presentation == .source)

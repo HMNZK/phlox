@@ -145,6 +145,8 @@ final class HTMLPreviewInteractionTests: XCTestCase {
         app.typeKey("i", modifierFlags: [.command, .control])
         XCTAssertTrue(app.staticTexts["HTML_SAVED"].waitForExistence(timeout: 10))
         app.links["Markdown link"].click()
+        XCTAssertTrue(app.staticTexts["MARKDOWN_SOURCE"].firstMatch.waitForExistence(timeout: 10))
+        app.typeKey("m", modifierFlags: [.command, .control])
         XCTAssertTrue(app.textViews.matching(NSPredicate(format: "value CONTAINS %@", "MARKDOWN_SOURCE")).firstMatch.waitForExistence(timeout: 10))
         app.typeKey("b", modifierFlags: [.command, .control])
         XCTAssertTrue(row.waitForExistence(timeout: 5))

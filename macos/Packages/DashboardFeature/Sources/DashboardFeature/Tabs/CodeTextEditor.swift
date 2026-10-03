@@ -6,6 +6,12 @@ import DesignSystem
 /// SwiftUI の `TextEditor` には同期する行番号欄が無いので NSTextView を包む。
 struct CodeTextEditor: NSViewRepresentable {
     @Binding var text: String
+    var blockEditID: UUID?
+    var synchronizeBlockEdit: ((UUID, String) -> Void)?
+    var commitBlockEdit: ((UUID) -> Bool)?
+    var onBlockCommit: (() -> Void)?
+    var registerBlockEditor: ((UUID, @escaping () -> Void) -> Void)?
+    var requestBlockFocus = false
 
     func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
 
@@ -32,6 +38,7 @@ struct CodeTextEditor: NSViewRepresentable {
         textView.font = .monospacedSystemFont(ofSize: 11.5, weight: .regular)
         textView.string = text
         textView.delegate = context.coordinator
+        configureBlockEdit(textView)
         scrollView.documentView = textView
         scrollView.drawsBackground = true
 
@@ -44,6 +51,8 @@ struct CodeTextEditor: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? CurrentLineTextView else { return }
+        context.coordinator.text = $text
+        configureBlockEdit(textView)
         Self.synchronizeText(text, with: textView)
         let background = NSColor(DSColor.background)
         scrollView.backgroundColor = background
@@ -59,12 +68,35 @@ struct CodeTextEditor: NSViewRepresentable {
         }
     }
 
+    private func configureBlockEdit(_ textView: CurrentLineTextView) {
+        textView.blockEditID = blockEditID
+        textView.synchronizeBlockEdit = synchronizeBlockEdit
+        textView.commitBlockEdit = commitBlockEdit
+        textView.onBlockCommit = onBlockCommit
+        if let id = blockEditID {
+            registerBlockEditor?(id, { [weak textView] in textView?.synchronizeBlockEditText() })
+        }
+        if requestBlockFocus, !textView.didRequestBlockFocus {
+            textView.didRequestBlockFocus = true
+            DispatchQueue.main.async { [weak textView] in
+                guard let textView, textView.blockEditID != nil else { return }
+                textView.window?.makeFirstResponder(textView)
+            }
+        }
+    }
+
+    static func dismantleNSView(_ scrollView: NSScrollView, coordinator: Coordinator) {
+        guard let textView = scrollView.documentView as? CurrentLineTextView else { return }
+        textView.dismantleBlockEdit()
+        textView.delegate = nil
+    }
+
     static func synchronizeText(_ text: String, with textView: NSTextView) {
         if !textView.string.utf8.elementsEqual(text.utf8) { textView.string = text }
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
-        let text: Binding<String>
+        var text: Binding<String>
         init(text: Binding<String>) { self.text = text }
 
         func textDidChange(_ notification: Notification) {
@@ -101,6 +133,73 @@ private extension NSTextView {
 
 final class CurrentLineTextView: NSTextView {
     var currentLineColor: NSColor = .clear
+    var blockEditID: UUID?
+    var synchronizeBlockEdit: ((UUID, String) -> Void)?
+    var commitBlockEdit: ((UUID) -> Bool)?
+    var onBlockCommit: (() -> Void)?
+    var didRequestBlockFocus = false
+    private var isDismantlingBlockEdit = false
+    private let blockUndoManager = UndoManager()
+    private let sourceUndoManager = UndoManager()
+
+    override var undoManager: UndoManager? {
+        blockEditID == nil ? sourceUndoManager : blockUndoManager
+    }
+
+    @objc func undo(_ sender: Any?) { undoManager?.undo() }
+    @objc func redo(_ sender: Any?) { undoManager?.redo() }
+
+    override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
+        if item.action == #selector(undo(_:)) { return undoManager?.canUndo == true }
+        if item.action == #selector(redo(_:)) { return undoManager?.canRedo == true }
+        return super.validateUserInterfaceItem(item)
+    }
+
+    /// IME の通知順に頼らず、確定した文字列を直接同期する。
+    @discardableResult
+    func synchronizeAndCommitBlockEdit() -> Bool {
+        guard let id = blockEditID, !isDismantlingBlockEdit else { return true }
+        synchronizeBlockEditText()
+        guard commitBlockEdit?(id) == true else { return false }
+        blockUndoManager.removeAllActions()
+        blockEditID = nil
+        onBlockCommit?()
+        return true
+    }
+
+    func synchronizeBlockEditText() {
+        guard let id = blockEditID else { return }
+        if hasMarkedText() { unmarkText() }
+        synchronizeBlockEdit?(id, string)
+    }
+
+    func dismantleBlockEdit() {
+        isDismantlingBlockEdit = true
+        blockUndoManager.removeAllActions()
+        guard let id = blockEditID else { return }
+        if hasMarkedText() { unmarkText() }
+        synchronizeBlockEdit?(id, string)
+        blockEditID = nil
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if window != nil, newWindow == nil { dismantleBlockEdit() }
+        super.viewWillMove(toWindow: newWindow)
+    }
+
+    override func resignFirstResponder() -> Bool {
+        guard synchronizeAndCommitBlockEdit() else { return false }
+        return super.resignFirstResponder()
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if blockEditID != nil,
+           event.keyCode == 53 || (event.keyCode == 36 && event.modifierFlags.contains(.command)) {
+            if synchronizeAndCommitBlockEdit() { window?.makeFirstResponder(nil) }
+            return
+        }
+        super.keyDown(with: event)
+    }
 
     override func drawBackground(in rect: NSRect) {
         super.drawBackground(in: rect)

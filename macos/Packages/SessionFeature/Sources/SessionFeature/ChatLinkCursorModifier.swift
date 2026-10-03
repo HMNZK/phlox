@@ -1,6 +1,17 @@
 import AppKit
 import SwiftUI
 
+private struct FileMarkdownLinkHoverKey: EnvironmentKey {
+    static var defaultValue: ((URL?) -> Void)? { nil }
+}
+
+extension EnvironmentValues {
+    var fileMarkdownLinkHover: ((URL?) -> Void)? {
+        get { self[FileMarkdownLinkHoverKey.self] }
+        set { self[FileMarkdownLinkHoverKey.self] = newValue }
+    }
+}
+
 /// 選択可能な Text はリンク部分にも I ビームを出すため、文字位置からリンクだけを判定する。
 struct ChatLinkCursorModifier: ViewModifier {
     let text: AttributedString
@@ -10,6 +21,7 @@ struct ChatLinkCursorModifier: ViewModifier {
     let lineSpacing: CGFloat?
 
     @State private var width: CGFloat = 0
+    @Environment(\.fileMarkdownLinkHover) private var fileLinkHover
 
     init(text: AttributedString, scale: CGFloat, fontSize: CGFloat? = nil,
          fontWeight: NSFont.Weight = .regular, lineSpacing: CGFloat? = nil) {
@@ -27,6 +39,10 @@ struct ChatLinkCursorModifier: ViewModifier {
                 .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width = $0 }
                 .onContinuousHover { phase in
                     if case .active(let point) = phase {
+                        fileLinkHover?(ChatLinkHitTester.link(
+                            in: text, at: point, width: width, scale: scale,
+                            fontSize: fontSize, fontWeight: fontWeight, lineSpacing: lineSpacing
+                        ))
                         let cursor = ChatLinkHitTester.cursor(
                             in: text, at: point, width: width, scale: scale,
                             fontSize: fontSize, fontWeight: fontWeight, lineSpacing: lineSpacing
@@ -34,6 +50,7 @@ struct ChatLinkCursorModifier: ViewModifier {
                         // 選択可能な Text が mouseMoved 後に I ビームへ戻すため、次の main turn で指定する。
                         DispatchQueue.main.async { cursor.set() }
                     } else {
+                        fileLinkHover?(nil)
                         NSCursor.arrow.set()
                     }
                 }
@@ -47,10 +64,25 @@ enum ChatLinkHitTester {
     static func cursor(in text: AttributedString, at point: CGPoint, width: CGFloat, scale: CGFloat,
                        fontSize: CGFloat? = nil, fontWeight: NSFont.Weight = .regular,
                        lineSpacing: CGFloat? = nil) -> NSCursor {
-        guard width > 0 else { return .arrow }
+        let hit = hit(in: text, at: point, width: width, scale: scale, fontSize: fontSize,
+                      fontWeight: fontWeight, lineSpacing: lineSpacing)
+        return hit.inside ? (hit.link == nil ? .iBeam : .pointingHand) : .arrow
+    }
+
+    static func link(in text: AttributedString, at point: CGPoint, width: CGFloat, scale: CGFloat,
+                     fontSize: CGFloat? = nil, fontWeight: NSFont.Weight = .regular,
+                     lineSpacing: CGFloat? = nil) -> URL? {
+        hit(in: text, at: point, width: width, scale: scale, fontSize: fontSize,
+            fontWeight: fontWeight, lineSpacing: lineSpacing).link
+    }
+
+    private static func hit(in text: AttributedString, at point: CGPoint, width: CGFloat, scale: CGFloat,
+                            fontSize: CGFloat?, fontWeight: NSFont.Weight,
+                            lineSpacing: CGFloat?) -> (inside: Bool, link: URL?) {
+        guard width > 0 else { return (false, nil) }
         let storage = NSTextStorage(attributedString: NSAttributedString(text))
         let fullRange = NSRange(location: 0, length: storage.length)
-        guard fullRange.length > 0 else { return .arrow }
+        guard fullRange.length > 0 else { return (false, nil) }
 
         let bodySize = fontSize ?? ChatTypography.bodyFontSize(scale: scale)
         for run in text.runs {
@@ -79,9 +111,11 @@ enum ChatLinkHitTester {
 
         let glyph = layout.glyphIndex(for: point, in: container)
         guard layout.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container).contains(point) else {
-            return .arrow
+            return (false, nil)
         }
         let character = layout.characterIndexForGlyph(at: glyph)
-        return storage.attribute(.link, at: character, effectiveRange: nil) != nil ? .pointingHand : .iBeam
+        let value = storage.attribute(.link, at: character, effectiveRange: nil)
+        let url = (value as? URL) ?? (value as? String).flatMap(URL.init(string:))
+        return (true, url)
     }
 }

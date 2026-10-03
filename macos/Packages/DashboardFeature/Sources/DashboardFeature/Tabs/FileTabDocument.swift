@@ -1,7 +1,61 @@
 import Foundation
+import AppKit
 import Observation
 import AgentDomain
 import SessionFeature
+
+public struct ActiveBlockEdit: Equatable, Sendable {
+    public let id: UUID
+    public let baseVersion: Int
+    public let range: Range<Int>
+    public let original: String
+    public var current: String
+}
+
+/// 入力欄の履歴と確定済み文書の履歴を混ぜない。
+private final class FileBlockUndoManager: UndoManager, @unchecked Sendable {
+    var mayRestoreDocument: @MainActor (String) -> Bool = { _ in false }
+    private var undoExpected: [String] = []
+    private var redoExpected: [String] = []
+
+    override var canUndo: Bool {
+        MainActor.assumeIsolated { super.canUndo && undoExpected.last.map(mayRestoreDocument) == true }
+    }
+
+    override var canRedo: Bool {
+        MainActor.assumeIsolated { super.canRedo && redoExpected.last.map(mayRestoreDocument) == true }
+    }
+
+    func expectDocument(_ text: String) {
+        if isUndoing { redoExpected.append(text) }
+        else {
+            if !isRedoing { redoExpected.removeAll() }
+            undoExpected.append(text)
+        }
+    }
+
+    override func removeAllActions() {
+        super.removeAllActions()
+        undoExpected.removeAll()
+        redoExpected.removeAll()
+    }
+
+    override func undo() {
+        MainActor.assumeIsolated {
+            guard canUndo else { return }
+            super.undo()
+            undoExpected.removeLast()
+        }
+    }
+
+    override func redo() {
+        MainActor.assumeIsolated {
+            guard canRedo else { return }
+            super.redo()
+            redoExpected.removeLast()
+        }
+    }
+}
 
 /// ファイルの子タブの中身（02 の移動表「編集 → ファイルタブ」）。読み込んだ時点の内容を覚えておき、
 /// 保存時にディスクが変わっていれば競合として返す（旧エディタパネルと同じ規則）。
@@ -18,16 +72,219 @@ public final class FileTabDocument {
         case outsideRoot(String)
     }
 
-    public enum DocumentError: Error, Equatable { case invalidated }
+    public enum DocumentError: Error, Equatable { case invalidated, blockEditVersionMismatch }
 
     public enum Presentation: Sendable { case rendered, source }
-    public var presentation: Presentation = .source {
-        didSet {
-            if presentation == .rendered, oldValue != presentation { reloadHTMLPreview() }
-        }
+    private var storedPresentation: Presentation = .source
+    public var presentation: Presentation {
+        get { markdownPresentationLocked ? .source : storedPresentation }
+        set { _ = setPresentation(newValue) }
     }
     public private(set) var htmlPreviewRevision = 0
     public var isHTML: Bool { ["html", "htm"].contains((path as NSString).pathExtension.lowercased()) }
+    public var isMarkdown: Bool { ["md", "markdown"].contains((path as NSString).pathExtension.lowercased()) }
+    public private(set) var version = 0
+    public private(set) var activeBlockEdit: ActiveBlockEdit?
+    public private(set) var blockEditFailure: String?
+    @ObservationIgnored public var synchronizeActiveBlockEditor: (() -> Void)?
+    @ObservationIgnored public private(set) lazy var undoManager: UndoManager = {
+        let manager = FileBlockUndoManager()
+        manager.groupsByEvent = false
+        manager.mayRestoreDocument = { [weak self] expected in
+            guard let self else { return false }
+            return self.activeBlockEdit == nil && !self.invalidationRequested
+                && self.draft.utf8.elementsEqual(expected.utf8)
+        }
+        return manager
+    }()
+    @ObservationIgnored private var cachedMarkdownBlocks: [MarkdownBlock] = []
+    private var cachedMarkdownVersion = -1
+    private var cachedMarkdownLocked = false
+    public private(set) var markdownAnalysisFailure: String?
+    @ObservationIgnored private var markdownAnalysisTask: Task<Void, Never>?
+    @ObservationIgnored private var pendingMarkdownAnalysis: (version: Int, task: Task<MarkdownBlocks.Analysis, Never>)?
+    private var pendingRenderedPresentation = false
+
+    public var markdownBlocks: [MarkdownBlock] {
+        if cachedMarkdownVersion != version {
+            acceptMarkdownAnalysis(MarkdownBlocks.analyze(draft), version: version)
+        }
+        return cachedMarkdownBlocks
+    }
+
+    public var markdownPresentationLocked: Bool {
+        guard isMarkdown else { return false }
+        if draft.utf8.count > 500_000 {
+            return true
+        }
+        // レンダリング中の古い結果は再判定し、固定中の入力では非同期解析を待つ。
+        if storedPresentation == .rendered, !cachedMarkdownLocked, cachedMarkdownVersion != version {
+            _ = markdownBlocks
+        }
+        return cachedMarkdownLocked
+    }
+
+    private func acceptMarkdownAnalysis(_ analysis: MarkdownBlocks.Analysis, version analyzedVersion: Int) {
+        guard version == analyzedVersion, !invalidationRequested else { return }
+        cachedMarkdownBlocks = analysis.blocks
+        cachedMarkdownVersion = analyzedVersion
+        cachedMarkdownLocked = !analysis.isSafe || analysis.blocks.count > 2_000
+        markdownAnalysisFailure = analysis.isSafe ? nil : "文書の区間を安全に解析できないためソース表示で編集してください"
+    }
+
+    func refreshMarkdownAnalysis() async {
+        guard isMarkdown, draft.utf8.count <= 500_000, cachedMarkdownVersion != version,
+              !invalidationRequested else { return }
+        let analyzedVersion = version
+        let task: Task<MarkdownBlocks.Analysis, Never>
+        if let pendingMarkdownAnalysis, pendingMarkdownAnalysis.version == analyzedVersion {
+            task = pendingMarkdownAnalysis.task
+        } else {
+            let source = draft
+            task = Task.detached(priority: .userInitiated) { MarkdownBlocks.analyze(source) }
+            pendingMarkdownAnalysis = (analyzedVersion, task)
+        }
+        let analysis = await task.value
+        acceptMarkdownAnalysis(analysis, version: analyzedVersion)
+        if pendingMarkdownAnalysis?.version == analyzedVersion { pendingMarkdownAnalysis = nil }
+    }
+
+    private func scheduleMarkdownAnalysis() {
+        markdownAnalysisTask?.cancel()
+        guard isMarkdown, draft.utf8.count <= 500_000, !invalidationRequested else { return }
+        let requestedVersion = version
+        let switchToRendered = pendingRenderedPresentation
+        markdownAnalysisTask = Task { [weak self] in
+            if !switchToRendered {
+                do { try await Task.sleep(for: .milliseconds(300)) }
+                catch { return }
+            }
+            guard !Task.isCancelled, let self, self.version == requestedVersion else { return }
+            await self.refreshMarkdownAnalysis()
+            guard !Task.isCancelled, self.version == requestedVersion else { return }
+            if self.pendingRenderedPresentation {
+                self.pendingRenderedPresentation = false
+                if !self.markdownPresentationLocked { self.storedPresentation = .rendered }
+            }
+        }
+    }
+
+    @discardableResult
+    public func setPresentation(_ next: Presentation) -> Bool {
+        guard !invalidationRequested else { return false }
+        pendingRenderedPresentation = false
+        markdownAnalysisTask?.cancel()
+        if next == storedPresentation {
+            if next == .source { scheduleMarkdownAnalysis() }
+            return next != .rendered || !markdownPresentationLocked
+        }
+        synchronizeActiveBlockEditor?()
+        guard commitActiveBlockEdit() else { return false }
+        if next == .rendered, isMarkdown, storedPresentation == .source,
+           draft.utf8.count <= 500_000, cachedMarkdownVersion != version {
+            pendingRenderedPresentation = true
+            scheduleMarkdownAnalysis()
+            return false
+        }
+        if next == .rendered, markdownPresentationLocked { return false }
+        storedPresentation = next
+        if next == .source { scheduleMarkdownAnalysis() }
+        if next == .rendered { reloadHTMLPreview() }
+        return true
+    }
+
+    @discardableResult
+    public func beginBlockEdit(range: Range<Int>) -> Bool {
+        guard !invalidationRequested, isMarkdown, !markdownPresentationLocked else { return false }
+        synchronizeActiveBlockEditor?()
+        let previousEdit = activeBlockEdit
+        if previousEdit?.range == range, previousEdit?.baseVersion == version { return true }
+        guard commitActiveBlockEdit() else { return false }
+        guard !markdownPresentationLocked else { return false }
+        var selectedRange = range
+        if let previousEdit, previousEdit.range.upperBound <= range.lowerBound {
+            let offset = previousEdit.current.utf8.count - previousEdit.range.count
+            selectedRange = (range.lowerBound + offset)..<(range.upperBound + offset)
+        }
+        let bytes = Array(draft.utf8)
+        guard selectedRange.lowerBound >= 0, selectedRange.upperBound <= bytes.count else { return false }
+        let original = String(decoding: bytes[selectedRange], as: UTF8.self)
+        guard original.utf8.count == selectedRange.count,
+              original.utf8.elementsEqual(bytes[selectedRange]) else { return false }
+        activeBlockEdit = ActiveBlockEdit(id: UUID(), baseVersion: version, range: selectedRange,
+                                          original: original, current: original)
+        blockEditFailure = nil
+        return true
+    }
+
+    public func updateActiveBlockEdit(id: UUID, current: String) {
+        guard !invalidationRequested, activeBlockEdit?.id == id else { return }
+        activeBlockEdit?.current = current
+    }
+
+    public func discardActiveBlockEdit(id: UUID) {
+        guard activeBlockEdit?.id == id else { return }
+        activeBlockEdit = nil
+        synchronizeActiveBlockEditor = nil
+        blockEditFailure = nil
+    }
+
+    @discardableResult
+    func openSourceDiscardingBlockEdit(id: UUID, pasteboard: NSPasteboard = .general) -> Bool {
+        guard !invalidationRequested, activeBlockEdit?.id == id else { return false }
+        synchronizeActiveBlockEditor?()
+        guard let edit = activeBlockEdit, edit.id == id else { return false }
+        pasteboard.clearContents()
+        guard pasteboard.setString(edit.current, forType: .string) else { return false }
+        discardActiveBlockEdit(id: id)
+        return setPresentation(.source)
+    }
+
+    @discardableResult
+    public func commitActiveBlockEdit(id: UUID) -> Bool {
+        guard activeBlockEdit?.id == id else { return false }
+        return commitActiveBlockEdit()
+    }
+
+    @discardableResult
+    public func commitActiveBlockEdit() -> Bool {
+        guard !invalidationRequested else { return false }
+        guard let edit = activeBlockEdit else { return true }
+        guard edit.baseVersion == version else {
+            blockEditFailure = "文書が先に変わったため確定できません"
+            return false
+        }
+        let before = draft
+        var bytes = Array(before.utf8)
+        guard edit.range.lowerBound >= 0, edit.range.upperBound <= bytes.count else { return false }
+        bytes.replaceSubrange(edit.range, with: edit.current.utf8)
+        let after = String(decoding: bytes, as: UTF8.self)
+        guard after.utf8.count == bytes.count, after.utf8.elementsEqual(bytes) else { return false }
+        activeBlockEdit = nil
+        synchronizeActiveBlockEditor = nil
+        blockEditFailure = nil
+        if !before.utf8.elementsEqual(after.utf8) {
+            draft = after
+            registerUndo(restoring: before, expected: after)
+        }
+        return true
+    }
+
+    private func registerUndo(restoring text: String, expected: String) {
+        (undoManager as? FileBlockUndoManager)?.expectDocument(expected)
+        if !undoManager.isUndoing, !undoManager.isRedoing { undoManager.beginUndoGrouping() }
+        undoManager.registerUndo(withTarget: self) { document in
+            MainActor.assumeIsolated {
+                guard !document.invalidationRequested, document.activeBlockEdit == nil,
+                      document.draft.utf8.elementsEqual(expected.utf8) else { return }
+                let previous = document.draft
+                document.draft = text
+                document.registerUndo(restoring: previous, expected: text)
+            }
+        }
+        undoManager.setActionName("ブロック編集")
+        if !undoManager.isUndoing, !undoManager.isRedoing { undoManager.endUndoGrouping() }
+    }
 
     public func reloadHTMLPreview() {
         guard isHTML, !invalidated else { return }
@@ -39,7 +296,14 @@ public final class FileTabDocument {
     private var draftContent = ""
     public var draft: String {
         get { draftContent }
-        set { if !invalidationRequested { draftContent = newValue } }
+        set {
+            if !invalidationRequested,
+               draftContent.utf8.count != newValue.utf8.count || !draftContent.utf8.elementsEqual(newValue.utf8) {
+                draftContent = newValue
+                version += 1
+                scheduleMarkdownAnalysis()
+            }
+        }
     }
     public private(set) var loadState: LoadState = .unloaded
     public private(set) var loadedDiskBytes = Data()
@@ -71,7 +335,7 @@ public final class FileTabDocument {
         self.root = workingDirectory
         self.needsRootResolution = true
         self.service = WorkingTreeService(repositoryRoot: URL(fileURLWithPath: workingDirectory, isDirectory: true))
-        self.presentation = isHTML ? .rendered : .source
+        self.storedPresentation = isHTML || isMarkdown ? .rendered : .source
     }
 
     public init(path: String, root: String) {
@@ -81,12 +345,15 @@ public final class FileTabDocument {
         self.root = resolvedRoot
         self.needsRootResolution = false
         self.service = WorkingTreeService(repositoryRoot: URL(fileURLWithPath: resolvedRoot, isDirectory: true), fixedRoot: true)
-        self.presentation = isHTML ? .rendered : .source
+        self.storedPresentation = isHTML || isMarkdown ? .rendered : .source
     }
 
     public var isLoaded: Bool { loadState == .loaded }
     public var isDirty: Bool { isLoaded && savingBytes != loadedDiskBytes }
-    public var hasUnsavedChanges: Bool { isDirty }
+    public var hasUnsavedChanges: Bool {
+        isDirty || activeBlockEdit.map { !$0.original.utf8.elementsEqual($0.current.utf8) } ?? false
+    }
+    public var unsavedDisplayName: String { path + (activeBlockEdit == nil ? "" : "（編集中）") }
     private var savingBytes: Data { bom + Data(draft.utf8) }
     var hasPendingSaves: Bool { pendingSaveCount > 0 }
     public var fileName: String { (path as NSString).lastPathComponent }
@@ -162,6 +429,8 @@ public final class FileTabDocument {
 
     func enqueueSave(overwrite: Bool) throws -> Task<SaveResult, Error> {
         guard !invalidationRequested else { throw DocumentError.invalidated }
+        synchronizeActiveBlockEditor?()
+        guard commitActiveBlockEdit() else { throw DocumentError.blockEditVersionMismatch }
         guard isLoaded else { return Task { .conflictDetected } }
         let saving = savingBytes
         let previous = pendingSave
@@ -175,6 +444,7 @@ public final class FileTabDocument {
                 }
             }
             if let previous { _ = await previous.result }
+            await self.refreshMarkdownAnalysis()
             let expected = overwrite ? nil : self.loadedDiskBytes
             switch try await self.service.save(path: self.path, data: saving, expectedDiskBytes: expected) {
             case .saved:
@@ -193,6 +463,11 @@ public final class FileTabDocument {
     }
 
     public func invalidate() {
+        markdownAnalysisTask?.cancel()
+        synchronizeActiveBlockEditor?()
+        activeBlockEdit = nil
+        synchronizeActiveBlockEditor = nil
+        undoManager.removeAllActions()
         invalidationRequested = true
         if pendingSaveCount == 0 { invalidated = true }
     }
@@ -213,7 +488,7 @@ public final class FileTabDocuments {
     /// （作業場所の変更は「進行中の作業は失われます」と確認してから行われる）。
     public func document(for sessionID: SessionID, path: String, workingDirectory: String) -> FileTabDocument {
         if let existing = storedDocuments[sessionID]?[path],
-           existing.workingDirectory == workingDirectory || existing.isDirty || existing.hasPendingSaves { return existing }
+           existing.workingDirectory == workingDirectory || existing.hasUnsavedChanges || existing.hasPendingSaves { return existing }
         storedDocuments[sessionID]?[path]?.invalidate()
         let created = FileTabDocument(path: path, workingDirectory: workingDirectory)
         storedDocuments[sessionID, default: [:]][path] = created
@@ -223,7 +498,7 @@ public final class FileTabDocuments {
     public func document(for sessionID: SessionID, path: String, root: String) -> FileTabDocument {
         let root = URL(fileURLWithPath: root, isDirectory: true).standardizedFileURL.resolvingSymlinksInPath().path
         if let existing = storedDocuments[sessionID]?[path],
-           existing.root == root || existing.isDirty || existing.hasPendingSaves { return existing }
+           existing.root == root || existing.hasUnsavedChanges || existing.hasPendingSaves { return existing }
         storedDocuments[sessionID]?[path]?.invalidate()
         let created = FileTabDocument(path: path, root: root)
         storedDocuments[sessionID, default: [:]][path] = created
@@ -262,6 +537,6 @@ public final class FileTabDocuments {
 
     /// 未保存のファイル名（セッション削除の確認に出す）。
     public func dirtyFileNames(for sessionID: SessionID) -> [String] {
-        (storedDocuments[sessionID] ?? [:]).values.filter(\.isDirty).map(\.fileName).sorted()
+        (storedDocuments[sessionID] ?? [:]).values.filter(\.hasUnsavedChanges).map(\.fileName).sorted()
     }
 }

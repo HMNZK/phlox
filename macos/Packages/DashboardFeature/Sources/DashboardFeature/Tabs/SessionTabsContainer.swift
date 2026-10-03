@@ -103,7 +103,15 @@ struct SessionTabsContainer<Conversation: View>: View {
             RestoredFileTabView(
                 files: files, sessionID: node.id, path: path, workingDirectory: node.rawWorkspacePath,
                 currentWorkingDirectory: { viewModel.sessionNode(id: node.id)?.rawWorkspacePath },
-                lastWriter: { [viewModel] document in document.lastWriter(among: viewModel.sessionNodes, excluding: node.id) }
+                lastWriter: { [viewModel] document in document.lastWriter(among: viewModel.sessionNodes, excluding: node.id) },
+                isFocused: router.tabs.layout(for: node.id).selected == .file(path),
+                openFile: { root, linkedPath in
+                    files.openFileTab(
+                        sessionID: node.id, root: root, relativePath: linkedPath, router: router,
+                        requestedWorkingDirectory: node.rawWorkspacePath,
+                        currentWorkingDirectory: viewModel.sessionNode(id: node.id)?.rawWorkspacePath
+                    )
+                }
             )
                 .id("\(node.id)-\(path)")
         }
@@ -547,6 +555,8 @@ private struct RestoredFileTabView: View {
     let workingDirectory: String
     let currentWorkingDirectory: () -> String?
     let lastWriter: (FileTabDocument) -> String?
+    let isFocused: Bool
+    let openFile: (String, String) -> Void
     @State private var restoredDocument: FileTabDocument?
 
     private var changingWorkspace: Bool { FileTabDocumentRegistry.shared.isChangingSession(sessionID) }
@@ -555,7 +565,7 @@ private struct RestoredFileTabView: View {
         Group {
             if !changingWorkspace,
                let document = files.existing(for: sessionID, path: path) ?? restoredDocument, !document.invalidated {
-                FileTabView(document: document, lastWriter: lastWriter)
+                FileTabView(document: document, lastWriter: lastWriter, isFocused: isFocused, openFile: openFile)
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -576,21 +586,55 @@ private struct RestoredFileTabView: View {
 private struct FileTabView: View {
     @Bindable var document: FileTabDocument
     let lastWriter: (FileTabDocument) -> String?
+    let isFocused: Bool
+    let openFile: (String, String) -> Void
+    @State private var htmlPreview: HTMLPreviewModel
+    @State private var showsIsolationExplanation = false
     @State private var showsConflictAlert = false
     @State private var conflictWriter: String?
     @State private var saveError: String?
     @Environment(\.locale) private var locale
 
+    init(document: FileTabDocument, lastWriter: @escaping (FileTabDocument) -> String?,
+         isFocused: Bool, openFile: @escaping (String, String) -> Void) {
+        self.document = document
+        self.lastWriter = lastWriter
+        self.isFocused = isFocused
+        self.openFile = openFile
+        _htmlPreview = State(initialValue: HTMLPreviewModel(document: document))
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // 07 D4: 高さ 30 の帯に、ファイル名・「未保存」・「保存 ⌘S」。
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.s) {
                 Text(verbatim: document.path)
                     .font(DSFont.monoCaption)
                     .foregroundStyle(DSColor.textSecondary)
                     .lineLimit(1)
                     .truncationMode(.head)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                if document.isHTML {
+                    if let error = htmlPreview.preparationError {
+                        Text(htmlPreview.preparationFailureReason)
+                            .font(DSFont.meta)
+                            .foregroundStyle(DSColor.attentionInk(.error))
+                            .lineLimit(1)
+                            .help(error)
+                    } else if document.presentation == .rendered {
+                        isolationButton
+                        ViewThatFits(in: .horizontal) {
+                            Text("閲覧のみ").font(DSFont.meta).foregroundStyle(DSColor.textSecondary)
+                            Color.clear.frame(width: 0, height: 0)
+                        }
+                        Button { htmlPreview.reload() } label: { Image(systemName: "arrow.clockwise") }
+                            .buttonStyle(.plain)
+                            .disabled(htmlPreview.ruleList == nil || !document.isLoaded || document.invalidated)
+                            .help("再読込")
+                            .accessibilityLabel("再読込")
+                    }
+                    presentationControl
+                }
                 if let saveError {
                     Text("保存できませんでした: \(saveError)")
                         .font(DSFont.meta)
@@ -606,6 +650,8 @@ private struct FileTabView: View {
                 }
                 .buttonStyle(.ds(.primary, keyHint: "⌘S", height: 20, fontSize: 11, padding: 8))
                 .keyboardShortcut("s", modifiers: .command)
+                .accessibilityLabel("保存")
+                .accessibilityHint("⌘S")
                 .disabled(document.invalidated || !document.isDirty)
             }
             .padding(.horizontal, 10)
@@ -641,14 +687,29 @@ private struct FileTabView: View {
                     }
                 }
             case .loaded:
-                CodeTextEditor(text: $document.draft)
-                    .disabled(document.invalidated)
+                if document.isHTML, document.presentation == .rendered {
+                    htmlContent
+                } else {
+                    CodeTextEditor(text: $document.draft)
+                        .disabled(document.invalidated)
+                }
             case .unloaded, .loading:
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task { await document.loadIfNeeded() }
+        .task {
+            if document.isHTML { await htmlPreview.prepare() }
+        }
+        .background {
+            Button("表示を切り替え") { togglePresentation() }
+                .keyboardShortcut("m", modifiers: [.control, .command])
+                .disabled(!canTogglePresentation || !isFocused)
+                .hidden()
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+        }
         // 09 E1: 取り返しがつかない型。キャンセルが既定。
         .dsDialog(isPresented: $showsConflictAlert) {
             DSDialog(
@@ -666,6 +727,101 @@ private struct FileTabView: View {
                 ],
                 onCancel: { showsConflictAlert = false }
             )
+        }
+    }
+
+    private var canTogglePresentation: Bool {
+        document.isHTML && document.isLoaded && !document.invalidated
+            && htmlPreview.ruleList != nil && htmlPreview.preparationError == nil
+    }
+
+    private func togglePresentation() {
+        guard canTogglePresentation else { return }
+        document.presentation = document.presentation == .rendered ? .source : .rendered
+    }
+
+    private var presentationControl: some View {
+        ViewThatFits(in: .horizontal) {
+            presentationButtons(compact: false)
+            presentationButtons(compact: true)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("表示")
+        .accessibilityHint("⌃⌘M で切り替え。レンダリング表示は閲覧のみ")
+        .accessibilityIdentifier("file-tab-presentation")
+    }
+
+    private func presentationButtons(compact: Bool) -> some View {
+        HStack(spacing: DSSpacing.xxs) {
+            presentationButton(.rendered, title: compact ? "Aa" : "レンダリング", label: "レンダリング")
+            presentationButton(.source, title: compact ? "</>" : "ソース", label: "ソース")
+        }
+        .padding(DSSpacing.xxs)
+        .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: DSRadius.row))
+    }
+
+    private func presentationButton(_ presentation: FileTabDocument.Presentation, title: String, label: String) -> some View {
+        Button { document.presentation = presentation } label: {
+            Text(verbatim: title)
+                .font(DSFont.meta)
+                .padding(.horizontal, DSSpacing.chip)
+                .padding(.vertical, DSSpacing.xxs)
+                .background(document.presentation == presentation ? DSColor.fillSubtle : .clear,
+                            in: RoundedRectangle(cornerRadius: DSRadius.s))
+        }
+        .buttonStyle(.plain)
+        .disabled(!document.isLoaded || document.invalidated || (presentation == .rendered && !canTogglePresentation))
+        .accessibilityLabel(Text(verbatim: label))
+        .accessibilityAddTraits(document.presentation == presentation ? .isSelected : [])
+    }
+
+    private var isolationButton: some View {
+        Button("外部の読み込みを止めています") { showsIsolationExplanation.toggle() }
+            .buttonStyle(.plain)
+            .font(DSFont.meta)
+            .foregroundStyle(DSColor.textSecondary)
+            .fixedSize()
+            .accessibilityHint("説明を表示")
+            .popover(isPresented: $showsIsolationExplanation) {
+                Text("このページが出す外部への要求と、ページのスクリプトは止めています")
+                    .font(DSFont.body)
+                    .padding(DSSpacing.l)
+                    .frame(maxWidth: DSLayout.inspectorWidth.max)
+            }
+    }
+
+    @ViewBuilder
+    private var htmlContent: some View {
+        if htmlPreview.processTerminated {
+            ContentUnavailableView {
+                Label("表示が停止しました", systemImage: "exclamationmark.triangle")
+            } description: {
+                Text("ページを描く処理が終了しました。未保存の下書きは残っています。")
+            } actions: {
+                Button("再読込") { htmlPreview.reload() }
+            }
+        } else if htmlPreview.ruleList == nil {
+            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            HTMLPreviewView(model: htmlPreview) { path in openFile(document.root, path) }
+                .overlay(alignment: .bottomLeading) {
+                    if let url = htmlPreview.hoveredURL {
+                        HTMLLinkDestinationLabel(text: "\(hoverAction)  \(url.absoluteString)", color: NSColor(DSColor.textPrimary))
+                            .padding(DSSpacing.chip)
+                            .background(DSColor.surface, in: RoundedRectangle(cornerRadius: DSRadius.row))
+                            .padding(DSSpacing.s)
+                            .allowsHitTesting(false)
+                    }
+                }
+        }
+    }
+
+    private var hoverAction: String {
+        switch htmlPreview.hoveredDestination {
+        case .openFile: "ファイルタブで開く"
+        case .openBrowser: "ブラウザで開く"
+        case .allow: "ページ内で開く"
+        default: "開きません"
         }
     }
 

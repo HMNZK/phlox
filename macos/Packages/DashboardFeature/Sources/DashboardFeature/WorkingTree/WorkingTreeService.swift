@@ -62,6 +62,8 @@ private final class GitDataCapture: @unchecked Sendable {
 
 /// リポジトリのワーキングツリーを読み書きする、git CLI の薄いラッパー。
 public actor WorkingTreeService {
+    static let maximumHTMLResourceSize = 32 * 1024 * 1024
+
     private let repositoryRoot: URL
     private let fixedRoot: Bool
 
@@ -176,6 +178,18 @@ public actor WorkingTreeService {
         let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
         guard size <= WorkingTreeText.maximumEditableFileSize else { throw WorkingTreeTextError.tooLarge }
         return try Data(contentsOf: url)
+    }
+
+    /// HTML の画像・フォント等は配信上限と包含確認を通して読む。
+    public func resourceData(_ path: String) throws -> Data {
+        try resourceData(path, read: { try Data(contentsOf: $0) })
+    }
+
+    func resourceData(_ path: String, read: @Sendable (URL) throws -> Data) throws -> Data {
+        let url = try accessibleFileURL(for: path)
+        let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize
+        guard let size, size <= Self.maximumHTMLResourceSize else { throw URLError(.dataLengthExceedsMaximum) }
+        return try read(url)
     }
 
     public func save(

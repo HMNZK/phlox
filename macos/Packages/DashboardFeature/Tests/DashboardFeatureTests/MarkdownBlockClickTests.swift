@@ -1,0 +1,242 @@
+import AppKit
+import SwiftUI
+import Testing
+@testable import DashboardFeature
+
+@Suite("画面に出さないマークダウンのクリック", .serialized)
+@MainActor
+struct MarkdownBlockClickTests {
+    @Test(arguments: [false, true], [false, true])
+    func loadedParagraphClickCreatesTextEditor(usesUndoScope: Bool, clicksText: Bool) async throws {
+        let root = try makeFileTabTestRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = "# 見出し\r\n\r\n編集前の本文\r\n\r\n[案内][guide]\r\n\r\n[guide]: linked.md\r\n"
+        try Data(source.utf8).write(to: root.appendingPathComponent("document.md"))
+        let document = FileTabDocument(path: "document.md", root: root.path)
+        await document.loadIfNeeded()
+        _ = document.setPresentation(.rendered)
+        await document.refreshMarkdownAnalysis()
+        let paragraph = try #require(document.markdownBlocks.first { $0.original.contains("編集前の本文") })
+        #expect(!document.markdownPresentationLocked)
+        let (window, view) = makeWindow(document: document, usesUndoScope: usesUndoScope)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(50))
+        view.layoutSubtreeIfNeeded()
+        let frame = try #require(accessibilityFrame(in: view, text: "編集前の本文"))
+        // XCUITest と同じ読み上げ要素の中央と、文字のある位置を比較する。
+        let point = NSPoint(x: clicksText ? frame.minX + 12 : frame.midX, y: frame.midY)
+        try click(point, in: window)
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
+        #expect(document.activeBlockEdit?.range == paragraph.range)
+        #expect(editors(in: view).contains { $0.string == paragraph.original })
+        #expect(document.draft.utf8.elementsEqual(source.utf8))
+    }
+
+    @Test
+    func referenceLinkClickOpensWithoutEditing() async throws {
+        let document = FileTabDocument(path: "document.md", root: "/")
+        document.draft = "編集前の本文\n\n[案内][guide]\n\n[guide]: linked.md\n"
+        var openedURLs: [URL] = []
+        let (window, view) = makeWindow(document: document, usesUndoScope: true) {
+            openedURLs.append($0)
+            return .handled
+        }
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(50))
+        view.layoutSubtreeIfNeeded()
+        let frame = try #require(accessibilityFrame(in: view, text: "案内", role: .link))
+        try click(NSPoint(x: frame.midX, y: frame.midY), in: window)
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(openedURLs == [URL(string: "linked.md")!])
+        #expect(document.activeBlockEdit == nil)
+        #expect(editors(in: view).isEmpty)
+        let paragraphFrame = try #require(accessibilityFrame(in: view, text: "編集前の本文"))
+        try click(NSPoint(x: paragraphFrame.midX, y: paragraphFrame.midY), in: window)
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
+        #expect(document.activeBlockEdit?.original == "編集前の本文\n\n")
+        #expect(editors(in: view).contains { $0.string == "編集前の本文\n\n" })
+    }
+
+    @Test
+    func escapeAfterSaveAndPresentationRoundTripEndsEditing() async throws {
+        let root = try makeFileTabTestRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("document.md")
+        try Data("# 見出し\r\n\r\n編集前の本文\r\n\r\n[案内][guide]\r\n\r\n[guide]: linked.md\r\n".utf8).write(to: file)
+        let document = FileTabDocument(path: "document.md", root: root.path)
+        await document.loadIfNeeded()
+        #expect(document.setPresentation(.rendered))
+        await document.refreshMarkdownAnalysis()
+        let view = NSHostingView(rootView: FileTabUndoScope(document: document) {
+            FileTabView(document: document, lastWriter: { _ in nil }, isFocused: true, openFile: { _, _ in })
+        })
+        view.frame = NSRect(x: 0, y: 0, width: 640, height: 420)
+        let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = view
+        window.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
+        window.orderBack(nil)
+        defer { window.close() }
+        NSApplication.shared.accessibilitySetValue(true, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface"))
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
+        let originalFrame = try #require(accessibilityFrame(in: view, text: "編集前の本文"))
+        try click(NSPoint(x: originalFrame.midX, y: originalFrame.midY), in: window)
+        try await Task.sleep(for: .milliseconds(100))
+        let editor = try #require(editors(in: view).first)
+        #expect(window.firstResponder === editor)
+        #expect(!accessibilityTextAreas(in: view).isEmpty)
+        editor.selectAll(nil)
+        editor.insertText("編集した本文\n\n追加行\n", replacementRange: editor.selectedRange())
+        _ = try await document.save()
+        try await Task.sleep(for: .milliseconds(150))
+        view.layoutSubtreeIfNeeded()
+        let expected = "# 見出し\r\n\r\n編集した本文\n\n追加行\n[案内][guide]\r\n\r\n[guide]: linked.md\r\n"
+        #expect(try Data(contentsOf: file) == Data(expected.utf8))
+        #expect(document.activeBlockEdit == nil)
+        #expect(editors(in: view).isEmpty)
+        #expect(accessibilityTextAreas(in: view).isEmpty)
+        #expect(window.firstResponder !== editor)
+        #expect(editor.window == nil)
+        #expect(window.performKeyEquivalent(with: try key(46, characters: "m", flags: [.control, .command], in: window)))
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
+        #expect(document.presentation == .source)
+        #expect(editors(in: view).count == 1)
+        #expect(window.performKeyEquivalent(with: try key(46, characters: "m", flags: [.control, .command], in: window)))
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
+        #expect(document.presentation == .rendered)
+        #expect(editors(in: view).isEmpty)
+        let frame = try #require(accessibilityFrame(in: view, text: "編集した本文"))
+        try click(NSPoint(x: frame.midX, y: frame.midY), in: window)
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
+        let reopened = try #require(editors(in: view).first as? CurrentLineTextView)
+        #expect(editors(in: view).count == 1)
+        #expect(reopened.blockEditID == document.activeBlockEdit?.id)
+        // フォーカスと編集IDを確認し、別の入力欄やフォーカス遅延による失敗を区別する。
+        #expect(window.firstResponder === reopened)
+        #expect(!accessibilityTextAreas(in: view).isEmpty)
+        window.sendEvent(try key(53, characters: "\u{001B}", in: window))
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
+        #expect(document.activeBlockEdit == nil)
+        #expect(editors(in: view).isEmpty)
+        #expect(accessibilityTextAreas(in: view).isEmpty)
+        #expect(window.firstResponder !== reopened)
+        #expect(reopened.window == nil)
+        #expect(document.draft.utf8.elementsEqual(expected.utf8))
+        #expect(!document.hasUnsavedChanges)
+    }
+
+    private func key(_ code: UInt16, characters: String, flags: NSEvent.ModifierFlags = [], in window: NSWindow) throws -> NSEvent {
+        try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags,
+            timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+            context: nil, characters: characters, charactersIgnoringModifiers: characters,
+            isARepeat: false, keyCode: code))
+    }
+
+    @Test
+    func largeDocumentInitialLayout() async throws {
+        let source = (0..<1_999).map { "段落\($0) " + String(repeating: "a", count: 215) + "\n\n" }.joined()
+        for sample in 1...3 {
+            let document = FileTabDocument(path: "document.md", root: "/")
+            document.draft = source
+            await document.refreshMarkdownAnalysis()
+            #expect(document.markdownBlocks.count == 1_999)
+            #expect((440_000...460_000).contains(source.utf8.count))
+            #expect(document.setPresentation(.rendered))
+            #expect(!document.markdownPresentationLocked)
+            let start = ProcessInfo.processInfo.systemUptime
+            let (window, view) = makeWindow(document: document, usesUndoScope: true)
+            // 初回の画面外レイアウト完了まで。解析と画像化の時間は含めない。
+            let elapsed = ProcessInfo.processInfo.systemUptime - start
+            print("初回表示: 試行\(sample)、\(source.utf8.count)バイト、\(document.markdownBlocks.count)ブロック、\(elapsed)秒")
+            defer { window.close() }
+            let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+            view.cacheDisplay(in: view.bounds, to: bitmap)
+            #expect(bitmap.pixelsWide > 0 && bitmap.pixelsHigh > 0)
+            #expect(accessibilityFrame(in: view, text: "段落0 " + String(repeating: "a", count: 215)) != nil)
+        }
+    }
+
+    private func makeWindow(document: FileTabDocument, usesUndoScope: Bool,
+                            openURL: @escaping (URL) -> OpenURLAction.Result = { _ in .discarded }) -> (NSWindow, NSView) {
+        NSApplication.shared.accessibilitySetValue(true, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface"))
+        let content = MarkdownBlockEditor(document: document, openURL: openURL)
+        let view: NSView = usesUndoScope
+            ? NSHostingView(rootView: FileTabUndoScope(document: document) { content }
+                .simultaneousGesture(TapGesture().onEnded {}))
+            : NSHostingView(rootView: content)
+        view.frame = NSRect(x: 0, y: 0, width: 640, height: 420)
+        let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = view
+        // 前面化せず、表示領域外で AppKit のイベント配送だけを有効にする。
+        window.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
+        window.orderBack(nil)
+        view.layoutSubtreeIfNeeded()
+        return (window, view)
+    }
+
+    private func click(_ screenPoint: NSPoint, in window: NSWindow) throws {
+        let timestamp = ProcessInfo.processInfo.systemUptime
+        for (index, type) in [NSEvent.EventType.leftMouseDown, .leftMouseUp].enumerated() {
+            let event = try #require(NSEvent.mouseEvent(with: type,
+                location: window.convertPoint(fromScreen: screenPoint), modifierFlags: [],
+                timestamp: timestamp + Double(index) * 0.02, windowNumber: window.windowNumber,
+                context: nil, eventNumber: index + 1, clickCount: 1, pressure: index == 0 ? 1 : 0))
+            window.sendEvent(event)
+        }
+    }
+
+    private func editors(in view: NSView) -> [NSTextView] {
+        (view as? NSTextView).map { [$0] } ?? view.subviews.flatMap { editors(in: $0) }
+    }
+
+    private func accessibilityTextAreas(in view: NSView) -> [NSObject] {
+        var seen = Set<ObjectIdentifier>()
+        func visit(_ object: NSObject) -> [NSObject] {
+            guard seen.insert(ObjectIdentifier(object)).inserted else { return [] }
+            let role = NSSelectorFromString("accessibilityRole")
+            let isTextArea = object.responds(to: role)
+                && object.perform(role)?.takeUnretainedValue() as? String == NSAccessibility.Role.textArea.rawValue
+            let children = NSSelectorFromString("accessibilityChildren")
+            let descendants = object.responds(to: children)
+                ? object.perform(children)?.takeUnretainedValue() as? [NSObject] ?? [] : []
+            // AppKit のビュー階層ではなく、読み上げに公開される子だけを辿る。
+            return (isTextArea ? [object] : []) + descendants.flatMap(visit)
+        }
+        return visit(view)
+    }
+
+    private func accessibilityFrame(in view: NSView, text: String, role: NSAccessibility.Role? = nil) -> NSRect? {
+        var seen = Set<ObjectIdentifier>()
+        func value(_ name: String, of object: NSObject) -> Any? {
+            let selector = NSSelectorFromString(name)
+            guard object.responds(to: selector) else { return nil }
+            return object.perform(selector)?.takeUnretainedValue()
+        }
+        func visit(_ element: Any) -> NSRect? {
+            guard let object = element as? NSObject,
+                  seen.insert(ObjectIdentifier(object)).inserted else { return nil }
+            let label = value("accessibilityValue", of: object) as? String
+                ?? value("accessibilityLabel", of: object) as? String
+            if label == text, role == nil || value("accessibilityRole", of: object) as? String == role?.rawValue,
+               object.responds(to: NSSelectorFromString("accessibilityFrame")) {
+                let frame = (object as AnyObject).accessibilityFrame()
+                if !frame.isEmpty { return frame }
+            }
+            let children = value("accessibilityChildren", of: object) as? [Any] ?? []
+            for child in children { if let frame = visit(child) { return frame } }
+            if let view = element as? NSView {
+                for child in view.subviews { if let frame = visit(child) { return frame } }
+            }
+            return nil
+        }
+        return visit(view)
+    }
+}

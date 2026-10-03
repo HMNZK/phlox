@@ -10,7 +10,7 @@ struct CodeTextEditor: NSViewRepresentable {
     var synchronizeBlockEdit: ((UUID, String) -> Void)?
     var commitBlockEdit: ((UUID) -> Bool)?
     var onBlockCommit: (() -> Void)?
-    var registerBlockEditor: ((UUID, @escaping () -> Void) -> Void)?
+    var registerBlockEditor: ((UUID, @escaping () -> Void, @escaping () -> Void) -> Void)?
     var requestBlockFocus = false
 
     func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
@@ -38,7 +38,6 @@ struct CodeTextEditor: NSViewRepresentable {
         textView.font = .monospacedSystemFont(ofSize: 11.5, weight: .regular)
         textView.string = text
         textView.delegate = context.coordinator
-        configureBlockEdit(textView)
         scrollView.documentView = textView
         scrollView.drawsBackground = true
 
@@ -46,6 +45,8 @@ struct CodeTextEditor: NSViewRepresentable {
         scrollView.verticalRulerView = ruler
         scrollView.hasVerticalRuler = true
         scrollView.rulersVisible = true
+        // 組み立て後に登録する。登録時に撤去されても、取り付け済みの入力欄・行番号ごと外れる。
+        configureBlockEdit(textView)
         return scrollView
     }
 
@@ -74,21 +75,15 @@ struct CodeTextEditor: NSViewRepresentable {
         textView.commitBlockEdit = commitBlockEdit
         textView.onBlockCommit = onBlockCommit
         if let id = blockEditID {
-            registerBlockEditor?(id, { [weak textView] in textView?.synchronizeBlockEditText() })
+            registerBlockEditor?(id, { [weak textView] in textView?.synchronizeBlockEditText() },
+                                 { [weak textView] in textView?.removeBlockEditor() })
         }
-        if requestBlockFocus, !textView.didRequestBlockFocus {
-            textView.didRequestBlockFocus = true
-            DispatchQueue.main.async { [weak textView] in
-                guard let textView, textView.blockEditID != nil else { return }
-                textView.window?.makeFirstResponder(textView)
-            }
-        }
+        if requestBlockFocus { textView.requestBlockFocusWhenAttached() }
     }
 
     static func dismantleNSView(_ scrollView: NSScrollView, coordinator: Coordinator) {
         guard let textView = scrollView.documentView as? CurrentLineTextView else { return }
-        textView.dismantleBlockEdit()
-        textView.delegate = nil
+        textView.removeBlockEditor()
     }
 
     static func synchronizeText(_ text: String, with textView: NSTextView) {
@@ -137,7 +132,8 @@ final class CurrentLineTextView: NSTextView {
     var synchronizeBlockEdit: ((UUID, String) -> Void)?
     var commitBlockEdit: ((UUID) -> Bool)?
     var onBlockCommit: (() -> Void)?
-    var didRequestBlockFocus = false
+    private var didRequestBlockFocus = false
+    private var requestsBlockFocus = false
     private var isDismantlingBlockEdit = false
     private let blockUndoManager = UndoManager()
     private let sourceUndoManager = UndoManager()
@@ -182,9 +178,45 @@ final class CurrentLineTextView: NSTextView {
         blockEditID = nil
     }
 
+    func removeBlockEditor() {
+        requestsBlockFocus = false
+        dismantleBlockEdit()
+        delegate = nil
+        if window?.firstResponder === self { window?.makeFirstResponder(nil) }
+        // 非表示にするだけでは読み上げに残るため、AppKit の木から入力欄を外す。
+        let scrollView = enclosingScrollView
+        scrollView?.verticalRulerView = nil
+        scrollView?.documentView = nil
+        removeFromSuperview()
+        synchronizeBlockEdit = nil
+        commitBlockEdit = nil
+        onBlockCommit = nil
+    }
+
     override func viewWillMove(toWindow newWindow: NSWindow?) {
         if window != nil, newWindow == nil { dismantleBlockEdit() }
         super.viewWillMove(toWindow: newWindow)
+    }
+
+    func requestBlockFocusWhenAttached() {
+        requestsBlockFocus = true
+        focusBlockEditorIfAttached()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        focusBlockEditorIfAttached()
+    }
+
+    private func focusBlockEditorIfAttached() {
+        guard requestsBlockFocus, !didRequestBlockFocus, !isDismantlingBlockEdit,
+              let id = blockEditID, let window else { return }
+        // SwiftUI の取り付け処理の後に渡す。未取り付けの要求は消費しない。
+        DispatchQueue.main.async { [weak self, weak window] in
+            guard let self, let window, self.window === window, self.blockEditID == id,
+                  self.requestsBlockFocus, !self.didRequestBlockFocus, !self.isDismantlingBlockEdit else { return }
+            self.didRequestBlockFocus = window.makeFirstResponder(self)
+        }
     }
 
     override func resignFirstResponder() -> Bool {

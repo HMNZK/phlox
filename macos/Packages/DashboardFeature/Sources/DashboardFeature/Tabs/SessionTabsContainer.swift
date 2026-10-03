@@ -585,7 +585,7 @@ private struct RestoredFileTabView: View {
 }
 
 /// ファイルの子タブ。編集・保存・外部変更との競合（上書き／キャンセル）。
-private struct FileTabView: View {
+struct FileTabView: View {
     @Bindable var document: FileTabDocument
     let lastWriter: (FileTabDocument) -> String?
     let isFocused: Bool

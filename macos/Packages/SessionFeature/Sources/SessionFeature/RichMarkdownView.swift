@@ -15,7 +15,7 @@ public struct RichMarkdownView: View {
     private var blockClick: (() -> Void)?
     private var onLinkHover: ((URL?) -> Void)?
     @State private var hoveredLink: URL?
-    @State private var activatedLinkEvent: NSEvent?
+    @State private var linkActivated = false
     @Environment(\.locale) private var locale
 
     private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
@@ -49,8 +49,11 @@ public struct RichMarkdownView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         if let fileOpenURL {
             content
+            // 読み上げ要素と同じ行幅で、文字のない部分のクリックも受け取る。
+            .contentShape(Rectangle())
             .environment(\.openURL, OpenURLAction { url in
-                activatedLinkEvent = NSApp.currentEvent
+                linkActivated = true
+                DispatchQueue.main.async { linkActivated = false }
                 return fileOpenURL(url)
             })
             .environment(\.fileMarkdownLinkHover, { url in
@@ -59,10 +62,9 @@ public struct RichMarkdownView: View {
             })
             .simultaneousGesture(TapGesture().onEnded {
                 // 子要素のリンク操作を先に完了させる。ホバー通知が無いクリックも編集にしない。
-                let clickEvent = NSApp.currentEvent
+                let openedLink = linkActivated
                 DispatchQueue.main.async {
-                    let openedLink = clickEvent != nil && activatedLinkEvent === clickEvent
-                    if hoveredLink == nil, !openedLink { blockClick?() }
+                    if hoveredLink == nil, !openedLink, !linkActivated { blockClick?() }
                 }
             })
         } else {

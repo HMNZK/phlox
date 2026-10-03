@@ -13,6 +13,7 @@ struct MarkdownBlockEditor: View {
     @State private var hoveredDestination: String?
     @State private var selectedBlock: Int?
     @State private var selectionCrossesBlock = false
+    @State private var editorRemoval = BlockEditorRemoval()
     @FocusState private var focusedBlock: Int?
     @AccessibilityFocusState private var accessibleBlock: Int?
 
@@ -45,6 +46,8 @@ struct MarkdownBlockEditor: View {
             if let value { selectedBlock = value }
         }
         .onChange(of: document.activeBlockEdit?.id) { old, new in
+            // 遅延行の再評価・dismantle を待たず、終了した編集欄を撤去する。
+            editorRemoval.removeUnlessActive(new)
             if old != nil, new == nil, let selectedBlock {
                 focusedBlock = selectedBlock
                 accessibleBlock = selectedBlock
@@ -55,6 +58,19 @@ struct MarkdownBlockEditor: View {
             guard let url = hoveredLink else { return }
             let destination = await linkDestination(url)
             if !Task.isCancelled, hoveredLink == url { hoveredDestination = destination }
+        }
+    }
+
+    private final class BlockEditorRemoval {
+        var id: UUID?
+        var remove: (() -> Void)?
+
+        func removeUnlessActive(_ activeID: UUID?) {
+            guard id != activeID else { return }
+            let removal = remove
+            id = nil
+            remove = nil
+            removal?()
         }
     }
 
@@ -97,8 +113,12 @@ struct MarkdownBlockEditor: View {
                     onBlockCommit: {
                         if document.activeBlockEdit == nil { focusBlock(selectedBlock ?? block.id) }
                     },
-                    registerBlockEditor: { id, synchronize in
-                        if document.activeBlockEdit?.id == id { document.synchronizeActiveBlockEditor = synchronize }
+                    registerBlockEditor: { id, synchronize, remove in
+                        guard document.activeBlockEdit?.id == id else { remove(); return }
+                        editorRemoval.removeUnlessActive(id)
+                        editorRemoval.id = id
+                        editorRemoval.remove = remove
+                        document.synchronizeActiveBlockEditor = synchronize
                     },
                     requestBlockFocus: true
                 )

@@ -17,6 +17,7 @@ public struct SimulatorTabView: View {
     @State private var confirmsShutdown = false
     @State private var shutdownUDID: String?
     @State private var screenshotReason: String?
+    @State private var showsDiagnostics = false
 
     public init(hub: SimulatorHub, sessionID: SessionID, isFocused: Bool) {
         self.hub = hub
@@ -26,6 +27,11 @@ public struct SimulatorTabView: View {
 
     private var device: SimulatorDevice? { hub.selectedDevice(for: sessionID) }
     private var connection: SimulatorDisplayConnection? { hub.connection(for: sessionID) }
+    private var support: SimulatorPolicy.Support { hub.support(for: sessionID, displayID: displayID) }
+    private var policyReason: String? {
+        connection?.capability != nil && !support.allowsDisplay ? support.message : nil
+    }
+    private var allowsInput: Bool { support.allowsInput && connection?.inputEnabled == true }
 
     public var body: some View {
         VStack(spacing: 0) {
@@ -53,16 +59,33 @@ public struct SimulatorTabView: View {
                             .lineLimit(1)
                             .accessibilityLabel("キー入力を端末に送信中（⌘Esc で解除）")
                     }
+                    if support == .displayOnly || support == .unverified {
+                        Text(geometry.size.width < 700
+                             ? support == .unverified ? "未確認（このタブのみ）" : "表示のみ対応"
+                             : support.message ?? "").font(DSFont.meta)
+                            .foregroundStyle(DSColor.textSecondary).lineLimit(1)
+                            .accessibilityLabel(support.message ?? "")
+                            .accessibilityIdentifier("simulator-support-band")
+                            .help(support.message ?? "")
+                    }
+                    if policyReason != nil, connection?.blocksRetry != true {
+                        Button("未確認でも試す") { hub.tryUnverified(displayID: displayID) }
+                            .accessibilityIdentifier("simulator-try-unverified")
+                    }
                     Spacer(minLength: 0)
-                    Button { connection?.sendHome() } label: { Image(systemName: "house") }
+                    Button { if allowsInput { connection?.sendHome() } } label: { Image(systemName: "house") }
                         .help("ホーム（⇧⌘H）")
                         .accessibilityLabel("ホーム")
                         .accessibilityIdentifier("simulator-home")
-                        .disabled(connection?.displayInfo == nil)
+                        .disabled(!allowsInput)
                     Button { Task { await takeScreenshot() } } label: { Image(systemName: "camera") }
                         .help("スクリーンショットを Finder で表示")
                         .accessibilityLabel("スクリーンショット")
                         .disabled(device?.isBooted != true)
+                    Button { showsDiagnostics.toggle() } label: { Image(systemName: "info.circle") }
+                        .accessibilityLabel("シミュレーターの診断")
+                        .accessibilityIdentifier("simulator-diagnostics")
+                        .popover(isPresented: $showsDiagnostics) { diagnostics }
                     Button {
                         shutdownUDID = device?.udid
                         confirmsShutdown = true
@@ -78,18 +101,29 @@ public struct SimulatorTabView: View {
             }
             .frame(height: 30)
             Divider()
-            if let reason = screenshotReason ?? hub.operationReason ?? hub.listingReason ?? connection?.reason {
+            if let reason = screenshotReason ?? hub.operationReason ?? hub.listingReason ?? connection?.reason ?? policyReason {
                 Text(verbatim: reason).font(DSFont.auxiliary)
                     .foregroundStyle(DSColor.textSecondary).padding(8)
+                HStack {
+                    Button("Simulator.app で開く") { openSimulator() }
+                        .accessibilityIdentifier("simulator-open-external")
+                    if connection?.canReconnect == true {
+                        Button("再接続") { connection?.reconnect() }
+                            .accessibilityIdentifier("simulator-reconnect")
+                    }
+                    if hub.listingReason != nil {
+                        Button("再確認") { Task { await hub.refresh() } }
+                    }
+                }.padding(.bottom, 8)
             }
-            if let info = connection?.displayInfo {
+            if support.allowsDisplay, let info = connection?.displayInfo {
                 SimulatorScreenView(displayInfo: info, connection: connection,
                                     isVisible: windowVisible,
                                     releaseFocus: { requestMenuFocus() },
                                     deviceName: device?.name ?? "端末",
                                     inputFocusChanged: { focused in
                                         Task { @MainActor in sendsKeys = focused }
-                                    })
+                                    }, inputEnabled: allowsInput)
                     .overlay {
                         if sendsKeys {
                             GeometryReader { geometry in
@@ -106,10 +140,16 @@ public struct SimulatorTabView: View {
                         }
                     }
                     .padding(12)
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    if connection?.hasStaleFrame(at: context.date) == true {
+                        Text("しばらく画面の更新を観測していません")
+                            .font(DSFont.meta).foregroundStyle(DSColor.textSecondary)
+                    }
+                }
             } else {
                 VStack(spacing: 8) {
                     Image(systemName: "iphone").font(.system(size: 32))
-                    Text(device == nil ? "端末がありません" : connection?.reason != nil ? "画面を取得できません" : device?.isBooted == true ? "画面を取得しています" : device?.state == "Booting" ? "端末を起動しています" : "端末を起動すると画面が表示されます")
+                    Text(device == nil ? "端末がありません" : connection?.reason != nil || policyReason != nil ? "画面を取得できません" : device?.isBooted == true ? "画面を取得しています" : device?.state == "Booting" ? "端末を起動しています" : "端末を起動すると画面が表示されます")
                         .font(DSFont.auxiliary)
                 }
                 .foregroundStyle(DSColor.textSecondary)
@@ -117,6 +157,8 @@ public struct SimulatorTabView: View {
             }
             Text(NSWorkspace.shared.isVoiceOverEnabled
                  ? "端末内を読み上げるには Simulator.app で開き、iOS の VoiceOver を使います"
+                 : support == .displayOnly ? "表示のみ対応しています。入力は送信できません"
+                 : !allowsInput ? "キー入力はまだ送っていません"
                  : sendsKeys ? "⌘ 付きのキーは Phlox が受けます · ⌘Esc で解除"
                  : "キー入力はまだ送っていません · 画面をクリックすると送ります")
                 .font(DSFont.meta).foregroundStyle(DSColor.textSecondary).padding(8)
@@ -130,7 +172,7 @@ public struct SimulatorTabView: View {
         })
         .background {
             if isFocused {
-                Button("ホーム") { connection?.sendHome() }
+                Button("ホーム") { if allowsInput { connection?.sendHome() } }
                     .keyboardShortcut("h", modifiers: [.command, .shift])
                     .hidden()
                     .accessibilityHidden(true)
@@ -150,6 +192,7 @@ public struct SimulatorTabView: View {
         .onDisappear {
             isPresented = false
             hub.setVisible(false, displayID: displayID, sessionID: sessionID)
+            hub.removeDisplay(displayID)
         }
         .dsDialog(isPresented: $confirmsShutdown) {
             DSDialog(.recoverable, title: "端末を停止しますか？",
@@ -175,6 +218,34 @@ public struct SimulatorTabView: View {
     private func requestMenuFocus(preservingScreenFocus: Bool = false) {
         preservesScreenFocus = preservingScreenFocus
         menuFocusRequest += 1
+    }
+
+    private var diagnostics: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("シミュレーターの診断").font(DSFont.auxiliary)
+            Text("Xcode build: \(connection?.capability?.xcodeBuild ?? "未取得")")
+            Text("iOS runtime: \(device?.runtimeIdentifier ?? "未選択")")
+            Text("本体 build: \(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "不明")")
+            Text("補助 build: \(connection?.capability?.helperBuild ?? "未取得")")
+            Text("通信仕様: 本体 \(SimulatorBridgeInterfaces.protocolVersion) / 補助 \(connection?.capability.map { String($0.protocolVersion) } ?? "未取得")")
+            Text("接続世代: \(connection?.generation.current ?? 0)")
+            Text("5秒間、画面の更新番号が変わらないと診断を表示します。静止画面でも表示されます。入力が効いたかどうかを示すものではありません。")
+        }
+        .font(DSFont.meta).textSelection(.enabled).padding(16).frame(width: 380)
+    }
+
+    private func openSimulator() {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iphonesimulator") else {
+            screenshotReason = "Simulator.app が見つかりません"
+            return
+        }
+        let configuration = NSWorkspace.OpenConfiguration()
+        if let device { configuration.arguments = ["-CurrentDeviceUDID", device.udid] }
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, error in
+            if let error {
+                Task { @MainActor in screenshotReason = "Simulator.app を開けません: \(error.localizedDescription)" }
+            }
+        }
     }
 
     private func takeScreenshot() async {

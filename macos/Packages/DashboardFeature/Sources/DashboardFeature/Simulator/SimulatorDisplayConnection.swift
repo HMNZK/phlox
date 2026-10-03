@@ -1,4 +1,5 @@
 import Foundation
+import IOSurface
 import Observation
 import SimulatorBridgeKit
 
@@ -18,16 +19,33 @@ protocol SimulatorDisplayTransport: AnyObject {
     func invalidate()
 }
 
-/// 1つの表示に必要な接続。端末の起動・停止や自動再接続はここでは行わない。
+/// 端末ごとの接続。復旧時にも端末の起動・停止や古い入力の再送は行わない。
 @MainActor @Observable
 public final class SimulatorDisplayConnection {
     public private(set) var displayInfo: SimulatorDisplayInfo?
     public private(set) var reason: String?
     public private(set) var generation = SimulatorConnectionGeneration()
     public private(set) var inputRevision = 0
+    private(set) var capability: SimulatorBridgeCapability?
+    private(set) var support: SimulatorPolicy.Support = .unsupported
+    private(set) var canReconnect = false
+    private(set) var blocksRetry = false
+    @ObservationIgnored private(set) var lastFrameUpdate: Date?
+    var inputEnabled: Bool { support.allowsInput && displayInfo != nil }
+    var automaticallyReconnects = false
+    var policy: SimulatorPolicy?
+    private var runtimeIdentifier: String?
+    private var triesUnverified = false
+    private var retried = false
+    private var automaticReconnectTimes: [TimeInterval] = []
+    private var requestedUDID: String?
+    @ObservationIgnored private var observedSurface: UInt32?
+    @ObservationIgnored private var observedSeed: UInt32?
+    private var acceptsSurfaces = false
     private(set) var sentKeyCodes: Set<UInt16> = []
     @ObservationIgnored private let makeTransport: () -> any SimulatorDisplayTransport
     @ObservationIgnored private let timeout: TimeInterval
+    @ObservationIgnored private let now: () -> TimeInterval
     @ObservationIgnored private var transport: (any SimulatorDisplayTransport)?
     @ObservationIgnored private var deadline: Task<Void, Never>?
     @ObservationIgnored private var request = 0
@@ -38,8 +56,10 @@ public final class SimulatorDisplayConnection {
     }
 
     init(timeout: TimeInterval = SimulatorBridgeInterfaces.replyTimeout,
+         now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
          makeTransport: @escaping () -> any SimulatorDisplayTransport) {
         self.timeout = timeout
+        self.now = now
         self.makeTransport = makeTransport
     }
 
@@ -50,8 +70,47 @@ public final class SimulatorDisplayConnection {
     }
 
     public func attach(udid: String) {
+        requestedUDID = udid
+        capability = nil
+        start(udid: udid)
+    }
+
+    public func configureVerifiedRuntime(_ runtimeIdentifier: String) {
+        policy = .verified
+        configure(runtimeIdentifier: runtimeIdentifier, triesUnverified: false)
+    }
+
+    #if DEBUG
+    /// 許可リストへ追加する前の検査専用。登録済みの組も未確認として扱う。
+    public func configureForCompatibilityCheck(runtime: String) {
+        policy = SimulatorPolicy(entries: [])
+        runtimeIdentifier = nil
+        configure(runtimeIdentifier: runtime, triesUnverified: true)
+    }
+    #endif
+
+    func configure(runtimeIdentifier: String, triesUnverified: Bool) {
+        guard self.runtimeIdentifier != runtimeIdentifier || self.triesUnverified != triesUnverified else { return }
+        self.runtimeIdentifier = runtimeIdentifier
+        self.triesUnverified = triesUnverified
+        guard let capability else { return }
+        let next = policy?.support(xcodeBuild: capability.xcodeBuild, runtimeIdentifier: runtimeIdentifier,
+                                   triesUnverified: triesUnverified) ?? .unsupported
+        let changed = support != next
+        support = next
+        if changed, !blocksRetry, let requestedUDID { attach(udid: requestedUDID) }
+    }
+
+    func reconnect() {
+        guard canReconnect, !blocksRetry, let requestedUDID else { return }
+        attach(udid: requestedUDID)
+    }
+
+    private func start(udid: String) {
         disconnect()
         reason = nil
+        canReconnect = false
+        blocksRetry = false
         self.udid = udid
         let current = generation.current
         let transport = makeTransport()
@@ -60,17 +119,30 @@ public final class SimulatorDisplayConnection {
             guard self?.generation.accepts(current) == true else { return }
             self?.receive(info)
         }, failed: { [weak self] message in self?.fail(message, generation: current) })
+        guard generation.accepts(current) else { return }
         let probeRequest = beginDeadline(current)
         transport.probe { [weak self] capability in
             guard let self, self.finishDeadline(probeRequest, generation: current) else { return }
+            self.capability = capability
             guard capability.protocolVersion == SimulatorBridgeInterfaces.protocolVersion else {
-                self.fail("通信仕様の版が異なります。アプリを再起動してください", generation: current)
+                self.fail("通信仕様の版が異なります。アプリを再起動してください", generation: current, retryable: false)
                 return
             }
             guard capability.coreSimulatorLoaded, capability.simulatorKitLoaded, capability.reason == nil else {
-                self.fail(capability.reason ?? "画面取得の部品を読み込めません", generation: current)
+                self.fail(capability.reason ?? "画面取得の部品を読み込めません", generation: current, retryable: false)
                 return
             }
+            self.support = .unsupported
+            if let runtime = self.runtimeIdentifier, let policy = self.policy {
+                self.support = policy.support(xcodeBuild: capability.xcodeBuild, runtimeIdentifier: runtime,
+                                              triesUnverified: self.triesUnverified)
+            }
+            guard self.support.allowsDisplay else {
+                self.disconnect()
+                self.reason = self.support.message
+                return
+            }
+            self.acceptsSurfaces = true
             let attachRequest = self.beginDeadline(current)
             transport.attach(udid: udid, generation: current) { [weak self] info, error in
                 guard let self, self.finishDeadline(attachRequest, generation: current) else { return }
@@ -92,27 +164,31 @@ public final class SimulatorDisplayConnection {
         transport = nil
         udid = nil
         displayInfo = nil
+        lastFrameUpdate = nil
+        observedSurface = nil
+        observedSeed = nil
+        acceptsSurfaces = false
     }
 
     func sendTouch(phase: Int, point: CGPoint) {
-        guard let info = displayInfo else { return }
+        guard inputEnabled, let info = displayInfo else { return }
         transport?.sendTouch(udid: info.udid, phase: phase, x: point.x, y: point.y)
     }
 
     func sendScroll(dx: Double, dy: Double, point: CGPoint, phase: Int = 0) {
-        guard let info = displayInfo else { return }
+        guard inputEnabled, let info = displayInfo else { return }
         transport?.sendScroll(udid: info.udid, dx: dx, dy: dy, x: point.x, y: point.y, phase: phase)
     }
 
     func sendKey(keyCode: UInt16, modifiers: UInt, down: Bool) {
-        guard let info = displayInfo else { return }
+        guard inputEnabled, let info = displayInfo else { return }
         transport?.sendKey(udid: info.udid, keyCode: keyCode, modifiers: modifiers, down: down)
         if down { sentKeyCodes.insert(keyCode) }
         else { sentKeyCodes.remove(keyCode) }
     }
 
     public func sendHome() {
-        guard let info = displayInfo else { return }
+        guard inputEnabled, let info = displayInfo else { return }
         transport?.sendButton(udid: info.udid, button: 0)
     }
 
@@ -123,11 +199,29 @@ public final class SimulatorDisplayConnection {
     }
 
     @discardableResult private func receive(_ info: SimulatorDisplayInfo) -> Bool {
-        guard let udid, info.isCurrent(udid: udid, connectionGeneration: generation.current,
+        guard acceptsSurfaces, let udid, info.isCurrent(udid: udid, connectionGeneration: generation.current,
                                       minimumDisplayGeneration: displayInfo?.displayGeneration ?? 0),
               info.pixelWidth > 0, info.pixelHeight > 0 else { return false }
         displayInfo = info
+        retried = false
+        observeFrame(info, seed: IOSurfaceGetSeed(info.surface))
         return true
+    }
+
+    func observeFrame(_ info: SimulatorDisplayInfo, seed: UInt32, at date: Date = Date()) {
+        guard info.isCurrent(udid: udid ?? "", connectionGeneration: generation.current,
+                             minimumDisplayGeneration: displayInfo?.displayGeneration ?? 0), displayInfo != nil else { return }
+        let surface = IOSurfaceGetID(info.surface)
+        if observedSurface != surface || observedSeed != seed {
+            observedSurface = surface
+            observedSeed = seed
+            lastFrameUpdate = date
+        }
+    }
+
+    func hasStaleFrame(at date: Date) -> Bool {
+        guard displayInfo != nil, let lastFrameUpdate else { return false }
+        return date.timeIntervalSince(lastFrameUpdate) >= 5
     }
 
     private func beginDeadline(_ current: Int) -> Int {
@@ -151,10 +245,20 @@ public final class SimulatorDisplayConnection {
         return true
     }
 
-    private func fail(_ message: String, generation current: Int) {
+    private func fail(_ message: String, generation current: Int, retryable: Bool = true) {
         guard generation.accepts(current) else { return }
         disconnect()
         reason = message
+        blocksRetry = !retryable
+        canReconnect = retryable
+        if retryable, automaticallyReconnects, !retried, let requestedUDID {
+            let instant = now()
+            automaticReconnectTimes.removeAll { instant - $0 >= 60 }
+            guard automaticReconnectTimes.count < 3 else { return }
+            retried = true
+            automaticReconnectTimes.append(instant)
+            start(udid: requestedUDID)
+        }
     }
 }
 

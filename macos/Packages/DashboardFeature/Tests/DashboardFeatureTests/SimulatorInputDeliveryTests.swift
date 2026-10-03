@@ -332,6 +332,8 @@ struct SimulatorInputDeliveryTests {
         _ = NSApplication.shared
         let fake = InputTransport()
         let connection = SimulatorDisplayConnection { fake }
+        connection.policy = SimulatorPolicy(entries: [.init(xcodeBuild: "検証", runtimeIdentifier: "検証ランタイム", supportsInput: true)])
+        connection.configure(runtimeIdentifier: "検証ランタイム", triesUnverified: false)
         connection.attach(udid: "端末")
         fake.probeReply?(SimulatorBridgeCapability(protocolVersion: SimulatorBridgeInterfaces.protocolVersion,
                                                    helperBuild: "検証", xcodeBuild: "検証",

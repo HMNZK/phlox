@@ -9,6 +9,8 @@ bash macos/Tests/SimulatorInputHarness/build.sh
 
 ランタイムは `xcrun simctl list runtimes` の利用可能な識別子を指定する。端末は毎回新しく作成し、終了時は shutdown して保持する。UDID・Xcode・macOS・ランタイム・倍率・観測値・判定は `.build/Records-*` に残る。既存端末は操作しない。ビルド生成物はこのディレクトリの `.build` に置き、公証は行わない。
 
+許可リストへの追加前、または表示のみの組を入力対応へ上げる検査では、`run.py` に `--compatibility-check` を明示する。Debug 専用の入口で空の許可リストと「未確認でも試す」を使い、登録済みの組も常に未確認として検査する。通信仕様の版不一致や部品の読み込み失敗は解除しない。`results.json` の「実行モード」に「許可リスト」または「互換性検査（未確認）」を残す。
+
 自動確認範囲はタップ、ドラッグ、スクロール、英字・Shift、貼り付け、ホーム、フォーカス喪失時の接触・キー解放、スクロール中の新タップによる保留接触取消。解放は iOS 側の `touchesEnded` / `touchesCancelled` と `pressesEnded` を直接記録して判定する。スクロール中断は新タップ成功に加え、その後にスクロール領域の接触が再発しないことを `UIWindow.sendEvent` の記録で判定する。貼り付け時の Mac クリップボードは保存し、確認ホストの正常終了・エラー終了時に復元する。そのほか §3.7 の日本語変換・四方向・Simulator.app 同時操作・補助プロセス異常・再接続・Debug/Release 同時起動は、このハーネスでは未検証。
 
 ## 手元の実行記録
@@ -33,10 +35,12 @@ bash macos/Tests/SimulatorInputHarness/build.sh
 
 共有の Mac で検査する場合、ホストの `--background-tap` を使う。ウィンドウを表示せず、OS のマウス・キー入力を生成せずに、本番ビューへタップのイベントを直接渡す。通常経路の `run.py` はウィンドウを前面化するため、この用途では実行しない。
 
+追加前の組を背景で検査するときは、ホストにも `--compatibility-check` を併記する。ホストのログに実行モードを残す。この経路はタップだけの検査で、通常ハーネスの入力項目の合格には数えない。
+
 作成した専用端末に観測アプリをインストール・起動し、`Documents/events.json` の最初の記録から端末の幅と高さを読む。その値を `INPUT_WIDTH`・`INPUT_HEIGHT` に指定する。
 
 ```sh
-INPUT_UDID="<今回作成した専用端末のUDID>" INPUT_WIDTH=402 INPUT_HEIGHT=874 \
+INPUT_UDID="<今回作成した専用端末のUDID>" INPUT_RUNTIME=com.apple.CoreSimulator.SimRuntime.iOS-26-2 INPUT_WIDTH=402 INPUT_HEIGHT=874 \
   ~/.agents/scripts/compact-test --full バックグラウンドのタップ \
   macos/Tests/SimulatorInputHarness/.build/DerivedData/Build/Products/Debug/SimulatorInputHarness.app/Contents/MacOS/SimulatorInputHarness \
   --background-tap

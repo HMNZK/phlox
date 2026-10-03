@@ -3,6 +3,19 @@ import Testing
 @testable import DashboardFeature
 
 struct SimulatorCatalogTests {
+    @Test(arguments: ["xcrun: error: unable to find utility \"simctl\", not a developer tool or in PATH",
+                      "tool 'simctl' requires Xcode", "invalid active developer path"])
+    func Xcodeが見つからない理由を明示する(message: String) async {
+        let catalog = SimulatorCatalog { _, _ in
+            .init(status: 72, output: Data(), errorOutput: Data(message.utf8))
+        }
+        let listing = await catalog.list()
+        #expect(listing.devices.isEmpty)
+        #expect(listing.reason?.hasPrefix("Xcode が見つかりません") == true)
+        #expect(listing.reason?.contains(message) == true)
+        #expect(listing.reason?.contains("72") == true)
+    }
+
     @Test func 存在しない端末への大きな貼り付けは終了コードと標準エラーを返す() async {
         let udid = "00000000-0000-0000-0000-000000000000"
         do {

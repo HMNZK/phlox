@@ -15,6 +15,7 @@ public final class SimulatorHub {
     private var menuFocusRevisions: [SessionID: Int] = [:]
     private var connections: [String: SimulatorDisplayConnection] = [:]
     @ObservationIgnored private var visibleDisplays: [UUID: SessionID] = [:]
+    private var unverifiedSessions: [SessionID: String] = [:]
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var refreshGeneration = 0
 
@@ -51,6 +52,7 @@ public final class SimulatorHub {
     func select(udid: String?, for sessionID: SessionID) {
         guard selections[sessionID] != udid else { return }
         if let previous = selectedDevice(for: sessionID) { connections[previous.udid]?.releaseAll() }
+        unverifiedSessions.removeValue(forKey: sessionID)
         selections[sessionID] = udid
         operationReason = nil
         reconcileConnections()
@@ -67,6 +69,29 @@ public final class SimulatorHub {
     func connection(for sessionID: SessionID) -> SimulatorDisplayConnection? {
         guard let device = selectedDevice(for: sessionID) else { return nil }
         return connections[device.udid]
+    }
+
+    func support(for sessionID: SessionID, displayID: UUID) -> SimulatorPolicy.Support {
+        guard connection(for: sessionID)?.blocksRetry != true else { return .unsupported }
+        guard let device = selectedDevice(for: sessionID), let connection = connection(for: sessionID),
+              let policy = connection.policy else { return .unsupported }
+        let triesUnverified = unverifiedSessions[sessionID] == device.udid
+        guard let capability = connection.capability else {
+            return triesUnverified && connection.support == .unverified ? .unverified : .unsupported
+        }
+        return policy.support(xcodeBuild: capability.xcodeBuild, runtimeIdentifier: device.runtimeIdentifier,
+                              triesUnverified: triesUnverified)
+    }
+
+    func tryUnverified(displayID: UUID) {
+        guard let sessionID = visibleDisplays[displayID], let device = selectedDevice(for: sessionID) else { return }
+        unverifiedSessions[sessionID] = device.udid
+        reconcileConnections()
+    }
+
+    func removeDisplay(_ displayID: UUID) {
+        visibleDisplays.removeValue(forKey: displayID)
+        reconcileConnections()
     }
 
     func setVisible(_ visible: Bool, displayID: UUID, sessionID: SessionID) {
@@ -124,6 +149,7 @@ public final class SimulatorHub {
     public func removeSession(_ sessionID: SessionID) {
         selections.removeValue(forKey: sessionID)
         menuFocusRevisions.removeValue(forKey: sessionID)
+        unverifiedSessions.removeValue(forKey: sessionID)
         visibleDisplays = visibleDisplays.filter { $0.value != sessionID }
         reconcileConnections()
         if visibleDisplays.isEmpty {
@@ -137,6 +163,7 @@ public final class SimulatorHub {
         refreshTask?.cancel()
         refreshTask = nil
         visibleDisplays.removeAll()
+        unverifiedSessions.removeAll()
         for connection in connections.values { connection.disconnect() }
         connections.removeAll()
     }
@@ -162,8 +189,25 @@ public final class SimulatorHub {
         }
         for udid in required where connections[udid] == nil {
             let connection = makeConnection()
+            if connection.policy == nil { connection.policy = .verified }
+            connection.automaticallyReconnects = true
+            if let device = devices.first(where: { $0.udid == udid }) {
+                connection.configure(runtimeIdentifier: device.runtimeIdentifier,
+                                     triesUnverified: triesUnverified(udid: udid))
+            }
             connections[udid] = connection
             connection.attach(udid: udid)
+        }
+        for udid in required {
+            guard let device = devices.first(where: { $0.udid == udid }) else { continue }
+            connections[udid]?.configure(runtimeIdentifier: device.runtimeIdentifier,
+                                        triesUnverified: triesUnverified(udid: udid))
+        }
+    }
+
+    private func triesUnverified(udid: String) -> Bool {
+        visibleDisplays.values.contains { sessionID in
+            unverifiedSessions[sessionID] == udid && selectedDevice(for: sessionID)?.udid == udid
         }
     }
 }

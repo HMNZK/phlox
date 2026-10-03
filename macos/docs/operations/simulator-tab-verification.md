@@ -129,9 +129,15 @@ PMが実行する既存UIテストは `PhloxUITests` スキームで次を指定
 -only-testing:PhloxUITests/SimulatorTabUITests/testSimulatorSupportsSplitAndUnsplit
 ```
 
-非対応応答の差し替えテストは、その表示を作る §7-7 で追加する。実端末での全キー操作・ドラッグ・スクロール・貼り付け・向き・30fps 計測・公証は、この §7-6 の検査では未検証。入力の配送規則と解放は既存の SimulatorInputDeliveryTests・SimulatorBridgeKit のパッケージテストで確認した。
+PM 裁定（2026-10-03）により、§5 の XCUITest「非対応時の表示」は、`SimulatorTabPresentationTests` の描画単体テストで代える。対象は未確認・表示のみ・版不一致・読み込み失敗・起動失敗の5状態と、未登録の Xcode ビルドでの版不一致・読み込み失敗の計7ケース。`NSHostingView.cacheDisplay` により画面へ出さず描画し、アクセシビリティ走査で画面に出る理由の全文とボタンを検査する。「Simulator.app で開く」は理由がある4状態、「未確認でも試す」は未確認だけ、「再接続」は起動失敗だけに出ることを固定する。表示のみの帯の文言とホームボタンの無効化も検査する。PNGの保存は `PHLOX_SIMULATOR_RENDER_DIR` 指定時だけ行う。設計書 §5 の更新は PM が行う。
 
-設計書との差は、補助プロセスのファイルが Swift 1ファイルではなく既存の `PrivateSimulatorAPI.m/.h` と Swift のサービスからなる点、既存のスクロール契約に位相がある点、SimulatorDisplayConnection に版の確認が実装済みだった点。現行コードを使い、版の確認は今回追加していない。§7-7 の自動再接続・許可リスト・診断は実装していない。
+S7 の再レビューでは、描画テスト単独でも走査できるよう、既存の検査と同じく `NSApplication` を `.prohibited` で初期化し、`finishLaunching()` を呼ぶ。ウィンドウは表示せず、実行後は元の activation policy に戻す。未初期化では SwiftUI のアクセシビリティ子要素が空になり、参照元の Composer の単独テストでも同じ失敗を観測した。
+
+診断の1秒ごとの読み直しは、パッケージテスト `フレーム更新を観測対象から外しても診断文言は毎秒読み直す` に登録した。実 IOSurface の seed を変えて観測時刻を6秒前に設定し、診断文言の表示を走査する。次の seed を現在時刻で観測しても直後は文言が残り、TimelineView の次の更新で消えることを、各1.5秒の上限内で検査する。表示分岐の検出力は、異常時の試行ガードとホーム無効化を外す一時変更で9件の失敗、TimelineView の周期を3600秒にする一時変更で1件の失敗を観測した。最終コードはガード・無効化・1秒周期を維持する。
+
+実端末での全キー操作・ドラッグ・スクロール・貼り付け・向き・30fps 計測・公証は、この §7-6 の検査では未検証。入力の配送規則と解放は既存の SimulatorInputDeliveryTests・SimulatorBridgeKit のパッケージテストで確認した。関門・入力ハーネスと本記録を統合した許可リストの根拠は [正式な互換性実行記録](simulator-compatibility-verification.md#xcode-17c52--ios-262-の正式な実行記録) に記載する。
+
+§7-6 当時の設計書との差は、補助プロセスのファイルが Swift 1ファイルではなく既存の `PrivateSimulatorAPI.m/.h` と Swift のサービスからなる点、既存のスクロール契約に位相がある点、SimulatorDisplayConnection に版の確認が実装済みだった点。版の確認は既存コードを使った。当時は §7-7 の自動再接続・許可リスト・診断が未実装だった。現在の S7 の実装と検査は [互換性の検証記録](simulator-compatibility-verification.md) と上記の再レビュー記録を参照する。
 
 ## 追加・変更したファイル
 

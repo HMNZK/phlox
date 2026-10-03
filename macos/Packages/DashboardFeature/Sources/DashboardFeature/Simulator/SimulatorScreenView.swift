@@ -11,16 +11,19 @@ public struct SimulatorScreenView: NSViewRepresentable {
     public var releaseFocus: (() -> Void)?
     public var deviceName: String
     public var inputFocusChanged: ((Bool) -> Void)?
+    public var inputEnabled: Bool
 
     public init(displayInfo: SimulatorDisplayInfo?, connection: SimulatorDisplayConnection? = nil,
                 isVisible: Bool = true, releaseFocus: (() -> Void)? = nil,
-                deviceName: String = "端末", inputFocusChanged: ((Bool) -> Void)? = nil) {
+                deviceName: String = "端末", inputFocusChanged: ((Bool) -> Void)? = nil,
+                inputEnabled: Bool = true) {
         self.displayInfo = displayInfo
         self.connection = connection
         self.isVisible = isVisible
         self.releaseFocus = releaseFocus
         self.deviceName = deviceName
         self.inputFocusChanged = inputFocusChanged
+        self.inputEnabled = inputEnabled
     }
 
     public func makeNSView(context: Context) -> SimulatorScreenNSView { SimulatorScreenNSView() }
@@ -28,6 +31,7 @@ public struct SimulatorScreenView: NSViewRepresentable {
         view.connection = connection
         view.releaseFocus = releaseFocus
         view.inputFocusChanged = inputFocusChanged
+        view.inputEnabled = inputEnabled
         view.setAccessibilityLabel("\(deviceName) の画面。端末内の UI は VoiceOver で操作できません")
         view.isHidden = !isVisible
         view.update(displayInfo)
@@ -50,6 +54,9 @@ public final class SimulatorScreenNSView: NSView {
     }
     public var releaseFocus: (() -> Void)?
     public var inputFocusChanged: ((Bool) -> Void)?
+    public var inputEnabled = true {
+        willSet { if inputEnabled && !newValue { releaseInput() } }
+    }
     private var hasInputFocus = false
     public private(set) var inputReason: String?
     private var touching = false
@@ -59,12 +66,12 @@ public final class SimulatorScreenNSView: NSView {
         try await SimulatorCatalog().copyPasteboard(udid: udid, text: text)
     }
 
-    public override var acceptsFirstResponder: Bool { connection?.displayInfo != nil && !isHiddenOrHasHiddenAncestor }
+    public override var acceptsFirstResponder: Bool { inputEnabled && connection?.inputEnabled == true && !isHiddenOrHasHiddenAncestor }
 
     private var acceptsInput: Bool {
         guard let window, window.firstResponder === self, window.isKeyWindow,
               !window.isMiniaturized, !isHiddenOrHasHiddenAncestor,
-              let info, let current = connection?.displayInfo else { return false }
+              inputEnabled, connection?.inputEnabled == true, let info, let current = connection?.displayInfo else { return false }
         return current.udid == info.udid && current.connectionGeneration == info.connectionGeneration
     }
 
@@ -125,6 +132,7 @@ public final class SimulatorScreenNSView: NSView {
     @objc private func refresh() {
         guard !isHiddenOrHasHiddenAncestor, window?.isMiniaturized == false, let info else { return }
         let seed = IOSurfaceGetSeed(info.surface)
+        connection?.observeFrame(info, seed: seed)
         guard seed != lastSeed else { return }
         lastSeed = seed
         setContents(info.surface)

@@ -21,6 +21,7 @@ final class InputHarness: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let environment = ProcessInfo.processInfo.environment
         guard let udid = environment["INPUT_UDID"],
+              let runtime = environment["INPUT_RUNTIME"],
               let width = Double(environment["INPUT_WIDTH"] ?? ""),
               let height = Double(environment["INPUT_HEIGHT"] ?? "") else { finish("端末の指定がありません", status: 1); return }
         let background = ProcessInfo.processInfo.arguments.contains("--background-tap")
@@ -37,6 +38,18 @@ final class InputHarness: NSObject, NSApplicationDelegate {
             NSApplication.shared.activate(ignoringOtherApps: true)
         }
         window.makeFirstResponder(screen)
+        if ProcessInfo.processInfo.arguments.contains("--compatibility-check") {
+            #if DEBUG
+            connection.configureForCompatibilityCheck(runtime: runtime)
+            print("実行モード: 互換性検査（未確認）")
+            #else
+            finish("互換性検査は Debug ビルドでのみ実行できます", status: 1)
+            return
+            #endif
+        } else {
+            connection.configureVerifiedRuntime(runtime)
+            print("実行モード: 許可リスト")
+        }
         connection.attach(udid: udid)
         Task { await exercise() }
     }
@@ -155,8 +168,10 @@ final class InputHarness: NSObject, NSApplicationDelegate {
     }
 
     private func focusScreen() throws {
-        window?.makeKeyAndOrderFront(nil)
-        NSApplication.shared.activate(ignoringOtherApps: true)
+        if !ProcessInfo.processInfo.arguments.contains("--background-tap") {
+            window?.makeKeyAndOrderFront(nil)
+            NSApplication.shared.activate(ignoringOtherApps: true)
+        }
         window?.makeFirstResponder(screen)
         guard window?.isKeyWindow == true, window?.firstResponder === screen else {
             throw NSError(domain: "入力確認", code: 1, userInfo: [NSLocalizedDescriptionKey: "確認用画面へフォーカスできません"])

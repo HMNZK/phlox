@@ -9,6 +9,105 @@ import Testing
 
 @Suite(.serialized) @MainActor
 struct SimulatorHubTests {
+    @Test func 切断時は一回だけ自動再接続し古い入力と通知を再送しない() async throws {
+        let first = HubTransport(), second = HubTransport(), third = HubTransport(), fourth = HubTransport()
+        let transports = [first, second, third, fourth]
+        var attempts = 0
+        let hub = SimulatorHub(catalog: HubCatalogFixture().catalog(), refreshInterval: 60) {
+            SimulatorDisplayConnection {
+                defer { attempts += 1 }
+                return transports[attempts]
+            }
+        }
+        await hub.refresh()
+        let session = SessionID()
+        hub.setVisible(true, displayID: UUID(), sessionID: session)
+        let connection = try #require(hub.connection(for: session))
+        let old = connection.generation.current
+        first.complete(udid: "端末A", generation: old)
+        connection.sendKey(keyCode: 0, modifiers: 0, down: true)
+        first.failed?("終了")
+        #expect(attempts == 2)
+        #expect(first.releases > 0)
+        #expect(connection.sentKeyCodes.isEmpty)
+        second.complete(udid: "端末A", generation: connection.generation.current)
+        let current = try #require(connection.displayInfo)
+        first.complete(udid: "端末A", generation: old)
+        first.failed?("古い切断")
+        #expect(connection.displayInfo === current)
+        #expect(second.inputs == 0)
+        second.failed?("再び終了")
+        #expect(attempts == 3)
+        third.failed?("復旧前に再び終了")
+        #expect(attempts == 3)
+        #expect(connection.canReconnect)
+        #expect(connection.reason == "復旧前に再び終了")
+        #expect(connection.displayInfo == nil)
+        connection.reconnect()
+        #expect(attempts == 4)
+        fourth.complete(udid: "端末A", generation: connection.generation.current)
+        #expect(connection.displayInfo != nil)
+        #expect(third.inputs == 0)
+        #expect(fourth.inputs == 0)
+        hub.disconnectAll()
+    }
+
+    @Test(arguments: [false, true])
+    func probeとattachの期限切れ後の応答は復旧した接続へ混ざらない(attaching: Bool) async throws {
+        let first = HubTransport(), second = HubTransport()
+        var attempts = 0
+        let hub = SimulatorHub(catalog: HubCatalogFixture().catalog(), refreshInterval: 60) {
+            SimulatorDisplayConnection(timeout: 0.1) {
+                attempts += 1
+                return attempts == 1 ? first : second
+            }
+        }
+        await hub.refresh()
+        let session = SessionID()
+        hub.setVisible(true, displayID: UUID(), sessionID: session)
+        let connection = try #require(hub.connection(for: session))
+        let old = connection.generation.current
+        if attaching {
+            first.probeReply?(SimulatorBridgeCapability(protocolVersion: SimulatorBridgeInterfaces.protocolVersion,
+                                                       helperBuild: "検証", xcodeBuild: "17C52",
+                                                       coreSimulatorLoaded: true, simulatorKitLoaded: true))
+        }
+        try await waitUntil { attempts == 2 }
+        #expect(first.invalidations == 1)
+        second.complete(udid: "端末A", generation: connection.generation.current)
+        let current = try #require(connection.displayInfo)
+        first.complete(udid: "端末A", generation: old)
+        #expect(connection.displayInfo === current)
+        #expect(connection.reason == nil)
+        #expect(first.attached.count == (attaching ? 1 : 0))
+        #expect(second.attached == ["端末A"])
+        hub.disconnectAll()
+    }
+
+    @Test func 画面の更新診断は静止中だけ表示し古い世代の観測で解除しない() async throws {
+        let fake = HubTransport()
+        let connection = SimulatorDisplayConnection { fake }
+        connection.policy = .verified
+        connection.configure(runtimeIdentifier: "com.apple.CoreSimulator.SimRuntime.iOS-26-2", triesUnverified: false)
+        connection.attach(udid: "端末A")
+        fake.complete(udid: "端末A", generation: connection.generation.current)
+        let info = try #require(connection.displayInfo)
+        let start = try #require(connection.lastFrameUpdate)
+        #expect(!connection.hasStaleFrame(at: start.addingTimeInterval(4.9)))
+        #expect(connection.hasStaleFrame(at: start.addingTimeInterval(5)))
+        connection.observeFrame(info, seed: IOSurfaceGetSeed(info.surface), at: start.addingTimeInterval(6))
+        #expect(connection.hasStaleFrame(at: start.addingTimeInterval(6)))
+        connection.observeFrame(info, seed: IOSurfaceGetSeed(info.surface) &+ 1, at: start.addingTimeInterval(7))
+        #expect(!connection.hasStaleFrame(at: start.addingTimeInterval(7)))
+        connection.attach(udid: "端末A")
+        fake.complete(udid: "端末A", generation: connection.generation.current)
+        let recovered = connection.lastFrameUpdate
+        connection.observeFrame(info, seed: 99, at: start.addingTimeInterval(20))
+        #expect(connection.lastFrameUpdate == recovered)
+        connection.disconnect()
+        #expect(!connection.hasStaleFrame(at: start.addingTimeInterval(100)))
+    }
+
     @Test func 停止確認後に選択を変えても確認した端末を停止する() async throws {
         let fixture = HubCatalogFixture(states: ["端末A": "Booted", "端末B": "Booted"])
         let hub = SimulatorHub(catalog: fixture.catalog())
@@ -134,9 +233,13 @@ struct SimulatorHubTests {
     @Test(arguments: [false, true])
     func 補助プロセスの終了と期限切れ後もセッションとターミナルの入出力を続ける(timeout: Bool) async throws {
         let fixture = HubCatalogFixture()
-        let fake = HubTransport()
+        let fake = HubTransport(), retry = HubTransport()
+        var attempts = 0
         let hub = SimulatorHub(catalog: fixture.catalog(), refreshInterval: 60) {
-            SimulatorDisplayConnection(timeout: timeout ? 0.02 : 5) { fake }
+            SimulatorDisplayConnection(timeout: timeout ? 0.02 : 5) {
+                attempts += 1
+                return attempts == 1 ? fake : retry
+            }
         }
         let sessionID = SessionID()
         let sessionPTY = MockPTYManager()
@@ -166,9 +269,13 @@ struct SimulatorHubTests {
         if !timeout {
             fake.complete(udid: "端末A", generation: generation)
             fake.failed?("補助プロセスが終了しました")
+            retry.failed?("再接続した補助プロセスも終了しました")
         }
         try await waitUntil { connection.reason != nil }
         #expect(fake.invalidations == 1)
+        #expect(retry.invalidations == 1)
+        #expect(attempts == 2)
+        #expect(connection.canReconnect)
         #expect(connection.displayInfo == nil)
         fake.complete(udid: "端末A", generation: generation)
         #expect(connection.displayInfo == nil)
@@ -235,7 +342,7 @@ actor HubCatalogFixture {
 
     func complete(udid: String, generation: Int) {
         probeReply?(SimulatorBridgeCapability(protocolVersion: SimulatorBridgeInterfaces.protocolVersion,
-                                              helperBuild: "検証", xcodeBuild: "検証",
+                                              helperBuild: "検証", xcodeBuild: "17C52",
                                               coreSimulatorLoaded: true, simulatorKitLoaded: true))
         guard let surface = IOSurface(properties: [.width: 4, .height: 8, .bytesPerElement: 4,
                                                   .bytesPerRow: 16, .allocSize: 128, .pixelFormat: 0x42475241]) else {

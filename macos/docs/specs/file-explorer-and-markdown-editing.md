@@ -224,6 +224,8 @@ func commitActiveBlockEdit() -> Bool
 
 **モード切替**: 帯に「レンダリング / ソース」。状態は `FileTabDocument` の非永続プロパティ `presentation`。`ChildTab` には持たせない。
 
+ソース表示（Markdown・HTML を含む）と Markdown ブロック編集欄の色付けは、次段の [シンタックスハイライト仕様](syntax-highlighting.md) に従う。
+
 ### 3.5 HTML のレンダリング表示
 
 **方針**: 閲覧専用のプレビュー＋ソース編集。HTML を表示状態のまま編集すると、保存時に HTML が組み立て直されて原文が崩れる。

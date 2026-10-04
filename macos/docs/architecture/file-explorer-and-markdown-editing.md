@@ -28,6 +28,8 @@ FileTabDocuments.openFileTab(sessionID:root:relativePath:split:router:requestedW
 読み書き: WorkingTreeService(repositoryRoot:fixedRoot: true)   終了・ウィンドウを閉じる確認: FileTabDocumentRegistry.shared
 ```
 
+ソース表示の `CodeTextEditor` は現在本文色のみ。次段の色付け要件は [シンタックスハイライト仕様](../specs/syntax-highlighting.md) を参照。
+
 ## ファイルツリー
 
 | 型（`DashboardFeature/Files/`） | 種別 | 役割 |

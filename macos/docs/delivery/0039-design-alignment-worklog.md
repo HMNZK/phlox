@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 last-verified: 2026-10-04
 ---
 # 0039: 見本合わせの判断と最終状態

@@ -42,6 +42,7 @@ public struct SimulatorScreenView: NSViewRepresentable {
 
 public final class SimulatorScreenNSView: NSView {
     private let screen = CALayer()
+    private lazy var imageContext = CIContext()
     private let pointer = CAShapeLayer()
     private var pointerTask: Task<Void, Never>?
     private(set) var pointerLocation: CGPoint?
@@ -112,7 +113,7 @@ public final class SimulatorScreenNSView: NSView {
     /// 画面に出さない cacheDisplay にも IOSurface の内容を含める。
     public override func draw(_ dirtyRect: NSRect) {
         guard NSGraphicsContext.current?.isDrawingToScreen == false, let info,
-              let image = CIContext().createCGImage(CIImage(ioSurface: info.surface),
+              let image = imageContext.createCGImage(CIImage(ioSurface: info.surface),
                                                    from: CGRect(x: 0, y: 0, width: info.pixelWidth, height: info.pixelHeight)) else { return }
         NSImage(cgImage: image, size: bounds.size).draw(in: bounds)
         if let path = pointer.path {

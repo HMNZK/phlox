@@ -50,6 +50,7 @@ struct FileLinkDestinationView: View {
         .frame(height: DSSpacing.xl)
         .background(DSColor.surface, in: RoundedRectangle(cornerRadius: DSRadius.row))
         .overlay(RoundedRectangle(cornerRadius: DSRadius.row).stroke(DSColor.border, lineWidth: 0.5))
+        .compositingGroup()
         .shadow(color: .black.opacity(0.35), radius: DSSpacing.chip, y: DSSpacing.xs)
         .allowsHitTesting(false)
     }

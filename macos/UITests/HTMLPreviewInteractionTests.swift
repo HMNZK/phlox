@@ -89,7 +89,7 @@ final class HTMLPreviewInteractionTests: XCTestCase {
         let isolation = app.buttons["外部の読み込みを止めています"]
         XCTAssertTrue(isolation.exists)
         isolation.click()
-        XCTAssertTrue(app.staticTexts["このページが出す外部への要求と、ページのスクリプトは止めています"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["このページが外部に出す要求（画像・CSS・フォントなど）と、ページのスクリプトは常に止めています。作業ツリー内のファイルは読み込みます。安全のための仕様で、切り替えはできません。"].waitForExistence(timeout: 5))
         app.typeKey(.escape, modifierFlags: [])
 
         if hoverOnly {
@@ -97,7 +97,7 @@ final class HTMLPreviewInteractionTests: XCTestCase {
             XCTAssertTrue(link.waitForExistence(timeout: 5))
             guard link.exists else { return }
             link.hover()
-            let destination = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", hoverAction)).firstMatch
+            let destination = destinationLabel(app, action: hoverAction, link: hoverLink)
             let found = destination.waitForExistence(timeout: 5)
             capture(app, name: "HTML・初期表示直後のリンク先")
             XCTAssertTrue(found, "ホバー時にリンク先の開き方を表示する")
@@ -179,11 +179,22 @@ final class HTMLPreviewInteractionTests: XCTestCase {
             XCTAssertTrue(link.waitForExistence(timeout: 5))
             guard link.exists else { return }
             link.hover()
-            let destination = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", action)).firstMatch
+            let destination = destinationLabel(app, action: action, link: label)
             XCTAssertTrue(destination.waitForExistence(timeout: 5), "ホバー時にリンク先の開き方を表示する: \(label)")
             guard destination.exists else { return }
             capture(app, name: "HTML・リンク先・\(action)")
         }
+    }
+
+    private func destinationLabel(_ app: XCUIApplication, action: String, link: String) -> XCUIElement {
+        let path: String
+        switch link {
+        case "Markdown link": path = "linked.md"
+        case "Browser link": path = "https://example.invalid/"
+        default: path = "mailto:example@example.invalid"
+        }
+        let text = "\(action)  \(path)"
+        return app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", text, text)).firstMatch
     }
 
     private func html(heading: String) -> String {

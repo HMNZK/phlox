@@ -1,4 +1,16 @@
 import Foundation
+import SwiftUI
+
+private struct LocalizationBundleKey: EnvironmentKey {
+    static let defaultValue = Bundle.main
+}
+
+extension EnvironmentValues {
+    public var localizationBundle: Bundle {
+        get { self[LocalizationBundleKey.self] }
+        set { self[LocalizationBundleKey.self] = newValue }
+    }
+}
 
 /// `Text` に渡せない（`String` が要る）文言を、アプリ内の表示言語で App/Localizable.xcstrings から引く。
 /// `String(localized:)` は OS の言語に従うため、表示言語の設定と食い違う。

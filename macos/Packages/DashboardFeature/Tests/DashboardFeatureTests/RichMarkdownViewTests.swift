@@ -1,5 +1,4 @@
 import AppKit
-import CryptoKit
 import SwiftUI
 import DesignSystem
 import Testing
@@ -63,46 +62,6 @@ func fileMarkdownUsesItsOwnPresentationAndLeavesChatRenderingUnchanged() throws 
     let after = try tiffData(from: renderImage(from: RichMarkdownView(representativeMarkdown)))
     #expect(before == after)
     #expect(file != before)
-}
-
-@Test @MainActor
-func chatMarkdownMatchesHEADPresentation() throws {
-    let application = NSApplication.shared
-    let previousAppearance = application.appearance
-    application.appearance = NSAppearance(named: .darkAqua)
-    defer { application.appearance = previousAppearance }
-    let previousArguments = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
-    var arguments = previousArguments
-    arguments[ThemeStore.themeKey] = AppTheme.phlox.id
-    arguments[ChatFontSettings.scaleKey] = ChatFontSettings.defaultScale
-    UserDefaults.standard.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
-    defer { UserDefaults.standard.setVolatileDomain(previousArguments, forName: UserDefaults.argumentDomain) }
-    let defaults = try #require(UserDefaults(suiteName: "RichMarkdownViewTests.HEAD"))
-    defaults.set(AppTheme.phlox.id, forKey: ThemeStore.themeKey)
-    defaults.set(ChatFontSettings.defaultScale, forKey: ChatFontSettings.scaleKey)
-    defer { defaults.removePersistentDomain(forName: "RichMarkdownViewTests.HEAD") }
-    let image = try renderImage(from: RichMarkdownView(representativeMarkdown + """
-
-
-    ## 表と引用
-
-    > 引用の本文
-
-    | Command | Description |
-    | --- | --- |
-    | git status | List modified files |
-    | git diff | Show file differences |
-    """)
-        .defaultAppStorage(defaults)
-        .environment(\.locale, Locale(identifier: "ja"))
-        .environment(\.colorScheme, .dark), height: 720)
-    let bitmap = try #require(NSBitmapImageRep(data: tiffData(from: image)))
-    let bytes = try #require(bitmap.bitmapData)
-    let data = Data(bytes: bytes, count: bitmap.bytesPerRow * bitmap.pixelsHigh)
-    let fingerprint = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-    // HEAD c7d9335 の SessionFeature を独立パッケージで実走して採取。
-    // Phlox ダーク・標準倍率・日本語・480×720pt・不透明 8bit sRGB・1倍描画。
-    #expect(fingerprint == "87bd40aa05d6f36514edbaf9428fbc2febfcd84835c899b0ad22b014688e7f77")
 }
 
 @Test

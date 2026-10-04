@@ -1,6 +1,73 @@
 {
   "sourceLanguage": "ja",
   "strings": {
+    "編集を破棄": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discard Block Edit"
+          }
+        }
+      }
+    },
+    "ソースで開く": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Source"
+          }
+        }
+      }
+    },
+    "ルート外": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Outside root"
+          }
+        }
+      }
+    },
+    "%lld ウィンドウ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld window"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld windows"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "編集中の内容をコピーしてソース表示で開きます": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy the block being edited and open source view"
+          }
+        }
+      }
+    },
     "%@ の実行ファイルが見つかりませんでした。PATH と agents.json を確認してください。": {
       "extractionState": "manual",
       "localizations": {
@@ -4886,9 +4953,21 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld more files"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld more file"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld more files"
+                }
+              }
+            }
           }
         }
       }
@@ -8888,28 +8967,6 @@
         }
       }
     },
-    "このファイルは大きすぎるためソース表示に固定しています（%lld KB。上限 500 KB）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This file is locked to source view because it is too large (%lld KB; limit: 500 KB)."
-          }
-        }
-      }
-    },
-    "このファイルは大きすぎるためソース表示に固定しています（%lld ブロック。上限 2,000）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This file is locked to source view because it has too many blocks (%lld blocks; limit: 2,000)."
-          }
-        }
-      }
-    },
     "このページが外部に出す要求（画像・CSS・フォントなど）と、ページのスクリプトは常に止めています。作業ツリー内のファイルは読み込みます。安全のための仕様で、切り替えはできません。": {
       "extractionState": "manual",
       "localizations": {
@@ -8917,17 +8974,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "External requests from this page (images, CSS, fonts, and more) and page scripts are always blocked. Files within the working tree are loaded. This safety behavior cannot be disabled."
-          }
-        }
-      }
-    },
-    "ほか %lld 件（%lld ウィンドウ）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld more files (%lld windows)"
           }
         }
       }
@@ -9145,9 +9191,21 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld unsaved files"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld unsaved file"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld unsaved files"
+                }
+              }
+            }
           }
         }
       }
@@ -9156,9 +9214,21 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quit Phlox without saving %lld unsaved files?"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Quit Phlox without saving %lld unsaved file?"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Quit Phlox without saving %lld unsaved files?"
+                }
+              }
+            }
           }
         }
       }
@@ -9167,9 +9237,21 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Close the window without saving %lld unsaved files?"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Close the window without saving %lld unsaved file?"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Close the window without saving %lld unsaved files?"
+                }
+              }
+            }
           }
         }
       }
@@ -9356,6 +9438,215 @@
           "stringUnit": {
             "state": "translated",
             "value": "To select across blocks, switch to Source (⌃⌘M)."
+          }
+        }
+      }
+    },
+    "セッションが選ばれていません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No session selected"
+          }
+        }
+      }
+    },
+    "セッションを選ぶと、その作業ディレクトリのファイルが表示されます": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select a session to see files in its working directory"
+          }
+        }
+      }
+    },
+    "読み込めませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not load"
+          }
+        }
+      }
+    },
+    "フォルダを読み込めません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not load the folder"
+          }
+        }
+      }
+    },
+    "作業ディレクトリが見つかりません。移動または削除された可能性があります。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The working directory could not be found. It may have been moved or deleted."
+          }
+        }
+      }
+    },
+    "文書の区間を安全に解析できないためソース表示で編集してください": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The document could not be safely parsed. Edit it in source view."
+          }
+        }
+      }
+    },
+    "シミュレーター": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simulator"
+          }
+        }
+      }
+    },
+    "ファイルを読み込めませんでした。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not load the file."
+          }
+        }
+      }
+    },
+    "（編集中）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " (editing)"
+          }
+        }
+      }
+    },
+    "このファイルは大きすぎるためソース表示に固定しています（%@ KB。上限 500 KB）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file is locked to source view because it is too large (%@ KB; limit: 500 KB)."
+          }
+        }
+      }
+    },
+    "このファイルは大きすぎるためソース表示に固定しています（%@ ブロック。上限 2,000）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file is locked to source view because it has too many blocks (%@ blocks; limit: 2,000)."
+          }
+        }
+      }
+    },
+    "アクセス権がないため読み込めません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cannot read this item because permission was denied."
+          }
+        }
+      }
+    },
+    "ファイルまたはフォルダが見つかりません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The file or folder could not be found."
+          }
+        }
+      }
+    },
+    "ファイルまたはフォルダを読み込めません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read the file or folder."
+          }
+        }
+      }
+    },
+    "作業ツリーの外を指しているため開けません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cannot open an item outside the working tree."
+          }
+        }
+      }
+    },
+    "通常のファイルやフォルダではないため開けません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cannot open an item that is not a regular file or folder."
+          }
+        }
+      }
+    },
+    "ファイルのパスが不正です。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The file path is invalid."
+          }
+        }
+      }
+    },
+    "作業フォルダが見つかりません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The working directory could not be found."
+          }
+        }
+      }
+    },
+    "ファイルの情報を取得できません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not retrieve file information."
           }
         }
       }

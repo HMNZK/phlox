@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 import DesignSystem
 
-/// ファイルタブの編集欄（07 D4）。左に行番号（幅 28・右寄せ・淡色）、カーソルのある行を淡く塗る。
+/// ファイルタブの編集欄（07 D4）。左に行番号（幅 28・右寄せ・淡色）。
 /// SwiftUI の `TextEditor` には同期する行番号欄が無いので NSTextView を包む。
 struct CodeTextEditor: NSViewRepresentable {
     @Binding var text: String
@@ -33,10 +33,17 @@ struct CodeTextEditor: NSViewRepresentable {
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticTextReplacementEnabled = false
         textView.isAutomaticSpellingCorrectionEnabled = false
-        textView.textContainerInset = NSSize(width: blockEditID == nil ? 0 : 12, height: blockEditID == nil ? 6 : 8)
+        textView.textContainerInset = NSSize(width: 12, height: blockEditID == nil ? 4 : 8)
         textView.textContainer?.lineFragmentPadding = 0
         textView.font = .monospacedSystemFont(ofSize: blockEditID == nil ? 11.5 : 11, weight: .regular)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.minimumLineHeight = blockEditID == nil ? 20 : 18
+        paragraph.maximumLineHeight = paragraph.minimumLineHeight
+        textView.defaultParagraphStyle = paragraph
+        textView.typingAttributes[.paragraphStyle] = paragraph
         textView.string = text
+        textView.textStorage?.addAttribute(.paragraphStyle, value: paragraph,
+                                          range: NSRange(location: 0, length: textView.string.utf16.count))
         textView.delegate = context.coordinator
         scrollView.documentView = textView
         scrollView.drawsBackground = true
@@ -45,14 +52,6 @@ struct CodeTextEditor: NSViewRepresentable {
             scrollView.verticalRulerView = LineNumberRuler(textView: textView)
             scrollView.hasVerticalRuler = true
             scrollView.rulersVisible = true
-        } else {
-            let paragraph = NSMutableParagraphStyle()
-            paragraph.minimumLineHeight = 18
-            paragraph.maximumLineHeight = 18
-            textView.defaultParagraphStyle = paragraph
-            textView.typingAttributes[.paragraphStyle] = paragraph
-            textView.textStorage?.addAttribute(.paragraphStyle, value: paragraph,
-                                              range: NSRange(location: 0, length: textView.string.utf16.count))
         }
         // 組み立て後に登録する。登録時に撤去されても、取り付け済みの入力欄・行番号ごと外れる。
         configureBlockEdit(textView)
@@ -70,7 +69,7 @@ struct CodeTextEditor: NSViewRepresentable {
         textView.backgroundColor = background
         textView.textColor = NSColor(DSColor.textPrimary)
         textView.insertionPointColor = NSColor(DSColor.textPrimary)
-        textView.currentLineColor = blockEditID == nil ? NSColor(DSColor.fillSelected) : .clear
+        textView.selectedTextAttributes[.backgroundColor] = NSColor(DSColor.textSelection)
         textView.needsDisplay = true
         if let ruler = scrollView.verticalRulerView as? LineNumberRuler {
             ruler.numberColor = NSColor(DSColor.textTertiary)
@@ -110,34 +109,10 @@ struct CodeTextEditor: NSViewRepresentable {
             textView.enclosingScrollView?.verticalRulerView?.needsDisplay = true
         }
 
-        func textViewDidChangeSelection(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else { return }
-            textView.needsDisplay = true
-            textView.enclosingScrollView?.verticalRulerView?.needsDisplay = true
-        }
-    }
-}
-
-/// カーソルのある行（折り返しを含む論理行）の矩形。行番号欄と本文で同じ塗りを使う。
-private extension NSTextView {
-    var currentLineRect: NSRect? {
-        guard let layoutManager, let textContainer, selectedRange().length == 0 else { return nil }
-        let nsString = string as NSString
-        let lineRange = nsString.lineRange(for: NSRange(location: min(selectedRange().location, nsString.length), length: 0))
-        let glyphs = layoutManager.glyphRange(forCharacterRange: lineRange, actualCharacterRange: nil)
-        // 末尾の改行の後ろ（空の最終行）は字形が無いので、余白の行の矩形を使う。
-        var rect = glyphs.length == 0
-            ? layoutManager.extraLineFragmentRect
-            : layoutManager.boundingRect(forGlyphRange: glyphs, in: textContainer)
-        rect.origin.y += textContainerOrigin.y
-        rect.origin.x = 0
-        rect.size.width = bounds.width
-        return rect
     }
 }
 
 final class CurrentLineTextView: NSTextView {
-    var currentLineColor: NSColor = .clear
     var blockEditID: UUID?
     var synchronizeBlockEdit: ((UUID, String) -> Void)?
     var commitBlockEdit: ((UUID) -> Bool)?
@@ -216,6 +191,16 @@ final class CurrentLineTextView: NSTextView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         focusBlockEditorIfAttached()
+        if blockEditID == nil {
+            // 本文の高さ確定で原点も動くので、取り付け後の原点へ合わせる。
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.window != nil, self.blockEditID == nil,
+                      let scrollView = self.enclosingScrollView else { return }
+                scrollView.layoutSubtreeIfNeeded()
+                scrollView.contentView.scroll(to: NSPoint(
+                    x: self.frame.minX - scrollView.contentView.contentInsets.left, y: self.frame.minY))
+            }
+        }
     }
 
     private func focusBlockEditorIfAttached() {
@@ -243,13 +228,7 @@ final class CurrentLineTextView: NSTextView {
         super.keyDown(with: event)
     }
 
-    override func drawBackground(in rect: NSRect) {
-        super.drawBackground(in: rect)
-        if let line = currentLineRect {
-            currentLineColor.setFill()
-            line.fill()
-        }
-    }
+
 }
 
 /// 行番号欄。左 10・番号幅 28（右寄せ）・右 10（見本 PhloxAux のコード行）。
@@ -288,15 +267,10 @@ final class LineNumberRuler: NSRulerView {
         let offset = convert(NSPoint.zero, from: textView).y
         let origin = textView.textContainerOrigin.y
 
-        if let line = textView.currentLineRect {
-            (textView as? CurrentLineTextView)?.currentLineColor.setFill()
-            NSRect(x: 0, y: line.minY + offset, width: bounds.width, height: line.height).fill()
-        }
-
-        func drawNumber(_ number: Int, lineRect: NSRect) {
+        func drawNumber(_ number: Int, baseline: CGFloat) {
             let label = "\(number)" as NSString
             let size = label.size(withAttributes: attributes)
-            let y = lineRect.minY + origin + offset + (lineRect.height - size.height) / 2
+            let y = baseline + origin + offset - layoutManager.defaultBaselineOffset(for: font)
             label.draw(at: NSPoint(x: 10 + 28 - size.width, y: y), withAttributes: attributes)
         }
 
@@ -316,14 +290,22 @@ final class LineNumberRuler: NSRulerView {
             let lineRange = nsString.lineRange(for: NSRange(location: index, length: 0))
             let lineGlyphs = layoutManager.glyphRange(forCharacterRange: lineRange, actualCharacterRange: nil)
             guard lineGlyphs.length > 0 else { break }
-            drawNumber(number, lineRect: layoutManager.lineFragmentRect(forGlyphAt: lineGlyphs.location, effectiveRange: nil))
+            let lineRect = layoutManager.lineFragmentRect(forGlyphAt: lineGlyphs.location, effectiveRange: nil)
+            let empty = nsString.substring(with: lineRange).allSatisfy { $0.isNewline }
+            let baseline = empty
+                ? lineRect.maxY - layoutManager.defaultLineHeight(for: font) + layoutManager.defaultBaselineOffset(for: font)
+                : lineRect.minY + layoutManager.location(forGlyphAt: lineGlyphs.location).y
+            drawNumber(number, baseline: baseline)
             number += 1
             index = NSMaxRange(lineRange)
         }
         // 末尾が改行のとき、カーソルが置ける空の最終行にも番号を付ける。
         if index >= nsString.length, nsString.length == 0 || nsString.hasSuffix("\n") || nsString.hasSuffix("\r") {
             let extra = layoutManager.extraLineFragmentRect
-            if extra.height > 0 { drawNumber(number, lineRect: extra) }
+            if extra.height > 0 {
+                drawNumber(number, baseline: extra.maxY - layoutManager.defaultLineHeight(for: font)
+                           + layoutManager.defaultBaselineOffset(for: font))
+            }
         }
     }
 }

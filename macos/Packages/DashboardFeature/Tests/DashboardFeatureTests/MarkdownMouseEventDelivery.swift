@@ -6,7 +6,7 @@ import Testing
 /// 選択用 NSTextView の追跡は実走し、待つ入力だけを専用ウィンドウから供給する。
 /// AppKit の nested runloop が SwiftPM の async main を終了させることを避ける。
 @MainActor
-func sendMarkdownMouseEvents(_ events: [NSEvent], in window: NSWindow) throws {
+func sendMarkdownMouseEvents(_ events: [NSEvent], in window: NSWindow, inspect: (() throws -> Void)? = nil) throws {
     let first = try #require(events.first)
     try #require(events.allSatisfy { $0.windowNumber == window.windowNumber })
     let originalClass: AnyClass = try #require(object_getClass(NSApp))
@@ -21,10 +21,28 @@ func sendMarkdownMouseEvents(_ events: [NSEvent], in window: NSWindow) throws {
         MarkdownTrackingApplication.windowNumber = nil
         MarkdownTrackingApplication.suppliedEvent = nil
     }
+    if let inspect {
+        try inspect()
+        return
+    }
     NSApp.sendEvent(first)
     while !MarkdownTrackingApplication.events.isEmpty {
         NSApp.sendEvent(MarkdownTrackingApplication.events.removeFirst())
     }
+}
+
+/// 仮想入力のウィンドウ位置を AppKit の追跡中位置読み取りと同じ入口へ渡す。
+@MainActor
+final class MarkdownTrackingWindow: NSWindow {
+    override var mouseLocationOutsideOfEventStream: NSPoint {
+        markdownTrackingMouseLocation(in: self) ?? super.mouseLocationOutsideOfEventStream
+    }
+}
+
+@MainActor
+func markdownTrackingMouseLocation(in window: NSWindow) -> NSPoint? {
+    guard let event = MarkdownTrackingApplication.suppliedEvent, event.window === window else { return nil }
+    return event.locationInWindow
 }
 
 /// instance の格納領域を増やさず、イベント供給の公開 API だけを同期処理中に置き換える。
@@ -61,7 +79,8 @@ private final class MarkdownTrackingApplication: NSApplication {
         }
         let event = flag ? Self.events.remove(at: index) : Self.events[index]
         precondition(event.windowNumber == Self.windowNumber, "専用ウィンドウ以外の入力は供給しません")
-        if flag { sendEvent(event) }
+        // 追跡ループが取り出した入力は通常の配送やローカルモニターを通らない。
+        if flag { Self.suppliedEvent = event }
         return event
     }
 }

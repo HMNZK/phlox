@@ -107,6 +107,7 @@ struct SimulatorTabPresentationTests {
         #expect(screen.acceptsFirstResponder)
         #expect(connection.displayInfo != nil)
         #expect(window.firstResponder === menu)
+        #expect(accessibilitySnapshot(view).text.contains("キー入力はまだ送っていません · 画面をクリックすると送ります"))
         hub.requestMenuFocus(for: session)
         try await Task.sleep(for: .milliseconds(30))
         #expect(window.firstResponder === menu)
@@ -258,8 +259,9 @@ struct SimulatorTabPresentationTests {
         hub.disconnectAll()
     }
 
-    @Test func 一覧取得エラーの題を本文へ重ねず原因を残す() async throws {
-        let catalog = SimulatorCatalog(isXcodeAvailable: { true }) { _, _ in
+    @Test(arguments: [true, false])
+    func 一覧取得に失敗しても停止状態と無効な操作を表示し原因を残す(xcodeAvailable: Bool) async throws {
+        let catalog = SimulatorCatalog(isXcodeAvailable: { xcodeAvailable }) { _, _ in
             .init(status: 42, output: Data(), errorOutput: Data("CoreSimulator への接続失敗".utf8))
         }
         let hub = SimulatorHub(catalog: catalog)
@@ -271,8 +273,18 @@ struct SimulatorTabPresentationTests {
         try await Task.sleep(for: .milliseconds(30))
         view.layoutSubtreeIfNeeded()
         let snapshot = accessibilitySnapshot(view)
-        #expect(snapshot.text.filter { $0.contains("端末一覧を取得できません") }.count == 1)
-        #expect(snapshot.text.contains { $0.contains("CoreSimulator への接続失敗") && $0.contains("42") })
+        #expect(snapshot.text.contains("停止中"))
+        #expect(snapshot.enabled["simulator-home"] == false)
+        #expect(snapshot.enabled["simulator-screenshot"] == false)
+        #expect(snapshot.enabled["simulator-shutdown"] == false)
+        #expect(!snapshot.identifiers.contains("simulator-boot"))
+        if xcodeAvailable {
+            #expect(snapshot.text.filter { $0.contains("端末一覧を取得できません") }.count == 1)
+            #expect(snapshot.text.contains { $0.contains("CoreSimulator への接続失敗") && $0.contains("42") })
+        } else {
+            #expect(snapshot.text.contains("Xcode が見つかりません"))
+            #expect(snapshot.help.contains { $0.contains("CoreSimulator への接続失敗") && $0.contains("42") })
+        }
     }
 
     @Test func 狭い帯では版と状態の文字を縮め端末名と読み上げを保つ() {
@@ -292,6 +304,42 @@ struct SimulatorTabPresentationTests {
         #expect(menu.accessibilityLabel() == "端末の選択: iPhone 17 Pro、起動済み")
         coordinator.configure(menu, devices: [], selected: nil, compact: true)
         #expect(menu.selectedItem?.title == "端末なし")
+    }
+
+    @Test func 端末メニューは起動状態別に選択端末と新しい版を先頭へ並べ直す() {
+        let menu = SimulatorDevicePopUpButton(frame: .zero, pullsDown: false)
+        let coordinator = SimulatorDeviceMenu.Coordinator(select: { _ in }, failed: { _ in })
+        let devices = [
+            SimulatorDevice(udid: "ipad", name: "iPad Air", runtimeIdentifier: "iOS-26-2", state: "Booted"),
+            SimulatorDevice(udid: "iphone", name: "iPhone 17 Pro", runtimeIdentifier: "iOS-26-2", state: "Booted"),
+            SimulatorDevice(udid: "old", name: "iPhone 16e", runtimeIdentifier: "iOS-18-6", state: "Shutdown"),
+            SimulatorDevice(udid: "new", name: "iPhone 17", runtimeIdentifier: "iOS-26-2", state: "Shutdown"),
+        ]
+        func order() -> [String] {
+            menu.itemArray.compactMap { $0.representedObject as? String }.filter { $0 != "Simulator.app" }
+        }
+        coordinator.configure(menu, devices: devices, selected: "iphone")
+        #expect(order() == ["iphone", "ipad", "new", "old"])
+        coordinator.configure(menu, devices: devices, selected: "ipad")
+        #expect(order() == ["ipad", "iphone", "new", "old"])
+        #expect(menu.selectedItem?.representedObject as? String == "ipad")
+    }
+
+    @Test func Xcode不在の説明には一覧取得の原文をツールチップで残す() async throws {
+        let catalog = SimulatorCatalog(isXcodeAvailable: { false }) { _, _ in
+            .init(status: 72, output: Data(), errorOutput: Data("simctl の検索に失敗".utf8))
+        }
+        let hub = SimulatorHub(catalog: catalog)
+        await hub.refresh()
+        let view = NSHostingView(rootView: SimulatorTabView(hub: hub, sessionID: SessionID(), isFocused: false)
+            .frame(width: 520, height: 600))
+        let window = shownWindow(view)
+        defer { window.contentView = nil; window.close(); hub.disconnectAll() }
+        try await Task.sleep(for: .milliseconds(30))
+        view.layoutSubtreeIfNeeded()
+        let snapshot = accessibilitySnapshot(view)
+        #expect(snapshot.help.contains { $0.contains("simctl の検索に失敗") && $0.contains("72") })
+        #expect(!snapshot.text.contains { $0.contains("simctl の検索に失敗") })
     }
 
     @Test(arguments: [320.0, 520.0], ["停止中", "入力中", "更新なし", "更新なし入力中", "未確認", "未確認入力中", "未確認更新なし入力中", "表示のみ"])

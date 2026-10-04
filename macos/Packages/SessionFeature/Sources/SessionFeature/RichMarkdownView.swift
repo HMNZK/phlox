@@ -51,7 +51,6 @@ public struct RichMarkdownView: View {
         if let fileOpenURL {
             content
             .textSelection(.enabled)
-            .markdownTableBorderStyle(TableBorderStyle(color: .clear, width: 0))
             // 読み上げ要素と同じ行幅で、文字のない部分のクリックも受け取る。
             .contentShape(Rectangle())
             .environment(\.openURL, OpenURLAction(handler: fileOpenURL))

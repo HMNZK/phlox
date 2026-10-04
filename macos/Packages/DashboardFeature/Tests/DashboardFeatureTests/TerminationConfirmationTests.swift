@@ -74,13 +74,13 @@ struct TerminationConfirmationTests {
         #expect(content.count == 11)
         #expect(content.visibleWindows.map { $0.files.count } == [4, 1])
         #expect(content.visibleWindows.map(\.name) == ["先頭", "次"])
-        #expect(content.omitted == "ほか 6 件（2 ウィンドウ）")
+        #expect(content.omitted() == "ほか 6 件（2 ウィンドウ）")
         #expect(!content.hasBlockEdit)
         let editing = UnsavedChangesContent(windows: [UnsavedWindow(name: "編集中", files: [
             UnsavedFile(name: "a.md", context: "", editingBlock: true),
         ])])
         #expect(editing.hasBlockEdit)
-        #expect(editing.omitted == nil)
+        #expect(editing.omitted() == nil)
     }
 
     @Test(arguments: [false, true])
@@ -129,11 +129,11 @@ struct TerminationConfirmationTests {
         await document.loadIfNeeded()
         document.draft = "変更"
         var confirmations = 0
-        let canceled = registry.requestTermination { summary in
+        let canceled = registry.requestTermination {
             #expect(registry.terminationConfirmationInProgress)
             confirmations += 1
-            #expect(summary.contains("a.txt"))
-            let duplicate = registry.requestTermination { _ in Issue.record("確認を重複表示した"); return true }
+            #expect(registry.unsavedWindows().flatMap(\.files).map(\.name) == ["a.txt"])
+            let duplicate = registry.requestTermination { Issue.record("確認を重複表示した"); return true }
             #expect(!duplicate)
             return false
         }
@@ -142,7 +142,7 @@ struct TerminationConfirmationTests {
         #expect(!document.invalidated)
         document.draft = "続けて編集"
         #expect(document.draft == "続けて編集")
-        #expect(registry.requestTermination { _ in confirmations += 1; return true })
+        #expect(registry.requestTermination { confirmations += 1; return true })
         #expect(!registry.terminationConfirmationInProgress)
         #expect(registry.terminationInProgress)
         #expect(confirmations == 2)
@@ -153,7 +153,7 @@ struct TerminationConfirmationTests {
     @Test
     func cleanTerminationDoesNotShowConfirmation() {
         let registry = FileTabDocumentRegistry()
-        #expect(registry.requestTermination { _ in Issue.record("未保存がないのに確認した"); return false })
+        #expect(registry.requestTermination { Issue.record("未保存がないのに確認した"); return false })
     }
 
     @Test
@@ -194,7 +194,7 @@ struct TerminationConfirmationTests {
         #expect(!document.invalidated)
         document.draft = "確認後も編集"
         #expect(document.draft == "確認後も編集")
-        #expect(!registry.requestTermination { _ in false })
+        #expect(!registry.requestTermination { false })
         #expect(!document.invalidated)
     }
 }

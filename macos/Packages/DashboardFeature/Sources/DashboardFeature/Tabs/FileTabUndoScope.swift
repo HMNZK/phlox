@@ -6,6 +6,16 @@ protocol FileTabWindowDelegateChain: NSWindowDelegate {
     var original: (any NSWindowDelegate)? { get set }
 }
 
+@MainActor
+func fileTabWindowDelegateChainContains(_ target: any NSWindowDelegate, in head: (any NSWindowDelegate)?) -> Bool {
+    var delegate = head
+    while let current = delegate {
+        if current === target { return true }
+        delegate = (current as? any FileTabWindowDelegateChain)?.original
+    }
+    return false
+}
+
 /// 読み取り専用の SwiftUI 環境値ではなく、表示中の responder から文書の履歴を返す。
 struct FileTabUndoScope<Content: View>: NSViewRepresentable {
     let document: FileTabDocument
@@ -72,10 +82,12 @@ final class DocumentHostingView<Content: View>: NSView, NSUserInterfaceValidatio
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         guard let window else { return }
-        let delegate = FileTabWindowUndoDelegate(scope: self, original: window.delegate,
+        let delegate = undoDelegate ?? FileTabWindowUndoDelegate(scope: self, original: nil,
             isFocused: { [weak self] in self?.isFocused == true }) { [weak self] in
             self?.document.undoManager
         }
+        guard !fileTabWindowDelegateChainContains(delegate, in: window.delegate) else { return }
+        delegate.original = window.delegate
         undoDelegate = delegate
         window.delegate = delegate
     }

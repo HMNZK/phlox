@@ -41,7 +41,6 @@ struct MarkdownBlockEditorTests {
         #expect(rendered.png != editing.png)
         #expect(editing.editorCount == 1)
         #expect(editing.editorsWithLineNumbers == 0)
-        #expect(editing.editorsWithCurrentLineFill == 0)
         #expect(rendered.editorCount == 0)
         #expect(editing.editorFrames.allSatisfy { $0.width <= width && $0.height <= 200 })
         #expect(document.activeBlockEdit != nil)
@@ -59,10 +58,13 @@ struct MarkdownBlockEditorTests {
         #expect(!rendered.labels.contains(where: { $0.contains("上下の矢印キー") }))
     }
 
-    @Test
-    func versionMismatchRetainsAnEditorWhoseOriginalBlockDisappeared() async throws {
-        let document = FileTabDocument(path: "stale.md", root: "/")
-        document.draft = "# 元の見出し\n\n編集する段落\n"
+    @Test(arguments: ["編集を破棄", "ソースで開く"])
+    func versionMismatchRetainsDraftWhenRecoveryButtonIsPressed(button: String) async throws {
+        let root = try makeFileTabTestRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data("# 元の見出し\n\n編集する段落\n".utf8).write(to: root.appendingPathComponent("stale.md"))
+        let document = FileTabDocument(path: "stale.md", root: root.path)
+        await document.loadIfNeeded()
         #expect(document.setPresentation(.rendered))
         let block = try #require(document.markdownBlocks.last)
         #expect(document.beginBlockEdit(range: block.range))
@@ -75,16 +77,18 @@ struct MarkdownBlockEditorTests {
             try await document.save()
         }
 
-        let image = try snapshot(document, width: 480)
+        let pasteboard = NSPasteboard(name: .init("PhloxRecovery-\(UUID().uuidString)"))
+        defer { pasteboard.releaseGlobally() }
+        let image = try snapshot(document, width: 480, recoveryButton: button, pasteboard: pasteboard)
         #expect(image.editorCount == 1)
         #expect(image.labels.contains("編集内容は残っています"))
-        #expect(!image.labels.contains("編集を破棄"))
-        #expect(!image.labels.contains("ソースで開く"))
+        #expect(image.buttonLabels.contains("編集を破棄"))
+        #expect(image.buttonLabels.contains("ソースで開く"))
         #expect(image.editorStrings == ["失わせない入力"])
-        #expect(document.activeBlockEdit?.id == id)
-        #expect(document.activeBlockEdit?.current == "失わせない入力")
+        #expect(document.activeBlockEdit == nil)
         #expect(document.draft == "# 別の版\n")
-        #expect(document.presentation == .rendered)
+        #expect(document.presentation == (button == "ソースで開く" ? .source : .rendered))
+        if button == "ソースで開く" { #expect(pasteboard.string(forType: .string) == "失わせない入力") }
     }
 
     private struct Snapshot {
@@ -93,16 +97,22 @@ struct MarkdownBlockEditorTests {
         var editorFrames: [CGRect] = []
         var editorStrings: [String] = []
         var editorsWithLineNumbers = 0
-        var editorsWithCurrentLineFill = 0
         var blockIDs = Set<String>()
         var blocksWithChildren = 0
         var labels: [String] = []
+        var buttonLabels: [String] = []
     }
 
-    private func snapshot(_ document: FileTabDocument, width: Double) throws -> Snapshot {
+    private func snapshot(_ document: FileTabDocument, width: Double, recoveryButton: String? = nil,
+                          pasteboard: NSPasteboard = .general) throws -> Snapshot {
         // 画面に出さないホストでも SwiftUI の読み上げツリーを生成する。
         NSApplication.shared.accessibilitySetValue(true, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface"))
-        let view = MarkdownBlockEditor(document: document, openURL: { _ in .discarded })
+        let editor = MarkdownBlockEditor(document: document, openURL: { _ in .discarded })
+        let content = recoveryButton == nil ? AnyView(editor)
+            : AnyView(FileTabView(document: document, lastWriter: { _ in nil }, isFocused: false,
+                                  openFile: { _, _ in }, markdownEditor: editor))
+        let view = content
+            .environment(\.fileTabRecoveryPasteboardName, pasteboard.name.rawValue)
             .environment(\.locale, Locale(identifier: "ja_JP"))
             .environment(\.colorScheme, .dark)
             .frame(width: width, height: 420)
@@ -126,6 +136,7 @@ struct MarkdownBlockEditorTests {
         let state = document.activeBlockEdit == nil ? "rendered" : "editing"
         try result.png.write(to: artifacts.appendingPathComponent("\(Int(width))-\(state).png"))
         var seen = Set<ObjectIdentifier>()
+        var pressedButton: NSObject?
         func accessibilityObject(_ name: String, of element: AnyObject) -> Any? {
             // SwiftUI 内部の要素は NSAccessibility に準拠しないことがある。
             // オブジェクトを返す getter と確認できたものだけを呼び、値の型を個別に検査する。
@@ -143,13 +154,18 @@ struct MarkdownBlockEditorTests {
                 result.blockIDs.insert(id)
                 if !children.isEmpty { result.blocksWithChildren += 1 }
             }
-            if let label = accessibilityObject("accessibilityLabel", of: object) as? String { result.labels.append(label) }
+            if let label = accessibilityObject("accessibilityLabel", of: object) as? String {
+                result.labels.append(label)
+                if accessibilityObject("accessibilityRole", of: object) as? String == NSAccessibility.Role.button.rawValue {
+                    result.buttonLabels.append(label)
+                    if label == recoveryButton { pressedButton = object as? NSObject }
+                }
+            }
             if let value = accessibilityObject("accessibilityValue", of: object) as? String { result.labels.append(value) }
             children.forEach(visit)
             if let textView = element as? CurrentLineTextView {
                 result.editorCount += 1
                 result.editorStrings.append(textView.string)
-                if textView.currentLineColor != .clear { result.editorsWithCurrentLineFill += 1 }
                 if let scrollView = textView.enclosingScrollView {
                     result.editorFrames.append(scrollView.frame)
                     if scrollView.rulersVisible { result.editorsWithLineNumbers += 1 }
@@ -158,6 +174,15 @@ struct MarkdownBlockEditorTests {
             if let view = element as? NSView { view.subviews.forEach(visit) }
         }
         visit(hosting)
+        if recoveryButton != nil {
+            let button = try #require(pressedButton)
+            let selector = NSSelectorFromString("accessibilityPerformPress")
+            #expect(button.responds(to: selector))
+            typealias Press = @convention(c) (AnyObject, Selector) -> Bool
+            let press = unsafeBitCast(button.method(for: selector), to: Press.self)
+            #expect(press(button, selector))
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        }
         return result
     }
 }

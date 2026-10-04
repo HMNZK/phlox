@@ -1,6 +1,61 @@
 import AppKit
+import SwiftUI
 import Testing
 @testable import DashboardFeature
+
+@Test("ソースの行間を広げても行番号と本文の文字を同じ高さへ描く", arguments: [(10, false), (30, false), (11, true)]) @MainActor
+func codeEditorLineNumbersMatchTextBaselines(lineCount: Int, startsWithBlankLine: Bool) async throws {
+    let source = (1...lineCount).map { startsWithBlankLine && $0 == 1 ? "" : String($0) }.joined(separator: "\n")
+        + (startsWithBlankLine ? "" : "\n")
+    let host = NSHostingView(rootView: CodeTextEditor(text: .constant(source)))
+    let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 300, height: lineCount <= 11 ? 300 : 160),
+                          styleMask: [.borderless], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.contentView = host
+    defer { window.contentView = nil; window.close() }
+    try await Task.sleep(for: .milliseconds(100))
+    host.layoutSubtreeIfNeeded()
+    func descendants(_ view: NSView) -> [NSView] {
+        [view] + view.subviews.flatMap(descendants)
+    }
+    let textView = try #require(descendants(host).compactMap { $0 as? NSTextView }.first)
+    let ruler = try #require(textView.enclosingScrollView?.verticalRulerView as? LineNumberRuler)
+    #expect(textView.visibleRect.minY == 0, "初期表示で先頭行を切り取らない")
+    textView.textColor = .red
+    ruler.numberColor = .red
+    textView.needsDisplay = true
+    ruler.needsDisplay = true
+    let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+    host.cacheDisplay(in: host.bounds, to: bitmap)
+    let scale = CGFloat(bitmap.pixelsWide) / host.bounds.width
+    let rulerBounds = host.convert(ruler.bounds, from: ruler)
+    let textBounds = host.convert(NSRect(x: textView.textContainerOrigin.x, y: 0, width: 20, height: host.bounds.height),
+                                  from: textView)
+    #expect(textBounds.minX >= rulerBounds.maxX, "行番号欄が本文を隠さない")
+    func inkRows(in rect: NSRect, height: CGFloat = 48) -> [Int] {
+        let left = max(0, Int(rect.minX * scale))
+        let right = min(bitmap.pixelsWide, Int(rect.maxX * scale))
+        return (0..<min(bitmap.pixelsHigh, Int(height * scale))).filter { y in
+            (left..<right).contains { x in
+                guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { return false }
+                return color.redComponent > 0.7 && color.greenComponent < 0.4 && color.blueComponent < 0.4
+            }
+        }
+    }
+    let text = inkRows(in: textBounds)
+    let numbers = inkRows(in: rulerBounds).filter { !startsWithBlankLine || $0 >= (text.first ?? 0) }
+    #expect(!text.isEmpty)
+    #expect(numbers == text)
+    if lineCount == 10 || startsWithBlankLine {
+        let rows = inkRows(in: rulerBounds, height: 260)
+        let starts = rows.indices.filter { $0 == 0 || rows[$0] > rows[$0 - 1] + 1 }.map { rows[$0] }
+        #expect(starts.count == 11, "途中と末尾の空行にも番号を描く")
+        if starts.count == 11 {
+            // 同じ「1」の上端で比較し、数字ごとの字形の差を含めない。
+            #expect(starts[10] - starts[0] == Int(200 * scale), "空行も本文のある行と同じ間隔で描く")
+        }
+    }
+}
 
 @Test @MainActor func codeEditorSynchronizesCanonicallyEquivalentBytes() {
     let textView = NSTextView(usingTextLayoutManager: false)

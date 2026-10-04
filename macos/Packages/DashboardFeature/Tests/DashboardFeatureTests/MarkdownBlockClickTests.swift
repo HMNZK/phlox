@@ -7,6 +7,54 @@ import Testing
 @MainActor
 struct MarkdownBlockClickTests {
     @Test
+    func rightClickHitTestingReachesSelectableText() async throws {
+        let document = FileTabDocument(path: "selection.md", root: "/")
+        document.draft = "本文を右クリック\n"
+        let (window, view) = makeWindow(document: document, usesUndoScope: false)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(50))
+        view.layoutSubtreeIfNeeded()
+        let frame = try #require(accessibilityFrame(in: view, text: "本文を右クリック"))
+        let point = window.convertPoint(fromScreen: NSPoint(x: frame.minX + 8, y: frame.midY))
+        let event = try #require(NSEvent.mouseEvent(with: .rightMouseDown,
+            location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+        try sendMarkdownMouseEvents([event], in: window, inspect: {
+            let parent = try #require(view.superview)
+            let target = view.hitTest(parent.convert(point, from: nil))
+            let field = try #require(target as? NSTextField)
+            #expect(field.isSelectable)
+            #expect(field.stringValue == "本文を右クリック")
+        })
+        #expect(document.activeBlockEdit == nil)
+    }
+
+    @Test
+    func doubleClickSelectsAWordWithoutBeginningAnEdit() async throws {
+        let document = FileTabDocument(path: "selection.md", root: "/")
+        document.draft = "selectable words\n"
+        let (window, view) = makeWindow(document: document, usesUndoScope: true)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(50))
+        view.layoutSubtreeIfNeeded()
+        let frame = try #require(accessibilityFrame(in: view, text: "selectable words"))
+        let point = window.convertPoint(fromScreen: NSPoint(x: frame.minX + 8, y: frame.midY))
+        let events = try [NSEvent.EventType.leftMouseDown, .leftMouseUp].enumerated().map { index, type in
+            try #require(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime + Double(index) * 0.02,
+                windowNumber: window.windowNumber, context: nil, eventNumber: index + 1,
+                clickCount: 2, pressure: index == 0 ? 1 : 0))
+        }
+        try sendMarkdownMouseEvents(events, in: window)
+        try await Task.sleep(for: .milliseconds(50))
+        let selection = try #require(window.firstResponder as? NSTextView)
+        #expect(selection.isFieldEditor)
+        #expect(selection.selectedRange() == NSRange(location: 0, length: 10))
+        #expect(selection.textStorage?.attributedSubstring(from: selection.selectedRange()).string == "selectable")
+        #expect(document.activeBlockEdit == nil)
+    }
+
+    @Test
     func paragraphTextCanBeSelectedWithoutBeginningAnEdit() async throws {
         let document = FileTabDocument(path: "selection.md", root: "/")
         document.draft = "段落の文字を選択してコピーできます\n\n次の段落\n"
@@ -60,6 +108,41 @@ struct MarkdownBlockClickTests {
         try await click(start, in: window)
         try await Task.sleep(for: .milliseconds(50))
         #expect(document.activeBlockEdit?.original == "段落の文字を選択してコピーできます\n\n")
+    }
+
+    @Test
+    func paragraphTrackingDragReportsTheBlockBoundaryUntilRelease() async throws {
+        let document = FileTabDocument(path: "selection.md", root: "/")
+        document.draft = "段落の文字を選択してコピーできます\n\n次の段落\n"
+        let (window, view) = makeWindow(document: document, usesUndoScope: false)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(50))
+        view.layoutSubtreeIfNeeded()
+        let frame = try #require(accessibilityFrame(in: view, text: "段落の文字を選択してコピーできます"))
+        let start = NSPoint(x: frame.minX + 2, y: frame.midY)
+        func observers(in view: NSView) -> [MarkdownBlockSelectionObserver.SelectionView] {
+            (view as? MarkdownBlockSelectionObserver.SelectionView).map { [$0] }
+                ?? view.subviews.flatMap { observers(in: $0) }
+        }
+        let observer = try #require(observers(in: view).first {
+            $0.prepareClick != nil && $0.bounds.contains($0.convert(window.convertPoint(fromScreen: start), from: nil))
+        })
+        var boundaries: [Bool] = []
+        observer.onBoundary = { boundaries.append($0) }
+        let end = NSPoint(x: start.x + 80, y: frame.minY - 45)
+        let timestamp = ProcessInfo.processInfo.systemUptime
+        let events = try [NSEvent.EventType.leftMouseDown, .leftMouseDragged, .leftMouseUp].enumerated().map { index, type in
+            try #require(NSEvent.mouseEvent(with: type,
+                location: window.convertPoint(fromScreen: index == 0 ? start : end), modifierFlags: [],
+                timestamp: timestamp + Double(index) * 0.1, windowNumber: window.windowNumber,
+                context: nil, eventNumber: index + 1, clickCount: 1, pressure: index == 2 ? 0 : 1))
+        }
+        try sendMarkdownMouseEvents(events, in: window)
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(boundaries.contains(true))
+        #expect(boundaries.last == false)
+        #expect(document.activeBlockEdit == nil)
+        #expect(!selectedText(in: view).isEmpty)
     }
 
     @Test(arguments: [false, true], [false, true])
@@ -129,7 +212,7 @@ struct MarkdownBlockClickTests {
             FileTabView(document: document, lastWriter: { _ in nil }, isFocused: true, openFile: { _, _ in })
         })
         view.frame = NSRect(x: 0, y: 0, width: 640, height: 420)
-        let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        let window = MarkdownTrackingWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = view
         window.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
@@ -228,7 +311,7 @@ struct MarkdownBlockClickTests {
                 .simultaneousGesture(TapGesture().onEnded {}))
             : NSHostingView(rootView: content)
         view.frame = NSRect(x: 0, y: 0, width: 640, height: 420)
-        let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        let window = MarkdownTrackingWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = view
         // 前面化せず、表示領域外で AppKit のイベント配送だけを有効にする。

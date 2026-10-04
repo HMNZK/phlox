@@ -17,11 +17,21 @@ final class SimulatorTabUITests: XCTestCase {
         XCTAssertTrue(isKeyboardFocused(deviceMenu),
                        "ショートカット直後のフォーカスは端末メニューに置く")
         let screen = element("simulator-screen", in: app)
-        if screen.exists {
+        let hint = "キー入力はまだ送っていません · 画面をクリックすると送ります"
+        if deviceMenu.label.contains("停止中") {
+            XCTAssertFalse(screen.exists)
+            XCTAssertTrue(tab.staticTexts.matching(NSPredicate(format: "value ENDSWITH %@", "は停止しています")).firstMatch.exists)
+            XCTAssertTrue(tab.staticTexts["起動すると、ここに画面を表示します。Simulator.app は開きません。"].exists)
+            XCTAssertTrue(tab.buttons["simulator-boot"].isEnabled)
+            XCTAssertFalse(tab.buttons["simulator-home"].isEnabled, "停止中は端末への入力操作を無効にする")
+            XCTAssertFalse(tab.staticTexts[hint].exists)
+        } else {
+            XCTAssertTrue(screen.waitForExistence(timeout: 10))
             XCTAssertFalse(isKeyboardFocused(screen),
                            "起動済み端末が表示されても画面にフォーカスを置かない")
+            XCTAssertTrue(tab.staticTexts[hint].waitForExistence(timeout: 5),
+                          "画面が表示されている場合は入力開始の案内を出す")
         }
-        XCTAssertTrue(app.staticTexts["キー入力はまだ送っていません · 画面をクリックすると送ります"].exists)
 
         try isolated.assertExclusiveOwnership()
         app.typeKey("y", modifierFlags: [.command, .control])

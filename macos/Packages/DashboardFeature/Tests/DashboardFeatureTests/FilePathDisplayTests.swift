@@ -9,7 +9,10 @@ import Testing
 struct FilePathDisplayTests {
     @Test @MainActor
     func presentationControlsShrinkAfterTheReadablePathAtNarrowWidths() async throws {
-        NSApplication.shared.accessibilitySetValue(true, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface"))
+        let attribute = NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")
+        let previous = try enhancedUserInterfaceValue()
+        NSApplication.shared.accessibilitySetValue(true, forAttribute: attribute)
+        defer { NSApplication.shared.accessibilitySetValue(previous, forAttribute: attribute) }
         let root = try makeFileTabTestRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root.appendingPathComponent("docs"), withIntermediateDirectories: true)
@@ -52,9 +55,12 @@ struct FilePathDisplayTests {
         _ = try await controlsWidth(at: 320)
     }
 
-    @Test @MainActor
-    func selectedFileTabRemainsVisibleAtMinimumPaneWidth() async throws {
-        NSApplication.shared.accessibilitySetValue(true, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface"))
+    @Test(arguments: [false, true]) @MainActor
+    func selectedTabAndAddButtonRemainVisibleAtMinimumPaneWidth(includesChanges: Bool) async throws {
+        let attribute = NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")
+        let previous = try enhancedUserInterfaceValue()
+        NSApplication.shared.accessibilitySetValue(true, forAttribute: attribute)
+        defer { NSApplication.shared.accessibilitySetValue(previous, forAttribute: attribute) }
         let (events, continuation) = AsyncStream<(SessionID, HookEvent)>.makeStream()
         defer { continuation.finish() }
         let node = SessionNode.pty(SessionViewModel(id: SessionID(), ptyManager: MockPTYManager(), hookEvents: events,
@@ -62,24 +68,79 @@ struct FilePathDisplayTests {
                 workingDirectory: "/very/long/worktree/path/that/must/shrink/first", kind: .claudeCode, statusBootstrap: .viaHook)))
         var layout = SessionTabLayout()
         layout.open(.terminal)
-        layout.open(.changes)
+        if includesChanges { layout.open(.changes) }
         layout.open(.file("docs/file-tree.md"))
-        let host = NSHostingView(rootView: ChildTabBar(router: AppRouter(), node: node, layout: layout,
-            changeCount: 4, files: FileTabDocuments(), agentConsoleWindowID: nil))
-        let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: 320, height: 32),
-                              styleMask: [.borderless], backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        window.contentView = host
-        defer { window.close() }
-        host.frame = NSRect(x: 0, y: 0, width: 320, height: 32)
-        host.layoutSubtreeIfNeeded()
-        try await Task.sleep(for: .milliseconds(80))
-        host.layoutSubtreeIfNeeded()
-        let selected = try #require(accessibleFrame(named: "file-tree.md", in: host))
-        let visible = window.convertToScreen(host.bounds)
-        #expect(selected.minX >= visible.minX)
-        #expect(selected.maxX <= visible.maxX)
-        #expect(!window.isVisible)
+        for tab in [ChildTab.file("docs/file-tree.md"), .conversation] {
+            layout.select(tab)
+            let host = NSHostingView(rootView: ChildTabBar(router: AppRouter(), node: node, layout: layout,
+                changeCount: 4, files: FileTabDocuments(), agentConsoleWindowID: nil))
+            let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: 320, height: 32),
+                                  styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = host
+            defer { window.close() }
+            host.frame = NSRect(x: 0, y: 0, width: 320, height: 32)
+            host.layoutSubtreeIfNeeded()
+            try await Task.sleep(for: .milliseconds(80))
+            host.layoutSubtreeIfNeeded()
+            let selected = try #require(accessibleFrame(named: tab == .conversation ? "会話" : "file-tree.md", in: host))
+            let add = try #require(accessibleFrame(named: "このセッションにタブを追加", in: host))
+            let visible = window.convertToScreen(host.bounds)
+            #expect(selected.minX >= visible.minX)
+            #expect(selected.maxX <= visible.maxX)
+            #expect(add.minX >= visible.minX)
+            #expect(add.maxX <= visible.maxX)
+            if !includesChanges {
+                for title in ["会話", "ターミナル", "file-tree.md"] {
+                    let frame = try #require(accessibleFrame(named: title, in: host))
+                    #expect(frame.minX >= visible.minX)
+                    #expect(frame.maxX <= visible.maxX)
+                }
+            }
+            if tab == layout.tabs.last {
+                #expect(add.minX >= selected.maxX)
+                #expect(add.minX - selected.maxX <= 4)
+            }
+            #expect(!window.isVisible)
+        }
+    }
+
+    @Test @MainActor
+    func childTabsKeepConversationAndAddButtonBesideTheLastTabAt480And1000Points() async throws {
+        let attribute = NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")
+        let previous = try enhancedUserInterfaceValue()
+        NSApplication.shared.accessibilitySetValue(true, forAttribute: attribute)
+        defer { NSApplication.shared.accessibilitySetValue(previous, forAttribute: attribute) }
+        let (events, continuation) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+        defer { continuation.finish() }
+        let node = SessionNode.pty(SessionViewModel(id: SessionID(), ptyManager: MockPTYManager(), hookEvents: events,
+            terminalCoordinator: TerminalCoordinator(), spawnRequest: .init(command: "/bin/sh", args: [], env: [:],
+                workingDirectory: "/very/long/worktree/path/that/must/shrink/first", kind: .claudeCode, statusBootstrap: .viaHook)))
+        var layout = SessionTabLayout()
+        layout.open(.terminal)
+        layout.open(.file("docs/file-tree.md"))
+        for width in [CGFloat(480), 1_000] {
+            let host = NSHostingView(rootView: ChildTabBar(router: AppRouter(), node: node, layout: layout,
+                changeCount: 0, files: FileTabDocuments(), agentConsoleWindowID: nil))
+            let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: width, height: 32),
+                                  styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = host
+            defer { window.close() }
+            host.frame = NSRect(x: 0, y: 0, width: width, height: 32)
+            host.layoutSubtreeIfNeeded()
+            try await Task.sleep(for: .milliseconds(80))
+            host.layoutSubtreeIfNeeded()
+            let conversation = try #require(accessibleFrame(named: "会話", in: host))
+            let file = try #require(accessibleFrame(named: "file-tree.md", in: host))
+            let add = try #require(accessibleFrame(named: "このセッションにタブを追加", in: host))
+            let visible = window.convertToScreen(host.bounds)
+            #expect(conversation.minX >= visible.minX)
+            #expect(add.maxX <= visible.maxX)
+            #expect(add.minX >= file.maxX)
+            #expect(add.minX - file.maxX <= 4)
+            #expect(!window.isVisible)
+        }
     }
 
     @Test
@@ -115,6 +176,13 @@ struct FilePathDisplayTests {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         #expect(FilePathDisplay.homeRelative(home + "/docs/a.md") == "~/docs/a.md")
         #expect(FilePathDisplay.homeRelative(home + "-other/docs/a.md") == home + "-other/docs/a.md")
+    }
+
+    @MainActor
+    private func enhancedUserInterfaceValue() throws -> Any? {
+        let selector = NSSelectorFromString("accessibilityAttributeValue:")
+        try #require(NSApplication.shared.responds(to: selector))
+        return NSApplication.shared.perform(selector, with: "AXEnhancedUserInterface")?.takeUnretainedValue()
     }
 
     @MainActor

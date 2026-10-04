@@ -70,7 +70,7 @@ struct FileTabToolbarTests {
         #expect(document.markdownBlocks.count > 2_000)
         #expect(document.markdownPresentationLocked)
         let help = view.markdownReasonDetail(locale: Locale(identifier: "ja"))
-        #expect(help.contains("\(document.markdownBlocks.count) ブロック"))
+        #expect(help.contains("2,005 ブロック"))
         #expect(!help.contains("KB"))
     }
 }

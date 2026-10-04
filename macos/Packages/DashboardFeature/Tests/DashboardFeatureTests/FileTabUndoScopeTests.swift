@@ -6,6 +6,41 @@ import Testing
 @MainActor
 struct FileTabUndoScopeTests {
     @Test(arguments: [true, false])
+    func reinstallingWindowDelegatesKeepsAnAcyclicChain(registryFirst: Bool) throws {
+        let document = try committedDocument(path: "a.md")
+        let hosting = DocumentHostingView(rootView: Text("文書"), document: document)
+        let files = FileTabDocuments()
+        let registry = FileTabDocumentRegistry()
+        let original = OriginalFileWindowDelegate()
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 200))
+        let window = NSWindow(contentRect: container.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = container
+        window.delegate = original
+        defer { window.close() }
+        if registryFirst { registry.register(files: files, window: window) }
+        container.addSubview(hosting)
+        if !registryFirst { registry.register(files: files, window: window) }
+        let head = try #require(window.delegate)
+        for _ in 0..<3 {
+            if registryFirst {
+                registry.register(files: files, window: window)
+                hosting.viewDidMoveToWindow()
+            } else {
+                hosting.viewDidMoveToWindow()
+                registry.register(files: files, window: window)
+            }
+            #expect(window.delegate === head)
+            #expect(head.responds(to: #selector(NSWindowDelegate.windowDidResize(_:))))
+            #expect(!head.responds(to: NSSelectorFromString("unimplementedFileTabDelegateMethod:")))
+        }
+        head.windowDidResize?(Notification(name: NSWindow.didResizeNotification, object: window))
+        #expect(original.resizeCount == 1)
+        #expect(window.makeFirstResponder(window))
+        #expect(window.undoManager === document.undoManager)
+    }
+
+    @Test(arguments: [true, false])
     func windowUndoUsesFocusedFilePane(focusesRight: Bool) throws {
         let left = try committedDocument(path: "left.md")
         let right = try committedDocument(path: "right.md")
@@ -161,4 +196,11 @@ struct FileTabUndoScopeTests {
         #expect((useDocumentResponder ? hosting : window).tryToPerform(redo.action!, with: nil))
         #expect(document.draft == "変更")
     }
+}
+
+@MainActor
+private final class OriginalFileWindowDelegate: NSObject, NSWindowDelegate {
+    var resizeCount = 0
+
+    func windowDidResize(_ notification: Notification) { resizeCount += 1 }
 }

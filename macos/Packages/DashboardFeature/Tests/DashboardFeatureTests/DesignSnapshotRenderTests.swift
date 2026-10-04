@@ -42,8 +42,11 @@ struct DesignSnapshotRenderTests {
         .init(id: "2f", name: "5000件超", width: 300, height: 620),
         .init(id: "2g", name: "読込中", width: 300, height: 620),
         .init(id: "2h", name: "フォルダ読込エラー", width: 300, height: 620),
+        .init(id: "2h-en", name: "フォルダ読込エラー英語", width: 300, height: 620, state: "2h"),
         .init(id: "2i", name: "セッション未選択", width: 300, height: 620),
+        .init(id: "2i-en", name: "セッション未選択英語", width: 300, height: 620, state: "2i"),
         .init(id: "2j", name: "ルート読込エラー", width: 300, height: 620),
+        .init(id: "2j-en", name: "ルート読込エラー英語", width: 300, height: 620, state: "2j"),
         .init(id: "2k", name: "重ね表示", width: 280, height: 620),
         .init(id: "3a", name: "Markdown保存済み", width: 720, height: 300),
         .init(id: "3b", name: "Markdown未保存", width: 720, height: 300),
@@ -105,6 +108,7 @@ struct DesignSnapshotRenderTests {
         .init(id: "6d", name: "2ウィンドウ", width: 400, height: 420),
         .init(id: "6e", name: "3ウィンドウ11件", width: 400, height: 460),
         .init(id: "6c-en", name: "未確定一覧英語", width: 400, height: 400, state: "6c"),
+        .init(id: "6single-en", name: "未保存1件英語", width: 400, height: 400, state: "6c"),
         .init(id: "6d-en", name: "ウィンドウ一覧英語", width: 400, height: 420, state: "6d"),
         .init(id: "7r", name: "ショートカット直後", width: 520, height: 760),
         .init(id: "7a", name: "表示中", width: 520, height: 760),
@@ -116,7 +120,7 @@ struct DesignSnapshotRenderTests {
         .init(id: "7f", name: "停止中", width: 520, height: 760),
         .init(id: "7g", name: "起動中", width: 520, height: 760),
         .init(id: "7h", name: "表示のみ", width: 520, height: 760),
-        .init(id: "7i", name: "更新なし診断", width: 520, height: 760),
+        .init(id: "7iOpen", name: "診断展開中", width: 520, height: 760, state: "7i"),
         .init(id: "7j", name: "未確認", width: 520, height: 760),
         .init(id: "7j2", name: "未確認でも試す", width: 520, height: 760),
         .init(id: "7k", name: "Xcodeなし", width: 520, height: 760),
@@ -139,6 +143,34 @@ struct DesignSnapshotRenderTests {
 
     private struct Unavailable: Error { let reason: String }
 
+    @Test func 英語の未保存件数は単数と複数を切り替える() throws {
+        let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let fixtures = package.appendingPathComponent(".build/localization-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: fixtures, withIntermediateDirectories: true)
+        defer {
+            do { try FileManager.default.removeItem(at: fixtures) }
+            catch { Issue.record("翻訳検証用データを削除できません: \(error)") }
+        }
+        let bundle = try localizationBundle(fixtures: fixtures)
+        let locale = Locale(identifier: "en")
+        let key = "未保存のファイル %lld 件"
+        let format = AppLocalizedString.string(key, locale: locale, bundle: bundle)
+        #expect(String(format: format, Int64(1)) == "1 unsaved file")
+        #expect(String(format: format, Int64(2)) == "2 unsaved files")
+        #expect(AppLocalizedString.string(key, locale: Locale(identifier: "ja"), bundle: bundle) == key)
+        let alert = FileTabDocumentRegistry.alert(windows: [.init(name: "Phlox", files: [
+            .init(name: "README.md", context: "", editingBlock: false),
+        ])], terminating: false, locale: locale, bundle: bundle)
+        #expect(alert.messageText.contains("1 unsaved file?"))
+        let file = UnsavedFile(name: "README.md", context: "", editingBlock: false)
+        let omitted = UnsavedChangesContent(windows: [
+            .init(name: "一つ目", files: Array(repeating: file, count: 5)),
+            .init(name: "二つ目", files: [file]),
+        ], locale: locale)
+        #expect(omitted.omitted(bundle: bundle) == "1 more file (1 window)")
+    }
+
     @Test func 比較用画像を書き出す() async throws {
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
         _ = NSApplication.shared
@@ -146,9 +178,14 @@ struct DesignSnapshotRenderTests {
         let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
         let fixtures = package.appendingPathComponent(".build/design-snapshot-fixtures-\(UUID().uuidString)")
-        let output = URL(fileURLWithPath: "/tmp/phlox-design-snapshots", isDirectory: true)
+        let worktree = package.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let output = worktree.appendingPathComponent(".build/design-snapshots", isDirectory: true)
         try FileManager.default.createDirectory(at: fixtures, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let cachedStrings = output.appendingPathComponent("FileLocalization.bundle")
+        if FileManager.default.fileExists(atPath: cachedStrings.path) {
+            try FileManager.default.removeItem(at: cachedStrings)
+        }
         defer {
             do { try FileManager.default.removeItem(at: fixtures) }
             catch { Issue.record("撮影用データを削除できません: \(error)") }
@@ -162,20 +199,11 @@ struct DesignSnapshotRenderTests {
             let simulator = frame.id.hasPrefix("7") || frame.id == "8L3"
             return scope == "all" || (scope == "simulator" ? simulator : !simulator)
         }
-        let personal = URL(fileURLWithPath: scope == "all" ? "/tmp/snap-all" : scope == "files" ? "/tmp/snap-files" : "/tmp/snap-sim",
-                           isDirectory: true)
-        try FileManager.default.createDirectory(at: personal, withIntermediateDirectories: true)
         for frame in selectedFrames {
             do {
                 let existing = destination(frame, output)
                 if FileManager.default.fileExists(atPath: existing.path) { try FileManager.default.removeItem(at: existing) }
                 let note = try await render(frame, fixtures: fixtures, output: output)
-                let copy = Process()
-                copy.executableURL = URL(fileURLWithPath: "/bin/cp")
-                copy.arguments = ["-R", existing.path, personal.path]
-                try copy.run()
-                copy.waitUntilExit()
-                try #require(copy.terminationStatus == 0, "撮影直後の写真コピーに失敗")
                 written += 1
                 rows.append("| \(frame.id) | 書き出した | \(note) |")
             } catch let error as Unavailable {
@@ -188,7 +216,6 @@ struct DesignSnapshotRenderTests {
         let report = "# 画面外描画の結果\n\n生成 PNG: \(written) 枚。倍率 2。8L1〜8L3 はライト、ほかはダーク。\n\n"
             + rows.joined(separator: "\n") + "\n"
         try Data(report.utf8).write(to: output.appendingPathComponent("結果.md"), options: .atomic)
-        try Data(report.utf8).write(to: personal.appendingPathComponent("結果.md"), options: .atomic)
         print(report)
         #expect(failures.isEmpty, "予期しない描画失敗: \(failures.joined(separator: "; "))")
         #expect(written > 0)
@@ -248,13 +275,14 @@ struct DesignSnapshotRenderTests {
         }
         let strings = try localizationBundle(fixtures: fixtures)
         let fileView = FileTabView(document: document, lastWriter: { _ in nil }, isFocused: false, openFile: { _, _ in },
-                               htmlPreview: preview, localizationBundle: strings,
+                               htmlPreview: preview,
                                showsIsolationExplanation: id == "5b", emphasizesMarkdownReason: frame.id == "4g-save")
         let body = fileView
+            .environment(\.localizationBundle, strings)
             .environment(\.locale, Locale(identifier: frame.english ? "en" : "ja"))
         if frame.id.contains("-help-") {
-            let help = id == "5h" ? fileView.presentationHelp(.rendered) : id == "5g" ? fileView.htmlPreparationHelp
-                : Text(verbatim: fileView.markdownReasonDetail(locale: Locale(identifier: "en")))
+            let help = id == "5h" ? fileView.presentationHelp(.rendered, bundle: strings) : id == "5g" ? fileView.htmlPreparationHelp(bundle: strings)
+                : Text(verbatim: fileView.markdownReasonDetail(locale: Locale(identifier: "en"), bundle: strings))
             try await capture(body, frame: frame, output: output,
                               foreground: AnyView(help.font(DSFont.meta).padding(10).frame(width: min(380, frame.width - 20))
                                 .background(DSColor.popoverBackground)
@@ -267,28 +295,28 @@ struct DesignSnapshotRenderTests {
             let linked = WorktreeURL.url(for: "docs/architecture/overview.md")!
             let destination = FileLinkDestination(url: linked, decision: .openFile("docs/architecture/overview.md"))
             try await capture(VStack(spacing: 0) {
-                if id != "4j" { ChildTabBar(router: AppRouter(), node: node, layout: layout, changeCount: 0, files: files, agentConsoleWindowID: nil, localizationBundle: strings) }
-                FileTabView(document: document, lastWriter: { _ in nil }, isFocused: false, openFile: { _, _ in }, localizationBundle: strings, markdownEditor:
+                if id != "4j" { ChildTabBar(router: AppRouter(), node: node, layout: layout, changeCount: 0, files: files, agentConsoleWindowID: nil) }
+                FileTabView(document: document, lastWriter: { _ in nil }, isFocused: false, openFile: { _, _ in }, markdownEditor:
                     MarkdownBlockEditor(document: document, openURL: { _ in .discarded }, linkDestination: { _ in destination },
                                     hoveredBlock: id == "4a" ? hovered : id == "4f" ? blocks.first?.id : nil, focusedBlock: id == "4h" ? selected : nil,
                                     hoveredLink: id == "4i" ? URL(string: "docs/architecture/overview.md") : nil, hoveredDestination: id == "4i" ? destination : nil,
                                     selectionCrossesBlock: id == "4m"))
             }, frame: frame, output: output, selectsParagraph: id == "4m")
         } else if id == "5b" {
-            let explanation = FileTabView(document: document, lastWriter: { _ in nil }, isFocused: false, openFile: { _, _ in }, localizationBundle: strings).isolationExplanation
+            let explanation = FileTabView(document: document, lastWriter: { _ in nil }, isFocused: false, openFile: { _, _ in }).isolationExplanation(bundle: strings)
             try await capture(body, frame: frame, output: output,
                               foreground: AnyView(explanation.environment(\.locale, Locale(identifier: frame.english ? "en" : "ja"))), foregroundOrigin: CGPoint(x: frame.width - 440, y: frame.height - 210))
         } else if id == "5c" || id == "5d" {
             let url = id == "5c" ? WorktreeURL.url(for: "docs/guides/file-tree.md")! : URL(string: "https://github.com/phlox-oss/phlox")!
             let decision: HTMLNavigationPolicy.Decision = id == "5c" ? .openFile("docs/guides/file-tree.md") : .openBrowser(url)
             try await capture(body, frame: frame, output: output,
-                              foreground: AnyView(FileLinkDestinationView(destination: .init(url: url, decision: decision)).padding(4)),
-                              foregroundOrigin: CGPoint(x: 4, y: 4))
+                              foreground: AnyView(FileLinkDestinationView(destination: .init(url: url, decision: decision)).padding(DSSpacing.l)),
+                              foregroundOrigin: CGPoint(x: DSSpacing.s - DSSpacing.l, y: DSSpacing.s - DSSpacing.l))
         } else {
             try await capture(VStack(spacing: 0) {
                 if id != "8L2" {
                     ChildTabBar(router: AppRouter(), node: node, layout: layout, changeCount: 0,
-                                files: files, agentConsoleWindowID: nil, localizationBundle: strings)
+                                files: files, agentConsoleWindowID: nil)
                 }
                 body
             }, frame: frame, output: output)
@@ -336,14 +364,27 @@ struct DesignSnapshotRenderTests {
             let catalog = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: macos.appendingPathComponent("App/Localizable.xcstrings"))) as? [String: Any])
             let strings = try #require(catalog["strings"] as? [String: [String: Any]])
             var english: [String: String] = [:]
+            var plurals: [String: [String: Any]] = [:]
             for (key, entry) in strings {
                 if let locales = entry["localizations"] as? [String: [String: Any]],
                    let unit = locales["en"]?["stringUnit"] as? [String: String], let value = unit["value"] {
                     english[key] = value
                 }
+                if let locales = entry["localizations"] as? [String: [String: Any]],
+                   let variations = locales["en"]?["variations"] as? [String: Any],
+                   let plural = variations["plural"] as? [String: [String: Any]] {
+                    var count: [String: Any] = ["NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+                                               "NSStringFormatValueTypeKey": "lld"]
+                    for (category, value) in plural {
+                        if let unit = value["stringUnit"] as? [String: String] { count[category] = unit["value"] }
+                    }
+                    plurals[key] = ["NSStringLocalizedFormatKey": "%#@count@", "count": count]
+                }
             }
             let data = try PropertyListSerialization.data(fromPropertyList: english, format: .xml, options: 0)
             try data.write(to: resources.appendingPathComponent("Localizable.strings"))
+            try PropertyListSerialization.data(fromPropertyList: plurals, format: .xml, options: 0)
+                .write(to: resources.appendingPathComponent("Localizable.stringsdict"))
             let japanese = url.appendingPathComponent("ja.lproj")
             try FileManager.default.createDirectory(at: japanese, withIntermediateDirectories: true)
             let japaneseStrings = Dictionary(uniqueKeysWithValues: strings.map { key, entry in
@@ -372,7 +413,7 @@ struct DesignSnapshotRenderTests {
 
     private func renderUnsaved(_ frame: Frame, fixtures: URL, output: URL) async throws -> String {
         let id = frame.stateID
-        let count = id == "6b" ? 9 : id == "6e" ? 11 : id == "6d" ? 3 : 2
+        let count = frame.id == "6single-en" ? 1 : id == "6b" ? 9 : id == "6e" ? 11 : id == "6d" ? 3 : 2
         let files = (0..<count).map { index in
             UnsavedFile(name: index < 2 ? "README.md" : "file-\(index).md",
                         context: UnsavedFileContext(project: "phlox-oss", session: "アザミ")
@@ -390,7 +431,7 @@ struct DesignSnapshotRenderTests {
         let strings = try localizationBundle(fixtures: fixtures)
         let alert = FileTabDocumentRegistry.alert(windows: windows, terminating: id == "6d" || id == "6e", locale: locale, bundle: strings)
         #expect(alert.buttons.first?.keyEquivalent == "\r")
-        try await capture(UnsavedChangesContent(windows: windows, locale: locale, localizationBundle: strings).padding(10), frame: frame, output: output)
+        try await capture(UnsavedChangesContent(windows: windows, locale: locale).padding(10), frame: frame, output: output)
         return "実物の一覧と保存案内。NSAlert全体の非表示描画は欠けるため、題・警告・キー・標準破棄設定はテストで確認"
     }
 
@@ -553,7 +594,8 @@ struct DesignSnapshotRenderTests {
             : fixtures.appendingPathComponent(id).path
         if id != "2e4" { try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true) }
         let loader = FileTreeLoader(root: root) { _, path in
-            if id == "2j" || (id == "2h" && path == "docs") { throw CocoaError(.fileReadNoPermission) }
+            if id == "2j" { throw CocoaError(.fileReadNoSuchFile) }
+            if id == "2h" && path == "docs" { throw CocoaError(.fileReadNoPermission) }
             if id == "2g", path == "docs" { try await Task.sleep(for: .seconds(30)) }
             if path == "" {
                 return .init(entries: [
@@ -602,7 +644,7 @@ struct DesignSnapshotRenderTests {
     }
 
     private func renderSimulator(_ frame: Frame, output: URL) async throws -> String {
-        let id = frame.id
+        let id = frame.stateID
         let displayID = UUID()
         let session = SessionID()
         let icon = NSApp.applicationIconImage
@@ -621,7 +663,11 @@ struct DesignSnapshotRenderTests {
             "iPad Air 13 インチ（M3）": "Booted",
         ]
         if id.hasPrefix("7Long") { states["iPad Pro 13-inch (M4)"] = id == "7LongStopped320" ? "Shutdown" : "Booted" }
-        let fixture = HubCatalogFixture(states: states)
+        if id == "7d" { states["iPhone SE（第3世代）"] = "Shutdown" }
+        let fixture = HubCatalogFixture(states: states, runtimeIdentifiers: id == "7d" ? [
+            "iPhone 16e": "com.apple.CoreSimulator.SimRuntime.iOS-18-6",
+            "iPhone SE（第3世代）": "com.apple.CoreSimulator.SimRuntime.iOS-18-6",
+        ] : [:])
         if id == "7g" { await fixture.setState("Booting", udid: "iPhone 17") }
         let fake = HubTransport()
         let catalog = ["7k", "7ListingError"].contains(id) ? SimulatorCatalog(isXcodeAvailable: { id != "7k" }) { _, _ in
@@ -689,10 +735,10 @@ struct DesignSnapshotRenderTests {
         let focused = ["7b", "7c", "7n", "8L3", "7TrialInput520", "7StaleInput520", "7LongInput320", "7LongTrialStale320"].contains(id)
         let content = SimulatorTabContent(hub: hub, sessionID: session, displayID: displayID,
             confirmsShutdown: id == "7e",
-            sendsKeys: .constant(focused), showsDiagnostics: .constant(false),
+            sendsKeys: .constant(focused), showsDiagnostics: .constant(frame.id == "7iOpen"),
             select: { _ in }, releaseFocus: {}, screenshot: {}, shutdown: {}, openSimulator: {})
             .overlay(alignment: .topLeading) {
-                if id == "7i" {
+                if frame.id == "7iOpen" {
                     SimulatorDiagnostics().background(DSColor.popoverBackground)
                         .clipShape(RoundedRectangle(cornerRadius: DSRadius.row))
                         .offset(x: 160, y: 34)
@@ -739,7 +785,9 @@ struct DesignSnapshotRenderTests {
                                  foreground: AnyView? = nil, foregroundOrigin: CGPoint = .zero,
                                  afterMount: (() -> Void)? = nil, selectsParagraph: Bool = false,
                                  prepare: ((NSView, NSWindow) -> Void)? = nil) async throws {
+        let strings = try localizationBundle(fixtures: output)
         let host = NSHostingView(rootView: content
+            .environment(\.localizationBundle, strings)
             .frame(width: frame.width, height: frame.height)
             .background(DSColor.background)
             .environment(\.locale, Locale(identifier: frame.english ? "en" : "ja"))
@@ -763,6 +811,7 @@ struct DesignSnapshotRenderTests {
             let editor = try #require(field.currentEditor() as? NSTextView)
             editor.setSelectedRange(NSRange(location: 0, length: 6))
             #expect(editor.selectedRange().length == 6)
+            #expect(editor.selectedTextAttributes[.backgroundColor] as? NSColor == NSColor(DSColor.textSelection))
         }
         prepare?(host, window)
         host.layoutSubtreeIfNeeded()
@@ -791,19 +840,13 @@ struct DesignSnapshotRenderTests {
         host.layoutSubtreeIfNeeded()
         var foregrounds: [(NSImage, NSRect)] = []
         if let foreground {
-            let overlay = NSHostingView(rootView: foreground.environment(\.colorScheme, frame.light ? .light : .dark))
-            overlay.appearance = window.appearance
-            let size = overlay.fittingSize
-            overlay.frame = NSRect(origin: .zero, size: size)
-            overlay.layoutSubtreeIfNeeded()
-            let bitmap = try #require(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width * 2),
-                pixelsHigh: Int(size.height * 2), bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
-                isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
-            bitmap.size = size
-            overlay.cacheDisplay(in: overlay.bounds, to: bitmap)
-            let image = NSImage(size: size)
-            image.addRepresentation(bitmap)
-            foregrounds.append((image, NSRect(origin: foregroundOrigin, size: size)))
+            let renderer = ImageRenderer(content: foreground
+                .environment(\.localizationBundle, strings)
+                .environment(\.locale, Locale(identifier: frame.english ? "en" : "ja"))
+                .environment(\.colorScheme, frame.light ? .light : .dark))
+            renderer.scale = 2
+            let image = try #require(renderer.nsImage)
+            foregrounds.append((image, NSRect(origin: foregroundOrigin, size: image.size)))
         }
         try saveBitmap(host, bounds: host.bounds, to: destination(frame, output), snapshots: snapshots, foregrounds: foregrounds)
         #expect(!window.isVisible)

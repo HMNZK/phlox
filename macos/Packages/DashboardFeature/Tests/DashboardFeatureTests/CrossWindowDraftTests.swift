@@ -132,12 +132,15 @@ struct CrossWindowDraftTests {
 
     @Test
     func summaryCapsFilesAndCountsOmittedWindowsWithoutEmptyHeadings() {
-        let summary = FileTabDocumentRegistry.summary([
+        let groups = [
             ("一番目", ["1", "2", "3", "4"]),
             ("二番目", ["5", "6"]),
             ("三番目", ["7", "8"]),
             ("空", [])
-        ])
+        ]
+        let summary = UnsavedChangesContent(windows: groups.map { name, files in
+            UnsavedWindow(name: name, files: files.map { UnsavedFile(name: $0, context: "", editingBlock: false) })
+        }).textSummary
         #expect(summary == "一番目\n  1\n  2\n  3\n  4\n二番目\n  5\nほか 3 件（2 ウィンドウ）")
     }
 }

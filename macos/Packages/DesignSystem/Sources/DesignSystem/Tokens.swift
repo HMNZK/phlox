@@ -279,6 +279,8 @@ public enum DSColor {
     public static var dialogBackground: Color { isDark ? palette.popover.color : palette.toolbar.color }
     /// ポップオーバーの縁（`--shadow` の 0.5px: ライト 黒 20% / ダーク 白 16%）。
     public static var popoverEdge: Color { isDark ? Color.white.opacity(0.16) : Color.black.opacity(0.20) }
+    /// 端末画面の外周（見本 7p / 8-L3）。
+    public static var simulatorScreenEdge: Color { isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.18) }
     public static var tabBarBackground: Color { palette.tabBar.color }
     public static var terminalBackground: Color { palette.terminal.color }
 

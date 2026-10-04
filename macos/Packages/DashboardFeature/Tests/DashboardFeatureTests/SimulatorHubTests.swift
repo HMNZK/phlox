@@ -304,9 +304,13 @@ struct SimulatorHubTests {
 
 actor HubCatalogFixture {
     private var states: [String: String]
+    private let runtimeIdentifiers: [String: String]
     private var commands: [[String]] = []
 
-    init(states: [String: String] = ["端末A": "Booted"]) { self.states = states }
+    init(states: [String: String] = ["端末A": "Booted"], runtimeIdentifiers: [String: String] = [:]) {
+        self.states = states
+        self.runtimeIdentifiers = runtimeIdentifiers
+    }
 
     nonisolated func catalog() -> SimulatorCatalog {
         SimulatorCatalog { arguments, _ in try await self.run(arguments) }
@@ -319,11 +323,15 @@ actor HubCatalogFixture {
         commands.append(arguments)
         if arguments.first == "boot" { states[arguments[1]] = "Booted" }
         if arguments.first == "shutdown" { states[arguments[1]] = "Shutdown" }
-        let devices = states.map { udid, state in
-            ["udid": udid, "name": udid, "state": state, "isAvailable": true] as [String: Any]
+        var devices: [String: [[String: Any]]] = [:]
+        for (udid, state) in states {
+            let runtime = runtimeIdentifiers[udid] ?? "com.apple.CoreSimulator.SimRuntime.iOS-26-2"
+            devices[runtime, default: []].append([
+                "udid": udid, "name": udid, "state": state, "isAvailable": true,
+            ])
         }
         let data = try JSONSerialization.data(withJSONObject: [
-            "devices": ["com.apple.CoreSimulator.SimRuntime.iOS-26-2": devices],
+            "devices": devices,
         ])
         return .init(status: 0, output: data, errorOutput: Data())
     }

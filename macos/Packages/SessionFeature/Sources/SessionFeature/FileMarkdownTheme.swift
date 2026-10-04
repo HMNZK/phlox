@@ -49,7 +49,7 @@ func fileMarkdownTheme(hoveredLink: URL?) -> Theme {
         }
         .bulletedListMarker { _ in
             Text(verbatim: "•").foregroundStyle(DSColor.textTertiary)
-                .frame(width: 12, alignment: .leading)
+                .frame(width: 6, alignment: .leading)
         }
         .blockquote { configuration in
             configuration.label.padding(.leading, DSSpacing.m)
@@ -166,10 +166,20 @@ private func fileMarkdownText(_ content: MarkdownContent, hoveredLink: URL?, hea
                                         lineSpacing: headingLevel > 0 ? 0 : 6))
 }
 
+// cmark の出力専用。生の文字列を渡すと .full が行頭の番号を消す。
 func fileMarkdownAttributed(_ markdown: String, hoveredLink: URL?) -> AttributedString {
     var text = (try? AttributedString(markdown: markdown,
-                                    options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+                                     options: .init(interpretedSyntax: .full)))
         ?? AttributedString(markdown)
+    for run in Array(text.runs).reversed() where run.inlinePresentationIntent?.contains(.softBreak) == true {
+        let before = run.range.lowerBound == text.startIndex ? nil
+            : text.characters[text.characters.index(before: run.range.lowerBound)]
+        let after = run.range.upperBound == text.endIndex ? nil : text.characters[run.range.upperBound]
+        var replacement = AttributedString(fileMarkdownSoftBreakSeparator(before: before, after: after))
+        replacement.setAttributes(run.attributes)
+        replacement.inlinePresentationIntent?.remove(.softBreak)
+        text.replaceSubrange(run.range, with: replacement)
+    }
     for run in text.runs {
         if let link = run.link {
             text[run.range].foregroundColor = DSColor.accentInk
@@ -181,4 +191,17 @@ func fileMarkdownAttributed(_ markdown: String, hoveredLink: URL?) -> Attributed
         }
     }
     return text
+}
+
+func fileMarkdownSoftBreakSeparator(before: Character?, after: Character?) -> String {
+    func isCJK(_ character: Character?) -> Bool {
+        guard let scalar = character?.unicodeScalars.first else { return false }
+        switch scalar.value {
+        case 0x3000...0x30FF, 0x3400...0x4DBF, 0x4E00...0x9FFF,
+             0xF900...0xFAFF, 0xFF00...0xFF9F, 0xFFE0...0xFFEF, 0x20000...0x323AF:
+            return true
+        default: return false
+        }
+    }
+    return isCJK(before) && isCJK(after) ? "" : " "
 }

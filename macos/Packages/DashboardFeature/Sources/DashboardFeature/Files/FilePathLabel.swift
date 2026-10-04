@@ -30,6 +30,7 @@ enum FilePathDisplay {
 
 struct FilePathLabel: View {
     let path: String
+    var alignment: Alignment = .leading
 
     var body: some View {
         GeometryReader { geometry in
@@ -37,9 +38,10 @@ struct FilePathLabel: View {
                 .font(DSFont.monoCaption)
                 .foregroundStyle(DSColor.textSecondary)
                 .lineLimit(1)
+                .truncationMode(.head)
                 .help(path)
                 .accessibilityLabel(Text(verbatim: path))
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
         }
         .frame(height: 20)
     }

@@ -3,11 +3,22 @@ import SwiftUI
 import DesignSystem
 import SessionFeature
 
+private struct FileTabRecoveryPasteboardKey: EnvironmentKey {
+    static let defaultValue: String? = nil
+}
+
+extension EnvironmentValues {
+    var fileTabRecoveryPasteboardName: String? {
+        get { self[FileTabRecoveryPasteboardKey.self] }
+        set { self[FileTabRecoveryPasteboardKey.self] = newValue }
+    }
+}
+
 /// 原文の区間だけを編集し、表示用 Markdown は文書の派生物として扱う。
 struct MarkdownBlockEditor: View {
     let document: FileTabDocument
     let openURL: (URL) -> OpenURLAction.Result
-    let localizationBundle: Bundle
+    @Environment(\.localizationBundle) private var localizationBundle
     var linkDestination: (URL) async -> FileLinkDestination? = { _ in nil }
     @State private var hoveredBlock: Int?
     @State private var hoveredLink: URL?
@@ -23,11 +34,9 @@ struct MarkdownBlockEditor: View {
     init(document: FileTabDocument, openURL: @escaping (URL) -> OpenURLAction.Result,
          linkDestination: @escaping (URL) async -> FileLinkDestination? = { _ in nil },
          hoveredBlock: Int? = nil, focusedBlock: Int? = nil, hoveredLink: URL? = nil,
-         hoveredDestination: FileLinkDestination? = nil, selectionCrossesBlock: Bool = false,
-         localizationBundle: Bundle = .main) {
+         hoveredDestination: FileLinkDestination? = nil, selectionCrossesBlock: Bool = false) {
         self.document = document
         self.openURL = openURL
-        self.localizationBundle = localizationBundle
         self.linkDestination = linkDestination
         _hoveredBlock = State(initialValue: hoveredBlock)
         _hoveredLink = State(initialValue: hoveredLink)
@@ -165,7 +174,6 @@ struct MarkdownBlockEditor: View {
         } else {
             renderedBlock(block)
                 .padding(.horizontal, 10)
-                .padding(.top, visibleFocusedBlock == block.id ? 20 : 0)
                 .padding(.vertical, 3)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(hoveredLink == nil && (hoveredBlock == block.id || visibleFocusedBlock == block.id)
@@ -180,15 +188,17 @@ struct MarkdownBlockEditor: View {
                             .font(.system(size: 10.5)).foregroundStyle(DSColor.textPrimary)
                             .padding(.horizontal, 6).padding(.vertical, 1)
                             .background(DSColor.controlBackground, in: RoundedRectangle(cornerRadius: 4))
-                            .padding(3)
+                            .offset(x: -3, y: -20)
+                            .allowsHitTesting(false)
                     }
                 }
+                .padding(.top, visibleFocusedBlock == block.id ? 20 : 0)
                 .padding(.horizontal, -10)
                 .contentShape(Rectangle())
                 .onHover { inside in
                     hoveredBlock = inside ? block.id : (hoveredBlock == block.id ? nil : hoveredBlock)
                 }
-                .background(MarkdownBlockSelectionObserver(onBoundary: { selectionCrossesBlock = $0 },
+                .overlay(MarkdownBlockSelectionObserver(onBoundary: { selectionCrossesBlock = $0 },
                     prepareClick: { prepareBlockClick(block) }, isFocused: focusedBlock == block.id,
                     onFocus: { hasFocus in
                         if hasFocus { focusedBlock = block.id }
@@ -234,7 +244,6 @@ struct MarkdownBlockEditor: View {
         case .markdown, .heading:
             RichMarkdownView(source: block.renderedMarkdown, openURL: { url in
                 activatedLink = url
-                DispatchQueue.main.async { activatedLink = nil }
                 return openURL(url)
             }, onLinkHover: { hoveredLink = $0 },
                              hoveredLink: hoveredLink)
@@ -251,6 +260,7 @@ struct MarkdownBlockEditor: View {
     }
 
     private func prepareBlockClick(_ block: MarkdownBlock) -> (URL?) -> Void {
+        activatedLink = nil
         document.synchronizeActiveBlockEditor?()
         let version = document.version
         let previousEdit = document.activeBlockEdit
@@ -265,10 +275,7 @@ struct MarkdownBlockEditor: View {
                 // 選択用の field editor へフォーカスが移ると、前の入力欄は先に確定する。
                 guard document.version == version + 1, document.activeBlockEdit == nil,
                       let previousEdit, previousEdit.baseVersion == version else { return }
-                if previousEdit.range.upperBound <= range.lowerBound {
-                    let offset = previousEdit.current.utf8.count - previousEdit.range.count
-                    range = (range.lowerBound + offset)..<(range.upperBound + offset)
-                }
+                range = document.rangeAfterCommitting(previousEdit, for: range)
             }
             beginEdit(range: range)
         }
@@ -342,6 +349,8 @@ struct MarkdownBlockSelectionObserver: NSViewRepresentable {
         private var monitor: Any?
         private var startedInside = false
         private var dragged = false
+        private var forwardingHitTest = false
+        private var trackingOrigin: NSPoint?
 
         init(onBoundary: @escaping (Bool) -> Void, onOutsideClick: ((CurrentLineTextView) -> Void)?, prepareClick: (() -> ((URL?) -> Void))?) {
             self.onBoundary = onBoundary
@@ -351,7 +360,44 @@ struct MarkdownBlockSelectionObserver: NSViewRepresentable {
         }
         @available(*, unavailable)
         required init?(coder: NSCoder) { fatalError("init(coder:) は使用できません") }
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            guard NSApp.currentEvent?.type == .leftMouseDown,
+                  !forwardingHitTest, prepareClick != nil,
+                  bounds.contains(convert(point, from: superview)),
+                  let target = underlyingView(at: convert(point, from: superview)) else { return nil }
+            if let field = target as? NSTextField, field.isSelectable { return self }
+            if let editor = target as? NSTextView, editor.isFieldEditor { return self }
+            return nil
+        }
+
+        private func underlyingView(at point: NSPoint) -> NSView? {
+            guard let content = window?.contentView else { return nil }
+            forwardingHitTest = true
+            defer { forwardingHitTest = false }
+            return content.hitTest(convert(point, to: content.superview))
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            guard let target = underlyingView(at: convert(event.locationInWindow, from: nil)) else { return }
+            trackingOrigin = event.locationInWindow
+            // NSTextView の追跡ループ中も、ブロックを越えた位置だけを案内する。
+            let timer = Timer(timeInterval: 0.03, target: self, selector: #selector(updateTrackingBoundary),
+                              userInfo: nil, repeats: true)
+            RunLoop.main.add(timer, forMode: .eventTracking)
+            target.mouseDown(with: event)
+            timer.invalidate()
+            updateTrackingBoundary()
+            trackingOrigin = nil
+            finishClick(at: event)
+        }
+
+        @objc private func updateTrackingBoundary() {
+            guard startedInside, let origin = trackingOrigin, let window else { return }
+            let point = window.mouseLocationOutsideOfEventStream
+            guard hypot(point.x - origin.x, point.y - origin.y) > 3 else { return }
+            dragged = true
+            onBoundary(!bounds.contains(convert(point, from: nil)))
+        }
         override var acceptsFirstResponder: Bool { onKey != nil }
         override func becomeFirstResponder() -> Bool {
             guard acceptsFirstResponder else { return false }
@@ -386,6 +432,14 @@ struct MarkdownBlockSelectionObserver: NSViewRepresentable {
                 self?.handleEvent(event)
                 return event
             }
+            NotificationCenter.default.addObserver(self, selector: #selector(selectionChanged),
+                name: NSTextView.didChangeSelectionNotification, object: nil)
+        }
+
+        @objc private func selectionChanged(_ notification: Notification) {
+            guard let editor = notification.object as? NSTextView, editor.window === window else { return }
+            editor.selectedTextAttributes[.backgroundColor] = NSColor(DSColor.textSelection)
+            updateTrackingBoundary()
         }
 
         /// 選択可能な NSTextField が処理したクリックも、ドラッグと区別して編集へ渡す。
@@ -412,18 +466,23 @@ struct MarkdownBlockSelectionObserver: NSViewRepresentable {
                     onBoundary(!inside)
                 }
             case .leftMouseUp:
-                if startedInside {
-                    onBoundary(false)
-                    if inside, !dragged {
-                        let click = clickAction
-                        let link = link(at: event)
-                        DispatchQueue.main.async { click?(link) }
-                    }
-                }
-                startedInside = false
-                clickAction = nil
+                finishClick(at: event)
             default: break
             }
+        }
+
+        private func finishClick(at event: NSEvent) {
+            if startedInside {
+                onBoundary(false)
+                let selected = (window?.firstResponder as? NSTextView)?.selectedRange().length ?? 0
+                if bounds.contains(convert(event.locationInWindow, from: nil)), !dragged, selected == 0 {
+                    let click = clickAction
+                    let link = link(at: event)
+                    DispatchQueue.main.async { click?(link) }
+                }
+            }
+            startedInside = false
+            clickAction = nil
         }
 
         private func link(at event: NSEvent) -> URL? {
@@ -437,6 +496,7 @@ struct MarkdownBlockSelectionObserver: NSViewRepresentable {
         }
         func stopObserving() {
             if let monitor { NSEvent.removeMonitor(monitor) }
+            NotificationCenter.default.removeObserver(self, name: NSTextView.didChangeSelectionNotification, object: nil)
             monitor = nil
             startedInside = false
             dragged = false

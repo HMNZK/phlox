@@ -53,8 +53,12 @@ final class FileTreeInteractionTests: XCTestCase {
         XCTAssertTrue(row("folder").waitForExistence(timeout: 10))
         XCTAssertTrue(row("broken").exists)
         XCTAssertTrue(row("outside").exists)
-        XCTAssertTrue(app.staticTexts["ルート外"].exists)
-        XCTAssertTrue(app.staticTexts["開けません"].exists)
+        XCTAssertEqual(row("outside").label, "outside、作業ツリーの外を指すリンク、開けません")
+        XCTAssertTrue(row("broken").label.hasPrefix("broken、開けません。"))
+        row("outside").click()
+        let blockedReason = app.staticTexts["file-tree-blocked-reason"]
+        XCTAssertTrue(blockedReason.waitForExistence(timeout: 5))
+        XCTAssertEqual(blockedReason.value as? String, "作業ツリーの外を指しているため開けません。→ /usr")
         capture(app, name: "ファイルツリー・空行なし・開けないリンク")
 
         row("b.txt").click()

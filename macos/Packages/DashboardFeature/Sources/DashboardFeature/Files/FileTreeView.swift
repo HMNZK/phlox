@@ -56,12 +56,13 @@ struct FileTreeInspectorView: View {
 }
 
 struct FileTreeEmptyView: View {
+    @Environment(\.localizationBundle) private var localizationBundle
     var isOverlay = false
     var body: some View {
         VStack(spacing: DSSpacing.m) {
-            Image(systemName: "folder").font(DSFont.emptyTitle).foregroundStyle(DSColor.textTertiary)
-            Text("セッションが選ばれていません").font(DSFont.auxiliary.weight(.semibold))
-            Text("セッションを選ぶと、その作業ディレクトリのファイルが表示されます")
+            Image(systemName: "folder").font(.system(size: 24, weight: .light)).foregroundStyle(DSColor.textTertiary)
+            Text("セッションが選ばれていません", bundle: localizationBundle).font(DSFont.auxiliary.weight(.semibold))
+            Text("セッションを選ぶと、その作業ディレクトリのファイルが表示されます", bundle: localizationBundle)
                 .font(DSFont.auxiliary).foregroundStyle(DSColor.textSecondary)
         }
         .multilineTextAlignment(.center)
@@ -73,6 +74,7 @@ struct FileTreeEmptyView: View {
 }
 
 struct FileTreeView: View {
+    @Environment(\.localizationBundle) private var localizationBundle
     @Bindable var model: FileTreeModel
     let openPath: String?
     let open: (String, Bool) -> Void
@@ -167,6 +169,7 @@ struct FileTreeView: View {
                 .overlay {
                     RoundedRectangle(cornerRadius: DSRadius.row)
                         .strokeBorder(focused || showsFocus ? DSColor.accent.opacity(DSColor.isDark ? 0.6 : 1) : Color.clear, lineWidth: DSSpacing.xxs)
+                        .padding(DSSpacing.xs)
                         .allowsHitTesting(false)
                 }
                 .onKeyPress(.rightArrow) { key(.right) }
@@ -197,6 +200,7 @@ struct FileTreeView: View {
                 Image(systemName: row.entry.canExpand
                       ? (model.expanded.contains(row.id) ? "chevron.down" : "chevron.right") : "")
                     .font(DSFont.iconTiny).frame(width: DSIconSize.m)
+                    .foregroundStyle(DSColor.textTertiary)
                 Image(systemName: row.entry.isFolder ? "folder" : "doc")
                     .foregroundStyle(DSColor.textSecondary)
                     .frame(width: DSIconSize.l, height: DSIconSize.l)
@@ -213,7 +217,7 @@ struct FileTreeView: View {
                     .lineLimit(1).truncationMode(.middle)
                 Spacer(minLength: 0)
                 if row.entry.kind == .symlinkOutsideRoot {
-                    Text("ルート外").font(DSFont.meta)
+                    Text("ルート外", bundle: localizationBundle).font(DSFont.meta)
                         .foregroundStyle(DSColor.isDark ? DSColor.textTertiary : DSColor.neutralGlyph)
                 } else if row.entry.kind == .unavailable {
                     Text("開けません").font(DSFont.meta).foregroundStyle(DSColor.textTertiary)
@@ -230,11 +234,6 @@ struct FileTreeView: View {
                                      baseFill: rowFill(row),
                                      hoverFill: isKeyboardRow(row) ? DSColor.textPrimary.opacity(0.16) : DSColor.fillSubtle,
                                      borderColor: .clear, hoverBorderColor: .clear)
-            .overlay {
-                RoundedRectangle(cornerRadius: DSRadius.row)
-                    .strokeBorder(row.id == contextPath ? DSColor.accent : .clear, lineWidth: DSSpacing.xxs)
-                    .allowsHitTesting(false)
-            }
             .contentShape(Rectangle())
             .onTapGesture {
                 focused = true
@@ -255,7 +254,7 @@ struct FileTreeView: View {
                 }
             }
             .accessibilityIdentifier("file-tree-row-\(row.id)")
-            .modifier(SidebarMenuOpenRing {
+            .modifier(SidebarMenuOpenRing(isPresented: row.id == contextPath) {
                 if row.entry.canOpen {
                     Button("右に分割して開く") {
                         selectedPath = row.id
@@ -274,7 +273,7 @@ struct FileTreeView: View {
             if row.entry.kind == .symlinkOutsideRoot, row.id == (blockedSelection ?? blockedPath) {
                 Text(verbatim: row.entry.help)
                     .font(DSFont.meta).foregroundStyle(DSColor.textSecondary)
-                    .lineLimit(1).truncationMode(.tail)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, DSSpacing.s).padding(.vertical, DSSpacing.xs)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: DSRadius.row))
@@ -298,8 +297,9 @@ struct FileTreeView: View {
                 } else if let error = model.errorsByDir[path] {
                     Image(systemName: "exclamationmark.circle").frame(width: DSIconSize.l)
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                        Text("読み込めませんでした").foregroundStyle(DSColor.textPrimary)
-                        Text(verbatim: error).font(DSFont.meta)
+                        Text("読み込めませんでした", bundle: localizationBundle).foregroundStyle(DSColor.textPrimary)
+                        (Text(LocalizedStringKey(error), bundle: localizationBundle) + Text(verbatim: "（\(path)）"))
+                            .font(DSFont.meta)
                     }
                 }
             }
@@ -327,15 +327,17 @@ struct FileTreeView: View {
 
     private func rootError(_ error: String) -> some View {
         VStack(spacing: DSSpacing.m) {
-            Image(systemName: "exclamationmark.circle").font(DSFont.emptyTitle).foregroundStyle(DSColor.textSecondary)
-            Text("フォルダを読み込めません").font(DSFont.auxiliary.weight(.semibold))
-            Text(verbatim: error == "ファイルまたはフォルダが見つかりません。"
-                 ? "作業ディレクトリが見つかりません。移動または削除された可能性があります。" : error)
+            Image(systemName: "exclamationmark.circle").font(.system(size: 24, weight: .light)).foregroundStyle(DSColor.textSecondary)
+            Text("フォルダを読み込めません", bundle: localizationBundle).font(DSFont.auxiliary.weight(.semibold))
+            Text(LocalizedStringKey(error == "ファイルまたはフォルダが見つかりません。"
+                 ? "作業ディレクトリが見つかりません。移動または削除された可能性があります。" : error), bundle: localizationBundle)
                 .font(DSFont.auxiliary).foregroundStyle(DSColor.textSecondary)
             Text(verbatim: (model.root as NSString).abbreviatingWithTildeInPath)
                 .font(DSFont.monoCaption).foregroundStyle(DSColor.textTertiary)
-                .lineLimit(1).truncationMode(.middle).help(model.root)
-            Button("更新") { Task { await model.refresh() } }
+                .lineLimit(1).truncationMode(.head).help(model.root)
+            Button { Task { await model.refresh() } } label: {
+                Text("更新", bundle: localizationBundle)
+            }
                 .buttonStyle(.ds(.secondary, height: 24, fontSize: 12, padding: 12))
         }
         .multilineTextAlignment(.center).padding(.horizontal, DSSpacing.xl)

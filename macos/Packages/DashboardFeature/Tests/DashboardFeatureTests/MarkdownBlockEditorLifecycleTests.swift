@@ -172,7 +172,7 @@ struct MarkdownBlockEditorLifecycleTests {
             MarkdownBlockEditor(document: document, openURL: { _ in .discarded })
         })
         view.frame = NSRect(x: 0, y: 0, width: 640, height: 420)
-        let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        let window = MarkdownTrackingWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = view
         window.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
@@ -213,7 +213,7 @@ struct MarkdownBlockEditorLifecycleTests {
             MarkdownBlockEditor(document: document, openURL: { opened.append($0); return .handled })
         })
         view.frame = NSRect(x: 0, y: 0, width: 640, height: 420)
-        let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        let window = MarkdownTrackingWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = view
         window.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
@@ -312,7 +312,7 @@ struct MarkdownBlockEditorLifecycleTests {
         view.frame = NSRect(x: 0, y: 0, width: 640, height: 420)
         let window: NSWindow = keyWindow
             ? BlockEditorKeyWindow(contentRect: view.frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-            : NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+            : MarkdownTrackingWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = view
         window.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
@@ -370,6 +370,9 @@ struct MarkdownBlockEditorLifecycleTests {
 }
 
 private final class BlockEditorKeyWindow: NSPanel {
+    override var mouseLocationOutsideOfEventStream: NSPoint {
+        markdownTrackingMouseLocation(in: self) ?? super.mouseLocationOutsideOfEventStream
+    }
     override var canBecomeKey: Bool { false }
     // 製品のキーウィンドウ条件を検査し、OS の入力先は変えない。
     override var isKeyWindow: Bool { true }

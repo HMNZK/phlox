@@ -133,13 +133,15 @@ struct ChildTabBar: View {
     let files: FileTabDocuments
     let agentConsoleWindowID: String?
     var simulatorHub: SimulatorHub? = nil
-    var localizationBundle: Bundle = .main
+    @Environment(\.localizationBundle) private var localizationBundle
 
     @Environment(\.locale) private var locale
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
             tabBar(showsPath: true)
+            tabContents(compact: true).fixedSize(horizontal: true, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
             tabBar(showsPath: false)
         }
         .padding(.horizontal, 10)
@@ -151,34 +153,49 @@ struct ChildTabBar: View {
 
     private func tabBar(showsPath: Bool) -> some View {
         HStack(spacing: DSSpacing.xxs) {
-            ScrollViewReader { scroll in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: DSSpacing.xxs) {
-                    ForEach(layout.tabs, id: \.self) { tab in
-                        ChildTabButton(
-                            tab: tab,
-                            glyph: glyph(for: tab),
-                            title: title(for: tab),
-                            isShown: layout.isShown(tab),
-                            isSelected: layout.selected == tab,
-                            isDirty: isDirty(tab),
-                            onSelect: { router.tabs.updateLayout(for: node.id) { $0.select(tab) } },
-                            onClose: { router.tabRequest = .closeChild(node.id, tab) }
-                        )
-                        .id(tab)
-                    }
-                    }
-                }
-                .onAppear { scroll.scrollTo(layout.selected, anchor: .trailing) }
-                .onChange(of: layout.selected) { _, selected in scroll.scrollTo(selected, anchor: .trailing) }
-            }
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(minWidth: 160, idealWidth: 160, maxWidth: .infinity)
-            addButton
-                .fixedSize()
             if showsPath {
-                FilePathLabel(path: abbreviatedPath)
-                    .frame(width: 180)
+                tabContents()
+                    .fixedSize(horizontal: true, vertical: true)
+                FilePathLabel(path: abbreviatedPath, alignment: .trailing)
+                    .frame(minWidth: 0, maxWidth: .infinity)
+            } else {
+                ScrollViewReader { scroll in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        tabButtons()
+                    }
+                    .onAppear { scroll.scrollTo(layout.selected, anchor: .trailing) }
+                    .onChange(of: layout.selected) { _, selected in scroll.scrollTo(selected, anchor: .trailing) }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
+                addButton.fixedSize()
+            }
+        }
+    }
+
+    private func tabContents(compact: Bool = false) -> some View {
+        HStack(spacing: DSSpacing.xxs) {
+            tabButtons(compact: compact)
+            addButton.fixedSize()
+        }
+    }
+
+    private func tabButtons(compact: Bool = false) -> some View {
+        HStack(spacing: DSSpacing.xxs) {
+            ForEach(layout.tabs, id: \.self) { tab in
+                ChildTabButton(
+                    tab: tab,
+                    glyph: glyph(for: tab),
+                    showsGlyph: !compact,
+                    title: title(for: tab),
+                    isShown: layout.isShown(tab),
+                    isSelected: layout.selected == tab,
+                    isDirty: isDirty(tab),
+                    onSelect: { router.tabs.updateLayout(for: node.id) { $0.select(tab) } },
+                    onClose: { router.tabRequest = .closeChild(node.id, tab) }
+                )
+                .fixedSize(horizontal: true, vertical: true)
+                .id(tab)
             }
         }
     }
@@ -238,6 +255,7 @@ struct ChildTabBar: View {
 private struct ChildTabButton: View {
     let tab: ChildTab
     let glyph: String
+    let showsGlyph: Bool
     let title: Text
     let isShown: Bool
     let isSelected: Bool
@@ -250,9 +268,10 @@ private struct ChildTabButton: View {
     var body: some View {
         // PhloxTabs.dc.html:205: 高さ 24、padding 0 10、間 6、記号は 10/700 の等幅。
         HStack(spacing: 6) {
-            Text(verbatim: glyph)
+            if showsGlyph { Text(verbatim: glyph)
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .foregroundStyle(DSColor.textTertiary)
+            }
             title
                 .font(DSFont.auxiliary.weight(isSelected ? .semibold : .regular))
                 .foregroundStyle(isShown ? DSColor.textPrimary : DSColor.textSecondary)
@@ -609,25 +628,25 @@ struct FileTabView: View {
     @State private var conflictWriter: String?
     @State private var saveError: String?
     @State private var emphasizesMarkdownReason = false
+    @Environment(\.fileTabRecoveryPasteboardName) private var fileTabRecoveryPasteboardName
     @Environment(\.locale) private var locale
+    @Environment(\.localizationBundle) private var localizationBundle
 
     init(document: FileTabDocument, lastWriter: @escaping (FileTabDocument) -> String?,
          isFocused: Bool, openFile: @escaping (String, String) -> Void,
          htmlPreview: HTMLPreviewModel? = nil,
-         localizationBundle: Bundle = .main, markdownEditor: MarkdownBlockEditor? = nil,
+         markdownEditor: MarkdownBlockEditor? = nil,
          showsIsolationExplanation: Bool = false, emphasizesMarkdownReason: Bool = false) {
         self.document = document
         self.lastWriter = lastWriter
         self.isFocused = isFocused
         self.openFile = openFile
-        self.localizationBundle = localizationBundle
         self.markdownEditor = markdownEditor
         _htmlPreview = State(initialValue: htmlPreview ?? HTMLPreviewModel(document: document))
         _showsIsolationExplanation = State(initialValue: showsIsolationExplanation)
         _emphasizesMarkdownReason = State(initialValue: emphasizesMarkdownReason)
     }
 
-    private let localizationBundle: Bundle
     private let markdownEditor: MarkdownBlockEditor?
 
     var body: some View {
@@ -638,6 +657,18 @@ struct FileTabView: View {
             .overlay(alignment: .bottom) {
                 Rectangle().fill(DSColor.separator).frame(height: 1)
             }
+            if document.blockEditFailure != nil, let edit = document.activeBlockEdit {
+                HStack(spacing: DSSpacing.s) {
+                    Button { document.discardActiveBlockEdit(id: edit.id) } label: { localized("編集を破棄") }
+                    Button {
+                        let pasteboard = fileTabRecoveryPasteboardName.map { NSPasteboard(name: .init($0)) } ?? .general
+                        document.openSourceDiscardingBlockEdit(id: edit.id, pasteboard: pasteboard)
+                    } label: { localized("ソースで開く") }
+                        .help(localized("編集中の内容をコピーしてソース表示で開きます"))
+                }
+                .buttonStyle(.ds(.secondary, height: 24, fontSize: 11))
+                .padding(DSSpacing.s)
+            }
             switch document.loadState {
             case .loadFailed, .outsideRoot, .tooLarge, .binary:
                 unavailableContent
@@ -645,8 +676,7 @@ struct FileTabView: View {
                 if document.isHTML, document.presentation == .rendered {
                     htmlContent
                 } else if document.isMarkdown, document.presentation == .rendered {
-                    markdownEditor ?? MarkdownBlockEditor(document: document, openURL: openMarkdownURL, linkDestination: markdownLinkDestination,
-                                                         localizationBundle: localizationBundle)
+                    markdownEditor ?? MarkdownBlockEditor(document: document, openURL: openMarkdownURL, linkDestination: markdownLinkDestination)
                 } else {
                     CodeTextEditor(text: $document.draft)
                         .disabled(document.invalidated)
@@ -673,6 +703,9 @@ struct FileTabView: View {
             .hidden()
             .frame(width: 0, height: 0)
             .accessibilityHidden(true)
+        }
+        .onChange(of: document.blockEditFailure) { _, failure in
+            if failure == nil { emphasizesMarkdownReason = false }
         }
         // 09 E1: 取り返しがつかない型。キャンセルが既定。
         .dsDialog(isPresented: $showsConflictAlert) {
@@ -704,17 +737,19 @@ struct FileTabView: View {
     private var toolbar: some View {
         let pathWidth = FilePathDisplay.minimumReadableWidth(document.path)
         return ViewThatFits(in: .horizontal) {
-            toolbarContents(compact: false, icons: false, minimumPathWidth: pathWidth)
-            toolbarContents(compact: true, icons: false, minimumPathWidth: pathWidth)
-            toolbarContents(compact: true, icons: true, minimumPathWidth: pathWidth)
+            toolbarContents(reason: true, unsaved: true, keyHint: true, icons: false, minimumPathWidth: pathWidth)
+            toolbarContents(reason: false, unsaved: true, keyHint: true, icons: false, minimumPathWidth: pathWidth)
+            toolbarContents(reason: false, unsaved: false, keyHint: true, icons: false, minimumPathWidth: pathWidth)
+            toolbarContents(reason: false, unsaved: false, keyHint: false, icons: false, minimumPathWidth: pathWidth)
+            toolbarContents(reason: false, unsaved: false, keyHint: false, icons: true, minimumPathWidth: pathWidth)
             // 長いファイル名でも最小区画からはみ出さないよう、最後にパスの最小幅を外す。
-            toolbarContents(compact: true, icons: true, minimumPathWidth: 0)
+            toolbarContents(reason: false, unsaved: false, keyHint: false, icons: true, minimumPathWidth: 0)
         }
         .padding(.horizontal, 10)
         .frame(height: 30)
     }
 
-    private func toolbarContents(compact: Bool, icons: Bool, minimumPathWidth: CGFloat) -> some View {
+    private func toolbarContents(reason showsReason: Bool, unsaved showsUnsaved: Bool, keyHint: Bool, icons: Bool, minimumPathWidth: CGFloat) -> some View {
         HStack(spacing: DSSpacing.s) {
             FilePathLabel(path: document.path)
                 .frame(minWidth: minimumPathWidth, idealWidth: minimumPathWidth, maxWidth: .infinity)
@@ -723,15 +758,15 @@ struct FileTabView: View {
                 if document.isHTML {
                     if htmlPreview.preparationError != nil {
                         Label {
-                            if !compact { localized(htmlPreview.preparationFailureReason) }
+                            if showsReason { localized(htmlPreview.preparationFailureReason) }
                         } icon: { Image(systemName: "info.circle") }
                             .font(DSFont.meta)
                             .foregroundStyle(DSColor.textPrimary)
                             .lineLimit(1)
-                            .help(htmlPreparationHelp)
+                            .help(htmlPreparationHelp())
                     } else if document.presentation == .rendered {
                         if !htmlPreview.processTerminated { isolationButton }
-                        if !compact { localized("閲覧のみ").font(DSFont.meta).foregroundStyle(DSColor.textSecondary) }
+                        if showsReason { localized("閲覧のみ").font(DSFont.meta).foregroundStyle(DSColor.textSecondary) }
                         Button { htmlPreview.reload() } label: { Image(systemName: "arrow.clockwise") }
                             .buttonStyle(.plain)
                             .disabled(htmlPreview.ruleList == nil || !document.isLoaded || document.invalidated)
@@ -742,9 +777,9 @@ struct FileTabView: View {
                 }
                 if document.isMarkdown {
                     if let reason = markdownReason {
-                        Label { if !compact { localized(reason) } } icon: { Image(systemName: "info.circle") }
+                        Label { if showsReason { localized(reason) } } icon: { Image(systemName: "info.circle") }
                             .font(DSFont.meta)
-                            .foregroundStyle(emphasizesMarkdownReason ? DSColor.attentionInk(.error) : DSColor.textPrimary)
+                            .foregroundStyle(emphasizesMarkdownReason && document.blockEditFailure != nil ? DSColor.attentionInk(.error) : DSColor.textPrimary)
                             .lineLimit(1)
                             .help(markdownReasonDetail(locale: locale))
                     }
@@ -756,13 +791,13 @@ struct FileTabView: View {
                 } else if document.hasUnsavedChanges {
                     HStack(spacing: 5) {
                         Circle().fill(DSColor.textPrimary).frame(width: 6, height: 6)
-                        if !compact { localized("未保存").font(DSFont.meta) }
+                        if showsUnsaved { localized("未保存").font(DSFont.meta) }
                     }
                     .foregroundStyle(DSColor.textPrimary)
                     .accessibilityLabel(localized("未保存"))
                 }
                 Button { Task { await save() } } label: { localized("保存") }
-                    .buttonStyle(.ds(.secondary, keyHint: compact ? nil : "⌘S", height: 20, fontSize: 11, padding: 8,
+                    .buttonStyle(.ds(.secondary, keyHint: keyHint ? "⌘S" : nil, height: 20, fontSize: 11, padding: 8,
                                      fill: canSave ? nil : .clear))
                     .accessibilityLabel(localized("保存"))
                     .accessibilityHint("⌘S")
@@ -782,18 +817,18 @@ struct FileTabView: View {
             ?? (document.markdownPresentationLocked ? "大きすぎるためソース表示に固定" : nil)
     }
 
-    func markdownReasonDetail(locale: Locale) -> String {
+    func markdownReasonDetail(locale: Locale, bundle: Bundle? = nil) -> String {
         func localizedString(_ key: String) -> String {
-            AppLocalizedString.string(key, locale: locale, bundle: localizationBundle)
+            AppLocalizedString.string(key, locale: locale, bundle: bundle ?? localizationBundle)
         }
         if let failure = document.blockEditFailure {
             return String(format: localizedString("%@。編集内容は残っています。"), localizedString(failure))
         }
         if let failure = document.markdownAnalysisFailure { return localizedString(failure) }
         if document.draft.utf8.count > 500_000 {
-            return String(format: localizedString("このファイルは大きすぎるためソース表示に固定しています（%lld KB。上限 500 KB）"), Int64(document.draft.utf8.count / 1_000))
+            return String(format: localizedString("このファイルは大きすぎるためソース表示に固定しています（%@ KB。上限 500 KB）"), (document.draft.utf8.count / 1_000).formatted(.number.locale(locale)))
         }
-        return String(format: localizedString("このファイルは大きすぎるためソース表示に固定しています（%lld ブロック。上限 2,000）"), Int64(document.markdownBlocks.count))
+        return String(format: localizedString("このファイルは大きすぎるためソース表示に固定しています（%@ ブロック。上限 2,000）"), document.markdownBlocks.count.formatted(.number.locale(locale)))
     }
 
     private func localized(_ key: String) -> Text {
@@ -806,15 +841,16 @@ struct FileTabView: View {
 
     private var unavailableContent: some View {
         VStack(spacing: 10) {
-            Image(systemName: "doc")
-                .font(.system(size: 36)).foregroundStyle(DSColor.textTertiary)
-                .frame(width: 40, height: 44)
+            RoundedRectangle(cornerRadius: DSRadius.s)
+                .strokeBorder(DSColor.textTertiary, lineWidth: 1.5)
+                .frame(width: 30, height: 36)
                 .overlay(alignment: .bottom) {
-                    Text(verbatim: unavailableBadge).font(DSFont.iconTiny).foregroundStyle(DSColor.textSecondary)
-                        .padding(.horizontal, 2)
-                        .background(DSColor.windowBackground)
+                    Text(verbatim: unavailableBadge)
+                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(DSColor.textSecondary)
                         .padding(.bottom, 5)
                 }
+                .frame(width: 40, height: 44)
             localized(unavailableTitle).font(DSFont.row.weight(.semibold))
             Text(verbatim: unavailableMessage).font(DSFont.auxiliary).foregroundStyle(DSColor.textSecondary)
                 .multilineTextAlignment(.center).frame(maxWidth: 400)
@@ -903,8 +939,11 @@ struct FileTabView: View {
                 .foregroundStyle(DSColor.textPrimary)
                 .padding(.horizontal, DSSpacing.chip)
                 .padding(.vertical, DSSpacing.xxs)
-                .background(document.presentation == presentation ? DSColor.fillSubtle : .clear,
+                .background(document.presentation == presentation
+                            ? (DSColor.isDark ? DSColor.fillSelected : DSColor.background) : .clear,
                             in: RoundedRectangle(cornerRadius: DSRadius.s))
+                .overlay(RoundedRectangle(cornerRadius: DSRadius.s)
+                    .strokeBorder(document.presentation == presentation && !DSColor.isDark ? DSColor.border : .clear, lineWidth: 0.5))
         }
         .buttonStyle(.plain)
         .disabled(!document.isLoaded || document.invalidated
@@ -915,13 +954,15 @@ struct FileTabView: View {
         .accessibilityAddTraits(document.presentation == presentation ? .isSelected : [])
     }
 
-    func presentationHelp(_ presentation: FileTabDocument.Presentation) -> Text {
-        localized(document.isHTML && presentation == .rendered
-                  ? "⌃⌘M で切り替え。レンダリング表示は閲覧のみ" : "⌃⌘M で切り替え")
+    func presentationHelp(_ presentation: FileTabDocument.Presentation, bundle: Bundle? = nil) -> Text {
+        Text(LocalizedStringKey(document.isHTML && presentation == .rendered
+                  ? "⌃⌘M で切り替え。レンダリング表示は閲覧のみ" : "⌃⌘M で切り替え"),
+             bundle: bundle ?? localizationBundle)
     }
 
-    var htmlPreparationHelp: Text {
-        localized("安全に表示する準備ができないため、ソースを表示しています。ファイルの内容は編集できます。")
+    func htmlPreparationHelp(bundle: Bundle? = nil) -> Text {
+        Text("安全に表示する準備ができないため、ソースを表示しています。ファイルの内容は編集できます。",
+             bundle: bundle ?? localizationBundle)
     }
 
     private var isolationButton: some View {
@@ -943,15 +984,15 @@ struct FileTabView: View {
             .help(localized("外部の読み込みを止めています"))
             .accessibilityHint(localized("説明を表示"))
             .popover(isPresented: $showsIsolationExplanation) {
-                isolationExplanation
+                isolationExplanation()
                     .environment(\.locale, locale)
             }
     }
 
-    var isolationExplanation: some View {
+    func isolationExplanation(bundle: Bundle? = nil) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            localized("外部の読み込みを止めています").font(DSFont.row.weight(.semibold))
-            localized("このページが外部に出す要求（画像・CSS・フォントなど）と、ページのスクリプトは常に止めています。作業ツリー内のファイルは読み込みます。安全のための仕様で、切り替えはできません。")
+            Text("外部の読み込みを止めています", bundle: bundle ?? localizationBundle).font(DSFont.row.weight(.semibold))
+            Text("このページが外部に出す要求（画像・CSS・フォントなど）と、ページのスクリプトは常に止めています。作業ツリー内のファイルは読み込みます。安全のための仕様で、切り替えはできません。", bundle: bundle ?? localizationBundle)
                 .font(DSFont.auxiliary).foregroundStyle(DSColor.textSecondary).lineSpacing(4)
         }
         .padding(DSSpacing.m)
@@ -1019,7 +1060,7 @@ struct FileTabView: View {
     func requestSave() -> Task<Void, Never>? {
         if canSave {
             return Task { await save() }
-        } else if markdownReason != nil {
+        } else if document.blockEditFailure != nil {
             emphasizesMarkdownReason = true
         }
         return nil

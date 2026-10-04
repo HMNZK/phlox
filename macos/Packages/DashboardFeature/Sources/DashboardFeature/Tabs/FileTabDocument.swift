@@ -201,11 +201,7 @@ public final class FileTabDocument {
         if previousEdit?.range == range, previousEdit?.baseVersion == version { return true }
         guard commitActiveBlockEdit() else { return false }
         guard !markdownPresentationLocked else { return false }
-        var selectedRange = range
-        if let previousEdit, previousEdit.range.upperBound <= range.lowerBound {
-            let offset = previousEdit.current.utf8.count - previousEdit.range.count
-            selectedRange = (range.lowerBound + offset)..<(range.upperBound + offset)
-        }
+        let selectedRange = previousEdit.map { rangeAfterCommitting($0, for: range) } ?? range
         let bytes = Array(draft.utf8)
         guard selectedRange.lowerBound >= 0, selectedRange.upperBound <= bytes.count else { return false }
         let original = String(decoding: bytes[selectedRange], as: UTF8.self)
@@ -215,6 +211,12 @@ public final class FileTabDocument {
                                           original: original, current: original)
         blockEditFailure = nil
         return true
+    }
+
+    func rangeAfterCommitting(_ edit: ActiveBlockEdit, for range: Range<Int>) -> Range<Int> {
+        guard edit.range.upperBound <= range.lowerBound else { return range }
+        let offset = edit.current.utf8.count - edit.range.count
+        return (range.lowerBound + offset)..<(range.upperBound + offset)
     }
 
     public func updateActiveBlockEdit(id: UUID, current: String) {

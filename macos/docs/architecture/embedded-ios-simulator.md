@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-03
+last-verified: 2026-10-04
 ---
 
 # ウィンドウ内 iOS シミュレーターの現行構成
@@ -14,7 +14,7 @@ last-verified: 2026-10-03
 
 ```
 Phlox.app（本体。CoreSimulator / SimulatorKit を読み込まない）
- ├─ SimulatorTabView（ChildTab.simulator）── SimulatorScreenView / SimulatorScreenNSView（layer.contents = IOSurface、CADisplayLink で seed 確認）
+ ├─ SimulatorTabView（ChildTab.simulator）── SimulatorTabContent（帯・状態・案内）── SimulatorScreenView / SimulatorScreenNSView（layer.contents = IOSurface、CADisplayLink で seed 確認）
  │         │ タップ・スクロール・キー（正規化座標・キーコード）
  │         ▼
  ├─ SimulatorHub（PhloxApp の @State。アプリで 1 つ）── 端末ごとに SimulatorDisplayConnection ── SimulatorXPCTransport（NSXPCConnection）
@@ -33,7 +33,7 @@ Phlox.app（本体。CoreSimulator / SimulatorKit を読み込まない）
 | 場所 | 内容 |
 |---|---|
 | `macos/Packages/SimulatorBridgeKit` | `SimulatorBridgeProtocol`・`SimulatorBridgeClientProtocol`・`SimulatorBridgeInterfaces`（`NSXPCInterface` の設定・通信仕様の版・期限）・`SimulatorConnectionGeneration`・`SimulatorBridgeCapability`・`SimulatorDisplayInfo`・`SimulatorOrientation`・`SimulatorInputMapper`・`SimulatorKeyRouting` |
-| `macos/Packages/DashboardFeature/Sources/DashboardFeature/Simulator/` | `SimulatorTabView`（`SimulatorDeviceMenu`・`SimulatorWindowVisibility` を含む）・`SimulatorScreenView`・`SimulatorHub`・`SimulatorDisplayConnection`・`SimulatorPolicy`・`SimulatorCatalog` |
+| `macos/Packages/DashboardFeature/Sources/DashboardFeature/Simulator/` | `SimulatorTabView`（`SimulatorDeviceMenu`・`SimulatorDevicePopUpButton`・`SimulatorWindowVisibility` を含む）・`SimulatorTabContent`・`SimulatorScreenView`・`SimulatorHub`・`SimulatorDisplayConnection`・`SimulatorPolicy`・`SimulatorCatalog` |
 | `macos/SimulatorBridgeService/` | `main.swift`（XPC のエントリ・`SimulatorBridgeService`）・`PrivateSimulatorAPI.h/.m`（非公開 API の呼び出しをこの 1 組に集約）・`Info.plist`・`SimulatorBridgeService.entitlements`（中身は空の dict） |
 | `macos/project.yml` | ターゲット `SimulatorBridgeService`（`type: xpc-service`、`ENABLE_HARDENED_RUNTIME: YES`、ブリッジングヘッダー `PrivateSimulatorAPI.h`）。`Phlox` ターゲットの依存に `embed: true` で入る。bundle ID は Release が `com.phlox.Phlox.SimulatorBridge`、Debug が `com.phlox.Phlox.debug.SimulatorBridge` |
 | `macos/scripts/tests/test_simulator_bridge_signing.sh` | 生成済みアプリの XPC 同梱・署名・権限・本体への非公開リンク混入の検査 |
@@ -85,8 +85,9 @@ Phlox.app（本体。CoreSimulator / SimulatorKit を読み込まない）
 
 **`SimulatorCatalog`**（`/usr/bin/xcrun simctl` を `Process` で実行。標準出力と標準エラーを並行して読む）
 
-- `list -j devices`: ランタイムが `com.apple.CoreSimulator.SimRuntime.iOS-` で始まり `isAvailable` の端末だけ。並びは起動中を先頭に、名前・ランタイム・UDID の順。壊れた JSON・Xcode 未導入・取得失敗は空の一覧と理由。
+- `list -j devices`: ランタイムが `com.apple.CoreSimulator.SimRuntime.iOS-` で始まり `isAvailable` の端末だけ。並びは起動中を先頭に、名前・ランタイム・UDID の順。壊れた JSON・取得失敗は空の一覧と理由。実行失敗後に `xcrun --find simctl` の終了コードと出力先の実行可否で Xcode 不在を判定し、`DEVELOPER_DIR` を尊重する。利用者向けの理由と元の `diagnosticReason` を分けて保持し、診断はツールチップから読めるようにする。
 - `boot`・`shutdown`・`io <udid> screenshot <path>`・`pbcopy <udid>`（標準入力にテキスト）。
+- 端末メニューでは選択中を先頭、ランタイムの版を数値の新しい順、名前を自然順に並べる（Catalog 自体の並びは変えない）。
 
 **`SimulatorScreenView` / `SimulatorScreenNSView`**
 
@@ -97,11 +98,11 @@ Phlox.app（本体。CoreSimulator / SimulatorKit を読み込まない）
 - first responder を失う・ウィンドウが key でなくなる・最小化・非表示・端末・接続世代の変更・`dismantleNSView` で、入力を持っていた場合に `releaseAll`。
 - アクセシビリティ: 役割 `AXApplication`、識別子 `simulator-screen`、ラベル「<端末名> の画面。端末内の UI は VoiceOver で操作できません」。
 
-**`SimulatorTabView`**（帯の高さ 30pt）
+**`SimulatorTabView` / `SimulatorTabContent`**（帯の高さ 30pt）
 
-- 帯: 端末選択（`SimulatorDeviceMenu`、`NSPopUpButton`）・「起動」（停止中の端末）・状態の文言・「未確認でも試す」・ホーム・スクリーンショット・診断（ポップオーバー）・停止。停止は確認ダイアログ（キャンセルが既定）を経由し、スクリーンショットは `~/Pictures/Phlox Simulator/Simulator-<UUID>.png` へ保存して Finder で選択表示する。
-- 理由（`screenshotReason`・`operationReason`・`listingReason`・接続の `reason`・方針の理由のうち先頭の 1 つ）が出るときは「Simulator.app で開く」（`com.apple.iphonesimulator` を `-CurrentDeviceUDID <udid>` つきで起動）・「再接続」（`canReconnect` のとき）・「再確認」（一覧の取得失敗時）を並べる。
-- 画面の下に操作の手がかりを 1 行（VoiceOver 有効時は別文言）。キー入力を送っている間は帯に「キー入力を端末に送信中（⌘Esc で解除）」、画面に枠線を出す。5 秒以上画面が更新されなければ「しばらく画面の更新を観測していません」。
+- 帯: 端末選択（`SimulatorDeviceMenu`、`SimulatorDevicePopUpButton`）・取得済みの版・状態・「起動」（停止中の端末）・ホーム・スクリーンショット・診断・停止。文言、版、状態の印、端末名の順に縮める。停止は確認ダイアログ（キャンセルが既定・停止は ⌘⌫）を経由し、スクリーンショットは `~/Pictures/Phlox Simulator/Simulator-<UUID>.png` へ保存して Finder で選択表示する。
+- `SimulatorTabContent` が画面と状態別の題・説明・操作を表示する。一覧の取得失敗は「再確認」、停止中は「起動」、接続失敗または未確認の組み合わせは「Simulator.app で開く」と、許可されていれば「再接続」／「未確認でも試す」を出す。操作・撮影の失敗だけでは中央の外部起動ボタンを増やさない。外部起動は `com.apple.iphonesimulator` に `-CurrentDeviceUDID <udid>` を渡し、Simulator.app を前面へ出す。端末メニューの外部起動項目は別経路で、失敗をタブ内の `menuOperationReason` に保持する。
+- 更新なしの診断は帯の ⓘ から説明を開く。操作・撮影の理由は、画面があるときは帯の下の行、画面がないときは中央の説明に出す。一覧の元の診断は help に保持する。画面があるときだけ下に操作の手がかりを 1 行出す（VoiceOver 有効時は別文言）。キー入力を送っている間は帯に「キー入力を端末に送信中」、下の案内に「⌘ 付きのキーは Phlox が受けます · ⌘Esc で解除」を出し、画面に枠線を出す。
 - 表示の可視性: `SimulatorWindowVisibility` が、ウィンドウの表示・最小化・遮蔽・アプリの非表示を見て `hub.setVisible(...)` を呼ぶ。タブが消えると `removeDisplay`。
 - ショートカット: ⌃⌘Y（`PhloxApp.swift` のメニュー項目「シミュレーターのタブ」。`router.openChildTab(.simulator)` ＋ `hub.requestMenuFocus`。開いた直後のフォーカスは端末メニュー）、⇧⌘H（タブがフォーカスされていて入力可のときだけ有効なホーム）。
 - 識別子: `simulator-tab`・`simulator-device-menu`・`simulator-boot`・`simulator-home`・`simulator-shutdown`・`simulator-diagnostics`・`simulator-support-band`・`simulator-try-unverified`・`simulator-open-external`・`simulator-reconnect`・`simulator-screen`。

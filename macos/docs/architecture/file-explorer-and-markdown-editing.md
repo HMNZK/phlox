@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-03
+last-verified: 2026-10-04
 ---
 
 # ファイルツリー・マークダウンのブロック編集・HTML 表示の現行構成
@@ -33,7 +33,7 @@ FileTabDocuments.openFileTab(sessionID:root:relativePath:split:router:requestedW
 | 型（`DashboardFeature/Files/`） | 種別 | 役割 |
 |---|---|---|
 | `FileTreeInspectorView`（`FileTreeView.swift`） | View | 選択中セッションの `rawWorkspacePath` から `FileTabOpening.root(for:)`（Git ルート、無ければ作業ディレクトリ。symlink 解決済み）を求め、`FileTreeModel` を取得・登録して `refresh()` する。セッション未選択時は空状態の文言、ルート解決中は `ProgressView`。accessibilityIdentifier `inspector-files` |
-| `FileTreeView` | View | ヘッダー（ルートのパス・ブランチ名・更新ボタン）と `List`。選択行 `selectedPath` はこの View の `@State`。↑↓は `List` 標準、→（展開／最初の子へ）・←（折りたたみ／親へ）・Return（フォルダは開閉、ファイルは開く）は `onKeyPress`。右クリックは「右に分割して開く」（開ける行のみ）・「Finder で表示」・「パスをコピー」。識別子 `file-tree`・`file-tree-row-<相対パス>` |
+| `FileTreeView` | View | ヘッダー（ルートのパス・ブランチ名・更新ボタン）と `ScrollView` + `LazyVStack`。選択行 `selectedPath` はこの View の `@State`。↑↓（表示中の行間を移動）・→（展開／最初の子へ）・←（折りたたみ／親へ）・Return（フォルダは開閉、ファイルは開く）は `onKeyPress` から自前のキー処理へ渡す。右クリックは「右に分割して開く」（開ける行のみ）・「Finder で表示」・「パスをコピー」。識別子 `file-tree`・`file-tree-row-<相対パス>` |
 | `FileTreeModel` | `@MainActor @Observable` | `root`・`childrenByDir`・`expanded`・`errorsByDir`・`omittedByDir`・`loading`・`branch`。`DashboardView` の `@State fileTreeModels: [ルートパス: FileTreeModel]`（ウィンドウごと・非永続）に置く。`expand`・`collapse`・`refresh`（展開中フォルダとルートを並行再読込し、ブランチ名も取り直す）・`fileSaved`（保存したファイルの親フォルダを再読込）・`load`（フォルダごとの世代 UUID で古い結果を捨てる） |
 | `FileTreeLoader` | `actor` | `children(of:refresh:)` を `Task.detached` で実行する。読込中の同一フォルダへの要求は同じ Task に集約し、`refresh: true` の要求は置き換えて、置き換えられた側は `nil` を返す |
 | `FileTreeRows` | 純関数群 | `visibleRows`（深さつき平坦化）・`action(for:key:rows:expanded:)`（キー操作の解釈）・`visibleSelection`・`openPath`（単体表示かつ共通ターミナル非選択のときだけ、操作中のファイルタブのパスを返す） |
@@ -89,14 +89,15 @@ FileTabDocuments.openFileTab(sessionID:root:relativePath:split:router:requestedW
 **編集状態**
 
 - `ActiveBlockEdit { id, baseVersion, range, original, current }` を `FileTabDocument.activeBlockEdit` が持つ。draft への反映は確定時の 1 回だけ（`commitActiveBlockEdit`）。
-- 確定は `baseVersion == version` のときだけ成功し、`range` のバイト区間を `current` で置き換えて draft を更新する。不一致なら置換せず `blockEditFailure =「文書が先に変わったため確定できません」`。失敗中は帯の切り替えを無効にし、ブロック内に「編集を破棄」「ソースで開く」（内容をクリップボードへコピーしてからソース表示へ）を出す。
+- 確定は `baseVersion == version` のときだけ成功し、`range` のバイト区間を `current` で置き換えて draft を更新する。不一致なら置換せず `blockEditFailure =「文書が先に変わったため確定できません」`。失敗中はソースへの切り替えと保存を無効にする。復旧操作は `FileTabView` が本文上に出す「編集を破棄」（確定前の編集だけ破棄し、draft を保持）と「ソースで開く」（確定前の内容をクリップボードへコピーし、`openSourceDiscardingBlockEdit` で draft のソース表示へ戻る）。
 - 確定の契機（`CodeTextEditor` / `CurrentLineTextView`）: Esc（keyCode 53）・⌘Return（keyCode 36 + ⌘）・`resignFirstResponder`・ブロック外のクリック（`NSEvent` のローカルモニター）。⌘S とモード切替は、先に入力欄の内容を `activeBlockEdit.current` へ同期してから確定する。
 - undo: `FileTabDocument.undoManager`（`FileBlockUndoManager`）に、確定ごとに「確定前の draft」を 1 件登録（操作名「ブロック編集」）。編集中は文書の undo を受け付けない。`FileTabUndoScope`（`NSViewRepresentable`）が表示中の responder として `undoManager` を返し、⌘Z/⇧⌘Z をこの履歴へつなぐ。
 
 **表示 `MarkdownBlockEditor`（`Tabs/MarkdownBlockEditor.swift`）**
 
-- `ScrollView { LazyVStack }`。各ブロックは `RichMarkdownView(source:openURL:blockClick:onLinkHover:)`（SessionFeature。チャット用の前処理 `TranscriptMarkdownPresentation.prepare` を通さない init）で描く。`frontMatter`・`raw` は等幅の原文表示、`empty` は「クリックして書き始める」。
-- 編集中のブロックは `CodeTextEditor`（`blockEditID` つき）に置き換わる。高さは `min(200, max(54, 行数 × 18 + 12))`。
+- `ScrollView { LazyVStack }`。各ブロックは `RichMarkdownView(source:openURL:onLinkHover:hoveredLink:)`（SessionFeature。チャット用の前処理 `TranscriptMarkdownPresentation.prepare` を通さない init）とファイル専用の `fileMarkdownTheme` で描く。`frontMatter`・`raw` は等幅の原文表示、`empty` は「クリックして書き始める」。クリック・ドラッグは `MarkdownBlockSelectionObserver` からブロック編集／境界の案内へ渡す。文字上では既存 SelectionView が選択可能な文字部品へ mouseDown を同期転送し、tracking の終了を直接受け取る。tracking 中の境界は選択変更通知と tracking mode の 30ms タイマーで `window.mouseLocationOutsideOfEventStream` の位置参照から判定する。文字選択を維持し、選択範囲がある場合は編集クリックと扱わない。リンクは `openURL` を優先し、キーは同 observer の responder の `keyDown` から処理する。
+- 追跡終了後の文字部品の `selectedRange().length > 0` なら編集を始めない。ダブルクリックで単語を選んだ場合も同じ。
+- 編集中のブロックは `CodeTextEditor`（`blockEditID` つき）に置き換わる。高さは `min(200, max(54, 行数 × 18 + 16))`（末尾の空行は数えない）。
 - 操作: ブロックのクリック／Return／アクセシビリティの「編集」で編集開始、↑↓でブロック間のフォーカス移動。ブロックをまたぐドラッグ選択を検出すると「ブロックをまたいで選ぶには、ソース表示に切り替えます（⌃⌘M）」を出す。識別子 `markdown-block-<index>`。
 - リンク: `MarkdownLinkRouting.resolvedURL` が、`file://` はルート相対へ、スキームなしの相対リンクは文書の位置を基準に解決し（`..` でルートを出るもの・ホスト付きは拒否）、`phlox-worktree://local/<パス>` に直す。行き先の判定は `HTMLNavigationPolicy.linkDestination`: 拡張子が `md`/`markdown`/`html`/`htm` の worktree 内パス → ファイルタブで開く、`http`/`https`（ホストあり）→ `NSWorkspace` で既定ブラウザ、それ以外は何もしない。ファイルへのリンクは開く直前と行き先表示の前に `absolutePath`（包含確認）も通す。
 - ホバー中のリンクの行き先は左下に「ファイルタブで開く」「ブラウザで開く」「開きません」＋URL で出す。
@@ -118,10 +119,10 @@ FileTabDocuments.openFileTab(sessionID:root:relativePath:split:router:requestedW
 
 ## 未保存の確認（`FileTabDocumentRegistry`、`Tabs/FileTabDocumentRegistry.swift`）
 
-- `FileTabDocumentRegistry.shared`（`@MainActor @Observable`）は、各ウィンドウの `FileTabDocuments`（ウィンドウごとの下書き。`DashboardView` の `@State`）を弱参照で登録する（`WindowChromeConfigurator` が `register(files:window:)` を呼ぶ）。登録時にウィンドウの delegate を `windowShouldClose` 用の `WindowDelegate` に差し替え、元の delegate へ転送する。
-- ウィンドウを閉じる: そのウィンドウの未保存（`hasUnsavedChanges`）を集め、あれば `NSAlert` のシート（「キャンセル」が既定・最上段、「保存せず閉じる」は破壊的表示）を出す。承認後に文書を失効させ、進行中の保存を待ってから閉じる。
-- アプリ終了: `AppDelegate.applicationShouldTerminate` が `cleanupGuard.beginCleanup()` より前に `confirmTermination()` を呼ぶ。全ウィンドウの未保存を集めてアラートを出し、キャンセルなら `.terminateCancel`。確認中の再要求は `.terminateCancel`、承認後の再要求は `.terminateLater`。承認後は `invalidateAndWait()` で全文書の保存完了を待ってから、既存の終了処理（PTY 終了・transcript flush）へ進む。
-- 表示する一覧は合計 5 件まで（ウィンドウ名の見出し付き）。残りは「ほか N 件（M ウィンドウ）」。未確定のブロック編集を含む文書は「（編集中）」を付け、末尾に注意文を足す。
+- `FileTabDocumentRegistry.shared`（`@MainActor @Observable`）は、各ウィンドウの `FileTabDocuments`（ウィンドウごとの下書き。`DashboardView` の `@State`）を弱参照で登録する（`WindowChromeConfigurator` が `register(files:window:)` を呼ぶ）。登録時にウィンドウの delegate を `windowShouldClose` 用の `WindowDelegate` に差し替え、元の delegate へ転送する。registry と undo の差し替えは既存の連鎖に自分があれば包み直さず、再設置で循環を作らない。
+- ウィンドウを閉じる: そのウィンドウの未保存（`hasUnsavedChanges`）を集め、あれば件数入りの題と一覧を持つ `NSAlert` のシートを出す。「キャンセル」が既定・最上段、「保存せず閉じる」は破壊的表示で ⌘⌫ を割り当てる。承認後に文書を失効させ、進行中の保存を待ってから閉じる。
+- アプリ終了: `AppDelegate.applicationShouldTerminate` が `cleanupGuard.beginCleanup()` より前に `confirmTermination()` を呼ぶ。全ウィンドウの未保存を集め、件数入りの題と一覧を持つアラートを出す。「保存せず終了」は破壊的表示で ⌘⌫ を割り当て、キャンセルなら `.terminateCancel`。確認中の再要求は `.terminateCancel`、承認後の再要求は `.terminateLater`。承認後は `invalidateAndWait()` で全文書の保存完了を待ってから、既存の終了処理（PTY 終了・transcript flush）へ進む。
+- 表示する一覧は合計 5 件まで。複数ウィンドウの場合だけウィンドウ名の見出しを付け、残りは「ほか N 件（M ウィンドウ）」、単一ウィンドウでは「ほか N 件」。未確定のブロック編集を含む文書は「編集中のブロック」のタグを付け、本文にも注意文を足す。前面順のウィンドウごとにパス順で並べる。幅は 280pt、末尾の保存案内は中央寄せ。要約も一覧と同じ可視件数・省略数モデルを使う。
 - セッション削除・作業ディレクトリ変更・プロジェクト移動・子タブを閉じる確認は `dirtySummary(for:)` / `dirtyFileNames(for:)` / `hasUnsavedChanges(for:path:)` で全ウィンドウの未保存を集める。作業場所の変更中は `beginWorkspaceChange`・`beginSessionChanges` で `isChangingSession` を立てる。
 - 強制終了・クラッシュ時の下書き保護は無い。
 

@@ -16,6 +16,7 @@ struct SimulatorTabContent: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var sendsKeys: Bool
     @Binding var showsDiagnostics: Bool
+    @State private var menuOperationReason: String?
     var operationReason: String?
     let select: (String?) -> Void
     let releaseFocus: () -> Void
@@ -28,6 +29,7 @@ struct SimulatorTabContent: View {
     private var support: SimulatorPolicy.Support { hub.support(for: sessionID, displayID: displayID) }
     private var allowsInput: Bool { support.allowsInput && connection?.inputEnabled == true }
     private var hasScreen: Bool { support.allowsDisplay && connection?.displayInfo != nil }
+    private var failureReason: String? { operationReason ?? menuOperationReason ?? hub.operationReason }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,7 +37,7 @@ struct SimulatorTabContent: View {
                 band(stale: hasScreen && connection?.hasStaleFrame(at: context.date) == true)
             }
             Divider()
-            if hasScreen, let reason = operationReason ?? hub.operationReason {
+            if hasScreen, let reason = failureReason {
                 Text(verbatim: reason).font(DSFont.auxiliary)
                     .foregroundStyle(DSColor.textSecondary).padding(8)
             }
@@ -53,8 +55,10 @@ struct SimulatorTabContent: View {
                                             }, inputEnabled: allowsInput)
                             .frame(width: width, height: height)
                             .clipShape(RoundedRectangle(cornerRadius: radius))
-                            .overlay(RoundedRectangle(cornerRadius: radius).strokeBorder(DSColor.popoverEdge, lineWidth: 1))
-                            .shadow(color: .black.opacity(0.35), radius: 12, y: 8)
+                            .overlay(RoundedRectangle(cornerRadius: radius).inset(by: -0.5)
+                                .stroke(DSColor.simulatorScreenEdge, lineWidth: 1))
+                            .shadow(color: .black.opacity(DSColor.isDark ? 0.35 : 0.14),
+                                    radius: DSColor.isDark ? 12 : 9, y: DSColor.isDark ? 8 : 6)
                             .padding(3)
                             .overlay {
                                 if sendsKeys {
@@ -105,12 +109,15 @@ struct SimulatorTabContent: View {
             SimulatorDeviceMenu(devices: hub.devices, selected: device?.udid,
                                 compact: detail == .withoutRuntime || symbolsOnly, focusRequest: menuFocusRequest,
                                 preservesScreenFocus: preservesScreenFocus,
-                                failed: { hub.reportOperationReason($0) }, select: select)
+                                failed: { menuOperationReason = $0 }, select: {
+                                    menuOperationReason = nil
+                                    select($0)
+                                })
                 .accessibilityIdentifier("simulator-device-menu")
                 .fixedSize(horizontal: !symbolsOnly, vertical: true)
                 .frame(minWidth: 44)
-            if let device, !compact, !stale, support != .unverified {
-                Text(device.stateLabel).font(DSFont.meta).foregroundStyle(DSColor.textTertiary)
+            if !compact, !stale, support != .unverified {
+                Text(device?.stateLabel ?? "停止中").font(DSFont.meta).foregroundStyle(DSColor.textTertiary)
                     .fixedSize()
             }
             if device?.state == "Shutdown" {
@@ -136,7 +143,7 @@ struct SimulatorTabContent: View {
                     Image(systemName: "info.circle")
                     if !symbolsOnly { Text(compact ? "表示のみ" : "表示のみ（入力は未確認）") }
                 }
-                    .font(DSFont.meta).fixedSize()
+                    .font(DSFont.meta).foregroundStyle(DSColor.textPrimary).fixedSize()
                     .accessibilityLabel("表示のみ（入力は未確認）")
                     .accessibilityIdentifier("simulator-support-band")
                     .help("入力の動作をまだ確認していない組み合わせです。画面の表示だけ有効にしています。")
@@ -146,7 +153,7 @@ struct SimulatorTabContent: View {
                     if symbolsOnly { Image(systemName: "exclamationmark.triangle") }
                     else { Text(compact ? "未確認（このタブのみ）" : "未確認の組み合わせで実行中（このタブのみ）") }
                 }
-                    .font(DSFont.meta).fixedSize()
+                    .font(DSFont.meta).foregroundStyle(DSColor.textPrimary).fixedSize()
                     .padding(.horizontal, 7).frame(height: 20)
                     .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(DSColor.controlBorder, lineWidth: 1))
                     .accessibilityIdentifier("simulator-support-band")
@@ -165,7 +172,14 @@ struct SimulatorTabContent: View {
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("しばらく画面の更新を観測していません")
                     .help("しばらく画面の更新を観測していません")
-                    Button { showsDiagnostics.toggle() } label: { Image(systemName: "info.circle") }
+                    Button { showsDiagnostics.toggle() } label: {
+                        Image(systemName: "info.circle")
+                            .overlay {
+                                if showsDiagnostics {
+                                    Circle().strokeBorder(DSColor.accent, lineWidth: 1.5).padding(-2)
+                                }
+                            }
+                    }
                         .accessibilityLabel("診断の説明")
                         .accessibilityIdentifier("simulator-diagnostics")
                         .popover(isPresented: $showsDiagnostics) { SimulatorDiagnostics() }
@@ -178,7 +192,7 @@ struct SimulatorTabContent: View {
                 .fixedSize()
                 .help("ホーム（⇧⌘H）").accessibilityLabel("ホーム")
                 .accessibilityIdentifier("simulator-home").disabled(!allowsInput)
-            Button(action: screenshot) { Image(systemName: "circle.square") }
+            Button(action: screenshot) { Image(systemName: "camera") }
                 .buttonStyle(.plain).opacity(device?.isBooted == true ? 1 : 0.45)
                 .frame(width: 26, height: 22)
                 .fixedSize()
@@ -208,7 +222,7 @@ struct SimulatorTabContent: View {
     }
 
     private var title: String {
-        if operationReason != nil || hub.operationReason != nil { return "操作を完了できません" }
+        if failureReason != nil { return "操作を完了できません" }
         if missingXcode { return "Xcode が見つかりません" }
         if hub.listingReason != nil { return "端末一覧を取得できません" }
         if incompatibleProtocol { return "Phlox を再起動してください" }
@@ -221,7 +235,7 @@ struct SimulatorTabContent: View {
     }
 
     private var explanation: String {
-        if let reason = operationReason ?? hub.operationReason { return reason }
+        if let reason = failureReason { return reason }
         if missingXcode { return "シミュレーターを表示するには Xcode が必要です。Xcode を入れたあと、もう一度確認してください。" }
         if let reason = hub.listingReason {
             return reason.hasPrefix("端末一覧を取得できません: ")
@@ -256,12 +270,13 @@ struct SimulatorTabContent: View {
             Text(title).font(DSFont.sessionTitle)
             Text(explanation).font(DSFont.auxiliary).foregroundStyle(DSColor.textSecondary).lineSpacing(4)
                 .frame(maxWidth: 380)
+                .help(hub.listingDiagnosticReason ?? explanation)
             if missingXcode { information("xcode-select -p") }
             if isUnverified {
                 information("Xcode build \(connection?.capability?.xcodeBuild ?? "未取得")\n\(device?.runtimeLabel ?? "iOS 未取得")")
             }
             if incompatibleProtocol {
-                information("通信仕様 \(connection?.capability?.protocolVersion ?? 0)（補助）· \(SimulatorBridgeInterfaces.protocolVersion)（本体）")
+                information("通信仕様 \(connection?.capability?.protocolVersion ?? 0)（補助） · \(SimulatorBridgeInterfaces.protocolVersion)（本体）")
             }
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 8) { actions }
@@ -274,6 +289,7 @@ struct SimulatorTabContent: View {
 
     private func information(_ text: String) -> some View {
         Text(verbatim: text).font(DSFont.monoCaption).textSelection(.enabled)
+            .foregroundStyle(DSColor.textPrimary)
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: true, vertical: true)
             .padding(.vertical, 7).padding(.horizontal, 10)

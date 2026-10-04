@@ -185,7 +185,9 @@ struct ActiveBlockEditTests {
 
     @Test
     func confirmationLabelsAndExplainsActiveEditing() {
-        let summary = FileTabDocumentRegistry.summary([("ウィンドウ", ["a.md（編集中）"])])
+        let summary = UnsavedChangesContent(windows: [UnsavedWindow(name: "ウィンドウ", files: [
+            UnsavedFile(name: "a.md", context: "", editingBlock: true),
+        ])]).textSummary
         #expect(summary.contains("a.md（編集中）"))
         #expect(summary.contains("編集中のブロックの内容も保存されていません。"))
     }

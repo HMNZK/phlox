@@ -104,7 +104,6 @@ public struct SimulatorTabView: View {
             return
         }
         let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = false
         if let device { configuration.arguments = ["-CurrentDeviceUDID", device.udid] }
         NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, error in
             if let error {
@@ -182,14 +181,27 @@ struct SimulatorDeviceMenu: NSViewRepresentable {
             self.failed = failed
         }
         func configure(_ button: NSPopUpButton, devices: [SimulatorDevice], selected: String?, compact: Bool = false) {
-            let rebuildsMenu = self.devices != devices || self.compact != compact
+            let groups = [
+                ("起動中", devices.filter { $0.isBooted || $0.state == "Booting" }),
+                ("停止中", devices.filter { !$0.isBooted && $0.state != "Booting" }),
+            ].map { heading, group in
+                (heading, group.sorted { lhs, rhs in
+                    if (lhs.udid == selected) != (rhs.udid == selected) { return lhs.udid == selected }
+                    if lhs.runtimeIdentifier != rhs.runtimeIdentifier {
+                        return lhs.runtimeIdentifier.compare(rhs.runtimeIdentifier, options: .numeric) == .orderedDescending
+                    }
+                    if lhs.name != rhs.name { return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending }
+                    return lhs.udid < rhs.udid
+                })
+            }
+            let order = groups.flatMap { $0.1.map(\.udid) }
+            let currentOrder = button.itemArray.compactMap { $0.representedObject as? String }
+                .filter { $0 != "Simulator.app" }
+            let rebuildsMenu = self.devices != devices || self.compact != compact || order != currentOrder
             guard rebuildsMenu || self.selected != selected else { return }
             if rebuildsMenu {
                 button.removeAllItems()
-                for (heading, group) in [
-                    ("起動中", devices.filter { $0.isBooted || $0.state == "Booting" }),
-                    ("停止中", devices.filter { !$0.isBooted && $0.state != "Booting" }),
-                ] where !group.isEmpty {
+                for (heading, group) in groups where !group.isEmpty {
                     let header = NSMenuItem(title: heading, action: nil, keyEquivalent: "")
                     header.isEnabled = false
                     header.attributedTitle = NSAttributedString(string: heading, attributes: [
@@ -236,7 +248,7 @@ struct SimulatorDeviceMenu: NSViewRepresentable {
                 item.state = item.representedObject as? String == selected && selected != nil ? .on : .off
             }
             if let device = devices.first(where: { $0.udid == selected }) {
-                let state = device.isBooted ? "起動済み" : device.state == "Booting" ? "起動中" : "停止中"
+                let state = device.stateLabel
                 button.setAccessibilityLabel("端末の選択: \(device.name)、\(state)")
                 button.toolTip = "\(device.name) · \(device.runtimeLabel) · \(state)"
             } else {
@@ -258,19 +270,13 @@ struct SimulatorDeviceMenu: NSViewRepresentable {
             guard !(preservingScreenFocus && button.window?.firstResponder is SimulatorScreenNSView) else { return }
             button.window?.makeFirstResponder(button)
         }
-        private static func backgroundConfiguration() -> NSWorkspace.OpenConfiguration {
-            let configuration = NSWorkspace.OpenConfiguration()
-            configuration.activates = false
-            return configuration
-        }
-
         @objc func changed(_ button: NSPopUpButton) {
             button.window?.makeFirstResponder(button)
             let value = button.selectedItem?.representedObject as? String
             if value == "Simulator.app" {
                 restoreSelection(button)
                 if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iphonesimulator") {
-                    NSWorkspace.shared.openApplication(at: url, configuration: Self.backgroundConfiguration()) { [weak self] _, error in
+                    NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { [weak self] _, error in
                         if let error {
                             Task { @MainActor in self?.failed("Simulator.app を開けません: \(error.localizedDescription)") }
                         }

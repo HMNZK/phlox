@@ -33,7 +33,7 @@ struct UnsavedWindow: Equatable {
 struct UnsavedChangesContent: View {
     let windows: [UnsavedWindow]
     var locale = Locale(identifier: "ja")
-    var localizationBundle = Bundle.main
+    @Environment(\.localizationBundle) private var localizationBundle
 
     private func localized(_ key: String) -> String {
         AppLocalizedString.string(key, locale: locale, bundle: localizationBundle)
@@ -49,7 +49,8 @@ struct UnsavedChangesContent: View {
             return files.isEmpty ? nil : UnsavedWindow(name: window.name, files: files)
         }
     }
-    var omitted: String? {
+    func omitted(bundle: Bundle = .main) -> String? {
+        func localized(_ key: String) -> String { AppLocalizedString.string(key, locale: locale, bundle: bundle) }
         guard count > 5 else { return nil }
         var remaining = 5
         var hiddenWindows = 0
@@ -58,9 +59,22 @@ struct UnsavedChangesContent: View {
             remaining -= shown
             if shown < window.files.count { hiddenWindows += 1 }
         }
-        return windows.count > 1
-            ? String(format: localized("ほか %lld 件（%lld ウィンドウ）"), count - 5, hiddenWindows)
-            : String(format: localized("ほか %lld 件"), count - 5)
+        let files = String(format: localized("ほか %lld 件"), count - 5)
+        guard windows.count > 1 else { return files }
+        let windowCount = String(format: localized("%lld ウィンドウ"), hiddenWindows)
+        return String(format: localized("%@（%@）"), files, windowCount)
+    }
+
+    var textSummary: String {
+        func localized(_ key: String) -> String { AppLocalizedString.string(key, locale: locale) }
+        var lines = visibleWindows.flatMap { window in
+            [window.name] + window.files.map { file in
+                "  " + file.name + (file.editingBlock ? localized("（編集中）") : "")
+            }
+        }
+        if let omitted = omitted() { lines.append(omitted) }
+        if hasBlockEdit { lines.append(localized("編集中のブロックの内容も保存されていません。")) }
+        return lines.joined(separator: "\n")
     }
 
     var body: some View {
@@ -74,46 +88,47 @@ struct UnsavedChangesContent: View {
                             .padding(.horizontal, DSSpacing.m).padding(.vertical, DSSpacing.chip)
                     }
                     ForEach(Array(window.files.enumerated()), id: \.offset) { fileIndex, file in
-                        if fileIndex > 0 { Divider().overlay(DSColor.separator) }
-                        HStack(alignment: .top, spacing: DSSpacing.s) {
+                        if fileIndex > 0 { Rectangle().fill(DSColor.textPrimary.opacity(0.08)).frame(height: 1) }
+                        HStack(alignment: .center, spacing: DSSpacing.s) {
                             Image(systemName: "doc").foregroundStyle(DSColor.textTertiary)
                             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                                 HStack(spacing: DSSpacing.s) {
                                     Text(verbatim: file.name).font(DSFont.auxiliary).lineLimit(1)
                                     Spacer(minLength: DSSpacing.xs)
-                                    if file.editingBlock {
-                                        Text(verbatim: localized("編集中のブロック"))
-                                            .font(DSFont.meta)
-                                            .padding(.horizontal, DSSpacing.xs)
-                                            .frame(height: DSSpacing.l)
-                                            .overlay(RoundedRectangle(cornerRadius: DSRadius.s).stroke(DSColor.border))
-                                            .fixedSize()
-                                    }
                                 }
                                 Text(verbatim: file.context).font(DSFont.meta).foregroundStyle(DSColor.textTertiary)
-                                    .fixedSize(horizontal: false, vertical: true)
+                                    .lineLimit(1).truncationMode(.head)
+                            }
+                            if file.editingBlock {
+                                Text(verbatim: localized("編集中のブロック"))
+                                    .font(DSFont.meta)
+                                    .padding(.horizontal, DSSpacing.xs)
+                                    .frame(height: DSSpacing.l)
+                                    .overlay(RoundedRectangle(cornerRadius: DSRadius.s).stroke(DSColor.border))
+                                    .fixedSize()
                             }
                         }
-                        .padding(.horizontal, DSSpacing.m).padding(.vertical, DSSpacing.chip)
+                        .padding(.horizontal, DSSpacing.m).padding(.vertical, DSSpacing.xs)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel([file.name, file.context, file.editingBlock ? localized("編集中のブロックあり") : ""].filter { !$0.isEmpty }.joined(separator: ", "))
                     }
                 }
-                if let omitted {
-                    Divider().overlay(DSColor.separator)
+                if let omitted = omitted(bundle: localizationBundle) {
+                    Rectangle().fill(DSColor.textPrimary.opacity(0.08)).frame(height: 1)
                     Text(omitted).font(DSFont.meta).foregroundStyle(DSColor.textSecondary)
-                        .padding(.horizontal, DSSpacing.m).padding(.vertical, DSSpacing.chip)
+                        .padding(.horizontal, DSSpacing.m).padding(.vertical, DSSpacing.s + DSSpacing.xxs)
                 }
             }
-            .padding(.vertical, DSSpacing.xs)
-            .background(DSColor.surface, in: RoundedRectangle(cornerRadius: DSRadius.row))
+            .background(DSColor.background, in: RoundedRectangle(cornerRadius: DSRadius.row))
             .overlay(RoundedRectangle(cornerRadius: DSRadius.row).stroke(DSColor.border, lineWidth: 0.5))
             .accessibilityLabel(String(format: localized("未保存のファイル %lld 件"), count))
             Text(verbatim: localized("保存するには、キャンセルしてそれぞれのタブで ⌘S を押します。"))
                 .font(DSFont.meta).foregroundStyle(DSColor.textSecondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
         }
         .foregroundStyle(DSColor.textPrimary)
-        .frame(width: 380)
+        .frame(width: 280)
         .fixedSize(horizontal: false, vertical: true)
     }
 }
@@ -184,7 +199,7 @@ public final class FileTabDocumentRegistry {
             existing.name = name
             existing.locale = locale
             existing.delegate.files = files
-            if window.delegate !== existing.delegate {
+            if !fileTabWindowDelegateChainContains(existing.delegate, in: window.delegate) {
                 existing.delegate.original = window.delegate
                 window.delegate = existing.delegate
             }
@@ -210,12 +225,7 @@ public final class FileTabDocumentRegistry {
     }
 
     func dirtySummary(for sessionID: SessionID, path: String) -> String {
-        Self.summary(entries.compactMap { entry in
-            guard let window = entry.window,
-                  entry.files?.existing(for: sessionID, path: path)?.hasUnsavedChanges == true else { return nil }
-            return (window.title.isEmpty ? "Phlox" : window.title,
-                    [entry.files?.existing(for: sessionID, path: path)?.unsavedDisplayName ?? path])
-        })
+        dirtySummary(for: [sessionID], path: path)
     }
 
     func remove(for sessionID: SessionID, path: String) async {
@@ -227,37 +237,21 @@ public final class FileTabDocumentRegistry {
     }
 
     public func dirtySummary(for sessionIDs: Set<SessionID>? = nil) -> String {
-        let groups = entries.compactMap { entry -> (String, [String])? in
-            guard let files = entry.files, let window = entry.window else { return nil }
-            let names = files.documents(for: sessionIDs).filter(\.hasUnsavedChanges).map(\.unsavedDisplayName).sorted()
-            guard !names.isEmpty else { return nil }
-            return (window.title.isEmpty ? "Phlox" : window.title, names)
-        }
-        return Self.summary(groups)
+        dirtySummary(for: sessionIDs, path: nil)
     }
 
-    static func summary(_ groups: [(String, [String])]) -> String {
-        var remaining = 5
-        var lines: [String] = []
-        var omitted = 0
-        var omittedWindows = 0
-        for (title, names) in groups where !names.isEmpty {
-            let shown = Array(names.prefix(remaining))
-            if !shown.isEmpty {
-                lines.append(title)
-                lines.append(contentsOf: shown.map { "  \($0)" })
-                remaining -= shown.count
-            }
-            if names.count > shown.count {
-                omitted += names.count - shown.count
-                omittedWindows += 1
-            }
+    private func dirtySummary(for sessionIDs: Set<SessionID>?, path: String?) -> String {
+        let windows = entries.compactMap { entry -> UnsavedWindow? in
+            guard let files = entry.files, let window = entry.window else { return nil }
+            let dirty = files.documents(for: sessionIDs)
+                .filter { $0.hasUnsavedChanges && (path == nil || $0.path == path) }
+                .sorted { $0.path < $1.path }
+            guard !dirty.isEmpty else { return nil }
+            return UnsavedWindow(name: window.title.isEmpty ? "Phlox" : window.title,
+                files: dirty.map { UnsavedFile(name: $0.path, context: "", editingBlock: $0.activeBlockEdit != nil) })
         }
-        if omitted > 0 { lines.append("ほか \(omitted) 件（\(omittedWindows) ウィンドウ）") }
-        if groups.contains(where: { $0.1.contains(where: { $0.hasSuffix("（編集中）") }) }) {
-            lines.append("編集中のブロックの内容も保存されていません。")
-        }
-        return lines.joined(separator: "\n")
+        return UnsavedChangesContent(windows: windows,
+            locale: entries.first { $0.window?.isKeyWindow == true }?.locale ?? entries.first?.locale ?? Locale(identifier: "ja")).textSummary
     }
 
     public func invalidateAndWait(for sessionIDs: Set<SessionID>? = nil) async {
@@ -275,7 +269,7 @@ public final class FileTabDocumentRegistry {
 
     /// キャンセルでは終了ガードも文書も変えない。
     public func confirmTermination() -> Bool {
-        requestTermination { _ in
+        requestTermination {
             Self.alert(windows: unsavedWindows(), terminating: true, locale: entries.first { $0.window?.isKeyWindow == true }?.locale ?? entries.first?.locale ?? Locale(identifier: "ja")).runModal() == .alertSecondButtonReturn
         }
     }
@@ -302,11 +296,10 @@ public final class FileTabDocumentRegistry {
             }
     }
 
-    func requestTermination(confirm: (String) -> Bool) -> Bool {
+    func requestTermination(confirm: () -> Bool) -> Bool {
         guard confirmation == .idle else { return false }
         confirmation = .termination
-        let summary = dirtySummary()
-        guard summary.isEmpty || confirm(summary) else {
+        guard !entries.contains(where: { $0.files?.documents().contains(where: \.hasUnsavedChanges) == true }) || confirm() else {
             confirmation = .idle
             return false
         }
@@ -316,7 +309,7 @@ public final class FileTabDocumentRegistry {
 
     static func alert(windows: [UnsavedWindow], terminating: Bool, locale: Locale = Locale(identifier: "ja"), bundle: Bundle = .main) -> NSAlert {
         func localized(_ key: String) -> String { AppLocalizedString.string(key, locale: locale, bundle: bundle) }
-        let content = UnsavedChangesContent(windows: windows, locale: locale, localizationBundle: bundle)
+        let content = UnsavedChangesContent(windows: windows, locale: locale)
         let alert = NSAlert()
         alert.messageText = String(format: localized(terminating
             ? "未保存のファイル %lld 件を保存せずに Phlox を終了しますか？"
@@ -329,7 +322,7 @@ public final class FileTabDocumentRegistry {
                 ? localized("保存していない変更は、編集中（未確定）のブロックも含めて失われます。元に戻せません。")
                 : localized("保存していない変更は失われ、元に戻せません。")
         }
-        let accessory = NSHostingView(rootView: content)
+        let accessory = NSHostingView(rootView: content.environment(\.localizationBundle, bundle))
         accessory.setFrameSize(accessory.fittingSize)
         alert.accessoryView = accessory
         alert.icon = NSApp.applicationIconImage

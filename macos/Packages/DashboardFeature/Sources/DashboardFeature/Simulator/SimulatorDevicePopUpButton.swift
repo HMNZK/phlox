@@ -11,7 +11,7 @@ final class SimulatorDevicePopUpButton: NSPopUpButton {
         let nameWidth = (name as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11.5)]).width
         let runtimeWidth = compact || device == nil ? 0 : ((device?.runtimeLabel ?? "") as NSString)
             .size(withAttributes: [.font: NSFont.systemFont(ofSize: 11)]).width + 6
-        return NSSize(width: ceil(nameWidth + runtimeWidth + (device == nil ? 27 : 43)), height: 22)
+        return NSSize(width: ceil(nameWidth + runtimeWidth + 43), height: 22)
     }
 
     override func becomeFirstResponder() -> Bool {
@@ -38,8 +38,13 @@ final class SimulatorDevicePopUpButton: NSPopUpButton {
         var x: CGFloat = 10
         if let device {
             Self.drawState(device, in: NSRect(x: x, y: bounds.midY - 3.5, width: 7, height: 7))
-            x += 13
+        } else {
+            NSColor(DSColor.textSecondary).setStroke()
+            let mark = NSBezierPath(ovalIn: NSRect(x: x, y: bounds.midY - 3.5, width: 7, height: 7))
+            mark.lineWidth = 1.2
+            mark.stroke()
         }
+        x += 13
         let name = device?.name ?? "端末なし"
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 11.5), .foregroundColor: NSColor(DSColor.textPrimary),

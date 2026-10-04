@@ -6,6 +6,21 @@ import Testing
 @Suite("ブロック編集のレビュー回帰", .serialized)
 @MainActor
 struct MarkdownBlockRegressionTests {
+    @Test(arguments: ["短い\n\n", "長くした先頭の本文\n\n"])
+    func beginningTheNextBlockUsesTheCommittedByteOffset(replacement: String) throws {
+        let document = FileTabDocument(path: "a.md", root: "/")
+        document.draft = "先頭の本文\n\n次の本文\n"
+        let first = try #require(document.markdownBlocks.first)
+        let next = try #require(document.markdownBlocks.last)
+        #expect(document.beginBlockEdit(range: first.range))
+        let id = try #require(document.activeBlockEdit?.id)
+        document.updateActiveBlockEdit(id: id, current: replacement)
+        #expect(document.beginBlockEdit(range: next.range))
+        #expect(document.activeBlockEdit?.original == next.original)
+        #expect(document.activeBlockEdit?.range.lowerBound == replacement.utf8.count)
+        #expect(document.draft == replacement + next.original)
+    }
+
     @Test func paragraphBeforeTableHasUniqueNonemptyRanges() {
         let source = "前の行\n| a | b |\n|---|---|\n| 1 | 2 |\n"
         let blocks = MarkdownBlocks.parse(source)

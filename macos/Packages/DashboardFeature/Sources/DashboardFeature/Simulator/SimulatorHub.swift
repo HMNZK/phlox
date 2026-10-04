@@ -7,6 +7,7 @@ import Observation
 public final class SimulatorHub {
     private(set) var devices: [SimulatorDevice] = []
     private(set) var listingReason: String?
+    private(set) var listingDiagnosticReason: String?
     private(set) var operationReason: String?
     @ObservationIgnored private let catalog: SimulatorCatalog
     @ObservationIgnored private let makeConnection: () -> SimulatorDisplayConnection
@@ -75,7 +76,6 @@ public final class SimulatorHub {
         visibleDisplays.values.filter { selectedDevice(for: $0)?.udid == udid }.count
     }
 
-    func reportOperationReason(_ reason: String) { operationReason = reason }
 
     func support(for sessionID: SessionID, displayID: UUID) -> SimulatorPolicy.Support {
         guard connection(for: sessionID)?.blocksRetry != true else { return .unsupported }
@@ -128,6 +128,7 @@ public final class SimulatorHub {
         guard generation == refreshGeneration, !Task.isCancelled else { return }
         devices = listing.devices
         listingReason = listing.reason
+        listingDiagnosticReason = listing.diagnosticReason
         // 初回の並び順を記憶し、外部起動による並び替えで選択端末を変えない。
         for sessionID in Set(visibleDisplays.values) where selections[sessionID] == nil {
             selections[sessionID] = devices.first?.udid

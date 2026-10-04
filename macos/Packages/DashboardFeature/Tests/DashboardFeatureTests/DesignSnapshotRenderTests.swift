@@ -145,7 +145,7 @@ struct DesignSnapshotRenderTests {
 
     private var syntaxFrames: [Frame] {
         let sources = ["swift", "json", "yaml", "tsx", "css", "log", "python", "markdown", "html", "diff", "csv", "shell", "unknown",
-         "block", "frontmatter", "fence"].flatMap { kind in
+         "block", "frontmatter", "fence", "heading-edited", "heading-synced"].flatMap { kind in
             [false, true].map { light in
                 Frame(id: "syntax-\(kind)-\(light ? "light" : "dark")", name: "色付け",
                       width: 760, height: 420, light: light, state: "syntax-\(kind)")
@@ -178,6 +178,10 @@ struct DesignSnapshotRenderTests {
             return ("scripts/greeting.py", "# def と return はコメントのまま\ndef greeting(name):\n    title = \"return if\"\n    text = '''def と return\n複数行文字列'''\n    if name is None:\n        return False\n    return title\nunfinished = \"閉じ忘れの文字列 return\n")
         case "syntax-markdown", "syntax-block":
             return ("README.md", "# Phlox\n\n**並べて走らせる**。`swift test` で確かめる。\n\n- セッションを開く\n- [設計書](docs/specs/overview.md) を読む\n\n> 判断だけを前に出す。\n")
+        case "syntax-heading-edited":
+            return ("README.md", "# 日本語の見出し\n\n本文です\n")
+        case "syntax-heading-synced":
+            return ("README.md", "# Title\n本文です\n")
         case "syntax-html":
             return ("docs/index.html", "<!doctype html>\n<html lang=\"ja\">\n<head>\n  <style>body { color: #333; margin: 12px; }</style>\n</head>\n<body>\n  <!-- 挨拶 -->\n  <h1 class=\"title\">Phlox</h1>\n  <script>const count = 42; console.log(\"hello\");</script>\n</body>\n</html>\n")
         case "syntax-diff":
@@ -373,7 +377,23 @@ struct DesignSnapshotRenderTests {
                                 files: files, agentConsoleWindowID: nil)
                 }
                 body
-            }, frame: frame, output: output)
+            }, frame: frame, output: output, prepare: { host, _ in
+                guard ["syntax-heading-edited", "syntax-heading-synced"].contains(id) else { return }
+                let view = try #require(descendants(host).compactMap { $0 as? CurrentLineTextView }.first)
+                let coordinator = try #require(view.delegate as? CodeTextEditor.Coordinator)
+                view.layoutManager?.ensureLayout(for: view.textContainer!)
+                var complete = false
+                coordinator.highlights.onHighlightComplete = { _ in complete = true }
+                if id == "syntax-heading-edited" {
+                    view.insertText("", replacementRange: NSRange(location: 0, length: 2))
+                } else {
+                    document.draft = "# Title\n本文です。\n"
+                    #expect(CodeTextEditor.synchronizeText(document.draft, with: view,
+                                                          beforeReplacement: { coordinator.highlights.invalidate() }))
+                    coordinator.updateHighlights(view, path: document.path)
+                }
+                try await waitUntil(deadline: ContinuousClock.now + .seconds(10)) { complete }
+            })
         }
         return frame.id.contains("-help-") ? "実際のhelp本文を描画。標準ツールチップの外枠とホバー操作は対象外"
             : "実物の部品。ホバー・選択・障害状態は既存モデルとビューの初期状態で再現"
@@ -639,7 +659,12 @@ struct DesignSnapshotRenderTests {
             #expect(document.beginBlockEdit(range: block.range))
             if ["4b", "4j", "8L2"].contains(id) {
                 let edit = try #require(document.activeBlockEdit)
-                document.updateActiveBlockEdit(id: edit.id, current: edit.current + "\n編集中の内容です。")
+                let original = edit.current as NSString
+                let content = edit.current.trimmingCharacters(in: .newlines)
+                let separator = original.substring(from: content.utf16.count)
+                let current = content + "\n編集中の内容です。" + separator
+                #expect(!current.contains("\n\n編集中の内容です。"))
+                document.updateActiveBlockEdit(id: edit.id, current: current)
             }
             if id == "3h" || id == "4g" {
                 let edit = try #require(document.activeBlockEdit)
@@ -856,7 +881,7 @@ struct DesignSnapshotRenderTests {
     private func capture<V: View>(_ content: V, frame: Frame, output: URL,
                                  foreground: AnyView? = nil, foregroundOrigin: CGPoint = .zero,
                                  afterMount: (() -> Void)? = nil, selectsParagraph: Bool = false,
-                                 prepare: ((NSView, NSWindow) -> Void)? = nil) async throws {
+                                 prepare: ((NSView, NSWindow) async throws -> Void)? = nil) async throws {
         let strings = try localizationBundle(fixtures: output)
         let host = NSHostingView(rootView: content
             .environment(\.localizationBundle, strings)
@@ -886,7 +911,7 @@ struct DesignSnapshotRenderTests {
             #expect(editor.selectedRange().length == 6)
             #expect(editor.selectedTextAttributes[.backgroundColor] as? NSColor == NSColor(DSColor.textSelection))
         }
-        prepare?(host, window)
+        try await prepare?(host, window)
         host.layoutSubtreeIfNeeded()
         // WebKit はホストの cacheDisplay に入らないので、完了した画像を合成する。
         let deadline = ContinuousClock.now + .seconds(10)

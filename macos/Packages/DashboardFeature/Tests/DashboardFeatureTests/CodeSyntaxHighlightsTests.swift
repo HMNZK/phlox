@@ -36,6 +36,220 @@ struct CodeSyntaxHighlightsTests {
         return false
     }
 
+    @Test func headingFontsUseOneStorageEditPerBatch() async throws {
+        final class Counter: NSObject, NSTextStorageDelegate {
+            var edits = 0
+            func textStorage(_ textStorage: NSTextStorage, didProcessEditing editedMask: NSTextStorageEditActions,
+                             range: NSRange, changeInLength delta: Int) {
+                if editedMask.contains(.editedAttributes) { edits += 1 }
+            }
+        }
+        let view = CurrentLineTextView(usingTextLayoutManager: false)
+        view.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        view.string = (1...2_000).map { "## H\($0)\nbody\n" }.joined()
+        let counter = Counter()
+        view.textStorage?.delegate = counter
+        let highlights = CodeSyntaxHighlights()
+        var batches = 0
+        highlights.onApplicationBatch = { _ in batches += 1 }
+        #expect(await settle(highlights, view: view, path: "README.md"))
+        #expect(counter.edits <= batches, "見出しごとに再レイアウトを起こさない")
+    }
+
+    @Test func japaneseHeadingClearsAfterEditingAndExternalSync() async throws {
+        func weight(_ view: NSTextView, _ index: Int) -> CGFloat {
+            if let container = view.textContainer { view.layoutManager?.ensureLayout(for: container) }
+            let font = view.textStorage?.attribute(.font, at: index, effectiveRange: nil) as? NSFont
+            return (font?.fontDescriptor.object(forKey: .traits) as? [NSFontDescriptor.TraitKey: Any])?[.weight] as? CGFloat ?? 0
+        }
+        let view = CurrentLineTextView(usingTextLayoutManager: false)
+        view.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        view.string = "# 日本語の見出し\n"
+        let highlights = CodeSyntaxHighlights()
+        #expect(await settle(highlights, view: view, path: "README.md"))
+        #expect(weight(view, 2) > 0)
+        highlights.recordEdit(NSRange(location: 0, length: 2), replacementLength: 0)
+        view.textStorage?.replaceCharacters(in: NSRange(location: 0, length: 2), with: "")
+        #expect(await settle(highlights, view: view, path: "README.md"))
+        #expect(weight(view, 0) == 0, "見出しでなくなった日本語を太字のまま残さない")
+
+        let synced = CurrentLineTextView(usingTextLayoutManager: false)
+        synced.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        synced.string = "# Title\n本文です\n"
+        let other = CodeSyntaxHighlights()
+        #expect(await settle(other, view: synced, path: "README.md"))
+        #expect(CodeTextEditor.synchronizeText("# Title\n本文です。\n", with: synced, beforeReplacement: { other.invalidate() }))
+        #expect(await settle(other, view: synced, path: "README.md"))
+        #expect(weight(synced, 8) == 0, "外部同期後に本文の日本語を太字にしない")
+    }
+
+    @Test(arguments: ["\n", "\r\n", "\r", "\u{0085}", "\u{2028}", "\u{2029}"])
+    func markdownHeadingEndsAtUnicodeLineBoundary(newline: String) async throws {
+        let view = CurrentLineTextView(usingTextLayoutManager: false)
+        let regular = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        view.font = regular
+        let source = "# 日本語 😀é\(newline)body 😀é\(newline)"
+        view.string = source
+        #expect(await settle(CodeSyntaxHighlights(), view: view, path: "README.md"))
+        let storage = try #require(view.textStorage)
+        let heading = try #require(storage.attribute(.font, at: 2, effectiveRange: nil) as? NSFont)
+        let traits = heading.fontDescriptor.object(forKey: .traits) as? [NSFontDescriptor.TraitKey: Any]
+        #expect((traits?[.weight] as? CGFloat ?? 0) > 0)
+        let body = (source as NSString).range(of: "body").location
+        #expect(storage.attribute(.font, at: body, effectiveRange: nil) as? NSFont == regular)
+        #expect(storage.string.utf8.elementsEqual(source.utf8))
+    }
+
+    @Test func markdownHeadingRequiresASCIISpaceOrTab() async throws {
+        let view = CurrentLineTextView(usingTextLayoutManager: false)
+        let regular = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        view.font = regular
+        let source = "#\u{00A0}nonbreaking\n#\u{3000}fullwidth\n# space\n#\ttab\n#\n"
+        view.string = source
+        #expect(await settle(CodeSyntaxHighlights(), view: view, path: "README.md"))
+        let storage = try #require(view.textStorage)
+        for text in ["#\u{00A0}nonbreaking", "#\u{3000}fullwidth"] {
+            let location = (source as NSString).range(of: text).location
+            #expect(storage.attribute(.font, at: location, effectiveRange: nil) as? NSFont == regular)
+        }
+        for text in ["# space", "#\ttab", "#\n"] {
+            let location = (source as NSString).range(of: text).location
+            let font = try #require(storage.attribute(.font, at: location, effectiveRange: nil) as? NSFont)
+            let traits = font.fontDescriptor.object(forKey: .traits) as? [NSFontDescriptor.TraitKey: Any]
+            #expect((traits?[.weight] as? CGFloat ?? 0) > 0)
+        }
+        #expect(storage.string.utf8.elementsEqual(source.utf8))
+    }
+
+    @Test func markdownHeadingsKeepMonospacedMetricsAndClearAfterEditing() async throws {
+        let view = CurrentLineTextView(usingTextLayoutManager: false)
+        let regular = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        view.font = regular
+        view.string = "# Title `code`\n本文\n```markdown\n# fenced\n```\n#not-heading\n    # indented\n```text\n```\n## After\n"
+        let storage = try #require(view.textStorage)
+        let saved = NSAttributedString(attributedString: storage)
+        let typing = view.typingAttributes
+        let highlights = CodeSyntaxHighlights()
+        #expect(await settle(highlights, view: view, path: "README.md"))
+        let heading = try #require(storage.attribute(.font, at: 2, effectiveRange: nil) as? NSFont)
+        #expect(heading.fontDescriptor.symbolicTraits.contains(.monoSpace))
+        #expect(heading != regular)
+        for sample in ["Title code", "0123456789", "# 日本語"] {
+            let width = (sample as NSString).size(withAttributes: [.font: regular]).width
+            #expect(abs(width - (sample as NSString).size(withAttributes: [.font: heading]).width) < 0.01)
+        }
+        for text in ["本文", "# fenced", "#not-heading", "# indented"] {
+            let range = (view.string as NSString).range(of: text)
+            #expect(storage.attribute(.font, at: range.location, effectiveRange: nil) as? NSFont
+                == saved.attribute(.font, at: range.location, effectiveRange: nil) as? NSFont)
+        }
+        let after = (view.string as NSString).range(of: "After").location
+        #expect(storage.attribute(.font, at: after, effectiveRange: nil) as? NSFont == heading)
+        #expect(storage.string == saved.string)
+        #expect(storage.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+            == saved.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+        #expect(NSDictionary(dictionary: view.typingAttributes).isEqual(NSDictionary(dictionary: typing)))
+        let range = NSRange(location: 0, length: 2)
+        highlights.recordEdit(range, replacementLength: 0)
+        storage.replaceCharacters(in: range, with: "")
+        #expect(await settle(highlights, view: view, path: "README.md"))
+        #expect(storage.attribute(.font, at: 0, effectiveRange: nil) as? NSFont == regular)
+    }
+
+    @Test(arguments: ["Title", "日本語の見出し"])
+    func sourceHeadingDrawsHeavierWithoutMovingGlyphs(title: String) async throws {
+        let view = CurrentLineTextView(usingTextLayoutManager: false)
+        view.frame = NSRect(x: 0, y: 0, width: 300, height: 80)
+        view.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        view.backgroundColor = .white
+        view.textColor = .black
+        view.string = "# \(title)\n"
+        let layout = try #require(view.layoutManager)
+        let container = try #require(view.textContainer)
+        let glyphs = layout.glyphRange(forCharacterRange: NSRange(location: 2, length: title.utf16.count), actualCharacterRange: nil)
+        let bounds = layout.boundingRect(forGlyphRange: glyphs, in: container)
+            .offsetBy(dx: view.textContainerOrigin.x, dy: view.textContainerOrigin.y)
+        func ink() throws -> Int {
+            let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+            view.cacheDisplay(in: view.bounds, to: bitmap)
+            let scale = CGFloat(bitmap.pixelsWide) / view.bounds.width
+            return (Int(bounds.minY * scale)..<Int(bounds.maxY * scale)).reduce(0) { count, y in
+                count + (Int(bounds.minX * scale)..<Int(bounds.maxX * scale)).filter { x in
+                    guard let rgb = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { return false }
+                    return rgb.redComponent < 0.9 && rgb.greenComponent < 0.9 && rgb.blueComponent < 0.9
+                }.count
+            }
+        }
+        let regularInk = try ink()
+        #expect(await settle(CodeSyntaxHighlights(), view: view, path: "README.md"))
+        #expect(layout.boundingRect(forGlyphRange: glyphs, in: container)
+            .offsetBy(dx: view.textContainerOrigin.x, dy: view.textContainerOrigin.y) == bounds)
+        #expect(try ink() > regularInk, "表示用の太字属性が実際の画素にも反映される")
+    }
+
+    @Test(arguments: [false, true])
+    func japaneseBodyPixelsStayRegularWhenHeadingChanges(dark: Bool) async throws {
+        let view = CurrentLineTextView(usingTextLayoutManager: false)
+        view.frame = NSRect(x: 0, y: 0, width: 300, height: 80)
+        view.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        view.backgroundColor = dark ? .black : .white
+        view.textColor = dark ? .white : .black
+        view.string = "# Title\n本文です\n"
+        let layout = try #require(view.layoutManager)
+        let container = try #require(view.textContainer)
+        func bodyPixels() throws -> [UInt8] {
+            layout.ensureLayout(for: container)
+            let range = (view.string as NSString).range(of: "本文です")
+            let glyphs = layout.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            let bounds = layout.boundingRect(forGlyphRange: glyphs, in: container)
+                .offsetBy(dx: view.textContainerOrigin.x, dy: view.textContainerOrigin.y)
+            let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+            view.cacheDisplay(in: view.bounds, to: bitmap)
+            let scale = CGFloat(bitmap.pixelsWide) / view.bounds.width
+            var pixels: [UInt8] = []
+            for y in Int(bounds.minY * scale)..<Int(bounds.maxY * scale) {
+                for x in Int(bounds.minX * scale)..<Int(bounds.maxX * scale) {
+                    let color = try #require(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB))
+                    pixels.append(UInt8((color.redComponent * 255).rounded()))
+                }
+            }
+            return pixels
+        }
+        let regular = try bodyPixels()
+        let highlights = CodeSyntaxHighlights()
+        #expect(await settle(highlights, view: view, path: "README.md"))
+        #expect(try bodyPixels() == regular, "見出しの太字を日本語の本文へ波及させない")
+        #expect(CodeTextEditor.synchronizeText("# Title\n本文です。\n", with: view,
+                                              beforeReplacement: { highlights.invalidate() }))
+        #expect(await settle(highlights, view: view, path: "README.md"))
+        #expect(try bodyPixels() == regular, "外部同期後も日本語の本文を通常字体で描く")
+        highlights.recordEdit(NSRange(location: 0, length: 2), replacementLength: 0)
+        view.textStorage?.replaceCharacters(in: NSRange(location: 0, length: 2), with: "")
+        #expect(await settle(highlights, view: view, path: "README.md"))
+        #expect(try bodyPixels() == regular, "見出し解除後も本文の画素を通常字体に保つ")
+    }
+
+    @Test func blockInlineCodeUsesBodyColorWithoutChangingLinksOrSource() async {
+        let source = "# 見出し\n`swift test` [設計](docs/design.md)\n"
+        for block in [false, true] {
+            let view = CurrentLineTextView(usingTextLayoutManager: false)
+            view.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+            view.textColor = NSColor(DSColor.textPrimary)
+            view.blockEditID = block ? UUID() : nil
+            view.string = source
+            let highlights = CodeSyntaxHighlights()
+            #expect(await settle(highlights, view: view, path: "README.md"))
+            let code = (source as NSString).range(of: "`swift test`").location
+            let link = (source as NSString).range(of: "docs/design.md").location
+            #expect(color(in: view, at: code) == components(NSColor(block ? DSColor.textPrimary : DSColor.codeSyntaxString)))
+            #expect(color(in: view, at: link) == components(NSColor(DSColor.codeSyntaxString)))
+            if block {
+                #expect(view.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+                    == NSFont.monospacedSystemFont(ofSize: 11, weight: .regular))
+            }
+        }
+    }
+
     @Test func displayAttributesPreserveBytesSelectionTypingAndUndo() async {
         let view = CurrentLineTextView(usingTextLayoutManager: false)
         view.textColor = NSColor(DSColor.textPrimary)

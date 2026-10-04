@@ -3,7 +3,7 @@ import AppKit
 import DesignSystem
 import os
 
-/// ファイルタブの編集欄（07 D4）。左に行番号（幅 28・右寄せ・淡色）。
+/// ファイルタブの編集欄（07 D4）。左に行番号（42pt欄・右寄せ・淡色）、本文は56ptから。
 /// SwiftUI の `TextEditor` には同期する行番号欄が無いので NSTextView を包む。
 struct CodeTextEditor: NSViewRepresentable {
     @Binding var text: String
@@ -35,11 +35,12 @@ struct CodeTextEditor: NSViewRepresentable {
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticTextReplacementEnabled = false
         textView.isAutomaticSpellingCorrectionEnabled = false
-        textView.textContainerInset = NSSize(width: 12, height: blockEditID == nil ? 4 : 8)
+        // 固定行高による4.5ptの差を引き、見本の1行目の文字位置に揃える。
+        textView.textContainerInset = NSSize(width: blockEditID == nil ? 14 : 12, height: blockEditID == nil ? 3.5 : 8)
         textView.textContainer?.lineFragmentPadding = 0
-        textView.font = .monospacedSystemFont(ofSize: blockEditID == nil ? 11.5 : 11, weight: .regular)
+        textView.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
         let paragraph = NSMutableParagraphStyle()
-        paragraph.minimumLineHeight = blockEditID == nil ? 20 : 18
+        paragraph.minimumLineHeight = blockEditID == nil ? 19.25 : 18
         paragraph.maximumLineHeight = paragraph.minimumLineHeight
         textView.defaultParagraphStyle = paragraph
         textView.typingAttributes[.paragraphStyle] = paragraph
@@ -312,7 +313,7 @@ final class CurrentLineTextView: NSTextView {
 
 }
 
-/// 行番号欄。左 10・番号幅 28（右寄せ）・右 10（見本 PhloxAux のコード行）。
+/// 行番号欄は42pt、右寄せ。本文は14ptの間隔を空けた56ptから（見本3c）。
 final class LineNumberRuler: NSRulerView {
     var numberColor: NSColor = .tertiaryLabelColor
     var backgroundColor: NSColor = .textBackgroundColor
@@ -322,7 +323,7 @@ final class LineNumberRuler: NSRulerView {
         self.textView = textView
         super.init(scrollView: textView.enclosingScrollView, orientation: .verticalRuler)
         clientView = textView
-        ruleThickness = 48
+        ruleThickness = 42
         NotificationCenter.default.addObserver(
             self, selector: #selector(redraw), name: NSView.boundsDidChangeNotification,
             object: textView.enclosingScrollView?.contentView
@@ -342,7 +343,7 @@ final class LineNumberRuler: NSRulerView {
 
     override func drawHashMarksAndLabels(in rect: NSRect) {
         guard let textView, let layoutManager = textView.layoutManager, let textContainer = textView.textContainer else { return }
-        let font = textView.font ?? .monospacedSystemFont(ofSize: 11.5, weight: .regular)
+        let font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: numberColor]
         let nsString = textView.string as NSString
         let offset = convert(NSPoint.zero, from: textView).y
@@ -352,7 +353,7 @@ final class LineNumberRuler: NSRulerView {
             let label = "\(number)" as NSString
             let size = label.size(withAttributes: attributes)
             let y = baseline + origin + offset - layoutManager.defaultBaselineOffset(for: font)
-            label.draw(at: NSPoint(x: 10 + 28 - size.width, y: y), withAttributes: attributes)
+            label.draw(at: NSPoint(x: ruleThickness - size.width, y: y), withAttributes: attributes)
         }
 
         let visible = textView.visibleRect

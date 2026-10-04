@@ -155,9 +155,14 @@ private final class ChatSyntaxLexer {
     }
     func embedded(_ end: Int, _ syntax: ChatCodeLanguage) {
         guard end > index else { return }
+        // 公開入口で全文のサイズ・行長を確認済み。埋め込みはその部分範囲。
+        guard syntax != .plain else { emit(end, .plain); return }
         let start = index
-        for token in ChatCodeTokenizer.tokens(for: text(start..<end), syntax: syntax) {
-            emit(index + token.text.utf8.count, token.kind)
+        let code = text(start..<end)
+        let lexer = ChatSyntaxLexer(code, language: syntax)
+        lexer.scanSpans()
+        for (range, kind) in lexer.spans {
+            emit(start + range.upperBound, kind)
         }
     }
     func quotedEnd(_ start: Int, delimiter: String, escape: UInt8? = 92, doubled: Bool = false, before limit: Int? = nil) -> Int {
@@ -209,6 +214,11 @@ private final class ChatSyntaxLexer {
     }
 
     func scan() -> [ChatCodeToken] {
+        scanSpans()
+        return spans.map { ChatCodeToken(text: text($0.0), kind: $0.1) }
+    }
+
+    private func scanSpans() {
         while index < bytes.count {
             // 取消済みの計算は破棄される。残りは原文のまま返し、長い旧計算を止める。
             if index >= cancellationCheckpoint {
@@ -239,7 +249,6 @@ private final class ChatSyntaxLexer {
             if lexical() { continue }
             emit(index + 1, .plain)
         }
-        return spans.map { ChatCodeToken(text: text($0.0), kind: $0.1) }
     }
 
     func lexical() -> Bool {
@@ -460,6 +469,21 @@ private final class ChatSyntaxLexer {
             let word = text(index..<end)
             var next = end
             while next < bytes.count, bytes[next] == 32 || bytes[next] == 9 { next += 1 }
+            if isCSS, word.lowercased() == "url", end < bytes.count, bytes[end] == 40 {
+                emit(end, .string)
+                emit(index + 1, .plain)
+                var stop = index
+                while stop < bytes.count, bytes[stop] != 41 {
+                    if bytes[stop] == 34 || bytes[stop] == 39 {
+                        stop = quotedEnd(stop, delimiter: String(UnicodeScalar(bytes[stop])))
+                    } else if bytes[stop] == 92, stop + 1 < bytes.count {
+                        stop += 2
+                    } else { stop += 1 }
+                }
+                emit(stop, .string)
+                if index < bytes.count { emit(index + 1, .plain) }
+                return true
+            }
             var kind: ChatCodeTokenKind = rules.keywords.contains(rules.insensitive ? word.lowercased() : word) ? .keyword : .plain
             if language == .graphql, kind == .plain { kind = .key }
             if language == .hcl, next < bytes.count, bytes[next] == 123 { kind = .section }

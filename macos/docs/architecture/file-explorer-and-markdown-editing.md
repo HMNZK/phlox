@@ -30,13 +30,17 @@ FileTabDocuments.openFileTab(sessionID:root:relativePath:split:router:requestedW
 
 ソース表示の色付けは [シンタックスハイライト仕様](../specs/syntax-highlighting.md) と [ADR 0180](../adr/0180-syntax-highlighting-with-in-house-lexer.md) に従う。
 
+背景計算の範囲操作用テキストは UTF-16 から `NSString` の実体を一度作る。行境界は同じ UTF-16 配列を前へ走査して使い回し、CRLF と Unicode の改行も保つ。Swift 文字列への橋渡しと Foundation の範囲操作を行ごとに繰り返す費用を避け、原文は維持する。
+
+埋め込み言語の解析結果は `ChatSyntaxLexer` 内で UTF-8 範囲のまま反映し、最外部でだけ文字列トークンへ変換する。入れ子の文字列配列を作って長さだけ読み直す中間処理を省く。
+
 ## ソースの色付け
 
 - `FileTabView` は文書のパスを `CodeTextEditor` へ渡す。`ChatRenderKit.ChatCodeTokenizer.language(for:code:)` がファイル名・拡張子・shebang・plain の順で種類を決め、一度構築した `ChatSyntaxRules` の言語別データと `ChatSyntaxLexer` の共有走査を使う。
-- `CodeSyntaxHighlights` は全文の字句計算を背景タスクで行う。編集通知からは 50 ms 待ってまとめ、取り消したタスクと世代が古い結果を破棄する。前回の適用成功結果と背景で比較し、種類が変わった範囲と編集段落を UTF-16 の範囲で渡して、`NSLayoutManager` の一時的な前景属性を分割して反映する。途中取消・種類やテーマの変更では全範囲を反映する。本文のフォント・段落属性は分割せず、plain の一時前景は除去する。
+- `CodeSyntaxHighlights` は全文の字句計算を背景タスクで行う。編集通知からは 50 ms 待ってまとめ、取り消したタスクと世代が古い結果を破棄する。前回の適用成功結果と背景で比較し、種類が変わった範囲と編集段落を UTF-16 の範囲で渡して、`NSLayoutManager` の一時的な前景属性を分割して反映する。途中取消・種類やテーマの変更では全範囲を反映する。段落属性は維持し、plain の一時前景は除去する。Markdown ソースの ATX 見出しだけは保存用テキストストレージのフォント属性を等幅の semibold にし、本文へ戻った範囲は通常の太さへ戻す。フォント変更はバッチごとに `beginEditing` / `endEditing` でまとめる。同じ行のトークンは行範囲を使い回す。
 - 待機中の編集範囲は挿入・削除に合わせて移動・統合する。削除した文字を戻した後で別段落を編集しても、途中の編集で消えた一時色を復元する。複数範囲の置換は全範囲を反映する。
 - 色は `SessionFeature.CodeSyntaxColor` が既存の `DSColor` へ割り当てる。DesignSystem は字句解析へ依存しない。チャットも同じ割り当てを使い、チャット固有の型・呼び出し・メンバーの色とキーワードの太字を維持する。
-- marked text の間は本文同期と属性更新を保留する。確定後に現在の本文を再計算する。属性更新は undo へ登録せず、選択・スクロール・typingAttributes を保つ。本文色は初回に動的な `NSColor` を設定し、テーマ変更時はロックで保護した解決先の色と描画を更新する。全文の保存属性を更新せず追従する。文書の draft・version・保存バイト列は色付け処理から変更しない。
+- marked text の間は本文同期と属性更新を保留する。確定後に現在の本文を再計算する。属性更新は undo へ登録せず、選択・スクロール・typingAttributes を保つ。本文色は初回に動的な `NSColor` を設定し、テーマ変更時はロックで保護した解決先の色と描画を更新する。色の追従では全文の保存属性を更新しない。見出しのフォント変更はバッチを閉じてから選択と入力属性を復元する。文書の draft・version・保存バイト列は色付け処理から変更しない。
 - Markdown のブロック編集は front matter を含む全ブロックを Markdown として同じ編集欄へ渡す。フェンス内部と先頭 front matter の YAML への切替は Markdown の共有字句規則で処理する。
 - 1 行が 10,000 UTF-16 単位を超える文書と編集上限を超える本文は plain にする。ライト・ダークを含むテーマの変更は色を解決し直す。検証結果と性能値は [作業記録 0040](../delivery/0040-syntax-highlighting-worklog.md) に記録する。
 

@@ -46,13 +46,18 @@ func codeEditorLineNumbersMatchTextBaselines(lineCount: Int, startsWithBlankLine
     let numbers = inkRows(in: rulerBounds).filter { !startsWithBlankLine || $0 >= (text.first ?? 0) }
     #expect(!text.isEmpty)
     #expect(numbers == text)
+    if !startsWithBlankLine {
+        #expect(abs(CGFloat(text.first ?? 0) / scale - 13) <= 0.5,
+                "1行目の文字の上端は見本3cのヘッダー下から13ptに揃える")
+    }
     if lineCount == 10 || startsWithBlankLine {
         let rows = inkRows(in: rulerBounds, height: 260)
         let starts = rows.indices.filter { $0 == 0 || rows[$0] > rows[$0 - 1] + 1 }.map { rows[$0] }
         #expect(starts.count == 11, "途中と末尾の空行にも番号を描く")
         if starts.count == 11 {
             // 同じ「1」の上端で比較し、数字ごとの字形の差を含めない。
-            #expect(starts[10] - starts[0] == Int(200 * scale), "空行も本文のある行と同じ間隔で描く")
+            #expect(abs(CGFloat(starts[10] - starts[0]) - 192.5 * scale) <= 1,
+                    "見本の19.25pt行間で、空行も本文と同じ間隔で描く")
         }
     }
 }

@@ -3,12 +3,13 @@ import ChatRenderKit
 import DesignSystem
 import SessionFeature
 
-/// 字句計算は背景で行い、本文へ触れず前景色の差分だけを反映する。
+/// 字句計算は背景で行い、本文へ触れず色と見出しの差分を反映する。
 @MainActor
 final class CodeSyntaxHighlights {
     private struct Run: Sendable {
         var range: NSRange
         let kind: ChatCodeTokenKind
+        var isHeading = false
     }
 
     private struct Snapshot: Sendable {
@@ -98,6 +99,7 @@ final class CodeSyntaxHighlights {
             $0.path == path && $0.themeID == theme && $0.viewID == viewID ? $0 : nil
         }
         let edits = editedRanges
+        let blockEditing = (view as? CurrentLineTextView)?.blockEditID != nil
         let start = ContinuousClock.now
         work = Task { [weak self, weak view] in
             if debounce {
@@ -110,19 +112,75 @@ final class CodeSyntaxHighlights {
                 let scanCode = String(decoding: code.utf8, as: UTF8.self)
                 var runs: [Run] = []
                 var location = 0
+                var cancellationCheckpoint = 0
+                let markdown = [.markdown, .mdx].contains(ChatCodeTokenizer.language(for: path, code: scanCode))
+                // 行ごとの範囲操作で、Swift文字列への橋渡しを繰り返さない。
+                let utf16 = Array(scanCode.utf16)
+                let original = NSString(characters: utf16, length: utf16.count)
+                var lineRange = NSRange()
+                var lineContentEnd = 0
+                var headingEnd = 0
+                var fence: (marker: UInt16, count: Int)?
                 for token in ChatCodeTokenizer.tokens(for: scanCode, path: path) {
-                    if Task.isCancelled { return (scanCode, [Run](), [Run](), 0.0) }
+                    if location >= cancellationCheckpoint {
+                        if Task.isCancelled { return (scanCode, [Run](), [Run](), 0.0) }
+                        cancellationCheckpoint = location + 4_096
+                    }
                     let length = token.text.utf16.count
                     if length == 0 { continue }
-                    if let last = runs.last, last.kind == token.kind {
-                        runs[runs.count - 1].range.length += length
-                    } else {
-                        runs.append(Run(range: NSRange(location: location, length: length), kind: token.kind))
+                    let kind: ChatCodeTokenKind = blockEditing && markdown && token.kind == .string
+                        && token.text.hasPrefix("`") ? .plain : token.kind
+                    let end = location + length
+                    while location < end {
+                        var stop = end
+                        if markdown {
+                            if location >= NSMaxRange(lineRange) {
+                                var end = location
+                                // NSStringと同じLF・CR・NEL・Unicodeの行／段落区切り。
+                                while end < utf16.count, ![0x0A, 0x0D, 0x85, 0x2028, 0x2029].contains(utf16[end]) { end += 1 }
+                                lineContentEnd = end
+                                if end < utf16.count {
+                                    let carriageReturn = utf16[end] == 13
+                                    end += 1
+                                    if carriageReturn, end < utf16.count, utf16[end] == 10 { end += 1 }
+                                }
+                                lineRange = NSRange(location: location, length: end - location)
+                            }
+                            stop = min(stop, NSMaxRange(lineRange))
+                            if token.kind == .structure, location == lineRange.location {
+                                var i = location
+                                while i < lineContentEnd, utf16[i] == 32 { i += 1 }
+                                if i - location <= 3, i < lineContentEnd {
+                                    let first = utf16[i]
+                                    var j = i
+                                    while j < lineContentEnd, utf16[j] == first { j += 1 }
+                                    let count = j - i
+                                    if (first == 96 || first == 126), count >= 3 {
+                                        if let opened = fence {
+                                            if opened.marker == first, count >= opened.count,
+                                               utf16[j..<lineContentEnd].allSatisfy({ $0 == 32 || $0 == 9 }) {
+                                                fence = nil
+                                            }
+                                        } else { fence = (first, count) }
+                                    } else if !blockEditing, fence == nil, first == 35, (1...6).contains(count),
+                                              j == lineContentEnd || utf16[j] == 32 || utf16[j] == 9 {
+                                        headingEnd = lineContentEnd
+                                    }
+                                }
+                            }
+                        }
+                        let bold = location < headingEnd
+                        if bold { stop = min(stop, headingEnd) }
+                        if let last = runs.last, last.kind == kind, last.isHeading == bold {
+                            runs[runs.count - 1].range.length += stop - location
+                        } else {
+                            runs.append(Run(range: NSRange(location: location, length: stop - location),
+                                            kind: kind, isHeading: bold))
+                        }
+                        location = stop
                     }
-                    location += length
                 }
                 // 長いコメント等も、一回の属性操作が文書全体へ広がらないよう分ける。
-                let original = scanCode as NSString
                 var pieces: [Run] = []
                 pieces.reserveCapacity(runs.count)
                 for run in runs {
@@ -137,7 +195,8 @@ final class CodeSyntaxHighlights {
                         let boundary = proposed < end
                             ? min(end, NSMaxRange(original.rangeOfComposedCharacterSequence(at: proposed - 1)))
                             : end
-                        pieces.append(Run(range: NSRange(location: offset, length: boundary - offset), kind: run.kind))
+                        pieces.append(Run(range: NSRange(location: offset, length: boundary - offset), kind: run.kind,
+                                          isHeading: run.isHeading))
                         offset = boundary
                     }
                 }
@@ -225,11 +284,13 @@ final class CodeSyntaxHighlights {
             let start = run.range.location
             let end = NSMaxRange(run.range)
             if start < prefix {
-                mapped.append(Run(range: NSRange(location: start, length: min(end, prefix) - start), kind: run.kind))
+                mapped.append(Run(range: NSRange(location: start, length: min(end, prefix) - start), kind: run.kind,
+                                  isHeading: run.isHeading))
             }
             if end > oldEnd {
                 let tail = max(start, oldEnd)
-                mapped.append(Run(range: NSRange(location: tail + delta, length: end - tail), kind: run.kind))
+                mapped.append(Run(range: NSRange(location: tail + delta, length: end - tail), kind: run.kind,
+                                  isHeading: run.isHeading))
             }
         }
         var changed: [Run] = []
@@ -244,7 +305,7 @@ final class CodeSyntaxHighlights {
                 let same: Bool
                 if let previous, previous.range.location <= offset {
                     boundary = min(end, NSMaxRange(previous.range))
-                    same = previous.kind == run.kind
+                    same = previous.kind == run.kind && previous.isHeading == run.isHeading
                 } else {
                     boundary = min(end, previous?.range.location ?? end)
                     same = false
@@ -254,10 +315,10 @@ final class CodeSyntaxHighlights {
                     for paragraph in paragraphs {
                         if paragraph.location >= NSMaxRange(span) { break }
                         let range = NSIntersectionRange(span, paragraph)
-                        if range.length > 0 { changed.append(Run(range: range, kind: run.kind)) }
+                        if range.length > 0 { changed.append(Run(range: range, kind: run.kind, isHeading: run.isHeading)) }
                     }
                 } else {
-                    changed.append(Run(range: span, kind: run.kind))
+                    changed.append(Run(range: span, kind: run.kind, isHeading: run.isHeading))
                 }
                 offset = boundary
             }
@@ -270,6 +331,9 @@ final class CodeSyntaxHighlights {
         guard let storage = view.textStorage, let layout = view.layoutManager else { return false }
         let length = code.utf16.count
         guard !view.hasMarkedText(), (view.string as NSString).isEqual(to: code) else { return false }
+        let pointSize = (view.typingAttributes[.font] as? NSFont)?.pointSize ?? 11
+        let regularFont = NSFont.monospacedSystemFont(ofSize: pointSize, weight: .regular)
+        let headingFont = NSFont.monospacedSystemFont(ofSize: regularFont.pointSize, weight: .semibold)
         var index = 0
         var colors: [(ChatCodeTokenKind, NSColor)] = []
         while index < runs.count {
@@ -285,8 +349,24 @@ final class CodeSyntaxHighlights {
             let selection = view.selectedRanges
             let origin = view.enclosingScrollView?.contentView.bounds.origin
             let typing = view.typingAttributes
+            storage.beginEditing()
             repeat {
                 let run = runs[index]
+                // 一時的なフォント属性は描画に使われない。字幅の同じフォントだけを更新する。
+                var fontOffset = run.range.location
+                while fontOffset < NSMaxRange(run.range) {
+                    var effective = NSRange()
+                    let font = storage.attribute(.font, at: fontOffset, effectiveRange: &effective) as? NSFont
+                    let range = NSIntersectionRange(effective, run.range)
+                    if run.isHeading, font != headingFont {
+                        storage.addAttribute(.font, value: headingFont, range: range)
+                    } else if !run.isHeading,
+                              let traits = font?.fontDescriptor.object(forKey: .traits) as? [NSFontDescriptor.TraitKey: Any],
+                              let weight = traits[.weight] as? CGFloat, weight > 0 {
+                        storage.addAttribute(.font, value: regularFont, range: range)
+                    }
+                    fontOffset = NSMaxRange(range)
+                }
                 let color: NSColor?
                 if run.kind == .plain {
                     color = nil
@@ -306,7 +386,7 @@ final class CodeSyntaxHighlights {
                         color = resolved
                     }
                 }
-                // 表示だけの属性を使い、本文のフォント属性を断片化しない。
+                // 色は一時属性に置き、保存用の属性へ色の区間を混ぜない。
                 var offset = run.range.location
                 while offset < NSMaxRange(run.range) {
                     var effective = NSRange()
@@ -324,6 +404,7 @@ final class CodeSyntaxHighlights {
                 }
                 index += 1
             } while index < runs.count && Self.milliseconds(since: start) < 4
+            storage.endEditing()
             if view.selectedRanges != selection { view.selectedRanges = selection }
             if !NSDictionary(dictionary: view.typingAttributes).isEqual(NSDictionary(dictionary: typing)) {
                 view.typingAttributes = typing

@@ -12,6 +12,7 @@ last-verified: 2026-09-14
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0180 | [ファイルのソース表示は自前の字句解析で色付けする](0180-syntax-highlighting-with-in-house-lexer.md) | accepted |
 | 0179 | [iOS シミュレーターの画面内表示は、非公開部品を XPC サービスに隔離して使う](0179-embedded-ios-simulator-via-xpc-and-private-frameworks.md) | accepted |
 | 0178 | [ファイルツリーはインスペクタのタブに置き、マークダウンと HTML は既存のファイルタブで表示・編集する](0178-file-explorer-markdown-and-html-in-file-tabs.md) | accepted |
 | 0177 | [Claude / Codex / Cursor のサブエージェント表示を共通化する](0177-shared-subagent-presentation-across-agents.md) | accepted |

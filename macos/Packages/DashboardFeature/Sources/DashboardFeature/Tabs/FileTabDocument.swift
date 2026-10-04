@@ -295,18 +295,21 @@ public final class FileTabDocument {
 
     /// worktree 直下からの相対パス。
     public let path: String
-    private var draftContent = ""
+    @ObservationIgnored private var draftContent = ""
     public var draft: String {
-        get { draftContent }
+        get {
+            access(keyPath: \.draft)
+            return draftContent
+        }
         set {
-            if !invalidationRequested,
-               draftContent.utf8.count != newValue.utf8.count || !draftContent.utf8.elementsEqual(newValue.utf8) {
-                draftContent = newValue
-                version += 1
-                scheduleMarkdownAnalysis()
-            }
+            guard !invalidationRequested,
+                  draftContent.utf16.count != newValue.utf16.count || !(draftContent as NSString).isEqual(to: newValue) else { return }
+            withMutation(keyPath: \.draft) { draftContent = newValue }
+            version += 1
+            scheduleMarkdownAnalysis()
         }
     }
+
     public private(set) var loadState: LoadState = .unloaded
     public private(set) var fileSize: Int?
     public private(set) var readFailureReason: String?

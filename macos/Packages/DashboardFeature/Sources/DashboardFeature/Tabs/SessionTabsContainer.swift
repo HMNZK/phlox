@@ -678,7 +678,7 @@ struct FileTabView: View {
                 } else if document.isMarkdown, document.presentation == .rendered {
                     markdownEditor ?? MarkdownBlockEditor(document: document, openURL: openMarkdownURL, linkDestination: markdownLinkDestination)
                 } else {
-                    CodeTextEditor(text: $document.draft)
+                    CodeTextEditor(text: $document.draft, path: document.path)
                         .disabled(document.invalidated)
                 }
             case .unloaded, .loading:

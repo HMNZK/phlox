@@ -143,6 +143,59 @@ struct DesignSnapshotRenderTests {
 
     private struct Unavailable: Error { let reason: String }
 
+    private var syntaxFrames: [Frame] {
+        let sources = ["swift", "json", "yaml", "tsx", "css", "log", "python", "markdown", "html", "diff", "csv", "shell", "unknown",
+         "block", "frontmatter", "fence"].flatMap { kind in
+            [false, true].map { light in
+                Frame(id: "syntax-\(kind)-\(light ? "light" : "dark")", name: "色付け",
+                      width: 760, height: 420, light: light, state: "syntax-\(kind)")
+            }
+        }
+        let selection = ["4j", "4m"].flatMap { (state: String) in
+            [false, true].map { light in
+                Frame(id: "syntax-\(state)-\(light ? "light" : "dark")", name: "編集と選択",
+                      width: 560, height: 300, light: light, state: state)
+            }
+        }
+        return sources + selection
+    }
+
+    private func syntaxSample(_ id: String) -> (path: String, source: String)? {
+        switch id {
+        case "syntax-swift":
+            return ("Sources/Greeting.swift", "import Foundation\n\n// 名前から挨拶を作る\nstruct Greeting {\n    let name: String\n    let count = 42\n\n    func message() -> String {\n        return \"こんにちは、\\(name)\"\n    }\n}\n")
+        case "syntax-json":
+            return ("config/settings.json", "{\n  \"name\": \"Phlox\",\n  \"enabled\": true,\n  \"count\": 42,\n  \"missing\": null,\n  \"agents\": [\"Claude\", \"Codex\"]\n}\n")
+        case "syntax-yaml":
+            return ("config/settings.yaml", "# true と false はコメントのまま\nuser-name: Phlox\nenabled: true\ncount: 42\ndescription: it's fine\nquoted: 'true isn''t false'\nmessage: |\n  true と false も本文。\nname: \"閉じ忘れの文字列 true\n")
+        case "syntax-tsx":
+            return ("Sources/Greeting.tsx", "import { useState } from 'react';\n// const と return はコメントのまま\nconst [count, setCount] = useState<number>(0);\nconst title = `return \\` if`;\nconst view = <Box title=\"const return\">\n  {count < 10 ? 'return' : 'const'}\n</Box>;\nconst unfinished = \"閉じ忘れの文字列 return\n")
+        case "syntax-css":
+            return ("styles/main.css", "/* color と return はコメントのまま */\n.box {\n  background: url(https://example.com/image.png);\n  color: #333;\n  margin: 12px;\n  content: \"color return\";\n}\n.note { content: \"閉じ忘れの文字列 color\n")
+        case "syntax-log":
+            return ("logs/session.log", "2026-10-04 12:00:00 INFO session started\nWARN can't connect\nERROR \"INFO return true\" 42\nTRACE if return は本文\nDEBUG \"閉じ忘れの文字列 ERROR\n")
+        case "syntax-python":
+            return ("scripts/greeting.py", "# def と return はコメントのまま\ndef greeting(name):\n    title = \"return if\"\n    text = '''def と return\n複数行文字列'''\n    if name is None:\n        return False\n    return title\nunfinished = \"閉じ忘れの文字列 return\n")
+        case "syntax-markdown", "syntax-block":
+            return ("README.md", "# Phlox\n\n**並べて走らせる**。`swift test` で確かめる。\n\n- セッションを開く\n- [設計書](docs/specs/overview.md) を読む\n\n> 判断だけを前に出す。\n")
+        case "syntax-html":
+            return ("docs/index.html", "<!doctype html>\n<html lang=\"ja\">\n<head>\n  <style>body { color: #333; margin: 12px; }</style>\n</head>\n<body>\n  <!-- 挨拶 -->\n  <h1 class=\"title\">Phlox</h1>\n  <script>const count = 42; console.log(\"hello\");</script>\n</body>\n</html>\n")
+        case "syntax-diff":
+            return ("changes.diff", "diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1,3 +1,3 @@\n # Phlox\n-古い説明\n+新しい説明\n そのままの行\n")
+        case "syntax-csv":
+            return ("data/agents.csv", "name,status,count\nClaude,active,42\nCodex,waiting,12\n\"Cursor, Agent\",\"hello \"\"world\"\"\",3\n\"複数行の\n名前\",ready,8\n")
+        case "syntax-shell":
+            return ("scripts/check.sh", "#!/bin/bash\n# パッケージを検証する\nROOT=\"${HOME}/Projects\"\nif [ -d \"$ROOT\" ]; then\n  printf '%s\\n' \"検証開始\"\n  swift test --package-path \"$ROOT/Phlox\"\nfi\n")
+        case "syntax-unknown":
+            return ("notes.custom", "# 種類の分からない文書\nlet count = 42\n\"色付けせず、そのまま表示する\"\n")
+        case "syntax-frontmatter":
+            return ("README.md", "---\ntitle: Phlox\nenabled: true\ncount: 42\n---\n\n# Phlox\n\n本文。\n")
+        case "syntax-fence":
+            return ("README.md", "# Phlox\n\n```swift\n// 挨拶\nlet name = \"Phlox\"\nprint(name)\n```\n\n本文。\n")
+        default: return nil
+        }
+    }
+
     @Test func 英語の未保存件数は単数と複数を切り替える() throws {
         let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
@@ -194,8 +247,9 @@ struct DesignSnapshotRenderTests {
         var written = 0
         var failures: [String] = []
         let scope = ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] ?? "all"
-        try #require(["all", "files", "simulator"].contains(scope), "撮影範囲は all・files・simulator のいずれか")
-        let selectedFrames = frames.filter { frame in
+        try #require(["all", "files", "simulator", "syntax"].contains(scope), "撮影範囲は all・files・simulator・syntax のいずれか")
+        let selectedFrames = (frames + syntaxFrames).filter { frame in
+            if scope == "syntax" { return frame.id.hasPrefix("syntax-") }
             let simulator = frame.id.hasPrefix("7") || frame.id == "8L3"
             return scope == "all" || (scope == "simulator" ? simulator : !simulator)
         }
@@ -213,7 +267,7 @@ struct DesignSnapshotRenderTests {
                 rows.append("| \(frame.id) | 書き出せない | 描画失敗: \(error) |")
             }
         }
-        let report = "# 画面外描画の結果\n\n生成 PNG: \(written) 枚。倍率 2。8L1〜8L3 はライト、ほかはダーク。\n\n"
+        let report = "# 画面外描画の結果\n\n生成 PNG: \(written) 枚。倍率 2。8L1〜8L3 と syntax の light はライト、ほかはダーク。\n\n"
             + rows.joined(separator: "\n") + "\n"
         try Data(report.utf8).write(to: output.appendingPathComponent("結果.md"), options: .atomic)
         print(report)
@@ -505,6 +559,10 @@ struct DesignSnapshotRenderTests {
         let id = frame.stateID
         var path = "docs/guides/file-tree.md"
         var bytes = Data(markdown.utf8)
+        if let sample = syntaxSample(id) {
+            path = sample.path
+            bytes = Data(sample.source.utf8)
+        }
         if id.hasPrefix("3"), !["3d", "3e", "3f", "3g", "3l", "3m", "3n", "3o"].contains(id) {
             bytes = Data("# ファイルツリー\n\n右サイドバーの「ファイル」タブに、選択中セッションの作業ツリーを表示します。\n\n## 操作\n\n- クリックで開く。開いているタブがあれば前に出す\n- 右クリックで「右に分割して開く」「Finder で表示」「パスをコピー」\n- `⌃⌘B` でツリーを表示\n".utf8)
         }
@@ -557,6 +615,20 @@ struct DesignSnapshotRenderTests {
         if id == "3f" || id == "3g" { try #require(document.markdownPresentationLocked) }
         if ["3b", "3c", "3i", "3j", "3k"].contains(id) { document.draft += "\n編集した内容。\n" }
         if id == "3c" { document.presentation = .source }
+        if id.hasPrefix("syntax-") {
+            if ["syntax-block", "syntax-frontmatter", "syntax-fence"].contains(id) {
+                let block = try #require(document.markdownBlocks.first { block in
+                    switch id {
+                    case "syntax-frontmatter": block.original.hasPrefix("---")
+                    case "syntax-fence": block.original.hasPrefix("```")
+                    default: block.original.hasPrefix("**")
+                    }
+                })
+                #expect(document.beginBlockEdit(range: block.range))
+            } else {
+                document.presentation = .source
+            }
+        }
         if id == "5e" {
             document.draft = html.replacingOccurrences(of: "並べて走らせ、判断だけを前に。", with: "未保存の下書きを表示しています。")
             document.reloadHTMLPreview()
@@ -800,6 +872,7 @@ struct DesignSnapshotRenderTests {
         window.contentView = host
         defer { window.contentView = nil; window.close() }
         try await Task.sleep(for: .milliseconds(100))
+        if frame.id.hasPrefix("syntax-") { try await Task.sleep(for: .milliseconds(200)) }
         afterMount?()
         if frame.id.hasPrefix("1") { try await Task.sleep(for: .milliseconds(500)) }
         host.layoutSubtreeIfNeeded()

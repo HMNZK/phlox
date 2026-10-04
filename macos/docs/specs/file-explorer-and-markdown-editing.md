@@ -224,7 +224,7 @@ func commitActiveBlockEdit() -> Bool
 
 **モード切替**: 帯に「レンダリング / ソース」。状態は `FileTabDocument` の非永続プロパティ `presentation`。`ChildTab` には持たせない。
 
-ソース表示（Markdown・HTML を含む）と Markdown ブロック編集欄の色付けは、次段の [シンタックスハイライト仕様](syntax-highlighting.md) に従う。
+ソース表示（Markdown・HTML を含む）と Markdown ブロック編集欄の色付けは、[シンタックスハイライト仕様](syntax-highlighting.md) に従う。
 
 ### 3.5 HTML のレンダリング表示
 
@@ -293,6 +293,7 @@ func commitActiveBlockEdit() -> Bool
 - ボタン名は「更新」（HTML 表示の「再読込」とは別物）。
 
 **ファイルタブの帯（モック 3）**
+- ソースの字句色は `syntax-highlighting.md` §4 に従い、見本の行番号・20pt 行間・余白を維持する。ダーク配色は Xcode の既定テーマと既存コード表示に揃え、見本の plain 表示から色付けへ更新する（[シンタックス仕様 §4 のダーク色の判断](syntax-highlighting.md)）。
 - 「レンダリング / ソース」の切り替えは `.md`/`.markdown`/`.html`/`.htm` のときだけ出す。切り替えられない状態（大きすぎてソース固定・ブロックの確定待ち・HTML の遮断準備の失敗）では、項目を**隠さず無効のまま残し**、帯に理由を出す。
 - ⌃⌘M は、対象外のファイル・開けないファイル・切り替えられない状態では何もしない。
 - 狭い幅では、ファイルパス（先頭側を省略）→ 文言 → アイコン化（「Aa」「</>」）の順に縮める。アイコン化したときも読み上げ名は「レンダリング」「ソース」。

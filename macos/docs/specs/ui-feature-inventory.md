@@ -797,8 +797,8 @@ Packages/DesignSystem/Sources/DesignSystem 配下 全28ファイルを確認。
 | diff行の新旧行番号追跡 | diffビューの行番号ガター | `ChatDiffClassifier.swift:11-43,94-114` |
 | diffノイズ行の除外 | fileHeader/"No newline"注記を非表示 | `ChatDiffClassifier.swift:32-34` |
 | ファイル変更サマリ | 「編集済み foo.swift」等のヘッダ、+N/-N行数 | `ChatFilePatch.swift:26-48` |
-| Swiftコードのシンタックスハイライト(keyword/string/number/comment/plain) | コードブロックの色分けトークン | `ChatCodeTokenizer.swift:3-14,42-95` |
-| シェルコマンドのハイライト(command/subcommand/variable/operator/option/string/comment) | Bashコマンド表示の色分け | `ChatCodeTokenizer.swift:97-197` |
+| Swiftコードのシンタックスハイライト(keyword/string/number/comment/plain) | コードブロックの色分けトークン | `ChatCodeTokenizer.swift`・`ChatSyntaxLexer.swift`・`ChatSyntaxRules.swift` |
+| シェルコマンドのハイライト(command/subcommand/variable/operator/option/string/comment) | Bashコマンド表示の色分け | `ChatCodeTokenizer.swift`・`ChatSyntaxLexer.swift`・`ChatSyntaxRules.swift` |
 | 既知ツール名のラベル導出 | Read/Write/Edit/Glob/Grep/LS/Task/Skill/WebFetch/WebSearch/NotebookEdit/TodoWrite vs Bash | `ChatToolPresentation.swift:4-21` |
 | Reasoningテキストの折りたたみ表示判定 | 「思考」セクションの開閉ヘッダ | `ChatToolPresentation.swift:23-33` |
 | 複数ツール実行のグループタイトル | 「ツール実行 ×N」または末尾コマンド60字要約 | `ChatToolPresentation.swift:35-49` |

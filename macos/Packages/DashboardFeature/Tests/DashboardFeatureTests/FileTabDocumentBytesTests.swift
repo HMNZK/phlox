@@ -1,9 +1,36 @@
 import Foundation
+import Observation
+import os
 import Testing
 @testable import DashboardFeature
 
 @MainActor
 struct FileTabDocumentBytesTests {
+    @Test
+    func observesDraftByteChangesAndIgnoresIdenticalAssignments() async throws {
+        let root = try makeFileTabTestRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data("é".utf8).write(to: root.appendingPathComponent("a.txt"))
+        let document = FileTabDocument(path: "a.txt", root: root.path)
+        await document.loadIfNeeded()
+        let version = document.version
+        let changes = OSAllocatedUnfairLock(initialState: 0)
+        withObservationTracking {
+            _ = document.draft
+        } onChange: {
+            changes.withLock { $0 += 1 }
+        }
+        document.draft = "é"
+        #expect(changes.withLock { $0 } == 0)
+        #expect(document.version == version)
+        document.draft = "é"
+        #expect(changes.withLock { $0 } == 1)
+        #expect(document.version == version + 1)
+        document.draft = "é"
+        #expect(document.version == version + 1)
+        #expect(document.isDirty)
+    }
+
     @Test
     func detectsCanonicallyEquivalentDraftAsDirty() async throws {
         let root = try makeFileTabTestRoot()

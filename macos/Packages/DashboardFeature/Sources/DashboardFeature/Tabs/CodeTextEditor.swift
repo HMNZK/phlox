@@ -1,11 +1,13 @@
 import SwiftUI
 import AppKit
 import DesignSystem
+import os
 
 /// ファイルタブの編集欄（07 D4）。左に行番号（幅 28・右寄せ・淡色）。
 /// SwiftUI の `TextEditor` には同期する行番号欄が無いので NSTextView を包む。
 struct CodeTextEditor: NSViewRepresentable {
     @Binding var text: String
+    var path = ""
     var blockEditID: UUID?
     var synchronizeBlockEdit: ((UUID, String) -> Void)?
     var commitBlockEdit: ((UUID) -> Bool)?
@@ -41,10 +43,15 @@ struct CodeTextEditor: NSViewRepresentable {
         paragraph.maximumLineHeight = paragraph.minimumLineHeight
         textView.defaultParagraphStyle = paragraph
         textView.typingAttributes[.paragraphStyle] = paragraph
+        context.coordinator.updateBodyColor(textView)
         textView.string = text
         textView.textStorage?.addAttribute(.paragraphStyle, value: paragraph,
                                           range: NSRange(location: 0, length: textView.string.utf16.count))
         textView.delegate = context.coordinator
+        textView.onMarkedTextEnd = { [weak coordinator = context.coordinator, weak textView] in
+            guard let coordinator, let textView else { return }
+            coordinator.updateHighlights(textView, path: coordinator.highlights.path, debounce: true)
+        }
         scrollView.documentView = textView
         scrollView.drawsBackground = true
 
@@ -55,6 +62,7 @@ struct CodeTextEditor: NSViewRepresentable {
         }
         // 組み立て後に登録する。登録時に撤去されても、取り付け済みの入力欄・行番号ごと外れる。
         configureBlockEdit(textView)
+        context.coordinator.updateHighlights(textView, path: path)
         return scrollView
     }
 
@@ -62,12 +70,11 @@ struct CodeTextEditor: NSViewRepresentable {
         guard let textView = scrollView.documentView as? CurrentLineTextView else { return }
         context.coordinator.text = $text
         configureBlockEdit(textView)
-        Self.synchronizeText(text, with: textView)
+        Self.synchronizeText(text, with: textView, beforeReplacement: { context.coordinator.highlights.invalidate() })
         let background = NSColor(blockEditID == nil ? DSColor.background
             : DSColor.isDark ? DSColor.fieldBackground : DSColor.panelBackground)
         scrollView.backgroundColor = background
         textView.backgroundColor = background
-        textView.textColor = NSColor(DSColor.textPrimary)
         textView.insertionPointColor = NSColor(DSColor.textPrimary)
         textView.selectedTextAttributes[.backgroundColor] = NSColor(DSColor.textSelection)
         textView.needsDisplay = true
@@ -76,6 +83,7 @@ struct CodeTextEditor: NSViewRepresentable {
             ruler.backgroundColor = background
             ruler.needsDisplay = true
         }
+        context.coordinator.updateHighlights(textView, path: path)
     }
 
     private func configureBlockEdit(_ textView: CurrentLineTextView) {
@@ -91,28 +99,95 @@ struct CodeTextEditor: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ scrollView: NSScrollView, coordinator: Coordinator) {
+        coordinator.highlights.cancel()
         guard let textView = scrollView.documentView as? CurrentLineTextView else { return }
+        textView.onMarkedTextEnd = nil
         textView.removeBlockEditor()
     }
 
-    static func synchronizeText(_ text: String, with textView: NSTextView) {
-        if !textView.string.utf8.elementsEqual(text.utf8) { textView.string = text }
+    @discardableResult
+    static func synchronizeText(_ text: String, with textView: NSTextView,
+                                beforeReplacement: (() -> Void)? = nil) -> Bool {
+        guard !textView.hasMarkedText(), !(textView.string as NSString).isEqual(to: text) else { return false }
+        beforeReplacement?()
+        textView.string = text
+        return true
     }
 
-    final class Coordinator: NSObject, NSTextViewDelegate {
+    @MainActor final class Coordinator: NSObject, NSTextViewDelegate {
         var text: Binding<String>
+        let highlights = CodeSyntaxHighlights()
+        private var baseThemeID: String?
+        private weak var styledView: NSTextView?
+        private let bodyColor = OSAllocatedUnfairLock(initialState: NSColor(DSColor.textPrimary))
+        private lazy var dynamicBodyColor = NSColor(name: nil) { [bodyColor] _ in
+            bodyColor.withLock { $0 }
+        }
         init(text: Binding<String>) { self.text = text }
+
+        func updateBodyColor(_ textView: NSTextView) {
+            let themeID = ThemeStore.active.id
+            if !textView.hasMarkedText(), styledView !== textView || baseThemeID != themeID {
+                let selection = textView.selectedRanges
+                let origin = textView.enclosingScrollView?.contentView.bounds.origin
+                var typing = textView.typingAttributes
+                bodyColor.withLock { $0 = NSColor(DSColor.textPrimary) }
+                if styledView !== textView {
+                    textView.undoManager?.disableUndoRegistration()
+                    textView.textColor = dynamicBodyColor
+                    textView.undoManager?.enableUndoRegistration()
+                    styledView = textView
+                } else {
+                    textView.layoutManager?.invalidateDisplay(forCharacterRange: NSRange(
+                        location: 0, length: textView.textStorage?.length ?? 0))
+                    textView.needsDisplay = true
+                }
+                if textView.selectedRanges != selection { textView.selectedRanges = selection }
+                typing[.foregroundColor] = dynamicBodyColor
+                if !NSDictionary(dictionary: textView.typingAttributes).isEqual(NSDictionary(dictionary: typing)) {
+                    textView.typingAttributes = typing
+                }
+                if let origin, let clip = textView.enclosingScrollView?.contentView, clip.bounds.origin != origin {
+                    clip.scroll(to: origin)
+                }
+                baseThemeID = themeID
+            }
+        }
+
+        func updateHighlights(_ textView: NSTextView, path: String, debounce: Bool = false) {
+            updateBodyColor(textView)
+            highlights.update(textView, path: path, debounce: debounce)
+        }
 
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             text.wrappedValue = textView.string
             textView.enclosingScrollView?.verticalRulerView?.needsDisplay = true
+            updateHighlights(textView, path: highlights.path, debounce: true)
+        }
+
+        func textView(_ textView: NSTextView, shouldChangeTextIn affectedCharRange: NSRange,
+                      replacementString: String?) -> Bool {
+            self.textView(textView, shouldChangeTextInRanges: [NSValue(range: affectedCharRange)],
+                          replacementStrings: replacementString.map { [$0] })
+        }
+
+        func textView(_ textView: NSTextView, shouldChangeTextInRanges affectedRanges: [NSValue],
+                      replacementStrings: [String]?) -> Bool {
+            if affectedRanges.count == 1 {
+                highlights.recordEdit(affectedRanges[0].rangeValue,
+                                      replacementLength: replacementStrings?.first?.utf16.count ?? 0)
+            } else {
+                highlights.invalidate()
+            }
+            return true
         }
 
     }
 }
 
 final class CurrentLineTextView: NSTextView {
+    var onMarkedTextEnd: (() -> Void)?
     var blockEditID: UUID?
     var synchronizeBlockEdit: ((UUID, String) -> Void)?
     var commitBlockEdit: ((UUID) -> Bool)?
@@ -129,6 +204,11 @@ final class CurrentLineTextView: NSTextView {
 
     @objc func undo(_ sender: Any?) { undoManager?.undo() }
     @objc func redo(_ sender: Any?) { undoManager?.redo() }
+
+    override func unmarkText() {
+        super.unmarkText()
+        onMarkedTextEnd?()
+    }
 
     override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
         if item.action == #selector(undo(_:)) { return undoManager?.canUndo == true }
@@ -165,6 +245,7 @@ final class CurrentLineTextView: NSTextView {
 
     func removeBlockEditor() {
         requestsBlockFocus = false
+        onMarkedTextEnd = nil
         dismantleBlockEdit()
         delegate = nil
         if window?.firstResponder === self { window?.makeFirstResponder(nil) }

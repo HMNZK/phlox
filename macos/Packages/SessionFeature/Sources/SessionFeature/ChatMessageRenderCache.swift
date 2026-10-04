@@ -90,12 +90,11 @@ enum ChatMessageRenderCache {
         return highlightCache.value(for: key) { _ in ChatCodeHighlighter.computeHighlight(code, language: language) }
     }
 
-    /// 行ごとの表示の色（`ChatCodeHighlighter.highlightLines` をメモ化）。拡張子とテーマもキーに含める。
+    /// 行ごとの表示の色。ファイル名優先の判定があるため、パスとテーマもキーに含める。
     static func highlightedLines(_ lines: [String], path: String) -> [AttributedString] {
-        let ext = (path as NSString).pathExtension.lowercased()
         // 各行に長さを前置きして、行の区切りが違う入力が同じキーにならないようにする。
         let body = lines.map { "\($0.utf8.count):\($0)" }.joined()
-        let key = "\(ThemeStore.active.id)\u{0}\(ext)\u{0}\(body)"
+        let key = "\(ThemeStore.active.id)\u{0}\(path)\u{0}\(body)"
         return lineHighlightCache.value(for: key) { _ in
             ChatCodeTokenizer.lineTokens(for: lines, path: path).map { ChatCodeHighlighter.highlight(tokens: $0) }
         }

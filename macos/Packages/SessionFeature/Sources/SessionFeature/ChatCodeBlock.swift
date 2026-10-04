@@ -111,21 +111,7 @@ public enum ChatCodeHighlighter {
     static let tokenizeShell: @Sendable (String) -> [ChatCodeToken] = ChatCodeTokenizer.shell
 
     private static func color(for kind: ChatCodeTokenKind) -> Color {
-        switch kind {
-        case .keyword: DSColor.codeSyntaxKeyword
-        case .string: DSColor.codeSyntaxString
-        case .number: DSColor.codeSyntaxNumber
-        case .comment: DSColor.codeSyntaxComment
-        case .plain: DSColor.chatTextPrimary
-        case .command: DSColor.codeSyntaxKeyword
-        case .subcommand: DSColor.codeSyntaxNumber
-        case .variable: DSColor.codeSyntaxString
-        case .operator: DSColor.codeSyntaxKeyword
-        case .option: DSColor.codeSyntaxNumber
-        case .type: DSColor.attentionInk(.question)
-        case .member: DSColor.codeSyntaxNumber
-        case .call: DSColor.accentInk
-        }
+        CodeSyntaxColor.color(for: kind, chat: true)
     }
 }
 

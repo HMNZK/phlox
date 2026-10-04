@@ -8,6 +8,7 @@ import SimulatorBridgeKit
 
 @Suite(.serialized) @MainActor
 struct SimulatorDisplayConnectionTests {
+    #if DEBUG
     @Test(arguments: ["com.apple.CoreSimulator.SimRuntime.iOS-26-2", "未登録ランタイム", "表示のみランタイム"])
     func 明示的な互換性検査は登録状態によらず未確認として入力を検査する(runtime: String) throws {
         let fake = FakeTransport()
@@ -58,6 +59,8 @@ struct SimulatorDisplayConnectionTests {
         #expect(!connection.inputEnabled)
         #expect(connection.reason != nil)
     }
+
+    #endif
 
     @Test func フレーム更新は画面の監視へ通知せず診断は毎秒の再読で更新する() throws {
         let fake = FakeTransport()

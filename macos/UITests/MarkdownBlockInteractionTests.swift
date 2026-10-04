@@ -2,6 +2,31 @@ import XCTest
 
 @MainActor
 final class MarkdownBlockInteractionTests: XCTestCase {
+    func testSourceHighlightingKeepsUndoAndSavedBytes() async throws {
+        let (isolated, root) = try await launchDocument()
+        let app = try isolated.application()
+        let file = root.appendingPathComponent("document.md")
+        let originalBytes = try Data(contentsOf: file)
+        app.typeKey("m", modifierFlags: [.control, .command])
+        let editor = app.textViews.matching(NSPredicate(format: "value CONTAINS %@", "[guide]: linked.md")).firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        let originalText = try XCTUnwrap(editor.value as? String)
+        editor.click()
+        editor.typeKey(.downArrow, modifierFlags: .command)
+        editor.typeText("x")
+        XCTAssertEqual(editor.value as? String, originalText + "x")
+        editor.typeKey("z", modifierFlags: .command)
+        let restored = expectation(for: NSPredicate { _, _ in
+            editor.value as? String == originalText
+        }, evaluatedWith: nil)
+        await fulfillment(of: [restored], timeout: 5)
+        app.typeKey("s", modifierFlags: .command)
+        let saved = expectation(for: NSPredicate { _, _ in
+            (try? Data(contentsOf: file)) == originalBytes && !app.staticTexts["未保存"].exists
+        }, evaluatedWith: nil)
+        await fulfillment(of: [saved], timeout: 5)
+    }
+
     func testBlockEditingSaveAndModes() async throws {
         let (isolated, root) = try await launchDocument()
         let app = try isolated.application()

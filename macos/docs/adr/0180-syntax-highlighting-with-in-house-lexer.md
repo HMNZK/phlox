@@ -7,7 +7,7 @@ last-verified: 2026-10-04
 
 ## 決定
 
-2026-10-04 のユーザー決定。`ChatRenderKit.ChatCodeTokenizer` を拡張し、ファイルタブの `CodeTextEditor` に適用する。tree-sitter は導入しない。対象・色・受け入れ基準は [シンタックスハイライト仕様](../specs/syntax-highlighting.md) に置く。決定は採用済みだが、ファイルタブへの接続と規則の拡張は未実装。
+2026-10-04 のユーザー決定。`ChatRenderKit.ChatCodeTokenizer` を拡張し、ファイルタブの `CodeTextEditor` に適用する。tree-sitter は導入しない。対象・色・受け入れ基準は [シンタックスハイライト仕様](../specs/syntax-highlighting.md) に置く。共有規則とファイルタブへの接続を実装し、検証結果は [作業記録 0040](../delivery/0040-syntax-highlighting-worklog.md) に記載する。
 
 - 種類の判定と、言語ごとの字句規則を分ける。精度が必要になった種類だけ、後から色付け部品を差し替えられるようにする。
 - プログラムに限らず、設定・マークアップ・データ・差分を扱う。判定できないテキストは本文色で表示する。

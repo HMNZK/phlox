@@ -31,6 +31,7 @@ let package = Package(
             dependencies: [
                 "SimulatorBridgeKit",
                 "AgentDomain",
+                .product(name: "ChatRenderKit", package: "AgentDomain"),
                 "SessionFeature",
                 "HookServer",
                 "MessageStore",

@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import DesignSystem
 import SessionFeature
+import Observation
 
 private struct FileTabRecoveryPasteboardKey: EnvironmentKey {
     static let defaultValue: String? = nil
@@ -20,9 +21,9 @@ struct MarkdownBlockEditor: View {
     let openURL: (URL) -> OpenURLAction.Result
     @Environment(\.localizationBundle) private var localizationBundle
     var linkDestination: (URL) async -> FileLinkDestination? = { _ in nil }
-    @State private var hoveredBlock: Int?
-    @State private var hoveredLink: URL?
-    @State private var hoveredDestination: FileLinkDestination?
+    private let initiallyHoveredBlock: Int?
+    private let initiallyHoveredLink: URL?
+    @State private var linkHover: MarkdownLinkHoverState
     @State private var activatedLink: URL?
     @State private var selectedBlock: Int?
     @State private var selectionCrossesBlock = false
@@ -30,17 +31,22 @@ struct MarkdownBlockEditor: View {
     @State private var focusedBlock: Int?
     @AccessibilityFocusState private var accessibleBlock: Int?
     @Environment(\.locale) private var locale
+    private let onBodyEvaluation: (() -> Void)?
+    private let onContentEvaluation: (() -> Void)?
 
     init(document: FileTabDocument, openURL: @escaping (URL) -> OpenURLAction.Result,
          linkDestination: @escaping (URL) async -> FileLinkDestination? = { _ in nil },
          hoveredBlock: Int? = nil, focusedBlock: Int? = nil, hoveredLink: URL? = nil,
-         hoveredDestination: FileLinkDestination? = nil, selectionCrossesBlock: Bool = false) {
+         hoveredDestination: FileLinkDestination? = nil, selectionCrossesBlock: Bool = false,
+         onBodyEvaluation: (() -> Void)? = nil, onContentEvaluation: (() -> Void)? = nil) {
         self.document = document
         self.openURL = openURL
         self.linkDestination = linkDestination
-        _hoveredBlock = State(initialValue: hoveredBlock)
-        _hoveredLink = State(initialValue: hoveredLink)
-        _hoveredDestination = State(initialValue: hoveredDestination)
+        self.onBodyEvaluation = onBodyEvaluation
+        self.onContentEvaluation = onContentEvaluation
+        self.initiallyHoveredBlock = hoveredBlock
+        self.initiallyHoveredLink = hoveredLink
+        _linkHover = State(initialValue: MarkdownLinkHoverState(url: hoveredLink, destination: hoveredDestination))
         _selectionCrossesBlock = State(initialValue: selectionCrossesBlock)
         _selectedBlock = State(initialValue: focusedBlock)
         // フォーカスの画面外描画にも実際の選択表示と同じ状態を使う。
@@ -51,6 +57,7 @@ struct MarkdownBlockEditor: View {
     private var visibleFocusedBlock: Int? { focusedBlock ?? snapshotFocusedBlock }
 
     var body: some View {
+        let _ = onBodyEvaluation?()
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 6) {
                 ForEach(Array(displayBlocks.enumerated()), id: \.element.id) { index, block in
@@ -69,18 +76,16 @@ struct MarkdownBlockEditor: View {
             _ = textView.synchronizeAndCommitBlockEdit()
         }))
         .overlay(alignment: .bottomLeading) {
-            if selectionCrossesBlock || hoveredDestination != nil {
-                Group {
-                    if selectionCrossesBlock {
-                        HTMLLinkDestinationLabel(text: AppLocalizedString.string(
-                            "ブロックをまたいで選ぶには、ソース表示に切り替えます（⌃⌘M）", locale: locale, bundle: localizationBundle),
-                            color: NSColor(DSColor.textPrimary))
-                            .padding(.horizontal, 9).padding(.vertical, 5)
-                            .background(DSColor.surfaceElevated, in: RoundedRectangle(cornerRadius: 6))
-                    } else if let hoveredDestination {
-                        FileLinkDestinationView(destination: hoveredDestination)
-                    }
-                }
+            if selectionCrossesBlock {
+                HTMLLinkDestinationLabel(text: AppLocalizedString.string(
+                    "ブロックをまたいで選ぶには、ソース表示に切り替えます（⌃⌘M）", locale: locale, bundle: localizationBundle),
+                    color: NSColor(DSColor.textPrimary))
+                    .padding(.horizontal, 9).padding(.vertical, 5)
+                    .background(DSColor.surfaceElevated, in: RoundedRectangle(cornerRadius: 6))
+                    .padding(8)
+                    .allowsHitTesting(false)
+            } else {
+                MarkdownLinkHoverDestination(hover: linkHover, resolve: linkDestination)
                     .padding(8)
                     .allowsHitTesting(false)
             }
@@ -96,11 +101,6 @@ struct MarkdownBlockEditor: View {
                 focusedBlock = selectedBlock
                 accessibleBlock = selectedBlock
             }
-        }
-        .task(id: hoveredLink) {
-            guard let url = hoveredLink else { hoveredDestination = nil; return }
-            let destination = await linkDestination(url)
-            if !Task.isCancelled, hoveredLink == url { hoveredDestination = destination }
         }
     }
 
@@ -173,55 +173,60 @@ struct MarkdownBlockEditor: View {
             .padding(.horizontal, -10)
             .padding(.vertical, 2)
         } else {
-            renderedBlock(block)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 3)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(hoveredLink == nil && (hoveredBlock == block.id || visibleFocusedBlock == block.id)
-                            ? DSColor.fillSubtle : .clear, in: RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6)
-                    .stroke(visibleFocusedBlock == block.id ? DSColor.accent : .clear, lineWidth: 1))
-                .overlay(RoundedRectangle(cornerRadius: 8)
-                    .stroke(visibleFocusedBlock == block.id ? DSColor.focusRing : .clear, lineWidth: 3).padding(-2))
-                .overlay(alignment: .topTrailing) {
-                    if visibleFocusedBlock == block.id {
-                        Text("Return で編集")
-                            .font(.system(size: 10.5)).foregroundStyle(DSColor.textPrimary)
-                            .padding(.horizontal, 6).padding(.vertical, 1)
-                            .background(DSColor.controlBackground, in: RoundedRectangle(cornerRadius: 4))
-                            .offset(x: -3, y: -20)
-                            .allowsHitTesting(false)
-                    }
-                }
-                .padding(.top, visibleFocusedBlock == block.id ? 20 : 0)
-                .padding(.horizontal, -10)
-                .contentShape(Rectangle())
-                .onHover { inside in
-                    hoveredBlock = inside ? block.id : (hoveredBlock == block.id ? nil : hoveredBlock)
-                }
-                .overlay(MarkdownBlockSelectionObserver(onBoundary: { selectionCrossesBlock = $0 },
-                    prepareClick: { prepareBlockClick(block) }, isFocused: focusedBlock == block.id,
-                    onFocus: { hasFocus in
-                        if hasFocus { focusedBlock = block.id }
-                        else if focusedBlock == block.id { focusedBlock = nil }
-                    }, onKey: { key in
-                        switch key {
-                        case 36, 76: beginEdit(block)
-                        case 126: moveFocus(from: block.id, offset: -1)
-                        case 125: moveFocus(from: block.id, offset: 1)
-                        default: return false
+            let linkChanged: (URL?) -> Void = { linkHover.url = $0 }
+            let content = renderedBlock(block, onLinkHover: linkChanged)
+            MarkdownBlockHover(initiallyHovered: initiallyHoveredBlock == block.id) { isHovered, hoverChanged in
+                content
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(linkHover.url == nil && (isHovered || visibleFocusedBlock == block.id)
+                                ? DSColor.fillSubtle : .clear, in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6)
+                        .stroke(visibleFocusedBlock == block.id ? DSColor.accent : .clear, lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: 8)
+                        .stroke(visibleFocusedBlock == block.id ? DSColor.focusRing : .clear, lineWidth: 3).padding(-2))
+                    .overlay(alignment: .topTrailing) {
+                        if visibleFocusedBlock == block.id {
+                            Text("Return で編集")
+                                .font(.system(size: 10.5)).foregroundStyle(DSColor.textPrimary)
+                                .padding(.horizontal, 6).padding(.vertical, 1)
+                                .background(DSColor.controlBackground, in: RoundedRectangle(cornerRadius: 4))
+                                .offset(x: -3, y: -20)
+                                .allowsHitTesting(false)
                         }
-                        return true
-                    }))
-                .accessibilityFocused($accessibleBlock, equals: block.id)
-                .accessibilityElement(children: .contain)
-                .accessibilityHint("Return で編集。上下の矢印キーでブロックを移動")
-                .accessibilityAddTraits(isHeading(block) ? .isHeader : [])
-                .accessibilityAction(named: "編集") { beginEdit(block) }
+                    }
+                    .padding(.top, visibleFocusedBlock == block.id ? 20 : 0)
+                    .padding(.horizontal, -10)
+                    .contentShape(Rectangle())
+                    .onHover(perform: hoverChanged)
+                    .overlay(MarkdownBlockSelectionObserver(onBoundary: { selectionCrossesBlock = $0 },
+                        prepareClick: { prepareBlockClick(block) }, isFocused: focusedBlock == block.id,
+                        onFocus: { hasFocus in
+                            if hasFocus { focusedBlock = block.id }
+                            else if focusedBlock == block.id { focusedBlock = nil }
+                        }, onKey: { key in
+                            switch key {
+                            case 36, 76: beginEdit(block)
+                            case 126: moveFocus(from: block.id, offset: -1)
+                            case 125: moveFocus(from: block.id, offset: 1)
+                            default: return false
+                            }
+                            return true
+                        }, onHoverChange: hoverChanged,
+                        onLinkHoverChange: linkChanged,
+                        isTable: block.original.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("|")))
+                    .accessibilityFocused($accessibleBlock, equals: block.id)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityHint("Return で編集。上下の矢印キーでブロックを移動")
+                    .accessibilityAddTraits(isHeading(block) ? .isHeader : [])
+                    .accessibilityAction(named: "編集") { beginEdit(block) }
+            }
         }
     }
 
-    @ViewBuilder private func renderedBlock(_ block: MarkdownBlock) -> some View {
+    @ViewBuilder private func renderedBlock(_ block: MarkdownBlock, onLinkHover: @escaping (URL?) -> Void) -> some View {
+        let _ = onContentEvaluation?()
         switch block.kind {
         case .empty:
             Text("クリックして書き始める")
@@ -246,8 +251,8 @@ struct MarkdownBlockEditor: View {
             RichMarkdownView(source: block.renderedMarkdown, openURL: { url in
                 activatedLink = url
                 return openURL(url)
-            }, onLinkHover: { hoveredLink = $0 },
-                             hoveredLink: hoveredLink)
+            }, onLinkHover: onLinkHover,
+                             hoveredLink: initiallyHoveredLink)
         }
     }
 
@@ -270,7 +275,7 @@ struct MarkdownBlockEditor: View {
                 if activatedLink != link { _ = openURL(link) }
                 return
             }
-            guard hoveredLink == nil else { return }
+            guard linkHover.url == nil else { return }
             var range = block.range
             if document.version != version {
                 // 選択用の field editor へフォーカスが移ると、前の入力欄は先に確定する。
@@ -285,7 +290,7 @@ struct MarkdownBlockEditor: View {
     private func beginEdit(range: Range<Int>) {
         if document.beginBlockEdit(range: range) {
             selectedBlock = document.activeBlockEdit?.range.lowerBound
-            hoveredLink = nil
+            linkHover.url = nil
             selectionCrossesBlock = false
         }
     }
@@ -318,6 +323,50 @@ struct MarkdownBlockEditor: View {
     }
 }
 
+@MainActor @Observable
+private final class MarkdownLinkHoverState {
+    var url: URL?
+    var destination: FileLinkDestination?
+
+    init(url: URL?, destination: FileLinkDestination?) {
+        self.url = url
+        self.destination = destination
+    }
+}
+
+private struct MarkdownLinkHoverDestination: View {
+    let hover: MarkdownLinkHoverState
+    let resolve: (URL) async -> FileLinkDestination?
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            Color.clear.frame(width: 0, height: 0)
+            if let destination = hover.destination { FileLinkDestinationView(destination: destination) }
+        }
+        .task(id: hover.url) {
+            guard let url = hover.url else { hover.destination = nil; return }
+            let destination = await resolve(url)
+            if !Task.isCancelled, hover.url == url { hover.destination = destination }
+        }
+    }
+}
+
+/// ホバーで、文書全体の Markdown と文字選択部品を再評価しない。
+private struct MarkdownBlockHover<Content: View>: View {
+    @State private var isHovered: Bool
+    private let content: (Bool, @escaping (Bool) -> Void) -> Content
+
+    init(initiallyHovered: Bool, @ViewBuilder content: @escaping (Bool, @escaping (Bool) -> Void) -> Content) {
+        _isHovered = State(initialValue: initiallyHovered)
+        self.content = content
+    }
+
+    var body: some View {
+        content(isHovered) { isHovered = $0 }
+            .onDisappear { isHovered = false }
+    }
+}
+
 /// 選択のドラッグが開始ブロックを越えたときだけ、制限を静かに案内する。
 struct MarkdownBlockSelectionObserver: NSViewRepresentable {
     var onBoundary: (Bool) -> Void
@@ -326,6 +375,9 @@ struct MarkdownBlockSelectionObserver: NSViewRepresentable {
     var isFocused = false
     var onFocus: ((Bool) -> Void)? = nil
     var onKey: ((UInt16) -> Bool)? = nil
+    var onHoverChange: ((Bool) -> Void)? = nil
+    var onLinkHoverChange: ((URL?) -> Void)? = nil
+    var isTable = false
     func makeNSView(context: Context) -> SelectionView {
         SelectionView(onBoundary: onBoundary, onOutsideClick: onOutsideClick, prepareClick: prepareClick)
     }
@@ -335,6 +387,9 @@ struct MarkdownBlockSelectionObserver: NSViewRepresentable {
         view.prepareClick = prepareClick
         view.onFocus = onFocus
         view.onKey = onKey
+        view.onHoverChange = onHoverChange
+        view.onLinkHoverChange = onLinkHoverChange
+        view.isTable = isTable
         view.setFocused(isFocused)
     }
     static func dismantleNSView(_ view: SelectionView, coordinator: ()) { view.stopObserving() }
@@ -345,6 +400,12 @@ struct MarkdownBlockSelectionObserver: NSViewRepresentable {
         var prepareClick: (() -> ((URL?) -> Void))?
         var onFocus: ((Bool) -> Void)?
         var onKey: ((UInt16) -> Bool)?
+        // テスト専用（画面外計測用）。実際のホバーと同じ状態更新を使う。
+        var onHoverChange: ((Bool) -> Void)?
+        // テスト専用（画面外計測用）。文字のリンク検出後と同じ状態更新を使う。
+        var onLinkHoverChange: ((URL?) -> Void)?
+        // テスト専用（画面外計測の表区間の分類）。
+        var isTable = false
         private var requestsFocus = false
         private var clickAction: ((URL?) -> Void)?
         private var monitor: Any?

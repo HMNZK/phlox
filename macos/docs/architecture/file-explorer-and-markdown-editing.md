@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-04
+last-verified: 2026-10-05
 ---
 
 # ファイルツリー・マークダウンのブロック編集・HTML 表示の現行構成
@@ -111,6 +111,7 @@ FileTabDocuments.openFileTab(sessionID:root:relativePath:split:router:requestedW
 
 **表示 `MarkdownBlockEditor`（`Tabs/MarkdownBlockEditor.swift`）**
 
+- 行のホバーは `MarkdownBlockHover` 内の状態で更新し、画面外へ出たら解除する。本文ビューはホバー更新の外で構築し、親の文書全体を再評価せず、既存の背景と選択監視を使う。リンクの状態は `MarkdownLinkHoverState` を行と `MarkdownLinkHoverDestination` からだけ読み、リンクの入退出・行き先の非同期解決でも親を再評価しない。編集・フォーカスは親が管理する。画面外の性能テストは、選択監視Viewへ渡した実際と同じホバー更新をコードから呼び、実マウスを動かさない。
 - `ScrollView { LazyVStack }`。各ブロックは `RichMarkdownView(source:openURL:onLinkHover:hoveredLink:)`（SessionFeature。チャット用の前処理 `TranscriptMarkdownPresentation.prepare` を通さない init）とファイル専用の `fileMarkdownTheme` で描く。`frontMatter`・`raw` は等幅の原文表示、`empty` は「クリックして書き始める」。クリック・ドラッグは `MarkdownBlockSelectionObserver` からブロック編集／境界の案内へ渡す。文字上では既存 SelectionView が選択可能な文字部品へ mouseDown を同期転送し、tracking の終了を直接受け取る。tracking 中の境界は選択変更通知と tracking mode の 30ms タイマーで `window.mouseLocationOutsideOfEventStream` の位置参照から判定する。文字選択を維持し、選択範囲がある場合は編集クリックと扱わない。リンクは `openURL` を優先し、キーは同 observer の responder の `keyDown` から処理する。
 - 追跡終了後の文字部品の `selectedRange().length > 0` なら編集を始めない。ダブルクリックで単語を選んだ場合も同じ。
 - 編集中のブロックは `CodeTextEditor`（`blockEditID` つき）に置き換わる。高さは `min(200, max(54, 行数 × 18 + 16))`（末尾の空行は数えない）。
@@ -166,5 +167,6 @@ FileTabDocuments.openFileTab(sessionID:root:relativePath:split:router:requestedW
 | `OpenFileTabTests` / `CrossWindowDraftTests` / `TerminationConfirmationTests` | 開く共通関数・複数ウィンドウの未保存・終了確認 |
 | `FileTreeLoaderTests` / `FileTreeRowsTests` / `FileTreeModelTests` / `FileTreeGitTests` | ツリーの読込・平坦化・モデル・ブランチ名 |
 | `MarkdownBlocksTests` / `MarkdownRenderParityTests` / `MarkdownCorpusParityTests` / `ActiveBlockEditTests` / `MarkdownBlockEditorTests` / `MarkdownBlockEditorLifecycleTests` / `MarkdownBlockClickTests` / `MarkdownLinkRoutingTests` / `FileMarkdownPresentationTests` | ブロック分割・描画の一致・編集状態・リンク |
+| `MarkdownScrollPerformanceTests` | 通常実行でホバー背景の表示・退出・画面外往復、親bodyと本文構築の抑止、リンクの背景抑止・行き先解決、原文と版の不変を検証。Release・`PHLOX_SCROLL_PERFORMANCE=1` では実際のファイルタブで表あり・表なし・小文書のレンダリング／ソース表示のp95 ≤ 16.7msを画面外計測。表の可視区間と全体の超過件数・最大値を分けて記録する。通常実行・測定文書がない場合は性能測定だけスキップ |
 | `WorktreeSchemeHandlerTests` / `HTMLNavigationPolicyTests` / `HTMLContentRuleTests` / `HTMLNetworkIsolationTests` / `HTMLPreviewRefreshTests` | HTML の配信・遷移判定・遮断・再描画 |
 | `FileTreeInteractionTests` / `HTMLPreviewInteractionTests` / `MarkdownBlockInteractionTests`（`macos/UITests`、XCUITest） | 実画面でのツリー操作・HTML のレンダリング・ブロック編集 |

@@ -1,6 +1,6 @@
 ---
 status: completed        # 実装済み。現行構成は architecture/ にある（本書は設計時点の記録）
-last-verified: 2026-10-03
+last-verified: 2026-10-05
 ---
 
 # ファイルツリー（右サイドバー）・マークダウンのブロック編集・HTML 表示 — 設計書
@@ -85,6 +85,9 @@ last-verified: 2026-10-03
 | NFR-6 | 既存の幅決定（`PaneWidthPolicy`）・タブ永続化（`phlox.sessionTabs.v1`）・凍結受け入れテストを変更しない |
 | NFR-7 | HTML 表示: ページの JavaScript は常に無効（アプリが差し込むスクリプトは、専用の実行環境でリンクのホバーを拾う用途だけに使う。§3.5）。ページ由来の外部要求（画像・CSS・フォント・iframe・`@import` 等）は常に遮断。遮断ルールの準備が整う前・失敗時は読み込まない。**WebKit 自身の通信や sandbox 相当の隔離は保証しない** |
 | NFR-8 | 文書は開いた時点のルートと相対パスに固定し、保存時にルートが消えていれば書かない（別のルートへ書かない） |
+| NFR-9 | 100KB級のMarkdownのレンダリング表示・ソース表示で、Releaseの画面外スクロール計測（800×600pt、64pt刻み、レイアウト＋AppKitの描画更新・レイヤー反映）のフレームp95 ≤ 16.7msを目標とする。表なしの同程度の文書・小文書と比較し、全体と表の区間のp50・p95・最大・16.7ms超の件数を記録する。既定ではブロックのホバーを含み、`PHLOX_SCROLL_HOVER=0` はホバーなしの診断とする。`PHLOX_SCROLL_PERFORMANCE=1` で測定し、`PHLOX_SCROLL_FIXTURE` で文書の絶対パスを指定する（既定 `/tmp/capweave-DESIGN.md`）。測定用文書はリポジトリ外のCapweaveのDESIGN.mdを利用者がコピーして用意する。無い場合は性能測定だけスキップする。画像書き出し・GPU合成・実入力は対象外。基準の確定と修正前後の実測は `delivery/0042-markdown-scroll-performance-worklog.md` に記録する。**現時点では安定して満たしていない**（全体p95が基準の境目、表の区間は超過。0042参照） |
+
+NFR-9の測定文書は、Capweaveの作業ツリーにある `DESIGN.md` を `/tmp/capweave-DESIGN.md` へコピーするか、その絶対パスを `PHLOX_SCROLL_FIXTURE` に指定して用意する。文書は本リポジトリに同梱しない。測定した版のSHA-256と条件は0042に記録する。
 
 ## 3. 設計
 

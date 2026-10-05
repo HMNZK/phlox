@@ -118,11 +118,12 @@ struct FileTabUndoScopeTests {
         document.draft = "元"
         #expect(document.setPresentation(.source))
         if blockEditing { #expect(document.beginBlockEdit(range: 0..<document.draft.utf8.count)) }
-        let binding = Binding(get: { blockEditing ? (document.activeBlockEdit?.current ?? document.draft) : document.draft }, set: {
+        let getText = { blockEditing ? (document.activeBlockEdit?.current ?? document.draft) : document.draft }
+        let content = CodeTextEditor(
+            getText: getText, setText: {
             if blockEditing, let id = document.activeBlockEdit?.id { document.updateActiveBlockEdit(id: id, current: $0) }
             else { document.draft = $0 }
-        })
-        let content = CodeTextEditor(text: binding, blockEditID: document.activeBlockEdit?.id,
+        }, blockEditID: document.activeBlockEdit?.id,
             synchronizeBlockEdit: { document.updateActiveBlockEdit(id: $0, current: $1) },
             commitBlockEdit: { document.commitActiveBlockEdit(id: $0) })
             .frame(width: 300, height: 200)
@@ -144,7 +145,7 @@ struct FileTabUndoScopeTests {
         editor.setSelectedRange(NSRange(location: editor.string.utf16.count, length: 0))
         editor.insertText("字", replacementRange: editor.selectedRange())
         #expect(editor.string == "元字")
-        #expect(binding.wrappedValue == "元字")
+        #expect(getText() == "元字")
         if blockEditing { #expect(document.draft == "元") }
         editor.breakUndoCoalescing()
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
@@ -154,11 +155,11 @@ struct FileTabUndoScopeTests {
         #expect(!editor.validateUserInterfaceItem(redo))
         #expect((useInputResponder ? editor : window).tryToPerform(undo.action!, with: nil))
         #expect(editor.string == "元")
-        #expect(binding.wrappedValue == "元")
+        #expect(getText() == "元")
         #expect(editor.validateUserInterfaceItem(redo))
         #expect((useInputResponder ? editor : window).tryToPerform(redo.action!, with: nil))
         #expect(editor.string == "元字")
-        #expect(binding.wrappedValue == "元字")
+        #expect(getText() == "元字")
         if blockEditing { #expect(document.draft == "元") }
     }
 

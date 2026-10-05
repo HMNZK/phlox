@@ -334,8 +334,8 @@ public struct EditorPanelView: View {
                 placeholder(Text("バイナリファイル"))
             case .diff(let diff):
                 // 差分のとき、中身を読めていれば「差分 / 内容」を切り替えられる（07 の対応表）。
-                detailHeader(canSwitch: viewModel.canEdit)
-                if showsContent && viewModel.canEdit {
+                detailHeader(canSwitch: viewModel.canViewContent)
+                if showsContent && viewModel.canViewContent {
                     codeLines(EditorCodeLines.content(viewModel.draft), isDiff: false)
                 } else {
                     codeLines(EditorCodeLines.diff(diff), isDiff: true)
@@ -385,8 +385,8 @@ public struct EditorPanelView: View {
                     .truncationMode(.tail)
                     .help(Text(verbatim: readOnlyMessage))
             }
-            if viewModel.canEdit, let path = viewModel.selectedPath {
-                Button("ファイルタブで編集") {
+            if viewModel.canViewContent, let path = viewModel.selectedPath {
+                Button(LocalizedStringKey(viewModel.isReadOnly ? "ファイルタブで開く" : "ファイルタブで編集")) {
                     onEditFile(path)
                 }
                 .buttonStyle(.ds(.secondary, height: 20, fontSize: 11, padding: 8))
@@ -401,7 +401,9 @@ public struct EditorPanelView: View {
     private func codeLines(_ lines: [EditorCodeLine], isDiff: Bool) -> some View {
         let shown = Array(lines.prefix(previewLineLimit))
         let path = viewModel.selectedPath ?? ""
-        let bodies = EditorCodeLines.highlightedBodies(shown) { ChatCodeHighlighter.highlightLines($0, path: path) }
+        let bodies = viewModel.shouldHighlightPreview(isDiff: isDiff)
+            ? EditorCodeLines.highlightedBodies(shown) { ChatCodeHighlighter.highlightLines($0, path: path) }
+            : shown.map { AttributedString($0.text) }
         let rest = EditorCodeLines.remainder(of: lines, after: previewLineLimit)
         return GeometryReader { viewport in
             ScrollView([.horizontal, .vertical]) {

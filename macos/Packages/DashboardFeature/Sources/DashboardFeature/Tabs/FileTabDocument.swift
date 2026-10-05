@@ -72,7 +72,7 @@ public final class FileTabDocument {
         case outsideRoot(String)
     }
 
-    public enum DocumentError: Error, Equatable { case invalidated, blockEditVersionMismatch }
+    public enum DocumentError: Error, Equatable { case invalidated, blockEditVersionMismatch, readOnly }
 
     public enum Presentation: Sendable { case rendered, source }
     private var storedPresentation: Presentation = .source
@@ -92,7 +92,7 @@ public final class FileTabDocument {
         manager.groupsByEvent = false
         manager.mayRestoreDocument = { [weak self] expected in
             guard let self else { return false }
-            return self.activeBlockEdit == nil && !self.invalidationRequested
+            return !self.isReadOnly && self.activeBlockEdit == nil && !self.invalidationRequested
                 && self.draft.utf8.elementsEqual(expected.utf8)
         }
         return manager
@@ -195,7 +195,7 @@ public final class FileTabDocument {
 
     @discardableResult
     public func beginBlockEdit(range: Range<Int>) -> Bool {
-        guard !invalidationRequested, isMarkdown, !markdownPresentationLocked else { return false }
+        guard !invalidationRequested, !isReadOnly, isMarkdown, !markdownPresentationLocked else { return false }
         synchronizeActiveBlockEditor?()
         let previousEdit = activeBlockEdit
         if previousEdit?.range == range, previousEdit?.baseVersion == version { return true }
@@ -302,8 +302,11 @@ public final class FileTabDocument {
             return draftContent
         }
         set {
-            guard !invalidationRequested,
-                  draftContent.utf16.count != newValue.utf16.count || !(draftContent as NSString).isEqual(to: newValue) else { return }
+            guard !invalidationRequested, !isReadOnly else { return }
+            let current = draftContent as NSString
+            let incoming = newValue as NSString
+            guard current !== incoming,
+                  current.length != incoming.length || !current.isEqual(incoming) else { return }
             withMutation(keyPath: \.draft) { draftContent = newValue }
             version += 1
             scheduleMarkdownAnalysis()
@@ -311,9 +314,15 @@ public final class FileTabDocument {
     }
 
     public private(set) var loadState: LoadState = .unloaded
+    public private(set) var isReadOnly = false
+    private(set) var readOnlyText: ReadOnlyText?
     public private(set) var fileSize: Int?
     public private(set) var readFailureReason: String?
     public private(set) var loadedDiskBytes = Data()
+    private var loadedDiskText: NSString = ""
+    @ObservationIgnored private var dirtyVersion = -1
+    @ObservationIgnored private var cachedDirty = false
+    @ObservationIgnored private var highlightingCache: (version: Int, bom: Int, enabled: Bool)?
     public private(set) var bom = Data()
     public private(set) var invalidated = false
     private var invalidationRequested = false
@@ -356,7 +365,29 @@ public final class FileTabDocument {
     }
 
     public var isLoaded: Bool { loadState == .loaded }
-    public var isDirty: Bool { isLoaded && savingBytes != loadedDiskBytes }
+    var syntaxHighlightingEnabled: Bool {
+        let currentVersion = version
+        let bomCount = bom.count
+        if let cache = highlightingCache, cache.version == currentVersion, cache.bom == bomCount {
+            return cache.enabled
+        }
+        let enabled = WorkingTreeText.shouldHighlight(draft, bomByteCount: bomCount)
+        highlightingCache = (currentVersion, bomCount, enabled)
+        return enabled
+    }
+
+    public var isDirty: Bool {
+        guard isLoaded, !isReadOnly else { return false }
+        let currentVersion = version
+        let baseline = loadedDiskText
+        if dirtyVersion != currentVersion {
+            let current = draft as NSString
+            cachedDirty = current !== baseline
+                && (current.length != baseline.length || !current.isEqual(baseline))
+            dirtyVersion = currentVersion
+        }
+        return cachedDirty
+    }
     public var hasUnsavedChanges: Bool {
         isDirty || activeBlockEdit.map { !$0.original.utf8.elementsEqual($0.current.utf8) } ?? false
     }
@@ -411,9 +442,12 @@ public final class FileTabDocument {
             let decoded = try WorkingTreeText.decode(bytes)
             guard !invalidated else { return }
             loadedDiskBytes = bytes
+            loadedDiskText = decoded.text as NSString
             bom = decoded.bom
             baselineAt = startedAt
             draft = decoded.text
+            isReadOnly = bytes.count > WorkingTreeText.maximumEditableFileSize
+            if isReadOnly { readOnlyText = ReadOnlyText(decoded.text) }
             loadState = .loaded
         } catch WorkingTreeTextError.tooLarge {
             fileSize = try? await service.fileSize(path)
@@ -441,10 +475,12 @@ public final class FileTabDocument {
 
     func enqueueSave(overwrite: Bool) throws -> Task<SaveResult, Error> {
         guard !invalidationRequested else { throw DocumentError.invalidated }
+        guard !isReadOnly else { throw DocumentError.readOnly }
         synchronizeActiveBlockEditor?()
         guard commitActiveBlockEdit() else { throw DocumentError.blockEditVersionMismatch }
         guard isLoaded else { return Task { .conflictDetected } }
         let saving = savingBytes
+        let savingText = draft as NSString
         let previous = pendingSave
         pendingSaveCount += 1
         let task = Task { @MainActor in
@@ -461,6 +497,8 @@ public final class FileTabDocument {
             switch try await self.service.save(path: self.path, data: saving, expectedDiskBytes: expected) {
             case .saved:
                 self.loadedDiskBytes = saving
+                self.dirtyVersion = -1
+                self.loadedDiskText = savingText
                 self.baselineAt = Date()
                 self.reloadHTMLPreview()
                 NotificationCenter.default.post(name: .fileTreeFileSaved, object: nil,

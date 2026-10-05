@@ -54,12 +54,12 @@ struct CodeSyntaxPerformanceTests {
                 let record = Measurements()
                 let plainHostSync = try Self.plainEditorCreationTime(state)
                 let hostStart = ContinuousClock.now
-                let host = NSHostingView(rootView: CodeTextEditor(text: Binding(
-                    get: { state.draft }, set: {
+                let host = NSHostingView(rootView: CodeTextEditor(
+                    getText: { state.draft }, setText: {
                         let start = ContinuousClock.now
                         state.draft = $0
                         record.bindingUpdates.append(Self.milliseconds(since: start))
-                    }), path: filename))
+                    }, path: filename))
                 host.frame = NSRect(x: 0, y: 0, width: 800, height: 600)
                 host.layoutSubtreeIfNeeded()
                 let view = try #require(Self.editor(in: host))
@@ -211,8 +211,8 @@ struct CodeSyntaxPerformanceTests {
 
     private static func plainEditorCreationTime(_ document: FileTabDocument) throws -> Double {
         let start = ContinuousClock.now
-        let host = NSHostingView(rootView: CodeTextEditor(text: Binding(
-            get: { document.draft }, set: { document.draft = $0 }), path: "baseline.txt"))
+        let host = NSHostingView(rootView: CodeTextEditor(
+            getText: { document.draft }, setText: { document.draft = $0 }, path: "baseline.txt"))
         host.frame = NSRect(x: 0, y: 0, width: 800, height: 600)
         host.layoutSubtreeIfNeeded()
         let view = try #require(editor(in: host))

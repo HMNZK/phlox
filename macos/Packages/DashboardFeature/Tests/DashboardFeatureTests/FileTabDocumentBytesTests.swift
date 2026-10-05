@@ -7,6 +7,29 @@ import Testing
 @MainActor
 struct FileTabDocumentBytesTests {
     @Test
+    func dirtyCacheTracksSameLengthEditsUndoAndSaving() async throws {
+        let root = try makeFileTabTestRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("a.txt")
+        try Data("\u{212b}".utf8).write(to: file)
+        let document = FileTabDocument(path: "a.txt", root: root.path)
+        await document.loadIfNeeded()
+        #expect(!document.isDirty)
+        document.draft = "\u{00c5}"
+        #expect(document.isDirty, "正規等価でもUTF-16の長さが同じ別のバイト列を見分ける")
+        #expect(document.isDirty)
+        document.draft = "\u{212b}"
+        #expect(!document.isDirty)
+        document.draft = "\u{00c5}"
+        #expect(document.isDirty)
+        #expect(try await document.save() == .saved)
+        #expect(!document.isDirty, "本文の版が変わらない保存でも基準を更新する")
+        #expect(try Data(contentsOf: file) == Data("\u{00c5}".utf8))
+        document.draft = "\u{212b}"
+        #expect(document.isDirty)
+    }
+
+    @Test
     func observesDraftByteChangesAndIgnoresIdenticalAssignments() async throws {
         let root = try makeFileTabTestRoot()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -83,7 +106,7 @@ struct FileTabDocumentBytesTests {
         let root = try makeFileTabTestRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let cases: [(Data, FileTabDocument.LoadState)] = [
-            (Data(repeating: 0x61, count: 1_000_001), .tooLarge),
+            (Data(repeating: 0x61, count: WorkingTreeText.maximumReadableFileSize + 1), .tooLarge),
             (Data([0x61, 0, 0x62]), .binary),
             (Data([0xff]), .loadFailed),
         ]

@@ -36,13 +36,20 @@ FileTabDocuments.openFileTab(sessionID:root:relativePath:split:router:requestedW
 
 ## ソースの色付け
 
+- 閲覧のみの文書は読込時にReadOnlyTextで表示用の省略を準備する。改行を除く長さはChatCodeTokenizer.maximumLineUTF16Length（10,000）を共有し、書記素境界を保つ。CodeTextEditorは翻訳した目印と表示文字列をNSTextViewへ渡し、目印だけtextTertiaryの一時属性を付ける。原文draftとloadedDiskBytesは別に保持し、検索・コピーは表示だけを対象とする。
+- `FileTabDocument.draft` は受け取ったStringを変換せず保持する。入力・外部同期の比較はNSStringの同一性・長さ・UTF-16の非正規化比較で行う。dirty判定は最後に読込／保存した本文との同じ比較とし、保存時だけUTF-8へ符号化する。BOM・改行・正規等価表現を変えず、保存競合は従来どおりディスクのバイト列で検出する。
+- 未保存判定は文書の版ごと、帯の色付け可否は版・BOM長ごとに一度だけ判定する。`CodeTextEditor` は本文を読み書きする関数（`getText`／`setText`）を受け取って更新のたびに最新の本文を読み、SwiftUIによるビュー構造の比較で巨大な本文の正規化比較を起こさない。本文の外部同期は従来どおり `updateNSView` で行う。
+
+- 非連続レイアウトでも編集中のglyph生成を起こさないよう、一時色の適用はフォントの `beginEditing` / `endEditing` バッチの外で行う。各バッチで必要なフォント変更を集め、色の適用後に一度の編集として反映する。
+
 - `FileTabView` は文書のパスを `CodeTextEditor` へ渡す。`ChatRenderKit.ChatCodeTokenizer.language(for:code:)` がファイル名・拡張子・shebang・plain の順で種類を決め、一度構築した `ChatSyntaxRules` の言語別データと `ChatSyntaxLexer` の共有走査を使う。
 - `CodeSyntaxHighlights` は全文の字句計算を背景タスクで行う。編集通知からは 50 ms 待ってまとめ、取り消したタスクと世代が古い結果を破棄する。前回の適用成功結果と背景で比較し、種類が変わった範囲と編集段落を UTF-16 の範囲で渡して、`NSLayoutManager` の一時的な前景属性を分割して反映する。途中取消・種類やテーマの変更では全範囲を反映する。段落属性は維持し、plain の一時前景は除去する。Markdown ソースの ATX 見出しだけは保存用テキストストレージのフォント属性を等幅の semibold にし、本文へ戻った範囲は通常の太さへ戻す。フォント変更はバッチごとに `beginEditing` / `endEditing` でまとめる。同じ行のトークンは行範囲を使い回す。
 - 待機中の編集範囲は挿入・削除に合わせて移動・統合する。削除した文字を戻した後で別段落を編集しても、途中の編集で消えた一時色を復元する。複数範囲の置換は全範囲を反映する。
 - 色は `SessionFeature.CodeSyntaxColor` が既存の `DSColor` へ割り当てる。DesignSystem は字句解析へ依存しない。チャットも同じ割り当てを使い、チャット固有の型・呼び出し・メンバーの色とキーワードの太字を維持する。
 - marked text の間は本文同期と属性更新を保留する。確定後に現在の本文を再計算する。属性更新は undo へ登録せず、選択・スクロール・typingAttributes を保つ。本文色は初回に動的な `NSColor` を設定し、テーマ変更時はロックで保護した解決先の色と描画を更新する。色の追従では全文の保存属性を更新しない。見出しのフォント変更はバッチを閉じてから選択と入力属性を復元する。文書の draft・version・保存バイト列は色付け処理から変更しない。
 - Markdown のブロック編集は front matter を含む全ブロックを Markdown として同じ編集欄へ渡す。フェンス内部と先頭 front matter の YAML への切替は Markdown の共有字句規則で処理する。
-- 1 行が 10,000 UTF-16 単位を超える文書と編集上限を超える本文は plain にする。ライト・ダークを含むテーマの変更は色を解決し直す。検証結果と性能値は [作業記録 0040](../delivery/0040-syntax-highlighting-worklog.md) に記録する。
+- 1 行が 10,000 UTF-16 単位を超える文書は既存 tokenizer が plain にする。ファイル全体が1,000,000バイトを超えると `CodeTextEditor.Coordinator` の入口で色付けを止め、全文の背景コピー・差分計算も予約しない。境界を跨ぐ編集では古い色と見出しの字体を解除し、undoで戻れば再開する。判定は `WorkingTreeText.shouldHighlight` に集約しBOMを含める。チャット側 tokenizer の上限は別用途の既存規則として維持する。従来の性能値は0040、今回の測定と段階的な制限は0043・ADR0181に記録する。
+- ソース欄は非連続レイアウトを許可する。色付けなし分岐の最後でglyphだけを全体分準備し、フォント変更・貼付け・外部同期後も巨大な段落の入力時の再生成を防ぐ。準備済みの文字形は再利用し、全文レイアウトは強制しない。行番号は初回描画時に行頭を索引化し、文字編集時は編集範囲前後の行だけ再索引し、後続の位置を文字数差分でずらす。描画時は可視位置を二分探索して行番号と行範囲を求める。番号の位置決定で論理行全体の走査・glyph取得をせず、本文の巨大なsubstringも作らない。折返し・行間・本文・保存方式は変えない。`dismantleNSView` は外す前に `removeLayoutManager` で本文と組版を切り離し、破棄時の再描画要求による全文の組版を防ぐ。
 
 ## ファイルツリー
 
@@ -74,7 +81,7 @@ FileTabDocuments.openFileTab(sessionID:root:relativePath:split:router:requestedW
 
 - `WorkingTreeService(repositoryRoot:fixedRoot:)`。`fixedRoot: true` は読み書きのたびに `git rev-parse` でルートを再解決せず、渡されたルート（symlink 解決済み）に固定する。ファイルタブ・ツリー・HTML 配信はすべてこのモードで使う。変更タブ側は従来どおり `fixedRoot: false`。
 - 共通経路 `accessibleFileURL`: ルートが存在するディレクトリであること（無ければ `missingRoot`）→ `relativeURL`（絶対パス・NUL・空要素・`.`・`..` を拒否）→ `containedURL`（親と末尾を `resolvingSymlinksInPath()` した実パスがルート配下であること。違えば `outsideRoot(実パス)`）→ 通常ファイルであること（違えば `notRegularFile`）。`fileData`・`resourceData`・`save`・`absolutePath` がこれを通る。
-- 読み込み `fileData`: サイズ 1,000,000 バイト（`WorkingTreeText.maximumEditableFileSize`）超は `tooLarge`。`WorkingTreeText.decode` は先頭 8,192 バイトに NUL があれば `binary`、先頭 `EF BB BF` を BOM として分離し、残りを厳密な UTF-8 として復号する（失敗は `invalidUTF8`）。
+- 読み込み `fileData`: サイズ20,000,000バイト（`WorkingTreeText.maximumReadableFileSize`）超はData読込前に `tooLarge`。`WorkingTreeText.decode` でも同じ上限を確認し、先頭 8,192 バイトに NUL があれば `binary`、先頭 `EF BB BF` を BOM として分離し、残りを厳密な UTF-8 として復号する（失敗は `invalidUTF8`）。色付け上限は `maximumHighlightedFileSize`（1,000,000バイト）、編集上限は `maximumEditableFileSize`（5,000,000バイト）。BOM込みの読込時サイズが編集上限を超えたら文書を閲覧のみにし、NSTextViewの編集とundo、文書側の変更・保存・dirtyを止める。ソースの外部変更は既存どおり開き直して反映、HTMLのレンダリングと再読込は保つ。
 - 保存 `save(path:data:expectedDiskBytes:)`: `expectedDiskBytes` が非 nil なら現在のディスクの `Data` と一致するときだけ書き、不一致・読めない・消えている場合は `.conflict`。`nil`（上書き）で保存先が消えていれば、親フォルダがルート内にある場合に作り直す。書き込みは `.atomic`。
 - HTML の配信用 `resourceData`: 上限 32 MiB（`maximumHTMLResourceSize`）。
 
@@ -147,7 +154,9 @@ FileTabDocuments.openFileTab(sessionID:root:relativePath:split:router:requestedW
 
 | 項目 | 値・挙動 | 場所 |
 |---|---|---|
-| 編集できるファイルの上限 | 1,000,000 バイト | `WorkingTreeText.maximumEditableFileSize` |
+| 編集上限 | 5,000,000 バイト（BOM含む読込時サイズ） | `WorkingTreeText.maximumEditableFileSize` |
+| 閲覧上限 | 20,000,000 バイト（BOM含む） | `WorkingTreeText.maximumReadableFileSize` |
+| 色付け上限 | 1,000,000 バイト（BOM含む） | `WorkingTreeText.maximumHighlightedFileSize`・`shouldHighlight` |
 | バイナリ判定 | 先頭 8,192 バイトに NUL | `WorkingTreeText.decode` |
 | ブロック編集のソース固定 | 本文 500,000 バイト超、またはブロック 2,000 超、または区間の検証に失敗 | `FileTabDocument.markdownPresentationLocked`・`acceptMarkdownAnalysis` |
 | ブロック編集欄の高さ | 54〜200pt | `MarkdownBlockEditor.editorHeight` |

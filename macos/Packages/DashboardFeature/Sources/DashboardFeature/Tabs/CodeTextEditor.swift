@@ -6,8 +6,15 @@ import os
 /// ファイルタブの編集欄（07 D4）。左に行番号（42pt欄・右寄せ・淡色）、本文は56ptから。
 /// SwiftUI の `TextEditor` には同期する行番号欄が無いので NSTextView を包む。
 struct CodeTextEditor: NSViewRepresentable {
-    @Binding var text: String
+    // 本文をビュー構造の比較から外し、同期時には文書の最新値を読む。
+    private let getText: () -> String
+    private let setText: (String) -> Void
     var path = ""
+    var bomByteCount = 0
+    var isEditable = true
+    var readOnlyText: ReadOnlyText?
+    @Environment(\.locale) private var locale
+    @Environment(\.localizationBundle) private var localizationBundle
     var blockEditID: UUID?
     var synchronizeBlockEdit: ((UUID, String) -> Void)?
     var commitBlockEdit: ((UUID) -> Bool)?
@@ -15,7 +22,28 @@ struct CodeTextEditor: NSViewRepresentable {
     var registerBlockEditor: ((UUID, @escaping () -> Void, @escaping () -> Void) -> Void)?
     var requestBlockFocus = false
 
-    func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
+    init(getText: @escaping () -> String, setText: @escaping (String) -> Void,
+         path: String = "", bomByteCount: Int = 0, isEditable: Bool = true,
+         readOnlyText: ReadOnlyText? = nil,
+         blockEditID: UUID? = nil, synchronizeBlockEdit: ((UUID, String) -> Void)? = nil,
+         commitBlockEdit: ((UUID) -> Bool)? = nil, onBlockCommit: (() -> Void)? = nil,
+         registerBlockEditor: ((UUID, @escaping () -> Void, @escaping () -> Void) -> Void)? = nil,
+         requestBlockFocus: Bool = false) {
+        self.getText = getText
+        self.setText = setText
+        self.path = path
+        self.bomByteCount = bomByteCount
+        self.isEditable = isEditable
+        self.readOnlyText = readOnlyText
+        self.blockEditID = blockEditID
+        self.synchronizeBlockEdit = synchronizeBlockEdit
+        self.commitBlockEdit = commitBlockEdit
+        self.onBlockCommit = onBlockCommit
+        self.registerBlockEditor = registerBlockEditor
+        self.requestBlockFocus = requestBlockFocus
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(setText: setText) }
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -23,6 +51,7 @@ struct CodeTextEditor: NSViewRepresentable {
         scrollView.contentView.postsBoundsChangedNotifications = true
         // 行番号の計算に NSLayoutManager を使うので TextKit 1 で作る。
         let textView = CurrentLineTextView(usingTextLayoutManager: false)
+        textView.layoutManager?.allowsNonContiguousLayout = true
         textView.frame = NSRect(origin: .zero, size: scrollView.contentSize)
         textView.autoresizingMask = [.width]
         textView.textContainer?.widthTracksTextView = true
@@ -30,7 +59,11 @@ struct CodeTextEditor: NSViewRepresentable {
         textView.minSize = .zero
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
         textView.isRichText = false
-        textView.allowsUndo = true
+        textView.isEditable = isEditable
+        textView.isSelectable = true
+        textView.isIncrementalSearchingEnabled = true
+        textView.usesFindBar = true
+        textView.allowsUndo = isEditable
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticTextReplacementEnabled = false
@@ -45,13 +78,15 @@ struct CodeTextEditor: NSViewRepresentable {
         textView.defaultParagraphStyle = paragraph
         textView.typingAttributes[.paragraphStyle] = paragraph
         context.coordinator.updateBodyColor(textView)
-        textView.string = text
+        textView.string = context.coordinator.displayText(getText(), readOnlyText: readOnlyText,
+                                                        locale: locale, bundle: localizationBundle)
         textView.textStorage?.addAttribute(.paragraphStyle, value: paragraph,
                                           range: NSRange(location: 0, length: textView.string.utf16.count))
         textView.delegate = context.coordinator
+        context.coordinator.bomByteCount = bomByteCount
         textView.onMarkedTextEnd = { [weak coordinator = context.coordinator, weak textView] in
             guard let coordinator, let textView else { return }
-            coordinator.updateHighlights(textView, path: coordinator.highlights.path, debounce: true)
+            coordinator.updateHighlights(textView, path: coordinator.path, debounce: true)
         }
         scrollView.documentView = textView
         scrollView.drawsBackground = true
@@ -69,9 +104,17 @@ struct CodeTextEditor: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? CurrentLineTextView else { return }
-        context.coordinator.text = $text
+        context.coordinator.setText = setText
+        context.coordinator.bomByteCount = bomByteCount
+        if textView.isEditable != isEditable {
+            textView.undoManager?.removeAllActions()
+            textView.isEditable = isEditable
+            textView.allowsUndo = isEditable
+        }
         configureBlockEdit(textView)
-        Self.synchronizeText(text, with: textView, beforeReplacement: { context.coordinator.highlights.invalidate() })
+        let display = context.coordinator.displayText(getText(), readOnlyText: readOnlyText,
+                                                     locale: locale, bundle: localizationBundle)
+        Self.synchronizeText(display, with: textView, beforeReplacement: { context.coordinator.highlights.invalidate() })
         let background = NSColor(blockEditID == nil ? DSColor.background
             : DSColor.isDark ? DSColor.fieldBackground : DSColor.panelBackground)
         scrollView.backgroundColor = background
@@ -103,28 +146,56 @@ struct CodeTextEditor: NSViewRepresentable {
         coordinator.highlights.cancel()
         guard let textView = scrollView.documentView as? CurrentLineTextView else { return }
         textView.onMarkedTextEnd = nil
+        // 破棄時の再描画要求で AppKit が非連続レイアウトの穴を全文埋め直して固まらないよう、先に本文と組版を切り離す。
+        if let layoutManager = textView.layoutManager { textView.textStorage?.removeLayoutManager(layoutManager) }
         textView.removeBlockEditor()
     }
 
     @discardableResult
     static func synchronizeText(_ text: String, with textView: NSTextView,
                                 beforeReplacement: (() -> Void)? = nil) -> Bool {
-        guard !textView.hasMarkedText(), !(textView.string as NSString).isEqual(to: text) else { return false }
+        guard !textView.hasMarkedText() else { return false }
+        let current = textView.string as NSString
+        let incoming = text as NSString
+        guard current !== incoming,
+              current.length != incoming.length || !current.isEqual(incoming) else { return false }
         beforeReplacement?()
         textView.string = text
         return true
     }
 
     @MainActor final class Coordinator: NSObject, NSTextViewDelegate {
-        var text: Binding<String>
+        var setText: (String) -> Void
         let highlights = CodeSyntaxHighlights()
+        var bomByteCount = 0
+        private(set) var path = ""
+        private var highlightsEnabled = false
+        private var displayedReadOnlyText: ReadOnlyText?
+        private var displayLocale: Locale?
+        private var displayBundle: Bundle?
+        private var readOnlyDisplay: (text: String, markers: [NSRange]) = ("", [])
         private var baseThemeID: String?
         private weak var styledView: NSTextView?
         private let bodyColor = OSAllocatedUnfairLock(initialState: NSColor(DSColor.textPrimary))
         private lazy var dynamicBodyColor = NSColor(name: nil) { [bodyColor] _ in
             bodyColor.withLock { $0 }
         }
-        init(text: Binding<String>) { self.text = text }
+        init(setText: @escaping (String) -> Void) { self.setText = setText }
+
+        func displayText(_ text: String, readOnlyText: ReadOnlyText?, locale: Locale, bundle: Bundle) -> String {
+            guard let readOnlyText else {
+                displayedReadOnlyText = nil
+                readOnlyDisplay = ("", [])
+                return text
+            }
+            if displayedReadOnlyText !== readOnlyText || displayLocale != locale || displayBundle !== bundle {
+                readOnlyDisplay = readOnlyText.display(locale: locale, bundle: bundle)
+                displayedReadOnlyText = readOnlyText
+                displayLocale = locale
+                displayBundle = bundle
+            }
+            return readOnlyDisplay.text
+        }
 
         func updateBodyColor(_ textView: NSTextView) {
             let themeID = ThemeStore.active.id
@@ -156,15 +227,38 @@ struct CodeTextEditor: NSViewRepresentable {
         }
 
         func updateHighlights(_ textView: NSTextView, path: String, debounce: Bool = false) {
+            self.path = path
             updateBodyColor(textView)
-            highlights.update(textView, path: path, debounce: debounce)
+            if textView.isEditable && WorkingTreeText.shouldHighlight(textView.string, bomByteCount: bomByteCount) {
+                highlightsEnabled = true
+                highlights.update(textView, path: path, debounce: debounce)
+            } else {
+                if highlightsEnabled { highlights.invalidate() }
+                guard !textView.hasMarkedText() else { return }
+                if highlightsEnabled {
+                    textView.layoutManager?.removeTemporaryAttribute(.foregroundColor, forCharacterRange: NSRange(
+                        location: 0, length: textView.textStorage?.length ?? 0))
+                    textView.undoManager?.disableUndoRegistration()
+                    textView.font = .monospacedSystemFont(ofSize: (textView.typingAttributes[.font] as? NSFont)?.pointSize ?? 11,
+                                                        weight: .regular)
+                    textView.undoManager?.enableUndoRegistration()
+                    highlightsEnabled = false
+                }
+                // フォント変更・貼付け・外部同期後も、非連続レイアウトの文字形を準備する。
+                textView.layoutManager?.ensureGlyphs(forCharacterRange: NSRange(
+                    location: 0, length: textView.textStorage?.length ?? 0))
+                for range in readOnlyDisplay.markers {
+                    textView.layoutManager?.addTemporaryAttribute(.foregroundColor,
+                        value: NSColor(DSColor.textTertiary), forCharacterRange: range)
+                }
+            }
         }
 
         func textDidChange(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else { return }
-            text.wrappedValue = textView.string
+            guard let textView = notification.object as? NSTextView, textView.isEditable else { return }
+            setText(textView.string)
             textView.enclosingScrollView?.verticalRulerView?.needsDisplay = true
-            updateHighlights(textView, path: highlights.path, debounce: true)
+            updateHighlights(textView, path: path, debounce: true)
         }
 
         func textView(_ textView: NSTextView, shouldChangeTextIn affectedCharRange: NSRange,
@@ -175,6 +269,8 @@ struct CodeTextEditor: NSViewRepresentable {
 
         func textView(_ textView: NSTextView, shouldChangeTextInRanges affectedRanges: [NSValue],
                       replacementStrings: [String]?) -> Bool {
+            guard textView.isEditable else { return false }
+            guard highlightsEnabled else { return true }
             if affectedRanges.count == 1 {
                 highlights.recordEdit(affectedRanges[0].rangeValue,
                                       replacementLength: replacementStrings?.first?.utf16.count ?? 0)
@@ -200,7 +296,8 @@ final class CurrentLineTextView: NSTextView {
     private let sourceUndoManager = UndoManager()
 
     override var undoManager: UndoManager? {
-        blockEditID == nil ? sourceUndoManager : blockUndoManager
+        guard isEditable else { return nil }
+        return blockEditID == nil ? sourceUndoManager : blockUndoManager
     }
 
     @objc func undo(_ sender: Any?) { undoManager?.undo() }
@@ -302,6 +399,14 @@ final class CurrentLineTextView: NSTextView {
     }
 
     override func keyDown(with event: NSEvent) {
+        if blockEditID == nil, usesFindBar,
+           event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+           event.charactersIgnoringModifiers == "f" {
+            let action = NSMenuItem()
+            action.tag = NSTextFinder.Action.showFindInterface.rawValue
+            performTextFinderAction(action)
+            return
+        }
         if blockEditID != nil,
            event.keyCode == 53 || (event.keyCode == 36 && event.modifierFlags.contains(.command)) {
             if synchronizeAndCommitBlockEdit() { window?.makeFirstResponder(nil) }
@@ -318,6 +423,7 @@ final class LineNumberRuler: NSRulerView {
     var numberColor: NSColor = .tertiaryLabelColor
     var backgroundColor: NSColor = .textBackgroundColor
     private weak var textView: NSTextView?
+    private var lineStarts: [Int] = []
 
     init(textView: NSTextView) {
         self.textView = textView
@@ -328,12 +434,67 @@ final class LineNumberRuler: NSRulerView {
             self, selector: #selector(redraw), name: NSView.boundsDidChangeNotification,
             object: textView.enclosingScrollView?.contentView
         )
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(contentsChanged(_:)), name: NSTextStorage.didProcessEditingNotification,
+            object: textView.textStorage
+        )
     }
 
     @available(*, unavailable)
     required init(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     @objc private func redraw() { needsDisplay = true }
+
+    @objc private func contentsChanged(_ notification: Notification) {
+        guard let storage = notification.object as? NSTextStorage, storage.editedMask.contains(.editedCharacters) else { return }
+        if !lineStarts.isEmpty {
+            let text = storage.string as NSString
+            let edited = storage.editedRange
+            let delta = storage.changeInLength
+            let first = max(0, upperBound(edited.location) - 2)
+            let last = min(lineStarts.count, upperBound(NSMaxRange(edited) - delta) + 1)
+            let start = lineStarts[first]
+            let end = last < lineStarts.count ? lineStarts[last] + delta : text.length
+            var replacement = [start]
+            text.enumerateSubstrings(in: NSRange(location: start, length: end - start),
+                                     options: [.byLines, .substringNotRequired]) { _, _, range, _ in
+                if range.location > start { replacement.append(range.location) }
+            }
+            if last == lineStarts.count, hasTrailingNewline(text), replacement.last != text.length {
+                replacement.append(text.length)
+            }
+            for index in last..<lineStarts.count { lineStarts[index] += delta }
+            lineStarts.replaceSubrange(first..<last, with: replacement)
+        }
+        needsDisplay = true
+    }
+
+    private func lineNumber(at location: Int, in text: NSString) -> Int {
+        if lineStarts.isEmpty {
+            var starts = [0]
+            text.enumerateSubstrings(in: NSRange(location: 0, length: text.length), options: [.byLines, .substringNotRequired]) { _, _, range, _ in
+                if range.location > 0 { starts.append(range.location) }
+            }
+            if hasTrailingNewline(text) { starts.append(text.length) }
+            lineStarts = starts
+        }
+        return upperBound(location)
+    }
+
+    private func upperBound(_ location: Int) -> Int {
+        var lower = 0
+        var upper = lineStarts.count
+        while lower < upper {
+            let middle = (lower + upper) / 2
+            if lineStarts[middle] <= location { lower = middle + 1 }
+            else { upper = middle }
+        }
+        return lower
+    }
+
+    private func hasTrailingNewline(_ text: NSString) -> Bool {
+        text.length > 0 && (CharacterSet.newlines as NSCharacterSet).characterIsMember(text.character(at: text.length - 1))
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         backgroundColor.setFill()
@@ -359,21 +520,18 @@ final class LineNumberRuler: NSRulerView {
         let visible = textView.visibleRect
         let glyphs = layoutManager.glyphRange(forBoundingRect: visible, in: textContainer)
         let characters = layoutManager.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
-        // ponytail: 表示範囲の先頭までの改行を毎回数える（O(n)）。巨大ファイルで重ければ行頭の索引を持つ。
-        var number = 1
-        nsString.enumerateSubstrings(in: NSRange(location: 0, length: characters.location), options: [.byLines, .substringNotRequired]) { _, _, _, _ in
-            number += 1
-        }
-        if characters.location > 0, ![0x0A, 0x0D].contains(nsString.character(at: characters.location - 1)) { number -= 1 }
+        var number = lineNumber(at: characters.location, in: nsString)
 
         var index = characters.location
         let end = NSMaxRange(characters)
         while index < end {
-            let lineRange = nsString.lineRange(for: NSRange(location: index, length: 0))
-            let lineGlyphs = layoutManager.glyphRange(forCharacterRange: lineRange, actualCharacterRange: nil)
+            let start = lineStarts[number - 1]
+            let stop = number < lineStarts.count ? lineStarts[number] : nsString.length
+            let lineRange = NSRange(location: start, length: stop - start)
+            let lineGlyphs = layoutManager.glyphRange(forCharacterRange: NSRange(location: lineRange.location, length: 1), actualCharacterRange: nil)
             guard lineGlyphs.length > 0 else { break }
             let lineRect = layoutManager.lineFragmentRect(forGlyphAt: lineGlyphs.location, effectiveRange: nil)
-            let empty = nsString.substring(with: lineRange).allSatisfy { $0.isNewline }
+            let empty = nsString.rangeOfCharacter(from: .newlines.inverted, options: [], range: lineRange).location == NSNotFound
             let baseline = empty
                 ? lineRect.maxY - layoutManager.defaultLineHeight(for: font) + layoutManager.defaultBaselineOffset(for: font)
                 : lineRect.minY + layoutManager.location(forGlyphAt: lineGlyphs.location).y
@@ -382,7 +540,7 @@ final class LineNumberRuler: NSRulerView {
             index = NSMaxRange(lineRange)
         }
         // 末尾が改行のとき、カーソルが置ける空の最終行にも番号を付ける。
-        if index >= nsString.length, nsString.length == 0 || nsString.hasSuffix("\n") || nsString.hasSuffix("\r") {
+        if index >= nsString.length, nsString.length == 0 || hasTrailingNewline(nsString) {
             let extra = layoutManager.extraLineFragmentRect
             if extra.height > 0 {
                 drawNumber(number, baseline: extra.maxY - layoutManager.defaultLineHeight(for: font)

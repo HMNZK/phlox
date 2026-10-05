@@ -64,6 +64,7 @@ last-verified: 2026-08-01
 3. Refresh ボタン → `viewModel.refresh()` → `WorkingTreeService.changes()`。ファイル選択 →
    `viewModel.select(_:)` → `WorkingTreeService.detail(for:)` + `fileContents(_:)`（追跡ファイルの
    場合、diff 表示と同時に本文を読み込んで `draft` へロードする）。
+   編集可否は `WorkingTreeText.maximumEditableFileSize`（5 MB）、内容の閲覧可否は `maximumReadableFileSize`（20 MB）を共有する。BOM込みで判定し、5 MB超は保存・dirtyを止め、既存のファイルタブへ閲覧を渡す。20 MB超は変更プレビューのみ。差分の色付けと500行単位のプレビューは維持し、「内容」は1 MB超を本文色とする。外部変更は再選択で読み直す。
 4. 保存 → `viewModel.save()` → `WorkingTreeService.save(path:content:expectedDiskContent:)`。
    `.conflict` が返ると View がアラートを出し、ユーザーが選べば `viewModel.overwrite()` で
    `expectedDiskContent: nil` の無条件上書きを行う。

@@ -16,10 +16,20 @@ public enum WorkingTreeTextError: Error, Sendable {
 }
 
 public enum WorkingTreeText {
-    public static let maximumEditableFileSize = 1_000_000
+    public static let maximumHighlightedFileSize = 1_000_000
+    public static let maximumEditableFileSize = 5_000_000
+    public static let maximumReadableFileSize = 20_000_000
+
+    public static func shouldHighlight(_ text: String, bomByteCount: Int = 0) -> Bool {
+        let limit = maximumHighlightedFileSize - bomByteCount
+        let length = (text as NSString).length
+        if length > limit { return false }
+        if length <= limit / 3 { return true }
+        return text.utf8.count <= limit
+    }
 
     public static func decode(_ data: Data) throws -> (text: String, bom: Data) {
-        guard data.count <= maximumEditableFileSize else { throw WorkingTreeTextError.tooLarge }
+        guard data.count <= maximumReadableFileSize else { throw WorkingTreeTextError.tooLarge }
         guard !data.prefix(8_192).contains(0) else { throw WorkingTreeTextError.binary }
         let bom = data.starts(with: [0xEF, 0xBB, 0xBF]) ? Data([0xEF, 0xBB, 0xBF]) : Data()
         return (try decodeUTF8(Data(data.dropFirst(bom.count))), bom)
@@ -176,7 +186,7 @@ public actor WorkingTreeService {
     public func fileData(_ path: String) throws -> Data {
         let url = try accessibleFileURL(for: path)
         let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-        guard size <= WorkingTreeText.maximumEditableFileSize else { throw WorkingTreeTextError.tooLarge }
+        guard size <= WorkingTreeText.maximumReadableFileSize else { throw WorkingTreeTextError.tooLarge }
         return try Data(contentsOf: url)
     }
 

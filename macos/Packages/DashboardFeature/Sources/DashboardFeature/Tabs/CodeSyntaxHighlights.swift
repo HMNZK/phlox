@@ -349,7 +349,7 @@ final class CodeSyntaxHighlights {
             let selection = view.selectedRanges
             let origin = view.enclosingScrollView?.contentView.bounds.origin
             let typing = view.typingAttributes
-            storage.beginEditing()
+            var fonts: [(NSRange, NSFont)] = []
             repeat {
                 let run = runs[index]
                 // 一時的なフォント属性は描画に使われない。字幅の同じフォントだけを更新する。
@@ -359,11 +359,11 @@ final class CodeSyntaxHighlights {
                     let font = storage.attribute(.font, at: fontOffset, effectiveRange: &effective) as? NSFont
                     let range = NSIntersectionRange(effective, run.range)
                     if run.isHeading, font != headingFont {
-                        storage.addAttribute(.font, value: headingFont, range: range)
+                        fonts.append((range, headingFont))
                     } else if !run.isHeading,
                               let traits = font?.fontDescriptor.object(forKey: .traits) as? [NSFontDescriptor.TraitKey: Any],
                               let weight = traits[.weight] as? CGFloat, weight > 0 {
-                        storage.addAttribute(.font, value: regularFont, range: range)
+                        fonts.append((range, regularFont))
                     }
                     fontOffset = NSMaxRange(range)
                 }
@@ -404,7 +404,12 @@ final class CodeSyntaxHighlights {
                 }
                 index += 1
             } while index < runs.count && Self.milliseconds(since: start) < 4
-            storage.endEditing()
+            // 一時色はglyph生成を要求するため、フォントだけ別の編集バッチにまとめる。
+            if !fonts.isEmpty {
+                storage.beginEditing()
+                for (range, font) in fonts { storage.addAttribute(.font, value: font, range: range) }
+                storage.endEditing()
+            }
             if view.selectedRanges != selection { view.selectedRanges = selection }
             if !NSDictionary(dictionary: view.typingAttributes).isEqual(NSDictionary(dictionary: typing)) {
                 view.typingAttributes = typing

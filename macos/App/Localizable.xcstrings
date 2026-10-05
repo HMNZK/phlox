@@ -8879,13 +8879,19 @@
         }
       }
     },
-    "%@ MB あります。Phlox で編集できるのは 1 MB までです。": {
+    "%@ MB あります。Phlox で開けるのは %@ MB までです。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This file is %@ MB. Phlox can edit files up to 1 MB."
+            "value": "This file is %1$@ MB. Phlox can open files up to %2$@ MB."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ MB あります。Phlox で開けるのは %2$@ MB までです。"
           }
         }
       }
@@ -8912,13 +8918,104 @@
         }
       }
     },
-    "Phlox で編集できるのは 1 MB までです。": {
+    "Phlox で開けるのは %@ MB までです。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Phlox can edit files up to 1 MB."
+            "value": "Phlox can open files up to %@ MB."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phlox で開けるのは %@ MB までです。"
+          }
+        }
+      }
+    },
+    "ファイルタブで開く": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in file tab"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイルタブで開く"
+          }
+        }
+      }
+    },
+    "…（残り %lld 文字を省略）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "… (%lld characters omitted)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "…（残り %lld 文字を省略）"
+          }
+        }
+      }
+    },
+    "閲覧のみ（%@ MB を超えるため）・長い行は省略して表示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read only (over %@ MB) · Long lines are truncated"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "閲覧のみ（%@ MB を超えるため）・長い行は省略して表示"
+          }
+        }
+      }
+    },
+    "閲覧のみ（%@ MB を超えるため）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read only (over %@ MB)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "閲覧のみ（%@ MB を超えるため）"
+          }
+        }
+      }
+    },
+    "大きいファイルのため色付けなし": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Large file: highlighting off"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大きいファイルのため色付けなし"
           }
         }
       }
@@ -9150,6 +9247,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Too large; source view only"
+          }
+        }
+      }
+    },
+    "安全に表示する準備ができないため、ソースを表示しています。ファイルの内容は閲覧のみです。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source is shown because a safe preview could not be prepared. The file contents are read only."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安全に表示する準備ができないため、ソースを表示しています。ファイルの内容は閲覧のみです。"
           }
         }
       }

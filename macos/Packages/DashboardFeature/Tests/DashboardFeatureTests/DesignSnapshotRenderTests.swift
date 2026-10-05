@@ -67,7 +67,26 @@ struct DesignSnapshotRenderTests {
         .init(id: "3g-help-en", name: "サイズ上限全文英語", width: 720, height: 300, state: "3g"),
         .init(id: "3h-en", name: "確定失敗英語", width: 720, height: 300, state: "3h"),
         .init(id: "3h-help-en", name: "確定失敗全文英語", width: 720, height: 300, state: "3h"),
-        .init(id: "3l", name: "1MB超", width: 720, height: 380),
+        .init(id: "3l", name: "20MB超", width: 720, height: 380),
+        .init(id: "3readonly", name: "閲覧のみ", width: 720, height: 380),
+        .init(id: "3readonly-truncated", name: "長い行の省略", width: 720, height: 380),
+        .init(id: "3readonly-truncated-en", name: "長い行の省略英語", width: 720, height: 380, state: "3readonly-truncated"),
+        .init(id: "3readonly-truncated-light", name: "長い行の省略ライト", width: 720, height: 380, light: true, state: "3readonly-truncated"),
+        .init(id: "3readonly-en", name: "閲覧のみ英語", width: 720, height: 380, state: "3readonly"),
+        .init(id: "3readonly320", name: "閲覧のみ最小幅", width: 320, height: 380, state: "3readonly"),
+        .init(id: "3readonly-light", name: "閲覧のみライト", width: 720, height: 380, light: true, state: "3readonly"),
+        .init(id: "3readonly-md", name: "Markdown閲覧のみ", width: 720, height: 380),
+        .init(id: "3readonly-html", name: "HTMLソース閲覧のみ", width: 720, height: 380),
+        .init(id: "3readonly-rendered", name: "HTMLレンダリング閲覧のみ", width: 720, height: 380),
+        .init(id: "3readonly-fallback", name: "HTML準備失敗の閲覧のみ", width: 720, height: 380),
+        .init(id: "3large", name: "色付けなし", width: 720, height: 380),
+        .init(id: "3large-en", name: "色付けなし英語", width: 720, height: 380, state: "3large"),
+        .init(id: "3large320", name: "色付けなし最小幅", width: 320, height: 380, state: "3large"),
+        .init(id: "3large-light", name: "色付けなしライト", width: 720, height: 380, light: true, state: "3large"),
+        .init(id: "changes-deleted", name: "削除ファイルの差分", width: 720, height: 500),
+        .init(id: "changes-deleted-light", name: "削除ファイルの差分ライト", width: 720, height: 500, light: true, state: "changes-deleted"),
+        .init(id: "changes-readonly", name: "変更パネル閲覧のみ", width: 720, height: 500),
+        .init(id: "changes-oversized", name: "変更パネル20MB超", width: 720, height: 500),
         .init(id: "3m", name: "バイナリ", width: 720, height: 380),
         .init(id: "3n", name: "ルート外", width: 720, height: 380),
         .init(id: "3o", name: "UTF8以外", width: 720, height: 380),
@@ -251,8 +270,9 @@ struct DesignSnapshotRenderTests {
         var written = 0
         var failures: [String] = []
         let scope = ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] ?? "all"
-        try #require(["all", "files", "simulator", "syntax"].contains(scope), "撮影範囲は all・files・simulator・syntax のいずれか")
+        try #require(["all", "files", "simulator", "syntax", "large-files"].contains(scope), "撮影範囲は all・files・simulator・syntax・large-files のいずれか")
         let selectedFrames = (frames + syntaxFrames).filter { frame in
+            if scope == "large-files" { return ["3l", "3large", "changes-deleted", "changes-readonly", "changes-oversized"].contains(frame.stateID) || frame.stateID.hasPrefix("3readonly") }
             if scope == "syntax" { return frame.id.hasPrefix("syntax-") }
             let simulator = frame.id.hasPrefix("7") || frame.id == "8L3"
             return scope == "all" || (scope == "simulator" ? simulator : !simulator)
@@ -271,7 +291,7 @@ struct DesignSnapshotRenderTests {
                 rows.append("| \(frame.id) | 書き出せない | 描画失敗: \(error) |")
             }
         }
-        let report = "# 画面外描画の結果\n\n生成 PNG: \(written) 枚。倍率 2。8L1〜8L3 と syntax の light はライト、ほかはダーク。\n\n"
+        let report = "# 画面外描画の結果\n\n生成 PNG: \(written) 枚。倍率 2。8L1〜8L3 と light はライト、ほかはダーク。\n\n"
             + rows.joined(separator: "\n") + "\n"
         try Data(report.utf8).write(to: output.appendingPathComponent("結果.md"), options: .atomic)
         print(report)
@@ -294,6 +314,41 @@ struct DesignSnapshotRenderTests {
             NSApp.appearance = appearance
         }
         let id = frame.stateID
+        if id.hasPrefix("changes-") {
+            let root = fixtures.appendingPathComponent(frame.id)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            let file = root.appendingPathComponent("gone.swift")
+            try Data("let value = 42\nlet title = \"Phlox\" // 削除したファイル\n".utf8).write(to: file)
+            for arguments in [["init", "-q"], ["add", "gone.swift"], ["commit", "-q", "-m", "撮影の初期状態"]] {
+                let git = Process()
+                git.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+                git.currentDirectoryURL = root
+                git.arguments = ["-c", "user.name=phlox-test", "-c", "user.email=test@phlox.local",
+                                 "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null"] + arguments
+                try git.run()
+                git.waitUntilExit()
+                try #require(git.terminationStatus == 0)
+            }
+            if id == "changes-deleted" {
+                try FileManager.default.removeItem(at: file)
+            } else {
+                let size = id == "changes-readonly" ? 5_000_001 : 20_000_001
+                let unit = "let value = 42 // 大きい変更ファイル\n"
+                try Data(String(repeating: unit, count: size / unit.utf8.count + 1).utf8).write(to: file)
+            }
+            let model = EditorPanelViewModel(service: WorkingTreeService(repositoryRoot: root))
+            await model.refresh()
+            await model.select("gone.swift")
+            #expect(model.syntaxHighlightingEnabled)
+            if id != "changes-deleted" {
+                #expect(!model.canEdit)
+                #expect(model.canViewContent == (id == "changes-readonly"))
+            }
+            try await capture(EditorPanelView(viewModel: model, projectName: "phlox-oss", workingDirectory: root.path),
+                              frame: frame, output: output)
+            return id == "changes-deleted" ? "削除した小さいSwiftファイル。実gitから読み込んだ差分の字句色・削除色を描画"
+                : "実gitの差分。編集上限／閲覧上限の案内とファイルタブ入口を描画"
+        }
         if id == "1d" { return try await renderTabChooser(frame, fixtures: fixtures, output: output) }
         if id.hasPrefix("1") { return try await renderDashboard(frame, fixtures: fixtures, output: output) }
         if id.hasPrefix("6") {
@@ -325,7 +380,7 @@ struct DesignSnapshotRenderTests {
         layout.open(.file(document.path))
         let preview = HTMLPreviewModel(document: document)
         if document.isHTML {
-            if id == "5g" { preview.stopWithPreparationError("遮断ルールを準備できませんでした") }
+            if id == "5g" || id == "3readonly-fallback" { preview.stopWithPreparationError("遮断ルールを準備できませんでした") }
             else { await preview.prepare() }
             if id == "5f" { preview.didTerminate() }
             if id == "5c" { await preview.hover(WorktreeURL.url(for: "docs/guides/file-tree.md")) }
@@ -378,6 +433,13 @@ struct DesignSnapshotRenderTests {
                 }
                 body
             }, frame: frame, output: output, prepare: { host, _ in
+                if id == "3readonly-truncated" {
+                    let view = try #require(descendants(host).compactMap { $0 as? CurrentLineTextView }.first)
+                    let marker = (view.string as NSString).range(of: "…")
+                    try #require(marker.location != NSNotFound)
+                    view.scrollRangeToVisible(marker)
+                    return
+                }
                 guard ["syntax-heading-edited", "syntax-heading-synced"].contains(id) else { return }
                 let view = try #require(descendants(host).compactMap { $0 as? CurrentLineTextView }.first)
                 let coordinator = try #require(view.delegate as? CodeTextEditor.Coordinator)
@@ -600,7 +662,26 @@ struct DesignSnapshotRenderTests {
             path = "docs/changelog/CHANGELOG.md"
             bytes = Data(("# 変更履歴\n\n" + (1...2430).map { "## 変更 \($0)\n\n" }.joined()).utf8)
         case "3g": path = "fixtures/transcripts/long-session.md"; bytes = Data(String(repeating: "変更履歴\n", count: 60_000).utf8)
-        case "3l": path = "data/huge-log.txt"; bytes = Data(repeating: 65, count: 1_100_000)
+        case "3l": path = "fixtures/transcripts/session-2026-09-30.jsonl"; bytes = Data(repeating: 65, count: WorkingTreeText.maximumReadableFileSize + 3_400_000)
+        case "3readonly-truncated":
+            path = "pages/long-line.txt"
+            bytes = Data(("長い行は省略して表示します。\n" + String(repeating: "a", count: 5_000_001) + "\n次の行はそのまま表示します。\n").utf8)
+        case "3readonly", "3readonly-md", "3readonly-html", "3readonly-rendered", "3readonly-fallback":
+            path = id == "3readonly-md" ? "docs/large.md" : ["3readonly-html", "3readonly-rendered", "3readonly-fallback"].contains(id) ? "pages/large.html" : "Sources/large.swift"
+            let unit = id == "3readonly-md" ? "# 大きいMarkdown\n\n内容を選択・コピーできます。\n"
+                : path.hasSuffix("html") ? "<!-- 内容を選択・コピーできます -->\n"
+                : "let value = 42 // 閲覧のみ・選択とコピーができます\n"
+            bytes = Data(String(repeating: unit, count: 5_000_001 / unit.utf8.count + 1).utf8)
+            if path.hasSuffix("html") { bytes = Data("<!doctype html><html><body><h1>閲覧のみ</h1><p>選択・コピーできます。</p></body></html>\n".utf8) + bytes }
+            if id == "3readonly-rendered" {
+                let padding = String(repeating: " 撮影用のコメント\n", count: 250_000)
+                bytes = Data((html + "\n<!--" + padding + "-->\n").utf8)
+                try #require(bytes.count > WorkingTreeText.maximumEditableFileSize)
+                try #require(bytes.count <= WorkingTreeText.maximumReadableFileSize)
+            }
+        case "3large":
+            path = "Sources/large.swift"
+            bytes = Data(String(repeating: "let value = 42 // 色付けなしで編集・保存できます\n", count: 30_000).utf8)
         case "3m": path = "assets/logo.png"; bytes = Data([137, 80, 78, 71, 0])
         case "3o": path = "legacy/README_sjis.txt"; bytes = Data([0x82, 0xa0, 0x82, 0xa2])
         case "4e": path = "docs/links.md"; bytes = Data("[design]: docs/architecture/overview.md\n[adr-0090]: docs/adr/0090-inspector.md\n[simulator]: docs/specs/embedded-ios-simulator.md\n".utf8)
@@ -631,6 +712,10 @@ struct DesignSnapshotRenderTests {
             guard case .outsideRoot = document.loadState else { throw Unavailable(reason: "ルート外のリンク拒否を再現できなかった") }
         case "3o": try #require(document.loadState == .loadFailed)
         default: try #require(document.isLoaded)
+        }
+        if id.hasPrefix("3readonly") {
+            try #require(document.isReadOnly)
+            if id != "3readonly-rendered" { try #require(document.setPresentation(.source)) }
         }
         if id == "3f" || id == "3g" { try #require(document.markdownPresentationLocked) }
         if ["3b", "3c", "3i", "3j", "3k"].contains(id) { document.draft += "\n編集した内容。\n" }

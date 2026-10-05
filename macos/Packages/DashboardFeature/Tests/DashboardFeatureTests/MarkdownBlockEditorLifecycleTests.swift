@@ -10,7 +10,7 @@ struct MarkdownBlockEditorLifecycleTests {
 
     @Test func editorAttachedAfterInitialUpdateReceivesKeyboardFocus() async throws {
         let id = UUID()
-        let view = NSHostingView(rootView: CodeTextEditor(text: .constant("本文"), blockEditID: id,
+        let view = NSHostingView(rootView: CodeTextEditor(getText: { "本文" }, setText: { _ in }, blockEditID: id,
                                                         requestBlockFocus: true))
         view.frame = NSRect(x: 0, y: 0, width: 640, height: 420)
         view.layoutSubtreeIfNeeded()

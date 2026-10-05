@@ -132,13 +132,11 @@ struct MarkdownBlockEditor: View {
         if let edit = document.activeBlockEdit, edit.range.lowerBound == block.id {
             VStack(alignment: .trailing, spacing: 4) {
                 CodeTextEditor(
-                    text: Binding(
-                        get: {
-                            guard let current = document.activeBlockEdit, current.id == edit.id else { return edit.current }
-                            return current.current
-                        },
-                        set: { document.updateActiveBlockEdit(id: edit.id, current: $0) }
-                    ),
+                    getText: {
+                        guard let current = document.activeBlockEdit, current.id == edit.id else { return edit.current }
+                        return current.current
+                    },
+                    setText: { document.updateActiveBlockEdit(id: edit.id, current: $0) },
                     path: "block.md",
                     blockEditID: edit.id,
                     synchronizeBlockEdit: { document.updateActiveBlockEdit(id: $0, current: $1) },

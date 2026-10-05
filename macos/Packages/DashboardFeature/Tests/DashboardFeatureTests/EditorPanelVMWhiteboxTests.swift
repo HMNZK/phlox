@@ -57,6 +57,65 @@ struct EditorPanelVMWhiteboxTests {
         #expect(!viewModel.isDirty)
     }
 
+    @Test("変更パネルも色付け・編集・閲覧の三段階の上限を共有する", arguments: [1_000_000, 1_000_001,
+        5_000_000, 5_000_001, 20_000_000, 20_000_001])
+    func sharesFileTabLimits(bytes: Int) async throws {
+        let root = try repository()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("note.txt")
+        let original = Data([0xef, 0xbb, 0xbf]) + Data(repeating: 65, count: bytes - 3)
+        try original.write(to: file)
+        let model = EditorPanelViewModel(service: WorkingTreeService(repositoryRoot: root))
+        await model.select("note.txt")
+        #expect(model.selectedPath == "note.txt")
+        #expect(model.canEdit == (bytes <= WorkingTreeText.maximumEditableFileSize))
+        #expect(model.canViewContent == (bytes <= WorkingTreeText.maximumReadableFileSize))
+        guard case .diff = model.detail else { Issue.record("追跡ファイルの変更は差分を表示する"); return }
+        #expect(model.syntaxHighlightingEnabled, "差分は本文のサイズ上限と無関係に色付けする")
+        #expect(model.shouldHighlightPreview(isDiff: false) == (bytes <= WorkingTreeText.maximumHighlightedFileSize),
+                "内容へ切り替えると本文の色付け境界を使う")
+        if model.canEdit {
+            model.draft = "B" + model.draft.dropFirst()
+            #expect(model.isDirty)
+            #expect(try await model.save() == .saved)
+            #expect(try Data(contentsOf: file) == Data("B".utf8) + Data(repeating: 65, count: bytes - 3))
+        } else {
+            #expect(model.draft.isEmpty == (bytes > WorkingTreeText.maximumReadableFileSize))
+            #expect(model.readOnlyMessage != nil)
+            if model.canViewContent {
+                let initial = model.draft
+                #expect(model.isReadOnly)
+                model.draft = "変更"
+                #expect(model.draft == initial)
+                #expect(!model.isDirty)
+                await #expect(throws: EditorPanelError.noEditableSelection) { try await model.save() }
+                await #expect(throws: EditorPanelError.noEditableSelection) { try await model.overwrite() }
+                #expect(try Data(contentsOf: file) == original)
+            }
+        }
+    }
+
+    @Test("削除・非UTF-8・編集上限超のファイルでも差分の色付けを保つ", arguments: ["deleted", "invalid", "oversized"])
+    func unreadableFileDiffKeepsHighlighting(kind: String) async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try git(["init", "-q"], in: root)
+        let file = root.appendingPathComponent("gone.swift")
+        try Data("let value = 42\n".utf8).write(to: file)
+        try git(["add", "gone.swift"], in: root)
+        try git(["commit", "-q", "-m", "初期状態"], in: root)
+        switch kind {
+        case "deleted": try FileManager.default.removeItem(at: file)
+        case "invalid": try Data([0xff, 0xfe]).write(to: file)
+        default: try Data(repeating: 65, count: WorkingTreeText.maximumEditableFileSize + 1).write(to: file)
+        }
+        let model = EditorPanelViewModel(service: WorkingTreeService(repositoryRoot: root))
+        await model.select("gone.swift")
+        guard case .diff = model.detail else { Issue.record("差分表示になる前提"); return }
+        #expect(!model.canEdit)
+        #expect(model.syntaxHighlightingEnabled)
+    }
+
     @Test("非 UTF-8 の未追跡ファイルを選んでも公開状態は安全な空状態になる")
     func selectingNonUTF8FileLeavesSafeEmptyDetail() async throws {
         let root = try repository()

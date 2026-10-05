@@ -32,10 +32,23 @@ public final class EditorPanelViewModel {
     public private(set) var changeScope: SessionChangeScope
     var listErrorMessage: String?
     var readOnlyMessage: String?
-    public var draft = "" {
-        didSet {
-            isDirty = loadedDiskContent.map { draft != $0 } ?? false
+    public private(set) var isReadOnly = false
+    private var draftContent = ""
+    public var draft: String {
+        get { draftContent }
+        set {
+            guard !isReadOnly else { return }
+            draftContent = newValue
+            isDirty = loadedDiskContent.map { newValue != $0 } ?? false
         }
+    }
+    var syntaxHighlightingEnabled: Bool {
+        if case .diff = detail { return shouldHighlightPreview(isDiff: true) }
+        return shouldHighlightPreview(isDiff: false)
+    }
+
+    func shouldHighlightPreview(isDiff: Bool) -> Bool {
+        isDiff || loadedDiskContent != nil && WorkingTreeText.shouldHighlight(draft)
     }
     public private(set) var isDirty = false
     public private(set) var isRefreshing = false
@@ -65,8 +78,10 @@ public final class EditorPanelViewModel {
 
     /// バイナリや読み込みに失敗したファイルを TextEditor に渡さないための内部状態。
     var canEdit: Bool {
-        selectedPath != nil && loadedDiskContent != nil
+        canViewContent && !isReadOnly
     }
+
+    var canViewContent: Bool { selectedPath != nil && loadedDiskContent != nil }
 
     public var canCommit: Bool {
         listState == .ready
@@ -319,7 +334,7 @@ public final class EditorPanelViewModel {
     }
 
     private func editableSelection() throws -> (WorkingTreeService, String, String) {
-        guard let service, let selectedPath, let loadedDiskContent else {
+        guard canEdit, let service, let selectedPath, let loadedDiskContent else {
             throw EditorPanelError.noEditableSelection
         }
         return (service, selectedPath, loadedDiskContent)
@@ -337,19 +352,24 @@ public final class EditorPanelViewModel {
     }
 
     private func loadDraft(_ contents: String) {
-        guard contents.utf8.count <= WorkingTreeText.maximumEditableFileSize else {
+        let byteCount = contents.utf8.count
+        guard byteCount <= WorkingTreeText.maximumReadableFileSize else {
             clearDraft()
             readOnlyMessage = "このファイルは大きすぎるため、ここでは編集できません。"
             return
         }
 
-        readOnlyMessage = nil
+        isReadOnly = false
         loadedDiskContent = contents
         draft = contents
+        isReadOnly = byteCount > WorkingTreeText.maximumEditableFileSize
+        readOnlyMessage = isReadOnly ? String(format: Self.localized("閲覧のみ（%@ MB を超えるため）"),
+                                            String(WorkingTreeText.maximumEditableFileSize / 1_000_000)) : nil
         isDirty = false
     }
 
     private func clearDraft() {
+        isReadOnly = false
         loadedDiskContent = nil
         draft = ""
         isDirty = false
@@ -442,6 +462,6 @@ public enum GitOperation: Sendable {
     case pullRequest
 }
 
-private enum EditorPanelError: Error {
+enum EditorPanelError: Error, Equatable {
     case noEditableSelection
 }

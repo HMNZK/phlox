@@ -77,8 +77,8 @@ XCUITest（`macos/PhloxUITests/PanelUITests.swift`）: ⌘⌥T でターミナ�
 - 選択中セッションにプロジェクトが割り当てられていない、またはプロジェクトが git リポジトリでない
   場合、エディタパネルは操作不能ではなく明示的な空状態（`noProject` / `notARepository`）を表示する。
 - バイナリファイルは編集対象外（プレースホルダ表示）。
-- 巨大ファイルは編集領域への読み込みに上限を設ける（`EditorPanelViewModel.maximumEditableFileSize`
-  = 1,000,000 バイト。超過時は「too large to edit」表示で閲覧専用）。diff/内容プレビューは
+- 編集可否はファイルタブと同じ `WorkingTreeText.maximumEditableFileSize`（5,000,000 バイト、BOM込み）で判定する。5 MB超〜20 MBは内容の閲覧のみ（保存・dirtyなし）、20 MB超は変更プレビューのみ。内容の閲覧可否は `maximumReadableFileSize`（20,000,000 バイト）を共有する。外部変更は既存どおり再選択で反映する。
+  1 MB超〜5 MBは色付けなしで編集、5 MB超〜20 MBは色付けなしで閲覧する。差分プレビューは読込可否・ファイルサイズによらず従来の色付けを保つ。閲覧上限超は従来どおり読み取り専用の変更プレビューとする。diff/内容プレビューは
   500 行単位で段階表示する（`EditorPanelView.previewLineLimit`）。
 - 非 UTF-8・削除済みファイルの選択は、読み込み失敗として安全側（選択解除または読み込み専用表示）へ
   倒す。

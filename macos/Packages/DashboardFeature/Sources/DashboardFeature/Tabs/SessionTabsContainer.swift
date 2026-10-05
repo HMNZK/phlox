@@ -678,7 +678,9 @@ struct FileTabView: View {
                 } else if document.isMarkdown, document.presentation == .rendered {
                     markdownEditor ?? MarkdownBlockEditor(document: document, openURL: openMarkdownURL, linkDestination: markdownLinkDestination)
                 } else {
-                    CodeTextEditor(text: $document.draft, path: document.path)
+                    CodeTextEditor(getText: { document.draft }, setText: { document.draft = $0 },
+                                   path: document.path, bomByteCount: document.bom.count,
+                                   isEditable: !document.isReadOnly, readOnlyText: document.readOnlyText)
                         .disabled(document.invalidated)
                 }
             case .unloaded, .loading:
@@ -699,7 +701,7 @@ struct FileTabView: View {
                 .accessibilityHidden(true)
             Button("保存") { requestSave() }
             .keyboardShortcut("s", modifiers: .command)
-            .disabled(!isFocused)
+            .disabled(!isFocused || document.isReadOnly)
             .hidden()
             .frame(width: 0, height: 0)
             .accessibilityHidden(true)
@@ -755,6 +757,15 @@ struct FileTabView: View {
                 .frame(minWidth: minimumPathWidth, idealWidth: minimumPathWidth, maxWidth: .infinity)
             HStack(spacing: DSSpacing.s) {
             if !document.loadFailed {
+                if document.isReadOnly || isLargeSource {
+                    Label { if showsReason { Text(verbatim: largeFileNotice) } } icon: { Image(systemName: "info.circle") }
+                        .font(DSFont.meta)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .lineLimit(1)
+                        .help(document.isReadOnly ? Text(verbatim: largeFileNotice) : document.isMarkdown ? Text(verbatim: markdownReasonDetail(locale: locale)) : Text(verbatim: largeFileNotice))
+                        .accessibilityLabel(Text(verbatim: largeFileNotice))
+                        .accessibilityIdentifier(document.isReadOnly ? "large-file-read-only-notice" : "large-file-plain-notice")
+                }
                 if document.isHTML {
                     if htmlPreview.preparationError != nil {
                         Label {
@@ -766,7 +777,7 @@ struct FileTabView: View {
                             .help(htmlPreparationHelp())
                     } else if document.presentation == .rendered {
                         if !htmlPreview.processTerminated { isolationButton }
-                        if showsReason { localized("閲覧のみ").font(DSFont.meta).foregroundStyle(DSColor.textSecondary) }
+                        if showsReason && !document.isReadOnly { localized("閲覧のみ").font(DSFont.meta).foregroundStyle(DSColor.textSecondary) }
                         Button { htmlPreview.reload() } label: { Image(systemName: "arrow.clockwise") }
                             .buttonStyle(.plain)
                             .disabled(htmlPreview.ruleList == nil || !document.isLoaded || document.invalidated)
@@ -776,7 +787,7 @@ struct FileTabView: View {
                     presentationButtons(compact: icons)
                 }
                 if document.isMarkdown {
-                    if let reason = markdownReason {
+                    if let reason = markdownReason, !isLargeSource {
                         Label { if showsReason { localized(reason) } } icon: { Image(systemName: "info.circle") }
                             .font(DSFont.meta)
                             .foregroundStyle(emphasizesMarkdownReason && document.blockEditFailure != nil ? DSColor.attentionInk(.error) : DSColor.textPrimary)
@@ -809,7 +820,7 @@ struct FileTabView: View {
     }
 
     private var canSave: Bool {
-        document.isLoaded && !document.invalidated && document.hasUnsavedChanges && document.blockEditFailure == nil
+        document.isLoaded && !document.isReadOnly && !document.invalidated && document.hasUnsavedChanges && document.blockEditFailure == nil
     }
 
     private var markdownReason: String? {
@@ -843,7 +854,7 @@ struct FileTabView: View {
         VStack(spacing: 10) {
             RoundedRectangle(cornerRadius: DSRadius.s)
                 .strokeBorder(DSColor.textTertiary, lineWidth: 1.5)
-                .frame(width: 30, height: 36)
+                .frame(width: document.loadState == .tooLarge ? 36 : 30, height: 36)
                 .overlay(alignment: .bottom) {
                     Text(verbatim: unavailableBadge)
                         .font(.system(size: 9, weight: .semibold, design: .monospaced))
@@ -882,11 +893,25 @@ struct FileTabView: View {
 
     private var unavailableBadge: String {
         switch document.loadState {
-        case .tooLarge: "1MB+"
+        case .tooLarge: "\(WorkingTreeText.maximumReadableFileSize / 1_000_000)MB+"
         case .binary: "BIN"
         case .outsideRoot: "↗"
         default: "?"
         }
+    }
+
+    private var isLargeSource: Bool {
+        document.presentation == .source && !document.syntaxHighlightingEnabled
+    }
+
+    private var largeFileNotice: String {
+        if document.isReadOnly {
+            let key = document.presentation == .source && document.readOnlyText?.hasOmittedLines == true
+                ? "閲覧のみ（%@ MB を超えるため）・長い行は省略して表示"
+                : "閲覧のみ（%@ MB を超えるため）"
+            return String(format: localizedString(key), String(WorkingTreeText.maximumEditableFileSize / 1_000_000))
+        }
+        return localizedString("大きいファイルのため色付けなし")
     }
 
     private var unavailableTitle: String {
@@ -901,11 +926,12 @@ struct FileTabView: View {
     private var unavailableMessage: String {
         switch document.loadState {
         case .tooLarge:
+            let limit = String(WorkingTreeText.maximumReadableFileSize / 1_000_000)
             if let size = document.fileSize {
-                let value = (Double(size) / 1_000_000).formatted(.number.locale(locale).precision(.fractionLength(1)))
-                return String(format: localizedString("%@ MB あります。Phlox で編集できるのは 1 MB までです。"), value)
+                let value = (Double(size) / 1_000_000).formatted(.number.locale(locale).precision(.fractionLength(1...6)))
+                return String(format: localizedString("%@ MB あります。Phlox で開けるのは %@ MB までです。"), value, limit)
             }
-            return localizedString("Phlox で編集できるのは 1 MB までです。")
+            return String(format: localizedString("Phlox で開けるのは %@ MB までです。"), limit)
         case .binary: return localizedString("ファイルの先頭にテキストには含まれない文字（NUL）があります。")
         case .outsideRoot:
             return String(format: localizedString("リンクの先が %@ の外にあるため、Phlox では読み書きしません。"), FilePathDisplay.homeRelative(document.root))
@@ -961,7 +987,9 @@ struct FileTabView: View {
     }
 
     func htmlPreparationHelp(bundle: Bundle? = nil) -> Text {
-        Text("安全に表示する準備ができないため、ソースを表示しています。ファイルの内容は編集できます。",
+        Text(LocalizedStringKey(document.isReadOnly
+             ? "安全に表示する準備ができないため、ソースを表示しています。ファイルの内容は閲覧のみです。"
+             : "安全に表示する準備ができないため、ソースを表示しています。ファイルの内容は編集できます。"),
              bundle: bundle ?? localizationBundle)
     }
 

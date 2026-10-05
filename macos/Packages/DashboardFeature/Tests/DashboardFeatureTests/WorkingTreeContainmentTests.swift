@@ -85,7 +85,9 @@ struct WorkingTreeContainmentTests {
     func validatesText() throws {
         #expect(try WorkingTreeText.decode(Data()).text.isEmpty)
         #expect(try WorkingTreeText.decode(Data(repeating: 65, count: 1_000_000)).text.utf8.count == 1_000_000)
-        #expect(throws: WorkingTreeTextError.self) { try WorkingTreeText.decode(Data(repeating: 65, count: 1_000_001)) }
+        #expect(try WorkingTreeText.decode(Data(repeating: 65, count: 1_000_001)).text.utf8.count == 1_000_001)
+        #expect(try WorkingTreeText.decode(Data(repeating: 65, count: WorkingTreeText.maximumReadableFileSize)).text.utf8.count == WorkingTreeText.maximumReadableFileSize)
+        #expect(throws: WorkingTreeTextError.self) { try WorkingTreeText.decode(Data(repeating: 65, count: WorkingTreeText.maximumReadableFileSize + 1)) }
         #expect(throws: WorkingTreeTextError.self) { try WorkingTreeText.decode(Data([65, 0])) }
         #expect(throws: WorkingTreeTextError.self) { try WorkingTreeText.decode(Data([0xFF])) }
         #expect(try WorkingTreeText.decode(Data(repeating: 65, count: 8_192) + Data([0])).text.utf8.count == 8_193)
@@ -95,7 +97,7 @@ struct WorkingTreeContainmentTests {
     func rejectsOversizedFile() async throws {
         let root = try directory()
         defer { try? FileManager.default.removeItem(at: root) }
-        try Data(repeating: 65, count: 1_000_001).write(to: root.appendingPathComponent("large.txt"))
+        try Data(repeating: 65, count: WorkingTreeText.maximumReadableFileSize + 1).write(to: root.appendingPathComponent("large.txt"))
         let service = WorkingTreeService(repositoryRoot: root, fixedRoot: true)
         await #expect(throws: WorkingTreeTextError.self) { try await service.fileData("large.txt") }
     }

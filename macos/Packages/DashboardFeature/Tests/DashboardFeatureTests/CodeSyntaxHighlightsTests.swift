@@ -337,10 +337,10 @@ struct CodeSyntaxHighlightsTests {
         let view = NSTextView(usingTextLayoutManager: false)
         view.string = document.draft
         var bindingUpdates = 0
-        let coordinator = CodeTextEditor.Coordinator(text: Binding(get: { document.draft }, set: {
+        let coordinator = CodeTextEditor.Coordinator(setText: {
             bindingUpdates += 1
             document.draft = $0
-        }))
+        })
         view.delegate = coordinator
         #expect(await settle(coordinator.highlights, view: view, path: document.path))
         #expect(bindingUpdates == 0)
@@ -361,7 +361,7 @@ struct CodeSyntaxHighlightsTests {
         let view = MarkedView(usingTextLayoutManager: false)
         view.textColor = NSColor(DSColor.textPrimary)
         view.string = "let value = 1"
-        let coordinator = CodeTextEditor.Coordinator(text: .constant(view.string))
+        let coordinator = CodeTextEditor.Coordinator(setText: { _ in })
         let highlights = coordinator.highlights
         coordinator.updateHighlights(view, path: "a.swift")
         #expect(await settle(highlights, view: view, path: "a.swift"))
@@ -390,7 +390,7 @@ struct CodeSyntaxHighlightsTests {
         view.isRichText = false
         view.string = "let value = "
         var draft = view.string
-        let coordinator = CodeTextEditor.Coordinator(text: Binding(get: { draft }, set: { draft = $0 }))
+        let coordinator = CodeTextEditor.Coordinator(setText: { draft = $0 })
         view.delegate = coordinator
         #expect(await settle(coordinator.highlights, view: view, path: "a.swift"))
         view.setSelectedRange(NSRange(location: view.string.utf16.count, length: 0))
@@ -427,7 +427,7 @@ struct CodeSyntaxHighlightsTests {
         let view = CurrentLineTextView(usingTextLayoutManager: false)
         view.isRichText = false
         view.string = "let abc"
-        let coordinator = CodeTextEditor.Coordinator(text: .constant(view.string))
+        let coordinator = CodeTextEditor.Coordinator(setText: { _ in })
         view.delegate = coordinator
         coordinator.updateBodyColor(view)
         #expect(await settle(coordinator.highlights, view: view, path: "a.swift"))
@@ -444,7 +444,7 @@ struct CodeSyntaxHighlightsTests {
         let view = CurrentLineTextView(usingTextLayoutManager: false)
         view.isRichText = false
         view.string = "let title = \"\"\n" + String(repeating: "let tail = 42\n", count: 1_000)
-        let coordinator = CodeTextEditor.Coordinator(text: .constant(view.string))
+        let coordinator = CodeTextEditor.Coordinator(setText: { _ in })
         view.delegate = coordinator
         coordinator.updateBodyColor(view)
         #expect(await settle(coordinator.highlights, view: view, path: "a.swift"))
@@ -466,7 +466,7 @@ struct CodeSyntaxHighlightsTests {
         let view = CurrentLineTextView(usingTextLayoutManager: false)
         view.isRichText = false
         view.string = "let é = \"😀\"\r\nlet tail = 42\r\n"
-        let coordinator = CodeTextEditor.Coordinator(text: .constant(view.string))
+        let coordinator = CodeTextEditor.Coordinator(setText: { _ in })
         view.delegate = coordinator
         coordinator.updateBodyColor(view)
         #expect(await settle(coordinator.highlights, view: view, path: "a.swift"))
@@ -487,7 +487,7 @@ struct CodeSyntaxHighlightsTests {
     @Test func sameBodyReplacementAndMarkedConfirmationRestoreRemovedAttributes() async {
         let view = MarkedView(usingTextLayoutManager: false)
         view.string = "let value = 42"
-        let coordinator = CodeTextEditor.Coordinator(text: .constant(view.string))
+        let coordinator = CodeTextEditor.Coordinator(setText: { _ in })
         view.delegate = coordinator
         coordinator.updateBodyColor(view)
         #expect(await settle(coordinator.highlights, view: view, path: "a.swift"))
@@ -537,7 +537,7 @@ struct CodeSyntaxHighlightsTests {
         view.isRichText = false
         view.allowsUndo = true
         view.string = "let x = 1\r\nlet é = \"😀\"\r\nlet y = 2"
-        let coordinator = CodeTextEditor.Coordinator(text: .constant(view.string))
+        let coordinator = CodeTextEditor.Coordinator(setText: { _ in })
         view.delegate = coordinator
         coordinator.updateBodyColor(view)
         #expect(await settle(coordinator.highlights, view: view, path: "a.swift"))
@@ -560,7 +560,7 @@ struct CodeSyntaxHighlightsTests {
         let view = CurrentLineTextView(usingTextLayoutManager: false)
         view.isRichText = false
         view.string = "let emoji = \"😀é\"\r\nlet tail = 42\r\nlet end = 3"
-        let coordinator = CodeTextEditor.Coordinator(text: .constant(view.string))
+        let coordinator = CodeTextEditor.Coordinator(setText: { _ in })
         view.delegate = coordinator
         coordinator.updateBodyColor(view)
         #expect(await settle(coordinator.highlights, view: view, path: "a.swift"))
@@ -602,7 +602,7 @@ struct CodeSyntaxHighlightsTests {
         }
         setTheme(.phloxLight)
         let view = makeView()
-        let coordinator = CodeTextEditor.Coordinator(text: .constant("本文 é😀"))
+        let coordinator = CodeTextEditor.Coordinator(setText: { _ in })
         coordinator.updateBodyColor(view)
         view.string = "本文 é😀"
         let light = try pixels(view)

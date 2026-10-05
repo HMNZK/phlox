@@ -3,11 +3,195 @@ import SwiftUI
 import Testing
 @testable import DashboardFeature
 
-@Test("ソースの行間を広げても行番号と本文の文字を同じ高さへ描く", arguments: [(10, false), (30, false), (11, true)]) @MainActor
-func codeEditorLineNumbersMatchTextBaselines(lineCount: Int, startsWithBlankLine: Bool) async throws {
-    let source = (1...lineCount).map { startsWithBlankLine && $0 == 1 ? "" : String($0) }.joined(separator: "\n")
-        + (startsWithBlankLine ? "" : "\n")
-    let host = NSHostingView(rootView: CodeTextEditor(text: .constant(source)))
+@Test @MainActor func reusedTextAccessDoesNotRevertTypedText() async throws {
+    _ = NSApplication.shared
+    var text = "let value = 42\n"
+    let getText = { text }
+    let setText: (String) -> Void = { text = $0 }
+    let host = NSHostingView(rootView: CodeTextEditor(getText: getText, setText: setText, path: "a.swift"))
+    host.frame = NSRect(x: 0, y: 0, width: 800, height: 600)
+    host.layoutSubtreeIfNeeded()
+    func editor(_ view: NSView) -> CurrentLineTextView? {
+        (view as? CurrentLineTextView) ?? view.subviews.lazy.compactMap { editor($0) }.first
+    }
+    let view = try #require(editor(host))
+    let coordinator = try #require(view.delegate as? CodeTextEditor.Coordinator)
+    defer { coordinator.highlights.cancel() }
+    view.insertText("x", replacementRange: NSRange(location: 0, length: 0))
+    #expect(text == "xlet value = 42\n")
+    host.rootView = CodeTextEditor(getText: getText, setText: setText, path: "b.swift")
+    host.layoutSubtreeIfNeeded()
+    #expect(view.string == text, "古い値で入力を巻き戻さない")
+    view.insertText("y", replacementRange: NSRange(location: 0, length: 0))
+    #expect(text == "yxlet value = 42\n")
+}
+
+private struct FrozenEditorParent: View, Equatable {
+    let getText: () -> String
+    let setText: (String) -> Void
+    nonisolated static func == (lhs: FrozenEditorParent, rhs: FrozenEditorParent) -> Bool { true }
+    var body: some View { CodeTextEditor(getText: getText, setText: setText, path: "a.swift") }
+}
+
+// 親を作り直さず環境だけが変わる更新でも、生成時の本文で入力を巻き戻さない。
+@Test @MainActor func environmentOnlyUpdateWithOldStructKeepsTypedText() throws {
+    _ = NSApplication.shared
+    var text = "let value = 42\n"
+    let parent = FrozenEditorParent(getText: { text }, setText: { text = $0 })
+    let host = NSHostingView(rootView: AnyView(parent.equatable().environment(\.locale, Locale(identifier: "ja"))))
+    host.frame = NSRect(x: 0, y: 0, width: 800, height: 600)
+    host.layoutSubtreeIfNeeded()
+    func editor(_ view: NSView) -> CurrentLineTextView? {
+        (view as? CurrentLineTextView) ?? view.subviews.lazy.compactMap { editor($0) }.first
+    }
+    let view = try #require(editor(host))
+    defer { (view.delegate as? CodeTextEditor.Coordinator)?.highlights.cancel() }
+    view.insertText("x", replacementRange: NSRange(location: 0, length: 0))
+    host.rootView = AnyView(parent.equatable().environment(\.locale, Locale(identifier: "en")))
+    host.layoutSubtreeIfNeeded()
+    #expect(view.string == text, "親を作り直さない更新でも入力を巻き戻さない")
+    view.insertText("y", replacementRange: NSRange(location: 0, length: 0))
+    #expect(text == "yxlet value = 42\n")
+}
+
+@Test(arguments: [false, true]) @MainActor
+func codeEditorTogglesEditabilityWithoutWritingDisplayBack(omitsLongLine: Bool) throws {
+    _ = NSApplication.shared
+    var text = String(repeating: "a", count: 10_001) + "\n"
+    let getText = { text }
+    let setText: (String) -> Void = { text = $0 }
+    let host = NSHostingView(rootView: CodeTextEditor(getText: getText, setText: setText, path: "a.swift"))
+    host.frame = NSRect(x: 0, y: 0, width: 800, height: 600)
+    host.layoutSubtreeIfNeeded()
+    func editor(_ view: NSView) -> CurrentLineTextView? {
+        (view as? CurrentLineTextView) ?? view.subviews.lazy.compactMap { editor($0) }.first
+    }
+    let view = try #require(editor(host))
+    let coordinator = try #require(view.delegate as? CodeTextEditor.Coordinator)
+    defer { coordinator.highlights.cancel() }
+    view.insertText("x", replacementRange: NSRange(location: 0, length: 0))
+    let typed = text
+    host.rootView = CodeTextEditor(getText: getText, setText: setText, path: "a.swift", isEditable: false,
+                                  readOnlyText: omitsLongLine ? ReadOnlyText(text) : nil)
+    host.layoutSubtreeIfNeeded()
+    #expect(!view.isEditable)
+    #expect(view.isSelectable)
+    #expect(text == typed)
+    if omitsLongLine { #expect(view.string != text) }
+    host.rootView = CodeTextEditor(getText: getText, setText: setText, path: "a.swift")
+    host.layoutSubtreeIfNeeded()
+    #expect(view.isEditable)
+    #expect(view.string == typed)
+    #expect(text == typed)
+    view.insertText("y", replacementRange: NSRange(location: 0, length: 0))
+    #expect(text == "y" + typed)
+}
+
+@Test("大きいソースの先頭・中央・末尾まで非連続レイアウトでスクロールできる", arguments: [false, true]) @MainActor
+func codeEditorScrollsAcrossLargeSources(longLine: Bool) async throws {
+    let source = longLine ? String(repeating: "A", count: 1_000_001) + "\n" : String(repeating: "let value = 42\n", count: 80_000)
+    let host = NSHostingView(rootView: CodeTextEditor(getText: { source }, setText: { _ in }, path: "large.swift"))
+    let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 300, height: 200),
+                          styleMask: [.borderless], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.contentView = host
+    defer { window.contentView = nil; window.close() }
+    try await Task.sleep(for: .milliseconds(10))
+    host.layoutSubtreeIfNeeded()
+    func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+    let view = try #require(descendants(host).compactMap { $0 as? CurrentLineTextView }.first)
+    let coordinator = try #require(view.delegate as? CodeTextEditor.Coordinator)
+    defer { coordinator.highlights.cancel() }
+    let layout = try #require(view.layoutManager)
+    let container = try #require(view.textContainer)
+    let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+    for location in [0, view.textStorage!.length / 2, view.textStorage!.length - 2] {
+        view.scrollRangeToVisible(NSRange(location: location, length: 1))
+        host.layoutSubtreeIfNeeded()
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let visible = view.visibleRect.offsetBy(dx: -view.textContainerOrigin.x, dy: -view.textContainerOrigin.y)
+        let glyphs = layout.glyphRange(forBoundingRect: visible, in: container)
+        let characters = layout.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+        #expect(NSLocationInRange(location, characters), "要求した位置を可視範囲へ移せる")
+    }
+}
+
+@Test("本文の編集・undo・外部更新後も行番号が新しい本文と一致する", arguments: ["\n", "\r\n", "\r", "\u{2028}"]) @MainActor
+func codeEditorRefreshesLineNumbersAfterTextChanges(separator: String) async throws {
+    _ = NSApplication.shared
+    var source = (1...20).map { "行\($0)" }.joined(separator: separator) + separator
+    let host = NSHostingView(rootView: CodeTextEditor(getText: { source }, setText: { source = $0 }))
+    let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 300, height: 160),
+                          styleMask: [.borderless], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.contentView = host
+    defer { window.contentView = nil; window.close() }
+    try await Task.sleep(for: .milliseconds(10))
+    host.layoutSubtreeIfNeeded()
+    func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+    let textView = try #require(descendants(host).compactMap { $0 as? CurrentLineTextView }.first)
+    let coordinator = try #require(textView.delegate as? CodeTextEditor.Coordinator)
+    defer { coordinator.highlights.cancel() }
+
+    func rulerPixels(_ view: NSView) throws -> [UInt8] {
+        view.layoutSubtreeIfNeeded()
+        let ruler = try #require(descendants(view).compactMap { $0 as? LineNumberRuler }.first)
+        ruler.needsDisplay = true
+        let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        let data = try #require(bitmap.bitmapData)
+        let scale = CGFloat(bitmap.pixelsWide) / view.bounds.width
+        let rect = view.convert(ruler.bounds, from: ruler)
+        let left = max(0, Int(rect.minX * scale))
+        let right = min(bitmap.pixelsWide, Int(rect.maxX * scale))
+        let bytesPerPixel = bitmap.bitsPerPixel / 8
+        var pixels: [UInt8] = []
+        for y in 0..<bitmap.pixelsHigh {
+            let offset = y * bitmap.bytesPerRow + left * bytesPerPixel
+            pixels.append(contentsOf: UnsafeBufferPointer(start: data + offset, count: (right - left) * bytesPerPixel))
+        }
+        return pixels
+    }
+
+    func matchesFreshEditor() async throws {
+        let fresh = NSHostingView(rootView: CodeTextEditor(getText: { textView.string }, setText: { _ in }))
+        let reference = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 300, height: 160),
+                                 styleMask: [.borderless], backing: .buffered, defer: false)
+        reference.isReleasedWhenClosed = false
+        reference.contentView = fresh
+        defer { reference.contentView = nil; reference.close() }
+        try await Task.sleep(for: .milliseconds(10))
+        let freshView = try #require(descendants(fresh).compactMap { $0 as? CurrentLineTextView }.first)
+        let freshCoordinator = try #require(freshView.delegate as? CodeTextEditor.Coordinator)
+        defer { freshCoordinator.highlights.cancel() }
+        textView.enclosingScrollView?.contentView.scroll(to: .zero)
+        freshView.enclosingScrollView?.contentView.scroll(to: .zero)
+        let middle = NSRange(location: textView.textStorage!.length / 2, length: 0)
+        textView.scrollRangeToVisible(middle)
+        freshView.scrollRangeToVisible(middle)
+        try #require(try rulerPixels(host) == rulerPixels(fresh))
+    }
+
+    _ = try rulerPixels(host)
+    if separator == "\r" {
+        textView.insertText("\n", replacementRange: NSRange(location: 3, length: 0))
+        try await matchesFreshEditor()
+    }
+    textView.insertText(String(repeating: "追加" + separator, count: 3), replacementRange: NSRange(location: 0, length: 0))
+    try await matchesFreshEditor()
+    textView.undoManager?.undo()
+    try await matchesFreshEditor()
+    source = (1...20).dropFirst(5).map { "行\($0)" }.joined(separator: separator) + separator
+    #expect(CodeTextEditor.synchronizeText(source, with: textView))
+    try await matchesFreshEditor()
+}
+
+@Test("ソースの行間を広げても行番号と本文の文字を同じ高さへ描く", arguments: [(10, false, "\n"), (30, false, "\n"), (11, true, "\n"),
+    (10, false, "\u{0085}"), (10, false, "\u{2028}"), (10, false, "\u{2029}")]) @MainActor
+func codeEditorLineNumbersMatchTextBaselines(lineCount: Int, startsWithBlankLine: Bool, separator: String) async throws {
+    let source = (1...lineCount).map { startsWithBlankLine && $0 == 1 ? "" : String($0) }.joined(separator: separator)
+        + (startsWithBlankLine ? "" : separator)
+    let host = NSHostingView(rootView: CodeTextEditor(getText: { source }, setText: { _ in }))
     let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 300, height: lineCount <= 11 ? 300 : 160),
                           styleMask: [.borderless], backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false

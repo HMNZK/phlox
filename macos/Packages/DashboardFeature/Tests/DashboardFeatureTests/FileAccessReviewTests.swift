@@ -21,7 +21,7 @@ struct FileAccessReviewTests {
         let root = try makeFileTabTestRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         try git(["init", "-q"], in: root)
-        let text = String(repeating: "a", count: 1_000_001)
+        let text = String(repeating: "a", count: WorkingTreeText.maximumEditableFileSize + 1)
         try Data(text.utf8).write(to: root.appendingPathComponent("large.txt"))
         if tracked { try git(["add", "large.txt"], in: root) }
         let model = EditorPanelViewModel(service: WorkingTreeService(repositoryRoot: root))
@@ -34,7 +34,10 @@ struct FileAccessReviewTests {
             #expect(contentMatches)
         }
         #expect(!model.canEdit)
-        #expect(model.readOnlyMessage == "このファイルは大きすぎるため、ここでは編集できません。")
+        #expect(model.syntaxHighlightingEnabled == tracked, "追跡ファイルの差分は色付けし、巨大な未追跡ファイルの本文は色付けしない")
+        #expect(model.canViewContent)
+        #expect(model.isReadOnly)
+        #expect(model.draft == text)
     }
 
     @Test("削除されたファイルはルート内のリンク親でも上書きで作り直す", arguments: [false, true])

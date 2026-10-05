@@ -87,6 +87,8 @@ extension ChatCodeTokenizer {
         return executables.contains(executable) ? ChatCodeLanguage.named(executable) ?? .plain : .plain
     }
 
+    public static let maximumLineUTF16Length = 10_000
+
     public static func shouldHighlight(_ code: String) -> Bool {
         guard code.utf8.count <= 1_000_000 else { return false }
         var length = 0
@@ -95,7 +97,7 @@ extension ChatCodeTokenizer {
             if byte == 10 || byte == 13 { length = 0 }
             else if byte < 128 || byte >= 192 && byte < 240 { length += 1 }
             else if byte >= 240 { length += 2 }
-            if length > 10_000 { return false }
+            if length > maximumLineUTF16Length { return false }
         }
         return true
     }

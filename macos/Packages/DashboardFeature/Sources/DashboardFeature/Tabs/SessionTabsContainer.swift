@@ -64,6 +64,25 @@ struct SessionTabsContainer<Conversation: View>: View {
         viewModel.numberedTabSessionIDs(router: router).compactMap(viewModel.sessionNode(id:))
     }
 
+    /// 文をそのセッションの入力欄に入れ、会話のタブを前に出す（シミュレーターの FR-10）。送信はしない。
+    /// 入れられないとき（送信の受付待ち・許可や質問の回答待ち・未起動）は警告音だけ鳴らす。
+    private func tellAgent(_ text: String, node: SessionNode) {
+        // 同じクリックで区画のタップ（押した区画を操作中にする）も走るので、その後に回す。
+        // 文とタブの切り替えを同じ更新にまとめ、切り替えで入力先を外す処理（DashboardView）より後に入力欄へフォーカスを移す。
+        DispatchQueue.main.async { [router] in
+            switch node {
+            case .appServer(let session):
+                guard session.appendToDraft(text) else { return NSSound.beep() }
+            case .pty(let session):
+                // 回答待ちの CLI では、文の数字や英字が選択肢のキーとして効いてしまう。
+                guard session.status == .idle || session.status == .running else { return NSSound.beep() }
+                // 文は 1 行なので、Enter を送らない限り CLI は送信しない。
+                Task { await session.sendInput(Data(text.utf8)) }
+            }
+            router.tabs.updateLayout(for: node.id) { $0.showConversation(keeping: .simulator) }
+        }
+    }
+
     @ViewBuilder
     private func pane(_ tab: ChildTab, node: SessionNode) -> some View {
         switch tab {
@@ -96,7 +115,8 @@ struct SessionTabsContainer<Conversation: View>: View {
         case .simulator:
             if let simulatorHub {
                 SimulatorTabView(hub: simulatorHub, sessionID: node.id,
-                                 isFocused: router.tabs.layout(for: node.id).selected == .simulator)
+                                 isFocused: router.tabs.layout(for: node.id).selected == .simulator,
+                                 tellAgent: { tellAgent($0, node: node) })
                     .id(node.id)
             }
         case .browser:

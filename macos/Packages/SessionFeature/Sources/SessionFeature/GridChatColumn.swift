@@ -249,6 +249,8 @@ struct GridComposerBar: View {
                     onEscape: { performChatEscape(viewModel) },
                     onFocusGained: onFocusGained,
                     focusRequest: viewModel.composerFocusRequest,
+                    handledFocusToken: viewModel.handledComposerFocusToken,
+                    onFocusRequestHandled: { viewModel.handledComposerFocusToken = $0 },
                     highlightsKeywords: viewModel.agentRef == .builtin(.claudeCode),
                     onTab: { viewModel.moveFocusToReplyCard() },
                     onRecallHistory: { viewModel.recallInputHistory($0) },

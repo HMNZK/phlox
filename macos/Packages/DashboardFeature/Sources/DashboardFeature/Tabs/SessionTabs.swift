@@ -57,6 +57,12 @@ public struct SessionTabLayout: Codable, Equatable, Sendable {
         }
     }
 
+    /// 会話を前に出す。分割中で会話が出ていなければ、`kept` の無い方の区画に出す（シミュレーターの FR-10。端末の画面を残す）。
+    public mutating func showConversation(keeping kept: ChildTab) {
+        if right != nil, !isShown(.conversation), isShown(kept) { focusesRight = left == kept }
+        select(.conversation)
+    }
+
     /// 閉じたら true。会話は閉じない。区画に出ていたら左隣（分割中はもう一方）を出す。
     @discardableResult
     public mutating func close(_ tab: ChildTab) -> Bool {

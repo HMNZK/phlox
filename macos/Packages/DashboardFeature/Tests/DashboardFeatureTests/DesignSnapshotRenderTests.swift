@@ -970,7 +970,7 @@ struct DesignSnapshotRenderTests {
         let content = SimulatorTabContent(hub: hub, sessionID: session, displayID: displayID,
             confirmsShutdown: id == "7e",
             sendsKeys: .constant(focused), showsDiagnostics: .constant(frame.id == "7iOpen"),
-            select: { _ in }, releaseFocus: {}, screenshot: {}, shutdown: {}, openSimulator: {})
+            select: { _ in }, releaseFocus: {}, screenshot: {}, shutdown: {}, openSimulator: {}, tellAgent: {})
             .overlay(alignment: .topLeading) {
                 if frame.id == "7iOpen" {
                     SimulatorDiagnostics().background(DSColor.popoverBackground)

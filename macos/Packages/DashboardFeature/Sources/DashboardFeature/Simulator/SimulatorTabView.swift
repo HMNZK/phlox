@@ -8,6 +8,7 @@ public struct SimulatorTabView: View {
     private let hub: SimulatorHub
     private let sessionID: SessionID
     private let isFocused: Bool
+    private let tellAgent: ((String) -> Void)?
     @State private var displayID = UUID()
     @State private var windowVisible = false
     @State private var isPresented = false
@@ -19,10 +20,11 @@ public struct SimulatorTabView: View {
     @State private var screenshotReason: String?
     @State private var showsDiagnostics = false
 
-    public init(hub: SimulatorHub, sessionID: SessionID, isFocused: Bool) {
+    public init(hub: SimulatorHub, sessionID: SessionID, isFocused: Bool, tellAgent: ((String) -> Void)? = nil) {
         self.hub = hub
         self.sessionID = sessionID
         self.isFocused = isFocused
+        self.tellAgent = tellAgent
     }
 
     private var device: SimulatorDevice? { hub.selectedDevice(for: sessionID) }
@@ -45,7 +47,8 @@ public struct SimulatorTabView: View {
                             shutdown: {
                                 shutdownUDID = device?.udid
                                 confirmsShutdown = true
-                            }, openSimulator: openSimulator)
+                            }, openSimulator: openSimulator,
+                            tellAgent: tellAgent.map { tell in { if let device { tell(device.agentHint) } } })
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("simulator-tab")
         .background(SimulatorWindowVisibility { visible in

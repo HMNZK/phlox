@@ -65,8 +65,9 @@ a:hover{color:#7E3518;text-decoration:underline;}
                 <sc-if value="{{ p.trial }}"><span role="status" style="display:flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:5px;font-size:11px;white-space:nowrap;color:#F2F2F4;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.22);flex:none;min-width:0;overflow:hidden;">{{ p.trial }}</span></sc-if>
                 <sc-if value="{{ p.diag }}"><span role="note" style="display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap;color:#8E8E94;flex:none;position:relative;"><span style="width:6px;height:6px;border-radius:50%;box-shadow:inset 0 0 0 1.1px currentColor;flex:none;"></span>{{ p.diag }}<span role="button" tabindex="0" aria-label="診断の説明" aria-haspopup="dialog" aria-expanded="{{ p.diagOpen }}" style="{{ p.diagBtn }}">i</span><sc-if value="{{ p.diagTip }}"><span role="dialog" aria-label="診断の説明" style="position:absolute;top:24px;left:-20px;width:260px;white-space:normal;background:#2F2F33;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,0.5),0 0 0 0.5px rgba(255,255,255,0.16);padding:7px 10px;font-size:11.5px;line-height:1.55;color:#F2F2F4;z-index:20;">しばらく画面の更新を観測していません。画面が止まっているときは正常です。入力が届いているかの判断には使えません。</span></sc-if></span></sc-if>
                 <span style="flex:1;"></span>
-                <sc-for list="{{ p.btns }}" as="b" hint-placeholder-count="3">
+                <sc-for list="{{ p.btns }}" as="b" hint-placeholder-count="4">
                   <span role="button" aria-label="{{ b.aria }}" aria-disabled="{{ b.disabled }}" title="{{ b.aria }}" style="{{ b.s }}">
+                    <sc-if value="{{ b.agent }}"><span style="width:13px;height:10px;border-radius:3px;box-shadow:inset 0 0 0 1.3px currentColor;position:relative;top:-1px;"><span style="position:absolute;left:2px;bottom:-3px;width:4px;height:4px;border-left:1.3px solid currentColor;border-bottom:1.3px solid currentColor;transform:skewY(-30deg);background:#1E1E20;box-sizing:border-box;"></span></span></sc-if>
                     <sc-if value="{{ b.home }}"><span style="width:11px;height:11px;border-radius:3px;box-shadow:inset 0 0 0 1.3px currentColor;"></span></sc-if>
                     <sc-if value="{{ b.shot }}"><span style="width:13px;height:10px;border-radius:2.5px;box-shadow:inset 0 0 0 1.3px currentColor;display:flex;align-items:center;justify-content:center;"><span style="width:4px;height:4px;border-radius:50%;box-shadow:inset 0 0 0 1.2px currentColor;"></span></span></sc-if>
                     <sc-if value="{{ b.stop }}"><span style="width:9px;height:9px;border-radius:1.5px;background:currentColor;"></span></sc-if>
@@ -203,6 +204,7 @@ class Component extends DCLogic {
       const ring = !!o.focus;
       const booted = state === 'booted' && !o.noDevice;
       const btns = [
+        {agent:true,aria:'エージェントに伝える',disabled:!!o.noDevice,tip:o.tipAgent?'表示中の端末を入力欄に入れる':''},
         {home:true,aria:'ホーム（⇧⌘H）',disabled:!live || !!o.viewOnly,tip:o.tipHome?'ホーム ⇧⌘H':''},
         {shot:true,aria:'スクリーンショット',disabled:!booted},
         {stop:true,aria:'端末を停止…',disabled:!booted,on:!!o.dialog},
@@ -239,6 +241,7 @@ class Component extends DCLogic {
         P({id:'7c',title:'クリック中（タップ）',touch:true,focus:true,hint:'⌘ 付きのキーは Phlox が受けます · ⌘Esc で解除',caption:'押している間だけ、指の位置に半透明の円を出す。ドラッグ中は円が付いて動く。'}),
         P({id:'7c2',title:'スクロール中',scroll:true,hint:'キー入力はまだ送っていません · 画面をクリックすると送ります',caption:'トラックパッドの 2 本指・マウスのホイールは、ポインタの位置でのスクロールとして送る。押していないので指の円は出さず、ポインタの位置に輪だけを出す。iOS 側のスクロールバーで動いていることが分かる。'}),
         P({id:'7d',title:'端末の選択メニュー',menu:true,hint:'キー入力はまだ送っていません · 画面をクリックすると送ります',caption:'起動中の端末を先頭にまとめ、状態は印（塗り＝起動済み、点線＝起動中、輪郭＝停止中）と見出しで区別する。最後に「Simulator.app で開く」。'}),
+        P({id:'7s',title:'エージェントに伝える',tipAgent:true,hint:'キー入力はまだ送っていません · 画面をクリックすると送ります',caption:'帯の右側の先頭の吹き出しのボタン。押すと「対象の iOS シミュレーター: iPhone 17 Pro（iOS 26.2、UDID 6F1C…）。Phlox で表示中の端末です。」をこのセッションの入力欄の末尾に入れ、会話のタブを前に出す。送信はしない。停止中でも押せる（起動はエージェントに任せられる）。端末が無いときは押せない。'}),
         P({id:'7e',title:'停止の確認',dialog:true,hint:'キー入力はまだ送っていません · 画面をクリックすると送ります',caption:'取り返しがつかない型。既定はキャンセル。Phlox の中で分かる範囲（表示中のタブ）だけを一覧で出す。Phlox の別の版や Simulator.app で開いているかは分からないので、本文で触れるだけにする。'}),
       ]},
       {title:'端末の状態', panels:[
@@ -311,6 +314,7 @@ class Component extends DCLogic {
       {id:'FR-7',t:'取得を 1 本にまとめるのは画面に出ない',ts:warn},
       {id:'FR-8',t:'非対応・失敗の表示: 7j〜7m',ts:ok},
       {id:'FR-9',t:'Simulator.app との共存: 7d・7e の本文',ts:ok},
+      {id:'FR-10',t:'エージェントに伝える: 7s',ts:ok},
       {id:'NFR-2',t:'1 回だけの自動再接続と「再接続」: 7l',ts:ok},
       {id:'NFR-4',t:'診断の表示: 7i',ts:ok},
       {id:'§3.3',t:'未確認の組み合わせ: 7j。「未確認でも試す」の後: 7j2。表示のみ: 7h',ts:ok},

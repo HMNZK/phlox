@@ -18,6 +18,27 @@ struct SessionTabLayoutTests {
         #expect(layout.selected == .conversation)
     }
 
+    @Test("エージェントに伝えると会話を前に出し、分割中は端末の画面を残す（シミュレーター FR-10）", arguments: [
+        (ChildTab.simulator, Optional<ChildTab>.none, true, ChildTab.conversation, Optional<ChildTab>.none),
+        (.changes, .simulator, true, .conversation, .simulator),
+        (.simulator, .changes, false, .simulator, .conversation),
+        (.conversation, .simulator, true, .conversation, .simulator),
+    ])
+    func showConversationKeepsSimulator(left: ChildTab, right: ChildTab?, focusesRight: Bool,
+                                        expectedLeft: ChildTab, expectedRight: ChildTab?) {
+        var layout = SessionTabLayout()
+        layout.tabs = [.conversation, .changes, .simulator]
+        layout.left = left
+        layout.right = right
+        layout.focusesRight = focusesRight
+
+        layout.showConversation(keeping: .simulator)
+
+        #expect(layout.left == expectedLeft)
+        #expect(layout.right == expectedRight)
+        #expect(layout.selected == .conversation)
+    }
+
     @Test("開いている子タブを閉じると左隣を選ぶ")
     func closingSelectedTabSelectsLeftNeighbor() {
         var layout = SessionTabLayout()

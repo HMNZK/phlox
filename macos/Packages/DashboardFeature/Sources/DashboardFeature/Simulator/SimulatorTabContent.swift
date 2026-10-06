@@ -23,6 +23,7 @@ struct SimulatorTabContent: View {
     let screenshot: () -> Void
     let shutdown: () -> Void
     let openSimulator: () -> Void
+    var tellAgent: (() -> Void)?
 
     private var device: SimulatorDevice? { hub.selectedDevice(for: sessionID) }
     private var connection: SimulatorDisplayConnection? { hub.connection(for: sessionID) }
@@ -186,6 +187,12 @@ struct SimulatorTabContent: View {
                 }.font(DSFont.meta).foregroundStyle(DSColor.textTertiary).fixedSize()
             }
             Spacer(minLength: 0)
+            Button { tellAgent?() } label: { Image(systemName: "text.bubble") }
+                .buttonStyle(.plain).opacity(canTellAgent ? 1 : 0.45)
+                .frame(width: 26, height: 22)
+                .fixedSize()
+                .help("表示中の端末を入力欄に入れる").accessibilityLabel("エージェントに伝える")
+                .accessibilityIdentifier("simulator-tell-agent").disabled(!canTellAgent)
             Button { if allowsInput { connection?.sendHome() } } label: { Image(systemName: "square") }
                 .buttonStyle(.plain).opacity(allowsInput ? 1 : 0.45)
                 .frame(width: 26, height: 22)
@@ -212,6 +219,8 @@ struct SimulatorTabContent: View {
         .foregroundStyle(DSColor.textSecondary)
         .frame(height: 30)
     }
+
+    private var canTellAgent: Bool { tellAgent != nil && device != nil }
 
     private var isUnverified: Bool {
         connection?.capability != nil && connection?.blocksRetry != true && support == .unsupported

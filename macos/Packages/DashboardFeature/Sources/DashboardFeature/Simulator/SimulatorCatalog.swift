@@ -13,6 +13,12 @@ struct SimulatorDevice: Equatable, Sendable, Identifiable {
         "iOS " + (runtimeIdentifier.components(separatedBy: "iOS-").last?.replacingOccurrences(of: "-", with: ".") ?? runtimeIdentifier)
     }
     var stateLabel: String { isBooted ? "起動済み" : state == "Booting" ? "起動中" : "停止中" }
+    /// 入力欄に入れてエージェントへ端末を伝える 1 行（FR-10）。状態は送るまでに変わりうるので入れない。
+    /// 端末名は `simctl rename` で自由に付けられるので、改行などの制御文字を除いて 1 行に保つ（ターミナル型で送信させない）。
+    var agentHint: String {
+        let hint = "対象の iOS シミュレーター: \(name)（\(runtimeLabel)、UDID \(udid)）。Phlox で表示中の端末です。"
+        return String(String.UnicodeScalarView(hint.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }))
+    }
 }
 
 struct SimulatorCatalog: Sendable {

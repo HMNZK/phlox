@@ -83,6 +83,8 @@ struct ChatComposer: View {
                     imagesForCopy: { viewModel.attachmentStore.imagesForCopy(numbers: $0) },
                     onEscape: { performChatEscape(viewModel) },
                     focusRequest: viewModel.composerFocusRequest,
+                    handledFocusToken: viewModel.handledComposerFocusToken,
+                    onFocusRequestHandled: { viewModel.handledComposerFocusToken = $0 },
                     highlightsKeywords: viewModel.agentRef == .builtin(.claudeCode),
                     onTab: { viewModel.moveFocusToReplyCard() },
                     onRecallHistory: { viewModel.recallInputHistory($0) },
@@ -594,6 +596,10 @@ struct IMESafeTextView: NSViewRepresentable {
     /// 受け入れテスト AcceptanceComposerFocusRestoreTests が凍結（既定値ありのシグネチャは変更禁止）。
     /// トークンが変化したときだけ first responder とキャレットを動かす配線は task-2 が実装する。
     var focusRequest: ComposerFocusRequest = .none
+    /// セッションで処理済みの要求の番号。渡すと、入力欄が作られる前に出た未処理の要求を作られたときに適用する
+    /// （会話のタブへ切り替えて文を入れたとき）。nil なら作られた時点の要求を処理済みとみなす。
+    var handledFocusToken: Int? = nil
+    var onFocusRequestHandled: ((Int) -> Void)? = nil
     /// 入力欄でキーワード（ultrathink 等）を強調するか。Claude セッションのみ true を渡す。
     var highlightsKeywords: Bool = false
     /// 候補の無いときの Tab。true を返したら入力欄では処理しない（承認・質問カードへ移る。05 R6b）。
@@ -659,7 +665,8 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.applyComposerHighlights()
 
         // 初回描画でフォーカスを奪わない。以後は「この値から変化したとき」だけ移す。
-        context.coordinator.lastHandledFocusToken = focusRequest.token
+        // ただし、セッションでまだ処理していない要求は引き継ぐ。
+        context.coordinator.lastHandledFocusToken = handledFocusToken ?? focusRequest.token
 
         scrollView.documentView = textView
         return scrollView
@@ -707,6 +714,7 @@ struct IMESafeTextView: NSViewRepresentable {
         //   (2) ADR 0010: updateNSView は描画パスであり副作用の同期実行を避ける（既存の高さ再計算と同じ流儀）。
         if focusRequest.token != context.coordinator.lastHandledFocusToken {
             context.coordinator.lastHandledFocusToken = focusRequest.token
+            onFocusRequestHandled?(focusRequest.token)
             let movesCaretToEnd = focusRequest.movesCaretToEnd
             Task { @MainActor [weak textView, coordinator = context.coordinator] in
                 guard let textView, let window = textView.window else { return }

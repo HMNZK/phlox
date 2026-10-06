@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-04
+last-verified: 2026-10-06
 ---
 
 # ウィンドウ内 iOS シミュレーターの現行構成
@@ -100,12 +100,13 @@ Phlox.app（本体。CoreSimulator / SimulatorKit を読み込まない）
 
 **`SimulatorTabView` / `SimulatorTabContent`**（帯の高さ 30pt）
 
-- 帯: 端末選択（`SimulatorDeviceMenu`、`SimulatorDevicePopUpButton`）・取得済みの版・状態・「起動」（停止中の端末）・ホーム・スクリーンショット・診断・停止。文言、版、状態の印、端末名の順に縮める。停止は確認ダイアログ（キャンセルが既定・停止は ⌘⌫）を経由し、スクリーンショットは `~/Pictures/Phlox Simulator/Simulator-<UUID>.png` へ保存して Finder で選択表示する。
+- 帯: 端末選択（`SimulatorDeviceMenu`、`SimulatorDevicePopUpButton`）・取得済みの版・状態・「起動」（停止中の端末）・エージェントに伝える・ホーム・スクリーンショット・診断・停止。文言、版、状態の印、端末名の順に縮める。停止は確認ダイアログ（キャンセルが既定・停止は ⌘⌫）を経由し、スクリーンショットは `~/Pictures/Phlox Simulator/Simulator-<UUID>.png` へ保存して Finder で選択表示する。
 - `SimulatorTabContent` が画面と状態別の題・説明・操作を表示する。一覧の取得失敗は「再確認」、停止中は「起動」、接続失敗または未確認の組み合わせは「Simulator.app で開く」と、許可されていれば「再接続」／「未確認でも試す」を出す。操作・撮影の失敗だけでは中央の外部起動ボタンを増やさない。外部起動は `com.apple.iphonesimulator` に `-CurrentDeviceUDID <udid>` を渡し、Simulator.app を前面へ出す。端末メニューの外部起動項目は別経路で、失敗をタブ内の `menuOperationReason` に保持する。
 - 更新なしの診断は帯の ⓘ から説明を開く。操作・撮影の理由は、画面があるときは帯の下の行、画面がないときは中央の説明に出す。一覧の元の診断は help に保持する。画面があるときだけ下に操作の手がかりを 1 行出す（VoiceOver 有効時は別文言）。キー入力を送っている間は帯に「キー入力を端末に送信中」、下の案内に「⌘ 付きのキーは Phlox が受けます · ⌘Esc で解除」を出し、画面に枠線を出す。
+- エージェントに伝える（仕様 FR-10）: `SimulatorDevice.agentHint`（端末名・iOS の版・UDID の 1 行。制御文字を除く）を `SessionTabsContainer.tellAgent` がセッションの入力欄に入れる。チャット型は `ChatSessionViewModel.appendToDraft`（送信の受付待ちは入れない）、ターミナル型は `SessionViewModel.sendInput`（Enter なし。待機中・実行中だけ）。入れられないときは警告音。文の追加と `SessionTabLayout.showConversation(keeping: .simulator)`（会話を前に出す。分割中は端末の画面を残す）は、同じクリックの区画タップの後に、同じ更新でまとめて行う。子タブが変わると `DashboardView` が入力先を外すので、入力欄のフォーカス移動（次の実行機会に回る）がそれより後になるようにするため。単一表示では入力欄がこのとき作られるので、入力欄は `handledComposerFocusToken` で未処理のフォーカス要求を引き継ぐ。
 - 表示の可視性: `SimulatorWindowVisibility` が、ウィンドウの表示・最小化・遮蔽・アプリの非表示を見て `hub.setVisible(...)` を呼ぶ。タブが消えると `removeDisplay`。
 - ショートカット: ⌃⌘Y（`PhloxApp.swift` のメニュー項目「シミュレーターのタブ」。`router.openChildTab(.simulator)` ＋ `hub.requestMenuFocus`。開いた直後のフォーカスは端末メニュー）、⇧⌘H（タブがフォーカスされていて入力可のときだけ有効なホーム）。
-- 識別子: `simulator-tab`・`simulator-device-menu`・`simulator-boot`・`simulator-home`・`simulator-shutdown`・`simulator-diagnostics`・`simulator-support-band`・`simulator-try-unverified`・`simulator-open-external`・`simulator-reconnect`・`simulator-screen`。
+- 識別子: `simulator-tab`・`simulator-device-menu`・`simulator-boot`・`simulator-tell-agent`・`simulator-home`・`simulator-shutdown`・`simulator-diagnostics`・`simulator-support-band`・`simulator-try-unverified`・`simulator-open-external`・`simulator-reconnect`・`simulator-screen`。
 
 ## 子タブと永続化
 

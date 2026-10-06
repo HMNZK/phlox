@@ -195,6 +195,8 @@ public final class ChatSessionViewModel: Identifiable {
     /// composer へフォーカスを戻す要求（esc-restore-input-focus task-1 契約の PM スタブ）。
     /// 受け入れテスト AcceptanceComposerFocusRestoreTests が凍結。発火は task-1、消費は task-2 が実装する。
     public private(set) var composerFocusRequest: ComposerFocusRequest = .none
+    /// 入力欄が処理し終えたフォーカス要求の番号。要求の後に作られた入力欄が、未処理の要求を引き継ぐために使う。
+    @ObservationIgnored public var handledComposerFocusToken = ComposerFocusRequest.none.token
     @ObservationIgnored public var codexSettingsDidChange: (@MainActor (CodexAppServerSessionSettings?) -> Void)?
     /// リモート通知系へのフック。nil なら呼ばれない（既存挙動と同一）。
     @ObservationIgnored public var remoteSessionNotifier: (any RemoteSessionNotifier)?
@@ -1152,6 +1154,16 @@ public final class ChatSessionViewModel: Identifiable {
     /// 入力欄から承認カード・質問カードへ移る（入力欄で Tab）。
     public func requestReplyCardFocus() {
         replyCardFocusRequest += 1
+    }
+
+    /// 他の画面から入力欄の末尾へ文を足し、入力欄へフォーカスを移す（シミュレーターの「エージェントに伝える」）。
+    /// 送信を受け付けてもらうまでは足さずに false を返す（入力欄と同じく、失敗時に戻す本文とぶつけない）。
+    @discardableResult
+    public func appendToDraft(_ text: String) -> Bool {
+        guard inFlightText == nil else { return false }
+        draft += draft.isEmpty || draft.hasSuffix("\n") ? text : "\n" + text
+        requestComposerFocus(movesCaretToEnd: true)
+        return true
     }
 
     private func requestComposerFocus(movesCaretToEnd: Bool) {

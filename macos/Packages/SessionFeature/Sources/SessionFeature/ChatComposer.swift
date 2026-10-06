@@ -590,7 +590,7 @@ struct IMESafeTextView: NSViewRepresentable {
     var onEscape: () -> Void = {}
     /// 入力欄がキーボードフォーカスを得たときに呼ぶ（tasks/task-5.md 契約。
     /// グリッドタイルの composer クリック→タイル選択に使う。受け入れテスト
-    /// AcceptanceGridSelectionFocusTests が凍結。配線は task-5 が実装）。
+    /// GridSelectionFocusTests が凍結。配線は task-5 が実装）。
     var onFocusGained: (() -> Void)? = nil
     /// composer へフォーカスを戻す要求（esc-restore-input-focus task-2 契約の PM スタブ）。
     /// 受け入れテスト AcceptanceComposerFocusRestoreTests が凍結（既定値ありのシグネチャは変更禁止）。
@@ -1125,7 +1125,7 @@ struct IMESafeTextView: NSViewRepresentable {
             super.paste(sender)
         }
 
-        // task-4 契約の PM スタブ。API 表面は受け入れテスト ChatFixTask4PasteAcceptanceTests が
+        // task-4 契約の PM スタブ。API 表面は受け入れテスト ChatImagePasteTests が
         // 凍結している（シグネチャ変更禁止）。実装契約の正本: tasks/task-4.md
         // （paste(_:) の画像横取りロジックをこの検査可能な seam に移す。
         //   true = 画像として処理済み（テキストペースト抑止）/ false = 呼び出し側が通常ペースト）。

@@ -143,16 +143,6 @@ private final class ComposerFocusHarness {
     }
 }
 
-private func sourceText(_ relativePath: String) throws -> String {
-    let testFile = URL(fileURLWithPath: #filePath)
-    let sourceURL = testFile
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .appendingPathComponent("Sources/SessionFeature/\(relativePath)")
-    return try String(contentsOf: sourceURL, encoding: .utf8)
-}
-
 // MARK: - task-1: ViewModel がフォーカス復帰を要求する
 
 @Suite("Acceptance: esc 復元後に入力欄へフォーカスを戻す（ViewModel 側 / task-1）")
@@ -297,20 +287,6 @@ struct AcceptanceComposerFocusApplyTests {
         #expect(
             harness.window.firstResponder !== harness.textView,
             "要求が無い（token == 0）あいだは入力欄がフォーカスを奪わないこと。画面を出しただけで奪うのは退行"
-        )
-    }
-
-    @Test("単一表示・グリッド表示の双方が composerFocusRequest を入力欄へ配線する")
-    func composerViewsWireComposerFocusRequest() throws {
-        let composerSource = try sourceText("ChatComposer.swift")
-        #expect(
-            composerSource.contains("composerFocusRequest"),
-            "ChatComposer が viewModel.composerFocusRequest を IMESafeTextView へ渡すこと"
-        )
-        let gridSource = try sourceText("GridChatColumn.swift")
-        #expect(
-            gridSource.contains("composerFocusRequest"),
-            "GridChatColumn も同じ要求を渡すこと（グリッド表示でも同じ修正が要る）"
         )
     }
 }

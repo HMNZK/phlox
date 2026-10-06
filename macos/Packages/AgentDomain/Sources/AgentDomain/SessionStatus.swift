@@ -43,7 +43,7 @@ public extension SessionStatus {
 }
 
 /// セッションが「ユーザーの対応待ちで赤表示を維持すべきか」の導出（ask-question-ux task-2 契約。
-/// 受け入れテスト AcceptanceSessionAttentionPolicyTests が凍結。スタブ実装＝task-2 が本実装する）。
+/// 受け入れテスト SessionAttentionPolicyTests が凍結。スタブ実装＝task-2 が本実装する）。
 public enum SessionAttentionPolicy {
     public static func requiresAttention(status: SessionStatus, hasUnseenCompletion: Bool) -> Bool {
         if hasUnseenCompletion { return true }

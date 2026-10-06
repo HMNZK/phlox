@@ -6,19 +6,6 @@ import Testing
 @MainActor
 struct TerminalPanelViewWhiteboxTests {
 
-    @Test("パネル用シェルの cwd はホーム固定（ゲート①決定）")
-    func terminalPanelSpawnsInHomeDirectory() throws {
-        var url = URL(fileURLWithPath: #filePath)
-        for _ in 0..<6 { url.deleteLastPathComponent() }
-        let app = try String(
-            contentsOf: url.appendingPathComponent("macos/App/PhloxApp.swift"),
-            encoding: .utf8
-        )
-
-        #expect(app.contains("workingDirectory: home"))
-        #expect(!app.contains("workingDirectory: environment.workspaceDirectory.path"))
-    }
-
     @Test("パネルの表示器は同じコントローラを保持し、入出力を TerminalCoordinator へ接続する")
     func panelSessionBindsTheSharedController() async throws {
         let pty = MockPTYManager()

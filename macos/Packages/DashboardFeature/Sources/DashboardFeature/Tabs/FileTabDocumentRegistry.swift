@@ -224,6 +224,13 @@ public final class FileTabDocumentRegistry {
         entries.contains { $0.files?.existing(for: sessionID, path: path)?.hasUnsavedChanges == true }
     }
 
+    /// ファイルの子タブを閉じるとき、未保存の下書きがあれば先に確認する（破棄で変更が失われるため）。
+    enum CloseDecision { case confirm, close }
+
+    func closeDecision(for sessionID: SessionID, path: String) -> CloseDecision {
+        hasUnsavedChanges(for: sessionID, path: path) ? .confirm : .close
+    }
+
     func dirtySummary(for sessionID: SessionID, path: String) -> String {
         dirtySummary(for: [sessionID], path: path)
     }

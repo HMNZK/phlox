@@ -76,8 +76,8 @@ last-verified: 2026-08-01
 | `AcceptancePanelRouterTests` | `AppRouter` のパネルフラグ・トグル |
 | `AcceptanceUserTerminalTests` / `UserTerminalControllerWhiteboxTests` | PTY 起動の冪等性・入出力・自然終了→再起動・世代分離・drain 待ち・shutdown 冪等 |
 | `AcceptanceWorkingTreeTests` / `WorkingTreeServiceWhiteboxTests` | 変更一覧・diff・保存・競合検出・リネーム/非 ASCII パス・巨大 stderr 耐性 |
-| `AcceptanceTerminalPanelWiringTests` / `TerminalPanelViewWhiteboxTests` | ホットキー配線・ドロワーがオーバーレイでないこと・resize の3状態化 |
-| `AcceptanceEditorPanelVMTests` / `EditorPanelVMWhiteboxTests` | VM の一覧/選択/編集/保存/競合フロー |
-| `AcceptancePanelIntegrationTests` / `PanelIntegrationWhiteboxTests` | 確定容器への統合・プロトタイプ撤去・ドロワー幅クランプ/ドラッグ・トップバー独立 |
+| `TerminalPanelViewWhiteboxTests` | パネルの表示器が共有コントローラを保持し、入出力を `TerminalCoordinator` へ接続すること |
+| `EditorPanelVMTests` | VM の一覧/選択/編集/保存/競合フロー |
+| `PanelIntegrationWhiteboxTests` | 左右分割/縦積みの切替幅・変更種別ごとの SF Symbol |
 | `PosixSpawnCloexecTests`（PTYKit） | spawn した子が無関係な fd を継承しないこと |
 | `PanelUITests`（XCUITest） | ⌘⌥T/⌘⌥E の実出現・消滅（accessibilityIdentifier） |

@@ -95,12 +95,7 @@ public struct TerminalView: NSViewRepresentable {
         // 最後に有効な接続を要求したコンテナだけが所有する。window == nil や
         // frame 0 では拒否しない（新しい単一コンテナも接続時点でこの状態になる）。
         context.coordinator.current = coordinator
-        guard TerminalMount.attach(coordinator.hostingView, to: nsView) else { return }
-        // reparent 直後はコンテナのレイアウトが未確定なので、次の runloop で最下部へ戻す。
-        // updateNSView 中に同期的なスクロール副作用を起こさない（ADR 0010）。
-        DispatchQueue.main.async { [weak coordinator] in
-            coordinator?.scrollToBottom()
-        }
+        TerminalMount.attachAndScheduleScrollToBottom(coordinator, to: nsView)
     }
 
     public static func dismantleNSView(_ nsView: NSView, coordinator: TerminalMountCoordinator) {
@@ -180,6 +175,21 @@ enum TerminalMount {
         ])
         rec.owner = container
         return true
+    }
+
+    /// 載せ替えが起きたときだけ、次の runloop で最下部へ戻す。
+    /// reparent 直後はコンテナのレイアウトが未確定なので、同期的にはスクロールしない。
+    /// updateNSView 中に同期的なスクロール副作用を起こさない（ADR 0010）。
+    /// attach の戻り値を捨てると SwiftUI の更新ごとに最下部へ引き戻す退行になる。
+    static func attachAndScheduleScrollToBottom(
+        _ coordinator: TerminalCoordinator,
+        to container: NSView,
+        schedule: (@escaping () -> Void) -> Void = { DispatchQueue.main.async(execute: $0) }
+    ) {
+        guard attach(coordinator.hostingView, to: container) else { return }
+        schedule { [weak coordinator] in
+            coordinator?.scrollToBottom()
+        }
     }
 
     static func detach(_ terminal: NSView, from container: NSView) -> Bool {

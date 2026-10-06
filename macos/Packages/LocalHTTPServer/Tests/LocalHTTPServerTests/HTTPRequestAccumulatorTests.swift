@@ -101,3 +101,41 @@ import Testing
         #expect(request.body.isEmpty)
     }
 }
+
+/// 非 UTF-8 ヘッダでも body 上限を強制する（上限超過判定がヘッダ復号の後ろにあると、バッファが無制限に成長する）。
+@Suite struct NonUTF8HeaderBodyLimitTests {
+    /// 復号不能ヘッダ(headerDecodable==false)でヘッダ終端は届くが body が上限超過 → payloadTooLarge を throw。
+    @Test func nonUTF8HeaderWithOversizedBodyThrowsPayloadTooLarge() {
+        var accumulator = HTTPRequestAccumulator(maxBodyLength: 8)
+        var data = Data([0xFF, 0xFE]) // 不正な UTF-8 先頭バイト
+        data.append(Data("\r\n\r\n".utf8)) // ヘッダ終端
+        data.append(Data("0123456789".utf8)) // 10 バイト body > 上限 8
+
+        #expect(throws: HTTPMessageParserError.payloadTooLarge) {
+            _ = try accumulator.append(data)
+        }
+    }
+
+    /// body が複数チャンクで届いて上限を超えた時点で throw する(非UTF-8ヘッダでも)。
+    @Test func nonUTF8HeaderBodyGrowingAcrossChunksEventuallyThrows() throws {
+        var accumulator = HTTPRequestAccumulator(maxBodyLength: 8)
+        var header = Data([0xFF])
+        header.append(Data("\r\n\r\n".utf8))
+
+        #expect(try accumulator.append(header) == .needsMore) // body 0
+        #expect(try accumulator.append(Data("1234".utf8)) == .needsMore) // body 4 <= 8
+        #expect(throws: HTTPMessageParserError.payloadTooLarge) {
+            _ = try accumulator.append(Data("56789".utf8)) // body 9 > 8
+        }
+    }
+
+    /// 誤爆防止(不変): 非UTF-8ヘッダでも body が上限内なら 413 にせず .needsMore を返す。
+    @Test func nonUTF8HeaderWithinLimitDoesNotFalselyThrow() throws {
+        var accumulator = HTTPRequestAccumulator(maxBodyLength: 256)
+        var data = Data([0xFF])
+        data.append(Data("\r\n\r\n".utf8))
+        data.append(Data("ab".utf8))
+
+        #expect(try accumulator.append(data) == .needsMore)
+    }
+}

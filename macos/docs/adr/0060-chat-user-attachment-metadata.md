@@ -27,5 +27,5 @@ last-verified: 2026-07-10
 ## 結果
 
 - 送信後・履歴復元後・再起動後もユーザーメッセージに添付が可視化される（テキスト＋画像／画像のみの両方）。
-- 過去の履歴 JSON はそのまま読める（受け入れテスト ChatFixTask7AttachmentBadgeAcceptanceTests が凍結）。
+- 過去の履歴 JSON はそのまま読める（ChatAttachmentBadgeTests が固定）。
 - 新形式の JSON を旧バージョンのアプリが読む前方互換は保証しない（attachments キーは未知フィールドとして無視される設計だが、検証は後方互換のみ）。

@@ -64,6 +64,44 @@ public final class SubAgentDetailViewModel {
         )
     }
 
+    /// 1 行ぶんの表示本文とコピー文字列。表示は描画上限で切り詰めるが、コピーは元のメッセージ全文から作る
+    /// （表示を削ってもデータは失わせない）。`display` はカード以外（本文を持たない行）では nil。
+    public struct RowText: Equatable {
+        public let display: String?
+        public let copy: String?
+    }
+
+    nonisolated public static func rowText(for message: ChatMessage) -> RowText {
+        let body: String?
+        switch message {
+        case let .user(_, text), let .agent(_, text), let .reasoning(_, text), let .subAgent(_, text):
+            body = text
+        case let .command(_, _, output):
+            body = output
+        case let .error(_, text):
+            body = text
+        case .fileChange, .userQuestion:
+            body = nil
+        }
+        return RowText(
+            display: body.map(displayText),
+            copy: ChatMessageCopyText.copyText(for: message)
+        )
+    }
+
+    /// 切り詰めたときは head ＋ 省略の注記（省略バイト数つき）＋ tail。
+    nonisolated private static func displayText(_ text: String) -> String {
+        let rendered = renderedBody(text)
+        guard rendered.omittedBytes > 0 else { return rendered.head }
+        return """
+        \(rendered.head)
+
+        表示を省略しました（\(rendered.omittedBytes) バイト）。コピーには全文が含まれます。
+
+        \(rendered.tail)
+        """
+    }
+
     public init(session: Session, subAgentID: String, api: PhloxAPI) {
         self.session = session
         self.subAgentID = subAgentID

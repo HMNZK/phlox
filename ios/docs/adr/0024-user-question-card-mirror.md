@@ -35,6 +35,6 @@ macOS 側で `AskUserQuestion` 対応（質問カード表示・回答返送）�
 
 ## 結果
 
-- `swift test --package-path ios/Packages/PhloxKit --no-parallel` で凍結受け入れ2スイート（`UserQuestionDecodingAcceptanceTests` 4件 / `UserQuestionAnswerAcceptanceTests` 5件）を含む396テストが green（stage1 レビュー実走確認）。
+- `swift test --package-path ios/Packages/PhloxKit --no-parallel` で凍結受け入れ2スイート（`UserQuestionDecodingAcceptanceTests` 4件 / `UserQuestionAnswerTests`（当時 5 件））を含む396テストが green（stage1 レビュー実走確認）。
 - incremental delta（append-only）経路では既存メッセージ id の state 変化（pending→answered/expired）が取り込まれない既知の制約が残る（task-4 導入ではなく全メッセージ種に共通の既存挙動。全量フェッチ/snapshot 経路では収束する）。統合検証で incremental delta 下の state 収束が要件になった場合は別途確認する。
 - macOS 側の作業ログは [macos/docs/delivery/0008](../../../macos/docs/delivery/0008-ask-user-question-worklog.md)、iOS 側は [ios/docs/delivery/0010](../delivery/0010-ask-user-question-worklog.md) 参照。

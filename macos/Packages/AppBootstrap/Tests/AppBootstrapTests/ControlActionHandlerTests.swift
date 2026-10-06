@@ -503,6 +503,38 @@ import SessionFeature
         #expect(dashboard.renamedTo?.name == "renamed")
     }
 
+    /// 未認可の rename は IDOR になるため 403 で拒否し、実行しない。
+    @Test func renameWithoutAuthorizationReturns403() async {
+        let dashboard = DashboardStub()
+        dashboard.isAuthorized = false
+        let handler = makeHandler(dashboard)
+
+        let response = await handler.handle(ControlRequest(requester: SessionID(), action: .rename(id: SessionID(), name: "x")))
+
+        #expect(response.statusCode == 403)
+        #expect(dashboard.renamedTo == nil, "未認可なのに rename が実行された（IDOR）")
+    }
+
+    /// read 系（output / messages / wait）は operator モデルなので、認可を課さず従来どおり 200 を返す。
+    @Test func readOperationsAreNotBlockedByAuthorization() async {
+        let dashboard = DashboardStub()
+        dashboard.isAuthorized = false  // 要求元は対象の祖先でない
+        dashboard.outputText = "screen text"
+        dashboard.chatMessages = []
+        dashboard.doneResult = .done(output: "done")
+        let handler = makeHandler(dashboard)
+        let requester = SessionID()
+
+        let output = await handler.handle(ControlRequest(requester: requester, action: .output(id: SessionID(), mode: .screen, format: .text)))
+        #expect(output.statusCode == 200, "read(output) が認可で 403 になった（operator モデル違反）")
+
+        let messages = await handler.handle(ControlRequest(requester: requester, action: .messages(id: SessionID(), since: nil, wait: nil)))
+        #expect(messages.statusCode == 200, "read(messages) が認可で 403 になった")
+
+        let wait = await handler.handle(ControlRequest(requester: requester, action: .wait(id: SessionID(), timeoutSeconds: 1, sentinel: nil)))
+        #expect(wait.statusCode == 200, "read(wait) が認可で 403 になった")
+    }
+
     // MARK: - output
 
     @Test func outputReturns200WithScreenText() async throws {

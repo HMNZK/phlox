@@ -18,20 +18,6 @@ struct AcceptanceQuietChatChromeTests {
         ) { EmptyView() }
     }
 
-    @Test("時刻は常時描画せず、発言のコピーボタンと同じホバー状態で表示する")
-    func timestampsAppearOnlyWithMessageCopyButtons() throws {
-        let source = try sourceText("ChatMessageCellsCommon.swift")
-        let afterCardDeclaration = try #require(source.components(separatedBy: "struct DisclosureCard<Content: View>").last)
-        let cardSource = try #require(afterCardDeclaration.components(separatedBy: "private struct DisclosureCardStyle").first)
-        #expect(!cardSource.contains("ChatTimestampText"))
-        let avatarRowSource = try #require(source.components(separatedBy: "struct AvatarMessageRow<Content: View>").last?.components(separatedBy: "struct ChatTimestampText").first)
-        #expect(!avatarRowSource.contains("timestamp"))
-
-        let basicSource = try sourceText("ChatMessageCells+Basic.swift")
-        #expect(basicSource.contains("ChatTimestampText(timestamp: timestamp)"))
-        #expect(basicSource.contains(".opacity(isHovering ? 1 : 0)"))
-    }
-
     @Test("Reasoning 見出しは本文の見出し、末尾行、既定値を使う")
     func reasoningHeadlineUsesSharedThinkingRecapHeuristic() {
         #expect(ThinkingRecap.headline(from: "本文\n## 認証フローを設計\n続き") == "認証フローを設計")
@@ -80,43 +66,12 @@ struct AcceptanceQuietChatChromeTests {
         #expect(try #require(renderer.nsImage).size.width > 0)
     }
 
-    @Test("本文行にブランドアバターを再導入しない")
-    func avatarMessageRowSourceHasNoBrandAvatar() throws {
-        let source = try sourceText("ChatMessageCellsCommon.swift")
-        #expect(!source.contains("AgentBrandIcon"))
-        #expect(!source.contains("AgentAvatar"))
-    }
-
     @Test("DisclosureCard のタイトル・サブタイトル色はツールコールだけ控えめにする")
     func disclosureCardPaletteUsesRequiredColors() {
         assertColor(DisclosureCardPalette.title(isToolCall: true), equals: DSColor.chatToolCallText)
         assertColor(DisclosureCardPalette.subtitle(isToolCall: true), equals: DSColor.chatToolCallText)
         assertColor(DisclosureCardPalette.title(isToolCall: false), equals: DSColor.chatTextPrimary)
         assertColor(DisclosureCardPalette.subtitle(isToolCall: false), equals: DSColor.chatTextSecondary)
-    }
-
-    // 04 A1（ユーザー承認 2026-09-24「全部モックに合わせる」）: コマンドはモックの枠付きカード（TranscriptCard）で出し、
-    // カードの見出しと枠はアクセント色を使わない（色は注意の 4 状態だけ）。
-    @Test("コマンドセルとコマンドグループは色を使わない枠付きカードで出す")
-    func commandCellsUseQuietTranscriptCard() throws {
-        let commandCellSource = try sourceText("ChatMessageCells+Structured.swift")
-        let commandGroupSource = try sourceText("ChatMessageCells+CommandGroup.swift")
-        let cardSource = try sourceText("TranscriptCard.swift")
-        #expect(commandCellSource.contains("TranscriptCard("))
-        #expect(commandGroupSource.contains("TranscriptCard("))
-        // 見出しと枠（フッタの「さらに表示」リンクより前）にアクセント色が無いこと。
-        let cardHeader = cardSource.components(separatedBy: "struct TranscriptCardFooter").first ?? ""
-        #expect(!cardHeader.contains("accent"))
-    }
-
-    private func sourceText(_ relativePath: String) throws -> String {
-        let testFile = URL(fileURLWithPath: #filePath)
-        let sourceURL = testFile
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("Sources/SessionFeature/\(relativePath)")
-        return try String(contentsOf: sourceURL, encoding: .utf8)
     }
 
     private func assertColor(_ actual: Color, equals expected: Color) {

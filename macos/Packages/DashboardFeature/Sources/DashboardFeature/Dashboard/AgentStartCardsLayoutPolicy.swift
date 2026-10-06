@@ -3,7 +3,7 @@ import DesignSystem
 
 /// 空状態エージェント選択カード列の並び方向（横並び/縦積み）を決める純関数ポリシー
 /// （task-2 契約面）。契約は tasks/task-2.md と
-/// AcceptanceAgentStartCardsLayoutTests.swift（PM 著・不変）。
+/// AgentStartCardsLayoutTests.swift（PM 著・不変）。
 enum AgentStartCardsLayoutPolicy {
     /// カード1枚の外形最小幅 = ボタン minWidth 148 + 内側 padding(DSSpacing.m) 左右。
     /// AgentStartCardButton の実装値と一致させる。

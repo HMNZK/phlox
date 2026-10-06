@@ -41,4 +41,4 @@ superseded-by: session-pane-layout.md
 
 ## タイルの選択枠とフォーカス連動（agent-grid-jank run, 2026-07-24）
 
-タイル枠の表示は純ポリシー `GridTileBorderPolicy.appearance(isFocused:requiresAttention:isDropTargeted:)`（SessionFeature）へ一元化し、注意喚起（未確認の停止・承認/質問待ち）と選択フォーカスを**同時に視認**できるようにした（従来は requiresAttention が選択枠を覆い隠した）。タイルヘッダーは mouse-down で即時選択（本文は従来どおり TapGesture＝テキスト選択・スクロールと干渉しない）。グリッドの入力欄（`IMESafeTextView`）は `onFocusGained` コールバック（becomeFirstResponder 時）でタイル選択を連動させる。凍結 `AcceptanceGridSelectionFocusTests`（枠ポリシー全組合せ・SessionGridView/GridChatColumn 配線スキャン・NSWindow+makeFirstResponder での onFocusGained 呼出）。
+タイル枠の表示は純ポリシー `GridTileBorderPolicy.appearance(isFocused:requiresAttention:isDropTargeted:)`（SessionFeature）へ一元化し、注意喚起（未確認の停止・承認/質問待ち）と選択フォーカスを**同時に視認**できるようにした（従来は requiresAttention が選択枠を覆い隠した）。タイルヘッダーは mouse-down で即時選択（本文は従来どおり TapGesture＝テキスト選択・スクロールと干渉しない）。グリッドの入力欄（`IMESafeTextView`）は `onFocusGained` コールバック（becomeFirstResponder 時）でタイル選択を連動させる。`GridSelectionFocusTests`（枠ポリシー全組合せ・NSWindow+makeFirstResponder での onFocusGained 呼出）。

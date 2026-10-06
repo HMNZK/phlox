@@ -54,7 +54,7 @@ last-verified: 2026-07-27
 
 ## 結果
 
-- 受け入れテスト `AcceptanceIOSToolCallGroupingTests`（12件・PM 凍結）と白箱 `IOSToolCallGroupingWhiteboxTests`（9件）が green。
+- `ToolCallGroupingTests`（受け入れテストと白箱テストを統合）が green。
   `swift test --package-path ios/Packages/PhloxKit` 全数 **491件 green**（変更前 484件から +7）。`make build` / `make run-ui-test` も成功。
 - `ImageRenderer` で集約行を実レンダリングし、単独ツールコールが「ツール実行 ×1」の**1行**（「ツール実行 ×15」と同一の見た目）
   に収まることを目視確認した。

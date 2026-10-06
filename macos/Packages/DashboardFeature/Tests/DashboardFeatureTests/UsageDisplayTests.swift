@@ -1,5 +1,7 @@
 import AgentDomain
+import DesignSystem
 import Foundation
+import SwiftUI
 import Testing
 @testable import DashboardFeature
 
@@ -235,4 +237,23 @@ import Testing
     let bucket = UsageBucket(id: "5h", label: "5時間", usedPercent: 50)
 
     #expect(UsageDisplay.sidebarResetDisplay(for: bucket, now: now) == nil)
+}
+
+// MARK: - 残量色・ブランドアイコン
+
+/// バー塗り色は usedPercent に連動（残量 100%＝緑、消費進行で黄→赤）。正本は UsageDisplay.usageColor（statusline rate_color 移植）。
+@Test func usageColor_transitionsFromGreenThroughYellowToRed() {
+    func rgb(_ r: Double, _ g: Double, _ b: Double) -> Color {
+        Color(.sRGB, red: r / 255, green: g / 255, blue: b / 255, opacity: 1)
+    }
+    #expect(UsageDisplay.usageColor(for: 0) == rgb(90, 200, 130))
+    #expect(UsageDisplay.usageColor(for: 52.5) == rgb(165, 195, 105))
+    #expect(UsageDisplay.usageColor(for: 100) == rgb(240, 50, 55))
+}
+
+@Test(arguments: [AgentKind.claudeCode, .codex, .cursor]) @MainActor
+func agentBrandIconFromKind_usesRegistryDescriptor(kind: AgentKind) {
+    let icon = AgentBrandIcon(kind: kind, size: 12)
+    #expect(icon.descriptor.ref.builtinKind == kind)
+    #expect(icon.descriptor.displayName == kind.displayName)
 }

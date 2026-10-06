@@ -20,7 +20,7 @@ public struct SessionWorkspace: Hashable, Sendable {
 
 /// 複数のアクティブセッションが同じ作業ディレクトリを共有しているかの判定（task-1 契約）。
 ///
-/// 受け入れテスト `AcceptanceWorkspaceCollisionPolicyTests` が凍結する。
+/// 受け入れテスト `WorkspaceCollisionPolicyTests` が凍結する。
 /// **スタブ実装＝task-1 が本実装する。**
 ///
 /// 背景: ユーザーが追加した既存リポジトリ（`Project.isManagedDirectory == false`）では

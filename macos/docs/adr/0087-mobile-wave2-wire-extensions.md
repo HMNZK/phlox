@@ -39,7 +39,7 @@ built-in kind（catalog に静的定義がある3種）のみ `pendingSpawnModel
 
 ## 結果
 
-- 契約 §7（4項目）を wire 変更・エスカレーションなしで実装。回帰テスト `Wave2SpawnModelApplicationTests`・凍結受け入れテスト `Wave2WireContractTests`・白箱テスト `Wave2ServerWireWhiteboxTests` で green。
+- 契約 §7（4項目）を wire 変更・エスカレーションなしで実装。回帰テスト `SpawnModelApplicationTests`・凍結受け入れテスト `ModelCatalogTests`・白箱テスト `ControlWireShapeTests・LiveModelCatalogTests` で green。
 - 未解決: 不正 model 文字列のサイレント無視は、クライアント側に「本当に適用されたか」の確認手段への依存を生む（明示エラーではない）。将来 UX フィードバックが必要になれば 400 化を再検討する余地あり（未対応）。
 
 ## 却下した代替案

@@ -118,8 +118,8 @@ func messagesDelta(sessionID: String, since: String?, wait: Int?) async throws -
 
 セッションのモデルをモバイルから参照・変更する。ワイヤ定数の正本はコード側の
 `ControlModelWireContract`（macOS `ControlServer`）と `PhloxModelWireContract`（iOS
-`PhloxNetworking`）で、両者は一字一句一致（凍結テスト `Task5AcceptanceTests` /
-`Task6AcceptanceTests` が固定）。
+`PhloxNetworking`）で、両者は一字一句一致（凍結テスト `ControlModelRoutingTests` /
+`SessionModelAPITests` が固定）。
 
 ### GET /sessions/{id}/settings
 
@@ -254,7 +254,7 @@ func cliUsage() async throws -> [CLIUsage]
 ### 検証の分担
 
 - **task-1（macOS ControlServer）**: 上記 7.1〜7.4 の wire 挙動を AppBootstrapTests / ControlServerTests
-  の既存ハーネス流儀で受け入れテスト化し green にする（凍結: `Wave2WireContractTests`）。
+  の既存ハーネス流儀で受け入れテスト化し green にする（凍結: `ModelCatalogTests`）。
 - **task-2（iOS PhloxKit）**: 上記 JSON をフィクスチャに decode 契約テスト化する（凍結:
-  `Wave2WireDecodeContractTests`）。
+  `DomainModelTests` / `ProjectCatalogUsageClientTests`）。
 - **統合（フェーズ4）**: 両者を突き合わせ、実サーバーに対する疎通で確認する。

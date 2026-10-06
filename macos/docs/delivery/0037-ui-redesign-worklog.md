@@ -121,7 +121,7 @@ README「未確定事項」に当たるものは、現行の挙動を既定に�
 
 ### 検証
 
-- パッケージテスト（`--no-parallel`）: DesignSystem 188・AgentDomain 545・SessionFeature 1045・DashboardFeature・AppBootstrap 161・TerminalUI 79 が合格。ControlServer は 158 件中 1 件（`AcceptanceSpawnProjectIdTests` の HTTP 60 秒タイムアウト）が全体実行で落ち、単独再実行で合格（P2 で ControlServer は未変更。P1 から出ている既知の不安定テスト）。App の Debug ビルドは成功。
+- パッケージテスト（`--no-parallel`）: DesignSystem 188・AgentDomain 545・SessionFeature 1045・DashboardFeature・AppBootstrap 161・TerminalUI 79 が合格。ControlServer は 158 件中 1 件（`SpawnProjectIdTests` の HTTP 60 秒タイムアウト）が全体実行で落ち、単独再実行で合格（P2 で ControlServer は未変更。P1 から出ている既知の不安定テスト）。App の Debug ビルドは成功。
 - AppBootstrap は、削除したファイルを覚えたビルドキャッシュで「missing inputs」になったため `swift package clean` してから実行した。
 - Debug 版での目視（スクリーンショット）: ダーク 1206pt（単体・グリッド・インスペクタ横並び）、900pt の最小段階、ライト＋英語。ツールバー上のボタンのクリック、⌃⌘1 / ⌃⌘2、⌥⌘J → ↓ → ↩ を合成入力で確認。UI テスト（XCUITest）は実行していない。
 
@@ -228,7 +228,7 @@ README「未確定事項」に当たるものは、現行の挙動を既定に�
 
 ### 検証
 
-- パッケージテスト（`--no-parallel`）: DesignSystem 188・AgentDomain 545・SessionFeature 1045・DashboardFeature 1598・AppBootstrap 161・TerminalUI 79 が合格。ControlServer は初回に `AcceptanceSpawnProjectIdTests` が HTTP のタイムアウトで 1 件落ち、再実行で 158 件合格（P2 から出ている既知の不安定テスト。P4 で ControlServer は未変更）。App の Debug ビルド成功、`git diff --check` 問題なし。AppBootstrap はビルドキャッシュのため `swift package clean` の後に実行。
+- パッケージテスト（`--no-parallel`）: DesignSystem 188・AgentDomain 545・SessionFeature 1045・DashboardFeature 1598・AppBootstrap 161・TerminalUI 79 が合格。ControlServer は初回に `SpawnProjectIdTests` が HTTP のタイムアウトで 1 件落ち、再実行で 158 件合格（P2 から出ている既知の不安定テスト。P4 で ControlServer は未変更）。App の Debug ビルド成功、`git diff --check` 問題なし。AppBootstrap はビルドキャッシュのため `swift package clean` の後に実行。
 - Codex（gpt-6-sol high）の独立レビュー: 高 3・中 4。移動失敗時の子タブ破棄・フォーカスの奪い返し・キーボードからメニューに届かない・フォルダ選択後の確認なし・読み上げの言語・表示規則のテスト不足を修正。内部セッションは現行どおりと確認。再レビューで 7 件とも解消、新しい指摘 1 件（同じフォルダでの再起動）は上の決定のとおり。
 - Debug 版での目視（スクリーンショット）: ダークで対応待ちの節・畳んだ行の「エラー 2 · 8」・展開した行（頭文字と経過時間・状態の文言）・↑↓ と → での移動（画面が切り替わっても一覧に入力先が残る）・↩ の名前変更と Esc の取り消し・メニューバー「名前を変更…」で畳まれたプロジェクトが開いて編集に入る。ライトで行の中の名前変更と案内・右クリックのメニュー。英語で「Needs you / Longest wait first / Projects / 18d / error / New Session」と名前変更の案内。
 - 目視していないもの: 移動のサブメニューと F9 の確認（Debug 版のセッションがすべて会話型で、ターミナル型を新しく起動すると実エージェントが動くため起動しなかった）、長いリストでのプロジェクト行の貼り付け（最小の窓でもあふれなかった）、⌘クリックでの解除、VoiceOver の実操作。XCUITest は実行していない。
@@ -380,7 +380,7 @@ README「未確定事項」に当たるものは、現行の挙動を既定に�
 
 ### 検証
 
-- `.claude/verify.sh`（DesignSystem・AgentDomain・SessionFeature・DashboardFeature・App の Debug ビルド）合格。SessionFeature 1051・StructuredChatKit 26・ClaudeAgentKit 164・AppBootstrap 161・ControlServer 158・TerminalUI 79 が合格（`--no-parallel`）。ControlServer は 2 回目の実行で `AcceptanceSpawnProjectIdTests` の 1 件が HTTP のタイムアウトで失敗し、単独の再実行で合格。`git diff --check` 問題なし。
+- `.claude/verify.sh`（DesignSystem・AgentDomain・SessionFeature・DashboardFeature・App の Debug ビルド）合格。SessionFeature 1051・StructuredChatKit 26・ClaudeAgentKit 164・AppBootstrap 161・ControlServer 158・TerminalUI 79 が合格（`--no-parallel`）。ControlServer は 2 回目の実行で `SpawnProjectIdTests` の 1 件が HTTP のタイムアウトで失敗し、単独の再実行で合格。`git diff --check` 問題なし。
 - Codex（gpt-6-sol high）の独立レビュー: 中 4・低 1。旧データのレイアウト名・表示範囲のヘルプ文の言語・⌘ 番号と見出しの番号のずれを修正。最後の 1 枚と未読の点は上の決定のとおり。メニューの言語は従来からの制約。
 - Debug 版での目視（スクリーンショット）: ライト＋日本語で表示範囲バー・エラーのタイル（見出しの色・縁・カード・「開く」）・子タブと ⌘ 番号・フォーカスの外輪・⌘W で外して次のタイルへ移る・✕ で戻す・右クリックのメニュー・分割線のゴースト・見出しのドラッグでの入れ替えと凡例・「バランス（調整済み）」・プロジェクト絞り込み（「CapWeave ✕」「2 / 2 件（すべて）」「エラー 2 が範囲外 ›」）・S10。ダーク＋英語で表示範囲バー・タイル見出し・子タブ・対応待ちの一覧・表示セッションの選択。
 - 目視していないもの: 実際の承認・質問・無応答のタイル（テスト内の描画だけ）、内部タグと親の行、子タブの端末・変更の中身（実エージェントを動かす必要がある＝課金のため）。VoiceOver の実操作と XCUITest も未実施。
@@ -428,7 +428,7 @@ README「未確定事項」に当たるものは、現行の挙動を既定に�
 
 ### 検証
 
-- `.claude/verify.sh` 合格。SessionFeature 1051・AppBootstrap 161・ControlServer 158・StructuredChatKit 26・ClaudeAgentKit 164・TerminalUI 79 が合格（`--no-parallel`）。ControlServer は初回に `AcceptanceSpawnProjectIdTests` の 1 件が HTTP のタイムアウトで失敗し、再実行で合格。`git diff --check` 問題なし。Codex の指摘の修正後に DashboardFeature の関連 133 件を再実行して合格。
+- `.claude/verify.sh` 合格。SessionFeature 1051・AppBootstrap 161・ControlServer 158・StructuredChatKit 26・ClaudeAgentKit 164・TerminalUI 79 が合格（`--no-parallel`）。ControlServer は初回に `SpawnProjectIdTests` の 1 件が HTTP のタイムアウトで失敗し、再実行で合格。`git diff --check` 問題なし。Codex の指摘の修正後に DashboardFeature の関連 133 件を再実行して合格。
 - Codex（gpt-6-sol high）の独立レビュー: 高 3・中 4。失敗時のチップの「—」・全バケットの最小・全件失敗の判定・初回失敗の「再試行」・ログの開閉をキーで押せるボタンに、を修正。取得理由などの言語と 5 分で前回の値を捨てる点は上の決定のとおり。
 - Debug 版での目視（スクリーンショット）: ライト＋日本語でチップ・使用量タブ・セッションタブ・共通ターミナルの見出し・A+ で「ターミナル 14pt」が出て 1 秒で消える・変更タブ（種別の文字・差分）。ダーク＋英語でチップ・使用量タブ・変更タブ（差分の色・「Commit (1)」・内容・「Show More (276 lines left)」）。
 - 目視していないもの: 取得失敗のバナーと琥珀の注記（ネットワークを切る必要がある。テストで記録のみ確認）、初回の骨組み、ターミナル型セッションのセッションタブ、Git の失敗ログ。VoiceOver の実操作と XCUITest も未実施。

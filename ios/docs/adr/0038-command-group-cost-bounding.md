@@ -41,5 +41,5 @@ ADR 0037 で表示窓がブロック単位になった結果、**1つの `comman
 
 ## 凍結テスト
 
-- `ios/Packages/PhloxKit/Tests/FeaturesTests/AcceptanceIOSCommandGroupRowWindowTests.swift` — 5000件でもヘッダが正しい・展開直後の行数 ≤ 50・`hiddenRowCount`・単独空出力の描画・複数件全空出力の非描画
-- `ios/Packages/PhloxKit/Tests/FeaturesTests/AcceptanceIOSToolCallGroupingTests.swift` — 既存3件を新 API へ移行（アサーションの意味は不変）
+- `ios/Packages/PhloxKit/Tests/FeaturesTests/CommandGroupRowWindowTests.swift` — 5000件でもヘッダが正しい・展開直後の行数 ≤ 50・`hiddenRowCount`・単独空出力の描画・複数件全空出力の非描画
+- `ios/Packages/PhloxKit/Tests/FeaturesTests/ToolCallGroupingTests.swift` — グルーピング・表示窓の境界・identity 安定・ジャンプ先解決

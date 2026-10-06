@@ -103,8 +103,8 @@ Phlox では光らない（逆も起きる）。オフセットは既存 span �
 
 ## 結果
 
-- 凍結テスト: `AcceptanceComposerKeywordDetectionTests`・`AcceptanceComposerSeedCommandsTests`・
-  `AcceptanceAvailableCommandsStoreTests`・`AcceptanceComposerKeywordRenderingTests`（すべて SessionFeature）。
+- 凍結テスト: `ComposerKeywordDetectionTests`・`ComposerSeedCommandsTests`・
+  `AvailableCommandsStoreTests`・`ComposerKeywordRenderingTests`（すべて SessionFeature）。
 - `ChatComposer` の色割り当てを三項演算子から**網羅 `switch`** へ変更した。`ComposerHighlightKind` に
   ケースを足すとコンパイルエラーになる（従来は黙って `@参照` の色に落ちていた）。
 - 色の判別性は値で検証した: 背景とのコントラストは light 5.02:1 / dark 13.37:1（WCAG AA 4.5:1 を満たす）、

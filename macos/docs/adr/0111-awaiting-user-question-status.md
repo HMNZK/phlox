@@ -33,8 +33,8 @@ onChange により即 `markCompletionSeen` されるため、hasUnseenCompletion
 ## 結果
 
 - ADR 0107 は superseded（ラッチ・通知経路の記述は本 ADR に引き継ぎ）。
-- 契約: `AcceptanceUserQuestionStatusTests`・`AcceptanceSessionAttentionPolicyTests`・
-  `AcceptanceUserQuestionFormTests`（凍結）。旧 `AcceptanceUserQuestionAttentionTests` も
+- 契約: `AcceptanceUserQuestionStatusTests`・`SessionAttentionPolicyTests`・
+  `UserQuestionFormModelTests`（凍結）。旧 `UserQuestionSessionTests`（旧 `AcceptanceUserQuestionAttentionTests`）も
   通知1回・ラッチ解除の回帰として green を維持。
 - 制約: `.awaitingUserQuestion` は escape/interrupt 判定（`isRunning`）・入力可否・
   ライブセッション判定（CompositionRoot.isLiveChatSession）で running 系として扱う。

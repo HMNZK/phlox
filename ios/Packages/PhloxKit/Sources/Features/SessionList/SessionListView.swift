@@ -12,9 +12,6 @@ public enum SessionListHeaderCopy {
 /// セッション一覧画面（カンプ② / ⑩）。状態に応じて表示を切り替える。
 public struct SessionListView: View {
     public static let listTitle = "Projects"
-    public static let providesPerProjectAddSessionRow = true
-    public static let providesSpawnFAB = false
-    public static let providesListSubtitle = false
 
     @Bindable var viewModel: SessionListViewModel
     @Environment(\.scenePhase) private var scenePhase

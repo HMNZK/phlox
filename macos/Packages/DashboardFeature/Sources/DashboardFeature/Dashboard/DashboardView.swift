@@ -1039,7 +1039,7 @@ public struct DashboardView: View {
                     message: AppLocalizedString.string("シェルを終了します。実行中のコマンドも止まります。", locale: locale)
                 )
             }
-        case .file(let path) where FileTabDocumentRegistry.shared.hasUnsavedChanges(for: sessionID, path: path):
+        case .file(let path) where FileTabDocumentRegistry.shared.closeDecision(for: sessionID, path: path) == .confirm:
             pendingChildClose = PendingChildClose(
                 sessionID: sessionID,
                 tab: tab,

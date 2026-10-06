@@ -29,7 +29,7 @@ wave-5 task-1 で `DSVoiceInputController`（`VoiceInputRecognizing` 抽象＋�
 ## 結果
 
 - 2機序（TCC 完了ブロックのスレッド境界違反・`installTap` の不正フォーマット例外）はいずれも、危険 API を呼ぶ前のガードで到達不能になった。
-- `DSVoiceAudioFormatValidator`／`DSVoiceRecognitionSetupState` はユニットテストで直接検証可能（`DSVoiceInputControllerWave6Tests`）: 有効/無効なサンプルレート・チャンネル数・`isStandard` の組み合わせ、再入禁止と資源解放後の再開始許可。
+- `DSVoiceAudioFormatValidator`／`DSVoiceRecognitionSetupState` はユニットテストで直接検証可能（`DSVoiceInputSetupTests`）: 有効/無効なサンプルレート・チャンネル数・`isStandard` の組み合わせ、再入禁止と資源解放後の再開始許可。
 - stage-2 レビューで Apple ヘッダの記述と突き合わせ、メインスレッド機序の妥当性を裏取り済み（decision-log wave-6 フェーズ2/3/4）。
 - **未検証**: 実機での実録音成功経路（`swift test` は macOS ホスト実行のため iOS 専用 `SFSpeechRecognizer` 系コードはコンパイル対象外で、確認できるのは iOS シミュレータビルドの通過まで）。実機でクラッシュが再発しないことの確認は本 run では行えていない（実機クラッシュログ取得手段が無いままの機序特定であるため、この点は次回実機検証で裏取りが必要）。
 

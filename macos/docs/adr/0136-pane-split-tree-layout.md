@@ -118,9 +118,9 @@ SwiftUI の overlay より前面に出るため、`.overlay` で置いた分割�
 | `SessionGridArrangementWhiteboxTests` | 同上の内部不変条件 | `PaneTreeWhiteboxTests` |
 | `AcceptanceSessionGridCellFramesTests` | セル矩形・結合領域矩形が bounds と spacing に整合する | `AcceptancePaneTreeTests` の幾何節（最外周が bounds に接する・隣接間隔がちょうど spacing・退化ケース） |
 | `SessionGridCellFramesWhiteboxTests` | 同上の内部計算 | `PaneTreeGeometry` の白箱テスト |
-| `SessionGridLayoutTests` | `sessionGridDimensions` の列数決定 | `PaneLayoutPresets`（`.balanced` が ⌈√N⌉ 列を作る）を `AcceptancePaneLayoutPresetMenuTests` で検証 |
-| `AcceptanceGridArrangementVMTests` | VM が配置を保持・reconcile・永続化する | `AcceptancePaneLayoutVMTests` / `ContractPaneLayoutPersistenceTests` |
-| `GridArrangementVMWhiteboxTests` | 同上の内部経路 | `AcceptancePaneLayoutVMTests` |
+| `SessionGridLayoutTests` | `sessionGridDimensions` の列数決定 | `PaneLayoutPresets`（`.balanced` が ⌈√N⌉ 列を作る）を `PaneLayoutPresetMenuTests` で検証 |
+| `AcceptanceGridArrangementVMTests` | VM が配置を保持・reconcile・永続化する | `PaneLayoutVMTests` / `PaneLayoutStoreTests` |
+| `GridArrangementVMWhiteboxTests` | 同上の内部経路 | `PaneLayoutVMTests` |
 | `AcceptanceGridSelectionFocusTests` の枠ポリシー配線テスト | タイルの枠決定が `GridTileBorderPolicy` 経由であること | 同テストを維持し、走査先を `SessionGridView.swift` → `PaneLayoutView.swift` に付け替えた |
 
 ### 受容した残余（直さないと決めたもの）

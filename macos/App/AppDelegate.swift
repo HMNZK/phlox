@@ -6,8 +6,7 @@ import DashboardFeature
 @MainActor
 extension AppDelegate {
     func shutdownUserTerminal() async {
-        await userTerminalController?.shutdown()
-        await sessionUserTerminals?.shutdownAll()
+        await shutdownUserTerminals(common: userTerminalController, sessions: sessionUserTerminals)
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

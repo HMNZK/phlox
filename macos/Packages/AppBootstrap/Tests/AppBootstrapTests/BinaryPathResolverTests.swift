@@ -68,4 +68,14 @@ import Testing
 
         #expect(resolved == nil)
     }
+
+    /// 64KB（パイプ既定）超の stdout でも deadlock せず全量を読み取る。
+    @Test func runAndReadStdoutDoesNotDeadlockOnLargeOutput() throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", "head -c 200000 /dev/zero | tr '\\0' 'A'"]
+
+        let output = BinaryPathResolver.runAndReadStdout(process)
+        #expect(output?.count == 200_000, "64KB 超の stdout が全量読み取れていない（deadlock/切り詰め）")
+    }
 }

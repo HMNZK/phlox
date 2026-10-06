@@ -91,7 +91,7 @@ push / PR まで進めたい」という一連の作業を製品の外（CLI）�
   続けて push / PR 作成へ進める。
 - 0150 の読み取り不変条件（意味論的状態を変えない・`save` 以外で
   `git add` 等を発行しない）は `WorkingTreeService` 側に残る。
-- 回帰保護: `AcceptanceGitWorkflowTests`（入力検証・部分コミット・失敗出力保全・
-  push・`gh` 不在）と `GitWorkflowWhiteboxTests`（他ステージ保全・特殊パス・
+- 回帰保護: `GitWorkflowTests`（入力検証・部分コミット・失敗出力保全・
+  push・`gh` 不在・他ステージ保全・特殊パス・
   削除済み・失敗出力の原因文字列・壊れた symlink）。
   `GitCommitPanel` の固有高は `NSHostingView.fittingSize` の軽量白箱で予算内であることを固定する。

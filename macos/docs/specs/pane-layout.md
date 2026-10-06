@@ -62,6 +62,5 @@ last-verified: 2026-09-24
 ## 受け入れテスト
 
 `architecture/session-pane-layout.md` の「テスト」節を参照。
-FR1/FR2 は `AcceptancePaneLayoutPresetMenuTests`、FR3/NFR1 は `AcceptancePaneDividerDragTests` と
-`ContractPaneDividerCommitTests`、FR4/FR5/NFR2 は `AcceptancePaneLayoutViewTests`、
-FR6/FR7/FR8/NFR5 は `AcceptancePaneLayoutVMTests` と `ContractPaneLayoutPersistenceTests` が固定する。
+FR1/FR2 は `PaneLayoutPresetMenuTests`、FR3/NFR1 は `PaneDividerDragTests`、FR4/FR5/NFR2 は `PaneLayoutViewTests`、
+FR6/FR7/FR8/NFR5 は `PaneLayoutVMTests` と `PaneLayoutStoreTests` が固定する。

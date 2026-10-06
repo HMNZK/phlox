@@ -190,7 +190,7 @@ public enum NormalizedChatEvent: Equatable, Sendable {
     case processExited(exitCode: Int32?)
     /// 会話履歴の圧縮（compaction）境界。Claude Code stream-json の
     /// `system/compact_boundary` に対応する（phlox-ux-5fixes task-2 契約。
-    /// 受け入れテスト AcceptanceCompactBoundaryTests / AcceptanceCompactingIndicatorTests が凍結）。
+    /// 受け入れテスト CompactBoundaryTests / CompactingIndicatorTests が凍結）。
     /// trigger は "auto" | "manual"（未知値はそのまま透過）、preTokens は圧縮前トークン数。
     case compactionBoundary(trigger: String?, preTokens: Int?)
     /// AskUserQuestion（control_request can_use_tool）が届いた。UI は質問カードを表示し、
@@ -200,7 +200,7 @@ public enum NormalizedChatEvent: Equatable, Sendable {
     case userQuestionResolved(requestId: String, outcome: ChatUserQuestionOutcome)
     /// タスクリスト（Claude Code の TodoWrite / TaskCreate / TaskUpdate）の最新スナップショット。
     /// 生成側（各 AgentKit）が差分/全量を還元し、常に「現在のリスト全量」を yield する
-    /// （tasks/task-2.md 契約。受け入れテスト AcceptanceClaudeTaskListEventTests が凍結）。
+    /// （tasks/task-2.md 契約。受け入れテスト ClaudeTaskListEventTests が凍結）。
     case taskListUpdated(tasks: [AgentTaskItem])
     /// Claude Code stream-json の system/init の slash_commands に対応する利用可能コマンド名の
     /// 全量スナップショット。名前は先頭の `/` を含まない素の名前で、受け取った順序のまま運ぶ。

@@ -70,8 +70,8 @@ CLI の更新でずれ続ける（実際に 2.1.218 → 2.1.220 の間でずれ�
 ## 結果
 
 - 凍結テスト: `AcceptanceAvailableCommandsEventTests`（StructuredChatKit）・
-  `AcceptanceInitSlashCommandsTests`（ClaudeAgentKit）・
-  `AcceptanceBuiltinSlashCommandsTests` / `AcceptanceComposerAvailableCommandsTests`
+  `InitSlashCommandsTests`（ClaudeAgentKit）・
+  `AcceptanceBuiltinSlashCommandsTests` / `ComposerAvailableCommandsTests`
   （SessionFeature）。
 - 旧契約を符号化していた `BuiltinSlashCommandsWhiteboxTests` は削除し、
   `AcceptanceBuiltinSlashCommandsTests` は「13 件が**無い**こと・10 件が有ること・

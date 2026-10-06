@@ -2,7 +2,7 @@ import Foundation
 import StructuredChatKit
 
 /// 送信済みユーザーメッセージに紐づく添付画像のメタ情報（task-7 契約。
-/// 受け入れテスト ChatFixTask7AttachmentBadgeAcceptanceTests が凍結）。
+/// 受け入れテスト ChatAttachmentBadgeTests が凍結）。
 /// 画像バイトは保持しない（バッジ表示用のメタのみ。ストレージ肥大の防止）。
 public struct ChatUserAttachment: Equatable, Codable, Sendable {
     public let filename: String?
@@ -44,7 +44,7 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
         timestamp: Date
     )
     /// エージェントのタスクリストカード（tasks/task-2.md 契約。受け入れテスト
-    /// AcceptanceTaskListCardTests が凍結）。transcript 内に 1 セッションあたり
+    /// TaskListCardTests が凍結）。transcript 内に 1 セッションあたり
     /// 1 枚だけ置かれ、taskListUpdated のたびに最新スナップショットへ置換される。
     case taskList(id: String, tasks: [StructuredChatKit.AgentTaskItem], timestamp: Date)
 

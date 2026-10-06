@@ -27,6 +27,6 @@ last-verified: 2026-07-12
 
 ## 結果
 
-- 受け入れテスト `AcceptanceSubAgentStopParityTests`（5件・凍結）と白箱 `SubAgentStopWhiteboxTests`（4件）が契約を固定。
+- `SubAgentStopTests` が契約を固定。
 - 独立レビュー（persona-reviewer / Codex 二段）で多重発火・世代境界の2欠陥を検出し修正（経緯は delivery/0047）。
 - 既知の限界: ターン間の `client.interrupt()`（クロード系は CLI プロセスへの SIGINT）がバックグラウンドのサブエージェントを実際に止めるかは**実 CLI では未検証**（フェイク CLI 契約と実機 runtime 検証は worklog 0047 の残項目参照）。

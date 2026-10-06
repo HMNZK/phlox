@@ -28,5 +28,5 @@ last-verified: 2026-07-10
 
 ## 結果
 
-- 受け入れテスト: AcceptanceContextWindowTests（ClaudeAgentKit）・AcceptanceContextUsageTests（CodexAppServerKit）・AcceptanceComposerContextIndicatorTests（DashboardFeatureTests）が凍結。
+- 受け入れテスト: ContextWindowTests（ClaudeAgentKit）・ContextUsageTests（CodexAppServerKit）・ComposerContextIndicatorTests（DashboardFeatureTests）が固定。
 - 制約: Claude はターン完了時のみ更新（ターン中のライブ更新イベントが無い）。Codex の last/total は近似であり厳密なウィンドウ占有ではない。

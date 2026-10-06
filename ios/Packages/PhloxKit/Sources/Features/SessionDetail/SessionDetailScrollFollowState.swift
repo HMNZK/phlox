@@ -3,7 +3,7 @@ import Foundation
 /// セッション詳細の「開いたら最下部（最新）／以降は最下部付近だけ追従」を決める状態。
 ///
 /// 公開面は PM が凍結した契約面（task-1 の入出力契約）。振る舞いの実装は task-1 が行う。
-/// 契約の正本: Tests/FeaturesTests/AcceptanceSessionViewUXTests.swift
+/// 契約の正本: Tests/FeaturesTests/SessionDetailViewUXTests.swift
 public struct SessionDetailScrollFollowState {
     /// 初回スクロールを実施済みか。View は判定を呼ぶ前に読み、初回だけ即時スクロールする。
     public private(set) var hasPerformedInitialScroll = false

@@ -116,3 +116,17 @@ import Testing
         #expect(text?.hasSuffix("\r\n\r\n") == true)
     }
 }
+
+@Suite struct ContentLengthParsingTests {
+    /// 負値の Content-Length は無効（nil）。
+    @Test func negativeContentLengthIsInvalid() {
+        let header = "POST /x HTTP/1.1\r\nContent-Length: -5"
+        #expect(HTTPMessageParser.contentLength(in: header) == nil)
+    }
+
+    /// 正値は抽出できる。
+    @Test func nonNegativeContentLengthStillParsed() {
+        #expect(HTTPMessageParser.contentLength(in: "POST /x HTTP/1.1\r\nContent-Length: 0") == 0)
+        #expect(HTTPMessageParser.contentLength(in: "POST /x HTTP/1.1\r\nContent-Length: 42") == 42)
+    }
+}

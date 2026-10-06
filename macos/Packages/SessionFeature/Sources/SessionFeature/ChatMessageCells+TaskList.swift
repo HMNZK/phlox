@@ -3,7 +3,7 @@ import StructuredChatKit
 import DesignSystem
 
 /// エージェントのタスクリストカード（tasks/task-2.md 契約。受け入れテスト
-/// AcceptanceTaskListCardTests が凍結）。transcript 内に 1 枚だけ置かれ、
+/// TaskListCardTests が凍結）。transcript 内に 1 枚だけ置かれ、
 /// taskListUpdated のたびに最新スナップショットへ差し替わる。
 ///
 /// スケルトン（フェーズ1 凍結公開面）: 表示実装は task-2 が行う。

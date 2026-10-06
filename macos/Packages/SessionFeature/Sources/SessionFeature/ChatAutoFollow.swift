@@ -43,7 +43,7 @@ final class ChatAutoFollowController {
     /// セッションを切り替えた（別セッションを開いた）。追従状態を初期状態へ戻す。
     ///
     /// 公開面は PM が凍結した契約面（task-3 の入出力契約）。振る舞いの実装は task-3 が行う。
-    /// 契約の正本: Tests/SessionFeatureTests/AcceptanceChatOpenAtBottomTests.swift
+    /// 契約の正本: Tests/SessionFeatureTests/ChatOpenAtBottomTests.swift
     func sessionDidChange() {
         state = .following
     }

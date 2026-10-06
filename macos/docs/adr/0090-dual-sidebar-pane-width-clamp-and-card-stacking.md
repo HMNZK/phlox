@@ -26,4 +26,4 @@ Dashboard のメインウィンドウは自前の3ペイン実装（`GeometryRea
 
 - 実行時検証（`NSHostingView` ホスト描画）: 窓 900pt で 280/300→260/240 へ自動クランプされ右サイドバーが右端まで表示、detail 400pt でカードは縦積み。窓 1400pt ではクランプなし・横並び。
 - 検証機構の教訓: `ImageRenderer` は macOS の `ScrollView` 内容を描画せず、`onChange`/`@State` の更新ループも回らない。**ビュー配線の検証は `NSHostingView` + `cacheDisplay`**（実 SwiftUI ランタイム）を使う。純関数テストの green だけでは配線の不具合を検出できないため、実ビュー描画の配線テストを受け入れ配下に常設した。
-- 契約面: `PaneWidthPolicy` / `AgentStartCardsLayoutPolicy` の定数・シグネチャは受け入れテスト（`AcceptancePaneWidthPolicyTests` / `AcceptanceAgentStartCardsLayoutTests`）が凍結する。
+- 契約面: `PaneWidthPolicy` / `AgentStartCardsLayoutPolicy` の定数・シグネチャは受け入れテスト（`AcceptancePaneWidthPolicyTests` / `AgentStartCardsLayoutTests`）が固定する。

@@ -108,6 +108,47 @@ private func collectExitCode(from stream: AsyncStream<Int32>) async -> Int32? {
     }
 }
 
+/// 長い timeout で terminateAllAndWait を走らせ途中でキャンセルしても、
+/// CancellationError を握りつぶして deadline までビジーループせず、即 SIGKILL パスへ抜けて短時間で復帰する。
+@Test func terminateAllAndWaitEscalatesPromptlyOnCancellationInsteadOfHotSpinning() async throws {
+    let manager = PTYManager()
+    // SIGTERM を無視して生き続ける子。SIGKILL でのみ死ぬ。
+    let id = try await manager.spawn(
+        command: "/bin/sh",
+        args: ["-c", "trap '' TERM; echo READY; sleep 30"],
+        env: testEnv
+    )
+    let pid = try #require(await manager.pid(for: id))
+    let ready = await collectOutput(from: manager.outputStream(for: id)) { $0.contains("READY") }
+    #expect(ready.contains("READY"))
+
+    // 長い timeout で起動し、SIGTERM grace ループに入ったところでキャンセルする。
+    let start = ContinuousClock.now
+    let task = Task {
+        await manager.terminateAllAndWait(timeout: .seconds(10))
+    }
+    try await Task.sleep(for: .milliseconds(300))
+    task.cancel()
+    await task.value
+    let elapsed = ContinuousClock.now - start
+
+    // ホットスピンで deadline（~10s）まで返らず、キャンセル時は即 SIGKILL で速やかに復帰する。
+    #expect(
+        elapsed < .seconds(3),
+        "terminateAllAndWait must escalate to SIGKILL promptly on cancellation, not hot-spin until timeout (elapsed=\(elapsed))"
+    )
+
+    // キャンセル経路でも SIGKILL が送られ、子は最終的に死ぬ（reap まで少し待つ）。
+    var alive = true
+    for _ in 0..<50 {
+        if !Posix.isAlive(pid: pid) { alive = false; break }
+        try await Task.sleep(for: .milliseconds(100))
+    }
+    #expect(alive == false, "cancellation must escalate to SIGKILL")
+
+    await manager.terminateAllAndWait(timeout: .seconds(2))
+}
+
 @Test func writeAfterTerminateAllAndWaitThrowsSessionNotFound() async throws {
     try await withTimeout(seconds: 10) {
         let manager = PTYManager()

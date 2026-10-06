@@ -40,5 +40,5 @@ Codex の行は「空カタログでも agent-only 行を必ず持つ」とい�
 
 ## 結果
 
-- `DraftSelectionStabilityWhiteboxTests` / `AcceptanceDraftSelectionStabilityTests` で、Cursor→Codex / Claude→Codex / Claude→Cursor / Cursor→Claude の 4 パターンのすり替わりが起きないことを検証した。修正前はこの 4 件が赤になる（PM が修正前ツリーで確認済み）。
+- `DraftSelectionStabilityTests` で、Cursor→Codex / Claude→Codex / Claude→Cursor / Cursor→Claude の 4 パターンのすり替わりが起きないことを検証した。修正前はこの 4 件が赤になる（PM が修正前ツリーで確認済み）。
 - **受け入れテストのハーネス自体に欠陥があった**（PM の誤り）。`sendMessage()` を引数なしで呼ぶと 2 回目の `prepareDraft` が走らず、バグを再現できていなかった。`sendMessage(composeDraft:)` へ修理して初めて 4 件が赤になった。実装役はハーネスを書き換えず、再現しない事実をそのまま報告して正しかった。

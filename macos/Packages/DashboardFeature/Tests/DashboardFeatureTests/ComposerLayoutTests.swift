@@ -3,24 +3,28 @@ import CoreGraphics
 @testable import DashboardFeature
 @testable import SessionFeature
 
-/// task-5 白箱テスト — `ComposerLayout.maxWidth` の数式・境界の回帰ガード。
-/// 2026-09-26 ユーザー決定で「90%・上限 760」から「80%・上限なし」へ。
-@Suite("ComposerLayout whitebox")
+/// `ComposerLayout.maxWidth` の数式・境界。composer 幅は親から演繹された幅のみを入力とする純関数で、
+/// 計測→@State→レイアウトの往復を持たない（自励発振の再発防止）。
+/// 2026-09-26 ユーザー決定: 「90%・上限 760」から「80%・上限なし」へ。
+@Suite("ComposerLayout")
 struct ComposerLayoutTests {
 
     @Test
-    func oldBoundaryIsEightyPercent() throws {
-        // 旧境界（800 / 0.6 ≈ 1333.333…）でも同じ割合。
-        let column = 800 / 0.6
-        let w = try #require(ComposerLayout.maxWidth(mainColumnWidth: column))
-        #expect(abs(w - column * 0.8) < 0.001)
+    func zeroWidthFallsBackToNil() {
+        // 初回フレーム（幅未確定）は制約なし。
+        #expect(ComposerLayout.maxWidth(mainColumnWidth: 0) == nil)
     }
 
     @Test
-    func epsilonBelowOldBoundaryIsEightyPercent() throws {
-        let column = (800 / 0.6) - 1
-        let w = try #require(ComposerLayout.maxWidth(mainColumnWidth: column))
-        #expect(abs(w - column * 0.8) < 0.001)
+    func negativeWidthFallsBackToNil() {
+        // 演繹式のクランプ前提が崩れても破綻しない。
+        #expect(ComposerLayout.maxWidth(mainColumnWidth: -50) == nil)
+    }
+
+    @Test
+    func narrowColumnIs80PercentOfWidth() throws {
+        let w = try #require(ComposerLayout.maxWidth(mainColumnWidth: 500))
+        #expect(abs(w - 400) < 0.001)
     }
 
     @Test
@@ -30,8 +34,11 @@ struct ComposerLayoutTests {
     }
 
     @Test
-    func narrowColumnIs80PercentOfWidth() throws {
-        let w = try #require(ComposerLayout.maxWidth(mainColumnWidth: 500))
-        #expect(abs(w - 400) < 0.001)
+    func oldBoundaryHasNoJump() throws {
+        // 旧境界（約 1333）の前後でも同じ割合: 親を広げた際の急減が無い。
+        let below = try #require(ComposerLayout.maxWidth(mainColumnWidth: 1332))
+        let above = try #require(ComposerLayout.maxWidth(mainColumnWidth: 1334))
+        #expect(abs(below - 1065.6) < 0.001)
+        #expect(abs(above - 1067.2) < 0.001)
     }
 }

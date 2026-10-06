@@ -34,7 +34,7 @@ public extension SessionChangeScope {
 
 /// 選択中セッションから、変更一覧の対象スコープを導く（task-3 契約）。
 ///
-/// 受け入れテスト `AcceptanceSessionChangeScopeTests` が凍結する。
+/// 受け入れテスト `SessionChangeScopeTests` が凍結する。
 /// 共有判定は `WorkspaceCollisionPolicy.activePeers` に委譲する。
 public enum SessionChangeScopeResolver {
     /// - Parameters:

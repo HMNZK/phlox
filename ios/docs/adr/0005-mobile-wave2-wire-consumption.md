@@ -28,7 +28,7 @@ last-verified: 2026-07-15
 
 ## 結果
 
-- `Wave2WireDecodeContractTests` が `AgentModels`/`CLIUsage` の decode 契約と、両者が `TurnUsage` と混同されないことを凍結。
+- `DomainModelTests`（PhloxCore）・`ProjectCatalogUsageClientTests`（PhloxNetworking）が `AgentModels`/`CLIUsage` の decode 契約と、両者が `TurnUsage` と混同されないことを凍結。
 - spawn 時のモデル取得・Usage 画面の取得はいずれもグレースフルデグレード（機能非表示・空表示）に倒れ、既存のモデルチップ非表示パターンと UX 上一貫する。
 
 ## 却下した代替案

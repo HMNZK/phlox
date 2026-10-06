@@ -90,11 +90,11 @@ last-verified: 2026-07-28
 
 | ファイル | 固定している性質 |
 |---|---|
-| `AcceptancePaneTreeTests` | モデルの不変条件・操作の純粋性・幾何（bounds への接触・spacing・退化ケース） |
-| `ContractPaneTreeCodableTests` | `Codable` の往復とスキーマ互換 |
-| `AcceptancePaneDividerDragTests` / `ContractPaneDividerCommitTests` | `changed` が決してレイアウト操作を返さないこと（ADR 0116 の防壁） |
-| `AcceptancePaneTileClickSelectionTests` | タイル矩形内クリックでの選択条件（半開区間・選択済みなら非発火・矩形未確定なら非発火） |
+| `PaneTreeTests` | モデルの不変条件・操作の純粋性・幾何（bounds への接触・spacing・退化ケース） |
+| `PaneTreeCodableTests` | `Codable` の往復とスキーマ互換 |
+| `PaneDividerDragTests` | `changed` が決してレイアウト操作を返さないこと（ADR 0116 の防壁） |
+| `PaneTileClickSelectionTests` | タイル矩形内クリックでの選択条件（半開区間・選択済みなら非発火・矩形未確定なら非発火） |
 | `AcceptancePaneTileClickPassthroughTests` | ローカル監視が左マウスダウンを消費しないこと（ADR 0153 の防壁） |
-| `AcceptancePaneLayoutViewTests` | 描画の制約（フラット ZStack・`.id`・禁止修飾子・純粋型経由・`.draggable` の適用順） |
-| `AcceptancePaneLayoutVMTests` / `ContractPaneLayoutPersistenceTests` | 永続ツリーと実効ツリーの分離・書き込み経路・永続化の往復 |
-| `AcceptancePaneLayoutPresetMenuTests` | プリセットの一覧と幾何、トップバーとグリッドへの配線 |
+| `PaneLayoutViewTests` / `PaneLayoutViewHostedTests` | 描画の制約（フラット ZStack・`.id`・禁止修飾子・純粋型経由・`.draggable` の適用順） |
+| `PaneLayoutVMTests` / `PaneLayoutStoreTests` | 永続ツリーと実効ツリーの分離・書き込み経路・永続化の往復 |
+| `PaneLayoutPresetMenuTests` | プリセットの一覧と幾何、トップバーとグリッドへの配線 |

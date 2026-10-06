@@ -40,9 +40,9 @@ ADR 0136 の「撤去した受け入れテストと引き継ぎ先」の対応�
 
 | 撤去した旧テスト | 後継 |
 |---|---|
-| `AcceptanceSessionGridArrangementTests.swift`（配置モデル） | `AcceptancePaneTreeTests.swift` |
-| `AcceptanceSessionGridCellFramesTests.swift`（セル/結合矩形） | `AcceptancePaneTreeTests.swift` の幾何節 |
-| `AcceptanceGridArrangementVMTests.swift`（VM の配置 API・永続化） | `AcceptancePaneLayoutVMTests.swift` / `ContractPaneLayoutPersistenceTests.swift` |
+| `AcceptanceSessionGridArrangementTests.swift`（配置モデル） | `PaneTreeTests.swift` |
+| `AcceptanceSessionGridCellFramesTests.swift`（セル/結合矩形） | `PaneTreeTests.swift` の幾何節 |
+| `AcceptanceGridArrangementVMTests.swift`（VM の配置 API・永続化） | `PaneLayoutVMTests.swift` / `PaneLayoutStoreTests.swift` |
 
 ## スコープ外
 

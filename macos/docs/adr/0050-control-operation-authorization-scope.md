@@ -41,5 +41,5 @@ last-verified: 2026-07-08
 
 - 任意 rename の IDOR write ベクタが塞がれた。read の operator モデルは維持され E2E を壊さない。
 - 回帰は「未認可 requester の rename→403 かつ renameSession 未呼び出し」「未認可でも read 系は従来どおり
-  （403 にしない）」を両方向で固定（`AppBootstrap/AuditRegressionTests`）。
+  （403 にしない）」を両方向で固定（`AppBootstrap/ControlActionHandlerTests`）。
 - モバイル/ローカル（requester=nil）・モバイルトークン（特権 requester）は従来どおり全操作可能。

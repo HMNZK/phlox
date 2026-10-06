@@ -8,9 +8,6 @@ public struct DSSessionRow: View {
     /// セッション行アバター寸法（design.md §2.3 / カンプ②）。
     public static let agentBadgeSize: CGFloat = DSCampAgentBadge.sessionRowSize
     public static let agentBadgeCornerRadius: CGFloat = DSCampAgentBadge.sessionRowCornerRadius
-    /// テスト用契約（Task1AcceptanceTests · task-1）: 行バッジがブランド SVG（DSAgentAvatar）で
-    /// 描画されるとき true。実装（body の差し替え）と同時に反転すること。
-    public static let agentBadgeUsesBrandArtwork = true
 
     let session: Session
     let now: Date

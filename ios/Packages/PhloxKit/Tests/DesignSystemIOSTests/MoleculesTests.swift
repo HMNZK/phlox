@@ -263,7 +263,7 @@ final class MoleculesTests: XCTestCase {
 
     // MARK: - DSChatBubble (DP-2-6 / カンプ⑦)
     // 配色（背景・前景）の契約は task-2 で macOS 揃えに仕様変更され、
-    // Task2AcceptanceTests へ移管した（旧: グラデ背景・campSurfaceEmphasis・textOnBrand）。
+    // DSChatBubbleStyleTests へ移管した（旧: グラデ背景・campSurfaceEmphasis・textOnBrand）。
 
     func testChatBubbleAlignmentReflectsRole() {
         XCTAssertEqual(DSChatBubble.horizontalAlignment(for: .agent), .leading)

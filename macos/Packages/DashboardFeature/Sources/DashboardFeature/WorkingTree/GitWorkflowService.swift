@@ -15,7 +15,7 @@ public enum GitWorkflowError: Error, Equatable {
 
 /// ワーキングツリーの変更を commit / push し、PR を作る（task-4 契約）。
 ///
-/// 受け入れテスト `AcceptanceGitWorkflowTests` が凍結する。
+/// 受け入れテスト `GitWorkflowTests` が凍結する。
 /// 読み取り専用の `WorkingTreeService` と対になる書き込み側（ADR 0169）。
 public actor GitWorkflowService {
     private let repositoryRoot: URL

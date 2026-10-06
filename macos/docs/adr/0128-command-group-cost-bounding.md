@@ -42,4 +42,4 @@ ADR 0127 で表示窓がブロック単位になった結果、**1つの `comman
 
 ## 凍結テスト
 
-- `macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceCommandGroupRowWindowTests.swift` — 5000件でもヘッダが正しい・展開直後の行数 ≤ 50・`hiddenRowCount`・単独空出力の描画・複数件全空出力の非描画
+- `macos/Packages/SessionFeature/Tests/SessionFeatureTests/CommandGroupRowWindowTests.swift` — 5000件でもヘッダが正しい・展開直後の行数 ≤ 50・`hiddenRowCount`・単独空出力の描画・複数件全空出力の非描画

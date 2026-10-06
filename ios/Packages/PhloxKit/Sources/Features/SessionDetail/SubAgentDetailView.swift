@@ -45,44 +45,41 @@ public struct SubAgentDetailView: View {
 
     @ViewBuilder
     private func chatRow(for message: ChatMessage) -> some View {
-        let copyText = ChatMessageCopyText.copyText(for: message)
+        let row = SubAgentDetailViewModel.rowText(for: message)
+        let copyText = row.copy
+        let display = row.display ?? ""
         switch ChatRowKind.forMessage(message) {
         case .userBubble:
-            if case let .user(_, text) = message {
-                let rendered = SubAgentDetailViewModel.renderedBody(text)
-                DSChatBubble(role: .user, message: renderedDisplayText(rendered), copyText: copyText)
+            if case .user = message {
+                DSChatBubble(role: .user, message: display, copyText: copyText)
             }
         case .agentBubble:
-            if case let .agent(_, text) = message {
-                let rendered = SubAgentDetailViewModel.renderedBody(text)
+            if case .agent = message {
                 DSChatBubble(
                     role: .agent,
-                    message: renderedDisplayText(rendered),
+                    message: display,
                     agentKind: viewModel.session.agent,
                     copyText: copyText
                 )
             }
         case .reasoning:
-            if case let .reasoning(_, text) = message {
-                let rendered = SubAgentDetailViewModel.renderedBody(text)
+            if case .reasoning = message {
                 chatRowWithCopy(copyText: copyText) {
-                    DSReasoningText(text: renderedDisplayText(rendered))
+                    DSReasoningText(text: display)
                 }
             }
         case .subAgent:
-            if case let .subAgent(_, text) = message {
-                let rendered = SubAgentDetailViewModel.renderedBody(text)
+            if case .subAgent = message {
                 chatRowWithCopy(copyText: copyText) {
-                    DSSubAgentRow(text: renderedDisplayText(rendered))
+                    DSSubAgentRow(text: display)
                 }
             }
         case .commandCard:
-            if case let .command(id, command, output) = message {
-                let rendered = SubAgentDetailViewModel.renderedBody(output)
+            if case let .command(id, command, _) = message {
                 chatRowWithCopy(copyText: copyText) {
                     SessionDetailCommandCard(
                         command: command,
-                        output: renderedDisplayText(rendered),
+                        output: display,
                         isExpanded: isMessageExpanded(id),
                         onToggle: { toggleMessageExpansion(id) }
                     )
@@ -100,10 +97,9 @@ public struct SubAgentDetailView: View {
                 }
             }
         case .error:
-            if case let .error(_, message) = message {
-                let rendered = SubAgentDetailViewModel.renderedBody(message)
+            if case .error = message {
                 chatRowWithCopy(copyText: copyText) {
-                    DSResultBanner(message: renderedDisplayText(rendered), isError: true)
+                    DSResultBanner(message: display, isError: true)
                 }
             }
         case .userQuestion:
@@ -122,17 +118,6 @@ public struct SubAgentDetailView: View {
         content()
             .frame(maxWidth: .infinity, alignment: .leading)
             .chatMessageCopyContextMenu(copyText: copyText)
-    }
-
-    private func renderedDisplayText(_ rendered: SubAgentDetailViewModel.RenderedBody) -> String {
-        guard rendered.omittedBytes > 0 else { return rendered.head }
-        return """
-        \(rendered.head)
-
-        表示を省略しました（\(rendered.omittedBytes) バイト）。コピーには全文が含まれます。
-
-        \(rendered.tail)
-        """
     }
 
     private func isMessageExpanded(_ messageID: String) -> Bool {

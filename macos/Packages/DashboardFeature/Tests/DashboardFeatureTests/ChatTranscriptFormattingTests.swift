@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import DashboardFeature
 @testable import SessionFeature
@@ -71,4 +72,25 @@ func diffLineClassifierClassifiesDeleteToolDiffLinesAsDeletion() {
         .deletion,
         .deletion,
     ])
+}
+
+// command == nil の commandExecution は "Command: " の空行を出力しない。
+@Test
+func plainText_commandExecutionWithNilCommand_hasNoEmptyCommandLine() {
+    let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
+    let withOutput = ChatItem.commandExecution(
+        id: "c1", command: nil, output: "hello", timestamp: timestamp
+    )
+    #expect(withOutput.plainText == "hello", "command==nil で 'Command: ' 行が混入: \(withOutput.plainText)")
+
+    let empty = ChatItem.commandExecution(
+        id: "c2", command: nil, output: "", timestamp: timestamp
+    )
+    #expect(empty.plainText.isEmpty, "command==nil・output 空で残骸が出力される: '\(empty.plainText)'")
+
+    // command がある場合は従来どおり。
+    let withCommand = ChatItem.commandExecution(
+        id: "c3", command: "ls", output: "a.txt", timestamp: timestamp
+    )
+    #expect(withCommand.plainText == "Command: ls\na.txt")
 }

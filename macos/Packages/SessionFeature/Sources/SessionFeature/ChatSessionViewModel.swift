@@ -186,7 +186,7 @@ public final class ChatSessionViewModel: Identifiable {
     /// （app-server 由来の `AppServerModel`）とは別に、alias/取得結果を素の文字列で保持する。
     public private(set) var availableSpawnAgentModels: [String] = []
     /// 会話履歴の圧縮（compaction）が進行中か（phlox-ux-5fixes task-2 契約のスタブ。
-    /// AcceptanceCompactingIndicatorTests が凍結。実装は task-2 が担う）。
+    /// CompactingIndicatorTests が凍結。実装は task-2 が担う）。
     public private(set) var isCompacting = false
     /// esc 履歴リバートピッカーの表示状態（task-9）。View はこれを observe して overlay を出す。
     public private(set) var isHistoryPickerPresented = false

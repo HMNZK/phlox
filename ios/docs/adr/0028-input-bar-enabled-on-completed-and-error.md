@@ -26,5 +26,5 @@ last-verified: 2026-07-26
 
 ## 結果
 
-- `ErrorInputBarWhiteboxTests` / `AcceptanceErrorInputBarTests` で、各 `SessionStatus` に対する `inputEnabled` の値を全数検証した（`starting` のみ false）。
+- `ErrorSessionInputBarTests` で、各 `SessionStatus` に対する `inputEnabled` の値を全数検証した（`starting` のみ false）。
 - **respawn 機構を持たないバックエンドでは、送信しても復帰しない可能性がある**。本 run の調査時点で Codex には respawn 機構が無い。その場合ユーザーは送信してエラーが返ることになるが、「入力欄が消えて何もできない」よりは改善である。Codex の respawn は本 run のスコープ外の申し送りとする。

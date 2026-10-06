@@ -18,7 +18,7 @@ wave-5 の実機検証で6件の追修正が必要と判明し、wave-6 のゲ�
 
 ## 決定
 
-- **外形をカードからピルへ**: `DSInputBar` のコンテナ形状を `RoundedRectangle`（`cardShape`）から `Capsule()` へ変更し、静的契約フラグを `providesCardChrome = false` / `providesPillChrome = true` に更新した（`DSInputBarWave6Tests.inputBarPublishesCompactNeutralPillContract` で凍結）。
+- **外形をカードからピルへ**: `DSInputBar` のコンテナ形状を `RoundedRectangle`（`cardShape`）から `Capsule()` へ変更し、静的契約フラグを `providesCardChrome = false` / `providesPillChrome = true` に更新した（当初は `DSInputBarWave6Tests` のフラグ検査で凍結したが、定数だけを主張するテストのため後の整理で削除した。アクション状態は `DSInputBarActionStateTests`）。
 - **1行レイアウトへの統合**: 写真添付ボタン・プレースホルダ付きテキストフィールド・モデルセレクタスロット・マイクボタン・送信/停止アクションボタンを、`pillRow` という単一の `HStack` に横並びにした。旧来は「ドラッグハンドル／selectorRow（モデルセレクタ＋branch）／テキストフィールド／ボタン行」の縦積みだった。
 - **送信⇄停止を同一スロットへ統合**: `DSInputBarActionState`（`.none` / `.send(isEnabled:)` / `.stop`）を新設し、`DSInputBar.actionState(text:isLoading:isRunning:)` が「実行中なら常に `.stop`」「テキストが空なら `.none`」「それ以外は `.send`」の優先順位で状態を決める。`actionButton` がこの状態に応じて送信ボタンと停止ボタンを排他的に描画する。`SessionDetailView` 側の別置き `stopButton`（`DSInputBar` の外に配置していた実装）を廃止し、`SessionDetailView` は `isRunning: viewModel.currentStatus == .running && viewModel.canInterrupt` と `onStop` クロージャを `DSInputBar` に渡すだけになった。
 - **フォーカス枠の中立化**: フォーカス時に `DSColor.accent` で強調していた `cardBorderColor` を廃止し、フォーカス有無に関わらず `DSColor.campCardBorder` 固定の `pillBorderColor` にした（`usesNeutralFocusBorder = true` / `usesAccentFocusBorder = false` の契約フラグで表明）。送信ボタンのグロー演出（`dsShadow(canSubmit ? DSShadow.fabGlow : ...)`）も削除し、`DSColor.accent` 単色背景に簡素化した。
@@ -30,7 +30,7 @@ wave-5 の実機検証で6件の追修正が必要と判明し、wave-6 のゲ�
 
 - 入力欄の視覚がカード型からコンパクトなピル型へ変わり、実行中は送信ボタンと同じ位置に停止ボタンが表示される（別置きの停止ボタンは廃止）。
 - フォーカス時の枠色変化が無くなり、フォーカス切替による強調のちらつきが減った。
-- `DSInputBarWave5Tests` は `providesCardChrome` の主張を `!providesCardChrome` へ反転しつつ、`providesDragToDismiss`／`providesVoiceInput`／`usesFocusState`／`providesInlineModelSelectorSlot` という wave-5 由来の契約は維持されることを確認する形に更新された（`inputBarPreservesWave5InteractionsWithoutLegacyCardChrome`）。新規 `DSInputBarWave6Tests` がアクション状態遷移とピル/中立枠契約を凍結する。
+- `DSInputBarWave5Tests` は `providesCardChrome` の主張を `!providesCardChrome` へ反転しつつ、`providesDragToDismiss`／`providesVoiceInput`／`usesFocusState`／`providesInlineModelSelectorSlot` という wave-5 由来の契約は維持されることを確認する形に更新された（`inputBarPreservesWave5InteractionsWithoutLegacyCardChrome`）。新規 `DSInputBarWave6Tests` がアクション状態遷移とピル/中立枠契約を凍結した（後の整理で `DSInputBarWave5Tests` / `DSInputBarWave6Tests` は `DSInputBarActionStateTests` に統合し、フラグのみを主張するテストは削除した）。
 - **未検証**: ピル型 UI の実機体感（タップ領域の実感・視覚バランス）は本 run では確認できていない（統合検証はシミュレータビルド＋wave-5 XCUITest の再実走まで）。
 
 ## 却下した代替案

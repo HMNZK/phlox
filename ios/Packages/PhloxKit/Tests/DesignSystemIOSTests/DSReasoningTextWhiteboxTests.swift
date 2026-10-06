@@ -4,9 +4,13 @@ import ChatRenderKit
 
 @Suite("DSReasoningText 白箱")
 struct DSReasoningTextWhiteboxTests {
-    @Test("表示データは ChatReasoningPresentation と一致する")
-    func presentationUsesSharedValue() {
-        let text = "  # 調査\n本文  "
+    @Test("表示データは ChatReasoningPresentation と一致する", arguments: [
+        "  # 調査\n本文  ",
+        "短い一文",
+        "# 見出し\n本文がある",
+        "   ",
+    ])
+    func presentationUsesSharedValue(_ text: String) {
         let shared = ChatReasoningPresentation(text: text)
         let presentation = DSReasoningText.presentation(for: text)
 

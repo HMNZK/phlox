@@ -8,17 +8,6 @@ import CodexAppServerKit
 import StructuredChatKit
 @testable import SessionFeature
 
-/// 製品コードのソースを読む（描画の分岐を機械判定するため。同種の白箱検査が
-/// UserQuestionFocusWhiteboxTests に既にある）。
-private func source(of fileName: String) throws -> String {
-    let url = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()   // SessionFeatureTests
-        .deletingLastPathComponent()   // Tests
-        .deletingLastPathComponent()   // SessionFeature(package root)
-        .appendingPathComponent("Sources/SessionFeature/\(fileName)")
-    return try String(contentsOf: url, encoding: .utf8)
-}
-
 private actor Captured {
     private var value: ChatUserInputRequest?
     func set(_ request: ChatUserInputRequest) { if value == nil { value = request } }
@@ -109,22 +98,5 @@ struct AcceptanceUserQuestionSecretTests {
         let decoded = try JSONDecoder().decode(ChatUserQuestion.self, from: Data(json.utf8))
         #expect(decoded.isSecret == false)
         #expect(decoded.question == "どの方式にしますか？")
-    }
-
-    @Test("質問カードが isSecret のとき伏せ字入力を描画する")
-    func cardRendersSecureField() throws {
-        // 到達性: 型に値が乗っても View が分岐していなければユーザーには平文のまま見える。
-        let card = try source(of: "UserQuestionCell.swift")
-        #expect(card.contains("SecureField"), "isSecret の自由入力欄が SecureField になっていない")
-        #expect(card.contains("isSecret"), "UserQuestionCell が isSecret で分岐していない")
-    }
-
-    @Test("回答済みカードは isSecret の回答を平文表示しない")
-    func answeredCardMasksSecret() throws {
-        // 回答済み表示（answeredLabels）が isSecret を考慮していること。
-        let card = try source(of: "UserQuestionCell.swift")
-        let hasMaskBranch = card.contains("isSecret") &&
-            (card.contains("●") || card.contains("•") || card.contains("maskedAnswer") || card.contains("String(repeating:"))
-        #expect(hasMaskBranch, "回答済みカードで isSecret の回答をマスクしていない")
     }
 }

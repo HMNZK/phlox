@@ -66,7 +66,7 @@ Claude Code CLI は画像をペーストするとカーソル位置に `[Image #
 - 添付チップ／サムネイルに `#N` バッジが出て、本文のプレースホルダと1対1で対応する。本文からプレースホルダを
   消せば添付も外れる（逆も同じ）ので、対応が画面上で崩れない。
 - 画像添付は引き続き Claude のみ対応（`ComposerAttachmentCapability`）。他エージェントでは従来どおりテキストペーストへフォールバックする。
-- 既存のペースト経路 `SubmitAwareTextView.onPasteImage`（`ChatFixTask4PasteAcceptanceTests` が凍結）は残し、
+- 既存のペースト経路 `SubmitAwareTextView.onPasteImage`（`ChatImagePasteTests` が固定）は残し、
   番号を返す `onPasteImageOutcome` を**追加**して後方互換を保った。`onPasteImageOutcome` が設定されていればそちらが優先される。
 
 ## 関連

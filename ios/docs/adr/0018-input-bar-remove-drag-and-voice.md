@@ -22,7 +22,7 @@ ADR 0016（wave-6）のピル型入力欄は、上部に控えめなドラッグ
 - **音声入力ボタンを撤去**: `voiceInputButton`・`@State voiceInputController`・音声ステータス表示・`onDisappear` 停止処理・`submit()`/`stop()` 内の音声停止呼び出しを削除。契約フラグ `providesVoiceInput = false`。ラベル「音声入力を開始/停止」が消える。
 - **送信/停止を右スロットに常設**: `enum DSInputBarActionState` から `.none` を廃止し、`actionState(text:isLoading:isRunning:)` を「`isRunning → .stop` / それ以外 → `.send(isEnabled: canSubmit(text:isLoading:))`」に変更。`pillRow` は `[＋ | TextField | modelSelector | 送信/停止]`。空文字・送信不能時も送信ボタンは常設し、`.disabled(!canSubmit)` ＋ `opacity(0.45)` で無効・淡色表示する。
 - **維持**: 画像添付（PhotosPicker・最大4・添付ストリップ）／送信 `onSubmit`／実行中 `onStop`／モデルセレクタ差し込みスロット（`providesInlineModelSelectorSlot = true`）／中立フォーカス枠。`SessionDetailView` は API 不変で無変更。
-- **凍結オラクル**: 新契約を `Wave7InputBarContractTests`（PM 著・不変）で凍結。実装役編集可の `DSInputBarWave5Tests`（drag/voice フラグの主張を反転）・`DSInputBarWave6Tests`（空入力→`.send(isEnabled: false)`）を新契約へ整合（骨抜きではなく新デザインの反映）。
+- **凍結オラクル**: 新契約を `Wave7InputBarContractTests`（PM 著・不変）で凍結。実装役編集可の `DSInputBarWave5Tests`（drag/voice フラグの主張を反転）・`DSInputBarWave6Tests`（空入力→`.send(isEnabled: false)`）を新契約へ整合（骨抜きではなく新デザインの反映）。その後の整理で `Wave7InputBarContractTests` / `DSInputBarWave5Tests` / `DSInputBarWave6Tests` は `DSInputBarActionStateTests` に統合し、フラグのみを主張するテストは削除した（送信/停止の出し分けは `DSInputBarActionStateTests` が守る）。
 
 ## 結果
 

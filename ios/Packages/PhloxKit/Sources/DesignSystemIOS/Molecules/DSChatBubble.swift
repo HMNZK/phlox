@@ -14,11 +14,6 @@ public struct DSChatBubble: View {
     static let agentAvatarSize: CGFloat = DSCampAgentBadge.chatAvatarSize
     static let agentAvatarCornerRadius: CGFloat = DSCampAgentBadge.chatAvatarCornerRadius
 
-    /// 長押し contextMenu でコピーを提供する（task-5 契約）。
-    public static let providesLongPressCopy = true
-    /// 常時表示のコピーボタンは提供しない（task-5 契約）。
-    public static let providesAlwaysVisibleCopyButton = false
-
     let role: Role
     let message: String
     let attachmentImageCount: Int?
@@ -51,7 +46,7 @@ public struct DSChatBubble: View {
         false
     }
 
-    /// バブル背景色（テスト用契約 · Task2AcceptanceTests）。nil = 無背景。
+    /// バブル背景色（テスト用契約 · DSChatBubbleStyleTests）。nil = 無背景。
     /// body の実描画もこの関数を単一の正として使う。
     static func backgroundColor(for role: Role) -> Color? {
         role == .user ? DSColor.userBubble : nil

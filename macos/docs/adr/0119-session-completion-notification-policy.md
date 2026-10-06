@@ -18,7 +18,7 @@ last-verified: 2026-07-24
 
 一方で ADR 0064 は「ライブターン進行中に Codex が非同期で idle を報告する競合」への
 対処として、`turnStartedAt != nil` 中の `threadStatusChanged(.idle)` 無視ガードを凍結
-済み（DashboardFeature の ProcessingIndicatorWhiteboxTests）。当初実装はこのガードを
+済み（DashboardFeature の ProcessingIndicatorTests）。当初実装はこのガードを
 削除して通知を通したため、統合検証（フェーズ4）で既存凍結テストが fail した。
 
 ## 決定
@@ -48,8 +48,7 @@ last-verified: 2026-07-24
 
 ## 結果
 
-- 受け入れテスト AcceptanceNotificationGapTests（遷移マトリクス）と白箱テスト
-  NotificationGapWhiteboxTests（mid-turn idle 無視・復元 idle 通知・フラッピング抑制・
+- `SessionCompletionNotificationTests`（遷移マトリクス・mid-turn idle 無視・復元 idle 通知・フラッピング抑制・
   pty 終了通知・systemError 通知）が凍結。
 - 残余リスク: ライブターンで Codex が turnCompleted を送らず idle だけで終わる異常系は
   引き続き無通知（ADR 0064 で受容済みトレードオフと同一。次ターン開始でクリア）。

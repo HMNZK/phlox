@@ -25,6 +25,6 @@ Claude Code stream-json が運ぶ圧縮関連イベントは `system/compact_bou
 
 ## 結果
 
-- 契約: `AcceptanceCompactBoundaryTests`・`AcceptanceCompactingIndicatorTests`（凍結）。
+- 契約: `CompactBoundaryTests`・`CompactingIndicatorTests`（凍結）。
 - 既知の制限: auto-compact はプロトコル上開始を検知できず、`compact_boundary` 到着（完了）まで
   インジケーターは出ない。CLI が将来開始イベントを追加したら正規化を拡張する。

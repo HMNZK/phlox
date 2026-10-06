@@ -1,8 +1,8 @@
 import Foundation
 
 /// エージェントのタスクリスト（Claude Code の TodoWrite / TaskCreate / TaskUpdate）の
-/// 1 項目（tasks/task-2.md 契約。受け入れテスト AcceptanceClaudeTaskListEventTests /
-/// AcceptanceTaskListCardTests が凍結）。
+/// 1 項目（tasks/task-2.md 契約。受け入れテスト ClaudeTaskListEventTests /
+/// TaskListCardTests が凍結）。
 ///
 /// - TodoWrite: `todos` 全量スナップショット（id なし → 生成側が安定 id を割り当てる）
 /// - TaskCreate/TaskUpdate: `taskId` による差分更新（status: pending/in_progress/completed/deleted。

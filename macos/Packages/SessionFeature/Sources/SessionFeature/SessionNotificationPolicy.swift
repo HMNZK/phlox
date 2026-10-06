@@ -3,7 +3,7 @@ import AgentDomain
 
 /// セッションの完了通知（Mac ローカル通知＋ iOS への APNs push）を発火すべき状態遷移かを
 /// 一元判定する純ポリシー（tasks/task-4.md 契約。受け入れテスト
-/// AcceptanceNotificationGapTests が凍結）。
+/// SessionCompletionNotificationTests が凍結）。
 ///
 /// `running` からの停止と、実行中ターンが入力待ちへ移った後の停止を同じ規則で扱う。
 enum SessionCompletionNotificationPolicy {

@@ -169,7 +169,7 @@ ThinkingIndicatorCell の表示条件は `status == .running` ではなく **`Ch
 
 展開時の各行は `ChatCodeCard` 1 枚で、中身は「ツール名ラベル（`Bash` / `Read` / `Glob` …）＋ `$ コマンド`（等幅・シェル構文ハイライト）＋出力（等幅・secondary・空なら非表示）」。ツール名は `ChatItem` を変えずに表示側の `CommandToolLabel.derive(command:)` が導出する（先頭トークンを既知ツール名の集合と完全一致で照合し、外れたら `Bash`。生成側 `ClaudeChatClient+Formatting.commandDescription` の出力仕様に対応）。継続行は `$ ` 幅ぶんだけ `HStack` でインデントし、**コピーは原文のまま**（表示用インデントを混ぜない）。出力は 20 行で省略し「さらに N 行を表示」で全文へ広げられ、コピーは省略中でも全文を返す（`CommandGroupOutputDisplay`。行分割は init で 1 回）。開閉シェブロンは `DisclosureGroup` 既定の左端ではなく**タイトルの直後**（`AGENTS.md >`）に自前で置き、ラベルの `.contentShape(Rectangle())` でヘッダ全体をクリック領域にする。タイトルは `items` の変化＝`Equatable` 経由で追従するため、live recap クロージャと `TimelineView` 追従は持たない（ADR 0147）。viewport 判定は実行中グループにだけ効く。
 
-凍結テスト: `AcceptanceToolCallGroupingTests` / `AcceptanceBlockWindowTests` / `AcceptanceCommandGroupRowWindowTests` / `AcceptanceCommandGroupRecapHeaderTests`。
+凍結テスト: `AcceptanceToolCallGroupingTests` / `AcceptanceBlockWindowTests` / `CommandGroupRowWindowTests` / `AcceptanceCommandGroupRecapHeaderTests`。
 
 ## カードの装飾とファイル変更のコードビュー（chat-toolcall-view run, 2026-07-30）
 
@@ -187,11 +187,11 @@ ThinkingIndicatorCell の表示条件は `status == .running` ではなく **`Ch
 
 ## transcript の切り詰め廃止（agent-grid-jank run, 2026-07-24・ADR 0118）
 
-`DisclosureCard` のタイトルは `lineLimit(1)`/`truncationMode(.middle)` を廃止し全文を折り返す。MarkdownUI の paragraph/heading1〜6 には `.fixedSize(horizontal: false, vertical: true)` を付与し、折り返し行の縦高さを確保する（`.table` ブロックより前に限定＝ADR 0045 のレイアウト非収束を回避）。「…」クリック展開時に後続要素へ文字が重なる病理の根治。凍結 `AcceptanceMarkdownNoTruncationTests`（NSHostingView fittingSize による高さ計測＋lineLimit/truncationMode のソーススキャン禁止）。
+`DisclosureCard` のタイトルは `lineLimit(1)`/`truncationMode(.middle)` を廃止し全文を折り返す。MarkdownUI の paragraph/heading1〜6 には `.fixedSize(horizontal: false, vertical: true)` を付与し、折り返し行の縦高さを確保する（`.table` ブロックより前に限定＝ADR 0045 のレイアウト非収束を回避）。「…」クリック展開時に後続要素へ文字が重なる病理の根治。`MarkdownNoTruncationTests`（NSHostingView fittingSize による高さ計測＋lineLimit/truncationMode のソーススキャン禁止）。
 
 ## タスクリストカード（agent-grid-jank run, 2026-07-24）
 
-Claude Code の Tasks 機能（TodoWrite/TaskCreate/TaskUpdate）を transcript 内の1枚カードで表示する。正規化は `NormalizedChatEvent.taskListUpdated(tasks: [AgentTaskItem])`（TodoWrite=全量スナップショット、TaskCreate/TaskUpdate=`toolUseResult.task.id` による差分。`ClaudeChatClient+TaskList.swift`）。transcript 側は `ChatItem.taskList`（同一カードの置換更新）を `TaskListCell`（`ChatMessageCells+TaskList.swift`・DisclosureCard ベース・accessibilityIdentifier `ChatMessage.taskList`）で描画。型は `StructuredChatKit/AgentTaskList.swift`（`AgentTaskItem`/`AgentTaskStatus`）。凍結 `AcceptanceClaudeTaskListEventTests`・`AcceptanceTaskListCardTests`。
+Claude Code の Tasks 機能（TodoWrite/TaskCreate/TaskUpdate）を transcript 内の1枚カードで表示する。正規化は `NormalizedChatEvent.taskListUpdated(tasks: [AgentTaskItem])`（TodoWrite=全量スナップショット、TaskCreate/TaskUpdate=`toolUseResult.task.id` による差分。`ClaudeChatClient+TaskList.swift`）。transcript 側は `ChatItem.taskList`（同一カードの置換更新）を `TaskListCell`（`ChatMessageCells+TaskList.swift`・DisclosureCard ベース・accessibilityIdentifier `ChatMessage.taskList`）で描画。型は `StructuredChatKit/AgentTaskList.swift`（`AgentTaskItem`/`AgentTaskStatus`）。凍結 `ClaudeTaskListEventTests`・`TaskListCardTests`。
 
 ## スラッシュコマンドのサジェスト＝セッションの提供一覧が正本（ADR 0120, 2026-07-26）
 
@@ -204,4 +204,4 @@ Claude Code の Tasks 機能（TodoWrite/TaskCreate/TaskUpdate）を transcript 
 | `nil`（init 未受領。初回送信前は必ずこれ） | 静的 `builtinSlashCommands` 10 件＋`.claude/commands` / `.claude/skills` 走査 |
 | 非 `nil` | その名前だけ（走査由来を混ぜ戻さない）。`__` 接頭辞は除外・重複は一意化・順序保持 |
 
-一覧由来の subtitle は ①静的リストの同名 ②`.claude/skills/<名前>/SKILL.md` の `description` ③`.claude/commands/<名前>.md` ④なし の順で補う。5 秒 TTL キャッシュ（ADR 0053）のキーには一覧を含める。静的 `builtinSlashCommands` はフォールバック専用に 10 件（`/compact` `/clear` `/model` `/init` `/config` `/mcp` `/context` `/usage` `/doctor` `/review`）へ縮小した——実測でセッションに存在しなかった 13 件（`/help` `/plugin` `/permissions` `/status` `/cost` `/memory` `/output-style` `/export` `/statusline` `/todos` `/rewind` `/resume` `/hooks`）は削除済み。凍結 `AcceptanceAvailableCommandsEventTests`・`AcceptanceInitSlashCommandsTests`・`AcceptanceBuiltinSlashCommandsTests`・`AcceptanceComposerAvailableCommandsTests`。**Codex / Cursor は一覧の供給源が無くフォールバックのまま**。
+一覧由来の subtitle は ①静的リストの同名 ②`.claude/skills/<名前>/SKILL.md` の `description` ③`.claude/commands/<名前>.md` ④なし の順で補う。5 秒 TTL キャッシュ（ADR 0053）のキーには一覧を含める。静的 `builtinSlashCommands` はフォールバック専用に 10 件（`/compact` `/clear` `/model` `/init` `/config` `/mcp` `/context` `/usage` `/doctor` `/review`）へ縮小した——実測でセッションに存在しなかった 13 件（`/help` `/plugin` `/permissions` `/status` `/cost` `/memory` `/output-style` `/export` `/statusline` `/todos` `/rewind` `/resume` `/hooks`）は削除済み。凍結 `AcceptanceAvailableCommandsEventTests`・`InitSlashCommandsTests`・`AcceptanceBuiltinSlashCommandsTests`・`ComposerAvailableCommandsTests`。**Codex / Cursor は一覧の供給源が無くフォールバックのまま**。

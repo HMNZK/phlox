@@ -1,7 +1,7 @@
 import Foundation
 
 /// グリッドタイルの枠表示の純ポリシー（tasks/task-5.md 契約。受け入れテスト
-/// AcceptanceGridSelectionFocusTests が凍結）。
+/// GridSelectionFocusTests が凍結）。
 ///
 /// スケルトン（フェーズ1 凍結公開面）: 現行挙動（requiresAttention が選択枠を完全に
 /// 覆い隠す）を写しただけの仮実装。task-5 が「注意喚起と選択の同時視認」を実装し、

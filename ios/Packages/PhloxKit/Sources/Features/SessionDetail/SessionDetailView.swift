@@ -38,19 +38,6 @@ enum ChatRowKind: Equatable {
 
 /// セッション詳細画面（カンプ③）。承認リクエスト + ターミナル出力 + 入力バー。
 public struct SessionDetailView: View {
-    /// task-6 契約（凍結・PM 著）: 入力バー付近にモデル選択チップ（現在モデルの表示名を表示し、
-    /// タップでモデル選択シートを開く）を提供するとき true。実装と同時に反転する
-    /// （flag だけの反転は虚偽報告として扱う）。
-    public static let providesModelSelectorChip = true
-    public static let providesScrollToDismissKeyboard = true
-    /// task-1 契約（凍結・PM 著）: 左端からのスワイプで前の画面へ戻れるとき true。
-    /// システムのナビゲーションバーを使うことで iOS 標準の端スワイプをそのまま成立させる（ADR 0033）。
-    /// 実装と同時に反転する（flag だけの反転は虚偽報告として扱う）。
-    public static let providesBackSwipeGesture = true
-    /// task-1 契約（凍結・PM 著）: ターミナル出力を桁揃えのまま横スクロールで読ませるとき true。
-    /// 実装と同時に反転する（flag だけの反転は虚偽報告として扱う）。
-    public static let providesTerminalOutputHorizontalScroll = true
-
     @Environment(\.sessionComposeDraft) private var sessionComposeDraft
     @State private var viewModel: SessionDetailViewModel
     @State private var distanceFromBottom: CGFloat = 0

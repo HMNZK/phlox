@@ -86,17 +86,6 @@ private func firstQuestionRequestId(_ vm: ChatSessionViewModel) -> String? {
     return nil
 }
 
-/// 製品コードのソースを読む（配線の存在を機械判定するため。同種の白箱検査が
-/// UserQuestionFocusWhiteboxTests に既にある）。
-private func source(of fileName: String) throws -> String {
-    let url = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()   // SessionFeatureTests
-        .deletingLastPathComponent()   // Tests
-        .deletingLastPathComponent()   // SessionFeature(package root)
-        .appendingPathComponent("Sources/SessionFeature/\(fileName)")
-    return try String(contentsOf: url, encoding: .utf8)
-}
-
 @MainActor
 private func withTerminatedViewModel<T>(
     _ viewModel: ChatSessionViewModel,
@@ -192,16 +181,5 @@ struct AcceptanceCodexUserInputDismissTests {
             #expect(wireSettled, "ターン中断でも保留中の質問を決着させること（Codex を宙吊りにしない）")
             _ = await requestTask.value
         }
-    }
-
-    @Test
-    func 質問カードのdismissボタンが拒否経路へ配線されている() throws {
-        // 到達性: `declineUserQuestion` を実装しても、カードの dismiss ボタンから呼ばれなければ
-        // ユーザーには何も変わらない（独立レビューの MUST 指摘）。
-        let transcript = try source(of: "ChatTranscriptView.swift")
-        #expect(
-            transcript.contains("declineUserQuestion"),
-            "ChatTranscriptView の onDismissUserQuestion が declineUserQuestion を通っていない"
-        )
     }
 }

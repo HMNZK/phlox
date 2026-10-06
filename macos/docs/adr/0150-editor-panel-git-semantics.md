@@ -66,4 +66,4 @@ task-2 の当初契約は「`save` 以外のいかなる操作も git の状態�
   両立する。
 - 回帰保護: `AcceptanceWorkingTreeTests`（task-2）・`WorkingTreeServiceWhiteboxTests`
   （リネーム・非 ASCII パス・空リポジトリ・巨大 stderr・symlink 保存 等）・
-  `AcceptanceEditorPanelVMTests`（task-4）・`EditorPanelVMWhiteboxTests`。
+  `EditorPanelVMTests`。

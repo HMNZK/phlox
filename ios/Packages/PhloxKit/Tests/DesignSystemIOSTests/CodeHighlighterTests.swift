@@ -1,3 +1,5 @@
+import ChatRenderKit
+import SwiftUI
 import Testing
 @testable import DesignSystemIOS
 
@@ -46,5 +48,71 @@ struct CodeHighlighterTests {
     func nilLanguageIsPlain() {
         let code = "let x = 42"
         #expect(CodeHighlighter.tokens(for: code, language: nil) == [.init(kind: .plain, text: code)])
+    }
+}
+
+/// 共有トークン列（ChatRenderKit）を iOS のテーマ色へ対応付ける入口。
+struct CodeHighlighterSharedTokenTests {
+    @Test("共有トークン種別を iOS のテーマ色へ対応付ける")
+    func sharedTokenKindsUseThemeColors() {
+        let tokens = [
+            ChatCodeToken(text: "command", kind: .command),
+            ChatCodeToken(text: "|", kind: .operator),
+            ChatCodeToken(text: "subcommand", kind: .subcommand),
+            ChatCodeToken(text: " ", kind: .plain),
+            ChatCodeToken(text: "$HOME", kind: .variable),
+            ChatCodeToken(text: " ", kind: .plain),
+            ChatCodeToken(text: "42", kind: .number),
+            ChatCodeToken(text: " ", kind: .plain),
+            ChatCodeToken(text: "--option", kind: .option),
+            ChatCodeToken(text: " ", kind: .plain),
+            ChatCodeToken(text: "# note", kind: .comment),
+            ChatCodeToken(text: " ", kind: .plain),
+            ChatCodeToken(text: "\"text\"", kind: .string),
+        ]
+
+        let attributed = CodeHighlighter.attributed(tokens: tokens)
+
+        #expect(String(attributed.characters) == tokens.map(\.text).joined())
+        #expect(color(for: "command", in: attributed) == DSColor.codeSyntaxKeyword)
+        #expect(color(for: "|", in: attributed) == DSColor.codeSyntaxKeyword)
+        #expect(color(for: "subcommand", in: attributed) == DSColor.codeSyntaxNumber)
+        #expect(color(for: "$HOME", in: attributed) == DSColor.codeSyntaxString)
+        #expect(color(for: "42", in: attributed) == DSColor.codeSyntaxNumber)
+        #expect(color(for: "--option", in: attributed) == DSColor.codeSyntaxNumber)
+        #expect(color(for: "# note", in: attributed) == DSColor.codeSyntaxComment)
+        #expect(color(for: "\"text\"", in: attributed) == DSColor.codeSyntaxString)
+        #expect(color(for: " ", in: attributed) == DSColor.chatTextPrimary)
+    }
+
+    @Test("共有トークナイザの出力を色付き文字列にしても、文字は 1 つも増減しない")
+    func attributedPreservesCharacters() {
+        let tokens = ChatCodeTokenizer.shell("swift test --package-path $HOME && echo ok")
+        let attributed = CodeHighlighter.attributed(tokens: tokens)
+        #expect(String(attributed.characters) == "swift test --package-path $HOME && echo ok")
+    }
+
+    @Test("シェル入口は原文を保つ（表示用のインデントを混ぜない）", arguments: [
+        "swift build \\\n  --configuration release",
+        "Read /tmp/a.txt",
+        "",
+    ])
+    func shellEntryPreservesSource(_ command: String) {
+        #expect(String(CodeHighlighter.shell(command).characters) == command)
+    }
+
+    @Test("diff 入口は原文を保ち、未対応拡張子でも落ちない", arguments: [
+        ("let x = 1", "a.swift"),
+        ("plain text", "notes.txt"),
+        ("", "empty.swift"),
+    ])
+    func diffEntryPreservesSource(_ code: String, _ path: String) {
+        #expect(String(CodeHighlighter.diff(code, path: path).characters) == code)
+    }
+
+    private func color(for text: String, in attributed: AttributedString) -> Color? {
+        attributed.runs.first { run in
+            String(attributed[run.range].characters).contains(text)
+        }?.foregroundColor
     }
 }

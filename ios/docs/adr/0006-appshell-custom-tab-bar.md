@@ -25,7 +25,7 @@ last-verified: 2026-07-15
 
 ## 結果
 
-- 白箱テスト `Wave2AppShellWhiteboxTests.repeatedOverviewTapsAlwaysReachTheShellSelectionPath` で同一タブ連打時の確定的な grid⇔single 反転を固定。
+- 同一タブ連打時の確定的な grid⇔single 反転を固定していた白箱テストは、overview タブ廃止（[ADR 0007](0007-remove-overview-tab.md)）後の整理で削除した。
 - `AppTab.allCases`（宣言順 `.sessions/.overview/.settings/.usage`）の4タブ構成は凍結受け入れテスト `Wave2AppShellAcceptanceTests.tabOrderIsFrozenToFourTabs` で固定。
 - **積み残し（phase-4 事項）**: 独自タブバーはネイティブ `TabView` が持つタップフィードバック・遷移アニメーションを持たない。実機での操作感・視覚的な違和感の有無は未確認。
 

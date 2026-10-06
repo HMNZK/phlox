@@ -2,7 +2,7 @@ import Foundation
 import StructuredChatKit
 
 /// AskUserQuestion カードの回答フォーム状態（ask-question-ux task-3 契約。
-/// 受け入れテスト AcceptanceUserQuestionFormTests が凍結。スタブ実装＝task-3 が本実装する）。
+/// 受け入れテスト UserQuestionFormModelTests が凍結。スタブ実装＝task-3 が本実装する）。
 ///
 /// 契約の骨子: 選択・入力はフォーム状態を更新するだけで送信の副作用を持たない。
 /// 送信はカード最下部の送信ボタン（canSubmit のときのみ有効）から明示的に行う。

@@ -64,6 +64,6 @@ iOS ではアイコンと固定文字列 `ツール実行 ×N` が並び diff �
 - 既知の積み残し: サブエージェント詳細の diff に描画行数の上限が無い（既定折りたたみが実質の歯止め）。
   ツール実行グループのヘッダ構築が毎描画 O(N)。いずれも実測していないため、必要になってから対処する。
 - 回帰保護: `AgentDomainTests/ChatRenderKitTests`（採番の境界・壊れたヘッダ・オーバーフロー・トークナイズ・
-  ツール名・動詞・見出しクランプ）、`FeaturesTests/AcceptanceIOSToolCallCardTests`・
-  `AcceptanceIOSFileChangeCodeViewTests`・`AcceptanceIOSReasoningAndSubAgentTests`、
-  `DesignSystemIOSTests/AcceptanceDSChatCodeCardTests`。
+  ツール名・動詞・見出しクランプ）、`FeaturesTests/ToolCallCardTests`・
+  `FileChangeCodeViewTests`・`ChatRowKindTests`、`DesignSystemIOSTests/DSChatCodeCardTests`・
+  `CodeHighlighterTests`・`DSReasoningTextWhiteboxTests`。

@@ -31,5 +31,5 @@ last-verified: 2026-07-31
 
 - [ADR 0018](0018-input-bar-remove-drag-and-voice.md) の「送信/停止を右スロットに**排他**で常設する」部分はこの ADR が置き換える（`superseded-by: 0042`）。ドラッグバー・音声入力の撤去は有効なまま。
 - wave-6 の `.none`（空文字時は送信ボタンを出さない）を wave-7 で廃止した経緯があるが、今回それは**実行中だけの条件**として `showsSend` に戻った。非実行中の常設は廃止していないので、wave-6 への差し戻しではない。
-- 契約テスト（`DSInputBarWave6Tests` / `Wave7InputBarContractTests`）は 3 値へ更新し、実行中・空入力／実行中・入力あり／送信中を固定した。実挙動は `PhloxMobileUITests/SessionInputBarRunningUITests` が実描画で裏取りする（空入力では送信ボタンが存在せず、入力すると出現し停止も残ること）。
+- 契約テスト（`DSInputBarActionStateTests`）は 3 値へ更新し、実行中・空入力／実行中・入力あり／送信中を固定した。実挙動は `PhloxMobileUITests/SessionInputBarRunningUITests` が実描画で裏取りする（空入力では送信ボタンが存在せず、入力すると出現し停止も残ること）。
 - `DSChatBubble.providesAlwaysVisibleCopyButton = false` が転写全体で成り立つようになり、コピーの作法が 1 つに揃った。

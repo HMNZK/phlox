@@ -26,7 +26,7 @@ last-verified: 2026-07-15
 ## 結果
 
 - 一覧⇄詳細の往復で同一テーマの appearance 再適用が抑止され、large title の高さ計算との衝突が解消された。
-- 回帰テスト `Wave5SessionListTopBlankTests.navigationAppearanceInstallationIsIdempotent`（同一テーマの連続呼び出しで `installationCount` が増えない、テーマ変更時のみ増える）で冪等性をユニットレベルで固定。
+- 回帰テスト `NavigationChromeAppearanceTests.navigationAppearanceInstallationIsIdempotent`（同一テーマの連続呼び出しで `installationCount` が増えない、テーマ変更時のみ増える）で冪等性をユニットレベルで固定。
 - フェーズ4で新規 XCUITest `Wave5RegressionUITests.testListDetailRoundTripKeepsProjectsTitle`（一覧⇄詳細を2往復しても `navigationBars["Projects"]` が可視）を実走し pass。これをもって stage-1 の needs_changes（症状の因果が実行検証されていない）を解消し `done` 確定（decision-log wave-5 フェーズ4）。
 
 ## 却下した代替案

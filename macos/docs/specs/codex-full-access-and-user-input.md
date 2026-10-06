@@ -49,13 +49,13 @@ last-verified: 2026-08-01
 
 | 観点 | テスト |
 |---|---|
-| プロトコル（デコード・-32601） | `CodexAppServerKit/AcceptanceRequestUserInputProtocolTests` |
-| 橋渡し（broker） | `SessionFeature/AcceptanceCodexUserInputBridgeTests` |
-| VM 配線・回答返送 | `SessionFeature/AcceptanceCodexUserInputViewModelTests` |
+| プロトコル（デコード・-32601） | `CodexAppServerKit/RequestUserInputProtocolTests` |
+| 橋渡し（broker） | `SessionFeature/CodexUserInputBridgeTests` |
+| VM 配線・回答返送 | `SessionFeature/CodexUserInputViewModelTests` |
 | 拒否・中断での決着 | `SessionFeature/AcceptanceCodexUserInputDismissTests` |
 | 伏せ字入力・表示 | `SessionFeature/AcceptanceUserQuestionSecretTests` |
-| 伏せ字の非永続化 | `SessionFeature/AcceptanceUserQuestionSecretPersistenceTests` |
-| フルアクセス方針 | `DashboardFeature/AcceptanceFullAccessPolicyTests` |
+| 伏せ字の非永続化 | `SessionFeature/UserQuestionSecretAnswerTests` |
+| フルアクセス方針 | `DashboardFeature/FullAccessPolicyTests` |
 
 ## スコープ外
 

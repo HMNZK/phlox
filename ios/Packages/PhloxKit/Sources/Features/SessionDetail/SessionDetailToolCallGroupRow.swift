@@ -83,7 +83,7 @@ enum SessionDetailCommandGroupRowWindow {
         // 空出力行の除外は「複数件のツールコールが並ぶときのノイズ抑制」が目的なので、
         // 唯一の行には適用しない。適用すると単独・空出力のツールコールが
         // 「ヘッダを押しても何も出ない＝どのコマンドが走ったのか分からない」状態になる。
-        // 受け入れテスト: AcceptanceIOSToolCallGroupingTests
+        // 受け入れテスト: ToolCallGroupingTests
         //   「単独コマンドは出力が空でも展開でコマンド文字列を読める」/「複数件で全て空出力かつ完了済みなら従来どおり描画しない」
         let displayRows = items.count == 1 ? allRows : allRows.filter { row in
             row.isRunning || !row.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

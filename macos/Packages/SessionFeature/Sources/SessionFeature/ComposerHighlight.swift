@@ -15,7 +15,7 @@ struct ComposerHighlightSpan: Equatable, Sendable {
 }
 
 /// 入力テキストからハイライト範囲を導出する純関数（task-2 契約面）。
-/// シグネチャは受け入れテスト AcceptanceComposerHighlightTests が凍結している（変更禁止）。
+/// シグネチャは受け入れテスト ComposerHighlightTests が凍結している（変更禁止）。
 /// 契約:
 ///   - 空白区切りトークンのうち "/" で始まるものを各1件 `.slashCommand`（"/" ＋ 空白以外の連続文字）。
 ///     トークン先頭の位置は問わない。トークン途中の "/" は対象外。

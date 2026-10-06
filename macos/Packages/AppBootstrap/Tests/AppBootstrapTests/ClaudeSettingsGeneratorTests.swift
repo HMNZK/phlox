@@ -65,4 +65,18 @@ import AppBootstrap
         let data = try JSONSerialization.data(withJSONObject: settings, options: [.prettyPrinted])
         #expect(!data.isEmpty)
     }
+
+    /// dispatcher のパスにシングルクォートが含まれても、クォートを閉じずに連結する形でエスケープする。
+    @Test func settingsEscapesSingleQuotesInDispatcherPath() throws {
+        let dispatcher = "/Users/x/it's a/dir/hook-dispatcher.sh"
+        let settings = makeSettings(dispatcher: dispatcher, statusLineCommand: "sl")
+        let hooks = try #require(settings["hooks"] as? [String: Any])
+        let matchers = try #require(hooks["SessionStart"] as? [[String: Any]])
+        let inner = try #require(matchers.first?["hooks"] as? [[String: Any]])
+        let command = try #require(inner.first?["command"] as? String)
+
+        #expect(command == "\(ShellQuoting.singleQuoted(dispatcher)) sessionStart")
+        #expect(command.contains("'\\''"))
+        #expect(!command.contains("'it's a'"))
+    }
 }

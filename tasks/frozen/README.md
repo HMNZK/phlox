@@ -15,15 +15,6 @@ PM は該当タスクをディスパッチする直前に、次を行う:
 2. その状態でコミットする（これが凍結コミット）
 3. コミットの SHA と配置先パスを `tasks/frozen/BASELINES.txt` にタブ区切りで追記する
    （`.claude/verify.sh` がこれを読み、配置済みのものだけ無改変を検査する）
+4. run が終わったら `BASELINES.txt` の行を消す。凍結は作業中だけの約束で、終わった後のテストは
+   `macos/docs/guides/test-policy.md` に沿って統合・改名してよい
 
-## 配置先
-
-| ファイル | タスク | 配置先 |
-|---|---|---|
-| `AcceptancePairedDeviceStoreTests.swift` | task-1 | `macos/Packages/AgentDomain/Tests/AgentDomainTests/` |
-| `AcceptanceLegacyTokenPurgeTests.swift` | task-1 | 同上 |
-| `ContractPairedDeviceStoreSeamTests.swift` | task-1 | 同上 |
-| `AcceptanceDeviceProvisioningTests.swift` | task-2 | 同上 |
-| `AcceptanceDeviceRevocationTests.swift` | task-2 | 同上 |
-| `AcceptancePendingTokenExpiryTests.swift` | task-2 | 同上 |
-| `AcceptancePairingLifecycleIntegrationTests.swift` | task-4 | 同上 |

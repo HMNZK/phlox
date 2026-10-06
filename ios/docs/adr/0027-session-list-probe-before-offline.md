@@ -32,5 +32,5 @@ last-verified: 2026-07-26
 
 ## 結果
 
-- `ConnectingStateWhiteboxTests` / `AcceptanceConnectingStateTests` で、未判定中は `.offline` を yield しないこと・`refresh()` が呼ばれること・締切超過で `.offline` へ落ちること・判定が online なら一覧を出すことを検証した。締切はテストから短い値を注入する。
+- `SessionRepositoryConnectingTests`（判定が online の挙動は `SessionRepositoryTests`）で、未判定中は `.offline` を yield しないこと・`refresh()` が呼ばれること・締切超過で `.offline` へ落ちること・判定が online なら一覧を出すことを検証した。締切はテストから短い値を注入する。
 - **実機での見え方（接続中アニメの体感・オフライン画面へ落ちるまでの 20 秒）は自動テストで裏が取れない**。実機確認が要る。

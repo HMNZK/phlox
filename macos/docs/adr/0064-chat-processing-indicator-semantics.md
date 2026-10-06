@@ -25,5 +25,5 @@ last-verified: 2026-07-10
 
 ## 結果
 
-- 受け入れテスト AcceptanceProcessingIndicatorTests（8件）が凍結（background/subAgent × completed/interrupt/error の境界を含む）。
+- ProcessingIndicatorTests が固定（background/subAgent × completed/interrupt/error の境界を含む）。
 - 残余リスク: Codex が turnCompleted を送らず threadStatusChanged(idle) だけで終わる異常系では、ガードにより running 表示が残る（次ターン開始時クリアで bound。ステージ1レビューが指摘・受容済みトレードオフ）。

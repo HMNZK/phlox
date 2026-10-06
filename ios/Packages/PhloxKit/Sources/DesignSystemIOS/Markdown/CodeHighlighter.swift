@@ -159,14 +159,19 @@ public extension CodeHighlighter {
 
     private static func color(for kind: ChatCodeTokenKind) -> Color {
         switch kind {
-        case .keyword, .command, .operator:
+        // 種類の割り当ては macOS の CodeSyntaxColor に揃える。
+        case .keyword, .command, .operator, .tag, .structure, .selector, .diffHunk:
             DSColor.codeSyntaxKeyword
-        case .string, .variable:
+        case .string, .variable, .link, .pattern:
             DSColor.codeSyntaxString
-        case .number, .subcommand, .option:
+        case .number, .subcommand, .option, .attribute, .key, .section, .property, .date, .delimiter:
             DSColor.codeSyntaxNumber
-        case .comment:
+        case .comment, .diffHeader, .annotation:
             DSColor.codeSyntaxComment
+        case .diffAdded:
+            DSColor.diffAdded
+        case .diffRemoved:
+            DSColor.diffRemoved
         // macOS の会話だけが型・メンバー・呼び出しを色分けする。iOS は従来どおり本文色。
         case .plain, .type, .member, .call:
             DSColor.chatTextPrimary

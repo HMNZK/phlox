@@ -30,7 +30,7 @@ last-verified: 2026-08-01
 
 ## 結果
 
-- 契約: `AcceptanceMidTurnPersistenceTests`（凍結）＋ `MidTurnPersistenceWhitebox` 系
+- 契約: `MidTurnPersistenceTests`（凍結＋白箱）
   （スロットル・FIFO 順序・stalled store・starvation の白箱）。
 - 既知の制限: SIGTERM/SIGKILL 経路とクラッシュは best-effort（通常終了のみ書き切りを保証）。
   timeout 勝利時の in-flight write はプロセス終了で打ち切られる（ハング回避を優先）。

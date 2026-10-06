@@ -259,3 +259,105 @@ private func collectExitCode(from stream: AsyncStream<Int32>) async -> Int32? {
         #expect(grandchildAlive == false, "kill(_:) should terminate grandchild process via SIGTERM to process group")
     }
 }
+
+// MARK: - 詰まりと滞留: stdin の大量 write・出力バッファの上限
+
+/// stdin を読まない long-running な子へ maxBodyLength 級の大量 write をしている最中でも、
+/// actor の別操作（別セッションの pid 取得・kill）が短時間で返ることを検証する。
+///
+/// write が actor 内でブロッキングすると、PTY の stdin バッファが埋まって write(2) が返らず
+/// actor のエグゼキュータが固着し、後続の pid(for:)/kill が withTimeout 内に返らない。
+@Test func largeWriteToStdinIgnoringChildDoesNotBlockActor() async throws {
+    let manager = PTYManager()
+
+    // stdin を一切読まず生き続ける子。master への write は slave 入力バッファが埋まると
+    // ブロックする（未修正なら actor ごと固まる）。SIGTERM で後始末できるよう trap はしない。
+    let blockerID = try await manager.spawn(
+        command: "/bin/sleep",
+        args: ["30"],
+        env: testEnv
+    )
+    // 並行して操作する別セッション。
+    let otherID = try await manager.spawn(
+        command: "/bin/sleep",
+        args: ["30"],
+        env: testEnv
+    )
+
+    // PTY の stdin バッファ（数 KB）を遥かに超える payload。子が読まないので write は詰まる。
+    let bigPayload = Data(repeating: 65, count: 4 * 1024 * 1024)
+    let writeTask = Task {
+        // 詰まる write。actor 外へオフロードされ、ここは suspend するだけ。
+        try? await manager.write(bigPayload, to: blockerID)
+    }
+
+    // write が始まり PTY バッファを埋めて詰まるまで待つ。
+    try await Task.sleep(for: .milliseconds(300))
+
+    // 別セッションへの actor 操作が短時間で返ること（actor がフリーズしていない）。
+    try await withTimeout(seconds: 3) {
+        let pid = await manager.pid(for: otherID)
+        #expect(pid != nil)
+        await manager.kill(otherID)
+    }
+
+    // 後始末: blocker を落として詰まった write を EIO で解放する。
+    writeTask.cancel()
+    await manager.terminateAllAndWait(timeout: .seconds(2))
+}
+
+/// 消費側が output stream を読まないまま、上限を明確に超える量を子が出力しても、
+/// バッファは上限で頭打ちになる（無制限蓄積しない）。
+///
+/// 最新 N 要素（`outputBufferLimit`）だけが残り、受信バイト数は
+/// 上限（outputBufferLimit * readBufferSize）以下に頭打ちになる。
+@Test func outputStreamDoesNotGrowUnboundedWhenConsumerNotConnected() async throws {
+    try await withTimeout(seconds: 20) {
+        let manager = PTYManager()
+
+        let limit = PTYManager.outputBufferLimit
+        let chunkSize = PTYManager.readBufferSize
+        // 上限を確実に超える生成量（上限 + 余裕分）。
+        let producedChunks = limit + 256
+        let producedBytes = producedChunks * chunkSize
+
+        // dd で /dev/zero を bulk 出力（stderr 統計は PTY に混ざるので /dev/null へ捨てる）。
+        // 0 バイトは PTY 出力後処理（ONLCR 等）の影響を受けないのでバイト数が保存される。
+        let id = try await manager.spawn(
+            command: "/bin/sh",
+            args: ["-c", "dd if=/dev/zero bs=\(chunkSize) count=\(producedChunks) 2>/dev/null"],
+            env: testEnv
+        )
+
+        // spawn 直後に stream を取得（終了後は StreamCache から消えるため）。
+        let outputStream = manager.outputStream(for: id)
+        let exitStream = manager.exitStream(for: id)
+
+        // output を消費せずに、子の終了だけ待つ。この間 read source は出力を
+        // バッファへ yield し続ける（上限付きなら古い要素が捨てられて頭打ち）。
+        _ = await collectExitCode(from: exitStream)
+
+        // 終了後に初めて output を全量ドレインしてバイト数を数える。
+        var receivedBytes = 0
+        for await chunk in outputStream {
+            receivedBytes += chunk.count
+        }
+
+        // 頭打ち: 受信量は上限（要素数 * 1要素の最大バイト）以下。
+        #expect(
+            receivedBytes <= limit * chunkSize,
+            "output buffer must be bounded: received \(receivedBytes) > cap \(limit * chunkSize)"
+        )
+        // 無制限蓄積していないこと: 生成量より確実に少ない。
+        #expect(
+            receivedBytes < producedBytes,
+            "unbounded buffering leaked all output: received \(receivedBytes) == produced \(producedBytes)"
+        )
+        // サニティ: バッファ末尾は受け取れている。
+        #expect(receivedBytes > 0)
+    }
+}
+
+// EINTR (writeAll / waitpid) の retry は read 側（makeReadSource の `errno == EINTR { continue }`）と対称に実装している。
+// 決定論的な回帰テストは書けない: macOS の signal() は既定で SA_RESTART 相当で EINTR がユーザ空間へ返らず、
+// SA_RESTART を落とすとテストプロセス全体のシグナル挙動を汚染し、write 中への正確なシグナル注入は flaky になる。

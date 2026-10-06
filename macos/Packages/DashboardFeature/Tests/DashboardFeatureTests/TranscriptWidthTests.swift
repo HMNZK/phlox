@@ -3,11 +3,12 @@ import CoreGraphics
 @testable import DashboardFeature
 @testable import SessionFeature
 
-/// task-7 白箱テスト — transcript 幅 API が composer 幅の恒等別名であることを固定する。
-@Suite("TranscriptWidth whitebox")
+/// トランスクリプト内容の最大幅は `ComposerLayout.transcriptContentMaxWidth` に一本化され、
+/// 全入力で composer 幅（`ComposerLayout.maxWidth`）と恒等である（出力メッセージ列の幅 = 入力欄の幅）。
+@Suite("TranscriptWidth")
 struct TranscriptWidthTests {
 
-    @Test(arguments: [CGFloat(-1), 0, 1, 500, 1000, 800 / 0.6, 10_000])
+    @Test(arguments: [CGFloat(-100), -1, 0, 1, 500, 1000, 1332, 1333, 1334, 800 / 0.6, 2000, 8000, 10_000])
     func transcriptContentWidthIsComposerWidthAlias(width: CGFloat) {
         #expect(
             ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: width)

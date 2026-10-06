@@ -61,9 +61,7 @@ Phlox はエージェントセッションを並べて監視・操作するア�
 | `AcceptancePanelRouterTests.swift` | `AppRouter` のパネル表示フラグ・トグル |
 | `AcceptanceUserTerminalTests.swift` | `UserTerminalController` の起動・入出力・自然終了・再起動・shutdown |
 | `AcceptanceWorkingTreeTests.swift` | `WorkingTreeService` の変更一覧・diff・保存・競合検出 |
-| `AcceptanceTerminalPanelWiringTests.swift` | ターミナルパネルのホットキー配線・ドロワー配置（オーバーレイでないこと） |
-| `AcceptanceEditorPanelVMTests.swift` | `EditorPanelViewModel` の一覧・選択・編集・保存・競合フロー |
-| `AcceptancePanelIntegrationTests.swift` | 確定容器への統合・プロトタイプ撤去・⌘⌥E 配線・shutdown 配線 |
+| `EditorPanelVMTests.swift` | `EditorPanelViewModel` の一覧・選択・編集・保存・競合フロー |
 
 XCUITest（`macos/PhloxUITests/PanelUITests.swift`）: ⌘⌥T でターミナルパネルが
 `user-terminal-panel` の accessibilityIdentifier で出現・再押下で消えること、⌘⌥E で

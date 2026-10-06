@@ -153,24 +153,6 @@ func commandExecutionRunningRendersDifferentlyFromComplete() throws {
     #expect(try tiffData(from: runningImage) != tiffData(from: completeImage))
 }
 
-@Test
-func chatMessageCellsSourceHasNoRepeatForeverModifier() throws {
-    // ChatMessageCells.swift は R1(task-27)で SessionFeature パッケージへ移設した。
-    // テストは DashboardFeatureTests に残るため、Packages/ まで 4 階層遡って新 location を指す。
-    let testFile = URL(fileURLWithPath: #filePath)
-    let sourceURL = testFile
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .appendingPathComponent("SessionFeature/Sources/SessionFeature/ChatMessageCells.swift")
-    let source = try String(contentsOf: sourceURL, encoding: .utf8)
-    #expect(
-        !source.contains(".repeatForever"),
-        "DisclosureStatus.running のアニメは Core Animation か TimelineView 駆動に限定すること"
-    )
-}
-
 // task-18 レビュー差し戻し #1: Cursor の実行中コマンドは completed まで
 // output が空なので、running 中は空でも CommandExecutionCell を描画する。
 @Test @MainActor

@@ -28,5 +28,5 @@ last-verified: 2026-07-11
 ## 結果
 
 - 断片 N 件が O(メッセージ境界数) の item に収まり、ドロワー表示中の再描画コストがイベント頻度に対し一定化する。
-- 凍結受け入れテスト: `AcceptanceSubAgentTranscriptMergeTests`（SessionFeature）・`AcceptanceSubAgentActivityItemIdTests`（ClaudeAgentKit）。
+- 凍結受け入れテスト: `SubAgentTranscriptMergeTests`（SessionFeature）・`SubAgentActivityItemIdTests`（ClaudeAgentKit）。
 - 実機での CPU 収束のランタイム検証は統合検証（フェーズ4）で実施する（`swift test` green は描画ハングの非存在を保証しないため。CLAUDE.md の runtime 検証原則）。

@@ -4,7 +4,7 @@ import DesignSystem
 import SwiftUI
 
 // task-2 契約の PM スタブ。API 表面は受け入れテスト
-// ChatFixTask2PlaceholderAcceptanceTests が凍結している（シグネチャ変更禁止）。
+// ComposerPlaceholderMetricsTests が凍結している（シグネチャ変更禁止）。
 // 実装契約の正本: tasks/task-2.md（NSTextView とプレースホルダの位置・フォントの単一の正）。
 
 /// composer 入力欄（IMESafeTextView）とプレースホルダの位置合わせを一元管理するメトリクス。

@@ -29,6 +29,6 @@ ADR 0071 で新規セッションの既定バックエンドをチャット（ap
 
 ## 結果
 
-- 受け入れテスト: `AcceptanceAgentModeLaunchTests`（backend 写像・chat 対応エージェントのモード列挙）・`AcceptanceAgentStartCardsTests` を凍結。白箱 `AgentModeLaunchWhiteboxTests`（非対応エージェントのターミナルのみ）追加。`swift test`（DashboardFeature）1311 件・ヘッドレス E2E 15 件 green。
+- テスト: `AgentStartCardModesTests`（backend 写像・chat 対応エージェントのモード列挙・非対応エージェントのターミナルのみ）・`AcceptanceAgentStartCardsTests`。`swift test`（DashboardFeature）1311 件・ヘッドレス E2E 15 件 green。
 - 既知の積み残し: 旧「＋」メニューが使っていた `DashboardViewModel.defaultBackendForGUISpawn(ref:)` が本変更で孤児化（モードは `mode.backend` 直接指定へ移行）。allowed_paths 外のため本 run では除去せず、後続タスクで削除予定。
 - ADR 0071（既定チャット化）を UI 導線の面で具体化する位置づけ。既定バックエンド自体の決定は 0071 が正本。

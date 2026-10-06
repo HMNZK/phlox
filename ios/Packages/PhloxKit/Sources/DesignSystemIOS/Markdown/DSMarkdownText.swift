@@ -4,10 +4,6 @@ import MarkdownUI
 
 /// チャット本文の Markdown とフェンス付きコードを描画する View。
 public struct DSMarkdownText: View {
-    /// task-2 契約（凍結・PM 著）: 表をセル切り詰めなしに横スクロールで読ませるとき true。
-    /// 実装と同時に反転する（flag だけの反転は虚偽報告として扱う）。
-    public static let providesTableHorizontalScroll = true
-
     private let content: String
 
     public init(_ content: String) {

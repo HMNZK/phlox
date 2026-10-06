@@ -87,7 +87,7 @@ struct AcceptanceSpawnProjectIdBodyTests {
     }
 }
 
-/// 送信 body だけを捕まえて 201 を返す最小スタブ（Wave2ClientWhiteboxTests の同型が
+/// 送信 body だけを捕まえて 201 を返す最小スタブ（ProjectCatalogUsageClientTests の同型が
 /// file-private のため、この受け入れテスト専用に自己完結で持つ）。
 private final class SpawnBodyCaptureURLProtocol: URLProtocol {
     nonisolated(unsafe) static var lastRequestBody: Data?

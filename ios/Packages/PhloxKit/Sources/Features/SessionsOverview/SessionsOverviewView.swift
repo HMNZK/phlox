@@ -4,9 +4,6 @@ import PhloxCore
 
 /// セッション俯瞰画面。グリッド（複数カード）とシングル（1 件集中）を切り替える。
 public struct SessionsOverviewView: View {
-    /// テスト用契約: グリッドモードが LazyVGrid で描画されるとき true。
-    public static let gridUsesLazyVGrid = true
-
     @Bindable var viewModel: SessionsOverviewViewModel
     @Environment(\.scenePhase) private var scenePhase
     let onSelectDetail: (String) -> Void

@@ -88,12 +88,9 @@ public struct DSInputBar: View {
     public static let providesInlineModelSelectorSlot = true
     public static let providesCardChrome = false
     public static let providesPillChrome = true
-    public static let providesDragToDismiss = false
-    public static let providesVoiceInput = false
     /// task-3 契約: 入力欄がカーソル位置を外部へ公開する（iOS 18 の TextSelection 経由）。
     public static let providesCursorAwareInput = true
     public static let usesNeutralFocusBorder = true
-    public static let usesAccentFocusBorder = false
     public static let stopAccessibilityLabel = "停止"
     /// 旧契約名（task-3 刷新で `providesKeyboardDismissToolbar` へ移行）。
     @available(*, deprecated, renamed: "providesKeyboardDismissToolbar")

@@ -2,7 +2,7 @@ import Foundation
 
 /// マークダウン本文をブロック列（段落 / フェンス付きコードブロック / 表）へ分割する純関数。
 /// DSMarkdownText（task-5）の描画単位。契約は Tests/DesignSystemIOSTests/MarkdownRenderingAcceptanceTests.swift
-/// および Tests/DesignSystemIOSTests/AcceptanceMarkdownReadabilityTests.swift。
+/// および Tests/DesignSystemIOSTests/MarkdownReadabilityTests.swift。
 public enum MarkdownBlock: Equatable, Sendable {
     /// コードブロック・表以外の本文（マークダウンとして描画する）。
     case paragraph(String)

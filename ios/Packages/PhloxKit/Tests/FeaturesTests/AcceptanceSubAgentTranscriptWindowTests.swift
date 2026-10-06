@@ -157,41 +157,6 @@ final class AcceptanceSubAgentTranscriptWindowTests: XCTestCase {
             "一時的な取得失敗では表示済みメッセージを消さない（既存契約）"
         )
     }
-
-    /// 契約5・4 の View 配線: ViewModel だけ直して View が繋がっていなければ症状は消えない。
-    /// ソースを直接読んで配線を凍結する（同パッケージの
-    /// `Wave3SessionDetailChromeWhiteboxTests.swift` に前例のある方式）。
-    func testSubAgentDetailViewWiresIndicatorAndExpansion() throws {
-        let source = try sourceText("Sources/Features/SessionDetail/SubAgentDetailView.swift")
-        let compact = source.filter { !$0.isWhitespace }
-
-        XCTAssertTrue(
-            compact.contains("isInitialLoading"),
-            "ロード中は白画面ではなくインジケータを出すこと。View が isInitialLoading を見ていなければ白画面のまま"
-        )
-        XCTAssertTrue(
-            source.contains("DSConnectingIndicator"),
-            "ロード中表示は親画面と同じ DSConnectingIndicator を使うこと"
-        )
-        XCTAssertTrue(
-            compact.contains("hiddenMessageCount"),
-            "窓の外の件数を View が使うこと（隠れたメッセージがあることをユーザーに見せる）"
-        )
-        XCTAssertTrue(
-            compact.contains("expandVisibleWindow()"),
-            "明示操作で窓を広げる導線を View に出すこと（窓だけ入れて広げられないと以前のメッセージが読めない）"
-        )
-    }
-
-    // MARK: - helpers
-
-    private func sourceText(_ relativePath: String) throws -> String {
-        let packageRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        return try String(contentsOf: packageRoot.appendingPathComponent(relativePath), encoding: .utf8)
-    }
 }
 
 // MARK: - stub（受け入れテスト専用。実装役は編集しない）

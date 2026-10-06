@@ -345,7 +345,6 @@ public struct HoverableSurfaceButtonStyle: ButtonStyle {
         }
     }
 }
-#endif
 
 /// ホバーで 0.4 秒とどまると、ボタンの下に説明の吹き出しを出す（シミュレーター見本 7s・ブラウザ見本 9）。
 /// OS のツールチップより早く出すため自前で描く。読み上げには同じ文をヒントとして渡す。
@@ -387,3 +386,4 @@ public extension View {
         modifier(HoverTip(text: text, leading: leading))
     }
 }
+#endif

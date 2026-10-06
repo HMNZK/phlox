@@ -71,8 +71,6 @@ final class BrowserTabModel: NSObject, WKNavigationDelegate, WKUIDelegate {
         view.navigationDelegate = self
         view.uiDelegate = self
         view.allowsLinkPreview = false
-        // 右クリックの「要素の詳細を表示」で Web インスペクタを開けるようにする（FR-10）。
-        view.isInspectable = true
         view.pageZoom = pageZoom
         view.showFind = { [weak self] in self?.showFind() }
         view.setAccessibilityLabel(String(localized: "ブラウザのページ"))

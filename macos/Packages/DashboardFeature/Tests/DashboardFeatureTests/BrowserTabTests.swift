@@ -232,9 +232,9 @@ struct BrowserTabTests {
         #expect(model.pageZoom == 0.5)
     }
 
-    @Test func findInPageAndInspector() async throws {
+    @Test func findInPageAndZoom() async throws {
         try await withPage("<p>りんご</p>") { model, web, _ in
-            #expect(web.isInspectable, "右クリックで Web インスペクタを開ける")
+            #expect(!web.isInspectable, "開発者ツールは範囲外（2026-10-06 ユーザー判断）")
             model.zoom(by: 2)
             #expect(web.pageZoom == 1.25)
             model.showFind()

@@ -237,13 +237,66 @@ struct BrowserTabTests {
             #expect(web.isInspectable, "右クリックで Web インスペクタを開ける")
             model.zoom(by: 2)
             #expect(web.pageZoom == 1.25)
-            model.find("ぶどう")
+            model.showFind()
+            model.findText = "ぶどう"
+            model.find()
             try await waitUntil { model.findNotFound }
-            model.find("りんご")
+            model.findText = "りんご"
+            model.find()
             try await waitUntil { !model.findNotFound }
-            model.showsFind = true
             model.closeFind()
             #expect(!model.showsFind)
+        }
+    }
+
+    @Test func staleFindResultDoesNotOverwrite() async throws {
+        try await withPage("<p>りんご</p>") { model, _, _ in
+            model.showFind()
+            model.findText = "ぶどう"
+            model.find()
+            model.findText = ""
+            model.find()
+            try await Task.sleep(for: .milliseconds(300))
+            #expect(!model.findNotFound, "空欄なのに古い結果で「見つかりません」を出さない")
+            model.findText = "ぶどう"
+            model.find()
+            model.closeFind()
+            try await Task.sleep(for: .milliseconds(300))
+            #expect(!model.findNotFound, "閉じた後に古い結果で立てない")
+        }
+    }
+
+    @Test func findNextPreviousWraps() async throws {
+        try await withPage("<p>ab ab</p>") { model, web, _ in
+            @MainActor func waitSelection(at offset: Int) async throws {
+                let deadline = ContinuousClock.now + .seconds(5)
+                while (try await web.evaluateJavaScript("getSelection().rangeCount ? getSelection().getRangeAt(0).startOffset : -1") as? Int) != offset {
+                    try #require(ContinuousClock.now < deadline, "選択が \(offset) に来ない")
+                    try await Task.sleep(for: .milliseconds(20))
+                }
+            }
+            model.showFind()
+            model.findText = "ab"
+            model.find(); try await waitSelection(at: 0)
+            model.find(); try await waitSelection(at: 3)
+            model.find(); try await waitSelection(at: 0)
+            model.find(backwards: true); try await waitSelection(at: 3)
+        }
+    }
+
+    @Test func commandFOnlyWhenPageFocused() async throws {
+        try await withPage("<p>りんご</p>") { model, web, _ in
+            let window = try #require(web.window)
+            let commandF = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+                windowNumber: window.windowNumber, context: nil, characters: "f",
+                charactersIgnoringModifiers: "f", isARepeat: false, keyCode: 3))
+            window.makeFirstResponder(nil)
+            #expect(!web.performKeyEquivalent(with: commandF), "ページに入力先が無ければ ⌘F を受けない")
+            #expect(!model.showsFind)
+            window.makeFirstResponder(web)
+            #expect(web.performKeyEquivalent(with: commandF))
+            #expect(model.showsFind)
+            #expect(model.findFocusRequest == 1)
         }
     }
 

@@ -49,7 +49,10 @@ final class BrowserTabModel: NSObject, WKNavigationDelegate, WKUIDelegate {
     private(set) var pageZoom: CGFloat = 1
     /// ページ内検索の欄を出しているか（FR-8）。
     var showsFind = false
+    var findText = ""
     var findNotFound = false
+    /// 検索欄へ入力先を移す要求。出したままもう一度 ⌘F を押したときも移すため、連番にする。
+    private(set) var findFocusRequest = 0
     private(set) var readAccess: URL?
     @ObservationIgnored private(set) var webView: WKWebView?
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
@@ -71,7 +74,7 @@ final class BrowserTabModel: NSObject, WKNavigationDelegate, WKUIDelegate {
         // 右クリックの「要素の詳細を表示」で Web インスペクタを開けるようにする（FR-10）。
         view.isInspectable = true
         view.pageZoom = pageZoom
-        view.showFind = { [weak self] in self?.showsFind = true }
+        view.showFind = { [weak self] in self?.showFind() }
         view.setAccessibilityLabel(String(localized: "ブラウザのページ"))
         webView = view
         observations = [
@@ -148,14 +151,22 @@ final class BrowserTabModel: NSObject, WKNavigationDelegate, WKUIDelegate {
         }
     }
 
-    /// ページ内を検索する（FR-8）。末尾まで行ったら先頭へ折り返す。
-    func find(_ text: String, backwards: Bool = false) {
+    func showFind() {
+        showsFind = true
+        findFocusRequest += 1
+    }
+
+    /// 検索欄の文字でページ内を検索する（FR-8）。末尾まで行ったら先頭へ折り返す。
+    func find(backwards: Bool = false) {
+        let text = findText
         guard let webView, !text.isEmpty else { findNotFound = false; return }
         let configuration = WKFindConfiguration()
         configuration.backwards = backwards
         configuration.wraps = true
         webView.find(text, configuration: configuration) { [weak self] result in
-            self?.findNotFound = !result.matchFound
+            // 結果を待つ間に文字を変えた・閉じたときは、古い結果で表示を変えない。
+            guard let self, self.showsFind, self.findText == text else { return }
+            self.findNotFound = !result.matchFound
         }
     }
 

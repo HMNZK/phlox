@@ -7,7 +7,6 @@ struct BrowserTabView: View {
     /// 表示中のページをこのセッションの入力欄に入れる（FR-11）。
     var tellAgent: ((String) -> Void)? = nil
     @State private var address = ""
-    @State private var findText = ""
     @FocusState private var findFocused: Bool
 
     var body: some View {
@@ -50,12 +49,14 @@ struct BrowserTabView: View {
         .foregroundStyle(DSColor.textPrimary)
         .onAppear { address = model.url?.absoluteString ?? "" }
         .onChange(of: model.url) { _, url in address = url?.absoluteString ?? "" }
-        .onChange(of: model.showsFind) { _, shows in findFocused = shows }
+        // 閉じるときは入力先を消さない（closeFind がページへ戻す）。
+        .onChange(of: model.findFocusRequest) { findFocused = true }
+        .onAppear { if model.showsFind { findFocused = true } }
     }
 
     private var findBar: some View {
         HStack(spacing: DSSpacing.xxs) {
-            TextField("ページ内を検索", text: $findText)
+            TextField("ページ内を検索", text: $model.findText)
                 .textFieldStyle(.plain)
                 .font(DSFont.meta)
                 .padding(.horizontal, DSSpacing.xs)
@@ -63,9 +64,11 @@ struct BrowserTabView: View {
                 .frame(height: 22)
                 .background(DSColor.windowBackground, in: RoundedRectangle(cornerRadius: DSRadius.row))
                 .focused($findFocused)
-                .onChange(of: findText) { _, text in model.find(text) }
+                .onChange(of: model.findText) { model.find() }
                 .onKeyPress(.return, phases: .down) { press in
-                    model.find(findText, backwards: press.modifiers.contains(.shift))
+                    // 日本語入力の変換を確定する Enter は入力欄に渡す。
+                    if (NSApp.keyWindow?.firstResponder as? NSTextView)?.hasMarkedText() == true { return .ignored }
+                    model.find(backwards: press.modifiers.contains(.shift))
                     return .handled
                 }
                 .onExitCommand { model.closeFind() }
@@ -74,8 +77,8 @@ struct BrowserTabView: View {
             if model.findNotFound {
                 Text("見つかりません").font(DSFont.meta).foregroundStyle(DSColor.textSecondary)
             }
-            icon("chevron.left", "前を検索", enabled: !findText.isEmpty) { model.find(findText, backwards: true) }
-            icon("chevron.right", "次を検索", enabled: !findText.isEmpty) { model.find(findText) }
+            icon("chevron.left", "前を検索", enabled: !model.findText.isEmpty) { model.find(backwards: true) }
+            icon("chevron.right", "次を検索", enabled: !model.findText.isEmpty) { model.find() }
             Spacer(minLength: 0)
             Button("完了") { model.closeFind() }
                 .buttonStyle(.ds(.secondary, height: 20, fontSize: 11))
@@ -111,12 +114,12 @@ struct BrowserTabView: View {
                     Text(verbatim: "\(Int((model.pageZoom * 100).rounded()))%").font(DSFont.meta).padding(.horizontal, 4)
                         .frame(height: 20)
                 }
-                .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: 5, baseFill: DSColor.fillSubtle, hoverFill: DSColor.fillSelected))
+                .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: 5, baseFill: DSColor.fillSelected, hoverFill: DSColor.fillSelected))
                 .help("倍率を元に戻す")
                 .accessibilityLabel("倍率を元に戻す")
                 .accessibilityIdentifier("browser-zoom")
             }
-            icon("magnifyingglass", "ページ内検索", enabled: model.url != nil) { model.showsFind = true }
+            icon("magnifyingglass", "ページ内検索", enabled: model.url != nil) { model.showFind() }
             icon("arrow.up.forward.app", "既定のブラウザで開く", enabled: model.url != nil, action: model.openInDefaultBrowser)
             icon("text.bubble", "エージェントに伝える", enabled: model.url != nil && tellAgent != nil) {
                 if let hint = model.agentHint { tellAgent?(hint) }

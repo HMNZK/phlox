@@ -230,3 +230,16 @@ swift test --package-path macos/Packages/DashboardFeature --no-parallel --filter
 - XCUITest の実行対象は `-only-testing:PhloxUITests/BrowserTabInteractionTests/testLocalHTMLRunsJavaScriptInBrowserTab`。この1メソッドで ⌃⌘R と HTML の入口を確認する。実行は PM へ引き継ぐ。
 - ローカル HTTP とファイル、ページ所有 iframe、ダウンロード拒否、URL の履歴更新は実 WebKit で検査した。外部 HTTPS／CDN、AppKit パネルの実操作、言語切替の実操作は未検証。英訳はビルド済みリソースで確認した。
 - 凍結一覧のファイル・署名テスト・完了済み0039〜0043・既存 ADR を変更していない。リポジトリの commit・push・merge、実アプリの起動／終了、画面操作・前面化は行っていない。変更は未コミットで残す。
+
+## PM の最終修正と検証（2026-10-06）
+
+- **レビュー**: 独立レビュアー（opus）で 3 回。r1 で 8 件（iframe の取り消し・エラー表示の条件・外部ページから許可フォルダへの移動など）、r2 で 3 件（許可範囲が狭まり親フォルダへ戻れない・判定がテストで固定されていない・許可範囲の更新時機）。r3 で対応。
+- **dev（シミュレーターの「エージェントに伝える」）の取り込み**: 競合なし。
+- **帯の縮退を修正**: UI テストで、HTML の帯に「ブラウザで開く」が増えた分、640pt 程度の幅で「閲覧のみ」が消え、既存の `HTMLPreviewInteractionTests` 3 件が失敗した。補助の文言より先にブラウザボタンをアイコンだけにする段を足した（仕様 §3.8）。
+- **検証（最終コード）**
+  - `run-swift-tests.sh`: 4,132 件成功、失敗 0。DashboardFeature を並列で絞り込み実行すると、キーウィンドウを使う既存テストが毎回違う形で落ちた（スクリプトは直列で実行するので対象外）。
+  - Debug ビルド・UI の build-for-testing: 成功。
+  - UI テスト（入力ソースは英字）: `BrowserTabInteractionTests`・`HTMLPreviewInteractionTests` 4 件成功。修正前の回で `MarkdownBlockInteractionTests` 6 件・`FileTreeInteractionTests` 1 件も成功。
+  - 画面外の撮影 12 枚を見本と比較: 配置・状態は一致。差は標準アイコン・テスト用のパス・文字の描画。
+  - 実アプリ（Debug 版）: ⌃⌘R でタブが開く。`~/Downloads/claude-code-150-ideas.html`（reveal.js を CDN から読み込むスライド）を URL 欄から開くと、スライドが表示され、→ キーで 2/31 へ進み、URL 欄に `#/1` が反映された。
+- 未確認: 対話パネル（alert 等）・ファイル選択の実操作、言語を英語にしたときの表示。

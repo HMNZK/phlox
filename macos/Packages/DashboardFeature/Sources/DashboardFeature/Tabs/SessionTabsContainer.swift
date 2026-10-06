@@ -771,11 +771,12 @@ struct FileTabView: View {
                 || (document.isHTML && htmlPreview.ruleList != nil && htmlPreview.preparationError == nil))
     }
 
-    /// 先にパスを縮め、次に補助の文言、最後に表示切替のアイコンを縮める。
+    /// 先にパスを縮め、次に「ブラウザで開く」の文字、補助の文言、最後に表示切替のアイコンを縮める。
     private var toolbar: some View {
         let pathWidth = FilePathDisplay.minimumReadableWidth(document.path)
         return ViewThatFits(in: .horizontal) {
             toolbarContents(reason: true, unsaved: true, keyHint: true, icons: false, minimumPathWidth: pathWidth)
+            toolbarContents(reason: true, unsaved: true, keyHint: true, icons: false, browserIcon: true, minimumPathWidth: pathWidth)
             toolbarContents(reason: false, unsaved: true, keyHint: true, icons: false, minimumPathWidth: pathWidth)
             toolbarContents(reason: false, unsaved: false, keyHint: true, icons: false, minimumPathWidth: pathWidth)
             toolbarContents(reason: false, unsaved: false, keyHint: false, icons: false, minimumPathWidth: pathWidth)
@@ -787,8 +788,10 @@ struct FileTabView: View {
         .frame(height: 30)
     }
 
-    private func toolbarContents(reason showsReason: Bool, unsaved showsUnsaved: Bool, keyHint: Bool, icons: Bool, minimumPathWidth: CGFloat) -> some View {
-        HStack(spacing: DSSpacing.s) {
+    private func toolbarContents(reason showsReason: Bool, unsaved showsUnsaved: Bool, keyHint: Bool, icons: Bool,
+                                 browserIcon: Bool = false, minimumPathWidth: CGFloat) -> some View {
+        let browserIcon = browserIcon || !showsReason
+        return HStack(spacing: DSSpacing.s) {
             FilePathLabel(path: document.path)
                 .frame(minWidth: minimumPathWidth, idealWidth: minimumPathWidth, maxWidth: .infinity)
             HStack(spacing: DSSpacing.s) {
@@ -824,9 +827,9 @@ struct FileTabView: View {
                         Button {
                             openInBrowser(openBrowser)
                         } label: {
-                            Label { if !icons { Text("ブラウザで開く") } } icon: { Image(systemName: "globe") }
+                            Label { if !browserIcon { Text("ブラウザで開く") } } icon: { Image(systemName: "globe") }
                         }
-                        .buttonStyle(.ds(.secondary, height: 20, fontSize: 11, padding: icons ? 4 : 8))
+                        .buttonStyle(.ds(.secondary, height: 20, fontSize: 11, padding: browserIcon ? 4 : 8))
                         .disabled(!document.isLoaded || document.invalidated)
                         .help("保存済みの HTML をブラウザで開きます")
                         .accessibilityLabel("ブラウザで開く")

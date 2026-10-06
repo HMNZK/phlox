@@ -1,3 +1,4 @@
+import SwiftUI
 import AppKit
 import Foundation
 import Testing
@@ -297,6 +298,32 @@ struct BrowserTabTests {
             #expect(web.performKeyEquivalent(with: commandF))
             #expect(model.showsFind)
             #expect(model.findFocusRequest == 1)
+        }
+    }
+
+    @Test func commandFMovesFocusFromPageToFindField() async throws {
+        _ = NSApplication.shared
+        let root = try fixtureDirectory()
+        defer { removeFixture(root) }
+        let file = root.appendingPathComponent("index.html")
+        try Data("<!doctype html><meta charset='utf-8'><title>検索ページ</title><p>りんご</p>".utf8).write(to: file)
+        let model = BrowserTabModel()
+        model.open(file)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 400), styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: BrowserTabView(model: model))
+        defer { model.close(); window.contentView = nil; window.close() }
+        try await waitUntil { model.webView != nil }
+        let web = try #require(model.webView)
+        try await waitForTitle("検索ページ", in: web)
+        let commandF = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+            windowNumber: window.windowNumber, context: nil, characters: "f",
+            charactersIgnoringModifiers: "f", isARepeat: false, keyCode: 3))
+        for attempt in ["欄を出すとき", "欄が出ているとき"] {
+            window.makeFirstResponder(web)
+            #expect(web.performKeyEquivalent(with: commandF))
+            try await waitUntil { (window.firstResponder as? NSTextView)?.isFieldEditor == true }
+            #expect(model.showsFind, "\(attempt)")
         }
     }
 

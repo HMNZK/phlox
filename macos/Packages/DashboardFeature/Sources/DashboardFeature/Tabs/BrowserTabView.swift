@@ -50,8 +50,6 @@ struct BrowserTabView: View {
         .foregroundStyle(DSColor.textPrimary)
         .onAppear { address = model.url?.absoluteString ?? "" }
         .onChange(of: model.url) { _, url in address = url?.absoluteString ?? "" }
-        // 閉じるときは入力先を消さない（closeFind がページへ戻す）。
-        .onChange(of: model.findFocusRequest) { findFocused = true }
     }
 
     private var findBar: some View {
@@ -64,8 +62,10 @@ struct BrowserTabView: View {
                 .frame(height: 22)
                 .background(DSColor.windowBackground, in: RoundedRectangle(cornerRadius: DSRadius.row))
                 .focused($findFocused)
-                // 検索欄を出した同じ更新ではまだ欄が無く入力先を移せないので、欄が現れてから移す。
-                .onAppear { findFocused = true }
+                // 欄が現れたあと（と、出したまま ⌘F を押したとき）に入力先を移す。欄を出す更新の中で
+                // 移そうとすると欄がまだ無く、FocusState だけが true になって後から移せなくなる。
+                // 閉じるときは入力先を消さない（closeFind がページへ戻す）。
+                .task(id: model.findFocusRequest) { findFocused = true }
                 .onChange(of: model.findText) { model.find() }
                 .onKeyPress(.return, phases: .down) { press in
                     // 日本語入力の変換を確定する Enter は入力欄に渡す。

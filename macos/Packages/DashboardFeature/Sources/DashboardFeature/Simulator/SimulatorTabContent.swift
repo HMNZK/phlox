@@ -37,6 +37,7 @@ struct SimulatorTabContent: View {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 band(stale: hasScreen && connection?.hasStaleFrame(at: context.date) == true)
             }
+            .zIndex(1) // 帯の説明の吹き出しを下の画面より手前に出す
             Divider()
             if hasScreen, let reason = failureReason {
                 Text(verbatim: reason).font(DSFont.auxiliary)
@@ -187,23 +188,20 @@ struct SimulatorTabContent: View {
                 }.font(DSFont.meta).foregroundStyle(DSColor.textTertiary).fixedSize()
             }
             Spacer(minLength: 0)
-            Button { tellAgent?() } label: { Image(systemName: "text.bubble") }
-                .buttonStyle(.plain).opacity(canTellAgent ? 1 : 0.45)
-                .frame(width: 26, height: 22)
+            Button { tellAgent?() } label: { Image(systemName: "text.bubble").frame(width: 26, height: 22) }
+                .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: 5))
                 .fixedSize()
-                .help("表示中の端末を入力欄に入れる").accessibilityLabel("エージェントに伝える")
+                .bandTip("表示中の端末をエージェントの入力欄に入れる").accessibilityLabel("エージェントに伝える")
                 .accessibilityIdentifier("simulator-tell-agent").disabled(!canTellAgent)
-            Button { if allowsInput { connection?.sendHome() } } label: { Image(systemName: "square") }
-                .buttonStyle(.plain).opacity(allowsInput ? 1 : 0.45)
-                .frame(width: 26, height: 22)
+            Button { if allowsInput { connection?.sendHome() } } label: { Image(systemName: "square").frame(width: 26, height: 22) }
+                .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: 5))
                 .fixedSize()
-                .help("ホーム（⇧⌘H）").accessibilityLabel("ホーム")
+                .bandTip("ホーム画面に戻る ⇧⌘H").accessibilityLabel("ホーム")
                 .accessibilityIdentifier("simulator-home").disabled(!allowsInput)
-            Button(action: screenshot) { Image(systemName: "camera") }
-                .buttonStyle(.plain).opacity(device?.isBooted == true ? 1 : 0.45)
-                .frame(width: 26, height: 22)
+            Button(action: screenshot) { Image(systemName: "camera").frame(width: 26, height: 22) }
+                .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: 5))
                 .fixedSize()
-                .help("スクリーンショットを Finder で表示").accessibilityLabel("スクリーンショット")
+                .bandTip("スクリーンショットを撮って Finder で表示").accessibilityLabel("スクリーンショット")
                 .accessibilityIdentifier("simulator-screenshot")
                 .disabled(device?.isBooted != true)
             Button(action: shutdown) {
@@ -212,7 +210,7 @@ struct SimulatorTabContent: View {
                 .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: 5,
                     baseFill: confirmsShutdown ? DSColor.fillSelected : .clear))
                 .fixedSize()
-                .help("端末を停止").accessibilityLabel("端末を停止")
+                .bandTip("端末を停止").accessibilityLabel("端末を停止")
                 .accessibilityIdentifier("simulator-shutdown").disabled(device?.isBooted != true)
         }
         .buttonStyle(.borderless).font(DSFont.auxiliary)
@@ -357,4 +355,39 @@ struct SimulatorShutdownDialog: View {
                 .overlay(RoundedRectangle(cornerRadius: DSRadius.row).strokeBorder(DSColor.controlBorder, lineWidth: 0.5))
         }
     }
+}
+
+/// 帯のボタンの説明（見本 7s）。OS のツールチップより早く出すため自前で描く。
+private struct BandTip: ViewModifier {
+    let text: String
+    @State private var hovering = false
+    @State private var shows = false
+
+    func body(content: Content) -> some View {
+        content
+            .accessibilityHint(text)
+            .onHover { hovering = $0; if !$0 { shows = false } }
+            // 帯の縮退で候補が入れ替わると離れた通知が来ないので、消えるときに戻す。
+            .onDisappear { hovering = false; shows = false }
+            .task(id: hovering) {
+                guard hovering else { return }
+                try? await Task.sleep(for: .milliseconds(400))
+                if !Task.isCancelled { shows = true }
+            }
+            .overlay(alignment: .topTrailing) {
+                if shows {
+                    Text(verbatim: text).font(DSFont.auxiliary).foregroundStyle(DSColor.textPrimary)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(DSColor.dialogBackground, in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(DSColor.popoverEdge, lineWidth: 0.5))
+                        .shadow(color: .black.opacity(DSColor.isDark ? 0.5 : 0.18), radius: 9, y: 6)
+                        .fixedSize().offset(y: 24).allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+    }
+}
+
+private extension View {
+    func bandTip(_ text: String) -> some View { modifier(BandTip(text: text)) }
 }

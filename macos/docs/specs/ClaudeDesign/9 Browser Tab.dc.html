@@ -48,7 +48,7 @@ button{height:24px;font:11px -apple-system,BlinkMacSystemFont,sans-serif;color:i
 <sc-if value="{{ p.loading }}"><span role="status" aria-label="読み込み中" style="width:16px;flex:none;color:var(--secondary);">◌</span></sc-if>
 <sc-if value="{{ p.zoom }}"><span role="button" aria-label="倍率を元に戻す" style="height:20px;padding:0 6px;border-radius:5px;display:flex;align-items:center;flex:none;background:var(--selection);">{{ p.zoom }}</span></sc-if>
 <span class="icon" aria-label="ページ内検索" aria-disabled="{{ p.empty }}" style="{{ p.pageBtn }}">⌕</span>
-<span class="icon" aria-label="既定のブラウザで開く" aria-disabled="{{ p.empty }}" style="{{ p.pageBtn }}">↗</span>
+<span class="icon" aria-label="既定のブラウザで開く" aria-disabled="{{ p.empty }}" style="{{ p.openBtn }}">↗<sc-if value="{{ p.tip }}"><span role="tooltip" style="position:absolute;top:24px;right:0;white-space:nowrap;background:var(--tip);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.35),0 0 0 .5px var(--ctlBorder);padding:4px 8px;font-size:11.5px;color:var(--primary);z-index:20;">表示中のページを既定のブラウザで開く</span></sc-if></span>
 <span class="icon" aria-label="エージェントに伝える" aria-disabled="{{ p.empty }}" style="{{ p.pageBtn }}">💬︎</span>
 <sc-if value="{{ p.showTitle }}"><span style="width:160px;flex:none;text-align:right;color:var(--secondary);">ローカルのスライド</span></sc-if>
 </div>
@@ -87,11 +87,11 @@ button{height:24px;font:11px -apple-system,BlinkMacSystemFont,sans-serif;color:i
 class Component extends DCLogic {
   renderVals() {
     const panels = [];
-    const labels = {empty:'空のタブ',loading:'読み込み中',local:'ローカル HTML',error:'読み込み失敗',narrow:'狭い幅',entry:'HTML ファイルの入口',find:'ページ内検索と倍率 125%',notfound:'検索で見つからない'};
+    const labels = {empty:'空のタブ',loading:'読み込み中',local:'ローカル HTML（既定のブラウザで開くにホバー）',error:'読み込み失敗',narrow:'狭い幅',entry:'HTML ファイルの入口',find:'ページ内検索と倍率 125%',notfound:'検索で見つからない'};
     for (const light of [false,true]) {
       const palette = light
-        ? '--window:#FFFFFF;--panel:#F8F8F9;--primary:#1D1D1F;--secondary:#5B5B60;--separator:rgba(29,29,31,.10);--selection:rgba(29,29,31,.09);--ctl:#FFFFFF;--ctlBorder:rgba(29,29,31,.16);'
-        : '--window:#1E1E20;--panel:#242427;--primary:#F2F2F4;--secondary:#ABABB1;--separator:rgba(242,242,244,.10);--selection:rgba(242,242,244,.09);--ctl:#3A3A3E;--ctlBorder:rgba(242,242,244,.10);';
+        ? '--window:#FFFFFF;--panel:#F8F8F9;--primary:#1D1D1F;--secondary:#5B5B60;--separator:rgba(29,29,31,.10);--selection:rgba(29,29,31,.09);--ctl:#FFFFFF;--ctlBorder:rgba(29,29,31,.16);--tip:#F6F6F7;'
+        : '--window:#1E1E20;--panel:#242427;--primary:#F2F2F4;--secondary:#ABABB1;--separator:rgba(242,242,244,.10);--selection:rgba(242,242,244,.09);--ctl:#3A3A3E;--ctlBorder:rgba(242,242,244,.10);--tip:#2F2F33;';
       for (const state of ['empty','loading','local','error','narrow','entry','find','notfound']) {
         const empty = state === 'empty';
         const entry = state === 'entry';
@@ -102,6 +102,7 @@ class Component extends DCLogic {
           page:['local','narrow','entry','find','notfound'].includes(state), showTitle:['local','find','notfound'].includes(state),
           find:['find','notfound'].includes(state), findStatus:state==='notfound'?'見つかりません':'', zoom:state==='find'?'125%':'',
           pageBtn:empty?'color:var(--secondary);opacity:.5;':'',
+          tip:state==='local', openBtn:(empty?'color:var(--secondary);opacity:.5;':'')+'position:relative;'+(state==='local'?'background:var(--selection);border-radius:5px;':''),
           address:empty?'URL またはファイルの絶対パス':'file:///Users/ryosuke/Downloads/slides.html',
           addressStyle:empty?'color:var(--secondary);':'',
           reload:state==='loading'?'×':'↻',reloadLabel:state==='loading'?'中止':'再読込',

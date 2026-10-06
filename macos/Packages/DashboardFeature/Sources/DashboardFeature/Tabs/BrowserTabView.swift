@@ -19,7 +19,8 @@ struct BrowserTabView: View {
             .frame(height: 30)
             .background(DSColor.panelBackground)
             .overlay(alignment: .bottom) { Rectangle().fill(DSColor.separator).frame(height: 1) }
-            if model.showsFind { findBar }
+            .zIndex(2) // 帯の説明の吹き出し（dsHoverTip）をページより手前に出す
+            if model.showsFind { findBar.zIndex(1) }
             ZStack {
                 BrowserWebView(model: model)
                 if let error = model.error {
@@ -77,8 +78,8 @@ struct BrowserTabView: View {
             if model.findNotFound {
                 Text("見つかりません").font(DSFont.meta).foregroundStyle(DSColor.textSecondary)
             }
-            icon("chevron.left", "前を検索", enabled: !model.findText.isEmpty) { model.find(backwards: true) }
-            icon("chevron.right", "次を検索", enabled: !model.findText.isEmpty) { model.find() }
+            icon("chevron.left", "前を検索", tip: "前を検索 ⇧Enter", enabled: !model.findText.isEmpty) { model.find(backwards: true) }
+            icon("chevron.right", "次を検索", tip: "次を検索 Enter", enabled: !model.findText.isEmpty) { model.find() }
             Spacer(minLength: 0)
             Button("完了") { model.closeFind() }
                 .buttonStyle(.ds(.secondary, height: 20, fontSize: 11))
@@ -91,9 +92,10 @@ struct BrowserTabView: View {
 
     private func toolbar(showsTitle: Bool) -> some View {
         HStack(spacing: DSSpacing.xxs) {
-            icon("chevron.left", "戻る", enabled: model.canGoBack, action: model.back)
-            icon("chevron.right", "進む", enabled: model.canGoForward, action: model.forward)
+            icon("chevron.left", "戻る", tip: "前のページに戻る", leading: true, enabled: model.canGoBack, action: model.back)
+            icon("chevron.right", "進む", tip: "次のページに進む", leading: true, enabled: model.canGoForward, action: model.forward)
             icon(model.isLoading ? "xmark" : "arrow.clockwise", model.isLoading ? "中止" : "再読込",
+                 tip: model.isLoading ? "読み込みを中止" : "ページを再読込", leading: true,
                  enabled: model.url != nil, action: model.reloadOrStop)
             TextField("URL またはファイルの絶対パス", text: $address)
                 .textFieldStyle(.plain)
@@ -115,13 +117,15 @@ struct BrowserTabView: View {
                         .frame(height: 20)
                 }
                 .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: 5, baseFill: DSColor.fillSelected, hoverFill: DSColor.fillSelected))
-                .help("倍率を元に戻す")
+                .dsHoverTip(Text("倍率を元に戻す"))
                 .accessibilityLabel("倍率を元に戻す")
                 .accessibilityIdentifier("browser-zoom")
             }
-            icon("magnifyingglass", "ページ内検索", enabled: model.url != nil) { model.showFind() }
-            icon("arrow.up.forward.app", "既定のブラウザで開く", enabled: model.url != nil, action: model.openInDefaultBrowser)
-            icon("text.bubble", "エージェントに伝える", enabled: model.url != nil && tellAgent != nil) {
+            icon("magnifyingglass", "ページ内検索", tip: "ページ内を検索 ⌘F", enabled: model.url != nil) { model.showFind() }
+            icon("arrow.up.forward.app", "既定のブラウザで開く", tip: "表示中のページを既定のブラウザで開く",
+                 enabled: model.url != nil, action: model.openInDefaultBrowser)
+            icon("text.bubble", "エージェントに伝える", tip: "表示中のページをエージェントの入力欄に入れる",
+                 enabled: model.url != nil && tellAgent != nil) {
                 if let hint = model.agentHint { tellAgent?(hint) }
             }
             if showsTitle, !model.title.isEmpty {
@@ -132,13 +136,14 @@ struct BrowserTabView: View {
         }
     }
 
-    private func icon(_ name: String, _ label: LocalizedStringKey, enabled: Bool, action: @escaping () -> Void) -> some View {
+    private func icon(_ name: String, _ label: LocalizedStringKey, tip: LocalizedStringKey, leading: Bool = false,
+                      enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: name).font(DSFont.meta).frame(width: 24, height: 24)
         }
-        .buttonStyle(HoverableIconButtonStyle())
+        .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: 5))
         .disabled(!enabled)
-        .help(label)
+        .dsHoverTip(Text(tip), leading: leading)
         .accessibilityLabel(label)
     }
 }

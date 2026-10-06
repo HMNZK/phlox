@@ -10039,6 +10039,105 @@
           }
         }
       }
+    },
+    "前のページに戻る": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go back"
+          }
+        }
+      }
+    },
+    "次のページに進む": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go forward"
+          }
+        }
+      }
+    },
+    "ページを再読込": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reload page"
+          }
+        }
+      }
+    },
+    "読み込みを中止": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop loading"
+          }
+        }
+      }
+    },
+    "ページ内を検索 ⌘F": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find in page ⌘F"
+          }
+        }
+      }
+    },
+    "表示中のページを既定のブラウザで開く": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open this page in your default browser"
+          }
+        }
+      }
+    },
+    "表示中のページをエージェントの入力欄に入れる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insert this page into the agent's input"
+          }
+        }
+      }
+    },
+    "前を検索 ⇧Enter": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find previous ⇧Return"
+          }
+        }
+      }
+    },
+    "次を検索 Enter": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find next Return"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -346,3 +346,44 @@ public struct HoverableSurfaceButtonStyle: ButtonStyle {
     }
 }
 #endif
+
+/// ホバーで 0.4 秒とどまると、ボタンの下に説明の吹き出しを出す（シミュレーター見本 7s・ブラウザ見本 9）。
+/// OS のツールチップより早く出すため自前で描く。読み上げには同じ文をヒントとして渡す。
+/// 吹き出しは重ねて描くだけなので、下の兄弟ビューより手前に出すには呼び出し側で帯に `zIndex` を付ける。
+struct HoverTip: ViewModifier {
+    let text: Text
+    /// 吹き出しをボタンの左端に揃えるか（帯の左端のボタン用）。既定は右端揃え。
+    let leading: Bool
+    @State private var hovering = false
+    @State private var shows = false
+
+    func body(content: Content) -> some View {
+        content
+            .accessibilityHint(text)
+            .onHover { hovering = $0; if !$0 { shows = false } }
+            // 帯の縮退で候補が入れ替わると離れた通知が来ないので、消えるときに戻す。
+            .onDisappear { hovering = false; shows = false }
+            .task(id: hovering) {
+                guard hovering else { return }
+                try? await Task.sleep(for: .milliseconds(400))
+                if !Task.isCancelled { shows = true }
+            }
+            .overlay(alignment: leading ? .topLeading : .topTrailing) {
+                if shows {
+                    text.font(DSFont.auxiliary).foregroundStyle(DSColor.textPrimary)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(DSColor.dialogBackground, in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(DSColor.popoverEdge, lineWidth: 0.5))
+                        .shadow(color: .black.opacity(DSColor.isDark ? 0.5 : 0.18), radius: 9, y: 6)
+                        .fixedSize().offset(y: 24).allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+    }
+}
+
+public extension View {
+    func dsHoverTip(_ text: Text, leading: Bool = false) -> some View {
+        modifier(HoverTip(text: text, leading: leading))
+    }
+}

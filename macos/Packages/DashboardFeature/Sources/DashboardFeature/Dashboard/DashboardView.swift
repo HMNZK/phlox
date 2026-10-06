@@ -802,7 +802,7 @@ public struct DashboardView: View {
                 switch router.tabs.layout(for: id).selected {
                 case .terminal: .terminal
                 case .changes: .changes
-                case .conversation, .file, .simulator: .conversation
+                case .conversation, .file, .simulator, .browser: .conversation
                 }
             },
             select: { id, tab in
@@ -1002,6 +1002,7 @@ public struct DashboardView: View {
             // 文書の失効と保存待ちは、削除を行うモデル側で完了している。
             sessionTerminals?.close(id)
             simulatorHub?.removeSession(id)
+            router.closeBrowser(for: id)
         }
     }
 
@@ -1057,6 +1058,7 @@ public struct DashboardView: View {
                 await FileTabDocumentRegistry.shared.remove(for: sessionID, path: path)
             }
             router.tabs.updateLayout(for: sessionID) { $0.close(tab) }
+            if tab == .browser { router.closeBrowser(for: sessionID) }
             if case .simulator = tab {
                 simulatorHub?.removeSession(sessionID)
             }

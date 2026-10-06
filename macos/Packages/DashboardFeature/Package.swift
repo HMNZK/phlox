@@ -22,6 +22,7 @@ let package = Package(
         .package(path: "../StructuredChatKit"),
         .package(path: "../ClaudeAgentKit"),
         .package(path: "../CursorAgentKit"),
+        .package(path: "../LocalHTTPServer"),
         .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.0.0"),
         .package(url: "https://github.com/swiftlang/swift-cmark", exact: "0.8.0"),
     ],
@@ -58,6 +59,7 @@ let package = Package(
                 "AppBootstrap",
                 "CodexAppServerKit",
                 "StructuredChatKit",
+                "LocalHTTPServer",
             ],
             resources: [.copy("Fixtures")]
         ),

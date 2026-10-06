@@ -66,6 +66,8 @@ targets:
         CFBundleIconName: AppIcon
         CFBundleIconFile: AppIcon
         NSHumanReadableCopyright: ""
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoadsInWebContent: true
         SUFeedURL: https://phlox.cc/appcast.xml
         SUPublicEDKey: SxwucM1aQ79y8oB0XjN2HDmBBs75LpX8nlOcYQHKXqo=
     postBuildScripts:

@@ -12,6 +12,7 @@ last-verified: 2026-09-14
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0182 | [ブラウザはファイルプレビューと分け、非永続の子タブで開く](0182-in-app-browser-tab.md) | accepted |
 | 0181 | [大きいテキストの色付け・編集・閲覧の上限を分ける](0181-large-text-files-without-highlighting.md) | accepted |
 | 0180 | [ファイルのソース表示は自前の字句解析で色付けする](0180-syntax-highlighting-with-in-house-lexer.md) | accepted |
 | 0179 | [iOS シミュレーターの画面内表示は、非公開部品を XPC サービスに隔離して使う](0179-embedded-ios-simulator-via-xpc-and-private-frameworks.md) | accepted |

@@ -865,6 +865,11 @@ private struct ViewCommands: Commands {
             }
             .keyboardShortcut("y", modifiers: [.command, .control])
             .disabled(router?.selectedSession == nil)
+            Button("ブラウザを開く") {
+                router?.openChildTab(.browser)
+            }
+            .keyboardShortcut("r", modifiers: [.command, .control])
+            .disabled(router?.selectedSession == nil)
 
             // 表示範囲バーの「レイアウト ▾」と同じ 9 種（骨格 E2・06）。
             Menu("グリッドのレイアウト") {

@@ -3,9 +3,20 @@ import Testing
 import AgentDomain
 @testable import DashboardFeature
 
-@Suite("シミュレーターの子タブの保存互換性")
+@Suite("一時的な子タブの保存互換性")
 @MainActor
 struct SessionTabsPersistenceTests {
+    @Test("ブラウザの配置を正規化して旧版でも読める形で保存する")
+    func browserLayoutsKeepOldEncoding() throws {
+        try checkPersistence(left: .browser, right: nil, focusesRight: false,
+                             savedLeft: .conversation, savedRight: nil, savedFocusesRight: false)
+        try checkPersistence(left: .browser, right: .terminal, focusesRight: true,
+                             savedLeft: .terminal, savedRight: nil, savedFocusesRight: false)
+        try checkPersistence(left: .changes, right: .browser, focusesRight: true,
+                             savedLeft: .changes, savedRight: nil, savedFocusesRight: false)
+        try checkPersistence(left: .browser, right: .simulator, focusesRight: true,
+                             savedLeft: .conversation, savedRight: nil, savedFocusesRight: false)
+    }
     @Test("左だけがシミュレーターなら保存時に会話へ戻す")
     func simulatorOnLeftWithoutSplit() throws {
         try checkPersistence(left: .simulator, right: nil, focusesRight: false,
@@ -95,7 +106,7 @@ struct SessionTabsPersistenceTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         let session = SessionID()
         var layout = SessionTabLayout()
-        layout.tabs = [.conversation, .terminal, .changes, .file("Sources/App.swift"), .simulator]
+        layout.tabs = [.conversation, .terminal, .changes, .file("Sources/App.swift"), .simulator, .browser]
         layout.left = left
         layout.right = right
         layout.focusesRight = focusesRight

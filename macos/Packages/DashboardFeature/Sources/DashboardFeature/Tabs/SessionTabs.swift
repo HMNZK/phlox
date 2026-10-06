@@ -9,6 +9,7 @@ public enum ChildTab: Hashable, Codable, Sendable {
     case terminal
     case changes
     case simulator
+    case browser
     /// worktree 直下からの相対パス。
     case file(String)
 }
@@ -108,9 +109,9 @@ public struct SessionTabLayout: Codable, Equatable, Sendable {
     /// 旧版でも読める保存用コピー。実行中の配置には触れない。
     fileprivate var persistenceCopy: SessionTabLayout {
         var copy = self
-        copy.tabs.removeAll { $0 == .simulator }
-        if copy.right == .simulator { copy.right = nil }
-        if copy.left == .simulator {
+        copy.tabs.removeAll { $0 == .simulator || $0 == .browser }
+        if copy.right == .simulator || copy.right == .browser { copy.right = nil }
+        if copy.left == .simulator || copy.left == .browser {
             copy.left = copy.right ?? .conversation
             copy.right = nil
         }

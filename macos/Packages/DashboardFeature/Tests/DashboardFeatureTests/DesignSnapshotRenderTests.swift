@@ -162,6 +162,15 @@ struct DesignSnapshotRenderTests {
 
     private struct Unavailable: Error { let reason: String }
 
+    private var browserFrames: [Frame] {
+        [false, true].flatMap { light in
+            ["empty", "loading", "local", "error", "narrow", "entry"].map { state in
+                Frame(id: "9-\(state)-\(light ? "light" : "dark")", name: "ブラウザ",
+                      width: state == "narrow" ? 320 : 720, height: 420, light: light, state: "9-\(state)")
+            }
+        }
+    }
+
     private var syntaxFrames: [Frame] {
         let sources = ["swift", "json", "yaml", "tsx", "css", "log", "python", "markdown", "html", "diff", "csv", "shell", "unknown",
          "block", "frontmatter", "fence", "heading-edited", "heading-synced"].flatMap { kind in
@@ -270,8 +279,9 @@ struct DesignSnapshotRenderTests {
         var written = 0
         var failures: [String] = []
         let scope = ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] ?? "all"
-        try #require(["all", "files", "simulator", "syntax", "large-files"].contains(scope), "撮影範囲は all・files・simulator・syntax・large-files のいずれか")
-        let selectedFrames = (frames + syntaxFrames).filter { frame in
+        try #require(["all", "files", "simulator", "syntax", "large-files", "browser"].contains(scope), "撮影範囲は all・files・simulator・syntax・large-files・browser のいずれか")
+        let selectedFrames = (frames + syntaxFrames + browserFrames).filter { frame in
+            if scope == "browser" { return frame.id.hasPrefix("9-") }
             if scope == "large-files" { return ["3l", "3large", "changes-deleted", "changes-readonly", "changes-oversized"].contains(frame.stateID) || frame.stateID.hasPrefix("3readonly") }
             if scope == "syntax" { return frame.id.hasPrefix("syntax-") }
             let simulator = frame.id.hasPrefix("7") || frame.id == "8L3"
@@ -314,6 +324,48 @@ struct DesignSnapshotRenderTests {
             NSApp.appearance = appearance
         }
         let id = frame.stateID
+        if id.hasPrefix("9-") {
+            let root = fixtures.appendingPathComponent(frame.id, isDirectory: true)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            let file = root.appendingPathComponent("slides.html")
+            try Data("<!doctype html><html><head><meta charset='utf-8'><title>ローカルのスライド</title></head><body style='margin:0;padding:32px;font:16px -apple-system;background:white;color:#222'><h1 style='font-size:28px;margin:0 0 16px'>Phlox のブラウザ</h1><p id='result'>実行前</p><script>document.querySelector('#result').textContent='JavaScript が実行されました';</script></body></html>".utf8).write(to: file)
+            if id == "9-entry" {
+                let document = FileTabDocument(path: "slides.html", root: root.path)
+                await document.loadIfNeeded()
+                let preview = HTMLPreviewModel(document: document)
+                await preview.prepare()
+                try await capture(FileTabView(document: document, lastWriter: { _ in nil }, isFocused: false,
+                                               openFile: { _, _ in }, openBrowser: { _ in }, htmlPreview: preview), frame: frame, output: output)
+                return "HTML の帯のブラウザ入口。プレビューの JavaScript は無効"
+            }
+            let model = BrowserTabModel()
+            defer { model.close() }
+            if id == "9-local" || id == "9-narrow" { model.open(file) }
+            let router = AppRouter()
+            let (events, continuation) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+            defer { continuation.finish() }
+            let node = SessionNode.pty(SessionViewModel(id: SessionID(), ptyManager: MockPTYManager(),
+                hookEvents: events, terminalCoordinator: TerminalCoordinator(),
+                spawnRequest: .init(command: "/bin/sh", args: [], env: [:], workingDirectory: root.path,
+                                    kind: .claudeCode, statusBootstrap: .viaHook)))
+            var layout = SessionTabLayout()
+            layout.open(.browser)
+            let content = VStack(spacing: 0) {
+                ChildTabBar(router: router, node: node, layout: layout, changeCount: 0, files: FileTabDocuments(), agentConsoleWindowID: nil)
+                Rectangle().fill(DSColor.separator).frame(height: 1)
+                BrowserTabView(model: model)
+            }
+            try await capture(content, frame: frame, output: output, afterMount: {
+                if id == "9-loading" {
+                    model.url = URL(fileURLWithPath: "/Users/ryosuke/Downloads/slides.html")
+                    model.isLoading = true
+                } else if id == "9-error" {
+                    model.url = URL(fileURLWithPath: "/Users/ryosuke/Downloads/slides.html")
+                    model.error = "ページの表示が停止しました。再読込してください。"
+                }
+            })
+            return id == "9-loading" ? "帯の読み込み状態を固定した描画用状態" : "ブラウザの画面外描画"
+        }
         if id.hasPrefix("changes-") {
             let root = fixtures.appendingPathComponent(frame.id)
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -1005,6 +1057,7 @@ struct DesignSnapshotRenderTests {
         }
         var snapshots: [(NSImage, NSRect)] = []
         for web in descendants(host).compactMap({ $0 as? WKWebView }) {
+            if frame.id.hasPrefix("9-"), web.url == nil { continue }
             try await waitUntil(deadline: deadline) { !web.isLoading && web.url != nil }
             let ready = try await web.evaluateJavaScript("document.readyState")
             try #require(ready as? String == "complete")

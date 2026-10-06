@@ -99,12 +99,17 @@ struct SessionTabsContainer<Conversation: View>: View {
                                  isFocused: router.tabs.layout(for: node.id).selected == .simulator)
                     .id(node.id)
             }
+        case .browser:
+            if let model = router.browsers[node.id] {
+                BrowserTabView(model: model).id(node.id)
+            }
         case .file(let path):
             RestoredFileTabView(
                 files: files, sessionID: node.id, path: path, workingDirectory: node.rawWorkspacePath,
                 currentWorkingDirectory: { viewModel.sessionNode(id: node.id)?.rawWorkspacePath },
                 lastWriter: { [viewModel] document in document.lastWriter(among: viewModel.sessionNodes, excluding: node.id) },
                 isFocused: router.tabs.layout(for: node.id).selected == .file(path),
+                openBrowser: { url in router.openBrowser(url, for: node.id) },
                 openFile: { root, linkedPath in
                     files.openFileTab(
                         sessionID: node.id, root: root, relativePath: linkedPath, router: router,
@@ -231,6 +236,7 @@ struct ChildTabBar: View {
         case .terminal: ">_"
         case .changes: "±"
         case .simulator: "▯"
+        case .browser: "◎"
         case .file: "{}"
         }
     }
@@ -241,6 +247,7 @@ struct ChildTabBar: View {
         case .conversation: Text("会話", bundle: localizationBundle)
         case .terminal: Text("ターミナル", bundle: localizationBundle)
         case .simulator: Text("シミュレーター")
+        case .browser: Text("ブラウザ")
         case .changes: changeCount > 0 ? Text("変更 \(changeCount)") : Text("tab.changes")
         case .file(let path): Text(verbatim: (path as NSString).lastPathComponent)
         }
@@ -327,6 +334,7 @@ extension ChildTab {
         case .terminal: "phlox-tab:terminal"
         case .changes: "phlox-tab:changes"
         case .simulator: "phlox-tab:simulator"
+        case .browser: "phlox-tab:browser"
         case .file(let path): "phlox-tab:file:\(path)"
         }
     }
@@ -337,6 +345,7 @@ extension ChildTab {
         case "phlox-tab:terminal": self = .terminal
         case "phlox-tab:changes": self = .changes
         case "phlox-tab:simulator": self = .simulator
+        case "phlox-tab:browser": self = .browser
         default:
             let prefix = "phlox-tab:file:"
             guard dragPayload.hasPrefix(prefix) else { return nil }
@@ -359,7 +368,7 @@ struct NewTabChooser: View {
     @FocusState private var focused: Item?
 
     enum Item: Hashable, CaseIterable {
-        case conversation, terminal, changes, file, agentConsole, simulator
+        case conversation, terminal, changes, file, agentConsole, simulator, browser
     }
 
     private var items: [Item] {
@@ -431,6 +440,7 @@ struct NewTabChooser: View {
         case .terminal: ">_"
         case .changes: "±"
         case .simulator: "▯"
+        case .browser: "◎"
         case .file: "{}"
         case .agentConsole: "⚙"
         }
@@ -442,6 +452,7 @@ struct NewTabChooser: View {
         case .terminal: Text("ターミナル（この worktree で）")
         case .changes: Text("変更一覧 · 差分")
         case .simulator: Text("シミュレーター")
+        case .browser: Text("ブラウザ")
         case .file: Text("ファイルを開く…")
         case .agentConsole: Text("エージェント管理")
         }
@@ -452,6 +463,7 @@ struct NewTabChooser: View {
         case .terminal: "⌃⌘T"
         case .changes: "⌃⌘E"
         case .simulator: "⌃⌘Y"
+        case .browser: "⌃⌘R"
         case .file: "⌘P"
         case .agentConsole: AppLocalizedString.string("共通 ⇧⌘,", locale: locale)
         case .conversation: ""
@@ -470,6 +482,7 @@ struct NewTabChooser: View {
         case .conversation: router.openChildTab(.conversation)
         case .terminal: router.openChildTab(.terminal)
         case .changes: router.openChildTab(.changes)
+        case .browser: router.openChildTab(.browser)
         case .simulator:
             router.openChildTab(.simulator)
             simulatorHub?.requestMenuFocus(for: node.id)
@@ -588,6 +601,7 @@ private struct RestoredFileTabView: View {
     let currentWorkingDirectory: () -> String?
     let lastWriter: (FileTabDocument) -> String?
     let isFocused: Bool
+    let openBrowser: (URL) -> Void
     let openFile: (String, String) -> Void
     @State private var restoredDocument: FileTabDocument?
 
@@ -598,7 +612,7 @@ private struct RestoredFileTabView: View {
             if !changingWorkspace,
                let document = files.existing(for: sessionID, path: path) ?? restoredDocument, !document.invalidated {
                 FileTabUndoScope(document: document, isFocused: isFocused) {
-                    FileTabView(document: document, lastWriter: lastWriter, isFocused: isFocused, openFile: openFile)
+                    FileTabView(document: document, lastWriter: lastWriter, isFocused: isFocused, openFile: openFile, openBrowser: openBrowser)
                 }
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -622,6 +636,7 @@ struct FileTabView: View {
     let lastWriter: (FileTabDocument) -> String?
     let isFocused: Bool
     let openFile: (String, String) -> Void
+    let openBrowser: ((URL) -> Void)?
     @State private var htmlPreview: HTMLPreviewModel
     @State private var showsIsolationExplanation = false
     @State private var showsConflictAlert = false
@@ -634,13 +649,14 @@ struct FileTabView: View {
 
     init(document: FileTabDocument, lastWriter: @escaping (FileTabDocument) -> String?,
          isFocused: Bool, openFile: @escaping (String, String) -> Void,
-         htmlPreview: HTMLPreviewModel? = nil,
+         openBrowser: ((URL) -> Void)? = nil, htmlPreview: HTMLPreviewModel? = nil,
          markdownEditor: MarkdownBlockEditor? = nil,
          showsIsolationExplanation: Bool = false, emphasizesMarkdownReason: Bool = false) {
         self.document = document
         self.lastWriter = lastWriter
         self.isFocused = isFocused
         self.openFile = openFile
+        self.openBrowser = openBrowser
         self.markdownEditor = markdownEditor
         _htmlPreview = State(initialValue: htmlPreview ?? HTMLPreviewModel(document: document))
         _showsIsolationExplanation = State(initialValue: showsIsolationExplanation)
@@ -784,6 +800,18 @@ struct FileTabView: View {
                             .help(localized("再読込"))
                             .accessibilityLabel(localized("再読込"))
                     }
+                    if let openBrowser {
+                        Button {
+                            openInBrowser(openBrowser)
+                        } label: {
+                            Label { if !icons { Text("ブラウザで開く") } } icon: { Image(systemName: "globe") }
+                        }
+                        .buttonStyle(.ds(.secondary, height: 20, fontSize: 11, padding: icons ? 4 : 8))
+                        .disabled(!document.isLoaded || document.invalidated)
+                        .help("保存済みの HTML をブラウザで開きます")
+                        .accessibilityLabel("ブラウザで開く")
+                        .accessibilityIdentifier("html-open-in-browser")
+                    }
                     presentationButtons(compact: icons)
                 }
                 if document.isMarkdown {
@@ -821,6 +849,11 @@ struct FileTabView: View {
 
     private var canSave: Bool {
         document.isLoaded && !document.isReadOnly && !document.invalidated && document.hasUnsavedChanges && document.blockEditFailure == nil
+    }
+
+    func openInBrowser(_ open: (URL) -> Void) {
+        guard document.isHTML, document.isLoaded, !document.invalidated else { return }
+        open(URL(fileURLWithPath: document.root).appendingPathComponent(document.path))
     }
 
     private var markdownReason: String? {

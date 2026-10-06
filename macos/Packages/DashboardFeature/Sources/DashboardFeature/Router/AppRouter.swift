@@ -62,6 +62,8 @@ public final class AppRouter {
     public var projectRenameRequest: ProjectID?
     /// 上段タブ列と子タブ（02 C）。メニューの ⌘W・⌘1–9・⌃Tab からも触る。
     public let tabs: SessionTabStore
+    /// ブラウザのページと履歴は、子タブを閉じるまでだけ保持する。
+    private(set) var browsers: [SessionID: BrowserTabModel] = [:]
     /// 上段右端の「共通ターミナル」（worktree の外・ホームで開く）を前に出しているか。
     public var commonTerminalSelected = false
     /// 「新しいタブ」の選択肢（⌘T・＋）を開いているか。
@@ -139,7 +141,18 @@ public final class AppRouter {
         }
         viewMode = .single
         commonTerminalSelected = false
+        if tab == .browser, browsers[selectedSession] == nil { browsers[selectedSession] = BrowserTabModel() }
         tabs.updateLayout(for: selectedSession) { $0.open(tab) }
+    }
+
+    func openBrowser(_ url: URL, for sessionID: SessionID) {
+        guard selectedSession == sessionID else { return }
+        openChildTab(.browser)
+        browsers[sessionID]?.open(url)
+    }
+
+    func closeBrowser(for sessionID: SessionID) {
+        browsers.removeValue(forKey: sessionID)?.close()
     }
 
     /// ⌃Tab / ⌃⇧Tab。

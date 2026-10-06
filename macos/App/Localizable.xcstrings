@@ -1,6 +1,193 @@
 {
   "sourceLanguage": "ja",
   "strings": {
+    "ブラウザ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browser"
+          }
+        }
+      }
+    },
+    "ブラウザを開く": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Browser"
+          }
+        }
+      }
+    },
+    "ブラウザで開く": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in Browser"
+          }
+        }
+      }
+    },
+    "保存済みの HTML をブラウザで開きます": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the saved HTML in the browser"
+          }
+        }
+      }
+    },
+    "ブラウザのページ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browser page"
+          }
+        }
+      }
+    },
+    "URL またはファイルの絶対パス": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL or absolute file path"
+          }
+        }
+      }
+    },
+    "URL またはファイルの絶対パスを入力してください。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a URL or an absolute file path."
+          }
+        }
+      }
+    },
+    "URL またはファイルのパスを入力": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a URL or file path"
+          }
+        }
+      }
+    },
+    "Web ページとローカル HTML を開けます": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open web pages and local HTML files"
+          }
+        }
+      }
+    },
+    "ページを開けません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cannot open the page"
+          }
+        }
+      }
+    },
+    "ページの表示が停止しました。再読込してください。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The page stopped responding. Reload it to continue."
+          }
+        }
+      }
+    },
+    "ダウンロードには対応していません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloads are not supported."
+          }
+        }
+      }
+    },
+    "ページからのメッセージ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Message from the page"
+          }
+        }
+      }
+    },
+    "戻る": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
+          }
+        }
+      }
+    },
+    "進む": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forward"
+          }
+        }
+      }
+    },
+    "中止": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop"
+          }
+        }
+      }
+    },
+    "読み込み中": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading"
+          }
+        }
+      }
+    },
     "編集を破棄": {
       "extractionState": "manual",
       "localizations": {

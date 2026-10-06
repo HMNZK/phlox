@@ -4,7 +4,11 @@ import DesignSystem
 
 struct BrowserTabView: View {
     @Bindable var model: BrowserTabModel
+    /// 表示中のページをこのセッションの入力欄に入れる（FR-11）。
+    var tellAgent: ((String) -> Void)? = nil
     @State private var address = ""
+    @State private var findText = ""
+    @FocusState private var findFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -16,6 +20,7 @@ struct BrowserTabView: View {
             .frame(height: 30)
             .background(DSColor.panelBackground)
             .overlay(alignment: .bottom) { Rectangle().fill(DSColor.separator).frame(height: 1) }
+            if model.showsFind { findBar }
             ZStack {
                 BrowserWebView(model: model)
                 if let error = model.error {
@@ -45,6 +50,40 @@ struct BrowserTabView: View {
         .foregroundStyle(DSColor.textPrimary)
         .onAppear { address = model.url?.absoluteString ?? "" }
         .onChange(of: model.url) { _, url in address = url?.absoluteString ?? "" }
+        .onChange(of: model.showsFind) { _, shows in findFocused = shows }
+    }
+
+    private var findBar: some View {
+        HStack(spacing: DSSpacing.xxs) {
+            TextField("ページ内を検索", text: $findText)
+                .textFieldStyle(.plain)
+                .font(DSFont.meta)
+                .padding(.horizontal, DSSpacing.xs)
+                .frame(maxWidth: 240)
+                .frame(height: 22)
+                .background(DSColor.windowBackground, in: RoundedRectangle(cornerRadius: DSRadius.row))
+                .focused($findFocused)
+                .onChange(of: findText) { _, text in model.find(text) }
+                .onKeyPress(.return, phases: .down) { press in
+                    model.find(findText, backwards: press.modifiers.contains(.shift))
+                    return .handled
+                }
+                .onExitCommand { model.closeFind() }
+                .accessibilityLabel("ページ内を検索")
+                .accessibilityIdentifier("browser-find")
+            if model.findNotFound {
+                Text("見つかりません").font(DSFont.meta).foregroundStyle(DSColor.textSecondary)
+            }
+            icon("chevron.left", "前を検索", enabled: !findText.isEmpty) { model.find(findText, backwards: true) }
+            icon("chevron.right", "次を検索", enabled: !findText.isEmpty) { model.find(findText) }
+            Spacer(minLength: 0)
+            Button("完了") { model.closeFind() }
+                .buttonStyle(.ds(.secondary, height: 20, fontSize: 11))
+        }
+        .padding(.horizontal, DSSpacing.xs)
+        .frame(height: 30)
+        .background(DSColor.panelBackground)
+        .overlay(alignment: .bottom) { Rectangle().fill(DSColor.separator).frame(height: 1) }
     }
 
     private func toolbar(showsTitle: Bool) -> some View {
@@ -66,6 +105,21 @@ struct BrowserTabView: View {
             if model.isLoading {
                 ProgressView().controlSize(.mini).frame(width: 16)
                     .accessibilityLabel("読み込み中")
+            }
+            if model.pageZoom != 1 {
+                Button { model.zoom(by: nil) } label: {
+                    Text(verbatim: "\(Int((model.pageZoom * 100).rounded()))%").font(DSFont.meta).padding(.horizontal, 4)
+                        .frame(height: 20)
+                }
+                .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: 5, baseFill: DSColor.fillSubtle, hoverFill: DSColor.fillSelected))
+                .help("倍率を元に戻す")
+                .accessibilityLabel("倍率を元に戻す")
+                .accessibilityIdentifier("browser-zoom")
+            }
+            icon("magnifyingglass", "ページ内検索", enabled: model.url != nil) { model.showsFind = true }
+            icon("arrow.up.forward.app", "既定のブラウザで開く", enabled: model.url != nil, action: model.openInDefaultBrowser)
+            icon("text.bubble", "エージェントに伝える", enabled: model.url != nil && tellAgent != nil) {
+                if let hint = model.agentHint { tellAgent?(hint) }
             }
             if showsTitle, !model.title.isEmpty {
                 Text(verbatim: model.title).font(DSFont.meta).foregroundStyle(DSColor.textSecondary)

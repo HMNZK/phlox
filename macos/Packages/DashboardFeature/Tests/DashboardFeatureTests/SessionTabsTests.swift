@@ -39,6 +39,21 @@ struct SessionTabLayoutTests {
         #expect(layout.selected == .conversation)
     }
 
+    @Test("ブラウザからエージェントに伝えると、分割中はブラウザを残す（ブラウザ FR-11）")
+    func showConversationKeepsBrowser() {
+        var layout = SessionTabLayout()
+        layout.tabs = [.conversation, .changes, .browser]
+        layout.left = .browser
+        layout.right = .changes
+        layout.focusesRight = false
+
+        layout.showConversation(keeping: .browser)
+
+        #expect(layout.left == .browser)
+        #expect(layout.right == .conversation)
+        #expect(layout.selected == .conversation)
+    }
+
     @Test("開いている子タブを閉じると左隣を選ぶ")
     func closingSelectedTabSelectsLeftNeighbor() {
         var layout = SessionTabLayout()

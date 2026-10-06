@@ -202,6 +202,59 @@ struct BrowserTabTests {
         #expect(model.error == nil)
     }
 
+    @Test func agentHintNamesPage() {
+        let model = BrowserTabModel()
+        #expect(model.agentHint == nil, "ページを開いていなければ伝えない")
+        model.url = URL(string: "https://example.com/a?b=1")
+        #expect(model.agentHint == "参照中のページ: https://example.com/a?b=1。Phlox のブラウザで表示中です。")
+        model.title = "例の\nページ"
+        #expect(model.agentHint == "参照中のページ: 例のページ（https://example.com/a?b=1）。Phlox のブラウザで表示中です。", "改行などの制御文字は除く")
+        model.url = URL(fileURLWithPath: "/tmp/スライド.html")
+        #expect(model.agentHint == "参照中のページ: 例のページ（/tmp/スライド.html）。Phlox のブラウザで表示中です。", "ローカル HTML はパスで伝える")
+    }
+
+    @Test func zoomMenuGoesToFrontBrowser() {
+        let session = SessionID()
+        let router = AppRouter(selectedSession: session)
+        #expect(!router.zoomFrontBrowser(by: 1), "ブラウザが前面でなければ文字サイズに任せる")
+        router.openChildTab(.browser)
+        let model = router.browsers[session]!
+        #expect(router.zoomFrontBrowser(by: 1))
+        #expect(model.pageZoom == 1.1)
+        for _ in 0..<20 { _ = router.zoomFrontBrowser(by: 1) }
+        #expect(model.pageZoom == 3, "上限で止まる")
+        #expect(router.zoomFrontBrowser(by: nil))
+        #expect(model.pageZoom == 1)
+        for _ in 0..<20 { _ = router.zoomFrontBrowser(by: -1) }
+        #expect(model.pageZoom == 0.5, "下限で止まる")
+        router.tabs.updateLayout(for: session) { $0.select(.conversation) }
+        #expect(!router.zoomFrontBrowser(by: 1))
+        #expect(model.pageZoom == 0.5)
+    }
+
+    @Test func findInPageAndInspector() async throws {
+        try await withPage("<p>りんご</p>") { model, web, _ in
+            #expect(web.isInspectable, "右クリックで Web インスペクタを開ける")
+            model.zoom(by: 2)
+            #expect(web.pageZoom == 1.25)
+            model.find("ぶどう")
+            try await waitUntil { model.findNotFound }
+            model.find("りんご")
+            try await waitUntil { !model.findNotFound }
+            model.showsFind = true
+            model.closeFind()
+            #expect(!model.showsFind)
+        }
+    }
+
+    private func waitUntil(_ condition: () -> Bool) async throws {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while !condition() {
+            try #require(ContinuousClock.now < deadline, "条件が成り立たない")
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
     @Test func bareAbsolutePathAndTilde() {
         let path = BrowserAddress.url(from: "/tmp/slides.html#/2")
         #expect(path?.path == "/tmp/slides.html")

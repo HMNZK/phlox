@@ -164,7 +164,7 @@ struct DesignSnapshotRenderTests {
 
     private var browserFrames: [Frame] {
         [false, true].flatMap { light in
-            ["empty", "loading", "local", "error", "narrow", "entry"].map { state in
+            ["empty", "loading", "local", "error", "narrow", "entry", "find", "notfound"].map { state in
                 Frame(id: "9-\(state)-\(light ? "light" : "dark")", name: "ブラウザ",
                       width: state == "narrow" ? 320 : 720, height: 420, light: light, state: "9-\(state)")
             }
@@ -340,7 +340,7 @@ struct DesignSnapshotRenderTests {
             }
             let model = BrowserTabModel()
             defer { model.close() }
-            if id == "9-local" || id == "9-narrow" { model.open(file) }
+            if ["9-local", "9-narrow", "9-find", "9-notfound"].contains(id) { model.open(file) }
             let router = AppRouter()
             let (events, continuation) = AsyncStream<(SessionID, HookEvent)>.makeStream()
             defer { continuation.finish() }
@@ -353,12 +353,18 @@ struct DesignSnapshotRenderTests {
             let content = VStack(spacing: 0) {
                 ChildTabBar(router: router, node: node, layout: layout, changeCount: 0, files: FileTabDocuments(), agentConsoleWindowID: nil)
                 Rectangle().fill(DSColor.separator).frame(height: 1)
-                BrowserTabView(model: model)
+                BrowserTabView(model: model, tellAgent: { _ in })
             }
             try await capture(content, frame: frame, output: output, afterMount: {
                 if id == "9-loading" {
                     model.url = URL(fileURLWithPath: "/Users/ryosuke/Downloads/slides.html")
                     model.isLoading = true
+                } else if id == "9-find" {
+                    model.zoom(by: 2)
+                    model.showsFind = true
+                } else if id == "9-notfound" {
+                    model.showsFind = true
+                    model.findNotFound = true
                 } else if id == "9-error" {
                     model.url = URL(fileURLWithPath: "/Users/ryosuke/Downloads/slides.html")
                     model.error = "ページの表示が停止しました。再読込してください。"

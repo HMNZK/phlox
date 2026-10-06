@@ -885,19 +885,20 @@ private struct ViewCommands: Commands {
             Divider()
 
             Button("文字を大きく") {
-                dashboard?.adjustFontSize(by: 1, target: fontTarget)
+                // 前面がブラウザならページの倍率を変える（ブラウザ FR-9）。
+                if router?.zoomFrontBrowser(by: 1) != true { dashboard?.adjustFontSize(by: 1, target: fontTarget) }
             }
             .keyboardShortcut("+", modifiers: .command)
             .disabled(dashboard == nil)
 
             Button("文字を小さく") {
-                dashboard?.adjustFontSize(by: -1, target: fontTarget)
+                if router?.zoomFrontBrowser(by: -1) != true { dashboard?.adjustFontSize(by: -1, target: fontTarget) }
             }
             .keyboardShortcut("-", modifiers: .command)
             .disabled(dashboard == nil)
 
             Button("実寸") {
-                dashboard?.resetFontSize(target: fontTarget)
+                if router?.zoomFrontBrowser(by: nil) != true { dashboard?.resetFontSize(target: fontTarget) }
             }
             .keyboardShortcut("0", modifiers: .command)
             .disabled(dashboard == nil)

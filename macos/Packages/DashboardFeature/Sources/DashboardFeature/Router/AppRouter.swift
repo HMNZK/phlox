@@ -155,6 +155,14 @@ public final class AppRouter {
         browsers.removeValue(forKey: sessionID)?.close()
     }
 
+    /// 前面がブラウザなら、表示メニューの ⌘＋／⌘−／⌘0 でページの倍率を変えて true を返す（FR-9）。steps が nil なら 100%。
+    public func zoomFrontBrowser(by steps: Int?) -> Bool {
+        guard viewMode == .single, !commonTerminalSelected, let id = selectedSession, tabs.layout(for: id).selected == .browser,
+              let browser = browsers[id] else { return false }
+        browser.zoom(by: steps)
+        return true
+    }
+
     /// ⌃Tab / ⌃⇧Tab。
     public func cycleChildTab(by offset: Int) {
         guard viewMode == .single, !commonTerminalSelected, let selectedSession else { return }

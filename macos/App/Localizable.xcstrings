@@ -9951,6 +9951,94 @@
           }
         }
       }
+    },
+    "ページ内検索": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find in Page"
+          }
+        }
+      }
+    },
+    "既定のブラウザで開く": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in Default Browser"
+          }
+        }
+      }
+    },
+    "エージェントに伝える": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tell the Agent"
+          }
+        }
+      }
+    },
+    "ページ内を検索": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search in page"
+          }
+        }
+      }
+    },
+    "見つかりません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not found"
+          }
+        }
+      }
+    },
+    "前を検索": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find Previous"
+          }
+        }
+      }
+    },
+    "次を検索": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find Next"
+          }
+        }
+      }
+    },
+    "倍率を元に戻す": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset Zoom"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

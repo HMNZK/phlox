@@ -27,7 +27,7 @@ button{height:24px;font:11px -apple-system,BlinkMacSystemFont,sans-serif;color:i
 <div>
 <div style="font-size:12px;font-weight:600;color:#5B5B60;">9 · 子タブ「ブラウザ」</div>
 <h1 style="font-size:26px;">Web ページとローカル HTML を開く</h1>
-<p style="font-size:14px;color:#5B5B60;">帯は既存の30pt。戻る・進む・再読込／中止・URL・タイトル。480pt 未満ではタイトルを省略。＋メニューと ⌃⌘R で開く。データは保存しない。</p>
+<p style="font-size:14px;color:#5B5B60;">帯は既存の30pt。戻る・進む・再読込／中止・URL・倍率（100% 以外のとき）・ページ内検索・既定のブラウザで開く・エージェントに伝える・タイトル。480pt 未満ではタイトルを省略。ページ内検索は帯の下に検索欄の行を出す。＋メニューと ⌃⌘R で開く。データは保存しない。</p>
 </div>
 <sc-for list="{{ panels }}" as="p">
 <div id="{{ p.id }}" style="display:flex;flex-direction:column;gap:10px;">
@@ -46,8 +46,21 @@ button{height:24px;font:11px -apple-system,BlinkMacSystemFont,sans-serif;color:i
 <span class="icon" aria-label="{{ p.reloadLabel }}" aria-disabled="{{ p.empty }}"> {{ p.reload }} </span>
 <span class="address" role="textbox" aria-label="URL またはファイルの絶対パス" style="{{ p.addressStyle }}">{{ p.address }}</span>
 <sc-if value="{{ p.loading }}"><span role="status" aria-label="読み込み中" style="width:16px;flex:none;color:var(--secondary);">◌</span></sc-if>
+<sc-if value="{{ p.zoom }}"><span role="button" aria-label="倍率を元に戻す" style="height:20px;padding:0 6px;border-radius:5px;display:flex;align-items:center;flex:none;background:var(--selection);">{{ p.zoom }}</span></sc-if>
+<span class="icon" aria-label="ページ内検索" aria-disabled="{{ p.empty }}" style="{{ p.pageBtn }}">⌕</span>
+<span class="icon" aria-label="既定のブラウザで開く" aria-disabled="{{ p.empty }}" style="{{ p.pageBtn }}">↗</span>
+<span class="icon" aria-label="エージェントに伝える" aria-disabled="{{ p.empty }}" style="{{ p.pageBtn }}">💬︎</span>
 <sc-if value="{{ p.showTitle }}"><span style="width:160px;flex:none;text-align:right;color:var(--secondary);">ローカルのスライド</span></sc-if>
 </div>
+<sc-if value="{{ p.find }}">
+<div class="band" role="search" aria-label="ページ内検索" style="gap:6px;">
+<span class="address" role="textbox" aria-label="ページ内を検索" style="flex:0 1 240px;">JavaScript</span>
+<span style="color:var(--secondary);">{{ p.findStatus }}</span>
+<span class="icon" aria-label="前を検索">‹</span><span class="icon" aria-label="次を検索">›</span>
+<span style="flex:1;"></span>
+<button style="height:20px;">完了</button>
+</div>
+</sc-if>
 </sc-if>
 <sc-if value="{{ p.entry }}">
 <div class="band" role="toolbar" aria-label="HTML ファイルの操作" style="gap:8px;padding:0 10px;">
@@ -74,19 +87,21 @@ button{height:24px;font:11px -apple-system,BlinkMacSystemFont,sans-serif;color:i
 class Component extends DCLogic {
   renderVals() {
     const panels = [];
-    const labels = {empty:'空のタブ',loading:'読み込み中',local:'ローカル HTML',error:'読み込み失敗',narrow:'狭い幅',entry:'HTML ファイルの入口'};
+    const labels = {empty:'空のタブ',loading:'読み込み中',local:'ローカル HTML',error:'読み込み失敗',narrow:'狭い幅',entry:'HTML ファイルの入口',find:'ページ内検索と倍率 125%',notfound:'検索で見つからない'};
     for (const light of [false,true]) {
       const palette = light
         ? '--window:#FFFFFF;--panel:#F8F8F9;--primary:#1D1D1F;--secondary:#5B5B60;--separator:rgba(29,29,31,.10);--selection:rgba(29,29,31,.09);--ctl:#FFFFFF;--ctlBorder:rgba(29,29,31,.16);'
         : '--window:#1E1E20;--panel:#242427;--primary:#F2F2F4;--secondary:#ABABB1;--separator:rgba(242,242,244,.10);--selection:rgba(242,242,244,.09);--ctl:#3A3A3E;--ctlBorder:rgba(242,242,244,.10);';
-      for (const state of ['empty','loading','local','error','narrow','entry']) {
+      for (const state of ['empty','loading','local','error','narrow','entry','find','notfound']) {
         const empty = state === 'empty';
         const entry = state === 'entry';
         panels.push({
           id:'9-'+state+'-'+(light?'light':'dark'), label:labels[state],
           style:palette+'width:'+(state==='narrow'?320:720)+'px;height:420px;',
           empty, entry, loading:state==='loading', error:state==='error',
-          page:['local','narrow','entry'].includes(state), showTitle:state==='local',
+          page:['local','narrow','entry','find','notfound'].includes(state), showTitle:['local','find','notfound'].includes(state),
+          find:['find','notfound'].includes(state), findStatus:state==='notfound'?'見つかりません':'', zoom:state==='find'?'125%':'',
+          pageBtn:empty?'color:var(--secondary);opacity:.5;':'',
           address:empty?'URL またはファイルの絶対パス':'file:///Users/ryosuke/Downloads/slides.html',
           addressStyle:empty?'color:var(--secondary);':'',
           reload:state==='loading'?'×':'↻',reloadLabel:state==='loading'?'中止':'再読込',

@@ -45,6 +45,11 @@ final class BrowserTabModel: NSObject, WKNavigationDelegate, WKUIDelegate {
     var canGoBack = false
     var canGoForward = false
     var error: String?
+    /// ページの倍率（FR-9）。タブを閉じると戻る。
+    private(set) var pageZoom: CGFloat = 1
+    /// ページ内検索の欄を出しているか（FR-8）。
+    var showsFind = false
+    var findNotFound = false
     private(set) var readAccess: URL?
     @ObservationIgnored private(set) var webView: WKWebView?
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
@@ -59,10 +64,14 @@ final class BrowserTabModel: NSObject, WKNavigationDelegate, WKUIDelegate {
         configuration.websiteDataStore = .nonPersistent()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
-        let view = WKWebView(frame: .zero, configuration: configuration)
+        let view = BrowserPageView(frame: .zero, configuration: configuration)
         view.navigationDelegate = self
         view.uiDelegate = self
         view.allowsLinkPreview = false
+        // 右クリックの「要素の詳細を表示」で Web インスペクタを開けるようにする（FR-10）。
+        view.isInspectable = true
+        view.pageZoom = pageZoom
+        view.showFind = { [weak self] in self?.showsFind = true }
         view.setAccessibilityLabel(String(localized: "ブラウザのページ"))
         webView = view
         observations = [
@@ -104,6 +113,56 @@ final class BrowserTabModel: NSObject, WKNavigationDelegate, WKUIDelegate {
         } else {
             webView.load(request ?? URLRequest(url: url))
         }
+    }
+
+    static let zoomLevels: [CGFloat] = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3]
+
+    /// 倍率を steps 段だけ動かす。nil なら 100% に戻す。
+    func zoom(by steps: Int?) {
+        let levels = Self.zoomLevels
+        if let steps {
+            let index = levels.firstIndex(of: pageZoom) ?? levels.firstIndex(of: 1)!
+            pageZoom = levels[min(max(index + steps, 0), levels.count - 1)]
+        } else {
+            pageZoom = 1
+        }
+        webView?.pageZoom = pageZoom
+    }
+
+    /// エージェントに伝える文（FR-11）。ローカル HTML は URL ではなくパスで伝える。
+    var agentHint: String? {
+        guard let url else { return nil }
+        let address = url.isFileURL ? url.path : url.absoluteString
+        let hint = title.isEmpty ? "参照中のページ: \(address)。Phlox のブラウザで表示中です。"
+            : "参照中のページ: \(title)（\(address)）。Phlox のブラウザで表示中です。"
+        return String(String.UnicodeScalarView(hint.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }))
+    }
+
+    /// 表示中のページを既定のブラウザで開く（FR-7）。ローカル HTML も、HTML の既定のアプリではなく既定のブラウザで開く。
+    func openInDefaultBrowser() {
+        guard let url else { return }
+        if url.isFileURL, let browser = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!) {
+            NSWorkspace.shared.open([url], withApplicationAt: browser, configuration: NSWorkspace.OpenConfiguration())
+        } else {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// ページ内を検索する（FR-8）。末尾まで行ったら先頭へ折り返す。
+    func find(_ text: String, backwards: Bool = false) {
+        guard let webView, !text.isEmpty else { findNotFound = false; return }
+        let configuration = WKFindConfiguration()
+        configuration.backwards = backwards
+        configuration.wraps = true
+        webView.find(text, configuration: configuration) { [weak self] result in
+            self?.findNotFound = !result.matchFound
+        }
+    }
+
+    func closeFind() {
+        showsFind = false
+        findNotFound = false
+        if let webView { webView.window?.makeFirstResponder(webView) }
     }
 
     func back() {
@@ -328,5 +387,21 @@ final class BrowserTabModel: NSObject, WKNavigationDelegate, WKUIDelegate {
             self?.panels.remove(panel)
             completionHandler(response == .OK ? panel.urls : nil)
         }
+    }
+}
+
+/// ページにフォーカスがあるときの ⌘F で検索欄を出す（FR-8）。
+/// メニューのキーにするとファイルのエディタの ⌘F を奪うので、ページ側で受ける。
+final class BrowserPageView: WKWebView {
+    var showFind: (() -> Void)?
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+           event.charactersIgnoringModifiers == "f",
+           let responder = window?.firstResponder as? NSView, responder === self || responder.isDescendant(of: self) {
+            showFind?()
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
     }
 }

@@ -64,9 +64,9 @@ struct SessionTabsContainer<Conversation: View>: View {
         viewModel.numberedTabSessionIDs(router: router).compactMap(viewModel.sessionNode(id:))
     }
 
-    /// 文をそのセッションの入力欄に入れ、会話のタブを前に出す（シミュレーターの FR-10）。送信はしない。
+    /// 文をそのセッションの入力欄に入れ、会話のタブを `kept` の無い方に出す（シミュレーターの FR-10・ブラウザの FR-11）。送信はしない。
     /// 入れられないとき（送信の受付待ち・許可や質問の回答待ち・未起動）は警告音だけ鳴らす。
-    private func tellAgent(_ text: String, node: SessionNode) {
+    private func tellAgent(_ text: String, node: SessionNode, keeping kept: ChildTab) {
         // 同じクリックで区画のタップ（押した区画を操作中にする）も走るので、その後に回す。
         // 文とタブの切り替えを同じ更新にまとめ、切り替えで入力先を外す処理（DashboardView）より後に入力欄へフォーカスを移す。
         DispatchQueue.main.async { [router] in
@@ -79,7 +79,7 @@ struct SessionTabsContainer<Conversation: View>: View {
                 // 文は 1 行なので、Enter を送らない限り CLI は送信しない。
                 Task { await session.sendInput(Data(text.utf8)) }
             }
-            router.tabs.updateLayout(for: node.id) { $0.showConversation(keeping: .simulator) }
+            router.tabs.updateLayout(for: node.id) { $0.showConversation(keeping: kept) }
         }
     }
 
@@ -116,12 +116,12 @@ struct SessionTabsContainer<Conversation: View>: View {
             if let simulatorHub {
                 SimulatorTabView(hub: simulatorHub, sessionID: node.id,
                                  isFocused: router.tabs.layout(for: node.id).selected == .simulator,
-                                 tellAgent: { tellAgent($0, node: node) })
+                                 tellAgent: { tellAgent($0, node: node, keeping: .simulator) })
                     .id(node.id)
             }
         case .browser:
             if let model = router.browsers[node.id] {
-                BrowserTabView(model: model).id(node.id)
+                BrowserTabView(model: model, tellAgent: { tellAgent($0, node: node, keeping: .browser) }).id(node.id)
             }
         case .file(let path):
             RestoredFileTabView(

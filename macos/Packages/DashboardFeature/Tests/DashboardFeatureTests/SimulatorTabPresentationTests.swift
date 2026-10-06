@@ -411,6 +411,14 @@ struct SimulatorTabPresentationTests {
             #expect(snapshot.text.contains(fullText), "印だけの帯でも診断の全文を読み上げられる")
             #expect(snapshot.help.contains(fullText), "印だけの帯でも診断の全文をツールチップに残す")
         }
+        if state == "停止中" {
+            // tellAgent が無いので 4 つとも押せないが、ホバーの説明は読み上げでも届く。
+            for text in ["表示中の端末をエージェントの入力欄に入れる", "ホーム画面に戻る ⇧⌘H",
+                         "スクリーンショットを撮って Finder で表示", "端末を停止"] {
+                #expect(snapshot.help.contains(text), "押せない状態でも説明に到達できる: \(text)")
+            }
+            #expect(snapshot.enabled["simulator-home"] == false)
+        }
         for identifier in identifiers {
             let frame = try #require(snapshot.frames[identifier])
             #expect(frame.width >= (identifier == "simulator-boot" ? 30 : 10))

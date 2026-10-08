@@ -2,7 +2,7 @@
 
 ## 状態
 
-準備中・未公開。対象は `dev` の開発変更と Haiku 5.5 対応。公証済み配布物は `c21a4472` 時点のもので、以下の追加修正は含まれていない。追加修正を配布する場合は再ビルド・再署名・再公証する。
+準備中・未公開。対象は `dev` の開発変更と Haiku 5.5 対応。追加修正を含む `ed062bd3` をdev・verifyに統合しpush済み。新配布物は `.build/release-artifacts-1.9.0-manual/` に保持し、GitHub Releaseは下書き。mainは1.8.3のまま。以下の先行公証記録は旧 `c21a4472` 配布物の履歴であり、新配布物の記録は「最終配布物」に記載する。
 2026-10-08 の公証認証確認で Apple が HTTP 403（必要な契約が未署名または失効）を返した。ユーザーの契約同意後、本体（`e43557eb-960c-4dca-a038-5dda9aebddcd`）とDMG（`fb2b3bb3-766d-487d-9f7b-1e0043e18570`）が Accepted。本体・DMGのstapler検証とGatekeeper検証が成功し、Sparkle署名も取得済み。未公開。
 
 ## 検証
@@ -60,6 +60,18 @@ PATH修正後の最終 `verify-simulator-display.sh` はexit0。Debugビルド�
 - 最終方式の `verify-simulator-display.sh` はexit0。接続の表示方向・入力解放・再接続での初期化と実XPCエラーの検査を含むDashboardFeature、SimulatorBridgeKit Swift Testing20件、Debugビルド、補助回帰・許可リスト・署名検査が成功。
 - 変更をひとまとまりでレビューした。表示の回転と逆座標変換、スクロール差分、入力解放、接続世代、XPC配送キューとMainActorの境界を確認した。見本画像との比較は依然未確認。
 - 最終UI検査はFileTreeInteractionTests・HTMLPreviewInteractionTests・BrowserTabInteractionTests・MarkdownBlockInteractionTests・PhloxLaunchSmokeTestsの13件成功、失敗0。結果は `.build/release-1.9.0-ui-final.xcresult`。最終の画面外画像検査は2件成功。配布用の新しいDerivedDataでの初回ビルドは署名チーム未指定によりexit65。既存のDeveloper ID署名を指定して再実行する。
+
+### 最終配布物（未公開）
+
+- Developer IDを指定した再ビルドは成功。既存警告に加え、SwiftTerm resource bundleに `warning: missing creator for mutated node` が出た。Releaseの起動検証は実施せず、DebugのUI検証と配布物の署名・公証検査を区別する。
+- 本体・同梱コードを内側から署名し、深い署名検査成功。本体公証 `59bf550d-b336-4e7e-b3ca-b9d3213f9568` Accepted。staple後のvalidateとGatekeeper `accepted, source=Notarized Developer ID` を確認した。本体・XPC署名検査は4件成功。
+- 背景・アイコン配置を含むDMGを生成・署名した。DMG公証 `0b6f5e50-36b4-4cb1-aa5a-f99c10b5caee` Accepted。staple後のvalidateとGatekeeper `accepted, source=Notarized Developer ID` を確認した。
+- ZIPは24,483,697バイト、SHA256 `d005643af37383196a04634cefbb9150500a0ef8fa3da5556f058652974c33c9`。DMGは29,091,078バイト、SHA256 `ea5dfc69772df8ee1c698c490d41fecbfc3748e9c755f13a503201a6751db8dc`。DMGをGitHub Release v1.9.0の下書きへ添付し、GitHubのdigestとサイズが一致した。
+- verifyをcheckoutして実行した起動・描画検査2件成功。結果は `.build/release-1.9.0-verify-final.xcresult`。その後featureブランチへ戻した。
+- Sparkleの署名ツールはキーチェーン許可で待機した。SecurityAgentはComputer Useの安全制限により操作を拒否されたため、ユーザーに画面操作を依頼した。「許可した」の回答後、署名が得られた。別手段で迂回しなかった。
+- ローカルHTMLのデザイン見本比較は未確認。main統合・公開する例外を明示して確認し、ユーザーの「許可した」を受けて比較未確認を記録したまま公開を進める。main統合・公開後疎通確認はこれから行う。
+- 新ZIPの署名と長さを `site/appcast.xml` の1.9.0 / build30に記載した。en・jaの説明は下書きReleaseと同じ内容を使用する。
+- Sparkle署名の実検証と、appcast・配布アプリの版/build・en/jaノート・添付DMG digest/サイズの整合検査が成功。手元で実行、リポジトリのテストには未登録。
 
 今回起動したDebugは正常終了し、稼働中の `/Applications/Phlox.app`（PID14065）の継続を確認した。専用端末のshutdownはPreToolUseフックが「不可逆・高リスクの可能性」で拒否したため未実施。拒否後に実状態を確認し、既存5端末はShutdownで不変、専用端末はBooted。専用端末は削除せず保持し、Simulator.appも保持した。拒否を別手段で迂回しない。
 

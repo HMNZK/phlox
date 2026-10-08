@@ -61,4 +61,4 @@ PNGの直接再保存で収まる場合は、全画素の透明度検査を省�
 
 ## 反映
 
-前ターンのdevへのマージ指示に続く修正として、検証後にdevへ反映する。元ディレクトリの未コミットiOS資料・Designは保持する。検証ログ・測定スクリプト・撮影は後片付け前に元リポジトリの`.build/image-attachment-quality-validation/`へ保存する。
+前ターンのdevへのマージ指示に続く修正として、実装コミット`de29c98e`をdevへfast-forwardで反映した。競合・統合によるコード差分はない。元ディレクトリの未コミットiOS資料・Designは保持した。検証ログ・測定スクリプト・撮影を、元リポジトリの`.build/image-attachment-quality-validation/`へ保存した。

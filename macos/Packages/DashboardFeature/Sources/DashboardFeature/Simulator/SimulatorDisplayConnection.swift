@@ -23,6 +23,16 @@ protocol SimulatorDisplayTransport: AnyObject {
 @MainActor @Observable
 public final class SimulatorDisplayConnection {
     public private(set) var displayInfo: SimulatorDisplayInfo?
+    private(set) var displayOrientation: SimulatorOrientation = .portrait
+    var presentedDisplayInfo: SimulatorDisplayInfo? {
+        guard let info = displayInfo else { return nil }
+        return SimulatorDisplayInfo(
+            udid: info.udid, connectionGeneration: info.connectionGeneration,
+            displayGeneration: info.displayGeneration, surface: info.surface,
+            pixelWidth: info.pixelWidth, pixelHeight: info.pixelHeight,
+            orientation: displayOrientation, surfaceIsRotated: false, pixelFormat: info.pixelFormat
+        )
+    }
     public private(set) var reason: String?
     public private(set) var generation = SimulatorConnectionGeneration()
     public private(set) var inputRevision = 0
@@ -164,6 +174,7 @@ public final class SimulatorDisplayConnection {
         transport = nil
         udid = nil
         displayInfo = nil
+        displayOrientation = .portrait
         lastFrameUpdate = nil
         observedSurface = nil
         observedSeed = nil
@@ -190,6 +201,12 @@ public final class SimulatorDisplayConnection {
     public func sendHome() {
         guard inputEnabled, let info = displayInfo else { return }
         transport?.sendButton(udid: info.udid, button: 0)
+    }
+
+    func rotateDisplay() {
+        guard displayInfo != nil else { return }
+        releaseAll()
+        displayOrientation = displayOrientation.clockwise
     }
 
     public func releaseAll() {
@@ -263,13 +280,17 @@ public final class SimulatorDisplayConnection {
 }
 
 @MainActor
-private final class SimulatorXPCTransport: NSObject, SimulatorDisplayTransport, SimulatorBridgeClientProtocol {
+final class SimulatorXPCTransport: NSObject, SimulatorDisplayTransport, SimulatorBridgeClientProtocol {
     private let connection: NSXPCConnection
     private var changed: (@MainActor (SimulatorDisplayInfo) -> Void)?
     private var failed: (@MainActor (String) -> Void)?
 
-    override init() {
-        connection = NSXPCConnection(serviceName: (Bundle.main.bundleIdentifier ?? "com.phlox.Phlox") + ".SimulatorBridge")
+    override convenience init() {
+        self.init(connection: NSXPCConnection(serviceName: (Bundle.main.bundleIdentifier ?? "com.phlox.Phlox") + ".SimulatorBridge"))
+    }
+
+    init(connection: NSXPCConnection) {
+        self.connection = connection
         super.init()
     }
 
@@ -280,24 +301,24 @@ private final class SimulatorXPCTransport: NSObject, SimulatorDisplayTransport, 
         connection.remoteObjectInterface = SimulatorBridgeInterfaces.service()
         connection.exportedInterface = SimulatorBridgeInterfaces.client()
         connection.exportedObject = self
-        connection.interruptionHandler = { [weak self] in
+        connection.interruptionHandler = { @Sendable [weak self] in
             Task { @MainActor in self?.failed?("補助プロセスとの通信が中断しました") }
         }
-        connection.invalidationHandler = { [weak self] in
+        connection.invalidationHandler = { @Sendable [weak self] in
             Task { @MainActor in self?.failed?("補助プロセスとの接続が終了しました") }
         }
         connection.resume()
     }
 
     private var service: (any SimulatorBridgeProtocol)? {
-        connection.remoteObjectProxyWithErrorHandler { [weak self] error in
+        connection.remoteObjectProxyWithErrorHandler { @Sendable [weak self] error in
             let message = error.localizedDescription
             Task { @MainActor in self?.failed?(message) }
         } as? any SimulatorBridgeProtocol
     }
 
     func probe(reply: @escaping @MainActor (SimulatorBridgeCapability) -> Void) {
-        service?.probe { capability in
+        service?.probe { @Sendable capability in
             let delivery = Delivery(capability)
             Task { @MainActor in reply(delivery.value) }
         }
@@ -305,7 +326,7 @@ private final class SimulatorXPCTransport: NSObject, SimulatorDisplayTransport, 
 
     func attach(udid: String, generation: Int,
                 reply: @escaping @MainActor (SimulatorDisplayInfo?, NSError?) -> Void) {
-        service?.attach(udid: udid, generation: generation) { info, error in
+        service?.attach(udid: udid, generation: generation) { @Sendable info, error in
             let delivery = Delivery((info, error))
             Task { @MainActor in reply(delivery.value.0, delivery.value.1) }
         }

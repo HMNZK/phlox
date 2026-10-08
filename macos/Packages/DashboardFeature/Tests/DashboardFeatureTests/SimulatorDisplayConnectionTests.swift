@@ -8,6 +8,28 @@ import SimulatorBridgeKit
 
 @Suite(.serialized) @MainActor
 struct SimulatorDisplayConnectionTests {
+    @Test func 表示方向の変更は入力を解放しフレーム更新で維持して再接続で戻る() throws {
+        let fake = FakeTransport()
+        let connection = SimulatorDisplayConnection { fake }
+        configure(connection)
+        connection.attach(udid: "端末")
+        fake.probeReply?(capability())
+        fake.attachReply?(try info(connection.generation.current), nil)
+        connection.sendKey(keyCode: 0, modifiers: 0, down: true)
+        let revision = connection.inputRevision
+        connection.rotateDisplay()
+        #expect(connection.displayOrientation == .landscapeRight)
+        #expect(connection.inputRevision > revision)
+        #expect(connection.sentKeyCodes.isEmpty)
+        #expect(connection.displayInfo?.orientation == .portrait)
+        #expect(connection.presentedDisplayInfo?.orientation == .landscapeRight)
+        fake.changed?(try info(connection.generation.current))
+        #expect(connection.presentedDisplayInfo?.orientation == .landscapeRight)
+        connection.attach(udid: "別端末")
+        #expect(connection.displayOrientation == .portrait)
+        #expect(connection.presentedDisplayInfo == nil)
+        connection.disconnect()
+    }
     #if DEBUG
     @Test(arguments: ["com.apple.CoreSimulator.SimRuntime.iOS-26-2", "未登録ランタイム", "表示のみランタイム"])
     func 明示的な互換性検査は登録状態によらず未確認として入力を検査する(runtime: String) throws {

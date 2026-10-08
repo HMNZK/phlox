@@ -43,11 +43,12 @@ struct SimulatorTabContent: View {
                 Text(verbatim: reason).font(DSFont.auxiliary)
                     .foregroundStyle(DSColor.textSecondary).padding(8)
             }
-            if hasScreen, let info = connection?.displayInfo {
+            if hasScreen, let info = connection?.presentedDisplayInfo {
                 GeometryReader { geometry in
-                    let height = min(max(0, geometry.size.height - 80), max(0, geometry.size.width - 40) * CGFloat(info.pixelHeight) / CGFloat(info.pixelWidth))
-                    let width = height * CGFloat(info.pixelWidth) / CGFloat(info.pixelHeight)
-                    let radius = width * 0.135
+                    let size = info.displayPixelSize
+                    let height = min(max(0, geometry.size.height - 80), max(0, geometry.size.width - 40) * size.height / size.width)
+                    let width = height * size.width / size.height
+                    let radius = min(width, height) * 0.135
                     VStack(spacing: 12) {
                         SimulatorScreenView(displayInfo: info, connection: connection,
                                             isVisible: windowVisible, releaseFocus: releaseFocus,
@@ -188,6 +189,14 @@ struct SimulatorTabContent: View {
                 }.font(DSFont.meta).foregroundStyle(DSColor.textTertiary).fixedSize()
             }
             Spacer(minLength: 0)
+            Button { connection?.rotateDisplay() } label: {
+                Image(systemName: "rotate.right").frame(width: 26, height: 22)
+            }
+                .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: 5))
+                .fixedSize()
+                .dsHoverTip(Text(verbatim: "表示を右に90度回転 · Simulator.appで回した端末の向きに合わせます"))
+                .accessibilityLabel("表示を回転")
+                .accessibilityIdentifier("simulator-rotate-display").disabled(!hasScreen)
             Button { tellAgent?() } label: { Image(systemName: "text.bubble").frame(width: 26, height: 22) }
                 .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: 5))
                 .fixedSize()
@@ -356,4 +365,3 @@ struct SimulatorShutdownDialog: View {
         }
     }
 }
-

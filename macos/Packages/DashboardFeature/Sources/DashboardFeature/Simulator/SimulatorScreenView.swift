@@ -100,7 +100,13 @@ public final class SimulatorScreenNSView: NSView {
         super.layout()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        screen.frame = bounds
+        screen.transform = CATransform3DIdentity
+        screen.bounds = CGRect(origin: .zero, size: info.map {
+            !$0.surfaceIsRotated && $0.orientation.isLandscape
+                ? CGSize(width: bounds.height, height: bounds.width) : bounds.size
+        } ?? bounds.size)
+        screen.position = CGPoint(x: bounds.midX, y: bounds.midY)
+        screen.transform = CATransform3DMakeRotation(info?.displayRotation ?? 0, 0, 0, 1)
         updatePointerLayer()
         CATransaction.commit()
     }
@@ -115,7 +121,16 @@ public final class SimulatorScreenNSView: NSView {
         guard NSGraphicsContext.current?.isDrawingToScreen == false, let info,
               let image = imageContext.createCGImage(CIImage(ioSurface: info.surface),
                                                    from: CGRect(x: 0, y: 0, width: info.pixelWidth, height: info.pixelHeight)) else { return }
-        NSImage(cgImage: image, size: bounds.size).draw(in: bounds)
+        NSGraphicsContext.saveGraphicsState()
+        let transform = NSAffineTransform()
+        transform.translateX(by: bounds.midX, yBy: bounds.midY)
+        transform.rotate(byRadians: info.displayRotation)
+        transform.concat()
+        let size = !info.surfaceIsRotated && info.orientation.isLandscape
+            ? CGSize(width: bounds.height, height: bounds.width) : bounds.size
+        NSImage(cgImage: image, size: size).draw(in: CGRect(x: -size.width / 2, y: -size.height / 2,
+                                                        width: size.width, height: size.height))
+        NSGraphicsContext.restoreGraphicsState()
         if let path = pointer.path {
             let outline = NSBezierPath(cgPath: path)
             if pointerIsTouch { NSColor(cgColor: pointer.fillColor ?? NSColor.clear.cgColor)?.setFill(); outline.fill() }
@@ -182,10 +197,12 @@ public final class SimulatorScreenNSView: NSView {
                     next.isCurrent(udid: info.udid, connectionGeneration: info.connectionGeneration,
                                    minimumDisplayGeneration: info.displayGeneration) else { return }
         }
-        if info?.udid != next?.udid || info?.connectionGeneration != next?.connectionGeneration {
+        if info?.udid != next?.udid || info?.connectionGeneration != next?.connectionGeneration
+            || info?.orientation != next?.orientation {
             releaseInput()
         }
         info = next
+        needsLayout = true
         lastSeed = next.map { IOSurfaceGetSeed($0.surface) } ?? 0
         setContents(next?.surface)
     }
@@ -266,8 +283,9 @@ public final class SimulatorScreenNSView: NSView {
         guard let info else { return nil }
         return SimulatorInputMapper.normalizedPoint(
             convert(event.locationInWindow, from: nil), in: bounds,
-            pixelSize: CGSize(width: info.pixelWidth, height: info.pixelHeight),
-            orientation: info.orientation, surfaceIsRotated: info.surfaceIsRotated,
+            pixelSize: info.displayPixelSize,
+            // このビューでは未回転surfaceも表示の向きへ回している。
+            orientation: info.orientation, surfaceIsRotated: true,
             continuingTouch: continuingTouch
         )
     }
@@ -318,7 +336,9 @@ public final class SimulatorScreenNSView: NSView {
         else { showPointer(at: convert(event.locationInWindow, from: nil), touching: false) }
         // マウスの行単位とトラックパッドのポイント単位を揃える。
         let scale = event.hasPreciseScrollingDeltas ? 1.0 : 10.0
-        connection?.sendScroll(dx: event.scrollingDeltaX * scale, dy: event.scrollingDeltaY * scale, point: point, phase: phase)
+        guard let info else { return }
+        let delta = info.orientation.inputDelta(dx: event.scrollingDeltaX * scale, dy: event.scrollingDeltaY * scale)
+        connection?.sendScroll(dx: delta.dx, dy: delta.dy, point: point, phase: phase)
     }
 
     public override func keyDown(with event: NSEvent) {

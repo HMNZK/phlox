@@ -45,7 +45,7 @@ final class InputScreen: UIViewController, UIScrollViewDelegate {
         text.placeholder = "物理キー・貼り付け"
         text.autocorrectionType = .no
         text.autocapitalizationType = .none
-        text.keyboardType = .asciiCapable
+        text.keyboardType = .default
         text.recordPress = { [weak self] in self?.record($0) }
         text.addTarget(self, action: #selector(changed), for: .editingChanged)
         view.addSubview(text)

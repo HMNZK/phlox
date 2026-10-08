@@ -67,6 +67,7 @@ python3 macos/scripts/verify-simulator-allowlist.py
 Xcode build × iOS runtime の組を実行記録に残し、合格した組だけを `SimulatorPolicy.verified` に追加する。
 表示だけ合格した組は `supportsInput: false` にし、入力を有効にしない。未確認の組を範囲指定で許可しない。
 現行は Xcode 26.2（17C52）× iOS 26.2 の1組。日本語入力・四方向・実接続異常など既存記録で未検証の項目は配布前に確認し、合格を記録する。
+Phloxの回転は「表示を回転」で手動指定する。Simulator.app側の回転に自動追従する検査とは区別し、指定した四方向ごとに描画と入力座標が一致するか確認する。
 
 生成した配布用アプリにも次を実行する（公証・staple の後、DMG／Sparkle 公開の前）。
 

@@ -7,6 +7,36 @@ import IOSurface
     // 縦画面を左・右へそれぞれ90度回転した向き。
     case landscapeLeft
     case landscapeRight
+
+    public var clockwise: Self {
+        switch self {
+        case .portrait: .landscapeRight
+        case .landscapeRight: .portraitUpsideDown
+        case .portraitUpsideDown: .landscapeLeft
+        case .landscapeLeft: .portrait
+        }
+    }
+
+    public var isLandscape: Bool { self == .landscapeLeft || self == .landscapeRight }
+
+    public func inputDelta(dx: Double, dy: Double) -> (dx: Double, dy: Double) {
+        switch self {
+        case .portrait: (dx, dy)
+        case .portraitUpsideDown: (-dx, -dy)
+        case .landscapeLeft: (-dy, dx)
+        case .landscapeRight: (dy, -dx)
+        }
+    }
+
+    /// AppKit の左下原点で、縦向きsurfaceを表示の向きへ回す。
+    public var displayRotation: CGFloat {
+        switch self {
+        case .portrait: 0
+        case .portraitUpsideDown: .pi
+        case .landscapeLeft: .pi / 2
+        case .landscapeRight: -.pi / 2
+        }
+    }
 }
 
 public final class SimulatorBridgeCapability: NSObject, NSSecureCoding {
@@ -66,6 +96,16 @@ public final class SimulatorDisplayInfo: NSObject, NSSecureCoding {
     public let orientation: SimulatorOrientation
     public let surfaceIsRotated: Bool
     public let pixelFormat: UInt32
+
+    public var displayPixelSize: CGSize {
+        if !surfaceIsRotated && orientation.isLandscape {
+            CGSize(width: pixelHeight, height: pixelWidth)
+        } else {
+            CGSize(width: pixelWidth, height: pixelHeight)
+        }
+    }
+
+    public var displayRotation: CGFloat { surfaceIsRotated ? 0 : orientation.displayRotation }
 
     public init(
         udid: String, connectionGeneration: Int, displayGeneration: Int, surface: IOSurface,

@@ -2,7 +2,7 @@
 
 ## 状態
 
-公開準備完了。本体・DMG の署名と公証、ユーザーによるキーチェーン許可後の Sparkle 更新 ZIP の署名は完了。ユーザーがマージとリリースを承認。配布物と検証ログはリポジトリの `.build/releases/1.9.1/` に保持する。
+公開済み：[GitHub Release v1.9.1](https://github.com/HMNZK/phlox/releases/tag/v1.9.1)。リリースタグは `f6bfec09`。ユーザーがマージとリリースを承認し、main への push は安全フックの確認要求によりユーザーが手動で実行した。配布物と検証ログはリポジトリの `.build/releases/1.9.1/` に保持する。
 
 ## 変更
 
@@ -25,7 +25,8 @@
 - Release 署名検査4件成功（公証後にも再実行）。本体・DMG とも公証 Accepted、stapler validate 成功、Gatekeeper accepted。本体の `codesign --verify --deep --strict` も成功。
 - 本体公証 ID：`3216a3f3-efa5-48b3-8b6c-cb7e70386de7`。DMG 公証 ID：`b1305f7a-4bd5-4953-a839-6610f10768a1`。
 - Sparkle ZIP の Ed25519 署名を本体に埋め込んだ公開鍵で検証して成功。`sign_update --verify` はキーチェーンの再許可待ちで中断（exit 143）し、既存の cryptography による公開鍵検証を手元で実行した（リポジトリのテストには未登録）。フィード XML、版、サイズ、署名値、英日説明、ZIP の SHA-256 の一致も確認。
-- 公開後疎通：確認中。
+- 公開後疎通：`https://phlox.cc/appcast.xml` は HTTP 200、先頭は 1.9.1 / build 31。最新 DMG と更新 ZIP のダウンロード先は HTTP 200、サイズと GitHub の SHA-256 が手元の配布物と一致。
+- Pages run [37773000507](https://github.com/HMNZK/phlox/actions/runs/37773000507) は `f6bfec09` のデプロイに成功。英日リリースノートを GitHub Release とフィードに付けた。
 - lint・独立した静的解析：未設定（1.9.0 時点の検査設定と今回の対象パッケージ設定を確認）。
 
 ## 配布物

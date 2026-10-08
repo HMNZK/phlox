@@ -84,6 +84,8 @@ PTY read（actor＋専用キュー）・transcript 保存（actor）・Hook/Cont
 
 ## 入力欄の ultra 系キーワード強調（composer-ultra-keywords, 2026-07-29・ADR 0138）
 
+日本語入力の確定通知は複数回届くため、`Coordinator.setComposing` は変換状態が変わった時だけ本文を同期する。送信による下書きのクリア後に届く、変換していない状態の重複通知で古い本文を書き戻さない。通常の編集は `textDidChange`、変換の確定は true → false の状態変化で反映する。`ComposerSendIMERegressionTests` で送信後の遅延通知・通常編集・変換確定を検査する。
+
 `ComposerHighlight.spans(in:includingKeywords:)` が、claude CLI がキーワード型機能として検出する4語（`ultrathink` / `ultraplan` / `ultrareview` / `ultracode`）の範囲を `.keyword` span として返す。既存の `spans(in:)` は不変で、キーワードを返さない。
 
 検出規則は CLI v2.1.220 の実装を写した2系統（正本は ADR 0138）:

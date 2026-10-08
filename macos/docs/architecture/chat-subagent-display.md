@@ -86,6 +86,7 @@ Claude Code stdout (stream-json)
 
 ## Codex の子の状態（`CodexSubAgentState`）
 
+- **親の中断**: `CodexStructuredAgentClient.interrupt()` は親の active turn を先に中断し、`thread/list(parentThreadId:)` の各ページと `thread/read(includeTurns: true)` で確認した配下の実行中 turn も中断する。子を止めてから孫を調べる。親がすでに idle でも配下の停止を再試行できる。親子関係を確認できない thread は停止しない。一部の read / interrupt が失敗しても残りを処理し、失敗は呼び出し元へ返す。停止要求の受理だけで子の完了を捏造せず、interrupted 完了または再取得した状態を画面へ反映する。
 - read/refresh の失敗（stale）は「確認できなかった」だけで、実行中の子を失敗にも完了にもしない（停止操作だけ失効）。失敗・完了になるのは Codex が報告したとき（失敗系 status・`turnCompleted`・notLoaded/idle 等の refresh）だけ。
 - 遅れて届く refresh / read は turn を照合できないので、終わったと分かっている子（完了して消えた札・止めた札・失敗済み）を失敗 status で書き換えない。
 - **子の状態を決めるもの**: 一覧の refresh（`thread/list` と必要時の `thread/read`）と、停止要求に対応する interrupted 完了だけ。app-server クライアント（`CodexAppServerClient.yield`）が親と異なるスレッドの通知を遮断している（reset 後の古いスレッドのイベントを防ぐ設計）ため、子の `turnStarted` や、停止以外の子の `turnCompleted` は ViewModel に届かない。
@@ -99,5 +100,7 @@ Claude Code stdout (stream-json)
 `upsertSubAgentMarker` が本文（メイン transcript）へ `subAgentMarker` を upsert する。`SubAgentMarkerCell` は名前・種類・状態を出すだけで押せない。
 
 ## 受け入れテスト（契約）
+
+親の中断による配下の停止は `Packages/CodexAppServerKit/Tests/.../ParentInterruptCascadeTests.swift`（親・子・孫、ページ送り、idle の親、一部失敗、親子関係の不一致、停止先不明）と `Packages/SessionFeature/Tests/.../CodexSubAgentReadStaleTests.swift`（中断後の再取得、停止未確認の子を実行中として維持）で検査する。
 
 `Packages/ClaudeAgentKit/Tests/.../SubAgentNameArrivalOrderTests`・`SubAgentStopTaskTests`・`SubAgentPromptDisplayAcceptanceTests`・`SubAgentIsolationAcceptanceTests`・`SubAgentActivityItemIdTests`、`Packages/SessionFeature/Tests/.../SubAgentTranscriptMergeTests`・`SubAgentStopTests`・`CodexSubAgentNamePriorityTests`・`CodexSubAgentStripVisibilityTests`・`CodexSubAgentLossyRefreshPropertyTests`・`SubAgentDismissWhiteboxTests`・`ClaudeSubAgentStopViewModelTests`、`Packages/DashboardFeature/Tests/.../SubAgentTranscriptMergeAcceptanceTests`・`SubAgentReasoningPreferenceAcceptanceTests`・`SubAgentOutputDedupAcceptanceTests`・`SubAgentStripFilterAcceptanceTests`・`SubAgentDismissAcceptanceTests`・`SubAgentTranscriptCacheAcceptanceTests`・`SubAgentTranscriptSourceRuleAcceptanceTests`、`Packages/ClaudeAgentKit/Tests/.../AcceptanceSubAgentToolIdentityTests`、`Packages/SessionFeature/Tests/.../AcceptanceSubAgentLiveToolMergeTests`。

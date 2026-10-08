@@ -8,6 +8,31 @@ import StructuredChatKit
 @Suite("Regression: Codex child read stale")
 @MainActor
 struct CodexSubAgentReadStaleTests {
+    @Test("親の中断後に子の状態を再取得し、実際に停止した子の処理中表示を消す")
+    func parentInterruptRefreshesStoppedChild() async throws {
+        let client = ChildReadClient(parentID: "parent", parentInterruptStopsChild: true)
+        try await withViewModel(client: client) { viewModel in
+            await client.setMode(.success)
+            await viewModel.refreshCodexSubAgents()
+            #expect(viewModel.showsProcessingIndicator)
+            await viewModel.turnInterrupt()
+            #expect(viewModel.status == .idle)
+            #expect(!viewModel.showsProcessingIndicator)
+        }
+    }
+
+    @Test("停止要求の受理だけでは実行中の子の処理中表示を消さない")
+    func parentInterruptDoesNotInventChildCompletion() async throws {
+        let client = ChildReadClient(parentID: "parent")
+        try await withViewModel(client: client) { viewModel in
+            await client.setMode(.success)
+            await viewModel.refreshCodexSubAgents()
+            await viewModel.turnInterrupt()
+            #expect(viewModel.status == .idle)
+            #expect(viewModel.showsProcessingIndicator)
+        }
+    }
+
     @Test("refresh の read 失敗は該当 child だけを stale にし、成功 read で復元する")
     func refreshFailureRejectsStopThenRecovers() async throws {
         let client = ChildReadClient(parentID: "parent")
@@ -108,6 +133,7 @@ private enum ChildReadMode: Sendable {
     case mismatchID
     case mismatchSource
     case success
+    case interrupted
     /// 一覧の応答には agent_path があるが、thread/read の応答では省略される。
     case readOmitsAgentPath
 }
@@ -118,9 +144,11 @@ private final class ChildReadClient: StructuredAgentClient, CodexSubAgentProvidi
     let events: AsyncStream<NormalizedChatEvent>
     let parentID: String
     private let state = State()
+    private let parentInterruptStopsChild: Bool
 
-    init(parentID: String) {
+    init(parentID: String, parentInterruptStopsChild: Bool = false) {
         self.parentID = parentID
+        self.parentInterruptStopsChild = parentInterruptStopsChild
         var continuation: AsyncStream<NormalizedChatEvent>.Continuation?
         events = AsyncStream { continuation = $0 }
         continuation?.finish()
@@ -137,10 +165,17 @@ private final class ChildReadClient: StructuredAgentClient, CodexSubAgentProvidi
     func start() async {}
     func turnStart(_ input: [ChatInput]) async throws {}
     func resume(sessionRef: String) async throws {}
-    func interrupt() async throws {}
+    func interrupt() async throws {
+        if parentInterruptStopsChild { await state.setMode(.interrupted) }
+    }
     func close() async {}
 
     func threadList(_ params: ThreadListParams) async throws -> ThreadListResponse {
+        if await state.mode == .interrupted {
+            var child = thread(id: "child", source: childSource(), turns: [])
+            child.status = .idle
+            return ThreadListResponse(data: [child])
+        }
         let source = await state.mode == .readOmitsAgentPath
             ? spawnSource(agentPath: "root/fix_login")
             : childSource()
@@ -159,6 +194,10 @@ private final class ChildReadClient: StructuredAgentClient, CodexSubAgentProvidi
             )
         case .success:
             return response(thread: thread(id: "child", source: childSource(), turns: Self.turns))
+        case .interrupted:
+            var child = thread(id: "child", source: childSource(), turns: [])
+            child.status = .idle
+            return response(thread: child)
         case .readOmitsAgentPath:
             return response(thread: thread(id: "child", source: spawnSource(agentPath: nil), turns: Self.userTurns))
         }

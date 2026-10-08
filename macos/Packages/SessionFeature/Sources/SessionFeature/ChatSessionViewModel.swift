@@ -1065,6 +1065,9 @@ public final class ChatSessionViewModel: Identifiable {
             self.clearRunningBackgroundTasks()
             self.subAgentModel.failRunningSubAgents()
             self.status = .idle
+            // 親の完了イベントによる refresh は、子への停止要求より先に届き得る。
+            // 停止受理を完了扱いせず、最後に実際の子の状態を取得する。
+            await self.refreshCodexSubAgents()
         }
         activeInterruptID = interruptID
         activeInterruptTask = task

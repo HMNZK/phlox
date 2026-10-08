@@ -588,10 +588,83 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
     }
 
     public func interrupt() async throws {
-        guard let currentThreadId,
-              let turnId = await client.activeTurnId(for: currentThreadId)
-        else { return }
-        _ = try await client.turnInterrupt(TurnInterruptParams(threadId: currentThreadId, turnId: turnId))
+        guard let currentThreadId else { return }
+        let generation = threadIdentityGeneration
+        var failures: [String] = []
+        if let turnId = await client.activeTurnId(for: currentThreadId) {
+            guard generation == threadIdentityGeneration else {
+                throw CodexStructuredClientError.staleThreadOperation
+            }
+            do {
+                _ = try await client.turnInterrupt(TurnInterruptParams(threadId: currentThreadId, turnId: turnId))
+            } catch {
+                failures.append("\(currentThreadId): \(error)")
+            }
+        }
+        // 親が idle でも、前の中断で生き残った子への停止を再試行する。
+        var visited: Set<String> = [currentThreadId]
+        try await interruptDescendants(of: currentThreadId, generation: generation, visited: &visited, failures: &failures)
+        if !failures.isEmpty {
+            throw CodexStructuredClientError.descendantInterruptFailed(failures)
+        }
+    }
+
+    private func interruptDescendants(
+        of parent: String,
+        generation: Int,
+        visited: inout Set<String>,
+        failures: inout [String]
+    ) async throws {
+        var cursor: String?
+        repeat {
+            guard generation == threadIdentityGeneration else {
+                throw CodexStructuredClientError.staleThreadOperation
+            }
+            let page: ThreadListResponse
+            do {
+                page = try await client.threadList(ThreadListParams(
+                    sourceKinds: [.subAgent, .subAgentReview, .subAgentCompact, .subAgentThreadSpawn, .subAgentOther],
+                    parentThreadId: parent,
+                    cursor: cursor
+                ))
+            } catch {
+                failures.append("\(parent): \(error)")
+                return
+            }
+            cursor = page.nextCursor
+            for child in page.data where child.parentThreadId == parent {
+                guard case .subAgent = child.source, visited.insert(child.id).inserted else { continue }
+                let read: ThreadReadResponse
+                do {
+                    read = try await client.threadRead(ThreadReadParams(threadId: child.id, includeTurns: true))
+                } catch {
+                    failures.append("\(child.id): \(error)")
+                    continue
+                }
+                guard generation == threadIdentityGeneration else {
+                    throw CodexStructuredClientError.staleThreadOperation
+                }
+                guard read.thread.id == child.id, read.thread.parentThreadId == parent,
+                      case .subAgent = read.thread.source else {
+                    failures.append("\(child.id): parent identity mismatch")
+                    continue
+                }
+                let activeTurn = read.thread.turns?.last(where: {
+                    ["inprogress", "in_progress", "running", "active"].contains($0.status?.lowercased() ?? "")
+                })
+                if let turnId = activeTurn?.id {
+                    do {
+                        _ = try await turnInterrupt(TurnInterruptParams(threadId: child.id, turnId: turnId))
+                    } catch {
+                        failures.append("\(child.id): \(error)")
+                    }
+                } else if case .active = read.thread.status {
+                    failures.append("\(child.id): active turn ID unavailable")
+                }
+                // 子の停止が失敗しても、孫と兄弟への停止要求は続ける。
+                try await interruptDescendants(of: child.id, generation: generation, visited: &visited, failures: &failures)
+            }
+        } while cursor != nil
     }
 
     /// 会話文脈をリセットする。app-server は特定メッセージ時点への巻き戻し API を持たないため、
@@ -749,6 +822,7 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
 public enum CodexStructuredClientError: Error, Equatable, Sendable {
     case threadNotStarted
     case staleThreadOperation
+    case descendantInterruptFailed([String])
     case imageInputUnsupported
     case imageTurnInProgress
     case imageMaterializationFailed

@@ -797,10 +797,11 @@ struct IMESafeTextView: NSViewRepresentable {
         }
 
         func setComposing(_ isComposing: Bool, currentText: String) {
+            // 確定通知の重複で、送信により消した下書きを古い本文へ戻さない。
+            guard parent.isComposing != isComposing else { return }
             if !isComposing, parent.text != currentText {
                 parent.text = currentText
             }
-            guard parent.isComposing != isComposing else { return }
             parent.isComposing = isComposing
         }
 

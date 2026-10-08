@@ -3,6 +3,29 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.9.1</title>
+            <pubDate>Thu, 08 Oct 2026 18:39:17 +0900</pubDate>
+            <description xml:lang="en"><![CDATA[
+<h3>Fixed</h3>
+<ul>
+  <li>Interrupting a Codex session also stops its running subagents.</li>
+  <li>Sent text no longer reappears in the message input after a delayed Japanese input confirmation.</li>
+</ul>
+]]></description>
+            <description xml:lang="ja"><![CDATA[
+<h3>修正</h3>
+<ul>
+  <li>Codex セッションを中断した時に、実行中のサブエージェントも停止するようにしました。</li>
+  <li>日本語入力の確定通知が遅れて届くと、送信済みの文章が入力欄へ戻る問題を修正しました。</li>
+</ul>
+]]></description>
+            <sparkle:version>31</sparkle:version>
+            <sparkle:shortVersionString>1.9.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.9.1.zip" length="24498311" type="application/octet-stream" sparkle:edSignature="C2G8YkPCejzB9Cw7nXDT80vcPuNDhboKjMXMxKmUULZPAqN2tdXn5e8Fpjec+WtSVys3oL0hp0R2h4I8fO8jDA=="/>
+        </item>
+        <item>
             <title>1.9.0</title>
             <pubDate>Thu, 08 Oct 2026 16:54:49 +0900</pubDate>
             <description xml:lang="en"><![CDATA[

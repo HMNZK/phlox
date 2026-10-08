@@ -51,7 +51,7 @@ struct DefaultModelRuleTests {
         #expect(AgentModelCatalog.builtinModels(for: .claudeCode).map(\.id) == ["default", "opus[1m]", "fable", "sonnet", "haiku"])
         #expect(AgentModelCatalog.builtinModels(for: .claudeCode).map(\.displayName) == [
             "Default", "Opus (1M context)",
-            "Fable 5.1", "Sonnet 5", "Haiku 4.5",
+            "Fable 5.1", "Sonnet 5", "Haiku 5.5",
         ])
         #expect(AgentModelCatalog.builtinModels(for: .codex).map(\.id) == [
             "gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol",

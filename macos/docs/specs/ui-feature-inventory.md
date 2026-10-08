@@ -619,7 +619,7 @@ Agent Console 側（Claude/Codex/Cursor各パネル）はいずれも**UserDefau
 
 | 種別 | 選択肢例 | 既定 | 根拠 |
 |---|---|---|---|
-| Claude Code | Default / Opus(1M context) / Fable 5.1 / Sonnet 5 / Haiku 4.5 | "default" | `AgentModelCatalog.swift:29-35,143-147` |
+| Claude Code | Default / Opus(1M context) / Fable 5.1 / Sonnet 5 / Haiku 5.5 | "default" | `AgentModelCatalog.swift` |
 | Codex | gpt-6.1-sol / gpt-6-astra / gpt-6-sol / gpt-6-luna / gpt-5.6-sol / gpt-5.6-terra / gpt-5.6-luna / gpt-5.5 | 先頭(discovery時はCLI順の先頭) | `AgentModelCatalog.swift:38-43,146` |
 | Cursor | Auto / Grok系 / Composer 2.5 / Claude各種 / GPT各種 / Gemini各種 / Kimi/GLM 等37種 | "composer-2.5" | `AgentModelCatalog.swift:47-86,145` |
 

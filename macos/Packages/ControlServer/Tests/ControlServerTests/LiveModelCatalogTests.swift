@@ -352,7 +352,7 @@ struct LiveModelProviderTests {
                     "opus[1m]": "Opus 5.5 (1M context)",
                     "fable": "Fable 5.1",
                     "sonnet": "Sonnet 5",
-                    "haiku": "Haiku 4.5",
+                    "haiku": "Haiku 5.5",
                 ]
                 let alias = arguments[index + 1]
                 return claudeModelJSON("Current model: \(names[alias] ?? alias) (effort: xhigh)")
@@ -366,7 +366,7 @@ struct LiveModelProviderTests {
             ControlModelOption(id: "opus[1m]", displayName: "Opus 5.5 (1M context)"),
             ControlModelOption(id: "fable", displayName: "Fable 5.1"),
             ControlModelOption(id: "sonnet", displayName: "Sonnet 5"),
-            ControlModelOption(id: "haiku", displayName: "Haiku 4.5"),
+            ControlModelOption(id: "haiku", displayName: "Haiku 5.5"),
         ])
         #expect(
             await calls.arguments.contains(["--bare", "--model", "default", "-p", "/model", "--output-format", "json"]),
@@ -415,7 +415,7 @@ struct LiveModelProviderTests {
                 ControlModelOption(id: "opus[1m]", displayName: "Opus (1M context)"),
                 ControlModelOption(id: "fable", displayName: "Fable 5.1"),
                 ControlModelOption(id: "sonnet", displayName: "Sonnet 5"),
-                ControlModelOption(id: "haiku", displayName: "Haiku 4.5"),
+                ControlModelOption(id: "haiku", displayName: "Haiku 5.5"),
             ],
             "表示名が取れなくても選択肢を落とさない（一覧全体を失敗させない）"
         )

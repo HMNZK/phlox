@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-09-23
+last-verified: 2026-10-08
 ---
 
 # エージェントモデルカタログ（spawn 前のモデル一覧・現行構造）
@@ -45,6 +45,8 @@ Claude の表示名解決（②）は表示する5件だけを並列に問い合
 `LiveAgentModelProvider.childEnvironment(base:)` が子プロセスへ渡す環境を組む。GUI アプリからの起動では `PATH` が最小限になるため明示指定が要り、`cursor-agent` のラッパーは `set -u` のため `HOME` が無いと全損する。`USER` / `LANG` は通常の CLI と同じ identity / locale を保つために渡す。
 
 ## フォールバックと観測
+
+2026-10-08 に Claude Code v2.1.294 の `claude --bare --model haiku -p "/model" --output-format json` で `haiku` → `Haiku 5.5` を確認した（API 呼び出し・課金とも 0）。内蔵表示名も Haiku 5.5 に揃える。Haiku 5.5 は effort 対応のため、現行 `haiku` の制限は解除し、旧 Haiku 4.5 の明示 ID だけ非対応として扱う。
 
 - CLI 取得が失敗した kind は `builtinModels(for:)`（コード内蔵の固定一覧）へ落ちる。**内蔵一覧は live が死んだときにしか使われないので陳腐化に気づきにくい**。実在する ID だけを置くこと（→ ADR 0123 §4）。Claude と Cursor は対話型ピッカーを機械取得できないため、実測日・CLIバージョン付きのスナップショットを内蔵する。
 - フォールバック中の kind は `kindsUsingFallback()` で読め、`CompositionRoot` が起動ログに warning を出す。

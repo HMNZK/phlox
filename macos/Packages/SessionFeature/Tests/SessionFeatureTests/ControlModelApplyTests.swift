@@ -229,7 +229,8 @@ private final class ControlModelSpawnClient: StructuredAgentClient, SpawnAgentSe
         #expect(ChatSessionViewModel.nextEffort(after: nil, in: []) == nil)
     }
 
-    @Test func claudeCyclesThroughItsEffortsAndAppliesThem() async throws {
+    @Test(arguments: ["opus", "haiku"])
+    func claudeCyclesThroughItsEffortsAndAppliesThem(model: String) async throws {
         let client = ControlModelSpawnClient()
         let vm = ChatSessionViewModel(
             id: SessionID(),
@@ -240,7 +241,7 @@ private final class ControlModelSpawnClient: StructuredAgentClient, SpawnAgentSe
         )
         try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
         defer { Task { await vm.terminate() } }
-        await vm.setSpawnAgentModel("opus")
+        await vm.setSpawnAgentModel(model)
         let levels = vm.cyclableEfforts
         #expect(levels.count > 1)
         await vm.setSpawnAgentEffort(levels.last)
@@ -263,7 +264,7 @@ private final class ControlModelSpawnClient: StructuredAgentClient, SpawnAgentSe
         )
         try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
         defer { Task { await vm.terminate() } }
-        await vm.setSpawnAgentModel("haiku")
+        await vm.setSpawnAgentModel("claude-haiku-4-5")
         let applied = client.appliedEfforts.count
 
         #expect(vm.cyclableEfforts.isEmpty)

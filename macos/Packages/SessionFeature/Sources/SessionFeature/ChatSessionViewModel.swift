@@ -1537,7 +1537,9 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// effort 非対応モデルの denylist（denylist に無ければ effort 対応とみなす）。
     nonisolated static let claudeEffortUnsupportedModelAliases: Set<String> = [
-        "haiku", // effort 非対応（将来追加時はここへ）
+        // The current `haiku` alias resolves to effort-capable Haiku 5.5.
+        "claude-haiku-4-5",
+        "claude-haiku-4-5-20251001",
     ]
 
     /// Claude spawn セッションの既定 effort。

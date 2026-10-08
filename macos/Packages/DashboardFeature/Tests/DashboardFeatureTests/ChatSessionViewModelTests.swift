@@ -1412,12 +1412,15 @@ func chatSessionViewModel_claudeModelSupportsEffortCapability() {
     #expect(ChatSessionViewModel.claudeModelSupportsEffort("opus") == true)
     #expect(ChatSessionViewModel.claudeModelSupportsEffort("sonnet") == true)
     #expect(ChatSessionViewModel.claudeModelSupportsEffort("fable") == true)
-    #expect(ChatSessionViewModel.claudeModelSupportsEffort("haiku") == false)
+    #expect(ChatSessionViewModel.claudeModelSupportsEffort("haiku") == true)
+    #expect(ChatSessionViewModel.claudeModelSupportsEffort("claude-haiku-5-5") == true)
+    #expect(ChatSessionViewModel.claudeModelSupportsEffort("claude-haiku-4-5") == false)
+    #expect(ChatSessionViewModel.claudeModelSupportsEffort("claude-haiku-4-5-20251001") == false)
     #expect(ChatSessionViewModel.claudeModelSupportsEffort(nil) == false)
 }
 
 @Test @MainActor
-func chatSessionViewModel_haikuHidesEffortLevelsAndDoesNotSendEffort() async throws {
+func chatSessionViewModel_haiku55KeepsEffortLevelsAndSendsSelectedEffort() async throws {
     let client = RecordingSpawnSettingsClient()
     let vm = ChatSessionViewModel(
         id: SessionID(),
@@ -1430,8 +1433,14 @@ func chatSessionViewModel_haikuHidesEffortLevelsAndDoesNotSendEffort() async thr
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
     await vm.setSpawnAgentModel("haiku")
 
-    #expect(vm.claudeEffortLevels.isEmpty)
-    #expect(client.calls.last?.effort == nil)
+    #expect(vm.claudeEffortLevels == ChatSessionViewModel.claudeEffortLevelOptions)
+    #expect(client.calls.last?.effort == ChatSessionViewModel.defaultClaudeEffort)
+
+    await vm.setSpawnAgentEffort("low")
+    #expect(vm.selectedEffort == "low")
+    #expect(client.calls.last == RecordedSpawnSettingsCall(
+        model: "haiku", permissionOrMode: "bypassPermissions", effort: "low"
+    ))
 }
 
 @Test @MainActor
@@ -1453,7 +1462,7 @@ func chatSessionViewModel_sonnetKeepsEffortLevels() async throws {
 }
 
 @Test @MainActor
-func chatSessionViewModel_opusToHaikuClearsEffort() async throws {
+func chatSessionViewModel_opusToLegacyHaikuClearsEffort() async throws {
     let client = RecordingSpawnSettingsClient()
     let vm = ChatSessionViewModel(
         id: SessionID(),
@@ -1466,14 +1475,15 @@ func chatSessionViewModel_opusToHaikuClearsEffort() async throws {
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
     #expect(vm.selectedEffort == "high")
 
-    await vm.setSpawnAgentModel("haiku")
+    await vm.setSpawnAgentModel("claude-haiku-4-5")
 
+    #expect(vm.claudeEffortLevels.isEmpty)
     #expect(vm.selectedEffort == nil)
     #expect(client.calls.last?.effort == nil)
 }
 
 @Test @MainActor
-func chatSessionViewModel_haikuToOpusRestoresDefaultEffort() async throws {
+func chatSessionViewModel_legacyHaikuToHaiku55RestoresDefaultEffort() async throws {
     let client = RecordingSpawnSettingsClient()
     let vm = ChatSessionViewModel(
         id: SessionID(),
@@ -1484,10 +1494,10 @@ func chatSessionViewModel_haikuToOpusRestoresDefaultEffort() async throws {
     )
 
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
-    await vm.setSpawnAgentModel("haiku")
+    await vm.setSpawnAgentModel("claude-haiku-4-5")
     #expect(vm.selectedEffort == nil)
 
-    await vm.setSpawnAgentModel("opus")
+    await vm.setSpawnAgentModel("haiku")
 
     #expect(vm.selectedEffort == ChatSessionViewModel.defaultClaudeEffort)
     #expect(client.calls.last?.effort == ChatSessionViewModel.defaultClaudeEffort)

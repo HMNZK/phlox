@@ -31,7 +31,8 @@ public enum AgentModelCatalog {
         ControlModelOption(id: "opus[1m]", displayName: "Opus (1M context)"),
         ControlModelOption(id: "fable", displayName: "Fable 5.1"),
         ControlModelOption(id: "sonnet", displayName: "Sonnet 5"),
-        ControlModelOption(id: "haiku", displayName: "Haiku 4.5"),
+        // `haiku` resolves to Haiku 5.5 (Claude Code v2.1.294, observed 2026-10-08).
+        ControlModelOption(id: "haiku", displayName: "Haiku 5.5"),
     ]
     // Current families from `codex app-server` model/list (v0.159.2, 2026-09-30). Keep the live order
     // so the first model remains Codex's current default when discovery is unavailable.

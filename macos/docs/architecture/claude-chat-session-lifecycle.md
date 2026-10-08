@@ -20,7 +20,7 @@ last-verified: 2026-08-21
 
 - 「会話の実在」は2状態で追跡する: `callerResumedSession`（復元 caller の主張）と「実在観測」（**`.sessionId` spawn で任意の result を受信**——中断/エラーで終わったターンでも CLI は会話ファイルを生成するため。`.resume` spawn の deferred エラーは証拠にしない。ADR 0022）。いずれか真なら `--resume`。
 - 設定フラグは model / permission-mode / **effort**（低〜最大: low/medium/high/xhigh/max、UI 既定 "high"）の3値を常にフルスナップショットで置換適用する（コンポーザーのメニューは Claude セッションのみ。表示名は `AgentModelCatalog` 経由で CLI から取得する → [agent-model-catalog.md](agent-model-catalog.md)）。
-- **effort はモデル依存**（2026-07-04〜）: effort 非対応モデル（現状 `haiku` のみ。`ChatSessionViewModel.claudeEffortUnsupportedModelAliases` の denylist が単一真実源で、集合に無ければ対応とみなす）ではコンポーザーの effort メニューを非表示にし、`--effort` を送らない。実装は VM の1箇所——`applySpawnAgentSettings` が `claudeCode && supportsEffort(selectedModel)` でなければ effort=nil を渡すため `buildArguments`（不変）は `--effort` を付けない。モデル切替時は非対応→`selectedEffort=nil`、対応へ復帰→既定 `high` を復元し、復元経路（`loadSpawnAgentSettings`）も非対応モデルで effort を nil に矯正する。opus/sonnet/fable は従来どおり effort 対応。判定は `ClaudeChatClient` へ複製しない。
+- **effort はモデル依存**（2026-10-08 更新）: `haiku` は Haiku 5.5 に解決され、effort に対応する。旧 Haiku 4.5 の明示 ID（`claude-haiku-4-5` / `claude-haiku-4-5-20251001`）は非対応。`ChatSessionViewModel.claudeEffortUnsupportedModelAliases` が単一真実源で、集合に無ければ対応とみなす。非対応モデルではコンポーザーの effort メニューを非表示にし、`--effort` を送らない。モデル切替時は非対応→`selectedEffort=nil`、対応へ復帰→既定 `high` を復元し、復元経路（`loadSpawnAgentSettings`）も非対応モデルで effort を nil に矯正する。判定は `ClaudeChatClient` へ複製しない。
 - claude CLI の制約（2.1.198 実測）: `--resume <未存在ID>` は起動直後に即死（error_during_execution・stderr `No conversation found with session ID`）。`--session-id <既存会話ID>` は `already in use` で即死（result なし）。この非対称が上表の使い分けの理由（ADR 0021）。
 
 ## resume 失敗の self-heal

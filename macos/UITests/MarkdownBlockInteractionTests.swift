@@ -23,7 +23,8 @@ final class MarkdownBlockInteractionTests: XCTestCase {
             (try? Data(contentsOf: file)) == edited && !app.staticTexts["未保存"].exists
         }, evaluatedWith: nil)
         await fulfillment(of: [saved], timeout: 10)
-        editor.typeKey("z", modifierFlags: .command)
+        // 保存後のキー操作は、テキスト要素のAX再取得を経ずにアプリへ送る。
+        app.typeKey("z", modifierFlags: .command)
         app.typeKey("s", modifierFlags: .command)
         let restored = expectation(for: NSPredicate { _, _ in
             (try? Data(contentsOf: file)) == original && !app.staticTexts["未保存"].exists
@@ -65,7 +66,8 @@ final class MarkdownBlockInteractionTests: XCTestCase {
         XCTAssertTrue(copied.contains("…（残り 5 文字を省略）"), "コピーは表示中の文字列が対象")
         XCTAssertFalse(copied.contains("隠す末尾"))
         editor.typeKey("v", modifierFlags: .command)
-        editor.typeText("入力は禁止")
+        // キー入力の拒否を検査する。日本語の合成入力で入力ソース選択を起動しない。
+        editor.typeText("blocked")
         app.typeKey("s", modifierFlags: .command)
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("read-only.txt")), original)
         XCTAssertFalse(app.staticTexts["未保存"].exists)
@@ -119,7 +121,7 @@ final class MarkdownBlockInteractionTests: XCTestCase {
         let editor = app.textViews.matching(NSPredicate(format: "value CONTAINS %@", "編集前の本文")).firstMatch
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
         editor.typeKey("a", modifierFlags: .command)
-        editor.typeText("編集した本文\n\n追加行\n")
+        paste("編集した本文\n\n追加行\n", into: editor)
         app.typeKey("s", modifierFlags: .command)
         let expected = "# 見出し\r\n\r\n編集した本文\n\n追加行\n[案内][guide]\r\n\r\n[guide]: linked.md\r\n"
         let saved = NSPredicate { _, _ in
@@ -146,6 +148,25 @@ final class MarkdownBlockInteractionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["リンク先の見出し"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertEqual(app.textViews.count, 0)
         XCTAssertFalse(app.staticTexts["未保存"].exists)
+    }
+
+    /// XCUITest の日本語合成キー入力を避け、元のクリップボードを復元する。
+    private func paste(_ text: String, into editor: XCUIElement) {
+        let pasteboard = NSPasteboard.general
+        let original = (pasteboard.pasteboardItems ?? []).map { item in
+            let saved = NSPasteboardItem()
+            for type in item.types {
+                if let data = item.data(forType: type) { saved.setData(data, forType: type) }
+            }
+            return saved
+        }
+        defer {
+            pasteboard.clearContents()
+            if !original.isEmpty { XCTAssertTrue(pasteboard.writeObjects(original)) }
+        }
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.setString(text, forType: .string))
+        editor.typeKey("v", modifierFlags: .command)
     }
 
     private func launchDocument(filename: String = "document.md", contents: Data? = nil) async throws -> (IsolatedPhloxApplication, URL) {

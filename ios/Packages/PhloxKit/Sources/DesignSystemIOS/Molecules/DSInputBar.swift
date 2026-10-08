@@ -212,7 +212,7 @@ public struct DSInputBar: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.s) {
             if let attachmentError {
-                Text(attachmentError)
+                Text(LocalizedStringKey(attachmentError))
                     .font(DSFont.caption)
                     .foregroundStyle(DSColor.statusError)
             }

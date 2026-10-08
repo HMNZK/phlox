@@ -9,10 +9,13 @@ let package = Package(
     products: [
         .library(name: "AgentDomain", targets: ["AgentDomain"]),
         .library(name: "ChatRenderKit", targets: ["ChatRenderKit"]),
+        .library(name: "ImageAttachmentKit", targets: ["ImageAttachmentKit"]),
     ],
     targets: [
         .target(name: "AgentDomain"),
         .target(name: "ChatRenderKit", dependencies: ["AgentDomain"]),
+        .target(name: "ImageAttachmentKit", dependencies: ["AgentDomain"]),
+        .testTarget(name: "ImageAttachmentKitTests", dependencies: ["AgentDomain", "ImageAttachmentKit"]),
         .testTarget(name: "AgentDomainTests", dependencies: ["AgentDomain"]),
         .testTarget(name: "ChatRenderKitTests", dependencies: ["AgentDomain", "ChatRenderKit"]),
     ]

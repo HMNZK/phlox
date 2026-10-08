@@ -22,7 +22,7 @@ struct SubAgentAndAttachmentAcceptanceTests {
 
     private func image(mib: Double, mediaType: String = "image/png") -> SendAttachment {
         let bytes = Int(mib * 1024 * 1024)
-        return SendAttachment(mediaType: mediaType, data: Data(count: bytes))
+        return SendAttachment(mediaType: mediaType, data: paddedImage(bytes: bytes))
     }
 
     // MARK: - 1. 画像添付の検証
@@ -47,22 +47,22 @@ struct SubAgentAndAttachmentAcceptanceTests {
         #expect(vm.attachmentError != nil, "超過理由を表示する")
     }
 
-    @Test("1枚4MiB超の添付は弾く")
+    @Test("1枚20MB超の添付は弾く")
     func rejectsOversizedSingleAttachment() {
         let vm = SessionDetailViewModel(session: makeSession(), api: MockAPI())
 
-        vm.addAttachments([image(mib: 5)])
+        vm.addAttachments([image(mib: 20_000_001.0 / (1024 * 1024))])
 
         #expect(vm.attachments.isEmpty)
         #expect(vm.attachmentError != nil)
     }
 
-    @Test("合計8MiB超の添付は弾く")
-    func rejectsBatchExceedingTotalLimit() {
+    @Test("超過画像を含むバッチは部分採用しない")
+    func rejectsBatchContainingOversizedImage() {
         let vm = SessionDetailViewModel(session: makeSession(), api: MockAPI())
 
-        // 各3MiB（1枚上限内）だが合計9MiB > 8MiB。
-        vm.addAttachments([image(mib: 3), image(mib: 3), image(mib: 3)])
+        // 受理可能な画像と20MBを1バイト超える画像のバッチ。
+        vm.addAttachments([image(mib: 1), image(mib: 20_000_001.0 / (1024 * 1024))])
 
         #expect(vm.attachments.isEmpty)
         #expect(vm.attachmentError != nil)
@@ -162,4 +162,10 @@ struct SubAgentAndAttachmentAcceptanceTests {
 
         #expect(vm.chatMessages == messages)
     }
+}
+
+private func paddedImage(bytes: Int) -> Data {
+    var data = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")!
+    data.append(Data(count: max(0, bytes - data.count)))
+    return data
 }

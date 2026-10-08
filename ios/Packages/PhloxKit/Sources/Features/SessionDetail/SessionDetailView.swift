@@ -201,7 +201,9 @@ public struct SessionDetailView: View {
                 },
                 attachmentError: viewModel.attachmentError,
                 contextLabel: viewModel.inputContextDisplayName,
-                onAddAttachments: { viewModel.addAttachments($0) },
+                onAddAttachments: { candidates in
+                    Task { await viewModel.addAttachmentsFromPicker(candidates) }
+                },
                 onRemoveAttachment: { viewModel.removeAttachment(at: $0) },
                 isRunning: viewModel.showsStopButton,
                 onStop: {

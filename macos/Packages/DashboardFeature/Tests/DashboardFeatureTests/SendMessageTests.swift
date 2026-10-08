@@ -538,7 +538,7 @@ func sendMessage_imageTurnInProgressReturnsImageUnsupportedWithoutTextFallback()
             submit: true,
             from: nil,
             inReplyTo: nil,
-            images: [ControlImageAttachment(mediaType: "image/png", data: Data([1, 2, 3]))],
+            images: [ControlImageAttachment(mediaType: "image/png", data: AttachmentImageFixture.png)],
             sessions: [.appServer(vm)]
         )
 
@@ -547,7 +547,7 @@ func sendMessage_imageTurnInProgressReturnsImageUnsupportedWithoutTextFallback()
         #expect(vm.attachmentStore.attachments.count == 1)
         #expect(await client.turnStartInputs() == [[
             .text("画像を説明して"),
-            .image(data: Data([1, 2, 3]), mediaType: "image/png"),
+            .image(data: AttachmentImageFixture.png, mediaType: "image/png"),
         ]])
         #expect(messages.recorded.count == 1)
         #expect(messages.recorded.first?.delivered == false)

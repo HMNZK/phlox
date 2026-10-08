@@ -33,7 +33,9 @@ final class SessionInputBarRunningUITests: XCTestCase {
         let input = field.exists ? field : app.textFields["回答を入力…"].firstMatch
         XCTAssertTrue(input.waitForExistence(timeout: 5), "入力欄があること")
         input.tap()
-        input.typeText("追加の指示")
+        // XCUITestのキー入力は日本語IMEで未確定文字を残すため、確定できる英字を使う。
+        input.typeText("additional instructions")
+        XCTAssertEqual(input.value as? String, "additional instructions", "本文が入力されること")
 
         XCTAssertTrue(send.waitForExistence(timeout: 5), "入力すると送信ボタンが現れること")
         XCTAssertTrue(stop.exists, "送信ボタンが出ても停止ボタンは残ること")

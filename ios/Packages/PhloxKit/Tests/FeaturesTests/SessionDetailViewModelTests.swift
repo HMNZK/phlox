@@ -315,34 +315,34 @@ final class SessionDetailViewModelTests: XCTestCase {
     // MARK: - task-10 画像添付
 
     private func attachment(mib: Double) -> SendAttachment {
-        SendAttachment(mediaType: "image/png", data: Data(count: Int(mib * 1024 * 1024)))
+        SendAttachment(mediaType: "image/png", data: paddedImage(bytes: Int(mib * 1024 * 1024)))
     }
 
-    func testAddAttachmentsAcceptsExactlyFourMiBPerImage() {
+    func testAddAttachmentsAcceptsExactlyTwentyMBPerImage() {
         let vm = SessionDetailViewModel(session: session(.idle), api: MockAPI())
-        vm.addAttachments([attachment(mib: 4)])
+        vm.addAttachments([SendAttachment(mediaType: "image/png", data: paddedImage(bytes: 20_000_000))])
         XCTAssertEqual(vm.attachments.count, 1)
         XCTAssertNil(vm.attachmentError)
     }
 
-    func testAddAttachmentsRejectsJustOverFourMiBPerImage() {
+    func testAddAttachmentsRejectsJustOverTwentyMBPerImage() {
         let vm = SessionDetailViewModel(session: session(.idle), api: MockAPI())
         let bytes = SessionDetailViewModel.maxAttachmentBytesPerImage + 1
-        vm.addAttachments([SendAttachment(mediaType: "image/png", data: Data(count: bytes))])
+        vm.addAttachments([SendAttachment(mediaType: "image/png", data: paddedImage(bytes: bytes))])
         XCTAssertTrue(vm.attachments.isEmpty)
         XCTAssertNotNil(vm.attachmentError)
     }
 
-    func testAddAttachmentsAcceptsExactlyEightMiBTotal() {
+    func testAddAttachmentsAcceptsExactlyEightyMBTotal() {
         let vm = SessionDetailViewModel(session: session(.idle), api: MockAPI())
-        vm.addAttachments([attachment(mib: 2), attachment(mib: 2), attachment(mib: 2), attachment(mib: 2)])
+        vm.addAttachments(Array(repeating: SendAttachment(mediaType: "image/png", data: paddedImage(bytes: 20_000_000)), count: 4))
         XCTAssertEqual(vm.attachments.count, 4)
         XCTAssertNil(vm.attachmentError)
     }
 
-    func testAddAttachmentsRejectsBatchExceedingEightMiBTotal() {
+    func testAddAttachmentsRejectsOversizedBatchWithoutPartialAdoption() {
         let vm = SessionDetailViewModel(session: session(.idle), api: MockAPI())
-        vm.addAttachments([attachment(mib: 3), attachment(mib: 3), attachment(mib: 3)])
+        vm.addAttachments([attachment(mib: 1), SendAttachment(mediaType: "image/png", data: paddedImage(bytes: 20_000_001))])
         XCTAssertTrue(vm.attachments.isEmpty)
         XCTAssertNotNil(vm.attachmentError)
     }
@@ -438,14 +438,13 @@ final class SessionDetailViewModelTests: XCTestCase {
     }
 
     #if canImport(UIKit)
-    func testNormalizeNonJPEGWireFormatReencodesToJPEG() {
+    func testNormalizeNonJPEGWireFormatPreservesOriginalUntilSend() {
         let gif = Data(base64Encoded: "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")!
         let normalized = SessionDetailViewModel.normalizeAttachment(
             SendAttachment(mediaType: "application/octet-stream", data: gif)
         )
-        XCTAssertEqual(normalized?.mediaType, "image/jpeg")
-        XCTAssertTrue(normalized?.data.starts(with: [0xFF, 0xD8]) == true)
-        XCTAssertNotEqual(normalized?.data, gif)
+        XCTAssertEqual(normalized?.mediaType, "image/gif")
+        XCTAssertEqual(normalized?.data, gif)
     }
     #endif
 
@@ -469,4 +468,10 @@ final class SessionDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.loadError)
         XCTAssertNil(vm.subAgentID(forMessageID: "m1"))
     }
+}
+
+private func paddedImage(bytes: Int) -> Data {
+    var data = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")!
+    data.append(Data(count: max(0, bytes - data.count)))
+    return data
 }

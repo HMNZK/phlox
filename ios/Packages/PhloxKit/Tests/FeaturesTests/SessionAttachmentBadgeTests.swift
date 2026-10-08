@@ -18,7 +18,7 @@ struct SessionAttachmentBadgeTests {
     }
 
     private func image() -> SendAttachment {
-        SendAttachment(mediaType: "image/png", data: Data(count: 1024))
+        SendAttachment(mediaType: "image/png", data: Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")!)
     }
 
     @Test("添付つき送信後にメッセージ突き合わせで枚数を保持する")
@@ -57,5 +57,19 @@ struct SessionAttachmentBadgeTests {
         await vm.sendMessage()
 
         #expect(vm.attachmentImageCount(forMessageID: "m1") == nil)
+    }
+
+    @Test("破損画像の送信を中止し本文と添付を保持する")
+    func invalidImagePreservesDraftForRetry() async {
+        let vm = SessionDetailViewModel(session: makeSession(), api: MockAPI())
+        vm.inputText = "この画像を見て"
+        vm.addAttachments([SendAttachment(mediaType: "image/png", data: Data([1, 2, 3]))])
+        let text = vm.inputText
+        let items = vm.attachmentItems
+        await vm.sendMessage()
+        #expect(vm.inputText == text)
+        #expect(vm.attachmentItems == items)
+        #expect(vm.attachmentError == "画像を読み込めませんでした")
+        #expect(vm.sendState == .failed("画像を読み込めませんでした"))
     }
 }

@@ -96,8 +96,8 @@ struct ChatAttachmentBadgeSendTests {
     func textWithImagesSendCarriesAttachmentMetadataOnUserMessage() async throws {
         let client = AttachmentCaptureClient()
         let viewModel = makeViewModel(client: client)
-        viewModel.attachmentStore.addImage(data: Data([1, 2, 3]), mediaType: "image/png", filename: "shot.png")
-        viewModel.attachmentStore.addImage(data: Data([4, 5]), mediaType: "image/jpeg")
+        viewModel.attachmentStore.addImage(data: AttachmentImageFixture.png, mediaType: "image/png", filename: "shot.png")
+        viewModel.attachmentStore.addImage(data: AttachmentImageFixture.jpeg, mediaType: "image/jpeg")
 
         try await viewModel.sendText("この画像を見て", submit: true)
 
@@ -117,8 +117,8 @@ struct ChatAttachmentBadgeSendTests {
     func imageOnlySendCarriesAttachmentMetadataWithEmptyText() async throws {
         let client = AttachmentCaptureClient()
         let viewModel = makeViewModel(client: client)
-        viewModel.attachmentStore.addImage(data: Data([1]), mediaType: "image/png")
-        viewModel.attachmentStore.addImage(data: Data([2]), mediaType: "image/jpeg")
+        viewModel.attachmentStore.addImage(data: AttachmentImageFixture.png, mediaType: "image/png")
+        viewModel.attachmentStore.addImage(data: AttachmentImageFixture.jpeg, mediaType: "image/jpeg")
 
         try await viewModel.sendText("", submit: true)
 

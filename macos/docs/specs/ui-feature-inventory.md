@@ -163,7 +163,7 @@ Phlox のセッション画面には大きく2系統の ViewModel/表示モデ�
 | ⌘V貼り付け(テキスト/画像分岐) | ⌘V | — | — | 共通 | `ComposerKeyRouting.swift:66-74` |
 | composer幅で footer レイアウト切替 | ウィンドウリサイズ | 600pt/490pt閾値 | standard/compact/minimal | 共通 | `ComposerLayout.swift:15-48` |
 | 入力履歴スクラババー（先端12件） | ホバー/クリックでジャンプ | `scrubberTicks` | — | 共通 | `ChatInputHistoryScrubber.swift:41-93,195-216` |
-| 画像ペースト添付 | ⌘V | `ComposerPasteImageOutcome` | 4MiB/枚・4枚まで・合計8MiB | Claude/Codexのみ対応（UI添付層。ワイヤ層の扱いは下記「不整合」参照） | `ComposerAttachments.swift:159-165`, `ChatComposer.swift:912-949` |
+| 画像ペースト添付 | ⌘V | `ComposerPasteImageOutcome` | 元画像20MB/枚・4枚まで・合計80MB | Claude/Codexのみ対応（UI添付層。ワイヤ層の扱いは下記「不整合」参照） | `ComposerAttachments.swift:159-165`, `ChatComposer.swift:912-949` |
 | 添付ボタン「+」でファイル/画像選択 | クリック→NSOpenPanel | — | — | 画像添付はClaude/Codexのみ、他はファイル参照挿入 | `ComposerSettingsControls.swift:559-661` |
 | 添付チップ表示・削除 | ×クリック | `ComposerAttachmentChipPresentation` | — | 共通 | `ChatComposer.swift:1028-1102` |
 | `@path`ファイル参照挿入 | +ボタンで非画像選択 | `"@\(path)"` | — | 共通 | `ComposerAttachments.swift:118-121` |

@@ -10,7 +10,7 @@ import StructuredChatKit
 /// 存在しない Feature state 型を先取りせず、実 DTO と既存 ViewModel API を検査する。
 @Suite("Acceptance: Codex 画像入力")
 struct AcceptanceCodexImageInputTests {
-    private let png = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+    private let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")!
 
     private func imageURL() throws -> URL {
         let directory = FileManager.default.temporaryDirectory

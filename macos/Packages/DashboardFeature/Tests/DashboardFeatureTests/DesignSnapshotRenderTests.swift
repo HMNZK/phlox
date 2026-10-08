@@ -3,7 +3,7 @@ import AgentDomain
 import DesignSystem
 import IOSurface
 import SimulatorBridgeKit
-import SessionFeature
+@testable import SessionFeature
 import SwiftUI
 import TerminalUI
 import Testing
@@ -13,6 +13,32 @@ import WebKit
 /// 実画面を表示せず、比較用の部品画像を明示指定時だけ書き出す。
 @Suite @MainActor
 struct DesignSnapshotRenderTests {
+    @Test func attachmentSnapshots() async throws {
+        guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
+        _ = NSApplication.shared
+        NSApp.setActivationPolicy(.prohibited)
+        let worktree = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let output = worktree.appendingPathComponent(".build/design-snapshots", isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let png = try #require(Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"))
+        for width in [320, 820] {
+            for english in [false, true] {
+                let store = ComposerAttachmentStore()
+                for name in ["ui-grid.png", "ui-single.png", "ui-team.png", "ui-narrow.png"] {
+                    store.addImage(data: png, mediaType: "image/png", filename: name)
+                }
+                store.addImage(data: png, mediaType: "image/png")
+                #expect(store.attachments.count == 4)
+                #expect(store.lastError == ImageAttachmentLimits.countMessage)
+                let frame = Frame(id: "attachment-\(width)\(english ? "-en" : "")", name: "添付上限", width: CGFloat(width), height: 140)
+                try await capture(ComposerAttachmentStrip(store: store, layout: .standard, onRemove: { _ in })
+                    .padding(12), frame: frame, output: output)
+            }
+        }
+    }
+
     private struct Frame {
         let id: String
         let name: String

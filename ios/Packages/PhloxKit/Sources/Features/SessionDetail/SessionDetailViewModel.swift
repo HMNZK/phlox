@@ -2,6 +2,9 @@ import SwiftUI
 import DesignSystemIOS
 import PhloxCore
 import PhloxNetworking
+import ImageAttachmentKit
+import ImageIO
+import UniformTypeIdentifiers
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -26,9 +29,9 @@ public final class SessionDetailViewModel {
 
     static let maxOutputLines = 500
     /// 添付上限（契約 §5 / ComposerAttachments と同一）。
-    static let maxAttachmentCount = 4
-    static let maxAttachmentBytesPerImage = 4 * 1024 * 1024
-    static let maxAttachmentTotalBytes = 8 * 1024 * 1024
+    static let maxAttachmentCount = ImageAttachmentLimits.maxCount
+    static let maxAttachmentBytesPerImage = ImageAttachmentLimits.maxInputBytes
+    static let maxAttachmentTotalBytes = ImageAttachmentLimits.maxTotalInputBytes
 
     private let api: PhloxAPI
     public private(set) var session: Session
@@ -216,34 +219,51 @@ public final class SessionDetailViewModel {
     }
 
     /// 画像添付を追加する。上限違反のバッチは全体を弾き `attachmentError` を設定（部分採用しない）。
-    /// 非 png/jpeg は確定時に1回だけ JPEG 再エンコードし、プレビューも同時に生成する。
+    /// 元画像と小さいプレビューを保持し、形式変換は送信前に行う。
     public func addAttachments(_ candidates: [SendAttachment]) {
+        appendAttachments(candidates, previews: nil)
+    }
+
+    /// Pickerからの画像はプレビューもメインスレッド外で作る。
+    public func addAttachmentsFromPicker(_ candidates: [SendAttachment]) async {
+        guard candidates.count <= Self.maxAttachmentCount,
+              candidates.allSatisfy({ $0.data.count <= Self.maxAttachmentBytesPerImage }) else {
+            addAttachments(candidates)
+            return
+        }
+        let previews = await Task.detached(priority: .userInitiated) {
+            candidates.map { Self.makeAttachmentPreview(from: $0.data) }
+        }.value
+        appendAttachments(candidates, previews: previews)
+    }
+
+    private func appendAttachments(_ candidates: [SendAttachment], previews: [Data]?) {
         guard !candidates.isEmpty else { return }
         attachmentError = nil
+        guard attachmentItems.count + candidates.count <= Self.maxAttachmentCount else {
+            attachmentError = ImageAttachmentLimits.countMessage
+            return
+        }
+        guard candidates.allSatisfy({ $0.data.count <= Self.maxAttachmentBytesPerImage }) else {
+            attachmentError = ImageAttachmentLimits.inputSizeMessage
+            return
+        }
 
         var normalizedItems: [SessionAttachmentItem] = []
         normalizedItems.reserveCapacity(candidates.count)
-        for candidate in candidates {
+        for (index, candidate) in candidates.enumerated() {
             guard let send = Self.normalizeAttachment(candidate) else {
                 attachmentError = "画像を読み込めませんでした"
                 return
             }
-            let preview = Self.makeAttachmentPreview(from: send.data)
+            let preview = previews?[index] ?? Self.makeAttachmentPreview(from: send.data)
             normalizedItems.append(SessionAttachmentItem(send: send, previewData: preview))
         }
 
         let combined = attachmentItems.map(\.send) + normalizedItems.map(\.send)
-        if combined.count > Self.maxAttachmentCount {
-            attachmentError = "画像は最大\(Self.maxAttachmentCount)枚までです"
-            return
-        }
-        for send in normalizedItems.map(\.send) where send.data.count > Self.maxAttachmentBytesPerImage {
-            attachmentError = "1枚あたり最大4MBまでです"
-            return
-        }
         let totalBytes = combined.reduce(0) { $0 + $1.data.count }
         if totalBytes > Self.maxAttachmentTotalBytes {
-            attachmentError = "画像の合計サイズは最大8MBまでです"
+            attachmentError = ImageAttachmentLimits.inputTotalMessage
             return
         }
 
@@ -730,7 +750,23 @@ public final class SessionDetailViewModel {
 
         let backupText = inputText
         let backupItems = attachmentItems
-        // 送信ペイロードは `backupItems`（下の api.send）を使うため、
+        let backupModel = selectedModelPickerEntryID
+        let backupSessionID = session.id
+        sendState = .sending
+        let prepared: [PreparedImageAttachment]
+        do {
+            prepared = try await ImageAttachmentPreparer.prepare(backupItems.map { $0.send.data })
+            guard inputText == backupText, attachmentItems == backupItems,
+                  selectedModelPickerEntryID == backupModel, session.id == backupSessionID else {
+                sendState = .failed("本文・添付・モデルが変更されたため、送信を中止しました")
+                return
+            }
+        } catch {
+            attachmentError = error.localizedDescription
+            sendState = .failed(error.localizedDescription)
+            return
+        }
+        // 送信ペイロードは上で確定した `prepared` を使うため、
         // このクリアで didSet が添付を外しても送信内容には影響しない。
         inputText = "" // 楽観更新: 即クリア
         attachmentItems = []
@@ -765,7 +801,7 @@ public final class SessionDetailViewModel {
             _ = try await api.send(SendRequest(
                 sessionID: session.id,
                 text: text,
-                images: backupItems.map(\.send)
+                images: prepared.map { SendAttachment(mediaType: $0.mediaType, data: $0.data) }
             ))
             if !backupItems.isEmpty {
                 pendingAttachmentSends.append(.init(text: text, count: backupItems.count))
@@ -969,7 +1005,7 @@ public final class SessionDetailViewModel {
         return .other
     }
 
-    /// PhotosPicker 等の生バイトを送信用 `SendAttachment` に正規化する（確定時に1回のみ）。
+    /// 元画像は保持し、送信時に共通処理で必要な形式へ変換する。
     static func normalizeAttachment(_ candidate: SendAttachment) -> SendAttachment? {
         switch detectImageWireFormat(candidate.data) {
         case .png:
@@ -977,13 +1013,12 @@ public final class SessionDetailViewModel {
         case .jpeg:
             return SendAttachment(mediaType: "image/jpeg", data: candidate.data)
         case .other:
-            #if canImport(UIKit)
-            if let image = UIImage(data: candidate.data),
-               let jpeg = image.jpegData(compressionQuality: 0.85) {
-                return SendAttachment(mediaType: "image/jpeg", data: jpeg)
+            if let source = CGImageSourceCreateWithData(candidate.data as CFData, nil),
+               let type = CGImageSourceGetType(source) as String?,
+               let mediaType = UTType(type)?.preferredMIMEType {
+                return SendAttachment(mediaType: mediaType, data: candidate.data)
             }
-            #endif
-            // テスト用の不透明バイト列（既に png/jpeg とラベル済み）はそのまま通す。
+            // PNG/JPEGの実体検査は送信前の共通処理で行う。
             if candidate.mediaType == "image/png" || candidate.mediaType == "image/jpeg" {
                 return SendAttachment(mediaType: candidate.mediaType, data: candidate.data)
             }
@@ -991,21 +1026,8 @@ public final class SessionDetailViewModel {
         }
     }
 
-    /// ストリップ用の小さい JPEG プレビューを1回だけ生成する（body 再計算でフル解像度を再デコードしない）。
-    static func makeAttachmentPreview(from data: Data) -> Data {
-        #if canImport(UIKit)
-        guard let image = UIImage(data: data) else { return Data() }
-        let maxSide = attachmentPreviewMaxPixelSize
-        let longest = max(image.size.width, image.size.height)
-        let scale = longest > 0 ? min(maxSide / longest, 1) : 1
-        let target = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let renderer = UIGraphicsImageRenderer(size: target)
-        let thumb = renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: target))
-        }
-        return thumb.jpegData(compressionQuality: 0.7) ?? Data()
-        #else
-        return Data()
-        #endif
+    /// ストリップ用の小さいPNGプレビューをキャッシュする。
+    nonisolated static func makeAttachmentPreview(from data: Data) -> Data {
+        ImageAttachmentPreparer.preview(data) ?? Data()
     }
 }

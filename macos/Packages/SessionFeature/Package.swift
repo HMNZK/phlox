@@ -23,6 +23,7 @@ let package = Package(
             dependencies: [
                 "AgentDomain",
                 .product(name: "ChatRenderKit", package: "AgentDomain"),
+                .product(name: "ImageAttachmentKit", package: "AgentDomain"),
                 "DesignSystem",
                 "HookServer",
                 "PTYKit",

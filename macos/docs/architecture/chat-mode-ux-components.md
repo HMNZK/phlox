@@ -24,7 +24,7 @@ last-verified: 2026-09-14
 | `ChatEscapeHandling.swift` | Esc 状態機械の View 配線 |
 | `ComposerKeyRouting.swift` | キールーティング純関数（Return/Esc/Ctrl+Z/サジェスト操作） |
 | `ComposerSuggestions.swift` | サジェスト（トリガー検出・コントローラ・供給源＋5秒TTLキャッシュ） |
-| `ComposerAttachments.swift` | 添付ストア（4MiB/枚・4枚・合計8MiB）・paste 判定純関数 |
+| `ComposerAttachments.swift` | 添付ストア（元画像20MB/枚・4枚・合計80MB、送信前に調整）・paste 判定純関数 |
 | `ReasoningPreview.swift` / `ChatHangPolicy.swift` | 推論プレビュー・ハング判定の純関数 |
 | `ChatInputHistoryScrubber.swift` | 左中央の入力履歴スクラバー（積み重ねた横線。囲い無し）。ホバーで履歴パネル（Liquid Glass 面。macOS 26+ は `.glassEffect`、下位は `.ultraThinMaterial`）を開く。スクラバーの線とパネル行は共有の選択位置で連動し、選択中を白く長く強調。線・行のいずれをクリックしても該当入力へジャンプ。選択位置はスクロール位置にも追従。単一チャット表示（`ChatSessionView`）のみ |
 | `InputHistoryPolicy.swift` | 入力履歴の純関数群（`entries(from:)`＝transcript 順に `.userMessage` 抽出、`scrubberTicks(from:cap:)`＝スクラバー表示用に最新側を上限件数で返す）。型 `InputHistoryEntry(id,text)` |

@@ -1,4 +1,5 @@
 import Foundation
+import ImageAttachmentKit
 import Observation
 import AgentDomain
 import CodexAppServerKit
@@ -710,6 +711,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// composer の添付状態（task-8 契約。受け入れテスト ComposerAttachment が凍結）。
     var attachmentStore: ComposerAttachmentStore
+    private var isPreparingImageSend = false
 
     /// text（非空なら .text）＋添付画像を送信用 ChatInput 列へ（task-8 契約）。
     func buildChatInputs(text: String) -> [ChatInput] {
@@ -3477,6 +3479,7 @@ extension ChatSessionViewModel: ControllableSession {
     }
 
     public func sendText(_ text: String, submit: Bool) async throws {
+        guard !isPreparingImageSend else { throw ControlImageSendError.imageSendSnapshotChanged }
         if submit {
             sendFailure = nil
             let input = pendingInput + text
@@ -3503,17 +3506,17 @@ extension ChatSessionViewModel: ControllableSession {
             } else {
                 nativeSkillInputs = nil
             }
-            submitBaselineTurnSeq = completedTurnSeq
-            clearRunningTurn()
             let hasAttachments = !attachmentStore.attachments.isEmpty
             if hasAttachments && !attachmentStore.isWithinTotalRawBytesLimit {
-                attachmentStore.setError("画像は合計8MiBまでです")
+                attachmentStore.setError(ImageAttachmentLimits.inputTotalMessage)
                 restoreDraftAfterRejectedSend(input)
                 return
             }
-            let sendInputs = buildChatInputs(text: clientInput)
+            var sendInputs = buildChatInputs(text: clientInput)
             let imageSnapshot = hasAttachments ? imageSendSnapshot(for: sendInputs) : nil
             if let imageSnapshot {
+                isPreparingImageSend = true
+                defer { isPreparingImageSend = false }
                 guard imageSnapshot.supportsImages else {
                     attachmentStore.setError(ControlImageSendError.imagesUnsupported.localizedDescription)
                     restoreDraftAfterRejectedSend(input)
@@ -3525,7 +3528,21 @@ extension ChatSessionViewModel: ControllableSession {
                     restoreDraftAfterRejectedSend(input)
                     throw ControlImageSendError.imageSendSnapshotChanged
                 }
+                do {
+                    let prepared = try await ImageAttachmentPreparer.prepare(attachmentStore.attachments.map(\.data))
+                    guard imageSnapshot == imageSendSnapshot(for: buildChatInputs(text: clientInput)) else {
+                        throw ControlImageSendError.imageSendSnapshotChanged
+                    }
+                    sendInputs = clientInput.isEmpty ? [] : [.text(clientInput)]
+                    sendInputs += prepared.map { .image(data: $0.data, mediaType: $0.mediaType) }
+                } catch {
+                    attachmentStore.setError(error.localizedDescription)
+                    restoreDraftAfterRejectedSend(input)
+                    throw error
+                }
             }
+            submitBaselineTurnSeq = completedTurnSeq
+            clearRunningTurn()
             pendingInput = ""
             let sentAttachments = attachmentStore.attachments
             let userAttachments = sentAttachments.map {

@@ -1,0 +1,83 @@
+{
+  "sourceLanguage": "ja",
+  "strings": {
+    "画像は最大4枚までです。1枚20MB・合計80MBまで添付できます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can attach up to 4 images, 20 MB each and 80 MB in total."
+          }
+        }
+      }
+    },
+    "画像は1枚あたり20MBまでです": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Images are limited to 20 MB each."
+          }
+        }
+      }
+    },
+    "画像は合計80MBまでです": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Images are limited to 80 MB in total."
+          }
+        }
+      }
+    },
+    "画像の解像度が大きすぎます（最大4000万画素・各辺32768ピクセル）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The image resolution is too large (up to 40 megapixels and 32,768 pixels per side)."
+          }
+        }
+      }
+    },
+    "画質を保ったまま画像を送信サイズに調整できませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The image could not be adjusted to the send limit while preserving its quality."
+          }
+        }
+      }
+    },
+    "画像を読み込めませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The image could not be loaded."
+          }
+        }
+      }
+    },
+    "本文・添付・モデルが変更されたため、送信を中止しました": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sending was canceled because the text, attachments, or model changed."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

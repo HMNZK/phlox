@@ -47,12 +47,12 @@ enum ComposerAttachmentChipPresentation {
     }
 }
 
-/// composer の添付状態（画像チップ）。上限: 1枚 4MiB・最大 4 枚・合計 raw 8MiB。
+/// 元画像の添付状態。送信時の圧縮・縮小とは別に受付容量を検査する。
 @MainActor @Observable
 final class ComposerAttachmentStore {
-    static let maxBytesPerImage = 4 * 1024 * 1024
-    static let maxTotalRawBytes = 8 * 1024 * 1024
-    static let maxCount = 4
+    static let maxBytesPerImage = ImageAttachmentLimits.maxInputBytes
+    static let maxTotalRawBytes = ImageAttachmentLimits.maxTotalInputBytes
+    static let maxCount = ImageAttachmentLimits.maxCount
 
     /// 知らせの面の色（PhloxReply.dc.html の notice: 上限などは淡い赤、置き換えは中立）。
     /// 送られない画像の知らせは保存せず、いまのモデルから決める（`ComposerAttachmentCapability.imageNotice`）。
@@ -79,15 +79,15 @@ final class ComposerAttachmentStore {
     @discardableResult
     func addImage(data: Data, mediaType: String, filename: String? = nil) -> ComposerAttachment? {
         if data.count > Self.maxBytesPerImage {
-            lastError = "画像は1枚あたり4MiBまでです"
+            lastError = ImageAttachmentLimits.inputSizeMessage
             return nil
         }
         if attachments.count >= Self.maxCount {
-            lastError = "5 枚目は追加できません。画像は 1 枚 4MB・最大 4 枚・合計 8MB までです。"
+            lastError = ImageAttachmentLimits.countMessage
             return nil
         }
         if totalRawBytes + data.count > Self.maxTotalRawBytes {
-            lastError = "画像は合計8MiBまでです"
+            lastError = ImageAttachmentLimits.inputTotalMessage
             return nil
         }
         let number = ComposerImagePlaceholder.nextNumber(after: attachments.map(\.number))

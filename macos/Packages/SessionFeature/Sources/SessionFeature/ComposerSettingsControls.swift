@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import AgentDomain
+import ImageAttachmentKit
 import CodexAppServerKit
 import DesignSystem
 import UniformTypeIdentifiers
@@ -623,11 +624,13 @@ struct ComposerAttachPlaceholder: View {
         panel.resolvesAliases = true
 
         guard panel.runModal() == .OK else { return }
-        for url in panel.urls {
-            if Self.isImage(url) {
-                addImage(url)
-            } else {
-                insertFileReference(url.path)
+        Task {
+            for url in panel.urls {
+                if Self.isImage(url) {
+                    await addImage(url)
+                } else {
+                    insertFileReference(url.path)
+                }
             }
         }
     }
@@ -638,7 +641,7 @@ struct ComposerAttachPlaceholder: View {
         viewModel.imageAttachmentSupport == .agentUnsupported ? "ファイルを参照として挿入" : "ファイルや画像を添付"
     }
 
-    private func addImage(_ url: URL) {
+    private func addImage(_ url: URL) async {
         guard viewModel.imageAttachmentSupport != .agentUnsupported else {
             insertFileReference(url.path)
             viewModel.attachmentStore.setError(
@@ -648,7 +651,13 @@ struct ComposerAttachPlaceholder: View {
             return
         }
         do {
-            let data = try Data(contentsOf: url)
+            let data = try await Task.detached(priority: .userInitiated) {
+                let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+                guard size <= ImageAttachmentLimits.maxInputBytes else {
+                    throw ImageAttachmentPreparationError.tooLarge
+                }
+                return try Data(contentsOf: url)
+            }.value
             if let attachment = viewModel.attachmentStore.addImage(
                 data: data,
                 mediaType: Self.mediaType(for: url),
@@ -661,6 +670,8 @@ struct ComposerAttachPlaceholder: View {
                 )
                 viewModel.draft = applied.text
             }
+        } catch ImageAttachmentPreparationError.tooLarge {
+            viewModel.attachmentStore.setError(ImageAttachmentLimits.inputSizeMessage)
         } catch {
             viewModel.attachmentStore.setError("画像を読み込めませんでした: \(url.lastPathComponent)")
         }

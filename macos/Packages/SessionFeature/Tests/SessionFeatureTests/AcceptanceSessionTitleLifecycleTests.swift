@@ -473,7 +473,7 @@ struct AcceptanceSessionTitleLifecycleTests {
     func 添付のみではflowerを維持する() async throws {
         let (vm, _) = makeChatVM()
         let attached = vm.attachmentStore.addImage(
-            data: Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
+            data: Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")!,
             mediaType: "image/png"
         )
         #expect(attached != nil)
@@ -485,9 +485,9 @@ struct AcceptanceSessionTitleLifecycleTests {
     func 適格本文でも送信前ガードで拒否されればflowerのまま本文は確定しない() async throws {
         let (vm, client) = makeChatVM()
         vm.attachmentStore = ComposerAttachmentStore(attachments: [
-            ComposerAttachment(data: Data(count: 3 * 1024 * 1024), mediaType: "image/png"),
-            ComposerAttachment(data: Data(count: 3 * 1024 * 1024), mediaType: "image/png"),
-            ComposerAttachment(data: Data(count: 3 * 1024 * 1024), mediaType: "image/png"),
+            ComposerAttachment(data: Data(count: 27_000_000), mediaType: "image/png"),
+            ComposerAttachment(data: Data(count: 27_000_000), mediaType: "image/png"),
+            ComposerAttachment(data: Data(count: 27_000_000), mediaType: "image/png"),
         ])
         try await vm.sendText("ログイン画面を修正", submit: true)
         #expect(client.recordedTurnStarts().isEmpty, Comment(rawValue: "turnStart not called"))

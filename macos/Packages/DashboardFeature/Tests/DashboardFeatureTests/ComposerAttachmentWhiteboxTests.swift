@@ -76,7 +76,7 @@ func composerAttachment_sendTextSendsImagesAndClearsOnlyAfterSuccess() async thr
         approvalBroker: ChatApprovalBroker(),
         workingDirectory: "/tmp/work"
     )
-    let image = Data([1, 2, 3, 4])
+    let image = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")!
     viewModel.attachmentStore.addImage(data: image, mediaType: "image/png")
 
     try await viewModel.sendText("inspect", submit: true)
@@ -89,26 +89,27 @@ func composerAttachment_sendTextSendsImagesAndClearsOnlyAfterSuccess() async thr
 }
 
 @Test @MainActor
-func composerAttachment_rejectsImageThatWouldExceedTotalRawLimit() {
+func composerAttachment_acceptsEightyMBTotal() {
     let store = ComposerAttachmentStore()
-    let threeMiB = Data(count: 3 * 1024 * 1024)
+    let threeMiB = Data(count: 20_000_000)
 
     store.addImage(data: threeMiB, mediaType: "image/png")
     store.addImage(data: threeMiB, mediaType: "image/png")
     store.addImage(data: threeMiB, mediaType: "image/png")
+    store.addImage(data: threeMiB, mediaType: "image/png")
 
-    #expect(store.attachments.count == 2)
-    #expect(store.totalRawBytes == 6 * 1024 * 1024)
-    #expect(store.lastError == "画像は合計8MiBまでです")
+    #expect(store.attachments.count == 4)
+    #expect(store.totalRawBytes == 80_000_000)
+    #expect(store.lastError == nil)
 }
 
 @Test @MainActor
 func composerAttachment_sendPathBlocksOverTotalRawLimitAndKeepsAttachments() async throws {
     let client = ComposerAttachmentCaptureClient()
     let overLimitStore = ComposerAttachmentStore(attachments: [
-        ComposerAttachment(data: Data(count: 3 * 1024 * 1024), mediaType: "image/png"),
-        ComposerAttachment(data: Data(count: 3 * 1024 * 1024), mediaType: "image/png"),
-        ComposerAttachment(data: Data(count: 3 * 1024 * 1024), mediaType: "image/png"),
+        ComposerAttachment(data: Data(count: 27_000_000), mediaType: "image/png"),
+        ComposerAttachment(data: Data(count: 27_000_000), mediaType: "image/png"),
+        ComposerAttachment(data: Data(count: 27_000_000), mediaType: "image/png"),
     ])
     let viewModel = ChatSessionViewModel(
         id: SessionID(),
@@ -123,7 +124,7 @@ func composerAttachment_sendPathBlocksOverTotalRawLimitAndKeepsAttachments() asy
 
     #expect(client.receivedInputs.isEmpty)
     #expect(viewModel.attachmentStore.attachments.count == 3)
-    #expect(viewModel.attachmentStore.lastError == "画像は合計8MiBまでです")
+    #expect(viewModel.attachmentStore.lastError == "画像は合計80MBまでです")
 }
 
 @Test @MainActor
@@ -155,7 +156,7 @@ func composerAttachment_sendFailureKeepsAttachments() async {
         approvalBroker: ChatApprovalBroker(),
         workingDirectory: "/tmp/work"
     )
-    let image = Data([1, 2, 3, 4])
+    let image = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")!
     viewModel.attachmentStore.addImage(data: image, mediaType: "image/png")
 
     do {
@@ -180,14 +181,14 @@ func composerAttachment_imageOnlySendDisplaysImageCountInTranscript() async thro
         approvalBroker: ChatApprovalBroker(),
         workingDirectory: "/tmp/work"
     )
-    viewModel.attachmentStore.addImage(data: Data([1]), mediaType: "image/png")
-    viewModel.attachmentStore.addImage(data: Data([2]), mediaType: "image/jpeg")
+    viewModel.attachmentStore.addImage(data: AttachmentImageFixture.png, mediaType: "image/png")
+    viewModel.attachmentStore.addImage(data: AttachmentImageFixture.jpeg, mediaType: "image/jpeg")
 
     try await viewModel.sendText("", submit: true)
 
     #expect(client.receivedInputs == [[
-        .image(data: Data([1]), mediaType: "image/png"),
-        .image(data: Data([2]), mediaType: "image/jpeg"),
+        .image(data: AttachmentImageFixture.png, mediaType: "image/png"),
+        .image(data: AttachmentImageFixture.jpeg, mediaType: "image/jpeg"),
     ]])
     guard case let .userMessage(_, text, _, attachments) = try #require(viewModel.transcript.first) else {
         Issue.record("先頭アイテムが userMessage ではない")
@@ -239,19 +240,19 @@ func composerAttachment_supportIsDecidedOncePerAgentAndModel() {
 func composerAttachment_pastedImageFollowsTheSupport() {
     let ja = Locale(identifier: "ja")
     let claude = attachmentViewModel(.claudeCode)
-    #expect(ComposerAttachmentCapability.addPastedImage(to: claude, data: Data([1]), mediaType: "image/png", locale: ja) == .attached(number: 1))
+    #expect(ComposerAttachmentCapability.addPastedImage(to: claude, data: AttachmentImageFixture.png, mediaType: "image/png", locale: ja) == .attached(number: 1))
     #expect(claude.attachmentStore.lastError == nil)
 
     #expect(ComposerAttachmentCapability.imageNotice(claude, locale: ja) == nil)
 
     let codex = attachmentViewModel(.codex)
     #expect(ComposerAttachmentCapability.imageNotice(codex, locale: ja) == nil)
-    #expect(ComposerAttachmentCapability.addPastedImage(to: codex, data: Data([1]), mediaType: "image/png", locale: ja) == .attached(number: 1))
+    #expect(ComposerAttachmentCapability.addPastedImage(to: codex, data: AttachmentImageFixture.png, mediaType: "image/png", locale: ja) == .attached(number: 1))
     #expect(codex.attachmentStore.lastError == nil)
     #expect(ComposerAttachmentCapability.imageNotice(codex, locale: ja)?.contains("この画像は送られません") == true)
 
     let cursor = attachmentViewModel(.cursor)
-    #expect(ComposerAttachmentCapability.addPastedImage(to: cursor, data: Data([1]), mediaType: "image/png", locale: ja) == .unsupported)
+    #expect(ComposerAttachmentCapability.addPastedImage(to: cursor, data: AttachmentImageFixture.png, mediaType: "image/png", locale: ja) == .unsupported)
     #expect(cursor.attachmentStore.attachments.isEmpty)
     #expect(cursor.attachmentStore.lastErrorTone == .neutral)
     #expect(cursor.attachmentStore.lastError?.hasPrefix("Cursor では画像を貼り付けられません") == true)
@@ -271,7 +272,7 @@ func composerAttachment_historyIsNotRecalledWhileAnImageIsAttached() async throw
     let viewModel = attachmentViewModel(.claudeCode)
     try await viewModel.sendText("前の入力", submit: true)
     #expect(InputHistoryPolicy.entries(from: viewModel.transcript).map(\.text) == ["前の入力"])
-    viewModel.attachmentStore.addImage(data: Data([1]), mediaType: "image/png")
+    viewModel.attachmentStore.addImage(data: AttachmentImageFixture.png, mediaType: "image/png")
     viewModel.draft = "[Image #1] これを見て"
 
     #expect(!viewModel.recallInputHistory(.older))
@@ -288,7 +289,7 @@ func composerAttachment_historyIsNotRecalledWhileAnImageIsAttached() async throw
 func composerAttachment_historySkipsInputsSentWithImages() async throws {
     let viewModel = attachmentViewModel(.claudeCode)
     try await viewModel.sendText("文字だけ", submit: true)
-    viewModel.attachmentStore.addImage(data: Data([1]), mediaType: "image/png")
+    viewModel.attachmentStore.addImage(data: AttachmentImageFixture.png, mediaType: "image/png")
     try await viewModel.sendText("[Image #1] 画像つき", submit: true)
     viewModel.attachmentStore.clear()
     viewModel.draft = ""

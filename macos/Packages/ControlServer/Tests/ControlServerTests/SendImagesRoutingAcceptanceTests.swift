@@ -31,7 +31,7 @@ private actor SendImagesHandlerStub {
         let stub = SendImagesHandlerStub()
         let (port, server) = try await startServer(stub: stub)
         _ = server
-        let pngBytes = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        let pngBytes = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")!
         let body = """
         {"to":"agent-alpha","text":"この画面を見て","images":[{"mediaType":"image/png","dataBase64":"\(pngBytes.base64EncodedString())"}]}
         """
@@ -122,7 +122,7 @@ private actor SendImagesHandlerStub {
         #expect(await stub.callCount == 0)
     }
 
-    // MARK: - 上限（デスクトップ ComposerAttachments と同一: 4枚 / 1枚 4MiB / 合計 8MiB）
+    // MARK: - 受信上限（旧クライアントの4MiB/枚を維持、合計14MB）
 
     @Test func fiveImagesReturn413AttachmentTooLarge() async throws {
         let stub = SendImagesHandlerStub()
@@ -156,7 +156,7 @@ private actor SendImagesHandlerStub {
         #expect(await stub.callCount == 0)
     }
 
-    @Test func imageExactlyFourMiBPasses() async throws {
+    @Test func legacyImageExactlyFourMiBPasses() async throws {
         let stub = SendImagesHandlerStub()
         let (port, server) = try await startServer(stub: stub)
         _ = server
@@ -175,15 +175,14 @@ private actor SendImagesHandlerStub {
         #expect(images.first?.data.count == 4 * Self.mib)
     }
 
-    @Test func totalOverEightMiBReturns413() async throws {
+    @Test func totalOverFourteenMBReturns413() async throws {
         let stub = SendImagesHandlerStub()
         let (port, server) = try await startServer(stub: stub)
         _ = server
-        // 1枚あたりは 4MiB 以内だが合計が 8MiB を超える（4MiB + 4MiB + 1KiB）
+        // 各4MiBは旧クライアントの許容範囲だが、4枚の合計は14MBを超える。
         let four = Data(repeating: 0x11, count: 4 * Self.mib).base64EncodedString()
-        let small = Data(repeating: 0x22, count: 1024).base64EncodedString()
         let body = """
-        {"to":"agent-alpha","text":"x","images":[{"mediaType":"image/png","dataBase64":"\(four)"},{"mediaType":"image/png","dataBase64":"\(four)"},{"mediaType":"image/png","dataBase64":"\(small)"}]}
+        {"to":"agent-alpha","text":"x","images":[{"mediaType":"image/png","dataBase64":"\(four)"},{"mediaType":"image/png","dataBase64":"\(four)"},{"mediaType":"image/png","dataBase64":"\(four)"},{"mediaType":"image/png","dataBase64":"\(four)"}]}
         """
         let (status, data) = try await request(port: port, method: "POST", path: "/send", bearer: token, body: body)
         #expect(status == 413)
@@ -192,14 +191,14 @@ private actor SendImagesHandlerStub {
         #expect(await stub.callCount == 0)
     }
 
-    @Test func totalExactlyEightMiBPasses() async throws {
+    @Test func fourPreparedImagesAtSendLimitPassThroughTransport() async throws {
         let stub = SendImagesHandlerStub()
         let (port, server) = try await startServer(stub: stub)
         _ = server
-        // 合計ちょうど 8MiB（4MiB × 2）。base64 で約 10.7MB の body が transport を通ることも同時に検証する
-        let four = Data(repeating: 0x33, count: 4 * Self.mib).base64EncodedString()
+        // 合計14MB（3.5MB×4）。base64約18.7MBがtransportを通ることを検証する。
+        let four = Data(repeating: 0x33, count: 3_500_000).base64EncodedString()
         let body = """
-        {"to":"agent-alpha","text":"x","images":[{"mediaType":"image/png","dataBase64":"\(four)"},{"mediaType":"image/jpeg","dataBase64":"\(four)"}]}
+        {"to":"agent-alpha","text":"x","images":[{"mediaType":"image/png","dataBase64":"\(four)"},{"mediaType":"image/jpeg","dataBase64":"\(four)"},{"mediaType":"image/png","dataBase64":"\(four)"},{"mediaType":"image/jpeg","dataBase64":"\(four)"}]}
         """
         let (status, _) = try await request(port: port, method: "POST", path: "/send", bearer: token, body: body)
         #expect(status == 200)
@@ -209,8 +208,8 @@ private actor SendImagesHandlerStub {
             Issue.record("expected sendText")
             return
         }
-        #expect(images.count == 2)
-        #expect(images.reduce(0) { $0 + $1.data.count } == 8 * Self.mib)
+        #expect(images.count == 4)
+        #expect(images.reduce(0) { $0 + $1.data.count } == 14_000_000)
     }
 
     // MARK: - Helpers（自己完結）

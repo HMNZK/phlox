@@ -434,7 +434,7 @@ struct AcceptanceCodexChatParityIntegrationTests {
                 sandbox: .named("workspace-write")
             )
             #expect(viewModel.availableModels.map(\.id) == ["gpt-5-codex"])
-            let attachment = Data([0x89, 0x50, 0x4E, 0x47])
+            let attachment = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")!
             #expect(viewModel.attachmentStore.addImage(
                 data: attachment,
                 mediaType: "image/png",
@@ -558,7 +558,7 @@ struct AcceptanceCodexChatParityIntegrationTests {
             await skillState.refresh()
             #expect(skillState.select(name: "review", path: "/tmp/skills/review"))
             #expect(viewModel.attachmentStore.addImage(
-                data: Data([0x89, 0x50, 0x4E, 0x47]),
+                data: Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")!,
                 mediaType: "image/png",
                 filename: "evidence.png"
             ) != nil)

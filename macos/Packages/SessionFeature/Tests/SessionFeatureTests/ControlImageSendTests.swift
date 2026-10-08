@@ -5,7 +5,7 @@ import CodexAppServerKit
 import StructuredChatKit
 @testable import SessionFeature
 
-private let tinyPNG = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+private let tinyPNG = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")!
 
 private final class RecordingStructuredClient: StructuredAgentClient, @unchecked Sendable {
     let events: AsyncStream<NormalizedChatEvent>
@@ -89,6 +89,44 @@ struct ControlImageSendTests {
                 .image(data: tinyPNG, mediaType: "image/png"),
             ])
             #expect(vm.attachmentStore.attachments.isEmpty)
+        }
+    }
+
+    @Test
+    func oversizedOriginalIsPreparedBeforeTurnStart() async throws {
+        let client = RecordingStructuredClient()
+        let vm = makeClaudeViewModel(client: client)
+        var original = tinyPNG
+        original.append(Data(count: 6_000_000 - original.count))
+        vm.attachmentStore.addImage(data: original, mediaType: "image/png", filename: "large.png")
+        try await withTerminatedViewModel(vm) {
+            try await vm.sendText("large image", submit: true)
+            let inputs = try #require(client.lastTurnStartInput)
+            guard case .image(let sent, let mediaType) = inputs.last else {
+                Issue.record("画像が送信されていない")
+                return
+            }
+            #expect(sent.count <= ImageAttachmentLimits.maxSendBytes)
+            #expect(mediaType == "image/png")
+            #expect(vm.attachmentStore.attachments.isEmpty)
+        }
+    }
+
+    @Test
+    func brokenOriginalAbortsWithoutSendingAndPreservesDraftAndAttachment() async throws {
+        let client = RecordingStructuredClient()
+        let vm = makeClaudeViewModel(client: client)
+        let broken = Data([0x89, 0x50, 0x4e, 0x47])
+        vm.attachmentStore.addImage(data: broken, mediaType: "image/png")
+        vm.draft = "retry this"
+        let text = try #require(vm.consumeDraftForSend())
+        try await withTerminatedViewModel(vm) {
+            await #expect(throws: (any Error).self) { try await vm.sendText(text, submit: true) }
+            #expect(client.lastTurnStartInput == nil)
+            #expect(vm.attachmentStore.attachments.first?.data == broken)
+            #expect(vm.draft == "retry this")
+            #expect(vm.attachmentStore.lastError == "画像を読み込めませんでした")
+            #expect(vm.status != .running)
         }
     }
 

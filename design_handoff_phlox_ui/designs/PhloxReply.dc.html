@@ -288,7 +288,7 @@ class Component extends DCLogic {
     }[sc];
     const attach = (attachSets||[]).map(([t,size]) => ({t,size,img:true,style:{display:'flex',alignItems:'center',gap:6,height:30,padding:'0 4px 0 4px',borderRadius:7,background:'var(--segBg)',fontSize:11.5,color:'var(--fg)',maxWidth:190,opacity:sc==='attachB'?0.55:1}}));
     const NOTICE = {
-      attachLimit:['5 枚目は追加できません。画像は 1 枚 4MB・最大 4 枚・合計 8MB までです。','err'],
+      attachLimit:['画像は最大4枚までです。1枚20MB・合計80MBまで添付できます。','err'],
       noAttach:['Cursor では画像を添付できません。画像はファイルの参照（@パス）として挿入しました。','neutral'],
       attachB:['gpt-5.5 は画像入力に対応していないため、この画像は送られません。モデルを切り替えると送れます。','apv'],
       attachC:['このエージェントには画像そのものは送れず、警告付きのテキストに置き換えて送ります。','apv'],

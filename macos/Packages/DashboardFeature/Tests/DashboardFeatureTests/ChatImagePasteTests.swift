@@ -8,7 +8,7 @@ import Foundation
 import Testing
 @testable import SessionFeature
 
-private let tinyPNG = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+private let tinyPNG = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")!
 private let keyV: UInt16 = 9
 
 @Suite("Chat image paste")

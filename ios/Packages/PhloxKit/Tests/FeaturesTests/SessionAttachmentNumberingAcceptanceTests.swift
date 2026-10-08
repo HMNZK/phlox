@@ -38,7 +38,7 @@ struct SessionAttachmentNumberingAcceptanceTests {
     }
 
     private func image(bytes: Int = 1024) -> SendAttachment {
-        SendAttachment(mediaType: "image/png", data: Data(count: bytes))
+        SendAttachment(mediaType: "image/png", data: paddedImage(bytes: bytes))
     }
 
     // MARK: - 採番
@@ -307,4 +307,10 @@ struct SessionAttachmentNumberingAcceptanceTests {
         #expect(vm.attachmentItems.map(\.number) == [1])
         #expect(vm.inputText == textBefore)
     }
+}
+
+private func paddedImage(bytes: Int) -> Data {
+    var data = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")!
+    data.append(Data(count: max(0, bytes - data.count)))
+    return data
 }

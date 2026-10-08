@@ -84,6 +84,7 @@ let package = Package(
                 "PhloxNetworking",
                 "DesignSystemIOS",
                 "TerminalScreenIOS",
+                .product(name: "ImageAttachmentKit", package: "AgentDomain"),
                 .product(name: "DesignSystem", package: "DesignSystem"),
                 .product(name: "ChatRenderKit", package: "AgentDomain"),
             ]

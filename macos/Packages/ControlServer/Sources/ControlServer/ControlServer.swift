@@ -119,10 +119,10 @@ public actor ControlServer {
         }
     }
 
-    /// Control API の transport body 上限。契約5（/send images）の合計 8MiB（base64 で約 11MB）を
+    /// Control API の transport body 上限。調整済み画像の合計14MB（base64で約18.7MB）を
     /// 受信できるよう、既定の HTTPMessageParser.maxBodyLength（256KiB）よりこのサーバーだけ広げる。
     /// HookServer 等の他サーバーは既定値のまま（DoS 面を広げない）。
-    public static let maxRequestBodyLength = 16 * 1024 * 1024
+    public static let maxRequestBodyLength = ImageAttachmentLimits.maxRequestBodyBytes
 
     private func handle(connection: NWConnection) async {
         do {
@@ -289,9 +289,9 @@ public actor ControlServer {
         }
     }
 
-    private static let maxSendImageCount = 4
-    private static let maxSendBytesPerImage = 4 * 1024 * 1024
-    private static let maxSendTotalImageBytes = 8 * 1024 * 1024
+    private static let maxSendImageCount = ImageAttachmentLimits.maxCount
+    private static let maxSendBytesPerImage = ImageAttachmentLimits.maxWireBytes
+    private static let maxSendTotalImageBytes = ImageAttachmentLimits.maxTotalSendBytes
 
     private func parseSend(body: Data) -> RouteResult {
         struct ImageWire: Decodable {

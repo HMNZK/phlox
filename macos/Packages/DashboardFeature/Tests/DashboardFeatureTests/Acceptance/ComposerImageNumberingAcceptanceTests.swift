@@ -33,7 +33,7 @@ private final class ComposerNumberingNoopClient: StructuredAgentClient, @uncheck
     func close() async { continuation.finish() }
 }
 
-private let tinyPNG = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+private let tinyPNG = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")!
 
 @Suite("task-2: composer 添付の番号付けと本文プレースホルダ")
 struct ComposerImageNumberingAcceptanceTests {
@@ -97,7 +97,7 @@ struct ComposerImageNumberingAcceptanceTests {
 
         #expect(result == nil)
         #expect(store.attachments.isEmpty)
-        #expect(store.lastError == "画像は1枚あたり4MiBまでです")
+        #expect(store.lastError == "画像は1枚あたり20MBまでです")
     }
 
     // MARK: - 本文からプレースホルダを消したら添付も外れる（task-4）

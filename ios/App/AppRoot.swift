@@ -234,7 +234,7 @@ struct AppRoot: View {
         } label: {
             VStack(spacing: 2) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 20, weight: isSelected ? .semibold : .regular))
+                    .font(DSFont.iconTab.weight(isSelected ? .semibold : .regular))
                 Text(title)
                     .font(.caption2)
             }
@@ -622,7 +622,7 @@ private struct ConnectingOverlayView: View {
     private func failedContent(_ failure: ConnectFailure) -> some View {
         VStack(spacing: DSSpacing.m) {
             Image(systemName: "wifi.exclamationmark")
-                .font(.system(size: 46, weight: .regular))
+                .font(DSFont.iconConnectionFailure)
                 .foregroundStyle(DSColor.statusError)
                 .padding(.bottom, DSSpacing.xs)
             Text(failure.title)

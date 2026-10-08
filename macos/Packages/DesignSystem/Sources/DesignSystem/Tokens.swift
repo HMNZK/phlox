@@ -35,6 +35,10 @@ public enum DSFont {
     public static let monoCaption = Font.system(size: 11, design: .monospaced)
     /// バッジ等の極小アイコン用。生値 `.system(size: 9)` の直書きを排除する。
     public static let iconTiny = Font.system(size: 9, weight: .bold)
+    /// iOSの下部タブの図記号。選択状態による太さは呼び出し側で指定する。
+    public static let iconTab = Font.system(size: 20)
+    /// iOSの接続失敗の図記号。
+    public static let iconConnectionFailure = Font.system(size: 46)
 
     // 再設計の文字の段（12 Design System）。和文はシステムがヒラギノ角ゴシックへ落とす。
     /// 24 / Bold — 空の画面の見出し

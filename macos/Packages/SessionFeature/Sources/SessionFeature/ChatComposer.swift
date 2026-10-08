@@ -1,4 +1,5 @@
 import SwiftUI
+import ImageAttachmentKit
 import AppKit
 import AgentDomain
 import CodexAppServerKit
@@ -1236,6 +1237,7 @@ struct IMESafeTextView: NSViewRepresentable {
 }
 
 struct ComposerAttachmentStrip: View {
+    @Environment(\.localizationBundle) private var strings
     @Bindable var store: ComposerAttachmentStore
     let layout: ComposerSettingsLayout
     /// いまのモデルには送られない画像の知らせ。あれば画像を薄く出し、承認待ちの色の面で知らせる（05 R8 案 B）。
@@ -1266,7 +1268,7 @@ struct ComposerAttachmentStrip: View {
             }
             // 知らせは本文色。面は上限などが淡い赤、送られない画像が承認待ちの色、置き換えは中立（PhloxReply.dc.html の notice）。
             if let lastError = store.lastError {
-                notice(Text(LocalizedStringKey(lastError)), background: noticeBackground)
+                notice(Text(LocalizedStringKey(lastError), bundle: strings), background: noticeBackground)
             } else if let imageNotice {
                 notice(Text(verbatim: imageNotice), background: DSColor.attentionTint(.approval))
             }
@@ -1298,6 +1300,7 @@ extension ComposerAttachmentStrip {
 /// 添付の 1 枚（高さ 30・角丸 7・区切りの面、22pt の縮小画像・名前・大きさ・丸い ✕）。
 /// ponytail: 本文の `[Image #N]` と対応させる「#N」はモックに無いが、どの画像か分かる手掛かりなので残す。
 private struct ComposerAttachmentChip: View {
+    @State private var previewImage: NSImage?
     let attachment: ComposerAttachment
     let chipHeight: CGFloat
     let onRemove: () -> Void
@@ -1336,12 +1339,20 @@ private struct ComposerAttachmentChip: View {
         .frame(maxWidth: 190)
         .frame(height: chipHeight)
         .background(DSColor.segmentTrack, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .task(id: attachment.id) {
+            let data = attachment.data
+            let preview = await Task.detached(priority: .userInitiated) {
+                ImageAttachmentPreparer.preview(data)
+            }.value
+            guard !Task.isCancelled else { return }
+            previewImage = preview.flatMap { NSImage(data: $0) }
+        }
     }
 
     @ViewBuilder
     private var thumbnail: some View {
         let shape = RoundedRectangle(cornerRadius: 4, style: .continuous)
-        if let image = NSImage(data: attachment.data) {
+        if let image = previewImage {
             Image(nsImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fill)

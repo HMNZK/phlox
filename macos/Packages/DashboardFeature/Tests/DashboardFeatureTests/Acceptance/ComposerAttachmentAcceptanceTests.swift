@@ -8,7 +8,7 @@ import Testing
 @testable import DashboardFeature
 @testable import SessionFeature
 
-private let tinyPNG = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+private let tinyPNG = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")!
 
 @Test @MainActor
 func composerAttachment_store_addsWithinLimits() {

@@ -23,7 +23,7 @@ public struct DSResultBanner: View {
         HStack(spacing: DSSpacing.s) {
             Image(systemName: Self.iconName(isError: isError))
                 .foregroundStyle(tint)
-            Text(message)
+            Text(LocalizedStringKey(message))
                 .font(DSFont.subheadline)
                 .foregroundStyle(DSColor.textPrimary)
             Spacer(minLength: 0)

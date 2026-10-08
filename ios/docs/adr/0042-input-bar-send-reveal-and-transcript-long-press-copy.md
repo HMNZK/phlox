@@ -23,7 +23,7 @@ last-verified: 2026-07-31
   ```
 
   - 非実行中は従来どおり送信ボタンを**常設**する（空文字・送信不能時は `.disabled` ＋ `opacity(0.45)` の無効・淡色）。ここは ADR 0018 の決定を維持する。
-  - 実行中は、**何も打っていない間は停止ボタンだけ**を置き、打ち始めたら送信ボタンを併置する。`isLoading`（送信直後は楽観クリアで本文が空になる）でも送信スロットを保ち、進捗表示が途中で消えないようにする。
+  - 実行中は、**何も打っていない間は停止ボタンだけ**を置き、打ち始めたら送信ボタンを併置する。`isLoading`（送信中に本文が編集・削除されても進捗を出す）でも送信スロットを保ち、進捗表示が途中で消えないようにする。
   - 出現は `.transition(.move(edge: .trailing) + .opacity)` ＋ `.animation(DSMotion.spring, value: actionState)` で、右から現れ停止ボタンが左へ寄る。
 - **転写のコピーを長押し `contextMenu` へ集約する。** 行ごとの `ChatMessageCopyButton` を撤去し、バブルと同じ `chatMessageCopyContextMenu` を全行へ適用する。コマンド群・差分のように連結が高コストなものは、遅延生成を保つため `ChatMessageDeferredCopyText`（`() -> String?` を保持する値型）を受ける overload を足す（[ADR 0038](0038-command-group-cost-bounding.md) 決定3の遅延をそのまま引き継ぐ）。孤児化した `ChatMessageCopyButton` は削除する。
 

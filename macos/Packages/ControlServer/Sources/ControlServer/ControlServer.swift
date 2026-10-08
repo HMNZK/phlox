@@ -119,7 +119,7 @@ public actor ControlServer {
         }
     }
 
-    /// Control API の transport body 上限。調整済み画像の合計14MB（base64で約18.7MB）を
+    /// Control API の transport body 上限。調整済み画像の合計15MB（base64で20MB）を
     /// 受信できるよう、既定の HTTPMessageParser.maxBodyLength（256KiB）よりこのサーバーだけ広げる。
     /// HookServer 等の他サーバーは既定値のまま（DoS 面を広げない）。
     public static let maxRequestBodyLength = ImageAttachmentLimits.maxRequestBodyBytes

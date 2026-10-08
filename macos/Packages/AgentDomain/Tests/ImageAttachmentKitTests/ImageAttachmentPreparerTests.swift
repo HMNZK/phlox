@@ -17,7 +17,7 @@ private func fixture(width: Int, height: Int, alpha: Bool = false, noisy: Bool =
             pixels[i] = UInt8(truncatingIfNeeded: state)
         }
     }
-    if alpha { for i in stride(from: 3, to: pixels.count, by: 4) { pixels[i] = 128 } }
+    for i in stride(from: 3, to: pixels.count, by: 4) { pixels[i] = alpha ? 128 : 255 }
     let provider = try #require(CGDataProvider(data: Data(pixels) as CFData))
     let image = try #require(CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
         bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
@@ -53,16 +53,36 @@ private func fixture(width: Int, height: Int, alpha: Bool = false, noisy: Bool =
     }
 }
 
-@Test func reducesLargePNGAndPreservesTransparency() throws {
+@Test func refusesToShrinkLargeTransparentPNG() throws {
     let original = try fixture(width: 1600, height: 1000, alpha: true, noisy: true)
     #expect(original.count > 4_194_304)
+    #expect(throws: ImageAttachmentPreparationError.cannotFit) {
+        try ImageAttachmentPreparer.prepareImage(original)
+    }
+}
+
+@Test func convertsOpaquePNGWithoutReducingDimensions() throws {
+    let original = try fixture(width: 1600, height: 1000, noisy: true)
+    #expect(original.count > ImageAttachmentLimits.maxSendBytes)
     let prepared = try ImageAttachmentPreparer.prepareImage(original)
     #expect(prepared.data.count <= ImageAttachmentLimits.maxSendBytes)
-    #expect(prepared.mediaType == "image/png")
+    #expect(prepared.mediaType == "image/jpeg")
     let source = try #require(CGImageSourceCreateWithData(prepared.data as CFData, nil))
     let props = try #require(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any])
-    #expect(props[kCGImagePropertyHasAlpha] as? Bool == true)
-    #expect((props[kCGImagePropertyPixelWidth] as? Int ?? 0) <= 1600)
+    #expect(props[kCGImagePropertyPixelWidth] as? Int == 1600)
+    #expect(props[kCGImagePropertyPixelHeight] as? Int == 1000)
+}
+
+@Test func acceptsFortyEightMegapixelsWithinProviderDimensions() throws {
+    // 実際の48MP PNGを使う。毎回巨大な画素配列を生成して他の時間検査へ負荷をかけない。
+    let path = try #require(Bundle.module.url(forResource: "48mp", withExtension: "png", subdirectory: "Fixtures"))
+    let original = try Data(contentsOf: path)
+    let source = try #require(CGImageSourceCreateWithData(original as CFData, nil))
+    let props = try #require(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any])
+    #expect(props[kCGImagePropertyPixelWidth] as? Int == 8000)
+    #expect(props[kCGImagePropertyPixelHeight] as? Int == 6000)
+    let prepared = try ImageAttachmentPreparer.prepareImage(original)
+    #expect(prepared.data == original)
 }
 
 @Test func rejectsTooManyPixelsBeforeDecoding() throws {

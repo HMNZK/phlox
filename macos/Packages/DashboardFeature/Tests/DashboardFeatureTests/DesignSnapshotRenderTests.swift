@@ -35,6 +35,11 @@ struct DesignSnapshotRenderTests {
                 let frame = Frame(id: "attachment-\(width)\(english ? "-en" : "")", name: "添付上限", width: CGFloat(width), height: 140)
                 try await capture(ComposerAttachmentStrip(store: store, layout: .standard, onRemove: { _ in })
                     .padding(12), frame: frame, output: output)
+                store.setError("解像度を保ったまま送信容量に収まりません。必要な部分を切り出してください")
+                let qualityFrame = Frame(id: "attachment-quality-\(width)\(english ? "-en" : "")",
+                    name: "解像度保持", width: CGFloat(width), height: 160)
+                try await capture(ComposerAttachmentStrip(store: store, layout: .standard, onRemove: { _ in })
+                    .padding(12), frame: qualityFrame, output: output)
             }
         }
     }

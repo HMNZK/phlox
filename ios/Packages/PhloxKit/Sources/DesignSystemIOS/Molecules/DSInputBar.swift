@@ -198,7 +198,7 @@ public struct DSInputBar: View {
         let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         return DSInputBarActionState(
             showsStop: isRunning,
-            // 送信中（isLoading）は楽観クリアで本文が空になるため、進捗を出したまま保つ。
+            // 送信中（isLoading）は本文が編集・削除されても進捗を出したまま保つ。
             showsSend: !isRunning || hasText || isLoading,
             sendIsEnabled: canSubmit(text: text, isLoading: isLoading)
         )

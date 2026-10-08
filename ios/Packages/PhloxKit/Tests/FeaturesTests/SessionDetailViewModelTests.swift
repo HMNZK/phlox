@@ -2,7 +2,7 @@ import XCTest
 import PhloxCore
 @testable import Features
 
-// E4-6 / E4-8 検証。出力取得・入力バー有効制御・折りたたみ上限・送信（楽観更新/失敗復元）を検証する。
+// E4-6 / E4-8 検証。出力取得・入力バー有効制御・折りたたみ上限・送信時の入力保持を検証する。
 @MainActor
 final class SessionDetailViewModelTests: XCTestCase {
 
@@ -147,7 +147,7 @@ final class SessionDetailViewModelTests: XCTestCase {
         let vm = SessionDetailViewModel(session: session(.running), api: MockAPI(sendOutcome: .success(SendResult(accepted: true))))
         vm.inputText = "やってください"
         await vm.sendMessage()
-        XCTAssertEqual(vm.inputText, "", "成功時は入力をクリア（楽観更新）")
+        XCTAssertEqual(vm.inputText, "", "成功時は送信した入力をクリア")
         XCTAssertEqual(vm.sendState, .idle, "送信完了ステータスは表示しない（バナー廃止）")
     }
 
@@ -166,6 +166,59 @@ final class SessionDetailViewModelTests: XCTestCase {
         await vm.sendMessage()
         let count = await mock.sendCount
         XCTAssertEqual(count, 0, "空入力では send を呼ばない")
+    }
+
+    func testSendKeepsOriginalInputUntilAcknowledged() async {
+        let mock = MockAPI()
+        await mock.pauseNextSend()
+        let vm = SessionDetailViewModel(session: session(.running), api: mock)
+        vm.inputText = "送信する本文"
+        let task = Task { await vm.sendMessage() }
+        await mock.waitForSend()
+        XCTAssertEqual(vm.inputText, "送信する本文")
+        XCTAssertEqual(vm.sendState, .sending)
+        await mock.resumeSend()
+        await task.value
+        XCTAssertEqual(vm.inputText, "")
+    }
+
+    func testSendResultNeverOverwritesNewTextOrAttachments() async {
+        for outcome in [Result<SendResult, PhloxError>.success(SendResult(accepted: true)), .failure(.unreachable)] {
+            let mock = MockAPI(sendOutcome: outcome)
+            await mock.pauseNextSend()
+            let vm = SessionDetailViewModel(session: session(.running), api: mock)
+            vm.inputText = "元の本文"
+            vm.addAttachments([attachment(mib: 1)])
+            let originalText = vm.inputText
+            let task = Task { await vm.sendMessage() }
+            await mock.waitForSend()
+            vm.removeAttachment(at: 0)
+            vm.inputText = "新しい本文"
+            vm.addAttachments([attachment(mib: 2)])
+            let newText = vm.inputText
+            let newItems = vm.attachmentItems
+            await mock.resumeSend()
+            await task.value
+            XCTAssertEqual(vm.inputText, newText)
+            XCTAssertEqual(vm.attachmentItems, newItems)
+            let request = await mock.lastSentRequest
+            XCTAssertEqual(request?.text, originalText)
+            XCTAssertEqual(request?.images.first?.data.count, 1_048_576)
+        }
+    }
+
+    func testSendSuccessKeepsTextRetypedDuringRequest() async {
+        let mock = MockAPI()
+        await mock.pauseNextSend()
+        let vm = SessionDetailViewModel(session: session(.running), api: mock)
+        vm.inputText = "同じ本文"
+        let task = Task { await vm.sendMessage() }
+        await mock.waitForSend()
+        vm.inputText = ""
+        vm.inputText = "同じ本文"
+        await mock.resumeSend()
+        await task.value
+        XCTAssertEqual(vm.inputText, "同じ本文", "内容が同じでも新しく打ち直した入力は消さない")
     }
 
     func testInputBarEnabledReflectsStatusAndNotSending() {

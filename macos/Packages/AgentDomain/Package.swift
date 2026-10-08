@@ -15,7 +15,7 @@ let package = Package(
         .target(name: "AgentDomain"),
         .target(name: "ChatRenderKit", dependencies: ["AgentDomain"]),
         .target(name: "ImageAttachmentKit", dependencies: ["AgentDomain"]),
-        .testTarget(name: "ImageAttachmentKitTests", dependencies: ["AgentDomain", "ImageAttachmentKit"]),
+        .testTarget(name: "ImageAttachmentKitTests", dependencies: ["AgentDomain", "ImageAttachmentKit"], resources: [.copy("Fixtures")]),
         .testTarget(name: "AgentDomainTests", dependencies: ["AgentDomain"]),
         .testTarget(name: "ChatRenderKitTests", dependencies: ["AgentDomain", "ChatRenderKit"]),
     ]

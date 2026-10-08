@@ -90,7 +90,7 @@ last-verified: 2026-07-26
 - **usage**: セッションが running→idle へ遷移した時に `usage()` を取得し `turnUsage`（コスト・コンテキスト使用量）を表示。
 - **サブエージェント解決**: `resolveSubAgentID(forMessageID:)` が `subAgents` の `markerMessageID` から行タップ対象の subAgentID を引く。
 - **モデル選択**: `sessionSettings()` が `availableModels` を返した時だけモデルチップ（選択中モデルの表示名）を出し、タップでモデル選択シート（`ModelPickerSheet`）を開いて `setModel` を呼ぶ。非対応セッション（codex 等）・取得失敗時はチップ非表示に劣化（画面全体は壊さない）。チップは **入力欄内（`DSInputBar` の `modelSelector` スロット）と右上メニューの2箇所**から到達できる（wave-4 で入力欄チップを復活 → [ADR 0010](../adr/0010-restore-inline-model-selector-chip.md)）。
-- **添付**: `addAttachments()` が最大4枚・各20MB・合計80MB を検証（超過はバッチ全体を拒否）、`normalizeAttachment` が magic-byte で実体判定し 元画像を保持する。送信前に共有ImageAttachmentKitをメインスレッド外で実行し、HEIC等の形式変換・必要な容量と寸法の調整を行う（送信用は各3.5MB・合計14MB）。プレビューは一度だけ downsample して `previewData` にキャッシュ。送信した添付は、送信テキストで送信後スナップショットのユーザーメッセージへ突き合わせ（`SessionAttachmentReconciler`）、message.id 起点の side-map（`attachmentCountsByMessageID`）に保持してチャット吹き出しにバッジ表示する（サーバ/ワイヤ不変・クライアント完結 → [ADR 0020](../adr/0020-chat-attachment-badge-client-side.md)）。
+- **添付**: `addAttachments()` が最大4枚・各20MB・合計80MB を検証（超過はバッチ全体を拒否）、`normalizeAttachment` が magic-byte で実体判定し 元画像を保持する。送信前に共有ImageAttachmentKitをメインスレッド外で実行し、HEIC等の形式変換・解像度を保つ容量の調整を行う（送信用は各3.75MB・合計15MB）。プレビューは一度だけ downsample して `previewData` にキャッシュ。送信した添付は、送信テキストで送信後スナップショットのユーザーメッセージへ突き合わせ（`SessionAttachmentReconciler`）、message.id 起点の side-map（`attachmentCountsByMessageID`）に保持してチャット吹き出しにバッジ表示する（サーバ/ワイヤ不変・クライアント完結 → [ADR 0020](../adr/0020-chat-attachment-badge-client-side.md)）。
 - **右上メニューの presentation**（wave-5）: モデル変更シート・rename アラートは `SessionDetailViewModel` の `private enum MenuPresentation { case modelPicker, rename }` を単一ソースとして排他管理する（`isModelSheetPresented`/`isRenamePresented` はこの enum への computed property）。`.sheet` は `.alert` とは別の View 階層（チャットスクロール＋`inputBarSection` を含む内側 VStack）に付与され、同一 View への複数 presentation 併置を避ける（→ [ADR 0013](../adr/0013-session-detail-menu-presentation-single-source.md)）。
 - **メッセージ表示の折りたたみ**（wave-5）: reasoning／command／fileChange 行はデフォルト折りたたみ。タップで展開/再折りたたみし、展開状態は `expandedMessageIDs`（`ChatMessage.id` キーの `Set`）で message 単位に保持され、3秒ポーリングでの再取得後も失われない。user/agent の通常メッセージ・error・subAgent・userQuestion（質問カード）行は対象外。
 - **チャット表示の規則は macOS と共有する**（→ [ADR 0041](../adr/0041-chat-render-rules-shared-via-chatrenderkit.md)）: 表示の純粋計算は共有ターゲット **`ChatRenderKit`**（`macos/Packages/AgentDomain` 内・Foundation のみ）にあり、macOS と iOS の双方がこの 1 実装を呼ぶ。内訳は `ChatDiffClassifier`（diff の行分類・`@@` からの行番号採番）／`ChatCodeTokenizer`（Swift・シェル）／`ChatCommandToolLabel`（先頭トークンを既知ツール名と完全一致、外れは `Bash`）／`ChatFileChangePresentation`（動詞・増減行数・見出し）／`ChatReasoningPresentation`／`ChatCommandGroupTitle`（見出し＝最後のコマンド原文・60 字クランプ、コマンドが無ければ `"ツール実行 ×N"`）。
@@ -169,3 +169,7 @@ wave-4 でロック/ホーム画面ウィジェットを追加した（→ [ADR 
 ## テスト
 
 `Packages/PhloxKit/Tests` に Swift Testing（`@Test`/`#expect`）＋ XCTest。`actor MockAPI` が `PhloxAPI` を差し替え、outcome/count/script で挙動を注入する。検証ゲートは `.claude/verify.sh`（`swift test` 全数＋raw 値 lint）。App ターゲットは `make generate && make build`。
+
+### 送信中の本文と添付
+
+送信受付までは入力を残す。成功時は送信前と同じ本文・添付だけをクリアする。途中で編集された入力は成功・失敗ともに保持し、失敗時に古い内容を書き戻さない。

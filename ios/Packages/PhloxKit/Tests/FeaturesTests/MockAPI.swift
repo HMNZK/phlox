@@ -32,6 +32,19 @@ actor MockAPI: PhloxAPI {
     private(set) var deltaSinceLog: [String?] = []
     /// 直近の send リクエスト（images 添付の検証用）。
     private(set) var lastSentRequest: SendRequest?
+    private var pausesSend = false
+    private var sendContinuation: CheckedContinuation<Void, Never>?
+    private var sendWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func pauseNextSend() { pausesSend = true }
+    func waitForSend() async {
+        if sendCount > 0 { return }
+        await withCheckedContinuation { sendWaiters.append($0) }
+    }
+    func resumeSend() {
+        sendContinuation?.resume()
+        sendContinuation = nil
+    }
     /// 直近の spawn リクエスト（projectID の伝搬検証用）。
     private(set) var lastSpawnRequest: SpawnRequest?
     /// subAgents の結果と呼び出し回数。
@@ -82,6 +95,14 @@ actor MockAPI: PhloxAPI {
     func send(_ request: SendRequest) async throws -> SendResult {
         sendCount += 1
         lastSentRequest = request
+        if pausesSend {
+            pausesSend = false
+            await withCheckedContinuation { continuation in
+                sendContinuation = continuation
+                sendWaiters.forEach { $0.resume() }
+                sendWaiters.removeAll()
+            }
+        }
         return try sendOutcome.get()
     }
 

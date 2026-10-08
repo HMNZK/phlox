@@ -10161,24 +10161,24 @@
         }
       }
     },
-    "画像の解像度が大きすぎます（最大4000万画素・各辺32768ピクセル）": {
+    "画像は各辺8000ピクセルまでです。必要な部分を切り出してください": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The image resolution is too large (up to 40 megapixels and 32,768 pixels per side)."
+            "value": "Images must be at most 8,000 pixels per side. Crop to the area you need."
           }
         }
       }
     },
-    "画質を保ったまま画像を送信サイズに調整できませんでした": {
+    "解像度を保ったまま送信容量に収まりません。必要な部分を切り出してください": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The image could not be adjusted to the send limit while preserving its quality."
+            "value": "The image exceeds the send limit at its original resolution. Crop to the area you need."
           }
         }
       }

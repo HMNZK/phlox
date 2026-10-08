@@ -17,7 +17,7 @@ public typealias DSVoiceInputError = DesignSystemIOS.DSVoiceInputError
 public typealias VoiceInputRecognizing = DesignSystemIOS.VoiceInputRecognizing
 
 /// セッション詳細（カンプ③ / E4-6）+ 送信（カンプ⑦ / E4-8）。
-/// 出力は表示時に 1 回取得（静的スナップショット）。送信は楽観更新（即クリア・失敗で復元）。
+/// 出力は表示時に1回取得。入力は送信受付後にだけクリアし、送信中の編集を保持する。
 @MainActor
 @Observable
 public final class SessionDetailViewModel {
@@ -44,7 +44,10 @@ public final class SessionDetailViewModel {
     /// `syncAttachmentsWithTextEdit(oldText:newText:)` を呼ぶ**（macOS と同じ形）。
     /// `didSet` の中から自分自身へ書き戻すと、SwiftUI の `TextField` がその更新を
     /// 取り込まず、モデルと画面の本文がずれる（実機・シミュレータで確認）。
-    public var inputText: String = ""
+    public var inputText: String = "" {
+        didSet { if inputText != oldValue { inputRevision &+= 1 } }
+    }
+    @ObservationIgnored private var inputRevision: UInt64 = 0
 
     /// task-3 契約の PM スタブ。入力欄のカーソル位置（UTF-16 オフセット）。
     /// View が書き込み、添付時のプレースホルダ挿入位置として使う。
@@ -743,12 +746,13 @@ public final class SessionDetailViewModel {
         }
     }
 
-    /// E4-8 送信。楽観更新（先にクリア）→ 失敗で復元。自動再試行なし。
+    /// E4-8 送信。受付後に同じ入力だけクリアする。失敗時は入力を書き換えない。
     public func sendMessage() async {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, sendState != .sending else { return }
 
         let backupText = inputText
+        let backupRevision = inputRevision
         let backupItems = attachmentItems
         let backupModel = selectedModelPickerEntryID
         let backupSessionID = session.id
@@ -756,7 +760,7 @@ public final class SessionDetailViewModel {
         let prepared: [PreparedImageAttachment]
         do {
             prepared = try await ImageAttachmentPreparer.prepare(backupItems.map { $0.send.data })
-            guard inputText == backupText, attachmentItems == backupItems,
+            guard inputRevision == backupRevision, inputText == backupText, attachmentItems == backupItems,
                   selectedModelPickerEntryID == backupModel, session.id == backupSessionID else {
                 sendState = .failed("本文・添付・モデルが変更されたため、送信を中止しました")
                 return
@@ -766,11 +770,6 @@ public final class SessionDetailViewModel {
             sendState = .failed(error.localizedDescription)
             return
         }
-        // 送信ペイロードは上で確定した `prepared` を使うため、
-        // このクリアで didSet が添付を外しても送信内容には影響しない。
-        inputText = "" // 楽観更新: 即クリア
-        attachmentItems = []
-        sendState = .sending
         do {
             if let draftProject, !hasSpawnedDraft {
                 let selection = draftModelSelection
@@ -803,6 +802,10 @@ public final class SessionDetailViewModel {
                 text: text,
                 images: prepared.map { SendAttachment(mediaType: $0.mediaType, data: $0.data) }
             ))
+            if inputRevision == backupRevision, inputText == backupText, attachmentItems == backupItems {
+                inputText = ""
+                attachmentItems = []
+            }
             if !backupItems.isEmpty {
                 pendingAttachmentSends.append(.init(text: text, count: backupItems.count))
             }
@@ -810,14 +813,8 @@ public final class SessionDetailViewModel {
             attachmentError = nil
             await refresh() // 送信後に即時更新（以降はポーリングが追従）
         } catch let error as PhloxError {
-            // 復元順は inputText → attachmentItems。didSet が走る時点で attachmentItems は
-            // 空なので何も外さない（numbersRemoved は oldText="" に無い番号を返さない）。
-            inputText = backupText // 失敗時はテキスト・添付を復元（再送可能に）
-            attachmentItems = backupItems
             sendState = .failed(error.presentation.message)
         } catch {
-            inputText = backupText
-            attachmentItems = backupItems
             sendState = .failed("送信に失敗しました")
         }
     }

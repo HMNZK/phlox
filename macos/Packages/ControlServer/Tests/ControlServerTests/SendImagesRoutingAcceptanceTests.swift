@@ -122,7 +122,7 @@ private actor SendImagesHandlerStub {
         #expect(await stub.callCount == 0)
     }
 
-    // MARK: - 受信上限（旧クライアントの4MiB/枚を維持、合計14MB）
+    // MARK: - 受信上限（旧クライアントの4MiB/枚を維持、合計15MB）
 
     @Test func fiveImagesReturn413AttachmentTooLarge() async throws {
         let stub = SendImagesHandlerStub()
@@ -179,7 +179,7 @@ private actor SendImagesHandlerStub {
         let stub = SendImagesHandlerStub()
         let (port, server) = try await startServer(stub: stub)
         _ = server
-        // 各4MiBは旧クライアントの許容範囲だが、4枚の合計は14MBを超える。
+        // 各4MiBは旧クライアントの許容範囲だが、4枚の合計は15MBを超える。
         let four = Data(repeating: 0x11, count: 4 * Self.mib).base64EncodedString()
         let body = """
         {"to":"agent-alpha","text":"x","images":[{"mediaType":"image/png","dataBase64":"\(four)"},{"mediaType":"image/png","dataBase64":"\(four)"},{"mediaType":"image/png","dataBase64":"\(four)"},{"mediaType":"image/png","dataBase64":"\(four)"}]}
@@ -195,8 +195,8 @@ private actor SendImagesHandlerStub {
         let stub = SendImagesHandlerStub()
         let (port, server) = try await startServer(stub: stub)
         _ = server
-        // 合計14MB（3.5MB×4）。base64約18.7MBがtransportを通ることを検証する。
-        let four = Data(repeating: 0x33, count: 3_500_000).base64EncodedString()
+        // 合計15MB（3.75MB×4）。base64後20MBがtransportを通ることを検証する。
+        let four = Data(repeating: 0x33, count: 3_750_000).base64EncodedString()
         let body = """
         {"to":"agent-alpha","text":"x","images":[{"mediaType":"image/png","dataBase64":"\(four)"},{"mediaType":"image/jpeg","dataBase64":"\(four)"},{"mediaType":"image/png","dataBase64":"\(four)"},{"mediaType":"image/jpeg","dataBase64":"\(four)"}]}
         """
@@ -209,7 +209,7 @@ private actor SendImagesHandlerStub {
             return
         }
         #expect(images.count == 4)
-        #expect(images.reduce(0) { $0 + $1.data.count } == 14_000_000)
+        #expect(images.reduce(0) { $0 + $1.data.count } == 15_000_000)
     }
 
     // MARK: - Helpers（自己完結）

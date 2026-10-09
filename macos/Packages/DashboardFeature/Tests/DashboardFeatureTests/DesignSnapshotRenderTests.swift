@@ -47,11 +47,11 @@ struct DesignSnapshotRenderTests {
                     prepare: { host, _ in
                         let views = descendants(host).compactMap { $0 as? SuggestionDescriptionScrollView }
                         let view = try #require(views.first)
-                        let animation = try #require(view.label.layer?.animation(forKey: SuggestionDescriptionScrollView.animationKey) as? CAKeyframeAnimation)
+                        let animation = try #require(view.textLayer.animation(forKey: SuggestionDescriptionScrollView.animationKey) as? CAKeyframeAnimation)
                         let values = try #require(animation.values as? [NSNumber]).map { CGFloat(truncating: $0) }
                         // cacheDisplayは表示中のCA変形を採らないため、同じ移動距離の制御した位置を描画する。
                         view.stopScrolling()
-                        view.label.frame.origin.x = values[2] * (phase == "middle" ? 0.5 : phase == "end" ? 1 : 0)
+                        view.textLayer.frame.origin.x = values[2] * (phase == "middle" ? 0.5 : phase == "end" ? 1 : 0)
                     })
             }
         }

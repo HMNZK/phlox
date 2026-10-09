@@ -51,7 +51,7 @@ final class SuggestionDescriptionScrollView: NSView {
     static let animationKey = "descriptionScroll"
     static let readingPause: TimeInterval = 1.5
     static let pointsPerSecond: CGFloat = 30
-    let label = NSTextField(labelWithString: "")
+    let textLayer = CATextLayer()
     private var text = ""
     private var textSize = NSSize.zero
     private var animatedDistance: CGFloat?
@@ -60,14 +60,11 @@ final class SuggestionDescriptionScrollView: NSView {
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.masksToBounds = true
-        label.font = .systemFont(ofSize: 12) // DSFont.auxiliary
-        label.textColor = .white
-        label.lineBreakMode = .byClipping
-        label.maximumNumberOfLines = 1
-        label.wantsLayer = true
+        textLayer.alignmentMode = .left
+        textLayer.isWrapped = false
+        textLayer.truncationMode = .none
+        layer?.addSublayer(textLayer)
         setAccessibilityElement(false)
-        label.setAccessibilityElement(false)
-        addSubview(label)
     }
 
     required init?(coder: NSCoder) { nil }
@@ -75,8 +72,15 @@ final class SuggestionDescriptionScrollView: NSView {
     func setText(_ text: String) {
         guard self.text != text else { return }
         self.text = text
-        label.stringValue = text.components(separatedBy: .newlines).joined(separator: " ")
-        textSize = label.intrinsicContentSize
+        let attributedText = NSAttributedString(
+            string: text.components(separatedBy: .newlines).joined(separator: " "),
+            attributes: [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.white] // DSFont.auxiliary
+        )
+        textSize = attributedText.size()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        textLayer.string = attributedText
+        CATransaction.commit()
         stopScrolling()
         needsLayout = true
     }
@@ -85,8 +89,10 @@ final class SuggestionDescriptionScrollView: NSView {
         super.layout()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        label.frame = NSRect(x: 0, y: (bounds.height - textSize.height) / 2,
-                             width: ceil(textSize.width), height: textSize.height)
+        // AppKitのサブビューは可視領域だけ描画することがある。全文を独立したレイヤーに描き、親でクリップする。
+        textLayer.contentsScale = window?.backingScaleFactor ?? 2
+        textLayer.frame = NSRect(x: 0, y: (bounds.height - ceil(textSize.height)) / 2,
+                                width: ceil(textSize.width), height: ceil(textSize.height))
         CATransaction.commit()
         let distance = max(0, ceil(textSize.width) - bounds.width)
         guard window != nil, !isHiddenOrHasHiddenAncestor, bounds.width > 0, distance > 0 else {
@@ -94,7 +100,7 @@ final class SuggestionDescriptionScrollView: NSView {
             return
         }
         // 本文や幅が変わらなければ、選択行の再描画でも先頭へ戻さない。
-        guard animatedDistance != distance || label.layer?.animation(forKey: Self.animationKey) == nil else { return }
+        guard animatedDistance != distance || textLayer.animation(forKey: Self.animationKey) == nil else { return }
         let travel = Double(distance / Self.pointsPerSecond)
         let duration = Self.readingPause * 2 + travel
         let animation = CAKeyframeAnimation(keyPath: "transform.translation.x")
@@ -105,7 +111,7 @@ final class SuggestionDescriptionScrollView: NSView {
         animation.calculationMode = .linear
         animation.duration = duration
         animation.repeatCount = .infinity
-        label.layer?.add(animation, forKey: Self.animationKey)
+        textLayer.add(animation, forKey: Self.animationKey)
         animatedDistance = distance
     }
 
@@ -120,13 +126,18 @@ final class SuggestionDescriptionScrollView: NSView {
         stopScrolling()
     }
 
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        needsLayout = true
+    }
+
     override func viewDidUnhide() {
         super.viewDidUnhide()
         needsLayout = true
     }
 
     func stopScrolling() {
-        label.layer?.removeAnimation(forKey: Self.animationKey)
+        textLayer.removeAnimation(forKey: Self.animationKey)
         animatedDistance = nil
     }
 }

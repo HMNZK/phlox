@@ -86,9 +86,7 @@ enum AgentStartEntries {
         case .builtin(.claudeCode):
             return fullAccess ? title(.claude, .claudePermissionMode, "bypassPermissions") : nil
         case .builtin(.codex):
-            let approval = title(.codex, .codexApprovalPolicy, fullAccess ? "never" : "on-request")
-            let sandbox = title(.codex, .codexSandboxMode, fullAccess ? "danger-full-access" : "workspace-write")
-            return approval + " · " + sandbox
+            return title(.codex, .codexProfile, fullAccess ? ":danger-full-access" : ":workspace")
         case .builtin(.cursor):
             return fullAccess ? title(.cursor, .cursorApprovalMode, "unrestricted") : nil
         default:

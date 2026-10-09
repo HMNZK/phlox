@@ -1,5 +1,6 @@
 /// UX-10b 権限説明の正本。引数のエージェント・設定種類・内部値・言語コードだけで結果が決まり、I/O を持たない。
 extension UIWording {
+    public static let customPermissionTitle = "Custom"
     public enum PermissionAgent: String, CaseIterable, Equatable, Hashable, Sendable {
         case claude
         case codex
@@ -80,7 +81,7 @@ extension UIWording {
         return switch agent {
         case .claude:
             LaunchPermissionWording(
-                rowLabel: english ? "Claude Code: Skip approval prompts" : "Claude Code: 承認確認を省略",
+                rowLabel: "Claude Code: Bypass Permissions",
                 offExplanation: english
                     ? "Specifies auto (automatic judgment) at the next launch."
                     : "次回開始時に自動判定（auto）を指定します。",
@@ -90,7 +91,7 @@ extension UIWording {
             )
         case .codex:
             LaunchPermissionWording(
-                rowLabel: english ? "Codex: Lift approval and execution limits" : "Codex: 承認と実行制限を解除",
+                rowLabel: "Codex: Full Access",
                 offExplanation: english
                     ? "Specifies on-request and workspace-write in chat. Terminal launches omit the lift arguments and follow Codex settings."
                     : "チャットでは on-request と workspace-write を指定します。ターミナルでは解除引数を付けず、Codex の設定に従います。",
@@ -100,7 +101,7 @@ extension UIWording {
             )
         case .cursor:
             LaunchPermissionWording(
-                rowLabel: english ? "Cursor: Lift approval and execution limits" : "Cursor: 承認と実行制限を解除",
+                rowLabel: "Cursor: Run Everything",
                 offExplanation: english
                     ? "Specifies --auto-review and --sandbox enabled at the next launch."
                     : "次回開始時に --auto-review と --sandbox enabled を指定します。",
@@ -175,7 +176,7 @@ extension UIWording {
         switch value {
         case "default", "manual":
             pair(
-                "手動承認",
+                "Manual",
                 "Manual",
                 "読み取り以外は権限ルールに従って承認を求めます。実行範囲の制限とは別の設定です。",
                 "Asks for approval according to permission rules except for reads. This is separate from execution-scope limits.",
@@ -183,7 +184,7 @@ extension UIWording {
             )
         case "acceptEdits":
             pair(
-                "編集を自動承認",
+                "Accept Edits",
                 "Accept Edits",
                 "ファイル編集などを自動承認します。すべてのコマンド実行を承認する設定ではありません。",
                 "Automatically approves file edits and similar actions. This does not approve every command.",
@@ -191,7 +192,7 @@ extension UIWording {
             )
         case "auto":
             pair(
-                "自動判定",
+                "Auto",
                 "Auto",
                 "Claude Code が操作を判定します。すべての操作を無条件に許可する設定ではありません。",
                 "Claude Code decides how to handle each action. This does not unconditionally allow every action.",
@@ -199,15 +200,15 @@ extension UIWording {
             )
         case "bypassPermissions":
             pair(
-                "承認確認を省略",
-                "Bypass",
+                "Bypass Permissions",
+                "Bypass Permissions",
                 "通常の承認確認を省略します。サンドボックスの解除を意味する設定ではありません。",
                 "Skips the usual approval prompts. This does not disable the sandbox.",
                 english: english
             )
         case "dontAsk":
             pair(
-                "承認が必要な操作を拒否",
+                "Don't Ask",
                 "Don't Ask",
                 "事前に許可された操作などを実行し、承認が必要な操作は確認せず拒否します。",
                 "Runs previously allowed actions and rejects actions that would need approval, without asking.",
@@ -215,8 +216,8 @@ extension UIWording {
             )
         case "plan":
             pair(
-                "計画",
-                "Plan",
+                planTitle,
+                planTitle,
                 "調査と計画を行うモードです。編集を進めるモードとは区別されます。",
                 "A mode for research and planning. It is distinct from modes that proceed with edits.",
                 english: english
@@ -300,28 +301,30 @@ extension UIWording {
 
     private static func codexProfile(_ value: String?, english: Bool) -> PermissionWording {
         switch value {
+        case "plan":
+            pair(planTitle, planTitle, "調査と計画を行うモードです。", "A mode for research and planning.", english: english)
         case ":read-only":
             pair(
-                "読み取り専用",
                 "Read Only",
-                "読み取り専用のプロフィールです。承認方針の詳細はエージェントの設定を確認してください。",
-                "A read-only profile. Check the agent settings for approval-policy details.",
+                "Read Only",
+                "読み取り専用です。編集やネットワーク利用が必要なときは承認を求めます。",
+                "Read-only access. Asks for approval when edits or network access are needed.",
                 english: english
             )
         case ":workspace":
             pair(
-                "作業領域への書き込み",
-                "Auto",
-                "作業領域への書き込みを許可するプロフィールです。承認方針の詳細はエージェントの設定を確認してください。",
-                "A profile that allows workspace writes. Check the agent settings for approval-policy details.",
+                "Default",
+                "Default",
+                "作業領域で編集・コマンド実行を許可します。領域外の編集やネットワーク利用が必要なときは承認を求めます。",
+                "Allows edits and commands in the workspace. Asks for approval for external edits or network access.",
                 english: english
             )
         case ":danger-full-access":
             pair(
-                "承認なし・実行制限なし",
                 "Full Access",
-                "承認と実行制限を解除するプロフィールです。適用内容はエージェントの設定を確認してください。",
-                "A profile that lifts approval and execution limits. Check the agent settings for what actually applies.",
+                "Full Access",
+                "承認を求めず、実行範囲の制限を解除します。作業領域外の編集やネットワーク利用も許可します。",
+                "Runs without approval prompts or sandbox limits, including external edits and network access.",
                 english: english
             )
         case nil:
@@ -350,8 +353,8 @@ extension UIWording {
             )
         case "unrestricted":
             pair(
-                "承認確認を省略",
-                "Skip approval prompts",
+                "Run Everything",
+                "Run Everything",
                 "操作の承認確認を省略する設定です。サンドボックス設定とは別です。",
                 "Skips approval prompts. This is separate from the sandbox setting.",
                 english: english
@@ -397,7 +400,7 @@ extension UIWording {
         switch value {
         case nil:
             pair(
-                "エージェント",
+                "Agent",
                 "Agent",
                 "通常の作業モードです。承認方式や実行制限を選ぶ項目ではありません。",
                 "The usual working mode. This is not a control for approval method or execution limits.",
@@ -405,7 +408,7 @@ extension UIWording {
             )
         case "ask":
             pair(
-                "質問",
+                "Ask",
                 "Ask",
                 "質問向けの動作モードです。承認方式を選ぶ項目ではありません。",
                 "A question-oriented working mode. This is not a control for choosing an approval method.",
@@ -413,8 +416,8 @@ extension UIWording {
             )
         case "plan":
             pair(
-                "計画",
-                "Plan",
+                planTitle,
+                planTitle,
                 "計画向けの動作モードです。承認方式や実行制限を選ぶ項目ではありません。",
                 "A planning-oriented working mode. This is not a control for approval method or execution limits.",
                 english: english

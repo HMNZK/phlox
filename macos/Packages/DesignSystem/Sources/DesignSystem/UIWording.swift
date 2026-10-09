@@ -1,5 +1,6 @@
 /// UX-10a 一般操作文言の正本。引数の言語コードだけで結果が決まり、I/O や言語キャッシュを持たない。
 public enum UIWording {
+    static let planTitle = "Plan"
     public enum Key: String, CaseIterable, Equatable, Hashable, Sendable {
         case composerPlaceholder
         case errorHeading
@@ -76,7 +77,7 @@ public enum UIWording {
         case .modeLabel:
             english ? "Mode" : "動作モード"
         case .planOption:
-            english ? "Plan" : "計画"
+            planTitle
         case .effortLow:
             english ? "Low" : "低"
         case .effortMedium:

@@ -23,11 +23,20 @@ public extension LineDelimitedTransport {
     }
 }
 
-public enum LineDelimitedProcessTransportError: Error, Equatable, Sendable {
+public enum LineDelimitedProcessTransportError: LocalizedError, Equatable, Sendable {
     case alreadyStarted
     case notStarted
     case processLaunchFailed(String)
     case stdinClosed
+
+    public var errorDescription: String? {
+        switch self {
+        case .alreadyStarted: "The agent process has already started."
+        case .notStarted: "The agent process has not started."
+        case .processLaunchFailed(let reason): "The agent process could not start: \(reason)"
+        case .stdinClosed: "The agent's input channel has closed."
+        }
+    }
 }
 
 public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unchecked Sendable {

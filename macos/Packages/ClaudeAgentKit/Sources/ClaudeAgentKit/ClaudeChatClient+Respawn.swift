@@ -4,6 +4,7 @@ import StructuredChatKit
 // 隠している秘密: モデル/権限変更や resume 失敗をいつ・どの引数（`--session-id`/`--resume`）で respawn するか、および ping-pong を1回に抑える上限ロジック
 extension ClaudeChatClient {
     func spawn(sessionArgument: SpawnSessionArgument) async throws {
+        failPendingPermissionRequest(ClaudeChatClientError.transportClosed)
         currentTurnLatestContextTokens = nil
         if case .fork = sessionArgument {
             // fork は CLI が init で新しい ID を発行する。fork 元 ID を respawn 用状態へ残さない。
@@ -69,6 +70,7 @@ extension ClaudeChatClient {
         // CLI プロセス終了後は stdin へ deny を送っても届かず、死因エラーにノイズを足すだけなので送信しない。
         await expirePendingUserQuestions(generation: generation, sendDeny: false)
         failAllPendingUsageRequests(ClaudeChatClientError.transportClosed)
+        failPendingPermissionRequest(ClaudeChatClientError.transportClosed)
         releaseStopTasks()
         let endedTransport = transport
 
@@ -177,6 +179,7 @@ extension ClaudeChatClient {
             "--output-format", "stream-json",
             "--verbose",
             "--permission-prompt-tool", "stdio",
+            "--allow-dangerously-skip-permissions",
             "--forward-subagent-text",
         ]
         if includePartialMessages {

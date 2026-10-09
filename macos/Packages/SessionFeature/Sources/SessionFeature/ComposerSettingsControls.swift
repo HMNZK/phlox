@@ -136,6 +136,7 @@ struct ComposerSettingsControlsView: View {
                 }
                 ForEach(controls, id: \.self) { kind in
                     controlView(for: kind)
+                        .disabled(viewModel.isApplyingSpawnAgentPermission)
                 }
             }
         }
@@ -354,7 +355,7 @@ struct ComposerSettingsControlsView: View {
         } else if viewModel.selectedPermissionProfile == nil {
             AppLocalizedString.string("未設定", locale: locale)
         } else {
-            UIWording.permission(agent: .codex, kind: .codexProfile, value: viewModel.selectedPermissionProfile, languageCode: languageCode).title
+            viewModel.codexPermissionTitle(languageCode: languageCode)
         }
     }
 
@@ -391,7 +392,7 @@ struct ComposerSettingsControlsView: View {
             panelTitle: AppLocalizedString.string("承認とサンドボックス", locale: locale),
             agentName: "Codex",
             options: options,
-            currentValue: viewModel.selectedPermissionProfile,
+            currentValue: viewModel.selectedCodexPermissionPreset,
             footnote: AppLocalizedString.string("このセッションだけに効く。既定は エージェント管理 > 設定", locale: locale),
             onSelect: { selectCodexModeOption($0) },
             onPlanChange: { setPlanMode($0) },
@@ -454,7 +455,8 @@ struct ComposerSettingsControlsView: View {
             if option.isPlan {
                 try? await viewModel.setPlanMode(true)
             } else if let value = option.value {
-                try? await viewModel.setPermissionProfile(id: value)
+                do { try await viewModel.setPermissionProfile(id: value) }
+                catch { return } // VM が失敗を表示する。Plan は成功後にだけ解除する。
                 if wasPlanMode {
                     try? await viewModel.setPlanMode(false)
                 }
@@ -733,6 +735,7 @@ struct ComposerSettingsOverflowMenu: View {
                     .frame(width: 24, height: 24)
             }
             .menuStyle(.borderlessButton)
+            .disabled(viewModel.isApplyingSpawnAgentPermission)
             .menuIndicator(.hidden)
             .fixedSize(horizontal: true, vertical: false)
             .accessibilityIdentifier(accessibilityIdentifier)
@@ -885,7 +888,7 @@ struct ComposerSettingsOverflowMenu: View {
             } label: {
                 SettingsMenuRow(
                     title: option.title,
-                    isSelected: modeOptionIsSelected(option, currentValue: viewModel.selectedPermissionProfile),
+                    isSelected: modeOptionIsSelected(option, currentValue: viewModel.selectedCodexPermissionPreset),
                     explanation: option.explanation
                 )
             }
@@ -898,7 +901,8 @@ struct ComposerSettingsOverflowMenu: View {
         if option.isPlan {
             try? await viewModel.setPlanMode(true)
         } else if let value = option.value {
-            try? await viewModel.setPermissionProfile(id: value)
+            do { try await viewModel.setPermissionProfile(id: value) }
+            catch { return } // VM が失敗を表示する。
             if wasPlanMode {
                 try? await viewModel.setPlanMode(false)
             }

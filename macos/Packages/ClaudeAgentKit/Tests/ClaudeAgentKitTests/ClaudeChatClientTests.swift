@@ -22,6 +22,7 @@ import StructuredChatKit
         "--output-format", "stream-json",
         "--verbose",
         "--permission-prompt-tool", "stdio",
+        "--allow-dangerously-skip-permissions",
         "--forward-subagent-text",
         "--include-partial-messages",
         "--session-id", phloxSessionID,
@@ -835,6 +836,7 @@ import StructuredChatKit
         "--output-format", "stream-json",
         "--verbose",
         "--permission-prompt-tool", "stdio",
+        "--allow-dangerously-skip-permissions",
         "--forward-subagent-text",
         "--include-partial-messages",
     ])

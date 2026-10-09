@@ -455,17 +455,21 @@ public struct CodexAppServerSessionSettings: Hashable, Sendable, Codable {
     public var selectedModel: String?
     public var selectedEffort: String?
     public var selectedPermissionProfile: String?
+    /// Codex の承認方針の JSON。名前付き・項目別の形式を、Codex への依存を持たずに保存する。
+    public var approvalPolicyJSON: String?
     public var isPlanMode: Bool?
 
     public init(
         selectedModel: String? = nil,
         selectedEffort: String? = nil,
         selectedPermissionProfile: String? = nil,
+        approvalPolicyJSON: String? = nil,
         isPlanMode: Bool? = nil
     ) {
         self.selectedModel = selectedModel
         self.selectedEffort = selectedEffort
         self.selectedPermissionProfile = selectedPermissionProfile
+        self.approvalPolicyJSON = approvalPolicyJSON
         self.isPlanMode = isPlanMode
     }
 
@@ -473,6 +477,7 @@ public struct CodexAppServerSessionSettings: Hashable, Sendable, Codable {
         selectedModel != nil
             || selectedEffort != nil
             || selectedPermissionProfile != nil
+            || approvalPolicyJSON != nil
             || isPlanMode != nil
     }
 }

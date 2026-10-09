@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-08-01
+last-verified: 2026-10-09
 ---
 
 # Codex のフルアクセスとユーザー質問（要件・受け入れ基準）
@@ -29,7 +29,18 @@ last-verified: 2026-08-01
   （`approvalPolicy = never` / `sandboxPolicy = danger-full-access`）。
   OFF のときは `on-request` / `workspace-write`。
 - **FR-3** 設定はスレッド開始時の初期値を決める。開始後はコンポーザの Permission メニューで
-  上書きできる。
+  上書きできる。組み込みプリセットはプロファイルと承認方針を同じリクエストで変更する。
+  Read Only / Default は `on-request`、Full Access は `never`。カスタムプロファイルでは
+  承認方針を変更しない。開始・復元応答と設定変更通知が示す実際の状態を表示し、確認前や
+  失敗時に選択値を表示しない。異なる方針の組み合わせは Custom と表示する。
+- **FR-3a** 確認された承認方針も保存・復元する。旧保存データには組み込みプリセットの
+  方針を補う。項目別の承認方針はその形式を保持する。復元途中に届く設定通知も、
+  復元対象の会話 ID と照合して反映し、開始時の権限で保存値を上書きしない。
+- **FR-3b** Claude の権限変更は `set_permission_mode` の成功応答後に表示・保存する。
+  変更中は設定操作・次ターンの送信を受け付けない。拒否時は旧値を維持しエラーを表示する。
+  送信失敗・タイムアウトで適用状態が不明なら対象 CLI を閉じ、次の送信で確認済みの権限を使う。
+  新規会話は起動時の既定権限、復元は保存済みの権限・Plan を使い、CLI の起動前に設定する。
+  標準権限を使う経路には追加の全ツール許可を注入しない。
 - **FR-4** `item/tool/requestUserInput` を質問カードで表示し、回答を wire へ返す。
   応答形は `{"answers": {"<id>": {"answers": [...]}}}`。
 - **FR-5** 回答の引き当ては `answerKey`（codex は `questions[].id`、Claude は質問文）。
@@ -56,6 +67,9 @@ last-verified: 2026-08-01
 | 伏せ字入力・表示 | `SessionFeature/AcceptanceUserQuestionSecretTests` |
 | 伏せ字の非永続化 | `SessionFeature/UserQuestionSecretAnswerTests` |
 | フルアクセス方針 | `DashboardFeature/FullAccessPolicyTests` |
+| Claude の権限適用・失敗・起動順序 | `ClaudeAgentKit/LivePermissionTests`、`SessionFeature/ClaudePermissionApplyTests`、`DashboardFeature/chatSessionViewModel_claudeRestoreUsesSavedPermissionBeforeLaunchingCLI` |
+| セッション内の権限変更・復元・表示・失敗 | `SessionFeature/EffortCycleTests` の権限関連テスト |
+| 標準の権限名と説明 | `DesignSystem/AcceptancePermissionWordingTests` |
 
 ## スコープ外
 

@@ -93,10 +93,20 @@ public enum ChatNativeSessionIDNotification {
     public static let nativeSessionIDKey = "nativeSessionID"
 }
 
-public enum ChatSettingsUpdateError: Error, Equatable, Sendable {
+public enum ChatSettingsUpdateError: LocalizedError, Equatable, Sendable {
+    case spawnSettingsUpdateInProgress
     case threadNotStarted
     case planModeUnavailable
     case codexSettingsUnavailable
+
+    public var errorDescription: String? {
+        switch self {
+        case .spawnSettingsUpdateInProgress: "Wait for the current settings change or message submission to finish."
+        case .threadNotStarted: "The conversation has not started."
+        case .planModeUnavailable: "Plan is not available in this conversation."
+        case .codexSettingsUnavailable: "The agent settings are not available."
+        }
+    }
 }
 
 /// Control API が広告するモデル候補（id と表示名だけの最小形）。

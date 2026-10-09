@@ -6,3 +6,8 @@
 public protocol SpawnAgentSettingsControlling: Sendable {
     func applySpawnAgentSettings(model: String?, permissionOrMode: String?, effort: String?) async
 }
+
+/// CLI が適用を確認できる権限変更。成功するまで表示・保存値を変更しない。
+public protocol SpawnAgentPermissionControlling: Sendable {
+    func setSpawnAgentPermission(_ permission: String?) async throws
+}

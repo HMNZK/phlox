@@ -136,6 +136,27 @@ private final class FailingPlanReapplyTransport: AppServerTransport, @unchecked 
     func capturedParams(for method: String) -> [[String: Any]] {
         lock.withLock { paramsByMethod[method] ?? [] }
     }
+
+    /// 空の RPC 応答とは別に届く、適用された設定の通知。
+    func emitAppliedPermissionSettings(_ params: [String: Any]) {
+        receiveObject(appliedPermissionSettingsNotification(params))
+    }
+}
+
+private func appliedPermissionSettingsNotification(_ params: [String: Any]) -> [String: Any] {
+    [
+        "jsonrpc": "2.0", "method": "thread/settings/updated",
+        "params": ["threadId": "thread-1", "threadSettings": [
+            "cwd": "/tmp/work", "model": params["model"] ?? "gpt-5-codex", "modelProvider": "openai",
+            "effort": params["effort"] ?? "medium", "approvalPolicy": params["approvalPolicy"] ?? "on-request",
+            "approvalsReviewer": "user", "sandboxPolicy": ["type": "readOnly"],
+            "activePermissionProfile": ["id": params["permissions"] ?? ":read-only", "extends": NSNull()],
+            "serviceTier": NSNull(), "collaborationMode": ["mode": "default", "settings": [
+                "model": params["model"] ?? "gpt-5-codex", "reasoning_effort": params["effort"] ?? "medium",
+                "developer_instructions": NSNull(),
+            ]],
+        ]],
+    ]
 }
 
 // MARK: - C3 FIFO
@@ -294,7 +315,7 @@ func characterization_reapplyPersistedSettings_fallsBackWhenPlanModeUpdateFails(
     #expect(vm.restoreState == .restored)
     #expect(vm.selectedModel == "o4-mini")
     #expect(vm.selectedEffort == "high")
-    #expect(vm.selectedPermissionProfile == ":read-only")
+    #expect(vm.selectedPermissionProfile == ":workspace") // 通知を受けるまでは確認済みの状態。
 
     let updates = transport.capturedParams(for: "thread/settings/update")
     #expect(updates.count == 2)
@@ -303,6 +324,12 @@ func characterization_reapplyPersistedSettings_fallsBackWhenPlanModeUpdateFails(
     // 失敗後も collaborationMode ローカル変数で isPlanMode が再設定される現挙動を固定する。
     #expect(vm.isPlanMode == true)
     #expect(vm.isPlanModeAvailable == true)
+    let applied = try #require(updates.last)
+    #expect(applied["approvalPolicy"] as? String == "on-request")
+    transport.emitAppliedPermissionSettings(applied)
+    let synced = await waitUntil(timeoutNanoseconds: 1_000_000_000) { vm.selectedPermissionProfile == ":read-only" }
+    #expect(synced)
+    #expect(vm.selectedApprovalPolicy == .named("on-request"))
 }
 
 @Test @MainActor
@@ -337,5 +364,10 @@ func characterization_reapplyPersistedSettings_skipsPlanModeWhenCollaborationLis
     #expect(vm.isPlanMode == false)
     #expect(vm.selectedModel == "o4-mini")
     #expect(vm.selectedEffort == "high")
-    #expect(vm.selectedPermissionProfile == ":read-only")
+    #expect(vm.selectedPermissionProfile == ":workspace")
+    #expect(update["approvalPolicy"] as? String == "on-request")
+    transport.receiveObject(appliedPermissionSettingsNotification(update))
+    let synced = await waitUntil(timeoutNanoseconds: 1_000_000_000) { vm.selectedPermissionProfile == ":read-only" }
+    #expect(synced)
+    #expect(vm.selectedApprovalPolicy == .named("on-request"))
 }

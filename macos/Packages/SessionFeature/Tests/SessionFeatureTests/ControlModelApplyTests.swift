@@ -37,6 +37,8 @@ private final class ControlModelCodexClient: StructuredAgentClient, CodexSetting
     var updateDelays: [UInt64] = []
     /// 失敗させる設定の更新（届いた順の番号。0 始まり）。
     var failingUpdates: Set<Int> = []
+    var failingError: any Error = CancellationError()
+    var updateBarrier: AsyncStream<Void>?
     private var started = 0
     /// 届き始めた設定の更新の数（待ちに入ったものも含む）。
     var startedUpdates: Int { lock.withLock { started } }
@@ -44,9 +46,10 @@ private final class ControlModelCodexClient: StructuredAgentClient, CodexSetting
     var updatedSettings: [ThreadSettingsUpdateParams] { lock.withLock { recorded } }
 
     /// app-server からの設定の通知（どの変更の結果かは載らない）。
-    func emitSettings(model: String, effort: String, mode: String = "default", profile: String? = nil, sandbox: String = "workspaceWrite") throws {
+    func emitSettings(model: String, effort: String, mode: String = "default", profile: String? = nil, sandbox: String = "workspaceWrite", approvalPolicy: ApprovalPolicy = .named("never")) throws {
+        let policyJSON = String(decoding: try JSONEncoder().encode(approvalPolicy), as: UTF8.self)
         let settings: ThreadSettings = try ControlModelJSON.decode("""
-        {"cwd":"/tmp","model":"\(model)","modelProvider":"openai","effort":"\(effort)","approvalPolicy":"never","approvalsReviewer":"user","sandboxPolicy":{"type":"\(sandbox)"},"activePermissionProfile":\(profile.map { #"{"id":"\#($0)","extends":null}"# } ?? "null"),"serviceTier":null,"collaborationMode":{"mode":"\(mode)","settings":{"model":"\(model)","reasoning_effort":"\(effort)","developer_instructions":null}}}
+        {"cwd":"/tmp","model":"\(model)","modelProvider":"openai","effort":"\(effort)","approvalPolicy":\(policyJSON),"approvalsReviewer":"user","sandboxPolicy":{"type":"\(sandbox)"},"activePermissionProfile":\(profile.map { #"{"id":"\#($0)","extends":null}"# } ?? "null"),"serviceTier":null,"collaborationMode":{"mode":"\(mode)","settings":{"model":"\(model)","reasoning_effort":"\(effort)","developer_instructions":null}}}
         """)
         threadContinuation.yield(.threadSettingsUpdated(threadId: "thread-1", threadSettings: settings))
     }
@@ -78,11 +81,15 @@ private final class ControlModelCodexClient: StructuredAgentClient, CodexSetting
     }
 
     func threadStart(_ params: ThreadStartParams) async throws -> ThreadResponse {
-        try ControlModelJSON.decode(#"{"thread":{"id":"thread-1","status":{"type":"idle"}}}"#)
+        let policy = try JSONEncoder().encode(params.approvalPolicy)
+        let sandbox = try JSONEncoder().encode(params.sandbox)
+        return try ControlModelJSON.decode("""
+        {"thread":{"id":"thread-1","status":{"type":"idle"}},"approvalPolicy":\(String(decoding: policy, as: UTF8.self)),"sandbox":\(String(decoding: sandbox, as: UTF8.self))}
+        """)
     }
 
     func threadResume(_ params: ThreadResumeParams) async throws -> ThreadResponse {
-        try ControlModelJSON.decode(#"{"thread":{"id":"thread-1","status":{"type":"idle"}}}"#)
+        try await threadStart(ThreadStartParams(approvalPolicy: params.approvalPolicy, sandbox: params.sandbox))
     }
 
     func threadRead(_ params: ThreadReadParams) async throws -> ThreadReadResponse {
@@ -117,7 +124,11 @@ private final class ControlModelCodexClient: StructuredAgentClient, CodexSetting
             return (updateDelays.isEmpty ? nil : updateDelays.removeFirst(), failingUpdates.contains(started - 1))
         }
         if let delay { try? await Task.sleep(nanoseconds: delay) }
-        if fails { throw CancellationError() }
+        if fails { throw failingError }
+        if let updateBarrier {
+            var iterator = updateBarrier.makeAsyncIterator()
+            _ = await iterator.next()
+        }
         return ThreadSettingsUpdateResponse()
     }
 }
@@ -467,6 +478,223 @@ private final class ControlModelSpawnClient: StructuredAgentClient, SpawnAgentSe
         #expect(client.updatedSettings.first?.model == "gpt-5.5-codex-mini")
         #expect(vm.selectedModel != "gpt-5.5-codex-mini")
         #expect(vm.selectedEffort != "low")
+    }
+
+    @Test func fullAccessChangesApprovalAndExecutionBoundariesTogether() async throws {
+        let client = ControlModelCodexClient()
+        let vm = try await makeCodexViewModel(client)
+        defer { Task { await vm.terminate() } }
+
+        try await vm.setPermissionProfile(id: ":danger-full-access")
+
+        #expect(client.updatedSettings.last?.permissions == ":danger-full-access")
+        #expect(client.updatedSettings.last?.approvalPolicy == .named("never"))
+    }
+
+    @Test func restrictedPresetsRestoreInteractiveApprovals() async throws {
+        let client = ControlModelCodexClient()
+        let vm = try await makeCodexViewModel(client)
+        defer { Task { await vm.terminate() } }
+
+        for profile in [":read-only", ":workspace"] {
+            try await vm.setPermissionProfile(id: profile)
+            #expect(client.updatedSettings.last?.approvalPolicy == .named("on-request"))
+        }
+        try await vm.setPermissionProfile(id: "project-profile")
+        #expect(client.updatedSettings.last?.approvalPolicy == nil)
+    }
+
+    @Test func legacyFullAccessReapplyIncludesNeverAndFailureKeepsConfirmedProfile() async throws {
+        let client = ControlModelCodexClient()
+        client.failingUpdates = [0]
+        let vm = ChatSessionViewModel(
+            id: SessionID(), agentRef: .builtin(.codex), client: client,
+            approvalBroker: ChatApprovalBroker(), workingDirectory: "/tmp/permission-reapply"
+        )
+        defer { Task { await vm.terminate() } }
+        try await vm.startNew(
+            approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"),
+            persistedSettings: CodexAppServerSessionSettings(selectedPermissionProfile: ":danger-full-access")
+        )
+
+        #expect(client.updatedSettings.first?.approvalPolicy == .named("never"))
+        #expect(vm.selectedPermissionProfile == ":workspace")
+    }
+
+    @Test func permissionDisplayUsesConfirmedPolicyInsteadOfSelectedProfileAlone() async throws {
+        let client = ControlModelCodexClient()
+        let vm = try await makeCodexViewModel(client)
+        defer { Task { await vm.terminate() } }
+        #expect(vm.codexPermissionTitle(languageCode: "ja") == "Default")
+
+        try await vm.setPermissionProfile(id: ":danger-full-access")
+        // RPC 応答だけでは実際の設定が分からないので、確認された前の状態を維持する。
+        #expect(vm.codexPermissionTitle(languageCode: "ja") == "Default")
+        try client.emitSettings(model: "gpt-5.5-codex", effort: "low", profile: ":danger-full-access", sandbox: "dangerFullAccess", approvalPolicy: .named("on-request"))
+        await waitUntil { vm.selectedPermissionProfile == ":danger-full-access" }
+        #expect(vm.codexPermissionTitle(languageCode: "ja") == "Custom")
+        #expect(vm.selectedCodexPermissionPreset == nil)
+
+        try client.emitSettings(model: "gpt-5.5-codex", effort: "low", profile: ":danger-full-access", sandbox: "dangerFullAccess")
+        await waitUntil { vm.selectedApprovalPolicy == .named("never") }
+        #expect(vm.codexPermissionTitle(languageCode: "ja") == "Full Access")
+        #expect(vm.codexSettingsSnapshot?.approvalPolicyJSON == #""never""#)
+    }
+
+    @Test func slowPermissionAcknowledgmentDoesNotUndoNewerConfirmedSettings() async throws {
+        let client = ControlModelCodexClient()
+        let vm = try await makeCodexViewModel(client)
+        defer { Task { await vm.terminate() } }
+        client.updateDelays = [100_000_000]
+        let before = client.startedUpdates
+        let slow = Task { try await vm.setPermissionProfile(id: ":danger-full-access") }
+        await waitUntil { client.startedUpdates > before }
+        try await vm.setPermissionProfile(id: ":workspace")
+        try client.emitSettings(model: "gpt-5.5-codex", effort: "medium", profile: ":workspace", approvalPolicy: .named("on-request"))
+        await waitUntil { vm.selectedApprovalPolicy == .named("on-request") }
+        try await slow.value
+        #expect(vm.codexPermissionTitle(languageCode: "ja") == "Default")
+    }
+
+    @Test func failedPermissionChangePreservesStateAndReportsError() async throws {
+        let client = ControlModelCodexClient()
+        let vm = try await makeCodexViewModel(client)
+        defer { Task { await vm.terminate() } }
+        client.failingUpdates = [client.startedUpdates]
+        client.failingError = JSONRPCClientError.serverError(code: -32000, message: "sandbox not permitted")
+        await #expect(throws: JSONRPCClientError.serverError(code: -32000, message: "sandbox not permitted")) {
+            try await vm.setPermissionProfile(id: ":danger-full-access")
+        }
+        #expect(vm.codexPermissionTitle(languageCode: "ja") == "Default")
+        #expect(vm.transcript.contains { item in
+            if case .error(_, let message, _) = item {
+                return message == "権限を変更できませんでした: sandbox not permitted"
+            }
+            return false
+        })
+    }
+
+    @Test func restoredGranularPolicyAndSnapshotRetainTheirOriginalForm() async throws {
+        let json = #"{"granular":{"sandbox_approval":false,"rules":true}}"#
+        let policy = try JSONDecoder().decode(ApprovalPolicy.self, from: Data(json.utf8))
+        let client = ControlModelCodexClient()
+        let vm = ChatSessionViewModel(
+            id: SessionID(), agentRef: .builtin(.codex), client: client,
+            approvalBroker: ChatApprovalBroker(), workingDirectory: "/tmp/permission-restore"
+        )
+        defer { Task { await vm.terminate() } }
+        await vm.restore(
+            threadId: "thread-1", approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"),
+            persistedSettings: CodexAppServerSessionSettings(selectedPermissionProfile: ":workspace", approvalPolicyJSON: json)
+        )
+        #expect(client.updatedSettings.first?.approvalPolicy == policy)
+        try client.emitSettings(model: "gpt-5.5-codex", effort: "low", profile: ":workspace", approvalPolicy: policy)
+        await waitUntil { vm.selectedApprovalPolicy == policy }
+        let savedJSON = try #require(vm.codexSettingsSnapshot?.approvalPolicyJSON)
+        #expect(try JSONDecoder().decode(ApprovalPolicy.self, from: Data(savedJSON.utf8)) == policy)
+        #expect(vm.codexPermissionTitle(languageCode: "ja") == "Custom")
+    }
+
+    @Test func restoreAcceptsPermissionNotificationBeforeTranscriptIsCommitted() async throws {
+        let client = ControlModelCodexClient()
+        let barrier = AsyncStream<Void>.makeStream()
+        client.updateBarrier = barrier.stream
+        let vm = ChatSessionViewModel(
+            id: SessionID(), agentRef: .builtin(.codex), client: client,
+            approvalBroker: ChatApprovalBroker(), workingDirectory: "/tmp/permission-restore"
+        )
+        defer { barrier.continuation.finish(); Task { await vm.terminate() } }
+        let restore = Task {
+            await vm.restore(
+                threadId: "thread-1", approvalPolicy: .named("never"), sandbox: .named("danger-full-access"),
+                persistedSettings: CodexAppServerSessionSettings(
+                    selectedPermissionProfile: ":read-only", approvalPolicyJSON: #""on-request""#
+                )
+            )
+        }
+        await waitUntil { client.startedUpdates == 1 }
+        try client.emitSettings(model: "gpt-5.5-codex", effort: "medium", profile: ":read-only",
+                                sandbox: "readOnly", approvalPolicy: .named("on-request"))
+        await waitUntil { vm.selectedPermissionProfile == ":read-only" }
+        #expect(vm.threadId == nil)
+        #expect(vm.codexPermissionTitle(languageCode: "ja") == "Read Only")
+        barrier.continuation.yield(())
+        await restore.value
+        #expect(vm.codexSettingsSnapshot?.selectedPermissionProfile == ":read-only")
+        #expect(vm.codexSettingsSnapshot?.approvalPolicyJSON == #""on-request""#)
+    }
+
+    @Test func successfulRestoreWaitsForPermissionNotificationBeforeSaving() async throws {
+        let client = ControlModelCodexClient()
+        let vm = ChatSessionViewModel(
+            id: SessionID(), agentRef: .builtin(.codex), client: client,
+            approvalBroker: ChatApprovalBroker(), workingDirectory: "/tmp/permission-restore"
+        )
+        var stored = CodexAppServerSessionSettings(
+            selectedPermissionProfile: ":read-only", approvalPolicyJSON: #""on-request""#
+        )
+        let saved = stored
+        var saves = 0
+        vm.codexSettingsDidChange = { if let value = $0 { stored = value }; saves += 1 }
+        await vm.restore(
+            threadId: "thread-1", approvalPolicy: .named("never"), sandbox: .named("danger-full-access"),
+            persistedSettings: saved
+        )
+        #expect(stored == saved)
+        #expect(saves == 0)
+        try client.emitSettings(model: "gpt-5.5-codex", effort: "low", profile: ":read-only", sandbox: "readOnly", approvalPolicy: .named("on-request"))
+        await waitUntil { saves > 0 }
+        #expect(stored.selectedPermissionProfile == ":read-only")
+        #expect(stored.approvalPolicyJSON == #""on-request""#)
+        await vm.terminate()
+    }
+
+    @Test func permissionSelectionIsSavedOnlyAfterServerNotification() async throws {
+        let client = ControlModelCodexClient()
+        let vm = try await makeCodexViewModel(client)
+        var saved: CodexAppServerSessionSettings?
+        vm.codexSettingsDidChange = { saved = $0 }
+        try await vm.setPermissionProfile(id: ":read-only")
+        #expect(saved == nil)
+        try client.emitSettings(model: "gpt-5.5-codex", effort: "low", profile: ":read-only", sandbox: "readOnly", approvalPolicy: .named("on-request"))
+        await waitUntil { saved != nil }
+        #expect(saved?.selectedPermissionProfile == ":read-only")
+        #expect(saved?.approvalPolicyJSON == #""on-request""#)
+        await vm.terminate()
+    }
+
+    @Test func failedSavedPermissionRestoreDoesNotOverwriteSavedSettings() async {
+        let client = ControlModelCodexClient()
+        client.failingUpdates = [0]
+        let reason = """
+        sandbox not permitted
+        The configured permissions profile does not allow access outside the project. Choose an allowed profile or update the workspace policy before retrying.
+        """
+        client.failingError = JSONRPCClientError.serverError(code: -32000, message: reason)
+        let vm = ChatSessionViewModel(
+            id: SessionID(), agentRef: .builtin(.codex), client: client,
+            approvalBroker: ChatApprovalBroker(), workingDirectory: "/tmp/permission-restore"
+        )
+        let saved = CodexAppServerSessionSettings(
+            selectedPermissionProfile: ":read-only", approvalPolicyJSON: #""on-request""#
+        )
+        var stored: CodexAppServerSessionSettings? = saved
+        var saves = 0
+        vm.codexSettingsDidChange = { stored = $0; saves += 1 }
+        await vm.restore(
+            threadId: "thread-1", approvalPolicy: .named("never"), sandbox: .named("danger-full-access"),
+            persistedSettings: saved
+        )
+        #expect(vm.selectedPermissionProfile != ":read-only")
+        #expect(stored == saved)
+        #expect(saves == 0)
+        #expect(vm.transcript.contains {
+            if case .error(_, let message, _) = $0 {
+                return message == "保存された設定を適用できませんでした: \(reason)"
+            }
+            return false
+        })
+        await vm.terminate()
     }
 
     /// 終了し始めたら ⇧Tab は何も送らない。

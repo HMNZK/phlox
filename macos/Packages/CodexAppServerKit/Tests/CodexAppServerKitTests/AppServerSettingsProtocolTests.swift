@@ -188,6 +188,7 @@ import Testing
             threadId: "thread-1",
             model: "gpt-5-codex",
             effort: "medium",
+            approvalPolicy: .named("on-request"),
             permissions: ":workspace"
         )
     )
@@ -200,6 +201,7 @@ import Testing
     })
     #expect(updateRequest["params"]?["threadId"]?.stringValue == "thread-1")
     #expect(updateRequest["params"]?["permissions"]?.stringValue == ":workspace")
+    #expect(updateRequest["params"]?["approvalPolicy"]?.stringValue == "on-request")
     transport.receive("""
     {"jsonrpc":"2.0","id":4,"result":{}}
     """)

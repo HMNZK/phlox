@@ -258,8 +258,7 @@ public struct AppEnvironment: Sendable {
                     command: command,
                     workingDirectory: workingDirectory,
                     environment: environment,
-                    permissionMode: fullAccess ? "bypassPermissions" : "auto",
-                    preApprovalPolicy: fullAccess ? claudeAutoApprovePolicy : nil
+                    permissionMode: fullAccess ? "bypassPermissions" : "auto"
                 )
             case .builtin(.cursor):
                 let fullAccess = fullAccessProvider(agentRef)
@@ -275,10 +274,6 @@ public struct AppEnvironment: Sendable {
         }
     }
 
-    /// Claude 送信時のバナーを出さずに常に承認する auto-approve policy。
-    /// handler（ChatApprovalBroker 経由でバナーを出す経路）を呼ばないためバナーは表示されない。
-    /// policy が非 nil であることにより、ClaudeChatClient は defaultAllowedTools を維持する。
-    private static let claudeAutoApprovePolicy: ClaudeChatClient.PreApprovalPolicy = { _ in .approve }
 }
 
 /// CLI の場所の表。`AppEnvironment` は値型で各所にコピーされるので、再検出の結果を共有するために参照で持つ。
@@ -316,6 +311,12 @@ public enum AppEnvironmentError: Error, Equatable, Sendable {
 extension ClaudeChatClient: @retroactive SpawnAgentSettingsControlling {
     public func applySpawnAgentSettings(model: String?, permissionOrMode: String?, effort: String?) async {
         await updateSettings(model: model, permissionMode: permissionOrMode, effort: effort)
+    }
+}
+
+extension ClaudeChatClient: @retroactive SpawnAgentPermissionControlling {
+    public func setSpawnAgentPermission(_ permission: String?) async throws {
+        try await setPermissionMode(permission ?? "manual")
     }
 }
 

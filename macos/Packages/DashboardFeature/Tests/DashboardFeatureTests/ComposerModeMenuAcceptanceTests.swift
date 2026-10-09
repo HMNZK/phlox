@@ -33,13 +33,13 @@ struct ComposerModeMenuAcceptanceTests {
             "acceptEdits", "auto", "bypassPermissions", "manual", "dontAsk", "plan",
         ])
         #expect(optionsEN.map(\.isPlan) == [false, false, false, false, false, true])
-        #expect(optionsEN.last?.title == expectedPlanTitle(languageCode: "en"))
+        #expect(optionsEN.map(\.title) == ["Accept Edits", "Auto", "Bypass Permissions", "Manual", "Don't Ask", "Plan"])
         let optionsJA = composerModeOptions(for: .builtin(.claudeCode), codexProfileIDs: [], languageCode: "ja")
         #expect(optionsJA.map(\.value) == [
             "acceptEdits", "auto", "bypassPermissions", "manual", "dontAsk", "plan",
         ])
         #expect(optionsJA.map(\.isPlan) == [false, false, false, false, false, true])
-        #expect(optionsJA.last?.title == expectedPlanTitle(languageCode: "ja"))
+        #expect(optionsJA.map(\.title) == ["Accept Edits", "Auto", "Bypass Permissions", "Manual", "Don't Ask", "Plan"])
     }
 
     @Test
@@ -47,11 +47,11 @@ struct ComposerModeMenuAcceptanceTests {
         let optionsEN = composerModeOptions(for: .builtin(.cursor), codexProfileIDs: [], languageCode: "en")
         #expect(optionsEN.map(\.value) == [nil, "ask", "plan"])
         #expect(optionsEN.map(\.isPlan) == [false, false, true])
-        #expect(optionsEN.last?.title == expectedPlanTitle(languageCode: "en"))
+        #expect(optionsEN.map(\.title) == ["Agent", "Ask", "Plan"])
         let optionsJA = composerModeOptions(for: .builtin(.cursor), codexProfileIDs: [], languageCode: "ja")
         #expect(optionsJA.map(\.value) == [nil, "ask", "plan"])
         #expect(optionsJA.map(\.isPlan) == [false, false, true])
-        #expect(optionsJA.last?.title == expectedPlanTitle(languageCode: "ja"))
+        #expect(optionsJA.map(\.title) == ["Agent", "Ask", "Plan"])
     }
 
     @Test
@@ -63,7 +63,7 @@ struct ComposerModeMenuAcceptanceTests {
         )
         #expect(optionsEN.map(\.value) == [":read-only", ":workspace", ":danger-full-access", "plan"])
         #expect(optionsEN.map(\.isPlan) == [false, false, false, true])
-        #expect(optionsEN.last?.title == expectedPlanTitle(languageCode: "en"))
+        #expect(optionsEN.map(\.title) == ["Read Only", "Default", "Full Access", "Plan"])
         let optionsJA = composerModeOptions(
             for: .builtin(.codex),
             codexProfileIDs: [":read-only", ":workspace", ":danger-full-access"],
@@ -71,11 +71,6 @@ struct ComposerModeMenuAcceptanceTests {
         )
         #expect(optionsJA.map(\.value) == [":read-only", ":workspace", ":danger-full-access", "plan"])
         #expect(optionsJA.map(\.isPlan) == [false, false, false, true])
-        #expect(optionsJA.last?.title == expectedPlanTitle(languageCode: "ja"))
+        #expect(optionsJA.map(\.title) == ["Read Only", "Default", "Full Access", "Plan"])
     }
-}
-
-private func expectedPlanTitle(languageCode: String) -> String {
-    let primary = languageCode.split { $0 == "-" || $0 == "_" }.first.map(String.init)?.lowercased() ?? ""
-    return primary == "en" ? "Plan" : "計画"
 }

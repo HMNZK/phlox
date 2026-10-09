@@ -89,10 +89,10 @@ func appEnvironmentClaudeAutoApprovesWithoutInvokingApprovalHandler() async thro
     try await assertEventuallyFileExists(markerURL)
     #expect(recorder.wasCalled == false)
 
-    // bypassPermissions + allowedTools が維持されていること。
+    // 標準権限だけを渡す。全ツールの追加許可は Manual へ戻したときも残るため注入しない。
     let argsText = try String(contentsOf: argsURL, encoding: .utf8)
     #expect(argsText.contains("--permission-mode\nbypassPermissions\n"))
-    #expect(argsText.contains("--allowedTools\nBash,Read,Glob,Grep,LS,Edit,Write,MultiEdit\n"))
+    #expect(!argsText.contains("--allowedTools"))
 
     var iterator = client.events.makeAsyncIterator()
     #expect(await iterator.next() == .turnStarted)
@@ -199,7 +199,7 @@ func chatSessionViewModelClaudeModelSelectionRespawnsWithModelKeepingPermission(
     #expect(argsText.contains("--model\nopus\n"))
     #expect(argsText.contains("--permission-mode\nbypassPermissions\n"))
     #expect(argsText.contains("--effort\nhigh\n"))
-    #expect(argsText.contains("--allowedTools\nBash,Read,Glob,Grep,LS,Edit,Write,MultiEdit\n"))
+    #expect(!argsText.contains("--allowedTools"))
 
     await vm.terminate()
 }

@@ -181,6 +181,24 @@ public final class ChatSessionViewModel: Identifiable {
     public private(set) var selectedModel: String? { didSet { clearStaleImageErrorIfSendable() } }
     public private(set) var selectedEffort: String?
     public private(set) var selectedPermissionProfile: String?
+    public private(set) var selectedApprovalPolicy: ApprovalPolicy?
+    private var selectedCodexSandbox: SandboxPolicy?
+
+    /// サーバーが確認した実行範囲と承認方針が一致するときだけ、組み込みプリセットとする。
+    var selectedCodexPermissionPreset: String? {
+        guard let profile = selectedPermissionProfile else { return nil }
+        guard let policy = Self.approvalPolicy(forPermissionPreset: profile) else { return profile }
+        return selectedApprovalPolicy == policy && Self.permissionProfileID(for: selectedCodexSandbox) == profile
+            ? profile : nil
+    }
+
+    func codexPermissionTitle(languageCode: String) -> String {
+        guard selectedPermissionProfile != nil else {
+            return AppLocalizedString.string("未設定", locale: Locale(identifier: languageCode))
+        }
+        guard let preset = selectedCodexPermissionPreset else { return UIWording.customPermissionTitle }
+        return UIWording.permission(agent: .codex, kind: .codexProfile, value: preset, languageCode: languageCode).title
+    }
     public private(set) var isPlanMode = false
     public private(set) var isPlanModeAvailable = false
     /// Claude/Cursor（spawn 型）で選択可能な model 一覧。Codex の `availableModels`
@@ -224,6 +242,7 @@ public final class ChatSessionViewModel: Identifiable {
     private var lastEscapeAt: Date?
     private var threadResponseModel: String?
     private var persistedSettingsForFallback: CodexAppServerSessionSettings?
+    private var restoringCodexSettingsThreadID: String?
     private var collaborationModeListAvailable = false
     private var shouldClearBackgroundTasksOnNextTurnStart = false
     private var turnStartedAt: Date?
@@ -675,7 +694,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     public func consumeDraftForSend() -> String? {
         // 承認を待っている間は書けるが送らない（05 R6「送信は承認後」）。質問のカードは別の指示を送ってよい。
-        guard inFlightText == nil, replyApprovals.isEmpty else { return nil }
+        guard !isApplyingSpawnAgentPermission, inFlightText == nil, replyApprovals.isEmpty else { return nil }
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             guard !attachmentStore.attachments.isEmpty else { return nil }
@@ -899,7 +918,8 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public var isReadyForInput: Bool {
-        switch status {
+        guard !isApplyingSpawnAgentPermission else { return false }
+        return switch status {
         case .starting:
             false
         case .idle, .running, .awaitingApproval, .awaitingUserQuestion, .completed, .error:
@@ -913,16 +933,18 @@ public final class ChatSessionViewModel: Identifiable {
         persistedSettings: CodexAppServerSessionSettings? = nil
     ) async throws {
         codexRestoreGeneration += 1
+        restoringCodexSettingsThreadID = nil
         scheduleHistoryCacheLoadIfNeeded()
         await historyCacheLoadTask?.value
         clearRunningBackgroundTasks()
         startEventTasks()
-        await client.start()
         guard let codexClient else {
             await loadSpawnAgentSettings(persistedSettings: persistedSettings)
+            await client.start()
             status = .idle
             return
         }
+        await client.start()
         let initialized = try await codexClient.initialize(Self.initializeParams)
         appServerUserAgent = initialized.userAgent
         let response = try await codexClient.threadStart(ThreadStartParams(
@@ -937,7 +959,7 @@ public final class ChatSessionViewModel: Identifiable {
         syncSettings(from: response)
         await loadAvailableSettings(persistedSettings: persistedSettings)
         if let persistedSettings, persistedSettings.hasAnyValue {
-            await reapplyPersistedSettings(persistedSettings)
+            if let error = await reapplyPersistedSettings(persistedSettings) { reportError(error) }
         }
     }
 
@@ -949,6 +971,7 @@ public final class ChatSessionViewModel: Identifiable {
     ) async {
         restoreState = .restoring
         codexRestoreGeneration += 1
+        restoringCodexSettingsThreadID = nil
         let restoreGeneration = codexRestoreGeneration
         clearRunningBackgroundTasks()
         startEventTasks()
@@ -956,9 +979,9 @@ public final class ChatSessionViewModel: Identifiable {
             _ = await restoreTranscriptFromStore()
             await restoreTurnUsageFromStore()
             do {
+                await loadSpawnAgentSettings(persistedSettings: persistedSettings, restoring: true)
                 try await client.resume(sessionRef: threadId)
                 updateNativeSessionId(threadId)
-                await loadSpawnAgentSettings(persistedSettings: persistedSettings)
                 status = .idle
                 restoreState = .restored
             } catch {
@@ -985,11 +1008,16 @@ public final class ChatSessionViewModel: Identifiable {
                 sandbox: sandbox
             ))
             guard restoreGeneration == codexRestoreGeneration else { return }
+            restoringCodexSettingsThreadID = threadId
+            defer {
+                if restoreGeneration == codexRestoreGeneration { restoringCodexSettingsThreadID = nil }
+            }
             syncSettings(from: response)
             await loadAvailableSettings(persistedSettings: persistedSettings)
             guard restoreGeneration == codexRestoreGeneration else { return }
+            var settingsError: String?
             if let persistedSettings, persistedSettings.hasAnyValue {
-                await reapplyPersistedSettings(persistedSettings, threadID: threadId)
+                settingsError = await reapplyPersistedSettings(persistedSettings, threadID: threadId)
             }
             guard restoreGeneration == codexRestoreGeneration else { return }
             await restoreTurnUsageFromStore()
@@ -1020,6 +1048,8 @@ public final class ChatSessionViewModel: Identifiable {
             }
             guard restoreGeneration == codexRestoreGeneration else { return }
             restoreState = .restored
+            // transcript の復元で設定エラーを消さない。
+            if let settingsError { reportError(settingsError) }
         } catch {
             guard restoreGeneration == codexRestoreGeneration else { return }
             await codexClient.rollbackThreadResumeIfCurrent(threadID: threadId)
@@ -1314,6 +1344,9 @@ public final class ChatSessionViewModel: Identifiable {
             selectedModel: selectedModel,
             selectedEffort: selectedEffort,
             selectedPermissionProfile: selectedPermissionProfile,
+            approvalPolicyJSON: selectedApprovalPolicy.flatMap { policy in
+                (try? JSONEncoder().encode(policy)).map { String(decoding: $0, as: UTF8.self) }
+            },
             isPlanMode: isPlanMode
         )
         return settings.hasAnyValue ? settings : nil
@@ -1464,6 +1497,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// Control API からのモデル適用。throws を outcome へ写像し、失敗理由を握りつぶさない。
     public func applyControlModel(_ model: String) async -> ControlModelApplyOutcome {
+        guard !isApplyingSpawnAgentPermission else { return .failed }
         if canApplySpawnAgentSettings {
             guard availableSpawnAgentModels.contains(model) else { return .unknownModel }
             await setSpawnAgentModel(model)
@@ -1489,12 +1523,17 @@ public final class ChatSessionViewModel: Identifiable {
     public func setPermissionProfile(id: String) async throws {
         guard let threadId else { throw ChatSettingsUpdateError.threadNotStarted }
         guard let codexClient else { throw ChatSettingsUpdateError.codexSettingsUnavailable }
-        _ = try await codexClient.updateThreadSettings(ThreadSettingsUpdateParams(
-            threadId: threadId,
-            permissions: id
-        ))
-        selectedPermissionProfile = id
-        notifyCodexSettingsChanged()
+        do {
+            _ = try await codexClient.updateThreadSettings(ThreadSettingsUpdateParams(
+                threadId: threadId,
+                approvalPolicy: Self.approvalPolicy(forPermissionPreset: id),
+                permissions: id
+            ))
+            // 応答は空。実際の権限は thread/settings/updated 通知から反映する。
+        } catch {
+            reportError("権限を変更できませんでした: \(error.localizedDescription)")
+            throw error
+        }
     }
 
     public func setPlanMode(_ on: Bool) async throws {
@@ -1502,8 +1541,12 @@ public final class ChatSessionViewModel: Identifiable {
             guard on ? isPlanModeAvailable : true else {
                 throw ChatSettingsUpdateError.planModeUnavailable
             }
-            isPlanMode = on
-            await applySpawnAgentSettings()
+            do {
+                try await changeSpawnAgentPermission(on ? "plan" : selectedPermissionProfile)
+            } catch {
+                reportError("権限を変更できませんでした: \(error.localizedDescription)")
+                throw error
+            }
             return
         }
         guard let threadId else { throw ChatSettingsUpdateError.threadNotStarted }
@@ -1583,7 +1626,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// task-11 が呼ぶ model 変更ハンドラ。選択を保持し、フルスナップショットで actor へ反映する。
     public func setSpawnAgentModel(_ model: String?) async {
-        guard canApplySpawnAgentSettings else { return }
+        guard canApplySpawnAgentSettings, !isApplyingSpawnAgentPermission else { return }
         selectedModel = model
         if agentRef == .builtin(.claudeCode) {
             if Self.claudeModelSupportsEffort(model) {
@@ -1600,14 +1643,31 @@ public final class ChatSessionViewModel: Identifiable {
     /// task-11 が呼ぶ permission(Claude)/mode(Cursor) 変更ハンドラ。
     public func setSpawnAgentPermission(_ permissionOrMode: String?) async {
         guard isSpawnAgent else { return }
-        if permissionOrMode == "plan" {
-            isPlanMode = true
-            await applySpawnAgentSettings()
-            return
+        do {
+            try await changeSpawnAgentPermission(permissionOrMode)
+        } catch {
+            reportError("権限を変更できませんでした: \(error.localizedDescription)")
         }
-        isPlanMode = false
-        selectedPermissionProfile = permissionOrMode
-        await applySpawnAgentSettings()
+    }
+
+    public private(set) var isApplyingSpawnAgentPermission = false
+
+    private func changeSpawnAgentPermission(_ permissionOrMode: String?) async throws {
+        if let controller = client as? any SpawnAgentPermissionControlling {
+            guard !isApplyingSpawnAgentPermission, inFlightText == nil, !isPreparingImageSend else {
+                throw ChatSettingsUpdateError.spawnSettingsUpdateInProgress
+            }
+            isApplyingSpawnAgentPermission = true
+            defer { isApplyingSpawnAgentPermission = false }
+            try await controller.setSpawnAgentPermission(permissionOrMode)
+            isPlanMode = permissionOrMode == "plan"
+            if !isPlanMode { selectedPermissionProfile = permissionOrMode }
+            notifyCodexSettingsChanged()
+        } else {
+            isPlanMode = permissionOrMode == "plan"
+            if !isPlanMode { selectedPermissionProfile = permissionOrMode }
+            await applySpawnAgentSettings()
+        }
     }
 
     /// 入力欄の ⇧Tab で回す推論の深さの段（いまのエージェントとモデルで選べるもの。メニューと同じ並び）。
@@ -1662,7 +1722,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// task-22: Claude spawn セッションの effort 変更ハンドラ。
     public func setSpawnAgentEffort(_ effort: String?) async {
-        guard isSpawnAgent else { return }
+        guard isSpawnAgent, !isApplyingSpawnAgentPermission else { return }
         selectedEffort = effort
         await applySpawnAgentSettings()
     }
@@ -1679,10 +1739,11 @@ public final class ChatSessionViewModel: Identifiable {
         availableSpawnAgentModels = await resolveSpawnAgentModels()
     }
 
-    private func loadSpawnAgentSettings(persistedSettings: CodexAppServerSessionSettings?) async {
+    private func loadSpawnAgentSettings(persistedSettings: CodexAppServerSessionSettings?, restoring: Bool = false) async {
         availableSpawnAgentModels = await resolveSpawnAgentModels()
-        let persistedPermissionOrMode = spawnAgentPermissionOverride
-            ?? persistedSettings?.selectedPermissionProfile
+        let persistedPermissionOrMode = restoring
+            ? persistedSettings?.selectedPermissionProfile ?? spawnAgentPermissionOverride
+            : spawnAgentPermissionOverride ?? persistedSettings?.selectedPermissionProfile
         let persistedPlanMode = persistedSettings?.isPlanMode ?? (persistedPermissionOrMode == "plan")
 
         switch agentRef {
@@ -1697,9 +1758,7 @@ public final class ChatSessionViewModel: Identifiable {
             } else {
                 selectedEffort = nil
             }
-            // permission 未変更時も現在値（既定 bypassPermissions）を明示的に保持する。さもないと
-            // 置換セマンティクスの updateSettings で --permission-mode が外れ、task-8 の
-            // ツール権限付与が失われる。
+            // モデル変更の完全スナップショットでも、現在の権限と Plan の復帰先を保持する。
             if persistedPermissionOrMode == "plan" {
                 selectedPermissionProfile = selectedPermissionProfile ?? defaultClaudeSpawnPermission
             } else {
@@ -2460,7 +2519,8 @@ public final class ChatSessionViewModel: Identifiable {
             guard updatedThreadId == threadId else { return }
             scheduleCodexSurfaceRefresh()
         case .threadSettingsUpdated(let updatedThreadId, let settings):
-            guard updatedThreadId == threadId else { return }
+            // 復元の設定再適用は transcript の確定（threadId の公開）より先に通知される。
+            guard updatedThreadId == (restoringCodexSettingsThreadID ?? threadId) else { return }
             let pending = codexSettingsRequestsInFlight > 0 ? (selectedModel, selectedEffort, isPlanMode) : nil
             syncSettings(from: settings)
             if let pending {
@@ -2528,7 +2588,6 @@ public final class ChatSessionViewModel: Identifiable {
     private func loadAvailableSettings(persistedSettings: CodexAppServerSessionSettings?) async {
         guard let codexClient else { return }
         persistedSettingsForFallback = persistedSettings
-        let defaultPermissionProfileID = ":danger-full-access"
         do {
             let response = try await codexClient.listModels(ModelListParams())
             availableModels = response.data
@@ -2553,15 +2612,8 @@ public final class ChatSessionViewModel: Identifiable {
                 PermissionProfileListParams(cwd: workingDirectory)
             )
             permissionProfiles = response.data
-            if selectedPermissionProfile == nil {
-                selectedPermissionProfile = persistedSettings?.selectedPermissionProfile
-                    ?? response.data.first { $0.id == defaultPermissionProfileID }?.id
-            }
         } catch {
             permissionProfiles = []
-            if selectedPermissionProfile == nil {
-                selectedPermissionProfile = persistedSettings?.selectedPermissionProfile
-            }
         }
 
         do {
@@ -2584,6 +2636,8 @@ public final class ChatSessionViewModel: Identifiable {
         if let profile = response.activePermissionProfile?.id ?? Self.permissionProfileID(for: response.sandbox) {
             selectedPermissionProfile = profile
         }
+        selectedApprovalPolicy = response.approvalPolicy
+        selectedCodexSandbox = response.sandbox
         refreshPlanModeAvailability()
     }
 
@@ -2603,6 +2657,14 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
+    private static func approvalPolicy(forPermissionPreset profile: String) -> ApprovalPolicy? {
+        switch profile {
+        case ":danger-full-access": .named("never")
+        case ":workspace", ":read-only": .named("on-request")
+        default: nil
+        }
+    }
+
     private func syncSettings(from settings: ThreadSettings) {
         threadResponseModel = settings.model
         isPlanMode = settings.collaborationMode.mode == .plan
@@ -2615,15 +2677,27 @@ public final class ChatSessionViewModel: Identifiable {
         }
         selectedPermissionProfile = settings.activePermissionProfile?.id
             ?? Self.permissionProfileID(for: settings.sandboxPolicy)
+        selectedApprovalPolicy = settings.approvalPolicy
+        selectedCodexSandbox = settings.sandboxPolicy
         refreshPlanModeAvailability()
     }
 
     private func reapplyPersistedSettings(
         _ settings: CodexAppServerSessionSettings,
         threadID: String? = nil
-    ) async {
-        guard let threadId = threadID ?? self.threadId else { return }
-        guard let codexClient else { return }
+    ) async -> String? {
+        guard let threadId = threadID ?? self.threadId else { return nil }
+        guard let codexClient else { return nil }
+        let approvalPolicy: ApprovalPolicy?
+        do {
+            if let json = settings.approvalPolicyJSON {
+                approvalPolicy = try JSONDecoder().decode(ApprovalPolicy.self, from: Data(json.utf8))
+            } else {
+                approvalPolicy = settings.selectedPermissionProfile.flatMap(Self.approvalPolicy(forPermissionPreset:))
+            }
+        } catch {
+            return "保存された権限設定を読み込めませんでした: \(error.localizedDescription)"
+        }
         let model = settings.selectedModel ?? selectedModel
         let effort = settings.selectedEffort ?? selectedEffort
         let planEnabled = settings.isPlanMode ?? false
@@ -2639,6 +2713,7 @@ public final class ChatSessionViewModel: Identifiable {
             threadId: threadId,
             model: model,
             effort: effort,
+            approvalPolicy: approvalPolicy,
             permissions: settings.selectedPermissionProfile,
             collaborationMode: collaborationMode
         )
@@ -2647,21 +2722,29 @@ public final class ChatSessionViewModel: Identifiable {
         codexSettingsRequestsInFlight += 1
         defer { codexSettingsRequestsInFlight -= 1 }
         var sent = true
+        var reapplyError: Error?
         do {
             _ = try await codexClient.updateThreadSettings(params)
         } catch {
             sent = false
+            reapplyError = error
             if collaborationMode != nil {
                 isPlanMode = false
                 isPlanModeAvailable = false
             }
             if collaborationMode != nil, !isTerminating, request == codexSettingsRequestCount {
-                sent = (try? await codexClient.updateThreadSettings(ThreadSettingsUpdateParams(
-                    threadId: threadId,
-                    model: model,
-                    effort: effort,
-                    permissions: settings.selectedPermissionProfile
-                ))) != nil
+                do {
+                    _ = try await codexClient.updateThreadSettings(ThreadSettingsUpdateParams(
+                        threadId: threadId,
+                        model: model,
+                        effort: effort,
+                        approvalPolicy: approvalPolicy,
+                        permissions: settings.selectedPermissionProfile
+                    ))
+                    sent = true
+                } catch {
+                    reapplyError = error
+                }
             }
         }
 
@@ -2673,9 +2756,14 @@ public final class ChatSessionViewModel: Identifiable {
             selectedEffort = effort ?? selectedEffort
             isPlanMode = collaborationMode?.mode == .plan
         }
-        selectedPermissionProfile = settings.selectedPermissionProfile ?? selectedPermissionProfile
         refreshPlanModeAvailability()
-        notifyCodexSettingsChanged()
+        let permissionConfirmed = settings.selectedPermissionProfile.map { $0 == selectedPermissionProfile } ?? true
+        let approvalConfirmed = approvalPolicy.map { $0 == selectedApprovalPolicy } ?? true
+        if sent, permissionConfirmed, approvalConfirmed { notifyCodexSettingsChanged() }
+        if !sent, let reapplyError {
+            return "保存された設定を適用できませんでした: \(reapplyError.localizedDescription)"
+        }
+        return nil
     }
 
     private func makeCollaborationMode(
@@ -3485,6 +3573,9 @@ extension ChatSessionViewModel: ControllableSession {
     public func sendText(_ text: String, submit: Bool) async throws {
         guard !isPreparingImageSend else { throw ControlImageSendError.imageSendInProgress }
         if submit {
+            guard !isApplyingSpawnAgentPermission else {
+                throw ChatSettingsUpdateError.spawnSettingsUpdateInProgress
+            }
             sendFailure = nil
             let input = pendingInput + text
             // 入力欄は送信を受け付けてもらうまで書けない（画像の設定待ちも含む）。失敗時に戻す本文と新しい下書きがぶつからないように。

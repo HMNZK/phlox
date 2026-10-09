@@ -36,6 +36,7 @@ extension ClaudeChatClient: UsageQuerying {
     func handleControlResponse(_ event: [String: Any], generation: Int) {
         guard generation == spawnGeneration else { return }
         if handleStopTaskResponse(event) { return }
+        if let envelope = event["response"] as? [String: Any], handlePermissionResponse(envelope) { return }
         guard let envelope = event["response"] as? [String: Any],
               let requestID = envelope["request_id"] as? String,
               pendingUsageRequests[requestID] != nil

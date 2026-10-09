@@ -1,11 +1,21 @@
 import Foundation
 
-public enum JSONRPCClientError: Error, Equatable, Sendable {
+public enum JSONRPCClientError: LocalizedError, Equatable, Sendable {
     case transportClosed
     case malformedMessage(String)
     case invalidResponse(String)
     case serverError(code: Int, message: String)
     case unsupportedServerRequest(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .transportClosed: "The connection to Codex has closed."
+        case .malformedMessage(let reason): "Invalid Codex message: \(reason)"
+        case .invalidResponse(let reason): "Invalid Codex response: \(reason)"
+        case .serverError(_, let message): message
+        case .unsupportedServerRequest(let method): "Codex requested an unsupported operation: \(method)"
+        }
+    }
 }
 
 public struct JSONRPCErrorObject: Codable, Equatable, Sendable {

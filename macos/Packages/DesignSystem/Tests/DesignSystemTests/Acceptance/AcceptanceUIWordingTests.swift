@@ -57,7 +57,7 @@ struct AcceptanceUIWordingTests {
         WordingRow(key: .permissionLabel, japanese: "承認設定", english: "Permission", name: "permissionLabel"),
         WordingRow(key: .approvalLabel, japanese: "承認設定", english: "Approval", name: "approvalLabel"),
         WordingRow(key: .modeLabel, japanese: "動作モード", english: "Mode", name: "modeLabel"),
-        WordingRow(key: .planOption, japanese: "計画", english: "Plan", name: "planOption"),
+        WordingRow(key: .planOption, japanese: "Plan", english: "Plan", name: "planOption"),
         WordingRow(key: .effortLow, japanese: "低", english: "Low", name: "effortLow"),
         WordingRow(key: .effortMedium, japanese: "中", english: "Medium", name: "effortMedium"),
         WordingRow(key: .effortHigh, japanese: "高", english: "High", name: "effortHigh"),
@@ -144,7 +144,7 @@ struct AcceptanceUIWordingTests {
         #expect(UIWording.text(.permissionLabel, languageCode: "ja") == "承認設定")
         #expect(UIWording.text(.approvalLabel, languageCode: "ja") == "承認設定")
         #expect(UIWording.text(.modeLabel, languageCode: "ja") == "動作モード")
-        #expect(UIWording.text(.planOption, languageCode: "ja") == "計画")
+        #expect(UIWording.text(.planOption, languageCode: "ja") == "Plan")
         #expect(UIWording.text(.effortLow, languageCode: "ja") == "低")
         #expect(UIWording.text(.effortMedium, languageCode: "ja") == "中")
         #expect(UIWording.text(.effortHigh, languageCode: "ja") == "高")

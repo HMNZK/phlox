@@ -507,9 +507,9 @@ struct SettingsView: View {
         /// 10 Settings T4: オンのとき付けるものを 1 行で。オフのときの違いは「オフにすると」で続ける。
         private var summary: LocalizedStringKey {
             switch agentKind {
-            case .claude: "bypassPermissions を指定する。オフにすると auto"
-            case .codex: "チャットは never・danger-full-access、ターミナルは解除の引数を付ける。オフにすると、チャットは on-request・workspace-write、ターミナルは Codex の設定に従う"
-            case .cursor: "--force --sandbox disabled。オフにすると --auto-review --sandbox enabled"
+            case .claude: "Bypass Permissions。オフにすると Auto"
+            case .codex: "Full Access。オフにすると、チャットは Default、ターミナルは Codex の設定に従う"
+            case .cursor: "Run Everything とサンドボックス解除。オフにすると自動レビューとサンドボックスを有効化"
             case .custom: "agents.json の定義に従う"
             }
         }

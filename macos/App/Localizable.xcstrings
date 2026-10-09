@@ -7844,13 +7844,13 @@
         }
       }
     },
-    "--force --sandbox disabled。オフにすると --auto-review --sandbox enabled": {
+    "Run Everything とサンドボックス解除。オフにすると自動レビューとサンドボックスを有効化": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "--force --sandbox disabled. When off: --auto-review --sandbox enabled"
+            "value": "Run Everything and sandbox disabled. When off: auto review and sandbox enabled"
           }
         }
       }
@@ -7899,13 +7899,13 @@
         }
       }
     },
-    "bypassPermissions を指定する。オフにすると auto": {
+    "Bypass Permissions。オフにすると Auto": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uses bypassPermissions. When off: auto"
+            "value": "Bypass Permissions. When off: Auto"
           }
         }
       }
@@ -8031,13 +8031,13 @@
         }
       }
     },
-    "チャットは never・danger-full-access、ターミナルは解除の引数を付ける。オフにすると、チャットは on-request・workspace-write、ターミナルは Codex の設定に従う": {
+    "Full Access。オフにすると、チャットは Default、ターミナルは Codex の設定に従う": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chat uses never and danger-full-access; the terminal adds the lift arguments. When off: chat uses on-request and workspace-write, and the terminal follows Codex’s settings"
+            "value": "Full Access. When off: chat uses Default, and the terminal follows Codex’s settings"
           }
         }
       }

@@ -159,6 +159,16 @@ private func makeFullDescriptor(
     #expect(decoded.codexSettings?.isPlanMode == true)
 }
 
+@Test func codexSettings_preservesApprovalPolicyAndReadsLegacyData() throws {
+    let policy = #"{"granular":{"sandbox_approval":false,"rules":true}}"#
+    let settings = CodexAppServerSessionSettings(selectedPermissionProfile: ":workspace", approvalPolicyJSON: policy)
+    #expect(try JSONDecoder().decode(CodexAppServerSessionSettings.self, from: JSONEncoder().encode(settings)) == settings)
+    let legacy = try JSONDecoder().decode(CodexAppServerSessionSettings.self, from: Data(#"{"selectedPermissionProfile":":danger-full-access"}"#.utf8))
+    #expect(legacy.selectedPermissionProfile == ":danger-full-access")
+    #expect(legacy.approvalPolicyJSON == nil)
+    #expect(CodexAppServerSessionSettings(approvalPolicyJSON: #""never""#).hasAnyValue)
+}
+
 // MARK: - pid（task-3: OS プロセス pid の永続化）
 
 @Test func persistedSessionDescriptor_defaultsPidToNilWhenNotProvided() {

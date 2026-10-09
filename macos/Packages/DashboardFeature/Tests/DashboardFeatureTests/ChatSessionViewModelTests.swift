@@ -320,6 +320,16 @@ private class RecordingSpawnSettingsClient: StructuredAgentClient, SpawnAgentSet
 
 private final class ProductionLikeSpawnSettingsClient: RecordingSpawnSettingsClient, @unchecked Sendable {}
 
+private final class RestorePermissionRecordingClient: RecordingSpawnSettingsClient, @unchecked Sendable {
+    private let restoreLock = NSLock()
+    private var modeAtResume: String?
+    var permissionAtResume: String? { restoreLock.withLock { modeAtResume } }
+    override func resume(sessionRef: String) async throws {
+        let mode = calls.last?.permissionOrMode
+        restoreLock.withLock { modeAtResume = mode }
+    }
+}
+
 final class CountingResumeStructuredClient: StructuredAgentClient, @unchecked Sendable {
     private let lock = NSLock()
     private var startCount = 0
@@ -1238,6 +1248,30 @@ func chatSessionViewModel_claudeLaunchPermissionOverridesPersistedPermission() a
 }
 
 @Test @MainActor
+func chatSessionViewModel_claudeRestoreUsesSavedPermissionBeforeLaunchingCLI() async {
+    for (saved, plan, expected) in [("manual", false, "manual"), ("manual", true, "plan")] {
+        let client = RestorePermissionRecordingClient()
+        let vm = ChatSessionViewModel(
+            id: SessionID(), agentRef: .builtin(.claudeCode), client: client,
+            approvalBroker: ChatApprovalBroker(), workingDirectory: "/tmp/work",
+            spawnAgentPermissionOverride: "bypassPermissions",
+            spawnAgentModelsProvider: { ["default"] }
+        )
+        await vm.restore(
+            threadId: "saved-claude", approvalPolicy: .named("never"),
+            sandbox: .named("danger-full-access"),
+            persistedSettings: CodexAppServerSessionSettings(
+                selectedPermissionProfile: saved, isPlanMode: plan
+            )
+        )
+        #expect(client.permissionAtResume == expected)
+        #expect(vm.selectedPermissionProfile == saved)
+        #expect(vm.isPlanMode == plan)
+        await client.close()
+    }
+}
+
+@Test @MainActor
 func chatSessionViewModel_spawnAgentNewBehaviorDoesNotDependOnTestClientTypeName() async throws {
     let client = ProductionLikeSpawnSettingsClient()
     let vm = ChatSessionViewModel(
@@ -1522,7 +1556,7 @@ func chatSessionViewModel_spawnAgentCursorHasEmptyEffortLevels() async throws {
 }
 
 @Test @MainActor
-func chatSessionViewModel_codexDefaultsToFullAccessWhenNoPersistedOrServerProfile() async throws {
+func chatSessionViewModel_doesNotInventFullAccessWithoutServerSettings() async throws {
     let transport = ScriptedAppServerTransport()
     transport.threadResponsePermissionProfile = nil
     transport.threadResponseSandbox = nil
@@ -1538,7 +1572,8 @@ func chatSessionViewModel_codexDefaultsToFullAccessWhenNoPersistedOrServerProfil
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
 
     #expect(vm.permissionProfiles.contains { $0.id == ":danger-full-access" })
-    #expect(vm.selectedPermissionProfile == ":danger-full-access")
+    #expect(vm.selectedPermissionProfile == nil)
+    #expect(vm.codexPermissionTitle(languageCode: "ja") == "未設定")
 }
 
 @Test @MainActor

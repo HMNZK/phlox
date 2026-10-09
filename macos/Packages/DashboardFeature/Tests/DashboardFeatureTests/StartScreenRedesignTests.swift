@@ -19,10 +19,12 @@ struct StartScreenRedesignTests {
 
     @Test func permission_isShownOnlyWhereTheAppDecidesIt() {
         #expect(AgentStartEntries.permission(ref: .builtin(.claudeCode), fullAccess: false, languageCode: "ja") == nil)
-        #expect(AgentStartEntries.permission(ref: .builtin(.claudeCode), fullAccess: true, languageCode: "ja") != nil)
+        #expect(AgentStartEntries.permission(ref: .builtin(.claudeCode), fullAccess: true, languageCode: "ja") == "Bypass Permissions")
         #expect(AgentStartEntries.permission(ref: .builtin(.cursor), fullAccess: false, languageCode: "ja") == nil)
         let codex = AgentStartEntries.permission(ref: .builtin(.codex), fullAccess: false, languageCode: "ja")
-        #expect(codex?.hasPrefix("必要時に承認を要求 · ") == true)
+        #expect(codex == "Default")
+        #expect(AgentStartEntries.permission(ref: .builtin(.codex), fullAccess: true, languageCode: "ja") == "Full Access")
+        #expect(AgentStartEntries.permission(ref: .builtin(.cursor), fullAccess: true, languageCode: "ja") == "Run Everything")
         #expect(AgentStartEntries.permission(ref: .custom("aider"), fullAccess: true, languageCode: "ja") == nil)
     }
 

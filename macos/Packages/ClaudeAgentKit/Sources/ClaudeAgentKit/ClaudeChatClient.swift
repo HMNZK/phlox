@@ -7,8 +7,23 @@ public enum ClaudeChatClientError: Error, Equatable, Sendable {
     case usageRequestTimedOut
     case malformedUsageResponse
     case usageRequestFailed(String)
+    case permissionRequestFailed(String)
+    case permissionRequestTimedOut
+    case permissionRequestInProgress
     /// stop_task の対象（task_id）がまだ分からない。
     case subAgentTaskUnknown
+}
+
+extension ClaudeChatClientError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .permissionRequestFailed(let reason): reason
+        case .permissionRequestTimedOut: "Claude did not respond to the permission change in time."
+        case .permissionRequestInProgress: "A permission change is already in progress."
+        case .transportClosed: "The Claude process has closed."
+        default: nil
+        }
+    }
 }
 
 public actor ClaudeChatClient: StructuredAgentClient {
@@ -31,6 +46,14 @@ public actor ClaudeChatClient: StructuredAgentClient {
     struct PendingUsageRequest {
         var continuation: CheckedContinuation<AgentRateLimitsSnapshot, Error>
         var generation: Int
+        var timeoutTask: Task<Void, Never>?
+    }
+
+    struct PendingPermissionRequest {
+        let id: String
+        let mode: String
+        let generation: Int
+        let continuation: CheckedContinuation<Void, Error>
         var timeoutTask: Task<Void, Never>?
     }
 
@@ -145,6 +168,8 @@ public actor ClaudeChatClient: StructuredAgentClient {
     var interruptedResultSuppression: InterruptedResultSuppression?
     var nextUsageRequestID = 1
     var pendingUsageRequests: [String: PendingUsageRequest] = [:]
+    var pendingPermissionRequest: PendingPermissionRequest?
+    var permissionRequestTimeout: Duration = .seconds(10)
     var pendingUserQuestions: [String: PendingUserQuestion] = [:]
     var expiringUserQuestionIDs: Set<String> = []
     var interruptingControlGeneration: Int?
@@ -262,6 +287,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
 
         do {
             try await spawn(sessionArgument: initialSessionArgument())
+            settingsDirty = false
         } catch {
             eventContinuation.yield(.error(message: "Failed to start Claude: \(error)"))
         }
@@ -274,8 +300,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
     /// process whose flags are fixed at spawn time, this records the values and
     /// marks them dirty; the next idle `turnStart` applies them via a
     /// resume-preserving respawn.
-    /// NOTE: to keep the auto-approve tool grant (see resolvedPermissionMode),
-    /// callers that want `acceptEdits` must pass it explicitly here.
+    /// Use setPermissionMode for confirmed changes to a running process.
     /// The two-argument form leaves `effort` unchanged; use the three-argument
     /// overload when effort should be set or cleared (nil removes `--effort`).
     public func updateSettings(model: String?, permissionMode: String?) async {
@@ -292,6 +317,9 @@ public actor ClaudeChatClient: StructuredAgentClient {
     }
 
     public func turnStart(_ input: [ChatInput]) async throws {
+        guard pendingPermissionRequest == nil else {
+            throw ClaudeChatClientError.permissionRequestInProgress
+        }
         if transport == nil {
             do {
                 try await spawn(sessionArgument: settingsRespawnSessionArgument())
@@ -320,8 +348,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
         guard let transport else {
             throw ClaudeChatClientError.notStarted
         }
-        // The process may already have spawn-time tool permissions; the approval
-        // boundary is this submit gate. Denied turns return before transport.send.
+        // An optional caller-supplied policy can deny submission before transport.send.
         if let denial = await preApprovalDenial(for: input) {
             eventContinuation.yield(.error(message: "Claude turn blocked by approval policy: \(denial)"))
             return
@@ -369,6 +396,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
 
     public func resume(sessionRef: String) async throws {
         try await spawn(sessionArgument: .resume(sessionRef))
+        settingsDirty = false
         callerResumedSession = true
     }
 
@@ -455,6 +483,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
         receiveTask = nil
         releaseStopTasks()
         failAllPendingUsageRequests(ClaudeChatClientError.transportClosed)
+        failPendingPermissionRequest(ClaudeChatClientError.transportClosed)
         await expirePendingUserQuestions()
         yieldPendingResultErrorIfNeeded()
         currentTurnOpen = false

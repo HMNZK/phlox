@@ -1,6 +1,17 @@
 {
   "sourceLanguage": "ja",
   "strings": {
+    "画像送信を準備しています。準備が終わってから再送してください": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An image send is being prepared. Please retry after preparation finishes."
+          }
+        }
+      }
+    },
     "ブラウザ": {
       "extractionState": "manual",
       "localizations": {

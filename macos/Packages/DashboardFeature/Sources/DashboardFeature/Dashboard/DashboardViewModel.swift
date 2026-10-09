@@ -1846,6 +1846,7 @@ public final class DashboardViewModel {
         case deliveryFailed
         case rateLimited
         case imagesUnsupported
+        case imageSendInProgress
     }
 
     public func sendMessage(

@@ -76,6 +76,7 @@ Phlox 本体（サーバー側、`feature/mobile-api-extensions`）と Phlox-mob
 - 受信の制限: 最大 **4 枚**・1 枚あたりbase64復号後 **4MiB**・合計 **15MB**（MBは10進）。旧iOSとの互換性のため各4MiBを受け付けるが、新クライアントの送信は各3.75MB以下。元画像はクライアントで各20MB・合計80MBまで受け付け、共有ImageAttachmentKitで送信前に調整する。HTTP bodyはControlServerのみ24MiBまで。超過は **413** + `{"error":"attachment too large"}`
 - `mediaType` は `image/png` / `image/jpeg` を必須サポート
 - 画像添付非対応のセッション（PTY 等）: **409** + `{"error":"images unsupported"}`
+- 同じセッションで画像送信を準備中: **409** + `{"error":"image send in progress"}`。準備後に再送できる。本文のみ・画像付きともに拒否し、元の送信と添付を保持する。
 - `images` が空配列または省略なら従来と完全に同一挙動（後方互換）
 
 ## 6. GET /sessions/{id}/messages の差分取得拡張（ポーリング改善）

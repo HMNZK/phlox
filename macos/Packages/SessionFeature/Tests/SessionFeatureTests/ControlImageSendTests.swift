@@ -179,6 +179,47 @@ struct ControlImageSendTests {
         }
     }
 
+    @Test(arguments: [false, true], [false, true])
+    func concurrentControlSendPreservesOriginalImageSend(submit: Bool, includesImages: Bool) async throws {
+        let imageModel = try JSONDecoder().decode(
+            AppServerModel.self,
+            from: Data(#"{"id":"image-model","model":"image-model","displayName":"Image","description":"","hidden":false,"supportedReasoningEfforts":["medium"],"defaultReasoningEffort":"medium","isDefault":true,"inputModalities":["text","image"]}"#.utf8)
+        )
+        let client = RacingCodexImageClient(models: [imageModel])
+        let vm = ChatSessionViewModel(
+            id: SessionID(), agentRef: .builtin(.codex), client: client,
+            approvalBroker: ChatApprovalBroker(), workingDirectory: "/tmp/work"
+        )
+        try await withTerminatedViewModel(vm) {
+            try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+            let attachment = try #require(vm.attachmentStore.addImage(
+                data: tinyPNG, mediaType: "image/png", filename: "desktop.png"
+            ))
+            var started = client.configurationStarted.makeAsyncIterator()
+            let originalSend = Task { @MainActor in
+                try await vm.sendText("desktop input", submit: true)
+            }
+            _ = await started.next()
+            await #expect(throws: ChatSessionViewModel.ControlImageSendError.imageSendInProgress) {
+                try await vm.sendText("mobile input", submit: submit)
+            }
+            await #expect(throws: ChatSessionViewModel.ControlImageSendError.imageSendInProgress) {
+                try await vm.sendTextWithControlImages(
+                    "mobile input", submit: submit,
+                    images: includesImages ? [(mediaType: "image/png", data: tinyPNG)] : []
+                )
+            }
+            #expect(vm.attachmentStore.attachments == [attachment])
+            #expect(await client.lastTurnStartInput() == nil)
+            await client.releaseConfiguration()
+            try await originalSend.value
+            #expect(await client.turnStartInputs() == [[
+                .text("desktop input"), .image(data: tinyPNG, mediaType: "image/png"),
+            ]])
+            #expect(vm.attachmentStore.attachments.isEmpty)
+        }
+    }
+
     @Test
     func sendTextWithControlImages_modelChangesDuringCapabilityAwait_abortsWithoutTextOnlySend() async throws {
         let imageModel = try JSONDecoder().decode(

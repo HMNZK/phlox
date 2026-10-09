@@ -799,6 +799,7 @@ public final class ChatSessionViewModel: Identifiable {
     public enum ControlImageSendError: Error, Equatable, Sendable, LocalizedError {
         case imagesUnsupported
         case imageSendSnapshotChanged
+        case imageSendInProgress
 
         public var errorDescription: String? {
             switch self {
@@ -806,6 +807,8 @@ public final class ChatSessionViewModel: Identifiable {
                 "画像添付は Claude と画像対応モデルの Codex に対応しています"
             case .imageSendSnapshotChanged:
                 "画像対応モデルまたは添付が送信前に変更されたため、送信を中止しました"
+            case .imageSendInProgress:
+                "画像送信を準備しています。準備が終わってから再送してください"
             }
         }
     }
@@ -816,6 +819,7 @@ public final class ChatSessionViewModel: Identifiable {
         submit: Bool,
         images: [(mediaType: String, data: Data)]
     ) async throws {
+        guard !isPreparingImageSend else { throw ControlImageSendError.imageSendInProgress }
         guard images.isEmpty || acceptsImageAttachments else {
             throw ControlImageSendError.imagesUnsupported
         }
@@ -3479,7 +3483,7 @@ extension ChatSessionViewModel: ControllableSession {
     }
 
     public func sendText(_ text: String, submit: Bool) async throws {
-        guard !isPreparingImageSend else { throw ControlImageSendError.imageSendSnapshotChanged }
+        guard !isPreparingImageSend else { throw ControlImageSendError.imageSendInProgress }
         if submit {
             sendFailure = nil
             let input = pendingInput + text

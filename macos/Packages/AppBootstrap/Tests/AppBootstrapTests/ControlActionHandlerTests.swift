@@ -404,6 +404,17 @@ import SessionFeature
         #expect(response.statusCode == expected)
     }
 
+    @Test func sendTextWhilePreparingImagesReturnsRetryableConflict() async throws {
+        let dashboard = DashboardStub()
+        dashboard.sendOutcome = .imageSendInProgress
+        let handler = makeHandler(dashboard)
+        let response = await handler.handle(
+            request(.sendText(to: .name("worker"), text: "hi", submit: true, inReplyTo: nil, images: []))
+        )
+        #expect(response.statusCode == 409)
+        #expect(try bodyJSON(response)["error"] as? String == "image send in progress")
+    }
+
     @Test func sendTextAmbiguousIncludesCandidateIDs() async throws {
         let dashboard = DashboardStub()
         let candidates = [SessionID(), SessionID()]

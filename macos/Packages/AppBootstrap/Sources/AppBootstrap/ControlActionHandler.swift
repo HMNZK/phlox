@@ -623,6 +623,8 @@ public final class ControlActionHandler {
             return .json(429, ErrorDTO(error: "rate limited"))
         case .imagesUnsupported:
             return .json(409, ErrorDTO(error: "images unsupported"))
+        case .imageSendInProgress:
+            return .json(409, ErrorDTO(error: "image send in progress"))
         }
     }
 

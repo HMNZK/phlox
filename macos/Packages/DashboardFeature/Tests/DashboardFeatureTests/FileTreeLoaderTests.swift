@@ -2,10 +2,12 @@ import Foundation
 import Testing
 @testable import DashboardFeature
 
-func fileTreeFixture() throws -> URL {
-    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        .appendingPathComponent("../../../../../.build", isDirectory: true)
-        .standardizedFileURL.resolvingSymlinksInPath()
+func fileTreeFixture(requiresSocketPath: Bool = false) throws -> URL {
+    // UNIXソケットのsun_pathは104バイト。チェックアウト先の長さに依存させない。
+    let base = requiresSocketPath ? URL(fileURLWithPath: "/tmp", isDirectory: true)
+        : URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("../../../../../.build", isDirectory: true)
+    let root = base.standardizedFileURL.resolvingSymlinksInPath()
         .appendingPathComponent("ft-\(UUID().uuidString.prefix(16))", isDirectory: true)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     // 親の実リポジトリを探索しない、Git 管理外の一時フォルダ。
@@ -44,7 +46,7 @@ actor FileTreeReadGate {
 struct FileTreeLoaderTests {
     @Test("壊れたリンクと特殊ファイルへのリンクがあっても他の行を読める", arguments: ["broken", "fifo", "socket"])
     func unreadableLink(_ type: String) async throws {
-        let root = try fileTreeFixture()
+        let root = try fileTreeFixture(requiresSocketPath: type == "socket")
         defer { try? FileManager.default.removeItem(at: root) }
         #expect(root.path == root.resolvingSymlinksInPath().path)
         try Data().write(to: root.appendingPathComponent("a.txt"))

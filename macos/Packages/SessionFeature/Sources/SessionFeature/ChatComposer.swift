@@ -448,6 +448,7 @@ private struct ComposerRoundButton: View {
 
 struct ComposerSuggestionPopup: View {
     @Bindable var controller: ComposerSuggestionController
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 一度に見せる行数。グリッドのタイルは高さが足りないので少なくする。
     var maxVisibleRows = ComposerSuggestionPopupMetrics.maxVisibleRows
     let onAccept: (Int) -> Void
@@ -528,11 +529,12 @@ struct ComposerSuggestionPopup: View {
                     .truncationMode(.middle)
                     // 説明から先に縮め、それでも入らない長い名前は途中を省く（右の出どころを押し出さない）。
                     .layoutPriority(1)
-                Text(candidate.subtitle ?? "")
-                    .font(DSFont.auxiliary)
+                ComposerSuggestionDescription(
+                    text: candidate.subtitle ?? "",
+                    isSelected: isSlash && isSelected,
+                    reduceMotion: reduceMotion
+                )
                     .opacity(0.85)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if let origin = candidate.origin {
                     Text(Self.originLabel(origin))

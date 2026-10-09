@@ -2,6 +2,7 @@ import AppKit
 import AgentDomain
 import DesignSystem
 import IOSurface
+import QuartzCore
 import SimulatorBridgeKit
 @testable import SessionFeature
 import SwiftUI
@@ -13,6 +14,49 @@ import WebKit
 /// 実画面を表示せず、比較用の部品画像を明示指定時だけ書き出す。
 @Suite @MainActor
 struct DesignSnapshotRenderTests {
+    @Test func commandDescriptionSnapshots() async throws {
+        guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
+        _ = NSApplication.shared
+        NSApp.setActivationPolicy(.prohibited)
+        let worktree = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let output = worktree.appendingPathComponent(".build/design-snapshots", isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let titles = ["/skill-authoring", "/skill-creator", "/skill-creator:skill-creator", "/skills-pipeline-updater", "/skill-creator", "/skill-installer"]
+        let descriptions = [
+            "既存の Claude Code スキル (SKILL.md) を監査・改善・最適化する。",
+            "Create new skills, modify and improve existing skills, and measure skill performance. Use when users want to create a skill from scratch, update or optimize an existing skill. End of description.",
+            "Create new skills, modify and improve existing skills.",
+            "ユーザーがスキルを追加したときにHTMLを更新する。",
+            "Create or update a Codex skill with appropriate instructions.",
+            "Install Codex skills into $CODEX_HOME/skills from a curated list.",
+        ]
+        let candidates = titles.indices.map { index in
+            SuggestionCandidate(title: titles[index], insertionText: titles[index], subtitle: descriptions[index], kind: .slashCommand,
+                skillIdentity: SkillIdentity(name: titles[index], path: "/fixture/\(index)"), origin: .skills)
+        }
+        let controller = ComposerSuggestionController(slashProvider: { candidates }, fileProvider: { _ in [] })
+        controller.update(text: "/", cursorUTF16: 1)
+        controller.select(1)
+        for width in [320, 460] {
+            for phase in ["start", "middle", "end"] {
+                let frame = Frame(id: "command-description-\(width)-\(phase)", name: "コマンド説明", width: CGFloat(width), height: 265)
+                try await capture(ComposerSuggestionPopup(controller: controller, onAccept: { _ in })
+                    .padding(4), frame: frame, output: output,
+                    prepare: { host, _ in
+                        let views = descendants(host).compactMap { $0 as? SuggestionDescriptionScrollView }
+                        let view = try #require(views.first)
+                        let animation = try #require(view.label.layer?.animation(forKey: SuggestionDescriptionScrollView.animationKey) as? CAKeyframeAnimation)
+                        let values = try #require(animation.values as? [NSNumber]).map { CGFloat(truncating: $0) }
+                        // cacheDisplayは表示中のCA変形を採らないため、同じ移動距離の制御した位置を描画する。
+                        view.stopScrolling()
+                        view.label.frame.origin.x = values[2] * (phase == "middle" ? 0.5 : phase == "end" ? 1 : 0)
+                    })
+            }
+        }
+    }
+
     @Test func attachmentSnapshots() async throws {
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
         _ = NSApplication.shared

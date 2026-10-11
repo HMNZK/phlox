@@ -6,7 +6,7 @@ import SwiftUI
 
 public struct SimulatorTabView: View {
     private let hub: SimulatorHub
-    private let sessionID: SessionID
+    private let projectID: ProjectID
     private let isFocused: Bool
     private let tellAgent: ((String) -> Void)?
     @State private var displayID = UUID()
@@ -20,20 +20,20 @@ public struct SimulatorTabView: View {
     @State private var screenshotReason: String?
     @State private var showsDiagnostics = false
 
-    public init(hub: SimulatorHub, sessionID: SessionID, isFocused: Bool, tellAgent: ((String) -> Void)? = nil) {
+    public init(hub: SimulatorHub, projectID: ProjectID, isFocused: Bool, tellAgent: ((String) -> Void)? = nil) {
         self.hub = hub
-        self.sessionID = sessionID
+        self.projectID = projectID
         self.isFocused = isFocused
         self.tellAgent = tellAgent
     }
 
-    private var device: SimulatorDevice? { hub.selectedDevice(for: sessionID) }
-    private var connection: SimulatorDisplayConnection? { hub.connection(for: sessionID) }
-    private var support: SimulatorPolicy.Support { hub.support(for: sessionID, displayID: displayID) }
+    private var device: SimulatorDevice? { hub.selectedDevice(for: projectID) }
+    private var connection: SimulatorDisplayConnection? { hub.connection(for: projectID) }
+    private var support: SimulatorPolicy.Support { hub.support(for: projectID, displayID: displayID) }
     private var allowsInput: Bool { support.allowsInput && connection?.inputEnabled == true }
 
     public var body: some View {
-        SimulatorTabContent(hub: hub, sessionID: sessionID, displayID: displayID,
+        SimulatorTabContent(hub: hub, projectID: projectID, displayID: displayID,
                             windowVisible: windowVisible, menuFocusRequest: menuFocusRequest,
                             preservesScreenFocus: preservesScreenFocus,
                             confirmsShutdown: confirmsShutdown,
@@ -41,7 +41,7 @@ public struct SimulatorTabView: View {
                             operationReason: screenshotReason,
                             select: { udid in
                                 sendsKeys = false
-                                hub.select(udid: udid, for: sessionID)
+                                hub.select(udid: udid, for: projectID)
                             }, releaseFocus: { requestMenuFocus() },
                             screenshot: { Task { await takeScreenshot() } },
                             shutdown: {
@@ -53,7 +53,7 @@ public struct SimulatorTabView: View {
         .accessibilityIdentifier("simulator-tab")
         .background(SimulatorWindowVisibility { visible in
             windowVisible = visible
-            hub.setVisible(visible && isPresented, displayID: displayID, sessionID: sessionID)
+            hub.setVisible(visible && isPresented, displayID: displayID, projectID: projectID)
             if !visible { sendsKeys = false }
         })
         .background {
@@ -66,18 +66,18 @@ public struct SimulatorTabView: View {
         }
         .onAppear {
             isPresented = true
-            hub.setVisible(windowVisible, displayID: displayID, sessionID: sessionID)
+            hub.setVisible(windowVisible, displayID: displayID, projectID: projectID)
             if isFocused { requestMenuFocus() }
         }
         .onChange(of: isFocused) { _, focused in
             if focused { requestMenuFocus(preservingScreenFocus: true) }
         }
-        .onChange(of: hub.menuFocusRevision(for: sessionID)) { _, _ in
+        .onChange(of: hub.menuFocusRevision(for: projectID)) { _, _ in
             if isFocused { requestMenuFocus() }
         }
         .onDisappear {
             isPresented = false
-            hub.setVisible(false, displayID: displayID, sessionID: sessionID)
+            hub.setVisible(false, displayID: displayID, projectID: projectID)
             hub.removeDisplay(displayID)
         }
         .dsDialog(isPresented: $confirmsShutdown) {
@@ -123,7 +123,7 @@ public struct SimulatorTabView: View {
                 .appendingPathComponent("Phlox Simulator", isDirectory: true)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let destination = folder.appendingPathComponent("Simulator-\(UUID().uuidString).png")
-            if await hub.screenshot(for: sessionID, destination: destination) {
+            if await hub.screenshot(for: projectID, destination: destination) {
                 NSWorkspace.shared.activateFileViewerSelecting([destination])
             }
         } catch {

@@ -13,8 +13,8 @@ struct UserTerminalShutdownTests {
     func killsCommonAndSessionShells() async throws {
         let pty = MockPTYManager()
         let common = makeController(pty: pty)
-        let sessions = SessionTerminalStore { _ in TerminalPanelSession(controller: makeController(pty: pty)) }
-        let tab = sessions.terminal(for: SessionID(), workingDirectory: "/tmp")
+        let sessions = ProjectTerminalStore { _ in TerminalPanelSession(controller: makeController(pty: pty)) }
+        let tab = sessions.terminal(for: TerminalTabID(), projectID: ProjectID(), workingDirectory: "/tmp")
         try await common.ensureStarted()
         try await tab.controller.ensureStarted()
         let commonID = try #require(common.sessionID)

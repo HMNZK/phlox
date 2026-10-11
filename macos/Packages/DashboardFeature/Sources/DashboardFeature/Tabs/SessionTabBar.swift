@@ -33,10 +33,6 @@ struct SessionTabBar: View {
                                 onClose: { close(node.id) }
                             )
                             .id(node.id)
-                            .draggable(Self.dragPayload(node.id))
-                            .dropDestination(for: String.self) { items, _ in
-                                moveTab(items.first, onto: node.id)
-                            }
                             .onGeometryChange(for: CGRect.self) { geometry in
                                 geometry.frame(in: .named(Self.coordinateSpace))
                             } action: { frame in
@@ -156,38 +152,13 @@ struct SessionTabBar: View {
 
     // MARK: - Actions
 
-    private static let dragPrefix = "phlox-session-tab:"
-
-    private static func dragPayload(_ id: SessionID) -> String {
-        dragPrefix + id.rawValue.uuidString
-    }
-
-    /// ドラッグで並べ替えた順をプロジェクトごとに保存する。
-    private func moveTab(_ payload: String?, onto target: SessionID) -> Bool {
-        guard let projectID, let payload, payload.hasPrefix(Self.dragPrefix),
-              let uuid = UUID(uuidString: String(payload.dropFirst(Self.dragPrefix.count))) else { return false }
-        router.tabs.moveSessionTab(
-            SessionID(rawValue: uuid),
-            onto: target,
-            in: projectID,
-            candidates: viewModel.tabSessionNodes(in: projectID).map(\.id)
-        )
-        return true
-    }
-
     private func select(_ id: SessionID) {
-        router.commonTerminalSelected = false
-        router.selectedSession = id
+        guard let projectID else { return }
+        router.selectTab(.chat(id), in: projectID)
     }
 
-    /// タブだけを閉じる。セッションは止めずサイドバーに残る。
     private func close(_ id: SessionID) {
-        guard let projectID else { return }
-        let next = router.tabs.closeSessionTab(id, in: projectID, candidates: viewModel.tabSessionNodes(in: projectID).map(\.id))
-        if router.selectedSession == id {
-            router.selectedSession = next
-            if next == nil { router.selectProject(projectID) }
-        }
+        router.tabRequest = .confirmSessionDeletion(id)
     }
 
     private func pinnedTab(
@@ -261,7 +232,7 @@ private struct SessionTabButton: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(HoverableIconButtonStyle())
-                .help(Text("タブを閉じる（セッションは残ります）"))
+                .help(Text("セッションを削除…"))
                 .accessibilityLabel(Text("タブを閉じる"))
             }
         }

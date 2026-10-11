@@ -9,13 +9,13 @@ import SessionFeature
 struct SessionTabsContainer<Conversation: View>: View {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
-    let terminals: SessionTerminalStore?
+    let terminals: ProjectTerminalStore?
     let commonTerminal: TerminalPanelSession?
     let simulatorHub: SimulatorHub?
     let editorPanel: EditorPanelCoordinator
     let files: FileTabDocuments
     let agentConsoleWindowID: String?
-    @ViewBuilder let conversation: () -> Conversation
+    @ViewBuilder let conversation: (ProjectTab?) -> Conversation
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,42 +31,37 @@ struct SessionTabsContainer<Conversation: View>: View {
             if router.commonTerminalSelected, let commonTerminal {
                 // AppKit の端末はオーバーレイではなくレイアウトの中に置く（ADR 0136）。
                 TerminalPanelView(panel: commonTerminal, showsHeader: false)
-            } else if let id = router.selectedSession, let node = viewModel.sessionNode(id: id) {
-                let layout = router.tabs.layout(for: id)
+            } else if let projectID = tabProjectID, let project = viewModel.projects.first(where: { $0.id == projectID }) {
+                let layout = router.tabs.layout(for: projectID)
+                let chats = viewModel.chatTabs(in: projectID)
                 ChildTabBar(
-                    router: router,
-                    node: node,
-                    layout: layout,
-                    changeCount: editorPanel.viewModel.changes.count,
-                    files: files,
-                    agentConsoleWindowID: agentConsoleWindowID,
-                    simulatorHub: simulatorHub
+                    router: router, viewModel: viewModel, project: project, layout: layout, chats: chats,
+                    changeCount: editorPanel.viewModel.changes.count, files: files,
+                    agentConsoleWindowID: agentConsoleWindowID, simulatorHub: simulatorHub
                 )
                 separator
                 ChildTabPanes(
-                    router: router,
-                    node: node,
-                    layout: layout,
-                    content: { tab in pane(tab, node: node) }
+                    router: router, projectID: projectID, layout: layout, chats: chats,
+                    content: { tab in pane(tab, project: project) }
                 )
             } else {
-                conversation()
+                conversation(nil)
             }
         }
     }
 
     /// 上段に並べるプロジェクト：選択中セッションのプロジェクト、無ければ選択中のプロジェクト。
     private var tabProjectID: ProjectID? {
-        router.selectedSession.flatMap { viewModel.sessionNode(id: $0)?.projectID } ?? router.selectedProjectID
+        router.selectedProjectID ?? router.selectedSession.flatMap { viewModel.sessionNode(id: $0)?.projectID }
     }
 
     private var tabSessions: [SessionNode] {
-        viewModel.numberedTabSessionIDs(router: router).compactMap(viewModel.sessionNode(id:))
+        tabProjectID.map { viewModel.chatTabs(in: $0).compactMap { tab in if case .chat(let id) = tab { return viewModel.sessionNode(id: id) }; return nil } } ?? []
     }
 
     /// 文をそのセッションの入力欄に入れ、会話のタブを `kept` の無い方に出す（シミュレーターの FR-10・ブラウザの FR-11）。送信はしない。
     /// 入れられないとき（送信の受付待ち・許可や質問の回答待ち・未起動）は警告音だけ鳴らす。
-    private func tellAgent(_ text: String, node: SessionNode, keeping kept: ChildTab) {
+    private func tellAgent(_ text: String, node: SessionNode, keeping kept: ProjectTab) {
         // 同じクリックで区画のタップ（押した区画を操作中にする）も走るので、その後に回す。
         // 文とタブの切り替えを同じ更新にまとめ、切り替えで入力先を外す処理（DashboardView）より後に入力欄へフォーカスを移す。
         DispatchQueue.main.async { [router] in
@@ -79,66 +74,60 @@ struct SessionTabsContainer<Conversation: View>: View {
                 // 文は 1 行なので、Enter を送らない限り CLI は送信しない。
                 Task { await session.sendInput(Data(text.utf8)) }
             }
-            router.tabs.updateLayout(for: node.id) { $0.showConversation(keeping: kept) }
+            if let projectID = node.projectID {
+                router.tabs.updateLayout(for: projectID) { $0.showChat(node.id, keeping: kept) }
+                router.selectTab(.chat(node.id), in: projectID)
+            }
         }
     }
 
     @ViewBuilder
-    private func pane(_ tab: ChildTab, node: SessionNode) -> some View {
+    private func pane(_ tab: ProjectTab, project: Project) -> some View {
+        let node = router.selectedSession.flatMap { viewModel.sessionNode(id: $0) }
         switch tab {
-        case .conversation:
-            conversation()
-        case .terminal:
+        case .chat, .newChat:
+            conversation(tab)
+        case .terminal(let id):
             if let terminals {
-                TerminalPanelView(panel: terminals.terminal(for: node.id, workingDirectory: node.rawWorkspacePath), showsHeader: false)
-                    .id(node.id)
+                TerminalPanelView(panel: terminals.terminal(for: id, projectID: project.id, workingDirectory: project.directoryPath), showsHeader: false).id(id)
             } else {
                 ContentUnavailableView("ターミナルを準備しています", systemImage: "terminal")
             }
         case .changes:
             EditorPanelView(
-                viewModel: editorPanel.viewModel,
-                projectName: node.workspaceName,
-                workingDirectory: node.rawWorkspacePath,
-                isDirty: { files.existing(for: node.id, path: $0)?.hasUnsavedChanges ?? false }
+                viewModel: editorPanel.viewModel, projectName: project.name, workingDirectory: project.directoryPath,
+                isDirty: { files.existing(for: project.id, path: $0)?.hasUnsavedChanges ?? false }
             ) { path in
-                let requestedDirectory = node.rawWorkspacePath
                 Task {
-                    let root = await FileTabOpening.root(for: requestedDirectory)
-                    files.openFileTab(
-                        sessionID: node.id, root: root, relativePath: path, router: router,
-                        requestedWorkingDirectory: requestedDirectory,
-                        currentWorkingDirectory: viewModel.sessionNode(id: node.id)?.rawWorkspacePath
-                    )
+                    let root = await FileTabOpening.root(for: project.directoryPath)
+                    files.openFileTab(projectID: project.id, root: root, relativePath: path, router: router,
+                        requestedWorkingDirectory: project.directoryPath,
+                        currentWorkingDirectory: viewModel.projects.first { $0.id == project.id }?.directoryPath)
                 }
             }
         case .simulator:
             if let simulatorHub {
-                SimulatorTabView(hub: simulatorHub, sessionID: node.id,
-                                 isFocused: router.tabs.layout(for: node.id).selected == .simulator,
-                                 tellAgent: { tellAgent($0, node: node, keeping: .simulator) })
-                    .id(node.id)
+                SimulatorTabView(hub: simulatorHub, projectID: project.id,
+                    isFocused: router.tabs.layout(for: project.id).selected == .simulator,
+                    tellAgent: node.map { node in { tellAgent($0, node: node, keeping: .simulator) } }).id(project.id)
             }
         case .browser:
-            if let model = router.browsers[node.id] {
-                BrowserTabView(model: model, tellAgent: { tellAgent($0, node: node, keeping: .browser) }).id(node.id)
+            if let model = router.browsers[project.id] {
+                BrowserTabView(model: model, tellAgent: node.map { node in { tellAgent($0, node: node, keeping: .browser) } }).id(project.id)
             }
         case .file(let path):
             RestoredFileTabView(
-                files: files, sessionID: node.id, path: path, workingDirectory: node.rawWorkspacePath,
-                currentWorkingDirectory: { viewModel.sessionNode(id: node.id)?.rawWorkspacePath },
-                lastWriter: { [viewModel] document in document.lastWriter(among: viewModel.sessionNodes, excluding: node.id) },
-                isFocused: router.tabs.layout(for: node.id).selected == .file(path),
-                openBrowser: { url in router.openBrowser(url, for: node.id) },
-                openFile: { root, linkedPath in
-                    files.openFileTab(
-                        sessionID: node.id, root: root, relativePath: linkedPath, router: router,
-                        requestedWorkingDirectory: node.rawWorkspacePath,
-                        currentWorkingDirectory: viewModel.sessionNode(id: node.id)?.rawWorkspacePath
-                    )
+                files: files, projectID: project.id, path: path, workingDirectory: project.directoryPath,
+                currentWorkingDirectory: { viewModel.projects.first { $0.id == project.id }?.directoryPath },
+                lastWriter: { document in document.lastWriter(among: viewModel.sessionNodes, excluding: node?.id) },
+                isFocused: router.tabs.layout(for: project.id).selected == .file(path),
+                openBrowser: { router.openBrowser($0, for: project.id) },
+                openFile: { root, path in
+                    files.openFileTab(projectID: project.id, root: root, relativePath: path, router: router,
+                        requestedWorkingDirectory: project.directoryPath,
+                        currentWorkingDirectory: viewModel.projects.first { $0.id == project.id }?.directoryPath)
                 }
-            )
-                .id("\(node.id)-\(path)")
+            ).id("\(project.id)-\(path)")
         }
     }
 
@@ -152,8 +141,10 @@ struct SessionTabsContainer<Conversation: View>: View {
 /// 下段の子タブ列（02 C1）。会話・ターミナル・変更 N・ファイル、＋、右端に worktree のパス。
 struct ChildTabBar: View {
     @Bindable var router: AppRouter
-    let node: SessionNode
-    let layout: SessionTabLayout
+    let viewModel: DashboardViewModel
+    let project: Project
+    let layout: ProjectTabLayout
+    let chats: [ProjectTab]
     let changeCount: Int
     let files: FileTabDocuments
     let agentConsoleWindowID: String?
@@ -207,7 +198,7 @@ struct ChildTabBar: View {
 
     private func tabButtons(compact: Bool = false) -> some View {
         HStack(spacing: DSSpacing.xxs) {
-            ForEach(layout.tabs, id: \.self) { tab in
+            ForEach(layout.tabs(chats: chats), id: \.self) { tab in
                 ChildTabButton(
                     tab: tab,
                     glyph: glyph(for: tab),
@@ -216,8 +207,11 @@ struct ChildTabBar: View {
                     isShown: layout.isShown(tab),
                     isSelected: layout.selected == tab,
                     isDirty: isDirty(tab),
-                    onSelect: { router.tabs.updateLayout(for: node.id) { $0.select(tab) } },
-                    onClose: { router.tabRequest = .closeChild(node.id, tab) }
+                    onSelect: { router.selectTab(tab, in: project.id) },
+                    onClose: {
+                        if case .chat(let id) = tab { router.tabRequest = .confirmSessionDeletion(id) }
+                        else { router.tabRequest = .closeChild(project.id, tab) }
+                    }
                 )
                 .fixedSize(horizontal: true, vertical: true)
                 .id(tab)
@@ -239,7 +233,7 @@ struct ChildTabBar: View {
         .help(Text("このセッションにタブを追加"))
         .accessibilityLabel(Text("このセッションにタブを追加"))
         .popover(isPresented: $router.newTabChooserPresented, arrowEdge: .bottom) {
-            NewTabChooser(router: router, node: node, agentConsoleWindowID: agentConsoleWindowID,
+            NewTabChooser(router: router, projectID: project.id, agentConsoleWindowID: agentConsoleWindowID,
                           simulatorHub: simulatorHub)
                 // popover は画面のロケールを引き継がないので渡し直す（アプリ内の言語設定）。
                 .environment(\.locale, locale)
@@ -247,12 +241,13 @@ struct ChildTabBar: View {
     }
 
     private var abbreviatedPath: String {
-        node.workspacePath
+        (project.directoryPath as NSString).abbreviatingWithTildeInPath
     }
 
-    private func glyph(for tab: ChildTab) -> String {
+    private func glyph(for tab: ProjectTab) -> String {
         switch tab {
-        case .conversation: node.agentDescriptor.tabInitials
+        case .chat(let id): viewModel.sessionNode(id: id)?.agentDescriptor.tabInitials ?? ""
+        case .newChat: "+"
         case .terminal: ">_"
         case .changes: "±"
         case .simulator: "▯"
@@ -262,9 +257,10 @@ struct ChildTabBar: View {
     }
 
     /// 文言は画面のロケール（アプリ内の言語設定）で引くため Text で返す。
-    private func title(for tab: ChildTab) -> Text {
+    private func title(for tab: ProjectTab) -> Text {
         switch tab {
-        case .conversation: Text("会話", bundle: localizationBundle)
+        case .chat(let id): Text(verbatim: viewModel.sessionNode(id: id)?.displayName ?? "会話")
+        case .newChat: Text("新規チャット")
         case .terminal: Text("ターミナル", bundle: localizationBundle)
         case .simulator: Text("シミュレーター")
         case .browser: Text("ブラウザ")
@@ -273,14 +269,14 @@ struct ChildTabBar: View {
         }
     }
 
-    private func isDirty(_ tab: ChildTab) -> Bool {
+    private func isDirty(_ tab: ProjectTab) -> Bool {
         guard case .file(let path) = tab else { return false }
-        return files.existing(for: node.id, path: path)?.hasUnsavedChanges ?? false
+        return files.existing(for: project.id, path: path)?.hasUnsavedChanges ?? false
     }
 }
 
 private struct ChildTabButton: View {
-    let tab: ChildTab
+    let tab: ProjectTab
     let glyph: String
     let showsGlyph: Bool
     let title: Text
@@ -303,7 +299,7 @@ private struct ChildTabButton: View {
                 .font(DSFont.auxiliary.weight(isSelected ? .semibold : .regular))
                 .foregroundStyle(isShown ? DSColor.textPrimary : DSColor.textSecondary)
                 .lineLimit(1)
-            if tab != .conversation {
+            if !tab.isChat {
                 closeAccessory
             }
         }
@@ -346,31 +342,16 @@ private struct ChildTabButton: View {
     }
 }
 
-extension ChildTab {
-    /// ドラッグで運ぶ文字列。アプリ内でだけ使う。
+extension ProjectTab {
     var dragPayload: String {
-        switch self {
-        case .conversation: "phlox-tab:conversation"
-        case .terminal: "phlox-tab:terminal"
-        case .changes: "phlox-tab:changes"
-        case .simulator: "phlox-tab:simulator"
-        case .browser: "phlox-tab:browser"
-        case .file(let path): "phlox-tab:file:\(path)"
-        }
+        guard let data = try? JSONEncoder().encode(self) else { return "" }
+        return "phlox-tab:" + data.base64EncodedString()
     }
-
     init?(dragPayload: String) {
-        switch dragPayload {
-        case "phlox-tab:conversation": self = .conversation
-        case "phlox-tab:terminal": self = .terminal
-        case "phlox-tab:changes": self = .changes
-        case "phlox-tab:simulator": self = .simulator
-        case "phlox-tab:browser": self = .browser
-        default:
-            let prefix = "phlox-tab:file:"
-            guard dragPayload.hasPrefix(prefix) else { return nil }
-            self = .file(String(dragPayload.dropFirst(prefix.count)))
-        }
+        let prefix = "phlox-tab:"
+        guard dragPayload.hasPrefix(prefix), let data = Data(base64Encoded: String(dragPayload.dropFirst(prefix.count))),
+              let tab = try? JSONDecoder().decode(Self.self, from: data) else { return nil }
+        self = tab
     }
 }
 
@@ -379,7 +360,7 @@ extension ChildTab {
 /// 「＋」と ⌘T で開く選択肢。↑↓ で移動、↩ で開く。
 struct NewTabChooser: View {
     @Bindable var router: AppRouter
-    let node: SessionNode
+    let projectID: ProjectID
     let agentConsoleWindowID: String?
     let simulatorHub: SimulatorHub?
 
@@ -456,7 +437,7 @@ struct NewTabChooser: View {
 
     private func glyph(_ item: Item) -> String {
         switch item {
-        case .conversation: node.agentDescriptor.tabInitials
+        case .conversation: ""
         case .terminal: ">_"
         case .changes: "±"
         case .simulator: "▯"
@@ -499,14 +480,14 @@ struct NewTabChooser: View {
     private func open(_ item: Item) {
         router.newTabChooserPresented = false
         switch item {
-        case .conversation: router.openChildTab(.conversation)
-        case .terminal: router.openChildTab(.terminal)
+        case .conversation: router.showNewChat(projectID: projectID)
+        case .terminal: router.openTerminalTab()
         case .changes: router.openChildTab(.changes)
         case .browser: router.openChildTab(.browser)
         case .simulator:
             router.openChildTab(.simulator)
-            simulatorHub?.requestMenuFocus(for: node.id)
-        case .file: router.tabRequest = .openFile(node.id)
+            simulatorHub?.requestMenuFocus(for: projectID)
+        case .file: router.tabRequest = .openFile(projectID)
         case .agentConsole:
             if let agentConsoleWindowID { openWindow(id: agentConsoleWindowID) }
         }
@@ -519,9 +500,10 @@ struct NewTabChooser: View {
 /// 子タブを右半分へドラッグすると右に分割して開く（C6）。
 private struct ChildTabPanes<Content: View>: View {
     @Bindable var router: AppRouter
-    let node: SessionNode
-    let layout: SessionTabLayout
-    @ViewBuilder let content: (ChildTab) -> Content
+    let projectID: ProjectID
+    let layout: ProjectTabLayout
+    let chats: [ProjectTab]
+    @ViewBuilder let content: (ProjectTab) -> Content
 
     @State private var dragFraction: Double?
     @State private var fractionAtDragStart = 0.5
@@ -535,7 +517,7 @@ private struct ChildTabPanes<Content: View>: View {
             if let right = layout.right, width >= Self.minimumPaneWidth * 2 + 1 {
                 let leftWidth = Self.leftWidth(fraction: dragFraction ?? layout.splitFraction, totalWidth: width)
                 HStack(spacing: 0) {
-                    focusablePane(layout.left, isFocused: !layout.focusesRight)
+                    focusablePane(layout.left ?? chats.first ?? .newChat, isFocused: !layout.focusesRight)
                         .frame(width: leftWidth)
                     Rectangle().fill(DSColor.separator).frame(width: 1)
                     focusablePane(right, isFocused: layout.focusesRight)
@@ -549,22 +531,22 @@ private struct ChildTabPanes<Content: View>: View {
                         },
                         onEnded: {
                             let committed = Self.leftWidth(fraction: dragFraction ?? layout.splitFraction, totalWidth: width) / width
-                            router.tabs.updateLayout(for: node.id) { $0.splitFraction = committed }
+                            router.tabs.updateLayout(for: projectID) { $0.splitFraction = committed }
                             dragFraction = nil
                         },
-                        onDoubleClick: { router.tabs.updateLayout(for: node.id) { $0.splitFraction = 0.5 } }
+                        onDoubleClick: { router.tabs.updateLayout(for: projectID) { $0.splitFraction = 0.5 } }
                     )
                     .offset(x: leftWidth + 0.5 - DSLayout.dividerHitWidth / 2)
                 }
             } else {
                 // 分割が入らない幅では操作中のタブだけを出す。
-                content(layout.selected)
+                content(layout.selected ?? chats.first ?? .newChat)
                     .frame(width: width, height: geometry.size.height)
             }
         }
         .dropDestination(for: String.self) { items, _ in
-            guard let tab = items.first.flatMap(ChildTab.init(dragPayload:)), layout.tabs.contains(tab) else { return false }
-            router.tabs.updateLayout(for: node.id) { $0.splitRight(tab) }
+            guard let tab = items.first.flatMap(ProjectTab.init(dragPayload:)), layout.tabs(chats: chats).contains(tab) else { return false }
+            router.tabs.updateLayout(for: projectID) { $0.splitRight(tab, chats: chats) }
             return true
         } isTargeted: { isDropTargeted = $0 }
         .overlay(alignment: .trailing) {
@@ -591,7 +573,7 @@ private struct ChildTabPanes<Content: View>: View {
     }
 
     /// 分割中は操作中の区画を accent の枠で示し、押された区画を操作中にする（C2）。
-    private func focusablePane(_ tab: ChildTab, isFocused: Bool) -> some View {
+    private func focusablePane(_ tab: ProjectTab, isFocused: Bool) -> some View {
         content(tab)
             .overlay {
                 if isFocused {
@@ -600,7 +582,7 @@ private struct ChildTabPanes<Content: View>: View {
             }
             .simultaneousGesture(TapGesture().onEnded {
                 guard !isFocused else { return }
-                router.tabs.updateLayout(for: node.id) { $0.select(tab) }
+                router.selectTab(tab, in: projectID)
             })
     }
 
@@ -615,7 +597,7 @@ private struct ChildTabPanes<Content: View>: View {
 /// 復元タブもルートの解決を待ち、既に開いた文書の固定ルートを優先する。
 private struct RestoredFileTabView: View {
     let files: FileTabDocuments
-    let sessionID: SessionID
+    let projectID: ProjectID
     let path: String
     let workingDirectory: String
     let currentWorkingDirectory: () -> String?
@@ -625,12 +607,12 @@ private struct RestoredFileTabView: View {
     let openFile: (String, String) -> Void
     @State private var restoredDocument: FileTabDocument?
 
-    private var changingWorkspace: Bool { FileTabDocumentRegistry.shared.isChangingSession(sessionID) }
+    private var changingWorkspace: Bool { FileTabDocumentRegistry.shared.isChangingProject(projectID) }
 
     var body: some View {
         Group {
             if !changingWorkspace,
-               let document = files.existing(for: sessionID, path: path) ?? restoredDocument, !document.invalidated {
+               let document = files.existing(for: projectID, path: path) ?? restoredDocument, !document.invalidated {
                 FileTabUndoScope(document: document, isFocused: isFocused) {
                     FileTabView(document: document, lastWriter: lastWriter, isFocused: isFocused, openFile: openFile, openBrowser: openBrowser)
                 }
@@ -640,12 +622,12 @@ private struct RestoredFileTabView: View {
         }
         .task(id: "\(workingDirectory)-\(changingWorkspace)") {
             guard !changingWorkspace else { return }
-            guard files.existing(for: sessionID, path: path) == nil else { return }
+            guard files.existing(for: projectID, path: path) == nil else { return }
             restoredDocument = nil
             let root = await FileTabOpening.root(for: workingDirectory)
             guard !Task.isCancelled, !changingWorkspace,
                   currentWorkingDirectory() == workingDirectory else { return }
-            restoredDocument = files.document(for: sessionID, path: path, root: root)
+            restoredDocument = files.document(for: projectID, path: path, root: root)
         }
     }
 }

@@ -88,7 +88,7 @@ struct GridTileRedesignTests {
 
         let router = AppRouter(selectedSession: ids[0])
         router.viewMode = .grid
-        #expect(dashboard.numberedTabSessionIDs(router: router) == order)
+        #expect(dashboard.numberedTabs(router: router) == order.map(ProjectTab.chat))
 
         // 入れ替えると番号も入れ替わる（見出しの ⌘ 番号と ⌘1–9 が同じ並びを読む）。
         dashboard.handlePaneLayoutAction(.swap(order[0], order[2]))
@@ -191,7 +191,7 @@ struct GridTileRedesignTests {
         let session = SessionID()
         let router = AppRouter(selectedSession: session)
         router.viewMode = .grid
-        #expect(router.tabs.closeTarget(selectedSession: session, viewMode: .grid) == .gridTile(session))
+        #expect(router.tabs.closeTarget(projectID: nil, selectedSession: session, viewMode: .grid) == .gridTile(session))
         #expect(router.requestClose())
         #expect(router.tabRequest == .removeFromGrid(session))
     }

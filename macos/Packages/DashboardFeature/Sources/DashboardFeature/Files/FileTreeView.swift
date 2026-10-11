@@ -10,7 +10,7 @@ extension Notification.Name {
 
 struct FileTreeInspectorView: View {
     @Bindable var router: AppRouter
-    let session: SessionNode?
+    let project: Project?
     @Binding var models: [String: FileTreeModel]
     let files: FileTabDocuments
     var isOverlay = false
@@ -19,37 +19,37 @@ struct FileTreeInspectorView: View {
 
     var body: some View {
         Group {
-            if let session, let root, let requestedWorkingDirectory, let model = models[root] {
-                FileTreeView(model: model, openPath: openPath(session.id), open: { path, split in
+            if let project, let root, let requestedWorkingDirectory, let model = models[root] {
+                FileTreeView(model: model, openPath: openPath(project.id), open: { path, split in
                     files.openFileTab(
-                        sessionID: session.id, root: root, relativePath: path, split: split, router: router,
+                        projectID: project.id, root: root, relativePath: path, split: split, router: router,
                         requestedWorkingDirectory: requestedWorkingDirectory,
-                        currentWorkingDirectory: self.session?.rawWorkspacePath
+                        currentWorkingDirectory: self.project?.directoryPath
                     )
                 }, isOverlay: isOverlay)
-                .id(session.id)
-            } else if session != nil {
+                .id(project.id)
+            } else if project != nil {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 FileTreeEmptyView(isOverlay: isOverlay)
             }
         }
         .accessibilityIdentifier("inspector-files")
-        .task(id: session.map { "\($0.id):\($0.rawWorkspacePath)" }) {
+        .task(id: project.map { "\($0.id):\($0.directoryPath)" }) {
             root = nil
             requestedWorkingDirectory = nil
-            guard let session else { return }
-            let resolved = await FileTabOpening.root(for: session.rawWorkspacePath)
+            guard let project else { return }
+            let resolved = await FileTabOpening.root(for: project.directoryPath)
             guard !Task.isCancelled else { return }
             let model = FileTreeModel.model(for: resolved, in: models)
             models[resolved] = model
-            requestedWorkingDirectory = session.rawWorkspacePath
+            requestedWorkingDirectory = project.directoryPath
             root = resolved
             await model.refresh()
         }
     }
 
-    private func openPath(_ id: SessionID) -> String? {
+    private func openPath(_ id: ProjectID) -> String? {
         FileTreeRows.openPath(selected: router.tabs.layout(for: id).selected,
                               viewMode: router.viewMode, commonTerminalSelected: router.commonTerminalSelected)
     }

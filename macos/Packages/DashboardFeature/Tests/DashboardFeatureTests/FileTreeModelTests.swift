@@ -25,12 +25,13 @@ struct FileTreeModelTests {
     func splitUnopened() {
         let files = FileTabDocuments()
         let router = AppRouter()
-        let id = SessionID()
-        #expect(files.openFileTab(sessionID: id, root: "/A", relativePath: "new.txt", split: true,
+        let id = ProjectID()
+        router.tabs.updateLayout(for: id) { $0.open(.newChat) }
+        #expect(files.openFileTab(projectID: id, root: "/A", relativePath: "new.txt", split: true,
                                   router: router, requestedWorkingDirectory: "/A", currentWorkingDirectory: "/A"))
         let layout = router.tabs.layout(for: id)
-        #expect(layout.tabs == [.conversation, .file("new.txt")])
-        #expect(layout.left == .conversation)
+        #expect(layout.items == [.newChat, .file("new.txt")])
+        #expect(layout.left == .newChat)
         #expect(layout.right == .file("new.txt"))
         #expect(layout.selected == .file("new.txt"))
     }
@@ -205,10 +206,10 @@ struct FileTreeModelTests {
     func changedWorkingDirectory() {
         let files = FileTabDocuments()
         let router = AppRouter()
-        let id = SessionID()
-        #expect(!files.openFileTab(sessionID: id, root: "/old", relativePath: "a.txt", router: router,
+        let id = ProjectID()
+        #expect(!files.openFileTab(projectID: id, root: "/old", relativePath: "a.txt", router: router,
                                    requestedWorkingDirectory: "/old", currentWorkingDirectory: "/new"))
-        #expect(router.tabs.layout(for: id).tabs == [.conversation])
+        #expect(router.tabs.layout(for: id).items == [])
     }
 
     @Test("古い読込が新しい表示を上書きせず、削除時は理由を表示する")

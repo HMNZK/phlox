@@ -20,6 +20,15 @@ struct DashboardDetailView: View {
     var showsAllOnboardingSteps = true
     /// グリッドのタイルの 会話 / 端末 / 変更（02 C3）。
     var tileTabs: GridTileTabs? = nil
+    var displayTab: ProjectTab? = nil
+
+    private var displayedSessionID: SessionID? {
+        if let displayTab {
+            if case .chat(let id) = displayTab { return id }
+            return nil
+        }
+        return router.selectedSession
+    }
 
     var body: some View {
         // ツールバーは上の行として別に並べるので、ここは本文だけ。
@@ -83,7 +92,7 @@ struct DashboardDetailView: View {
 
     @ViewBuilder
     private var singleDetail: some View {
-        if let selectedID = router.selectedSession,
+        if let selectedID = displayedSessionID,
            let session = viewModel.sessionNode(id: selectedID) {
             switch session {
             case .pty(let session):

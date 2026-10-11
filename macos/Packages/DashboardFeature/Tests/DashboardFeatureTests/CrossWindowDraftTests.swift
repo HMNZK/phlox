@@ -15,7 +15,7 @@ struct CrossWindowDraftTests {
         let firstWindow = registryTestWindow("操作元"), secondWindow = registryTestWindow("別ウィンドウ")
         registry.register(files: first, window: firstWindow)
         registry.register(files: second, window: secondWindow)
-        let target = SessionID(), other = SessionID()
+        let target = ProjectID(), other = ProjectID()
         let clean = first.document(for: target, path: "a.txt", root: root.path)
         let dirty = second.document(for: target, path: "a.txt", root: root.path)
         let otherPath = second.document(for: target, path: "b.txt", root: root.path)
@@ -48,7 +48,7 @@ struct CrossWindowDraftTests {
         let firstWindow = registryTestWindow("一番目"), secondWindow = registryTestWindow("二番目")
         registry.register(files: first, window: firstWindow)
         registry.register(files: second, window: secondWindow)
-        let id = SessionID()
+        let id = ProjectID()
         var saves: [Task<FileTabDocument.SaveResult, Error>] = []
         var documents: [FileTabDocument] = []
         for (files, path) in [(first, "a.txt"), (second, "b.txt")] {
@@ -76,7 +76,7 @@ struct CrossWindowDraftTests {
         let registry = FileTabDocumentRegistry()
         let first = FileTabDocuments(), second = FileTabDocuments()
         let firstWindow = registryTestWindow("一番目"), secondWindow = registryTestWindow("二番目")
-        let target = SessionID(), other = SessionID()
+        let target = ProjectID(), other = ProjectID()
         registry.register(files: first, window: firstWindow)
         registry.register(files: second, window: secondWindow)
         let firstDraft = first.document(for: target, path: "a.txt", root: root.path)
@@ -119,7 +119,7 @@ struct CrossWindowDraftTests {
         let registry = FileTabDocumentRegistry()
         let clean = FileTabDocuments(), dirty = FileTabDocuments()
         let first = registryTestWindow("操作元"), second = registryTestWindow("別ウィンドウ")
-        let target = SessionID()
+        let target = ProjectID()
         registry.register(files: clean, window: first)
         registry.register(files: dirty, window: second)
         let cleanDocument = clean.document(for: target, path: "a.txt", root: root.path)

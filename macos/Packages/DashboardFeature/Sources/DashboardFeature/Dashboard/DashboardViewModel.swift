@@ -924,13 +924,14 @@ public final class DashboardViewModel {
     /// ターミナル型は会話タブ自体が端末。チャット型は子タブの「ターミナル」を前に出しているときだけ端末。
     public static func fontSizeTarget(
         node: SessionNode?,
-        selectedChildTab: ChildTab?,
+        selectedChildTab: ProjectTab?,
         showsCommonTerminal: Bool = false
     ) -> FontSizeTarget {
         if showsCommonTerminal { return .terminal }
+        if case .terminal = selectedChildTab { return .terminal }
         guard let node else { return .both }
         if node.pty != nil { return .terminal }
-        return selectedChildTab == .terminal ? .terminal : .chat
+        return .chat
     }
 
     /// 文字サイズを steps 段だけ増減し、全セッションへ即時適用して永続化する。
@@ -1159,6 +1160,9 @@ public final class DashboardViewModel {
     /// （不可視の orchestration 子を含む）を対象にする。`removeSession` は部分木単位で除去し、
     /// 既に他ルートの部分木として消えた ID は no-op になるため、スナップショットを走査すれば重複除去は起きない。
     public func removeProject(_ projectID: ProjectID) async {
+        FileTabDocumentRegistry.shared.beginProjectChanges(for: [projectID])
+        defer { FileTabDocumentRegistry.shared.endProjectChanges(for: [projectID]) }
+        await FileTabDocumentRegistry.shared.invalidateAndWait(for: [projectID])
         let sessionIDs = sessionNodes
             .filter { $0.projectID == projectID }
             .map(\.id)
@@ -1625,11 +1629,14 @@ public final class DashboardViewModel {
         errorContext: String
     ) async {
         let id = vm.id
-        guard FileTabDocumentRegistry.shared.beginWorkspaceChange(id) else { return }
-        defer { FileTabDocumentRegistry.shared.endWorkspaceChange(id) }
+        let projectIDs = Set(vm.projectID.map { [$0] } ?? [])
+        if let projectID = vm.projectID {
+            guard FileTabDocumentRegistry.shared.beginWorkspaceChange(projectID) else { return }
+        }
+        defer { FileTabDocumentRegistry.shared.endProjectChanges(for: projectIDs) }
         // フック設定もファイルを書き換えるため、準備前に保存の完了を待つ。
         // 準備に失敗した場合は、既存の規則どおり下書きを維持する。
-        await FileTabDocumentRegistry.shared.waitForPendingSaves(for: [id])
+        await FileTabDocumentRegistry.shared.waitForPendingSaves(for: projectIDs)
 
         do {
             try sessionHooks.reinstall(
@@ -1640,10 +1647,6 @@ public final class DashboardViewModel {
         } catch {
             logError(error, context: errorContext)
             return
-        }
-
-        if vm.rawWorkspacePath != directory.path || newProjectID != nil {
-            await FileTabDocumentRegistry.shared.invalidateAndWait(for: [id])
         }
 
         // 旧 stream を終端し、新 stream を生成して差し替える。
@@ -1668,9 +1671,6 @@ public final class DashboardViewModel {
         guard sessionNodes.contains(where: { $0.id == id }) else { return false }
 
         let affected = subtreeSessionIDsDeepestFirst(rootedAt: id)
-        FileTabDocumentRegistry.shared.beginSessionChanges(for: Set(affected))
-        defer { FileTabDocumentRegistry.shared.endSessionChanges(for: Set(affected)) }
-        await FileTabDocumentRegistry.shared.invalidateAndWait(for: Set(affected))
         for sessionID in affected {
             await removeSingleSession(sessionID)
         }

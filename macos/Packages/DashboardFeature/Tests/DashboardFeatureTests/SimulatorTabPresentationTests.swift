@@ -26,8 +26,8 @@ struct SimulatorTabPresentationTests {
             return connection
         }
         await hub.refresh()
-        let session = SessionID()
-        let view = NSHostingView(rootView: SimulatorTabView(hub: hub, sessionID: session, isFocused: true)
+        let session = ProjectID()
+        let view = NSHostingView(rootView: SimulatorTabView(hub: hub, projectID: session, isFocused: true)
             .frame(width: 520, height: 600).background(DSColor.background))
         view.frame = NSRect(x: 0, y: 0, width: 520, height: 600)
         let window = shownWindow(view)
@@ -92,8 +92,8 @@ struct SimulatorTabPresentationTests {
             SimulatorDisplayConnection { fake }
         }
         await hub.refresh()
-        let session = SessionID()
-        let view = NSHostingView(rootView: SimulatorTabView(hub: hub, sessionID: session, isFocused: true))
+        let session = ProjectID()
+        let view = NSHostingView(rootView: SimulatorTabView(hub: hub, projectID: session, isFocused: true))
         let window = shownWindow(view)
         defer { window.contentView = nil; window.close(); hub.disconnectAll() }
         try await waitUntil { hub.connection(for: session) != nil }
@@ -126,8 +126,8 @@ struct SimulatorTabPresentationTests {
             SimulatorDisplayConnection { fake }
         }
         await hub.refresh()
-        let session = SessionID()
-        let view = NSHostingView(rootView: SimulatorTabView(hub: hub, sessionID: session, isFocused: true)
+        let session = ProjectID()
+        let view = NSHostingView(rootView: SimulatorTabView(hub: hub, projectID: session, isFocused: true)
             .frame(width: 520, height: 600))
         let window = shownWindow(view)
         defer { window.contentView = nil; window.close(); hub.disconnectAll() }
@@ -166,8 +166,8 @@ struct SimulatorTabPresentationTests {
             SimulatorDisplayConnection { fake }
         }
         await hub.refresh()
-        let session = SessionID()
-        let view = NSHostingView(rootView: SimulatorTabView(hub: hub, sessionID: session, isFocused: focused))
+        let session = ProjectID()
+        let view = NSHostingView(rootView: SimulatorTabView(hub: hub, projectID: session, isFocused: focused))
         let window = shownWindow(view)
         defer { window.contentView = nil; window.close(); hub.disconnectAll() }
         try await waitUntil { hub.connection(for: session) != nil }
@@ -194,8 +194,8 @@ struct SimulatorTabPresentationTests {
             SimulatorDisplayConnection { fake }
         }
         await hub.refresh()
-        let session = SessionID()
-        let view = NSHostingView(rootView: SimulatorTabView(hub: hub, sessionID: session, isFocused: true))
+        let session = ProjectID()
+        let view = NSHostingView(rootView: SimulatorTabView(hub: hub, projectID: session, isFocused: true))
         let window = shownWindow(view)
         defer { window.contentView = nil; window.close(); hub.disconnectAll() }
         try await waitUntil { hub.connection(for: session) != nil }
@@ -226,7 +226,7 @@ struct SimulatorTabPresentationTests {
         let fixture = HubCatalogFixture(states: ["iPhone 17 Pro": "Shutdown"])
         let hub = SimulatorHub(catalog: fixture.catalog())
         await hub.refresh()
-        let view = NSHostingView(rootView: SimulatorTabView(hub: hub, sessionID: SessionID(), isFocused: true)
+        let view = NSHostingView(rootView: SimulatorTabView(hub: hub, projectID: ProjectID(), isFocused: true)
             .frame(width: width, height: 600).background(DSColor.background))
         view.frame = NSRect(x: 0, y: 0, width: width, height: 600)
         let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
@@ -266,7 +266,7 @@ struct SimulatorTabPresentationTests {
         }
         let hub = SimulatorHub(catalog: catalog)
         await hub.refresh()
-        let view = NSHostingView(rootView: SimulatorTabView(hub: hub, sessionID: SessionID(), isFocused: false)
+        let view = NSHostingView(rootView: SimulatorTabView(hub: hub, projectID: ProjectID(), isFocused: false)
             .frame(width: 520, height: 600))
         let window = shownWindow(view)
         defer { window.contentView = nil; window.close(); hub.disconnectAll() }
@@ -331,7 +331,7 @@ struct SimulatorTabPresentationTests {
         }
         let hub = SimulatorHub(catalog: catalog)
         await hub.refresh()
-        let view = NSHostingView(rootView: SimulatorTabView(hub: hub, sessionID: SessionID(), isFocused: false)
+        let view = NSHostingView(rootView: SimulatorTabView(hub: hub, projectID: ProjectID(), isFocused: false)
             .frame(width: 520, height: 600))
         let window = shownWindow(view)
         defer { window.contentView = nil; window.close(); hub.disconnectAll() }
@@ -357,8 +357,8 @@ struct SimulatorTabPresentationTests {
             return connection
         }
         await hub.refresh()
-        let session = SessionID(), displayID = UUID()
-        hub.setVisible(true, displayID: displayID, sessionID: session)
+        let session = ProjectID(), displayID = UUID()
+        hub.setVisible(true, displayID: displayID, projectID: session)
         defer { hub.disconnectAll() }
         if let connection = hub.connection(for: session) {
             if state.contains("未確認") {
@@ -380,7 +380,7 @@ struct SimulatorTabPresentationTests {
                 connection.observeFrame(info, seed: IOSurfaceGetSeed(info.surface), at: Date().addingTimeInterval(-6))
             }
         }
-        let view = NSHostingView(rootView: SimulatorTabContent(hub: hub, sessionID: session, displayID: displayID,
+        let view = NSHostingView(rootView: SimulatorTabContent(hub: hub, projectID: session, displayID: displayID,
             sendsKeys: .constant(state.contains("入力中")), showsDiagnostics: .constant(false),
             select: { _ in }, releaseFocus: {}, screenshot: {}, shutdown: {}, openSimulator: {})
             .frame(width: width, height: 600))

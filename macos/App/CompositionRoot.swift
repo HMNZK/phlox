@@ -156,6 +156,10 @@ public final class CompositionRoot {
             WorktreeRecreationDialog.confirm(path: path, branchName: branchName, branchExists: branchExists)
         }
         await started.dashboard.start()
+        started.router.tabs.migrateLegacy(
+            sessionProjects: Dictionary(uniqueKeysWithValues: started.dashboard.sessionNodes.compactMap { node in node.projectID.map { (node.id, $0) } }),
+            projects: started.dashboard.projects
+        )
         Self.applyRemoteSessionNotifier(remoteSessionNotifier, to: started.dashboard)
         started.usage.start()
     }
@@ -469,7 +473,7 @@ public final class CompositionRoot {
         // 許可される（脅威モデル「トークン漏洩 = Mac 全権」と整合。特権の範囲は remove のみ）。
         dashboard.setPrivilegedRequesters(mobilePrivilegedRequesterSessionIDs)
         // タブの並び・子タブ・分割はプロジェクトごとに保存する（02 C）。
-        let router = AppRouter(tabs: SessionTabStore(defaults: UserDefaults.phloxDefaults()))
+        let router = AppRouter(tabs: ProjectTabStore(defaults: UserDefaults.phloxDefaults()))
         return (env, dashboard, router, usage)
     }
 

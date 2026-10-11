@@ -3,10 +3,7 @@ import AgentDomain
 
 enum FileTabOpening {
     static func root(for workingDirectory: String) async -> String {
-        let root = await WorkingTreeService(
-            repositoryRoot: URL(fileURLWithPath: workingDirectory, isDirectory: true)
-        ).resolvedRepositoryRootPath() ?? workingDirectory
-        return URL(fileURLWithPath: root, isDirectory: true).standardizedFileURL.resolvingSymlinksInPath().path
+        return URL(fileURLWithPath: workingDirectory, isDirectory: true).standardizedFileURL.resolvingSymlinksInPath().path
     }
 
     static func relativePath(of url: URL, under rootPath: String) -> String? {
@@ -24,7 +21,7 @@ extension FileTabDocuments {
     /// 要求時の作業場所とルートで文書を作り、操作中の区画へ開く。
     @discardableResult
     func openFileTab(
-        sessionID: SessionID,
+        projectID: ProjectID,
         root: String,
         relativePath: String,
         split: Bool = false,
@@ -33,15 +30,16 @@ extension FileTabDocuments {
         currentWorkingDirectory: String?
     ) -> Bool {
         guard requestedWorkingDirectory == currentWorkingDirectory,
-              !FileTabDocumentRegistry.shared.isChangingSession(sessionID) else { return false }
+              !FileTabDocumentRegistry.shared.isChangingProject(projectID) else { return false }
         let root = URL(fileURLWithPath: root, isDirectory: true).standardizedFileURL.resolvingSymlinksInPath().path
-        let document = document(for: sessionID, path: relativePath, root: root)
+        let document = document(for: projectID, path: relativePath, root: root)
         guard document.root == root, !document.invalidated else { return false }
+        router.selectedProjectID = projectID
         router.viewMode = .single
         router.commonTerminalSelected = false
-        router.tabs.updateLayout(for: sessionID) {
+        router.tabs.updateLayout(for: projectID) {
             if split {
-                if !$0.tabs.contains(.file(relativePath)) { $0.tabs.append(.file(relativePath)) }
+                if !$0.items.contains(.file(relativePath)) { $0.items.append(.file(relativePath)) }
                 $0.splitRight(.file(relativePath))
             }
             else { $0.open(.file(relativePath)) }

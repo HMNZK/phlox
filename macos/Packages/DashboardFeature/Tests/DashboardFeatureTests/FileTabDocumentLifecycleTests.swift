@@ -67,7 +67,7 @@ struct FileTabDocumentLifecycleTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try Data("元".utf8).write(to: root.appendingPathComponent("a.txt"))
         let files = FileTabDocuments()
-        let sessionID = SessionID()
+        let sessionID = ProjectID()
         let old = files.document(for: sessionID, path: "a.txt", root: root.path)
         await old.loadIfNeeded()
         old.draft = "下書き"
@@ -105,7 +105,7 @@ struct FileTabDocumentLifecycleTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try Data("元".utf8).write(to: root.appendingPathComponent("a.txt"))
         let files = FileTabDocuments()
-        let sessionID = SessionID()
+        let sessionID = ProjectID()
         let document = files.document(for: sessionID, path: "a.txt", root: root.path)
         await document.loadIfNeeded()
         document.draft = "下書き"

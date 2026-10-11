@@ -11,11 +11,12 @@ public enum ViewMode: String, CaseIterable, Sendable {
 /// メニューから画面へ渡す要求。
 public enum TabRequest: Equatable, Sendable {
     /// 子タブを閉じる（ターミナルはシェル終了の確認、未保存ファイルは破棄の確認を挟む）。
-    case closeChild(SessionID, ChildTab)
+    case closeChild(ProjectID, ProjectTab)
     /// セッション削除の確認を出す。
     case confirmSessionDeletion(SessionID)
-    /// ⌘P：worktree のファイルを選んで開く。
-    case openFile(SessionID)
+    /// ⌘P：プロジェクトのファイルを選んで開く。
+    case openFile(ProjectID)
+    case confirmProjectDeletion(ProjectID)
     /// グリッドのタイルを外す（⌘W・タイルの ✕）。
     case removeFromGrid(SessionID)
 }
@@ -60,10 +61,10 @@ public final class AppRouter {
     public var inspectorTab: InspectorTab = .usage
     /// ツールバーの worktree メニュー「プロジェクト名を変更…」。サイドバーがその行を編集に入れる（01 E4）。
     public var projectRenameRequest: ProjectID?
-    /// 上段タブ列と子タブ（02 C）。メニューの ⌘W・⌘1–9・⌃Tab からも触る。
-    public let tabs: SessionTabStore
+    /// プロジェクトの項目・選択・分割。メニューと画面で共有する。
+    public let tabs: ProjectTabStore
     /// ブラウザのページと履歴は、子タブを閉じるまでだけ保持する。
-    private(set) var browsers: [SessionID: BrowserTabModel] = [:]
+    private(set) var browsers: [ProjectID: BrowserTabModel] = [:]
     /// 上段右端の「共通ターミナル」（worktree の外・ホームで開く）を前に出しているか。
     public var commonTerminalSelected = false
     /// 「新しいタブ」の選択肢（⌘T・＋）を開いているか。
@@ -89,7 +90,7 @@ public final class AppRouter {
         mainRoute: MainRoute = .sessions,
         sidebarVisible: Bool = true,
         inspectorVisible: Bool = false,
-        tabs: SessionTabStore = SessionTabStore()
+        tabs: ProjectTabStore = ProjectTabStore()
     ) {
         self.selectedSession = selectedSession
         self.viewMode = viewMode
@@ -132,62 +133,92 @@ public final class AppRouter {
         inspectorVisible = true
     }
 
-    /// ⌃⌘T / ⌃⌘E：選択中セッションのターミナル・変更タブを開く（あれば前に出す）。単体表示へ切り替える。
-    /// セッションを選んでいなければ、ターミナルは上段右端の共通ターミナルを出す。
-    public func openChildTab(_ tab: ChildTab) {
-        guard let selectedSession else {
-            if tab == .terminal { commonTerminalSelected = true }
-            return
-        }
+    public func selectTab(_ tab: ProjectTab, in projectID: ProjectID) {
+        selectedProjectID = projectID
+        commonTerminalSelected = false
+        tabs.updateLayout(for: projectID) { $0.select(tab) }
+        if case .chat(let id) = tab { selectedSession = id }
+        else if tab == .newChat { selectedSession = nil }
+    }
+
+    public func showNewChat(projectID: ProjectID) {
+        viewMode = .single
+        selectedProjectID = projectID
+        commonTerminalSelected = false
+        tabs.updateLayout(for: projectID) { $0.open(.newChat) }
+        selectedSession = nil
+    }
+
+    public func completeNewChat(sessionID: SessionID, projectID: ProjectID) {
+        tabs.updateLayout(for: projectID) { $0.close(.newChat); $0.open(.chat(sessionID)) }
+        selectTab(.chat(sessionID), in: projectID)
+    }
+
+    public func openTerminalTab() {
+        guard selectedProjectID != nil else { commonTerminalSelected = true; return }
+        openChildTab(.terminal(TerminalTabID()))
+    }
+
+    public func openChildTab(_ tab: ProjectTab) {
+        guard let projectID = selectedProjectID else { return }
         viewMode = .single
         commonTerminalSelected = false
-        if tab == .browser, browsers[selectedSession] == nil { browsers[selectedSession] = BrowserTabModel() }
-        tabs.updateLayout(for: selectedSession) { $0.open(tab) }
+        if tab == .browser, browsers[projectID] == nil { browsers[projectID] = BrowserTabModel() }
+        tabs.updateLayout(for: projectID) { $0.open(tab) }
+        if case .chat(let id) = tab { selectedSession = id }
+        else if tab == .newChat { selectedSession = nil }
     }
 
-    func openBrowser(_ url: URL, for sessionID: SessionID) {
-        guard selectedSession == sessionID else { return }
+    func openBrowser(_ url: URL, for projectID: ProjectID) {
+        guard selectedProjectID == projectID else { return }
         openChildTab(.browser)
-        browsers[sessionID]?.open(url)
+        browsers[projectID]?.open(url)
     }
 
-    func closeBrowser(for sessionID: SessionID) {
-        browsers.removeValue(forKey: sessionID)?.close()
+    func closeBrowser(for projectID: ProjectID) {
+        browsers.removeValue(forKey: projectID)?.close()
     }
 
-    /// 前面がブラウザなら、表示メニューの ⌘＋／⌘−／⌘0 でページの倍率を変えて true を返す（FR-9）。steps が nil なら 100%。
+    public func forgetProject(_ projectID: ProjectID, terminals: ProjectTerminalStore?, simulatorHub: SimulatorHub?) async {
+        FileTabDocumentRegistry.shared.beginProjectChanges(for: [projectID])
+        defer { FileTabDocumentRegistry.shared.endProjectChanges(for: [projectID]) }
+        await FileTabDocumentRegistry.shared.invalidateAndWait(for: [projectID])
+        tabs.forgetProject(projectID)
+        closeBrowser(for: projectID)
+        simulatorHub?.removeProject(projectID)
+        await terminals?.closeProject(projectID)
+        if selectedProjectID == projectID { selectedProjectID = nil; selectedSession = nil }
+    }
+
     public func zoomFrontBrowser(by steps: Int?) -> Bool {
-        guard viewMode == .single, !commonTerminalSelected, let id = selectedSession, tabs.layout(for: id).selected == .browser,
-              let browser = browsers[id] else { return false }
+        guard viewMode == .single, !commonTerminalSelected, let id = selectedProjectID,
+              tabs.layout(for: id).selected == .browser, let browser = browsers[id] else { return false }
         browser.zoom(by: steps)
         return true
     }
 
-    /// ⌃Tab / ⌃⇧Tab。
-    public func cycleChildTab(by offset: Int) {
-        guard viewMode == .single, !commonTerminalSelected, let selectedSession else { return }
-        tabs.updateLayout(for: selectedSession) { $0.cycle(by: offset) }
+    public func cycleChildTab(by offset: Int, chats: [ProjectTab]) {
+        guard viewMode == .single, !commonTerminalSelected, let id = selectedProjectID else { return }
+        tabs.updateLayout(for: id) { $0.cycle(by: offset, chats: chats) }
+        if let selected = tabs.layout(for: id).selected { selectTab(selected, in: id) }
     }
 
-    /// ⌘\。
-    public func toggleSplit() {
-        guard viewMode == .single, !commonTerminalSelected, let selectedSession else { return }
-        tabs.updateLayout(for: selectedSession) { $0.toggleSplit() }
+    public func toggleSplit(chats: [ProjectTab] = []) {
+        guard viewMode == .single, !commonTerminalSelected, let id = selectedProjectID else { return }
+        tabs.updateLayout(for: id) { $0.toggleSplit(chats: chats) }
+        if let selected = tabs.layout(for: id).selected { selectTab(selected, in: id) }
     }
 
-    /// ⌘W。子タブは閉じ（確認は画面側）、会話はセッション削除の確認を出し、グリッドはタイルを外す。
-    /// 何も対象が無ければ false（ウィンドウを閉じる標準動作に任せる）。
     @discardableResult
     public func requestClose() -> Bool {
         if viewMode == .single, commonTerminalSelected { return false }
-        guard let target = tabs.closeTarget(selectedSession: selectedSession, viewMode: viewMode) else { return false }
+        guard let target = tabs.closeTarget(projectID: selectedProjectID, selectedSession: selectedSession, viewMode: viewMode) else { return false }
         switch target {
-        case .childTab(let tab):
-            if let selectedSession { tabRequest = .closeChild(selectedSession, tab) }
-        case .session(let id):
-            tabRequest = .confirmSessionDeletion(id)
-        case .gridTile(let id):
-            tabRequest = .removeFromGrid(id)
+        case .tab(let tab):
+            if let selectedProjectID { tabRequest = .closeChild(selectedProjectID, tab) }
+        case .session(let id): tabRequest = .confirmSessionDeletion(id)
+        case .project(let id): tabRequest = .confirmProjectDeletion(id)
+        case .gridTile(let id): tabRequest = .removeFromGrid(id)
         }
         return true
     }

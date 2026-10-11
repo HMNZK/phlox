@@ -20,8 +20,8 @@ struct SimulatorHubTests {
             }
         }
         await hub.refresh()
-        let session = SessionID()
-        hub.setVisible(true, displayID: UUID(), sessionID: session)
+        let session = ProjectID()
+        hub.setVisible(true, displayID: UUID(), projectID: session)
         let connection = try #require(hub.connection(for: session))
         let old = connection.generation.current
         first.complete(udid: "端末A", generation: old)
@@ -63,8 +63,8 @@ struct SimulatorHubTests {
             }
         }
         await hub.refresh()
-        let session = SessionID()
-        hub.setVisible(true, displayID: UUID(), sessionID: session)
+        let session = ProjectID()
+        hub.setVisible(true, displayID: UUID(), projectID: session)
         let connection = try #require(hub.connection(for: session))
         let old = connection.generation.current
         if attaching {
@@ -112,7 +112,7 @@ struct SimulatorHubTests {
         let fixture = HubCatalogFixture(states: ["端末A": "Booted", "端末B": "Booted"])
         let hub = SimulatorHub(catalog: fixture.catalog())
         await hub.refresh()
-        let session = SessionID()
+        let session = ProjectID()
         hub.select(udid: "端末A", for: session)
         let requested = try #require(hub.selectedDevice(for: session)?.udid)
         hub.select(udid: "端末B", for: session)
@@ -125,7 +125,7 @@ struct SimulatorHubTests {
         let fixture = HubCatalogFixture(states: ["端末A": "Booting"])
         let hub = SimulatorHub(catalog: fixture.catalog())
         await hub.refresh()
-        await hub.boot(for: SessionID())
+        await hub.boot(for: ProjectID())
         #expect(await fixture.mutations().isEmpty)
         hub.disconnectAll()
     }
@@ -139,20 +139,20 @@ struct SimulatorHubTests {
             return SimulatorDisplayConnection { fake }
         }
         await hub.refresh()
-        let first = SessionID(), second = SessionID()
+        let first = ProjectID(), second = ProjectID()
         let left = UUID(), right = UUID(), otherWindow = UUID()
-        hub.setVisible(true, displayID: left, sessionID: first)
-        hub.setVisible(true, displayID: right, sessionID: first)
-        hub.setVisible(true, displayID: otherWindow, sessionID: second)
+        hub.setVisible(true, displayID: left, projectID: first)
+        hub.setVisible(true, displayID: right, projectID: first)
+        hub.setVisible(true, displayID: otherWindow, projectID: second)
         #expect(creations == 1)
         #expect(hub.connection(for: first) === hub.connection(for: second))
         let connection = try #require(hub.connection(for: first))
         fake.complete(udid: "端末A", generation: connection.generation.current)
         #expect(fake.attached == ["端末A"])
-        hub.setVisible(false, displayID: left, sessionID: first)
-        hub.setVisible(false, displayID: right, sessionID: first)
+        hub.setVisible(false, displayID: left, projectID: first)
+        hub.setVisible(false, displayID: right, projectID: first)
         #expect(fake.detached.isEmpty)
-        hub.setVisible(false, displayID: otherWindow, sessionID: second)
+        hub.setVisible(false, displayID: otherWindow, projectID: second)
         #expect(fake.detached == ["端末A"])
         #expect(fake.invalidations == 1)
         #expect(hub.connection(for: first) == nil)
@@ -168,8 +168,8 @@ struct SimulatorHubTests {
             return SimulatorDisplayConnection { fake }
         }
         await hub.refresh()
-        let session = SessionID()
-        hub.setVisible(true, displayID: UUID(), sessionID: session)
+        let session = ProjectID()
+        hub.setVisible(true, displayID: UUID(), projectID: session)
         let old = try #require(hub.connection(for: session))
         first.complete(udid: "端末A", generation: old.generation.current)
         old.sendKey(keyCode: 0, modifiers: 0, down: true)
@@ -178,7 +178,7 @@ struct SimulatorHubTests {
         #expect(old.sentKeyCodes.isEmpty)
         #expect(first.detached == ["端末A"])
         #expect(hub.selectedDevice(for: session)?.udid == "端末B")
-        hub.removeSession(session)
+        hub.removeProject(session)
         #expect(second.invalidations == 1)
         hub.disconnectAll()
         #expect(await fixture.mutations().isEmpty)
@@ -192,8 +192,8 @@ struct SimulatorHubTests {
             creations += 1
             return SimulatorDisplayConnection { fake }
         }
-        let session = SessionID()
-        hub.setVisible(true, displayID: UUID(), sessionID: session)
+        let session = ProjectID()
+        hub.setVisible(true, displayID: UUID(), projectID: session)
         try await waitUntil { hub.devices.count == 2 }
         #expect(hub.selectedDevice(for: session)?.udid == "端末A")
         #expect(creations == 0)
@@ -215,8 +215,8 @@ struct SimulatorHubTests {
             SimulatorDisplayConnection { fake }
         }
         await hub.refresh()
-        let session = SessionID()
-        hub.setVisible(true, displayID: UUID(), sessionID: session)
+        let session = ProjectID()
+        hub.setVisible(true, displayID: UUID(), projectID: session)
         await hub.boot(for: session)
         #expect(hub.selectedDevice(for: session)?.isBooted == true)
         fake.failed?("補助プロセスが終了しました")
@@ -242,6 +242,7 @@ struct SimulatorHubTests {
             }
         }
         let sessionID = SessionID()
+        let projectID = ProjectID()
         let sessionPTY = MockPTYManager()
         let (events, continuation) = AsyncStream<(SessionID, HookEvent)>.makeStream()
         let session = SessionViewModel(
@@ -263,8 +264,8 @@ struct SimulatorHubTests {
             sessionPTY.spawnCalls.count == 1 && session.status == .idle && terminal.controller.isRunning
         }
         await hub.refresh()
-        hub.setVisible(true, displayID: UUID(), sessionID: sessionID)
-        let connection = try #require(hub.connection(for: sessionID))
+        hub.setVisible(true, displayID: UUID(), projectID: projectID)
+        let connection = try #require(hub.connection(for: projectID))
         let generation = connection.generation.current
         if !timeout {
             fake.complete(udid: "端末A", generation: generation)
@@ -342,12 +343,12 @@ actor HubCatalogFixture {
         let hub = SimulatorHub(catalog: HubCatalogFixture(states: ["端末A": "Shutdown", "端末B": "Shutdown"]).catalog())
         defer { hub.disconnectAll() }
         await hub.refresh()
-        let first = SessionID(), second = SessionID()
+        let first = ProjectID(), second = ProjectID()
         let firstDisplay = UUID(), secondDisplay = UUID()
         hub.select(udid: "端末A", for: first)
         hub.select(udid: "端末A", for: second)
-        hub.setVisible(true, displayID: firstDisplay, sessionID: first)
-        hub.setVisible(true, displayID: secondDisplay, sessionID: second)
+        hub.setVisible(true, displayID: firstDisplay, projectID: first)
+        hub.setVisible(true, displayID: secondDisplay, projectID: second)
         #expect(hub.displayCount(udid: "端末A") == 2)
         #expect(hub.displayCount(udid: "端末B") == 0)
         hub.select(udid: "端末B", for: second)
@@ -355,7 +356,7 @@ actor HubCatalogFixture {
         #expect(hub.displayCount(udid: "端末B") == 1)
         hub.removeDisplay(firstDisplay)
         #expect(hub.displayCount(udid: "端末A") == 0)
-        hub.setVisible(false, displayID: secondDisplay, sessionID: second)
+        hub.setVisible(false, displayID: secondDisplay, projectID: second)
         #expect(hub.displayCount(udid: "端末B") == 0)
     }
 }

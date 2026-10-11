@@ -8,6 +8,7 @@ struct InspectorView: View {
     @Bindable var router: AppRouter
     let monitor: UsageMonitor
     let session: SessionNode?
+    let project: Project?
     @Binding var fileTreeModels: [String: FileTreeModel]
     let files: FileTabDocuments
     var isOverlay = false
@@ -41,7 +42,7 @@ struct InspectorView: View {
                     }
                 }
             case .files:
-                FileTreeInspectorView(router: router, session: session, models: $fileTreeModels, files: files, isOverlay: isOverlay)
+                FileTreeInspectorView(router: router, project: project, models: $fileTreeModels, files: files, isOverlay: isOverlay)
             case .usage:
                 UsageSidebarView(monitor: monitor)
             }

@@ -69,8 +69,8 @@ struct PhloxApp: App {
     @State private var initializing = false
     /// 上段右端の共通ターミナル（ホームで開く）の唯一の所有者。
     @State private var terminalPanelSession: TerminalPanelSession?
-    /// セッションごとのターミナルタブ（その worktree で開く）の唯一の所有者。
-    @State private var sessionTerminals: SessionTerminalStore?
+    /// プロジェクトのターミナルタブの唯一の所有者。
+    @State private var sessionTerminals: ProjectTerminalStore?
     /// 全ウィンドウで端末ごとの画面取得を共有する。
     @State private var simulatorHub: SimulatorHub
 
@@ -140,7 +140,7 @@ struct PhloxApp: App {
                 }
                 if sessionTerminals == nil {
                     let environment = composition.environment
-                    sessionTerminals = SessionTerminalStore { workingDirectory in
+                    sessionTerminals = ProjectTerminalStore { workingDirectory in
                         makeTerminalPanelSession(environment: environment, workingDirectory: workingDirectory)
                     }
                 }
@@ -307,8 +307,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     var router: AppRouter?
     /// 共通ターミナルのシェル。終了経路だけが明示的に停止する。
     var userTerminalController: UserTerminalController?
-    /// セッションごとのターミナルタブのシェル。終了経路でまとめて停止する。
-    var sessionUserTerminals: SessionTerminalStore?
+    /// プロジェクトのターミナルタブのシェル。終了経路でまとめて停止する。
+    var sessionUserTerminals: ProjectTerminalStore?
     private var closeSessionMonitor: Any?
     #if DEBUG
     var simulatorVerificationHub: SimulatorHub?
@@ -376,10 +376,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 do {
                     let root = try await self.simulatorVerificationComposition()
                     guard let session = root.dashboard.sessions.first else { return }
-                    await hub.refreshForTesting(udid: arguments[index + 1], sessionID: session.id)
+                    guard let projectID = session.projectID else { return }
+                    root.router.selectedProjectID = projectID
+                    await hub.refreshForTesting(udid: arguments[index + 1], projectID: projectID)
                     root.router.selectedSession = session.id
                     root.router.openChildTab(.simulator)
-                    hub.requestMenuFocus(for: session.id)
+                    hub.requestMenuFocus(for: projectID)
                     simulatorVerificationRoot = root
                     ptyManager = root.environment.pty as? PTYManager
                     dashboard = root.dashboard
@@ -443,7 +445,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         closeSessionMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             // 日本語表示ではメニューの ⌘\ が ⌘¥ として登録され、英字配列の \ と一致しないため両方を横取りする。
             if event.isCommandBackslash {
-                self?.router?.toggleSplit()
+                self?.router.map { $0.toggleSplit(chats: self?.dashboard?.numberedTabs(router: $0).filter { if case .chat = $0 { return true }; return false } ?? []) }
                 return nil
             }
             guard event.isCommandW else { return event }
@@ -704,14 +706,14 @@ private struct FileCommands: Commands {
                 router.newTabChooserPresented = true
             }
             .keyboardShortcut("t", modifiers: .command)
-            .disabled(router?.selectedSession == nil)
+            .disabled(router?.selectedProjectID == nil)
 
             Button("ファイルを開く…") {
-                guard let router, let id = router.selectedSession else { return }
+                guard let router, let id = router.selectedProjectID else { return }
                 router.tabRequest = .openFile(id)
             }
             .keyboardShortcut("p", modifiers: .command)
-            .disabled(router?.selectedSession == nil)
+            .disabled(router?.selectedProjectID == nil)
 
             Button("プロジェクトを追加…") {
                 router?.addProjectRequested = true
@@ -753,10 +755,11 @@ private struct FileCommands: Commands {
     /// ⌘W の行き先で文言を変える（02 R:100）。
     private var closeTitle: LocalizedStringKey {
         guard let router else { return "閉じる" }
-        switch router.tabs.closeTarget(selectedSession: router.selectedSession, viewMode: router.viewMode) {
+        switch router.tabs.closeTarget(projectID: router.selectedProjectID, selectedSession: router.selectedSession, viewMode: router.viewMode) {
         case .gridTile: return "グリッドから外す"
         case .session: return "セッションを削除…"
-        case .childTab, nil: return "閉じる"
+        case .project: return "プロジェクトを削除…"
+        case .tab, nil: return "閉じる"
         }
     }
 }
@@ -765,7 +768,7 @@ private struct FileCommands: Commands {
 @MainActor
 private func canUseChildTabs(_ router: AppRouter?) -> Bool {
     guard let router else { return false }
-    return router.viewMode == .single && !router.commonTerminalSelected && router.selectedSession != nil
+    return router.viewMode == .single && !router.commonTerminalSelected && router.selectedProjectID != nil
 }
 
 /// 前面に出ている会話（appServer）の ViewModel。PTY セッションと、共通ターミナルを
@@ -798,7 +801,7 @@ private struct ViewCommands: Commands {
     var dashboard: DashboardViewModel?
     var router: AppRouter?
     var commonTerminal: TerminalPanelSession?
-    var sessionTerminals: SessionTerminalStore?
+    var sessionTerminals: ProjectTerminalStore?
     var simulatorHub: SimulatorHub?
 
     var body: some Commands {
@@ -821,7 +824,7 @@ private struct ViewCommands: Commands {
             .keyboardShortcut("g", modifiers: [.command, .control])
             .disabled(router == nil)
 
-            Button("右に分割して開く") { router?.toggleSplit() }
+            Button("右に分割して開く") { router.map { $0.toggleSplit(chats: dashboard?.numberedTabs(router: $0).filter { if case .chat = $0 { return true }; return false } ?? []) } }
                 .keyboardShortcut("\\", modifiers: .command)
                 .disabled(!canUseChildTabs(router))
 
@@ -848,7 +851,7 @@ private struct ViewCommands: Commands {
 
             // ⌥⌘T は macOS 標準の「ツールバーを表示/隠す」と重なるため ⌃⌘T（13 Review）。
             Button("ターミナルのタブ") {
-                router?.openChildTab(.terminal)
+                router?.openTerminalTab()
             }
             .keyboardShortcut("t", modifiers: [.command, .control])
             .disabled(router == nil)
@@ -857,19 +860,19 @@ private struct ViewCommands: Commands {
                 router?.openChildTab(.changes)
             }
             .keyboardShortcut("e", modifiers: [.command, .control])
-            .disabled(router?.selectedSession == nil)
+            .disabled(router?.selectedProjectID == nil)
 
             Button("シミュレーターのタブ") {
                 router?.openChildTab(.simulator)
-                simulatorHub?.requestMenuFocus(for: router?.selectedSession)
+                simulatorHub?.requestMenuFocus(for: router?.selectedProjectID)
             }
             .keyboardShortcut("y", modifiers: [.command, .control])
-            .disabled(router?.selectedSession == nil)
+            .disabled(router?.selectedProjectID == nil)
             Button("ブラウザを開く") {
                 router?.openChildTab(.browser)
             }
             .keyboardShortcut("r", modifiers: [.command, .control])
-            .disabled(router?.selectedSession == nil)
+            .disabled(router?.selectedProjectID == nil)
 
             // 表示範囲バーの「レイアウト ▾」と同じ 9 種（骨格 E2・06）。
             Menu("グリッドのレイアウト") {
@@ -917,14 +920,17 @@ private struct ViewCommands: Commands {
     private var showsTerminalInFront: Bool {
         guard let router else { return false }
         if router.commonTerminalSelected { return true }
-        return router.selectedSession.map { router.tabs.layout(for: $0).selected == .terminal } ?? false
+        guard let id = router.selectedProjectID else { return false }
+        if case .terminal = router.tabs.layout(for: id).selected { return true }
+        return false
     }
 
     /// 端末はタブの表示時に作られるので、有効判定ではなく押したときに引く。
     private func frontTerminal() -> TerminalPanelSession? {
         guard showsTerminalInFront, let router else { return nil }
         if router.commonTerminalSelected { return commonTerminal }
-        return router.selectedSession.flatMap { sessionTerminals?.existing($0) }
+        guard let projectID = router.selectedProjectID, case .terminal(let id) = router.tabs.layout(for: projectID).selected else { return nil }
+        return sessionTerminals?.existing(id)
     }
 
     /// フォーカス中の領域（会話かターミナル）。
@@ -932,7 +938,7 @@ private struct ViewCommands: Commands {
         let id = router?.selectedSession
         return DashboardViewModel.fontSizeTarget(
             node: id.flatMap { dashboard?.sessionNode(id: $0) },
-            selectedChildTab: id.flatMap { router?.tabs.layout(for: $0).selected },
+            selectedChildTab: router?.selectedProjectID.flatMap { router?.tabs.layout(for: $0).selected },
             showsCommonTerminal: router?.commonTerminalSelected ?? false
         )
     }
@@ -951,10 +957,10 @@ private struct SessionCommands: Commands {
                     .keyboardShortcut(KeyEquivalent(Character("\(number)")), modifiers: .command)
                     .disabled(dashboard == nil)
             }
-            Button("次のタブ") { router?.cycleChildTab(by: 1) }
+            Button("次のタブ") { router.map { $0.cycleChildTab(by: 1, chats: dashboard?.numberedTabs(router: $0).filter { if case .chat = $0 { return true }; return false } ?? []) } }
                 .keyboardShortcut(.tab, modifiers: .control)
                 .disabled(!canUseChildTabs(router))
-            Button("前のタブ") { router?.cycleChildTab(by: -1) }
+            Button("前のタブ") { router.map { $0.cycleChildTab(by: -1, chats: dashboard?.numberedTabs(router: $0).filter { if case .chat = $0 { return true }; return false } ?? []) } }
                 .keyboardShortcut(.tab, modifiers: [.control, .shift])
                 .disabled(!canUseChildTabs(router))
 
@@ -1065,11 +1071,13 @@ private struct SessionCommands: Commands {
 
     private func selectTab(_ number: Int) {
         guard let dashboard, let router else { return }
-        let ids = dashboard.numberedTabSessionIDs(router: router)
-        guard ids.indices.contains(number - 1) else { return }
+        let tabs = dashboard.numberedTabs(router: router)
+        guard tabs.indices.contains(number - 1) else { return }
         NSApp.mainWindow?.makeFirstResponder(nil)
         router.commonTerminalSelected = false
-        router.selectedSession = ids[number - 1]
+        if router.viewMode == .grid {
+            if case .chat(let id) = tabs[number - 1] { router.selectedSession = id }
+        } else if let projectID = router.selectedProjectID { router.selectTab(tabs[number - 1], in: projectID) }
     }
 
     private func focusTile(_ number: Int) {

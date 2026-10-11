@@ -143,11 +143,11 @@ public final class FileTabDocumentRegistry {
         weak var files: FileTabDocuments?
         weak var window: NSWindow?
         let delegate: WindowDelegate
-        var context: (SessionID) -> UnsavedFileContext
+        var context: (ProjectID) -> UnsavedFileContext
         var name: () -> String
         var locale: Locale
 
-        init(files: FileTabDocuments, window: NSWindow, delegate: WindowDelegate, context: @escaping (SessionID) -> UnsavedFileContext, name: @escaping () -> String, locale: Locale) {
+        init(files: FileTabDocuments, window: NSWindow, delegate: WindowDelegate, context: @escaping (ProjectID) -> UnsavedFileContext, name: @escaping () -> String, locale: Locale) {
             self.files = files
             self.window = window
             self.delegate = delegate
@@ -160,28 +160,28 @@ public final class FileTabDocumentRegistry {
     private enum Confirmation { case idle, window, termination, terminating }
     @ObservationIgnored private var entries: [Entry] = []
     @ObservationIgnored private var confirmation = Confirmation.idle
-    private var changingSessions: [SessionID: Int] = [:]
+    private var changingProjects: [ProjectID: Int] = [:]
 
     public init() {}
 
-    func isChangingSession(_ id: SessionID) -> Bool { changingSessions[id] != nil }
+    func isChangingProject(_ id: ProjectID) -> Bool { changingProjects[id] != nil }
 
-    func beginWorkspaceChange(_ id: SessionID) -> Bool {
-        guard !isChangingSession(id) else { return false }
-        beginSessionChanges(for: [id])
+    func beginWorkspaceChange(_ id: ProjectID) -> Bool {
+        guard !isChangingProject(id) else { return false }
+        beginProjectChanges(for: [id])
         return true
     }
 
-    func endWorkspaceChange(_ id: SessionID) { endSessionChanges(for: [id]) }
+    func endWorkspaceChange(_ id: ProjectID) { endProjectChanges(for: [id]) }
 
-    func beginSessionChanges(for ids: Set<SessionID>) {
-        for id in ids { changingSessions[id, default: 0] += 1 }
+    func beginProjectChanges(for ids: Set<ProjectID>) {
+        for id in ids { changingProjects[id, default: 0] += 1 }
     }
 
-    func endSessionChanges(for ids: Set<SessionID>) {
+    func endProjectChanges(for ids: Set<ProjectID>) {
         for id in ids {
-            if let count = changingSessions[id], count > 1 { changingSessions[id] = count - 1 }
-            else { changingSessions[id] = nil }
+            if let count = changingProjects[id], count > 1 { changingProjects[id] = count - 1 }
+            else { changingProjects[id] = nil }
         }
     }
 
@@ -191,7 +191,7 @@ public final class FileTabDocumentRegistry {
 
     public var terminationConfirmationInProgress: Bool { confirmation == .termination }
 
-    public func register(files: FileTabDocuments, window: NSWindow, context: @escaping (SessionID) -> UnsavedFileContext = { _ in UnsavedFileContext() }, name: @escaping () -> String = { "" }, locale: Locale = Locale(identifier: "ja")) {
+    public func register(files: FileTabDocuments, window: NSWindow, context: @escaping (ProjectID) -> UnsavedFileContext = { _ in UnsavedFileContext() }, name: @escaping () -> String = { "" }, locale: Locale = Locale(identifier: "ja")) {
         entries.removeAll { $0.window == nil }
         if let existing = entries.first(where: { $0.window === window }) {
             existing.files = files
@@ -210,8 +210,8 @@ public final class FileTabDocumentRegistry {
         window.delegate = delegate
     }
 
-    public func dirtyFileNames(for sessionIDs: Set<SessionID>? = nil) -> [String] {
-        entries.flatMap { $0.files?.documents(for: sessionIDs) ?? [] }
+    public func dirtyFileNames(for projectIDs: Set<ProjectID>? = nil) -> [String] {
+        entries.flatMap { $0.files?.documents(for: projectIDs) ?? [] }
             .filter(\.hasUnsavedChanges).map(\.unsavedDisplayName).sorted()
     }
 
@@ -220,37 +220,37 @@ public final class FileTabDocumentRegistry {
         return keyEntry == nil || keyEntry?.files === files
     }
 
-    func hasUnsavedChanges(for sessionID: SessionID, path: String) -> Bool {
-        entries.contains { $0.files?.existing(for: sessionID, path: path)?.hasUnsavedChanges == true }
+    func hasUnsavedChanges(for projectID: ProjectID, path: String) -> Bool {
+        entries.contains { $0.files?.existing(for: projectID, path: path)?.hasUnsavedChanges == true }
     }
 
     /// ファイルの子タブを閉じるとき、未保存の下書きがあれば先に確認する（破棄で変更が失われるため）。
     enum CloseDecision { case confirm, close }
 
-    func closeDecision(for sessionID: SessionID, path: String) -> CloseDecision {
-        hasUnsavedChanges(for: sessionID, path: path) ? .confirm : .close
+    func closeDecision(for projectID: ProjectID, path: String) -> CloseDecision {
+        hasUnsavedChanges(for: projectID, path: path) ? .confirm : .close
     }
 
-    func dirtySummary(for sessionID: SessionID, path: String) -> String {
-        dirtySummary(for: [sessionID], path: path)
+    func dirtySummary(for projectID: ProjectID, path: String) -> String {
+        dirtySummary(for: [projectID], path: path)
     }
 
-    func remove(for sessionID: SessionID, path: String) async {
-        beginSessionChanges(for: [sessionID])
-        defer { endSessionChanges(for: [sessionID]) }
+    func remove(for projectID: ProjectID, path: String) async {
+        beginProjectChanges(for: [projectID])
+        defer { endProjectChanges(for: [projectID]) }
         let files = entries.compactMap(\.files)
-        for files in files { files.existing(for: sessionID, path: path)?.invalidate() }
-        for files in files { await files.remove(for: sessionID, path: path) }
+        for files in files { files.existing(for: projectID, path: path)?.invalidate() }
+        for files in files { await files.remove(for: projectID, path: path) }
     }
 
-    public func dirtySummary(for sessionIDs: Set<SessionID>? = nil) -> String {
-        dirtySummary(for: sessionIDs, path: nil)
+    public func dirtySummary(for projectIDs: Set<ProjectID>? = nil) -> String {
+        dirtySummary(for: projectIDs, path: nil)
     }
 
-    private func dirtySummary(for sessionIDs: Set<SessionID>?, path: String?) -> String {
+    private func dirtySummary(for projectIDs: Set<ProjectID>?, path: String?) -> String {
         let windows = entries.compactMap { entry -> UnsavedWindow? in
             guard let files = entry.files, let window = entry.window else { return nil }
-            let dirty = files.documents(for: sessionIDs)
+            let dirty = files.documents(for: projectIDs)
                 .filter { $0.hasUnsavedChanges && (path == nil || $0.path == path) }
                 .sorted { $0.path < $1.path }
             guard !dirty.isEmpty else { return nil }
@@ -261,16 +261,16 @@ public final class FileTabDocumentRegistry {
             locale: entries.first { $0.window?.isKeyWindow == true }?.locale ?? entries.first?.locale ?? Locale(identifier: "ja")).textSummary
     }
 
-    public func invalidateAndWait(for sessionIDs: Set<SessionID>? = nil) async {
+    public func invalidateAndWait(for projectIDs: Set<ProjectID>? = nil) async {
         let files = entries.compactMap(\.files)
         for files in files {
-            for document in files.documents(for: sessionIDs) { document.invalidate() }
+            for document in files.documents(for: projectIDs) { document.invalidate() }
         }
-        for files in files { await files.invalidateAndWait(for: sessionIDs) }
+        for files in files { await files.invalidateAndWait(for: projectIDs) }
     }
 
-    func waitForPendingSaves(for sessionIDs: Set<SessionID>) async {
-        let documents = entries.flatMap { $0.files?.documents(for: sessionIDs) ?? [] }
+    func waitForPendingSaves(for projectIDs: Set<ProjectID>) async {
+        let documents = entries.flatMap { $0.files?.documents(for: projectIDs) ?? [] }
         for document in documents { await document.waitForPendingSaves() }
     }
 

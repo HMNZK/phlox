@@ -7,7 +7,7 @@ import AgentDomain
 struct WindowChromeConfigurator: NSViewRepresentable {
     @Environment(\.locale) private var locale
     var files: FileTabDocuments? = nil
-    var fileContext: (SessionID) -> UnsavedFileContext = { _ in UnsavedFileContext() }
+    var fileContext: (ProjectID) -> UnsavedFileContext = { _ in UnsavedFileContext() }
     var projectName: () -> String = { "" }
 
     func makeNSView(context: Context) -> NSView {
@@ -29,7 +29,7 @@ struct WindowChromeConfigurator: NSViewRepresentable {
 
     private final class ChromeView: NSView {
         weak var files: FileTabDocuments?
-        var fileContext: (SessionID) -> UnsavedFileContext = { _ in UnsavedFileContext() }
+        var fileContext: (ProjectID) -> UnsavedFileContext = { _ in UnsavedFileContext() }
         var projectName: () -> String = { "" }
         var locale = Locale(identifier: "ja")
 

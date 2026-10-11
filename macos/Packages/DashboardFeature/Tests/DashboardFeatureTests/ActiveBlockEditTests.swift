@@ -54,7 +54,7 @@ struct ActiveBlockEditTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try Data("é".utf8).write(to: root.appendingPathComponent("a.md"))
         let files = FileTabDocuments()
-        let sessionID = SessionID()
+        let sessionID = ProjectID()
         let document = files.document(for: sessionID, path: "a.md", root: root.path)
         await document.loadIfNeeded()
         #expect(document.beginBlockEdit(range: 0..<document.draft.utf8.count))

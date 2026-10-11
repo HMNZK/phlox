@@ -398,7 +398,7 @@ public final class FileTabDocument {
 
     /// 開いてからこのファイルを書き換えた別セッションの表示名（07「アザミ · Codex」）。
     /// 分かるのはチャット型のファイル変更だけ。その後にターミナルやエディタが書き換えていれば分からないので nil。
-    public func lastWriter(among sessions: [SessionNode], excluding sessionID: SessionID) -> String? {
+    public func lastWriter(among sessions: [SessionNode], excluding sessionID: SessionID?) -> String? {
         guard let baselineAt, let absolutePath else { return nil }
         let target = Self.canonical(absolutePath, relativeTo: "/")
         var latest: (date: Date, name: String)?
@@ -530,67 +530,67 @@ public final class FileTabDocument {
 /// セッション × パスごとのファイルタブ。表示の途中で作ってよいよう観測対象にはしない。
 @MainActor
 public final class FileTabDocuments {
-    private var storedDocuments: [SessionID: [String: FileTabDocument]] = [:]
+    private var storedDocuments: [ProjectID: [String: FileTabDocument]] = [:]
 
     public init() {}
 
-    /// セッションの作業場所が変わっていたら、旧い場所の下書きは捨てて開き直す
+    /// プロジェクトのフォルダが変わっていたら、旧い場所の下書きは捨てて開き直す
     /// （作業場所の変更は「進行中の作業は失われます」と確認してから行われる）。
-    public func document(for sessionID: SessionID, path: String, workingDirectory: String) -> FileTabDocument {
-        if let existing = storedDocuments[sessionID]?[path],
+    public func document(for projectID: ProjectID, path: String, workingDirectory: String) -> FileTabDocument {
+        if let existing = storedDocuments[projectID]?[path],
            existing.workingDirectory == workingDirectory || existing.hasUnsavedChanges || existing.hasPendingSaves { return existing }
-        storedDocuments[sessionID]?[path]?.invalidate()
+        storedDocuments[projectID]?[path]?.invalidate()
         let created = FileTabDocument(path: path, workingDirectory: workingDirectory)
-        storedDocuments[sessionID, default: [:]][path] = created
+        storedDocuments[projectID, default: [:]][path] = created
         return created
     }
 
-    public func document(for sessionID: SessionID, path: String, root: String) -> FileTabDocument {
+    public func document(for projectID: ProjectID, path: String, root: String) -> FileTabDocument {
         let root = URL(fileURLWithPath: root, isDirectory: true).standardizedFileURL.resolvingSymlinksInPath().path
-        if let existing = storedDocuments[sessionID]?[path],
+        if let existing = storedDocuments[projectID]?[path],
            existing.root == root || existing.hasUnsavedChanges || existing.hasPendingSaves { return existing }
-        storedDocuments[sessionID]?[path]?.invalidate()
+        storedDocuments[projectID]?[path]?.invalidate()
         let created = FileTabDocument(path: path, root: root)
-        storedDocuments[sessionID, default: [:]][path] = created
+        storedDocuments[projectID, default: [:]][path] = created
         return created
     }
 
-    public func existing(for sessionID: SessionID, path: String) -> FileTabDocument? {
-        storedDocuments[sessionID]?[path]
+    public func existing(for projectID: ProjectID, path: String) -> FileTabDocument? {
+        storedDocuments[projectID]?[path]
     }
 
-    public func remove(for sessionID: SessionID, path: String) async {
-        guard let document = storedDocuments[sessionID]?[path] else { return }
+    public func remove(for projectID: ProjectID, path: String) async {
+        guard let document = storedDocuments[projectID]?[path] else { return }
         document.invalidate()
         await document.waitForPendingSaves()
-        if storedDocuments[sessionID]?[path] === document { storedDocuments[sessionID]?[path] = nil }
+        if storedDocuments[projectID]?[path] === document { storedDocuments[projectID]?[path] = nil }
     }
 
-    public func removeAll(for sessionID: SessionID) async {
-        await invalidateAndWait(for: [sessionID])
+    public func removeAll(for projectID: ProjectID) async {
+        await invalidateAndWait(for: [projectID])
     }
 
-    public func documents(for sessionIDs: Set<SessionID>? = nil) -> [FileTabDocument] {
-        storedDocuments.filter { sessionIDs?.contains($0.key) ?? true }.values.flatMap { $0.values }
+    public func documents(for projectIDs: Set<ProjectID>? = nil) -> [FileTabDocument] {
+        storedDocuments.filter { projectIDs?.contains($0.key) ?? true }.values.flatMap { $0.values }
     }
 
-    func documentEntries() -> [(SessionID, FileTabDocument)] {
+    func documentEntries() -> [(ProjectID, FileTabDocument)] {
         storedDocuments.flatMap { id, documents in documents.values.map { (id, $0) } }
     }
 
-    public func invalidateAndWait(for sessionIDs: Set<SessionID>? = nil) async {
-        let affected = documents(for: sessionIDs)
+    public func invalidateAndWait(for projectIDs: Set<ProjectID>? = nil) async {
+        let affected = documents(for: projectIDs)
         for document in affected { document.invalidate() }
         for document in affected { await document.waitForPendingSaves() }
-        for (sessionID, entries) in storedDocuments {
+        for (projectID, entries) in storedDocuments {
             for (path, document) in entries where affected.contains(where: { $0 === document }) {
-                storedDocuments[sessionID]?[path] = nil
+                storedDocuments[projectID]?[path] = nil
             }
         }
     }
 
-    /// 未保存のファイル名（セッション削除の確認に出す）。
-    public func dirtyFileNames(for sessionID: SessionID) -> [String] {
-        (storedDocuments[sessionID] ?? [:]).values.filter(\.hasUnsavedChanges).map(\.fileName).sorted()
+    /// 未保存のファイル名（プロジェクト削除の確認に出す）。
+    public func dirtyFileNames(for projectID: ProjectID) -> [String] {
+        (storedDocuments[projectID] ?? [:]).values.filter(\.hasUnsavedChanges).map(\.fileName).sorted()
     }
 }

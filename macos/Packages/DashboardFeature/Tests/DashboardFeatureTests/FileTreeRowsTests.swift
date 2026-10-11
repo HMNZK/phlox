@@ -21,14 +21,14 @@ struct FileTreeRowsTests {
 
     @Test("開いている行は単体表示の操作中のファイルだけ")
     func activeFile() {
-        var layout = SessionTabLayout()
+        var layout = ProjectTabLayout()
         layout.open(.file("left.txt"))
         layout.open(.file("right.txt"))
         layout.splitRight(.file("right.txt"))
         #expect(FileTreeRows.openPath(selected: layout.selected, viewMode: .single, commonTerminalSelected: false) == "right.txt")
         layout.select(.file("left.txt"))
         #expect(FileTreeRows.openPath(selected: layout.selected, viewMode: .single, commonTerminalSelected: false) == "left.txt")
-        for tab in [ChildTab.conversation, .terminal, .changes, .file("a.txt")] {
+        for tab in [ProjectTab.newChat, .terminal(TerminalTabID()), .changes, .file("a.txt")] {
             #expect(FileTreeRows.openPath(selected: tab, viewMode: .grid, commonTerminalSelected: false) == nil)
             #expect(FileTreeRows.openPath(selected: tab, viewMode: .single, commonTerminalSelected: true) == nil)
             if tab != .file("a.txt") {

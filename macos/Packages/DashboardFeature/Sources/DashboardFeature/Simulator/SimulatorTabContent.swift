@@ -7,7 +7,7 @@ import SwiftUI
 /// 状態ごとの表示。接続の寿命と操作の状態はタブが所有する。
 struct SimulatorTabContent: View {
     let hub: SimulatorHub
-    let sessionID: SessionID
+    let projectID: ProjectID
     let displayID: UUID
     var windowVisible = true
     var menuFocusRequest = 0
@@ -25,9 +25,9 @@ struct SimulatorTabContent: View {
     let openSimulator: () -> Void
     var tellAgent: (() -> Void)?
 
-    private var device: SimulatorDevice? { hub.selectedDevice(for: sessionID) }
-    private var connection: SimulatorDisplayConnection? { hub.connection(for: sessionID) }
-    private var support: SimulatorPolicy.Support { hub.support(for: sessionID, displayID: displayID) }
+    private var device: SimulatorDevice? { hub.selectedDevice(for: projectID) }
+    private var connection: SimulatorDisplayConnection? { hub.connection(for: projectID) }
+    private var support: SimulatorPolicy.Support { hub.support(for: projectID, displayID: displayID) }
     private var allowsInput: Bool { support.allowsInput && connection?.inputEnabled == true }
     private var hasScreen: Bool { support.allowsDisplay && connection?.displayInfo != nil }
     private var failureReason: String? { operationReason ?? menuOperationReason ?? hub.operationReason }
@@ -124,7 +124,7 @@ struct SimulatorTabContent: View {
                     .fixedSize()
             }
             if device?.state == "Shutdown" {
-                Button("起動") { Task { await hub.boot(for: sessionID) } }
+                Button("起動") { Task { await hub.boot(for: projectID) } }
                     .buttonStyle(.ds(.secondary, height: 22, fontSize: 11.5, padding: 8))
                     .fixedSize().layoutPriority(2)
                     .accessibilityIdentifier("simulator-boot")
@@ -317,7 +317,7 @@ struct SimulatorTabContent: View {
             Button("再確認") { Task { await hub.refresh() } }
                 .buttonStyle(.ds(.secondary, height: 24, fontSize: 12))
         } else if device?.state == "Shutdown" {
-            Button("起動") { Task { await hub.boot(for: sessionID) } }
+            Button("起動") { Task { await hub.boot(for: projectID) } }
                 .buttonStyle(.ds(.primary, height: 24, fontSize: 12))
         } else if connection?.reason != nil || isUnverified {
             if isUnverified {

@@ -5,6 +5,17 @@ import Testing
 
 @Suite("EditorPanelCoordinator")
 struct EditorPanelCoordinatorTests {
+    @Test @MainActor func projectChangesUseProjectFolderRegardlessOfChatWorktree() {
+        let project = Project(name: "project", directoryPath: "/project", createdAt: Date(), isManagedDirectory: false)
+        let coordinator = EditorPanelCoordinator()
+        coordinator.update(project: project, workspaces: [SessionWorkspace(sessionID: SessionID(), workingDirectory: "/worktree", isActive: true)])
+        #expect(coordinator.target.workingDirectory == "/project")
+        #expect(coordinator.target.selectedSessionID == nil)
+        let model = coordinator.viewModel
+        coordinator.update(project: project, workspaces: [SessionWorkspace(sessionID: SessionID(), workingDirectory: "/other-worktree", isActive: true)])
+        #expect(coordinator.viewModel === model)
+    }
+
     private func makeTempDir() throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("phlox-editor-coordinator-\(UUID().uuidString)", isDirectory: true)

@@ -85,7 +85,7 @@ struct MarkdownBlockRegressionTests {
         let window = registryTestWindow("確認")
         defer { window.close() }
         registry.register(files: files, window: window)
-        let session = SessionID()
+        let session = ProjectID()
         let document = files.document(for: session, path: "notes/a.md", root: "/")
         document.draft = "元"
         #expect(document.beginBlockEdit(range: 0..<document.draft.utf8.count))

@@ -28,6 +28,16 @@ final class EditorPanelCoordinator {
             selectedSessionID: selectedSessionID,
             workspaces: workspaces
         )
+        updateTarget(nextTarget)
+    }
+
+    func update(project: Project?, workspaces: [SessionWorkspace]) {
+        let path = project?.directoryPath
+        let activeCount = path.map { path in workspaces.filter { $0.isActive && WorkspaceCollisionPolicy.canonicalPath($0.workingDirectory) == WorkspaceCollisionPolicy.canonicalPath(path) }.count } ?? 0
+        updateTarget(EditorPanelTarget(selectedSessionID: nil, workingDirectory: path, peerCount: max(0, activeCount - 1)))
+    }
+
+    private func updateTarget(_ nextTarget: EditorPanelTarget) {
         guard target != nextTarget else { return }
 
         let targetIdentityChanged = !hasSameIdentity(target, nextTarget)
@@ -46,7 +56,8 @@ final class EditorPanelCoordinator {
     func resolve(workspaces: [SessionWorkspace]) async {
         let target = self.target
 
-        guard let selectedSessionID = target.selectedSessionID else {
+        let selectedSessionID = target.selectedSessionID
+        guard target.workingDirectory != nil else {
             viewModel.updateChangeScope(.unavailable)
             await viewModel.refresh()
             guard !Task.isCancelled, self.target == target else { return }
@@ -71,14 +82,16 @@ final class EditorPanelCoordinator {
             repositoryRoot = cachedRoot
         }
 
-        let scope = SessionChangeScopeResolver.resolve(
-            selectedSessionID: selectedSessionID,
-            workspaces: workspaces,
-            repositoryRootProvider: { path in
-                guard path == target.workingDirectory else { return nil }
-                return repositoryRoot
-            }
-        )
+        let scope: SessionChangeScope
+        if selectedSessionID != nil {
+            scope = SessionChangeScopeResolver.resolve(
+                selectedSessionID: selectedSessionID, workspaces: workspaces,
+                repositoryRootProvider: { $0 == target.workingDirectory ? repositoryRoot : nil }
+            )
+        } else if let repositoryRoot {
+            scope = target.peerCount > 0 ? .shared(repositoryRoot: repositoryRoot, peerCount: target.peerCount) : .isolated(repositoryRoot: repositoryRoot)
+        } else { scope = .unavailable }
+
 
         guard !Task.isCancelled, self.target == target else { return }
 

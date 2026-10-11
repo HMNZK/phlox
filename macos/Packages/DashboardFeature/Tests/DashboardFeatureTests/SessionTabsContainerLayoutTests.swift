@@ -23,7 +23,7 @@ struct SessionTabsContainerLayoutTests {
         let container = SessionTabsContainer(
             viewModel: dashboard, router: router, terminals: nil, commonTerminal: panel, simulatorHub: nil,
             editorPanel: EditorPanelCoordinator(), files: FileTabDocuments(), agentConsoleWindowID: nil
-        ) { Color.clear }
+        ) { _ in Color.clear }
         let host = NSHostingView(rootView: container.frame(width: 800, height: 600))
         host.frame = NSRect(x: 0, y: 0, width: 800, height: 600)
         let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)

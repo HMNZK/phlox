@@ -16,9 +16,9 @@ struct SimulatorPolicyTests {
         }
         defer { hub.disconnectAll() }
         await hub.refresh()
-        let session = SessionID(), display = UUID()
+        let session = ProjectID(), display = UUID()
         hub.select(udid: "端末A", for: session)
-        hub.setVisible(true, displayID: display, sessionID: session)
+        hub.setVisible(true, displayID: display, projectID: session)
         let a = try #require(hub.connection(for: session))
         fake.complete(udid: "端末A", generation: a.generation.current)
         hub.tryUnverified(displayID: display)
@@ -40,9 +40,9 @@ struct SimulatorPolicyTests {
         }
         defer { hub.disconnectAll() }
         await hub.refresh()
-        let session = SessionID(), otherSession = SessionID(), display = UUID(), other = UUID()
-        hub.setVisible(true, displayID: display, sessionID: session)
-        hub.setVisible(true, displayID: other, sessionID: otherSession)
+        let session = ProjectID(), otherSession = ProjectID(), display = UUID(), other = UUID()
+        hub.setVisible(true, displayID: display, projectID: session)
+        hub.setVisible(true, displayID: other, projectID: otherSession)
         let connection = try #require(hub.connection(for: session))
         fake.complete(udid: "端末A", generation: connection.generation.current)
         hub.tryUnverified(displayID: display)
@@ -97,11 +97,11 @@ struct SimulatorPolicyTests {
             return connection
         }
         await hub.refresh()
-        let session = SessionID(), other = SessionID()
+        let session = ProjectID(), other = ProjectID()
         let first = UUID(), second = UUID(), third = UUID()
-        hub.setVisible(true, displayID: first, sessionID: session)
-        hub.setVisible(true, displayID: second, sessionID: session)
-        hub.setVisible(true, displayID: third, sessionID: other)
+        hub.setVisible(true, displayID: first, projectID: session)
+        hub.setVisible(true, displayID: second, projectID: session)
+        hub.setVisible(true, displayID: third, projectID: other)
         let connection = try #require(hub.connection(for: session))
         fake.complete(udid: "端末A", generation: connection.generation.current)
         #expect(fake.attached.isEmpty)
@@ -112,15 +112,15 @@ struct SimulatorPolicyTests {
         #expect(hub.support(for: session, displayID: first) == .unverified)
         #expect(hub.support(for: session, displayID: second) == .unverified)
         #expect(hub.support(for: other, displayID: third) == .unsupported)
-        hub.setVisible(false, displayID: first, sessionID: session)
+        hub.setVisible(false, displayID: first, projectID: session)
         #expect(connection.displayInfo != nil)
-        hub.setVisible(true, displayID: first, sessionID: session)
+        hub.setVisible(true, displayID: first, projectID: session)
         fake.complete(udid: "端末A", generation: connection.generation.current)
         #expect(connection.displayInfo != nil)
         hub.removeDisplay(first)
         #expect(connection.displayInfo != nil)
         #expect(hub.support(for: session, displayID: second) == .unverified)
-        hub.removeSession(session)
+        hub.removeProject(session)
         #expect(connection.displayInfo == nil)
         #expect(hub.support(for: session, displayID: first) == .unsupported)
         hub.disconnectAll()
@@ -134,8 +134,8 @@ struct SimulatorPolicyTests {
             SimulatorDisplayConnection { attempts += 1; return fake }
         }
         await hub.refresh()
-        let session = SessionID(), display = UUID()
-        hub.setVisible(true, displayID: display, sessionID: session)
+        let session = ProjectID(), display = UUID()
+        hub.setVisible(true, displayID: display, projectID: session)
         fake.probeReply?(SimulatorBridgeCapability(protocolVersion: versionMismatch ? 999 : SimulatorBridgeInterfaces.protocolVersion,
                                                   helperBuild: "検証", xcodeBuild: "未確認",
                                                   coreSimulatorLoaded: versionMismatch, simulatorKitLoaded: versionMismatch))
@@ -160,8 +160,8 @@ struct SimulatorPolicyTests {
         }
         defer { hub.disconnectAll() }
         await hub.refresh()
-        let session = SessionID(), display = UUID()
-        hub.setVisible(true, displayID: display, sessionID: session)
+        let session = ProjectID(), display = UUID()
+        hub.setVisible(true, displayID: display, projectID: session)
         let connection = try #require(hub.connection(for: session))
         fake.complete(udid: "端末A", generation: connection.generation.current)
         hub.tryUnverified(displayID: display)
@@ -184,8 +184,8 @@ struct SimulatorPolicyTests {
         }
         defer { hub.disconnectAll() }
         await hub.refresh()
-        let session = SessionID(), first = UUID(), rebuilt = UUID()
-        hub.setVisible(true, displayID: first, sessionID: session)
+        let session = ProjectID(), first = UUID(), rebuilt = UUID()
+        hub.setVisible(true, displayID: first, projectID: session)
         let original = try #require(hub.connection(for: session))
         fake.complete(udid: "端末A", generation: original.generation.current)
         hub.tryUnverified(displayID: first)
@@ -193,13 +193,13 @@ struct SimulatorPolicyTests {
         #expect(original.displayInfo != nil)
         hub.removeDisplay(first)
         #expect(hub.connection(for: session) == nil)
-        hub.setVisible(true, displayID: rebuilt, sessionID: session)
+        hub.setVisible(true, displayID: rebuilt, projectID: session)
         let connection = try #require(hub.connection(for: session))
         fake.complete(udid: "端末A", generation: connection.generation.current)
         #expect(connection.displayInfo != nil)
         #expect(hub.support(for: session, displayID: rebuilt) == .unverified)
-        hub.removeSession(session)
-        hub.setVisible(true, displayID: UUID(), sessionID: session)
+        hub.removeProject(session)
+        hub.setVisible(true, displayID: UUID(), projectID: session)
         let reopened = try #require(hub.connection(for: session))
         fake.complete(udid: "端末A", generation: reopened.generation.current)
         #expect(reopened.displayInfo == nil)
@@ -215,9 +215,9 @@ struct SimulatorPolicyTests {
         }
         defer { hub.disconnectAll() }
         await hub.refresh()
-        let session = SessionID(), display = UUID()
+        let session = ProjectID(), display = UUID()
         hub.select(udid: "端末A", for: session)
-        hub.setVisible(true, displayID: display, sessionID: session)
+        hub.setVisible(true, displayID: display, projectID: session)
         hub.tryUnverified(displayID: display)
         let allowed = try #require(hub.connection(for: session))
         fake.complete(udid: "端末A", generation: allowed.generation.current)
@@ -231,7 +231,7 @@ struct SimulatorPolicyTests {
         fake.complete(udid: "端末A", generation: returned.generation.current)
         #expect(returned.displayInfo != nil)
         hub.disconnectAll()
-        hub.setVisible(true, displayID: UUID(), sessionID: session)
+        hub.setVisible(true, displayID: UUID(), projectID: session)
         let restarted = try #require(hub.connection(for: session))
         fake.complete(udid: "端末A", generation: restarted.generation.current)
         #expect(restarted.displayInfo == nil)
@@ -244,11 +244,11 @@ struct SimulatorPolicyTests {
             SimulatorDisplayConnection { fake }
         }
         await hub.refresh()
-        let session = SessionID(), other = SessionID()
+        let session = ProjectID(), other = ProjectID()
         #expect(hub.menuFocusRevision(for: session) == 0)
         hub.requestMenuFocus(for: session)
         #expect(hub.menuFocusRevision(for: session) == 1)
-        hub.setVisible(true, displayID: UUID(), sessionID: session)
+        hub.setVisible(true, displayID: UUID(), projectID: session)
         hub.requestMenuFocus(for: session)
         #expect(hub.menuFocusRevision(for: session) == 2)
         #expect(hub.menuFocusRevision(for: other) == 0)
@@ -267,8 +267,8 @@ struct SimulatorPolicyTests {
             return SimulatorDisplayConnection { fake }
         }
         await hub.refresh()
-        let session = SessionID()
-        hub.setVisible(true, displayID: UUID(), sessionID: session)
+        let session = ProjectID()
+        hub.setVisible(true, displayID: UUID(), projectID: session)
         if booted {
             let connection = try #require(hub.connection(for: session))
             fake.complete(udid: "端末A", generation: connection.generation.current)

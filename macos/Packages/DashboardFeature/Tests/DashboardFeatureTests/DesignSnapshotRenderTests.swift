@@ -423,10 +423,10 @@ struct DesignSnapshotRenderTests {
                 hookEvents: events, terminalCoordinator: TerminalCoordinator(),
                 spawnRequest: .init(command: "/bin/sh", args: [], env: [:], workingDirectory: root.path,
                                     kind: .claudeCode, statusBootstrap: .viaHook)))
-            var layout = SessionTabLayout()
+            var layout = ProjectTabLayout()
             layout.open(.browser)
             let content = VStack(spacing: 0) {
-                ChildTabBar(router: router, node: node, layout: layout, changeCount: 0, files: FileTabDocuments(), agentConsoleWindowID: nil)
+                ChildTabBar(router: router, viewModel: DashboardViewModel(environment: makeTestEnvironment(pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() })), project: Project(name: node.workspaceName, directoryPath: node.rawWorkspacePath, createdAt: Date(), isManagedDirectory: false), layout: layout, chats: [.chat(node.id)], changeCount: 0, files: FileTabDocuments(), agentConsoleWindowID: nil)
                 Rectangle().fill(DSColor.separator).frame(height: 1)
                 BrowserTabView(model: model, tellAgent: { _ in })
             }
@@ -500,7 +500,8 @@ struct DesignSnapshotRenderTests {
         }
         let sessionID = SessionID()
         let files = FileTabDocuments()
-        let document = try await makeDocument(frame, fixtures: fixtures, files: files, sessionID: sessionID)
+        let projectID = ProjectID()
+        let document = try await makeDocument(frame, fixtures: fixtures, files: files, projectID: projectID)
         defer { document.invalidate() }
         let (events, continuation) = AsyncStream<(SessionID, HookEvent)>.makeStream()
         defer { continuation.finish() }
@@ -508,8 +509,8 @@ struct DesignSnapshotRenderTests {
             hookEvents: events, terminalCoordinator: TerminalCoordinator(),
             spawnRequest: .init(command: "/bin/sh", args: [], env: [:], workingDirectory: document.root,
                                 kind: .claudeCode, statusBootstrap: .viaHook)))
-        var layout = SessionTabLayout()
-        layout.open(.terminal)
+        var layout = ProjectTabLayout()
+        layout.open(.terminal(TerminalTabID()))
         layout.open(.file(document.path))
         let preview = HTMLPreviewModel(document: document)
         if document.isHTML {
@@ -541,7 +542,7 @@ struct DesignSnapshotRenderTests {
             let linked = WorktreeURL.url(for: "docs/architecture/overview.md")!
             let destination = FileLinkDestination(url: linked, decision: .openFile("docs/architecture/overview.md"))
             try await capture(VStack(spacing: 0) {
-                if id != "4j" { ChildTabBar(router: AppRouter(), node: node, layout: layout, changeCount: 0, files: files, agentConsoleWindowID: nil) }
+                if id != "4j" { ChildTabBar(router: AppRouter(), viewModel: DashboardViewModel(environment: makeTestEnvironment(pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() })), project: Project(id: projectID, name: node.workspaceName, directoryPath: node.rawWorkspacePath, createdAt: Date(), isManagedDirectory: false), layout: layout, chats: [.chat(node.id)], changeCount: 0, files: files, agentConsoleWindowID: nil) }
                 FileTabView(document: document, lastWriter: { _ in nil }, isFocused: false, openFile: { _, _ in }, markdownEditor:
                     MarkdownBlockEditor(document: document, openURL: { _ in .discarded }, linkDestination: { _ in destination },
                                     hoveredBlock: id == "4a" ? hovered : id == "4f" ? blocks.first?.id : nil, focusedBlock: id == "4h" ? selected : nil,
@@ -561,7 +562,7 @@ struct DesignSnapshotRenderTests {
         } else {
             try await capture(VStack(spacing: 0) {
                 if id != "8L2" {
-                    ChildTabBar(router: AppRouter(), node: node, layout: layout, changeCount: 0,
+                    ChildTabBar(router: AppRouter(), viewModel: DashboardViewModel(environment: makeTestEnvironment(pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() })), project: Project(id: projectID, name: node.workspaceName, directoryPath: node.rawWorkspacePath, createdAt: Date(), isManagedDirectory: false), layout: layout, chats: [.chat(node.id)], changeCount: 0,
                                 files: files, agentConsoleWindowID: nil)
                 }
                 body
@@ -670,12 +671,7 @@ struct DesignSnapshotRenderTests {
     }
 
     private func renderTabChooser(_ frame: Frame, fixtures: URL, output: URL) async throws -> String {
-        let (events, continuation) = AsyncStream<(SessionID, HookEvent)>.makeStream()
-        defer { continuation.finish() }
-        let node = SessionNode.pty(SessionViewModel(id: SessionID(), ptyManager: MockPTYManager(), hookEvents: events,
-            terminalCoordinator: TerminalCoordinator(), spawnRequest: .init(command: "/bin/sh", args: [], env: [:],
-                workingDirectory: fixtures.path, kind: .claudeCode, statusBootstrap: .viaHook)))
-        try await capture(NewTabChooser(router: AppRouter(), node: node, agentConsoleWindowID: "agent-console", simulatorHub: nil),
+        try await capture(NewTabChooser(router: AppRouter(), projectID: ProjectID(), agentConsoleWindowID: "agent-console", simulatorHub: nil),
                           frame: .init(id: frame.id, name: frame.name, width: 320, height: 240), output: output)
         return "実物のタブ追加メニュー。ポップオーバーの外枠は対象外"
     }
@@ -733,8 +729,9 @@ struct DesignSnapshotRenderTests {
         try #require(dashboard.sessionNodes.contains { $0.id == sessionID })
         let router = AppRouter(viewMode: .single, sidebarVisible: frame.id != "1c", inspectorVisible: true)
         router.selectedSession = sessionID
+        router.selectedProjectID = project.id
         router.inspectorTab = .files
-        router.tabs.updateLayout(for: sessionID) {
+        router.tabs.updateLayout(for: project.id) {
             $0.open(.file(path))
             $0.open(.simulator)
             $0.select(.file(path))
@@ -770,7 +767,7 @@ struct DesignSnapshotRenderTests {
     <article><h2>ファイルツリー</h2><p>右サイドバーで作業ツリーを開き、Markdown と HTML を表示します。</p></article></body></html>
     """
 
-    private func makeDocument(_ frame: Frame, fixtures: URL, files: FileTabDocuments, sessionID: SessionID) async throws -> FileTabDocument {
+    private func makeDocument(_ frame: Frame, fixtures: URL, files: FileTabDocuments, projectID: ProjectID) async throws -> FileTabDocument {
         let id = frame.stateID
         var path = "docs/guides/file-tree.md"
         var bytes = Data(markdown.utf8)
@@ -836,7 +833,7 @@ struct DesignSnapshotRenderTests {
             try FileManager.default.createDirectory(at: linked.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data(markdown.utf8).write(to: linked)
         }
-        let document = files.document(for: sessionID, path: path, root: root.path)
+        let document = files.document(for: projectID, path: path, root: root.path)
         await document.loadIfNeeded()
         switch id {
         case "3l": try #require(document.loadState == .tooLarge)
@@ -936,7 +933,7 @@ struct DesignSnapshotRenderTests {
         if id == "2e3" { try #require(model.branch == "Git 管理外") }
         if id == "2e4" { try #require(model.branch.isEmpty) }
         if id == "2i" {
-            let view = FileTreeInspectorView(router: AppRouter(), session: nil, models: .constant([:]), files: FileTabDocuments())
+            let view = FileTreeInspectorView(router: AppRouter(), project: nil, models: .constant([:]), files: FileTabDocuments())
             try await capture(view, frame: frame, output: output)
         } else {
             let expansion = Task { await model.expand("docs") }
@@ -961,7 +958,7 @@ struct DesignSnapshotRenderTests {
     private func renderSimulator(_ frame: Frame, output: URL) async throws -> String {
         let id = frame.stateID
         let displayID = UUID()
-        let session = SessionID()
+        let session = ProjectID()
         let icon = NSApp.applicationIconImage
         if id == "7e" {
             let macos = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
@@ -1000,12 +997,12 @@ struct DesignSnapshotRenderTests {
         await hub.refresh()
         hub.select(udid: ["7k", "7ListingError"].contains(id) ? nil : id.hasPrefix("7Long")
             ? "iPad Pro 13-inch (M4)" : ["7f", "7g"].contains(id) ? "iPhone 17" : "iPhone 17 Pro", for: session)
-        hub.setVisible(true, displayID: displayID, sessionID: session)
+        hub.setVisible(true, displayID: displayID, projectID: session)
         defer { hub.disconnectAll() }
         if id == "7e" {
-            let otherSession = SessionID()
+            let otherSession = ProjectID()
             hub.select(udid: "iPhone 17 Pro", for: otherSession)
-            hub.setVisible(true, displayID: UUID(), sessionID: otherSession)
+            hub.setVisible(true, displayID: UUID(), projectID: otherSession)
         }
         if let connection = hub.connection(for: session) {
             try await waitUntil { fake.probeReply != nil }
@@ -1048,7 +1045,7 @@ struct DesignSnapshotRenderTests {
             }
         }
         let focused = ["7b", "7c", "7n", "8L3", "7TrialInput520", "7StaleInput520", "7LongInput320", "7LongTrialStale320"].contains(id)
-        let content = SimulatorTabContent(hub: hub, sessionID: session, displayID: displayID,
+        let content = SimulatorTabContent(hub: hub, projectID: session, displayID: displayID,
             confirmsShutdown: id == "7e",
             sendsKeys: .constant(focused), showsDiagnostics: .constant(frame.id == "7iOpen"),
             select: { _ in }, releaseFocus: {}, screenshot: {}, shutdown: {}, openSimulator: {}, tellAgent: {})

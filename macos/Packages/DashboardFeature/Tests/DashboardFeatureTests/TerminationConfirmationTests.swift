@@ -18,7 +18,7 @@ struct TerminationConfirmationTests {
         let secondWindow = registryTestWindow("次")
         let firstFiles = FileTabDocuments()
         let secondFiles = FileTabDocuments()
-        let session = SessionID()
+        let session = ProjectID()
         registry.register(files: firstFiles, window: firstWindow,
                           context: { _ in UnsavedFileContext(project: "phlox-oss", session: "アザミ") }, name: { "phlox-oss" })
         registry.register(files: secondFiles, window: secondWindow,
@@ -31,7 +31,7 @@ struct TerminationConfirmationTests {
         let single = try #require(registry.unsavedWindows().first)
         #expect(single.files.map(\.name) == ["README.md", "README.md"])
         #expect(single.files.map(\.context) == ["phlox-oss · アザミ · docs/", "phlox-oss · アザミ · examples/"])
-        let second = secondFiles.document(for: SessionID(), path: "docs/README.md", root: root.path)
+        let second = secondFiles.document(for: ProjectID(), path: "docs/README.md", root: root.path)
         await second.loadIfNeeded()
         second.draft = "別の変更"
         let grouped = registry.unsavedWindows()
@@ -125,7 +125,7 @@ struct TerminationConfirmationTests {
         let window = registryTestWindow("終了確認")
         let registry = FileTabDocumentRegistry()
         registry.register(files: files, window: window)
-        let document = files.document(for: SessionID(), path: "a.txt", root: root.path)
+        let document = files.document(for: ProjectID(), path: "a.txt", root: root.path)
         await document.loadIfNeeded()
         document.draft = "変更"
         var confirmations = 0
@@ -166,7 +166,7 @@ struct TerminationConfirmationTests {
         let original = RejectingWindowDelegate()
         window.delegate = original
         registry.register(files: files, window: window)
-        let document = files.document(for: SessionID(), path: "a.txt", root: root.path)
+        let document = files.document(for: ProjectID(), path: "a.txt", root: root.path)
         #expect(window.delegate?.windowShouldClose?(window) == false)
         #expect(original.closeRequests == 1)
         #expect(!document.invalidated)
@@ -181,7 +181,7 @@ struct TerminationConfirmationTests {
         let files = FileTabDocuments()
         let window = registryTestWindow("ウィンドウを閉じる")
         registry.register(files: files, window: window)
-        let document = files.document(for: SessionID(), path: "a.txt", root: root.path)
+        let document = files.document(for: ProjectID(), path: "a.txt", root: root.path)
         await document.loadIfNeeded()
         document.draft = "未保存"
         #expect(window.delegate?.windowShouldClose?(window) == false)

@@ -145,7 +145,7 @@ struct FileTabAccessTests {
         let files = FileTabDocuments()
         let window = registryTestWindow("操作元")
         registry.register(files: files, window: window)
-        let session = SessionID()
+        let session = ProjectID()
         let dirty = files.document(for: session, path: "a.txt", root: root.path)
         let clean = files.document(for: session, path: "b.txt", root: root.path)
         for document in [dirty, clean] { await document.loadIfNeeded() }

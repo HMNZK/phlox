@@ -12,11 +12,11 @@ public final class SimulatorHub {
     @ObservationIgnored private let catalog: SimulatorCatalog
     @ObservationIgnored private let makeConnection: () -> SimulatorDisplayConnection
     @ObservationIgnored private let refreshInterval: TimeInterval
-    private var selections: [SessionID: String] = [:]
-    private var menuFocusRevisions: [SessionID: Int] = [:]
+    private var selections: [ProjectID: String] = [:]
+    private var menuFocusRevisions: [ProjectID: Int] = [:]
     private var connections: [String: SimulatorDisplayConnection] = [:]
-    @ObservationIgnored private var visibleDisplays: [UUID: SessionID] = [:]
-    private var unverifiedSessions: [SessionID: String] = [:]
+    @ObservationIgnored private var visibleDisplays: [UUID: ProjectID] = [:]
+    private var unverifiedProjects: [ProjectID: String] = [:]
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var refreshGeneration = 0
 
@@ -36,39 +36,39 @@ public final class SimulatorHub {
         for connection in connections.values { connection.disconnect() }
     }
 
-    func selectedDevice(for sessionID: SessionID) -> SimulatorDevice? {
-        if let udid = selections[sessionID] { return devices.first { $0.udid == udid } }
+    func selectedDevice(for projectID: ProjectID) -> SimulatorDevice? {
+        if let udid = selections[projectID] { return devices.first { $0.udid == udid } }
         return devices.first
     }
 
-    public func requestMenuFocus(for sessionID: SessionID?) {
-        guard let sessionID else { return }
-        menuFocusRevisions[sessionID, default: 0] += 1
+    public func requestMenuFocus(for projectID: ProjectID?) {
+        guard let projectID else { return }
+        menuFocusRevisions[projectID, default: 0] += 1
     }
 
-    func menuFocusRevision(for sessionID: SessionID) -> Int {
-        menuFocusRevisions[sessionID, default: 0]
+    func menuFocusRevision(for projectID: ProjectID) -> Int {
+        menuFocusRevisions[projectID, default: 0]
     }
 
-    func select(udid: String?, for sessionID: SessionID) {
-        guard selections[sessionID] != udid else { return }
-        if let previous = selectedDevice(for: sessionID) { connections[previous.udid]?.releaseAll() }
-        unverifiedSessions.removeValue(forKey: sessionID)
-        selections[sessionID] = udid
+    func select(udid: String?, for projectID: ProjectID) {
+        guard selections[projectID] != udid else { return }
+        if let previous = selectedDevice(for: projectID) { connections[previous.udid]?.releaseAll() }
+        unverifiedProjects.removeValue(forKey: projectID)
+        selections[projectID] = udid
         operationReason = nil
         reconcileConnections()
     }
 
     #if DEBUG
     /// バックグラウンドの実画面検査で、専用端末を明示してからタブを開く。
-    public func refreshForTesting(udid: String, sessionID: SessionID) async {
+    public func refreshForTesting(udid: String, projectID: ProjectID) async {
         await refresh()
-        select(udid: udid, for: sessionID)
+        select(udid: udid, for: projectID)
     }
     #endif
 
-    func connection(for sessionID: SessionID) -> SimulatorDisplayConnection? {
-        guard let device = selectedDevice(for: sessionID) else { return nil }
+    func connection(for projectID: ProjectID) -> SimulatorDisplayConnection? {
+        guard let device = selectedDevice(for: projectID) else { return nil }
         return connections[device.udid]
     }
 
@@ -77,11 +77,11 @@ public final class SimulatorHub {
     }
 
 
-    func support(for sessionID: SessionID, displayID: UUID) -> SimulatorPolicy.Support {
-        guard connection(for: sessionID)?.blocksRetry != true else { return .unsupported }
-        guard let device = selectedDevice(for: sessionID), let connection = connection(for: sessionID),
+    func support(for projectID: ProjectID, displayID: UUID) -> SimulatorPolicy.Support {
+        guard connection(for: projectID)?.blocksRetry != true else { return .unsupported }
+        guard let device = selectedDevice(for: projectID), let connection = connection(for: projectID),
               let policy = connection.policy else { return .unsupported }
-        let triesUnverified = unverifiedSessions[sessionID] == device.udid
+        let triesUnverified = unverifiedProjects[projectID] == device.udid
         guard let capability = connection.capability else {
             return triesUnverified && connection.support == .unverified ? .unverified : .unsupported
         }
@@ -90,8 +90,8 @@ public final class SimulatorHub {
     }
 
     func tryUnverified(displayID: UUID) {
-        guard let sessionID = visibleDisplays[displayID], let device = selectedDevice(for: sessionID) else { return }
-        unverifiedSessions[sessionID] = device.udid
+        guard let projectID = visibleDisplays[displayID], let device = selectedDevice(for: projectID) else { return }
+        unverifiedProjects[projectID] = device.udid
         reconcileConnections()
     }
 
@@ -100,10 +100,10 @@ public final class SimulatorHub {
         reconcileConnections()
     }
 
-    func setVisible(_ visible: Bool, displayID: UUID, sessionID: SessionID) {
+    func setVisible(_ visible: Bool, displayID: UUID, projectID: ProjectID) {
         if visible {
-            visibleDisplays[displayID] = sessionID
-            if selections[sessionID] == nil { selections[sessionID] = devices.first?.udid }
+            visibleDisplays[displayID] = projectID
+            if selections[projectID] == nil { selections[projectID] = devices.first?.udid }
         }
         else { visibleDisplays.removeValue(forKey: displayID) }
         reconcileConnections()
@@ -130,14 +130,14 @@ public final class SimulatorHub {
         listingReason = listing.reason
         listingDiagnosticReason = listing.diagnosticReason
         // 初回の並び順を記憶し、外部起動による並び替えで選択端末を変えない。
-        for sessionID in Set(visibleDisplays.values) where selections[sessionID] == nil {
-            selections[sessionID] = devices.first?.udid
+        for projectID in Set(visibleDisplays.values) where selections[projectID] == nil {
+            selections[projectID] = devices.first?.udid
         }
         reconcileConnections()
     }
 
-    func boot(for sessionID: SessionID) async {
-        guard let device = selectedDevice(for: sessionID), device.state == "Shutdown" else { return }
+    func boot(for projectID: ProjectID) async {
+        guard let device = selectedDevice(for: projectID), device.state == "Shutdown" else { return }
         await perform { try await catalog.boot(udid: device.udid) }
         await refresh()
     }
@@ -148,16 +148,16 @@ public final class SimulatorHub {
         await refresh()
     }
 
-    func screenshot(for sessionID: SessionID, destination: URL) async -> Bool {
-        guard let device = selectedDevice(for: sessionID), device.isBooted else { return false }
+    func screenshot(for projectID: ProjectID, destination: URL) async -> Bool {
+        guard let device = selectedDevice(for: projectID), device.isBooted else { return false }
         return await perform { try await catalog.screenshot(udid: device.udid, destination: destination) }
     }
 
-    public func removeSession(_ sessionID: SessionID) {
-        selections.removeValue(forKey: sessionID)
-        menuFocusRevisions.removeValue(forKey: sessionID)
-        unverifiedSessions.removeValue(forKey: sessionID)
-        visibleDisplays = visibleDisplays.filter { $0.value != sessionID }
+    public func removeProject(_ projectID: ProjectID) {
+        selections.removeValue(forKey: projectID)
+        menuFocusRevisions.removeValue(forKey: projectID)
+        unverifiedProjects.removeValue(forKey: projectID)
+        visibleDisplays = visibleDisplays.filter { $0.value != projectID }
         reconcileConnections()
         if visibleDisplays.isEmpty {
             refreshTask?.cancel()
@@ -170,7 +170,7 @@ public final class SimulatorHub {
         refreshTask?.cancel()
         refreshTask = nil
         visibleDisplays.removeAll()
-        unverifiedSessions.removeAll()
+        unverifiedProjects.removeAll()
         for connection in connections.values { connection.disconnect() }
         connections.removeAll()
     }
@@ -187,8 +187,8 @@ public final class SimulatorHub {
     }
 
     private func reconcileConnections() {
-        let required = Set(visibleDisplays.values.compactMap { sessionID -> String? in
-            guard let device = selectedDevice(for: sessionID), device.isBooted else { return nil }
+        let required = Set(visibleDisplays.values.compactMap { projectID -> String? in
+            guard let device = selectedDevice(for: projectID), device.isBooted else { return nil }
             return device.udid
         })
         for udid in Array(connections.keys) where !required.contains(udid) {
@@ -213,8 +213,8 @@ public final class SimulatorHub {
     }
 
     private func triesUnverified(udid: String) -> Bool {
-        visibleDisplays.values.contains { sessionID in
-            unverifiedSessions[sessionID] == udid && selectedDevice(for: sessionID)?.udid == udid
+        visibleDisplays.values.contains { projectID in
+            unverifiedProjects[projectID] == udid && selectedDevice(for: projectID)?.udid == udid
         }
     }
 }

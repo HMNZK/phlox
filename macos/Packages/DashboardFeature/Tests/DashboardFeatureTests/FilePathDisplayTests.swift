@@ -66,13 +66,13 @@ struct FilePathDisplayTests {
         let node = SessionNode.pty(SessionViewModel(id: SessionID(), ptyManager: MockPTYManager(), hookEvents: events,
             terminalCoordinator: TerminalCoordinator(), spawnRequest: .init(command: "/bin/sh", args: [], env: [:],
                 workingDirectory: "/very/long/worktree/path/that/must/shrink/first", kind: .claudeCode, statusBootstrap: .viaHook)))
-        var layout = SessionTabLayout()
-        layout.open(.terminal)
+        var layout = ProjectTabLayout()
+        layout.open(.terminal(TerminalTabID()))
         if includesChanges { layout.open(.changes) }
         layout.open(.file("docs/file-tree.md"))
-        for tab in [ChildTab.file("docs/file-tree.md"), .conversation] {
+        for tab in [ProjectTab.file("docs/file-tree.md"), .chat(node.id)] {
             layout.select(tab)
-            let host = NSHostingView(rootView: ChildTabBar(router: AppRouter(), node: node, layout: layout,
+            let host = NSHostingView(rootView: ChildTabBar(router: AppRouter(), viewModel: DashboardViewModel(environment: makeTestEnvironment(pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() })), project: Project(name: node.workspaceName, directoryPath: node.rawWorkspacePath, createdAt: Date(), isManagedDirectory: false), layout: layout, chats: [.chat(node.id)],
                 changeCount: 4, files: FileTabDocuments(), agentConsoleWindowID: nil))
             let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: 320, height: 32),
                                   styleMask: [.borderless], backing: .buffered, defer: false)
@@ -83,7 +83,7 @@ struct FilePathDisplayTests {
             host.layoutSubtreeIfNeeded()
             try await Task.sleep(for: .milliseconds(80))
             host.layoutSubtreeIfNeeded()
-            let selected = try #require(accessibleFrame(named: tab == .conversation ? "会話" : "file-tree.md", in: host))
+            let selected = try #require(accessibleFrame(named: tab.isChat ? "会話" : "file-tree.md", in: host))
             let add = try #require(accessibleFrame(named: "このセッションにタブを追加", in: host))
             let visible = window.convertToScreen(host.bounds)
             #expect(selected.minX >= visible.minX)
@@ -97,7 +97,7 @@ struct FilePathDisplayTests {
                     #expect(frame.maxX <= visible.maxX)
                 }
             }
-            if tab == layout.tabs.last {
+            if tab == layout.items.last {
                 #expect(add.minX >= selected.maxX)
                 #expect(add.minX - selected.maxX <= 4)
             }
@@ -116,11 +116,11 @@ struct FilePathDisplayTests {
         let node = SessionNode.pty(SessionViewModel(id: SessionID(), ptyManager: MockPTYManager(), hookEvents: events,
             terminalCoordinator: TerminalCoordinator(), spawnRequest: .init(command: "/bin/sh", args: [], env: [:],
                 workingDirectory: "/very/long/worktree/path/that/must/shrink/first", kind: .claudeCode, statusBootstrap: .viaHook)))
-        var layout = SessionTabLayout()
-        layout.open(.terminal)
+        var layout = ProjectTabLayout()
+        layout.open(.terminal(TerminalTabID()))
         layout.open(.file("docs/file-tree.md"))
         for width in [CGFloat(480), 1_000] {
-            let host = NSHostingView(rootView: ChildTabBar(router: AppRouter(), node: node, layout: layout,
+            let host = NSHostingView(rootView: ChildTabBar(router: AppRouter(), viewModel: DashboardViewModel(environment: makeTestEnvironment(pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() })), project: Project(name: node.workspaceName, directoryPath: node.rawWorkspacePath, createdAt: Date(), isManagedDirectory: false), layout: layout, chats: [.chat(node.id)],
                 changeCount: 0, files: FileTabDocuments(), agentConsoleWindowID: nil))
             let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: width, height: 32),
                                   styleMask: [.borderless], backing: .buffered, defer: false)

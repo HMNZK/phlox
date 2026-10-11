@@ -34,35 +34,26 @@ struct BrowserTabTests {
     @Test(arguments: ["", " \n ", "https://", "ftp://example.com", "mailto:a@example.com", "javascript:alert(1)", "file://remote/tmp/a", "two words", "https://user:password@example.com"])
     func invalidAddresses(_ input: String) { #expect(BrowserAddress.url(from: input) == nil) }
 
-    @Test(arguments: [
-        (ChildTab.browser, Optional<ChildTab>.none, ChildTab.conversation, Optional<ChildTab>.none),
-        (ChildTab.browser, Optional(ChildTab.terminal), ChildTab.terminal, Optional<ChildTab>.none),
-        (ChildTab.changes, Optional(ChildTab.browser), ChildTab.changes, Optional<ChildTab>.none),
-        (ChildTab.browser, Optional(ChildTab.simulator), ChildTab.conversation, Optional<ChildTab>.none),
-        (ChildTab.simulator, Optional(ChildTab.browser), ChildTab.conversation, Optional<ChildTab>.none),
-        (ChildTab.changes, Optional(ChildTab.terminal), ChildTab.changes, Optional(ChildTab.terminal))
-    ])
-    func persistence(left: ChildTab, right: ChildTab?, savedLeft: ChildTab, savedRight: ChildTab?) throws {
+    @Test func persistence() throws {
         let suite = "phlox.browser.persistence.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
-        let id = SessionID()
-        var layout = SessionTabLayout()
-        layout.tabs = [.conversation, .terminal, .changes, .browser, .simulator]
-        layout.left = left
-        layout.right = right
-        layout.focusesRight = right != nil
-        layout.splitFraction = 0.37
-        let store = SessionTabStore(defaults: defaults)
-        store.updateLayout(for: id) { $0 = layout }
-        #expect(store.layout(for: id) == layout)
-        let restored = SessionTabStore(defaults: defaults).layout(for: id)
-        #expect(restored.tabs == [.conversation, .terminal, .changes])
-        #expect(restored.left == savedLeft)
-        #expect(restored.right == savedRight)
-        #expect(restored.focusesRight == (savedRight != nil))
+        let id = ProjectID()
+        let store = ProjectTabStore(defaults: defaults)
+        store.updateLayout(for: id) {
+            $0.open(.changes)
+            $0.open(.browser)
+            $0.splitRight(.changes)
+            $0.splitFraction = 0.37
+        }
+        #expect(store.layout(for: id).left == .browser)
+        let restored = ProjectTabStore(defaults: defaults).layout(for: id)
+        #expect(restored.items == [.changes])
+        #expect(restored.left == .changes)
+        #expect(restored.right == nil)
+        #expect(!restored.focusesRight)
         #expect(restored.splitFraction == 0.37)
-        let data = try #require(defaults.data(forKey: SessionTabStore.defaultsKey))
+        let data = try #require(defaults.data(forKey: ProjectTabStore.defaultsKey))
         #expect(!String(decoding: data, as: UTF8.self).contains("browser"))
     }
 
@@ -90,8 +81,9 @@ struct BrowserTabTests {
         let document = FileTabDocument(path: "slides.html", root: root.path)
         await document.loadIfNeeded()
         document.draft = "<h1>未保存</h1>"
-        let session = SessionID()
-        let router = AppRouter(selectedSession: session)
+        let session = ProjectID()
+        let router = AppRouter()
+        router.selectedProjectID = session
         let view = FileTabView(document: document, lastWriter: { _ in nil }, isFocused: true, openFile: { _, _ in })
         view.openInBrowser { router.openBrowser($0, for: session) }
         let model = try #require(router.browsers[session])
@@ -99,7 +91,7 @@ struct BrowserTabTests {
         #expect(router.tabs.layout(for: session).selected == .browser)
         view.openInBrowser { router.openBrowser($0, for: session) }
         #expect(router.browsers[session] === model)
-        #expect(router.tabs.layout(for: session).tabs.filter { $0 == .browser }.count == 1)
+        #expect(router.tabs.layout(for: session).items.filter { $0 == .browser }.count == 1)
         #expect(try String(contentsOf: file, encoding: .utf8) == "<h1>保存済み</h1>")
         model.submit(" ")
         #expect(model.url == file)
@@ -215,8 +207,9 @@ struct BrowserTabTests {
     }
 
     @Test func zoomMenuGoesToFrontBrowser() {
-        let session = SessionID()
-        let router = AppRouter(selectedSession: session)
+        let session = ProjectID()
+        let router = AppRouter()
+        router.selectedProjectID = session
         #expect(!router.zoomFrontBrowser(by: 1), "ブラウザが前面でなければ文字サイズに任せる")
         router.openChildTab(.browser)
         let model = router.browsers[session]!
@@ -228,7 +221,7 @@ struct BrowserTabTests {
         #expect(model.pageZoom == 1)
         for _ in 0..<20 { _ = router.zoomFrontBrowser(by: -1) }
         #expect(model.pageZoom == 0.5, "下限で止まる")
-        router.tabs.updateLayout(for: session) { $0.select(.conversation) }
+        router.tabs.updateLayout(for: session) { $0.open(.newChat) }
         #expect(!router.zoomFrontBrowser(by: 1))
         #expect(model.pageZoom == 0.5)
     }

@@ -55,7 +55,7 @@ public struct DashboardView: View {
     /// 上段右端の共通ターミナル（ホームで開く）。App が寿命を持つ。nil は初期化中だけ。
     private let commonTerminal: TerminalPanelSession?
     /// セッションごとのターミナルタブ（その worktree で開く）。App が寿命を持つ。
-    private let sessionTerminals: SessionTerminalStore?
+    private let sessionTerminals: ProjectTerminalStore?
     private let simulatorHub: SimulatorHub?
 
     public init(
@@ -64,7 +64,7 @@ public struct DashboardView: View {
         usageMonitor: UsageMonitor,
         agentConsoleWindowID: String? = nil,
         commonTerminal: TerminalPanelSession? = nil,
-        sessionTerminals: SessionTerminalStore? = nil,
+        sessionTerminals: ProjectTerminalStore? = nil,
         simulatorHub: SimulatorHub? = nil
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
@@ -96,7 +96,7 @@ public struct DashboardView: View {
 
     /// 保存していないファイルタブ（子の分も）。
     private func deletionDirtyFiles(for id: SessionID) -> [String] {
-        FileTabDocumentRegistry.shared.dirtyFileNames(for: affectedSessionIDs(for: id))
+        []
     }
 
     private func affectedSessionIDs(for id: SessionID) -> Set<SessionID> {
@@ -104,9 +104,7 @@ public struct DashboardView: View {
     }
 
     private func projectDirtySummary(for projectID: ProjectID) -> String {
-        let affected = viewModel.gridSessionNodes(in: projectID)
-            .reduce(into: Set<SessionID>()) { $0.formUnion(affectedSessionIDs(for: $1.id)) }
-        return FileTabDocumentRegistry.shared.dirtySummary(for: affected)
+        return FileTabDocumentRegistry.shared.dirtySummary(for: [projectID])
     }
 
     private func projectDeletionDialogMessage(for project: Project) -> String {
@@ -242,8 +240,10 @@ public struct DashboardView: View {
                                viewModel.gridSessionNodes(in: projectID).contains(where: { $0.id == selected }) {
                                 router.selectedSession = nil
                             }
-                            router.tabs.forgetProject(projectID)
-                            Task { await viewModel.removeProject(projectID) }
+                            Task {
+                                await router.forgetProject(projectID, terminals: sessionTerminals, simulatorHub: simulatorHub)
+                                await viewModel.removeProject(projectID)
+                            }
                         },
                         DSDialogButton("キャンセル", role: .primary) { pendingProjectDeletion = nil },
                     ],
@@ -298,7 +298,7 @@ public struct DashboardView: View {
                     buttons: [
                         DSDialogButton("閉じる", role: .destructive) {
                             pendingChildClose = nil
-                            closeChildTab(pending.tab, of: pending.sessionID)
+                            closeChildTab(pending.tab, of: pending.projectID)
                         },
                         DSDialogButton("キャンセル", role: .primary) { pendingChildClose = nil },
                     ],
@@ -313,7 +313,7 @@ public struct DashboardView: View {
                         change.sessionTitle, (change.directory.path as NSString).abbreviatingWithTildeInPath
                     ),
                     message: AppLocalizedString.string("ターミナルの内容と進行中の作業は失われ、元に戻せません。", locale: locale),
-                    note: FileTabDocumentRegistry.shared.dirtySummary(for: [change.sessionID]),
+                    note: "",
                     buttons: [
                         DSDialogButton("再起動", role: .destructive) {
                             pendingFolderChange = nil
@@ -330,7 +330,7 @@ public struct DashboardView: View {
                     .irreversible,
                     title: String(format: AppLocalizedString.string("「%@」を %@ へ移動しますか?", locale: locale), move.sessionTitle, move.project.name),
                     message: String(format: AppLocalizedString.string("セッションは %@ で再起動されます。ターミナルの内容と進行中の作業は失われます。", locale: locale), path),
-                    note: FileTabDocumentRegistry.shared.dirtySummary(for: [move.sessionID]),
+                    note: "",
                     buttons: [
                         DSDialogButton("移動して再起動", role: .destructive) {
                             pendingMove = nil
@@ -497,11 +497,7 @@ public struct DashboardView: View {
         // 上部セーフエリアを無視してツールバーとサイドバーの上端をウィンドウ最上部に揃える。
         .ignoresSafeArea(.container, edges: .top)
         .background(WindowChromeConfigurator(files: fileTabs, fileContext: { [weak viewModel] id in
-            guard let viewModel, let session = viewModel.sessionNode(id: id) else {
-                return UnsavedFileContext(project: "", session: "")
-            }
-            let project = viewModel.projects.first { $0.id == session.projectID }?.name
-            return UnsavedFileContext(project: project ?? "", session: session.displayName)
+            return UnsavedFileContext(project: viewModel?.projects.first { $0.id == id }?.name ?? "")
         }, projectName: { [weak viewModel, weak router] in
             guard let viewModel, let router else { return "" }
             return viewModel.projects.first { $0.id == router.selectedProjectID }?.name ?? ""
@@ -513,11 +509,12 @@ public struct DashboardView: View {
             Task { await model.fileSaved(root: root, relativePath: path) }
         }
         .onAppear {
-            updateEditorPanel()
+            migrateProjectTabs()
             revealSelectedSessionTab()
+            updateEditorPanel()
         }
         // 子タブを切り替えたら、隠れた区画（端末など）にキー入力が残らないようにする。
-        .onChange(of: router.selectedSession.map { router.tabs.layout(for: $0).selected }) { _, _ in
+        .onChange(of: router.selectedProjectID.flatMap { router.tabs.layout(for: $0).selected }) { _, _ in
             NSApp.keyWindow?.makeFirstResponder(nil)
         }
         .onChange(of: router.tabRequest) { _, request in
@@ -532,8 +529,17 @@ public struct DashboardView: View {
             router.sidebarRequest = nil
             handle(request)
         }
-        .onChange(of: viewModel.sessionNodes.map(\.id)) { old, new in
+        .onChange(of: projectChats) { old, new in
             forgetRemovedSessions(old: old, new: new)
+        }
+        .onChange(of: viewModel.projects.map(\.id)) { old, new in
+            for id in old where !new.contains(id) {
+                Task { await router.forgetProject(id, terminals: sessionTerminals, simulatorHub: simulatorHub) }
+            }
+        }
+        .onChange(of: router.selectedProjectID) { _, _ in
+            ensureProjectSelection()
+            updateEditorPanel()
         }
         // 画面が無いあいだに押された ⌘O も、表示された時点で受ける。
         .onChange(of: router.addProjectRequested, initial: true) { _, requested in
@@ -559,6 +565,7 @@ public struct DashboardView: View {
             viewModel.normalizeGridSessionSelectionForFilterChange()
         }
         .onChange(of: viewModel.restoredSessionPresentation, initial: true) { _, presentation in
+            if presentation != nil { migrateProjectTabs() }
             applyRestoredSessionPresentation(presentation)
         }
         .onChange(of: router.selectedSession) { _, selectedID in
@@ -765,15 +772,17 @@ public struct DashboardView: View {
                 editorPanel: editorPanel,
                 files: fileTabs,
                 agentConsoleWindowID: agentConsoleWindowID
-            ) {
-                detailView
+            ) { tab in
+                detailView(displayTab: tab)
             }
         } else {
             detailView
         }
     }
 
-    private var detailView: some View {
+    private var detailView: some View { detailView(displayTab: nil) }
+
+    private func detailView(displayTab: ProjectTab?) -> some View {
         DashboardDetailView(
                 viewModel: viewModel,
                 router: router,
@@ -790,7 +799,8 @@ public struct DashboardView: View {
                 },
                 creatingRef: creatingRef,
                 showsAllOnboardingSteps: !hasAddedProject,
-                tileTabs: gridTileTabs
+                tileTabs: gridTileTabs,
+                displayTab: displayTab
             )
     }
 
@@ -798,19 +808,23 @@ public struct DashboardView: View {
     private var gridTileTabs: GridTileTabs {
         GridTileTabs(
             selected: { id in
-                switch router.tabs.layout(for: id).selected {
-                case .terminal: .terminal
-                case .changes: .changes
-                case .conversation, .file, .simulator, .browser: .conversation
+                guard let projectID = viewModel.sessionNode(id: id)?.projectID else { return .conversation }
+                switch router.tabs.layout(for: projectID).selected {
+                case .terminal: return .terminal
+                case .changes: return .changes
+                default: return .conversation
                 }
             },
             select: { id, tab in
-                router.tabs.updateLayout(for: id) { layout in
-                    switch tab {
-                    case .conversation: layout.select(.conversation)
-                    case .terminal: layout.open(.terminal)
-                    case .changes: layout.open(.changes)
-                    }
+                guard let projectID = viewModel.sessionNode(id: id)?.projectID else { return }
+                router.selectedProjectID = projectID
+                switch tab {
+                case .conversation: router.selectTab(.chat(id), in: projectID)
+                case .terminal:
+                    if let terminal = router.tabs.layout(for: projectID).items.first(where: { if case .terminal = $0 { return true }; return false }) {
+                        router.selectTab(terminal, in: projectID)
+                    } else { router.tabs.updateLayout(for: projectID) { $0.open(.terminal(TerminalTabID())) } }
+                case .changes: router.tabs.updateLayout(for: projectID) { $0.open(.changes) }
                 }
             },
             content: { id, tab in AnyView(gridTileTabContent(id, tab)) }
@@ -819,13 +833,13 @@ public struct DashboardView: View {
 
     @ViewBuilder
     private func gridTileTabContent(_ id: SessionID, _ tab: GridTileTab) -> some View {
-        if let node = viewModel.sessionNode(id: id) {
+        if let node = viewModel.sessionNode(id: id), let project = viewModel.projects.first(where: { $0.id == node.projectID }) {
             switch tab {
             case .conversation:
                 EmptyView()
             case .terminal:
-                if let sessionTerminals {
-                    TerminalPanelView(panel: sessionTerminals.terminal(for: id, workingDirectory: node.rawWorkspacePath), showsHeader: false, showsFontSizeHUD: false, isInGridTile: true)
+                if let sessionTerminals, case .terminal(let terminalID) = router.tabs.layout(for: project.id).selected {
+                    TerminalPanelView(panel: sessionTerminals.terminal(for: terminalID, projectID: project.id, workingDirectory: project.directoryPath), showsHeader: false, showsFontSizeHUD: false, isInGridTile: true)
                         .id(id)
                 } else {
                     ContentUnavailableView("ターミナルを準備しています", systemImage: "terminal")
@@ -836,16 +850,16 @@ public struct DashboardView: View {
                     EditorPanelView(
                         viewModel: editorPanel.viewModel,
                         projectName: node.workspaceName,
-                        workingDirectory: node.rawWorkspacePath,
-                        isDirty: { fileTabs.existing(for: id, path: $0)?.hasUnsavedChanges ?? false }
+                        workingDirectory: project.directoryPath,
+                        isDirty: { fileTabs.existing(for: project.id, path: $0)?.hasUnsavedChanges ?? false }
                     ) { path in
-                        let requestedDirectory = node.rawWorkspacePath
+                        let requestedDirectory = project.directoryPath
                         Task {
                             let root = await FileTabOpening.root(for: requestedDirectory)
                             fileTabs.openFileTab(
-                                sessionID: id, root: root, relativePath: path, router: router,
+                                projectID: project.id, root: root, relativePath: path, router: router,
                                 requestedWorkingDirectory: requestedDirectory,
-                                currentWorkingDirectory: viewModel.sessionNode(id: id)?.rawWorkspacePath
+                                currentWorkingDirectory: viewModel.projects.first { $0.id == project.id }?.directoryPath
                             )
                         }
                     }
@@ -868,6 +882,7 @@ public struct DashboardView: View {
             router: router,
             monitor: usageMonitor,
             session: router.selectedSession.flatMap { viewModel.sessionNode(id: $0) },
+            project: viewModel.projects.first { $0.id == router.selectedProjectID },
             fileTreeModels: $fileTreeModels,
             files: fileTabs,
             isOverlay: isOverlay
@@ -915,7 +930,7 @@ public struct DashboardView: View {
 
     private func updateEditorPanel() {
         editorPanel.update(
-            selectedSessionID: router.selectedSession,
+            project: viewModel.projects.first { $0.id == router.selectedProjectID },
             workspaces: editorPanelWorkspaces
         )
     }
@@ -985,95 +1000,97 @@ public struct DashboardView: View {
 
     // MARK: - Tabs
 
-    /// 選んだセッションを上段のタブ列に出す（サイドバー・⌘J・対応待ち一覧・復元のどこから選んでも）。
-    private func revealSelectedSessionTab() {
-        guard let id = router.selectedSession,
-              let projectID = viewModel.sessionNode(id: id)?.projectID else { return }
-        router.commonTerminalSelected = false
-        router.tabs.reveal(id, in: projectID, candidates: viewModel.tabSessionNodes(in: projectID).map(\.id))
+    private func migrateProjectTabs() {
+        guard viewModel.restoredSessionPresentation != nil else { return }
+        let sessionProjects = Dictionary(uniqueKeysWithValues: viewModel.sessionNodes.compactMap { node in
+            node.projectID.map { (node.id, $0) }
+        })
+        router.tabs.migrateLegacy(sessionProjects: sessionProjects, projects: viewModel.projects)
     }
 
-    /// 削除されたセッションのタブ記録・シェル・ファイルの下書きを捨てる。
-    private func forgetRemovedSessions(old: [SessionID], new: [SessionID]) {
-        let remaining = Set(new)
-        for id in old where !remaining.contains(id) {
-            router.tabs.forget(id)
-            // 文書の失効と保存待ちは、削除を行うモデル側で完了している。
-            sessionTerminals?.close(id)
-            simulatorHub?.removeSession(id)
-            router.closeBrowser(for: id)
+    private func ensureProjectSelection() {
+        guard router.viewMode == .single, let id = router.selectedProjectID else { return }
+        let layout = router.tabs.layout(for: id)
+        if let selected = layout.selected {
+            router.selectTab(selected, in: id)
+        } else if let first = viewModel.chatTabs(in: id).first {
+            router.tabs.updateLayout(for: id) { $0.open(first) }
+            router.selectTab(first, in: id)
+        } else { router.showNewChat(projectID: id) }
+    }
+
+    private func revealSelectedSessionTab() {
+        guard let id = router.selectedSession, let projectID = viewModel.sessionNode(id: id)?.projectID else { return }
+        router.selectTab(.chat(id), in: projectID)
+    }
+
+    private var projectChats: [ProjectID: [ProjectTab]] {
+        Dictionary(uniqueKeysWithValues: viewModel.projects.map { ($0.id, viewModel.chatTabs(in: $0.id)) })
+    }
+
+    private func forgetRemovedSessions(old: [ProjectID: [ProjectTab]], new: [ProjectID: [ProjectTab]]) {
+        for projectID in router.tabs.snapshot.projects.keys {
+            router.tabs.updateLayout(for: projectID) {
+                $0.reconcileChats(previous: old[projectID] ?? [], current: new[projectID] ?? [])
+            }
         }
+        ensureProjectSelection()
     }
 
     private func handle(_ request: TabRequest) {
         switch request {
         case .confirmSessionDeletion(let id):
-            if let node = viewModel.sessionNode(id: id) {
-                pendingDeletion = SelectedSessionNode(node)
-            }
-        case .closeChild(let id, let tab):
-            requestChildClose(tab, of: id)
-        case .openFile(let id):
-            chooseFileToOpen(in: id)
+            if let node = viewModel.sessionNode(id: id) { pendingDeletion = SelectedSessionNode(node) }
+        case .confirmProjectDeletion(let id): pendingProjectDeletion = viewModel.projects.first { $0.id == id }
+        case .closeChild(let id, let tab): requestChildClose(tab, of: id)
+        case .openFile(let id): chooseFileToOpen(in: id)
         case .removeFromGrid(let id):
             if let next = viewModel.removeFromGrid(id) { router.selectedSession = next }
         }
     }
 
-    /// コマンドが動いているシェル・未保存のファイルは確認してから閉じる（02「実行中のプロセスがあれば確認」）。
-    private func requestChildClose(_ tab: ChildTab, of sessionID: SessionID) {
+    private func requestChildClose(_ tab: ProjectTab, of projectID: ProjectID) {
         switch tab {
-        case .conversation:
-            return
-        case .terminal where sessionTerminals?.isRunning(sessionID) == true:
+        case .chat(let id): handle(.confirmSessionDeletion(id))
+        case .terminal(let id) where sessionTerminals?.isRunning(id) == true:
             Task {
-                guard await sessionTerminals?.hasRunningCommand(sessionID) == true else {
-                    closeChildTab(tab, of: sessionID)
+                guard await sessionTerminals?.hasRunningCommand(id) == true else {
+                    closeChildTab(tab, of: projectID)
                     return
                 }
                 pendingChildClose = PendingChildClose(
-                    sessionID: sessionID,
-                    tab: tab,
+                    projectID: projectID, tab: tab,
                     title: AppLocalizedString.string("ターミナルを閉じますか?", locale: locale),
-                    message: AppLocalizedString.string("シェルを終了します。実行中のコマンドも止まります。", locale: locale)
-                )
+                    message: AppLocalizedString.string("シェルを終了します。実行中のコマンドも止まります。", locale: locale))
             }
-        case .file(let path) where FileTabDocumentRegistry.shared.closeDecision(for: sessionID, path: path) == .confirm:
+        case .file(let path) where FileTabDocumentRegistry.shared.closeDecision(for: projectID, path: path) == .confirm:
             pendingChildClose = PendingChildClose(
-                sessionID: sessionID,
-                tab: tab,
+                projectID: projectID, tab: tab,
                 title: AppLocalizedString.string("保存していない変更を破棄しますか?", locale: locale),
                 message: String(format: AppLocalizedString.string("%@ の変更は失われます。", locale: locale), (path as NSString).lastPathComponent)
-                    + "\n" + FileTabDocumentRegistry.shared.dirtySummary(for: sessionID, path: path)
-            )
-        default:
-            closeChildTab(tab, of: sessionID)
+                    + "\n" + FileTabDocumentRegistry.shared.dirtySummary(for: projectID, path: path))
+        default: closeChildTab(tab, of: projectID)
         }
     }
 
-    private func closeChildTab(_ tab: ChildTab, of sessionID: SessionID) {
+    private func closeChildTab(_ tab: ProjectTab, of projectID: ProjectID) {
         Task { @MainActor in
-            if case .file(let path) = tab {
-                await FileTabDocumentRegistry.shared.remove(for: sessionID, path: path)
-            }
-            router.tabs.updateLayout(for: sessionID) { $0.close(tab) }
-            if tab == .browser { router.closeBrowser(for: sessionID) }
-            if case .simulator = tab {
-                simulatorHub?.removeSession(sessionID)
-            }
-            if case .terminal = tab {
-                sessionTerminals?.close(sessionID)
-            }
+            if case .file(let path) = tab { await FileTabDocumentRegistry.shared.remove(for: projectID, path: path) }
+            guard viewModel.projects.contains(where: { $0.id == projectID }) else { return }
+            router.tabs.updateLayout(for: projectID) { $0.close(tab, chats: viewModel.chatTabs(in: projectID)) }
+            if let selected = router.tabs.layout(for: projectID).selected { router.selectTab(selected, in: projectID) }
+            if tab == .browser { router.closeBrowser(for: projectID) }
+            if tab == .simulator { simulatorHub?.removeProject(projectID) }
+            if case .terminal(let id) = tab { sessionTerminals?.close(id) }
         }
     }
 
-    /// ⌘P：worktree のファイルを選んでファイルの子タブで開く。worktree の外は開かない。
-    private func chooseFileToOpen(in sessionID: SessionID) {
-        guard let node = viewModel.sessionNode(id: sessionID) else { return }
-        let workingDirectory = node.rawWorkspacePath
+    private func chooseFileToOpen(in projectID: ProjectID) {
+        guard let project = viewModel.projects.first(where: { $0.id == projectID }) else { return }
+        let workingDirectory = project.directoryPath
         Task { @MainActor in
             let rootPath = await FileTabOpening.root(for: workingDirectory)
-            guard viewModel.sessionNode(id: sessionID)?.rawWorkspacePath == workingDirectory else { return }
+            guard viewModel.projects.first(where: { $0.id == projectID })?.directoryPath == workingDirectory else { return }
             let panel = NSOpenPanel()
             panel.canChooseFiles = true
             panel.canChooseDirectories = false
@@ -1082,11 +1099,9 @@ public struct DashboardView: View {
             panel.prompt = String(localized: "開く")
             guard panel.runModal() == .OK, let url = panel.url,
                   let relative = Self.relativePath(of: url, under: rootPath) else { return }
-            fileTabs.openFileTab(
-                sessionID: sessionID, root: rootPath, relativePath: relative, router: router,
+            fileTabs.openFileTab(projectID: projectID, root: rootPath, relativePath: relative, router: router,
                 requestedWorkingDirectory: workingDirectory,
-                currentWorkingDirectory: viewModel.sessionNode(id: sessionID)?.rawWorkspacePath
-            )
+                currentWorkingDirectory: viewModel.projects.first { $0.id == projectID }?.directoryPath)
         }
     }
 
@@ -1147,7 +1162,7 @@ public struct DashboardView: View {
                 )
             }
             expandedProjectIDs.insert(resolvedProjectID)
-            router.selectedSession = newID
+            router.completeNewChat(sessionID: newID, projectID: resolvedProjectID)
         } catch {
             // F4: worktree を作れなかったときは、git の出力と次の手を出す。
             if let log = NewSessionCollisionGate.worktreeFailureLog(error) {
@@ -1210,13 +1225,9 @@ public struct DashboardView: View {
         }
     }
 
-    /// 作業場所を変えて再起動する。変わったときだけ旧い場所のシェルとファイルの下書きを捨てる
-    /// （確認文で「失われます」と伝えている。再起動の準備に失敗したら元のまま残す）。
+    /// 作業場所を変えて再起動する。プロジェクトのタブは維持する。
     private func changeWorkspace(_ id: SessionID, to directory: URL) async {
-        let before = viewModel.sessionNode(id: id)?.rawWorkspacePath
         await viewModel.changeWorkspace(id, to: directory)
-        guard viewModel.sessionNode(id: id)?.rawWorkspacePath != before else { return }
-        sessionTerminals?.close(id)
     }
 
     /// メニューバーの「セッション」メニューから来た、サイドバーの行の操作。
@@ -1243,11 +1254,10 @@ public struct DashboardView: View {
     }
 
     /// 登録済みワークスペースへセッションを移動し、移動先をサイドバーで展開する。選択中セッションは維持する。
-    /// 移動できたときだけ旧い場所のシェルとファイルの下書きを捨てる（再起動の準備に失敗したら元のまま残す）。
+    /// 移動元プロジェクトのタブは維持する。
     private func moveSessionToProject(_ sessionID: SessionID, projectID: ProjectID) async {
         await viewModel.moveSession(sessionID, to: projectID)
         guard viewModel.sessionNode(id: sessionID)?.projectID == projectID else { return }
-        sessionTerminals?.close(sessionID)
         expandedProjectIDs.insert(projectID)
     }
 
@@ -1260,7 +1270,14 @@ public struct DashboardView: View {
             markCompletionSeen(for: selected)
             return
         }
-        router.selectedSession = presentation.selectedSessionID
+        let id = presentation.selectedSessionID
+        if let projectID = viewModel.sessionNode(id: id)?.projectID,
+           let selected = router.tabs.layout(for: projectID).selected, !selected.isChat {
+            router.selectedProjectID = projectID
+            ensureProjectSelection()
+        } else {
+            router.selectedSession = presentation.selectedSessionID
+        }
     }
 
     private func markCompletionSeen(for selectedID: SessionID?) {
@@ -1284,8 +1301,8 @@ public struct DashboardView: View {
 
 private struct PendingChildClose: Identifiable {
     let id = UUID()
-    let sessionID: SessionID
-    let tab: ChildTab
+    let projectID: ProjectID
+    let tab: ProjectTab
     let title: String
     let message: String
 }

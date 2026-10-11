@@ -8,7 +8,7 @@ last-verified: 2026-10-11
 > **このファイルの役割**: セッションの始め方を「共通の新規チャット画面」1 つにまとめるときに満たすべき条件、
 > 受け入れ基準、廃止するもの・変えるもの・影響しないものの一覧。
 > **書かないもの**: 実装後の構成（→ 実装後に architecture/ へ）、なぜこの設計か（→ [ADR 0183](../adr/0183-unified-new-chat-start-screen.md)）。
-> **デザインの見本**: [ClaudeDesign/new-chat-start-reference.png](ClaudeDesign/new-chat-start-reference.png)（ユーザー提示の参考画像。Claude アプリの開始画面）。
+> **デザインの見本**: [ClaudeDesign/new-chat-start-reference.png](ClaudeDesign/new-chat-start-reference.png)（ユーザー提示の参考画像。Claude アプリの開始画面）、確定したモック `ClaudeDesign/10 New Chat Start.dc.html`（ヘッダーと使用量のバーは `ClaudeDesign/12 Header and Usage Bar.dc.html`）。実装はモックと見比べてから完了とする。
 
 ## 1. 解決したい問題
 
@@ -24,18 +24,18 @@ last-verified: 2026-10-11
 
 | 用語 | 意味 |
 |---|---|
-| ハーネス | セッションを動かすエージェント CLI の種類。`AgentRef`（組込 `claudeCode` / `codex` / `cursor` とカスタム） |
+| ハーネス | セッションを動かすエージェント CLI の種類。`AgentRef`（組込 `claudeCode` / `codex` / `cursor`。カスタムは D22 で廃止） |
 | 新規チャット画面 | 本仕様で作る共通の開始画面。挨拶の見出し・中央の入力欄・提案チップからなる |
 | 下書き | 新規チャット画面で入力中の状態。**まだセッションもプロセスも存在しない**。送信した時点でセッションを作る。プロジェクトごとに 1 つ持つ |
 | 起動中のセッション | 送信直後にサイドバーへ出る行。CLI の起動（worktree 作成を含む）が終わるまでの状態で、初回メッセージを預かっている |
-| ハーネス・モデル選択 | 入力欄のチップ。「Codex: gpt-6.1-sol」のようにハーネスとモデルを組で選ぶ |
+| ハーネス・モデル選択 | 入力欄のチップ。ハーネスとモデルを組で選ぶ（例: Codex の gpt-6.1-sol）。チップにはハーネスのロゴとモデル名を出す（§5.4） |
 | 作業場所の選択 | 入力欄のドロップダウン。「既存ディレクトリ」か「新しい worktree」を選ぶ |
 
 ## 3. ユーザーが決めた事項（2026-10-11）
 
 | # | 問い | 決定 |
 |---|---|---|
-| D1 | ターミナルのセッションの始め方 | 新規チャット画面はチャット専用にする。ターミナルは**別のメニュー項目から**起動する（§6.6） |
+| D1 | ターミナルのセッションの始め方 | 画面から始められるのは**チャットだけ**。ターミナルでエージェントを動かすセッションを始めるメニューは作らない。ターミナルでエージェントを使いたいときは、ユーザーがターミナルに自分でコマンドを打つ（Phlox のセッションとしては登録されない）（§6.6。2026-10-11 改訂） |
 | D2 | worktree の初期値と、プロジェクト単位の「git worktree で隔離する」設定 | **プロジェクト設定を廃止**する。作業場所の選択は毎回「既存ディレクトリ」から始まる |
 | D3 | 同じフォルダで別のセッションが動いているときの通知 | **何も出さない**。選んだとおりに起動する |
 | D4 | 参考画像から取り入れる要素 | **挨拶の見出し**と**提案チップ**。音声入力（マイク）は取り入れない |
@@ -47,16 +47,33 @@ last-verified: 2026-10-11
 | D10 | 「履歴から再開」の範囲 | 本体フォルダに加えて、そのプロジェクトで過去に **worktree で進めた会話も含める** |
 | D11 | 「新しい worktree」で送ったときの行の出るタイミング | worktree の作成が終わってから行が出てよい（その間はトースト）。承認済み |
 | D12 | 凍結テスト `AcceptanceRestoreAbortNoSpawnTests` の 1 つ目の書き換え | 意図を保って条件だけ置き換えることを承認（設計書 §7.3） |
+| D13 | 見出しの文言 | 名前を出さない。10 種類の文言から、新規チャット画面を出すたびにランダムに 1 つ選ぶ（§5.2） |
+| D14 | ハーネスの略号（Cl・Cx・Cu など）と図形の印 | **アプリ全体で廃止する**（新規チャット画面だけでなく、サイドバー・タブ・グリッド・対応待ち一覧・会話など今ある画面すべて）。状態の図形（承認待ちの◆・実行中の回転・待機の○ など）もすべて消し、状態は文字で示す（§6.7） |
+| D15 | 未読の印 | 丸の印をやめ、未読のセッションは文字の濃さ（グレースケール）で見分けられるようにする（§6.7） |
+| D16 | ハーネスのロゴ（使用量画面・ハーネス・モデルのチップ） | 今の表示（画像と、無いときの略号・記号）をやめ、各社のロゴの SVG を使う。Claude と Codex は文字色の単色で描き、Cursor は元のロゴのまま（元から黒・白・灰だけで、単色にすると形が潰れるため）（§6.7） |
+| D17 | アプリの配色 | アクセント色を **#3B469B** にする（コーラルをやめる）。ダークでは文字・フォーカス枠・印だけ同じ色相を明るくした **#959CD0** にする。アクセントを使う場所は主要な操作・選択・フォーカス・リンクに限る（§6.8、ADR 0184） |
+| D18 | ハーネスごとの色 | **廃止する**。略号と図形を消すと使い道が無くなるため（§6.8） |
+| D19 | タブ・グリッドでの状態の表示 | **出さない**。状態はサイドバーのセッション行だけで示す（§6.7） |
+| D20 | 起動に失敗した後の「再起動」 | 起動し直すだけで、**送信はしない**。本文と添付は入力欄に残し、ユーザーが自分で送る（FR-10） |
+| D21 | セッションが 1 つも無いプロジェクトを選んだとき | 新規チャット画面を出す（FR-1） |
+| D22 | カスタムエージェント（`agents.json` で足す CLI） | **機能ごと廃止する**（ADR 0185、§8.6） |
+| D24 | ヘッダーの「対応待ち」ボタンと対応待ちの一覧 | **一覧ごと廃止する**（⌥⌘J も）。状態はサイドバーの文字で見て、許可などはそのセッションを開いて行う。⌘J（次の対応待ちへ）は残す（§6.9） |
+| D25 | 使用量の表示 | ヘッダーから消し、**ウィンドウの一番下に全幅のバー**を置いて、小さめの文字で全ハーネスの全枠を横に並べる（§6.9） |
+| D26 | 単体／グリッドの切替 | ヘッダーの**右寄せ**にする（§6.9） |
+| D23 | 上段のタブの構成 | 上段をプロジェクトのタブ、その下をそのプロジェクトのチャット・ターミナル・ファイルにする。共通ターミナルは廃止する。別の仕様書 `project-tabs.md`（ADR 0187）で決め、新規チャット画面と同時に実装する |
 
 AI が既定値で決めた事項（異論があれば変える）:
 
 | # | 事項 | 既定 |
 |---|---|---|
 | E1 | 旧版へ戻したときの互換 | 新版で旧データを読めることだけを保証する。新版で作ったデータを旧版で開いたときの作業場所は保証しない |
-| E2 | 対象プロジェクトが決まらないときの「新規ターミナルセッション」 | 押せなくする（プロジェクト行のメニューからは常に対象が決まる） |
-| E3 | ツールバーの `WorktreeMenuButton` に同居する「プロジェクト名を変更…」 | 残す。worktree の切替だけを消す |
+| E2 | （廃止。D1 の改訂で「新規ターミナルセッション」が無くなった） | — |
+| E3 | ツールバーの `WorktreeMenuButton` に同居する「プロジェクト名を変更…」 | `WorktreeMenuButton` ごと消す。worktree の切替は作業場所のチップへ、「プロジェクト名を変更…」は上段のプロジェクトのタブの右クリックへ移す（`project-tabs.md` P6） |
 | E4 | 作業場所・プロジェクトを変えた後の入力済み `@ファイル` | 候補は新しい場所で取り直す。入力済みの文は書き換えない |
-| E5 | 起動中のセッションの入力欄 | 初回メッセージは起動完了まで送らない（送信ボタンを押せない）。本文の編集もできない |
+| E5 | 起動中のセッションの表示 | 預かった初回メッセージは会話欄に「送信待ち」の文字を添えて出す（入力欄には置かない）。入力欄は空で「起動しています…」と出し、起動完了まで送れない（ただの無効状態と見分けるため。2026-10-11 デザイン検討で変更）。初回メッセージを送ったら「送信待ち」を外して通常の発言にする。起動に失敗したら会話欄から消し、本文を入力欄に戻す |
+| E6 | 入力欄の下段の並び | 左に「＋ / ハーネス・モデル / effort / 権限（Cursor は mode）」、右に「プロジェクト / 作業場所 / 送信」。セッション画面の下段（左に設定、右にブランチ等の場所の情報）と同じ並びにする。狭いときは effort・権限から今のセッション画面と同じ「…」メニューにまとめ、プロジェクト・作業場所は名前を省略してアイコンだけにする。ハーネス・モデルと送信は常に見せる |
+| E7 | 送れない理由の出し方 | 本文も添付も空のときは何も出さない。それ以外は入力欄の下段の上に 1 行で、原因と直し方を出す（場所は 1 か所）: 「プロジェクトを選んでください」「Cursor は画像を送れません。画像を外すか、画像を送れるハーネスを選んでください」「{ハーネス} が見つかりません。インストールするか、別のハーネスを選んでください」 |
+| E8 | 下書きの手がかり | プロジェクトのメニューで、下書きがあるプロジェクトに小さな印を付ける。下書きは全ウィンドウで共有でよい |
 
 ## 4. 現状（調査の根拠つき）
 
@@ -86,7 +103,7 @@ AI が既定値で決めた事項（異論があれば変える）:
 ### 4.3 モデルの選び方
 
 - 一覧の出所は `AgentModelCatalog`（`AgentDomain/AgentModelCatalog.swift`）の内蔵リストで、起動時に `LiveAgentModelProvider` が CLI に問い合わせて上書きする。既定モデルは `AgentModelCatalog.defaultModel(for:)`（:137）が唯一の定義。
-- 入力欄のチップの集合は `composerControls(for:)`（`SessionFeature/ComposerSettingsControls.swift:26-37`）。Claude と Codex は model・effort・permission、Cursor は model・mode、カスタムは無し。
+- 入力欄のチップの集合は `composerControls(for:)`（`SessionFeature/ComposerSettingsControls.swift:26-37`）。Claude と Codex は model・effort・permission、Cursor は model・mode。
 - CLI への渡し方はハーネスごとに違う。Claude は起動引数 `--model` `--effort` `--permission-mode`（`ClaudeChatClient+Respawn.swift:188-196`）、Codex は開始（`threadStart`、`ChatSessionViewModel.swift:950`）の後に `updateThreadSettings`（同 :1464 ほか）で当てる、Cursor はターンごとの起動引数 `--model` `--mode`（`CursorChatClient.swift:128-133`）。なお Codex の開始要求 `ThreadStartParams` には `model` 項目がある（`CodexAppServerKit/AppServerRequests.swift`）が、今は使っていない。
 - 新規作成時は「最後に使った設定」（`phlox.lastUsedChatSettings.<agentID>.model` / `.effort`、`LastUsedChatSettingsStore.swift:14`）を `startNew` で当て直す（`SessionSpawnService.swift:871-876`）。GUI の起動経路にモデルを渡す引数は無い。
 - iOS には「ハーネスとモデルの組」を選ぶピッカーが既にある（`ModelPickerEntry(kind, modelID, displayName)`、`ios/.../SessionDetailViewModel.swift:109`、`ModelPickerSheet.swift`）。
@@ -116,12 +133,12 @@ AI が既定値で決めた事項（異論があれば変える）:
 ### 5.1 配置（見本の画像に合わせる）
 
 ```
-            [Phlox ロゴ] {名前}さん、さあ始めましょう！
+            [Phlox ロゴ] 何から始めますか？（§5.2 の 10 種類からランダム）
 
    ┌──────────────────────────────────────────────────────────┐
    │ やりたいことを入力（/ でコマンド）                          │
    │                                                          │
-   │ ＋  [Phlox-oss ⌄] [既存ディレクトリ ⌄]   [Codex: gpt-6.1-sol ⌄] [中 ⌄] [権限 ⌄] (↑) │
+   │ ＋ [(Codexのロゴ) gpt-6.1-sol ⌄] [高 ⌄] [Full Access ⌄]   [Phlox-oss ⌄] [既存ディレクトリ ⌄] (↑) │
    └──────────────────────────────────────────────────────────┘
 
     [コードレビュー] [バグ修正] [テスト追加] [コードの説明] [リファクタ]
@@ -134,27 +151,41 @@ AI が既定値で決めた事項（異論があれば変える）:
 
 ### 5.2 挨拶の見出し
 
-- 文言は「{名前}さん、さあ始めましょう！」（英語: "Welcome back, {name}"）。
-- 名前は `NSFullUserName()` の最初の語。空なら `NSUserName()`。
+- 名前は出さない（D13）。次の 10 種類から、新規チャット画面を出すたびにランダムに 1 つ選ぶ。入力中やウィンドウの大きさを変えたときは替えない。
+
+| # | 日本語 | 英語 |
+|---|---|---|
+| 1 | 何から始めますか？ | What would you like to work on? |
+| 2 | 今日は何を進めますか？ | What are we building today? |
+| 3 | さあ、始めましょう | Let's get started |
+| 4 | 次は何を作りますか？ | What's next? |
+| 5 | どこから手をつけますか？ | Where should we begin? |
+| 6 | アイデアを形にしましょう | Let's turn ideas into code |
+| 7 | 今日の課題を教えてください | Tell me what you're working on |
+| 8 | どんな変更を加えますか？ | What would you like to change? |
+| 9 | 続きを進めましょう | Let's keep going |
+| 10 | 何をお手伝いしましょうか？ | How can I help? |
 
 ### 5.3 入力欄
 
 | 要素 | 仕様 |
 |---|---|
 | 本文 | 既存の `ChatComposer` の入力部をそのまま使う（改行・貼り付け・画像の貼り付け・↩ で送信） |
-| ＋ | 既存の添付（`ComposerAttachPlaceholder`）。添付は初回メッセージと一緒に送る。選んだハーネスが画像に非対応（Cursor。`ChatSessionViewModel.swift:791`）のときは、添付を消さずに残し、「Cursor は画像を送れません」と出して送信できなくする |
+| ＋ | 既存の添付（`ComposerAttachPlaceholder`）。添付は初回メッセージと一緒に送る。選んだハーネスが画像に非対応（Cursor。`ChatSessionViewModel.swift:791`）のときは、添付を消さずに残し、E7 の文言を出して送信できなくする |
 | `@ファイル` 候補 | 選択中のプロジェクトと作業場所を基準に取る。どちらかを変えたら候補を取り直す。入力済みの文は書き換えない（E4。今は候補の取得場所を固定している `ComposerSuggestions.swift:459,767`） |
-| プロジェクト | 登録済みプロジェクトの一覧から選ぶ。初期値は §6.1。選び直すと、そのプロジェクトの下書きに切り替わる（D9） |
-| 作業場所 | 「既存ディレクトリ」（初期値）/「新しい worktree」。プロジェクトが git リポジトリでないときは「新しい worktree」を選べない（理由をツールチップで示す） |
+| プロジェクト | 登録済みプロジェクトの一覧から選ぶ。初期値は §6.1。選び直すと、そのプロジェクトの下書きに切り替わる（D9）。下書きがあるプロジェクトには印を付ける（E8） |
+| 下段の並び | E6 |
+| 送れない理由 | E7 |
+| 作業場所 | 「既存ディレクトリ」（初期値）/「新しい worktree」。プロジェクトが git リポジトリでないときは「新しい worktree」を選べない（理由「git リポジトリではないため worktree を作れません」をメニューの項目の下に説明文で示す。ツールチップはキーボードと VoiceOver で読みにくいため） |
 | ハーネス・モデル | §5.4 |
 | effort・権限・mode | 選んだハーネスの `composerControls(for:)` をそのまま出す（Claude/Codex: effort・権限、Cursor: mode）。値は「最後に使った設定」から始める。候補の出どころは §5.4 |
 | 送信 | ↩ またはボタン。本文が空で添付も無いときは押せない |
 
 ### 5.4 ハーネス・モデル選択
 
-- チップの表示は「{ハーネスの表示名}: {モデルの表示名}」（例: `Codex: gpt-6.1-sol`、`Claude Code: Opus 5.5`）。
-- 押すとメニューを開く。ハーネスごとの区切りの下にモデルを並べる。一覧は `AgentModelCatalog.models(for:)`（CLI 問い合わせで上書き済みのもの）。
-- 対象はチャットに対応した組込ハーネス（`supportsStructuredChat == true`）だけ。カスタムエージェントはチャット非対応なので出さない（ターミナルのメニューから起動する。§6.6）。
+- チップの表示は「{ハーネスのロゴ} {モデルの表示名}」（例: Codex のロゴ＋`gpt-6.1-sol`）。ハーネス名の文字は出さない（2026-10-11 ユーザー指示）。ロゴは使用量画面と同じ各社の SVG（FR-26、`AgentBrandIcon`）で、略号・色の四角などの代わりの印は使わない（D14）。ロゴの意味が見た目だけにならないよう、読み上げは「ハーネスとモデル、Codex: gpt-6.1-sol」とハーネス名を含め、ホバーでも「Codex: gpt-6.1-sol」を出す。
+- 押すとメニューを開く。上に絞り込み欄、ハーネスごとの区切り（見出しはハーネス名の文字）の下にモデルを並べ、選択中にチェック、既定のモデルに「既定」のタグ。一覧は `AgentModelCatalog.models(for:)`（CLI 問い合わせで上書き済みのもの）。
+- 対象はチャットに対応した組込ハーネス（`supportsStructuredChat == true`。3 つとも）。
 - CLI が見つからないハーネスは区切りごと「未検出」と出して選べなくする。
 - 初期値は「新規チャットで最後に送信したハーネス」（新しい保存キー `phlox.newChat.lastHarness`）と、そのハーネスの「最後に使った設定」。どちらも無ければ Claude Code と `AgentModelCatalog.defaultModel(for:)`。
 - 「最後に使った設定」は今 model と effort しか保存していない（`LastUsedChatSettingsStore.swift:3`）。権限と Cursor の mode も保存するように広げる。既存セッションで設定を変えたときも今どおり更新する（「最後に送信したもの」ではなく「最後に使ったもの」）。
@@ -183,6 +214,7 @@ AI が既定値で決めた事項（異論があれば変える）:
   - プロジェクト行の「＋」と、右クリック・「⋯」の「新規チャット」
   - 単体表示でセッション未選択のとき（起動カードの置き換え）
   - グリッドでセッション 0 件のときの空状態のボタン
+  - 単体表示でサイドバーのプロジェクトを選んだとき（セッションが 1 つも無いプロジェクトでも同じ。D21。グリッド表示では今どおり絞り込むだけ）。プロジェクトの ＋ は確認やメニューを挟まず、押した時点で切り替える
 - **FR-1a** 「新規チャット画面を出す」とは、単体表示に切り替えて**セッションの選択を外し**（`router.selectedSession = nil`）、共通ターミナルの前面表示も外す（`router.commonTerminalSelected = false`。`SessionTabsContainer.swift:31`）ことを指す。新しい画面状態のフラグは足さず、今の `StartAreaPolicy`（プロジェクト選択あり・セッション未選択）の分岐をそのまま使う。セッションを選択中・グリッド表示中・共通ターミナル表示中に ⌘N を押した場合も同じ。
 - **FR-2** プロジェクトの初期値は、プロジェクト行から開いたときはそのプロジェクト。それ以外は、選択中のプロジェクト → 直前に選択していたセッションのプロジェクト → プロジェクトが 1 つならそれ → 無ければ未選択。今の `newSessionTableProjectID`（`DashboardView.swift:942-946`）と同じ順。
 - **FR-2a** プロジェクトが未選択のときも新規チャット画面を出す（今の `SelectProjectPlaceholderView` を置き換える）。入力欄のプロジェクト選択が空で、選ぶまで送信できない。
@@ -199,13 +231,14 @@ AI が既定値で決めた事項（異論があれば変える）:
 
 - **FR-7** 送信すると次の順に処理する（D8）。
   1. 送信時点の本文・添付・プロジェクト・作業場所・ハーネス・モデル・effort・権限（mode）を確定し、そのプロジェクトの下書きを空にする。送信直前にプロジェクトがまだ存在するか確かめ、無ければ送らずに下書きを戻す。
-  2. セッションの行を「起動中」としてサイドバーに出して選択する。「既存ディレクトリ」ではほぼ即時。「新しい worktree」では worktree の作成（数秒）が終わってから行が出て、その間はトーストを出す（設計書 §5.1）。初回メッセージはこのセッションが預かり、入力欄に表示する（E5: 起動完了までは編集・送信できない）。
+  2. セッションの行を「起動中」としてサイドバーに出して選択する。「既存ディレクトリ」ではほぼ即時。「新しい worktree」では worktree の作成（数秒）が終わってから行が出て、その間はトーストを出す（設計書 §5.1）。初回メッセージはこのセッションが預かり、会話欄に「送信待ち」として表示する（E5）。
   3. 起動する。作業場所が「新しい worktree」なら `isolationOverride: true`、「既存ディレクトリ」なら `false` を渡す。
   4. **起動の成功を確かめてから**、預かった本文と添付を既存の送信経路で初回メッセージとして送る。成功とみなすのは、Claude はプロセスが起動して失敗の通知が無いこと（今の `ClaudeChatClient.start()` :282 は失敗を通知するだけで正常に戻る）、Codex は開始と設定の適用（モデル・effort・権限）が両方成功したこと（今は適用失敗を通知するだけ。`ChatSessionViewModel.swift:943,962`）、Cursor は会話 ID が取れたこと。
 - **FR-8** モデル・effort・権限は**起動時の値として**渡す。ハーネスごとの当て方は今の経路をそのまま使う（Claude は起動引数、Codex は開始後の `updateThreadSettings`、Cursor はターンごとの引数）。そのため `spawnNewSession` にこれらの引数を足す（今は GUI 経路に無く、`startNew` が「最後に使った設定」を当て直すだけ）。Codex の model は `ThreadStartParams.model` で開始時に渡す（U2 で効くと確認済み）。
 - **FR-9** 送信したハーネスを `phlox.newChat.lastHarness` に、モデル等を `phlox.lastUsedChatSettings.<agentID>.*`（権限・mode を足したもの）に書く。
 - **FR-10** 失敗したときは、本文を失わず、セッションも二重にしない（D7）。
-  - **起動の失敗**（CLI の起動失敗・Codex の設定適用失敗）: セッションの行を残して失敗を表示し、預かった本文を入力欄に戻す。ユーザーは「再起動」して再送するか、セッションを閉じる（閉じると今の後始末で worktree も片付く）。
+  - **起動の失敗**（CLI の起動失敗・Codex の設定適用失敗）: セッションの行を残して失敗を表示し、預かった本文を入力欄に戻す。ユーザーは「再起動」するか、セッションを閉じる（閉じると今の後始末で worktree も片付く）。
+  - **再起動**（D20）: 失敗した行を閉じ、同じハーネス・モデル・effort・権限（mode）・作業場所で新しいセッションを起動して選択する。そのとき入力欄にある本文と添付（ユーザーが直した後のもの）を新しいセッションの入力欄へ移す。**送信はしない**。送るのはユーザー。
   - **worktree 作成の失敗・Codex の app-server 起動の失敗**（どちらも行が出る前）: 今のダイアログ（worktree は `.worktreeFailed` の「隔離なしで起動 / 既存の worktree を使う / 閉じる」、Codex は `spawnError`）を出し、本文をそのプロジェクトの下書きに戻す。
   - **起動後の初回送信の失敗**（添付の拒否・Cursor のターン失敗など。`ChatSessionViewModel.swift:3615,3653`、`CursorChatClient.swift:177`）: セッションを残し、本文と添付をそのセッションの入力欄に戻す。再送はそのセッションから行う。
 - **FR-11** worktree の作成中は今のトースト（`worktreeProgressToast`）を出す。
@@ -213,8 +246,9 @@ AI が既定値で決めた事項（異論があれば変える）:
 
 ### 6.4 履歴から再開
 
-- **FR-13** 新規チャット画面に「履歴から再開…」を出す。選択中のハーネスが Claude Code か Codex で、そのプロジェクトに履歴があるときだけ出す（今の `shouldOfferHistoryStart` と同じ条件）。
+- **FR-13** 新規チャット画面に「履歴から再開…」を出す。選択中のハーネスが Claude Code か Codex で、そのプロジェクトに履歴があるときだけ出す（今の `shouldOfferHistoryStart` と同じ条件）。出さないときも場所の高さは保ち、画面がずれないようにする。一覧の行には「今の作業場所で再開します」と分かる文言を出す（worktree で進めた会話でも元の worktree には戻らないため）。
 - **FR-13a** 一覧の範囲は、本体フォルダの会話に加えて、そのプロジェクトで過去に worktree で進めた会話を含める（D10）。今の一覧は作業フォルダが一致する会話だけを出す（`ClaudeSessionHistory.swift:72`、`CodexSessionHistory.swift:44`）。worktree の会話は作業フォルダが `<AppSupport>/workspace/<SessionUUID>` なので、worktree を作るたびに「その場所 → プロジェクト」の対応を記録し、一覧はその記録を使って集める（記録の置き場所は U6）。元の worktree が消えていても一覧には出す。
+- **FR-13b** 一覧は「読み込み中」「履歴がありません」「履歴を読み込めませんでした」＋「再試行」を区別して出す。
 - **FR-14** 押すと履歴一覧（`ChatHistoryStartView` の一覧部分）を出す。選ぶと、そのハーネスでセッションを作ってその会話を再開する。作業場所は新規チャット画面の選択に従う（worktree の会話を選んでも、元の worktree には戻らない）。再開後のモデル・effort・権限は新規チャット画面の選択を当てる。Codex の今の再開経路は履歴 ID しか渡さない（`ChatSessionViewModel.swift:658`、`CodexAppServerClient.swift:539`）ので、作業場所も渡す（渡せばその場所で動くことを U7 で確認済み）。
 
 ### 6.5 worktree 設定の廃止（D2）
@@ -225,18 +259,60 @@ AI が既定値で決めた事項（異論があれば変える）:
 - **FR-17a** worktree で動いているチャットは別プロジェクトへ移動できない今の制限（`DashboardSidebarView.swift:547-548`、`canMoveSession`）を残す。そのため、移動したチャットの worktree の扱いは生じない。
 - **FR-18** Control API（`POST /sessions`）・CLI `spawn`・子セッションの起動は、常に既存ディレクトリで起動する（今は隔離オンのプロジェクトでは worktree になる。iOS からの `POST /sessions` も同じ。§9 の挙動変化）。
 
-### 6.6 ターミナルのセッション（D1）
+### 6.6 ターミナルのセッション（D1・D22）
 
-- **FR-19** メニュー「ファイル ▸ 新規ターミナルセッション ▸」に、検出済みの全ハーネス（組込 3 種とカスタム）を並べる。選ぶと対象プロジェクト（FR-2 と同じ順）の既存ディレクトリで、ターミナルのセッションを作って選択する。対象プロジェクトが決まらないとき（0 件、または複数あって未選択）はメニューを押せなくする（E2）。今の `createSession` は先頭のプロジェクトへ進む（`DashboardView.swift:1101,1128`）が、それはやめる。
-- **FR-20** プロジェクト行の右クリック・「⋯」にも同じ「新規ターミナルセッション ▸」を置く。対象はそのプロジェクト。
+- **FR-19** 画面（メニューバー・プロジェクト行の右クリックと「⋯」・新規チャット画面）には、ターミナルでエージェントを動かすセッションを始める項目を置かない。今それを始めている GUI の経路（新規セッションの表の「ターミナル」、起動カードのターミナル、`DashboardView.createSession` の `.pty` 分岐）はすべて消す。
+- **FR-20** 残すもの: 保存済みのターミナルのセッションの復元（`SessionRestoreCoordinator.swift:154`）、Control API `POST /sessions` と CLI `phlox spawn` の `backend: pty`（組込ハーネスのみ。他のエージェントからの委譲で使う）、ユーザーが自分でコマンドを打つ普通のターミナル。
 - **FR-21** 設定「新規セッションの既定の開き方」と保存キー `phlox.defaultSessionBackend` を廃止する（チャット/ターミナルを入口で分けたので選ぶ場面が無い）。
+
+### 6.7 略号・図形の廃止（D14〜D16。アプリ全体）
+
+- **FR-22** ハーネスの略号（`tabInitials` の Cl・Cx・Cu、カスタムは表示名の先頭 2 文字）を、どの画面にも出さない。今出している場所: セッションのタブ、子タブの会話タブ・新しいタブの選択、グリッドの見出し、対応待ち一覧、会話のアバター、閉じる確認の文言（「Cx · 実行中」）、使用量のバー（独自の Cl/Cx/Cu 表記）。どのハーネスかは、ホバーカード・インスペクタ・ハーネス・モデルのチップなど文字で示す所で分かればよい。
+- **FR-23** 状態や種類を表す図形（`StateGlyph` の◆・回転・○・✓・!・六角形など、`AgentInitialTile`、ハーネスの色の四角や点、グリッドの実行中の輪）を出さない。今出している場所: サイドバーのプロジェクト行と折りたたみ時の要約、対応待ち一覧の行頭、ツールバーの「対応待ち」、グリッドの本文、新規チャットのハーネス・モデルのチップ。
+- **FR-24** 状態は文字で示す。サイドバーのセッション行の右端に「実行中」「承認待ち」「質問あり」「エラー」「無応答」「完了」のいずれかを、待機中は経過時間を出す（今のセッション行は右端に何も出していない）。注意が必要な状態（承認待ち・質問あり・エラー・無応答）は今の注意の色を文字に使う。プロジェクト行・折りたたみ時の要約は、図形の代わりに「承認待ち 1」のような文字と件数にする。タブ・子タブ・グリッドの見出しには状態を出さない（D19）。
+- **FR-25** 未読の丸（サイドバー 2 か所・グリッドの見出し・対応待ち一覧）をやめ、未読のセッションは題名を主文字色・やや太く、既読は副文字色にして見分ける（D15）。
+- **FR-26** 使用量画面とハーネス・モデルのチップのロゴは、各社のロゴの SVG（ベクター）を使う。Claude と Codex は文字色の単色で描く（今の Codex と同じテンプレート描画。`AgentBrandIcon.swift:43`）。Cursor は元のロゴのまま描く。画像が無いときの略号・記号の代わりの表示はやめる（D16）。ロゴの利用条件（各社のブランドガイドライン）を実装前に確かめる。
+- **FR-27** 図形・略号を消しても、読み上げの文言は今と同じに保つ（今の読み上げは文字ベースで、図形には依存していない）。
+
+### 6.9 ヘッダーと使用量のバー（D24〜D26。アプリ全体）
+
+- **FR-32** ヘッダー（`DashboardToolbar.swift:41-60`）から「対応待ち」ボタン（`AttentionButton` :51）と使用量のチップ（:52-54、`UsageTopBarView`）を消す。対応待ちの一覧（`AttentionListPopover`）と、メニュー「対応待ちの一覧」⌥⌘J（`App/PhloxApp.swift:962-977` のうち一覧の項目）、`AppRouter.attentionListPresented` を消す。「次の対応待ちへ」⌘J・サイドバーの対応待ちの欄・Dock のバッジ・サイドバーを隠したときの件数のバッジは残す。
+- **FR-33** 単体／グリッドの切替（`ViewModeToggle` :49。今は 2 つの `Spacer` で中央）を右寄せにし、インスペクタの切替の左に置く。識別子 `view-mode-single`・`view-mode-grid` とショートカット ⌃⌘1・⌃⌘2 は変えない。左側のプロジェクト名と worktree のボタンも消え、ヘッダーの高さを必要最小に縮める（`project-tabs.md` P6・PE12）。
+- **FR-34** ウィンドウの一番下に、サイドバーの下も含む全幅の使用量のバーを置く（`DashboardView.swift:353-487` の `navigationShell` の外側の末尾。単体・グリッドとも）。高さは 1 行、文字はメタの大きさ（11pt）・副文字色。
+- **FR-35** バーにはハーネスごとに、ロゴ（D16 の色）と全部の枠の**残り**を横に並べる: Claude「5時間 72%・週次 40%」、Codex「5時間 99%・週次 85%」、Cursor「Auto 80%・API 95%」（枠の名前は今の `UsageBucket.label`）。幅に余裕があればリセットまでの時間（例「5時間 72%（2時間後）」）も出す。今の `UsageDisplay`（`remainingTimeText`・`sidebarResetDisplay`。`UsageDisplay.swift:156`）の整形を使う。
+- **FR-36** 残りが少ない枠（今の基準 20% 未満。`UsageDisplay.swift:29`）は注意の色の文字にし、「残りわずか」を読み上げに含める。今の ▲ の印は使わない（D14）。取得できないハーネスは「取得できません」の文字（今の「—」はやめる）。表示するハーネスは今の「未取得の CLI も表示」の設定に従う。
+- **FR-37** 狭いときは、リセットまでの時間 → 枠の名前の順に省き、数値は省かない。最小幅（720pt）でも全ハーネスの数値が 1 行に収まること。
+- **FR-38** バーを押すと今どおりインスペクタの使用量を開く（`router.showUsageInInspector()`）。インスペクタを開いていてもバーは出す（今のヘッダーのチップはインスペクタ表示中は消えていた。ADR 0112）。設定「ヘッダーに使用量を表示」（`phlox.usage.showInHeader`、`SettingsView.swift:477`）は「画面下部に使用量を表示」に改名し、キーはそのまま使う。
+- **FR-39** バーは 1 つのボタンとして読み上げ、値にすべての枠の残りを入れる（例「使用量。Claude 5時間 残り 72%、週次 残り 40%。…」）。インスペクタを重ねて表示するときの下端（`DashboardView.swift:416`）はバーの高さ分上げる。
+
+### 6.8 配色（D17・D18。アプリ全体）
+
+役割ごとの色（既存のトークンの値を替える。新しいトークンは足さない）:
+
+| トークン | 役割 | ライト | ダーク | 理由 |
+|---|---|---|---|---|
+| `accentFill` | 主ボタンの面（白文字を載せる） | #3B469B | #3B469B | 白文字とのコントラスト 8.28 |
+| `accentInk` | アクセントの文字（リンク・選択中のタブ） | #3B469B | #959CD0 | 背景との比: ライト白地 8.28、ダーク #1E1E20 で 6.30・#2A2A2D で 5.41。#3B469B はダーク背景で 2.01 しかなく文字に使えない |
+| `accent` | 印・枠などの部品 | #3B469B | #959CD0 | 同上（部品は 3:1 以上が要る） |
+| `focusRing` | キーボードのフォーカス枠 | `accent` を不透明で | 同左 | 今は不透明度 25〜30% で 3:1 に届かない |
+
+外部テーマ（Tokyo Night など）は背景の明るさでライトかダークの値を使う（設計書 §9.1）。
+| `selectionFill`・`textSelection` | 選択中の行の面・文字選択 | `accent` に今の不透明度 | 同左 | 今は #D97757 を直書きしている（`Tokens.swift:296,301`）。トークンから取る |
+
+- **FR-28** UI のアクセントは全テーマで共有の色にする（今のコーラル `AppTheme.claudeCoral` の役割。`AppTheme.swift:95,211-221`）。外部テーマ由来のテーマでの `accentInk` は今の計算（4.5:1 に届くまで寄せる。`DesignPalette.swift:103`）をそのまま使う。
+- **FR-29** アクセントを使うのは、主要な操作（主ボタン・送信）・選択・フォーカス・リンクに限る。今アクセントを使っている箇所（2026-10-11 時点で `accent` 51・`accentFill` 23・`accentInk` 23・`chatAccent` 16 など）を実装時に役割で分け、どれにも当たらない装飾は中立の色（文字色・区切り線の色）に替える。
+- **FR-30** ハーネスごとの色を廃止する（D18）。`AppTheme.agentColors`・`DSColor.agentColor(for:)`・`agentInitialFill`・`AgentDescriptor.colorRGB` を消す。ロゴの無いハーネスの代わりの印（`AgentBrandIcon` の `fallbackIcon`）はカスタムの廃止（D22）で不要になるので消す。
+- **FR-31** 注意の色（承認待ち・質問あり・エラー・無応答）と差分の色は変えない。アプリアイコンは変えない。
 
 ## 7. 非機能要件
 
 - **NFR-1** 下書きの間は、会話用の CLI プロセス（チャットのセッション）を起動しない。アプリが定期的に行うモデル一覧の取得（`CompositionRoot.swift:49,58`、`AgentModelProviders.swift:141`）は対象外で、今のまま動いてよい。
 - **NFR-2** 主要な部品に `accessibilityIdentifier` を付ける（`newChat.composer`、`newChat.projectPicker`、`newChat.workspacePicker`、`newChat.harnessModelPicker`、`newChat.sendButton`、`newChat.suggestion.<n>`、`newChat.historyResume`）。
 - **NFR-3** 文言は日本語と英語の両方を `macos/App/Localizable.xcstrings` に手で足す（`extractionState: manual`）。
-- **NFR-4** キーボードだけで操作できる（⌘N → 入力 → ↩。チップとメニューは Tab で移れる）。VoiceOver で各チップの役割が読める。
+- **NFR-4** キーボードだけで操作できる（⌘N → 入力 → ↩。チップとメニューは Tab で移れ、Space・↩ で開き、矢印で選び、Esc で閉じる）。
+- **NFR-5** WCAG 2.2 AA を基準にする。文字と背景は 4.5:1 以上、部品とフォーカス枠は 3:1 以上（§6.8）。意味を色だけで伝えない。VoiceOver で各チップの役割と今の値が読める（例「ハーネスとモデル、Codex: gpt-6.1-sol」）。入力欄にはラベル「メッセージ」を付ける。起動中・起動完了・起動失敗に変わったら読み上げる（WCAG 4.1.3。既存の `AccessibilityNotification.Announcement` を使う。`ComposerSettingsControls.swift:1149`）。
+- **NFR-6** ホバー・押下中・無効の見た目は既存のボタンスタイル（`DesignSystem/Interaction.swift:203,239,276` の `HoverableIconButtonStyle`・`HoverableSoftButtonStyle`・`HoverableSurfaceButtonStyle`）を使い、新しい値を足さない。フォーカスは `focusRing`。
+- **NFR-7** ウィンドウの最小幅（720pt。`App/PhloxApp.swift:120`）でサイドバーを出していても、入力欄の下段が切れたり重なったりせず、すべてのチップを操作できる（E6 のまとめ方で収める）。
 
 ## 8. 修正範囲
 
@@ -266,11 +342,11 @@ AI が既定値で決めた事項（異論があれば変える）:
 | `ComposerSuggestions` | `@ファイル` 候補の基準をプロジェクト・作業場所の変更に追従させる（§5.3） |
 | `ClaudeSessionHistory`・`CodexSessionHistory` | プロジェクトの過去の worktree の会話も集める（FR-13a） |
 | Codex の履歴再開 | 作業場所とモデル等を渡す（FR-14） |
-| ツールバーの `WorktreeMenuButton` | worktree の切替だけを消し、「プロジェクト名を変更…」は残す（E3。`DashboardToolbar.swift:444`） |
+| ツールバーの `WorktreeMenuButton` | ボタンごと消す。「プロジェクト名を変更…」は上段のタブの右クリックへ移す（E3、`project-tabs.md` P6。`DashboardToolbar.swift:379`） |
 | プロジェクトの削除 | そのプロジェクトの下書きを捨てる（FR-6a） |
 | `StartAreaPolicy`・`DashboardDetailView` | セッション未選択の主画面を新規チャット画面にする |
 | ⌘N・サイドバー・プロジェクト行・グリッド空状態 | 新規チャット画面を出す（FR-1） |
-| メニュー | 「新規チャット」「新規ターミナルセッション ▸」（FR-19） |
+| メニュー | 「新規チャット」だけ（FR-19） |
 | `.worktreeFailed` ダイアログ | 残す。呼び出し元を送信処理に付け替える |
 
 ### 8.3 新しく作る
@@ -289,15 +365,46 @@ AI が既定値で決めた事項（異論があれば変える）:
 - 既存セッションのチャット画面の入力欄（部品を共用するだけで見た目と動きは変えない）。
 - worktree の作成・中止（ADR 0170）・後始末。
 
+### 8.5 略号・図形の廃止（§6.7）の範囲
+
+パスは `macos/Packages/` からの相対。
+
+| 対象 | 場所 |
+|---|---|
+| 消す部品 | `DesignSystem/StateGlyph.swift`（`StateGlyph`・`Triangle`・`Hexagon`・`AgentInitialTile`）、`AgentDescriptor.tabInitials`（`DesignSystem/Tokens.swift:385-396`）、`agentInitialFill`、使われていない `AgentSessionIcon.swift`・`SessionSidebarRowIconLayout`・`StatusBadge.iconName` |
+| 略号を消す画面 | `SessionTabBar.swift:240`、`SessionTabsContainer.swift:255,298,433,459`、`GridTileParts.swift:153`、`AttentionListPopover.swift:271`、`ChatTranscriptView.swift:641-655`（会話のアバター。消すと字下げ `TranscriptAgentColumn.indent` も変わる）、`DashboardView.swift:91`、`UsageTopBarView.swift:70,141` |
+| 図形を消す画面 | `SidebarRows.swift:227,552-600`、`AttentionListPopover.swift:27,270`、`GridTileParts.swift:382,427` |
+| 未読の丸 | `SidebarRows.swift:568`、`DashboardSidebarView.swift:237`、`GridTileParts.swift:144`、`AttentionListPopover.swift:156` |
+| 状態の文字を足す | サイドバーのセッション行（`SidebarRows.swift:209-247`） |
+| ロゴ | `DesignSystem/AgentBrandIcon.swift`（SVG に替え、略号・記号の代わりの表示を消す）。使う所は `UsageSidebarView.swift:266` |
+| ハーネスの色（FR-30） | `AppTheme.agentColors`（`AppTheme.swift:81,229,247,269,295,455`）・`DSColor.agentColor(for:)`（`Tokens.swift:373-381`）・`agentInitialFill`・`AgentDescriptor.colorRGB`（`AgentDescriptor.swift:103` ほか、組込の 3 色 :174,192,209）と、それを渡している所（`SessionTreeSidebarSection.swift:16`、`SessionSpawnService.swift:832`、`ControllableSession.swift:162`、`ChatSessionView.swift:179`、`ChatTranscriptView.swift:388`）。iOS は同じ `AgentDomain` を使うので、iOS のテスト（`PhloxCoreTests.swift:320,336`）の作り方も直す（iOS アプリの動きは変わらない） |
+| アクセント（§6.8） | `DesignPalette.swift:48,55,69`、`AppTheme.swift:95,221,250,400,415,430`、`Tokens.swift:296,298,301`、`ThemePreviewModel.swift:44`、設定画面の見本の直書き（`App/SettingsView.swift:748`）、コメントの値（`AccentSwitchToggleStyle.swift:4`） |
+| ヘッダーと使用量（§6.9） | 消す: `AttentionListPopover.swift` 一式、`DashboardToolbar` の `AttentionButton`・`usageChip`（:162-185）、`UsageTopBarView.swift`、`UsageDisplay.topBarChips`、⌥⌘J の項目、`AppRouter.attentionListPresented`。足す: 使用量のバー（`DashboardView.navigationShell` の末尾）。変える: `ViewModeToggle` の位置、設定の文言。上の行の `AttentionListPopover`・`UsageTopBarView` の行番号は、ファイルごと消すので個別に直さなくてよい |
+| テスト | `HeaderUsageWhiteboxTests`・`AcceptanceUsageRemainingSummaryTests`・`HeaderUsageVisibilityAcceptanceTests`・`UsageDisplayTests` の `topBarChips` 部分をバーの整形に書き換える。`DesignSnapshotRenderTests.swift:750`（ダッシュボード全体）を撮り直す。`AcceptanceSidebarTextContrastTests`（テーマの色の指紋に `agentColors` を含む）、`TokensTests.swift:86-88`、`SessionRowIconTests`、`DialogRedesignTests.swift:44-47`（「Cx · 実行中」）、`StatusBadgeTests.swift:53` |
+| 資料 | `ui-feature-inventory.md:762`、`architecture/design-system.md:156` |
+
+### 8.6 カスタムエージェントの廃止（D22・ADR 0185）
+
+| 対象 | 扱い |
+|---|---|
+| 本番コード | `AgentDomain/CustomAgentDefinition.swift` を消す。`AgentRef` は `.builtin` だけにし（型は残す。`AgentKind` に畳むのは別作業）、未知の値の読み込みは失敗にする。`AgentCatalog` の合成・`customAgentBinaryPaths`・`AgentBinaryTable.custom`・`AgentSpawnError.customBinaryNotFound`・「（カスタム）」表示・設定画面の定義ファイルの行・Control API の custom 分岐（未知の kind は 400）を消す |
+| 保存済みのデータ | カスタムのセッションは読み込みで捨てる（今の `JSONSessionStore` の `DiscardableSession` が個別に捨て、`sessions.json.corrupt-<日時>` を残す）。捨てたときはログに残す。捨てた件数が 1 以上なら起動後に 1 回だけ「カスタムエージェントのセッション N 件を読み込めませんでした（機能を廃止したため）」を出す |
+| テスト | 削除: `CustomAgentJSONTests`・`CustomAgentRobustnessAcceptanceTests`・`CustomAgentLaunchPlannerTests`、iOS の `PhloxCoreTests` のカスタム部分。追加: カスタムの保存形式 2 種を読み込んでも落ちず、そのセッションだけ捨てるテスト |
+| 偽エージェントで動く E2E・UI テスト | 今は課金なしで動かすためにカスタム（`fake-agent`）を使っている（`E2EControlServerTests`、`macos/UITests/*`、`SimulatorTabUITests`）。組込ハーネスの実行ファイルの場所を差し替えて `fake-agent.sh` を動かす形に移す（`E2EFakeAgentSmokeTests` は既にカスタムに依存しない） |
+| 資料 | `specs/custom-agents-json.md` を `superseded`（→ ADR 0185）にし、索引から外す。他の資料の言及は実装時に直す |
+
 ## 9. 挙動の変化（利用者に見えるもの）
 
 1. ＋ や ⌘N を押してもセッションはすぐできない。最初のメッセージを送った時点でできる。セッションを開いているときに ⌘N を押すと、そのセッションの選択が外れて新規チャット画面になる。送っていない下書きは、アプリを終了すると消える。
 2. 同じフォルダで動いているセッションがあっても何も聞かれない。
 3. 隔離オンにしていたプロジェクトでも、新規チャットは「既存ディレクトリ」から始まる。Control API・CLI・子セッションは常に既存ディレクトリで起動する。
-4. ターミナルで始めたいときはメニュー（ファイル、またはプロジェクトの右クリック）から選ぶ。⌘N や ＋ からは始められない。
+4. 画面からターミナルのセッションは始められない。ターミナルでエージェントを使いたいときは、ターミナルに自分でコマンドを打つ（Phlox のセッションにはならない）。カスタムエージェントは使えなくなる。
 5. 「既定の開き方」の設定が無くなる。
 6. 送信するとすぐにサイドバーへ「起動中」の行ができ、起動が終わってから最初のメッセージが届く。失敗してもセッションは残り、本文はそのセッションの入力欄に戻る。
 7. Claude の使用量表示は、動いているチャットが無く、保存済みの値も無いときは、最初のメッセージを送るまで出ない（`ClaudeChatUsageSource.swift:23`。今は起動カードからセッションを作った時点で問い合わせ先ができていた）。
+8. アクセント色がコーラルから藍色（#3B469B。ダークの文字・枠は #959CD0）に変わる。キーボードのフォーカス枠がはっきり見えるようになる。
+9. ハーネスの略号・色・状態の図形・未読の丸が無くなる。状態はサイドバーのセッション行の右端の文字で見る。タブとグリッドには状態が出ない。
+10. 起動に失敗して「再起動」しても、自動では送られない。
 
 ## 10. 先に直す資料（実装の前）
 
@@ -310,6 +417,8 @@ AI が既定値で決めた事項（異論があれば変える）:
 | `specs/e2e-test-design.md:73` の `session.newButton` | 新しい識別子に直す |
 | `delivery/0037-ui-redesign-worklog.md` | 変えない（作業記録なので当時のまま）。新しい作業記録から参照する |
 | `specs/README.md` | 本ファイルを索引に足す |
+| ADR 0184（配色） | 作成済み（2026-10-11）。ADR 0042 に置き換えの追記済み |
+| `architecture/design-system.md` | 実装と同時にアクセントの値・ハーネスの色の廃止を反映する（今の値の説明なので、実装までは残す） |
 
 ## 11. 受け入れ基準
 
@@ -333,14 +442,26 @@ AI が既定値で決めた事項（異論があれば変える）:
 | AC-6 | 次の 3 つのセッションが、プロジェクト設定に関係なく復元で同じ worktree を使い、終了で後始末される: (a) 新版で worktree を選んで始めたもの、(b) 旧版で「この起動だけ worktree」で始めたもの、(c) 旧版で隔離オンで始め、後で設定をオフにしたもの。保存済みの作業フォルダが本体フォルダのセッションは worktree を使わない | `SessionRestoreCoordinator` のテスト、`AcceptanceRestoreAbortNoSpawnTests` を作業フォルダ基準に合わせる |
 | AC-7 | ハーネス・モデル・effort・権限・mode の初期値が「最後に使った設定」になる。未検出のハーネスは選べない | 単体テスト |
 | AC-8 | 提案チップで定型文が入り、送信はされない | 単体テスト |
-| AC-9 | 「新規ターミナルセッション ▸ Codex」とカスタムハーネスでターミナルのセッションができる。対象プロジェクトが決まらないとき（0 件・複数で未選択）はメニューを押せない | 単体テスト |
+| AC-9 | メニューバー・プロジェクト行のメニューに「新規ターミナルセッション」が無い。Control API の `backend: pty` では今どおりターミナルのセッションができる | 単体テスト（メニューの組み立て）＋既存の Control API のテスト |
 | AC-9a | プロジェクトや作業場所を変えると `@ファイル` 候補が新しい場所のものになる | 単体テスト |
 | AC-10 | 見た目が見本と揃っている | `DesignSnapshotRenderTests` に新規チャット画面を足して撮る（日本語・英語、ライト・ダーク）。合否は目視で、§5.1 の並び（見出し → 入力欄 → チップ → 履歴から再開、入力欄の下段の左右の並び）と一致すること。**機械判定ではない**ので、ユーザーに画像を見せて承認を得る |
-| AC-11 | 主要な操作の通し確認 | XCUITest 1 本（⌘N → 入力 → ↩ → セッションができる）。fake-agent CLI を使う（`e2e-test-design.md`） |
+| AC-11 | 主要な操作をキーボードだけで通せる | XCUITest 1 本（⌘N → 入力 → Tab でハーネス・モデルのチップへ → 開いて矢印で選ぶ → 作業場所も同様に選ぶ → ↩ → セッションができる）。fake-agent CLI を使う（`e2e-test-design.md`） |
+| AC-12 | 略号（Cl・Cx・Cu）と状態・種類の図形が、どの画面にも描かれない | `DesignSnapshotRenderTests` で主要画面を撮って目視、加えて `StateGlyph`・`AgentInitialTile`・`tabInitials` が本番コードから無いことをビルドで確かめる |
+| AC-13 | サイドバーのセッション行の右端に状態の文字（待機中は経過時間）が出る。未読は題名の濃さで見分けられる | 単体テスト（状態 → 文字・色の対応） |
+| AC-14 | 見出しは 10 種類から選ばれ、画面を出すたびに替わり、入力中は替わらない | 単体テスト（乱数を注入） |
+| AC-15 | 起動に失敗した後、入力欄の本文を直して「再起動」すると、新しいセッションの入力欄に直した本文と添付が入り、何も送られていない | fake を使う単体テスト |
+| AC-16 | 全テーマ・ライト／ダークで、`accentInk` が使う背景に対して 4.5:1 以上、`accent`・`focusRing` が 3:1 以上、`accentFill` の上の白文字が 4.5:1 以上。文字色の既存の検査はそのまま（既定 2 テーマの 3 段目の文字色は 4.5:1 未満を 2026-09-24 にユーザーが許容済み。`DesignPaletteTests.swift:61`） | `DesignPaletteTests` に足す |
+| AC-17 | 各チップと入力欄に役割と値の読み上げ文言があり、起動の状態が変わると読み上げを出す | 単体テスト（読み上げ文言の組み立て）＋ XCUITest で `accessibilityLabel`・`accessibilityValue` を確かめる |
+| AC-18 | 履歴の一覧が読み込み中・空・失敗（再試行あり）を区別して出す | 単体テスト（読み込みを失敗させた fake） |
+| AC-19 | ウィンドウ幅 720pt・サイドバー表示で、入力欄の下段が切れず重ならない。ライトで送信ボタンにフォーカスがあるとき、枠が面と見分けられる（枠と面がどちらも #3B469B のため） | `DesignSnapshotRenderTests` で 720pt と、フォーカスのある送信ボタン（ライト・ダーク）を撮って目視（ユーザー承認） |
+| AC-21 | ヘッダーに対応待ちのボタンと使用量が無く、単体／グリッドの切替が右寄せ。⌥⌘J のメニューが無く、⌘J は動く | 単体テスト（メニューの組み立て）＋ `ViewModeAccessibilityTests` |
+| AC-22 | 下部のバーに全ハーネスの全枠の残りが出る。少ない枠は注意の色、取得できないものは「取得できません」。720pt でも数値が省かれない。押すとインスペクタの使用量が開く | 単体テスト（整形と省き方）＋ `DesignSnapshotRenderTests`（1440pt・720pt、目視） |
+| AC-20 | ハーネスごとの色とコーラルが本番コードに無い | ビルドで確かめる（`agentColors`・`colorRGB`・`agentInitialFill`・`claudeCoral` が無い）＋ `rg -i 'D97757|E08865|B4552F|F0A383|A94A28|0xD9, 0x77, 0x57|0xE0, 0x88, 0x65|0xB4, 0x55, 0x2F|0xF0, 0xA3, 0x83|0xA9, 0x4A, 0x28' macos/Packages macos/App --glob '!**/Tests/**'` が 0 件 |
 
 ### 書き換え・削除するテスト
 
 - 削除: `StartScreenRedesignTests` の表・確認ダイアログ部分、`AcceptanceNewSessionMenuModelTests`、`AgentStartCardsTests`・`AgentStartCardModesTests`・`AcceptanceAgentStartCardsTests`・`AgentStartCardsRenderPNGTests`、`AcceptanceDefaultSessionBackendTests`・`DefaultSessionBackendPreferenceWhiteboxTests`、`WorktreeIsolationSpawnTests`・`DialogRedesignTests` の**確認ダイアログを扱うテストケースだけ**（ファイルは残し、AC-3・AC-5b をここに足す）。
+- 書き換え（配色・ハーネスの色）: `AcceptanceSidebarTextContrastTests` の色の指紋から `agentColors` を外す。カスタムの廃止に伴うテストは §8.6。
 - 書き換え: `AcceptanceSingleModeProjectSelectTests`・`StartAreaSelectionWhiteboxTests`（起動カード → 新規チャット画面）、worktree の復元を扱うテスト（プロジェクト設定 → セッションの項目）。
 - UI テストの `projects.json` の `"worktreeIsolationEnabled": false`（`macos/UITests/*`、`macos/PhloxUITests/SimulatorTabUITests.swift`）は読み込みの互換を残すので変えなくてよい。
 
@@ -358,7 +479,7 @@ AI が既定値で決めた事項（異論があれば変える）:
 - **U8**（解消）: 隔離していたセッションは、すべて作業フォルダ（worktree の場所）を保存している。
 - （旧 U4「下書きをウィンドウごとに置く」は誤りだったので取り下げた。`AppRouter` は全ウィンドウで共有されており、下書きもプロジェクトごとに全ウィンドウで共有する。FR-5）
 - **仮定 A1**: セッションのタイトルは今どおり初回メッセージから付く。
-- **仮定 A2**: ターミナルのセッションは worktree を選べなくてよい（D1・D2 の結果。必要になれば別に足す）。
+- **仮定 A2**: （D1 の改訂で画面からターミナルのセッションを始めないので不要）。
 
 ## 13. スコープ外
 

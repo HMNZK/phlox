@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="{{ rootStyle }}">
+  <div style="display:grid;grid-template-columns:120px repeat(5,minmax(0,1fr));font-size:11px;color:var(--fg2);border-bottom:1px solid var(--sep);">
+    <div style="padding:10px 14px;"></div>
+    <div style="padding:10px 8px;text-align:center;">通常</div>
+    <div style="padding:10px 8px;text-align:center;">ホバー</div>
+    <div style="padding:10px 8px;text-align:center;">押下中</div>
+    <div style="padding:10px 8px;text-align:center;">キーボードフォーカス</div>
+    <div style="padding:10px 8px;text-align:center;">無効</div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:120px repeat(5,minmax(0,1fr));align-items:center;background:var(--field);border-bottom:1px solid var(--sep);">
+    <div style="padding:16px 14px;font-size:12px;color:var(--fg2);">送信</div>
+    <div style="display:flex;justify-content:center;"><div style="width:28px;height:28px;border-radius:14px;background:var(--accentFill);color:#fff;display:flex;align-items:center;justify-content:center;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5v-9M4.5 7L8 3.5 11.5 7"></path></svg></div></div>
+    <div style="display:flex;justify-content:center;"><div style="width:28px;height:28px;border-radius:14px;background:#4B55A3;color:#fff;display:flex;align-items:center;justify-content:center;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5v-9M4.5 7L8 3.5 11.5 7"></path></svg></div></div>
+    <div style="display:flex;justify-content:center;"><div style="width:28px;height:28px;border-radius:14px;background:#343E88;color:#fff;display:flex;align-items:center;justify-content:center;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5v-9M4.5 7L8 3.5 11.5 7"></path></svg></div></div>
+    <div style="display:flex;justify-content:center;"><div style="width:28px;height:28px;border-radius:14px;background:var(--accentFill);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--field), 0 0 0 4px var(--accent);"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5v-9M4.5 7L8 3.5 11.5 7"></path></svg></div></div>
+    <div style="display:flex;justify-content:center;"><div style="width:28px;height:28px;border-radius:14px;background:var(--off);color:var(--fg3);display:flex;align-items:center;justify-content:center;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5v-9M4.5 7L8 3.5 11.5 7"></path></svg></div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:120px repeat(5,minmax(0,1fr));align-items:center;background:var(--field);border-bottom:1px solid var(--sep);">
+    <div style="padding:16px 14px;font-size:12px;color:var(--fg2);">＋ 添付</div>
+    <div style="display:flex;justify-content:center;"><div style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg></div></div>
+    <div style="display:flex;justify-content:center;"><div style="width:28px;height:28px;border-radius:6px;background:var(--hover);display:flex;align-items:center;justify-content:center;color:var(--fg);"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg></div></div>
+    <div style="display:flex;justify-content:center;"><div style="width:28px;height:28px;border-radius:6px;background:var(--sel);display:flex;align-items:center;justify-content:center;color:var(--fg);"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg></div></div>
+    <div style="display:flex;justify-content:center;"><div style="width:28px;height:28px;border-radius:6px;box-shadow:0 0 0 2px var(--accent);display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg></div></div>
+    <div style="text-align:center;font-size:11px;color:var(--fg2);">なし</div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:120px repeat(5,minmax(0,1fr));align-items:center;background:var(--field);border-bottom:1px solid var(--sep);">
+    <div style="padding:16px 14px;font-size:12px;color:var(--fg2);">下段のチップ</div>
+    <div style="display:flex;justify-content:center;"><div style="height:28px;padding:0 7px;border-radius:6px;display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg2);">高<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg></div></div>
+    <div style="display:flex;justify-content:center;"><div style="height:28px;padding:0 7px;border-radius:6px;background:var(--hover);display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg);">高<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg></div></div>
+    <div style="display:flex;justify-content:center;"><div style="height:28px;padding:0 7px;border-radius:6px;background:var(--sel);display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg);">高<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg></div></div>
+    <div style="display:flex;justify-content:center;"><div style="height:28px;padding:0 7px;border-radius:6px;box-shadow:0 0 0 2px var(--accent);display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg2);">高<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg></div></div>
+    <div style="text-align:center;font-size:11px;color:var(--fg2);">なし</div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:120px repeat(5,minmax(0,1fr));align-items:center;border-bottom:1px solid var(--sep);">
+    <div style="padding:16px 14px;font-size:12px;color:var(--fg2);">提案チップ</div>
+    <div style="display:flex;justify-content:center;"><div style="height:28px;padding:0 10px;border-radius:6px;box-shadow:inset 0 0 0 1px var(--ctlBorder);display:flex;align-items:center;font-size:12px;color:var(--fg2);">バグ修正</div></div>
+    <div style="display:flex;justify-content:center;"><div style="height:28px;padding:0 10px;border-radius:6px;background:var(--hover);box-shadow:inset 0 0 0 1px var(--ctlBorder);display:flex;align-items:center;font-size:12px;color:var(--fg);">バグ修正</div></div>
+    <div style="display:flex;justify-content:center;"><div style="height:28px;padding:0 10px;border-radius:6px;background:var(--sel);box-shadow:inset 0 0 0 1px var(--ctlBorder);display:flex;align-items:center;font-size:12px;color:var(--fg);">バグ修正</div></div>
+    <div style="display:flex;justify-content:center;"><div style="height:28px;padding:0 10px;border-radius:6px;box-shadow:0 0 0 2px var(--accent);display:flex;align-items:center;font-size:12px;color:var(--fg2);">バグ修正</div></div>
+    <div style="text-align:center;font-size:11px;color:var(--fg2);">なし</div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:120px repeat(5,minmax(0,1fr));align-items:center;">
+    <div style="padding:16px 14px;font-size:12px;color:var(--fg2);">履歴から再開…</div>
+    <div style="display:flex;justify-content:center;"><div style="height:24px;padding:0 8px;border-radius:6px;display:flex;align-items:center;font-size:12px;color:var(--fg2);">履歴から再開…</div></div>
+    <div style="display:flex;justify-content:center;"><div style="height:24px;padding:0 8px;border-radius:6px;background:var(--hover);display:flex;align-items:center;font-size:12px;color:var(--fg);">履歴から再開…</div></div>
+    <div style="display:flex;justify-content:center;"><div style="height:24px;padding:0 8px;border-radius:6px;background:var(--sel);display:flex;align-items:center;font-size:12px;color:var(--fg);">履歴から再開…</div></div>
+    <div style="display:flex;justify-content:center;"><div style="height:24px;padding:0 8px;border-radius:6px;box-shadow:0 0 0 2px var(--accent);display:flex;align-items:center;font-size:12px;color:var(--fg2);">履歴から再開…</div></div>
+    <div style="text-align:center;font-size:11px;color:var(--fg2);">なし</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:760,&quot;height&quot;:330},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const V = {
+      light:{'--bg':'#FFFFFF','--field':'#FFFFFF','--sep':'rgba(0,0,0,0.10)','--fg':'#1D1D1F','--fg2':'#5B5B60','--fg3':'#75757B','--hover':'rgba(0,0,0,0.05)','--sel':'rgba(0,0,0,0.075)','--accent':'#3B469B','--accentFill':'#3B469B','--ctlBorder':'rgba(0,0,0,0.16)','--off':'rgba(0,0,0,0.08)'},
+      dark:{'--bg':'#1E1E20','--field':'#1A1A1C','--sep':'rgba(255,255,255,0.10)','--fg':'#F2F2F4','--fg2':'#ABABB1','--fg3':'#8E8E94','--hover':'rgba(255,255,255,0.06)','--sel':'rgba(255,255,255,0.09)','--accent':'#959CD0','--accentFill':'#3B469B','--ctlBorder':'rgba(255,255,255,0.10)','--off':'rgba(255,255,255,0.08)'}
+    };
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    return {
+      rootStyle: { ...V[theme], width:760, background:'var(--bg)', color:'var(--fg)', borderRadius:10, overflow:'hidden', fontFamily:"-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif", boxShadow: theme === 'dark' ? '0 0 0 0.5px rgba(0,0,0,0.7)' : '0 0 0 0.5px rgba(0,0,0,0.22)' }
+    };
+  }
+}
+</script>
+</body>
+</html>

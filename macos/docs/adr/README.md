@@ -12,6 +12,10 @@ last-verified: 2026-09-14
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0187 | [上段をプロジェクトのタブにし、タブ列をサイドバーと一致させる](0187-project-tabs.md) | accepted |
+| 0186 | [使用量をヘッダーから画面下部のバーへ移し、対応待ちの一覧を廃止する](0186-bottom-usage-bar-and-no-attention-list.md) | accepted |
+| 0185 | [画面からターミナルのセッションを始める経路と、カスタムエージェントを廃止する](0185-remove-terminal-launch-and-custom-agents.md) | accepted |
+| 0184 | [アクセント色を藍色 #3B469B にし、使う場所を絞り、ハーネスごとの色を廃止する](0184-indigo-accent-and-no-harness-colors.md) | accepted |
 | 0183 | [セッションの始め方を共通の新規チャット画面にまとめ、送信した時点でセッションを作る](0183-unified-new-chat-start-screen.md) | accepted |
 | 0182 | [ブラウザはファイルプレビューと分け、非永続の子タブで開く](0182-in-app-browser-tab.md) | accepted |
 | 0181 | [大きいテキストの色付け・編集・閲覧の上限を分ける](0181-large-text-files-without-highlighting.md) | accepted |
@@ -39,7 +43,7 @@ last-verified: 2026-09-14
 | 0151 | [PTY spawn は継承可能な fd を既定で close-on-exec にする（`POSIX_SPAWN_CLOEXEC_DEFAULT`）](0151-pty-spawn-fd-hygiene.md) | accepted |
 | 0169 | [エディタパネルの git 書き込み操作（stage/commit/push/PR）](0169-editor-panel-git-write-operations.md) | accepted |
 | 0150 | [エディタパネルの git 連動仕様（変更一覧の一本化・保存競合・不変条件の意味論化）](0150-editor-panel-git-semantics.md) | superseded → 0169 |
-| 0149 | [ユーザーターミナルはセッション非依存・cwd はホーム固定・シェルは閉じても保持](0149-user-terminal-lifecycle.md) | accepted |
+| 0149 | [ユーザーターミナルはセッション非依存・cwd はホーム固定・シェルは閉じても保持](0149-user-terminal-lifecycle.md) | accepted（一部を 0187 で置換） |
 | 0148 | [ターミナル／エディタパネルの容器はメインウィンドウ内のドロワーにする](0148-terminal-editor-panel-container-drawer.md) | accepted |
 | 0147 | [コードビューを枠線付きカードへ 1 本化し、見出しの重複・時刻・件数を落とす](0147-chat-code-card-and-header-dedup.md) | accepted |
 | 0146 | [ファイル変更をコードビューで描く（行番号は推測しない）](0146-diff-code-view.md) | accepted |
@@ -74,7 +78,7 @@ last-verified: 2026-09-14
 | 0115 | [端末エンジンをメインスレッドから分離する（SwiftTerm fork による TerminalCore 切り出し）——`.pty` 端末向け・`.appServer` は 0116](0115-terminal-engine-off-main-thread.md) | proposed |
 | 0114 | [添付画像に番号を振り、本文へ `[Image #N]` をカーソル位置で埋め込む（表記は AgentDomain に単一化）](0114-inline-image-placeholder-and-numbering.md) | accepted |
 | 0113 | [ライブのサブエージェント transcript も「1 ツールコール = 1 セル」で組み、ソース選択を2通りに畳む（0106 を supersede）](0113-subagent-live-tool-merge-and-two-way-source-rule.md) | active |
-| 0112 | [ヘッダーの使用量表示を設定で消せるようにし「未取得のCLIも表示」をヘッダーにも適用する](0112-header-usage-visibility-setting.md) | active |
+| 0112 | [ヘッダーの使用量表示を設定で消せるようにし「未取得のCLIも表示」をヘッダーにも適用する](0112-header-usage-visibility-setting.md) | active（一部を 0186 で置換） |
 | 0111 | [AskUserQuestion 保留中は awaitingUserQuestion（入力待ち）にする（0107 を supersede）](0111-awaiting-user-question-status.md) | active |
 | 0110 | [ターン途中 flush（leading-edge スロットル）と終了時の並行 flush + timeout race](0110-midturn-flush-and-termination-race.md) | active |
 | 0109 | [サブエージェントへのフォローアップはメインセッション経由の通常ターンで送る](0109-subagent-followup-via-main-session.md) | active |
@@ -139,7 +143,7 @@ last-verified: 2026-09-14
 | 0045 | [チャット Markdown 表スタイルから .fixedSize を外し、リサイズ時のレイアウト非収束ループを解消する](0045-remove-fixedsize-from-chat-table-styles.md) | active |
 | 0044 | [実行中インジケータを全撤去し、入力欄のデフォルト高を80pxに統一する](0044-remove-running-indicators-composer-80px.md) | active（80px 部分は 0046 で supersede） |
 | 0043 | [チームビュー（統合タイムライン）でメイン＋サブエージェントの会話を1本に可視化する](0043-team-view-unified-timeline.md) | superseded (→0070) |
-| 0042 | [UI カラースキーマをモノクロ基調＋Claude コーラル単一アクセントへ刷新し、ライトテーマとシームレスなセッション chrome を導入する](0042-monochrome-coral-ui-overhaul.md) | active |
+| 0042 | [UI カラースキーマをモノクロ基調＋Claude コーラル単一アクセントへ刷新し、ライトテーマとシームレスなセッション chrome を導入する](0042-monochrome-coral-ui-overhaul.md) | active（アクセント色は 0184 で置換） |
 | 0041 | [Gemini / OpenCode / Goose の CLI サポートを削除し、既定 CLI を Claude/Codex/Cursor の3種に限定する](0041-remove-gemini-opencode-goose-clis.md) | active |
 | 0040 | [チャットの履歴再開は ~/.claude/projects の JSONL 直読み＋off-main リアクティブロード](0040-chat-history-resume-from-claude-projects.md) | active |
 | 0039 | [Claude Usage の供給はターミナル限定と認め、行を消さず鮮度を可視化](0039-claude-usage-statusline-terminal-only.md) | active |

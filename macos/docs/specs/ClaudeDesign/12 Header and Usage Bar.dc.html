@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>body{margin:0;background:#E7E7EA;} a{color:#3B469B;} a:hover{color:#2C3578;}</style>
+</helmet>
+<div style="padding:80px;display:flex;flex-direction:column;gap:96px;width:max-content;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#1D1D1F;">
+
+<section data-screen-label="00 概要" style="display:flex;gap:56px;align-items:flex-start;">
+  <div style="width:560px;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:13px;color:#75757B;">Phlox macOS · プロンプト 12 · 参照: D24〜D26・§6.9（FR-32〜FR-39）・D16</div>
+    <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;line-height:1.2;">ヘッダーと使用量のバー</div>
+    <div style="font-size:15px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">ヘッダーから「対応待ち」ボタンと使用量のチップを消し、単体／グリッドの切替をインスペクタの切替の左に寄せる。使用量はウィンドウの一番下の全幅のバーに移す。タブの構成は <a href="11 Project Tabs.dc.html">11 Project Tabs</a> の案のまま描いた。</div>
+  </div>
+  <div style="width:900px;background:#fff;border-radius:12px;padding:26px 28px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:18px;font-weight:700;">バーの決まり</div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.65;">
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">1</b><div><b>高さ 24pt・11pt・副文字色</b>。地はツールバーと同じ色、上に区切り線。サイドバーの下まで通して、ウィンドウの最下段を 1 本の帯にする。単体でもグリッドでも、インスペクタを開いていても出す（FR-34・FR-38）。</div></div>
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">2</b><div><b>ハーネスごとに「ロゴ　枠 残り%（リセットまで）・枠 残り%…」</b>。ハーネスの間は 18pt 空ける。ロゴは 12pt。Claude と Codex のロゴはバーの文字と同じ副文字色の単色、Cursor は元の色のまま。略号（Cl・Cx・Cu）は使わない。</div></div>
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">3</b><div><b>残り 20% 未満は注意の色の文字＋semibold</b>（ダーク #F4BD68・ライト #8A5300）。▲ などの印は使わない。読み上げに「残りわずか」を含める（FR-36）。取得できないハーネスは「取得できません」を副文字色で。</div></div>
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">4</b><div><b>狭いときの省き方</b>: 1100pt 未満でリセットまでの時間を省き、600pt 未満で枠の名前を省く。数値は省かない（FR-37）。720pt では 1 段目で収まる（<a href="#U3">U3</a>）。2 段目は <a href="#U7">U7</a>。</div></div>
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">5</b><div><b>バー全体が 1 つのボタン</b>。押すとインスペクタの使用量を開く。ホバーで灰色の面、キーボードのフォーカスで内側に 2pt の枠（<a href="#U6">U6</a>）。</div></div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="U 状態" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">U. 描き分け</div>
+  <div style="display:flex;gap:80px;align-items:flex-start;flex-wrap:wrap;width:2960px;row-gap:64px;">
+    <div id="U1" style="display:flex;flex-direction:column;gap:12px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">U1</span><span style="font-size:14px;font-weight:600;">単体表示 · 1440pt（ダーク）</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="main" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">ヘッダー（38pt）は左に信号、右に単体／グリッドとインスペクタの切替だけ（サイドバーの開閉はサイドバーを隠したときだけ出す）。「対応待ち」ボタン・使用量のチップ・対応待ちの一覧は無い（FR-32）。最下段のバーに 3 つのハーネスの全枠の残り。</div></div>
+    <div id="U2" style="display:flex;flex-direction:column;gap:12px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">U2</span><span style="font-size:14px;font-weight:600;">グリッド表示</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="grid" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">切替はグリッドが選択中。下段のタブ列は出さず、タイルは会話だけ（PE8）。タイルの見出しは題名だけで状態は出さない（D19）。フォーカス中のタイルに藍の 2pt の枠。バーは単体と同じ位置。</div></div>
+    <div id="U3" style="display:flex;flex-direction:column;gap:12px;width:720px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">U3</span><span style="font-size:14px;font-weight:600;">最小幅 · 720pt</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="main" width="720" height="760" hint-size="720px,760px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">リセットまでの時間を省き、枠の名前と数値を残す。3 つのハーネスが 1 行に収まる（FR-37）。</div></div>
+    <div id="U4" style="display:flex;flex-direction:column;gap:12px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">U4</span><span style="font-size:14px;font-weight:600;">残りわずかの枠と、取得できないハーネス</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="main" usage="low" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">Claude の 5 時間枠が残り 12%（38 分後にリセット）で、注意の色の文字・semibold。Cursor は「取得できません」。読み上げは「使用量。Claude 5時間 残り 12%、残りわずか、38分後にリセット、週次 残り 40%。Codex 5時間 残り 99%、4時間後にリセット、週次 残り 85%、5日後にリセット。Cursor 取得できません」。</div></div>
+    <div id="U5" style="display:flex;flex-direction:column;gap:12px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">U5</span><span style="font-size:14px;font-weight:600;">ライト · 単体表示</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="main" theme="light" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">バーの文字はライトの副文字色 #5B5B60（地 #F6F6F7 に対して約 6:1）。Claude と Codex のロゴも同じ色。</div></div>
+    <div id="U8" style="display:flex;flex-direction:column;gap:12px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">U8</span><span style="font-size:14px;font-weight:600;">ライト · 残りわずかの枠と、取得できないハーネス</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="main" theme="light" usage="low" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">残りわずかの枠はライトの注意の色 #8A5300・semibold（地 #F6F6F7 に対して約 6.0:1）。「取得できません」は副文字色。</div></div>
+  </div>
+</section>
+
+<section data-screen-label="V バーの状態" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">V. バーだけを拡大</div>
+  <div style="display:flex;flex-direction:column;gap:20px;width:1440px;">
+    <div id="U6" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">U6</span><span style="font-size:14px;font-weight:600;">通常 / ホバー / キーボードのフォーカス（ダーク・ライト）</span></div>
+      <dc-import name="PhloxUsageBar" variant="normal" theme="dark" width="1440" standalone="{{ true }}" hint-size="1440px,24px"></dc-import>
+      <dc-import name="PhloxUsageBar" variant="hover" theme="dark" width="1440" standalone="{{ true }}" hint-size="1440px,24px"></dc-import>
+      <dc-import name="PhloxUsageBar" variant="focus" theme="dark" width="1440" standalone="{{ true }}" hint-size="1440px,24px"></dc-import>
+      <dc-import name="PhloxUsageBar" variant="normal" theme="light" width="1440" standalone="{{ true }}" hint-size="1440px,24px"></dc-import>
+      <dc-import name="PhloxUsageBar" variant="hover" theme="light" width="1440" standalone="{{ true }}" hint-size="1440px,24px"></dc-import>
+      <dc-import name="PhloxUsageBar" variant="focus" theme="light" width="1440" standalone="{{ true }}" hint-size="1440px,24px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">ホバーは今のボタンと同じ灰色の面（主文字色の 5〜6%）。フォーカスは不透明な 2pt の枠（ダーク #959CD0・ライト #3B469B）。ツールチップ「インスペクタで使用量を開く」。</div></div>
+    <div id="U7" style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">U7</span><span style="font-size:14px;font-weight:600;">省き方の 3 段階（幅 1440 / 900 / 520）</span></div>
+      <dc-import name="PhloxUsageBar" variant="low" theme="dark" width="1440" standalone="{{ true }}" hint-size="1440px,24px"></dc-import>
+      <dc-import name="PhloxUsageBar" variant="low" theme="dark" width="900" standalone="{{ true }}" hint-size="900px,24px"></dc-import>
+      <dc-import name="PhloxUsageBar" variant="low" theme="dark" width="520" standalone="{{ true }}" hint-size="520px,24px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">1 段目でリセットまでの時間を、2 段目で枠の名前を省く。残りわずかの色と「取得できません」はどの段でも残る。520pt はウィンドウの最小幅より狭く、実際には起きない幅（省き方の確認用）。</div></div>
+  </div>
+</section>
+
+<section data-screen-label="M 対応表" style="display:flex;gap:32px;align-items:flex-start;">
+  <div style="width:1180px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">要件対応表（D24〜D26・FR-32〜FR-39）</div>
+    <div style="display:grid;grid-template-columns:110px 1fr 1fr;font-size:12.5px;line-height:1.5;">
+      <div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">要件</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">内容</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">置き場所</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">D24・FR-32</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">対応待ちボタン・一覧・使用量のチップを消す</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ヘッダー（<a href="#U1">U1</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">D26・FR-33</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">単体／グリッドの切替を右寄せ</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">インスペクタの切替の左（<a href="#U1">U1</a>・<a href="#U2">U2</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">D25・FR-34</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">最下段の全幅のバー</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#U1">U1</a>〜<a href="#U5">U5</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-35・D16</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ロゴと全枠の残り</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#U1">U1</a>・<a href="#U6">U6</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-36</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">残りわずか・取得できない</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#U4">U4</a>・<a href="#U7">U7</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-37・NFR-7</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">狭いときの省き方・720pt で 1 行</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#U3">U3</a>・<a href="#U7">U7</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-38</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">押すとインスペクタの使用量</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ホバー・フォーカス（<a href="#U6">U6</a>）。インスペクタ側は未描画</div>
+      <div style="padding:6px 8px;">FR-39</div><div style="padding:6px 8px;">1 つのボタンとして読み上げ</div><div style="padding:6px 8px;"><a href="#U4">U4</a> の説明に読み上げ文</div>
+    </div>
+  </div>
+  <div style="width:620px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:16px;font-weight:700;">確かめたこと</div>
+    <div style="font-size:12.5px;line-height:1.65;display:flex;flex-direction:column;gap:6px;">
+      <div>文字のコントラスト: 副文字色はダーク #ABABB1 / #2A2A2D で約 6.8、ライト #5B5B60 / #F6F6F7 で約 6.2。残りわずかの色はダーク #F4BD68 で約 8.9、ライト #8A5300 で約 6.0。どれも 4.5:1 以上。</div>
+      <div>略号・図形・ハーネスの色: 無い。ハーネスはロゴで分かり、読み上げでは名前を言う。</div>
+      <div>ロゴの色: Claude・Codex はバーの文字と同じ副文字色にした（チップでは主文字色）。バーの中で文字より目立たせないため。主文字色に揃える場合は指示がほしい。</div>
+    </div>
+  </div>
+</section>
+
+</div>
+</x-dc>
+</body>
+</html>

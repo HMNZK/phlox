@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>body{margin:0;background:#E7E7EA;} a{color:#3B469B;} a:hover{color:#2C3578;}</style>
+</helmet>
+<div style="padding:80px;display:flex;flex-direction:column;gap:96px;width:max-content;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#1D1D1F;">
+
+<section data-screen-label="00 概要" style="display:flex;gap:56px;align-items:flex-start;">
+  <div style="width:560px;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:13px;color:#75757B;">Phlox macOS · 新規チャット開始 01（改訂 2）· 参照: §5.1〜§5.5・§6.7・§6.8・FR-1〜FR-4・FR-2a・E6〜E8・D13〜D19</div>
+    <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;">新規チャット画面</div>
+    <div style="font-size:15px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">⌘N・サイドバー下端の「新規チャット」・プロジェクト行の ＋ で主画面に出す。上から 見出し → 入力欄 → 提案チップ → 履歴から再開… の順に並べる。新規チャット画面は下段の「新規チャット」タブとして出す（11 の PE4）。送るまでセッションは存在しないので、サイドバーではセッション行を選択しない。</div>
+  </div>
+  <div style="width:900px;background:#fff;border-radius:12px;padding:26px 28px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:18px;font-weight:700;">改訂 2 で変えた点</div>
+    <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:1.65;">
+      <div><b>見出し</b>: 名前を出さず、10 種類からランダムに 1 つ（D13）。モックは「何から始めますか？」。全文言の日英の幅は <a href="#E">E</a>。長い英文は 2 行に折り返す（中央揃え・行の長さを揃える）。</div>
+      <div><b>略号・図形・ハーネスの色をなくした</b>（D14・D18）。セッション行の CX / CC / CU、状態の◆・回転・○、チップの色の四角を消した。状態はセッション行の右端に文字で出し、注意の状態（承認待ち・質問あり）だけ注意の色。畳んだプロジェクト行は「承認待ち 1」。タブには状態を出さない（D19）。</div>
+      <div><b>未読</b>: 丸をやめ、未読は題名を主文字色・semibold、既読は副文字色・regular（D15）。</div>
+      <div><b>アクセントを藍色に</b>（D17）。送信の面は #3B469B に白。フォーカス枠・選択・リンクはダーク #959CD0 / ライト #3B469B。フォーカス枠は不透明。それ以外は灰色。</div>
+      <div><b>描き分けを追加</b>: 最小幅 720pt（<a href="#C1">C1</a>）、送信ボタンのフォーカス（<a href="#C2">C2</a>・<a href="#C3">C3</a>）、部品のホバー・押下中・無効（<a href="#D">D</a>）。</div>
+    </div>
+    <div style="height:1px;background:rgba(0,0,0,0.08);"></div>
+    <div style="font-size:15px;font-weight:700;">論点: 見出しの大きさと縦の間隔（前回から変更なし）</div>
+    <div style="font-size:13px;line-height:1.65;color:#3A3A3E;">見出し 22pt・semibold、間隔は 見出し → 入力欄 20pt / 入力欄 → チップ 16pt / チップ → 履歴 12pt、上下の余白 4 : 5。入力欄の幅は「760pt と中央の幅 − 48pt の小さいほう」。Tweaks で見出し 20 / 22 / 28pt と縦位置「中央」を比べられる。28pt にすると英語の長い文言は最小幅で 2 行になる（<a href="#E">E</a>）。</div>
+  </div>
+</section>
+
+<section id="R3" data-screen-label="R3 横断点検 3" style="display:flex;gap:56px;align-items:flex-start;">
+  <div style="width:560px;display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:13px;color:#75757B;">横断レビュー 3 回目 · 対象: 10・<a href="11 Project Tabs.dc.html">11</a>・<a href="12 Header and Usage Bar.dc.html">12</a>（14 の修正の後）</div>
+    <div style="font-size:26px;font-weight:700;line-height:1.3;flex:none;">R3. 横断点検（3 回目）</div>
+    <div style="font-size:14px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">全部品のソースを機械的に洗い（色の値・略号・記号・文字色・古いヘッダーの高さ・廃止した項目の文言）、そのうえで 6 つの観点を見直した。今回は直すべき点が見つからなかった。要件対応表（<a href="#N">N</a>）は E3 を「置いた」に更新した。</div>
+  </div>
+  <div style="width:1680px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:grid;grid-template-columns:1fr 1fr;gap:12px 32px;font-size:12.5px;line-height:1.65;">
+    <div><b>1. 置き場所が無い要件</b>: FR-21（設定画面の項目を消す）、FR-26・D16 のうちインスペクタの使用量、FR-28 の外部テーマでの色。画面に出ない要件は FR-5・FR-8・FR-9・FR-16〜FR-18・FR-20・D6・D12・E1。E2 は廃止。E3 は「メニューは描かない」と決まったので置き場所ありとした。</div>
+    <div><b>2. 描かないもの</b>: 無い。モック内の「マイク」「Cowork」「新規ターミナル」「カスタム」は、資料の説明文で「描かない」と書いている箇所だけ。11 の ＋ のメニューの「ターミナル」は普通のターミナル（FR-20）。</div>
+    <div><b>3. 入力欄</b>: 10 の新規チャット画面・入力欄のメニュー（F・G・J）・送信後の画面（I）、11・12 のセッション画面と「新規チャット」タブで、チップ（ロゴ＋モデル名、アイコンと ⌄、28pt / 狭いとき 24pt と「…」）・添付のサムネイル・候補一覧が同じ。</div>
+    <div><b>4・4a</b>: コーラル・ハーネスの色・略号・状態の記号・未読の丸は部品のソースに無い（資料の説明文に値として書いているだけ）。アクセントの文字は「再試行」（リンク扱い）だけ。面は送信・主ボタン・選択・フォーカス。ヘッダーは全画面 38pt・3 つのボタン（K5・K8・T12 を含む）。タブ列・グリッドの見出しに状態は無い。</div>
+    <div><b>4b</b>: 補助色の文字はプレースホルダ（入力欄の上。ダーク約 5.3・ライト約 4.6）だけ。ほかの小さな文字は副文字色以上（6:1 以上）。削除ボタンの赤・差分の +/−・残りわずかの色も 4.5:1 以上。</div>
+    <div><b>5・6</b>: ライト（A2・C3・H・N3・T7・U5・U8）、英語（N2・N3。タブとバーも英語）、狭い幅（B4・C1・N2・T5・U3）で崩れは無い。キーボードの経路は <a href="#N">N</a> のとおりで変わらない。11・12 の画面の英語は描いていないが、使っている部品（タブ・バー）の英語は N2・N3 で確かめた。</div>
+  </div>
+</section>
+
+<section id="R" data-screen-label="R 横断点検 2" style="display:flex;flex-direction:column;gap:28px;">
+  <div style="display:flex;gap:56px;align-items:flex-start;">
+    <div style="width:560px;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:13px;color:#75757B;">横断レビュー 2 回目 · 対象: 10・<a href="11 Project Tabs.dc.html">11</a>・<a href="12 Header and Usage Bar.dc.html">12</a></div>
+      <div style="font-size:26px;font-weight:700;line-height:1.3;flex:none;">R. 横断点検（2 回目）</div>
+      <div style="font-size:14px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">1 回目（<a href="#N">N</a>）の後に足した 11（タブ）・12（ヘッダーと使用量のバー）を含めて、同じ 6 つの観点で点検した。要件対応表は <a href="#N">N</a> の表を更新済み（FR-1・FR-15・FR-26・D16・E3・NFR-7 の置き場所）。</div>
+    </div>
+    <div style="width:900px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">見つけて直した点</div>
+      <div style="font-size:13px;line-height:1.65;display:flex;flex-direction:column;gap:8px;">
+        <div><b>1. 10 のウィンドウが古いヘッダーとタブのままだった</b>（観点 3・4）。10 の新規チャット画面（A〜C・I・K4・N2・N3）と送信後の画面（I）を、11・12 で決めた形に揃えた: ヘッダー 38pt（信号・単体／グリッド・インスペクタだけ）、上段のプロジェクトのタブ、下段のチャット・ターミナル・ファイルと「新規チャット」タブ、最下段の使用量のバー。新規チャット画面は下段の「新規チャット」タブを選んだ状態になる（PE4）。</div>
+        <div><b>2. タブ列とサイドバーが一致していなかった</b>（P7）。10 のウィンドウの上段を、サイドバーの 3 プロジェクト（Phlox-oss・ios-companion・site）に、下段のチャットをサイドバーのセッションと同じ数・同じ順に合わせた。<a href="#K4">K4</a>（セッションが無い site）は下段が「新規チャット」だけになる。</div>
+        <div><b>3. 英語表示で、タブと使用量のバーが日本語のままだった</b>（観点 5）。「ターミナル 1」「新規チャット」のタブと、バーの枠の名前・リセットまでの時間・「取得できません」を英語にした（<a href="#N2">N2</a>・<a href="#N3">N3</a>。5h · Weekly · Unavailable など、仮訳）。</div>
+        <div><b>4. 廃止した案が残っていた</b>。ツールバーのプロジェクトのメニューの案 A・B（旧 K6・K7）を消し、決定（E3 は上段のタブの右クリックへ）だけを残した。</div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;gap:32px;align-items:flex-start;">
+    <div style="width:820px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">問題が無かった観点</div>
+      <div style="font-size:12.5px;line-height:1.65;display:flex;flex-direction:column;gap:6px;">
+        <div><b>2. 描かないもの</b>: 紛れ込んでいない。11 の下段の ＋ のメニューの「ターミナル」は、ユーザーが自分でコマンドを打つ普通のターミナル（FR-20 で残すもの）で、エージェントのセッションは始めない。</div>
+        <div><b>3. 入力欄</b>: 10・11・12 のすべての入力欄が同じ部品（ロゴ＋モデル名、effort・権限のアイコンと ⌄、28pt / 狭いとき 24pt、狭いと「…」）。候補一覧（F13・F14）と添付のサムネイルも 1 種類だけ。</div>
+        <div><b>4・4a</b>: コーラル・略号・ハーネスの色・状態の図形・未読の丸は無い。タブ列・グリッドのタイルの見出しに状態は無い。アクセントは送信・選択・フォーカス（グリッドのタイルの枠を含む）・リンク・「再試行」だけ。</div>
+        <div><b>4b</b>: 11・12 で足した文字（上段の非選択のタブ、バーの文字・残りわずか、差分の +/−、削除ボタンの赤）はダーク・ライトとも 4.5:1 以上。</div>
+        <div><b>6. キーボード</b>: 経路は 1 回目と同じ（<a href="#N">N</a>）。⌘N は下段の「新規チャット」タブを選んで入力欄にフォーカスを置く。</div>
+      </div>
+    </div>
+    <div style="width:820px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;color:#7438BD;">残っている点</div>
+      <div style="font-size:12.5px;line-height:1.65;display:flex;flex-direction:column;gap:6px;">
+        <div><b>モックに置き場所が無いもの</b>: FR-21（設定画面）、FR-26・D16 のうちインスペクタの使用量、FR-28 の外部テーマ、E3 の移り先（上段のタブの右クリックメニュー）。</div>
+        <div><b>削除ボタンの色</b>: 確認ダイアログの「削除」を注意の色（エラーの赤）の文字にした。macOS の破壊的な操作の表し方に合わせたもので、今のダイアログが別の見た目ならそれに従う。</div>
+        <div><b>プロジェクト未選択（FR-2a）とタブ</b>: 上段でどのタブも選ばれていない状態になる（<a href="#B3">B3</a>）。下段は「新規チャット」だけ。プロジェクトのタブ構成と組み合わせたときにこの状態を残すかは、11 の要件で決めたい。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="N" data-screen-label="N 横断点検" style="display:flex;flex-direction:column;gap:28px;">
+  <div style="display:flex;gap:56px;align-items:flex-start;">
+    <div style="width:560px;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:13px;color:#75757B;">新規チャット開始 07 · 横断レビュー</div>
+      <div style="font-size:26px;font-weight:700;line-height:1.3;flex:none;">N. 横断点検</div>
+      <div style="font-size:14px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">A〜K のモックを、要件書（FR-1〜FR-31・D1〜D22・E1〜E8・NFR-4〜NFR-7）と共通ルールに照らして点検した。直したものはモック側を修正済み（下の 1〜5）。判断が要るものは「残っている点」に分けた。</div>
+    </div>
+    <div style="width:900px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">見つけて直した点</div>
+      <div style="font-size:13px;line-height:1.65;display:flex;flex-direction:column;gap:8px;">
+        <div><b>1. アクセントの装飾的な使用</b>（観点 4）。@ ファイルの入力中のトークン「@Dash」を藍の文字にしていた（<a href="#F13">F13</a>）。主要な操作・選択・フォーカス・リンクのどれでもないので、主文字色・semibold に替えた。</div>
+        <div><b>2. 補助色の小さな文字が 4.5:1 に届かない</b>（観点 4b）。補助色（ダーク #8E8E94・ライト #75757B）の 11pt の文字が、ライトのサイドバー #F2F2F4 で約 4.2、ダークのポップオーバー #2F2F33 で約 4.1 だった。サイドバーの「プロジェクト」見出しと ⌘N、メニューの見出し・ショートカット・件数、部品の表の列見出しを副文字色に替えた（すべて 6:1 以上）。プレースホルダは入力欄の上（ダーク約 5.3・ライト約 4.6）なので補助色のまま。</div>
+        <div><b>3. セッション画面の入力欄の下段が新規チャット画面と揃っていなかった</b>（観点 3）。<a href="#I">I</a> の節の下段のチップにアイコンと ⌄ が無く、モデル名の色も違った。新規チャット画面と同じ部品に揃えた（ロゴ＋モデル名・effort・権限・ブランチ）。<a href="#J">J</a> の節の入力欄も同じく揃えた。</div>
+        <div><b>4. 英語表示を描いていなかった</b>（観点 5）。最小幅 720pt と 1440pt のライトを英語で描いた（<a href="#N2">N2</a>・<a href="#N3">N3</a>）。切れ・重なりは無い。</div>
+        <div><b>5. 起動の状態の読み上げが未記載</b>（NFR-5）。下の VoiceOver の表に、起動中・起動完了・起動失敗の読み上げ文言を足した。</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:32px;align-items:flex-start;">
+    <div style="width:820px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">問題が無かった観点</div>
+      <div style="font-size:12.5px;line-height:1.65;display:flex;flex-direction:column;gap:6px;">
+        <div><b>2. 描かないもの</b>: 音声入力・チャット / Cowork 切り替え・同じフォルダの通知・プロジェクトの worktree スイッチ（行のメニュー・ツールバー・メニューバー）・画面からのターミナルのセッション起動・カスタムエージェント。どのモックにも無い。</div>
+        <div><b>4. コーラル</b>: アプリの画面に #E08865・#D97757・#B4552F は無い（藍 #3B469B・#959CD0 だけ）。</div>
+        <div><b>4a. 略号・ハーネスの色・状態の図形・未読の丸</b>: 無い。ハーネスを示すのはチップのロゴと、メニューのハーネス名の文字だけ。タブ・子タブ・グリッドの見出しに状態は無く、状態はサイドバーの行の右端の文字だけ。</div>
+        <div><b>5. ライト・狭い幅</b>: ライト（<a href="#A2">A2</a>・<a href="#C3">C3</a>・<a href="#H">H</a>・<a href="#N3">N3</a>）、1000pt＋インスペクタ（<a href="#B4">B4</a>）、720pt（<a href="#C1">C1</a>・<a href="#N2">N2</a>）で崩れは無い。</div>
+      </div>
+    </div>
+    <div style="width:820px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;color:#7438BD;">残っていた点と決定</div>
+      <div style="font-size:12.5px;line-height:1.65;display:flex;flex-direction:column;gap:6px;">
+        <div><b>ダークの送信ボタンの面</b>（決定: 縁は足さない）: 面と入力欄の比は約 2.0 だが、白い ↑ と面の比が 8.28 あり、↑ で送信ボタンと分かる。</div>
+        <div><b>提案チップの枠線と、選択中のプロジェクト行の面</b>: どちらも 3:1 未満。チップは文言で部品と分かり、選択は名前の太さ（semibold）でも示すので、色だけには頼っていない。</div>
+        <div><b>チップの寸法</b>（決定: 今の入力欄の値に合わせる）: 下段の設定チップと ＋ を 28pt、狭いときのチップを 24pt に直した。新規チャット画面は今の入力欄の部品を共用する。</div>
+        <div><b>角丸</b>: 入力欄のポップオーバー（<a href="#F">F</a>・<a href="#G">G</a>・<a href="#J">J</a>）は 10。右クリック・メニューバー（<a href="#K">K</a>）はシステムのメニュー（NSMenu）なので 8 で描いた。</div>
+        <div><b>キーボードの手数</b>（決定: 今のまま）: よく使う流れ（⌘N → 入力 → ↩）は Tab が要らないため、Esc で入力欄に戻る案は入れない。</div>
+        <div><b>D23（上段をプロジェクトのタブに）</b>: プロンプト 11 で扱う。それまでタブ列は前の構成のまま。</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:32px;align-items:flex-start;">
+    <div style="width:820px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">6. キーボードだけの経路（⌘N → ハーネス・モデル → 作業場所 → 入力 → 送信）</div>
+      <div style="display:grid;grid-template-columns:28px 200px 1fr;font-size:12.5px;line-height:1.5;">
+        <div style="padding:5px 0;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">#</div><div style="padding:5px 6px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">キー</div><div style="padding:5px 6px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">結果</div>
+        <div style="padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);">1</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">⌘N</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">新規チャット画面、入力欄にフォーカス（<a href="#A1">A1</a>）</div>
+        <div style="padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);">2</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">Tab ×2</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">＋ を経てハーネス・モデルのチップ（<a href="#B5">B5</a>）</div>
+        <div style="padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);">3</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">Space（または ↩）</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">メニューが開き、絞り込み欄に入力できる（<a href="#G2">G2</a>）</div>
+        <div style="padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);">4</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">「fable」→ ↩</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">絞り込み（<a href="#G3">G3</a>）、1 件目で決定。メニューが閉じ、フォーカスはチップに戻る。effort・権限のチップが Claude Code のものに替わる（<a href="#G7">G7</a>）</div>
+        <div style="padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);">5</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">Tab ×4</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">effort・権限・プロジェクトを経て作業場所のチップ</div>
+        <div style="padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);">6</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">Space → ↓ → ↩</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">「新しい worktree」を選ぶ（<a href="#F3">F3</a>・<a href="#F5">F5</a>）</div>
+        <div style="padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);">7</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">⇧Tab ×6</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">入力欄に戻る</div>
+        <div style="padding:5px 0;">8</div><div style="padding:5px 6px;">本文を入力 → ↩</div><div style="padding:5px 6px;">送信（変換中の ↩ では送らない）。worktree のトースト（<a href="#I3">I3</a>）→ 行が出て起動中（<a href="#I1">I1</a>）</div>
+      </div>
+      <div style="font-size:12px;line-height:1.6;color:#5B5B60;">結果: 最後まで辿れる。途中で無効の部品に止まることも、マウスが要る所も無い。</div>
+    </div>
+    <div style="width:820px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">起動の状態の読み上げ（NFR-5・WCAG 4.1.3）</div>
+      <div style="display:grid;grid-template-columns:140px 1fr;font-size:12.5px;line-height:1.5;">
+        <div style="padding:5px 6px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">変化</div><div style="padding:5px 6px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">読み上げる文言</div>
+        <div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">起動中（<a href="#I1">I1</a>）</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">「起動しています。終わったら最初のメッセージを送ります」</div>
+        <div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">起動完了（<a href="#I2">I2</a>）</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">「起動しました。最初のメッセージを送りました」</div>
+        <div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">起動失敗（<a href="#I4">I4</a>）</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">「起動できませんでした。本文を入力欄に戻しました」</div>
+        <div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">worktree 作成中（<a href="#I3">I3</a>）</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">「worktree を作成しています」</div>
+        <div style="padding:5px 6px;">下書きに戻した（<a href="#I9">I8</a>）</div><div style="padding:5px 6px;">「worktree を作れなかったため、本文を下書きに戻しました」</div>
+      </div>
+      <div style="font-size:12px;line-height:1.6;color:#5B5B60;">各チップの読み上げ（「ハーネスとモデル、Codex: gpt-6.1-sol」など）と入力欄のラベル「メッセージ」は M の表のとおり。</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:80px;align-items:flex-start;">
+    <div id="N2" style="display:flex;flex-direction:column;gap:10px;width:720px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">N2</span><span style="font-size:14px;font-weight:600;">英語 · 最小幅 720pt（ダーク）</span></div>
+      <dc-import name="PhloxNewChat" scenario="narrow" theme="dark" lang="en" width="720" height="820" hint-size="720px,820px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">見出し「What would you like to work on?」は 1 行に収まる（ロゴ込み約 355pt / 列 412pt）。下段は日本語と同じまとめ方で、ハーネス・モデルと送信の間に余りがある。サイドバーの「Needs approval」は右端に収まり、題名の側を省略する。英語の UI 文言は見出し以外はモック用の仮訳。</div></div>
+    <div id="N3" style="display:flex;flex-direction:column;gap:10px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">N3</span><span style="font-size:14px;font-weight:600;">英語 · 1440pt（ライト）</span></div>
+      <dc-import name="PhloxNewChat" scenario="typed" theme="light" lang="en" width="1440" height="900" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">下段の「Existing directory」は日本語より長いが、760pt の入力欄に余裕がある。提案チップは 1 行に収まる。</div></div>
+  </div>
+
+  <div style="width:1672px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">1. 要件対応表（1 枚に統合）</div>
+    <div style="display:grid;grid-template-columns:90px 1fr 1fr 150px;font-size:12px;line-height:1.5;">
+      <div style="padding:6px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">要件</div><div style="padding:6px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">内容</div><div style="padding:6px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">モック上の置き場所</div><div style="padding:6px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">状態</div>
+      <sc-for list="{{ reqRows }}" as="r" hint-placeholder-count="20">
+        <div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);font-weight:600;">{{ r.id }}</div>
+        <div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">{{ r.what }}</div>
+        <div style="padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">{{ r.where }}</div>
+        <div style="{{ r.statusStyle }}">{{ r.status }}</div>
+      </sc-for>
+    </div>
+    <div style="font-size:12.5px;line-height:1.65;color:#3A3A3E;"><b>モックに置き場所が無いもの</b>: FR-21（設定画面の項目を消す）、FR-26 と D16 のうち使用量の画面、FR-28 の外部テーマでの色。画面に出ない要件（データ・起動処理・API・テスト）は FR-5・FR-8・FR-9・FR-16〜FR-18・FR-20・D6・D12・E1。E2 は廃止。</div>
+  </div>
+</section>
+
+<section data-screen-label="A 全体" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">A. メインウィンドウ全体（1440pt・右サイドバー非表示）</div>
+  <div style="display:flex;gap:80px;align-items:flex-start;flex-wrap:wrap;width:2960px;row-gap:64px;">
+    <div id="A1" style="display:flex;flex-direction:column;gap:12px;width:1440px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">A1</span><span style="font-size:14px;font-weight:600;">ダーク · ⌘N / ＋ で開いた直後</span></div>
+      <dc-import name="PhloxNewChat" scenario="normal" theme="dark" width="1440" height="900" heading-size="{{ hs }}" anchor="{{ anchor }}" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;">入力欄にフォーカスを置き、不透明な 2pt の枠（#959CD0）を出す（FR-4）。空なので送信は無効で、理由の行は出さない（E7）。下段は左に設定（＋ / ハーネス・モデル / effort / 権限）、右に場所（プロジェクト / 作業場所）と送信（E6）。サイドバー: Phlox-oss を選択の面で示し、セッション行は選択しない。行の右端は「実行中」「承認待ち」「完了」「2時間」。未読の 2 行（承認待ち・完了）は題名が主文字色・semibold。上段はサイドバーと同じ 3 プロジェクト、下段はサイドバーと同じ順のセッション・ターミナル・ファイルと、選択中の「新規チャット」タブ（状態は出さない）。</div>
+    </div>
+    <div id="A2" style="display:flex;flex-direction:column;gap:12px;width:1440px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">A2</span><span style="font-size:14px;font-weight:600;">ライト · 同じ状態</span></div>
+      <dc-import name="PhloxNewChat" scenario="normal" theme="light" width="1440" height="900" heading-size="{{ hs }}" anchor="{{ anchor }}" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;">アクセントは #3B469B の 1 色（フォーカス枠・選択の面・送信の面）。注意の文字はライトの値（承認待ち #8A5300・質問あり #1E5BB8）。</div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="B 状態" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">B. 状態の描き分け（ダーク）</div>
+  <div style="display:flex;gap:80px;align-items:flex-start;flex-wrap:wrap;width:2960px;row-gap:64px;">
+    <div id="B1" style="display:flex;flex-direction:column;gap:12px;width:1440px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">B1</span><span style="font-size:14px;font-weight:600;">入力済み · 本文 3 行＋画像 1 つ（送信できる）</span></div>
+      <dc-import name="PhloxNewChat" scenario="typed" theme="dark" width="1440" height="900" heading-size="{{ hs }}" anchor="{{ anchor }}" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;">添付は本文の上にサムネイルで並べ、右上の ✕ で外す（今のセッション画面と同じ部品）。送信は藍の面に白の ↑。↩ でも送れる。入力欄が伸びた分、まとまり全体の上下の余白が減る。</div>
+    </div>
+    <div id="B2" style="display:flex;flex-direction:column;gap:12px;width:1440px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">B2</span><span style="font-size:14px;font-weight:600;">空・フォーカスなし · 提案チップにホバー</span></div>
+      <dc-import name="PhloxNewChat" scenario="idle" theme="dark" width="1440" height="900" heading-size="{{ hs }}" anchor="{{ anchor }}" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;">フォーカスが他へ移ると枠線（主文字色の 14%）だけになる。提案チップはホバーで面を付け、入れる文をツールチップで見せる。押すと文を入れて入力欄にフォーカスを戻すだけで、送信はしない（D5）。</div>
+    </div>
+    <div id="B3" style="display:flex;flex-direction:column;gap:12px;width:1440px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">B3</span><span style="font-size:14px;font-weight:600;">プロジェクトが未選択（FR-2a・E7）</span></div>
+      <dc-import name="PhloxNewChat" scenario="noProject" theme="dark" width="1440" height="900" heading-size="{{ hs }}" anchor="{{ anchor }}" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;">プロジェクトのチップは「プロジェクトを選択」に変わり、枠線と主文字色で目立たせる。本文があっても送信は無効で、下段のすぐ上に 1 行で原因と直し方を出す（E7。場所はここだけ）。表示中のプロジェクトを削除したときも同じ（E8）。同じ形の文言の例: 「Cursor は画像を送れません。画像を外すか、画像を送れるハーネスを選んでください」。</div>
+    </div>
+    <div id="B4" style="display:flex;flex-direction:column;gap:12px;width:1000px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">B4</span><span style="font-size:14px;font-weight:600;">中央が狭い · ウィンドウ 1000pt・右サイドバー表示</span></div>
+      <dc-import name="PhloxNewChat" scenario="narrow" theme="dark" width="1000" height="820" inspector="{{ true }}" heading-size="{{ hs }}" anchor="{{ anchor }}" hint-size="1000px,820px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;">中央 460pt、入力欄 412pt。effort と権限は「…」の 1 つに、プロジェクトと作業場所はアイコン＋⌄ だけにする（名前はツールチップと VoiceOver で読める）。ハーネス・モデルと送信は常に見せる。提案チップは折り返し、文言は省略しない。</div>
+    </div>
+    <div id="B5" style="display:flex;flex-direction:column;gap:12px;width:1440px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">B5</span><span style="font-size:14px;font-weight:600;">キーボード · Tab でハーネス・モデルのチップへ</span></div>
+      <dc-import name="PhloxNewChat" scenario="keyboard" theme="dark" width="1440" height="900" heading-size="{{ hs }}" anchor="{{ anchor }}" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;">フォーカスしたチップに不透明な 2pt の枠。Space か ↩ でメニューを開き、矢印で選び、↩ で決め、Esc で閉じる。⇧Tab で入力欄に戻る。VoiceOver は「ハーネスとモデル、Codex: gpt-6.1-sol」。</div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="C 最小幅とフォーカス" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">C. 最小幅と送信ボタンのフォーカス</div>
+  <div style="display:flex;gap:64px;align-items:flex-start;flex-wrap:wrap;width:3200px;row-gap:64px;">
+    <div id="C1" style="display:flex;flex-direction:column;gap:12px;width:720px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">C1</span><span style="font-size:14px;font-weight:600;">最小幅 · ウィンドウ 720pt・左サイドバー表示</span></div>
+      <dc-import name="PhloxNewChat" scenario="narrow" theme="dark" width="720" height="820" heading-size="{{ hs }}" anchor="{{ anchor }}" hint-size="720px,820px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;">中央 460pt、入力欄 412pt。B4 と同じ縮め方で、下段の左（＋・ハーネス・モデル・…）と右（アイコン 2 つ・送信）の間に 100pt 以上の余りがある。左サイドバーを最小の 220pt にしても入力欄が広がるだけで、並びは変わらない。</div>
+    </div>
+    <div id="C2" style="display:flex;flex-direction:column;gap:12px;width:1100px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">C2</span><span style="font-size:14px;font-weight:600;">送信ボタンにフォーカス · ダーク</span></div>
+      <dc-import name="PhloxNewChat" scenario="sendFocus" theme="dark" width="1100" height="720" heading-size="{{ hs }}" anchor="{{ anchor }}" hint-size="1100px,720px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;">送信ボタンの外側に、入力欄の背景色で 2pt の隙間を空けてから 2pt の枠（#959CD0）を付ける。入力欄の枠はフォーカスが外れたので枠線だけに戻る。</div>
+    </div>
+    <div id="C3" style="display:flex;flex-direction:column;gap:12px;width:1100px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">C3</span><span style="font-size:14px;font-weight:600;">送信ボタンにフォーカス · ライト</span></div>
+      <dc-import name="PhloxNewChat" scenario="sendFocus" theme="light" width="1100" height="720" heading-size="{{ hs }}" anchor="{{ anchor }}" hint-size="1100px,720px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;">枠も送信の面も #3B469B なので、間に 2pt の白い隙間を入れて 2 つの輪郭に分ける（面の直径 28pt → 枠の外径 36pt）。macOS のフォーカスリングと同じ「外側に離して囲む」形で、新しい表現ではない。</div>
+    </div>
+  </div>
+</section>
+
+<section id="D" data-screen-label="D 部品の状態" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">D. 部品のホバー・押下中・フォーカス・無効</div>
+  <div style="display:flex;gap:64px;align-items:flex-start;">
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:14px;font-weight:600;">ダーク</div>
+      <dc-import name="PhloxNewChatParts" theme="dark" hint-size="760px,330px"></dc-import>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:14px;font-weight:600;">ライト</div>
+      <dc-import name="PhloxNewChatParts" theme="light" hint-size="760px,330px"></dc-import>
+    </div>
+    <div style="width:420px;font-size:12.5px;line-height:1.65;color:#3A3A3E;display:flex;flex-direction:column;gap:8px;padding-top:30px;">
+      <div>今のボタンの見た目に合わせる。ホバーは灰色の面（主文字色 5〜6%）、押下中は少し濃い面（7.5〜9%）、文字は主文字色に上がる。</div>
+      <div>送信だけは藍の面のまま明度を変える（ホバー #4B55A3・押下中 #343E88。白文字はどちらも 7:1 以上）。</div>
+      <div>無効になるのは送信だけ。＋・下段のチップ・提案チップ・履歴から再開… はいつでも押せるので無効の状態は無い（Cursor でも＋はファイルを添付できる）。</div>
+    </div>
+  </div>
+</section>
+
+<section id="E" data-screen-label="E 見出しの文言" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">E. 見出しの 10 種類と英語の幅（§5.2）</div>
+  <div style="display:flex;gap:32px;align-items:flex-start;">
+    <div style="background:#1E1E20;border-radius:12px;padding:20px 24px;display:flex;flex-direction:column;gap:6px;color:#F2F2F4;">
+      <div style="display:grid;grid-template-columns:28px 412px 412px;gap:16px;font-size:11px;color:#8E8E94;padding-bottom:4px;">
+        <div>#</div><div>日本語（破線 = 最小幅の入力欄 412pt）</div><div>英語</div>
+      </div>
+      <sc-for list="{{ greetings }}" as="g" hint-placeholder-count="10">
+        <div style="display:grid;grid-template-columns:28px 412px 412px;gap:16px;align-items:center;">
+          <div style="font-size:12px;color:#8E8E94;">{{ g.n }}</div>
+          <div style="height:44px;box-sizing:border-box;border:1px dashed rgba(255,255,255,0.22);border-radius:6px;display:flex;align-items:center;justify-content:center;gap:10px;">
+            <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(140deg,#7A5CF5 0%,#B45CE6 50%,#EC6AA8 100%);flex:none;"></div>
+            <div style="font-size:22px;font-weight:600;letter-spacing:-0.1px;white-space:nowrap;">{{ g.ja }}</div>
+          </div>
+          <div style="height:44px;box-sizing:border-box;border:1px dashed rgba(255,255,255,0.22);border-radius:6px;display:flex;align-items:center;justify-content:center;gap:10px;">
+            <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(140deg,#7A5CF5 0%,#B45CE6 50%,#EC6AA8 100%);flex:none;"></div>
+            <div style="font-size:22px;font-weight:600;letter-spacing:-0.1px;white-space:nowrap;">{{ g.en }}</div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="width:420px;font-size:12.5px;line-height:1.65;color:#3A3A3E;display:flex;flex-direction:column;gap:8px;">
+      <div>最も長い英語（#1 What would you like to work on?・#7 Tell me what you're working on）も、22pt ならロゴ込みで 412pt の列に 1 行で収まる（N2 で約 355pt）。日本語は最長 13 文字（#10）で余裕がある。</div>
+      <div>収まらないとき（見出し 28pt・アクセシビリティの大きい文字）は 2 行に折り返し、行の長さを揃える（左揃えで、アイコンを 1 行目の左に置く）。文字を縮めたり省略したりはしない。</div>
+      <div>文言は画面を出すたびに選び直し、入力中やウィンドウの大きさを変えたときは替えない。</div>
+    </div>
+  </div>
+</section>
+
+<section id="F" data-screen-label="F 下段のチップとメニュー" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="display:flex;gap:56px;align-items:flex-start;">
+    <div style="width:560px;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:13px;color:#75757B;">新規チャット開始 02 · 参照: §5.3・§5.4・E4・D2・FR-6・E7・E8</div>
+      <div style="font-size:26px;font-weight:700;">F. 入力欄の下段のチップとメニュー（ダーク）</div>
+      <div style="font-size:14px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">どのメニューもチップの真下に開くポップオーバー（背景 #2F2F33・角丸 10）。左のチップは左端、右のチップは右端を揃える。開いている間、チップは押下中の面のまま。選択中の値はチェック、キーボードで指している行は選択の面（藍の淡い面）。@ と / の候補だけは今のセッション画面と同じく入力欄の上に出す。</div>
+    </div>
+    <div style="width:900px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">論点: プロジェクトを選び直すと下書きが入れ替わることの手がかり</div>
+      <div style="font-size:13px;line-height:1.65;display:flex;flex-direction:column;gap:8px;">
+        <div><b>手がかりは要る。ただしメニューの中だけに置く</b>。入れ替わった後に通知やアニメーションは出さない（毎日何度も切り替える操作で、毎回の通知は邪魔になるため）。</div>
+        <div>1. 下書きがあるプロジェクトの行に「下書きあり」の文字のタグを付ける（E8。図形の印は使わない）。選ぶ前に「選ぶと書きかけが出る」ことが分かる。</div>
+        <div>2. メニューの下端に 1 行「本文と添付はプロジェクトごとに保たれます」。選ぶ前に、今の本文が消えずに残ることが分かる。</div>
+        <div>3. 選び直した後は、入力欄の本文と添付がそのプロジェクトのものに替わるだけ（<a href="#F2">F2</a>）。下書きが無ければ空になる。</div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;gap:80px;align-items:flex-start;flex-wrap:wrap;width:2620px;row-gap:56px;">
+    <div id="F1" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F1</span><span style="font-size:14px;font-weight:600;">プロジェクト · メニューを開いた</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="project" height="370" hint-size="820px,370px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">名前の下にパスを等幅・副文字色で出す。ios-companion に「下書きあり」。下端に「プロジェクトを追加… ⌘O」と下書きの説明。</div></div>
+    <div id="F2" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F2</span><span style="font-size:14px;font-weight:600;">ios-companion を選んだ後（FR-6・D9）</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="projectSwitched" height="180" hint-size="820px,180px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">本文が ios-companion の下書きに替わり、入力欄にフォーカスが戻る。Phlox-oss の書きかけ（F1 の本文）は Phlox-oss に残っていて、戻すと出る。@ ファイル候補の取得先も ios-companion に替わる（E4）。</div></div>
+    <div id="F3" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F3</span><span style="font-size:14px;font-weight:600;">作業場所 · メニューを開いた</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="workspace" height="290" hint-size="820px,290px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">毎回「既存ディレクトリ」から始まる（D2）。各項目に説明を 1 行。</div></div>
+    <div id="F4" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F4</span><span style="font-size:14px;font-weight:600;">git リポジトリでないプロジェクト（例: site）</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="workspaceNoGit" height="310" hint-size="820px,310px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">「新しい worktree」は補助色で押せない。理由は項目の下に説明文で出す（副文字色、ポップオーバーの背景に対して約 6.4:1）。ツールチップにはしない。矢印キーでも止まらずに飛ばすが、VoiceOver では「新しい worktree、使用不可。git リポジトリではないため worktree を作れません」と読む。site が git リポジトリでないのはサンプルの仮定。</div></div>
+    <div id="F5" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F5</span><span style="font-size:14px;font-weight:600;">「新しい worktree」を選んだ後のチップ</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="worktreeChip" height="180" hint-size="820px,180px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">アイコンが分岐に、文言が「新しい worktree」に替わる。色は変えない（アクセントは選択・フォーカス・主要な操作にだけ使う）。</div></div>
+    <div id="F6" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F6</span><span style="font-size:14px;font-weight:600;">＋（添付）</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="attach" height="200" hint-size="820px,200px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">「ファイルを添付…」「画像を添付…」。どちらもファイル選択のパネルを開く。画像は貼り付け・ドロップでも添付できる（今の入力欄と同じ）。</div></div>
+    <div id="F7" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F7</span><span style="font-size:14px;font-weight:600;">effort · Claude Code</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="effortClaude" height="320" hint-size="820px,320px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">低・中・高・非常に高・最大。初期値は「最後に使った設定」。</div></div>
+    <div id="F8" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F8</span><span style="font-size:14px;font-weight:600;">effort · Codex（ultra あり）</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="effortCodex" height="350" hint-size="820px,350px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">候補はモデル一覧の取得結果から出す（§5.4）。起動後に候補が変わっても、その差はこの画面では見せない（E7）。</div></div>
+    <div id="F9" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F9</span><span style="font-size:14px;font-weight:600;">mode · Cursor（effort の代わり、権限なし）</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="modeCursor" height="270" hint-size="820px,270px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">Cursor では effort の位置に mode（既定・ask・plan）が入り、権限のチップは無くなる。左のチップが 1 つ減っても右の 3 つは動かない（E6）。</div></div>
+    <div id="F10" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F10</span><span style="font-size:14px;font-weight:600;">権限 · Claude Code</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="permClaude" height="350" hint-size="820px,350px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">acceptEdits・auto・bypassPermissions・manual・dontAsk・plan。表示名は今のアプリのまま。</div></div>
+    <div id="F11" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F11</span><span style="font-size:14px;font-weight:600;">権限 · Codex</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="permCodex" height="270" hint-size="820px,270px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">Full Access・Default・Read Only（内蔵の 3 つ。§5.4）。</div></div>
+    <div id="F12" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F12</span><span style="font-size:14px;font-weight:600;">画像を添付したまま Cursor に切り替えた（§5.3・E7）</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="cursorImage" height="250" hint-size="820px,250px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">添付は消さずに残す。下段のすぐ上に原因と直し方を 1 行で出し、送信は無効。✕ で画像を外すか、ハーネスを Claude Code / Codex に戻すと、行が消えて送れるようになる。</div></div>
+    <div id="F13" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F13</span><span style="font-size:14px;font-weight:600;">「@」のファイル候補（E4）</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="mention" height="460" hint-size="820px,460px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">今のセッション画面と同じ見た目で、入力欄の上に出す。見出しに取得先（プロジェクトと作業場所）を出す。どちらかを替えると候補を取り直し、入力済みの「@…」は書き換えない。</div></div>
+    <div id="F14" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">F14</span><span style="font-size:14px;font-weight:600;">「/」のコマンド候補（Claude Code）</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="slash" height="350" hint-size="820px,350px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">右端に出どころ（組込 / .claude/commands / .claude/skills）。下書きの間も出せる（U1）。Codex のスキル候補だけはセッションが無いと出せないので、Codex では組込と ~/.codex/prompts だけになる。</div></div>
+  </div>
+  <div style="width:1180px;background:#fff;border-radius:12px;padding:20px 24px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:15px;font-weight:700;">要件対応表（F）</div>
+    <div style="display:grid;grid-template-columns:150px 1fr;font-size:12.5px;line-height:1.5;">
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.3 プロジェクト・FR-6・D9</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#F1">F1</a>・<a href="#F2">F2</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">E8 下書きの印</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">「下書きあり」の文字のタグ（<a href="#F1">F1</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.3 作業場所・D2</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#F3">F3</a>〜<a href="#F5">F5</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.3 effort・権限・mode</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#F7">F7</a>〜<a href="#F11">F11</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.3 ＋（添付）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#F6">F6</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.3 画像非対応・E7</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#F12">F12</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.3 @ファイル・E4</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#F13">F13</a>（取り直しは <a href="#F2">F2</a> の説明）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">/ コマンド・U1</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#F14">F14</a></div>
+      <div style="padding:6px 8px;">§5.4</div><div style="padding:6px 8px;">チップの切り替わり（<a href="#F9">F9</a>）。ハーネス・モデルのメニューはプロンプト 3</div>
+    </div>
+  </div>
+</section>
+
+<section id="K" data-screen-label="K 入口とメニュー" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="display:flex;gap:56px;align-items:flex-start;">
+    <div style="width:560px;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:13px;color:#75757B;">新規チャット開始 06 · 参照: FR-1・FR-1a・FR-3・FR-15・FR-19〜FR-21・E3・D1・D21・D22</div>
+      <div style="font-size:26px;font-weight:700;line-height:1.3;flex:none;">K. 新規チャット画面への入口（ダーク）</div>
+      <div style="font-size:14px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">新規チャット画面を出す入口は ⌘N・サイドバー下端・プロジェクト行の ＋ と「新規チャット」・グリッドの空状態・単体表示でのプロジェクトの選択。どれもセッションを作らず、単体表示に切り替えてセッションの選択を外す（FR-1a）。画面からターミナルのセッションを始める手段は置かない（D1）。カスタムエージェントは機能ごと廃止し、どの画面にも出さない（D22）。</div>
+    </div>
+    <div style="width:900px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">決定: 「プロジェクト名を変更…」の置き場所（E3・11 の P6）</div>
+      <div style="font-size:13px;line-height:1.65;">ヘッダーからプロジェクト名と worktree のボタンを消し、「プロジェクト名を変更…」は上段のプロジェクトのタブの右クリックメニューに移す。ヘッダーに残るのはサイドバーの開閉（隠しているときだけ）・単体／グリッド・インスペクタの開閉の 3 つ（38pt）。</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:80px;align-items:flex-start;flex-wrap:wrap;width:2620px;row-gap:56px;">
+    <div id="K1" style="display:flex;flex-direction:column;gap:10px;width:560px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">K1</span><span style="font-size:14px;font-weight:600;">プロジェクト行のホバーと下端のボタン</span></div>
+      <dc-import name="PhloxEntryDemo" scenario="sidebarHover" width="560" height="360" hint-size="560px,360px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">＋ を押した時点で、そのプロジェクトの新規チャット画面に切り替える（確認・メニュー・ポップオーバーは挟まない）。ツールチップ「Phlox-oss で新規チャット」、VoiceOver も同じ。下端は「＋ 新規チャット ⌘N」（旧「新規セッション」）。</div></div>
+    <div id="K2" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">K2</span><span style="font-size:14px;font-weight:600;">プロジェクト行のメニュー（⋯ / 右クリック）</span></div>
+      <dc-import name="PhloxEntryDemo" scenario="projectMenu" width="820" height="360" hint-size="820px,360px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">「新規チャット」「プロジェクト名を変更…」「削除…」の 3 つ。「新規ターミナルセッション」（D1）と「git worktree で隔離する」（FR-15）は無い。</div></div>
+    <div id="K3" style="display:flex;flex-direction:column;gap:10px;width:640px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">K3</span><span style="font-size:14px;font-weight:600;">メニューバー「ファイル」</span></div>
+      <dc-import name="PhloxEntryDemo" scenario="fileMenu" width="640" height="200" hint-size="640px,200px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">「新規チャット ⌘N」「プロジェクトを追加… ⌘O」「閉じる ⌘W」。「新規ターミナルセッション」は無い（D1）。新規チャットは対象のプロジェクトが決まらなくても押せて、プロジェクト未選択の新規チャット画面を出す（FR-2a）。</div></div>
+    <div id="K4" style="display:flex;flex-direction:column;gap:10px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">K4</span><span style="font-size:14px;font-weight:600;">単体表示で、セッションが 1 つも無いプロジェクトを選んだ（D21）</span></div>
+      <dc-import name="PhloxNewChat" scenario="emptyProject" theme="dark" width="1440" height="900" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">サイドバーで site を選ぶと、そのまま site の新規チャット画面を出す。入力欄のプロジェクトは site、上段の選択中のタブも site。site の下は「セッションはありません」の 1 行だけで、下段は「新規チャット」タブだけ。グリッド表示では今どおり絞り込むだけ（<a href="#K5">K5</a>）。</div></div>
+    <div id="K5" style="display:flex;flex-direction:column;gap:10px;width:900px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">K5</span><span style="font-size:14px;font-weight:600;">グリッド表示でセッションが 0 件</span></div>
+      <dc-import name="PhloxEntryDemo" scenario="gridEmpty" width="900" height="420" hint-size="900px,420px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">主ボタン「新規チャット」。押すと単体表示に切り替えて、このプロジェクトの新規チャット画面を出す。サイドバーを隠した状態なので、ヘッダーの信号の右に「サイドバーを表示」（11 の T12 と同じ）。</div></div>
+    <div id="K8" style="display:flex;flex-direction:column;gap:10px;width:1100px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">K8</span><span style="font-size:14px;font-weight:600;">プロジェクトが 1 つも無い（FR-3）</span></div>
+      <dc-import name="PhloxEntryDemo" scenario="onboarding" width="1100" height="600" hint-size="1100px,600px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">今のフォルダ登録の案内（StartOnboardingView）のまま。⌘N もこのとき押せて、同じ案内を出す（今はプロジェクト 0 件で無効）。ここに描いたのは配置の目安で、文言とレイアウトは今の画面に合わせる。</div></div>
+  </div>
+  <div style="width:1180px;background:#fff;border-radius:12px;padding:20px 24px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:15px;font-weight:700;">要件対応表（K）</div>
+    <div style="display:grid;grid-template-columns:200px 1fr;font-size:12.5px;line-height:1.5;">
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-1・FR-1a 入口</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌘N（<a href="#K3">K3</a>）・下端と ＋（<a href="#K1">K1</a>）・行のメニュー（<a href="#K2">K2</a>）・グリッド（<a href="#K5">K5</a>）・単体表示で未選択（<a href="#A1">A1</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-3</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#K8">K8</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-15</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">行のメニュー（<a href="#K2">K2</a>）・ヘッダー（11 の P6）から worktree の切り替えを消した。メニューバーの項目も無い（<a href="#K3">K3</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-1・D21</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#K4">K4</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-19・D1</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ターミナルを始める項目を置かない（<a href="#K2">K2</a>・<a href="#K3">K3</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">D22</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">カスタムエージェントはどの画面にも出さない</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-21</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">設定「新規セッションの既定の開き方」を消す（画面の変更は設定画面だけなので描いていない）</div>
+      <div style="padding:6px 8px;">E3</div><div style="padding:6px 8px;">上段のプロジェクトのタブの右クリックへ移す（11 の P6。メニューは未描画）</div>
+    </div>
+    <div style="font-size:12px;line-height:1.6;color:#5B5B60;">ターミナルでエージェントを使うときは、ユーザーが普通のターミナルで自分でコマンドを打つ（D1）。E2 は対象のメニューが無くなったので不要。サイドバーを隠したときの上端のポップオーバー（旧「新規セッション」）は廃止で、⌘N とメニューバーが代わりになる。</div>
+  </div>
+</section>
+
+<section id="J" data-screen-label="J 履歴から再開" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="display:flex;gap:56px;align-items:flex-start;">
+    <div style="width:560px;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:13px;color:#75757B;">新規チャット開始 05 · 参照: FR-13・FR-13a・FR-13b・FR-14・D10</div>
+      <div style="font-size:26px;font-weight:700;line-height:1.3;flex:none;">J. 履歴から再開（ダーク）</div>
+      <div style="font-size:14px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">提案チップの下の、副文字色の小さなボタン「履歴から再開…」。選択中のハーネスが Claude Code か Codex で、このプロジェクトに履歴があるときだけ出す。出さないときも 24pt の高さを空けたままにして、上の見出し・入力欄・チップの位置を動かさない。</div>
+    </div>
+    <div style="width:900px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">論点: 一覧はポップオーバーにする（シートにしない）</div>
+      <div style="font-size:13px;line-height:1.65;display:flex;flex-direction:column;gap:8px;">
+        <div><b>ボタンの真下に開くポップオーバー（幅 480pt、一覧の高さ 300pt でスクロール）</b>。選ぶか Esc で閉じるだけの軽い操作なので、ウィンドウを覆うシートは重い。入力欄のメニュー（<a href="#F">F</a>・<a href="#G">G</a>）と同じ部品・同じキー操作にそろえる。</div>
+        <div><b>作業場所の手がかりは 2 段</b>。一覧の先頭に常に 1 行「選んだ会話を、今の作業場所（既存ディレクトリ）で再開します」を出す（入力欄の作業場所の選択に合わせて文言が替わる）。さらに worktree で進めた会話を指したときだけ、その行に「元の worktree には戻らず、既存ディレクトリで再開します」を足す。</div>
+        <div><b>どこで進めた会話かは文字で出す</b>（「Phlox-oss」「worktree」「worktree（削除済み）」）。図形や色は使わない。</div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;gap:80px;align-items:flex-start;flex-wrap:wrap;width:2620px;row-gap:56px;">
+    <div id="J1" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">J1</span><span style="font-size:14px;font-weight:600;">一覧を開いた · worktree の会話を指している</span></div>
+      <dc-import name="PhloxHistoryDemo" scenario="list" height="650" hint-size="820px,650px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">最大 20 件、更新日時の新しい順。各行は最初のメッセージの冒頭（1 行で省略）、相対時刻、どこで進めた会話か。worktree が消えていても「worktree（削除済み）」として出す。VoiceOver は「サイドバーのセッション行に状態の文字を出す、昨日、worktree で進めた会話」。</div></div>
+    <div id="J2" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">J2</span><span style="font-size:14px;font-weight:600;">作業場所に「新しい worktree」を選んでいるとき</span></div>
+      <dc-import name="PhloxHistoryDemo" scenario="listWorktree" height="650" hint-size="820px,650px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">先頭の 1 行が「選んだ会話を、新しい worktree を作って再開します」に替わる。この場合はどの会話を選んでも新しい worktree で動くので、行ごとの注記は出さない。</div></div>
+    <div id="J3" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">J3</span><span style="font-size:14px;font-weight:600;">読み込み中（FR-13b）</span></div>
+      <dc-import name="PhloxHistoryDemo" scenario="loading" height="490" hint-size="820px,490px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">行の形の骨組みを 3 本と「読み込んでいます…」。2 回目以降に開くときは前の一覧を出したまま裏で読み直す。</div></div>
+    <div id="J4" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">J4</span><span style="font-size:14px;font-weight:600;">一覧が空（FR-13b）</span></div>
+      <dc-import name="PhloxHistoryDemo" scenario="empty" height="420" hint-size="820px,420px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">ボタンを出した後に読み込んだら 0 件だったとき。「履歴がありません」とだけ出す。次に新規チャット画面を出すときはボタン自体を出さない。</div></div>
+    <div id="J5" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">J5</span><span style="font-size:14px;font-weight:600;">読み込みの失敗（FR-13b）</span></div>
+      <dc-import name="PhloxHistoryDemo" scenario="error" height="440" hint-size="820px,440px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">「履歴を読み込めませんでした」と「再試行」のボタン。開いたときのフォーカスは「再試行」に置き、↩ で読み直せる。</div></div>
+    <div id="J6" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">J6</span><span style="font-size:14px;font-weight:600;">ボタンにホバー</span></div>
+      <dc-import name="PhloxHistoryDemo" scenario="hover" height="250" hint-size="820px,250px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">灰色の面と主文字色。押下中・フォーカスは部品の状態の表（<a href="#D">D</a>）と同じ。</div></div>
+    <div id="J7" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">J7</span><span style="font-size:14px;font-weight:600;">履歴が無いとき（出さない）</span></div>
+      <dc-import name="PhloxHistoryDemo" scenario="none" height="250" hint-size="820px,250px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">ボタンを出さず、24pt の高さだけ空ける（紫の破線は説明用で、画面には出ない）。</div></div>
+    <div id="J8" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">J8</span><span style="font-size:14px;font-weight:600;">Cursor を選んでいるとき（出さない）</span></div>
+      <dc-import name="PhloxHistoryDemo" scenario="cursor" height="250" hint-size="820px,250px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">ハーネスを Cursor に替えた瞬間にボタンを消し、高さは保つ。Claude Code・Codex に戻すとまた出る（そのハーネスの履歴を読む）。</div></div>
+  </div>
+  <div style="width:1180px;background:#fff;border-radius:12px;padding:20px 24px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:15px;font-weight:700;">要件対応表（J）</div>
+    <div style="display:grid;grid-template-columns:200px 1fr;font-size:12.5px;line-height:1.5;">
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-13 出す条件</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#J1">J1</a>・<a href="#J7">J7</a>・<a href="#J8">J8</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-13a・D10 worktree の会話</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">「worktree」「worktree（削除済み）」の行（<a href="#J1">J1</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-13b 読み込み中・空・失敗</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#J3">J3</a>・<a href="#J4">J4</a>・<a href="#J5">J5</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-14 作業場所は新規チャット画面の選択</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">先頭の 1 行と行の注記（<a href="#J1">J1</a>・<a href="#J2">J2</a>）</div>
+      <div style="padding:6px 8px;">NFR-2</div><div style="padding:6px 8px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;">newChat.historyResume</div>
+    </div>
+    <div style="font-size:12px;line-height:1.6;color:#5B5B60;">選んだ後は <a href="#I1">I1</a> と同じく行が「起動中」で出る（再開なので「送信待ち」の発言は無く、読み込んだ会話を出す）。履歴の題名はサンプル。</div>
+  </div>
+</section>
+
+<section id="I" data-screen-label="I 送信した後" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="display:flex;gap:56px;align-items:flex-start;">
+    <div style="width:560px;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:13px;color:#75757B;">新規チャット開始 04 · 参照: FR-7・FR-10・FR-11・D7・D8・D11・D20・§9 の 6</div>
+      <div style="font-size:26px;font-weight:700;line-height:1.3;flex:none;">I. 送信した後 · 起動中と失敗（ダーク）</div>
+      <div style="font-size:14px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">送るとすぐにサイドバーへ行が出て、その会話画面に移る（D8）。最初のメッセージはセッションが預かり、起動が終わってから送る。失敗しても本文は失わず、セッションも二重にしない（D7）。本文を戻した画面では、必ず「本文を戻しました」を文字で示す。</div>
+    </div>
+    <div style="width:900px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">本文の戻り先（2 通り）</div>
+      <div style="display:grid;grid-template-columns:260px 1fr 1fr;font-size:12.5px;line-height:1.5;">
+        <div style="padding:6px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">失敗</div><div style="padding:6px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">戻る先</div><div style="padding:6px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">「戻しました」の出し方</div>
+        <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">起動の失敗</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">そのセッションの入力欄</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">エラーの枠の文と、入力欄の下段の上の 1 行（<a href="#I4">I4</a>）</div>
+        <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">起動後の最初の送信の失敗</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">そのセッションの入力欄（添付も）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">入力欄の上の送信失敗の通知（今のセッション画面と同じ。<a href="#I6">I6</a>）</div>
+        <div style="padding:6px 8px;">worktree 作成の失敗・Codex の app-server の失敗</div><div style="padding:6px 8px;">新規チャット画面の下書き</div><div style="padding:6px 8px;">トースト「…本文を下書きに戻しました」（<a href="#I9">I9</a>）</div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;gap:80px;align-items:flex-start;flex-wrap:wrap;width:2960px;row-gap:56px;">
+    <div id="I1" style="display:flex;flex-direction:column;gap:10px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">I1</span><span style="font-size:14px;font-weight:600;">「既存ディレクトリ」で送った直後 · 起動中</span></div>
+      <dc-import name="PhloxSessionWindow" scenario="starting" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">サイドバーに新しい行（題名は最初のメッセージから）を出して選択し、右端は「起動中」。タブも同時にできる。預かった本文は会話にユーザーの発言として出し、下に「送信待ち · 起動が終わると送ります」。入力欄は空で、プレースホルダが「起動しています…」に替わる。下段のチップは補助色にして押せない（起動時の値で動いているため）。送信は無効。</div></div>
+    <div id="I2" style="display:flex;flex-direction:column;gap:10px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">I2</span><span style="font-size:14px;font-weight:600;">起動が終わり、最初のメッセージを送った後</span></div>
+      <dc-import name="PhloxSessionWindow" scenario="started" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">「送信待ち」が外れて通常の発言になり、行の右端は「実行中」。入力欄は通常に戻り、送信ボタンは ■（中断）。ここから先は今のセッション画面と同じ。</div></div>
+    <div id="I3" style="display:flex;flex-direction:column;gap:10px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">I3</span><span style="font-size:14px;font-weight:600;">「新しい worktree」で送った直後 · 行はまだ無い（D11・FR-11）</span></div>
+      <dc-import name="PhloxNewChat" scenario="wtToast" theme="dark" width="1440" height="900" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">新規チャット画面のまま、下書きは空になる。画面下部にトースト「worktree を作成しています…」と作成先のパス。数秒後に作成が終わると、サイドバーに行が出て選択され、<a href="#I1">I1</a> と同じ起動中の画面に移る。</div></div>
+    <div id="I4" style="display:flex;flex-direction:column;gap:10px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">I4</span><span style="font-size:14px;font-weight:600;">起動に失敗した</span></div>
+      <dc-import name="PhloxSessionWindow" scenario="startFailed" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">行は消さず、右端に注意の色で「エラー」。会話には「起動できませんでした」と理由、最初のメッセージを送っていないこと、本文を戻したことを書き、「再起動」「閉じる」を並べる。預かっていた発言は会話から消し、入力欄に戻す。入力欄の 1 行は「本文を戻しました。再起動すると送れます」。閉じると今の後始末で worktree も片付く。</div></div>
+    <div id="I5" style="display:flex;flex-direction:column;gap:10px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">I5</span><span style="font-size:14px;font-weight:600;">「再起動」を押した後（D20）</span></div>
+      <dc-import name="PhloxSessionWindow" scenario="restarting" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">失敗した行を閉じ、同じハーネス・モデル・effort・権限・作業場所で新しいセッションを起動して選択する。本文は入力欄に残ったままで、自動では送らない。起動中は「起動しています。終わったら送れます（自動では送りません）」と出し、送信は無効。起動が終わると送れるようになる。</div></div>
+    <div id="I6" style="display:flex;flex-direction:column;gap:10px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">I6</span><span style="font-size:14px;font-weight:600;">起動後、最初の送信が失敗した</span></div>
+      <dc-import name="PhloxSessionWindow" scenario="sendFailed" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">今のセッション画面の送信失敗の表示（入力欄の上の通知と「再送」）に合わせる。本文と添付は入力欄に戻り、そのまま送れる。セッションは残り、行の右端は待機中の経過時間。</div></div>
+    <div id="I7" style="display:flex;flex-direction:column;gap:10px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">I7</span><span style="font-size:14px;font-weight:600;">worktree の作成に失敗した（行が出る前）</span></div>
+      <dc-import name="PhloxNewChat" scenario="wtDialog" theme="dark" width="1440" height="900" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">今のダイアログ（シート）をそのまま使う。git の出力を等幅で見せ、「閉じる」「既存の worktree を使う」「隔離なしで起動」。隔離なしで起動を選ぶと、既存ディレクトリで <a href="#I1">I1</a> に進む。Codex の app-server の失敗も同じく今のエラー表示を出し、閉じると下書きに戻す。</div></div>
+    <div id="I9" style="display:flex;flex-direction:column;gap:10px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">I8</span><span style="font-size:14px;font-weight:600;">ダイアログを閉じた後 · 本文が下書きに戻る（AC-5d）</span></div>
+      <dc-import name="PhloxNewChat" scenario="wtRestored" theme="dark" width="1440" height="900" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">新規チャット画面に戻り、本文と選択（作業場所は「新しい worktree」のまま）が下書きに戻る。トーストで「worktree を作れなかったため、本文を下書きに戻しました」と知らせ、数秒で消す。入力欄にフォーカスを置くので、すぐ送り直せる。</div></div>
+  </div>
+  <div style="width:1180px;background:#fff;border-radius:12px;padding:20px 24px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:15px;font-weight:700;">要件対応表（I）</div>
+    <div style="display:grid;grid-template-columns:200px 1fr;font-size:12.5px;line-height:1.5;">
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-7・D8・E5</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#I1">I1</a>・<a href="#I2">I2</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-11・D11</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#I3">I3</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-10 起動の失敗・D7</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#I4">I4</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-10 再起動・D20</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#I5">I5</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-10 初回送信の失敗</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#I6">I6</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-10 worktree の失敗・AC-5d</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#I7">I7</a>・<a href="#I9">I8</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-24 状態の文字</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">行の右端「起動中」「実行中」「エラー」「1分」</div>
+      <div style="padding:6px 8px;">§9 の 6</div><div style="padding:6px 8px;"><a href="#I1">I1</a>〜<a href="#I4">I4</a></div>
+    </div>
+    <div style="font-size:12px;line-height:1.6;color:#5B5B60;">置けなかった要件: Codex の app-server の起動失敗（spawnError）の表示は今のエラー表示を使うため描いていない（閉じた後は <a href="#I9">I8</a> と同じ）。理由の文言（「画像が大きすぎるため…」など）は例。</div>
+  </div>
+</section>
+
+<section id="H" data-screen-label="H ロゴのチップ" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="display:flex;gap:56px;align-items:flex-start;">
+    <div style="width:560px;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:13px;color:#75757B;">新規チャット開始 03 改訂 · 参照: §5.4・D16・FR-26</div>
+      <div style="font-size:26px;font-weight:700;line-height:1.3;flex:none;">H. ハーネス・モデルのチップ（ロゴ＋モデル名）</div>
+      <div style="font-size:14px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">選んだ後のチップは「(ロゴ) モデル名」。ハーネス名の文字は出さない。ロゴは 14pt、モデル名との間は 5pt。開いたメニュー（<a href="#G">G</a>）は変えない。読み上げは「ハーネスとモデル、Codex: gpt-6.1-sol」、ホバーのツールチップも「Codex: gpt-6.1-sol」。</div>
+    </div>
+    <div style="width:900px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:16px;font-weight:700;">ロゴの色（チップと使用量の画面で共通）</div>
+      <div style="display:flex;gap:16px;">
+        <div style="flex:1;background:#1E1E20;border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;color:#F2F2F4;font-size:12px;">
+          <div style="color:#ABABB1;font-size:11px;">ダーク</div>
+          <div style="display:flex;align-items:center;gap:18px;">
+            <div style="display:flex;align-items:center;gap:6px;"><dc-import name="HarnessLogo" harness="claude" size="20" hint-size="20px,20px"></dc-import>Claude Code</div>
+            <div style="display:flex;align-items:center;gap:6px;"><dc-import name="HarnessLogo" harness="codex" size="20" hint-size="20px,20px"></dc-import>Codex</div>
+            <div style="display:flex;align-items:center;gap:6px;"><dc-import name="HarnessLogo" harness="cursor" size="20" hint-size="20px,20px"></dc-import>Cursor</div>
+          </div>
+        </div>
+        <div style="flex:1;background:#FFFFFF;border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;color:#1D1D1F;font-size:12px;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.10);">
+          <div style="color:#5B5B60;font-size:11px;">ライト</div>
+          <div style="display:flex;align-items:center;gap:18px;">
+            <div style="display:flex;align-items:center;gap:6px;"><dc-import name="HarnessLogo" harness="claude" size="20" hint-size="20px,20px"></dc-import>Claude Code</div>
+            <div style="display:flex;align-items:center;gap:6px;"><dc-import name="HarnessLogo" harness="codex" size="20" hint-size="20px,20px"></dc-import>Codex</div>
+            <div style="display:flex;align-items:center;gap:6px;"><dc-import name="HarnessLogo" harness="cursor" size="20" hint-size="20px,20px"></dc-import>Cursor</div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">Claude と Codex は主文字色の単色（ダーク #F2F2F4・ライト #1D1D1F）。Cursor は元の色のまま（明るい灰・灰・黒の面の立方体）で、どちらのテーマでも同じ絵を使う。</div>
+      <div style="font-size:12px;line-height:1.6;color:#7438BD;">仮の素材: Claude と Codex のロゴは公開されている SVG（Simple Icons / gilbarbara logos、CC0）から取った。Cursor の立方体はモック用に描き起こした近似で、公式のロゴではない。実装では cursor.com/brand の公式素材に差し替え、3 社の利用条件を確かめる（FR-26）。</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:820px 820px;column-gap:80px;row-gap:28px;">
+    <div style="font-size:14px;font-weight:600;">ダーク</div><div style="font-size:14px;font-weight:600;">ライト</div>
+    <div id="H1" style="display:flex;flex-direction:column;gap:8px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">H1</span><span style="font-size:13px;font-weight:600;">Codex · gpt-6.1-sol</span></div><dc-import name="PhloxComposerDemo" scenario="plainCodex" theme="dark" height="150" hint-size="820px,150px"></dc-import></div>
+    <div id="H2" style="display:flex;flex-direction:column;gap:8px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">H2</span><span style="font-size:13px;font-weight:600;">Codex · gpt-6.1-sol</span></div><dc-import name="PhloxComposerDemo" scenario="plainCodex" theme="light" height="150" hint-size="820px,150px"></dc-import></div>
+    <div id="H3" style="display:flex;flex-direction:column;gap:8px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">H3</span><span style="font-size:13px;font-weight:600;">Claude Code · Fable 5.1</span></div><dc-import name="PhloxComposerDemo" scenario="plainClaude" theme="dark" height="150" hint-size="820px,150px"></dc-import></div>
+    <div id="H4" style="display:flex;flex-direction:column;gap:8px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">H4</span><span style="font-size:13px;font-weight:600;">Claude Code · Fable 5.1</span></div><dc-import name="PhloxComposerDemo" scenario="plainClaude" theme="light" height="150" hint-size="820px,150px"></dc-import></div>
+    <div id="H5" style="display:flex;flex-direction:column;gap:8px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">H5</span><span style="font-size:13px;font-weight:600;">Cursor · Composer 2.5</span></div><dc-import name="PhloxComposerDemo" scenario="plainCursor" theme="dark" height="150" hint-size="820px,150px"></dc-import></div>
+    <div id="H6" style="display:flex;flex-direction:column;gap:8px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">H6</span><span style="font-size:13px;font-weight:600;">Cursor · Composer 2.5</span></div><dc-import name="PhloxComposerDemo" scenario="plainCursor" theme="light" height="150" hint-size="820px,150px"></dc-import></div>
+    <div id="H7" style="display:flex;flex-direction:column;gap:8px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">H7</span><span style="font-size:13px;font-weight:600;">ホバー · ツールチップ「Codex: gpt-6.1-sol」</span></div><dc-import name="PhloxComposerDemo" scenario="hoverCodex" theme="dark" height="180" hint-size="820px,180px"></dc-import></div>
+    <div id="H8" style="display:flex;flex-direction:column;gap:8px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">H8</span><span style="font-size:13px;font-weight:600;">ホバー · ツールチップ「Cursor: Composer 2.5」</span></div><dc-import name="PhloxComposerDemo" scenario="hoverCursor" theme="light" height="180" hint-size="820px,180px"></dc-import></div>
+  </div>
+  <div style="width:1720px;font-size:12.5px;line-height:1.6;color:#3A3A3E;">モデル名は主文字色にし、ロゴと同じ濃さにそろえる（他のチップの値は副文字色）。ハーネス名を文字で出さない代わりに、ホバーのツールチップと VoiceOver で「{ハーネス名}: {モデル名}」を伝える。狭いときもロゴとモデル名は出し続け、入らなければモデル名の末尾を省略する。ロゴは飾りとして読み上げから外し、チップ全体のラベルで読む。</div>
+</section>
+
+<section id="G" data-screen-label="G ハーネス・モデル選択" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="display:flex;gap:56px;align-items:flex-start;">
+    <div style="width:560px;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:13px;color:#75757B;">新規チャット開始 03 · 参照: §5.4・§2「ハーネス・モデル選択」・D14・D18</div>
+      <div style="font-size:26px;font-weight:700;">G. ハーネス・モデル選択（ダーク）</div>
+      <div style="font-size:14px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">チップの表示は改訂で「(ロゴ) モデル名」に変えた（<a href="#H">H</a>）。色の印・略号・図形は付けない（D14・D18）。メニューはハーネスごとの見出しの下にモデルを並べ、選択中にチェック、既定のモデルに「既定」のタグ。</div>
+    </div>
+    <div style="width:900px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">論点: 長いメニューは「絞り込み欄＋スクロール」の両方にする</div>
+      <div style="font-size:13px;line-height:1.65;display:flex;flex-direction:column;gap:8px;">
+        <div><b>絞り込み欄はメニューの先頭に常に置き、開いたときから入力を受け付ける</b>。文字を打つとすぐ絞り込まれ、↑↓ は欄にいたまま候補を移る（<a href="#G3">G3</a>）。Cursor だけで 28 モデルあり、名前を覚えている上級者には打つのが最も速い。</div>
+        <div><b>一覧の高さは 340pt で止め、中をスクロールする</b>。新規チャット画面では入力欄の下に 380pt ほどしか余白がないため（ウィンドウ 900pt）。開いたときは選択中のモデルが見える位置にする。</div>
+        <div><b>Cursor は先頭 4 件と「ほか 24 件を表示…」</b>。ハーネスの並びを一目で見渡せる長さに保つ。残りは押すとその場で広がり、絞り込みでは全件を探す（<a href="#G6">G6</a>）。</div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;gap:80px;align-items:flex-start;flex-wrap:wrap;width:2620px;row-gap:56px;">
+    <div id="G1" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">G1</span><span style="font-size:14px;font-weight:600;">チップの表示 · 3 つのハーネス</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="plainCodex" height="150" hint-size="820px,150px"></dc-import>
+      <dc-import name="PhloxComposerDemo" scenario="plainClaude" height="150" hint-size="820px,150px"></dc-import>
+      <dc-import name="PhloxComposerDemo" scenario="plainCursor" height="150" hint-size="820px,150px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">ロゴ＋モデル名（改訂。ダーク・ライトの比較は <a href="#H">H</a>）。VoiceOver は「ハーネスとモデル、Claude Code: Fable 5.1」。狭いときもこのチップはモデル名を出し続け、入らなければ末尾を省略する（E6）。</div></div>
+    <div id="G2" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">G2</span><span style="font-size:14px;font-weight:600;">メニューを開いた（全ハーネス検出済み）</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="hmOpen" height="560" hint-size="820px,560px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">並びは Claude Code → Codex → Cursor で固定。開くと選択中（gpt-6.1-sol）を指した状態になり、↩ ならそのまま閉じる。右端の細い帯はスクロールの位置。見出しは選べない（↑↓ は飛ばす）。</div></div>
+    <div id="G3" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">G3</span><span style="font-size:14px;font-weight:600;">文字入力で絞り込み（「opus」）</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="hmFilter" height="330" hint-size="820px,330px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">ハーネス名とモデル名の両方に当てる（「codex」と打つと Codex の 5 件）。当たらない区切りは見出しごと隠す。1 件目を指した状態になり、↩ で決まる。Esc 1 回で絞り込みを消し、もう 1 回でメニューを閉じる。</div></div>
+    <div id="G4" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">G4</span><span style="font-size:14px;font-weight:600;">CLI が見つからない（Cursor）</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="hmMissing" height="620" hint-size="820px,620px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">見出しの右に「未検出」の文字のタグを付け、モデルは並べずに理由を 1 行出す（薄くするだけでなく、文字で選べないと分かる）。行が無いので矢印キーでも止まらない。VoiceOver は「Cursor、未検出。cursor-agent が見つかりません」。</div></div>
+    <div id="G5" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">G5</span><span style="font-size:14px;font-weight:600;">モデル一覧を取得できず内蔵の一覧を出している（Codex）</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="hmFallback" height="560" hint-size="820px,560px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">見出しの右に補助色で「内蔵の一覧」と、ボタンの「再試行」（アクセントの文字。リンクと同じ扱い）。選ぶことはそのままできる。再試行中は「再試行」を「取得中…」に替え、終わったら一覧を差し替える。</div></div>
+    <div id="G6" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">G6</span><span style="font-size:14px;font-weight:600;">長いメニュー · 下までスクロールした</span></div>
+      <dc-import name="PhloxComposerDemo" scenario="hmLong" height="560" hint-size="820px,560px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">Cursor の見出しに件数「28 モデル」。先頭 4 件の下の「ほか 24 件を表示…」を ↩ で押すと、その場で残りが広がる（メニューの高さは変えずにスクロールが伸びる）。絞り込みでは最初から全件が対象。</div></div>
+    <div id="G7" style="display:flex;flex-direction:column;gap:10px;width:820px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">G7</span><span style="font-size:14px;font-weight:600;">ハーネスを替えたときのチップの入れ替わり（Claude Code → Cursor）</span></div>
+      <div style="font-size:12px;color:#75757B;">前: Claude Code: Fable 5.1</div>
+      <dc-import name="PhloxComposerDemo" scenario="plainClaude" height="150" hint-size="820px,150px"></dc-import>
+      <div style="font-size:12px;color:#75757B;">後: Cursor: Composer 2.5 を選んだ</div>
+      <dc-import name="PhloxComposerDemo" scenario="plainCursor" height="150" hint-size="820px,150px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;">effort（高）が mode（既定）に替わり、権限のチップが消える。値は前のハーネスから引き継がず、替えた先のハーネスの「最後に使った設定」を当てる（§5.4）。そのため Codex の ultra のような、行き先に無い値の扱いは起きない。右の 3 つは動かない。入れ替わりはアニメーションさせず、その場で替える。</div></div>
+  </div>
+  <div style="width:1180px;background:#fff;border-radius:12px;padding:20px 24px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:15px;font-weight:700;">要件対応表（G）</div>
+    <div style="display:grid;grid-template-columns:200px 1fr;font-size:12.5px;line-height:1.5;">
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.4 チップの表示・D14</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#G1">G1</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.4 メニュー（区切り・チェック・既定）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#G2">G2</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.4 チャット対応の組込だけ</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">組込 3 種だけ。カスタムエージェントは廃止（D22）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.4 未検出</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#G4">G4</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.4 内蔵の一覧・再試行</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#G5">G5</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">長い一覧</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#G3">G3</a>・<a href="#G6">G6</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.4 チップの入れ替え・初期値</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#G7">G7</a></div>
+      <div style="padding:6px 8px;">NFR-4 キーボード</div><div style="padding:6px 8px;">メニュー下端の案内（↑↓ 移動 · ↩ 決定 · 文字入力で絞り込み · Esc 閉じる）</div>
+    </div>
+    <div style="font-size:12px;line-height:1.6;color:#5B5B60;">Cursor の 5 件目以降のモデル名は手元に無いため描いていない（「ほか 24 件」の中身）。実際の一覧で G6 を差し替える。</div>
+  </div>
+</section>
+
+<section data-screen-label="M 対応表" style="display:flex;gap:32px;align-items:flex-start;">
+  <div style="width:1180px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">要件対応表</div>
+    <div style="display:grid;grid-template-columns:150px 1fr 1fr;font-size:12.5px;line-height:1.5;">
+      <div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">要件</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">内容</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">モック上の置き場所</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.1</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">見出し → 入力欄 → チップ → 履歴から再開</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#A1">A1</a>・<a href="#A2">A2</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.2・D13</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">名前なし、10 種類からランダム</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#A1">A1</a>（#1）、全文言と英語の幅は <a href="#E">E</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.3 本文・＋・送信</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">プレースホルダ、添付、空なら送れない</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#A1">A1</a>・<a href="#B1">B1</a>・<a href="#B2">B2</a>・<a href="#D">D</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.3 プロジェクト・作業場所</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">下段右のチップ</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">チップは <a href="#A1">A1</a>・<a href="#B4">B4</a>・<a href="#C1">C1</a>。メニューはプロンプト 2</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.3 effort・権限</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">選んだハーネスのチップ</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#A1">A1</a>、狭いときは「…」（<a href="#B4">B4</a>・<a href="#C1">C1</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.4</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">「{ハーネス}: {モデル}」のチップ（印なし）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#A1">A1</a>・<a href="#B5">B5</a>。メニューはプロンプト 3</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">§5.5・D5</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">提案チップ 5 個</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#A1">A1</a>・ホバーは <a href="#B2">B2</a>・<a href="#D">D</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-1・FR-1a・FR-2</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">入口・選択を外す・初期値</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">下端「新規チャット ⌘N」、セッション行とタブは非選択、Phlox-oss（<a href="#A1">A1</a>）。他の入口はプロンプト 6</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-2a・E7・E8</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">未選択・送れない理由 1 行</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#B3">B3</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-4・NFR-4</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">フォーカス・キーボード操作</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#A1">A1</a>・<a href="#B5">B5</a>・<a href="#C2">C2</a>・<a href="#C3">C3</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">E6</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">下段の並びと縮め方</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#A1">A1</a>・<a href="#B4">B4</a>・<a href="#C1">C1</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-22・FR-23・D14</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">略号・図形を出さない</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">サイドバー・タブ・チップ（全モック）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-24・D19</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">状態は行の右端に文字、タブには出さない</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#A1">A1</a>（実行中・承認待ち・完了・2時間、プロジェクト行「承認待ち 1」「質問あり 1」）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-25・D15</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">未読は文字の濃さ</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#A1">A1</a>（承認ダイアログ… / テストの並列化 が未読）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-28〜FR-31・D17・D18</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">藍のアクセント、ハーネスの色なし</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">全モック・<a href="#D">D</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">FR-13</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">履歴から再開…</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">置き場所と高さだけ（<a href="#A1">A1</a>）。一覧はプロンプト 5</div>
+      <div style="padding:6px 8px;">NFR-2</div><div style="padding:6px 8px;">accessibilityIdentifier</div><div style="padding:6px 8px;">右の表</div>
+    </div>
+    <div style="font-size:12px;line-height:1.6;color:#5B5B60;">この回で置けなかった要件: FR-3（プロジェクト 0 件の案内）はプロンプト 6。§5.3 の画像非対応・@ファイル候補はプロンプト 2。FR-26（使用量画面のロゴ）はこの画面に無いので、使用量画面を描く回で扱う。描かないもの（マイク・チャット / Cowork・同じフォルダの通知・worktree スイッチ・ターミナル起動）は入れていない。</div>
+  </div>
+  <div style="width:620px;display:flex;flex-direction:column;gap:24px;">
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">Tab の順・VoiceOver・識別子</div>
+      <div style="display:grid;grid-template-columns:22px 1fr 1fr;font-size:12px;line-height:1.5;">
+        <div style="padding:5px 0;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">#</div><div style="padding:5px 6px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">VoiceOver の読み上げ</div><div style="padding:5px 6px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">identifier</div>
+        <div style="padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);">1</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">メッセージ、テキスト</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;">newChat.composer</div>
+        <div style="padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);">2</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">添付、ボタン</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);color:#75757B;">（既存の部品）</div>
+        <div style="padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);">3</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">ハーネスとモデル、Codex: gpt-6.1-sol</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;">newChat.harnessModelPicker</div>
+        <div style="padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);">4</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">effort、高 ／ 狭いとき「その他の設定、effort 高、権限 Full Access」</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);color:#75757B;">（既存の部品）</div>
+        <div style="padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);">5</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">権限、Full Access</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);color:#75757B;">（既存の部品）</div>
+        <div style="padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);">6</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">プロジェクト、Phlox-oss ／ 「プロジェクト、未選択」</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;">newChat.projectPicker</div>
+        <div style="padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);">7</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">作業場所、既存ディレクトリ</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;">newChat.workspacePicker</div>
+        <div style="padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);">8</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">送信 ／ 「送信、使用不可。プロジェクトが未選択です」</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;">newChat.sendButton</div>
+        <div style="padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);">9</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);">提案、コードレビュー。入力欄に文を入れます（5 個）</div><div style="padding:5px 6px;border-bottom:1px solid rgba(0,0,0,0.06);font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;">newChat.suggestion.&lt;n&gt;</div>
+        <div style="padding:5px 0;">10</div><div style="padding:5px 6px;">履歴から再開、ボタン</div><div style="padding:5px 6px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;">newChat.historyResume</div>
+      </div>
+      <div style="font-size:12px;line-height:1.6;color:#5B5B60;">チップは Space・↩ で開き、矢印で選び、Esc で閉じる。送信ボタンは無効のときもフォーカスでき、理由を読み上げる。</div>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">WCAG 2.2 AA の確認</div>
+      <div style="font-size:12.5px;line-height:1.6;display:flex;flex-direction:column;gap:6px;">
+        <div>フォーカス枠: ダーク #959CD0 / 入力欄 #1A1A1C で約 6.6、ライト #3B469B / 白で 8.28（3:1 以上）。</div>
+        <div>送信の ↑: 白 / #3B469B で 8.28。ダークでは面と入力欄の比が約 2.0 で 3:1 に届かないが、部品を見分ける手がかりは白い ↑ が担う（1.4.11 は満たす）。気になる場合は、ダークだけ面に 1pt の #959CD0 の縁を足す案がある。</div>
+        <div>文字: 副文字 ダーク #ABABB1 / #262629 で約 7.3、ライト #5B5B60 / #F2F2F4 で約 6.0。補助 #75757B / 白で約 4.6。承認待ち #8A5300・質問あり #1E5BB8 / #F2F2F4 でどちらも 5.5 以上。</div>
+        <div>未読と既読は色の濃さに加えて太さ（semibold / regular）でも分かる。選択中のプロジェクト行は面に加えて名前を semibold にする。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;headingSize&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[20,22,28],&quot;default&quot;:22,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;論点の比較&quot;},&quot;anchor&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;やや上&quot;,&quot;中央&quot;],&quot;default&quot;:&quot;やや上&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;論点の比較&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const G = [
+      ['何から始めますか？','What would you like to work on?'],
+      ['今日は何を進めますか？','What are we building today?'],
+      ['さあ、始めましょう',"Let's get started"],
+      ['次は何を作りますか？',"What's next?"],
+      ['どこから手をつけますか？','Where should we begin?'],
+      ['アイデアを形にしましょう',"Let's turn ideas into code"],
+      ['今日の課題を教えてください',"Tell me what you're working on"],
+      ['どんな変更を加えますか？','What would you like to change?'],
+      ['続きを進めましょう',"Let's keep going"],
+      ['何をお手伝いしましょうか？','How can I help?']
+    ];
+    const R = [
+      ['FR-1','新規チャット画面を出す入口','A1・K1〜K5・11 の T2・T3（下段の「新規チャット」タブ）','置いた'],
+      ['FR-1a','単体表示・セッションの選択を外す','A1・K4','置いた'],
+      ['FR-2','プロジェクトの初期値','A1・K4','置いた'],
+      ['FR-2a','プロジェクト未選択でも出す','B3・K3','置いた'],
+      ['FR-3','プロジェクト 0 件の案内','K8','置いた'],
+      ['FR-4','入力欄にフォーカス','A1','置いた'],
+      ['FR-5','下書きはメモリだけ・全ウィンドウ共有','—','画面に出ない'],
+      ['FR-6','下書きが残る・切り替わる','F1・F2','置いた'],
+      ['FR-6a','プロジェクト削除で下書きを捨てる','B3（同じ見た目）','置いた'],
+      ['FR-7','送信の順序・起動中の行','I1〜I3','置いた'],
+      ['FR-8','モデル等を起動時に渡す','—','画面に出ない'],
+      ['FR-9','最後の設定を保存','—','画面に出ない'],
+      ['FR-10','失敗時の本文と行の扱い','I4〜I8','置いた'],
+      ['FR-11','worktree 作成中のトースト','I3','置いた'],
+      ['FR-12','同じフォルダでも確認しない','表示なし','置いた'],
+      ['FR-13','履歴から再開の出す条件','J1・J7・J8','置いた'],
+      ['FR-13a','worktree の会話も一覧に','J1','置いた'],
+      ['FR-13b','読み込み中・空・失敗','J3〜J5','置いた'],
+      ['FR-14','作業場所は選択に従う','J1・J2','置いた'],
+      ['FR-15','worktree 設定の切り替えを消す','K2・11 のヘッダー（P6 でボタンごと消す）','置いた'],
+      ['FR-16','隔離の判定を作業フォルダで','—','画面に出ない'],
+      ['FR-17','旧データの移行','—','画面に出ない'],
+      ['FR-17a','worktree のチャットは移動不可','今のまま','画面に出ない'],
+      ['FR-18','API・CLI・子セッションは既存ディレクトリ','—','画面に出ない'],
+      ['FR-19','ターミナルを始める項目を置かない','K2・K3','置いた'],
+      ['FR-20','残すもの（復元・API・普通のターミナル）','—','画面に出ない'],
+      ['FR-21','既定の開き方の設定を廃止','設定画面','置き場所なし'],
+      ['FR-22','略号を出さない','全モック','置いた'],
+      ['FR-23','状態・種類の図形を出さない','全モック','置いた'],
+      ['FR-24','状態は行の右端に文字','A1・I1〜I6','置いた'],
+      ['FR-25','未読は文字の濃さ','A1','置いた'],
+      ['FR-26','ロゴの SVG（チップ・使用量）','H・12 の使用量のバー（インスペクタの使用量は無し）','一部'],
+      ['FR-27','読み上げは今と同じ','M・N の表','置いた'],
+      ['FR-28','アクセントの共有・外部テーマ','外部テーマは無し','一部'],
+      ['FR-29','アクセントの使い道','全モック・N で点検','置いた'],
+      ['FR-30','ハーネスの色を廃止','全モック','置いた'],
+      ['FR-31','注意の色・差分の色は変えない','A1・I4','置いた'],
+      ['D1','画面から始められるのはチャットだけ','K2・K3','置いた'],
+      ['D2','作業場所は毎回既存ディレクトリから','F3','置いた'],
+      ['D3','同じフォルダの通知を出さない','表示なし','置いた'],
+      ['D4','見出しと提案チップ・マイクなし','A1','置いた'],
+      ['D5','提案チップは文を入れるだけ','B2','置いた'],
+      ['D6','API・CLI などは既存ディレクトリ','—','画面に出ない'],
+      ['D7','初回送信の失敗でもセッションを残す','I6','置いた'],
+      ['D8','送信したらすぐセッションへ','I1','置いた'],
+      ['D9','下書きはプロジェクトごと','F1・F2','置いた'],
+      ['D10','履歴に worktree の会話','J1','置いた'],
+      ['D11','worktree の行は作成後に出る','I3','置いた'],
+      ['D12','凍結テストの書き換え','—','画面に出ない'],
+      ['D13','見出しは 10 種からランダム','A1・E','置いた'],
+      ['D14','略号・図形の廃止','全モック','置いた'],
+      ['D15','未読は文字の濃さ','A1','置いた'],
+      ['D16','ロゴ（使用量・チップ）','H・12 の使用量のバー（インスペクタの使用量は無し）','一部'],
+      ['D17','藍のアクセント','全モック・D','置いた'],
+      ['D18','ハーネスの色を廃止','全モック','置いた'],
+      ['D19','タブ・グリッドに状態を出さない','A1・I1・K5','置いた'],
+      ['D20','再起動は送らない','I5','置いた'],
+      ['D21','セッション 0 件のプロジェクトも新規チャット','K4','置いた'],
+      ['D22','カスタムエージェント廃止','全モック（G2・K2）','置いた'],
+      ['E1','旧版との互換','—','画面に出ない'],
+      ['E2','（廃止）','—','—'],
+      ['E3','「プロジェクト名を変更…」を残す','上段のタブの右クリックへ移す（11 の P6。メニューは描かないと決定）','置いた'],
+      ['E4','@ファイル候補の取り直し','F13・F2','置いた'],
+      ['E5','起動中の表示','I1','置いた'],
+      ['E6','下段の並びと縮め方','A1・B4・C1・N2','置いた'],
+      ['E7','送れない理由を 1 行','B3・F12','置いた'],
+      ['E8','下書きの手がかり','F1','置いた'],
+      ['NFR-4','キーボードだけで操作','B5・C2・C3・N の経路','置いた'],
+      ['NFR-5','WCAG 2.2 AA・読み上げ','D・M・N','置いた'],
+      ['NFR-6','ホバー・押下中・無効','D・J6','置いた'],
+      ['NFR-7','最小幅 720pt','C1・N2・11 の T5・12 の U3','置いた']
+    ];
+    const col = { '置いた':'#1D1D1F', '一部':'#8A5300', '置き場所なし':'#B4232A', '画面に出ない':'#5B5B60', '—':'#5B5B60' };
+    const reqRows = R.map(([id, what, where, status]) => ({ id, what, where, status, statusStyle: { padding:'5px 8px', borderBottom:'1px solid rgba(0,0,0,0.06)', color: col[status], fontWeight: status === '置いた' ? 400 : 600 } }));
+    return {
+      reqRows,
+      hs: Number(this.props.headingSize) || 22,
+      anchor: this.props.anchor || 'やや上',
+      greetings: G.map(([ja, en], i) => ({ n: i + 1, ja, en }))
+    };
+  }
+}
+</script>
+</body>
+</html>

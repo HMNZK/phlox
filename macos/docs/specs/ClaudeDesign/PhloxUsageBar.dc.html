@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div title="インスペクタで使用量を開く" style="{{ rootStyle }}">
+  <sc-for list="{{ hs }}" as="h" hint-placeholder-count="3">
+    <div style="display:flex;align-items:center;gap:5px;flex:none;white-space:nowrap;">
+      <span style="display:flex;color:var(--fg2);"><dc-import name="HarnessLogo" harness="{{ h.key }}" size="12" hint-size="12px,12px"></dc-import></span>
+      <span style="display:flex;"><sc-for list="{{ h.segs }}" as="g" hint-placeholder-count="2"><span style="{{ g.style }}">{{ g.text }}</span></sc-for></span>
+    </div>
+  </sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:24},&quot;variant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;normal&quot;,&quot;low&quot;,&quot;hover&quot;,&quot;focus&quot;],&quot;default&quot;:&quot;normal&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;lang&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ja&quot;,&quot;en&quot;],&quot;default&quot;:&quot;ja&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;width&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:1440,&quot;tsType&quot;:&quot;number&quot;},&quot;standalone&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const V = {
+      light:{'--bar':'#F6F6F7','--sep':'rgba(0,0,0,0.10)','--fg':'#1D1D1F','--fg2':'#5B5B60','--hover':'rgba(0,0,0,0.05)','--apvInk':'#8A5300','--accent':'#3B469B'},
+      dark:{'--bar':'#2A2A2D','--sep':'rgba(255,255,255,0.10)','--fg':'#F2F2F4','--fg2':'#ABABB1','--hover':'rgba(255,255,255,0.06)','--apvInk':'#F4BD68','--accent':'#959CD0'}
+    };
+    const theme = p.theme === 'light' ? 'light' : 'dark';
+    const W = Number(p.width) || 1440;
+    const v = p.variant || 'normal';
+    const stage = W >= 1100 ? 0 : W >= 600 ? 1 : 2;
+    const low = v === 'low';
+    const en = p.lang === 'en';
+    const N = en ? { '5時間':'5h', '週次':'Weekly', 'Auto':'Auto', 'API':'API' } : null;
+    const RS = en ? { '2時間後':'in 2h', '3日後':'in 3d', '38分後':'in 38m', '4時間後':'in 4h', '5日後':'in 5d' } : null;
+    const data = [
+      { key:'claude', segs: low ? [['5時間',12,'38分後'],['週次',40,'3日後']] : [['5時間',72,'2時間後'],['週次',40,'3日後']] },
+      { key:'codex', segs: [['5時間',99,'4時間後'],['週次',85,'5日後']] },
+      { key:'cursor', segs: low ? null : [['Auto',80,null],['API',95,null]] }
+    ];
+    const hs = data.map(h => {
+      if (!h.segs) return { key:h.key, segs:[{ text: en ? 'Unavailable' : '取得できません', style:{ color:'var(--fg2)' } }] };
+      return { key:h.key, segs: h.segs.map(([name, pct, reset], i) => {
+        const isLow = pct < 20;
+        const nm = N ? N[name] : name; const rs = reset ? (RS ? ' (' + RS[reset] + ')' : '（' + reset + '）') : '';
+        let t = (stage < 2 ? nm + ' ' : '') + pct + '%' + (stage === 0 ? rs : '');
+        return { text:(i ? (en ? ' · ' : '・') : '') + t, style:{ color: isLow ? 'var(--apvInk)' : 'var(--fg2)', fontWeight: isLow ? 600 : 400 } };
+      }) };
+    });
+    const hover = v === 'hover', focus = v === 'focus';
+    return {
+      hs,
+      rootStyle: { ...V[theme], width: p.standalone ? W : '100%', height:24, flex:'none', boxSizing:'border-box', display:'flex', alignItems:'center', gap:18, padding:'0 12px', borderTop:'1px solid var(--sep)', backgroundColor:'var(--bar)', backgroundImage: hover ? 'linear-gradient(var(--hover), var(--hover))' : 'none', fontFamily:"-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif", fontSize:11, color:'var(--fg2)', overflow:'hidden', boxShadow: focus ? 'inset 0 0 0 2px var(--accent)' : 'none', borderRadius: p.standalone ? 6 : 0 }
+    };
+  }
+}
+</script>
+</body>
+</html>

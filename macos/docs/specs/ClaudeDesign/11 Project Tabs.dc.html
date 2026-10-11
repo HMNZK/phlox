@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>body{margin:0;background:#E7E7EA;} a{color:#3B469B;} a:hover{color:#2C3578;}</style>
+</helmet>
+<div style="padding:80px;display:flex;flex-direction:column;gap:96px;width:max-content;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#1D1D1F;">
+
+<section data-screen-label="00 概要" style="display:flex;gap:56px;align-items:flex-start;">
+  <div style="width:560px;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:13px;color:#75757B;">Phlox macOS · プロンプト 11 · 参照: project-tabs.md P1〜P9・PE1〜PE12、D23</div>
+    <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;line-height:1.2;">プロジェクト単位のタブ</div>
+    <div style="font-size:15px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;">上段はプロジェクトのタブ、下段は選択中のプロジェクトのチャット・ターミナル・変更・ファイルなど。セッションを替えてもプロジェクトのターミナルやファイルのタブは残る。左のサイドバーは今のまま。新規チャット画面は下段の「新規チャット」タブになる（<a href="10 New Chat Start.dc.html">10 New Chat Start</a>）。</div>
+  </div>
+  <div style="width:900px;background:#fff;border-radius:12px;padding:26px 28px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:18px;font-weight:700;">論点</div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.65;">
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">1</b><div><b>2 段の見分け方</b>。上段はブラウザのタブの形（選択中は下段と同じ地の色でつながり、名前を semibold）。下段は角丸 6 の面で選ぶ形（選択中は灰色の面）。形を変えて「上が入れ物、下が中身」と読めるようにし、アクセントは使わない。</div></div>
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">2</b><div><b>worktree のセッションの変更は、会話画面の右に開く</b>（<a href="#T6">T6</a>）。worktree で動くセッションの会話画面だけ、上端に 1 行「worktree で実行中 · ブランチ名」と「変更 n ファイル」のボタンを出す。押すと会話の右に変更の欄（ファイル一覧＋差分）を開く。下段のタブは増やさない（下段の「変更」はプロジェクトのフォルダの変更と決まっているため、同じ名前のタブが 2 種類にならないように）。</div></div>
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">3</b><div><b>入りきらないときは縮めてから畳む</b>。上段のタブは最大 180pt から最小 96pt まで縮め、名前を末尾で省略する（<a href="#T4">T4</a>）。それでも入らない分と、下段の入りきらないタブは右端の「ほか n ⌄」にまとめる（<a href="#T5">T5</a>）。選択中のタブは必ず見える位置に置く。</div></div>
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">4</b><div><b>ヘッダーは 38pt・3 つだけ</b>（P6・PE12。採用）。プロジェクト名と worktree のボタンを消し、残るのはサイドバーの開閉（サイドバーを隠しているときだけ）・単体／グリッド・インスペクタの開閉。信号と 28pt のボタンの縦の中心を揃え、サイドバーの上端も 38pt の下から始まる。「プロジェクト名を変更…」は上段のタブの右クリックメニューへ。</div></div>
+      <div style="display:flex;gap:10px;"><b style="width:18px;flex:none;">5</b><div><b>タブ列とサイドバーは常に一致</b>（P7）。上段 = サイドバーの全プロジェクト、下段のチャット = そのプロジェクトの全セッション（並びもサイドバーと同じ）、その後ろにターミナル・ファイル等。✕ の意味はタブの種類で変わるので、ホバーの説明で必ず言う: 上段「プロジェクトを削除…」、チャット「セッションを削除…」、ターミナル・ファイル「閉じる」、新規チャット「外す（下書きは残ります）」。</div></div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="T 状態" style="display:flex;flex-direction:column;gap:24px;">
+  <div style="font-size:26px;font-weight:700;">T. 状態の描き分け（ダーク・1440pt・左サイドバー表示）</div>
+  <div style="display:flex;gap:80px;align-items:flex-start;flex-wrap:wrap;width:2960px;row-gap:64px;">
+    <div id="T1" style="display:flex;flex-direction:column;gap:12px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T1</span><span style="font-size:14px;font-weight:600;">通常 · Phlox-oss のセッション 1 を表示</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="main" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">ヘッダーは信号・単体／グリッド・インスペクタだけ（38pt）。上段: Phlox-oss（選択中）・ios-companion・＋（プロジェクトを追加。PE1）。✕ は選択中とホバー中だけ出し、プロジェクトの削除になる（P7）。下段: サイドバーと同じ順のセッション 3 つ・ターミナル 1・ファイル 1・＋。入力欄は 10 と同じ部品。タブには状態を出さず、状態はサイドバーの右端の文字だけ。共通ターミナル（右端）は無い（P3）。</div></div>
+    <div id="T2" style="display:flex;flex-direction:column;gap:12px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T2</span><span style="font-size:14px;font-weight:600;">下段の ＋ のメニュー（PE3）</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="plusMenu" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">新規チャット ⌘N / ターミナル / 変更 / ファイルを開く… / ブラウザ / シミュレーター。下端に「ターミナル・変更・ファイルは Phlox-oss のフォルダで開きます」（P2）。新規チャットは、このプロジェクトに「新規チャット」タブがあればそれを選ぶだけ（1 つまで。PE4）。ターミナルは何個でも足せる（PE6）。</div></div>
+    <div id="T3" style="display:flex;flex-direction:column;gap:12px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T3</span><span style="font-size:14px;font-weight:600;">「新規チャット」タブを選んだ（PE4）</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="newChat" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">下段の末尾に「新規チャット」タブが入り、主画面は新規チャット画面（入力欄・提案チップは 10 と同じ）。サイドバーではセッション行を選択しない。送信すると、このタブがその場でセッションのタブ（題名は最初のメッセージ）に変わり、起動中の画面（10 の I1）になる。✕ で外しても下書きはプロジェクトに残る。</div></div>
+    <div id="T4" style="display:flex;flex-direction:column;gap:12px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T4</span><span style="font-size:14px;font-weight:600;">プロジェクトのタブが 8 個</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="many" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">1440pt では全部が入るまで均等に縮める（最小 96pt、名前は末尾で省略し、ホバーで全文）。96pt でも入らないときは T5 と同じく「ほか n ⌄」にまとめる。</div></div>
+    <div id="T5" style="display:flex;flex-direction:column;gap:12px;width:720px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T5</span><span style="font-size:14px;font-weight:600;">狭いウィンドウ · 720pt</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="main" width="720" height="760" hint-size="720px,760px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">中央 460pt。上段の 2 つは入る。下段はタブを 150pt までにして 2 つを出し、残りを「ほか 3 ⌄」にまとめる（押すとタブの一覧のメニュー）。＋ は常に見せる。入力欄の effort・権限は「…」にまとめる（10 の E6）。</div></div>
+    <div id="T6" style="display:flex;flex-direction:column;gap:12px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T6</span><span style="font-size:14px;font-weight:600;">worktree で動くセッションの変更を会話画面の中で開く（P2・提案）</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="worktreeDiff" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">会話画面の上端に「worktree で実行中 · phlox/session/6b1e2c4d」と「変更 3 ファイル」。押すと右に幅 440pt の変更の欄が開き（もう一度押すか ✕ で閉じる）、このセッションの worktree の変更を出す。差分の行は先頭の「+」「−」の文字でも分かる。worktree のフォルダでターミナルを開く入口は置かない（P8）。</div></div>
+    <div id="T7" style="display:flex;flex-direction:column;gap:12px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T7</span><span style="font-size:14px;font-weight:600;">ライト · 通常</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="main" theme="light" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">上段の選択中のタブは白地で下段とつながる。下段の選択中は灰色の面。</div></div>
+
+    <div id="T8" style="display:flex;flex-direction:column;gap:12px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T8</span><span style="font-size:14px;font-weight:600;">上段の ✕ · プロジェクトの削除（P5・P7）</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="delProject" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">✕ のホバーの説明は「プロジェクトを削除…」（T1 と同じ。シートが出ている間は出さない）。押すと今の確認ダイアログ（シート）で、消えるセッションの数を出す。削除すると上段のタブとサイドバーのプロジェクトが一緒に消える。本文の文言は例で、今のダイアログの文言に合わせる。</div></div>
+    <div id="T9" style="display:flex;flex-direction:column;gap:12px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T9</span><span style="font-size:14px;font-weight:600;">下段のチャットの ✕ / ⌘W · セッションの削除（P7）</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="delSession" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">チャットのタブの ✕ は「セッションを削除…」。今のセッション削除の確認ダイアログを出し、削除するとタブとサイドバーの行が一緒に消える。⌘W も同じ。ターミナル・ファイルの ✕ は今どおり閉じるだけ（実行中・未保存なら今の確認）。本文は例。今のダイアログの文言に合わせる。</div></div>
+    <div id="T10" style="display:flex;flex-direction:column;gap:12px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T10</span><span style="font-size:14px;font-weight:600;">左右の分割（PE7）</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="split" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">分割はプロジェクトごとに持つ。左にセッション 1、右にターミナル 1。下段では、フォーカスのある側のタブを灰色の面、もう片側に出ているタブを薄い面にして、どちらも ✕ を出す。入力欄は幅が狭くなるので effort・権限を「…」にまとめる。</div></div>
+    <div id="T11" style="display:flex;flex-direction:column;gap:12px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T11</span><span style="font-size:14px;font-weight:600;">グリッド表示（PE8）</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="grid" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">選択中のプロジェクトのセッションをタイルで並べる。タイルは会話だけで、見出しは題名だけ（状態は出さない）。下段のタブ列は出さない。フォーカス中のタイルに藍の 2pt の枠。</div></div>
+    <div id="T12" style="display:flex;flex-direction:column;gap:12px;width:1440px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;">T12</span><span style="font-size:14px;font-weight:600;">サイドバーを隠した状態のヘッダー</span></div>
+      <dc-import name="PhloxTabsWindow" scenario="main" sidebar-hidden="{{ true }}" hint-size="1440px,900px"></dc-import>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">信号の右にサイドバーの開閉（28pt）、右に単体／グリッドとインスペクタの開閉。タブ列と入力欄はウィンドウの幅いっぱいに広がる。使用量のバーも全幅のまま。</div></div>
+  </div>
+</section>
+
+<section data-screen-label="M 対応表" style="display:flex;gap:32px;align-items:flex-start;">
+  <div style="width:1180px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:16px;font-weight:700;">要件対応表（project-tabs.md）</div>
+    <div style="display:grid;grid-template-columns:90px 1fr 1fr;font-size:12.5px;line-height:1.5;">
+      <div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">要件</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">内容</div><div style="padding:7px 8px;font-weight:600;color:#75757B;border-bottom:1px solid rgba(0,0,0,0.12);">置き場所</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">P1</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">上段プロジェクト・下段その中身</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#T1">T1</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">P2</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">プロジェクトのフォルダが基準、worktree の差分は会話画面で</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#T2">T2</a>（メニューの注記）・<a href="#T6">T6</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">P3</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">共通ターミナルの廃止</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">タブ列の右端に無い（<a href="#T1">T1</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">P4</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">サイドバーは今のまま</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">全モック</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">P5</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">プロジェクトの削除</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#T8">T8</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">P6・PE12</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ヘッダー（3 つだけ・38pt）</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">全モック</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">P7</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">タブとサイドバーの一致・✕ の意味</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#T1">T1</a>・<a href="#T8">T8</a>・<a href="#T9">T9</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">P8</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">worktree のターミナルの入口なし</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#T6">T6</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">PE1</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">上段の ＋</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#T1">T1</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">PE3</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">下段の ＋ のメニュー</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#T2">T2</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">PE4</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">新規チャットのタブ</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#T3">T3</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">PE5</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">チャット以外の ✕・⌘W</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">閉じるだけ（<a href="#T9">T9</a> の説明）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">PE6</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">ターミナルを複数</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">「ターミナル 1」の連番（<a href="#T1">T1</a>・<a href="#T2">T2</a>）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">PE7・PE8</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">左右の分割・グリッド</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);"><a href="#T10">T10</a>・<a href="#T11">T11</a></div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">PE9・PE10</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">保存・複数ウィンドウ</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);color:#5B5B60;">画面に出ない</div>
+      <div style="padding:6px 8px;">PE11</div><div style="padding:6px 8px;">キーボード</div><div style="padding:6px 8px;">右の表</div>
+    </div>
+  </div>
+  <div style="width:620px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:16px;font-weight:700;">キーボードと読み上げ（提案）</div>
+    <div style="display:grid;grid-template-columns:150px 1fr;font-size:12.5px;line-height:1.5;">
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌃Tab / ⌃⇧Tab</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">下段の次 / 前のタブ</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌘1〜⌘9</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">下段の n 番目のタブ</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⇧⌘[ / ⇧⌘]</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">上段の前 / 次のプロジェクト</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌘T</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">下段の ＋ のメニューを開く</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">⌘W</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">下段の選択中のタブの ✕ と同じ（チャットは確認の後にセッションを削除、ターミナル・ファイル等は閉じる）</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">上段のタブ</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">「プロジェクト、Phlox-oss、選択中、2 個中 1 番目」</div>
+      <div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">下段のタブ</div><div style="padding:6px 8px;border-bottom:1px solid rgba(0,0,0,0.06);">「チャット、README の英語版を…、選択中」「ターミナル 1」「ファイル、DashboardView.swift」</div>
+      <div style="padding:6px 8px;">識別子</div><div style="padding:6px 8px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;">tabs.project.&lt;n&gt; · tabs.project.add · tabs.item.&lt;n&gt; · tabs.item.add · tabs.overflow</div>
+    </div>
+    <div style="font-size:12px;line-height:1.6;color:#5B5B60;">ショートカットは案。今の ⌘1〜9・⌃Tab の割り当てを確かめて決める（project-tabs.md §5）。下段のタブの種類は文字（「ターミナル 1」・ファイル名）で分かるので、種類のアイコンは付けない。</div>
+  </div>
+</section>
+
+</div>
+</x-dc>
+</body>
+</html>

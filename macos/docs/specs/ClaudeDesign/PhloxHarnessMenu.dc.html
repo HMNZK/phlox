@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="width:320px;box-sizing:border-box;background:var(--popover);border-radius:10px;box-shadow:var(--shadow);padding:5px;display:flex;flex-direction:column;color:var(--fg);">
+  <div style="height:28px;margin:1px 1px 5px;border-radius:6px;background:var(--field);box-shadow:inset 0 0 0 1px var(--fieldBorder);display:flex;align-items:center;gap:6px;padding:0 8px;font-size:12px;">
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="var(--fg3)" stroke-width="1.5" stroke-linecap="round"><path d="M3 7a4 4 0 108 0a4 4 0 10-8 0M10 10l3.5 3.5"></path></svg>
+    <sc-if value="{{ hasFilter }}" hint-placeholder-val="{{ false }}"><span style="color:var(--fg);">{{ filter }}</span><span style="width:1.5px;height:14px;background:var(--fg);"></span></sc-if>
+    <sc-if value="{{ noFilter }}" hint-placeholder-val="{{ true }}"><span style="width:1.5px;height:14px;background:var(--fg);"></span><span style="color:var(--fg3);">モデルを絞り込む</span></sc-if>
+  </div>
+  <div style="{{ listStyle }}">
+    <div style="{{ innerStyle }}">
+      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="8">
+        <sc-if value="{{ r.isGroup }}" hint-placeholder-val="{{ false }}">
+          <div style="height:24px;display:flex;align-items:center;gap:6px;padding:0 8px;">
+            <span style="flex:1;font-size:11px;font-weight:600;color:var(--fg2);">{{ r.label }}</span>
+            <sc-if value="{{ r.hasTag }}" hint-placeholder-val="{{ false }}"><span style="height:18px;padding:0 6px;border-radius:4px;background:var(--sel);font-size:11px;font-weight:500;color:var(--fg2);display:flex;align-items:center;">{{ r.tag }}</span></sc-if>
+            <sc-if value="{{ r.hasRetry }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--fg2);">内蔵の一覧</span><span style="height:20px;padding:0 6px;border-radius:4px;font-size:11px;font-weight:500;color:var(--accentInk);display:flex;align-items:center;" style-hover="background:var(--hover);">再試行</span></sc-if>
+          </div>
+        </sc-if>
+        <sc-if value="{{ r.isNote }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:0 8px 6px;font-size:11px;line-height:1.5;color:var(--fg2);">{{ r.label }}</div>
+        </sc-if>
+        <sc-if value="{{ r.isItem }}" hint-placeholder-val="{{ true }}">
+          <div style="{{ r.rowStyle }}">
+            <div style="width:14px;flex:none;display:flex;align-items:center;justify-content:center;">
+              <sc-if value="{{ r.checked }}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="var(--fg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3 3 7-7"></path></svg></sc-if>
+            </div>
+            <span style="{{ r.labelStyle }}">{{ r.label }}</span>
+            <sc-if value="{{ r.def }}" hint-placeholder-val="{{ false }}"><span style="height:18px;padding:0 6px;border-radius:4px;background:var(--sel);font-size:11px;color:var(--fg2);display:flex;align-items:center;flex:none;">既定</span></sc-if>
+          </div>
+        </sc-if>
+      </sc-for>
+    </div>
+    <sc-if value="{{ hasScroll }}" hint-placeholder-val="{{ false }}"><div style="{{ thumbStyle }}"></div></sc-if>
+  </div>
+  <div style="border-top:1px solid var(--sep);margin:4px 2px 0;padding:6px 6px 2px;font-size:11px;color:var(--fg2);">↑↓ 移動 · ↩ 決定 · 文字入力で絞り込み · Esc 閉じる</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:320,&quot;height&quot;:440},&quot;variant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;open&quot;,&quot;fallback&quot;,&quot;long&quot;,&quot;missing&quot;,&quot;filter&quot;],&quot;default&quot;:&quot;open&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const v = this.props.variant || 'open';
+    const G = (label, extra) => ({ group:true, label, ...(extra || {}) });
+    const M = (label, extra) => ({ label, ...(extra || {}) });
+    const claude = [G('Claude Code'), M('Default',{def:true}), M('Opus (1M context)'), M('Fable 5.1'), M('Sonnet 5'), M('Haiku 5.5')];
+    const codexItems = [M('gpt-6.1-sol',{def:true,checked:true,hl:true}), M('gpt-6-sol'), M('gpt-6-astra'), M('gpt-6-luna'), M('gpt-5.6-sol')];
+    const cursor = [G('Cursor',{tag:'28 モデル'}), M('Composer 2.5',{def:true}), M('Auto'), M('Claude Opus 5.5'), M('GPT-5.6 Sol'), M('ほか 24 件を表示…',{more:true})];
+    let rows, filter = '', scroll = null;
+    if (v === 'open') { rows = [...claude, G('Codex'), ...codexItems, ...cursor]; scroll = 0; }
+    if (v === 'fallback') { rows = [...claude, G('Codex',{retry:true}), ...codexItems, ...cursor]; scroll = 0; }
+    if (v === 'long') { rows = [...claude, G('Codex'), ...codexItems.map(x => ({...x, hl:false})), ...cursor.map(x => x.more ? {...x, hl:true} : x)]; scroll = 'end'; }
+    if (v === 'missing') { rows = [...claude, G('Codex'), ...codexItems, G('Cursor',{tag:'未検出',dim:true}), { note:'cursor-agent が見つかりません。インストールすると選べるようになります' }]; }
+    if (v === 'filter') { filter = 'opus'; rows = [G('Claude Code'), M('Opus (1M context)',{hl:true}), G('Cursor'), M('Claude Opus 5.5')]; }
+    const rowH = (r) => r.group ? 24 : r.note ? 40 : 28;
+    const total = rows.reduce((a, r) => a + rowH(r), 0);
+    const LH = 340;
+    const scrolls = scroll !== null && total > LH;
+    const offset = scrolls ? (scroll === 'end' ? total - LH : 0) : 0;
+    const out = rows.map(r => {
+      if (r.group) return { isGroup:true, label:r.label, tag:r.tag, hasTag:!!r.tag, hasRetry:!!r.retry };
+      if (r.note) return { isNote:true, label:r.note };
+      return {
+        isItem:true, label:r.label, def:!!r.def, checked:!!r.checked,
+        rowStyle:{ height:28, boxSizing:'border-box', display:'flex', alignItems:'center', gap:6, padding:'0 8px 0 6px', borderRadius:6, background: r.hl ? 'var(--selStrong)' : 'transparent' },
+        labelStyle:{ flex:1, minWidth:0, fontSize: r.more ? 12 : 13, color: r.more ? 'var(--fg2)' : 'var(--fg)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }
+      };
+    });
+    const thumbH = scrolls ? Math.max(40, Math.round(LH * LH / total)) : 0;
+    return {
+      rows: out, filter, hasFilter: !!filter, noFilter: !filter,
+      listStyle: { position:'relative', overflow:'hidden', height: scrolls ? LH : 'auto' },
+      innerStyle: { marginTop: -offset, display:'flex', flexDirection:'column', gap:0 },
+      hasScroll: scrolls,
+      thumbStyle: { position:'absolute', right:1, width:5, borderRadius:3, background:'var(--fg3)', opacity:0.55, height:thumbH, top: scroll === 'end' ? LH - thumbH : 0 }
+    };
+  }
+}
+</script>
+</body>
+</html>

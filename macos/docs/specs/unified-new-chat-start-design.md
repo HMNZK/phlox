@@ -117,11 +117,12 @@ func showNewChat(projectID: ProjectID?) {
 
 ```
 NewChatView(draft:, project:, …)
-├ 見出し（NSFullUserName の最初の語。空なら NSUserName）
+├ 見出し（要件 §5.2 の 10 種類。乱数は注入できる形にする。画面を出すたびに選び直し、入力中は替えない）
 ├ NewChatComposer
 │  ├ IMESafeTextView（既存。VM 非依存。SF/ChatComposer.swift:578-）
 │  ├ 添付の列（ComposerAttachmentStore を表示する既存の部品）
-│  └ 下段: ＋ / プロジェクト / 作業場所 / ハーネス・モデル / effort・権限・mode チップ / 送信
+│  ├ 送れない理由の 1 行（要件 E7）
+│  └ 下段: 左「＋ / ハーネス・モデル / effort・権限・mode」、右「プロジェクト / 作業場所 / 送信」（要件 E6）
 ├ 提案チップ 5 個（文言は要件 §5.5）
 └ 履歴から再開…（§6）
 ```
@@ -149,9 +150,16 @@ NewChatView(draft:, project:, …)
 
 ### 4.4 送信できる条件
 
-`本文が空でない || 添付がある` かつ `プロジェクトが選択済み` かつ `ハーネスが検出済み` かつ `画像の添付が無い || 選んだハーネス・モデルが画像を受け付ける`。最後の条件で送れないときは「{ハーネス} は画像を送れません」を出す。添付は消さない。
+`本文が空でない || 添付がある` かつ `プロジェクトが選択済み` かつ `ハーネスが検出済み` かつ `画像の添付が無い || 選んだハーネス・モデルが画像を受け付ける`。送れないときは要件 E7 の文言（原因と直し方）を 1 行で出す。添付は消さない。
 
 ## 5. 送信してからの流れ
+
+### 4.5 アクセシビリティと操作の状態（要件 NFR-4〜7）
+
+- チップは `ComposerSettingChip`（§4.2）にまとめ、`accessibilityLabel`（役割）と `accessibilityValue`（今の値）を付ける。入力欄は `accessibilityLabel("メッセージ")`。
+- ホバー・押下中・無効は既存の `HoverableSurfaceButtonStyle`（`DesignSystem/Interaction.swift:276`）を使う。フォーカス枠は `focusRing`（要件 §6.8 で不透明にする）。
+- 起動中・起動完了・起動失敗に変わったら `AccessibilityNotification.Announcement` を出す（既存の使い方は `ComposerSettingsControls.swift:1149`）。出すのは `launchNewChat` の呼び出し側の 1 か所。
+- 幅が足りないときは、今のセッション画面の下段と同じ判定（`ComposerSettingsOverflowMenu`）で effort・権限を「…」にまとめる。
 
 ### 5.1 `DashboardViewModel.launchNewChat(_:)`（新規）
 
@@ -202,7 +210,7 @@ func launchNewChat(_ r: NewChatLaunchRequest) async throws -> SessionID {
 
 `keepsRowOnLaunchFailure == true` のとき、`startAppServerSession` の catch（`SSS:886-891`）は `unregisterFailedSession`・`cleanupOwnedWorkspace` を呼ばず、`vm.markLaunchFailed(error, restoringDraft: text)` を呼んで正常に戻る。`markLaunchFailed` は復元失敗の先例（`makeRestoreErrorChatSession` `SSS:803`、`markRestoreFailed` `CVM:1065`）と同じく `status = .error` とエラー行を出し、`draft` に本文、`attachmentStore` に添付を戻し、`launchFailure` に原因を持つ。行には「再起動」と「閉じる」を出す。
 
-- **再起動**: 失敗した行を閉じ（`removeSession`）、同じ `NewChatLaunchRequest` から本文を除いたもので新しいセッションを起動し、本文と添付を新しい行の入力欄に入れる（自動では送らない）。同じ VM で `startNew` をやり直す形は採らない。VM の `client` は `let`（`CVM:225`）で、Codex は app-server のプロセスを client を作るとき（`AppEnvironment.swift:250-251`）に起動するため、プロセスが落ちた後は同じ client で起動し直せない（U10）。ハーネスで分けずに 1 つのやり方にする。
+- **再起動**（要件 D20）: 失敗した VM の今の `draft` と `attachmentStore`（ユーザーが直した後のもの）を取り出してから行を閉じ（`removeSession`）、同じ `NewChatLaunchRequest` から本文・添付を除いたもので新しいセッションを起動し、取り出した本文と添付を新しい行の入力欄に入れる。**送信はしない**。同じ VM で `startNew` をやり直す形は採らない。VM の `client` は `let`（`CVM:225`）で、Codex は app-server のプロセスを client を作るとき（`AppEnvironment.swift:250-251`）に起動するため、プロセスが落ちた後は同じ client で起動し直せない（U10）。ハーネスで分けずに 1 つのやり方にする。
 - **閉じる**: 今の `removeSession`（`DVM:1618`）。永続化前の行でも使える。worktree は今の後始末で片付く。
 - 失敗した行は永続化しない（今も起動成功後にだけ永続化。`DVM:1441`）。アプリを終了すると消え、作った worktree は残る（今と同じ既知の穴）。
 
@@ -219,7 +227,7 @@ GUI 以外（Control API・子セッション）は `keepsRowOnLaunchFailure == 
 
 - 一覧の読み込み: `ClaudeSessionHistoryDiscovery` / `CodexSessionHistoryDiscovery` は VM に依存しない値型（U3 は解消）。`AppEnvironment` の provider 生成（`AppEnvironment.swift:191-231`、作業フォルダ 1 つが前提）に、作業フォルダの配列を取る版を足し、結果をまとめて更新日時の新しい順に並べる（最大 20 件）。
 - 対象の作業フォルダ: `[project.directoryPath] + (project.worktreePaths ?? [])`（D10）。`worktreePaths` には、worktree を作るたびに（`SSS:598` の `finishSessionLaunch` で登録するとき）その場所を足して `persistProjects()` する。worktree を消しても残す。Claude は `~/.claude/projects/`、Codex は state の SQLite か rollout に会話が残るので、worktree が消えていても一覧に出せる。
-- 表示条件: 選択中のハーネスが Claude か Codex で、一覧が空でないとき。一覧の UI は `ChatHistoryStartView` の一覧部分を切り出して使う。
+- 表示条件: 選択中のハーネスが Claude か Codex で、一覧が空でないとき。一覧を開いた後は「読み込み中」「履歴がありません」「履歴を読み込めませんでした」＋「再試行」を区別する（要件 FR-13b）。一覧の UI は `ChatHistoryStartView` の一覧部分を切り出して使う。
 - 再開: `NewChatLaunchRequest.resumeHistoryID` を付けて `launchNewChat`。起動後に今の `startFromHistory`（`CVM:~675`）相当を呼ぶ。
   - Codex: 今の履歴再開は `ThreadResumeParams(threadId:)` だけを送る（`CodexAppServerClient.swift:539-540`）。`ThreadResumeParams` は `cwd`・`model` を持つ（`AppServerRequests.swift:63-75`）ので、`StructuredAgentClient.resume(sessionRef:)`（`StructuredChatTypes.swift:222`）に作業フォルダと設定を渡す引数を足す。`cwd` を渡すと、その場所で会話の続きが動く（U7 で確認済み。元のフォルダが消えていても動く）。
   - Claude: 今の `--resume` のままでよい。別のフォルダから再開しても会話の中身は引き継がれ、再開したフォルダで動く（U9 で確認済み。元のフォルダが消えていても動く）。続きの記録は元のフォルダ用の場所（`~/.claude/projects/<元のフォルダ>/`）に書かれ続けるので、一覧は §6 の作業フォルダの集合で引けば出る。
@@ -260,11 +268,16 @@ worktree のチャットを別プロジェクトへ動かせない制限（`canM
 
 ターミナルのセッションを `changeWorkspace`・`moveSession` で別フォルダへ移すと、作業フォルダが worktree でなくなり、復元で worktree が使われず残る（`DVM:1611`）。今もある穴で、本件では直さない。
 
-## 8. ターミナルのセッション
+## 8. ターミナルのセッション（要件 D1・FR-19・FR-20）
 
-- `AppRouter` に依頼 `terminalLaunchRequest: (AgentRef, ProjectID)?` を足す（`tabRequest`・`sidebarRequest` と同じ流儀）。`DashboardView` が `.onChange` で受けて `spawnNewSession(ref:projectID:backend: .pty)` を呼び、成功したら選択、失敗は今の `spawnError` ダイアログで出す。ダイアログはウィンドウごとの `DashboardView` にあるので、メニューからは依頼だけを出す。
-- メニュー「ファイル ▸ 新規ターミナルセッション ▸」（`App/PhloxApp.swift` の `FileCommands`）: `dashboard.availableAgentDescriptors`（`DVM:472`、public。カスタムを含む検出済み）で項目を作る。対象は `router.selectedProjectID ?? (projects.count == 1 ? projects[0].id : nil)`。nil なら押せない（E2）。今の `defaultProjectIDForNewSession()`（`DashboardView.swift:1094-1104`。先頭のプロジェクトへ進む）は使わない。
-- プロジェクト行の右クリック・「⋯」（`DashboardSidebarView.swift:510-526`）にも同じサブメニュー。対象はそのプロジェクト。
+- 画面からターミナルのセッションを始める経路は作らない。`DashboardView.createSession` の `.pty` 分岐と、その呼び出し元（新規セッションの表・起動カード）は §9 で消す。
+- `spawnNewSession(backend: .pty)` は Control API・CLI・復元が使うので残す。
+
+## 8.1 カスタムエージェントの廃止（要件 D22・§8.6）
+
+- `AgentRef` は `.builtin` だけにする。`init(from:)` は `AgentKind(rawValue:)` に失敗したら投げる。保存済みのカスタムのセッションは `JSONSessionStore` の `DiscardableSession`（`MessageStore/.../JSONSessionStore.swift:44-71`）が個別に捨てる。捨てた件数を `DashboardViewModel` に渡し、1 以上なら起動後に 1 回トーストを出す。
+- 未知の ref 用に同じ形の仮 descriptor を作っている 5 か所（`SessionSpawnService.swift:823-835`、`SessionTreeSidebarSection.swift:7-18`、`ControllableSession.swift:154-165`、`ChatSessionView.swift:171-182`、`ChatTranscriptView.swift:380-391`）は、ref が常に組込になるので消す。
+- 偽エージェントの E2E・UI テストは、組込ハーネス（例 Claude Code）の実行ファイルの場所を `fake-agent.sh` に差し替えて動かす（実行ファイルの場所は `AppEnvironment` の `AgentBinaryTable` が持つ）。
 
 ## 9. 消すもの
 
@@ -278,24 +291,42 @@ worktree のチャットを別プロジェクトへ動かせない制限（`canM
 | 使われていない起動関数 | `spawnNewClaudeCodeSession`（`DVM:1522`） |
 | `DashboardView` の状態 | `isCreating`・`creatingRef`・`spawnGuard` の衝突ケース（`createSession` は新規チャットの送信処理と §8 の依頼処理に分かれる） |
 | 文言 | 確認ダイアログの 4 キー・未使用の 1 キー（要件 §8.1）、表・起動カード・既定の開き方の文言 |
+| ハーネスの色（要件 FR-30） | `AppTheme.agentColors`・`DSColor.agentColor(for:)`・`agentInitialFill`・`AgentDescriptor.colorRGB` と、それを渡している所（要件 §8.5）。`AgentBrandIcon.fallbackIcon` はカスタムの廃止で不要になるので消す |
+| 略号・図形（要件 §6.7・§8.5） | `StateGlyph`（状態は行の右端の文字に置き換え）、`tabInitials`（`Tokens.swift:385-396`）とその表示箇所、モデルのチップの色の四角、未読の丸（題名の文字色・太さに置き換え）、使用量画面の代替の印（`AgentBrandIcon` を各社の SVG ロゴに置き換え）。場所の一覧は要件 §8.5 |
+
+## 9.1 配色（要件 §6.8）
+
+- `DesignPalette.phloxLight`・`phloxDark` の `accent`・`accentFill`・`accentInk` を要件 §6.8 の値に替え、`accentFillColor`（`DesignPalette.swift:48`）を #3B469B にする。
+- UI のアクセント（`DSColor.accent`・`accentInk`。`Tokens.swift:223,294`）は `theme.palette` から取る。外部テーマの palette は背景の明るさで `phloxLight` か `phloxDark` を基準に選ぶ（`DesignPalette.swift:84,102-103`）ので、**明るいテーマは #3B469B、暗いテーマは #959CD0 が自動で入る**。暗い外部テーマに #3B469B（背景との比 2 前後）が入ることはない。
+- `AppTheme.claudeCoral`（`AppTheme.swift:95`）を消す。今これを読むのは、テーマ見本の印（`ThemePreviewModel.swift:44` の `theme.accent`）と、既定 2 テーマの `attention`（:250。読むのは本番で使われていない `idleHighlight` 系だけ）。`AppTheme.accent` は `palette.accent` にし、既定 2 テーマの `attention` は `palette.approval.mark` にする（画面への影響は無い）。
+- `selectionFill`・`textSelection`（`Tokens.swift:296,301`）の直書き #D97757 を `accent` から取る形にする。`focusRing`（:298）は不透明度を外す。
+- アクセントの使用箇所は実装時に役割（主要な操作・選択・フォーカス・リンク）で分け、どれにも当たらないものは中立の色に替える（要件 FR-29）。
+- 検査は `DesignPaletteTests` に足す（要件 AC-16）。
 
 ## 10. 文言（`App/Localizable.xcstrings` に日本語キー＋英訳を手で足す）
 
-見出し「%@さん、さあ始めましょう！」/ "Welcome back, %@"、「やりたいことを入力（/ でコマンド）」、「既存ディレクトリ」、「新しい worktree」、「git リポジトリではないため worktree を作れません」、「新規チャット」、「新規ターミナルセッション」、「履歴から再開…」、「%@ は画像を送れません」、「起動できませんでした」、「再起動」、提案チップ 5 個と定型文 5 つ。メニュー（`.commands`）はアプリ内の言語切替がその場で効かない既知の制約がある（`docs/specs/localization.md`）。
+見出し 10 種類（要件 §5.2 の表。名前は出さず、画面を出すたびにランダムに 1 つ）、「やりたいことを入力（/ でコマンド）」、「既存ディレクトリ」、「新しい worktree」、「git リポジトリではないため worktree を作れません」、「新規チャット」、「履歴から再開…」、要件 E7 の 3 つ（原因と直し方）、「メッセージ」（入力欄の読み上げ）、起動の 3 状態の読み上げ、「送信待ち」、「起動しています…」、「履歴を読み込めませんでした」「再試行」、状態の文字 6 つ（要件 FR-24）、「起動できませんでした」、「再起動」、提案チップ 5 個と定型文 5 つ。メニュー（`.commands`）はアプリ内の言語切替がその場で効かない既知の制約がある（`docs/specs/localization.md`）。
 
 ## 11. 実装の順番
 
-| 段 | 内容 | 閉じる受け入れ基準 |
-|---|---|---|
-| 0 | 済み: ADR 0183・§7.3 の凍結テストの書き換えの承認・§12 の確認 | — |
-| 1 | worktree の判断の作り直し（§7）と、それに伴うテストの置き換え | AC-3・AC-5b・AC-6 |
-| 2 | 起動の配管: `initialSettings`、`ChatLaunchError`、`keepsRowOnLaunchFailure`・`markLaunchFailed`・再起動（新しいセッションで起動し直す）、`StructuredAgentClient.start()` を投げる形に、`sendFirstMessage`・`SendRejected`・初回ターンの失敗で本文を戻す規則、`LastUsedChatSettings` の拡張、Codex のモデル候補の拡張 | AC-2・AC-5・AC-5a・AC-7 |
-| 3 | `NewChatDraftStore`・`NewChatView`・入力欄の部品の切り出し・提案チップ | AC-2a・AC-5d〜5g・AC-8・AC-9a |
-| 4 | 入口・`showNewChat`・メニュー・ターミナルのサブメニュー・§9 の削除・設定画面 | AC-1・AC-4・AC-9 |
-| 5 | 履歴から再開（§6） | AC-5c |
-| 6 | 画面外の描画（`DesignSnapshotRenderTests`）での見比べ、XCUITest 1 本、資料（要件 §10） | AC-10・AC-11 |
+プロジェクトのタブ（[project-tabs-design.md](project-tabs-design.md)）と同時に作る（project-tabs.md P9）。新規チャット画面は下段の「新規チャット」タブに入るので、タブの土台を先に作る。
 
-各段の終わりに `.claude/verify.sh`（メインの checkout にある）を通す。コードレビューは全段が終わってから 1 回まとめて行う（`AGENTS.md`「開発の進め方」）。
+| 段 | 内容 | 閉じる受け入れ基準 | 担当 |
+|---|---|---|---|
+| 0 | 済み: ADR 0183〜0187・§7.3 の凍結テストの書き換えの承認・§12 の確認・モック確定 | — | — |
+| 1 | worktree の判断の作り直し（§7）と、それに伴うテストの置き換え | AC-3・AC-5b・AC-6 | 難 |
+| 2 | 起動の配管: `initialSettings`、`ChatLaunchError`、`keepsRowOnLaunchFailure`・`markLaunchFailed`・再起動（新しいセッションで起動し直す）、`StructuredAgentClient.start()` を投げる形に、`sendFirstMessage`・`SendRejected`・初回ターンの失敗で本文を戻す規則、`LastUsedChatSettings` の拡張、Codex のモデル候補の拡張 | AC-2・AC-5・AC-5a・AC-7・AC-15 | 難 |
+| 3a | タブのモデルと保存・移行（project-tabs-design §2〜4・§7）、子タブの持ち主の鍵の付け替え（§5） | PAC-1〜3・PAC-5 | 難 |
+| 3b | タブの画面（§8）・共通ターミナルの廃止（§6）・ヘッダー（`.unifiedCompact`・プロジェクト名と worktree のボタンの撤去）・キーボード（§9）・グリッドのタイルから子タブを外す・worktree のセッションの変更の欄 | PAC-4・PAC-6・PAC-8・PAC-9 | 通常 |
+| 4 | `NewChatDraftStore`・`NewChatView`（下段の「新規チャット」タブ）・入力欄の部品の切り出し・提案チップ | AC-2a・AC-5d〜5g・AC-8・AC-9a | 通常 |
+| 5 | 入口・`showNewChat`・メニュー・§9 の削除・設定画面、カスタムエージェントの廃止（§8.1） | AC-1・AC-4・AC-9 | 通常 |
+| 6 | 履歴から再開（§6） | AC-5c・AC-18 | 通常 |
+| 7 | 略号・図形・ハーネスの色の廃止と状態の文字化・未読の文字色・SVG ロゴ（§9）、配色（§9.1）、使用量のバーと対応待ちの撤去（要件 §6.9） | AC-12〜AC-14・AC-16・AC-20〜AC-22 | 通常 |
+| 8 | 画面外の描画（`DesignSnapshotRenderTests`）でモック（`ClaudeDesign/10`〜`12`）と見比べ、XCUITest、資料（要件 §10） | AC-10・AC-11・AC-17・AC-19・PAC-7 | 通常 |
+
+担当（ユーザー指示 2026-10-12）: 難 = Codex `gpt-6.1-sol`・effort medium、通常 = Codex `gpt-6-luna`・effort max、テストと検証の実行 = `checker` サブエージェント、独立レビュー = Codex `gpt-6.1-sol`・effort high（読み取り専用）。指揮・資料・統合はメインのセッション。
+
+各段の終わりに `.claude/verify.sh`（メインの checkout にある）を checker で通し、その段の受け入れ基準が green になってから次の段に進む。コードレビューは全段が終わってから 1 回まとめて行う（`AGENTS.md`「開発の進め方」）。
 
 ## 12. 確認した結果（2026-10-11）
 

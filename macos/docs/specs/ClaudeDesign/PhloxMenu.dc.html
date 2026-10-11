@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="{{ boxStyle }}">
+  <sc-if value="{{ hasHeader }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:4px 8px 4px;font-size:11px;font-weight:600;color:var(--fg2);">{{ header }}</div>
+  </sc-if>
+  <sc-for list="{{ rows }}" as="it" hint-placeholder-count="4">
+    <sc-if value="{{ it.isSep }}" hint-placeholder-val="{{ false }}">
+      <div style="height:1px;background:var(--sep);margin:4px 6px;"></div>
+    </sc-if>
+    <sc-if value="{{ it.isItem }}" hint-placeholder-val="{{ true }}">
+      <div style="{{ it.rowStyle }}">
+        <div style="width:14px;height:20px;flex:none;display:flex;align-items:center;justify-content:center;">
+          <sc-if value="{{ it.checked }}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="var(--fg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3 3 7-7"></path></svg></sc-if>
+        </div>
+        <sc-if value="{{ it.hasIcon }}" hint-placeholder-val="{{ false }}">
+          <div style="width:16px;height:20px;flex:none;display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="{{ it.iconColor }}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="{{ it.icon }}"></path></svg></div>
+        </sc-if>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+          <div style="display:flex;align-items:baseline;gap:10px;min-height:20px;align-items:center;">
+            <span style="{{ it.labelStyle }}">{{ it.label }}</span>
+            <sc-if value="{{ it.inlineDesc }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ it.desc }}</span></sc-if>
+          </div>
+          <sc-if value="{{ it.blockDesc }}" hint-placeholder-val="{{ false }}"><div style="{{ it.descStyle }}">{{ it.desc }}</div></sc-if>
+          <sc-if value="{{ it.hasReason }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;line-height:1.5;color:var(--fg2);margin-top:2px;text-wrap:pretty;">{{ it.reason }}</div></sc-if>
+        </div>
+        <sc-if value="{{ it.hasTag }}" hint-placeholder-val="{{ false }}"><span style="flex:none;height:18px;padding:0 6px;border-radius:4px;background:var(--sel);font-size:11px;color:var(--fg2);display:flex;align-items:center;align-self:center;">{{ it.tag }}</span></sc-if>
+        <sc-if value="{{ it.hasRight }}" hint-placeholder-val="{{ false }}"><span style="flex:none;font-size:11px;color:var(--fg2);align-self:center;">{{ it.right }}</span></sc-if>
+      </div>
+    </sc-if>
+  </sc-for>
+  <sc-if value="{{ hasFooter }}" hint-placeholder-val="{{ false }}">
+    <div style="border-top:1px solid var(--sep);margin:4px 2px 0;padding:6px 6px 2px;font-size:11px;line-height:1.5;color:var(--fg2);">{{ footer }}</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:320,&quot;height&quot;:240},&quot;items&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;Array&lt;object&gt;&quot;},&quot;width&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:240,&quot;tsType&quot;:&quot;number&quot;},&quot;header&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;footer&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const mono = "ui-monospace,'SF Mono',Menlo,monospace";
+    const rows = (p.items || []).map(it => {
+      if (it.sep) return { isSep: true, isItem: false };
+      const two = !!it.desc && !it.inline;
+      return {
+        isSep: false, isItem: true,
+        label: it.label, desc: it.desc, reason: it.reason, tag: it.tag, right: it.right, icon: it.icon,
+        checked: !!it.checked, hasIcon: !!it.icon, hasReason: !!it.reason, hasTag: !!it.tag, hasRight: !!it.right,
+        inlineDesc: !!it.desc && !!it.inline, blockDesc: two,
+        iconColor: it.disabled ? 'var(--fg3)' : 'var(--fg2)',
+        rowStyle: { display:'flex', alignItems:'flex-start', gap:6, padding: two || it.reason ? '5px 8px 6px 6px' : '3px 8px 3px 6px', borderRadius:6, background: it.hl ? 'var(--selStrong)' : 'transparent' },
+        labelStyle: { fontSize: it.mono ? 12 : 13, fontFamily: it.mono ? mono : 'inherit', color: it.disabled ? 'var(--fg3)' : 'var(--fg)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex: it.inline ? 'none' : '0 1 auto', minWidth: it.inline ? 128 : 0 },
+        descStyle: { fontSize:11, lineHeight:1.45, color: it.disabled ? 'var(--fg3)' : 'var(--fg2)', fontFamily: it.path ? mono : 'inherit', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }
+      };
+    });
+    return {
+      boxStyle: { width: p.width ? Number(p.width) : 240, boxSizing:'border-box', background:'var(--popover)', borderRadius:10, boxShadow:'var(--shadow)', padding:5, display:'flex', flexDirection:'column', gap:1, fontFamily:'inherit', color:'var(--fg)' },
+      rows, header: p.header, footer: p.footer, hasHeader: !!p.header, hasFooter: !!p.footer
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="{{ rootStyle }}">
+  <div style="height:38px;flex:none;display:flex;align-items:center;background:var(--bar);border-bottom:1px solid var(--sep);">
+    <div style="width:260px;flex:none;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:0 12px 0 14px;">
+      <span style="width:12px;height:12px;border-radius:6px;background:#FF5F57;"></span>
+      <span style="width:12px;height:12px;border-radius:6px;background:#FEBC2E;"></span>
+      <span style="width:12px;height:12px;border-radius:6px;background:#28C840;"></span>
+    </div>
+    <div style="flex:1;"></div>
+    <div style="display:flex;align-items:center;gap:8px;padding:0 10px;">
+      <div style="height:24px;padding:2px;box-sizing:border-box;border-radius:6px;background:var(--segBg);display:flex;gap:2px;">
+        <div title="単体" style="width:30px;border-radius:4px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);display:flex;align-items:center;justify-content:center;color:var(--fg);"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 3.5h10v9H3z"></path></svg></div>
+        <div title="グリッド" style="width:30px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 3.5h4v4H3zM9 3.5h4v4H9zM3 9.5h4v3H3zM9 9.5h4v3H9z"></path></svg></div>
+      </div>
+      <div title="インスペクタ" style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.5 3.5h11v9h-11zM9.5 3.5v9"></path></svg></div>
+    </div>
+  </div>
+
+  <div style="flex:1;min-height:0;display:flex;">
+    <div style="width:260px;flex:none;box-sizing:border-box;background:var(--side);border-right:1px solid var(--sep);display:flex;flex-direction:column;">
+      <div style="flex:1;min-height:0;padding:10px 8px;display:flex;flex-direction:column;gap:2px;">
+        <div style="height:24px;display:flex;align-items:center;justify-content:space-between;padding:0 8px;font-size:11px;font-weight:600;color:var(--fg2);">プロジェクト<span title="プロジェクトを追加 ⌘O" style="display:flex;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"></path></svg></span></div>
+        <div style="height:28px;border-radius:6px;display:flex;align-items:center;gap:6px;padding:0 8px;">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="var(--fg2)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg>
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--fg2)" stroke-width="1.3" stroke-linejoin="round"><path d="M2 4.5A1 1 0 013 3.5h3l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1z"></path></svg>
+          <span style="flex:1;font-size:13px;font-weight:500;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">Phlox-oss</span>
+        </div>
+        <sc-if value="{{ hasNewRow }}" hint-placeholder-val="{{ true }}">
+          <div style="height:28px;border-radius:6px;background:var(--selStrong);display:flex;align-items:center;gap:8px;padding:0 8px 0 32px;">
+            <span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">README の英語版を、今の仕様に合わせて更新</span>
+            <span style="{{ rowRightStyle }}">{{ rowRight }}</span>
+          </div>
+        </sc-if>
+        <div style="height:28px;border-radius:6px;display:flex;align-items:center;gap:8px;padding:0 8px 0 32px;">
+          <span style="flex:1;min-width:0;font-size:13px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">PaneTree 正規化の修正</span>
+          <span style="font-size:11px;color:var(--fg2);flex:none;">実行中</span>
+        </div>
+        <div style="height:28px;border-radius:6px;display:flex;align-items:center;gap:8px;padding:0 8px 0 32px;">
+          <span style="flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">承認ダイアログの文言を統一</span>
+          <span style="font-size:11px;font-weight:600;color:var(--apvInk);flex:none;">承認待ち</span>
+        </div>
+        <div style="height:28px;border-radius:6px;display:flex;align-items:center;gap:8px;padding:0 8px 0 32px;">
+          <span style="flex:1;min-width:0;font-size:13px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">README 英語版の見直し</span>
+          <span style="font-size:11px;color:var(--fg2);flex:none;">2時間</span>
+        </div>
+        <div style="height:28px;border-radius:6px;display:flex;align-items:center;gap:6px;padding:0 8px;">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.75 3.5L7.25 6l-2.5 2.5"></path></svg>
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--fg2)" stroke-width="1.3" stroke-linejoin="round"><path d="M2 4.5A1 1 0 013 3.5h3l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1z"></path></svg>
+          <span style="flex:1;font-size:13px;font-weight:500;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">ios-companion</span>
+          <span style="font-size:11px;font-weight:600;color:var(--apvInk);flex:none;">承認待ち 1</span>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--sep);padding:8px;">
+        <div style="height:28px;border-radius:6px;display:flex;align-items:center;gap:6px;padding:0 8px;font-size:13px;color:var(--fg2);">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg>
+          <span style="flex:1;">新規チャット</span><span style="font-size:11px;color:var(--fg2);">⌘N</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg);">
+      <div style="height:34px;flex:none;display:flex;align-items:flex-end;background:var(--bar);border-bottom:1px solid var(--sep);padding:0 6px;">
+        <sc-for list="{{ projectTabs }}" as="pt" hint-placeholder-count="2">
+          <div title="{{ pt.label }}" style="{{ pt.style }}">
+            <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ pt.label }}</span>
+            <sc-if value="{{ pt.close }}" hint-placeholder-val="{{ false }}"><span title="プロジェクトを削除…" style="width:16px;height:16px;flex:none;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"></path></svg></span></sc-if>
+          </div>
+        </sc-for>
+        <div title="プロジェクトを追加" style="width:26px;height:26px;margin:0 0 4px 4px;flex:none;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg></div>
+      </div>
+      <div style="height:36px;flex:none;display:flex;align-items:center;gap:2px;padding:0 8px;border-bottom:1px solid var(--sep);">
+        <sc-for list="{{ subTabs }}" as="st" hint-placeholder-count="4">
+          <div title="{{ st.label }}" style="{{ st.style }}">
+            <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ st.label }}</span>
+            <sc-if value="{{ st.close }}" hint-placeholder-val="{{ false }}"><span title="{{ st.xTip }}" style="width:16px;height:16px;flex:none;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"></path></svg></span></sc-if>
+          </div>
+        </sc-for>
+        <sc-if value="{{ subOverflow }}" hint-placeholder-val="{{ false }}">
+          <div style="height:26px;padding:0 6px;border-radius:6px;display:flex;align-items:center;gap:3px;font-size:12px;color:var(--fg2);flex:none;">{{ subOverflowLabel }}<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg></div>
+        </sc-if>
+        <div title="タブを追加" style="width:26px;height:26px;flex:none;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg></div>
+      </div>
+
+      <div style="flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;padding:24px 24px 0;">
+        <div style="flex:1;min-height:0;width:100%;max-width:760px;display:flex;flex-direction:column;gap:16px;">
+          <sc-if value="{{ showUserMsg }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+              <div style="max-width:560px;padding:10px 12px;border-radius:10px;background:var(--sel);font-size:13px;line-height:1.55;color:var(--fg);">README の英語版を、今の仕様に合わせて更新してください。</div>
+              <sc-if value="{{ pending }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:11px;color:var(--fg2);">送信待ち · 起動が終わると送ります</div>
+              </sc-if>
+            </div>
+          </sc-if>
+          <sc-if value="{{ running }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:13px;line-height:1.6;color:var(--fg);max-width:640px;">README.md と docs/en/README.md の差分を確認しています。</div>
+          </sc-if>
+          <sc-if value="{{ startFailed }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:14px 16px;border-radius:8px;background:var(--errTint);box-shadow:inset 0 0 0 1px var(--errLine);display:flex;flex-direction:column;gap:6px;">
+              <div style="font-size:13px;font-weight:600;color:var(--errInk);">起動できませんでした</div>
+              <div style="font-size:12px;line-height:1.6;color:var(--fg);">claude のプロセスを起動できませんでした。最初のメッセージは送っていません。本文は入力欄に戻しました。</div>
+              <div style="display:flex;gap:8px;margin-top:4px;">
+                <div style="height:26px;padding:0 12px;border-radius:6px;background:var(--accentFill);color:#fff;font-size:12px;font-weight:500;display:flex;align-items:center;">再起動</div>
+                <div style="height:26px;padding:0 12px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);color:var(--fg);font-size:12px;display:flex;align-items:center;">閉じる</div>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ restarting }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:12px;line-height:1.6;color:var(--fg2);">新しいセッションとして起動しています。前のセッションは閉じました。</div>
+          </sc-if>
+        </div>
+
+        <div style="width:100%;max-width:760px;display:flex;flex-direction:column;gap:8px;padding-bottom:20px;">
+          <sc-if value="{{ sendFailed }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:10px 12px;border-radius:8px;background:var(--errTint);box-shadow:inset 0 0 0 1px var(--errLine);display:flex;align-items:center;gap:12px;">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+                <div style="font-size:12px;font-weight:600;color:var(--errInk);">送信できませんでした</div>
+                <div style="font-size:12px;line-height:1.5;color:var(--fg);">画像が大きすぎるため受け付けられませんでした。本文と添付を入力欄に戻しました。</div>
+              </div>
+              <div style="height:26px;padding:0 12px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);color:var(--fg);font-size:12px;display:flex;align-items:center;flex:none;">再送</div>
+            </div>
+          </sc-if>
+          <div style="{{ composerStyle }}">
+            <sc-if value="{{ hasAttach }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;gap:8px;margin-bottom:10px;">
+                <div style="position:relative;width:52px;height:52px;border-radius:6px;background:repeating-linear-gradient(135deg,var(--sel) 0 4px,transparent 4px 8px);box-shadow:inset 0 0 0 1px var(--fieldBorder);display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px;box-sizing:border-box;">
+                  <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:8.5px;color:var(--fg3);">screenshot</span>
+                </div>
+              </div>
+            </sc-if>
+            <div style="min-height:40px;font-size:13px;line-height:20px;">
+              <sc-if value="{{ hasText }}" hint-placeholder-val="{{ false }}">
+                <div style="color:var(--fg);">README の英語版を、今の仕様に合わせて更新してください。</div>
+              </sc-if>
+              <sc-if value="{{ noText }}" hint-placeholder-val="{{ true }}">
+                <div style="color:var(--fg3);">{{ placeholder }}</div>
+              </sc-if>
+            </div>
+            <sc-if value="{{ hasNote }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top:8px;font-size:12px;line-height:1.5;color:var(--fg);">{{ note }}</div>
+            </sc-if>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+              <div style="{{ leftChipsStyle }}">
+                <div style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg></div>
+                <div title="Claude Code: Fable 5.1" style="height:28px;padding:0 7px;display:flex;align-items:center;gap:5px;white-space:nowrap;"><span style="{{ modelColor }}"><dc-import name="HarnessLogo" harness="claude" size="14" hint-size="14px,14px"></dc-import></span><span style="{{ modelColor }}">Fable 5.1</span><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg></div>
+                <div style="height:28px;padding:0 7px;display:flex;align-items:center;gap:5px;white-space:nowrap;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--fg3)" stroke-width="1.4" stroke-linecap="round"><path d="M2.5 11a5.5 5.5 0 0111 0M8 11l2.6-3.2"></path></svg>高<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg></div>
+                <div style="height:28px;padding:0 7px;display:flex;align-items:center;gap:5px;white-space:nowrap;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--fg3)" stroke-width="1.3" stroke-linejoin="round"><path d="M8 2l5 2v4c0 3-2.2 5.2-5 6-2.8-.8-5-3-5-6V4z"></path></svg>acceptEdits<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg></div>
+              </div>
+              <div style="flex:none;display:flex;align-items:center;gap:8px;">
+                <div style="height:28px;padding:0 7px;display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg2);">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--fg3)" stroke-width="1.3" stroke-linecap="round"><path d="M3.5 3.5a1.5 1.5 0 103 0a1.5 1.5 0 10-3 0M3.5 12.5a1.5 1.5 0 103 0a1.5 1.5 0 10-3 0M9.5 5.5a1.5 1.5 0 103 0a1.5 1.5 0 10-3 0M5 5v6M11 7c0 2.5-6 2-6 4"></path></svg>dev<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg>
+                </div>
+                <div style="{{ sendStyle }}">
+                  <sc-if value="{{ stopBtn }}" hint-placeholder-val="{{ false }}"><span style="width:9px;height:9px;border-radius:2px;background:#fff;"></span></sc-if>
+                  <sc-if value="{{ arrowBtn }}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5v-9M4.5 7L8 3.5 11.5 7"></path></svg></sc-if>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <dc-import name="PhloxUsageBar" variant="normal" theme="{{ themeName }}" width="{{ barWidth }}" hint-size="100%,24px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;scenario&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;starting&quot;,&quot;started&quot;,&quot;startFailed&quot;,&quot;restarting&quot;,&quot;sendFailed&quot;],&quot;default&quot;:&quot;starting&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;width&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:1440,&quot;tsType&quot;:&quot;number&quot;},&quot;height&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:900,&quot;tsType&quot;:&quot;number&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const V = {
+      light:{'--bg':'#FFFFFF','--side':'#F2F2F4','--bar':'#F6F6F7','--field':'#FFFFFF','--sep':'rgba(0,0,0,0.10)','--fg':'#1D1D1F','--fg2':'#5B5B60','--fg3':'#75757B','--sel':'rgba(0,0,0,0.075)','--selStrong':'rgba(59,70,155,0.14)','--accent':'#3B469B','--accentFill':'#3B469B','--ctl':'#FFFFFF','--ctlBorder':'rgba(0,0,0,0.16)','--segBg':'rgba(0,0,0,0.065)','--fieldBorder':'rgba(0,0,0,0.14)','--off':'rgba(0,0,0,0.08)','--apvInk':'#8A5300','--errInk':'#B4232A','--errTint':'rgba(224,72,78,0.08)','--errLine':'rgba(224,72,78,0.35)'},
+      dark:{'--bg':'#1E1E20','--side':'#262629','--bar':'#2A2A2D','--field':'#1A1A1C','--sep':'rgba(255,255,255,0.10)','--fg':'#F2F2F4','--fg2':'#ABABB1','--fg3':'#8E8E94','--sel':'rgba(255,255,255,0.09)','--selStrong':'rgba(149,156,208,0.22)','--accent':'#959CD0','--accentFill':'#3B469B','--ctl':'#3A3A3E','--ctlBorder':'rgba(255,255,255,0.10)','--segBg':'rgba(255,255,255,0.08)','--fieldBorder':'rgba(255,255,255,0.14)','--off':'rgba(255,255,255,0.08)','--apvInk':'#F4BD68','--errInk':'#FF8A8D','--errTint':'rgba(238,90,95,0.12)','--errLine':'rgba(238,90,95,0.40)'}
+    };
+    const theme = p.theme === 'light' ? 'light' : 'dark';
+    const s = p.scenario || 'starting';
+    const C = {
+      starting:{ right:['起動中','fg2'], pending:true, user:true, composer:'starting' },
+      started:{ right:['実行中','fg2'], user:true, running:true, composer:'running' },
+      startFailed:{ right:['エラー','err'], startFailed:true, composer:'restored', note:'本文を戻しました。再起動すると送れます' },
+      restarting:{ right:['起動中','fg2'], restarting:true, composer:'restartText', note:'起動しています。終わったら送れます（自動では送りません）' },
+      sendFailed:{ right:['1分','fg2'], sendFailed:true, composer:'restoredAttach' }
+    }[s];
+
+    const tabsCalc = (projects, selProj, chats, selKey, centerW) => {
+      const ptBase = { height:30, boxSizing:'border-box', padding:'0 8px 0 12px', display:'flex', alignItems:'center', gap:6, fontSize:12, borderRadius:'7px 7px 0 0', flex:'0 1 180px', minWidth:0, marginBottom:-1 };
+      const projectTabs = projects.map((label, i) => { const sel = i === selProj; return { label, close: sel, style: { ...ptBase, background: sel ? 'var(--bg)' : 'transparent', color: sel ? 'var(--fg)' : 'var(--fg2)', fontWeight: sel ? 600 : 400, boxShadow: sel ? 'inset 1px 0 0 var(--sep), inset -1px 0 0 var(--sep), inset 0 1px 0 var(--sep)' : 'none' } }; });
+      let subs = chats.map(c => ({ label:c, kind:'chat' }));
+      if (chats.length) subs = subs.concat([{ label:'ターミナル 1', kind:'term' }, { label:'DashboardView.swift', kind:'file' }]);
+      if (selKey === 'new') subs.push({ label:'新規チャット', kind:'new' });
+      const selIdx = selKey === 'new' ? subs.length - 1 : selKey;
+      const cap = centerW < 700 ? 2 : subs.length;
+      let shown = subs.map((t, i) => ({ ...t, i }));
+      let over = 0;
+      if (shown.length > cap) { const keep = shown.filter(t => t.i === selIdx || t.i === 0).slice(0, cap); over = shown.length - keep.length; shown = keep; }
+      const tip = { chat:'セッションを削除…', term:'閉じる', file:'閉じる', new:'外す（下書きは残ります）' };
+      const stBase = { height:26, boxSizing:'border-box', padding:'0 6px 0 10px', borderRadius:6, display:'flex', alignItems:'center', gap:4, fontSize:12, minWidth:0, flex:'0 1 auto', maxWidth: centerW < 700 ? 150 : 200 };
+      const subTabs = shown.map(t => { const sel = t.i === selIdx; return { label:t.label, close: sel, xTip: tip[t.kind], style: { ...stBase, background: sel ? 'var(--sel)' : 'transparent', color: sel ? 'var(--fg)' : 'var(--fg2)', fontWeight: sel ? 500 : 400 } }; });
+      return { projectTabs, subTabs, subOverflow: over > 0, subOverflowLabel: 'ほか ' + over };
+    };
+    const comp = C.composer;
+    const hasText = ['restored','restartText','restoredAttach'].includes(comp);
+    const disabledChips = comp === 'starting' || comp === 'restartText';
+    const canSend = comp === 'restoredAttach';
+    const stop = comp === 'running';
+    const rc = C.right[1] === 'err' ? 'var(--errInk)' : 'var(--fg2)';
+    return {
+      rootStyle: { ...V[theme], width:Number(p.width) || 1440, height:Number(p.height) || 900, flex:'none', background:'var(--bg)', color:'var(--fg)', borderRadius:10, overflow:'hidden', display:'flex', flexDirection:'column', fontFamily:"-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif", fontSize:13, boxShadow: theme === 'dark' ? '0 0 0 0.5px rgba(0,0,0,0.7), 0 24px 60px rgba(0,0,0,0.35)' : '0 0 0 0.5px rgba(0,0,0,0.22), 0 24px 60px rgba(0,0,0,0.16)' },
+      themeName: theme, barWidth: Number(p.width) || 1440,
+      ...tabsCalc(['Phlox-oss','ios-companion'], 0, ['README の英語版を、今の仕様に合わせて更新','PaneTree 正規化の修正','承認ダイアログの文言を統一','README 英語版の見直し'], 0, (Number(p.width) || 1440) - 260),
+      hasNewRow: true, rowRight: C.right[0],
+      rowRightStyle: { fontSize:11, fontWeight: C.right[1] === 'err' ? 600 : 400, color: rc, flex:'none' },
+      showUserMsg: !!C.user, pending: !!C.pending, running: !!C.running, startFailed: !!C.startFailed, restarting: !!C.restarting, sendFailed: !!C.sendFailed,
+      composerStyle: { boxSizing:'border-box', background:'var(--field)', borderRadius:12, padding:'12px 10px 8px 14px', boxShadow: hasText && !disabledChips ? 'inset 0 0 0 1px var(--accent), 0 0 0 1px var(--accent)' : 'inset 0 0 0 1px var(--fieldBorder)' },
+      hasAttach: comp === 'restoredAttach', hasText, noText: !hasText,
+      placeholder: comp === 'starting' ? '起動しています…' : 'メッセージを入力（/ でコマンド）',
+      note: C.note || '', hasNote: !!C.note,
+      leftChipsStyle: { flex:1, minWidth:0, display:'flex', alignItems:'center', gap:2, fontSize:12, color: disabledChips ? 'var(--fg3)' : 'var(--fg2)', opacity: disabledChips ? 0.75 : 1 },
+      stopBtn: stop, arrowBtn: !stop,
+      modelColor: { display:'flex', color: disabledChips ? 'var(--fg3)' : 'var(--fg)' },
+      sendStyle: { width:28, height:28, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', background: (canSend || stop) ? 'var(--accentFill)' : 'var(--off)', color: (canSend || stop) ? '#fff' : 'var(--fg3)' }
+    };
+  }
+}
+</script>
+</body>
+</html>

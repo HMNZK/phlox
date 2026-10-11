@@ -37,6 +37,8 @@ last-verified: 2026-08-01
 | `rearchitecture-refactoring-plan.md` | active | コードベース全体のリアーキテクチャリング・リファクタリング計画（Phase 0〜7・WP 分割ドラフト） |
 | `review-remediation.md` | active | Codex レビュー指摘（重大+中）の修正仕様 |
 | `terminal-editor-panels.md` | active | ターミナルパネル・エディタパネルの要件（FR/NFR・受け入れ基準・仮定・スコープ外。決定は ADR 0148〜0151） |
+| `project-tabs-design.md` | active | プロジェクト単位のタブの設計（型・持ち主・保存・画面） |
+| `project-tabs.md` | active | 上段をプロジェクトのタブ、下段をそのプロジェクトのチャット・ターミナル・ファイルにする変更の要件 |
 | `unified-new-chat-start-design.md` | active | 上記の設計書（下書きの持ち方・送信から起動までの流れ・失敗の扱い・worktree の判断の作り直し・実装の順番） |
 | `unified-new-chat-start.md` | active | 共通の新規チャット開始画面（ハーネス・モデルの組選択・worktree 選択・新規セッション表と同フォルダ確認ダイアログの廃止）の要件・受け入れ基準・修正範囲 |
 | `codex-full-access-and-user-input.md` | active | Codex のフルアクセスとユーザー質問の要件（FR/NFR・受け入れ基準・用語。決定は ADR 0154〜0157） |

@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="{{ rootStyle }}">
+  <sc-if value="{{ wtDialog }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;top:38px;left:50%;transform:translateX(-50%);z-index:6;width:480px;box-sizing:border-box;padding:20px;border-radius:0 0 12px 12px;background:var(--popover);box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:13px;font-weight:600;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">worktree を作れませんでした</div>
+      <div style="font-size:12px;line-height:1.6;color:var(--fg2);">git の出力:</div>
+      <div style="padding:10px 12px;border-radius:6px;background:var(--field);box-shadow:inset 0 0 0 1px var(--fieldBorder);font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;line-height:1.6;color:var(--fg);white-space:pre-wrap;">fatal: a branch named 'phlox/session/6b1e2c4d' already exists</div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px;">
+        <div style="height:26px;padding:0 12px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);color:var(--fg);font-size:12px;display:flex;align-items:center;">閉じる</div>
+        <div style="height:26px;padding:0 12px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);color:var(--fg);font-size:12px;display:flex;align-items:center;">既存の worktree を使う</div>
+        <div style="height:26px;padding:0 12px;border-radius:6px;background:var(--accentFill);color:#fff;font-size:12px;font-weight:500;display:flex;align-items:center;">隔離なしで起動</div>
+      </div>
+    </div>
+  </sc-if>
+  <div style="height:38px;flex:none;display:flex;align-items:center;background:var(--bar);border-bottom:1px solid var(--sep);">
+    <div style="width:260px;flex:none;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:0 12px 0 14px;">
+      <span style="width:12px;height:12px;border-radius:6px;background:#FF5F57;"></span>
+      <span style="width:12px;height:12px;border-radius:6px;background:#FEBC2E;"></span>
+      <span style="width:12px;height:12px;border-radius:6px;background:#28C840;"></span>
+    </div>
+    <div style="flex:1;"></div>
+    <div style="display:flex;align-items:center;gap:8px;padding:0 10px;">
+      <div style="height:24px;padding:2px;box-sizing:border-box;border-radius:6px;background:var(--segBg);display:flex;gap:2px;">
+        <div title="単体" style="width:30px;border-radius:4px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);display:flex;align-items:center;justify-content:center;color:var(--fg);"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 3.5h10v9H3z"></path></svg></div>
+        <div title="グリッド" style="width:30px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 3.5h4v4H3zM9 3.5h4v4H9zM3 9.5h4v3H3zM9 9.5h4v3H9z"></path></svg></div>
+      </div>
+      <div title="インスペクタ" style="{{ inspBtnStyle }}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.5 3.5h11v9h-11zM9.5 3.5v9"></path></svg></div>
+    </div>
+  </div>
+
+  <div style="flex:1;min-height:0;display:flex;">
+    <div style="width:260px;flex:none;box-sizing:border-box;background:var(--side);border-right:1px solid var(--sep);display:flex;flex-direction:column;">
+      <div style="flex:1;min-height:0;padding:10px 8px;display:flex;flex-direction:column;gap:2px;">
+        <div style="height:24px;display:flex;align-items:center;justify-content:space-between;padding:0 8px;font-size:11px;font-weight:600;color:var(--fg2);">{{ t.projects }}<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"></path></svg></div>
+        <sc-if value="{{ emptyProject }}" hint-placeholder-val="{{ false }}">
+          <div style="height:28px;border-radius:6px;display:flex;align-items:center;gap:6px;padding:0 8px;">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.75 3.5L7.25 6l-2.5 2.5"></path></svg>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--fg2)" stroke-width="1.3" stroke-linejoin="round"><path d="M2 4.5A1 1 0 013 3.5h3l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1z"></path></svg>
+            <span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">Phlox-oss</span>
+            <span style="font-size:11px;font-weight:600;color:var(--apvInk);flex:none;">{{ t.approval1 }}</span>
+          </div>
+          <div style="height:28px;border-radius:6px;display:flex;align-items:center;gap:6px;padding:0 8px;">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.75 3.5L7.25 6l-2.5 2.5"></path></svg>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--fg2)" stroke-width="1.3" stroke-linejoin="round"><path d="M2 4.5A1 1 0 013 3.5h3l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1z"></path></svg>
+            <span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">ios-companion</span>
+          </div>
+          <div style="height:28px;border-radius:6px;background:var(--selStrong);display:flex;align-items:center;gap:6px;padding:0 8px;">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="var(--fg2)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--fg2)" stroke-width="1.3" stroke-linejoin="round"><path d="M2 4.5A1 1 0 013 3.5h3l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1z"></path></svg>
+            <span style="flex:1;font-size:13px;font-weight:600;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">site</span>
+          </div>
+          <div style="height:24px;display:flex;align-items:center;padding:0 8px 0 32px;font-size:12px;color:var(--fg2);">{{ t.noSessions }}</div>
+        </sc-if>
+        <sc-if value="{{ stdList }}" hint-placeholder-val="{{ true }}">
+        <sc-if value="{{ hasProject }}" hint-placeholder-val="{{ true }}">
+          <div style="height:28px;border-radius:6px;background:var(--selStrong);display:flex;align-items:center;gap:6px;padding:0 8px;">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="var(--fg2)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--fg2)" stroke-width="1.3" stroke-linejoin="round"><path d="M2 4.5A1 1 0 013 3.5h3l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1z"></path></svg>
+            <span style="flex:1;font-size:13px;font-weight:600;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">Phlox-oss</span>
+          </div>
+        </sc-if>
+        <sc-if value="{{ noProject }}" hint-placeholder-val="{{ false }}">
+          <div style="height:28px;border-radius:6px;display:flex;align-items:center;gap:6px;padding:0 8px;">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--fg2)" stroke-width="1.3" stroke-linejoin="round"><path d="M2 4.5A1 1 0 013 3.5h3l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1z"></path></svg>
+            <span style="flex:1;font-size:13px;font-weight:500;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">Phlox-oss</span>
+          </div>
+        </sc-if>
+        <div style="height:28px;border-radius:6px;display:flex;align-items:center;gap:8px;padding:0 8px 0 32px;">
+          <span style="flex:1;min-width:0;font-size:13px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">PaneTree 正規化の修正</span>
+          <span style="font-size:11px;color:var(--fg2);flex:none;">{{ t.running }}</span>
+        </div>
+        <div style="height:28px;border-radius:6px;display:flex;align-items:center;gap:8px;padding:0 8px 0 32px;">
+          <span style="flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">承認ダイアログの文言を統一</span>
+          <span style="font-size:11px;font-weight:600;color:var(--apvInk);flex:none;">{{ t.approval }}</span>
+        </div>
+        <div style="height:28px;border-radius:6px;display:flex;align-items:center;gap:8px;padding:0 8px 0 32px;">
+          <span style="flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">テストの並列化</span>
+          <span style="font-size:11px;color:var(--fg2);flex:none;">{{ t.done }}</span>
+        </div>
+        <div style="height:28px;border-radius:6px;display:flex;align-items:center;gap:8px;padding:0 8px 0 32px;">
+          <span style="flex:1;min-width:0;font-size:13px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">README 英語版の見直し</span>
+          <span style="font-size:11px;color:var(--fg2);flex:none;">{{ t.h2 }}</span>
+        </div>
+        <div style="height:28px;border-radius:6px;display:flex;align-items:center;gap:6px;padding:0 8px;">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.75 3.5L7.25 6l-2.5 2.5"></path></svg>
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--fg2)" stroke-width="1.3" stroke-linejoin="round"><path d="M2 4.5A1 1 0 013 3.5h3l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1z"></path></svg>
+          <span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">ios-companion</span>
+          <span style="font-size:11px;font-weight:600;color:var(--apvInk);flex:none;">{{ t.approval1 }}</span>
+        </div>
+        <div style="height:28px;border-radius:6px;display:flex;align-items:center;gap:6px;padding:0 8px;">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.75 3.5L7.25 6l-2.5 2.5"></path></svg>
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--fg2)" stroke-width="1.3" stroke-linejoin="round"><path d="M2 4.5A1 1 0 013 3.5h3l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1z"></path></svg>
+          <span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">site</span>
+          <span style="font-size:11px;font-weight:600;color:var(--qstInk);flex:none;">{{ t.question1 }}</span>
+        </div>
+        </sc-if>
+      </div>
+      <div style="border-top:1px solid var(--sep);padding:8px;">
+        <div style="height:28px;border-radius:6px;display:flex;align-items:center;gap:6px;padding:0 8px;font-size:13px;color:var(--fg2);">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg>
+          <span style="flex:1;">{{ t.newChat }}</span>
+          <span style="font-size:11px;color:var(--fg2);">⌘N</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg);position:relative;">
+      <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;left:50%;bottom:28px;transform:translateX(-50%);z-index:4;width:max-content;max-width:520px;padding:10px 14px;border-radius:8px;background:var(--popover);box-shadow:var(--shadow);display:flex;flex-direction:column;gap:2px;">
+          <div style="font-size:12px;font-weight:500;color:var(--fg);">{{ toastTitle }}</div>
+          <sc-if value="{{ toastPath }}" hint-placeholder-val="{{ false }}"><div style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:var(--fg2);">~/Library/Application Support/Phlox/workspace/6b1e2c4d…</div></sc-if>
+        </div>
+      </sc-if>
+      <div style="height:34px;flex:none;display:flex;align-items:flex-end;background:var(--bar);border-bottom:1px solid var(--sep);padding:0 6px;">
+        <sc-for list="{{ projectTabs }}" as="pt" hint-placeholder-count="2">
+          <div title="{{ pt.label }}" style="{{ pt.style }}">
+            <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ pt.label }}</span>
+            <sc-if value="{{ pt.close }}" hint-placeholder-val="{{ false }}"><span title="プロジェクトを削除…" style="width:16px;height:16px;flex:none;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"></path></svg></span></sc-if>
+          </div>
+        </sc-for>
+        <div title="プロジェクトを追加" style="width:26px;height:26px;margin:0 0 4px 4px;flex:none;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg></div>
+      </div>
+      <div style="height:36px;flex:none;display:flex;align-items:center;gap:2px;padding:0 8px;border-bottom:1px solid var(--sep);">
+        <sc-for list="{{ subTabs }}" as="st" hint-placeholder-count="4">
+          <div title="{{ st.label }}" style="{{ st.style }}">
+            <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ st.label }}</span>
+            <sc-if value="{{ st.close }}" hint-placeholder-val="{{ false }}"><span title="{{ st.xTip }}" style="width:16px;height:16px;flex:none;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"></path></svg></span></sc-if>
+          </div>
+        </sc-for>
+        <sc-if value="{{ subOverflow }}" hint-placeholder-val="{{ false }}">
+          <div style="height:26px;padding:0 6px;border-radius:6px;display:flex;align-items:center;gap:3px;font-size:12px;color:var(--fg2);flex:none;">{{ subOverflowLabel }}<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg></div>
+        </sc-if>
+        <div title="タブを追加" style="width:26px;height:26px;flex:none;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg></div>
+      </div>
+
+      <div style="flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;padding:0 24px;">
+        <div style="{{ topSpacer }}"></div>
+        <div style="width:100%;max-width:760px;display:flex;flex-direction:column;align-items:center;">
+          <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:20px;max-width:100%;flex:none;">
+            <div style="width:28px;height:28px;border-radius:7px;background:linear-gradient(140deg,#7A5CF5 0%,#B45CE6 50%,#EC6AA8 100%);display:flex;align-items:center;justify-content:center;flex:none;">
+              <svg width="20" height="20" viewBox="0 0 24 24"><path d="M7 8.5L16.5 7M7 8.5l5 8.5M16.5 7L12 17" stroke="#fff" stroke-opacity="0.8" stroke-width="1.6" fill="none"></path><circle cx="7" cy="8.5" r="2.4" fill="#fff"></circle><circle cx="16.5" cy="7" r="2.4" fill="#fff"></circle><circle cx="12" cy="17" r="2.4" fill="#fff"></circle></svg>
+            </div>
+            <div style="{{ headingStyle }}">{{ t.heading }}</div>
+          </div>
+
+          <div style="{{ composerStyle }}">
+            <sc-if value="{{ hasAttach }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;gap:8px;margin-bottom:10px;">
+                <div style="position:relative;width:52px;height:52px;border-radius:6px;background:repeating-linear-gradient(135deg,var(--sel) 0 4px,transparent 4px 8px);box-shadow:inset 0 0 0 1px var(--fieldBorder);display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px;box-sizing:border-box;">
+                  <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:8.5px;color:var(--fg3);">screenshot</span>
+                  <div title="添付を外す" style="position:absolute;top:-5px;right:-5px;width:16px;height:16px;border-radius:8px;background:var(--ctl);box-shadow:0 0 0 1px var(--ctlBorder);display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"></path></svg></div>
+                </div>
+              </div>
+            </sc-if>
+            <div style="min-height:40px;font-size:13px;line-height:20px;">
+              <sc-if value="{{ textTyped }}" hint-placeholder-val="{{ false }}">
+                <div style="color:var(--fg);text-wrap:pretty;">プロジェクト行の ＋ で新規チャット画面を開くと、入力欄のプロジェクトが前に選んでいたもののままになることがある。添付のスクリーンショットの状態で再現する。</div>
+                <div style="color:var(--fg);display:flex;align-items:center;">原因を調べて直してください。<sc-if value="{{ caret }}" hint-placeholder-val="{{ false }}"><span style="width:1.5px;height:16px;background:var(--fg);"></span></sc-if></div>
+              </sc-if>
+              <sc-if value="{{ textShort }}" hint-placeholder-val="{{ false }}">
+                <div style="color:var(--fg);display:flex;align-items:center;">README の英語版を、今の仕様に合わせて更新してください。<sc-if value="{{ caret }}" hint-placeholder-val="{{ false }}"><span style="width:1.5px;height:16px;background:var(--fg);"></span></sc-if></div>
+              </sc-if>
+              <sc-if value="{{ empty }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;align-items:center;color:var(--fg3);"><sc-if value="{{ caret }}" hint-placeholder-val="{{ true }}"><span style="width:1.5px;height:16px;background:var(--fg);margin-right:1px;"></span></sc-if>{{ t.placeholder }}</div>
+              </sc-if>
+            </div>
+            <sc-if value="{{ noProject }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top:8px;font-size:12px;line-height:1.5;color:var(--fg);">{{ t.reasonNoProject }}</div>
+            </sc-if>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+              <div style="flex:1;min-width:0;display:flex;align-items:center;gap:2px;">
+                <div title="添付" style="width:28px;height:28px;flex:none;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg2);" style-hover="background:var(--hover);"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg></div>
+                <div title="Codex: gpt-6.1-sol" style="{{ harnessChipStyle }}">
+                  <span style="display:flex;color:var(--fg);flex:none;"><dc-import name="HarnessLogo" harness="codex" size="14" hint-size="14px,14px"></dc-import></span><span style="color:var(--fg);overflow:hidden;text-overflow:ellipsis;">gpt-6.1-sol</span>
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none;"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg>
+                </div>
+                <sc-if value="{{ wide }}" hint-placeholder-val="{{ true }}">
+                  <div style="height:28px;padding:0 7px;border-radius:6px;display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg2);white-space:nowrap;" style-hover="background:var(--hover);">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--fg3)" stroke-width="1.4" stroke-linecap="round"><path d="M2.5 11a5.5 5.5 0 0111 0M8 11l2.6-3.2"></path></svg>{{ t.high }}
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg>
+                  </div>
+                  <div style="height:28px;padding:0 7px;border-radius:6px;display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg2);white-space:nowrap;" style-hover="background:var(--hover);">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--fg3)" stroke-width="1.3" stroke-linejoin="round"><path d="M8 2l5 2v4c0 3-2.2 5.2-5 6-2.8-.8-5-3-5-6V4z"></path></svg>Full Access
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ narrow }}" hint-placeholder-val="{{ false }}">
+                  <div title="effort: 高 · 権限: Full Access" style="width:24px;height:24px;flex:none;border-radius:6px;display:flex;align-items:center;justify-content:center;gap:2px;">
+                    <span style="width:3px;height:3px;border-radius:2px;background:var(--fg2);"></span><span style="width:3px;height:3px;border-radius:2px;background:var(--fg2);"></span><span style="width:3px;height:3px;border-radius:2px;background:var(--fg2);"></span>
+                  </div>
+                </sc-if>
+              </div>
+              <div style="flex:none;display:flex;align-items:center;gap:2px;">
+                <sc-if value="{{ wideProject }}" hint-placeholder-val="{{ true }}">
+                  <div style="height:28px;padding:0 7px;border-radius:6px;display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg2);white-space:nowrap;" style-hover="background:var(--hover);">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--fg3)" stroke-width="1.3" stroke-linejoin="round"><path d="M2 4.5A1 1 0 013 3.5h3l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1z"></path></svg>{{ projName }}
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ wideNoProject }}" hint-placeholder-val="{{ false }}">
+                  <div style="height:28px;padding:0 7px;border-radius:6px;display:flex;align-items:center;gap:5px;font-size:12px;font-weight:500;color:var(--fg);white-space:nowrap;box-shadow:inset 0 0 0 1px var(--fieldBorder);">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--fg2)" stroke-width="1.3" stroke-linejoin="round"><path d="M2 4.5A1 1 0 013 3.5h3l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1z"></path></svg>{{ t.selectProject }}
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ wideWorktree }}" hint-placeholder-val="{{ false }}">
+                  <div style="height:28px;padding:0 7px;border-radius:6px;display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg2);white-space:nowrap;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--fg3)" stroke-width="1.3" stroke-linecap="round"><path d="M3.5 3.5a1.5 1.5 0 103 0a1.5 1.5 0 10-3 0M3.5 12.5a1.5 1.5 0 103 0a1.5 1.5 0 10-3 0M9.5 5.5a1.5 1.5 0 103 0a1.5 1.5 0 10-3 0M5 5v6M11 7c0 2.5-6 2-6 4"></path></svg>{{ t.newWorktree }}
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ wideExisting }}" hint-placeholder-val="{{ true }}">
+                  <div style="height:28px;padding:0 7px;border-radius:6px;display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg2);white-space:nowrap;" style-hover="background:var(--hover);">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--fg3)" stroke-width="1.3" stroke-linejoin="round"><path d="M2 9h3.5l1 1.5h3l1-1.5H14M3.5 3.5h9L14 9v3.5a.5.5 0 01-.5.5h-11a.5.5 0 01-.5-.5V9z"></path></svg>{{ t.existing }}
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ narrow }}" hint-placeholder-val="{{ false }}">
+                  <div title="プロジェクト: Phlox-oss" style="height:24px;padding:0 5px;border-radius:6px;display:flex;align-items:center;gap:3px;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--fg2)" stroke-width="1.3" stroke-linejoin="round"><path d="M2 4.5A1 1 0 013 3.5h3l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1z"></path></svg>
+                    <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg>
+                  </div>
+                  <div title="作業場所: 既存ディレクトリ" style="height:24px;padding:0 5px;border-radius:6px;display:flex;align-items:center;gap:3px;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--fg2)" stroke-width="1.3" stroke-linejoin="round"><path d="M2 9h3.5l1 1.5h3l1-1.5H14M3.5 3.5h9L14 9v3.5a.5.5 0 01-.5.5h-11a.5.5 0 01-.5-.5V9z"></path></svg>
+                    <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg>
+                  </div>
+                </sc-if>
+                <div style="width:6px;"></div>
+                <div title="送信" style="{{ sendStyle }}"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5v-9M4.5 7L8 3.5 11.5 7"></path></svg></div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:16px;flex:none;">
+            <sc-for list="{{ chips }}" as="c" hint-placeholder-count="5">
+              <div style="position:relative;">
+                <div style="{{ c.style }}">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--fg3)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="{{ c.d }}"></path></svg>
+                  {{ c.label }}
+                </div>
+                <sc-if value="{{ c.hover }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;top:34px;left:50%;transform:translateX(-50%);width:max-content;max-width:320px;padding:5px 8px;border-radius:6px;background:var(--popover);box-shadow:var(--shadow);font-size:11px;line-height:1.5;color:var(--fg2);z-index:2;">入力欄に「次の不具合を調べて、根本原因を直してください: 」を入れます</div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="height:24px;margin-top:12px;display:flex;align-items:center;flex:none;">
+            <div style="height:24px;padding:0 8px;border-radius:6px;display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg2);" style-hover="background:var(--hover);">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.5 8a5.5 5.5 0 1011 0a5.5 5.5 0 10-11 0M8 5v3l2 1.5"></path></svg>{{ t.history }}
+            </div>
+          </div>
+        </div>
+        <div style="{{ botSpacer }}"></div>
+      </div>
+    </div>
+
+    <sc-if value="{{ insp }}" hint-placeholder-val="{{ false }}">
+      <div style="width:280px;flex:none;box-sizing:border-box;background:var(--panel);border-left:1px solid var(--sep);display:flex;flex-direction:column;">
+        <div style="height:32px;flex:none;display:flex;align-items:center;padding:0 12px;border-bottom:1px solid var(--sep);font-size:11px;font-weight:600;color:var(--fg2);">{{ t.inspector }}</div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px;font-size:12px;color:var(--fg2);text-align:center;">{{ t.inspEmpty }}</div>
+      </div>
+    </sc-if>
+  </div>
+  <dc-import name="PhloxUsageBar" variant="normal" theme="{{ themeName }}" lang="{{ langName }}" width="{{ barWidth }}" hint-size="100%,24px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;scenario&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;normal&quot;,&quot;typed&quot;,&quot;idle&quot;,&quot;noProject&quot;,&quot;narrow&quot;,&quot;keyboard&quot;,&quot;sendFocus&quot;,&quot;wtToast&quot;,&quot;wtDialog&quot;,&quot;wtRestored&quot;,&quot;emptyProject&quot;],&quot;default&quot;:&quot;normal&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;lang&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ja&quot;,&quot;en&quot;],&quot;default&quot;:&quot;ja&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;width&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:1440,&quot;tsType&quot;:&quot;number&quot;},&quot;height&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:900,&quot;tsType&quot;:&quot;number&quot;},&quot;inspector&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;headingSize&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[20,22,28],&quot;default&quot;:22,&quot;tsType&quot;:&quot;number&quot;},&quot;anchor&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;やや上&quot;,&quot;中央&quot;],&quot;default&quot;:&quot;やや上&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const V = {
+      light:{'--bg':'#FFFFFF','--side':'#F2F2F4','--bar':'#F6F6F7','--panel':'#F8F8F9','--field':'#FFFFFF','--popover':'#FFFFFF','--sep':'rgba(0,0,0,0.10)','--fg':'#1D1D1F','--fg2':'#5B5B60','--fg3':'#75757B','--hover':'rgba(0,0,0,0.05)','--sel':'rgba(0,0,0,0.075)','--selStrong':'rgba(59,70,155,0.14)','--accent':'#3B469B','--accentInk':'#3B469B','--accentFill':'#3B469B','--ctl':'#FFFFFF','--ctlBorder':'rgba(0,0,0,0.16)','--segBg':'rgba(0,0,0,0.065)','--fieldBorder':'rgba(0,0,0,0.14)','--off':'rgba(0,0,0,0.08)','--shadow':'0 10px 30px rgba(0,0,0,0.16), 0 0 0 0.5px rgba(0,0,0,0.2)','--apvInk':'#8A5300','--qstInk':'#1E5BB8'},
+      dark:{'--bg':'#1E1E20','--side':'#262629','--bar':'#2A2A2D','--panel':'#242427','--field':'#1A1A1C','--popover':'#2F2F33','--sep':'rgba(255,255,255,0.10)','--fg':'#F2F2F4','--fg2':'#ABABB1','--fg3':'#8E8E94','--hover':'rgba(255,255,255,0.06)','--sel':'rgba(255,255,255,0.09)','--selStrong':'rgba(149,156,208,0.22)','--accent':'#959CD0','--accentInk':'#959CD0','--accentFill':'#3B469B','--ctl':'#3A3A3E','--ctlBorder':'rgba(255,255,255,0.10)','--segBg':'rgba(255,255,255,0.08)','--fieldBorder':'rgba(255,255,255,0.14)','--off':'rgba(255,255,255,0.08)','--shadow':'0 12px 34px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.16)','--apvInk':'#F4BD68','--qstInk':'#8DB6F7'}
+    };
+    const theme = p.theme === 'light' ? 'light' : 'dark';
+    const s = p.scenario || 'normal';
+    const W = Number(p.width) || 1440, H = Number(p.height) || 900;
+    const insp = p.inspector === true || p.inspector === 'true';
+    const centerW = W - 260 - (insp ? 280 : 0);
+    const composerW = Math.min(760, centerW - 48);
+    const narrow = composerW < 560;
+    const noProject = s === 'noProject';
+    const focused = ['normal', 'typed', 'noProject', 'narrow', 'wtRestored'].includes(s);
+    const textTyped = ['typed', 'narrow', 'sendFocus'].includes(s);
+    const textShort = noProject || s === 'wtRestored';
+    const wt = ['wtToast', 'wtDialog', 'wtRestored'].includes(s);
+    const hasText = textTyped || textShort;
+    const canSend = hasText && !noProject;
+    const sendFocus = s === 'sendFocus';
+    const hs = Number(p.headingSize) || 22;
+    const anchor = p.anchor === '中央' ? [1, 1] : [4, 5];
+    const chip = { height:28, padding:'0 10px', borderRadius:6, display:'flex', alignItems:'center', gap:6, fontSize:12, whiteSpace:'nowrap', boxShadow:'inset 0 0 0 1px var(--ctlBorder)' };
+    const defs = [
+      ['コードレビュー','M3 7a4 4 0 108 0a4 4 0 10-8 0M10 10l3.5 3.5'],
+      ['バグ修正','M4.5 9.5a3.5 4 0 107 0a3.5 4 0 10-7 0M8 5.5v8M4.5 9H2M14 9h-2.5M5.5 6L4 4.5M10.5 6L12 4.5'],
+      ['テスト追加','M2.5 8a5.5 5.5 0 1011 0a5.5 5.5 0 10-11 0M5.5 8l1.8 1.8L10.5 6.2'],
+      ['コードの説明','M2.5 3.5h3.5A2 2 0 018 5.5v8a1.5 1.5 0 00-1.5-1.5h-4zM13.5 3.5H10A2 2 0 008 5.5v8a1.5 1.5 0 011.5-1.5h4z'],
+      ['リファクタ','M12.8 6A5 5 0 004 4.6M3.2 10A5 5 0 0012 11.4M4 2v2.6h2.6M12 14v-2.6H9.4']
+    ];
+
+    const tabsCalc = (projects, selProj, chats, selKey, centerW) => {
+      const ptBase = { height:30, boxSizing:'border-box', padding:'0 8px 0 12px', display:'flex', alignItems:'center', gap:6, fontSize:12, borderRadius:'7px 7px 0 0', flex:'0 1 180px', minWidth:0, marginBottom:-1 };
+      const projectTabs = projects.map((label, i) => { const sel = i === selProj; return { label, close: sel, style: { ...ptBase, background: sel ? 'var(--bg)' : 'transparent', color: sel ? 'var(--fg)' : 'var(--fg2)', fontWeight: sel ? 600 : 400, boxShadow: sel ? 'inset 1px 0 0 var(--sep), inset -1px 0 0 var(--sep), inset 0 1px 0 var(--sep)' : 'none' } }; });
+      let subs = chats.map(c => ({ label:c, kind:'chat' }));
+      if (chats.length) subs = subs.concat([{ label:(p.lang === 'en' ? 'Terminal 1' : 'ターミナル 1'), kind:'term' }, { label:'DashboardView.swift', kind:'file' }]);
+      if (selKey === 'new') subs.push({ label:(p.lang === 'en' ? 'New Chat' : '新規チャット'), kind:'new' });
+      const selIdx = selKey === 'new' ? subs.length - 1 : selKey;
+      const cap = centerW < 700 ? 2 : subs.length;
+      let shown = subs.map((t, i) => ({ ...t, i }));
+      let over = 0;
+      if (shown.length > cap) { const keep = shown.filter(t => t.i === selIdx || t.i === 0).slice(0, cap); over = shown.length - keep.length; shown = keep; }
+      const tip = { chat:'セッションを削除…', term:'閉じる', file:'閉じる', new:'外す（下書きは残ります）' };
+      const stBase = { height:26, boxSizing:'border-box', padding:'0 6px 0 10px', borderRadius:6, display:'flex', alignItems:'center', gap:4, fontSize:12, minWidth:0, flex:'0 1 auto', maxWidth: centerW < 700 ? 150 : 200 };
+      const subTabs = shown.map(t => { const sel = t.i === selIdx; return { label:t.label, close: sel, xTip: tip[t.kind], style: { ...stBase, background: sel ? 'var(--sel)' : 'transparent', color: sel ? 'var(--fg)' : 'var(--fg2)', fontWeight: sel ? 500 : 400 } }; });
+      return { projectTabs, subTabs, subOverflow: over > 0, subOverflowLabel: (p.lang === 'en' ? '+' + over + ' more' : 'ほか ' + over) };
+    };
+    const en = p.lang === 'en';
+    const EN = ['Code review','Fix a bug','Add tests','Explain code','Refactor'];
+    const t = en ? { projects:'Projects', newChat:'New Chat', running:'Running', approval:'Needs approval', done:'Done', h2:'2h', approval1:'Needs approval 1', question1:'Question 1', heading:'What would you like to work on?', placeholder:'Describe a task (/ for commands)', reasonNoProject:'No project selected. Select a project.', high:'High', existing:'Existing directory', newWorktree:'New worktree', selectProject:'Select project', history:'Resume from history…', inspector:'Inspector', inspEmpty:'Select a session to see details here', noSessions:'No sessions' } : { projects:'プロジェクト', newChat:'新規チャット', running:'実行中', approval:'承認待ち', done:'完了', h2:'2時間', approval1:'承認待ち 1', question1:'質問あり 1', heading:'何から始めますか？', placeholder:'やりたいことを入力（/ でコマンド）', reasonNoProject:'プロジェクトが未選択です。プロジェクトを選んでください', high:'高', existing:'既存ディレクトリ', newWorktree:'新しい worktree', selectProject:'プロジェクトを選択', history:'履歴から再開…', inspector:'インスペクタ', inspEmpty:'セッションを選ぶと、ここに詳細が出ます', noSessions:'セッションはありません' };
+    const chips = defs.map(([label0, d], i) => { const label = en ? EN[i] : label0;
+      const hover = s === 'idle' && i === 1;
+      return { label, d, hover, style: { ...chip, background: hover ? 'var(--hover)' : 'transparent', color: hover ? 'var(--fg)' : 'var(--fg2)' } };
+    });
+    const kbd = s === 'keyboard';
+    return {
+      rootStyle: { ...V[theme], position:'relative', width:W, height:H, flex:'none', background:'var(--bg)', color:'var(--fg)', borderRadius:10, overflow:'hidden', display:'flex', flexDirection:'column', fontFamily:"-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif", fontSize:13, boxShadow: theme === 'dark' ? '0 0 0 0.5px rgba(0,0,0,0.7), 0 24px 60px rgba(0,0,0,0.35)' : '0 0 0 0.5px rgba(0,0,0,0.22), 0 24px 60px rgba(0,0,0,0.16)' },
+      inspBtnStyle: { width:28, height:28, borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', color: insp ? 'var(--fg)' : 'var(--fg2)', background: insp ? 'var(--sel)' : 'transparent' },
+      headingStyle: { fontSize:hs, lineHeight:1.3, fontWeight:600, letterSpacing: hs >= 24 ? '-0.3px' : '-0.1px', color:'var(--fg)', textAlign:'left', textWrap:'balance', minWidth:0 },
+      composerStyle: { flex:'none', width:'100%', boxSizing:'border-box', background:'var(--field)', borderRadius:12, padding:'12px 10px 8px 14px', boxShadow: focused ? 'inset 0 0 0 1px var(--accent), 0 0 0 1px var(--accent)' : 'inset 0 0 0 1px var(--fieldBorder)' },
+      harnessChipStyle: { height: narrow ? 24 : 28, padding:'0 7px', borderRadius:6, display:'flex', alignItems:'center', gap:5, fontSize:12, whiteSpace:'nowrap', minWidth:0, boxShadow: kbd ? '0 0 0 2px var(--accent)' : 'none' },
+      sendStyle: { width:28, height:28, borderRadius:14, flex:'none', display:'flex', alignItems:'center', justifyContent:'center', background: canSend ? 'var(--accentFill)' : 'var(--off)', color: canSend ? '#FFFFFF' : 'var(--fg3)', boxShadow: sendFocus ? '0 0 0 2px var(--field), 0 0 0 4px var(--accent)' : 'none' },
+      topSpacer: { flex: anchor[0] }, botSpacer: { flex: anchor[1] },
+      t, themeName: theme, barWidth: W, langName: p.lang || 'ja',
+      ...tabsCalc(s === 'emptyProject' ? ['Phlox-oss','ios-companion','site'] : ['Phlox-oss','ios-companion','site'], s === 'emptyProject' ? 2 : noProject ? -1 : 0, (s === 'emptyProject' || noProject) ? [] : ['PaneTree 正規化の修正','承認ダイアログの文言を統一','テストの並列化','README 英語版の見直し'], 'new', centerW),
+      emptyProject: s === 'emptyProject', stdList: s !== 'emptyProject', hasTabs: s !== 'emptyProject',
+      projName: s === 'emptyProject' ? 'site' : 'Phlox-oss',
+      wideWorktree: !narrow && wt, wideExisting: !narrow && !wt,
+      wtDialog: s === 'wtDialog', hasToast: s === 'wtToast' || s === 'wtRestored', toastPath: s === 'wtToast',
+      toastTitle: s === 'wtToast' ? 'worktree を作成しています…' : 'worktree を作れなかったため、本文を下書きに戻しました',
+      insp, narrow, wide: !narrow, noProject, hasProject: !noProject,
+      wideProject: !narrow && !noProject, wideNoProject: !narrow && noProject,
+      hasAttach: textTyped, textTyped, textShort, empty: !hasText,
+      caret: focused, chips
+    };
+  }
+}
+</script>
+</body>
+</html>

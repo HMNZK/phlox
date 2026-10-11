@@ -184,7 +184,7 @@ struct SubAgentPromptDisplayAcceptanceTests {
         let mock = PromptMockLineTransport()
         let recorder = PromptMockTransportRecorder(mock)
         let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-        await client.start()
+        try await client.start()
 
         var iterator = client.events.makeAsyncIterator()
         for line in lines { mock.receive(line) }

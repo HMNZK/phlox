@@ -51,7 +51,7 @@ struct InitSlashCommandsTests {
     func initSlashCommandsAreNormalized() async throws {
         let mock = InitMockTransport()
         let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in mock })
-        await client.start()
+        try await client.start()
         var iterator = client.events.makeAsyncIterator()
 
         mock.receive(
@@ -68,7 +68,7 @@ struct InitSlashCommandsTests {
     func initWithoutSlashCommandsYieldsNothing() async throws {
         let mock = InitMockTransport()
         let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in mock })
-        await client.start()
+        try await client.start()
         var iterator = client.events.makeAsyncIterator()
 
         mock.receive(#"{"type":"system","subtype":"init","session_id":"s1","model":"claude-opus-5"}"#)
@@ -83,7 +83,7 @@ struct InitSlashCommandsTests {
     func initWithEmptySlashCommandsYieldsNothing() async throws {
         let mock = InitMockTransport()
         let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in mock })
-        await client.start()
+        try await client.start()
         var iterator = client.events.makeAsyncIterator()
 
         mock.receive(#"{"type":"system","subtype":"init","session_id":"s1","slash_commands":[]}"#)
@@ -98,7 +98,7 @@ struct InitSlashCommandsTests {
     func initStillCapturesSessionId() async throws {
         let mock = InitMockTransport()
         let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in mock })
-        await client.start()
+        try await client.start()
         var iterator = client.events.makeAsyncIterator()
 
         mock.receive(
@@ -119,7 +119,7 @@ struct InitSlashCommandsTests {
     func stringSlashCommandsAreYieldedUnchanged() async throws {
         let mock = InitMockTransport()
         let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in mock })
-        await client.start()
+        try await client.start()
         var iterator = client.events.makeAsyncIterator()
 
         mock.receive(#"{"type":"system","subtype":"init","slash_commands":["Config","claude-security:scan","__remote-workflow","compact"]}"#)
@@ -134,7 +134,7 @@ struct InitSlashCommandsTests {
     func mixedTypeSlashCommandsYieldNothing() async throws {
         let mock = InitMockTransport()
         let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in mock })
-        await client.start()
+        try await client.start()
         var iterator = client.events.makeAsyncIterator()
 
         mock.receive(#"{"type":"system","subtype":"init","slash_commands":["compact",42]}"#)

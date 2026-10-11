@@ -15,7 +15,7 @@ import StructuredChatKit
 @Test func taskStartedEventsAreNormalizedForBashAndSubagent() async throws {
     let mock = BgMockTransport()
     let client = ClaudeChatClient(transportFactory: { _, _, _, _ in mock })
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     mock.receive(
@@ -44,7 +44,7 @@ import StructuredChatKit
 @Test func taskNotificationIsNormalizedAsCompletion() async throws {
     let mock = BgMockTransport()
     let client = ClaudeChatClient(transportFactory: { _, _, _, _ in mock })
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     mock.receive(
@@ -63,7 +63,7 @@ import StructuredChatKit
 @Test func unknownNotificationStatusStillCompletes() async throws {
     let mock = BgMockTransport()
     let client = ClaudeChatClient(transportFactory: { _, _, _, _ in mock })
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     mock.receive(
@@ -79,7 +79,7 @@ import StructuredChatKit
     let mock = BgMockTransport()
     // 密封化: ambient PHLOX_SESSION_ID が既定環境から漏れ nativeSessionId を汚さないよう空環境で構築。
     let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in mock })
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     mock.receive(

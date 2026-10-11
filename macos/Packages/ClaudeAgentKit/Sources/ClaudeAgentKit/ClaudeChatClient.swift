@@ -279,7 +279,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
         eventContinuation.finish()
     }
 
-    public func start() async {
+    public func start() async throws {
         guard transport == nil else {
             eventContinuation.yield(.warning(message: "Claude chat client is already started"))
             return
@@ -290,6 +290,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
             settingsDirty = false
         } catch {
             eventContinuation.yield(.error(message: "Failed to start Claude: \(error)"))
+            throw error
         }
     }
 

@@ -32,7 +32,7 @@ private func taskListEvents(_ events: [NormalizedChatEvent]) -> [[AgentTaskItem]
 @Test func todoWriteSnapshotIsNormalizedAsTaskListUpdated() async throws {
     let mock = TaskListMockTransport()
     let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in mock })
-    await client.start()
+    try await client.start()
 
     mock.receive(
         #"{"type":"assistant","message":{"id":"m1","role":"assistant","content":[{"type":"tool_use","id":"toolu_T1","name":"TodoWrite","input":{"todos":[{"content":"調査する","activeForm":"調査中","status":"completed"},{"content":"実装する","activeForm":"実装中","status":"in_progress"},{"content":"検証する","activeForm":"検証中","status":"pending"}]}}]},"parent_tool_use_id":null,"session_id":"S1"}"#
@@ -58,7 +58,7 @@ private func taskListEvents(_ events: [NormalizedChatEvent]) -> [[AgentTaskItem]
 @Test func todoWriteResendKeepsStableIdsAndReflectsStatusChange() async throws {
     let mock = TaskListMockTransport()
     let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in mock })
-    await client.start()
+    try await client.start()
 
     mock.receive(
         #"{"type":"assistant","message":{"id":"m1","role":"assistant","content":[{"type":"tool_use","id":"toolu_T1","name":"TodoWrite","input":{"todos":[{"content":"調査する","activeForm":"調査中","status":"in_progress"},{"content":"実装する","activeForm":"実装中","status":"pending"}]}}]},"parent_tool_use_id":null,"session_id":"S1"}"#
@@ -83,7 +83,7 @@ private func taskListEvents(_ events: [NormalizedChatEvent]) -> [[AgentTaskItem]
 @Test func todoWriteHandlesEmptyUnknownAndDuplicateTasksSafely() async throws {
     let mock = TaskListMockTransport()
     let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in mock })
-    await client.start()
+    try await client.start()
 
     mock.receive(#"{"type":"assistant","message":{"id":"m1","role":"assistant","content":[{"type":"tool_use","id":"toolu_empty","name":"TodoWrite","input":{"todos":[]}}]},"parent_tool_use_id":null,"session_id":"S1"}"#)
     mock.receive(#"{"type":"assistant","message":{"id":"m2","role":"assistant","content":[{"type":"tool_use","id":"toolu_duplicates","name":"TodoWrite","input":{"todos":[{"content":"同じ項目","status":"unknown"},{"content":"同じ項目","status":"pending"}]}}]},"parent_tool_use_id":null,"session_id":"S1"}"#)
@@ -104,7 +104,7 @@ private func taskListEvents(_ events: [NormalizedChatEvent]) -> [[AgentTaskItem]
 @Test func taskCreateAndUpdateUseTaskIdentifierFromRealToolResultShape() async throws {
     let mock = TaskListMockTransport()
     let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in mock })
-    await client.start()
+    try await client.start()
 
     mock.receive(#"{"type":"assistant","message":{"id":"m1","role":"assistant","content":[{"type":"tool_use","id":"create-1","name":"TaskCreate","input":{"subject":"実装する"}}]},"parent_tool_use_id":null,"session_id":"S1"}"#)
     mock.receive(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"create-1","content":"Task #42 created successfully: 実装する"}]},"toolUseResult":{"task":{"id":"42","subject":"実装する"}}}"#)

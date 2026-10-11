@@ -22,7 +22,7 @@ struct SubAgentNameArrivalOrderTests {
         let mock = NameOrderMockTransport()
         let recorder = NameOrderMockRecorder(mock)
         let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-        await client.start()
+        try await client.start()
         var iterator = client.events.makeAsyncIterator()
         for line in lines { mock.receive(line) }
         await mock.close()

@@ -151,6 +151,7 @@ public final class DashboardViewModel {
     /// rollout 走査で claim 済みの native id（永続化完了前の二重割当防止）。
     @ObservationIgnored private var codexDiscovery: CodexNativeSessionDiscoveryController?
     private var lastUsedChatSettingsStore = LastUsedChatSettingsStore()
+    private var failedNewChatRequests: [SessionID: NewChatLaunchRequest] = [:]
 
     /// task-3: sessionNodes の ID→ノード索引（`sessionNode(id:)` の O(1) 参照用）。
     /// `sessionNodes` への追加・削除は必ず `appendSessionNode`/`removeSessionNode` を経由させ、
@@ -238,11 +239,13 @@ public final class DashboardViewModel {
             lastUsedChatSettings: { [weak self] agentID in
                 self?.lastUsedChatSettingsStore.lastUsed(agentID: agentID)
             },
-            recordLastUsedChatSettings: { [weak self] agentID, model, effort in
+            recordLastUsedChatSettings: { [weak self] agentID, settings in
                 self?.lastUsedChatSettingsStore.record(
                     agentID: agentID,
-                    model: model,
-                    effort: effort
+                    model: settings.selectedModel,
+                    effort: settings.selectedEffort,
+                    permission: settings.selectedPermissionProfile,
+                    isPlanMode: settings.isPlanMode
                 )
             },
             logError: { error, context in
@@ -1202,7 +1205,10 @@ public final class DashboardViewModel {
         launchContext: SessionLaunchContext = .interactive,
         extraEnv: [String: String] = [:],
         workingDirectoryOverride: String? = nil,
-        isolationOverride: Bool? = nil
+        isolationOverride: Bool? = nil,
+        initialSettings: CodexAppServerSessionSettings? = nil,
+        keepsRowOnLaunchFailure: Bool = false,
+        onRowAppended: (@MainActor (SessionID) -> Void)? = nil
     ) async throws -> SessionID {
         try await spawnNewSessionImpl(
             ref: ref,
@@ -1213,8 +1219,52 @@ public final class DashboardViewModel {
             extraEnv: extraEnv,
             workingDirectoryOverride: workingDirectoryOverride,
             isolationOverride: isolationOverride,
+            initialSettings: initialSettings,
+            keepsRowOnLaunchFailure: keepsRowOnLaunchFailure,
+            onRowAppended: onRowAppended,
             spawnLimitSource: .parent(from)
         )
+    }
+
+    public func launchNewChat(_ request: NewChatLaunchRequest,
+                              onRowAppended: (@MainActor (SessionID) -> Void)? = nil) async throws -> SessionID {
+        // 履歴再開は段6で実装する。空の新規会話に置き換えて履歴を失わない。
+        guard request.resumeHistoryID == nil else { throw AgentSpawnError.unsupportedBackend }
+        guard projects.contains(where: { $0.id == request.projectID }) else { throw AgentSpawnError.unknownProject }
+        let id = try await spawnNewSession(ref: request.agentRef, projectID: request.projectID, backend: .appServer,
+            isolationOverride: request.usesWorktree, initialSettings: request.settings, keepsRowOnLaunchFailure: true,
+            onRowAppended: { id in
+                self.sessionNode(id: id)?.appServer?.prepareFirstMessage(request.text, attachments: request.attachments)
+                onRowAppended?(id)
+            })
+        lastUsedChatSettingsStore.recordLastHarness(request.agentRef.id)
+        guard let vm = sessionNode(id: id)?.appServer else { throw CancellationError() }
+        if vm.launchFailure != nil {
+            failedNewChatRequests[id] = request
+            vm.restoreLaunchDraft(request.text, attachments: request.attachments)
+        } else {
+            await vm.sendFirstMessage(request.text, attachments: request.attachments)
+        }
+        return id
+    }
+
+    public func restartNewChat(_ id: SessionID,
+                               onRowAppended: (@MainActor (SessionID) -> Void)? = nil) async throws -> SessionID {
+        guard let request = failedNewChatRequests[id], let vm = sessionNode(id: id)?.appServer else {
+            throw ChatLaunchError.processFailed("起動に失敗したセッションが見つかりません")
+        }
+        let text = vm.draft
+        let attachments = vm.composerAttachments
+        failedNewChatRequests.removeValue(forKey: id)
+        await removeSession(id)
+        let restart = NewChatLaunchRequest(projectID: request.projectID, agentRef: request.agentRef,
+            settings: request.settings, usesWorktree: request.usesWorktree, text: "", attachments: [])
+        let newID = try await launchNewChat(restart, onRowAppended: { newID in
+            self.sessionNode(id: newID)?.appServer?.restoreLaunchDraft(text, attachments: attachments)
+            onRowAppended?(newID)
+        })
+        sessionNode(id: newID)?.appServer?.restoreLaunchDraft(text, attachments: attachments)
+        return newID
     }
 
     private func spawnNewSessionImpl(
@@ -1226,6 +1276,9 @@ public final class DashboardViewModel {
         extraEnv: [String: String] = [:],
         workingDirectoryOverride: String? = nil,
         isolationOverride: Bool? = nil,
+        initialSettings: CodexAppServerSessionSettings? = nil,
+        keepsRowOnLaunchFailure: Bool = false,
+        onRowAppended: (@MainActor (SessionID) -> Void)? = nil,
         spawnLimitSource: APISpawnLimitSource
     ) async throws -> SessionID {
         let agentDescriptor = sessionSpawnService.descriptorForPresentation(ref: ref)
@@ -1367,6 +1420,8 @@ public final class DashboardViewModel {
                 plan: plan,
                 launchContext: launchContext,
                 titleState: .generated(flowerName: generatedName),
+                initialSettings: initialSettings,
+                keepsRowOnLaunchFailure: keepsRowOnLaunchFailure,
                 sessionOriginForWrite: {
                     self.sessionOriginForWrite(
                         parentSessionID: from,
@@ -1378,6 +1433,7 @@ public final class DashboardViewModel {
                     self.observeUnseenCompletion(for: vm)
                     self.appendSessionNode(.appServer(vm))
                     self.refreshUnseenCompletionCount()
+                    onRowAppended?(vm.id)
                 },
                 unregisterFailedSession: { id in
                     guard let node = self.sessionNode(id: id) else { return }
@@ -1401,6 +1457,7 @@ public final class DashboardViewModel {
             await spawnedSession.terminate()
             throw CancellationError()
         }
+        if sessionNode(id: sessionID)?.appServer?.launchFailure != nil { return sessionID }
 
         // 再起動後の復元に備えてセッションメタを永続化する。
         // spawn 済みセッションの live pid を記録し、次回起動の reconcile（生存孤児 reap）に使う。
@@ -1663,6 +1720,7 @@ public final class DashboardViewModel {
     }
 
     private func removeSingleSession(_ id: SessionID) async {
+        failedNewChatRequests.removeValue(forKey: id)
         guard !removingSessionIDs.contains(id),
               let node = sessionNodes.first(where: { $0.id == id }) else { return }
         let session = node.controllable

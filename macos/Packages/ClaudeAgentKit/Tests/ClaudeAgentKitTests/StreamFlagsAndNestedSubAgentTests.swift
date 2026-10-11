@@ -13,7 +13,7 @@ struct StreamFlagsAndNestedSubAgentTests {
             environment: [:],
             transportFactory: defaultRecorder.makeTransport
         )
-        await defaultClient.start()
+        try await defaultClient.start()
 
         let defaultArguments = try #require(defaultRecorder.starts.first)
         #expect(defaultArguments.contains("--forward-subagent-text"))
@@ -31,7 +31,7 @@ struct StreamFlagsAndNestedSubAgentTests {
             agents: #"{"reviewer":{"description":"Review","prompt":"Review the change"}}"#,
             transportFactory: configuredRecorder.makeTransport
         )
-        await configuredClient.start()
+        try await configuredClient.start()
 
         let configuredArguments = try #require(configuredRecorder.starts.first)
         #expect(configuredArguments.contains("--forward-subagent-text"))
@@ -85,7 +85,7 @@ struct StreamFlagsAndNestedSubAgentTests {
         let transport = StreamFlagsTestTransport()
         let recorder = StreamFlagsTransportRecorder(transport)
         let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-        await client.start()
+        try await client.start()
 
         transport.receive(#"{"type":"stream_event","event":{"type":"message_start","message":{"id":"msg-partial","content":[]}},"parent_tool_use_id":null}"#)
         transport.receive(#"{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}},"parent_tool_use_id":null}"#)
@@ -123,7 +123,7 @@ struct StreamFlagsAndNestedSubAgentTests {
         let transport = StreamFlagsTestTransport()
         let recorder = StreamFlagsTransportRecorder(transport)
         let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-        await client.start()
+        try await client.start()
 
         transport.receive(#"{"type":"assistant","message":{"id":"main-tool","content":[{"type":"tool_use","id":"toolu-sub","name":"Agent","input":{"subagent_type":"Explore","description":"探す"}}]},"parent_tool_use_id":null}"#)
         transport.receive(#"{"type":"stream_event","event":{"type":"message_start","message":{"id":"sub-message","content":[]}},"parent_tool_use_id":"toolu-sub"}"#)
@@ -164,7 +164,7 @@ struct StreamFlagsAndNestedSubAgentTests {
         let transport = StreamFlagsTestTransport()
         let recorder = StreamFlagsTransportRecorder(transport)
         let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-        await client.start()
+        try await client.start()
         var iterator = client.events.makeAsyncIterator()
 
         transport.receive(#"{"type":"system","subtype":"init","session_id":"S1","mcp_server_errors":[{"name":"github","type":"connection","message":"connection refused"}]}"#)
@@ -186,7 +186,7 @@ struct StreamFlagsAndNestedSubAgentTests {
         let transport = StreamFlagsTestTransport()
         let recorder = StreamFlagsTransportRecorder(transport)
         let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-        await client.start()
+        try await client.start()
         var iterator = client.events.makeAsyncIterator()
 
         transport.receive(#"{"type":"system","subtype":"init","session_id":"S1","mcp_server_errors":{"github":"connection refused"}}"#)
@@ -208,7 +208,7 @@ struct StreamFlagsAndNestedSubAgentTests {
         let transport = StreamFlagsTestTransport()
         let recorder = StreamFlagsTransportRecorder(transport)
         let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-        await client.start()
+        try await client.start()
 
         transport.receive(#"{"type":"assistant","message":{"id":"main-a","content":[{"type":"tool_use","id":"toolu-root-a","name":"Agent","input":{"subagent_type":"Explore","description":"親A"}}]},"parent_tool_use_id":null}"#)
         transport.receive(#"{"type":"assistant","message":{"id":"child-a","content":[{"type":"tool_use","id":"toolu-child-a","name":"Agent","input":{"subagent_type":"Explore","description":"子A"}}]},"parent_tool_use_id":"toolu-root-a"}"#)
@@ -270,7 +270,7 @@ struct StreamFlagsAndNestedSubAgentTests {
         let transport = StreamFlagsTestTransport()
         let recorder = StreamFlagsTransportRecorder(transport)
         let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-        await client.start()
+        try await client.start()
 
         transport.receive(#"{"type":"assistant","message":{"id":"root","content":[{"type":"tool_use","id":"toolu-root","name":"Agent","input":{"subagent_type":"Explore","description":"親"}}]},"parent_tool_use_id":null}"#)
         transport.receive(#"{"type":"assistant","message":{"id":"child","content":[{"type":"tool_use","id":"toolu-grandchild","name":"Task","input":{"subagent_type":"Explore","description":"孫"}}]},"parent_tool_use_id":"toolu-root"}"#)
@@ -293,7 +293,7 @@ struct StreamFlagsAndNestedSubAgentTests {
         let transport = StreamFlagsTestTransport()
         let recorder = StreamFlagsTransportRecorder(transport)
         let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-        await client.start()
+        try await client.start()
 
         transport.receive(#"{"type":"assistant","message":{"id":"root","content":[{"type":"tool_use","id":"toolu-root","name":"Agent","input":{"subagent_type":"Explore","description":"親"}}]},"parent_tool_use_id":null}"#)
         transport.receive(#"{"type":"assistant","message":{"id":"child","content":[{"type":"tool_use","id":"toolu-child","name":"Task","input":{"subagent_type":"Explore","description":"子"}}]},"parent_tool_use_id":"toolu-root"}"#)
@@ -320,7 +320,7 @@ struct StreamFlagsAndNestedSubAgentTests {
         let transport = StreamFlagsTestTransport()
         let recorder = StreamFlagsTransportRecorder(transport)
         let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-        await client.start()
+        try await client.start()
 
         // 孫の assistant 完成イベントより先に、孫ターンの content_block_start を受け取る。
         transport.receive(#"{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}},"parent_tool_use_id":"toolu-grandchild"}"#)
@@ -345,7 +345,7 @@ struct StreamFlagsAndNestedSubAgentTests {
         let transport = StreamFlagsTestTransport()
         let recorder = StreamFlagsTransportRecorder(transport)
         let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-        await client.start()
+        try await client.start()
 
         transport.receive(#"{"type":"assistant","message":{"id":"launcher","content":[{"type":"tool_use","id":"toolu-bg","name":"Agent","input":{"subagent_type":"Explore","run_in_background":true}}]},"parent_tool_use_id":null}"#)
         transport.receive(#"{"type":"stream_event","event":{"type":"message_start","message":{"id":"bg-msg","content":[]}},"parent_tool_use_id":"toolu-bg"}"#)
@@ -369,7 +369,7 @@ struct StreamFlagsAndNestedSubAgentTests {
         let transport = StreamFlagsTestTransport()
         let recorder = StreamFlagsTransportRecorder(transport)
         let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-        await client.start()
+        try await client.start()
 
         transport.receive(#"{"type":"assistant","message":{"id":"launcher","content":[{"type":"tool_use","id":"toolu-done","name":"Agent","input":{"subagent_type":"Explore"}}]},"parent_tool_use_id":null}"#)
         transport.receive(#"{"type":"stream_event","event":{"type":"message_start","message":{"id":"done-msg","content":[]}},"parent_tool_use_id":"toolu-done"}"#)
@@ -391,7 +391,7 @@ struct StreamFlagsAndNestedSubAgentTests {
         let transport = StreamFlagsTestTransport()
         let recorder = StreamFlagsTransportRecorder(transport)
         let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-        await client.start()
+        try await client.start()
 
         transport.receive(#"{"type":"stream_event","event":{"type":"message_start","message":{"id":"message-1","content":[]}},"parent_tool_use_id":null}"#)
         transport.receive(#"{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"FIRST"}},"parent_tool_use_id":null}"#)

@@ -17,7 +17,7 @@ import StructuredChatKit
         environment: ["PHLOX_SESSION_ID": sid],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     await client.updateSettings(model: "opus", permissionMode: "bypassPermissions", effort: "low")
@@ -42,7 +42,7 @@ import StructuredChatKit
         environment: ["PHLOX_SESSION_ID": sid],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     await client.updateSettings(model: "opus", permissionMode: nil, effort: "xhigh")
@@ -103,7 +103,7 @@ import StructuredChatKit
         environment: ["PHLOX_SESSION_ID": sid],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     await client.updateSettings(model: "opus", permissionMode: "bypassPermissions")

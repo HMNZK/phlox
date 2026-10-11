@@ -925,7 +925,8 @@ func spawnNewSession_allowsClaudeAndCursorStructuredChatWithoutPTYSpawn() async 
     let environment = makeTestEnvironment(
         pty: ptyManager,
         hookStream: hookStream,
-        agentBinaryPaths: [.cursor: "/usr/local/bin/cursor-agent"]
+        agentBinaryPaths: [.cursor: "/usr/local/bin/cursor-agent"],
+        appServerClientFactory: { _, _, _, _, _ in EventYieldingStructuredClient() }
     )
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
@@ -953,7 +954,8 @@ func spawnNewSession_doesNotWriteGuideFiles() async throws {
         agentBinaryPaths: [
             .codex: "/usr/local/bin/codex",
             .cursor: "/usr/local/bin/cursor-agent",
-        ]
+        ],
+        appServerClientFactory: { _, _, _, _, _ in EventYieldingStructuredClient() }
     )
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
@@ -979,7 +981,8 @@ func spawnNewSession_fromChatParent_inheritsAppServerBackend() async throws {
     let environment = makeTestEnvironment(
         pty: ptyManager,
         hookStream: hookStream,
-        agentBinaryPaths: [.cursor: "/usr/local/bin/cursor-agent"]
+        agentBinaryPaths: [.cursor: "/usr/local/bin/cursor-agent"],
+        appServerClientFactory: { _, _, _, _, _ in EventYieldingStructuredClient() }
     )
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
@@ -3510,7 +3513,8 @@ func spawnNewSession_appliesLastUsedModelAndEffortFromStore() async throws {
     let environment = makeTestEnvironment(
         pty: ptyManager,
         hookStream: hookStream,
-        agentBinaryPaths: [.claudeCode: "/usr/local/bin/claude"]
+        agentBinaryPaths: [.claudeCode: "/bin/echo"],
+        appServerClientFactory: { _, _, _, _, _ in CharacterizationFakeClient() }
     )
     let dashboard = DashboardViewModel(environment: environment)
     dashboard.lastUsedChatSettingsStoreForTesting = store
@@ -3551,7 +3555,8 @@ func spawnNewSession_codexSettingsDidChangeRecordsLastUsedSettings() async throw
 
     try await chat.setModel(model: "gpt-5-codex", effort: "medium")
 
-    #expect(store.lastUsed(agentID: AgentKind.codex.rawValue) == LastUsedChatSettings(model: "gpt-5-codex", effort: "medium"))
+    #expect(store.lastUsed(agentID: AgentKind.codex.rawValue) == LastUsedChatSettings(
+        model: "gpt-5-codex", effort: "medium", permission: ":workspace", isPlanMode: false))
     #expect(store.lastUsed(agentID: AgentKind.claudeCode.rawValue) == nil)
     #expect(chat.selectedModel == "gpt-5-codex")
     #expect(chat.selectedEffort == "medium")

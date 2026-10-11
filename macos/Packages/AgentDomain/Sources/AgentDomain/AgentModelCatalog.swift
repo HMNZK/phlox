@@ -2,14 +2,21 @@ import Foundation
 import os
 
 /// A selectable agent model shared by the control API and macOS UI.
-/// Codable's synthesized keys deliberately remain the frozen `id` / `displayName` wire shape.
+/// Additional capabilities are optional so older model snapshots still decode.
 public struct ControlModelOption: Codable, Equatable, Sendable {
     public let id: String
     public let displayName: String
+    public let reasoningEfforts: [String]?
+    public let defaultReasoningEffort: String?
+    public let acceptsImages: Bool?
 
-    public init(id: String, displayName: String) {
+    public init(id: String, displayName: String, reasoningEfforts: [String]? = nil,
+                defaultReasoningEffort: String? = nil, acceptsImages: Bool? = nil) {
         self.id = id
         self.displayName = displayName
+        self.reasoningEfforts = reasoningEfforts
+        self.defaultReasoningEffort = defaultReasoningEffort
+        self.acceptsImages = acceptsImages
     }
 }
 

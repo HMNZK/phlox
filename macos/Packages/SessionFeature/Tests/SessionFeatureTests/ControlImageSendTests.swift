@@ -31,6 +31,7 @@ private final class RecordingStructuredClient: StructuredAgentClient, @unchecked
     func resume(sessionRef: String) async throws {}
     func interrupt() async throws {}
     func close() async { continuation.finish() }
+    func emit(_ event: NormalizedChatEvent) { continuation.yield(event) }
 }
 
 @MainActor
@@ -57,6 +58,66 @@ private func makeCodexViewModel(client: RecordingStructuredClient) -> ChatSessio
 
 @Suite @MainActor
 struct ControlImageSendTests {
+    @Test func firstMessageAsyncFailureRestoresTextAndOriginalAttachments() async throws {
+        let client = RecordingStructuredClient()
+        let vm = makeClaudeViewModel(client: client)
+        try await withTerminatedViewModel(vm) {
+            try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+            let attachments = [ComposerAttachment(data: tinyPNG, mediaType: "image/png", filename: "test.png")]
+            await vm.sendFirstMessage("inspect", attachments: attachments)
+            #expect(vm.attachmentStore.attachments.isEmpty)
+            client.emit(.error(message: "fake first turn failure"))
+            for _ in 0..<100 {
+                if case .error = vm.status { break }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            #expect(vm.draft == "inspect")
+            #expect(vm.attachmentStore.attachments == attachments)
+            #expect(client.lastTurnStartInput?.count == 2)
+        }
+    }
+
+    @Test func laterTurnErrorDoesNotRestorePreviousInput() async throws {
+        let client = RecordingStructuredClient()
+        let vm = makeClaudeViewModel(client: client)
+        try await withTerminatedViewModel(vm) {
+            try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+            await vm.sendFirstMessage("first", attachments: [])
+            client.emit(.turnCompleted(nativeSessionId: nil))
+            for _ in 0..<100 {
+                if vm.completedTurnSeq == 1 { break }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            #expect(vm.completedTurnSeq == 1)
+            try await vm.sendText("second", submit: true)
+            client.emit(.error(message: "fake second turn failure"))
+            for _ in 0..<100 {
+                if case .error = vm.status { break }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            if case .error = vm.status {} else { Issue.record("error not processed") }
+            #expect(vm.draft.isEmpty)
+        }
+    }
+
+    @Test func pendingFirstMessageIsRemovedOnLaunchFailureAndBlocksSubmit() async throws {
+        let client = RecordingStructuredClient()
+        let vm = makeClaudeViewModel(client: client)
+        let attachments = [ComposerAttachment(data: tinyPNG, mediaType: "image/png")]
+        vm.prepareFirstMessage("inspect", attachments: attachments)
+        #expect(vm.pendingFirstMessage != nil)
+        #expect(vm.draft.isEmpty)
+        #expect(vm.consumeDraftForSend() == nil)
+        vm.markLaunchFailed(.processFailed("fake launch failure"), restoringDraft: "inspect")
+        #expect(vm.pendingFirstMessage == nil)
+        #expect(vm.draft == "inspect")
+        #expect(vm.attachmentStore.attachments == attachments)
+        #expect(vm.transcript.allSatisfy { if case .userMessage = $0 { false } else { true } })
+        #expect(vm.transcriptItemIDs == Set(vm.transcript.map(\.id)))
+        #expect(!vm.isReadyForInput)
+        await vm.terminate()
+    }
+
     private func withTerminatedViewModel<T>(
         _ viewModel: ChatSessionViewModel,
         operation: () async throws -> T
@@ -331,7 +392,7 @@ struct ControlImageSendTests {
             await client.setConfigurationBlocked(false)
             try await vm.setModel(model: "text-model", effort: "medium")
             vm.attachmentStore.addImage(data: tinyPNG, mediaType: "image/png")
-            try await vm.sendText("", submit: true)
+            await #expect(throws: SendRejected.imagesUnsupported) { try await vm.sendText("", submit: true) }
             #expect(vm.attachmentStore.lastError == ChatSessionViewModel.ControlImageSendError.imagesUnsupported.localizedDescription)
 
             try await vm.setModel(model: "image-model", effort: "medium")

@@ -217,7 +217,7 @@ public protocol SubAgentStopping: Sendable {
 public protocol StructuredAgentClient: Sendable {
     var events: AsyncStream<NormalizedChatEvent> { get }
 
-    func start() async
+    func start() async throws
     func turnStart(_ input: [ChatInput]) async throws
     func resume(sessionRef: String) async throws
     func interrupt() async throws

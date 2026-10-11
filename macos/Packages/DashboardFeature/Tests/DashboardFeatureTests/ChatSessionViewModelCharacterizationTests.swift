@@ -11,7 +11,7 @@ import Testing
 
 // MARK: - Test doubles
 
-private final class CharacterizationFakeClient: StructuredAgentClient, @unchecked Sendable {
+final class CharacterizationFakeClient: StructuredAgentClient, @unchecked Sendable {
     let events: AsyncStream<NormalizedChatEvent>
     private let continuation: AsyncStream<NormalizedChatEvent>.Continuation
 

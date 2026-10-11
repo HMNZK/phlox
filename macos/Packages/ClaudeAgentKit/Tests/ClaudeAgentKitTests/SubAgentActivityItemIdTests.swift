@@ -58,7 +58,7 @@ struct SubAgentActivityItemIdTests {
     func subAgentTextAndThinkingFragmentsCarryStableItemIdPerMessageAndType() async throws {
         let mock = ItemIdMockLineTransport()
         let client = ClaudeChatClient(transportFactory: { _, _, _, _ in mock })
-        await client.start()
+        try await client.start()
 
         var iterator = client.events.makeAsyncIterator()
         for line in Self.lines { mock.receive(line) }
@@ -103,7 +103,7 @@ struct SubAgentActivityItemIdTests {
     func textAndThinkingInTheSameMessageUseMessageScopedItemIds() async throws {
         let mock = ItemIdMockLineTransport()
         let client = ClaudeChatClient(transportFactory: { _, _, _, _ in mock })
-        await client.start()
+        try await client.start()
 
         var iterator = client.events.makeAsyncIterator()
         mock.receive(#"{"type":"system","subtype":"init","session_id":"S1","tools":["Agent"]}"#)

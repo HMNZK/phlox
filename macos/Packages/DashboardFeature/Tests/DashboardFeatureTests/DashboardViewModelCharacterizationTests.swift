@@ -29,7 +29,8 @@ private func characterizationDashboard(
         projects: projectStore,
         sessions: InMemorySessionStore(persistedSessions),
         workspaceDirectory: workspaceDirectory,
-        agentBinaryPaths: agentBinaryPaths
+        agentBinaryPaths: agentBinaryPaths,
+        appServerClientFactory: { _, _, _, _, _ in CharacterizationFakeClient() }
     )
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()

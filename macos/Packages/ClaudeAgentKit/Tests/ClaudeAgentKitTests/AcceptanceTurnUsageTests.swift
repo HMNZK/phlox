@@ -71,7 +71,7 @@ private func makeClient(_ mock: TurnUsageMockTransport) -> ClaudeChatClient {
 @Test func turnUsage_successResultWithCostAndUsage_yieldsTurnUsageBeforeTurnCompleted() async throws {
     let mock = TurnUsageMockTransport()
     let client = makeClient(mock)
-    await client.start()
+    try await client.start()
 
     mock.receive("""
     {"type":"result","subtype":"success","session_id":"session-abc","is_error":false,\
@@ -96,7 +96,7 @@ private func makeClient(_ mock: TurnUsageMockTransport) -> ClaudeChatClient {
 @Test func turnUsage_costOnlyResult_yieldsTurnUsageWithNilTokens() async throws {
     let mock = TurnUsageMockTransport()
     let client = makeClient(mock)
-    await client.start()
+    try await client.start()
 
     mock.receive("""
     {"type":"result","subtype":"success","session_id":"session-abc","is_error":false,"total_cost_usd":2.5}
@@ -113,7 +113,7 @@ private func makeClient(_ mock: TurnUsageMockTransport) -> ClaudeChatClient {
 @Test func turnUsage_successResultWithoutCostOrUsage_yieldsNoTurnUsage() async throws {
     let mock = TurnUsageMockTransport()
     let client = makeClient(mock)
-    await client.start()
+    try await client.start()
 
     mock.receive("""
     {"type":"result","subtype":"success","session_id":"session-xyz","is_error":false}
@@ -127,7 +127,7 @@ private func makeClient(_ mock: TurnUsageMockTransport) -> ClaudeChatClient {
 @Test func turnUsage_errorResult_yieldsErrorWithoutTurnUsage() async throws {
     let mock = TurnUsageMockTransport()
     let client = makeClient(mock)
-    await client.start()
+    try await client.start()
 
     mock.receive("""
     {"type":"result","subtype":"error","is_error":true,"total_cost_usd":0.5,"result":"boom"}

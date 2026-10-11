@@ -87,7 +87,7 @@ private final class PermissionTransportPair: @unchecked Sendable {
     @Test func runningTurnChangesPermissionOnlyAfterAcknowledgementWithoutRespawn() async throws {
         let transport = PermissionTransport()
         let client = makeClient(transport)
-        await client.start()
+        try await client.start()
         try await client.turnStart([.text("test")])
         let change = Task { try await client.setPermissionMode("manual") }
         let request = try await transport.permissionRequest()
@@ -119,7 +119,7 @@ private final class PermissionTransportPair: @unchecked Sendable {
     @Test func rejectedChangeKeepsConfirmedPermissionAndProcess() async throws {
         let transport = PermissionTransport()
         let client = makeClient(transport)
-        await client.start()
+        try await client.start()
         let change = Task { try await client.setPermissionMode("manual") }
         let request = try await transport.permissionRequest()
         try transport.reply(id: try #require(request["request_id"] as? String), success: false)
@@ -137,7 +137,7 @@ private final class PermissionTransportPair: @unchecked Sendable {
             transport.failsSend = failsSend
             let client = makeClient(transport)
             await client.setPermissionRequestTimeoutForTesting(.milliseconds(20))
-            await client.start()
+            try await client.start()
             if failsSend {
                 await #expect(throws: LineDelimitedProcessTransportError.stdinClosed) {
                     try await client.setPermissionMode("manual")
@@ -157,7 +157,7 @@ private final class PermissionTransportPair: @unchecked Sendable {
     @Test func closedProcessReleasesWaitingChange() async throws {
         let transport = PermissionTransport()
         let client = makeClient(transport)
-        await client.start()
+        try await client.start()
         let change = Task { try await client.setPermissionMode("manual") }
         _ = try await transport.permissionRequest()
         await client.close()
@@ -170,7 +170,7 @@ private final class PermissionTransportPair: @unchecked Sendable {
             let transport = PermissionTransport()
             let client = makeClient(transport)
             await client.setPermissionRequestTimeoutForTesting(.milliseconds(20))
-            await client.start()
+            try await client.start()
             try await client.turnStart([.text("running")])
             var events = client.events.makeAsyncIterator()
             #expect(await events.next() == .turnStarted)
@@ -208,7 +208,7 @@ private final class PermissionTransportPair: @unchecked Sendable {
             let client = makeClient(transport)
             await client.updateSettings(model: "sonnet", permissionMode: "manual", effort: "high")
             if resumes { try await client.resume(sessionRef: "saved") }
-            else { await client.start() }
+            else { try await client.start() }
             try await client.turnStart([.text("test")])
             #expect(await client.spawnGeneration == 1)
             #expect(!transport.didClose)
@@ -221,7 +221,7 @@ private final class PermissionTransportPair: @unchecked Sendable {
         pair.first.blocksClose = true
         let client = ClaudeChatClient(permissionMode: "bypassPermissions", transportFactory: { _, _, _, _ in pair.make() })
         await client.setPermissionRequestTimeoutForTesting(.milliseconds(100))
-        await client.start()
+        try await client.start()
         try await client.turnStart([.text("old")])
         var events = client.events.makeAsyncIterator()
         #expect(await events.next() == .turnStarted)
@@ -250,7 +250,7 @@ private final class PermissionTransportPair: @unchecked Sendable {
         transport.blocksClose = true
         let client = makeClient(transport)
         await client.setPermissionRequestTimeoutForTesting(.milliseconds(20))
-        await client.start()
+        try await client.start()
         try await client.turnStart([.text("running")])
         var events = client.events.makeAsyncIterator()
         _ = await events.next()

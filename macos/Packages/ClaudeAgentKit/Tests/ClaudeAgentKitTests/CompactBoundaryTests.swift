@@ -41,7 +41,7 @@ private final class CompactMockTransport: LineDelimitedTransport, @unchecked Sen
 func compactBoundaryIsNormalizedWithMetadata(trigger: String, preTokens: Int) async throws {
     let mock = CompactMockTransport()
     let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in mock })
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     mock.receive(
@@ -63,7 +63,7 @@ func compactBoundaryIsNormalizedWithMetadata(trigger: String, preTokens: Int) as
 func compactBoundaryWithoutMetadataStillYields(line: String) async throws {
     let mock = CompactMockTransport()
     let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in mock })
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     mock.receive(line)

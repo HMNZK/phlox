@@ -1,6 +1,30 @@
 import Foundation
 import Testing
 import StructuredChatKit
+
+@Test func startThrowsWhenTransportStartFails() async throws {
+    let mock = MockTransport()
+    mock.startError = CocoaError(.fileReadNoSuchFile)
+    let client = ClaudeChatClient(transportFactory: { _, _, _, _ in mock })
+    await #expect(throws: CocoaError.self) { try await client.start() }
+    var iterator = client.events.makeAsyncIterator()
+    if case .error = await iterator.next() {} else { Issue.record("start failure did not emit error") }
+    await client.close()
+}
+
+@Test func initialSettingsReachFirstClaudeProcess() async throws {
+    let mock = MockTransport()
+    let recorder = TransportRecorder(mock)
+    let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
+    await client.updateSettings(model: "fable", permissionMode: "acceptEdits", effort: "high")
+    try await client.start()
+    let args = try #require(recorder.starts.first?.arguments)
+    for (flag, value) in [("--model", "fable"), ("--effort", "high"), ("--permission-mode", "acceptEdits")] {
+        let index = try #require(args.firstIndex(of: flag))
+        #expect(args[index + 1] == value)
+    }
+    await client.close()
+}
 @testable import ClaudeAgentKit
 
 @Test func startBuildsLongLivedStreamJsonClaudeCommandWithoutUnconditionalBypass() async throws {
@@ -12,7 +36,7 @@ import StructuredChatKit
         transportFactory: recorder.makeTransport
     )
 
-    await client.start()
+    try await client.start()
 
     let start = recorder.starts.first
     #expect(start?.command == "claude")
@@ -49,7 +73,7 @@ import StructuredChatKit
         transportFactory: recorder.makeTransport
     )
 
-    await client.start()
+    try await client.start()
 
     let arguments = recorder.starts.first?.arguments ?? []
     #expect(!arguments.contains("--append-system-prompt"))
@@ -67,7 +91,7 @@ import StructuredChatKit
         transportFactory: recorder.makeTransport
     )
 
-    await client.start()
+    try await client.start()
 
     let arguments = recorder.starts.first?.arguments ?? []
     #expect(arguments.contains("--session-id"))
@@ -100,10 +124,10 @@ import StructuredChatKit
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
-    await client.start()
+    try await client.start()
 
     #expect(recorder.starts.count == 1)
     #expect(await iterator.next() == .warning(message: "Claude chat client is already started"))
@@ -114,7 +138,7 @@ import StructuredChatKit
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     try await client.turnStart([.text("hello"), .text("world")])
@@ -148,7 +172,7 @@ import StructuredChatKit
         },
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     try await client.turnStart([.text("hello")])
@@ -168,7 +192,7 @@ import StructuredChatKit
         },
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     try await client.turnStart([.text("hello")])
@@ -192,7 +216,7 @@ import StructuredChatKit
         transportFactory: recorder.makeTransport
     )
 
-    await client.start()
+    try await client.start()
 
     let arguments = try #require(recorder.starts.first?.arguments)
     #expect(arguments.contains("--permission-mode"))
@@ -210,7 +234,7 @@ import StructuredChatKit
         transportFactory: recorder.makeTransport
     )
 
-    await client.start()
+    try await client.start()
 
     let arguments = try #require(recorder.starts.first?.arguments)
     #expect(arguments.contains("--allowedTools"))
@@ -228,7 +252,7 @@ import StructuredChatKit
         transportFactory: recorder.makeTransport
     )
 
-    await client.start()
+    try await client.start()
 
     let arguments = try #require(recorder.starts.first?.arguments)
     let allowedToolsIndexes = arguments.indices.filter { arguments[$0] == "--allowedTools" }
@@ -261,7 +285,7 @@ import StructuredChatKit
             transportFactory: recorder.makeTransport
         )
 
-        await client.start()
+        try await client.start()
 
         let arguments = try #require(recorder.starts.first?.arguments)
         #expect(arguments.contains("--permission-mode"))
@@ -281,7 +305,7 @@ import StructuredChatKit
         transportFactory: recorder.makeTransport
     )
 
-    await client.start()
+    try await client.start()
 
     let arguments = try #require(recorder.starts.first?.arguments)
     #expect(arguments.contains("--permission-mode"))
@@ -295,7 +319,7 @@ import StructuredChatKit
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""
@@ -311,7 +335,7 @@ import StructuredChatKit
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""
@@ -333,7 +357,7 @@ import StructuredChatKit
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""
@@ -359,7 +383,7 @@ import StructuredChatKit
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""
@@ -385,7 +409,7 @@ import StructuredChatKit
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""
@@ -410,7 +434,7 @@ import StructuredChatKit
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""
@@ -429,7 +453,7 @@ import StructuredChatKit
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""
@@ -447,7 +471,7 @@ import StructuredChatKit
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""
@@ -468,7 +492,7 @@ import StructuredChatKit
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""
@@ -489,7 +513,7 @@ import StructuredChatKit
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""
@@ -512,7 +536,7 @@ import StructuredChatKit
     let recorder = TransportRecorder(mock)
     // 密封化: ambient PHLOX_SESSION_ID が既定環境から漏れ nativeSessionId を汚さないよう空環境で構築。
     let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""
@@ -528,7 +552,7 @@ import StructuredChatKit
     let recorder = TransportRecorder(mock)
     // 密封化: ambient PHLOX_SESSION_ID が既定環境から漏れ nativeSessionId を汚さないよう空環境で構築。
     let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""
@@ -552,7 +576,7 @@ import StructuredChatKit
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("{not-json")
@@ -569,7 +593,7 @@ import StructuredChatKit
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     try await client.turnStart([.text("run")])
@@ -585,7 +609,7 @@ import StructuredChatKit
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     try await client.turnStart([.text("run")])
@@ -607,7 +631,7 @@ import StructuredChatKit
 @Test func staleStreamEndWaitingForStderrTailDoesNotClearResumedTransport() async throws {
     let recorder = FreshTransportRecorder()
     let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     try await client.turnStart([.text("old")])
@@ -637,7 +661,7 @@ import StructuredChatKit
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     try await client.turnStart([.text("first")])
@@ -665,7 +689,7 @@ import StructuredChatKit
         transportFactory: recorder.makeTransport
     )
 
-    await client.start()
+    try await client.start()
 
     let arguments = recorder.starts.first?.arguments ?? []
     #expect(arguments.contains("--model"))
@@ -685,7 +709,7 @@ import StructuredChatKit
         transportFactory: recorder.makeTransport
     )
 
-    await client.start()
+    try await client.start()
 
     let arguments = recorder.starts.first?.arguments ?? []
     #expect(arguments.contains("--permission-mode"))
@@ -703,7 +727,7 @@ import StructuredChatKit
         environment: ["PHLOX_SESSION_ID": sid],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     await client.updateSettings(model: "opus", permissionMode: "bypassPermissions")
@@ -726,7 +750,7 @@ import StructuredChatKit
         environment: ["PHLOX_SESSION_ID": sid],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     try await client.turnStart([.text("first")])
@@ -794,7 +818,7 @@ import StructuredChatKit
         environment: ["PHLOX_SESSION_ID": sid],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     try await client.turnStart([.text("first")])
@@ -819,7 +843,7 @@ import StructuredChatKit
         environment: ["PHLOX_SESSION_ID": phloxSessionID],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     #expect(recorder.starts.count == 1)
     #expect(recorder.starts[0].arguments.contains("--session-id"))
 
@@ -951,6 +975,7 @@ private actor StderrTailGate {
 }
 
 private final class MockTransport: LineDelimitedTransport, @unchecked Sendable {
+    var startError: CocoaError?
     private let lock = NSLock()
     private var continuation: AsyncStream<Data>.Continuation?
     private var sent: [Data] = []
@@ -1002,6 +1027,7 @@ private final class MockTransport: LineDelimitedTransport, @unchecked Sendable {
     }
 
     func start() throws {
+        if let startError { throw startError }
         lock.withLock {
             started = true
         }
@@ -1056,7 +1082,7 @@ private final class MockTransport: LineDelimitedTransport, @unchecked Sendable {
         model: "opus",
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
     try await client.turnStart([.text("first")])
     _ = await iterator.next()
@@ -1078,7 +1104,7 @@ private final class MockTransport: LineDelimitedTransport, @unchecked Sendable {
     let recorder = FreshTransportRecorder()
     let sid = "88888888-8888-4888-8888-888888888888"
     let client = ClaudeChatClient(environment: ["PHLOX_SESSION_ID": sid], transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
     var it = client.events.makeAsyncIterator()
     try await client.turnStart([.text("a")]); #expect(await it.next() == .turnStarted)
     recorder.transports[0].receive(#"{"type":"result","subtype":"success","session_id":"88888888-8888-4888-8888-888888888888","is_error":false}"#)
@@ -1125,7 +1151,7 @@ private func waitUntil(
     let recorder = TransportRecorder(mock)
     // 密封化: ambient PHLOX_SESSION_ID が既定環境から漏れ nativeSessionId を汚さないよう空環境で構築。
     let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""
@@ -1148,7 +1174,7 @@ private func waitUntil(
     let recorder = TransportRecorder(mock)
     // 密封化: ambient PHLOX_SESSION_ID が既定環境から漏れ nativeSessionId を汚さないよう空環境で構築。
     let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""
@@ -1171,7 +1197,7 @@ private func waitUntil(
         environment: ["PHLOX_SESSION_ID": sid],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     await client.updateSettings(model: "opus", permissionMode: "bypassPermissions", effort: "medium")
@@ -1189,7 +1215,7 @@ private func waitUntil(
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive(
@@ -1209,7 +1235,7 @@ private func waitUntil(
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive(
@@ -1229,7 +1255,7 @@ private func waitUntil(
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive(
@@ -1248,7 +1274,7 @@ private func waitUntil(
     let mock = MockTransport()
     let recorder = TransportRecorder(mock)
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive(
@@ -1268,7 +1294,7 @@ private func waitUntil(
     let recorder = TransportRecorder(mock)
     // 密封化: ambient PHLOX_SESSION_ID が既定環境から漏れ nativeSessionId を汚さないよう空環境で構築。
     let client = ClaudeChatClient(environment: [:], transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive(
@@ -1287,7 +1313,7 @@ private func waitUntil(
         environment: ["PHLOX_SESSION_ID": sid],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     await client.updateSettings(model: "opus", permissionMode: "bypassPermissions")

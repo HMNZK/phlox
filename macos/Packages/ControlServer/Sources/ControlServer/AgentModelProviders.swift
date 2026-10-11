@@ -406,7 +406,11 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
                                 else { continue }
                                 let models = data.compactMap { item -> ControlModelOption? in
                                     guard let id = item["id"] as? String, !id.isEmpty else { return nil }
-                                    return option(id)
+                                    return ControlModelOption(id: id, displayName: id,
+                                        reasoningEfforts: (item["supportedReasoningEfforts"] as? [[String: Any]])?
+                                            .compactMap { $0["reasoningEffort"] as? String },
+                                        defaultReasoningEffort: item["defaultReasoningEffort"] as? String,
+                                        acceptsImages: (item["inputModalities"] as? [String])?.contains("image"))
                                 }
                                 if process.isRunning { process.terminate() }
                                 gate.resume(models.isEmpty ? .failure(ProviderError.invalidOutput) : .success(models))

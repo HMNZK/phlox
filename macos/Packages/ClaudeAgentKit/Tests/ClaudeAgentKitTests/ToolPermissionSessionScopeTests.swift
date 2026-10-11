@@ -79,7 +79,7 @@ private let suggestedBashRequestLine = """
 @Test func allowForSession_sendsSessionRuleInUpdatedPermissions() async throws {
     let transport = SessionScopeMockTransport()
     let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in transport })
-    await client.start()
+    try await client.start()
     let events = client.events
     let questionTask = Task { () -> ChatUserQuestion? in
         for await event in events {

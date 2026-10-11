@@ -68,7 +68,7 @@ private func makeContextWindowClient(_ mock: ContextWindowMockTransport) -> Clau
 @Test func contextWindow_singleModelUsageEntry_populatesContextWindowTokens() async throws {
     let mock = ContextWindowMockTransport()
     let client = makeContextWindowClient(mock)
-    await client.start()
+    try await client.start()
 
     mock.receive("""
     {"type":"result","subtype":"success","session_id":"session-cw1","is_error":false,\
@@ -98,7 +98,7 @@ private func makeContextWindowClient(_ mock: ContextWindowMockTransport) -> Clau
 @Test func contextWindow_multipleEntries_picksLargestConsumptionEntry() async throws {
     let mock = ContextWindowMockTransport()
     let client = makeContextWindowClient(mock)
-    await client.start()
+    try await client.start()
 
     // 主モデル（消費 50000 = 1000+45000+4000, window 1000000）とサブモデル（消費 500, window 200000）。
     // 消費合計が最大のエントリの contextWindow（1000000）を採用する。
@@ -127,7 +127,7 @@ private func makeContextWindowClient(_ mock: ContextWindowMockTransport) -> Clau
 @Test func contextWindow_missingModelUsage_leavesContextFieldsNil() async throws {
     let mock = ContextWindowMockTransport()
     let client = makeContextWindowClient(mock)
-    await client.start()
+    try await client.start()
 
     mock.receive("""
     {"type":"result","subtype":"success","session_id":"session-cw3","is_error":false,\
@@ -152,7 +152,7 @@ private func makeContextWindowClient(_ mock: ContextWindowMockTransport) -> Clau
 @Test func contextWindow_malformedModelUsage_leavesContextFieldsNilWithoutCrash() async throws {
     let mock = ContextWindowMockTransport()
     let client = makeContextWindowClient(mock)
-    await client.start()
+    try await client.start()
 
     mock.receive("""
     {"type":"result","subtype":"success","session_id":"session-cw4","is_error":false,\

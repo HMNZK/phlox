@@ -131,7 +131,7 @@ private func makeClient(_ mock: UsageMockTransport) -> ClaudeChatClient {
 @Test func getUsageSendsControlRequestAndMapsResponseToSnapshot() async throws {
     let mock = UsageMockTransport()
     let client = makeClient(mock)
-    await client.start()
+    try await client.start()
 
     let fetch = Task { try await client.fetchRateLimits() }
     let requestID = try await waitForGetUsageRequestID(in: mock)
@@ -153,7 +153,7 @@ private func makeClient(_ mock: UsageMockTransport) -> ClaudeChatClient {
 @Test func getUsageConcurrentRequestsCorrelateByRequestID() async throws {
     let mock = UsageMockTransport()
     let client = makeClient(mock)
-    await client.start()
+    try await client.start()
 
     let first = Task { try await client.fetchRateLimits() }
     let firstID = try await waitForGetUsageRequestID(in: mock)
@@ -177,7 +177,7 @@ private func makeClient(_ mock: UsageMockTransport) -> ClaudeChatClient {
 @Test func getUsageControlResponseDoesNotLeakIntoChatEvents() async throws {
     let mock = UsageMockTransport()
     let client = makeClient(mock)
-    await client.start()
+    try await client.start()
     // AsyncStream はイベントをバッファするため、先に読み手 Task を立てておけば
     // 以後に yield されたイベントの最初の1件を確実に観測できる。
     let firstEvent = Task { () -> NormalizedChatEvent? in
@@ -211,7 +211,7 @@ private func makeClient(_ mock: UsageMockTransport) -> ClaudeChatClient {
 @Test func getUsageResolvesWhileTurnIsInFlight() async throws {
     let mock = UsageMockTransport()
     let client = makeClient(mock)
-    await client.start()
+    try await client.start()
 
     try await client.turnStart([.text("hello")])
     let fetch = Task { try await client.fetchRateLimits() }
@@ -229,7 +229,7 @@ private func makeClient(_ mock: UsageMockTransport) -> ClaudeChatClient {
 @Test func getUsageErrorResponseThrows() async throws {
     let mock = UsageMockTransport()
     let client = makeClient(mock)
-    await client.start()
+    try await client.start()
 
     let fetch = Task { try await client.fetchRateLimits() }
     let requestID = try await waitForGetUsageRequestID(in: mock)
@@ -246,7 +246,7 @@ private func makeClient(_ mock: UsageMockTransport) -> ClaudeChatClient {
 @Test func getUsageFailsPendingRequestOnCloseInsteadOfHanging() async throws {
     let mock = UsageMockTransport()
     let client = makeClient(mock)
-    await client.start()
+    try await client.start()
 
     let fetch = Task { try await client.fetchRateLimits() }
     _ = try await waitForGetUsageRequestID(in: mock)

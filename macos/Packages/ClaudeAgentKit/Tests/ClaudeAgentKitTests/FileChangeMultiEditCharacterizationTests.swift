@@ -8,7 +8,7 @@ import StructuredChatKit
 @Test func multiEditCombinesMultipleEditsIntoSingleFileChangeWithJoinedDiff() async throws {
     let mock = MultiEditMockTransport()
     let client = ClaudeChatClient(transportFactory: { _, _, _, _ in mock })
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""
@@ -42,7 +42,7 @@ import StructuredChatKit
 @Test func multiEditWithEmptyEditsArrayStillEmitsFileChangeWithEmptyDiff() async throws {
     let mock = MultiEditMockTransport()
     let client = ClaudeChatClient(transportFactory: { _, _, _, _ in mock })
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""
@@ -58,7 +58,7 @@ import StructuredChatKit
 @Test func multiEditEditMissingOldStringUsesNullSourceInDiff() async throws {
     let mock = MultiEditMockTransport()
     let client = ClaudeChatClient(transportFactory: { _, _, _, _ in mock })
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""
@@ -81,7 +81,7 @@ import StructuredChatKit
 @Test func multiEditWithoutFilePathFallsBackToCommandExecution() async throws {
     let mock = MultiEditMockTransport()
     let client = ClaudeChatClient(transportFactory: { _, _, _, _ in mock })
-    await client.start()
+    try await client.start()
 
     var iterator = client.events.makeAsyncIterator()
     mock.receive("""

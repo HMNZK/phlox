@@ -202,7 +202,7 @@ private func waitFor(
     let mock = AskQMockTransport()
     let recorder = AskQTransportRecorder(mock)
     let client = makeClient(recorder)
-    await client.start()
+    try await client.start()
 
     let arguments = recorder.starts.first?.arguments ?? []
     let pairIndex = arguments.firstIndex(of: "--permission-prompt-tool")
@@ -219,7 +219,7 @@ private func waitFor(
     let mock = AskQMockTransport()
     let recorder = AskQTransportRecorder(mock)
     let client = makeClient(recorder)
-    await client.start()
+    try await client.start()
     let (collector, task) = collectEvents(of: client)
 
     mock.receive(askUserQuestionLine)
@@ -235,7 +235,7 @@ private func waitFor(
     let mock = AskQMockTransport()
     let recorder = AskQTransportRecorder(mock)
     let client = makeClient(recorder)
-    await client.start()
+    try await client.start()
     let (collector, task) = collectEvents(of: client)
 
     mock.receive(askUserQuestionLine)
@@ -280,7 +280,7 @@ private func waitFor(
     let mock = AskQMockTransport()
     let recorder = AskQTransportRecorder(mock)
     let client = makeClient(recorder)
-    await client.start()
+    try await client.start()
     let (collector, task) = collectEvents(of: client)
 
     mock.receive("""
@@ -313,7 +313,7 @@ private func waitFor(
     let mock = AskQMockTransport()
     let recorder = AskQTransportRecorder(mock)
     let client = makeClient(recorder)
-    await client.start()
+    try await client.start()
     let (collector, task) = collectEvents(of: client)
 
     mock.receive("""
@@ -340,7 +340,7 @@ private func waitFor(
     let mock = AskQMockTransport()
     let recorder = AskQTransportRecorder(mock)
     let client = makeClient(recorder)
-    await client.start()
+    try await client.start()
 
     await client.respondToUserQuestion(requestId: "no-such-request", answers: ["Q": ["A"]])
 
@@ -352,7 +352,7 @@ private func waitFor(
     let mock = AskQMockTransport()
     let recorder = AskQTransportRecorder(mock)
     let client = makeClient(recorder)
-    await client.start()
+    try await client.start()
     let (collector, task) = collectEvents(of: client)
 
     mock.receive(askUserQuestionLine)
@@ -374,7 +374,7 @@ private func waitFor(
     let mock = AskQMockTransport()
     let recorder = AskQTransportRecorder(mock)
     let client = makeClient(recorder)
-    await client.start()
+    try await client.start()
     let (collector, task) = collectEvents(of: client)
 
     mock.receive(askUserQuestionLine)
@@ -405,7 +405,7 @@ private func waitFor(
 @Test func askUserQuestionDefaultsMissingDescriptionAndMultiSelect() async throws {
     let mock = AskQMockTransport()
     let client = makeClient(AskQTransportRecorder(mock))
-    await client.start()
+    try await client.start()
     let (collector, task) = collectEvents(of: client)
 
     mock.receive(#"{"type":"control_request","request_id":"defaults","request":{"subtype":"can_use_tool","tool_name":"AskUserQuestion","input":{"questions":[{"question":"Choose","header":"Choice","options":[{"label":"A"}]}]}}}"#)
@@ -433,7 +433,7 @@ private func waitFor(
     let firstTransport = AskQMockTransport()
     let secondTransport = AskQMockTransport()
     let client = makeClient(AskQTransportRecorder(firstTransport, secondTransport))
-    await client.start()
+    try await client.start()
     let (collector, task) = collectEvents(of: client)
 
     firstTransport.receive(#"{"type":"control_request","request_id":"old-generation","request":{"subtype":"can_use_tool","tool_name":"AskUserQuestion","input":{"questions":[{"question":"Old?","header":"Old","options":[{"label":"Yes"}],"multiSelect":false}]}}}"#)
@@ -476,7 +476,7 @@ private func waitFor(
 @Test func interruptDoesNotDenyQuestionWhoseAllowSendIsInFlight() async throws {
     let mock = AskQMockTransport()
     let client = makeClient(AskQTransportRecorder(mock))
-    await client.start()
+    try await client.start()
     let (collector, task) = collectEvents(of: client)
 
     mock.receive(#"{"type":"control_request","request_id":"in-flight","request":{"subtype":"can_use_tool","tool_name":"AskUserQuestion","input":{"questions":[{"question":"Send?","header":"Send","options":[{"label":"Yes"}],"multiSelect":false}]}}}"#)

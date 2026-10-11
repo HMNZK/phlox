@@ -475,7 +475,7 @@ final class SessionSpawnService {
     private let registerOwnedWorkspace: @MainActor (SessionID, URL, URL?) -> Void
     private let cleanupOwnedWorkspace: @MainActor (SessionID) async -> Void
     private let lastUsedChatSettings: @MainActor (String) -> LastUsedChatSettings?
-    private let recordLastUsedChatSettings: @MainActor (String, String?, String?) -> Void
+    private let recordLastUsedChatSettings: @MainActor (String, CodexAppServerSessionSettings) -> Void
     private let logError: @MainActor (Error, String) -> Void
     /// worktree を作り始めた（true）・終えた（false）ことを、そのパスとともに知らせる。
     var onWorktreeCreation: (@MainActor (String, Bool) -> Void)?
@@ -493,7 +493,7 @@ final class SessionSpawnService {
         registerOwnedWorkspace: @escaping @MainActor (SessionID, URL, URL?) -> Void,
         cleanupOwnedWorkspace: @escaping @MainActor (SessionID) async -> Void,
         lastUsedChatSettings: @escaping @MainActor (String) -> LastUsedChatSettings?,
-        recordLastUsedChatSettings: @escaping @MainActor (String, String?, String?) -> Void,
+        recordLastUsedChatSettings: @escaping @MainActor (String, CodexAppServerSessionSettings) -> Void,
         logError: @escaping @MainActor (Error, String) -> Void
     ) {
         self.environment = environment
@@ -679,6 +679,7 @@ final class SessionSpawnService {
         plan: AgentLaunchPlan,
         launchContext: SessionLaunchContext = .interactive,
         titleState: SessionTitleState? = nil,
+        initialSettings: CodexAppServerSessionSettings? = nil,
         sessionOriginForWrite: (@MainActor () -> SessionOrigin)? = nil,
         registerSessionForWrite: (@MainActor (ChatSessionViewModel) -> Void)? = nil
     ) async throws -> ChatSessionViewModel {
@@ -711,7 +712,8 @@ final class SessionSpawnService {
             workingDirectory: plan.workingDirectory,
             transcriptStore: environment.transcriptStore,
             spawnAgentPermissionOverride: plan.descriptor.ref == .builtin(.claudeCode)
-                ? (environment.isFullAccessEnabled(plan.descriptor.ref) ? "bypassPermissions" : "auto")
+                ? (initialSettings?.selectedPermissionProfile
+                    ?? (environment.isFullAccessEnabled(plan.descriptor.ref) ? "bypassPermissions" : "auto"))
                 : nil,
             // Keep the injectable seam on the production path, but source it exclusively
             // from AgentModelCatalog. The catalog is the single authority shared with the API.
@@ -740,7 +742,7 @@ final class SessionSpawnService {
         vm.codexSettingsDidChange = { [weak self] settings in
             self?.persistence.persistCodexSettings(id: sessionID, settings: settings)
             if let settings {
-                self?.recordLastUsedChatSettings(agentID, settings.selectedModel, settings.selectedEffort)
+                self?.recordLastUsedChatSettings(agentID, settings)
             }
         }
         registerSessionForWrite?(vm)
@@ -840,6 +842,8 @@ final class SessionSpawnService {
         plan: AgentLaunchPlan,
         launchContext: SessionLaunchContext,
         titleState: SessionTitleState? = nil,
+        initialSettings: CodexAppServerSessionSettings? = nil,
+        keepsRowOnLaunchFailure: Bool = false,
         sessionOriginForWrite: (@MainActor () -> SessionOrigin)? = nil,
         registerSessionForWrite: (@MainActor (ChatSessionViewModel) -> Void)? = nil,
         unregisterFailedSession: (@MainActor (SessionID) -> Void)? = nil
@@ -860,6 +864,7 @@ final class SessionSpawnService {
                 plan: plan,
                 launchContext: launchContext,
                 titleState: titleState,
+                initialSettings: initialSettings,
                 sessionOriginForWrite: sessionOriginForWrite,
                 registerSessionForWrite: registerSessionForWrite
             )
@@ -870,7 +875,8 @@ final class SessionSpawnService {
             try await chatVM.startNew(
                 approvalPolicy: Self.appServerApprovalPolicy(for: chatVM.launchContext),
                 sandbox: Self.appServerSandboxPolicy(for: chatVM.launchContext),
-                persistedSettings: persistedSettings
+                persistedSettings: persistedSettings,
+                initialSettings: initialSettings
             )
             return AppServerSpawnResult(
                 vm: chatVM,
@@ -880,6 +886,14 @@ final class SessionSpawnService {
                 sessionName: chatVM.name
             )
         } catch {
+            if keepsRowOnLaunchFailure, let vm = createdChatVM {
+                let text: String
+                if case .userMessage(_, let pendingText, _, _) = vm.pendingFirstMessage { text = pendingText }
+                else { text = vm.draft }
+                vm.markLaunchFailed((error as? ChatLaunchError) ?? .processFailed(error.localizedDescription), restoringDraft: text)
+                return AppServerSpawnResult(vm: vm, codexThreadId: nil, chatNativeSessionId: nil,
+                                            appServerUserAgent: nil, sessionName: vm.name)
+            }
             unregisterFailedSession?(sessionID)
             await createdChatVM?.terminate()
             await environment.tokenStore.remove(session: sessionID)

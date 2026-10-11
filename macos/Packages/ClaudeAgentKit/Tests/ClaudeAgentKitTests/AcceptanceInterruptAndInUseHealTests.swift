@@ -26,7 +26,7 @@ import StructuredChatKit
         environment: ["PHLOX_SESSION_ID": sid],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     try await client.turnStart([.text("first")])
@@ -59,7 +59,7 @@ import StructuredChatKit
         environment: ["PHLOX_SESSION_ID": sid],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     try await client.turnStart([.text("hello")])
@@ -91,7 +91,7 @@ import StructuredChatKit
         environment: ["PHLOX_SESSION_ID": sid],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     try await client.turnStart([.text("first")])
@@ -128,7 +128,7 @@ import StructuredChatKit
         environment: ["PHLOX_SESSION_ID": sid],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     try await client.turnStart([.text("first")])
@@ -170,7 +170,7 @@ import StructuredChatKit
         environment: ["PHLOX_SESSION_ID": sid],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     try await client.turnStart([.text("first")])
@@ -208,7 +208,7 @@ import StructuredChatKit
         environment: ["PHLOX_SESSION_ID": sid],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     // 設定 respawn で --session-id が選ばれたが、実は会話が既に存在していた、という
@@ -250,7 +250,7 @@ import StructuredChatKit
         environment: ["PHLOX_SESSION_ID": sid],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     await client.updateSettings(model: "opus", permissionMode: nil, effort: nil)

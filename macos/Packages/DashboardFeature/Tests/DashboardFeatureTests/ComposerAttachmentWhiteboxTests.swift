@@ -120,7 +120,7 @@ func composerAttachment_sendPathBlocksOverTotalRawLimitAndKeepsAttachments() asy
         attachmentStore: overLimitStore
     )
 
-    try await viewModel.sendText("inspect", submit: true)
+    await #expect(throws: SendRejected.totalSizeExceeded) { try await viewModel.sendText("inspect", submit: true) }
 
     #expect(client.receivedInputs.isEmpty)
     #expect(viewModel.attachmentStore.attachments.count == 3)
@@ -139,7 +139,7 @@ func composerAttachment_nonClaudeImageOnlySendIsBlockedAndKeepsAttachments() asy
     )
     viewModel.attachmentStore.addImage(data: Data([1, 2, 3]), mediaType: "image/png")
 
-    try await viewModel.sendText("", submit: true)
+    await #expect(throws: SendRejected.imagesUnsupported) { try await viewModel.sendText("", submit: true) }
 
     #expect(client.receivedInputs.isEmpty)
     #expect(viewModel.attachmentStore.attachments.count == 1)

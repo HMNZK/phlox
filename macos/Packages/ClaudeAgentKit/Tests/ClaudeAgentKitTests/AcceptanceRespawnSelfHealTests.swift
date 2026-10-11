@@ -22,7 +22,7 @@ import StructuredChatKit
         environment: ["PHLOX_SESSION_ID": sid],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     // ChatSessionViewModel.loadSpawnAgentSettings 相当: 起動直後に必ず設定が適用される。
@@ -49,7 +49,7 @@ import StructuredChatKit
         environment: ["PHLOX_SESSION_ID": sid],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     try await client.turnStart([.text("first")])
@@ -231,7 +231,7 @@ import StructuredChatKit
         environment: ["PHLOX_SESSION_ID": "99999999-9999-4999-8999-999999999999"],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var iterator = client.events.makeAsyncIterator()
 
     try await client.turnStart([.text("run")])

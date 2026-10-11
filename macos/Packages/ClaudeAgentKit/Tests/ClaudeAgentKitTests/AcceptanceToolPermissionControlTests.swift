@@ -158,7 +158,7 @@ private func originalBashInput() throws -> [String: Any] {
 @Test func bashPermissionRequestYieldsUserQuestion() async throws {
     let transport = ToolPermissionMockTransport()
     let client = makeToolPermissionClient(transport)
-    await client.start()
+    try await client.start()
     let (collector, task) = collectToolPermissionEvents(from: client)
 
     transport.receive(bashPermissionRequestLine)
@@ -180,7 +180,7 @@ private func originalBashInput() throws -> [String: Any] {
 @Test func allowingToolPermissionSendsOriginalInput() async throws {
     let transport = ToolPermissionMockTransport()
     let client = makeToolPermissionClient(transport)
-    await client.start()
+    try await client.start()
     let (collector, task) = collectToolPermissionEvents(from: client)
     transport.receive(bashPermissionRequestLine)
 
@@ -215,7 +215,7 @@ private func originalBashInput() throws -> [String: Any] {
         permissionMode: "auto",
         allowedTools: ["Bash"]
     )
-    await client.start()
+    try await client.start()
     let (collector, task) = collectToolPermissionEvents(from: client)
 
     transport.receive(bashPermissionRequestLine)
@@ -243,7 +243,7 @@ private func originalBashInput() throws -> [String: Any] {
 @Test func bypassPermissionsAutoAllowsWithoutQuestion() async throws {
     let transport = ToolPermissionMockTransport()
     let client = makeToolPermissionClient(transport, permissionMode: "bypassPermissions")
-    await client.start()
+    try await client.start()
     let (collector, task) = collectToolPermissionEvents(from: client)
 
     transport.receive(bashPermissionRequestLine)
@@ -271,7 +271,7 @@ private func originalBashInput() throws -> [String: Any] {
 @Test func denyingToolPermissionSendsDenyResponse() async throws {
     let transport = ToolPermissionMockTransport()
     let client = makeToolPermissionClient(transport)
-    await client.start()
+    try await client.start()
     let (collector, task) = collectToolPermissionEvents(from: client)
     transport.receive(bashPermissionRequestLine)
 
@@ -341,7 +341,7 @@ private func originalBashInput() throws -> [String: Any] {
 @Test func unknownAndEmptyPermissionAnswersDeny() async throws {
     let transport = ToolPermissionMockTransport()
     let client = makeToolPermissionClient(transport)
-    await client.start()
+    try await client.start()
     let (collector, task) = collectToolPermissionEvents(from: client)
 
     transport.receive(bashPermissionRequestLine)
@@ -377,7 +377,7 @@ private func originalBashInput() throws -> [String: Any] {
 @Test func expiringToolPermissionSendsBestEffortDeny() async throws {
     let transport = ToolPermissionMockTransport()
     let client = makeToolPermissionClient(transport)
-    await client.start()
+    try await client.start()
     let (collector, task) = collectToolPermissionEvents(from: client)
     transport.receive(bashPermissionRequestLine)
 
@@ -404,7 +404,7 @@ private func originalBashInput() throws -> [String: Any] {
 @Test func streamEndExpiresToolPermissionWithoutSendingDeny() async throws {
     let transport = ToolPermissionMockTransport()
     let client = makeToolPermissionClient(transport)
-    await client.start()
+    try await client.start()
     let (collector, task) = collectToolPermissionEvents(from: client)
     transport.receive(bashPermissionRequestLine)
 
@@ -426,7 +426,7 @@ private func originalBashInput() throws -> [String: Any] {
 @Test func respawnExpiresToolPermissionAndOnlyOldTransportGetsDeny() async throws {
     let factory = ToolPermissionTransportFactory()
     let client = ClaudeChatClient(environment: [:], transportFactory: factory.make)
-    await client.start()
+    try await client.start()
     let firstTransport = try #require(factory.transport(at: 0))
     let (collector, task) = collectToolPermissionEvents(from: client)
 
@@ -461,7 +461,7 @@ private func originalBashInput() throws -> [String: Any] {
 @Test func interruptSendsOneDenyForToolPermission() async throws {
     let transport = ToolPermissionMockTransport()
     let client = makeToolPermissionClient(transport)
-    await client.start()
+    try await client.start()
     let (collector, task) = collectToolPermissionEvents(from: client)
     transport.receive(bashPermissionRequestLine)
 

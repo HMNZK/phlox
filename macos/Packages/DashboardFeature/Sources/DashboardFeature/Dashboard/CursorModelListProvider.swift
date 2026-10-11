@@ -8,8 +8,8 @@ enum CursorModelListProvider {
         return CodexAppServerSessionSettings(
             selectedModel: lastUsed.model,
             selectedEffort: lastUsed.effort,
-            selectedPermissionProfile: nil,
-            isPlanMode: false
+            selectedPermissionProfile: lastUsed.permission,
+            isPlanMode: lastUsed.isPlanMode ?? false
         )
     }
 

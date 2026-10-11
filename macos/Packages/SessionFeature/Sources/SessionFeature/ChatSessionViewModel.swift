@@ -131,6 +131,51 @@ public final class ChatSessionViewModel: Identifiable {
     /// composer 下書きの単一の正本（task-4 契約。受け入れテスト ComposerDraftPersistence が凍結）。
     /// View ローカル @State に持つとシングル⇄グリッド切替のビュー再生成で消える（F バグの根本原因）。
     public var draft: String = ""
+    public private(set) var launchFailure: ChatLaunchError?
+    public private(set) var pendingFirstMessage: ChatItem?
+    private var firstTurnInput: (text: String, attachments: [ComposerAttachment])?
+
+    public var composerAttachments: [ComposerAttachment] { attachmentStore.attachments }
+
+    public func restoreLaunchDraft(_ text: String, attachments: [ComposerAttachment]) {
+        draft = text
+        attachmentStore.restore(attachments)
+    }
+
+    public func prepareFirstMessage(_ text: String, attachments: [ComposerAttachment]) {
+        guard !text.isEmpty || !attachments.isEmpty else { return }
+        attachmentStore.restore(attachments)
+        let item = ChatItem.userMessage(id: "pending-first-\(id.rawValue)", text: text, timestamp: Date(),
+            attachments: attachments.map { ChatUserAttachment(filename: $0.filename, mediaType: $0.mediaType) })
+        pendingFirstMessage = item
+        appendOrReplace(item)
+    }
+
+    private func removePendingFirstMessage() {
+        if let pendingFirstMessage { setTranscript(transcript.filter { $0.id != pendingFirstMessage.id }) }
+        pendingFirstMessage = nil
+    }
+
+    public func markLaunchFailed(_ error: ChatLaunchError, restoringDraft text: String) {
+        removePendingFirstMessage()
+        launchFailure = error
+        draft = text
+        status = .error(message: error.localizedDescription)
+        appendOrReplace(.error(id: "launch-error-\(id.rawValue)", message: error.localizedDescription, timestamp: Date()))
+    }
+
+    public func sendFirstMessage(_ text: String, attachments: [ComposerAttachment]) async {
+        removePendingFirstMessage()
+        attachmentStore.restore(attachments)
+        guard !text.isEmpty || !attachments.isEmpty else { return }
+        draftClearedForSend = text
+        do {
+            try await sendText(text, submit: true)
+        } catch {
+            restoreLaunchDraft(text, attachments: attachments)
+            reportError(error.localizedDescription)
+        }
+    }
     public private(set) var submitBaselineTurnSeq: Int?
     public private(set) var runningBackgroundTasks: [RunningBackgroundTask] = []
     public var showsProcessingIndicator: Bool {
@@ -693,6 +738,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public func consumeDraftForSend() -> String? {
+        guard pendingFirstMessage == nil, launchFailure == nil else { return nil }
         // 承認を待っている間は書けるが送らない（05 R6「送信は承認後」）。質問のカードは別の指示を送ってよい。
         guard !isApplyingSpawnAgentPermission, inFlightText == nil, replyApprovals.isEmpty else { return nil }
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -918,6 +964,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public var isReadyForInput: Bool {
+        guard launchFailure == nil else { return false }
         guard !isApplyingSpawnAgentPermission else { return false }
         return switch status {
         case .starting:
@@ -930,7 +977,8 @@ public final class ChatSessionViewModel: Identifiable {
     public func startNew(
         approvalPolicy: ApprovalPolicy,
         sandbox: SandboxPolicy,
-        persistedSettings: CodexAppServerSessionSettings? = nil
+        persistedSettings: CodexAppServerSessionSettings? = nil,
+        initialSettings: CodexAppServerSessionSettings? = nil
     ) async throws {
         codexRestoreGeneration += 1
         restoringCodexSettingsThreadID = nil
@@ -938,17 +986,27 @@ public final class ChatSessionViewModel: Identifiable {
         await historyCacheLoadTask?.value
         clearRunningBackgroundTasks()
         startEventTasks()
+        let persistedSettings = initialSettings ?? persistedSettings
         guard let codexClient else {
             await loadSpawnAgentSettings(persistedSettings: persistedSettings)
-            await client.start()
+            do {
+                try await client.start()
+            } catch {
+                throw (error as? ChatLaunchError) ?? ChatLaunchError.processFailed(error.localizedDescription)
+            }
             status = .idle
             return
         }
-        await client.start()
+        do {
+            try await client.start()
+        } catch {
+            throw (error as? ChatLaunchError) ?? ChatLaunchError.processFailed(error.localizedDescription)
+        }
         let initialized = try await codexClient.initialize(Self.initializeParams)
         appServerUserAgent = initialized.userAgent
         let response = try await codexClient.threadStart(ThreadStartParams(
             cwd: workingDirectory,
+            model: persistedSettings?.selectedModel,
             approvalPolicy: approvalPolicy,
             sandbox: sandbox,
             threadSource: ThreadSource.user.rawValue,
@@ -959,7 +1017,10 @@ public final class ChatSessionViewModel: Identifiable {
         syncSettings(from: response)
         await loadAvailableSettings(persistedSettings: persistedSettings)
         if let persistedSettings, persistedSettings.hasAnyValue {
-            if let error = await reapplyPersistedSettings(persistedSettings) { reportError(error) }
+            if let error = await reapplyPersistedSettings(persistedSettings, initialSettings: initialSettings) {
+                if initialSettings != nil { throw ChatLaunchError.settingsNotApplied(error) }
+                reportError(error)
+            }
         }
     }
 
@@ -996,8 +1057,8 @@ public final class ChatSessionViewModel: Identifiable {
             return
         }
 
-        await client.start()
         do {
+            try await client.start()
             let initialized = try await codexClient.initialize(Self.initializeParams)
             guard restoreGeneration == codexRestoreGeneration else { return }
             appServerUserAgent = initialized.userAgent
@@ -2165,6 +2226,15 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private func handle(_ event: NormalizedChatEvent) async {
+        switch event {
+        case .agentMessageDelta(_, let text), .reasoningDelta(_, let text):
+            if !text.isEmpty { firstTurnInput = nil }
+        case .commandExecution, .fileChange, .userQuestionRequested, .subAgentStarted:
+            firstTurnInput = nil
+        case .taskListUpdated(let tasks):
+            if !tasks.isEmpty { firstTurnInput = nil }
+        default: break
+        }
         let rawEvent = String(describing: event)
         if enqueueStreamDeltaIfNeeded(event, rawEvent: rawEvent) {
             return
@@ -2215,6 +2285,7 @@ public final class ChatSessionViewModel: Identifiable {
                 commands: commands
             )
         case .turnCompleted(let nativeSessionId):
+            firstTurnInput = nil
             if let nativeSessionId, shouldAdoptNativeSessionId(nativeSessionId) {
                 updateNativeSessionId(nativeSessionId)
             }
@@ -2235,6 +2306,7 @@ public final class ChatSessionViewModel: Identifiable {
             flushTranscriptAtTurnBoundary()
             midTurnPersistenceGate.noteExternalFlush()
         case .turnInterrupted(let nativeSessionId):
+            firstTurnInput = nil
             if let nativeSessionId, shouldAdoptNativeSessionId(nativeSessionId) {
                 updateNativeSessionId(nativeSessionId)
             }
@@ -2250,6 +2322,10 @@ public final class ChatSessionViewModel: Identifiable {
             flushTranscriptAtTurnBoundary()
             midTurnPersistenceGate.noteExternalFlush()
         case .error(let message):
+            if let firstTurnInput {
+                restoreLaunchDraft(firstTurnInput.text, attachments: firstTurnInput.attachments)
+                self.firstTurnInput = nil
+            }
             if codexClient != nil {
                 codexEventTurnId = nil
             }
@@ -2552,6 +2628,12 @@ public final class ChatSessionViewModel: Identifiable {
             guard updatedThreadId == threadId else { return }
             flushPendingStreamDeltasBarrier()
             if let chatItem = chatItem(from: item) {
+                switch chatItem {
+                case .userMessage, .error: break
+                case .agentMessage(_, let text, _), .reasoning(_, let text, _):
+                    if !text.isEmpty { firstTurnInput = nil }
+                default: firstTurnInput = nil
+                }
                 appendOrReplace(chatItem)
                 adoptTitleFromThreadItem(item, chatItem: chatItem)
                 if case .itemCompleted = event {
@@ -2684,7 +2766,8 @@ public final class ChatSessionViewModel: Identifiable {
 
     private func reapplyPersistedSettings(
         _ settings: CodexAppServerSessionSettings,
-        threadID: String? = nil
+        threadID: String? = nil,
+        initialSettings: CodexAppServerSessionSettings? = nil
     ) async -> String? {
         guard let threadId = threadID ?? self.threadId else { return nil }
         guard let codexClient else { return nil }
@@ -2701,6 +2784,9 @@ public final class ChatSessionViewModel: Identifiable {
         let model = settings.selectedModel ?? selectedModel
         let effort = settings.selectedEffort ?? selectedEffort
         let planEnabled = settings.isPlanMode ?? false
+        if initialSettings != nil, planEnabled, !collaborationModeListAvailable {
+            return "プラン モードを適用できませんでした"
+        }
         let collaborationMode = planEnabled && collaborationModeListAvailable
             ? try? makeCollaborationMode(
                 on: true,
@@ -2708,6 +2794,10 @@ public final class ChatSessionViewModel: Identifiable {
                 effort: effort
             )
             : nil
+
+        if initialSettings != nil, planEnabled, collaborationMode == nil {
+            return "プラン モードを適用できませんでした"
+        }
 
         let params = ThreadSettingsUpdateParams(
             threadId: threadId,
@@ -2732,7 +2822,7 @@ public final class ChatSessionViewModel: Identifiable {
                 isPlanMode = false
                 isPlanModeAvailable = false
             }
-            if collaborationMode != nil, !isTerminating, request == codexSettingsRequestCount {
+            if initialSettings == nil, collaborationMode != nil, !isTerminating, request == codexSettingsRequestCount {
                 do {
                     _ = try await codexClient.updateThreadSettings(ThreadSettingsUpdateParams(
                         threadId: threadId,
@@ -2755,6 +2845,10 @@ public final class ChatSessionViewModel: Identifiable {
             selectedModel = model ?? selectedModel
             selectedEffort = effort ?? selectedEffort
             isPlanMode = collaborationMode?.mode == .plan
+            if initialSettings != nil {
+                selectedPermissionProfile = settings.selectedPermissionProfile ?? selectedPermissionProfile
+                selectedApprovalPolicy = approvalPolicy ?? selectedApprovalPolicy
+            }
         }
         refreshPlanModeAvailability()
         let permissionConfirmed = settings.selectedPermissionProfile.map { $0 == selectedPermissionProfile } ?? true
@@ -3596,7 +3690,7 @@ extension ChatSessionViewModel: ControllableSession {
                         codexSkillSelectionState?.invalidSelectionMessage
                             ?? "Codex skill の候補が更新されたため、送信前に skill を再選択してください。"
                     )
-                    return
+                    throw SendRejected.skillReselectionRequired
                 }
             } else {
                 nativeSkillInputs = nil
@@ -3605,7 +3699,7 @@ extension ChatSessionViewModel: ControllableSession {
             if hasAttachments && !attachmentStore.isWithinTotalRawBytesLimit {
                 attachmentStore.setError(ImageAttachmentLimits.inputTotalMessage)
                 restoreDraftAfterRejectedSend(input)
-                return
+                throw SendRejected.totalSizeExceeded
             }
             var sendInputs = buildChatInputs(text: clientInput)
             let imageSnapshot = hasAttachments ? imageSendSnapshot(for: sendInputs) : nil
@@ -3615,7 +3709,7 @@ extension ChatSessionViewModel: ControllableSession {
                 guard imageSnapshot.supportsImages else {
                     attachmentStore.setError(ControlImageSendError.imagesUnsupported.localizedDescription)
                     restoreDraftAfterRejectedSend(input)
-                    return
+                    throw SendRejected.imagesUnsupported
                 }
                 await configureCodexImageInputIfNeeded(supportsImages: imageSnapshot.supportsImages)
                 guard imageSnapshot == imageSendSnapshot(for: buildChatInputs(text: clientInput)) else {
@@ -3640,6 +3734,9 @@ extension ChatSessionViewModel: ControllableSession {
             clearRunningTurn()
             pendingInput = ""
             let sentAttachments = attachmentStore.attachments
+            if !transcript.contains(where: { if case .userMessage = $0 { true } else { false } }) {
+                firstTurnInput = (input, sentAttachments)
+            }
             let userAttachments = sentAttachments.map {
                 ChatUserAttachment(filename: $0.filename, mediaType: $0.mediaType)
             }
@@ -3686,6 +3783,7 @@ extension ChatSessionViewModel: ControllableSession {
                 // reservation（pendingReplayContext）・添付・記録済み userMessage は
                 // 変更せず残す（再送でプリアンブルをちょうど1回適用する既存セマンティクス）。
                 isAwaitingLocallyStartedTurnEvent = false
+                firstTurnInput = nil
                 status = .idle
                 sendFailure = SendFailure(
                     reason: Self.sendFailureReason(error),
@@ -3706,7 +3804,7 @@ extension ChatSessionViewModel: ControllableSession {
             pendingReplayContext = nil
             codexSkillSelectionState?.clearSelection()
             cacheSentAttachments(sentAttachments, forUserMessageID: item.id)
-            attachmentStore.clear()
+            if case .error = status {} else { attachmentStore.clear() }
         } else {
             pendingInput += text
             touchOutput()

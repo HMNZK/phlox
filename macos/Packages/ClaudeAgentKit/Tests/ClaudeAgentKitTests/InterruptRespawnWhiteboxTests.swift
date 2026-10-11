@@ -10,7 +10,7 @@ import Testing
         environment: ["PHLOX_SESSION_ID": sessionID],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var events = client.events.makeAsyncIterator()
 
     try await client.turnStart([.text("establish conversation")])
@@ -50,7 +50,7 @@ import Testing
         environment: ["PHLOX_SESSION_ID": "b2b2b2b2-2222-4222-8222-222222222222"],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var events = client.events.makeAsyncIterator()
 
     try await client.turnStart([.text("interrupted turn")])
@@ -195,7 +195,7 @@ private func waitUntilInterruptRespawn(
         environment: ["PHLOX_SESSION_ID": "c3c3c3c3-3333-4333-8333-333333333333"],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     var events = client.events.makeAsyncIterator()
 
     try await client.turnStart([.text("interrupted turn")])

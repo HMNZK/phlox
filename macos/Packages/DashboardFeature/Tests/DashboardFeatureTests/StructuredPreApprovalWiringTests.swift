@@ -82,7 +82,7 @@ func appEnvironmentClaudeAutoApprovesWithoutInvokingApprovalHandler() async thro
         recordingApprovalHandler(recorder)
     )
 
-    await client.start()
+    try await client.start()
     try await client.turnStart([.text("write a file")])
 
     // 自動承認なのでバナー経路（handler）を通らずにターンが submit される。
@@ -129,7 +129,7 @@ func appEnvironmentCursorAutoApprovesWithForceWithoutInvokingApprovalHandler() a
         recordingApprovalHandler(recorder)
     )
 
-    await client.start()
+    try await client.start()
     try await client.turnStart([.text("write a file")])
 
     // 自動承認なのでバナー経路（handler）を通らずにプロセスが実行される。

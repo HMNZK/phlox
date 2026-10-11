@@ -24,6 +24,7 @@ final class ScriptedAppServerTransport: AppServerTransport, @unchecked Sendable 
         "turns": [],
     ]
     var threadReadErrorMessage: String?
+    var settingsUpdateErrorMessage: String?
     var threadResponseModel: String? = "gpt-5-codex"
     var threadResponseReasoningEffort: String? = "medium"
     var threadResponsePermissionProfile: String? = ":workspace"
@@ -94,6 +95,11 @@ final class ScriptedAppServerTransport: AppServerTransport, @unchecked Sendable 
         }
 
         guard let id = object["id"] else { return }
+        if method == "thread/settings/update", let message = settingsUpdateErrorMessage {
+            receiveObject(["jsonrpc": "2.0", "id": id,
+                           "error": ["code": -32000, "message": message]])
+            return
+        }
         let result: Any
         switch method {
         case "initialize":

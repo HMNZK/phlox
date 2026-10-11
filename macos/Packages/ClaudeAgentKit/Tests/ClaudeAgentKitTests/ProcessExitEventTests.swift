@@ -43,7 +43,7 @@ private func makeClient(_ transport: ExitingTransport) -> (ClaudeChatClient, Eve
 @Test func idleProcessExitYieldsTheExitCode() async throws {
     let transport = ExitingTransport(exitCode: 5)
     let (client, events, task) = makeClient(transport)
-    await client.start()
+    try await client.start()
 
     transport.exit()
     for _ in 0..<200 where !events.all.contains(.processExited(exitCode: 5)) {
@@ -92,7 +92,7 @@ private final class HealFailingTransport: LineDelimitedTransport, @unchecked Sen
     let events = Events()
     let stream = client.events
     let task = Task { for await event in stream { events.append(event) } }
-    await client.start()
+    try await client.start()
     try await client.turnStart([.text("turn")])
 
     first.exit()
@@ -124,7 +124,7 @@ private final class OSAllocatedUnfairLockBox: @unchecked Sendable {
     let events = Events()
     let stream = client.events
     let task = Task { for await event in stream { events.append(event) } }
-    await client.start()
+    try await client.start()
     try await client.turnStart([.text("turn")])
 
     first.exit()
@@ -183,7 +183,7 @@ private final class GatedExitTransport: LineDelimitedTransport, @unchecked Senda
     let events = Events()
     let stream = client.events
     let task = Task { for await event in stream { events.append(event) } }
-    await client.start()
+    try await client.start()
 
     first.exit()
     for _ in 0..<200 where !first.isWaitingForStatus {
@@ -240,7 +240,7 @@ private final class SlowCloseTransport: LineDelimitedTransport, @unchecked Senda
     let events = Events()
     let stream = client.events
     let task = Task { for await event in stream { events.append(event) } }
-    await client.start()
+    try await client.start()
 
     await client.updateSettings(model: "sonnet", permissionMode: nil, effort: "high")
     try await client.turnStart([.text("next")])

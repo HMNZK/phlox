@@ -28,7 +28,9 @@ struct AcceptanceCodexStaleSkillSendTests {
             let input = try #require(viewModel.consumeDraftForSend())
             state.invalidate()
 
-            try await viewModel.sendText(input, submit: true)
+            await #expect(throws: SendRejected.skillReselectionRequired) {
+                try await viewModel.sendText(input, submit: true)
+            }
 
             #expect(viewModel.draft == "$review 本文")
             #expect(viewModel.transcript.contains { item in

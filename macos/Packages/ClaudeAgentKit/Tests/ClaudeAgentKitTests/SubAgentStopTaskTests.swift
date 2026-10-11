@@ -9,16 +9,16 @@ struct SubAgentStopTaskTests {
     private static let taskStarted =
         #"{"type":"system","subtype":"task_started","task_id":"t1","tool_use_id":"toolu_S1","task_type":"local_agent","subagent_type":"general-purpose","description":"d"}"#
 
-    private func makeClient() async -> (ClaudeChatClient, StopTaskTransport, EventLog) {
-        let (client, transports, log) = await makeClientWithSpawns()
+    private func makeClient() async throws -> (ClaudeChatClient, StopTaskTransport, EventLog) {
+        let (client, transports, log) = try await makeClientWithSpawns()
         return (client, transports.first!, log)
     }
 
     /// 起動し直し（resume）を検証するため、spawn のたびに新しい transport を返す。
-    private func makeClientWithSpawns() async -> (ClaudeChatClient, TransportBox, EventLog) {
+    private func makeClientWithSpawns() async throws -> (ClaudeChatClient, TransportBox, EventLog) {
         let box = TransportBox()
         let client = ClaudeChatClient(transportFactory: { _, _, _, _ in box.make() })
-        await client.start()
+        try await client.start()
         return (client, box, EventLog(client.events))
     }
 
@@ -31,8 +31,8 @@ struct SubAgentStopTaskTests {
     }
 
     @Test
-    func taskStartedMakesTheChildStoppable() async {
-        let (client, transport, log) = await makeClient()
+    func taskStartedMakesTheChildStoppable() async throws {
+        let (client, transport, log) = try await makeClient()
         defer { withExtendedLifetime(client) {} }
         transport.receive(Self.taskStarted)
         #expect(await log.wait { $0 == .subAgentStopAvailable(toolUseId: "toolu_S1") })
@@ -40,7 +40,7 @@ struct SubAgentStopTaskTests {
 
     @Test
     func stopWritesStopTaskWithTheTaskID() async throws {
-        let (client, transport, log) = await makeClient()
+        let (client, transport, log) = try await makeClient()
         transport.receive(Self.taskStarted)
         #expect(await log.wait { $0 == .subAgentStopAvailable(toolUseId: "toolu_S1") })
 
@@ -52,8 +52,8 @@ struct SubAgentStopTaskTests {
     }
 
     @Test
-    func stopOfAnUnknownChildThrowsAndWritesNothing() async {
-        let (client, transport, _) = await makeClient()
+    func stopOfAnUnknownChildThrowsAndWritesNothing() async throws {
+        let (client, transport, _) = try await makeClient()
         await #expect(throws: ClaudeChatClientError.subAgentTaskUnknown) {
             try await client.stopSubAgent(toolUseId: "toolu_none", attempt: 1)
         }
@@ -62,7 +62,7 @@ struct SubAgentStopTaskTests {
 
     @Test
     func errorControlResponseReleasesTheStop() async throws {
-        let (client, transport, log) = await makeClient()
+        let (client, transport, log) = try await makeClient()
         transport.receive(Self.taskStarted)
         #expect(await log.wait { $0 == .subAgentStopAvailable(toolUseId: "toolu_S1") })
         try await client.stopSubAgent(toolUseId: "toolu_S1", attempt: 1)
@@ -75,7 +75,7 @@ struct SubAgentStopTaskTests {
 
     @Test
     func successControlResponseIsNotAFailure() async throws {
-        let (client, transport, log) = await makeClient()
+        let (client, transport, log) = try await makeClient()
         transport.receive(Self.taskStarted)
         #expect(await log.wait { $0 == .subAgentStopAvailable(toolUseId: "toolu_S1") })
         try await client.stopSubAgent(toolUseId: "toolu_S1", attempt: 1)
@@ -92,7 +92,7 @@ struct SubAgentStopTaskTests {
     @Test
     func agentToolResultAfterStoppedNotificationIsNotReportedAsCompletionOrFailure() async throws {
         for isError in [false, true] {
-            let (client, transport, log) = await makeClient()
+            let (client, transport, log) = try await makeClient()
             defer { withExtendedLifetime(client) {} }
             transport.receive(Self.agentToolUse)
             transport.receive(Self.taskStarted)
@@ -112,7 +112,7 @@ struct SubAgentStopTaskTests {
 
     @Test
     func failureCarriesTheAttemptOfTheRequest() async throws {
-        let (client, transport, log) = await makeClient()
+        let (client, transport, log) = try await makeClient()
         transport.receive(Self.taskStarted)
         #expect(await log.wait { $0 == .subAgentStopAvailable(toolUseId: "toolu_S1") })
         try await client.stopSubAgent(toolUseId: "toolu_S1", attempt: 7)
@@ -125,7 +125,7 @@ struct SubAgentStopTaskTests {
 
     @Test
     func restartFailsPendingStopAndForgetsTheOldTaskIDs() async throws {
-        let (client, box, log) = await makeClientWithSpawns()
+        let (client, box, log) = try await makeClientWithSpawns()
         let transport = try #require(box.first)
         transport.receive(Self.taskStarted)
         #expect(await log.wait { $0 == .subAgentStopAvailable(toolUseId: "toolu_S1") })
@@ -143,7 +143,7 @@ struct SubAgentStopTaskTests {
 
     @Test
     func closeFailsPendingStop() async throws {
-        let (client, transport, log) = await makeClient()
+        let (client, transport, log) = try await makeClient()
         transport.receive(Self.taskStarted)
         #expect(await log.wait { $0 == .subAgentStopAvailable(toolUseId: "toolu_S1") })
         try await client.stopSubAgent(toolUseId: "toolu_S1", attempt: 2)
@@ -155,7 +155,7 @@ struct SubAgentStopTaskTests {
 
     @Test
     func processExitFailsPendingStop() async throws {
-        let (client, transport, log) = await makeClient()
+        let (client, transport, log) = try await makeClient()
         transport.receive(Self.taskStarted)
         #expect(await log.wait { $0 == .subAgentStopAvailable(toolUseId: "toolu_S1") })
         try await client.stopSubAgent(toolUseId: "toolu_S1", attempt: 5)
@@ -166,8 +166,8 @@ struct SubAgentStopTaskTests {
     }
 
     @Test
-    func stoppedNotificationCompletesTheChildAsStopped() async {
-        let (client, transport, log) = await makeClient()
+    func stoppedNotificationCompletesTheChildAsStopped() async throws {
+        let (client, transport, log) = try await makeClient()
         defer { withExtendedLifetime(client) {} }
         transport.receive(Self.taskStarted)
         transport.receive(#"{"type":"system","subtype":"task_notification","task_id":"t1","tool_use_id":"toolu_S1","status":"stopped","summary":"","output_file":"/tmp/none.jsonl"}"#)

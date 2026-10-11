@@ -8,15 +8,15 @@ import DesignSystem
 // 実装契約の正本: tasks/task-8.md
 
 /// composer に添付された画像1件。
-struct ComposerAttachment: Equatable, Identifiable {
-    let id: UUID
+public struct ComposerAttachment: Equatable, Identifiable, Sendable {
+    public let id: UUID
     /// 本文の `[Image #N]` と対応する表示番号（1始まり・欠番は詰めない）。task-2 契約。
-    let number: Int
-    let data: Data
-    let mediaType: String
-    let filename: String?
+    public let number: Int
+    public let data: Data
+    public let mediaType: String
+    public let filename: String?
 
-    init(id: UUID = UUID(), number: Int = 1, data: Data, mediaType: String, filename: String? = nil) {
+    public init(id: UUID = UUID(), number: Int = 1, data: Data, mediaType: String, filename: String? = nil) {
         self.id = id
         self.number = number
         self.data = data

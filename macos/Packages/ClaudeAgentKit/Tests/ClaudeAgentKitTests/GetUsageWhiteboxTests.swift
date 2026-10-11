@@ -120,7 +120,7 @@ private func waitForTaskResult<T: Sendable>(
         environment: ["PHLOX_SESSION_ID": "22222222-2222-4222-8222-222222222222"],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     let firstTransport = try #require(recorder.recordedTransports.first)
 
     let fetch = Task { try await client.fetchRateLimits() }
@@ -139,7 +139,7 @@ private func waitForTaskResult<T: Sendable>(
 @Test func getUsageTimesOutInternallyWhenNoControlResponseArrives() async throws {
     let recorder = UsageWhiteboxTransportRecorder()
     let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-    await client.start()
+    try await client.start()
     // 契約どおりタイムアウトは注入可能（本番既定値との結合を避け、テストを高速化する）。
     await client.setUsageRequestTimeoutForTesting(.milliseconds(200))
     let transport = try #require(recorder.recordedTransports.first)
@@ -159,7 +159,7 @@ private func waitForTaskResult<T: Sendable>(
         environment: ["PHLOX_SESSION_ID": "33333333-3333-4333-8333-333333333333"],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
 
     await client.resetConversation()
     let secondTransport = try #require(recorder.recordedTransports.last)
@@ -275,7 +275,7 @@ private final class SuspendingCloseUsageTransportRecorder: @unchecked Sendable {
         environment: ["PHLOX_SESSION_ID": "22222222-2222-4222-8222-222222222222"],
         transportFactory: recorder.makeTransport
     )
-    await client.start()
+    try await client.start()
     let firstTransport = try #require(recorder.recordedTransports.first)
 
     await client.updateSettings(model: "opus", permissionMode: nil as String?)

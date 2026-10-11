@@ -5,6 +5,15 @@ import Testing
 
 @Suite("モデル取得プロセスの作業フォルダ", .serialized)
 struct AcceptanceModelWorkingDirectoryTests {
+    @Test func codexDraftModelIncludesEffortAndImageCapabilities() async throws {
+        let fixture = try ModelDirectoryFixture()
+        defer { fixture.remove() }
+        let models = try await fixture.provider(dataRoot: fixture.root.appendingPathComponent("data")).fetchModels(for: .codex)
+        let model = try #require(models.first)
+        #expect(model.reasoningEfforts == ["low", "high"])
+        #expect(model.defaultReasoningEffort == "high")
+        #expect(model.acceptsImages == true)
+    }
     @Test("実CLI境界の全モデル取得は専用フォルダで実行する", arguments: [AgentKind.claudeCode, .cursor, .codex])
     func modelProcessesUseIsolatedDirectory(kind: AgentKind) async throws {
         let fixture = try ModelDirectoryFixture()
@@ -151,7 +160,7 @@ private struct ModelDirectoryFixture {
             while IFS= read -r request; do
               case "$request" in
                 *'"method":"model/list"'*)
-                  printf '%s\n' '{"id":2,"result":{"data":[{"id":"probe-codex"}]}}'
+                  printf '%s\n' '{"id":2,"result":{"data":[{"id":"probe-codex","supportedReasoningEfforts":[{"reasoningEffort":"low"},{"reasoningEffort":"high"}],"defaultReasoningEffort":"high","inputModalities":["text","image"]}]}}'
                   exit 0
                   ;;
               esac

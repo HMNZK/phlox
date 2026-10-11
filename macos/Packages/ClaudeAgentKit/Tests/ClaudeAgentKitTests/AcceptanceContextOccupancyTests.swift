@@ -86,7 +86,7 @@ private func makeContextOccupancyClient(_ mock: ContextOccupancyMockTransport) -
 @Test func contextOccupancy_usesLatestAssistantUsage_notCumulativeResultUsage() async throws {
     let mock = ContextOccupancyMockTransport()
     let client = makeContextOccupancyClient(mock)
-    await client.start()
+    try await client.start()
 
     // メインターンの assistant は実 stream-json では parent_tool_use_id:null を持つ
     // （JSONSerialization は JSON null を NSNull にするため、判定は「文字列の親IDが無い」で行う必要がある）。
@@ -122,7 +122,7 @@ private func makeContextOccupancyClient(_ mock: ContextOccupancyMockTransport) -
 @Test func contextOccupancy_excludesSubAgentAssistantUsage() async throws {
     let mock = ContextOccupancyMockTransport()
     let client = makeContextOccupancyClient(mock)
-    await client.start()
+    try await client.start()
 
     // サブエージェント tool_use_id "sub1" を登録する。
     mock.receive("""

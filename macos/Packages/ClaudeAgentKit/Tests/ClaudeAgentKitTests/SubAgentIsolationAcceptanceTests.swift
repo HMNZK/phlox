@@ -32,7 +32,7 @@ struct SubAgentIsolationAcceptanceTests {
         let mock = MockLineTransport()
         let recorder = MockTransportRecorder(mock)
         let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-        await client.start()
+        try await client.start()
 
         var iterator = client.events.makeAsyncIterator()
         for line in Self.parentLines { mock.receive(line) }
@@ -83,7 +83,7 @@ struct SubAgentIsolationAcceptanceTests {
         let mock = MockLineTransport()
         let recorder = MockTransportRecorder(mock)
         let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-        await client.start()
+        try await client.start()
 
         var iterator = client.events.makeAsyncIterator()
         for line in Self.parentLines { mock.receive(line) }
@@ -126,7 +126,7 @@ struct SubAgentIsolationAcceptanceTests {
         let mock = MockLineTransport()
         let recorder = MockTransportRecorder(mock)
         let client = ClaudeChatClient(transportFactory: recorder.makeTransport)
-        await client.start()
+        try await client.start()
 
         var iterator = client.events.makeAsyncIterator()
         for line in Self.inlineBackgroundLines { mock.receive(line) }

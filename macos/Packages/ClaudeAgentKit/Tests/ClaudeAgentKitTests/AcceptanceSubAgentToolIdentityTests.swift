@@ -51,7 +51,7 @@ struct AcceptanceSubAgentToolIdentityTests {
     func childToolCallAndResultShareToolUseIdAndAreDistinguishable() async throws {
         let mock = ToolIdentityMockLineTransport()
         let client = ClaudeChatClient(transportFactory: { _, _, _, _ in mock })
-        await client.start()
+        try await client.start()
 
         var iterator = client.events.makeAsyncIterator()
         for line in Self.lines { mock.receive(line) }

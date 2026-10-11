@@ -1,9 +1,11 @@
 ---
-status: active
+status: superseded
 last-verified: 2026-07-10
 ---
 
 # ADR 0071: 新規セッションの既定をチャット（appServer）にし、設定で選択可能にする
+
+> **superseded**: [ADR 0183](0183-unified-new-chat-start-screen.md)（2026-10-11）で置き換えた。
 
 > **このファイルの役割**: なぜ GUI からの新規セッションの既定バックエンドを pty（ターミナル）から appServer（チャット）へ変えたか、適用範囲をどこで区切ったかの決定。
 > **書かないもの**: spawn の内部仕様（→ `architecture/claude-chat-session-lifecycle.md`）、セレクトカードの構成（→ `architecture/dashboard-empty-state-agent-cards.md`）。

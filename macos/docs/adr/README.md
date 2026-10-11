@@ -12,6 +12,7 @@ last-verified: 2026-09-14
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0183 | [セッションの始め方を共通の新規チャット画面にまとめ、送信した時点でセッションを作る](0183-unified-new-chat-start-screen.md) | accepted |
 | 0182 | [ブラウザはファイルプレビューと分け、非永続の子タブで開く](0182-in-app-browser-tab.md) | accepted |
 | 0181 | [大きいテキストの色付け・編集・閲覧の上限を分ける](0181-large-text-files-without-highlighting.md) | accepted |
 | 0180 | [ファイルのソース表示は自前の字句解析で色付けする](0180-syntax-highlighting-with-in-house-lexer.md) | accepted |
@@ -98,7 +99,7 @@ last-verified: 2026-09-14
 | 0085 | [モバイル向けモデル選択 API（GET settings / POST model）](0085-mobile-model-selection-api.md) | 一部 superseded → 0176 |
 | 0084 | [グリッドビューの N×N 固定化・セッション自由配置・セル結合](0084-grid-view-fixed-nxn-free-placement-merge.md) | superseded (0136) |
 | 0083 | [非フォーカス時 esc の中止到達と、中断後 transport の turnStart 自己修復](0083-chat-esc-interrupt-unfocused-and-transport-respawn.md) | active |
-| 0082 | [空状態カード＋「＋」メニューで agent × mode を明示選択（Pattern A）](0082-agent-mode-launch-cards-and-menu.md) | active |
+| 0082 | [空状態カード＋「＋」メニューで agent × mode を明示選択（Pattern A）](0082-agent-mode-launch-cards-and-menu.md) | superseded（→ 0183） |
 | 0081 | [「処理中」判定の単一正本化と interrupt の合流・世代ガード](0081-processing-predicate-unification-and-interrupt-coalescing.md) | active |
 | 0080 | [アゴラ討論を「完全自由発言（idle ゲート付きリレー）」で実装する](0080-agora-free-speech-discussion.md) | active |
 | 0079 | [モバイル向け Control API 拡張（interrupt/subagents/usage/images/差分取得）の設計判断](0079-mobile-api-extensions-design.md) | active |
@@ -109,7 +110,7 @@ last-verified: 2026-09-14
 | 0074 | [モバイル遠隔操作は Tailscale 前提の pull 型 ControlServer API として扱う](0074-mobile-remote-control-design.md) | active |
 | 0073 | [前面オーバーレイ UI は「実測高からの余白予約」で本文と重ねない](0073-overlay-inset-by-measured-height.md) | active |
 | 0072 | [チーム表示を「アゴラ」に改称し、ツリー埋め込みを廃してフラットグループチャットにする](0072-agora-flat-group-chat.md) | active |
-| 0071 | [新規セッションの既定をチャット（appServer）にし、設定で選択可能にする](0071-default-session-backend-chat.md) | active |
+| 0071 | [新規セッションの既定をチャット（appServer）にし、設定で選択可能にする](0071-default-session-backend-chat.md) | superseded（→ 0183） |
 | 0070 | [エージェントビュー（チーム表示）をグループチャット＋ツリー埋め込みへ再設計する](0070-agent-view-group-chat.md) | superseded (→0072) |
 | 0069 | [ブランチ picker は present-after-load 状態機械で提示し、提示中の popover 内容変更を構造的に禁止する](0069-branch-picker-present-after-load.md) | active |
 | 0068 | [終了シグナルハンドラは @Sendable 受け取りの公開 API で isolation 継承を型レベルで遮断する](0068-signal-handler-sendable-isolation.md) | active |

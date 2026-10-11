@@ -1,9 +1,11 @@
 ---
-status: active
+status: superseded
 last-verified: 2026-07-12
 ---
 
 # ADR 0082: 空状態カード＋「＋」メニューで agent × mode を明示選択（Pattern A）
+
+> **superseded**: [ADR 0183](0183-unified-new-chat-start-screen.md)（2026-10-11）で置き換えた。
 
 > **このファイルの役割**: なぜ新規セッション作成 UI を「エージェント選択 → その後モード選択」の多段導線から、カード／メニュー上で agent × mode を1画面・最小アクションで選ぶ形（Pattern A）へ変えたかの決定。
 > **書かないもの**: カード/メニューの現行構成（→ `architecture/dashboard-empty-state-agent-cards.md`・`architecture/team-timeline-view.md`）、既定バックエンドの決定（→ ADR 0071）、structured chat 対応の仕組み（→ ADR 0015）。

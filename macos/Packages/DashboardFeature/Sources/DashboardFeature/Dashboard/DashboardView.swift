@@ -52,9 +52,7 @@ public struct DashboardView: View {
 
     /// Claude Code 管理ウィンドウの識別子。App 側が Window シーンを持つときだけ渡す。
     private let agentConsoleWindowID: String?
-    /// 上段右端の共通ターミナル（ホームで開く）。App が寿命を持つ。nil は初期化中だけ。
-    private let commonTerminal: TerminalPanelSession?
-    /// セッションごとのターミナルタブ（その worktree で開く）。App が寿命を持つ。
+    /// プロジェクトごとのターミナルタブ。App が寿命を持つ。
     private let sessionTerminals: ProjectTerminalStore?
     private let simulatorHub: SimulatorHub?
 
@@ -63,7 +61,6 @@ public struct DashboardView: View {
         router: AppRouter,
         usageMonitor: UsageMonitor,
         agentConsoleWindowID: String? = nil,
-        commonTerminal: TerminalPanelSession? = nil,
         sessionTerminals: ProjectTerminalStore? = nil,
         simulatorHub: SimulatorHub? = nil
     ) {
@@ -71,7 +68,6 @@ public struct DashboardView: View {
         _router = Bindable(wrappedValue: router)
         _usageMonitor = Bindable(wrappedValue: usageMonitor)
         self.agentConsoleWindowID = agentConsoleWindowID
-        self.commonTerminal = commonTerminal
         self.sessionTerminals = sessionTerminals
         self.simulatorHub = simulatorHub
     }
@@ -759,24 +755,19 @@ public struct DashboardView: View {
 
     @ViewBuilder
     private var centerContent: some View {
-        if router.viewMode == .grid, !viewModel.projects.isEmpty, gridScopeSummary.isEmpty {
-            gridScopeEmptyState
-        } else if router.viewMode == .single {
-            // プロジェクトが無くても上段右端の共通ターミナルは開ける。
-            SessionTabsContainer(
-                viewModel: viewModel,
-                router: router,
-                terminals: sessionTerminals,
-                commonTerminal: commonTerminal,
-                simulatorHub: simulatorHub,
-                editorPanel: editorPanel,
-                files: fileTabs,
-                agentConsoleWindowID: agentConsoleWindowID
-            ) { tab in
+        SessionTabsContainer(
+            viewModel: viewModel,
+            router: router,
+            terminals: sessionTerminals,
+            simulatorHub: simulatorHub,
+            editorPanel: editorPanel,
+            files: fileTabs
+        ) { tab in
+            if router.viewMode == .grid, !viewModel.projects.isEmpty, gridScopeSummary.isEmpty {
+                gridScopeEmptyState
+            } else {
                 detailView(displayTab: tab)
             }
-        } else {
-            detailView
         }
     }
 
@@ -799,78 +790,8 @@ public struct DashboardView: View {
                 },
                 creatingRef: creatingRef,
                 showsAllOnboardingSteps: !hasAddedProject,
-                tileTabs: gridTileTabs,
                 displayTab: displayTab
             )
-    }
-
-    /// グリッドのタイルの子タブ。並びと選択は単体表示の子タブと同じ記録を使う（02 C3）。
-    private var gridTileTabs: GridTileTabs {
-        GridTileTabs(
-            selected: { id in
-                guard let projectID = viewModel.sessionNode(id: id)?.projectID else { return .conversation }
-                switch router.tabs.layout(for: projectID).selected {
-                case .terminal: return .terminal
-                case .changes: return .changes
-                default: return .conversation
-                }
-            },
-            select: { id, tab in
-                guard let projectID = viewModel.sessionNode(id: id)?.projectID else { return }
-                router.selectedProjectID = projectID
-                switch tab {
-                case .conversation: router.selectTab(.chat(id), in: projectID)
-                case .terminal:
-                    if let terminal = router.tabs.layout(for: projectID).items.first(where: { if case .terminal = $0 { return true }; return false }) {
-                        router.selectTab(terminal, in: projectID)
-                    } else { router.tabs.updateLayout(for: projectID) { $0.open(.terminal(TerminalTabID())) } }
-                case .changes: router.tabs.updateLayout(for: projectID) { $0.open(.changes) }
-                }
-            },
-            content: { id, tab in AnyView(gridTileTabContent(id, tab)) }
-        )
-    }
-
-    @ViewBuilder
-    private func gridTileTabContent(_ id: SessionID, _ tab: GridTileTab) -> some View {
-        if let node = viewModel.sessionNode(id: id), let project = viewModel.projects.first(where: { $0.id == node.projectID }) {
-            switch tab {
-            case .conversation:
-                EmptyView()
-            case .terminal:
-                if let sessionTerminals, case .terminal(let terminalID) = router.tabs.layout(for: project.id).selected {
-                    TerminalPanelView(panel: sessionTerminals.terminal(for: terminalID, projectID: project.id, workingDirectory: project.directoryPath), showsHeader: false, showsFontSizeHUD: false, isInGridTile: true)
-                        .id(id)
-                } else {
-                    ContentUnavailableView("ターミナルを準備しています", systemImage: "terminal")
-                }
-            case .changes:
-                // 変更の一覧は選択中のセッションの worktree を読む。フォーカスしていないタイルでは中身を出さない。
-                if router.selectedSession == id {
-                    EditorPanelView(
-                        viewModel: editorPanel.viewModel,
-                        projectName: node.workspaceName,
-                        workingDirectory: project.directoryPath,
-                        isDirty: { fileTabs.existing(for: project.id, path: $0)?.hasUnsavedChanges ?? false }
-                    ) { path in
-                        let requestedDirectory = project.directoryPath
-                        Task {
-                            let root = await FileTabOpening.root(for: requestedDirectory)
-                            fileTabs.openFileTab(
-                                projectID: project.id, root: root, relativePath: path, router: router,
-                                requestedWorkingDirectory: requestedDirectory,
-                                currentWorkingDirectory: viewModel.projects.first { $0.id == project.id }?.directoryPath
-                            )
-                        }
-                    }
-                } else {
-                    Text("タイルを選ぶと変更を表示します")
-                        .font(DSFont.body)
-                        .foregroundStyle(DSColor.textSecondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-            }
-        }
     }
 
     private var inspectorContent: some View {

@@ -36,7 +36,6 @@ extension FileTabDocuments {
         guard document.root == root, !document.invalidated else { return false }
         router.selectedProjectID = projectID
         router.viewMode = .single
-        router.commonTerminalSelected = false
         router.tabs.updateLayout(for: projectID) {
             if split {
                 if !$0.items.contains(.file(relativePath)) { $0.items.append(.file(relativePath)) }

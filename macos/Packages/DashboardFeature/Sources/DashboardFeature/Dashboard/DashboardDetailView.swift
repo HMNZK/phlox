@@ -18,8 +18,6 @@ struct DashboardDetailView: View {
     var creatingRef: AgentRef? = nil
     /// 初回起動の案内をすべて出すか（08 S1: 一度もプロジェクトを追加していない）。
     var showsAllOnboardingSteps = true
-    /// グリッドのタイルの 会話 / 端末 / 変更（02 C3）。
-    var tileTabs: GridTileTabs? = nil
     var displayTab: ProjectTab? = nil
 
     private var displayedSessionID: SessionID? {
@@ -75,8 +73,7 @@ struct DashboardDetailView: View {
                         }
                     },
                     onOpenSingle: { router.openSingle(sessionID: $0) },
-                    parentNames: parentNames,
-                    tileTabs: tileTabs
+                    parentNames: parentNames
                 )
                 // ⌃⌥＋矢印で分割線を動かすときの下限の判定に、グリッドの実際の大きさを使う。
                 // SessionGridView の余白（左右 s・下 s・上 xs）を除いた、タイルを並べる領域。

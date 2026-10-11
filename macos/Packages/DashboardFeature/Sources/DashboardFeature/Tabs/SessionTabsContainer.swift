@@ -4,42 +4,30 @@ import AgentDomain
 import DesignSystem
 import SessionFeature
 
-/// 単体表示の中央（02 C）。上段のタブ列、選択中セッションの子タブ列、子タブの中身（左右分割可）。
+/// 上段のプロジェクト列と、単体表示時のプロジェクトタブ列・中身（左右分割可）。
 /// 会話の中身と、セッション未選択時の開始画面は `conversation` が描く。
 struct SessionTabsContainer<Conversation: View>: View {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
     let terminals: ProjectTerminalStore?
-    let commonTerminal: TerminalPanelSession?
     let simulatorHub: SimulatorHub?
     let editorPanel: EditorPanelCoordinator
     let files: FileTabDocuments
-    let agentConsoleWindowID: String?
     @ViewBuilder let conversation: (ProjectTab?) -> Conversation
+    @State private var worktreeChangesSessionID: SessionID?
 
     var body: some View {
         VStack(spacing: 0) {
-            SessionTabBar(
-                viewModel: viewModel,
-                router: router,
-                sessions: tabSessions,
-                projectID: tabProjectID,
-                hasCommonTerminal: commonTerminal != nil,
-                agentConsoleWindowID: agentConsoleWindowID
-            )
-            separator
-            if router.commonTerminalSelected, let commonTerminal {
-                // AppKit の端末はオーバーレイではなくレイアウトの中に置く（ADR 0136）。
-                TerminalPanelView(panel: commonTerminal, showsHeader: false)
+            SessionTabBar(viewModel: viewModel, router: router)
+            if router.viewMode == .grid {
+                conversation(nil)
             } else if let projectID = tabProjectID, let project = viewModel.projects.first(where: { $0.id == projectID }) {
                 let layout = router.tabs.layout(for: projectID)
                 let chats = viewModel.chatTabs(in: projectID)
                 ChildTabBar(
                     router: router, viewModel: viewModel, project: project, layout: layout, chats: chats,
-                    changeCount: editorPanel.viewModel.changes.count, files: files,
-                    agentConsoleWindowID: agentConsoleWindowID, simulatorHub: simulatorHub
+                    changeCount: editorPanel.viewModel.changes.count, files: files, simulatorHub: simulatorHub
                 )
-                separator
                 ChildTabPanes(
                     router: router, projectID: projectID, layout: layout, chats: chats,
                     content: { tab in pane(tab, project: project) }
@@ -48,15 +36,12 @@ struct SessionTabsContainer<Conversation: View>: View {
                 conversation(nil)
             }
         }
+        .onChange(of: router.selectedSession) { _, _ in worktreeChangesSessionID = nil }
     }
 
     /// 上段に並べるプロジェクト：選択中セッションのプロジェクト、無ければ選択中のプロジェクト。
     private var tabProjectID: ProjectID? {
         router.selectedProjectID ?? router.selectedSession.flatMap { viewModel.sessionNode(id: $0)?.projectID }
-    }
-
-    private var tabSessions: [SessionNode] {
-        tabProjectID.map { viewModel.chatTabs(in: $0).compactMap { tab in if case .chat(let id) = tab { return viewModel.sessionNode(id: id) }; return nil } } ?? []
     }
 
     /// 文をそのセッションの入力欄に入れ、会話のタブを `kept` の無い方に出す（シミュレーターの FR-10・ブラウザの FR-11）。送信はしない。
@@ -83,9 +68,11 @@ struct SessionTabsContainer<Conversation: View>: View {
 
     @ViewBuilder
     private func pane(_ tab: ProjectTab, project: Project) -> some View {
-        let node = router.selectedSession.flatMap { viewModel.sessionNode(id: $0) }
+        let node = sessionID(for: tab).flatMap { viewModel.sessionNode(id: $0) }
         switch tab {
-        case .chat, .newChat:
+        case .chat(let id):
+            chatPane(tab, sessionID: id, project: project)
+        case .newChat:
             conversation(tab)
         case .terminal(let id):
             if let terminals {
@@ -131,14 +118,65 @@ struct SessionTabsContainer<Conversation: View>: View {
         }
     }
 
-    private var separator: some View {
-        Rectangle().fill(DSColor.separator).frame(height: 1)
+    private func sessionID(for tab: ProjectTab) -> SessionID? {
+        if case .chat(let id) = tab { return id }
+        return router.selectedSession
     }
+
+    @ViewBuilder
+    private func chatPane(_ tab: ProjectTab, sessionID: SessionID, project: Project) -> some View {
+        if let branch = viewModel.worktreeBranchName(for: sessionID),
+           let node = viewModel.sessionNode(id: sessionID) {
+            VStack(spacing: 0) {
+                HStack(spacing: DSSpacing.xs) {
+                    Text("worktree で実行中")
+                    Text(verbatim: "·")
+                    Text(verbatim: branch)
+                        .font(DSFont.monoCaption)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer(minLength: 0)
+                    Button {
+                        worktreeChangesSessionID = worktreeChangesSessionID == sessionID ? nil : sessionID
+                    } label: {
+                        Text("変更 \(editorPanel.viewModel.changes.count) ファイル")
+                            .font(DSFont.auxiliary)
+                            .foregroundStyle(worktreeChangesSessionID == sessionID ? DSColor.textPrimary : DSColor.textSecondary)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(Text("変更 \(editorPanel.viewModel.changes.count) ファイル"))
+                }
+                .font(DSFont.meta)
+                .foregroundStyle(DSColor.textSecondary)
+                .padding(.horizontal, 16)
+                .frame(height: 36)
+                .overlay(alignment: .bottom) { Rectangle().fill(DSColor.separator).frame(height: 1) }
+
+                HStack(spacing: 0) {
+                    conversation(tab)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    if worktreeChangesSessionID == sessionID {
+                        Rectangle().fill(DSColor.separator).frame(width: 1)
+                        EditorPanelView(
+                            viewModel: editorPanel.viewModel,
+                            projectName: project.name,
+                            workingDirectory: node.workspacePath
+                        )
+                        .frame(width: 440)
+                    }
+                }
+            }
+        } else {
+            conversation(tab)
+        }
+    }
+
 }
 
 // MARK: - Child tab bar
 
-/// 下段の子タブ列（02 C1）。会話・ターミナル・変更 N・ファイル、＋、右端に worktree のパス。
+/// 下段のプロジェクト内タブ列。チャットをセッション順に並べ、その後ろに項目を置く。
 struct ChildTabBar: View {
     @Bindable var router: AppRouter
     let viewModel: DashboardViewModel
@@ -147,76 +185,72 @@ struct ChildTabBar: View {
     let chats: [ProjectTab]
     let changeCount: Int
     let files: FileTabDocuments
-    let agentConsoleWindowID: String?
     var simulatorHub: SimulatorHub? = nil
     @Environment(\.localizationBundle) private var localizationBundle
-
     @Environment(\.locale) private var locale
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            tabBar(showsPath: true)
-            tabContents(compact: true).fixedSize(horizontal: true, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            tabBar(showsPath: false)
+        GeometryReader { geometry in
+            let tabs = layout.tabs(chats: chats)
+            let selected = layout.selected ?? chats.first
+            let overflowLayout = TabBarOverflowLayout.make(
+                itemCount: tabs.count,
+                selectedIndex: selected.flatMap { tabs.firstIndex(of: $0) },
+                availableWidth: max(0, geometry.size.width - 16),
+                maxItemWidth: 200,
+                minItemWidth: 96,
+                addButtonWidth: 30,
+                overflowButtonWidth: 70
+            )
+            HStack(spacing: 0) {
+                ForEach(overflowLayout.visibleIndices, id: \.self) { index in
+                    let tab = tabs[index]
+                    ChildTabButton(
+                        tab: tab,
+                        title: title(for: tab),
+                        isShown: layout.isShown(tab),
+                        isSelected: selected == tab,
+                        isDirty: isDirty(tab),
+                        onSelect: { router.selectTab(tab, in: project.id) },
+                        onClose: {
+                            if case .chat(let id) = tab { _ = router.requestClose(.session(id)) }
+                            else { _ = router.requestClose(.tab(tab)) }
+                        }
+                    )
+                    .frame(width: overflowLayout.itemWidth, height: 26)
+                    .accessibilityIdentifier(TabAccessibilityIdentifier.item(index + 1))
+                }
+                if overflowLayout.overflowCount > 0 {
+                    Menu {
+                        ForEach(tabs.indices.filter { !overflowLayout.visibleIndices.contains($0) }, id: \.self) { index in
+                            let tab = tabs[index]
+                            Button { router.selectTab(tab, in: project.id) } label: { title(for: tab) }
+                        }
+                    } label: {
+                        HStack(spacing: 3) {
+                            Text("ほか \(overflowLayout.overflowCount)")
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 8, weight: .medium))
+                        }
+                        .font(DSFont.auxiliary)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .frame(width: 70, height: 26)
+                        .contentShape(Rectangle())
+                    }
+                    .menuStyle(.borderlessButton)
+                    .help(Text("ほかのタブ"))
+                    .accessibilityIdentifier(TabAccessibilityIdentifier.overflow)
+                }
+                addButton
+            }
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 10)
         .frame(height: DSLayout.childTabBarHeight)
         .background(DSColor.windowBackground)
+        .overlay(alignment: .bottom) { Rectangle().fill(DSColor.separator).frame(height: 1) }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(Text("このセッションのタブ"))
-    }
-
-    private func tabBar(showsPath: Bool) -> some View {
-        HStack(spacing: DSSpacing.xxs) {
-            if showsPath {
-                tabContents()
-                    .fixedSize(horizontal: true, vertical: true)
-                FilePathLabel(path: abbreviatedPath, alignment: .trailing)
-                    .frame(minWidth: 0, maxWidth: .infinity)
-            } else {
-                ScrollViewReader { scroll in
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        tabButtons()
-                    }
-                    .onAppear { scroll.scrollTo(layout.selected, anchor: .trailing) }
-                    .onChange(of: layout.selected) { _, selected in scroll.scrollTo(selected, anchor: .trailing) }
-                }
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity)
-                addButton.fixedSize()
-            }
-        }
-    }
-
-    private func tabContents(compact: Bool = false) -> some View {
-        HStack(spacing: DSSpacing.xxs) {
-            tabButtons(compact: compact)
-            addButton.fixedSize()
-        }
-    }
-
-    private func tabButtons(compact: Bool = false) -> some View {
-        HStack(spacing: DSSpacing.xxs) {
-            ForEach(layout.tabs(chats: chats), id: \.self) { tab in
-                ChildTabButton(
-                    tab: tab,
-                    glyph: glyph(for: tab),
-                    showsGlyph: !compact,
-                    title: title(for: tab),
-                    isShown: layout.isShown(tab),
-                    isSelected: layout.selected == tab,
-                    isDirty: isDirty(tab),
-                    onSelect: { router.selectTab(tab, in: project.id) },
-                    onClose: {
-                        if case .chat(let id) = tab { router.tabRequest = .confirmSessionDeletion(id) }
-                        else { router.tabRequest = .closeChild(project.id, tab) }
-                    }
-                )
-                .fixedSize(horizontal: true, vertical: true)
-                .id(tab)
-            }
-        }
+        .accessibilityLabel(Text("このプロジェクトのタブ"))
     }
 
     private var addButton: some View {
@@ -224,35 +258,19 @@ struct ChildTabBar: View {
             router.newTabChooserPresented = true
         } label: {
             Image(systemName: "plus")
-                .font(.system(size: 14, weight: .regular))
+                .font(.system(size: DSIconSize.m, weight: .regular))
                 .foregroundStyle(DSColor.textSecondary)
-                .frame(width: 24, height: 24)
+                .frame(width: 26, height: 26)
                 .contentShape(Rectangle())
         }
         .buttonStyle(HoverableIconButtonStyle())
-        .help(Text("このセッションにタブを追加"))
-        .accessibilityLabel(Text("このセッションにタブを追加"))
+        .help(Text("タブを追加"))
+        .accessibilityLabel(Text("タブを追加"))
+        .accessibilityIdentifier(TabAccessibilityIdentifier.itemAdd)
         .popover(isPresented: $router.newTabChooserPresented, arrowEdge: .bottom) {
-            NewTabChooser(router: router, projectID: project.id, agentConsoleWindowID: agentConsoleWindowID,
-                          simulatorHub: simulatorHub)
+            NewTabChooser(router: router, project: project, simulatorHub: simulatorHub)
                 // popover は画面のロケールを引き継がないので渡し直す（アプリ内の言語設定）。
                 .environment(\.locale, locale)
-        }
-    }
-
-    private var abbreviatedPath: String {
-        (project.directoryPath as NSString).abbreviatingWithTildeInPath
-    }
-
-    private func glyph(for tab: ProjectTab) -> String {
-        switch tab {
-        case .chat(let id): viewModel.sessionNode(id: id)?.agentDescriptor.tabInitials ?? ""
-        case .newChat: "+"
-        case .terminal: ">_"
-        case .changes: "±"
-        case .simulator: "▯"
-        case .browser: "◎"
-        case .file: "{}"
         }
     }
 
@@ -277,8 +295,6 @@ struct ChildTabBar: View {
 
 private struct ChildTabButton: View {
     let tab: ProjectTab
-    let glyph: String
-    let showsGlyph: Bool
     let title: Text
     let isShown: Bool
     let isSelected: Bool
@@ -289,23 +305,21 @@ private struct ChildTabButton: View {
     @State private var isHovering = false
 
     var body: some View {
-        // PhloxTabs.dc.html:205: 高さ 24、padding 0 10、間 6、記号は 10/700 の等幅。
+        // PhloxTabsWindow.dc.html: 下段は高さ 26、padding 0 6 0 10。
         HStack(spacing: 6) {
-            if showsGlyph { Text(verbatim: glyph)
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundStyle(DSColor.textTertiary)
-            }
             title
                 .font(DSFont.auxiliary.weight(isSelected ? .semibold : .regular))
                 .foregroundStyle(isShown ? DSColor.textPrimary : DSColor.textSecondary)
                 .lineLimit(1)
-            if !tab.isChat {
-                closeAccessory
-            }
+            closeAccessory
         }
-        .padding(.horizontal, 10)
-        .frame(height: 24)
-        .background(isShown ? DSColor.fillSelected : Color.clear, in: RoundedRectangle(cornerRadius: DSRadius.row))
+        .padding(.leading, 10)
+        .padding(.trailing, 6)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .background(
+            isSelected ? DSColor.fillSelected : (isShown ? DSColor.fillSubtle : Color.clear),
+            in: RoundedRectangle(cornerRadius: DSRadius.row)
+        )
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
         .onHover { isHovering = $0 }
@@ -316,18 +330,18 @@ private struct ChildTabButton: View {
         .accessibilityLabel(isDirty ? Text("\(title)、未保存") : title)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction(.default, onSelect)
-        .accessibilityAction(named: Text("タブを閉じる"), onClose)
+        .accessibilityAction(named: Text(closeHelp), onClose)
     }
 
     /// 未保存のファイルは ✕ の代わりに点。ホバーで ✕ に戻る（02 のタブ規則）。
     @ViewBuilder
     private var closeAccessory: some View {
-        if isDirty, !isHovering {
+        if isDirty, !isHovering, !isShown {
             Circle()
                 .fill(DSColor.textPrimary)
                 .frame(width: 6, height: 6)
                 .frame(width: 14, height: 14)
-        } else {
+        } else if isShown || isHovering {
             Button(action: onClose) {
                 Image(systemName: "xmark")
                     .font(.system(size: 8, weight: .semibold))
@@ -336,8 +350,16 @@ private struct ChildTabButton: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .opacity(isSelected || isHovering ? 1 : 0)
-            .help(Text("タブを閉じる"))
+            .help(Text(closeHelp))
+            .accessibilityLabel(Text(closeHelp))
+        }
+    }
+
+    private var closeHelp: String {
+        switch tab {
+        case .chat: "セッションを削除…"
+        case .newChat: "外す（下書きは残ります）"
+        default: "閉じる"
         }
     }
 }
@@ -357,34 +379,22 @@ extension ProjectTab {
 
 // MARK: - New tab chooser (C4)
 
-/// 「＋」と ⌘T で開く選択肢。↑↓ で移動、↩ で開く。
+/// 「＋」と ⌘T で開くプロジェクト内タブの選択肢。
 struct NewTabChooser: View {
     @Bindable var router: AppRouter
-    let projectID: ProjectID
-    let agentConsoleWindowID: String?
+    let project: Project
     let simulatorHub: SimulatorHub?
 
-    @Environment(\.openWindow) private var openWindow
-    @Environment(\.locale) private var locale
+    @Environment(\.localizationBundle) private var localizationBundle
     @FocusState private var focused: Item?
 
-    enum Item: Hashable, CaseIterable {
-        case conversation, terminal, changes, file, agentConsole, simulator, browser
-    }
-
-    private var items: [Item] {
-        Item.allCases.filter { $0 != .agentConsole || agentConsoleWindowID != nil }
-    }
+    enum Item: Hashable { case newChat, terminal, changes, file, browser, simulator }
+    private let items: [Item] = [.newChat, .terminal, .changes, .file, .browser, .simulator]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("このセッションに開く")
-                .font(DSFont.meta.weight(.semibold))
-                .foregroundStyle(DSColor.textTertiary)
-                .padding(.horizontal, DSSpacing.s)
-                .padding(.vertical, DSSpacing.xs)
             ForEach(items, id: \.self) { item in
-                if item == .simulator {
+                if item == .terminal || item == .browser {
                     Rectangle().fill(DSColor.separator).frame(height: 1).padding(.vertical, DSSpacing.xs)
                 }
                 row(item)
@@ -392,13 +402,20 @@ struct NewTabChooser: View {
                     .focused($focused, equals: item)
                     .focusEffectDisabled()
             }
+            Rectangle().fill(DSColor.separator).frame(height: 1).padding(.top, DSSpacing.xs)
+            Text("ターミナル・変更・ファイルは \(project.name) のフォルダで開きます")
+                .font(DSFont.meta)
+                .foregroundStyle(DSColor.textSecondary)
+                .lineSpacing(2)
+                .padding(.horizontal, 8)
+                .padding(.top, DSSpacing.xs)
         }
-        .padding(DSSpacing.xs)
-        .frame(width: 300)
+        .padding(5)
+        .frame(width: 220)
         .background(DSColor.popoverBackground)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(Text("新しいタブ（⌘T）"))
-        .onAppear { focused = items.first }
+        .accessibilityLabel(Text("タブを追加"))
+        .onAppear { focused = .newChat }
         .onKeyPress(.downArrow) { move(by: 1) }
         .onKeyPress(.upArrow) { move(by: -1) }
         .onKeyPress(.return) {
@@ -410,22 +427,20 @@ struct NewTabChooser: View {
 
     private func row(_ item: Item) -> some View {
         let isFocused = focused == item
-        return HStack(spacing: DSSpacing.s) {
-            Text(verbatim: glyph(item))
-                .font(DSFont.monoCaption)
-                .foregroundStyle(isFocused ? Color.white : DSColor.textTertiary)
-                .frame(width: 22, alignment: .leading)
+        return HStack {
             title(item)
                 .font(DSFont.row)
-                .foregroundStyle(isFocused ? Color.white : DSColor.textPrimary)
+                .foregroundStyle(DSColor.textPrimary)
             Spacer(minLength: DSSpacing.s)
-            Text(verbatim: shortcut(item))
-                .font(DSFont.meta)
-                .foregroundStyle(isFocused ? Color.white.opacity(0.85) : DSColor.textTertiary)
+            if item == .newChat {
+                Text("⌘N")
+                    .font(DSFont.meta)
+                    .foregroundStyle(DSColor.textSecondary)
+            }
         }
-        .padding(.horizontal, DSSpacing.s)
+        .padding(.horizontal, 10)
         .frame(height: 26)
-        .background(isFocused ? DSColor.accentFill : Color.clear, in: RoundedRectangle(cornerRadius: DSRadius.row))
+        .background(isFocused ? DSColor.fillSelected : Color.clear, in: RoundedRectangle(cornerRadius: 6))
         .contentShape(Rectangle())
         .onTapGesture { open(item) }
         .onHover { if $0 { focused = item } }
@@ -435,39 +450,14 @@ struct NewTabChooser: View {
         .accessibilityAction(.default) { open(item) }
     }
 
-    private func glyph(_ item: Item) -> String {
-        switch item {
-        case .conversation: ""
-        case .terminal: ">_"
-        case .changes: "±"
-        case .simulator: "▯"
-        case .browser: "◎"
-        case .file: "{}"
-        case .agentConsole: "⚙"
-        }
-    }
-
     private func title(_ item: Item) -> Text {
         switch item {
-        case .conversation: Text("会話（このセッション）")
-        case .terminal: Text("ターミナル（この worktree で）")
-        case .changes: Text("変更一覧 · 差分")
-        case .simulator: Text("シミュレーター")
-        case .browser: Text("ブラウザ")
+        case .newChat: Text("新規チャット")
+        case .terminal: Text("ターミナル", bundle: localizationBundle)
+        case .changes: Text("変更")
         case .file: Text("ファイルを開く…")
-        case .agentConsole: Text("エージェント管理")
-        }
-    }
-
-    private func shortcut(_ item: Item) -> String {
-        switch item {
-        case .terminal: "⌃⌘T"
-        case .changes: "⌃⌘E"
-        case .simulator: "⌃⌘Y"
-        case .browser: "⌃⌘R"
-        case .file: "⌘P"
-        case .agentConsole: AppLocalizedString.string("共通 ⇧⌘,", locale: locale)
-        case .conversation: ""
+        case .browser: Text("ブラウザ")
+        case .simulator: Text("シミュレーター")
         }
     }
 
@@ -480,16 +470,14 @@ struct NewTabChooser: View {
     private func open(_ item: Item) {
         router.newTabChooserPresented = false
         switch item {
-        case .conversation: router.showNewChat(projectID: projectID)
+        case .newChat: router.showNewChat(projectID: project.id)
         case .terminal: router.openTerminalTab()
         case .changes: router.openChildTab(.changes)
         case .browser: router.openChildTab(.browser)
         case .simulator:
             router.openChildTab(.simulator)
-            simulatorHub?.requestMenuFocus(for: projectID)
-        case .file: router.tabRequest = .openFile(projectID)
-        case .agentConsole:
-            if let agentConsoleWindowID { openWindow(id: agentConsoleWindowID) }
+            simulatorHub?.requestMenuFocus(for: project.id)
+        case .file: router.tabRequest = .openFile(project.id)
         }
     }
 }

@@ -73,34 +73,27 @@ struct FilePathDisplayTests {
         for tab in [ProjectTab.file("docs/file-tree.md"), .chat(node.id)] {
             layout.select(tab)
             let host = NSHostingView(rootView: ChildTabBar(router: AppRouter(), viewModel: DashboardViewModel(environment: makeTestEnvironment(pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() })), project: Project(name: node.workspaceName, directoryPath: node.rawWorkspacePath, createdAt: Date(), isManagedDirectory: false), layout: layout, chats: [.chat(node.id)],
-                changeCount: 4, files: FileTabDocuments(), agentConsoleWindowID: nil))
-            let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: 320, height: 32),
+                changeCount: 4, files: FileTabDocuments()))
+            let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: 320, height: 36),
                                   styleMask: [.borderless], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
             window.contentView = host
             defer { window.close() }
-            host.frame = NSRect(x: 0, y: 0, width: 320, height: 32)
+            host.frame = NSRect(x: 0, y: 0, width: 320, height: 36)
             host.layoutSubtreeIfNeeded()
             try await Task.sleep(for: .milliseconds(80))
             host.layoutSubtreeIfNeeded()
             let selected = try #require(accessibleFrame(named: tab.isChat ? "会話" : "file-tree.md", in: host))
-            let add = try #require(accessibleFrame(named: "このセッションにタブを追加", in: host))
+            let add = try #require(accessibleFrame(named: "タブを追加", in: host))
+            let overflow = try #require(accessibleFrame(identifier: "tabs.overflow", in: host))
             let visible = window.convertToScreen(host.bounds)
             #expect(selected.minX >= visible.minX)
             #expect(selected.maxX <= visible.maxX)
             #expect(add.minX >= visible.minX)
             #expect(add.maxX <= visible.maxX)
-            if !includesChanges {
-                for title in ["会話", "ターミナル", "file-tree.md"] {
-                    let frame = try #require(accessibleFrame(named: title, in: host))
-                    #expect(frame.minX >= visible.minX)
-                    #expect(frame.maxX <= visible.maxX)
-                }
-            }
-            if tab == layout.items.last {
-                #expect(add.minX >= selected.maxX)
-                #expect(add.minX - selected.maxX <= 4)
-            }
+            #expect(overflow.minX >= visible.minX)
+            #expect(overflow.maxX <= add.minX)
+            #expect(add.minX - overflow.maxX <= 4)
             #expect(!window.isVisible)
         }
     }
@@ -121,19 +114,19 @@ struct FilePathDisplayTests {
         layout.open(.file("docs/file-tree.md"))
         for width in [CGFloat(480), 1_000] {
             let host = NSHostingView(rootView: ChildTabBar(router: AppRouter(), viewModel: DashboardViewModel(environment: makeTestEnvironment(pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() })), project: Project(name: node.workspaceName, directoryPath: node.rawWorkspacePath, createdAt: Date(), isManagedDirectory: false), layout: layout, chats: [.chat(node.id)],
-                changeCount: 0, files: FileTabDocuments(), agentConsoleWindowID: nil))
-            let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: width, height: 32),
+                changeCount: 0, files: FileTabDocuments()))
+            let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: width, height: 36),
                                   styleMask: [.borderless], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
             window.contentView = host
             defer { window.close() }
-            host.frame = NSRect(x: 0, y: 0, width: width, height: 32)
+            host.frame = NSRect(x: 0, y: 0, width: width, height: 36)
             host.layoutSubtreeIfNeeded()
             try await Task.sleep(for: .milliseconds(80))
             host.layoutSubtreeIfNeeded()
             let conversation = try #require(accessibleFrame(named: "会話", in: host))
-            let file = try #require(accessibleFrame(named: "file-tree.md", in: host))
-            let add = try #require(accessibleFrame(named: "このセッションにタブを追加", in: host))
+            let file = try #require(accessibleFrame(identifier: "tabs.item.3", in: host))
+            let add = try #require(accessibleFrame(named: "タブを追加", in: host))
             let visible = window.convertToScreen(host.bounds)
             #expect(conversation.minX >= visible.minX)
             #expect(add.maxX <= visible.maxX)
@@ -192,6 +185,28 @@ struct FilePathDisplayTests {
             guard seen.insert(ObjectIdentifier(object)).inserted else { return nil }
             let label = NSSelectorFromString("accessibilityLabel")
             if object.responds(to: label), object.perform(label)?.takeUnretainedValue() as? String == name,
+               object.responds(to: NSSelectorFromString("accessibilityFrame")) {
+                return (object as AnyObject).accessibilityFrame()
+            }
+            let children = NSSelectorFromString("accessibilityChildren")
+            if object.responds(to: children), let elements = object.perform(children)?.takeUnretainedValue() as? [NSObject] {
+                for child in elements { if let frame = visit(child) { return frame } }
+            }
+            if let view = object as? NSView {
+                for child in view.subviews { if let frame = visit(child) { return frame } }
+            }
+            return nil
+        }
+        return visit(root)
+    }
+
+    @MainActor
+    private func accessibleFrame(identifier: String, in root: NSObject) -> NSRect? {
+        var seen = Set<ObjectIdentifier>()
+        func visit(_ object: NSObject) -> NSRect? {
+            guard seen.insert(ObjectIdentifier(object)).inserted else { return nil }
+            let selector = NSSelectorFromString("accessibilityIdentifier")
+            if object.responds(to: selector), object.perform(selector)?.takeUnretainedValue() as? String == identifier,
                object.responds(to: NSSelectorFromString("accessibilityFrame")) {
                 return (object as AnyObject).accessibilityFrame()
             }

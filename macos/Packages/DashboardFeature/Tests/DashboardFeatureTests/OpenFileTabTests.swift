@@ -40,20 +40,18 @@ struct OpenFileTabTests {
         #expect(router.tabs.layout(for: id).items == [])
     }
 
-    @Test("要求したルートを保持し単体表示へ切り替えて共通ターミナルを解除する")
+    @Test("要求したルートを保持して単体表示へ切り替える")
     func opensUsingCapturedRoot() {
         let files = FileTabDocuments()
         let router = AppRouter()
         let id = ProjectID()
         router.viewMode = .grid
-        router.commonTerminalSelected = true
         #expect(files.openFileTab(
             projectID: id, root: "/A", relativePath: "sub/a.txt", router: router,
             requestedWorkingDirectory: "/A/sub", currentWorkingDirectory: "/A/sub"
         ))
         #expect(files.existing(for: id, path: "sub/a.txt")?.root == "/A")
         #expect(router.viewMode == .single)
-        #expect(!router.commonTerminalSelected)
         #expect(router.tabs.layout(for: id).selected == .file("sub/a.txt"))
     }
 

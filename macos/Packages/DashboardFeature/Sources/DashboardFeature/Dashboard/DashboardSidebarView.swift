@@ -702,7 +702,6 @@ struct DashboardSidebarView: View {
 
     private func selectSession(_ id: SessionID, holdFocus shouldHold: Bool) {
         if shouldHold { holdFocus() } else { listFocused = true }
-        router.commonTerminalSelected = false
         router.selectedSession = id
     }
 

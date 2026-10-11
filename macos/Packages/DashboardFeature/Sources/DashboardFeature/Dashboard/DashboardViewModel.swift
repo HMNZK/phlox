@@ -908,7 +908,7 @@ public final class DashboardViewModel {
     /// 現在のカラースキーマを既存ターミナルへ即時反映する（設定からのライブ切替用）。
     public func reapplyTheme() {
         TerminalCoordinator.activePalette = Self.makeTerminalPalette(from: ThemeStore.active)
-        // セッションの端末だけでなく、子タブ・共通ターミナルのユーザー用シェルにも当て直す。
+        // セッションの端末とプロジェクトのターミナルへ当て直す。
         TerminalCoordinator.applyActivePaletteToAll()
     }
 
@@ -920,14 +920,12 @@ public final class DashboardViewModel {
         case both
     }
 
-    /// 前面の領域から、文字サイズを変える対象を決める。共通ターミナルを前面にしていれば端末。
+    /// 前面の領域から、文字サイズを変える対象を決める。
     /// ターミナル型は会話タブ自体が端末。チャット型は子タブの「ターミナル」を前に出しているときだけ端末。
     public static func fontSizeTarget(
         node: SessionNode?,
-        selectedChildTab: ProjectTab?,
-        showsCommonTerminal: Bool = false
+        selectedChildTab: ProjectTab?
     ) -> FontSizeTarget {
-        if showsCommonTerminal { return .terminal }
         if case .terminal = selectedChildTab { return .terminal }
         guard let node else { return .both }
         if node.pty != nil { return .terminal }
@@ -1615,6 +1613,11 @@ public final class DashboardViewModel {
     public func canMoveSession(_ id: SessionID) -> Bool {
         guard case .appServer = sessionNode(id: id) else { return true }
         return ownedWorkspaceDirectories[id]?.worktreeRepository == nil
+    }
+
+    public func worktreeBranchName(for id: SessionID) -> String? {
+        guard ownedWorkspaceDirectories[id]?.worktreeRepository != nil else { return nil }
+        return WorktreeIsolationPlanner.branchName(for: id)
     }
 
     /// changeWorkspace / moveSession 共通の再起動シーケンス（R2 で 1 本化）。

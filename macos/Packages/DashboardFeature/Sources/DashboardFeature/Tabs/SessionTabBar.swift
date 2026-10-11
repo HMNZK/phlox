@@ -1,272 +1,208 @@
 import SwiftUI
 import AgentDomain
 import DesignSystem
-import SessionFeature
 
-/// 上段のタブ列（02 C1）。プロジェクトのセッションを並べ、右端に共通ターミナル・エージェント管理・＋。
-/// 横にあふれたら横スクロールし、見えない位置の対応待ちを右端にまとめて出す（C7）。
+/// 上段のプロジェクトタブ。並びはサイドバーの `viewModel.projects` と同じ。
 struct SessionTabBar: View {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
-    let sessions: [SessionNode]
-    let projectID: ProjectID?
-    let hasCommonTerminal: Bool
-    let agentConsoleWindowID: String?
 
-    @Environment(\.openWindow) private var openWindow
-    @Environment(\.locale) private var locale
-    @State private var tabFrames: [SessionID: CGRect] = [:]
-    @State private var viewportWidth: CGFloat = 0
-
-    private nonisolated static let coordinateSpace = "session-tab-bar"
+    private var selectedProjectID: ProjectID? {
+        router.selectedProjectID ?? router.selectedSession.flatMap { viewModel.sessionNode(id: $0)?.projectID }
+    }
 
     var body: some View {
-        HStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 0) {
-                        ForEach(sessions, id: \.id) { node in
-                            SessionTabButton(
-                                node: node,
-                                isSelected: !router.commonTerminalSelected && router.selectedSession == node.id,
-                                onSelect: { select(node.id) },
-                                onClose: { close(node.id) }
-                            )
-                            .id(node.id)
-                            .onGeometryChange(for: CGRect.self) { geometry in
-                                geometry.frame(in: .named(Self.coordinateSpace))
-                            } action: { frame in
-                                tabFrames[node.id] = frame
-                            }
+        GeometryReader { geometry in
+            let selectedIndex = selectedProjectID.flatMap { id in viewModel.projects.firstIndex { $0.id == id } }
+            let layout = TabBarOverflowLayout.make(
+                itemCount: viewModel.projects.count,
+                selectedIndex: selectedIndex,
+                availableWidth: max(0, geometry.size.width - 12),
+                maxItemWidth: 180,
+                minItemWidth: 96,
+                addButtonWidth: 30,
+                overflowButtonWidth: 70
+            )
+            HStack(spacing: 0) {
+                ForEach(layout.visibleIndices, id: \.self) { index in
+                    let project = viewModel.projects[index]
+                    ProjectTabButton(
+                        project: project,
+                        isSelected: project.id == selectedProjectID,
+                        onSelect: { router.selectProjectFromSidebar(project.id) },
+                        onClose: { _ = router.requestClose(.project(project.id)) },
+                        onRename: { rename(project.id) }
+                    )
+                    .frame(width: layout.itemWidth, height: 30)
+                    .offset(y: 1)
+                    .accessibilityIdentifier(TabAccessibilityIdentifier.project(index + 1))
+                }
+                if layout.overflowCount > 0 {
+                    Menu {
+                        ForEach(hiddenProjects(in: layout), id: \.id) { project in
+                            Button(project.name) { router.selectProjectFromSidebar(project.id) }
                         }
-                        // 02 C1: ＋はセッションのタブの直後（その右は空き）。
-                        newTabButton
+                    } label: {
+                        HStack(spacing: 3) {
+                            Text("ほか \(layout.overflowCount)")
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 8, weight: .medium))
+                        }
+                        .font(DSFont.auxiliary)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .frame(width: 70, height: 26)
+                        .contentShape(Rectangle())
                     }
+                    .menuStyle(.borderlessButton)
+                    .help(Text("ほかのタブ"))
+                    .accessibilityIdentifier(TabAccessibilityIdentifier.overflow)
                 }
-                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewportWidth = $0 }
-                .coordinateSpace(.named(Self.coordinateSpace))
-                .onChange(of: router.selectedSession) { _, id in
-                    guard let id else { return }
-                    withAnimation(.easeInOut(duration: 0.15)) { proxy.scrollTo(id) }
-                }
+                projectAddButton
             }
-            if let summary = hiddenAttention {
-                hiddenAttentionBadge(summary)
-            }
-            if hasCommonTerminal {
-                pinnedTab(
-                    glyph: ">_",
-                    title: "共通ターミナル",
-                    isSelected: router.commonTerminalSelected,
-                    help: "worktree の外（ホーム）で開くターミナル"
-                ) {
-                    router.commonTerminalSelected = true
-                }
-            }
-            if let agentConsoleWindowID {
-                pinnedTab(
-                    glyph: "⚙",
-                    title: "エージェント管理",
-                    isSelected: false,
-                    help: "エージェント管理（⇧⌘,）"
-                ) {
-                    openWindow(id: agentConsoleWindowID)
-                }
-            }
+            .padding(.horizontal, 6)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
         .frame(height: DSLayout.tabBarHeight)
         .background(DSColor.tabBarBackground)
+        .overlay(alignment: .bottom) { Rectangle().fill(DSColor.separator).frame(height: 1) }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(Text("タブ"))
+        .accessibilityLabel(Text("プロジェクトのタブ"))
     }
 
-    private var newTabButton: some View {
-        Button {
-            router.newTabChooserPresented = true
-        } label: {
+    private var projectAddButton: some View {
+        Button { router.addProjectRequested = true } label: {
             Image(systemName: "plus")
-                .font(.system(size: 15, weight: .regular))
+                .font(.system(size: DSIconSize.m, weight: .regular))
                 .foregroundStyle(DSColor.textSecondary)
-                .frame(width: 28, height: 28)
+                .frame(width: 26, height: 26)
                 .contentShape(Rectangle())
         }
         .buttonStyle(HoverableIconButtonStyle())
-        .disabled(router.selectedSession == nil || router.commonTerminalSelected)
-        .help(Text("新しいタブ（⌘T）"))
-        .accessibilityLabel(Text("新しいタブ（⌘T）"))
-        .padding(.horizontal, DSSpacing.xxs)
+        .padding(.leading, 4)
+        .padding(.vertical, 4)
+        .help(Text("プロジェクトを追加"))
+        .accessibilityLabel(Text("プロジェクトを追加"))
+        .accessibilityIdentifier(TabAccessibilityIdentifier.projectAdd)
     }
 
-    // MARK: - Hidden attention (C7)
-
-    private var hiddenAttention: HiddenAttentionSummary? {
-        guard viewportWidth > 0 else { return nil }
-        let hidden = sessions.filter { node in
-            guard let frame = tabFrames[node.id] else { return false }
-            return frame.minX < -1 || frame.maxX > viewportWidth + 1
-        }
-        return HiddenAttentionSummary.make(hiddenStates: hidden.map(\.tabDisplayState))
+    private func hiddenProjects(in layout: TabBarOverflowLayout) -> [Project] {
+        let visible = Set(layout.visibleIndices)
+        return viewModel.projects.enumerated().compactMap { index, project in visible.contains(index) ? nil : project }
     }
 
-    private func hiddenAttentionBadge(_ summary: HiddenAttentionSummary) -> some View {
-        // 文言は画面のロケール（アプリ内の言語設定）で引くため Text で組み立てる。
-        let label = summary.kind.map { Text(verbatim: Self.state(for: $0).localizedLabel(locale: locale)) }
-            ?? Text("対応待ち")
-        let text = Text("隠れたタブに \(label) \(summary.count)")
-        return Button {
-            revealFirstHiddenAttention()
-        } label: {
-            text
-                .font(DSFont.stateLabel)
-                .foregroundStyle(summary.kind.map(DSColor.attentionInk) ?? DSColor.textPrimary)
-                .padding(.horizontal, DSSpacing.s)
-                .frame(height: 22)
-                .background(
-                    summary.kind.map(DSColor.attentionTint) ?? DSColor.fillSubtle,
-                    in: RoundedRectangle(cornerRadius: DSRadius.row)
-                )
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.trailing, DSSpacing.s)
-        .help(text)
-        .accessibilityLabel(text)
-    }
-
-    private static func state(for kind: AttentionKind) -> SessionDisplayState {
-        switch kind {
-        case .approval: .approval
-        case .question: .question
-        case .error: .error
-        case .stalled: .stalled
-        }
-    }
-
-    private func revealFirstHiddenAttention() {
-        let target = sessions.first { node in
-            guard node.tabDisplayState.attentionKind != nil, let frame = tabFrames[node.id] else { return false }
-            return frame.minX < -1 || frame.maxX > viewportWidth + 1
-        }
-        if let target { select(target.id) }
-    }
-
-    // MARK: - Actions
-
-    private func select(_ id: SessionID) {
-        guard let projectID else { return }
-        router.selectTab(.chat(id), in: projectID)
-    }
-
-    private func close(_ id: SessionID) {
-        router.tabRequest = .confirmSessionDeletion(id)
-    }
-
-    private func pinnedTab(
-        glyph: String,
-        title: LocalizedStringKey,
-        isSelected: Bool,
-        help: LocalizedStringKey,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: DSSpacing.xs) {
-                Text(verbatim: glyph)
-                    .font(DSFont.monoCaption)
-                    .foregroundStyle(DSColor.textTertiary)
-                Text(title)
-                    .font(DSFont.auxiliary)
-                    .foregroundStyle(isSelected ? DSColor.textPrimary : DSColor.textSecondary)
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, DSSpacing.m)
-            .frame(maxHeight: .infinity)
-            .background(isSelected ? DSColor.windowBackground : Color.clear)
-            .overlay(alignment: .top) {
-                if isSelected { Rectangle().fill(DSColor.accent).frame(height: 2) }
-            }
-            .overlay(alignment: .leading) { Rectangle().fill(DSColor.separator).frame(width: 1) }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(Text(help))
-        .accessibilityLabel(Text(title))
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    private func rename(_ id: ProjectID) {
+        let isShowing = router.sidebarVisible && (!router.sidebarLacksRoom || router.sidebarPeeking)
+        if !isShowing { router.toggleSidebar() }
+        router.projectRenameRequest = id
     }
 }
 
-/// 上段のセッションタブ 1 枚。エージェントの頭文字・題名・対応待ちの状態文言・✕。
-private struct SessionTabButton: View {
-    let node: SessionNode
+/// 画面に入る範囲でタブを縮め、最小幅でも入らない項目を overflow にまとめる。
+struct TabBarOverflowLayout: Equatable {
+    let visibleIndices: [Int]
+    let itemWidth: CGFloat
+    let overflowCount: Int
+
+    static func make(
+        itemCount: Int,
+        selectedIndex: Int?,
+        availableWidth: CGFloat,
+        maxItemWidth: CGFloat,
+        minItemWidth: CGFloat,
+        addButtonWidth: CGFloat,
+        overflowButtonWidth: CGFloat
+    ) -> Self {
+        guard itemCount > 0 else { return Self(visibleIndices: [], itemWidth: 0, overflowCount: 0) }
+
+        let widthWithoutOverflow = max(0, availableWidth - addButtonWidth)
+        let fullWidth = widthWithoutOverflow / CGFloat(itemCount)
+        if fullWidth >= minItemWidth {
+            return Self(
+                visibleIndices: Array(0..<itemCount),
+                itemWidth: min(maxItemWidth, fullWidth),
+                overflowCount: 0
+            )
+        }
+        if itemCount == 1 {
+            return Self(visibleIndices: [0], itemWidth: widthWithoutOverflow, overflowCount: 0)
+        }
+
+        for visibleCount in stride(from: itemCount - 1, through: 1, by: -1) {
+            let width = max(0, availableWidth - addButtonWidth - overflowButtonWidth) / CGFloat(visibleCount)
+            guard width >= minItemWidth else { continue }
+            var indices = Array(0..<visibleCount)
+            if let selectedIndex, (0..<itemCount).contains(selectedIndex), !indices.contains(selectedIndex) {
+                indices[visibleCount - 1] = selectedIndex
+                indices.sort()
+            }
+            return Self(visibleIndices: indices, itemWidth: min(maxItemWidth, width), overflowCount: itemCount - visibleCount)
+        }
+
+        let selected = selectedIndex.flatMap { (0..<itemCount).contains($0) ? $0 : nil } ?? 0
+        let width = max(0, availableWidth - addButtonWidth - overflowButtonWidth)
+        return Self(visibleIndices: [selected], itemWidth: width, overflowCount: itemCount - 1)
+    }
+}
+
+enum TabAccessibilityIdentifier {
+    static func project(_ index: Int) -> String { "tabs.project.\(index)" }
+    static let projectAdd = "tabs.project.add"
+    static func item(_ index: Int) -> String { "tabs.item.\(index)" }
+    static let itemAdd = "tabs.item.add"
+    static let overflow = "tabs.overflow"
+}
+
+private struct ProjectTabButton: View {
+    let project: Project
     let isSelected: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
-
-    @Environment(\.locale) private var locale
-
-    private var state: SessionDisplayState { node.tabDisplayState }
+    let onRename: () -> Void
+    @State private var isHovering = false
 
     var body: some View {
-        // PhloxTabs.dc.html:148-154: 内容の幅（最大 220）、padding 0 10、間 6。✕ は選択中のタブだけ。
-        HStack(spacing: 6) {
-            Text(verbatim: node.agentDescriptor.tabInitials)
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundStyle(DSColor.textTertiary)
-            Text(node.displayName)
+        Button(action: onSelect) {
+            Text(verbatim: project.name)
                 .font(DSFont.auxiliary.weight(isSelected ? .semibold : .regular))
                 .foregroundStyle(isSelected ? DSColor.textPrimary : DSColor.textSecondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
-            if state.attentionKind != nil {
-                Text(verbatim: state.localizedLabel(locale: locale))
-                    .font(.system(size: 10.5, weight: .bold))
-                    .foregroundStyle(state.color)
-                    .lineLimit(1)
-                    .fixedSize()
-            }
-            if isSelected {
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .padding(.leading, 12)
+                .padding(.trailing, 28)
+                .background(isSelected ? DSColor.windowBackground : Color.clear)
+                .overlay(alignment: .top) {
+                    if isSelected { Rectangle().fill(DSColor.separator).frame(height: 1) }
+                }
+                .overlay(alignment: .leading) {
+                    if isSelected { Rectangle().fill(DSColor.separator).frame(width: 1) }
+                }
+                .overlay(alignment: .trailing) {
+                    if isSelected { Rectangle().fill(DSColor.separator).frame(width: 1) }
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .overlay(alignment: .trailing) {
+            if isSelected || isHovering {
                 Button(action: onClose) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .regular))
-                        .foregroundStyle(DSColor.textTertiary)
-                        .frame(width: 14, height: 16)
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(DSColor.textSecondary)
+                        .frame(width: 20, height: 20)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(HoverableIconButtonStyle())
-                .help(Text("セッションを削除…"))
-                .accessibilityLabel(Text("タブを閉じる"))
+                .help(Text("プロジェクトを削除…"))
+                .accessibilityLabel(Text("プロジェクトを削除…"))
             }
         }
-        .padding(.horizontal, 10)
-        .frame(maxWidth: 220, maxHeight: .infinity, alignment: .leading)
-        .background(background)
-        .overlay(alignment: .top) {
-            if isSelected { Rectangle().fill(DSColor.accent).frame(height: 2) }
+        .help(Text(verbatim: project.name))
+        .contextMenu {
+            Button("プロジェクト名を変更…", action: onRename)
         }
-        .overlay(alignment: .trailing) { Rectangle().fill(DSColor.separator).frame(width: 1) }
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onSelect)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityText)
-        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-        .accessibilityAction(.default, onSelect)
-        .accessibilityAction(named: Text("タブを閉じる"), onClose)
-    }
-
-    private var background: Color {
-        if isSelected { return DSColor.windowBackground }
-        if let kind = state.attentionKind { return DSColor.attentionTint(kind) }
-        return .clear
-    }
-
-    private var accessibilityText: Text {
-        guard state.attentionKind != nil else { return Text(verbatim: node.displayName) }
-        return Text("\(node.displayName)、\(state.localizedLabel(locale: locale))")
-    }
-}
-
-extension SessionNode {
-    /// タブ・一覧に出す状態（完了の未読・無応答を含む）。
-    var tabDisplayState: SessionDisplayState {
-        SessionDisplayState.resolve(displayStatus, hasUnseenCompletion: hasUnseenCompletion, isStalled: isStalled)
+        .accessibilityLabel(Text(verbatim: project.name))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

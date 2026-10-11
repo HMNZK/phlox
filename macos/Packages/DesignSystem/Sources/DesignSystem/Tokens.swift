@@ -74,9 +74,9 @@ public enum DSLayout {
     public static let progressBarHeight: CGFloat = 5
 
     // 再設計の高さ・幅（12 Design System / README「全体の決定事項」）。
-    public static let toolbarHeight: CGFloat = 52
-    public static let tabBarHeight: CGFloat = 32
-    public static let childTabBarHeight: CGFloat = 32
+    public static let toolbarHeight: CGFloat = 38
+    public static let tabBarHeight: CGFloat = 34
+    public static let childTabBarHeight: CGFloat = 36
     public static let listRowHeight: CGFloat = 28
     public static let cardHeaderHeight: CGFloat = 32
     /// 分割線の当たり（見た目は 1pt、ホバーで accent 3pt）。

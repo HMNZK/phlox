@@ -67,8 +67,6 @@ struct PhloxApp: App {
     /// 今回の失敗をログへ書けたか（書けなければ「ログを Finder で表示」を無効にする）。
     @State private var initFailureLogged = false
     @State private var initializing = false
-    /// 上段右端の共通ターミナル（ホームで開く）の唯一の所有者。
-    @State private var terminalPanelSession: TerminalPanelSession?
     /// プロジェクトのターミナルタブの唯一の所有者。
     @State private var sessionTerminals: ProjectTerminalStore?
     /// 全ウィンドウで端末ごとの画面取得を共有する。
@@ -107,7 +105,6 @@ struct PhloxApp: App {
                         router: composition.router,
                         usageMonitor: composition.usage,
                         agentConsoleWindowID: AgentConsoleCommands.windowID,
-                        commonTerminal: terminalPanelSession,
                         sessionTerminals: sessionTerminals,
                         simulatorHub: simulatorHub
                     )
@@ -134,17 +131,12 @@ struct PhloxApp: App {
                     appDelegate.router = nil
                     return
                 }
-                if terminalPanelSession == nil {
-                    let home = FileManager.default.homeDirectoryForCurrentUser.path
-                    terminalPanelSession = makeTerminalPanelSession(environment: composition.environment, workingDirectory: home)
-                }
                 if sessionTerminals == nil {
                     let environment = composition.environment
                     sessionTerminals = ProjectTerminalStore { workingDirectory in
                         makeTerminalPanelSession(environment: environment, workingDirectory: workingDirectory)
                     }
                 }
-                appDelegate.userTerminalController = terminalPanelSession?.controller
                 appDelegate.sessionUserTerminals = sessionTerminals
                 appDelegate.ptyManager = composition.environment.pty as? PTYManager
                 appDelegate.dashboard = composition.dashboard
@@ -159,7 +151,6 @@ struct PhloxApp: App {
             ViewCommands(
                 dashboard: composition?.dashboard,
                 router: composition?.router,
-                commonTerminal: terminalPanelSession,
                 sessionTerminals: sessionTerminals,
                 simulatorHub: simulatorHub
             )
@@ -210,7 +201,7 @@ struct PhloxApp: App {
         return project.directoryURL
     }
 
-    /// 共通ターミナルはホーム、ターミナルタブはそのセッションの worktree で開く。
+    /// 指定された作業フォルダでプロジェクトのターミナルを開く。
     @MainActor
     private func makeTerminalPanelSession(environment: AppEnvironment, workingDirectory: String) -> TerminalPanelSession {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
@@ -305,8 +296,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
     }
     var router: AppRouter?
-    /// 共通ターミナルのシェル。終了経路だけが明示的に停止する。
-    var userTerminalController: UserTerminalController?
     /// プロジェクトのターミナルタブのシェル。終了経路でまとめて停止する。
     var sessionUserTerminals: ProjectTerminalStore?
     private var closeSessionMonitor: Any?
@@ -577,7 +566,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     /// 前面の Phlox で見えているセッションか。単体では選択中のもの、グリッドでは表示中のタイル全部。
     private func isShowing(_ id: SessionID) -> Bool {
-        guard let router, let dashboard, NSApp.isActive, !router.commonTerminalSelected,
+        guard let router, let dashboard, NSApp.isActive,
               let window = NSApp.mainWindow, window.isVisible, !window.isMiniaturized else { return false }
         return router.viewMode == .grid ? dashboard.gridTileOrder().contains(id) : router.selectedSession == id
     }
@@ -588,7 +577,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         (NSApp.mainWindow ?? NSApp.windows.first { $0.canBecomeMain })?.makeKeyAndOrderFront(nil)
         // 入力欄がフォーカスを持ったままだと、グリッドではそのタイルが選択を取り返す。
         NSApp.mainWindow?.makeFirstResponder(nil)
-        router.commonTerminalSelected = false
         if router.viewMode == .grid { dashboard?.revealInGrid(id) }
         router.selectedSession = id
     }
@@ -702,7 +690,6 @@ private struct FileCommands: Commands {
             Button("新しいタブ…") {
                 guard let router else { return }
                 router.viewMode = .single
-                router.commonTerminalSelected = false
                 router.newTabChooserPresented = true
             }
             .keyboardShortcut("t", modifiers: .command)
@@ -768,15 +755,13 @@ private struct FileCommands: Commands {
 @MainActor
 private func canUseChildTabs(_ router: AppRouter?) -> Bool {
     guard let router else { return false }
-    return router.viewMode == .single && !router.commonTerminalSelected && router.selectedProjectID != nil
+    return router.viewMode == .single && router.selectedProjectID != nil
 }
 
-/// 前面に出ている会話（appServer）の ViewModel。PTY セッションと、共通ターミナルを
-/// 前面にしている間（会話は背後に隠れている）は対象外。
+/// 前面に出ている会話（appServer）の ViewModel。PTY セッションは対象外。
 @MainActor
 private func exportableChatSession(dashboard: DashboardViewModel?, router: AppRouter?) -> ChatSessionViewModel? {
     guard let dashboard,
-          router?.commonTerminalSelected != true,
           let sessionID = router?.selectedSession,
           case .appServer(let chat) = dashboard.sessionNode(id: sessionID)
     else { return nil }
@@ -800,12 +785,25 @@ private struct UpdateCommands: Commands {
 private struct ViewCommands: Commands {
     var dashboard: DashboardViewModel?
     var router: AppRouter?
-    var commonTerminal: TerminalPanelSession?
     var sessionTerminals: ProjectTerminalStore?
     var simulatorHub: SimulatorHub?
 
     var body: some Commands {
         CommandGroup(after: .sidebar) {
+            Button("前のプロジェクト") {
+                guard let router, let dashboard else { return }
+                router.cycleProject(by: -1, ordered: dashboard.projects.map(\.id))
+            }
+            .keyboardShortcut("[", modifiers: [.command, .shift])
+            .disabled(dashboard?.projects.isEmpty ?? true)
+
+            Button("次のプロジェクト") {
+                guard let router, let dashboard else { return }
+                router.cycleProject(by: 1, ordered: dashboard.projects.map(\.id))
+            }
+            .keyboardShortcut("]", modifiers: [.command, .shift])
+            .disabled(dashboard?.projects.isEmpty ?? true)
+
             Button("単体") {
                 router?.viewMode = .single
             }
@@ -847,13 +845,6 @@ private struct ViewCommands: Commands {
                 router?.showFilesInInspector()
             }
             .keyboardShortcut("b", modifiers: [.command, .control])
-            .disabled(router == nil)
-
-            // ⌥⌘T は macOS 標準の「ツールバーを表示/隠す」と重なるため ⌃⌘T（13 Review）。
-            Button("ターミナルのタブ") {
-                router?.openTerminalTab()
-            }
-            .keyboardShortcut("t", modifiers: [.command, .control])
             .disabled(router == nil)
 
             Button("変更のタブ") {
@@ -916,10 +907,9 @@ private struct ViewCommands: Commands {
         }
     }
 
-    /// 前面が共通ターミナルか、選択中セッションのターミナルの子タブ。
+    /// 選択中プロジェクトのターミナル子タブ。
     private var showsTerminalInFront: Bool {
         guard let router else { return false }
-        if router.commonTerminalSelected { return true }
         guard let id = router.selectedProjectID else { return false }
         if case .terminal = router.tabs.layout(for: id).selected { return true }
         return false
@@ -928,7 +918,6 @@ private struct ViewCommands: Commands {
     /// 端末はタブの表示時に作られるので、有効判定ではなく押したときに引く。
     private func frontTerminal() -> TerminalPanelSession? {
         guard showsTerminalInFront, let router else { return nil }
-        if router.commonTerminalSelected { return commonTerminal }
         guard let projectID = router.selectedProjectID, case .terminal(let id) = router.tabs.layout(for: projectID).selected else { return nil }
         return sessionTerminals?.existing(id)
     }
@@ -938,8 +927,7 @@ private struct ViewCommands: Commands {
         let id = router?.selectedSession
         return DashboardViewModel.fontSizeTarget(
             node: id.flatMap { dashboard?.sessionNode(id: $0) },
-            selectedChildTab: router?.selectedProjectID.flatMap { router?.tabs.layout(for: $0).selected },
-            showsCommonTerminal: router?.commonTerminalSelected ?? false
+            selectedChildTab: router?.selectedProjectID.flatMap { router?.tabs.layout(for: $0).selected }
         )
     }
 }
@@ -1074,7 +1062,6 @@ private struct SessionCommands: Commands {
         let tabs = dashboard.numberedTabs(router: router)
         guard tabs.indices.contains(number - 1) else { return }
         NSApp.mainWindow?.makeFirstResponder(nil)
-        router.commonTerminalSelected = false
         if router.viewMode == .grid {
             if case .chat(let id) = tabs[number - 1] { router.selectedSession = id }
         } else if let projectID = router.selectedProjectID { router.selectTab(tabs[number - 1], in: projectID) }

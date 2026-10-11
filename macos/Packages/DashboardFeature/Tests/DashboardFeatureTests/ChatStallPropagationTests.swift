@@ -131,8 +131,6 @@ func fontSizeTarget_followsFrontChildTabOfChatSession() {
     #expect(DashboardViewModel.fontSizeTarget(node: node, selectedChildTab: .chat(SessionID())) == .chat)
     #expect(DashboardViewModel.fontSizeTarget(node: node, selectedChildTab: .terminal(TerminalTabID())) == .terminal)
     #expect(DashboardViewModel.fontSizeTarget(node: node, selectedChildTab: .file("a.swift")) == .chat)
-    // 共通ターミナルを前面にしている間は、背後の会話ではなく端末。
-    #expect(DashboardViewModel.fontSizeTarget(node: node, selectedChildTab: .chat(SessionID()), showsCommonTerminal: true) == .terminal)
     // セッションを選んでいなければ、従来どおり両方を動かす。
     #expect(DashboardViewModel.fontSizeTarget(node: nil, selectedChildTab: nil) == .both)
     #expect(DashboardViewModel.fontSizeTarget(node: nil, selectedChildTab: .terminal(TerminalTabID())) == .terminal)

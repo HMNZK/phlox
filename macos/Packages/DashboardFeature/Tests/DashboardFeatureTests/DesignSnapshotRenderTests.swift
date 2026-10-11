@@ -426,7 +426,7 @@ struct DesignSnapshotRenderTests {
             var layout = ProjectTabLayout()
             layout.open(.browser)
             let content = VStack(spacing: 0) {
-                ChildTabBar(router: router, viewModel: DashboardViewModel(environment: makeTestEnvironment(pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() })), project: Project(name: node.workspaceName, directoryPath: node.rawWorkspacePath, createdAt: Date(), isManagedDirectory: false), layout: layout, chats: [.chat(node.id)], changeCount: 0, files: FileTabDocuments(), agentConsoleWindowID: nil)
+                ChildTabBar(router: router, viewModel: DashboardViewModel(environment: makeTestEnvironment(pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() })), project: Project(name: node.workspaceName, directoryPath: node.rawWorkspacePath, createdAt: Date(), isManagedDirectory: false), layout: layout, chats: [.chat(node.id)], changeCount: 0, files: FileTabDocuments())
                 Rectangle().fill(DSColor.separator).frame(height: 1)
                 BrowserTabView(model: model, tellAgent: { _ in })
             }
@@ -542,7 +542,7 @@ struct DesignSnapshotRenderTests {
             let linked = WorktreeURL.url(for: "docs/architecture/overview.md")!
             let destination = FileLinkDestination(url: linked, decision: .openFile("docs/architecture/overview.md"))
             try await capture(VStack(spacing: 0) {
-                if id != "4j" { ChildTabBar(router: AppRouter(), viewModel: DashboardViewModel(environment: makeTestEnvironment(pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() })), project: Project(id: projectID, name: node.workspaceName, directoryPath: node.rawWorkspacePath, createdAt: Date(), isManagedDirectory: false), layout: layout, chats: [.chat(node.id)], changeCount: 0, files: files, agentConsoleWindowID: nil) }
+                if id != "4j" { ChildTabBar(router: AppRouter(), viewModel: DashboardViewModel(environment: makeTestEnvironment(pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() })), project: Project(id: projectID, name: node.workspaceName, directoryPath: node.rawWorkspacePath, createdAt: Date(), isManagedDirectory: false), layout: layout, chats: [.chat(node.id)], changeCount: 0, files: files) }
                 FileTabView(document: document, lastWriter: { _ in nil }, isFocused: false, openFile: { _, _ in }, markdownEditor:
                     MarkdownBlockEditor(document: document, openURL: { _ in .discarded }, linkDestination: { _ in destination },
                                     hoveredBlock: id == "4a" ? hovered : id == "4f" ? blocks.first?.id : nil, focusedBlock: id == "4h" ? selected : nil,
@@ -563,7 +563,7 @@ struct DesignSnapshotRenderTests {
             try await capture(VStack(spacing: 0) {
                 if id != "8L2" {
                     ChildTabBar(router: AppRouter(), viewModel: DashboardViewModel(environment: makeTestEnvironment(pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() })), project: Project(id: projectID, name: node.workspaceName, directoryPath: node.rawWorkspacePath, createdAt: Date(), isManagedDirectory: false), layout: layout, chats: [.chat(node.id)], changeCount: 0,
-                                files: files, agentConsoleWindowID: nil)
+                                files: files)
                 }
                 body
             }, frame: frame, output: output, prepare: { host, _ in
@@ -671,7 +671,7 @@ struct DesignSnapshotRenderTests {
     }
 
     private func renderTabChooser(_ frame: Frame, fixtures: URL, output: URL) async throws -> String {
-        try await capture(NewTabChooser(router: AppRouter(), projectID: ProjectID(), agentConsoleWindowID: "agent-console", simulatorHub: nil),
+        try await capture(NewTabChooser(router: AppRouter(), project: Project(name: "タブ検証", directoryPath: "/tmp", createdAt: Date(), isManagedDirectory: false), simulatorHub: nil),
                           frame: .init(id: frame.id, name: frame.name, width: 320, height: 240), output: output)
         return "実物のタブ追加メニュー。ポップオーバーの外枠は対象外"
     }

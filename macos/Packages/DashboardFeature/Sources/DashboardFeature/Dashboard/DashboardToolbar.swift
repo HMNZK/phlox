@@ -18,10 +18,8 @@ enum ToolbarDensity: Equatable {
         return .minimal
     }
 }
-
-/// 中央と右インスペクタの上に渡る 52pt のツールバー（01 A1）。単体とグリッドで並びを変えない。
-/// 左: （サイドバーを隠しているとき）信号の右にサイドバー開閉 → タイトルとサブタイトル → worktree 隔離。
-/// 中央: 表示モード。右: 対応待ち → 使用量 → インスペクタ開閉。
+/// 中央と右インスペクタの上に渡る 38pt のツールバー。単体とグリッドで並びを変えない。
+/// 左: （サイドバーを隠しているとき）信号の右にサイドバー開閉。右: 表示モード・対応待ち・使用量・インスペクタ。
 struct DashboardToolbar: View {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
@@ -43,11 +41,8 @@ struct DashboardToolbar: View {
                 Color.clear.frame(width: Self.trafficLightsWidth, height: 1)
                 SidebarToggleButton(router: router, attentionCount: viewModel.attentionEntries.count)
             }
-            titleBlock
-            worktreeMenu
             Spacer(minLength: DSSpacing.s)
             ViewModeToggle(mode: $router.viewMode, showsText: density != .minimal)
-            Spacer(minLength: DSSpacing.s)
             AttentionButton(viewModel: viewModel, router: router, density: density)
             if showUsageInHeader, !UsageDisplay.topBarChips(usages: usageMonitor.usages, showUnavailable: showUnavailable, now: Date()).isEmpty {
                 usageChip
@@ -66,86 +61,6 @@ struct DashboardToolbar: View {
         .background(DSColor.toolbarBackground)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("ツールバー"))
-    }
-
-    private var selectedNode: SessionNode? {
-        router.selectedSession.flatMap { viewModel.sessionNode(id: $0) }
-    }
-
-    private var selectedProject: Project? {
-        guard let projectID = router.selectedProjectID else { return nil }
-        return viewModel.projects.first(where: { $0.id == projectID })
-    }
-
-    // MARK: - タイトル
-
-    @ViewBuilder
-    private var titleBlock: some View {
-        if let node = selectedNode {
-            let presentation = SessionTitlePresentation(
-                state: node.titleState,
-                fallback: SessionViewModel.shortID(for: node.id),
-                workspacePath: node.workspacePath
-            )
-            VStack(alignment: .leading, spacing: 1) {
-                Text(presentation.primary)
-                    .font(DSFont.row.weight(.semibold))
-                    .foregroundStyle(DSColor.textPrimary)
-                    .accessibilityValue(presentation.accessibilityValue)
-                Text(subtitle(for: node, flowerName: presentation.secondary))
-                    .font(DSFont.meta)
-                    .foregroundStyle(DSColor.textSecondary)
-            }
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .modifier(CappedWidth(cap: titleCap))
-            .layoutPriority(1)
-            .help(presentation.helpText)
-        } else if let selectedProject {
-            Text(selectedProject.name)
-                .font(DSFont.row.weight(.semibold))
-                .foregroundStyle(DSColor.textPrimary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .modifier(CappedWidth(cap: titleCap))
-        }
-    }
-
-    /// タイトルは内容の幅。最大は幅の段階で 300 / 210 / 150（PhloxWindow.dc.html:707）。
-    private var titleCap: CGFloat {
-        switch density {
-        case .full: 300
-        case .compact: 210
-        case .minimal: 150
-        }
-    }
-
-    /// 「花名 · 短縮 ID · プロジェクト」。
-    private func subtitle(for node: SessionNode, flowerName: String?) -> String {
-        let projectName = node.projectID.flatMap { id in viewModel.projects.first { $0.id == id }?.name }
-        // 短縮 ID は小文字 4 桁（「ツバキ · a3f9 · phlox-core」）。
-        let shortID = String(node.id.rawValue.uuidString.prefix(4)).lowercased()
-        return [flowerName, shortID, projectName]
-            .compactMap { $0 }
-            .joined(separator: " · ")
-    }
-
-    // MARK: - worktree 隔離（プロジェクト選択時だけ）
-
-    @ViewBuilder
-    private var worktreeMenu: some View {
-        if let selectedProject {
-            WorktreeMenuButton(
-                project: selectedProject,
-                showsText: density == .full,
-                onRename: {
-                    // サイドバーを隠していれば出してから、その行を編集に入れる。
-                    let showing = router.sidebarVisible && (!router.sidebarLacksRoom || router.sidebarPeeking)
-                    if !showing { router.toggleSidebar() }
-                    router.projectRenameRequest = selectedProject.id
-                }
-            )
-        }
     }
 
     // MARK: - 使用量・インスペクタ
@@ -339,91 +254,5 @@ private struct ModeSegmentButton: View {
         .accessibilityIdentifier(identifier)
         .accessibilityLabel(Text(help))
         .accessibilityAddTraits(isOn ? .isSelected : [])
-    }
-}
-
-/// 内容の幅のまま、上限 `cap` を超えるときだけ切り詰める（`.frame(maxWidth:)` は上限まで広がってしまう）。
-private struct CappedWidth: ViewModifier {
-    let cap: CGFloat
-    func body(content: Content) -> some View {
-        CappedWidthLayout(cap: cap) { content }
-    }
-}
-
-private struct CappedWidthLayout: Layout {
-    let cap: CGFloat
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        guard let child = subviews.first else { return .zero }
-        let width = min(proposal.width ?? cap, cap)
-        return child.sizeThatFits(ProposedViewSize(width: width, height: proposal.height))
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
-    }
-}
-
-/// タイトル直後の worktree ボタンとそのメニュー（01 E4）。見出し・チェック項目・説明・名前の変更。
-private struct WorktreeMenuButton: View {
-    let project: Project
-    let showsText: Bool
-    let onRename: () -> Void
-
-    @State private var presented = false
-    @State private var hovering = false
-    @Environment(\.locale) private var locale
-
-    var body: some View {
-        Button { presented.toggle() } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "arrow.triangle.branch")
-                    .font(DSFont.row.weight(.medium))
-                if showsText {
-                    Text("worktree 隔離")
-                        .font(DSFont.auxiliary)
-                }
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 7, weight: .bold))
-            }
-            .foregroundStyle(DSColor.textSecondary)
-            .padding(.horizontal, 7)
-            .frame(height: 24)
-            .background(presented ? DSColor.fillSelected : (hovering ? DSColor.fillSubtle : .clear), in: RoundedRectangle(cornerRadius: DSRadius.row))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .fixedSize()
-        .help("選択中プロジェクトのセッション隔離")
-        .accessibilityLabel(Text("Git worktree 隔離"))
-        .popover(isPresented: $presented, arrowEdge: .bottom) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(verbatim: project.name)
-                    .font(DSFont.meta.weight(.semibold))
-                    .foregroundStyle(DSColor.textTertiary)
-                    .padding(.horizontal, 10)
-                    .padding(.top, 8)
-                    .padding(.bottom, 4)
-                Button {
-                    presented = false
-                    onRename()
-                } label: {
-                    Text("プロジェクト名を変更…")
-                        .font(DSFont.row)
-                        .foregroundStyle(DSColor.textPrimary)
-                        .padding(.leading, 30)
-                        .padding(.trailing, 10)
-                        .padding(.vertical, 5)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .padding(.bottom, 6)
-            }
-            .frame(width: 300)
-            .background(DSColor.popoverBackground)
-            .environment(\.locale, locale)
-        }
     }
 }

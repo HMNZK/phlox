@@ -52,10 +52,6 @@ struct GridTileRedesignTests {
         #expect(GridTileSize.showsConversationColumn(CGSize(width: 380, height: 300)))
         #expect(!GridTileSize.showsConversationColumn(CGSize(width: 380, height: 299)))
         #expect(!GridTileSize.showsConversationColumn(CGSize(width: 240, height: 600)))
-        // 子タブは小では隠し、幅 380pt 以上だけ。
-        #expect(GridTileSize.showsChildTabs(CGSize(width: 380, height: 200)))
-        #expect(!GridTileSize.showsChildTabs(CGSize(width: 379, height: 400)))
-        #expect(!GridTileSize.showsChildTabs(CGSize(width: 600, height: 170)))
     }
 
     @Test func stateLabel_showsElapsedOnlyForAttention() {

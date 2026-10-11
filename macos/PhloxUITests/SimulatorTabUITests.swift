@@ -35,7 +35,7 @@ final class SimulatorTabUITests: XCTestCase {
 
         try isolated.assertExclusiveOwnership()
         app.typeKey("y", modifierFlags: [.command, .control])
-        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == %@", "シミュレーター")).count, 1)
+        XCTAssertTrue(tabItem("tabs.item.2", in: app).exists)
         capture(app, name: "シミュレーター・ショートカット直後")
     }
 
@@ -43,7 +43,7 @@ final class SimulatorTabUITests: XCTestCase {
         let isolated = try await launchSession()
         let app = try isolated.application()
         try isolated.assertExclusiveOwnership()
-        let addTab = app.buttons["このセッションにタブを追加"]
+        let addTab = app.buttons["tabs.item.add"]
         XCTAssertTrue(addTab.waitForExistence(timeout: 10))
         addTab.click()
         let simulator = app.buttons["シミュレーター"]
@@ -52,9 +52,9 @@ final class SimulatorTabUITests: XCTestCase {
         XCTAssertTrue(simulatorTab(in: app).waitForExistence(timeout: 10))
 
         try isolated.assertExclusiveOwnership()
-        app.buttons["会話"].click()
+        tabItem("tabs.item.1", in: app).click()
         XCTAssertFalse(simulatorTab(in: app).exists)
-        app.buttons["シミュレーター"].click()
+        tabItem("tabs.item.2", in: app).click()
         XCTAssertTrue(simulatorTab(in: app).waitForExistence(timeout: 5))
         capture(app, name: "シミュレーター・子タブ切り替え")
     }
@@ -134,6 +134,10 @@ final class SimulatorTabUITests: XCTestCase {
 
     private func simulatorTab(in app: XCUIApplication) -> XCUIElement {
         app.groups["simulator-tab"]
+    }
+
+    private func tabItem(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
     private func toggleSplit(in app: XCUIApplication, isolated: IsolatedPhloxApplication) throws {

@@ -59,14 +59,12 @@ public final class AppRouter {
     public var inspectorVisible: Bool
     /// インスペクタの「セッション / 使用量」（07）。
     public var inspectorTab: InspectorTab = .usage
-    /// ツールバーの worktree メニュー「プロジェクト名を変更…」。サイドバーがその行を編集に入れる（01 E4）。
+    /// プロジェクトタブの右クリック「プロジェクト名を変更…」。サイドバーがその行を編集に入れる。
     public var projectRenameRequest: ProjectID?
     /// プロジェクトの項目・選択・分割。メニューと画面で共有する。
     public let tabs: ProjectTabStore
     /// ブラウザのページと履歴は、子タブを閉じるまでだけ保持する。
     private(set) var browsers: [ProjectID: BrowserTabModel] = [:]
-    /// 上段右端の「共通ターミナル」（worktree の外・ホームで開く）を前に出しているか。
-    public var commonTerminalSelected = false
     /// 「新しいタブ」の選択肢（⌘T・＋）を開いているか。
     public var newTabChooserPresented = false
     /// 画面側でしか処理できない要求（確認ダイアログ・ファイル選択・シェル終了）。DashboardView が受けて nil に戻す。
@@ -135,7 +133,6 @@ public final class AppRouter {
 
     public func selectTab(_ tab: ProjectTab, in projectID: ProjectID) {
         selectedProjectID = projectID
-        commonTerminalSelected = false
         tabs.updateLayout(for: projectID) { $0.select(tab) }
         if case .chat(let id) = tab { selectedSession = id }
         else if tab == .newChat { selectedSession = nil }
@@ -144,7 +141,6 @@ public final class AppRouter {
     public func showNewChat(projectID: ProjectID) {
         viewMode = .single
         selectedProjectID = projectID
-        commonTerminalSelected = false
         tabs.updateLayout(for: projectID) { $0.open(.newChat) }
         selectedSession = nil
     }
@@ -155,14 +151,13 @@ public final class AppRouter {
     }
 
     public func openTerminalTab() {
-        guard selectedProjectID != nil else { commonTerminalSelected = true; return }
+        guard selectedProjectID != nil else { return }
         openChildTab(.terminal(TerminalTabID()))
     }
 
     public func openChildTab(_ tab: ProjectTab) {
         guard let projectID = selectedProjectID else { return }
         viewMode = .single
-        commonTerminalSelected = false
         if tab == .browser, browsers[projectID] == nil { browsers[projectID] = BrowserTabModel() }
         tabs.updateLayout(for: projectID) { $0.open(tab) }
         if case .chat(let id) = tab { selectedSession = id }
@@ -191,28 +186,32 @@ public final class AppRouter {
     }
 
     public func zoomFrontBrowser(by steps: Int?) -> Bool {
-        guard viewMode == .single, !commonTerminalSelected, let id = selectedProjectID,
+        guard viewMode == .single, let id = selectedProjectID,
               tabs.layout(for: id).selected == .browser, let browser = browsers[id] else { return false }
         browser.zoom(by: steps)
         return true
     }
 
     public func cycleChildTab(by offset: Int, chats: [ProjectTab]) {
-        guard viewMode == .single, !commonTerminalSelected, let id = selectedProjectID else { return }
+        guard viewMode == .single, let id = selectedProjectID else { return }
         tabs.updateLayout(for: id) { $0.cycle(by: offset, chats: chats) }
         if let selected = tabs.layout(for: id).selected { selectTab(selected, in: id) }
     }
 
     public func toggleSplit(chats: [ProjectTab] = []) {
-        guard viewMode == .single, !commonTerminalSelected, let id = selectedProjectID else { return }
+        guard viewMode == .single, let id = selectedProjectID else { return }
         tabs.updateLayout(for: id) { $0.toggleSplit(chats: chats) }
         if let selected = tabs.layout(for: id).selected { selectTab(selected, in: id) }
     }
 
     @discardableResult
     public func requestClose() -> Bool {
-        if viewMode == .single, commonTerminalSelected { return false }
         guard let target = tabs.closeTarget(projectID: selectedProjectID, selectedSession: selectedSession, viewMode: viewMode) else { return false }
+        return requestClose(target)
+    }
+
+    @discardableResult
+    public func requestClose(_ target: CloseCommandTarget) -> Bool {
         switch target {
         case .tab(let tab):
             if let selectedProjectID { tabRequest = .closeChild(selectedProjectID, tab) }
@@ -221,6 +220,14 @@ public final class AppRouter {
         case .gridTile(let id): tabRequest = .removeFromGrid(id)
         }
         return true
+    }
+
+    /// 上段のプロジェクトタブを、サイドバーと同じ順で巡回する。
+    public func cycleProject(by offset: Int, ordered projects: [ProjectID]) {
+        guard !projects.isEmpty else { return }
+        let index = selectedProjectID.flatMap { projects.firstIndex(of: $0) } ?? (offset > 0 ? -1 : 0)
+        let count = projects.count
+        selectProjectFromSidebar(projects[((index + offset % count) % count + count) % count])
     }
 
     /// 表示モード（単体／グリッド）を巡回する（⌃⌘G）。直接選ぶのは ⌃⌘1 / ⌃⌘2 で `viewMode` に代入する。

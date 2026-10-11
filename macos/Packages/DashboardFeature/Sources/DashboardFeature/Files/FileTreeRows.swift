@@ -1,9 +1,8 @@
 import Foundation
 
 enum FileTreeRows {
-    static func openPath(selected: ProjectTab?, viewMode: ViewMode, commonTerminalSelected: Bool) -> String? {
-        guard viewMode == .single, !commonTerminalSelected,
-              case .file(let path) = selected else { return nil }
+    static func openPath(selected: ProjectTab?, viewMode: ViewMode) -> String? {
+        guard viewMode == .single, case .file(let path) = selected else { return nil }
         return path
     }
 

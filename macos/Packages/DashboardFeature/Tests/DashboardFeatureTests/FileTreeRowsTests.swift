@@ -25,14 +25,13 @@ struct FileTreeRowsTests {
         layout.open(.file("left.txt"))
         layout.open(.file("right.txt"))
         layout.splitRight(.file("right.txt"))
-        #expect(FileTreeRows.openPath(selected: layout.selected, viewMode: .single, commonTerminalSelected: false) == "right.txt")
+        #expect(FileTreeRows.openPath(selected: layout.selected, viewMode: .single) == "right.txt")
         layout.select(.file("left.txt"))
-        #expect(FileTreeRows.openPath(selected: layout.selected, viewMode: .single, commonTerminalSelected: false) == "left.txt")
+        #expect(FileTreeRows.openPath(selected: layout.selected, viewMode: .single) == "left.txt")
         for tab in [ProjectTab.newChat, .terminal(TerminalTabID()), .changes, .file("a.txt")] {
-            #expect(FileTreeRows.openPath(selected: tab, viewMode: .grid, commonTerminalSelected: false) == nil)
-            #expect(FileTreeRows.openPath(selected: tab, viewMode: .single, commonTerminalSelected: true) == nil)
+            #expect(FileTreeRows.openPath(selected: tab, viewMode: .grid) == nil)
             if tab != .file("a.txt") {
-                #expect(FileTreeRows.openPath(selected: tab, viewMode: .single, commonTerminalSelected: false) == nil)
+                #expect(FileTreeRows.openPath(selected: tab, viewMode: .single) == nil)
             }
         }
     }

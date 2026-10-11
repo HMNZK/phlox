@@ -50,8 +50,7 @@ struct FileTreeInspectorView: View {
     }
 
     private func openPath(_ id: ProjectID) -> String? {
-        FileTreeRows.openPath(selected: router.tabs.layout(for: id).selected,
-                              viewMode: router.viewMode, commonTerminalSelected: router.commonTerminalSelected)
+        FileTreeRows.openPath(selected: router.tabs.layout(for: id).selected, viewMode: router.viewMode)
     }
 }
 

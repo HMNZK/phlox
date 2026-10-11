@@ -37,7 +37,6 @@ public struct PaneLayoutView: View {
     let onOpenSingle: (SessionID) -> Void
     /// 子セッションの親の名前（「↳ 親: …」）。
     let parentNames: [SessionID: String]
-    let tileTabs: GridTileTabs?
 
     /// ドロップ中に出すインジケータ（どのタイルの・どの操作か）。ドロップの判定そのものは
     /// `PaneDropZone` が持ち、ここはその結果を描くためだけに保持する。
@@ -56,8 +55,7 @@ public struct PaneLayoutView: View {
         projectNames: [ProjectID: String] = [:],
         onRemoveFromGrid: @escaping (SessionNode) -> Void = { _ in },
         onOpenSingle: @escaping (SessionID) -> Void = { _ in },
-        parentNames: [SessionID: String] = [:],
-        tileTabs: GridTileTabs? = nil
+        parentNames: [SessionID: String] = [:]
     ) {
         self.sessions = sessions
         self.tree = tree
@@ -70,7 +68,6 @@ public struct PaneLayoutView: View {
         self.onRemoveFromGrid = onRemoveFromGrid
         self.onOpenSingle = onOpenSingle
         self.parentNames = parentNames
-        self.tileTabs = tileTabs
     }
 
     public var body: some View {
@@ -93,7 +90,6 @@ public struct PaneLayoutView: View {
                             number: numbers[session.id],
                             parentName: parentNames[session.id],
                             canRemoveFromGrid: frames.tiles.count > 1,
-                            tileTabs: tileTabs,
                             onSelect: { focusedID = session.id },
                             onRemove: { onRemove(session) },
                             onRemoveFromGrid: { onRemoveFromGrid(session) },
@@ -255,7 +251,6 @@ private struct PaneTileView: View {
     let number: Int?
     let parentName: String?
     let canRemoveFromGrid: Bool
-    let tileTabs: GridTileTabs?
     let onSelect: () -> Void
     let onRemove: () -> Void
     let onRemoveFromGrid: () -> Void
@@ -355,12 +350,7 @@ private struct PaneTileView: View {
                 .padding(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
                 .background(SessionView.terminalBackground)
         case .appServer(let chat):
-            let tab = tileTabs?.selected(session.id) ?? .conversation
-            if tab != .conversation, let tileTabs, GridTileSize.showsChildTabs(size) {
-                tileTabs.content(session.id, tab)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
-            } else if GridTileSize.showsConversationColumn(size) {
+            if GridTileSize.showsConversationColumn(size) {
                 GridChatColumn(viewModel: chat, onFocusGained: onSelect)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipped()
@@ -428,7 +418,6 @@ private struct PaneTileView: View {
             number: number,
             isInternal: session.launchContext == .orchestration,
             canRemoveFromGrid: canRemoveFromGrid,
-            tabs: tileTabs,
             onRemoveFromGrid: onRemoveFromGrid,
             onSelect: onSelect
         )

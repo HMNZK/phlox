@@ -224,6 +224,13 @@ public final class ProjectTabStore {
     private struct LegacySnapshot: Codable { var sessions: [SessionID: LegacyLayout] }
 }
 
+extension SessionNode {
+    /// タブ・一覧に出す状態（完了の未読・無応答を含む）。
+    var tabDisplayState: SessionDisplayState {
+        SessionDisplayState.resolve(displayStatus, hasUnseenCompletion: hasUnseenCompletion, isStalled: isStalled)
+    }
+}
+
 extension DashboardViewModel {
     public func chatTabs(in projectID: ProjectID) -> [ProjectTab] {
         ProjectTab.chats(in: sessionForest(in: projectID), candidates: tabSessionNodes(in: projectID).map(\.id))

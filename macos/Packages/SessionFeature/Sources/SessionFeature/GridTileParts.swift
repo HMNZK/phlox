@@ -31,42 +31,6 @@ public enum GridTileSize: Equatable, Sendable {
         }
     }
 
-    /// 見出しに 会話 / 端末 / 変更 を出すか（小では隠し、幅 380pt 以上のチャットのタイルだけ）。
-    public static func showsChildTabs(_ size: CGSize) -> Bool {
-        GridTileSize(size) != .small && size.width >= 380
-    }
-}
-
-/// タイルの子タブ（02 C3 のグリッド側）。
-public enum GridTileTab: Hashable, CaseIterable, Sendable {
-    case conversation
-    case terminal
-    case changes
-
-    var title: LocalizedStringKey {
-        switch self {
-        case .conversation: "会話"
-        case .terminal: "端末"
-        case .changes: "変更"
-        }
-    }
-}
-
-/// タイルの子タブの状態と中身。並びと選択は単体表示の子タブと同じものを使い、中身も単体表示と同じものを外から渡す。
-public struct GridTileTabs {
-    let selected: (SessionID) -> GridTileTab
-    let select: (SessionID, GridTileTab) -> Void
-    let content: (SessionID, GridTileTab) -> AnyView
-
-    public init(
-        selected: @escaping (SessionID) -> GridTileTab,
-        select: @escaping (SessionID, GridTileTab) -> Void,
-        content: @escaping (SessionID, GridTileTab) -> AnyView
-    ) {
-        self.selected = selected
-        self.select = select
-        self.content = content
-    }
 }
 
 extension SessionNode {
@@ -104,7 +68,6 @@ struct GridTileHeader: View {
     let number: Int?
     let isInternal: Bool
     let canRemoveFromGrid: Bool
-    let tabs: GridTileTabs?
     let onRemoveFromGrid: () -> Void
     let onSelect: () -> Void
 
@@ -145,9 +108,6 @@ struct GridTileHeader: View {
                     .fill(DSColor.accent)
                     .frame(width: 6, height: 6)
                     .accessibilityLabel(Text("未読"))
-            }
-            if let tabs, session.pty == nil, GridTileSize.showsChildTabs(tileSize) {
-                childTabs(tabs)
             }
             if size != .small {
                 Text(verbatim: session.agentDescriptor.tabInitials)
@@ -213,38 +173,6 @@ struct GridTileHeader: View {
         .layoutPriority(2)
     }
 
-    private func childTabs(_ tabs: GridTileTabs) -> some View {
-        let selected = tabs.selected(session.id)
-        return HStack(spacing: 1) {
-            ForEach(GridTileTab.allCases, id: \.self) { tab in
-                Button {
-                    onSelect()
-                    tabs.select(session.id, tab)
-                } label: {
-                    Text(tab.title)
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(tab == selected ? DSColor.textPrimary : DSColor.textSecondary)
-                        .lineLimit(1)
-                        .fixedSize()
-                        .padding(.horizontal, 7)
-                        .frame(height: 18)
-                        .background {
-                            if tab == selected {
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(DSColor.background)
-                                    .shadow(color: .black.opacity(0.2), radius: 0.75, y: 0.5)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(tab == selected ? [.isSelected] : [])
-            }
-        }
-        .padding(2)
-        .background(DSColor.segmentTrack, in: RoundedRectangle(cornerRadius: 5))
-        .layoutPriority(1)
-    }
 }
 
 /// 子セッションの親（06 S7「↳ 親: …」）。

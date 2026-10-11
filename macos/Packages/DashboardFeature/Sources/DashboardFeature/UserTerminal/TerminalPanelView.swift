@@ -91,7 +91,7 @@ extension EnvironmentValues {
     @Entry var adjustTerminalFontSize: ((CGFloat) -> Void)? = nil
 }
 
-/// ターミナルの子タブ・共通ターミナルに埋め込む、実シェルの SwiftTerm 表示（07 D1・D8）。
+/// プロジェクトのターミナル子タブに埋め込む、実シェルの SwiftTerm 表示（07 D1・D8）。
 /// 見出しに「ターミナル · シェル · 場所」と文字サイズ（A− / A+）。文字サイズが変わると中央に 1 秒だけ大きさを出す。
 public struct TerminalPanelView: View {
     public let panel: TerminalPanelSession

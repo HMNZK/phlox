@@ -28,7 +28,6 @@ public struct SessionGridView: View {
     let onRemoveFromGrid: (SessionNode) -> Void
     let onOpenSingle: (SessionID) -> Void
     let parentNames: [SessionID: String]
-    let tileTabs: GridTileTabs?
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
     public init(
@@ -42,8 +41,7 @@ public struct SessionGridView: View {
         projectNames: [ProjectID: String] = [:],
         onRemoveFromGrid: @escaping (SessionNode) -> Void = { _ in },
         onOpenSingle: @escaping (SessionID) -> Void = { _ in },
-        parentNames: [SessionID: String] = [:],
-        tileTabs: GridTileTabs? = nil
+        parentNames: [SessionID: String] = [:]
     ) {
         self.sessions = sessions
         self.paneLayout = paneLayout
@@ -56,7 +54,6 @@ public struct SessionGridView: View {
         self.onRemoveFromGrid = onRemoveFromGrid
         self.onOpenSingle = onOpenSingle
         self.parentNames = parentNames
-        self.tileTabs = tileTabs
     }
 
     public var body: some View {
@@ -71,8 +68,7 @@ public struct SessionGridView: View {
             projectNames: projectNames,
             onRemoveFromGrid: onRemoveFromGrid,
             onOpenSingle: onOpenSingle,
-            parentNames: parentNames,
-            tileTabs: tileTabs
+            parentNames: parentNames
         )
         // 上余白だけ詰めてトップバーとの隙間を無くす（左右下は通常マージン）。
         .padding(.horizontal, DSSpacing.s)

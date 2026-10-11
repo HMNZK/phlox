@@ -24,12 +24,10 @@ public enum ChatTranscriptExportAction {
         )
     }
 
-    /// 書き出しの見出しに載せるエージェント名。カスタムエージェントは登録 ID をそのまま使う。
+    /// 書き出しの見出しに載せる組込エージェント名。
     private static func agentName(for ref: AgentRef) -> String {
-        switch ref {
-        case .builtin(let kind): return kind.displayName
-        case .custom(let id): return id
-        }
+        guard case .builtin(let kind) = ref else { preconditionFailure("AgentRef must be built-in") }
+        return kind.displayName
     }
 
     /// 保存ダイアログを出して Markdown を書き出す。

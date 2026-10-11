@@ -567,8 +567,7 @@ struct AcceptanceSessionTitlePersistenceTests {
     func PTY復元失敗プレースホルダはdescriptor経由の4状態を保持する() async throws {
         let workspace = try makeTemporaryWorkspaceRoot()
         defer { cleanupTemporaryWorkspaceRoot(workspace) }
-        let descriptor = makeCustomAgentDescriptor()
-        let catalog = AgentCatalog(customDescriptors: [descriptor])
+        let descriptor = AgentRegistry.descriptor(for: .cursor)
         for (name, source, flower, full, label) in fourTitleStates() {
             let sessionID = SessionID()
             let store = InMemorySessionStore([
@@ -594,9 +593,7 @@ struct AcceptanceSessionTitlePersistenceTests {
                     pty: MockPTYManager(),
                     hookStream: hookStream,
                     sessions: store,
-                    workspaceDirectory: workspace,
-                    customAgentBinaryPaths: [:],
-                    agentCatalog: catalog
+                    workspaceDirectory: workspace
                 )
             )
             await dashboard.start()

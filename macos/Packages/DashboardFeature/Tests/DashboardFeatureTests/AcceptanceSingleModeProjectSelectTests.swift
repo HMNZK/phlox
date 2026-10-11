@@ -1,30 +1,25 @@
-// task-1（PM 著・凍結受け入れテスト・編集禁止）:
-// single モードでプロジェクトを選択したら「新規セッション開始画面」を表示する挙動。
-// grid モードの 2 回目のクリックは、2026-09-24 のユーザー決定（03 M: 範囲を外すのは ⌘クリックだけ）で
-// 「範囲を外す」から「範囲のまま」に改めた（ユーザー承認済みの凍結テスト変更）。
 import Testing
 import AgentDomain
 @testable import DashboardFeature
 
+// セッション 0 件のプロジェクトを選ぶと、そのプロジェクトの新規チャットを開く。
 @MainActor
-@Test func selectProjectFromSidebar_inSingleMode_clearsSessionAndShowsStartCards() {
+@Test func selectProjectFromSidebar_inSingleModeShowsNewChatTabWhenNoSessions() {
     let router = AppRouter(viewMode: .single)
-    // 既にセッションを開いている状態から始める（ゲート①: single では閉じて新規画面を出す）。
     router.selectedSession = SessionID()
     let project = ProjectID()
+    let terminal = ProjectTab.terminal(TerminalTabID())
+    router.tabs.updateLayout(for: project) { $0.open(terminal) }
 
     router.selectProjectFromSidebar(project)
+    router.ensureProjectSelection(chatTabs: [])
 
-    // グリッドに遷移しない・プロジェクト選択済み・セッションは閉じる。
     #expect(router.viewMode == .single)
     #expect(router.selectedProjectID == project)
     #expect(router.selectedSession == nil)
-
-    // → 新規セッション開始画面（AgentStartCards）が表示される条件を満たす。
-    #expect(StartAreaPolicy.content(
-        hasSelectedProject: router.selectedProjectID != nil,
-        hasSelectedSession: router.selectedSession != nil
-    ) == .agentStartCards)
+    #expect(router.tabs.layout(for: project).selected == .newChat)
+    #expect(router.tabs.layout(for: project).items.contains(terminal))
+    #expect(StartAreaPolicy.content(hasSelectedSession: false) == .newChat)
 }
 
 @MainActor
@@ -32,13 +27,11 @@ import AgentDomain
     let router = AppRouter(viewMode: .grid)
     let project = ProjectID()
 
-    // 1回目: グリッド絞り込みをこのプロジェクトに設定し、grid のまま。
     router.selectProjectFromSidebar(project)
     #expect(router.viewMode == .grid)
     #expect(router.selectedProjectID == project)
     #expect(router.gridFilterProjectID == project)
 
-    // 2回目（同一プロジェクト）: 絞り込みは外れない。
     router.selectProjectFromSidebar(project)
     #expect(router.gridFilterProjectID == project)
     #expect(router.viewMode == .grid)

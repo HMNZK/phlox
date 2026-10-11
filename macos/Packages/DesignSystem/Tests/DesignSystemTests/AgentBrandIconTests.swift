@@ -14,21 +14,7 @@ import Testing
     }
 }
 
-@Suite @MainActor struct AgentBrandIconFallbackTests {
-    @Test func customAgentUsesInitialWhenSymbolNameEmpty() {
-        let descriptor = AgentDescriptor(
-            ref: .custom("test-agent"),
-            displayName: "My Agent",
-            binaryName: "my-agent",
-            symbolName: "",
-            colorRGB: AgentRGB(0xAA, 0xBB, 0xCC),
-            bypassKey: "phlox.bypass.test",
-            launchSpec: AgentLaunchSpec()
-        )
-        let icon = AgentBrandIcon(descriptor: descriptor, size: 32)
-        #expect(icon.descriptor.displayName == "My Agent")
-    }
-
+@Suite @MainActor struct AgentBrandIconTests {
     @Test(arguments: [AgentKind.claudeCode, .codex, .cursor])
     func brandKindsMapToBuiltinDescriptor(kind: AgentKind) {
         let descriptor = AgentRegistry.descriptor(for: kind)

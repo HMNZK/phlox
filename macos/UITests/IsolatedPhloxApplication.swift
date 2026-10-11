@@ -40,6 +40,7 @@ final class IsolatedPhloxApplication {
         in test: XCTestCase,
         arguments: [String] = [],
         dataParent: URL = FileManager.default.temporaryDirectory,
+        testClaudeBinaryPath: String? = nil,
         prepareData: ((URL) throws -> Void)? = nil
     ) async throws -> IsolatedPhloxApplication {
         // 設定文字列ではなく実行中Runnerの署名を検査。保存先の読み書きより先に拒否する。
@@ -84,9 +85,10 @@ final class IsolatedPhloxApplication {
             "PHLOX_DEFAULTS_SUITE": isolated.suite,
             "PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN": "1",
         ]
-        let agentsURL = isolated.dataURL.appendingPathComponent("agents.json")
-        if FileManager.default.fileExists(atPath: agentsURL.path) {
-            configuration.environment["PHLOX_AGENTS_JSON"] = agentsURL.path
+        if let testClaudeBinaryPath {
+            let paths = ["claudeCode": testClaudeBinaryPath]
+            let data = try JSONSerialization.data(withJSONObject: paths)
+            configuration.environment["PHLOX_TEST_AGENT_BINARY_PATHS"] = String(decoding: data, as: UTF8.self)
         }
         print("Phlox UI isolation: data=\(isolated.dataURL.path) suite=\(isolated.suite)")
         print("Phlox UI standard before: domain=\(bundleID) protectedKeys=\(isolated.originalDefaults.count)")

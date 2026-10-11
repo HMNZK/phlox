@@ -84,8 +84,6 @@ func makeTestEnvironment(
     codexHome: URL = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".codex", isDirectory: true),
     agentBinaryPaths: [AgentKind: String] = [:],
-    customAgentBinaryPaths: [String: String] = [:],
-    agentCatalog: AgentCatalog = .builtins,
     transcriptStore: any TranscriptStore = NoOpTranscriptStore(),
     pathEnvironment: String = "/usr/local/bin:/usr/bin:/bin",
     fullAccessProvider: @escaping @Sendable (AgentRef) -> Bool = { _ in true },
@@ -102,8 +100,6 @@ func makeTestEnvironment(
         codexHome: codexHome,
         workspaceDirectory: workspaceDirectory,
         agentBinaryPaths: agentBinaryPaths,
-        customAgentBinaryPaths: customAgentBinaryPaths,
-        agentCatalog: agentCatalog,
         controlURL: URL(string: "http://127.0.0.1:9999")!,
         tokenStore: SessionTokenStore(),
         messages: messages,
@@ -158,26 +154,6 @@ func makePersistedSessionDescriptor(
         resumeID: resumeID,
         parentSessionID: parentSessionID,
         launchContext: launchContext
-    )
-}
-
-func makeCustomAgentDescriptor(
-    id: String = "aider",
-    baseArgs: [String] = ["--model", "sonnet"],
-    bypassArgs: [String] = ["--yes-always"]
-) -> AgentDescriptor {
-    AgentDescriptor(
-        ref: .custom(id),
-        displayName: "Aider",
-        binaryName: "aider",
-        symbolName: "wrench.and.screwdriver",
-        colorRGB: AgentRGB(0xE5, 0xA5, 0x3F),
-        bypassKey: "phlox.bypass.\(id)",
-        launchSpec: AgentLaunchSpec(
-            baseArgs: baseArgs,
-            bypassArgs: bypassArgs,
-            statusBootstrap: .idleOnSpawnComplete
-        )
     )
 }
 
@@ -476,10 +452,8 @@ func spawnNewSession_persistsFlowerName() async throws {
 }
 
 @Test @MainActor
-func customSession_spawnPersistRestoreLaunchAndCompletionDoesNotRequireBuiltinKind() async throws {
-    let descriptor = makeCustomAgentDescriptor()
-    let catalog = AgentCatalog(customDescriptors: [descriptor])
-    let binaryPath = "/opt/homebrew/bin/aider"
+func cursorSession_spawnPersistRestoreLaunchAndCompletionUsesInjectedBinary() async throws {
+    let binaryPath = "/bin/cat"
     let workspaceURL = try makeTemporaryWorkspaceRoot()
     defer { cleanupTemporaryWorkspaceRoot(workspaceURL) }
     let sessionStore = InMemorySessionStore()
@@ -491,19 +465,17 @@ func customSession_spawnPersistRestoreLaunchAndCompletionDoesNotRequireBuiltinKi
         hookStream: hookStream,
         sessions: sessionStore,
         workspaceDirectory: workspaceURL,
-        customAgentBinaryPaths: [descriptor.ref.id: binaryPath],
-        agentCatalog: catalog
+        agentBinaryPaths: [.cursor: binaryPath]
     )
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    let sessionID = try await dashboard.spawnNewSession(ref: descriptor.ref)
+    let sessionID = try await dashboard.spawnNewSession(kind: .cursor)
 
     try await waitUntil { (await sessionStore.load()).contains { $0.id == sessionID } }
     let saved = try #require(await sessionStore.load().first { $0.id == sessionID })
-    #expect(saved.agentRef == .custom("aider"))
+    #expect(saved.agentRef == .builtin(.cursor))
     #expect(ptyManager.spawnCalls.first?.command == binaryPath)
-    #expect(ptyManager.spawnCalls.first?.args == ["--model", "sonnet", "--yes-always"])
 
     let restoredPTYManager = MockPTYManager()
     let (restoreHookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
@@ -512,8 +484,7 @@ func customSession_spawnPersistRestoreLaunchAndCompletionDoesNotRequireBuiltinKi
         hookStream: restoreHookStream,
         sessions: sessionStore,
         workspaceDirectory: workspaceURL,
-        customAgentBinaryPaths: [descriptor.ref.id: binaryPath],
-        agentCatalog: catalog
+        agentBinaryPaths: [.cursor: binaryPath]
     )
     let restoredDashboard = DashboardViewModel(environment: restoreEnvironment)
     await restoredDashboard.start()
@@ -522,7 +493,7 @@ func customSession_spawnPersistRestoreLaunchAndCompletionDoesNotRequireBuiltinKi
     let restoredCall = try #require(restoredPTYManager.spawnCalls.first)
     #expect(restoredCall.id == sessionID)
     #expect(restoredCall.command == binaryPath)
-    #expect(restoredDashboard.sessions.first?.agentRef == .custom("aider"))
+    #expect(restoredDashboard.sessions.first?.agentRef == .builtin(.cursor))
 
     restoredPTYManager.emitExit(for: sessionID, code: 0)
 
@@ -3434,8 +3405,6 @@ func restorePersistedOrchestrationSession_keepsSidebarExclusion() async throws {
 
 @Test @MainActor
 func restoreFailedSession_marksErrorStatusAndSkipsSpawn() async throws {
-    let descriptor = makeCustomAgentDescriptor()
-    let catalog = AgentCatalog(customDescriptors: [descriptor])
     let sessionID = SessionID()
     let workspaceURL = try makeTemporaryWorkspaceRoot()
     defer { cleanupTemporaryWorkspaceRoot(workspaceURL) }
@@ -3443,13 +3412,13 @@ func restoreFailedSession_marksErrorStatusAndSkipsSpawn() async throws {
     let sessionStore = InMemorySessionStore([
         PersistedSessionDescriptor(
             id: sessionID,
-            agentRef: descriptor.ref,
+            agentRef: .builtin(.cursor),
             workingDirectory: workspaceURL.path,
             name: "Broken Restore",
             projectID: nil,
             startedAt: Date(),
-            command: "/opt/homebrew/bin/aider",
-            args: ["--model", "sonnet"],
+            command: "/usr/local/bin/cursor-agent",
+            args: [],
             env: [:],
             token: "token-\(sessionID.rawValue.uuidString)"
         )
@@ -3461,9 +3430,7 @@ func restoreFailedSession_marksErrorStatusAndSkipsSpawn() async throws {
         pty: ptyManager,
         hookStream: hookStream,
         sessions: sessionStore,
-        workspaceDirectory: workspaceURL,
-        customAgentBinaryPaths: [:],
-        agentCatalog: catalog
+            workspaceDirectory: workspaceURL
     )
 
     let dashboard = DashboardViewModel(environment: environment)

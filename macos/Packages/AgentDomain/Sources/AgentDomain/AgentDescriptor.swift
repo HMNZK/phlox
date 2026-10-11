@@ -107,10 +107,7 @@ public struct AgentDescriptor: Sendable, Equatable {
     public let supportsStructuredChat: Bool
 
     public var kind: AgentKind {
-        guard let kind = ref.builtinKind else {
-            preconditionFailure("Custom AgentDescriptor has no AgentKind: \(ref.id)")
-        }
-        return kind
+        switch ref { case .builtin(let kind): kind }
     }
 
     public init(
@@ -232,32 +229,5 @@ public enum AgentRegistry {
             preconditionFailure("Missing AgentDescriptor for \(kind)")
         }
         return descriptor
-    }
-}
-
-/// 組込 descriptor に JSON 由来 descriptor を重ねた実行時 catalog。
-public struct AgentCatalog: Sendable, Equatable {
-    public static let builtins = AgentCatalog(customDescriptors: [])
-
-    public let allDescriptors: [AgentDescriptor]
-    private let descriptorsByID: [String: AgentDescriptor]
-
-    public init(customDescriptors: [AgentDescriptor]) {
-        let builtins = AgentRegistry.allDescriptors
-        var seen = Set(builtins.map { $0.ref.id })
-        let custom = customDescriptors.filter { descriptor in
-            guard case .custom = descriptor.ref else { return false }
-            return seen.insert(descriptor.ref.id).inserted
-        }
-        self.allDescriptors = builtins + custom
-        self.descriptorsByID = Dictionary(uniqueKeysWithValues: allDescriptors.map { ($0.ref.id, $0) })
-    }
-
-    public var optionalDescriptors: [AgentDescriptor] {
-        allDescriptors.filter { $0.ref != .builtin(.claudeCode) }
-    }
-
-    public func descriptor(for ref: AgentRef) -> AgentDescriptor? {
-        descriptorsByID[ref.id]
     }
 }

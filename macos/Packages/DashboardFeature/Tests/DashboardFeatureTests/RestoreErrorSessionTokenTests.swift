@@ -7,21 +7,19 @@ import AgentDomain
 struct RestoreErrorSessionTokenTests {
     @Test @MainActor
     func restoreFailurePlaceholderSpawn_injectsRuntimePHLOXToken() async throws {
-        let descriptor = makeCustomAgentDescriptor()
-        let catalog = AgentCatalog(customDescriptors: [descriptor])
         let sessionID = SessionID()
         let workspaceURL = try makeTemporaryWorkspaceRoot()
         defer { cleanupTemporaryWorkspaceRoot(workspaceURL) }
 
         let persisted = PersistedSessionDescriptor(
             id: sessionID,
-            agentRef: descriptor.ref,
+            agentRef: .builtin(.cursor),
             workingDirectory: workspaceURL.path,
             name: "Broken Restore",
             projectID: nil,
             startedAt: Date(timeIntervalSince1970: 1_700_000_000),
-            command: "/opt/homebrew/bin/aider",
-            args: ["--model", "sonnet"],
+            command: "/usr/local/bin/cursor-agent",
+            args: [],
             env: [
                 "PATH": "/persisted/bin",
                 "PHLOX_API_URL": "http://127.0.0.1:9999",
@@ -36,9 +34,7 @@ struct RestoreErrorSessionTokenTests {
             pty: ptyManager,
             hookStream: hookStream,
             sessions: sessionStore,
-            workspaceDirectory: workspaceURL,
-            customAgentBinaryPaths: [:],
-            agentCatalog: catalog
+            workspaceDirectory: workspaceURL
         )
         let dashboard = DashboardViewModel(environment: environment)
 

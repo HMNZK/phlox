@@ -209,6 +209,6 @@ enum ComposerAttachmentCapability {
     }
 
     private static func agentName(_ agentRef: AgentRef, locale: Locale) -> String {
-        agentRef.builtinKind?.displayName ?? AppLocalizedString.string("このエージェント", locale: locale)
+        agentRef.builtinKind.displayName
     }
 }

@@ -151,18 +151,7 @@ public enum SessionNode {
         case .pty(let session):
             return session.agentDescriptor
         case .appServer(let session):
-            if let kind = session.agentRef.builtinKind {
-                return AgentRegistry.descriptor(for: kind)
-            }
-            return AgentDescriptor(
-                ref: session.agentRef,
-                displayName: session.agentRef.id,
-                binaryName: session.agentRef.id,
-                symbolName: "terminal",
-                colorRGB: AgentRGB(0x8A, 0x8F, 0x98),
-                bypassKey: "phlox.bypass.\(session.agentRef.id)",
-                launchSpec: AgentLaunchSpec(statusBootstrap: .idleOnSpawnComplete)
-            )
+            return AgentRegistry.descriptor(for: session.agentRef.builtinKind)
         }
     }
 

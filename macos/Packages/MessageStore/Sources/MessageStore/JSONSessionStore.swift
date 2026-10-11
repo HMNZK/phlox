@@ -76,6 +76,7 @@ public actor JSONSessionStore: SessionStoreProtocol {
         subsystem: "com.phlox.Phlox",
         category: "JSONSessionStore"
     )
+    private var discardedSessionCountToNotify = 0
 
     public init(fileURL: URL) {
         self.fileURL = fileURL
@@ -92,9 +93,22 @@ public actor JSONSessionStore: SessionStoreProtocol {
             return []
         }
         if file.discardedSessionCount > 0 {
+            discardedSessionCountToNotify = max(discardedSessionCountToNotify, file.discardedSessionCount)
             backupSourceContainingDiscardedSessions()
+            do {
+                try store.save(SessionsFile(schemaVersion: file.schemaVersion, sessions: file.sessions))
+            } catch {
+                logger.error(
+                    "failed to persist sessions without discarded elements \(self.fileURL.path, privacy: .public): \(String(describing: error), privacy: .public)"
+                )
+            }
         }
         return file.sessions
+    }
+
+    public func takeDiscardedSessionCount() async -> Int {
+        defer { discardedSessionCountToNotify = 0 }
+        return discardedSessionCountToNotify
     }
 
     public func save(_ sessions: [PersistedSessionDescriptor]) async throws {

@@ -48,6 +48,29 @@ private actor ProjectIDHandlerStub {
         #expect(projectID == ProjectID(rawValue: uuid))
     }
 
+    @Test("画面の起動メニューをなくしても、組込ハーネスの Control API から PTY セッションを作れる")
+    func postSessionsWithPTYKeepsBuiltInTerminalSpawn() async throws {
+        let stub = ProjectIDHandlerStub()
+        let (port, server) = try await startServer(stub: stub)
+        _ = server
+
+        let status = try await request(
+            port: port,
+            method: "POST",
+            path: "/sessions",
+            bearer: token,
+            body: #"{"kind":"claudeCode","backend":"pty"}"#
+        )
+
+        #expect(status == 200)
+        guard case .spawn(let ref, let backend, _, _)? = await stub.lastRequest?.action else {
+            Issue.record("expected PTY spawn request")
+            return
+        }
+        #expect(ref == .builtin(.claudeCode))
+        #expect(backend == .pty)
+    }
+
     @Test("projectId 省略時は projectID が nil（後方互換）")
     func postSessionsWithoutProjectIdYieldsNil() async throws {
         let stub = ProjectIDHandlerStub()
@@ -113,49 +136,31 @@ private actor ProjectIDHandlerStub {
         #expect(await stub.callCount == 0)
     }
 
-    @Test("custom agent kind also carries projectId in Action.spawn")
-    func customAgentKindCarriesProjectId() async throws {
-        let projectID = ProjectID()
-        let custom = AgentDescriptor(
-            ref: .custom("aider"),
-            displayName: "Aider",
-            binaryName: "aider",
-            symbolName: "wrench.and.screwdriver",
-            colorRGB: AgentRGB(0xE5, 0xA5, 0x3F),
-            bypassKey: "phlox.bypass.aider",
-            launchSpec: AgentLaunchSpec(statusBootstrap: .idleOnSpawnComplete)
-        )
+    @Test("組込でない kind は 400 で拒否し spawn しない")
+    func unknownAgentKindReturns400() async throws {
         let stub = ProjectIDHandlerStub()
-        let (port, server) = try await startServer(
-            stub: stub,
-            agentCatalog: AgentCatalog(customDescriptors: [custom])
-        )
+        let (port, server) = try await startServer(stub: stub)
         _ = server
 
         let response = try await postSessions(
             port: port,
-            body: #"{"kind":"aider","projectId":"\#(projectID.rawValue.uuidString)"}"#
+            body: #"{"kind":"aider"}"#
         )
 
-        #expect(response.status == 200)
-        let request = try #require(await stub.lastRequest)
-        guard case .spawn(let ref, _, _, let receivedProjectID) = request.action else {
-            Issue.record("expected spawn, got \(request.action)")
-            return
-        }
-        #expect(ref == .custom("aider"))
-        #expect(receivedProjectID == projectID)
+        #expect(response.status == 400)
+        let json = try #require(try JSONSerialization.jsonObject(with: response.body) as? [String: Any])
+        #expect(json["error"] as? String == "unknown agent kind: aider")
+        #expect(await stub.callCount == 0)
     }
 
     // MARK: - harness
 
     private func startServer(
-        stub: ProjectIDHandlerStub,
-        agentCatalog: AgentCatalog = .builtins
+        stub: ProjectIDHandlerStub
     ) async throws -> (port: Int, server: ControlServer) {
         let store = SessionTokenStore()
         await store.register(token, for: sessionID)
-        let server = ControlServer(tokenStore: store, agentCatalog: agentCatalog) { request in
+        let server = ControlServer(tokenStore: store) { request in
             await stub.handle(request)
         }
         let port = try await server.start()

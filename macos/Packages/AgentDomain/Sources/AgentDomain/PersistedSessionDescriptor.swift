@@ -81,12 +81,7 @@ public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Coda
     /// 復元でも worktree を作らず、記録した作業ディレクトリで起動する。旧データ（キー無し）は nil。
     public private(set) var worktreeIsolationOptOut: Bool?
 
-    public var kind: AgentKind {
-        guard let kind = agentRef.builtinKind else {
-            preconditionFailure("Custom persisted session has no AgentKind: \(agentRef.id)")
-        }
-        return kind
-    }
+    public var kind: AgentKind { agentRef.builtinKind }
 
     public init(
         id: SessionID,

@@ -1677,7 +1677,7 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
-    /// モデル表示名は agent 種別に関わらず共有カタログから探す。履歴やカスタム agent でも
+    /// モデル表示名は agent 種別に関わらず共有カタログから探す。保存済みセッションでも
     /// 既知 alias の装飾を失わず、未知 ID はそのまま表示する。
     public func spawnAgentModelDisplayName(_ alias: String) -> String {
         AgentKind.allCases.lazy.compactMap { kind in
@@ -1790,7 +1790,8 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// Claude / Cursor のモデル一覧が CLI から取れず、内蔵の一覧になっているか（05 O3）。
     public var isUsingBuiltinModelList: Bool {
-        guard spawnAgentModelsProvider == nil, let kind = agentRef.builtinKind, kind != .codex else { return false }
+        guard spawnAgentModelsProvider == nil, agentRef.builtinKind != .codex else { return false }
+        let kind = agentRef.builtinKind
         return AgentModelCatalog.kindsUsingFallback().contains(kind)
     }
 

@@ -168,18 +168,7 @@ public struct ChatSessionView: View {
     }
 
     private var agentDescriptor: AgentDescriptor {
-        if let kind = viewModel.agentRef.builtinKind {
-            return AgentRegistry.descriptor(for: kind)
-        }
-        return AgentDescriptor(
-            ref: viewModel.agentRef,
-            displayName: viewModel.agentRef.id,
-            binaryName: viewModel.agentRef.id,
-            symbolName: "terminal",
-            colorRGB: AgentRGB(0x8A, 0x8F, 0x98),
-            bypassKey: "phlox.bypass.\(viewModel.agentRef.id)",
-            launchSpec: AgentLaunchSpec(statusBootstrap: .idleOnSpawnComplete)
-        )
+        AgentRegistry.descriptor(for: viewModel.agentRef.builtinKind)
     }
 
     /// 承認カードの「差分を見る」: 会話の該当のファイルの変更へ移り、開く（05 R6e）。

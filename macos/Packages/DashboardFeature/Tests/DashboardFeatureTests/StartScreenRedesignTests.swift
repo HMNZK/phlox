@@ -3,52 +3,10 @@ import Foundation
 import Testing
 @testable import DashboardFeature
 
-// 08 空の画面と新規セッション: 起動カードの並び・権限の初期値・表の行・キー操作・衝突の確認・worktree の失敗。
+// 新規チャット入口を差し替えた後も残す worktree 起動失敗と復元データの確認。
 
 @Suite("Start screen redesign (08)")
 struct StartScreenRedesignTests {
-
-    @Test func entries_keepUndetectedAgentsInCatalogOrder() {
-        let descriptors = [.claudeCode, .codex, .cursor].map { AgentRegistry.descriptor(for: $0) }
-        let entries = AgentStartEntries.make(descriptors: descriptors) { ref in
-            ref == .builtin(.cursor) ? nil : "/usr/local/bin/\(ref.id)"
-        }
-        #expect(entries.map(\.descriptor.ref) == [.builtin(.claudeCode), .builtin(.codex), .builtin(.cursor)])
-        #expect(entries.map(\.isDetected) == [true, true, false])
-    }
-
-    @Test func permission_isShownOnlyWhereTheAppDecidesIt() {
-        #expect(AgentStartEntries.permission(ref: .builtin(.claudeCode), fullAccess: false, languageCode: "ja") == nil)
-        #expect(AgentStartEntries.permission(ref: .builtin(.claudeCode), fullAccess: true, languageCode: "ja") == "Bypass Permissions")
-        #expect(AgentStartEntries.permission(ref: .builtin(.cursor), fullAccess: false, languageCode: "ja") == nil)
-        let codex = AgentStartEntries.permission(ref: .builtin(.codex), fullAccess: false, languageCode: "ja")
-        #expect(codex == "Default")
-        #expect(AgentStartEntries.permission(ref: .builtin(.codex), fullAccess: true, languageCode: "ja") == "Full Access")
-        #expect(AgentStartEntries.permission(ref: .builtin(.cursor), fullAccess: true, languageCode: "ja") == "Run Everything")
-        #expect(AgentStartEntries.permission(ref: .custom("aider"), fullAccess: true, languageCode: "ja") == nil)
-    }
-
-    @Test func model_joinsEffortOnlyWhenModelIsKnown() {
-        #expect(AgentStartEntries.model(nil) == nil)
-        #expect(AgentStartEntries.model(LastUsedChatSettings(model: nil, effort: "high")) == nil)
-        #expect(AgentStartEntries.model(LastUsedChatSettings(model: "gpt-6-sol", effort: "high")) == "gpt-6-sol · high")
-        #expect(AgentStartEntries.model(LastUsedChatSettings(model: "opus")) == "opus")
-    }
-
-    @Test func tableRows_followTerminalOrder_andMarkChatSupport() {
-        let chat = AgentRegistry.descriptor(for: .codex)
-        let model = NewSessionMenuModel.make(projectName: "phlox", descriptors: [chat])
-        let rows = NewSessionTableRow.rows(from: model)
-        #expect(rows == [NewSessionTableRow(title: chat.displayName, ref: chat.ref, supportsChat: chat.supportsStructuredChat)])
-    }
-
-    @Test func returnKey_followsDefaultOpenMode_andOptionPicksTheOther() {
-        #expect(NewSessionKeys.mode(default: .chat, option: false, supportsChat: true) == .chat)
-        #expect(NewSessionKeys.mode(default: .chat, option: true, supportsChat: true) == .terminal)
-        #expect(NewSessionKeys.mode(default: .terminal, option: false, supportsChat: true) == .terminal)
-        #expect(NewSessionKeys.mode(default: .terminal, option: true, supportsChat: true) == .chat)
-        #expect(NewSessionKeys.mode(default: .chat, option: false, supportsChat: false) == .terminal)
-    }
 
     @Test func worktreeFailureLog_showsGitOutput_andIgnoresOtherErrors() {
         let failed = WorktreeIsolationSpawnError.worktreeCreationFailed(path: "/w", branchName: "b", detail: "fatal: already checked out")

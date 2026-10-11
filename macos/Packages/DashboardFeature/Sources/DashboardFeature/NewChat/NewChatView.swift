@@ -13,6 +13,7 @@ struct NewChatView: View {
     let onLaunchFailure: (AgentRef, Error) -> Void
 
     @Environment(\.locale) private var locale
+    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
     @State private var greeting = NewChatGreetings.random()
     @State private var modelSearch = ""
     @State private var modelPickerPresented = false
@@ -23,9 +24,8 @@ struct NewChatView: View {
     @State private var isGitRepository: Bool?
     @State private var spawnGuard: SpawnGuard?
 
-    private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
     private var detectedHarnessIDs: Set<String> {
-        Set(viewModel.agentStartEntries(languageCode: languageCode).filter(\.isDetected).map(\.id))
+        Set(viewModel.availableAgentKinds.map(\.rawValue))
     }
     private var modelSections: [NewChatModelMenuSection] {
         NewChatModelMenuSection.make(availableHarnessIDs: detectedHarnessIDs)
@@ -141,6 +141,9 @@ struct NewChatView: View {
                 greeting = NewChatGreetings.random()
                 focusToken &+= 1
             }
+            .onChange(of: router.newChatFocusToken) { _, _ in
+                focusToken &+= 1
+            }
             .task(id: project?.directoryPath) {
                 guard let project else { isGitRepository = nil; return }
                 isGitRepository = await WorkingTreeService(repositoryRoot: project.directoryURL).isGitRepository()
@@ -150,22 +153,20 @@ struct NewChatView: View {
 
     private func composer(isCompact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let suggestionDirectory {
-                ComposerDraftInput(
-                    text: $draft.text,
-                    attachmentStore: draft.attachments,
-                    workingDirectory: suggestionDirectory,
-                    placeholder: AppLocalizedString.string("やりたいことを入力（/ でコマンド）", locale: locale),
-                    focusToken: focusToken,
-                    accessibilityPrefix: "newChat",
-                    inputAccessibilitySuffix: "messageInput",
-                    onSubmit: { send() },
-                    onCycleEffort: cycleEffort,
-                    onFocusChange: { inputFocused = $0 }
-                )
-                .id(suggestionControllerKey)
-                .accessibilityIdentifier("newChat.composer")
-            }
+            ComposerDraftInput(
+                text: $draft.text,
+                attachmentStore: draft.attachments,
+                workingDirectory: suggestionDirectory ?? "",
+                placeholder: AppLocalizedString.string("やりたいことを入力（/ でコマンド）", locale: locale),
+                focusToken: focusToken,
+                accessibilityPrefix: "newChat",
+                inputAccessibilitySuffix: "messageInput",
+                onSubmit: { send() },
+                onCycleEffort: cycleEffort,
+                onFocusChange: { inputFocused = $0 }
+            )
+            .id(suggestionControllerKey)
+            .accessibilityIdentifier("newChat.composer")
             if let reason = sendUnavailableReason {
                 Text(verbatim: reason)
                     .font(.system(size: 11.5))

@@ -53,9 +53,7 @@ final class SessionHookInstaller {
     ) throws -> HookInstallOutcome {
         switch descriptor.launchSpec.hookKind {
         case .codexStyle, .cursorStyle:
-            guard let kind = descriptor.ref.builtinKind else {
-                return .installed
-            }
+            let kind = descriptor.ref.builtinKind
             if sessionBindings[sessionID] != nil {
                 releaseBinding(for: sessionID)
             }

@@ -113,13 +113,8 @@ private struct TerminalSessionHeader: View {
         }
     }
 
-    /// 「aider（カスタム）」。組み込みのエージェントは名前だけ。
     private var agentName: String {
-        let name = viewModel.agentDescriptor.displayName
-        if case .custom = viewModel.agentRef {
-            return String(format: AppLocalizedString.string("%@（カスタム）", locale: locale), name)
-        }
-        return name
+        viewModel.agentDescriptor.displayName
     }
 
     private var dot: some View {

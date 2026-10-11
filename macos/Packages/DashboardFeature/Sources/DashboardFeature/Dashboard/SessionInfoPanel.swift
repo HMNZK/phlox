@@ -81,12 +81,9 @@ struct SessionInfoPanel: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// チャット型は「Claude Code · チャット型 · プロジェクト · a3f9」、ターミナル型は「aider（カスタム）· ターミナル型」。
+    /// チャット型は「Claude Code · チャット型 · プロジェクト · a3f9」、ターミナル型は「Cursor · ターミナル型」。
     private var subtitle: String {
-        var name = session.agentDescriptor.displayName
-        if case .custom = session.agentRef {
-            name = String(format: AppLocalizedString.string("%@（カスタム）", locale: locale), name)
-        }
+        let name = session.agentDescriptor.displayName
         guard session.pty == nil else {
             return [name, AppLocalizedString.string("ターミナル型", locale: locale)].joined(separator: " · ")
         }

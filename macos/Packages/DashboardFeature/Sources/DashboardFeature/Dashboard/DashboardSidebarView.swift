@@ -25,8 +25,6 @@ struct DashboardSidebarView: View {
     @Binding var renameRequest: SessionID?
     @Binding var sessionTreeViewModel: SessionTreeViewModel
     let onChooseProjectDirectory: () -> Void
-    /// プロジェクト行の ＋ と右クリックの「新規セッション…」で開く表（Sidebar F4・F5）。
-    let newSessionTable: (ProjectID?) -> NewSessionTable
 
     @Environment(\.locale) private var locale
     @FocusState private var listFocused: Bool
@@ -58,8 +56,7 @@ struct DashboardSidebarView: View {
         pendingMove: Binding<PendingSessionMove?>,
         renameRequest: Binding<SessionID?>,
         sessionTreeViewModel: Binding<SessionTreeViewModel>,
-        onChooseProjectDirectory: @escaping () -> Void,
-        newSessionTable: @escaping (ProjectID?) -> NewSessionTable
+        onChooseProjectDirectory: @escaping () -> Void
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
         _router = Bindable(wrappedValue: router)
@@ -71,7 +68,6 @@ struct DashboardSidebarView: View {
         _renameRequest = renameRequest
         _sessionTreeViewModel = sessionTreeViewModel
         self.onChooseProjectDirectory = onChooseProjectDirectory
-        self.newSessionTable = newSessionTable
     }
 
     var body: some View {
@@ -372,10 +368,10 @@ struct DashboardSidebarView: View {
                 }
             },
             onToggleExpansion: { toggleProjectExpansion(project.id) },
+            onNewChat: { NewChatEntryActions(router: router, dashboard: viewModel).projectPlus(project.id) },
             onCommitRename: { commitRename(byReturn: $0) },
             onCancelRename: cancelRename,
-            menu: { projectMenu(project) },
-            newSessionMenu: { newSessionTable(project.id) }
+            menu: { projectMenu(project) }
         )
         .id(SidebarItem.project(project.id))
     }
@@ -508,16 +504,21 @@ struct DashboardSidebarView: View {
 
     @ViewBuilder
     private func projectMenu(_ project: Project) -> some View {
-        // 03 F4: 押すと F5 の表（下端の「新規セッション」と同じ）をこのプロジェクトで開く。
-        Button("新規セッション…") {
-            router.selectProject(project.id)
-            router.newSessionTablePresented = true
-        }
-        Divider()
-        Button("名前を変更…") { beginRename(.project(project.id)) }
-        Divider()
-        Button("プロジェクトを削除…", role: .destructive) {
-            pendingProjectDeletion = project
+        ForEach(ProjectRowMenuItem.allCases, id: \.self) { item in
+            switch item {
+            case .newChat:
+                Button("新規チャット") {
+                    NewChatEntryActions(router: router, dashboard: viewModel).projectMenu(project.id)
+                }
+                Divider()
+            case .rename:
+                Button("名前を変更…") { beginRename(.project(project.id)) }
+                Divider()
+            case .delete:
+                Button("プロジェクトを削除…", role: .destructive) {
+                    pendingProjectDeletion = project
+                }
+            }
         }
     }
 

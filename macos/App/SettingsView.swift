@@ -8,7 +8,6 @@ import SessionFeature
 
 struct SettingsView: View {
     @ObservedObject var appUpdater: AppUpdater
-    let agentCatalog: AgentCatalog
     let hookDispatcherPath: String?
     /// モバイル端末の QR ペアリング・一覧・失効 VM。初期化前（composition 未完了）は nil。
     let mobileToken: MobileTokenViewModel?
@@ -34,9 +33,6 @@ struct SettingsView: View {
 
     @AppStorage(LanguageSettings.languageKey) private var appLanguageRaw = AppLanguage.system.rawValue
 
-    @AppStorage(DefaultSessionBackendPreference.storageKey)
-    private var defaultSessionBackendRaw = DefaultSessionBackendPreference.chat.rawValue
-
     @AppStorage(ChatFontSettings.scaleKey) private var chatFontScale = Double(ChatFontSettings.defaultScale)
     @AppStorage(TerminalFontSettings.fontSizeKey) private var terminalFontSize = Double(NSFont.systemFontSize)
 
@@ -48,13 +44,6 @@ struct SettingsView: View {
         Binding(
             get: { AppLanguage(rawValue: appLanguageRaw) ?? .system },
             set: { appLanguageRaw = $0.rawValue }
-        )
-    }
-
-    private var defaultSessionBackendBinding: Binding<DefaultSessionBackendPreference> {
-        Binding(
-            get: { DefaultSessionBackendPreference(rawValue: defaultSessionBackendRaw) ?? .chat },
-            set: { defaultSessionBackendRaw = $0.rawValue }
         )
     }
 
@@ -140,7 +129,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var generalForm: some View {
-        SettingsGroupBox("言語と起動") {
+        SettingsGroupBox("言語") {
             SettingsRow {
                 SettingsLabel(title: Text("表示言語"))
                 Picker(selection: appLanguageBinding) {
@@ -153,15 +142,6 @@ struct SettingsView: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
                 .fixedSize()
-            }
-            SettingsDivider()
-            SettingsRow {
-                SettingsLabel(title: Text("新規セッションの既定の開き方"), detail: Text("⌘N や起動カードで ↩ を押したときの開き方"))
-                SettingsSegmented(
-                    selection: defaultSessionBackendBinding,
-                    options: [(.chat, "チャット"), (.terminal, "ターミナル")]
-                )
-                .accessibilityLabel(Text("新規セッションの既定の開き方"))
             }
         }
 
@@ -418,7 +398,7 @@ struct SettingsView: View {
             // 見本の注記（確認なしで実行する）に、エージェントごとに違う点の注記（既存の文）を続ける（C-53）。
             footer: Text(verbatim: permissionFooter)
         ) {
-            ForEach(Array(agentCatalog.allDescriptors.enumerated()), id: \.element.ref) { index, descriptor in
+            ForEach(Array(AgentRegistry.allDescriptors.enumerated()), id: \.element.ref) { index, descriptor in
                 if index > 0 { SettingsDivider() }
                 BypassToggleRow(descriptor: descriptor)
             }
@@ -438,14 +418,6 @@ struct SettingsView: View {
                 .buttonStyle(.ds(.secondary, keyHint: "⇧⌘,", height: 22, fontSize: 12.5, padding: 11, fill: DSColor.settingsControlBackground, cornerRadius: 5))
                 // 読み上げでは何を開くかが分かる名前にする。
                 .accessibilityLabel(Text("エージェント管理を開く"))
-            }
-            SettingsDivider()
-            SettingsRow {
-                SettingsLabel(title: Text("カスタムエージェントの定義"))
-                Text(verbatim: (CustomAgentRegistryLoader.defaultURL().path as NSString).abbreviatingWithTildeInPath)
-                    .font(DSFont.dense)
-                    .foregroundStyle(DSColor.textSecondary)
-                    .textSelection(.enabled)
             }
         }
     }
@@ -500,7 +472,6 @@ struct SettingsView: View {
             case .builtin(.claudeCode): .claude
             case .builtin(.codex): .codex
             case .builtin(.cursor): .cursor
-            default: .custom
             }
         }
 
@@ -510,12 +481,11 @@ struct SettingsView: View {
             case .claude: "Bypass Permissions。オフにすると Auto"
             case .codex: "Full Access。オフにすると、チャットは Default、ターミナルは Codex の設定に従う"
             case .cursor: "Run Everything とサンドボックス解除。オフにすると自動レビューとサンドボックスを有効化"
-            case .custom: "agents.json の定義に従う"
             }
         }
 
         var body: some View {
-            let wording = UIWording.launchPermission(agent: agentKind, displayName: descriptor.displayName, languageCode: languageCode)
+            let wording = UIWording.launchPermission(agent: agentKind, languageCode: languageCode)
             SettingsRow {
                 Toggle(isOn: $isEnabled) {
                     SettingsLabel(title: Text(verbatim: descriptor.displayName), detail: Text(summary))

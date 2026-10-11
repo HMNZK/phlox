@@ -31,8 +31,6 @@ func composerControls(for agentRef: AgentRef) -> [ComposerControlKind] {
         [.model, .effort, .permission]
     case .builtin(.cursor):
         [.model, .mode]
-    default:
-        []
     }
 }
 
@@ -60,8 +58,6 @@ func composerModeOptions(for agentRef: AgentRef, codexProfileIDs: [String], lang
             ComposerModeOption(value: "ask", title: UIWording.permission(agent: .cursor, kind: .cursorOperationMode, value: "ask", languageCode: languageCode).title, explanation: UIWording.permission(agent: .cursor, kind: .cursorOperationMode, value: "ask", languageCode: languageCode).explanation, isPlan: false),
             ComposerModeOption(value: "plan", title: UIWording.text(.planOption, languageCode: languageCode), explanation: UIWording.permission(agent: .cursor, kind: .cursorOperationMode, value: "plan", languageCode: languageCode).explanation, isPlan: true),
         ]
-    default:
-        []
     }
 }
 

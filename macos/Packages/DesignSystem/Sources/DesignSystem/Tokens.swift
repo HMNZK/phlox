@@ -365,7 +365,6 @@ public enum DSColor {
         case .claudeCode: rgb = RGB(0xD4, 0x93, 0x75)   // oklch(0.72 0.09 45)
         case .codex: rgb = RGB(0x7A, 0xB3, 0x9A)        // oklch(0.72 0.07 165)
         case .cursor: rgb = RGB(0x8B, 0xA6, 0xD1)       // oklch(0.72 0.07 260)
-        case nil: rgb = RGB(descriptor.colorRGB)         // agents.json の colorHex
         }
         return rgb.color.opacity(0.30)
     }
@@ -375,10 +374,7 @@ public enum DSColor {
     }
 
     public static func agentColor(for descriptor: AgentDescriptor) -> Color {
-        if let kind = descriptor.ref.builtinKind {
-            return agentColor(for: kind)
-        }
-        return RGB(descriptor.colorRGB).color
+        agentColor(for: descriptor.ref.builtinKind)
     }
 }
 
@@ -390,7 +386,6 @@ public extension AgentDescriptor {
         case .claudeCode: "Cl"
         case .codex: "Cx"
         case .cursor: "Cu"
-        case nil: String(displayName.prefix(2))
         }
     }
 }

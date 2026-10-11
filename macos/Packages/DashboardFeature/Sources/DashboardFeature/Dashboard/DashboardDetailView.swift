@@ -12,12 +12,6 @@ struct DashboardDetailView: View {
     @Binding var pendingWorkspaceChange: SessionViewModel?
     let onChooseProjectDirectory: () -> Void
     let onNewChatLaunchFailure: (AgentRef, Error) -> Void
-    let isCreating: Bool
-    let onSelectAgentKind: (AgentKind, SessionBackend) -> Void
-    /// カスタム種別を含む起動（08 S3・S4）。
-    var onSelectAgent: ((AgentRef, SessionBackend) -> Void)? = nil
-    /// 起動中の種別（08 S5）。
-    var creatingRef: AgentRef? = nil
     /// 初回起動の案内をすべて出すか（08 S1: 一度もプロジェクトを追加していない）。
     var showsAllOnboardingSteps = true
     var displayTab: ProjectTab? = nil
@@ -53,9 +47,13 @@ struct DashboardDetailView: View {
 
     @ViewBuilder
     private var detailMainContent: some View {
-        if viewModel.projects.isEmpty {
+        switch StartAreaPolicy.content(
+            hasSelectedSession: router.selectedSession != nil,
+            hasProjects: !viewModel.projects.isEmpty
+        ) {
+        case .projectOnboarding:
             detailEmptyState
-        } else {
+        case .sessionContent, .newChat:
             switch router.viewMode {
             case .single:
                 singleDetail
@@ -91,16 +89,8 @@ struct DashboardDetailView: View {
 
     @ViewBuilder
     private var singleDetail: some View {
-        if displayTab == .newChat,
-           let project = viewModel.projects.first(where: { $0.id == router.selectedProjectID }) {
-            NewChatView(
-                viewModel: viewModel,
-                router: router,
-                draftStore: newChatDraftStore,
-                draft: newChatDraftStore.draft(for: project.id),
-                project: project,
-                onLaunchFailure: onNewChatLaunchFailure
-            )
+        if displayTab == .newChat {
+            newChatView(project: selectedProject)
         } else if let selectedID = displayedSessionID,
            let session = viewModel.sessionNode(id: selectedID) {
             switch session {
@@ -118,51 +108,35 @@ struct DashboardDetailView: View {
 
     private var detailEmptyState: some View {
         StartOnboardingView(
-            entries: viewModel.agentStartEntries(languageCode: languageCode),
             showsAllSteps: showsAllOnboardingSteps,
             onAddFolder: onChooseProjectDirectory
         )
     }
 
-    @Environment(\.locale) private var locale
-
-    private var languageCode: String {
-        locale.language.languageCode?.identifier ?? "ja"
+    private var selectedProject: Project? {
+        viewModel.projects.first { $0.id == router.selectedProjectID }
     }
 
-    private var startHeader: AgentStartProjectHeader? {
-        guard let project = viewModel.projects.first(where: { $0.id == router.selectedProjectID }) else { return nil }
-        let running = viewModel.runningSessionCount(in: project.id)
-        return AgentStartProjectHeader(
-            name: project.name,
-            path: project.directoryPath,
-            branch: GitBranchReader.currentBranch(at: project.directoryPath),
-            runningCount: running
+    private func newChatView(project: Project?) -> some View {
+        NewChatView(
+            viewModel: viewModel,
+            router: router,
+            draftStore: newChatDraftStore,
+            draft: newChatDraftStore.draft(for: project?.id),
+            project: project,
+            onLaunchFailure: onNewChatLaunchFailure
         )
     }
 
     @ViewBuilder
     private var singleSelectEmptyState: some View {
-        // R4: プロジェクト選択時のみカード。未選択時はプレースホルダ（判定は StartAreaPolicy）。
-        switch StartAreaPolicy.content(
-            hasSelectedProject: router.selectedProjectID != nil,
-            hasSelectedSession: false
-        ) {
-        case .selectProjectPlaceholder:
-            SelectProjectPlaceholderView()
-        case .agentStartCards, .sessionContent:
-            AgentStartCardsView(
-                cards: AgentStartCardsModel.cards(available: viewModel.availableAgentKinds),
-                isCreating: isCreating,
-                onSelect: onSelectAgentKind,
-                entries: viewModel.agentStartEntries(languageCode: languageCode),
-                onSelectRef: onSelectAgent,
-                creatingRef: creatingRef,
-                header: startHeader,
-                defaultBackend: DefaultSessionBackendPreference.stored(),
-                onRedetect: { Task { await viewModel.redetectAgents() } }
-            )
-            .task { await viewModel.loadAgentVersionsIfNeeded() }
+        switch StartAreaPolicy.content(hasSelectedSession: false) {
+        case .projectOnboarding:
+            detailEmptyState
+        case .newChat:
+            newChatView(project: selectedProject)
+        case .sessionContent:
+            EmptyView()
         }
     }
 }

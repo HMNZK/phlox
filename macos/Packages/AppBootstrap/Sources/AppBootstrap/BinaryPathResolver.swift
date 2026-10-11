@@ -6,18 +6,15 @@ public struct ResolvedCLIBinaries: Sendable {
     public let claudeBinaryPath: String?
     public let pathEnvironment: String
     public let agentBinaryPaths: [AgentKind: String]
-    public let customAgentBinaryPaths: [String: String]
 
     public init(
         claudeBinaryPath: String?,
         pathEnvironment: String,
-        agentBinaryPaths: [AgentKind: String],
-        customAgentBinaryPaths: [String: String]
+        agentBinaryPaths: [AgentKind: String]
     ) {
         self.claudeBinaryPath = claudeBinaryPath
         self.pathEnvironment = pathEnvironment
         self.agentBinaryPaths = agentBinaryPaths
-        self.customAgentBinaryPaths = customAgentBinaryPaths
     }
 }
 
@@ -74,11 +71,18 @@ public enum BinaryPathResolver {
         return String(data: data, encoding: .utf8)
     }
 
-    /// claude（必須）・組込みオプション CLI・カスタムエージェントのバイナリを一括解決する。
+    /// claude（必須）と組込 CLI のバイナリを一括解決する。
     /// 重い login shell の起動は PATH 取得の 1 回だけで、各バイナリは取得済み PATH の走査で解決する。
     /// メインスレッドをブロックしないよう、呼び出し側はメインアクター外（Task.detached 等）で実行すること。
-    public static func resolveCLIBinaries(customDescriptors: [AgentDescriptor]) -> ResolvedCLIBinaries {
+    public static func resolveCLIBinaries() -> ResolvedCLIBinaries {
         let pathEnv = resolvePathEnvironment()
+        if let overrides = testBinaryOverrides(environment: ProcessInfo.processInfo.environment) {
+            return ResolvedCLIBinaries(
+                claudeBinaryPath: overrides[.claudeCode],
+                pathEnvironment: pathEnv,
+                agentBinaryPaths: overrides.filter { $0.key != .claudeCode }
+            )
+        }
 
         let claudePath = resolveBinary(AgentKind.claudeCode.binaryName, pathEnv: pathEnv)
 
@@ -89,20 +93,22 @@ public enum BinaryPathResolver {
             }
         }
 
-        var customAgentBinaryPaths: [String: String] = [:]
-        for descriptor in customDescriptors {
-            guard case .custom(let id) = descriptor.ref else { continue }
-            if let path = resolveBinary(descriptor.binaryName, pathEnv: pathEnv) {
-                customAgentBinaryPaths[id] = path
-            }
-        }
-
         return ResolvedCLIBinaries(
             claudeBinaryPath: claudePath,
             pathEnvironment: pathEnv,
-            agentBinaryPaths: agentBinaryPaths,
-            customAgentBinaryPaths: customAgentBinaryPaths
+            agentBinaryPaths: agentBinaryPaths
         )
+    }
+
+    static func testBinaryOverrides(environment: [String: String]) -> [AgentKind: String]? {
+        guard environment["PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN"] == "1",
+              let raw = environment["PHLOX_TEST_AGENT_BINARY_PATHS"] else { return nil }
+        guard let data = raw.data(using: .utf8),
+              let paths = try? JSONDecoder().decode([String: String].self, from: data) else { return [:] }
+        return Dictionary(uniqueKeysWithValues: AgentKind.allCases.compactMap { kind in
+            guard let path = paths[kind.rawValue], FileManager.default.isExecutableFile(atPath: path) else { return nil }
+            return (kind, path)
+        })
     }
 
     /// 任意のバイナリ名から絶対パスを解決する（`pathEnv` を `:` 分割して先頭から走査）。

@@ -819,18 +819,10 @@ final class SessionSpawnService {
     }
 
     func descriptorForPresentation(ref: AgentRef) -> AgentDescriptor {
-        if let descriptor = environment.agentCatalog.descriptor(for: ref) {
-            return descriptor
+        switch ref {
+        case .builtin(let kind):
+            return AgentRegistry.descriptor(for: kind)
         }
-        return AgentDescriptor(
-            ref: ref,
-            displayName: ref.id,
-            binaryName: ref.id,
-            symbolName: "terminal",
-            colorRGB: AgentRGB(0x8A, 0x8F, 0x98),
-            bypassKey: "phlox.bypass.\(ref.id)",
-            launchSpec: AgentLaunchSpec(statusBootstrap: .idleOnSpawnComplete)
-        )
     }
 
     func startAppServerSession(
@@ -909,7 +901,8 @@ final class SessionSpawnService {
     }
 
     func initialResumeID(for ref: AgentRef, sessionID: SessionID) async -> String? {
-        guard let descriptor = environment.agentCatalog.descriptor(for: ref) else { return nil }
+        guard case .builtin(let kind) = ref else { return nil }
+        let descriptor = AgentRegistry.descriptor(for: kind)
         switch descriptor.launchSpec.initialResumeIDStrategy {
         case .phloxUUID:
             return sessionID.rawValue.uuidString.lowercased()

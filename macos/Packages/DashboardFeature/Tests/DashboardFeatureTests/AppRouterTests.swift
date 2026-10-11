@@ -65,3 +65,34 @@ func clearGridFilter_resetsToNil() {
 
     #expect(router.gridFilterProjectID == nil)
 }
+
+@Test @MainActor
+func acceptance_showNewChat_selectsProjectNewChatTabAndLeavesNoSessionSelected() {
+    let projectID = ProjectID()
+    let router = AppRouter(selectedSession: SessionID(), viewMode: .grid)
+    let focusToken = router.newChatFocusToken
+
+    router.showNewChat(projectID: projectID)
+
+    #expect(router.viewMode == .single)
+    #expect(router.selectedProjectID == projectID)
+    #expect(router.selectedSession == nil)
+    #expect(router.tabs.layout(for: projectID).selected == .newChat)
+    #expect(router.newChatFocusToken == focusToken + 1)
+}
+
+@Test @MainActor
+func acceptance_showNewChatWithoutExplicitProjectKeepsCurrentProject() {
+    let projectID = ProjectID()
+    let router = AppRouter(selectedSession: SessionID(), viewMode: .grid)
+    router.selectProject(projectID)
+    let focusToken = router.newChatFocusToken
+
+    router.showNewChat(projectID: nil)
+
+    #expect(router.viewMode == .single)
+    #expect(router.selectedProjectID == projectID)
+    #expect(router.selectedSession == nil)
+    #expect(router.tabs.layout(for: projectID).selected == .newChat)
+    #expect(router.newChatFocusToken == focusToken + 1)
+}

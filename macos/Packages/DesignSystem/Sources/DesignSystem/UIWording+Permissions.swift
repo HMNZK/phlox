@@ -5,7 +5,6 @@ extension UIWording {
         case claude
         case codex
         case cursor
-        case custom
     }
 
     public enum PermissionKind: String, CaseIterable, Equatable, Hashable, Sendable {
@@ -74,7 +73,6 @@ extension UIWording {
 
     public static func launchPermission(
         agent: PermissionAgent,
-        displayName: String,
         languageCode: String
     ) -> LaunchPermissionWording {
         let english = permissionUsesEnglish(languageCode)
@@ -108,18 +106,6 @@ extension UIWording {
                 onExplanation: english
                     ? "Specifies --force and --sandbox disabled at the next launch."
                     : "次回開始時に --force と --sandbox disabled を指定します。"
-            )
-        case .custom:
-            LaunchPermissionWording(
-                rowLabel: english
-                    ? "\(displayName): Launch permission settings"
-                    : "\(displayName): 起動時の権限設定",
-                offExplanation: english
-                    ? "Follows this agent's launch settings. Check the agent settings for the allowed scope."
-                    : "このエージェントの起動設定に従います。許可範囲はエージェント設定を確認してください。",
-                onExplanation: english
-                    ? "Follows this agent's launch settings. Check the agent settings for the allowed scope."
-                    : "このエージェントの起動設定に従います。許可範囲はエージェント設定を確認してください。"
             )
         }
     }

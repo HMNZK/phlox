@@ -206,13 +206,9 @@ private actor HandlerStub {
         #expect(ref == .builtin(.cursor))
     }
 
-    @Test func postSessionsSpawnCustomKindResolvesCustomRef() async throws {
-        let custom = makeCustomDescriptor(id: "aider")
+    @Test func postSessionsRejectsRetiredCustomKind() async throws {
         let stub = HandlerStub()
-        let (port, server) = try await startServer(
-            stub: stub,
-            agentCatalog: AgentCatalog(customDescriptors: [custom])
-        )
+        let (port, server) = try await startServer(stub: stub)
         _ = server
         let status = try await request(
             port: port,
@@ -221,14 +217,8 @@ private actor HandlerStub {
             bearer: token,
             body: #"{"kind":"aider"}"#
         )
-        #expect(status == 200)
-
-        let last = await stub.lastRequest
-        guard case .spawn(let ref, _, _, _)? = last?.action else {
-            Issue.record("expected spawn")
-            return
-        }
-        #expect(ref == .custom("aider"))
+        #expect(status == 400)
+        #expect(await stub.callCount == 0)
     }
 
     @Test func postSessionsInvalidKindReturns400() async throws {
@@ -811,29 +801,14 @@ private actor HandlerStub {
 
     // MARK: - Helpers
 
-    private func startServer(
-        stub: HandlerStub,
-        agentCatalog: AgentCatalog = .builtins
-    ) async throws -> (port: Int, server: ControlServer) {
+    private func startServer(stub: HandlerStub) async throws -> (port: Int, server: ControlServer) {
         let store = SessionTokenStore()
         await store.register(token, for: sessionID)
-        let server = ControlServer(tokenStore: store, agentCatalog: agentCatalog) { request in
+        let server = ControlServer(tokenStore: store) { request in
             await stub.handle(request)
         }
         let port = try await server.start()
         return (port, server)
-    }
-
-    private func makeCustomDescriptor(id: String) -> AgentDescriptor {
-        AgentDescriptor(
-            ref: .custom(id),
-            displayName: "Aider",
-            binaryName: "aider",
-            symbolName: "wrench.and.screwdriver",
-            colorRGB: AgentRGB(0xE5, 0xA5, 0x3F),
-            bypassKey: "phlox.bypass.\(id)",
-            launchSpec: AgentLaunchSpec(statusBootstrap: .idleOnSpawnComplete)
-        )
     }
 
     private func request(

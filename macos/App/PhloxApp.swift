@@ -165,7 +165,6 @@ struct PhloxApp: App {
         Settings {
             SettingsView(
                 appUpdater: appDelegate.appUpdater,
-                agentCatalog: composition?.environment.agentCatalog ?? .builtins,
                 hookDispatcherPath: composition?.environment.hookDispatcherPath,
                 mobileToken: composition?.mobileTokenViewModel
             )
@@ -682,53 +681,54 @@ private struct FileCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
-            // 種別 × 開き方の表を開く（08: ⌘N / ⇧⌘N / ⌥⌘N を 1 つにまとめた）。失敗は画面のアラートに出る。
-            Button("新規セッション…") {
-                router?.newSessionTablePresented = true
+            ForEach(FileMenuItem.allCases, id: \.self) { item in
+                switch item {
+                case .newChat:
+                    Button("新規チャット") {
+                        NewChatEntryActions(router: router, dashboard: dashboard).fileMenu()
+                    }
+                    .keyboardShortcut("n", modifiers: .command)
+                    .disabled(router == nil)
+                case .newTab:
+                    Button("新しいタブ…") {
+                        guard let router else { return }
+                        router.viewMode = .single
+                        router.newTabChooserPresented = true
+                    }
+                    .keyboardShortcut("t", modifiers: .command)
+                    .disabled(router?.selectedProjectID == nil)
+                case .openFile:
+                    Button("ファイルを開く…") {
+                        guard let router, let id = router.selectedProjectID else { return }
+                        router.tabRequest = .openFile(id)
+                    }
+                    .keyboardShortcut("p", modifiers: .command)
+                    .disabled(router?.selectedProjectID == nil)
+                case .addProject:
+                    Button("プロジェクトを追加…") {
+                        router?.addProjectRequested = true
+                    }
+                    .keyboardShortcut("o", modifiers: .command)
+                    .disabled(router == nil)
+                case .divider:
+                    Divider()
+                case .exportConversation:
+                    // 対話 TUI の /export 相当。チャットセッションのみ対象（PTY は transcript を持たない）。
+                    Button("会話を書き出す…") {
+                        guard let chat = exportableChatSession(dashboard: dashboard, router: router) else { return }
+                        ChatTranscriptExportAction.save(session: chat, locale: (AppLanguage(rawValue: appLanguageRaw) ?? .system).locale, showsOptions: true)
+                    }
+                    .keyboardShortcut("e", modifiers: [.command, .shift])
+                    .disabled(exportableChatSession(dashboard: dashboard, router: router) == nil)
+                case .copyConversation:
+                    Button("会話を Markdown でコピー") {
+                        guard let chat = exportableChatSession(dashboard: dashboard, router: router) else { return }
+                        ChatTranscriptExportAction.copyToPasteboard(session: chat)
+                    }
+                    .keyboardShortcut("c", modifiers: [.command, .option, .shift])
+                    .disabled(exportableChatSession(dashboard: dashboard, router: router) == nil)
+                }
             }
-            .keyboardShortcut("n", modifiers: .command)
-            .disabled(dashboard?.projects.isEmpty ?? true)
-
-            Button("新しいタブ…") {
-                guard let router else { return }
-                router.viewMode = .single
-                router.newTabChooserPresented = true
-            }
-            .keyboardShortcut("t", modifiers: .command)
-            .disabled(router?.selectedProjectID == nil)
-
-            Button("ファイルを開く…") {
-                guard let router, let id = router.selectedProjectID else { return }
-                router.tabRequest = .openFile(id)
-            }
-            .keyboardShortcut("p", modifiers: .command)
-            .disabled(router?.selectedProjectID == nil)
-
-            Button("プロジェクトを追加…") {
-                router?.addProjectRequested = true
-            }
-            .keyboardShortcut("o", modifiers: .command)
-            .disabled(router == nil)
-
-            Divider()
-
-            // 対話 TUI の /export 相当。チャットセッションのみ対象（PTY は transcript を持たない）。
-            Button("会話を書き出す…") {
-                guard let chat = exportableChatSession(dashboard: dashboard, router: router) else { return }
-                ChatTranscriptExportAction.save(session: chat, locale: (AppLanguage(rawValue: appLanguageRaw) ?? .system).locale, showsOptions: true)
-            }
-            .keyboardShortcut("e", modifiers: [.command, .shift])
-            .disabled(exportableChatSession(dashboard: dashboard, router: router) == nil)
-
-            Button("会話を Markdown でコピー") {
-                guard let chat = exportableChatSession(dashboard: dashboard, router: router) else { return }
-                ChatTranscriptExportAction.copyToPasteboard(session: chat)
-            }
-            .keyboardShortcut("c", modifiers: [.command, .option, .shift])
-            .disabled(exportableChatSession(dashboard: dashboard, router: router) == nil)
-
-            Divider()
-
         }
         // 標準の「閉じる」「すべてを閉じる」をこの 1 項目に置き換える。行き先が無ければウィンドウを閉じる。
         CommandGroup(replacing: .saveItem) {

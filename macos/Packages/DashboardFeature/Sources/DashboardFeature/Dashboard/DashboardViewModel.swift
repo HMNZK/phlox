@@ -78,6 +78,7 @@ public final class DashboardViewModel {
     /// 後始末に失敗した理由（git の出力の 1 行目。09 D2 の「（Permission denied）」）。
     public private(set) var workspaceCleanupFailureReason: String?
     public private(set) var restoredSessionPresentation: RestoredSessionPresentation?
+    public private(set) var discardedSessionCountNotice: Int?
 
     /// グリッドに表示するセッションの選択（nil = 全表示）。永続化しない。
     /// 絞り込みは描画時の刈り込み（`paneLayoutForDisplay()`）だけで表現し、
@@ -346,6 +347,11 @@ public final class DashboardViewModel {
         await persistence.waitForPendingWrites()
     }
 
+    public func takeDiscardedSessionCountNotice() -> Int? {
+        defer { discardedSessionCountNotice = nil }
+        return discardedSessionCountNotice
+    }
+
     private func observeUnseenCompletion(for session: any ControllableSession) {
         let sessionID = session.id
         session.userNotificationGate = { [weak self] channel in
@@ -426,124 +432,28 @@ public final class DashboardViewModel {
         }
 
         await sessionRestoreCoordinator.restorePersistedSessions()
+        let discardedCount = await environment.sessions.takeDiscardedSessionCount()
+        if discardedCount > 0 { discardedSessionCountNotice = discardedCount }
         layoutRestoreInProgress = false
         hasRestoredSessions = true
         reloadAndReconcilePaneLayout()
     }
 
-    /// 起動画面の「再検出」で増やす。検出結果を読む計算プロパティがこれを読んで描き直される。
-    private(set) var agentDetectionRevision = 0
-    /// 組込 CLI の版（08 S3・S4 の 2 行目）。起動画面を開いたときに一度だけ `--version` で読む。
-    private(set) var agentVersions: [AgentKind: String] = [:]
-    @ObservationIgnored private var agentVersionsLoaded = false
-
-    /// PATH を走査し直して CLI を探し、版も読み直す（08 S3「再検出」）。
-    /// セッション用 worktree の置き場所（08 S5 の案内に出す）。
+    /// セッション用 worktree の置き場所。
     var sessionWorkspaceRoot: URL { environment.workspaceDirectory }
 
-    func redetectAgents() async {
-        environment.redetectBinaries()
-        agentDetectionRevision += 1
-        agentVersions = [:]
-        agentVersionsLoaded = false
-        await loadAgentVersionsIfNeeded()
-    }
-
-    func loadAgentVersionsIfNeeded() async {
-        guard !agentVersionsLoaded else { return }
-        agentVersionsLoaded = true
-        let revision = agentDetectionRevision
-        var versions: [AgentKind: String] = [:]
-        for kind in [AgentKind.claudeCode] + AgentRegistry.optionalBinaryKinds {
-            guard let path = environment.binaryPath(for: kind) else { continue }
-            versions[kind] = await CLIVersionProbe.version(executable: path, pathEnvironment: environment.pathEnvironment)
-        }
-        // 取得中に再検出されたら、古い場所で読んだ版は捨てる（新しい取得が上書きする）。
-        guard revision == agentDetectionRevision else { return }
-        agentVersions = versions
-    }
-
-    /// 新規セッションで選択できる CLI。起動時に解決できたものだけを返す（Claude Code は常に先頭）。
+    /// 新規チャットで選べる CLI。解決できた組込 CLI だけを返す。
     public var availableAgentKinds: [AgentKind] {
-        _ = agentDetectionRevision
-        return [.claudeCode] + AgentRegistry.optionalBinaryKinds.filter {
-            environment.binaryPath(for: $0) != nil
-        }
+        [.claudeCode] + AgentRegistry.optionalBinaryKinds.filter { environment.binaryPath(for: $0) != nil }
     }
 
-    /// 新規セッションで選択できる CLI descriptor。組込互換 API とは別に custom も含める。
-    public var availableAgentDescriptors: [AgentDescriptor] {
-        _ = agentDetectionRevision
-        return [AgentRegistry.descriptor(for: .claudeCode)]
-            + environment.agentCatalog.optionalDescriptors.filter {
-                environment.binaryPath(for: $0.ref) != nil
-            }
-    }
-
-    /// 起動カード・初回起動の検出結果に出す種別（08 S1・S3・S4）。未検出も元の位置に残す。
-    func agentStartEntries(languageCode: String) -> [AgentStartEntry] {
-        _ = agentDetectionRevision
-        let descriptors = [AgentRegistry.descriptor(for: .claudeCode)] + environment.agentCatalog.optionalDescriptors
-        return AgentStartEntries.make(descriptors: descriptors) { environment.binaryPath(for: $0) }.map { entry in
-            var entry = entry
-            let ref = entry.descriptor.ref
-            entry.version = ref.builtinKind.flatMap { agentVersions[$0] }
-            if entry.descriptor.supportsStructuredChat {
-                entry.model = AgentStartEntries.model(lastUsedChatSettingsStore.lastUsed(agentID: ref.id))
-            }
-            entry.permission = AgentStartEntries.permission(
-                ref: ref,
-                fullAccess: BypassSettings.isEnabled(for: ref, catalog: environment.agentCatalog),
-                languageCode: languageCode
-            )
-            return entry
-        }
-    }
-
-    /// 新規セッションの既定ワークスペース。選択中セッションの project、なければ先頭プロジェクト。
-    public func defaultProjectID(forSelectedSession selectedSessionID: SessionID?) -> ProjectID? {
-        if let selectedID = selectedSessionID,
-           let session = sessions.first(where: { $0.id == selectedID }),
-           let projectID = session.projectID {
+    public func defaultProjectIDForNewChat(selectedProjectID: ProjectID?, selectedSessionID: SessionID?) -> ProjectID? {
+        if let selectedProjectID { return selectedProjectID }
+        if let selectedSessionID,
+           let projectID = sessionNode(id: selectedSessionID)?.projectID {
             return projectID
         }
-        return projects.first?.id
-    }
-
-    /// メニュー・ショートカット向け: 既定ワークスペースを解決して `spawnNewSession` する。
-    @discardableResult
-    public func spawnNewSessionUsingDefaultProject(
-        kind: AgentKind,
-        selectedSessionID: SessionID?,
-        selectedProjectID: ProjectID? = nil
-    ) async throws -> SessionID {
-        try await spawnNewSessionUsingDefaultProject(
-            ref: .builtin(kind),
-            selectedSessionID: selectedSessionID,
-            selectedProjectID: selectedProjectID
-        )
-    }
-
-    @discardableResult
-    public func spawnNewSessionUsingDefaultProject(
-        ref: AgentRef,
-        selectedSessionID: SessionID?,
-        selectedProjectID: ProjectID? = nil
-    ) async throws -> SessionID {
-        guard let projectID = selectedProjectID ?? defaultProjectID(forSelectedSession: selectedSessionID) else {
-            throw AgentSpawnError.noProject
-        }
-        let descriptor = sessionSpawnService.descriptorForPresentation(ref: ref)
-        let backend = DefaultSessionBackendPreference.stored()
-            .resolveBackend(supportsStructuredChat: descriptor.supportsStructuredChat)
-        return try await spawnNewSession(ref: ref, projectID: projectID, backend: backend)
-    }
-
-    /// GUI の対話的 spawn（メニュー等）向けに、設定とエージェント能力から backend を解決する。
-    public func defaultBackendForGUISpawn(ref: AgentRef) -> SessionBackend {
-        let descriptor = sessionSpawnService.descriptorForPresentation(ref: ref)
-        return DefaultSessionBackendPreference.stored()
-            .resolveBackend(supportsStructuredChat: descriptor.supportsStructuredChat)
+        return projects.count == 1 ? projects.first?.id : nil
     }
 
     /// 指定ワークスペース（Project）に属するセッション一覧。
@@ -1342,10 +1252,6 @@ public final class DashboardViewModel {
             await environment.tokenStore.remove(session: sessionID)
             await cleanupOwnedWorkspace(for: sessionID)
             throw AgentSpawnError.binaryNotFound(k)
-        } catch AgentLaunchPlannerError.customBinaryNotFound(let id) {
-            await environment.tokenStore.remove(session: sessionID)
-            await cleanupOwnedWorkspace(for: sessionID)
-            throw AgentSpawnError.customBinaryNotFound(id)
         } catch {
             await environment.tokenStore.remove(session: sessionID)
             await cleanupOwnedWorkspace(for: sessionID)

@@ -46,7 +46,7 @@ public final class CompositionRoot {
         }
         let hookInfra = try await Self.startHookInfrastructure()
         let claudeSettings = try Self.prepareClaudeSettings()
-        let agents = try await Self.resolveAgentBinariesAndCatalog()
+        let agents = try await Self.resolveAgentBinaries()
         let liveModelProvider = CachingAgentModelProvider(source: LiveAgentModelProvider(
             // GUI apps need an explicit PATH, while cursor-agent's `set -u` wrapper needs
             // HOME. USER/LANG preserve normal CLI identity and locale semantics.
@@ -84,7 +84,6 @@ public final class CompositionRoot {
         let control = try await Self.startControlServer(
             tokenStore: hookInfra.tokenStore,
             deviceTokenStore: deviceTokenStore,
-            agentCatalog: agents.agentCatalog,
             savedPorts: hookInfra.savedPorts,
             hookPort: hookInfra.port,
             mobileProvisioner: mobileDevices.provisioner,
@@ -217,30 +216,24 @@ public final class CompositionRoot {
         return (settingsURL, restrictedSettingsURL, claudeUsageRateLimitsURL)
     }
 
-    /// フェーズ 4: エージェントカタログ・バイナリ解決
-    private static func resolveAgentBinariesAndCatalog() async throws -> (
-        agentCatalog: AgentCatalog,
+    /// フェーズ 4: 組込 CLI のバイナリ解決
+    private static func resolveAgentBinaries() async throws -> (
         claudeBinaryPath: String,
         pathEnvironment: String,
-        agentBinaryPaths: [AgentKind: String],
-        customAgentBinaryPaths: [String: String]
+        agentBinaryPaths: [AgentKind: String]
     ) {
-        let customDescriptors = CustomAgentRegistryLoader.loadDescriptors()
-        let agentCatalog = AgentCatalog(customDescriptors: customDescriptors)
         // 重い login shell 起動（PATH 解決の 1 回のみ）をメインアクター外で実行し、
         // 起動中のメインスレッド凍結（InitLoadingView のスピナー停止）を避ける。
         let resolvedBinaries = await Task.detached {
-            BinaryPathResolver.resolveCLIBinaries(customDescriptors: customDescriptors)
+            BinaryPathResolver.resolveCLIBinaries()
         }.value
         guard let claudeBinaryPath = resolvedBinaries.claudeBinaryPath else {
             throw CompositionError.claudeNotFound
         }
         return (
-            agentCatalog,
             claudeBinaryPath,
             resolvedBinaries.pathEnvironment,
-            resolvedBinaries.agentBinaryPaths,
-            resolvedBinaries.customAgentBinaryPaths
+            resolvedBinaries.agentBinaryPaths
         )
     }
 
@@ -270,7 +263,6 @@ public final class CompositionRoot {
     private static func startControlServer(
         tokenStore: SessionTokenStore,
         deviceTokenStore: any DeviceTokenStore,
-        agentCatalog: AgentCatalog,
         savedPorts: SavedPorts?,
         hookPort: Int,
         mobileProvisioner: MobileDeviceProvisioner,
@@ -288,7 +280,6 @@ public final class CompositionRoot {
         let pairingLogger = Self.tokenLogger
         let controlServer = ControlServer(
             tokenStore: tokenStore,
-            agentCatalog: agentCatalog,
             // 「記録する → 成功なら一覧を最新化するよう通知する / 失敗ならログへ残す」の配線は
             // AgentDomain 側（テスト可能な場所）に置く。ここには渡すものだけを書く。
             // 握りつぶさない: 認証自体は成立済みなので接続は切らないが、pairedAt の記録に
@@ -411,11 +402,9 @@ public final class CompositionRoot {
         hookURL: URL,
         claudeSettings: (settingsURL: URL, restrictedSettingsURL: URL, claudeUsageRateLimitsURL: URL),
         agents: (
-            agentCatalog: AgentCatalog,
             claudeBinaryPath: String,
             pathEnvironment: String,
-            agentBinaryPaths: [AgentKind: String],
-            customAgentBinaryPaths: [String: String]
+            agentBinaryPaths: [AgentKind: String]
         ),
         stores: (
             workspaceURL: URL,
@@ -446,8 +435,6 @@ public final class CompositionRoot {
             claudeUsageRateLimitsURL: claudeSettings.claudeUsageRateLimitsURL,
             workspaceDirectory: stores.workspaceURL,
             agentBinaryPaths: agents.agentBinaryPaths,
-            customAgentBinaryPaths: agents.customAgentBinaryPaths,
-            agentCatalog: agents.agentCatalog,
             controlURL: controlURL,
             tokenStore: tokenStore,
             messages: stores.messageStore,

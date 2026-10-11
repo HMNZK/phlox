@@ -175,8 +175,6 @@ struct DashboardSessionLookupTests {
     // restoreSession の catch 分岐（makeRestoreErrorSession によるプレースホルダ append）を踏む。
     @Test @MainActor
     func sessionNodeIndex_syncsOnPTYRestoreFailurePlaceholder() async throws {
-        let descriptor = makeCustomAgentDescriptor()
-        let catalog = AgentCatalog(customDescriptors: [descriptor])
         let sessionID = SessionID()
         let workspaceURL = try makeTemporaryWorkspaceRoot()
         defer { cleanupTemporaryWorkspaceRoot(workspaceURL) }
@@ -184,13 +182,13 @@ struct DashboardSessionLookupTests {
         let sessionStore = InMemorySessionStore([
             PersistedSessionDescriptor(
                 id: sessionID,
-                agentRef: descriptor.ref,
+                agentRef: .builtin(.cursor),
                 workingDirectory: workspaceURL.path,
                 name: "Broken Restore",
                 projectID: nil,
                 startedAt: Date(),
-                command: "/opt/homebrew/bin/aider",
-                args: ["--model", "sonnet"],
+                command: "/usr/local/bin/cursor-agent",
+                args: [],
                 env: [:],
                 token: "token-\(sessionID.rawValue.uuidString)"
             )
@@ -199,9 +197,7 @@ struct DashboardSessionLookupTests {
             pty: MockPTYManager(),
             hookStream: AsyncStream<(SessionID, HookEvent)>.makeStream().stream,
             sessions: sessionStore,
-            workspaceDirectory: workspaceURL,
-            customAgentBinaryPaths: [:],
-            agentCatalog: catalog
+            workspaceDirectory: workspaceURL
         )
         let dashboard = DashboardViewModel(environment: environment)
         await dashboard.start()

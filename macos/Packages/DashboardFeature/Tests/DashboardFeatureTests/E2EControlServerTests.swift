@@ -102,7 +102,7 @@ struct E2EControlServerTests {
     try await withControlContext { ctx in
     let apiURL = "http://127.0.0.1:\(ctx.port)"
     let spawn = try await runPhlox(
-      args: ["spawn", "--kind", "fake-agent"],
+      args: ["spawn", "--kind", "codex"],
       apiURL: apiURL,
       token: ctx.alphaToken,
       sessionID: ctx.alphaSessionID.rawValue.uuidString
@@ -122,7 +122,7 @@ struct E2EControlServerTests {
     }
     #expect(childReady, "子セッションが生成され親 ID が記録されなかった")
 
-    let grandchildID = try await ctx.dashboard.spawnNewSession(ref: .custom("fake-agent"), from: childID)
+    let grandchildID = try await ctx.dashboard.spawnNewSession(kind: .codex, from: childID)
     let grandchildReady = await e2eControlWaitUntil(timeoutNanoseconds: 10_000_000_000) {
       guard let grandchild = ctx.dashboard.sessions.first(where: { $0.id == grandchildID }) else { return false }
       return grandchild.parentSessionID == childID && grandchild.status == .idle
@@ -298,32 +298,13 @@ private func withControlContext(
 }
 
 @MainActor
-private func makeFakeAgentCatalog() -> (AgentCatalog, [String: String]) {
-  let descriptor = AgentDescriptor(
-    ref: .custom("fake-agent"),
-    displayName: "Fake Agent",
-    binaryName: "fake-agent",
-    symbolName: "terminal",
-    colorRGB: AgentRGB(0x66, 0xBB, 0x6A),
-    bypassKey: "phlox.bypass.fake-agent",
-    launchSpec: AgentLaunchSpec(
-      baseArgs: [e2eControlFakeAgentPath()],
-      hookKind: .none,
-      statusBootstrap: .idleOnSpawnComplete
-    )
-  )
-  return (AgentCatalog(customDescriptors: [descriptor]), ["fake-agent": "/bin/bash"])
-}
-
-@MainActor
 private func makeControlContext() async throws -> E2EControlContext {
-  let (catalog, customPaths) = makeFakeAgentCatalog()
   let tokenStore = SessionTokenStore()
   let pty = PTYManager()
   let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
   let handler = ControlActionHandler()
 
-  let controlServer = ControlServer(tokenStore: tokenStore, agentCatalog: catalog) { request in
+  let controlServer = ControlServer(tokenStore: tokenStore) { request in
     await handler.handle(request)
   }
   let port = try await controlServer.start(preferredPort: 0)
@@ -339,8 +320,7 @@ private func makeControlContext() async throws -> E2EControlContext {
     claudeBinaryPath: "/usr/bin/false",
     pathEnvironment: "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
     workspaceDirectory: workspace,
-    customAgentBinaryPaths: customPaths,
-    agentCatalog: catalog,
+    agentBinaryPaths: [.codex: e2eControlFakeAgentPath()],
     controlURL: controlURL,
     tokenStore: tokenStore,
     messages: MockMessageStore(),
@@ -352,7 +332,7 @@ private func makeControlContext() async throws -> E2EControlContext {
   handler.dashboard = controlDashboard
   await dashboard.start()
 
-  let alphaSessionID = try await dashboard.spawnNewSession(ref: .custom("fake-agent"))
+  let alphaSessionID = try await dashboard.spawnNewSession(kind: .codex)
   dashboard.renameSession(alphaSessionID, to: "alpha")
 
   guard let alphaVM = dashboard.sessions.first(where: { $0.id == alphaSessionID }) else {

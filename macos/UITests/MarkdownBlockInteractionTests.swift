@@ -175,8 +175,11 @@ final class MarkdownBlockInteractionTests: XCTestCase {
             .deletingLastPathComponent().appendingPathComponent(".build/UITestData", isDirectory: true)
         try FileManager.default.createDirectory(at: dataParent, withIntermediateDirectories: true)
         let isolated = try await IsolatedPhloxApplication.launch(
-            in: self, arguments: ["-AppleLanguages", "(ja)", "-AppleLocale", "ja", "-phlox.appLanguage", "ja"],
-            dataParent: dataParent, prepareData: { directory in
+            in: self,
+            arguments: ["-AppleLanguages", "(ja)", "-AppleLocale", "ja", "-phlox.appLanguage", "ja"],
+            dataParent: dataParent,
+            testClaudeBinaryPath: "/bin/cat",
+            prepareData: { directory in
                 let root = directory.appendingPathComponent("workspace", isDirectory: true)
                 workspace = root
                 try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -196,20 +199,14 @@ final class MarkdownBlockInteractionTests: XCTestCase {
                     "createdAt": now, "isManagedDirectory": false, "worktreeIsolationEnabled": false
                 ]
                 let session: [String: Any] = [
-                    "id": ["rawValue": UUID().uuidString], "kind": ["type": "custom", "id": "markdown-probe"],
+                    "id": ["rawValue": UUID().uuidString], "kind": "claudeCode",
                     "projectID": ["rawValue": projectID], "workingDirectory": root.path,
                     "name": "マークダウン検証", "startedAt": now, "command": "/bin/cat",
                     "args": [String](), "env": [String: String](), "backend": "pty"
                 ]
-                let agent: [String: Any] = [
-                    "id": "markdown-probe", "displayName": "マークダウン検証", "binaryName": "cat",
-                    "symbolName": "terminal", "colorHex": "#6080A0", "baseArgs": [String](),
-                    "statusBootstrap": "idleOnSpawnComplete"
-                ]
                 for (name, object) in [
                     ("projects.json", ["schemaVersion": 1, "projects": [project]] as [String: Any]),
-                    ("sessions.json", ["schemaVersion": 1, "sessions": [session]] as [String: Any]),
-                    ("agents.json", ["agents": [agent]] as [String: Any])
+                    ("sessions.json", ["schemaVersion": 1, "sessions": [session]] as [String: Any])
                 ] {
                     try JSONSerialization.data(withJSONObject: object).write(to: directory.appendingPathComponent(name))
                 }

@@ -13,9 +13,7 @@ struct DialogRedesignTests {
     @Test func spawnFailure_namesTheAgent_andOffersAgentConsoleOnlyForMissingBinaries() {
         #expect(SpawnFailureDialogText.title(agentName: "Codex", locale: ja) == "Codex を起動できませんでした")
         #expect(SpawnFailureDialogText.agentName(for: .builtin(.codex)) == AgentKind.codex.displayName)
-        #expect(SpawnFailureDialogText.agentName(for: .custom("aider")) == "aider")
         #expect(SpawnFailureDialogText.opensAgentConsole(for: AgentSpawnError.binaryNotFound(.codex)))
-        #expect(SpawnFailureDialogText.opensAgentConsole(for: AgentSpawnError.customBinaryNotFound("aider")))
         #expect(!SpawnFailureDialogText.opensAgentConsole(for: AgentSpawnError.depthLimitExceeded))
         #expect(!SpawnFailureDialogText.opensAgentConsole(for: AgentSpawnError.spawnRateLimited))
     }

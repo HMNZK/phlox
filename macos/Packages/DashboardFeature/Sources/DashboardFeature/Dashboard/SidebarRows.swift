@@ -19,7 +19,7 @@ enum SidebarRowMetrics {
 
 // MARK: - Project row
 
-struct SidebarProjectRow<Menu: View, NewSession: View>: View {
+struct SidebarProjectRow<Menu: View>: View {
     let project: Project
     let isExpanded: Bool
     let isSelected: Bool
@@ -30,16 +30,13 @@ struct SidebarProjectRow<Menu: View, NewSession: View>: View {
     @Binding var renameDraft: String
     let onSelect: (_ commandPressed: Bool) -> Void
     let onToggleExpansion: () -> Void
+    let onNewChat: () -> Void
     /// 引数は ↩ で確定したか（ほかへ移って確定したときは入力先を動かさない）。
     let onCommitRename: (_ byReturn: Bool) -> Void
     let onCancelRename: () -> Void
     @ViewBuilder let menu: () -> Menu
-    /// ＋ で開く新規セッションの表（Sidebar F5）。
-    @ViewBuilder let newSessionMenu: () -> NewSession
 
     @State private var isHovering = false
-    /// ＋のポップアップが開いている間は、ホバーが外れても＋を残す（消えるとポップアップも閉じる）。
-    @State private var isNewSessionOpen = false
     @Environment(\.locale) private var locale
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
@@ -80,13 +77,13 @@ struct SidebarProjectRow<Menu: View, NewSession: View>: View {
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            if isHovering || isNewSessionOpen, !isRenaming {
-                NewSessionPopoverButton(isPresented: $isNewSessionOpen, table: newSessionMenu) {
+            if isHovering, !isRenaming {
+                Button(action: onNewChat) {
                     SidebarRowIcon(text: "＋", isPrimary: true)
                 }
                 .fixedSize()
-                .help(Text("このプロジェクトに新規セッション"))
-                .accessibilityLabel(Text("このプロジェクトに新規セッション"))
+                .help(Text("\(project.name) で新規チャット"))
+                .accessibilityLabel(Text("\(project.name) で新規チャット"))
                 SwiftUI.Menu(content: menu) {
                     SidebarRowIcon(text: "⋯", isPrimary: false)
                 }
@@ -116,7 +113,7 @@ struct SidebarProjectRow<Menu: View, NewSession: View>: View {
         .accessibilityAction(.default) { onSelect(false) }
         .accessibilityAction(named: isExpanded ? Text("折りたたむ") : Text("展開"), onToggleExpansion)
         // ホバーできない VoiceOver 利用者向け。開くと＋が出て、そこからポップアップが開く。
-        .accessibilityAction(named: Text("このプロジェクトに新規セッション")) { isNewSessionOpen = true }
+        .accessibilityAction(named: Text("\(project.name) で新規チャット"), onNewChat)
     }
 
     /// 右端: 畳んだ行の対応待ち要約・グリッドの表示範囲の印。

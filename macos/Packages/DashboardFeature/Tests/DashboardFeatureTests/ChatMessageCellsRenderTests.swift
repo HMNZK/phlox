@@ -7,8 +7,7 @@ import Testing
 @testable import DashboardFeature
 @testable import SessionFeature
 
-// task-3 白箱: AgentAvatar（private）経由で builtin ブランド・symbol フォールバック・
-// 頭文字フォールバックの各 descriptor が AgentMessageCell / ThinkingIndicatorCell で
+// task-3 白箱: AgentAvatar（private）経由で組込ブランドが AgentMessageCell / ThinkingIndicatorCell で
 // クラッシュせず非空描画になる（swift test では xcassets 未コンパイルのためピクセル検証は行わない）。
 @Test @MainActor
 func agentAvatarBrandIconPathsRenderWithoutCrash() throws {
@@ -17,15 +16,6 @@ func agentAvatarBrandIconPathsRenderWithoutCrash() throws {
         AgentRegistry.descriptor(for: .claudeCode),
         AgentRegistry.descriptor(for: .codex),
         AgentRegistry.descriptor(for: .cursor),
-        AgentDescriptor(
-            ref: .custom("custom-agent"),
-            displayName: "Custom Agent",
-            binaryName: "custom-agent",
-            symbolName: "",
-            colorRGB: AgentRGB(0x66, 0x77, 0x88),
-            bypassKey: "phlox.bypass.custom",
-            launchSpec: AgentLaunchSpec()
-        ),
     ]
 
     for descriptor in descriptors {
@@ -176,29 +166,22 @@ func runningCommandWithEmptyOutputStillRendersCommandExecutionCell() throws {
     #expect(try tiffData(from: runningItemImage) != tiffData(from: blankImage))
 }
 
-// task-11 成功基準1/2/4: Claude/Cursor セッションのコンポーザーに model/permission(mode)
-// メニューが出る（メニュー無しの未対応エージェントと描画が異なる＝分岐が効いている）。
+// Claude/Cursor のコンポーザー設定は、組み込みエージェントごとの内容で描画される。
 @Test @MainActor
-func composerRendersSettingsMenusForSpawnAgents() async throws {
+func composerRendersSettingsMenusForBuiltinSpawnAgents() async throws {
     let claude = try await startedSpawnViewModel(agentRef: .builtin(.claudeCode))
     let cursor = try await startedSpawnViewModel(agentRef: .builtin(.cursor))
-    let unsupported = try await startedSpawnViewModel(agentRef: .custom("unknown-cli"))
 
-    // 前提: 分岐に必要な軽量表示状態が用意されている。
     #expect(claude.availableSpawnAgentModels == AgentModelCatalog.builtinModels(for: .claudeCode).map(\.id))
     #expect(claude.selectedPermissionProfile == "bypassPermissions")
     #expect(!cursor.availableSpawnAgentModels.isEmpty)
-    #expect(unsupported.availableSpawnAgentModels.isEmpty)
 
     let claudeImage = try renderImage(from: ChatSessionView(viewModel: claude))
     let cursorImage = try renderImage(from: ChatSessionView(viewModel: cursor))
-    let unsupportedImage = try renderImage(from: ChatSessionView(viewModel: unsupported))
 
     #expect(try tiffData(from: claudeImage).isEmpty == false)
     #expect(try tiffData(from: cursorImage).isEmpty == false)
-    // メニュー有り（Claude/Cursor）とメニュー無し（未対応）で描画が変わる＝出し分けが効いている。
-    #expect(try tiffData(from: claudeImage) != tiffData(from: unsupportedImage))
-    #expect(try tiffData(from: cursorImage) != tiffData(from: unsupportedImage))
+    #expect(try tiffData(from: claudeImage) != tiffData(from: cursorImage))
 }
 
 // task-16 成功基準1/2: Claude/Cursor の Plan は permission/mode メニューから分離され、

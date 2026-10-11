@@ -1,7 +1,7 @@
 import Foundation
 
 /// 起動カードの 2 行目に出す CLI の版を `--version` で読む（08 S3・S4）。
-/// 5 秒で返らなければ打ち切る。組込の CLI にだけ使う（カスタムは `--version` を解さないことがあるため）。
+/// 5 秒で返らなければ打ち切る。登録済みの組込 CLI にだけ使う。
 enum CLIVersionProbe {
     static func version(executable: String, pathEnvironment: String) async -> String? {
         await Task.detached { run(executable: executable, pathEnvironment: pathEnvironment) }.value

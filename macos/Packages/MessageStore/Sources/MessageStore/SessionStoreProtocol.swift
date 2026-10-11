@@ -6,4 +6,9 @@ import Foundation
 public protocol SessionStoreProtocol: Sendable {
     func load() async -> [PersistedSessionDescriptor]
     func save(_ sessions: [PersistedSessionDescriptor]) async throws
+    func takeDiscardedSessionCount() async -> Int
+}
+
+public extension SessionStoreProtocol {
+    func takeDiscardedSessionCount() async -> Int { 0 }
 }

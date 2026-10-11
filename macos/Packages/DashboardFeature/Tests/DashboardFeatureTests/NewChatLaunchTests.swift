@@ -76,6 +76,24 @@ final class NewChatLaunchTests {
         if kind == .claudeCode { #expect(settings.2 == r.settings.selectedEffort) }
         await dashboard.removeSession(id)
     }
+
+    @Test func AC4_sameDirectoryAllowsSecondNewChatWithoutConfirmation() async throws {
+        let firstClient = LaunchClient()
+        let secondClient = LaunchClient()
+        let dashboard = dashboard([firstClient, secondClient])
+        let launch = request(dashboard)
+
+        let firstID = try await dashboard.launchNewChat(launch)
+        let secondID = try await dashboard.launchNewChat(launch)
+
+        #expect(firstID != secondID)
+        #expect(dashboard.sessionNodes.count == 2)
+        #expect(dashboard.sessionNode(id: firstID)?.appServer?.rawWorkspacePath == "/tmp")
+        #expect(dashboard.sessionNode(id: secondID)?.appServer?.rawWorkspacePath == "/tmp")
+        await dashboard.removeSession(firstID)
+        await dashboard.removeSession(secondID)
+    }
+
     @Test func AC2_codexModelAtThreadStartAndSettingsBeforeTurn() async throws {
         let transport = ScriptedAppServerTransport()
         let client = CodexStructuredAgentClient(client: CodexAppServerClient(transport: transport))

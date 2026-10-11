@@ -69,6 +69,17 @@ import Testing
         #expect(resolved == nil)
     }
 
+    @Test func testBinaryOverridesRequireTestHarnessAndExecutablePaths() {
+        let overrides = BinaryPathResolver.testBinaryOverrides(environment: [
+            "PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN": "1",
+            "PHLOX_TEST_AGENT_BINARY_PATHS": #"{"claudeCode":"/bin/cat","cursor":"/missing/phlox-test-cli"}"#,
+        ])
+        #expect(overrides == [.claudeCode: "/bin/cat"])
+        #expect(BinaryPathResolver.testBinaryOverrides(environment: [
+            "PHLOX_TEST_AGENT_BINARY_PATHS": #"{"claudeCode":"/bin/cat"}"#,
+        ]) == nil)
+    }
+
     /// 64KB（パイプ既定）超の stdout でも deadlock せず全量を読み取る。
     @Test func runAndReadStdoutDoesNotDeadlockOnLargeOutput() throws {
         let process = Process()

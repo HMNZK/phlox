@@ -24,8 +24,7 @@ final class IsolatedLaunchOptionsTests: XCTestCase {
         capture(app.windows.firstMatch, name: "appearance-\(language)-\(theme)")
     }
 
-    func testSeededCustomSessionAppears() async throws {
-        let name = "起動補助 検証会話"
+    func testSeededLegacyCustomSessionIsDiscarded() async throws {
         var preparations = 0
         let isolated = try await IsolatedPhloxApplication.launch(
             in: self, arguments: ["-AppleLanguages", "(ja)", "-AppleLocale", "ja",
@@ -44,18 +43,12 @@ final class IsolatedLaunchOptionsTests: XCTestCase {
                 let session: [String: Any] = [
                     "id": ["rawValue": UUID().uuidString], "kind": ["type": "custom", "id": "appearance-probe"],
                     "projectID": ["rawValue": projectID], "workingDirectory": workspace.path,
-                    "name": name, "startedAt": now, "command": "/bin/cat", "args": [String](),
+                    "name": "旧カスタムセッション", "startedAt": now, "command": "/bin/cat", "args": [String](),
                     "env": [String: String](), "backend": "pty"
-                ]
-                let agent: [String: Any] = [
-                    "id": "appearance-probe", "displayName": "起動補助確認", "binaryName": "cat",
-                    "symbolName": "terminal", "colorHex": "#6080A0", "baseArgs": [String](),
-                    "statusBootstrap": "idleOnSpawnComplete"
                 ]
                 for (filename, object) in [
                     ("projects.json", ["schemaVersion": 1, "projects": [project]] as [String: Any]),
-                    ("sessions.json", ["schemaVersion": 1, "sessions": [session]] as [String: Any]),
-                    ("agents.json", ["agents": [agent]] as [String: Any])
+                    ("sessions.json", ["schemaVersion": 1, "sessions": [session]] as [String: Any])
                 ] {
                     try JSONSerialization.data(withJSONObject: object)
                         .write(to: directory.appendingPathComponent(filename), options: .withoutOverwriting)
@@ -64,12 +57,12 @@ final class IsolatedLaunchOptionsTests: XCTestCase {
         )
         XCTAssertEqual(preparations, 1)
         let app = try isolated.application()
-        XCTAssertTrue(app.staticTexts[name].waitForExistence(timeout: 15), "専用dataのカスタムセッションが描画されない")
+        let notice = app.staticTexts["以前のカスタムエージェントのセッションを 1 件読み込まずに破棄しました。"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 15), "以前のカスタムセッションを読み込まなかった件数が表示されない")
         try isolated.assertExclusiveOwnership()
-        capture(app.windows.firstMatch, name: "appearance-seeded-session")
-        XCTAssertTrue(app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label == %@", "起動補助確認, 待機"))
-            .firstMatch.waitForExistence(timeout: 10), "会話名の表示だけではなく正常な待機状態が必要")
+        capture(app.windows.firstMatch, name: "legacy-custom-session-discarded")
+        app.buttons["閉じる"].click()
+        XCTAssertFalse(notice.exists, "件数通知が閉じた後に残っている")
     }
 
     func testPreparationFailureDoesNotLaunchApplication() async throws {

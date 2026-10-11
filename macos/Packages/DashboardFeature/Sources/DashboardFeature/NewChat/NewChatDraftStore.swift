@@ -48,7 +48,8 @@ public final class NewChatDraft {
     }
 
     public func selectHarness(_ ref: AgentRef) {
-        guard ref != agentRef, let kind = ref.builtinKind else { return }
+        guard ref != agentRef else { return }
+        let kind = ref.builtinKind
         agentRef = ref
         settings = Self.initialSettings(for: kind, saved: lastUsedChatSettingsStore.lastUsed(agentID: ref.id))
     }
@@ -67,7 +68,7 @@ public final class NewChatDraft {
         guard hasContent else { return nil }
         guard projectExists else { return AppLocalizedString.string("プロジェクトを選んでください", locale: locale) }
         guard harnessDetected else {
-            let name = agentRef.builtinKind.map { AgentRegistry.descriptor(for: $0).displayName } ?? agentRef.id
+            let name = AgentRegistry.descriptor(for: agentRef.builtinKind).displayName
             return String(format: AppLocalizedString.string("%@ が見つかりません。インストールするか、別のハーネスを選んでください", locale: locale), name)
         }
         if !attachments.attachments.isEmpty, !modelAcceptsImages {

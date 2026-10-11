@@ -10,19 +10,17 @@ enum SpawnFailureDialogText {
         String(format: AppLocalizedString.string("%@ を起動できませんでした", locale: locale), agentName)
     }
 
-    /// 実行ファイルが見つからないときだけ、次の手として「エージェント管理を開く」を出す。
+    /// 実行ファイルが見つからないときだけ、次の手を示す。
     static func opensAgentConsole(for error: Error) -> Bool {
         switch error as? AgentSpawnError {
-        case .binaryNotFound, .customBinaryNotFound: true
+        case .binaryNotFound: true
         default: false
         }
     }
 
     static func agentName(for ref: AgentRef) -> String {
-        switch ref {
-        case .builtin(let kind): kind.displayName
-        case .custom(let id): id
-        }
+        guard case .builtin(let kind) = ref else { preconditionFailure("AgentRef must be built-in") }
+        return kind.displayName
     }
 }
 

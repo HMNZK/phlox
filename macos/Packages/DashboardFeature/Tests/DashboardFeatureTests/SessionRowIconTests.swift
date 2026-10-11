@@ -24,14 +24,6 @@ struct SessionRowIconTests {
         #expect(descriptor.displayName == AgentRegistry.descriptor(for: .cursor).displayName)
     }
 
-    @Test
-    func descriptorResolvesCustomFallbackFromAgentRef() {
-        let ref = AgentRef.custom("my-cli")
-        let descriptor = SessionSidebarRowIconLayout.descriptor(for: ref)
-        #expect(descriptor.ref == ref)
-        #expect(descriptor.symbolName == "terminal")
-    }
-
     @Test @MainActor
     func brandIconRendersWithoutCrashForSidebarDescriptors() throws {
         let builtinRefs: [AgentRef] = [
@@ -47,13 +39,6 @@ struct SessionRowIconTests {
             ))
             #expect(try #require(image.tiffRepresentation).isEmpty == false)
         }
-
-        let customDescriptor = SessionSidebarRowIconLayout.descriptor(for: .custom("custom-agent"))
-        let customImage = try renderImage(from: AgentBrandIcon(
-            descriptor: customDescriptor,
-            size: SessionSidebarRowIconLayout.brandIconSize
-        ))
-        #expect(try #require(customImage.tiffRepresentation).isEmpty == false)
     }
 }
 

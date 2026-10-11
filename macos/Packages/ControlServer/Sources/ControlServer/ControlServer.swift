@@ -16,7 +16,6 @@ public actor ControlServer {
     internal typealias MakeListener = LocalHTTPListener.MakeListener
 
     private let tokenStore: SessionTokenStore
-    private let agentCatalog: AgentCatalog
     private let onAuthenticatedToken: (@Sendable (String) -> Void)?
     private let handler: @Sendable (ControlRequest) async -> ControlResponse
     private let makeListener: MakeListener
@@ -28,12 +27,10 @@ public actor ControlServer {
 
     public init(
         tokenStore: SessionTokenStore,
-        agentCatalog: AgentCatalog = .builtins,
         onAuthenticatedToken: (@Sendable (String) -> Void)? = nil,
         handler: @escaping @Sendable (ControlRequest) async -> ControlResponse
     ) {
         self.tokenStore = tokenStore
-        self.agentCatalog = agentCatalog
         self.onAuthenticatedToken = onAuthenticatedToken
         self.handler = handler
         self.makeListener = { try NWListener(using: $0) }
@@ -41,13 +38,11 @@ public actor ControlServer {
 
     internal init(
         tokenStore: SessionTokenStore,
-        agentCatalog: AgentCatalog = .builtins,
         onAuthenticatedToken: (@Sendable (String) -> Void)? = nil,
         handler: @escaping @Sendable (ControlRequest) async -> ControlResponse,
         makeListener: @escaping MakeListener
     ) {
         self.tokenStore = tokenStore
-        self.agentCatalog = agentCatalog
         self.onAuthenticatedToken = onAuthenticatedToken
         self.handler = handler
         self.makeListener = makeListener
@@ -429,13 +424,6 @@ public actor ControlServer {
             pendingSpawnRole = role
             pendingSpawnModel = Self.normalizedSpawnModel(payload.model, for: kind)
             return .success(.spawn(ref: .builtin(kind), backend: backend, workingDirectory: payload.workingDirectory, projectID: projectID))
-        }
-
-        let ref = AgentRef.custom(payload.kind)
-        if agentCatalog.descriptor(for: ref) != nil {
-            pendingSpawnRole = role
-            pendingSpawnModel = nil
-            return .success(.spawn(ref: ref, backend: backend, workingDirectory: payload.workingDirectory, projectID: projectID))
         }
 
         return .failure(.json(400, ErrorDTO(error: "unknown agent kind: \(payload.kind)")))

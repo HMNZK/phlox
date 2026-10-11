@@ -125,7 +125,7 @@ private actor DeltaHandlerStub {
     private func startServer(stub: DeltaHandlerStub) async throws -> (port: Int, server: ControlServer) {
         let store = SessionTokenStore()
         await store.register(token, for: sessionID)
-        let server = ControlServer(tokenStore: store, agentCatalog: .builtins) { request in
+        let server = ControlServer(tokenStore: store) { request in
             await stub.handle(request)
         }
         let port = try await server.start()

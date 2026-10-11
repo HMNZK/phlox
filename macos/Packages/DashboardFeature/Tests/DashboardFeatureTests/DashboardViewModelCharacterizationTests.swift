@@ -68,122 +68,46 @@ func characterization_start_emptyStore_exposesBaselineDashboardState() async thr
 }
 
 @Test @MainActor
-func characterization_defaultProjectID_usesSelectedSessionProjectWhenAssigned() async throws {
+func acceptance_newChatProjectDefaultUsesExplicitThenSessionThenSingleProject() async throws {
     let workspaceRoot = try makeTemporaryWorkspaceRoot()
     defer { cleanupTemporaryWorkspaceRoot(workspaceRoot) }
-
     let folderA = workspaceRoot.appendingPathComponent("project-a", isDirectory: true)
     let folderB = workspaceRoot.appendingPathComponent("project-b", isDirectory: true)
     try FileManager.default.createDirectory(at: folderA, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(at: folderB, withIntermediateDirectories: true)
-
-    let projectA = Project(
-        name: "Project A",
-        directoryPath: folderA.path,
-        createdAt: Date(timeIntervalSince1970: 100),
-        isManagedDirectory: false
-    )
-    let projectB = Project(
-        name: "Project B",
-        directoryPath: folderB.path,
-        createdAt: Date(timeIntervalSince1970: 200),
-        isManagedDirectory: false
-    )
-
-    let sessionInA = SessionID()
-    let sessionInB = SessionID()
+    let projectA = Project(name: "A", directoryPath: folderA.path, createdAt: .distantPast, isManagedDirectory: false)
+    let projectB = Project(name: "B", directoryPath: folderB.path, createdAt: .distantPast, isManagedDirectory: false)
+    let sessionB = SessionID()
+    let unassignedSession = SessionID()
     let dashboard = try await characterizationDashboard(
         projects: [projectA, projectB],
         persistedSessions: [
             makePersistedSessionDescriptor(
-                id: sessionInA,
-                workingDirectory: folderA.path,
-                projectID: projectA.id,
-                startedAt: Date(timeIntervalSince1970: 1_000)
-            ),
-            makePersistedSessionDescriptor(
-                id: sessionInB,
+                id: sessionB,
                 workingDirectory: folderB.path,
                 projectID: projectB.id,
-                startedAt: Date(timeIntervalSince1970: 2_000)
+                startedAt: Date(timeIntervalSince1970: 1)
             ),
-        ],
-        workspaceDirectory: workspaceRoot
-    )
-
-    #expect(dashboard.defaultProjectID(forSelectedSession: sessionInA) == projectA.id)
-    #expect(dashboard.defaultProjectID(forSelectedSession: sessionInB) == projectB.id)
-}
-
-@Test @MainActor
-func characterization_defaultProjectID_fallsBackToFirstProjectWhenSelectionUnassigned() async throws {
-    let workspaceRoot = try makeTemporaryWorkspaceRoot()
-    defer { cleanupTemporaryWorkspaceRoot(workspaceRoot) }
-
-    let folderA = workspaceRoot.appendingPathComponent("project-a", isDirectory: true)
-    let unassignedFolder = workspaceRoot.appendingPathComponent("unassigned", isDirectory: true)
-    try FileManager.default.createDirectory(at: folderA, withIntermediateDirectories: true)
-    try FileManager.default.createDirectory(at: unassignedFolder, withIntermediateDirectories: true)
-
-    let projectA = Project(
-        name: "Project A",
-        directoryPath: folderA.path,
-        createdAt: Date(timeIntervalSince1970: 100),
-        isManagedDirectory: false
-    )
-
-    let unassignedID = SessionID()
-    let dashboard = try await characterizationDashboard(
-        projects: [projectA],
-        persistedSessions: [
             makePersistedSessionDescriptor(
-                id: unassignedID,
-                workingDirectory: unassignedFolder.path,
+                id: unassignedSession,
+                workingDirectory: workspaceRoot.path,
                 projectID: nil,
-                startedAt: Date(timeIntervalSince1970: 1_000)
+                startedAt: Date(timeIntervalSince1970: 2)
             ),
         ],
         workspaceDirectory: workspaceRoot
     )
 
-    #expect(dashboard.defaultProjectID(forSelectedSession: unassignedID) == projectA.id)
-    #expect(dashboard.defaultProjectID(forSelectedSession: nil) == projectA.id)
-}
+    #expect(dashboard.defaultProjectIDForNewChat(selectedProjectID: projectA.id, selectedSessionID: sessionB) == projectA.id)
+    #expect(dashboard.defaultProjectIDForNewChat(selectedProjectID: nil, selectedSessionID: sessionB) == projectB.id)
+    #expect(dashboard.defaultProjectIDForNewChat(selectedProjectID: nil, selectedSessionID: unassignedSession) == nil)
+    #expect(dashboard.defaultProjectIDForNewChat(selectedProjectID: nil, selectedSessionID: nil) == nil)
 
-@Test @MainActor
-func characterization_defaultProjectID_returnsNilWhenNoProjectsExist() async throws {
-    let dashboard = try await characterizationDashboard()
+    let singleProject = try await characterizationDashboard(projects: [projectA], workspaceDirectory: workspaceRoot)
+    #expect(singleProject.defaultProjectIDForNewChat(selectedProjectID: nil, selectedSessionID: nil) == projectA.id)
 
-    #expect(dashboard.defaultProjectID(forSelectedSession: nil) == nil)
-    #expect(dashboard.defaultProjectID(forSelectedSession: SessionID()) == nil)
-}
-
-@Test @MainActor
-func characterization_spawnNewSessionUsingDefaultProject_throwsNoProjectWhenNoProjects() async throws {
-    let dashboard = try await characterizationDashboard()
-
-    await #expect(throws: AgentSpawnError.noProject) {
-        try await dashboard.spawnNewSessionUsingDefaultProject(
-            kind: .claudeCode,
-            selectedSessionID: nil
-        )
-    }
-}
-
-@Test @MainActor
-func characterization_spawnNewSessionUsingDefaultProject_spawnsInResolvedDefaultProject() async throws {
-    let (dashboard, projectID, _, workspaceRoot) = try await characterizationDashboardWithProjectFolder()
-    defer { cleanupTemporaryWorkspaceRoot(workspaceRoot) }
-
-    let anchorID = try await dashboard.spawnNewSession(kind: .claudeCode, projectID: projectID)
-    let spawnedID = try await dashboard.spawnNewSessionUsingDefaultProject(
-        kind: .claudeCode,
-        selectedSessionID: anchorID
-    )
-
-    let spawned = try #require(dashboard.sessionNode(id: spawnedID))
-    #expect(spawned.projectID == projectID)
-    #expect(spawned.agentRef.builtinKind == .claudeCode)
+    let noProjects = try await characterizationDashboard()
+    #expect(noProjects.defaultProjectIDForNewChat(selectedProjectID: nil, selectedSessionID: nil) == nil)
 }
 
 @Test @MainActor
@@ -274,27 +198,6 @@ func characterization_isGridSessionSelected_explicitSubsetExcludesOthers() async
 
     #expect(dashboard.isGridSessionSelected(firstID))
     #expect(!dashboard.isGridSessionSelected(secondID))
-}
-
-@Test @MainActor
-func characterization_availableAgentDescriptors_includesClaudeAndResolvedOptionals() {
-    let ptyManager = MockPTYManager()
-    let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
-
-    let envWithCodex = makeTestEnvironment(
-        pty: ptyManager,
-        hookStream: hookStream,
-        agentBinaryPaths: [.codex: "/usr/local/bin/codex"]
-    )
-    let dashboardWithCodex = DashboardViewModel(environment: envWithCodex)
-    #expect(dashboardWithCodex.availableAgentDescriptors.map(\.ref) == [
-        .builtin(.claudeCode),
-        .builtin(.codex),
-    ])
-
-    let envEmpty = makeTestEnvironment(pty: ptyManager, hookStream: hookStream)
-    let dashboardEmpty = DashboardViewModel(environment: envEmpty)
-    #expect(dashboardEmpty.availableAgentDescriptors.map(\.ref) == [.builtin(.claudeCode)])
 }
 
 @Test @MainActor

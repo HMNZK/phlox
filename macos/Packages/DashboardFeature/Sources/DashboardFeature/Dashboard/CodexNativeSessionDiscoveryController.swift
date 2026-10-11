@@ -56,18 +56,19 @@ final class CodexNativeSessionDiscoveryController {
     ) async {
         guard let nativeSessionId, !nativeSessionId.isEmpty else { return }
         guard let ref = sessionNodesSnapshot().first(where: { $0.id == sessionID })?.agentRef,
-              let descriptor = environment.agentCatalog.descriptor(for: ref) else {
+              case .builtin(let kind) = ref else {
             return
         }
+        let descriptor = AgentRegistry.descriptor(for: kind)
 
         if descriptor.launchSpec.followsNativeSessionIDFromHook {
             guard let normalizedNativeSessionId = Self.normalizedUUIDString(nativeSessionId) else { return }
-            let catalog = environment.agentCatalog
             persistence.persistFollowedNativeResumeID(
                 sessionID: sessionID,
                 nativeSessionId: normalizedNativeSessionId,
                 shouldFollow: { ref in
-                    catalog.descriptor(for: ref)?.launchSpec.followsNativeSessionIDFromHook == true
+                    guard case .builtin(let kind) = ref else { return false }
+                    return AgentRegistry.descriptor(for: kind).launchSpec.followsNativeSessionIDFromHook
                 }
             )
             return
@@ -78,12 +79,12 @@ final class CodexNativeSessionDiscoveryController {
             return
         }
 
-        let catalog = environment.agentCatalog
         persistence.persistCodexNativeResumeID(
             sessionID: sessionID,
             nativeSessionId: nativeSessionId,
             isCodexNativeFromHook: { ref in
-                catalog.descriptor(for: ref)?.launchSpec.initialResumeIDStrategy == .codexNativeFromHook
+                guard case .builtin(let kind) = ref else { return false }
+                return AgentRegistry.descriptor(for: kind).launchSpec.initialResumeIDStrategy == .codexNativeFromHook
             }
         )
         if persistence.hasPersistedCodexNativeResumeID(sessionID) {
@@ -137,7 +138,8 @@ final class CodexNativeSessionDiscoveryController {
 
     private func shouldDiscoverCodexNativeResumeID(for ref: AgentRef, resumeID: String?) -> Bool {
         guard resumeID == nil else { return false }
-        return environment.agentCatalog.descriptor(for: ref)?.launchSpec.initialResumeIDStrategy == .codexNativeFromHook
+        guard case .builtin(let kind) = ref else { return false }
+        return AgentRegistry.descriptor(for: kind).launchSpec.initialResumeIDStrategy == .codexNativeFromHook
     }
 
     private func makeDiscovery() -> CodexSessionDiscovery {

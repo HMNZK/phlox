@@ -19,16 +19,12 @@ public struct DashboardView: View {
     /// 01 E6: 幅はウィンドウごとに保存する。開閉は全ウィンドウで共有の `AppRouter` が持つため、ここでは保存しない。
     @SceneStorage("pane.sidebarWidth") private var savedSidebarWidth = Double(DSLayout.sidebarWidth.ideal)
     @SceneStorage("pane.inspectorWidth") private var savedInspectorWidth = Double(DSLayout.inspectorWidth.ideal)
-    @State private var isCreating = false
-    /// 起動中の種別（08 S5）と、worktree を作っているか（F2 の案内）。
-    @State private var creatingRef: AgentRef?
-    /// 起動前・起動失敗時の確認（08 F1・F4）。
-    @State private var spawnGuard: SpawnGuard?
     /// 一度でもプロジェクトを追加したか（08 S1: 2 回目以降は案内を手順 1 だけにする）。
     @AppStorage("phlox.start.hasAddedProject", store: UserDefaults.phloxDefaults()) private var hasAddedProject = false
     @Environment(\.locale) private var locale
 
     @State private var spawnError: SpawnError?
+    @State private var discardedSessionCountNotice: Int?
     @State private var pendingDeletion: SelectedSessionNode?
     @State private var pendingWorkspaceChange: SessionViewModel?
     @State private var pendingProjectDeletion: Project?
@@ -131,47 +127,14 @@ public struct DashboardView: View {
             .onChange(of: router.viewMode, initial: true) { _, mode in
                 viewModel.setTerminalGridLayout(mode == .grid)
             }
-            .dsDialog(item: $spawnGuard) { item in
-                SpawnGuardSheet(
-                    spawnGuard: item,
-                    onCancel: { spawnGuard = nil },
-                    onLaunch: { separates in
-                        spawnGuard = nil
-                        let request = switch item {
-                        case .worktreeFailed(let request, _, _, _): request
-                        }
-                        Task {
-                            await createSession(
-                                ref: request.ref,
-                                projectID: request.projectID,
-                                backend: request.backend,
-                                isolationOverride: separates
-                            )
-                        }
-                    },
-                    onUseWorktree: { path in
-                        spawnGuard = nil
-                        guard case .worktreeFailed(let request, _, _, _) = item else { return }
-                        Task {
-                            await createSession(
-                                ref: request.ref,
-                                projectID: request.projectID,
-                                backend: request.backend,
-                                isolationOverride: false,
-                                workingDirectoryOverride: path
-                            )
-                        }
-                    }
-                )
-            }
-            // サイドバーが出ていれば下端の「新規セッション」から、隠れていれば上端から開く。
-            .popover(isPresented: newSessionTableBinding(fromSidebar: false), attachmentAnchor: .point(.top), arrowEdge: .bottom) {
-                newSessionTable(projectID: newSessionTableProjectID)
-                    .environment(\.locale, locale)
-            }
             .overlay(alignment: .bottom) {
-                if let path = viewModel.worktreeCreationPath {
-                    worktreeProgressToast(path: path)
+                VStack(spacing: 8) {
+                    if let count = discardedSessionCountNotice {
+                        discardedSessionsToast(count: count)
+                    }
+                    if let path = viewModel.worktreeCreationPath {
+                        worktreeProgressToast(path: path)
+                    }
                 }
             }
             .dsDialog(item: $spawnError) { err in
@@ -568,6 +531,9 @@ public struct DashboardView: View {
             if presentation != nil { migrateProjectTabs() }
             applyRestoredSessionPresentation(presentation)
         }
+        .onChange(of: viewModel.discardedSessionCountNotice, initial: true) { _, _ in
+            discardedSessionCountNotice = viewModel.takeDiscardedSessionCountNotice()
+        }
         .onChange(of: router.selectedSession) { _, selectedID in
             markCompletionSeen(for: selectedID)
             updateEditorPanel()
@@ -604,12 +570,11 @@ public struct DashboardView: View {
     }
 
     @ViewBuilder
-    /// 表示するセッションが 0 件（06 S10）。見出し・理由・絞り込みの解除・新規セッション。
+    /// 表示するセッションが 0 件（06 S10）。
     private var gridScopeEmptyState: some View {
         let summary = gridScopeSummary
         let projectID = viewModel.gridSessionFilterProjectID
-        let projectName = viewModel.projects.first { $0.id == projectID }?.name
-        return VStack(spacing: 10) {
+        VStack(spacing: 10) {
             Text("表示するセッションがありません")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(DSColor.textPrimary)
@@ -637,14 +602,11 @@ public struct DashboardView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                NewSessionPopoverButton(table: { newSessionTable(projectID: projectID) }) {
+                Button {
+                    NewChatEntryActions(router: router, dashboard: viewModel).gridEmptyState(projectID: projectID)
+                } label: {
                     HStack(spacing: 6) {
-                        if let projectName {
-                            Text("\(projectName) で新規セッション")
-                        } else {
-                            Text("新規セッション")
-                        }
-                        Text(verbatim: "⌘N").font(.system(size: 10.5)).opacity(0.85)
+                        Text("新規チャット")
                     }
                     .font(DSFont.dense.weight(.semibold))
                     .foregroundStyle(Color.white)
@@ -653,8 +615,8 @@ public struct DashboardView: View {
                     .background(DSColor.accentFill, in: RoundedRectangle(cornerRadius: 7))
                     .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .fixedSize()
-                .disabled(isCreating)
             }
             .padding(.top, 6)
         }
@@ -683,10 +645,7 @@ public struct DashboardView: View {
                 pendingMove: $pendingMove,
                 renameRequest: $sidebarRenameRequest,
                 sessionTreeViewModel: $sessionTreeViewModel,
-                onChooseProjectDirectory: chooseProjectDirectory,
-                newSessionTable: { projectID in
-                    newSessionTable(projectID: projectID ?? newSessionTableProjectID)
-                }
+                onChooseProjectDirectory: chooseProjectDirectory
             )
             sidebarFooter
         }
@@ -695,16 +654,16 @@ public struct DashboardView: View {
         .accessibilityLabel(Text("サイドバー"))
     }
 
-    /// 下端の操作列（03）: 新規セッション・エージェント管理・設定。
+    /// 下端の操作列: 新規チャット・エージェント管理・設定。
     private var sidebarFooter: some View {
         HStack(spacing: 2) {
             Button {
-                router.newSessionTablePresented.toggle()
+                NewChatEntryActions(router: router, dashboard: viewModel).sidebarFooter()
             } label: {
                 HStack(spacing: 6) {
                     Text(verbatim: "＋")
                         .font(DSFont.row)
-                    Text("新規セッション")
+                    Text("新規チャット")
                         .font(DSFont.auxiliary.weight(.medium))
                     Text(verbatim: "⌘N")
                         .font(.system(size: 10.5))
@@ -721,14 +680,8 @@ public struct DashboardView: View {
             }
             .buttonStyle(.plain)
             .fixedSize()
-            // プロジェクトが無いうちは作成先を選べないので押せない（メニューの ⌘N と同じ）。
-            .disabled(isCreating || viewModel.projects.isEmpty)
-            .popover(isPresented: newSessionTableBinding(fromSidebar: true), arrowEdge: .top) {
-                newSessionTable(projectID: newSessionTableProjectID)
-                    .environment(\.locale, locale)
-            }
-            .help(Text("新規セッション（⌘N）"))
-            .accessibilityLabel(Text("新規セッション（⌘N）"))
+            .help(Text("新規チャット（⌘N）"))
+            .accessibilityLabel(Text("新規チャット（⌘N）"))
             Spacer(minLength: 0)
             if let agentConsoleWindowID {
                 footerIconButton(systemImage: "slider.horizontal.3", label: "エージェント管理（⇧⌘,）") {
@@ -794,14 +747,6 @@ public struct DashboardView: View {
                         opensAgentConsole: SpawnFailureDialogText.opensAgentConsole(for: error)
                     )
                 },
-                isCreating: isCreating,
-                onSelectAgentKind: { kind, backend in
-                    Task { await createSessionFromKind(kind, backend: backend) }
-                },
-                onSelectAgent: { ref, backend in
-                    Task { await createSession(ref: ref, projectID: router.selectedProjectID, backend: backend) }
-                },
-                creatingRef: creatingRef,
                 showsAllOnboardingSteps: !hasAddedProject,
                 displayTab: displayTab
             )
@@ -877,40 +822,6 @@ public struct DashboardView: View {
         router.sidebarVisible && (!router.sidebarLacksRoom || router.sidebarPeeking)
     }
 
-    private func newSessionTableBinding(fromSidebar: Bool) -> Binding<Bool> {
-        Binding(
-            get: { router.newSessionTablePresented && sidebarShown == fromSidebar },
-            set: { router.newSessionTablePresented = $0 }
-        )
-    }
-
-    /// 種別 × 開き方の表（⌘N・サイドバーの ＋・グリッドの空状態で共通）。
-    /// 表の作成先の初期値: 選択中のプロジェクト → 選択中のセッションのプロジェクト → プロジェクトが 1 つならそれ。
-    /// どれでもなければ未選択にし、表の見出しで選ばせる（先頭のプロジェクトへ黙って作らない）。
-    private var newSessionTableProjectID: ProjectID? {
-        if let selected = router.selectedProjectID { return selected }
-        if let id = router.selectedSession, let projectID = viewModel.sessionNode(id: id)?.projectID { return projectID }
-        return viewModel.projects.count == 1 ? viewModel.projects.first?.id : nil
-    }
-
-    private func newSessionTable(projectID: ProjectID?) -> NewSessionTable {
-        let entries = viewModel.agentStartEntries(languageCode: locale.language.languageCode?.identifier ?? "ja")
-        return NewSessionTable(
-            projects: viewModel.projects,
-            projectID: projectID,
-            model: NewSessionMenuModel.make(
-                projectName: viewModel.projects.first { $0.id == projectID }?.name,
-                descriptors: entries.map(\.descriptor)
-            ),
-            defaultBackend: DefaultSessionBackendPreference.stored(),
-            detectedRefIDs: Set(entries.filter(\.isDetected).map(\.id)),
-            isCreating: isCreating,
-            onStart: { ref, projectID, backend in
-                Task { await createSession(ref: ref, projectID: projectID, backend: backend) }
-            }
-        )
-    }
-
     /// worktree を作っている間の案内（08 F2・S5）。画面から起動した作業ツリー自体のパスを出す。
     private func worktreeProgressToast(path: String) -> some View {
         HStack(spacing: 10) {
@@ -932,6 +843,24 @@ public struct DashboardView: View {
         .accessibilityElement(children: .combine)
     }
 
+    private func discardedSessionsToast(count: Int) -> some View {
+        HStack(spacing: 10) {
+            Text("以前のカスタムエージェントのセッションを \(count) 件読み込まずに破棄しました。")
+                .font(DSFont.dense)
+                .foregroundStyle(DSColor.textPrimary)
+            Button("閉じる") { discardedSessionCountNotice = nil }
+                .buttonStyle(.plain)
+                .font(DSFont.dense.weight(.semibold))
+                .foregroundStyle(DSColor.accentInk)
+        }
+        .padding(.horizontal, 14)
+        .frame(minHeight: 38)
+        .background(DSColor.popoverBackground, in: Capsule())
+        .dsShadow(DSShadow.popover)
+        .padding(.bottom, 20)
+        .accessibilityElement(children: .contain)
+    }
+
     // MARK: - Tabs
 
     private func migrateProjectTabs() {
@@ -943,14 +872,8 @@ public struct DashboardView: View {
     }
 
     private func ensureProjectSelection() {
-        guard router.viewMode == .single, let id = router.selectedProjectID else { return }
-        let layout = router.tabs.layout(for: id)
-        if let selected = layout.selected {
-            router.selectTab(selected, in: id)
-        } else if let first = viewModel.chatTabs(in: id).first {
-            router.tabs.updateLayout(for: id) { $0.open(first) }
-            router.selectTab(first, in: id)
-        } else { router.showNewChat(projectID: id) }
+        guard let id = router.selectedProjectID else { return }
+        router.ensureProjectSelection(chatTabs: viewModel.chatTabs(in: id))
     }
 
     private func revealSelectedSessionTab() {
@@ -1045,78 +968,6 @@ public struct DashboardView: View {
 
 
     // MARK: - Helpers
-
-    private func defaultProjectIDForNewSession() -> ProjectID? {
-        if let selectedProjectID = router.selectedProjectID {
-            return selectedProjectID
-        }
-        if let selectedID = router.selectedSession,
-           let session = viewModel.sessionNode(id: selectedID),
-           let projectID = session.projectID {
-            return projectID
-        }
-        return viewModel.projects.first?.id
-    }
-
-    private func createSessionFromKind(_ kind: AgentKind, backend: SessionBackend) async {
-        let ref = AgentRegistry.descriptor(for: kind).ref
-        await createSession(ref: ref, projectID: router.selectedProjectID, backend: backend)
-    }
-
-    /// - Parameter isolationOverride: true のときだけ、この起動で worktree を作る。
-    private func createSession(
-        ref: AgentRef,
-        projectID: ProjectID? = nil,
-        backend: SessionBackend = .pty,
-        isolationOverride: Bool? = nil,
-        workingDirectoryOverride: String? = nil
-    ) async {
-        guard !isCreating else { return }
-        let resolvedProjectID = projectID ?? defaultProjectIDForNewSession()
-        guard let resolvedProjectID else {
-            chooseProjectDirectory()
-            return
-        }
-        let request = NewSessionRequest(ref: ref, projectID: resolvedProjectID, backend: backend)
-        let project = viewModel.projects.first { $0.id == resolvedProjectID }
-        isCreating = true
-        creatingRef = ref
-        defer {
-            isCreating = false
-            creatingRef = nil
-        }
-        do {
-            let newID = try await DashboardViewModel.$reportsWorktreeCreation.withValue(true) {
-                try await viewModel.spawnNewSession(
-                    ref: ref,
-                    projectID: resolvedProjectID,
-                    backend: backend,
-                    workingDirectoryOverride: workingDirectoryOverride,
-                    isolationOverride: isolationOverride
-                )
-            }
-            expandedProjectIDs.insert(resolvedProjectID)
-            router.completeNewChat(sessionID: newID, projectID: resolvedProjectID)
-        } catch {
-            // F4: worktree を作れなかったときは、git の出力と次の手を出す。
-            if let log = NewSessionCollisionGate.worktreeFailureLog(error) {
-                let name = viewModel.availableAgentDescriptors.first { $0.ref == ref }?.displayName ?? ref.id
-                let existing = if let project {
-                    await NewSessionCollisionGate.existingWorktree(in: log, repository: project.directoryURL)
-                } else {
-                    String?.none
-                }
-                spawnGuard = .worktreeFailed(request, agentName: name, log: log, existingWorktree: existing)
-                return
-            }
-            let raw = error.localizedDescription
-            spawnError = SpawnError(
-                agentName: SpawnFailureDialogText.agentName(for: ref),
-                message: raw.isEmpty ? String(describing: error) : raw,
-                opensAgentConsole: SpawnFailureDialogText.opensAgentConsole(for: error)
-            )
-        }
-    }
 
     /// ワークスペース（Project）用のフォルダ選択。NSOpenPanel は次 runloop で提示する。
     private func chooseProjectDirectory() {

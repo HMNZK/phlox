@@ -90,7 +90,6 @@ func dashboardSessionStatusIsAwaitingApproval(_ status: SessionStatus) -> Bool {
 
 public enum AgentSpawnError: Error, Equatable, LocalizedError {
     case binaryNotFound(AgentKind)
-    case customBinaryNotFound(String)
     case spawnRateLimited
     case depthLimitExceeded
     case unknownProject
@@ -101,8 +100,6 @@ public enum AgentSpawnError: Error, Equatable, LocalizedError {
         switch self {
         case .binaryNotFound(let kind):
             String(localized: "\(kind.displayName) の実行ファイルが見つかりませんでした。PATH を確認してください。")
-        case .customBinaryNotFound(let id):
-            String(localized: "\(id) の実行ファイルが見つかりませんでした。PATH と agents.json を確認してください。")
         case .spawnRateLimited:
             String(localized: "短時間に作成できるセッション数の上限を超えました。")
         case .depthLimitExceeded:

@@ -16,16 +16,13 @@ public struct AgentLaunchPlan: Sendable {
     public let debugDump: Bool
 
     public var kind: AgentKind {
-        guard let kind = ref.builtinKind else {
-            preconditionFailure("Custom AgentLaunchPlan has no AgentKind: \(ref.id)")
-        }
+        guard case .builtin(let kind) = ref else { preconditionFailure("AgentRef must be built-in") }
         return kind
     }
 }
 
 public enum AgentLaunchPlannerError: Error {
     case binaryNotFound(AgentKind)
-    case customBinaryNotFound(String)
     case unknownAgent(AgentRef)
 }
 
@@ -77,14 +74,12 @@ public struct AgentLaunchPlanner: Sendable {
         codexUserHooksEnabled: Bool = false,
         extraEnv: [String: String] = [:]
     ) throws -> AgentLaunchPlan {
-        guard let descriptor = environment.agentCatalog.descriptor(for: ref) else {
+        guard case .builtin(let kind) = ref else {
             throw AgentLaunchPlannerError.unknownAgent(ref)
         }
-        guard let command = environment.binaryPath(for: ref) else {
-            if let kind = ref.builtinKind {
-                throw AgentLaunchPlannerError.binaryNotFound(kind)
-            }
-            throw AgentLaunchPlannerError.customBinaryNotFound(ref.id)
+        let descriptor = AgentRegistry.descriptor(for: kind)
+        guard let command = environment.binaryPath(for: kind) else {
+            throw AgentLaunchPlannerError.binaryNotFound(kind)
         }
 
         let profile = profile(

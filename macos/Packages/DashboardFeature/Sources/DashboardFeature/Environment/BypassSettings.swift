@@ -14,15 +14,17 @@ public enum BypassSettings {
         for kind: AgentKind,
         defaults: UserDefaults = .phloxDefaults()
     ) -> Bool {
-        isEnabled(for: .builtin(kind), catalog: .builtins, defaults: defaults)
+        isEnabled(for: key(for: kind), defaults: defaults)
     }
 
     public static func isEnabled(
         for ref: AgentRef,
-        catalog: AgentCatalog,
         defaults: UserDefaults = .phloxDefaults()
     ) -> Bool {
-        let key = key(for: ref, catalog: catalog)
+        isEnabled(for: key(for: ref), defaults: defaults)
+    }
+
+    private static func isEnabled(for key: String, defaults: UserDefaults) -> Bool {
         guard defaults.object(forKey: key) != nil else {
             return true
         }
@@ -33,7 +35,7 @@ public enum BypassSettings {
         AgentRegistry.descriptor(for: kind).bypassKey
     }
 
-    public static func key(for ref: AgentRef, catalog: AgentCatalog) -> String {
-        catalog.descriptor(for: ref)?.bypassKey ?? "phlox.bypass.\(ref.id)"
+    public static func key(for ref: AgentRef) -> String {
+        switch ref { case .builtin(let kind): key(for: kind) }
     }
 }

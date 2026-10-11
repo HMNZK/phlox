@@ -100,6 +100,43 @@ struct JSONSessionStoreTests {
         #expect(loaded.isEmpty)
     }
 
+    @Test func load_discardsLegacyCustomAgentsAndReportsCountOnce() async throws {
+        let url = temporarySessionsFileURL()
+        defer { removeSessionsFile(at: url) }
+        defer { removeQuarantinedSessionFiles(for: url) }
+
+        func legacySession(id: SessionID, agentID: String) throws -> [String: Any] {
+            let descriptor = makeDescriptor(id: id)
+            let data = try JSONEncoder().encode(descriptor)
+            var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            object["kind"] = ["type": "custom", "id": agentID]
+            return object
+        }
+        let retained = makeDescriptor(id: SessionID())
+        let retainedData = try JSONEncoder().encode(retained)
+        let retainedObject = try #require(JSONSerialization.jsonObject(with: retainedData) as? [String: Any])
+        let source = try JSONSerialization.data(withJSONObject: [
+            "schemaVersion": 1,
+            "sessions": [
+                retainedObject,
+                try legacySession(id: SessionID(), agentID: "aider"),
+                try legacySession(id: SessionID(), agentID: "legacy-cli"),
+            ],
+        ])
+        try source.write(to: url, options: .atomic)
+
+        let store = JSONSessionStore(fileURL: url)
+        #expect(await store.load().map(\.id) == [retained.id])
+        #expect(await store.load().map(\.id) == [retained.id])
+        #expect(await store.takeDiscardedSessionCount() == 2)
+        #expect(await store.takeDiscardedSessionCount() == 0)
+        #expect(try Data(contentsOf: try #require(quarantinedSessionFiles(for: url).first)) == source)
+
+        let nextLaunch = JSONSessionStore(fileURL: url)
+        #expect(await nextLaunch.load().map(\.id) == [retained.id])
+        #expect(await nextLaunch.takeDiscardedSessionCount() == 0)
+    }
+
     @Test func load_invalidJSONReturnsEmpty() async throws {
         let url = temporarySessionsFileURL()
         defer { removeSessionsFile(at: url) }

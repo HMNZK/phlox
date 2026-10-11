@@ -79,8 +79,8 @@ public final class AppRouter {
     public var attentionListPresented = false
     /// メニューの「プロジェクトを追加…」（⌘O）が押された。フォルダ選択を持つ DashboardView が受けて false に戻す。
     public var addProjectRequested = false
-    /// 新規セッションの表（⌘N）を開いているか。選択中のプロジェクトへ作る。
-    public var newSessionTablePresented = false
+    /// 新規チャット画面へのフォーカス要求。
+    public private(set) var newChatFocusToken = 0
 
     public init(
         selectedSession: SessionID? = nil,
@@ -138,11 +138,31 @@ public final class AppRouter {
         else if tab == .newChat { selectedSession = nil }
     }
 
-    public func showNewChat(projectID: ProjectID) {
+    public func showNewChat(projectID: ProjectID?) {
         viewMode = .single
-        selectedProjectID = projectID
-        tabs.updateLayout(for: projectID) { $0.open(.newChat) }
+        if let projectID { selectedProjectID = projectID }
         selectedSession = nil
+        if let selectedProjectID {
+            tabs.updateLayout(for: selectedProjectID) { $0.open(.newChat) }
+        }
+        newChatFocusToken &+= 1
+    }
+
+    public func ensureProjectSelection(chatTabs: [ProjectTab]) {
+        guard viewMode == .single, let projectID = selectedProjectID else { return }
+        guard !chatTabs.isEmpty else {
+            showNewChat(projectID: projectID)
+            return
+        }
+        let layout = tabs.layout(for: projectID)
+        if let selected = layout.selected {
+            selectTab(selected, in: projectID)
+        } else if let first = chatTabs.first {
+            tabs.updateLayout(for: projectID) { $0.open(first) }
+            selectTab(first, in: projectID)
+        } else {
+            showNewChat(projectID: projectID)
+        }
     }
 
     public func completeNewChat(sessionID: SessionID, projectID: ProjectID) {

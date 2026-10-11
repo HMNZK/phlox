@@ -64,15 +64,15 @@ struct AvailableCommandsStoreTests {
         #expect(store.commands(agentRef: .builtin(.cursor), workingDirectory: "/tmp/work") == nil)
     }
 
-    @Test("カスタム CLI 同士も ID で分離される")
-    func customAgentsAreSeparatedByID() throws {
+    @Test("組込 CLI 同士も種別で分離される")
+    func builtinAgentsAreSeparatedByKind() throws {
         let sandbox = try DefaultsSandbox()
         let store = AvailableCommandsStore(defaults: sandbox.defaults)
 
-        store.record(agentRef: .custom("my-cli"), workingDirectory: "/tmp/work", commands: ["mine"])
+        store.record(agentRef: .builtin(.claudeCode), workingDirectory: "/tmp/work", commands: ["mine"])
 
-        #expect(store.commands(agentRef: .custom("my-cli"), workingDirectory: "/tmp/work") == ["mine"])
-        #expect(store.commands(agentRef: .custom("other-cli"), workingDirectory: "/tmp/work") == nil)
+        #expect(store.commands(agentRef: .builtin(.claudeCode), workingDirectory: "/tmp/work") == ["mine"])
+        #expect(store.commands(agentRef: .builtin(.codex), workingDirectory: "/tmp/work") == nil)
     }
 
     @Test("作業ディレクトリが違えば取り出せない")
@@ -174,14 +174,14 @@ struct AvailableCommandsStoreTests {
 
     @Test("キーは phlox.availableCommands.<agentID>.<正規化済み cwd> 形式になる")
     func keyFollowsDocumentedFormat() {
-        #expect(AvailableCommandsStore.key(agentRef: .custom("my-cli"), workingDirectory: "/tmp/work")
-            == "phlox.availableCommands.my-cli./tmp/work")
+        #expect(AvailableCommandsStore.key(agentRef: .builtin(.claudeCode), workingDirectory: "/tmp/work")
+            == "phlox.availableCommands.claudeCode./tmp/work")
     }
 
     @Test("作業ディレクトリなしのキーは空の接尾辞で終わる")
     func keyForMissingWorkingDirectoryEndsWithEmptySuffix() {
-        #expect(AvailableCommandsStore.key(agentRef: .custom("my-cli"), workingDirectory: nil)
-            == "phlox.availableCommands.my-cli.")
+        #expect(AvailableCommandsStore.key(agentRef: .builtin(.claudeCode), workingDirectory: nil)
+            == "phlox.availableCommands.claudeCode.")
     }
 
     // MARK: - 正規化

@@ -13,7 +13,7 @@ import Testing
 
 @Suite("Acceptance: worktree 隔離（task-2）")
 struct AcceptanceWorktreeIsolationTests {
-    private func makeProject(worktreeIsolationEnabled: Bool?) -> Project {
+    private func makeProject(worktreeIsolationEnabled: Bool? = nil) -> Project {
         Project(
             name: "sample",
             directoryPath: "/tmp/phlox-wt/repo",
@@ -40,7 +40,6 @@ struct AcceptanceWorktreeIsolationTests {
         """
         let project = try JSONDecoder().decode(Project.self, from: Data(json.utf8))
         #expect(project.worktreeIsolationEnabled == nil)
-        #expect(project.usesWorktreeIsolation == false)
         #expect(project.name == "legacy")
     }
 
@@ -48,35 +47,11 @@ struct AcceptanceWorktreeIsolationTests {
         let original = makeProject(worktreeIsolationEnabled: true)
         let data = try JSONEncoder().encode(original)
         let restored = try JSONDecoder().decode(Project.self, from: data)
-        #expect(restored.usesWorktreeIsolation)
+        #expect(restored.worktreeIsolationEnabled == true)
         #expect(restored == original)
     }
 
-    // MARK: - 既定（off）は従来どおり
-
-    @Test func フラグ未設定なら隔離しない() {
-        let outcome = WorktreeIsolationPlanner.plan(
-            project: makeProject(worktreeIsolationEnabled: nil),
-            sessionID: SessionID(),
-            sessionWorkspaceDirectory: workspaceDir,
-            isGitRepository: true,
-            existingBranchNames: [],
-            worktreePathExists: false
-        )
-        #expect(outcome == .disabled)
-    }
-
-    @Test func フラグがfalseなら隔離しない() {
-        let outcome = WorktreeIsolationPlanner.plan(
-            project: makeProject(worktreeIsolationEnabled: false),
-            sessionID: SessionID(),
-            sessionWorkspaceDirectory: workspaceDir,
-            isGitRepository: true,
-            existingBranchNames: [],
-            worktreePathExists: false
-        )
-        #expect(outcome == .disabled)
-    }
+    // nil/false の起動と本体フォルダの復元は DashboardFeature の WorktreeIsolationSpawnTests に移した。
 
     @Test func プロジェクト未所属のセッションは隔離しない() {
         let outcome = WorktreeIsolationPlanner.plan(
@@ -92,10 +67,10 @@ struct AcceptanceWorktreeIsolationTests {
 
     // MARK: - on の正常系
 
-    @Test func フラグがtrueでgitリポジトリなら専用worktreeを作る() {
+    @Test func 隔離を選択してgitリポジトリなら専用worktreeを作る() {
         let sessionID = SessionID()
         let outcome = WorktreeIsolationPlanner.plan(
-            project: makeProject(worktreeIsolationEnabled: true),
+            project: makeProject(),
             sessionID: sessionID,
             sessionWorkspaceDirectory: workspaceDir,
             isGitRepository: true,
@@ -133,7 +108,7 @@ struct AcceptanceWorktreeIsolationTests {
 
     @Test func gitリポジトリでなければ起動を中止する() {
         let outcome = WorktreeIsolationPlanner.plan(
-            project: makeProject(worktreeIsolationEnabled: true),
+            project: makeProject(),
             sessionID: SessionID(),
             sessionWorkspaceDirectory: workspaceDir,
             isGitRepository: false,
@@ -147,7 +122,7 @@ struct AcceptanceWorktreeIsolationTests {
         let sessionID = SessionID()
         let branch = WorktreeIsolationPlanner.branchName(for: sessionID)
         let outcome = WorktreeIsolationPlanner.plan(
-            project: makeProject(worktreeIsolationEnabled: true),
+            project: makeProject(),
             sessionID: sessionID,
             sessionWorkspaceDirectory: workspaceDir,
             isGitRepository: true,
@@ -159,7 +134,7 @@ struct AcceptanceWorktreeIsolationTests {
 
     @Test func worktreeパスが既に使われていれば起動を中止する() {
         let outcome = WorktreeIsolationPlanner.plan(
-            project: makeProject(worktreeIsolationEnabled: true),
+            project: makeProject(),
             sessionID: SessionID(),
             sessionWorkspaceDirectory: workspaceDir,
             isGitRepository: true,
@@ -181,7 +156,7 @@ struct AcceptanceWorktreeIsolationTests {
         let sessionID = SessionID()
         let branch = WorktreeIsolationPlanner.branchName(for: sessionID)
         let outcome = WorktreeIsolationPlanner.plan(
-            project: makeProject(worktreeIsolationEnabled: true),
+            project: makeProject(),
             sessionID: sessionID,
             sessionWorkspaceDirectory: workspaceDir,
             isGitRepository: true,
@@ -197,7 +172,7 @@ struct AcceptanceWorktreeIsolationTests {
         let sessionID = SessionID()
         let branch = WorktreeIsolationPlanner.branchName(for: sessionID)
         let outcome = WorktreeIsolationPlanner.plan(
-            project: makeProject(worktreeIsolationEnabled: true),
+            project: makeProject(),
             sessionID: sessionID,
             sessionWorkspaceDirectory: workspaceDir,
             isGitRepository: true,
@@ -217,7 +192,7 @@ struct AcceptanceWorktreeIsolationTests {
         let sessionID = SessionID()
         let branch = WorktreeIsolationPlanner.branchName(for: sessionID)
         let outcome = WorktreeIsolationPlanner.plan(
-            project: makeProject(worktreeIsolationEnabled: true),
+            project: makeProject(),
             sessionID: sessionID,
             sessionWorkspaceDirectory: workspaceDir,
             isGitRepository: true,
@@ -232,7 +207,7 @@ struct AcceptanceWorktreeIsolationTests {
     @Test func 復元時にパスはあるがworktreeとして未登録なら中止する() {
         let sessionID = SessionID()
         let outcome = WorktreeIsolationPlanner.plan(
-            project: makeProject(worktreeIsolationEnabled: true),
+            project: makeProject(),
             sessionID: sessionID,
             sessionWorkspaceDirectory: workspaceDir,
             isGitRepository: true,
@@ -244,25 +219,12 @@ struct AcceptanceWorktreeIsolationTests {
         #expect(outcome == .abort(.worktreePathOccupied(workspaceDir)))
     }
 
-    @Test func 復元でも隔離フラグがoffなら従来どおり() {
-        let outcome = WorktreeIsolationPlanner.plan(
-            project: makeProject(worktreeIsolationEnabled: false),
-            sessionID: SessionID(),
-            sessionWorkspaceDirectory: workspaceDir,
-            isGitRepository: true,
-            existingBranchNames: [],
-            worktreePathExists: false,
-            isRegisteredWorktree: false,
-            intent: .restore
-        )
-        #expect(outcome == .disabled)
-    }
 
     @Test func 復元でブランチもworktreeも無ければ新規に作る() {
         let sessionID = SessionID()
         let branch = WorktreeIsolationPlanner.branchName(for: sessionID)
         let outcome = WorktreeIsolationPlanner.plan(
-            project: makeProject(worktreeIsolationEnabled: true),
+            project: makeProject(),
             sessionID: sessionID,
             sessionWorkspaceDirectory: workspaceDir,
             isGitRepository: true,
@@ -276,7 +238,7 @@ struct AcceptanceWorktreeIsolationTests {
 
     @Test func 復元でも非gitリポジトリなら中止する() {
         let outcome = WorktreeIsolationPlanner.plan(
-            project: makeProject(worktreeIsolationEnabled: true),
+            project: makeProject(),
             sessionID: SessionID(),
             sessionWorkspaceDirectory: workspaceDir,
             isGitRepository: false,
@@ -293,7 +255,7 @@ struct AcceptanceWorktreeIsolationTests {
     @Test func 新規セッションは登録済みworktreeがあっても再利用しない() {
         let sessionID = SessionID()
         let outcome = WorktreeIsolationPlanner.plan(
-            project: makeProject(worktreeIsolationEnabled: true),
+            project: makeProject(),
             sessionID: sessionID,
             sessionWorkspaceDirectory: workspaceDir,
             isGitRepository: true,
@@ -324,7 +286,7 @@ struct AcceptanceWorktreeIsolationTests {
                 branchSet = [WorktreeIsolationPlanner.branchName(for: sessionID)]
             }
             let outcome = WorktreeIsolationPlanner.plan(
-                project: makeProject(worktreeIsolationEnabled: true),
+                project: makeProject(),
                 sessionID: sessionID,
                 sessionWorkspaceDirectory: workspaceDir,
                 isGitRepository: isRepo,

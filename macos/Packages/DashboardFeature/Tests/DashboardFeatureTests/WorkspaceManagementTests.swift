@@ -470,8 +470,8 @@ func moveSession_chatSession_changesProjectOnlyAndKeepsWorkingDirectory() async 
     #expect(saved.workingDirectory != folderB.path)
     #expect(saved.chatNativeSessionId == before.chatNativeSessionId)
     #expect(saved.codexThreadId == before.codexThreadId)
-    // 復元で移動先の worktree 設定が作業フォルダを変えないよう、隔離しない印を残す。
-    #expect(saved.worktreeIsolationOptOut == true)
+    // 復元時の判断に必要な作業フォルダは、所属を変えても保持する。
+    #expect(saved.workingDirectory == folderA.path)
 }
 
 /// 03 F3: 未割当のセッションも既存のプロジェクトへ割り当てられる（そのフォルダで再起動する）。

@@ -1048,8 +1048,6 @@ private struct SessionCommands: Commands {
                 }
             }
             .disabled(selectedNode == nil)
-            Toggle("git worktree で隔離する", isOn: worktreeIsolation)
-                .disabled(selectedProjectID == nil)
 
             Divider()
 
@@ -1063,20 +1061,6 @@ private struct SessionCommands: Commands {
 
     private var selectedProjectID: ProjectID? {
         selectedNode?.projectID ?? router?.selectedProjectID
-    }
-
-    /// 選択中のセッション（無ければプロジェクト）が属するプロジェクトの隔離設定。以降に起動するセッションに効く。
-    private var worktreeIsolation: Binding<Bool> {
-        Binding(
-            get: {
-                guard let id = selectedProjectID else { return false }
-                return dashboard?.projects.first { $0.id == id }?.usesWorktreeIsolation ?? false
-            },
-            set: { enabled in
-                guard let id = selectedProjectID else { return }
-                dashboard?.setWorktreeIsolationEnabled(enabled, for: id)
-            }
-        )
     }
 
     private func selectTab(_ number: Int) {

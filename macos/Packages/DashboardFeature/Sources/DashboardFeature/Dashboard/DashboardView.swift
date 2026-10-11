@@ -137,12 +137,11 @@ public struct DashboardView: View {
             .dsDialog(item: $spawnGuard) { item in
                 SpawnGuardSheet(
                     spawnGuard: item,
-                    sessionNode: { viewModel.sessionNode(id: $0) },
                     onCancel: { spawnGuard = nil },
                     onLaunch: { separates in
                         spawnGuard = nil
                         let request = switch item {
-                        case .collision(let request, _, _), .worktreeFailed(let request, _, _, _): request
+                        case .worktreeFailed(let request, _, _, _): request
                         }
                         Task {
                             await createSession(
@@ -1115,8 +1114,7 @@ public struct DashboardView: View {
         await createSession(ref: ref, projectID: router.selectedProjectID, backend: backend)
     }
 
-    /// - Parameter isolationOverride: 確認（08 F1・F4）で選んだ、この起動だけの worktree 隔離の有無。
-    ///   nil は確認前で、プロジェクトの設定に従う。
+    /// - Parameter isolationOverride: true のときだけ、この起動で worktree を作る。
     private func createSession(
         ref: AgentRef,
         projectID: ProjectID? = nil,
@@ -1132,14 +1130,6 @@ public struct DashboardView: View {
         }
         let request = NewSessionRequest(ref: ref, projectID: resolvedProjectID, backend: backend)
         let project = viewModel.projects.first { $0.id == resolvedProjectID }
-        // F1: 隔離オフのフォルダで動いているセッションがあれば、起動前にたずねる。
-        if isolationOverride == nil, let project {
-            let peers = NewSessionCollisionGate.peers(project: project, among: viewModel.workspaceSessionWorkspaces)
-            if !peers.isEmpty {
-                spawnGuard = .collision(request, directory: project.directoryPath, peers: peers)
-                return
-            }
-        }
         isCreating = true
         creatingRef = ref
         defer {

@@ -138,7 +138,6 @@ struct DashboardToolbar: View {
             WorktreeMenuButton(
                 project: selectedProject,
                 showsText: density == .full,
-                isOn: worktreeIsolationBinding,
                 onRename: {
                     // サイドバーを隠していれば出してから、その行を編集に入れる。
                     let showing = router.sidebarVisible && (!router.sidebarLacksRoom || router.sidebarPeeking)
@@ -147,16 +146,6 @@ struct DashboardToolbar: View {
                 }
             )
         }
-    }
-
-    private var worktreeIsolationBinding: Binding<Bool> {
-        Binding(
-            get: { selectedProject?.usesWorktreeIsolation ?? false },
-            set: { enabled in
-                guard let projectID = router.selectedProjectID else { return }
-                viewModel.setWorktreeIsolationEnabled(enabled, for: projectID)
-            }
-        )
     }
 
     // MARK: - 使用量・インスペクタ
@@ -379,7 +368,6 @@ private struct CappedWidthLayout: Layout {
 private struct WorktreeMenuButton: View {
     let project: Project
     let showsText: Bool
-    @Binding var isOn: Bool
     let onRename: () -> Void
 
     @State private var presented = false
@@ -409,7 +397,6 @@ private struct WorktreeMenuButton: View {
         .fixedSize()
         .help("選択中プロジェクトのセッション隔離")
         .accessibilityLabel(Text("Git worktree 隔離"))
-        .accessibilityValue(Text(isOn ? "オン" : "オフ"))
         .popover(isPresented: $presented, arrowEdge: .bottom) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(verbatim: project.name)
@@ -418,29 +405,6 @@ private struct WorktreeMenuButton: View {
                     .padding(.horizontal, 10)
                     .padding(.top, 8)
                     .padding(.bottom, 4)
-                Button { isOn.toggle() } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Image(systemName: "checkmark")
-                            .font(DSFont.meta.weight(.semibold))
-                            .opacity(isOn ? 1 : 0)
-                            .frame(width: 12)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("git worktree で隔離する")
-                                .font(DSFont.row)
-                                .foregroundStyle(DSColor.textPrimary)
-                            Text("オンにすると、このプロジェクトで以降に起動するセッションを個別の worktree で動かします。")
-                                .font(.system(size: 11.5))
-                                .foregroundStyle(DSColor.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(isOn ? .isSelected : [])
-                Divider().padding(.vertical, 4)
                 Button {
                     presented = false
                     onRename()

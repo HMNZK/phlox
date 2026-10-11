@@ -1091,14 +1091,6 @@ public final class DashboardViewModel {
         persistProjects()
     }
 
-    /// 指定プロジェクトのセッションごとの git worktree 隔離を切り替える。
-    /// Optional の永続化フィールドは保持し、旧スキーマの nil は読み出し側で false として扱う。
-    public func setWorktreeIsolationEnabled(_ enabled: Bool, for projectID: ProjectID) {
-        guard let index = projects.firstIndex(where: { $0.id == projectID }) else { return }
-        projects[index].worktreeIsolationEnabled = enabled
-        persistProjects()
-    }
-
     public func clearWorkspaceCleanupWarning() {
         workspaceCleanupWarning = nil
         workspaceCleanupFailureReason = nil
@@ -1437,7 +1429,7 @@ public final class DashboardViewModel {
             titleSource: latestTitle.source,
             flowerName: latestTitle.flowerName,
             fullDerivedTitle: latestTitle.fullDerivedTitle
-        ).updating(worktreeIsolationOptOut: isolationOverride == false ? true : nil)
+        )
         persistence.persistSession(descriptor)
 
         // 生成成功を App 層へ通知する（解析配線用、PII なし）。
@@ -1542,7 +1534,7 @@ public final class DashboardViewModel {
             guard chat.projectID != projectID, canMoveSession(id) else { return }
             chat.projectID = projectID
             reconcilePaneLayout()
-            persistence.persistSessionWorkspace(id: id, workingDirectory: nil, projectID: projectID, optOutIsolation: true)
+            persistence.persistSessionWorkspace(id: id, workingDirectory: nil, projectID: projectID)
             return
         }
         guard let vm = sessions.first(where: { $0.id == id }) else { return }

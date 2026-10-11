@@ -535,19 +535,15 @@ final class SessionSpawnService {
             extraEnv: extraEnv,
             codexUserHooksEnabled: codexUserHooksEnabled
         )
-        var isolationProject = projectID.flatMap { projectID in
+        let isolationProject = projectID.flatMap { projectID in
             projectsSnapshot().first(where: { $0.id == projectID })
-        }
-        // この起動だけ隔離の有無を変える（08 F1「worktree で分けて起動」・F4「worktree なしで起動」）。
-        // 保存済みのプロジェクト設定は変えない。
-        if let isolationOverride, isolationProject != nil {
-            isolationProject?.worktreeIsolationEnabled = isolationOverride
         }
         let worktree = try await prepareWorktreeIsolation(
             project: isolationProject,
             sessionID: sessionID,
             intent: isolationIntent,
-            workingDirectoryOverride: workingDirectoryOverride
+            workingDirectoryOverride: workingDirectoryOverride,
+            isolatesNewSession: isolationOverride == true
         )
         return try finishSessionLaunch(
             sanitizedPlan,
@@ -960,43 +956,20 @@ final class SessionSpawnService {
         project: Project?,
         sessionID: SessionID,
         intent: WorktreeIsolationIntent,
-        workingDirectoryOverride: String?
+        workingDirectoryOverride: String?,
+        isolatesNewSession: Bool
     ) async throws -> (repository: URL, path: URL)? {
         guard let project else { return nil }
 
         let worktreePath = environment.sessionWorkspaceDirectory(for: sessionID)
 
-        if !project.usesWorktreeIsolation {
-            // 隔離を一度も使っていない通常経路は、従来どおり git を検査しない。
-            // ただし、隔離を使っていたセッションを off 後に復元する場合だけは、
-            // 保存済み CWD が期待パスと一致し、実在する登録済み worktree である
-            // という観測事実を確認して、終了時の後始末対象として引き継ぐ。
-            guard intent == .restore,
-                  let workingDirectoryOverride,
+        switch intent {
+        case .newSession:
+            guard isolatesNewSession else { return nil }
+        case .restore:
+            guard let workingDirectoryOverride,
                   standardizedDirectoryPath(workingDirectoryOverride)
-                    == standardizedDirectoryPath(worktreePath.path) else {
-                return nil
-            }
-
-            do {
-                let state = try await WorktreeIsolationGit.inspect(
-                    repository: project.directoryURL,
-                    worktreePath: worktreePath
-                )
-                guard state.isGitRepository,
-                      state.worktreePathExists,
-                      state.isRegisteredWorktree,
-                      await WorktreeIsolationGit.isWorkingTree(worktreePath, of: project.directoryURL) else {
-                    return nil
-                }
-                return (project.directoryURL, worktreePath)
-            } catch {
-                logError(
-                    error,
-                    "Failed to inspect a restored worktree while isolation is disabled for \(sessionID)"
-                )
-                return nil
-            }
+                    == standardizedDirectoryPath(worktreePath.path) else { return nil }
         }
 
         let state = try await WorktreeIsolationGit.inspect(
@@ -1010,15 +983,10 @@ final class SessionSpawnService {
             state: state,
             intent: intent
         )
-        // 前回 worktree で動いていたセッションだけ、作り直す前にたずねる。隔離オフで作ったセッションを
-        // 隔離オンのプロジェクトで復元するときは「前回の worktree」が無いので、たずねずに作る（従来どおり）。
-        let wasInWorktree = workingDirectoryOverride.map {
-            standardizedDirectoryPath($0) == standardizedDirectoryPath(worktreePath.path)
-        } ?? false
         return try await applyWorktreeIsolationOutcome(
             outcome,
             project: project,
-            asksBeforeRecreating: intent == .restore && wasInWorktree,
+            asksBeforeRecreating: intent == .restore,
             existingBranchNames: state.localBranchNames
         )
     }

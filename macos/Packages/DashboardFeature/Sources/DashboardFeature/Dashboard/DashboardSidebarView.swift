@@ -515,10 +515,6 @@ struct DashboardSidebarView: View {
         }
         Divider()
         Button("名前を変更…") { beginRename(.project(project.id)) }
-        Toggle("git worktree で隔離する", isOn: Binding(
-            get: { viewModel.projects.first { $0.id == project.id }?.usesWorktreeIsolation ?? false },
-            set: { viewModel.setWorktreeIsolationEnabled($0, for: project.id) }
-        ))
         Divider()
         Button("プロジェクトを削除…", role: .destructive) {
             pendingProjectDeletion = project

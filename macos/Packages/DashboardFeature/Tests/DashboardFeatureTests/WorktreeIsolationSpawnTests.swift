@@ -158,6 +158,73 @@ private final class RecordedWorkingDirectories: @unchecked Sendable {
 @Suite(.serialized)
 struct WorktreeIsolationSpawnTests {
 
+// AC-3: 旧設定に関係なく、この起動で true を選んだときだけ隔離する。
+@Test(arguments: [nil, false, true] as [Bool?]) @MainActor
+func worktreeIsolation_newLaunchUsesOnlyExplicitSelection(selection: Bool?) async throws {
+    let repository = try WorktreeIsolationRepositoryFixture.repository()
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let project = Project(name: "legacy-on", directoryPath: repository.path, createdAt: Date(), isManagedDirectory: false, worktreeIsolationEnabled: true)
+    let store = WorktreeIsolationProjectStore()
+    try await store.save([project])
+    let pty = MockPTYManager()
+    let sessions = WorktreeIsolationSessionStore([])
+    let environment = makeWorktreeIsolationEnvironment(pty: pty, workspaceDirectory: root, projectStore: store, sessionStore: sessions)
+    let dashboard = DashboardViewModel(environment: environment)
+    await dashboard.start()
+    let id = try await dashboard.spawnNewSession(ref: .builtin(.codex), projectID: project.id, isolationOverride: selection)
+    let path = environment.sessionWorkspaceDirectory(for: id)
+    #expect(pty.spawnCalls.last?.workingDirectory == (selection == true ? path.path : repository.path))
+    #expect(FileManager.default.fileExists(atPath: path.path) == (selection == true))
+    try await waitUntil { await sessions.load().contains { $0.id == id } }
+    let saved = try #require(await sessions.load().first { $0.id == id })
+    #expect(saved.workingDirectory == (selection == true ? path.path : repository.path))
+    #expect(saved.worktreeIsolationOptOut == nil)
+    await dashboard.removeSession(id)
+}
+
+// planner は隔離を選択した後にだけ呼ぶため、既定の非隔離の契約は起動境界で確かめる。
+@Test @MainActor
+func フラグ未設定なら隔離しない() async throws {
+    try await worktreeIsolation_newLaunchUsesOnlyExplicitSelection(selection: nil)
+}
+
+@Test @MainActor
+func フラグがfalseなら隔離しない() async throws {
+    try await worktreeIsolation_newLaunchUsesOnlyExplicitSelection(selection: false)
+}
+
+@Test @MainActor
+func 復元でも隔離フラグがoffなら従来どおり() async throws {
+    try await worktreeIsolation_restoreKeepsSharedDirectoryForOptedOutSession()
+}
+
+// AC-5b: Control API と子セッションは旧設定オンでも本体で起動する。
+@Test @MainActor
+func worktreeIsolation_controlAPIAndChildUseExistingDirectory() async throws {
+    let repository = try WorktreeIsolationRepositoryFixture.repository()
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let project = Project(name: "legacy-on", directoryPath: repository.path, createdAt: Date(), isManagedDirectory: false, worktreeIsolationEnabled: true)
+    let store = WorktreeIsolationProjectStore()
+    try await store.save([project])
+    let pty = MockPTYManager()
+    let environment = makeWorktreeIsolationEnvironment(pty: pty, workspaceDirectory: root, projectStore: store)
+    let dashboard = DashboardViewModel(environment: environment)
+    await dashboard.start()
+    let parent = try await dashboard.spawnNewSessionFromControlAPI(
+        ref: .builtin(.codex), requester: nil, backend: .pty, workingDirectory: repository.path, projectID: project.id
+    )
+    let child = try await dashboard.spawnNewSession(kind: .codex, projectID: project.id, from: parent)
+    #expect(pty.spawnCalls.map(\.workingDirectory) == [repository.path, repository.path])
+    for id in [child, parent] {
+        #expect(!FileManager.default.fileExists(atPath: environment.sessionWorkspaceDirectory(for: id).path))
+        await dashboard.removeSession(id)
+    }
+}
+
 @Test @MainActor
 func worktreeIsolation_spawnUsesDedicatedWorktreeAndCleanupRemovesOnlyOwnedWorktree() async throws {
     let ptyManager = MockPTYManager()
@@ -178,7 +245,7 @@ func worktreeIsolation_spawnUsesDedicatedWorktreeAndCleanupRemovesOnlyOwnedWorkt
         directoryPath: repository.path,
         createdAt: Date(timeIntervalSince1970: 0),
         isManagedDirectory: false,
-        worktreeIsolationEnabled: true
+        worktreeIsolationEnabled: nil
     )
     let projectStore = WorktreeIsolationProjectStore()
     try await projectStore.save([project])
@@ -193,7 +260,7 @@ func worktreeIsolation_spawnUsesDedicatedWorktreeAndCleanupRemovesOnlyOwnedWorkt
     )
     await dashboard.start()
 
-    let sessionID = try await dashboard.spawnNewSession(kind: .codex, projectID: project.id)
+    let sessionID = try await dashboard.spawnNewSession(ref: .builtin(.codex), projectID: project.id, isolationOverride: true)
     let worktreeURL = environment.sessionWorkspaceDirectory(for: sessionID)
     let branch = WorktreeIsolationPlanner.branchName(for: sessionID)
 
@@ -228,7 +295,7 @@ func worktreeIsolation_nonGitProjectAbortsWithoutUsingSharedDirectory() async th
         directoryPath: projectDirectory.path,
         createdAt: Date(timeIntervalSince1970: 0),
         isManagedDirectory: false,
-        worktreeIsolationEnabled: true
+        worktreeIsolationEnabled: nil
     )
     let projectStore = WorktreeIsolationProjectStore()
     try await projectStore.save([project])
@@ -244,7 +311,7 @@ func worktreeIsolation_nonGitProjectAbortsWithoutUsingSharedDirectory() async th
     await dashboard.start()
 
     do {
-        _ = try await dashboard.spawnNewSession(kind: .codex, projectID: project.id)
+        _ = try await dashboard.spawnNewSession(ref: .builtin(.codex), projectID: project.id, isolationOverride: true)
         Issue.record("隔離不能なプロジェクトの spawn が成功した")
     } catch {
         #expect(error.localizedDescription.contains("Git"))
@@ -286,18 +353,16 @@ func worktreeIsolation_togglePersistsOnAndOffWithoutChangingOptionalSchema() asy
         dashboard.addProject(name: "toggle", directoryPath: projectDirectory.path)
     )
 
-    dashboard.setWorktreeIsolationEnabled(true, for: projectID)
-    try await waitUntil {
-        await projectStore.load().first(where: { $0.id == projectID })?.worktreeIsolationEnabled == true
+    // 廃止された UI の切替ではなく、旧形式の on/off が保存・読み込みできることを維持する。
+    let original = try #require(dashboard.projects.first { $0.id == projectID })
+    for enabled in [true, false] {
+        var legacy = original
+        legacy.worktreeIsolationEnabled = enabled
+        try await projectStore.save([legacy])
+        let restored = try #require(await projectStore.load().first)
+        #expect(restored.worktreeIsolationEnabled == enabled)
+        #expect(try JSONDecoder().decode(Project.self, from: JSONEncoder().encode(restored)) == restored)
     }
-    #expect(dashboard.projects.first?.usesWorktreeIsolation == true)
-
-    dashboard.setWorktreeIsolationEnabled(false, for: projectID)
-    try await waitUntil {
-        await projectStore.load().first(where: { $0.id == projectID })?.worktreeIsolationEnabled == false
-    }
-    #expect(dashboard.projects.first?.worktreeIsolationEnabled == false)
-    #expect(dashboard.projects.first?.usesWorktreeIsolation == false)
 }
 
 @Test @MainActor
@@ -330,7 +395,7 @@ func worktreeIsolation_cleanupLeavesUncommittedWorktreeAndShowsWarning() async t
         directoryPath: repository.path,
         createdAt: Date(timeIntervalSince1970: 0),
         isManagedDirectory: false,
-        worktreeIsolationEnabled: true
+        worktreeIsolationEnabled: nil
     )
     let projectStore = WorktreeIsolationProjectStore()
     try await projectStore.save([project])
@@ -345,7 +410,7 @@ func worktreeIsolation_cleanupLeavesUncommittedWorktreeAndShowsWarning() async t
     )
     await dashboard.start()
 
-    let sessionID = try await dashboard.spawnNewSession(kind: .codex, projectID: project.id)
+    let sessionID = try await dashboard.spawnNewSession(ref: .builtin(.codex), projectID: project.id, isolationOverride: true)
     let worktreeURL = environment.sessionWorkspaceDirectory(for: sessionID)
     let branch = WorktreeIsolationPlanner.branchName(for: sessionID)
     createdWorktreeURL = worktreeURL
@@ -391,7 +456,7 @@ func worktreeIsolation_cleanupShowsBranchWarningWhenOnlyBranchRemovalFails() asy
         directoryPath: repository.path,
         createdAt: Date(timeIntervalSince1970: 0),
         isManagedDirectory: false,
-        worktreeIsolationEnabled: true
+        worktreeIsolationEnabled: nil
     )
     let projectStore = WorktreeIsolationProjectStore()
     try await projectStore.save([project])
@@ -406,7 +471,7 @@ func worktreeIsolation_cleanupShowsBranchWarningWhenOnlyBranchRemovalFails() asy
     )
     await dashboard.start()
 
-    let sessionID = try await dashboard.spawnNewSession(kind: .codex, projectID: project.id)
+    let sessionID = try await dashboard.spawnNewSession(ref: .builtin(.codex), projectID: project.id, isolationOverride: true)
     let spawnedWorktreeURL = environment.sessionWorkspaceDirectory(for: sessionID)
     let spawnedBranchName = WorktreeIsolationPlanner.branchName(for: sessionID)
     worktreeURL = spawnedWorktreeURL
@@ -463,7 +528,7 @@ func worktreeIsolation_failedCreationRollsBackNewBranchAndPreservesPreexistingRe
         directoryPath: repository.path,
         createdAt: Date(timeIntervalSince1970: 0),
         isManagedDirectory: false,
-        worktreeIsolationEnabled: true
+        worktreeIsolationEnabled: nil
     )
     let projectStore = WorktreeIsolationProjectStore()
     try await projectStore.save([project])
@@ -496,7 +561,7 @@ func worktreeIsolation_failedCreationRollsBackNewBranchAndPreservesPreexistingRe
     try await Task.sleep(for: .milliseconds(500))
     #expect(ptyManager.spawnCalls.isEmpty)
     do {
-        _ = try await dashboard.spawnNewSession(kind: .codex, projectID: project.id)
+        _ = try await dashboard.spawnNewSession(ref: .builtin(.codex), projectID: project.id, isolationOverride: true)
         Issue.record("書き込み不能な親ディレクトリでも worktree 作成が成功した")
     } catch {
         #expect(error.localizedDescription.contains("worktree"))
@@ -654,7 +719,7 @@ func worktreeIsolation_movedChatRestoresInOriginalFolderWithoutWorktree() async 
         directoryPath: repository.path,
         createdAt: Date(timeIntervalSince1970: 0),
         isManagedDirectory: false,
-        worktreeIsolationEnabled: true
+        worktreeIsolationEnabled: nil
     )
     let projectStore = WorktreeIsolationProjectStore()
     try await projectStore.save([destination])
@@ -727,7 +792,7 @@ func worktreeIsolation_restoreReusesRegisteredWorktreeThroughCoordinator() async
         directoryPath: repository.path,
         createdAt: Date(timeIntervalSince1970: 0),
         isManagedDirectory: false,
-        worktreeIsolationEnabled: true
+        worktreeIsolationEnabled: nil
     )
     let projectStore = WorktreeIsolationProjectStore()
     try await projectStore.save([project])
@@ -762,8 +827,9 @@ func worktreeIsolation_restoreReusesRegisteredWorktreeThroughCoordinator() async
     #expect(GitBranchReader.currentBranch(at: worktreePath.path) == branchName)
 }
 
-@Test @MainActor
-func worktreeIsolation_restoreTracksExistingWorktreeAfterIsolationIsDisabled() async throws {
+// AC-6 (a) 新版、(b) 旧版のこの起動だけ隔離、(c) 旧版で隔離後に設定オフ。
+@Test(arguments: [(nil as Bool?, nil as Bool?), (nil, true), (false, nil), (true, true)]) @MainActor
+func worktreeIsolation_restoreTracksExistingWorktreeAfterIsolationIsDisabled(legacySetting: Bool?, legacyOptOut: Bool?) async throws {
     let ptyManager = MockPTYManager()
     let repository = try WorktreeIsolationRepositoryFixture.repository()
     let workspaceRoot = FileManager.default.temporaryDirectory
@@ -797,7 +863,7 @@ func worktreeIsolation_restoreTracksExistingWorktreeAfterIsolationIsDisabled() a
         directoryPath: repository.path,
         createdAt: Date(timeIntervalSince1970: 0),
         isManagedDirectory: false,
-        worktreeIsolationEnabled: false
+        worktreeIsolationEnabled: legacySetting
     )
     let projectStore = WorktreeIsolationProjectStore()
     try await projectStore.save([project])
@@ -811,7 +877,7 @@ func worktreeIsolation_restoreTracksExistingWorktreeAfterIsolationIsDisabled() a
         command: "/usr/local/bin/codex",
         args: [],
         env: [:]
-    )
+    ).updating(worktreeIsolationOptOut: legacyOptOut)
     let sessionStore = WorktreeIsolationSessionStore([descriptor])
     let environment = makeWorktreeIsolationEnvironment(
         pty: ptyManager,
@@ -871,7 +937,7 @@ func worktreeIsolation_restoreRecreatesMissingWorktreeFromExistingBranch() async
         directoryPath: repository.path,
         createdAt: Date(timeIntervalSince1970: 0),
         isManagedDirectory: false,
-        worktreeIsolationEnabled: true
+        worktreeIsolationEnabled: nil
     )
     let projectStore = WorktreeIsolationProjectStore()
     try await projectStore.save([project])
@@ -952,7 +1018,7 @@ func worktreeIsolation_overrideOnCreatesWorktreeWithoutChangingProjectSetting() 
 
     #expect(ptyManager.spawnCalls.first?.workingDirectory == worktreeURL.path)
     #expect(GitBranchReader.currentBranch(at: worktreeURL.path) == branch)
-    #expect(dashboard.projects.first?.usesWorktreeIsolation == false)
+    #expect(dashboard.projects.first?.worktreeIsolationEnabled == false)
 
     await dashboard.removeSession(sessionID)
     #expect(!FileManager.default.fileExists(atPath: worktreeURL.path))
@@ -994,12 +1060,12 @@ func worktreeIsolation_overrideOffLaunchesInProjectDirectoryEvenForNonGitProject
     _ = try await dashboard.spawnNewSession(ref: .builtin(.codex), projectID: project.id, isolationOverride: false)
 
     #expect(ptyManager.spawnCalls.first?.workingDirectory == projectDirectory.path)
-    #expect(dashboard.projects.first?.usesWorktreeIsolation == true)
+    #expect(dashboard.projects.first?.worktreeIsolationEnabled == true)
 }
 
 
 // 08 F4 で「worktree なしで起動」したセッションは、隔離オンのプロジェクトでも復元で worktree を作らない。
-// （記録が無いセッションの復元は従来どおり隔離する: AcceptanceRestoreAbortNoSpawnTests）
+// 保存済みの作業フォルダだけで判断する。
 @Test @MainActor
 func worktreeIsolation_restoreKeepsSharedDirectoryForOptedOutSession() async throws {
     let ptyManager = MockPTYManager()
@@ -1020,7 +1086,7 @@ func worktreeIsolation_restoreKeepsSharedDirectoryForOptedOutSession() async thr
         directoryPath: repository.path,
         createdAt: Date(timeIntervalSince1970: 0),
         isManagedDirectory: false,
-        worktreeIsolationEnabled: true
+        worktreeIsolationEnabled: nil
     )
     let projectStore = WorktreeIsolationProjectStore()
     try await projectStore.save([project])
@@ -1066,7 +1132,7 @@ func worktreeCreationPath_isTheNewWorktreeWhileCreatingAndClearedAfter() async t
         directoryPath: repository.path,
         createdAt: Date(timeIntervalSince1970: 0),
         isManagedDirectory: false,
-        worktreeIsolationEnabled: true
+        worktreeIsolationEnabled: nil
     )
     let projectStore = WorktreeIsolationProjectStore()
     try await projectStore.save([project])
@@ -1081,7 +1147,7 @@ func worktreeCreationPath_isTheNewWorktreeWhileCreatingAndClearedAfter() async t
     var seen: [String] = []
     let spawn = Task {
         try await DashboardViewModel.$reportsWorktreeCreation.withValue(true) {
-            try await dashboard.spawnNewSession(kind: .codex, projectID: project.id)
+            try await dashboard.spawnNewSession(ref: .builtin(.codex), projectID: project.id, isolationOverride: true)
         }
     }
     var finished = false
@@ -1125,7 +1191,7 @@ func worktreeIsolation_restoreAsksBeforeRecreating(accepts: Bool, deletesBranch:
         directoryPath: repository.path,
         createdAt: Date(timeIntervalSince1970: 0),
         isManagedDirectory: false,
-        worktreeIsolationEnabled: true
+        worktreeIsolationEnabled: false
     )
     let projectStore = WorktreeIsolationProjectStore()
     try await projectStore.save([project])
@@ -1186,7 +1252,7 @@ func worktreeCreationPath_showsOnlyTheScreenLaunch() async throws {
     let api = Task { try await dashboard.spawnNewSession(kind: .codex, projectID: project.id) }
     let screen = Task {
         try await DashboardViewModel.$reportsWorktreeCreation.withValue(true) {
-            try await dashboard.spawnNewSession(kind: .codex, projectID: project.id)
+            try await dashboard.spawnNewSession(ref: .builtin(.codex), projectID: project.id, isolationOverride: true)
         }
     }
     var seen = Set<String>()
@@ -1307,6 +1373,8 @@ func worktreeIsolation_restoreOfASessionThatNeverHadAWorktreeDoesNotAsk() async 
 
     try await waitUntil { ptyManager.spawnCalls.count == 1 }
     #expect(askedCount == 0)
+    #expect(ptyManager.spawnCalls.first?.workingDirectory == repository.path)
+    #expect(!FileManager.default.fileExists(atPath: worktreePath.path))
 }
 
 // C-12 / 09 E4: git の出力が名指しした場所が、いまこのリポジトリの作業ツリーとして働いているときだけ「既存の worktree を使う」を出す。

@@ -69,7 +69,7 @@ public enum WorktreeIsolationPlanner {
         isRegisteredWorktree: Bool = false,
         intent: WorktreeIsolationIntent = .newSession
     ) -> WorktreeIsolationOutcome {
-        guard let project, project.usesWorktreeIsolation else {
+        guard let project else {
             return .disabled
         }
 

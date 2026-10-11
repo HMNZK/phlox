@@ -465,30 +465,18 @@ struct NewSessionRequest: Equatable {
 
 /// 起動前・起動失敗時に出す確認（08 F1・F4）。
 enum SpawnGuard: Identifiable {
-    /// 隔離オフのプロジェクトで、同じ作業ディレクトリにセッションが動いている。
-    case collision(NewSessionRequest, directory: String, peers: [SessionID])
     /// worktree を作れず起動を中止した。
     /// `existingWorktree` は 09 E4「既存の worktree を使う」で使える、このリポジトリの worktree の場所（無ければ nil）。
     case worktreeFailed(NewSessionRequest, agentName: String, log: String, existingWorktree: String?)
 
     var id: String {
         switch self {
-        case .collision: "collision"
         case .worktreeFailed: "worktreeFailed"
         }
     }
 }
 
 enum NewSessionCollisionGate {
-    /// 隔離オフのとき、プロジェクトのフォルダで動いているセッション（08 F1）。隔離オンなら空。
-    static func peers(project: Project, among workspaces: [SessionWorkspace]) -> [SessionID] {
-        guard !project.usesWorktreeIsolation else { return [] }
-        let directory = WorkspaceCollisionPolicy.canonicalPath(project.directoryPath)
-        return workspaces
-            .filter { $0.isActive && WorkspaceCollisionPolicy.canonicalPath($0.workingDirectory) == directory }
-            .map(\.sessionID)
-    }
-
     /// worktree の失敗として確認に出す内容。git の出力があればそれを、無ければ理由の文を出す。
     static func worktreeFailureLog(_ error: Error) -> String? {
         guard let error = error as? WorktreeIsolationSpawnError else { return nil }
@@ -515,7 +503,6 @@ enum NewSessionCollisionGate {
 
 struct SpawnGuardSheet: View {
     let spawnGuard: SpawnGuard
-    let sessionNode: (SessionID) -> SessionNode?
     let onCancel: () -> Void
     /// 起動する。true = worktree で分ける、false = 分けない。
     let onLaunch: (Bool) -> Void
@@ -526,21 +513,6 @@ struct SpawnGuardSheet: View {
 
     var body: some View {
         switch spawnGuard {
-        case .collision(_, _, let peers):
-            // 09 E3: 取り返せる型。ボタンは縦に並べ、既定（↩）の「worktree で分けて起動」を一番下に置く。
-            DSDialog(
-                .recoverable,
-                title: title,
-                message: message,
-                buttons: [
-                    DSDialogButton("キャンセル", action: onCancel),
-                    DSDialogButton("同じディレクトリで起動") { onLaunch(false) },
-                    DSDialogButton("worktree で分けて起動", role: .primary) { onLaunch(true) },
-                ],
-                onCancel: onCancel
-            ) {
-                peerList(peers)
-            }
         case .worktreeFailed(_, _, let log, let existingWorktree):
             // 09 E4: お知らせの型。「閉じる」が既定、次の手の「隔離なしで起動」を先に置く。
             DSDialog(
@@ -561,9 +533,6 @@ struct SpawnGuardSheet: View {
 
     private var title: String {
         switch spawnGuard {
-        case .collision(_, let directory, let peers):
-            String(format: AppLocalizedString.string("%@ では、すでに %lld 件のセッションが動いています", locale: locale),
-                   (directory as NSString).abbreviatingWithTildeInPath, peers.count)
         case .worktreeFailed:
             AppLocalizedString.string("worktree を作成できなかったため、起動を中止しました", locale: locale)
         }
@@ -571,42 +540,9 @@ struct SpawnGuardSheet: View {
 
     private var message: String {
         switch spawnGuard {
-        case .collision:
-            AppLocalizedString.string("同じファイルを書き換えると変更がぶつかることがあります。worktree で分けて起動できます。", locale: locale)
         case .worktreeFailed(_, let agentName, _, _):
             String(format: AppLocalizedString.string("%@ の新しいセッションは起動していません。", locale: locale), agentName)
         }
     }
 
-    /// 08 F1: 衝突相手の一覧。行の高さ 30、状態（52 幅・11pt。対応待ちは太字でその状態の色）、名前、種別の記号。
-    private func peerList(_ peers: [SessionID]) -> some View {
-        VStack(spacing: 0) {
-            ForEach(Array(peers.enumerated()), id: \.element) { index, id in
-                if let node = sessionNode(id) {
-                    let state = node.gridDisplayState
-                    HStack(spacing: 10) {
-                        Text(verbatim: state.localizedLabel(locale: locale))
-                            .font(DSFont.meta.weight(state.attentionKind != nil ? .bold : .medium))
-                            .foregroundStyle(state.attentionKind.map { DSColor.attentionInk($0) } ?? DSColor.textSecondary)
-                            .frame(width: 52, alignment: .leading)
-                        Text(verbatim: node.displayName)
-                            .font(DSFont.dense)
-                            .foregroundStyle(DSColor.textPrimary)
-                            .lineLimit(1)
-                        Spacer(minLength: 0)
-                        Text(verbatim: node.agentDescriptor.tabInitials)
-                            .font(.system(size: 10.5, weight: .semibold))
-                            .foregroundStyle(DSColor.textTertiary)
-                    }
-                    .padding(.horizontal, 10)
-                    .frame(height: 30)
-                    .overlay(alignment: .top) {
-                        if index > 0 { Rectangle().fill(DSColor.separator).frame(height: 1) }
-                    }
-                    .accessibilityElement(children: .combine)
-                }
-            }
-        }
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(DSColor.separator, lineWidth: 1))
-    }
 }

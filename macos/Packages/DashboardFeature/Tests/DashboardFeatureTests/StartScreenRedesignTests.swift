@@ -50,20 +50,6 @@ struct StartScreenRedesignTests {
         #expect(NewSessionKeys.mode(default: .chat, option: false, supportsChat: false) == .terminal)
     }
 
-    @Test func collisionGate_listsActiveSessionsInTheSameFolder_onlyWithoutIsolation() {
-        let directory = FileManager.default.temporaryDirectory.path
-        let same = SessionID(), finished = SessionID(), elsewhere = SessionID()
-        let workspaces = [
-            SessionWorkspace(sessionID: same, workingDirectory: directory + "/", isActive: true),
-            SessionWorkspace(sessionID: finished, workingDirectory: directory, isActive: false),
-            SessionWorkspace(sessionID: elsewhere, workingDirectory: "/tmp/phlox-other-\(UUID().uuidString)", isActive: true),
-        ]
-        var project = Project(name: "p", directoryPath: directory, createdAt: .now, isManagedDirectory: false)
-        #expect(NewSessionCollisionGate.peers(project: project, among: workspaces) == [same])
-        project.worktreeIsolationEnabled = true
-        #expect(NewSessionCollisionGate.peers(project: project, among: workspaces).isEmpty)
-    }
-
     @Test func worktreeFailureLog_showsGitOutput_andIgnoresOtherErrors() {
         let failed = WorktreeIsolationSpawnError.worktreeCreationFailed(path: "/w", branchName: "b", detail: "fatal: already checked out")
         #expect(NewSessionCollisionGate.worktreeFailureLog(failed) == "fatal: already checked out")

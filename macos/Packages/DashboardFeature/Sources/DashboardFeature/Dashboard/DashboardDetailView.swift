@@ -119,7 +119,6 @@ struct DashboardDetailView: View {
             name: project.name,
             path: project.directoryPath,
             branch: GitBranchReader.currentBranch(at: project.directoryPath),
-            isolates: project.usesWorktreeIsolation,
             runningCount: running
         )
     }

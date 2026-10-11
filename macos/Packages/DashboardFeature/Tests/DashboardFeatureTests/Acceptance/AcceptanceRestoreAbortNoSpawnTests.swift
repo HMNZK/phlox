@@ -70,8 +70,7 @@ struct AcceptanceRestoreAbortNoSpawnTests {
             name: "abort-shared",
             directoryPath: repository.path,
             createdAt: Date(timeIntervalSince1970: 0),
-            isManagedDirectory: false,
-            worktreeIsolationEnabled: true
+            isManagedDirectory: false
         )
         let projectStore = AcceptanceRestoreAbortProjectStore()
         try await projectStore.save([project])
@@ -79,7 +78,7 @@ struct AcceptanceRestoreAbortNoSpawnTests {
             id: sessionID,
             kind: .codex,
             // 隔離が中止されたとき、ここへ落ちて起動してはならない（＝共有ディレクトリ）。
-            workingDirectory: repository.path,
+            workingDirectory: worktreePath.path,
             name: "aborted",
             projectID: project.id,
             startedAt: Date(timeIntervalSince1970: 0),
@@ -133,8 +132,7 @@ struct AcceptanceRestoreAbortNoSpawnTests {
             name: "abort-failed-creation",
             directoryPath: repository.path,
             createdAt: Date(timeIntervalSince1970: 0),
-            isManagedDirectory: false,
-            worktreeIsolationEnabled: true
+            isManagedDirectory: false
         )
         let projectStore = AcceptanceRestoreAbortProjectStore()
         try await projectStore.save([project])

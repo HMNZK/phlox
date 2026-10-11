@@ -304,7 +304,6 @@ struct AgentStartProjectHeader: View {
     let name: String
     let path: String
     let branch: String?
-    let isolates: Bool
     let runningCount: Int
 
     @Environment(\.locale) private var locale
@@ -323,11 +322,6 @@ struct AgentStartProjectHeader: View {
                     Text(verbatim: branch)
                         .font(.system(size: 12, design: .monospaced))
                 }
-                separator
-                Text(isolates ? "worktree 隔離: オン" : "worktree 隔離: オフ")
-                    .padding(.horizontal, 8)
-                    .frame(height: 20)
-                    .background(DSColor.segmentTrack, in: RoundedRectangle(cornerRadius: 5))
                 if runningCount > 0 {
                     separator
                     Text(String(format: AppLocalizedString.string("実行中 %lld 件", locale: locale), runningCount))

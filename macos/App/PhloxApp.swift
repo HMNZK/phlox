@@ -104,6 +104,7 @@ struct PhloxApp: App {
                         viewModel: composition.dashboard,
                         router: composition.router,
                         usageMonitor: composition.usage,
+                        newChatDraftStore: composition.newChatDraftStore,
                         agentConsoleWindowID: AgentConsoleCommands.windowID,
                         sessionTerminals: sessionTerminals,
                         simulatorHub: simulatorHub
@@ -380,7 +381,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                     window.title = "Phlox（専用端末のバックグラウンド検証）"
                     window.isReleasedWhenClosed = false
                     window.contentView = NSHostingView(rootView: DashboardView(
-                        viewModel: root.dashboard, router: root.router, usageMonitor: root.usage, simulatorHub: hub
+                        viewModel: root.dashboard, router: root.router, usageMonitor: root.usage,
+                        newChatDraftStore: root.newChatDraftStore, simulatorHub: hub
                     ).preferredColorScheme(ThemeStore.active.preferredColorScheme)
                         .environment(\.locale, Locale(identifier: "ja")))
                     simulatorVerificationWindow = window

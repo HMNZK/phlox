@@ -49,7 +49,7 @@ enum ComposerAttachmentChipPresentation {
 
 /// 元画像の添付状態。送信時の圧縮・縮小とは別に受付容量を検査する。
 @MainActor @Observable
-final class ComposerAttachmentStore {
+public final class ComposerAttachmentStore {
     static let maxBytesPerImage = ImageAttachmentLimits.maxInputBytes
     static let maxTotalRawBytes = ImageAttachmentLimits.maxTotalInputBytes
     static let maxCount = ImageAttachmentLimits.maxCount
@@ -58,11 +58,11 @@ final class ComposerAttachmentStore {
     /// 送られない画像の知らせは保存せず、いまのモデルから決める（`ComposerAttachmentCapability.imageNotice`）。
     enum NoticeTone { case error, neutral }
 
-    private(set) var attachments: [ComposerAttachment] = []
+    public private(set) var attachments: [ComposerAttachment] = []
     private(set) var lastError: String? { didSet { lastErrorTone = .error } }
     private(set) var lastErrorTone = NoticeTone.error
 
-    init(attachments: [ComposerAttachment] = []) {
+    public init(attachments: [ComposerAttachment] = []) {
         self.attachments = attachments
     }
 
@@ -77,7 +77,7 @@ final class ComposerAttachmentStore {
     /// 上限超過は lastError に人間可読メッセージを設定して追加しない。
     /// 受理したときだけ採番済みの添付を返す（task-2 契約。PM スタブは常に nil）。
     @discardableResult
-    func addImage(data: Data, mediaType: String, filename: String? = nil) -> ComposerAttachment? {
+    public func addImage(data: Data, mediaType: String, filename: String? = nil) -> ComposerAttachment? {
         if data.count > Self.maxBytesPerImage {
             lastError = ImageAttachmentLimits.inputSizeMessage
             return nil
@@ -122,24 +122,24 @@ final class ComposerAttachmentStore {
     }
 
     /// 挿入用の `@path` 参照文字列を返す（添付には積まない）。
-    func addFileReference(path: String) -> String {
+    public func addFileReference(path: String) -> String {
         "@\(path)"
     }
 
-    func remove(id: UUID) {
+    public func remove(id: UUID) {
         attachments.removeAll { $0.id == id }
         if attachments.count < Self.maxCount {
             lastError = nil
         }
     }
 
-    func clear() {
+    public func clear() {
         attachments.removeAll()
         lastError = nil
     }
 
     /// 送信済みメッセージへのリバート時に、保存済みの添付をそのまま復元する。
-    func restore(_ attachments: [ComposerAttachment]) {
+    public func restore(_ attachments: [ComposerAttachment]) {
         self.attachments = attachments
         lastError = nil
     }

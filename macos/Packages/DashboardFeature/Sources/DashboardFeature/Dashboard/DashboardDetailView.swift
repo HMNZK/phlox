@@ -6,10 +6,12 @@ import SessionFeature
 struct DashboardDetailView: View {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
+    @Bindable var newChatDraftStore: NewChatDraftStore
     @Binding var pendingDeletion: SelectedSessionNode?
     let onRenameSession: (SessionID) -> Void
     @Binding var pendingWorkspaceChange: SessionViewModel?
     let onChooseProjectDirectory: () -> Void
+    let onNewChatLaunchFailure: (AgentRef, Error) -> Void
     let isCreating: Bool
     let onSelectAgentKind: (AgentKind, SessionBackend) -> Void
     /// カスタム種別を含む起動（08 S3・S4）。
@@ -89,7 +91,17 @@ struct DashboardDetailView: View {
 
     @ViewBuilder
     private var singleDetail: some View {
-        if let selectedID = displayedSessionID,
+        if displayTab == .newChat,
+           let project = viewModel.projects.first(where: { $0.id == router.selectedProjectID }) {
+            NewChatView(
+                viewModel: viewModel,
+                router: router,
+                draftStore: newChatDraftStore,
+                draft: newChatDraftStore.draft(for: project.id),
+                project: project,
+                onLaunchFailure: onNewChatLaunchFailure
+            )
+        } else if let selectedID = displayedSessionID,
            let session = viewModel.sessionNode(id: selectedID) {
             switch session {
             case .pty(let session):

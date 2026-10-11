@@ -92,6 +92,27 @@ final class NewChatLaunchTests {
         #expect(transport.capturedParams(for: "turn/start").count == 1)
         await dashboard.removeSession(id)
     }
+
+    @Test func launchNewChatUsesExistingWorktreeOverride() async throws {
+        let client = LaunchClient()
+        let dashboard = dashboard([client])
+        let worktree = FileManager.default.temporaryDirectory.appendingPathComponent("phlox-worktree-\(UUID())", isDirectory: true)
+        try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
+        defer {
+            do { try FileManager.default.removeItem(at: worktree) }
+            catch { Issue.record("一時 worktree の後片付けに失敗: \(error)") }
+        }
+        let base = request(dashboard)
+        let launch = NewChatLaunchRequest(projectID: base.projectID, agentRef: base.agentRef, settings: base.settings,
+            usesWorktree: false, text: base.text, attachments: base.attachments,
+            workingDirectoryOverride: worktree.path)
+
+        let id = try await dashboard.launchNewChat(launch)
+
+        #expect(dashboard.sessionNode(id: id)?.appServer?.rawWorkspacePath == worktree.path)
+        await dashboard.removeSession(id)
+    }
+
     @Test func AC5_claudeLaunchFailureRetainsRowAndDraft() async throws {
         let client = LaunchClient(failsStart: true)
         let store = InMemorySessionStore()

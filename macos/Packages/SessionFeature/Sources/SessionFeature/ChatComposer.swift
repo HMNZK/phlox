@@ -324,8 +324,10 @@ struct ChatComposerFooter: View {
     private var narrowFooter: some View {
         HStack(spacing: 6) {
             ComposerAttachPlaceholder(
-                viewModel: viewModel,
-                layout: layout.settingsLayout,
+                text: $viewModel.draft,
+                attachmentStore: viewModel.attachmentStore,
+                agentRef: viewModel.agentRef,
+                imageAttachmentsSupported: viewModel.imageAttachmentSupport != .agentUnsupported,
                 accessibilityIdentifier: "\(accessibilityPrefix).attachPlaceholder"
             )
             ComposerSettingsOverflowMenu(
@@ -1238,7 +1240,7 @@ struct IMESafeTextView: NSViewRepresentable {
     }
 }
 
-struct ComposerAttachmentStrip: View {
+public struct ComposerAttachmentStrip: View {
     @Environment(\.localizationBundle) private var strings
     @Bindable var store: ComposerAttachmentStore
     let layout: ComposerSettingsLayout
@@ -1250,7 +1252,15 @@ struct ComposerAttachmentStrip: View {
         layout == .compact ? 26 : 30
     }
 
-    var body: some View {
+    public init(store: ComposerAttachmentStore, layout: ComposerSettingsLayout, imageNotice: String? = nil,
+                onRemove: @escaping (ComposerAttachment) -> Void) {
+        _store = Bindable(wrappedValue: store)
+        self.layout = layout
+        self.imageNotice = imageNotice
+        self.onRemove = onRemove
+    }
+
+    public var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             if !store.attachments.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {

@@ -8,16 +8,19 @@ public struct NewChatLaunchRequest: Sendable {
     public let usesWorktree: Bool
     public let text: String
     public let attachments: [ComposerAttachment]
+    public let workingDirectoryOverride: String?
     public let resumeHistoryID: String?
 
     public init(projectID: ProjectID, agentRef: AgentRef, settings: CodexAppServerSessionSettings,
-                usesWorktree: Bool, text: String, attachments: [ComposerAttachment], resumeHistoryID: String? = nil) {
+                usesWorktree: Bool, text: String, attachments: [ComposerAttachment],
+                workingDirectoryOverride: String? = nil, resumeHistoryID: String? = nil) {
         self.projectID = projectID
         self.agentRef = agentRef
         self.settings = settings
         self.usesWorktree = usesWorktree
         self.text = text
         self.attachments = attachments
+        self.workingDirectoryOverride = workingDirectoryOverride
         self.resumeHistoryID = resumeHistoryID
     }
 }

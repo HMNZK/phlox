@@ -1234,6 +1234,7 @@ public final class DashboardViewModel {
         guard request.resumeHistoryID == nil else { throw AgentSpawnError.unsupportedBackend }
         guard projects.contains(where: { $0.id == request.projectID }) else { throw AgentSpawnError.unknownProject }
         let id = try await spawnNewSession(ref: request.agentRef, projectID: request.projectID, backend: .appServer,
+            workingDirectoryOverride: request.workingDirectoryOverride,
             isolationOverride: request.usesWorktree, initialSettings: request.settings, keepsRowOnLaunchFailure: true,
             onRowAppended: { id in
                 self.sessionNode(id: id)?.appServer?.prepareFirstMessage(request.text, attachments: request.attachments)

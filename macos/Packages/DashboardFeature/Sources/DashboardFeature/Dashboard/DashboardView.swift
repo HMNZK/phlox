@@ -8,6 +8,7 @@ public struct DashboardView: View {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
     @Bindable var usageMonitor: UsageMonitor
+    @Bindable var newChatDraftStore: NewChatDraftStore
     @Environment(\.openSettings) private var openSettings
     @Environment(\.openWindow) private var openWindow
 
@@ -60,6 +61,7 @@ public struct DashboardView: View {
         viewModel: DashboardViewModel,
         router: AppRouter,
         usageMonitor: UsageMonitor,
+        newChatDraftStore: NewChatDraftStore = NewChatDraftStore(),
         agentConsoleWindowID: String? = nil,
         sessionTerminals: ProjectTerminalStore? = nil,
         simulatorHub: SimulatorHub? = nil
@@ -67,6 +69,7 @@ public struct DashboardView: View {
         _viewModel = Bindable(wrappedValue: viewModel)
         _router = Bindable(wrappedValue: router)
         _usageMonitor = Bindable(wrappedValue: usageMonitor)
+        _newChatDraftStore = Bindable(wrappedValue: newChatDraftStore)
         self.agentConsoleWindowID = agentConsoleWindowID
         self.sessionTerminals = sessionTerminals
         self.simulatorHub = simulatorHub
@@ -239,6 +242,7 @@ public struct DashboardView: View {
                             Task {
                                 await router.forgetProject(projectID, terminals: sessionTerminals, simulatorHub: simulatorHub)
                                 await viewModel.removeProject(projectID)
+                                newChatDraftStore.discard(projectID)
                             }
                         },
                         DSDialogButton("キャンセル", role: .primary) { pendingProjectDeletion = nil },
@@ -777,10 +781,19 @@ public struct DashboardView: View {
         DashboardDetailView(
                 viewModel: viewModel,
                 router: router,
+                newChatDraftStore: newChatDraftStore,
                 pendingDeletion: $pendingDeletion,
                 onRenameSession: beginSessionRename,
                 pendingWorkspaceChange: $pendingWorkspaceChange,
                 onChooseProjectDirectory: chooseProjectDirectory,
+                onNewChatLaunchFailure: { ref, error in
+                    let raw = error.localizedDescription
+                    spawnError = SpawnError(
+                        agentName: SpawnFailureDialogText.agentName(for: ref),
+                        message: raw.isEmpty ? String(describing: error) : raw,
+                        opensAgentConsole: SpawnFailureDialogText.opensAgentConsole(for: error)
+                    )
+                },
                 isCreating: isCreating,
                 onSelectAgentKind: { kind, backend in
                     Task { await createSessionFromKind(kind, backend: backend) }

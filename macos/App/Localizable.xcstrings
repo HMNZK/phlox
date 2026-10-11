@@ -1,6 +1,174 @@
 {
   "sourceLanguage": "ja",
   "strings": {
+    "何から始めますか？": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "What would you like to work on?"}}}
+    },
+    "今日は何を進めますか？": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "What are we building today?"}}}
+    },
+    "さあ、始めましょう": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Let's get started"}}}
+    },
+    "次は何を作りますか？": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "What's next?"}}}
+    },
+    "どこから手をつけますか？": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Where should we begin?"}}}
+    },
+    "アイデアを形にしましょう": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Let's turn ideas into code"}}}
+    },
+    "今日の課題を教えてください": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Tell me what you're working on"}}}
+    },
+    "どんな変更を加えますか？": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "What would you like to change?"}}}
+    },
+    "続きを進めましょう": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Let's keep going"}}}
+    },
+    "何をお手伝いしましょうか？": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "How can I help?"}}}
+    },
+    "やりたいことを入力（/ でコマンド）": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Describe a task (/ for commands)"}}}
+    },
+    "プロジェクトを選んでください": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Select a project"}}}
+    },
+    "%@ が見つかりません。インストールするか、別のハーネスを選んでください": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "%@ wasn't found. Install it or choose another harness."}}}
+    },
+    "%@ は画像を送れません。画像を外すか、画像を送れるハーネスを選んでください": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "%@ can't send images. Remove them or choose a harness that supports images."}}}
+    },
+    "モデルを絞り込む": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Filter models"}}}
+    },
+    "未検出": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Not detected"}}}
+    },
+    "%@ が見つかりません。インストールすると選べます": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "%@ wasn't detected. Install it to select it."}}}
+    },
+    "既定": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Default"}}}
+    },
+    "ハーネスとモデル": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Harness and model"}}}
+    },
+    "計画": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Plan"}}}
+    },
+    "低": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Low"}}}
+    },
+    "中": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Medium"}}}
+    },
+    "高": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "High"}}}
+    },
+    "非常に高": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Very high"}}}
+    },
+    "最大": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Max"}}}
+    },
+    "未選択": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Not selected"}}}
+    },
+    "新規チャット": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "New Chat"}}}
+    },
+    "既存ディレクトリ": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Existing directory"}}}
+    },
+    "新しい worktree": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "New worktree"}}}
+    },
+    "git リポジトリではないため worktree を作れません": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Worktrees aren't available because this isn't a Git repository."}}}
+    },
+    "作業場所": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Workspace"}}}
+    },
+    "本文と添付はプロジェクトごとに保たれます": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Draft text and attachments are saved per project."}}}
+    },
+    "下書きあり": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Draft saved"}}}
+    },
+    "起動できませんでした": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Couldn't start"}}}
+    },
+    "起動しています。終わったら最初のメッセージを送ります": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Starting. The first message will be sent when startup finishes."}}}
+    },
+    "起動できませんでした。本文を入力欄に戻しました": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Couldn't start. The text was returned to the draft."}}}
+    },
+    "起動しました。最初のメッセージを送りました": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Started. The first message was sent."}}}
+    },
+    "コードレビュー": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Code review"}}}
+    },
+    "バグ修正": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Fix a bug"}}}
+    },
+    "テスト追加": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Add tests"}}}
+    },
+    "コードの説明": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Explain this code"}}}
+    },
+    "リファクタ": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Refactor"}}}
+    },
     "画像送信を準備しています。準備が終わってから再送してください": {
       "extractionState": "manual",
       "localizations": {

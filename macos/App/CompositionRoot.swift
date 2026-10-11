@@ -17,6 +17,7 @@ public final class CompositionRoot {
     public let dashboard: DashboardViewModel
     public let router: AppRouter
     public let usage: UsageMonitor
+    public let newChatDraftStore: NewChatDraftStore
     public let appSupportMigrationOutcome: MigrationOutcome
 
     /// モバイル中継プロキシが実際にバインドした露出範囲（UI から接続可否を表示するために公開）。
@@ -143,6 +144,7 @@ public final class CompositionRoot {
         self.dashboard = started.dashboard
         self.router = started.router
         self.usage = started.usage
+        self.newChatDraftStore = NewChatDraftStore()
         self.appSupportMigrationOutcome = appSupportMigrationOutcome
         self.mobileProxyBindMode = mobileProxyResult.bindMode
         self.mobileTokenViewModel = mobileTokenViewModel

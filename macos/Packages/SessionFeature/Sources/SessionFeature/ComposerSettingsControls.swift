@@ -85,7 +85,7 @@ func composerControls(for agentRef: AgentRef, side: ComposerControlSide) -> [Com
     }
 }
 
-enum ComposerSettingsLayout {
+public enum ComposerSettingsLayout {
     case standard
     case compact
 }
@@ -129,8 +129,10 @@ struct ComposerSettingsControlsView: View {
             HStack(spacing: 6) {
                 if showsAttachPlaceholder {
                     ComposerAttachPlaceholder(
-                        viewModel: viewModel,
-                        layout: layout,
+                        text: $viewModel.draft,
+                        attachmentStore: viewModel.attachmentStore,
+                        agentRef: viewModel.agentRef,
+                        imageAttachmentsSupported: viewModel.imageAttachmentSupport != .agentUnsupported,
                         accessibilityIdentifier: "\(accessibilityPrefix).attachPlaceholder"
                     )
                 }
@@ -589,14 +591,25 @@ struct HoverReporter: NSViewRepresentable {
     }
 }
 
-struct ComposerAttachPlaceholder: View {
-    @Bindable var viewModel: ChatSessionViewModel
-    let layout: ComposerSettingsLayout
-    let accessibilityIdentifier: String
+public struct ComposerAttachPlaceholder: View {
+    @Binding private var text: String
+    @Bindable private var attachmentStore: ComposerAttachmentStore
+    private let agentRef: AgentRef
+    private let imageAttachmentsSupported: Bool
+    private let accessibilityIdentifier: String
     @State private var isHovering = false
     @Environment(\.locale) private var locale
 
-    var body: some View {
+    public init(text: Binding<String>, attachmentStore: ComposerAttachmentStore, agentRef: AgentRef,
+                imageAttachmentsSupported: Bool = true, accessibilityIdentifier: String) {
+        _text = text
+        _attachmentStore = Bindable(wrappedValue: attachmentStore)
+        self.agentRef = agentRef
+        self.imageAttachmentsSupported = imageAttachmentsSupported
+        self.accessibilityIdentifier = accessibilityIdentifier
+    }
+
+    public var body: some View {
         // PhloxReply.dc.html の plus: 24×24・角丸 6・「＋」15・fg2・面なし（ポインタを置くとホバーの面）。
         Button(action: openAttachmentPanel) {
             Text(verbatim: "＋")
@@ -640,14 +653,14 @@ struct ComposerAttachPlaceholder: View {
     /// 画像を送れないエージェントでは「参照として挿入」（PhloxReply.dc.html の plusAria）。
     /// Codex の画像非対応モデルは画像も添付する（送るときに止める）ので「添付」のまま。
     private var attachLabel: LocalizedStringKey {
-        viewModel.imageAttachmentSupport == .agentUnsupported ? "ファイルを参照として挿入" : "ファイルや画像を添付"
+        imageAttachmentsSupported ? "ファイルや画像を添付" : "ファイルを参照として挿入"
     }
 
     private func addImage(_ url: URL) async {
-        guard viewModel.imageAttachmentSupport != .agentUnsupported else {
+        guard imageAttachmentsSupported else {
             insertFileReference(url.path)
-            viewModel.attachmentStore.setError(
-                ComposerAttachmentCapability.fileReferenceNotice(agentRef: viewModel.agentRef, locale: locale),
+            attachmentStore.setError(
+                ComposerAttachmentCapability.fileReferenceNotice(agentRef: agentRef, locale: locale),
                 tone: .neutral
             )
             return
@@ -660,33 +673,33 @@ struct ComposerAttachPlaceholder: View {
                 }
                 return try Data(contentsOf: url)
             }.value
-            if let attachment = viewModel.attachmentStore.addImage(
+            if let attachment = attachmentStore.addImage(
                 data: data,
                 mediaType: Self.mediaType(for: url),
                 filename: url.lastPathComponent
             ) {
                 let applied = ComposerImagePlaceholder.inserting(
                     number: attachment.number,
-                    into: viewModel.draft,
-                    cursorUTF16: viewModel.draft.utf16.count
+                    into: text,
+                    cursorUTF16: text.utf16.count
                 )
-                viewModel.draft = applied.text
+                text = applied.text
             }
         } catch ImageAttachmentPreparationError.tooLarge {
-            viewModel.attachmentStore.setError(ImageAttachmentLimits.inputSizeMessage)
+            attachmentStore.setError(ImageAttachmentLimits.inputSizeMessage)
         } catch {
-            viewModel.attachmentStore.setError("画像を読み込めませんでした: \(url.lastPathComponent)")
+            attachmentStore.setError("画像を読み込めませんでした: \(url.lastPathComponent)")
         }
     }
 
     private func insertFileReference(_ path: String) {
-        let reference = viewModel.attachmentStore.addFileReference(path: path)
-        if viewModel.draft.isEmpty {
-            viewModel.draft = reference
-        } else if viewModel.draft.last?.isWhitespace == true {
-            viewModel.draft += reference
+        let reference = attachmentStore.addFileReference(path: path)
+        if text.isEmpty {
+            text = reference
+        } else if text.last?.isWhitespace == true {
+            text += reference
         } else {
-            viewModel.draft += " \(reference)"
+            text += " \(reference)"
         }
     }
 

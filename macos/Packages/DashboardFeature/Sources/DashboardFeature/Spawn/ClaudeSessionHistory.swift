@@ -126,6 +126,31 @@ struct ClaudeSessionHistoryDiscovery: Sendable {
         return discovered
     }
 
+    func entries(forWorkingDirectories workingDirectories: [String], limit: Int) -> [ClaudeSessionHistoryEntry] {
+        (try? loadEntries(forWorkingDirectories: workingDirectories, limit: limit)) ?? []
+    }
+
+    func loadEntries(forWorkingDirectories workingDirectories: [String], limit: Int) throws -> [ClaudeSessionHistoryEntry] {
+        guard limit > 0 else { return [] }
+        var entriesByID: [String: ClaudeSessionHistoryEntry] = [:]
+        for workingDirectory in workingDirectories where !workingDirectory.isEmpty {
+            let projectDir = projectsRoot.appendingPathComponent(
+                Self.projectDirectoryName(forWorkingDirectory: workingDirectory),
+                isDirectory: true
+            )
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: projectDir.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue else { continue }
+            _ = try FileManager.default.contentsOfDirectory(at: projectDir, includingPropertiesForKeys: nil)
+            for entry in self.entries(forWorkingDirectory: workingDirectory, limit: limit) where entriesByID[entry.id] == nil {
+                entriesByID[entry.id] = entry.located(in: workingDirectory)
+            }
+        }
+        return entriesByID.values.sorted {
+            $0.lastModified == $1.lastModified ? $0.sessionID < $1.sessionID : $0.lastModified > $1.lastModified
+        }.prefix(limit).map { $0 }
+    }
+
     // MARK: - File scan
 
     private struct UserLineInfo {

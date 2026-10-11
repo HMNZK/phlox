@@ -267,10 +267,14 @@ func worktreeIsolation_spawnUsesDedicatedWorktreeAndCleanupRemovesOnlyOwnedWorkt
     #expect(ptyManager.spawnCalls.first?.workingDirectory == worktreeURL.path)
     #expect(FileManager.default.fileExists(atPath: worktreeURL.path))
     #expect(GitBranchReader.currentBranch(at: worktreeURL.path) == branch)
+    #expect(dashboard.projects.first?.worktreePaths == [worktreeURL.path])
+    try await waitUntil { await projectStore.load().first?.worktreePaths == [worktreeURL.path] }
 
     await dashboard.removeSession(sessionID)
 
     #expect(!FileManager.default.fileExists(atPath: worktreeURL.path))
+    #expect(dashboard.projects.first?.worktreePaths == [worktreeURL.path])
+    #expect(await projectStore.load().first?.worktreePaths == [worktreeURL.path])
     #expect(try runWorktreeIsolationGit(["branch", "--list", branch], in: repository)
         .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 }

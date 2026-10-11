@@ -66,6 +66,28 @@ struct CodexSessionHistoryDiscovery: Sendable {
         return result
     }
 
+    func entries(forWorkingDirectories workingDirectories: [String], limit: Int) -> [ClaudeSessionHistoryEntry] {
+        (try? loadEntries(forWorkingDirectories: workingDirectories, limit: limit)) ?? []
+    }
+
+    func loadEntries(forWorkingDirectories workingDirectories: [String], limit: Int) throws -> [ClaudeSessionHistoryEntry] {
+        guard limit > 0 else { return [] }
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: codexHome.path, isDirectory: &isDirectory), isDirectory.boolValue {
+            _ = try FileManager.default.contentsOfDirectory(at: codexHome, includingPropertiesForKeys: nil)
+        }
+        var entriesByID: [String: ClaudeSessionHistoryEntry] = [:]
+        for workingDirectory in workingDirectories where !workingDirectory.isEmpty {
+            for entry in entries(forWorkingDirectory: workingDirectory, limit: limit)
+            where entriesByID[entry.id] == nil {
+                entriesByID[entry.id] = entry.located(in: workingDirectory)
+            }
+        }
+        return entriesByID.values.sorted {
+            $0.lastModified == $1.lastModified ? $0.sessionID < $1.sessionID : $0.lastModified > $1.lastModified
+        }.prefix(limit).map { $0 }
+    }
+
     private func databaseEntries(
         forWorkingDirectory workingDirectory: String,
         normalizedCWD: String,

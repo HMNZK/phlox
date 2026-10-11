@@ -12,6 +12,7 @@ private actor LaunchClient: StructuredAgentClient, SpawnAgentSettingsControlling
     nonisolated let continuation: AsyncStream<NormalizedChatEvent>.Continuation
     var starts = 0
     var inputs: [[ChatInput]] = []
+    var resumes: [String] = []
     var settings: (String?, String?, String?)?
     let failsStart: Bool
     let holdsStart: Bool
@@ -28,7 +29,7 @@ private actor LaunchClient: StructuredAgentClient, SpawnAgentSettingsControlling
     }
     func releaseStart() { startGate?.resume(); startGate = nil }
     func turnStart(_ input: [ChatInput]) async throws { inputs.append(input) }
-    func resume(sessionRef: String) async throws {}
+    func resume(sessionRef: String) async throws { resumes.append(sessionRef) }
     func interrupt() async throws {}
     func close() async { continuation.finish() }
     func applySpawnAgentSettings(model: String?, permissionOrMode: String?, effort: String?) async {
@@ -41,10 +42,12 @@ final class NewChatLaunchTests {
     private let defaultsSuite = "phlox-unc-launch-\(UUID())"
     deinit { UserDefaults(suiteName: defaultsSuite)?.removePersistentDomain(forName: defaultsSuite) }
     private func dashboard(_ clients: [any StructuredAgentClient], kind: AgentKind = .claudeCode,
-                           store: InMemorySessionStore = InMemorySessionStore()) -> DashboardViewModel {
+                           store: InMemorySessionStore = InMemorySessionStore(),
+                           codexHome: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex", isDirectory: true)) -> DashboardViewModel {
         let sequence = StructuredClientSequence(clients)
         let dashboard = DashboardViewModel(environment: makeTestEnvironment(
             pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() }, sessions: store,
+            codexHome: codexHome,
             agentBinaryPaths: [kind: "/bin/echo"],
             appServerClientFactory: { _, _, _, _, _ in try sequence.next() }
         ))
@@ -74,6 +77,55 @@ final class NewChatLaunchTests {
         #expect(settings.0 == r.settings.selectedModel)
         #expect(settings.1 == r.settings.selectedPermissionProfile)
         if kind == .claudeCode { #expect(settings.2 == r.settings.selectedEffort) }
+        await dashboard.removeSession(id)
+    }
+
+    @Test func AC5c_launchNewChatResumesHistoryWithSelectedWorkingDirectoryAndSettings() async throws {
+        let historyID = "thread-1"
+        let codexHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("new-chat-history-\(UUID().uuidString)", isDirectory: true)
+        let day = codexHome.appendingPathComponent("sessions/2026/10/12", isDirectory: true)
+        try FileManager.default.createDirectory(at: day, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: codexHome) }
+        let rollout = day.appendingPathComponent("rollout-\(historyID).jsonl")
+        try [
+            #"{"type":"session_meta","payload":{"id":"\#(historyID)","cwd":"/tmp","timestamp":"2026-10-12T10:00:00.000Z"}}"#,
+            #"{"type":"response_item","timestamp":"2026-10-12T10:01:00.000Z","payload":{"type":"message","id":"u1","role":"user","content":[{"type":"input_text","text":"過去の依頼"}]}}"#,
+        ].joined(separator: "\n").write(to: rollout, atomically: true, encoding: .utf8)
+
+        let transport = ScriptedAppServerTransport()
+        let client = CodexStructuredAgentClient(client: CodexAppServerClient(transport: transport))
+        let dashboard = dashboard([client], kind: .codex, codexHome: codexHome)
+        let project = try #require(dashboard.projects.first)
+        let settings = CodexAppServerSessionSettings(
+            selectedModel: "gpt-5-codex",
+            selectedEffort: "high",
+            selectedPermissionProfile: ":read-only",
+            isPlanMode: false
+        )
+        let request = NewChatLaunchRequest(
+            projectID: project.id,
+            agentRef: .builtin(.codex),
+            settings: settings,
+            usesWorktree: false,
+            text: "",
+            attachments: [],
+            resumeHistoryID: historyID
+        )
+
+        let id = try await dashboard.launchNewChat(request)
+        let vm = try #require(dashboard.sessionNode(id: id)?.appServer)
+        #expect(vm.agentRef == .builtin(.codex))
+        #expect(vm.rawWorkspacePath == project.directoryPath)
+        let resume = try #require(transport.capturedParams(for: "thread/resume").first)
+        #expect(resume["threadId"] as? String == historyID)
+        #expect(resume["cwd"] as? String == project.directoryPath)
+        #expect(resume["model"] as? String == settings.selectedModel)
+        #expect(transport.sentMethods().contains("thread/start") == false)
+        #expect(transport.sentMethods().contains("turn/start") == false)
+        let applied = try #require(transport.capturedParams(for: "thread/settings/update").last)
+        #expect(applied["effort"] as? String == settings.selectedEffort)
+        #expect(applied["permissions"] as? String == settings.selectedPermissionProfile)
         await dashboard.removeSession(id)
     }
 

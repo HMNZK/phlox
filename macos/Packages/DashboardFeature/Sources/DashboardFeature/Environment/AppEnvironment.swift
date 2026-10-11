@@ -158,13 +158,23 @@ public struct AppEnvironment: Sendable {
         historyTranscriptLoader: @Sendable (ClaudeSessionHistoryEntry) -> [ChatItem]
     )? {
         guard let workingDirectory, !workingDirectory.isEmpty else { return nil }
+        return claudeSessionHistoryProviders(workingDirectories: [workingDirectory])
+    }
+
+    func claudeSessionHistoryProviders(
+        workingDirectories: [String]
+    ) -> (
+        historyProvider: @Sendable () -> [ClaudeSessionHistoryEntry],
+        historyTranscriptLoader: @Sendable (ClaudeSessionHistoryEntry) -> [ChatItem]
+    )? {
+        guard !workingDirectories.isEmpty else { return nil }
         let discovery = ClaudeSessionHistoryDiscovery(projectsRoot: Self.claudeProjectsRoot)
         let loader = ClaudeSessionTranscriptLoader()
         let listLimit = 20
         let transcriptItemLimit = ClaudeSessionHistoryEntry.transcriptItemLimit
         return (
             historyProvider: {
-                discovery.entries(forWorkingDirectory: workingDirectory, limit: listLimit)
+                discovery.entries(forWorkingDirectories: workingDirectories, limit: listLimit)
             },
             historyTranscriptLoader: { entry in
                 loader.load(fileURL: entry.fileURL, maxItems: transcriptItemLimit)
@@ -180,18 +190,44 @@ public struct AppEnvironment: Sendable {
         historyTranscriptLoader: @Sendable (ClaudeSessionHistoryEntry) -> [ChatItem]
     )? {
         guard let workingDirectory, !workingDirectory.isEmpty else { return nil }
+        return codexSessionHistoryProviders(workingDirectories: [workingDirectory])
+    }
+
+    func codexSessionHistoryProviders(
+        workingDirectories: [String]
+    ) -> (
+        historyProvider: @Sendable () -> [ClaudeSessionHistoryEntry],
+        historyTranscriptLoader: @Sendable (ClaudeSessionHistoryEntry) -> [ChatItem]
+    )? {
+        guard !workingDirectories.isEmpty else { return nil }
         let discovery = CodexSessionHistoryDiscovery(codexHome: codexHome)
         let loader = CodexSessionTranscriptLoader()
         let listLimit = 20
         let transcriptItemLimit = ClaudeSessionHistoryEntry.transcriptItemLimit
         return (
             historyProvider: {
-                discovery.entries(forWorkingDirectory: workingDirectory, limit: listLimit)
+                discovery.entries(forWorkingDirectories: workingDirectories, limit: listLimit)
             },
             historyTranscriptLoader: { entry in
                 loader.load(fileURL: entry.fileURL, maxItems: transcriptItemLimit)
             }
         )
+    }
+
+    func newChatSessionHistoryLoader(
+        agentRef: AgentRef,
+        workingDirectories: [String]
+    ) -> (@Sendable () throws -> [ClaudeSessionHistoryEntry])? {
+        switch agentRef {
+        case .builtin(.claudeCode):
+            let discovery = ClaudeSessionHistoryDiscovery(projectsRoot: Self.claudeProjectsRoot)
+            return { try discovery.loadEntries(forWorkingDirectories: workingDirectories, limit: 20) }
+        case .builtin(.codex):
+            let discovery = CodexSessionHistoryDiscovery(codexHome: codexHome)
+            return { try discovery.loadEntries(forWorkingDirectories: workingDirectories, limit: 20) }
+        default:
+            return nil
+        }
     }
 
     /// Codex `app-server` 子プロセス起動時の arguments。

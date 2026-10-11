@@ -689,28 +689,101 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// 選択した履歴から再開する（転写反映＋ client.resume・task-9 契約）。
     public func startFromHistory(_ entry: ClaudeSessionHistoryEntry) async {
-        guard let historyTranscriptLoader else { return }
+        guard historyTranscriptLoader != nil else { return }
+        do {
+            try await resumeHistory(entry, initialSettings: nil, approvalPolicy: nil, sandbox: nil, startsClient: false)
+        } catch {
+            markHistoryResumeFailed(error)
+        }
+    }
+
+    /// 新しいセッションから選択履歴を再開する。
+    public func startFromHistory(
+        _ entry: ClaudeSessionHistoryEntry,
+        approvalPolicy: ApprovalPolicy,
+        sandbox: SandboxPolicy,
+        initialSettings: CodexAppServerSessionSettings?
+    ) async throws {
+        try await resumeHistory(
+            entry,
+            initialSettings: initialSettings,
+            approvalPolicy: approvalPolicy,
+            sandbox: sandbox,
+            startsClient: true
+        )
+    }
+
+    private func resumeHistory(
+        _ entry: ClaudeSessionHistoryEntry,
+        initialSettings: CodexAppServerSessionSettings?,
+        approvalPolicy: ApprovalPolicy?,
+        sandbox: SandboxPolicy?,
+        startsClient: Bool
+    ) async throws {
+        clearRunningBackgroundTasks()
         startEventTasks()
-        let loaded = historyTranscriptLoader(entry)
-        setTranscript(loaded)
-        // 履歴の JSONL にはコストが無く、再開前の累計がわからない。最初に届く累計を総コストにする。
+        let loaded = historyTranscriptLoader?(entry) ?? []
+
+        if agentRef == .builtin(.codex), let codexClient {
+            if startsClient {
+                try await client.start()
+                appServerUserAgent = try await codexClient.initialize(Self.initializeParams).userAgent
+            }
+            let response = try await codexClient.threadResume(ThreadResumeParams(
+                threadId: entry.sessionID,
+                cwd: workingDirectory,
+                model: initialSettings?.selectedModel ?? selectedModel,
+                approvalPolicy: approvalPolicy,
+                sandbox: sandbox
+            ))
+            updateNativeSessionId(response.thread.id)
+            syncSettings(from: response)
+            status = response.thread.status?.sessionStatus ?? .idle
+            if startsClient {
+                await loadAvailableSettings(persistedSettings: initialSettings)
+                if let initialSettings, initialSettings.hasAnyValue,
+                   let error = await reapplyPersistedSettings(
+                       initialSettings,
+                       threadID: response.thread.id,
+                       initialSettings: initialSettings
+                   ) {
+                    throw ChatLaunchError.settingsNotApplied(error)
+                }
+            }
+        } else {
+            if startsClient, agentRef == .builtin(.claudeCode) {
+                await loadSpawnAgentSettings(persistedSettings: initialSettings)
+            } else if startsClient {
+                selectedModel = initialSettings?.selectedModel
+                selectedEffort = initialSettings?.selectedEffort
+                selectedPermissionProfile = initialSettings?.selectedPermissionProfile
+                isPlanMode = initialSettings?.isPlanMode ?? false
+                await applySpawnAgentSettings(clearBackgroundTasksOnNextTurnStart: false)
+            }
+            if startsClient, agentRef == .builtin(.codex) {
+                try await client.start()
+            }
+            try await client.resume(sessionRef: entry.sessionID)
+            updateNativeSessionId(entry.sessionID)
+            status = .idle
+        }
+
+        setHistoryTranscript(loaded)
+        adoptTitleFromHistoryResume(entry, loadedItems: loaded)
+    }
+
+    private func markHistoryResumeFailed(_ error: Error) {
+        setTranscript([])
+        status = .error(message: "chat restore failed: \(error)")
+        touchOutput()
+    }
+
+    private func setHistoryTranscript(_ items: [ChatItem]) {
+        setTranscript(items)
         sessionTotalCostUSD = 0
         claudeReportedTotalCostUSD = nil
         touchOutput()
-        // 履歴 JSONL 由来の表示のみ。起動時は Phlox transcriptStore へは書かない（二重永続化を避ける）。
-        // 以降のターン境界 flush（`flushTranscriptAtTurnBoundary`）で loaded 履歴も store に載る（正規経路）。
-        do {
-            try await client.resume(sessionRef: entry.sessionID)
-            updateNativeSessionId(entry.sessionID)
-            if case .starting = status {
-                status = .idle
-            }
-            adoptTitleFromHistoryResume(entry, loadedItems: loaded)
-        } catch {
-            setTranscript([])
-            status = .error(message: "chat restore failed: \(error)")
-            touchOutput()
-        }
+        // 起動時は transcript store に書かず、通常のターン境界 flush で保存する。
     }
 
     public var displayName: String {

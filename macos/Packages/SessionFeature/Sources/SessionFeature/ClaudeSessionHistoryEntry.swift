@@ -16,6 +16,7 @@ public struct ClaudeSessionHistoryEntry: Equatable, Sendable, Identifiable {
     public let fileURL: URL
     public let titleUserMessages: [String]?
     public let titleSummary: String?
+    public let sourceWorkingDirectory: String?
 
     public init(
         sessionID: String,
@@ -25,7 +26,8 @@ public struct ClaudeSessionHistoryEntry: Equatable, Sendable, Identifiable {
         gitBranch: String?,
         fileURL: URL,
         titleUserMessages: [String]? = nil,
-        titleSummary: String? = nil
+        titleSummary: String? = nil,
+        sourceWorkingDirectory: String? = nil
     ) {
         self.sessionID = sessionID
         self.preview = preview
@@ -35,6 +37,21 @@ public struct ClaudeSessionHistoryEntry: Equatable, Sendable, Identifiable {
         self.fileURL = fileURL
         self.titleUserMessages = titleUserMessages
         self.titleSummary = titleSummary
+        self.sourceWorkingDirectory = sourceWorkingDirectory
+    }
+
+    public func located(in workingDirectory: String) -> Self {
+        Self(
+            sessionID: sessionID,
+            preview: preview,
+            firstUserAt: firstUserAt,
+            lastModified: lastModified,
+            gitBranch: gitBranch,
+            fileURL: fileURL,
+            titleUserMessages: titleUserMessages,
+            titleSummary: titleSummary,
+            sourceWorkingDirectory: workingDirectory
+        )
     }
 
     /// 再開時に会話へ読み込む発言の上限（新しい方から）。履歴カードの件数もこの上限で頭打ちになる。

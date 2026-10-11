@@ -49,3 +49,11 @@ private func makeProject(
     #expect(decoded == id)
     #expect(decoded.description == id.rawValue.uuidString)
 }
+
+@Test func projectDecodesWithoutOptionalWorktreePaths() throws {
+    let data = Data(#"{"id":{"rawValue":"11111111-1111-4111-8111-111111111111"},"name":"Project","directoryPath":"/tmp/project","createdAt":0,"isManagedDirectory":false}"#.utf8)
+
+    let project = try JSONDecoder().decode(Project.self, from: data)
+
+    #expect(project.worktreePaths == nil)
+}

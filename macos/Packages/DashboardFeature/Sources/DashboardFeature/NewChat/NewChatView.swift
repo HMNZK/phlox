@@ -23,6 +23,9 @@ struct NewChatView: View {
     @State private var isLaunching = false
     @State private var isGitRepository: Bool?
     @State private var spawnGuard: SpawnGuard?
+    @State private var historyModel = NewChatHistoryPopoverModel()
+    @State private var historyPopoverPresented = false
+    @State private var pendingResumeHistoryID: String?
 
     private var detectedHarnessIDs: Set<String> {
         Set(viewModel.availableAgentKinds.map(\.rawValue))
@@ -113,6 +116,13 @@ struct NewChatView: View {
         permissionOptions.first(where: { $0.value == selectedPermissionSelection })?.title
             ?? AppLocalizedString.string("既定", locale: locale)
     }
+    private var historyKey: String? {
+        guard let project, draft.agentRef == .builtin(.claudeCode) || draft.agentRef == .builtin(.codex) else { return nil }
+        return ([project.id.description, draft.agentRef.id, project.directoryPath] + (project.worktreePaths ?? [])).joined(separator: "\u{1f}")
+    }
+    private var showsHistoryResumeButton: Bool {
+        historyKey != nil && (historyModel.state != .empty || historyPopoverPresented)
+    }
     private static let planSelection = "__plan"
 
     var body: some View {
@@ -131,6 +141,7 @@ struct NewChatView: View {
                 composer(isCompact: compact)
                     .padding(.bottom, 16)
                 suggestions
+                historyResumeButton
                 Spacer(minLength: 12)
             }
             .frame(maxWidth: 760)
@@ -147,6 +158,10 @@ struct NewChatView: View {
             .task(id: project?.directoryPath) {
                 guard let project else { isGitRepository = nil; return }
                 isGitRepository = await WorkingTreeService(repositoryRoot: project.directoryURL).isGitRepository()
+            }
+            .task(id: historyKey) {
+                guard historyKey != nil else { historyModel.reset(); return }
+                await loadHistoryEntries()
             }
         }
     }
@@ -215,16 +230,24 @@ struct NewChatView: View {
         .dsDialog(item: $spawnGuard) { item in
             SpawnGuardSheet(
                 spawnGuard: item,
-                onCancel: { spawnGuard = nil; focusToken &+= 1 },
+                onCancel: { spawnGuard = nil; pendingResumeHistoryID = nil; focusToken &+= 1 },
                 onLaunch: { separates in
                     spawnGuard = nil
                     draft.usesWorktree = separates
-                    send()
+                    if let pendingResumeHistoryID {
+                        resumeHistory(pendingResumeHistoryID)
+                    } else {
+                        send()
+                    }
                 },
                 onUseWorktree: { path in
                     spawnGuard = nil
                     draft.usesWorktree = false
-                    send(workingDirectoryOverride: path)
+                    if let pendingResumeHistoryID {
+                        resumeHistory(pendingResumeHistoryID, workingDirectoryOverride: path)
+                    } else {
+                        send(workingDirectoryOverride: path)
+                    }
                 }
             )
         }
@@ -506,6 +529,51 @@ struct NewChatView: View {
         .accessibilityElement(children: .contain)
     }
 
+    private var historyResumeButton: some View {
+        Group {
+            if showsHistoryResumeButton {
+                Button {
+                    historyPopoverPresented = true
+                    Task { await loadHistoryEntries() }
+                } label: {
+                    Text("履歴から再開…")
+                        .font(DSFont.auxiliary.weight(.medium))
+                        .foregroundStyle(DSColor.textSecondary)
+                        .frame(maxWidth: .infinity, minHeight: 24)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("newChat.historyResume")
+                .popover(isPresented: $historyPopoverPresented, arrowEdge: .bottom) {
+                    if let project {
+                        NewChatHistoryPopover(
+                            model: historyModel,
+                            project: project,
+                            usesWorktree: draft.usesWorktree,
+                            locale: locale,
+                            onRetry: { Task { await loadHistoryEntries() } },
+                            onSelect: { resumeHistory($0.sessionID) }
+                        )
+                        .environment(\.locale, locale)
+                    }
+                }
+            } else {
+                Color.clear
+                    .frame(height: 24)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(height: 24)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func loadHistoryEntries() async {
+        guard let project, historyKey != nil else { historyModel.reset(); return }
+        await historyModel.load {
+            try await viewModel.newChatHistoryEntries(projectID: project.id, agentRef: draft.agentRef)
+        }
+    }
+
     private func selectModel(_ model: ControlModelOption, for section: NewChatModelMenuSection) {
         draft.selectHarness(.builtin(section.kind))
         draft.settings.selectedModel = model.id
@@ -549,8 +617,32 @@ struct NewChatView: View {
     private func send(workingDirectoryOverride: String? = nil) {
         guard canSend, let project, selectedProjectExists(project.id),
               let request = draft.makeLaunchRequest(projectID: project.id, workingDirectoryOverride: workingDirectoryOverride) else { return }
+        launch(request, isHistoryResume: false)
+    }
+
+    private func resumeHistory(_ historyID: String, workingDirectoryOverride: String? = nil) {
+        guard !isLaunching, let project, selectedProjectExists(project.id) else { return }
+        pendingResumeHistoryID = historyID
+        historyPopoverPresented = false
+        launch(NewChatLaunchRequest(
+            projectID: project.id,
+            agentRef: draft.agentRef,
+            settings: draft.settings,
+            usesWorktree: draft.usesWorktree,
+            text: "",
+            attachments: [],
+            workingDirectoryOverride: workingDirectoryOverride,
+            resumeHistoryID: historyID
+        ), isHistoryResume: true)
+    }
+
+    private func launch(_ request: NewChatLaunchRequest, isHistoryResume: Bool) {
+        guard !isLaunching, let project else { return }
         isLaunching = true
-        AccessibilityNotification.Announcement(AppLocalizedString.string("起動しています。終わったら最初のメッセージを送ります", locale: locale)).post()
+        let startingAnnouncement = isHistoryResume
+            ? AppLocalizedString.string("会話を再開しています", locale: locale)
+            : AppLocalizedString.string("起動しています。終わったら最初のメッセージを送ります", locale: locale)
+        AccessibilityNotification.Announcement(startingAnnouncement).post()
         Task {
             do {
                 let id = try await DashboardViewModel.$reportsWorktreeCreation.withValue(true) {
@@ -559,13 +651,16 @@ struct NewChatView: View {
                     }
                 }
                 isLaunching = false
+                pendingResumeHistoryID = nil
                 if viewModel.sessionNode(id: id)?.appServer?.launchFailure != nil {
-                    AccessibilityNotification.Announcement(AppLocalizedString.string("起動できませんでした。本文を入力欄に戻しました", locale: locale)).post()
+                    let message = isHistoryResume ? "会話を再開できませんでした" : "起動できませんでした。本文を入力欄に戻しました"
+                    AccessibilityNotification.Announcement(AppLocalizedString.string(message, locale: locale)).post()
                 } else {
-                    AccessibilityNotification.Announcement(AppLocalizedString.string("起動しました。最初のメッセージを送りました", locale: locale)).post()
+                    let message = isHistoryResume ? "会話を再開しました" : "起動しました。最初のメッセージを送りました"
+                    AccessibilityNotification.Announcement(AppLocalizedString.string(message, locale: locale)).post()
                 }
             } catch {
-                draft.restoreLaunchDraft(from: request)
+                if !isHistoryResume { draft.restoreLaunchDraft(from: request) }
                 if let log = NewSessionCollisionGate.worktreeFailureLog(error) {
                     let existing = await NewSessionCollisionGate.existingWorktree(in: log, repository: project.directoryURL)
                     spawnGuard = .worktreeFailed(
@@ -575,10 +670,12 @@ struct NewChatView: View {
                         existingWorktree: existing
                     )
                 } else {
+                    pendingResumeHistoryID = nil
                     onLaunchFailure(request.agentRef, error)
                 }
                 isLaunching = false
-                AccessibilityNotification.Announcement(AppLocalizedString.string("起動できませんでした。本文を入力欄に戻しました", locale: locale)).post()
+                let message = isHistoryResume ? "会話を再開できませんでした" : "起動できませんでした。本文を入力欄に戻しました"
+                AccessibilityNotification.Announcement(AppLocalizedString.string(message, locale: locale)).post()
             }
         }
     }

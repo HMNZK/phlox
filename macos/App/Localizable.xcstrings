@@ -149,6 +149,58 @@
       "extractionState": "manual",
       "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Started. The first message was sent."}}}
     },
+    "履歴から再開…": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Resume from history…"}}}
+    },
+    "履歴から再開": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Resume from history"}}}
+    },
+    "読み込んでいます…": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Loading…"}}}
+    },
+    "履歴を読み込めませんでした": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Couldn't load history"}}}
+    },
+    "選んだ会話を、新しい worktree を作って再開します": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Resume the selected conversation in a new worktree"}}}
+    },
+    "選んだ会話を、今の作業場所（既存ディレクトリ）で再開します": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Resume the selected conversation in the current directory"}}}
+    },
+    "元の worktree には戻らず、既存ディレクトリで再開します": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "This resumes in the current directory, not the original worktree"}}}
+    },
+    "worktree": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Worktree"}}}
+    },
+    "worktree（削除済み）": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Worktree (deleted)"}}}
+    },
+    "会話を再開しています": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Resuming conversation"}}}
+    },
+    "会話を再開しました": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Conversation resumed"}}}
+    },
+    "会話を再開できませんでした": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Couldn't resume conversation"}}}
+    },
+    "選択した履歴が見つかりません。履歴を読み直してください。": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "The selected history was not found. Reload the history list."}}}
+    },
     "コードレビュー": {
       "extractionState": "manual",
       "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Code review"}}}

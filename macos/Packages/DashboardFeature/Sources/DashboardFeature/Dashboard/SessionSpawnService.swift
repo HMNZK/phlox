@@ -479,6 +479,7 @@ final class SessionSpawnService {
     private let logError: @MainActor (Error, String) -> Void
     /// worktree を作り始めた（true）・終えた（false）ことを、そのパスとともに知らせる。
     var onWorktreeCreation: (@MainActor (String, Bool) -> Void)?
+    var onWorktreeCreated: (@MainActor (ProjectID, String) -> Void)?
     /// 復元で作り直す前にたずねる（パス, ブランチ, ブランチが残っているか）→ 作り直すなら true。nil なら確認しない。
     var confirmWorktreeRecreation: (@MainActor (String, String, Bool) -> Bool)?
 
@@ -592,6 +593,7 @@ final class SessionSpawnService {
         let plan: AgentLaunchPlan
         if let worktree {
             registerOwnedWorkspace(sessionID, worktree.path, worktree.repository)
+            if let projectID { onWorktreeCreated?(projectID, worktree.path.path) }
             plan = planReplacingWorkingDirectory(sanitizedPlan, with: worktree.path.path)
         } else {
             plan = sanitizedPlan
@@ -691,15 +693,20 @@ final class SessionSpawnService {
             plan.env,
             broker.serverRequestHandler
         )
+        let projectDirectories = projectID
+            .flatMap { id in projectsSnapshot().first(where: { $0.id == id }) }
+            .map { [$0.directoryPath] + ($0.worktreePaths ?? []) }
+            ?? plan.workingDirectory.map { [$0] }
+            ?? []
         // 新規 Claude/Codex チャットへ同一の履歴一覧 provider/loader を注入する。
         let history: (
             historyProvider: @Sendable () -> [ClaudeSessionHistoryEntry],
             historyTranscriptLoader: @Sendable (ClaudeSessionHistoryEntry) -> [ChatItem]
         )? = switch plan.descriptor.ref {
         case .builtin(.claudeCode):
-            environment.claudeSessionHistoryProviders(workingDirectory: plan.workingDirectory)
+            environment.claudeSessionHistoryProviders(workingDirectories: projectDirectories)
         case .builtin(.codex):
-            environment.codexSessionHistoryProviders(workingDirectory: plan.workingDirectory)
+            environment.codexSessionHistoryProviders(workingDirectories: projectDirectories)
         default:
             nil
         }
@@ -835,6 +842,7 @@ final class SessionSpawnService {
         launchContext: SessionLaunchContext,
         titleState: SessionTitleState? = nil,
         initialSettings: CodexAppServerSessionSettings? = nil,
+        resumeHistoryEntry: ClaudeSessionHistoryEntry? = nil,
         keepsRowOnLaunchFailure: Bool = false,
         sessionOriginForWrite: (@MainActor () -> SessionOrigin)? = nil,
         registerSessionForWrite: (@MainActor (ChatSessionViewModel) -> Void)? = nil,
@@ -864,12 +872,21 @@ final class SessionSpawnService {
             let persistedSettings = CursorModelListProvider.persistedSettings(
                 from: lastUsedChatSettings(ref.id)
             )
-            try await chatVM.startNew(
-                approvalPolicy: Self.appServerApprovalPolicy(for: chatVM.launchContext),
-                sandbox: Self.appServerSandboxPolicy(for: chatVM.launchContext),
-                persistedSettings: persistedSettings,
-                initialSettings: initialSettings
-            )
+            if let resumeHistoryEntry {
+                try await chatVM.startFromHistory(
+                    resumeHistoryEntry,
+                    approvalPolicy: Self.appServerApprovalPolicy(for: chatVM.launchContext),
+                    sandbox: Self.appServerSandboxPolicy(for: chatVM.launchContext),
+                    initialSettings: initialSettings
+                )
+            } else {
+                try await chatVM.startNew(
+                    approvalPolicy: Self.appServerApprovalPolicy(for: chatVM.launchContext),
+                    sandbox: Self.appServerSandboxPolicy(for: chatVM.launchContext),
+                    persistedSettings: persistedSettings,
+                    initialSettings: initialSettings
+                )
+            }
             return AppServerSpawnResult(
                 vm: chatVM,
                 codexThreadId: ref == .builtin(.codex) ? chatVM.threadId : nil,

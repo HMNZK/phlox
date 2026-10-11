@@ -67,6 +67,36 @@ private func writeJSONL(_ lines: [String], to url: URL, modifiedAt: Date? = nil)
     #expect(abs(firstUserAt.timeIntervalSince(expectedFirstUserAt)) < 1.0)
 }
 
+@Test func AC5c_claudeHistoryIncludesProjectAndDeletedWorktreeLocations() throws {
+    let root = try makeTempProjectsRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let projectPath = "/tmp/phlox-project"
+    let deletedWorktreePath = "/tmp/phlox-worktree-deleted"
+
+    for (id, path, preview, modifiedAt) in [
+        ("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", projectPath, "本体の会話", Date(timeIntervalSince1970: 1_700)),
+        ("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", deletedWorktreePath, "削除済み worktree の会話", Date(timeIntervalSince1970: 1_800)),
+    ] {
+        let directory = root.appendingPathComponent(
+            ClaudeSessionHistoryDiscovery.projectDirectoryName(forWorkingDirectory: path),
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try writeJSONL([
+            #"{"type":"user","message":{"role":"user","content":"\#(preview)"},"uuid":"u-1","timestamp":"2026-10-12T10:00:00.000Z","cwd":"\#(path)","sessionId":"\#(id)"}"#,
+        ], to: directory.appendingPathComponent("\(id).jsonl"), modifiedAt: modifiedAt)
+    }
+
+    let entries = ClaudeSessionHistoryDiscovery(projectsRoot: root).entries(
+        forWorkingDirectories: [projectPath, deletedWorktreePath],
+        limit: 20
+    )
+
+    #expect(entries.map(\.preview) == ["削除済み worktree の会話", "本体の会話"])
+    #expect(entries.map(\.sourceWorkingDirectory) == [deletedWorktreePath, projectPath])
+    #expect(!FileManager.default.fileExists(atPath: deletedWorktreePath))
+}
+
 @Test func claudeSessionHistory_entries_excludesMetaOnlySidechainAndCommandFiles() throws {
     let root = try makeTempProjectsRoot()
     defer { try? FileManager.default.removeItem(at: root) }

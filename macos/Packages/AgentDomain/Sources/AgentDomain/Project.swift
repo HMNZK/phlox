@@ -31,6 +31,9 @@ public struct Project: Identifiable, Hashable, Sendable, Codable {
     /// 旧データを読み込むための互換項目。起動・復元の判断には使わない。
     public var worktreeIsolationEnabled: Bool?
 
+    /// このプロジェクトから過去に作成した worktree。削除後も履歴の検索に使う。
+    public var worktreePaths: [String]?
+
     public var directoryURL: URL {
         URL(fileURLWithPath: directoryPath, isDirectory: true)
     }
@@ -41,7 +44,8 @@ public struct Project: Identifiable, Hashable, Sendable, Codable {
         directoryPath: String,
         createdAt: Date,
         isManagedDirectory: Bool,
-        worktreeIsolationEnabled: Bool? = nil
+        worktreeIsolationEnabled: Bool? = nil,
+        worktreePaths: [String]? = nil
     ) {
         self.id = id
         self.name = name
@@ -49,5 +53,6 @@ public struct Project: Identifiable, Hashable, Sendable, Codable {
         self.createdAt = createdAt
         self.isManagedDirectory = isManagedDirectory
         self.worktreeIsolationEnabled = worktreeIsolationEnabled
+        self.worktreePaths = worktreePaths
     }
 }

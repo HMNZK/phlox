@@ -264,6 +264,14 @@ public final class DashboardViewModel {
                 worktreeCreationPaths.remove(at: index)
             }
         }
+        spawnService?.onWorktreeCreated = { [weak self] projectID, path in
+            guard let self, let index = projects.firstIndex(where: { $0.id == projectID }) else { return }
+            var paths = projects[index].worktreePaths ?? []
+            guard !paths.contains(where: { Self.standardizedDirectoryPath($0) == Self.standardizedDirectoryPath(path) }) else { return }
+            paths.append(path)
+            projects[index].worktreePaths = paths
+            persistProjects()
+        }
         spawnService?.confirmWorktreeRecreation = { [weak self] path, branch, branchExists in
             self?.worktreeRecreationConfirmer?(path, branch, branchExists) ?? true
         }
@@ -1119,6 +1127,7 @@ public final class DashboardViewModel {
         workingDirectoryOverride: String? = nil,
         isolationOverride: Bool? = nil,
         initialSettings: CodexAppServerSessionSettings? = nil,
+        resumeHistoryEntry: ClaudeSessionHistoryEntry? = nil,
         keepsRowOnLaunchFailure: Bool = false,
         onRowAppended: (@MainActor (SessionID) -> Void)? = nil
     ) async throws -> SessionID {
@@ -1132,6 +1141,7 @@ public final class DashboardViewModel {
             workingDirectoryOverride: workingDirectoryOverride,
             isolationOverride: isolationOverride,
             initialSettings: initialSettings,
+            resumeHistoryEntry: resumeHistoryEntry,
             keepsRowOnLaunchFailure: keepsRowOnLaunchFailure,
             onRowAppended: onRowAppended,
             spawnLimitSource: .parent(from)
@@ -1140,25 +1150,47 @@ public final class DashboardViewModel {
 
     public func launchNewChat(_ request: NewChatLaunchRequest,
                               onRowAppended: (@MainActor (SessionID) -> Void)? = nil) async throws -> SessionID {
-        // 履歴再開は段6で実装する。空の新規会話に置き換えて履歴を失わない。
-        guard request.resumeHistoryID == nil else { throw AgentSpawnError.unsupportedBackend }
         guard projects.contains(where: { $0.id == request.projectID }) else { throw AgentSpawnError.unknownProject }
+        let historyEntry: ClaudeSessionHistoryEntry?
+        if let resumeHistoryID = request.resumeHistoryID {
+            guard request.agentRef == .builtin(.claudeCode) || request.agentRef == .builtin(.codex) else {
+                throw AgentSpawnError.unsupportedBackend
+            }
+            historyEntry = try await newChatHistoryEntries(projectID: request.projectID, agentRef: request.agentRef)
+                .first { $0.sessionID == resumeHistoryID }
+            guard historyEntry != nil else { throw AgentSpawnError.historyNotFound }
+        } else {
+            historyEntry = nil
+        }
         let id = try await spawnNewSession(ref: request.agentRef, projectID: request.projectID, backend: .appServer,
             workingDirectoryOverride: request.workingDirectoryOverride,
-            isolationOverride: request.usesWorktree, initialSettings: request.settings, keepsRowOnLaunchFailure: true,
+            isolationOverride: request.usesWorktree, initialSettings: request.settings,
+            resumeHistoryEntry: historyEntry, keepsRowOnLaunchFailure: true,
             onRowAppended: { id in
-                self.sessionNode(id: id)?.appServer?.prepareFirstMessage(request.text, attachments: request.attachments)
+                if historyEntry == nil {
+                    self.sessionNode(id: id)?.appServer?.prepareFirstMessage(request.text, attachments: request.attachments)
+                }
                 onRowAppended?(id)
             })
         lastUsedChatSettingsStore.recordLastHarness(request.agentRef.id)
         guard let vm = sessionNode(id: id)?.appServer else { throw CancellationError() }
         if vm.launchFailure != nil {
             failedNewChatRequests[id] = request
-            vm.restoreLaunchDraft(request.text, attachments: request.attachments)
-        } else {
+            if historyEntry == nil { vm.restoreLaunchDraft(request.text, attachments: request.attachments) }
+        } else if historyEntry == nil {
             await vm.sendFirstMessage(request.text, attachments: request.attachments)
         }
         return id
+    }
+
+    func newChatHistoryEntries(projectID: ProjectID, agentRef: AgentRef) async throws -> [ClaudeSessionHistoryEntry] {
+        guard let project = projects.first(where: { $0.id == projectID }) else { return [] }
+        let directories = [project.directoryPath] + (project.worktreePaths ?? [])
+        guard let provider = environment.newChatSessionHistoryLoader(
+            agentRef: agentRef,
+            workingDirectories: directories
+        ) else { return [] }
+        return try await Task.detached(priority: .userInitiated) { try provider() }.value
     }
 
     public func restartNewChat(_ id: SessionID,
@@ -1171,12 +1203,20 @@ public final class DashboardViewModel {
         failedNewChatRequests.removeValue(forKey: id)
         await removeSession(id)
         let restart = NewChatLaunchRequest(projectID: request.projectID, agentRef: request.agentRef,
-            settings: request.settings, usesWorktree: request.usesWorktree, text: "", attachments: [])
+            settings: request.settings,
+            usesWorktree: request.resumeHistoryID == nil ? false : request.usesWorktree,
+            text: "", attachments: [],
+            workingDirectoryOverride: request.resumeHistoryID == nil ? nil : request.workingDirectoryOverride,
+            resumeHistoryID: request.resumeHistoryID)
         let newID = try await launchNewChat(restart, onRowAppended: { newID in
-            self.sessionNode(id: newID)?.appServer?.restoreLaunchDraft(text, attachments: attachments)
+            if request.resumeHistoryID == nil {
+                self.sessionNode(id: newID)?.appServer?.restoreLaunchDraft(text, attachments: attachments)
+            }
             onRowAppended?(newID)
         })
-        sessionNode(id: newID)?.appServer?.restoreLaunchDraft(text, attachments: attachments)
+        if request.resumeHistoryID == nil {
+            sessionNode(id: newID)?.appServer?.restoreLaunchDraft(text, attachments: attachments)
+        }
         return newID
     }
 
@@ -1190,6 +1230,7 @@ public final class DashboardViewModel {
         workingDirectoryOverride: String? = nil,
         isolationOverride: Bool? = nil,
         initialSettings: CodexAppServerSessionSettings? = nil,
+        resumeHistoryEntry: ClaudeSessionHistoryEntry? = nil,
         keepsRowOnLaunchFailure: Bool = false,
         onRowAppended: (@MainActor (SessionID) -> Void)? = nil,
         spawnLimitSource: APISpawnLimitSource
@@ -1330,6 +1371,7 @@ public final class DashboardViewModel {
                 launchContext: launchContext,
                 titleState: .generated(flowerName: generatedName),
                 initialSettings: initialSettings,
+                resumeHistoryEntry: resumeHistoryEntry,
                 keepsRowOnLaunchFailure: keepsRowOnLaunchFailure,
                 sessionOriginForWrite: {
                     self.sessionOriginForWrite(

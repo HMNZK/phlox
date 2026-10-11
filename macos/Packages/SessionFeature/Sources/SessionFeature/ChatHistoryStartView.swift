@@ -154,15 +154,38 @@ struct ChatHistoryStartView: View {
 
 /// 1 件の行カード: 左に題名 13/600 と 2 行目（最後の発言。読み終える前はプロジェクト）、右に日時と等幅の「件数 · ブランチ」。
 /// ポインタを置いた行はホバー色の地＋2pt のアクセント枠、ほかは 1pt の区切り線の枠。
-private struct HistoryStartRow: View {
-    let entry: ClaudeSessionHistoryEntry
-    let presentation: HistoryEntryPresentation
-    let summary: ChatHistorySummary?
-    let lastUsedText: String
-    let onSelect: (ClaudeSessionHistoryEntry) -> Void
+public struct HistoryStartRow: View {
+    public let entry: ClaudeSessionHistoryEntry
+    public let presentation: HistoryEntryPresentation
+    public let summary: ChatHistorySummary?
+    public let lastUsedText: String
+    public let locationLabel: String?
+    public let locationNote: String?
+    public let accessibilityIdentifier: String
+    private let onSelect: (ClaudeSessionHistoryEntry) -> Void
     @State private var isHovering = false
 
-    var body: some View {
+    public init(
+        entry: ClaudeSessionHistoryEntry,
+        presentation: HistoryEntryPresentation,
+        summary: ChatHistorySummary? = nil,
+        lastUsedText: String,
+        locationLabel: String? = nil,
+        locationNote: String? = nil,
+        accessibilityIdentifier: String = "ChatHistoryStartView.row",
+        onSelect: @escaping (ClaudeSessionHistoryEntry) -> Void
+    ) {
+        self.entry = entry
+        self.presentation = presentation
+        self.summary = summary
+        self.lastUsedText = lastUsedText
+        self.locationLabel = locationLabel
+        self.locationNote = locationNote
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.onSelect = onSelect
+    }
+
+    public var body: some View {
         Button {
             onSelect(entry)
         } label: {
@@ -177,13 +200,19 @@ private struct HistoryStartRow: View {
                         if let lastMessage = summary?.lastMessage {
                             Text("最後: \(lastMessage)")
                         } else {
-                            Text(presentation.projectName)
+                            Text(locationLabel ?? presentation.projectName)
                         }
                     }
                     .font(.system(size: 11.5))
                     .foregroundStyle(DSColor.textSecondary)
                     .lineLimit(1)
                     .help(presentation.projectPath ?? "")
+                    if isHovering, let locationNote {
+                        Text(locationNote)
+                        .font(DSFont.meta)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .lineLimit(1)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 VStack(alignment: .trailing, spacing: 3) {
@@ -214,12 +243,13 @@ private struct HistoryStartRow: View {
         .onHover { isHovering = $0 }
         .help(entry.sessionID)
         .accessibilityLabel(accessibilityText)
-        .accessibilityIdentifier("ChatHistoryStartView.row")
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 
     private var accessibilityText: String {
         let details = presentation.accessibilityDetails(lastUsedText: lastUsedText)
-        return presentation.fullTitle + " " + details + Self.accessibilitySummary(summary) + " " + entry.sessionID
+        let location = locationLabel.map { " " + $0 } ?? ""
+        return presentation.fullTitle + " " + details + location + Self.accessibilitySummary(summary) + " " + entry.sessionID
     }
 
     /// 読み上げに件数と最後の発言を足す（画面の 2 行目と右下に出している分）。

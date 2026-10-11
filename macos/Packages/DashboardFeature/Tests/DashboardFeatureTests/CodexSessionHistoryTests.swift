@@ -41,6 +41,47 @@ import Testing
     #expect(transcript.map(\.plainText) == ["User:   最初の依頼  ", "Agent: 回答です"])
 }
 
+@Test func AC5c_codexHistoryIncludesProjectAndDeletedWorktreeLocations() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("codex-history-project-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let day = root.appendingPathComponent("sessions/2026/10/12", isDirectory: true)
+    try FileManager.default.createDirectory(at: day, withIntermediateDirectories: true)
+
+    func writeRollout(id: String, cwd: String, preview: String, modifiedAt: Date) throws {
+        let file = day.appendingPathComponent("rollout-\(id).jsonl")
+        try [
+            #"{"type":"session_meta","payload":{"id":"\#(id)","cwd":"\#(cwd)"}}"#,
+            #"{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"\#(preview)"}]}}"#,
+        ].joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.modificationDate: modifiedAt], ofItemAtPath: file.path)
+    }
+
+    let projectPath = "/tmp/phlox-project"
+    let deletedWorktreePath = "/tmp/phlox-worktree-deleted"
+    try writeRollout(
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        cwd: projectPath,
+        preview: "本体の会話",
+        modifiedAt: Date(timeIntervalSince1970: 1_700)
+    )
+    try writeRollout(
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        cwd: deletedWorktreePath,
+        preview: "削除済み worktree の会話",
+        modifiedAt: Date(timeIntervalSince1970: 1_800)
+    )
+
+    let entries = CodexSessionHistoryDiscovery(codexHome: root).entries(
+        forWorkingDirectories: [projectPath, deletedWorktreePath],
+        limit: 20
+    )
+
+    #expect(entries.map(\.preview) == ["削除済み worktree の会話", "本体の会話"])
+    #expect(entries.map(\.sourceWorkingDirectory) == [deletedWorktreePath, projectPath])
+    #expect(!FileManager.default.fileExists(atPath: deletedWorktreePath))
+}
+
 @Test func codexSessionHistory_scansNewestMetadataFirstAndStopsAfterLimit() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("codex-history-limit-\(UUID().uuidString)", isDirectory: true)

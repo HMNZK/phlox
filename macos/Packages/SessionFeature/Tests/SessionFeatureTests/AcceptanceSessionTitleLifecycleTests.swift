@@ -489,7 +489,7 @@ struct AcceptanceSessionTitleLifecycleTests {
             ComposerAttachment(data: Data(count: 27_000_000), mediaType: "image/png"),
             ComposerAttachment(data: Data(count: 27_000_000), mediaType: "image/png"),
         ])
-        try await vm.sendText("ログイン画面を修正", submit: true)
+        await #expect(throws: SendRejected.totalSizeExceeded) { try await vm.sendText("ログイン画面を修正", submit: true) }
         #expect(client.recordedTurnStarts().isEmpty, Comment(rawValue: "turnStart not called"))
         #expect(firstUserMessageID(vm) == nil, Comment(rawValue: "body not committed"))
         #expect(vm.status != .running, Comment(rawValue: "not a successful send"))

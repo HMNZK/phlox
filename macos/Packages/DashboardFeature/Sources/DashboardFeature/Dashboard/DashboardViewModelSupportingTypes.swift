@@ -93,6 +93,7 @@ public enum AgentSpawnError: Error, Equatable, LocalizedError {
     case spawnRateLimited
     case depthLimitExceeded
     case unknownProject
+    case historyNotFound
     case noProject
     case unsupportedBackend
 
@@ -106,6 +107,8 @@ public enum AgentSpawnError: Error, Equatable, LocalizedError {
             String(localized: "セッション作成の深度上限を超えました。")
         case .unknownProject:
             String(localized: "指定されたプロジェクトが見つかりません。")
+        case .historyNotFound:
+            String(localized: "選択した履歴が見つかりません。履歴を読み直してください。")
         case .noProject:
             String(localized: "プロジェクトが登録されていません。サイドバーからフォルダを追加してください。")
         case .unsupportedBackend:

@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-11
+last-verified: 2026-10-12
 ---
 
 # プロジェクト単位のタブ（要件）
@@ -9,7 +9,7 @@ last-verified: 2026-10-11
 > **設計**: [project-tabs-design.md](project-tabs-design.md)。
 > **書かないもの**: 新規チャット画面そのもの（→ [unified-new-chat-start.md](unified-new-chat-start.md)）。なぜこの設計か（→ [ADR 0187](../adr/0187-project-tabs.md)）。
 > **見本**: `ClaudeDesign/11 Project Tabs.dc.html`（ヘッダーと使用量のバーは `ClaudeDesign/12 Header and Usage Bar.dc.html`）。
-> **状態**: 決定済み（2026-10-11）。新規チャット画面と同時に実装する（P9）。
+> **状態**: 決定済み（2026-10-11）。新規チャット画面と同時に実装した（P9。段 1〜7 のコミット 07650a0e..b23855e2）。受け入れ基準の充足は本ファイルでは確認していない。「現状」「廃止する」は実装前の記述のまま残す。型・ファイル名は [project-tabs-design.md](project-tabs-design.md) を参照。
 
 ## 1. 解決したい問題
 

@@ -1,11 +1,16 @@
 ---
 status: completed        # 実装済み。現行構成は architecture/ にある（本書は設計時点の記録）
-last-verified: 2026-10-05
+last-verified: 2026-10-12
 ---
 
 # ファイルツリー（右サイドバー）・マークダウンのブロック編集・HTML 表示 — 設計書
 
 > **実装済み**: 現行構成は [architecture/file-explorer-and-markdown-editing.md](../architecture/file-explorer-and-markdown-editing.md)。
+
+> **設計時点の記述（2026-10-12 確認）**: 本書は設計時点の記録として残す。次の点は、その後の「プロジェクト単位のタブ」（[ADR 0187](../adr/0187-project-tabs.md)、[project-tabs.md](project-tabs.md)）で変わり、本文の記述は現行と違う。現行は architecture 側を見る。
+> - ファイルタブはセッションではなくプロジェクトのタブ（`ProjectTab.file`。`ChildTab` は無い）。`openFileTab` の鍵は `sessionID` ではなく `projectID`。ツリーのルートはプロジェクトのフォルダ（Git ルートの解決はしない）。
+> - 共通ターミナルは廃止された（ADR 0187）ので、「共通ターミナルの選択を解除する」手順（FR-3・§3.2 (d)）と「⌘P は共通ターミナル表示中にファイルタブが見えない」不足（§3.2 (d)・§4）は存在しない。
+> - タブの永続化は新しいキー `phlox.projectTabs.v1`（旧 `phlox.sessionTabs.v1` は初回だけ読み移す）。NFR-6 の「`phlox.sessionTabs.v1` を変更しない」は、旧キーを書き換えない意味で保たれている。
 
 > **このドキュメントの役割**: 右サイドバー（インスペクタ）に VS Code 風のディレクトリツリーを足し、
 > ファイルを開いて編集できるようにする機能と、マークダウンをレンダリングした状態のまま編集する機能・HTML の表示機能の

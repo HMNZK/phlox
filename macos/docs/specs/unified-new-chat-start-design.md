@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-11
+last-verified: 2026-10-12
 ---
 
 # 共通の新規チャット開始画面（設計書）
@@ -8,6 +8,8 @@ last-verified: 2026-10-11
 > **このファイルの役割**: [unified-new-chat-start.md](unified-new-chat-start.md)（要件）を満たす実装の設計。
 > どの型を足し・変え・消すか、データと処理の流れ、実装の順番。
 > **書かないもの**: 何を満たすべきか（→ 要件書）、なぜこの方式か（→ [ADR 0183](../adr/0183-unified-new-chat-start-screen.md)）。実装後の構成は architecture/ へ移す。
+>
+> **実装との突き合わせ（2026-10-12）**: 段 1〜7 の実装（コミット 07650a0e..b23855e2）のコードと、型名・ファイル名・流れを突き合わせて直した。直したのは名前と流れで、設計の判断は変えていない。実装と食い違う点は §5.3 の末尾と §9 の末尾に書いた。
 
 パスは `macos/Packages/` からの相対。略称: `DF/` = `DashboardFeature/Sources/DashboardFeature/`、`SF/` = `SessionFeature/Sources/SessionFeature/`、
 `DVM` = `DF/Dashboard/DashboardViewModel.swift`、`SSS` = `DF/Dashboard/SessionSpawnService.swift`、`CVM` = `SF/ChatSessionViewModel.swift`、`WIP` = `AgentDomain/Sources/AgentDomain/WorktreeIsolationPlanner.swift`。
@@ -15,31 +17,35 @@ last-verified: 2026-10-11
 ## 1. 全体像
 
 ```
-[入口: ⌘N / ＋ / プロジェクト行 / グリッド空状態]
+[入口: ⌘N / ＋ / プロジェクト行 / グリッド空状態]   （NewChatEntryActions が呼ぶ）
         │ router.showNewChat(projectID:)
         ▼
-[新規チャット画面 NewChatView]──参照──[NewChatDraftStore（プロジェクトごとの下書き）]
-        │ 送信: NewChatLaunchRequest を作り、下書きを空にする
+[新規チャット画面 NewChatView（下段の「新規チャット」タブ）]──参照──[NewChatDraftStore（プロジェクトごとの下書き）]
+        │ 送信: NewChatDraft.makeLaunchRequest が NewChatLaunchRequest を作り、下書きを空にする
         ▼
-DashboardViewModel.launchNewChat(request)
-  1. spawnNewSessionImpl（worktree 作成 → VM 作成 → 行を出す → CLI 起動）
-     └ 行が出た時点で router.selectedSession = id（呼び出し側）
-  2. 起動の成否を判定（ChatLaunchError）
+DashboardViewModel.launchNewChat(request, onRowAppended:)
+  1. spawnNewSession(backend: .appServer, isolationOverride:, initialSettings:, keepsRowOnLaunchFailure: true, onRowAppended:)
+     （worktree 作成 → VM 作成 → 行を出す → CLI 起動）
+     └ 行が出た時点で、初回メッセージを会話欄に仮表示（vm.prepareFirstMessage）し、
+       呼び出し側が router.completeNewChat(sessionID:projectID:) で新規チャットのタブを外してその行を選ぶ
+  2. 起動の成否を vm.launchFailure で判定（ChatLaunchError）
      ├ 成功 → vm.sendFirstMessage(text, attachments)
-     └ 失敗 → 行を残して vm.markLaunchFailed(…)、本文を vm.draft へ
+     └ 失敗 → 行を残し、本文を入力欄へ戻す（vm.markLaunchFailed / vm.restoreLaunchDraft）。
+              request は failedNewChatRequests に持つ（再起動用）
 ```
 
-新しい型は 4 つだけ: `NewChatDraftStore` / `NewChatDraft`、`NewChatLaunchRequest`、`NewChatView`、`ChatLaunchError`。ほかは既存の型への引数・分岐の追加と削除。
+新しい型は `NewChatDraftStore` / `NewChatDraft`、`NewChatLaunchRequest`、`NewChatView`、`ChatLaunchError`（と `SendRejected`）、`NewChatEntryActions`（入口の共通アクション）、`NewChatHistoryPopover`（履歴の一覧）。ほかは既存の型への引数・分岐の追加と削除。
 
 ## 2. 状態とデータ
 
-### 2.1 下書き `NewChatDraftStore`（新規・`DF/NewChat/NewChatDraftStore.swift`）
+### 2.1 下書き `NewChatDraftStore`（`DF/NewChat/NewChatDraftStore.swift`）
 
 ```swift
 @MainActor @Observable public final class NewChatDraftStore {
     private var drafts: [ProjectID?: NewChatDraft] = [:]   // nil = プロジェクト未選択の下書き
     public func draft(for projectID: ProjectID?) -> NewChatDraft   // 無ければ作る
     public func discard(_ projectID: ProjectID)                    // プロジェクト削除時
+    public func hasDraft(for projectID: ProjectID) -> Bool         // プロジェクトのメニューの「下書きあり」の印
 }
 
 @MainActor @Observable public final class NewChatDraft {
@@ -47,16 +53,18 @@ DashboardViewModel.launchNewChat(request)
     let attachments = ComposerAttachmentStore()          // 既存（SF/ComposerAttachments.swift:47）
     var usesWorktree = false                             // 作業場所: false = 既存ディレクトリ
     var agentRef: AgentRef                               // ハーネス
-    var settings: CodexAppServerSessionSettings          // model・effort・権限・isPlanMode（既存型。PersistedSessionDescriptor.swift:454）
+    var settings: CodexAppServerSessionSettings          // model・effort・権限・isPlanMode（既存型。AgentDomain/PersistedSessionDescriptor.swift）
+    // 操作: selectHarness(_:)（ハーネスを替えて設定を入れ替える）・appendSuggestion(_:)・sendUnavailableReason(…)・canSend(…)・
+    //       makeLaunchRequest(projectID:workingDirectoryOverride:)（送信時点の値で NewChatLaunchRequest を作り、本文と添付を空にする）・restoreLaunchDraft(from:)
 }
 ```
 
-- 持ち主は `CompositionRoot`（`AppRouter` と同じく 1 つを全ウィンドウで共有。`App/CompositionRoot.swift:472` の隣）。`DashboardView` に環境値で渡す。
+- 持ち主は `CompositionRoot.newChatDraftStore`（`AppRouter` と同じく 1 つを全ウィンドウで共有）。`PhloxApp` が `DashboardView` に引数で渡す。
 - 入力欄の「プロジェクト」チップは `router.selectedProjectID` そのもの。選び直すと `draftStore.draft(for:)` の引数が変わり、そのプロジェクトの下書きに切り替わる（D9）。
 - `agentRef`・`settings` の初期値（下書きを作るとき）: `phlox.newChat.lastHarness` と、そのハーネスの `LastUsedChatSettingsStore` の値。無ければ Claude Code と `AgentModelCatalog.defaultModel(for:)`。
 - 設定値の型は新しく作らず `CodexAppServerSessionSettings` を使う。起動経路がすでにこの型で設定を運んでいる（`SSS:871-877`、`CursorModelListProvider.swift:6-14`）。Cursor の mode は今の流儀どおり `selectedPermissionProfile` に、Plan は `isPlanMode` に載せる。
 
-### 2.2 起動要求 `NewChatLaunchRequest`（新規・値型）
+### 2.2 起動要求 `NewChatLaunchRequest`（値型。`DF/NewChat/NewChatLaunchRequest.swift`）
 
 ```swift
 struct NewChatLaunchRequest {
@@ -66,6 +74,7 @@ struct NewChatLaunchRequest {
     let usesWorktree: Bool
     let text: String
     let attachments: [ComposerAttachment]     // 送信時点の複製
+    let workingDirectoryOverride: String?     // worktree 作成失敗の「既存の worktree を使う」で渡す作業フォルダ（通常は nil）
     let resumeHistoryID: String?              // 「履歴から再開」のとき（本文は空）
 }
 ```
@@ -84,47 +93,47 @@ struct NewChatLaunchRequest {
 
 ## 3. 画面遷移
 
-### 3.1 `AppRouter.showNewChat(projectID:)`（新規メソッド・`DF/Router/AppRouter.swift`）
+### 3.1 `AppRouter.showNewChat(projectID:)`（`DF/Router/AppRouter.swift`）
 
 ```swift
-func showNewChat(projectID: ProjectID?) {
-    if let projectID { selectedProjectID = projectID }
+public func showNewChat(projectID: ProjectID?) {
     viewMode = .single                 // グリッドでは selectedSession を外しても画面が変わらないため
+    if let projectID { selectedProjectID = projectID }
     selectedSession = nil
-    commonTerminalSelected = false     // SessionTabsContainer は共通ターミナルを優先して出すため（:30-55）
+    if let selectedProjectID { tabs.updateLayout(for: selectedProjectID) { $0.open(.newChat) } }  // 下段の「新規チャット」タブを開いて選ぶ
     newChatFocusToken &+= 1            // 入力欄へのフォーカス要求（FR-4）
 }
 ```
 
-すべての入口がこれを呼ぶ。`newSessionTablePresented` は消す。
+すべての入口がこれを呼ぶ。入口の UI 操作は `NewChatEntryActions`（`DF/Dashboard/NewChatEntryActions.swift`。`fileMenu`・`sidebarFooter`・`projectPlus`・`projectMenu`・`gridEmptyState`）に集め、プロジェクトが未指定のときの既定は `DashboardViewModel.defaultProjectIDForNewChat` が決める。`newSessionTablePresented` は消した。下段の「＋」のメニュー（`NewTabChooser`）の「新規チャット」と、`NewChatView` のプロジェクト選択も `showNewChat` を呼ぶ。
 
-| 入口 | 変更 |
+| 入口 | 呼び出し |
 |---|---|
-| ⌘N「新規チャット」（`App/PhloxApp.swift:692-699`） | `router?.showNewChat(projectID: nil)`。`.disabled(projects.isEmpty)` を外す（0 件なら `detailMainContent` が先にオンボーディングを出す。`DashboardDetailView.swift:47`） |
-| サイドバー下端ボタン（`DashboardView.swift:695-725`） | 同上。ポップオーバー 2 つ（:172・:720）と `newSessionTableBinding` を消す |
-| プロジェクト行の ＋（`SidebarRows.swift:83-89`、VoiceOver :119） | `showNewChat(projectID: project.id)`。`newSessionMenu`・`isNewSessionOpen` を消し、普通のボタンにする |
-| プロジェクトメニュー「新規チャット」（`DashboardSidebarView.swift:512-515`） | 同上 |
-| グリッド空状態（`DashboardView.swift:634`） | `NewSessionPopoverButton` を「新規チャット」ボタンに替え、`showNewChat(projectID: router.gridFilterProjectID)` |
+| ⌘N「新規チャット」（`App/PhloxApp.swift` のファイルメニュー） | `NewChatEntryActions.fileMenu()`。`.disabled(projects.isEmpty)` は無い（0 件なら `StartAreaPolicy` が先にオンボーディングを出す） |
+| サイドバー下端「＋ 新規チャット」（`DashboardView.swift`） | `sidebarFooter()` |
+| プロジェクト行の ＋（`SidebarRows.swift`） | `projectPlus(project.id)`。普通のボタン |
+| プロジェクトメニュー「新規チャット」（`DashboardSidebarView.swift`） | `projectMenu(project.id)` |
+| グリッド空状態（`DashboardView.swift`） | 「新規チャット」ボタン → `gridEmptyState(projectID: router.gridFilterProjectID)` |
 
 ### 3.2 主画面の分岐
 
-- `StartAreaPolicy`（`DF/Dashboard/StartAreaPolicy.swift:5-21`）のケースを `sessionContent` / `newChat` の 2 つにする。`selectProjectPlaceholder` と `SelectProjectPlaceholderView` は消す（FR-2a。未選択でも新規チャット画面を出し、プロジェクト選択が空）。
-- `DashboardDetailView.singleSelectEmptyState`（:128-150）は `NewChatView` を出す。`startHeader`（:115-125）と `isolates:`（:122）は消す。
+- `StartAreaPolicy`（`DF/Dashboard/StartAreaPolicy.swift`）のケースは `projectOnboarding` / `sessionContent` / `newChat` の 3 つ（プロジェクトが 0 件ならオンボーディング、セッションを選んでいれば会話、それ以外は新規チャット）。`selectProjectPlaceholder` と `SelectProjectPlaceholderView` は消した（FR-2a。未選択でも新規チャット画面を出し、プロジェクト選択が空）。
+- `DashboardDetailView` の単体表示は、下段で選んでいるタブが `.newChat` のとき `NewChatView` を出す。`startHeader` と `isolates:` は消した。
 
 ## 4. 新規チャット画面 `NewChatView`（新規・`DF/NewChat/NewChatView.swift`）
 
 ### 4.1 構成
 
 ```
-NewChatView(draft:, project:, …)
+NewChatView（入力欄は `NewChatView` の中にあり、`NewChatComposer` という型は無い）
 ├ 見出し（要件 §5.2 の 10 種類。乱数は注入できる形にする。画面を出すたびに選び直し、入力中は替えない）
-├ NewChatComposer
-│  ├ IMESafeTextView（既存。VM 非依存。SF/ChatComposer.swift:578-）
+├ 入力欄
+│  ├ IMESafeTextView（既存。VM 非依存。SF/ChatComposer.swift）
 │  ├ 添付の列（ComposerAttachmentStore を表示する既存の部品）
 │  ├ 送れない理由の 1 行（要件 E7）
 │  └ 下段: 左「＋ / ハーネス・モデル / effort・権限・mode」、右「プロジェクト / 作業場所 / 送信」（要件 E6）
 ├ 提案チップ 5 個（文言は要件 §5.5）
-└ 履歴から再開…（§6）
+└ 履歴から再開…（§6。`NewChatHistoryPopover`）
 ```
 
 ### 4.2 入力欄の部品を共用するための切り出し
@@ -134,16 +143,16 @@ NewChatView(draft:, project:, …)
 | 部品 | 扱い |
 |---|---|
 | `IMESafeTextView`・`ComposerAttachmentStore`・`ComposerKeyRouting`・`ComposerHeightPolicy`・`composerControls(for:)`・`composerModeOptions` | そのまま使う（VM 非依存） |
-| `ComposerAttachPlaceholder`（`ComposerSettingsControls.swift:593`） | `viewModel.draft` を直接読み書きしている（:670-689）。`Binding<String>` と `ComposerAttachmentStore` を受け取る形に変え、セッション側は VM から渡す |
-| 設定チップ（`ComposerSettingsControlsView` :95、`ComposerSettingsOverflowMenu` :716） | 見た目の部分を値で動く `ComposerSettingChip(title:options:selection:onSelect:)` に切り出す。セッション側は VM の値と `setSpawnAgentModel` 等を渡す薄い包みにする。新規チャット側は `NewChatDraft.settings` を渡す |
-| `ComposerSuggestionController`（`ComposerSuggestions.swift:131`） | 作業フォルダがクロージャに閉じ、`@State` で 1 回だけ作られる（`ChatComposer.swift:20,45`）。新規チャット側は `.id(候補の基準フォルダ)` で作り直す（E4）。基準は「既存ディレクトリ」ならプロジェクトのフォルダ、「新しい worktree」でもプロジェクトのフォルダ（worktree はまだ無い。作られる中身は同じ HEAD） |
+| `ComposerAttachPlaceholder`（`SF/ComposerSettingsControls.swift`） | `Binding<String>` と `ComposerAttachmentStore`・`agentRef`・`imageAttachmentsSupported`・`accessibilityIdentifier` を受け取る形に変えた。セッション側は VM から渡す |
+| 設定チップ（`ComposerSettingsControlsView`、`ComposerSettingsOverflowMenu`） | 見た目の部分を値で動く `ComposerSettingChip(title:options:selection:accessibilityIdentifier:onSelect:)`（`SF/ComposerDraftInput.swift`）に切り出した。セッション側は VM の値と `setSpawnAgentModel` 等を渡す薄い包みにする。新規チャット側は `NewChatDraft.settings` を渡す |
+| `ComposerSuggestionController`（`SF/ComposerSuggestions.swift`） | 作業フォルダがクロージャに閉じ、`@State` で 1 回だけ作られる（`ChatComposer.swift`）。新規チャット側は `.id(候補の基準フォルダ)` で作り直す（E4）。基準は「既存ディレクトリ」ならプロジェクトのフォルダ、「新しい worktree」でもプロジェクトのフォルダ（worktree はまだ無い。作られる中身は同じ HEAD） |
 | slash 候補 | 静的リスト＋`~/.claude`・`<cwd>/.claude` の走査＋`availableCommandsStore` で、セッション無しでも出る（U1 は解消）。Codex の skill 候補は起動中の CLI が要るので下書きでは出さない |
 | esc・⇧Tab・↑（履歴呼び出し） | 下書きでは esc は何もしない。⇧Tab の effort 切替は `NewChatDraft.settings` に対して同じ規則で行う。↑ は無効 |
 
 ### 4.3 ハーネス・モデル選択とその候補
 
 - メニューは `AgentModelCatalog.models(for:)` を、チャット対応の組込ハーネスごとに区切って並べる。未検出（`availableAgentDescriptors` に無い）は区切りごと押せない。
-- **Codex の候補を下書きで出すため**、`LiveAgentModelProvider.runCodexModelList`（`ControlServer/.../AgentModelProviders.swift:407-410`）が捨てている `supportedReasoningEfforts`・`defaultReasoningEffort`・`inputModalities` を、カタログの項目に持たせる（`AgentModelCatalog` の項目型に任意項目 `reasoningEfforts: [String]?`・`defaultReasoningEffort: String?`・`acceptsImages: Bool?` を足す）。これで effort の候補と画像の可否が下書きでも分かる。
+- **Codex の候補を下書きで出すため**、`LiveAgentModelProvider.runCodexModelList`（`ControlServer/.../AgentModelProviders.swift:407-410`）が捨てている `supportedReasoningEfforts`・`defaultReasoningEffort`・`inputModalities` を、カタログの項目に持たせる（`AgentDomain/AgentModelCatalog.swift` の `ControlModelOption` に任意項目 `reasoningEfforts: [String]?`・`defaultReasoningEffort: String?`・`acceptsImages: Bool?` を足した。`AgentModelProviders.swift` の `runCodexModelList` が詰める）。これで effort の候補と画像の可否が下書きでも分かる。メニューの区切りは `NewChatModelMenuSection`（`DF/NewChat/NewChatDraftStore.swift`）が作る。
 - Codex の権限の候補は `permissionProfile/list` が要り、起動中の app-server が無いと取れない。下書きでは内蔵の 3 つ（`:danger-full-access`・`:workspace`・`:read-only`。`CVM:2660`）を出し、起動後は実際の一覧に替わる。要件 §5.4 の (2)「最後のセッションの候補」は使わない（要件を改訂する）。
 - Claude の effort（`CVM:1588`）・権限・Cursor の mode（`composerModeOptions`）は今も静的なので、そのまま出す。
 - ハーネスを替えたら `settings` をそのハーネスの「最後に使った設定」に入れ替える。
@@ -161,28 +170,27 @@ NewChatView(draft:, project:, …)
 - 起動中・起動完了・起動失敗に変わったら `AccessibilityNotification.Announcement` を出す（既存の使い方は `ComposerSettingsControls.swift:1149`）。出すのは `launchNewChat` の呼び出し側の 1 か所。
 - 幅が足りないときは、今のセッション画面の下段と同じ判定（`ComposerSettingsOverflowMenu`）で effort・権限を「…」にまとめる。
 
-### 5.1 `DashboardViewModel.launchNewChat(_:)`（新規）
+### 5.1 `DashboardViewModel.launchNewChat(_:onRowAppended:)`
 
 ```swift
-func launchNewChat(_ r: NewChatLaunchRequest) async throws -> SessionID {
-    let id = try await spawnNewSession(ref: r.agentRef, projectID: r.projectID, backend: .appServer,
-                                       isolationOverride: r.usesWorktree,
-                                       initialSettings: r.settings,          // 新しい引数（§5.2）
-                                       keepsRowOnLaunchFailure: true,        // 新しい引数（§5.3）
-                                       resumeHistoryID: r.resumeHistoryID)   // 新しい引数（§6）
-    record(lastHarness: r.agentRef)
-    guard r.resumeHistoryID == nil, let vm = chatSession(id), vm.launchFailure == nil else { return id }
-    await vm.sendFirstMessage(r.text, attachments: r.attachments)          // 新しいメソッド（§5.4）
-    return id
-}
+public func launchNewChat(_ request: NewChatLaunchRequest,
+                          onRowAppended: (@MainActor (SessionID) -> Void)? = nil) async throws -> SessionID
 ```
+
+流れ（実装）:
+
+1. 履歴再開（`resumeHistoryID`）なら、`newChatHistoryEntries` で一覧を引いて該当の項目を取る（無ければ `AgentSpawnError.historyNotFound`）。
+2. `spawnNewSession(ref:projectID:backend: .appServer, workingDirectoryOverride:, isolationOverride: request.usesWorktree, initialSettings: request.settings, resumeHistoryEntry:, keepsRowOnLaunchFailure: true, onRowAppended:)`。下に渡るのは履歴の ID ではなく、引いた項目（`resumeHistoryEntry`）。
+3. 行が出た時点（`onRowAppended`）で、新規なら `prepareFirstMessage` が本文と添付を会話に先に見せ、そのあと呼び出し側の `onRowAppended` が選択を切り替える。
+4. `lastUsedChatSettingsStore.recordLastHarness` で最後のハーネスを記録する。
+5. 起動に失敗していれば（`launchFailure != nil`）、要求を `failedNewChatRequests[id]` に保存し、新規なら本文と添付を `restoreLaunchDraft` で入力欄へ戻す。失敗していなければ、新規のとき `sendFirstMessage` で送る。
 
 呼び出し側（`NewChatView` の送信処理。今の `DashboardView.createSession` の役割を引き継ぐ）:
 
 1. `NewChatLaunchRequest` を作り、`router.selectedProjectID` の下書きを空にする。
-2. `DashboardViewModel.$reportsWorktreeCreation.withValue(true) { … }` の中で `launchNewChat` を呼ぶ（worktree 作成中のトースト。今の `DashboardView.swift:1150` と同じ）。
-3. 行が出たら選択する。今は `spawnNewSession` が戻ってから選択している（`DashboardView.swift:1160`）。行は `registerSessionForWrite`（`DVM:1387`）で出るので、そこから `onRowAppended(id)` を呼び、呼び出し側が `router.selectedSession = id` にする。
-4. 例外（VM ができる前の失敗）は、本文を下書きに戻してダイアログを出す（§5.3 の表）。
+2. `DashboardViewModel.$reportsWorktreeCreation.withValue(true) { … }` の中で `launchNewChat` を呼ぶ（worktree 作成中のトースト）。
+3. 行が出たら `router.completeNewChat(sessionID:projectID:)` が「新規チャット」タブを外し、`.chat(新しい ID)` を選ぶ。
+4. 例外（VM ができる前の失敗）は、本文を下書きに戻してダイアログを出す（§5.3 の表）。起動の成否は `AccessibilityNotification.Announcement`（`NewChatLaunchAnnouncement`）で読み上げる。
 
 **行が出る時点**: 行は worktree の作成が終わってから出る（`registerSessionForWrite` が worktree 作成の後にあるため）。「既存ディレクトリ」ではほぼ即時、「新しい worktree」では作成の数秒はトーストだけが出る。要件 FR-7 の 2「すぐに」はこの意味に改訂する。行を worktree 作成より前に出すには、`spawnNewSessionImpl` が外から決めた `SessionID` を受け取る仕組みと、仮の行を本物に差し替える仕組みが要り、VM の寿命が 2 つになるので採らない。
 
@@ -216,6 +224,8 @@ func launchNewChat(_ r: NewChatLaunchRequest) async throws -> SessionID {
 
 GUI 以外（Control API・子セッション）は `keepsRowOnLaunchFailure == false` で今のまま。
 
+> **実装との差（2026-10-12 時点のコード）**: 再起動は `DashboardViewModel.restartNewChat(_:onRowAppended:)`（失敗した要求は `failedNewChatRequests` に持つ）まで実装済みだが、本番コードに呼び出し元が無く、失敗した行の「再起動」「閉じる」ボタンは画面につながっていない（要件 FR-10 は未達。テストでの確認は未検証）。また `restartNewChat` は履歴再開でない限り `usesWorktree: false` で起動し直すため、「同じ作業場所で」という要件との整合は未確認。
+
 ### 5.4 初回メッセージ `CVM.sendFirstMessage(_:attachments:)`（新規）
 
 - 預かった添付を `attachmentStore` に入れてから、今の `sendText(_:submit:)`（`CVM:3573`）を呼ぶ。タイトル付け（`adoptTitleFromOriginalUserText` :3655）は今のまま。
@@ -227,8 +237,8 @@ GUI 以外（Control API・子セッション）は `keepsRowOnLaunchFailure == 
 
 - 一覧の読み込み: `ClaudeSessionHistoryDiscovery` / `CodexSessionHistoryDiscovery` は VM に依存しない値型（U3 は解消）。`AppEnvironment` の provider 生成（`AppEnvironment.swift:191-231`、作業フォルダ 1 つが前提）に、作業フォルダの配列を取る版を足し、結果をまとめて更新日時の新しい順に並べる（最大 20 件）。
 - 対象の作業フォルダ: `[project.directoryPath] + (project.worktreePaths ?? [])`（D10）。`worktreePaths` には、worktree を作るたびに（`SSS:598` の `finishSessionLaunch` で登録するとき）その場所を足して `persistProjects()` する。worktree を消しても残す。Claude は `~/.claude/projects/`、Codex は state の SQLite か rollout に会話が残るので、worktree が消えていても一覧に出せる。
-- 表示条件: 選択中のハーネスが Claude か Codex で、一覧が空でないとき。一覧を開いた後は「読み込み中」「履歴がありません」「履歴を読み込めませんでした」＋「再試行」を区別する（要件 FR-13b）。一覧の UI は `ChatHistoryStartView` の一覧部分を切り出して使う。
-- 再開: `NewChatLaunchRequest.resumeHistoryID` を付けて `launchNewChat`。起動後に今の `startFromHistory`（`CVM:~675`）相当を呼ぶ。
+- 表示条件: 選択中のハーネスが Claude か Codex で、一覧が空でないとき。一覧を開いた後は「読み込み中」「履歴がありません」「履歴を読み込めませんでした」＋「再試行」を区別する（要件 FR-13b）。一覧の UI は `NewChatHistoryPopover`（`DF/NewChat/NewChatHistoryPopover.swift`。状態は idle・loading・entries・empty・failed）で、行の部品だけ `ChatHistoryStartView.swift` の `HistoryStartRow` を使い回す。
+- 再開: `NewChatLaunchRequest.resumeHistoryID` を付けて `launchNewChat`（§5.1 の 1・2）。引いた項目を `spawnNewSession` の `resumeHistoryEntry` で渡し、起動側が履歴再開を行う。
   - Codex: 今の履歴再開は `ThreadResumeParams(threadId:)` だけを送る（`CodexAppServerClient.swift:539-540`）。`ThreadResumeParams` は `cwd`・`model` を持つ（`AppServerRequests.swift:63-75`）ので、`StructuredAgentClient.resume(sessionRef:)`（`StructuredChatTypes.swift:222`）に作業フォルダと設定を渡す引数を足す。`cwd` を渡すと、その場所で会話の続きが動く（U7 で確認済み。元のフォルダが消えていても動く）。
   - Claude: 今の `--resume` のままでよい。別のフォルダから再開しても会話の中身は引き継がれ、再開したフォルダで動く（U9 で確認済み。元のフォルダが消えていても動く）。続きの記録は元のフォルダ用の場所（`~/.claude/projects/<元のフォルダ>/`）に書かれ続けるので、一覧は §6 の作業フォルダの集合で引けば出る。
 
@@ -253,7 +263,7 @@ GUI 以外（Control API・子セッション）は `keepsRowOnLaunchFailure == 
 | `SSS:969-995`（フラグがオフのときの復元の分岐） | 消す。保存済みの作業フォルダが worktree の場所と一致したら、今の隔離オンの経路（`inspect` → `plan(.restore)` → `applyWorktreeIsolationOutcome`）を通す。worktree が消えていれば `.recreate` で `WorktreeRecreationDialog` が出る。今の分岐は消えていると黙って本体のフォルダで起動するので、FR-16 と逆になる |
 | `SessionRestoreCoordinator.swift:157,248` | `isolationOverride` を渡すのをやめる（判断は作業フォルダで行う） |
 | `DVM:1098`（`setWorktreeIsolationEnabled`）、`DVM:1440`、`SessionPersistenceCoordinator.swift:243` | 書き込みを消す |
-| `NewSessionCollisionGate.peers`（`StartScreenViews.swift:484`） | 消す（確認ダイアログの廃止） |
+| `NewSessionCollisionGate.peers`（`StartScreenViews.swift`。消した） | 消す（確認ダイアログの廃止） |
 | UI の切替 4 か所 | `DashboardSidebarView.swift:518-521`、`DashboardToolbar.swift:134-159`（「プロジェクト名を変更…」:444 は残す）、`App/PhloxApp.swift:1051-1080`、`DashboardDetailView.swift:122` |
 
 worktree のチャットを別プロジェクトへ動かせない制限（`canMoveSession` `DVM:1562`）は、復元で `ownedWorkspaceDirectories` に登録し直されることが前提で、新しい規則でも保たれる。
@@ -288,11 +298,13 @@ worktree のチャットを別プロジェクトへ動かせない制限（`canM
 | 起動カード | `AgentStartCards.swift` 一式・`AgentStartProjectHeader`・`AgentStartCardSelection`・`agentStartEntries`（他に使う所が無ければ） |
 | プレースホルダ | `SelectProjectPlaceholderView`・`StartAreaPolicy.selectProjectPlaceholder` |
 | 既定の開き方 | `DefaultSessionBackendPreference`・設定画面の分節ボタン（`App/SettingsView.swift:37,54,158-165`）・`spawnNewSessionUsingDefaultProject`（`DVM:525`） |
-| 使われていない起動関数 | `spawnNewClaudeCodeSession`（`DVM:1522`） |
+| 使われていない起動関数 | `spawnNewClaudeCodeSession`（`DVM`）。**2026-10-12 時点で未削除**（`DashboardViewModel.swift` に残り、テスト 5 ファイルが呼ぶ。`Packages/*/Sources` と `App` に呼び出し元は無い） |
 | `DashboardView` の状態 | `isCreating`・`creatingRef`・`spawnGuard` の衝突ケース（`createSession` は新規チャットの送信処理と §8 の依頼処理に分かれる） |
 | 文言 | 確認ダイアログの 4 キー・未使用の 1 キー（要件 §8.1）、表・起動カード・既定の開き方の文言 |
 | ハーネスの色（要件 FR-30） | `AppTheme.agentColors`・`DSColor.agentColor(for:)`・`agentInitialFill`・`AgentDescriptor.colorRGB` と、それを渡している所（要件 §8.5）。`AgentBrandIcon.fallbackIcon` はカスタムの廃止で不要になるので消す |
-| 略号・図形（要件 §6.7・§8.5） | `StateGlyph`（状態は行の右端の文字に置き換え）、`tabInitials`（`Tokens.swift:385-396`）とその表示箇所、モデルのチップの色の四角、未読の丸（題名の文字色・太さに置き換え）、使用量画面の代替の印（`AgentBrandIcon` を各社の SVG ロゴに置き換え）。場所の一覧は要件 §8.5 |
+| 略号・図形（要件 §6.7・§8.5） | `StateGlyph`（状態は行の右端の文字に置き換え）、`tabInitials`（`Tokens.swift`。消した）とその表示箇所、モデルのチップの色の四角、未読の丸（題名の文字色・太さに置き換え）、使用量画面の代替の印（`AgentBrandIcon` を各社の SVG ロゴに置き換え）。場所の一覧は要件 §8.5 |
+
+> **実装との差（2026-10-12 時点のコード）**: 確認ダイアログの廃止後も、worktree 作成失敗の確認だけは残っている。`StartScreenViews.swift` に `NewSessionRequest`・`SpawnGuard`（`.worktreeFailed` のみ）・`NewSessionCollisionGate`（`worktreeFailureLog`・`existingWorktree` のみ。`peers` は無い）・`SpawnGuardSheet` が残る。`NewSessionTable` 系・`NewSessionMenuModel`・`AgentStartCards`・`SelectProjectPlaceholderView`・`StateGlyph`・`tabInitials`・`claudeCoral` は本番コードに無い。
 
 ## 9.1 配色（要件 §6.8）
 

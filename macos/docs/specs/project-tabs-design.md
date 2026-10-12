@@ -18,7 +18,7 @@ last-verified: 2026-10-12
   - 表示の並びは「チャット → 項目」。
 - 左右の分割・選択はプロジェクトごとに持つ。
 
-## 2. 型（`DF/Tabs/SessionTabs.swift` を置き換える。ファイル名は `ProjectTabs.swift`）
+## 2. 型（`DF/Tabs/ProjectTabs.swift`。旧 `SessionTabs.swift` を置き換えた）
 
 ```swift
 /// 下段のタブ 1 つ。
@@ -46,15 +46,17 @@ public struct ProjectTabsSnapshot: Codable, Equatable, Sendable {
 }
 ```
 
-- `ChildTab`・`SessionTabLayout`・`ProjectTabState`（`order`・`closed`）・`SessionTabsSnapshot` は消す。タブ列からだけ外す状態（`closed`）は P7 で無くなる。
+- `ChildTab`・`SessionTabLayout`・`ProjectTabState`（`order`・`closed`）・`SessionTabsSnapshot` は消した。タブ列からだけ外す状態（`closed`）は P7 で無くなった。
+- 同じファイルに、持ち主の `ProjectTabStore`（`@MainActor @Observable`。`layout(for:)`・`updateLayout(for:_:)`・`forgetProject(_:)`・`closeTarget(projectID:selectedSession:viewMode:)`・`migrateLegacy(sessionProjects:projects:)`。保存先は `UserDefaults` の `phlox.projectTabs.v1`）、ターミナルの識別子 `TerminalTabID`（UUID の包み）、閉じる対象 `CloseCommandTarget`、隠れた対応待ちの要約 `HiddenAttentionSummary` がある。`ProjectTabLayout` にはこのほかに `showChat(_:keeping:)`（チャットを前に出しつつ、分割中は指定のタブを残す）と `reconcileChats`（チャットが消えたときの選択の付け替え）がある。
+- `ProjectTabStore` は `AppRouter.tabs` として持つ。チャットの並びは `DashboardViewModel.chatTabs(in:)` が毎回作る。
 - 「会話は閉じられない」の特例は「`.chat` はこの型の中では閉じない（閉じる＝セッションの削除で、呼び出し側が確認ダイアログを出す）」に替わる。
 - `cycle`・⌘1〜9 の並びは「チャット → 項目」を連結した列で数える（`DashboardViewModel.numberedTabs(router:)`）。
 
 ## 3. 選択とルーター
 
 - 下段で `.chat(id)` を選ぶ ⇔ `router.selectedSession = id`。サイドバーでセッションを選ぶと、そのプロジェクトに切り替えて `.chat(id)` を選ぶ（今の `reveal` の置き換え）。
-- 新規チャット画面を出す（`router.showNewChat(projectID:)`）＝そのプロジェクトの `.newChat` を開いて選び、`selectedSession = nil`。送信して起動したら `.newChat` を項目から外し、`.chat(新しい ID)` を選ぶ（PE4。下書きは `NewChatDraftStore` が持つので、タブを外しても残る）。
-- セッションが 0 件のプロジェクトを選んだ・何も選んでいないときは `.newChat` を出す（新規チャットの要件 D21）。
+- 新規チャット画面を出す（`router.showNewChat(projectID:)`）＝そのプロジェクトの `.newChat` を開いて選び、`selectedSession = nil`。送信して行が出たら `router.completeNewChat(sessionID:projectID:)` が `.newChat` を項目から外し、`.chat(新しい ID)` を選ぶ（PE4。下書きは `NewChatDraftStore` が持つので、タブを外しても残る）。
+- セッションが 0 件のプロジェクトを選んだ・何も選んでいないときは `.newChat` を出す（新規チャットの要件 D21。`router.ensureProjectSelection(chatTabs:)`）。
 - 単体表示だけで使う。グリッドのタイルは会話だけを出し、子タブを持たない（PE8。`GridTileParts`・`PaneLayoutView` から子タブを外す）。
 
 ## 4. 閉じる・削除
@@ -73,12 +75,12 @@ public struct ProjectTabsSnapshot: Codable, Equatable, Sendable {
 
 ## 5. 子タブの中身の持ち主（鍵を替える）
 
-| 持ち主 | 今の鍵 | 新しい鍵 | 作業フォルダ |
+| 持ち主 | 旧い鍵 | 今の鍵 | 作業フォルダ |
 |---|---|---|---|
-| `SessionTerminalStore`（`DF/UserTerminal/SessionTerminalStore.swift:12`）→ `ProjectTerminalStore` | `SessionID` | `TerminalTabID`（プロジェクトの ID も持つ） | プロジェクトのフォルダ |
-| `AppRouter.browsers`（`DF/Router/AppRouter.swift:66`） | `SessionID` | `ProjectID` | — |
+| `ProjectTerminalStore`（`DF/UserTerminal/ProjectTerminalStore.swift`。旧 `SessionTerminalStore`） | `SessionID` | `TerminalTabID`（プロジェクトの ID・作業フォルダも一緒に持つ） | プロジェクトのフォルダ |
+| `AppRouter.browsers`（`DF/Router/AppRouter.swift`） | `SessionID` | `ProjectID` | — |
 | `SimulatorHub`（`DF/Simulator/SimulatorHub.swift`） | `SessionID` | `ProjectID` | — |
-| `FileTabDocumentRegistry`（`DF/Tabs/FileTabDocumentRegistry.swift:238`） | `(SessionID, path)` | `(ProjectID, path)` | プロジェクトのフォルダ |
+| `FileTabDocuments`（`DF/Tabs/FileTabDocument.swift`。`FileTabDocumentRegistry` が未保存の確認のために `ProjectID` ごとの変更中の印を持つ） | `(SessionID, path)` | `(ProjectID, path)` | プロジェクトのフォルダ |
 | 変更（`EditorPanelView(workingDirectory:)`） | セッションの作業フォルダ | プロジェクトのフォルダ | — |
 
 - worktree で動くセッションの変更は、会話画面の上端の行（「worktree で実行中 · ブランチ名」「変更 n ファイル」）から、会話の右に幅 440pt の欄で開く。中身は `EditorPanelView(workingDirectory: セッションの作業フォルダ)`（P2・モック 11 の T6）。そのフォルダのターミナルは置かない（P8）。
@@ -86,7 +88,7 @@ public struct ProjectTabsSnapshot: Codable, Equatable, Sendable {
 
 ## 6. 共通ターミナルの廃止（P3）
 
-`PhloxApp.swift` の共通ターミナルの所有（:137-145）と ⌃⌘T 等のメニュー、`AppRouter.commonTerminalSelected`、`SessionTabBar` の右端、`FileTreeRows.openPath` 等の参照（2026-10-12 時点で `commonTerminal` を含む行が 38）を消す。ユーザーターミナルをセッションとして登録しないこと・アプリ終了時の後始末（ADR 0149 の 1・4）は `ProjectTerminalStore` が引き継ぐ。
+`PhloxApp.swift` の共通ターミナルの所有と ⌃⌘T 等のメニュー、`AppRouter.commonTerminalSelected`、`SessionTabBar` の右端、`FileTreeRows.openPath` 等の参照を消した（2026-10-12 に廃止済み。本番コードに `commonTerminal` は無く、`ProjectTabsPresentationTests` が確かめる）。ユーザーターミナルをセッションとして登録しないこと・アプリ終了時の後始末（ADR 0149 の 1・4）は `ProjectTerminalStore` が引き継ぐ。
 
 ## 7. 保存（PE9）
 
@@ -100,16 +102,16 @@ public struct ProjectTabsSnapshot: Codable, Equatable, Sendable {
 |---|---|
 | `DF/Tabs/SessionTabBar.swift` | 上段＝プロジェクトのタブ。✕ は選択中・ホバー中だけ出し、説明は「プロジェクトを削除…」。右クリックに「プロジェクト名を変更…」（今の `router.projectRenameRequest` を立てる。サイドバーを隠していれば出す）。右端の ＋ はプロジェクトの追加（⌘O と同じ）。入りきらなければ 180→96pt に縮め、残りを「ほか n ⌄」 |
 | `DF/Tabs/SessionTabsContainer.swift` の前半 | 下段（`ChildTabBar`）＝チャット → 項目。チャットの ✕ の説明は「セッションを削除…」、新規チャットは「外す（下書きは残ります）」、ほかは「閉じる」。＋ のメニュー（`NewTabChooser`）は 新規チャット ⌘N / ターミナル / 変更 / ファイルを開く… / ブラウザ / シミュレーター、下端に「ターミナル・変更・ファイルは <プロジェクト> のフォルダで開きます」 |
-| `DF/Dashboard/DashboardToolbar.swift` | `titleBlock`・`worktreeMenu`・`WorktreeMenuButton`（:379）を消す。残すのはサイドバーの開閉（隠しているときだけ）・`ViewModeToggle`（右寄せ）・インスペクタの開閉 |
-| `DF/Dashboard/WindowChromeConfigurator.swift` | `toolbarStyle = .unifiedCompact`。`DSLayout.toolbarHeight`（`DesignSystem/Tokens.swift:77`、今 52）を帯の高さに合わせる。値は macOS 26 で測る（モックは 38pt） |
+| `DF/Dashboard/DashboardToolbar.swift` | `titleBlock`・`worktreeMenu`・`WorktreeMenuButton`を消した。残るのはサイドバーの開閉（隠しているときだけ）・`ViewModeToggle`（右寄せ）・インスペクタの開閉 |
+| `DF/Dashboard/WindowChromeConfigurator.swift` | `toolbarStyle = .unifiedCompact`。`DSLayout.toolbarHeight`（`DesignSystem/Tokens.swift`）は 38pt にした（旧 52。モックと同じ。macOS 26 での実測は未確認） |
 | 識別子 | `tabs.project.<n>`・`tabs.project.add`・`tabs.item.<n>`・`tabs.item.add`・`tabs.overflow`（モック 11） |
 
 ## 9. キーボード（PE11）
 
-⌃Tab・⌃⇧Tab = 下段の次／前、⌘1〜9 = 下段の n 番目、⇧⌘[・⇧⌘] = 上段の前／次、⌘T = 下段の ＋ のメニュー、⌘W = §4、⌘\ = 左右の分割。`App/PhloxApp.swift` の今の割り当てと重なる場合は実装時に報告して決める。
+⌃Tab・⌃⇧Tab = 下段の次／前（メニュー「次のタブ」「前のタブ」）、⌘1〜9 = 下段の n 番目（メニュー「セッションのタブ n」）、⇧⌘[・⇧⌘] = 上段の前／次（メニュー「前のプロジェクト」「次のプロジェクト」）、⌘T = 下段の ＋ のメニュー（メニュー「新しいタブ…」）、⌘W = §4、⌘\ = 左右の分割。いずれも `App/PhloxApp.swift` のメニュー項目。
 
 ## 10. テスト
 
-- 単体: `ProjectTabLayout` の操作（今の `SessionTabsTests` を移す）、チャットの並びがサイドバーと一致すること、`CloseCommandTarget` の振り分け、移行（`SessionTabsPersistenceTests` を置き換え）、削除で項目・持ち主が消えること。
+- 単体（`DashboardFeatureTests/ProjectTabsTests.swift`・`ProjectTabsPersistenceTests.swift`・`ProjectTabsPresentationTests.swift`）: `ProjectTabLayout` の操作、チャットの並びがサイドバーと一致すること、`CloseCommandTarget` の振り分け、移行、削除で項目・持ち主が消えること、共通ターミナルが本番コードに無いこと。
 - XCUITest: タブ列の切り替えと ✕ の確認ダイアログ（`PanelUITests`・`SimulatorTabUITests` を直す）。
 - 見た目: `DesignSnapshotRenderTests` でモック 11・12 と見比べる。

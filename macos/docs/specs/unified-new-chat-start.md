@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-11
+last-verified: 2026-10-12
 ---
 
 # 共通の新規チャット開始画面（要件・受け入れ基準・修正範囲）
@@ -9,6 +9,7 @@ last-verified: 2026-10-11
 > 受け入れ基準、廃止するもの・変えるもの・影響しないものの一覧。
 > **書かないもの**: 実装後の構成（→ 実装後に architecture/ へ）、なぜこの設計か（→ [ADR 0183](../adr/0183-unified-new-chat-start-screen.md)）。
 > **デザインの見本**: [ClaudeDesign/new-chat-start-reference.png](ClaudeDesign/new-chat-start-reference.png)（ユーザー提示の参考画像。Claude アプリの開始画面）、確定したモック `ClaudeDesign/10 New Chat Start.dc.html`（ヘッダーと使用量のバーは `ClaudeDesign/12 Header and Usage Bar.dc.html`）。実装はモックと見比べてから完了とする。
+> **状態**: 段 1〜7 は実装済み（コミット 07650a0e..b23855e2）。§11 の受け入れ基準の充足は本ファイルでは確認していない。§1〜§9 の「現状」「廃止する」は実装前の記述のまま残す。実装との食い違い（失敗した行の「再起動」ボタンが未接続など）は [unified-new-chat-start-design.md](unified-new-chat-start-design.md) の §5.3・§9 に書いた。
 
 ## 1. 解決したい問題
 
@@ -406,19 +407,19 @@ AI が既定値で決めた事項（異論があれば変える）:
 9. ハーネスの略号・色・状態の図形・未読の丸が無くなる。状態はサイドバーのセッション行の右端の文字で見る。タブとグリッドには状態が出ない。
 10. 起動に失敗して「再起動」しても、自動では送られない。
 
-## 10. 先に直す資料（実装の前）
+## 10. 先に直す資料（実装の前・2026-10-12 に実装と同時の項目も反映済み）
 
 | 資料 | 対応 |
 |---|---|
 | ADR 0183 | 作成済み（2026-10-11） |
 | ADR 0071（既定の開き方）・0082（起動カードとメニュー） | `superseded` にして 0183 へリンク済み。0086（単体表示の開始画面）は導線の決定が残るので active のまま、開始画面が置き換わる旨を追記済み |
-| `architecture/dashboard-empty-state-agent-cards.md` | 実装と同時に `superseded`（今の構成の説明なので、実装までは残す） |
-| `specs/ui-feature-inventory.md` 第 10 章（:375-383）ほか :77・:564・:731 | 新規チャット画面の記述に書き直す（今も旧仕様のまま古い） |
-| `specs/e2e-test-design.md:73` の `session.newButton` | 新しい識別子に直す |
+| `architecture/dashboard-empty-state-agent-cards.md` | `superseded` にして ADR 0183・本ファイルへリンク済み（2026-10-12） |
+| `specs/ui-feature-inventory.md` 第 10 章（:375-383）ほか :77・:564・:731 | 新規チャット画面の記述に書き直し済み（2026-10-12。第 9・10 章・§2・メニュー・§16.1・設定表ほか。それ以外の章は 2026-09-29 のまま） |
+| `specs/e2e-test-design.md:73` の `session.newButton` | 実在する `tabs.item.add`・`newChat.composer`・`newChat.sendButton` に直し済み（2026-10-12） |
 | `delivery/0037-ui-redesign-worklog.md` | 変えない（作業記録なので当時のまま）。新しい作業記録から参照する |
 | `specs/README.md` | 本ファイルを索引に足す |
 | ADR 0184（配色） | 作成済み（2026-10-11）。ADR 0042 に置き換えの追記済み |
-| `architecture/design-system.md` | 実装と同時にアクセントの値・ハーネスの色の廃止を反映する（今の値の説明なので、実装までは残す） |
+| `architecture/design-system.md` | アクセントの値・テーマ数・ハーネスの色の廃止を反映済み（2026-10-12。§2.1〜2.5・§4・§7 は 2026-07-08 のまま未再検証） |
 
 ## 11. 受け入れ基準
 

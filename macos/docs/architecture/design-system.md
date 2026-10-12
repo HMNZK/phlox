@@ -1,11 +1,13 @@
 ---
 status: active
-last-verified: 2026-07-08
+last-verified: 2026-10-12
 ---
 
 # Phlox デザインシステム（macOS 本体）
 
 > 2026-07-07: カラースキーマをモノクロ基調＋Claude コーラルへ刷新、ライトテーマ3種追加、hairline のテーマ追随化、`AgentSessionIcon`・diff トークン新設（ADR 0042）。CLI は claude/codex/cursor の3種に限定（ADR 0041）。
+>
+> 2026-10-12: アクセントを藍色に替え（ADR 0184）、ハーネスの識別色・`AgentSessionIcon`・状態の図形を廃止した。この日、アクセント・テーマ一覧・ハーネスの識別・DesignSystem のファイル構成だけを実装（`Tokens.swift`・`AppTheme.swift`・`DesignPalette.swift`）に合わせて確認した。§2.1〜2.5・§4 の状態語彙・§7 は 2026-07-08 時点の記述（未再確認）。
 
 - **ステータス**: Reference（実装に対応する正典）
 - **作成日**: 2026-06-19
@@ -20,7 +22,7 @@ last-verified: 2026-07-08
 Phlox には独立した SwiftUI パッケージ `DesignSystem` が存在し、**トークン層・テーマ層・コンポーネント層**の3層で構成される。
 
 - **トークン**: スペーシング（8pt グリッド）・角丸・フォント・レイアウト寸法・シャドウ・セマンティックカラーを一元定義（`Tokens.swift`）。
-- **テーマ**: UI chrome とターミナルを統合したテーマ群（ダーク6＋ライト3＝9テーマ）。既定は `Phlox`。**UI 基調はモノクロ（グレー階調）、アクセントは全テーマ共通で Claude コーラル `#D97757`**（ADR 0042）。起動時に確定し、切替は再起動で反映（`AppTheme.swift`）。明度は `AppTheme.preferredColorScheme`（background 相対輝度 ≥0.5 で `.light`）で単一導出し、ルート/設定/Usage が追随する。
+- **テーマ**: UI chrome とターミナルを統合したテーマ群（ダーク6＋ライト4＝10テーマ）。既定は `Phlox`。**UI 基調はモノクロ（グレー階調）、アクセントは藍色**: 背景が明るいテーマは `#3B469B`、暗いテーマは `#959CD0`、主ボタンなど白文字を載せる面（`accentFill`）は全テーマ `#3B469B`（ADR 0184。旧コーラル `#D97757` は廃止）。起動時に確定し、切替は再起動で反映（`AppTheme.swift`）。明度は `AppTheme.preferredColorScheme`（background 相対輝度 ≥0.5 で `.light`）で単一導出し、ルート/設定/Usage が追随する。
 - **コンポーネント**: 状態・エージェント・ホバー操作の共有部品。クロスプラットフォーム部品と macOS 固有部品を `#if os(macOS)` で隔離。
 
 設計の中核思想は **「生値の直書きを排除し、色・間隔・状態の意味を1箇所でだけ定義する」**。同じ意味を2箇所で定義するとドリフト（ズレ）が必ず生じる、というデザインシステム最大の失敗モードを避けるための規律。
@@ -36,18 +38,16 @@ Packages/DesignSystem/
 ├── Package.swift                 platforms: [.macOS(.v14), .iOS(.v17)] / depends: AgentDomain
 └── Sources/DesignSystem/
     ├── Tokens.swift              DSSpacing / DSRadius / DSFont / DSLayout / DSShadow / DSColor
-    ├── AppTheme.swift            RGB / AppTheme（6テーマ）/ ThemeStore
+    ├── AppTheme.swift            RGB / AppTheme（10テーマ）/ ThemeStore
+    ├── DesignPalette.swift       面・アクセント・対応待ちの確定値（phloxLight / phloxDark）と、他テーマ向けの導出（`derived`）
     ├── StatusBadge.swift         状態の語彙（ラベル・色・SF Symbol・ヘルプ）※純ロジック
     ├── StatusLabel.swift         状態をテキスト1行で表示          [cross-platform]
     ├── StatusCapsuleBadge.swift  状態をカプセル（ドット+アイコン+文字）で表示 [cross-platform]
     ├── CapsuleBadge.swift        汎用カプセルバッジ                [cross-platform]
-    ├── AgentKindBadge.swift      エージェント名バッジ（CLI 識別色） [cross-platform]
-    ├── AgentBrandIcon.swift      builtin CLI のブランドアイコン（SVG/SF Symbol フォールバック、ADR 0032） [cross-platform]
-    ├── AgentSessionIcon.swift    セッション行/ヘッダー用アイコン（AgentBrandIcon 非丸囲み、ADR 0042） [cross-platform]
+    ├── AgentBrandIcon.swift      builtin CLI（Claude Code・Codex・Cursor）のブランドアイコン（SVG のみ、ADR 0032） [cross-platform]
     ├── RunningCountBadge.swift   「N running」集計バッジ           [cross-platform]
     ├── AppIconStore.swift        選択中アプリアイコンの id↔アセット名解決・永続化 [cross-platform]
     ├── Icons.xcassets            builtin CLI ブランドアイコンの SVG アセット（preserves-vector） [asset catalog]
-    ├── StatusDot.swift           状態ドット / 実行中スピナー        [#if os(macOS)]
     └── Interaction.swift         ホバー・カーソル・ButtonStyle 群   [#if os(macOS)]
 ```
 
@@ -135,9 +135,9 @@ SomeCard().dsShadow(.card)   // 生 .shadow を書かない単一経路
 |---|---|
 | `background` / `surface` / `surfaceElevated` | 背景ランプ（最暗→面→持ち上げ面） |
 | `textPrimary` / `textSecondary` / `textTertiary` | テキスト3階層 |
-| `accent` | アクセント（ブランド） |
+| `accent` | アクセント（藍色。ライト系テーマ `#3B469B`・ダーク系テーマ `#959CD0`。`theme.palette.accent` から取る）。白文字を載せる面は `accentFill`（`#3B469B`）、文字・リンクは `accentInk`（背景に対し 4.5:1 を保つよう調整） |
 | `statusStarting` / `statusIdle` / `statusRunning` / `statusAwaitingApproval` / `statusCompleted` / `statusError` | 状態色（§4） |
-| `idleHighlight` 系（`attention` の不透明度違い4種） | 「あなたの番」（未確認完了）の強調面・枠・バー |
+| `attentionMark` / `attentionInk` / `attentionTint`（`approval`・`question`・`error`・`stalled`） | 対応待ち・エラー・無応答の記号・文字・面（`DesignPalette` から） |
 | `sessionRowSelected` / `sessionRowSelectedBorder` | セッション行の選択 |
 
 **テーマ非依存（固定値）**
@@ -148,13 +148,13 @@ SomeCard().dsShadow(.card)   // 生 .shadow を書かない単一経路
 
 > **ADR 0042 で刷新（テーマ追随化）**: 旧「テーマ非依存の白 opacity 固定」だった `border` / `separator` / `fillSubtle` / `fillSelected` / `sessionRowHover(Border)` は、**`theme.textPrimary` 由来の opacity**（前景色基準＝常に背景と対比）へ変更され、ライトテーマでも不可視化しない。選択トークンは `sessionRowSelectedBorder`=`Color.clear`（枠強調撤去）・`sessionRowSelected`=`fillSelected`（薄グレー）・`userBubble`=前景 8% のグレー面。diff 用に `diffAdded`（青）/`diffRemoved`（赤）を新設（明度追随）。`codeSyntax*` はライト/ダークの明度分岐。旧 `AppTheme.rowSelected/rowSelectedBorder` は dead 化のため除去。
 
-**エージェント識別（関数 API・ブランドアイコン）**
+**エージェント識別（ブランドアイコンのみ）**
+
+> ハーネスごとの識別色（`agentColor(for:)`・`AgentDescriptor.colorRGB`・頭文字の色タイル）と、セッション行用の `AgentSessionIcon`・状態の図形 `StateGlyph` は 2026-10-12 に廃止した（ADR 0184・0185）。ハーネスはブランドアイコンと名前の文字だけで見分ける。
 
 | API | 役割 |
 |---|---|
-| `agentColor(for: AgentKind)` / `agentColor(for: AgentDescriptor)` | CLI エージェントの識別色 |
-| `AgentBrandIcon(descriptor:size:)` / `AgentBrandIcon(kind:size:)` | エージェントのブランドアイコン。builtin claude/codex/cursor は `Icons.xcassets` の SVG（preserves-vector）を描画、他は SF Symbol／頭文字フォールバック（ADR 0032）。`kind:` は builtin 用の便宜イニシャライザ（2026-07-17 追加。Usage トップバーのエージェント名テキスト置換で使用） |
-| `AgentSessionIcon(descriptor:status:size:)` | セッション行/ヘッダー用。`AgentBrandIcon` を**丸で囲わず**描画する（StatusDot＋エージェント名バッジの置換、ADR 0042）。**running インジケータ overlay は ADR 0044 で撤去**（`showsRunningIndicator` は常に false）。 |
+| `AgentBrandIcon(descriptor:size:)` / `AgentBrandIcon(kind:size:)` | エージェントのブランドアイコン。`Icons.xcassets` の SVG（Claude Code・Codex は単色の template 描画で `textSecondary`、Cursor は元の色。preserves-vector）を描画する（ADR 0032）。組込み 3 種以外は無い（カスタムエージェントの廃止、ADR 0185）ので SF Symbol／頭文字のフォールバックも無い |
 
 > **ワークスペース（プロジェクト）識別色は 2026-07-05 に廃止**（`projectColorPalette` / `projectColor(at:)` / `AppTheme.projectPalette` は削除。並び順ベースの自動割当てだったため永続データなし・移行不要）。プロジェクト表示はニュートラルトークン（`textSecondary`）に統一。
 >
@@ -176,11 +176,12 @@ UI chrome（背景ランプ・テキスト・アクセント・状態色・識�
 
 ### 3.3 同梱テーマ（`ThemeStore.all`、先頭が既定）
 
-UI accent は**全テーマ共通で Claude コーラル `#D97757`**（`AppTheme.fromPalette` は入力 accent を無視し共有色に統一。`phlox` も手書きで coral）。background/surface/text は各テーマの明度に応じたグレー階調（`fromPalette` は `bg.grayscale`/`fg.grayscale` から導出）。
+UI accent は**藍色**（ADR 0184）。値は `DesignPalette` が持ち、`AppTheme.accent` は `palette.accent` を返す。`AppTheme.fromPalette` は入力 accent を無視し、背景の明るさで `phloxLight`（`#3B469B`）か `phloxDark`（`#959CD0`）の palette を基準に導出する（明るいテーマは `#3B469B`、暗いテーマは `#959CD0` が自動で入る）。background/surface/text は各テーマの明度に応じたグレー階調（`fromPalette` は `bg.grayscale`/`fg.grayscale` から導出）。
 
 | id | 名前 | 明度 |
 |---|---|---|
 | `phlox` | **Phlox（既定）** | dark |
+| `phlox-light` | Phlox Light | **light** |
 | `tokyo-night` | Tokyo Night | dark |
 | `dracula` | Dracula | dark |
 | `catppuccin-mocha` | Catppuccin Mocha | dark |
@@ -194,14 +195,14 @@ UI accent は**全テーマ共通で Claude コーラル `#D97757`**（`AppTheme
 
 | 役割 | 値 |
 |---|---|
-| background / surface / surfaceElevated | `#111111` / `#181818` / `#202020`（モノクロ・グレー階調） |
-| textPrimary / Secondary / Tertiary | `#E6E6E6` / `#969696` / `#6C6C6C` |
-| accent（Claude コーラル） | `#D97757` |
+| background / surface / surfaceElevated | `#1E1E20` / `#242427` / `#2F2F33`（`DesignPalette.phloxDark` の window / panel / popover） |
+| textPrimary / Secondary / Tertiary | `#F2F2F4` / `#ABABB1` / `#8E8E94` |
+| accent（藍色・暗い面用） | `#959CD0`（主ボタンの面 `accentFill` は `#3B469B`） |
 | statusRunning（緑） | `#34D399` |
-| statusAwaiting（黄・承認待ち） | `#FBBF24` |
-| statusError（赤） | `#EF4444` |
+| statusAwaiting（黄・承認待ち） | `#F0AE4A`（`approval.mark`） |
+| statusError（赤） | `#EE5A5F`（`error.mark`） |
 | statusCompleted | `#6EE7B7` |
-| attention（あなたの番） | `#D97757`（coral） |
+| 対応待ちの色 | `approval`（承認待ち）・`question`（質問待ち）・`error`・`stalled`（無応答）の 4 種。`DesignPalette` が `mark`（記号）・`ink`（文字）・`tintOpacity`（面）で持つ。ダーク既定の承認待ちは mark `#F0AE4A`・ink `#F4BD68` |
 
 ### 3.4 `ThemeStore`（起動時確定 + キャッシュ）
 
@@ -213,13 +214,13 @@ UI accent は**全テーマ共通で Claude コーラル `#D97757`**（`AppTheme
 
 ## 4. 状態の視覚言語（最重要・`StatusBadge`）
 
-`SessionStatus`（`AgentDomain`）の各状態を **ラベル・色・SF Symbol・ヘルプ** に対応づける純ロジックの名前空間。**色だけに頼らず、冗長な形（アイコン）とテキストで二重／三重に符号化**する（色覚多様性ケア）。`StatusLabel` / `StatusDot` / `StatusCapsuleBadge` はすべてここから引く。
+`SessionStatus`（`AgentDomain`）の各状態を **ラベル・色・SF Symbol・ヘルプ** に対応づける純ロジックの名前空間。**色だけに頼らず、冗長な形（アイコン）とテキストで二重／三重に符号化**する（色覚多様性ケア）。`StatusLabel` / `StatusCapsuleBadge` はここから引く。サイドバーのセッション行の状態は図形ではなく行の右端の文字（「実行中」「承認待ち」など。ADR 0184、要件 FR-24）で出す。
 
 | 状態 | 色トークン | SF Symbol | 日本語 / 英語 |
 |---|---|---|---|
 | `starting` | `statusStarting` | `circle.dotted` | 起動中 / starting |
 | `idle` | `statusIdle` | `pause.circle` | 待機中 / idle |
-| `running` | `statusRunning`（緑） | `play.circle.fill` ※`StatusDot` では回転スピナー | 実行中 / running |
+| `running` | `statusRunning`（緑） | `play.circle.fill` | 実行中 / running |
 | `awaitingApproval` | `statusAwaitingApproval`（黄） | `exclamationmark.bubble.fill` | 承認待ち / awaiting |
 | `completed(exitCode == 0)` | `statusCompleted` | `checkmark.circle.fill` | 完了 (0) / done |
 | `completed(exitCode != 0)` | `statusCompleted` | `xmark.octagon.fill` | 完了 (n) / exited |
@@ -240,7 +241,6 @@ UI accent は**全テーマ共通で Claude コーラル `#D97757`**（`AppTheme
 | `StatusLabel` | 状態色のテキスト1行（`caption`） | 省スペースな状態表示 |
 | `StatusCapsuleBadge` | カプセル: ドット + アイコン + 文字 | 状態の標準バッジ（色＋形＋文字の三重符号化） |
 | `CapsuleBadge` | 汎用カプセル（label / iconName / tint） | `StatusCapsuleBadge` の下地・任意バッジ |
-| `AgentKindBadge` | エージェント名カプセル（識別色枠） | CLI 種別の表示（`AgentDescriptor.displayName`） |
 | `RunningCountBadge` | 緑ドット + 「N running」（nested 併記可） | 実行中セッション数の集計表示。**ADR 0044 で本番描画から撤去**（型定義は残置・未使用） |
 
 ### 5.2 macOS 固有（`#if os(macOS)`）
@@ -249,8 +249,6 @@ AppKit／ポインティングデバイス前提のため macOS に隔離。iOS�
 
 | 部品 | 内容 |
 |---|---|
-| `StatusDot` | 状態ドット（8×8、12×12 枠）。実行中は `RunningSpinner` に切替 |
-| `RunningSpinner` | **Core Animation 駆動**の `NSViewRepresentable`。SwiftUI の repeat-forever アニメがメインスレッドを占有し埋め込みターミナル描画を飢餓させる回帰を避けるため、`CAShapeLayer` + `CABasicAnimation` で回転を描画サーバー側に逃がす |
 | カーソル修飾子 | `pointingHandCursor()` / `dsColumnResizeCursor()` / `dsInteractiveCursor(isEnabled:)`。macOS 15+ は `.pointerStyle`、14 は `NSCursor` push/pop フォールバック |
 | `hoverableControlSurface(...)` | Picker など ButtonStyle を当てられないクリック面に共通ホバー面＋指差しを付与 |
 | `HoverableIconButtonStyle` | アイコンボタン: ホバー／押下で角丸ハイライト面 |
@@ -258,14 +256,14 @@ AppKit／ポインティングデバイス前提のため macOS に隔離。iOS�
 | `HoverableSurfaceButtonStyle` | 行／ヘッダ／選択肢用: 既定は面なし、ホバー／押下で面・枠を強める（押下時 `scaleEffect` 0.995） |
 | `HoverCursorState` | `NSCursor` の push/pop 対応ずれ（祖先のカーソルを誤って pop する）を防ぐ純粋ロジック。disabled へのホバーでは push しない |
 
-> 設計メモ: `RunningSpinner` と hover 系を macOS 専用にしているのは「移植しないため」ではなく、**AppKit 依存で iOS に存在しない**ため。状態の「語彙」（`StatusBadge`）と、純 SwiftUI の視覚表現（`StatusCapsuleBadge` / `StatusLabel`）はコアで共有されている。
+> 設計メモ: hover 系を macOS 専用にしているのは「移植しないため」ではなく、**AppKit 依存で iOS に存在しない**ため。状態の「語彙」（`StatusBadge`）と、純 SwiftUI の視覚表現（`StatusCapsuleBadge` / `StatusLabel`）はコアで共有されている。
 
 ---
 
 ## 6. アクセシビリティ
 
 - **色のみに依存しない**: 状態は必ず色＋アイコン（＋多くはテキスト）で表す（`StatusBadge`／`CapsuleBadge`）。
-- **VoiceOver**: `StatusDot`・各バッジは `accessibilityLabel` にローカライズ済み状態名を設定。`CapsuleBadge` は `accessibilityElement(children: .combine)` で1ラベルに合成。`RunningCountBadge` は nested を含む読み上げ文を別途用意。
+- **VoiceOver**: 各バッジは `accessibilityLabel` にローカライズ済み状態名を設定。`CapsuleBadge` は `accessibilityElement(children: .combine)` で1ラベルに合成。`RunningCountBadge` は nested を含む読み上げ文を別途用意。
 - **ヘルプ（ツールチップ）**: `error` の詳細メッセージは `.help(...)` で提示。
 - **Dynamic Type**: 本文はテキストスタイル由来フォントで追従。固定 pt（`iconTiny` の 9pt 等）はバッジの装飾アイコンに限定。
 
@@ -302,7 +300,7 @@ AppKit／ポインティングデバイス前提のため macOS に隔離。iOS�
 ## 8. 既知の制約・補足
 
 - **テーマ切替は即時反映されない**（再起動が必要）。`DSColor`・ターミナルが起動時に `ThemeStore.active` を読む設計のため。
-- **macOS 固有部の隔離は「ロジック不変」が原則**。`StatusDot` / `Interaction.swift` の macOS ブランチは隔離前と byte-equivalent（挙動不変）であることをコメントで明示している。NSView ベースのドット表現を純 SwiftUI へ置換すると新たな挙動が混入するため、当面 macOS 専用のまま据え置き。
+- **macOS 固有部の隔離は「ロジック不変」が原則**。`Interaction.swift` の macOS ブランチは隔離前と byte-equivalent（挙動不変）であることをコメントで明示している。
 - **`platforms` は既に iOS を含む**が、iOS 向けの実コンポーネント（タッチ・HIG 部品）は未実装。iOS の青写真は `docs/specs/design-system-ios.md` を参照。
 
 ---

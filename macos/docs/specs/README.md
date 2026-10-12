@@ -23,7 +23,7 @@ last-verified: 2026-08-01
 | [ui-ux-improvement-backlog.md](ui-ux-improvement-backlog.md) | active | 実画面の観察に基づく UI・UX 改善チェックリスト（優先度・完了条件・未検証範囲） |
 | `agent-registry-refactor.md` | completed | 設定駆動レジストリ化（`AgentDescriptor`/`AgentRegistry`）の設計ゴール。歴史的ロードマップ（当時7 CLI 前提・現行3種） |
 | `amazon-q-integration.md` | superseded | Amazon Q Developer CLI 統合仕様。ベンダー撤退により撤去済み（2026-06-11） |
-| `custom-agents-json.md` | active | ユーザー定義 CLI（JSON）対応の設計ゴールと利用手順 |
+| `custom-agents-json.md` | superseded | ユーザー定義 CLI（JSON）対応。2026-10-12 に廃止（ADR 0185） |
 | `design-system-ios.md` | active | iOS コンパニオンアプリ向けデザインシステム拡張計画（Draft） |
 | `e2e-test-design.md` | active | Phlox E2E テスト設計書（Layer A/B の戦略・シナリオカタログ） |
 | `esc-revert-composer-focus.md` | active | esc 巻き戻し後の composer フォーカス復帰とキャレット末尾化の要件・受け入れ基準（決定は ADR 0135） |

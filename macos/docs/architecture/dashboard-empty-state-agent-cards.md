@@ -1,9 +1,12 @@
 ---
-status: active
-last-verified: 2026-07-16
+status: superseded
+last-verified: 2026-10-12
+superseded-by: ../specs/unified-new-chat-start.md
 ---
 
 # 空状態のエージェント選択カード（composer-agent-ux, 2026-07-10）
+
+> **この構造は撤去された**（2026-10-12）。セッション未選択の空状態は、下段の「新規チャット」タブの新規チャット画面に置き換わった（決定は [ADR 0183](../adr/0183-unified-new-chat-start-screen.md)、要件は [unified-new-chat-start.md](../specs/unified-new-chat-start.md)）。カード・チャット／ターミナルの 2 ボタン・`StartAreaPolicy.content(hasSelectedProject:…)` の分岐は無い。以下は当時の記録として残す。
 
 > **このファイルの役割**: シングルビューでセッション未選択のときに出る「エージェント選択カード」の現行構成。
 > **書かないもの**: spawn の内部仕様（→ claude-chat-session-lifecycle.md）、チャット UI 部品（→ chat-mode-ux-components.md）。

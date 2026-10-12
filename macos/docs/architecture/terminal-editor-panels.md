@@ -1,17 +1,19 @@
 ---
 status: active
-last-verified: 2026-08-01
+last-verified: 2026-10-12
 ---
 
 # ターミナル／エディタパネルの現行構成
 
 > **注意（2026-10-03）: 本書の一部は現行コードと食い違う。** ドロワーは廃止され（`PhloxUITests/PanelUITests.swift` の「02 C：ドロワーを廃止し、ターミナル・変更はタブで開く」）、
 > ターミナル・変更・ファイルは子タブ（`ChildTab`、`Tabs/SessionTabsContainer.swift`）で表示する。次の記述は旧構成のもの、または現行と異なる（最初の項目の型・関数名は現行コードを検索して存在しないことを確認した）。
-> - 表のうち「ルーティング」（`AppRouter.terminalPanelVisible` / `editorPanelVisible` / `toggle*Panel()`）・「ドロワー幅決定」（`PanelDrawerLayout`）・「ドロワー統合」（`DashboardView` のドロワー配置・`updateEditorPanelProject()`）・「トップバー」（`DashboardTopBarControls` / `TrailingTopBarLayout`）・「ホットキー配線」（⌘⌥T / ⌘⌥E の `TerminalPanelCommands` / `EditorPanelCommands`）。現行のショートカットは ⌃⌘T（ターミナルのタブ）・⌃⌘E（変更のタブ）で、`PhloxApp.swift` のメニュー項目から `router.openChildTab(...)` を呼ぶ。
+> - 表のうち「ルーティング」（`AppRouter.terminalPanelVisible` / `editorPanelVisible` / `toggle*Panel()`）・「ドロワー幅決定」（`PanelDrawerLayout`）・「ドロワー統合」（`DashboardView` のドロワー配置・`updateEditorPanelProject()`）・「トップバー」（`DashboardTopBarControls` / `TrailingTopBarLayout`）・「ホットキー配線」（⌘⌥T / ⌘⌥E の `TerminalPanelCommands` / `EditorPanelCommands`）。現行のショートカットは ⌃⌘E（変更のタブ）で、`PhloxApp.swift` のメニュー項目から `router.openChildTab(...)` を呼ぶ。ターミナルのタブは下段の「＋」か ⌘T「新しいタブ…」から開く（⌃⌘T は 2026-10-12 に共通ターミナルと一緒に廃止した）。
 > - 「データフロー（ターミナル）」4 のドロワー開閉の説明と、「データフロー（エディタ）」1・2（ドロワー幅による `EditorPanelLayout` の切り替え。`EditorPanelViewModel` の生成は `EditorPanelCoordinator` へ移っている）。
 > - 表の「終了処理」: `applicationShouldTerminate` は先に未保存ファイルの確認（`FileTabDocumentRegistry.confirmTermination()`）を行い、終了処理の冒頭で全ファイル文書の保存完了を待つようになった。
 > - 表の「git 読み書き」: `WorkingTreeService` は `fixedRoot`・symlink 包含確認・`fileData`・バイト単位の `save(path:data:expectedDiskBytes:)` を持つ。
 > - 「テスト」表のドロワー・⌘⌥T/⌘⌥E に関する行も旧構成を前提にしている。
+>
+> - **ターミナルの持ち主（2026-10-12、[ADR 0187](../adr/0187-project-tabs.md)）**: 共通ターミナル（ホーム cwd のシェル 1 つ。`PhloxApp` が `TerminalPanelSession` を 1 つ持つ形）は廃止した。シェルはプロジェクトのターミナルのタブ（`ProjectTab.terminal(TerminalTabID)`）ごとに `ProjectTerminalStore`（`PhloxApp` が 1 つ持つ）が持ち、cwd はそのプロジェクトのフォルダ。タブを切り替えても残し、タブを閉じたときと、プロジェクトの削除・アプリ終了時に止める。下の表の「PTY ライフサイクル」「パネル寿命の所有者」「PTY spawn 起動」「終了処理」と「データフロー（ターミナル）」はこの形に直してある。
 >
 > ファイルタブ・ファイルツリー・保存まわりの現行構成は [file-explorer-and-markdown-editing.md](file-explorer-and-markdown-editing.md)。
 > 上記以外の行（`UserTerminalController`・`TerminalPanelSession`・`TerminalPanelView`・`Posix.spawn` など）は今回の変更で確かめ直していない。
@@ -26,8 +28,9 @@ last-verified: 2026-08-01
 | 層 | 型 / 関数（パッケージ・ファイル） | 役割 |
 |---|---|---|
 | ルーティング | `AppRouter.terminalPanelVisible` / `.editorPanelVisible` / `toggleTerminalPanel()` / `toggleEditorPanel()`（DashboardFeature/Router） | パネルの表示状態と開閉トグル |
-| PTY ライフサイクル | `UserTerminalController`（DashboardFeature/UserTerminal、`@MainActor`） | ホームディレクトリを cwd に `PTYManagerProtocol` 経由でシェルを起動・保持・shutdown。多重 spawn 防止・自然終了検知・`spawnGeneration` による購読者の世代分離・`requestedSize` によるサイズ保留（起動前 resize の反映） |
-| パネル寿命の所有者 | `TerminalPanelSession`（DashboardFeature/UserTerminal/TerminalPanelView.swift） | `UserTerminalController` と `TerminalUI.TerminalCoordinator` を束ね、ドロワーの開閉と無関係に `PhloxApp` の `@State` として保持される |
+| PTY ライフサイクル | `UserTerminalController`（DashboardFeature/UserTerminal、`@MainActor`） | 渡された作業フォルダ（プロジェクトのフォルダ）を cwd に `PTYManagerProtocol` 経由でシェルを起動・保持・shutdown。多重 spawn 防止・自然終了検知・`spawnGeneration` による購読者の世代分離・`requestedSize` によるサイズ保留（起動前 resize の反映） |
+| 表示とシェルの束ね | `TerminalPanelSession`（DashboardFeature/UserTerminal/TerminalPanelView.swift） | `UserTerminalController` と `TerminalUI.TerminalCoordinator` を束ねる。ターミナルのタブ 1 つにつき 1 つ |
+| パネル寿命の所有者 | `ProjectTerminalStore`（DashboardFeature/UserTerminal/ProjectTerminalStore.swift、`@MainActor`。`PhloxApp` の `@State` が 1 つ持つ） | `TerminalTabID` → （`TerminalPanelSession`・プロジェクト ID・作業フォルダ）の置き場。`terminal(for:projectID:workingDirectory:)` が初めて開くときだけ作る（フォルダが変わっていたら旧い場所のシェルを止めて作り直す）。`close(_:)`・`closeProject(_:)`・`shutdownAll()` で止める |
 | ターミナル表示 | `TerminalPanelView`（同ファイル） | `TerminalCoordinator` を `TerminalUI.TerminalView`（SwiftTerm 表示）へ橋渡しする、容器非依存の View |
 | git 読み書き | `WorkingTreeService`（DashboardFeature/WorkingTree、`actor`） | `/usr/bin/git`（`--no-optional-locks` 付き）をラップし、`isGitRepository()` / `changes()` / `detail(for:)` / `fileContents(_:)` / `save(path:content:expectedDiskContent:)` を提供 |
 | git 値型 | `WorkingTreeChange` / `WorkingTreeDetail` / `WorkingTreeSaveOutcome`（DashboardFeature/WorkingTree/WorkingTreeTypes.swift） | 変更エントリ（path/kind/isBinary）・詳細（diff/untrackedContent/binary）・保存結果（saved/conflict） |
@@ -38,21 +41,17 @@ last-verified: 2026-08-01
 | ドロワー統合 | `DashboardView`（DashboardFeature/Dashboard） | 本文 `HStack` の一部としてドロワーを配置（レイアウトフロー内）。両パネル可視時は `VSplitView` で縦積み。分割線ハンドルは overlay チェーンの最後に配置し、ドラッグ中はゴースト線のみ更新（`onEnded` で `storedDrawerWidth`（`@AppStorage`）を確定）。`updateEditorPanelProject()` がセッション選択の変化に応じて `EditorPanelViewModel` を作り直す |
 | トップバー | `DashboardTopBarControls` / `TrailingTopBarLayout`（DashboardFeature/Dashboard） | `usageAvailableWidth` はウィンドウ全幅（`geometry.size.width`）基準で、ドロワー幅を差し引かない |
 | ホットキー配線 | `TerminalPanelCommands` / `EditorPanelCommands`（App/PhloxApp.swift） | ⌘⌥T / ⌘⌥E の `CommandGroup(after: .sidebar)`。`router.toggleTerminalPanel()` / `toggleEditorPanel()` を呼ぶ |
-| PTY spawn 起動 | `makeTerminalPanelSession(environment:)`（App/PhloxApp.swift） | `UserTerminalController` をホーム cwd・ログインシェル（`loginShellPath()`）で構築し、`AppDelegate.userTerminalController` へも渡す |
-| 終了処理 | `AppDelegate`（App/AppDelegate.swift、extension） | `applicationShouldTerminate` から `shutdownUserTerminal()` → `PTYManager.terminateAllAndWait` を待つ Task と、全チャットセッションの `flushTranscriptNow()` を待つ Task を並行実行し、両方の完了後に reply する（[ADR 0110](../adr/0110-midturn-flush-and-termination-race.md)・[ADR 0149](../adr/0149-user-terminal-lifecycle.md)） |
+| PTY spawn 起動 | `makeTerminalPanelSession(environment:workingDirectory:)`（App/PhloxApp.swift） | `UserTerminalController` をプロジェクトのフォルダ・ログインシェル（`loginShellPath()`）で構築する（`HOME` はホーム）。`ProjectTerminalStore` の factory として渡し、`AppDelegate.sessionUserTerminals` へも同じ置き場を渡す |
+| 終了処理 | `AppDelegate`（App/AppDelegate.swift、extension） | `applicationShouldTerminate` から `shutdownUserTerminal()`（`ProjectTerminalStore.shutdownAll()`）→ `PTYManager.terminateAllAndWait` を待つ Task と、全チャットセッションの `flushTranscriptNow()` を待つ Task を並行実行し、両方の完了後に reply する（[ADR 0110](../adr/0110-midturn-flush-and-termination-race.md)・[ADR 0149](../adr/0149-user-terminal-lifecycle.md)） |
 | fd 衛生 | `Posix.spawn`（PTYKit/Sources/PTYKit/Posix.swift） | `posix_spawnattr_setflags` に `POSIX_SPAWN_CLOEXEC_DEFAULT` を含め、`file_actions` で明示 dup2 されていない fd を子へ継承しない（[ADR 0151](../adr/0151-pty-spawn-fd-hygiene.md)） |
 
 ## データフロー（ターミナル）
 
-1. `PhloxApp` が起動時に `TerminalPanelSession` を 1 つ生成し、`@State` として保持（`AppDelegate` にも
-   `userTerminalController` として共有）。
-2. `TerminalPanelSession.init` が `TerminalCoordinator.onInput` / `.onResize` を
-   `UserTerminalController.send(_:)` / `.resize(cols:rows:)` に配線し、`makeOutputStream()` を
-   継続的に消費して `TerminalCoordinator.feed(_:)` へ流す（表示器が閉じていても購読は継続）。
-3. `TerminalPanelView.task` が初回表示・自然終了後の再表示のときに `TerminalPanelSession.ensureStarted()`
-   を呼び、`UserTerminalController.ensureStarted()` が未起動ならホーム cwd でシェルを spawn する。
-4. ドロワーを閉じても `TerminalPanelSession` は破棄されない（`DashboardView` はドロワー可視時にだけ
-   `TerminalPanelView` をレンダリングするが、`panel` そのものの所有者は `PhloxApp`）。
+1. `PhloxApp` が起動時に `ProjectTerminalStore` を 1 つ生成して `@State` として保持する（`AppDelegate.sessionUserTerminals` にも共有）。
+2. 下段のタブでターミナルを開く（`ProjectTab.terminal(TerminalTabID)`）と、`SessionTabsContainer` が `terminals.terminal(for:projectID:workingDirectory:)` で `TerminalPanelSession` を取り出す（無ければ作る。作業フォルダはそのプロジェクトのフォルダ）。
+3. `TerminalPanelSession.init` が `TerminalCoordinator.onInput` / `.onResize` を `UserTerminalController.send(_:)` / `.resize(cols:rows:)` に配線し、`makeOutputStream()` を継続的に消費して `TerminalCoordinator.feed(_:)` へ流す（表示器が閉じていても購読は継続）。
+4. `TerminalPanelView.task` が初回表示・自然終了後の再表示のときに `ensureStarted()` を呼び、`UserTerminalController.ensureStarted()` が未起動なら作業フォルダでシェルを spawn する。
+5. タブを切り替えてもシェルは残る。タブを閉じる（実行中のコマンドがあれば確認）と `ProjectTerminalStore.close(_:)`、プロジェクトを削除すると `closeProject(_:)`、アプリ終了で `shutdownAll()` がシェルを止める。ターミナルのタブは保存しない（次の起動では開き直さない）。
 
 ## データフロー（エディタ）
 

@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-09
+last-verified: 2026-10-12
 ---
 
 # Phlox E2E テスト設計書
@@ -57,20 +57,22 @@ E2E 実装前に必要な改修。**特に Layer B はこの改修なしでは�
   - 引数 `--exit-after <n>` で n 行処理後に自プロセス終了（プロセス死亡系の検証用）
 - **注入経路は層で異なる（重要）**:
   - **Layer A**: テストが `SessionViewModel.SpawnRequest`（command/args/env）を直接組み立てるため、registry を使わない。フック検証が必要なテストはテスト側で実 `HookServer` を起動し、その URL を `FAKE_AGENT_HOOK_URL` として env に注入する（既存 `realPTY_deterministic_*` の発展形）
-  - **Layer B**: カスタムエージェントは `hookKind: .none` で生成され（`CustomAgentDefinition.swift:99`）、`AgentLaunchPlanner.swift:131` は `CLAUDE_HOOKS_URL` を注入しないため、**フェイクCLI は idle-fallback 前提**とする。フック駆動の状態遷移は Layer B では検証しない（Layer A の責務）。また registry のパスは `~/.config/phlox/agents.json` 固定（`CustomAgentDefinition.swift:6-8`、`PHLOX_DATA_DIR` に連動しない）のため、`PHLOX_AGENTS_JSON` での上書き改修を T1 と同時に行う（WP-E5 に含める）
+  - **Layer B**: 組込みハーネス（Claude Code）の実行ファイルの場所を、環境変数 `PHLOX_TEST_AGENT_BINARY_PATHS`（JSON。例 `{"claudeCode":"/path/to/fake-agent.sh"}`。`PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN=1` のときだけ有効。読む側は `AppBootstrap/BinaryPathResolver.swift` の `testBinaryOverrides`、設定する側は `UITests/IsolatedPhloxApplication.swift`）でフェイクCLI に差し替える。カスタムエージェント（`agents.json`・`PHLOX_AGENTS_JSON`）は 2026-10-12 に廃止された（ADR 0185）ので使わない。組込みの Claude Code には `AgentLaunchPlanner` が `CLAUDE_HOOKS_URL` を注入する（`Spawn/AgentLaunchPlanner.swift`）。フェイクCLI の出力と、組込みハーネスの会話の読み取り方との整合は、Layer B の実装時に確かめる（未検証）
 - 実 CLI を使うテストは既存方針どおり「PATH に存在しなければ自動スキップ」（`realGoose_*` と同形式）
 - フェイクCLI 自体の正しさは WP-E1 の最初に「直接 spawn して ready 出力とエコーを確認するスモーク1本」で保証する
 - **トレードオフ**: フェイクCLI では実 CLI のプロトコル変更（起動引数・出力形式の変化）を検出できない。この乖離リスクは S10（実CLIスモーク、オプトイン）で補う
 
 ### T4. accessibilityIdentifier の付与（必須・Layer B 前提）
-- 現状: `.accessibilityIdentifier` はゼロ（`.accessibilityLabel` が DesignSystem に3箇所のみ）
+- 策定時（2026-07）の現状: `.accessibilityIdentifier` はゼロ（`.accessibilityLabel` が DesignSystem に3箇所のみ）。今は新規チャット画面・タブ列・設定などに付いている
+- 2026-10-12 時点でコードに実在するのは次の表の `tabs.item.add`・`newChat.composer`・`newChat.sendButton` だけ（ほかは付与の予定。タブ列には `tabs.project.<n>`・`tabs.project.add`・`tabs.item.<n>`・`tabs.overflow` もある）:
 - 改修: Layer B のシナリオが触る要素に限定して付与する（全画面網羅はしない）:
 
 | identifier | 要素 | ファイル |
 |---|---|---|
 | `dashboard.sidebar` | サイドバー | DashboardSidebarView.swift |
 | `sidebar.session.<name>` | セッション行 | サイドバーのセッション一覧 |
-| `session.newButton` | 新規セッションボタン | DashboardTopBarControls.swift / トップバー |
+| `tabs.item.add` | 下段の「＋」（タブを追加）。開くメニューの先頭が「新規チャット」（⌘N でも開く）。新規チャット画面は下段の「新規チャット」タブ | Tabs/SessionTabsContainer.swift（`ChildTabBar`） |
+| `newChat.composer` / `newChat.sendButton` | 新規チャット画面のメッセージ入力欄・送信ボタン | NewChat/NewChatView.swift |
 | `session.inputField` | メッセージ入力欄 | SessionView |
 | `session.sendButton` | 送信ボタン | SessionView |
 | `session.terminal` | ターミナル表示領域 | SessionView (TerminalUI ホスト) |
@@ -250,5 +252,5 @@ WP-E1〜E4（Layer A）はアプリ本体の改修がほぼ不要で先行着手
 
 1. **SwiftTerm 領域の検証手段**（T6）: `phlox read` 経由で足りるかは実装時に検証が必要。不足時は accessibilityValue 追加（本体改修）に発展する
 2. **XCUITest の権限**: 実行マシンに Automation 権限付与が必要。CI ランナー（セルフホスト想定）での事前設定手順を WP-E7 で文書化する
-3. **（解決済み・T3 に反映）** Layer A は SpawnRequest 直接組み立てで registry 不要。Layer B はカスタムエージェントの `hookKind: .none` 制約により idle-fallback 前提とし、registry パス上書き（`PHLOX_AGENTS_JSON`）を WP-E5 で改修する
+3. **（解決済み・T3 に反映）** Layer A は SpawnRequest 直接組み立てで registry 不要。Layer B は `PHLOX_TEST_AGENT_BINARY_PATHS` で組込みハーネスの実行ファイルを差し替える（カスタムエージェントは廃止。ADR 0185）
 4. **ports.json の共有**: 本番とテストでデータdir を分けることで ports.json も分離されるが、`scripts/phlox` が参照する API URL の解決経路をテスト側で正しく注入できるか WP-E3 で確認する

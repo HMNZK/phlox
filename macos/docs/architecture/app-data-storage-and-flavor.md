@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-08
+last-verified: 2026-10-12
 ---
 
 # アプリのデータ保存とビルド種別（AppFlavor）
@@ -57,9 +57,9 @@ last-verified: 2026-07-08
   `SecurePasteboard`（AgentDomain）経由で `org.nspasteboard.ConcealedType` を併記し、changeCount 照合
   つきの 60 秒自動クリアが予約される。テスト用のインメモリ供給ゲート
   （`PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN`）は Debug ビルド限定（Release バイナリには経路が存在しない）。
-- **カスタムエージェント定義（`~/.config/phlox/agents.json`）**: 信頼できない入力として扱い、
-  `agents` 配列の非辞書要素・不正 `colorHex`（符号付き hex 等）はエントリ単位で skip してログに残す
-  （起動クラッシュしない）。
+- **カスタムエージェント定義（`~/.config/phlox/agents.json`）は廃止した**（2026-10-12、ADR 0185）。
+  Phlox はこのファイルを読まない。保存済みのカスタムのセッションは `JSONSessionStore` が読み込み時に
+  1 件ずつ捨てる（壊れた 1 件で全体の読み込みを失敗させない）。
 
 ## スコープ外（共有されるもの）
 

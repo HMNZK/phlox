@@ -26,7 +26,7 @@ last-verified: 2026-10-03
 | `chat-revert-escape-and-interrupt.md` | チャットの中断・Esc・履歴リバート機構 |
 | `chat-subagent-display.md` | サブエージェント別チャット表示の現行構造 |
 | `claude-chat-session-lifecycle.md` | Claude チャットセッションのプロセスライフサイクル（spawn/respawn/self-heal） |
-| `dashboard-empty-state-agent-cards.md` | 空状態のエージェント選択カード（セッション未選択→カードで spawn） |
+| `dashboard-empty-state-agent-cards.md` | **superseded** → 新規チャット画面（ADR 0183・specs/unified-new-chat-start.md）。旧 空状態のエージェント選択カード |
 | `dashboard-pane-layout.md` | Dashboard 3ペインレイアウトと幅クランプ（PaneWidthPolicy・クランプ発火点） |
 | `claude-usage-supply.md` | Claude Usage（5h/7d 残量）キャッシュの供給経路（statusLine＋`/usage` プローブ） |
 | `design-system.md` | Phlox デザインシステム（macOS 本体・`Packages/DesignSystem`） |

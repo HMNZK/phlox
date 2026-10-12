@@ -1,11 +1,13 @@
 ---
 status: active
-last-verified: 2026-09-29
+last-verified: 2026-10-12
 ---
 
 # Phlox macOS UI 機能インベントリ
 
 この文書は、Phlox macOS アプリの UI を 0 から再構築するためのモック作成者向けに、既存 UI の機能・状態・文言を「画面/サーフェス（情報設計上の単位）」別に棚卸ししたものである。4名の担当（App/ 全体、DashboardFeature、SessionFeature、DesignSystem/TerminalUI/ChatRenderKit/エージェント種別/Localizable/ControlServer系）がパッケージ単位で並行調査した結果を、画面軸に組み替えて統合している。根拠は現行コードの `file:line` を正とし、docs/ADR/コメント由来の記述は「未確認（文書のみ）」「推測」と明記して区別する。対象範囲は macOS デスクトップアプリ（`App/` + `Packages/*/Sources`）のみで、iOS アプリ・CLI・Control API 単体の仕様は対象外（UI に現れる範囲でのみ言及する）。
+
+> **2026-10-12 の更新範囲**: 新規チャット画面・プロジェクト単位のタブ・共通ターミナルの廃止・ヘッダーと使用量のバー・略号と図形の廃止・カスタムエージェントの廃止（ADR 0183〜0187）に関わる箇所だけを実装に合わせた（§1・§2 の図と上部バー、§3 の関連行、§9・§10、§14 の新規チャット行、§16.1、§17 の状態の行、§19 の設定行）。それ以外の章は 2026-09-29 時点の記述のままで、未再確認。チームビュー（§6）・右端ドロワー（§8）・インスペクタの一部は、別の変更でコードから無くなっているか構成が変わっている。
 
 ---
 
@@ -22,8 +24,9 @@ last-verified: 2026-09-29
 メインウィンドウの領域分割（テキスト図）:
 
 ```
-[上部オーバーレイ: 左=サイドバートグル/設定/Agent Console/選択セッション名  右=使用量チップ/表示モード/グリッド絞込/レイアウト/インスペクタトグル]
-[左サイドバー(可変幅、既定280)] | [中央 detail 領域(可変、single/grid/team)] | [右インスペクタ(可変幅、既定300)] | [右端ドロワー(ターミナル/エディタ、既定560pt・最小280pt、両方表示時は縦積み)]
+[ヘッダー 38pt: 左=サイドバートグル（サイドバーを隠しているときだけ）  右=表示モード（単体/グリッド）・インスペクタトグル]
+[左サイドバー(可変幅、既定280)] | [中央（単体）: 上段=プロジェクトのタブ / 下段=そのプロジェクトのチャット→項目（新規チャット・ターミナル・変更・ファイル・ブラウザ・シミュレーター）のタブ / 本体] | [右インスペクタ(可変幅、既定300)]
+[最下部: 使用量のバー（全幅 24pt。全ハーネスの全枠を横に並べる）]
 ```
 
 ---
@@ -42,24 +45,27 @@ last-verified: 2026-09-29
 2. **grid**: `SessionGridView` で複数セッションをタイル表示、プロジェクト絞り込み・セッション選択の2軸フィルタあり（`DashboardDetailView.swift:42-54`）。→ 5章
 3. **team**（「チームビュー (Beta)」, `TeamViewBranding.swift:5`）: `TeamTimelineView` で複数エージェントの発言を1本のタイムラインに集約表示。→ 6章
 
-空プロジェクト時は `detailEmptyState`（`DashboardDetailView.swift:82-108`）、プロジェクト選択済み・セッション未選択時は `AgentStartCardsView`（`:110-126`, ポリシーは `StartAreaPolicy.swift`）。→ 9章
+空プロジェクト時は `detailEmptyState`（`DashboardDetailView.swift`）。プロジェクトがあり、セッション未選択（下段の「新規チャット」タブ）の単体表示では `NewChatView`（`StartAreaPolicy.content` が `.newChat`。旧 起動カードは廃止）。→ 9章
 
-### 2.1 上部バー（`Dashboard/DashboardTopBarControls.swift`）
+### 2.1 ヘッダー（`Dashboard/DashboardToolbar.swift`）
+
+中央とインスペクタの上に渡る 38pt（`DSLayout.toolbarHeight`）の帯。単体とグリッドで並びを変えない。設定の歯車とエージェント管理はサイドバー下端（`DashboardView.swift` の `sidebarFooter`）にある。選択中セッション名・使用量のチップ・「対応待ち」ボタン・worktree のメニューはヘッダーに無い（ADR 0184・0186、unified-new-chat-start.md §6.9）。
 
 | 機能 | ユーザー操作 | 表示データ | 状態 | 関連設定/種別差 | 根拠 file:line |
 |---|---|---|---|---|---|
-| サイドバー開閉 | ボタン（左端） | — | 表示/非表示 | — | `DashboardTopBarControls.swift:81-95` |
-| 設定を開く | 歯車ボタン | `openSettings` 環境アクション呼び出し | — | — | `:53-65` |
-| エージェント管理ウィンドウを開く | レンチボタン（`agentConsoleWindowID` 非nil時のみ） | `openWindow(id:)` | — | ウィンドウ構成に依存（nilなら非表示） | `:67-79` |
-| 選択中セッション名表示 | — | `SessionTitlePresentation`（絵文字花名+短縮ID等） | 選択なしで非表示(opacity0) | — | `:22-46` |
-| 使用量チップ（トップバー） | — | 各CLIの残量%・ゲージ・リセット残時間 | ゲージ表示⇄テキスト表示⇄非表示（`ViewThatFits`自動縮退） | 「ヘッダーに使用量を表示」設定・インスペクタ非表示時のみ | `:141-149`, `UsageTopBarView.swift`, `UsageSettings.swift:11`, `UsageDisplay.swift:30-32` |
-| 表示モード切替（単体/グリッド/チーム） | セグメントボタン3種 | `router.viewMode` | 選択中セグメントの面表現 | — | `DashboardTopBarControls.swift:223-309, 287-344` |
-| グリッド絞り込みサマリ表示 | — | 「対象名・N件」＋解除リンク | 絞り込み中/選択中 | — | `:159-184`, `GridScopeSummary.swift` |
-| グリッド絞り込み解除 | テキストリンク（プロジェクト絞り込み解除／セッション選択解除） | — | — | — | `DashboardTopBarControls.swift:170-184` |
-| グリッド表示セッション選択（ピッカー） | ボタン→popover `GridSessionPicker` | 候補セッション・選択数バッジ「n/total」 | — | — | `:233-266`, `GridSessionPicker.swift` |
-| レイアウトプリセット選択（グリッド時） | メニュー | 9種プリセット（balanced/single/columns2/3/rows2/3/grid2x2/mainLeftStackRight/mainTopStackBottom） | — | ペインレイアウト永続化（`PaneLayoutStore`） | `PaneLayoutPresetMenu.swift:9-19`, `DashboardTopBarControls.swift:186-188` |
-| インスペクタ開閉 | ボタン（右端） | — | 表示/非表示 | — | `DashboardTopBarControls.swift:268-282` |
-| Git worktree 隔離メニュー | 上部左トグル横のブランチアイコンメニュー（プロジェクト選択時のみ表示） | `Project.usesWorktreeIsolation` | オン/オフ | プロジェクト単位設定 | `DashboardView.swift:273-298, 526-556` |
+| サイドバー開閉 | ボタン（左端。サイドバーを隠しているときだけ。信号の右）。隠しているときは対応待ちの件数のバッジを添える | — | 表示/非表示 | — | `DashboardToolbar.swift`（`SidebarToggleButton`） |
+| 表示モード切替（単体/グリッド） | セグメントボタン 2 種（右寄せ。幅 960pt 未満では名称なしのアイコンだけ） | `router.viewMode` | 選択中セグメントの面表現 | — | `DashboardToolbar.swift`（`ViewModeToggle`、`ToolbarDensity`） |
+| インスペクタ開閉 | ボタン（右端） | — | 表示/非表示 | — | `DashboardToolbar.swift`（`inspectorToggleButton`） |
+| グリッド絞り込み・表示セッションの選択・レイアウトのプリセット | グリッド表示のときだけ、ヘッダーの下に出る表示範囲のバー | 「表示範囲」・対象名・N 件・プリセット名 | 絞り込み中/選択中 | ペインレイアウト永続化（`PaneLayoutStore`） | `GridModeBar.swift`、`GridScopeSummary.swift`、`GridSessionPicker.swift`、`PaneLayoutPresetMenu.swift` |
+
+### 2.2 タブ列（`Tabs/SessionTabBar.swift`・`Tabs/SessionTabsContainer.swift`、単体表示のみ）
+
+| 機能 | ユーザー操作 | 表示データ | 状態 | 関連設定/種別差 | 根拠 file:line |
+|---|---|---|---|---|---|
+| 上段: プロジェクトのタブ | クリックでそのプロジェクトへ切り替え。✕（選択中・ホバー中だけ）でプロジェクトの削除確認。右クリックで「プロジェクト名を変更…」。右端の「＋」でプロジェクトを追加（⌘O と同じ）。入りきらないときは 180→96pt に縮め、残りは「ほか n ⌄」 | サイドバーの全プロジェクト（並びもサイドバーと同じ） | 選択中のプロジェクト | 識別子 `tabs.project.<n>`・`tabs.project.add`・`tabs.overflow` | `SessionTabBar.swift`（`TabAccessibilityIdentifier`）、`ProjectTabs.swift` |
+| 下段: チャット → 項目のタブ | クリックで切り替え。✕・⌘W は種類ごとに動きが違う（チャット=セッションの削除確認、新規チャット=外すだけ・下書きは残る、ターミナル=実行中なら確認、ファイル=未保存なら確認）。「＋」（`tabs.item.add`）で 新規チャット ⌘N / ターミナル / 変更 / ファイルを開く… / ブラウザ / シミュレーター を選ぶ | そのプロジェクトのセッション（サイドバーと同じ並び）＋項目（`ProjectTab`。プロジェクトごとに並びを持つ） | 選択中・左右の分割（⌘\） | 識別子 `tabs.item.<n>`・`tabs.item.add`。保存は `phlox.projectTabs.v1`（新規チャット・変更・ファイルと選択・分割だけ） | `SessionTabsContainer.swift`（`ChildTabBar`・`NewTabChooser`）、`ProjectTabs.swift` |
+
+共通ターミナル（ホームで開く、タブ列の右端）は廃止した。ターミナルはプロジェクトのタブの下に一本化し、シェルは `ProjectTerminalStore` がタブごとに持つ（`UserTerminal/ProjectTerminalStore.swift`、ADR 0187）。
 
 ---
 
@@ -74,13 +80,13 @@ last-verified: 2026-09-29
 | プロジェクトでグリッド絞り込み | プロジェクト名クリック | `router.gridFilterProjectID` | 絞り込み中バッジ表示 | — | `:130-131, 337-345`, `SidebarRowEmphasis.swift:19-35` |
 | プロジェクト名変更 | 「…」メニュー→名前を変更／右クリック | alert + TextField | — | — | `DashboardSidebarView.swift:133-136, 355-357, 401-403`, `DashboardView.swift:171-180, 888-899` |
 | プロジェクト削除 | 「…」メニュー→削除／右クリック | 確認ダイアログ（子孫件数を含む文言、フォルダ自体は削除されない旨） | 破壊的操作 | — | `DashboardSidebarView.swift:137-139, 356-357`, `DashboardView.swift:129-147`, `DashboardViewModelSupportingTypes.swift:19-33` |
-| 新規セッションメニュー | 「+」メニュー | `NewSessionMenuModel`: プライマリ（新規チャット）＋チャット/ターミナル セクション | 無効化条件は上位から | エージェント種別ごと chat/terminal 対応 | `DashboardSidebarView.swift:140-143, 373-387`, `NewSessionMenuModel.swift`, `DashboardView.swift:689-717` |
+| 新規チャット（プロジェクト行の「＋」） | プロジェクト行の「＋」（ホバー時。メニューは挟まず押した時点で切り替え）、右クリック・「⋯」の「新規チャット」、サイドバー下端の「＋ 新規チャット ⌘N」 | `NewChatEntryActions` が `router.showNewChat(projectID:)` を呼ぶ。そのプロジェクトの新規チャット画面（下段の「新規チャット」タブ）を出す。セッションは作らない | — | 9 章・10 章 | `SidebarRows.swift`（プロジェクト行の「＋」）、`DashboardSidebarView.swift`（プロジェクトメニューの「新規チャット」）、`DashboardView.swift`（`sidebarFooter`）、`NewChatEntryActions.swift` |
 | 未割当セッション表示 | — | 「その他」セクション | — | — | `DashboardSidebarView.swift:71-81` |
-| セッション行表示 | — | セッション名。右端のエージェント略称・経過時間・「実行中」は出さない | 実行中は名前全体が点滅（動きを減らす設定では静止） | — | `SidebarRows.swift` |
+| セッション行表示 | — | セッション名。右端に状態の文字（「実行中」「承認待ち」「質問あり」「エラー」「無応答」「完了」。待機中は経過時間）。略号・状態の図形・未読の丸は出さない（ADR 0184） | 実行中は名前全体が点滅（動きを減らす設定では静止）。未読は題名を主文字色・やや太く | — | `SidebarRows.swift`、`SidebarRowEmphasis.swift` |
 | セッションツリー展開/折りたたみ | 子持ち行のシェブロン | `SessionTreeViewModel.Row` | 展開/折りたたみ | — | `DashboardSidebarView.swift:146-153, 176-189, 525-542` |
 | セッション選択 | 行クリック | `router.selectedSession` | 選択中はグレーの面 | — | `DashboardSidebarView.swift`, `SidebarRowEmphasis.swift` |
 | セッション名ホバー | 名前にマウスホバー | 名前・エージェント・状態・経過時間・プロジェクト名とセッション数・作業ディレクトリをカード表示 | ポインタをカードへ移しても表示を維持 | — | `SidebarRows.swift` |
-| 要注意（未読完了・質問待ち）表示 | — | セッション行をオレンジの面で強調 | 選択中でも状態の色を優先 | — | `SidebarRowEmphasis.swift`, `DashboardSidebarView.swift` |
+| 要注意（未読完了・質問待ち）表示 | — | セッション行の面の強調。注意が必要な状態の右端の文字は注意の色 | 選択中でも状態の色を優先 | — | `SidebarRowEmphasis.swift`, `DashboardSidebarView.swift` |
 | セッション名変更 | 右クリック→名前を変更 | alert + TextField（空欄で短縮ID表示に戻る） | — | — | `DashboardSidebarView.swift:205-208`, `DashboardView.swift:901-917` |
 | セッションのプロジェクト変更（未割当→割当） | 右クリック→プロジェクトを変更 | NSOpenPanel でフォルダ選択→再起動 | 破壊的（ターミナル内容喪失を警告） | — | `DashboardSidebarView.swift:209-212`, `DashboardView.swift:148-160, 774-794` |
 | セッションを別プロジェクトへ移動 | 右クリック→別のプロジェクトへ移動（サブメニュー） | 移動先候補（現在以外の全プロジェクト） | — | — | `DashboardSidebarView.swift:213-225`, `DashboardViewModel.swift:1257-1270` |
@@ -361,41 +367,54 @@ TerminalUIパッケージ（`Packages/TerminalUI/Sources/TerminalUI`、PTY疑似
 
 ---
 
-## 9. 空状態・起動カード（`Dashboard/AgentStartCards.swift`, `StartAreaPolicy.swift`）
+## 9. 新規チャット画面（`NewChat/NewChatView.swift`, `Dashboard/StartAreaPolicy.swift`）
+
+旧「空状態・起動カード」（`AgentStartCards.swift`、チャット/ターミナルのモードボタン）は 2026-10-12 に廃止し、共通の新規チャット画面に置き換えた（[ADR 0183](../adr/0183-unified-new-chat-start-screen.md)、要件は [unified-new-chat-start.md](unified-new-chat-start.md)、設計は [unified-new-chat-start-design.md](unified-new-chat-start-design.md)）。単体表示では下段の「新規チャット」タブ（`ProjectTab.newChat`）として出る。送信するまでセッションも CLI のプロセスも作らない。
 
 | 機能 | ユーザー操作 | 表示データ | 状態 | 関連設定 | 根拠 file:line |
 |---|---|---|---|---|---|
-| プロジェクト未選択プレースホルダ | — | 「プロジェクトを選択してください」 | — | — | `StartAreaPolicy.swift:24-36` |
-| プロジェクト選択済み・セッション未選択カード群 | カードのモードボタン（チャット/ターミナル）クリック | 利用可能エージェント種別ごとのカード（アイコン・名称） | `isCreating`中は半透明・無効化 | エージェントが`supportsStructuredChat`か否かでchat/terminalボタンの有無が変化 | `AgentStartCards.swift:29-38,57-118,134-214` |
-| カード列のレイアウト自動判定（横並び⇄縦スクロール） | ウィンドウ幅変化 | — | — | — | `AgentStartCards.swift:63-91`, `AgentStartCardsLayoutPolicy.swift`（未読・参照のみ） |
-| プロジェクトフォルダ追加導線（プロジェクト0件時） | ボタン | NSOpenPanel | — | — | `DashboardDetailView.swift:82-108` |
+| プロジェクト 0 件の導線 | ボタン | フォルダ追加の案内（NSOpenPanel） | `StartAreaPolicy` が `.projectOnboarding` | — | `StartAreaPolicy.swift`、`DashboardDetailView.swift`（`detailEmptyState`） |
+| 挨拶の見出し | — | Phlox のアイコン＋ 10 種類の文言からランダムに 1 つ（画面を出すたびに選び直し、入力中は替えない） | — | — | `NewChatView.swift`（`NewChatGreetings`） |
+| メッセージ入力欄 | 文字入力・貼り付け・↩ で送信。画像の貼り付け・「＋」で添付。`/` でコマンド候補、`@` でファイル候補（プロジェクトと作業場所を基準に取り直す） | 本文・添付 | 下書き（プロジェクトごとに 1 つ。メモリだけ。全ウィンドウで共有） | — | `NewChatView.swift`（`newChat.composer`・`newChat.attachments`）、`NewChatDraftStore.swift` |
+| ハーネス・モデルのチップ | クリックでポップオーバー（上に絞り込み欄、ハーネスごとの区切りにモデル、選択中にチェック、既定に「既定」のタグ） | ハーネスのロゴ（`AgentBrandIcon`）とモデルの表示名 | 未検出のハーネスは区切りごと「未検出」で選べない | 初期値は `phlox.newChat.lastHarness` と最後に使った設定 | `NewChatView.swift`（`newChat.harnessModelPicker`・`newChat.modelMenu`・`newChat.modelSearch`）、`NewChatDraftStore.swift`（`NewChatModelMenuSection`） |
+| effort・権限（Cursor は mode）のチップ | クリックで選択（権限の項目に「計画」を含む）。⇧Tab で effort を巡回。幅 620pt 未満では 1 つの「…」メニューにまとめる | 選んだハーネスの候補（Codex の effort は `model/list` の結果、権限は内蔵の 3 つ） | モデルが effort を持たなければ出さない | `phlox.lastUsedChatSettings.<agentID>.*` | `NewChatView.swift`（`newChat.effortPicker`・`newChat.permissionPicker`・`newChat.settingsOverflow`） |
+| プロジェクトのメニュー | クリックで別プロジェクトの下書きに切り替え | プロジェクト名（下書きがあるものに「下書きあり」） | プロジェクト未選択なら送れない | — | `NewChatView.swift`（`newChat.projectPicker`） |
+| 作業場所のメニュー | 「既存ディレクトリ」（初期値）/「新しい worktree」 | — | git リポジトリでなければ「新しい worktree」は選べない（理由を説明文で出す） | worktree の判断はこの選択と、復元時は保存済みの作業フォルダ（プロジェクト設定は廃止） | `NewChatView.swift`（`newChat.workspacePicker`） |
+| 送信 | ↩ またはボタン（アクセントの丸） | — | 本文も添付も空なら押せない。送れない理由（プロジェクト未選択・ハーネス未検出・画像を送れない）は入力欄の上に 1 行 | — | `NewChatView.swift`（`newChat.sendButton`・`newChat.sendUnavailableReason`） |
+| 提案チップ 5 個 | クリックで定型文を入力欄に足す（送信はしない） | コードレビュー・バグ修正・テスト追加・コードの説明・リファクタ | — | — | `NewChatView.swift`（`newChat.suggestion.<n>`） |
+| 履歴から再開… | クリックでポップオーバー。選ぶとその会話を再開 | 本体フォルダと、そのプロジェクトの過去の worktree（`Project.worktreePaths`）の会話。読み込み中・履歴なし・失敗と「再試行」を区別 | 選択中のハーネスが Claude Code か Codex で、履歴があるときだけ出す | — | `NewChatHistoryPopover.swift`（`newChat.historyResume`・`newChat.history.entry.<id>`・`newChat.history.retry`）、`DashboardViewModel.swift`（`newChatHistoryEntries`） |
 
 ---
 
-## 10. 新規セッション作成（全入口とガードレール）
+## 10. 新しいチャットの作成（全入口とガードレール）
 
 | 入口 | 場所 | 根拠 file:line |
 |---|---|---|
-| メニューバー（Claude/Codex/Cursor別） | `Cmd+N`/`Cmd+Shift+N`/`Cmd+Option+N` | `App/PhloxApp.swift:536-607` |
-| サイドバー「+」メニュー | `NewSessionMenuModel`（プライマリ＋チャット/ターミナル） | `DashboardSidebarView.swift:140-143,373-387` |
-| 空状態カード | `AgentStartCardsView`のモードボタン | `AgentStartCards.swift:57-118` |
-| チームビューの「+」 | エージェント種別×モード選択 | `TeamTimelineView.swift:145-187,267-281` |
+| メニューバー「ファイル ▸ 新規チャット」 | `⌘N`。プロジェクト 0 件でも押せる（案内を出す） | `App/PhloxApp.swift`（`FileCommands`）、`NewChatEntryActions.fileMenu()` |
+| サイドバー下端「＋ 新規チャット」 | ボタン | `DashboardView.swift`（`sidebarFooter`）、`NewChatEntryActions.sidebarFooter()` |
+| プロジェクト行の「＋」・右クリック/「⋯」の「新規チャット」 | そのプロジェクトで開く | `SidebarRows.swift`、`DashboardSidebarView.swift`、`NewChatEntryActions.projectPlus`・`projectMenu` |
+| グリッドのセッション 0 件の空状態 | 「新規チャット」ボタン | `DashboardView.swift`、`NewChatEntryActions.gridEmptyState` |
+| 下段の「＋」（タブを追加）／⌘T「新しいタブ…」 | メニューの先頭「新規チャット ⌘N」 | `SessionTabsContainer.swift`（`NewTabChooser`） |
+| 単体表示でプロジェクトを選んだとき | セッションが 1 つも無いプロジェクトでも新規チャットのタブを出す | `AppRouter.swift`（`ensureProjectSelection`・`showNewChat`） |
+
+どの入口も画面（`router.showNewChat(projectID:)`）を出すだけで、セッションは作らない。ターミナルでエージェントを動かすセッションを画面から始める入口は無い（ADR 0185。Control API・CLI の `backend: pty` と保存済みセッションの復元は残る）。
 
 ライフサイクル:
-1. **作成**: `createSession`→`viewModel.spawnNewSession(ref:projectID:backend:)`。作成中は`isCreating`で多重起動を抑止。成功時は該当プロジェクトを展開しシングルビューで選択表示。失敗時はアラート（11章）。（`DashboardView.swift:733-755`, `DashboardViewModel.swift:909-1196`）
-   - 深さ・レート制限あり（親子連鎖の深さ上限3、1秒あたり5回、`SpawnPolicy.swift:8-12`）。
-   - 親がappServer(チャット)セッションかつ子が構造化チャット対応なら子もappServerへ昇格。(`DashboardViewModel.swift:962-975`)
-   - CLIバイナリ未検出・カスタムバイナリ未検出時はエラー化しトークン・ワークスペースをクリーンアップ。(`:1014-1026`)
-   - 状態: starting → running（ステータスドット反映）。
-2. **表示**: single/grid/teamの各モードで表示形態が変わる（4〜6章参照）。
-3. **名前変更・プロジェクト移動・ワークスペース変更（再起動を伴う）**: 右クリックメニューから。ワークスペース変更・プロジェクト移動は内部的に`restartSession`（hook再設置→hookストリーム差し替え→再起動→永続化）を共有。(`DashboardViewModel.swift:1257-1310`)
-4. **停止/削除**: サイドバー右クリック「削除」、グリッドタイルの削除操作、single表示の削除操作いずれも確認ダイアログ経由で`viewModel.removeSession(id)`。対象の子孫セッションも深い順にまとめて除去（カスケード削除）。(`DashboardView.swift:112-128`, `DashboardViewModel.swift:1312-1325`)
-   - 削除の認可: `SpawnPolicy.isAuthorizedToRemove` — 自己kill/リクエスタなし/祖先関係なら許可、`privilegedRequesters`は無条件許可。(`SpawnPolicy.swift:64-92`)
-5. **要注意（未読完了）状態**: `hasUnseenCompletion`。プロジェクトアイコン不透明度・セッション行背景で視覚化、選択で既読化。(`DashboardSidebarView.swift:115,409-419`, `DashboardView.swift:814-818,462-464`)
+1. **作成**: 送信すると `NewChatDraft.makeLaunchRequest` が入力一式を `NewChatLaunchRequest` に固めて下書きを空にし、`NewChatView` が `DashboardViewModel.launchNewChat` を呼ぶ。内部は `spawnNewSession(backend: .appServer, isolationOverride: usesWorktree, initialSettings:, keepsRowOnLaunchFailure: true, onRowAppended:)`。行が出た時点で `router.completeNewChat` がその行を選び、新規チャットのタブを外す（`DashboardViewModel.swift`、`AppRouter.swift`）。起動の成功を確かめてから初回メッセージを `sendFirstMessage` で送る。
+   - 作成中は `NewChatView.isLaunching` が多重送信を抑える。「新しい worktree」では worktree の作成が終わってから行が出る（その間はトースト）。
+   - 深さ・レート制限は今のまま（親子連鎖の深さ上限 3、1 秒あたり 5 回、`SpawnPolicy.swift`）。親が appServer（チャット）セッションなら子も appServer へ昇格。
+   - CLI バイナリ未検出ではエラーにし、ワークスペースを後始末する。
+   - 状態: starting → running（サイドバーの行の右端に文字で反映）。
+   - 失敗: VM ができる前（worktree 作成・Codex の app-server 起動）は今のダイアログを出して本文を下書きに戻す。起動後の失敗は行を残し、本文を入力欄に戻して「再起動」「閉じる」を出す（`ChatLaunchError`、`markLaunchFailed`、`restartNewChat`）。
+2. **表示**: single/grid の各モードで表示形態が変わる（4・5 章参照）。
+3. **名前変更・プロジェクト移動・ワークスペース変更（再起動を伴う）**: 右クリックメニューから。ワークスペース変更・プロジェクト移動は内部的に`restartSession`（hook再設置→hookストリーム差し替え→再起動→永続化）を共有。
+4. **停止/削除**: サイドバー右クリック「削除」、グリッドタイルの削除操作、下段のチャットのタブの ✕・⌘W いずれも確認ダイアログ経由で`viewModel.removeSession(id)`。対象の子孫セッションも深い順にまとめて除去（カスケード削除）。
+   - 削除の認可: `SpawnPolicy.isAuthorizedToRemove` — 自己kill/リクエスタなし/祖先関係なら許可、`privilegedRequesters`は無条件許可。
+5. **未読完了**: `hasUnseenCompletion`。サイドバーでは題名を主文字色・やや太くして見分け、選択で既読化（丸の印は廃止）。
 
-プロジェクト（ワークスペース）ライフサイクル: 追加（NSOpenPanel→`addProject`、`DashboardView.swift:758-772`）→表示（展開/選択/絞り込みの3独立状態）→worktree隔離設定（プロジェクト単位ON/OFF、`DashboardView.swift:527-556`）→名前変更（表示名のみ、フォルダ名は不変）→削除（配下セッション全停止・子孫件数警告、フォルダ自体は削除されない、`DashboardViewModel.swift:891-908`）。
+プロジェクト（ワークスペース）ライフサイクル: 追加（NSOpenPanel→`addProject`。上段のタブの「＋」・⌘O・サイドバー見出しの「＋」）→表示（上段のタブ・サイドバーの展開/選択/絞り込み）→名前変更（上段のタブの右クリック「プロジェクト名を変更…」・サイドバーのメニュー。表示名のみ、フォルダ名は不変）→削除（上段のタブの ✕・サイドバーのメニュー。配下セッション全停止・子孫件数警告、フォルダ自体は削除されない。そのプロジェクトの下書き・ターミナル・ブラウザ・シミュレーター・ファイル文書も閉じる）。worktree で分けるかのプロジェクト単位の設定は廃止した（新規は新規チャット画面の作業場所の選択、復元は保存済みの作業フォルダで決める）。
 
-Control API経由（デスクトップUI外、リモート/モバイル制御用、参考記載）: 承認一覧・応答（`DashboardViewModel+ControlApprovals.swift:29-89`）、セッションの役割永続化（`ControlActionHandler.persistSessionRole`）、ユーザー質問への応答（`ControlActionHandler.respondToUserQuestion`）。デスクトップUIからの直接操作は無く、SessionFeature側のチャットUIが主戦場と推測（未確認）。
+Control API経由（デスクトップUI外、リモート/モバイル制御用、参考記載）: 承認一覧・応答（`DashboardViewModel+ControlApprovals.swift`）、セッションの役割永続化（`ControlActionHandler.persistSessionRole`）、ユーザー質問への応答（`ControlActionHandler.respondToUserQuestion`）。`POST /sessions`・CLI `spawn`・子セッションの起動は常に既存ディレクトリで動く（worktree を作らない）。デスクトップUIからの直接操作は無く、SessionFeature側のチャットUIが主戦場と推測（未確認）。
 
 ---
 
@@ -424,7 +443,7 @@ Control API経由（デスクトップUI外、リモート/モバイル制御用
 | 機能 | ユーザー操作 | 表示データ | 状態 | 関連設定 | 根拠 file:line |
 |---|---|---|---|---|---|
 | 表示言語切替 | Picker（システム/日本語/English） | 現在の言語 | — | `phlox.appLanguage`（既定`system`） | `App/SettingsView.swift:149-158`、`App/LanguageSettings.swift:4-30` |
-| デフォルトの開き方 | Picker（チャット/ターミナル） | — | — | `phlox.defaultSessionBackend`（既定`.chat`） | `App/SettingsView.swift:160-171` |
+| ~~デフォルトの開き方~~ | — | — | — | 2026-10-12 に廃止（チャットとターミナルを入口で分けたので選ぶ場面が無い。ADR 0185） | — |
 | セッション完了バナー通知 | Toggle | — | — | `phlox.notify.banner`（既定true） | `App/SettingsView.swift:174-176` |
 | 完了サウンド | Toggle | — | — | `phlox.notify.sound`（既定true） | `App/SettingsView.swift:177-179` |
 | 通知テスト | Button | — | — | — | `App/SettingsView.swift:180-183`（`SessionCompletionNotifier.notifyCompleted`） |
@@ -561,7 +580,8 @@ Agent Console 側（Claude/Codex/Cursor各パネル）はいずれも**UserDefau
 | インスペクター表示切替 | メニュー/`Cmd+Option+B` | — | `router==nil`で無効 | — | `App/PhloxApp.swift:501-505` |
 | 表示モード切替 | メニュー/`Cmd+Control+G` | — | `router==nil`で無効 | — | `App/PhloxApp.swift:507-511` |
 | ターミナル文字拡大/縮小 | メニュー/`Cmd+=`・`Cmd+-` | — | `dashboard==nil`で無効 | `TerminalFontSettings.step` | `App/PhloxApp.swift:516-534` |
-| 新規セッション（Claude/Codex/Cursor別） | メニュー/`Cmd+N`・`Cmd+Shift+N`・`Cmd+Option+N` | エージェント種別アイコン | プロジェクト未選択または非対応で無効 | — | `App/PhloxApp.swift:536-607` |
+| 新規チャット | メニュー（ファイル）/`Cmd+N`。旧「新規セッション（Claude/Codex/Cursor 別）」の 3 項目（`Cmd+Shift+N`・`Cmd+Option+N` を含む）は廃止 | 選択中のプロジェクト（無ければ既定のプロジェクト）の新規チャット画面を出す | `router == nil` のときだけ無効（プロジェクト 0 件でも押せる） | — | `App/PhloxApp.swift`（`FileCommands`）、`NewChatEntryActions.fileMenu()` |
+| 新しいタブ… | メニュー（ファイル）/`Cmd+T` | 下段の「＋」のメニュー（新規チャット・ターミナル・変更・ファイル・ブラウザ・シミュレーター） | プロジェクト未選択で無効 | — | `App/PhloxApp.swift`（`FileCommands`）、`SessionTabsContainer.swift`（`NewTabChooser`） |
 | 次/前のセッション | メニュー/`Cmd+Option+↓`・`Cmd+Option+↑` | — | `dashboard==nil`で無効 | — | `App/PhloxApp.swift:552-557` |
 | セッションを閉じる | メニュー/`Cmd+W` | — | 選択セッション無しで無効 | — | `App/PhloxApp.swift:559-565`、AppKit横取り`AppDelegate`内`keyDown` monitor（`PhloxApp.swift:278-282`） |
 | 会話を書き出す | メニュー/`Cmd+Shift+E` | エクスポート対象セッション名 | 対象なしで無効 | — | `App/PhloxApp.swift:570-577`、`Shared/ChatTranscriptExportAction.swift:44-63` |
@@ -589,18 +609,17 @@ Agent Console 側（Claude/Codex/Cursor各パネル）はいずれも**UserDefau
 
 ### 16.1 対応エージェント種別（全一覧）
 
-組込3種 + カスタム定義（agents.json）。
+組込3種のみ。カスタム定義（`agents.json`）は 2026-10-12 に廃止した（ADR 0185）。`AgentRef` は `.builtin(AgentKind)` だけ。
 
 | 種別 | displayName | binaryName | symbol | 構造化チャット対応 | 使用量プロバイダ | 根拠 |
 |---|---|---|---|---|---|---|
 | claudeCode | Claude Code | claude | sparkles | ○ | claudeRateLimits | `AgentKind.swift:4-8`, `AgentDescriptor.swift:169-186` |
 | codex | Codex | codex | chevron.left.forwardslash.chevron.right | ○ | codex | `AgentDescriptor.swift:187-203` |
 | cursor | Cursor | cursor-agent | cursorarrow.rays | ○ | cursor | `AgentDescriptor.swift:204-223` |
-| custom(id) | agents.json定義（displayName/binaryName/symbolName/colorHex自由設定） | 任意 | 任意 | 既定false（未指定） | none | `CustomAgentDefinition.swift:80-121`, `AgentRef.custom` |
 
-カスタムエージェント: `~/.config/phlox/agents.json`（環境変数`PHLOX_AGENTS_JSON`で上書き可）から動的ロード。idが組込3種と衝突するものは無視。resumeモードはnone/flag/namedFlagの3種。（`CustomAgentDefinition.swift:6-20,92-145`）
+保存済みのカスタムのセッションは、読み込み時に `JSONSessionStore` が個別に捨てる（捨てた件数があれば起動後に 1 回トーストを出す）。
 
-**未確認**: `AgentKind.allCases`の並び順（新規セッションメニューの項目順）は`AgentKind`定義本体に依存し、本調査では確定できない。
+**未確認**: `AgentKind.allCases`の並び順（ハーネス・モデルのメニューの区切り順に使う）は`AgentKind`定義本体に依存し、本調査では確定できない。
 
 ### 16.2 起動オプション・権限/承認モードの種別差
 
@@ -657,9 +676,9 @@ Agent Console 側（Claude/Codex/Cursor各パネル）はいずれも**UserDefau
 
 | 状態 | 視覚表現 | 主に現れる画面 | 根拠 |
 |---|---|---|---|
-| starting | ステータスドット、"starting" | サイドバー/グリッド/single | `StatusBadge.swift:6-117` |
-| idle | ステータスドット | サイドバー/グリッド/single | 同上 |
-| running | ステータスドット点滅(Core Animation, opacity1.0⇄0.2, 0.6秒)、Thinkingインジケータ、赤枠3pt(要注意) | サイドバー/グリッド/single/チーム | `StatusDot.swift:15-48`, `ThinkingIndicatorCell` |
+| starting | サイドバーの行の右端に文字（「起動中」）。タブ・グリッドの見出しには状態を出さない（ADR 0184、要件 D19） | サイドバー | `SidebarRows.swift`、`StatusBadge.swift` |
+| idle | サイドバーの行の右端に経過時間（「42分前」など） | サイドバー | `SidebarRows.swift` |
+| running | サイドバーの行の右端に文字（「実行中」）と、題名を流れる明るい帯（動きを減らす設定では静止）。Thinkingインジケータ。グリッドの赤枠3pt(要注意) | サイドバー/グリッド/single | `SidebarRows.swift`, `ThinkingIndicatorCell` |
 | awaitingApproval(prompt) | ApprovalBanner表示 | single/グリッド | 4.2節 |
 | awaitingUserQuestion | UserQuestionCell表示 | single/グリッド | 4.1節 |
 | completed(exitCode) | 要注意(未読完了)ハイライト、通知バナー | サイドバー/Dock/通知 | 3章, 15章 |
@@ -668,7 +687,7 @@ Agent Console 側（Claude/Codex/Cursor各パネル）はいずれも**UserDefau
 | フォーカス中(グリッド) | 枠線強調(太線＋内側リング) | グリッド | 5章 |
 | 要注意(requiresAttention) | 赤枠3pt、行背景`idleHighlight`、プロジェクトアイコン不透明度変化 | サイドバー/グリッド | 3章, `GridTileBorderPolicy.swift:16-27` |
 | 空状態(プロジェクト0件) | 「+」ボタンのみ | サイドバー/detail | 3章, 9章 |
-| 空状態(プロジェクト選択済・セッション未選択) | `AgentStartCardsView` | detail中央 | 9章 |
+| 空状態(プロジェクト選択済・セッション未選択) | 新規チャット画面（`NewChatView`） | detail中央（下段の「新規チャット」タブ） | 9章 |
 | 読込中(Agent Console) | ロード中フラグ、CLI無しで`AgentConsoleUnavailableNotice` | Agent Console | 13章 |
 | ロード中(使用量) | スピナー表示・ボタン無効化 | インスペクタ | 7章 |
 | 圧縮中(isCompacting) | シマーテキスト+犬アニメ6ステージ | single/グリッド | 4.1節 |
@@ -728,7 +747,9 @@ DashboardFeature内には`keyboardShortcut`/`onKeyPress`/`commands(`の定義は
 | キー | 型 | 既定値 | 選択肢 | どこで効くか | 根拠 file:line |
 |---|---|---|---|---|---|
 | `phlox.appLanguage` | String(enum) | `system` | system/ja/en | 表示言語（全ウィンドウ） | `App/LanguageSettings.swift:4-30`、`App/SettingsView.swift:149-158`、適用箇所`App/PhloxApp.swift:44-48,82,125,139` |
-| `phlox.defaultSessionBackend` | String(enum) | `.chat` | chat/terminal | 新規セッション既定の開き方 | `App/SettingsView.swift:35-36,160-171` |
+| `phlox.newChat.lastHarness` | String | （未設定） | 組込ハーネスの id | 新規チャット画面で最後に送信したハーネス。次回のハーネスの初期値 | `Environment/LastUsedChatSettingsStore.swift` |
+| `phlox.projectTabs.v1` | JSON（`ProjectTabsSnapshot`） | （空） | — | プロジェクトごとの下段のタブ（新規チャット・変更・ファイルと選択・分割）。旧 `phlox.sessionTabs.v1` からは初回だけ読み移す | `Tabs/ProjectTabs.swift` |
+| ~~`phlox.defaultSessionBackend`~~ | — | — | — | 2026-10-12 に廃止（設定「デフォルトの開き方」も廃止。保存済みの値は読まず、消さずに放置） | — |
 | `phlox.notify.banner` | Bool | true | — | 完了バナー通知 | `App/SettingsView.swift:21,174-176` |
 | `phlox.notify.sound` | Bool | true | — | 完了サウンド | `App/SettingsView.swift:22,177-179` |
 | `phlox.theme` | String | `AppTheme.phlox.id` | `ThemeStore.all` | 配色テーマ | `App/SettingsView.swift:29,208-212` |
@@ -769,7 +790,7 @@ Packages/DesignSystem/Sources/DesignSystem 配下 全28ファイルを確認。
 | SettingsGroup | 設定タブ分類(general/appearance/agents/connection/advanced) | `SettingsGroup.swift:9-15`（使用例: `App/SettingsView.swift:81,121`） |
 | Shimmer(BandModel/TextView) | イタリック体ラベルへの左→右シマーアニメ("Thinking..."等)、reduceMotion時は静止 | `Shimmer/ShimmerBandModel.swift:6-53`, `ShimmerTextView.swift:21-103` |
 | StatusBadge | SessionStatus(starting/idle/running/awaitingApproval/awaitingUserQuestion/completed/error)の日英ラベル・色・SFSymbol・ヘルプ文 | `StatusBadge.swift:6-117` |
-| StatusDot (macOS) | 12pt枠内8ptドット、実行中はCore Animation点滅(opacity1.0⇄0.2, 0.6秒) | `StatusDot.swift:15-48`（使用例: `DashboardSidebarView.swift:461`） |
+| ~~StatusDot (macOS)~~ | 削除済み（2026-10-12 時点で `Packages/DesignSystem/Sources/DesignSystem/` に無い。状態は行の右端の文字で示す） | — |
 | StatusLabel | ステータスのテキストラベル(caption, StatusBadge色) | `StatusLabel.swift:4-20` |
 | ThemePreviewModel | 設定画面のテーマ見本データ(背景/文字/選択行/入力欄/端末8色) | `ThemePreviewModel.swift:29-53`（使用例: `App/SettingsView.swift:462`） |
 | ThinkingOrb(Core/Modes/Profiles/State/View) | 3D点描思考インジケータ。6モード(orbits思考/globe検索/rubik実行/wave待機/ribbon記述/morph編集)、2サイズ(64pt/20pt)、CADisplayLink駆動 | `ThinkingOrbView.swift:15-40`, `ThinkingOrbState.swift:8-17` |
@@ -867,6 +888,8 @@ Packages/DesignSystem/Sources/DesignSystem 配下 全28ファイルを確認。
 ---
 
 ## 付録: 各担当が確認したファイル一覧（View を含まないファイルも含む）
+
+> この一覧は 2026-09 の調査時点のもの。`AgentStartCards.swift`・`UsageTopBarView.swift`・`DashboardTopBarControls.swift`・`StatusDot.swift` など、2026-10-12 までにコードから無くなったファイルを含む（調査の記録として残す）。
 
 担当ごとの調査対象と確認済みファイルを、重複を除去して1つにまとめる。
 

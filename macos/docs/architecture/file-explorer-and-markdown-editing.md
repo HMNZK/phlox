@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-05
+last-verified: 2026-10-12
 ---
 
 # ファイルツリー・マークダウンのブロック編集・HTML 表示の現行構成
@@ -18,10 +18,10 @@ InspectorView（UsageSidebarView.swift）── [セッション | ファイル 
         └ .files: FileTreeInspectorView ── FileTreeModel（ルートごと） ── FileTreeLoader（actor）
                           │ 行クリック・Return・右クリック「右に分割して開く」
                           ▼
-FileTabDocuments.openFileTab(sessionID:root:relativePath:split:router:requestedWorkingDirectory:currentWorkingDirectory:)
+FileTabDocuments.openFileTab(projectID:root:relativePath:split:router:requestedWorkingDirectory:currentWorkingDirectory:)
    ← ⌘P（NSOpenPanel）・変更タブ・ファイルツリー・マークダウン/HTML のリンク が共通で通る
                           ▼
-子タブ ChildTab.file(相対パス) ── RestoredFileTabView → FileTabUndoScope → FileTabView ── FileTabDocument
+プロジェクトのタブ ProjectTab.file(相対パス)（下段のタブ。プロジェクトごとに持つ） ── RestoredFileTabView → FileTabUndoScope → FileTabView ── FileTabDocument
      ├─ ソース表示:                   CodeTextEditor（NSTextView）
      ├─ レンダリング表示（.md/.markdown）: MarkdownBlockEditor ── MarkdownBlocks.analyze ── RichMarkdownView(source:openURL:…)
      └─ レンダリング表示（.html/.htm）:    HTMLPreviewView（WKWebView）── WorktreeSchemeHandler（phlox-worktree://local/<相対パス>）
@@ -55,11 +55,11 @@ FileTabDocuments.openFileTab(sessionID:root:relativePath:split:router:requestedW
 
 | 型（`DashboardFeature/Files/`） | 種別 | 役割 |
 |---|---|---|
-| `FileTreeInspectorView`（`FileTreeView.swift`） | View | 選択中セッションの `rawWorkspacePath` から `FileTabOpening.root(for:)`（Git ルート、無ければ作業ディレクトリ。symlink 解決済み）を求め、`FileTreeModel` を取得・登録して `refresh()` する。セッション未選択時は空状態の文言、ルート解決中は `ProgressView`。accessibilityIdentifier `inspector-files` |
+| `FileTreeInspectorView`（`FileTreeView.swift`） | View | 選択中のプロジェクトのフォルダ（`Project.directoryPath`）から `FileTabOpening.root(for:)`（symlink 解決済みの絶対パス）を求め、`FileTreeModel` を取得・登録して `refresh()` する。プロジェクト未選択時は空状態の文言、ルート解決中は `ProgressView`。セッションの作業フォルダ（worktree）は見ない。accessibilityIdentifier `inspector-files` |
 | `FileTreeView` | View | ヘッダー（ルートのパス・ブランチ名・更新ボタン）と `ScrollView` + `LazyVStack`。選択行 `selectedPath` はこの View の `@State`。↑↓（表示中の行間を移動）・→（展開／最初の子へ）・←（折りたたみ／親へ）・Return（フォルダは開閉、ファイルは開く）は `onKeyPress` から自前のキー処理へ渡す。右クリックは「右に分割して開く」（開ける行のみ）・「Finder で表示」・「パスをコピー」。識別子 `file-tree`・`file-tree-row-<相対パス>` |
 | `FileTreeModel` | `@MainActor @Observable` | `root`・`childrenByDir`・`expanded`・`errorsByDir`・`omittedByDir`・`loading`・`branch`。`DashboardView` の `@State fileTreeModels: [ルートパス: FileTreeModel]`（ウィンドウごと・非永続）に置く。`expand`・`collapse`・`refresh`（展開中フォルダとルートを並行再読込し、ブランチ名も取り直す）・`fileSaved`（保存したファイルの親フォルダを再読込）・`load`（フォルダごとの世代 UUID で古い結果を捨てる） |
 | `FileTreeLoader` | `actor` | `children(of:refresh:)` を `Task.detached` で実行する。読込中の同一フォルダへの要求は同じ Task に集約し、`refresh: true` の要求は置き換えて、置き換えられた側は `nil` を返す |
-| `FileTreeRows` | 純関数群 | `visibleRows`（深さつき平坦化）・`action(for:key:rows:expanded:)`（キー操作の解釈）・`visibleSelection`・`openPath`（単体表示かつ共通ターミナル非選択のときだけ、操作中のファイルタブのパスを返す） |
+| `FileTreeRows` | 純関数群 | `visibleRows`（深さつき平坦化）・`action(for:key:rows:expanded:)`（キー操作の解釈）・`visibleSelection`・`openPath`（単体表示で、そのプロジェクトの選択中のタブがファイルのときだけ、そのパスを返す） |
 | `FileTreeEntry` | 値型 | `Kind` は `directory` / `file` / `symlinkToDirectory` / `symlinkOutsideRoot` / `symlinkToFile` / `unavailable`。展開できるのは `directory` だけ、開けるのは `file` と `symlinkToFile` だけ |
 
 - `FileTreeLoader.readDirectory`: `contentsOfDirectory` の結果から `.git` と `.DS_Store` を除く。並びはフォルダ先、次に `localizedStandardCompare`（同順位はバイト列順）。
@@ -67,15 +67,15 @@ FileTabDocuments.openFileTab(sessionID:root:relativePath:split:router:requestedW
   読めない・通常ファイルでもフォルダでもない行は `unavailable`（理由つき）。展開対象のパスのどこかの祖先が symlink なら読み込まずエラーにする。
 - **1 フォルダの上限は 5,000 件**。超えた分は捨て、残り件数を `omittedByDir` に持ち、「ほか N 件（⌘P で開けます）」と表示する。
 - ブランチ名は `WorkingTreeService.branchLabel()`: ブランチ名／`detached HEAD <短縮コミット>`／`Git 管理外`／取得失敗は空文字。
-- 再読込の契機: 更新ボタン・フォルダ展開・ファイル保存成功（`Notification.Name.fileTreeFileSaved` を `DashboardView` が受けて `FileTreeModel.fileSaved`）・「ファイル」タブの表示時（`FileTreeInspectorView` の `.task(id: セッション ID + 作業ディレクトリ)`）。ファイル監視は無い。
+- 再読込の契機: 更新ボタン・フォルダ展開・ファイル保存成功（`Notification.Name.fileTreeFileSaved` を `DashboardView` が受けて `FileTreeModel.fileSaved`）・「ファイル」タブの表示時（`FileTreeInspectorView` の `.task(id: プロジェクト ID + プロジェクトのフォルダ)`）。ファイル監視は無い。
 - ツリー自体はディスクへ書き込まない。
 - ショートカット: ⌃⌘B（`PhloxApp.swift` のメニュー項目「ファイルツリー」）→ `AppRouter.showFilesInInspector()`（`inspectorTab = .files`・`inspectorVisible = true`）。
 
 ## 開く共通関数
 
-`FileTabDocuments.openFileTab`（`Tabs/FileTabOpening.swift`）は、次の場合に何もせず `false` を返す: 要求時の作業ディレクトリが現在のセッションの `rawWorkspacePath` と違う／そのセッションが作業場所の変更中（`FileTabDocumentRegistry.isChangingSession`）／生成した文書のルートが要求と違う・失効済み。
-通れば `router.viewMode = .single`、`router.commonTerminalSelected = false` にして、`router.tabs.updateLayout` で `ChildTab.file(相対パス)` を開く（`split: true` なら右の区画へ `splitRight`）。
-ルートは要求時に固定して渡し、`FileTabDocuments.document(for:path:root:)` で文書を作る（セッション × 相対パスごとに 1 つ。既存文書はルートが同じか、未保存・保存中なら再利用）。
+`FileTabDocuments.openFileTab`（`Tabs/FileTabOpening.swift`）は、次の場合に何もせず `false` を返す: 要求時の作業ディレクトリが現在のプロジェクトのフォルダ（`directoryPath`）と違う／そのプロジェクトが作業場所の変更中（`FileTabDocumentRegistry.isChangingProject`）／生成した文書のルートが要求と違う・失効済み。
+通れば `router.selectedProjectID` をそのプロジェクトにし、`router.viewMode = .single` にして、`router.tabs.updateLayout(for:)` で `ProjectTab.file(相対パス)` を開く（`split: true` なら右の区画へ `splitRight`）。
+ルートは要求時に固定して渡し、`FileTabDocuments.document(for:path:root:)` で文書を作る（プロジェクト × 相対パスごとに 1 つ。既存文書はルートが同じか、未保存・保存中なら再利用）。
 
 ## ファイルアクセス（`WorkingTreeService`）
 
@@ -93,7 +93,7 @@ FileTabDocuments.openFileTab(sessionID:root:relativePath:split:router:requestedW
 - 保存 `enqueueSave`: 失効後は `DocumentError.invalidated`。ブロック編集の確定に失敗すれば `blockEditVersionMismatch`。保存は文書ごとに直列（前の保存の完了を待つ）で、成功したら `loadedDiskBytes` と基準時刻を更新し、HTML プレビューを再描画させ、`fileTreeFileSaved` を通知する。競合は `SaveResult.conflictDetected` で、`FileTabView` が上書き／キャンセルのダイアログを出す（上書きは `expectedDiskBytes: nil`）。
 - 競合時の「別セッションが書き換えた」表示用に、`lastWriter(among:excluding:)` が他セッションのファイル変更記録を突き合わせる（時刻の許容幅 5 秒）。
 - 失効 `invalidate()`: 未確定のブロック編集を捨て、undo 履歴を消し、以後の保存・確定・undo を拒否する。進行中の保存があれば、その完了後に `invalidated` になる。
-- 既定の表示: `.md`/`.markdown`/`.html`/`.htm` は `.rendered`、それ以外は `.source`。`presentation` は非永続で、`ChildTab` には持たせない。
+- 既定の表示: `.md`/`.markdown`/`.html`/`.htm` は `.rendered`、それ以外は `.source`。`presentation` は非永続で、`ProjectTab` には持たせない。
 - ⌃⌘M（`FileTabView` の隠しボタン。フォーカス中のタブだけ有効）でレンダリング／ソースを切り替える。切り替えられない状態（読込前・失効・ブロック編集の確定失敗・マークダウンがソース固定・HTML の遮断準備が未完了または失敗）では何もしない。帯の「レンダリング」ボタンは無効のまま残る。
 
 ## マークダウンのブロック編集
@@ -147,7 +147,7 @@ FileTabDocuments.openFileTab(sessionID:root:relativePath:split:router:requestedW
 - ウィンドウを閉じる: そのウィンドウの未保存（`hasUnsavedChanges`）を集め、あれば件数入りの題と一覧を持つ `NSAlert` のシートを出す。「キャンセル」が既定・最上段、「保存せず閉じる」は破壊的表示で ⌘⌫ を割り当てる。承認後に文書を失効させ、進行中の保存を待ってから閉じる。
 - アプリ終了: `AppDelegate.applicationShouldTerminate` が `cleanupGuard.beginCleanup()` より前に `confirmTermination()` を呼ぶ。全ウィンドウの未保存を集め、件数入りの題と一覧を持つアラートを出す。「保存せず終了」は破壊的表示で ⌘⌫ を割り当て、キャンセルなら `.terminateCancel`。確認中の再要求は `.terminateCancel`、承認後の再要求は `.terminateLater`。承認後は `invalidateAndWait()` で全文書の保存完了を待ってから、既存の終了処理（PTY 終了・transcript flush）へ進む。
 - 表示する一覧は合計 5 件まで。複数ウィンドウの場合だけウィンドウ名の見出しを付け、残りは「ほか N 件（M ウィンドウ）」、単一ウィンドウでは「ほか N 件」。未確定のブロック編集を含む文書は「編集中のブロック」のタグを付け、本文にも注意文を足す。前面順のウィンドウごとにパス順で並べる。幅は 280pt、末尾の保存案内は中央寄せ。要約も一覧と同じ可視件数・省略数モデルを使う。
-- セッション削除・作業ディレクトリ変更・プロジェクト移動・子タブを閉じる確認は `dirtySummary(for:)` / `dirtyFileNames(for:)` / `hasUnsavedChanges(for:path:)` で全ウィンドウの未保存を集める。作業場所の変更中は `beginWorkspaceChange`・`beginSessionChanges` で `isChangingSession` を立てる。
+- プロジェクト削除・作業ディレクトリ変更・タブを閉じる確認は `dirtySummary(for:)` / `dirtyFileNames(for:)` / `hasUnsavedChanges(for:path:)` で全ウィンドウの未保存を集める。作業場所の変更中は `beginWorkspaceChange`・`beginProjectChanges` で `isChangingProject` を立てる。
 - 強制終了・クラッシュ時の下書き保護は無い。
 
 ## 制約（コードで確かめた値）

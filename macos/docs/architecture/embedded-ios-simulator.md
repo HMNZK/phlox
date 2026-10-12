@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-06
+last-verified: 2026-10-12
 ---
 
 # ウィンドウ内 iOS シミュレーターの現行構成
@@ -14,7 +14,7 @@ last-verified: 2026-10-06
 
 ```
 Phlox.app（本体。CoreSimulator / SimulatorKit を読み込まない）
- ├─ SimulatorTabView（ChildTab.simulator）── SimulatorTabContent（帯・状態・案内）── SimulatorScreenView / SimulatorScreenNSView（layer.contents = IOSurface、CADisplayLink で seed 確認）
+ ├─ SimulatorTabView（ProjectTab.simulator）── SimulatorTabContent（帯・状態・案内）── SimulatorScreenView / SimulatorScreenNSView（layer.contents = IOSurface、CADisplayLink で seed 確認）
  │         │ タップ・スクロール・キー（正規化座標・キーコード）
  │         ▼
  ├─ SimulatorHub（PhloxApp の @State。アプリで 1 つ）── 端末ごとに SimulatorDisplayConnection ── SimulatorXPCTransport（NSXPCConnection）
@@ -66,10 +66,10 @@ Phlox.app（本体。CoreSimulator / SimulatorKit を読み込まない）
 
 **`SimulatorHub`**（`@MainActor @Observable`。`PhloxApp` の `@State simulatorHub` が所有し、`DashboardView` → `SessionTabsContainer` → `SimulatorTabView` へ渡す）
 
-- 端末一覧 `devices`・`listingReason`・`operationReason`、セッションごとの選択端末 `selections`、表示 ID（`SimulatorTabView` ごとの UUID）→ セッションの `visibleDisplays`、セッション単位の「未確認でも試す」`unverifiedSessions`（セッション ID → 端末 UDID。永続化しない）。
-- `setVisible(_:displayID:sessionID:)`: 見えている表示の増減を受け、`reconcileConnections()` で「見えている表示が選択している起動中の端末」の集合に合わせて `SimulatorDisplayConnection` を作成・破棄する（既に接続がある端末は共有）。表示が 1 つも無くなると端末一覧の更新タスクを止める。見えている間は 2 秒ごとに `SimulatorCatalog.list()` を呼ぶ（`refreshInterval`）。
+- 端末一覧 `devices`・`listingReason`・`operationReason`、プロジェクトごとの選択端末 `selections`、表示 ID（`SimulatorTabView` ごとの UUID）→ プロジェクトの `visibleDisplays`、プロジェクト単位の「未確認でも試す」`unverifiedProjects`（プロジェクト ID → 端末 UDID。永続化しない）。
+- `setVisible(_:displayID:projectID:)`: 見えている表示の増減を受け、`reconcileConnections()` で「見えている表示が選択している起動中の端末」の集合に合わせて `SimulatorDisplayConnection` を作成・破棄する（既に接続がある端末は共有）。表示が 1 つも無くなると端末一覧の更新タスクを止める。見えている間は 2 秒ごとに `SimulatorCatalog.list()` を呼ぶ（`refreshInterval`）。
 - `boot(for:)`・`shutdown(udid:)`・`screenshot(for:destination:)` は `SimulatorCatalog` 経由。端末の起動・停止は、ユーザー操作（帯の「起動」「停止」）以外では行わない。
-- `removeSession`: 子タブを閉じたとき・セッション削除時に呼ぶ。`disconnectAll()`: `NSApplication.willTerminateNotification` で呼ぶ（接続を切るだけで端末は停止しない）。
+- `removeProject`: シミュレーターのタブを閉じたとき・プロジェクトを削除したときに呼ぶ。`disconnectAll()`: `NSApplication.willTerminateNotification` で呼ぶ（接続を切るだけで端末は停止しない）。
 
 **`SimulatorDisplayConnection`**（端末ごと。`SimulatorDisplayTransport` プロトコルの背後に `SimulatorXPCTransport`（`NSXPCConnection(serviceName:)`）を持ち、テストでは差し替える）
 
@@ -103,15 +103,15 @@ Phlox.app（本体。CoreSimulator / SimulatorKit を読み込まない）
 - 帯: 端末選択（`SimulatorDeviceMenu`、`SimulatorDevicePopUpButton`）・取得済みの版・状態・「起動」（停止中の端末）・エージェントに伝える・ホーム・スクリーンショット・診断・停止。文言、版、状態の印、端末名の順に縮める。停止は確認ダイアログ（キャンセルが既定・停止は ⌘⌫）を経由し、スクリーンショットは `~/Pictures/Phlox Simulator/Simulator-<UUID>.png` へ保存して Finder で選択表示する。
 - `SimulatorTabContent` が画面と状態別の題・説明・操作を表示する。一覧の取得失敗は「再確認」、停止中は「起動」、接続失敗または未確認の組み合わせは「Simulator.app で開く」と、許可されていれば「再接続」／「未確認でも試す」を出す。操作・撮影の失敗だけでは中央の外部起動ボタンを増やさない。外部起動は `com.apple.iphonesimulator` に `-CurrentDeviceUDID <udid>` を渡し、Simulator.app を前面へ出す。端末メニューの外部起動項目は別経路で、失敗をタブ内の `menuOperationReason` に保持する。
 - 更新なしの診断は帯の ⓘ から説明を開く。操作・撮影の理由は、画面があるときは帯の下の行、画面がないときは中央の説明に出す。一覧の元の診断は help に保持する。画面があるときだけ下に操作の手がかりを 1 行出す（VoiceOver 有効時は別文言）。キー入力を送っている間は帯に「キー入力を端末に送信中」、下の案内に「⌘ 付きのキーは Phlox が受けます · ⌘Esc で解除」を出し、画面に枠線を出す。
-- エージェントに伝える（仕様 FR-10）: `SimulatorDevice.agentHint`（端末名・iOS の版・UDID の 1 行。制御文字を除く）を `SessionTabsContainer.tellAgent` がセッションの入力欄に入れる。チャット型は `ChatSessionViewModel.appendToDraft`（送信の受付待ちは入れない）、ターミナル型は `SessionViewModel.sendInput`（Enter なし。待機中・実行中だけ）。入れられないときは警告音。文の追加と `SessionTabLayout.showConversation(keeping: .simulator)`（会話を前に出す。分割中は端末の画面を残す）は、同じクリックの区画タップの後に、同じ更新でまとめて行う。子タブが変わると `DashboardView` が入力先を外すので、入力欄のフォーカス移動（次の実行機会に回る）がそれより後になるようにするため。単一表示では入力欄がこのとき作られるので、入力欄は `handledComposerFocusToken` で未処理のフォーカス要求を引き継ぐ。
+- エージェントに伝える（仕様 FR-10）: `SimulatorDevice.agentHint`（端末名・iOS の版・UDID の 1 行。制御文字を除く）を `SessionTabsContainer.tellAgent` が、選択中のセッション（`router.selectedSession`。無ければこの操作は出ない）の入力欄に入れる。チャット型は `ChatSessionViewModel.appendToDraft`（送信の受付待ちは入れない）、ターミナル型は `SessionViewModel.sendInput`（Enter なし。待機中・実行中だけ）。入れられないときは警告音。文の追加と `ProjectTabLayout.showChat(_:keeping: .simulator)`（そのチャットのタブを前に出す。分割中は端末の画面を残す）は、同じクリックの区画タップの後に、同じ更新でまとめて行う。子タブが変わると `DashboardView` が入力先を外すので、入力欄のフォーカス移動（次の実行機会に回る）がそれより後になるようにするため。単一表示では入力欄がこのとき作られるので、入力欄は `handledComposerFocusToken` で未処理のフォーカス要求を引き継ぐ。
 - 表示の可視性: `SimulatorWindowVisibility` が、ウィンドウの表示・最小化・遮蔽・アプリの非表示を見て `hub.setVisible(...)` を呼ぶ。タブが消えると `removeDisplay`。
 - ショートカット: ⌃⌘Y（`PhloxApp.swift` のメニュー項目「シミュレーターのタブ」。`router.openChildTab(.simulator)` ＋ `hub.requestMenuFocus`。開いた直後のフォーカスは端末メニュー）、⇧⌘H（タブがフォーカスされていて入力可のときだけ有効なホーム）。
 - 識別子: `simulator-tab`・`simulator-device-menu`・`simulator-boot`・`simulator-tell-agent`・`simulator-home`・`simulator-shutdown`・`simulator-diagnostics`・`simulator-support-band`・`simulator-try-unverified`・`simulator-open-external`・`simulator-reconnect`・`simulator-screen`。
 
 ## 子タブと永続化
 
-- `ChildTab.simulator`（`Tabs/SessionTabs.swift`）。`SessionTabsContainer` の `.simulator` 分岐が `SimulatorTabView` を出す。
-- 保存（`SessionTabStore`）では、`persistenceCopy` で作った保存用コピーだけを書き、実行中の配置は変えない: `tabs` から `.simulator` を除く／`right == .simulator` なら `right = nil`／`left == .simulator` なら `right`（無ければ `.conversation`）を `left` に昇格して `right = nil`／`right == nil` なら `focusesRight = false`。再起動後にシミュレーターのタブは復元されない。
+- `ProjectTab.simulator`（`Tabs/ProjectTabs.swift`。プロジェクトごとに持つ）。`SessionTabsContainer` の `.simulator` 分岐が `SimulatorTabView` を出す。
+- 保存（`ProjectTabStore`、キー `phlox.projectTabs.v1`）では、`persistenceCopy` で作った保存用コピーだけを書き、実行中の配置は変えない: 保存しない種類（`.simulator`・`.browser`・`.terminal`・`.chat`）を `items` から除く／`right` が保存しない種類なら `right = nil`／`left` が保存しない種類なら `right`（無ければ `nil`）を `left` に昇格して `right = nil`／`right == nil` なら `focusesRight = false`。再起動後にシミュレーターのタブは復元されない。
 
 ## 制約（コードで確かめた値）
 
@@ -135,6 +135,6 @@ Phlox.app（本体。CoreSimulator / SimulatorKit を読み込まない）
 |---|---|
 | `SimulatorBridgeKit/Tests`: `SimulatorInputMapperTests`・`SimulatorKeyRoutingTests`・`SimulatorBridgeAllowedClassesTests`・`SimulatorBridgeContractTests` | 座標変換・キー配送・XPC の許可クラスと契約 |
 | `DashboardFeature/Tests`: `SimulatorCatalogTests`・`SimulatorPolicyTests`・`SimulatorHubTests`・`SimulatorDisplayConnectionTests`・`SimulatorInputDeliveryTests`・`SimulatorTabPresentationTests` | 端末一覧・許可リスト・Hub と接続の挙動（transport は fake）・入力の配送・非対応表示（画面外描画） |
-| `DashboardFeature/Tests`: `SessionTabsPersistenceTests` | 保存用コピーの正規化 |
+| `DashboardFeature/Tests`: `ProjectTabsPersistenceTests` | 保存用コピーの正規化 |
 | `macos/scripts/tests`: `test_simulator_bridge_signing.sh`・`test_simulator_bridge_regressions.py`・`test_simulator_allowlist.py`・`test_simulator_initialization.py`・`simulator-bridge-test-gate.test.sh` | XPC の同梱・署名・本体への非公開部品の混入検出、公開前の Xcode build 照合、通常起動と検証入口で初期化を共有する配線 |
 | `macos/PhloxUITests/SimulatorTabUITests`（XCUITest） | ⌃⌘Y でタブが開く（端末メニューにフォーカス・重複しない）・＋メニューから開いて会話へ戻れる・分割と解除 |

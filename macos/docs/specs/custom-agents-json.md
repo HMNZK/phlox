@@ -1,7 +1,10 @@
 ---
-status: active
-last-verified: 2026-07-08
+status: superseded
+last-verified: 2026-10-12
+superseded-by: ../adr/0185-remove-terminal-launch-and-custom-agents.md
 ---
+
+> **この機能は廃止された**（2026-10-12、[ADR 0185](../adr/0185-remove-terminal-launch-and-custom-agents.md)）。`agents.json`・`PHLOX_AGENTS_JSON`・`CustomAgentDefinition` は無く、`AgentRef` は組込みの 3 種（Claude Code・Codex・Cursor）だけ。保存済みのカスタムのセッションは読み込み時に捨てられる。以下は当時の記録として残す。
 
 # ユーザー定義CLI (JSON) 対応 設計ゴール (ロードマップ#4 / 低リスク分離型)
 

@@ -1,11 +1,13 @@
 ---
 status: completed        # 実装済み。現行構成は architecture/ にある（本書は設計時点の記録）
-last-verified: 2026-10-06
+last-verified: 2026-10-12
 ---
 
 # iOS シミュレーターのウィンドウ内表示 — 設計書
 
 > **実装済み**: 現行構成は [architecture/embedded-ios-simulator.md](../architecture/embedded-ios-simulator.md)。
+
+> **設計時点の記述（2026-10-12 確認）**: 本書は設計時点の記録として残す。その後の「プロジェクト単位のタブ」（[ADR 0187](../adr/0187-project-tabs.md)）で、端末の選択・表示・「未確認でも試す」の持ち主はセッションからプロジェクトに替わり、タブの型は `ChildTab.simulator`・`SessionTabLayout` から `ProjectTab.simulator`・`ProjectTabLayout`（`Tabs/ProjectTabs.swift`）に、永続化は `phlox.sessionTabs.v1`・`SessionTabStore` から `phlox.projectTabs.v1`・`ProjectTabStore` に替わった。本文の `ChildTab`・`sessionID`・`SessionTab*` は旧名。現行は architecture 側を見る。
 
 > **このドキュメントの役割**: 起動中の iOS シミュレーターの画面を Phlox のウィンドウ内（子タブ）に表示し、
 > クリック・キー入力で操作できるようにする機能の、実現方式の調査結果・要件・設計・リスク・テスト計画。
@@ -211,7 +213,7 @@ XPCのエラー・切断・応答のコールバックは配送キューで受�
 
 | 操作 | キー | 備考 |
 |---|---|---|
-| シミュレーターのタブを開く | ⌃⌘Y | ⌃⌘T（ターミナル）・⌃⌘E（変更）と同じ並び。2026-10-02 時点で `App/`・`Packages/*/Sources` に割り当てなし |
+| シミュレーターのタブを開く | ⌃⌘Y | ⌃⌘E（変更）と同じ並び（当時は ⌃⌘T のターミナルも同じ並びだった。⌃⌘T は 2026-10-12 に廃止）。2026-10-02 時点で `App/`・`Packages/*/Sources` に割り当てなし |
 | ホーム | ⇧⌘H（タブにフォーカスがあるときのみ） | Simulator.app と同じキー。2026-10-02 時点で割り当てなし |
 
 ### 3.7 実行記録（互換性の証拠）

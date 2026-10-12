@@ -57,6 +57,10 @@ public enum DSFont {
     public static let stateLabel = Font.system(size: 11.5, weight: .semibold)
     /// 11 / Regular — 時刻・メタ・キー
     public static let meta = Font.system(size: 11)
+    /// New Chat の制御チップ内アイコン。
+    public static let controlIcon = Font.system(size: DSLayout.controlChipIconSize)
+    /// New Chat の制御チップの開閉記号。
+    public static let controlChevron = Font.system(size: DSLayout.controlChipChevronSize, weight: .medium)
 
     /// `body` の実寸。`Font` から実寸を取り出せないため、CATextLayer 等の
     /// Core Animation 経路（`ShimmerTextView`）に渡す値として明示する。
@@ -78,6 +82,39 @@ public enum DSLayout {
     public static let toolbarIconButtonSize: CGFloat = 28
     public static let modeSegmentFaceHeight: CGFloat = 20
     public static let controlBorderWidth: CGFloat = 0.5
+    public static let suggestionChipBorderWidth: CGFloat = 1
+    public static let controlChipHeight: CGFloat = 28
+    public static let controlChipIconSize: CGFloat = 14
+    public static let controlChipChevronSize: CGFloat = 10
+    public static let controlChipContentGap: CGFloat = 5
+    public static let controlChipHorizontalPadding: CGFloat = 7
+    public static let menuWidth: CGFloat = 240
+    public static let harnessMenuWidth: CGFloat = 320
+    public static let harnessMenuHeight: CGFloat = 420
+    public static let menuDefaultMaxHeight: CGFloat = 280
+    public static let menuDetailItemHeight: CGFloat = 40
+    public static let menuSearchReservedHeight: CGFloat = 40
+    public static let menuFooterReservedHeight: CGFloat = 36
+    public static let menuMinimumScrollHeight: CGFloat = 28
+    public static let menuItemHeight: CGFloat = 26
+    public static let harnessMenuItemHeight: CGFloat = 28
+    public static let menuSectionHeight: CGFloat = 24
+    public static let menuItemGap: CGFloat = 6
+    public static let menuItemLeadingInset: CGFloat = 6
+    public static let menuItemTrailingInset: CGFloat = 8
+    public static let menuCheckColumnWidth: CGFloat = 14
+    public static let menuIconColumnWidth: CGFloat = 16
+    public static let menuTextLineHeight: CGFloat = 20
+    public static let menuInterItemGap: CGFloat = 1
+    public static let menuPadding: CGFloat = 5
+    public static let menuItemVerticalInset: CGFloat = 3
+    public static let menuDetailVerticalInset: CGFloat = 5
+    public static let menuFooterHorizontalInset: CGFloat = 6
+    public static let menuFooterTopInset: CGFloat = 7
+    public static let menuFooterBottomInset: CGFloat = 3
+    public static let menuFooterSeparatorInset: CGFloat = 2
+    public static let focusRingWidth: CGFloat = 2
+    public static let focusRingGap: CGFloat = 2
     public static let usageBarHeight: CGFloat = 24
     public static let tabBarHeight: CGFloat = 34
     public static let childTabBarHeight: CGFloat = 36
@@ -288,6 +325,9 @@ public enum DSColor {
 
     /// 白文字を載せる accent の面（主ボタン）。
     public static var accentFill: Color { palette.accentFill.color }
+    /// New Chat の送信ボタンをホバー／押下した面。
+    public static var sendHoverFill: Color { RGB(0x4B, 0x55, 0xA3).color }
+    public static var sendPressedFill: Color { RGB(0x34, 0x3E, 0x88).color }
     /// accent の文字（リンク・選択中タブ）。
     public static var accentInk: Color { palette.accentInk.color }
     /// 選択中の行。

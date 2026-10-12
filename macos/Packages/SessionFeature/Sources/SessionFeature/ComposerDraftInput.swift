@@ -159,15 +159,18 @@ public struct ComposerSettingChip: View {
     public let onSelect: (String?) -> Void
     public let accessibilityIdentifier: String
     public let leadingSystemImage: String?
+    public let showsFocusRing: Bool
 
     public init(title: String, options: [ComposerSettingOption], selection: String?,
                 accessibilityIdentifier: String, leadingSystemImage: String? = nil,
+                showsFocusRing: Bool = false,
                 onSelect: @escaping (String?) -> Void) {
         self.title = title
         self.options = options
         self.selection = selection
         self.accessibilityIdentifier = accessibilityIdentifier
         self.leadingSystemImage = leadingSystemImage
+        self.showsFocusRing = showsFocusRing
         self.onSelect = onSelect
     }
 
@@ -188,9 +191,10 @@ public struct ComposerSettingChip: View {
             accessibilityValue: options.first(where: { $0.value == selection })?.title ?? "",
             accessibilityIdentifier: accessibilityIdentifier,
             help: title,
+            showsFocusRing: showsFocusRing,
             onSelect: { onSelect($0.value) }
-        ) { isOpen in
-            ComposerChipLabel(title: title, isOpen: isOpen, leadingSystemImage: leadingSystemImage)
+        ) { _ in
+            ComposerChipLabel(title: title, leadingSystemImage: leadingSystemImage)
         }
     }
 }

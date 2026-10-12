@@ -1,7 +1,7 @@
 import SwiftUI
 import DesignSystem
 
-/// サイドバー行の強調。未読は文字色と太さ、対応待ちは既存の注意色で示す。
+/// サイドバー行の強調。選択はアクセントの淡い面、未読は文字色と太さ、対応待ちは注意色で示す。
 struct SidebarRowEmphasis: Equatable {
     enum Role: Equatable {
         case projectScope(isFiltering: Bool, isDefaultTarget: Bool, isHovering: Bool)
@@ -19,7 +19,7 @@ struct SidebarRowEmphasis: Equatable {
         case let .projectScope(isFiltering, isDefaultTarget, isHovering):
             let fill: Color
             if isFiltering || isDefaultTarget {
-                fill = DSColor.fillSelected
+                fill = DSColor.selectionFill
             } else if isHovering {
                 fill = DSColor.fillSubtle
             } else {
@@ -37,7 +37,7 @@ struct SidebarRowEmphasis: Equatable {
             if state == .question {
                 fill = DSColor.attentionTint(.question)
             } else if isCurrent {
-                fill = DSColor.fillSelected
+                fill = DSColor.selectionFill
             } else if isHovering {
                 fill = DSColor.fillSubtle
             } else {

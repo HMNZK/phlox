@@ -22,6 +22,87 @@ extension EnvironmentValues {
     }
 }
 
+private struct NewChatChipLabel: View {
+    let title: String?
+    let systemImage: String?
+    let harnessKind: AgentKind?
+    let compact: Bool
+    let usesMiddleTruncation: Bool
+
+    init(
+        title: String?,
+        systemImage: String? = nil,
+        harnessKind: AgentKind? = nil,
+        compact: Bool = false,
+        usesMiddleTruncation: Bool = false
+    ) {
+        self.title = title
+        self.systemImage = systemImage
+        self.harnessKind = harnessKind
+        self.compact = compact
+        self.usesMiddleTruncation = usesMiddleTruncation
+    }
+
+    var body: some View {
+        HStack(spacing: DSLayout.controlChipContentGap) {
+            if let harnessKind {
+                AgentBrandIcon(kind: harnessKind, size: DSLayout.controlChipIconSize)
+                    .accessibilityHidden(true)
+            } else if let systemImage {
+                Image(systemName: systemImage)
+                    .font(DSFont.controlIcon)
+                    .frame(width: DSLayout.controlChipIconSize, height: DSLayout.controlChipIconSize)
+                    .accessibilityHidden(true)
+            }
+            if let title, !compact {
+                Text(verbatim: title)
+                    .font(DSFont.auxiliary)
+                    .lineLimit(1)
+                    .truncationMode(usesMiddleTruncation ? .middle : .tail)
+            }
+            Image(systemName: "chevron.down")
+                .font(DSFont.controlChevron)
+                .frame(width: DSLayout.controlChipChevronSize, height: DSLayout.controlChipChevronSize)
+                .accessibilityHidden(true)
+        }
+        .foregroundStyle(DSColor.textSecondary)
+        .padding(.horizontal, DSLayout.controlChipHorizontalPadding)
+        .frame(height: DSLayout.controlChipHeight)
+        .contentShape(RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous))
+    }
+}
+
+private struct NewChatSendButtonStyle: ButtonStyle {
+    let canSend: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        SendButtonStyleBody(configuration: configuration, canSend: canSend)
+    }
+
+    private struct SendButtonStyleBody: View {
+        let configuration: ButtonStyle.Configuration
+        let canSend: Bool
+        @State private var isHovering = false
+
+        var body: some View {
+            configuration.label
+                .background(fill, in: Circle())
+                .contentShape(Circle())
+                .scaleEffect(configuration.isPressed && canSend ? 0.995 : 1)
+                .animation(.easeOut(duration: 0.12), value: isHovering)
+                .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+                .onHover { isHovering = $0 && canSend }
+        }
+
+        private var fill: Color {
+            guard canSend else { return DSColor.fillSubtle }
+            if configuration.isPressed { return DSColor.sendPressedFill }
+            if isHovering { return DSColor.sendHoverFill }
+            return DSColor.accentFill
+        }
+    }
+}
+
 struct NewChatView: View {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
@@ -122,7 +203,7 @@ struct NewChatView: View {
     }
     private var permissionOptions: [ComposerSettingOption] {
         guard let kind = selectedKind else { return [] }
-        let plan = localized("計画")
+        let plan = "Plan"
         func permission(_ value: String, agent: UIWording.PermissionAgent, kind: UIWording.PermissionKind) -> ComposerSettingOption {
             ComposerSettingOption(
                 value: value,
@@ -207,16 +288,13 @@ struct NewChatView: View {
         .overlay(alignment: .topLeading) {
             if newChatModelMenuInitiallyOpen {
                 GeometryReader { geometry in
-                    let menuWidth: CGFloat = 318
-                    let menuHeight: CGFloat = 418
+                    let menuWidth = DSLayout.harnessMenuWidth
+                    let menuHeight = DSLayout.harnessMenuHeight
                     let buttonX = max(0, (geometry.size.width - min(geometry.size.width, 760)) / 2 + 75)
                     let menuCenterX = max(menuWidth / 2 + 8, min(buttonX, geometry.size.width - menuWidth / 2 - 8))
                     let menuCenterY = min(geometry.size.height - menuHeight / 2, geometry.size.height * 0.28)
                     modelPickerMenu
-                        .frame(width: 310, height: 410)
-                        .padding(4)
-                        .background(DSColor.popoverBackground, in: RoundedRectangle(cornerRadius: 8))
-                        .dsShadow(DSShadow.popover)
+                        .frame(width: DSLayout.harnessMenuWidth, height: menuHeight)
                         .position(x: menuCenterX, y: menuCenterY)
                 }
                 .allowsHitTesting(false)
@@ -250,7 +328,7 @@ struct NewChatView: View {
                     .padding(.top, 2)
                     .accessibilityIdentifier("newChat.sendUnavailableReason")
             }
-            HStack(spacing: 5) {
+            HStack(spacing: DSSpacing.chip) {
                 ComposerAttachPlaceholder(
                     text: $draft.text,
                     attachmentStore: draft.attachments,
@@ -321,24 +399,14 @@ struct NewChatView: View {
             accessibilityValue: harnessAccessibility.value,
             accessibilityIdentifier: "newChat.harnessModelPicker",
             help: "\(selectedSection?.name ?? "")：\(selectedModelTitle)",
-            width: 310,
-            maxHeight: 420,
+            width: DSLayout.harnessMenuWidth,
+            maxHeight: DSLayout.harnessMenuHeight,
             footer: modelPickerFooter,
             searchText: $modelSearch,
+            showsFocusRing: true,
             onSelect: { selectModel(id: $0.id) }
         ) { _ in
-            HStack(spacing: 6) {
-                if let selectedKind { AgentBrandIcon(kind: selectedKind, size: 14) }
-                Text(verbatim: selectedModelTitle)
-                    .font(DSFont.auxiliary.weight(.medium))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
-            }
-            .foregroundStyle(DSColor.textPrimary)
-            .padding(.horizontal, 7)
-            .frame(height: 28)
-            .contentShape(RoundedRectangle(cornerRadius: 6))
+            NewChatChipLabel(title: selectedModelTitle, harnessKind: selectedKind)
         }
         .focused($harnessPickerFocused)
     }
@@ -389,8 +457,8 @@ struct NewChatView: View {
         SelectablePopover(
             options: modelPickerOptions,
             selectedID: selectedModelMenuID,
-            width: 310,
-            maxHeight: 420,
+            width: DSLayout.harnessMenuWidth,
+            maxHeight: DSLayout.harnessMenuHeight,
             footer: modelPickerFooter,
             searchText: $modelSearch,
             accessibilityIdentifier: "newChat.modelMenu",
@@ -405,6 +473,7 @@ struct NewChatView: View {
             selection: draft.settings.selectedEffort,
             accessibilityIdentifier: "newChat.effortPicker",
             leadingSystemImage: "gauge",
+            showsFocusRing: true,
             onSelect: selectEffort
         )
         .accessibilityLabel(Text(verbatim: effortAccessibility.role))
@@ -418,6 +487,7 @@ struct NewChatView: View {
             selection: selectedPermissionSelection,
             accessibilityIdentifier: "newChat.permissionPicker",
             leadingSystemImage: "shield",
+            showsFocusRing: true,
             onSelect: selectPermission
         )
         .accessibilityLabel(Text(verbatim: permissionAccessibility.role))
@@ -431,7 +501,8 @@ struct NewChatView: View {
             accessibilityLabel: localized("設定"),
             accessibilityValue: "\(effortAccessibility.value)、\(permissionAccessibility.value)",
             accessibilityIdentifier: "newChat.settingsOverflow",
-            width: 248,
+            width: DSLayout.menuWidth,
+            showsFocusRing: true,
             onSelect: selectCompactSetting
         ) { _ in
             Image(systemName: "ellipsis.circle")
@@ -486,16 +557,17 @@ struct NewChatView: View {
             accessibilityLabel: projectAccessibility.role,
             accessibilityValue: projectAccessibility.value,
             accessibilityIdentifier: "newChat.projectPicker",
-            width: 280,
+            width: DSLayout.menuWidth,
             footer: localized("本文と添付はプロジェクトごとに保たれます"),
             isEnabled: !viewModel.projects.isEmpty,
+            showsFocusRing: true,
             onSelect: { option in
                 if let selectedProject = viewModel.projects.first(where: { $0.id.description == option.id }) {
                     selectProject(selectedProject.id)
                 }
             }
-        ) { isOpen in
-            footerLabel(icon: "folder", title: project?.name ?? localized("プロジェクト"), compact: isCompact, isOpen: isOpen)
+        ) { _ in
+            footerLabel(icon: "folder", title: project?.name ?? localized("プロジェクト"), compact: isCompact)
         }
     }
 
@@ -519,57 +591,50 @@ struct NewChatView: View {
             accessibilityValue: workspaceAccessibility.value,
             accessibilityIdentifier: "newChat.workspacePicker",
             isEnabled: project != nil,
+            showsFocusRing: true,
             onSelect: { selectWorkspace($0.value == "true") }
-        ) { isOpen in
+        ) { _ in
             footerLabel(
                 icon: draft.usesWorktree ? "arrow.triangle.branch" : "externaldrive",
                 title: draft.usesWorktree ? localized("新しい worktree") : localized("既存ディレクトリ"),
-                compact: isCompact,
-                isOpen: isOpen
+                compact: isCompact
             )
         }
     }
 
-    private func footerLabel(icon: String, title: String, compact: Bool, isOpen: Bool) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon).font(DSFont.auxiliary)
-            if !compact {
-                Text(verbatim: title)
-                    .font(DSFont.auxiliary.weight(.medium))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            Image(systemName: isOpen ? "chevron.up" : "chevron.down").font(DSFont.iconTiny.weight(.semibold))
-        }
-        .foregroundStyle(DSColor.textSecondary)
-        .padding(.horizontal, compact ? 5 : 7)
-        .frame(height: 28)
-        .contentShape(RoundedRectangle(cornerRadius: 6))
+    private func footerLabel(icon: String, title: String, compact: Bool) -> some View {
+        NewChatChipLabel(title: title, systemImage: icon, compact: compact, usesMiddleTruncation: true)
     }
 
     private var sendButton: some View {
-        Button(action: { send() }) {
+        Button {
+            guard canSend else { return }
+            send()
+        } label: {
             Image(systemName: "arrow.up")
                 .font(DSFont.row.weight(.semibold))
                 .foregroundStyle(canSend ? Color.white : DSColor.textTertiary)
-                .frame(width: 28, height: 28)
-                .background(canSend ? DSColor.accentFill : DSColor.fillSubtle, in: Circle())
+                .frame(width: DSLayout.toolbarIconButtonSize, height: DSLayout.toolbarIconButtonSize)
                 .contentShape(Circle())
                 .overlay {
                     if newChatSendButtonInitiallyFocused || sendButtonFocused {
-                        Circle().stroke(DSColor.focusRing, lineWidth: 2).padding(-3)
+                        Circle()
+                            .stroke(DSColor.focusRing, lineWidth: DSLayout.focusRingWidth)
+                            .padding(-(DSLayout.focusRingGap + DSLayout.focusRingWidth / 2))
                     }
                 }
         }
-        .buttonStyle(HoverableSurfaceButtonStyle())
-        .disabled(!canSend)
+        .buttonStyle(NewChatSendButtonStyle(canSend: canSend))
+        .focusable()
         .focused($sendButtonFocused)
+        .focusEffectDisabled()
         .accessibilityLabel(Text("送信"))
+        .accessibilityHint(Text(verbatim: sendUnavailableReason ?? ""))
         .accessibilityIdentifier("newChat.sendButton")
     }
 
     private var suggestions: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: DSSpacing.s) {
             ForEach(Array(NewChatSuggestions.all.enumerated()), id: \.offset) { index, suggestion in
                 Button {
                     draft.appendSuggestion(suggestion.text)
@@ -580,19 +645,18 @@ struct NewChatView: View {
                             .font(DSFont.meta)
                             .accessibilityHidden(true)
                         Text(verbatim: localized(suggestion.title))
-                            .font(DSFont.auxiliary.weight(.medium))
+                            .font(DSFont.auxiliary)
                     }
                     .foregroundStyle(DSColor.textSecondary)
                     .padding(.horizontal, 10)
-                    .frame(height: 28)
-                    .contentShape(Capsule())
+                    .frame(height: DSLayout.controlChipHeight)
+                    .contentShape(RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous)
+                            .strokeBorder(DSColor.controlBorder, lineWidth: DSLayout.suggestionChipBorderWidth)
+                    }
                 }
-                .buttonStyle(HoverableSurfaceButtonStyle(
-                    cornerRadius: DSRadius.l,
-                    borderColor: DSColor.controlBorder,
-                    hoverBorderColor: DSColor.controlBorder
-                ))
-                .clipShape(Capsule())
+                .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: DSRadius.row))
                 .accessibilityIdentifier("newChat.suggestion.\(index + 1)")
             }
         }

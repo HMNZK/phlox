@@ -25,4 +25,23 @@ import Testing
         navigation.move(by: -1, among: [])
         #expect(navigation.highlightedID == nil)
     }
+
+    @Test func pointerAndKeyboardUseOneActiveHighlight() {
+        var navigation = SelectablePopoverNavigation()
+        let options = ["selected", "pointer", "keyboard"]
+
+        navigation.reset(availableIDs: options, selectedID: "selected")
+        #expect(navigation.highlightSource == .keyboard)
+        #expect(navigation.highlightedID == "selected")
+
+        navigation.movePointer(to: "pointer", among: options)
+        #expect(navigation.highlightSource == .pointer)
+        #expect(navigation.highlightedID == "pointer")
+
+        navigation.move(by: 1, among: options)
+        #expect(navigation.highlightSource == .keyboard)
+        #expect(navigation.highlightedID == "keyboard")
+        navigation.clearPointerHighlight(for: "pointer")
+        #expect(navigation.highlightedID == "keyboard")
+    }
 }

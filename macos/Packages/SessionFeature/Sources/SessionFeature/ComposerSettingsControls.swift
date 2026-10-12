@@ -108,7 +108,6 @@ struct ComposerSettingsControlsView: View {
         ComposerSelectionChip(
             kind: kind,
             value: value,
-            isOpen: openMenu == (kind == .model ? .model : .effort),
             identifier: "\(accessibilityPrefix).\(identifier)",
             onTap: { toggle(kind == .model ? .model : .effort) }
         )
@@ -297,7 +296,7 @@ struct ComposerSettingsControlsView: View {
     ) -> some View {
         let choices = options.filter { !$0.isPlan }
         return Button { toggle(.permission) } label: {
-            ComposerChipLabel(title: title, isOpen: openMenu == .permission)
+            ComposerChipLabel(title: title)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(verbatim: title))
@@ -486,7 +485,6 @@ private struct ComposerSelectionChip: View {
 
     let kind: Kind
     let value: String
-    let isOpen: Bool
     let identifier: String
     let onTap: () -> Void
     @Environment(\.locale) private var locale
@@ -497,7 +495,7 @@ private struct ComposerSelectionChip: View {
 
     var body: some View {
         Button(action: onTap) {
-            ComposerChipLabel(title: title, isOpen: isOpen)
+            ComposerChipLabel(title: title)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(verbatim: kind == .model ? AppLocalizedString.string("モデル", locale: locale) + ": " + value : "effort: " + value))

@@ -864,7 +864,7 @@ private struct SidebarAttentionRow: View {
             .padding(.vertical, 6)
             .background(
                 state == .question || state == .doneUnread ? DSColor.selectionFill
-                    : isSelected ? DSColor.fillSelected : isHovering ? DSColor.fillSubtle : Color.clear,
+                    : isSelected ? DSColor.selectionFill : isHovering ? DSColor.fillSubtle : Color.clear,
                 in: RoundedRectangle(cornerRadius: DSRadius.row)
             )
             .contentShape(Rectangle())

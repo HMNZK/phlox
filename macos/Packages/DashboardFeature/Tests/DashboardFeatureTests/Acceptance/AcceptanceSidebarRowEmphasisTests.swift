@@ -9,16 +9,16 @@ import Testing
 struct AcceptanceSidebarRowEmphasisTests {
     @Test("projectScope の面は filtering||defaultTarget → hover → なし の順")
     func projectScopeFillPriority() {
-        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: true, isDefaultTarget: false, isHovering: false)).fill == DSColor.fillSelected)
-        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: false, isDefaultTarget: true, isHovering: false)).fill == DSColor.fillSelected)
+        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: true, isDefaultTarget: false, isHovering: false)).fill == DSColor.selectionFill)
+        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: false, isDefaultTarget: true, isHovering: false)).fill == DSColor.selectionFill)
         #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: false, isDefaultTarget: false, isHovering: true)).fill == DSColor.fillSubtle)
         #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: false, isDefaultTarget: false, isHovering: false)).fill == Color.clear)
-        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: true, isDefaultTarget: true, isHovering: true)).fill == DSColor.fillSelected)
+        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: true, isDefaultTarget: true, isHovering: true)).fill == DSColor.selectionFill)
     }
 
-    @Test("選択・ホバーは共通のグレー面、質問待ちは注意色、未読はアクセント面を使わない")
+    @Test("選択はアクセントの淡い面、ホバーは従来の面、質問待ちは注意色")
     func sessionFillPriority() {
-        #expect(SidebarRowEmphasis.resolve(.session(isCurrent: true, isHovering: false, state: .idle)).fill == DSColor.fillSelected)
+        #expect(SidebarRowEmphasis.resolve(.session(isCurrent: true, isHovering: false, state: .idle)).fill == DSColor.selectionFill)
         #expect(SidebarRowEmphasis.resolve(.session(isCurrent: false, isHovering: true, state: .idle)).fill == DSColor.fillSubtle)
         #expect(SidebarRowEmphasis.resolve(.session(isCurrent: false, isHovering: false, state: .doneUnread)).fill == Color.clear)
         #expect(SidebarRowEmphasis.resolve(.session(isCurrent: false, isHovering: true, state: .doneUnread)).fill == DSColor.fillSubtle)

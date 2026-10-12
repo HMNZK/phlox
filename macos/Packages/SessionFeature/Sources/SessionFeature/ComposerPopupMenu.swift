@@ -2,53 +2,38 @@ import SwiftUI
 import AppKit
 import DesignSystem
 
-/// 入力欄の下段のチップ（PhloxReply.dc.html の chip）: 高さ 22・左右 8・角丸 6・`--segBg` の面・11.5pt・末尾に 9pt の ▾。
-/// 開いている間は `--sel` の面＋ fg3 の 1pt の内枠。ブランチは等幅 11・面なし・▾ なし。
+/// 新規チャットの設定チップ。セッション側のブランチ表示は従来どおり等幅 11pt・面なし。
 struct ComposerChipLabel: View {
     let title: String
-    var isOpen = false
     var isBranch = false
     var trailing: AnyView? = nil
     var leadingSystemImage: String? = nil
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: DSLayout.controlChipContentGap) {
             if let leadingSystemImage {
                 Image(systemName: leadingSystemImage)
-                    .font(DSFont.meta)
+                    .font(DSFont.controlIcon)
+                    .frame(width: DSLayout.controlChipIconSize, height: DSLayout.controlChipIconSize)
                     .accessibilityHidden(true)
             }
-            // モデル名や effort は省略せず全文を出す（入らない幅では「…」へ移す）。
-            // ブランチ名だけは長くなりうるので中央を省略する。
             Text(verbatim: title)
-                .font(.system(size: isBranch ? 11 : 11.5, design: isBranch ? .monospaced : .default))
+                .font(isBranch ? DSFont.monoCaption : DSFont.auxiliary)
                 .lineLimit(1)
                 .truncationMode(.middle)
             if let trailing { trailing }
             if !isBranch {
-                Text(verbatim: "▾")
-                    .font(.system(size: 9))
-                    .opacity(0.7)
+                Image(systemName: "chevron.down")
+                    .font(DSFont.controlChevron)
+                    .frame(width: DSLayout.controlChipChevronSize, height: DSLayout.controlChipChevronSize)
                     .accessibilityHidden(true)
             }
         }
         .fixedSize(horizontal: !isBranch, vertical: false)
-        .foregroundStyle(DSColor.textPrimary)
-        .padding(.horizontal, 8)
-        .frame(height: leadingSystemImage == nil ? 22 : 28)
-        .background(background, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-        .overlay {
-            if isOpen {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(DSColor.textTertiary, lineWidth: 1)
-            }
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-    }
-
-    private var background: Color {
-        if isOpen { return DSColor.selectionFill }
-        return isBranch ? .clear : DSColor.segmentTrack
+        .foregroundStyle(DSColor.textSecondary)
+        .padding(.horizontal, DSLayout.controlChipHorizontalPadding)
+        .frame(height: DSLayout.controlChipHeight)
+        .contentShape(RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous))
     }
 }
 

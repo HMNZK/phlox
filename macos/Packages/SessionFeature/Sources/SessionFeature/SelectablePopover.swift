@@ -49,16 +49,34 @@ public struct SelectablePopoverOption: Hashable, Identifiable {
 }
 
 struct SelectablePopoverNavigation: Equatable {
+    enum HighlightSource: Equatable {
+        case keyboard
+        case pointer
+    }
+
     private(set) var highlightedID: String?
+    private(set) var highlightSource: HighlightSource = .keyboard
 
     mutating func reset(availableIDs: [String], selectedID: String?) {
+        highlightSource = .keyboard
         highlightedID = selectedID.flatMap { availableIDs.contains($0) ? $0 : nil } ?? availableIDs.first
     }
 
     mutating func move(by offset: Int, among availableIDs: [String]) {
+        highlightSource = .keyboard
         guard !availableIDs.isEmpty else { highlightedID = nil; return }
         let current = availableIDs.firstIndex(of: highlightedID ?? "") ?? (offset > 0 ? -1 : availableIDs.count)
         highlightedID = availableIDs[min(availableIDs.count - 1, max(0, current + offset))]
+    }
+
+    mutating func movePointer(to id: String, among availableIDs: [String]) {
+        highlightSource = .pointer
+        highlightedID = availableIDs.contains(id) ? id : nil
+    }
+
+    mutating func clearPointerHighlight(for id: String) {
+        guard highlightSource == .pointer, highlightedID == id else { return }
+        highlightedID = nil
     }
 
     func selectionID(among availableIDs: [String]) -> String? {
@@ -86,8 +104,8 @@ public struct SelectablePopover: View {
     public init(
         options: [SelectablePopoverOption],
         selectedID: String?,
-        width: CGFloat = 248,
-        maxHeight: CGFloat = 280,
+        width: CGFloat = DSLayout.menuWidth,
+        maxHeight: CGFloat = DSLayout.menuDefaultMaxHeight,
         footer: String? = nil,
         searchText: Binding<String>? = nil,
         accessibilityIdentifier: String? = nil,
@@ -123,11 +141,17 @@ public struct SelectablePopover: View {
         }
     }
     private var selectableIDs: [String] { visibleOptions.filter { $0.isSelectable && $0.isEnabled }.map(\.id) }
+    private var rowHeight: CGFloat { searchText == nil ? DSLayout.menuItemHeight : DSLayout.harnessMenuItemHeight }
     private var scrollHeight: CGFloat {
-        let rows = visibleOptions.reduce(CGFloat.zero) { $0 + ($1.detail == nil ? 28 : 40) }
-        let sections = CGFloat(Set(visibleOptions.compactMap(\.sectionTitle)).count) * 24
-        let reserved: CGFloat = (searchText == nil ? 0 : 40) + (footer == nil ? 0 : 36) + 10
-        return min(max(28, rows + sections), max(28, maxHeight - reserved))
+        let rows = visibleOptions.reduce(CGFloat.zero) { $0 + ($1.detail == nil ? rowHeight : DSLayout.menuDetailItemHeight) }
+        let sectionCount = Set(visibleOptions.compactMap(\.sectionTitle)).count
+        let sections = CGFloat(sectionCount) * DSLayout.menuSectionHeight
+        let itemCount = visibleOptions.count + sectionCount
+        let gaps = searchText == nil ? CGFloat(max(0, itemCount - 1)) * DSLayout.menuInterItemGap : 0
+        let reserved: CGFloat = (searchText == nil ? 0 : DSLayout.menuSearchReservedHeight)
+            + (footer == nil ? 0 : DSLayout.menuFooterReservedHeight)
+            + DSLayout.menuPadding * 2
+        return min(max(DSLayout.menuMinimumScrollHeight, rows + sections + gaps), max(DSLayout.menuMinimumScrollHeight, maxHeight - reserved))
     }
 
     public var body: some View {
@@ -136,7 +160,7 @@ public struct SelectablePopover: View {
 
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
+                    LazyVStack(alignment: .leading, spacing: searchText == nil ? DSLayout.menuInterItemGap : 0) {
                         ForEach(Array(visibleOptions.enumerated()), id: \.element.id) { index, option in
                             if let section = option.sectionTitle,
                                index == 0 || visibleOptions[index - 1].sectionTitle != section {
@@ -144,7 +168,16 @@ public struct SelectablePopover: View {
                             }
                             SelectablePopoverRow(
                                 option: option,
-                                isHighlighted: navigation.highlightedID == option.id,
+                                rowHeight: rowHeight,
+                                isHighlighted: navigation.highlightSource == .keyboard && navigation.highlightedID == option.id,
+                                isPointerHighlighted: navigation.highlightSource == .pointer && navigation.highlightedID == option.id,
+                                onHoverChange: { hovering in
+                                    if hovering {
+                                        navigation.movePointer(to: option.id, among: selectableIDs)
+                                    } else {
+                                        navigation.clearPointerHighlight(for: option.id)
+                                    }
+                                },
                                 canClose: onClose != nil,
                                 onSelect: { choose(option) },
                                 onClose: { onClose?(option) }
@@ -152,12 +185,13 @@ public struct SelectablePopover: View {
                             .id(option.id)
                         }
                     }
-                    .padding(.horizontal, 3)
                 }
                 .scrollIndicators(.visible)
                 .frame(height: scrollHeight)
                 .onChange(of: navigation.highlightedID) { _, id in
-                    if let id { proxy.scrollTo(id, anchor: .center) }
+                    if navigation.highlightSource == .keyboard, let id {
+                        proxy.scrollTo(id, anchor: .center)
+                    }
                 }
             }
 
@@ -165,21 +199,26 @@ public struct SelectablePopover: View {
                 Text(verbatim: footer)
                     .font(DSFont.meta)
                     .foregroundStyle(DSColor.textSecondary)
-                    .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 6)
-                    .padding(.top, 7)
-                    .padding(.bottom, 3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, DSLayout.menuFooterHorizontalInset)
+                    .padding(.top, DSLayout.menuFooterTopInset)
+                    .padding(.bottom, DSLayout.menuFooterBottomInset)
                     .overlay(alignment: .top) {
-                        Rectangle().fill(DSColor.separator).frame(height: 1).padding(.horizontal, 2)
+                        Rectangle().fill(DSColor.separator).frame(height: 1).padding(.horizontal, DSLayout.menuFooterSeparatorInset)
                     }
             }
         }
-        .padding(5)
+        .padding(DSLayout.menuPadding)
         .frame(width: width)
-        .background(DSColor.popoverBackground, in: RoundedRectangle(cornerRadius: 8))
+        .background(DSColor.popoverBackground, in: RoundedRectangle(cornerRadius: DSRadius.attention, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: DSRadius.attention, style: .continuous)
+                .strokeBorder(DSColor.popoverEdge, lineWidth: DSLayout.controlBorderWidth)
+        }
         .dsShadow(DSShadow.popover)
         .focusable(searchText == nil)
+        .focusEffectDisabled()
         .focused($listFocused)
         .onKeyPress(.upArrow) { move(by: -1) }
         .onKeyPress(.downArrow) { move(by: 1) }
@@ -229,7 +268,7 @@ public struct SelectablePopover: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 8)
-        .frame(height: 24)
+        .frame(height: DSLayout.menuSectionHeight)
         .accessibilityElement(children: .combine)
     }
 
@@ -267,6 +306,7 @@ public struct SelectablePopoverButton<Label: View>: View {
     public let footer: String?
     public let searchText: Binding<String>?
     public let isEnabled: Bool
+    public let showsFocusRing: Bool
     public let onSelect: (SelectablePopoverOption) -> Void
     public let onClose: ((SelectablePopoverOption) -> Void)?
     @ViewBuilder public let label: (Bool) -> Label
@@ -281,11 +321,12 @@ public struct SelectablePopoverButton<Label: View>: View {
         accessibilityValue: String,
         accessibilityIdentifier: String,
         help: String? = nil,
-        width: CGFloat = 248,
-        maxHeight: CGFloat = 280,
+        width: CGFloat = DSLayout.menuWidth,
+        maxHeight: CGFloat = DSLayout.menuDefaultMaxHeight,
         footer: String? = nil,
         searchText: Binding<String>? = nil,
         isEnabled: Bool = true,
+        showsFocusRing: Bool = false,
         onSelect: @escaping (SelectablePopoverOption) -> Void,
         onClose: ((SelectablePopoverOption) -> Void)? = nil,
         @ViewBuilder label: @escaping (Bool) -> Label
@@ -301,6 +342,7 @@ public struct SelectablePopoverButton<Label: View>: View {
         self.footer = footer
         self.searchText = searchText
         self.isEnabled = isEnabled
+        self.showsFocusRing = showsFocusRing
         self.onSelect = onSelect
         self.onClose = onClose
         self.label = label
@@ -310,6 +352,7 @@ public struct SelectablePopoverButton<Label: View>: View {
         Button { isPresented = true } label: { label(isPresented).contentShape(RoundedRectangle(cornerRadius: DSRadius.row)) }
             .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: DSRadius.row, hoverFill: DSColor.fillSubtle, hoverBorderColor: .clear))
             .focusable()
+            .modifier(SelectablePopoverFocusEffectSuppression(isEnabled: showsFocusRing))
             .focused($triggerFocused)
             .onKeyPress(keys: [.space, .return], phases: .down) { _ in isPresented = true; return .handled }
             .popover(isPresented: $isPresented, arrowEdge: .top) {
@@ -327,6 +370,13 @@ public struct SelectablePopoverButton<Label: View>: View {
                 )
             }
             .onChange(of: isPresented) { _, presented in if !presented { triggerFocused = true } }
+            .overlay {
+                if showsFocusRing && triggerFocused && !isPresented {
+                    RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous)
+                        .strokeBorder(DSColor.focusRing, lineWidth: DSLayout.focusRingWidth)
+                        .padding(-DSLayout.focusRingWidth)
+                }
+            }
             .disabled(!isEnabled)
             .accessibilityLabel(Text(verbatim: accessibilityLabel))
             .accessibilityValue(Text(verbatim: accessibilityValue))
@@ -337,7 +387,10 @@ public struct SelectablePopoverButton<Label: View>: View {
 
 private struct SelectablePopoverRow: View {
     let option: SelectablePopoverOption
+    let rowHeight: CGFloat
     let isHighlighted: Bool
+    let isPointerHighlighted: Bool
+    let onHoverChange: (Bool) -> Void
     let canClose: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
@@ -351,16 +404,18 @@ private struct SelectablePopoverRow: View {
     var body: some View {
         HStack(spacing: 0) {
             Button(action: onSelect) {
-                HStack(spacing: 8) {
+                HStack(spacing: DSLayout.menuItemGap) {
                     Image(systemName: option.isSelected ? "checkmark" : "")
                         .font(DSFont.meta.weight(.semibold))
-                        .frame(width: 12)
+                        .frame(width: DSLayout.menuCheckColumnWidth, height: DSLayout.menuTextLineHeight)
                     if let agent = option.sectionAgent, option.sectionTitle == nil {
-                        AgentBrandIcon(kind: agent, size: 13)
+                        AgentBrandIcon(kind: agent, size: DSLayout.controlChipIconSize)
                     } else if let icon = option.leadingSystemImage {
-                        Image(systemName: icon).font(DSFont.auxiliary).frame(width: 14)
+                        Image(systemName: icon)
+                            .font(DSFont.auxiliary)
+                            .frame(width: DSLayout.menuIconColumnWidth, height: DSLayout.menuTextLineHeight)
                     }
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text(verbatim: option.title)
                             .font(DSFont.row)
                             .foregroundStyle(option.isEnabled ? DSColor.textPrimary : DSColor.textTertiary)
@@ -382,8 +437,10 @@ private struct SelectablePopoverRow: View {
                             .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: 4))
                     }
                 }
-                .padding(.horizontal, 8)
-                .frame(maxWidth: .infinity, minHeight: option.detail == nil ? 28 : 40, alignment: .leading)
+                .padding(.leading, DSLayout.menuItemLeadingInset)
+                .padding(.trailing, DSLayout.menuItemTrailingInset)
+                .padding(.vertical, option.detail == nil ? DSLayout.menuItemVerticalInset : DSLayout.menuDetailVerticalInset)
+                .frame(maxWidth: .infinity, minHeight: option.detail == nil ? rowHeight : DSLayout.menuDetailItemHeight, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -407,12 +464,28 @@ private struct SelectablePopoverRow: View {
             }
         }
         .background(
-            isHovering ? DSColor.fillSubtle : (option.isSelected || isHighlighted ? DSColor.fillSelected : .clear),
+            isHighlighted || (isPointerHighlighted && isHovering) ? DSColor.selectionFill : .clear,
             in: RoundedRectangle(cornerRadius: DSRadius.row)
         )
-        .onHover { isHovering = $0 }
+        .onHover {
+            isHovering = $0
+            onHoverChange($0)
+        }
         .accessibilityElement(children: .contain)
     }
 
     private func localized(_ key: String) -> String { AppLocalizedString.string(key, locale: locale) }
+}
+
+private struct SelectablePopoverFocusEffectSuppression: ViewModifier {
+    let isEnabled: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.focusEffectDisabled()
+        } else {
+            content
+        }
+    }
 }
